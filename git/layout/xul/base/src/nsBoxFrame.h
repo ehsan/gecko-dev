@@ -14,7 +14,6 @@
 #ifndef nsBoxFrame_h___
 #define nsBoxFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsContainerFrame.h"
 #include "nsBoxLayout.h"
@@ -71,13 +70,13 @@ public:
   virtual nscoord GetBoxAscent(nsBoxLayoutState& aBoxLayoutState);
 #ifdef DEBUG_LAYOUT
   NS_IMETHOD SetDebug(nsBoxLayoutState& aBoxLayoutState, bool aDebug);
-  NS_IMETHOD GetDebug(bool& aDebug) MOZ_OVERRIDE;
+  NS_IMETHOD GetDebug(bool& aDebug);
 #endif
-  virtual Valignment GetVAlign() const MOZ_OVERRIDE { return mValign; }
-  virtual Halignment GetHAlign() const MOZ_OVERRIDE { return mHalign; }
+  virtual Valignment GetVAlign() const { return mValign; }
+  virtual Halignment GetHAlign() const { return mHalign; }
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
 
-  virtual bool ComputesOwnOverflowArea() MOZ_OVERRIDE { return false; }
+  virtual bool ComputesOwnOverflowArea() { return false; }
 
   // ----- child and sibling operations ---
 
@@ -85,42 +84,42 @@ public:
   
   NS_IMETHOD  Init(nsIContent*      aContent,
                    nsIFrame*        aParent,
-                   nsIFrame*        asPrevInFlow) MOZ_OVERRIDE;
+                   nsIFrame*        asPrevInFlow);
 
  
-  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+                              PRInt32         aModType);
 
-  virtual void MarkIntrinsicWidthsDirty() MOZ_OVERRIDE;
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual void MarkIntrinsicWidthsDirty();
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus&          aStatus);
 
   NS_IMETHOD  AppendFrames(ChildListID     aListID,
-                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                           nsFrameList&    aFrameList);
 
   NS_IMETHOD  InsertFrames(ChildListID     aListID,
                            nsIFrame*       aPrevFrame,
-                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                           nsFrameList&    aFrameList);
 
   NS_IMETHOD  RemoveFrame(ChildListID     aListID,
-                          nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+                          nsIFrame*       aOldFrame);
 
   virtual nsIFrame* GetContentInsertionFrame();
 
   NS_IMETHOD  SetInitialChildList(ChildListID     aListID,
-                                  nsFrameList&    aChildList) MOZ_OVERRIDE;
+                                  nsFrameList&    aChildList);
 
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     // record that children that are ignorable whitespace should be excluded 
     // (When content was loaded via the XUL content sink, it's already
@@ -138,12 +137,12 @@ public:
   }
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   NS_IMETHOD DidReflow(nsPresContext*           aPresContext,
                        const nsHTMLReflowState*  aReflowState,
-                       nsDidReflowStatus         aStatus) MOZ_OVERRIDE;
+                       nsDidReflowStatus         aStatus);
 
   virtual bool HonorPrintBackgroundSettings();
 
@@ -159,7 +158,7 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
   
 #ifdef DEBUG_LAYOUT
     virtual void SetDebugOnChildList(nsBoxLayoutState& aState, nsIFrame* aChild, bool aDebug);
@@ -186,7 +185,7 @@ public:
 
 protected:
 #ifdef DEBUG_LAYOUT
-    virtual void GetBoxName(nsAutoString& aName) MOZ_OVERRIDE;
+    virtual void GetBoxName(nsAutoString& aName);
     void PaintXULDebugBackground(nsRenderingContext& aRenderingContext,
                                  nsPoint aPt);
     void PaintXULDebugOverlay(nsRenderingContext& aRenderingContext,
@@ -200,7 +199,7 @@ protected:
     virtual bool GetInitialVAlignment(Valignment& aValign); 
     virtual bool GetInitialAutoStretch(bool& aStretch); 
   
-    virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+    virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
     nsSize mPrefSize;
     nsSize mMinSize;
@@ -238,8 +237,8 @@ private:
     void PixelMarginToTwips(nsPresContext* aPresContext, nsMargin& aMarginPixels);
 
     void GetValue(nsPresContext* aPresContext, const nsSize& a, const nsSize& b, char* value);
-    void GetValue(nsPresContext* aPresContext, int32_t a, int32_t b, char* value);
-    void DrawSpacer(nsPresContext* aPresContext, nsRenderingContext& aRenderingContext, bool aHorizontal, int32_t flex, nscoord x, nscoord y, nscoord size, nscoord spacerSize);
+    void GetValue(nsPresContext* aPresContext, PRInt32 a, PRInt32 b, char* value);
+    void DrawSpacer(nsPresContext* aPresContext, nsRenderingContext& aRenderingContext, bool aHorizontal, PRInt32 flex, nscoord x, nscoord y, nscoord size, nscoord spacerSize);
     void DrawLine(nsRenderingContext& aRenderingContext,  bool aHorizontal, nscoord x1, nscoord y1, nscoord x2, nscoord y2);
     void FillRect(nsRenderingContext& aRenderingContext,  bool aHorizontal, nscoord x, nscoord y, nscoord width, nscoord height);
 #endif

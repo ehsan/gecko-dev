@@ -16,7 +16,7 @@ public:
   nsHebrewProber(void) :mLogicalProb(0), mVisualProb(0) { Reset(); }
 
   virtual ~nsHebrewProber(void) {}
-  virtual nsProbingState HandleData(const char* aBuf, uint32_t aLen);
+  virtual nsProbingState HandleData(const char* aBuf, PRUint32 aLen);
   virtual const char* GetCharSetName();
   virtual void Reset(void);
 
@@ -35,7 +35,7 @@ protected:
   static bool isFinal(char c);
   static bool isNonFinal(char c);
 
-  int32_t mFinalCharLogicalScore, mFinalCharVisualScore;
+  PRInt32 mFinalCharLogicalScore, mFinalCharVisualScore;
 
   // The two last characters seen in the previous buffer.
   char mPrev, mBeforePrev;

@@ -93,7 +93,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -119,7 +119,7 @@ public:
 
   ~GetHelper()
   {
-    IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
+    IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
   }
 
   virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection)
@@ -134,7 +134,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -151,7 +151,7 @@ public:
                    IDBRequest* aRequest,
                    IDBIndex* aIndex,
                    IDBKeyRange* aKeyRange,
-                   const uint32_t aLimit)
+                   const PRUint32 aLimit)
   : GetKeyHelper(aTransaction, aRequest, aIndex, aKeyRange), mLimit(aLimit)
   { }
 
@@ -165,14 +165,14 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
                                   MOZ_OVERRIDE;
 
 protected:
-  const uint32_t mLimit;
+  const PRUint32 mLimit;
   nsTArray<Key> mKeys;
 };
 
@@ -183,14 +183,15 @@ public:
                IDBRequest* aRequest,
                IDBIndex* aIndex,
                IDBKeyRange* aKeyRange,
-               const uint32_t aLimit)
+               const PRUint32 aLimit)
   : GetKeyHelper(aTransaction, aRequest, aIndex, aKeyRange), mLimit(aLimit)
   { }
 
   ~GetAllHelper()
   {
-    for (uint32_t index = 0; index < mCloneReadInfos.Length(); index++) {
-      IDBObjectStore::ClearCloneReadInfo(mCloneReadInfos[index]);
+    for (PRUint32 index = 0; index < mCloneReadInfos.Length(); index++) {
+      IDBObjectStore::ClearStructuredCloneBuffer(
+        mCloneReadInfos[index].mCloneBuffer);
     }
   }
 
@@ -206,14 +207,14 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
                                   MOZ_OVERRIDE;
 
 protected:
-  const uint32_t mLimit;
+  const PRUint32 mLimit;
   nsTArray<StructuredCloneReadInfo> mCloneReadInfos;
 };
 
@@ -246,7 +247,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -283,7 +284,7 @@ public:
 
   ~OpenCursorHelper()
   {
-    IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
+    IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
   }
 
   virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection)
@@ -295,7 +296,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
 private:
   virtual nsresult EnsureCursor();
@@ -328,7 +329,7 @@ public:
   PackArgumentsForParentProcess(IndexRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -336,7 +337,7 @@ public:
 
 private:
   nsRefPtr<IDBKeyRange> mKeyRange;
-  uint64_t mCount;
+  PRUint64 mCount;
 };
 
 inline
@@ -396,7 +397,7 @@ IDBIndex::Create(IDBObjectStore* aObjectStore,
 }
 
 IDBIndex::IDBIndex()
-: mId(INT64_MIN),
+: mId(LL_MININT),
   mKeyPath(0),
   mCachedKeyPath(JSVAL_VOID),
   mActorChild(nullptr),
@@ -476,7 +477,7 @@ IDBIndex::GetKeyInternal(IDBKeyRange* aKeyRange,
 
 nsresult
 IDBIndex::GetAllInternal(IDBKeyRange* aKeyRange,
-                         uint32_t aLimit,
+                         PRUint32 aLimit,
                          JSContext* aCx,
                          IDBRequest** _retval)
 {
@@ -502,7 +503,7 @@ IDBIndex::GetAllInternal(IDBKeyRange* aKeyRange,
 
 nsresult
 IDBIndex::GetAllKeysInternal(IDBKeyRange* aKeyRange,
-                             uint32_t aLimit,
+                             PRUint32 aLimit,
                              JSContext* aCx,
                              IDBRequest** _retval)
 {
@@ -830,9 +831,9 @@ IDBIndex::GetKey(const jsval& aKey,
 
 NS_IMETHODIMP
 IDBIndex::GetAll(const jsval& aKey,
-                 uint32_t aLimit,
+                 PRUint32 aLimit,
                  JSContext* aCx,
-                 uint8_t aOptionalArgCount,
+                 PRUint8 aOptionalArgCount,
                  nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -851,7 +852,7 @@ IDBIndex::GetAll(const jsval& aKey,
   }
 
   if (aOptionalArgCount < 2 || aLimit == 0) {
-    aLimit = UINT32_MAX;
+    aLimit = PR_UINT32_MAX;
   }
 
   nsRefPtr<IDBRequest> request;
@@ -864,9 +865,9 @@ IDBIndex::GetAll(const jsval& aKey,
 
 NS_IMETHODIMP
 IDBIndex::GetAllKeys(const jsval& aKey,
-                     uint32_t aLimit,
+                     PRUint32 aLimit,
                      JSContext* aCx,
-                     uint8_t aOptionalArgCount,
+                     PRUint8 aOptionalArgCount,
                      nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -885,7 +886,7 @@ IDBIndex::GetAllKeys(const jsval& aKey,
   }
 
   if (aOptionalArgCount < 2 || aLimit == 0) {
-    aLimit = UINT32_MAX;
+    aLimit = PR_UINT32_MAX;
   }
 
   nsRefPtr<IDBRequest> request;
@@ -900,7 +901,7 @@ NS_IMETHODIMP
 IDBIndex::OpenCursor(const jsval& aKey,
                      const nsAString& aDirection,
                      JSContext* aCx,
-                     uint8_t aOptionalArgCount,
+                     PRUint8 aOptionalArgCount,
                      nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -942,7 +943,7 @@ NS_IMETHODIMP
 IDBIndex::OpenKeyCursor(const jsval& aKey,
                         const nsAString& aDirection,
                         JSContext* aCx,
-                        uint8_t aOptionalArgCount,
+                        PRUint8 aOptionalArgCount,
                         nsIIDBRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -979,7 +980,7 @@ IDBIndex::OpenKeyCursor(const jsval& aKey,
 NS_IMETHODIMP
 IDBIndex::Count(const jsval& aKey,
                 JSContext* aCx,
-                uint8_t aOptionalArgCount,
+                PRUint8 aOptionalArgCount,
                 nsIIDBRequest** _retval)
 {
   IDBTransaction* transaction = mObjectStore->Transaction();
@@ -1109,14 +1110,16 @@ GetKeyHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetKeyHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetKeyHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   ResponseValue response;
   if (NS_FAILED(aResultCode)) {
@@ -1212,7 +1215,7 @@ GetHelper::GetSuccessResult(JSContext* aCx,
 void
 GetHelper::ReleaseMainThreadObjects()
 {
-  IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
+  IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
   GetKeyHelper::ReleaseMainThreadObjects();
 }
 
@@ -1229,14 +1232,16 @@ GetHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   InfallibleTArray<PBlobParent*> blobsParent;
 
@@ -1318,7 +1323,7 @@ GetAllKeysHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
   }
 
   nsCString limitClause;
-  if (mLimit != UINT32_MAX) {
+  if (mLimit != PR_UINT32_MAX) {
     limitClause = NS_LITERAL_CSTRING(" LIMIT ");
     limitClause.AppendInt(mLimit);
   }
@@ -1387,7 +1392,7 @@ GetAllKeysHelper::GetSuccessResult(JSContext* aCx,
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    for (uint32_t index = 0, count = keys.Length(); index < count; index++) {
+    for (uint32 index = 0, count = keys.Length(); index < count; index++) {
       const Key& key = keys[index];
       NS_ASSERTION(!key.IsUnset(), "Bad key!");
 
@@ -1429,14 +1434,16 @@ GetAllKeysHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetAllKeysHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetAllKeysHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   ResponseValue response;
   if (NS_FAILED(aResultCode)) {
@@ -1483,7 +1490,7 @@ GetAllHelper::DoDatabaseWork(mozIStorageConnection* /* aConnection */)
   }
 
   nsCString limitClause;
-  if (mLimit != UINT32_MAX) {
+  if (mLimit != PR_UINT32_MAX) {
     limitClause = NS_LITERAL_CSTRING(" LIMIT ");
     limitClause.AppendInt(mLimit);
   }
@@ -1537,7 +1544,7 @@ GetAllHelper::GetSuccessResult(JSContext* aCx,
 
   nsresult rv = ConvertCloneReadInfosToArray(aCx, mCloneReadInfos, aVal);
 
-  for (uint32_t index = 0; index < mCloneReadInfos.Length(); index++) {
+  for (PRUint32 index = 0; index < mCloneReadInfos.Length(); index++) {
     mCloneReadInfos[index].mCloneBuffer.clear();
   }
 
@@ -1548,8 +1555,9 @@ GetAllHelper::GetSuccessResult(JSContext* aCx,
 void
 GetAllHelper::ReleaseMainThreadObjects()
 {
-  for (uint32_t index = 0; index < mCloneReadInfos.Length(); index++) {
-    IDBObjectStore::ClearCloneReadInfo(mCloneReadInfos[index]);
+  for (PRUint32 index = 0; index < mCloneReadInfos.Length(); index++) {
+    IDBObjectStore::ClearStructuredCloneBuffer(
+      mCloneReadInfos[index].mCloneBuffer);
   }
   GetKeyHelper::ReleaseMainThreadObjects();
 }
@@ -1574,14 +1582,16 @@ GetAllHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-GetAllHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+GetAllHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   GetAllResponse getAllResponse;
 
@@ -1595,7 +1605,7 @@ GetAllHelper::SendResponseToChildProcess(nsresult aResultCode)
     FileManager* fileManager = database->Manager();
     NS_ASSERTION(fileManager, "This should never be null!");
 
-    uint32_t length = mCloneReadInfos.Length();
+    PRUint32 length = mCloneReadInfos.Length();
 
     InfallibleTArray<SerializedStructuredCloneReadInfo>& infos =
       getAllResponse.cloneInfos();
@@ -1604,7 +1614,7 @@ GetAllHelper::SendResponseToChildProcess(nsresult aResultCode)
     InfallibleTArray<BlobArray>& blobArrays = getAllResponse.blobs();
     blobArrays.SetCapacity(length);
 
-    for (uint32_t index = 0;
+    for (PRUint32 index = 0;
          NS_SUCCEEDED(aResultCode) && index < length;
          index++) {
       const StructuredCloneReadInfo& clone = mCloneReadInfos[index];
@@ -1659,7 +1669,7 @@ GetAllHelper::UnpackResponseFromParentProcess(
 
   mCloneReadInfos.SetCapacity(cloneInfos.Length());
 
-  for (uint32_t index = 0; index < cloneInfos.Length(); index++) {
+  for (PRUint32 index = 0; index < cloneInfos.Length(); index++) {
     const SerializedStructuredCloneReadInfo srcInfo = cloneInfos[index];
     const InfallibleTArray<PBlobChild*> blobs = blobArrays[index].blobsChild();
 
@@ -1695,7 +1705,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     mKeyRange->GetBindingClause(value, keyRangeClause);
   }
 
-  nsAutoCString directionClause(" ORDER BY value ");
+  nsCAutoString directionClause(" ORDER BY value ");
   switch (mDirection) {
     case IDBCursor::NEXT:
     case IDBCursor::NEXT_UNIQUE:
@@ -1750,7 +1760,7 @@ OpenKeyCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now we need to make the query to get the next match.
-  nsAutoCString queryStart = NS_LITERAL_CSTRING("SELECT value, object_data_key"
+  nsCAutoString queryStart = NS_LITERAL_CSTRING("SELECT value, object_data_key"
                                                 " FROM ") + table +
                              NS_LITERAL_CSTRING(" WHERE index_id = :id");
 
@@ -1901,15 +1911,18 @@ OpenKeyCursorHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-OpenKeyCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+OpenKeyCursorHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
+
+  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   if (NS_SUCCEEDED(aResultCode)) {
     nsresult rv = EnsureCursor();
@@ -2020,7 +2033,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     mKeyRange->GetBindingClause(value, keyRangeClause);
   }
 
-  nsAutoCString directionClause(" ORDER BY index_table.value ");
+  nsCAutoString directionClause(" ORDER BY index_table.value ");
   switch (mDirection) {
     case IDBCursor::NEXT:
     case IDBCursor::NEXT_UNIQUE:
@@ -2087,7 +2100,7 @@ OpenCursorHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Now we need to make the query to get the next match.
-  nsAutoCString queryStart =
+  nsCAutoString queryStart =
     NS_LITERAL_CSTRING("SELECT index_table.value, "
                        "index_table.object_data_key, object_data.data, "
                        "object_data.file_ids FROM ") +
@@ -2204,7 +2217,7 @@ OpenCursorHelper::EnsureCursor()
 void
 OpenCursorHelper::ReleaseMainThreadObjects()
 {
-  IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
+  IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
 
   // These don't need to be released on the main thread but they're only valid
   // as long as mCursor is set.
@@ -2234,15 +2247,18 @@ OpenCursorHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-OpenCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+OpenCursorHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
+
+  NS_ASSERTION(!mCursor, "Shouldn't have this yet!");
 
   InfallibleTArray<PBlobParent*> blobsParent;
 
@@ -2337,7 +2353,7 @@ CountHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_NAMED_LITERAL_CSTRING(upperKeyName, "upper_key");
   NS_NAMED_LITERAL_CSTRING(value, "value");
 
-  nsAutoCString keyRangeClause;
+  nsCAutoString keyRangeClause;
   if (mKeyRange) {
     if (!mKeyRange->Lower().IsUnset()) {
       AppendConditionClause(value, lowerKeyName, false,
@@ -2414,14 +2430,16 @@ CountHelper::PackArgumentsForParentProcess(IndexRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-CountHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+CountHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   ResponseValue response;
   if (NS_FAILED(aResultCode)) {

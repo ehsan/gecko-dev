@@ -4,7 +4,9 @@
 // getNetworks() can take some time..
 MARIONETTE_TIMEOUT = 60000;
  
-SpecialPowers.addPermission("mobileconnection", true, document);
+const WHITELIST_PREF = "dom.mobileconnection.whitelist";
+let uriPrePath = window.location.protocol + "//" + window.location.host;
+SpecialPowers.setCharPref(WHITELIST_PREF, uriPrePath);
 
 let connection = navigator.mozMobileConnection;
 ok(connection instanceof MozMobileConnection,
@@ -131,7 +133,7 @@ function throwsException(fn) {
     fn();
     ok(false, "function did not throw an exception: " + fn);
   } catch (e) {
-    ok(true, "function successfully caught exception: " + e);
+    ok(true, "function succesfully caught exception: " + e);
   }
 }
 
@@ -231,7 +233,7 @@ function testSelectExistingNetworkAuto() {
 }
 
 function cleanUp() {
-  SpecialPowers.removePermission("mobileconnection", document);
+  SpecialPowers.clearUserPref(WHITELIST_PREF);
   finish();
 }
 

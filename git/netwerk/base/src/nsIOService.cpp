@@ -39,10 +39,8 @@
 #include "nsIConsoleService.h"
 #include "nsIUploadChannel2.h"
 #include "nsXULAppAPI.h"
-#include "nsIProxiedChannel.h"
-#include "nsIProtocolProxyCallback.h"
-#include "nsICancelable.h"
 
+#include "mozilla/FunctionTimer.h"
 
 #if defined(XP_WIN) || defined(MOZ_PLATFORM_MAEMO)
 #include "nsNativeConnectionHelper.h"
@@ -70,7 +68,7 @@ static bool gHasWarnedUploadChannel2;
 // TODO: I am sure that there are more ports to be added.  
 //       This cut is based on the classic mozilla codebase
 
-int16_t gBadPortList[] = { 
+PRInt16 gBadPortList[] = { 
   1,    // tcpmux          
   7,    // echo     
   9,    // discard          
@@ -137,8 +135,8 @@ static const char kProfileChangeNetRestoreTopic[] = "profile-change-net-restore"
 static const char kProfileDoChange[] = "profile-do-change";
 
 // Necko buffer defaults
-uint32_t   nsIOService::gDefaultSegmentSize = 4096;
-uint32_t   nsIOService::gDefaultSegmentCount = 24;
+PRUint32   nsIOService::gDefaultSegmentSize = 4096;
+PRUint32   nsIOService::gDefaultSegmentCount = 24;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,6 +157,8 @@ nsIOService::nsIOService()
 nsresult
 nsIOService::Init()
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv;
 
     // We need to get references to the DNS service so that we can shut it
@@ -171,6 +171,8 @@ nsIOService::Init()
         return rv;
     }
 
+    NS_TIME_FUNCTION_MARK("got DNS Service");
+
     // XXX hack until xpidl supports error info directly (bug 13423)
     nsCOMPtr<nsIErrorService> errorService = do_GetService(NS_ERRORSERVICE_CONTRACTID);
     if (errorService) {
@@ -179,6 +181,8 @@ nsIOService::Init()
     else
         NS_WARNING("failed to get error service");
     
+    NS_TIME_FUNCTION_MARK("got Error Service");
+
     // setup our bad port list stuff
     for(int i=0; gBadPortList[i]; i++)
         mRestrictedPortList.AppendElement(gBadPortList[i]);
@@ -205,10 +209,14 @@ nsIOService::Init()
     }
     else
         NS_WARNING("failed to get observer service");
+        
+    NS_TIME_FUNCTION_MARK("Registered observers");
 
     gIOService = this;
 
     InitializeNetworkLinkService();
+ 
+    NS_TIME_FUNCTION_MARK("Set up network link service");
 
     return NS_OK;
 }
@@ -222,6 +230,8 @@ nsIOService::~nsIOService()
 nsresult
 nsIOService::InitializeSocketTransportService()
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv = NS_OK;
 
     if (!mSocketTransportService) {
@@ -235,7 +245,6 @@ nsIOService::InitializeSocketTransportService()
         rv = mSocketTransportService->Init();
         NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service init failed");
         mSocketTransportService->SetAutodialEnabled(mAutoDialEnabled);
-        mSocketTransportService->SetOffline(false);
     }
 
     return rv;
@@ -244,6 +253,8 @@ nsIOService::InitializeSocketTransportService()
 nsresult
 nsIOService::InitializeNetworkLinkService()
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv = NS_OK;
 
     if (mNetworkLinkServiceInitialized)
@@ -309,7 +320,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS6(nsIOService,
 
 nsresult
 nsIOService::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
-                                    uint32_t flags,
+                                    PRUint32 flags,
                                     nsAsyncRedirectVerifyHelper *helper)
 {
     nsCOMPtr<nsIChannelEventSink> sink =
@@ -324,8 +335,8 @@ nsIOService::AsyncOnChannelRedirect(nsIChannel* oldChan, nsIChannel* newChan,
     // Finally, our category
     const nsCOMArray<nsIChannelEventSink>& entries =
         mChannelEventSinks.GetEntries();
-    int32_t len = entries.Count();
-    for (int32_t i = 0; i < len; ++i) {
+    PRInt32 len = entries.Count();
+    for (PRInt32 i = 0; i < len; ++i) {
         nsresult rv = helper->DelegateOnChannelRedirect(entries[i], oldChan,
                                                         newChan, flags);
         if (NS_FAILED(rv))
@@ -362,9 +373,9 @@ nsIOService::CacheProtocolHandler(const char *scheme, nsIProtocolHandler *handle
 }
 
 nsresult
-nsIOService::GetCachedProtocolHandler(const char *scheme, nsIProtocolHandler **result, uint32_t start, uint32_t end)
+nsIOService::GetCachedProtocolHandler(const char *scheme, nsIProtocolHandler **result, PRUint32 start, PRUint32 end)
 {
-    uint32_t len = end - start - 1;
+    PRUint32 len = end - start - 1;
     for (unsigned int i=0; i<NS_N(gScheme); i++)
     {
         if (!mWeakHandler[i])
@@ -400,7 +411,7 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
     nsCOMPtr<nsIPrefBranch> prefBranch;
     GetPrefBranch(getter_AddRefs(prefBranch));
     if (prefBranch) {
-        nsAutoCString externalProtocolPref("network.protocol-handler.external.");
+        nsCAutoString externalProtocolPref("network.protocol-handler.external.");
         externalProtocolPref += scheme;
         rv = prefBranch->GetBoolPref(externalProtocolPref.get(), &externalProtocol);
         if (NS_FAILED(rv)) {
@@ -409,7 +420,7 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
     }
 
     if (!externalProtocol) {
-        nsAutoCString contractID(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX);
+        nsCAutoString contractID(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX);
         contractID += scheme;
         ToLowerCase(contractID);
 
@@ -428,7 +439,7 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
         rv = CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"moz-gio",
                             result);
         if (NS_SUCCEEDED(rv)) {
-            nsAutoCString spec(scheme);
+            nsCAutoString spec(scheme);
             spec.Append(':');
 
             nsIURI *uri;
@@ -452,7 +463,7 @@ nsIOService::GetProtocolHandler(const char* scheme, nsIProtocolHandler* *result)
         rv = CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX"moz-gnomevfs",
                             result);
         if (NS_SUCCEEDED(rv)) {
-            nsAutoCString spec(scheme);
+            nsCAutoString spec(scheme);
             spec.Append(':');
 
             nsIURI *uri;
@@ -487,7 +498,7 @@ nsIOService::ExtractScheme(const nsACString &inURI, nsACString &scheme)
 }
 
 NS_IMETHODIMP 
-nsIOService::GetProtocolFlags(const char* scheme, uint32_t *flags)
+nsIOService::GetProtocolFlags(const char* scheme, PRUint32 *flags)
 {
     nsCOMPtr<nsIProtocolHandler> handler;
     nsresult rv = GetProtocolHandler(scheme, getter_AddRefs(handler));
@@ -500,7 +511,7 @@ nsIOService::GetProtocolFlags(const char* scheme, uint32_t *flags)
 class AutoIncrement
 {
     public:
-        AutoIncrement(uint32_t *var) : mVar(var)
+        AutoIncrement(PRUint32 *var) : mVar(var)
         {
             ++*var;
         }
@@ -509,7 +520,7 @@ class AutoIncrement
             --*mVar;
         }
     private:
-        uint32_t *mVar;
+        PRUint32 *mVar;
 };
 
 nsresult
@@ -517,12 +528,12 @@ nsIOService::NewURI(const nsACString &aSpec, const char *aCharset, nsIURI *aBase
 {
     NS_ASSERTION(NS_IsMainThread(), "wrong thread");
 
-    static uint32_t recursionCount = 0;
+    static PRUint32 recursionCount = 0;
     if (recursionCount >= MAX_RECURSION_COUNT)
         return NS_ERROR_MALFORMED_URI;
     AutoIncrement inc(&recursionCount);
 
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     nsresult rv = ExtractScheme(aSpec, scheme);
     if (NS_FAILED(rv)) {
         // then aSpec is relative
@@ -565,16 +576,41 @@ nsIOService::NewChannelFromURI(nsIURI *aURI, nsIChannel **result)
     return NewChannelFromURIWithProxyFlags(aURI, nullptr, 0, result);
 }
 
+void
+nsIOService::LookupProxyInfo(nsIURI *aURI,
+                             nsIURI *aProxyURI,
+                             PRUint32 aProxyFlags,
+                             nsCString *aScheme,
+                             nsIProxyInfo **outPI)
+{
+    nsresult rv;
+    nsCOMPtr<nsIProxyInfo> pi;
+
+    if (!mProxyService) {
+        mProxyService = do_GetService(NS_PROTOCOLPROXYSERVICE_CONTRACTID);
+        if (!mProxyService)
+            NS_WARNING("failed to get protocol proxy service");
+    }
+    if (mProxyService) {
+        rv = mProxyService->Resolve(aProxyURI ? aProxyURI : aURI, aProxyFlags,
+                                    getter_AddRefs(pi));
+        if (NS_FAILED(rv))
+            pi = nullptr;
+    }
+    pi.forget(outPI);
+}
+
+
 NS_IMETHODIMP
 nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
                                              nsIURI *aProxyURI,
-                                             uint32_t aProxyFlags,
+                                             PRUint32 aProxyFlags,
                                              nsIChannel **result)
 {
     nsresult rv;
     NS_ENSURE_ARG_POINTER(aURI);
 
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     rv = aURI->GetScheme(scheme);
     if (NS_FAILED(rv))
         return rv;
@@ -584,16 +620,31 @@ nsIOService::NewChannelFromURIWithProxyFlags(nsIURI *aURI,
     if (NS_FAILED(rv))
         return rv;
 
-    uint32_t protoFlags;
+    PRUint32 protoFlags;
     rv = handler->GetProtocolFlags(&protoFlags);
     if (NS_FAILED(rv))
         return rv;
 
-    nsCOMPtr<nsIProxiedProtocolHandler> pph = do_QueryInterface(handler);
-    if (pph)
-        rv = pph->NewProxiedChannel(aURI, nullptr, aProxyFlags, aProxyURI, result);
-    else
-        rv = handler->NewChannel(aURI, result);
+    // Talk to the PPS if the protocol handler allows proxying.  Otherwise,
+    // skip this step.  This allows us to lazily load the PPS at startup.
+    if (protoFlags & nsIProtocolHandler::ALLOWS_PROXY) {
+        nsCOMPtr<nsIProxyInfo> pi;
+        LookupProxyInfo(aURI, aProxyURI, aProxyFlags, &scheme, getter_AddRefs(pi));
+        if (pi) {
+            nsCAutoString type;
+            if (NS_SUCCEEDED(pi->GetType(type)) && type.EqualsLiteral("http")) {
+                // we are going to proxy this channel using an http proxy
+                rv = GetProtocolHandler("http", getter_AddRefs(handler));
+                if (NS_FAILED(rv))
+                    return rv;
+            }
+            nsCOMPtr<nsIProxiedProtocolHandler> pph = do_QueryInterface(handler);
+            if (pph)
+                return pph->NewProxiedChannel(aURI, pi, result);
+        }
+    }
+
+    rv = handler->NewChannel(aURI, result);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Some extensions override the http protocol handler and provide their own
@@ -691,36 +742,41 @@ nsIOService::SetOffline(bool offline)
         }
     }
 
-    nsIIOService *subject = static_cast<nsIIOService *>(this);
-    nsresult rv;
     while (mSetOfflineValue != mOffline) {
         offline = mSetOfflineValue;
 
+        nsresult rv;
         if (offline && !mOffline) {
             NS_NAMED_LITERAL_STRING(offlineString, NS_IOSERVICE_OFFLINE);
             mOffline = true; // indicate we're trying to shutdown
 
-            // don't care if notifications fail
+            // don't care if notification fails
+            // this allows users to attempt a little cleanup before dns and socket transport are shut down.
             if (observerService)
-                observerService->NotifyObservers(subject,
+                observerService->NotifyObservers(static_cast<nsIIOService *>(this),
                                                  NS_IOSERVICE_GOING_OFFLINE_TOPIC,
                                                  offlineString.get());
 
-            if (mDNSService)
-                mDNSService->SetOffline(true);
+            // be sure to try and shutdown both (even if the first fails)...
+            // shutdown dns service first, because it has callbacks for socket transport
+            if (mDNSService) {
+                rv = mDNSService->Shutdown();
+                NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service shutdown failed");
+            }
+            if (mSocketTransportService) {
+                rv = mSocketTransportService->Shutdown();
+                NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service shutdown failed");
+            }
 
-            if (mSocketTransportService)
-                mSocketTransportService->SetOffline(true);
-
+            // don't care if notification fails
             if (observerService)
-                observerService->NotifyObservers(subject,
+                observerService->NotifyObservers(static_cast<nsIIOService *>(this),
                                                  NS_IOSERVICE_OFFLINE_STATUS_TOPIC,
                                                  offlineString.get());
         }
         else if (!offline && mOffline) {
             // go online
             if (mDNSService) {
-                mDNSService->SetOffline(false);
                 rv = mDNSService->Init();
                 NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service init failed");
             }
@@ -734,23 +790,9 @@ nsIOService::SetOffline(bool offline)
 
             // don't care if notification fails
             if (observerService)
-                observerService->NotifyObservers(subject,
+                observerService->NotifyObservers(static_cast<nsIIOService *>(this),
                                                  NS_IOSERVICE_OFFLINE_STATUS_TOPIC,
                                                  NS_LITERAL_STRING(NS_IOSERVICE_ONLINE).get());
-        }
-    }
-
-    // Don't notify here, as the above notifications (if used) suffice.
-    if (mShutdown && mOffline) {
-        // be sure to try and shutdown both (even if the first fails)...
-        // shutdown dns service first, because it has callbacks for socket transport
-        if (mDNSService) {
-            rv = mDNSService->Shutdown();
-            NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service shutdown failed");
-        }
-        if (mSocketTransportService) {
-            rv = mSocketTransportService->Shutdown();
-            NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service shutdown failed");
         }
     }
 
@@ -761,16 +803,16 @@ nsIOService::SetOffline(bool offline)
 
 
 NS_IMETHODIMP
-nsIOService::AllowPort(int32_t inPort, const char *scheme, bool *_retval)
+nsIOService::AllowPort(PRInt32 inPort, const char *scheme, bool *_retval)
 {
-    int16_t port = inPort;
+    PRInt16 port = inPort;
     if (port == -1) {
         *_retval = true;
         return NS_OK;
     }
         
     // first check to see if the port is in our blacklist:
-    int32_t badPortListCnt = mRestrictedPortList.Length();
+    PRInt32 badPortListCnt = mRestrictedPortList.Length();
     for (int i=0; i<badPortListCnt; i++)
     {
         if (port == mRestrictedPortList[i])
@@ -828,7 +870,7 @@ nsIOService::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     }
 
     if (!pref || strcmp(pref, NECKO_BUFFER_CACHE_COUNT_PREF) == 0) {
-        int32_t count;
+        PRInt32 count;
         if (NS_SUCCEEDED(prefs->GetIntPref(NECKO_BUFFER_CACHE_COUNT_PREF,
                                            &count)))
             /* check for bogus values and default if we find such a value */
@@ -837,7 +879,7 @@ nsIOService::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     }
     
     if (!pref || strcmp(pref, NECKO_BUFFER_CACHE_SIZE_PREF) == 0) {
-        int32_t size;
+        PRInt32 size;
         if (NS_SUCCEEDED(prefs->GetIntPref(NECKO_BUFFER_CACHE_SIZE_PREF,
                                            &size)))
             /* check for bogus values and default if we find such a value
@@ -861,14 +903,14 @@ nsIOService::ParsePortList(nsIPrefBranch *prefBranch, const char *pref, bool rem
     if (portList) {
         nsTArray<nsCString> portListArray;
         ParseString(portList, ',', portListArray);
-        uint32_t index;
+        PRUint32 index;
         for (index=0; index < portListArray.Length(); index++) {
             portListArray[index].StripWhitespace();
-            int32_t portBegin, portEnd;
+            PRInt32 portBegin, portEnd;
 
             if (PR_sscanf(portListArray[index].get(), "%d-%d", &portBegin, &portEnd) == 2) {
                if ((portBegin < 65536) && (portEnd < 65536)) {
-                   int32_t curPort;
+                   PRInt32 curPort;
                    if (remove) {
                         for (curPort=portBegin; curPort <= portEnd; curPort++)
                             mRestrictedPortList.RemoveElement(curPort);
@@ -879,7 +921,7 @@ nsIOService::ParsePortList(nsIPrefBranch *prefBranch, const char *pref, bool rem
                }
             } else {
                nsresult aErrorCode;
-               int32_t port = portListArray[index].ToInteger(&aErrorCode);
+               PRInt32 port = portListArray[index].ToInteger(&aErrorCode);
                if (NS_SUCCEEDED(aErrorCode) && port < 65536) {
                    if (remove)
                        mRestrictedPortList.RemoveElement(port);
@@ -967,17 +1009,17 @@ nsIOService::ParseContentType(const nsACString &aTypeHeader,
 
 NS_IMETHODIMP
 nsIOService::ProtocolHasFlags(nsIURI   *uri,
-                              uint32_t  flags,
+                              PRUint32  flags,
                               bool     *result)
 {
     NS_ENSURE_ARG(uri);
 
     *result = false;
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     nsresult rv = uri->GetScheme(scheme);
     NS_ENSURE_SUCCESS(rv, rv);
   
-    uint32_t protocolFlags;
+    PRUint32 protocolFlags;
     rv = GetProtocolFlags(scheme.get(), &protocolFlags);
 
     if (NS_SUCCEEDED(rv)) {
@@ -989,7 +1031,7 @@ nsIOService::ProtocolHasFlags(nsIURI   *uri,
 
 NS_IMETHODIMP
 nsIOService::URIChainHasFlags(nsIURI   *uri,
-                              uint32_t  flags,
+                              PRUint32  flags,
                               bool     *result)
 {
     nsresult rv = ProtocolHasFlags(uri, flags, result);
@@ -1117,12 +1159,12 @@ nsIOService::TrackNetworkLinkStatusForOffline()
 
 NS_IMETHODIMP
 nsIOService::EscapeString(const nsACString& aString,
-                          uint32_t aEscapeType,
+                          PRUint32 aEscapeType,
                           nsACString& aResult)
 {
   NS_ENSURE_ARG_MAX(aEscapeType, 4);
 
-  nsAutoCString stringCopy(aString);
+  nsCAutoString stringCopy(aString);
   nsCString result;
 
   if (!NS_Escape(stringCopy, result, (nsEscapeMask) aEscapeType))
@@ -1135,7 +1177,7 @@ nsIOService::EscapeString(const nsACString& aString,
 
 NS_IMETHODIMP 
 nsIOService::EscapeURL(const nsACString &aStr, 
-                       uint32_t aFlags, nsACString &aResult)
+                       PRUint32 aFlags, nsACString &aResult)
 {
   aResult.Truncate();
   NS_EscapeURL(aStr.BeginReading(), aStr.Length(), 
@@ -1145,7 +1187,7 @@ nsIOService::EscapeURL(const nsACString &aStr,
 
 NS_IMETHODIMP 
 nsIOService::UnescapeString(const nsACString &aStr, 
-                            uint32_t aFlags, nsACString &aResult)
+                            PRUint32 aFlags, nsACString &aResult)
 {
   aResult.Truncate();
   NS_UnescapeURL(aStr.BeginReading(), aStr.Length(), 
@@ -1156,11 +1198,11 @@ nsIOService::UnescapeString(const nsACString &aStr,
 NS_IMETHODIMP
 nsIOService::ExtractCharsetFromContentType(const nsACString &aTypeHeader,
                                            nsACString &aCharset,
-                                           int32_t *aCharsetStart,
-                                           int32_t *aCharsetEnd,
+                                           PRInt32 *aCharsetStart,
+                                           PRInt32 *aCharsetEnd,
                                            bool *aHadCharset)
 {
-    nsAutoCString ignored;
+    nsCAutoString ignored;
     net_ParseContentType(aTypeHeader, ignored, aCharset, aHadCharset,
                          aCharsetStart, aCharsetEnd);
     if (*aHadCharset && *aCharsetStart == *aCharsetEnd) {
@@ -1170,79 +1212,35 @@ nsIOService::ExtractCharsetFromContentType(const nsACString &aTypeHeader,
 }
 
 // nsISpeculativeConnect
-class IOServiceProxyCallback MOZ_FINAL : public nsIProtocolProxyCallback
-{
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIPROTOCOLPROXYCALLBACK
-
-    IOServiceProxyCallback(nsIInterfaceRequestor *aCallbacks,
-                           nsIEventTarget *aTarget,
-                           nsIOService *aIOService)
-        : mCallbacks(aCallbacks)
-        , mTarget(aTarget)
-        , mIOService(aIOService)
-    { }
-
-private:
-    nsRefPtr<nsIInterfaceRequestor> mCallbacks;
-    nsRefPtr<nsIEventTarget>        mTarget;
-    nsRefPtr<nsIOService>           mIOService;
-};
-
-NS_IMPL_ISUPPORTS1(IOServiceProxyCallback, nsIProtocolProxyCallback)
-
 NS_IMETHODIMP
-IOServiceProxyCallback::OnProxyAvailable(nsICancelable *request, nsIURI *aURI,
-                                         nsIProxyInfo *pi, nsresult status)
+nsIOService::SpeculativeConnect(nsIURI *aURI,
+                                nsIInterfaceRequestor *aCallbacks,
+                                nsIEventTarget *aTarget)
 {
-    // Checking proxy status for speculative connect
-    nsAutoCString type;
-    if (NS_SUCCEEDED(status) && pi &&
-        NS_SUCCEEDED(pi->GetType(type)) &&
-        !type.EqualsLiteral("direct")) {
-        // proxies dont do speculative connect
-        return NS_OK;
-    }
-
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     nsresult rv = aURI->GetScheme(scheme);
     if (NS_FAILED(rv))
+        return rv;
+
+    // Check for proxy information. If there is a proxy configured then a
+    // speculative connect should not be performed because the potential
+    // reward is slim with tcp peers closely located to the browser.
+    nsCOMPtr<nsIProxyInfo> pi;
+    LookupProxyInfo(aURI, nullptr, 0, &scheme, getter_AddRefs(pi));
+    if (pi) 
         return NS_OK;
 
     nsCOMPtr<nsIProtocolHandler> handler;
-    rv = mIOService->GetProtocolHandler(scheme.get(),
-                                        getter_AddRefs(handler));
+    rv = GetProtocolHandler(scheme.get(), getter_AddRefs(handler));
     if (NS_FAILED(rv))
-        return NS_OK;
+        return rv;
 
     nsCOMPtr<nsISpeculativeConnect> speculativeHandler =
         do_QueryInterface(handler);
     if (!speculativeHandler)
         return NS_OK;
 
-    speculativeHandler->SpeculativeConnect(aURI,
-                                           mCallbacks,
-                                           mTarget);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsIOService::SpeculativeConnect(nsIURI *aURI,
-                                nsIInterfaceRequestor *aCallbacks,
-                                nsIEventTarget *aTarget)
-{
-    // Check for proxy information. If there is a proxy configured then a
-    // speculative connect should not be performed because the potential
-    // reward is slim with tcp peers closely located to the browser.
-    nsresult rv;
-    nsCOMPtr<nsIProtocolProxyService> pps =
-            do_GetService(NS_PROTOCOLPROXYSERVICE_CONTRACTID, &rv);
-    if (NS_FAILED(rv))
-        return rv;
-
-    nsCOMPtr<nsICancelable> cancelable;
-    nsRefPtr<IOServiceProxyCallback> callback =
-        new IOServiceProxyCallback(aCallbacks, aTarget, this);
-    return pps->AsyncResolve(aURI, 0, callback, getter_AddRefs(cancelable));
+    return speculativeHandler->SpeculativeConnect(aURI,
+                                                  aCallbacks,
+                                                  aTarget);
 }

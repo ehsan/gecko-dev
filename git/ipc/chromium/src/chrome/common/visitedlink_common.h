@@ -43,10 +43,10 @@
 class VisitedLinkCommon {
  public:
   // A number that identifies the URL.
-  typedef uint64_t Fingerprint;
+  typedef uint64 Fingerprint;
 
   // A hash value of a fingerprint
-  typedef int32_t Hash;
+  typedef int32 Hash;
 
   // A fingerprint or hash value that does not exist
   static const Fingerprint null_fingerprint_;
@@ -72,7 +72,7 @@ class VisitedLinkCommon {
 
 #ifdef UNIT_TEST
   // Returns statistics about DB usage
-  void GetUsageStatistics(int32_t* table_size,
+  void GetUsageStatistics(int32* table_size,
                           VisitedLinkCommon::Fingerprint** fingerprints) {
     *table_size = table_length_;
     *fingerprints = hash_table_;
@@ -84,16 +84,16 @@ class VisitedLinkCommon {
   // can get stats on the table
   struct SharedHeader {
     // see goes into table_length_
-    uint32_t length;
+    uint32 length;
 
     // goes into salt_
-    uint8_t salt[LINK_SALT_LENGTH];
+    uint8 salt[LINK_SALT_LENGTH];
   };
 
   // Returns the fingerprint at the given index into the URL table. This
   // function should be called instead of accessing the table directly to
   // contain endian issues.
-  Fingerprint FingerprintAt(int32_t table_offset) const {
+  Fingerprint FingerprintAt(int32 table_offset) const {
     if (!hash_table_)
       return null_fingerprint_;
     return hash_table_[table_offset];
@@ -105,11 +105,11 @@ class VisitedLinkCommon {
   // want to use the current class' salt.
   static Fingerprint ComputeURLFingerprint(const char* canonical_url,
                                            size_t url_len,
-                                           const uint8_t salt[LINK_SALT_LENGTH]);
+                                           const uint8 salt[LINK_SALT_LENGTH]);
 
   // Computes the hash value of the given fingerprint, this is used as a lookup
   // into the hashtable.
-  static Hash HashFingerprint(Fingerprint fingerprint, int32_t table_length) {
+  static Hash HashFingerprint(Fingerprint fingerprint, int32 table_length) {
     if (table_length == 0)
       return null_hash_;
     return static_cast<Hash>(fingerprint % table_length);
@@ -123,10 +123,10 @@ class VisitedLinkCommon {
   VisitedLinkCommon::Fingerprint* hash_table_;
 
   // the number of items in the hash table
-  int32_t table_length_;
+  int32 table_length_;
 
   // salt used for each URL when computing the fingerprint
-  uint8_t salt_[LINK_SALT_LENGTH];
+  uint8 salt_[LINK_SALT_LENGTH];
 
  private:
   DISALLOW_EVIL_CONSTRUCTORS(VisitedLinkCommon);

@@ -160,8 +160,8 @@ nsHTMLFormatConverter::CanConvert(const char *aFromDataFlavor, const char *aToDa
 //XXX unicode out of the string. Lame lame lame.
 //
 NS_IMETHODIMP
-nsHTMLFormatConverter::Convert(const char *aFromDataFlavor, nsISupports *aFromData, uint32_t aDataLen, 
-                               const char *aToDataFlavor, nsISupports **aToData, uint32_t *aDataToLen)
+nsHTMLFormatConverter::Convert(const char *aFromDataFlavor, nsISupports *aFromData, PRUint32 aDataLen, 
+                               const char *aToDataFlavor, nsISupports **aToData, PRUint32 *aDataToLen)
 {
   if ( !aToData || !aDataToLen )
     return NS_ERROR_INVALID_ARG;
@@ -171,7 +171,7 @@ nsHTMLFormatConverter::Convert(const char *aFromDataFlavor, nsISupports *aFromDa
   *aDataToLen = 0;
 
   if ( !nsCRT::strcmp(aFromDataFlavor, kHTMLMime) ) {
-    nsAutoCString toFlavor ( aToDataFlavor );
+    nsCAutoString toFlavor ( aToDataFlavor );
 
     // HTML on clipboard is going to always be double byte so it will be in a primitive
     // class of nsISupportsString. Also, since the data is in two byte chunks the 
@@ -188,7 +188,7 @@ nsHTMLFormatConverter::Convert(const char *aFromDataFlavor, nsISupports *aFromDa
     if ( toFlavor.Equals(kHTMLMime) || toFlavor.Equals(kUnicodeMime) ) {
       nsresult res;
       if (toFlavor.Equals(kHTMLMime)) {
-        int32_t dataLen = dataStr.Length() * 2;
+        PRInt32 dataLen = dataStr.Length() * 2;
         nsPrimitiveHelpers::CreatePrimitiveForData ( toFlavor.get(), (void*)dataStr.get(), dataLen, aToData );
         if ( *aToData )
           *aDataToLen = dataLen;
@@ -196,7 +196,7 @@ nsHTMLFormatConverter::Convert(const char *aFromDataFlavor, nsISupports *aFromDa
         nsAutoString outStr;
         res = ConvertFromHTMLToUnicode(dataStr, outStr);
         if (NS_SUCCEEDED(res)) {
-          int32_t dataLen = outStr.Length() * 2;
+          PRInt32 dataLen = outStr.Length() * 2;
           nsPrimitiveHelpers::CreatePrimitiveForData ( toFlavor.get(), (void*)outStr.get(), dataLen, aToData );
           if ( *aToData ) 
             *aDataToLen = dataLen;
@@ -206,7 +206,7 @@ nsHTMLFormatConverter::Convert(const char *aFromDataFlavor, nsISupports *aFromDa
     else if ( toFlavor.Equals(kAOLMailMime) ) {
       nsAutoString outStr;
       if ( NS_SUCCEEDED(ConvertFromHTMLToAOLMail(dataStr, outStr)) ) {
-        int32_t dataLen = outStr.Length() * 2;
+        PRInt32 dataLen = outStr.Length() * 2;
         nsPrimitiveHelpers::CreatePrimitiveForData ( toFlavor.get(), (void*)outStr.get(), dataLen, aToData );
         if ( *aToData ) 
           *aDataToLen = dataLen;

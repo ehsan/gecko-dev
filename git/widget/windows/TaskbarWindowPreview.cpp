@@ -57,7 +57,7 @@ TaskbarWindowPreview::TaskbarWindowPreview(ITaskbarList4 *aTaskbar, nsITaskbarPr
   (void) SetVisible(true);
 
   memset(mThumbButtons, 0, sizeof mThumbButtons);
-  for (int32_t i = 0; i < nsITaskbarWindowPreview::NUM_TOOLBAR_BUTTONS; i++) {
+  for (PRInt32 i = 0; i < nsITaskbarWindowPreview::NUM_TOOLBAR_BUTTONS; i++) {
     mThumbButtons[i].dwMask = THB_FLAGS | THB_ICON | THB_TOOLTIP;
     mThumbButtons[i].iId = i;
     mThumbButtons[i].dwFlags = THBF_HIDDEN;
@@ -96,7 +96,7 @@ TaskbarWindowPreview::PreviewWindow() {
 }
 
 nsresult
-TaskbarWindowPreview::GetButton(uint32_t index, nsITaskbarPreviewButton **_retVal) {
+TaskbarWindowPreview::GetButton(PRUint32 index, nsITaskbarPreviewButton **_retVal) {
   if (index >= nsITaskbarWindowPreview::NUM_TOOLBAR_BUTTONS)
     return NS_ERROR_INVALID_ARG;
 
@@ -151,8 +151,8 @@ TaskbarWindowPreview::GetEnableCustomDrawing(bool *aEnable) {
 
 NS_IMETHODIMP
 TaskbarWindowPreview::SetProgressState(nsTaskbarProgressState aState,
-                                       uint64_t aCurrentValue,
-                                       uint64_t aMaxValue)
+                                       PRUint64 aCurrentValue,
+                                       PRUint64 aMaxValue)
 {
   NS_ENSURE_ARG_RANGE(aState, 0, ArrayLength(sNativeStates) - 1);
 
@@ -238,8 +238,8 @@ TaskbarWindowPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
   switch (nMsg) {
     case WM_COMMAND:
       {
-        uint32_t id = LOWORD(wParam);
-        uint32_t index = id;
+        PRUint32 id = LOWORD(wParam);
+        PRUint32 index = id;
         nsCOMPtr<nsITaskbarPreviewButton> button;
         nsresult rv = GetButton(index, getter_AddRefs(button));
         if (NS_SUCCEEDED(rv))
@@ -309,7 +309,7 @@ TaskbarWindowPreview::UpdateButtons() {
 }
 
 nsresult
-TaskbarWindowPreview::UpdateButton(uint32_t index) {
+TaskbarWindowPreview::UpdateButton(PRUint32 index) {
   if (index >= nsITaskbarWindowPreview::NUM_TOOLBAR_BUTTONS)
     return NS_ERROR_INVALID_ARG;
   if (mVisible) {

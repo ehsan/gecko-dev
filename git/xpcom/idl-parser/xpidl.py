@@ -120,13 +120,20 @@ class Builtin(object):
 builtinNames = [
     Builtin('boolean', 'bool'),
     Builtin('void', 'void'),
-    Builtin('octet', 'uint8_t'),
-    Builtin('short', 'int16_t', True, True),
-    Builtin('long', 'int32_t', True, True),
-    Builtin('long long', 'int64_t', True, False),
-    Builtin('unsigned short', 'uint16_t', False, True),
-    Builtin('unsigned long', 'uint32_t', False, True),
-    Builtin('unsigned long long', 'uint64_t', False, False),
+    Builtin('int16_t', 'int16_t', True, True),
+    Builtin('int32_t', 'int32_t', True, True),
+    Builtin('int64_t', 'int64_t', True, False),
+    Builtin('uint8_t', 'uint8_t'),
+    Builtin('uint16_t', 'uint16_t', False, True),
+    Builtin('uint32_t', 'uint32_t', False, True),
+    Builtin('uint64_t', 'uint64_t', False, False),
+    Builtin('octet', 'PRUint8'),
+    Builtin('short', 'PRInt16', True, True),
+    Builtin('long', 'PRInt32', True, True),
+    Builtin('long long', 'PRInt64', True, False),
+    Builtin('unsigned short', 'PRUint16', False, True),
+    Builtin('unsigned long', 'PRUint32', False, True),
+    Builtin('unsigned long long', 'PRUint64', False, False),
     Builtin('float', 'float', True, False),
     Builtin('double', 'double', True, False),
     Builtin('char', 'char', True, False),
@@ -471,6 +478,20 @@ class BaseInterface(object):
             if not isinstance(m, CDATA):
                 self.namemap.set(m)
 
+        self.ops = {
+            'index':
+                {
+                    'getter': None,
+                    'setter': None
+                },
+            'name':
+                {
+                    'getter': None,
+                    'setter': None
+                },
+            'stringifier': None
+            }
+
     def __eq__(self, other):
         return self.name == other.name and self.location == other.location
 
@@ -507,8 +528,16 @@ class BaseInterface(object):
             if self.attributes.scriptable and realbase.attributes.builtinclass and not self.attributes.builtinclass:
                 raise IDLError("interface '%s' is not builtinclass but derives from builtinclass '%s'" % (self.name, self.base), self.location)
 
+        forwardedMembers = set()
         for member in self.members:
             member.resolve(self)
+            if member.kind is 'method' and member.forward:
+                forwardedMembers.add(member.forward)
+        for member in self.members:
+            if member.kind is 'method' and member.name in forwardedMembers:
+                forwardedMembers.remove(member.name)
+        for member in forwardedMembers:
+            raise IDLError("member '%s' on interface '%s' forwards to '%s' which is not on the interface itself" % (member.name, self.name, member.forward), self.location)
 
         # The number 250 is NOT arbitrary; this number is the maximum number of
         # stub entries defined in xpcom/reflect/xptcall/public/genstubs.pl
@@ -684,6 +713,7 @@ class ConstMember(object):
 class Attribute(object):
     kind = 'attribute'
     noscript = False
+    notxpcom = False
     readonly = False
     implicit_jscontext = False
     nostdcall = False
@@ -692,7 +722,6 @@ class Attribute(object):
     undefined = None
     deprecated = False
     nullable = False
-    infallible = False
     defvalue = None
 
     def __init__(self, type, name, attlist, readonly, nullable, defvalue, location, doccomments):
@@ -740,14 +769,14 @@ class Attribute(object):
 
                 if name == 'noscript':
                     self.noscript = True
+                elif name == 'notxpcom':
+                    self.notxpcom = True
                 elif name == 'implicit_jscontext':
                     self.implicit_jscontext = True
                 elif name == 'deprecated':
                     self.deprecated = True
                 elif name == 'nostdcall':
                     self.nostdcall = True
-                elif name == 'infallible':
-                    self.infallible = True
                 else:
                     raise IDLError("Unexpected attribute '%s'" % name, aloc)
 
@@ -766,24 +795,15 @@ class Attribute(object):
             getBuiltinOrNativeTypeName(self.realtype) != '[domstring]'):
             raise IDLError("Nullable types (T?) is supported only for DOMString",
                            self.location)
-        if self.infallible and not self.realtype.kind == 'builtin':
-            raise IDLError('[infallible] only works on builtin types '
-                           '(numbers, bool, and raw char types)',
-                           self.location)
-        if self.infallible and not iface.attributes.builtinclass:
-            raise IDLError('[infallible] attributes are only allowed on '
-                           '[builtinclass] interfaces',
-                           self.location)
-
 
     def toIDL(self):
         attribs = attlistToIDL(self.attlist)
         readonly = self.readonly and 'readonly ' or ''
         return "%s%sattribute %s %s;" % (attribs, readonly, self.type, self.name)
-
+        
     def isScriptable(self):
         if not self.iface.attributes.scriptable: return False
-        return not self.noscript
+        return not (self.noscript or self.notxpcom)
 
     def __str__(self):
         return "\t%sattribute %s %s\n" % (self.readonly and 'readonly ' or '',
@@ -801,6 +821,10 @@ class Method(object):
     nostdcall = False
     optional_argc = False
     deprecated = False
+    getter = False
+    setter = False
+    stringifier = False
+    forward = None
 
     def __init__(self, type, name, attlist, paramlist, location, doccomments, raises):
         self.type = type
@@ -819,6 +843,13 @@ class Method(object):
 
                 self.binaryname = value
                 continue
+            if name == 'forward':
+                if value is None:
+                    raise IDLError("forward attribute requires a value",
+                                   aloc)
+
+                self.forward = value
+                continue
 
             if value is not None:
                 raise IDLError("Unexpected attribute value", aloc)
@@ -835,6 +866,18 @@ class Method(object):
                 self.deprecated = True
             elif name == 'nostdcall':
                 self.nostdcall = True
+            elif name == 'getter':
+                if (len(self.params) != 1):
+                    raise IDLError("Methods marked as getter must take 1 argument", aloc)
+                self.getter = True
+            elif name == 'setter':
+                if (len(self.params) != 2):
+                    raise IDLError("Methods marked as setter must take 2 arguments", aloc)
+                self.setter = True
+            elif name == 'stringifier':
+                if (len(self.params) != 0):
+                    raise IDLError("Methods marked as stringifier must take 0 arguments", aloc)
+                self.stringifier = True
             else:
                 raise IDLError("Unexpected attribute '%s'" % name, aloc)
 
@@ -847,6 +890,34 @@ class Method(object):
         self.realtype = self.iface.idl.getName(self.type, self.location)
         for p in self.params:
             p.resolve(self)
+        if self.getter:
+            if getBuiltinOrNativeTypeName(self.params[0].realtype) == 'unsigned long':
+                ops = 'index'
+            else:
+                if getBuiltinOrNativeTypeName(self.params[0].realtype) != '[domstring]':
+                    raise IDLError("a getter must take a single unsigned long or DOMString argument" % self.iface.name, self.location)
+                ops = 'name'
+            if self.iface.ops[ops]['getter']:
+                raise IDLError("a %s getter was already defined on interface '%s'" % (ops, self.iface.name), self.location)
+            self.iface.ops[ops]['getter'] = self
+        if self.setter:
+            if getBuiltinOrNativeTypeName(self.params[0].realtype) == 'unsigned long':
+                ops = 'index'
+            else:
+                if getBuiltinOrNativeTypeName(self.params[0].realtype) != '[domstring]':
+                    print getBuiltinOrNativeTypeName(self.params[0].realtype)
+                    raise IDLError("a setter must take a unsigned long or DOMString argument" % self.iface.name, self.location)
+                ops = 'name'
+            if self.iface.ops[ops]['setter']:
+                raise IDLError("a %s setter was already defined on interface '%s'" % (ops, self.iface.name), self.location)
+            self.iface.ops[ops]['setter'] = self
+        if self.stringifier:
+            if self.iface.ops['stringifier']:
+                raise IDLError("a stringifier was already defined on interface '%s'" % self.iface.name, self.location)
+            if getBuiltinOrNativeTypeName(self.realtype) != '[domstring]':
+                raise IDLError("'stringifier' attribute can only be used on methods returning DOMString",
+                               self.location)
+            self.iface.ops['stringifier'] = self
         for p in self.params:
             if p.retval and p != self.params[-1]:
                 raise IDLError("'retval' parameter '%s' is not the last parameter" % p.name, self.location)

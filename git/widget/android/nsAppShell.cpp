@@ -118,7 +118,7 @@ class AfterPaintListener : public nsIDOMEventListener {
     }
 
     virtual nsresult HandleEvent(nsIDOMEvent* aEvent) {
-        uint32_t generation = nsFrameManager::GetGlobalGenerationNumber();
+        PRUint32 generation = nsFrameManager::GetGlobalGenerationNumber();
         if (mLastGeneration == generation) {
             // the frame tree has not changed since our last AfterPaint
             // so we can drop this event.
@@ -149,7 +149,7 @@ class AfterPaintListener : public nsIDOMEventListener {
     }
 
   private:
-    uint32_t mLastGeneration;
+    PRUint32 mLastGeneration;
     nsCOMPtr<nsIDOMEventTarget> mEventTarget;
 };
 
@@ -181,10 +181,6 @@ nsAppShell::nsAppShell()
     gAppShell = this;
     sAfterPaintListener = new AfterPaintListener();
 
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
-        return;
-    }
-
     sPowerManagerService = do_GetService(POWERMANAGERSERVICE_CONTRACTID);
 
     if (sPowerManagerService) {
@@ -198,7 +194,7 @@ nsAppShell::nsAppShell()
 nsAppShell::~nsAppShell()
 {
     gAppShell = nullptr;
-    sAfterPaintListener = nullptr;
+    delete sAfterPaintListener;
 
     if (sPowerManagerService) {
         sPowerManagerService->RemoveWakeLockListener(sWakeLockListener);
@@ -503,8 +499,8 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         if (!bridge)
             break;
 
-        int32_t token = curEvent->Flags();
-        int32_t tabId = curEvent->MetaState();
+        PRInt32 token = curEvent->Flags();
+        PRInt32 tabId = curEvent->MetaState();
         nsTArray<nsIntPoint> points = curEvent->Points();
         RefCountedJavaObject* buffer = curEvent->ByteBuffer();
         nsCOMPtr<ScreenshotRunnable> sr = 
@@ -609,7 +605,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         }
 
         nsIntRect rect;
-        int32_t colorDepth, pixelDepth;
+        PRInt32 colorDepth, pixelDepth;
         dom::ScreenOrientation orientation;
         nsCOMPtr<nsIScreen> screen;
 
@@ -702,7 +698,7 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
         case AndroidGeckoEvent::COMPOSITOR_RESUME:
             // Give priority to these events, but maintain their order wrt each other.
             {
-                uint32_t i = 0;
+                PRUint32 i = 0;
                 while (i < mEventQueue.Length() &&
                        (mEventQueue[i]->Type() == AndroidGeckoEvent::COMPOSITOR_PAUSE ||
                         mEventQueue[i]->Type() == AndroidGeckoEvent::COMPOSITOR_RESUME)) {

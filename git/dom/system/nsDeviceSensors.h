@@ -64,14 +64,14 @@ private:
 
   void FireDOMMotionEvent(class nsIDOMDocument *domDoc, 
                           class nsIDOMEventTarget *target,
-                          uint32_t type,
+                          PRUint32 type,
                           double x,
                           double y,
                           double z);
 
   bool mEnabled;
 
-  inline bool IsSensorEnabled(uint32_t aType) {
+  inline bool IsSensorEnabled(PRUint32 aType) {
     return mWindowListeners[aType]->Length() > 0;
   }
 

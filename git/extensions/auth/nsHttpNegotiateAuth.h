@@ -32,7 +32,7 @@ private:
 
     bool MatchesBaseURI(const nsCSubstring &scheme,
                           const nsCSubstring &host,
-                          int32_t             port,
+                          PRInt32             port,
                           const char         *baseStart,
                           const char         *baseEnd);
 };

@@ -21,13 +21,6 @@ namespace mozilla {
 class MediaEngineVideoSource;
 class MediaEngineAudioSource;
 
-enum MediaEngineState {
-  kAllocated,
-  kStarted,
-  kStopped,
-  kReleased
-};
-
 class MediaEngine
 {
 public:
@@ -71,28 +64,13 @@ public:
    * image, and for audio, it is a snippet lasting aDuration milliseconds. The
    * duration argument is ignored for a MediaEngineVideoSource.
    */
-  virtual nsresult Snapshot(uint32_t aDuration, nsIDOMFile** aFile) = 0;
-
-  /* Called when the stream wants more data */
-  virtual void NotifyPull(MediaStreamGraph* aGraph, StreamTime aDesiredTime) = 0;
+  virtual nsresult Snapshot(PRUint32 aDuration, nsIDOMFile** aFile) = 0;
 
   /* Stop the device and release the corresponding MediaStream */
   virtual nsresult Stop() = 0;
 
-  /* Return false if device is currently allocated or started */
-  bool IsAvailable() {
-    if (mState == kAllocated || mState == kStarted) {
-      return false;
-    } else {
-      return true;
-    }
-  }
-
   /* It is an error to call Start() before an Allocate(), and Stop() before
    * a Start(). Only Allocate() may be called after a Deallocate(). */
-
-protected:
-  MediaEngineState mState;
 };
 
 /**
@@ -105,9 +83,9 @@ enum MediaEngineVideoCodecType {
 };
 
 struct MediaEngineVideoOptions {
-  uint32_t mWidth;
-  uint32_t mHeight;
-  uint32_t mMaxFPS;
+  PRUint32 mWidth;
+  PRUint32 mHeight;
+  PRUint32 mMaxFPS;
   MediaEngineVideoCodecType codecType;
 };
 
@@ -118,7 +96,7 @@ public:
 
   /* Return a MediaEngineVideoOptions struct with appropriate values for all
    * fields. */
-  virtual const MediaEngineVideoOptions *GetOptions() = 0;
+  virtual MediaEngineVideoOptions GetOptions() = 0;
 };
 
 /**

@@ -6,7 +6,6 @@
 #ifndef nsMathMLTokenFrame_h___
 #define nsMathMLTokenFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
@@ -36,33 +35,34 @@ public:
   virtual eMathMLFrameType GetMathMLFrameType();
 
   NS_IMETHOD
+  Init(nsIContent*      aContent,
+       nsIFrame*        aParent,
+       nsIFrame*        aPrevInFlow);
+
+  NS_IMETHOD
   SetInitialChildList(ChildListID     aListID,
-                      nsFrameList&    aChildList) MOZ_OVERRIDE;
-
-  NS_IMETHOD
-  AppendFrames(ChildListID            aListID,
-               nsFrameList&           aChildList) MOZ_OVERRIDE;
-
-  NS_IMETHOD
-  InsertFrames(ChildListID            aListID,
-               nsIFrame*              aPrevFrame,
-               nsFrameList&           aChildList) MOZ_OVERRIDE;
+                      nsFrameList&    aChildList);
 
   NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus);
 
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+        nsHTMLReflowMetrics& aDesiredSize);
 
   virtual void MarkIntrinsicWidthsDirty();
 
+  NS_IMETHOD
+  AttributeChanged(PRInt32         aNameSpaceID,
+                   nsIAtom*        aAttribute,
+                   PRInt32         aModType);
+
   virtual nsresult
-  ChildListChanged(int32_t aModType) MOZ_OVERRIDE
+  ChildListChanged(PRInt32 aModType)
   {
     ProcessTextData();
     return nsMathMLContainerFrame::ChildListChanged(aModType);
@@ -81,7 +81,8 @@ protected:
   // depending on its textual content
   bool SetTextStyle();
 
-  void ForceTrimChildTextFrames();
+  // helper to set the quotes of <ms>
+  void SetQuotes(bool aNotify);
 };
 
 #endif /* nsMathMLTokentFrame_h___ */

@@ -9,7 +9,7 @@ var completed = false;
 
 function startTest() {
   if (completed)
-    return;
+    return false;
   ok(!v.seeking, "seeking should default to false");
   try {
     v.seeking = true;
@@ -23,20 +23,22 @@ function startTest() {
   v.play();
   v.currentTime=seekTime;
   seekFlagStart = v.seeking;
+  return false;
 }
 
 function seekStarted() {
   if (completed)
-    return;
+    return false;
   ok(v.currentTime >= seekTime - 0.1,
      "Video currentTime should be around " + seekTime + ": " + v.currentTime + " (seeking)");
   v.pause();
   startPassed = true;
+  return false;
 }
 
 function seekEnded() {
   if (completed)
-    return;
+    return false;
 
   var t = v.currentTime;
   // Since we were playing, and we only paused asynchronously, we can't be
@@ -46,11 +48,12 @@ function seekEnded() {
   v.play();
   endPassed = true;
   seekFlagEnd = v.seeking;
+  return false;
 }
 
 function playbackEnded() {
   if (completed)
-    return;
+    return false;
 
   completed = true;
   ok(startPassed, "seeking event");
@@ -58,6 +61,7 @@ function playbackEnded() {
   ok(seekFlagStart, "seeking flag on start should be true");
   ok(!seekFlagEnd, "seeking flag on end should be false");
   finish();
+  return false;
 }
 
 v.addEventListener("ended", playbackEnded, false);

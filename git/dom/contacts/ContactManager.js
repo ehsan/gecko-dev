@@ -4,8 +4,12 @@
 
 "use strict";
 
-const DEBUG = false;
-function debug(s) { dump("-*- ContactManager: " + s + "\n"); }
+/* static functions */
+let DEBUG = 0;
+if (DEBUG)
+  debug = function (s) { dump("-*- ContactManager: " + s + "\n"); }
+else
+  debug = function (s) {}
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -14,14 +18,19 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
+Cu.import("resource://gre/modules/PermissionPromptHelper.jsm");
 
 XPCOMUtils.defineLazyGetter(Services, "DOMRequest", function() {
   return Cc["@mozilla.org/dom/dom-request-service;1"].getService(Ci.nsIDOMRequestService);
 });
 
-XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
-                                   "@mozilla.org/childprocessmessagemanager;1",
-                                   "nsIMessageSender");
+XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
+  return Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
+});
+
+XPCOMUtils.defineLazyGetter(this, "mRIL", function () {
+  return Cc["@mozilla.org/telephony/system-worker-manager;1"].getService(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIRadioInterfaceLayer);
+});
 
 const nsIClassInfo            = Ci.nsIClassInfo;
 const CONTACTPROPERTIES_CID   = Components.ID("{f5181640-89e8-11e1-b0c4-0800200c9a66}");
@@ -29,7 +38,7 @@ const nsIDOMContactProperties = Ci.nsIDOMContactProperties;
 
 // ContactProperties is not directly instantiated. It is used as interface.
 
-function ContactProperties(aProp) { if (DEBUG) debug("ContactProperties Constructor"); }
+function ContactProperties(aProp) { debug("ContactProperties Constructor"); }
 
 ContactProperties.prototype = {
 
@@ -59,14 +68,6 @@ function ContactAddress(aType, aStreetAddress, aLocality, aRegion, aPostalCode, 
 };
 
 ContactAddress.prototype = {
-  __exposedProps__: {
-                      type: 'rw',
-                      streetAddress: 'rw',
-                      locality: 'rw',
-                      region: 'rw',
-                      postalCode: 'rw',
-                      countryName: 'rw'
-                     },
 
   classID : CONTACTADDRESS_CID,
   classInfo : XPCOMUtils.generateCI({classID: CONTACTADDRESS_CID,
@@ -78,60 +79,50 @@ ContactAddress.prototype = {
   QueryInterface : XPCOMUtils.generateQI([nsIDOMContactAddress])
 }
 
-//ContactField
+//ContactEmail
 
-const CONTACTFIELD_CONTRACTID = "@mozilla.org/contactField;1";
-const CONTACTFIELD_CID        = Components.ID("{e2cb19c0-e4aa-11e1-9b23-0800200c9a66}");
-const nsIDOMContactField      = Components.interfaces.nsIDOMContactField;
+const CONTACTEMAIL_CONTRACTID = "@mozilla.org/contactEmail;1";
+const CONTACTEMAIL_CID        = Components.ID("{94811520-c11f-11e1-afa7-0800200c9a66}");
+const nsIDOMContactEmail      = Components.interfaces.nsIDOMContactEmail;
 
-function ContactField(aType, aValue) {
+function ContactEmail(aType, aAddress) {
   this.type = aType || null;
-  this.value = aValue || null;
+  this.address = aAddress || null;
 };
 
-ContactField.prototype = {
-  __exposedProps__: {
-                      type: 'rw',
-                      value: 'rw'
-                     },
+ContactEmail.prototype = {
 
-  classID : CONTACTFIELD_CID,
-  classInfo : XPCOMUtils.generateCI({classID: CONTACTFIELD_CID,
-                                     contractID: CONTACTFIELD_CONTRACTID,
-                                     classDescription: "ContactField",
-                                     interfaces: [nsIDOMContactField],
+  classID : CONTACTEMAIL_CID,
+  classInfo : XPCOMUtils.generateCI({classID: CONTACTEMAIL_CID,
+                                     contractID: CONTACTEMAIL_CONTRACTID,
+                                     classDescription: "ContactEmail",
+                                     interfaces: [nsIDOMContactEmail],
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactField])
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactEmail])
 }
 
-//ContactTelField
+//ContactTelephone
 
-const CONTACTTELFIELD_CONTRACTID = "@mozilla.org/contactTelField;1";
-const CONTACTTELFIELD_CID        = Components.ID("{ed0ab260-e4aa-11e1-9b23-0800200c9a66}");
-const nsIDOMContactTelField      = Components.interfaces.nsIDOMContactTelField;
+const CONTACTTELEPHONE_CONTRACTID = "@mozilla.org/contactTelephone;1";
+const CONTACTTELEPHONE_CID        = Components.ID("{82601b20-89e8-11e1-b0c4-0800200c9a66}");
+const nsIDOMContactTelephone      = Components.interfaces.nsIDOMContactTelephone;
 
-function ContactTelField(aType, aValue, aCarrier) {
+function ContactTelephone(aType, aNumber) {
   this.type = aType || null;
-  this.value = aValue || null;
-  this.carrier = aCarrier || null;
+  this.number = aNumber || null;
 };
 
-ContactTelField.prototype = {
-  __exposedProps__: {
-                      type: 'rw',
-                      value: 'rw',
-                      carrier: 'rw'
-                     },
+ContactTelephone.prototype = {
 
-  classID : CONTACTTELFIELD_CID,
-  classInfo : XPCOMUtils.generateCI({classID: CONTACTTELFIELD_CID,
-                                     contractID: CONTACTTELFIELD_CONTRACTID,
-                                     classDescription: "ContactTelField",
-                                     interfaces: [nsIDOMContactTelField],
+  classID : CONTACTTELEPHONE_CID,
+  classInfo : XPCOMUtils.generateCI({classID: CONTACTTELEPHONE_CID,
+                                     contractID: CONTACTTELEPHONE_CONTRACTID,
+                                     classDescription: "ContactTelephone",
+                                     interfaces: [nsIDOMContactTelephone],
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactTelField])
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactTelephone])
 }
 
 //ContactFindOptions
@@ -160,38 +151,10 @@ const CONTACT_CONTRACTID = "@mozilla.org/contact;1";
 const CONTACT_CID        = Components.ID("{da0f7040-388b-11e1-b86c-0800200c9a66}");
 const nsIDOMContact      = Components.interfaces.nsIDOMContact;
 
-function Contact() {
-  if (DEBUG) debug("Contact constr: ");
-};
+function Contact() { debug("Contact constr: "); };
 
 Contact.prototype = {
-  __exposedProps__: {
-                      id: 'rw',
-                      updated: 'rw',
-                      published:  'rw',
-                      name: 'rw',
-                      honorificPrefix: 'rw',
-                      givenName: 'rw',
-                      additionalName: 'rw',
-                      familyName: 'rw',
-                      honorificSuffix: 'rw',
-                      nickname: 'rw',
-                      email: 'rw',
-                      photo: 'rw',
-                      url: 'rw',
-                      category: 'rw',
-                      adr: 'rw',
-                      tel: 'rw',
-                      org: 'rw',
-                      jobTitle: 'rw',
-                      bday: 'rw',
-                      note: 'rw',
-                      impp: 'rw',
-                      anniversary: 'rw',
-                      sex: 'rw',
-                      genderIdentity: 'rw'
-                     },
-
+  
   init: function init(aProp) {
     // Accept non-array strings for DOMString[] properties and convert them.
     function _create(aField) {   
@@ -233,12 +196,13 @@ Contact.prototype = {
       aProp.email = Array.isArray(aProp.email) ? aProp.email : [aProp.email];
       this.email = new Array();
       for (let i = 0; i < aProp.email.length; i++)
-        this.email.push(new ContactField(aProp.email[i].type, aProp.email[i].value));
+        this.email.push(new ContactEmail(aProp.email[i].type, aProp.email[i].address));
     } else {
       this.email = null;
     }
 
     this.photo =           _checkBlobArray(aProp.photo) || null;
+    this.url =             _create(aProp.url) || null;
     this.category =        _create(aProp.category) || null;
 
     if (aProp.adr) {
@@ -257,7 +221,7 @@ Contact.prototype = {
       aProp.tel = Array.isArray(aProp.tel) ? aProp.tel : [aProp.tel];
       this.tel = new Array();
       for (let i = 0; i < aProp.tel.length; i++)
-        this.tel.push(new ContactTelField(aProp.tel[i].type, aProp.tel[i].value, aProp.tel[i].carrier));
+        this.tel.push(new ContactTelephone(aProp.tel[i].type, aProp.tel[i].number));
     } else {
       this.tel = null;
     }
@@ -266,25 +230,7 @@ Contact.prototype = {
     this.jobTitle =        _create(aProp.jobTitle) || null;
     this.bday =            (aProp.bday == "undefined" || aProp.bday == null) ? null : new Date(aProp.bday);
     this.note =            _create(aProp.note) || null;
-
-    if (aProp.impp) {
-      aProp.impp = Array.isArray(aProp.impp) ? aProp.impp : [aProp.impp];
-      this.impp = new Array();
-      for (let i = 0; i < aProp.impp.length; i++)
-        this.impp.push(new ContactField(aProp.impp[i].type, aProp.impp[i].value));
-    } else {
-      this.impp = null;
-    }
-
-    if (aProp.url) {
-      aProp.url = Array.isArray(aProp.url) ? aProp.url : [aProp.url];
-      this.url = new Array();
-      for (let i = 0; i < aProp.url.length; i++)
-        this.url.push(new ContactField(aProp.url[i].type, aProp.url[i].value));
-    } else {
-      this.url = null;
-    }
-
+    this.impp =            _create(aProp.impp) || null;
     this.anniversary =     (aProp.anniversary == "undefined" || aProp.anniversary == null) ? null : new Date(aProp.anniversary);
     this.sex =             (aProp.sex != "undefined") ? aProp.sex : null;
     this.genderIdentity =  (aProp.genderIdentity != "undefined") ? aProp.genderIdentity : null;
@@ -324,7 +270,7 @@ const nsIDOMContactManager      = Components.interfaces.nsIDOMContactManager;
 
 function ContactManager()
 {
-  if (DEBUG) debug("Constructor");
+  debug("Constructor");
 }
 
 ContactManager.prototype = {
@@ -332,7 +278,7 @@ ContactManager.prototype = {
   _oncontactchange: null,
 
   set oncontactchange(aCallback) {
-    if (DEBUG) debug("set oncontactchange");
+    debug("set oncontactchange");
     let allowCallback = function() {
       this._oncontactchange = aCallback;
     }.bind(this);
@@ -364,33 +310,19 @@ ContactManager.prototype = {
   },
 
   receiveMessage: function(aMessage) {
-    if (DEBUG) debug("Contactmanager::receiveMessage: " + aMessage.name);
+    debug("Contactmanager::receiveMessage: " + aMessage.name);
     let msg = aMessage.json;
     let contacts = msg.contacts;
 
-    let req;
     switch (aMessage.name) {
       case "Contacts:Find:Return:OK":
-        req = this.getRequest(msg.requestID);
+        let req = this.getRequest(msg.requestID);
         if (req) {
           let result = this._convertContactsArray(contacts);
+          debug("result: " + JSON.stringify(result));
           Services.DOMRequest.fireSuccess(req.request, result);
         } else {
-          if (DEBUG) debug("no request stored!" + msg.requestID);
-        }
-        break;
-      case "Contacts:GetSimContacts:Return:OK":
-        req = this.getRequest(msg.requestID);
-        if (req) {
-          let result = contacts.map(function(c) {
-            let contact = new Contact();
-            contact.init( { name: [c.alphaId], tel: [ { value: c.number } ] } );
-            return contact;
-          });
-          if (DEBUG) debug("result: " + JSON.stringify(result));
-          Services.DOMRequest.fireSuccess(req.request, result);
-        } else {
-          if (DEBUG) debug("no request stored!" + msg.requestID);
+          debug("no request stored!" + msg.requestID);
         }
         break;
       case "Contact:Save:Return:OK":
@@ -413,13 +345,12 @@ ContactManager.prototype = {
       case "Contact:Save:Return:KO":
       case "Contact:Remove:Return:KO":
       case "Contacts:Clear:Return:KO":
-      case "Contacts:GetSimContacts:Return:KO":
         req = this.getRequest(msg.requestID);
         if (req)
           Services.DOMRequest.fireError(req.request, msg.errorMsg);
         break;
       case "PermissionPromptHelper:AskPermission:OK":
-        if (DEBUG) debug("id: " + msg.requestID);
+        debug("id: " + msg.requestID);
         req = this.getRequest(msg.requestID);
         if (!req) {
           break;
@@ -432,23 +363,23 @@ ContactManager.prototype = {
         }
         break;
       default: 
-        if (DEBUG) debug("Wrong message: " + aMessage.name);
+        debug("Wrong message: " + aMessage.name);
     }
     this.removeRequest(msg.requestID);
   },
 
-  askPermission: function (aAccess, aRequest, aAllowCallback, aCancelCallback) {
-    if (DEBUG) debug("askPermission for contacts");
+  askPermission: function (aAccess, aReqeust, aAllowCallback, aCancelCallback) {
+    debug("askPermission for contacts");
     let requestID = this.getRequestId({
-      request: aRequest,
+      request: aReqeust,
       allow: function() {
         aAllowCallback();
       }.bind(this),
       cancel : function() {
         if (aCancelCallback) {
           aCancelCallback()
-        } else if (aRequest) {
-          Services.DOMRequest.fireError(aRequest, "Not Allowed");
+        } else if (request) {
+          Services.DOMRequest.fireError(request, "Not Allowed");
         }
       }.bind(this)
     });
@@ -466,7 +397,7 @@ ContactManager.prototype = {
 
   save: function save(aContact) {
     let request;
-    if (DEBUG) debug("save: " + JSON.stringify(aContact) + " :" + aContact.id);
+    debug("save: " + JSON.stringify(aContact) + " :" + aContact.id);
     let newContact = {};
     newContact.properties = {
       name:            [],
@@ -506,7 +437,7 @@ ContactManager.prototype = {
     }
 
     this._setMetaData(newContact, aContact);
-    if (DEBUG) debug("send: " + JSON.stringify(newContact));
+    debug("send: " + JSON.stringify(newContact));
     request = this.createRequest();
     let options = { contact: newContact };
     let allowCallback = function() {
@@ -517,7 +448,7 @@ ContactManager.prototype = {
   },
 
   find: function(aOptions) {
-    if (DEBUG) debug("find! " + JSON.stringify(aOptions));
+    debug("find! " + JSON.stringify(aOptions));
     let request;
     request = this.createRequest();
     let options = { findOptions: aOptions };
@@ -540,7 +471,7 @@ ContactManager.prototype = {
   },
 
   clear: function() {
-    if (DEBUG) debug("clear");
+    debug("clear");
     let request;
     request = this.createRequest();
     let options = {};
@@ -551,16 +482,24 @@ ContactManager.prototype = {
     return request;
   },
 
-  getSimContacts: function(aContactType) {
+  getSimContacts: function(aType) {
     let request;
     request = this.createRequest();
-    let options = {contactType: aContactType};
 
     let allowCallback = function() {
-      if (DEBUG) debug("getSimContacts " + aContactType);
-      cpmm.sendAsyncMessage("Contacts:GetSimContacts",
-        {requestID: this.getRequestId({request: request, reason: "getSimContacts"}),
-         options: options});
+      let callback = function(aType, aContacts) {
+        debug("got SIM contacts: " + aType + " " + JSON.stringify(aContacts));
+        let result = aContacts.map(function(c) {
+          var contact = new Contact();
+          contact.init( { name: [c.alphaId], tel: [ { number: c.number } ] } );
+          return contact;
+        });
+        debug("result: " + JSON.stringify(result));
+        Services.DOMRequest.fireSuccess(request, result);
+      };
+      debug("getSimContacts " + aType);
+
+      mRIL.getICCContacts(aType, callback);
     }.bind(this);
 
     let cancelCallback = function() {
@@ -579,14 +518,12 @@ ContactManager.prototype = {
                               "Contacts:Clear:Return:OK", "Contacts:Clear:Return:KO",
                               "Contact:Save:Return:OK", "Contact:Save:Return:KO",
                               "Contact:Remove:Return:OK", "Contact:Remove:Return:KO",
-                              "Contacts:GetSimContacts:Return:OK",
-                              "Contacts:GetSimContacts:Return:KO",
                               "PermissionPromptHelper:AskPermission:OK"]);
   },
 
   // Called from DOMRequestIpcHelper
   uninit: function uninit() {
-    if (DEBUG) debug("uninit call");
+    debug("uninit call");
     if (this._oncontactchange)
       this._oncontactchange = null;
   },
@@ -602,4 +539,4 @@ ContactManager.prototype = {
 }
 
 const NSGetFactory = XPCOMUtils.generateNSGetFactory(
-                       [Contact, ContactManager, ContactProperties, ContactAddress, ContactField, ContactTelField, ContactFindOptions])
+                       [Contact, ContactManager, ContactProperties, ContactAddress, ContactTelephone, ContactFindOptions, ContactEmail])

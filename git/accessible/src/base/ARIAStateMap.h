@@ -7,7 +7,7 @@
 #ifndef _mozilla_a11y_aria_ARIAStateMap_h_
 #define _mozilla_a11y_aria_ARIAStateMap_h_
 
-#include "mozilla/StandardInteger.h"
+#include "prtypes.h"
 
 namespace mozilla {
 
@@ -54,7 +54,7 @@ enum EStateRule
  * @param  aState    [in/out] accessible states
  * @return            true if state map rule ID is valid
  */
-bool MapToState(EStateRule aRule, dom::Element* aElement, uint64_t* aState);
+bool MapToState(EStateRule aRule, dom::Element* aElement, PRUint64* aState);
 
 } // namespace aria
 } // namespace a11y

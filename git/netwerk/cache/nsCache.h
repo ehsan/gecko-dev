@@ -11,10 +11,6 @@
 #ifndef _nsCache_h_
 #define _nsCache_h_
 
-#if defined(MOZ_LOGGING)
-#define FORCE_PR_LOG
-#endif
-
 #include "nsISupports.h"
 #include "nsIFile.h"
 #include "nsAString.h"
@@ -46,8 +42,8 @@ void   CacheLogPrintPath(PRLogModuleLevel level,
 #endif
 
 
-extern uint32_t  SecondsFromPRTime(PRTime prTime);
-extern PRTime    PRTimeFromSeconds(uint32_t seconds);
+extern PRUint32  SecondsFromPRTime(PRTime prTime);
+extern PRTime    PRTimeFromSeconds(PRUint32 seconds);
 
 
 extern nsresult  ClientIDFromCacheKey(const nsACString&  key, char ** result);

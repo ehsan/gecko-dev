@@ -14,7 +14,6 @@
 #ifndef nsDeckFrame_h___
 #define nsDeckFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsBoxFrame.h"
 
 class nsDeckFrame : public nsBoxFrame
@@ -27,28 +26,28 @@ public:
   friend nsIFrame* NS_NewDeckFrame(nsIPresShell* aPresShell,
                                    nsStyleContext* aContext);
 
-  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+                              PRInt32         aModType);
 
-  NS_IMETHOD DoLayout(nsBoxLayoutState& aState) MOZ_OVERRIDE;
+  NS_IMETHOD DoLayout(nsBoxLayoutState& aState);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
   NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                          const nsRect&           aDirtyRect,
-                                         const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                                         const nsDisplayListSet& aLists);
                                          
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+                  nsIFrame*        aPrevInFlow);
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+  NS_IMETHOD GetFrameName(nsAString& aResult) const
   {
       return MakeFrameName(NS_LITERAL_STRING("Deck"), aResult);
   }
@@ -61,12 +60,12 @@ public:
 protected:
 
   void IndexChanged();
-  int32_t GetSelectedIndex();
+  PRInt32 GetSelectedIndex();
   void HideBox(nsIFrame* aBox);
 
 private:
 
-  int32_t mIndex;
+  PRInt32 mIndex;
 
 }; // class nsDeckFrame
 

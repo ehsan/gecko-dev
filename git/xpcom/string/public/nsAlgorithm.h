@@ -11,6 +11,11 @@
   // for |nsCharSourceTraits|, |nsCharSinkTraits|
 #endif
 
+#ifndef prtypes_h___
+#include "prtypes.h"
+  // for |PRUint32|...
+#endif
+
 #ifndef nsDebug_h___
 #include "nsDebug.h"
   // for NS_ASSERTION
@@ -65,10 +70,10 @@ NS_ABS( const T& a )
 
 template <class InputIterator, class T>
 inline
-uint32_t
+PRUint32
 NS_COUNT( InputIterator& first, const InputIterator& last, const T& value )
   {
-    uint32_t result = 0;
+    PRUint32 result = 0;
     for ( ; first != last; ++first )
       if ( *first == value )
         ++result;

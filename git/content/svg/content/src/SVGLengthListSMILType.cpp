@@ -68,7 +68,7 @@ SVGLengthListSMILType::IsEqual(const nsSMILValue& aLeft,
 nsresult
 SVGLengthListSMILType::Add(nsSMILValue& aDest,
                            const nsSMILValue& aValueToAdd,
-                           uint32_t aCount) const
+                           PRUint32 aCount) const
 {
   NS_PRECONDITION(aDest.mType == this, "Unexpected SMIL type");
   NS_PRECONDITION(aValueToAdd.mType == this, "Incompatible SMIL type");
@@ -110,7 +110,7 @@ SVGLengthListSMILType::Add(nsSMILValue& aDest,
     if (!dest.SetLength(valueToAdd.Length())) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
-    for (uint32_t i = 0; i < dest.Length(); ++i) {
+    for (PRUint32 i = 0; i < dest.Length(); ++i) {
       dest[i].SetValueAndUnit(valueToAdd[i].GetValueInCurrentUnits() * aCount,
                               valueToAdd[i].GetUnit());
     }
@@ -124,14 +124,14 @@ SVGLengthListSMILType::Add(nsSMILValue& aDest,
   // Zero-pad our |dest| list, if necessary.
   if (dest.Length() < valueToAdd.Length()) {
     if (!dest.CanZeroPadList()) {
-      // SVGContentUtils::ReportToConsole
+      // nsSVGUtils::ReportToConsole
       return NS_ERROR_FAILURE;
     }
 
     NS_ABORT_IF_FALSE(valueToAdd.CanZeroPadList(),
                       "values disagree about attribute's zero-paddibility");
 
-    uint32_t i = dest.Length();
+    PRUint32 i = dest.Length();
     if (!dest.SetLength(valueToAdd.Length())) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -140,7 +140,7 @@ SVGLengthListSMILType::Add(nsSMILValue& aDest,
     }
   }
 
-  for (uint32_t i = 0; i < valueToAdd.Length(); ++i) {
+  for (PRUint32 i = 0; i < valueToAdd.Length(); ++i) {
     float valToAdd;
     if (dest[i].GetUnit() == valueToAdd[i].GetUnit()) {
       valToAdd = valueToAdd[i].GetValueInCurrentUnits();
@@ -188,7 +188,7 @@ SVGLengthListSMILType::ComputeDistance(const nsSMILValue& aFrom,
 
   if ((from.Length() < to.Length() && !from.CanZeroPadList()) ||
       (to.Length() < from.Length() && !to.CanZeroPadList())) {
-    // SVGContentUtils::ReportToConsole
+    // nsSVGUtils::ReportToConsole
     return NS_ERROR_FAILURE;
   }
 
@@ -204,7 +204,7 @@ SVGLengthListSMILType::ComputeDistance(const nsSMILValue& aFrom,
 
   double total = 0.0;
 
-  uint32_t i = 0;
+  PRUint32 i = 0;
   for (; i < from.Length() && i < to.Length(); ++i) {
     double f = from[i].GetValueInUserUnits(from.Element(), from.Axis());
     double t = to[i].GetValueInUserUnits(to.Element(), to.Axis());
@@ -263,7 +263,7 @@ SVGLengthListSMILType::Interpolate(const nsSMILValue& aStartVal,
 
   if ((start.Length() < end.Length() && !start.CanZeroPadList()) ||
       (end.Length() < start.Length() && !end.CanZeroPadList())) {
-    // SVGContentUtils::ReportToConsole
+    // nsSVGUtils::ReportToConsole
     return NS_ERROR_FAILURE;
   }
 
@@ -271,7 +271,7 @@ SVGLengthListSMILType::Interpolate(const nsSMILValue& aStartVal,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  uint32_t i = 0;
+  PRUint32 i = 0;
   for (; i < start.Length() && i < end.Length(); ++i) {
     float s;
     if (start[i].GetUnit() == end[i].GetUnit()) {

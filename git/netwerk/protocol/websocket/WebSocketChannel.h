@@ -78,10 +78,10 @@ public:
                        const nsACString &aOrigin,
                        nsIWebSocketListener *aListener,
                        nsISupports *aContext);
-  NS_IMETHOD Close(uint16_t aCode, const nsACString & aReason);
+  NS_IMETHOD Close(PRUint16 aCode, const nsACString & aReason);
   NS_IMETHOD SendMsg(const nsACString &aMsg);
   NS_IMETHOD SendBinaryMsg(const nsACString &aMsg);
-  NS_IMETHOD SendBinaryStream(nsIInputStream *aStream, uint32_t length);
+  NS_IMETHOD SendBinaryStream(nsIInputStream *aStream, PRUint32 length);
   NS_IMETHOD GetSecurityInfo(nsISupports **aSecurityInfo);
 
   WebSocketChannel();
@@ -99,9 +99,9 @@ public:
     kPong =         0xA
   };
 
-  const static uint32_t kControlFrameMask   = 0x8;
-  const static uint8_t kMaskBit             = 0x80;
-  const static uint8_t kFinalFragBit        = 0x80;
+  const static PRUint32 kControlFrameMask   = 0x8;
+  const static PRUint8 kMaskBit             = 0x80;
+  const static PRUint8 kFinalFragBit        = 0x80;
 
 protected:
   virtual ~WebSocketChannel();
@@ -117,13 +117,13 @@ private:
 
   // Common send code for binary + text msgs
   nsresult SendMsgCommon(const nsACString *aMsg, bool isBinary,
-                         uint32_t length, nsIInputStream *aStream = NULL);
+                         PRUint32 length, nsIInputStream *aStream = NULL);
 
   void EnqueueOutgoingMessage(nsDeque &aQueue, OutboundMessage *aMsg);
 
   void PrimeNewOutgoingMessage();
   void DeleteCurrentOutGoingMessage();
-  void GeneratePong(uint8_t *payload, uint32_t len);
+  void GeneratePong(PRUint8 *payload, PRUint32 len);
   void GeneratePing();
 
   void     BeginOpen();
@@ -131,7 +131,7 @@ private:
   nsresult SetupRequest();
   nsresult ApplyForAdmission();
   nsresult StartWebsocketData();
-  uint16_t ResultToCloseCode(nsresult resultCode);
+  PRUint16 ResultToCloseCode(nsresult resultCode);
 
   void StopSession(nsresult reason);
   void AbortSession(nsresult reason);
@@ -140,14 +140,14 @@ private:
   void IncrementSessionCount();
   void DecrementSessionCount();
 
-  void EnsureHdrOut(uint32_t size);
-  void ApplyMask(uint32_t mask, uint8_t *data, uint64_t len);
+  void EnsureHdrOut(PRUint32 size);
+  void ApplyMask(PRUint32 mask, PRUint8 *data, PRUint64 len);
 
   bool     IsPersistentFramePtr();
-  nsresult ProcessInput(uint8_t *buffer, uint32_t count);
-  bool UpdateReadBuffer(uint8_t *buffer, uint32_t count,
-                        uint32_t accumulatedFragments,
-                        uint32_t *available);
+  nsresult ProcessInput(PRUint8 *buffer, PRUint32 count);
+  bool UpdateReadBuffer(PRUint8 *buffer, PRUint32 count,
+                        PRUint32 accumulatedFragments,
+                        PRUint32 *available);
 
 
   nsCOMPtr<nsIEventTarget>                 mSocketThread;
@@ -162,85 +162,85 @@ private:
   // Used as key for connection managment: Initially set to hostname from URI,
   // then to IP address (unless we're leaving DNS resolution to a proxy server)
   nsCString                       mAddress;
-  int32_t                         mPort;          // WS server port
+  PRInt32                         mPort;          // WS server port
 
   nsCOMPtr<nsISocketTransport>    mTransport;
   nsCOMPtr<nsIAsyncInputStream>   mSocketIn;
   nsCOMPtr<nsIAsyncOutputStream>  mSocketOut;
 
   nsCOMPtr<nsITimer>              mCloseTimer;
-  uint32_t                        mCloseTimeout;  /* milliseconds */
+  PRUint32                        mCloseTimeout;  /* milliseconds */
 
   nsCOMPtr<nsITimer>              mOpenTimer;
-  uint32_t                        mOpenTimeout;  /* milliseconds */
+  PRUint32                        mOpenTimeout;  /* milliseconds */
   wsConnectingState               mConnecting;   /* 0 if not connecting */
   nsCOMPtr<nsITimer>              mReconnectDelayTimer;
 
   nsCOMPtr<nsITimer>              mPingTimer;
-  uint32_t                        mPingTimeout;  /* milliseconds */
-  uint32_t                        mPingResponseTimeout;  /* milliseconds */
+  PRUint32                        mPingTimeout;  /* milliseconds */
+  PRUint32                        mPingResponseTimeout;  /* milliseconds */
 
   nsCOMPtr<nsITimer>              mLingeringCloseTimer;
-  const static int32_t            kLingeringCloseTimeout =   1000;
-  const static int32_t            kLingeringCloseThreshold = 50;
+  const static PRInt32            kLingeringCloseTimeout =   1000;
+  const static PRInt32            kLingeringCloseThreshold = 50;
 
-  int32_t                         mMaxConcurrentConnections;
+  PRInt32                         mMaxConcurrentConnections;
 
-  uint32_t                        mRecvdHttpOnStartRequest   : 1;
-  uint32_t                        mRecvdHttpUpgradeTransport : 1;
-  uint32_t                        mRequestedClose            : 1;
-  uint32_t                        mClientClosed              : 1;
-  uint32_t                        mServerClosed              : 1;
-  uint32_t                        mStopped                   : 1;
-  uint32_t                        mCalledOnStop              : 1;
-  uint32_t                        mPingOutstanding           : 1;
-  uint32_t                        mAllowCompression          : 1;
-  uint32_t                        mAutoFollowRedirects       : 1;
-  uint32_t                        mReleaseOnTransmit         : 1;
-  uint32_t                        mTCPClosed                 : 1;
-  uint32_t                        mWasOpened                 : 1;
-  uint32_t                        mOpenedHttpChannel         : 1;
-  uint32_t                        mDataStarted               : 1;
-  uint32_t                        mIncrementedSessionCount   : 1;
-  uint32_t                        mDecrementedSessionCount   : 1;
+  PRUint32                        mRecvdHttpOnStartRequest   : 1;
+  PRUint32                        mRecvdHttpUpgradeTransport : 1;
+  PRUint32                        mRequestedClose            : 1;
+  PRUint32                        mClientClosed              : 1;
+  PRUint32                        mServerClosed              : 1;
+  PRUint32                        mStopped                   : 1;
+  PRUint32                        mCalledOnStop              : 1;
+  PRUint32                        mPingOutstanding           : 1;
+  PRUint32                        mAllowCompression          : 1;
+  PRUint32                        mAutoFollowRedirects       : 1;
+  PRUint32                        mReleaseOnTransmit         : 1;
+  PRUint32                        mTCPClosed                 : 1;
+  PRUint32                        mWasOpened                 : 1;
+  PRUint32                        mOpenedHttpChannel         : 1;
+  PRUint32                        mDataStarted               : 1;
+  PRUint32                        mIncrementedSessionCount   : 1;
+  PRUint32                        mDecrementedSessionCount   : 1;
 
-  int32_t                         mMaxMessageSize;
+  PRInt32                         mMaxMessageSize;
   nsresult                        mStopOnClose;
-  uint16_t                        mServerCloseCode;
+  PRUint16                        mServerCloseCode;
   nsCString                       mServerCloseReason;
-  uint16_t                        mScriptCloseCode;
+  PRUint16                        mScriptCloseCode;
   nsCString                       mScriptCloseReason;
 
   // These are for the read buffers
-  const static uint32_t kIncomingBufferInitialSize = 16 * 1024;
+  const static PRUint32 kIncomingBufferInitialSize = 16 * 1024;
   // We're ok with keeping a buffer this size or smaller around for the life of
   // the websocket.  If a particular message needs bigger than this we'll
   // increase the buffer temporarily, then drop back down to this size.
-  const static uint32_t kIncomingBufferStableSize = 128 * 1024;
+  const static PRUint32 kIncomingBufferStableSize = 128 * 1024;
 
-  uint8_t                        *mFramePtr;
-  uint8_t                        *mBuffer;
-  uint8_t                         mFragmentOpcode;
-  uint32_t                        mFragmentAccumulator;
-  uint32_t                        mBuffered;
-  uint32_t                        mBufferSize;
+  PRUint8                        *mFramePtr;
+  PRUint8                        *mBuffer;
+  PRUint8                         mFragmentOpcode;
+  PRUint32                        mFragmentAccumulator;
+  PRUint32                        mBuffered;
+  PRUint32                        mBufferSize;
   nsCOMPtr<nsIStreamListener>     mInflateReader;
   nsCOMPtr<nsIStringInputStream>  mInflateStream;
 
   // These are for the send buffers
-  const static int32_t kCopyBreak = 1000;
+  const static PRInt32 kCopyBreak = 1000;
 
   OutboundMessage                *mCurrentOut;
-  uint32_t                        mCurrentOutSent;
+  PRUint32                        mCurrentOutSent;
   nsDeque                         mOutgoingMessages;
   nsDeque                         mOutgoingPingMessages;
   nsDeque                         mOutgoingPongMessages;
-  uint32_t                        mHdrOutToSend;
-  uint8_t                        *mHdrOut;
-  uint8_t                         mOutHeader[kCopyBreak + 16];
+  PRUint32                        mHdrOutToSend;
+  PRUint8                        *mHdrOut;
+  PRUint8                         mOutHeader[kCopyBreak + 16];
   nsWSCompression                *mCompressor;
-  uint32_t                        mDynamicOutputSize;
-  uint8_t                        *mDynamicOutput;
+  PRUint32                        mDynamicOutputSize;
+  PRUint8                        *mDynamicOutput;
 };
 
 class WebSocketSSLChannel : public WebSocketChannel

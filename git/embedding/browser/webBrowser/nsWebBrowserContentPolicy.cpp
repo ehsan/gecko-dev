@@ -9,7 +9,6 @@
 #include "nsIDocShell.h"
 #include "nsCOMPtr.h"
 #include "nsContentPolicyUtils.h"
-#include "nsIContentViewer.h"
 
 nsWebBrowserContentPolicy::nsWebBrowserContentPolicy()
 {
@@ -23,30 +22,27 @@ nsWebBrowserContentPolicy::~nsWebBrowserContentPolicy()
 
 NS_IMPL_ISUPPORTS1(nsWebBrowserContentPolicy, nsIContentPolicy)
 
-NS_IMETHODIMP
-nsWebBrowserContentPolicy::ShouldLoad(uint32_t          contentType,
-                                      nsIURI           *contentLocation,
-                                      nsIURI           *requestingLocation,
-                                      nsISupports      *requestingContext,
-                                      const nsACString &mimeGuess,
-                                      nsISupports      *extra,
-                                      nsIPrincipal     *requestPrincipal,
-                                      int16_t          *shouldLoad)
+static nsresult
+PerformPolicyCheck(PRUint32     contentType,
+                   nsISupports *requestingContext,
+                   PRInt16     *decision)
 {
-    NS_PRECONDITION(shouldLoad, "Null out param");
+    NS_PRECONDITION(decision, "Null out param");
 
-    *shouldLoad = nsIContentPolicy::ACCEPT;
+    *decision = nsIContentPolicy::ACCEPT;
 
     nsIDocShell *shell = NS_CP_GetDocShellFromContext(requestingContext);
     /* We're going to dereference shell, so make sure it isn't null */
-    if (!shell) {
+    if (!shell)
         return NS_OK;
-    }
-    
+
     nsresult rv;
     bool allowed = true;
 
     switch (contentType) {
+      case nsIContentPolicy::TYPE_OBJECT:
+        rv = shell->GetAllowPlugins(&allowed);
+        break;
       case nsIContentPolicy::TYPE_SCRIPT:
         rv = shell->GetAllowJavascript(&allowed);
         break;
@@ -67,36 +63,36 @@ nsWebBrowserContentPolicy::ShouldLoad(uint32_t          contentType,
     }
 
     if (NS_SUCCEEDED(rv) && !allowed) {
-        *shouldLoad = nsIContentPolicy::REJECT_TYPE;
+        *decision = nsIContentPolicy::REJECT_TYPE;
     }
     return rv;
 }
 
 NS_IMETHODIMP
-nsWebBrowserContentPolicy::ShouldProcess(uint32_t          contentType,
+nsWebBrowserContentPolicy::ShouldLoad(PRUint32          contentType,
+                                      nsIURI           *contentLocation,
+                                      nsIURI           *requestingLocation,
+                                      nsISupports      *requestingContext,
+                                      const nsACString &mimeGuess,
+                                      nsISupports      *extra,
+                                      nsIPrincipal     *requestPrincipal,
+                                      PRInt16          *shouldLoad)
+{
+    return PerformPolicyCheck(contentType, requestingContext, shouldLoad);
+}
+
+NS_IMETHODIMP
+nsWebBrowserContentPolicy::ShouldProcess(PRUint32          contentType,
                                          nsIURI           *contentLocation,
                                          nsIURI           *requestingLocation,
                                          nsISupports      *requestingContext,
                                          const nsACString &mimeGuess,
                                          nsISupports      *extra,
                                          nsIPrincipal     *requestPrincipal,
-                                         int16_t          *shouldProcess)
+                                         PRInt16          *shouldProcess)
 {
-    NS_PRECONDITION(shouldProcess, "Null out param");
-
     *shouldProcess = nsIContentPolicy::ACCEPT;
-
-    // Object tags will always open channels with TYPE_OBJECT, but may end up
-    // loading with TYPE_IMAGE or TYPE_DOCUMENT as their final type, so we block
-    // actual-plugins at the process stage
-    if (contentType != nsIContentPolicy::TYPE_OBJECT) {
-        return NS_OK;
-    }
-
-    nsIDocShell *shell = NS_CP_GetDocShellFromContext(requestingContext);
-    if (shell && (!shell->PluginsAllowedInCurrentDoc())) {
-        *shouldProcess = nsIContentPolicy::REJECT_TYPE;
-    }
-
     return NS_OK;
+    //LATER:
+    //  return PerformPolicyCheck(contentType, requestingContext, shouldProcess);
 }

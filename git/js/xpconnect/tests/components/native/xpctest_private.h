@@ -25,8 +25,8 @@ class xpcTestObjectReadOnly MOZ_FINAL : public nsIXPCTestObjectReadOnly {
 
  private:
     bool    boolProperty;
-    int16_t shortProperty;
-    int32_t longProperty;
+    PRInt16 shortProperty;
+    PRInt32 longProperty;
     float   floatProperty;
     char    charProperty;
     PRTime  timeProperty;
@@ -42,8 +42,8 @@ class xpcTestObjectReadWrite MOZ_FINAL : public nsIXPCTestObjectReadWrite {
 
  private:
      bool boolProperty;
-     int16_t shortProperty;
-     int32_t longProperty;
+     PRInt16 shortProperty;
+     PRInt32 longProperty;
      float floatProperty;
      char charProperty;
      char *stringProperty;

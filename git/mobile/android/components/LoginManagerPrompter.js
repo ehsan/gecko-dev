@@ -128,7 +128,12 @@ LoginManagerPrompter.prototype = {
      *
      */
     promptToSavePassword : function (aLogin) {
-        this._showSaveLoginNotification(aLogin);
+        var nativeWindow = this._getNativeWindow();
+
+        if (nativeWindow)
+            this._showSaveLoginNotification(nativeWindow, aLogin);
+        else
+            this._showSaveLoginDialog(aLogin);
     },
 
 
@@ -138,7 +143,7 @@ LoginManagerPrompter.prototype = {
      * Displays a notification doorhanger.
      *
      */
-    _showLoginNotification : function (aName, aText, aButtons) {
+    _showLoginNotification : function (aNativeWindow, aName, aText, aButtons) {
         this.log("Adding new " + aName + " notification bar");
         let notifyWin = this._window.top;
         let chromeWin = this._getChromeWindow(notifyWin).wrappedJSObject;
@@ -158,9 +163,7 @@ LoginManagerPrompter.prototype = {
             timeout: Date.now() + 10000
         }
 
-        var nativeWindow = this._getNativeWindow();
-        if (nativeWindow)
-            nativeWindow.doorhanger.show(aText, aName, aButtons, tabID, options);
+        aNativeWindow.doorhanger.show(aText, aName, aButtons, tabID, options);
     },
 
 
@@ -172,7 +175,7 @@ LoginManagerPrompter.prototype = {
      * their login, and only save a login which they know worked.
      *
      */
-    _showSaveLoginNotification : function (aLogin) {
+    _showSaveLoginNotification : function (aNativeWindow, aLogin) {
 
         // Ugh. We can't use the strings from the popup window, because they
         // have the access key marked in the string (eg "Mo&zilla"), along
@@ -218,7 +221,7 @@ LoginManagerPrompter.prototype = {
                 label:     rememberButtonText,
                 accessKey: rememberButtonAccessKey,
                 popup:     null,
-                callback: function() {
+                callback: function(aNotificationBar, aButton) {
                     pwmgr.addLogin(aLogin);
                 }
             },
@@ -228,7 +231,7 @@ LoginManagerPrompter.prototype = {
                 label:     neverButtonText,
                 accessKey: neverButtonAccessKey,
                 popup:     null,
-                callback: function() {
+                callback: function(aNotificationBar, aButton) {
                     pwmgr.setLoginSavingEnabled(aLogin.hostname, false);
                 }
             },
@@ -238,11 +241,72 @@ LoginManagerPrompter.prototype = {
                 label:     notNowButtonText,
                 accessKey: notNowButtonAccessKey,
                 popup:     null,
-                callback:  function() { /* NOP */ }
+                callback:  function() { /* NOP */ } 
             }
         ];
 
-        this._showLoginNotification("password-save", notificationText, buttons);
+        this._showLoginNotification(aNativeWindow, "password-save",
+             notificationText, buttons);
+    },
+
+
+    /*
+     * _showSaveLoginDialog
+     *
+     * Called when we detect a new login in a form submission,
+     * asks the user what to do.
+     *
+     */
+    _showSaveLoginDialog : function (aLogin) {
+        const buttonFlags = Ci.nsIPrompt.BUTTON_POS_1_DEFAULT +
+            (Ci.nsIPrompt.BUTTON_TITLE_IS_STRING * Ci.nsIPrompt.BUTTON_POS_0) +
+            (Ci.nsIPrompt.BUTTON_TITLE_IS_STRING * Ci.nsIPrompt.BUTTON_POS_1) +
+            (Ci.nsIPrompt.BUTTON_TITLE_IS_STRING * Ci.nsIPrompt.BUTTON_POS_2);
+
+        var brandShortName =
+                this._brandBundle.GetStringFromName("brandShortName");
+        var displayHost = this._getShortDisplayHost(aLogin.hostname);
+
+        var dialogText;
+        if (aLogin.username) {
+            var displayUser = this._sanitizeUsername(aLogin.username);
+            dialogText = this._getLocalizedString(
+                                 "saveLoginText",
+                                 [brandShortName, displayUser, displayHost]);
+        } else {
+            dialogText = this._getLocalizedString(
+                                 "saveLoginTextNoUsername",
+                                 [brandShortName, displayHost]);
+        }
+        var dialogTitle        = this._getLocalizedString(
+                                        "savePasswordTitle");
+        var neverButtonText    = this._getLocalizedString(
+                                        "promptNeverForSiteButtonText");
+        var rememberButtonText = this._getLocalizedString(
+                                        "promptRememberButtonText");
+        var notNowButtonText   = this._getLocalizedString(
+                                        "promptNotNowButtonText");
+
+        this.log("Prompting user to save/ignore login");
+        var userChoice = this._promptService.confirmEx(null,
+                                            dialogTitle, dialogText,
+                                            buttonFlags, rememberButtonText,
+                                            notNowButtonText, neverButtonText,
+                                            null, {});
+        //  Returns:
+        //   0 - Save the login
+        //   1 - Ignore the login this time
+        //   2 - Never save logins for this site
+        if (userChoice == 2) {
+            this.log("Disabling " + aLogin.hostname + " logins by request.");
+            this._pwmgr.setLoginSavingEnabled(aLogin.hostname, false);
+        } else if (userChoice == 0) {
+            this.log("Saving login for " + aLogin.hostname);
+            this._pwmgr.addLogin(aLogin);
+        } else {
+            // userChoice == 1 --> just ignore the login.
+            this.log("Ignoring login.");
+        }
     },
 
     /*
@@ -254,7 +318,12 @@ LoginManagerPrompter.prototype = {
      *
      */
     promptToChangePassword : function (aOldLogin, aNewLogin) {
-        this._showChangeLoginNotification(aOldLogin, aNewLogin.password);
+        var nativeWindow = this._getNativeWindow();
+
+        if (nativeWindow)
+            this._showChangeLoginNotification(nativeWindow, aOldLogin, aNewLogin.password);
+        else
+            this._showChangeLoginDialog(aOldLogin, aNewLogin.password);
     },
 
     /*
@@ -263,17 +332,15 @@ LoginManagerPrompter.prototype = {
      * Shows the Change Password notification doorhanger.
      *
      */
-    _showChangeLoginNotification : function (aOldLogin, aNewPassword) {
+    _showChangeLoginNotification : function (aNativeWindow, aOldLogin, aNewPassword) {
         var notificationText;
-        if (aOldLogin.username) {
-            let displayUser = this._sanitizeUsername(aOldLogin.username);
+        if (aOldLogin.username)
             notificationText  = this._getLocalizedString(
                                           "passwordChangeText",
-                                          [displayUser]);
-        } else {
+                                          [aOldLogin.username]);
+        else
             notificationText  = this._getLocalizedString(
                                           "passwordChangeTextNoUser");
-        }
 
         var changeButtonText =
               this._getLocalizedString("notifyBarChangeButtonText");
@@ -295,7 +362,7 @@ LoginManagerPrompter.prototype = {
                 label:     changeButtonText,
                 accessKey: changeButtonAccessKey,
                 popup:     null,
-                callback:  function() {
+                callback:  function(aNotificationBar, aButton) {
                     self._updateLogin(aOldLogin, aNewPassword);
                 }
             },
@@ -305,13 +372,46 @@ LoginManagerPrompter.prototype = {
                 label:     dontChangeButtonText,
                 accessKey: dontChangeButtonAccessKey,
                 popup:     null,
-                callback:  function() {
+                callback:  function(aNotificationBar, aButton) {
                     // do nothing
                 }
             }
         ];
 
-        this._showLoginNotification("password-change", notificationText, buttons);
+        this._showLoginNotification(aNativeWindow, "password-change",
+             notificationText, buttons);
+    },
+
+    /*
+     * _showChangeLoginDialog
+     *
+     * Shows the Change Password dialog.
+     *
+     */
+    _showChangeLoginDialog : function (aOldLogin, aNewPassword) {
+        const buttonFlags = Ci.nsIPrompt.STD_YES_NO_BUTTONS;
+
+        var dialogText;
+        if (aOldLogin.username)
+            dialogText  = this._getLocalizedString(
+                                    "passwordChangeText",
+                                    [aOldLogin.username]);
+        else
+            dialogText  = this._getLocalizedString(
+                                    "passwordChangeTextNoUser");
+
+        var dialogTitle = this._getLocalizedString(
+                                    "passwordChangeTitle");
+
+        // returns 0 for yes, 1 for no.
+        var ok = !this._promptService.confirmEx(null,
+                                dialogTitle, dialogText, buttonFlags,
+                                null, null, null,
+                                null, {});
+        if (ok) {
+            this.log("Updating password for user " + aOldLogin.username);
+            this._updateLogin(aOldLogin, aNewPassword);
+        }
     },
 
 
@@ -394,7 +494,7 @@ LoginManagerPrompter.prototype = {
      * _getNativeWindow
      *
      * Returns the NativeWindow to this prompter, or null if there isn't
-     * a NativeWindow available (w/ error sent to logcat).
+     * a NativeWindow available.
      */
     _getNativeWindow : function () {
         let nativeWindow = null;
@@ -404,16 +504,17 @@ LoginManagerPrompter.prototype = {
             if (chromeWin.NativeWindow) {
                 nativeWindow = chromeWin.NativeWindow;
             } else {
-                Cu.reportError("NativeWindow not available on window");
+                this.log("NativeWindow not available on window");
             }
 
         } catch (e) {
             // If any errors happen, just assume no native window helper.
-            Cu.reportError("No NativeWindow available: " + e);
+            this.log("No NativeWindow available: " + e)
         }
         return nativeWindow;
     },
 
+    
     /*
      * _getLocalizedString
      *

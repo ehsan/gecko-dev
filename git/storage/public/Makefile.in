@@ -45,6 +45,7 @@ EXPORTS_NAMESPACES = mozilla mozilla/storage
 
 EXPORTS = \
 	mozStorageHelper.h \
+	mozStorage.h \
 	$(NULL)
 
 EXPORTS_mozilla = storage.h

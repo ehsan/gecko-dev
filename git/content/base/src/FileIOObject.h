@@ -22,7 +22,7 @@
 namespace mozilla {
 namespace dom {
 
-extern const uint64_t kUnknownSize;
+extern const PRUint64 kUnknownSize;
 
 // A common base class for FileReader and FileSaver
 
@@ -37,15 +37,12 @@ public:
 
   // Common methods
   NS_METHOD Abort();
-  NS_METHOD GetReadyState(uint16_t* aReadyState);
+  NS_METHOD GetReadyState(PRUint16* aReadyState);
   NS_METHOD GetError(nsIDOMDOMError** aError);
 
-  NS_METHOD GetOnabort(JSContext* aCx, JS::Value* aValue);
-  NS_METHOD SetOnabort(JSContext* aCx, const JS::Value& aValue);
-  NS_METHOD GetOnerror(JSContext* aCx, JS::Value* aValue);
-  NS_METHOD SetOnerror(JSContext* aCx, const JS::Value& aValue);
-  NS_METHOD GetOnprogress(JSContext* aCx, JS::Value* aValue);
-  NS_METHOD SetOnprogress(JSContext* aCx, const JS::Value& aValue);
+  NS_DECL_AND_IMPL_EVENT_HANDLER(abort);
+  NS_DECL_AND_IMPL_EVENT_HANDLER(error);
+  NS_DECL_AND_IMPL_EVENT_HANDLER(progress);
 
   NS_DECL_NSITIMERCALLBACK
 
@@ -68,8 +65,8 @@ protected:
                              nsAString& aTerminationEvent) = 0;
   // and for onDataAvailable
   NS_IMETHOD DoOnDataAvailable(nsIRequest *aRequest, nsISupports *aContext,
-                               nsIInputStream *aInputStream, uint64_t aOffset,
-                               uint32_t aCount) = 0;
+                               nsIInputStream *aInputStream, PRUint32 aOffset,
+                               PRUint32 aCount) = 0;
 
   void StartProgressEventTimer();
   void ClearProgressEventTimer();
@@ -83,10 +80,10 @@ protected:
   nsCOMPtr<nsIDOMDOMError> mError;
   nsCOMPtr<nsIChannel> mChannel;
 
-  uint16_t mReadyState;
+  PRUint16 mReadyState;
 
-  uint64_t mTotal;
-  uint64_t mTransferred;
+  PRUint64 mTotal;
+  PRUint64 mTransferred;
 };
 
 } // namespace dom

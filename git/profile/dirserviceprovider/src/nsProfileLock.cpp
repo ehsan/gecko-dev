@@ -199,7 +199,7 @@ nsresult nsProfileLock::LockWithFcntl(nsIFile *aLockFile)
 {
     nsresult rv = NS_OK;
 
-    nsAutoCString lockFilePath;
+    nsCAutoString lockFilePath;
     rv = aLockFile->GetNativePath(lockFilePath);
     if (NS_FAILED(rv)) {
         NS_ERROR("Could not get native path");
@@ -308,7 +308,7 @@ static bool IsSymlinkStaleLock(struct in_addr* aAddr, const char* aFileName,
 nsresult nsProfileLock::LockWithSymlink(nsIFile *aLockFile, bool aHaveFcntlLock)
 {
     nsresult rv;
-    nsAutoCString lockFilePath;
+    nsCAutoString lockFilePath;
     rv = aLockFile->GetNativePath(lockFilePath);
     if (NS_FAILED(rv)) {
         NS_ERROR("Could not get native path");
@@ -426,7 +426,7 @@ PR_BEGIN_MACRO                                                          \
 }
 #endif /* XP_UNIX */
 
-nsresult nsProfileLock::GetReplacedLockTime(PRTime *aResult) {
+nsresult nsProfileLock::GetReplacedLockTime(PRInt64 *aResult) {
     *aResult = mReplacedLockTime;
     return NS_OK;
 }
@@ -491,7 +491,7 @@ nsresult nsProfileLock::Lock(nsIFile* aProfileDir,
         };
 
         PRFileDesc *fd = nullptr;
-        int32_t ioBytes;
+        PRInt32 ioBytes;
         ProcessInfoRec processInfo;
         LockProcessInfo lockProcessInfo;
 
@@ -586,7 +586,7 @@ nsresult nsProfileLock::Lock(nsIFile* aProfileDir,
         return NS_ERROR_FILE_ACCESS_DENIED;
     }
 #elif defined(XP_OS2)
-    nsAutoCString filePath;
+    nsCAutoString filePath;
     rv = lockFile->GetNativePath(filePath);
     if (NS_FAILED(rv))
         return rv;
@@ -609,7 +609,7 @@ nsresult nsProfileLock::Lock(nsIFile* aProfileDir,
         return NS_ERROR_FILE_ACCESS_DENIED;
     }
 #elif defined(VMS)
-    nsAutoCString filePath;
+    nsCAutoString filePath;
     rv = lockFile->GetNativePath(filePath);
     if (NS_FAILED(rv))
         return rv;

@@ -8,7 +8,6 @@
 #ifndef nsTransitionManager_h_
 #define nsTransitionManager_h_
 
-#include "mozilla/Attributes.h"
 #include "AnimationCommon.h"
 #include "nsCSSPseudoElements.h"
 
@@ -66,7 +65,8 @@ struct ElementPropertyTransition
     mStartTime = mozilla::TimeStamp();
   }
 
-  bool IsRunningAt(mozilla::TimeStamp aTime) const;
+  bool CanPerformOnCompositor(mozilla::dom::Element* aElement,
+                              mozilla::TimeStamp aTime) const;
 };
 
 struct ElementTransitions : public mozilla::css::CommonElementAnimationData
@@ -82,6 +82,16 @@ struct ElementTransitions : public mozilla::css::CommonElementAnimationData
   bool CanPerformOnCompositorThread() const;
   // Either zero or one for each CSS property:
   nsTArray<ElementPropertyTransition> mPropertyTransitions;
+
+  // This style rule overrides style data with the currently
+  // transitioning value for an element that is executing a transition.
+  // It only matches when styling with animation.  When we style without
+  // animation, we need to not use it so that we can detect any new
+  // changes; if necessary we restyle immediately afterwards with
+  // animation.
+  nsRefPtr<mozilla::css::AnimValuesStyleRule> mStyleRule;
+  // The refresh time associated with mStyleRule.
+  mozilla::TimeStamp mStyleRuleRefreshTime;
 };
 
 
@@ -136,11 +146,11 @@ public:
                         nsStyleContext *aNewStyleContext);
 
   // nsIStyleRuleProcessor (parts)
-  virtual void RulesMatching(ElementRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData) MOZ_OVERRIDE;
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual void RulesMatching(ElementRuleProcessorData* aData);
+  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
+  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
 #ifdef MOZ_XUL
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
   virtual NS_MUST_OVERRIDE size_t
     SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
@@ -148,7 +158,7 @@ public:
     SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   // nsARefreshObserver
-  virtual void WillRefresh(mozilla::TimeStamp aTime) MOZ_OVERRIDE;
+  virtual void WillRefresh(mozilla::TimeStamp aTime);
 
 private:
   void ConsiderStartingTransition(nsCSSProperty aProperty,

@@ -12,11 +12,8 @@ include $(DEPTH)/config/autoconf.mk
 STL_FLAGS =
 
 CPP_UNIT_TESTS = \
-  TestBloomFilter.cpp \
   TestCheckedInt.cpp \
-  TestSHA1.cpp \
   TestTypeTraits.cpp \
-  TestWeakPtr.cpp \
   $(NULL)
 
 # in order to prevent rules.mk from trying to link to libraries that are
@@ -30,4 +27,4 @@ WRAP_LDFLAGS=
 
 include $(topsrcdir)/config/rules.mk
 
-LIBS= $(call EXPAND_LIBNAME_PATH,mfbt,$(DEPTH)/mfbt)
+LIBS=

@@ -15,9 +15,8 @@
 #include "nsGkAtoms.h"
 #include "nsIFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsISaveAsCharset.h"
 #include "nsIFile.h"
 #include "nsIDOMFile.h"
@@ -46,7 +45,7 @@ using namespace mozilla;
 static void
 SendJSWarning(nsIDocument* aDocument,
               const char* aWarningName,
-              const PRUnichar** aWarningArgs, uint32_t aWarningArgsLen)
+              const PRUnichar** aWarningArgs, PRUint32 aWarningArgsLen)
 {
   nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
                                   "HTML", aDocument,
@@ -66,7 +65,7 @@ public:
    *        NS_FORM_METHOD_POST).
    */
   nsFSURLEncoded(const nsACString& aCharset,
-                 int32_t aMethod,
+                 PRInt32 aMethod,
                  nsIDocument* aDocument,
                  nsIContent* aOriginatingElement)
     : nsEncodingFormSubmission(aCharset, aOriginatingElement),
@@ -107,7 +106,7 @@ private:
    * The method of the submit (either NS_FORM_METHOD_GET or
    * NS_FORM_METHOD_POST).
    */
-  int32_t mMethod;
+  PRInt32 mMethod;
 
   /** The query string so far (the part after the ?) */
   nsCString mQueryString;
@@ -129,7 +128,7 @@ nsFSURLEncoded::AddNameValuePair(const nsAString& aName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Encode name
-  nsAutoCString convName;
+  nsCAutoString convName;
   rv = URLEncode(aName, convName);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -187,14 +186,14 @@ HandleMailtoSubject(nsCString& aPath) {
   // Walk through the string and see if we have a subject already.
   bool hasSubject = false;
   bool hasParams = false;
-  int32_t paramSep = aPath.FindChar('?');
-  while (paramSep != kNotFound && paramSep < (int32_t)aPath.Length()) {
+  PRInt32 paramSep = aPath.FindChar('?');
+  while (paramSep != kNotFound && paramSep < (PRInt32)aPath.Length()) {
     hasParams = true;
 
     // Get the end of the name at the = op.  If it is *after* the next &,
     // assume that someone made a parameter without an = in it
-    int32_t nameEnd = aPath.FindChar('=', paramSep+1);
-    int32_t nextParamSep = aPath.FindChar('&', paramSep+1);
+    PRInt32 nameEnd = aPath.FindChar('=', paramSep+1);
+    PRInt32 nextParamSep = aPath.FindChar('&', paramSep+1);
     if (nextParamSep == kNotFound) {
       nextParamSep = aPath.Length();
     }
@@ -261,7 +260,7 @@ nsFSURLEncoded::GetEncodedSubmission(nsIURI* aURI,
     aURI->SchemeIs("mailto", &isMailto);
     if (isMailto) {
 
-      nsAutoCString path;
+      nsCAutoString path;
       rv = aURI->GetPath(path);
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -319,12 +318,12 @@ nsFSURLEncoded::GetEncodedSubmission(nsIURI* aURI,
       url->SetQuery(mQueryString);
     }
     else {
-      nsAutoCString path;
+      nsCAutoString path;
       rv = aURI->GetPath(path);
       NS_ENSURE_SUCCESS(rv, rv);
       // Bug 42616: Trim off named anchor and save it to add later
-      int32_t namedAnchorPos = path.FindChar('#');
-      nsAutoCString namedAnchor;
+      PRInt32 namedAnchorPos = path.FindChar('#');
+      nsCAutoString namedAnchor;
       if (kNotFound != namedAnchorPos) {
         path.Right(namedAnchor, (path.Length() - namedAnchorPos));
         path.Truncate(namedAnchorPos);
@@ -332,7 +331,7 @@ nsFSURLEncoded::GetEncodedSubmission(nsIURI* aURI,
 
       // Chop off old query string (bug 25330, 57333)
       // Only do this for GET not POST (bug 41585)
-      int32_t queryStart = path.FindChar('?');
+      PRInt32 queryStart = path.FindChar('?');
       if (kNotFound != queryStart) {
         path.Truncate(queryStart);
       }
@@ -359,7 +358,7 @@ nsFSURLEncoded::URLEncode(const nsAString& aStr, nsCString& aEncoded)
                                                    nsLinebreakConverter::eLinebreakNet);
   NS_ENSURE_TRUE(convertedBuf, NS_ERROR_OUT_OF_MEMORY);
 
-  nsAutoCString encodedBuf;
+  nsCAutoString encodedBuf;
   nsresult rv = EncodeVal(nsDependentString(convertedBuf), encodedBuf, false);
   nsMemory::Free(convertedBuf);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -379,7 +378,6 @@ nsFSMultipartFormData::nsFSMultipartFormData(const nsACString& aCharset,
 {
   mPostDataStream =
     do_CreateInstance("@mozilla.org/io/multiplex-input-stream;1");
-  mTotalLength = 0;
 
   mBoundary.AssignLiteral("---------------------------");
   mBoundary.AppendInt(rand());
@@ -393,7 +391,7 @@ nsFSMultipartFormData::~nsFSMultipartFormData()
 }
 
 nsIInputStream*
-nsFSMultipartFormData::GetSubmissionBody(uint64_t* aContentLength)
+nsFSMultipartFormData::GetSubmissionBody()
 {
   // Finish data
   mPostDataChunk += NS_LITERAL_CSTRING("--") + mBoundary
@@ -402,7 +400,6 @@ nsFSMultipartFormData::GetSubmissionBody(uint64_t* aContentLength)
   // Add final data input stream
   AddPostDataStream();
 
-  *aContentLength = mTotalLength;
   return mPostDataStream;
 }
 
@@ -411,7 +408,7 @@ nsFSMultipartFormData::AddNameValuePair(const nsAString& aName,
                                         const nsAString& aValue)
 {
   nsCString valueStr;
-  nsAutoCString encodedVal;
+  nsCAutoString encodedVal;
   nsresult rv = EncodeVal(aValue, encodedVal, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -420,7 +417,7 @@ nsFSMultipartFormData::AddNameValuePair(const nsAString& aName,
                                    nsLinebreakConverter::eLinebreakAny,
                                    nsLinebreakConverter::eLinebreakNet));
 
-  nsAutoCString nameStr;
+  nsCAutoString nameStr;
   rv = EncodeVal(aName, nameStr, true);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -443,7 +440,7 @@ nsFSMultipartFormData::AddNameFilePair(const nsAString& aName,
                                        nsIDOMBlob* aBlob)
 {
   // Encode the control name
-  nsAutoCString nameStr;
+  nsCAutoString nameStr;
   nsresult rv = EncodeVal(aName, nameStr, true);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -516,11 +513,6 @@ nsFSMultipartFormData::AddNameFilePair(const nsAString& aName,
     AddPostDataStream();
 
     mPostDataStream->AppendStream(fileStream);
-
-    uint64_t size;
-    nsresult rv = aBlob->GetSize(&size);
-    NS_ENSURE_SUCCESS(rv, rv);
-    mTotalLength += size;
   }
 
   // CRLF after file
@@ -540,12 +532,11 @@ nsFSMultipartFormData::GetEncodedSubmission(nsIURI* aURI,
     = do_CreateInstance("@mozilla.org/network/mime-input-stream;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString contentType;
+  nsCAutoString contentType;
   GetContentType(contentType);
   mimeStream->AddHeader("Content-Type", contentType.get());
   mimeStream->SetAddContentLength(true);
-  uint64_t unused;
-  mimeStream->SetData(GetSubmissionBody(&unused));
+  mimeStream->SetData(GetSubmissionBody());
 
   *aPostDataStream = mimeStream.forget().get();
 
@@ -563,7 +554,6 @@ nsFSMultipartFormData::AddPostDataStream()
   NS_ASSERTION(postDataChunkStream, "Could not open a stream for POST!");
   if (postDataChunkStream) {
     mPostDataStream->AppendStream(postDataChunkStream);
-    mTotalLength += mPostDataChunk.Length();
   }
 
   mPostDataChunk.Truncate();
@@ -631,7 +621,7 @@ nsFSTextPlain::GetEncodedSubmission(nsIURI* aURI,
   bool isMailto = false;
   aURI->SchemeIs("mailto", &isMailto);
   if (isMailto) {
-    nsAutoCString path;
+    nsCAutoString path;
     rv = aURI->GetPath(path);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -687,7 +677,7 @@ nsEncodingFormSubmission::nsEncodingFormSubmission(const nsACString& aCharset,
                                                    nsIContent* aOriginatingElement)
   : nsFormSubmission(aCharset, aOriginatingElement)
 {
-  nsAutoCString charset(aCharset);
+  nsCAutoString charset(aCharset);
   // canonical name is passed so that we just have to check against
   // *our* canonical names listed in charsetaliases.properties
   if (charset.EqualsLiteral("ISO-8859-1")) {
@@ -762,14 +752,14 @@ GetSubmitCharset(nsGenericHTMLElement* aForm,
   aForm->GetAttr(kNameSpaceID_None, nsGkAtoms::acceptcharset,
                  acceptCharsetValue);
 
-  int32_t charsetLen = acceptCharsetValue.Length();
+  PRInt32 charsetLen = acceptCharsetValue.Length();
   if (charsetLen > 0) {
-    int32_t offset=0;
-    int32_t spPos=0;
+    PRInt32 offset=0;
+    PRInt32 spPos=0;
     // get charset from charsets one by one
     do {
       spPos = acceptCharsetValue.FindChar(PRUnichar(' '), offset);
-      int32_t cnt = ((-1==spPos)?(charsetLen-offset):(spPos-offset));
+      PRInt32 cnt = ((-1==spPos)?(charsetLen-offset):(spPos-offset));
       if (cnt > 0) {
         nsAutoString uCharset;
         acceptCharsetValue.Mid(uCharset, offset, cnt);
@@ -791,7 +781,7 @@ GetSubmitCharset(nsGenericHTMLElement* aForm,
 
 static void
 GetEnumAttr(nsGenericHTMLElement* aContent,
-            nsIAtom* atom, int32_t* aValue)
+            nsIAtom* atom, PRInt32* aValue)
 {
   const nsAttrValue* value = aContent->GetParsedAttr(atom);
   if (value && value->Type() == nsAttrValue::eEnum) {
@@ -809,7 +799,7 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
                "Should have doc if we're building submission!");
 
   // Get encoding type (default: urlencoded)
-  int32_t enctype = NS_FORM_ENCTYPE_URLENCODED;
+  PRInt32 enctype = NS_FORM_ENCTYPE_URLENCODED;
   if (aOriginatingElement &&
       aOriginatingElement->HasAttr(kNameSpaceID_None, nsGkAtoms::formenctype)) {
     GetEnumAttr(aOriginatingElement, nsGkAtoms::formenctype, &enctype);
@@ -818,7 +808,7 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
   }
 
   // Get method (default: GET)
-  int32_t method = NS_FORM_METHOD_GET;
+  PRInt32 method = NS_FORM_METHOD_GET;
   if (aOriginatingElement &&
       aOriginatingElement->HasAttr(kNameSpaceID_None, nsGkAtoms::formmethod)) {
     GetEnumAttr(aOriginatingElement, nsGkAtoms::formmethod, &method);
@@ -827,7 +817,7 @@ GetSubmissionFromForm(nsGenericHTMLElement* aForm,
   }
 
   // Get charset
-  nsAutoCString charset;
+  nsCAutoString charset;
   GetSubmitCharset(aForm, charset);
 
   // We now have a canonical charset name, so we only have to check it

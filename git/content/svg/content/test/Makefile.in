@@ -72,6 +72,7 @@ MOCHITEST_FILES = \
 		test_SVGxxxListIndexing.xhtml \
 		test_switch.xhtml \
 		switch-helper.svg \
+		test_text.html \
 		text-helper.svg \
 		test_transform.xhtml \
 		test_valueAsString.xhtml \
@@ -81,11 +82,5 @@ MOCHITEST_FILES = \
 		zoom-helper.svg \
 		test_zoom.xhtml \
 		$(NULL)
-
-ifneq (android,$(MOZ_WIDGET_TOOLKIT))
-MOCHITEST_FILES += \
-		test_text.html \
-		$(NULL)
-endif
 
 include $(topsrcdir)/config/rules.mk

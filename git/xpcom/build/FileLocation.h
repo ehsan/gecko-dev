@@ -136,12 +136,12 @@ public:
     /**
      * Returns the data size
      */
-    nsresult GetSize(uint32_t *result);
+    nsresult GetSize(PRUint32 *result);
 
     /**
      * Copies the data in the given buffer
      */
-    nsresult Copy(char *buf, uint32_t len);
+    nsresult Copy(char *buf, PRUint32 len);
   protected:
     friend class FileLocation;
     nsZipItem *mItem;

@@ -13,7 +13,6 @@
 #ifndef mozilla_BloomFilter_h_
 #define mozilla_BloomFilter_h_
 
-#include "mozilla/Assertions.h"
 #include "mozilla/Likely.h"
 #include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"

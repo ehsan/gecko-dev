@@ -100,7 +100,7 @@ DataSourceAllocEntry(void *pool, const void *key)
 }
 
 static void
-DataSourceFreeEntry(void *pool, PLHashEntry *he, unsigned flag)
+DataSourceFreeEntry(void *pool, PLHashEntry *he, PRUintn flag)
 {
     if (flag == HT_FREE_ENTRY) {
         PL_strfree((char*) he->key);
@@ -196,12 +196,12 @@ static PLDHashTableOps gLiteralTableOps = {
 
 struct IntHashEntry : public PLDHashEntryHdr {
     nsIRDFInt *mInt;
-    int32_t    mKey;
+    PRInt32    mKey;
 
     static PLDHashNumber
     HashKey(PLDHashTable *table, const void *key)
     {
-        return PLDHashNumber(*static_cast<const int32_t *>(key));
+        return PLDHashNumber(*static_cast<const PRInt32 *>(key));
     }
 
     static bool
@@ -211,7 +211,7 @@ struct IntHashEntry : public PLDHashEntryHdr {
         const IntHashEntry *entry =
             static_cast<const IntHashEntry *>(hdr);
 
-        return *static_cast<const int32_t *>(key) == entry->mKey;
+        return *static_cast<const PRInt32 *>(key) == entry->mKey;
     }
 };
 
@@ -240,12 +240,13 @@ struct DateHashEntry : public PLDHashEntryHdr {
     {
         // xor the low 32 bits with the high 32 bits.
         PRTime t = *static_cast<const PRTime *>(key);
-        int64_t h64, l64;
-        h64 = t >> 32;
+        PRInt64 h64, l64;
+        LL_USHR(h64, t, 32);
         l64 = LL_INIT(0, 0xffffffff);
-        l64 &= t;
-        int32_t h32 = int32_t(h64);
-        int32_t l32 = int32_t(l64);
+        LL_AND(l64, l64, t);
+        PRInt32 h32, l32;
+        LL_L2I(h32, h64);
+        LL_L2I(l32, l64);
         return PLDHashNumber(l32 ^ h32);
     }
 
@@ -256,7 +257,7 @@ struct DateHashEntry : public PLDHashEntryHdr {
         const DateHashEntry *entry =
             static_cast<const DateHashEntry *>(hdr);
 
-        return *static_cast<const PRTime *>(key) == entry->mKey;
+        return LL_EQ(*static_cast<const PRTime *>(key), entry->mKey);
     }
 };
 
@@ -275,14 +276,14 @@ class BlobImpl : public nsIRDFBlob
 {
 public:
     struct Data {
-        int32_t  mLength;
-        uint8_t *mBytes;
+        PRInt32  mLength;
+        PRUint8 *mBytes;
     };
 
-    BlobImpl(const uint8_t *aBytes, int32_t aLength)
+    BlobImpl(const PRUint8 *aBytes, PRInt32 aLength)
     {
         mData.mLength = aLength;
-        mData.mBytes = new uint8_t[aLength];
+        mData.mBytes = new PRUint8[aLength];
         memcpy(mData.mBytes, aBytes, aLength);
         NS_ADDREF(RDFServiceImpl::gRDFService);
         RDFServiceImpl::gRDFService->RegisterBlob(this);
@@ -313,11 +314,11 @@ BlobImpl::EqualsNode(nsIRDFNode *aNode, bool *aEquals)
 {
     nsCOMPtr<nsIRDFBlob> blob = do_QueryInterface(aNode);
     if (blob) {
-        int32_t length;
+        PRInt32 length;
         blob->GetLength(&length);
 
         if (length == mData.mLength) {
-            const uint8_t *bytes;
+            const PRUint8 *bytes;
             blob->GetValue(&bytes);
 
             if (0 == memcmp(bytes, mData.mBytes, length)) {
@@ -332,14 +333,14 @@ BlobImpl::EqualsNode(nsIRDFNode *aNode, bool *aEquals)
 }
 
 NS_IMETHODIMP
-BlobImpl::GetValue(const uint8_t **aResult)
+BlobImpl::GetValue(const PRUint8 **aResult)
 {
     *aResult = mData.mBytes;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-BlobImpl::GetLength(int32_t *aResult)
+BlobImpl::GetLength(PRInt32 *aResult)
 {
     *aResult = mData.mLength;
     return NS_OK;
@@ -630,7 +631,7 @@ DateImpl::EqualsDate(nsIRDFDate* date, bool* result)
 
 class IntImpl : public nsIRDFInt {
 public:
-    IntImpl(int32_t s);
+    IntImpl(PRInt32 s);
     virtual ~IntImpl();
 
     // nsISupports
@@ -640,15 +641,15 @@ public:
     NS_DECL_NSIRDFNODE
 
     // nsIRDFInt
-    NS_IMETHOD GetValue(int32_t *value);
+    NS_IMETHOD GetValue(PRInt32 *value);
 
 private:
     nsresult EqualsInt(nsIRDFInt* value, bool* result);
-    int32_t mValue;
+    PRInt32 mValue;
 };
 
 
-IntImpl::IntImpl(int32_t s)
+IntImpl::IntImpl(PRInt32 s)
     : mValue(s)
 {
     RDFServiceImpl::gRDFService->RegisterInt(this);
@@ -703,7 +704,7 @@ IntImpl::EqualsNode(nsIRDFNode* node, bool* result)
 }
 
 NS_IMETHODIMP
-IntImpl::GetValue(int32_t *value)
+IntImpl::GetValue(PRInt32 *value)
 {
     NS_ASSERTION(value, "null ptr");
     if (! value)
@@ -722,7 +723,7 @@ IntImpl::EqualsInt(nsIRDFInt* intValue, bool* result)
         return NS_ERROR_NULL_POINTER;
 
     nsresult rv;
-    int32_t p;
+    PRInt32 p;
     if (NS_FAILED(rv = intValue->GetValue(&p)))
         return rv;
 
@@ -845,7 +846,7 @@ RDFServiceImpl::CreateSingleton(nsISupports* aOuter,
 NS_IMPL_THREADSAFE_ISUPPORTS2(RDFServiceImpl, nsIRDFService, nsISupportsWeakReference)
 
 // Per RFC2396.
-static const uint8_t
+static const PRUint8
 kLegalSchemeChars[] = {
           //        ASCII    Bits     Ordered  Hex
           //                 01234567 76543210
@@ -874,8 +875,8 @@ kLegalSchemeChars[] = {
 static inline bool
 IsLegalSchemeCharacter(const char aChar)
 {
-    uint8_t mask = kLegalSchemeChars[aChar >> 3];
-    uint8_t bit = PR_BIT(aChar & 0x7);
+    PRUint8 mask = kLegalSchemeChars[aChar >> 3];
+    PRUint8 bit = PR_BIT(aChar & 0x7);
     return bool((mask & bit) != 0);
 }
 
@@ -938,7 +939,7 @@ RDFServiceImpl::GetResource(const nsACString& aURI, nsIRDFResource** aResource)
             // Try to find a factory using the component manager.
             nsACString::const_iterator begin;
             aURI.BeginReading(begin);
-            nsAutoCString contractID;
+            nsCAutoString contractID;
             contractID = NS_LITERAL_CSTRING(NS_RDF_RESOURCE_FACTORY_CONTRACTID_PREFIX) +
                          Substring(begin, p);
 
@@ -994,14 +995,14 @@ RDFServiceImpl::GetUnicodeResource(const nsAString& aURI, nsIRDFResource** aReso
 NS_IMETHODIMP
 RDFServiceImpl::GetAnonymousResource(nsIRDFResource** aResult)
 {
-static uint32_t gCounter = 0;
+static PRUint32 gCounter = 0;
 static char gChars[] = "0123456789abcdef"
                        "ghijklmnopqrstuv"
                        "wxyzABCDEFGHIJKL"
                        "MNOPQRSTUVWXYZ.+";
 
-static int32_t kMask  = 0x003f;
-static int32_t kShift = 6;
+static PRInt32 kMask  = 0x003f;
+static PRInt32 kShift = 6;
 
     if (! gCounter) {
         // Start it at a semi-unique value, just to minimize the
@@ -1012,11 +1013,11 @@ static int32_t kShift = 6;
         // 3. The same anonymous resource gets requested, and refers
         //    to something completely different.
         // 4. The serialization is read back in.
-        gCounter = uint32_t(PR_Now());
+        LL_L2UI(gCounter, PR_Now());
     }
 
     nsresult rv;
-    nsAutoCString s;
+    nsCAutoString s;
 
     do {
         // Ugh, this is a really sloppy way to do this; I copied the
@@ -1026,7 +1027,7 @@ static int32_t kShift = 6;
         s.Truncate();
         s.Append("rdf:#$");
 
-        uint32_t id = ++gCounter;
+        PRUint32 id = ++gCounter;
         while (id) {
             char ch = gChars[(id & kMask)];
             s.Append(ch);
@@ -1101,7 +1102,7 @@ RDFServiceImpl::GetDateLiteral(PRTime aTime, nsIRDFDate** aResult)
 }
 
 NS_IMETHODIMP
-RDFServiceImpl::GetIntLiteral(int32_t aInt, nsIRDFInt** aResult)
+RDFServiceImpl::GetIntLiteral(PRInt32 aInt, nsIRDFInt** aResult)
 {
     // See if we have one already cached
     PLDHashEntryHdr *hdr =
@@ -1122,10 +1123,10 @@ RDFServiceImpl::GetIntLiteral(int32_t aInt, nsIRDFInt** aResult)
 }
 
 NS_IMETHODIMP
-RDFServiceImpl::GetBlobLiteral(const uint8_t *aBytes, int32_t aLength,
+RDFServiceImpl::GetBlobLiteral(const PRUint8 *aBytes, PRInt32 aLength,
                                nsIRDFBlob **aResult)
 {
-    BlobImpl::Data key = { aLength, const_cast<uint8_t *>(aBytes) };
+    BlobImpl::Data key = { aLength, const_cast<PRUint8 *>(aBytes) };
 
     PLDHashEntryHdr *hdr =
         PL_DHashTableOperate(&mBlobs, &key, PL_DHASH_LOOKUP);
@@ -1370,7 +1371,7 @@ RDFServiceImpl::GetDataSource(const char* aURI, bool aBlock, nsIRDFDataSource** 
     // Attempt to canonify the URI before we look for it in the
     // cache. We won't bother doing this on `rdf:' URIs to avoid
     // useless (and expensive) protocol handler lookups.
-    nsAutoCString spec(aURI);
+    nsCAutoString spec(aURI);
 
     if (!StringBeginsWith(spec, NS_LITERAL_CSTRING("rdf:"))) {
         nsCOMPtr<nsIURI> uri;
@@ -1396,12 +1397,12 @@ RDFServiceImpl::GetDataSource(const char* aURI, bool aBlock, nsIRDFDataSource** 
     nsCOMPtr<nsIRDFDataSource> ds;
     if (StringBeginsWith(spec, NS_LITERAL_CSTRING("rdf:"))) {
         // It's a built-in data source. Convert it to a contract ID.
-        nsAutoCString contractID(
+        nsCAutoString contractID(
                 NS_LITERAL_CSTRING(NS_RDF_DATASOURCE_CONTRACTID_PREFIX) +
                 Substring(spec, 4, spec.Length() - 4));
 
         // Strip params to get ``base'' contractID for data source.
-        int32_t p = contractID.FindChar(PRUnichar('&'));
+        PRInt32 p = contractID.FindChar(PRUnichar('&'));
         if (p >= 0)
             contractID.Truncate(p);
 
@@ -1498,7 +1499,7 @@ RDFServiceImpl::UnregisterLiteral(nsIRDFLiteral* aLiteral)
 nsresult
 RDFServiceImpl::RegisterInt(nsIRDFInt* aInt)
 {
-    int32_t value;
+    PRInt32 value;
     aInt->GetValue(&value);
 
     NS_ASSERTION(PL_DHASH_ENTRY_IS_FREE(PL_DHashTableOperate(&mInts,
@@ -1532,7 +1533,7 @@ RDFServiceImpl::RegisterInt(nsIRDFInt* aInt)
 nsresult
 RDFServiceImpl::UnregisterInt(nsIRDFInt* aInt)
 {
-    int32_t value;
+    PRInt32 value;
     aInt->GetValue(&value);
 
     NS_ASSERTION(PL_DHASH_ENTRY_IS_BUSY(PL_DHashTableOperate(&mInts,

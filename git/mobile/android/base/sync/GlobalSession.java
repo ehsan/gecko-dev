@@ -74,11 +74,10 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
 
   /**
    * Map from engine name to new settings for an updated meta/global record.
-   * Engines to remove will have <code>null</code> EngineSettings.
    */
   public final Map<String, EngineSettings> enginesToUpdate = new HashMap<String, EngineSettings>();
 
-   /*
+  /*
    * Key accessors.
    */
   public KeyBundle keyBundleForCollection(String collection) throws NoCollectionKeysSetException {
@@ -163,8 +162,10 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
 
     registerCommands();
     prepareStages();
-
-    Collection<String> knownStageNames = SyncConfiguration.validEngineNames();
+    Collection<String> knownStageNames = new HashSet<String>();
+    for (Stage stage : Stage.getNamedStages()) {
+      knownStageNames.add(stage.getRepositoryName());
+    }
     config.stagesToSync = Utils.getStagesToSyncFromBundle(knownStageNames, extras);
 
     // TODO: data-driven plan for the sync, referring to prepareStages.
@@ -387,19 +388,8 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
    * @param engineName engine to update.
    * @param engineSettings new syncID and version.
    */
-  public void recordForMetaGlobalUpdate(String engineName, EngineSettings engineSettings) {
+  public void updateMetaGlobalWith(String engineName, EngineSettings engineSettings) {
     enginesToUpdate.put(engineName, engineSettings);
-  }
-
-  /**
-   * Record that an updated meta/global record should be uploaded without the
-   * given engine name.
-   *
-   * @param engineName
-   *          engine to remove.
-   */
-  public void removeEngineFromMetaGlobal(String engineName) {
-    enginesToUpdate.put(engineName, null);
   }
 
   public boolean hasUpdatedMetaGlobal() {
@@ -409,8 +399,8 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     }
 
     if (Logger.shouldLogVerbose(LOG_TAG)) {
-      Logger.trace(LOG_TAG, "Uploading updated meta/global record since there are engine changes to meta/global.");
-      Logger.trace(LOG_TAG, "Engines requesting update [" + Utils.toCommaSeparatedString(enginesToUpdate.keySet()) + "]");
+      Logger.trace(LOG_TAG, "Uploading updated meta/global record since there are engines requesting upload: " +
+          Utils.toCommaSeparatedString(enginesToUpdate.keySet()));
     }
 
     return true;
@@ -419,13 +409,8 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
   public void updateMetaGlobalInPlace() {
     ExtendedJSONObject engines = config.metaGlobal.getEngines();
     for (Entry<String, EngineSettings> pair : enginesToUpdate.entrySet()) {
-      if (pair.getValue() == null) {
-        engines.remove(pair.getKey());
-      } else {
-        engines.put(pair.getKey(), pair.getValue().toJSONObject());
-      }
+      engines.put(pair.getKey(), pair.getValue().toJSONObject());
     }
-
     enginesToUpdate.clear();
   }
 
@@ -447,11 +432,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
           @Override
           public void handleSuccess(MetaGlobal global, SyncStorageResponse response) {
             Logger.info(LOG_TAG, "Successfully uploaded updated meta/global record.");
-            // Engine changes are stored as diffs, so update enabled engines in config to match uploaded meta/global.
-            config.enabledEngineNames = config.metaGlobal.getEnabledEngineNames();
-            // Clear userSelectedEngines because they are updated in config and meta/global.
-            config.userSelectedEngines = null;
-
             synchronized (monitor) {
               monitor.notify();
             }
@@ -680,12 +660,6 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
       resetAllStages();
       config.purgeCryptoKeys();
       config.syncID = remoteSyncID;
-    }
-    // Compare lastModified timestamps for remote/local engine selection times.
-    Logger.debug(LOG_TAG, "Comparing local engine selection timestamp [" + config.userSelectedEnginesTimestamp + "] to server meta/global timestamp [" + config.persistedMetaGlobal().lastModified() + "].");
-    if (config.userSelectedEnginesTimestamp < config.persistedMetaGlobal().lastModified()) {
-      // Remote has later meta/global timestamp. Don't upload engine changes.
-      config.userSelectedEngines = null;
     }
     // Persist enabled engine names.
     config.enabledEngineNames = global.getEnabledEngineNames();
@@ -971,8 +945,11 @@ public class GlobalSession implements CredentialsSource, PrefsSource, HttpRespon
     if (config.enabledEngineNames != null) {
       return config.enabledEngineNames;
     }
-
-    return SyncConfiguration.validEngineNames();
+    Set<String> engineNames = new HashSet<String>();
+    for (Stage stage : Stage.getNamedStages()) {
+      engineNames.add(stage.getRepositoryName());
+    }
+    return engineNames;
   }
 
   /**

@@ -27,7 +27,6 @@ pref("browser.cache.memory.capacity", 1024); // kilobytes
 
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
-pref("image.high_quality_downscaling.enabled", false);
 
 /* offline cache prefs */
 pref("browser.offline-apps.notify", false);
@@ -45,9 +44,9 @@ pref("network.http.pipelining.ssl", true);
 pref("network.http.proxy.pipelining", true);
 pref("network.http.pipelining.maxrequests" , 6);
 pref("network.http.keep-alive.timeout", 600);
-pref("network.http.max-connections", 20);
-pref("network.http.max-persistent-connections-per-server", 6);
-pref("network.http.max-persistent-connections-per-proxy", 20);
+pref("network.http.max-connections", 6);
+pref("network.http.max-persistent-connections-per-server", 4);
+pref("network.http.max-persistent-connections-per-proxy", 4);
 
 // See bug 545869 for details on why these are set the way they are
 pref("network.buffer.cache.count", 24);
@@ -82,6 +81,12 @@ pref("browser.download.manager.openDelay", 0);
 pref("browser.download.manager.focusWhenStarting", false);
 pref("browser.download.manager.flashCount", 2);
 pref("browser.download.manager.displayedHistoryDays", 7);
+
+/* download alerts (disabled above) */
+pref("alerts.slideIncrement", 1);
+pref("alerts.slideIncrementTime", 10);
+pref("alerts.totalOpenTime", 6000);
+pref("alerts.height", 50);
 
 /* download helper */
 pref("browser.helperApps.deleteTempFileOnExit", false);
@@ -172,6 +177,8 @@ pref("content.sink.pending_event_mode", 0);
 pref("content.sink.perf_deflect_count", 1000000);
 pref("content.sink.perf_parse_time", 50000000);
 
+pref("javascript.options.mem.high_water_mark", 32);
+
 // Maximum scripts runtime before showing an alert
 pref("dom.max_chrome_script_run_time", 0); // disable slow script dialog for chrome
 pref("dom.max_script_run_time", 20);
@@ -256,21 +263,16 @@ pref("media.preload.default", 1); // default to preload none
 pref("media.preload.auto", 2);    // preload metadata if preload=auto
 pref("media.cache_size", 4096);    // 4MB media cache
 
-// The default number of decoded video frames that are enqueued in
-// nsBuiltinDecoderReader's mVideoQueue.
-pref("media.video-queue.default-size", 3);
-
 //  0: don't show fullscreen keyboard
 //  1: always show fullscreen keyboard
 // -1: show fullscreen keyboard based on threshold pref
 pref("widget.ime.android.landscape_fullscreen", -1);
 pref("widget.ime.android.fullscreen_threshold", 250); // in hundreths of inches
 
-// optimize images' memory usage
+// optimize images memory usage
 pref("image.mem.decodeondraw", true);
 pref("content.image.allow_locking", false);
 pref("image.mem.min_discard_timeout_ms", 10000);
-pref("image.mem.max_decoded_image_kb", 5120); /* 5MB */
 
 // enable touch events interfaces
 pref("dom.w3c_touch_events.enabled", true);
@@ -313,9 +315,6 @@ pref("urlclassifier.alternate_error_page", "blocked");
 // The number of random entries to send with a gethash request.
 pref("urlclassifier.gethashnoise", 4);
 
-// Randomize all UrlClassifier data with a per-client key.
-pref("urlclassifier.randomizeclient", true);
-
 // The list of tables that use the gethash request to confirm partial results.
 pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 
@@ -323,6 +322,9 @@ pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 // a gethash request will be forced to check that the result is still in
 // the database.
 pref("urlclassifier.confirm-age", 2700);
+
+// Maximum size of the sqlite3 cache during an update, in bytes
+pref("urlclassifier.updatecachemax", 4194304);
 
 // URL for checking the reason for a malware warning.
 pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/diagnostic?client=%NAME%&hl=%LOCALE%&site=");
@@ -352,10 +354,6 @@ pref("browser.dom.window.dump.enabled", false);
 // installable apps or wifi support.
 pref("security.fileuri.strict_origin_policy", false);
 
-// Default Content Security Policy to apply to privileged and certified apps
-pref("security.apps.privileged.CSP.default", "default-src *; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'");
-pref("security.apps.certified.CSP.default", "options inline-script eval-script; default-src *; script-src 'self'; object-src 'none'; style-src 'self'");
-
 // Temporarily force-enable GL compositing.  This is default-disabled
 // deep within the bowels of the widgetry system.  Remove me when GL
 // compositing isn't default disabled in widget/android.
@@ -380,7 +378,6 @@ pref("dom.ipc.browser_frames.oop_by_default", false);
 
 // Temporary permission hack for WebSMS
 pref("dom.sms.enabled", true);
-pref("dom.sms.strict7BitEncoding", false); // Disabled by default.
 
 // Temporary permission hack for WebContacts
 pref("dom.mozContacts.enabled", true);
@@ -388,21 +385,12 @@ pref("dom.mozContacts.enabled", true);
 // WebAlarms
 pref("dom.mozAlarms.enabled", true);
 
-// NetworkStats
-#ifdef MOZ_B2G_RIL
-pref("dom.mozNetworkStats.enabled", true);
-#endif
-
 // WebSettings
 pref("dom.mozSettings.enabled", true);
-pref("dom.mozPermissionSettings.enabled", true);
 
 // controls if we want camera support
 pref("device.camera.enabled", true);
 pref("media.realtime_decoder.enabled", true);
-
-// TCPSocket
-pref("dom.mozTCPSocket.enabled", true);
 
 // "Preview" landing of bug 710563, which is bogged down in analysis
 // of talos regression.  This is a needed change for higher-framerate
@@ -437,48 +425,32 @@ pref("full-screen-api.ignore-widgets", true);
 
 pref("media.volume.steps", 10);
 
-#ifdef ENABLE_MARIONETTE
 //Enable/disable marionette server, set listening port
 pref("marionette.defaultPrefs.enabled", true);
 pref("marionette.defaultPrefs.port", 2828);
-#endif
 
 #ifdef MOZ_UPDATER
-// When we're applying updates, we can't let anything hang us on
-// quit+restart.  The user has no recourse.
-pref("shutdown.watchdog.timeoutSecs", 5);
-// Timeout before the update prompt automatically installs the update
-pref("b2g.update.apply-prompt-timeout", 60000); // milliseconds
-// Amount of time to wait after the user is idle before prompting to apply an update
-pref("b2g.update.apply-idle-timeout", 600000); // milliseconds
-// Amount of time the updater waits for the process to exit cleanly before
-// forcefully exiting the process
-pref("b2g.update.self-destruct-timeout", 5000); // milliseconds
-
 pref("app.update.enabled", true);
-pref("app.update.auto", false);
-pref("app.update.silent", false);
+pref("app.update.auto", true);
+pref("app.update.silent", true);
 pref("app.update.mode", 0);
 pref("app.update.incompatible.mode", 0);
-pref("app.update.staging.enabled", true);
 pref("app.update.service.enabled", true);
 
 // The URL hosting the update manifest.
-pref("app.update.url", "http://update.boot2gecko.org/%CHANNEL%/update.xml");
-pref("app.update.channel", "@MOZ_UPDATE_CHANNEL@");
-
+pref("app.update.url", "http://update.boot2gecko.org/m2.5/updates.xml");
 // Interval at which update manifest is fetched.  In units of seconds.
-pref("app.update.interval", 86400); // 1 day
+pref("app.update.interval", 3600); // 1 hour
+// First interval to elapse before checking for update.  In units of
+// milliseconds.  Capped at 10 seconds.
+pref("app.update.timerFirstInterval", 30000);
+pref("app.update.timerMinimumDelay", 30); // seconds
 // Don't throttle background updates.
 pref("app.update.download.backgroundInterval", 0);
 
 // Enable update logging for now, to diagnose growing pains in the
 // field.
 pref("app.update.log", true);
-#else
-// Explicitly disable the shutdown watchdog.  It's enabled by default.
-// When the updater is disabled, we want to know about shutdown hangs.
-pref("shutdown.watchdog.timeoutSecs", -1);
 #endif
 
 // Extensions preferences
@@ -492,8 +464,7 @@ pref("ui.click_hold_context_menus.delay", 1000);
 // Enable device storage
 pref("device.storage.enabled", true);
 
-pref("media.plugins.enabled", false);
-pref("media.omx.enabled", true);
+pref("media.plugins.enabled", true);
 
 // Disable printing (particularly, window.print())
 pref("dom.disable_window_print", true);
@@ -507,18 +478,11 @@ pref("dom.experimental_forms", true);
 // Turns on gralloc-based direct texturing for Gonk
 pref("gfx.gralloc.enabled", false);
 
-// XXXX REMOVE FOR PRODUCTION. Turns on GC and CC logging
+// XXXX REMOVE FOR PRODUCTION. Turns on GC and CC logging 
 pref("javascript.options.mem.log", true);
 
 // Increase mark slice time from 10ms to 30ms
 pref("javascript.options.mem.gc_incremental_slice_ms", 30);
-
-pref("javascript.options.mem.gc_high_frequency_heap_growth_max", 120);
-pref("javascript.options.mem.gc_high_frequency_heap_growth_min", 101);
-pref("javascript.options.mem.gc_high_frequency_high_limit_mb", 40);
-pref("javascript.options.mem.gc_high_frequency_low_limit_mb", 10);
-pref("javascript.options.mem.gc_low_frequency_heap_growth", 105);
-pref("javascript.options.mem.high_water_mark", 6);
 
 // Show/Hide scrollbars when active/inactive
 pref("ui.showHideScrollbars", 1);
@@ -528,49 +492,9 @@ pref("ui.showHideScrollbars", 1);
 // background.
 pref("dom.ipc.processPriorityManager.enabled", true);
 pref("dom.ipc.processPriorityManager.gracePeriodMS", 1000);
-pref("hal.processPriorityManager.gonk.masterOomScoreAdjust", 0);
-pref("hal.processPriorityManager.gonk.foregroundOomScoreAdjust", 67);
-pref("hal.processPriorityManager.gonk.backgroundOomScoreAdjust", 400);
+pref("hal.processPriorityManager.gonk.masterOomAdjust", 0);
+pref("hal.processPriorityManager.gonk.foregroundOomAdjust", 1);
+pref("hal.processPriorityManager.gonk.backgroundOomAdjust", 2);
 pref("hal.processPriorityManager.gonk.masterNice", -1);
 pref("hal.processPriorityManager.gonk.foregroundNice", 0);
 pref("hal.processPriorityManager.gonk.backgroundNice", 10);
-
-#ifndef DEBUG
-// Enable pre-launching content processes for improved startup time
-// (hiding latency).
-pref("dom.ipc.processPrelaunch.enabled", true);
-// Wait this long before pre-launching a new subprocess.
-pref("dom.ipc.processPrelaunch.delayMs", 1000);
-#endif
-
-// Ignore the "dialog=1" feature in window.open.
-pref("dom.disable_window_open_dialog_feature", true);
-
-// Screen reader support
-pref("accessibility.accessfu.activate", 2);
-
-// Enable hit-target fluffing
-pref("ui.touch.radius.enabled", false);
-pref("ui.touch.radius.leftmm", 3);
-pref("ui.touch.radius.topmm", 5);
-pref("ui.touch.radius.rightmm", 3);
-pref("ui.touch.radius.bottommm", 2);
-
-pref("ui.mouse.radius.enabled", false);
-pref("ui.mouse.radius.leftmm", 3);
-pref("ui.mouse.radius.topmm", 5);
-pref("ui.mouse.radius.rightmm", 3);
-pref("ui.mouse.radius.bottommm", 2);
-
-// Disable native prompt
-pref("browser.prompt.allowNative", false);
-
-// Minimum delay in milliseconds between network activity notifications (0 means
-// no notifications). The delay is the same for both download and upload, though
-// they are handled separately. This pref is only read once at startup:
-// a restart is required to enable a new value.
-pref("network.activity.blipIntervalMilliseconds", 250);
-
-// Send some sites a custom user-agent.
-pref("general.useragent.override.facebook.com", "\(Mobile#(Android; Mobile");
-pref("general.useragent.override.youtube.com", "\(Mobile#(Android; Mobile");

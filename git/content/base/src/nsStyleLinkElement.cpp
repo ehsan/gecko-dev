@@ -38,19 +38,6 @@ nsStyleLinkElement::~nsStyleLinkElement()
   nsStyleLinkElement::SetStyleSheet(nullptr);
 }
 
-void
-nsStyleLinkElement::Unlink()
-{
-  mStyleSheet = nullptr;
-}
-
-void
-nsStyleLinkElement::Traverse(nsCycleCollectionTraversalCallback &cb)
-{
-  nsStyleLinkElement* tmp = this;
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mStyleSheet);
-}
-
 NS_IMETHODIMP 
 nsStyleLinkElement::SetStyleSheet(nsIStyleSheet* aStyleSheet)
 {
@@ -128,12 +115,12 @@ nsStyleLinkElement::OverrideBaseURI(nsIURI* aNewBaseURI)
 }
 
 /* virtual */ void
-nsStyleLinkElement::SetLineNumber(uint32_t aLineNumber)
+nsStyleLinkElement::SetLineNumber(PRUint32 aLineNumber)
 {
   mLineNumber = aLineNumber;
 }
 
-uint32_t ToLinkMask(const nsAString& aLink)
+PRUint32 ToLinkMask(const nsAString& aLink)
 { 
   if (aLink.EqualsLiteral("prefetch"))
      return PREFETCH;
@@ -149,9 +136,9 @@ uint32_t ToLinkMask(const nsAString& aLink)
     return 0;
 }
 
-uint32_t nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes)
+PRUint32 nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes)
 {
-  uint32_t linkMask = 0;
+  PRUint32 linkMask = 0;
   nsAString::const_iterator start, done;
   aTypes.BeginReading(start);
   aTypes.EndReading(done);
@@ -289,8 +276,8 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     uri->Clone(getter_AddRefs(clonedURI));
     NS_ENSURE_TRUE(clonedURI, NS_ERROR_OUT_OF_MEMORY);
     rv = doc->CSSLoader()->
-      LoadStyleLink(thisContent, clonedURI, title, media, isAlternate,
-                    GetCORSMode(), aObserver, &isAlternate);
+      LoadStyleLink(thisContent, clonedURI, title, media, isAlternate, aObserver,
+                    &isAlternate);
     if (NS_FAILED(rv)) {
       // Don't propagate LoadStyleLink() errors further than this, since some
       // consumers (e.g. nsXMLContentSink) will completely abort on innocuous

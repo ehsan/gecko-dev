@@ -154,6 +154,18 @@ Java_org_mozilla_gecko_GeckoAppShell_reportJavaCrash(JNIEnv *jenv, jclass, jstri
 }
 
 NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_GeckoAppShell_executeNextRunnable(JNIEnv *jenv, jclass)
+{
+    __android_log_print(ANDROID_LOG_INFO, "GeckoJNI", "%s", __PRETTY_FUNCTION__);
+    if (!AndroidBridge::Bridge()) {
+        __android_log_print(ANDROID_LOG_INFO, "GeckoJNI", "no bridge in %s!!!!", __PRETTY_FUNCTION__);
+        return;
+    }
+    AndroidBridge::Bridge()->ExecuteNextRunnable(jenv);
+    __android_log_print(ANDROID_LOG_INFO, "GeckoJNI", "leaving %s", __PRETTY_FUNCTION__);
+}
+
+NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_notifyBatteryChange(JNIEnv* jenv, jclass,
                                                          jdouble aLevel,
                                                          jboolean aCharging,
@@ -216,7 +228,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsReceived(JNIEnv* jenv, jclass,
     NS_DispatchToMainThread(runnable);
 }
 
-NS_EXPORT int32_t JNICALL
+NS_EXPORT PRInt32 JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_saveMessageInSentbox(JNIEnv* jenv, jclass,
                                                           jstring aReceiver,
                                                           jstring aBody,
@@ -230,7 +242,7 @@ Java_org_mozilla_gecko_GeckoAppShell_saveMessageInSentbox(JNIEnv* jenv, jclass,
       return -1;
     }
 
-    int32_t id;
+    PRInt32 id;
     smsDBService->SaveSentMessage(nsJNIString(aReceiver, jenv),
                                   nsJNIString(aBody, jenv), aTimestamp, &id);
 
@@ -249,7 +261,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsSent(JNIEnv* jenv, jclass,
     class NotifySmsSentRunnable : public nsRunnable {
     public:
       NotifySmsSentRunnable(const SmsMessageData& aMessageData,
-                            int32_t aRequestId, uint64_t aProcessId)
+                            PRInt32 aRequestId, PRUint64 aProcessId)
         : mMessageData(aMessageData)
         , mRequestId(aRequestId)
         , mProcessId(aProcessId)
@@ -278,7 +290,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsSent(JNIEnv* jenv, jclass,
           nsTArray<SmsParent*> spList;
           SmsParent::GetAll(spList);
 
-          for (uint32_t i=0; i<spList.Length(); ++i) {
+          for (PRUint32 i=0; i<spList.Length(); ++i) {
             unused << spList[i]->SendNotifyRequestSmsSent(mMessageData,
                                                           mRequestId,
                                                           mProcessId);
@@ -290,8 +302,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsSent(JNIEnv* jenv, jclass,
 
     private:
       SmsMessageData mMessageData;
-      int32_t        mRequestId;
-      uint64_t       mProcessId;
+      PRInt32        mRequestId;
+      PRUint64       mProcessId;
     };
 
     SmsMessageData message(aId, eDeliveryState_Sent, EmptyString(),
@@ -347,9 +359,9 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsSendFailed(JNIEnv* jenv, jclass,
 {
     class NotifySmsSendFailedRunnable : public nsRunnable {
     public:
-      NotifySmsSendFailedRunnable(int32_t aError,
-                                  int32_t aRequestId,
-                                  uint64_t aProcessId)
+      NotifySmsSendFailedRunnable(PRInt32 aError,
+                                  PRInt32 aRequestId,
+                                  PRUint64 aProcessId)
         : mError(aError)
         , mRequestId(aRequestId)
         , mProcessId(aProcessId)
@@ -366,7 +378,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsSendFailed(JNIEnv* jenv, jclass,
           nsTArray<SmsParent*> spList;
           SmsParent::GetAll(spList);
 
-          for (uint32_t i=0; i<spList.Length(); ++i) {
+          for (PRUint32 i=0; i<spList.Length(); ++i) {
             unused << spList[i]->SendNotifyRequestSmsSendFailed(mError,
                                                                 mRequestId,
                                                                 mProcessId);
@@ -377,9 +389,9 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsSendFailed(JNIEnv* jenv, jclass,
       }
 
     private:
-      int32_t  mError;
-      int32_t  mRequestId;
-      uint64_t mProcessId;
+      PRInt32  mError;
+      PRInt32  mRequestId;
+      PRUint64 mProcessId;
     };
 
 
@@ -401,7 +413,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGetSms(JNIEnv* jenv, jclass,
     class NotifyGetSmsRunnable : public nsRunnable {
     public:
       NotifyGetSmsRunnable(const SmsMessageData& aMessageData,
-                            int32_t aRequestId, uint64_t aProcessId)
+                            PRInt32 aRequestId, PRUint64 aProcessId)
         : mMessageData(aMessageData)
         , mRequestId(aRequestId)
         , mProcessId(aProcessId)
@@ -419,7 +431,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGetSms(JNIEnv* jenv, jclass,
           nsTArray<SmsParent*> spList;
           SmsParent::GetAll(spList);
 
-          for (uint32_t i=0; i<spList.Length(); ++i) {
+          for (PRUint32 i=0; i<spList.Length(); ++i) {
             unused << spList[i]->SendNotifyRequestGotSms(mMessageData,
                                                          mRequestId,
                                                          mProcessId);
@@ -431,8 +443,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGetSms(JNIEnv* jenv, jclass,
 
     private:
       SmsMessageData mMessageData;
-      int32_t        mRequestId;
-      uint64_t       mProcessId;
+      PRInt32        mRequestId;
+      PRUint64       mProcessId;
     };
 
     nsJNIString receiver = nsJNIString(aReceiver, jenv);
@@ -455,9 +467,9 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGetSmsFailed(JNIEnv* jenv, jclass,
 {
     class NotifyGetSmsFailedRunnable : public nsRunnable {
     public:
-      NotifyGetSmsFailedRunnable(int32_t aError,
-                                 int32_t aRequestId,
-                                 uint64_t aProcessId)
+      NotifyGetSmsFailedRunnable(PRInt32 aError,
+                                 PRInt32 aRequestId,
+                                 PRUint64 aProcessId)
         : mError(aError)
         , mRequestId(aRequestId)
         , mProcessId(aProcessId)
@@ -474,7 +486,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGetSmsFailed(JNIEnv* jenv, jclass,
           nsTArray<SmsParent*> spList;
           SmsParent::GetAll(spList);
 
-          for (uint32_t i=0; i<spList.Length(); ++i) {
+          for (PRUint32 i=0; i<spList.Length(); ++i) {
             unused << spList[i]->SendNotifyRequestGetSmsFailed(mError,
                                                                mRequestId,
                                                                mProcessId);
@@ -485,9 +497,9 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGetSmsFailed(JNIEnv* jenv, jclass,
       }
 
     private:
-      int32_t  mError;
-      int32_t  mRequestId;
-      uint64_t mProcessId;
+      PRInt32  mError;
+      PRInt32  mRequestId;
+      PRUint64 mProcessId;
     };
 
 
@@ -504,8 +516,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsDeleted(JNIEnv* jenv, jclass,
 {
     class NotifySmsDeletedRunnable : public nsRunnable {
     public:
-      NotifySmsDeletedRunnable(bool aDeleted, int32_t aRequestId,
-                               uint64_t aProcessId)
+      NotifySmsDeletedRunnable(bool aDeleted, PRInt32 aRequestId,
+                               PRUint64 aProcessId)
         : mDeleted(aDeleted)
         , mRequestId(aRequestId)
         , mProcessId(aProcessId)
@@ -522,7 +534,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsDeleted(JNIEnv* jenv, jclass,
           nsTArray<SmsParent*> spList;
           SmsParent::GetAll(spList);
 
-          for (uint32_t i=0; i<spList.Length(); ++i) {
+          for (PRUint32 i=0; i<spList.Length(); ++i) {
             unused << spList[i]->SendNotifyRequestSmsDeleted(mDeleted,
                                                              mRequestId,
                                                              mProcessId);
@@ -534,8 +546,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsDeleted(JNIEnv* jenv, jclass,
 
     private:
       bool      mDeleted;
-      int32_t   mRequestId;
-      uint64_t  mProcessId;
+      PRInt32   mRequestId;
+      PRUint64  mProcessId;
     };
 
 
@@ -552,9 +564,9 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsDeleteFailed(JNIEnv* jenv, jclass,
 {
     class NotifySmsDeleteFailedRunnable : public nsRunnable {
     public:
-      NotifySmsDeleteFailedRunnable(int32_t aError,
-                                    int32_t aRequestId,
-                                    uint64_t aProcessId)
+      NotifySmsDeleteFailedRunnable(PRInt32 aError,
+                                    PRInt32 aRequestId,
+                                    PRUint64 aProcessId)
         : mError(aError)
         , mRequestId(aRequestId)
         , mProcessId(aProcessId)
@@ -571,7 +583,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsDeleteFailed(JNIEnv* jenv, jclass,
           nsTArray<SmsParent*> spList;
           SmsParent::GetAll(spList);
 
-          for (uint32_t i=0; i<spList.Length(); ++i) {
+          for (PRUint32 i=0; i<spList.Length(); ++i) {
             unused << spList[i]->SendNotifyRequestSmsDeleteFailed(mError,
                                                                   mRequestId,
                                                                   mProcessId);
@@ -582,9 +594,9 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsDeleteFailed(JNIEnv* jenv, jclass,
       }
 
     private:
-      int32_t  mError;
-      int32_t  mRequestId;
-      uint64_t mProcessId;
+      PRInt32  mError;
+      PRInt32  mRequestId;
+      PRUint64 mProcessId;
     };
 
 
@@ -600,7 +612,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyNoMessageInList(JNIEnv* jenv, jclass,
 {
     class NotifyNoMessageInListRunnable : public nsRunnable {
     public:
-      NotifyNoMessageInListRunnable(int32_t aRequestId, uint64_t aProcessId)
+      NotifyNoMessageInListRunnable(PRInt32 aRequestId, PRUint64 aProcessId)
         : mRequestId(aRequestId)
         , mProcessId(aProcessId)
       {}
@@ -616,7 +628,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyNoMessageInList(JNIEnv* jenv, jclass,
           nsTArray<SmsParent*> spList;
           SmsParent::GetAll(spList);
 
-          for (uint32_t i=0; i<spList.Length(); ++i) {
+          for (PRUint32 i=0; i<spList.Length(); ++i) {
             unused << spList[i]->SendNotifyRequestNoMessageInList(mRequestId,
                                                                   mProcessId);
           }
@@ -626,8 +638,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyNoMessageInList(JNIEnv* jenv, jclass,
       }
 
     private:
-      int32_t               mRequestId;
-      uint64_t              mProcessId;
+      PRInt32               mRequestId;
+      PRUint64              mProcessId;
     };
 
 
@@ -649,9 +661,9 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyListCreated(JNIEnv* jenv, jclass,
 {
     class NotifyCreateMessageListRunnable : public nsRunnable {
     public:
-      NotifyCreateMessageListRunnable(int32_t aListId,
+      NotifyCreateMessageListRunnable(PRInt32 aListId,
                                       const SmsMessageData& aMessage,
-                                      int32_t aRequestId, uint64_t aProcessId)
+                                      PRInt32 aRequestId, PRUint64 aProcessId)
         : mListId(aListId)
         , mMessage(aMessage)
         , mRequestId(aRequestId)
@@ -672,7 +684,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyListCreated(JNIEnv* jenv, jclass,
           nsTArray<SmsParent*> spList;
           SmsParent::GetAll(spList);
 
-          for (uint32_t i=0; i<spList.Length(); ++i) {
+          for (PRUint32 i=0; i<spList.Length(); ++i) {
             unused << spList[i]->SendNotifyRequestCreateMessageList(mListId,
                                                                     mMessage,
                                                                     mRequestId,
@@ -684,10 +696,10 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyListCreated(JNIEnv* jenv, jclass,
       }
 
     private:
-      int32_t        mListId;
+      PRInt32        mListId;
       SmsMessageData mMessage;
-      int32_t        mRequestId;
-      uint64_t       mProcessId;
+      PRInt32        mRequestId;
+      PRUint64       mProcessId;
     };
 
 
@@ -717,7 +729,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGotNextMessage(JNIEnv* jenv, jclass,
     class NotifyGotNextMessageRunnable : public nsRunnable {
     public:
       NotifyGotNextMessageRunnable(const SmsMessageData& aMessage,
-                                   int32_t aRequestId, uint64_t aProcessId)
+                                   PRInt32 aRequestId, PRUint64 aProcessId)
         : mMessage(aMessage)
         , mRequestId(aRequestId)
         , mProcessId(aProcessId)
@@ -735,7 +747,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGotNextMessage(JNIEnv* jenv, jclass,
           nsTArray<SmsParent*> spList;
           SmsParent::GetAll(spList);
 
-          for (uint32_t i=0; i<spList.Length(); ++i) {
+          for (PRUint32 i=0; i<spList.Length(); ++i) {
             unused << spList[i]->SendNotifyRequestGotNextMessage(mMessage,
                                                                  mRequestId,
                                                                  mProcessId);
@@ -747,8 +759,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGotNextMessage(JNIEnv* jenv, jclass,
 
     private:
       SmsMessageData mMessage;
-      int32_t        mRequestId;
-      uint64_t       mProcessId;
+      PRInt32        mRequestId;
+      PRUint64       mProcessId;
     };
 
 
@@ -773,9 +785,9 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyReadingMessageListFailed(JNIEnv* jenv
 {
     class NotifyReadListFailedRunnable : public nsRunnable {
     public:
-      NotifyReadListFailedRunnable(int32_t aError,
-                                   int32_t aRequestId,
-                                   uint64_t aProcessId)
+      NotifyReadListFailedRunnable(PRInt32 aError,
+                                   PRInt32 aRequestId,
+                                   PRUint64 aProcessId)
         : mError(aError)
         , mRequestId(aRequestId)
         , mProcessId(aProcessId)
@@ -792,7 +804,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyReadingMessageListFailed(JNIEnv* jenv
           nsTArray<SmsParent*> spList;
           SmsParent::GetAll(spList);
 
-          for (uint32_t i=0; i<spList.Length(); ++i) {
+          for (PRUint32 i=0; i<spList.Length(); ++i) {
             unused << spList[i]->SendNotifyRequestReadListFailed(mError,
                                                                  mRequestId,
                                                                  mProcessId);
@@ -803,9 +815,9 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyReadingMessageListFailed(JNIEnv* jenv
       }
 
     private:
-      int32_t  mError;
-      int32_t  mRequestId;
-      uint64_t mProcessId;
+      PRInt32  mError;
+      PRInt32  mRequestId;
+      PRUint64 mProcessId;
     };
 
 
@@ -814,7 +826,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyReadingMessageListFailed(JNIEnv* jenv
     NS_DispatchToMainThread(runnable);
 }
 
-#ifdef MOZ_ANDROID_OMTC
+#ifdef MOZ_JAVA_COMPOSITOR
 
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_scheduleComposite(JNIEnv*, jclass)

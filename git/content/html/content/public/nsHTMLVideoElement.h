@@ -28,7 +28,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsHTMLMediaElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsHTMLMediaElement::)
@@ -42,7 +42,7 @@ public:
   // nsIDOMHTMLVideoElement
   NS_DECL_NSIDOMHTMLVIDEOELEMENT
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);

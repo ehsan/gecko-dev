@@ -21,7 +21,7 @@
 #include <dwrite.h>
 
 static DWRITE_FONT_STRETCH
-DWriteFontStretchFromStretch(int16_t aStretch) 
+DWriteFontStretchFromStretch(PRInt16 aStretch) 
 {
     switch (aStretch) {
         case NS_FONT_STRETCH_ULTRA_CONDENSED:
@@ -47,7 +47,7 @@ DWriteFontStretchFromStretch(int16_t aStretch)
     }
 }
 
-static int16_t
+static PRInt16
 FontStretchFromDWriteStretch(DWRITE_FONT_STRETCH aStretch) 
 {
     switch (aStretch) {
@@ -76,7 +76,7 @@ FontStretchFromDWriteStretch(DWRITE_FONT_STRETCH aStretch)
 
 struct ffReferenceKey
 {
-    FallibleTArray<uint8_t> *mArray;
+    FallibleTArray<PRUint8> *mArray;
     nsID mGUID;
 };
 
@@ -114,7 +114,7 @@ public:
     // IDWriteFontFileLoader methods
     /**
      * Important! Note the key here -has- to be a pointer to an
-     * FallibleTArray<uint8_t>.
+     * FallibleTArray<PRUint8>.
      */
     virtual HRESULT STDMETHODCALLTYPE 
         CreateStreamFromKey(void const* fontFileReferenceKey,
@@ -123,7 +123,7 @@ public:
 
     /**
      * Gets the singleton loader instance. Note that when using this font
-     * loader, the key must be a pointer to an FallibleTArray<uint8_t>. This
+     * loader, the key must be a pointer to an FallibleTArray<PRUint8>. This
      * array will be empty when the function returns.
      */
     static IDWriteFontFileLoader* Instance()
@@ -151,7 +151,7 @@ public:
      *
      * @param aData Font data
      */
-    gfxDWriteFontFileStream(FallibleTArray<uint8_t> *aData);
+    gfxDWriteFontFileStream(FallibleTArray<PRUint8> *aData);
     ~gfxDWriteFontFileStream();
 
     // IUnknown interface
@@ -170,7 +170,7 @@ public:
 
     IFACEMETHOD_(ULONG, AddRef)()
     {
-        NS_PRECONDITION(int32_t(mRefCnt) >= 0, "illegal refcnt");
+        NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "illegal refcnt");
         ++mRefCnt;
         return mRefCnt;
     }
@@ -199,7 +199,7 @@ public:
     virtual HRESULT STDMETHODCALLTYPE GetLastWriteTime(OUT UINT64* lastWriteTime);
 
 private:
-    FallibleTArray<uint8_t> mData;
+    FallibleTArray<PRUint8> mData;
     nsAutoRefCnt mRefCnt;
 }; 
 

@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpserver = null;
 var simplePath = "/simple";
@@ -51,11 +46,11 @@ listener.prototype = listener_proto;
 
 function run_test()
 {
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.registerPathHandler(simplePath, simpleHandler);
   httpserver.registerPathHandler(normalPath, normalHandler);
   httpserver.start(4444);
-
+  
   var channel = make_channel(uri1);
   channel.asyncOpen(new listener("text/plain", function() {
 	run_test2();

@@ -8,7 +8,7 @@
 #include "nsIDOMHTMLFrameElement.h"
 #include "nsGenericHTMLFrameElement.h"
 #include "nsGkAtoms.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 class nsIDOMDocument;
 
@@ -27,7 +27,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLFrameElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLFrameElement::)
@@ -39,7 +39,7 @@ public:
   NS_DECL_NSIDOMHTMLFRAMEELEMENT
 
   // nsIContent
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -105,7 +105,7 @@ nsHTMLFrameElement::GetContentWindow(nsIDOMWindow** aContentWindow)
 }
 
 bool
-nsHTMLFrameElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLFrameElement::ParseAttribute(PRInt32 aNamespaceID,
                                    nsIAtom* aAttribute,
                                    const nsAString& aValue,
                                    nsAttrValue& aResult)

@@ -102,10 +102,6 @@ class BumpChunk
 
     bool canAlloc(size_t n);
 
-    size_t unused() {
-        return limit - AlignPtr(bump);
-    }
-
     /* Try to perform an allocation of size |n|, return null if not possible. */
     JS_ALWAYS_INLINE
     void *tryAlloc(size_t n) {
@@ -180,8 +176,6 @@ class LifoAlloc
         last = end;
     }
 
-    bool ensureUnusedApproximateSlow(size_t n);
-
   public:
     explicit LifoAlloc(size_t defaultChunkSize) { reset(defaultChunkSize); }
 
@@ -217,34 +211,6 @@ class LifoAlloc
             return NULL;
 
         return latest->allocInfallible(n);
-    }
-
-    JS_ALWAYS_INLINE
-    void *allocInfallible(size_t n) {
-        void *result;
-        if (latest && (result = latest->tryAlloc(n)))
-            return result;
-
-        DebugOnly<BumpChunk *> chunk = getOrCreateChunk(n);
-        JS_ASSERT(chunk);
-
-        return latest->allocInfallible(n);
-    }
-
-    // Ensures that enough space exists to satisfy N bytes worth of
-    // allocation requests, not necessarily contiguous. Note that this does
-    // not guarantee a successful single allocation of N bytes.
-    JS_ALWAYS_INLINE
-    bool ensureUnusedApproximate(size_t n) {
-        size_t total = 0;
-        BumpChunk *chunk = latest;
-        while (chunk) {
-            total += chunk->unused();
-            if (total >= n)
-                return true;
-            chunk = chunk->next();
-        }
-        return ensureUnusedApproximateSlow(n);
     }
 
     template <typename T>
@@ -297,21 +263,12 @@ class LifoAlloc
         latest->release(mark);
     }
 
-    void releaseAll() {
-        JS_ASSERT(!markCount);
-        latest = first;
-        if (latest)
-            latest->resetBump();
-    }
-
     /* Get the total "used" (occupied bytes) count for the arena chunks. */
     size_t used() const {
         size_t accum = 0;
         BumpChunk *it = first;
         while (it) {
             accum += it->used();
-            if (it == latest)
-                break;
             it = it->next();
         }
         return accum;
@@ -340,7 +297,7 @@ class LifoAlloc
         return static_cast<T *>(alloc(sizeof(T)));
     }
 
-    JS_DECLARE_NEW_METHODS(new_, alloc, JS_ALWAYS_INLINE)
+    JS_DECLARE_NEW_METHODS(alloc, JS_ALWAYS_INLINE)
 };
 
 class LifoAllocScope

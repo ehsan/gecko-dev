@@ -28,7 +28,7 @@ private:
   void PurgeLastSound();
 
 private:
-  uint8_t* mLastSound;
+  PRUint8* mLastSound;
   nsCOMPtr<nsIThread> mPlayerThread;
 };
 

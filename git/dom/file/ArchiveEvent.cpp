@@ -8,7 +8,6 @@
 
 #include "nsContentUtils.h"
 #include "nsCExternalHandlerService.h"
-#include "nsProxyRelease.h"
 
 USING_FILE_NAMESPACE
 
@@ -45,20 +44,6 @@ ArchiveReaderEvent::ArchiveReaderEvent(ArchiveReader* aArchiveReader)
 
 ArchiveReaderEvent::~ArchiveReaderEvent()
 {
-  if (!NS_IsMainThread()) {
-    nsIMIMEService* mimeService;
-    mMimeService.forget(&mimeService);
-
-    if (mimeService) {
-      nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-      NS_WARN_IF_FALSE(mainThread, "Couldn't get the main thread! Leaking!");
-
-      if (mainThread) {
-        NS_ProxyRelease(mainThread, mimeService);
-      }
-    }
-  }
-
   MOZ_COUNT_DTOR(ArchiveReaderEvent);
 }
 
@@ -67,8 +52,6 @@ nsresult
 ArchiveReaderEvent::GetType(nsCString& aExt,
                             nsCString& aMimeType)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   nsresult rv;
   
   if (mMimeService.get() == nullptr) {
@@ -106,17 +89,17 @@ ArchiveReaderEvent::ShareMainThread()
 
   if (!NS_FAILED(mStatus)) {
     // This extra step must run in the main thread:
-    for (uint32_t index = 0; index < mFileList.Length(); ++index) {
+    for (PRUint32 index = 0; index < mFileList.Length(); ++index) {
       nsRefPtr<ArchiveItem> item = mFileList[index];
 
-      int32_t offset = item->GetFilename().RFindChar('.');
+      PRInt32 offset = item->GetFilename().RFindChar('.');
       if (offset != kNotFound) {
         nsCString ext(item->GetFilename());
         ext.Cut(0, offset + 1);
 
         // Just to be sure, if something goes wrong, the mimetype is an empty string:
         nsCString type;
-        if (NS_SUCCEEDED(GetType(ext, type)))
+        if (GetType(ext, type) == NS_OK)
           item->SetType(type);
       }
 

@@ -4,13 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "SVGTransform.h"
 #include "nsContentUtils.h"
 #include "nsTextFormatter.h"
 
 namespace {
-  const double radPerDegree = 2.0 * M_PI / 360.0;
+  const double radPerDegree = 2.0*3.1415926535 / 360.0;
 }
 
 namespace mozilla {
@@ -160,7 +160,7 @@ SVGTransformSMILData::SVGTransformSMILData(const SVGTransform& aTransform)
     mTransformType <= nsIDOMSVGTransform::SVG_TRANSFORM_SKEWY,
     "Unexpected transform type");
 
-  for (uint32_t i = 0; i < NUM_STORED_PARAMS; ++i) {
+  for (PRUint32 i = 0; i < NUM_STORED_PARAMS; ++i) {
     mParams[i] = 0.f;
   }
 

@@ -10,7 +10,6 @@
 #include "nsIDOMHTMLUListElement.h"
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsMappedAttributes.h"
@@ -31,7 +30,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
@@ -48,7 +47,7 @@ public:
   // nsIDOMHTMLUListElement
   // fully declared by NS_DECL_NSIDOMHTMLOLISTELEMENT
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -126,7 +125,6 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLSharedListElement)
 NS_IMPL_BOOL_ATTR(nsHTMLSharedListElement, Compact, compact)
 NS_IMPL_INT_ATTR_DEFAULT_VALUE(nsHTMLSharedListElement, Start, start, 1)
 NS_IMPL_STRING_ATTR(nsHTMLSharedListElement, Type, type)
-NS_IMPL_BOOL_ATTR(nsHTMLSharedListElement, Reversed, reversed)
 
 // Shared with nsHTMLSharedElement.cpp
 nsAttrValue::EnumTable kListTypeTable[] = {
@@ -153,7 +151,7 @@ static const nsAttrValue::EnumTable kOldListTypeTable[] = {
 };
 
 bool
-nsHTMLSharedListElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLSharedListElement::ParseAttribute(PRInt32 aNamespaceID,
                                         nsIAtom* aAttribute,
                                         const nsAString& aValue,
                                         nsAttrValue& aResult)

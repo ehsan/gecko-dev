@@ -5,7 +5,6 @@
 #ifndef nsTableColFrame_h__
 #define nsTableColFrame_h__
 
-#include "mozilla/Attributes.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
 #include "nsTablePainter.h"
@@ -40,18 +39,18 @@ public:
   friend nsTableColFrame* NS_NewTableColFrame(nsIPresShell* aPresShell,
                                               nsStyleContext*  aContext);
   /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
   
-  int32_t GetColIndex() const;
+  PRInt32 GetColIndex() const;
   
-  void SetColIndex (int32_t aColIndex);
+  void SetColIndex (PRInt32 aColIndex);
 
   nsTableColFrame* GetNextCol() const;
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus&          aStatus);
 
   /**
    * Table columns never paint anything, nor receive events.
@@ -65,19 +64,19 @@ public:
    *
    * @see nsGkAtoms::tableColFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
   
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  virtual nsSplittableType GetSplittableType() const MOZ_OVERRIDE;
+  virtual nsSplittableType GetSplittableType() const;
 
   /** return the number of the columns the col represents.  always >= 1 */
-  int32_t GetSpan();
+  PRInt32 GetSpan();
 
   /** convenience method, calls into cellmap */
-  int32_t Count() const;
+  PRInt32 Count() const;
 
   nscoord GetLeftBorderWidth();
   void    SetLeftBorderWidth(BCPixelSize aWidth);
@@ -97,10 +96,10 @@ public:
    * Set full border widths before collapsing with cell borders
    * @param aForSide - side to set; only valid for top, right, and bottom
    */
-  void SetContinuousBCBorderWidth(uint8_t     aForSide,
+  void SetContinuousBCBorderWidth(PRUint8     aForSide,
                                   BCPixelSize aPixelValue);
 #ifdef DEBUG
-  void Dump(int32_t aIndent);
+  void Dump(PRInt32 aIndent);
 #endif
 
   /**
@@ -263,10 +262,6 @@ public:
   nscoord GetFinalWidth() {
     return mFinalWidth;
   }
-  
-  virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
 
 protected:
 
@@ -288,7 +283,7 @@ protected:
   // the index of the column with respect to the whole tabble (starting at 0) 
   // it should never be smaller then the start column index of the parent 
   // colgroup
-  uint32_t mColIndex:        16;
+  PRUint32 mColIndex:        16;
   
   // border width in pixels of the inner half of the border only
   BCPixelSize mLeftBorderWidth;
@@ -300,12 +295,12 @@ protected:
   bool mHasSpecifiedCoord;
 };
 
-inline int32_t nsTableColFrame::GetColIndex() const
+inline PRInt32 nsTableColFrame::GetColIndex() const
 {
   return mColIndex; 
 }
 
-inline void nsTableColFrame::SetColIndex (int32_t aColIndex)
+inline void nsTableColFrame::SetColIndex (PRInt32 aColIndex)
 { 
   mColIndex = aColIndex; 
 }
@@ -333,7 +328,7 @@ inline void nsTableColFrame::SetRightBorderWidth(BCPixelSize aWidth)
 inline nscoord
 nsTableColFrame::GetContinuousBCBorderWidth(nsMargin& aBorder)
 {
-  int32_t aPixelsToTwips = nsPresContext::AppUnitsPerCSSPixel();
+  PRInt32 aPixelsToTwips = nsPresContext::AppUnitsPerCSSPixel();
   aBorder.top = BC_BORDER_BOTTOM_HALF_COORD(aPixelsToTwips,
                                             mTopContBorderWidth);
   aBorder.right = BC_BORDER_LEFT_HALF_COORD(aPixelsToTwips,

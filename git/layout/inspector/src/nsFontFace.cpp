@@ -11,7 +11,7 @@
 #include "zlib.h"
 
 nsFontFace::nsFontFace(gfxFontEntry*      aFontEntry,
-                       uint8_t            aMatchType,
+                       PRUint8            aMatchType,
                        nsCSSFontFaceRule* aRule)
   : mFontEntry(aFontEntry),
     mRule(aRule),
@@ -89,7 +89,7 @@ nsFontFace::GetRule(nsIDOMCSSFontFaceRule **aRule)
 
 /* readonly attribute long srcIndex; */
 NS_IMETHODIMP
-nsFontFace::GetSrcIndex(int32_t * aSrcIndex)
+nsFontFace::GetSrcIndex(PRInt32 * aSrcIndex)
 {
   if (mFontEntry->IsUserFont()) {
     NS_ASSERTION(mFontEntry->mUserFontData, "missing userFontData");
@@ -108,7 +108,7 @@ nsFontFace::GetURI(nsAString & aURI)
   if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {
     NS_ASSERTION(mFontEntry->mUserFontData, "missing userFontData");
     if (mFontEntry->mUserFontData->mURI) {
-      nsAutoCString spec;
+      nsCAutoString spec;
       mFontEntry->mUserFontData->mURI->GetSpec(spec);
       AppendUTF8toUTF16(spec, aURI);
     }
@@ -145,7 +145,7 @@ nsFontFace::GetFormat(nsAString & aFormat)
   aFormat.Truncate();
   if (mFontEntry->IsUserFont() && !mFontEntry->IsLocalUserFont()) {
     NS_ASSERTION(mFontEntry->mUserFontData, "missing userFontData");
-    uint32_t formatFlags = mFontEntry->mUserFontData->mFormat;
+    PRUint32 formatFlags = mFontEntry->mUserFontData->mFormat;
     if (formatFlags & gfxUserFontSet::FLAG_FORMAT_OPENTYPE) {
       AppendToFormat(aFormat, "opentype");
     }
@@ -177,7 +177,7 @@ nsFontFace::GetMetadata(nsAString & aMetadata)
     NS_ASSERTION(mFontEntry->mUserFontData, "missing userFontData");
     const gfxUserFontData* userFontData = mFontEntry->mUserFontData;
     if (userFontData->mMetadata.Length() && userFontData->mMetaOrigLen) {
-      nsAutoCString str;
+      nsCAutoString str;
       str.SetLength(userFontData->mMetaOrigLen);
       if (str.Length() == userFontData->mMetaOrigLen) {
         uLongf destLen = userFontData->mMetaOrigLen;

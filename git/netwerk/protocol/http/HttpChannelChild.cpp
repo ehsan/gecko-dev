@@ -16,11 +16,6 @@
 #include "nsNetUtil.h"
 #include "nsSerializationHelper.h"
 #include "base/compiler_specific.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-#include "mozilla/ipc/URIUtils.h"
-
-using namespace mozilla::dom;
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
@@ -170,7 +165,7 @@ class StartRequestEvent : public ChannelEvent
                     const nsHttpHeaderArray& requestHeaders,
                     const bool& isFromCache,
                     const bool& cacheEntryAvailable,
-                    const uint32_t& cacheExpirationTime,
+                    const PRUint32& cacheExpirationTime,
                     const nsCString& cachedCharset,
                     const nsCString& securityInfoSerialization,
                     const PRNetAddr& selfAddr,
@@ -202,7 +197,7 @@ class StartRequestEvent : public ChannelEvent
   bool mUseResponseHead;
   bool mIsFromCache;
   bool mCacheEntryAvailable;
-  uint32_t mCacheExpirationTime;
+  PRUint32 mCacheExpirationTime;
   nsCString mCachedCharset;
   nsCString mSecurityInfoSerialization;
   PRNetAddr mSelfAddr;
@@ -215,7 +210,7 @@ HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
                                      const nsHttpHeaderArray& requestHeaders,
                                      const bool& isFromCache,
                                      const bool& cacheEntryAvailable,
-                                     const uint32_t& cacheExpirationTime,
+                                     const PRUint32& cacheExpirationTime,
                                      const nsCString& cachedCharset,
                                      const nsCString& securityInfoSerialization,
                                      const PRNetAddr& selfAddr,
@@ -242,7 +237,7 @@ HttpChannelChild::OnStartRequest(const nsHttpResponseHead& responseHead,
                                  const nsHttpHeaderArray& requestHeaders,
                                  const bool& isFromCache,
                                  const bool& cacheEntryAvailable,
-                                 const uint32_t& cacheExpirationTime,
+                                 const PRUint32& cacheExpirationTime,
                                  const nsCString& cachedCharset,
                                  const nsCString& securityInfoSerialization,
                                  const PRNetAddr& selfAddr,
@@ -294,11 +289,11 @@ class TransportAndDataEvent : public ChannelEvent
  public:
   TransportAndDataEvent(HttpChannelChild* child,
                         const nsresult& status,
-                        const uint64_t& progress,
-                        const uint64_t& progressMax,
+                        const PRUint64& progress,
+                        const PRUint64& progressMax,
                         const nsCString& data,
-                        const uint64_t& offset,
-                        const uint32_t& count)
+                        const PRUint32& offset,
+                        const PRUint32& count)
   : mChild(child)
   , mStatus(status)
   , mProgress(progress)
@@ -312,20 +307,20 @@ class TransportAndDataEvent : public ChannelEvent
  private:
   HttpChannelChild* mChild;
   nsresult mStatus;
-  uint64_t mProgress;
-  uint64_t mProgressMax;
+  PRUint64 mProgress;
+  PRUint64 mProgressMax;
   nsCString mData;
-  uint64_t mOffset;
-  uint32_t mCount;
+  PRUint32 mOffset;
+  PRUint32 mCount;
 };
 
 bool
 HttpChannelChild::RecvOnTransportAndData(const nsresult& status,
-                                         const uint64_t& progress,
-                                         const uint64_t& progressMax,
+                                         const PRUint64& progress,
+                                         const PRUint64& progressMax,
                                          const nsCString& data,
-                                         const uint64_t& offset,
-                                         const uint32_t& count)
+                                         const PRUint32& offset,
+                                         const PRUint32& count)
 {
   if (mEventQ.ShouldEnqueue()) {
     mEventQ.Enqueue(new TransportAndDataEvent(this, status, progress,
@@ -339,11 +334,11 @@ HttpChannelChild::RecvOnTransportAndData(const nsresult& status,
 
 void
 HttpChannelChild::OnTransportAndData(const nsresult& status,
-                                     const uint64_t progress,
-                                     const uint64_t& progressMax,
+                                     const PRUint64 progress,
+                                     const PRUint64& progressMax,
                                      const nsCString& data,
-                                     const uint64_t& offset,
-                                     const uint32_t& count)
+                                     const PRUint32& offset,
+                                     const PRUint32& count)
 {
   LOG(("HttpChannelChild::OnTransportAndData [this=%x]\n", this));
 
@@ -372,7 +367,7 @@ HttpChannelChild::OnTransportAndData(const nsresult& status,
                  status == NS_NET_STATUS_READING,
                  "unexpected status code");
 
-    nsAutoCString host;
+    nsCAutoString host;
     mURI->GetHost(host);
     mProgressSink->OnStatus(this, nullptr, status,
                             NS_ConvertUTF8toUTF16(host).get());
@@ -472,8 +467,8 @@ class ProgressEvent : public ChannelEvent
 {
  public:
   ProgressEvent(HttpChannelChild* child,
-                const uint64_t& progress,
-                const uint64_t& progressMax)
+                const PRUint64& progress,
+                const PRUint64& progressMax)
   : mChild(child)
   , mProgress(progress)
   , mProgressMax(progressMax) {}
@@ -481,12 +476,12 @@ class ProgressEvent : public ChannelEvent
   void Run() { mChild->OnProgress(mProgress, mProgressMax); }
  private:
   HttpChannelChild* mChild;
-  uint64_t mProgress, mProgressMax;
+  PRUint64 mProgress, mProgressMax;
 };
 
 bool
-HttpChannelChild::RecvOnProgress(const uint64_t& progress,
-                                 const uint64_t& progressMax)
+HttpChannelChild::RecvOnProgress(const PRUint64& progress,
+                                 const PRUint64& progressMax)
 {
   if (mEventQ.ShouldEnqueue())  {
     mEventQ.Enqueue(new ProgressEvent(this, progress, progressMax));
@@ -497,8 +492,8 @@ HttpChannelChild::RecvOnProgress(const uint64_t& progress,
 }
 
 void
-HttpChannelChild::OnProgress(const uint64_t& progress,
-                             const uint64_t& progressMax)
+HttpChannelChild::OnProgress(const PRUint64& progress,
+                             const PRUint64& progressMax)
 {
   LOG(("HttpChannelChild::OnProgress [this=%p progress=%llu/%llu]\n",
        this, progress, progressMax));
@@ -568,7 +563,7 @@ HttpChannelChild::OnStatus(const nsresult& status)
   if (mProgressSink && NS_SUCCEEDED(mStatus) && mIsPending && 
       !(mLoadFlags & LOAD_BACKGROUND)) 
   {
-    nsAutoCString host;
+    nsCAutoString host;
     mURI->GetHost(host);
     mProgressSink->OnStatus(this, nullptr, status,
                             NS_ConvertUTF8toUTF16(host).get());
@@ -656,9 +651,9 @@ class Redirect1Event : public ChannelEvent
 {
  public:
   Redirect1Event(HttpChannelChild* child,
-                 const uint32_t& newChannelId,
-                 const URIParams& newURI,
-                 const uint32_t& redirectFlags,
+                 const PRUint32& newChannelId,
+                 const IPC::URI& newURI,
+                 const PRUint32& redirectFlags,
                  const nsHttpResponseHead& responseHead)
   : mChild(child)
   , mNewChannelId(newChannelId)
@@ -673,16 +668,16 @@ class Redirect1Event : public ChannelEvent
   }
  private:
   HttpChannelChild*   mChild;
-  uint32_t            mNewChannelId;
-  URIParams           mNewURI;
-  uint32_t            mRedirectFlags;
+  PRUint32            mNewChannelId;
+  IPC::URI            mNewURI;
+  PRUint32            mRedirectFlags;
   nsHttpResponseHead  mResponseHead;
 };
 
 bool
-HttpChannelChild::RecvRedirect1Begin(const uint32_t& newChannelId,
-                                     const URIParams& newUri,
-                                     const uint32_t& redirectFlags,
+HttpChannelChild::RecvRedirect1Begin(const PRUint32& newChannelId,
+                                     const URI& newUri,
+                                     const PRUint32& redirectFlags,
                                      const nsHttpResponseHead& responseHead)
 {
   if (mEventQ.ShouldEnqueue()) {
@@ -695,9 +690,9 @@ HttpChannelChild::RecvRedirect1Begin(const uint32_t& newChannelId,
 }
 
 void
-HttpChannelChild::Redirect1Begin(const uint32_t& newChannelId,
-                                 const URIParams& newUri,
-                                 const uint32_t& redirectFlags,
+HttpChannelChild::Redirect1Begin(const PRUint32& newChannelId,
+                                 const IPC::URI& newURI,
+                                 const PRUint32& redirectFlags,
                                  const nsHttpResponseHead& responseHead)
 {
   nsresult rv;
@@ -710,7 +705,7 @@ HttpChannelChild::Redirect1Begin(const uint32_t& newChannelId,
     return;
   }
 
-  nsCOMPtr<nsIURI> uri = DeserializeURI(newUri);
+  nsCOMPtr<nsIURI> uri(newURI);
 
   nsCOMPtr<nsIChannel> newChannel;
   rv = ioService->NewChannelFromURI(uri, getter_AddRefs(newChannel));
@@ -724,8 +719,8 @@ HttpChannelChild::Redirect1Begin(const uint32_t& newChannelId,
   mResponseHead = new nsHttpResponseHead(responseHead);
   SetCookie(mResponseHead->PeekHeader(nsHttp::Set_Cookie));
 
-  bool rewriteToGET = nsHttp::ShouldRewriteRedirectToGET(
-                               mResponseHead->Status(), mRequestHead.Method());
+  bool rewriteToGET = ShouldRewriteRedirectToGET(mResponseHead->Status(), 
+                                                 mRequestHead.Method());
   
   rv = SetupReplacementChannel(uri, newChannel, !rewriteToGET);
   if (NS_FAILED(rv)) {
@@ -794,7 +789,7 @@ HttpChannelChild::Redirect3Complete()
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-HttpChannelChild::ConnectParent(uint32_t id)
+HttpChannelChild::ConnectParent(PRUint32 id)
 {
   mozilla::dom::TabChild* tabChild = nullptr;
   nsCOMPtr<nsITabChild> iTabChild;
@@ -807,10 +802,8 @@ HttpChannelChild::ConnectParent(uint32_t id)
   // until OnStopRequest, or we do a redirect, or we hit an IPDL error.
   AddIPDLReference();
 
-  if (!gNeckoChild->SendPHttpChannelConstructor(
-                      this, tabChild, IPC::SerializedLoadContext(this))) {
+  if (!gNeckoChild->SendPHttpChannelConstructor(this, tabChild))
     return NS_ERROR_FAILURE;
-  }
 
   if (!SendConnectChannel(id))
     return NS_ERROR_FAILURE;
@@ -1039,26 +1032,16 @@ HttpChannelChild::AsyncOpen(nsIStreamListener *listener, nsISupports *aContext)
   // until OnStopRequest, or we do a redirect, or we hit an IPDL error.
   AddIPDLReference();
 
-  gNeckoChild->SendPHttpChannelConstructor(this, tabChild,
-                                           IPC::SerializedLoadContext(this));
+  gNeckoChild->SendPHttpChannelConstructor(this, tabChild);
 
-  URIParams uri;
-  SerializeURI(mURI, uri);
-
-  OptionalURIParams originalURI, documentURI, referrer;
-  SerializeURI(mOriginalURI, originalURI);
-  SerializeURI(mDocumentURI, documentURI);
-  SerializeURI(mReferrer, referrer);
-
-  OptionalInputStreamParams uploadStream;
-  SerializeInputStream(mUploadStream, uploadStream);
-
-  SendAsyncOpen(uri, originalURI, documentURI, referrer, mLoadFlags,
-                mClientSetRequestHeaders, mRequestHead.Method(), uploadStream,
-                mUploadStreamHasHeaders, mPriority, mRedirectionLimit,
-                mAllowPipelining, mForceAllowThirdPartyCookie, mSendResumeAt,
+  SendAsyncOpen(IPC::URI(mURI), IPC::URI(mOriginalURI),
+                IPC::URI(mDocumentURI), IPC::URI(mReferrer), mLoadFlags,
+                mClientSetRequestHeaders, mRequestHead.Method(),
+                IPC::InputStream(mUploadStream), mUploadStreamHasHeaders,
+                mPriority, mRedirectionLimit, mAllowPipelining,
+                mForceAllowThirdPartyCookie, mSendResumeAt,
                 mStartPos, mEntityID, mChooseApplicationCache,
-                appCacheClientId, mAllowSpdy);
+                appCacheClientId, mAllowSpdy, IPC::SerializedLoadContext(this));
 
   return NS_OK;
 }
@@ -1106,7 +1089,7 @@ HttpChannelChild::GetRemoteAddress(nsACString & _result)
 }
 
 NS_IMETHODIMP
-HttpChannelChild::GetRemotePort(int32_t * _result)
+HttpChannelChild::GetRemotePort(PRInt32 * _result)
 {
   NS_ENSURE_ARG_POINTER(_result);
   return NS_ERROR_NOT_AVAILABLE;
@@ -1119,7 +1102,7 @@ HttpChannelChild::GetLocalAddress(nsACString & _result)
 }
 
 NS_IMETHODIMP
-HttpChannelChild::GetLocalPort(int32_t * _result)
+HttpChannelChild::GetLocalPort(PRInt32 * _result)
 {
   NS_ENSURE_ARG_POINTER(_result);
   return NS_ERROR_NOT_AVAILABLE;
@@ -1131,7 +1114,7 @@ HttpChannelChild::GetLocalPort(int32_t * _result)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-HttpChannelChild::GetCacheTokenExpirationTime(uint32_t *_retval)
+HttpChannelChild::GetCacheTokenExpirationTime(PRUint32 *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
   if (!mCacheEntryAvailable)
@@ -1178,7 +1161,7 @@ HttpChannelChild::IsFromCache(bool *value)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-HttpChannelChild::ResumeAt(uint64_t startPos, const nsACString& entityID)
+HttpChannelChild::ResumeAt(PRUint64 startPos, const nsACString& entityID)
 {
   ENSURE_CALLED_BEFORE_ASYNC_OPEN();
   mStartPos = startPos;
@@ -1194,9 +1177,9 @@ HttpChannelChild::ResumeAt(uint64_t startPos, const nsACString& entityID)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-HttpChannelChild::SetPriority(int32_t aPriority)
+HttpChannelChild::SetPriority(PRInt32 aPriority)
 {
-  int16_t newValue = clamped<int32_t>(aPriority, INT16_MIN, INT16_MAX);
+  PRInt16 newValue = clamped(aPriority, PR_INT16_MIN, PR_INT16_MAX);
   if (mPriority == newValue)
     return NS_OK;
   mPriority = newValue;
@@ -1318,7 +1301,7 @@ HttpChannelChild::GetAssociatedContentSecurity(
 /* attribute unsigned long countSubRequestsHighSecurity; */
 NS_IMETHODIMP
 HttpChannelChild::GetCountSubRequestsHighSecurity(
-                    int32_t *aSubRequestsHighSecurity)
+                    PRInt32 *aSubRequestsHighSecurity)
 {
   nsCOMPtr<nsIAssociatedContentSecurity> assoc;
   if (!GetAssociatedContentSecurity(getter_AddRefs(assoc)))
@@ -1328,7 +1311,7 @@ HttpChannelChild::GetCountSubRequestsHighSecurity(
 }
 NS_IMETHODIMP
 HttpChannelChild::SetCountSubRequestsHighSecurity(
-                    int32_t aSubRequestsHighSecurity)
+                    PRInt32 aSubRequestsHighSecurity)
 {
   nsCOMPtr<nsIAssociatedContentSecurity> assoc;
   if (!GetAssociatedContentSecurity(getter_AddRefs(assoc)))
@@ -1340,7 +1323,7 @@ HttpChannelChild::SetCountSubRequestsHighSecurity(
 /* attribute unsigned long countSubRequestsLowSecurity; */
 NS_IMETHODIMP
 HttpChannelChild::GetCountSubRequestsLowSecurity(
-                    int32_t *aSubRequestsLowSecurity)
+                    PRInt32 *aSubRequestsLowSecurity)
 {
   nsCOMPtr<nsIAssociatedContentSecurity> assoc;
   if (!GetAssociatedContentSecurity(getter_AddRefs(assoc)))
@@ -1350,7 +1333,7 @@ HttpChannelChild::GetCountSubRequestsLowSecurity(
 }
 NS_IMETHODIMP
 HttpChannelChild::SetCountSubRequestsLowSecurity(
-                    int32_t aSubRequestsLowSecurity)
+                    PRInt32 aSubRequestsLowSecurity)
 {
   nsCOMPtr<nsIAssociatedContentSecurity> assoc;
   if (!GetAssociatedContentSecurity(getter_AddRefs(assoc)))
@@ -1362,7 +1345,7 @@ HttpChannelChild::SetCountSubRequestsLowSecurity(
 /* attribute unsigned long countSubRequestsBrokenSecurity; */
 NS_IMETHODIMP 
 HttpChannelChild::GetCountSubRequestsBrokenSecurity(
-                    int32_t *aSubRequestsBrokenSecurity)
+                    PRInt32 *aSubRequestsBrokenSecurity)
 {
   nsCOMPtr<nsIAssociatedContentSecurity> assoc;
   if (!GetAssociatedContentSecurity(getter_AddRefs(assoc)))
@@ -1372,7 +1355,7 @@ HttpChannelChild::GetCountSubRequestsBrokenSecurity(
 }
 NS_IMETHODIMP 
 HttpChannelChild::SetCountSubRequestsBrokenSecurity(
-                    int32_t aSubRequestsBrokenSecurity)
+                    PRInt32 aSubRequestsBrokenSecurity)
 {
   nsCOMPtr<nsIAssociatedContentSecurity> assoc;
   if (!GetAssociatedContentSecurity(getter_AddRefs(assoc)))
@@ -1383,7 +1366,7 @@ HttpChannelChild::SetCountSubRequestsBrokenSecurity(
 
 /* attribute unsigned long countSubRequestsNoSecurity; */
 NS_IMETHODIMP
-HttpChannelChild::GetCountSubRequestsNoSecurity(int32_t *aSubRequestsNoSecurity)
+HttpChannelChild::GetCountSubRequestsNoSecurity(PRInt32 *aSubRequestsNoSecurity)
 {
   nsCOMPtr<nsIAssociatedContentSecurity> assoc;
   if (!GetAssociatedContentSecurity(getter_AddRefs(assoc)))
@@ -1392,7 +1375,7 @@ HttpChannelChild::GetCountSubRequestsNoSecurity(int32_t *aSubRequestsNoSecurity)
   return assoc->GetCountSubRequestsNoSecurity(aSubRequestsNoSecurity);
 }
 NS_IMETHODIMP
-HttpChannelChild::SetCountSubRequestsNoSecurity(int32_t aSubRequestsNoSecurity)
+HttpChannelChild::SetCountSubRequestsNoSecurity(PRInt32 aSubRequestsNoSecurity)
 {
   nsCOMPtr<nsIAssociatedContentSecurity> assoc;
   if (!GetAssociatedContentSecurity(getter_AddRefs(assoc)))
@@ -1409,7 +1392,7 @@ HttpChannelChild::Flush()
     return NS_OK;
 
   nsresult rv;
-  int32_t hi, low, broken, no;
+  PRInt32 hi, low, broken, no;
 
   rv = assoc->GetCountSubRequestsHighSecurity(&hi);
   NS_ENSURE_SUCCESS(rv, rv);

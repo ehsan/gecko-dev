@@ -14,7 +14,7 @@
 #include "nsIPrincipal.h"
 #include "nsPIDOMWindow.h"
 #include "nsServiceManagerUtils.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 DOMCI_DATA(MozPowerManager, mozilla::dom::power::PowerManager)
 
@@ -122,7 +122,7 @@ PowerManager::Callback(const nsAString &aTopic, const nsAString &aState)
    * more than one listener per window, so it shouldn't be too long.
    */
   nsAutoTArray<nsCOMPtr<nsIDOMMozWakeLockListener>, 2> listeners(mListeners);
-  for (uint32_t i = 0; i < listeners.Length(); ++i) {
+  for (PRUint32 i = 0; i < listeners.Length(); ++i) {
     listeners[i]->Callback(aTopic, aState);
   }
 
@@ -175,12 +175,22 @@ PowerManager::SetCpuSleepAllowed(bool aAllowed)
 already_AddRefed<PowerManager>
 PowerManager::CheckPermissionAndCreateInstance(nsPIDOMWindow* aWindow)
 {
+  nsPIDOMWindow* innerWindow = aWindow->IsInnerWindow() ?
+    aWindow :
+    aWindow->GetCurrentInnerWindow();
+
+  // Need the document for security check.
+  nsCOMPtr<nsIDocument> document = innerWindow->GetExtantDoc();
+  NS_ENSURE_TRUE(document, nullptr);
+
+  nsCOMPtr<nsIPrincipal> principal = document->NodePrincipal();
+
   nsCOMPtr<nsIPermissionManager> permMgr =
     do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
   NS_ENSURE_TRUE(permMgr, nullptr);
 
-  uint32_t permission = nsIPermissionManager::DENY_ACTION;
-  permMgr->TestPermissionFromWindow(aWindow, "power", &permission);
+  PRUint32 permission = nsIPermissionManager::DENY_ACTION;
+  permMgr->TestPermissionFromPrincipal(principal, "power", &permission);
 
   if (permission != nsIPermissionManager::ALLOW_ACTION) {
     return nullptr;

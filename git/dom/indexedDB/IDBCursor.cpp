@@ -72,7 +72,7 @@ class ContinueHelper : public CursorHelper
 {
 public:
   ContinueHelper(IDBCursor* aCursor,
-                 int32_t aCount)
+                 PRInt32 aCount)
   : CursorHelper(aCursor), mCount(aCount)
   {
     NS_ASSERTION(aCount > 0, "Must have a count!");
@@ -80,7 +80,7 @@ public:
 
   ~ContinueHelper()
   {
-    IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
+    IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
   }
 
   virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection)
@@ -89,13 +89,11 @@ public:
   virtual nsresult GetSuccessResult(JSContext* aCx,
                                     jsval* aVal) MOZ_OVERRIDE;
 
-  virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
-
   virtual nsresult
   PackArgumentsForParentProcess(CursorRequestParams& aParams) MOZ_OVERRIDE;
 
   virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
+  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
 
   virtual nsresult
   UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
@@ -135,7 +133,7 @@ protected:
     }
   }
 
-  int32_t mCount;
+  PRInt32 mCount;
   Key mKey;
   Key mObjectKey;
   StructuredCloneReadInfo mCloneReadInfo;
@@ -145,7 +143,7 @@ class ContinueObjectStoreHelper : public ContinueHelper
 {
 public:
   ContinueObjectStoreHelper(IDBCursor* aCursor,
-                            uint32_t aCount)
+                            PRUint32 aCount)
   : ContinueHelper(aCursor, aCount)
   { }
 
@@ -158,7 +156,7 @@ class ContinueIndexHelper : public ContinueHelper
 {
 public:
   ContinueIndexHelper(IDBCursor* aCursor,
-                      uint32_t aCount)
+                      PRUint32 aCount)
   : ContinueHelper(aCursor, aCount)
   { }
 
@@ -171,7 +169,7 @@ class ContinueIndexObjectHelper : public ContinueIndexHelper
 {
 public:
   ContinueIndexObjectHelper(IDBCursor* aCursor,
-                            uint32_t aCount)
+                            PRUint32 aCount)
   : ContinueIndexHelper(aCursor, aCount)
   { }
 
@@ -372,12 +370,12 @@ IDBCursor::~IDBCursor()
   if (mRooted) {
     NS_DROP_JS_OBJECTS(this, IDBCursor);
   }
-  IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
+  IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
 }
 
 nsresult
 IDBCursor::ContinueInternal(const Key& aKey,
-                            int32_t aCount)
+                            PRInt32 aCount)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(aCount > 0, "Must have a count!");
@@ -742,16 +740,16 @@ IDBCursor::Delete(JSContext* aCx,
 }
 
 NS_IMETHODIMP
-IDBCursor::Advance(int64_t aCount)
+IDBCursor::Advance(PRInt64 aCount)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (aCount < 1 || aCount > UINT32_MAX) {
+  if (aCount < 1 || aCount > PR_UINT32_MAX) {
     return NS_ERROR_TYPE_ERR;
   }
 
   Key key;
-  return ContinueInternal(key, int32_t(aCount));
+  return ContinueInternal(key, PRInt32(aCount));
 }
 
 void
@@ -796,7 +794,7 @@ ContinueHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   // (less than, if we're running a PREV cursor) or equal to the key that was
   // specified.
 
-  nsAutoCString query;
+  nsCAutoString query;
   if (mCursor->mContinueToKey.IsUnset()) {
     query.Assign(mCursor->mContinueQuery);
   }
@@ -818,7 +816,7 @@ ContinueHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   NS_ASSERTION(mCount > 0, "Not ok!");
 
   bool hasResult;
-  for (int32_t index = 0; index < mCount; index++) {
+  for (PRInt32 index = 0; index < mCount; index++) {
     rv = stmt->ExecuteStep(&hasResult);
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
@@ -855,13 +853,6 @@ ContinueHelper::GetSuccessResult(JSContext* aCx,
   return NS_OK;
 }
 
-void
-ContinueHelper::ReleaseMainThreadObjects()
-{
-  IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
-  CursorHelper::ReleaseMainThreadObjects();
-}
-
 nsresult
 ContinueHelper::PackArgumentsForParentProcess(CursorRequestParams& aParams)
 {
@@ -874,14 +865,16 @@ ContinueHelper::PackArgumentsForParentProcess(CursorRequestParams& aParams)
   return NS_OK;
 }
 
-AsyncConnectionHelper::ChildProcessSendResult
-ContinueHelper::SendResponseToChildProcess(nsresult aResultCode)
+HelperBase::ChildProcessSendResult
+ContinueHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
 
   IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  NS_ASSERTION(actor, "How did we get this far without an actor?");
+  if (!actor) {
+    return Success_NotSent;
+  }
 
   InfallibleTArray<PBlobParent*> blobsParent;
 

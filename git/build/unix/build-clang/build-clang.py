@@ -3,7 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-llvm_revision = "164411"
+llvm_revision = "161022"
 moz_version = "moz0"
 
 ##############################################
@@ -14,8 +14,6 @@ import shutil
 import tarfile
 import subprocess
 import platform
-import sys
-import simplejson
 
 def check_run(args):
     r = subprocess.call(args)
@@ -72,34 +70,6 @@ def build_one_stage(env, stage_dir, is_stage_one):
         build_one_stage_aux(stage_dir, is_stage_one)
     with_env(env, f)
 
-def build_tooltool_manifest():
-    def key_sort(item):
-        item = item[0]
-        if item == 'size':
-            return 0
-        if item == 'digest':
-            return 1
-        if item == 'algorithm':
-            return 3
-        return 4
-
-    basedir = os.path.split(os.path.realpath(sys.argv[0]))[0]
-    tooltool = basedir + '/tooltool.py'
-    setup = basedir + '/setup.sh'
-    manifest = 'clang.manifest'
-    check_run(['python', tooltool, '-m', manifest, 'add',
-               setup, 'clang.tar.bz2'])
-    data = simplejson.load(file(manifest))
-    data = [{'clang_version' : 'r%s' % llvm_revision }] + data
-    out = file(manifest,'w')
-    simplejson.dump(data, out, indent=0, item_sort_key=key_sort)
-    out.write('\n')
-
-    assert data[2]['filename'] == 'clang.tar.bz2'
-    os.rename('clang.tar.bz2', data[2]['digest'])
-
-isDarwin = platform.system() == "Darwin"
-
 def build_one_stage_aux(stage_dir, is_stage_one):
     os.mkdir(stage_dir)
 
@@ -107,12 +77,15 @@ def build_one_stage_aux(stage_dir, is_stage_one):
     inst_dir = stage_dir + "/clang"
 
     configure_opts = ["--enable-optimized",
-                      "--enable-targets=x86,x86_64,arm",
                       "--disable-assertions",
                       "--prefix=%s" % inst_dir,
                       "--with-gcc-toolchain=/tools/gcc-4.5-0moz3"]
+    if is_stage_one:
+        configure_opts.append("--with-optimize-option=-O0")
+
     build_package(llvm_source_dir, build_dir, configure_opts)
 
+isDarwin = platform.system() == "Darwin"
 if isDarwin:
     os.environ['MACOSX_DEPLOYMENT_TARGET'] = '10.7'
 
@@ -126,8 +99,9 @@ if not os.path.exists(source_dir):
            compiler_rt_source_dir, llvm_revision)
     os.symlink("../../clang", llvm_source_dir + "/tools/clang")
     os.symlink("../../compiler-rt", llvm_source_dir + "/projects/compiler-rt")
-    patch("llvm-debug-frame.patch", 1, llvm_source_dir)
     if not isDarwin:
+        patch("old-ld-hack.patch", 1, llvm_source_dir)
+        patch("compiler-rt-gnu89-inline.patch", 0, compiler_rt_source_dir)
         patch("no-sse-on-linux.patch", 1, clang_source_dir)
 
 if os.path.exists(build_dir):
@@ -145,12 +119,15 @@ if isDarwin:
 else:
     extra_cflags = "-static-libgcc"
     extra_cxxflags = "-static-libgcc -static-libstdc++"
-    cc = "/usr/bin/gcc"
-    cxx = "/usr/bin/g++"
+    cc = "/tools/gcc-4.5-0moz3/bin/gcc %s" % extra_cflags
+    cxx = "/tools/gcc-4.5-0moz3/bin/g++ %s" % extra_cxxflags
 
 build_one_stage({"CC"  : cc,
                  "CXX" : cxx },
                 stage1_dir, True)
+
+if not isDarwin:
+    extra_cflags += " -fgnu89-inline"
 
 stage2_dir = build_dir + '/stage2'
 build_one_stage({"CC"  : stage1_inst_dir + "/bin/clang %s" % extra_cflags,
@@ -158,4 +135,3 @@ build_one_stage({"CC"  : stage1_inst_dir + "/bin/clang %s" % extra_cflags,
                 stage2_dir, False)
 
 build_tar_package("tar", "clang.tar.bz2", stage2_dir, "clang")
-build_tooltool_manifest()

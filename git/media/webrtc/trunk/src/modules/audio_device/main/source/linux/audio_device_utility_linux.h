@@ -29,6 +29,7 @@ public:
 private:
     CriticalSectionWrapper& _critSect;
     WebRtc_Word32 _id;
+    AudioDeviceModule::ErrorCode _lastError;
 };
 
 } // namespace webrtc

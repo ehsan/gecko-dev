@@ -72,15 +72,6 @@ struct AudioFrame {
   int32_t mAudioChannels;
   int32_t mAudioSampleRate;
 
-  AudioFrame() :
-    mTimeUs(0),
-    mData(0),
-    mSize(0),
-    mAudioChannels(0),
-    mAudioSampleRate(0)
-  {
-  }
-
   void Set(int64_t aTimeUs,
            void *aData, size_t aSize,
            int32_t aAudioChannels, int32_t aAudioSampleRate)
@@ -100,7 +91,6 @@ struct PluginHost {
   uint64_t (*GetLength)(Decoder *aDecoder);
   void (*SetMetaDataReadMode)(Decoder *aDecoder);
   void (*SetPlaybackReadMode)(Decoder *aDecoder);
-  bool (*GetIntPref)(const char *aPref, int32_t *aResult);
 };
 
 struct Decoder {

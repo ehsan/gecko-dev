@@ -598,8 +598,8 @@ struct nsElementInfo
 #ifdef DEBUG
   eHTMLTags mTag;
 #endif
-  uint32_t mGroup;
-  uint32_t mCanContainGroups;
+  PRUint32 mGroup;
+  PRUint32 mCanContainGroups;
   bool mIsContainer;
   bool mCanContainSelf;
 };
@@ -777,7 +777,7 @@ static const nsElementInfo kElements[eHTMLTag_userdefined] = {
 };
 
 bool
-nsHTMLEditUtils::CanContain(int32_t aParent, int32_t aChild)
+nsHTMLEditUtils::CanContain(PRInt32 aParent, PRInt32 aChild)
 {
   NS_ASSERTION(aParent > eHTMLTag_unknown && aParent <= eHTMLTag_userdefined,
                "aParent out of range!");
@@ -788,7 +788,7 @@ nsHTMLEditUtils::CanContain(int32_t aParent, int32_t aChild)
   static bool checked = false;
   if (!checked) {
     checked = true;
-    int32_t i;
+    PRInt32 i;
     for (i = 1; i <= eHTMLTag_userdefined; ++i) {
       NS_ASSERTION(kElements[i - 1].mTag == i,
                    "You need to update kElements (missing tags).");
@@ -808,7 +808,7 @@ nsHTMLEditUtils::CanContain(int32_t aParent, int32_t aChild)
       eHTMLTag_textarea
     };
 
-    uint32_t j;
+    PRUint32 j;
     for (j = 0; j < ArrayLength(kButtonExcludeKids); ++j) {
       if (kButtonExcludeKids[j] == aChild) {
         return false;
@@ -836,7 +836,7 @@ nsHTMLEditUtils::CanContain(int32_t aParent, int32_t aChild)
 } 
 
 bool
-nsHTMLEditUtils::IsContainer(int32_t aTag)
+nsHTMLEditUtils::IsContainer(PRInt32 aTag)
 {
   NS_ASSERTION(aTag > eHTMLTag_unknown && aTag <= eHTMLTag_userdefined,
                "aTag out of range!");

@@ -84,16 +84,17 @@ function test_confirmation(aWindow, aExpectedURLs) {
   var list = aWindow.document.getElementById("itemList");
   is(list.childNodes.length, aExpectedURLs.length, "Should be the right number of installs");
 
-  for (let url of aExpectedURLs) {
-    let found = false;
-    for (let node of list.children) {
-      if (node.url == url) {
-        found = true;
-        break;
+  aExpectedURLs.forEach(function(aURL) {
+    var node = list.firstChild;
+    while (node) {
+      if (node.url == aURL) {
+        ok(true, "Should have seen " + aURL + " in the list");
+        return;
       }
+      node = node.nextSibling;
     }
-    ok(found, "Should have seen " + url + " in the list");
-  }
+    ok(false, "Should have seen " + aURL + " in the list");
+  });
 
   aWindow.document.documentElement.cancelDialog();
 }

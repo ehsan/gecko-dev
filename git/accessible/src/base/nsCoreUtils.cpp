@@ -9,8 +9,6 @@
 
 #include "nsAccessNode.h"
 
-#include "nsIBaseWindow.h"
-#include "nsIDocShellTreeOwner.h"
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLDocument.h"
@@ -59,7 +57,7 @@ nsCoreUtils::HasClickListener(nsIContent *aContent)
 
 void
 nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
-                                int32_t aRowIndex, nsITreeColumn *aColumn,
+                                PRInt32 aRowIndex, nsITreeColumn *aColumn,
                                 const nsCString& aPseudoElt)
 {
   nsCOMPtr<nsIDOMElement> tcElm;
@@ -81,7 +79,7 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
   aTreeBoxObj->EnsureRowIsVisible(aRowIndex);
 
   // Calculate x and y coordinates.
-  int32_t x = 0, y = 0, width = 0, height = 0;
+  PRInt32 x = 0, y = 0, width = 0, height = 0;
   nsresult rv = aTreeBoxObj->GetCoordsForCellItem(aRowIndex, aColumn,
                                                   aPseudoElt,
                                                   &x, &y, &width, &height);
@@ -92,10 +90,10 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
   nsCOMPtr<nsIBoxObject> tcBoxObj;
   tcXULElm->GetBoxObject(getter_AddRefs(tcBoxObj));
 
-  int32_t tcX = 0;
+  PRInt32 tcX = 0;
   tcBoxObj->GetX(&tcX);
 
-  int32_t tcY = 0;
+  PRInt32 tcY = 0;
   tcBoxObj->GetY(&tcY);
 
   // Dispatch mouse events.
@@ -108,9 +106,9 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
 
   nsPresContext* presContext = presShell->GetPresContext();
 
-  int32_t cnvdX = presContext->CSSPixelsToDevPixels(tcX + x + 1) +
+  PRInt32 cnvdX = presContext->CSSPixelsToDevPixels(tcX + x + 1) +
     presContext->AppUnitsToDevPixels(offset.x);
-  int32_t cnvdY = presContext->CSSPixelsToDevPixels(tcY + y + 1) +
+  PRInt32 cnvdY = presContext->CSSPixelsToDevPixels(tcY + y + 1) +
     presContext->AppUnitsToDevPixels(offset.y);
 
   DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, cnvdX, cnvdY,
@@ -121,7 +119,7 @@ nsCoreUtils::DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
 }
 
 bool
-nsCoreUtils::DispatchMouseEvent(uint32_t aEventType,
+nsCoreUtils::DispatchMouseEvent(PRUint32 aEventType,
                                 nsIPresShell *aPresShell,
                                 nsIContent *aContent)
 {
@@ -139,8 +137,8 @@ nsCoreUtils::DispatchMouseEvent(uint32_t aEventType,
 
   nsPresContext* presContext = aPresShell->GetPresContext();
 
-  int32_t x = presContext->AppUnitsToDevPixels(point.x + size.width / 2);
-  int32_t y = presContext->AppUnitsToDevPixels(point.y + size.height / 2);
+  PRInt32 x = presContext->AppUnitsToDevPixels(point.x + size.width / 2);
+  PRInt32 y = presContext->AppUnitsToDevPixels(point.y + size.height / 2);
 
   // Fire mouse event.
   DispatchMouseEvent(aEventType, x, y, aContent, frame, aPresShell, widget);
@@ -148,7 +146,7 @@ nsCoreUtils::DispatchMouseEvent(uint32_t aEventType,
 }
 
 void
-nsCoreUtils::DispatchMouseEvent(uint32_t aEventType, int32_t aX, int32_t aY,
+nsCoreUtils::DispatchMouseEvent(PRUint32 aEventType, PRInt32 aX, PRInt32 aY,
                                 nsIContent *aContent, nsIFrame *aFrame,
                                 nsIPresShell *aPresShell, nsIWidget *aRootWidget)
 {
@@ -165,9 +163,12 @@ nsCoreUtils::DispatchMouseEvent(uint32_t aEventType, int32_t aX, int32_t aY,
   aPresShell->HandleEventWithTarget(&event, aFrame, aContent, &status);
 }
 
-uint32_t
-nsCoreUtils::GetAccessKeyFor(nsIContent* aContent)
+PRUint32
+nsCoreUtils::GetAccessKeyFor(nsIContent *aContent)
 {
+  if (!aContent)
+    return 0;
+
   // Accesskeys are registered by @accesskey attribute only. At first check
   // whether it is presented on the given element to avoid the slow
   // nsEventStateManager::GetRegisteredAccessKey() method.
@@ -202,10 +203,10 @@ nsCoreUtils::GetDOMElementFor(nsIContent *aContent)
 }
 
 nsINode *
-nsCoreUtils::GetDOMNodeFromDOMPoint(nsINode *aNode, uint32_t aOffset)
+nsCoreUtils::GetDOMNodeFromDOMPoint(nsINode *aNode, PRUint32 aOffset)
 {
   if (aNode && aNode->IsElement()) {
-    uint32_t childCount = aNode->GetChildCount();
+    PRUint32 childCount = aNode->GetChildCount();
     NS_ASSERTION(aOffset <= childCount, "Wrong offset of the DOM point!");
 
     // The offset can be after last child of container node that means DOM point
@@ -250,7 +251,7 @@ nsCoreUtils::IsAncestorOf(nsINode *aPossibleAncestorNode,
   NS_ENSURE_TRUE(aPossibleAncestorNode && aPossibleDescendantNode, false);
 
   nsINode *parentNode = aPossibleDescendantNode;
-  while ((parentNode = parentNode->GetParentNode()) &&
+  while ((parentNode = parentNode->GetNodeParent()) &&
          parentNode != aRootNode) {
     if (parentNode == aPossibleAncestorNode)
       return true;
@@ -261,7 +262,7 @@ nsCoreUtils::IsAncestorOf(nsINode *aPossibleAncestorNode,
 
 nsresult
 nsCoreUtils::ScrollSubstringTo(nsIFrame* aFrame, nsRange* aRange,
-                               uint32_t aScrollType)
+                               PRUint32 aScrollType)
 {
   nsIPresShell::ScrollAxis vertical, horizontal;
   ConvertScrollTypeToPercents(aScrollType, &vertical, &horizontal);
@@ -305,14 +306,19 @@ nsCoreUtils::ScrollFrameToPoint(nsIFrame *aScrollableFrame,
                                 nsIFrame *aFrame,
                                 const nsIntPoint& aPoint)
 {
-  nsIScrollableFrame* scrollableFrame = do_QueryFrame(aScrollableFrame);
+  nsIScrollableFrame *scrollableFrame = do_QueryFrame(aScrollableFrame);
   if (!scrollableFrame)
     return;
 
-  nsPoint point =
-    aPoint.ToAppUnits(aFrame->PresContext()->AppUnitsPerDevPixel());
-  nsRect frameRect = aFrame->GetScreenRectInAppUnits();
-  nsPoint deltaPoint(point.x - frameRect.x, point.y - frameRect.y);
+  nsPresContext *presContext = aFrame->PresContext();
+
+  nsIntRect frameRect = aFrame->GetScreenRectExternal();
+  PRInt32 devDeltaX = aPoint.x - frameRect.x;
+  PRInt32 devDeltaY = aPoint.y - frameRect.y;
+
+  nsPoint deltaPoint;
+  deltaPoint.x = presContext->DevPixelsToAppUnits(devDeltaX);
+  deltaPoint.y = presContext->DevPixelsToAppUnits(devDeltaY);
 
   nsPoint scrollPoint = scrollableFrame->GetScrollPosition();
   scrollPoint -= deltaPoint;
@@ -321,11 +327,11 @@ nsCoreUtils::ScrollFrameToPoint(nsIFrame *aScrollableFrame,
 }
 
 void
-nsCoreUtils::ConvertScrollTypeToPercents(uint32_t aScrollType,
+nsCoreUtils::ConvertScrollTypeToPercents(PRUint32 aScrollType,
                                          nsIPresShell::ScrollAxis *aVertical,
                                          nsIPresShell::ScrollAxis *aHorizontal)
 {
-  int16_t whereY, whereX;
+  PRInt16 whereY, whereX;
   nsIPresShell::WhenToScroll whenY, whenX;
   switch (aScrollType)
   {
@@ -383,15 +389,19 @@ nsCoreUtils::GetScreenCoordsForWindow(nsINode *aNode)
   if (!treeItem)
     return coords;
 
-  nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
-  treeItem->GetTreeOwner(getter_AddRefs(treeOwner));
-  if (!treeOwner)
+  nsCOMPtr<nsIDocShellTreeItem> rootTreeItem;
+  treeItem->GetRootTreeItem(getter_AddRefs(rootTreeItem));
+  nsCOMPtr<nsIDOMDocument> domDoc = do_GetInterface(rootTreeItem);
+  if (!domDoc)
     return coords;
 
-  nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(treeOwner);
-  if (baseWindow)
-    baseWindow->GetPosition(&coords.x, &coords.y); // in device pixels
+  nsCOMPtr<nsIDOMWindow> window;
+  domDoc->GetDefaultView(getter_AddRefs(window));
+  if (!window)
+    return coords;
 
+  window->GetScreenX(&coords.x);
+  window->GetScreenY(&coords.y);
   return coords;
 }
 
@@ -431,7 +441,7 @@ nsCoreUtils::IsContentDocument(nsIDocument *aDocument)
     do_QueryInterface(container);
   NS_ASSERTION(docShellTreeItem, "No document shell tree item for document!");
 
-  int32_t contentType;
+  PRInt32 contentType;
   docShellTreeItem->GetItemType(&contentType);
   return (contentType == nsIDocShellTreeItem::typeContent);
 }
@@ -465,13 +475,33 @@ nsCoreUtils::IsErrorPage(nsIDocument *aDocument)
   if (!isAboutScheme)
     return false;
 
-  nsAutoCString path;
+  nsCAutoString path;
   uri->GetPath(path);
 
   NS_NAMED_LITERAL_CSTRING(neterror, "neterror");
   NS_NAMED_LITERAL_CSTRING(certerror, "certerror");
 
   return StringBeginsWith(path, neterror) || StringBeginsWith(path, certerror);
+}
+
+already_AddRefed<nsIDOMNode>
+nsCoreUtils::GetDOMNodeForContainer(nsIDocShellTreeItem *aContainer)
+{
+  nsCOMPtr<nsIDocShell> shell = do_QueryInterface(aContainer);
+
+  nsCOMPtr<nsIContentViewer> cv;
+  shell->GetContentViewer(getter_AddRefs(cv));
+
+  if (!cv)
+    return nullptr;
+
+  nsIDocument* doc = cv->GetDocument();
+  if (!doc)
+    return nullptr;
+
+  nsIDOMNode* node = nullptr;
+  CallQueryInterface(doc, &node);
+  return node;
 }
 
 bool
@@ -482,13 +512,13 @@ nsCoreUtils::GetID(nsIContent *aContent, nsAString& aID)
 }
 
 bool
-nsCoreUtils::GetUIntAttr(nsIContent *aContent, nsIAtom *aAttr, int32_t *aUInt)
+nsCoreUtils::GetUIntAttr(nsIContent *aContent, nsIAtom *aAttr, PRInt32 *aUInt)
 {
   nsAutoString value;
   aContent->GetAttr(kNameSpaceID_None, aAttr, value);
   if (!value.IsEmpty()) {
     nsresult error = NS_OK;
-    int32_t integer = value.ToInteger(&error);
+    PRInt32 integer = value.ToInteger(&error);
     if (NS_SUCCEEDED(error) && integer > 0) {
       *aUInt = integer;
       return true;
@@ -575,10 +605,10 @@ nsCoreUtils::GetFirstSensibleColumn(nsITreeBoxObject *aTree)
   return column.forget();
 }
 
-uint32_t
+PRUint32
 nsCoreUtils::GetSensibleColumnCount(nsITreeBoxObject *aTree)
 {
-  uint32_t count = 0;
+  PRUint32 count = 0;
 
   nsCOMPtr<nsITreeColumns> cols;
   aTree->GetColumns(getter_AddRefs(cols));
@@ -601,9 +631,9 @@ nsCoreUtils::GetSensibleColumnCount(nsITreeBoxObject *aTree)
 }
 
 already_AddRefed<nsITreeColumn>
-nsCoreUtils::GetSensibleColumnAt(nsITreeBoxObject *aTree, uint32_t aIndex)
+nsCoreUtils::GetSensibleColumnAt(nsITreeBoxObject *aTree, PRUint32 aIndex)
 {
-  uint32_t idx = aIndex;
+  PRUint32 idx = aIndex;
 
   nsCOMPtr<nsITreeColumn> column = GetFirstSensibleColumn(aTree);
   while (column) {
@@ -659,7 +689,7 @@ nsCoreUtils::IsColumnHidden(nsITreeColumn *aColumn)
 
 void
 nsCoreUtils::ScrollTo(nsIPresShell* aPresShell, nsIContent* aContent,
-                      uint32_t aScrollType)
+                      PRUint32 aScrollType)
 {
   nsIPresShell::ScrollAxis vertical, horizontal;
   ConvertScrollTypeToPercents(aScrollType, &vertical, &horizontal);
@@ -675,7 +705,7 @@ nsCoreUtils::ScrollTo(nsIPresShell* aPresShell, nsIContent* aContent,
 NS_IMPL_ISUPPORTS1(nsAccessibleDOMStringList, nsIDOMDOMStringList)
 
 NS_IMETHODIMP
-nsAccessibleDOMStringList::Item(uint32_t aIndex, nsAString& aResult)
+nsAccessibleDOMStringList::Item(PRUint32 aIndex, nsAString& aResult)
 {
   if (aIndex >= mNames.Length())
     SetDOMStringToNull(aResult);
@@ -686,7 +716,7 @@ nsAccessibleDOMStringList::Item(uint32_t aIndex, nsAString& aResult)
 }
 
 NS_IMETHODIMP
-nsAccessibleDOMStringList::GetLength(uint32_t* aLength)
+nsAccessibleDOMStringList::GetLength(PRUint32* aLength)
 {
   *aLength = mNames.Length();
 

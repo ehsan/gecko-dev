@@ -58,7 +58,7 @@ nsDOMNavigationTiming::TimeStampToDOM(mozilla::TimeStamp aStamp) const
     return 0;
   }
   mozilla::TimeDuration duration = aStamp - mNavigationStartTimeStamp;
-  return mNavigationStart + static_cast<int32_t>(duration.ToMilliseconds());
+  return mNavigationStart + static_cast<PRInt32>(duration.ToMilliseconds());
 }
 
 DOMTimeMilliSec
@@ -237,7 +237,7 @@ nsDOMNavigationTiming::NotifyDOMContentLoadedEnd(nsIURI* aURI)
   }
 }
 
-uint16_t
+PRUint16
 nsDOMNavigationTiming::GetRedirectCount()
 {
   if (ReportRedirects()) {

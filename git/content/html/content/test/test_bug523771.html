@@ -44,12 +44,13 @@ function setFileInputs () {
 }
 
 function createFileWithData(fileName, fileData) {
-  var dirSvc = SpecialPowers.Cc["@mozilla.org/file/directory_service;1"]
-                            .getService(SpecialPowers.Ci.nsIProperties);
-  var testFile = dirSvc.get("ProfD", SpecialPowers.Ci.nsIFile);
+  var dirSvc = SpecialPowers.wrap(Components).classes["@mozilla.org/file/directory_service;1"]
+                            .getService(Components.interfaces.nsIProperties);
+  var testFile = dirSvc.get("ProfD", Components.interfaces.nsIFile);
   testFile.append(fileName);
-  var outStream = SpecialPowers.Cc["@mozilla.org/network/file-output-stream;1"].
-                    createInstance(SpecialPowers.Ci.nsIFileOutputStream);
+  var outStream = SpecialPowers.wrap(Components).
+                    classes["@mozilla.org/network/file-output-stream;1"].
+                    createInstance(Components.interfaces.nsIFileOutputStream);
   outStream.init(testFile, 0x02 | 0x08 | 0x20, // write, create, truncate
                  0666, 0);
   outStream.write(fileData, fileData.length);

@@ -87,7 +87,7 @@ using namespace mozilla;
 
 - (void)keyboardInputSourceChanged:(NSNotification *)notification
 {
-  static int8_t sDoCancel = -1;
+  static PRInt8 sDoCancel = -1;
   if (!sDoCancel || ![self inComposition]) {
     return;
   }

@@ -16,14 +16,6 @@
         <org.mozilla.gecko.SyncPreference android:title="@string/pref_sync"
                                           android:persistent="false" />
 
-#ifdef MOZ_UPDATER
-        <ListPreference android:key="app.update.autodownload"
-                        android:title="@string/pref_update_autodownload"
-                        android:entries="@array/pref_update_autodownload_entries"
-                        android:entryValues="@array/pref_update_autodownload_values"
-                        android:persistent="false" />
-#endif
-
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/pref_category_content">
@@ -45,12 +37,6 @@
                         android:title="@string/pref_text_size"
                         android:positiveButtonText="@string/pref_font_size_set"
                         android:negativeButtonText="@string/button_cancel"
-                        android:persistent="false" />
-
-        <CheckBoxPreference
-                        android:key="browser.zoom.reflowOnZoom"
-                        android:title="@string/pref_reflow_on_zoom"
-                        android:defaultValue="false"
                         android:persistent="false" />
 
     </PreferenceCategory>
@@ -92,11 +78,6 @@
                             android:defaultValue="false"
                             android:persistent="false" />
 
-        <CheckBoxPreference android:key="android.not_a_preference.privacy.announcements.enabled"
-                            android:title="@string/pref_show_product_announcements"
-                            android:defaultValue="true"
-                            android:persistent="true" />
-
         <CheckBoxPreference android:key="browser.search.suggest.enabled"
                             android:title="@string/pref_search_suggestions"
                             android:defaultValue="true"
@@ -117,4 +98,5 @@
           android:persistent="false" />
 
     </PreferenceCategory>
+
 </PreferenceScreen>

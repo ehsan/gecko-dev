@@ -19,6 +19,7 @@
 #include "nsISupportsUtils.h"
 #include "nsITextServicesFilter.h"
 #include "nsRange.h"
+#include "prtypes.h"
 
 //------------------------------------------------------------
 nsFilteredContentIterator::nsFilteredContentIterator(nsITextServicesFilter* aFilter) :
@@ -186,7 +187,7 @@ nsFilteredContentIterator::Last()
 //
 static void
 ContentToParentOffset(nsIContent *aContent, nsIDOMNode **aParent,
-                      int32_t *aOffset)
+                      PRInt32 *aOffset)
 {
   if (!aParent || !aOffset)
     return;
@@ -213,13 +214,13 @@ ContentToParentOffset(nsIContent *aContent, nsIDOMNode **aParent,
 //
 static bool
 ContentIsInTraversalRange(nsIContent *aContent,   bool aIsPreMode,
-                          nsIDOMNode *aStartNode, int32_t aStartOffset,
-                          nsIDOMNode *aEndNode,   int32_t aEndOffset)
+                          nsIDOMNode *aStartNode, PRInt32 aStartOffset,
+                          nsIDOMNode *aEndNode,   PRInt32 aEndOffset)
 {
   NS_ENSURE_TRUE(aStartNode && aEndNode && aContent, false);
 
   nsCOMPtr<nsIDOMNode> parentNode;
-  int32_t indx = 0;
+  PRInt32 indx = 0;
 
   ContentToParentOffset(aContent, getter_AddRefs(parentNode), &indx);
 
@@ -228,9 +229,9 @@ ContentIsInTraversalRange(nsIContent *aContent,   bool aIsPreMode,
   if (!aIsPreMode)
     ++indx;
 
-  int32_t startRes = nsContentUtils::ComparePoints(aStartNode, aStartOffset,
+  PRInt32 startRes = nsContentUtils::ComparePoints(aStartNode, aStartOffset,
                                                    parentNode, indx);
-  int32_t endRes = nsContentUtils::ComparePoints(aEndNode, aEndOffset,
+  PRInt32 endRes = nsContentUtils::ComparePoints(aEndNode, aEndOffset,
                                                  parentNode, indx);
   return (startRes <= 0) && (endRes >= 0);
 }
@@ -243,8 +244,8 @@ ContentIsInTraversalRange(nsIDOMRange *aRange, nsIDOMNode* aNextNode, bool aIsPr
 
   nsCOMPtr<nsIDOMNode> sNode;
   nsCOMPtr<nsIDOMNode> eNode;
-  int32_t sOffset;
-  int32_t eOffset;
+  PRInt32 sOffset;
+  PRInt32 eOffset;
   aRange->GetStartContainer(getter_AddRefs(sNode));
   aRange->GetStartOffset(&sOffset);
   aRange->GetEndContainer(getter_AddRefs(eNode));

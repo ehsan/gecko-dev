@@ -152,7 +152,7 @@ hb_old_getGlyphMetrics (HB_Font old_font,
   metrics->x       = extents.x_bearing;
   metrics->y       = extents.y_bearing;
   metrics->width   = extents.width;
-  metrics->height  = extents.height;
+  metrics->height  = -extents.height;
   metrics->xOffset = font->get_glyph_h_advance (glyph);
   metrics->yOffset = 0;
 }
@@ -188,7 +188,7 @@ static HB_Error
 table_func (void *font, HB_Tag tag, HB_Byte *buffer, HB_UInt *length)
 {
   hb_face_t *face = (hb_face_t *) font;
-  hb_blob_t *blob = face->reference_table ((hb_tag_t) tag);
+  hb_blob_t *blob = hb_face_reference_table (face, (hb_tag_t) tag);
   unsigned int capacity = *length;
   *length = hb_blob_get_length (blob);
   memcpy (buffer, hb_blob_get_data (blob, NULL), MIN (capacity, *length));
@@ -337,9 +337,6 @@ retry:
   ALLOCATE_ARRAY (HB_GlyphAttributes, item.attributes, num_glyphs);
   ALLOCATE_ARRAY (HB_Fixed, item.advances, num_glyphs);
   ALLOCATE_ARRAY (HB_FixedPoint, item.offsets, num_glyphs);
-  /* Apparently in some cases the offsets array will not be fully assigned to.
-   * Clear it. */
-  memset (item.offsets, 0, num_glyphs * sizeof (item.offsets[0]));
   uint32_t *vis_clusters;
   ALLOCATE_ARRAY (uint32_t, vis_clusters, num_glyphs);
 

@@ -33,7 +33,7 @@ AsyncStatementJSHelper::getParams(AsyncStatement *aStatement,
   nsresult rv;
 
 #ifdef DEBUG
-  int32_t state;
+  PRInt32 state;
   (void)aStatement->GetState(&state);
   NS_ASSERTION(state == mozIStorageAsyncStatement::MOZ_STORAGE_STATEMENT_READY,
                "Invalid state to get the params object - all calls will fail!");

@@ -38,7 +38,7 @@ TestProps()
   while (et < end) {
     char tagName[100];
     PL_strcpy(tagName, *et);
-    index = nsCSSProperty(int32_t(index) + 1);
+    index = nsCSSProperty(PRInt32(index) + 1);
 
     id = nsCSSProps::LookupProperty(nsCString(tagName), nsCSSProps::eAny);
     if (id == eCSSProperty_UNKNOWN) {
@@ -70,7 +70,7 @@ TestProps()
   // Now make sure we don't find some garbage
   for (int i = 0; i < (int) (sizeof(kJunkNames) / sizeof(const char*)); i++) {
     const char* const tag = kJunkNames[i];
-    id = nsCSSProps::LookupProperty(nsAutoCString(tag), nsCSSProps::eAny);
+    id = nsCSSProps::LookupProperty(nsCAutoString(tag), nsCSSProps::eAny);
     if (id >= 0) {
       printf("bug: found '%s'\n", tag ? tag : "(null)");
       success = false;
@@ -109,7 +109,7 @@ TestKeywords()
       }
       underscore++;
     }
-    index = nsCSSKeyword(int32_t(index) + 1);
+    index = nsCSSKeyword(PRInt32(index) + 1);
 
     id = nsCSSKeywords::LookupKeyword(nsCString(tagName));
     if (id <= eCSSKeyword_UNKNOWN) {
@@ -140,7 +140,7 @@ TestKeywords()
   // Now make sure we don't find some garbage
   for (int i = 0; i < (int) (sizeof(kJunkNames) / sizeof(const char*)); i++) {
     const char* const tag = kJunkNames[i];
-    id = nsCSSKeywords::LookupKeyword(nsAutoCString(tag));
+    id = nsCSSKeywords::LookupKeyword(nsCAutoString(tag));
     if (eCSSKeyword_UNKNOWN < id) {
       printf("bug: found '%s'\n", tag ? tag : "(null)");
       success = false;

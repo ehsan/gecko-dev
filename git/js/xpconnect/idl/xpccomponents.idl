@@ -118,7 +118,7 @@ interface ScheduledGCCallback : nsISupports
 /**
 * interface of Components.utils
 */
-[scriptable, uuid(a93e230d-e883-4ff8-9aeb-dbe5cc771059)]
+[scriptable, uuid(cc7ef3b0-339d-4317-927b-fdc8f0664927)]
 interface nsIXPCComponents_Utils : nsISupports
 {
 
@@ -330,23 +330,6 @@ interface nsIXPCComponents_Utils : nsISupports
     void recomputeWrappers([optional] in jsval vobj);
 
     /*
-     * This seemingly-paradoxical API allows privileged code to explicitly give
-     * unprivileged code a reference to its own Components object (whereas it's
-     * normally hidden away on a scope chain visible only to XBL methods). See
-     * also SpecialPowers.getComponents.
-     */
-    [implicit_jscontext]
-    jsval getComponentsForScope(in jsval vscope);
-
-    /*
-     * Dispatches a runnable to the current/main thread. If |scope| is passed,
-     * the runnable will be dispatch in the compartment of |scope|, which
-     * affects which error reporter gets called.
-     */
-    [implicit_jscontext]
-    void dispatch(in jsval runnable, [optional] in jsval scope);
-
-    /*
      * To be called from JS only.
      *
      * These are the set of JSContext options that privileged script
@@ -370,6 +353,9 @@ interface nsIXPCComponents_Utils : nsISupports
     attribute boolean xml;
 
     [implicit_jscontext]
+    attribute boolean relimit;
+
+    [implicit_jscontext]
     attribute boolean methodjit;
 
     [implicit_jscontext]
@@ -377,9 +363,6 @@ interface nsIXPCComponents_Utils : nsISupports
 
     [implicit_jscontext]
     attribute boolean strict_mode;
-    
-    [implicit_jscontext]
-    attribute boolean ion;
 
     [implicit_jscontext]
     void setGCZeal(in long zeal);

@@ -16,7 +16,7 @@
 #endif /* IS_LITTLE_ENDIAN */
 
 #if PR_BYTES_PER_INT != 4
-#define int int32_t
+#define int int32
 #endif /* PR_BYTES_PER_INT != 4 */
 
 /* Other Mozilla code relies on memmove already, so we assume it's available */

@@ -115,8 +115,7 @@ function getLocalUpdatesXMLString(aUpdates) {
  *         If not specified it will default to 'true'.
  * @param  aChannel (optional)
  *         The update channel name.
- *         If not specified it will default to the default preference value of
- *         app.update.channel.
+ *         If not specified it will default to 'test_channel'.
  * @param  aForegroundDownload (optional)
  *         The string 'true' if this update was manually downloaded or the
  *         string 'false' if this update was automatically downloaded.
@@ -139,8 +138,7 @@ function getLocalUpdateString(aPatches, aType, aName, aDisplayVersion,
   let statusText = aStatusText ? aStatusText : "Install Pending";
   let isCompleteUpdate =
     typeof(aIsCompleteUpdate) == "string" ? aIsCompleteUpdate : "true";
-  let channel = aChannel ? aChannel
-                         : gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
+  let channel = aChannel ? aChannel : "test_channel";
   let foregroundDownload =
     typeof(aForegroundDownload) == "string" ? aForegroundDownload : "true";
   let previousAppVersion = aPreviousAppVersion ? "previousAppVersion=\"" +

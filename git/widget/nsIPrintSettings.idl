@@ -15,7 +15,7 @@
  * Native types
  */
   [ref] native nsNativeIntMarginRef(nsIntMargin);
-  [ref] native IntegerArray(nsTArray<int32_t>);
+  [ref] native IntegerArray(nsTArray<PRInt32>);
   
 interface nsIPrintSession;
 
@@ -129,17 +129,17 @@ interface nsIPrintSettings : nsISupports
   /**
    * Set PrintOptions 
    */
-  void SetPrintOptions(in int32_t aType, in boolean aTurnOnOff);
+  void SetPrintOptions(in PRInt32 aType, in boolean aTurnOnOff);
 
   /**
    * Get PrintOptions 
    */
-  boolean GetPrintOptions(in int32_t aType);
+  boolean GetPrintOptions(in PRInt32 aType);
 
   /**
    * Set PrintOptions Bit field
    */
-  int32_t GetPrintOptionsBits();
+  PRInt32 GetPrintOptionsBits();
 
   /**
    * Get the page size in twips, considering the

@@ -11,16 +11,9 @@
 
 #include "mozilla/dom/PrototypeList.h" // auto-generated
 
-class nsCycleCollectionParticipant;
-
 // We use slot 0 for holding the raw object.  This is safe for both
 // globals and non-globals.
 #define DOM_OBJECT_SLOT 0
-
-// We use slot 1 for holding the expando object. This is not safe for globals
-// until bug 760095 is fixed, so that bug blocks converting Window to new
-// bindings.
-#define DOM_XRAY_EXPANDO_SLOT 1
 
 // All DOM globals must have a slot at DOM_PROTOTYPE_SLOT. We have to
 // start at 1 past JSCLASS_GLOBAL_SLOT_COUNT because XPConnect uses
@@ -42,37 +35,14 @@ typedef bool
 (* ResolveProperty)(JSContext* cx, JSObject* wrapper, jsid id, bool set,
                     JSPropertyDescriptor* desc);
 typedef bool
-(* EnumerateProperties)(JSContext* cx, JSObject* wrapper,
-                        JS::AutoIdVector& props);
+(* EnumerateProperties)(JS::AutoIdVector& props);
 
 struct NativePropertyHooks
 {
-  ResolveProperty mResolveOwnProperty;
   ResolveProperty mResolveProperty;
-  EnumerateProperties mEnumerateOwnProperties;
   EnumerateProperties mEnumerateProperties;
 
   const NativePropertyHooks *mProtoHooks;
-};
-
-struct DOMClass
-{
-  // A list of interfaces that this object implements, in order of decreasing
-  // derivedness.
-  const prototypes::ID mInterfaceChain[prototypes::id::_ID_Count];
-
-  // We store the DOM object in reserved slot with index DOM_OBJECT_SLOT or in
-  // the proxy private if we use a proxy object.
-  // Sometimes it's an nsISupports and sometimes it's not; this class tells
-  // us which it is.
-  const bool mDOMObjectIsISupports;
-
-  const NativePropertyHooks* mNativeHooks;
-
-  // This stores the CC participant for the native, null if this class is for a
-  // worker or for a native inheriting from nsISupports (we can get the CC
-  // participant by QI'ing in that case).
-  nsCycleCollectionParticipant* mParticipant;
 };
 
 // Special JSClass for reflected DOM objects.
@@ -83,7 +53,22 @@ struct DOMJSClass
   // only allows brace initialization for aggregate/POD types.
   JSClass mBase;
 
-  DOMClass mClass;
+  // A list of interfaces that this object implements, in order of decreasing
+  // derivedness.
+  const prototypes::ID mInterfaceChain[prototypes::id::_ID_Count];
+
+  // We cache the VTable index of GetWrapperCache for objects that support it.
+  //
+  // -1 indicates that GetWrapperCache is not implemented on the underlying object.
+  // XXXkhuey this is unused and needs to die.
+  const int16_t mGetWrapperCacheVTableOffset;
+
+  // We store the DOM object in a reserved slot whose index is mNativeSlot.
+  // Sometimes it's an nsISupports and sometimes it's not; this class tells
+  // us which it is.
+  const bool mDOMObjectIsISupports;
+
+  const NativePropertyHooks* mNativeHooks;
 
   static DOMJSClass* FromJSClass(JSClass* base) {
     MOZ_ASSERT(base->flags & JSCLASS_IS_DOMJSCLASS);

@@ -7,7 +7,7 @@
 #ifndef DOM_PLUGINS_PLUGINMESSAGEUTILS_H
 #define DOM_PLUGINS_PLUGINMESSAGEUTILS_H
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "base/message_loop.h"
 
 #include "mozilla/ipc/RPCChannel.h"
@@ -106,9 +106,6 @@ struct NPRemoteWindow
 #endif /* XP_UNIX */
 #if defined(XP_WIN)
   base::SharedMemoryHandle surfaceHandle;
-#endif
-#if defined(XP_MACOSX)
-  double contentsScaleFactor;
 #endif
 };
 
@@ -319,12 +316,12 @@ struct ParamTraits<NPWindowType>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    aMsg->WriteInt16(int16_t(aParam));
+    aMsg->WriteInt16(int16(aParam));
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    int16_t result;
+    int16 result;
     if (aMsg->ReadInt16(aIter, &result)) {
       *aResult = paramType(result);
       return true;
@@ -334,7 +331,7 @@ struct ParamTraits<NPWindowType>
 
   static void Log(const paramType& aParam, std::wstring* aLog)
   {
-    aLog->append(StringPrintf(L"%d", int16_t(aParam)));
+    aLog->append(StringPrintf(L"%d", int16(aParam)));
   }
 };
 
@@ -345,12 +342,12 @@ struct ParamTraits<NPImageFormat>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    aMsg->WriteInt16(int16_t(aParam));
+    aMsg->WriteInt16(int16(aParam));
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    int16_t result;
+    int16 result;
     if (aMsg->ReadInt16(aIter, &result)) {
       *aResult = paramType(result);
       return true;
@@ -360,7 +357,7 @@ struct ParamTraits<NPImageFormat>
 
   static void Log(const paramType& aParam, std::wstring* aLog)
   {
-    aLog->append(StringPrintf(L"%d", int16_t(aParam)));
+    aLog->append(StringPrintf(L"%d", int16(aParam)));
   }
 };
 
@@ -385,14 +382,11 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 #if defined(XP_WIN)
     WriteParam(aMsg, aParam.surfaceHandle);
 #endif
-#if defined(XP_MACOSX)
-    aMsg->WriteDouble(aParam.contentsScaleFactor);
-#endif
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    uint64_t window;
+    uint64 window;
     int32_t x, y;
     uint32_t width, height;
     NPRect clipRect;
@@ -420,12 +414,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
       return false;
 #endif
 
-#if defined(XP_MACOSX)
-    double contentsScaleFactor;
-    if (!aMsg->ReadDouble(aIter, &contentsScaleFactor))
-      return false;
-#endif
-
     aResult->window = window;
     aResult->x = x;
     aResult->y = y;
@@ -439,9 +427,6 @@ struct ParamTraits<mozilla::plugins::NPRemoteWindow>
 #endif
 #if defined(XP_WIN)
     aResult->surfaceHandle = surfaceHandle;
-#endif
-#if defined(XP_MACOSX)
-    aResult->contentsScaleFactor = contentsScaleFactor;
 #endif
     return true;
   }
@@ -727,7 +712,7 @@ struct ParamTraits<NPVariant>
       } break;
 
       case 3: {
-        int32_t value;
+        int32 value;
         if (ReadParam(aMsg, aIter, &value)) {
           INT32_TO_NPVARIANT(value, *aResult);
           return true;
@@ -871,12 +856,12 @@ struct ParamTraits<NPCoordinateSpace>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    WriteParam(aMsg, int32_t(aParam));
+    WriteParam(aMsg, int32(aParam));
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    int32_t intval;
+    int32 intval;
     if (ReadParam(aMsg, aIter, &intval)) {
       switch (intval) {
       case NPCoordinateSpacePlugin:

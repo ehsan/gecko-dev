@@ -32,12 +32,34 @@ Types = (
     'size_t',
     'ssize_t',
 
+    # NSPR types
+    'PRInt8',
+    'PRUint8',
+    'PRInt16',
+    'PRUint16',
+    'PRInt32',
+    'PRUint32',
+    'PRInt64',
+    'PRUint64',
+    'PRSize',
+
     # Mozilla types: "less" standard things we know how serialize/deserialize
     'nsresult',
     'nsString',
     'nsCString',
     'mozilla::ipc::Shmem',
-    'mozilla::ipc::FileDescriptor'
+
+    # quasi-stdint types used by "public" Gecko headers
+    'int8',
+    'uint8',
+    'int16',
+    'uint16',
+    'int32',
+    'uint32',
+    'int64',
+    'uint64',
+    'intptr',
+    'uintptr',
 )
 
 
@@ -47,7 +69,7 @@ Includes = (
     'prtime.h',
     'nscore.h',
     'IPCMessageStart.h',
-    'ipc/IPCMessageUtils.h',
+    'IPC/IPCMessageUtils.h',
     'nsAutoPtr.h',
     'nsStringGlue.h',
     'nsTArray.h',

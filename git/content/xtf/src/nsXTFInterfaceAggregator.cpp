@@ -36,7 +36,7 @@ public:
   // nsISupports interface
   NS_DECL_ISUPPORTS
   
-  NS_IMETHOD CallMethod(uint16_t methodIndex,
+  NS_IMETHOD CallMethod(PRUint16 methodIndex,
                         const XPTMethodDescriptor* info,
                         nsXPTCMiniVariant* params);
 
@@ -119,7 +119,7 @@ nsXTFInterfaceAggregator::QueryInterface(REFNSIID aIID, void** aInstancePtr)
 // nsXPTCStubBase implementation
 
 NS_IMETHODIMP
-nsXTFInterfaceAggregator::CallMethod(uint16_t methodIndex,
+nsXTFInterfaceAggregator::CallMethod(PRUint16 methodIndex,
                                      const XPTMethodDescriptor *info,
                                      nsXPTCMiniVariant* params)
 {
@@ -140,7 +140,7 @@ nsXTFInterfaceAggregator::CallMethod(uint16_t methodIndex,
 
   for (int i=0; i<paramCount; ++i) {
     const nsXPTParamInfo& paramInfo = info->params[i];
-    uint8_t flags = paramInfo.IsOut() ? nsXPTCVariant::PTR_IS_DATA : 0;
+    PRUint8 flags = paramInfo.IsOut() ? nsXPTCVariant::PTR_IS_DATA : 0;
     fullPars[i].Init(params[i], paramInfo.GetType(), flags);
   }
   

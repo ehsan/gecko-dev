@@ -30,7 +30,7 @@ inline NS_IMPL_THREADSAFE_QUERY_INTERFACE1(
 
 inline
 NS_IMETHODIMP
-Variant_base::GetDataType(uint16_t *_type)
+Variant_base::GetDataType(PRUint16 *_type)
 {
   NS_ENSURE_ARG_POINTER(_type);
   *_type = nsIDataType::VTYPE_VOID;
@@ -39,14 +39,14 @@ Variant_base::GetDataType(uint16_t *_type)
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsInt32(int32_t *)
+Variant_base::GetAsInt32(PRInt32 *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsInt64(int64_t *)
+Variant_base::GetAsInt64(PRInt64 *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
@@ -74,9 +74,9 @@ Variant_base::GetAsAString(nsAString &)
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsArray(uint16_t *,
+Variant_base::GetAsArray(PRUint16 *,
                          nsIID *,
-                         uint32_t *,
+                         PRUint32 *,
                          void **)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
@@ -84,42 +84,42 @@ Variant_base::GetAsArray(uint16_t *,
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsInt8(uint8_t *)
+Variant_base::GetAsInt8(PRUint8 *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsInt16(int16_t *)
+Variant_base::GetAsInt16(PRInt16 *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsUint8(uint8_t *)
+Variant_base::GetAsUint8(PRUint8 *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsUint16(uint16_t *)
+Variant_base::GetAsUint16(PRUint16 *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsUint32(uint32_t *)
+Variant_base::GetAsUint32(PRUint32 *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsUint64(uint64_t *)
+Variant_base::GetAsUint64(PRUint64 *)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
 }
@@ -204,7 +204,7 @@ Variant_base::GetAsACString(nsACString &)
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsStringWithSize(uint32_t *,
+Variant_base::GetAsStringWithSize(PRUint32 *,
                                   char **)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;
@@ -212,7 +212,7 @@ Variant_base::GetAsStringWithSize(uint32_t *,
 
 inline
 NS_IMETHODIMP
-Variant_base::GetAsWStringWithSize(uint32_t *,
+Variant_base::GetAsWStringWithSize(PRUint32 *,
                                    PRUnichar **)
 {
   return NS_ERROR_CANNOT_CONVERT_DATA;

@@ -20,14 +20,14 @@
 NS_IMPL_ISUPPORTS1(nsNoDataProtocolContentPolicy, nsIContentPolicy)
 
 NS_IMETHODIMP
-nsNoDataProtocolContentPolicy::ShouldLoad(uint32_t aContentType,
+nsNoDataProtocolContentPolicy::ShouldLoad(PRUint32 aContentType,
                                           nsIURI *aContentLocation,
                                           nsIURI *aRequestingLocation,
                                           nsISupports *aRequestingContext,
                                           const nsACString &aMimeGuess,
                                           nsISupports *aExtra,
                                           nsIPrincipal *aRequestPrincipal,
-                                          int16_t *aDecision)
+                                          PRInt16 *aDecision)
 {
   *aDecision = nsIContentPolicy::ACCEPT;
 
@@ -42,7 +42,7 @@ nsNoDataProtocolContentPolicy::ShouldLoad(uint32_t aContentType,
 
     // The following are just quick-escapes for the most common cases
     // where we would allow the content to be loaded anyway.
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     aContentLocation->GetScheme(scheme);
     if (scheme.EqualsLiteral("http") ||
         scheme.EqualsLiteral("https") ||
@@ -65,14 +65,14 @@ nsNoDataProtocolContentPolicy::ShouldLoad(uint32_t aContentType,
 }
 
 NS_IMETHODIMP
-nsNoDataProtocolContentPolicy::ShouldProcess(uint32_t aContentType,
+nsNoDataProtocolContentPolicy::ShouldProcess(PRUint32 aContentType,
                                              nsIURI *aContentLocation,
                                              nsIURI *aRequestingLocation,
                                              nsISupports *aRequestingContext,
                                              const nsACString &aMimeGuess,
                                              nsISupports *aExtra,
                                              nsIPrincipal *aRequestPrincipal,
-                                             int16_t *aDecision)
+                                             PRInt16 *aDecision)
 {
   return ShouldLoad(aContentType, aContentLocation, aRequestingLocation,
                     aRequestingContext, aMimeGuess, aExtra, aRequestPrincipal,

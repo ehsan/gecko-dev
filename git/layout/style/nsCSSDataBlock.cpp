@@ -10,7 +10,6 @@
 
 #include "nsCSSDataBlock.h"
 #include "mozilla/css/Declaration.h"
-#include "mozilla/css/ImageLoader.h"
 #include "nsRuleData.h"
 #include "nsStyleSet.h"
 #include "nsStyleContext.h"
@@ -48,25 +47,16 @@ ShouldIgnoreColors(nsRuleData *aRuleData)
 static void
 TryToStartImageLoadOnValue(const nsCSSValue& aValue, nsIDocument* aDocument)
 {
-  MOZ_ASSERT(aDocument);
-
   if (aValue.GetUnit() == eCSSUnit_URL) {
     aValue.StartImageLoad(aDocument);
-  }
-  else if (aValue.GetUnit() == eCSSUnit_Image) {
-    // If we already have a request, see if this document needs to clone it.
-    imgIRequest* request = aValue.GetImageValue(nullptr);
-
-    if (request) {
-      aDocument->StyleImageLoader()->MaybeRegisterCSSImage(aValue.GetImageStructValue());
-    }
   }
   else if (aValue.EqualsFunction(eCSSKeyword__moz_image_rect)) {
     nsCSSValue::Array* arguments = aValue.GetArrayValue();
     NS_ABORT_IF_FALSE(arguments->Count() == 6, "unexpected num of arguments");
 
     const nsCSSValue& image = arguments->Item(1);
-    TryToStartImageLoadOnValue(image, aDocument);
+    if (image.GetUnit() == eCSSUnit_URL)
+      image.StartImageLoad(aDocument);
   }
 }
 
@@ -114,7 +104,7 @@ nsCSSCompressedDataBlock::MapRuleInfoInto(nsRuleData *aRuleData) const
 
     nsIDocument* doc = aRuleData->mPresContext->Document();
 
-    for (uint32_t i = 0; i < mNumProps; i++) {
+    for (PRUint32 i = 0; i < mNumProps; i++) {
         nsCSSProperty iProp = PropertyAtIndex(i);
         if (nsCachedStyleData::GetBitForSID(nsCSSProps::kSIDTable[iProp]) &
             aRuleData->mSIDs) {
@@ -161,7 +151,7 @@ nsCSSCompressedDataBlock::ValueFor(nsCSSProperty aProperty) const
           mStyleBits))
         return nullptr;
 
-    for (uint32_t i = 0; i < mNumProps; i++) {
+    for (PRUint32 i = 0; i < mNumProps; i++) {
         if (PropertyAtIndex(i) == aProperty) {
             return ValueAtIndex(i);
         }
@@ -198,7 +188,7 @@ nsCSSCompressedDataBlock::Clone() const
 
     result->mStyleBits = mStyleBits;
 
-    for (uint32_t i = 0; i < mNumProps; i++) {
+    for (PRUint32 i = 0; i < mNumProps; i++) {
         result->SetPropertyAtIndex(i, PropertyAtIndex(i));
         result->CopyValueToIndex(i, ValueAtIndex(i));
     }
@@ -208,7 +198,7 @@ nsCSSCompressedDataBlock::Clone() const
 
 nsCSSCompressedDataBlock::~nsCSSCompressedDataBlock()
 {
-    for (uint32_t i = 0; i < mNumProps; i++) {
+    for (PRUint32 i = 0; i < mNumProps; i++) {
 #ifdef DEBUG
         (void)PropertyAtIndex(i);   // this checks the property is in range
 #endif
@@ -229,7 +219,7 @@ size_t
 nsCSSCompressedDataBlock::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
     size_t n = aMallocSizeOf(this);
-    for (uint32_t i = 0; i < mNumProps; i++) {
+    for (PRUint32 i = 0; i < mNumProps; i++) {
         n += ValueAtIndex(i)->SizeOfExcludingThis(aMallocSizeOf);
     }
     return n;
@@ -290,7 +280,7 @@ nsCSSExpandedDataBlock::DoExpand(nsCSSCompressedDataBlock *aBlock,
      * Save needless copying and allocation by copying the memory
      * corresponding to the stored data in the compressed block.
      */
-    for (uint32_t i = 0; i < aBlock->mNumProps; i++) {
+    for (PRUint32 i = 0; i < aBlock->mNumProps; i++) {
         nsCSSProperty iProp = aBlock->PropertyAtIndex(i);
         NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(iProp), "out of range");
         NS_ABORT_IF_FALSE(!HasPropertyBit(iProp),
@@ -330,8 +320,8 @@ nsCSSExpandedDataBlock::Expand(nsCSSCompressedDataBlock *aNormalBlock,
 }
 
 void
-nsCSSExpandedDataBlock::ComputeNumProps(uint32_t* aNumPropsNormal,
-                                        uint32_t* aNumPropsImportant)
+nsCSSExpandedDataBlock::ComputeNumProps(PRUint32* aNumPropsNormal,
+                                        PRUint32* aNumPropsImportant)
 {
     *aNumPropsNormal = *aNumPropsImportant = 0;
     for (size_t iHigh = 0; iHigh < nsCSSPropertySet::kChunkCount; ++iHigh) {
@@ -359,9 +349,9 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
                                  nsCSSCompressedDataBlock **aImportantBlock)
 {
     nsAutoPtr<nsCSSCompressedDataBlock> result_normal, result_important;
-    uint32_t i_normal = 0, i_important = 0;
+    PRUint32 i_normal = 0, i_important = 0;
 
-    uint32_t numPropsNormal, numPropsImportant;
+    PRUint32 numPropsNormal, numPropsImportant;
     ComputeNumProps(&numPropsNormal, &numPropsImportant);
 
     result_normal =
@@ -391,7 +381,7 @@ nsCSSExpandedDataBlock::Compress(nsCSSCompressedDataBlock **aNormalBlock,
                 mPropertiesImportant.HasPropertyAt(iHigh, iLow);
             nsCSSCompressedDataBlock *result =
                 important ? result_important : result_normal;
-            uint32_t* ip = important ? &i_important : &i_normal;
+            PRUint32* ip = important ? &i_important : &i_normal;
             nsCSSValue* val = PropertyAt(iProp);
             NS_ABORT_IF_FALSE(val->GetUnit() != eCSSUnit_Null,
                               "Null value while compressing");
@@ -542,7 +532,7 @@ nsCSSExpandedDataBlock::DoAssertInitialState()
     mPropertiesSet.AssertIsEmpty("not initial state");
     mPropertiesImportant.AssertIsEmpty("not initial state");
 
-    for (uint32_t i = 0; i < eCSSProperty_COUNT_no_shorthands; ++i) {
+    for (PRUint32 i = 0; i < eCSSProperty_COUNT_no_shorthands; ++i) {
         nsCSSProperty prop = nsCSSProperty(i);
         NS_ABORT_IF_FALSE(PropertyAt(prop)->GetUnit() == eCSSUnit_Null,
                           "not initial state");

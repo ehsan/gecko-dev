@@ -268,7 +268,7 @@ public:
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_NODEWILLBEDESTROYED
 
-  nsIStyleSheet* GetItemAt(uint32_t aIndex);
+  nsIStyleSheet* GetItemAt(PRUint32 aIndex);
 
   static nsDOMStyleSheetList* FromSupports(nsISupports* aSupports)
   {
@@ -287,7 +287,7 @@ public:
   }
 
 protected:
-  int32_t       mLength;
+  PRInt32       mLength;
   nsIDocument*  mDocument;
 };
 
@@ -567,8 +567,6 @@ public:
                                nsIPresShell** aInstancePtrResult);
   virtual void DeleteShell();
 
-  virtual nsresult GetAllowPlugins(bool* aAllowPlugins);
-
   virtual nsresult SetSubDocumentFor(Element* aContent,
                                      nsIDocument* aSubDoc);
   virtual nsIDocument* GetSubDocumentFor(nsIContent* aContent) const;
@@ -579,9 +577,9 @@ public:
    * Get the style sheets owned by this document.
    * These are ordered, highest priority last
    */
-  virtual int32_t GetNumberOfStyleSheets() const;
-  virtual nsIStyleSheet* GetStyleSheetAt(int32_t aIndex) const;
-  virtual int32_t GetIndexOfStyleSheet(nsIStyleSheet* aSheet) const;
+  virtual PRInt32 GetNumberOfStyleSheets() const;
+  virtual nsIStyleSheet* GetStyleSheetAt(PRInt32 aIndex) const;
+  virtual PRInt32 GetIndexOfStyleSheet(nsIStyleSheet* aSheet) const;
   virtual void AddStyleSheet(nsIStyleSheet* aSheet);
   virtual void RemoveStyleSheet(nsIStyleSheet* aSheet);
 
@@ -590,17 +588,14 @@ public:
   virtual void AddStyleSheetToStyleSets(nsIStyleSheet* aSheet);
   virtual void RemoveStyleSheetFromStyleSets(nsIStyleSheet* aSheet);
 
-  virtual void InsertStyleSheetAt(nsIStyleSheet* aSheet, int32_t aIndex);
+  virtual void InsertStyleSheetAt(nsIStyleSheet* aSheet, PRInt32 aIndex);
   virtual void SetStyleSheetApplicableState(nsIStyleSheet* aSheet,
                                             bool aApplicable);
 
-  virtual int32_t GetNumberOfCatalogStyleSheets() const;
-  virtual nsIStyleSheet* GetCatalogStyleSheetAt(int32_t aIndex) const;
+  virtual PRInt32 GetNumberOfCatalogStyleSheets() const;
+  virtual nsIStyleSheet* GetCatalogStyleSheetAt(PRInt32 aIndex) const;
   virtual void AddCatalogStyleSheet(nsIStyleSheet* aSheet);
   virtual void EnsureCatalogStyleSheet(const char *aStyleSheetURI);
-
-  virtual nsresult LoadAdditionalStyleSheet(additionalSheetType aType, nsIURI* aSheetURI);
-  virtual void RemoveAdditionalStyleSheet(additionalSheetType aType, nsIURI* sheetURI);
 
   virtual nsIChannel* GetChannel() const {
     return mChannel;
@@ -678,7 +673,7 @@ public:
   virtual void FlushExternalResources(mozFlushType aType);
   virtual void SetXMLDeclaration(const PRUnichar *aVersion,
                                  const PRUnichar *aEncoding,
-                                 const int32_t aStandalone);
+                                 const PRInt32 aStandalone);
   virtual void GetXMLDeclaration(nsAString& aVersion,
                                  nsAString& aEncoding,
                                  nsAString& Standalone);
@@ -691,15 +686,15 @@ public:
   virtual void MutationEventDispatched(nsINode* aTarget);
 
   // nsINode
-  virtual bool IsNodeOfType(uint32_t aFlags) const;
-  virtual nsIContent *GetChildAt(uint32_t aIndex) const;
-  virtual nsIContent * const * GetChildArray(uint32_t* aChildCount) const;
-  virtual int32_t IndexOf(const nsINode* aPossibleChild) const MOZ_OVERRIDE;
-  virtual uint32_t GetChildCount() const;
-  virtual nsresult InsertChildAt(nsIContent* aKid, uint32_t aIndex,
+  virtual bool IsNodeOfType(PRUint32 aFlags) const;
+  virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
+  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
+  virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
+  virtual PRUint32 GetChildCount() const;
+  virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  bool aNotify);
   virtual nsresult AppendChildTo(nsIContent* aKid, bool aNotify);
-  virtual void RemoveChildAt(uint32_t aIndex, bool aNotify);
+  virtual void RemoveChildAt(PRUint32 aIndex, bool aNotify);
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
   {
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -720,7 +715,7 @@ public:
                                nsIFormControl* aRadio);
   virtual void RemoveFromRadioGroup(const nsAString& aName,
                                     nsIFormControl* aRadio);
-  virtual uint32_t GetRequiredRadioCount(const nsAString& aName) const;
+  virtual PRUint32 GetRequiredRadioCount(const nsAString& aName) const;
   virtual void RadioRequiredChanged(const nsAString& aName,
                                     nsIFormControl* aRadio);
   virtual bool GetValueMissingState(const nsAString& aName) const;
@@ -735,7 +730,7 @@ private:
 
 public:
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE_OVERRIDABLE
+  NS_DECL_NSIDOMNODE
 
   // nsIDOMDocument
   NS_DECL_NSIDOMDOCUMENT
@@ -774,7 +769,7 @@ public:
   virtual void AddXMLEventsContent(nsIContent * aXMLEventsElement);
 
   virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
-                              int32_t aNamespaceID,
+                              PRInt32 aNamespaceID,
                               nsIContent **aResult);
 
   nsresult CreateElement(const nsAString& aTagName,
@@ -846,7 +841,7 @@ public:
 
   void SetImagesNeedAnimating(bool aAnimating);
 
-  virtual void SuppressEventHandling(uint32_t aIncrease);
+  virtual void SuppressEventHandling(PRUint32 aIncrease);
 
   virtual void UnsuppressEventHandlingAndFireEvents(bool aFireEvents);
   
@@ -880,8 +875,7 @@ public:
   virtual void MaybePreLoadImage(nsIURI* uri,
                                  const nsAString &aCrossOriginAttr);
 
-  virtual void PreloadStyle(nsIURI* uri, const nsAString& charset,
-                            const nsAString& aCrossOriginAttr);
+  virtual void PreloadStyle(nsIURI* uri, const nsAString& charset);
 
   virtual nsresult LoadChromeSheetSync(nsIURI* uri, bool isAgentSheet,
                                        nsCSSStyleSheet** sheet);
@@ -915,7 +909,7 @@ public:
   virtual Element *LookupImageElement(const nsAString& aElementId);
 
   virtual NS_HIDDEN_(nsresult) AddImage(imgIRequest* aImage);
-  virtual NS_HIDDEN_(nsresult) RemoveImage(imgIRequest* aImage, uint32_t aFlags);
+  virtual NS_HIDDEN_(nsresult) RemoveImage(imgIRequest* aImage);
   virtual NS_HIDDEN_(nsresult) SetImageLockingState(bool aLocked);
 
   // AddPlugin adds a plugin-related element to mPlugins when the element is
@@ -1040,7 +1034,7 @@ protected:
   void RetrieveRelevantHeaders(nsIChannel *aChannel);
 
   bool TryChannelCharset(nsIChannel *aChannel,
-                         int32_t& aCharsetSource,
+                         PRInt32& aCharsetSource,
                          nsACString& aCharset,
                          nsHtml5TreeOpExecutor* aExecutor);
 
@@ -1062,19 +1056,17 @@ protected:
 
   // Get the first <title> element with the given IsNodeOfType type, or
   // return null if there isn't one
-  nsIContent* GetTitleContent(uint32_t aNodeType);
+  nsIContent* GetTitleContent(PRUint32 aNodeType);
   // Find the first "title" element in the given IsNodeOfType type and
   // append the concatenation of its text node children to aTitle. Do
   // nothing if there is no such element.
-  void GetTitleFromElement(uint32_t aNodeType, nsAString& aTitle);
+  void GetTitleFromElement(PRUint32 aNodeType, nsAString& aTitle);
 
   nsresult doCreateShell(nsPresContext* aContext,
                          nsIViewManager* aViewManager, nsStyleSet* aStyleSet,
                          nsCompatibility aCompatMode,
                          nsIPresShell** aInstancePtrResult);
 
-  void RemoveStyleSheetsFromStyleSets(nsCOMArray<nsIStyleSheet>& aSheets, 
-                                      nsStyleSet::sheetType aType);
   nsresult ResetStylesheetsToURI(nsIURI* aURI);
   void FillStyleSet(nsStyleSet* aStyleSet);
 
@@ -1124,7 +1116,6 @@ protected:
 
   nsCOMArray<nsIStyleSheet> mStyleSheets;
   nsCOMArray<nsIStyleSheet> mCatalogSheets;
-  nsCOMArray<nsIStyleSheet> mAdditionalSheets[2];
 
   // Array of observers
   nsTObserverArray<nsIDocumentObserver*> mObservers;
@@ -1237,7 +1228,7 @@ protected:
   // permissions in the permission manager) have been approved for fullscreen.
   bool mIsApprovedForFullscreen:1;
 
-  uint8_t mXMLDeclarationBits;
+  PRUint8 mXMLDeclarationBits;
 
   nsInterfaceHashtable<nsPtrHashKey<nsIContent>, nsPIBoxObject> *mBoxObjectTable;
 
@@ -1247,7 +1238,7 @@ protected:
   nsRefPtr<nsXMLEventsManager> mXMLEventsManager;
 
   // Our update nesting level
-  uint32_t mUpdateNestLevel;
+  PRUint32 mUpdateNestLevel;
 
   // The application cache that this document is associated with, if
   // any.  This can change during the lifetime of the document.
@@ -1274,7 +1265,7 @@ private:
   void DoUnblockOnload();
 
   nsresult CheckFrameOptions();
-  nsresult InitCSP(nsIChannel* aChannel);
+  nsresult InitCSP();
 
   // Sets aElement to be the pending pointer lock element. Once this document's
   // node principal's URI is granted the "fullscreen" permission, the pointer
@@ -1321,9 +1312,9 @@ private:
   nsCOMPtr<nsILayoutHistoryState> mLayoutHistoryState;
 
   // Currently active onload blockers
-  uint32_t mOnloadBlockCount;
+  PRUint32 mOnloadBlockCount;
   // Onload blockers which haven't been activated yet
-  uint32_t mAsyncOnloadBlockCount;
+  PRUint32 mAsyncOnloadBlockCount;
   nsCOMPtr<nsIRequest> mOnloadBlocker;
   ReadyState mReadyState;
 
@@ -1356,11 +1347,11 @@ private:
   nsRefPtr<nsContentList> mImageMaps;
 
   nsCString mScrollToRef;
-  uint8_t mScrolledToRefAlready : 1;
-  uint8_t mChangeScrollPosWhenScrollingToRef : 1;
+  PRUint8 mScrolledToRefAlready : 1;
+  PRUint8 mChangeScrollPosWhenScrollingToRef : 1;
 
   // Tracking for images in the document.
-  nsDataHashtable< nsPtrHashKey<imgIRequest>, uint32_t> mImageTracker;
+  nsDataHashtable< nsPtrHashKey<imgIRequest>, PRUint32> mImageTracker;
 
   // Tracking for plugins in the document.
   nsTHashtable< nsPtrHashKey<nsIObjectLoadingContent> > mPlugins;

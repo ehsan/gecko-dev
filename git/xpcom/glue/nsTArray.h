@@ -12,6 +12,7 @@
 
 #include <string.h>
 
+#include "prtypes.h"
 #include "nsAlgorithm.h"
 #include "nscore.h"
 #include "nsQuickSort.h"
@@ -34,8 +35,6 @@
 //
 
 #if defined(MOZALLOC_HAVE_XMALLOC)
-#include "mozilla/mozalloc_abort.h"
-
 struct nsTArrayFallibleAllocator
 {
   static void* Malloc(size_t size) {
@@ -48,9 +47,6 @@ struct nsTArrayFallibleAllocator
 
   static void Free(void* ptr) {
     moz_free(ptr);
-  }
-
-  static void SizeTooBig() {
   }
 };
 
@@ -66,10 +62,6 @@ struct nsTArrayInfallibleAllocator
 
   static void Free(void* ptr) {
     moz_free(ptr);
-  }
-
-  static void SizeTooBig() {
-    mozalloc_abort("Trying to allocate an infallible array that's too big");
   }
 };
 
@@ -89,9 +81,6 @@ struct nsTArrayFallibleAllocator
   static void Free(void* ptr) {
     free(ptr);
   }
-
-  static void SizeTooBig() {
-  }
 };
 
 #endif
@@ -109,9 +98,9 @@ struct NS_COM_GLUE nsTArrayHeader
 {
   static nsTArrayHeader sEmptyHdr;
 
-  uint32_t mLength;
-  uint32_t mCapacity : 31;
-  uint32_t mIsAutoArray : 1;
+  PRUint32 mLength;
+  PRUint32 mCapacity : 31;
+  PRUint32 mIsAutoArray : 1;
 };
 
 // This class provides a SafeElementAt method to nsTArray<T*> which does
@@ -120,7 +109,7 @@ template <class E, class Derived>
 struct nsTArray_SafeElementAtHelper
 {
   typedef E*       elem_type;
-  typedef uint32_t index_type;
+  typedef PRUint32 index_type;
 
   // No implementation is provided for these two methods, and that is on
   // purpose, since we don't support these functions on non-pointer type
@@ -133,7 +122,7 @@ template <class E, class Derived>
 struct nsTArray_SafeElementAtHelper<E*, Derived>
 {
   typedef E*       elem_type;
-  typedef uint32_t index_type;
+  typedef PRUint32 index_type;
 
   elem_type SafeElementAt(index_type i) {
     return static_cast<Derived*> (this)->SafeElementAt(i, nullptr);
@@ -150,7 +139,7 @@ template <class E, class Derived>
 struct nsTArray_SafeElementAtSmartPtrHelper
 {
   typedef E*       elem_type;
-  typedef uint32_t index_type;
+  typedef PRUint32 index_type;
 
   elem_type SafeElementAt(index_type i) {
     return static_cast<Derived*> (this)->SafeElementAt(i, nullptr);
@@ -195,8 +184,8 @@ protected:
   typedef nsTArrayHeader Header;
 
 public:
-  typedef uint32_t size_type;
-  typedef uint32_t index_type;
+  typedef PRUint32 size_type;
+  typedef PRUint32 index_type;
 
   // @return The number of elements in the array.
   size_type Length() const {
@@ -252,7 +241,7 @@ protected:
   // Note that mHdr may actually be sEmptyHdr in the case where a
   // zero-length array is inserted into our array. But then n should
   // always be 0.
-  void IncrementLength(uint32_t n) {
+  void IncrementLength(PRUint32 n) {
     MOZ_ASSERT(mHdr != EmptyHdr() || n == 0, "bad data pointer");
     mHdr->mLength += n;
   }
@@ -657,8 +646,9 @@ public:
   template<class Item, class Comparator>
   index_type LastIndexOf(const Item& item, index_type start,
                          const Comparator& comp) const {
-    size_type endOffset = start >= Length() ? Length() : start + 1;
-    const elem_type* end = Elements() - 1, *iter = end + endOffset;
+    if (start >= Length())
+      start = Length() - 1;
+    const elem_type* end = Elements() - 1, *iter = end + start + 1;
     for (; iter != end; --iter) {
       if (comp.Equals(*iter, item))
         return index_type(iter - Elements());
@@ -1297,7 +1287,7 @@ public:
 };
 #endif
 
-template<class TArrayBase, uint32_t N>
+template<class TArrayBase, PRUint32 N>
 class nsAutoArrayBase : public TArrayBase
 {
 public:
@@ -1347,13 +1337,11 @@ private:
   // __attribute__((aligned(foo))).
   union {
     char mAutoBuf[sizeof(nsTArrayHeader) + N * sizeof(elem_type)];
-    // Do the max operation inline to ensure that it is a compile-time constant.
-    mozilla::AlignedElem<(MOZ_ALIGNOF(Header) > MOZ_ALIGNOF(elem_type))
-                         ? MOZ_ALIGNOF(Header) : MOZ_ALIGNOF(elem_type)> mAlign;
+    mozilla::AlignedElem<PR_MAX(MOZ_ALIGNOF(Header), MOZ_ALIGNOF(elem_type))> mAlign;
   };
 };
 
-template<class E, uint32_t N, class Alloc=nsTArrayDefaultAllocator>
+template<class E, PRUint32 N, class Alloc=nsTArrayDefaultAllocator>
 class nsAutoTArray : public nsAutoArrayBase<nsTArray<E, Alloc>, N>
 {
   typedef nsAutoArrayBase<nsTArray<E, Alloc>, N> Base;
@@ -1370,22 +1358,22 @@ public:
 // Assert that nsAutoTArray doesn't have any extra padding inside.
 //
 // It's important that the data stored in this auto array takes up a multiple of
-// 8 bytes; e.g. nsAutoTArray<uint32_t, 1> wouldn't work.  Since nsAutoTArray
+// 8 bytes; e.g. nsAutoTArray<PRUint32, 1> wouldn't work.  Since nsAutoTArray
 // contains a pointer, its size must be a multiple of alignof(void*).  (This is
 // because any type may be placed into an array, and there's no padding between
 // elements of an array.)  The compiler pads the end of the structure to
 // enforce this rule.
 //
-// If we used nsAutoTArray<uint32_t, 1> below, this assertion would fail on a
+// If we used nsAutoTArray<PRUint32, 1> below, this assertion would fail on a
 // 64-bit system, where the compiler inserts 4 bytes of padding at the end of
 // the auto array to make its size a multiple of alignof(void*) == 8 bytes.
 
-MOZ_STATIC_ASSERT(sizeof(nsAutoTArray<uint32_t, 2>) ==
-                  sizeof(void*) + sizeof(nsTArrayHeader) + sizeof(uint32_t) * 2,
+MOZ_STATIC_ASSERT(sizeof(nsAutoTArray<PRUint32, 2>) ==
+                  sizeof(void*) + sizeof(nsTArrayHeader) + sizeof(PRUint32) * 2,
                   "nsAutoTArray shouldn't contain any extra padding, "
                   "see the comment");
 
-template<class E, uint32_t N>
+template<class E, PRUint32 N>
 class AutoFallibleTArray : public nsAutoArrayBase<FallibleTArray<E>, N>
 {
   typedef nsAutoArrayBase<FallibleTArray<E>, N> Base;
@@ -1400,7 +1388,7 @@ public:
 };
 
 #if defined(MOZALLOC_HAVE_XMALLOC)
-template<class E, uint32_t N>
+template<class E, PRUint32 N>
 class AutoInfallibleTArray : public nsAutoArrayBase<InfallibleTArray<E>, N>
 {
   typedef nsAutoArrayBase<InfallibleTArray<E>, N> Base;

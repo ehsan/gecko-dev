@@ -30,8 +30,8 @@ public:
     NS_DECL_NSIOFFLINECACHEUPDATE
 
     virtual bool
-    RecvNotifyStateEvent(const uint32_t& stateEvent,
-                         const uint64_t& byteProgress);
+    RecvNotifyStateEvent(const PRUint32& stateEvent,
+                         const PRUint64& byteProgress);
 
     virtual bool
     RecvAssociateDocuments(
@@ -50,7 +50,7 @@ public:
 private:
     nsresult AssociateDocument(nsIDOMDocument *aDocument,
                                nsIApplicationCache *aApplicationCache);
-    void GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
+    nsresult GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
     nsresult Finish();
 
     void RefcountHitZero();
@@ -72,8 +72,9 @@ private:
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIURI> mDocumentURI;
 
+    nsCString mClientID;
+
     nsCOMPtr<nsIObserverService> mObserverService;
-    nsCOMPtr<nsILoadContext> mLoadContext;
 
     /* Clients watching this update for changes */
     nsCOMArray<nsIWeakReference> mWeakObservers;
@@ -86,7 +87,7 @@ private:
        parent offline cache update construcor */
     nsCOMPtr<nsIDOMWindow> mWindow;
 
-    uint64_t mByteProgress;
+    PRUint64 mByteProgress;
 };
 
 }

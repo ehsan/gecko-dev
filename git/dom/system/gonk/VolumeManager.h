@@ -157,6 +157,7 @@ private:
   bool                mCommandPending;
   char                mRcvBuf[kRcvBufSize];
   size_t              mRcvIdx;
+  MessageLoopForIO                       *mIOLoop;
   MessageLoopForIO::FileDescriptorWatcher mReadWatcher;
   MessageLoopForIO::FileDescriptorWatcher mWriteWatcher;
   RefPtr<VolumeResponseCallback>          mBroadcastCallback;

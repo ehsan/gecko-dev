@@ -12,8 +12,6 @@
 #include "nsCacheSession.h"
 #include "nsCacheDevice.h"
 #include "nsCacheEntry.h"
-#include "nsThreadUtils.h"
-#include "nsICacheListener.h"
 
 #include "prthread.h"
 #include "nsIObserver.h"
@@ -32,30 +30,6 @@ class nsOfflineCacheDevice;
 class nsCacheServiceAutoLock;
 class nsITimer;
 
-
-/******************************************************************************
- * nsNotifyDoomListener
- *****************************************************************************/
-
-class nsNotifyDoomListener : public nsRunnable {
-public:
-    nsNotifyDoomListener(nsICacheListener *listener,
-                         nsresult status)
-        : mListener(listener)      // transfers reference
-        , mStatus(status)
-    {}
-
-    NS_IMETHOD Run()
-    {
-        mListener->OnCacheEntryDoomed(mStatus);
-        NS_RELEASE(mListener);
-        return NS_OK;
-    }
-
-private:
-    nsICacheListener *mListener;
-    nsresult          mStatus;
-};
 
 /******************************************************************************
  *  nsCacheService
@@ -105,21 +79,21 @@ public:
 
     static nsresult  OpenInputStreamForEntry(nsCacheEntry *     entry,
                                              nsCacheAccessMode  mode,
-                                             uint32_t           offset,
+                                             PRUint32           offset,
                                              nsIInputStream **  result);
 
     static nsresult  OpenOutputStreamForEntry(nsCacheEntry *     entry,
                                               nsCacheAccessMode  mode,
-                                              uint32_t           offset,
+                                              PRUint32           offset,
                                               nsIOutputStream ** result);
 
-    static nsresult  OnDataSizeChange(nsCacheEntry * entry, int32_t deltaSize);
+    static nsresult  OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize);
 
     static nsresult  SetCacheElement(nsCacheEntry * entry, nsISupports * element);
 
     static nsresult  ValidateEntry(nsCacheEntry * entry);
 
-    static int32_t   CacheCompressionLevel();
+    static PRInt32   CacheCompressionLevel();
 
     /**
      * Methods called by any cache classes
@@ -128,7 +102,7 @@ public:
     static
     nsCacheService * GlobalInstance()   { return gService; }
 
-    static int64_t   MemoryDeviceSize();
+    static PRInt64   MemoryDeviceSize();
     
     static nsresult  DoomEntry(nsCacheEntry * entry);
 
@@ -151,7 +125,7 @@ public:
      * application's profile directory.
      */
     nsresult GetCustomOfflineDevice(nsIFile *aProfileDir,
-                                    int32_t aQuota,
+                                    PRInt32 aQuota,
                                     nsOfflineCacheDevice **aDevice);
 
     // This method may be called to release an object while the cache service
@@ -178,21 +152,21 @@ public:
 
     static void      SetDiskCacheEnabled(bool    enabled);
     // Sets the disk cache capacity (in kilobytes)
-    static void      SetDiskCacheCapacity(int32_t  capacity);
+    static void      SetDiskCacheCapacity(PRInt32  capacity);
     // Set max size for a disk-cache entry (in KB). -1 disables limit up to
     // 1/8th of disk cache size
-    static void      SetDiskCacheMaxEntrySize(int32_t  maxSize);
+    static void      SetDiskCacheMaxEntrySize(PRInt32  maxSize);
     // Set max size for a memory-cache entry (in kilobytes). -1 disables
     // limit up to 90% of memory cache size
-    static void      SetMemoryCacheMaxEntrySize(int32_t  maxSize);
+    static void      SetMemoryCacheMaxEntrySize(PRInt32  maxSize);
 
     static void      SetOfflineCacheEnabled(bool    enabled);
     // Sets the offline cache capacity (in kilobytes)
-    static void      SetOfflineCacheCapacity(int32_t  capacity);
+    static void      SetOfflineCacheCapacity(PRInt32  capacity);
 
     static void      SetMemoryCache();
 
-    static void      SetCacheCompressionLevel(int32_t level);
+    static void      SetCacheCompressionLevel(PRInt32 level);
 
     // Starts smart cache size computation if disk device is available
     static nsresult  SetDiskSmartSize();
@@ -204,7 +178,6 @@ public:
     { gService->mLock.AssertCurrentThreadOwns(); }
 
     static void      LeavePrivateBrowsing();
-    bool             IsDoomListEmpty();
 
     typedef bool (*DoomCheckFn)(nsCacheEntry* entry);
 
@@ -217,9 +190,6 @@ private:
     friend class nsSetDiskSmartSizeCallback;
     friend class nsDoomEvent;
     friend class nsDisableOldMaxSmartSizePrefEvent;
-    friend class nsDiskCacheMap;
-    friend class nsAsyncDoomEvent;
-    friend class nsCacheEntryDescriptor;
 
     /**
      * Internal Methods
@@ -231,7 +201,7 @@ private:
     nsresult         CreateDiskDevice();
     nsresult         CreateOfflineDevice();
     nsresult         CreateCustomOfflineDevice(nsIFile *aProfileDir,
-                                               int32_t aQuota,
+                                               PRInt32 aQuota,
                                                nsOfflineCacheDevice **aDevice);
     nsresult         CreateMemoryDevice();
 
@@ -280,14 +250,14 @@ private:
     void             DoomActiveEntries(DoomCheckFn check);
 
     static
-    PLDHashOperator  GetActiveEntries(PLDHashTable *    table,
-                                      PLDHashEntryHdr * hdr,
-                                      uint32_t          number,
-                                      void *            arg);
+    PLDHashOperator  DeactivateAndClearEntry(PLDHashTable *    table,
+                                             PLDHashEntryHdr * hdr,
+                                             PRUint32          number,
+                                             void *            arg);
     static
     PLDHashOperator  RemoveActiveEntry(PLDHashTable *    table,
                                        PLDHashEntryHdr * hdr,
-                                       uint32_t          number,
+                                       PRUint32          number,
                                        void *            arg);
 
     static
@@ -334,16 +304,16 @@ private:
 
     // stats
     
-    uint32_t                        mTotalEntries;
-    uint32_t                        mCacheHits;
-    uint32_t                        mCacheMisses;
-    uint32_t                        mMaxKeyLength;
-    uint32_t                        mMaxDataSize;
-    uint32_t                        mMaxMetaSize;
+    PRUint32                        mTotalEntries;
+    PRUint32                        mCacheHits;
+    PRUint32                        mCacheMisses;
+    PRUint32                        mMaxKeyLength;
+    PRUint32                        mMaxDataSize;
+    PRUint32                        mMaxMetaSize;
 
     // Unexpected error totals
-    uint32_t                        mDeactivateFailures;
-    uint32_t                        mDeactivatedUnboundEntries;
+    PRUint32                        mDeactivateFailures;
+    PRUint32                        mDeactivatedUnboundEntries;
 };
 
 /******************************************************************************

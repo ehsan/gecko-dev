@@ -46,7 +46,7 @@ nsUserInfo::GetFullname(PRUnichar **aFullname)
     printf("fullname = %s\n", pw->PW_GECOS);
 #endif
 
-    nsAutoCString fullname(pw->PW_GECOS);
+    nsCAutoString fullname(pw->PW_GECOS);
 
     // now try to parse the GECOS information, which will be in the form
     // Full Name, <other stuff> - eliminate the ", <other stuff>
@@ -54,13 +54,13 @@ nsUserInfo::GetFullname(PRUnichar **aFullname)
     // the appropriate substitution
     
     // truncate at first comma (field delimiter)
-    int32_t index;
+    PRInt32 index;
     if ((index = fullname.Find(",")) != kNotFound)
         fullname.Truncate(index);
 
     // replace ampersand with username
     if (pw->pw_name) {
-        nsAutoCString username(pw->pw_name);
+        nsCAutoString username(pw->pw_name);
         if (!username.IsEmpty() && nsCRT::IsLower(username.CharAt(0)))
             username.SetCharAt(nsCRT::ToUpper(username.CharAt(0)), 0);
             
@@ -144,7 +144,7 @@ nsUserInfo::GetEmailAddress(char * *aEmailAddress)
 
     nsresult rv;
 
-    nsAutoCString emailAddress;
+    nsCAutoString emailAddress;
     nsXPIDLCString username;
     nsXPIDLCString domain;
 

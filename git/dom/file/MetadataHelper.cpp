@@ -75,17 +75,17 @@ MetadataHelper::AsyncMetadataGetter::DoStreamWork(nsISupports* aStream)
   nsCOMPtr<nsIFileMetadata> metadata = do_QueryInterface(aStream);
 
   if (mParams->SizeRequested()) {
-    int64_t size;
+    PRInt64 size;
     rv = metadata->GetSize(&size);
     NS_ENSURE_SUCCESS(rv, rv);
 
     NS_ENSURE_TRUE(size >= 0, NS_ERROR_FAILURE);
 
-    mParams->mSize = uint64_t(size);
+    mParams->mSize = PRUint64(size);
   }
 
   if (mParams->LastModifiedRequested()) {
-    int64_t lastModified;
+    PRInt64 lastModified;
     rv = metadata->GetLastModified(&lastModified);
     NS_ENSURE_SUCCESS(rv, rv);
 

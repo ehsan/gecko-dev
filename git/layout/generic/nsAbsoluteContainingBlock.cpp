@@ -364,6 +364,12 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   AutoNoisyIndenter indent(nsBlockFrame::gNoisy);
 #endif // DEBUG
 
+  // Store position and overflow rect so taht we can invalidate the correct
+  // area if the position changes
+  nsRect oldOverflowRect(aKidFrame->GetVisualOverflowRect() +
+                         aKidFrame->GetPosition());
+  nsRect oldRect = aKidFrame->GetRect();
+
   nsresult  rv;
   // Get the border values
   const nsMargin& border = aReflowState.mStyleBorder->GetComputedBorder();
@@ -375,7 +381,7 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
     availWidth =
       aReflowState.ComputedWidth() + aReflowState.mComputedPadding.LeftRight();
   }
-
+    
   nsHTMLReflowMetrics kidDesiredSize;
   nsHTMLReflowState kidReflowState(aPresContext, aReflowState, aKidFrame,
                                    nsSize(availWidth, NS_UNCONSTRAINEDSIZE),
@@ -450,6 +456,23 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
     nsContainerFrame::PositionChildViews(aKidFrame);
   }
 
+  if (oldRect.TopLeft() != rect.TopLeft() || 
+      (aDelegatingFrame->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
+    // The frame moved
+    aKidFrame->GetParent()->Invalidate(oldOverflowRect);
+    aKidFrame->InvalidateFrameSubtree();
+  } else if (oldRect.Size() != rect.Size()) {
+    // Invalidate the area where the frame changed size.
+    nscoord innerWidth = NS_MIN(oldRect.width, rect.width);
+    nscoord innerHeight = NS_MIN(oldRect.height, rect.height);
+    nscoord outerWidth = NS_MAX(oldRect.width, rect.width);
+    nscoord outerHeight = NS_MAX(oldRect.height, rect.height);
+    aKidFrame->GetParent()->Invalidate(
+        nsRect(rect.x + innerWidth, rect.y, outerWidth - innerWidth, outerHeight));
+    // Invalidate the horizontal strip
+    aKidFrame->GetParent()->Invalidate(
+        nsRect(rect.x, rect.y + innerHeight, outerWidth, outerHeight - innerHeight));
+  }
   aKidFrame->DidReflow(aPresContext, &kidReflowState, NS_FRAME_REFLOW_FINISHED);
 
 #ifdef DEBUG
@@ -481,7 +504,7 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
     strcpy(aBuf, "UC");
   }
   else {
-    if((int32_t)0xdeadbeef == aSize)
+    if((PRInt32)0xdeadbeef == aSize)
     {
       strcpy(aBuf, "deadbeef");
     }

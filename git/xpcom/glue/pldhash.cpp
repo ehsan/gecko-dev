@@ -15,7 +15,6 @@
 #include "pldhash.h"
 #include "mozilla/HashFunctions.h"
 #include "nsDebug.h"     /* for PR_ASSERT */
-#include "nsAlgorithm.h"
 
 #ifdef PL_DHASHMETER
 # if defined MOZILLA_CLIENT && defined DEBUG_XXXbrendan
@@ -36,7 +35,7 @@
  */
 #ifdef DEBUG
 
-#define RECURSION_LEVEL(table_) (*(uint32_t*)(table_->entryStore + \
+#define RECURSION_LEVEL(table_) (*(PRUint32*)(table_->entryStore + \
                                             PL_DHASH_TABLE_SIZE(table_) * \
                                             table_->entrySize))
 /*
@@ -47,13 +46,13 @@
  *
  * Only PL_DHashTableFinish needs to allow this special value.
  */
-#define IMMUTABLE_RECURSION_LEVEL ((uint32_t)-1)
+#define IMMUTABLE_RECURSION_LEVEL ((PRUint32)-1)
 
 #define RECURSION_LEVEL_SAFE_TO_FINISH(table_)                                \
     (RECURSION_LEVEL(table_) == 0 ||                                          \
      RECURSION_LEVEL(table_) == IMMUTABLE_RECURSION_LEVEL)
 
-#define ENTRY_STORE_EXTRA                   sizeof(uint32_t)
+#define ENTRY_STORE_EXTRA                   sizeof(PRUint32)
 #define INCREMENT_RECURSION_LEVEL(table_)                                     \
     PR_BEGIN_MACRO                                                            \
         if (RECURSION_LEVEL(table_) != IMMUTABLE_RECURSION_LEVEL)             \
@@ -78,7 +77,7 @@
 using namespace mozilla;
 
 void *
-PL_DHashAllocTable(PLDHashTable *table, uint32_t nbytes)
+PL_DHashAllocTable(PLDHashTable *table, PRUint32 nbytes)
 {
     return malloc(nbytes);
 }
@@ -170,8 +169,8 @@ PL_DHashGetStubOps(void)
 }
 
 PLDHashTable *
-PL_NewDHashTable(const PLDHashTableOps *ops, void *data, uint32_t entrySize,
-                 uint32_t capacity)
+PL_NewDHashTable(const PLDHashTableOps *ops, void *data, PRUint32 entrySize,
+                 PRUint32 capacity)
 {
     PLDHashTable *table;
 
@@ -194,10 +193,10 @@ PL_DHashTableDestroy(PLDHashTable *table)
 
 bool
 PL_DHashTableInit(PLDHashTable *table, const PLDHashTableOps *ops, void *data,
-                  uint32_t entrySize, uint32_t capacity)
+                  PRUint32 entrySize, PRUint32 capacity)
 {
     int log2;
-    uint32_t nbytes;
+    PRUint32 nbytes;
 
 #ifdef DEBUG
     if (entrySize > 16 * sizeof(void *)) {
@@ -220,8 +219,8 @@ PL_DHashTableInit(PLDHashTable *table, const PLDHashTableOps *ops, void *data,
     if (capacity >= PL_DHASH_SIZE_LIMIT)
         return false;
     table->hashShift = PL_DHASH_BITS - log2;
-    table->maxAlphaFrac = (uint8_t)(0x100 * PL_DHASH_DEFAULT_MAX_ALPHA);
-    table->minAlphaFrac = (uint8_t)(0x100 * PL_DHASH_DEFAULT_MIN_ALPHA);
+    table->maxAlphaFrac = (PRUint8)(0x100 * PL_DHASH_DEFAULT_MAX_ALPHA);
+    table->minAlphaFrac = (PRUint8)(0x100 * PL_DHASH_DEFAULT_MIN_ALPHA);
     table->entrySize = entrySize;
     table->entryCount = table->removedCount = 0;
     table->generation = 0;
@@ -252,7 +251,7 @@ PL_DHashTableSetAlphaBounds(PLDHashTable *table,
                             float maxAlpha,
                             float minAlpha)
 {
-    uint32_t size;
+    PRUint32 size;
 
     /*
      * Reject obviously insane bounds, rather than trying to guess what the
@@ -272,7 +271,7 @@ PL_DHashTableSetAlphaBounds(PLDHashTable *table,
                  "PL_DHASH_MIN_SIZE - (maxAlpha * PL_DHASH_MIN_SIZE) >= 1");
     if (PL_DHASH_MIN_SIZE - (maxAlpha * PL_DHASH_MIN_SIZE) < 1) {
         maxAlpha = (float)
-                   (PL_DHASH_MIN_SIZE - NS_MAX(PL_DHASH_MIN_SIZE / 256, 1))
+                   (PL_DHASH_MIN_SIZE - PR_MAX(PL_DHASH_MIN_SIZE / 256, 1))
                    / PL_DHASH_MIN_SIZE;
     }
 
@@ -285,11 +284,11 @@ PL_DHashTableSetAlphaBounds(PLDHashTable *table,
                  "minAlpha < maxAlpha / 2");
     if (minAlpha >= maxAlpha / 2) {
         size = PL_DHASH_TABLE_SIZE(table);
-        minAlpha = (size * maxAlpha - NS_MAX(size / 256, 1u)) / (2 * size);
+        minAlpha = (size * maxAlpha - PR_MAX(size / 256, 1)) / (2 * size);
     }
 
-    table->maxAlphaFrac = (uint8_t)(maxAlpha * 256);
-    table->minAlphaFrac = (uint8_t)(minAlpha * 256);
+    table->maxAlphaFrac = (PRUint8)(maxAlpha * 256);
+    table->minAlphaFrac = (PRUint8)(minAlpha * 256);
 }
 
 /*
@@ -330,7 +329,7 @@ void
 PL_DHashTableFinish(PLDHashTable *table)
 {
     char *entryAddr, *entryLimit;
-    uint32_t entrySize;
+    PRUint32 entrySize;
     PLDHashEntryHdr *entry;
 
 #ifdef DEBUG_XXXbrendan
@@ -379,7 +378,7 @@ SearchTable(PLDHashTable *table, const void *key, PLDHashNumber keyHash,
     int hashShift, sizeLog2;
     PLDHashEntryHdr *entry, *firstRemoved;
     PLDHashMatchEntry matchEntry;
-    uint32_t sizeMask;
+    PRUint32 sizeMask;
 
     METER(table->stats.searches++);
     NS_ASSERTION(!(keyHash & COLLISION_FLAG),
@@ -457,7 +456,7 @@ FindFreeEntry(PLDHashTable *table, PLDHashNumber keyHash)
     PLDHashNumber hash1, hash2;
     int hashShift, sizeLog2;
     PLDHashEntryHdr *entry;
-    uint32_t sizeMask;
+    PRUint32 sizeMask;
 
     METER(table->stats.searches++);
     NS_ASSERTION(!(keyHash & COLLISION_FLAG),
@@ -503,13 +502,13 @@ static bool
 ChangeTable(PLDHashTable *table, int deltaLog2)
 {
     int oldLog2, newLog2;
-    uint32_t oldCapacity, newCapacity;
+    PRUint32 oldCapacity, newCapacity;
     char *newEntryStore, *oldEntryStore, *oldEntryAddr;
-    uint32_t entrySize, i, nbytes;
+    PRUint32 entrySize, i, nbytes;
     PLDHashEntryHdr *oldEntry, *newEntry;
     PLDHashMoveEntry moveEntry;
 #ifdef DEBUG
-    uint32_t recursionLevel;
+    PRUint32 recursionLevel;
 #endif
 
     /* Look, but don't touch, until we succeed in getting new entry store. */
@@ -567,7 +566,7 @@ PL_DHashTableOperate(PLDHashTable *table, const void *key, PLDHashOperator op)
 {
     PLDHashNumber keyHash;
     PLDHashEntryHdr *entry;
-    uint32_t size;
+    PRUint32 size;
     int deltaLog2;
 
     NS_ASSERTION(op == PL_DHASH_LOOKUP || RECURSION_LEVEL(table) == 0,
@@ -693,11 +692,11 @@ PL_DHashTableRawRemove(PLDHashTable *table, PLDHashEntryHdr *entry)
     table->entryCount--;
 }
 
-uint32_t
+PRUint32
 PL_DHashTableEnumerate(PLDHashTable *table, PLDHashEnumerator etor, void *arg)
 {
     char *entryAddr, *entryLimit;
-    uint32_t i, capacity, entrySize, ceiling;
+    PRUint32 i, capacity, entrySize, ceiling;
     bool didRemove;
     PLDHashEntryHdr *entry;
     PLDHashOperator op;
@@ -766,7 +765,7 @@ struct SizeOfEntryExcludingThisArg
 
 static PLDHashOperator
 SizeOfEntryExcludingThisEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                                   uint32_t number, void *arg)
+                                   PRUint32 number, void *arg)
 {
     SizeOfEntryExcludingThisArg *e = (SizeOfEntryExcludingThisArg *)arg;
     e->total += e->sizeOfEntryExcludingThis(hdr, e->mallocSizeOf, e->arg);
@@ -816,9 +815,9 @@ void
 PL_DHashTableDumpMeter(PLDHashTable *table, PLDHashEnumerator dump, FILE *fp)
 {
     char *entryAddr;
-    uint32_t entrySize, entryCount;
+    PRUint32 entrySize, entryCount;
     int hashShift, sizeLog2;
-    uint32_t i, tableSize, sizeMask, chainLen, maxChainLen, chainCount;
+    PRUint32 i, tableSize, sizeMask, chainLen, maxChainLen, chainCount;
     PLDHashNumber hash1, hash2, saveHash1, maxChainHash1, maxChainHash2;
     double sqsum, mean, variance, sigma;
     PLDHashEntryHdr *entry, *probe;

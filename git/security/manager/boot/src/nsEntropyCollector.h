@@ -28,7 +28,7 @@ class nsEntropyCollector : public nsIBufEntropyCollector
 
   protected:
     unsigned char mEntropyCache[entropy_buffer_size];
-    int32_t mBytesCollected;
+    PRInt32 mBytesCollected;
     unsigned char *mWritePointer;
     nsCOMPtr<nsIEntropyCollector> mForwardTarget;
 };

@@ -285,7 +285,7 @@ interface nsIAnnotationService : nsISupports
      */
     void getPageAnnotationInfo(in nsIURI aURI,
                                in AUTF8String aName,
-                               out int32_t aFlags,
+                               out PRInt32 aFlags,
                                out unsigned short aExpiration,
                                out AUTF8String aMimeType,
                                out unsigned short aType);
@@ -307,9 +307,9 @@ interface nsIAnnotationService : nsISupports
      * @return one of the TYPE_* constants above
      * @throws if the annotation is not set
      */
-    uint16_t getPageAnnotationType(in nsIURI aURI,
+    PRUint16 getPageAnnotationType(in nsIURI aURI,
                                    in AUTF8String aName);
-    uint16_t getItemAnnotationType(in long long aItemId,
+    PRUint16 getItemAnnotationType(in long long aItemId,
                                    in AUTF8String aName);
 
     /**

@@ -10,8 +10,8 @@
 
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
-#include "nsError.h"
-#include "nsIDOMProgressEvent.h"
+#include "nsDOMError.h"
+#include "nsDOMProgressEvent.h"
 #include "nsDOMClassInfoID.h"
 #include "FileHelper.h"
 #include "LockedFile.h"
@@ -80,11 +80,16 @@ FileRequest::NotifyHelperCompleted(FileHelper* aFileHelper)
   NS_ASSERTION(global, "Failed to get global object!");
 
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, global);
-
-  rv = aFileHelper->GetSuccessResult(cx, &result);
-  if (NS_FAILED(rv)) {
-    NS_WARNING("GetSuccessResult failed!");
+  JSAutoEnterCompartment ac;
+  if (ac.enter(cx, global)) {
+    rv = aFileHelper->GetSuccessResult(cx, &result);
+    if (NS_FAILED(rv)) {
+      NS_WARNING("GetSuccessResult failed!");
+    }
+  }
+  else {
+    NS_WARNING("Failed to enter correct compartment!");
+    rv = NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR;
   }
 
   if (NS_SUCCEEDED(rv)) {
@@ -110,11 +115,15 @@ FileRequest::GetLockedFile(nsIDOMLockedFile** aLockedFile)
 NS_IMPL_CYCLE_COLLECTION_CLASS(FileRequest)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(FileRequest, DOMRequest)
+  // Don't need NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS because
+  // nsDOMEventTargetHelper does it for us.
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(progress)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mLockedFile,
                                                        nsIDOMLockedFile)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(FileRequest, DOMRequest)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(progress)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLockedFile)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
@@ -132,25 +141,38 @@ DOMCI_DATA(FileRequest, FileRequest)
 NS_IMPL_EVENT_HANDLER(FileRequest, progress)
 
 void
-FileRequest::FireProgressEvent(uint64_t aLoaded, uint64_t aTotal)
+FileRequest::FireProgressEvent(PRUint64 aLoaded, PRUint64 aTotal)
 {
   if (NS_FAILED(CheckInnerWindowCorrectness())) {
     return;
   }
 
-  nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = NS_NewDOMProgressEvent(getter_AddRefs(event), nullptr, nullptr);
+  nsRefPtr<nsDOMProgressEvent> event = new nsDOMProgressEvent(nullptr, nullptr);
+  nsresult rv = event->InitProgressEvent(NS_LITERAL_STRING("progress"),
+                                         false, false, false, aLoaded, aTotal);
   if (NS_FAILED(rv)) {
     return;
   }
 
-  nsCOMPtr<nsIDOMProgressEvent> progress = do_QueryInterface(event);
-  MOZ_ASSERT(progress);
-  rv = progress->InitProgressEvent(NS_LITERAL_STRING("progress"), false, false,
-                                   false, aLoaded, aTotal);
+  rv = event->SetTrusted(true);
   if (NS_FAILED(rv)) {
     return;
   }
 
-  DispatchTrustedEvent(event);
+  bool dummy;
+  rv = DispatchEvent(static_cast<nsIDOMProgressEvent*>(event), &dummy);
+  if (NS_FAILED(rv)) {
+    return;
+  }
+}
+
+void
+FileRequest::RootResultVal()
+{
+  NS_ASSERTION(!mRooted, "Don't call me if already rooted!");
+  nsXPCOMCycleCollectionParticipant *participant;
+  CallQueryInterface(this, &participant);
+  nsContentUtils::HoldJSObjects(NS_CYCLE_COLLECTION_UPCAST(this, DOMRequest),
+                                participant);
+  mRooted = true;
 }

@@ -37,6 +37,7 @@ ifndef LIBXUL_SDK
 ifeq (android,$(MOZ_WIDGET_TOOLKIT))
 tier_base_dirs += \
   other-licenses/android \
+  other-licenses/skia-npapi \
   $(NULL)
 endif
 ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
@@ -48,9 +49,7 @@ endif
 ifdef MOZ_MEMORY
 tier_base_dirs += memory/mozjemalloc
 ifdef MOZ_JEMALLOC
-ifndef MOZ_NATIVE_JEMALLOC
 tier_base_dirs += memory/jemalloc
-endif
 endif
 tier_base_dirs += memory/build
 endif
@@ -71,7 +70,7 @@ endif
 include $(topsrcdir)/config/config.mk
 
 GARBAGE_DIRS += dist _javagen _profile _tests staticlib
-DIST_GARBAGE = config.cache config.log config.status* config-defs.h \
+DIST_GARBAGE = config.cache config.log config.status config-defs.h \
    config/autoconf.mk \
    unallmakefiles mozilla-config.h \
    netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
@@ -82,7 +81,7 @@ default alldep all:: $(topsrcdir)/configure config.status
 	$(RM) -r $(DIST)/include
 	$(RM) -r $(DIST)/private
 	$(RM) -r $(DIST)/public
-	$(RM) $(DIST)/bin/chrome.manifest $(DIST)/bin/components/components.manifest
+	$(RM) $(DIST)/chrome.manifest
 	$(RM) -r _tests
 
 $(topsrcdir)/configure: $(topsrcdir)/configure.in
@@ -170,20 +169,21 @@ endif
 	OBJCOPY="$(OBJCOPY)" \
 	$(PYTHON) $(topsrcdir)/toolkit/crashreporter/tools/symbolstore.py \
 	  $(MAKE_SYM_STORE_ARGS)                                          \
+	  --exclude="*test*" --exclude="*Test*"                           \
 	  $(foreach dir,$(SYM_STORE_SOURCE_DIRS),-s $(dir))               \
 	  $(DUMP_SYMS_BIN)                                                \
 	  $(DIST)/crashreporter-symbols                                   \
-	  $(MAKE_SYM_STORE_PATH) | grep -iv test >                        \
+	  $(MAKE_SYM_STORE_PATH) >                                        \
 	  $(DIST)/crashreporter-symbols/$(SYMBOL_INDEX_NAME)
 	echo packing symbols
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
 	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D "../$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip" . -x "*test*" -x "*Test*"
+          zip -r9D "../$(PKG_PATH)$(SYMBOL_FULL_ARCHIVE_BASENAME).zip" .
 	cd $(DIST)/crashreporter-symbols && \
 	grep "sym" $(SYMBOL_INDEX_NAME) > $(SYMBOL_INDEX_NAME).tmp && \
 	  mv $(SYMBOL_INDEX_NAME).tmp $(SYMBOL_INDEX_NAME)
 	cd $(DIST)/crashreporter-symbols && \
-          zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" . -i "*.sym" -i "*.txt"  -x "*test*" -x "*Test*"
+          zip -r9D "../$(PKG_PATH)$(SYMBOL_ARCHIVE_BASENAME).zip" . -i "*.sym" -i "*.txt"
 endif # MOZ_CRASHREPORTER
 
 uploadsymbols:

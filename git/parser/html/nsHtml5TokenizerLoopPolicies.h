@@ -12,10 +12,10 @@
 struct nsHtml5SilentPolicy
 {
   static const bool reportErrors = false;
-  static int32_t transition(nsHtml5Highlighter* aHighlighter,
-                            int32_t aState,
+  static PRInt32 transition(nsHtml5Highlighter* aHighlighter,
+                            PRInt32 aState,
                             bool aReconsume,
-                            int32_t aPos) {
+                            PRInt32 aPos) {
     return aState;
   }
   static void completedNamedCharacterReference(nsHtml5Highlighter* aHighlighter) {
@@ -29,10 +29,10 @@ struct nsHtml5SilentPolicy
 struct nsHtml5ViewSourcePolicy
 {
   static const bool reportErrors = true;
-  static int32_t transition(nsHtml5Highlighter* aHighlighter,
-                            int32_t aState,
+  static PRInt32 transition(nsHtml5Highlighter* aHighlighter,
+                            PRInt32 aState,
                             bool aReconsume,
-                            int32_t aPos) {
+                            PRInt32 aPos) {
     return aHighlighter->Transition(aState, aReconsume, aPos);
   }
   static void completedNamedCharacterReference(nsHtml5Highlighter* aHighlighter) {

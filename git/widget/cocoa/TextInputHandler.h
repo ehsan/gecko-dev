@@ -52,7 +52,7 @@ enum
 class TISInputSourceWrapper
 {
 public:
-  static TISInputSourceWrapper& CurrentInputSource();
+  static TISInputSourceWrapper& CurrentKeyboardLayout();
 
   TISInputSourceWrapper()
   {
@@ -102,27 +102,13 @@ public:
   void InitByCurrentKeyboardLayout();
   void InitByCurrentASCIICapableInputSource();
   void InitByCurrentASCIICapableKeyboardLayout();
-  void InitByCurrentInputMethodKeyboardLayoutOverride();
   void InitByTISInputSourceRef(TISInputSourceRef aInputSource);
   void InitByLanguage(CFStringRef aLanguage);
 
-  /**
-   * If the instance is initialized with a keyboard layout input source,
-   * returns it.
-   * If the instance is initialized with an IME mode input source, the result
-   * references the keyboard layout for the IME mode.  However, this can be
-   * initialized only when the IME mode is actually selected.  I.e, if IME mode
-   * input source is initialized with LayoutID or SourceID, this returns null.
-   */
-  TISInputSourceRef GetKeyboardLayoutInputSource() const
-  {
-    return mKeyboardLayout;
-  }
   const UCKeyboardLayout* GetUCKeyboardLayout();
 
   bool IsOpenedIMEMode();
   bool IsIMEMode();
-  bool IsKeyboardLayout();
 
   bool IsASCIICapable()
   {
@@ -189,7 +175,7 @@ public:
   }
 
   bool IsForRTLLanguage();
-  bool IsInitializedByCurrentInputSource();
+  bool IsInitializedByCurrentKeyboardLayout();
 
   enum {
     // 40 is an actual result of the ::LMGetKbdType() when we connect an
@@ -228,7 +214,7 @@ public:
    * @param aCmdIsPressed         TRUE if Cmd key is pressed.  Otherwise, FALSE.
    * @return                      The computed Gecko keycode.
    */
-  uint32_t ComputeGeckoKeyCode(UInt32 aNativeKeyCode, UInt32 aKbType,
+  PRUint32 ComputeGeckoKeyCode(UInt32 aNativeKeyCode, UInt32 aKbType,
                                bool aCmdIsPressed);
 
 protected:
@@ -261,7 +247,7 @@ protected:
    *                              returns the charCode of it.  Otherwise,
    *                              returns 0.
    */
-  uint32_t TranslateToChar(UInt32 aKeyCode, UInt32 aModifiers, UInt32 aKbType);
+  PRUint32 TranslateToChar(UInt32 aKeyCode, UInt32 aModifiers, UInt32 aKbType);
 
   /**
    * InitKeyPressEvent() initializes aKeyEvent for aNativeKeyEvent.
@@ -287,10 +273,9 @@ protected:
   bool GetStringProperty(const CFStringRef aKey, nsAString &aStr);
 
   TISInputSourceRef mInputSource;
-  TISInputSourceRef mKeyboardLayout;
   CFArrayRef mInputSourceList;
   const UCKeyboardLayout* mUCKeyboardLayout;
-  int8_t mIsRTL;
+  PRInt8 mIsRTL;
 
   bool mOverrideKeyboard;
 };
@@ -306,7 +291,7 @@ class TextInputHandlerBase
 public:
   nsrefcnt AddRef()
   {
-    NS_PRECONDITION(int32_t(mRefCnt) >= 0, "mRefCnt is negative");
+    NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "mRefCnt is negative");
     ++mRefCnt;
     NS_LOG_ADDREF(this, mRefCnt, "TextInputHandlerBase", sizeof(*this));
     return mRefCnt;
@@ -355,9 +340,9 @@ public:
    * nsIWidget::SynthesizeNativeKeyEvent().  See the document in nsIWidget.h
    * for the detail.
    */
-  nsresult SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
-                                    int32_t aNativeKeyCode,
-                                    uint32_t aModifierFlags,
+  nsresult SynthesizeNativeKeyEvent(PRInt32 aNativeKeyboardLayout,
+                                    PRInt32 aNativeKeyCode,
+                                    PRUint32 aModifierFlags,
                                     const nsAString& aCharacters,
                                     const nsAString& aUnmodifiedCharacters);
 
@@ -510,8 +495,8 @@ protected:
    */
   KeyEventState* PushKeyEvent(NSEvent* aNativeKeyEvent)
   {
-    uint32_t nestCount = mCurrentKeyEvents.Length();
-    for (uint32_t i = 0; i < nestCount; i++) {
+    PRUint32 nestCount = mCurrentKeyEvents.Length();
+    for (PRUint32 i = 0; i < nestCount; i++) {
       // When the key event is caused by another key event, all key events
       // which are being handled should be marked as "consumed".
       mCurrentKeyEvents[i]->mCausedOtherKeyEvents = true;
@@ -588,7 +573,7 @@ protected:
 
 private:
   struct KeyboardLayoutOverride {
-    int32_t mKeyboardLayout;
+    PRInt32 mKeyboardLayout;
     bool mOverrideEnabled;
 
     KeyboardLayoutOverride() :
@@ -642,7 +627,7 @@ public:
   static void ConvertCocoaKeyEventToNPCocoaEvent(NSEvent* aCocoaEvent,
                                                  NPCocoaEvent& aPluginEvent);
 
-#ifndef __LP64__
+#ifndef NP_NO_CARBON
 
   /**
    * InstallPluginKeyEventsHandler() is called when initializing process.
@@ -667,7 +652,7 @@ public:
     mPluginTSMInComposition = aInComposition;
   }
 
-#endif // #ifndef __LP64__
+#endif // #ifndef NP_NO_CARBON
 
 protected:
   bool mIgnoreNextKeyUpEvent;
@@ -675,13 +660,35 @@ protected:
   PluginTextInputHandler(nsChildView* aWidget, NSView<mozView> *aNativeView);
   ~PluginTextInputHandler();
 
+#ifndef NP_NO_CARBON
+
+  /**
+   * ConvertCocoaKeyEventToCarbonEvent() converts aCocoaKeyEvent to
+   * aCarbonKeyEvent.
+   *
+   * @param aCocoaKeyEvent        A Cocoa key event.
+   * @param aCarbonKeyEvent       Converted Carbon event from aCocoaEvent.
+   * @param aMakeKeyDownEventIfNSFlagsChanged
+   *                              If aCocoaKeyEvent isn't NSFlagsChanged event,
+   *                              this is ignored.  Otherwise, i.e., if
+   *                              aCocoaKeyEvent is NSFlagsChanged event,
+   *                              set TRUE if you need a keydown event.
+   *                              Otherwise, Set FALSE for a keyup event.
+   */
+  static void ConvertCocoaKeyEventToCarbonEvent(
+                NSEvent* aCocoaKeyEvent,
+                EventRecord& aCarbonKeyEvent,
+                bool aMakeKeyDownEventIfNSFlagsChanged = false);
+
+#endif // #ifndef NP_NO_CARBON
+
 private:
 
-#ifndef __LP64__
+#ifndef NP_NO_CARBON
   TSMDocumentID mPluginTSMDoc;
 
   bool mPluginTSMInComposition;
-#endif // #ifndef __LP64__
+#endif // #ifndef NP_NO_CARBON
 
   bool mPluginComplexTextInputRequested;
 
@@ -704,7 +711,7 @@ private:
    */
   bool IsInPluginComposition();
 
-#ifndef __LP64__
+#ifndef NP_NO_CARBON
 
   /**
    * Create a TSM document for use with plugins, so that we can support IME in
@@ -728,6 +735,17 @@ private:
   void HandleCarbonPluginKeyEvent(EventRef aKeyEvent);
 
   /**
+   * ConvertUnicodeToCharCode() converts aUnichar to native encoded string.
+   *
+   * @param aUniChar              A unicode character.
+   * @param aOutChar              Native encoded string for aUniChar.
+   * @return                      TRUE if the converting succeeded.
+   *                              Otherwise, FALSE.
+   */
+  static bool ConvertUnicodeToCharCode(PRUnichar aUniChar,
+                                         unsigned char* aOutChar);
+
+  /**
    * Target for text services events sent as the result of calls made to
    * TSMProcessRawKeyEvent() in HandleKeyDownEventForPlugin() when a plugin has
    * the focus.  The calls to TSMProcessRawKeyEvent() short-circuit Cocoa-based
@@ -742,7 +760,7 @@ private:
 
   static EventHandlerRef sPluginKeyEventsHandler;
 
-#endif // #ifndef __LP64__
+#endif // #ifndef NP_NO_CARBON
 };
 
 /**
@@ -898,7 +916,7 @@ protected:
     kDiscardIMEComposition   = 2,
     kSyncASCIICapableOnly    = 4
   };
-  uint32_t mPendingMethods;
+  PRUint32 mPendingMethods;
 
   IMEInputHandler(nsChildView* aWidget, NSView<mozView> *aNativeView);
   virtual ~IMEInputHandler();
@@ -964,7 +982,7 @@ private:
    * @param aSelectedRange        Current selected range (or caret position).
    * @return                      NS_TEXTRANGE_*.
    */
-  uint32_t ConvertToTextRangeType(uint32_t aUnderlineStyle,
+  PRUint32 ConvertToTextRangeType(PRUint32 aUnderlineStyle,
                                   NSRange& aSelectedRange);
 
   /**
@@ -976,7 +994,7 @@ private:
    * @return                      The count of NSUnderlineStyleAttributeName
    *                              ranges in aAttrString.
    */
-  uint32_t GetRangeCount(NSAttributedString *aString);
+  PRUint32 GetRangeCount(NSAttributedString *aString);
 
   /**
    * SetTextRangeList() appends text ranges to aTextRangeList.
@@ -1097,46 +1115,6 @@ public:
   }
 
 protected:
-  // Stores the association of device dependent modifier flags with a modifier
-  // keyCode.  Being device dependent, this association may differ from one kind
-  // of hardware to the next.
-  struct ModifierKey
-  {
-    NSUInteger flags;
-    unsigned short keyCode;
-
-    ModifierKey(NSUInteger aFlags, unsigned short aKeyCode) :
-      flags(aFlags), keyCode(aKeyCode)
-    {
-    }
-
-    NSUInteger GetDeviceDependentFlags() const
-    {
-      return (flags & ~NSDeviceIndependentModifierFlagsMask);
-    }
-
-    NSUInteger GetDeviceIndependentFlags() const
-    {
-      return (flags & NSDeviceIndependentModifierFlagsMask);
-    }
-  };
-  typedef nsTArray<ModifierKey> ModifierKeyArray;
-  ModifierKeyArray mModifierKeys;
-
-  /**
-   * GetModifierKeyForNativeKeyCode() returns the stored ModifierKey for
-   * the key.
-   */
-  ModifierKey*
-    GetModifierKeyForNativeKeyCode(unsigned short aKeyCode) const;
-
-  /**
-   * GetModifierKeyForDeviceDependentFlags() returns the stored ModifierKey for
-   * the device dependent flags.
-   */
-  ModifierKey*
-    GetModifierKeyForDeviceDependentFlags(NSUInteger aFlags) const;
-
   /**
    * DispatchKeyEventForFlagsChanged() dispatches keydown event or keyup event
    * for the aNativeEvent.

@@ -11,10 +11,8 @@
 #ifndef GrResourceCache_DEFINED
 #define GrResourceCache_DEFINED
 
-#include "GrConfig.h"
 #include "GrTypes.h"
 #include "GrTHashCache.h"
-#include "SkTDLinkedList.h"
 
 class GrResource;
 
@@ -118,33 +116,17 @@ private:
     friend class GrContext;
 };
 
-
-class GrCacheKey {
-public:
-    GrCacheKey(const GrTextureDesc& desc, const GrResourceKey& key)
-        : fDesc(desc)
-        , fKey(key) {
-    }
-
-    void set(const GrTextureDesc& desc, const GrResourceKey& key) {
-        fDesc = desc;
-        fKey = key;
-    }
-
-    const GrTextureDesc& desc() const { return fDesc; }
-    const GrResourceKey& key() const { return fKey; }
-
-protected:
-    GrTextureDesc fDesc;
-    GrResourceKey fKey;
-};
-
 ///////////////////////////////////////////////////////////////////////////////
 
 class GrResourceEntry {
 public:
     GrResource* resource() const { return fResource; }
     const GrResourceKey& key() const { return fKey; }
+
+#if GR_DEBUG
+    GrResourceEntry* next() const { return fNext; }
+    GrResourceEntry* prev() const { return fPrev; }
+#endif
 
 #if GR_DEBUG
     void validate() const;
@@ -156,14 +138,25 @@ private:
     GrResourceEntry(const GrResourceKey& key, GrResource* resource);
     ~GrResourceEntry();
 
+    bool isLocked() const { return fLockCount != 0; }
+    void lock() { ++fLockCount; }
+    void unlock() {
+        GrAssert(fLockCount > 0);
+        --fLockCount;
+    }
+
     GrResourceKey    fKey;
     GrResource*      fResource;
 
+    // track if we're in use, used when we need to purge
+    // we only purge unlocked entries
+    int fLockCount;
+
     // we're a dlinklist
-    SK_DEFINE_DLINKEDLIST_INTERFACE(GrResourceEntry);
+    GrResourceEntry* fPrev;
+    GrResourceEntry* fNext;
 
     friend class GrResourceCache;
-    friend class GrDLinkedList;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -197,7 +190,7 @@ public:
     /**
      *  Return the current resource cache limits.
      *
-     *  @param maxResource If non-null, returns maximum number of resources
+     *  @param maxResource If non-null, returns maximum number of resources 
      *                     that can be held in the cache.
      *  @param maxBytes    If non-null, returns maximum number of bytes of
      *                         gpu memory that can be held in the cache.
@@ -221,19 +214,27 @@ public:
     size_t getCachedResourceBytes() const { return fEntryBytes; }
 
     /**
-     *  Search for an entry with the same Key. If found, return it.
-     *  If not found, return null.
+     * Controls whether locks should be nestable or not.
      */
-    GrResource* find(const GrResourceKey& key);
+    enum LockType {
+        kNested_LockType,
+        kSingle_LockType,
+    };
 
     /**
-     *  Create a new cache entry, based on the provided key and resource, and
-     *  return it.
-     *
-     *  Ownership of the resource is transferred to the resource cache,
-     *  which will unref() it when it is purged or deleted.
+     *  Search for an entry with the same Key. If found, "lock" it and return it.
+     *  If not found, return null.
      */
-    void create(const GrResourceKey&, GrResource*);
+    GrResourceEntry* findAndLock(const GrResourceKey&, LockType style);
+
+    /**
+     *  Create a new entry, based on the specified key and resource, and return
+     *  its "locked" entry.
+     *
+     *  Ownership of the resource is transferred to the Entry, which will unref()
+     *  it when we are purged or deleted.
+     */
+    GrResourceEntry* createAndLock(const GrResourceKey&, GrResource*);
 
     /**
      * Determines if the cache contains an entry matching a key. If a matching
@@ -242,30 +243,27 @@ public:
     bool hasKey(const GrResourceKey& key) const;
 
     /**
-     * Hide 'entry' so that future searches will not find it. Such
-     * hidden entries will not be purged. The entry still counts against
-     * the cache's budget and should be made non-exclusive when exclusive access
-     * is no longer needed.
+     * Detach removes an entry from the cache. This prevents the entry from
+     * being found by a subsequent findAndLock() until it is reattached. The
+     * entry still counts against the cache's budget and should be reattached
+     * when exclusive access is no longer needed.
      */
-    void makeExclusive(GrResourceEntry* entry);
+    void detach(GrResourceEntry*);
 
     /**
-     * Restore 'entry' so that it can be found by future searches. 'entry'
-     * will also be purgeable (provided its lock count is now 0.)
+     * Reattaches a resource to the cache and unlocks it. Allows it to be found
+     * by a subsequent findAndLock or be purged (provided its lock count is
+     * now 0.)
      */
-    void makeNonExclusive(GrResourceEntry* entry);
+    void reattachAndUnlock(GrResourceEntry*);
 
     /**
-     * Removes every resource in the cache that isn't locked.
+     *  When done with an entry, call unlock(entry) on it, which returns it to
+     *  a purgable state.
      */
-    void purgeAllUnlocked();
+    void unlock(GrResourceEntry*);
 
-    /**
-     * Allow cache to purge unused resources to obey resource limitations
-     * Note: this entry point will be hidden (again) once totally ref-driven
-     * cache maintenance is implemented
-     */
-    void purgeAsNeeded();
+    void removeAll();
 
 #if GR_DEBUG
     void validate() const;
@@ -273,51 +271,31 @@ public:
     void validate() const {}
 #endif
 
-#if GR_CACHE_STATS
-    void printStats();
-#endif
-
 private:
     void internalDetach(GrResourceEntry*, bool);
     void attachToHead(GrResourceEntry*, bool);
-
-    void removeInvalidResource(GrResourceEntry* entry);
+    void purgeAsNeeded();
 
     class Key;
     GrTHashTable<GrResourceEntry, Key, 8> fCache;
 
     // manage the dlink list
-    typedef SkTDLinkedList<GrResourceEntry> EntryList;
-    EntryList    fList;
-
-#if GR_DEBUG
-    // These objects cannot be returned by a search
-    EntryList    fExclusiveList;
-#endif
+    GrResourceEntry* fHead;
+    GrResourceEntry* fTail;
 
     // our budget, used in purgeAsNeeded()
     int fMaxCount;
     size_t fMaxBytes;
 
     // our current stats, related to our budget
-#if GR_CACHE_STATS
-    int fHighWaterEntryCount;
-    size_t fHighWaterEntryBytes;
-    int fHighWaterClientDetachedCount;
-    size_t fHighWaterClientDetachedBytes;
-#endif
-
     int fEntryCount;
+    int fUnlockedEntryCount;
     size_t fEntryBytes;
     int fClientDetachedCount;
     size_t fClientDetachedBytes;
-
+    
     // prevents recursive purging
     bool fPurging;
-
-#if GR_DEBUG
-    static size_t countBytes(const SkTDLinkedList<GrResourceEntry>& list);
-#endif
 };
 
 ///////////////////////////////////////////////////////////////////////////////

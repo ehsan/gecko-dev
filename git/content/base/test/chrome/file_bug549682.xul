@@ -13,12 +13,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=549682
   <script type="application/javascript"><![CDATA[
   var didRunAsync = false;
   var didRunLocal = false;
-  var global = Components.classes["@mozilla.org/globalmessagemanager;1"]
-                         .getService(Components.interfaces.nsIMessageBroadcaster);
-  var ppm = Components.classes["@mozilla.org/parentprocessmessagemanager;1"]
-                      .getService(Components.interfaces.nsIMessageBroadcaster);
-  var cpm = Components.classes["@mozilla.org/childprocessmessagemanager;1"]
-                      .getService(Components.interfaces.nsISyncMessageSender);
+  var global = Components.classes["@mozilla.org/globalmessagemanager;1"].getService(Components.interfaces.nsIChromeFrameMessageManager);
+  var ppm = Components.classes["@mozilla.org/parentprocessmessagemanager;1"].getService(Components.interfaces.nsIFrameMessageManager);
+  var cpm = Components.classes["@mozilla.org/childprocessmessagemanager;1"].getService(Components.interfaces.nsISyncMessageSender);
 
   var asyncPPML = false;
   function ppmASL(m) {
@@ -39,7 +36,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=549682
     asyncCPML = true;
   }
   cpm.addMessageListener("childprocessmessage", cpmASL);
-  ppm.broadcastAsyncMessage("childprocessmessage", "");
+  ppm.sendAsyncMessage("childprocessmessage", "");
   
   function checkPMMMessages() {
     opener.wrappedJSObject.ok(asyncPPML, "should have handled async message");

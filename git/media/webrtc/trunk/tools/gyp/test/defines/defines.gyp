@@ -14,7 +14,6 @@
         'FOO',
         'VALUE=1',
         'PAREN_VALUE=(1+2+3)',
-        'HASH_VALUE="a#1"',
       ],
     },
   ],

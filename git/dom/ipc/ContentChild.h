@@ -22,14 +22,9 @@ struct OverrideMapping;
 
 namespace mozilla {
 
-namespace ipc {
-class OptionalURIParams;
-class URIParams;
-}// namespace ipc
-
 namespace layers {
 class PCompositorChild;
-} // namespace layers
+}
 
 namespace dom {
 
@@ -41,9 +36,8 @@ class ClonedMessageData;
 
 class ContentChild : public PContentChild
 {
+    typedef layers::PCompositorChild PCompositorChild;
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
-    typedef mozilla::ipc::OptionalURIParams OptionalURIParams;
-    typedef mozilla::ipc::URIParams URIParams;
 
 public:
     ContentChild();
@@ -61,6 +55,7 @@ public:
     void InitXPCOM();
 
     static ContentChild* GetSingleton() {
+        NS_ASSERTION(sSingleton, "not initialized");
         return sSingleton;
     }
 
@@ -68,17 +63,10 @@ public:
         return mAppInfo;
     }
 
-    void SetProcessName(const nsAString& aName);
-    const void GetProcessName(nsAString& aName);
+    PCompositorChild* AllocPCompositor(mozilla::ipc::Transport* aTransport,
+                                       base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
-    PCompositorChild*
-    AllocPCompositor(mozilla::ipc::Transport* aTransport,
-                     base::ProcessId aOtherProcess) MOZ_OVERRIDE;
-    PImageBridgeChild*
-    AllocPImageBridge(mozilla::ipc::Transport* aTransport,
-                      base::ProcessId aOtherProcess) MOZ_OVERRIDE;
-
-    virtual PBrowserChild* AllocPBrowser(const uint32_t& aChromeFlags,
+    virtual PBrowserChild* AllocPBrowser(const PRUint32& aChromeFlags,
                                          const bool& aIsBrowserElement,
                                          const AppId& aAppId);
     virtual bool DeallocPBrowser(PBrowserChild*);
@@ -91,7 +79,7 @@ public:
 
     virtual PCrashReporterChild*
     AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
-                        const uint32_t& processType);
+                        const PRUint32& processType);
     virtual bool
     DeallocPCrashReporter(PCrashReporterChild*);
 
@@ -110,33 +98,25 @@ public:
     virtual bool
     RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child);
 
-    virtual bool
-    RecvDumpMemoryReportsToFile(const nsString& aIdentifier,
-                                const bool& aMinimizeMemoryUsage,
-                                const bool& aDumpChildProcesses);
-    virtual bool
-    RecvDumpGCAndCCLogsToFile(const nsString& aIdentifier,
-                              const bool& aDumpChildProcesses);
-
     virtual PTestShellChild* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellChild*);
     virtual bool RecvPTestShellConstructor(PTestShellChild*);
 
-    virtual PAudioChild* AllocPAudio(const int32_t&,
-                                     const int32_t&,
-                                     const int32_t&);
+    virtual PAudioChild* AllocPAudio(const PRInt32&,
+                                     const PRInt32&,
+                                     const PRInt32&);
     virtual bool DeallocPAudio(PAudioChild*);
 
     virtual PNeckoChild* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoChild*);
 
     virtual PExternalHelperAppChild *AllocPExternalHelperApp(
-            const OptionalURIParams& uri,
+            const IPC::URI& uri,
             const nsCString& aMimeContentType,
             const nsCString& aContentDisposition,
             const bool& aForceSave,
-            const int64_t& aContentLength,
-            const OptionalURIParams& aReferrer);
+            const PRInt64& aContentLength,
+            const IPC::URI& aReferrer);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppChild *aService);
 
     virtual PSmsChild* AllocPSms();
@@ -145,9 +125,6 @@ public:
     virtual PStorageChild* AllocPStorage(const StorageConstructData& aData);
     virtual bool DeallocPStorage(PStorageChild* aActor);
 
-    virtual PBluetoothChild* AllocPBluetooth();
-    virtual bool DeallocPBluetooth(PBluetoothChild* aActor);
-
     virtual bool RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
                                     const InfallibleTArray<ResourceMapping>& resources,
                                     const InfallibleTArray<OverrideMapping>& overrides,
@@ -155,11 +132,12 @@ public:
 
     virtual bool RecvSetOffline(const bool& offline);
 
-    virtual bool RecvNotifyVisited(const URIParams& aURI);
+    virtual bool RecvNotifyVisited(const IPC::URI& aURI);
     // auto remove when alertfinished is received.
     nsresult AddRemoteAlertObserver(const nsString& aData, nsIObserver* aObserver);
 
-    virtual bool RecvPreferenceUpdate(const PrefSetting& aPref);
+    virtual bool RecvPreferenceUpdate(const PrefTuple& aPref);
+    virtual bool RecvClearUserPreference(const nsCString& aPrefName);
 
     virtual bool RecvNotifyAlertsObserver(const nsCString& aType, const nsString& aData);
 
@@ -180,11 +158,12 @@ public:
     virtual bool RecvCycleCollect();
 
     virtual bool RecvAppInfo(const nsCString& version, const nsCString& buildID);
+    virtual bool RecvSetID(const PRUint64 &id);
 
     virtual bool RecvLastPrivateDocShellDestroyed();
 
-    virtual bool RecvFilePathUpdate(const nsString& type, const nsString& path, const nsCString& reason);
-    virtual bool RecvFileSystemUpdate(const nsString& aFsName, const nsString& aName, const int32_t& aState);
+    virtual bool RecvFilePathUpdate(const nsString& path, const nsCString& reason);
+    virtual bool RecvFileSystemUpdate(const nsString& aFsName, const nsString& aName, const PRInt32& aState);
 
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
@@ -194,10 +173,7 @@ public:
     // cache the value
     nsString &GetIndexedDBPath();
 
-    uint64_t GetID() { return mID; }
-
-    bool IsForApp() { return mIsForApp; }
-    bool IsForBrowser() { return mIsForBrowser; }
+    PRUint64 GetID() { return mID; }
 
     BlobChild* GetOrCreateActorForBlob(nsIDOMBlob* aBlob);
 
@@ -222,17 +198,13 @@ private:
      * We expect our content parent to set this ID immediately after opening a
      * channel to us.
      */
-    uint64_t mID;
+    PRUint64 mID;
 
     AppInfo mAppInfo;
 
 #ifdef ANDROID
     gfxIntSize mScreenSize;
 #endif
-
-    bool mIsForApp;
-    bool mIsForBrowser;
-    nsString mProcessName;
 
     static ContentChild* sSingleton;
 

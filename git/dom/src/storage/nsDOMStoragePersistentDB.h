@@ -63,7 +63,10 @@ public:
   SetKey(DOMStorageImpl* aStorage,
          const nsAString& aKey,
          const nsAString& aValue,
-         bool aSecure);
+         bool aSecure,
+         PRInt32 aQuota,
+         bool aExcludeOfflineFromUsage,
+         PRInt32* aNewUsage);
 
   /**
    * Set the secure flag for a key in storage. Does nothing if the key was
@@ -79,7 +82,9 @@ public:
    */
   nsresult
   RemoveKey(DOMStorageImpl* aStorage,
-            const nsAString& aKey);
+            const nsAString& aKey,
+            bool aExcludeOfflineFromUsage,
+            PRInt32 aKeyUsage);
 
   /**
     * Remove all keys belonging to this storage.
@@ -90,7 +95,15 @@ public:
    * Removes all keys added by a given domain.
    */
   nsresult
-  RemoveOwner(const nsACString& aOwner);
+  RemoveOwner(const nsACString& aOwner, bool aIncludeSubDomains);
+
+  /**
+   * Removes keys owned by domains that either match or don't match the
+   * list.
+   */
+  nsresult
+  RemoveOwners(const nsTArray<nsString>& aOwners,
+               bool aIncludeSubDomains, bool aMatch);
 
   /**
    * Removes all keys from storage. Used when clearing storage.
@@ -99,25 +112,16 @@ public:
   RemoveAll();
 
   /**
-   * Removes all keys from storage for a specific app.
-   * If aOnlyBrowserElement is true, it will remove only keys with the
-   * browserElement flag set.
-   * aAppId has to be a valid app id. It can't be NO_APP_ID or UNKNOWN_APP_ID.
-   */
-  nsresult
-  RemoveAllForApp(uint32_t aAppId, bool aOnlyBrowserElement);
-
-  /**
-    * Returns usage for a storage using its GetQuotaDBKey() as a key.
+    * Returns usage for a storage using its GetQuotaDomainDBKey() as a key.
     */
   nsresult
-  GetUsage(DOMStorageImpl* aStorage, int32_t *aUsage);
+  GetUsage(DOMStorageImpl* aStorage, bool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 
   /**
     * Returns usage of the domain and optionaly by any subdomain.
     */
   nsresult
-  GetUsage(const nsACString& aDomain, int32_t *aUsage);
+  GetUsage(const nsACString& aDomain, bool aIncludeSubDomains, PRInt32 *aUsage);
 
   /**
    * Clears all in-memory data from private browsing mode
@@ -160,7 +164,7 @@ protected:
   StatementCache mStatements;
 
   nsCString mCachedOwner;
-  int32_t mCachedUsage;
+  PRInt32 mCachedUsage;
 
   // Maps ScopeDBKey to time of the temporary table load for that scope.
   // If a record is present, the temp table has been loaded. If it is not
@@ -170,7 +174,7 @@ protected:
   friend class nsDOMStorageDBWrapper;
   friend class nsDOMStorageMemoryDB;
   nsresult
-  GetUsageInternal(const nsACString& aQuotaDBKey, int32_t *aUsage);
+  GetUsageInternal(const nsACString& aQuotaDomainDBKey, bool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 
   // Compares aDomain with the mCachedOwner and returns false if changes
   // in aDomain don't affect mCachedUsage.

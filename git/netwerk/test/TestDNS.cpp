@@ -24,7 +24,7 @@ class myDNSListener : public nsIDNSListener
 public:
     NS_DECL_ISUPPORTS
 
-    myDNSListener(const char *host, int32_t index)
+    myDNSListener(const char *host, PRInt32 index)
         : mHost(host)
         , mIndex(index) {}
     virtual ~myDNSListener() {}
@@ -34,10 +34,10 @@ public:
                                 nsresult       status)
     {
         printf("%d: OnLookupComplete called [host=%s status=%x rec=%p]\n",
-            mIndex, mHost.get(), static_cast<uint32_t>(status), (void*)rec);
+            mIndex, mHost.get(), status, (void*)rec);
 
         if (NS_SUCCEEDED(status)) {
-            nsAutoCString buf;
+            nsCAutoString buf;
 
             rec->GetCanonicalName(buf);
             printf("%d: canonname=%s\n", mIndex, buf.get());
@@ -54,7 +54,7 @@ public:
 
 private:
     nsCString mHost;
-    int32_t   mIndex;
+    PRInt32   mIndex;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(myDNSListener, nsIDNSListener)
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
         for (int j=0; j<2; ++j) {
             for (int i=1; i<argc; ++i) {
                 // assume non-ASCII input is given in the native charset 
-                nsAutoCString hostBuf;
+                nsCAutoString hostBuf;
                 if (IsAscii(argv[i]))
                     hostBuf.Assign(argv[i]);
                 else
@@ -111,8 +111,7 @@ int main(int argc, char **argv)
                                                 nsIDNSService::RESOLVE_CANONICAL_NAME,
                                                 listener, nullptr, getter_AddRefs(req));
                 if (NS_FAILED(rv))
-                    printf("### AsyncResolve failed [rv=%x]\n",
-                           static_cast<uint32_t>(rv));
+                    printf("### AsyncResolve failed [rv=%x]\n", rv);
             }
 
             printf("main thread sleeping for %d seconds...\n", sleepLen);

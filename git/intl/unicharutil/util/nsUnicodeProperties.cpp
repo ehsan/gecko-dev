@@ -17,7 +17,7 @@
 
 
 const nsCharProps1&
-GetCharProps1(uint32_t aCh)
+GetCharProps1(PRUint32 aCh)
 {
     if (aCh < UNICODE_BMP_LIMIT) {
         return sCharProp1Values[sCharProp1Pages[0][aCh >> kCharProp1CharBits]]
@@ -39,7 +39,7 @@ GetCharProps1(uint32_t aCh)
 }
 
 const nsCharProps2&
-GetCharProps2(uint32_t aCh)
+GetCharProps2(PRUint32 aCh)
 {
     if (aCh < UNICODE_BMP_LIMIT) {
         return sCharProp2Values[sCharProp2Pages[0][aCh >> kCharProp2CharBits]]
@@ -127,24 +127,24 @@ nsIUGenCategory::nsUGenCategory sDetailedToGeneralCategory[] = {
   /* SPACE_SEPARATOR */     nsIUGenCategory::kSeparator
 };
 
-uint32_t
-GetMirroredChar(uint32_t aCh)
+PRUint32
+GetMirroredChar(PRUint32 aCh)
 {
     return aCh + sMirrorOffsets[GetCharProps1(aCh).mMirrorOffsetIndex];
 }
 
-uint32_t
-GetScriptTagForCode(int32_t aScriptCode)
+PRUint32
+GetScriptTagForCode(PRInt32 aScriptCode)
 {
     // this will safely return 0 for negative script codes, too :)
-    if (uint32_t(aScriptCode) > ArrayLength(sScriptCodeToTag)) {
+    if (PRUint32(aScriptCode) > ArrayLength(sScriptCodeToTag)) {
         return 0;
     }
     return sScriptCodeToTag[aScriptCode];
 }
 
-static inline uint32_t
-GetCaseMapValue(uint32_t aCh)
+static inline PRUint32
+GetCaseMapValue(PRUint32 aCh)
 {
     if (aCh < UNICODE_BMP_LIMIT) {
         return sCaseMapValues[sCaseMapPages[0][aCh >> kCaseMapCharBits]]
@@ -158,10 +158,10 @@ GetCaseMapValue(uint32_t aCh)
     return 0;
 }
 
-uint32_t
-GetUppercase(uint32_t aCh)
+PRUint32
+GetUppercase(PRUint32 aCh)
 {
-    uint32_t mapValue = GetCaseMapValue(aCh);
+    PRUint32 mapValue = GetCaseMapValue(aCh);
     if (mapValue & (kLowerToUpper | kTitleToUpper)) {
         return aCh ^ (mapValue & kCaseMapCharMask);
     }
@@ -171,10 +171,10 @@ GetUppercase(uint32_t aCh)
     return aCh;
 }
 
-uint32_t
-GetLowercase(uint32_t aCh)
+PRUint32
+GetLowercase(PRUint32 aCh)
 {
-    uint32_t mapValue = GetCaseMapValue(aCh);
+    PRUint32 mapValue = GetCaseMapValue(aCh);
     if (mapValue & kUpperToLower) {
         return aCh ^ (mapValue & kCaseMapCharMask);
     }
@@ -184,20 +184,20 @@ GetLowercase(uint32_t aCh)
     return aCh;
 }
 
-uint32_t
-GetTitlecaseForLower(uint32_t aCh)
+PRUint32
+GetTitlecaseForLower(PRUint32 aCh)
 {
-    uint32_t mapValue = GetCaseMapValue(aCh);
+    PRUint32 mapValue = GetCaseMapValue(aCh);
     if (mapValue & (kLowerToTitle | kLowerToUpper)) {
         return aCh ^ (mapValue & kCaseMapCharMask);
     }
     return aCh;
 }
 
-uint32_t
-GetTitlecaseForAll(uint32_t aCh)
+PRUint32
+GetTitlecaseForAll(PRUint32 aCh)
 {
-    uint32_t mapValue = GetCaseMapValue(aCh);
+    PRUint32 mapValue = GetCaseMapValue(aCh);
     if (mapValue & (kLowerToTitle | kLowerToUpper)) {
         return aCh ^ (mapValue & kCaseMapCharMask);
     }
@@ -208,12 +208,12 @@ GetTitlecaseForAll(uint32_t aCh)
 }
 
 HanVariantType
-GetHanVariant(uint32_t aCh)
+GetHanVariant(PRUint32 aCh)
 {
     // In the sHanVariantValues array, data for 4 successive characters
-    // (2 bits each) is packed in to each uint8_t entry, with the value
+    // (2 bits each) is packed in to each PRUint8 entry, with the value
     // for the lowest character stored in the least significant bits.
-    uint8_t v = 0;
+    PRUint8 v = 0;
     if (aCh < UNICODE_BMP_LIMIT) {
         v = sHanVariantValues[sHanVariantPages[0][aCh >> kHanVariantCharBits]]
                              [(aCh & ((1 << kHanVariantCharBits) - 1)) >> 2];
@@ -227,7 +227,7 @@ GetHanVariant(uint32_t aCh)
 }
 
 bool
-IsClusterExtender(uint32_t aCh, uint8_t aCategory)
+IsClusterExtender(PRUint32 aCh, PRUint8 aCategory)
 {
     return ((aCategory >= HB_UNICODE_GENERAL_CATEGORY_SPACING_MARK &&
              aCategory <= HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK) ||
@@ -243,8 +243,8 @@ IsClusterExtender(uint32_t aCh, uint8_t aCategory)
 // gfx.font_rendering.harfbuzz.scripts
 // preference to decide whether to use the harfbuzz shaper.
 //
-int32_t
-ScriptShapingType(int32_t aScriptCode)
+PRInt32
+ScriptShapingType(PRInt32 aScriptCode)
 {
     switch (aScriptCode) {
     default:
@@ -301,7 +301,7 @@ ClusterIterator::Next()
         return;
     }
 
-    uint32_t ch = *mPos++;
+    PRUint32 ch = *mPos++;
 
     if (NS_IS_HIGH_SURROGATE(ch) && mPos < mLimit &&
         NS_IS_LOW_SURROGATE(*mPos)) {

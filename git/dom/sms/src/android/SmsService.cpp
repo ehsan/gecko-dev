@@ -22,7 +22,7 @@ SmsService::HasSupport(bool* aHasSupport)
 }
 
 NS_IMETHODIMP
-SmsService::GetNumberOfMessagesForText(const nsAString& aText, uint16_t* aResult)
+SmsService::GetNumberOfMessagesForText(const nsAString& aText, PRUint16* aResult)
 {
   if (!AndroidBridge::Bridge()) {
     *aResult = 0;
@@ -35,7 +35,7 @@ SmsService::GetNumberOfMessagesForText(const nsAString& aText, uint16_t* aResult
 
 NS_IMETHODIMP
 SmsService::Send(const nsAString& aNumber, const nsAString& aMessage,
-                 int32_t aRequestId, uint64_t aProcessId)
+                 PRInt32 aRequestId, PRUint64 aProcessId)
 {
   if (!AndroidBridge::Bridge()) {
     return NS_OK;
@@ -47,7 +47,7 @@ SmsService::Send(const nsAString& aNumber, const nsAString& aMessage,
 }
 
 NS_IMETHODIMP
-SmsService::CreateSmsMessage(int32_t aId,
+SmsService::CreateSmsMessage(PRInt32 aId,
                              const nsAString& aDelivery,
                              const nsAString& aSender,
                              const nsAString& aReceiver,

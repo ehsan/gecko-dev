@@ -197,7 +197,7 @@ inDOMUtils::GetCSSStyleRules(nsIDOMElement *aElement,
 }
 
 NS_IMETHODIMP
-inDOMUtils::GetRuleLine(nsIDOMCSSStyleRule *aRule, uint32_t *_retval)
+inDOMUtils::GetRuleLine(nsIDOMCSSStyleRule *aRule, PRUint32 *_retval)
 {
   *_retval = 0;
 

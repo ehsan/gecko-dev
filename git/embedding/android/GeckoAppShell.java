@@ -539,7 +539,7 @@ public class GeckoAppShell
         }
     }
 
-    public static void notifyIMEEnabled(int state, String typeHint, String modeHint,
+    public static void notifyIMEEnabled(int state, String typeHint,
                                         String actionHint, boolean landscapeFS)
     {
         if (GeckoApp.surfaceView == null)
@@ -549,7 +549,6 @@ public class GeckoAppShell
            In addition, the IME UI is hidden */
         GeckoApp.surfaceView.mIMEState = state;
         GeckoApp.surfaceView.mIMETypeHint = typeHint;
-        GeckoApp.surfaceView.mIMEModeHint = modeHint;
         GeckoApp.surfaceView.mIMEActionHint = actionHint;
         GeckoApp.surfaceView.mIMELandscapeFS = landscapeFS;
         IMEStateUpdater.enableIME();
@@ -1528,6 +1527,20 @@ public class GeckoAppShell
         return SurfaceInfo.class;
     }
 
+    static native void executeNextRunnable();
+
+    static class GeckoRunnableCallback implements Runnable {
+        public void run() {
+            Log.i("GeckoShell", "run GeckoRunnableCallback");
+            GeckoAppShell.executeNextRunnable();
+        }
+    }
+
+    public static void postToJavaThread(boolean mainThread) {
+        Log.i("GeckoShell", "post to " + (mainThread ? "main " : "") + "java thread");
+        getMainHandler().post(new GeckoRunnableCallback());
+    }
+
     public static android.hardware.Camera sCamera = null;
     
     static native void cameraCallbackBridge(byte[] data);
@@ -1645,6 +1658,25 @@ public class GeckoAppShell
             sCamera.release();
             sCamera = null;
             sCameraBuffer = null;
+        }
+    }
+
+
+    static SynchronousQueue<Date> sTracerQueue = new SynchronousQueue<Date>();
+    public static void fireAndWaitForTracerEvent() {
+        getMainHandler().post(new Runnable() { 
+                public void run() {
+                    try {
+                        sTracerQueue.put(new Date());
+                    } catch(InterruptedException ie) {
+                        Log.w("GeckoAppShell", "exception firing tracer", ie);
+                    }
+                }
+        });
+        try {
+            sTracerQueue.take();
+        } catch(InterruptedException ie) {
+            Log.w("GeckoAppShell", "exception firing tracer", ie);
         }
     }
 

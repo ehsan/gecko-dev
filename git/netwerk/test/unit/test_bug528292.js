@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 const sentCookieVal     = "foo=bar";
 const responseBody      = "response body";
@@ -32,7 +27,7 @@ function postRedirectHandler(metadata, response)
 function run_test()
 {
   // Start the HTTP server.
-  httpServer = new HttpServer();
+  httpServer = new nsHttpServer();
   httpServer.registerPathHandler(preRedirectPath, preRedirectHandler);
   httpServer.registerPathHandler(postRedirectPath, postRedirectHandler);
   httpServer.start(4444);

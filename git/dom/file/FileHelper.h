@@ -55,7 +55,7 @@ public:
   AsyncRun(FileHelperListener* aListener);
 
   void
-  OnStreamProgress(uint64_t aProgress, uint64_t aProgressMax);
+  OnStreamProgress(PRUint64 aProgress, PRUint64 aProgressMax);
 
   void
   OnStreamClose()

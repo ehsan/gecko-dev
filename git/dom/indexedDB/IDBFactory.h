@@ -81,17 +81,17 @@ public:
   static nsresult
   LoadDatabaseInformation(mozIStorageConnection* aConnection,
                           nsIAtom* aDatabaseId,
-                          uint64_t* aVersion,
+                          PRUint64* aVersion,
                           ObjectStoreInfoArray& aObjectStores);
 
   static nsresult
   SetDatabaseMetadata(DatabaseInfo* aDatabaseInfo,
-                      uint64_t aVersion,
+                      PRUint64 aVersion,
                       ObjectStoreInfoArray& aObjectStores);
 
   nsresult
   OpenCommon(const nsAString& aName,
-             int64_t aVersion,
+             PRInt64 aVersion,
              bool aDeleting,
              JSContext* aCallingCx,
              IDBOpenDBRequest** _retval);

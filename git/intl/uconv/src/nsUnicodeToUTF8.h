@@ -39,18 +39,18 @@ public:
   nsUnicodeToUTF8() {mHighSurrogate = 0;}
 
   NS_IMETHOD Convert(const PRUnichar * aSrc, 
-                     int32_t * aSrcLength, 
+                     PRInt32 * aSrcLength, 
                      char * aDest, 
-                     int32_t * aDestLength);
+                     PRInt32 * aDestLength);
 
-  NS_IMETHOD Finish(char * aDest, int32_t * aDestLength);
+  NS_IMETHOD Finish(char * aDest, PRInt32 * aDestLength);
 
-  NS_IMETHOD GetMaxLength(const PRUnichar * aSrc, int32_t aSrcLength, 
-      int32_t * aDestLength);
+  NS_IMETHOD GetMaxLength(const PRUnichar * aSrc, PRInt32 aSrcLength, 
+      PRInt32 * aDestLength);
 
   NS_IMETHOD Reset() {mHighSurrogate = 0; return NS_OK;}
 
-  NS_IMETHOD SetOutputErrorBehavior(int32_t aBehavior, 
+  NS_IMETHOD SetOutputErrorBehavior(PRInt32 aBehavior, 
     nsIUnicharEncoder * aEncoder, PRUnichar aChar) {return NS_OK;}
 
 protected:

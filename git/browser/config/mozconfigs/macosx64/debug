@@ -1,4 +1,4 @@
-. $topsrcdir/build/macosx/mozconfig.common
+. $topsrcdir/build/macosx/common
 
 ac_add_options --enable-debug
 ac_add_options --enable-trace-malloc
@@ -19,5 +19,3 @@ ac_add_options --enable-warnings-as-errors
 
 # Package js shell.
 export MOZ_PACKAGE_JSSHELL=1
-
-. "$topsrcdir/build/mozconfig.common.override"

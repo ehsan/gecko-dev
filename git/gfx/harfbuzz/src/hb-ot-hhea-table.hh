@@ -30,8 +30,6 @@
 #include "hb-open-type-private.hh"
 
 
-namespace OT {
-
 
 /*
  * hhea -- The Horizontal Header Table
@@ -89,9 +87,6 @@ struct hhea
   public:
   DEFINE_SIZE_STATIC (36);
 };
-
-
-} // namespace OT
 
 
 #endif /* HB_OT_HHEA_TABLE_HH */

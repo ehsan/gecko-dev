@@ -107,7 +107,7 @@ public:
 
     static nsresult
     FindChildByTag(nsIContent *aElement,
-                   int32_t aNameSpaceID,
+                   PRInt32 aNameSpaceID,
                    nsIAtom* aTag,
                    nsIContent **aResult);
 
@@ -142,10 +142,10 @@ public:
     MakeElementID(nsIDocument* aDocument, const nsACString& aURI, nsAString& aElementID);
 
     static nsresult
-    GetResource(int32_t aNameSpaceID, nsIAtom* aAttribute, nsIRDFResource** aResult);
+    GetResource(PRInt32 aNameSpaceID, nsIAtom* aAttribute, nsIRDFResource** aResult);
 
     static nsresult
-    GetResource(int32_t aNameSpaceID, const nsAString& aAttribute, nsIRDFResource** aResult);
+    GetResource(PRInt32 aNameSpaceID, const nsAString& aAttribute, nsIRDFResource** aResult);
 
     static nsresult
     SetCommandUpdater(nsIDocument* aDocument, nsIContent* aElement);

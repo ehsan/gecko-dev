@@ -10,6 +10,7 @@
 #include "nsMenuItemIconX.h"
 
 #include "nsObjCExceptions.h"
+#include "prmem.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
@@ -28,21 +29,20 @@
 #include "gfxImageSurface.h"
 #include "imgIContainer.h"
 #include "nsCocoaUtils.h"
-#include "nsContentUtils.h"
 
-static const uint32_t kIconWidth = 16;
-static const uint32_t kIconHeight = 16;
-static const uint32_t kIconBitsPerComponent = 8;
-static const uint32_t kIconComponents = 4;
-static const uint32_t kIconBitsPerPixel = kIconBitsPerComponent *
+static const PRUint32 kIconWidth = 16;
+static const PRUint32 kIconHeight = 16;
+static const PRUint32 kIconBitsPerComponent = 8;
+static const PRUint32 kIconComponents = 4;
+static const PRUint32 kIconBitsPerPixel = kIconBitsPerComponent *
                                           kIconComponents;
-static const uint32_t kIconBytesPerRow = kIconWidth * kIconBitsPerPixel / 8;
-static const uint32_t kIconBytes = kIconBytesPerRow * kIconHeight;
+static const PRUint32 kIconBytesPerRow = kIconWidth * kIconBitsPerPixel / 8;
+static const PRUint32 kIconBytes = kIconBytesPerRow * kIconHeight;
 
 typedef NS_STDCALL_FUNCPROTO(nsresult, GetRectSideMethod, nsIDOMRect,
                              GetBottom, (nsIDOMCSSPrimitiveValue**));
 
-NS_IMPL_ISUPPORTS1(nsMenuItemIconX, imgINotificationObserver)
+NS_IMPL_ISUPPORTS2(nsMenuItemIconX, imgIContainerObserver, imgIDecoderObserver)
 
 nsMenuItemIconX::nsMenuItemIconX(nsMenuObjectX* aMenuItem,
                                  nsIContent*    aContent,
@@ -108,7 +108,7 @@ nsMenuItemIconX::SetupIcon()
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-static int32_t
+static PRInt32
 GetDOMRectSide(nsIDOMRect* aRect, GetRectSideMethod aMethod)
 {
   nsCOMPtr<nsIDOMCSSPrimitiveValue> dimensionValue;
@@ -116,7 +116,7 @@ GetDOMRectSide(nsIDOMRect* aRect, GetRectSideMethod aMethod)
   if (!dimensionValue)
     return -1;
 
-  uint16_t primitiveType;
+  PRUint16 primitiveType;
   nsresult rv = dimensionValue->GetPrimitiveType(&primitiveType);
   if (NS_FAILED(rv) || primitiveType != nsIDOMCSSPrimitiveValue::CSS_PX)
     return -1;
@@ -161,7 +161,7 @@ nsMenuItemIconX::GetIconURI(nsIURI** aIconURI)
   nsCOMPtr<nsIDOMCSSValue> cssValue;
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssStyleDecl;
   nsCOMPtr<nsIDOMCSSPrimitiveValue> primitiveValue;
-  uint16_t primitiveType;
+  PRUint16 primitiveType;
   if (!hasImageAttr) {
     // If the content node has no "image" attribute, get the
     // "list-style-image" property from CSS.
@@ -243,10 +243,10 @@ nsMenuItemIconX::GetIconURI(nsIURI** aIconURI)
     if (imageRegionRect) {
       // Return NS_ERROR_FAILURE if the image region is invalid so the image
       // is not drawn, and behavior is similar to XUL menus.
-      int32_t bottom = GetDOMRectSide(imageRegionRect, &nsIDOMRect::GetBottom);
-      int32_t right = GetDOMRectSide(imageRegionRect, &nsIDOMRect::GetRight);
-      int32_t top = GetDOMRectSide(imageRegionRect, &nsIDOMRect::GetTop);
-      int32_t left = GetDOMRectSide(imageRegionRect, &nsIDOMRect::GetLeft);
+      PRInt32 bottom = GetDOMRectSide(imageRegionRect, &nsIDOMRect::GetBottom);
+      PRInt32 right = GetDOMRectSide(imageRegionRect, &nsIDOMRect::GetRight);
+      PRInt32 top = GetDOMRectSide(imageRegionRect, &nsIDOMRect::GetTop);
+      PRInt32 left = GetDOMRectSide(imageRegionRect, &nsIDOMRect::GetLeft);
 
       if (top < 0 || left < 0 || bottom <= top || right <= left)
         return NS_ERROR_FAILURE;
@@ -278,8 +278,10 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
   nsCOMPtr<nsILoadGroup> loadGroup = document->GetDocumentLoadGroup();
   if (!loadGroup) return NS_ERROR_FAILURE;
 
-  nsCOMPtr<imgILoader> loader = nsContentUtils::GetImgLoaderForDocument(document);
-  if (!loader) return NS_ERROR_FAILURE;
+  nsresult rv = NS_ERROR_FAILURE;
+  nsCOMPtr<imgILoader> loader = do_GetService("@mozilla.org/image/loader;1",
+                                              &rv);
+  if (NS_FAILED(rv)) return rv;
 
   if (!mSetIcon) {
     // Set a completely transparent 16x16 image as the icon on this menu item
@@ -304,13 +306,13 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
 
   // Passing in null for channelPolicy here since nsMenuItemIconX::LoadIcon is
   // not exposed to web content
-  nsresult rv = loader->LoadImage(aIconURI, nullptr, nullptr, nullptr, loadGroup, this,
-                                   nullptr, nsIRequest::LOAD_NORMAL, nullptr, nullptr,
-                                   nullptr, getter_AddRefs(mIconRequest));
+  rv = loader->LoadImage(aIconURI, nullptr, nullptr, nullptr, loadGroup, this,
+                         nullptr, nsIRequest::LOAD_NORMAL, nullptr, nullptr,
+                         nullptr, getter_AddRefs(mIconRequest));
   if (NS_FAILED(rv)) return rv;
 
   // We need to request the icon be decoded (bug 573583, bug 705516).
-  mIconRequest->StartDecoding();
+  mIconRequest->RequestDecode();
 
   return NS_OK;
 
@@ -318,28 +320,57 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
 }
 
 //
-// imgINotificationObserver
+// imgIContainerObserver
 //
 
 NS_IMETHODIMP
-nsMenuItemIconX::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
+nsMenuItemIconX::FrameChanged(imgIRequest* aRequest,
+                              imgIContainer*   aContainer,
+                              const nsIntRect* aDirtyRect)
 {
-  if (aType == imgINotificationObserver::FRAME_COMPLETE) {
-    return OnStopFrame(aRequest);
-  }
-
-  if (aType == imgINotificationObserver::LOAD_COMPLETE) {
-    if (mIconRequest && mIconRequest == aRequest) {
-      mIconRequest->Cancel(NS_BINDING_ABORTED);
-      mIconRequest = nullptr;
-    }
-  }
-
   return NS_OK;
 }
 
-nsresult
-nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest)
+//
+// imgIDecoderObserver
+//
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnStartRequest(imgIRequest* aRequest)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnStartDecode(imgIRequest* aRequest)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnStartContainer(imgIRequest*   aRequest,
+                                  imgIContainer* aContainer)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnStartFrame(imgIRequest* aRequest, PRUint32 aFrame)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnDataAvailable(imgIRequest*     aRequest,
+                                 bool             aCurrentFrame,
+                                 const nsIntRect* aRect)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest,
+                             PRUint32        aFrame)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -360,7 +391,7 @@ nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest)
     return NS_ERROR_FAILURE;
   }
 
-  int32_t origWidth = 0, origHeight = 0;
+  PRInt32 origWidth = 0, origHeight = 0;
   imageContainer->GetWidth(&origWidth);
   imageContainer->GetHeight(&origHeight);
   
@@ -414,7 +445,7 @@ nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest)
   }
   // The image may not be the right size for a menu icon (16x16).
   // Create a new CGImage for the menu item.
-  uint8_t* bitmap = (uint8_t*)malloc(kIconBytes);
+  PRUint8* bitmap = (PRUint8*)malloc(kIconBytes);
 
   CGColorSpaceRef colorSpace = ::CGColorSpaceCreateDeviceRGB();
 
@@ -461,4 +492,42 @@ nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest)
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnStopContainer(imgIRequest*   aRequest,
+                                imgIContainer* aContainer)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnStopDecode(imgIRequest*     aRequest,
+                             nsresult         status,
+                             const PRUnichar* statusArg)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnStopRequest(imgIRequest* aRequest,
+                              bool         aIsLastPart)
+{
+  if (mIconRequest && mIconRequest == aRequest) {
+    mIconRequest->Cancel(NS_BINDING_ABORTED);
+    mIconRequest = nullptr;
+  }
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnDiscard(imgIRequest* aRequest)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsMenuItemIconX::OnImageIsAnimated(imgIRequest* aRequest)
+{
+  return NS_OK;
 }

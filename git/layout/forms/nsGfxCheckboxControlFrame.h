@@ -5,8 +5,11 @@
 #ifndef nsGfxCheckboxControlFrame_h___
 #define nsGfxCheckboxControlFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsFormControlFrame.h"
+
+#ifdef ACCESSIBILITY
+class nsIAccessible;
+#endif
 
 class nsGfxCheckboxControlFrame : public nsFormControlFrame
 {
@@ -17,17 +20,17 @@ public:
   virtual ~nsGfxCheckboxControlFrame();
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
+  NS_IMETHOD GetFrameName(nsAString& aResult) const {
     return MakeFrameName(NS_LITERAL_STRING("CheckboxControl"), aResult);
   }
 #endif
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif
 
 protected:

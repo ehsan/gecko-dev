@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -12,18 +12,20 @@
 #define WEBRTC_MODULES_AUDIO_CODING_MAIN_SOURCE_ACM_OPUS_H_
 
 #include "acm_generic_codec.h"
-#include "opus_interface.h"
-#include "resampler.h"
+
+// forward declaration
+struct OPUS_inst_t_;
+struct OPUS_inst_t_;
 
 namespace webrtc
 {
 
-class ACMOpus: public ACMGenericCodec
+class ACMOPUS: public ACMGenericCodec
 {
 public:
-    ACMOpus(WebRtc_Word16 codecID);
-    ~ACMOpus();
-
+    ACMOPUS(WebRtc_Word16 codecID);
+    ~ACMOPUS();
+    // for FEC
     ACMGenericCodec* CreateInstance(void);
 
     WebRtc_Word16 InternalEncode(
@@ -48,12 +50,6 @@ protected:
         WebRtcNetEQ_CodecDef& codecDef,
         const CodecInst& codecInst);
 
-    WebRtc_Word32 Add10MsDataSafe(
-        const WebRtc_UWord32 timestamp,
-        const WebRtc_Word16* data,
-        const WebRtc_UWord16 lengthSmpl,
-        const WebRtc_UWord8 audioChannel);
-
     void DestructEncoderSafe();
 
     void DestructDecoderSafe();
@@ -62,16 +58,24 @@ protected:
 
     WebRtc_Word16 InternalCreateDecoder();
 
-    void InternalDestructEncoderInst(void* ptrInst);
+    void InternalDestructEncoderInst(
+        void* ptrInst);
+
+    WebRtc_Word16 UnregisterFromNetEqSafe(
+        ACMNetEQ* netEq,
+        WebRtc_Word16   payloadType);
 
     WebRtc_Word16 SetBitRateSafe(
         const WebRtc_Word32 rate);
 
-    OpusEncInst* _encoderInstPtr;
-    OpusDecInst* _decoderInstPtr;
+    OPUS_inst_t_* _encoderInstPtr;
+    OPUS_inst_t_* _decoderInstPtr;
 
-    WebRtc_UWord16    _sampleFreq;
-    WebRtc_UWord16    _bitrate;
+    WebRtc_UWord16    _mySampFreq;
+    WebRtc_UWord16    _myRate;
+    WebRtc_Word16     _opusMode;
+    WebRtc_Word16     _flagVBR;
+
 };
 
 } // namespace webrtc

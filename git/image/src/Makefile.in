@@ -16,19 +16,13 @@ FORCE_STATIC_LIB = 1
 MODULE_NAME	= nsImageLib2Module
 GRE_MODULE	= 1
 LIBXUL_LIBRARY  = 1
-FAIL_ON_WARNINGS = 1
 
-
-EXPORTS		=  imgLoader.h \
-		   imgRequest.h \
-		   $(NULL)
 
 CPPSRCS		= \
 			Image.cpp \
 			Decoder.cpp \
 			DiscardTracker.cpp \
 			RasterImage.cpp \
-			ScriptedNotificationObserver.cpp \
 			SVGDocumentWrapper.cpp \
 			VectorImage.cpp \
 			imgFrame.cpp \
@@ -49,7 +43,7 @@ LOCAL_INCLUDES += \
 			$(NULL)
 
 # Because VectorImage.cpp includes nsSVGUtils.h and nsSVGEffects.h
-LOCAL_INCLUDES += -I$(topsrcdir)/layout/svg
+LOCAL_INCLUDES += -I$(topsrcdir)/layout/svg/base/src
 
 include $(topsrcdir)/config/rules.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk

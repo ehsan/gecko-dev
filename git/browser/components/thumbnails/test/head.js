@@ -57,11 +57,10 @@ function next() {
 /**
  * Creates a new tab with the given URI.
  * @param aURI The URI that's loaded in the tab.
- * @param aCallback The function to call when the tab has loaded.
  */
-function addTab(aURI, aCallback) {
+function addTab(aURI) {
   let tab = gBrowser.selectedTab = gBrowser.addTab(aURI);
-  whenLoaded(tab.linkedBrowser, aCallback);
+  whenLoaded(tab.linkedBrowser);
 }
 
 /**
@@ -145,13 +144,4 @@ function checkThumbnailColor(aURL, aRed, aGreen, aBlue, aMessage) {
 function checkCanvasColor(aContext, aRed, aGreen, aBlue, aMessage) {
   let [r, g, b] = aContext.getImageData(0, 0, 1, 1).data;
   ok(r == aRed && g == aGreen && b == aBlue, aMessage);
-}
-
-/**
- * Checks if a thumbnail for the given URL exists.
- * @param aURL The url associated to the thumbnail.
- */
-function thumbnailExists(aURL) {
-  let file = PageThumbsStorage.getFileForURL(aURL);
-  return file.exists() && file.fileSize;
 }

@@ -20,7 +20,7 @@ native PRNetAddr(union PRNetAddr);
  * NOTE: This is a free-threaded interface, meaning that the methods on
  * this interface may be called from any thread.
  */
-[scriptable, uuid(91ca3523-fc52-4dea-b167-ef8f56473dde)]
+[scriptable, uuid(704c0859-cb64-43bd-bfdf-c8b28427f812)]
 interface nsISocketTransport : nsITransport 
 {
     /**
@@ -80,7 +80,7 @@ interface nsISocketTransport : nsITransport
     boolean isAlive();
 
     /**
-     * Socket timeouts in seconds.  To specify no timeout, pass UINT32_MAX
+     * Socket timeouts in seconds.  To specify no timeout, pass PR_UINT32_MAX
      * as aValue to setTimeout.  The implementation may truncate timeout values
      * to a smaller range of values (e.g., 0 to 0xFFFF).
      */
@@ -109,7 +109,7 @@ interface nsISocketTransport : nsITransport
      * resolved.  STATUS_WAITING_FOR is an optional status code, which the impl
      * of this interface may choose not to generate.
      *
-     * In C++, these constants have a type of uint32_t, so C++ callers must use
+     * In C++, these constants have a type of PRUint32, so C++ callers must use
      * the NS_NET_STATUS_* constants defined below, which have a type of
      * nsresult.
      */
@@ -160,10 +160,24 @@ interface nsISocketTransport : nsITransport
      */
     attribute octet QoSBits;
 
-    /**
-     * TCP send and receive buffer sizes. A value of 0 means OS level
-     * auto-tuning is in effect.
-     */
-    attribute unsigned long recvBufferSize;
-    attribute unsigned long sendBufferSize;
 };
+
+%{C++
+/**
+ * #define's with the correct type, for use by C++ code
+ */
+#define NS_NET_STATUS_RESOLVING_HOST \
+  static_cast<nsresult>(nsISocketTransport::STATUS_RESOLVING)
+#define NS_NET_STATUS_RESOLVED_HOST \
+  static_cast<nsresult>(nsISocketTransport::STATUS_RESOLVED)
+#define NS_NET_STATUS_CONNECTED_TO \
+  static_cast<nsresult>(nsISocketTransport::STATUS_CONNECTED_TO)
+#define NS_NET_STATUS_SENDING_TO \
+  static_cast<nsresult>(nsISocketTransport::STATUS_SENDING_TO)
+#define NS_NET_STATUS_RECEIVING_FROM \
+  static_cast<nsresult>(nsISocketTransport::STATUS_RECEIVING_FROM)
+#define NS_NET_STATUS_CONNECTING_TO \
+  static_cast<nsresult>(nsISocketTransport::STATUS_CONNECTING_TO)
+#define NS_NET_STATUS_WAITING_FOR \
+  static_cast<nsresult>(nsISocketTransport::STATUS_WAITING_FOR)
+%}

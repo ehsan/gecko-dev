@@ -286,10 +286,10 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   // nsIRollupListener
-  virtual nsIContent* Rollup(uint32_t aCount, bool aGetLastRolledUp = false);
+  virtual nsIContent* Rollup(PRUint32 aCount, bool aGetLastRolledUp = false);
   virtual bool ShouldRollupOnMouseWheelEvent();
   virtual bool ShouldRollupOnMouseActivate();
-  virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain);
+  virtual PRUint32 GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain);
   virtual void NotifyGeometryChange() {}
 
   static nsXULPopupManager* sInstance;
@@ -351,7 +351,7 @@ public:
   // the rangeOffset of the event supplied to ShowPopup or ShowPopupAtScreen.
   // This is used by the implementation of nsIDOMXULDocument::GetPopupRangeParent
   // and nsIDOMXULDocument::GetPopupRangeOffset.
-  void GetMouseLocation(nsIDOMNode** aNode, int32_t* aOffset);
+  void GetMouseLocation(nsIDOMNode** aNode, PRInt32* aOffset);
 
   /**
    * Open a <menu> given its content node. If aSelectFirstItem is
@@ -375,7 +375,7 @@ public:
   void ShowPopup(nsIContent* aPopup,
                  nsIContent* aAnchorContent,
                  const nsAString& aPosition,
-                 int32_t aXPos, int32_t aYPos,
+                 PRInt32 aXPos, PRInt32 aYPos,
                  bool aIsContextMenu,
                  bool aAttributesOverride,
                  bool aSelectFirstItem,
@@ -392,7 +392,7 @@ public:
    * cursor.
    */
   void ShowPopupAtScreen(nsIContent* aPopup,
-                         int32_t aXPos, int32_t aYPos,
+                         PRInt32 aXPos, PRInt32 aYPos,
                          bool aIsContextMenu,
                          nsIDOMEvent* aTriggerEvent);
 
@@ -404,7 +404,7 @@ public:
    */
   void ShowTooltipAtScreen(nsIContent* aPopup,
                            nsIContent* aTriggerContent,
-                           int32_t aXPos, int32_t aYPos);
+                           PRInt32 aXPos, PRInt32 aYPos);
 
   /**
    * This method is provided only for compatibility with an older popup API.
@@ -416,7 +416,7 @@ public:
                                 nsIContent* aAnchorContent,
                                 nsAString& aAnchor,
                                 nsAString& aAlign,
-                                int32_t aXPos, int32_t aYPos,
+                                PRInt32 aXPos, PRInt32 aYPos,
                                 bool aIsContextMenu);
 
   /*
@@ -577,7 +577,7 @@ public:
    * Handles cursor navigation within a menu. Returns true if the key has
    * been handled.
    */
-  bool HandleKeyboardNavigation(uint32_t aKeyCode);
+  bool HandleKeyboardNavigation(PRUint32 aKeyCode);
 
   /**
    * Handle keyboard navigation within a menu popup specified by aFrame.
@@ -721,7 +721,7 @@ protected:
 
   // range parent and offset set in SetTriggerEvent
   nsCOMPtr<nsIDOMNode> mRangeParent;
-  int32_t mRangeOffset;
+  PRInt32 mRangeOffset;
   // Device pixels relative to the showing popup's presshell's
   // root prescontext's root frame.
   nsIntPoint mCachedMousePoint;

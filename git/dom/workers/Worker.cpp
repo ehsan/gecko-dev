@@ -25,25 +25,6 @@ USING_WORKERS_NAMESPACE
 using namespace mozilla::dom;
 using mozilla::ErrorResult;
 
-// These are temporary until these classes are moved to be codegenerated.
-bool
-WorkerResolveProperty(JSContext* cx, JSObject* wrapper, jsid id, bool set,
-                      JSPropertyDescriptor* desc)
-{
-  return true;
-}
-bool
-WorkerEnumerateProperties(JSContext* cx, JSObject* wrapper,
-                          JS::AutoIdVector& props)
-{
-  return true;
-}
-NativePropertyHooks mozilla::dom::workers::sNativePropertyHooks =
-  { WorkerResolveProperty, WorkerResolveProperty,
-    WorkerEnumerateProperties, WorkerEnumerateProperties,
-    NULL };
-
-
 namespace {
 
 class Worker
@@ -236,8 +217,7 @@ private:
   Finalize(JSFreeOp* aFop, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
-    WorkerPrivate* worker =
-      UnwrapDOMObject<WorkerPrivate>(aObj, eRegularDOMObject);
+    WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj);
     if (worker) {
       worker->_finalize(aFop);
     }
@@ -247,8 +227,7 @@ private:
   Trace(JSTracer* aTrc, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
-    WorkerPrivate* worker =
-      UnwrapDOMObject<WorkerPrivate>(aObj, eRegularDOMObject);
+    WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj);
     if (worker) {
       worker->_trace(aTrc);
     }
@@ -286,36 +265,29 @@ private:
     }
 
     jsval message;
-    jsval transferable = JSVAL_VOID;
-    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v/v",
-                             &message, &transferable)) {
+    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "v", &message)) {
       return false;
     }
 
-    return worker->PostMessage(aCx, message, transferable);
+    return worker->PostMessage(aCx, message);
   }
 };
 
 MOZ_STATIC_ASSERT(prototypes::MaxProtoChainLength == 3,
                   "The MaxProtoChainLength must match our manual DOMJSClasses");
 
-// When this DOMJSClass is removed and it's the last consumer of
-// sNativePropertyHooks then sNativePropertyHooks should be removed too.
 DOMJSClass Worker::sClass = {
   {
     "Worker",
-    JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(2) |
+    JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(1) |
     JSCLASS_IMPLEMENTS_BARRIERS,
     JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
     NULL, NULL, NULL, NULL, Trace
   },
-  {
-    { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
-      prototypes::id::_ID_Count },
-    false,
-    &sNativePropertyHooks
-  }
+  { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
+    prototypes::id::_ID_Count },
+  -1, false, NULL
 };
 
 JSPropertySpec Worker::sProperties[] = {
@@ -386,7 +358,7 @@ private:
     if (aObj) {
       JSClass* classPtr = JS_GetClass(aObj);
       if (classPtr == Class()) {
-        return UnwrapDOMObject<WorkerPrivate>(aObj, eRegularDOMObject);
+        return UnwrapDOMObject<WorkerPrivate>(aObj);
       }
     }
 
@@ -403,8 +375,7 @@ private:
   Finalize(JSFreeOp* aFop, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
-    WorkerPrivate* worker =
-      UnwrapDOMObject<WorkerPrivate>(aObj, eRegularDOMObject);
+    WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj);
     if (worker) {
       worker->_finalize(aFop);
     }
@@ -414,8 +385,7 @@ private:
   Trace(JSTracer* aTrc, JSObject* aObj)
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
-    WorkerPrivate* worker =
-      UnwrapDOMObject<WorkerPrivate>(aObj, eRegularDOMObject);
+    WorkerPrivate* worker = UnwrapDOMObject<WorkerPrivate>(aObj);
     if (worker) {
       worker->_trace(aTrc);
     }
@@ -425,22 +395,17 @@ private:
 MOZ_STATIC_ASSERT(prototypes::MaxProtoChainLength == 3,
                   "The MaxProtoChainLength must match our manual DOMJSClasses");
 
-// When this DOMJSClass is removed and it's the last consumer of
-// sNativePropertyHooks then sNativePropertyHooks should be removed too.
 DOMJSClass ChromeWorker::sClass = {
   { "ChromeWorker",
-    JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(2) |
+    JSCLASS_IS_DOMJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(1) |
     JSCLASS_IMPLEMENTS_BARRIERS,
     JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, Finalize,
     NULL, NULL, NULL, NULL, Trace,
   },
-  {
-    { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
-      prototypes::id::_ID_Count },
-    false,
-    &sNativePropertyHooks
-  }
+  { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
+    prototypes::id::_ID_Count },
+  -1, false, NULL
 };
 
 WorkerPrivate*
@@ -449,7 +414,7 @@ Worker::GetInstancePrivate(JSContext* aCx, JSObject* aObj,
 {
   JSClass* classPtr = JS_GetClass(aObj);
   if (classPtr == Class() || classPtr == ChromeWorker::Class()) {
-    return UnwrapDOMObject<WorkerPrivate>(aObj, eRegularDOMObject);
+    return UnwrapDOMObject<WorkerPrivate>(aObj);
   }
 
   JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,

@@ -21,6 +21,11 @@
 
 #include "js/Vector.h"
 
+#define JS_KEYWORD(keyword, type, op, version) \
+    extern const char js_##keyword##_str[];
+#include "jskeyword.tbl"
+#undef JS_KEYWORD
+
 namespace js {
 namespace frontend {
 
@@ -99,8 +104,6 @@ enum TokenKind {
     TOK_YIELD,                     /* yield from generator function */
     TOK_LEXICALSCOPE,              /* block scope AST node label */
     TOK_LET,                       /* let keyword */
-    TOK_EXPORT,                    /* export keyword */
-    TOK_IMPORT,                    /* import keyword */
     TOK_RESERVED,                  /* reserved keywords */
     TOK_STRICT_RESERVED,           /* reserved keywords in strict mode */
 
@@ -179,41 +182,6 @@ inline bool
 TokenKindIsAssignment(TokenKind tt)
 {
     return TOK_ASSIGNMENT_START <= tt && tt <= TOK_ASSIGNMENT_LAST;
-}
-
-inline bool
-TokenContinuesStringExpression(TokenKind tt)
-{
-    switch (tt) {
-      // comma expression
-      case TOK_COMMA:
-      // conditional expression
-      case TOK_HOOK:
-      // binary expression
-      case TOK_OR:
-      case TOK_AND:
-      case TOK_BITOR:
-      case TOK_BITXOR:
-      case TOK_BITAND:
-      case TOK_PLUS:
-      case TOK_MINUS:
-      case TOK_STAR:
-      case TOK_DIV:
-      case TOK_MOD:
-      case TOK_IN:
-      case TOK_INSTANCEOF:
-      // member expression
-      case TOK_DOT:
-      case TOK_LB:
-      case TOK_LP:
-      case TOK_DBLDOT:
-        return true;
-      default:
-        return TokenKindIsEquality(tt) ||
-               TokenKindIsRelational(tt) ||
-               TokenKindIsShift(tt) ||
-               TokenKindIsAssignment(tt);
-    }
 }
 
 inline bool
@@ -298,10 +266,6 @@ struct TokenPos {
 
     bool operator >=(const TokenPos& bpos) const {
         return !(*this < bpos);
-    }
-
-    bool encloses(const TokenPos& pos) const {
-        return begin <= pos.begin && pos.end <= end;
     }
 };
 
@@ -465,14 +429,16 @@ struct CompileError {
     void throwError();
 };
 
+namespace StrictMode {
 /* For an explanation of how these are used, see the comment in the FunctionBox definition. */
-MOZ_BEGIN_ENUM_CLASS(StrictMode, uint8_t)
+enum StrictModeState {
     NOTSTRICT,
     UNKNOWN,
     STRICT
-MOZ_END_ENUM_CLASS(StrictMode)
+};
+}
 
-inline StrictMode
+inline StrictMode::StrictModeState
 StrictModeFromContext(JSContext *cx)
 {
     return cx->hasRunOption(JSOPTION_STRICT_MODE) ? StrictMode::STRICT : StrictMode::UNKNOWN;
@@ -485,7 +451,7 @@ StrictModeFromContext(JSContext *cx)
 // This class is a tiny back-channel from TokenStream to the strict mode flag
 // that avoids exposing the rest of SharedContext to TokenStream. get()
 // returns the current strict mode state. The other two methods get and set
-// the queuedStrictModeError member of ParseContext. StrictModeGetter's
+// the queuedStrictModeError member of TreeContext. StrictModeGetter's
 // non-inline methods are implemented in Parser.cpp.
 //
 class StrictModeGetter {
@@ -493,7 +459,7 @@ class StrictModeGetter {
   public:
     StrictModeGetter(Parser *p) : parser(p) { }
 
-    StrictMode get() const;
+    StrictMode::StrictModeState get() const;
     CompileError *queuedStrictModeError() const;
     void setQueuedStrictModeError(CompileError *e);
 };
@@ -514,7 +480,7 @@ class TokenStream
     typedef Vector<jschar, 32> CharBuffer;
 
     TokenStream(JSContext *cx, const CompileOptions &options,
-                StableCharPtr base, size_t length, StrictModeGetter *smg);
+                const jschar *base, size_t length, StrictModeGetter *smg);
 
     ~TokenStream();
 
@@ -566,9 +532,9 @@ class TokenStream
     void setXMLOnlyMode(bool enabled = true) { setFlag(enabled, TSF_XMLONLYMODE); }
     void setUnexpectedEOF(bool enabled = true) { setFlag(enabled, TSF_UNEXPECTED_EOF); }
 
-    StrictMode strictModeState() const
+    StrictMode::StrictModeState strictModeState() const
     {
-        return strictModeGetter ? strictModeGetter->get() : StrictMode(StrictMode::NOTSTRICT);
+        return strictModeGetter ? strictModeGetter->get() : StrictMode::NOTSTRICT;
     }
     bool isXMLTagMode() const { return !!(flags & TSF_XMLTAGMODE); }
     bool isXMLOnlyMode() const { return !!(flags & TSF_XMLONLYMODE); }
@@ -713,16 +679,11 @@ class TokenStream
      */
     size_t endOffset(const Token &tok);
 
-    bool hasSourceMap() const {
-        return sourceMap != NULL;
-    }
-
     /*
      * Give up responsibility for managing the sourceMap filename's memory.
      */
-    jschar *releaseSourceMap() {
-        JS_ASSERT(hasSourceMap());
-        jschar *sm = sourceMap;
+    const jschar *releaseSourceMap() {
+        const jschar* sm = sourceMap;
         sourceMap = NULL;
         return sm;
     }
@@ -880,16 +841,17 @@ class TokenStream
     void updateFlagsForEOL();
 
     Token               tokens[ntokens];/* circular token buffer */
-    js::SkipRoot        tokensRoot;     /* prevent overwriting of token buffer */
+    JS::SkipRoot        tokensRoot;     /* prevent overwriting of token buffer */
     unsigned            cursor;         /* index of last parsed token */
     unsigned            lookahead;      /* count of lookahead tokens */
     unsigned            lineno;         /* current line number */
     unsigned            flags;          /* flags -- see above */
     const jschar        *linebase;      /* start of current line;  points into userbuf */
     const jschar        *prevLinebase;  /* start of previous line;  NULL if on the first line */
-    js::SkipRoot        linebaseRoot;
-    js::SkipRoot        prevLinebaseRoot;
+    JS::SkipRoot        linebaseRoot;
+    JS::SkipRoot        prevLinebaseRoot;
     TokenBuf            userbuf;        /* user input buffer */
+    JS::SkipRoot        userbufRoot;
     const char          *filename;      /* input filename or null */
     jschar              *sourceMap;     /* source map's filename or null */
     void                *listenerTSData;/* listener data for this TokenStream */

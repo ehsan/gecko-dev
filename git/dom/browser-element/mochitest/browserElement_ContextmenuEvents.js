@@ -20,7 +20,7 @@ var iframeScript = function() {
 
   content.fireContextMenu(content.document.body);
   content.fireContextMenu(content.document.getElementById('menu1-trigger'));
-  content.fireContextMenu(content.document.getElementById('inner-link').childNodes[0]);
+  content.fireContextMenu(content.document.getElementById('inner-link'));
   content.fireContextMenu(content.document.getElementById('menu2-trigger'));
 }
 
@@ -31,7 +31,7 @@ var trigger1 = function() {
 function runTest() {
 
   browserElementTestHelpers.setEnabledPref(true);
-  browserElementTestHelpers.addPermission();
+  browserElementTestHelpers.addToWhitelist();
 
   var iframe1 = document.createElement('iframe');
   iframe1.mozbrowser = true;
@@ -103,7 +103,6 @@ function runTest() {
   }
 
   function ctxCallbackRecieved(msg) {
-    msg = SpecialPowers.wrap(msg);
     ctxCallbackEvents++;
     if (ctxCallbackEvents === 1) {
       ok(msg.json.data === 'inner2', 'Callback function got fired correctly');

@@ -9,13 +9,12 @@
 #include "nsIDOMEventTarget.h"
 #include "nsMappedAttributes.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
 #include "nsHTMLParts.h"
 #include "nsStyleConsts.h"
 #include "nsContentList.h"
 #include "nsRuleData.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsContentUtils.h"
 
 using namespace mozilla;
@@ -32,7 +31,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
@@ -43,10 +42,10 @@ public:
   // nsIDOMHTMLTableSectionElement
   NS_DECL_NSIDOMHTMLTABLESECTIONELEMENT
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
-                              nsIAtom* aAttribute,
-                              const nsAString& aValue,
-                              nsAttrValue& aResult);
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
+                                nsIAtom* aAttribute,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
@@ -119,7 +118,7 @@ nsHTMLTableSectionElement::GetRows(nsIDOMHTMLCollection** aValue)
 
 
 NS_IMETHODIMP
-nsHTMLTableSectionElement::InsertRow(int32_t aIndex,
+nsHTMLTableSectionElement::InsertRow(PRInt32 aIndex,
                                      nsIDOMHTMLElement** aValue)
 {
   *aValue = nullptr;
@@ -131,14 +130,14 @@ nsHTMLTableSectionElement::InsertRow(int32_t aIndex,
   nsCOMPtr<nsIDOMHTMLCollection> rows;
   GetRows(getter_AddRefs(rows));
 
-  uint32_t rowCount;
+  PRUint32 rowCount;
   rows->GetLength(&rowCount);
 
-  if (aIndex > (int32_t)rowCount) {
+  if (aIndex > (PRInt32)rowCount) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-  bool doInsert = (aIndex < int32_t(rowCount)) && (aIndex != -1);
+  bool doInsert = (aIndex < PRInt32(rowCount)) && (aIndex != -1);
 
   // create the row
   nsCOMPtr<nsINodeInfo> nodeInfo;
@@ -175,7 +174,7 @@ nsHTMLTableSectionElement::InsertRow(int32_t aIndex,
 }
 
 NS_IMETHODIMP
-nsHTMLTableSectionElement::DeleteRow(int32_t aValue)
+nsHTMLTableSectionElement::DeleteRow(PRInt32 aValue)
 {
   if (aValue < -1) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
@@ -185,7 +184,7 @@ nsHTMLTableSectionElement::DeleteRow(int32_t aValue)
   GetRows(getter_AddRefs(rows));
 
   nsresult rv;
-  uint32_t refIndex;
+  PRUint32 refIndex;
   if (aValue == -1) {
     rv = rows->GetLength(&refIndex);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -197,7 +196,7 @@ nsHTMLTableSectionElement::DeleteRow(int32_t aValue)
     --refIndex;
   }
   else {
-    refIndex = (uint32_t)aValue;
+    refIndex = (PRUint32)aValue;
   }
 
   nsCOMPtr<nsIDOMNode> row;
@@ -213,7 +212,7 @@ nsHTMLTableSectionElement::DeleteRow(int32_t aValue)
 }
 
 bool
-nsHTMLTableSectionElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLTableSectionElement::ParseAttribute(PRInt32 aNamespaceID,
                                           nsIAtom* aAttribute,
                                           const nsAString& aValue,
                                           nsAttrValue& aResult)
@@ -239,10 +238,7 @@ nsHTMLTableSectionElement::ParseAttribute(int32_t aNamespaceID,
     }
   }
 
-  return nsGenericHTMLElement::ParseBackgroundAttribute(aNamespaceID,
-                                                        aAttribute, aValue,
-                                                        aResult) ||
-         nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
+  return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
 }
 

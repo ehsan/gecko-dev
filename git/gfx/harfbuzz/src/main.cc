@@ -36,8 +36,6 @@
 #include <stdio.h>
 
 
-using namespace OT;
-
 
 int
 main (int argc, char **argv)

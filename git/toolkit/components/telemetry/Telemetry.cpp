@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <algorithm>
 #include "base/histogram.h"
 #include "base/pickle.h"
 #include "nsIComponentManager.h"
@@ -17,14 +16,12 @@
 #include "nsStringGlue.h"
 #include "nsITelemetry.h"
 #include "nsIFile.h"
-#include "nsIMemoryReporter.h"
 #include "Telemetry.h" 
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 #include "nsBaseHashtable.h"
 #include "nsXULAppAPI.h"
 #include "nsThreadUtils.h"
-#include "mozilla/ProcessedStack.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/FileUtils.h"
 #include "mozilla/Preferences.h"
@@ -102,56 +99,41 @@ public:
   static already_AddRefed<nsITelemetry> CreateTelemetryInstance();
   static void ShutdownTelemetry();
   static void RecordSlowStatement(const nsACString &sql, const nsACString &dbName,
-                                  uint32_t delay);
+                                  uint32_t delay, bool isDynamicString);
 #if defined(MOZ_ENABLE_PROFILER_SPS)
   static void RecordChromeHang(uint32_t duration,
-                               Telemetry::ProcessedStack &aStack);
+                               const Telemetry::HangStack &callStack,
+                               SharedLibraryInfo &moduleMap);
 #endif
   static nsresult GetHistogramEnumId(const char *name, Telemetry::ID *id);
-  static int64_t GetTelemetryMemoryUsed();
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
-  struct Stat {
+  struct StmtStats {
     uint32_t hitCount;
     uint32_t totalTime;
-  };
-  struct StmtStats {
-    struct Stat mainThread;
-    struct Stat otherThreads;
+    bool isDynamicSql;
+    bool isTrackedDb;
+    bool isAggregate;
   };
   typedef nsBaseHashtableET<nsCStringHashKey, StmtStats> SlowSQLEntryType;
   struct HangReport {
     uint32_t duration;
-    Telemetry::ProcessedStack mStack;
+    Telemetry::HangStack callStack;
+#if defined(MOZ_ENABLE_PROFILER_SPS)
+    SharedLibraryInfo moduleMap;
+#endif
   };
 
 private:
-  // We don't need to poke inside any of our hashtables for more
-  // information, so we just have One Function To Size Them All.
-  template<typename EntryType>
-  struct impl {
-    static size_t SizeOfEntryExcludingThis(EntryType *,
-                                           nsMallocSizeOfFun,
-                                           void *) {
-      return 0;
-    };
-  };
-
-  static nsCString SanitizeSQL(const nsACString& sql);
-
-  enum SanitizedState { Sanitized, Unsanitized };
-
   static void StoreSlowSQL(const nsACString &offender, uint32_t delay,
-                           SanitizedState state);
+                           bool isDynamicSql, bool isTrackedDB, bool isAggregate);
 
-  static bool ReflectMainThreadSQL(SlowSQLEntryType *entry, JSContext *cx,
-                                   JSObject *obj);
-  static bool ReflectOtherThreadsSQL(SlowSQLEntryType *entry, JSContext *cx,
-                                     JSObject *obj);
-  static bool ReflectSQL(const SlowSQLEntryType *entry, const Stat *stat,
-                         JSContext *cx, JSObject *obj);
+  static bool ReflectPublicSql(SlowSQLEntryType *entry, JSContext *cx,
+                               JSObject *obj);
+  static bool ReflectPrivateSql(SlowSQLEntryType *entry, JSContext *cx,
+                                JSObject *obj);
+  static bool ReflectSql(SlowSQLEntryType *entry, JSContext *cx, JSObject *obj);
 
   bool AddSQLInfo(JSContext *cx, JSObject *rootObj, bool mainThread,
-                  bool privateSQL);
+                  bool includePrivateStrings);
   bool GetSQLStats(JSContext *cx, jsval *ret, bool includePrivateSql);
 
   // Like GetHistogramById, but returns the underlying C++ object, not the JS one.
@@ -184,96 +166,54 @@ private:
   HistogramMapType mHistogramMap;
   bool mCanRecord;
   static TelemetryImpl *sTelemetry;
-  AutoHashtable<SlowSQLEntryType> mPrivateSQL;
-  AutoHashtable<SlowSQLEntryType> mSanitizedSQL;
+  AutoHashtable<SlowSQLEntryType> mSlowSQLOnMainThread;
+  AutoHashtable<SlowSQLEntryType> mSlowSQLOnOtherThread;
   // This gets marked immutable in debug builds, so we can't use
   // AutoHashtable here.
   nsTHashtable<nsCStringHashKey> mTrackedDBs;
   Mutex mHashMutex;
   nsTArray<HangReport> mHangReports;
   Mutex mHangReportsMutex;
-  nsIMemoryReporter *mMemoryReporter;
 };
 
 TelemetryImpl*  TelemetryImpl::sTelemetry = NULL;
-
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(TelemetryMallocSizeOf, "telemetry")
-
-size_t
-TelemetryImpl::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  size_t n = 0;
-  n += aMallocSizeOf(this);
-  // Ignore the hashtables in mAddonMap; they are not significant.
-  n += mAddonMap.SizeOfExcludingThis(impl<AddonEntryType>::SizeOfEntryExcludingThis,
-                                     aMallocSizeOf);
-  n += mHistogramMap.SizeOfExcludingThis(impl<CharPtrEntryType>::SizeOfEntryExcludingThis,
-                                         aMallocSizeOf);
-  n += mPrivateSQL.SizeOfExcludingThis(impl<SlowSQLEntryType>::SizeOfEntryExcludingThis,
-                                       aMallocSizeOf);
-  n += mSanitizedSQL.SizeOfExcludingThis(impl<SlowSQLEntryType>::SizeOfEntryExcludingThis,
-                                         aMallocSizeOf);
-  n += mTrackedDBs.SizeOfExcludingThis(impl<nsCStringHashKey>::SizeOfEntryExcludingThis,
-                                       aMallocSizeOf);
-  n += mHangReports.SizeOfExcludingThis(aMallocSizeOf);
-  return n;
-}
-
-int64_t
-TelemetryImpl::GetTelemetryMemoryUsed()
-{
-  int64_t n = 0;
-  if (sTelemetry) {
-    n += sTelemetry->SizeOfIncludingThis(TelemetryMallocSizeOf);
-  }
-
-  StatisticsRecorder::Histograms hs;
-  StatisticsRecorder::GetHistograms(&hs);
-
-  for (HistogramIterator it = hs.begin(); it != hs.end(); ++it) {
-    Histogram *h = *it;
-    n += h->SizeOfIncludingThis(TelemetryMallocSizeOf);
-  }
-  return n;
-}
-
-NS_MEMORY_REPORTER_IMPLEMENT(Telemetry,
-  "explicit/telemetry",
-  KIND_HEAP,
-  UNITS_BYTES,
-  TelemetryImpl::GetTelemetryMemoryUsed,
-  "Memory used by the telemetry system.")
 
 // A initializer to initialize histogram collection
 StatisticsRecorder gStatisticsRecorder;
 
 // Hardcoded probes
 struct TelemetryHistogram {
+  const char *id;
   uint32_t min;
   uint32_t max;
   uint32_t bucketCount;
   uint32_t histogramType;
-  uint16_t id_offset;
-  uint16_t comment_offset;
-
-  const char *id() const;
-  const char *comment() const;
+  const char *comment;
 };
 
-#include "TelemetryHistogramData.inc"
+// Perform the checks at the beginning of HistogramGet at compile time, so
+// that if people add incorrect histogram definitions, they get compiler
+// errors.
+#define HISTOGRAM(id, min, max, bucket_count, histogram_type, b) \
+  MOZ_STATIC_ASSERT(nsITelemetry::HISTOGRAM_ ## histogram_type == nsITelemetry::HISTOGRAM_BOOLEAN || \
+                    nsITelemetry::HISTOGRAM_ ## histogram_type == nsITelemetry::HISTOGRAM_FLAG || \
+                    (min < max && bucket_count > 2 && min >= 1), \
+                    "Incorrect histogram definitions were found");
+
+#include "TelemetryHistograms.h"
+
+#undef HISTOGRAM
+
+const TelemetryHistogram gHistograms[] = {
+#define HISTOGRAM(id, min, max, bucket_count, histogram_type, comment) \
+  { NS_STRINGIFY(id), min, max, bucket_count, \
+    nsITelemetry::HISTOGRAM_ ## histogram_type, comment },
+
+#include "TelemetryHistograms.h"
+
+#undef HISTOGRAM
+};
 bool gCorruptHistograms[Telemetry::HistogramCount];
-
-const char *
-TelemetryHistogram::id() const
-{
-  return &gHistogramStringTable[this->id_offset];
-}
-
-const char *
-TelemetryHistogram::comment() const
-{
-  return &gHistogramStringTable[this->comment_offset];
-}
 
 bool
 TelemetryHistogramType(Histogram *h, uint32_t *result)
@@ -345,23 +285,9 @@ GetHistogramByEnumId(Telemetry::ID id, Histogram **ret)
   }
 
   const TelemetryHistogram &p = gHistograms[id];
-  nsresult rv = HistogramGet(p.id(), p.min, p.max, p.bucketCount, p.histogramType, &h);
+  nsresult rv = HistogramGet(p.id, p.min, p.max, p.bucketCount, p.histogramType, &h);
   if (NS_FAILED(rv))
     return rv;
-
-#ifdef DEBUG
-  // Check that the C++ Histogram code computes the same ranges as the
-  // Python histogram code.
-  const struct bounds &b = gBucketLowerBoundIndex[id];
-  if (b.length != 0) {
-    MOZ_ASSERT(size_t(b.length) == h->bucket_count(),
-               "C++/Python bucket # mismatch");
-    for (int i = 0; i < b.length; ++i) {
-      MOZ_ASSERT(gBucketLowerBounds[b.offset + i] == h->ranges(i),
-                 "C++/Python bucket mismatch");
-    }
-  }
-#endif
 
   *ret = knownHistograms[id] = h;
   return NS_OK;
@@ -571,13 +497,9 @@ mHangReportsMutex("Telemetry::mHangReportsMutex")
   // Mark immutable to prevent asserts on simultaneous access from multiple threads
   mTrackedDBs.MarkImmutable();
 #endif
-  mMemoryReporter = new NS_MEMORY_REPORTER_NAME(Telemetry);
-  NS_RegisterMemoryReporter(mMemoryReporter);
 }
 
 TelemetryImpl::~TelemetryImpl() {
-  NS_UnregisterMemoryReporter(mMemoryReporter);
-  mMemoryReporter = nullptr;
 }
 
 NS_IMETHODIMP
@@ -592,17 +514,11 @@ TelemetryImpl::NewHistogram(const nsACString &name, uint32_t min, uint32_t max, 
 }
 
 bool
-TelemetryImpl::ReflectSQL(const SlowSQLEntryType *entry,
-                          const Stat *stat,
-                          JSContext *cx,
-                          JSObject *obj)
+TelemetryImpl::ReflectSql(SlowSQLEntryType *entry, JSContext *cx, JSObject *obj)
 {
-  if (stat->hitCount == 0)
-    return true;
-
   const nsACString &sql = entry->GetKey();
-  jsval hitCount = UINT_TO_JSVAL(stat->hitCount);
-  jsval totalTime = UINT_TO_JSVAL(stat->totalTime);
+  jsval hitCount = UINT_TO_JSVAL(entry->mData.hitCount);
+  jsval totalTime = UINT_TO_JSVAL(entry->mData.totalTime);
 
   JSObject *arrayObj = JS_NewArrayObject(cx, 0, nullptr);
   if (!arrayObj) {
@@ -618,22 +534,27 @@ TelemetryImpl::ReflectSQL(const SlowSQLEntryType *entry,
 }
 
 bool
-TelemetryImpl::ReflectMainThreadSQL(SlowSQLEntryType *entry, JSContext *cx,
-                                    JSObject *obj)
+TelemetryImpl::ReflectPublicSql(SlowSQLEntryType *entry, JSContext *cx,
+                                JSObject *obj)
 {
-  return ReflectSQL(entry, &entry->mData.mainThread, cx, obj);
+  bool isPrivateSql = entry->mData.isDynamicSql || (!entry->mData.isTrackedDb);
+  if (!isPrivateSql || entry->mData.isAggregate)
+    return ReflectSql(entry, cx, obj);
+  return true;
 }
 
 bool
-TelemetryImpl::ReflectOtherThreadsSQL(SlowSQLEntryType *entry, JSContext *cx,
-                                      JSObject *obj)
+TelemetryImpl::ReflectPrivateSql(SlowSQLEntryType *entry, JSContext *cx,
+                                 JSObject *obj)
 {
-  return ReflectSQL(entry, &entry->mData.otherThreads, cx, obj);
+  if (!entry->mData.isAggregate)
+    return ReflectSql(entry, cx, obj);
+  return true;
 }
 
 bool
 TelemetryImpl::AddSQLInfo(JSContext *cx, JSObject *rootObj, bool mainThread,
-                          bool privateSQL)
+                          bool includePrivateStrings)
 {
   JSObject *statsObj = JS_NewObject(cx, NULL, NULL, NULL);
   if (!statsObj)
@@ -641,9 +562,9 @@ TelemetryImpl::AddSQLInfo(JSContext *cx, JSObject *rootObj, bool mainThread,
   JS::AutoObjectRooter root(cx, statsObj);
 
   AutoHashtable<SlowSQLEntryType> &sqlMap =
-    (privateSQL ? mPrivateSQL : mSanitizedSQL);
+    (mainThread ? mSlowSQLOnMainThread : mSlowSQLOnOtherThread);
   AutoHashtable<SlowSQLEntryType>::ReflectEntryFunc reflectFunction =
-    (mainThread ? ReflectMainThreadSQL : ReflectOtherThreadsSQL);
+    (includePrivateStrings ? ReflectPrivateSql : ReflectPublicSql);
   if(!sqlMap.ReflectIntoJS(reflectFunction, cx, statsObj)) {
     return false;
   }
@@ -666,7 +587,7 @@ TelemetryImpl::GetHistogramEnumId(const char *name, Telemetry::ID *id)
   TelemetryImpl::HistogramMapType *map = &sTelemetry->mHistogramMap;
   if (!map->Count()) {
     for (uint32_t i = 0; i < Telemetry::HistogramCount; i++) {
-      CharPtrEntryType *entry = map->PutEntry(gHistograms[i].id());
+      CharPtrEntryType *entry = map->PutEntry(gHistograms[i].id);
       if (NS_UNLIKELY(!entry)) {
         map->Clear();
         return NS_ERROR_OUT_OF_MEMORY;
@@ -858,7 +779,7 @@ TelemetryImpl::GetAddonHistogram(const nsACString &id, const nsACString &name,
 
   AddonHistogramInfo &info = histogramEntry->mData;
   if (!info.h) {
-    nsAutoCString actualName;
+    nsCAutoString actualName;
     AddonHistogramName(id, name, actualName);
     if (!CreateHistogramForAddon(actualName, info)) {
       return NS_ERROR_FAILURE;
@@ -1093,7 +1014,6 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
 
   // Each hang report is an object in the 'chromeHangs' array
   for (size_t i = 0; i < mHangReports.Length(); ++i) {
-    Telemetry::ProcessedStack &stack = mHangReports[i].mStack;
     JSObject *reportObj = JS_NewObject(cx, NULL, NULL, NULL);
     if (!reportObj) {
       return NS_ERROR_FAILURE;
@@ -1123,11 +1043,10 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
       return NS_ERROR_FAILURE;
     }
 
-    const uint32_t pcCount = stack.GetStackSize();
+    const uint32_t pcCount = mHangReports[i].callStack.Length();
     for (size_t pcIndex = 0; pcIndex < pcCount; ++pcIndex) {
-      nsAutoCString pcString;
-      const Telemetry::ProcessedStack::Frame &Frame = stack.GetFrame(pcIndex);
-      pcString.AppendPrintf("0x%p", Frame.mOffset);
+      nsCAutoString pcString;
+      pcString.AppendPrintf("0x%p", mHangReports[i].callStack[pcIndex]);
       JSString *str = JS_NewStringCopyZ(cx, pcString.get());
       if (!str) {
         return NS_ERROR_FAILURE;
@@ -1150,11 +1069,12 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
       return NS_ERROR_FAILURE;
     }
 
-    const uint32_t moduleCount = stack.GetNumModules();
+#if defined(MOZ_ENABLE_PROFILER_SPS)
+    const uint32_t moduleCount = mHangReports[i].moduleMap.GetSize();
     for (size_t moduleIndex = 0; moduleIndex < moduleCount; ++moduleIndex) {
       // Current module
-      const Telemetry::ProcessedStack::Module &module =
-        stack.GetModule(moduleIndex);
+      const SharedLibrary &module =
+        mHangReports[i].moduleMap.GetEntry(moduleIndex);
 
       JSObject *moduleInfoArray = JS_NewArrayObject(cx, 0, nullptr);
       if (!moduleInfoArray) {
@@ -1166,8 +1086,8 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
       }
 
       // Start address
-      nsAutoCString addressString;
-      addressString.AppendPrintf("0x%p", module.mStart);
+      nsCAutoString addressString;
+      addressString.AppendPrintf("0x%p", module.GetStart());
       JSString *str = JS_NewStringCopyZ(cx, addressString.get());
       if (!str) {
         return NS_ERROR_FAILURE;
@@ -1178,7 +1098,7 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
       }
 
       // Module name
-      str = JS_NewStringCopyZ(cx, module.mName.c_str());
+      str = JS_NewStringCopyZ(cx, module.GetName());
       if (!str) {
         return NS_ERROR_FAILURE;
       }
@@ -1188,19 +1108,26 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
       }
 
       // Module size in memory
-      val = INT_TO_JSVAL(int32_t(module.mMappingSize));
+      val = INT_TO_JSVAL(int32_t(module.GetEnd() - module.GetStart()));
       if (!JS_SetElement(cx, moduleInfoArray, 2, &val)) {
         return NS_ERROR_FAILURE;
       }
 
       // "PDB Age" identifier
-      val = INT_TO_JSVAL(module.mPdbAge);
+      val = INT_TO_JSVAL(0);
+#if defined(MOZ_PROFILING) && defined(XP_WIN)
+      val = INT_TO_JSVAL(module.GetPdbAge());
+#endif
       if (!JS_SetElement(cx, moduleInfoArray, 3, &val)) {
         return NS_ERROR_FAILURE;
       }
 
       // "PDB Signature" GUID
-      str = JS_NewStringCopyZ(cx, module.mPdbSignature.c_str());
+      char guidString[NSID_LENGTH] = { 0 };
+#if defined(MOZ_PROFILING) && defined(XP_WIN)
+      module.GetPdbSignature().ToProvidedString(guidString);
+#endif
+      str = JS_NewStringCopyZ(cx, guidString);
       if (!str) {
         return NS_ERROR_FAILURE;
       }
@@ -1210,7 +1137,11 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
       }
 
       // Name of associated PDB file
-      str = JS_NewStringCopyZ(cx, module.mPdbName.c_str());
+      const char *pdbName = "";
+#if defined(MOZ_PROFILING) && defined(XP_WIN)
+      pdbName = module.GetPdbName();
+#endif
+      str = JS_NewStringCopyZ(cx, pdbName);
       if (!str) {
         return NS_ERROR_FAILURE;
       }
@@ -1219,6 +1150,7 @@ TelemetryImpl::GetChromeHangs(JSContext *cx, jsval *ret)
         return NS_ERROR_FAILURE;
       }
     }
+#endif
   }
 
   return NS_OK;
@@ -1234,10 +1166,10 @@ TelemetryImpl::GetRegisteredHistograms(JSContext *cx, jsval *ret)
   JS::AutoObjectRooter root(cx, info);
 
   for (size_t i = 0; i < count; ++i) {
-    JSString *comment = JS_InternString(cx, gHistograms[i].comment());
+    JSString *comment = JS_InternString(cx, gHistograms[i].comment);
     
     if (!(comment
-          && JS_DefineProperty(cx, info, gHistograms[i].id(),
+          && JS_DefineProperty(cx, info, gHistograms[i].id,
                                STRING_TO_JSVAL(comment), NULL, NULL,
                                JSPROP_ENUMERATE))) {
       return NS_ERROR_FAILURE;
@@ -1306,13 +1238,13 @@ TelemetryImpl::ShutdownTelemetry()
 
 void
 TelemetryImpl::StoreSlowSQL(const nsACString &sql, uint32_t delay,
-                            SanitizedState state)
+                            bool isDynamicSql, bool isTrackedDB, bool isAggregate)
 {
   AutoHashtable<SlowSQLEntryType> *slowSQLMap = NULL;
-  if (state == Sanitized)
-    slowSQLMap = &(sTelemetry->mSanitizedSQL);
+  if (NS_IsMainThread())
+    slowSQLMap = &(sTelemetry->mSlowSQLOnMainThread);
   else
-    slowSQLMap = &(sTelemetry->mPrivateSQL);
+    slowSQLMap = &(sTelemetry->mSlowSQLOnOtherThread);
 
   MutexAutoLock hashMutex(sTelemetry->mHashMutex);
 
@@ -1321,190 +1253,69 @@ TelemetryImpl::StoreSlowSQL(const nsACString &sql, uint32_t delay,
     entry = slowSQLMap->PutEntry(sql);
     if (NS_UNLIKELY(!entry))
       return;
-    entry->mData.mainThread.hitCount = 0;
-    entry->mData.mainThread.totalTime = 0;
-    entry->mData.otherThreads.hitCount = 0;
-    entry->mData.otherThreads.totalTime = 0;
+    entry->mData.isDynamicSql = isDynamicSql;
+    entry->mData.isTrackedDb = isTrackedDB;
+    entry->mData.isAggregate = isAggregate;
+
+    entry->mData.hitCount = 0;
+    entry->mData.totalTime = 0;
   }
 
-  if (NS_IsMainThread()) {
-    entry->mData.mainThread.hitCount++;
-    entry->mData.mainThread.totalTime += delay;
-  } else {
-    entry->mData.otherThreads.hitCount++;
-    entry->mData.otherThreads.totalTime += delay;
-  }
-}
-
-/**
- * This method replaces string literals in SQL strings with the word :private
- *
- * States used in this state machine:
- *
- * NORMAL:
- *  - This is the active state when not iterating over a string literal or
- *  comment
- *
- * SINGLE_QUOTE:
- *  - Defined here: http://www.sqlite.org/lang_expr.html
- *  - This state represents iterating over a string literal opened with
- *  a single quote.
- *  - A single quote within the string can be encoded by putting 2 single quotes
- *  in a row, e.g. 'This literal contains an escaped quote '''
- *  - Any double quotes found within a single-quoted literal are ignored
- *  - This state covers BLOB literals, e.g. X'ABC123'
- *  - The string literal and the enclosing quotes will be replaced with
- *  the text :private
- *
- * DOUBLE_QUOTE:
- *  - Same rules as the SINGLE_QUOTE state.
- *  - According to http://www.sqlite.org/lang_keywords.html,
- *  SQLite interprets text in double quotes as an identifier unless it's used in
- *  a context where it cannot be resolved to an identifier and a string literal
- *  is allowed. This method removes text in double-quotes for safety.
- *
- *  DASH_COMMENT:
- *  - http://www.sqlite.org/lang_comment.html
- *  - A dash comment starts with two dashes in a row,
- *  e.g. DROP TABLE foo -- a comment
- *  - Any text following two dashes in a row is interpreted as a comment until
- *  end of input or a newline character
- *  - Any quotes found within the comment are ignored and no replacements made
- *
- *  C_STYLE_COMMENT:
- *  - http://www.sqlite.org/lang_comment.html
- *  - A C-style comment starts with a forward slash and an asterisk, and ends
- *  with an asterisk and a forward slash
- *  - Any text following comment start is interpreted as a comment up to end of
- *  input or comment end
- *  - Any quotes found within the comment are ignored and no replacements made
- */
-nsCString
-TelemetryImpl::SanitizeSQL(const nsACString &sql) {
-  nsCString output;
-  int length = sql.Length();
-
-  typedef enum {
-    NORMAL,
-    SINGLE_QUOTE,
-    DOUBLE_QUOTE,
-    DASH_COMMENT,
-    C_STYLE_COMMENT,
-  } State;
-
-  State state = NORMAL;
-  int fragmentStart = 0;
-  for (int i = 0; i < length; i++) {
-    char character = sql[i];
-    char nextCharacter = (i + 1 < length) ? sql[i + 1] : '\0';
-
-    switch (character) {
-      case '\'':
-      case '"':
-        if (state == NORMAL) {
-          state = (character == '\'') ? SINGLE_QUOTE : DOUBLE_QUOTE;
-          output += nsDependentCSubstring(sql, fragmentStart, i - fragmentStart);
-          output += ":private";
-          fragmentStart = -1;
-        } else if ((state == SINGLE_QUOTE && character == '\'') ||
-                   (state == DOUBLE_QUOTE && character == '"')) {
-          if (nextCharacter == character) {
-            // Two consecutive quotes within a string literal are a single escaped quote
-            i++;
-          } else {
-            state = NORMAL;
-            fragmentStart = i + 1;
-          }
-        }
-        break;
-      case '-':
-        if (state == NORMAL) {
-          if (nextCharacter == '-') {
-            state = DASH_COMMENT;
-            i++;
-          }
-        }
-        break;
-      case '\n':
-        if (state == DASH_COMMENT) {
-          state = NORMAL;
-        }
-        break;
-      case '/':
-        if (state == NORMAL) {
-          if (nextCharacter == '*') {
-            state = C_STYLE_COMMENT;
-            i++;
-          }
-        }
-        break;
-      case '*':
-        if (state == C_STYLE_COMMENT) {
-          if (nextCharacter == '/') {
-            state = NORMAL;
-          }
-        }
-        break;
-      default:
-        continue;
-    }
-  }
-
-  if ((fragmentStart >= 0) && fragmentStart < length)
-    output += nsDependentCSubstring(sql, fragmentStart, length - fragmentStart);
-
-  return output;
+  entry->mData.hitCount++;
+  entry->mData.totalTime += delay;
 }
 
 void
-TelemetryImpl::RecordSlowStatement(const nsACString &sql,
-                                   const nsACString &dbName,
-                                   uint32_t delay)
+TelemetryImpl::RecordSlowStatement(const nsACString &sql, const nsACString &dbName,
+                                   uint32_t delay, bool isDynamicString)
 {
-  if (!sTelemetry || !sTelemetry->mCanRecord)
+  MOZ_ASSERT(sTelemetry);
+  if (!sTelemetry->mCanRecord)
     return;
 
-  nsAutoCString fullSQL(sql);
-  fullSQL.AppendPrintf(" /* %s */", dbName.BeginReading());
-
-  bool isFirefoxDB = sTelemetry->mTrackedDBs.Contains(dbName);
-  if (isFirefoxDB) {
-    nsAutoCString sanitizedSQL(SanitizeSQL(fullSQL));
-    StoreSlowSQL(sanitizedSQL, delay, Sanitized);
-  } else {
-    // Report aggregate DB-level statistics for addon DBs
-    nsAutoCString aggregate;
+  bool isTrackedDb = sTelemetry->mTrackedDBs.Contains(dbName);
+  bool isPrivate = (!isTrackedDb) || isDynamicString;
+  if (isPrivate) {
+    // Report aggregate DB-level statistics to Telemetry for potentially
+    // sensitive SQL strings
+    nsCAutoString aggregate;
     aggregate.AppendPrintf("Untracked SQL for %s", dbName.BeginReading());
-    StoreSlowSQL(aggregate, delay, Sanitized);
+    StoreSlowSQL(aggregate, delay, isDynamicString, isTrackedDb, true);
   }
 
-  StoreSlowSQL(fullSQL, delay, Unsanitized);
+  // Record original SQL string
+  nsCAutoString fullSql(sql);
+  if (!isTrackedDb)
+    fullSql.AppendPrintf(" -- Untracked DB %s", dbName.BeginReading());
+  StoreSlowSQL(fullSql, delay, isDynamicString, isTrackedDb, false);
 }
 
 #if defined(MOZ_ENABLE_PROFILER_SPS)
 void
 TelemetryImpl::RecordChromeHang(uint32_t duration,
-                                Telemetry::ProcessedStack &aStack)
+                                const Telemetry::HangStack &callStack,
+                                SharedLibraryInfo &moduleMap)
 {
-  if (!sTelemetry || !sTelemetry->mCanRecord)
+  MOZ_ASSERT(sTelemetry);
+  if (!sTelemetry->mCanRecord) {
     return;
+  }
 
   MutexAutoLock hangReportMutex(sTelemetry->mHangReportsMutex);
 
   // Only report the modules which changed since the first hang report
   if (sTelemetry->mHangReports.Length()) {
-    Telemetry::ProcessedStack &firstStack =
-      sTelemetry->mHangReports[0].mStack;
-    for (size_t i = 0; i < aStack.GetNumModules(); ++i) {
-      const Telemetry::ProcessedStack::Module &module = aStack.GetModule(i);
-      if (firstStack.HasModule(module)) {
-        aStack.RemoveModule(i);
+    SharedLibraryInfo &firstModuleMap =
+      sTelemetry->mHangReports[0].moduleMap;
+    for (size_t i = 0; i < moduleMap.GetSize(); ++i) {
+      if (firstModuleMap.Contains(moduleMap.GetEntry(i))) {
+        moduleMap.RemoveEntries(i, i + 1);
         --i;
       }
     }
   }
 
-  HangReport newReport = { duration, aStack };
+  HangReport newReport = { duration, callStack, moduleMap };
   sTelemetry->mHangReports.AppendElement(newReport);
 }
 #endif
@@ -1577,9 +1388,10 @@ GetHistogramById(ID id)
 void
 RecordSlowSQLStatement(const nsACString &statement,
                        const nsACString &dbName,
-                       uint32_t delay)
+                       uint32_t delay,
+                       bool isDynamicString)
 {
-  TelemetryImpl::RecordSlowStatement(statement, dbName, delay);
+  TelemetryImpl::RecordSlowStatement(statement, dbName, delay, isDynamicString);
 }
 
 void Init()
@@ -1592,194 +1404,12 @@ void Init()
 
 #if defined(MOZ_ENABLE_PROFILER_SPS)
 void RecordChromeHang(uint32_t duration,
-                      ProcessedStack &aStack)
+                      const Telemetry::HangStack &callStack,
+                      SharedLibraryInfo &moduleMap)
 {
-  TelemetryImpl::RecordChromeHang(duration, aStack);
+  TelemetryImpl::RecordChromeHang(duration, callStack, moduleMap);
 }
 #endif
-
-ProcessedStack::ProcessedStack()
-{
-}
-
-size_t ProcessedStack::GetStackSize() const
-{
-  return mStack.size();
-}
-
-const ProcessedStack::Frame &ProcessedStack::GetFrame(unsigned aIndex) const
-{
-  MOZ_ASSERT(aIndex < mStack.size());
-  return mStack[aIndex];
-}
-
-void ProcessedStack::AddFrame(const Frame &aFrame)
-{
-  mStack.push_back(aFrame);
-}
-
-size_t ProcessedStack::GetNumModules() const
-{
-  return mModules.size();
-}
-
-const ProcessedStack::Module &ProcessedStack::GetModule(unsigned aIndex) const
-{
-  MOZ_ASSERT(aIndex < mModules.size());
-  return mModules[aIndex];
-}
-
-bool ProcessedStack::HasModule(const Module &aModule) const {
-  return mModules.end() !=
-    std::find(mModules.begin(), mModules.end(), aModule);
-}
-
-void ProcessedStack::RemoveModule(unsigned aIndex) {
-  mModules.erase(mModules.begin() + aIndex);
-}
-
-void ProcessedStack::AddModule(const Module &aModule)
-{
-  mModules.push_back(aModule);
-}
-
-void ProcessedStack::Clear() {
-  mModules.clear();
-  mStack.clear();
-}
-
-bool ProcessedStack::Module::operator==(const Module& aOther) const {
-  return  mName == aOther.mName &&
-    mStart == aOther.mStart &&
-    mMappingSize == aOther.mMappingSize &&
-    mPdbAge == aOther.mPdbAge &&
-    mPdbSignature == aOther.mPdbSignature &&
-    mPdbName == aOther.mPdbName;
-}
-
-struct StackFrame
-{
-  uintptr_t mPC;      // The program counter at this position in the call stack.
-  uint16_t mIndex;    // The number of this frame in the call stack.
-  uint16_t mModIndex; // The index of module that has this program counter.
-};
-
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-static bool CompareByPC(const StackFrame &a, const StackFrame &b)
-{
-  return a.mPC < b.mPC;
-}
-
-static bool CompareByIndex(const StackFrame &a, const StackFrame &b)
-{
-  return a.mIndex < b.mIndex;
-}
-#endif
-
-ProcessedStack GetStackAndModules(const std::vector<uintptr_t> &aPCs, bool aRelative)
-{
-  std::vector<StackFrame> rawStack;
-  for (std::vector<uintptr_t>::const_iterator i = aPCs.begin(),
-         e = aPCs.end(); i != e; ++i) {
-    uintptr_t aPC = *i;
-    StackFrame Frame = {aPC, static_cast<uint16_t>(rawStack.size()),
-                        std::numeric_limits<uint16_t>::max()};
-    rawStack.push_back(Frame);
-  }
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  // Remove all modules not referenced by a PC on the stack
-  std::sort(rawStack.begin(), rawStack.end(), CompareByPC);
-
-  size_t moduleIndex = 0;
-  size_t stackIndex = 0;
-  size_t stackSize = rawStack.size();
-
-  SharedLibraryInfo rawModules = SharedLibraryInfo::GetInfoForSelf();
-  rawModules.SortByAddress();
-
-  while (moduleIndex < rawModules.GetSize()) {
-    const SharedLibrary& module = rawModules.GetEntry(moduleIndex);
-    uintptr_t moduleStart = module.GetStart();
-    uintptr_t moduleEnd = module.GetEnd() - 1;
-    // the interval is [moduleStart, moduleEnd)
-
-    bool moduleReferenced = false;
-    for (;stackIndex < stackSize; ++stackIndex) {
-      uintptr_t pc = rawStack[stackIndex].mPC;
-      if (pc >= moduleEnd)
-        break;
-
-      if (pc >= moduleStart) {
-        // If the current PC is within the current module, mark
-        // module as used
-        moduleReferenced = true;
-        if (aRelative)
-          rawStack[stackIndex].mPC -= moduleStart;
-        rawStack[stackIndex].mModIndex = moduleIndex;
-      } else {
-        // PC does not belong to any module. It is probably from
-        // the JIT. Use a fixed mPC so that we don't get different
-        // stacks on different runs.
-        rawStack[stackIndex].mPC =
-          std::numeric_limits<uintptr_t>::max();
-      }
-    }
-
-    if (moduleReferenced) {
-      ++moduleIndex;
-    } else {
-      // Remove module if no PCs within its address range
-      rawModules.RemoveEntries(moduleIndex, moduleIndex + 1);
-    }
-  }
-
-  for (;stackIndex < stackSize; ++stackIndex) {
-    // These PCs are past the last module.
-    rawStack[stackIndex].mPC = std::numeric_limits<uintptr_t>::max();
-  }
-
-  std::sort(rawStack.begin(), rawStack.end(), CompareByIndex);
-#endif
-
-  // Copy the information to the return value.
-  ProcessedStack Ret;
-  for (std::vector<StackFrame>::iterator i = rawStack.begin(),
-         e = rawStack.end(); i != e; ++i) {
-    const StackFrame &rawFrame = *i;
-    ProcessedStack::Frame frame = { rawFrame.mPC, rawFrame.mModIndex };
-    Ret.AddFrame(frame);
-  }
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  for (unsigned i = 0, n = rawModules.GetSize(); i != n; ++i) {
-    const SharedLibrary &info = rawModules.GetEntry(i);
-    ProcessedStack::Module module = {
-      info.GetName(),
-      info.GetStart(),
-      info.GetEnd() - info.GetStart(),
-#ifdef XP_WIN
-      info.GetPdbAge(),
-      "", // mPdbSignature
-      info.GetPdbName(),
-#else
-      0, // mPdbAge
-      "", // mPdbSignature
-      "" // mPdbName
-#endif
-    };
-#ifdef XP_WIN
-    char guidString[NSID_LENGTH] = { 0 };
-    info.GetPdbSignature().ToProvidedString(guidString);
-    module.mPdbSignature = guidString;
-#endif
-    Ret.AddModule(module);
-  }
-#endif
-
-  return Ret;
-}
 
 } // namespace Telemetry
 } // namespace mozilla

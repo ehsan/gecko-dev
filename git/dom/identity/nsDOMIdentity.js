@@ -98,13 +98,7 @@ nsDOMIdentity.prototype = {
   },
 
   request: function nsDOMIdentity_request(aOptions) {
-    let util = this._window.QueryInterface(Ci.nsIInterfaceRequestor)
-                           .getInterface(Ci.nsIDOMWindowUtils);
-
-    // Do not allow call of request() outside of a user input handler.
-    if (!util.isHandlingUserInput) {
-      return;
-    }
+    // TODO: Bug 769569 - "must be invoked from within a click handler"
 
     // Has the caller called watch() before this?
     if (!this._rpWatcher) {
@@ -426,7 +420,7 @@ function nsDOMIdentityInternal() {
 }
 nsDOMIdentityInternal.prototype = {
 
-  // nsIMessageListener
+  // nsIFrameMessageListener
   receiveMessage: function nsDOMIdentityInternal_receiveMessage(aMessage) {
     let msg = aMessage.json;
     // Is this message intended for this window?
@@ -521,7 +515,7 @@ nsDOMIdentityInternal.prototype = {
   classID: Components.ID("{8bcac6a3-56a4-43a4-a44c-cdf42763002f}"),
 
   QueryInterface: XPCOMUtils.generateQI(
-    [Ci.nsIDOMGlobalPropertyInitializer, Ci.nsIMessageListener]
+    [Ci.nsIDOMGlobalPropertyInitializer, Ci.nsIFrameMessageListener]
   ),
 
   classInfo: XPCOMUtils.generateCI({

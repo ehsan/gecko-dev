@@ -7,7 +7,6 @@ function getPluginInfo(pluginElement)
 {
   var tagMimetype;
   var pluginsPage;
-  var pluginName = gNavigatorBundle.getString("pluginInfo.unknownPlugin");
   if (pluginElement instanceof HTMLAppletElement) {
     tagMimetype = "application/x-java-vm";
   } else {
@@ -36,17 +35,7 @@ function getPluginInfo(pluginElement)
     }
   }
 
-  if (tagMimetype) {
-    let navMimeType = navigator.mimeTypes.namedItem(tagMimetype);
-    if (navMimeType && navMimeType.enabledPlugin) {
-      pluginName = navMimeType.enabledPlugin.name;
-      pluginName = gPluginHandler.makeNicePluginName(pluginName);
-    }
-  }
-
-  return { mimetype: tagMimetype,
-           pluginsPage: pluginsPage,
-           pluginName: pluginName };
+  return {mimetype: tagMimetype, pluginsPage: pluginsPage};
 }
 
 var gPluginHandler = {
@@ -60,16 +49,13 @@ var gPluginHandler = {
 #endif
 
   // Map the plugin's name to a filtered version more suitable for user UI.
-  makeNicePluginName : function (aName) {
+  makeNicePluginName : function (aName, aFilename) {
     if (aName == "Shockwave Flash")
       return "Adobe Flash";
 
     // Clean up the plugin name by stripping off any trailing version numbers
     // or "plugin". EG, "Foo Bar Plugin 1.23_02" --> "Foo Bar"
-    // Do this by first stripping the numbers, etc. off the end, and then
-    // removing "Plugin" (and then trimming to get rid of any whitespace).
-    // (Otherwise, something like "Java(TM) Plug-in 1.7.0_07" gets mangled)
-    let newName = aName.replace(/[\s\d\.\-\_\(\)]+$/, "").replace(/\bplug-?in\b/i, "").trim();
+    let newName = aName.replace(/\bplug-?in\b/i, "").replace(/[\s\d\.\-\_\(\)]+$/, "");
     return newName;
   },
 
@@ -162,21 +148,6 @@ var gPluginHandler = {
       case "PluginVulnerableNoUpdate":
       case "PluginClickToPlay":
         self._handleClickToPlayEvent(plugin);
-        let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
-        let pluginName = getPluginInfo(plugin).pluginName;
-        let messageString = gNavigatorBundle.getFormattedString("PluginClickToPlay", [pluginName]);
-        let overlayText = doc.getAnonymousElementByAttribute(plugin, "class", "msg msgClickToPlay");
-        overlayText.textContent = messageString;
-        if (event.type == "PluginVulnerableUpdatable" ||
-            event.type == "PluginVulnerableNoUpdate") {
-          let vulnerabilityString = gNavigatorBundle.getString(event.type);
-          let vulnerabilityText = doc.getAnonymousElementByAttribute(plugin, "anonid", "vulnerabilityStatus");
-          vulnerabilityText.textContent = vulnerabilityString;
-        }
-        break;
-
-      case "PluginPlayPreview":
-        self._handlePlayPreviewEvent(plugin);
         break;
 
       case "PluginDisabled":
@@ -194,11 +165,6 @@ var gPluginHandler = {
     }
   },
 
-  canActivatePlugin: function PH_canActivatePlugin(objLoadingContent) {
-    return !objLoadingContent.activated &&
-           objLoadingContent.pluginFallbackType !== Ci.nsIObjectLoadingContent.PLUGIN_PLAY_PREVIEW;
-  },
-
   activatePlugins: function PH_activatePlugins(aContentWindow) {
     let browser = gBrowser.getBrowserForDocument(aContentWindow.document);
     browser._clickToPlayPluginsActivated = true;
@@ -207,7 +173,7 @@ var gPluginHandler = {
     let plugins = cwu.plugins;
     for (let plugin of plugins) {
       let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
-      if (gPluginHandler.canActivatePlugin(objLoadingContent))
+      if (!objLoadingContent.activated)
         objLoadingContent.playPlugin();
     }
     let notification = PopupNotifications.getNotification("click-to-play-plugins", browser);
@@ -217,32 +183,21 @@ var gPluginHandler = {
 
   activateSinglePlugin: function PH_activateSinglePlugin(aContentWindow, aPlugin) {
     let objLoadingContent = aPlugin.QueryInterface(Ci.nsIObjectLoadingContent);
-    if (gPluginHandler.canActivatePlugin(objLoadingContent))
+    if (!objLoadingContent.activated)
       objLoadingContent.playPlugin();
 
     let cwu = aContentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                             .getInterface(Ci.nsIDOMWindowUtils);
-    let pluginNeedsActivation = gPluginHandler._pluginNeedsActivationExceptThese([aPlugin]);
+    let haveUnplayedPlugins = cwu.plugins.some(function(plugin) {
+      let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
+      return (plugin != aPlugin && !objLoadingContent.activated);
+    });
     let browser = gBrowser.getBrowserForDocument(aContentWindow.document);
     let notification = PopupNotifications.getNotification("click-to-play-plugins", browser);
-    if (notification) {
+    if (notification && !haveUnplayedPlugins) {
       browser._clickToPlayDoorhangerShown = false;
       notification.remove();
     }
-    if (pluginNeedsActivation) {
-      gPluginHandler._showClickToPlayNotification(browser);
-    }
-  },
-
-  stopPlayPreview: function PH_stopPlayPreview(aPlugin, aPlayPlugin) {
-    let objLoadingContent = aPlugin.QueryInterface(Ci.nsIObjectLoadingContent);
-    if (objLoadingContent.activated)
-      return;
-
-    if (aPlayPlugin)
-      objLoadingContent.playPlugin();
-    else
-      objLoadingContent.cancelPlayPreview();
   },
 
   newPluginInstalled : function(event) {
@@ -262,14 +217,14 @@ var gPluginHandler = {
 
   // Callback for user clicking on a missing (unsupported) plugin.
   installSinglePlugin: function (plugin) {
-    var missingPlugins = new Map();
+    var missingPluginsArray = {};
 
     var pluginInfo = getPluginInfo(plugin);
-    missingPlugins.set(pluginInfo.mimetype, pluginInfo);
+    missingPluginsArray[pluginInfo.mimetype] = pluginInfo;
 
     openDialog("chrome://mozapps/content/plugins/pluginInstallerWizard.xul",
                "PFSWindow", "chrome,centerscreen,resizable=yes",
-               {plugins: missingPlugins, browser: gBrowser.selectedBrowser});
+               {plugins: missingPluginsArray, browser: gBrowser.selectedBrowser});
   },
 
   // Callback for user clicking on a disabled plugin
@@ -326,56 +281,13 @@ var gPluginHandler = {
       overlay.addEventListener("click", function(aEvent) {
         // Have to check that the target is not the link to update the plugin
         if (!(aEvent.originalTarget instanceof HTMLAnchorElement) &&
-            aEvent.button == 0 && aEvent.isTrusted) {
+            aEvent.button == 0 && aEvent.isTrusted)
           gPluginHandler.activateSinglePlugin(aEvent.target.ownerDocument.defaultView.top, aPlugin);
-          aEvent.stopPropagation();
-          aEvent.preventDefault();
-        }
       }, true);
     }
 
     if (!browser._clickToPlayDoorhangerShown)
       gPluginHandler._showClickToPlayNotification(browser);
-  },
-
-  _handlePlayPreviewEvent: function PH_handlePlayPreviewEvent(aPlugin) {
-    let doc = aPlugin.ownerDocument;
-    let previewContent = doc.getAnonymousElementByAttribute(aPlugin, "class", "previewPluginContent");
-    if (!previewContent) {
-      // the XBL binding is not attached (element is display:none), fallback to click-to-play logic
-      gPluginHandler.stopPlayPreview(aPlugin, false);
-      return;
-    }
-    let iframe = previewContent.getElementsByClassName("previewPluginContentFrame")[0];
-    if (!iframe) {
-      // lazy initialization of the iframe
-      iframe = doc.createElementNS("http://www.w3.org/1999/xhtml", "iframe");
-      iframe.className = "previewPluginContentFrame";
-      previewContent.appendChild(iframe);
-
-      // Force a style flush, so that we ensure our binding is attached.
-      aPlugin.clientTop;
-    }
-    let pluginInfo = getPluginInfo(aPlugin);
-    let playPreviewUri = "data:application/x-moz-playpreview;," + pluginInfo.mimetype;
-    iframe.src = playPreviewUri;
-
-    // MozPlayPlugin event can be dispatched from the extension chrome
-    // code to replace the preview content with the native plugin
-    previewContent.addEventListener("MozPlayPlugin", function playPluginHandler(aEvent) {
-      if (!aEvent.isTrusted)
-        return;
-
-      previewContent.removeEventListener("MozPlayPlugin", playPluginHandler, true);
-
-      let playPlugin = !aEvent.detail;
-      gPluginHandler.stopPlayPreview(aPlugin, playPlugin);
-
-      // cleaning up: removes overlay iframe from the DOM
-      let iframe = previewContent.getElementsByClassName("previewPluginContentFrame")[0];
-      if (iframe)
-        previewContent.removeChild(iframe);
-    }, true);
   },
 
   reshowClickToPlayNotification: function PH_reshowClickToPlayNotification() {
@@ -388,99 +300,16 @@ var gPluginHandler = {
     if (pluginsPermission == Ci.nsIPermissionManager.DENY_ACTION)
       return;
 
-    if (gPluginHandler._pluginNeedsActivationExceptThese([]))
-      gPluginHandler._showClickToPlayNotification(browser);
-  },
-
-  // returns true if there is a plugin on this page that needs activation
-  // and isn't in the "except these" list
-  _pluginNeedsActivationExceptThese: function PH_pluginNeedsActivationExceptThese(aExceptThese) {
-    let contentWindow = gBrowser.selectedBrowser.contentWindow;
+    let contentWindow = browser.contentWindow;
     let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                            .getInterface(Ci.nsIDOMWindowUtils);
     let pluginNeedsActivation = cwu.plugins.some(function(plugin) {
       let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
-      return (gPluginHandler.canActivatePlugin(objLoadingContent) &&
-              aExceptThese.indexOf(plugin) < 0);
+      return !objLoadingContent.activated;
     });
-
-    return pluginNeedsActivation;
+    if (pluginNeedsActivation)
+      gPluginHandler._showClickToPlayNotification(browser);
   },
-
-  /* Gets all plugins currently in the page of the given name */
-  _getPluginsByName: function PH_getPluginsByName(aDOMWindowUtils, aName) {
-    let plugins = [];
-    for (let plugin of aDOMWindowUtils.plugins) {
-      let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
-      if (gPluginHandler.canActivatePlugin(objLoadingContent)) {
-        let pluginName = getPluginInfo(plugin).pluginName;
-        if (aName == pluginName) {
-          plugins.push(objLoadingContent);
-        }
-      }
-    }
-    return plugins;
-  },
-
-  _makeCenterActions: function PH_makeCenterActions(aBrowser) {
-    let contentWindow = aBrowser.contentWindow;
-    let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                           .getInterface(Ci.nsIDOMWindowUtils);
-    let pluginsDictionary = new Map();
-    for (let plugin of cwu.plugins) {
-      let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
-      if (gPluginHandler.canActivatePlugin(objLoadingContent)) {
-        let pluginName = getPluginInfo(plugin).pluginName;
-        if (!pluginsDictionary.has(pluginName))
-          pluginsDictionary.set(pluginName, []);
-        pluginsDictionary.get(pluginName).push(objLoadingContent);
-      }
-    }
-
-    let centerActions = [];
-    for (let [pluginName, namedPluginArray] of pluginsDictionary) {
-      let plugin = namedPluginArray[0];
-      let warn = false;
-      let warningText = "";
-      let updateLink = Services.urlFormatter.formatURLPref("plugins.update.url");
-      if (plugin.pluginFallbackType) {
-        if (plugin.pluginFallbackType ==
-              Ci.nsIObjectLoadingContent.PLUGIN_VULNERABLE_UPDATABLE) {
-          warn = true;
-          warningText = gNavigatorBundle.getString("vulnerableUpdatablePluginWarning");
-        }
-        else if (plugin.pluginFallbackType ==
-                   Ci.nsIObjectLoadingContent.PLUGIN_VULNERABLE_NO_UPDATE) {
-          warn = true;
-          warningText = gNavigatorBundle.getString("vulnerableNoUpdatePluginWarning");
-          updateLink = "";
-        }
-      }
-
-      let action = {
-        message: pluginName,
-        warn: warn,
-        warningText: warningText,
-        updateLink: updateLink,
-        label: gNavigatorBundle.getString("activateSinglePlugin"),
-        callback: function() {
-          let plugins = gPluginHandler._getPluginsByName(cwu, this.message);
-          for (let objLoadingContent of plugins) {
-            objLoadingContent.playPlugin();
-          }
-
-          let notification = PopupNotifications.getNotification("click-to-play-plugins", aBrowser);
-          if (notification &&
-              !gPluginHandler._pluginNeedsActivationExceptThese(plugins)) {
-            notification.remove();
-          }
-        }
-      };
-      centerActions.push(action);
-    }
-
-    return centerActions;
-   },
 
   _showClickToPlayNotification: function PH_showClickToPlayNotification(aBrowser) {
     aBrowser._clickToPlayDoorhangerShown = true;
@@ -488,22 +317,10 @@ var gPluginHandler = {
 
     let messageString = gNavigatorBundle.getString("activatePluginsMessage.message");
     let mainAction = {
-      label: gNavigatorBundle.getString("activateAllPluginsMessage.label"),
+      label: gNavigatorBundle.getString("activatePluginsMessage.label"),
       accessKey: gNavigatorBundle.getString("activatePluginsMessage.accesskey"),
       callback: function() { gPluginHandler.activatePlugins(contentWindow); }
     };
-    let centerActions = gPluginHandler._makeCenterActions(aBrowser);
-    let cwu = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                           .getInterface(Ci.nsIDOMWindowUtils);
-    let haveVulnerablePlugin = cwu.plugins.some(function(plugin) {
-      let objLoadingContent = plugin.QueryInterface(Ci.nsIObjectLoadingContent);
-      return (gPluginHandler.canActivatePlugin(objLoadingContent) &&
-              (objLoadingContent.pluginFallbackType == Ci.nsIObjectLoadingContent.PLUGIN_VULNERABLE_UPDATABLE ||
-               objLoadingContent.pluginFallbackType == Ci.nsIObjectLoadingContent.PLUGIN_VULNERABLE_NO_UPDATE));
-    });
-    if (haveVulnerablePlugin) {
-      messageString = gNavigatorBundle.getString("vulnerablePluginsMessage");
-    }
     let secondaryActions = [{
       label: gNavigatorBundle.getString("activatePluginsMessage.always"),
       accessKey: gNavigatorBundle.getString("activatePluginsMessage.always.accesskey"),
@@ -522,7 +339,7 @@ var gPluginHandler = {
         gPluginHandler._removeClickToPlayOverlays(contentWindow);
       }
     }];
-    let options = { dismissed: true, centerActions: centerActions };
+    let options = { dismissed: true };
     PopupNotifications.show(aBrowser, "click-to-play-plugins",
                             messageString, "plugins-notification-icon",
                             mainAction, secondaryActions, options);
@@ -543,10 +360,10 @@ var gPluginHandler = {
     let browser = gBrowser.getBrowserForDocument(plugin.ownerDocument
                                                        .defaultView.top.document);
     if (!browser.missingPlugins)
-      browser.missingPlugins = new Map();
+      browser.missingPlugins = {};
 
     var pluginInfo = getPluginInfo(plugin);
-    browser.missingPlugins.set(pluginInfo.mimetype, pluginInfo);
+    browser.missingPlugins[pluginInfo.mimetype] = pluginInfo;
 
     var notificationBox = gBrowser.getNotificationBox(browser);
 
@@ -572,11 +389,11 @@ var gPluginHandler = {
 
     function showPluginsMissing() {
       // get the urls of missing plugins
-      var missingPlugins = gBrowser.selectedBrowser.missingPlugins;
-      if (missingPlugins) {
+      var missingPluginsArray = gBrowser.selectedBrowser.missingPlugins;
+      if (missingPluginsArray) {
         openDialog("chrome://mozapps/content/plugins/pluginInstallerWizard.xul",
                    "PFSWindow", "chrome,centerscreen,resizable=yes",
-                   {plugins: missingPlugins, browser: gBrowser.selectedBrowser});
+                   {plugins: missingPluginsArray, browser: gBrowser.selectedBrowser});
       }
     }
 
@@ -743,11 +560,12 @@ var gPluginHandler = {
     let doPrompt        = true; // XXX followup for .getData("doPrompt");
     let submitReports   = true; // XXX followup for .getData("submitReports");
     let pluginName      = aEvent.getData("pluginName");
+    let pluginFilename  = aEvent.getData("pluginFilename");
     let pluginDumpID    = aEvent.getData("pluginDumpID");
     let browserDumpID   = aEvent.getData("browserDumpID");
 
     // Remap the plugin name to a more user-presentable form.
-    pluginName = this.makeNicePluginName(pluginName);
+    pluginName = this.makeNicePluginName(pluginName, pluginFilename);
 
     let messageString = gNavigatorBundle.getFormattedString("crashedpluginsMessage.title", [pluginName]);
 

@@ -23,7 +23,7 @@
 #include "nsIDOMElement.h"
 #include "prmem.h"
 #include "nsIContent.h"
-#include "nsPluginInstanceOwner.h"
+#include "nsIPluginInstanceOwner.h"
 #include "mozilla/HashFunctions.h"
 
 #define NPRUNTIME_JSCLASS_NAME "NPObject JS wrapper class"
@@ -50,7 +50,7 @@ static PLDHashTable sNPObjWrappers;
 // Global wrapper count. This includes JSObject wrappers *and*
 // NPObject wrappers. When this count goes to zero, there are no more
 // wrappers and we can kill off hash tables etc.
-static int32_t sWrapperCount;
+static PRInt32 sWrapperCount;
 
 // The JSRuntime. Used to unroot JSObjects when no JSContext is
 // reachable.
@@ -207,7 +207,7 @@ DelayedReleaseGCCallback(JSRuntime* rt, JSGCStatus status)
     sDelayedReleases = nullptr;
 
     if (delayedReleases) {
-      for (uint32_t i = 0; i < delayedReleases->Length(); ++i) {
+      for (PRUint32 i = 0; i < delayedReleases->Length(); ++i) {
         NPObject* obj = (*delayedReleases)[i];
         if (obj)
           _releaseobject(obj);
@@ -322,7 +322,8 @@ GetJSContext(NPP npp)
   nsNPAPIPluginInstance *inst = (nsNPAPIPluginInstance *)npp->ndata;
   NS_ENSURE_TRUE(inst, nullptr);
 
-  nsRefPtr<nsPluginInstanceOwner> owner = inst->GetOwner();
+  nsCOMPtr<nsIPluginInstanceOwner> owner;
+  inst->GetOwner(getter_AddRefs(owner));
   NS_ENSURE_TRUE(owner, nullptr);
 
   nsCOMPtr<nsIDocument> doc;
@@ -439,7 +440,7 @@ JSValToNPVariant(NPP npp, JSContext *cx, jsval val, NPVariant *variant)
 
       nsDependentString str(chars, length);
 
-      uint32_t len;
+      PRUint32 len;
       char *p = ToNewUTF8String(str, &len);
 
       if (!p) {
@@ -623,7 +624,10 @@ nsJSObjWrapper::NP_HasMethod(NPObject *npobj, NPIdentifier id)
 
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   AutoJSExceptionReporter reporter(cx);
 
@@ -659,7 +663,10 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
 
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   AutoJSExceptionReporter reporter(cx);
 
@@ -693,7 +700,7 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
     JS::AutoArrayRooter tvr(cx, 0, jsargs);
 
     // Convert args
-    for (uint32_t i = 0; i < argCount; ++i) {
+    for (PRUint32 i = 0; i < argCount; ++i) {
       jsargs[i] = NPVariantToJSVal(npp, cx, args + i);
       tvr.changeLength(i + 1);
     }
@@ -771,7 +778,10 @@ nsJSObjWrapper::NP_HasProperty(NPObject *npobj, NPIdentifier id)
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
                "id must be either string or int!\n");
@@ -803,7 +813,10 @@ nsJSObjWrapper::NP_GetProperty(NPObject *npobj, NPIdentifier id,
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   jsval v;
   return (GetProperty(cx, npjsobj->mJSObj, id, &v) &&
@@ -835,7 +848,10 @@ nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier id,
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   jsval v = NPVariantToJSVal(npp, cx, value);
   JS::AutoValueRooter tvr(cx, v);
@@ -874,7 +890,10 @@ nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier id)
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
   jsval deleted = JSVAL_FALSE;
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
                "id must be either string or int!\n");
@@ -926,7 +945,10 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
   AutoCXPusher pusher(cx);
   JSAutoRequest ar(cx);
   AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JSAutoEnterCompartment ac;
+
+  if (!ac.enter(cx, npjsobj->mJSObj))
+    return false;
 
   JS::AutoIdArray ida(cx, JS_Enumerate(cx, npjsobj->mJSObj));
   if (!ida) {
@@ -940,7 +962,7 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
     return false;
   }
 
-  for (uint32_t i = 0; i < *count; i++) {
+  for (PRUint32 i = 0; i < *count; i++) {
     jsval v;
     if (!JS_IdToValue(cx, ida[i], &v)) {
       PR_Free(*idarray);
@@ -1141,9 +1163,7 @@ GetNPObjectWrapper(JSContext *cx, JSObject *obj, bool wrapResult = true)
       }
       return obj;
     }
-    if (!::JS_GetPrototype(cx, obj, &obj)) {
-      return NULL;
-    }
+    obj = ::JS_GetPrototype(obj);
   }
   return NULL;
 }
@@ -1421,7 +1441,7 @@ CallNPMethodInternal(JSContext *cx, JSObject *obj, unsigned argc, jsval *argv,
   }
 
   // Convert arguments
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < argc; ++i) {
     if (!JSValToNPVariant(npp, cx, argv[i], npargs + i)) {
       ThrowJSException(cx, "Error converting jsvals to NPVariants!");
@@ -1519,8 +1539,8 @@ CallNPMethod(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 struct NPObjectEnumerateState {
-  uint32_t     index;
-  uint32_t     length;
+  PRUint32     index;
+  PRUint32     length;
   NPIdentifier *value;
 };
 
@@ -1836,7 +1856,7 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
 
   JSAutoRequest ar(cx);
 
-  uint32_t generation = sNPObjWrappers.generation;
+  PRUint32 generation = sNPObjWrappers.generation;
 
   // No existing JSObject, create one.
 
@@ -1876,7 +1896,7 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
 // PLDHashTable enumeration callbacks for destruction code.
 static PLDHashOperator
 JSObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                                    uint32_t number, void *arg)
+                                    PRUint32 number, void *arg)
 {
   JSObjWrapperHashEntry *entry = (JSObjWrapperHashEntry *)hdr;
 
@@ -1912,7 +1932,7 @@ struct NppAndCx
 
 static PLDHashOperator
 NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                                    uint32_t number, void *arg)
+                                    PRUint32 number, void *arg)
 {
   NPObjWrapperHashEntry *entry = (NPObjWrapperHashEntry *)hdr;
   NppAndCx *nppcx = reinterpret_cast<NppAndCx *>(arg);
@@ -1950,10 +1970,6 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
     ::JS_SetPrivate(entry->mJSObj, nullptr);
 
     table->ops = ops;    
-
-    if (sDelayedReleases && sDelayedReleases->RemoveElement(npobj)) {
-      OnWrapperDestroyed();
-    }
 
     return PL_DHASH_REMOVE;
   }
@@ -2049,9 +2065,11 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
   JSObject *obj, *proto;
   holder->GetJSObject(&obj);
 
-  Maybe<JSAutoCompartment> ac;
-  if (obj) {
-    ac.construct(cx, obj);
+  JSAutoEnterCompartment ac;
+
+  if (obj && !ac.enter(cx, obj)) {
+    // Failure to enter compartment, nothing more we can do then.
+    return;
   }
 
   // Loop over the DOM element's JS object prototype chain and remove
@@ -2059,20 +2077,12 @@ nsJSNPRuntime::OnPluginDestroy(NPP npp)
   // be only one, but remove all instances found in case the page put
   // more than one of the plugin's scriptable objects on the prototype
   // chain).
-  while (obj) {
-    if (!::JS_GetPrototype(cx, obj, &proto)) {
-      return;
-    }
-    if (!proto) {
-      break;
-    }
+  while (obj && (proto = ::JS_GetPrototype(obj))) {
     // Unwrap while checking the jsclass - if the prototype is a wrapper for
     // an NP object, that counts too.
     if (JS_GetClass(js::UnwrapObject(proto)) == &sNPObjectJSWrapperClass) {
       // We found an NPObject on the proto chain, get its prototype...
-      if (!::JS_GetPrototype(cx, proto, &proto)) {
-        return;
-      }
+      proto = ::JS_GetPrototype(proto);
 
       // ... and pull it out of the chain.
       ::JS_SetPrototype(cx, obj, proto);
@@ -2262,7 +2272,7 @@ NPObjectMember_Call(JSContext *cx, unsigned argc, jsval *vp)
   }
 
   // Convert arguments
-  uint32_t i;
+  PRUint32 i;
   jsval *argv = JS_ARGV(cx, vp);
   for (i = 0; i < argc; ++i) {
     if (!JSValToNPVariant(memberPrivate->npp, cx, argv[i], npargs + i)) {

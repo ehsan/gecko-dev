@@ -50,7 +50,7 @@ nsXULLabelFrame::RegUnregAccessKey(bool aDoReg)
   // and register the access key
   nsEventStateManager *esm = PresContext()->EventStateManager();
 
-  uint32_t key = accessKey.First();
+  PRUint32 key = accessKey.First();
   if (aDoReg)
     esm->RegisterAccessKey(mContent, key);
   else
@@ -84,9 +84,9 @@ nsXULLabelFrame::DestroyFrom(nsIFrame* aDestructRoot)
 } 
 
 NS_IMETHODIMP
-nsXULLabelFrame::AttributeChanged(int32_t aNameSpaceID,
+nsXULLabelFrame::AttributeChanged(PRInt32 aNameSpaceID,
                                   nsIAtom* aAttribute,
-                                  int32_t aModType)
+                                  PRInt32 aModType)
 {
   nsresult rv = nsBlockFrame::AttributeChanged(aNameSpaceID, 
                                                aAttribute, aModType);

@@ -118,8 +118,8 @@ nsMathMLFrame::InheritAutomaticData(nsIFrame* aParent)
 }
 
 NS_IMETHODIMP
-nsMathMLFrame::UpdatePresentationData(uint32_t        aFlagsValues,
-                                      uint32_t        aWhichFlags)
+nsMathMLFrame::UpdatePresentationData(PRUint32        aFlagsValues,
+                                      PRUint32        aWhichFlags)
 {
   NS_ASSERTION(NS_MATHML_IS_DISPLAYSTYLE(aWhichFlags) ||
                NS_MATHML_IS_COMPRESSED(aWhichFlags),
@@ -349,7 +349,7 @@ nsMathMLFrame::CalcLength(nsPresContext*   aPresContext,
 /* static */ void
 nsMathMLFrame::ParseNumericValue(const nsString&   aString,
                                  nscoord*          aLengthValue,
-                                 uint32_t          aFlags,
+                                 PRUint32          aFlags,
                                  nsPresContext*    aPresContext,
                                  nsStyleContext*   aStyleContext)
 {
@@ -380,12 +380,12 @@ nsMathMLFrame::ParseNumericValue(const nsString&   aString,
 // is not scheduled to be fixed anytime soon)
 //
 
-static const int32_t kMathMLversion1 = 1;
-static const int32_t kMathMLversion2 = 2;
+static const PRInt32 kMathMLversion1 = 1;
+static const PRInt32 kMathMLversion2 = 2;
 
 struct
 nsCSSMapping {
-  int32_t        compatibility;
+  PRInt32        compatibility;
   const nsIAtom* attrAtom;
   const char*    cssProperty;
 };

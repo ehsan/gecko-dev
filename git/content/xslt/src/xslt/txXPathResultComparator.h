@@ -52,10 +52,10 @@ public:
 private:
     nsCOMPtr<nsICollation> mCollation;
     nsresult init(const nsAFlatString& aLanguage);
-    nsresult createRawSortKey(const int32_t aStrength,
+    nsresult createRawSortKey(const PRInt32 aStrength,
                               const nsString& aString,
-                              uint8_t** aKey,
-                              uint32_t* aLength);
+                              PRUint8** aKey,
+                              PRUint32* aLength);
     int mSorting;
 
     class StringValue : public txObject
@@ -64,9 +64,9 @@ private:
         StringValue();
         ~StringValue();
 
-        uint8_t* mKey;
+        PRUint8* mKey;
         void* mCaseKey;
-        uint32_t mLength, mCaseLength;
+        PRUint32 mLength, mCaseLength;
     };
 };
 

@@ -65,8 +65,8 @@ interface nsIBrowserHistory : nsIGlobalHistory2
      *
      * @note The removal happens in a batch.
      */
-    void removePagesByTimeframe(in PRTime aBeginTime,
-                                in PRTime aEndTime);
+    void removePagesByTimeframe(in long long aBeginTime,
+                                in long long aEndTime);
 
     /**
      * Removes all visits in a given timeframe.
@@ -80,8 +80,8 @@ interface nsIBrowserHistory : nsIGlobalHistory2
      *
      * @note The removal happens in a batch.
      */
-    void removeVisitsByTimeframe(in PRTime aBeginTime,
-                                 in PRTime aEndTime);
+    void removeVisitsByTimeframe(in long long aBeginTime,
+                                 in long long aEndTime);
 
     /**
      * Removes all existing pages from global history.

@@ -122,7 +122,7 @@ nsSVGMpathElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 bool
-nsSVGMpathElement::ParseAttribute(int32_t aNamespaceID,
+nsSVGMpathElement::ParseAttribute(PRInt32 aNamespaceID,
                                   nsIAtom* aAttribute,
                                   const nsAString& aValue,
                                   nsAttrValue& aResult)
@@ -141,7 +141,7 @@ nsSVGMpathElement::ParseAttribute(int32_t aNamespaceID,
 }
 
 nsresult
-nsSVGMpathElement::UnsetAttr(int32_t aNamespaceID,
+nsSVGMpathElement::UnsetAttr(PRInt32 aNamespaceID,
                              nsIAtom* aAttribute, bool aNotify)
 {
   nsresult rv = nsSVGMpathElementBase::UnsetAttr(aNamespaceID, aAttribute,
@@ -172,9 +172,9 @@ nsSVGMpathElement::GetStringInfo()
 void
 nsSVGMpathElement::AttributeChanged(nsIDocument* aDocument,
                                     Element* aElement,
-                                    int32_t aNameSpaceID,
+                                    PRInt32 aNameSpaceID,
                                     nsIAtom* aAttribute,
-                                    int32_t aModType)
+                                    PRInt32 aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::d) {

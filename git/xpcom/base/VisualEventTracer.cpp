@@ -19,7 +19,7 @@ namespace mozilla { namespace eventtracer {
 
 namespace {
 
-const uint32_t kBatchSize = 0x1000;
+const PRUint32 kBatchSize = 0x1000;
 const char kTypeChars[eventtracer::eLast] = {' ','N','S','W','E','D'};
 
 // Flushing thread and records queue monitor
@@ -48,7 +48,7 @@ public:
     MOZ_COUNT_DTOR(Record);
   }
 
-  uint32_t mType;
+  PRUint32 mType;
   double mTime;
   void * mItem;
   char * mText;
@@ -205,7 +205,7 @@ bool gStopFlushingThread = false;
 EventFilter * gEventFilter = nullptr;
 const char * gLogFilePath = nullptr;
 PRThread * gFlushingThread = nullptr;
-unsigned gThreadPrivateIndex;
+PRUintn gThreadPrivateIndex;
 mozilla::TimeStamp gProfilerStart;
 
 // To prevent any major I/O blockade caused by call to eventtracer::Mark() 
@@ -226,7 +226,7 @@ void FlushingThread(void * aArg)
     return;
   }
 
-  int32_t rv;
+  PRInt32 rv;
   bool ioError = false;
 
   const char logHead[] = "{\n\"version\": 1,\n\"records\":[\n";
@@ -273,8 +273,8 @@ void FlushingThread(void * aArg)
         // mType carries both type and flags, separate type 
         // as lower 16 bits and flags as higher 16 bits.
         // The json format expects this separated.
-        uint32_t type = record->mType & 0xffffUL;
-        uint32_t flags = record->mType >> 16;
+        PRUint32 type = record->mType & 0xffffUL;
+        PRUint32 flags = record->mType >> 16;
         PR_snprintf(buf, kBufferSize, 
           "{\"e\":\"%c\",\"t\":%f,\"f\":%d,\"i\":\"%p\",\"n\":\"%s%s\"}%s\n",
           kTypeChars[type],
@@ -310,7 +310,7 @@ void FlushingThread(void * aArg)
 }
 
 // static
-bool CheckEventFilters(uint32_t aType, void * aItem, const char * aText)
+bool CheckEventFilters(PRUint32 aType, void * aItem, const char * aText)
 {
   if (!gEventFilter)
     return true;
@@ -407,7 +407,7 @@ void Shutdown()
 }
 
 // static 
-void Mark(uint32_t aType, void * aItem, const char * aText, const char * aText2)
+void Mark(PRUint32 aType, void * aItem, const char * aText, const char * aText2)
 {
 #ifdef MOZ_VISUAL_EVENT_TRACER
   if (!gInitialized)

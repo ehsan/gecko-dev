@@ -5,20 +5,20 @@
 
 #include <limits.h>
 
-#include "NSPRFormatTime.h" // must be before anything that includes prtime.h
 #include "nsAboutCacheEntry.h"
 #include "nsICacheService.h"
-#include "nsICacheSession.h"
+#include "nsICacheEntryDescriptor.h"
 #include "nsIStorageStream.h"
 #include "nsNetUtil.h"
 #include "nsAutoPtr.h"
 #include "prprf.h"
+#include "prtime.h"
 #include "nsEscape.h"
 
 #define HEXDUMP_MAX_ROWS 16
 
 static void
-HexDump(uint32_t *state, const char *buf, int32_t n, nsCString &result)
+HexDump(PRUint32 *state, const char *buf, PRInt32 n, nsCString &result)
 {
   char temp[16];
 
@@ -30,7 +30,7 @@ HexDump(uint32_t *state, const char *buf, int32_t n, nsCString &result)
 
     p = (const unsigned char *) buf;
 
-    int32_t i, row_max = NS_MIN(HEXDUMP_MAX_ROWS, n);
+    PRInt32 i, row_max = NS_MIN(HEXDUMP_MAX_ROWS, n);
 
     // print hex codes:
     for (i = 0; i < row_max; ++i) {
@@ -96,7 +96,7 @@ nsAboutCacheEntry::NewChannel(nsIURI *uri, nsIChannel **result)
 }
 
 NS_IMETHODIMP
-nsAboutCacheEntry::GetURIFlags(nsIURI *aURI, uint32_t *result)
+nsAboutCacheEntry::GetURIFlags(nsIURI *aURI, PRUint32 *result)
 {
     *result = nsIAboutModule::HIDE_FROM_ABOUTABOUT;
     return NS_OK;
@@ -108,18 +108,23 @@ nsAboutCacheEntry::GetURIFlags(nsIURI *aURI, uint32_t *result)
 nsresult
 nsAboutCacheEntry::GetContentStream(nsIURI *uri, nsIInputStream **result)
 {
+    nsCOMPtr<nsIStorageStream> storageStream;
+    nsCOMPtr<nsIOutputStream> outputStream;
+    PRUint32 n;
+    nsCString buffer;
     nsresult rv;
 
+    nsCOMPtr<nsICacheEntryDescriptor> descriptor;
+    OpenCacheEntry(uri, getter_AddRefs(descriptor));
+
     // Init: (block size, maximum length)
-    nsCOMPtr<nsIAsyncInputStream> inputStream;
-    rv = NS_NewPipe2(getter_AddRefs(inputStream),
-                     getter_AddRefs(mOutputStream),
-                     true, false,
-                     256, UINT32_MAX);
+    rv = NS_NewStorageStream(256, PRUint32(-1), getter_AddRefs(storageStream));
     if (NS_FAILED(rv)) return rv;
 
-    NS_NAMED_LITERAL_CSTRING(
-      buffer,
+    rv = storageStream->GetOutputStream(0, getter_AddRefs(outputStream));
+    if (NS_FAILED(rv)) return rv;
+
+    buffer.AssignLiteral(
       "<!DOCTYPE html>\n"
       "<html>\n"
       "<head>\n"
@@ -131,23 +136,31 @@ nsAboutCacheEntry::GetContentStream(nsIURI *uri, nsIInputStream **result)
       "</head>\n"
       "<body>\n"
       "<h1>Cache entry information</h1>\n");
-    uint32_t n;
-    rv = mOutputStream->Write(buffer.get(), buffer.Length(), &n);
-    if (NS_FAILED(rv)) return rv;
-    if (n != buffer.Length()) return NS_ERROR_UNEXPECTED;
+    outputStream->Write(buffer.get(), buffer.Length(), &n);
 
-    rv = OpenCacheEntry(uri);
+    if (descriptor)
+        rv = WriteCacheEntryDescription(outputStream, descriptor);
+    else
+        rv = WriteCacheEntryUnavailable(outputStream);
     if (NS_FAILED(rv)) return rv;
 
-    *result = inputStream.forget().get();
-    return NS_OK;
+    buffer.AssignLiteral("</body>\n</html>\n");
+    outputStream->Write(buffer.get(), buffer.Length(), &n);
+
+    nsCOMPtr<nsIInputStream> inStr;
+    PRUint32 size;
+
+    rv = storageStream->GetLength(&size);
+    if (NS_FAILED(rv)) return rv;
+
+    return storageStream->NewInputStream(0, result);
 }
 
 nsresult
-nsAboutCacheEntry::OpenCacheEntry(nsIURI *uri)
+nsAboutCacheEntry::OpenCacheEntry(nsIURI *uri, nsICacheEntryDescriptor **result)
 {
     nsresult rv;
-    nsAutoCString clientID, key;
+    nsCAutoString clientID, key;
     bool streamBased = true;
 
     rv = ParseURI(uri, clientID, streamBased, key);
@@ -167,7 +180,8 @@ nsAboutCacheEntry::OpenCacheEntry(nsIURI *uri)
     rv = session->SetDoomEntriesIfExpired(false);
     if (NS_FAILED(rv)) return rv;
 
-    return session->AsyncOpenCacheEntry(key, nsICache::ACCESS_READ, this, true);
+    rv = session->OpenCacheEntry(key, nsICache::ACCESS_READ, false, result);
+    return rv;
 }
 
 
@@ -175,14 +189,15 @@ nsAboutCacheEntry::OpenCacheEntry(nsIURI *uri)
 // helper methods
 //-----------------------------------------------------------------------------
 
-static PRTime SecondsToPRTime(uint32_t t_sec)
+static PRTime SecondsToPRTime(PRUint32 t_sec)
 {
     PRTime t_usec, usec_per_sec;
-    t_usec = t_sec;
-    usec_per_sec = PR_USEC_PER_SEC;
-    return t_usec *= usec_per_sec;
+    LL_I2L(t_usec, t_sec);
+    LL_I2L(usec_per_sec, PR_USEC_PER_SEC);
+    LL_MUL(t_usec, t_usec, usec_per_sec);
+    return t_usec;
 }
-static void PrintTimeString(char *buf, uint32_t bufsize, uint32_t t_sec)
+static void PrintTimeString(char *buf, PRUint32 bufsize, PRUint32 t_sec)
 {
     PRExplodedTime et;
     PRTime t_usec = SecondsToPRTime(t_sec);
@@ -203,13 +218,14 @@ static void PrintTimeString(char *buf, uint32_t bufsize, uint32_t t_sec)
     PR_END_MACRO
 
 nsresult
-nsAboutCacheEntry::WriteCacheEntryDescription(nsICacheEntryDescriptor *descriptor)
+nsAboutCacheEntry::WriteCacheEntryDescription(nsIOutputStream *outputStream,
+                                              nsICacheEntryDescriptor *descriptor)
 {
     nsresult rv;
     nsCString buffer;
-    uint32_t n;
+    PRUint32 n;
 
-    nsAutoCString str;
+    nsCAutoString str;
 
     rv = descriptor->GetKey(str);
     if (NS_FAILED(rv)) return rv;
@@ -249,9 +265,9 @@ nsAboutCacheEntry::WriteCacheEntryDescription(nsICacheEntryDescriptor *descripto
 
     // temp vars for reporting
     char timeBuf[255];
-    uint32_t u = 0;
-    int32_t  i = 0;
-    nsAutoCString s;
+    PRUint32 u = 0;
+    PRInt32  i = 0;
+    nsCAutoString s;
 
     // Fetch Count
     s.Truncate();
@@ -288,9 +304,9 @@ nsAboutCacheEntry::WriteCacheEntryDescription(nsICacheEntryDescriptor *descripto
 
     // Data Size
     s.Truncate();
-    uint32_t dataSize;
+    PRUint32 dataSize;
     descriptor->GetStorageDataSize(&dataSize);
-    s.AppendInt((int32_t)dataSize);     // XXX nsICacheEntryInfo interfaces should be fixed.
+    s.AppendInt((PRInt32)dataSize);     // XXX nsICacheEntryInfo interfaces should be fixed.
     APPEND_ROW("Data size", s);
 
     // Storage Policy
@@ -340,7 +356,7 @@ nsAboutCacheEntry::WriteCacheEntryDescription(nsICacheEntryDescriptor *descripto
     mBuffer = nullptr;
 
     buffer.AppendLiteral("</table>\n");
-    mOutputStream->Write(buffer.get(), buffer.Length(), &n);
+    outputStream->Write(buffer.get(), buffer.Length(), &n);
 
     buffer.Truncate();
 
@@ -351,28 +367,28 @@ nsAboutCacheEntry::WriteCacheEntryDescription(nsICacheEntryDescriptor *descripto
         if (stream) {
             buffer.AssignLiteral("<hr/>\n"
                                  "<pre>");
-            uint32_t hexDumpState = 0;
+            PRUint32 hexDumpState = 0;
             char chunk[4096];
             while(NS_SUCCEEDED(stream->Read(chunk, sizeof(chunk), &n)) && 
                   n > 0) {
                 HexDump(&hexDumpState, chunk, n, buffer);
-                mOutputStream->Write(buffer.get(), buffer.Length(), &n);
+                outputStream->Write(buffer.get(), buffer.Length(), &n);
                 buffer.Truncate();
             }
             buffer.AssignLiteral("</pre>\n");
-            mOutputStream->Write(buffer.get(), buffer.Length(), &n);
+            outputStream->Write(buffer.get(), buffer.Length(), &n);
       }
     }
     return NS_OK;
 }
 
 nsresult
-nsAboutCacheEntry::WriteCacheEntryUnavailable()
+nsAboutCacheEntry::WriteCacheEntryUnavailable(nsIOutputStream *outputStream)
 {
-    uint32_t n;
+    PRUint32 n;
     NS_NAMED_LITERAL_CSTRING(buffer,
         "The cache entry you selected is not available.");
-    mOutputStream->Write(buffer.get(), buffer.Length(), &n);
+    outputStream->Write(buffer.get(), buffer.Length(), &n);
     return NS_OK;
 }
 
@@ -385,7 +401,7 @@ nsAboutCacheEntry::ParseURI(nsIURI *uri, nsCString &clientID,
     //
     nsresult rv;
 
-    nsAutoCString path;
+    nsCAutoString path;
     rv = uri->GetPath(path);
     if (NS_FAILED(rv)) return rv;
 
@@ -443,36 +459,4 @@ nsAboutCacheEntry::VisitMetaDataElement(const char * key,
 
     *keepGoing = true;
     return NS_OK;
-}
-
-//-----------------------------------------------------------------------------
-// nsICacheListener implementation
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-nsAboutCacheEntry::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
-                                         nsCacheAccessMode access,
-                                         nsresult status)
-{
-    nsresult rv;
-
-    if (entry)
-        rv = WriteCacheEntryDescription(entry);
-    else
-        rv = WriteCacheEntryUnavailable();
-    if (NS_FAILED(rv)) return rv;
-
-    uint32_t n;
-    NS_NAMED_LITERAL_CSTRING(buffer, "</body>\n</html>\n");
-    mOutputStream->Write(buffer.get(), buffer.Length(), &n);
-    mOutputStream->Close();
-    mOutputStream = nullptr;
-
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAboutCacheEntry::OnCacheEntryDoomed(nsresult status)
-{
-    return NS_ERROR_NOT_IMPLEMENTED;
 }

@@ -27,7 +27,7 @@
 #include "nsIURI.h"
 #include "nsIServiceManager.h"
 #include "nsNetUtil.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsIPrincipal.h"
 #include "nsLayoutCID.h"
@@ -45,6 +45,7 @@
 #include "nsIJSContextStack.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentPolicyUtils.h"
+#include "nsContentErrors.h"
 #include "nsIDOMUserDataHandler.h"
 #include "nsEventDispatcher.h"
 #include "nsNodeUtils.h"
@@ -262,7 +263,7 @@ nsXMLDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
   if (mChannelIsPending) {
     StopDocumentLoad();
     mChannel->Cancel(NS_BINDING_ABORTED);
-    mChannelIsPending = false;
+    mChannelIsPending = nullptr;
   }
 
   nsDocument::ResetToURI(aURI, aLoadGroup, aPrincipal);
@@ -309,7 +310,7 @@ nsXMLDocument::Load(const nsAString& aUrl, bool *aReturn)
     do_QueryInterface(nsContentUtils::GetDocumentFromContext());
 
   nsIURI *baseURI = mDocumentURI;
-  nsAutoCString charset;
+  nsCAutoString charset;
 
   if (callingDoc) {
     baseURI = callingDoc->GetDocBaseURI();
@@ -333,10 +334,10 @@ nsXMLDocument::Load(const nsAString& aUrl, bool *aReturn)
   // chrome document.
   nsCOMPtr<nsIPrincipal> principal = NodePrincipal();
   if (!nsContentUtils::IsSystemPrincipal(principal)) {
-    rv = principal->CheckMayLoad(uri, false, false);
+    rv = principal->CheckMayLoad(uri, false);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    int16_t shouldLoad = nsIContentPolicy::ACCEPT;
+    PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
     rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_XMLHTTPREQUEST,
                                    uri,
                                    principal,
@@ -357,7 +358,7 @@ nsXMLDocument::Load(const nsAString& aUrl, bool *aReturn)
 
     bool isChrome = false;
     if (NS_FAILED(uri->SchemeIs("chrome", &isChrome)) || !isChrome) {
-      nsAutoCString spec;
+      nsCAutoString spec;
       if (mDocumentURI)
         mDocumentURI->GetSpec(spec);
 
@@ -368,10 +369,8 @@ nsXMLDocument::Load(const nsAString& aUrl, bool *aReturn)
           do_CreateInstance(NS_SCRIPTERROR_CONTRACTID, &rv);
       NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = errorObject->InitWithWindowID(error,
-                                         NS_ConvertUTF8toUTF16(spec),
-                                         EmptyString(),
-                                         0, 0, nsIScriptError::warningFlag,
+      rv = errorObject->InitWithWindowID(error.get(), NS_ConvertUTF8toUTF16(spec).get(),
+                                         nullptr, 0, 0, nsIScriptError::warningFlag,
                                          "DOM",
                                          callingDoc ?
                                            callingDoc->InnerWindowID() :
@@ -504,8 +503,8 @@ nsXMLDocument::StartDocumentLoad(const char* aCommand,
   }
 
 
-  int32_t charsetSource = kCharsetFromDocTypeDefault;
-  nsAutoCString charset(NS_LITERAL_CSTRING("UTF-8"));
+  PRInt32 charsetSource = kCharsetFromDocTypeDefault;
+  nsCAutoString charset(NS_LITERAL_CSTRING("UTF-8"));
   TryChannelCharset(aChannel, charsetSource, charset, nullptr);
 
   nsCOMPtr<nsIURI> aUrl;

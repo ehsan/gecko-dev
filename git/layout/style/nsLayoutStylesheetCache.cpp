@@ -19,14 +19,14 @@
 NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(LayoutStyleSheetCacheMallocSizeOf,
                                      "layout/style-sheet-cache")
 
-static int64_t
+static PRInt64
 GetStylesheetCacheSize()
 {
   return nsLayoutStylesheetCache::SizeOfIncludingThis(
            LayoutStyleSheetCacheMallocSizeOf);
 }
 
-NS_MEMORY_REPORTER_IMPLEMENT(StyleSheetCache,
+NS_MEMORY_REPORTER_IMPLEMENT(Sheets,
   "explicit/layout/style-sheet-cache",
   KIND_HEAP,
   nsIMemoryReporter::UNITS_BYTES,
@@ -161,12 +161,11 @@ nsLayoutStylesheetCache::Shutdown()
 size_t
 nsLayoutStylesheetCache::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
-  if (!nsLayoutStylesheetCache::gStyleCache) {
-    return 0;
-  }
-
-  return nsLayoutStylesheetCache::gStyleCache->
+  if (nsLayoutStylesheetCache::gStyleCache) {
+    return nsLayoutStylesheetCache::gStyleCache->
       SizeOfIncludingThisHelper(aMallocSizeOf);
+  }
+  return 0;
 }
 
 size_t
@@ -227,14 +226,14 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
   }
   NS_ASSERTION(mFullScreenOverrideSheet, "Could not load full-screen-override.css");
 
-  mReporter = new NS_MEMORY_REPORTER_NAME(StyleSheetCache);
-  (void)::NS_RegisterMemoryReporter(mReporter);
+  mSheetsReporter = new NS_MEMORY_REPORTER_NAME(Sheets);
+  (void)::NS_RegisterMemoryReporter(mSheetsReporter);
 }
 
 nsLayoutStylesheetCache::~nsLayoutStylesheetCache()
 {
-  (void)::NS_UnregisterMemoryReporter(mReporter);
-  mReporter = nullptr;
+  (void)::NS_UnregisterMemoryReporter(mSheetsReporter);
+  mSheetsReporter = nullptr;
 }
 
 void

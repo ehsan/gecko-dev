@@ -43,10 +43,6 @@ class GCHelperThread;
 struct Shape;
 struct SliceBudget;
 
-namespace ion {
-    class IonCode;
-}
-
 namespace gc {
 
 enum State {
@@ -54,7 +50,6 @@ enum State {
     MARK_ROOTS,
     MARK,
     SWEEP,
-    SWEEP_END,
     INVALID
 };
 
@@ -115,44 +110,12 @@ MapAllocToTraceKind(AllocKind thingKind)
         JSTRACE_STRING,     /* FINALIZE_SHORT_STRING */
         JSTRACE_STRING,     /* FINALIZE_STRING */
         JSTRACE_STRING,     /* FINALIZE_EXTERNAL_STRING */
-        JSTRACE_IONCODE,    /* FINALIZE_IONCODE */
     };
     return map[thingKind];
 }
 
 static inline bool
 IsNurseryAllocable(AllocKind kind)
-{
-    JS_ASSERT(kind >= 0 && unsigned(kind) < FINALIZE_LIMIT);
-    static const bool map[FINALIZE_LIMIT] = {
-        false,     /* FINALIZE_OBJECT0 */
-        true,      /* FINALIZE_OBJECT0_BACKGROUND */
-        false,     /* FINALIZE_OBJECT2 */
-        true,      /* FINALIZE_OBJECT2_BACKGROUND */
-        false,     /* FINALIZE_OBJECT4 */
-        true,      /* FINALIZE_OBJECT4_BACKGROUND */
-        false,     /* FINALIZE_OBJECT8 */
-        true,      /* FINALIZE_OBJECT8_BACKGROUND */
-        false,     /* FINALIZE_OBJECT12 */
-        true,      /* FINALIZE_OBJECT12_BACKGROUND */
-        false,     /* FINALIZE_OBJECT16 */
-        true,      /* FINALIZE_OBJECT16_BACKGROUND */
-        false,     /* FINALIZE_SCRIPT */
-        false,     /* FINALIZE_SHAPE */
-        false,     /* FINALIZE_BASE_SHAPE */
-        false,     /* FINALIZE_TYPE_OBJECT */
-#if JS_HAS_XML_SUPPORT
-        false,     /* FINALIZE_XML */
-#endif
-        true,      /* FINALIZE_SHORT_STRING */
-        true,      /* FINALIZE_STRING */
-        false      /* FINALIZE_EXTERNAL_STRING */
-    };
-    return map[kind];
-}
-
-static inline bool
-IsBackgroundFinalized(AllocKind kind)
 {
     JS_ASSERT(kind >= 0 && unsigned(kind) < FINALIZE_LIMIT);
     static const bool map[FINALIZE_LIMIT] = {
@@ -324,8 +287,7 @@ struct ArenaLists {
     }
 
     bool doneBackgroundFinalize(AllocKind kind) const {
-        return backgroundFinalizeState[kind] == BFS_DONE ||
-               backgroundFinalizeState[kind] == BFS_JUST_FINISHED;
+        return backgroundFinalizeState[kind] == BFS_DONE;
     }
 
     /*
@@ -424,10 +386,9 @@ struct ArenaLists {
     void queueStringsForSweep(FreeOp *fop);
     void queueShapesForSweep(FreeOp *fop);
     void queueScriptsForSweep(FreeOp *fop);
-    void queueIonCodeForSweep(FreeOp *fop);
 
     bool foregroundFinalize(FreeOp *fop, AllocKind thingKind, SliceBudget &sliceBudget);
-    static void backgroundFinalize(FreeOp *fop, ArenaHeader *listHead, bool onBackgroundThread);
+    static void backgroundFinalize(FreeOp *fop, ArenaHeader *listHead);
 
   private:
     inline void finalizeNow(FreeOp *fop, AllocKind thingKind);
@@ -629,6 +590,8 @@ class GCHelperThread {
     void            **freeCursor;
     void            **freeCursorEnd;
 
+    Vector<js::gc::ArenaHeader *, 64, js::SystemAllocPolicy> finalizeVector;
+
     bool    backgroundAllocation;
 
     friend struct js::gc::ArenaLists;
@@ -639,8 +602,8 @@ class GCHelperThread {
     static void freeElementsAndArray(void **array, void **end) {
         JS_ASSERT(array <= end);
         for (void **p = array; p != end; ++p)
-            js_free(*p);
-        js_free(array);
+            js::Foreground::free_(*p);
+        js::Foreground::free_(array);
     }
 
     static void threadMain(void* arg);
@@ -672,10 +635,10 @@ class GCHelperThread {
     /* Must be called with the GC lock taken. */
     void startBackgroundShrink();
 
-    /* Must be called without the GC lock taken. */
+    /* Must be called with the GC lock taken. */
     void waitBackgroundSweepEnd();
 
-    /* Must be called without the GC lock taken. */
+    /* Must be called with the GC lock taken. */
     void waitBackgroundSweepOrAllocEnd();
 
     /* Must be called with the GC lock taken. */
@@ -713,6 +676,9 @@ class GCHelperThread {
         else
             replenishAndFreeLater(ptr);
     }
+
+    /* Must be called with the GC lock taken. */
+    bool prepareForBackgroundSweep();
 };
 
 
@@ -768,7 +734,7 @@ struct MarkStack {
         if (ballastcap == 0)
             return true;
 
-        ballast = js_pod_malloc<T>(ballastcap);
+        ballast = (T *)js_malloc(sizeof(T) * ballastcap);
         if (!ballast)
             return false;
         ballastLimit = ballast + ballastcap;
@@ -849,7 +815,7 @@ struct MarkStack {
 
         T *newStack;
         if (stack == ballast) {
-            newStack = js_pod_malloc<T>(newcap);
+            newStack = (T *)js_malloc(sizeof(T) * newcap);
             if (!newStack)
                 return false;
             for (T *src = stack, *dst = newStack; src < tos; )
@@ -930,8 +896,7 @@ struct GCMarker : public JSTracer {
         XmlTag,
         ArenaTag,
         SavedValueArrayTag,
-        IonCodeTag,
-        LastTag = IonCodeTag
+        LastTag = SavedValueArrayTag
     };
 
     static const uintptr_t StackTagMask = 7;
@@ -968,12 +933,7 @@ struct GCMarker : public JSTracer {
     void pushXML(JSXML *xml) {
         pushTaggedPtr(XmlTag, xml);
     }
-
 #endif
-
-    void pushIonCode(ion::IonCode *code) {
-        pushTaggedPtr(IonCodeTag, code);
-    }
 
     uint32_t getMarkColor() const {
         return color;
@@ -1162,9 +1122,6 @@ RunDebugGC(JSContext *cx);
 void
 SetDeterministicGC(JSContext *cx, bool enabled);
 
-void
-SetValidateGC(JSContext *cx, bool enabled);
-
 const int ZealPokeValue = 1;
 const int ZealAllocValue = 2;
 const int ZealFrameGCValue = 3;
@@ -1177,7 +1134,6 @@ const int ZealIncrementalMarkAllThenFinish = 9;
 const int ZealIncrementalMultipleSlices = 10;
 const int ZealVerifierPostValue = 11;
 const int ZealFrameVerifierPostValue = 12;
-const int ZealPurgeAnalysisValue = 13;
 
 enum VerifierType {
     PreBarrierVerifier,
@@ -1210,20 +1166,7 @@ MaybeVerifyBarriers(JSContext *cx, bool always = false)
 } /* namespace gc */
 
 static inline JSCompartment *
-GetGCThingCompartment(void *thing)
-{
-    JS_ASSERT(thing);
-    return reinterpret_cast<gc::Cell *>(thing)->compartment();
-}
-
-static inline JSCompartment *
-GetObjectCompartment(JSObject *obj)
-{
-    return GetGCThingCompartment(obj);
-}
-
-void
-PurgeJITCaches(JSCompartment *c);
+GetObjectCompartment(JSObject *obj) { return reinterpret_cast<js::gc::Cell *>(obj)->compartment(); }
 
 } /* namespace js */
 

@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "NSPRFormatTime.h" // must be before anything that includes prtime.h
 #include "nsAboutCache.h"
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
@@ -14,18 +13,20 @@
 #include "nsIURI.h"
 #include "nsCOMPtr.h"
 #include "nsNetUtil.h"
+#include "prtime.h"
 #include "nsEscape.h"
 
 #include "nsICacheService.h"
 
-static PRTime SecondsToPRTime(uint32_t t_sec)
+static PRTime SecondsToPRTime(PRUint32 t_sec)
 {
     PRTime t_usec, usec_per_sec;
-    t_usec = t_sec;
-    usec_per_sec = PR_USEC_PER_SEC;
-    return t_usec *= usec_per_sec;
+    LL_I2L(t_usec, t_sec);
+    LL_I2L(usec_per_sec, PR_USEC_PER_SEC);
+    LL_MUL(t_usec, t_usec, usec_per_sec);
+    return t_usec;
 }
-static void PrintTimeString(char *buf, uint32_t bufsize, uint32_t t_sec)
+static void PrintTimeString(char *buf, PRUint32 bufsize, PRUint32 t_sec)
 {
     PRExplodedTime et;
     PRTime t_usec = SecondsToPRTime(t_sec);
@@ -41,7 +42,7 @@ nsAboutCache::NewChannel(nsIURI *aURI, nsIChannel **result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
     nsresult rv;
-    uint32_t bytesWritten;
+    PRUint32 bytesWritten;
 
     *result = nullptr;
     // Get the cache manager service
@@ -53,7 +54,7 @@ nsAboutCache::NewChannel(nsIURI *aURI, nsIChannel **result)
     nsCOMPtr<nsIOutputStream> outputStream;
 
     // Init: (block size, maximum length)
-    rv = NS_NewStorageStream(256, (uint32_t)-1, getter_AddRefs(storageStream));
+    rv = NS_NewStorageStream(256, (PRUint32)-1, getter_AddRefs(storageStream));
     if (NS_FAILED(rv)) return rv;
 
     rv = storageStream->GetOutputStream(0, getter_AddRefs(outputStream));
@@ -105,18 +106,18 @@ nsAboutCache::NewChannel(nsIURI *aURI, nsIChannel **result)
     rv = storageStream->NewInputStream(0, getter_AddRefs(inStr));
     if (NS_FAILED(rv)) return rv;
 
-    nsCOMPtr<nsIChannel> channel;
-    rv = NS_NewInputStreamChannel(getter_AddRefs(channel), aURI, inStr,
+    nsIChannel* channel;
+    rv = NS_NewInputStreamChannel(&channel, aURI, inStr,
                                   NS_LITERAL_CSTRING("text/html"),
                                   NS_LITERAL_CSTRING("utf-8"));
     if (NS_FAILED(rv)) return rv;
 
-    channel.forget(result);
+    *result = channel;
     return rv;
 }
 
 NS_IMETHODIMP
-nsAboutCache::GetURIFlags(nsIURI *aURI, uint32_t *result)
+nsAboutCache::GetURIFlags(nsIURI *aURI, PRUint32 *result)
 {
     *result = 0;
     return NS_OK;
@@ -127,7 +128,7 @@ nsAboutCache::VisitDevice(const char *deviceID,
                           nsICacheDeviceInfo *deviceInfo,
                           bool *visitEntries)
 {
-    uint32_t bytesWritten, value, entryCount;
+    PRUint32 bytesWritten, value, entryCount;
     nsXPIDLCString str;
 
     *visitEntries = false;
@@ -232,8 +233,8 @@ nsAboutCache::VisitEntry(const char *deviceID,
       return NS_ERROR_FAILURE;
 
     nsresult        rv;
-    uint32_t        bytesWritten;
-    nsAutoCString   key;
+    PRUint32        bytesWritten;
+    nsCAutoString   key;
     nsXPIDLCString  clientID;
     bool            streamBased;
     
@@ -247,7 +248,7 @@ nsAboutCache::VisitEntry(const char *deviceID,
     if (NS_FAILED(rv)) return rv;
 
     // Generate a about:cache-entry URL for this entry...
-    nsAutoCString url;
+    nsCAutoString url;
     url.AssignLiteral("about:cache-entry?client=");
     url += clientID;
     url.AppendLiteral("&amp;sb=");
@@ -268,14 +269,14 @@ nsAboutCache::VisitEntry(const char *deviceID,
     mBuffer.AppendLiteral("</a></td>\n");
 
     // Content length
-    uint32_t length = 0;
+    PRUint32 length = 0;
     entryInfo->GetDataSize(&length);
     mBuffer.AppendLiteral("    <td>");
     mBuffer.AppendInt(length);
     mBuffer.AppendLiteral(" bytes</td>\n");
 
     // Number of accesses
-    int32_t fetchCount = 0;
+    PRInt32 fetchCount = 0;
     entryInfo->GetFetchCount(&fetchCount);
     mBuffer.AppendLiteral("    <td>");
     mBuffer.AppendInt(fetchCount);
@@ -283,7 +284,7 @@ nsAboutCache::VisitEntry(const char *deviceID,
 
     // vars for reporting time
     char buf[255];
-    uint32_t t;
+    PRUint32 t;
 
     // Last modified time
     mBuffer.AppendLiteral("    <td>");
@@ -326,7 +327,7 @@ nsAboutCache::ParseURI(nsIURI * uri, nsCString &deviceID)
 
     deviceID.Truncate();
 
-    nsAutoCString path;
+    nsCAutoString path;
     rv = uri->GetPath(path);
     if (NS_FAILED(rv)) return rv;
 

@@ -25,13 +25,14 @@
  */
 
 #define _WIN32_WINNT 0x0600
-#define WIN32_LEAN_AND_MEAN
 
 #define HB_SHAPER uniscribe
 #include "hb-shaper-impl-private.hh"
 
 #include <windows.h>
 #include <usp10.h>
+
+typedef ULONG WIN_ULONG;
 
 #include "hb-uniscribe.h"
 
@@ -119,8 +120,8 @@ populate_log_font (LOGFONTW  *lf,
   lf->lfHeight = -font->y_scale;
   lf->lfCharSet = DEFAULT_CHARSET;
 
-  hb_blob_t *blob = OT::Sanitizer<OT::name>::sanitize (hb_face_reference_table (font->face, HB_TAG ('n','a','m','e')));
-  const OT::name *name_table = OT::Sanitizer<OT::name>::lock_instance (blob);
+  hb_blob_t *blob = Sanitizer<name>::sanitize (hb_face_reference_table (font->face, HB_TAG ('n','a','m','e')));
+  const name *name_table = Sanitizer<name>::lock_instance (blob);
   unsigned int len = name_table->get_name (3, 1, 0x409, 4,
 					   lf->lfFaceName,
 					   sizeof (lf->lfFaceName[0]) * LF_FACESIZE)
@@ -196,15 +197,15 @@ _hb_uniscribe_shaper_font_data_destroy (hb_uniscribe_shaper_font_data_t *data)
 struct hb_uniscribe_shaper_shape_plan_data_t {};
 
 hb_uniscribe_shaper_shape_plan_data_t *
-_hb_uniscribe_shaper_shape_plan_data_create (hb_shape_plan_t    *shape_plan HB_UNUSED,
-					     const hb_feature_t *user_features HB_UNUSED,
-					     unsigned int        num_user_features HB_UNUSED)
+_hb_uniscribe_shaper_shape_plan_data_create (hb_shape_plan_t    *shape_plan,
+					     const hb_feature_t *user_features,
+					     unsigned int        num_user_features)
 {
   return (hb_uniscribe_shaper_shape_plan_data_t *) HB_SHAPER_DATA_SUCCEEDED;
 }
 
 void
-_hb_uniscribe_shaper_shape_plan_data_destroy (hb_uniscribe_shaper_shape_plan_data_t *data HB_UNUSED)
+_hb_uniscribe_shaper_shape_plan_data_destroy (hb_uniscribe_shaper_shape_plan_data_t *data)
 {
 }
 
@@ -303,7 +304,7 @@ retry:
   SCRIPT_ITEM items[MAX_ITEMS + 1];
   SCRIPT_CONTROL bidi_control = {0};
   SCRIPT_STATE bidi_state = {0};
-  ULONG script_tags[MAX_ITEMS];
+  WIN_ULONG script_tags[MAX_ITEMS];
   int item_count;
 
   /* MinGW32 doesn't define fMergeNeutralItems, so we bruteforce */

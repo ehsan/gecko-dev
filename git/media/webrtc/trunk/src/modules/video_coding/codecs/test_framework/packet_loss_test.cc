@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -64,40 +64,36 @@ PacketLossTest::Encoded(const EncodedImage& encodedImage)
 }
 
 void
-PacketLossTest::Decoded(const VideoFrame& decodedImage)
+PacketLossTest::Decoded(const RawImage& decodedImage)
 {
     // check the frame queue if any frames have gone missing
     assert(!_frameQueue.empty()); // decoded frame is not in the queue
-    while(_frameQueue.front() < decodedImage.TimeStamp())
+    while(_frameQueue.front() < decodedImage._timeStamp)
     {
         // this frame is missing
         // write previous decoded frame again (frame freeze)
         if (_decodedFile && _lastFrame)
         {
-          if (fwrite(_lastFrame, 1, _lastFrameLength,
-                     _decodedFile) != _lastFrameLength) {
-            return;
-          }
+            fwrite(_lastFrame, 1, _lastFrameLength, _decodedFile);
         }
 
         // remove frame from queue
         _frameQueue.pop_front();
     }
-    // Decoded frame is not in the queue.
-    assert(_frameQueue.front() == decodedImage.TimeStamp());
+    assert(_frameQueue.front() == decodedImage._timeStamp); // decoded frame is not in the queue
 
     // pop the current frame
     _frameQueue.pop_front();
 
     // save image for future freeze-frame
-    if (_lastFrameLength < decodedImage.Length())
+    if (_lastFrameLength < decodedImage._length)
     {
         if (_lastFrame) delete [] _lastFrame;
 
-        _lastFrame = new WebRtc_UWord8[decodedImage.Length()];
+        _lastFrame = new WebRtc_UWord8[decodedImage._length];
     }
-    memcpy(_lastFrame, decodedImage.Buffer(), decodedImage.Length());
-    _lastFrameLength = decodedImage.Length();
+    memcpy(_lastFrame, decodedImage._buffer, decodedImage._length);
+    _lastFrameLength = decodedImage._length;
 
     NormalAsyncTest::Decoded(decodedImage);
 }

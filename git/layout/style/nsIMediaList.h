@@ -167,8 +167,8 @@ public:
 
   nsresult Clone(nsMediaList** aResult);
 
-  int32_t Count() { return mArray.Length(); }
-  nsMediaQuery* MediumAt(int32_t aIndex) { return mArray[aIndex]; }
+  PRInt32 Count() { return mArray.Length(); }
+  nsMediaQuery* MediumAt(PRInt32 aIndex) { return mArray[aIndex]; }
   void Clear() { mArray.Clear(); }
 
 protected:

@@ -1,5 +1,5 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* vim: set ts=2 et sw=2 tw=40: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -12,6 +12,7 @@
 #include "nsDOMEventTargetHelper.h"
 #include "nsIDOMBluetoothManager.h"
 #include "mozilla/Observer.h"
+#include "nsIEventTarget.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -31,14 +32,19 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(BluetoothManager,
                                            nsDOMEventTargetHelper)
 
+
+  inline void SetEnabledInternal(bool aEnabled) {mEnabled = aEnabled;}
+
   static already_AddRefed<BluetoothManager>
   Create(nsPIDOMWindow* aWindow);
   void Notify(const BluetoothSignal& aData);
   virtual void SetPropertyByValue(const BluetoothNamedValue& aValue);
-  nsresult FireEnabledDisabledEvent(bool aEnabled);
 private:
   BluetoothManager(nsPIDOMWindow* aWindow);
   ~BluetoothManager();
+  bool mEnabled;
+
+  NS_DECL_EVENT_HANDLER(enabled)
 };
 
 END_BLUETOOTH_NAMESPACE

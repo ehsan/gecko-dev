@@ -12,9 +12,6 @@
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
 #include "mozilla/LoadContext.h"
-#include "mozilla/ipc/URIUtils.h"
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
@@ -54,13 +51,11 @@ NS_IMPL_ISUPPORTS3(WyciwygChannelParent,
 //-----------------------------------------------------------------------------
 
 bool
-WyciwygChannelParent::RecvInit(const URIParams& aURI)
+WyciwygChannelParent::RecvInit(const IPC::URI& aURI)
 {
   nsresult rv;
 
-  nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
-  if (!uri)
-    return false;
+  nsCOMPtr<nsIURI> uri(aURI);
 
   nsCString uriSpec;
   uri->GetSpec(uriSpec);
@@ -84,13 +79,11 @@ WyciwygChannelParent::RecvInit(const URIParams& aURI)
 }
 
 bool
-WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
-                                    const uint32_t& aLoadFlags,
+WyciwygChannelParent::RecvAsyncOpen(const IPC::URI& aOriginal,
+                                    const PRUint32& aLoadFlags,
                                     const IPC::SerializedLoadContext& loadContext)
 {
-  nsCOMPtr<nsIURI> original = DeserializeURI(aOriginal);
-  if (!original)
-    return false;
+  nsCOMPtr<nsIURI> original(aOriginal);
 
   LOG(("WyciwygChannelParent RecvAsyncOpen [this=%x]\n", this));
 
@@ -109,11 +102,6 @@ WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
 
   if (loadContext.IsNotNull())
     mLoadContext = new LoadContext(loadContext);
-  else if (loadContext.IsPrivateBitValid()) {
-    nsCOMPtr<nsIPrivateBrowsingChannel> pbChannel = do_QueryInterface(mChannel);
-    if (pbChannel)
-      pbChannel->SetPrivate(loadContext.mUsePrivateBrowsing);
-  }
 
   rv = mChannel->AsyncOpen(this, nullptr);
   if (NS_FAILED(rv))
@@ -141,7 +129,7 @@ WyciwygChannelParent::RecvCloseCacheEntry(const nsresult& reason)
 }
 
 bool
-WyciwygChannelParent::RecvSetCharsetAndSource(const int32_t& aCharsetSource,
+WyciwygChannelParent::RecvSetCharsetAndSource(const PRInt32& aCharsetSource,
                                               const nsCString& aCharset)
 {
   if (mChannel)
@@ -187,11 +175,11 @@ WyciwygChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext
   nsresult status;
   chan->GetStatus(&status);
 
-  int32_t contentLength = -1;
+  PRInt32 contentLength = -1;
   chan->GetContentLength(&contentLength);
 
-  int32_t charsetSource = kCharsetUninitialized;
-  nsAutoCString charset;
+  PRInt32 charsetSource = kCharsetUninitialized;
+  nsCAutoString charset;
   chan->GetCharsetAndSource(&charsetSource, charset);
 
   nsCOMPtr<nsISupports> securityInfo;
@@ -238,8 +226,8 @@ NS_IMETHODIMP
 WyciwygChannelParent::OnDataAvailable(nsIRequest *aRequest,
                                       nsISupports *aContext,
                                       nsIInputStream *aInputStream,
-                                      uint64_t aOffset,
-                                      uint32_t aCount)
+                                      PRUint32 aOffset,
+                                      PRUint32 aCount)
 {
   LOG(("WyciwygChannelParent::OnDataAvailable [this=%x]\n", this));
 

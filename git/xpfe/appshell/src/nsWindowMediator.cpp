@@ -120,7 +120,7 @@ nsresult
 nsWindowMediator::UnregisterWindow(nsWindowInfo *inInfo)
 {
   // Inform the iterators
-  uint32_t index = 0;
+  PRUint32 index = 0;
   while (index < mEnumeratorList.Length()) {
     mEnumeratorList[index]->WindowRemoved(inInfo);
     index++;
@@ -255,13 +255,13 @@ nsWindowMediator::GetZOrderXULWindowEnumerator(
   return NS_ERROR_OUT_OF_MEMORY;
 }
 
-int32_t
+PRInt32
 nsWindowMediator::AddEnumerator(nsAppShellWindowEnumerator * inEnumerator)
 {
   return mEnumeratorList.AppendElement(inEnumerator) != nullptr;
 }
 
-int32_t
+PRInt32
 nsWindowMediator::RemoveEnumerator(nsAppShellWindowEnumerator * inEnumerator)
 {
   return mEnumeratorList.RemoveElement(inEnumerator);
@@ -299,7 +299,7 @@ nsWindowMediator::GetMostRecentWindow(const PRUnichar* inType, nsIDOMWindow** ou
 nsWindowInfo*
 nsWindowMediator::MostRecentWindowInfo(const PRUnichar* inType)
 {
-  int32_t       lastTimeStamp = -1;
+  PRInt32       lastTimeStamp = -1;
   nsAutoString  typeString(inType);
   bool          allWindows = !inType || typeString.IsEmpty();
 
@@ -361,9 +361,9 @@ nsWindowMediator::UpdateWindowTitle(nsIXULWindow* inWindow,
 NS_IMETHODIMP
 nsWindowMediator::CalculateZPosition(
                 nsIXULWindow   *inWindow,
-                uint32_t        inPosition,
+                PRUint32        inPosition,
                 nsIWidget      *inBelow,
-                uint32_t       *outPosition,
+                PRUint32       *outPosition,
                 nsIWidget     **outBelow,
                 bool           *outAltered)
 {
@@ -394,7 +394,7 @@ nsWindowMediator::CalculateZPosition(
     return NS_OK;
   }
 
-  uint32_t inZ;
+  PRUint32 inZ;
   GetZLevel(inWindow, &inZ);
 
   MutexAutoLock lock(mListLock);
@@ -494,7 +494,7 @@ nsWindowMediator::CalculateZPosition(
 NS_IMETHODIMP
 nsWindowMediator::SetZPosition(
                 nsIXULWindow *inWindow,
-                uint32_t      inPosition,
+                PRUint32      inPosition,
                 nsIXULWindow *inBelow)
 {
   nsWindowInfo *inInfo,
@@ -551,7 +551,7 @@ nsWindowMediator::SetZPosition(
 }
 
 NS_IMETHODIMP
-nsWindowMediator::GetZLevel(nsIXULWindow *aWindow, uint32_t *_retval)
+nsWindowMediator::GetZLevel(nsIXULWindow *aWindow, PRUint32 *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = nsIXULWindow::normalZ;
@@ -566,7 +566,7 @@ nsWindowMediator::GetZLevel(nsIXULWindow *aWindow, uint32_t *_retval)
 }
 
 NS_IMETHODIMP
-nsWindowMediator::SetZLevel(nsIXULWindow *aWindow, uint32_t aZLevel)
+nsWindowMediator::SetZLevel(nsIXULWindow *aWindow, PRUint32 aZLevel)
 {
   NS_ENSURE_STATE(mReady);
   MutexAutoLock lock(mListLock);
@@ -620,7 +620,7 @@ nsWindowMediator::SortZOrderFrontToBack()
     lowest = mTopmostWindow->mHigher;
     scan = mTopmostWindow;
     while (scan != lowest) {
-      uint32_t scanZ = scan->mZLevel;
+      PRUint32 scanZ = scan->mZLevel;
       if (scanZ < scan->mLower->mZLevel) { // out of order
         search = scan->mLower;
         do {
@@ -678,7 +678,7 @@ nsWindowMediator::SortZOrderBackToFront()
     lowest = mTopmostWindow->mHigher;
     scan = lowest;
     while (scan != mTopmostWindow) {
-      uint32_t scanZ = scan->mZLevel;
+      PRUint32 scanZ = scan->mZLevel;
       if (scanZ > scan->mHigher->mZLevel) { // out of order
         search = scan;
         do {

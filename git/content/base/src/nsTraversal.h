@@ -20,13 +20,13 @@ class nsTraversal
 {
 public:
     nsTraversal(nsINode *aRoot,
-                uint32_t aWhatToShow,
+                PRUint32 aWhatToShow,
                 nsIDOMNodeFilter *aFilter);
     virtual ~nsTraversal();
 
 protected:
     nsCOMPtr<nsINode> mRoot;
-    uint32_t mWhatToShow;
+    PRUint32 mWhatToShow;
     nsCOMPtr<nsIDOMNodeFilter> mFilter;
     bool mInAcceptNode;
 
@@ -37,7 +37,7 @@ protected:
      * @param _filtered Returned filtervalue. See nsIDOMNodeFilter.idl
      * @returns         Errorcode
      */
-    nsresult TestNode(nsINode* aNode, int16_t* _filtered);
+    nsresult TestNode(nsINode* aNode, PRInt16* _filtered);
 };
 
 #endif

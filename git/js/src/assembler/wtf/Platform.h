@@ -245,7 +245,6 @@
 #endif
 
 #define WTF_ARM_ARCH_AT_LEAST(N) (CPU(ARM) && WTF_ARM_ARCH_VERSION >= N)
-#define WTF_ARM_ARCH_AT_LEAST_5 (WTF_CPU_ARM && WTF_ARM_ARCH_VERSION >= 5)
 
 /* Set WTF_ARM_ARCH_VERSION */
 #if   defined(__ARM_ARCH_4__) \
@@ -1103,7 +1102,9 @@
 #if WTF_PLATFORM_CHROMIUM
 #define ENABLE_YARR_JIT 0
 
-#elif ENABLE_YARR_JIT
+#elif ENABLE_JIT && !defined(ENABLE_YARR_JIT)
+#define ENABLE_YARR_JIT 1
+
 /* Setting this flag compares JIT results with interpreter results. */
 #define ENABLE_YARR_JIT_DEBUG 0
 #endif

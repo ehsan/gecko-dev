@@ -34,13 +34,13 @@ nsFtpControlConnection::OnInputStreamReady(nsIAsyncInputStream *stream)
     char data[4096];
 
     // Consume data whether we have a listener or not.
-    uint64_t avail64;
-    uint32_t avail;
+    PRUint64 avail64;
+    PRUint32 avail;
     nsresult rv = stream->Available(&avail64);
     if (NS_SUCCEEDED(rv)) {
-        avail = (uint32_t)NS_MIN(avail64, (uint64_t)sizeof(data));
+        avail = (PRUint32)NS_MIN(avail64, (PRUint64)sizeof(data));
 
-        uint32_t n;
+        PRUint32 n;
         rv = stream->Read(data, avail, &n);
         if (NS_SUCCEEDED(rv))
             avail = n;
@@ -65,7 +65,7 @@ nsFtpControlConnection::OnInputStreamReady(nsIAsyncInputStream *stream)
 }
 
 nsFtpControlConnection::nsFtpControlConnection(const nsCSubstring& host,
-                                               uint32_t port)
+                                               PRUint32 port)
     : mServerType(0), mSessionId(gFtpHandler->GetSessionId()), mHost(host)
     , mPort(port)
 {
@@ -175,8 +175,8 @@ nsFtpControlConnection::Write(const nsCSubstring& command)
 {
     NS_ENSURE_STATE(mSocketOutput);
 
-    uint32_t len = command.Length();
-    uint32_t cnt;
+    PRUint32 len = command.Length();
+    PRUint32 cnt;
     nsresult rv = mSocketOutput->Write(command.Data(), len, &cnt);
 
     if (NS_FAILED(rv))

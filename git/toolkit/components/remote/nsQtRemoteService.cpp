@@ -110,7 +110,7 @@ nsQtRemoteService::PropertyNotifyEvent(XEvent *aEvt)
 
 void
 nsQtRemoteService::SetDesktopStartupIDOrTimestamp(const nsACString& aDesktopStartupID,
-                                                  uint32_t aTimestamp)
+                                                  PRUint32 aTimestamp)
 {
 }
 

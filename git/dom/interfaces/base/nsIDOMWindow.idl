@@ -32,7 +32,7 @@ interface nsIDOMMozURLProperty : nsISupports
  * @see <http://www.whatwg.org/html/#window>
  */
 
-[scriptable, uuid(43933989-912e-4b6a-b889-3c9fc9dd9ed4)]
+[scriptable, uuid(A1AF6CD9-C6E7-4037-99F8-DBCA1B03E345)]
 interface nsIDOMWindow : nsISupports
 {
   // the current browsing context
@@ -316,8 +316,6 @@ interface nsIDOMWindow : nsISupports
    */
   nsIDOMCSSStyleDeclaration getComputedStyle(in nsIDOMElement elt, 
                                              [optional] in DOMString pseudoElt);
-  nsIDOMCSSStyleDeclaration getDefaultComputedStyle(in nsIDOMElement elt,
-                                                    [optional] in DOMString pseudoElt);
 
 
   // Mozilla extensions
@@ -377,7 +375,6 @@ interface nsIDOMWindow : nsISupports
 
   readonly attribute float                              mozInnerScreenX;
   readonly attribute float                              mozInnerScreenY;
-  readonly attribute float                              devicePixelRatio;
 
   /* The maximum offset that the window can be scrolled to
      (i.e., the document width/height minus the scrollport width/height) */
@@ -499,13 +496,9 @@ interface nsIDOMWindow : nsISupports
   [implicit_jscontext] attribute jsval ondeviceproximity;
   [implicit_jscontext] attribute jsval onuserproximity;
   [implicit_jscontext] attribute jsval ondevicelight;
-  [implicit_jscontext] attribute jsval onmoztimechange;
 
   [implicit_jscontext] attribute jsval onmouseenter;
   [implicit_jscontext] attribute jsval onmouseleave;
-
-  [implicit_jscontext] attribute jsval onmoznetworkupload;
-  [implicit_jscontext] attribute jsval onmoznetworkdownload;
 };
 
 [scriptable, uuid(2146c906-57f7-486c-a1b4-8cdb57ef577f)]

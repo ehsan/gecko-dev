@@ -22,7 +22,7 @@ const StreamTime STREAM_TIME_MAX = MEDIA_TIME_MAX;
  * Track rate in Hz. Maximum 1 << MEDIA_TIME_FRAC_BITS Hz. This ensures
  * calculations below don't overflow.
  */
-typedef int32_t TrackRate;
+typedef PRInt32 TrackRate;
 const TrackRate TRACK_RATE_MAX = 1 << MEDIA_TIME_FRAC_BITS;
 
 /**
@@ -30,7 +30,7 @@ const TrackRate TRACK_RATE_MAX = 1 << MEDIA_TIME_FRAC_BITS;
  * StreamBuffers may have the same ID; this matters when appending StreamBuffers,
  * since tracks with the same ID are matched. Only IDs greater than 0 are allowed.
  */
-typedef int32_t TrackID;
+typedef PRInt32 TrackID;
 const TrackID TRACK_NONE = 0;
 
 inline TrackTicks TimeToTicksRoundUp(TrackRate aRate, StreamTime aMicroseconds)
@@ -91,7 +91,6 @@ public:
    * two tracks with the same ID (even if they don't overlap in time).
    * TODO Tracks can also be enabled and disabled over time.
    * TODO Add TimeVarying<TrackTicks,bool> mEnabled.
-   * Takes ownership of aSegment.
    */
   class Track {
   public:
@@ -162,13 +161,7 @@ public:
     void ForgetUpTo(TrackTicks aTime)
     {
       mSegment->ForgetUpTo(aTime);
-#ifdef DEBUG
-      mForgottenUpTo = NS_MAX<TrackTicks>(mForgottenUpTo, aTime);
-#endif
     }
-#ifdef DEBUG
-    TrackTicks GetForgottenUpTo() { return mForgottenUpTo; }
-#endif
 
   protected:
     friend class StreamBuffer;
@@ -183,7 +176,6 @@ public:
     TrackID mID;
     // True when the track ends with the data in mSegment
     bool mEnded;
-    DebugOnly<TrackTicks> mForgottenUpTo;
   };
 
   class CompareTracksByID {
@@ -252,7 +244,6 @@ public:
       ++mIndex;
       FindMatch();
     }
-    Track* get() { return mBuffer->ElementAt(mIndex); }
     Track& operator*() { return *mBuffer->ElementAt(mIndex); }
     Track* operator->() { return mBuffer->ElementAt(mIndex); }
   private:
@@ -267,7 +258,7 @@ public:
     }
 
     const nsTArray<nsAutoPtr<Track> >* mBuffer;
-    uint32_t mIndex;
+    PRUint32 mIndex;
     MediaSegment::Type mType;
     bool mMatchType;
   };
@@ -279,13 +270,6 @@ public:
    * Can't be used to forget beyond GetEnd().
    */
   void ForgetUpTo(StreamTime aTime);
-  /**
-   * Returns the latest time passed to ForgetUpTo.
-   */
-  StreamTime GetForgottenDuration()
-  {
-    return mForgottenTime;
-  }
 
 protected:
   // Any new tracks added will start at or after this time. In other words, the track

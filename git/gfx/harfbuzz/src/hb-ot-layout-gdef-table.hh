@@ -34,8 +34,6 @@
 #include "hb-font-private.hh"
 
 
-namespace OT {
-
 
 /*
  * Attachment List Table
@@ -422,8 +420,6 @@ struct GDEF
   DEFINE_SIZE_ARRAY (12, markGlyphSetsDef);
 };
 
-
-} // namespace OT
 
 
 #endif /* HB_OT_LAYOUT_GDEF_TABLE_HH */

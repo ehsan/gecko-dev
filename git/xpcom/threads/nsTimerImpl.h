@@ -55,23 +55,23 @@ public:
 
   void Fire();
   nsresult PostTimerEvent();
-  void SetDelayInternal(uint32_t aDelay);
+  void SetDelayInternal(PRUint32 aDelay);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSITIMER
 
-  int32_t GetGeneration() { return mGeneration; }
+  PRInt32 GetGeneration() { return mGeneration; }
 
 private:
   ~nsTimerImpl();
-  nsresult InitCommon(uint32_t aType, uint32_t aDelay);
+  nsresult InitCommon(PRUint32 aType, PRUint32 aDelay);
 
   void ReleaseCallback()
   {
     // if we're the last owner of the callback object, make
     // sure that we don't recurse into ReleaseCallback in case
     // the callback's destructor calls Cancel() or similar.
-    uint8_t cbType = mCallbackType;
+    PRUint8 cbType = mCallbackType;
     mCallbackType = CALLBACK_TYPE_UNKNOWN; 
 
     if (cbType == CALLBACK_TYPE_INTERFACE)
@@ -106,27 +106,27 @@ private:
   nsCOMPtr<nsITimerCallback> mTimerCallbackWhileFiring;
 
   // These members are set by Init (called from NS_NewTimer) and never reset.
-  uint8_t               mCallbackType;
+  PRUint8               mCallbackType;
 
   // These members are set by the initiating thread, when the timer's type is
   // changed and during the period where it fires on that thread.
-  uint8_t               mType;
+  PRUint8               mType;
   bool                  mFiring;
 
 
   // Use a bool (int) here to isolate loads and stores of these two members
   // done on various threads under the protection of TimerThread::mLock, from
   // loads and stores done on the initiating/type-changing/timer-firing thread
-  // to the above uint8_t/bool members.
+  // to the above PRUint8/bool members.
   bool                  mArmed;
   bool                  mCanceled;
 
   // The generation number of this timer, re-generated each time the timer is
   // initialized so one-shot timers can be canceled and re-initialized by the
   // arming thread without any bad race conditions.
-  int32_t               mGeneration;
+  PRInt32               mGeneration;
 
-  uint32_t              mDelay;
+  PRUint32              mDelay;
   TimeStamp             mTimeout;
 
 #ifdef DEBUG_TIMERS

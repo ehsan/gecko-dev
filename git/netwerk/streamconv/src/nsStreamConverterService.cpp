@@ -102,12 +102,12 @@ nsStreamConverterService::BuildGraph() {
     while (NS_SUCCEEDED(rv)) {
 
         // get the entry string
-        nsAutoCString entryString;
+        nsCAutoString entryString;
         rv = entry->GetData(entryString);
         if (NS_FAILED(rv)) return rv;
         
         // cobble the entry string w/ the converter key to produce a full contractID.
-        nsAutoCString contractID(NS_ISTREAMCONVERTER_KEY);
+        nsCAutoString contractID(NS_ISTREAMCONVERTER_KEY);
         contractID.Append(entryString);
 
         // now we've got the CONTRACTID, let's parse it up.
@@ -130,7 +130,7 @@ nsStreamConverterService::AddAdjacency(const char *aContractID) {
     nsresult rv;
     // first parse out the FROM and TO MIME-types.
 
-    nsAutoCString fromStr, toStr;
+    nsCAutoString fromStr, toStr;
     rv = ParseFromTo(aContractID, fromStr, toStr);
     if (NS_FAILED(rv)) return rv;
 
@@ -204,16 +204,16 @@ nsStreamConverterService::AddAdjacency(const char *aContractID) {
 nsresult
 nsStreamConverterService::ParseFromTo(const char *aContractID, nsCString &aFromRes, nsCString &aToRes) {
 
-    nsAutoCString ContractIDStr(aContractID);
+    nsCAutoString ContractIDStr(aContractID);
 
-    int32_t fromLoc = ContractIDStr.Find("from=");
-    int32_t toLoc   = ContractIDStr.Find("to=");
+    PRInt32 fromLoc = ContractIDStr.Find("from=");
+    PRInt32 toLoc   = ContractIDStr.Find("to=");
     if (-1 == fromLoc || -1 == toLoc ) return NS_ERROR_FAILURE;
 
     fromLoc = fromLoc + 5;
     toLoc = toLoc + 3;
 
-    nsAutoCString fromStr, toStr;
+    nsCAutoString fromStr, toStr;
 
     ContractIDStr.Mid(fromStr, fromLoc, toLoc - 4 - fromLoc);
     ContractIDStr.Mid(toStr, toLoc, ContractIDStr.Length() - toLoc);
@@ -283,7 +283,7 @@ nsStreamConverterService::FindConverter(const char *aContractID, nsTArray<nsCStr
 
     // walk the graph in search of the appropriate converter.
 
-    int32_t vertexCount = mAdjacencyList->Count();
+    PRInt32 vertexCount = mAdjacencyList->Count();
     if (0 >= vertexCount) return NS_ERROR_FAILURE;
 
     // Create a corresponding color table for each vertex in the graph.
@@ -293,7 +293,7 @@ nsStreamConverterService::FindConverter(const char *aContractID, nsTArray<nsCStr
     NS_ASSERTION(lBFSTable.Count() == vertexCount, "strmconv BFS table init problem");
 
     // This is our source vertex; our starting point.
-    nsAutoCString fromC, toC;
+    nsCAutoString fromC, toC;
     rv = ParseFromTo(aContractID, fromC, toC);
     if (NS_FAILED(rv)) return rv;
 
@@ -338,9 +338,9 @@ nsStreamConverterService::FindConverter(const char *aContractID, nsTArray<nsCStr
         NS_ASSERTION(headVertexState, "problem with the BFS strmconv algorithm");
         if (!headVertexState) return NS_ERROR_FAILURE;
 
-        int32_t edgeCount = edges->Count();
+        PRInt32 edgeCount = edges->Count();
 
-        for (int32_t i = 0; i < edgeCount; i++) {
+        for (PRInt32 i = 0; i < edgeCount; i++) {
             nsIAtom* curVertexAtom = edges->ObjectAt(i);
             nsAutoString curVertexStr;
             curVertexAtom->ToString(curVertexStr);
@@ -382,12 +382,12 @@ nsStreamConverterService::FindConverter(const char *aContractID, nsTArray<nsCStr
 
     // first parse out the FROM and TO MIME-types being registered.
 
-    nsAutoCString fromStr, toStr;
+    nsCAutoString fromStr, toStr;
     rv = ParseFromTo(aContractID, fromStr, toStr);
     if (NS_FAILED(rv)) return rv;
 
     // get the root CONTRACTID
-    nsAutoCString ContractIDPrefix(NS_ISTREAMCONVERTER_KEY);
+    nsCAutoString ContractIDPrefix(NS_ISTREAMCONVERTER_KEY);
     nsTArray<nsCString> *shortestPath = new nsTArray<nsCString>();
     if (!shortestPath) return NS_ERROR_OUT_OF_MEMORY;
 
@@ -419,7 +419,7 @@ nsStreamConverterService::FindConverter(const char *aContractID, nsTArray<nsCStr
         if (!predecessorData) break; // no predecessor, chain doesn't exist.
 
         // build out the CONTRACTID.
-        nsAutoCString newContractID(ContractIDPrefix);
+        nsCAutoString newContractID(ContractIDPrefix);
         newContractID.AppendLiteral("?from=");
 
         nsCStringKey *predecessorKey = predecessorData->key;
@@ -451,7 +451,7 @@ nsStreamConverterService::CanConvert(const char* aFromType,
     if (NS_FAILED(rv))
         return rv;
 
-    nsAutoCString contractID;
+    nsCAutoString contractID;
     contractID.AssignLiteral(NS_ISTREAMCONVERTER_KEY "?from=");
     contractID.Append(aFromType);
     contractID.AppendLiteral("&to=");
@@ -488,7 +488,7 @@ nsStreamConverterService::Convert(nsIInputStream *aFromStream,
 
     // first determine whether we can even handle this conversion
     // build a CONTRACTID
-    nsAutoCString contractID;
+    nsCAutoString contractID;
     contractID.AssignLiteral(NS_ISTREAMCONVERTER_KEY "?from=");
     contractID.Append(aFromType);
     contractID.AppendLiteral("&to=");
@@ -510,7 +510,7 @@ nsStreamConverterService::Convert(nsIInputStream *aFromStream,
             return NS_ERROR_FAILURE;
         }
 
-        int32_t edgeCount = int32_t(converterChain->Length());
+        PRInt32 edgeCount = PRInt32(converterChain->Length());
         NS_ASSERTION(edgeCount > 0, "findConverter should have failed");
 
 
@@ -519,7 +519,7 @@ nsStreamConverterService::Convert(nsIInputStream *aFromStream,
         nsCOMPtr<nsIInputStream> dataToConvert = aFromStream;
         nsCOMPtr<nsIInputStream> convertedData;
 
-        for (int32_t i = edgeCount-1; i >= 0; i--) {
+        for (PRInt32 i = edgeCount-1; i >= 0; i--) {
             const char *lContractID = converterChain->ElementAt(i).get();
 
             converter = do_CreateInstance(lContractID, &rv);
@@ -529,7 +529,7 @@ nsStreamConverterService::Convert(nsIInputStream *aFromStream,
                 return rv;
             }
 
-            nsAutoCString fromStr, toStr;
+            nsCAutoString fromStr, toStr;
             rv = ParseFromTo(lContractID, fromStr, toStr);
             if (NS_FAILED(rv)) {
                 delete converterChain;
@@ -569,7 +569,7 @@ nsStreamConverterService::AsyncConvertData(const char *aFromType,
 
     // first determine whether we can even handle this conversion
     // build a CONTRACTID
-    nsAutoCString contractID;
+    nsCAutoString contractID;
     contractID.AssignLiteral(NS_ISTREAMCONVERTER_KEY "?from=");
     contractID.Append(aFromType);
     contractID.AppendLiteral("&to=");
@@ -599,7 +599,7 @@ nsStreamConverterService::AsyncConvertData(const char *aFromType,
 
         // convert the stream using each edge of the graph as a step.
         // this is our stream conversion traversal.
-        int32_t edgeCount = int32_t(converterChain->Length());
+        PRInt32 edgeCount = PRInt32(converterChain->Length());
         NS_ASSERTION(edgeCount > 0, "findConverter should have failed");
         for (int i = 0; i < edgeCount; i++) {
             const char *lContractID = converterChain->ElementAt(i).get();
@@ -608,7 +608,7 @@ nsStreamConverterService::AsyncConvertData(const char *aFromType,
             nsCOMPtr<nsIStreamConverter> converter(do_CreateInstance(lContractID));
             NS_ASSERTION(converter, "graph construction problem, built a contractid that wasn't registered");
 
-            nsAutoCString fromStr, toStr;
+            nsCAutoString fromStr, toStr;
             rv = ParseFromTo(lContractID, fromStr, toStr);
             if (NS_FAILED(rv)) {
                 delete converterChain;

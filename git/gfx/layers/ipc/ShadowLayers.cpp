@@ -219,19 +219,6 @@ ShadowLayerForwarder::RemoveChild(ShadowableLayer* aContainer,
   mTxn->AddEdit(OpRemoveChild(NULL, Shadow(aContainer),
                               NULL, Shadow(aChild)));
 }
-void
-ShadowLayerForwarder::RepositionChild(ShadowableLayer* aContainer,
-                                      ShadowableLayer* aChild,
-                                      ShadowableLayer* aAfter)
-{
-  if (aAfter)
-    mTxn->AddEdit(OpRepositionChild(NULL, Shadow(aContainer),
-                                    NULL, Shadow(aChild),
-                                    NULL, Shadow(aAfter)));
-  else
-    mTxn->AddEdit(OpRaiseToTopChild(NULL, Shadow(aContainer),
-                                    NULL, Shadow(aChild)));
-}
 
 void
 ShadowLayerForwarder::PaintedThebesBuffer(ShadowableLayer* aThebes,
@@ -291,7 +278,7 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
 
   MOZ_LAYERS_LOG(("[LayersForwarder] destroying buffers..."));
 
-  for (uint32_t i = 0; i < mTxn->mDyingBuffers.Length(); ++i) {
+  for (PRUint32 i = 0; i < mTxn->mDyingBuffers.Length(); ++i) {
     DestroySharedSurface(&mTxn->mDyingBuffers[i]);
   }
 
@@ -376,6 +363,28 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
   MOZ_LAYERS_LOG(("[LayersForwarder] ... done"));
   return true;
 }
+
+bool
+ShadowLayerForwarder::ShadowDrawToTarget(gfxContext* aTarget) {
+
+  SurfaceDescriptor descriptorIn, descriptorOut;
+  AllocBuffer(aTarget->OriginalSurface()->GetSize(),
+              aTarget->OriginalSurface()->GetContentType(),
+              &descriptorIn);
+  if (!mShadowManager->SendDrawToSurface(descriptorIn, &descriptorOut)) {
+    return false;
+  }
+
+  nsRefPtr<gfxASurface> surface = OpenDescriptor(OPEN_READ_WRITE, descriptorOut);
+  aTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
+  aTarget->DrawSurface(surface, surface->GetSize());
+
+  surface = nullptr;
+  DestroySharedSurface(&descriptorOut);
+
+  return true;
+}
+
 
 SharedMemory::SharedMemoryType
 OptimalShmemType()

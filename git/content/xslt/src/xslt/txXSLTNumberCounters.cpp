@@ -13,14 +13,14 @@ public:
     {
     }
     
-    txDecimalCounter(int32_t aMinLength, int32_t aGroupSize,
+    txDecimalCounter(PRInt32 aMinLength, PRInt32 aGroupSize,
                      const nsAString& mGroupSeparator);
     
-    virtual void appendNumber(int32_t aNumber, nsAString& aDest);
+    virtual void appendNumber(PRInt32 aNumber, nsAString& aDest);
 
 private:
-    int32_t mMinLength;
-    int32_t mGroupSize;
+    PRInt32 mMinLength;
+    PRInt32 mGroupSize;
     nsString mGroupSeparator;
 };
 
@@ -30,7 +30,7 @@ public:
     {
     }
 
-    virtual void appendNumber(int32_t aNumber, nsAString& aDest);
+    virtual void appendNumber(PRInt32 aNumber, nsAString& aDest);
     
 private:
     PRUnichar mOffset;
@@ -42,20 +42,20 @@ public:
     {
     }
 
-    void appendNumber(int32_t aNumber, nsAString& aDest);
+    void appendNumber(PRInt32 aNumber, nsAString& aDest);
 
 private:
-    int32_t mTableOffset;
+    PRInt32 mTableOffset;
 };
 
 
 nsresult
 txFormattedCounter::getCounterFor(const nsAFlatString& aToken,
-                                  int32_t aGroupSize,
+                                  PRInt32 aGroupSize,
                                   const nsAString& aGroupSeparator,
                                   txFormattedCounter*& aCounter)
 {
-    int32_t length = aToken.Length();
+    PRInt32 length = aToken.Length();
     NS_ASSERTION(length, "getting counter for empty token");
     aCounter = 0;
     
@@ -84,7 +84,7 @@ txFormattedCounter::getCounterFor(const nsAFlatString& aToken,
     }
     
     // for now, the only multi-char token we support are decimals
-    int32_t i;
+    PRInt32 i;
     for (i = 0; i < length-1; ++i) {
         if (aToken.CharAt(i) != '0')
             break;
@@ -101,7 +101,7 @@ txFormattedCounter::getCounterFor(const nsAFlatString& aToken,
 }
 
 
-txDecimalCounter::txDecimalCounter(int32_t aMinLength, int32_t aGroupSize,
+txDecimalCounter::txDecimalCounter(PRInt32 aMinLength, PRInt32 aGroupSize,
                                    const nsAString& aGroupSeparator)
     : mMinLength(aMinLength), mGroupSize(aGroupSize),
       mGroupSeparator(aGroupSeparator)
@@ -111,28 +111,28 @@ txDecimalCounter::txDecimalCounter(int32_t aMinLength, int32_t aGroupSize,
     }
 }
 
-void txDecimalCounter::appendNumber(int32_t aNumber, nsAString& aDest)
+void txDecimalCounter::appendNumber(PRInt32 aNumber, nsAString& aDest)
 {
-    const int32_t bufsize = 10; //must be able to fit an int32_t
+    const PRInt32 bufsize = 10; //must be able to fit an PRInt32
     PRUnichar buf[bufsize];
-    int32_t pos = bufsize;
+    PRInt32 pos = bufsize;
     while (aNumber > 0) {
-        int32_t ch = aNumber % 10;
+        PRInt32 ch = aNumber % 10;
         aNumber /= 10;
         buf[--pos] = ch + '0';
     }
 
     // in case we didn't get a long enough string
-    int32_t end  = (bufsize > mMinLength) ? bufsize - mMinLength : 0;
+    PRInt32 end  = (bufsize > mMinLength) ? bufsize - mMinLength : 0;
     while (pos > end) {
         buf[--pos] = '0';
     }
     
     // in case we *still* didn't get a long enough string.
     // this should be very rare since it only happens if mMinLength is bigger
-    // then the length of any int32_t.
+    // then the length of any PRInt32.
     // pos will always be zero 
-    int32_t extraPos = mMinLength;
+    PRInt32 extraPos = mMinLength;
     while (extraPos > bufsize) {
         aDest.Append(PRUnichar('0'));
         --extraPos;
@@ -144,11 +144,11 @@ void txDecimalCounter::appendNumber(int32_t aNumber, nsAString& aDest)
     // copy string to buffer
     if (mGroupSize >= bufsize - pos) {
         // no grouping will occur
-        aDest.Append(buf + pos, (uint32_t)(bufsize - pos));
+        aDest.Append(buf + pos, (PRUint32)(bufsize - pos));
     }
     else {
         // append chars up to first grouping separator
-        int32_t len = ((bufsize - pos - 1) % mGroupSize) + 1;
+        PRInt32 len = ((bufsize - pos - 1) % mGroupSize) + 1;
         aDest.Append(buf + pos, len);
         pos += len;
         while (bufsize - pos > 0) {
@@ -161,19 +161,19 @@ void txDecimalCounter::appendNumber(int32_t aNumber, nsAString& aDest)
 }
 
 
-void txAlphaCounter::appendNumber(int32_t aNumber, nsAString& aDest)
+void txAlphaCounter::appendNumber(PRInt32 aNumber, nsAString& aDest)
 {
     PRUnichar buf[12];
     buf[11] = 0;
-    int32_t pos = 11;
+    PRInt32 pos = 11;
     while (aNumber > 0) {
         --aNumber;
-        int32_t ch = aNumber % 26;
+        PRInt32 ch = aNumber % 26;
         aNumber /= 26;
         buf[--pos] = ch + mOffset;
     }
     
-    aDest.Append(buf + pos, (uint32_t)(11 - pos));
+    aDest.Append(buf + pos, (PRUint32)(11 - pos));
 }
 
 
@@ -185,10 +185,10 @@ const char* const kTxRomanNumbers[] =
      "", "X", "XX", "XXX", "XL", "L", "LX", "LXX", "LXXX", "XC",
      "", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"};
 
-void txRomanCounter::appendNumber(int32_t aNumber, nsAString& aDest)
+void txRomanCounter::appendNumber(PRInt32 aNumber, nsAString& aDest)
 {
     // Numbers bigger then 3999 and negative numbers can't be done in roman
-    if (uint32_t(aNumber) >= 4000) {
+    if (PRUint32(aNumber) >= 4000) {
         txDecimalCounter().appendNumber(aNumber, aDest);
         return;
     }
@@ -198,7 +198,7 @@ void txRomanCounter::appendNumber(int32_t aNumber, nsAString& aDest)
         aNumber -= 1000;
     }
 
-    int32_t posValue;
+    PRInt32 posValue;
     
     // Hundreds
     posValue = aNumber / 100;

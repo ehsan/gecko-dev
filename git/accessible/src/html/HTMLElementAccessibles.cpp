@@ -35,17 +35,17 @@ HTMLBRAccessible::NativeRole()
   return roles::WHITESPACE;
 }
 
-uint64_t
+PRUint64
 HTMLBRAccessible::NativeState()
 {
   return states::READONLY;
 }
 
-ENameValueFlag
-HTMLBRAccessible::NativeName(nsString& aName)
+nsresult
+HTMLBRAccessible::GetNameInternal(nsAString& aName)
 {
   aName = static_cast<PRUnichar>('\n');    // Newline char
-  return eNameOK;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,11 +54,10 @@ HTMLBRAccessible::NativeName(nsString& aName)
 
 NS_IMPL_ISUPPORTS_INHERITED0(HTMLLabelAccessible, HyperTextAccessible)
 
-ENameValueFlag
-HTMLLabelAccessible::NativeName(nsString& aName)
+nsresult
+HTMLLabelAccessible::GetNameInternal(nsAString& aName)
 {
-  nsTextEquivUtils::GetNameFromSubtree(this, aName);
-  return aName.IsEmpty() ? eNameOK : eNameFromSubtree;
+  return nsTextEquivUtils::GetNameFromSubtree(this, aName);
 }
 
 role
@@ -74,7 +73,7 @@ HTMLLabelAccessible::NativeRole()
 NS_IMPL_ISUPPORTS_INHERITED0(HTMLOutputAccessible, HyperTextAccessible)
 
 Relation
-HTMLOutputAccessible::RelationByType(uint32_t aType)
+HTMLOutputAccessible::RelationByType(PRUint32 aType)
 {
   Relation rel = AccessibleWrap::RelationByType(aType);
   if (aType == nsIAccessibleRelation::RELATION_CONTROLLED_BY)
@@ -89,14 +88,15 @@ HTMLOutputAccessible::NativeRole()
   return roles::SECTION;
 }
 
-already_AddRefed<nsIPersistentProperties>
-HTMLOutputAccessible::NativeAttributes()
+nsresult
+HTMLOutputAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
 {
-  nsCOMPtr<nsIPersistentProperties> attributes =
-    AccessibleWrap::NativeAttributes();
-  nsAccUtils::SetAccAttr(attributes, nsGkAtoms::live,
+  nsresult rv = AccessibleWrap::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::live,
                          NS_LITERAL_STRING("polite"));
 
-  return attributes.forget();
+  return NS_OK;
 }
 

@@ -6,7 +6,6 @@
 #include "nsIDOMHTMLMeterElement.h"
 #include "nsGenericHTMLElement.h"
 #include "nsAttrValue.h"
-#include "nsAttrValueInlines.h"
 #include "nsEventStateManager.h"
 #include "nsAlgorithm.h"
 
@@ -22,7 +21,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   /* nsIDOMNode */
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
 
   /* nsIDOMElement */
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
@@ -37,7 +36,7 @@ public:
 
   nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
 
-  bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
+  bool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                       const nsAString& aValue, nsAttrValue& aResult);
 
   virtual nsXPCClassInfo* GetClassInfo();
@@ -121,7 +120,7 @@ nsHTMLMeterElement::IntrinsicState() const
 }
 
 bool
-nsHTMLMeterElement::ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
+nsHTMLMeterElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                                  const nsAString& aValue, nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {

@@ -76,7 +76,7 @@ private:
   bool mIsUIForbidden;
 
   // nullptr means "no restriction"
-  // if not null, activity is only allowed on that thread
+  // if != nullptr, activity is only allowed on that thread
   PRThread* mNSSRestrictedThread;
 };
 
@@ -147,18 +147,18 @@ public:
   
 private:
   nsNSSShutDownList();
-  static PLDHashOperator
+  static PLDHashOperator PR_CALLBACK
   evaporateAllNSSResourcesHelper(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                                                        uint32_t number, void *arg);
+                                                        PRUint32 number, void *arg);
 
-  static PLDHashOperator
+  static PLDHashOperator PR_CALLBACK
   doPK11LogoutHelper(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                                                    uint32_t number, void *arg);
+                                                    PRUint32 number, void *arg);
 protected:
   mozilla::Mutex mListLock;
   static nsNSSShutDownList *singleton;
   PLDHashTable mObjects;
-  uint32_t mActiveSSLSockets;
+  PRUint32 mActiveSSLSockets;
   PLDHashTable mPK11LogoutCancelObjects;
   nsNSSActivityState mActivityState;
 };

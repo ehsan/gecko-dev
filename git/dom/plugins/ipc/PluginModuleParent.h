@@ -167,7 +167,7 @@ protected:
 
     virtual PCrashReporterParent*
     AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
-                        uint32_t* processType) MOZ_OVERRIDE;
+                        PRUint32* processType) MOZ_OVERRIDE;
     virtual bool
     DeallocPCrashReporter(PCrashReporterParent* actor) MOZ_OVERRIDE;
 
@@ -271,7 +271,6 @@ private:
 
 #if defined(XP_MACOSX)
     virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing);
-    virtual nsresult ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor);
 #endif
 #if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
     virtual nsresult HandleGUIEvent(NPP instance, const nsGUIEvent& anEvent,
@@ -303,7 +302,7 @@ private:
     nsString mBrowserDumpID;
     nsString mHangID;
 #ifdef XP_WIN
-    InfallibleTArray<float> mPluginCpuUsageOnHang;
+    float mPluginCpuUsageOnHang;
 #endif
 
 #ifdef MOZ_X11

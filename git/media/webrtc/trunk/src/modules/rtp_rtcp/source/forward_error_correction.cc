@@ -97,7 +97,6 @@ int32_t ForwardErrorCorrection::GenerateFEC(
     uint8_t protectionFactor,
     int numImportantPackets,
     bool useUnequalProtection,
-    FecMaskType fec_mask_type,
     PacketList* fecPacketList) {
   if (mediaPacketList.empty()) {
     WEBRTC_TRACE(kTraceError, kTraceRtpRtcp, _id,
@@ -111,7 +110,8 @@ int32_t ForwardErrorCorrection::GenerateFEC(
   }
   const uint16_t numMediaPackets = mediaPacketList.size();
   bool lBit = (numMediaPackets > 8 * kMaskSizeLBitClear);
-  int numMaskBytes = lBit ? kMaskSizeLBitSet : kMaskSizeLBitClear;
+  uint16_t numMaskBytes = lBit ?
+      kMaskSizeLBitSet : kMaskSizeLBitClear;
 
   if (numMediaPackets > kMaxMediaPackets) {
     WEBRTC_TRACE(kTraceError, kTraceRtpRtcp, _id,
@@ -157,21 +157,24 @@ int32_t ForwardErrorCorrection::GenerateFEC(
     }
     mediaListIt++;
   }
-
-  int numFecPackets = GetNumberOfFecPackets(numMediaPackets, protectionFactor);
+  // Result in Q0 with an unsigned round.
+  uint32_t numFecPackets = (numMediaPackets * protectionFactor + (1 << 7)) >> 8;
+  // Generate at least one FEC packet if we need protection.
+  if (protectionFactor > 0 && numFecPackets == 0) {
+    numFecPackets = 1;
+  }
   if (numFecPackets == 0) {
     return 0;
   }
+  assert(numFecPackets <= numMediaPackets);
 
   // Prepare FEC packets by setting them to 0.
-  for (int i = 0; i < numFecPackets; i++) {
+  for (uint32_t i = 0; i < numFecPackets; i++) {
     memset(_generatedFecPackets[i].data, 0, IP_PACKET_SIZE);
     _generatedFecPackets[i].length = 0;  // Use this as a marker for untouched
     // packets.
     fecPacketList->push_back(&_generatedFecPackets[i]);
   }
-
-  const internal::PacketMaskTable mask_table(fec_mask_type, numMediaPackets);
 
   // -- Generate packet masks --
   // Always allocate space for a large mask.
@@ -179,7 +182,7 @@ int32_t ForwardErrorCorrection::GenerateFEC(
   memset(packetMask, 0, numFecPackets * numMaskBytes);
   internal::GeneratePacketMasks(numMediaPackets, numFecPackets,
                                 numImportantPackets, useUnequalProtection,
-                                mask_table, packetMask);
+                                packetMask);
 
   int numMaskBits = InsertZerosInBitMasks(mediaPacketList, packetMask,
                                           numMaskBytes, numFecPackets);
@@ -201,33 +204,22 @@ int32_t ForwardErrorCorrection::GenerateFEC(
   return 0;
 }
 
-int ForwardErrorCorrection::GetNumberOfFecPackets(int numMediaPackets,
-                                                  int protectionFactor) {
-  // Result in Q0 with an unsigned round.
-  int numFecPackets = (numMediaPackets * protectionFactor + (1 << 7)) >> 8;
-  // Generate at least one FEC packet if we need protection.
-  if (protectionFactor > 0 && numFecPackets == 0) {
-    numFecPackets = 1;
-  }
-  assert(numFecPackets <= numMediaPackets);
-  return numFecPackets;
-}
-
 void ForwardErrorCorrection::GenerateFecBitStrings(
     const PacketList& mediaPacketList,
     uint8_t* packetMask,
-    int numFecPackets,
+    uint32_t numFecPackets,
     bool lBit) {
   if (mediaPacketList.empty()) {
     return;
   }
   uint8_t mediaPayloadLength[2];
-  const int numMaskBytes = lBit ? kMaskSizeLBitSet : kMaskSizeLBitClear;
+  const uint16_t numMaskBytes = lBit ?
+      kMaskSizeLBitSet : kMaskSizeLBitClear;
   const uint16_t ulpHeaderSize = lBit ?
       kUlpHeaderSizeLBitSet : kUlpHeaderSizeLBitClear;
   const uint16_t fecRtpOffset = kFecHeaderSize + ulpHeaderSize - kRtpHeaderSize;
 
-  for (int i = 0; i < numFecPackets; i++) {
+  for (uint32_t i = 0; i < numFecPackets; i++) {
     PacketList::const_iterator mediaListIt = mediaPacketList.begin();
     uint32_t pktMaskIdx = i * numMaskBytes;
     uint32_t mediaPktIdx = 0;
@@ -302,8 +294,8 @@ void ForwardErrorCorrection::GenerateFecBitStrings(
 int ForwardErrorCorrection::InsertZerosInBitMasks(
     const PacketList& media_packets,
     uint8_t* packet_mask,
-    int num_mask_bytes,
-    int num_fec_packets) {
+    uint16_t num_mask_bytes,
+    uint32_t num_fec_packets) {
   uint8_t* new_mask = NULL;
   if (media_packets.size() <= 1) {
     return media_packets.size();
@@ -404,7 +396,7 @@ void ForwardErrorCorrection::GenerateFecUlpHeaders(
     const PacketList& mediaPacketList,
     uint8_t* packetMask,
     bool lBit,
-    int numFecPackets) {
+    uint32_t numFecPackets) {
   // -- Generate FEC and ULP headers --
   //
   // FEC Header, 10 bytes
@@ -429,11 +421,12 @@ void ForwardErrorCorrection::GenerateFecUlpHeaders(
   PacketList::const_iterator mediaListIt = mediaPacketList.begin();
   Packet* mediaPacket = *mediaListIt;
   assert(mediaPacket != NULL);
-  int numMaskBytes = lBit ? kMaskSizeLBitSet : kMaskSizeLBitClear;
+  const uint16_t numMaskBytes = lBit ?
+      kMaskSizeLBitSet : kMaskSizeLBitClear;
   const uint16_t ulpHeaderSize = lBit ?
       kUlpHeaderSizeLBitSet : kUlpHeaderSizeLBitClear;
 
-  for (int i = 0; i < numFecPackets; i++) {
+  for (uint32_t i = 0; i < numFecPackets; i++) {
     // -- FEC header --
     _generatedFecPackets[i].data[0] &= 0x7f; // Set E to zero.
     if (lBit == 0) {

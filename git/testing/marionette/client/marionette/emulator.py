@@ -16,7 +16,7 @@ import tempfile
 import time
 
 from emulator_battery import EmulatorBattery
-from emulator_geo import EmulatorGeo
+
 
 class LogcatProc(ProcessHandlerMixin):
     """Process handler for logcat which saves all output to a logfile.
@@ -37,15 +37,13 @@ class Emulator(object):
 
     deviceRe = re.compile(r"^emulator-(\d+)(\s*)(.*)$")
 
-    def __init__(self, homedir=None, noWindow=False, logcat_dir=None,
-                 arch="x86", emulatorBinary=None, res='480x800', sdcard=None,
-                 userdata=None, gecko_path=None):
+    def __init__(self, homedir=None, noWindow=False, logcat_dir=None, arch="x86",
+                 emulatorBinary=None, res='480x800', userdata=None):
         self.port = None
         self._emulator_launched = False
         self.proc = None
         self.marionette_port = None
         self.telnet = None
-        self._tmp_sdcard = None
         self._tmp_userdata = None
         self._adb_started = False
         self.logcat_dir = logcat_dir
@@ -54,15 +52,12 @@ class Emulator(object):
         self.binary = emulatorBinary
         self.res = res
         self.battery = EmulatorBattery(self)
-        self.geo = EmulatorGeo(self)
         self.homedir = homedir
-        self.sdcard = sdcard
         self.noWindow = noWindow
         if self.homedir is not None:
             self.homedir = os.path.expanduser(homedir)
         self.dataImg = userdata
         self.copy_userdata = self.dataImg is None
-        self.gecko_path = gecko_path
 
     def _check_for_b2g(self):
         if self.homedir is None:
@@ -71,7 +66,7 @@ class Emulator(object):
             raise Exception('Must define B2G_HOME or pass the homedir parameter')
         self._check_file(self.homedir)
 
-        oldstyle_homedir = os.path.join(self.homedir, 'glue', 'gonk-ics')
+        oldstyle_homedir = os.path.join(self.homedir, 'glue/gonk-ics')
         if os.access(oldstyle_homedir, os.F_OK):
             self.homedir = oldstyle_homedir
 
@@ -83,7 +78,7 @@ class Emulator(object):
         if platform.system() == "Darwin":
             host_dir = "darwin-x86"
 
-        host_bin_dir = os.path.join("out", "host", host_dir, "bin")
+        host_bin_dir = os.path.join("out/host", host_dir, "bin")
 
         if self.arch == "x86":
             binary = os.path.join(host_bin_dir, "emulator-x86")
@@ -96,10 +91,9 @@ class Emulator(object):
             sysdir = "out/target/product/generic"
             self.tail_args = ["-cpu", "cortex-a8"]
 
-        self._check_for_adb()
-        if(self.sdcard):
-            self.mksdcard = os.path.join(self.homedir, host_bin_dir, "mksdcard")
-            self.create_sdcard(self.sdcard)
+        self.adb = os.path.join(self.homedir, host_bin_dir, "adb")
+        if not os.access(self.adb, os.F_OK):
+            self.adb = os.path.join(self.homedir, 'bin/adb')
 
         if not self.binary:
             self.binary = os.path.join(self.homedir, binary)
@@ -129,12 +123,10 @@ class Emulator(object):
 
     @property
     def args(self):
-        qemuArgs = [self.binary,
-                    '-kernel', self.kernelImg,
-                    '-sysdir', self.sysDir,
-                    '-data', self.dataImg]
-        if self._tmp_sdcard:
-            qemuArgs.extend(['-sdcard', self._tmp_sdcard])
+        qemuArgs =  [ self.binary,
+                      '-kernel', self.kernelImg,
+                      '-sysdir', self.sysDir,
+                      '-data', self.dataImg ]
         if self.noWindow:
             qemuArgs.append('-no-window')
         qemuArgs.extend(['-memory', '512',
@@ -152,46 +144,28 @@ class Emulator(object):
         else:
             return self.port is not None
 
-    def create_sdcard(self, sdcard):
-        self._tmp_sdcard = tempfile.mktemp(prefix='sdcard')
-        sdargs = [self.mksdcard, "-l", "mySdCard", sdcard, self._tmp_sdcard]
-        sd = subprocess.Popen(sdargs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        retcode = sd.wait()
-        if retcode:
-            raise Exception('unable to create sdcard : exit code %d: %s'
-                            % (retcode, sd.stdout.read()))
-        return None
-
     def _check_for_adb(self):
-        host_dir = "linux-x86"
-        if platform.system() == "Darwin":
-            host_dir = "darwin-x86"
-        adb = subprocess.Popen(['which', 'adb'],
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT)
-        if adb.wait() == 0:
-            self.adb = adb.stdout.read().strip()  # remove trailing newline
-            return
-        adb_paths = [os.path.join(self.homedir, 'glue', 'gonk', 'out', 'host',
-                                  host_dir, 'bin', 'adb'),
-                     os.path.join(self.homedir, 'out', 'host', host_dir,
-                                  'bin', 'adb'),
-                     os.path.join(self.homedir, 'bin', 'adb')]
-        for option in adb_paths:
-            if os.path.exists(option):
-                self.adb = option
-                return
-        raise Exception('adb not found!')
+        self.adb = os.path.join(self.homedir,
+                                'glue/gonk/out/host/linux-x86/bin/adb')
+        if not os.access(self.adb, os.F_OK):
+            self.adb = os.path.join(self.homedir, 'bin/adb')
+            if not os.access(self.adb, os.F_OK):
+                adb = subprocess.Popen(['which', 'adb'],
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT)
+                retcode = adb.wait()
+                if retcode:
+                    raise Exception('adb not found!')
+                out = adb.stdout.read().strip()
+                if len(out) and out.find('/') > -1:
+                    self.adb = out
 
     def _run_adb(self, args):
         args.insert(0, self.adb)
-        if self.port:
-            args.insert(1, '-s')
-            args.insert(2, 'emulator-%d' % self.port)
         adb = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         retcode = adb.wait()
         if retcode:
-            raise Exception('adb terminated with exit code %d: %s'
+            raise Exception('adb terminated with exit code %d: %s' 
                             % (retcode, adb.stdout.read()))
         return adb.stdout.read()
 
@@ -206,7 +180,7 @@ class Emulator(object):
             if line.startswith('OK'):
                 return output
             elif line.startswith('KO:'):
-                raise Exception('bad telnet response: %s' % line)
+                raise Exception ('bad telnet response: %s' % line)
 
     def _run_telnet(self, command):
         if not self.telnet:
@@ -227,9 +201,6 @@ class Emulator(object):
             if self._tmp_userdata:
                 os.remove(self._tmp_userdata)
                 self._tmp_userdata = None
-            if self._tmp_sdcard:
-                os.remove(self._tmp_sdcard)
-                self._tmp_sdcard = None
             return retcode
         if self.logcat_proc:
             self.logcat_proc.kill()
@@ -277,8 +248,6 @@ class Emulator(object):
             online, offline = self._get_adb_devices()
         self.port = int(list(online)[0])
 
-        self.install_gecko()
-
     def start(self):
         self._check_for_b2g()
         self.start_adb()
@@ -307,40 +276,18 @@ class Emulator(object):
         self.port = int(list(online - original_online)[0])
         self._emulator_launched = True
 
-        # bug 802877
-        time.sleep(10)
-        self.geo.set_default_location()
-
         if self.logcat_dir:
             self.save_logcat()
 
         # setup DNS fix for networking
-        self._run_adb(['shell', 'setprop', 'net.dns1', '10.0.2.3'])
-
-        self.install_gecko()
+        self._run_adb(['-s', 'emulator-%d' % self.port,
+                       'shell', 'setprop', 'net.dns1', '10.0.2.3'])
 
     def _save_logcat_proc(self, filename, cmd):
         self.logcat_proc = LogcatProc(filename, cmd)
         self.logcat_proc.run()
-        self.logcat_proc.processOutput()
         self.logcat_proc.waitForFinish()
         self.logcat_proc = None
-
-    def install_gecko(self):
-        """
-        Install gecko into the emulator using adb push.  Restart b2g after the
-        installation.
-        """
-        if not self.gecko_path:
-            return
-        # need to remount so we can write to /system/b2g
-        self._run_adb(['remount'])
-        self._run_adb(['shell', 'stop', 'b2g'])
-        self._run_adb(['shell', 'rm', '-rf', '/system/b2g/*.so'])
-        print 'installing gecko binaries'
-        self._run_adb(['push', self.gecko_path, '/system/b2g'])
-        print 'restarting B2G'
-        self._run_adb(['shell', 'start', 'b2g'])
 
     def rotate_log(self, srclog, index=1):
         """ Rotate a logfile, by recursively rotating logs further in the sequence,
@@ -380,7 +327,8 @@ class Emulator(object):
         local_port = s.getsockname()[1]
         s.close()
 
-        output = self._run_adb(['forward',
+        output = self._run_adb(['-s', 'emulator-%d' % self.port, 
+                                'forward',
                                 'tcp:%d' % local_port,
                                 'tcp:%d' % remote_port])
 
@@ -404,3 +352,4 @@ class Emulator(object):
                 print traceback.format_exc()
             time.sleep(1)
         return False
+

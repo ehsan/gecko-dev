@@ -153,7 +153,7 @@ private:
 
     PRMonitor* mReentrantMonitor;
 #ifdef DEBUG
-    int32_t mEntryCount;
+    PRInt32 mEntryCount;
 #endif
 };
 

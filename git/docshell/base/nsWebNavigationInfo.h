@@ -9,6 +9,7 @@
 #include "nsIWebNavigationInfo.h"
 #include "nsCOMPtr.h"
 #include "nsICategoryManager.h"
+#include "imgILoader.h"
 #include "nsStringFwd.h"
 #include "mozilla/Attributes.h"
 
@@ -33,9 +34,13 @@ private:
   // Check whether aType is supported.  If this method throws, the
   // value of aIsSupported is not changed.
   nsresult IsTypeSupportedInternal(const nsCString& aType,
-                                   uint32_t* aIsSupported);
+                                   PRUint32* aIsSupported);
   
   nsCOMPtr<nsICategoryManager> mCategoryManager;
+  // XXXbz we only need this because images register for the same
+  // contractid as documents, so we can't tell them apart based on
+  // contractid.
+  nsCOMPtr<imgILoader> mImgLoader;
 };
 
 #endif  // nsWebNavigationInfo_h__

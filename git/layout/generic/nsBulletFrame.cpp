@@ -11,7 +11,6 @@
 #include "nsHTMLParts.h"
 #include "nsContainerFrame.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIDocument.h"
@@ -227,10 +226,10 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                            const nsRect& aDirtyRect)
 {
   const nsStyleList* myList = GetStyleList();
-  uint8_t listStyleType = myList->mListStyleType;
+  PRUint8 listStyleType = myList->mListStyleType;
 
   if (myList->GetListStyleImage() && mImageRequest) {
-    uint32_t status;
+    PRUint32 status;
     mImageRequest->GetImageStatus(&status);
     if (status & imgIRequest::STATUS_LOAD_COMPLETE &&
         !(status & imgIRequest::STATUS_ERROR)) {
@@ -351,16 +350,12 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
   }
 }
 
-int32_t
-nsBulletFrame::SetListItemOrdinal(int32_t aNextOrdinal,
-                                  bool* aChanged,
-                                  int32_t aIncrement)
+PRInt32
+nsBulletFrame::SetListItemOrdinal(PRInt32 aNextOrdinal,
+                                  bool* aChanged)
 {
-  MOZ_ASSERT(aIncrement == 1 || aIncrement == -1,
-             "We shouldn't have weird increments here");
-
   // Assume that the ordinal comes from the caller
-  int32_t oldOrdinal = mOrdinal;
+  PRInt32 oldOrdinal = mOrdinal;
   mOrdinal = aNextOrdinal;
 
   // Try to get value directly from the list-item, if it specifies a
@@ -381,7 +376,7 @@ nsBulletFrame::SetListItemOrdinal(int32_t aNextOrdinal,
 
   *aChanged = oldOrdinal != mOrdinal;
 
-  return mOrdinal + aIncrement;
+  return mOrdinal + 1;
 }
 
 
@@ -393,21 +388,21 @@ nsBulletFrame::SetListItemOrdinal(int32_t aNextOrdinal,
  * could represent mOrder in the desired numbering system.  false
  * means we had to fall back to decimal
  */
-static bool DecimalToText(int32_t ordinal, nsString& result)
+static bool DecimalToText(PRInt32 ordinal, nsString& result)
 {
    char cbuf[40];
    PR_snprintf(cbuf, sizeof(cbuf), "%ld", ordinal);
    result.AppendASCII(cbuf);
    return true;
 }
-static bool DecimalLeadingZeroToText(int32_t ordinal, nsString& result)
+static bool DecimalLeadingZeroToText(PRInt32 ordinal, nsString& result)
 {
    char cbuf[40];
    PR_snprintf(cbuf, sizeof(cbuf), "%02ld", ordinal);
    result.AppendASCII(cbuf);
    return true;
 }
-static bool OtherDecimalToText(int32_t ordinal, PRUnichar zeroChar, nsString& result)
+static bool OtherDecimalToText(PRInt32 ordinal, PRUnichar zeroChar, nsString& result)
 {
    PRUnichar diff = zeroChar - PRUnichar('0');
    DecimalToText(ordinal, result);
@@ -420,7 +415,7 @@ static bool OtherDecimalToText(int32_t ordinal, PRUnichar zeroChar, nsString& re
       *p += diff;
    return true;
 }
-static bool TamilToText(int32_t ordinal,  nsString& result)
+static bool TamilToText(PRInt32 ordinal,  nsString& result)
 {
    PRUnichar diff = 0x0BE6 - PRUnichar('0');
    DecimalToText(ordinal, result); 
@@ -441,7 +436,7 @@ static const char gUpperRomanCharsA[] = "IXCM";
 static const char gLowerRomanCharsB[] = "vld";
 static const char gUpperRomanCharsB[] = "VLD";
 
-static bool RomanToText(int32_t ordinal, nsString& result, const char* achars, const char* bchars)
+static bool RomanToText(PRInt32 ordinal, nsString& result, const char* achars, const char* bchars)
 {
   if (ordinal < 1 || ordinal > 3999) {
     DecimalToText(ordinal, result);
@@ -668,17 +663,17 @@ static const PRUnichar gEthiopicHalehameTiEtChars[ETHIOPIC_HALEHAME_TI_ET_CHARS_
 
 #define NUM_BUF_SIZE 34 
 
-static bool CharListToText(int32_t ordinal, nsString& result, const PRUnichar* chars, int32_t aBase)
+static bool CharListToText(PRInt32 ordinal, nsString& result, const PRUnichar* chars, PRInt32 aBase)
 {
   PRUnichar buf[NUM_BUF_SIZE];
-  int32_t idx = NUM_BUF_SIZE;
+  PRInt32 idx = NUM_BUF_SIZE;
   if (ordinal < 1) {
     DecimalToText(ordinal, result);
     return false;
   }
   do {
     ordinal--; // a == 0
-    int32_t cur = ordinal % aBase;
+    PRInt32 cur = ordinal % aBase;
     buf[--idx] = chars[cur];
     ordinal /= aBase ;
   } while ( ordinal > 0);
@@ -723,13 +718,13 @@ static const PRUnichar gCJKIdeographic10KUnit3[4] =
   0x000, 0x4E07, 0x5104, 0x5146
 };
 
-static const bool CJKIdeographicToText(int32_t ordinal, nsString& result, 
+static const bool CJKIdeographicToText(PRInt32 ordinal, nsString& result, 
                                    const PRUnichar* digits,
                                    const PRUnichar *unit, 
                                    const PRUnichar* unit10k)
 {
 // In theory, we need the following if condiction,
-// However, the limit, 10 ^ 16, is greater than the max of uint32_t
+// However, the limit, 10 ^ 16, is greater than the max of PRUint32
 // so we don't really need to test it here.
 // if( ordinal > 9999999999999999)
 // {
@@ -745,15 +740,15 @@ static const bool CJKIdeographicToText(int32_t ordinal, nsString& result,
   PRUnichar c10kUnit = 0;
   PRUnichar cUnit = 0;
   PRUnichar cDigit = 0;
-  uint32_t ud = 0;
+  PRUint32 ud = 0;
   PRUnichar buf[NUM_BUF_SIZE];
-  int32_t idx = NUM_BUF_SIZE;
+  PRInt32 idx = NUM_BUF_SIZE;
   bool bOutputZero = ( 0 == ordinal );
   do {
     if(0 == (ud % 4)) {
       c10kUnit = unit10k[ud/4];
     }
-    int32_t cur = ordinal % 10;
+    PRInt32 cur = ordinal % 10;
     cDigit = digits[cur];
     if( 0 == cur)
     {
@@ -799,7 +794,7 @@ static const PRUnichar gHebrewDigit[22] =
 0x05E7, 0x05E8, 0x05E9, 0x05EA
 };
 
-static bool HebrewToText(int32_t ordinal, nsString& result)
+static bool HebrewToText(PRInt32 ordinal, nsString& result)
 {
   if (ordinal < 1 || ordinal > 999999) {
     DecimalToText(ordinal, result);
@@ -809,9 +804,9 @@ static bool HebrewToText(int32_t ordinal, nsString& result)
   nsAutoString allText, thousandsGroup;
   do {
     thousandsGroup.Truncate();
-    int32_t n3 = ordinal % 1000;
+    PRInt32 n3 = ordinal % 1000;
     // Process digit for 100 - 900
-    for(int32_t n1 = 400; n1 > 0; )
+    for(PRInt32 n1 = 400; n1 > 0; )
     {
       if( n3 >= n1)
       {
@@ -823,7 +818,7 @@ static bool HebrewToText(int32_t ordinal, nsString& result)
     } // for
 
     // Process digit for 10 - 90
-    int32_t n2;
+    PRInt32 n2;
     if( n3 >= 10 )
     {
       // Special process for 15 and 16
@@ -858,7 +853,7 @@ static bool HebrewToText(int32_t ordinal, nsString& result)
 }
 
 
-static bool ArmenianToText(int32_t ordinal, nsString& result)
+static bool ArmenianToText(PRInt32 ordinal, nsString& result)
 {
   if (ordinal < 1 || ordinal > 9999) { // zero or reach the limit of Armenian numbering system
     DecimalToText(ordinal, result);
@@ -866,10 +861,10 @@ static bool ArmenianToText(int32_t ordinal, nsString& result)
   }
 
   PRUnichar buf[NUM_BUF_SIZE];
-  int32_t idx = NUM_BUF_SIZE;
-  int32_t d = 0;
+  PRInt32 idx = NUM_BUF_SIZE;
+  PRInt32 d = 0;
   do {
-    int32_t cur = ordinal % 10;
+    PRInt32 cur = ordinal % 10;
     if (cur > 0)
     {
       PRUnichar u = 0x0530 + (d * 9) + cur;
@@ -895,7 +890,7 @@ static const PRUnichar gGeorgianValue [ 37 ] = { // 4 * 9 + 1 = 37
 //  10000
    0x10F5
 };
-static bool GeorgianToText(int32_t ordinal, nsString& result)
+static bool GeorgianToText(PRInt32 ordinal, nsString& result)
 {
   if (ordinal < 1 || ordinal > 19999) { // zero or reach the limit of Georgian numbering system
     DecimalToText(ordinal, result);
@@ -903,10 +898,10 @@ static bool GeorgianToText(int32_t ordinal, nsString& result)
   }
 
   PRUnichar buf[NUM_BUF_SIZE];
-  int32_t idx = NUM_BUF_SIZE;
-  int32_t d = 0;
+  PRInt32 idx = NUM_BUF_SIZE;
+  PRInt32 d = 0;
   do {
-    int32_t cur = ordinal % 10;
+    PRInt32 cur = ordinal % 10;
     if (cur > 0)
     {
       PRUnichar u = gGeorgianValue[(d * 9 ) + ( cur - 1)];
@@ -929,7 +924,7 @@ static bool GeorgianToText(int32_t ordinal, nsString& result)
 #define ETHIOPIC_HUNDRED         0x137B
 #define ETHIOPIC_TEN_THOUSAND    0x137C
 
-static bool EthiopicToText(int32_t ordinal, nsString& result)
+static bool EthiopicToText(PRInt32 ordinal, nsString& result)
 {
   nsAutoString asciiNumberString;      // decimal string representation of ordinal
   DecimalToText(ordinal, asciiNumberString);
@@ -937,7 +932,7 @@ static bool EthiopicToText(int32_t ordinal, nsString& result)
     result.Append(asciiNumberString);
     return false;
   }
-  uint8_t asciiStringLength = asciiNumberString.Length();
+  PRUint8 asciiStringLength = asciiNumberString.Length();
 
   // If number length is odd, add a leading "0"
   // the leading "0" preconditions the string to always have the
@@ -953,12 +948,12 @@ static bool EthiopicToText(int32_t ordinal, nsString& result)
   // Iterate from the highest digits to lowest
   // indexFromLeft       indexes digits (0 = most significant)
   // groupIndexFromRight indexes pairs of digits (0 = least significant)
-  for (uint8_t indexFromLeft = 0, groupIndexFromRight = asciiStringLength >> 1;
+  for (PRUint8 indexFromLeft = 0, groupIndexFromRight = asciiStringLength >> 1;
        indexFromLeft <= asciiStringLength;
        indexFromLeft += 2, groupIndexFromRight--) {
-    uint8_t tensValue  = asciiNumberString.CharAt(indexFromLeft) & 0x0F;
-    uint8_t unitsValue = asciiNumberString.CharAt(indexFromLeft + 1) & 0x0F;
-    uint8_t groupValue = tensValue * 10 + unitsValue;
+    PRUint8 tensValue  = asciiNumberString.CharAt(indexFromLeft) & 0x0F;
+    PRUint8 unitsValue = asciiNumberString.CharAt(indexFromLeft + 1) & 0x0F;
+    PRUint8 groupValue = tensValue * 10 + unitsValue;
 
     bool oddGroup = (groupIndexFromRight & 1);
 
@@ -995,8 +990,8 @@ static bool EthiopicToText(int32_t ordinal, nsString& result)
 
 
 /* static */ bool
-nsBulletFrame::AppendCounterText(int32_t aListStyleType,
-                                 int32_t aOrdinal,
+nsBulletFrame::AppendCounterText(PRInt32 aListStyleType,
+                                 PRInt32 aOrdinal,
                                  nsString& result)
 {
   bool success = true;
@@ -1276,7 +1271,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   RemoveStateBits(BULLET_FRAME_IMAGE_LOADING);
 
   if (myList->GetListStyleImage() && mImageRequest) {
-    uint32_t status;
+    PRUint32 status;
     mImageRequest->GetImageStatus(&status);
     if (status & imgIRequest::STATUS_SIZE_AVAILABLE &&
         !(status & imgIRequest::STATUS_ERROR)) {
@@ -1431,41 +1426,14 @@ nsBulletFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   return metrics.width;
 }
 
-NS_IMETHODIMP
-nsBulletFrame::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
-{
-  if (aType == imgINotificationObserver::SIZE_AVAILABLE) {
-    nsCOMPtr<imgIContainer> image;
-    aRequest->GetImage(getter_AddRefs(image));
-    return OnStartContainer(aRequest, image);
-  }
 
-  if (aType == imgINotificationObserver::FRAME_UPDATE) {
-    // The image has changed.
-    // Invalidate the entire content area. Maybe it's not optimal but it's simple and
-    // always correct, and I'll be a stunned mullet if it ever matters for performance
-    InvalidateFrame();
-  }
-
-  if (aType == imgINotificationObserver::IS_ANIMATED) {
-    // Register the image request with the refresh driver now that we know it's
-    // animated.
-    if (aRequest == mImageRequest) {
-      nsLayoutUtils::RegisterImageRequest(PresContext(), mImageRequest,
-                                          &mRequestRegistered);
-    }
-  }
-
-  return NS_OK;
-}
-
-nsresult nsBulletFrame::OnStartContainer(imgIRequest *aRequest,
-                                         imgIContainer *aImage)
+NS_IMETHODIMP nsBulletFrame::OnStartContainer(imgIRequest *aRequest,
+                                              imgIContainer *aImage)
 {
   if (!aImage) return NS_ERROR_INVALID_ARG;
   if (!aRequest) return NS_ERROR_INVALID_ARG;
 
-  uint32_t status;
+  PRUint32 status;
   aRequest->GetImageStatus(&status);
   if (status & imgIRequest::STATUS_ERROR) {
     return NS_OK;
@@ -1499,6 +1467,60 @@ nsresult nsBulletFrame::OnStartContainer(imgIRequest *aRequest,
   // 'cleaned up' by the Request when it is destroyed, but only then.
   aRequest->IncrementAnimationConsumers();
   
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsBulletFrame::OnDataAvailable(imgIRequest *aRequest,
+                                             bool aCurrentFrame,
+                                             const nsIntRect *aRect)
+{
+  // The image has changed.
+  // Invalidate the entire content area. Maybe it's not optimal but it's simple and
+  // always correct, and I'll be a stunned mullet if it ever matters for performance
+  Invalidate(nsRect(0, 0, mRect.width, mRect.height));
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsBulletFrame::OnStopDecode(imgIRequest *aRequest,
+                                          nsresult aStatus,
+                                          const PRUnichar *aStatusArg)
+{
+  // XXX should the bulletframe do anything if the image failed to load?
+  //     it didn't in the old code...
+
+#if 0
+  if (NS_FAILED(aStatus)) {
+    // We failed to load the image. Notify the pres shell
+    if (NS_FAILED(aStatus) && (mImageRequest == aRequest || !mImageRequest)) {
+      imageFailed = true;
+    }
+  }
+#endif
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsBulletFrame::OnImageIsAnimated(imgIRequest* aRequest)
+{
+  // Register the image request with the refresh driver now that we know it's
+  // animated.
+  if (aRequest == mImageRequest) {
+    nsLayoutUtils::RegisterImageRequest(PresContext(), mImageRequest,
+                                        &mRequestRegistered);
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsBulletFrame::FrameChanged(imgIRequest *aRequest,
+                                          imgIContainer *aContainer,
+                                          const nsIntRect *aDirtyRect)
+{
+  // Invalidate the entire content area. Maybe it's not optimal but it's simple and
+  // always correct.
+  Invalidate(nsRect(0, 0, mRect.width, mRect.height));
+
   return NS_OK;
 }
 
@@ -1597,7 +1619,7 @@ nsBulletFrame::GetBaseline() const
 
 
 
-NS_IMPL_ISUPPORTS1(nsBulletListener, imgINotificationObserver)
+NS_IMPL_ISUPPORTS2(nsBulletListener, imgIDecoderObserver, imgIContainerObserver)
 
 nsBulletListener::nsBulletListener() :
   mFrame(nullptr)
@@ -1608,10 +1630,49 @@ nsBulletListener::~nsBulletListener()
 {
 }
 
-NS_IMETHODIMP
-nsBulletListener::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
+NS_IMETHODIMP nsBulletListener::OnStartContainer(imgIRequest *aRequest,
+                                                 imgIContainer *aImage)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
-  return mFrame->Notify(aRequest, aType, aData);
+
+  return mFrame->OnStartContainer(aRequest, aImage);
+}
+
+NS_IMETHODIMP nsBulletListener::OnDataAvailable(imgIRequest *aRequest,
+                                                bool aCurrentFrame,
+                                                const nsIntRect *aRect)
+{
+  if (!mFrame)
+    return NS_OK;
+
+  return mFrame->OnDataAvailable(aRequest, aCurrentFrame, aRect);
+}
+
+NS_IMETHODIMP nsBulletListener::OnStopDecode(imgIRequest *aRequest,
+                                             nsresult status,
+                                             const PRUnichar *statusArg)
+{
+  if (!mFrame)
+    return NS_OK;
+  
+  return mFrame->OnStopDecode(aRequest, status, statusArg);
+}
+
+NS_IMETHODIMP nsBulletListener::OnImageIsAnimated(imgIRequest *aRequest)
+{
+  if (!mFrame)
+    return NS_OK;
+
+  return mFrame->OnImageIsAnimated(aRequest);
+}
+
+NS_IMETHODIMP nsBulletListener::FrameChanged(imgIRequest *aRequest,
+                                             imgIContainer *aContainer,
+                                             const nsIntRect *aDirtyRect)
+{
+  if (!mFrame)
+    return NS_OK;
+
+  return mFrame->FrameChanged(aRequest, aContainer, aDirtyRect);
 }

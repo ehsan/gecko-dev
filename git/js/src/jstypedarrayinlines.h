@@ -1,5 +1,5 @@
-/* -*- Mode: C++; c-basic-offset: 4; tab-width: 4; indent-tabs-mode: nil -*- */
-/* vim: set ts=4 sw=4 et tw=99: */
+/* -*- Mode: c++; c-basic-offset: 4; tab-width: 40; indent-tabs-mode: nil -*- */
+/* vim: set ts=40 sw=4 et tw=99: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -13,29 +13,11 @@
 
 #include "jsobjinlines.h"
 
-// Sentinel value used to initialize ArrayBufferViews' NEXT_BUFFER_SLOTs to
-// show that they have not yet been added to any ArrayBuffer list
-JSObject * const UNSET_BUFFER_LINK = (JSObject*)0x2;
-
-inline void
-js::ArrayBufferObject::setElementsHeader(js::ObjectElements *header, uint32_t bytes)
-{
-    /*
-     * Note that |bytes| may not be a multiple of |sizeof(Value)|, so
-     * |capacity * sizeof(Value)| may underestimate the size by up to
-     * |sizeof(Value) - 1| bytes.
-     */
-    header->capacity = bytes / sizeof(js::Value);
-    header->initializedLength = bytes;
-    header->length = 0;
-    header->unused = 0;
-}
-
 inline uint32_t
 js::ArrayBufferObject::byteLength() const
 {
     JS_ASSERT(isArrayBuffer());
-    return getElementsHeader()->initializedLength;
+    return getElementsHeader()->length;
 }
 
 inline uint8_t *
@@ -80,7 +62,7 @@ inline Value
 TypedArray::lengthValue(JSObject *obj)
 {
     JS_ASSERT(obj->isTypedArray());
-    return obj->getFixedSlot(LENGTH_SLOT);
+    return obj->getFixedSlot(FIELD_LENGTH);
 }
 
 inline uint32_t
@@ -93,7 +75,7 @@ inline Value
 TypedArray::byteOffsetValue(JSObject *obj)
 {
     JS_ASSERT(obj->isTypedArray());
-    return obj->getFixedSlot(BYTEOFFSET_SLOT);
+    return obj->getFixedSlot(FIELD_BYTEOFFSET);
 }
 
 inline uint32_t
@@ -106,7 +88,7 @@ inline Value
 TypedArray::byteLengthValue(JSObject *obj)
 {
     JS_ASSERT(obj->isTypedArray());
-    return obj->getFixedSlot(BYTELENGTH_SLOT);
+    return obj->getFixedSlot(FIELD_BYTELENGTH);
 }
 
 inline uint32_t
@@ -119,14 +101,14 @@ inline uint32_t
 TypedArray::type(JSObject *obj)
 {
     JS_ASSERT(obj->isTypedArray());
-    return obj->getFixedSlot(TYPE_SLOT).toInt32();
+    return obj->getFixedSlot(FIELD_TYPE).toInt32();
 }
 
 inline Value
 TypedArray::bufferValue(JSObject *obj)
 {
     JS_ASSERT(obj->isTypedArray());
-    return obj->getFixedSlot(BUFFER_SLOT);
+    return obj->getFixedSlot(FIELD_BUFFER);
 }
 
 inline ArrayBufferObject *
@@ -139,7 +121,7 @@ inline void *
 TypedArray::viewData(JSObject *obj)
 {
     JS_ASSERT(obj->isTypedArray());
-    return (void *)obj->getPrivate(DATA_SLOT);
+    return (void *)obj->getPrivate(NUM_FIXED_SLOTS);
 }
 
 inline uint32_t
@@ -175,43 +157,6 @@ DataViewObject::is(const Value &v)
     return v.isObject() && v.toObject().hasClass(&DataViewClass);
 }
 
-#ifdef JSGC_GENERATIONAL
-class TypedArrayPrivateRef : public gc::BufferableRef
-{
-    JSObject *obj;
-    ArrayBufferObject *buffer;
-    size_t byteOffset;
-
-  public:
-    TypedArrayPrivateRef(JSObject *obj, ArrayBufferObject *buffer, size_t byteOffset)
-      : obj(obj), buffer(buffer), byteOffset(byteOffset) {}
-
-    bool match(void *location) {
-        // The private field  of obj is not traced, but needs to be updated by mark.
-        return false;
-    }
-
-    void mark(JSTracer *trc) {}
-};
-#endif
-
-static inline void
-InitTypedArrayDataPointer(JSObject *obj, ArrayBufferObject *buffer, size_t byteOffset)
-{
-    /*
-     * N.B. The base of the array's data is stored in the object's
-     * private data rather than a slot to avoid alignment restrictions
-     * on private Values.
-     */
-    obj->initPrivate(buffer->dataPointer() + byteOffset);
-#ifdef JSGC_GENERATIONAL
-    JSCompartment *comp = obj->compartment();
-    JS_ASSERT(comp == buffer->compartment());
-    if (comp->gcNursery.isInside(buffer))
-        comp->gcStoreBuffer.putGeneric(TypedArrayPrivateRef(obj, buffer, byteOffset));
-#endif
-}
-
 inline DataViewObject *
 DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
                        Handle<ArrayBufferObject*> arrayBuffer, JSObject *protoArg)
@@ -231,7 +176,7 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
         obj->setType(type);
     } else if (cx->typeInferenceEnabled()) {
         if (byteLength >= TypedArray::SINGLETON_TYPE_BYTE_LENGTH) {
-            if (!JSObject::setSingletonType(cx, obj))
+            if (!obj->setSingletonType(cx))
                 return NULL;
         } else {
             jsbytecode *pc;
@@ -249,15 +194,10 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
     dvobj.setFixedSlot(BYTEOFFSET_SLOT, Int32Value(byteOffset));
     dvobj.setFixedSlot(BYTELENGTH_SLOT, Int32Value(byteLength));
     dvobj.setFixedSlot(BUFFER_SLOT, ObjectValue(*arrayBuffer));
-    dvobj.setFixedSlot(NEXT_VIEW_SLOT, PrivateValue(NULL));
-    dvobj.setFixedSlot(NEXT_BUFFER_SLOT, PrivateValue(UNSET_BUFFER_LINK));
-    InitTypedArrayDataPointer(obj, arrayBuffer, byteOffset);
+    dvobj.setPrivate(arrayBuffer->dataPointer() + byteOffset);
     JS_ASSERT(byteOffset + byteLength <= arrayBuffer->byteLength());
 
-    // Verify that the private slot is at the expected place
-    JS_ASSERT(dvobj.numFixedSlots() == DATA_SLOT);
-
-    arrayBuffer->asArrayBuffer().addView(&dvobj);
+    JS_ASSERT(dvobj.numFixedSlots() == RESERVED_SLOTS);
 
     return &dvobj;
 }
@@ -287,11 +227,11 @@ DataViewObject::dataPointer()
     return getPrivate();
 }
 
-inline ArrayBufferObject &
+inline JSObject &
 DataViewObject::arrayBuffer()
 {
     JS_ASSERT(isDataView());
-    return getReservedSlot(BUFFER_SLOT).toObject().asArrayBuffer();
+    return getReservedSlot(BUFFER_SLOT).toObject();
 }
 
 inline bool

@@ -1,16 +1,11 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
-
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var currentTestIndex = 0;
 var tests = [
              // this is valid
              {url: "/assoc/assoctest?valid",
-              responseheader: [ "Assoc-Req: GET http://localhost:4444/assoc/assoctest?valid",
+              responseheader: [ "Assoc-Req: GET http://localhost:4444/assoc/assoctest?valid", 
                                 "Pragma: X-Verify-Assoc-Req" ],
               flags : 0},
 

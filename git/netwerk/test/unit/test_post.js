@@ -2,14 +2,9 @@
 // POST test
 //
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
-
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var testpath = "/simple";
 
 var testfile = do_get_file("../unit/data/test_readline6.txt");

@@ -40,7 +40,7 @@ protected:
   // walk the handlers for aEvent, aCharCode and aIgnoreShiftKey
   bool WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent, nsIAtom* aEventType,
                                 nsXBLPrototypeHandler* aHandler,
-                                uint32_t aCharCode, bool aIgnoreShiftKey);
+                                PRUint32 aCharCode, bool aIgnoreShiftKey);
 
   // lazily load the handlers. Overridden to handle being attached
   // to a particular element rather than the document
@@ -48,7 +48,7 @@ protected:
 
   // check if the given handler cares about the given key event
   bool EventMatched(nsXBLPrototypeHandler* inHandler, nsIAtom* inEventType,
-                      nsIDOMKeyEvent* inEvent, uint32_t aCharCode,
+                      nsIDOMKeyEvent* inEvent, PRUint32 aCharCode,
                       bool aIgnoreShiftKey);
 
   // are we working with editor or browser?
@@ -68,7 +68,7 @@ protected:
 
   // holds document info about bindings
   static nsXBLSpecialDocInfo* sXBLSpecialDocInfo;
-  static uint32_t sRefCnt;
+  static PRUint32 sRefCnt;
 };
 
 nsresult

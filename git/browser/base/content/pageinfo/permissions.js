@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 const UNKNOWN = nsIPermissionManager.UNKNOWN_ACTION;   // 0
 const ALLOW = nsIPermissionManager.ALLOW_ACTION;       // 1
@@ -83,7 +83,7 @@ function onLoadPermission()
 
   var uri = gDocument.documentURIObject;
   var permTab = document.getElementById("permTab");
-  if (/^https?$/.test(uri.scheme)) {
+  if(/^https?/.test(uri.scheme)) {
     gPermURI = uri;
     var hostText = document.getElementById("hostText");
     hostText.value = gPermURI.host;

@@ -13,7 +13,6 @@
 
 #include "methodjit/MethodJIT.h"
 #include "vm/Stack.h"
-#include "ion/IonFrameIterator-inl.h"
 
 #include "jsscriptinlines.h"
 
@@ -66,7 +65,7 @@ StackFrame::varObj()
 inline JSCompartment *
 StackFrame::compartment() const
 {
-    JS_ASSERT(scopeChain()->compartment() == script()->compartment());
+    JS_ASSERT_IF(isScriptFrame(), scopeChain()->compartment() == script()->compartment());
     return scopeChain()->compartment();
 }
 
@@ -74,8 +73,8 @@ StackFrame::compartment() const
 inline mjit::JITScript *
 StackFrame::jit()
 {
-    AutoAssertNoGC nogc;
-    return script()->getJIT(isConstructing(), script()->compartment()->compileBarriers());
+    JSScript *script_ = script();
+    return script_->getJIT(isConstructing(), script_->compartment()->needsBarrier());
 }
 #endif
 
@@ -87,7 +86,8 @@ StackFrame::initPrev(JSContext *cx)
         prev_ = regs->fp();
         prevpc_ = regs->pc;
         prevInline_ = regs->inlined();
-        JS_ASSERT(uint32_t(prevpc_ - prev_->script()->code) < prev_->script()->length);
+        JS_ASSERT_IF(!prev_->isDummyFrame(),
+                     uint32_t(prevpc_ - prev_->script()->code) < prev_->script()->length);
     } else {
         prev_ = NULL;
 #ifdef DEBUG
@@ -133,7 +133,6 @@ inline void
 StackFrame::initCallFrame(JSContext *cx, JSFunction &callee,
                           JSScript *script, uint32_t nactual, StackFrame::Flags flagsArg)
 {
-    AutoAssertNoGC nogc;
     JS_ASSERT((flagsArg & ~(CONSTRUCTING |
                             LOWERED_CALL_APPLY |
                             OVERFLOW_ARGS |
@@ -193,7 +192,6 @@ StackFrame::jitHeavyweightFunctionPrologue(JSContext *cx)
 inline void
 StackFrame::initVarsToUndefined()
 {
-    AutoAssertNoGC nogc;
     SetValueRangeToUndefined(slots(), script()->nfixed);
 }
 
@@ -209,7 +207,6 @@ StackFrame::createRestParameter(JSContext *cx)
 inline Value &
 StackFrame::unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing)
 {
-    AutoAssertNoGC nogc;
     JS_ASSERT_IF(checkAliasing, !script()->varIsAliased(i));
     JS_ASSERT(i < script()->nfixed);
     return slots()[i];
@@ -219,7 +216,6 @@ inline Value &
 StackFrame::unaliasedLocal(unsigned i, MaybeCheckAliasing checkAliasing)
 {
 #ifdef DEBUG
-    AutoAssertNoGC nogc;
     if (checkAliasing) {
         JS_ASSERT(i < script()->nslots);
         if (i < script()->nfixed) {
@@ -242,10 +238,6 @@ inline Value &
 StackFrame::unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing)
 {
     JS_ASSERT(i < numFormalArgs());
-    JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
-    if (checkAliasing && script()->formalIsAliased(i)) {
-        while (true) {}
-    }
     JS_ASSERT_IF(checkAliasing, !script()->formalIsAliased(i));
     return formals()[i];
 }
@@ -254,7 +246,6 @@ inline Value &
 StackFrame::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing)
 {
     JS_ASSERT(i < numActualArgs());
-    JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
     JS_ASSERT_IF(checkAliasing && i < numFormalArgs(), !script()->formalIsAliased(i));
     return i < numFormalArgs() ? formals()[i] : actuals()[i];
 }
@@ -263,7 +254,7 @@ template <class Op>
 inline void
 StackFrame::forEachUnaliasedActual(Op op)
 {
-    JS_ASSERT(!script()->funHasAnyAliasedFormal);
+    JS_ASSERT(script()->numClosedArgs() == 0);
     JS_ASSERT(!script()->needsArgsObj());
 
     unsigned nformal = numFormalArgs();
@@ -292,13 +283,6 @@ struct CopyTo
     Value *dst;
     CopyTo(Value *dst) : dst(dst) {}
     void operator()(const Value &src) { *dst++ = src; }
-};
-
-struct CopyToHeap
-{
-    HeapValue *dst;
-    CopyToHeap(HeapValue *dst) : dst(dst) {}
-    void operator()(const Value &src) { dst->init(src); ++dst; }
 };
 
 inline unsigned
@@ -381,23 +365,22 @@ StackFrame::callObj() const
 
 STATIC_POSTCONDITION(!return || ubound(from) >= nvals)
 JS_ALWAYS_INLINE bool
-StackSpace::ensureSpace(JSContext *cx, MaybeReportError report, Value *from, ptrdiff_t nvals) const
+StackSpace::ensureSpace(JSContext *cx, MaybeReportError report, Value *from, ptrdiff_t nvals,
+                        JSCompartment *dest) const
 {
-    AssertCanGC();
     assertInvariants();
     JS_ASSERT(from >= firstUnused());
 #ifdef XP_WIN
     JS_ASSERT(from <= commitEnd_);
 #endif
     if (JS_UNLIKELY(conservativeEnd_ - from < nvals))
-        return ensureSpaceSlow(cx, report, from, nvals);
+        return ensureSpaceSlow(cx, report, from, nvals, dest);
     return true;
 }
 
 inline Value *
 StackSpace::getStackLimit(JSContext *cx, MaybeReportError report)
 {
-    AssertCanGC();
     FrameRegs &regs = cx->regs();
     unsigned nvals = regs.fp()->script()->nslots + STACK_JIT_EXTRA;
     return ensureSpace(cx, report, regs.sp, nvals)
@@ -411,7 +394,6 @@ JS_ALWAYS_INLINE StackFrame *
 ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArgs &args,
                            JSFunction *fun, JSScript *script, StackFrame::Flags *flags) const
 {
-    AssertCanGC();
     JS_ASSERT(fun->script() == script);
     unsigned nformal = fun->nargs;
 
@@ -451,16 +433,15 @@ ContextStack::getCallFrame(JSContext *cx, MaybeReportError report, const CallArg
 JS_ALWAYS_INLINE bool
 ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
                               JSFunction &callee, JSScript *script,
-                              InitialFrameFlags initial, MaybeReportError report)
+                              InitialFrameFlags initial)
 {
-    AssertCanGC();
     JS_ASSERT(onTop());
     JS_ASSERT(regs.sp == args.end());
     /* Cannot assert callee == args.callee() since this is called from LeaveTree. */
-    JS_ASSERT(callee.script() == script);
+    JS_ASSERT(script == callee.script());
 
     StackFrame::Flags flags = ToFrameFlags(initial);
-    StackFrame *fp = getCallFrame(cx, report, args, &callee, script, &flags);
+    StackFrame *fp = getCallFrame(cx, REPORT_ERROR, args, &callee, script, &flags);
     if (!fp)
         return false;
 
@@ -480,7 +461,6 @@ ContextStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &ar
                               JSFunction &callee, JSScript *script,
                               InitialFrameFlags initial, Value **stackLimit)
 {
-    AssertCanGC();
     if (!pushInlineFrame(cx, regs, args, callee, script, initial))
         return false;
     *stackLimit = space().conservativeEnd_;
@@ -492,7 +472,6 @@ ContextStack::getFixupFrame(JSContext *cx, MaybeReportError report,
                             const CallArgs &args, JSFunction *fun, JSScript *script,
                             void *ncode, InitialFrameFlags initial, Value **stackLimit)
 {
-    AssertCanGC();
     JS_ASSERT(onTop());
     JS_ASSERT(fun->script() == args.callee().toFunction()->script());
     JS_ASSERT(fun->script() == script);
@@ -533,38 +512,26 @@ ContextStack::popFrameAfterOverflow()
 }
 
 inline JSScript *
-ContextStack::currentScript(jsbytecode **ppc,
-                            MaybeAllowCrossCompartment allowCrossCompartment) const
+ContextStack::currentScript(jsbytecode **ppc) const
 {
-    AutoAssertNoGC nogc;
-
     if (ppc)
         *ppc = NULL;
 
-    if (!hasfp())
+    FrameRegs *regs = maybeRegs();
+    StackFrame *fp = regs ? regs->fp() : NULL;
+    while (fp && fp->isDummyFrame())
+        fp = fp->prev();
+    if (!fp)
         return NULL;
 
-    FrameRegs &regs = this->regs();
-    StackFrame *fp = regs.fp();
-
-#ifdef JS_ION
-    if (fp->beginsIonActivation()) {
-        RootedScript script(cx_);
-        ion::GetPcScript(cx_, &script, ppc);
-        if (!allowCrossCompartment && script->compartment() != cx_->compartment)
-            return NULL;
-        return script;
-    }
-#endif
-
 #ifdef JS_METHODJIT
-    mjit::CallSite *inlined = regs.inlined();
+    mjit::CallSite *inlined = regs->inlined();
     if (inlined) {
-        mjit::JITChunk *chunk = fp->jit()->chunk(regs.pc);
+        mjit::JITChunk *chunk = fp->jit()->chunk(regs->pc);
         JS_ASSERT(inlined->inlineIndex < chunk->nInlineFrames);
         mjit::InlineFrame *frame = &chunk->inlineFrames()[inlined->inlineIndex];
-        RawScript script = frame->fun->script();
-        if (!allowCrossCompartment && script->compartment() != cx_->compartment)
+        JSScript *script = frame->fun->script();
+        if (script->compartment() != cx_->compartment)
             return NULL;
         if (ppc)
             *ppc = script->code + inlined->pcOffset;
@@ -572,8 +539,8 @@ ContextStack::currentScript(jsbytecode **ppc,
     }
 #endif
 
-    RawScript script = fp->script();
-    if (!allowCrossCompartment && script->compartment() != cx_->compartment)
+    JSScript *script = fp->script();
+    if (script->compartment() != cx_->compartment)
         return NULL;
 
     if (ppc)
@@ -585,16 +552,6 @@ inline HandleObject
 ContextStack::currentScriptedScopeChain() const
 {
     return fp()->scopeChain();
-}
-
-template <class Op>
-inline void
-StackIter::ionForEachCanonicalActualArg(Op op)
-{
-    JS_ASSERT(isIon());
-#ifdef JS_ION
-    ionInlineFrames_.forEachCanonicalActualArg(op, 0, -1);
-#endif
 }
 
 } /* namespace js */

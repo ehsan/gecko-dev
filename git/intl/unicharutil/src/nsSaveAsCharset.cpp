@@ -35,7 +35,7 @@ nsSaveAsCharset::~nsSaveAsCharset()
 }
 
 NS_IMETHODIMP
-nsSaveAsCharset::Init(const char *charset, uint32_t attr, uint32_t entityVersion)
+nsSaveAsCharset::Init(const char *charset, PRUint32 attr, PRUint32 entityVersion)
 {
   nsresult rv = NS_OK;
 
@@ -59,8 +59,10 @@ nsSaveAsCharset::Init(const char *charset, uint32_t attr, uint32_t entityVersion
 NS_IMETHODIMP
 nsSaveAsCharset::Convert(const PRUnichar *inString, char **_retval)
 {
-  NS_ENSURE_ARG_POINTER(_retval);
-  NS_ENSURE_ARG_POINTER(inString);
+  if (nullptr == _retval)
+    return NS_ERROR_NULL_POINTER;
+  if (nullptr == inString)
+    return NS_ERROR_NULL_POINTER;
   if (0 == *inString)
     return NS_ERROR_ILLEGAL_VALUE;
   nsresult rv = NS_OK;
@@ -130,27 +132,25 @@ nsSaveAsCharset::GetCharset(char * *aCharset)
 // do the fallback, reallocate the buffer if necessary
 // need to pass destination buffer info (size, current position and estimation of rest of the conversion)
 NS_IMETHODIMP
-nsSaveAsCharset::HandleFallBack(uint32_t character, char **outString, int32_t *bufferLength, 
-                                int32_t *currentPos, int32_t estimatedLength)
+nsSaveAsCharset::HandleFallBack(PRUint32 character, char **outString, PRInt32 *bufferLength, 
+                                PRInt32 *currentPos, PRInt32 estimatedLength)
 {
-  NS_ENSURE_ARG_POINTER(outString);
-  NS_ENSURE_ARG_POINTER(bufferLength);
-  NS_ENSURE_ARG_POINTER(currentPos);
-
+  if((nullptr == outString ) || (nullptr == bufferLength) ||(nullptr ==currentPos))
+    return NS_ERROR_NULL_POINTER;
   char fallbackStr[256];
   nsresult rv = DoConversionFallBack(character, fallbackStr, 256);
   if (NS_SUCCEEDED(rv)) {
-    int32_t tempLen = (int32_t) PL_strlen(fallbackStr);
+    PRInt32 tempLen = (PRInt32) PL_strlen(fallbackStr);
 
     // reallocate if the buffer is not large enough
     if ((tempLen + estimatedLength) >= (*bufferLength - *currentPos)) {
       char *temp = (char *) PR_Realloc(*outString, *bufferLength + tempLen);
-      if (temp) {
+      if (NULL != temp) {
         // adjust length/pointer after realloc
         *bufferLength += tempLen;
         *outString = temp;
       } else {
-        *outString = nullptr;
+        *outString = NULL;
         *bufferLength =0;
         return NS_ERROR_OUT_OF_MEMORY;
       }
@@ -164,16 +164,19 @@ nsSaveAsCharset::HandleFallBack(uint32_t character, char **outString, int32_t *b
 NS_IMETHODIMP
 nsSaveAsCharset::DoCharsetConversion(const PRUnichar *inString, char **outString)
 {
-  NS_ENSURE_ARG_POINTER(outString);
+  if(nullptr == outString )
+    return NS_ERROR_NULL_POINTER;
+  NS_ASSERTION(outString, "invalid input");
 
-  *outString = nullptr;
+  *outString = NULL;
 
   nsresult rv;
-  int32_t inStringLength = NS_strlen(inString);       // original input string length
-  int32_t bufferLength;                               // allocated buffer length
-  int32_t srcLength = inStringLength;
-  int32_t dstLength;
-  int32_t pos1, pos2;
+  PRInt32 inStringLength = NS_strlen(inString);       // original input string length
+  PRInt32 bufferLength;                               // allocated buffer length
+  PRInt32 srcLength = inStringLength;
+  PRInt32 dstLength;
+  char *dstPtr = NULL;
+  PRInt32 pos1, pos2;
   nsresult saveResult = NS_OK;                         // to remember NS_ERROR_UENC_NOMAPPING
 
   // estimate and allocate the target buffer (reserve extra memory for fallback)
@@ -181,7 +184,9 @@ nsSaveAsCharset::DoCharsetConversion(const PRUnichar *inString, char **outString
   if (NS_FAILED(rv)) return rv;
 
   bufferLength = dstLength + 512; // reserve 512 byte for fallback.
-  char *dstPtr = (char *) PR_Malloc(bufferLength);
+  dstPtr = (char *) PR_Malloc(bufferLength);
+  if (NULL == dstPtr) return NS_ERROR_OUT_OF_MEMORY;
+
   
   for (pos1 = 0, pos2 = 0; pos1 < inStringLength;) {
     // convert from unicode
@@ -211,7 +216,7 @@ nsSaveAsCharset::DoCharsetConversion(const PRUnichar *inString, char **outString
 
     // do the fallback
     if (!ATTR_NO_FALLBACK(mAttribute)) {
-      uint32_t unMappedChar;
+      PRUint32 unMappedChar;
       if (NS_IS_HIGH_SURROGATE(inString[pos1-1]) && 
           inStringLength > pos1 && NS_IS_LOW_SURROGATE(inString[pos1])) {
         unMappedChar = SURROGATE_TO_UCS4(inString[pos1-1], inString[pos1]);
@@ -257,9 +262,11 @@ nsSaveAsCharset::DoCharsetConversion(const PRUnichar *inString, char **outString
 }
 
 NS_IMETHODIMP
-nsSaveAsCharset::DoConversionFallBack(uint32_t inUCS4, char *outString, int32_t bufferLength)
+nsSaveAsCharset::DoConversionFallBack(PRUint32 inUCS4, char *outString, PRInt32 bufferLength)
 {
-  NS_ENSURE_ARG_POINTER(outString);
+  NS_ASSERTION(outString, "invalid input");
+  if(nullptr == outString )
+    return NS_ERROR_NULL_POINTER;
 
   *outString = '\0';
 
@@ -269,10 +276,10 @@ nsSaveAsCharset::DoConversionFallBack(uint32_t inUCS4, char *outString, int32_t 
     return NS_OK;
   }
   if (attr_EntityAfterCharsetConv == MASK_ENTITY(mAttribute)) {
-    char *entity = nullptr;
+    char *entity = NULL;
     rv = mEntityConverter->ConvertUTF32ToEntity(inUCS4, mEntityVersion, &entity);
     if (NS_SUCCEEDED(rv)) {
-      if (!entity || (int32_t)strlen(entity) > bufferLength) {
+      if (NULL == entity || (PRInt32)strlen(entity) > bufferLength) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
       PL_strcpy(outString, entity);
@@ -349,7 +356,7 @@ nsresult nsSaveAsCharset::SetupCharsetList(const char *charsetList)
 
 const char * nsSaveAsCharset::GetNextCharset()
 {
-  if ((mCharsetListIndex + 1) >= int32_t(mCharsetList.Length()))
+  if ((mCharsetListIndex + 1) >= PRInt32(mCharsetList.Length()))
     return nullptr;
 
   // bump the index and return the next charset

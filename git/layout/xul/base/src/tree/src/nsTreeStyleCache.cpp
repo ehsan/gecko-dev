@@ -17,7 +17,7 @@ nsTreeStyleCache::GetStyleContext(nsICSSPseudoComparator* aComparator,
                                   nsIAtom* aPseudoElement,
                                   nsISupportsArray* aInputWord)
 {
-  uint32_t count;
+  PRUint32 count;
   aInputWord->Count(&count);
   nsDFAState startState(0);
   nsDFAState* currState = &startState;
@@ -40,7 +40,7 @@ nsTreeStyleCache::GetStyleContext(nsICSSPseudoComparator* aComparator,
     mTransitionTable->Put(&key, currState);
   }
 
-  for (uint32_t i = 0; i < count; i++) {
+  for (PRUint32 i = 0; i < count; i++) {
     nsCOMPtr<nsIAtom> pseudo = getter_AddRefs(static_cast<nsIAtom*>(aInputWord->ElementAt(i)));
     nsTransitionKey key(currState->GetStateID(), pseudo);
     currState = static_cast<nsDFAState*>(mTransitionTable->Get(&key));

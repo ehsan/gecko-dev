@@ -16,6 +16,8 @@
 #include "nsIAtom.h"
 #include "nsDOMString.h"
 
+typedef PRUptrdiff PtrBits;
+
 #define NS_ATTRNAME_NODEINFO_BIT 1
 class nsAttrName
 {
@@ -27,7 +29,7 @@ public:
   }
 
   explicit nsAttrName(nsIAtom* aAtom)
-    : mBits(reinterpret_cast<uintptr_t>(aAtom))
+    : mBits(reinterpret_cast<PtrBits>(aAtom))
   {
     NS_ASSERTION(aAtom, "null atom-name in nsAttrName");
     NS_ADDREF(aAtom);
@@ -37,11 +39,11 @@ public:
   {
     NS_ASSERTION(aNodeInfo, "null nodeinfo-name in nsAttrName");
     if (aNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
-      mBits = reinterpret_cast<uintptr_t>(aNodeInfo->NameAtom());
+      mBits = reinterpret_cast<PtrBits>(aNodeInfo->NameAtom());
       NS_ADDREF(aNodeInfo->NameAtom());
     }
     else {
-      mBits = reinterpret_cast<uintptr_t>(aNodeInfo) |
+      mBits = reinterpret_cast<PtrBits>(aNodeInfo) |
               NS_ATTRNAME_NODEINFO_BIT;
       NS_ADDREF(aNodeInfo);
     }
@@ -58,11 +60,11 @@ public:
 
     ReleaseInternalName();
     if (aNodeInfo->NamespaceEquals(kNameSpaceID_None)) {
-      mBits = reinterpret_cast<uintptr_t>(aNodeInfo->NameAtom());
+      mBits = reinterpret_cast<PtrBits>(aNodeInfo->NameAtom());
       NS_ADDREF(aNodeInfo->NameAtom());
     }
     else {
-      mBits = reinterpret_cast<uintptr_t>(aNodeInfo) |
+      mBits = reinterpret_cast<PtrBits>(aNodeInfo) |
               NS_ATTRNAME_NODEINFO_BIT;
       NS_ADDREF(aNodeInfo);
     }
@@ -73,7 +75,7 @@ public:
     NS_ASSERTION(aAtom, "null atom-name in nsAttrName");
 
     ReleaseInternalName();
-    mBits = reinterpret_cast<uintptr_t>(aAtom);
+    mBits = reinterpret_cast<PtrBits>(aAtom);
     NS_ADDREF(aAtom);
   }
 
@@ -102,10 +104,10 @@ public:
   // Faster comparison in the case we know the namespace is null
   bool Equals(nsIAtom* aAtom) const
   {
-    return reinterpret_cast<uintptr_t>(aAtom) == mBits;
+    return reinterpret_cast<PtrBits>(aAtom) == mBits;
   }
 
-  bool Equals(nsIAtom* aLocalName, int32_t aNamespaceID) const
+  bool Equals(nsIAtom* aLocalName, PRInt32 aNamespaceID) const
   {
     if (aNamespaceID == kNameSpaceID_None) {
       return Equals(aLocalName);
@@ -118,12 +120,12 @@ public:
     return Equals(aNodeInfo->NameAtom(), aNodeInfo->NamespaceID());
   }
 
-  int32_t NamespaceID() const
+  PRInt32 NamespaceID() const
   {
     return IsAtom() ? kNameSpaceID_None : NodeInfo()->NamespaceID();
   }
 
-  int32_t NamespaceEquals(int32_t aNamespaceID) const
+  PRInt32 NamespaceEquals(PRInt32 aNamespaceID) const
   {
     return aNamespaceID == kNameSpaceID_None ?
            IsAtom() :
@@ -168,9 +170,9 @@ public:
   }
 #endif
 
-  uint32_t HashValue() const
+  PRUint32 HashValue() const
   {
-    // mBits and uint32_t might have different size. This should silence
+    // mBits and PRUint32 might have different size. This should silence
     // any warnings or compile-errors. This is what the implementation of
     // NS_PTR_TO_INT32 does to take care of the same problem.
     return mBits - 0;
@@ -178,7 +180,7 @@ public:
 
   bool IsSmaller(nsIAtom* aOther) const
   {
-    return mBits < reinterpret_cast<uintptr_t>(aOther);
+    return mBits < reinterpret_cast<PtrBits>(aOther);
   }
 
 private:
@@ -203,7 +205,7 @@ private:
     NS_RELEASE(name);
   }
 
-  uintptr_t mBits;
+  PtrBits mBits;
 };
 
 #endif

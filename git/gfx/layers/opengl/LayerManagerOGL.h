@@ -42,7 +42,6 @@ class ShadowContainerLayer;
 class ShadowImageLayer;
 class ShadowCanvasLayer;
 class ShadowColorLayer;
-struct FPSState;
 
 /**
  * This is the LayerManager used for OpenGL 2.1 and OpenGL ES 2.0.
@@ -58,6 +57,8 @@ public:
   LayerManagerOGL(nsIWidget *aWidget, int aSurfaceWidth = -1, int aSurfaceHeight = -1,
                   bool aIsRenderingToEGLSurface = false);
   virtual ~LayerManagerOGL();
+
+  void CleanupResources();
 
   void Destroy();
 
@@ -102,7 +103,6 @@ public:
   void EndConstruction();
 
   virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT);
-  virtual void NotifyShadowTreeTransaction();
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData,
                               EndTransactionFlags aFlags = END_DEFAULT);
@@ -113,11 +113,11 @@ public:
   {
       if (!mGLContext)
           return false;
-      int32_t maxSize = mGLContext->GetMaxTextureSize();
+      PRInt32 maxSize = mGLContext->GetMaxTextureSize();
       return aSize <= gfxIntSize(maxSize, maxSize);
   }
 
-  virtual int32_t GetMaxTextureSize() const
+  virtual PRInt32 GetMaxTextureSize() const
   {
     return mGLContext->GetMaxTextureSize();
   }
@@ -353,14 +353,6 @@ public:
   bool CompositingDisabled() { return mCompositingDisabled; }
   void SetCompositingDisabled(bool aCompositingDisabled) { mCompositingDisabled = aCompositingDisabled; }
 
-  /**
-   * Creates a DrawTarget which is optimized for inter-operating with this
-   * layermanager.
-   */
-  virtual TemporaryRef<mozilla::gfx::DrawTarget>
-    CreateDrawTarget(const mozilla::gfx::IntSize &aSize,
-                     mozilla::gfx::SurfaceFormat aFormat);
-
 private:
   /** Widget associated with this layer manager */
   nsIWidget *mWidget;
@@ -445,10 +437,27 @@ private:
   DrawThebesLayerCallback mThebesLayerCallback;
   void *mThebesLayerCallbackData;
   gfxMatrix mWorldMatrix;
-  nsAutoPtr<FPSState> mFPS;
+
+  struct FPSState
+  {
+      GLuint texture;
+      int fps;
+      bool initialized;
+      int fcount;
+      TimeStamp last;
+
+      FPSState()
+        : texture(0)
+        , fps(0)
+        , initialized(false)
+        , fcount(0)
+      {
+        last = TimeStamp::Now();
+      }
+      void DrawFPS(GLContext*, ShaderProgramOGL*);
+  } mFPS;
 
   static bool sDrawFPS;
-  static bool sFrameCounter;
 };
 
 /**

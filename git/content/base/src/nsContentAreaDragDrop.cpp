@@ -130,8 +130,7 @@ NS_IMPL_ISUPPORTS1(nsContentAreaDragDropDataProvider, nsIFlavorDataProvider)
 // into the file system
 nsresult
 nsContentAreaDragDropDataProvider::SaveURIToFile(nsAString& inSourceURIString,
-                                                 nsIFile* inDestFile,
-                                                 bool isPrivate)
+                                                 nsIFile* inDestFile)
 {
   nsCOMPtr<nsIURI> sourceURI;
   nsresult rv = NS_NewURI(getter_AddRefs(sourceURI), inSourceURIString);
@@ -156,8 +155,7 @@ nsContentAreaDragDropDataProvider::SaveURIToFile(nsAString& inSourceURIString,
 
   persist->SetPersistFlags(nsIWebBrowserPersist::PERSIST_FLAGS_AUTODETECT_APPLY_CONVERSION);
 
-  return persist->SavePrivacyAwareURI(sourceURI, nullptr, nullptr, nullptr, nullptr,
-                                      inDestFile, isPrivate);
+  return persist->SaveURI(sourceURI, nullptr, nullptr, nullptr, nullptr, inDestFile);
 }
 
 // This is our nsIFlavorDataProvider callback. There are several
@@ -177,7 +175,7 @@ NS_IMETHODIMP
 nsContentAreaDragDropDataProvider::GetFlavorData(nsITransferable *aTransferable,
                                                  const char *aFlavor,
                                                  nsISupports **aData,
-                                                 uint32_t *aDataLen)
+                                                 PRUint32 *aDataLen)
 {
   NS_ENSURE_ARG_POINTER(aData && aDataLen);
   *aData = nullptr;
@@ -189,7 +187,7 @@ nsContentAreaDragDropDataProvider::GetFlavorData(nsITransferable *aTransferable,
     // get the URI from the kFilePromiseURLMime flavor
     NS_ENSURE_ARG(aTransferable);
     nsCOMPtr<nsISupports> tmp;
-    uint32_t dataSize = 0;
+    PRUint32 dataSize = 0;
     aTransferable->GetTransferData(kFilePromiseURLMime,
                                    getter_AddRefs(tmp), &dataSize);
     nsCOMPtr<nsISupportsString> supportsString =
@@ -229,10 +227,7 @@ nsContentAreaDragDropDataProvider::GetFlavorData(nsITransferable *aTransferable,
 
     file->Append(targetFilename);
 
-    bool isPrivate;
-    aTransferable->GetIsPrivateData(&isPrivate);
-
-    rv = SaveURIToFile(sourceURLString, file, isPrivate);
+    rv = SaveURIToFile(sourceURLString, file);
     // send back an nsIFile
     if (NS_SUCCEEDED(rv)) {
       CallQueryInterface(file, aData);
@@ -296,7 +291,7 @@ DragDataProducer::GetAnchorURL(nsIContent* inNode, nsAString& outURL)
     return;
   }
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   linkURI->GetSpec(spec);
   CopyUTF8toUTF16(spec, outURL);
 }
@@ -411,7 +406,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
   nsCOMPtr<nsIWebNavigation> webnav = do_GetInterface(mWindow);
   nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(webnav);
   if (dsti) {
-    int32_t type = -1;
+    PRInt32 type = -1;
     if (NS_SUCCEEDED(dsti->GetItemType(&type)) &&
         type == nsIDocShellTreeItem::typeChrome) {
       isChromeShell = true;
@@ -532,7 +527,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
         nsCOMPtr<nsIURI> imageURI;
         image->GetCurrentURI(getter_AddRefs(imageURI));
         if (imageURI) {
-          nsAutoCString spec;
+          nsCAutoString spec;
           imageURI->GetSpec(spec);
           CopyUTF8toUTF16(spec, mUrlString);
         }
@@ -566,7 +561,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
           nsCOMPtr<nsIURL> imgUrl(do_QueryInterface(imgUri));
 
           if (imgUrl) {
-            nsAutoCString extension;
+            nsCAutoString extension;
             imgUrl->GetFileExtension(extension);
 
             nsXPIDLCString mimeType;
@@ -577,7 +572,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
                                                  getter_AddRefs(mimeInfo));
 
             if (mimeInfo) {
-              nsAutoCString spec;
+              nsCAutoString spec;
               imgUrl->GetSpec(spec);
 
               // pass out the image source string
@@ -594,13 +589,13 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
 
                 imgUrl = do_QueryInterface(imgUri);
 
-                nsAutoCString primaryExtension;
+                nsCAutoString primaryExtension;
                 mimeInfo->GetPrimaryExtension(primaryExtension);
 
                 imgUrl->SetFileExtension(primaryExtension);
               }
 
-              nsAutoCString fileName;
+              nsCAutoString fileName;
               imgUrl->GetFileName(fileName);
 
               NS_UnescapeURL(fileName);
@@ -669,7 +664,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsISupportsString> data;
-    uint32_t dataSize;
+    PRUint32 dataSize;
     rv = transferable->GetTransferData(kHTMLMime, getter_AddRefs(data), &dataSize);
     if (NS_SUCCEEDED(rv)) {
       data->GetData(mHtmlString);
@@ -841,7 +836,7 @@ DragDataProducer::GetDraggableSelectionData(nsISelection* inSelection,
         selectionStart->HasChildNodes(&hasChildren);
         if (hasChildren) {
           // see if just one node is selected
-          int32_t anchorOffset, focusOffset;
+          PRInt32 anchorOffset, focusOffset;
           inSelection->GetAnchorOffset(&anchorOffset);
           inSelection->GetFocusOffset(&focusOffset);
           if (abs(anchorOffset - focusOffset) == 1) {
@@ -849,7 +844,7 @@ DragDataProducer::GetDraggableSelectionData(nsISelection* inSelection,
               do_QueryInterface(selectionStart);
 
             if (selStartContent) {
-              int32_t childOffset =
+              PRInt32 childOffset =
                 (anchorOffset < focusOffset) ? anchorOffset : focusOffset;
               nsIContent *childContent =
                 selStartContent->GetChildAt(childOffset);
@@ -910,7 +905,7 @@ DragDataProducer::GetSelectedLink(nsISelection* inSelection,
   // first, use a range determine if the selection was marked LTR or RTL;
   // if the latter, swap endpoints so we trim in the right direction
 
-  int32_t startOffset, endOffset;
+  PRInt32 startOffset, endOffset;
   {
     nsCOMPtr<nsIDOMRange> range;
     inSelection->GetRangeAt(0, getter_AddRefs(range));
@@ -937,7 +932,7 @@ DragDataProducer::GetSelectedLink(nsISelection* inSelection,
   nsAutoString nodeStr;
   selectionStartNode->GetNodeValue(nodeStr);
   if (nodeStr.IsEmpty() ||
-      startOffset+1 >= static_cast<int32_t>(nodeStr.Length())) {
+      startOffset+1 >= static_cast<PRInt32>(nodeStr.Length())) {
     nsCOMPtr<nsIDOMNode> curr = selectionStartNode;
     nsIDOMNode* next;
 

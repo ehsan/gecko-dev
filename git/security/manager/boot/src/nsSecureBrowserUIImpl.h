@@ -83,26 +83,26 @@ protected:
   bool mNotifiedToplevelIsEV;
 
   void ResetStateTracking();
-  uint32_t mNewToplevelSecurityState;
+  PRUint32 mNewToplevelSecurityState;
   bool mNewToplevelIsEV;
   bool mNewToplevelSecurityStateKnown;
   bool mIsViewSource;
 
   nsXPIDLString mInfoTooltip;
-  int32_t mDocumentRequestsInProgress;
-  int32_t mSubRequestsHighSecurity;
-  int32_t mSubRequestsLowSecurity;
-  int32_t mSubRequestsBrokenSecurity;
-  int32_t mSubRequestsNoSecurity;
+  PRInt32 mDocumentRequestsInProgress;
+  PRInt32 mSubRequestsHighSecurity;
+  PRInt32 mSubRequestsLowSecurity;
+  PRInt32 mSubRequestsBrokenSecurity;
+  PRInt32 mSubRequestsNoSecurity;
   bool mRestoreSubrequests;
   bool mOnLocationChangeSeen;
 #ifdef DEBUG
   /* related to mReentrantMonitor */
-  int32_t mOnStateLocationChangeReentranceDetection;
+  PRInt32 mOnStateLocationChangeReentranceDetection;
 #endif
 
   static already_AddRefed<nsISupports> ExtractSecurityInfo(nsIRequest* aRequest);
-  static nsresult MapInternalToExternalState(uint32_t* aState, lockIconState lock, bool ev);
+  static nsresult MapInternalToExternalState(PRUint32* aState, lockIconState lock, bool ev);
   nsresult UpdateSecurityState(nsIRequest* aRequest, bool withNewLocation,
                                bool withUpdateStatus, bool withUpdateTooltip);
   bool UpdateMyFlags(bool &showWarning, lockIconState &warnSecurityState);

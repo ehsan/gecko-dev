@@ -37,7 +37,7 @@ private:
   nsKeyObject(nsKeyObject&);
 
   // 0 if not yet set, otherwise one of the nsIKeyObject::*KEY values
-  uint32_t mKeyType;
+  PRUint32 mKeyType;
   
   // A union of our possible key types
   PK11SymKey* mSymKey;

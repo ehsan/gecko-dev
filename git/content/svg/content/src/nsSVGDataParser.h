@@ -7,7 +7,8 @@
 #define __NS_SVGDATAPARSER_H__
 
 #include "nsError.h"
-#include "nsStringGlue.h"
+
+class nsAString;
 
 //----------------------------------------------------------------------
 // helper macros
@@ -34,6 +35,9 @@ protected:
   void RewindTo(const char* aPos);
   virtual nsresult Match()=0;
 
+  nsresult MatchNonNegativeNumber(float* aX);
+  bool IsTokenNonNegativeNumberStarter();
+  
   nsresult MatchNumber(float* x);
   bool IsTokenNumberStarter();
   

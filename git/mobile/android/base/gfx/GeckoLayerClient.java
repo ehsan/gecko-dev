@@ -7,20 +7,20 @@ package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.ScreenshotHandler;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.ZoomConstraints;
 import org.mozilla.gecko.ui.PanZoomController;
 import org.mozilla.gecko.ui.PanZoomTarget;
 import org.mozilla.gecko.util.EventDispatcher;
-import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.GeckoEventResponder;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.os.SystemClock;
@@ -72,9 +72,6 @@ public class GeckoLayerClient
     /* Used as a temporary ViewTransform by syncViewportInfo */
     private final ViewTransform mCurrentViewTransform;
 
-    /* Used as the return value of progressiveUpdateCallback */
-    private final ProgressiveUpdateData mProgressiveUpdateData;
-
     /* This is written by the compositor thread and read by the UI thread. */
     private volatile boolean mCompositorCreated;
 
@@ -98,10 +95,14 @@ public class GeckoLayerClient
 
     private boolean mGeckoIsReady;
 
+    /* The new color for the checkerboard. */
+    private int mCheckerboardColor;
+    private boolean mCheckerboardShouldShowChecks;
+
     private final PanZoomController mPanZoomController;
     private LayerView mView;
 
-    public GeckoLayerClient(Context context, LayerView view, EventDispatcher eventDispatcher) {
+    public GeckoLayerClient(Context context, EventDispatcher eventDispatcher) {
         // we can fill these in with dummy values because they are always written
         // to before being read
         mEventDispatcher = eventDispatcher;
@@ -112,16 +113,21 @@ public class GeckoLayerClient
         mRecordDrawTimes = true;
         mDrawTimingQueue = new DrawTimingQueue();
         mCurrentViewTransform = new ViewTransform(0, 0, 1);
-        mProgressiveUpdateData = new ProgressiveUpdateData();
         mCompositorCreated = false;
 
         mForceRedraw = true;
         DisplayMetrics displayMetrics = context.getResources().getDisplayMetrics();
         mViewportMetrics = new ImmutableViewportMetrics(new ViewportMetrics(displayMetrics));
         mZoomConstraints = new ZoomConstraints(false);
+        mCheckerboardColor = Color.WHITE;
+        mCheckerboardShouldShowChecks = true;
 
         mPanZoomController = new PanZoomController(this, mEventDispatcher);
-        mView = view;
+    }
+
+    public void setView(LayerView v) {
+        mView = v;
+        mView.connect(this);
     }
 
     /** Attaches to root layer so that Gecko appears. */
@@ -129,20 +135,32 @@ public class GeckoLayerClient
         mGeckoIsReady = true;
 
         mRootLayer = new VirtualLayer(new IntSize(mView.getWidth(), mView.getHeight()));
-        mLayerRenderer = mView.getRenderer();
+        mLayerRenderer = new LayerRenderer(mView);
 
+        registerEventListener("Viewport:Update");
+        registerEventListener("Viewport:PageSize");
+        registerEventListener("Viewport:CalculateDisplayPort");
         registerEventListener("Checkerboard:Toggle");
+        registerEventListener("Preferences:Data");
 
         mView.setListener(this);
+        mView.setLayerRenderer(mLayerRenderer);
+
         sendResizeEventIfNecessary(true);
 
-        DisplayPortCalculator.initPrefs();
-        PluginLayer.initPrefs();
+        JSONArray prefs = new JSONArray();
+        DisplayPortCalculator.addPrefNames(prefs);
+        PluginLayer.addPrefNames(prefs);
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Preferences:Get", prefs.toString()));
     }
 
     public void destroy() {
         mPanZoomController.destroy();
+        unregisterEventListener("Viewport:Update");
+        unregisterEventListener("Viewport:PageSize");
+        unregisterEventListener("Viewport:CalculateDisplayPort");
         unregisterEventListener("Checkerboard:Toggle");
+        unregisterEventListener("Preferences:Data");
     }
 
     private void registerEventListener(String event) {
@@ -208,7 +226,7 @@ public class GeckoLayerClient
         }
     }
 
-    PanZoomController getPanZoomController() {
+    public PanZoomController getPanZoomController() {
         return mPanZoomController;
     }
 
@@ -308,7 +326,8 @@ public class GeckoLayerClient
     }
 
     /** Viewport message handler. */
-    private DisplayPortMetrics handleViewportMessage(ViewportMetrics messageMetrics, ViewportMessageType type) {
+    private void handleViewportMessage(JSONObject message, ViewportMessageType type) throws JSONException {
+        ViewportMetrics messageMetrics = new ViewportMetrics(message);
         synchronized (this) {
             final ViewportMetrics newMetrics;
             ImmutableViewportMetrics oldMetrics = getViewportMetrics();
@@ -336,101 +355,45 @@ public class GeckoLayerClient
                     mGeckoViewport = newMetrics;
                 }
             });
-            setViewportMetrics(newMetrics, type == ViewportMessageType.UPDATE);
+            setViewportMetrics(newMetrics);
             mDisplayPort = DisplayPortCalculator.calculate(getViewportMetrics(), null);
         }
-        return mDisplayPort;
-    }
-
-    public DisplayPortMetrics getDisplayPort(boolean pageSizeUpdate, boolean isBrowserContentDisplayed, int tabId, ViewportMetrics metrics) {
-        Tabs tabs = Tabs.getInstance();
-        if (tabs.isSelectedTab(tabs.getTab(tabId)) && isBrowserContentDisplayed) {
-            // for foreground tabs, send the viewport update unless the document
-            // displayed is different from the content document. In that case, just
-            // calculate the display port.
-            return handleViewportMessage(metrics, pageSizeUpdate ? ViewportMessageType.PAGE_SIZE : ViewportMessageType.UPDATE);
-        } else {
-            // for background tabs, request a new display port calculation, so that
-            // when we do switch to that tab, we have the correct display port and
-            // don't need to draw twice (once to allow the first-paint viewport to
-            // get to java, and again once java figures out the display port).
-            ImmutableViewportMetrics newMetrics = new ImmutableViewportMetrics(metrics);
-            return DisplayPortCalculator.calculate(newMetrics, null);
-        }
-    }
-
-    // This is called on the Gecko thread to determine if we're still interested
-    // in the update of this display-port to continue. We can return true here
-    // to abort the current update and continue with any subsequent ones. This
-    // is useful for slow-to-render pages when the display-port starts lagging
-    // behind enough that continuing to draw it is wasted effort.
-    public ProgressiveUpdateData progressiveUpdateCallback(boolean aHasPendingNewThebesContent,
-                                                           float x, float y, float width, float height, float resolution) {
-        // Grab a local copy of the last display-port sent to Gecko and the
-        // current viewport metrics to avoid races when accessing them.
-        DisplayPortMetrics displayPort = mDisplayPort;
-        ImmutableViewportMetrics viewportMetrics = mViewportMetrics;
-        mProgressiveUpdateData.setViewport(viewportMetrics);
-        mProgressiveUpdateData.abort = false;
-
-        // Always abort updates if the resolution has changed. There's no use
-        // in drawing at the incorrect resolution.
-        if (!FloatUtils.fuzzyEquals(resolution, displayPort.resolution)) {
-            Log.d(LOGTAG, "Aborting draw due to resolution change");
-            mProgressiveUpdateData.abort = true;
-            return mProgressiveUpdateData;
-        }
-
-        // XXX All sorts of rounding happens inside Gecko that becomes hard to
-        //     account exactly for. Given we align the display-port to tile
-        //     boundaries (and so they rarely vary by sub-pixel amounts), just
-        //     check that values are within a pixel of the display-port bounds.
-
-        // Never abort drawing if we can't be sure we've sent a more recent
-        // display-port. If we abort updating when we shouldn't, we can end up
-        // with blank regions on the screen and we open up the risk of entering
-        // an endless updating cycle.
-        if (Math.abs(displayPort.getLeft() - x) <= 1 &&
-            Math.abs(displayPort.getTop() - y) <= 1 &&
-            Math.abs(displayPort.getBottom() - (y + height)) <= 1 &&
-            Math.abs(displayPort.getRight() - (x + width)) <= 1) {
-            return mProgressiveUpdateData;
-        }
-
-        // Abort updates when the display-port no longer contains the visible
-        // area of the page (that is, the viewport cropped by the page
-        // boundaries).
-        // XXX This makes the assumption that we never let the visible area of
-        //     the page fall outside of the display-port.
-        if (Math.max(viewportMetrics.viewportRectLeft, viewportMetrics.pageRectLeft) + 1 < x ||
-            Math.max(viewportMetrics.viewportRectTop, viewportMetrics.pageRectTop) + 1 < y ||
-            Math.min(viewportMetrics.viewportRectRight, viewportMetrics.pageRectRight) - 1 > x + width ||
-            Math.min(viewportMetrics.viewportRectBottom, viewportMetrics.pageRectBottom) - 1 > y + height) {
-            Log.d(LOGTAG, "Aborting update due to viewport not in display-port");
-            mProgressiveUpdateData.abort = true;
-            return mProgressiveUpdateData;
-        }
-
-        // There's no new content (where new content is considered to be an
-        // update in a region that wasn't previously visible), and we've sent a
-        // more recent display-port.
-        // Aborting in this situation helps us recover more quickly when the
-        // user starts scrolling on a page that contains animated content that
-        // is slow to draw.
-        if (!aHasPendingNewThebesContent) {
-            Log.d(LOGTAG, "Aborting update due to more relevant display-port in event queue");
-            mProgressiveUpdateData.abort = true;
-            return mProgressiveUpdateData;
-        }
-
-        return mProgressiveUpdateData;
+        mReturnDisplayPort = mDisplayPort;
     }
 
     /** Implementation of GeckoEventResponder/GeckoEventListener. */
     public void handleMessage(String event, JSONObject message) {
         try {
-            if ("Checkerboard:Toggle".equals(event)) {
-                mView.setCheckerboardShouldShowChecks(message.getBoolean("value"));
+            if ("Viewport:Update".equals(event)) {
+                handleViewportMessage(message, ViewportMessageType.UPDATE);
+            } else if ("Viewport:PageSize".equals(event)) {
+                handleViewportMessage(message, ViewportMessageType.PAGE_SIZE);
+            } else if ("Viewport:CalculateDisplayPort".equals(event)) {
+                ImmutableViewportMetrics newMetrics = new ImmutableViewportMetrics(new ViewportMetrics(message));
+                mReturnDisplayPort = DisplayPortCalculator.calculate(newMetrics, null);
+            } else if ("Checkerboard:Toggle".equals(event)) {
+                mCheckerboardShouldShowChecks = message.getBoolean("value");
+                mView.requestRender();
+                Log.i(LOGTAG, "Showing checks: " + mCheckerboardShouldShowChecks);
+            } else if ("Preferences:Data".equals(event)) {
+                JSONArray jsonPrefs = message.getJSONArray("preferences");
+                Map<String, Integer> prefValues = new HashMap<String, Integer>();
+                for (int i = jsonPrefs.length() - 1; i >= 0; i--) {
+                    JSONObject pref = jsonPrefs.getJSONObject(i);
+                    String name = pref.getString("name");
+                    try {
+                        prefValues.put(name, pref.getInt("value"));
+                    } catch (JSONException je) {
+                        // the pref value couldn't be parsed as an int. drop this pref
+                        // and continue with the rest
+                    }
+                }
+                // check return value from setStrategy to make sure that this is the
+                // right batch of prefs, since other java code may also have sent requests
+                // for prefs.
+                if (DisplayPortCalculator.setStrategy(prefValues) && PluginLayer.setUsePlaceholder(prefValues)) {
+                    unregisterEventListener("Preferences:Data");
+                }
             }
         } catch (JSONException e) {
             Log.e(LOGTAG, "Error decoding JSON in " + event + " handler", e);
@@ -454,7 +417,20 @@ public class GeckoLayerClient
         }
     }
 
-    void setZoomConstraints(ZoomConstraints constraints) {
+    boolean checkerboardShouldShowChecks() {
+        return mCheckerboardShouldShowChecks;
+    }
+
+    int getCheckerboardColor() {
+        return mCheckerboardColor;
+    }
+
+    public void setCheckerboardColor(int newColor) {
+        mCheckerboardColor = newColor;
+        mView.requestRender();
+    }
+
+    public void setZoomConstraints(ZoomConstraints constraints) {
         mZoomConstraints = constraints;
     }
 
@@ -486,7 +462,7 @@ public class GeckoLayerClient
             setViewportMetrics(currentMetrics);
 
             Tab tab = Tabs.getInstance().getSelectedTab();
-            mView.setCheckerboardColor(tab.getCheckerboardColor());
+            setCheckerboardColor(tab.getCheckerboardColor());
             setZoomConstraints(tab.getZoomConstraints());
 
             // At this point, we have just switched to displaying a different document than we
@@ -497,17 +473,12 @@ public class GeckoLayerClient
             // a full viewport update, which is fine because if browser.js has somehow moved to
             // be out of sync with this first-paint viewport, then we force them back in sync.
             abortPanZoomAnimation();
-
-            // Indicate that the document is about to be composited so the
-            // LayerView background can be removed.
-            if (mView.getPaintState() == LayerView.PAINT_START) {
-                mView.setPaintState(LayerView.PAINT_BEFORE_FIRST);
-            }
+            mView.setPaintState(LayerView.PAINT_BEFORE_FIRST);
         }
         DisplayPortCalculator.resetPageState();
         mDrawTimingQueue.reset();
         mView.getRenderer().resetCheckerboard();
-        ScreenshotHandler.screenshotWholePage(Tabs.getInstance().getSelectedTab());
+        GeckoAppShell.screenshotWholePage(Tabs.getInstance().getSelectedTab());
     }
 
     /** This function is invoked by Gecko via JNI; be careful when modifying signature.
@@ -678,13 +649,9 @@ public class GeckoLayerClient
      * You must hold the monitor while calling this.
      */
     public void setViewportMetrics(ViewportMetrics viewport) {
-        setViewportMetrics(viewport, true);
-    }
-
-    private void setViewportMetrics(ViewportMetrics viewport, boolean notifyGecko) {
         mViewportMetrics = new ImmutableViewportMetrics(viewport);
         mView.requestRender();
-        if (notifyGecko && mGeckoIsReady) {
+        if (mGeckoIsReady) {
             geometryChanged();
         }
     }
@@ -738,13 +705,13 @@ public class GeckoLayerClient
         return layerPoint;
     }
 
-    /** Used by robocop for testing purposes. Not for production use! */
+    /** Used by robocop for testing purposes. Not for production use! This is called via reflection by robocop. */
     public void setDrawListener(DrawListener listener) {
         mDrawListener = listener;
     }
 
-    /** Used by robocop for testing purposes. Not for production use! */
-    public static interface DrawListener {
+    /** Used by robocop for testing purposes. Not for production use! This is used via reflection by robocop. */
+    public interface DrawListener {
         public void drawFinished();
     }
 }

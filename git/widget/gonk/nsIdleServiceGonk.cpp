@@ -21,7 +21,7 @@
 NS_IMPL_ISUPPORTS_INHERITED0(nsIdleServiceGonk, nsIdleService)
 
 bool
-nsIdleServiceGonk::PollIdleTime(uint32_t *aIdleTime)
+nsIdleServiceGonk::PollIdleTime(PRUint32 *aIdleTime)
 {
     return false;
 }

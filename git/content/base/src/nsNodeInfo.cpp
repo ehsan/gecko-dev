@@ -34,15 +34,15 @@ static const size_t kNodeInfoPoolSizes[] = {
   sizeof(nsNodeInfo)
 };
 
-static const int32_t kNodeInfoPoolInitialSize = sizeof(nsNodeInfo) * 64;
+static const PRInt32 kNodeInfoPoolInitialSize = sizeof(nsNodeInfo) * 64;
 
 // static
 nsFixedSizeAllocator* nsNodeInfo::sNodeInfoPool = nullptr;
 
 // static
 nsNodeInfo*
-nsNodeInfo::Create(nsIAtom *aName, nsIAtom *aPrefix, int32_t aNamespaceID,
-                   uint16_t aNodeType, nsIAtom *aExtraName,
+nsNodeInfo::Create(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
+                   PRUint16 aNodeType, nsIAtom *aExtraName,
                    nsNodeInfoManager *aOwnerManager)
 {
   if (!sNodeInfoPool) {
@@ -78,11 +78,11 @@ nsNodeInfo::~nsNodeInfo()
 }
 
 
-nsNodeInfo::nsNodeInfo(nsIAtom *aName, nsIAtom *aPrefix, int32_t aNamespaceID,
-                       uint16_t aNodeType, nsIAtom* aExtraName,
+nsNodeInfo::nsNodeInfo(nsIAtom *aName, nsIAtom *aPrefix, PRInt32 aNamespaceID,
+                       PRUint16 aNodeType, nsIAtom* aExtraName,
                        nsNodeInfoManager *aOwnerManager)
 {
-  CheckValidNodeInfo(aNodeType, aName, aNamespaceID, aExtraName);
+  CHECK_VALID_NODEINFO(aNodeType, aName, aNamespaceID, aExtraName);
   NS_ABORT_IF_FALSE(aOwnerManager, "Invalid aOwnerManager");
 
   // Initialize mInner
@@ -106,11 +106,6 @@ nsNodeInfo::nsNodeInfo(nsIAtom *aName, nsIAtom *aPrefix, int32_t aNamespaceID,
   } else {
     mInner.mName->ToString(mQualifiedName);
   }
-
-  MOZ_ASSERT_IF(aNodeType != nsIDOMNode::ELEMENT_NODE &&
-                aNodeType != nsIDOMNode::ATTRIBUTE_NODE &&
-                aNodeType != UINT16_MAX,
-                aNamespaceID == kNameSpaceID_None && !aPrefix);
 
   switch (aNodeType) {
     case nsIDOMNode::ELEMENT_NODE:
@@ -139,7 +134,7 @@ nsNodeInfo::nsNodeInfo(nsIAtom *aName, nsIAtom *aPrefix, int32_t aNamespaceID,
       SetDOMStringToNull(mLocalName);
       break;
     default:
-      NS_ABORT_IF_FALSE(aNodeType == UINT16_MAX,
+      NS_ABORT_IF_FALSE(aNodeType == PR_UINT16_MAX,
                         "Unknown node type");
   }
 }
@@ -166,7 +161,7 @@ static const char* kNSURIs[] = {
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsNodeInfo)
   if (NS_UNLIKELY(cb.WantDebugInfo())) {
     char name[72];
-    uint32_t nsid = tmp->NamespaceID();
+    PRUint32 nsid = tmp->NamespaceID();
     nsAtomCString localName(tmp->NameAtom());
     if (nsid < ArrayLength(kNSURIs)) {
       PR_snprintf(name, sizeof(name), "nsNodeInfo%s %s", kNSURIs[nsid],
@@ -176,14 +171,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsNodeInfo)
       PR_snprintf(name, sizeof(name), "nsNodeInfo %s", localName.get());
     }
 
-    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), name);
+    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsNodeInfo), name);
   }
   else {
     NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsNodeInfo, tmp->mRefCnt.get())
   }
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mOwnerManager,
-                                                  nsNodeInfoManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mOwnerManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsNodeInfo)
@@ -214,7 +208,7 @@ nsNodeInfo::GetNamespaceURI(nsAString& aNameSpaceURI) const
 bool
 nsNodeInfo::NamespaceEquals(const nsAString& aNamespaceURI) const
 {
-  int32_t nsid =
+  PRInt32 nsid =
     nsContentUtils::NameSpaceManager()->GetNameSpaceID(aNamespaceURI);
 
   return nsINodeInfo::NamespaceEquals(nsid);

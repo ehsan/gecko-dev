@@ -181,6 +181,17 @@ public class BaseResource implements Resource {
   private static Object connManagerMonitor = new Object();
   private static ClientConnectionManager connManager;
 
+  /**
+   * This method exists for test code.
+   */
+  public static ClientConnectionManager enablePlainHTTPConnectionManager() {
+    synchronized (connManagerMonitor) {
+      ThreadSafeClientConnManager cm = new ThreadSafeClientConnManager();
+      connManager = cm;
+      return cm;
+    }
+  }
+
   // Call within a synchronized block on connManagerMonitor.
   private static ClientConnectionManager enableTLSConnectionManager() throws KeyManagementException, NoSuchAlgorithmException  {
     SSLContext sslContext = SSLContext.getInstance("TLS");
@@ -256,10 +267,7 @@ public class BaseResource implements Resource {
       // Bug 740731: Don't let an exception fall through. Wrapping isn't
       // optimal, but often the exception is treated as an Exception anyway.
       if (!retryOnFailedRequest) {
-        // Bug 769671: IOException(Throwable cause) was added only in API level 9.
-        final IOException ex = new IOException();
-        ex.initCause(e);
-        delegate.handleHttpIOException(ex);
+        delegate.handleHttpIOException(new IOException(e));
       } else {
         retryRequest();
       }

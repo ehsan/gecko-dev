@@ -46,7 +46,7 @@ public:
 private:
     nsString mSearchString;    
     nsCOMPtr<nsISupportsArray> mItems;
-    int32_t mDefaultItemIndex;
+    PRInt32 mDefaultItemIndex;
 
     nsCOMPtr<nsISupports> mParam;
 };

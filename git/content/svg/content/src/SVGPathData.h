@@ -61,7 +61,7 @@ namespace mozilla {
  *
  * Segment encoding: the first float in the encoding of a segment contains the
  * segment's type. The segment's type is encoded to/decoded from this float
- * using the static methods SVGPathSegUtils::EncodeType(uint32_t)/
+ * using the static methods SVGPathSegUtils::EncodeType(PRUint32)/
  * SVGPathSegUtils::DecodeType(float). If the path segment type in question
  * takes any arguments then these follow the first float, and are in the same
  * order as they are given in a <path> element's 'd' attribute (NOT in the
@@ -101,18 +101,18 @@ public:
    * This method iterates over the encoded segment data and counts the number
    * of segments we currently have.
    */
-  uint32_t CountItems() const;
+  PRUint32 CountItems() const;
 #endif
 
   /**
    * Returns the number of *floats* in the encoding array, and NOT the number
    * of segments encoded in this object. (For that, see CountItems() above.)
    */
-  uint32_t Length() const {
+  PRUint32 Length() const {
     return mData.Length();
   }
 
-  const float& operator[](uint32_t aIndex) const {
+  const float& operator[](PRUint32 aIndex) const {
     return mData[aIndex];
   }
 
@@ -125,7 +125,7 @@ public:
                   mData.Length() * sizeof(float)) == 0;
   }
 
-  bool SetCapacity(uint32_t aSize) {
+  bool SetCapacity(PRUint32 aSize) {
     return mData.SetCapacity(aSize);
   }
 
@@ -136,7 +136,7 @@ public:
 
   float GetPathLength() const;
 
-  uint32_t GetPathSegAtLength(float aLength) const;
+  PRUint32 GetPathSegAtLength(float aLength) const;
 
   void GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const;
 
@@ -174,7 +174,7 @@ protected:
    */
   nsresult CopyFrom(const SVGPathData& rhs);
 
-  float& operator[](uint32_t aIndex) {
+  float& operator[](PRUint32 aIndex) {
     return mData[aIndex];
   }
 
@@ -182,7 +182,7 @@ protected:
    * This may fail (return false) on OOM if the internal capacity is being
    * increased, in which case the list will be left unmodified.
    */
-  bool SetLength(uint32_t aLength) {
+  bool SetLength(PRUint32 aLength) {
     return mData.SetLength(aLength);
   }
 
@@ -195,12 +195,12 @@ protected:
   // Our DOM wrappers have direct access to our mData, so they directly
   // manipulate it rather than us implementing:
   //
-  // * InsertItem(uint32_t aDataIndex, uint32_t aType, const float *aArgs);
-  // * ReplaceItem(uint32_t aDataIndex, uint32_t aType, const float *aArgs);
-  // * RemoveItem(uint32_t aDataIndex);
-  // * bool AppendItem(uint32_t aType, const float *aArgs);
+  // * InsertItem(PRUint32 aDataIndex, PRUint32 aType, const float *aArgs);
+  // * ReplaceItem(PRUint32 aDataIndex, PRUint32 aType, const float *aArgs);
+  // * RemoveItem(PRUint32 aDataIndex);
+  // * bool AppendItem(PRUint32 aType, const float *aArgs);
 
-  nsresult AppendSeg(uint32_t aType, ...); // variable number of float args
+  nsresult AppendSeg(PRUint32 aType, ...); // variable number of float args
 
   iterator begin() { return mData.Elements(); }
   iterator end() { return mData.Elements() + mData.Length(); }

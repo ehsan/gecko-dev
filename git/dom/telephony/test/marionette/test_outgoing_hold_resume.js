@@ -36,18 +36,12 @@ function dial() {
   is(telephony.calls.length, 1);
   is(telephony.calls[0], outgoingCall);
 
-  outgoingCall.onalerting = function onalerting(event) {
-    log("Received 'onalerting' call event.");
-    is(outgoingCall, event.call);
-    is(outgoingCall.state, "alerting");
-
-    runEmulatorCmd("gsm list", function(result) {
-      log("Call list is now: " + result);
-      is(result[0], "outbound to  " + number + " : ringing");
-      is(result[1], "OK");
-      answer();
-    });
-  };
+  runEmulatorCmd("gsm list", function(result) {
+    log("Call list is now: " + result);
+    is(result[0], "outbound to  " + number + " : unknown");
+    is(result[1], "OK");
+    answer();
+  });
 }
 
 function answer() {

@@ -44,24 +44,3 @@ rtree_new(unsigned bits)
 
 	return (ret);
 }
-
-void
-rtree_prefork(rtree_t *rtree)
-{
-
-	malloc_mutex_prefork(&rtree->mutex);
-}
-
-void
-rtree_postfork_parent(rtree_t *rtree)
-{
-
-	malloc_mutex_postfork_parent(&rtree->mutex);
-}
-
-void
-rtree_postfork_child(rtree_t *rtree)
-{
-
-	malloc_mutex_postfork_child(&rtree->mutex);
-}

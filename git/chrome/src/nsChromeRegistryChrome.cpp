@@ -52,7 +52,7 @@
 using namespace mozilla;
 
 static PLDHashOperator
-RemoveAll(PLDHashTable *table, PLDHashEntryHdr *entry, uint32_t number, void *arg)
+RemoveAll(PLDHashTable *table, PLDHashEntryHdr *entry, PRUint32 number, void *arg)
 {
   return (PLDHashOperator) (PL_DHASH_NEXT | PL_DHASH_REMOVE);
 }
@@ -173,7 +173,7 @@ nsChromeRegistryChrome::Init()
 NS_IMETHODIMP
 nsChromeRegistryChrome::CheckForOSAccessibility()
 {
-  int32_t useAccessibilityTheme =
+  PRInt32 useAccessibilityTheme =
     LookAndFeel::GetInt(LookAndFeel::eIntID_UseAccessibilityTheme, 0);
 
   if (useAccessibilityTheme) {
@@ -237,7 +237,7 @@ nsChromeRegistryChrome::IsLocaleRTL(const nsACString& package, bool *aResult)
 {
   *aResult = false;
 
-  nsAutoCString locale;
+  nsCAutoString locale;
   GetSelectedLocale(package, locale);
   if (locale.Length() < 2)
     return NS_OK;
@@ -245,7 +245,7 @@ nsChromeRegistryChrome::IsLocaleRTL(const nsACString& package, bool *aResult)
   // first check the intl.uidirection.<locale> preference, and if that is not
   // set, check the same preference but with just the first two characters of
   // the locale. If that isn't set, default to left-to-right.
-  nsAutoCString prefString = NS_LITERAL_CSTRING("intl.uidirection.") + locale;
+  nsCAutoString prefString = NS_LITERAL_CSTRING("intl.uidirection.") + locale;
   nsCOMPtr<nsIPrefBranch> prefBranch (do_GetService(NS_PREFSERVICE_CONTRACTID));
   if (!prefBranch)
     return NS_OK;
@@ -253,9 +253,9 @@ nsChromeRegistryChrome::IsLocaleRTL(const nsACString& package, bool *aResult)
   nsXPIDLCString dir;
   prefBranch->GetCharPref(prefString.get(), getter_Copies(dir));
   if (dir.IsEmpty()) {
-    int32_t hyphen = prefString.FindChar('-');
+    PRInt32 hyphen = prefString.FindChar('-');
     if (hyphen >= 1) {
-      nsAutoCString shortPref(Substring(prefString, 0, hyphen));
+      nsCAutoString shortPref(Substring(prefString, 0, hyphen));
       prefBranch->GetCharPref(shortPref.get(), getter_Copies(dir));
     }
   }
@@ -291,7 +291,7 @@ nsChromeRegistryChrome::SelectLocaleFromPref(nsIPrefBranch* prefs)
 
   if (NS_SUCCEEDED(rv) && matchOSLocale) {
     // compute lang and region code only when needed!
-    nsAutoCString uiLocale;
+    nsCAutoString uiLocale;
     rv = getUILangCountry(uiLocale);
     if (NS_SUCCEEDED(rv))
       mSelectedLocale = uiLocale;
@@ -449,11 +449,11 @@ nsChromeRegistryChrome::SendRegisteredChrome(
   PL_DHashTableEnumerate(&mPackagesHash, CollectPackages, &args);
 
   nsCOMPtr<nsIIOService> io (do_GetIOService());
-  NS_ENSURE_TRUE_VOID(io);
+  NS_ENSURE_TRUE(io, );
 
   nsCOMPtr<nsIProtocolHandler> ph;
   nsresult rv = io->GetProtocolHandler("resource", getter_AddRefs(ph));
-  NS_ENSURE_SUCCESS_VOID(rv);
+  NS_ENSURE_SUCCESS(rv, );
 
   //FIXME: Some substitutions are set up lazily and might not exist yet
   nsCOMPtr<nsIResProtocolHandler> irph (do_QueryInterface(ph));
@@ -464,13 +464,13 @@ nsChromeRegistryChrome::SendRegisteredChrome(
 
   bool success = aParent->SendRegisterChrome(packages, resources, overrides,
                                              mSelectedLocale);
-  NS_ENSURE_TRUE_VOID(success);
+  NS_ENSURE_TRUE(success, );
 }
 
 PLDHashOperator
 nsChromeRegistryChrome::CollectPackages(PLDHashTable *table,
                                   PLDHashEntryHdr *entry,
-                                  uint32_t number,
+                                  PRUint32 number,
                                   void *arg)
 {
   EnumerationArgs* args = static_cast<EnumerationArgs*>(arg);
@@ -539,7 +539,7 @@ nsChromeRegistryChrome::GetBaseURIFromPackage(const nsCString& aPackage,
 
 nsresult
 nsChromeRegistryChrome::GetFlagsFromPackage(const nsCString& aPackage,
-                                            uint32_t* aFlags)
+                                            PRUint32* aFlags)
 {
   PackageEntry* entry =
       static_cast<PackageEntry*>(PL_DHashTableOperate(&mPackagesHash,
@@ -600,7 +600,7 @@ nsChromeRegistryChrome::kTableOps = {
 nsChromeRegistryChrome::ProviderEntry*
 nsChromeRegistryChrome::nsProviderArray::GetProvider(const nsACString& aPreferred, MatchType aType)
 {
-  int32_t i = mArray.Count();
+  PRInt32 i = mArray.Count();
   if (!i)
     return nullptr;
 
@@ -673,7 +673,7 @@ nsChromeRegistryChrome::nsProviderArray::SetBase(const nsACString& aProvider, ns
 void
 nsChromeRegistryChrome::nsProviderArray::EnumerateToArray(nsTArray<nsCString> *a)
 {
-  int32_t i = mArray.Count();
+  PRInt32 i = mArray.Count();
   while (i--) {
     ProviderEntry *entry = reinterpret_cast<ProviderEntry*>(mArray[i]);
     a->AppendElement(entry->provider);
@@ -683,7 +683,7 @@ nsChromeRegistryChrome::nsProviderArray::EnumerateToArray(nsTArray<nsCString> *a
 void
 nsChromeRegistryChrome::nsProviderArray::Clear()
 {
-  int32_t i = mArray.Count();
+  PRInt32 i = mArray.Count();
   while (i--) {
     ProviderEntry* entry = reinterpret_cast<ProviderEntry*>(mArray[i]);
     delete entry;
@@ -695,7 +695,7 @@ nsChromeRegistryChrome::nsProviderArray::Clear()
 void
 nsChromeRegistryChrome::OverlayListEntry::AddURI(nsIURI* aURI)
 {
-  int32_t i = mArray.Count();
+  PRInt32 i = mArray.Count();
   while (i--) {
     bool equals;
     if (NS_SUCCEEDED(aURI->Equals(mArray[i], &equals)) && equals)

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsSVGEnum.h"
 #include "nsIAtom.h"
 #include "nsSVGElement.h"
@@ -82,7 +82,7 @@ nsSVGEnum::GetBaseValueAtom(nsSVGElement *aSVGElement)
 }
 
 nsresult
-nsSVGEnum::SetBaseValue(uint16_t aValue,
+nsSVGEnum::SetBaseValue(PRUint16 aValue,
                         nsSVGElement *aSVGElement)
 {
   nsSVGEnumMapping *mapping = GetMapping(aSVGElement);
@@ -90,8 +90,8 @@ nsSVGEnum::SetBaseValue(uint16_t aValue,
   while (mapping && mapping->mKey) {
     if (mapping->mVal == aValue) {
       mIsBaseSet = true;
-      if (mBaseVal != uint8_t(aValue)) {
-        mBaseVal = uint8_t(aValue);
+      if (mBaseVal != PRUint8(aValue)) {
+        mBaseVal = PRUint8(aValue);
         if (!mIsAnimated) {
           mAnimVal = mBaseVal;
         }
@@ -108,7 +108,7 @@ nsSVGEnum::SetBaseValue(uint16_t aValue,
 }
 
 void
-nsSVGEnum::SetAnimValue(uint16_t aValue, nsSVGElement *aSVGElement)
+nsSVGEnum::SetAnimValue(PRUint16 aValue, nsSVGElement *aSVGElement)
 {
   if (mIsAnimated && aValue == mAnimVal) {
     return;
@@ -142,20 +142,18 @@ nsSVGEnum::SMILEnum::ValueFromString(const nsAString& aStr,
                                      nsSMILValue& aValue,
                                      bool& aPreventCachingOfSandwich) const
 {
-  nsIAtom *valAtom = NS_GetStaticAtom(aStr);
-  if (valAtom) {
-    nsSVGEnumMapping *mapping = mVal->GetMapping(mSVGElement);
+  nsCOMPtr<nsIAtom> valAtom = do_GetAtom(aStr);
+  nsSVGEnumMapping *mapping = mVal->GetMapping(mSVGElement);
 
-    while (mapping && mapping->mKey) {
-      if (valAtom == *(mapping->mKey)) {
-        nsSMILValue val(&SMILEnumType::sSingleton);
-        val.mU.mUint = mapping->mVal;
-        aValue = val;
-        aPreventCachingOfSandwich = false;
-        return NS_OK;
-      }
-      mapping++;
+  while (mapping && mapping->mKey) {
+    if (valAtom == *(mapping->mKey)) {
+      nsSMILValue val(&SMILEnumType::sSingleton);
+      val.mU.mUint = mapping->mVal;
+      aValue = val;
+      aPreventCachingOfSandwich = false;
+      return NS_OK;
     }
+    mapping++;
   }
   
   // only a warning since authors may mistype attribute values
@@ -188,8 +186,8 @@ nsSVGEnum::SMILEnum::SetAnimValue(const nsSMILValue& aValue)
                "Unexpected type to assign animated value");
   if (aValue.mType == &SMILEnumType::sSingleton) {
     NS_ABORT_IF_FALSE(aValue.mU.mUint <= USHRT_MAX,
-                      "Very large enumerated value - too big for uint16_t");
-    mVal->SetAnimValue(uint16_t(aValue.mU.mUint), mSVGElement);
+                      "Very large enumerated value - too big for PRUint16");
+    mVal->SetAnimValue(PRUint16(aValue.mU.mUint), mSVGElement);
   }
   return NS_OK;
 }

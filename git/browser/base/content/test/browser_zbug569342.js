@@ -7,9 +7,6 @@ var gTab = null;
 function load(url, cb) {
   gTab = gBrowser.addTab(url);
   gBrowser.addEventListener("load", function (event) {
-    if (event.target.location != url)
-      return;
-
     gBrowser.removeEventListener("load", arguments.callee, true);
     // Trigger onLocationChange by switching tabs.
     gBrowser.selectedTab = gTab;

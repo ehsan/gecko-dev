@@ -39,9 +39,9 @@
 
 
 /* buffer var allocations, used during the GSUB/GPOS processing */
-#define glyph_props()		var1.u16[0] /* GDEF glyph properties */
-#define syllable()		var1.u8[2] /* GSUB/GPOS shaping boundaries */
-#define lig_props()		var1.u8[3] /* GSUB/GPOS ligature tracking */
+#define glyph_props()		var1.u16[1] /* GDEF glyph properties */
+#define syllable()		var2.u8[0] /* GSUB/GPOS shaping boundaries */
+#define lig_props()		var2.u8[1] /* GSUB/GPOS ligature tracking */
 
 #define hb_ot_layout_from_face(face) ((hb_ot_layout_t *) face->shaper_data.ot)
 
@@ -139,10 +139,9 @@ static inline uint8_t allocate_lig_id (hb_buffer_t *buffer) {
 
 HB_INTERNAL hb_bool_t
 hb_ot_layout_would_substitute_lookup_fast (hb_face_t            *face,
-					   unsigned int          lookup_index,
 					   const hb_codepoint_t *glyphs,
 					   unsigned int          glyphs_length,
-					   hb_bool_t             zero_context);
+					   unsigned int          lookup_index);
 
 
 /* Should be called before all the substitute_lookup's are done. */
@@ -185,21 +184,15 @@ hb_ot_layout_position_finish (hb_font_t    *font,
  * hb_ot_layout_t
  */
 
-namespace OT {
-  struct GDEF;
-  struct GSUB;
-  struct GPOS;
-}
-
 struct hb_ot_layout_t
 {
   hb_blob_t *gdef_blob;
   hb_blob_t *gsub_blob;
   hb_blob_t *gpos_blob;
 
-  const struct OT::GDEF *gdef;
-  const struct OT::GSUB *gsub;
-  const struct OT::GPOS *gpos;
+  const struct GDEF *gdef;
+  const struct GSUB *gsub;
+  const struct GPOS *gpos;
 
   unsigned int gsub_lookup_count;
   unsigned int gpos_lookup_count;

@@ -24,6 +24,23 @@ function test() {
 }
 
 let tests = {
+  testInitializeWorker: function(next) {
+    ok(provider.workerAPI, "provider has a workerAPI");
+    is(provider.workerAPI.initialized, false, "workerAPI is not yet initialized");
+  
+    let port = provider.port;
+    ok(port, "should be able to get a port from the provider");
+  
+    port.onmessage = function onMessage(event) {
+      let topic = event.data.topic;
+      if (topic == "test-initialization-complete") {
+        is(provider.workerAPI.initialized, true, "workerAPI is now initialized");
+        next();
+      }
+    }
+    port.postMessage({topic: "test-initialization"});
+  },
+
   testProfile: function(next) {
     let expect = {
       portrait: "https://example.com/portrait.jpg",
@@ -40,15 +57,10 @@ let tests = {
       is(profile.displayName, expect.displayName, "displayName is set");
       is(profile.profileURL, expect.profileURL, "profileURL is set");
 
-      // see below - if not for bug 788368 we could close this earlier.
-      port.close();
       next();
     }
     Services.obs.addObserver(ob, "social:profile-changed", false);
-    let port = provider.getWorkerPort();
-    port.postMessage({topic: "test-profile", data: expect});
-    // theoretically we should be able to close the port here, but bug 788368
-    // means that if we do, the worker never sees the test-profile message.
+    provider.port.postMessage({topic: "test-profile", data: expect});
   },
 
   testAmbientNotification: function(next) {
@@ -64,9 +76,7 @@ let tests = {
       next();
     }
     Services.obs.addObserver(ob, "social:ambient-notification-changed", false);
-    let port = provider.getWorkerPort();
-    port.postMessage({topic: "test-ambient", data: expect});
-    port.close();
+    provider.port.postMessage({topic: "test-ambient", data: expect});
   },
 
   testProfileCleared: function(next) {
@@ -86,62 +96,19 @@ let tests = {
   },
 
   testCookies: function(next) {
-    let port = provider.getWorkerPort();
-    port.onmessage = function onMessage(event) {
+    provider.port.onmessage = function onMessage(event) {
       let {topic, data} = event.data;
       if (topic == "test.cookies-get-response") {
         is(data.length, 1, "got one cookie");
         is(data[0].name, "cheez", "cookie has the correct name");
         is(data[0].value, "burger", "cookie has the correct value");
         Services.cookies.remove('.example.com', '/', 'cheez', false);
-        port.close();
         next();
       }
     }
     var MAX_EXPIRY = Math.pow(2, 62);
     Services.cookies.add('.example.com', '/', 'cheez', 'burger', false, false, true, MAX_EXPIRY);
-    port.postMessage({topic: "test-initialization"});
-    port.postMessage({topic: "test.cookies-get"});
-  },
-
-  testWorkerReload: function(next) {
-    let fw = {};
-    Cu.import("resource://gre/modules/FrameWorker.jsm", fw);
-
-    // get a real handle to the worker so we can watch the unload event
-    // we watch for the unload of the worker to know it is infact being
-    // unloaded, after that if we get worker.connected we know that
-    // the worker was loaded again and ports reconnected
-    let reloading = false;
-    let worker = fw.getFrameWorkerHandle(provider.workerURL, undefined, "testWorkerReload");
-    let frame =  worker._worker.frame;
-    let win = frame.contentWindow;
-    let port = provider.getWorkerPort();
-    win.addEventListener("unload", function workerUnload(e) {
-      win.removeEventListener("unload", workerUnload);
-      ok(true, "worker unload event has fired");
-      is(port._pendingMessagesOutgoing.length, 0, "port has no pending outgoing message");
-    });
-    frame.addEventListener("DOMWindowCreated", function workerLoaded(e) {
-      frame.removeEventListener("DOMWindowCreated", workerLoaded);
-      // send a message which should end up pending
-      port.postMessage({topic: "test-pending-msg"});
-      ok(port._pendingMessagesOutgoing.length > 0, "port has pending outgoing message");
-    });
-    ok(port, "provider has a port");
-    port.onmessage = function (e) {
-      let topic = e.data.topic;
-      switch (topic) {
-        case "test-initialization-complete":
-          // tell the worker to send the reload msg
-          port.postMessage({topic: "test-reload-init"});
-          break;
-        case "test-pending-response":
-          ok(true, "worker reloaded and testPort was reconnected");
-          next();
-          break;
-      }
-    }
-    port.postMessage({topic: "test-initialization"});
+    provider.port.postMessage({topic: "test.cookies-get"});
   }
+
 };

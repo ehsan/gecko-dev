@@ -25,8 +25,7 @@ TEST_F(ViEApiIntegrationTest, RunsBaseTestWithoutErrors) {
   tests_->ViEBaseAPITest();
 }
 
-// TODO(phoglund): Crashes on the v4l2loopback camera.
-TEST_F(ViEApiIntegrationTest, DISABLED_RunsCaptureTestWithoutErrors) {
+TEST_F(ViEApiIntegrationTest, RunsCaptureTestWithoutErrors) {
   tests_->ViECaptureAPITest();
 }
 

@@ -75,7 +75,7 @@ interface nsIRILVoicemailCallback : nsISupports
   void voicemailNotification(in nsIDOMMozVoicemailStatus status);
 };
 
-[scriptable, uuid(1e602d20-d066-4399-8997-daf36b3158ef)]
+[scriptable, uuid(8a711703-1ee5-4675-9d9a-0b188e944cfe)]
 interface nsIRILDataCallInfo : nsISupports
 {
   /**
@@ -86,11 +86,6 @@ interface nsIRILDataCallInfo : nsISupports
   readonly attribute AString cid;
   readonly attribute AString apn;
   readonly attribute AString ifname;
-  readonly attribute AString ip;
-  readonly attribute AString netmask;
-  readonly attribute AString broadcast;
-  readonly attribute AString gw;
-  readonly attribute jsval dns;
 };
 
 [scriptable, uuid(5bcac053-c245-46f0-bb45-d0039bfb89f5)]
@@ -117,29 +112,25 @@ interface nsIRILDataCallback : nsISupports
                            in unsigned long length);
 };
 
-[scriptable, function, uuid(a94282b6-da60-4daf-95c1-82ee6889d0df)]
+[scriptable, function, uuid(2bc2f51a-78be-4c0e-95dd-55a3ce2ded40)]
 interface nsIRILContactCallback : nsISupports
 {
   /**
    * Called when nsIRadioInterfaceLayer is asked to provide ICC contacts.
    *
-   * @param errorMsg
-   *        error message from RIL.
-   * @param contactType
+   * @param type
    *        Type of the dialling number, i.e. ADN, FDN.
    * @param contacts
    *        Array of the ICC contacts of the specified type.
    */
-  void receiveContactsList(in DOMString errorMsg,
-                           in DOMString contactType,
-                           in jsval contacts);
+  void receiveContactsList(in DOMString type, in jsval contacts);
 };
 
 /**
  * Helper that runs in the content process and exposes information
  * to the DOM.
  */
-[scriptable, uuid(2abe554b-e07c-44b0-9719-02190460188d)]
+[scriptable, uuid(31ea634b-e710-49ce-bb7d-bfcbaa40fb00)]
 interface nsIRILContentHelper : nsIMobileConnectionProvider
 {
   void registerTelephonyCallback(in nsIRILTelephonyCallback callback);
@@ -147,24 +138,6 @@ interface nsIRILContentHelper : nsIMobileConnectionProvider
 
   void registerVoicemailCallback(in nsIRILVoicemailCallback callback);
   void unregisterVoicemailCallback(in nsIRILVoicemailCallback callback);
-
-  /**
-   * Called when a content process registers receiving unsolicited messages from
-   * RadioInterfaceLayer in the chrome process. Only content granted telephony
-   * permission is allowed to register. Note that a content doesn't need to
-   * unregister because the chrome process will remove it from the registration
-   * list once the chrome receives a 'child-process-shutdown' message.
-   */
-   void registerTelephonyMsg();
-
-  /**
-   * Called when a content process registers receiving unsolicited messages from
-   * RadioInterfaceLayer in the chrome process. Only a content granted voice
-   * mail permission is allowed to register. Note that a content doesn't need to
-   * unregister because the chrome process will remove it from the registration
-   * list once the chrome receives a 'child-process-shutdown' message.
-   */
-   void registerVoicemailMsg();
 
   /**
    * Will continue calling callback.enumerateCallState until the callback
@@ -195,7 +168,7 @@ interface nsIRILContentHelper : nsIMobileConnectionProvider
   readonly attribute DOMString voicemailDisplayName;
 };
 
-[scriptable, uuid(4efdb1d4-1e49-4f5d-a656-44e6180062a7)]
+[scriptable, uuid(fd9e8b38-b839-4d56-8482-3bf1f5c8f2ee)]
 interface nsIICCRecords : nsISupports
 {
   /**
@@ -224,6 +197,11 @@ interface nsIICCRecords : nsISupports
   readonly attribute unsigned short mnc;
 
   /**
+   * USIM Service Table
+   */
+  readonly attribute jsval ust;
+
+  /**
    * Abbreviated dialling numbers
    */
   readonly attribute jsval adn;
@@ -234,7 +212,21 @@ interface nsIICCRecords : nsISupports
   readonly attribute jsval fdn;
 };
 
-[scriptable, uuid(e6dc89f2-0d4e-46fc-902c-cfeeaee15e40)]
+[scriptable, uuid(1b47459d-d0bc-4e91-8509-cc106054b9ee)]
+interface nsICellLocation : nsISupports
+{
+  /**
+   * Location Area Code
+   */
+  readonly attribute unsigned short lac;
+
+  /**
+   * Cell Identity
+   */
+  readonly attribute unsigned long cid;
+};
+
+[scriptable, uuid(a6f6977e-f4ee-42b4-ae79-798c8c47c360)]
 interface nsIRilContext : nsISupports
 {
   readonly attribute DOMString radioState;
@@ -243,12 +235,14 @@ interface nsIRilContext : nsISupports
 
   readonly attribute nsIICCRecords icc;
 
+  readonly attribute nsICellLocation cell;
+
   readonly attribute nsIDOMMozMobileConnectionInfo voice;
 
   readonly attribute nsIDOMMozMobileConnectionInfo data;
 };
 
-[scriptable, uuid(a90fef2c-44aa-4f2b-a0ee-a590e9dd345e)]
+[scriptable, uuid(8b649965-6687-46a8-88fa-a5495ce90735)]
 interface nsIRadioInterfaceLayer : nsISupports
 {
   const unsigned short CALL_STATE_UNKNOWN = 0;
@@ -274,9 +268,6 @@ interface nsIRadioInterfaceLayer : nsISupports
   /**
    * PDP APIs
    */
-  void setupDataCallByType(in DOMString apntype);
-  void deactivateDataCallByType(in DOMString apntype);
-  long getDataCallStateByType(in DOMString apntype);
   void setupDataCall(in long radioTech,
                      in DOMString apn,
                      in DOMString user,
@@ -302,15 +293,5 @@ interface nsIRadioInterfaceLayer : nsISupports
   /**
    * ICC-related functionality.
    */
-
-  /**
-   * Get ICC Contact List.
-   *
-   * @param contactType One of the values below.
-   *                    "ADN" (Abbreviated Dialling Numbers)
-   *                    "FDN" (Fixed Dialling Numbers)
-   * @param callback  A nsIRILContactCallback object.
-   */
-  void getICCContacts(in DOMString contactType,
-                      in nsIRILContactCallback callback);
+  void getICCContacts(in DOMString type, in nsIRILContactCallback callback);
 };

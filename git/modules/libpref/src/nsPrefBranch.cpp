@@ -17,8 +17,10 @@
 #include "nsXPIDLString.h"
 #include "nsIStringBundle.h"
 #include "prefapi.h"
+#include "prmem.h"
 #include "pldhash.h"
 
+#include "plstr.h"
 #include "nsCRT.h"
 #include "mozilla/Services.h"
 
@@ -33,7 +35,7 @@ struct EnumerateData {
 // Prototypes
 static PLDHashOperator
   pref_enumChild(PLDHashTable *table, PLDHashEntryHdr *heh,
-                 uint32_t i, void *arg);
+                 PRUint32 i, void *arg);
 
 using mozilla::dom::ContentChild;
 
@@ -112,7 +114,7 @@ NS_IMETHODIMP nsPrefBranch::GetRoot(char **aRoot)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsPrefBranch::GetPrefType(const char *aPrefName, int32_t *_retval)
+NS_IMETHODIMP nsPrefBranch::GetPrefType(const char *aPrefName, PRInt32 *_retval)
 {
   NS_ENSURE_ARG(aPrefName);
   const char *pref = getPrefName(aPrefName);
@@ -139,19 +141,6 @@ NS_IMETHODIMP nsPrefBranch::SetBoolPref(const char *aPrefName, bool aValue)
   return PREF_SetBoolPref(pref, aValue, mIsDefault);
 }
 
-NS_IMETHODIMP nsPrefBranch::GetFloatPref(const char *aPrefName, float *_retval)
-{
-  NS_ENSURE_ARG(aPrefName);
-  const char *pref = getPrefName(aPrefName);
-  nsAutoCString stringVal;
-  nsresult rv = GetCharPref(pref, getter_Copies(stringVal));
-  if (NS_SUCCEEDED(rv)) {
-    *_retval = stringVal.ToFloat(&rv);
-  }
-
-  return rv;
-}
-
 NS_IMETHODIMP nsPrefBranch::GetCharPref(const char *aPrefName, char **_retval)
 {
   NS_ENSURE_ARG(aPrefName);
@@ -172,14 +161,14 @@ NS_IMETHODIMP nsPrefBranch::SetCharPref(const char *aPrefName, const char *aValu
   return PREF_SetCharPref(pref, aValue, mIsDefault);
 }
 
-NS_IMETHODIMP nsPrefBranch::GetIntPref(const char *aPrefName, int32_t *_retval)
+NS_IMETHODIMP nsPrefBranch::GetIntPref(const char *aPrefName, PRInt32 *_retval)
 {
   NS_ENSURE_ARG(aPrefName);
   const char *pref = getPrefName(aPrefName);
   return PREF_GetIntPref(pref, _retval, mIsDefault);
 }
 
-NS_IMETHODIMP nsPrefBranch::SetIntPref(const char *aPrefName, int32_t aValue)
+NS_IMETHODIMP nsPrefBranch::SetIntPref(const char *aPrefName, PRInt32 aValue)
 {
   if (GetContentChild()) {
     NS_ERROR("cannot set pref from content process");
@@ -278,7 +267,7 @@ NS_IMETHODIMP nsPrefBranch::GetComplexValue(const char *aPrefName, const nsIID &
     nsACString::const_iterator keyEnd(keyBegin);
     if (!FindCharInReadable(']', keyEnd, strEnd))
       return NS_ERROR_FAILURE;
-    nsAutoCString key(Substring(keyBegin, keyEnd));
+    nsCAutoString key(Substring(keyBegin, keyEnd));
     
     nsCOMPtr<nsIFile> fromFile;
     nsCOMPtr<nsIProperties> directoryService(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv));
@@ -334,7 +323,7 @@ NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID &
     nsCOMPtr<nsIFile> file = do_QueryInterface(aValue);
     if (!file)
       return NS_NOINTERFACE;
-    nsAutoCString descriptorString;
+    nsCAutoString descriptorString;
 
     rv = file->GetPersistentDescriptor(descriptorString);
     if (NS_SUCCEEDED(rv)) {
@@ -352,7 +341,7 @@ NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID &
     relFilePref->GetFile(getter_AddRefs(file));
     if (!file)
       return NS_NOINTERFACE;
-    nsAutoCString relativeToKey;
+    nsCAutoString relativeToKey;
     (void) relFilePref->GetRelativeToKey(relativeToKey);
 
     nsCOMPtr<nsIFile> relativeToFile;
@@ -363,12 +352,12 @@ NS_IMETHODIMP nsPrefBranch::SetComplexValue(const char *aPrefName, const nsIID &
     if (NS_FAILED(rv))
       return rv;
 
-    nsAutoCString relDescriptor;
+    nsCAutoString relDescriptor;
     rv = file->GetRelativeDescriptor(relativeToFile, relDescriptor);
     if (NS_FAILED(rv))
       return rv;
     
-    nsAutoCString descriptorString;
+    nsCAutoString descriptorString;
     descriptorString.Append('[');
     descriptorString.Append(relativeToKey);
     descriptorString.Append(']');
@@ -485,11 +474,11 @@ NS_IMETHODIMP nsPrefBranch::DeleteBranch(const char *aStartingAt)
   return PREF_DeleteBranch(pref);
 }
 
-NS_IMETHODIMP nsPrefBranch::GetChildList(const char *aStartingAt, uint32_t *aCount, char ***aChildArray)
+NS_IMETHODIMP nsPrefBranch::GetChildList(const char *aStartingAt, PRUint32 *aCount, char ***aChildArray)
 {
   char            **outArray;
-  int32_t         numPrefs;
-  int32_t         dwIndex;
+  PRInt32         numPrefs;
+  PRInt32         dwIndex;
   EnumerateData   ed;
   nsAutoTArray<nsCString, 32> prefArray;
 
@@ -634,8 +623,8 @@ nsresult nsPrefBranch::NotifyObserver(const char *newpref, void *data)
 
   // remove any root this string may contain so as to not confuse the observer
   // by passing them something other than what they passed us as a topic
-  uint32_t len = pCallback->GetPrefBranch()->GetRootLength();
-  nsAutoCString suffix(newpref + len);
+  PRUint32 len = pCallback->GetPrefBranch()->GetRootLength();
+  nsCAutoString suffix(newpref + len);
 
   observer->Observe(static_cast<nsIPrefBranch *>(pCallback->GetPrefBranch()),
                     NS_PREFBRANCH_PREFCHANGE_TOPIC_ID,
@@ -724,7 +713,7 @@ const char *nsPrefBranch::getPrefName(const char *aPrefName)
 
 static PLDHashOperator
 pref_enumChild(PLDHashTable *table, PLDHashEntryHdr *heh,
-               uint32_t i, void *arg)
+               PRUint32 i, void *arg)
 {
   PrefHashEntry *he = static_cast<PrefHashEntry*>(heh);
   EnumerateData *d = reinterpret_cast<EnumerateData *>(arg);
@@ -793,7 +782,7 @@ nsPrefLocalizedString::SetData(const PRUnichar *aData)
 }
 
 NS_IMETHODIMP
-nsPrefLocalizedString::SetDataWithLength(uint32_t aLength,
+nsPrefLocalizedString::SetDataWithLength(PRUint32 aLength,
                                          const PRUnichar *aData)
 {
   if (!aData)

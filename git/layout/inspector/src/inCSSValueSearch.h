@@ -37,15 +37,15 @@ protected:
   nsString mLastResult;
   nsString mBaseURL;
   nsString mTextCriteria;
-  int32_t mResultCount;
-  uint32_t mPropertyCount;
+  PRInt32 mResultCount;
+  PRUint32 mPropertyCount;
   bool mIsActive;
   bool mHoldResults;
   bool mReturnRelativeURLs;
   bool mNormalizeChromeURLs;
 
   nsresult InitSearch();
-  nsresult KillSearch(int16_t aResult);
+  nsresult KillSearch(PRInt16 aResult);
   nsresult SearchStyleSheet(nsIDOMCSSStyleSheet* aStyleSheet, nsIURI* aBaseURI);
   nsresult SearchRuleList(nsIDOMCSSRuleList* aRuleList, nsIURI* aBaseURI);
   nsresult SearchStyleRule(nsIDOMCSSStyleRule* aStyleRule, nsIURI* aBaseURI);

@@ -22,11 +22,13 @@ namespace base {
 namespace mozilla {
 namespace Telemetry {
 
-#include "TelemetryHistogramEnums.h"
+enum ID {
+#define HISTOGRAM(name, a, b, c, d, e) name,
 
-enum TimerResolution {
-  Millisecond,
-  Microsecond
+#include "TelemetryHistograms.h"
+
+#undef HISTOGRAM
+HistogramCount
 };
 
 /**
@@ -40,7 +42,7 @@ void Init();
  * @param id - histogram id
  * @param sample - value to record.
  */
-void Accumulate(ID id, uint32_t sample);
+void Accumulate(ID id, PRUint32 sample);
 
 /**
  * Adds time delta in milliseconds to a histogram defined in TelemetryHistograms.h
@@ -56,34 +58,7 @@ void AccumulateTimeDelta(ID id, TimeStamp start, TimeStamp end = TimeStamp::Now(
  */
 base::Histogram* GetHistogramById(ID id);
 
-/**
- * Those wrappers are needed because the VS versions we use do not support free
- * functions with default template arguments.
- */
-template<TimerResolution res>
-struct AccumulateDelta_impl
-{
-  static void compute(ID id, TimeStamp start, TimeStamp end = TimeStamp::Now());
-};
-
-template<>
-struct AccumulateDelta_impl<Millisecond>
-{
-  static void compute(ID id, TimeStamp start, TimeStamp end = TimeStamp::Now()) {
-    Accumulate(id, static_cast<uint32_t>((end - start).ToMilliseconds()));
-  }
-};
-
-template<>
-struct AccumulateDelta_impl<Microsecond>
-{
-  static void compute(ID id, TimeStamp start, TimeStamp end = TimeStamp::Now()) {
-    Accumulate(id, static_cast<uint32_t>((end - start).ToMicroseconds()));
-  }
-};
-
-
-template<ID id, TimerResolution res = Millisecond>
+template<ID id>
 class AutoTimer {
 public:
   AutoTimer(TimeStamp aStart = TimeStamp::Now() MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
@@ -93,7 +68,7 @@ public:
   }
 
   ~AutoTimer() {
-    AccumulateDelta_impl<res>::compute(id, start);
+    AccumulateTimeDelta(id, start);
   }
 
 private:
@@ -104,7 +79,7 @@ private:
 template<ID id>
 class AutoCounter {
 public:
-  AutoCounter(uint32_t counterStart = 0 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoCounter(PRUint32 counterStart = 0 MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     : counter(counterStart)
   {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -125,7 +100,7 @@ public:
   }
 
 private:
-  uint32_t counter;
+  PRUint32 counter;
   MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
@@ -142,17 +117,22 @@ bool CanRecord();
  * @param statement - offending SQL statement to record
  * @param dbName - DB filename
  * @param delay - execution time in milliseconds
+ * @param isDynamicString - prepared statement or a dynamic string
  */
 void RecordSlowSQLStatement(const nsACString &statement,
                             const nsACString &dbName,
-                            uint32_t delay);
+                            PRUint32 delay,
+                            bool isDynamicString);
 
 /**
  * Threshold for a statement to be considered slow, in milliseconds
  */
-const uint32_t kSlowStatementThreshold = 100;
+const PRUint32 kSlowStatementThreshold = 100;
 
-class ProcessedStack;
+/**
+ * nsTArray of pointers representing PCs on a call stack
+ */
+typedef nsTArray<uintptr_t> HangStack;
 
 /**
  * Record the main thread's call stack after it hangs.
@@ -162,8 +142,9 @@ class ProcessedStack;
  * @param moduleMap - Array of info about modules in memory (for symbolication)
  */
 #if defined(MOZ_ENABLE_PROFILER_SPS)
-void RecordChromeHang(uint32_t duration,
-                      ProcessedStack &aStack);
+void RecordChromeHang(PRUint32 duration,
+                      const HangStack &callStack,
+                      SharedLibraryInfo &moduleMap);
 #endif
 
 } // namespace Telemetry

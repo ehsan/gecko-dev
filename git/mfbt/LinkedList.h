@@ -101,14 +101,8 @@ class LinkedListElement
     LinkedListElement* prev;
     const bool isSentinel;
 
-    LinkedListElement* thisDuringConstruction() { return this; }
-
   public:
-    LinkedListElement()
-      : next(thisDuringConstruction()),
-        prev(thisDuringConstruction()),
-        isSentinel(false)
-    { }
+    LinkedListElement() : next(this), prev(this), isSentinel(false) { }
 
     /*
      * Get the next element in the list, or NULL if this is the last element in

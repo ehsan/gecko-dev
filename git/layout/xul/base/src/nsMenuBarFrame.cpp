@@ -6,6 +6,7 @@
 #include "nsMenuBarFrame.h"
 #include "nsIServiceManager.h"
 #include "nsIContent.h"
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
@@ -183,10 +184,10 @@ GetInsertionPoint(nsIPresShell* aShell, nsIFrame* aFrame, nsIFrame* aChild,
 nsMenuFrame*
 nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
 {
-  uint32_t charCode;
+  PRUint32 charCode;
   aKeyEvent->GetCharCode(&charCode);
 
-  nsAutoTArray<uint32_t, 10> accessKeys;
+  nsAutoTArray<PRUint32, 10> accessKeys;
   nsEvent* nativeEvent = nsContentUtils::GetNativeEvent(aKeyEvent);
   nsKeyEvent* nativeKeyEvent = static_cast<nsKeyEvent*>(nativeEvent);
   if (nativeKeyEvent)
@@ -205,7 +206,7 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
 
   // Find a most preferred accesskey which should be returned.
   nsIFrame* foundMenu = nullptr;
-  uint32_t foundIndex = accessKeys.NoIndex;
+  PRUint32 foundIndex = accessKeys.NoIndex;
   nsIFrame* currFrame = immediateParent->GetFirstPrincipalChild();
 
   while (currFrame) {
@@ -220,8 +221,8 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
         ToLowerCase(shortcutKey);
         const PRUnichar* start = shortcutKey.BeginReading();
         const PRUnichar* end = shortcutKey.EndReading();
-        uint32_t ch = UTF16CharEnumerator::NextChar(&start, end);
-        uint32_t index = accessKeys.IndexOf(ch);
+        PRUint32 ch = UTF16CharEnumerator::NextChar(&start, end);
+        PRUint32 index = accessKeys.IndexOf(ch);
         if (index != accessKeys.NoIndex &&
             (foundIndex == accessKeys.NoIndex || index < foundIndex)) {
           foundMenu = currFrame;

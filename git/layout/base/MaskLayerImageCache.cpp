@@ -4,22 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "MaskLayerImageCache.h"
-#include "ImageContainer.h"
 
 using namespace mozilla::layers;
 
 namespace mozilla {
-
-MaskLayerImageCache::MaskLayerImageCache()
-{
-  MOZ_COUNT_CTOR(MaskLayerImageCache);
-  mMaskImageContainers.Init();
-}
-MaskLayerImageCache::~MaskLayerImageCache()
-{
-  MOZ_COUNT_DTOR(MaskLayerImageCache);
-}
-
 
 /* static */ PLDHashOperator
 MaskLayerImageCache::SweepFunc(MaskLayerImageEntry* aEntry,

@@ -14,7 +14,6 @@
 
  */
 
-#include "NSPRFormatTime.h" // must be before anything that includes prtime.h
 #include "nsEscape.h"
 #include "nsDirectoryIndexStream.h"
 #include "nsXPIDLString.h"
@@ -78,11 +77,11 @@ static int compare(nsIFile* aElement1, nsIFile* aElement2, void* aData)
         // but CompareString could still be smarter - see bug 99383 - bbaetz
         // NB - 99393 has been WONTFIXed. So if the I18N code is ever made
         // threadsafe so that this matters, we'd have to pass through a
-        // struct { nsIFile*, uint8_t* } with the pre-calculated key.
+        // struct { nsIFile*, PRUint8* } with the pre-calculated key.
         return Compare(name1, name2);
     }
 
-    nsAutoCString name1, name2;
+    nsCAutoString name1, name2;
     aElement1->GetNativeLeafName(name1);
     aElement2->GetNativeLeafName(name2);
 
@@ -102,7 +101,7 @@ nsDirectoryIndexStream::Init(nsIFile* aDir)
 
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gLog, PR_LOG_DEBUG)) {
-        nsAutoCString path;
+        nsCAutoString path;
         aDir->GetNativePath(path);
         PR_LOG(gLog, PR_LOG_DEBUG,
                ("nsDirectoryIndexStream[%p]: initialized on %s",
@@ -154,7 +153,7 @@ nsDirectoryIndexStream::Init(nsIFile* aDir)
 #endif
 
     mBuf.AppendLiteral("300: ");
-    nsAutoCString url;
+    nsCAutoString url;
     rv = net_GetURLSpecFromFile(aDir, url);
     if (NS_FAILED(rv)) return rv;
     mBuf.Append(url);
@@ -201,13 +200,13 @@ nsDirectoryIndexStream::Close()
 }
 
 NS_IMETHODIMP
-nsDirectoryIndexStream::Available(uint64_t* aLength)
+nsDirectoryIndexStream::Available(PRUint64* aLength)
 {
     if (NS_FAILED(mStatus))
         return mStatus;
 
     // If there's data in our buffer, use that
-    if (mOffset < (int32_t)mBuf.Length()) {
+    if (mOffset < (PRInt32)mBuf.Length()) {
         *aLength = mBuf.Length() - mOffset;
         return NS_OK;
     }
@@ -218,7 +217,7 @@ nsDirectoryIndexStream::Available(uint64_t* aLength)
 }
 
 NS_IMETHODIMP
-nsDirectoryIndexStream::Read(char* aBuf, uint32_t aCount, uint32_t* aReadCount)
+nsDirectoryIndexStream::Read(char* aBuf, PRUint32 aCount, PRUint32* aReadCount)
 {
     if (mStatus == NS_BASE_STREAM_CLOSED) {
         *aReadCount = 0;
@@ -227,11 +226,11 @@ nsDirectoryIndexStream::Read(char* aBuf, uint32_t aCount, uint32_t* aReadCount)
     if (NS_FAILED(mStatus))
         return mStatus;
 
-    uint32_t nread = 0;
+    PRUint32 nread = 0;
 
     // If anything is enqueued (or left-over) in mBuf, then feed it to
     // the reader first.
-    while (mOffset < (int32_t)mBuf.Length() && aCount != 0) {
+    while (mOffset < (PRInt32)mBuf.Length() && aCount != 0) {
         *(aBuf++) = char(mBuf.CharAt(mOffset++));
         --aCount;
         ++nread;
@@ -243,7 +242,7 @@ nsDirectoryIndexStream::Read(char* aBuf, uint32_t aCount, uint32_t* aReadCount)
         mBuf.Truncate();
 
         // Okay, now we'll suck stuff off of our iterator into the mBuf...
-        while (uint32_t(mBuf.Length()) < aCount) {
+        while (PRUint32(mBuf.Length()) < aCount) {
             bool more = mPos < mArray.Count();
             if (!more) break;
 
@@ -254,7 +253,7 @@ nsDirectoryIndexStream::Read(char* aBuf, uint32_t aCount, uint32_t* aReadCount)
 
 #ifdef PR_LOGGING
             if (PR_LOG_TEST(gLog, PR_LOG_DEBUG)) {
-                nsAutoCString path;
+                nsCAutoString path;
                 current->GetNativePath(path);
                 PR_LOG(gLog, PR_LOG_DEBUG,
                        ("nsDirectoryIndexStream[%p]: iterated %s",
@@ -276,10 +275,10 @@ nsDirectoryIndexStream::Read(char* aBuf, uint32_t aCount, uint32_t* aReadCount)
             }
 #endif
 
-            int64_t fileSize = 0;
+            PRInt64 fileSize = 0;
             current->GetFileSize( &fileSize );
 
-            PRTime fileInfoModifyTime = 0;
+            PRInt64 fileInfoModifyTime = 0;
             current->GetLastModifiedTime( &fileInfoModifyTime );
             fileInfoModifyTime *= PR_USEC_PER_MSEC;
 
@@ -294,7 +293,7 @@ nsDirectoryIndexStream::Read(char* aBuf, uint32_t aCount, uint32_t* aReadCount)
                 if (!leafname.IsEmpty())
                     escaped = nsEscape(NS_ConvertUTF16toUTF8(leafname).get(), url_Path);
             } else {
-                nsAutoCString leafname;
+                nsCAutoString leafname;
                 rv = current->GetNativeLeafName(leafname);
                 if (NS_FAILED(rv)) return rv;
                 if (!leafname.IsEmpty())
@@ -347,7 +346,7 @@ nsDirectoryIndexStream::Read(char* aBuf, uint32_t aCount, uint32_t* aReadCount)
 
         // ...and once we've either run out of directory entries, or
         // filled up the buffer, then we'll push it to the reader.
-        while (mOffset < (int32_t)mBuf.Length() && aCount != 0) {
+        while (mOffset < (PRInt32)mBuf.Length() && aCount != 0) {
             *(aBuf++) = char(mBuf.CharAt(mOffset++));
             --aCount;
             ++nread;
@@ -359,7 +358,7 @@ nsDirectoryIndexStream::Read(char* aBuf, uint32_t aCount, uint32_t* aReadCount)
 }
 
 NS_IMETHODIMP
-nsDirectoryIndexStream::ReadSegments(nsWriteSegmentFun writer, void * closure, uint32_t count, uint32_t *_retval)
+nsDirectoryIndexStream::ReadSegments(nsWriteSegmentFun writer, void * closure, PRUint32 count, PRUint32 *_retval)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }

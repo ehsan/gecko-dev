@@ -22,6 +22,7 @@
 #include "nsIEditorIMESupport.h"
 #include "nsIPhonetic.h"
 #include "nsTextFragment.h"
+#include "nsIEditorObserver.h"
 #include "nsEditProperty.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsINameSpaceManager.h"
@@ -55,6 +56,9 @@
 #include "nsIDOMNodeList.h" //for selection setting helper func
 #include "nsIDOMRange.h" //for selection setting helper func
 #include "nsPIDOMWindow.h" //needed for notify selection changed to update the menus ect.
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
 #include "nsIDOMNode.h"
 
 #include "nsITransactionManager.h"
@@ -66,9 +70,8 @@
 #include "nsFocusManager.h"
 #include "nsTextEditRules.h"
 #include "nsPresState.h"
-#include "nsContentList.h"
-#include "nsAttrValueInlines.h"
 
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/Selection.h"
 
 #define DEFAULT_COLUMN_WIDTH 20
@@ -91,10 +94,16 @@ NS_QUERYFRAME_HEAD(nsTextControlFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsTextControlFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsTextControlFrame::CreateAccessible()
 {
-  return a11y::eHTMLTextFieldAccessible;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (accService) {
+    return accService->CreateHTMLTextFieldAccessible(mContent,
+                                                     PresContext()->PresShell());
+  }
+
+  return nullptr;
 }
 #endif
 
@@ -189,7 +198,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
   charMaxAdvance = fontMet->MaxAdvance();
 
   // Set the width equal to the width in characters
-  int32_t cols = GetCols();
+  PRInt32 cols = GetCols();
   aIntrinsicSize.width = cols * charWidth;
 
   // To better match IE, take the maximum character width(in twips) and remove
@@ -283,6 +292,8 @@ nsTextControlFrame::EnsureEditorInitialized()
   if (mUseEditor)
     return NS_OK;
 
+  NS_TIME_FUNCTION;
+
   nsIDocument* doc = mContent->GetCurrentDoc();
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
 
@@ -296,53 +307,50 @@ nsTextControlFrame::EnsureEditorInitialized()
 
   // Make sure that editor init doesn't do things that would kill us off
   // (especially off the script blockers it'll create for its DOM mutations).
-  {
-    nsAutoScriptBlocker scriptBlocker;
+  nsAutoScriptBlocker scriptBlocker;
 
-    // Time to mess with our security context... See comments in GetValue()
-    // for why this is needed.
-    nsCxPusher pusher;
-    pusher.PushNull();
+  // Time to mess with our security context... See comments in GetValue()
+  // for why this is needed.
+  nsCxPusher pusher;
+  pusher.PushNull();
 
-    // Make sure that we try to focus the content even if the method fails
-    class EnsureSetFocus {
-    public:
-      explicit EnsureSetFocus(nsTextControlFrame* aFrame)
-        : mFrame(aFrame) {}
-      ~EnsureSetFocus() {
-        if (nsContentUtils::IsFocusedContent(mFrame->GetContent()))
-          mFrame->SetFocus(true, false);
-      }
-    private:
-      nsTextControlFrame *mFrame;
-    };
-    EnsureSetFocus makeSureSetFocusHappens(this);
+  // Make sure that we try to focus the content even if the method fails
+  class EnsureSetFocus {
+  public:
+    explicit EnsureSetFocus(nsTextControlFrame* aFrame)
+      : mFrame(aFrame) {}
+    ~EnsureSetFocus() {
+      if (nsContentUtils::IsFocusedContent(mFrame->GetContent()))
+        mFrame->SetFocus(true, false);
+    }
+  private:
+    nsTextControlFrame *mFrame;
+  };
+  EnsureSetFocus makeSureSetFocusHappens(this);
 
 #ifdef DEBUG
-    // Make sure we are not being called again until we're finished.
-    // If reentrancy happens, just pretend that we don't have an editor.
-    const EditorInitializerEntryTracker tracker(*this);
-    NS_ASSERTION(!tracker.EnteredMoreThanOnce(),
-                 "EnsureEditorInitialized has been called while a previous call was in progress");
+  // Make sure we are not being called again until we're finished.
+  // If reentrancy happens, just pretend that we don't have an editor.
+  const EditorInitializerEntryTracker tracker(*this);
+  NS_ASSERTION(!tracker.EnteredMoreThanOnce(),
+               "EnsureEditorInitialized has been called while a previous call was in progress");
 #endif
 
-    // Create an editor for the frame, if one doesn't already exist
-    nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
-    NS_ASSERTION(txtCtrl, "Content not a text control element");
-    nsresult rv = txtCtrl->CreateEditor();
-    NS_ENSURE_SUCCESS(rv, rv);
-    NS_ENSURE_STATE(weakFrame.IsAlive());
+  // Create an editor for the frame, if one doesn't already exist
+  nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
+  NS_ASSERTION(txtCtrl, "Content not a text control element");
+  nsresult rv = txtCtrl->CreateEditor();
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    // Turn on mUseEditor so that subsequent calls will use the
-    // editor.
-    mUseEditor = true;
+  // Turn on mUseEditor so that subsequent calls will use the
+  // editor.
+  mUseEditor = true;
 
-    // Set the selection to the beginning of the text field.
-    if (weakFrame.IsAlive()) {
-      SetSelectionEndPoints(0, 0);
-    }
+  // Set the selection to the beginning of the text field.
+  if (weakFrame.IsAlive()) {
+    SetSelectionEndPoints(0, 0);
   }
-  NS_ENSURE_STATE(weakFrame.IsAlive());
+
   return NS_OK;
 }
 
@@ -424,7 +432,7 @@ nsTextControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
 void
 nsTextControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                             uint32_t aFilter)
+                                             PRUint32 aFilter)
 {
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");
@@ -438,7 +446,7 @@ nsTextControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
 nscoord
 nsTextControlFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
 {
-    DebugOnly<nscoord> result = 0;
+    nscoord result = 0;
     DISPLAY_PREF_WIDTH(this, result);
 
     float inflation = nsLayoutUtils::FontSizeInflationFor(this);
@@ -506,12 +514,14 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
 
   // set values of reflow's out parameters
   aDesiredSize.width = aReflowState.ComputedWidth() +
-                       aReflowState.mComputedBorderPadding.LeftRight();
-  aDesiredSize.height = aReflowState.ComputedHeight() +
-                        aReflowState.mComputedBorderPadding.TopBottom();
+                        aReflowState.mComputedBorderPadding.LeftRight();
+  aDesiredSize.height = NS_CSS_MINMAX(aReflowState.ComputedHeight(),
+                                      aReflowState.mComputedMinHeight,
+                                      aReflowState.mComputedMaxHeight);
+  nscoord lineHeight = aDesiredSize.height;
+  aDesiredSize.height += aReflowState.mComputedBorderPadding.TopBottom();
 
   // computation of the ascent wrt the input height
-  nscoord lineHeight = aReflowState.ComputedHeight();
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
   if (!IsSingleLineTextControl()) {
     lineHeight = nsHTMLReflowState::CalcLineHeight(GetStyleContext(), 
@@ -535,7 +545,6 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
     ReflowTextControlChild(kid, aPresContext, aReflowState, aStatus, aDesiredSize);
     kid = kid->GetNextSibling();
   }
-
   // take into account css properties that affect overflow handling
   FinishAndStoreOverflow(&aDesiredSize);
 
@@ -660,7 +669,7 @@ void nsTextControlFrame::SetFocus(bool aOn, bool aRepaint)
   const bool isFocusedRightNow = ourSel == caretSelection;
   if (!isFocusedRightNow) {
     // Don't scroll the current selection if we've been focused using the mouse.
-    uint32_t lastFocusMethod = 0;
+    PRUint32 lastFocusMethod = 0;
     nsIDocument* doc = GetContent()->GetCurrentDoc();
     if (doc) {
       nsIFocusManager* fm = nsFocusManager::GetFocusManager();
@@ -748,7 +757,7 @@ nsTextControlFrame::GetEditor(nsIEditor **aEditor)
 }
 
 NS_IMETHODIMP
-nsTextControlFrame::GetTextLength(int32_t* aTextLength)
+nsTextControlFrame::GetTextLength(PRInt32* aTextLength)
 {
   NS_ENSURE_ARG_POINTER(aTextLength);
 
@@ -762,9 +771,9 @@ nsTextControlFrame::GetTextLength(int32_t* aTextLength)
 
 nsresult
 nsTextControlFrame::SetSelectionInternal(nsIDOMNode *aStartNode,
-                                         int32_t aStartOffset,
+                                         PRInt32 aStartOffset,
                                          nsIDOMNode *aEndNode,
-                                         int32_t aEndOffset,
+                                         PRInt32 aEndOffset,
                                          nsITextControlFrame::SelectionDirection aDirection)
 {
   // Create a new range to represent the new selection.
@@ -859,7 +868,7 @@ nsTextControlFrame::SelectAllOrCollapseToEndOfText(bool aSelect)
 
   NS_ENSURE_TRUE(rootNode && rootContent, NS_ERROR_FAILURE);
 
-  int32_t numChildren = rootContent->GetChildCount();
+  PRInt32 numChildren = rootContent->GetChildCount();
 
   if (numChildren > 0) {
     // We never want to place the selection after the last
@@ -887,7 +896,7 @@ nsTextControlFrame::SelectAllOrCollapseToEndOfText(bool aSelect)
 }
 
 nsresult
-nsTextControlFrame::SetSelectionEndPoints(int32_t aSelStart, int32_t aSelEnd,
+nsTextControlFrame::SetSelectionEndPoints(PRInt32 aSelStart, PRInt32 aSelEnd,
                                           nsITextControlFrame::SelectionDirection aDirection)
 {
   NS_ASSERTION(aSelStart <= aSelEnd, "Invalid selection offsets!");
@@ -896,7 +905,7 @@ nsTextControlFrame::SetSelectionEndPoints(int32_t aSelStart, int32_t aSelEnd,
     return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIDOMNode> startNode, endNode;
-  int32_t startOffset, endOffset;
+  PRInt32 startOffset, endOffset;
 
   // Calculate the selection start point.
 
@@ -922,7 +931,7 @@ nsTextControlFrame::SetSelectionEndPoints(int32_t aSelStart, int32_t aSelEnd,
 }
 
 NS_IMETHODIMP
-nsTextControlFrame::SetSelectionRange(int32_t aSelStart, int32_t aSelEnd,
+nsTextControlFrame::SetSelectionRange(PRInt32 aSelStart, PRInt32 aSelEnd,
                                       nsITextControlFrame::SelectionDirection aDirection)
 {
   nsresult rv = EnsureEditorInitialized();
@@ -940,12 +949,12 @@ nsTextControlFrame::SetSelectionRange(int32_t aSelStart, int32_t aSelEnd,
 
 
 NS_IMETHODIMP
-nsTextControlFrame::SetSelectionStart(int32_t aSelectionStart)
+nsTextControlFrame::SetSelectionStart(PRInt32 aSelectionStart)
 {
   nsresult rv = EnsureEditorInitialized();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t selStart = 0, selEnd = 0; 
+  PRInt32 selStart = 0, selEnd = 0; 
 
   rv = GetSelectionRange(&selStart, &selEnd);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -961,12 +970,12 @@ nsTextControlFrame::SetSelectionStart(int32_t aSelectionStart)
 }
 
 NS_IMETHODIMP
-nsTextControlFrame::SetSelectionEnd(int32_t aSelectionEnd)
+nsTextControlFrame::SetSelectionEnd(PRInt32 aSelectionEnd)
 {
   nsresult rv = EnsureEditorInitialized();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t selStart = 0, selEnd = 0; 
+  PRInt32 selStart = 0, selEnd = 0; 
 
   rv = GetSelectionRange(&selStart, &selEnd);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -982,9 +991,9 @@ nsTextControlFrame::SetSelectionEnd(int32_t aSelectionEnd)
 }
 
 nsresult
-nsTextControlFrame::OffsetToDOMPoint(int32_t aOffset,
+nsTextControlFrame::OffsetToDOMPoint(PRInt32 aOffset,
                                      nsIDOMNode** aResult,
-                                     int32_t* aPosition)
+                                     PRInt32* aPosition)
 {
   NS_ENSURE_ARG_POINTER(aResult && aPosition);
 
@@ -1004,7 +1013,7 @@ nsTextControlFrame::OffsetToDOMPoint(int32_t aOffset,
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(nodeList, NS_ERROR_FAILURE);
 
-  uint32_t length = 0;
+  PRUint32 length = 0;
 
   rv = nodeList->GetLength(&length);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1020,9 +1029,9 @@ nsTextControlFrame::OffsetToDOMPoint(int32_t aOffset,
     NS_IF_ADDREF(*aResult = rootNode);
     *aPosition = 0;
   } else if (textNode) {
-    uint32_t textLength = 0;
+    PRUint32 textLength = 0;
     textNode->GetLength(&textLength);
-    if (length == 2 && uint32_t(aOffset) == textLength) {
+    if (length == 2 && PRUint32(aOffset) == textLength) {
       // If we're at the end of the text node and we have a trailing BR node,
       // set the selection on the BR node.
       NS_IF_ADDREF(*aResult = rootNode);
@@ -1030,7 +1039,7 @@ nsTextControlFrame::OffsetToDOMPoint(int32_t aOffset,
     } else {
       // Otherwise, set the selection on the textnode itself.
       NS_IF_ADDREF(*aResult = firstNode);
-      *aPosition = NS_MIN(aOffset, int32_t(textLength));
+      *aPosition = NS_MIN(aOffset, PRInt32(textLength));
     }
   } else {
     NS_IF_ADDREF(*aResult = rootNode);
@@ -1041,8 +1050,8 @@ nsTextControlFrame::OffsetToDOMPoint(int32_t aOffset,
 }
 
 NS_IMETHODIMP
-nsTextControlFrame::GetSelectionRange(int32_t* aSelectionStart,
-                                      int32_t* aSelectionEnd,
+nsTextControlFrame::GetSelectionRange(PRInt32* aSelectionStart,
+                                      PRInt32* aSelectionEnd,
                                       SelectionDirection* aDirection)
 {
   // make sure we have an editor
@@ -1092,10 +1101,8 @@ nsTextControlFrame::GetSelectionRange(int32_t* aSelectionStart,
     return NS_OK;
   }
 
-  mozilla::dom::Element* root = GetRootNodeAndInitializeEditor();
-  NS_ENSURE_STATE(root);
-  nsContentUtils::GetSelectionInTextControl(typedSel, root,
-                                            *aSelectionStart, *aSelectionEnd);
+  nsContentUtils::GetSelectionInTextControl(typedSel,
+    GetRootNodeAndInitializeEditor(), *aSelectionStart, *aSelectionEnd);
 
   return NS_OK;
 }
@@ -1104,9 +1111,9 @@ nsTextControlFrame::GetSelectionRange(int32_t* aSelectionStart,
 
 ////NSIFRAME
 NS_IMETHODIMP
-nsTextControlFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsTextControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                      nsIAtom*        aAttribute,
-                                     int32_t         aModType)
+                                     PRInt32         aModType)
 {
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element");
@@ -1126,7 +1133,7 @@ nsTextControlFrame::AttributeChanged(int32_t         aNameSpaceID,
 
   if (nsGkAtoms::maxlength == aAttribute) 
   {
-    int32_t maxLength;
+    PRInt32 maxLength;
     bool maxDefined = GetMaxLength(&maxLength);
     
     nsCOMPtr<nsIPlaintextEditor> textEditor = do_QueryInterface(editor);
@@ -1145,7 +1152,7 @@ nsTextControlFrame::AttributeChanged(int32_t         aNameSpaceID,
   } 
   else if (nsGkAtoms::readonly == aAttribute) 
   {
-    uint32_t flags;
+    PRUint32 flags;
     editor->GetFlags(&flags);
     if (AttributeExists(nsGkAtoms::readonly))
     { // set readonly
@@ -1164,7 +1171,7 @@ nsTextControlFrame::AttributeChanged(int32_t         aNameSpaceID,
   }
   else if (nsGkAtoms::disabled == aAttribute) 
   {
-    uint32_t flags;
+    PRUint32 flags;
     editor->GetFlags(&flags);
     if (AttributeExists(nsGkAtoms::disabled))
     { // set disabled
@@ -1237,7 +1244,7 @@ nsTextControlFrame::GetPhonetic(nsAString& aPhonetic)
 /////BEGIN PROTECTED METHODS
 
 bool
-nsTextControlFrame::GetMaxLength(int32_t* aSize)
+nsTextControlFrame::GetMaxLength(PRInt32* aSize)
 {
   *aSize = -1;
 
@@ -1303,7 +1310,7 @@ nsTextControlFrame::SetValueChanged(bool aValueChanged)
   NS_ASSERTION(txtCtrl, "Content not a text control element");
 
   if (mUsePlaceholder) {
-    int32_t textLength;
+    PRInt32 textLength;
     GetTextLength(&textLength);
 
     nsWeakFrame weakFrame(this);

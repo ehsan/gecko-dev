@@ -7,12 +7,11 @@
 
 include protocol PNecko;
 include protocol PBrowser;
-include InputStreamParams;
-include URIParams;
 
-include protocol PBlob; //FIXME: bug #792908
+include "mozilla/net/NeckoMessageUtils.h";
 
-include "SerializedLoadContext.h";
+using IPC::URI;
+using IPC::InputStream;
 using IPC::SerializedLoadContext;
 
 namespace mozilla {
@@ -24,15 +23,15 @@ async protocol PWebSocket
 
 parent:
   // Forwarded methods corresponding to methods on nsIWebSocketChannel
-  AsyncOpen(URIParams aURI,
+  AsyncOpen(URI aURI,
             nsCString aOrigin,
             nsCString aProtocol,
             bool aSecure,
             SerializedLoadContext loadContext);
-  Close(uint16_t code, nsCString reason);
+  Close(PRUint16 code, nsCString reason);
   SendMsg(nsCString aMsg);
   SendBinaryMsg(nsCString aMsg);
-  SendBinaryStream(InputStreamParams aStream, uint32_t aLength);
+  SendBinaryStream(InputStream aStream, PRUint32 aLength);
 
   DeleteSelf();
 
@@ -42,8 +41,8 @@ child:
   OnStop(nsresult aStatusCode);
   OnMessageAvailable(nsCString aMsg);
   OnBinaryMessageAvailable(nsCString aMsg);
-  OnAcknowledge(uint32_t aSize);
-  OnServerClose(uint16_t code, nsCString aReason);
+  OnAcknowledge(PRUint32 aSize);
+  OnServerClose(PRUint16 code, nsCString aReason);
 
   __delete__();
 

@@ -184,7 +184,6 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
     unsigned staticLevel;
     RootedValue thisv(cx);
     if (evalType == DIRECT_EVAL) {
-        JS_ASSERT(!caller->runningInIon());
         staticLevel = caller->script()->staticLevel + 1;
 
         // Direct calls to eval are supposed to see the caller's |this|. If we
@@ -198,18 +197,19 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
         staticLevel = 0;
 
         // Use the global as 'this', modulo outerization.
-        JSObject *thisobj = JSObject::thisObject(cx, scopeobj);
+        JSObject *thisobj = scopeobj->thisObject(cx);
         if (!thisobj)
             return false;
         thisv = ObjectValue(*thisobj);
     }
 
-    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
-    if (!stableStr)
+    Rooted<JSLinearString*> linearStr(cx, str->ensureLinear(cx));
+    if (!linearStr)
         return false;
+    const jschar *chars = linearStr->chars();
+    size_t length = linearStr->length();
 
-    StableCharPtr chars = stableStr->chars();
-    size_t length = stableStr->length();
+    SkipRoot skip(cx, &chars);
 
     // If the eval string starts with '(' or '[' and ends with ')' or ']', it may be JSON.
     // Try the JSON parser first because it's much faster.  If the eval string
@@ -237,7 +237,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
 
             if (cp == end) {
                 bool isArray = (chars[0] == '[');
-                JSONParser parser(cx, isArray ? chars : chars + 1U, isArray ? length : length - 2,
+                JSONParser parser(cx, isArray ? chars : chars + 1, isArray ? length : length - 2,
                                   JSONParser::StrictJSON, JSONParser::NoError);
                 RootedValue tmp(cx);
                 if (!parser.parse(&tmp))
@@ -255,7 +255,7 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
     JSPrincipals *principals = PrincipalsForCompiledCode(args, cx);
 
     if (evalType == DIRECT_EVAL && caller->isNonEvalFunctionFrame())
-        esg.lookupInEvalCache(stableStr, caller->fun(), staticLevel);
+        esg.lookupInEvalCache(linearStr, caller->fun(), staticLevel);
 
     if (!esg.foundScript()) {
         unsigned lineno;
@@ -272,7 +272,8 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, StackFrame *c
                .setPrincipals(principals)
                .setOriginPrincipals(originPrincipals);
         JSScript *compiled = frontend::CompileScript(cx, scopeobj, caller, options,
-                                                     chars, length, stableStr, staticLevel);
+                                                     chars, length, linearStr,
+                                                     staticLevel);
         if (!compiled)
             return false;
 
@@ -323,6 +324,7 @@ js::DirectEval(JSContext *cx, const CallArgs &args)
 {
     // Direct eval can assume it was called from an interpreted frame.
     StackFrame *caller = cx->fp();
+    JS_ASSERT(caller->isScriptFrame());
     JS_ASSERT(IsBuiltinEvalForScope(caller->scopeChain(), args.calleev()));
     JS_ASSERT(JSOp(*cx->regs().pc) == JSOP_EVAL);
 
@@ -364,5 +366,5 @@ js::PrincipalsForCompiledCode(const CallReceiver &call, JSContext *cx)
     // compiled code will be run with the callee's scope chain, this would make
     // fp->script()->compartment() != fp->compartment().
 
-    return call.callee().compartment()->principals;
+    return call.callee().principals(cx);
 }

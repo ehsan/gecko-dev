@@ -24,7 +24,7 @@ xptiTypelibGuts::Create(XPTHeader* aHeader)
 }
 
 xptiInterfaceEntry*
-xptiTypelibGuts::GetEntryAt(uint16_t i)
+xptiTypelibGuts::GetEntryAt(PRUint16 i)
 {
     static const nsID zeroIID =
         { 0x0, 0x0, 0x0, { 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0 } };

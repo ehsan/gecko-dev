@@ -6,7 +6,6 @@
 #ifndef nsFileControlFrame_h___
 #define nsFileControlFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsBlockFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIDOMEventListener.h"
@@ -37,32 +36,32 @@ public:
 
   // nsIFormControlFrame
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
-  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const MOZ_OVERRIDE;
+  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const;
   virtual void SetFocus(bool aOn, bool aRepaint);
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+                              PRInt32         aModType);
   virtual void ContentStatesChanged(nsEventStates aStates);
   virtual bool IsLeaf() const;
 
 
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) MOZ_OVERRIDE;
+  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter) MOZ_OVERRIDE;
+                                        PRUint32 aFilter);
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual already_AddRefed<Accessible> CreateAccessible();
 #endif  
 
   typedef bool (*AcceptAttrCallback)(const nsAString&, void*);
@@ -71,10 +70,10 @@ protected:
   
   struct CaptureCallbackData {
     nsICapturePicker* picker;
-    uint32_t mode;
+    PRUint32 mode;
   };
   
-  uint32_t GetCaptureMode(const CaptureCallbackData& aData);
+  PRUint32 GetCaptureMode(const CaptureCallbackData& aData);
   
   class MouseListener;
   friend class MouseListener;
@@ -124,7 +123,7 @@ protected:
     {}
 
     NS_DECL_NSIDOMEVENTLISTENER
-    uint32_t mMode;
+    PRUint32 mMode;
   };
   
   class BrowseMouseListener: public MouseListener {
@@ -138,13 +137,13 @@ protected:
     static bool IsValidDropData(nsIDOMDragEvent* aEvent);
   };
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return nsBlockFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
-  virtual int GetSkipSides() const MOZ_OVERRIDE;
+  virtual int GetSkipSides() const;
 
   /**
    * The text box input.
@@ -181,8 +180,8 @@ protected:
    * @param aAttribute attribute atom
    * @param aWhichControls which controls to apply to (SYNC_TEXT or SYNC_FILE)
    */
-  void SyncAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                int32_t aWhichControls);
+  void SyncAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                PRInt32 aWhichControls);
 
   /**
    * Sync the disabled state of the content with anonymous children.

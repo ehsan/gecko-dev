@@ -40,12 +40,7 @@ struct PRLogModuleInfo;
 class gfxContext;
 class nsPaintEvent;
 
-extern uint8_t gLayerManagerLayerBuilder;
-
 namespace mozilla {
-
-class FrameLayerBuilder;
-
 namespace gl {
 class GLContext;
 }
@@ -57,7 +52,6 @@ class ComputedTimingFunction;
 namespace layers {
 
 class Animation;
-class AnimationData;
 class CommonLayerAttributes;
 class Layer;
 class ThebesLayer;
@@ -145,11 +139,7 @@ class THEBES_API LayerManager {
   NS_INLINE_DECL_REFCOUNTING(LayerManager)
 
 public:
-  LayerManager()
-    : mDestroyed(false)
-    , mSnapEffectiveTransforms(true)
-    , mId(0)
-    , mInTransaction(false)
+  LayerManager() : mDestroyed(false), mSnapEffectiveTransforms(true), mId(0)
   {
     InitLog();
   }
@@ -191,16 +181,12 @@ public:
    * EndTransaction returns.
    */
   virtual void BeginTransactionWithTarget(gfxContext* aTarget) = 0;
-
+  
   enum EndTransactionFlags {
     END_DEFAULT = 0,
     END_NO_IMMEDIATE_REDRAW = 1 << 0,  // Do not perform the drawing phase
     END_NO_COMPOSITE = 1 << 1 // Do not composite after drawing thebes layer contents.
   };
-
-  FrameLayerBuilder* GetLayerBuilder() {
-    return reinterpret_cast<FrameLayerBuilder*>(GetUserData(&gLayerManagerLayerBuilder));
-  }
 
   /**
    * Attempts to end an "empty transaction". There must have been no
@@ -277,13 +263,6 @@ public:
    * Can be called anytime
    */
   Layer* GetRoot() { return mRoot; }
-
-  /**
-   * Does a breadth-first search from the root layer to find the first
-   * scrollable layer.
-   * Can be called any time.
-   */
-  Layer* GetPrimaryScrollableLayer();
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -388,10 +367,10 @@ public:
   virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize) { return true; }
 
   /**
-   * returns the maximum texture size on this layer backend, or INT32_MAX
+   * returns the maximum texture size on this layer backend, or PR_INT32_MAX
    * if there is no maximum
    */
-  virtual int32_t GetMaxTextureSize() const = 0;
+  virtual PRInt32 GetMaxTextureSize() const = 0;
 
   /**
    * Return the name of the layer manager's backend.
@@ -468,8 +447,6 @@ public:
 
   void PostPresent();
 
-  void BeginTabSwitch();
-
   static bool IsLogEnabled();
   static PRLogModuleInfo* GetLog() { return sLog; }
 
@@ -477,8 +454,6 @@ public:
   { return LAYERS_BASIC != aBackend; }
 
   virtual bool IsCompositingCheap() { return true; }
-
-  bool IsInTransaction() const { return mInTransaction; }
 
 protected:
   nsRefPtr<Layer> mRoot;
@@ -493,11 +468,9 @@ protected:
   static void InitLog();
   static PRLogModuleInfo* sLog;
   uint64_t mId;
-  bool mInTransaction;
 private:
   TimeStamp mLastFrameTime;
   nsTArray<float> mFrameTimes;
-  TimeStamp mTabSwitchStart;
 };
 
 class ThebesLayer;
@@ -566,15 +539,13 @@ public:
    * visible region of the ThebesLayer. This enables internal quality
    * and performance optimizations.
    */
-  void SetContentFlags(uint32_t aFlags)
+  void SetContentFlags(PRUint32 aFlags)
   {
     NS_ASSERTION((aFlags & (CONTENT_OPAQUE | CONTENT_COMPONENT_ALPHA)) !=
                  (CONTENT_OPAQUE | CONTENT_COMPONENT_ALPHA),
                  "Can't be opaque and require component alpha");
-    if (mContentFlags != aFlags) {
-      mContentFlags = aFlags;
-      Mutated();
-    }
+    mContentFlags = aFlags;
+    Mutated();
   }
   /**
    * CONSTRUCTION PHASE ONLY
@@ -591,10 +562,8 @@ public:
    */
   virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
-    if (!mVisibleRegion.IsEqual(aRegion)) {
-      mVisibleRegion = aRegion;
-      Mutated();
-    }
+    mVisibleRegion = aRegion;
+    Mutated();
   }
 
   /**
@@ -604,10 +573,8 @@ public:
    */
   void SetOpacity(float aOpacity)
   {
-    if (mOpacity != aOpacity) {
-      mOpacity = aOpacity;
-      Mutated();
-    }
+    mOpacity = aOpacity;
+    Mutated();
   }
 
   /**
@@ -622,25 +589,11 @@ public:
    */
   void SetClipRect(const nsIntRect* aRect)
   {
-    if (mUseClipRect) {
-      if (!aRect) {
-        mUseClipRect = false;
-        Mutated();
-      } else {
-        if (!aRect->IsEqualEdges(mClipRect)) {
-          mClipRect = *aRect;
-          Mutated();
-        }
-      }
-    } else {
-      if (aRect) {
-        Mutated();
-        mUseClipRect = true;
-        if (!aRect->IsEqualEdges(mClipRect)) {
-          mClipRect = *aRect;
-        }
-      }
+    mUseClipRect = aRect != nullptr;
+    if (aRect) {
+      mClipRect = *aRect;
     }
+    Mutated();
   }
 
   /**
@@ -689,10 +642,8 @@ public:
     }
 #endif
 
-    if (mMaskLayer != aMaskLayer) {
-      mMaskLayer = aMaskLayer;
-      Mutated();
-    }
+    mMaskLayer = aMaskLayer;
+    Mutated();
   }
 
   /**
@@ -704,25 +655,8 @@ public:
    */
   void SetBaseTransform(const gfx3DMatrix& aMatrix)
   {
-    mPendingTransform = nullptr;
-    if (mTransform == aMatrix) {
-      return;
-    }
     mTransform = aMatrix;
     Mutated();
-  }
-
-  /**
-   * Can be called at any time.
-   *
-   * Like SetBaseTransform(), but can be called before the next
-   * transform (i.e. outside an open transaction).  Semantically, this
-   * method enqueues a new transform value to be set immediately after
-   * the next transaction is opened.
-   */
-  void SetBaseTransformForNextTransaction(const gfx3DMatrix& aMatrix)
-  {
-    mPendingTransform = new gfx3DMatrix(aMatrix);
   }
 
   void SetPostScale(float aXScale, float aYScale)
@@ -740,11 +674,8 @@ public:
    */
   void SetIsFixedPosition(bool aFixedPosition) { mIsFixedPosition = aFixedPosition; }
 
-  // Call AddAnimation to add a new animation to this layer from layout code.
-  // Caller must add segments to the returned animation.
-  Animation* AddAnimation(mozilla::TimeStamp aStart, mozilla::TimeDuration aDuration,
-                          float aIterations, int aDirection,
-                          nsCSSProperty aProperty, const AnimationData& aData);
+  // Call AddAnimation to add an animation to this layer from layout code.
+  void AddAnimation(const Animation& aAnimation);
   // ClearAnimations clears animations on this layer.
   void ClearAnimations();
   // This is only called when the layer tree is updated. Do not call this from
@@ -763,7 +694,7 @@ public:
   // These getters can be used anytime.
   float GetOpacity() { return mOpacity; }
   const nsIntRect* GetClipRect() { return mUseClipRect ? &mClipRect : nullptr; }
-  uint32_t GetContentFlags() { return mContentFlags; }
+  PRUint32 GetContentFlags() { return mContentFlags; }
   const nsIntRegion& GetVisibleRegion() { return mVisibleRegion; }
   ContainerLayer* GetParent() { return mParent; }
   Layer* GetNextSibling() { return mNextSibling; }
@@ -780,15 +711,6 @@ public:
 
   AnimationArray& GetAnimations() { return mAnimations; }
   InfallibleTArray<AnimData>& GetAnimationData() { return mAnimationData; }
-
-  /**
-   * DRAWING PHASE ONLY
-   *
-   * Apply pending changes to layers before drawing them, if those
-   * pending changes haven't been overridden by later changes.
-   */
-  void ApplyPendingUpdatesToSubtree();
-
   /**
    * DRAWING PHASE ONLY
    *
@@ -983,33 +905,9 @@ public:
 
   static bool IsLogEnabled() { return LayerManager::IsLogEnabled(); }
 
-  /**
-   * Returns the current area of the layer (in layer-space coordinates)
-   * marked as needed to be recomposited.
-   */
-  const nsIntRegion& GetInvalidRegion() { return mInvalidRegion; }
-
-  /**
-   * Mark the entirety of the layer's visible region as being invalid.
-   */
-  void SetInvalidRectToVisibleRegion() { mInvalidRegion = GetVisibleRegion(); }
-
-  /**
-   * Adds to the current invalid rect.
-   */
-  void AddInvalidRect(const nsIntRect& aRect) { mInvalidRegion.Or(mInvalidRegion, aRect); }
-
-  /**
-   * Clear the invalid rect, marking the layer as being identical to what is currently
-   * composited.
-   */
-  void ClearInvalidRect() { mInvalidRegion.SetEmpty(); }
-
-  void ApplyPendingUpdatesForThisTransaction();
-
 #ifdef DEBUG
-  void SetDebugColorIndex(uint32_t aIndex) { mDebugColorIndex = aIndex; }
-  uint32_t GetDebugColorIndex() { return mDebugColorIndex; }
+  void SetDebugColorIndex(PRUint32 aIndex) { mDebugColorIndex = aIndex; }
+  PRUint32 GetDebugColorIndex() { return mDebugColorIndex; }
 #endif
 
 protected:
@@ -1060,10 +958,6 @@ protected:
   gfx::UserData mUserData;
   nsIntRegion mVisibleRegion;
   gfx3DMatrix mTransform;
-  // A mutation of |mTransform| that we've queued to be applied at the
-  // end of the next transaction (if nothing else overrides it in the
-  // meantime).
-  nsAutoPtr<gfx3DMatrix> mPendingTransform;
   float mPostXScale;
   float mPostYScale;
   gfx3DMatrix mEffectiveTransform;
@@ -1072,13 +966,12 @@ protected:
   float mOpacity;
   nsIntRect mClipRect;
   nsIntRect mTileSourceRect;
-  nsIntRegion mInvalidRegion;
-  uint32_t mContentFlags;
+  PRUint32 mContentFlags;
   bool mUseClipRect;
   bool mUseTileSourceRect;
   bool mIsFixedPosition;
   gfxPoint mAnchor;
-  DebugOnly<uint32_t> mDebugColorIndex;
+  DebugOnly<PRUint32> mDebugColorIndex;
 };
 
 /**
@@ -1136,7 +1029,7 @@ public:
     // preserved exactly
     NS_ASSERTION(!residual.HasNonTranslation(),
                  "Residual transform can only be a translation");
-    if (!residual.GetTranslation().WithinEpsilonOf(mResidualTranslation, 1e-3f)) {
+    if (residual.GetTranslation() != mResidualTranslation) {
       mResidualTranslation = residual.GetTranslation();
       NS_ASSERTION(-0.5 <= mResidualTranslation.x && mResidualTranslation.x < 0.5 &&
                    -0.5 <= mResidualTranslation.y && mResidualTranslation.y < 0.5,
@@ -1208,14 +1101,6 @@ public:
    * be a child of this container.
    */
   virtual void RemoveChild(Layer* aChild) = 0;
-  /**
-   * CONSTRUCTION PHASE ONLY
-   * Reposition aChild from the child list of this container. aChild must
-   * be a child of this container.
-   * If aAfter is non-null, it must be a child of this container and we
-   * reposition after that layer. If it's null, we reposition at the start.
-   */
-  virtual void RepositionChild(Layer* aChild, Layer* aAfter) = 0;
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -1224,10 +1109,8 @@ public:
    */
   void SetFrameMetrics(const FrameMetrics& aFrameMetrics)
   {
-    if (mFrameMetrics != aFrameMetrics) {
-      mFrameMetrics = aFrameMetrics;
-      Mutated();
-    }
+    mFrameMetrics = aFrameMetrics;
+    Mutated();
   }
 
   void SetPreScale(float aXScale, float aYScale)
@@ -1418,27 +1301,7 @@ public:
    * Notify this CanvasLayer that the canvas surface contents have
    * changed (or will change) before the next transaction.
    */
-  void Updated() { mDirty = true; SetInvalidRectToVisibleRegion(); }
-
-  /**
-   * Notify this CanvasLayer that the canvas surface contents have
-   * been painted since the last change.
-   */
-  void Painted() { mDirty = false; }
-
-  /**
-   * Returns true if the canvas surface contents have changed since the
-   * last paint.
-   */
-  bool IsDirty() 
-  { 
-    // We can only tell if we are dirty if we're part of the
-    // widget's retained layer tree.
-    if (!mManager || !mManager->IsWidgetLayerManager()) {
-      return true;
-    }
-    return mDirty; 
-  }
+  void Updated() { mDirty = true; }
 
   /**
    * Register a callback to be called at the end of each transaction.
@@ -1494,8 +1357,6 @@ protected:
   DidTransactionCallback mCallback;
   void* mCallbackData;
   gfxPattern::GraphicsFilter mFilter;
-
-private:
   /**
    * Set to true in Updated(), cleared during a transaction.
    */
@@ -1529,9 +1390,6 @@ private:
   virtual void RemoveChild(Layer* aChild)
   { MOZ_NOT_REACHED("no"); }
 
-  virtual void RepositionChild(Layer* aChild, Layer* aAfter)
-  { MOZ_NOT_REACHED("no"); }
-
   using ContainerLayer::SetFrameMetrics;
 
 public:
@@ -1542,10 +1400,7 @@ public:
   void SetReferentId(uint64_t aId)
   {
     MOZ_ASSERT(aId != 0);
-    if (mId != aId) {
-      mId = aId;
-      Mutated();
-    }
+    mId = aId;
   }
   /**
    * CONSTRUCTION PHASE ONLY

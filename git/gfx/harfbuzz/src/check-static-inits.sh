@@ -14,24 +14,18 @@ else
 	exit 77
 fi
 
-OBJS=.libs/*.o
-if test "x`echo $OBJS`" = "x$OBJS" 2>/dev/null >/dev/null; then
-	echo "check-static-inits.sh: object files not found; skipping test"
-	exit 77
-fi
-
 echo "Checking that no object file has static initializers"
-for obj in $OBJS; do
+for obj in .libs/*.o; do
 	if objdump -t "$obj" | grep '[.]ctors'; then
 		echo "Ouch, $obj has static initializers"
 		stat=1
 	fi
 done
 
-echo "Checking that no object file has lazy static C++ constructors/destructors or other such stuff"
-for obj in $OBJS; do
+echo "Checking that no object file has lazy static C++ constructors/destructors"
+for obj in .libs/*.o; do
 	if objdump -t "$obj" | grep '__c'; then
-		echo "Ouch, $obj has lazy static C++ constructors/destructors or other such stuff"
+		echo "Ouch, $obj has lazy static C++ constructors/destructors"
 		stat=1
 	fi
 done

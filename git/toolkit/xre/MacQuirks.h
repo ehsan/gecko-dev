@@ -18,12 +18,12 @@
 // library does not link with libxul.
 
 struct VersionPart {
-  int32_t     numA;
+  PRInt32     numA;
 
   const char *strB;    // NOT null-terminated, can be a null pointer
-  uint32_t    strBlen;
+  PRUint32    strBlen;
 
-  int32_t     numC;
+  PRInt32     numC;
 
   char       *extraD;  // null-terminated
 };
@@ -98,7 +98,7 @@ ParseVP(char *part, VersionPart &result)
 
 
 // compare two null-terminated strings, which may be null pointers
-static int32_t
+static PRInt32
 ns_strcmp(const char *str1, const char *str2)
 {
   // any string is *before* no string
@@ -112,8 +112,8 @@ ns_strcmp(const char *str1, const char *str2)
 }
 
 // compare two length-specified string, which may be null pointers
-static int32_t
-ns_strnncmp(const char *str1, uint32_t len1, const char *str2, uint32_t len2)
+static PRInt32
+ns_strnncmp(const char *str1, PRUint32 len1, const char *str2, PRUint32 len2)
 {
   // any string is *before* no string
   if (!str1)
@@ -136,9 +136,9 @@ ns_strnncmp(const char *str1, uint32_t len1, const char *str2, uint32_t len2)
   return 1;
 }
 
-// compare two int32_t
-static int32_t
-ns_cmp(int32_t n1, int32_t n2)
+// compare two PRInt32
+static PRInt32
+ns_cmp(PRInt32 n1, PRInt32 n2)
 {
   if (n1 < n2)
     return -1;
@@ -149,10 +149,10 @@ ns_cmp(int32_t n1, int32_t n2)
 /**
  * Compares two VersionParts
  */
-static int32_t
+static PRInt32
 CompareVP(VersionPart &v1, VersionPart &v2)
 {
-  int32_t r = ns_cmp(v1.numA, v2.numA);
+  PRInt32 r = ns_cmp(v1.numA, v2.numA);
   if (r)
     return r;
 
@@ -169,7 +169,7 @@ CompareVP(VersionPart &v1, VersionPart &v2)
 
 /* this is intentionally not static so that we don't end up making copies
  * anywhere */
-int32_t
+PRInt32
 NS_CompareVersions(const char *A, const char *B)
 {
   char *A2 = strdup(A);
@@ -182,7 +182,7 @@ NS_CompareVersions(const char *A, const char *B)
     return 1;
   }
 
-  int32_t result;
+  PRInt32 result;
   char *a = A2, *b = B2;
 
   do {

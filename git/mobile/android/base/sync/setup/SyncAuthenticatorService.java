@@ -8,9 +8,9 @@ import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 
 import org.mozilla.gecko.sync.GlobalConstants;
-import org.mozilla.gecko.sync.SyncConstants;
 import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.Utils;
+import org.mozilla.gecko.sync.config.AccountPickler;
 import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
 
 import android.accounts.AbstractAccountAuthenticator;
@@ -26,7 +26,6 @@ import android.os.IBinder;
 
 public class SyncAuthenticatorService extends Service {
   private static final String LOG_TAG = "SyncAuthService";
-
   private SyncAccountAuthenticator sAccountAuthenticator = null;
 
   @Override
@@ -100,7 +99,7 @@ public class SyncAuthenticatorService extends Service {
     final Bundle result = new Bundle();
 
     // This is a Sync account.
-    result.putString(AccountManager.KEY_ACCOUNT_TYPE, SyncConstants.ACCOUNTTYPE_SYNC);
+    result.putString(AccountManager.KEY_ACCOUNT_TYPE, GlobalConstants.ACCOUNTTYPE_SYNC);
 
     // Server.
     String serverURL = am.getUserData(account, Constants.OPTION_SERVER);
@@ -146,7 +145,7 @@ public class SyncAuthenticatorService extends Service {
       final Intent intent = new Intent(mContext, SetupSyncActivity.class);
       intent.putExtra(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE,
                       response);
-      intent.putExtra("accountType", SyncConstants.ACCOUNTTYPE_SYNC);
+      intent.putExtra("accountType", GlobalConstants.ACCOUNTTYPE_SYNC);
       intent.putExtra(Constants.INTENT_EXTRA_IS_SETUP, true);
 
       final Bundle result = new Bundle();
@@ -210,45 +209,28 @@ public class SyncAuthenticatorService extends Service {
      * Bug 769745: persist pickled Sync account settings so that we can unpickle
      * after Fennec is moved to the SD card.
      * <p>
-     * This is <b>not</b> called when an Android Account is blown away due to
-     * the SD card being unmounted.
+     * This is <b>not</b> called when an Android Account is blown away due to the
+     * SD card being unmounted.
      * <p>
-     * Broadcasting a Firefox intent to version sharing this Android Account is
-     * a terrible hack, but it's better than the catching the generic
+     * This is a terrible hack, but it's better than the catching the generic
      * "accounts changed" broadcast intent and trying to figure out whether our
      * Account disappeared.
      */
     @Override
-    public Bundle getAccountRemovalAllowed(final AccountAuthenticatorResponse response, Account account)
-        throws NetworkErrorException {
+    public Bundle getAccountRemovalAllowed(AccountAuthenticatorResponse response, Account account) throws NetworkErrorException {
       Bundle result = super.getAccountRemovalAllowed(response, account);
 
-      if (result == null ||
-          !result.containsKey(AccountManager.KEY_BOOLEAN_RESULT) ||
-          result.containsKey(AccountManager.KEY_INTENT)) {
-        return result;
-      }
+      if (result != null &&
+          result.containsKey(AccountManager.KEY_BOOLEAN_RESULT) &&
+          !result.containsKey(AccountManager.KEY_INTENT)) {
+        final boolean removalAllowed = result.getBoolean(AccountManager.KEY_BOOLEAN_RESULT);
 
-      final boolean removalAllowed = result.getBoolean(AccountManager.KEY_BOOLEAN_RESULT);
-      if (!removalAllowed) {
-        return result;
+        if (removalAllowed) {
+          Logger.info(LOG_TAG, "Account named " + account.name + " being removed; " +
+              "deleting saved pickle file '" + Constants.ACCOUNT_PICKLE_FILENAME + "'.");
+          AccountPickler.deletePickle(mContext, Constants.ACCOUNT_PICKLE_FILENAME);
+        }
       }
-
-      // Bug 790931: Broadcast a message to all Firefox versions sharing this
-      // Android Account type telling that this Sync Account has been deleted.
-      //
-      // We would really prefer to receive Android's
-      // LOGIN_ACCOUNTS_CHANGED_ACTION broadcast, but that
-      // doesn't include enough information about which Accounts changed to
-      // correctly identify whether a Sync account has been removed (when some
-      // Firefox versions are installed on the SD card).
-      //
-      // Broadcast intents protected with permissions are secure, so it's okay
-      // to include password and sync key, etc.
-      final Intent intent = SyncAccounts.makeSyncAccountDeletedIntent(mContext, AccountManager.get(mContext), account);
-      Logger.info(LOG_TAG, "Account named " + account.name + " being removed; " +
-          "broadcasting secure intent " + intent.getAction() + ".");
-      mContext.sendBroadcast(intent, GlobalConstants.PER_ACCOUNT_TYPE_PERMISSION);
 
       return result;
     }

@@ -10,6 +10,7 @@
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
 #include "prenv.h"
+#include "prmem.h"
 #include "prprf.h"
 #include "nsXPIDLString.h"
 #include "nsIFile.h"
@@ -53,12 +54,12 @@ nsResURL::EnsureFile()
 
     NS_ENSURE_TRUE(gResHandler, NS_ERROR_NOT_AVAILABLE);
 
-    nsAutoCString spec;
+    nsCAutoString spec;
     rv = gResHandler->ResolveURI(this, spec);
     if (NS_FAILED(rv))
         return rv;
 
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     rv = net_ExtractURLScheme(spec, nullptr, nullptr, &scheme);
     if (NS_FAILED(rv))
         return rv;
@@ -127,7 +128,7 @@ nsResProtocolHandler::Init()
     mIOService = do_GetIOService(&rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString appURI, greURI;
+    nsCAutoString appURI, greURI;
     rv = mozilla::Omnijar::GetURIString(mozilla::Omnijar::APP, appURI);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = mozilla::Omnijar::GetURIString(mozilla::Omnijar::GRE, greURI);
@@ -216,14 +217,14 @@ nsResProtocolHandler::GetScheme(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsResProtocolHandler::GetDefaultPort(int32_t *result)
+nsResProtocolHandler::GetDefaultPort(PRInt32 *result)
 {
     *result = -1;        // no port for res: URLs
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsResProtocolHandler::GetProtocolFlags(uint32_t *result)
+nsResProtocolHandler::GetProtocolFlags(PRUint32 *result)
 {
     // XXXbz Is this really true for all resource: URIs?  Could we
     // somehow give different flags to some of them?
@@ -247,7 +248,7 @@ nsResProtocolHandler::NewURI(const nsACString &aSpec,
     // unescape any %2f and %2e to make sure nsStandardURL coalesces them.
     // Later net_GetFileFromURLSpec() will do a full unescape and we want to
     // treat them the same way the file system will. (bugs 380994, 394075)
-    nsAutoCString spec;
+    nsCAutoString spec;
     const char *src = aSpec.BeginReading();
     const char *end = aSpec.EndReading();
     const char *last = src;
@@ -285,7 +286,7 @@ nsResProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 {
     NS_ENSURE_ARG_POINTER(uri);
     nsresult rv;
-    nsAutoCString spec;
+    nsCAutoString spec;
 
     rv = ResolveURI(uri, spec);
     if (NS_FAILED(rv)) return rv;
@@ -300,7 +301,7 @@ nsResProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 }
 
 NS_IMETHODIMP 
-nsResProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
+nsResProtocolHandler::AllowPort(PRInt32 port, const char *scheme, bool *_retval)
 {
     // don't override anything.  
     *_retval = false;
@@ -320,7 +321,7 @@ nsResProtocolHandler::SetSubstitution(const nsACString& root, nsIURI *baseURI)
     }
 
     // If baseURI isn't a resource URI, we can set the substitution immediately.
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     nsresult rv = baseURI->GetScheme(scheme);
     NS_ENSURE_SUCCESS(rv, rv);
     if (!scheme.Equals(NS_LITERAL_CSTRING("resource"))) {
@@ -329,7 +330,7 @@ nsResProtocolHandler::SetSubstitution(const nsACString& root, nsIURI *baseURI)
     }
 
     // baseURI is a resource URI, let's resolve it first.
-    nsAutoCString newBase;
+    nsCAutoString newBase;
     rv = ResolveURI(baseURI, newBase);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -352,7 +353,7 @@ nsResProtocolHandler::GetSubstitution(const nsACString& root, nsIURI **result)
 
     // try invoking the directory service for "resource:root"
 
-    nsAutoCString key;
+    nsCAutoString key;
     key.AssignLiteral("resource:");
     key.Append(root);
 
@@ -382,8 +383,8 @@ nsResProtocolHandler::ResolveURI(nsIURI *uri, nsACString &result)
 {
     nsresult rv;
 
-    nsAutoCString host;
-    nsAutoCString path;
+    nsCAutoString host;
+    nsCAutoString path;
 
     rv = uri->GetAsciiHost(host);
     if (NS_FAILED(rv)) return rv;
@@ -392,7 +393,7 @@ nsResProtocolHandler::ResolveURI(nsIURI *uri, nsACString &result)
     if (NS_FAILED(rv)) return rv;
 
     // Unescape the path so we can perform some checks on it.
-    nsAutoCString unescapedPath(path);
+    nsCAutoString unescapedPath(path);
     NS_UnescapeURL(unescapedPath);
 
     // Don't misinterpret the filepath as an absolute URI.
@@ -416,7 +417,7 @@ nsResProtocolHandler::ResolveURI(nsIURI *uri, nsACString &result)
 
 #if defined(PR_LOGGING)
     if (PR_LOG_TEST(gResLog, PR_LOG_DEBUG)) {
-        nsAutoCString spec;
+        nsCAutoString spec;
         uri->GetAsciiSpec(spec);
         PR_LOG(gResLog, PR_LOG_DEBUG,
                ("%s\n -> %s\n", spec.get(), PromiseFlatCString(result).get()));

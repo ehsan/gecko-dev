@@ -12,14 +12,14 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsSize.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsNodeInfoManager.h"
 #include "plbase64.h"
 #include "nsNetUtil.h"
+#include "prmem.h"
 #include "nsXPCOMStrings.h"
 #include "prlock.h"
 #include "nsThreadUtils.h"
-#include "ImageContainer.h"
 
 #include "nsIScriptSecurityManager.h"
 #include "nsIXPConnect.h"
@@ -55,14 +55,14 @@ NS_IMPL_INT_ATTR(nsHTMLVideoElement, Height, height)
 
 // nsIDOMHTMLVideoElement
 /* readonly attribute unsigned long videoWidth; */
-NS_IMETHODIMP nsHTMLVideoElement::GetVideoWidth(uint32_t *aVideoWidth)
+NS_IMETHODIMP nsHTMLVideoElement::GetVideoWidth(PRUint32 *aVideoWidth)
 {
   *aVideoWidth = mMediaSize.width == -1 ? 0 : mMediaSize.width;
   return NS_OK;
 }
 
 /* readonly attribute unsigned long videoHeight; */
-NS_IMETHODIMP nsHTMLVideoElement::GetVideoHeight(uint32_t *aVideoHeight)
+NS_IMETHODIMP nsHTMLVideoElement::GetVideoHeight(PRUint32 *aVideoHeight)
 {
   *aVideoHeight = mMediaSize.height == -1 ? 0 : mMediaSize.height;
   return NS_OK;
@@ -103,7 +103,7 @@ nsresult nsHTMLVideoElement::GetVideoSize(nsIntSize* size)
 }
 
 bool
-nsHTMLVideoElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLVideoElement::ParseAttribute(PRInt32 aNamespaceID,
                                    nsIAtom* aAttribute,
                                    const nsAString& aValue,
                                    nsAttrValue& aResult)
@@ -149,7 +149,7 @@ nsHTMLVideoElement::GetAttributeMappingFunction() const
 
 nsresult nsHTMLVideoElement::SetAcceptHeader(nsIHttpChannel* aChannel)
 {
-  nsAutoCString value(
+  nsCAutoString value(
 #ifdef MOZ_WEBM
       "video/webm,"
 #endif
@@ -169,28 +169,28 @@ nsresult nsHTMLVideoElement::SetAcceptHeader(nsIHttpChannel* aChannel)
 
 NS_IMPL_URI_ATTR(nsHTMLVideoElement, Poster, poster)
 
-NS_IMETHODIMP nsHTMLVideoElement::GetMozParsedFrames(uint32_t *aMozParsedFrames)
+NS_IMETHODIMP nsHTMLVideoElement::GetMozParsedFrames(PRUint32 *aMozParsedFrames)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   *aMozParsedFrames = mDecoder ? mDecoder->GetFrameStatistics().GetParsedFrames() : 0;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsHTMLVideoElement::GetMozDecodedFrames(uint32_t *aMozDecodedFrames)
+NS_IMETHODIMP nsHTMLVideoElement::GetMozDecodedFrames(PRUint32 *aMozDecodedFrames)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   *aMozDecodedFrames = mDecoder ? mDecoder->GetFrameStatistics().GetDecodedFrames() : 0;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsHTMLVideoElement::GetMozPresentedFrames(uint32_t *aMozPresentedFrames)
+NS_IMETHODIMP nsHTMLVideoElement::GetMozPresentedFrames(PRUint32 *aMozPresentedFrames)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   *aMozPresentedFrames = mDecoder ? mDecoder->GetFrameStatistics().GetPresentedFrames() : 0;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsHTMLVideoElement::GetMozPaintedFrames(uint32_t *aMozPaintedFrames)
+NS_IMETHODIMP nsHTMLVideoElement::GetMozPaintedFrames(PRUint32 *aMozPaintedFrames)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   ImageContainer* container = GetImageContainer();

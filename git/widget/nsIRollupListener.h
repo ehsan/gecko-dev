@@ -20,11 +20,11 @@ class nsIRollupListener {
    * was just rolled up.
    *
    * aCount is the number of popups in a chain to close. If this is
-   * UINT32_MAX, then all popups are closed.
+   * PR_UINT32_MAX, then all popups are closed.
    * If aGetLastRolledUp is true, then return the last rolled up popup,
    * if this is supported.
    */
-  virtual nsIContent* Rollup(uint32_t aCount, bool aGetLastRolledUp = false) = 0;
+  virtual nsIContent* Rollup(PRUint32 aCount, bool aGetLastRolledUp = false) = 0;
 
   /**
    * Asks the RollupListener if it should rollup on mousevents
@@ -44,7 +44,7 @@ class nsIRollupListener {
    * those menus in different situations. The returned value should be exactly
    * the same number of widgets added to aWidgetChain.
    */
-  virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain) = 0;
+  virtual PRUint32 GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain) = 0;
 
   /**
    * Notify the RollupListener that the widget did a Move or Resize.

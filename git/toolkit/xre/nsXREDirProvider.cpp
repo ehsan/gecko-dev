@@ -281,7 +281,7 @@ nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
     rv = GetUserAppDataDirectory(getter_AddRefs(file));
   }
   else if (!strcmp(aProperty, XRE_UPDATE_ROOT_DIR)) {
-#if defined(XP_WIN) || defined(MOZ_WIDGET_GONK)
+#if defined(XP_WIN)
     rv = GetUpdateRootDir(getter_AddRefs(file));
 #else
     // Only supported on Windows, so just immediately fail.
@@ -419,7 +419,7 @@ nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
     bool isWritable;
     if (NS_SUCCEEDED(file->Exists(&fileToEnsureExists)) && fileToEnsureExists
         && NS_SUCCEEDED(file->IsWritable(&isWritable)) && !isWritable) {
-      uint32_t permissions;
+      PRUint32 permissions;
       if (NS_SUCCEEDED(file->GetPermissions(&permissions))) {
         rv = file->SetPermissions(permissions | 0600);
         NS_ASSERTION(NS_SUCCEEDED(rv), "failed to ensure file permissions");
@@ -462,12 +462,12 @@ LoadDirsIntoArray(nsCOMArray<nsIFile>& aSourceDirs,
   nsCOMPtr<nsIFile> appended;
   bool exists;
 
-  for (int32_t i = 0; i < aSourceDirs.Count(); ++i) {
+  for (PRInt32 i = 0; i < aSourceDirs.Count(); ++i) {
     aSourceDirs[i]->Clone(getter_AddRefs(appended));
     if (!appended)
       continue;
 
-    nsAutoCString leaf;
+    nsCAutoString leaf;
     appended->GetNativeLeafName(leaf);
     if (!Substring(leaf, leaf.Length() - 4).Equals(NS_LITERAL_CSTRING(".xpi"))) {
       LoadDirIntoArray(appended,
@@ -523,12 +523,12 @@ LoadExtensionDirectories(nsINIParser &parser,
                          NSLocationType aType)
 {
   nsresult rv;
-  int32_t i = 0;
+  PRInt32 i = 0;
   do {
-    nsAutoCString buf("Extension");
+    nsCAutoString buf("Extension");
     buf.AppendInt(i++);
 
-    nsAutoCString path;
+    nsCAutoString path;
     rv = parser.GetString(aSection, buf.get(), path);
     if (NS_FAILED(rv))
       return;
@@ -621,8 +621,8 @@ DumpFileArray(const char *key,
 {
   fprintf(stderr, "nsXREDirProvider::GetFilesInternal(%s)\n", key);
 
-  nsAutoCString path;
-  for (int32_t i = 0; i < dirs.Count(); ++i) {
+  nsCAutoString path;
+  for (PRInt32 i = 0; i < dirs.Count(); ++i) {
     dirs[i]->GetNativePath(path);
     fprintf(stderr, "  %s\n", path.get());
   }
@@ -869,7 +869,7 @@ static nsresult
 GetShellFolderPath(int folder, nsAString& _retval)
 {
   PRUnichar* buf;
-  uint32_t bufLength = _retval.GetMutableData(&buf, MAXPATHLEN + 3);
+  PRUint32 bufLength = _retval.GetMutableData(&buf, MAXPATHLEN + 3);
   NS_ENSURE_TRUE(bufLength >= (MAXPATHLEN + 3), NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = NS_OK;
@@ -958,7 +958,7 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   nsString longPath;
   PRUnichar* buf;
 
-  uint32_t bufLength = longPath.GetMutableData(&buf, MAXPATHLEN);
+  PRUint32 bufLength = longPath.GetMutableData(&buf, MAXPATHLEN);
   NS_ENSURE_TRUE(bufLength >= MAXPATHLEN, NS_ERROR_OUT_OF_MEMORY);
 
   DWORD len = GetLongPathNameW(appPath.get(), buf, bufLength);
@@ -977,7 +977,7 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   NS_ENSURE_SUCCESS(rv, rv);
 
   programFiles.AppendLiteral("\\");
-  uint32_t programFilesLen = programFiles.Length();
+  PRUint32 programFilesLen = programFiles.Length();
 
   if (longPath.Length() < programFilesLen)
     return NS_ERROR_FAILURE;
@@ -1001,22 +1001,6 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   NS_ENSURE_SUCCESS(rv, rv);
 
   NS_ADDREF(*aResult = updRoot);
-  return NS_OK;
-}
-#endif
-
-#if defined(MOZ_WIDGET_GONK)
-nsresult
-nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
-{
-  nsCOMPtr<nsIFile> updRoot;
-
-  nsresult rv = NS_NewNativeLocalFile(nsDependentCString("/data/local"),
-                                      true,
-                                      getter_AddRefs(updRoot));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  NS_IF_ADDREF(*aResult = updRoot);
   return NS_OK;
 }
 #endif
@@ -1232,7 +1216,7 @@ nsXREDirProvider::GetUserDataDirectory(nsIFile** aFile, bool aLocal,
   NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG_jungshik
-  nsAutoCString cwd;
+  nsCAutoString cwd;
   localDir->GetNativePath(cwd);
   printf("nsXREDirProvider::GetUserDataDirectory: %s\n", cwd.get());
 #endif
@@ -1251,7 +1235,7 @@ nsXREDirProvider::EnsureDirectoryExists(nsIFile* aDirectory)
   NS_ENSURE_SUCCESS(rv, rv);
 #ifdef DEBUG_jungshik
   if (!exists) {
-    nsAutoCString cwd;
+    nsCAutoString cwd;
     aDirectory->GetNativePath(cwd);
     printf("nsXREDirProvider::EnsureDirectoryExists: %s does not\n", cwd.get());
   }
@@ -1275,7 +1259,7 @@ nsXREDirProvider::EnsureProfileFileExists(nsIFile *aFile)
   rv = aFile->Exists(&exists);
   if (NS_FAILED(rv) || exists) return;
 
-  nsAutoCString leafName;
+  nsCAutoString leafName;
   rv = aFile->GetNativeLeafName(leafName);
   if (NS_FAILED(rv)) return;
 
@@ -1357,9 +1341,9 @@ nsXREDirProvider::AppendProfilePath(nsIFile* aFile,
     return NS_ERROR_FAILURE;
   }
 
-  nsAutoCString profile;
-  nsAutoCString appName;
-  nsAutoCString vendor;
+  nsCAutoString profile;
+  nsCAutoString appName;
+  nsCAutoString vendor;
   if (aProfileName && !aProfileName->IsEmpty()) {
     profile = *aProfileName;
   } else if (aAppName) {
@@ -1412,7 +1396,7 @@ nsXREDirProvider::AppendProfilePath(nsIFile* aFile,
   NS_ENSURE_SUCCESS(rv, rv);
 #elif defined(XP_UNIX)
   // Make it hidden (i.e. using the ".")
-  nsAutoCString folder(".");
+  nsCAutoString folder(".");
 
   if (!profile.IsEmpty()) {
     // Skip any leading path characters
@@ -1460,7 +1444,7 @@ nsXREDirProvider::AppendProfileString(nsIFile* aFile, const char* aPath)
   NS_ASSERTION(aFile, "Null file!");
   NS_ASSERTION(aPath, "Null path!");
 
-  nsAutoCString pathDup(aPath);
+  nsCAutoString pathDup(aPath);
 
   char* path = pathDup.BeginWriting();
 

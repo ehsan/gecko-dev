@@ -28,6 +28,7 @@
 #include "jsfriendapi.h"
 #include "nsJSPrincipals.h"
 
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
 
@@ -92,7 +93,7 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_ob
         return ReportError(cx, LOAD_ERROR_NOSTREAM);
     }
 
-    int32_t len = -1;
+    PRInt32 len = -1;
 
     rv = chan->GetContentLength(&len);
     if (NS_FAILED(rv) || len == -1) {
@@ -112,10 +113,10 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *target_ob
     options.setPrincipals(nsJSPrincipals::get(principal))
            .setFileAndLine(uriStr, 1)
            .setSourcePolicy(JS::CompileOptions::LAZY_SOURCE);
-    js::RootedObject target_obj_root(cx, target_obj);
+    JS::RootedObject target_obj_root(cx, target_obj);
     if (!charset.IsVoid()) {
         nsString script;
-        rv = nsScriptLoader::ConvertToUTF16(nullptr, reinterpret_cast<const uint8_t*>(buf.get()), len,
+        rv = nsScriptLoader::ConvertToUTF16(nullptr, reinterpret_cast<const PRUint8*>(buf.get()), len,
                                             charset, nullptr, script);
 
         if (NS_FAILED(rv)) {
@@ -153,6 +154,11 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
      */
 
     nsresult rv = NS_OK;
+
+#ifdef NS_FUNCTION_TIMER
+    NS_TIME_FUNCTION_FMT("%s (line %d) (url: %s)", MOZ_FUNCTION_NAME,
+                         __LINE__, NS_LossyConvertUTF16toASCII(url).get());
+#endif
 
     /* set the system principal if it's not here already */
     if (!mSystemPrincipal) {
@@ -211,13 +217,15 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    JSAutoCompartment ac(cx, targetObj);
+    JSAutoEnterCompartment ac;
+    if (!ac.enter(cx, targetObj))
+        return NS_ERROR_UNEXPECTED;
 
     /* load up the url.  From here on, failures are reflected as ``custom''
      * js exceptions */
     nsCOMPtr<nsIURI> uri;
-    nsAutoCString uriStr;
-    nsAutoCString scheme;
+    nsCAutoString uriStr;
+    nsCAutoString scheme;
 
     JSScript* script = nullptr;
 
@@ -263,7 +271,7 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
 
         // For file URIs prepend the filename with the filename of the
         // calling script, and " -> ". See bug 418356.
-        nsAutoCString tmp(JS_GetScriptFilename(cx, script));
+        nsCAutoString tmp(JS_GetScriptFilename(cx, script));
         tmp.AppendLiteral(" -> ");
         tmp.Append(uriStr);
 
@@ -272,7 +280,7 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
 
     bool writeScript = false;
     JSVersion version = JS_GetVersion(cx);
-    nsAutoCString cachePath;
+    nsCAutoString cachePath;
     cachePath.AppendPrintf("jssubloader/%d", version);
     PathifyURI(uri, cachePath);
 
@@ -292,8 +300,8 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
     bool ok = JS_ExecuteScriptVersion(cx, targetObj, script, retval, version);
 
     if (ok) {
-        JSAutoCompartment rac(cx, result_obj);
-        if (!JS_WrapValue(cx, retval))
+        JSAutoEnterCompartment rac;
+        if (!rac.enter(cx, result_obj) || !JS_WrapValue(cx, retval))
             return NS_ERROR_UNEXPECTED;
     }
 

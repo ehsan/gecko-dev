@@ -22,8 +22,6 @@ class nsICategoryManager;
 #define NS_STYLESHEETSERVICE_CONTRACTID \
   "@mozilla.org/content/style-sheet-service;1"
 
-class nsIMemoryReporter;
-
 class nsStyleSheetService MOZ_FINAL : public nsIStyleSheetService
 {
  public:
@@ -37,11 +35,7 @@ class nsStyleSheetService MOZ_FINAL : public nsIStyleSheetService
 
   nsCOMArray<nsIStyleSheet>* AgentStyleSheets() { return &mSheets[AGENT_SHEET]; }
   nsCOMArray<nsIStyleSheet>* UserStyleSheets() { return &mSheets[USER_SHEET]; }
-  nsCOMArray<nsIStyleSheet>* AuthorStyleSheets() { return &mSheets[AUTHOR_SHEET]; }
 
-  static size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
-
-  static nsStyleSheetService *GetInstance();
   static nsStyleSheetService *gInstance;
 
  private:
@@ -49,21 +43,17 @@ class nsStyleSheetService MOZ_FINAL : public nsIStyleSheetService
   NS_HIDDEN_(void) RegisterFromEnumerator(nsICategoryManager  *aManager,
                                           const char          *aCategory,
                                           nsISimpleEnumerator *aEnumerator,
-                                          uint32_t             aSheetType);
+                                          PRUint32             aSheetType);
 
-  NS_HIDDEN_(int32_t) FindSheetByURI(const nsCOMArray<nsIStyleSheet> &sheets,
+  NS_HIDDEN_(PRInt32) FindSheetByURI(const nsCOMArray<nsIStyleSheet> &sheets,
                                      nsIURI *sheetURI);
 
   // Like LoadAndRegisterSheet, but doesn't notify.  If successful, the
   // new sheet will be the last sheet in mSheets[aSheetType].
   NS_HIDDEN_(nsresult) LoadAndRegisterSheetInternal(nsIURI *aSheetURI,
-                                                    uint32_t aSheetType);
-
-  size_t SizeOfIncludingThisHelper(nsMallocSizeOfFun aMallocSizeOf) const;
-
-  nsCOMArray<nsIStyleSheet> mSheets[3];
-
-  nsIMemoryReporter* mReporter;
+                                                    PRUint32 aSheetType);
+  
+  nsCOMArray<nsIStyleSheet> mSheets[2];
 };
 
 #endif

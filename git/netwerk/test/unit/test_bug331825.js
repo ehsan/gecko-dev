@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var server;
 const BUGID = "331825";
@@ -21,7 +16,7 @@ TestListener.prototype.onStopRequest = function(request, context, status) {
 
 function run_test() {
   // start server
-  server = new HttpServer();
+  server = new nsHttpServer();
 
   server.registerPathHandler("/bug" + BUGID, bug331825);
 

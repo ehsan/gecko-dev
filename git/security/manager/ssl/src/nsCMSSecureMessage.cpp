@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsMemory.h"
 #include "nsXPIDLString.h"
 #include "nsCOMPtr.h"
 #include "nsISupports.h"
@@ -99,7 +100,7 @@ DecodeCert(const char *value, nsIX509Cert ** _retval)
   nsNSSShutDownPreventionLock locker;
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsCMSSecureMessage::DecodeCert\n"));
   nsresult rv = NS_OK;
-  int32_t length;
+  PRInt32 length;
   unsigned char *data = 0;
 
   *_retval = 0;
@@ -136,7 +137,7 @@ SendMessage(const char *msg, const char *base64Cert, char ** _retval)
   CERTCertificate *cert = 0;
   NSSCMSMessage *cmsMsg = 0;
   unsigned char *certDER = 0;
-  int32_t derLen;
+  PRInt32 derLen;
   NSSCMSEnvelopedData *env;
   NSSCMSContentInfo *cinfo;
   NSSCMSRecipientInfo *rcpt;
@@ -146,7 +147,7 @@ SendMessage(const char *msg, const char *base64Cert, char ** _retval)
   nsCOMPtr<nsIInterfaceRequestor> ctx = new PipUIContext();
 
   /* Step 0. Create a CMS Message */
-  cmsMsg = NSS_CMSMessage_Create(nullptr);
+  cmsMsg = NSS_CMSMessage_Create(NULL);
   if (!cmsMsg) {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsCMSSecureMessage::SendMessage - can't create NSSCMSMessage\n"));
     rv = NS_ERROR_FAILURE;
@@ -263,7 +264,7 @@ ReceiveMessage(const char *msg, char **_retval)
   nsresult rv = NS_OK;
   NSSCMSDecoderContext *dcx;
   unsigned char *der = 0;
-  int32_t derLen;
+  PRInt32 derLen;
   NSSCMSMessage *cmsMsg = 0;
   SECItem *content;
   nsCOMPtr<nsIInterfaceRequestor> ctx = new PipUIContext();
@@ -311,11 +312,11 @@ done:
 }
 
 nsresult nsCMSSecureMessage::
-encode(const unsigned char *data, int32_t dataLen, char **_retval)
+encode(const unsigned char *data, PRInt32 dataLen, char **_retval)
 {
   nsresult rv = NS_OK;
 
-  *_retval = PL_Base64Encode((const char *)data, dataLen, nullptr);
+  *_retval = PL_Base64Encode((const char *)data, dataLen, NULL);
   if (!*_retval) { rv = NS_ERROR_OUT_OF_MEMORY; goto loser; }
 
 loser:
@@ -323,11 +324,11 @@ loser:
 }
 
 nsresult nsCMSSecureMessage::
-decode(const char *data, unsigned char **result, int32_t * _retval)
+decode(const char *data, unsigned char **result, PRInt32 * _retval)
 {
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsCMSSecureMessage::decode\n"));
   nsresult rv = NS_OK;
-  uint32_t len = PL_strlen(data);
+  PRUint32 len = PL_strlen(data);
   int adjust = 0;
 
   /* Compute length adjustment */
@@ -336,7 +337,7 @@ decode(const char *data, unsigned char **result, int32_t * _retval)
     if (data[len-2] == '=') adjust++;
   }
 
-  *result = (unsigned char *)PL_Base64Decode(data, len, nullptr);
+  *result = (unsigned char *)PL_Base64Decode(data, len, NULL);
   if (!*result) {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsCMSSecureMessage::decode - error decoding base64\n"));
     rv = NS_ERROR_ILLEGAL_VALUE;

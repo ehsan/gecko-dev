@@ -34,8 +34,6 @@
 #include "hb-set-private.hh"
 
 
-namespace OT {
-
 
 #ifndef HB_DEBUG_CLOSURE
 #define HB_DEBUG_CLOSURE (HB_DEBUG+0)
@@ -43,6 +41,15 @@ namespace OT {
 
 #define TRACE_CLOSURE() \
 	hb_auto_trace_t<HB_DEBUG_CLOSURE> trace (&c->debug_depth, "CLOSURE", this, HB_FUNC, "");
+
+
+/* TODO Add TRACE_RETURN annotation to gsub. */
+#ifndef HB_DEBUG_WOULD_APPLY
+#define HB_DEBUG_WOULD_APPLY (HB_DEBUG+0)
+#endif
+
+#define TRACE_WOULD_APPLY() \
+	hb_auto_trace_t<HB_DEBUG_WOULD_APPLY> trace (&c->debug_depth, "WOULD_APPLY", this, HB_FUNC, "first %u second %u", c->first, c->second);
 
 
 struct hb_closure_context_t
@@ -64,31 +71,24 @@ struct hb_closure_context_t
 
 
 
-/* TODO Add TRACE_RETURN annotation to gsub. */
-#ifndef HB_DEBUG_WOULD_APPLY
-#define HB_DEBUG_WOULD_APPLY (HB_DEBUG+0)
-#endif
-
-#define TRACE_WOULD_APPLY() \
-	hb_auto_trace_t<HB_DEBUG_WOULD_APPLY> trace (&c->debug_depth, "WOULD_APPLY", this, HB_FUNC, "%d glyphs", c->len);
-
 
 struct hb_would_apply_context_t
 {
   hb_face_t *face;
-  const hb_codepoint_t *glyphs;
+  hb_codepoint_t first;
+  hb_codepoint_t second;
   unsigned int len;
-  bool zero_context;
+  const hb_set_digest_t digest;
   unsigned int debug_depth;
 
   hb_would_apply_context_t (hb_face_t *face_,
-			    const hb_codepoint_t *glyphs_,
-			    unsigned int len_,
-			    bool zero_context_) :
+			    hb_codepoint_t first_,
+			    hb_codepoint_t second_,
+			    const hb_set_digest_t *digest_
+			    ) :
 			      face (face_),
-			      glyphs (glyphs_),
-			      len (len_),
-			      zero_context (zero_context_),
+			      first (first_), second (second_), len (second == (hb_codepoint_t) -1 ? 1 : 2),
+			      digest (*digest_),
 			      debug_depth (0) {};
 };
 
@@ -114,22 +114,21 @@ struct hb_apply_context_t
   unsigned int debug_depth;
   const GDEF &gdef;
   bool has_glyph_classes;
+  const hb_set_digest_t digest;
 
 
   hb_apply_context_t (hb_font_t *font_,
 		      hb_buffer_t *buffer_,
-		      hb_mask_t lookup_mask_) :
+		      hb_mask_t lookup_mask_,
+		      const hb_set_digest_t *digest_) :
 			font (font_), face (font->face), buffer (buffer_),
 			direction (buffer_->props.direction),
 			lookup_mask (lookup_mask_),
 			nesting_level_left (MAX_NESTING_LEVEL),
 			lookup_props (0), property (0), debug_depth (0),
 			gdef (*hb_ot_layout_from_face (face)->gdef),
-			has_glyph_classes (gdef.has_glyph_classes ()) {}
-
-  void set_lookup_props (unsigned int lookup_props_) {
-    lookup_props = lookup_props_;
-  }
+			has_glyph_classes (gdef.has_glyph_classes ()),
+			digest (*digest_) {}
 
   void set_lookup (const Lookup &l) {
     lookup_props = l.get_props ();
@@ -408,7 +407,7 @@ static inline bool would_match_input (hb_would_apply_context_t *c,
     return false;
 
   for (unsigned int i = 1; i < count; i++)
-    if (likely (!match_func (c->glyphs[i], input[i - 1], match_data)))
+    if (likely (!match_func (c->second, input[i - 1], match_data)))
       return false;
 
   return true;
@@ -418,159 +417,25 @@ static inline bool match_input (hb_apply_context_t *c,
 				const USHORT input[], /* Array of input values--start with second glyph */
 				match_func_t match_func,
 				const void *match_data,
-				unsigned int *end_offset = NULL,
-				bool *p_is_mark_ligature = NULL,
-				unsigned int *p_total_component_count = NULL)
+				unsigned int *end_offset = NULL)
 {
-  hb_auto_trace_t<HB_DEBUG_APPLY> trace (&c->debug_depth, "APPLY", NULL, HB_FUNC, "idx %d codepoint %u", c->buffer->idx, c->buffer->cur().codepoint);
-
   hb_apply_context_t::mark_skipping_forward_iterator_t skippy_iter (c, c->buffer->idx, count - 1);
-  if (skippy_iter.has_no_chance ()) return TRACE_RETURN (false);
-
-  /*
-   * This is perhaps the trickiest part of OpenType...  Remarks:
-   *
-   * - If all components of the ligature were marks, we call this a mark ligature.
-   *
-   * - If there is no GDEF, and the ligature is NOT a mark ligature, we categorize
-   *   it as a ligature glyph.
-   *
-   * - Ligatures cannot be formed across glyphs attached to different components
-   *   of previous ligatures.  Eg. the sequence is LAM,SHADDA,LAM,FATHA,HEH, and
-   *   LAM,LAM,HEH form a ligature, leaving SHADDA,FATHA next to eachother.
-   *   However, it would be wrong to ligate that SHADDA,FATHA sequence.o
-   *   There is an exception to this: If a ligature tries ligating with marks that
-   *   belong to it itself, go ahead, assuming that the font designer knows what
-   *   they are doing (otherwise it can break Indic stuff when a matra wants to
-   *   ligate with a conjunct...)
-   */
-
-  bool is_mark_ligature = !!(c->property & HB_OT_LAYOUT_GLYPH_CLASS_MARK);
-
-  unsigned int total_component_count = 0;
-  total_component_count += get_lig_num_comps (c->buffer->cur());
-
-  unsigned int first_lig_id = get_lig_id (c->buffer->cur());
-  unsigned int first_lig_comp = get_lig_comp (c->buffer->cur());
+  if (skippy_iter.has_no_chance ())
+    return false;
 
   for (unsigned int i = 1; i < count; i++)
   {
-    unsigned int property;
+    if (!skippy_iter.next ())
+      return false;
 
-    if (!skippy_iter.next (&property)) return TRACE_RETURN (false);
-
-    if (likely (!match_func (c->buffer->info[skippy_iter.idx].codepoint, input[i - 1], match_data))) return false;
-
-    unsigned int this_lig_id = get_lig_id (c->buffer->info[skippy_iter.idx]);
-    unsigned int this_lig_comp = get_lig_comp (c->buffer->info[skippy_iter.idx]);
-
-    if (first_lig_id && first_lig_comp) {
-      /* If first component was attached to a previous ligature component,
-       * all subsequent components should be attached to the same ligature
-       * component, otherwise we shouldn't ligate them. */
-      if (first_lig_id != this_lig_id || first_lig_comp != this_lig_comp)
-	return TRACE_RETURN (false);
-    } else {
-      /* If first component was NOT attached to a previous ligature component,
-       * all subsequent components should also NOT be attached to any ligature
-       * component, unless they are attached to the first component itself! */
-      if (this_lig_id && this_lig_comp && (this_lig_id != first_lig_id))
-	return TRACE_RETURN (false);
-    }
-
-    is_mark_ligature = is_mark_ligature && (property & HB_OT_LAYOUT_GLYPH_CLASS_MARK);
-    total_component_count += get_lig_num_comps (c->buffer->info[skippy_iter.idx]);
+    if (likely (!match_func (c->buffer->info[skippy_iter.idx].codepoint, input[i - 1], match_data)))
+      return false;
   }
 
   if (end_offset)
     *end_offset = skippy_iter.idx - c->buffer->idx + 1;
 
-  if (p_is_mark_ligature)
-    *p_is_mark_ligature = is_mark_ligature;
-
-  if (p_total_component_count)
-    *p_total_component_count = total_component_count;
-
   return true;
-}
-static inline void ligate_input (hb_apply_context_t *c,
-				 unsigned int count, /* Including the first glyph (not matched) */
-				 const USHORT input[], /* Array of input values--start with second glyph */
-				 hb_codepoint_t lig_glyph,
-				 match_func_t match_func,
-				 const void *match_data,
-				 bool is_mark_ligature,
-				 unsigned int total_component_count)
-{
-  /*
-   * - If it *is* a mark ligature, we don't allocate a new ligature id, and leave
-   *   the ligature to keep its old ligature id.  This will allow it to attach to
-   *   a base ligature in GPOS.  Eg. if the sequence is: LAM,LAM,SHADDA,FATHA,HEH,
-   *   and LAM,LAM,HEH for a ligature, they will leave SHADDA and FATHA wit a
-   *   ligature id and component value of 2.  Then if SHADDA,FATHA form a ligature
-   *   later, we don't want them to lose their ligature id/component, otherwise
-   *   GPOS will fail to correctly position the mark ligature on top of the
-   *   LAM,LAM,HEH ligature.  See:
-   *     https://bugzilla.gnome.org/show_bug.cgi?id=676343
-   *
-   * - If a ligature is formed of components that some of which are also ligatures
-   *   themselves, and those ligature components had marks attached to *their*
-   *   components, we have to attach the marks to the new ligature component
-   *   positions!  Now *that*'s tricky!  And these marks may be following the
-   *   last component of the whole sequence, so we should loop forward looking
-   *   for them and update them.
-   *
-   *   Eg. the sequence is LAM,LAM,SHADDA,FATHA,HEH, and the font first forms a
-   *   'calt' ligature of LAM,HEH, leaving the SHADDA and FATHA with a ligature
-   *   id and component == 1.  Now, during 'liga', the LAM and the LAM-HEH ligature
-   *   form a LAM-LAM-HEH ligature.  We need to reassign the SHADDA and FATHA to
-   *   the new ligature with a component value of 2.
-   *
-   *   This in fact happened to a font...  See:
-   *   https://bugzilla.gnome.org/show_bug.cgi?id=437633
-   */
-
-  unsigned int klass = is_mark_ligature ? 0 : HB_OT_LAYOUT_GLYPH_CLASS_LIGATURE;
-  unsigned int lig_id = is_mark_ligature ? 0 : allocate_lig_id (c->buffer);
-  unsigned int last_lig_id = get_lig_id (c->buffer->cur());
-  unsigned int last_num_components = get_lig_num_comps (c->buffer->cur());
-  unsigned int components_so_far = last_num_components;
-
-  if (!is_mark_ligature)
-    set_lig_props_for_ligature (c->buffer->cur(), lig_id, total_component_count);
-  c->replace_glyph (lig_glyph, klass);
-
-  for (unsigned int i = 1; i < count; i++)
-  {
-    while (c->should_mark_skip_current_glyph ())
-    {
-      if (!is_mark_ligature) {
-	unsigned int new_lig_comp = components_so_far - last_num_components +
-				    MIN (MAX (get_lig_comp (c->buffer->cur()), 1u), last_num_components);
-	set_lig_props_for_mark (c->buffer->cur(), lig_id, new_lig_comp);
-      }
-      c->buffer->next_glyph ();
-    }
-
-    last_lig_id = get_lig_id (c->buffer->cur());
-    last_num_components = get_lig_num_comps (c->buffer->cur());
-    components_so_far += last_num_components;
-
-    /* Skip the base glyph */
-    c->buffer->idx++;
-  }
-
-  if (!is_mark_ligature && last_lig_id) {
-    /* Re-adjust components for any marks following. */
-    for (unsigned int i = c->buffer->idx; i < c->buffer->len; i++) {
-      if (last_lig_id == get_lig_id (c->buffer->info[i])) {
-	unsigned int new_lig_comp = components_so_far - last_num_components +
-				    MIN (MAX (get_lig_comp (c->buffer->info[i]), 1u), last_num_components);
-	set_lig_props_for_mark (c->buffer->info[i], lig_id, new_lig_comp);
-      } else
-	break;
-    }
-  }
 }
 
 static inline bool match_backtrack (hb_apply_context_t *c,
@@ -579,22 +444,20 @@ static inline bool match_backtrack (hb_apply_context_t *c,
 				    match_func_t match_func,
 				    const void *match_data)
 {
-  hb_auto_trace_t<HB_DEBUG_APPLY> trace (&c->debug_depth, "APPLY", NULL, HB_FUNC, "idx %d codepoint %u", c->buffer->idx, c->buffer->cur().codepoint);
-
   hb_apply_context_t::mark_skipping_backward_iterator_t skippy_iter (c, c->buffer->backtrack_len (), count, true);
   if (skippy_iter.has_no_chance ())
-    return TRACE_RETURN (false);
+    return false;
 
   for (unsigned int i = 0; i < count; i++)
   {
     if (!skippy_iter.prev ())
-      return TRACE_RETURN (false);
+      return false;
 
     if (likely (!match_func (c->buffer->out_info[skippy_iter.idx].codepoint, backtrack[i], match_data)))
-      return TRACE_RETURN (false);
+      return false;
   }
 
-  return TRACE_RETURN (true);
+  return true;
 }
 
 static inline bool match_lookahead (hb_apply_context_t *c,
@@ -604,22 +467,20 @@ static inline bool match_lookahead (hb_apply_context_t *c,
 				    const void *match_data,
 				    unsigned int offset)
 {
-  hb_auto_trace_t<HB_DEBUG_APPLY> trace (&c->debug_depth, "APPLY", NULL, HB_FUNC, "idx %d codepoint %u", c->buffer->idx, c->buffer->cur().codepoint);
-
   hb_apply_context_t::mark_skipping_forward_iterator_t skippy_iter (c, c->buffer->idx + offset - 1, count, true);
   if (skippy_iter.has_no_chance ())
-    return TRACE_RETURN (false);
+    return false;
 
   for (unsigned int i = 0; i < count; i++)
   {
     if (!skippy_iter.next ())
-      return TRACE_RETURN (false);
+      return false;
 
     if (likely (!match_func (c->buffer->info[skippy_iter.idx].codepoint, lookahead[i], match_data)))
-      return TRACE_RETURN (false);
+      return false;
   }
 
-  return TRACE_RETURN (true);
+  return true;
 }
 
 
@@ -896,7 +757,7 @@ struct ContextFormat1
   {
     TRACE_WOULD_APPLY ();
 
-    const RuleSet &rule_set = this+ruleSet[(this+coverage) (c->glyphs[0])];
+    const RuleSet &rule_set = this+ruleSet[(this+coverage) (c->first)];
     struct ContextApplyLookupContext lookup_context = {
       {match_glyph, NULL},
       NULL
@@ -969,7 +830,7 @@ struct ContextFormat2
     TRACE_WOULD_APPLY ();
 
     const ClassDef &class_def = this+classDef;
-    unsigned int index = class_def (c->glyphs[0]);
+    unsigned int index = class_def (c->first);
     const RuleSet &rule_set = this+ruleSet[index];
     struct ContextApplyLookupContext lookup_context = {
       {match_class, NULL},
@@ -1068,6 +929,7 @@ struct ContextFormat3
     TRACE_SANITIZE ();
     if (!c->check_struct (this)) return TRACE_RETURN (false);
     unsigned int count = glyphCount;
+    if (unlikely (!glyphCount)) return TRACE_RETURN (false);
     if (!c->check_array (coverage, coverage[0].static_size, count)) return TRACE_RETURN (false);
     for (unsigned int i = 0; i < count; i++)
       if (!coverage[i].sanitize (c, this)) return TRACE_RETURN (false);
@@ -1206,7 +1068,8 @@ static inline bool chain_context_would_apply_lookup (hb_would_apply_context_t *c
 						     const LookupRecord lookupRecord[],
 						     ChainContextApplyLookupContext &lookup_context)
 {
-  return (c->zero_context ? !backtrackCount && !lookaheadCount : true)
+  return !backtrackCount
+      && !lookaheadCount
       && would_match_input (c,
 			    inputCount, input,
 			    lookup_context.funcs.match, lookup_context.match_data[1]);
@@ -1390,7 +1253,7 @@ struct ChainContextFormat1
   {
     TRACE_WOULD_APPLY ();
 
-    const ChainRuleSet &rule_set = this+ruleSet[(this+coverage) (c->glyphs[0])];
+    const ChainRuleSet &rule_set = this+ruleSet[(this+coverage) (c->first)];
     struct ChainContextApplyLookupContext lookup_context = {
       {match_glyph, NULL},
       {NULL, NULL, NULL}
@@ -1466,7 +1329,7 @@ struct ChainContextFormat2
 
     const ClassDef &input_class_def = this+inputClassDef;
 
-    unsigned int index = input_class_def (c->glyphs[0]);
+    unsigned int index = input_class_def (c->first);
     const ChainRuleSet &rule_set = this+ruleSet[index];
     struct ChainContextApplyLookupContext lookup_context = {
       {match_class, NULL},
@@ -1605,6 +1468,7 @@ struct ChainContextFormat3
     if (!backtrack.sanitize (c, this)) return TRACE_RETURN (false);
     OffsetArrayOf<Coverage> &input = StructAfter<OffsetArrayOf<Coverage> > (backtrack);
     if (!input.sanitize (c, this)) return TRACE_RETURN (false);
+    if (unlikely (!input.len)) return TRACE_RETURN (false);
     OffsetArrayOf<Coverage> &lookahead = StructAfter<OffsetArrayOf<Coverage> > (input);
     if (!lookahead.sanitize (c, this)) return TRACE_RETURN (false);
     ArrayOf<LookupRecord> &lookup = StructAfter<ArrayOf<LookupRecord> > (lookahead);
@@ -1818,8 +1682,6 @@ struct GSUBGPOS
   DEFINE_SIZE_STATIC (10);
 };
 
-
-} // namespace OT
 
 
 #endif /* HB_OT_LAYOUT_GSUBGPOS_PRIVATE_HH */

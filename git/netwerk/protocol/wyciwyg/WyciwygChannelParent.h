@@ -30,13 +30,13 @@ public:
   virtual ~WyciwygChannelParent();
 
 protected:
-  virtual bool RecvInit(const URIParams& uri);
-  virtual bool RecvAsyncOpen(const URIParams& original,
-                             const uint32_t& loadFlags,
+  virtual bool RecvInit(const IPC::URI& uri);
+  virtual bool RecvAsyncOpen(const IPC::URI& original,
+                             const PRUint32& loadFlags,
                              const IPC::SerializedLoadContext& loadContext);
   virtual bool RecvWriteToCacheEntry(const nsString& data);
   virtual bool RecvCloseCacheEntry(const nsresult& reason);
-  virtual bool RecvSetCharsetAndSource(const int32_t& source,
+  virtual bool RecvSetCharsetAndSource(const PRInt32& source,
                                        const nsCString& charset);
   virtual bool RecvSetSecurityInfo(const nsCString& securityInfo);
   virtual bool RecvCancel(const nsresult& statusCode);

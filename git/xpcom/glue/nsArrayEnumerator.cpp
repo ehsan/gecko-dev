@@ -32,7 +32,7 @@ private:
 
 protected:
     nsCOMPtr<nsIArray> mValueArray;
-    uint32_t mIndex;
+    PRUint32 mIndex;
 };
 
 NS_IMPL_ISUPPORTS1(nsSimpleArrayEnumerator, nsISimpleEnumerator)
@@ -49,7 +49,7 @@ nsSimpleArrayEnumerator::HasMoreElements(bool* aResult)
         return NS_OK;
     }
 
-    uint32_t cnt;
+    PRUint32 cnt;
     nsresult rv = mValueArray->GetLength(&cnt);
     if (NS_FAILED(rv)) return rv;
     *aResult = (mIndex < cnt);
@@ -68,7 +68,7 @@ nsSimpleArrayEnumerator::GetNext(nsISupports** aResult)
         return NS_OK;
     }
 
-    uint32_t cnt;
+    PRUint32 cnt;
     nsresult rv = mValueArray->GetLength(&cnt);
     if (NS_FAILED(rv)) return rv;
     if (mIndex >= cnt)
@@ -118,8 +118,8 @@ private:
     ~nsCOMArrayEnumerator(void);
 
 protected:
-    uint32_t mIndex;            // current position
-    uint32_t mArraySize;        // size of the array
+    PRUint32 mIndex;            // current position
+    PRUint32 mArraySize;        // size of the array
     
     // this is actually bigger
     nsISupports* mValueArray[1];
@@ -186,8 +186,8 @@ nsCOMArrayEnumerator::operator new (size_t size, const nsCOMArray_base& aArray)
     // now this might seem like a lot of work, but we're actually just
     // doing all our AddRef's ahead of time since GetNext() doesn't
     // need to AddRef() on the way out
-    uint32_t i;
-    uint32_t max = result->mArraySize = aArray.Count();
+    PRUint32 i;
+    PRUint32 max = result->mArraySize = aArray.Count();
     for (i = 0; i<max; i++) {
         result->mValueArray[i] = aArray[i];
         NS_IF_ADDREF(result->mValueArray[i]);

@@ -85,7 +85,7 @@ def paramlistAsNative(m, empty='void'):
         l.append("JSContext* cx")
 
     if m.optional_argc:
-        l.append('uint8_t _argc')
+        l.append('PRUint8 _argc')
 
     if not m.notxpcom and m.realtype.name != 'void':
         l.append(paramAsNative(xpidl.Param(paramtype='out',
@@ -138,11 +138,6 @@ jspubtd_include = """
 #include "jspubtd.h"
 """
 
-infallible_includes = """
-#include "mozilla/Assertions.h"
-#include "mozilla/Util.h"
-"""
-
 header_end = """/* For IDL files that don't want to include root IDL files. */
 #ifndef NS_NO_VTABLE
 #define NS_NO_VTABLE
@@ -174,13 +169,6 @@ def print_header(idl, fd, filename):
 
     if idl.needsJSTypes():
         fd.write(jspubtd_include)
-
-    # Include some extra files if any attributes are infallible.
-    for iface in [p for p in idl.productions if p.kind == 'interface']:
-        for attr in [m for m in iface.members if isinstance(m, xpidl.Attribute)]:
-            if attr.infallible:
-                fd.write(infallible_includes)
-                break
 
     fd.write('\n')
     fd.write(header_end)
@@ -292,16 +280,6 @@ iface_template_epilog = """/* End of implementation class template. */
 
 """
 
-attr_infallible_tmpl = """\
-  inline %(realtype)s%(nativename)s(%(args)s)
-  {
-    %(realtype)sresult;
-    mozilla::DebugOnly<nsresult> rv = %(nativename)s(%(argnames)s&result);
-    MOZ_ASSERT(NS_SUCCEEDED(rv));
-    return result;
-  }
-"""
-
 def write_interface(iface, fd):
     if iface.namemap is None:
         raise Exception("Interface was not resolved.")
@@ -332,13 +310,6 @@ def write_interface(iface, fd):
         fd.write("  /* %s */\n" % a.toIDL());
 
         fd.write("  %s = 0;\n" % attributeAsNative(a, True))
-        if a.infallible:
-            fd.write(attr_infallible_tmpl %
-                     {'realtype': a.realtype.nativeType('in'),
-                      'nativename': attributeNativeName(a, getter=True),
-                      'args': '' if not a.implicit_jscontext else 'JSContext* cx',
-                      'argnames': '' if not a.implicit_jscontext else 'cx, '})
-
         if not a.readonly:
             fd.write("  %s = 0;\n" % attributeAsNative(a, False))
         fd.write("\n")
@@ -412,9 +383,7 @@ def write_interface(iface, fd):
 
     fd.write(iface_forward % names)
 
-    def emitTemplate(tmpl, tmpl_notxpcom=None):
-        if tmpl_notxpcom == None:
-            tmpl_notxpcom = tmpl
+    def emitTemplate(tmpl):
         for member in iface.members:
             if isinstance(member, xpidl.Attribute):
                 fd.write(tmpl % {'asNative': attributeAsNative(member, True),
@@ -425,14 +394,9 @@ def write_interface(iface, fd):
                                      'nativeName': attributeNativeName(member, False),
                                      'paramList': attributeParamNames(member)})
             elif isinstance(member, xpidl.Method):
-                if member.notxpcom:
-                    fd.write(tmpl_notxpcom % {'asNative': methodAsNative(member),
-                                              'nativeName': methodNativeName(member),
-                                              'paramList': paramlistNames(member)})
-                else:
-                    fd.write(tmpl % {'asNative': methodAsNative(member),
-                                     'nativeName': methodNativeName(member),
-                                     'paramList': paramlistNames(member)})
+                fd.write(tmpl % {'asNative': methodAsNative(member),
+                                 'nativeName': methodNativeName(member),
+                                 'paramList': paramlistNames(member)})
         if len(iface.members) == 0:
             fd.write('\\\n  /* no methods! */')
         elif not member.kind in ('attribute', 'method'):
@@ -442,11 +406,7 @@ def write_interface(iface, fd):
 
     fd.write(iface_forward_safe % names)
 
-    # Don't try to safely forward notxpcom functions, because we have no
-    # sensible default error return.  Instead, the caller will have to
-    # implement them.
-    emitTemplate("\\\n  %(asNative)s { return !_to ? NS_ERROR_NULL_POINTER : _to->%(nativeName)s(%(paramList)s); } ",
-                 "\\\n  %(asNative)s; ")
+    emitTemplate("\\\n  %(asNative)s { return !_to ? NS_ERROR_NULL_POINTER : _to->%(nativeName)s(%(paramList)s); } ")
 
     fd.write(iface_template_prolog % names)
 

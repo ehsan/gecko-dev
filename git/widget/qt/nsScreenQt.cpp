@@ -45,8 +45,8 @@ nsScreenQt::~nsScreenQt()
 }
 
 NS_IMETHODIMP
-nsScreenQt::GetRect(int32_t *outLeft,int32_t *outTop,
-                    int32_t *outWidth,int32_t *outHeight)
+nsScreenQt::GetRect(PRInt32 *outLeft,PRInt32 *outTop,
+                    PRInt32 *outWidth,PRInt32 *outHeight)
 {
     QRect r = QApplication::desktop()->screenGeometry(mScreen);
 #ifdef MOZ_ENABLE_QTMOBILITY
@@ -65,8 +65,8 @@ nsScreenQt::GetRect(int32_t *outLeft,int32_t *outTop,
 }
 
 NS_IMETHODIMP
-nsScreenQt::GetAvailRect(int32_t *outLeft,int32_t *outTop,
-                         int32_t *outWidth,int32_t *outHeight)
+nsScreenQt::GetAvailRect(PRInt32 *outLeft,PRInt32 *outTop,
+                         PRInt32 *outWidth,PRInt32 *outHeight)
 {
     QRect r = QApplication::desktop()->screenGeometry(mScreen);
 #ifdef MOZ_ENABLE_QTMOBILITY
@@ -82,15 +82,15 @@ nsScreenQt::GetAvailRect(int32_t *outLeft,int32_t *outTop,
 }
 
 NS_IMETHODIMP
-nsScreenQt::GetPixelDepth(int32_t *aPixelDepth)
+nsScreenQt::GetPixelDepth(PRInt32 *aPixelDepth)
 {
     // #############
-    *aPixelDepth = (int32_t)QColormap::instance().depth();
+    *aPixelDepth = (PRInt32)QColormap::instance().depth();
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsScreenQt::GetColorDepth(int32_t *aColorDepth)
+nsScreenQt::GetColorDepth(PRInt32 *aColorDepth)
 {
     // ###############
     return GetPixelDepth(aColorDepth);
@@ -98,7 +98,7 @@ nsScreenQt::GetColorDepth(int32_t *aColorDepth)
 
 #ifdef MOZ_ENABLE_QMSYSTEM2
 void
-nsScreenQt::ApplyMinimumBrightness(uint32_t aType)
+nsScreenQt::ApplyMinimumBrightness(PRUint32 aType)
 {
     // resets all we did before,
     // 1) there is no interface to get default values

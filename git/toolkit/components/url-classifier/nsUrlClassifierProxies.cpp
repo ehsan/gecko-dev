@@ -151,7 +151,7 @@ UrlClassifierDBServiceWorkerProxy::CloseDb()
 }
 
 NS_IMETHODIMP
-UrlClassifierDBServiceWorkerProxy::CacheCompletions(CacheResultArray * aEntries)
+UrlClassifierDBServiceWorkerProxy::CacheCompletions(nsTArray<nsUrlClassifierLookupResult>* aEntries)
 {
   nsCOMPtr<nsIRunnable> r = new CacheCompletionsRunnable(mTarget, aEntries);
   return DispatchToWorkerThread(r);
@@ -164,27 +164,12 @@ UrlClassifierDBServiceWorkerProxy::CacheCompletionsRunnable::Run()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-UrlClassifierDBServiceWorkerProxy::CacheMisses(PrefixArray * aEntries)
-{
-  nsCOMPtr<nsIRunnable> r = new CacheMissesRunnable(mTarget, aEntries);
-  return DispatchToWorkerThread(r);
-}
-
-NS_IMETHODIMP
-UrlClassifierDBServiceWorkerProxy::CacheMissesRunnable::Run()
-{
-  mTarget->CacheMisses(mEntries);
-  return NS_OK;
-}
-
-
 NS_IMPL_THREADSAFE_ISUPPORTS1(UrlClassifierLookupCallbackProxy,
                               nsIUrlClassifierLookupCallback)
 
 NS_IMETHODIMP
 UrlClassifierLookupCallbackProxy::LookupComplete
-  (LookupResultArray * aResults)
+  (nsTArray<nsUrlClassifierLookupResult>* aResults)
 {
   nsCOMPtr<nsIRunnable> r = new LookupCompleteRunnable(mTarget, aResults);
   return NS_DispatchToMainThread(r);
@@ -238,20 +223,14 @@ UrlClassifierUpdateObserverProxy::UpdateUrlRequestedRunnable::Run()
 NS_IMETHODIMP
 UrlClassifierUpdateObserverProxy::RekeyRequested()
 {
-  nsCOMPtr<nsIRunnable> r = new RekeyRequestedRunnable(mTarget);
+  nsCOMPtr<nsIRunnable> r =
+    NS_NewRunnableMethod(mTarget, &nsIUrlClassifierUpdateObserver::RekeyRequested);
   return NS_DispatchToMainThread(r);
 }
 
 NS_IMETHODIMP
-UrlClassifierUpdateObserverProxy::RekeyRequestedRunnable::Run()
-{
-  mTarget->RekeyRequested();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 UrlClassifierUpdateObserverProxy::StreamFinished(nsresult aStatus,
-                                                 uint32_t aDelay)
+                                                 PRUint32 aDelay)
 {
   nsCOMPtr<nsIRunnable> r =
     new StreamFinishedRunnable(mTarget, aStatus, aDelay);
@@ -281,7 +260,7 @@ UrlClassifierUpdateObserverProxy::UpdateErrorRunnable::Run()
 }
 
 NS_IMETHODIMP
-UrlClassifierUpdateObserverProxy::UpdateSuccess(uint32_t aRequestedTimeout)
+UrlClassifierUpdateObserverProxy::UpdateSuccess(PRUint32 aRequestedTimeout)
 {
   nsCOMPtr<nsIRunnable> r =
     new UpdateSuccessRunnable(mTarget, aRequestedTimeout);

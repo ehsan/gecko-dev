@@ -32,7 +32,7 @@
 
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
-#include "vm/Keywords.h"
+#include "frontend/TreeContext.h"
 #include "vm/RegExpObject.h"
 #include "vm/StringBuffer.h"
 
@@ -46,11 +46,16 @@ using namespace js;
 using namespace js::frontend;
 using namespace js::unicode;
 
+#define JS_KEYWORD(keyword, type, op, version) \
+    const char js_##keyword##_str[] = #keyword;
+#include "jskeyword.tbl"
+#undef JS_KEYWORD
+
 static const KeywordInfo keywords[] = {
-#define KEYWORD_INFO(keyword, name, type, op, version) \
+#define JS_KEYWORD(keyword, type, op, version) \
     {js_##keyword##_str, type, op, version},
-    FOR_EACH_JAVASCRIPT_KEYWORD(KEYWORD_INFO)
-#undef KEYWORD_INFO
+#include "jskeyword.tbl"
+#undef JS_KEYWORD
 };
 
 const KeywordInfo *
@@ -117,18 +122,19 @@ frontend::IsIdentifier(JSLinearString *str)
 
 /* Initialize members that aren't initialized in |init|. */
 TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
-                         StableCharPtr base, size_t length, StrictModeGetter *smg)
+                         const jschar *base, size_t length, StrictModeGetter *smg)
   : tokens(),
     tokensRoot(cx, &tokens),
     cursor(),
     lookahead(),
     lineno(options.lineno),
     flags(),
-    linebase(base.get()),
+    linebase(base),
     prevLinebase(NULL),
     linebaseRoot(cx, &linebase),
     prevLinebaseRoot(cx, &prevLinebase),
-    userbuf(base.get(), length),
+    userbuf(base, length),
+    userbufRoot(cx, &userbuf),
     filename(options.filename),
     sourceMap(NULL),
     listenerTSData(),
@@ -148,7 +154,7 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
     void *listenerData = cx->runtime->debugHooks.sourceHandlerData;
 
     if (listener)
-        listener(options.filename, options.lineno, base.get(), length, &listenerTSData, listenerData);
+        listener(options.filename, options.lineno, base, length, &listenerTSData, listenerData);
 
     /*
      * This table holds all the token kinds that satisfy these properties:
@@ -213,9 +219,9 @@ TokenStream::TokenStream(JSContext *cx, const CompileOptions &options,
 TokenStream::~TokenStream()
 {
     if (flags & TSF_OWNFILENAME)
-        js_free((void *) filename);
+        cx->free_((void *) filename);
     if (sourceMap)
-        js_free(sourceMap);
+        cx->free_(sourceMap);
     if (originPrincipals)
         JS_DropPrincipals(cx->runtime, originPrincipals);
 }
@@ -436,19 +442,19 @@ CompileError::throwError()
 
 CompileError::~CompileError()
 {
-    js_free((void*)report.uclinebuf);
-    js_free((void*)report.linebuf);
-    js_free((void*)report.ucmessage);
-    js_free(message);
+    cx->free_((void*)report.uclinebuf);
+    cx->free_((void*)report.linebuf);
+    cx->free_((void*)report.ucmessage);
+    cx->free_(message);
     message = NULL;
 
     if (report.messageArgs) {
         if (hasCharArgs) {
             unsigned i = 0;
             while (report.messageArgs[i])
-                js_free((void*)report.messageArgs[i++]);
+                cx->free_((void*)report.messageArgs[i++]);
         }
-        js_free(report.messageArgs);
+        cx->free_(report.messageArgs);
     }
 
     PodZero(&report);
@@ -720,7 +726,7 @@ TokenStream::getXMLEntity()
     bytes = DeflateString(cx, bp + 1, (tb.end() - bp) - 1);
     if (bytes) {
         reportError(msg, bytes);
-        js_free(bytes);
+        cx->free_(bytes);
     }
     return false;
 }
@@ -1040,7 +1046,7 @@ TokenStream::getXMLMarkup(TokenKind *ttp, Token **tpp)
 
         JSAtom *data;
         if (contentIndex < 0) {
-            data = cx->names().empty;
+            data = cx->runtime->atomState.emptyAtom;
         } else {
             data = AtomizeChars(cx, tokenbuf.begin() + contentIndex,
                                 tokenbuf.length() - contentIndex);
@@ -1206,7 +1212,7 @@ TokenStream::getAtLine()
             if (c == EOF || c == '\n') {
                 if (i > 0) {
                     if (flags & TSF_OWNFILENAME)
-                        js_free((void *) filename);
+                        cx->free_((void *) filename);
                     filename = JS_strdup(cx, filenameBuf);
                     if (!filename)
                         return false;
@@ -1223,35 +1229,34 @@ TokenStream::getAtLine()
 bool
 TokenStream::getAtSourceMappingURL()
 {
-    /* Match comments of the form "//@ sourceMappingURL=<url>" */
+    jschar peeked[18];
 
-    jschar peeked[19];
-    int32_t c;
-
-    if (peekChars(19, peeked) && CharsMatch(peeked, "@ sourceMappingURL=")) {
-        skipChars(19);
+    /* Match comments of the form @sourceMappingURL=<url> */
+    if (peekChars(18, peeked) && CharsMatch(peeked, "@sourceMappingURL=")) {
+        skipChars(18);
         tokenbuf.clear();
 
-        while ((c = peekChar()) && c != EOF && !IsSpaceOrBOM2(c)) {
-            getChar();
+        jschar c;
+        while (!IsSpaceOrBOM2((c = getChar())) &&
+               c && c != jschar(EOF))
             tokenbuf.append(c);
-        }
 
         if (tokenbuf.empty())
             /* The source map's URL was missing, but not quite an exception that
              * we should stop and drop everything for, though. */
             return true;
 
-        size_t sourceMapLength = tokenbuf.length();
+        int len = tokenbuf.length();
 
         if (sourceMap)
-            js_free(sourceMap);
-        sourceMap = cx->pod_malloc<jschar>(sourceMapLength + 1);
+            cx->free_(sourceMap);
+        sourceMap = (jschar *) cx->malloc_(sizeof(jschar) * (len + 1));
         if (!sourceMap)
             return false;
 
-        PodCopy(sourceMap, tokenbuf.begin(), sourceMapLength);
-        sourceMap[sourceMapLength] = '\0';
+        for (int i = 0; i < len; i++)
+            sourceMap[i] = tokenbuf[i];
+        sourceMap[len] = '\0';
     }
     return true;
 }
@@ -2309,8 +2314,6 @@ TokenKindToString(TokenKind tt)
       case TOK_MULASSIGN:       return "TOK_MULASSIGN";
       case TOK_DIVASSIGN:       return "TOK_DIVASSIGN";
       case TOK_MODASSIGN:       return "TOK_MODASSIGN";
-      case TOK_EXPORT:          return "TOK_EXPORT";
-      case TOK_IMPORT:          return "TOK_IMPORT";
       case TOK_LIMIT:           break;
     }
 

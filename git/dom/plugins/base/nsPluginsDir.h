@@ -27,7 +27,7 @@ struct PRLibrary;
 struct nsPluginInfo {
 	char* fName;				// name of the plugin
 	char* fDescription;			// etc.
-	uint32_t fVariantCount;
+	PRUint32 fVariantCount;
 	char** fMimeTypeArray;
 	char** fMimeDescriptionArray;
 	char** fExtensionArray;

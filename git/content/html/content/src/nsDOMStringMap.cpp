@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsDOMStringMap.h"
 
 #include "nsDOMClassInfoID.h"
@@ -15,11 +15,9 @@ DOMCI_DATA(DOMStringMap, nsDOMStringMap)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMStringMap)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMStringMap)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMStringMap)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
   // Check that mElement exists in case the unlink code is run more than once.
   if (tmp->mElement) {
     // Call back to element to null out weak reference to this object.
@@ -28,12 +26,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMStringMap)
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMStringMap)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
-
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMStringMap)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsIDOMDOMStringMap)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMStringMap)
@@ -178,7 +171,10 @@ nsresult nsDOMStringMap::RemovePropInternal(nsIAtom* aAttr)
                                            this, &val);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  JSAutoCompartment ac(cx, JSVAL_TO_OBJECT(val));
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, JSVAL_TO_OBJECT(val))) {
+    return NS_ERROR_FAILURE;
+  }
 
   // Guard against infinite recursion. Prevents the stack from looking like
   // ...
@@ -202,11 +198,11 @@ nsresult nsDOMStringMap::RemovePropInternal(nsIAtom* aAttr)
  */
 nsresult nsDOMStringMap::GetDataPropList(nsTArray<nsString>& aResult)
 {
-  uint32_t attrCount = mElement->GetAttrCount();
+  PRUint32 attrCount = mElement->GetAttrCount();
 
   // Iterate through all the attributes and add property
   // names corresponding to data attributes to return array.
-  for (uint32_t i = 0; i < attrCount; ++i) {
+  for (PRUint32 i = 0; i < attrCount; ++i) {
     nsAutoString attrString;
     const nsAttrName* attrName = mElement->GetAttrNameAt(i);
     attrName->LocalName()->ToString(attrString);

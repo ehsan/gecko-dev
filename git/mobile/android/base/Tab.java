@@ -20,7 +20,6 @@ import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
-import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 
@@ -32,7 +31,7 @@ import java.util.HashSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Tab {
+public final class Tab {
     private static final String LOGTAG = "GeckoTab";
 
     private static Pattern sColorPattern;
@@ -66,7 +65,6 @@ public class Tab {
     private ByteBuffer mThumbnailBuffer;
     private Bitmap mThumbnailBitmap;
     private boolean mDesktopMode;
-    private boolean mEnteringReaderMode;
 
     public static final int STATE_DELAYED = 0;
     public static final int STATE_LOADING = 1;
@@ -85,7 +83,6 @@ public class Tab {
         mFaviconSize = 0;
         mIdentityData = null;
         mReaderEnabled = false;
-        mEnteringReaderMode = false;
         mThumbnail = null;
         mHistoryIndex = -1;
         mHistorySize = 0;
@@ -97,7 +94,7 @@ public class Tab {
         mZoomConstraints = new ZoomConstraints(false);
         mPluginViews = new ArrayList<View>();
         mPluginLayers = new HashMap<Object, Layer>();
-        mState = GeckoApp.shouldShowProgress(url) ? STATE_SUCCESS : STATE_LOADING;
+        mState = "about:home".equals(url) ? STATE_SUCCESS : STATE_LOADING;
         mContentResolver = Tabs.getInstance().getContentResolver();
         mContentObserver = new ContentObserver(GeckoAppShell.getHandler()) {
             public void onChange(boolean selfChange) {
@@ -154,7 +151,7 @@ public class Tab {
     }
 
     synchronized public ByteBuffer getThumbnailBuffer() {
-        int capacity = Tabs.getThumbnailWidth() * Tabs.getThumbnailHeight() * 2 /* 16 bpp */;
+        int capacity = getThumbnailWidth() * getThumbnailHeight() * 2 /* 16 bpp */;
         if (mThumbnailBuffer != null && mThumbnailBuffer.capacity() == capacity)
             return mThumbnailBuffer;
         freeBuffer();
@@ -165,7 +162,7 @@ public class Tab {
     public Bitmap getThumbnailBitmap() {
         if (mThumbnailBitmap != null)
             return mThumbnailBitmap;
-        return mThumbnailBitmap = Bitmap.createBitmap(Tabs.getThumbnailWidth(), Tabs.getThumbnailHeight(), Bitmap.Config.RGB_565);
+        return mThumbnailBitmap = Bitmap.createBitmap(getThumbnailWidth(), getThumbnailHeight(), Bitmap.Config.RGB_565);
     }
 
     public void finalize() {
@@ -175,6 +172,14 @@ public class Tab {
     synchronized void freeBuffer() {
         DirectBufferAllocator.free(mThumbnailBuffer);
         mThumbnailBuffer = null;
+    }
+
+    int getThumbnailWidth() {
+        return (int) (GeckoApp.mAppContext.getResources().getDimension(R.dimen.tab_thumbnail_width));
+    }
+
+    int getThumbnailHeight() {
+        return (int) (GeckoApp.mAppContext.getResources().getDimension(R.dimen.tab_thumbnail_height));
     }
 
     public void updateThumbnail(final Bitmap b) {
@@ -253,7 +258,7 @@ public class Tab {
     }
 
     public void setContentType(String contentType) {
-        mContentType = (contentType == null) ? "" : contentType;
+        mContentType = contentType;
     }
 
     public String getContentType() {
@@ -261,10 +266,6 @@ public class Tab {
     }
 
     public synchronized void updateTitle(String title) {
-        // Keep the title unchanged while entering reader mode
-        if (mEnteringReaderMode)
-            return;
-
         mTitle = (title == null ? "" : title);
 
         Log.d(LOGTAG, "Updated title for tab with id: " + mId);
@@ -278,15 +279,7 @@ public class Tab {
         });
     }
 
-    protected void addHistory(final String uri) {
-        GeckoAppShell.getHandler().post(new Runnable() {
-            public void run() {
-                GlobalHistory.getInstance().add(uri);
-            }
-        });
-    }
-
-    protected void updateHistory(final String uri, final String title) {
+    private void updateHistory(final String uri, final String title) {
         GeckoAppShell.getHandler().post(new Runnable() {
             public void run() {
                 GlobalHistory.getInstance().update(uri, title);
@@ -296,10 +289,7 @@ public class Tab {
 
     public void setState(int state) {
         mState = state;
-
-        if (mState != Tab.STATE_LOADING)
-            mEnteringReaderMode = false;
-        }
+    }
 
     public int getState() {
         return mState;
@@ -349,10 +339,6 @@ public class Tab {
     }
 
     public synchronized void clearFavicon() {
-        // Keep the favicon unchanged while entering reader mode
-        if (mEnteringReaderMode)
-            return;
-
         mFavicon = null;
         mFaviconUrl = null;
         mFaviconSize = 0;
@@ -451,12 +437,8 @@ public class Tab {
         if (!mReaderEnabled)
             return;
 
-        mEnteringReaderMode = true;
-        Tabs.getInstance().loadUrl(ReaderModeUtils.getAboutReaderForUrl(getURL(), mId, mReadingListItem));
-    }
-
-    public boolean isEnteringReaderMode() {
-        return mEnteringReaderMode;
+        GeckoApp.mAppContext.loadUrl("about:reader?url=" + Uri.encode(getURL()) +
+                                     "&readingList=" + (mReadingListItem ? 1 : 0));
     }
 
     public void doReload() {
@@ -502,7 +484,11 @@ public class Tab {
             final String url = message.getString("url");
             mHistoryIndex++;
             mHistorySize = mHistoryIndex + 1;
-            addHistory(url);
+            GeckoAppShell.getHandler().post(new Runnable() {
+                public void run() {
+                    GlobalHistory.getInstance().add(url);
+                }
+            });
         } else if (event.equals("Back")) {
             if (!canDoBack()) {
                 Log.e(LOGTAG, "Received unexpected back notification");
@@ -540,34 +526,7 @@ public class Tab {
         }
     }
 
-    void handleLocationChange(JSONObject message) throws JSONException {
-        final String uri = message.getString("uri");
-        mEnteringReaderMode = ReaderModeUtils.isEnteringReaderMode(mUrl, uri);
-        updateURL(uri);
-
-        setDocumentURI(message.getString("documentURI"));
-        if (message.getBoolean("sameDocument")) {
-            // We can get a location change event for the same document with an anchor tag
-            return;
-        }
-
-        setContentType(message.getString("contentType"));
-        clearFavicon();
-        updateTitle(null);
-        updateIdentityData(null);
-        setReaderEnabled(false);
-        setZoomConstraints(new ZoomConstraints(true));
-        setHasTouchListeners(false);
-        setCheckerboardColor(Color.WHITE);
-
-        GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-            public void run() {
-                Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.LOCATION_CHANGE, uri);
-            }
-        });
-    }
-
-    protected void saveThumbnailToDB() {
+    private void saveThumbnailToDB() {
         try {
             String url = getURL();
             if (url == null)
@@ -592,27 +551,19 @@ public class Tab {
     }
 
     public void addPluginLayer(Object surfaceOrView, Layer layer) {
-        synchronized(mPluginLayers) {
-            mPluginLayers.put(surfaceOrView, layer);
-        }
+        mPluginLayers.put(surfaceOrView, layer);
     }
 
     public Layer getPluginLayer(Object surfaceOrView) {
-        synchronized(mPluginLayers) {
-            return mPluginLayers.get(surfaceOrView);
-        }
+        return mPluginLayers.get(surfaceOrView);
     }
 
     public Collection<Layer> getPluginLayers() {
-        synchronized(mPluginLayers) {
-            return new ArrayList<Layer>(mPluginLayers.values());
-        }
+        return mPluginLayers.values();
     }
 
     public Layer removePluginLayer(Object surfaceOrView) {
-        synchronized(mPluginLayers) {
-            return mPluginLayers.remove(surfaceOrView);
-        }
+        return mPluginLayers.remove(surfaceOrView);
     }
 
     public int getCheckerboardColor() {
@@ -653,9 +604,5 @@ public class Tab {
 
     public boolean getDesktopMode() {
         return mDesktopMode;
-    }
-
-    public boolean isPrivate() {
-        return false;
     }
 }

@@ -17,7 +17,6 @@
 
 **/
 
-#include "mozilla/Attributes.h"
 #include "nsBoxFrame.h"
 
 class nsProgressMeterFrame : public nsBoxFrame
@@ -29,12 +28,12 @@ public:
 
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
 
-  NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t aModType) MOZ_OVERRIDE;
+                              PRInt32 aModType);
 
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
 protected:

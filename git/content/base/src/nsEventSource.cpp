@@ -33,7 +33,7 @@
 #include "nsDOMEventTargetHelper.h"
 #include "mozilla/Attributes.h"
 #include "nsDOMClassInfoID.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 using namespace mozilla;
 
@@ -81,7 +81,10 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsEventSource)
   bool isBlack = tmp->IsBlack();
   if (isBlack || tmp->mWaitingForOnStopRequest) {
     if (tmp->mListenerManager) {
-      tmp->mListenerManager->MarkForCC();
+      tmp->mListenerManager->UnmarkGrayJSListeners();
+      NS_UNMARK_LISTENER_WRAPPER(Open)
+      NS_UNMARK_LISTENER_WRAPPER(Message)
+      NS_UNMARK_LISTENER_WRAPPER(Error)
     }
     if (!isBlack && tmp->PreservingWrapper()) {
       xpc_UnmarkGrayObject(tmp->GetWrapperPreserveColor());
@@ -110,11 +113,17 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsEventSource,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mChannelEventSink)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mHttpChannel)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTimer)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnOpenListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnMessageListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOnErrorListener)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mUnicodeDecoder)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsEventSource, nsDOMEventTargetHelper)
   tmp->Close();
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnOpenListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnMessageListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mOnErrorListener)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 DOMCI_DATA(EventSource, nsEventSource)
@@ -134,14 +143,13 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(nsEventSource, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(nsEventSource, nsDOMEventTargetHelper)
 
-NS_IMPL_EVENT_HANDLER(nsEventSource, open)
-NS_IMPL_EVENT_HANDLER(nsEventSource, message)
-NS_IMPL_EVENT_HANDLER(nsEventSource, error)
-
 void
 nsEventSource::DisconnectFromOwner()
 {
   nsDOMEventTargetHelper::DisconnectFromOwner();
+  NS_DISCONNECT_EVENT_HANDLER(Open)
+  NS_DISCONNECT_EVENT_HANDLER(Message)
+  NS_DISCONNECT_EVENT_HANDLER(Error)
   Close();
 }
 
@@ -157,7 +165,7 @@ nsEventSource::GetUrl(nsAString& aURL)
 }
 
 NS_IMETHODIMP
-nsEventSource::GetReadyState(int32_t *aReadyState)
+nsEventSource::GetReadyState(PRInt32 *aReadyState)
 {
   NS_ENSURE_ARG_POINTER(aReadyState);
   *aReadyState = mReadyState;
@@ -171,6 +179,24 @@ nsEventSource::GetWithCredentials(bool *aWithCredentials)
   *aWithCredentials = mWithCredentials;
   return NS_OK;
 }
+
+#define NS_EVENTSRC_IMPL_DOMEVENTLISTENER(_eventlistenername, _eventlistener)  \
+  NS_IMETHODIMP                                                                \
+  nsEventSource::GetOn##_eventlistenername(nsIDOMEventListener * *aListener)   \
+  {                                                                            \
+    return GetInnerEventListener(_eventlistener, aListener);                   \
+  }                                                                            \
+                                                                               \
+  NS_IMETHODIMP                                                                \
+  nsEventSource::SetOn##_eventlistenername(nsIDOMEventListener * aListener)    \
+  {                                                                            \
+    return RemoveAddEventListener(NS_LITERAL_STRING(#_eventlistenername),      \
+                                  _eventlistener, aListener);                  \
+  }
+
+NS_EVENTSRC_IMPL_DOMEVENTLISTENER(open, mOnOpenListener)
+NS_EVENTSRC_IMPL_DOMEVENTLISTENER(error, mOnErrorListener)
+NS_EVENTSRC_IMPL_DOMEVENTLISTENER(message, mOnMessageListener)
 
 NS_IMETHODIMP
 nsEventSource::Close()
@@ -283,7 +309,7 @@ nsEventSource::Init(nsIPrincipal* aPrincipal,
   rv = nsContentUtils::GetUTFOrigin(srcURI, origin);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = srcURI->GetSpec(spec);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -325,7 +351,7 @@ NS_IMETHODIMP
 nsEventSource::Initialize(nsISupports* aOwner,
                           JSContext* aContext,
                           JSObject* aObject,
-                          uint32_t aArgc,
+                          PRUint32 aArgc,
                           jsval* aArgv)
 {
   if (mReadyState != nsIEventSource::CONNECTING || !PrefEnabled() ||
@@ -413,10 +439,10 @@ nsEventSource::Observe(nsISupports* aSubject,
   DebugOnly<nsresult> rv;
   if (strcmp(aTopic, DOM_WINDOW_FROZEN_TOPIC) == 0) {
     rv = Freeze();
-    NS_ASSERTION(NS_SUCCEEDED(rv), "Freeze() failed");
+    NS_ASSERTION(rv, "Freeze() failed");
   } else if (strcmp(aTopic, DOM_WINDOW_THAWED_TOPIC) == 0) {
     rv = Thaw();
-    NS_ASSERTION(NS_SUCCEEDED(rv), "Thaw() failed");
+    NS_ASSERTION(rv, "Thaw() failed");
   } else if (strcmp(aTopic, DOM_WINDOW_DESTROYED_TOPIC) == 0) {
     Close();
   }
@@ -442,7 +468,7 @@ nsEventSource::OnStartRequest(nsIRequest *aRequest,
   rv = httpChannel->GetRequestSucceeded(&requestSucceeded);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString contentType;
+  nsCAutoString contentType;
   rv = httpChannel->GetContentType(contentType);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -478,9 +504,9 @@ NS_METHOD
 nsEventSource::StreamReaderFunc(nsIInputStream *aInputStream,
                                 void *aClosure,
                                 const char *aFromRawSegment,
-                                uint32_t aToOffset,
-                                uint32_t aCount,
-                                uint32_t *aWriteCount)
+                                PRUint32 aToOffset,
+                                PRUint32 aCount,
+                                PRUint32 *aWriteCount)
 {
   nsEventSource* thisObject = static_cast<nsEventSource*>(aClosure);
   if (!thisObject || !aWriteCount) {
@@ -490,7 +516,7 @@ nsEventSource::StreamReaderFunc(nsIInputStream *aInputStream,
 
   *aWriteCount = 0;
 
-  int32_t srcCount, outCount;
+  PRInt32 srcCount, outCount;
   PRUnichar out[2];
   nsresult rv;
 
@@ -513,7 +539,7 @@ nsEventSource::StreamReaderFunc(nsIInputStream *aInputStream,
       p = p + srcCount + 1;
       thisObject->mUnicodeDecoder->Reset();
     } else {
-      for (int32_t i = 0; i < outCount; ++i) {
+      for (PRInt32 i = 0; i < outCount; ++i) {
         rv = thisObject->ParseCharacter(out[i]);
         NS_ENSURE_SUCCESS(rv, rv);
       }
@@ -537,15 +563,15 @@ NS_IMETHODIMP
 nsEventSource::OnDataAvailable(nsIRequest *aRequest,
                                nsISupports *aContext,
                                nsIInputStream *aInputStream,
-                               uint64_t aOffset,
-                               uint32_t aCount)
+                               PRUint32 aOffset,
+                               PRUint32 aCount)
 {
   NS_ENSURE_ARG_POINTER(aInputStream);
 
   nsresult rv = CheckHealthOfRequestCallback(aRequest);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t totalRead;
+  PRUint32 totalRead;
   return aInputStream->ReadSegments(nsEventSource::StreamReaderFunc, this,
                                     aCount, &totalRead);
 }
@@ -667,7 +693,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(AsyncVerifyRedirectCallbackFwr)
 NS_IMETHODIMP
 nsEventSource::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
                                       nsIChannel *aNewChannel,
-                                      uint32_t    aFlags,
+                                      PRUint32    aFlags,
                                       nsIAsyncVerifyRedirectCallback *aCallback)
 {
   nsCOMPtr<nsIRequest> aOldRequest = do_QueryInterface(aOldChannel);
@@ -903,9 +929,9 @@ nsEventSource::InitChannelAndRequestEventSource()
     mHttpChannel->SetNotificationCallbacks(this);
   }
 
-  nsRefPtr<nsCORSListenerProxy> listener =
-    new nsCORSListenerProxy(this, mPrincipal, mWithCredentials);
-  rv = listener->Init(mHttpChannel);
+  nsCOMPtr<nsIStreamListener> listener =
+    new nsCORSListenerProxy(this, mPrincipal, mHttpChannel,
+                            mWithCredentials, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Start reading from the channel
@@ -1063,7 +1089,7 @@ nsresult
 nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
                                    const PRUnichar *aError,
                                    const PRUnichar **aFormatStrings,
-                                   uint32_t aFormatStringsLen)
+                                   PRUint32 aFormatStringsLen)
 {
   nsCOMPtr<nsIStringBundleService> bundleService =
     mozilla::services::GetStringBundleService();
@@ -1093,9 +1119,9 @@ nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = errObj->InitWithWindowID(message,
-                                mScriptFile,
-                                EmptyString(),
+  rv = errObj->InitWithWindowID(message.get(),
+                                mScriptFile.get(),
+                                nullptr,
                                 mScriptLine, 0,
                                 nsIScriptError::errorFlag,
                                 "Event Source", mInnerWindowID);
@@ -1111,7 +1137,7 @@ nsEventSource::PrintErrorOnConsole(const char *aBundleURI,
 nsresult
 nsEventSource::ConsoleError()
 {
-  nsAutoCString targetSpec;
+  nsCAutoString targetSpec;
   nsresult rv = mSrc->GetSpec(targetSpec);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1202,7 +1228,7 @@ nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
   nsCOMPtr<nsIURI> srcToTest = aSrc ? aSrc : mSrc.get();
   NS_ENSURE_TRUE(srcToTest, false);
 
-  uint32_t aCheckURIFlags =
+  PRUint32 aCheckURIFlags =
     nsIScriptSecurityManager::DISALLOW_INHERIT_PRINCIPAL |
     nsIScriptSecurityManager::DISALLOW_SCRIPT;
 
@@ -1222,7 +1248,7 @@ nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
   // Still need to consider the case that doc is nullptr however.
   rv = CheckInnerWindowCorrectness();
   NS_ENSURE_SUCCESS(rv, false);
-  int16_t shouldLoad = nsIContentPolicy::ACCEPT;
+  PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
   rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_DATAREQUEST,
                                  srcToTest,
                                  mPrincipal,
@@ -1234,7 +1260,7 @@ nsEventSource::CheckCanRequestSrc(nsIURI* aSrc)
                                  nsContentUtils::GetSecurityManager());
   isValidContentLoadPolicy = NS_SUCCEEDED(rv) && NS_CP_ACCEPTED(shouldLoad);
 
-  nsAutoCString targetURIScheme;
+  nsCAutoString targetURIScheme;
   rv = srcToTest->GetScheme(targetURIScheme);
   if (NS_SUCCEEDED(rv)) {
     // We only have the http support for now
@@ -1332,7 +1358,7 @@ nsEventSource::DispatchCurrentMessageEvent()
     message->mLastEventID.Assign(mLastEventID);
   }
 
-  int32_t sizeBefore = mMessagesToDispatch.GetSize();
+  PRInt32 sizeBefore = mMessagesToDispatch.GetSize();
   mMessagesToDispatch.Push(message.forget());
   NS_ENSURE_TRUE(mMessagesToDispatch.GetSize() == sizeBefore + 1,
                  NS_ERROR_OUT_OF_MEMORY);
@@ -1367,13 +1393,13 @@ nsEventSource::DispatchAllMessageEvents()
 
   // Let's play get the JSContext
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetOwner());
-  NS_ENSURE_TRUE_VOID(sgo);
+  NS_ENSURE_TRUE(sgo,);
 
   nsIScriptContext* scriptContext = sgo->GetContext();
-  NS_ENSURE_TRUE_VOID(scriptContext);
+  NS_ENSURE_TRUE(scriptContext,);
 
   JSContext* cx = scriptContext->GetNativeContext();
-  NS_ENSURE_TRUE_VOID(cx);
+  NS_ENSURE_TRUE(cx,);
 
   while (mMessagesToDispatch.GetSize() > 0) {
     nsAutoPtr<Message>
@@ -1387,7 +1413,7 @@ nsEventSource::DispatchAllMessageEvents()
       jsString = JS_NewUCStringCopyN(cx,
                                      message->mData.get(),
                                      message->mData.Length());
-      NS_ENSURE_TRUE_VOID(jsString);
+      NS_ENSURE_TRUE(jsString,);
 
       jsData = STRING_TO_JSVAL(jsString);
     }
@@ -1476,8 +1502,8 @@ nsEventSource::SetFieldAndClear()
 
     case PRUnichar('r'):
       if (mLastFieldName.EqualsLiteral("retry")) {
-        uint32_t newValue=0;
-        uint32_t i = 0;  // we must ensure that there are only digits
+        PRUint32 newValue=0;
+        PRUint32 i = 0;  // we must ensure that there are only digits
         bool assign = true;
         for (i = 0; i < mLastFieldValue.Length(); ++i) {
           if (mLastFieldValue.CharAt(i) < (PRUnichar)'0' ||
@@ -1486,8 +1512,8 @@ nsEventSource::SetFieldAndClear()
             break;
           }
           newValue = newValue*10 +
-                     (((uint32_t)mLastFieldValue.CharAt(i))-
-                       ((uint32_t)((PRUnichar)'0')));
+                     (((PRUint32)mLastFieldValue.CharAt(i))-
+                       ((PRUint32)((PRUnichar)'0')));
         }
 
         if (assign) {

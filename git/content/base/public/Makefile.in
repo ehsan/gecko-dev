@@ -18,6 +18,7 @@ mozFlushType.h \
 nsIContent.h \
 nsIAttribute.h \
 nsIContentIterator.h \
+nsContentErrors.h \
 nsContentPolicyUtils.h \
 nsContentUtils.h \
 nsIDocument.h \
@@ -42,7 +43,6 @@ nsReferencedElement.h \
 nsTreeSanitizer.h \
 nsXMLNameSpaceMap.h \
 nsIXFormsUtilityService.h \
-nsBlobProtocolHandler.h \
 $(NULL)
 
 EXPORTS_NAMESPACES = mozilla/dom mozilla
@@ -65,7 +65,6 @@ SDK_XPIDLSRCS   = \
 XPIDLSRCS	= \
 		nsIContentPolicy.idl        \
 		nsIDocumentEncoder.idl      \
-	        nsIDOMDataChannel.idl \
 		nsIDOMFile.idl \
 		nsIDOMFileReader.idl \
 		nsIDOMFileList.idl \
@@ -83,7 +82,8 @@ XPIDLSRCS	= \
 		nsIFrameLoader.idl \
 		nsIXMLHttpRequest.idl \
 		nsIContentSecurityPolicy.idl \
-		nsIMessageManager.idl \
+		nsIFrameMessageManager.idl \
+		nsIWebSocket.idl \
 		nsIEventSource.idl \
 		$(NULL)
 

@@ -36,7 +36,7 @@
 #include "nsIObserverService.h"
 #include "nsISupportsPrimitives.h"
 #include "nsFind.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsFocusManager.h"
 #include "mozilla/Services.h"
 
@@ -130,7 +130,7 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
     nsIDocShell *rootDocShell = GetDocShellFromWindow(rootFrame);
     if (!rootDocShell) return NS_ERROR_FAILURE;
     
-    int32_t enumDirection;
+    PRInt32 enumDirection;
     if (mFindBackwards)
         enumDirection = nsIDocShell::ENUMERATE_BACKWARDS;
     else
@@ -206,9 +206,6 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
         curItem = do_QueryInterface(curSupports, &rv);
         if (NS_FAILED(rv)) break;
 
-        searchFrame = do_GetInterface(curItem, &rv);
-        if (NS_FAILED(rv)) break;
-
         if (curItem.get() == startingItem.get())
         {
             // Beware! This may flush notifications via synchronous
@@ -219,6 +216,9 @@ NS_IMETHODIMP nsWebBrowserFind::FindNext(bool *outDidFind)
                 return OnFind(searchFrame);        // we are done
             break;
         }
+
+        searchFrame = do_GetInterface(curItem, &rv);
+        if (NS_FAILED(rv)) break;
 
         OnStartSearchFrame(searchFrame);
 
@@ -460,7 +460,7 @@ nsresult nsWebBrowserFind::SetRangeAroundDocument(nsIDOMRange* aSearchRange,
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ENSURE_ARG_POINTER(bodyContent);
 
-    uint32_t childCount = bodyContent->GetChildCount();
+    PRUint32 childCount = bodyContent->GetChildCount();
 
     aSearchRange->SetStart(bodyNode, 0);
     aSearchRange->SetEnd(bodyNode, childCount);
@@ -497,7 +497,7 @@ nsWebBrowserFind::GetSearchLimits(nsIDOMRange* aSearchRange,
     NS_ENSURE_ARG_POINTER(aSel);
 
     // There is a selection.
-    int32_t count = -1;
+    PRInt32 count = -1;
     nsresult rv = aSel->GetRangeCount(&count);
     if (count < 1)
         return SetRangeAroundDocument(aSearchRange, aStartPt, aEndPt, aDoc);
@@ -508,14 +508,14 @@ nsWebBrowserFind::GetSearchLimits(nsIDOMRange* aSearchRange,
     nsCOMPtr<nsIContent> bodyContent (do_QueryInterface(bodyNode));
     NS_ENSURE_ARG_POINTER(bodyContent);
 
-    uint32_t childCount = bodyContent->GetChildCount();
+    PRUint32 childCount = bodyContent->GetChildCount();
 
     // There are four possible range endpoints we might use:
     // DocumentStart, SelectionStart, SelectionEnd, DocumentEnd.
 
     nsCOMPtr<nsIDOMRange> range;
     nsCOMPtr<nsIDOMNode> node;
-    int32_t offset;
+    PRInt32 offset;
 
     // Forward, not wrapping: SelEnd to DocEnd
     if (!mFindBackwards && !aWrap)
@@ -801,20 +801,25 @@ nsWebBrowserFind::GetFrameSelection(nsIDOMWindow* aWindow,
     // that we must use when they have focus.
     nsPresContext *presContext = presShell->GetPresContext();
 
-    nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aWindow));
-
-    nsCOMPtr<nsPIDOMWindow> focusedWindow;
-    nsCOMPtr<nsIContent> focusedContent =
-      nsFocusManager::GetFocusedDescendant(window, false, getter_AddRefs(focusedWindow));
-
-    nsIFrame *frame = focusedContent ? focusedContent->GetPrimaryFrame() : nullptr;
+    nsIFrame *frame = nullptr;
+    nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
+    if (fm) {
+      nsCOMPtr<nsIDOMElement> focusedElement;
+      fm->GetFocusedElement(getter_AddRefs(focusedElement));
+      nsCOMPtr<nsIContent> focusedContent(do_QueryInterface(focusedElement));
+      if (focusedContent) {
+        frame = focusedContent->GetPrimaryFrame();
+        if (frame && frame->PresContext() != presContext)
+          frame = nullptr;
+      }
+    }
 
     nsCOMPtr<nsISelectionController> selCon;
     if (frame) {
         frame->GetSelectionController(presContext, getter_AddRefs(selCon));
         selCon->GetSelection(nsISelectionController::SELECTION_NORMAL, aSel);
         if (*aSel) {
-            int32_t count = -1;
+            PRInt32 count = -1;
             (*aSel)->GetRangeCount(&count);
             if (count > 0) {
                 return;

@@ -21,11 +21,6 @@ function test() {
 }
 
 function whenBrowserLoaded(aBrowser, aCallback) {
-  if (aBrowser.contentDocument.readyState == "complete") {
-    executeSoon(aCallback);
-    return;
-  }
-
   aBrowser.addEventListener("load", function onLoad() {
     aBrowser.removeEventListener("load", onLoad, true);
     executeSoon(aCallback);

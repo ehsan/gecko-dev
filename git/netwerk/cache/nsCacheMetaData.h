@@ -25,20 +25,20 @@ public:
 
     nsresult      SetElement(const char * key, const char * value);
 
-    uint32_t      Size(void) { return mMetaSize; }
+    PRUint32      Size(void) { return mMetaSize; }
 
-    nsresult      FlattenMetaData(char * buffer, uint32_t bufSize);
+    nsresult      FlattenMetaData(char * buffer, PRUint32 bufSize);
 
-    nsresult      UnflattenMetaData(const char * buffer, uint32_t bufSize);
+    nsresult      UnflattenMetaData(const char * buffer, PRUint32 bufSize);
 
     nsresult      VisitElements(nsICacheMetaDataVisitor * visitor);
 
 private:
-    nsresult      EnsureBuffer(uint32_t size);
+    nsresult      EnsureBuffer(PRUint32 size);
 
     char *        mBuffer;
-    uint32_t      mBufferSize;
-    uint32_t      mMetaSize;
+    PRUint32      mBufferSize;
+    PRUint32      mMetaSize;
 };
 
 #endif // _nsCacheMetaData_h

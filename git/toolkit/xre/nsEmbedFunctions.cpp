@@ -125,7 +125,7 @@ XRE_LockProfileDirectory(nsIFile* aDirectory,
   return rv;
 }
 
-static int32_t sInitCounter;
+static PRInt32 sInitCounter;
 
 nsresult
 XRE_InitEmbedding2(nsIFile *aLibXULDirectory,
@@ -228,8 +228,8 @@ GeckoProcessType sChildProcessType = GeckoProcessType_Default;
 // IPDL wants access to this crashreporter interface, and
 // crashreporter is built in such a way to make that awkward
 bool
-XRE_TakeMinidumpForChild(uint32_t aChildPid, nsIFile** aDump,
-                         uint32_t* aSequence)
+XRE_TakeMinidumpForChild(PRUint32 aChildPid, nsIFile** aDump,
+                         PRUint32* aSequence)
 {
   return CrashReporter::TakeMinidumpForChild(aChildPid, aDump, aSequence);
 }
@@ -423,7 +423,7 @@ XRE_InitChildProcess(int aArgc,
 
   NS_LogInit();
 
-  nsresult rv = XRE_InitCommandLine(aArgc, aArgv);
+  int rv = XRE_InitCommandLine(aArgc, aArgv);
   if (NS_FAILED(rv)) {
     NS_LogTerm();
     return NS_ERROR_FAILURE;
@@ -547,7 +547,7 @@ XRE_InitParentProcess(int aArgc,
 
   gArgc = aArgc;
   gArgv = aArgv;
-  nsresult rv = XRE_InitCommandLine(gArgc, gArgv);
+  int rv = XRE_InitCommandLine(gArgc, gArgv);
   if (NS_FAILED(rv))
       return NS_ERROR_FAILURE;
 

@@ -6,11 +6,11 @@
 #include "nsSVGElement.h"
 #include "DOMSVGNumberList.h"
 #include "DOMSVGNumber.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "SVGAnimatedNumberList.h"
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
-#include "mozilla/dom/SVGNumberListBinding.h"
+#include "dombindings.h"
 
 // See the comment in this file's header.
 
@@ -22,11 +22,11 @@ namespace {
 using mozilla::DOMSVGNumber;
 
 void UpdateListIndicesFromIndex(nsTArray<DOMSVGNumber*>& aItemsArray,
-                                uint32_t aStartingIndex)
+                                PRUint32 aStartingIndex)
 {
-  uint32_t length = aItemsArray.Length();
+  PRUint32 length = aItemsArray.Length();
 
-  for (uint32_t i = aStartingIndex; i < length; ++i) {
+  for (PRUint32 i = aStartingIndex; i < length; ++i) {
     if (aItemsArray[i]) {
       aItemsArray[i]->UpdateListIndex(i);
     }
@@ -77,13 +77,27 @@ NS_INTERFACE_MAP_END
 JSObject*
 DOMSVGNumberList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  return mozilla::dom::SVGNumberListBinding::Wrap(cx, scope, this, triedToWrap);
+  return mozilla::dom::binding::SVGNumberList::create(cx, scope, this,
+                                                      triedToWrap);
+}
+
+nsIDOMSVGNumber*
+DOMSVGNumberList::GetItemAt(PRUint32 aIndex)
+{
+  if (IsAnimValList()) {
+    Element()->FlushAnimations();
+  }
+  if (aIndex < Length()) {
+    EnsureItemAt(aIndex);
+    return mItems[aIndex];
+  }
+  return nullptr;
 }
 
 void
-DOMSVGNumberList::InternalListLengthWillChange(uint32_t aNewLength)
+DOMSVGNumberList::InternalListLengthWillChange(PRUint32 aNewLength)
 {
-  uint32_t oldLength = mItems.Length();
+  PRUint32 oldLength = mItems.Length();
 
   if (aNewLength > DOMSVGNumber::MaxListIndex()) {
     // It's safe to get out of sync with our internal list as long as we have
@@ -99,7 +113,7 @@ DOMSVGNumberList::InternalListLengthWillChange(uint32_t aNewLength)
   }
 
   // If our length will decrease, notify the items that will be removed:
-  for (uint32_t i = aNewLength; i < oldLength; ++i) {
+  for (PRUint32 i = aNewLength; i < oldLength; ++i) {
     if (mItems[i]) {
       mItems[i]->RemovingFromList();
     }
@@ -113,7 +127,7 @@ DOMSVGNumberList::InternalListLengthWillChange(uint32_t aNewLength)
   }
 
   // If our length has increased, null out the new pointers:
-  for (uint32_t i = oldLength; i < aNewLength; ++i) {
+  for (PRUint32 i = oldLength; i < aNewLength; ++i) {
     mItems[i] = nullptr;
   }
 }
@@ -129,21 +143,23 @@ DOMSVGNumberList::InternalList() const
 // nsIDOMSVGNumberList implementation:
 
 NS_IMETHODIMP
-DOMSVGNumberList::GetNumberOfItems(uint32_t *aNumberOfItems)
+DOMSVGNumberList::GetNumberOfItems(PRUint32 *aNumberOfItems)
 {
-  *aNumberOfItems = NumberOfItems();
+  if (IsAnimValList()) {
+    Element()->FlushAnimations();
+  }
+  *aNumberOfItems = Length();
   return NS_OK;
 }
 
-void
-DOMSVGNumberList::Clear(ErrorResult& error)
+NS_IMETHODIMP
+DOMSVGNumberList::Clear()
 {
   if (IsAnimValList()) {
-    error.Throw(NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR);
-    return;
+    return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
-  if (LengthNoFlush() > 0) {
+  if (Length() > 0) {
     nsAttrValue emptyOrOldValue = Element()->WillChangeNumberList(AttrEnum());
     // Notify any existing DOM items of removal *before* truncating the lists
     // so that they can find their SVGNumber internal counterparts and copy
@@ -157,23 +173,16 @@ DOMSVGNumberList::Clear(ErrorResult& error)
       Element()->AnimationNeedsResample();
     }
   }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
-DOMSVGNumberList::Clear()
-{
-  ErrorResult rv;
-  Clear(rv);
-  return rv.ErrorCode();
-}
-
-already_AddRefed<nsIDOMSVGNumber>
 DOMSVGNumberList::Initialize(nsIDOMSVGNumber *newItem,
-                             ErrorResult& error)
+                             nsIDOMSVGNumber **_retval)
 {
+  *_retval = nullptr;
   if (IsAnimValList()) {
-    error.Throw(NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
   // If newItem is already in a list we should insert a clone of newItem, and
@@ -186,69 +195,46 @@ DOMSVGNumberList::Initialize(nsIDOMSVGNumber *newItem,
 
   nsCOMPtr<DOMSVGNumber> domItem = do_QueryInterface(newItem);
   if (!domItem) {
-    error.Throw(NS_ERROR_DOM_SVG_WRONG_TYPE_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
   }
   if (domItem->HasOwner()) {
     newItem = domItem->Clone();
   }
 
   Clear();
-  return InsertItemBefore(newItem, 0, error);
+  return InsertItemBefore(newItem, 0, _retval);
 }
 
 NS_IMETHODIMP
-DOMSVGNumberList::Initialize(nsIDOMSVGNumber *newItem,
-                             nsIDOMSVGNumber **_retval)
-{
-  ErrorResult rv;
-  *_retval = Initialize(newItem, rv).get();
-  return rv.ErrorCode();
-}
-
-nsIDOMSVGNumber*
-DOMSVGNumberList::IndexedGetter(uint32_t index, bool& found, ErrorResult& error)
-{
-  if (IsAnimValList()) {
-    Element()->FlushAnimations();
-  }
-  found = index < LengthNoFlush();
-  if (found) {
-    EnsureItemAt(index);
-    return mItems[index];
-  }
-  return nullptr;
-}
-
-NS_IMETHODIMP
-DOMSVGNumberList::GetItem(uint32_t index,
+DOMSVGNumberList::GetItem(PRUint32 index,
                           nsIDOMSVGNumber **_retval)
 {
-  ErrorResult rv;
-  NS_IF_ADDREF(*_retval = GetItem(index, rv));
-  return rv.ErrorCode();
+  *_retval = GetItemAt(index);
+  if (!*_retval) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
+  }
+  NS_ADDREF(*_retval);
+  return NS_OK;
 }
 
-already_AddRefed<nsIDOMSVGNumber>
+NS_IMETHODIMP
 DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
-                                   uint32_t index,
-                                   ErrorResult& error)
+                                   PRUint32 index,
+                                   nsIDOMSVGNumber **_retval)
 {
+  *_retval = nullptr;
   if (IsAnimValList()) {
-    error.Throw(NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
-  index = NS_MIN(index, LengthNoFlush());
+  index = NS_MIN(index, Length());
   if (index >= DOMSVGNumber::MaxListIndex()) {
-    error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
   nsCOMPtr<DOMSVGNumber> domItem = do_QueryInterface(newItem);
   if (!domItem) {
-    error.Throw(NS_ERROR_DOM_SVG_WRONG_TYPE_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
   }
   if (domItem->HasOwner()) {
     domItem = domItem->Clone(); // must do this before changing anything!
@@ -257,8 +243,7 @@ DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
   // Ensure we have enough memory so we can avoid complex error handling below:
   if (!mItems.SetCapacity(mItems.Length() + 1) ||
       !InternalList().SetCapacity(InternalList().Length() + 1)) {
-    error.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return nullptr;
+    return NS_ERROR_OUT_OF_MEMORY;
   }
 
   nsAttrValue emptyOrOldValue = Element()->WillChangeNumberList(AttrEnum());
@@ -279,37 +264,26 @@ DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
   }
-  return domItem.forget();
+  domItem.forget(_retval);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
-DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
-                                   uint32_t index,
-                                   nsIDOMSVGNumber **_retval)
-{
-  ErrorResult rv;
-  *_retval = InsertItemBefore(newItem, index, rv).get();
-  return rv.ErrorCode();
-}
-
-already_AddRefed<nsIDOMSVGNumber>
 DOMSVGNumberList::ReplaceItem(nsIDOMSVGNumber *newItem,
-                              uint32_t index,
-                              ErrorResult& error)
+                              PRUint32 index,
+                              nsIDOMSVGNumber **_retval)
 {
+  *_retval = nullptr;
   if (IsAnimValList()) {
-    error.Throw(NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
   nsCOMPtr<DOMSVGNumber> domItem = do_QueryInterface(newItem);
   if (!domItem) {
-    error.Throw(NS_ERROR_DOM_SVG_WRONG_TYPE_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
   }
-  if (index >= LengthNoFlush()) {
-    error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return nullptr;
+  if (index >= Length()) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
   if (domItem->HasOwner()) {
     domItem = domItem->Clone(); // must do this before changing anything!
@@ -333,31 +307,21 @@ DOMSVGNumberList::ReplaceItem(nsIDOMSVGNumber *newItem,
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
   }
-  return domItem.forget();
+  NS_ADDREF(*_retval = domItem.get());
+  return NS_OK;
 }
 
 NS_IMETHODIMP
-DOMSVGNumberList::ReplaceItem(nsIDOMSVGNumber *newItem,
-                              uint32_t index,
-                              nsIDOMSVGNumber **_retval)
+DOMSVGNumberList::RemoveItem(PRUint32 index,
+                             nsIDOMSVGNumber **_retval)
 {
-  ErrorResult rv;
-  *_retval = ReplaceItem(newItem, index, rv).get();
-  return rv.ErrorCode();
-}
-
-already_AddRefed<nsIDOMSVGNumber>
-DOMSVGNumberList::RemoveItem(uint32_t index,
-                             ErrorResult& error)
-{
+  *_retval = nullptr;
   if (IsAnimValList()) {
-    error.Throw(NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR);
-    return nullptr;
+    return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
-  if (index >= LengthNoFlush()) {
-    error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return nullptr;
+  if (index >= Length()) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
   // Now that we know we're removing, keep animVal list in sync as necessary.
@@ -372,7 +336,7 @@ DOMSVGNumberList::RemoveItem(uint32_t index,
   // Notify the DOM item of removal *before* modifying the lists so that the
   // DOM item can copy its *old* value:
   mItems[index]->RemovingFromList();
-  nsCOMPtr<nsIDOMSVGNumber> result = mItems[index];
+  NS_ADDREF(*_retval = mItems[index]);
 
   InternalList().RemoveItem(index);
   mItems.RemoveElementAt(index);
@@ -383,36 +347,24 @@ DOMSVGNumberList::RemoveItem(uint32_t index,
   if (mAList->IsAnimating()) {
     Element()->AnimationNeedsResample();
   }
-  return result.forget();
-}
-
-NS_IMETHODIMP
-DOMSVGNumberList::RemoveItem(uint32_t index,
-                             nsIDOMSVGNumber **_retval)
-{
-  ErrorResult rv;
-  *_retval = RemoveItem(index, rv).get();
-  return rv.ErrorCode();
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 DOMSVGNumberList::AppendItem(nsIDOMSVGNumber *newItem,
                              nsIDOMSVGNumber **_retval)
 {
-  ErrorResult rv;
-  *_retval = AppendItem(newItem, rv).get();
-  return rv.ErrorCode();
+  return InsertItemBefore(newItem, Length(), _retval);
 }
 
 NS_IMETHODIMP
-DOMSVGNumberList::GetLength(uint32_t *aLength)
+DOMSVGNumberList::GetLength(PRUint32 *aNumberOfItems)
 {
-  *aLength = Length();
-  return NS_OK;
+  return GetNumberOfItems(aNumberOfItems);
 }
 
 void
-DOMSVGNumberList::EnsureItemAt(uint32_t aIndex)
+DOMSVGNumberList::EnsureItemAt(PRUint32 aIndex)
 {
   if (!mItems[aIndex]) {
     mItems[aIndex] = new DOMSVGNumber(this, AttrEnum(), aIndex, IsAnimValList());
@@ -420,7 +372,7 @@ DOMSVGNumberList::EnsureItemAt(uint32_t aIndex)
 }
 
 void
-DOMSVGNumberList::MaybeInsertNullInAnimValListAt(uint32_t aIndex)
+DOMSVGNumberList::MaybeInsertNullInAnimValListAt(PRUint32 aIndex)
 {
   NS_ABORT_IF_FALSE(!IsAnimValList(), "call from baseVal to animVal");
 
@@ -440,7 +392,7 @@ DOMSVGNumberList::MaybeInsertNullInAnimValListAt(uint32_t aIndex)
 }
 
 void
-DOMSVGNumberList::MaybeRemoveItemFromAnimValListAt(uint32_t aIndex)
+DOMSVGNumberList::MaybeRemoveItemFromAnimValListAt(PRUint32 aIndex)
 {
   NS_ABORT_IF_FALSE(!IsAnimValList(), "call from baseVal to animVal");
 

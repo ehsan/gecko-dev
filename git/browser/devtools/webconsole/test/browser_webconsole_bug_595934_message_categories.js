@@ -116,16 +116,16 @@ let TestObserver = {
       return;
     }
 
-    var expectedCategory = TESTS[pos].category;
+    is(aSubject.category, TESTS[pos].category,
+      "test #" + pos + ": error category '" + TESTS[pos].category + "'");
 
-    info("test #" + pos + " console observer got " + aSubject.category + ", is expecting " + expectedCategory);
-
-    if (aSubject.category == expectedCategory) {
+    if (aSubject.category == TESTS[pos].category) {
       foundCategory = true;
     }
     else {
-      info("unexpected message was: " + aSubject.sourceName + ':' + aSubject.lineNumber + '; ' +
+      ok(false, aSubject.sourceName + ':' + aSubject.lineNumber + '; ' +
                 aSubject.errorMessage);
+      testEnded = true;
     }
   }
 };
@@ -152,8 +152,7 @@ function testNext() {
   pos++;
   if (pos < TESTS.length) {
     waitForSuccess({
-      timeout: 10000,
-      name: "test #" + pos + " successful finish",
+      name: "test #" + pos + " succesful finish",
       validatorFn: function()
       {
         return foundCategory && foundText && pageLoaded && pageError;
@@ -212,8 +211,6 @@ function onDOMNodeInserted(aEvent) {
 }
 
 function test() {
-  requestLongerTimeout(2);
-
   addTab("data:text/html;charset=utf-8,Web Console test for bug 595934 - message categories coverage.");
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);

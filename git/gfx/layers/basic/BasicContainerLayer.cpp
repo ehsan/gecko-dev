@@ -30,7 +30,7 @@ BasicContainerLayer::ChildrenPartitionVisibleRegion(const nsIntRect& aInRect)
       transform.HasNonIntegerTranslation())
     return false;
 
-  nsIntPoint offset(int32_t(transform.x0), int32_t(transform.y0));
+  nsIntPoint offset(PRInt32(transform.x0), PRInt32(transform.y0));
   nsIntRect rect = aInRect.Intersect(GetEffectiveVisibleRegion().GetBounds() + offset);
   nsIntRegion covered;
 
@@ -44,7 +44,7 @@ BasicContainerLayer::ChildrenPartitionVisibleRegion(const nsIntRect& aInRect)
         l->GetEffectiveOpacity() != 1.0)
       return false;
     nsIntRegion childRegion = l->GetEffectiveVisibleRegion();
-    childRegion.MoveBy(int32_t(childTransform.x0), int32_t(childTransform.y0));
+    childRegion.MoveBy(PRInt32(childTransform.x0), PRInt32(childTransform.y0));
     childRegion.And(childRegion, rect);
     if (l->GetClipRect()) {
       childRegion.And(childRegion, *l->GetClipRect() + offset);
@@ -77,7 +77,6 @@ public:
 
   virtual void InsertAfter(Layer* aChild, Layer* aAfter);
   virtual void RemoveChild(Layer* aChild);
-  virtual void RepositionChild(Layer* aChild, Layer* aAfter);
 
   virtual Layer* AsLayer() { return this; }
   virtual ShadowableLayer* AsShadowableLayer() { return this; }
@@ -118,27 +117,11 @@ BasicShadowableContainerLayer::RemoveChild(Layer* aChild)
   BasicContainerLayer::RemoveChild(aChild);
 }
 
-void
-BasicShadowableContainerLayer::RepositionChild(Layer* aChild, Layer* aAfter)
-{
-  if (HasShadow() && ShouldShadow(aChild)) {
-    while (aAfter && !ShouldShadow(aAfter)) {
-      aAfter = aAfter->GetPrevSibling();
-    }
-    ShadowManager()->RepositionChild(ShadowManager()->Hold(this),
-                                     ShadowManager()->Hold(aChild),
-                                     aAfter ? ShadowManager()->Hold(aAfter) : nullptr);
-  }
-  BasicContainerLayer::RepositionChild(aChild, aAfter);
-}
-
 class BasicShadowContainerLayer : public ShadowContainerLayer, public BasicImplData {
   template<class Container>
   friend void ContainerInsertAfter(Layer* aChild, Layer* aAfter, Container* aContainer);
   template<class Container>
   friend void ContainerRemoveChild(Layer* aChild, Container* aContainer);
-  template<class Container>
-  friend void ContainerRepositionChild(Layer* aChild, Layer* aAfter, Container* aContainer);
   template<class Container>
   friend void ContainerComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface,
                                                   Container* aContainer);
@@ -162,8 +145,6 @@ public:
   { ContainerInsertAfter(aChild, aAfter, this); }
   virtual void RemoveChild(Layer* aChild)
   { ContainerRemoveChild(aChild, this); }
-  virtual void RepositionChild(Layer* aChild, Layer* aAfter)
-  { ContainerRepositionChild(aChild, aAfter, this); }
 
   virtual void ComputeEffectiveTransforms(const gfx3DMatrix& aTransformToSurface)
   {

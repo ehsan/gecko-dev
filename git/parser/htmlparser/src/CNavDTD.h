@@ -139,7 +139,7 @@ private:
      */
     bool CanPropagate(eHTMLTags aParent,
                         eHTMLTags aChild,
-                        int32_t aParentContains);
+                        PRInt32 aParentContains);
 
     /**
      *  This method gets called to determine whether a given 
@@ -148,12 +148,12 @@ private:
      *  @param   aParent Parent tag being asked about omitting given child
      *  @param   aChild Child tag being tested for omittability by parent
      *  @param   aParentContains Can be 0,1,-1 (false,true, unknown)
-     *                           XXX should be int32_t, not bool
+     *                           XXX should be PRInt32, not bool
      *  @return  true if given tag can be omitted
      */
     bool CanOmit(eHTMLTags aParent, 
                    eHTMLTags aChild,
-                   int32_t& aParentContains);
+                   PRInt32& aParentContains);
 
     /**
      * Looking at aParent, try to see if we can propagate from aChild to
@@ -206,7 +206,7 @@ private:
      * @param   aTagSet A set of tags you care about.
      * @return  true if any of the members of aTagSet are currently open.
      */
-    bool HasOpenContainer(const eHTMLTags aTagSet[], int32_t aCount) const;
+    bool HasOpenContainer(const eHTMLTags aTagSet[], PRInt32 aCount) const;
 
     /**
      * Accessor that retrieves the tag type of the topmost item on the DTD's
@@ -222,7 +222,7 @@ private:
      * @param   tag to be found
      * @return  index of topmost tag occurrence -- may be -1 (kNotFound).
      */
-    int32_t LastOf(eHTMLTags aTagSet[], int32_t aCount) const;
+    PRInt32 LastOf(eHTMLTags aTagSet[], PRInt32 aCount) const;
 
     nsresult HandleToken(CToken* aToken);
 
@@ -274,7 +274,7 @@ private:
      */
     nsresult CloseContainer(const eHTMLTags aTag, bool aMalformed);
     nsresult CloseContainersTo(eHTMLTags aTag, bool aClosedByStartTag);
-    nsresult CloseContainersTo(int32_t anIndex, eHTMLTags aTag,
+    nsresult CloseContainersTo(PRInt32 anIndex, eHTMLTags aTag,
                                bool aClosedByStartTag);
     nsresult CloseResidualStyleTags(const eHTMLTags aTag,
                                     bool aClosedByStartTag);
@@ -310,7 +310,7 @@ private:
 
 protected:
 
-    nsresult        CollectAttributes(nsIParserNode* aNode,eHTMLTags aTag,int32_t aCount);
+    nsresult        CollectAttributes(nsIParserNode* aNode,eHTMLTags aTag,PRInt32 aCount);
 
     /**
      * This gets called before we've handled a given start tag.
@@ -336,11 +336,11 @@ protected:
      */
     void            HandleOmittedTag(CToken* aToken, eHTMLTags aChildTag,
                                      eHTMLTags aParent, nsIParserNode *aNode);
-    nsresult        HandleSavedTokens(int32_t anIndex);
+    nsresult        HandleSavedTokens(PRInt32 anIndex);
     nsresult        HandleKeyGen(nsIParserNode *aNode);
     bool            IsAlternateTag(eHTMLTags aTag);
-    bool            IsBlockElement(int32_t aTagID, int32_t aParentID) const;
-    bool            IsInlineElement(int32_t aTagID, int32_t aParentID) const;
+    bool            IsBlockElement(PRInt32 aTagID, PRInt32 aParentID) const;
+    bool            IsInlineElement(PRInt32 aTagID, PRInt32 aParentID) const;
 
     nsDeque             mMisplacedContent;
     
@@ -360,11 +360,11 @@ protected:
     eParserDocType      mDocType;
     eParserCommands     mParserCommand;   //tells us to viewcontent/viewsource/viewerrors...
 
-    int32_t             mLineNumber;
-    int32_t             mOpenMapCount;
-    int32_t             mHeadContainerPosition;
+    PRInt32             mLineNumber;
+    PRInt32             mOpenMapCount;
+    PRInt32             mHeadContainerPosition;
 
-    uint16_t            mFlags;
+    PRUint16            mFlags;
 };
 
 #endif 

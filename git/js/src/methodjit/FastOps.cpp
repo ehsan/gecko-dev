@@ -56,7 +56,7 @@ mjit::Compiler::ensureInteger(FrameEntry *fe, Uses uses)
         /*
          * Try an OOL path to convert doubles representing integers within 2^32
          * of a signed integer, by adding/subtracting 2^32 and then trying to
-         * convert to int32_t. This has to be an exact conversion, as otherwise
+         * convert to int32. This has to be an exact conversion, as otherwise
          * the truncation works incorrectly on the modified value.
          */
 
@@ -387,8 +387,8 @@ mjit::Compiler::jsop_equality_obj_obj(JSOp op, jsbytecode *target, JSOp fused)
      * special equality operator on either object, if that passes then
      * this is a pointer comparison.
      */
-    types::StackTypeSet *lhsTypes = analysis->poppedTypes(PC, 1);
-    types::StackTypeSet *rhsTypes = analysis->poppedTypes(PC, 0);
+    types::TypeSet *lhsTypes = analysis->poppedTypes(PC, 1);
+    types::TypeSet *rhsTypes = analysis->poppedTypes(PC, 0);
     if (!lhsTypes->hasObjectFlags(cx, types::OBJECT_FLAG_SPECIAL_EQUALITY) &&
         !rhsTypes->hasObjectFlags(cx, types::OBJECT_FLAG_SPECIAL_EQUALITY)) {
         /* :TODO: Merge with jsop_relational_int? */
@@ -692,22 +692,22 @@ mjit::Compiler::jsop_typeof()
         JSAtom *atom = NULL;
         switch (fe->getKnownType()) {
           case JSVAL_TYPE_STRING:
-            atom = rt->atomState.string;
+            atom = rt->atomState.typeAtoms[JSTYPE_STRING];
             break;
           case JSVAL_TYPE_UNDEFINED:
-            atom = rt->atomState.undefined;
+            atom = rt->atomState.typeAtoms[JSTYPE_VOID];
             break;
           case JSVAL_TYPE_NULL:
-            atom = rt->atomState.object;
+            atom = rt->atomState.typeAtoms[JSTYPE_OBJECT];
             break;
           case JSVAL_TYPE_OBJECT:
             atom = NULL;
             break;
           case JSVAL_TYPE_BOOLEAN:
-            atom = rt->atomState.boolean;
+            atom = rt->atomState.typeAtoms[JSTYPE_BOOLEAN];
             break;
           default:
-            atom = rt->atomState.number;
+            atom = rt->atomState.typeAtoms[JSTYPE_NUMBER];
             break;
         }
 
@@ -723,20 +723,20 @@ mjit::Compiler::jsop_typeof()
         JSOp op = JSOp(PC[JSOP_TYPEOF_LENGTH + JSOP_STRING_LENGTH]);
 
         if (op == JSOP_STRICTEQ || op == JSOP_EQ || op == JSOP_STRICTNE || op == JSOP_NE) {
-            JSAtom *atom = script_->getAtom(GET_UINT32_INDEX(PC + JSOP_TYPEOF_LENGTH));
+            JSAtom *atom = script->getAtom(GET_UINT32_INDEX(PC + JSOP_TYPEOF_LENGTH));
             JSRuntime *rt = cx->runtime;
             JSValueType type = JSVAL_TYPE_UNKNOWN;
             Assembler::Condition cond = (op == JSOP_STRICTEQ || op == JSOP_EQ)
                                         ? Assembler::Equal
                                         : Assembler::NotEqual;
 
-            if (atom == rt->atomState.undefined) {
+            if (atom == rt->atomState.typeAtoms[JSTYPE_VOID]) {
                 type = JSVAL_TYPE_UNDEFINED;
-            } else if (atom == rt->atomState.string) {
+            } else if (atom == rt->atomState.typeAtoms[JSTYPE_STRING]) {
                 type = JSVAL_TYPE_STRING;
-            } else if (atom == rt->atomState.boolean) {
+            } else if (atom == rt->atomState.typeAtoms[JSTYPE_BOOLEAN]) {
                 type = JSVAL_TYPE_BOOLEAN;
-            } else if (atom == rt->atomState.number) {
+            } else if (atom == rt->atomState.typeAtoms[JSTYPE_NUMBER]) {
                 type = JSVAL_TYPE_INT32;
 
                 /* JSVAL_TYPE_DOUBLE is 0x0 and JSVAL_TYPE_INT32 is 0x1, use <= or > to match both */
@@ -896,8 +896,8 @@ mjit::Compiler::jsop_localinc(JSOp op, uint32_t slot)
 {
     restoreVarType();
 
-    types::StackTypeSet *types = pushedTypeSet(0);
-    JSValueType type = types ? types->getKnownTypeTag() : JSVAL_TYPE_UNKNOWN;
+    types::TypeSet *types = pushedTypeSet(0);
+    JSValueType type = types ? types->getKnownTypeTag(cx) : JSVAL_TYPE_UNKNOWN;
 
     int amt = (op == JSOP_LOCALINC || op == JSOP_INCLOCAL) ? 1 : -1;
 
@@ -959,15 +959,15 @@ mjit::Compiler::jsop_arginc(JSOp op, uint32_t slot)
 {
     restoreVarType();
 
-    types::StackTypeSet *types = pushedTypeSet(0);
-    JSValueType type = types ? types->getKnownTypeTag() : JSVAL_TYPE_UNKNOWN;
+    types::TypeSet *types = pushedTypeSet(0);
+    JSValueType type = types ? types->getKnownTypeTag(cx) : JSVAL_TYPE_UNKNOWN;
 
     int amt = (op == JSOP_ARGINC || op == JSOP_INCARG) ? 1 : -1;
 
     if (!analysis->incrementInitialValueObserved(PC)) {
         // Before:
         // After:  V
-        if (script_->argsObjAliasesFormals())
+        if (script->argsObjAliasesFormals())
             jsop_aliasedArg(slot, /* get = */ true);
         else
             frame.pushArg(slot);
@@ -985,14 +985,14 @@ mjit::Compiler::jsop_arginc(JSOp op, uint32_t slot)
         // Before: N+1
         // After:  N+1
         bool popGuaranteed = analysis->popGuaranteed(PC);
-        if (script_->argsObjAliasesFormals())
+        if (script->argsObjAliasesFormals())
             jsop_aliasedArg(slot, /* get = */ false, popGuaranteed);
         else
             frame.storeArg(slot, popGuaranteed);
     } else {
         // Before:
         // After: V
-        if (script_->argsObjAliasesFormals())
+        if (script->argsObjAliasesFormals())
             jsop_aliasedArg(slot, /* get = */ true);
         else
             frame.pushArg(slot);
@@ -1016,7 +1016,7 @@ mjit::Compiler::jsop_arginc(JSOp op, uint32_t slot)
 
         // Before: N N+1
         // After:  N N+1
-        if (script_->argsObjAliasesFormals())
+        if (script->argsObjAliasesFormals())
             jsop_aliasedArg(slot, /* get = */ false, true);
         else
             frame.storeArg(slot, true);
@@ -1169,8 +1169,8 @@ mjit::Compiler::jsop_setelem_dense()
      * because in that case the slot we're overwriting was previously
      * undefined.
      */
-    types::StackTypeSet *types = frame.extra(obj).types;
-    if (cx->compartment->compileBarriers() && (!types || types->propertyNeedsBarrier(cx, JSID_VOID))) {
+    types::TypeSet *types = frame.extra(obj).types;
+    if (cx->compartment->needsBarrier() && (!types || types->propertyNeedsBarrier(cx, JSID_VOID))) {
         Label barrierStart = stubcc.masm.label();
         stubcc.linkExitDirect(masm.jump(), barrierStart);
 
@@ -1219,7 +1219,7 @@ mjit::Compiler::jsop_setelem_dense()
         masm.storeValue(vr, BaseIndex(slotsReg, key.reg(), masm.JSVAL_SCALE));
 
     stubcc.leave();
-    OOL_STUBCALL(STRICT_VARIANT(script_, stubs::SetElem), REJOIN_FALLTHROUGH);
+    OOL_STUBCALL(STRICT_VARIANT(script, stubs::SetElem), REJOIN_FALLTHROUGH);
 
     if (!hoisted)
         frame.freeReg(slotsReg);
@@ -1493,7 +1493,7 @@ mjit::Compiler::jsop_setelem_typed(int atype)
         frame.freeReg(objReg);
 
     stubcc.leave();
-    OOL_STUBCALL(STRICT_VARIANT(script_, stubs::SetElem), REJOIN_FALLTHROUGH);
+    OOL_STUBCALL(STRICT_VARIANT(script, stubs::SetElem), REJOIN_FALLTHROUGH);
 
     frame.shimmy(2);
     stubcc.rejoin(Changes(2));
@@ -1538,9 +1538,6 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
     FrameEntry *value = frame.peek(-1);
 
     if (!IsCacheableSetElem(obj, id, value) || monitored(PC)) {
-        if (monitored(PC) && script_ == outerScript)
-            monitoredBytecodes.append(PC - script_->code);
-
         jsop_setelem_slow();
         return true;
     }
@@ -1548,7 +1545,7 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
     // If the object is definitely a dense array or a typed array we can generate
     // code directly without using an inline cache.
     if (cx->typeInferenceEnabled()) {
-        types::StackTypeSet *types = analysis->poppedTypes(PC, 2);
+        types::TypeSet *types = analysis->poppedTypes(PC, 2);
 
         if (!types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_DENSE_ARRAY) &&
             !types::ArrayPrototypeHasIndexedProperty(cx, outerScript)) {
@@ -1561,7 +1558,7 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
         if ((value->mightBeType(JSVAL_TYPE_INT32) || value->mightBeType(JSVAL_TYPE_DOUBLE)) &&
             !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_TYPED_ARRAY)) {
             // Inline typed array path.
-            int atype = types->getTypedArrayType();
+            int atype = types->getTypedArrayType(cx);
             if (atype != TypedArray::TYPE_MAX) {
                 jsop_setelem_typed(atype);
                 return true;
@@ -1579,7 +1576,7 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
 
 #ifdef JSGC_INCREMENTAL_MJ
     // Write barrier.
-    if (cx->compartment->compileBarriers()) {
+    if (cx->compartment->needsBarrier()) {
         jsop_setelem_slow();
         return true;
     }
@@ -1616,7 +1613,7 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
         stubcc.linkExit(j, Uses(3));
     }
 
-    // Guard that the id is int32_t.
+    // Guard that the id is int32.
     if (!id->isTypeKnown()) {
         Jump j = frame.testInt32(Assembler::NotEqual, id);
         stubcc.linkExit(j, Uses(3));
@@ -1697,9 +1694,9 @@ mjit::Compiler::jsop_setelem(bool popGuaranteed)
     stubcc.leave();
 #if defined JS_POLYIC
     passICAddress(&ic);
-    ic.slowPathCall = OOL_STUBCALL(STRICT_VARIANT(script_, ic::SetElement), REJOIN_FALLTHROUGH);
+    ic.slowPathCall = OOL_STUBCALL(STRICT_VARIANT(script, ic::SetElement), REJOIN_FALLTHROUGH);
 #else
-    OOL_STUBCALL(STRICT_VARIANT(script_, stubs::SetElem), REJOIN_FALLTHROUGH);
+    OOL_STUBCALL(STRICT_VARIANT(script, stubs::SetElem), REJOIN_FALLTHROUGH);
 #endif
 
     ic.fastPathRejoin = masm.label();
@@ -2148,8 +2145,8 @@ mjit::Compiler::jsop_getelem()
     // If the object is definitely an arguments object, a dense array or a typed array
     // we can generate code directly without using an inline cache.
     if (cx->typeInferenceEnabled() && !id->isType(JSVAL_TYPE_STRING)) {
-        types::StackTypeSet *types = analysis->poppedTypes(PC, 1);
-        if (types->isMagicArguments() && !outerScript->analysis()->modifiesArguments()) {
+        types::TypeSet *types = analysis->poppedTypes(PC, 1);
+        if (types->isMagicArguments(cx) && !outerScript->analysis()->modifiesArguments()) {
             // Inline arguments path.
             jsop_getelem_args();
             return true;
@@ -2168,7 +2165,7 @@ mjit::Compiler::jsop_getelem()
         if (obj->mightBeType(JSVAL_TYPE_OBJECT) &&
             !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_TYPED_ARRAY)) {
             // Inline typed array path.
-            int atype = types->getTypedArrayType();
+            int atype = types->getTypedArrayType(cx);
             if (atype != TypedArray::TYPE_MAX) {
                 if (jsop_getelem_typed(atype))
                     return true;
@@ -2521,16 +2518,16 @@ mjit::Compiler::jsop_stricteq(JSOp op)
         JS_ASSERT(reg2 != resultReg);
         JS_ASSERT(reg2 != tmpReg);
 
-        /* JSString::isAtom === (lengthAndFlags & ATOM_BIT) */
-        Imm32 atomBit(JSString::ATOM_BIT);
+        /* JSString::isAtom === (lengthAndFlags & ATOM_MASK == 0) */
+        Imm32 atomMask(JSString::ATOM_MASK);
 
         masm.load32(Address(reg1, JSString::offsetOfLengthAndFlags()), tmpReg);
-        Jump op1NotAtomized = masm.branchTest32(Assembler::Zero, tmpReg, atomBit);
+        Jump op1NotAtomized = masm.branchTest32(Assembler::NonZero, tmpReg, atomMask);
         stubcc.linkExit(op1NotAtomized, Uses(2));
 
         if (!op2->isConstant()) {
             masm.load32(Address(reg2, JSString::offsetOfLengthAndFlags()), tmpReg);
-            Jump op2NotAtomized = masm.branchTest32(Assembler::Zero, tmpReg, atomBit);
+            Jump op2NotAtomized = masm.branchTest32(Assembler::NonZero, tmpReg, atomMask);
             stubcc.linkExit(op2NotAtomized, Uses(2));
         }
 
@@ -2684,14 +2681,11 @@ mjit::Compiler::jsop_initprop()
 {
     FrameEntry *obj = frame.peek(-2);
     FrameEntry *fe = frame.peek(-1);
-    PropertyName *name = script_->getName(GET_UINT32_INDEX(PC));
+    PropertyName *name = script->getName(GET_UINT32_INDEX(PC));
 
     RootedObject baseobj(cx, frame.extra(obj).initObject);
 
-    if (!baseobj || monitored(PC) || cx->compartment->compileBarriers()) {
-        if (monitored(PC) && script_ == outerScript)
-            monitoredBytecodes.append(PC - script_->code);
-
+    if (!baseobj || monitored(PC)) {
         prepareStubCall(Uses(2));
         masm.move(ImmPtr(name), Registers::ArgReg1);
         INLINE_STUBCALL(stubs::InitProp, REJOIN_FALLTHROUGH);

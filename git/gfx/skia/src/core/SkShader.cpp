@@ -9,11 +9,8 @@
 
 #include "SkScalar.h"
 #include "SkShader.h"
-#include "SkFlattenableBuffers.h"
 #include "SkPaint.h"
 #include "SkMallocPixelRef.h"
-
-SK_DEFINE_INST_COUNT(SkShader)
 
 SkShader::SkShader() : fLocalMatrix(NULL) {
     SkDEBUGCODE(fInSession = false;)
@@ -193,17 +190,12 @@ SkShader::MatrixClass SkShader::ComputeMatrixClass(const SkMatrix& mat) {
 //////////////////////////////////////////////////////////////////////////////
 
 SkShader::BitmapType SkShader::asABitmap(SkBitmap*, SkMatrix*,
-                                         TileMode*) const {
+                                         TileMode*, SkScalar*) const {
     return kNone_BitmapType;
 }
 
 SkShader::GradientType SkShader::asAGradient(GradientInfo* info) const {
     return kNone_GradientType;
-}
-
-GrCustomStage* SkShader::asNewCustomStage(GrContext* context,
-                                          GrSamplerState* sampler) const {
-    return NULL;
 }
 
 SkShader* SkShader::CreateBitmapShader(const SkBitmap& src,
@@ -239,20 +231,20 @@ bool SkColorShader::isOpaque() const {
 SkColorShader::SkColorShader(SkFlattenableReadBuffer& b) : INHERITED(b) {
     fFlags = 0; // computed in setContext
 
-    fInheritColor = b.readBool();
+    fInheritColor = b.readU8();
     if (fInheritColor) {
         return;
     }
-    fColor = b.readColor();
+    fColor = b.readU32();
 }
 
 void SkColorShader::flatten(SkFlattenableWriteBuffer& buffer) const {
     this->INHERITED::flatten(buffer);
-    buffer.writeBool(fInheritColor);
+    buffer.write8(fInheritColor);
     if (fInheritColor) {
         return;
     }
-    buffer.writeColor(fColor);
+    buffer.write32(fColor);
 }
 
 uint32_t SkColorShader::getFlags() {
@@ -317,7 +309,8 @@ void SkColorShader::shadeSpanAlpha(int x, int y, uint8_t alpha[], int count) {
 
 // if we had a asAColor method, that would be more efficient...
 SkShader::BitmapType SkColorShader::asABitmap(SkBitmap* bitmap, SkMatrix* matrix,
-                                              TileMode modes[]) const {
+                                              TileMode modes[],
+                                      SkScalar* twoPointRadialParams) const {
     return kNone_BitmapType;
 }
 

@@ -14,7 +14,6 @@
 #include "nsTArray.h"
 #include "SVGLengthList.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/ErrorResult.h"
 
 class nsIDOMSVGLength;
 class nsSVGElement;
@@ -85,7 +84,7 @@ public:
    * This will normally be the same as InternalList().Length(), except if we've
    * hit OOM in which case our length will be zero.
    */
-  uint32_t LengthNoFlush() const {
+  PRUint32 Length() const {
     NS_ABORT_IF_FALSE(mItems.Length() == 0 ||
                       mItems.Length() == InternalList().Length(),
                       "DOM wrapper's list length is out of sync");
@@ -93,46 +92,7 @@ public:
   }
 
   /// Called to notify us to syncronize our length and detach excess items.
-  void InternalListLengthWillChange(uint32_t aNewLength);
-
-  uint32_t NumberOfItems() const
-  {
-    if (IsAnimValList()) {
-      Element()->FlushAnimations();
-    }
-    return LengthNoFlush();
-  }
-  void Clear(ErrorResult& aError);
-  already_AddRefed<nsIDOMSVGLength> Initialize(nsIDOMSVGLength *newItem,
-                                               ErrorResult& error);
-  nsIDOMSVGLength* GetItem(uint32_t index, ErrorResult& error)
-  {
-    bool found;
-    nsIDOMSVGLength* item = IndexedGetter(index, found, error);
-    if (!found) {
-      error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    }
-    return item;
-  }
-  nsIDOMSVGLength* IndexedGetter(uint32_t index, bool& found,
-                                 ErrorResult& error);
-  already_AddRefed<nsIDOMSVGLength> InsertItemBefore(nsIDOMSVGLength *newItem,
-                                                     uint32_t index,
-                                                     ErrorResult& error);
-  already_AddRefed<nsIDOMSVGLength> ReplaceItem(nsIDOMSVGLength *newItem,
-                                                uint32_t index,
-                                                ErrorResult& error);
-  already_AddRefed<nsIDOMSVGLength> RemoveItem(uint32_t index,
-                                               ErrorResult& error);
-  already_AddRefed<nsIDOMSVGLength> AppendItem(nsIDOMSVGLength *newItem,
-                                               ErrorResult& error)
-  {
-    return InsertItemBefore(newItem, LengthNoFlush(), error);
-  }
-  uint32_t Length() const
-  {
-    return NumberOfItems();
-  }
+  void InternalListLengthWillChange(PRUint32 aNewLength);
 
 private:
 
@@ -140,11 +100,11 @@ private:
     return mAList->mElement;
   }
 
-  uint8_t AttrEnum() const {
+  PRUint8 AttrEnum() const {
     return mAList->mAttrEnum;
   }
 
-  uint8_t Axis() const {
+  PRUint8 Axis() const {
     return mAList->mAxis;
   }
 
@@ -166,10 +126,10 @@ private:
   SVGLengthList& InternalList() const;
 
   /// Creates a DOMSVGLength for aIndex, if it doesn't already exist.
-  void EnsureItemAt(uint32_t aIndex);
+  void EnsureItemAt(PRUint32 aIndex);
 
-  void MaybeInsertNullInAnimValListAt(uint32_t aIndex);
-  void MaybeRemoveItemFromAnimValListAt(uint32_t aIndex);
+  void MaybeInsertNullInAnimValListAt(PRUint32 aIndex);
+  void MaybeRemoveItemFromAnimValListAt(PRUint32 aIndex);
 
   // Weak refs to our DOMSVGLength items. The items are friends and take care
   // of clearing our pointer to them when they die.

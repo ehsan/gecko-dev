@@ -13,28 +13,14 @@ NS_IMPL_ISUPPORTS1(nsBaseScreen, nsIScreen)
 
 nsBaseScreen::nsBaseScreen()
 {
-  for (uint32_t i = 0; i < nsIScreen::BRIGHTNESS_LEVELS; i++)
+  for (PRUint32 i = 0; i < nsIScreen::BRIGHTNESS_LEVELS; i++)
     mBrightnessLocks[i] = 0;
 }
 
 nsBaseScreen::~nsBaseScreen() { }
 
 NS_IMETHODIMP
-nsBaseScreen::GetRectDisplayPix(int32_t *outLeft,  int32_t *outTop,
-                                int32_t *outWidth, int32_t *outHeight)
-{
-  return GetRect(outLeft, outTop, outWidth, outHeight);
-}
-
-NS_IMETHODIMP
-nsBaseScreen::GetAvailRectDisplayPix(int32_t *outLeft,  int32_t *outTop,
-                                     int32_t *outWidth, int32_t *outHeight)
-{
-  return GetAvailRect(outLeft, outTop, outWidth, outHeight);
-}
-
-NS_IMETHODIMP
-nsBaseScreen::LockMinimumBrightness(uint32_t aBrightness)
+nsBaseScreen::LockMinimumBrightness(PRUint32 aBrightness)
 {
   NS_ABORT_IF_FALSE(
     aBrightness < nsIScreen::BRIGHTNESS_LEVELS,
@@ -49,7 +35,7 @@ nsBaseScreen::LockMinimumBrightness(uint32_t aBrightness)
 }
 
 NS_IMETHODIMP
-nsBaseScreen::UnlockMinimumBrightness(uint32_t aBrightness)
+nsBaseScreen::UnlockMinimumBrightness(PRUint32 aBrightness)
 {
   NS_ABORT_IF_FALSE(
     aBrightness < nsIScreen::BRIGHTNESS_LEVELS,
@@ -66,17 +52,10 @@ nsBaseScreen::UnlockMinimumBrightness(uint32_t aBrightness)
 void
 nsBaseScreen::CheckMinimumBrightness()
 {
-  uint32_t brightness = nsIScreen::BRIGHTNESS_LEVELS;
-  for (uint32_t i = 0; i < nsIScreen::BRIGHTNESS_LEVELS; i++)
+  PRUint32 brightness = nsIScreen::BRIGHTNESS_LEVELS;
+  for (PRUint32 i = 0; i < nsIScreen::BRIGHTNESS_LEVELS; i++)
     if (mBrightnessLocks[i] > 0)
       brightness = i;
 
   ApplyMinimumBrightness(brightness);
-}
-
-NS_IMETHODIMP
-nsBaseScreen::GetContentsScaleFactor(double* aContentsScaleFactor)
-{
-  *aContentsScaleFactor = 1.0;
-  return NS_OK;
 }

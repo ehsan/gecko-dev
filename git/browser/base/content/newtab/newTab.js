@@ -14,16 +14,13 @@ Cu.import("resource:///modules/NewTabUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Rect",
   "resource://gre/modules/Geometry.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-  "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 let {
   links: gLinks,
   allPages: gAllPages,
   linkChecker: gLinkChecker,
   pinnedLinks: gPinnedLinks,
-  blockedLinks: gBlockedLinks,
-  gridPrefs: gGridPrefs
+  blockedLinks: gBlockedLinks
 } = NewTabUtils;
 
 XPCOMUtils.defineLazyGetter(this, "gStringBundle", function() {
@@ -34,7 +31,18 @@ XPCOMUtils.defineLazyGetter(this, "gStringBundle", function() {
 function newTabString(name) gStringBundle.GetStringFromName('newtab.' + name);
 
 function inPrivateBrowsingMode() {
-  return PrivateBrowsingUtils.isWindowPrivate(window);
+  let chromeWin = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                        .getInterface(Ci.nsIWebNavigation)
+                        .QueryInterface(Ci.nsIDocShellTreeItem)
+                        .rootTreeItem
+                        .QueryInterface(Ci.nsIInterfaceRequestor)
+                        .getInterface(Ci.nsIDOMWindow)
+                        .wrappedJSObject;
+
+  if ("gPrivateBrowsingUI" in chromeWin)
+    return chromeWin.gPrivateBrowsingUI.privateWindow;
+
+  return false;
 }
 
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";

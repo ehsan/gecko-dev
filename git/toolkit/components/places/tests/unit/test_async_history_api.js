@@ -408,7 +408,6 @@ function test_non_addable_uri_errors()
     "data:,Hello%2C%20World!",
     "wyciwyg:/0/http://mozilla.org",
     "javascript:alert('hello wolrd!');",
-    "blob:foo",
   ];
   let places = [];
   URLS.forEach(function(url) {
@@ -551,7 +550,7 @@ function test_invalid_sessionId_ignored()
       new VisitInfo(),
     ],
   };
-  place.visits[0].sessionId = 0;
+  place.visits[0].sessionId = -1;
   do_check_false(gGlobalHistory.isVisited(place.uri));
 
   gHistory.updatePlaces(place, expectHandleResult(function(aPlaceInfo) {

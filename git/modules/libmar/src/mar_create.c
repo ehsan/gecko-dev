@@ -22,20 +22,20 @@
 
 struct MarItemStack {
   void *head;
-  uint32_t size_used;
-  uint32_t size_allocated;
-  uint32_t last_offset;
+  PRUint32 size_used;
+  PRUint32 size_allocated;
+  PRUint32 last_offset;
 };
 
 /**
  * Push a new item onto the stack of items.  The stack is a single block
  * of memory.
  */
-static int mar_push(struct MarItemStack *stack, uint32_t length, uint32_t flags,
+static int mar_push(struct MarItemStack *stack, PRUint32 length, PRUint32 flags,
                     const char *name) {
   int namelen;
-  uint32_t n_offset, n_length, n_flags;
-  uint32_t size;
+  PRUint32 n_offset, n_length, n_flags;
+  PRUint32 size;
   char *data;
   
   namelen = strlen(name);
@@ -108,7 +108,7 @@ mar_concat_product_info_block(FILE *fp,
                               struct ProductInformationBlock *infoBlock)
 {
   char buf[PIB_MAX_MAR_CHANNEL_ID_SIZE + PIB_MAX_PRODUCT_VERSION_SIZE];
-  uint32_t additionalBlockID = 1, infoBlockSize, unused;
+  PRUint32 additionalBlockID = 1, infoBlockSize, unused;
   if (!fp || !infoBlock || 
       !infoBlock->MARChannelID ||
       !infoBlock->productVersion) {
@@ -192,10 +192,10 @@ refresh_product_info_block(const char *path,
 {
   FILE *fp ;
   int rv;
-  uint32_t numSignatures, additionalBlockSize, additionalBlockID,
+  PRUint32 numSignatures, additionalBlockSize, additionalBlockID,
     offsetAdditionalBlocks, numAdditionalBlocks, i;
   int additionalBlocks, hasSignatureBlock;
-  int64_t oldPos;
+  PRInt64 oldPos;
 
   rv = get_mar_file_info(path, 
                          &hasSignatureBlock,
@@ -290,9 +290,9 @@ int mar_create(const char *dest, int
                num_files, char **files, 
                struct ProductInformationBlock *infoBlock) {
   struct MarItemStack stack;
-  uint32_t offset_to_index = 0, size_of_index, 
+  PRUint32 offset_to_index = 0, size_of_index, 
     numSignatures, numAdditionalSections;
-  uint64_t sizeOfEntireMAR = 0;
+  PRUint64 sizeOfEntireMAR = 0;
   struct stat st;
   FILE *fp;
   int i, rv = -1;
@@ -307,7 +307,7 @@ int mar_create(const char *dest, int
 
   if (fwrite(MAR_ID, MAR_ID_SIZE, 1, fp) != 1)
     goto failure;
-  if (fwrite(&offset_to_index, sizeof(uint32_t), 1, fp) != 1)
+  if (fwrite(&offset_to_index, sizeof(PRUint32), 1, fp) != 1)
     goto failure;
 
   stack.last_offset = MAR_ID_SIZE + 
@@ -375,7 +375,7 @@ int mar_create(const char *dest, int
     goto failure;
   offset_to_index = ntohl(stack.last_offset);
   
-  sizeOfEntireMAR = ((uint64_t)stack.last_offset) +
+  sizeOfEntireMAR = ((PRUint64)stack.last_offset) +
                     stack.size_used +
                     sizeof(size_of_index);
   sizeOfEntireMAR = HOST_TO_NETWORK64(sizeOfEntireMAR);

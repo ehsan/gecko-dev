@@ -7,9 +7,7 @@
 #include "imgTools.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
-#include "nsError.h"
-#include "imgILoader.h"
-#include "imgICache.h"
+#include "ImageErrors.h"
 #include "imgIContainer.h"
 #include "imgIEncoder.h"
 #include "imgIDecoderObserver.h"
@@ -21,15 +19,9 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsStreamUtils.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 #include "RasterImage.h"
-#include "ScriptedNotificationObserver.h"
-#include "imgIScriptedNotificationObserver.h"
 
 using namespace mozilla::image;
-
-class nsIDOMDocument;
-class nsIDocument;
 
 /* ========== imgITools implementation ========== */
 
@@ -82,17 +74,17 @@ NS_IMETHODIMP imgTools::DecodeImageData(nsIInputStream* aInStr,
   }
 
   // Figure out how much data we've been passed
-  uint64_t length;
+  PRUint64 length;
   rv = inStream->Available(&length);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(length <= UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
+  NS_ENSURE_TRUE(length <= PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
 
   // Send the source data to the Image. WriteToRasterImage always
   // consumes everything it gets if it doesn't run out of memory.
-  uint32_t bytesRead;
+  PRUint32 bytesRead;
   rv = inStream->ReadSegments(RasterImage::WriteToRasterImage,
                               static_cast<void*>(image),
-                              (uint32_t)length, &bytesRead);
+                              (PRUint32)length, &bytesRead);
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ABORT_IF_FALSE(bytesRead == length || image->HasError(),
   "WriteToRasterImage should consume everything or the image must be in error!");
@@ -123,8 +115,8 @@ NS_IMETHODIMP imgTools::EncodeImage(imgIContainer *aContainer,
 
 NS_IMETHODIMP imgTools::EncodeScaledImage(imgIContainer *aContainer,
                                           const nsACString& aMimeType,
-                                          int32_t aScaledWidth,
-                                          int32_t aScaledHeight,
+                                          PRInt32 aScaledWidth,
+                                          PRInt32 aScaledHeight,
                                           const nsAString& aOutputOptions,
                                           nsIInputStream **aStream)
 {
@@ -141,7 +133,7 @@ NS_IMETHODIMP imgTools::EncodeScaledImage(imgIContainer *aContainer,
   nsresult rv = GetFirstImageFrame(aContainer, getter_AddRefs(frame));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t frameWidth = frame->Width(), frameHeight = frame->Height();
+  PRInt32 frameWidth = frame->Width(), frameHeight = frame->Height();
 
   // If the given width or height is zero we'll replace it with the image's
   // original dimensions.
@@ -171,10 +163,10 @@ NS_IMETHODIMP imgTools::EncodeScaledImage(imgIContainer *aContainer,
 
 NS_IMETHODIMP imgTools::EncodeCroppedImage(imgIContainer *aContainer,
                                            const nsACString& aMimeType,
-                                           int32_t aOffsetX,
-                                           int32_t aOffsetY,
-                                           int32_t aWidth,
-                                           int32_t aHeight,
+                                           PRInt32 aOffsetX,
+                                           PRInt32 aOffsetY,
+                                           PRInt32 aWidth,
+                                           PRInt32 aHeight,
                                            const nsAString& aOutputOptions,
                                            nsIInputStream **aStream)
 {
@@ -195,7 +187,7 @@ NS_IMETHODIMP imgTools::EncodeCroppedImage(imgIContainer *aContainer,
   nsresult rv = GetFirstImageFrame(aContainer, getter_AddRefs(frame));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t frameWidth = frame->Width(), frameHeight = frame->Height();
+  PRInt32 frameWidth = frame->Width(), frameHeight = frame->Height();
 
   // If the given width or height is zero we'll replace it with the image's
   // original dimensions.
@@ -230,11 +222,11 @@ NS_IMETHODIMP imgTools::EncodeImageData(gfxImageSurface *aSurface,
                                         const nsAString& aOutputOptions,
                                         nsIInputStream **aStream)
 {
-  uint8_t *bitmapData;
-  uint32_t bitmapDataLength, strideSize;
+  PRUint8 *bitmapData;
+  PRUint32 bitmapDataLength, strideSize;
 
   // Get an image encoder for the media type
-  nsAutoCString encoderCID(
+  nsCAutoString encoderCID(
     NS_LITERAL_CSTRING("@mozilla.org/image/encoder;2?type=") + aMimeType);
 
   nsCOMPtr<imgIEncoder> encoder = do_CreateInstance(encoderCID.get());
@@ -247,7 +239,7 @@ NS_IMETHODIMP imgTools::EncodeImageData(gfxImageSurface *aSurface,
 
   strideSize = aSurface->Stride();
 
-  int32_t width = aSurface->Width(), height = aSurface->Height();
+  PRInt32 width = aSurface->Width(), height = aSurface->Height();
   bitmapDataLength = height * strideSize;
 
   // Encode the bitmap
@@ -276,28 +268,4 @@ NS_IMETHODIMP imgTools::GetFirstImageFrame(imgIContainer *aContainer,
 
   frame.forget(aSurface);
   return NS_OK;
-}
-
-NS_IMETHODIMP imgTools::CreateScriptedObserver(imgIScriptedNotificationObserver* aInner,
-                                               imgINotificationObserver** aObserver)
-{
-  NS_ADDREF(*aObserver = new ScriptedNotificationObserver(aInner));
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-imgTools::GetImgLoaderForDocument(nsIDOMDocument* aDoc, imgILoader** aLoader)
-{
-  nsCOMPtr<nsIDocument> doc = do_QueryInterface(aDoc);
-  NS_IF_ADDREF(*aLoader = nsContentUtils::GetImgLoaderForDocument(doc));
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-imgTools::GetImgCacheForDocument(nsIDOMDocument* aDoc, imgICache** aCache)
-{
-  nsCOMPtr<imgILoader> loader;
-  nsresult rv = GetImgLoaderForDocument(aDoc, getter_AddRefs(loader));
-  NS_ENSURE_SUCCESS(rv, rv);
-  return CallQueryInterface(loader, aCache);
 }

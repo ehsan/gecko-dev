@@ -35,8 +35,8 @@ enum nsLinkState {
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID \
-{ 0xe2985850, 0x81ca, 0x4b5d, \
-  { 0xb0, 0xf3, 0xe3, 0x95, 0xd5, 0x0d, 0x85, 0x64 } }
+{ 0x98fb308d, 0xc6dd, 0x4c6d, \
+  { 0xb7, 0x7c, 0x91, 0x18, 0x0c, 0xf0, 0x6f, 0x23 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -161,7 +161,7 @@ public:
    *  of this node in the tree, but those other nodes cannot be reached from the
    *  eAllButXBL child list.
    */
-  virtual already_AddRefed<nsINodeList> GetChildren(uint32_t aFilter) = 0;
+  virtual already_AddRefed<nsINodeList> GetChildren(PRUint32 aFilter) = 0;
 
   /**
    * Get whether this content is C++-generated anonymous content
@@ -177,12 +177,6 @@ public:
     return HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT);
   }
 
-  bool IsRootOfChromeAccessOnlySubtree() const
-  {
-    return HasFlag(NODE_IS_NATIVE_ANONYMOUS_ROOT |
-                   NODE_IS_ROOT_OF_CHROME_ONLY_ACCESS);
-  }
-
   /**
    * Makes this content anonymous
    * @see nsIAnonymousContentCreator
@@ -194,10 +188,10 @@ public:
   }
 
   /**
-   * Returns |this| if it is not chrome-only/native anonymous, otherwise
-   * first non chrome-only/native anonymous ancestor.
+   * Returns |this| if it is not native anonymous, otherwise
+   * first non native anonymous ancestor.
    */
-  virtual nsIContent* FindFirstNonChromeOnlyAccessContent() const;
+  virtual nsIContent* FindFirstNonNativeAnonymous() const;
 
   /**
    * Returns true if and only if this node has a parent, but is not in
@@ -250,7 +244,7 @@ public:
    * Get the namespace that this element's tag is defined in
    * @return the namespace
    */
-  inline int32_t GetNameSpaceID() const
+  inline PRInt32 GetNameSpaceID() const
   {
     return mNodeInfo->NamespaceID();
   }
@@ -264,7 +258,7 @@ public:
     return mNodeInfo;
   }
 
-  inline bool IsInNamespace(int32_t aNamespace) const
+  inline bool IsInNamespace(PRInt32 aNamespace) const
   {
     return mNodeInfo->NamespaceID() == aNamespace;
   }
@@ -336,7 +330,7 @@ public:
    * @param aNotify specifies how whether or not the document should be
    *        notified of the attribute change.
    */
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
@@ -356,7 +350,7 @@ public:
    * @param aNotify specifies how whether or not the document should be
    *        notified of the attribute change.
    */
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify) = 0;
 
@@ -370,7 +364,7 @@ public:
    * @returns true if the attribute was set (even when set to empty string)
    *          false when not set.
    */
-  virtual bool GetAttr(int32_t aNameSpaceID, nsIAtom* aName, 
+  virtual bool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, 
                          nsAString& aResult) const = 0;
 
   /**
@@ -380,7 +374,7 @@ public:
    * @param aAttr the attribute name
    * @return whether an attribute exists
    */
-  virtual bool HasAttr(int32_t aNameSpaceID, nsIAtom* aName) const = 0;
+  virtual bool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const = 0;
 
   /**
    * Test whether this content node's given attribute has the given value.  If
@@ -392,7 +386,7 @@ public:
    * @param aValue The value to compare to.
    * @param aCaseSensitive Whether to do a case-sensitive compare on the value.
    */
-  virtual bool AttrValueIs(int32_t aNameSpaceID,
+  virtual bool AttrValueIs(PRInt32 aNameSpaceID,
                              nsIAtom* aName,
                              const nsAString& aValue,
                              nsCaseTreatment aCaseSensitive) const
@@ -410,7 +404,7 @@ public:
    * @param aValue The value to compare to.  Must not be null.
    * @param aCaseSensitive Whether to do a case-sensitive compare on the value.
    */
-  virtual bool AttrValueIs(int32_t aNameSpaceID,
+  virtual bool AttrValueIs(PRInt32 aNameSpaceID,
                              nsIAtom* aName,
                              nsIAtom* aValue,
                              nsCaseTreatment aCaseSensitive) const
@@ -440,7 +434,7 @@ public:
    * indicating the first value of aValues that matched
    */
   typedef nsIAtom* const* const AttrValuesArray;
-  virtual int32_t FindAttrValueIn(int32_t aNameSpaceID,
+  virtual PRInt32 FindAttrValueIn(PRInt32 aNameSpaceID,
                                   nsIAtom* aName,
                                   AttrValuesArray* aValues,
                                   nsCaseTreatment aCaseSensitive) const
@@ -456,7 +450,7 @@ public:
    * @param aNotify specifies whether or not the document should be
    * notified of the attribute change
    */
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttr, 
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttr, 
                              bool aNotify) = 0;
 
 
@@ -471,14 +465,14 @@ public:
    * @note    The pointer returned by this function is only valid until the
    *          next call of either GetAttrNameAt or SetAttr on the element.
    */
-  virtual const nsAttrName* GetAttrNameAt(uint32_t aIndex) const = 0;
+  virtual const nsAttrName* GetAttrNameAt(PRUint32 aIndex) const = 0;
 
   /**
    * Get the number of all specified attributes.
    *
    * @return the number of attributes
    */
-  virtual uint32_t GetAttrCount() const = 0;
+  virtual PRUint32 GetAttrCount() const = 0;
 
   /**
    * Get direct access (but read only) to the text in the text content.
@@ -491,14 +485,14 @@ public:
    * Get the length of the text content.
    * NOTE: This should not be called on elements.
    */
-  virtual uint32_t TextLength() const = 0;
+  virtual PRUint32 TextLength() const = 0;
 
   /**
    * Set the text to the given value. If aNotify is true then
    * the document is notified of the content change.
    * NOTE: For elements this always ASSERTS and returns NS_ERROR_FAILURE
    */
-  virtual nsresult SetText(const PRUnichar* aBuffer, uint32_t aLength,
+  virtual nsresult SetText(const PRUnichar* aBuffer, PRUint32 aLength,
                            bool aNotify) = 0;
 
   /**
@@ -506,7 +500,7 @@ public:
    * the document is notified of the content change.
    * NOTE: For elements this always ASSERTS and returns NS_ERROR_FAILURE
    */
-  virtual nsresult AppendText(const PRUnichar* aBuffer, uint32_t aLength,
+  virtual nsresult AppendText(const PRUnichar* aBuffer, PRUint32 aLength,
                               bool aNotify) = 0;
 
   /**
@@ -553,7 +547,7 @@ public:
    *         > 0 can be tabbed to in the order specified by this value
    * @return whether the content is focusable via mouse, kbd or script.
    */
-  virtual bool IsFocusable(int32_t *aTabIndex = nullptr, bool aWithMouse = false)
+  virtual bool IsFocusable(PRInt32 *aTabIndex = nullptr, bool aWithMouse = false)
   {
     if (aTabIndex) 
       *aTabIndex = -1; // Default, not tabbable
@@ -664,7 +658,7 @@ public:
    *
    * If you also need to determine whether the parser is the one creating your
    * element (through createElement() or cloneNode() generally) then add a
-   * uint32_t aFromParser to the NS_NewXXX() constructor for your element and
+   * PRUint32 aFromParser to the NS_NewXXX() constructor for your element and
    * have the parser pass the appropriate flags. See nsHTMLInputElement.cpp and
    * nsHTMLContentSink::MakeContentObject().
    *
@@ -868,13 +862,13 @@ public:
    * List the content (and anything it contains) out to the given
    * file stream. Use aIndent as the base indent during formatting.
    */
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const = 0;
+  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const = 0;
 
   /**
    * Dump the content (and anything it contains) out to the given
    * file stream. Use aIndent as the base indent during formatting.
    */
-  virtual void DumpContent(FILE* out = stdout, int32_t aIndent = 0,
+  virtual void DumpContent(FILE* out = stdout, PRInt32 aIndent = 0,
                            bool aDumpAll = true) const = 0;
 #endif
 
@@ -886,7 +880,7 @@ public:
   };
 
   // Tab focus model bit field:
-  static int32_t sTabFocusModel;
+  static PRInt32 sTabFocusModel;
 
   // accessibility.tabfocus_applies_to_xul pref - if it is set to true,
   // the tabfocus bit field applies to xul elements.

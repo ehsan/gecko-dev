@@ -56,7 +56,7 @@ public:
   virtual ~nsJPEGDecoder();
 
   virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
+  virtual void WriteInternal(const char* aBuffer, PRUint32 aCount);
   virtual void FinishInternal();
 
   virtual Telemetry::ID SpeedHistogram();
@@ -66,32 +66,32 @@ protected:
   void OutputScanlines(bool* suspend);
 
 public:
-  uint8_t *mImageData;
+  PRUint8 *mImageData;
 
   struct jpeg_decompress_struct mInfo;
   struct jpeg_source_mgr mSourceMgr;
   decoder_error_mgr mErr;
   jstate mState;
 
-  uint32_t mBytesToSkip;
+  PRUint32 mBytesToSkip;
 
   const JOCTET *mSegment;   // The current segment we are decoding from
-  uint32_t mSegmentLen;     // amount of data in mSegment
+  PRUint32 mSegmentLen;     // amount of data in mSegment
 
   JOCTET *mBackBuffer;
-  uint32_t mBackBufferLen; // Offset of end of active backtrack data
-  uint32_t mBackBufferSize; // size in bytes what mBackBuffer was created with
-  uint32_t mBackBufferUnreadLen; // amount of data currently in mBackBuffer
+  PRUint32 mBackBufferLen; // Offset of end of active backtrack data
+  PRUint32 mBackBufferSize; // size in bytes what mBackBuffer was created with
+  PRUint32 mBackBufferUnreadLen; // amount of data currently in mBackBuffer
 
   JOCTET  *mProfile;
-  uint32_t mProfileLength;
+  PRUint32 mProfileLength;
 
   qcms_profile *mInProfile;
   qcms_transform *mTransform;
 
   bool mReading;
 
-  uint32_t mCMSMode;
+  PRUint32 mCMSMode;
 };
 
 } // namespace image

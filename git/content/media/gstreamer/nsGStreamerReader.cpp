@@ -178,7 +178,7 @@ void nsGStreamerReader::PlayBinSourceSetup(GstAppSrc *aSource)
   mSource = GST_APP_SRC(aSource);
   gst_app_src_set_callbacks(mSource, &mSrcCallbacks, (gpointer) this, NULL);
   MediaResource* resource = mDecoder->GetResource();
-  int64_t len = resource->GetLength();
+  PRInt64 len = resource->GetLength();
   gst_app_src_set_size(mSource, len);
   if (resource->IsDataCachedToEndOfResource(0) ||
       (len != -1 && len <= SHORT_FILE_SIZE)) {
@@ -370,17 +370,17 @@ bool nsGStreamerReader::DecodeAudioData()
   }
 
   GstBuffer *buffer = gst_app_sink_pull_buffer(mAudioAppSink);
-  int64_t timestamp = GST_BUFFER_TIMESTAMP(buffer);
+  PRInt64 timestamp = GST_BUFFER_TIMESTAMP(buffer);
   timestamp = gst_segment_to_stream_time(&mAudioSegment,
       GST_FORMAT_TIME, timestamp);
   timestamp = GST_TIME_AS_USECONDS(timestamp);
-  int64_t duration = 0;
+  PRInt64 duration = 0;
   if (GST_CLOCK_TIME_IS_VALID(GST_BUFFER_DURATION(buffer)))
     duration = GST_TIME_AS_USECONDS(GST_BUFFER_DURATION(buffer));
 
-  int64_t offset = GST_BUFFER_OFFSET(buffer);
+  PRInt64 offset = GST_BUFFER_OFFSET(buffer);
   unsigned int size = GST_BUFFER_SIZE(buffer);
-  int32_t frames = (size / sizeof(AudioDataValue)) / mInfo.mAudioChannels;
+  PRInt32 frames = (size / sizeof(AudioDataValue)) / mInfo.mAudioChannels;
   ssize_t outSize = static_cast<size_t>(size / sizeof(AudioDataValue));
   nsAutoArrayPtr<AudioDataValue> data(new AudioDataValue[outSize]);
   memcpy(data, GST_BUFFER_DATA(buffer), GST_BUFFER_SIZE(buffer));
@@ -400,12 +400,12 @@ bool nsGStreamerReader::DecodeAudioData()
 }
 
 bool nsGStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
-                                         int64_t aTimeThreshold)
+                                         PRInt64 aTimeThreshold)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
   GstBuffer *buffer = NULL;
-  int64_t timestamp, nextTimestamp;
+  PRInt64 timestamp, nextTimestamp;
   while (true)
   {
     if (!WaitForDecodedData(&mVideoSinkBufferCount)) {
@@ -475,7 +475,7 @@ bool nsGStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
   bool isKeyframe = !GST_BUFFER_FLAG_IS_SET(buffer,
       GST_BUFFER_FLAG_DELTA_UNIT);
   /* XXX ? */
-  int64_t offset = 0;
+  PRInt64 offset = 0;
   VideoData *video = VideoData::Create(mInfo,
                                        mDecoder->GetImageContainer(),
                                        offset,
@@ -497,10 +497,10 @@ bool nsGStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
   return true;
 }
 
-nsresult nsGStreamerReader::Seek(int64_t aTarget,
-                                 int64_t aStartTime,
-                                 int64_t aEndTime,
-                                 int64_t aCurrentTime)
+nsresult nsGStreamerReader::Seek(PRInt64 aTarget,
+                                 PRInt64 aStartTime,
+                                 PRInt64 aEndTime,
+                                 PRInt64 aCurrentTime)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
@@ -519,7 +519,7 @@ nsresult nsGStreamerReader::Seek(int64_t aTarget,
 }
 
 nsresult nsGStreamerReader::GetBuffered(nsTimeRanges* aBuffered,
-                                        int64_t aStartTime)
+                                        PRInt64 aStartTime)
 {
   if (!mInfo.mHasVideo && !mInfo.mHasAudio) {
     return NS_OK;
@@ -550,9 +550,9 @@ nsresult nsGStreamerReader::GetBuffered(nsTimeRanges* aBuffered,
     return NS_OK;
   }
 
-  for(uint32_t index = 0; index < ranges.Length(); index++) {
-    int64_t startOffset = ranges[index].mStart;
-    int64_t endOffset = ranges[index].mEnd;
+  for(PRUint32 index = 0; index < ranges.Length(); index++) {
+    PRInt64 startOffset = ranges[index].mStart;
+    PRInt64 endOffset = ranges[index].mEnd;
     gint64 startTime, endTime;
 
     if (!gst_element_query_convert(GST_ELEMENT(mPlayBin), GST_FORMAT_BYTES,
@@ -580,7 +580,7 @@ void nsGStreamerReader::ReadAndPushData(guint aLength)
 
   GstBuffer *buffer = gst_buffer_new_and_alloc(aLength);
   guint8 *data = GST_BUFFER_DATA(buffer);
-  uint32_t size = 0, bytesRead = 0;
+  PRUint32 size = 0, bytesRead = 0;
   while(bytesRead < aLength) {
     rv = resource->Read(reinterpret_cast<char*>(data + bytesRead),
         aLength - bytesRead, &size);
@@ -604,7 +604,7 @@ void nsGStreamerReader::ReadAndPushData(guint aLength)
   gst_buffer_unref(buffer);
 }
 
-int64_t nsGStreamerReader::QueryDuration()
+PRInt64 nsGStreamerReader::QueryDuration()
 {
   gint64 duration = 0;
   GstFormat format = GST_FORMAT_TIME;

@@ -6,14 +6,11 @@
 package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.gfx.Layer.RenderContext;
 import org.mozilla.gecko.mozglue.DirectBufferAllocator;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -34,7 +31,7 @@ import javax.microedition.khronos.egl.EGLConfig;
 /**
  * The layer renderer implements the rendering logic for a layer view.
  */
-public class LayerRenderer implements Tabs.OnTabsChangedListener {
+public class LayerRenderer {
     private static final String LOGTAG = "GeckoLayerRenderer";
     private static final String PROFTAG = "GeckoLayerRendererProf";
 
@@ -49,7 +46,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
 
     private final LayerView mView;
     private final SingleTileLayer mBackgroundLayer;
-    private final ScreenshotLayer mScreenshotLayer;
+    private final ScreenshotLayer mCheckerboardLayer;
     private final NinePatchTileLayer mShadowLayer;
     private TextLayer mFrameRateLayer;
     private final ScrollbarLayer mHorizScrollLayer;
@@ -128,21 +125,21 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
 
     public void setCheckerboardBitmap(ByteBuffer data, int width, int height, RectF pageRect, Rect copyRect) {
         try {
-            mScreenshotLayer.setBitmap(data, width, height, copyRect);
+            mCheckerboardLayer.setBitmap(data, width, height, copyRect);
         } catch (IllegalArgumentException ex) {
             Log.e(LOGTAG, "error setting bitmap: ", ex);
         }
-        mScreenshotLayer.beginTransaction();
+        mCheckerboardLayer.beginTransaction();
         try {
-            mScreenshotLayer.setPosition(RectUtils.round(pageRect));
-            mScreenshotLayer.invalidate();
+            mCheckerboardLayer.setPosition(RectUtils.round(pageRect));
+            mCheckerboardLayer.invalidate();
         } finally {
-            mScreenshotLayer.endTransaction();
+            mCheckerboardLayer.endTransaction();
         }
     }
 
     public void resetCheckerboard() {
-        mScreenshotLayer.reset();
+        mCheckerboardLayer.reset();
     }
 
     public LayerRenderer(LayerView view) {
@@ -151,7 +148,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         CairoImage backgroundImage = new BufferedCairoImage(view.getBackgroundPattern());
         mBackgroundLayer = new SingleTileLayer(true, backgroundImage);
 
-        mScreenshotLayer = ScreenshotLayer.create();
+        mCheckerboardLayer = ScreenshotLayer.create();
 
         CairoImage shadowImage = new BufferedCairoImage(view.getShadowPattern());
         mShadowLayer = new NinePatchTileLayer(shadowImage);
@@ -168,8 +165,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
         mCoordByteBuffer = DirectBufferAllocator.allocate(COORD_BUFFER_SIZE * 4);
         mCoordByteBuffer.order(ByteOrder.nativeOrder());
         mCoordBuffer = mCoordByteBuffer.asFloatBuffer();
-
-        Tabs.registerOnTabsChangedListener(this);
     }
 
     @Override
@@ -180,20 +175,6 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             mCoordBuffer = null;
         } finally {
             super.finalize();
-        }
-    }
-
-    public void destroy() {
-        DirectBufferAllocator.free(mCoordByteBuffer);
-        mCoordByteBuffer = null;
-        mCoordBuffer = null;
-        mScreenshotLayer.destroy();
-        mBackgroundLayer.destroy();
-        mShadowLayer.destroy();
-        mHorizScrollLayer.destroy();
-        mVertScrollLayer.destroy();
-        if (mFrameRateLayer != null) {
-            mFrameRateLayer.destroy();
         }
     }
 
@@ -484,7 +465,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             if (rootLayer != null) mUpdated &= rootLayer.update(mPageContext);  // called on compositor thread
             mUpdated &= mBackgroundLayer.update(mScreenContext);    // called on compositor thread
             mUpdated &= mShadowLayer.update(mPageContext);  // called on compositor thread
-            mUpdated &= mScreenshotLayer.update(mPageContext);   // called on compositor thread
+            mUpdated &= mCheckerboardLayer.update(mPageContext);   // called on compositor thread
             if (mFrameRateLayer != null) mUpdated &= mFrameRateLayer.update(mScreenContext); // called on compositor thread
             mUpdated &= mVertScrollLayer.update(mPageContext);  // called on compositor thread
             mUpdated &= mHorizScrollLayer.update(mPageContext); // called on compositor thread
@@ -537,7 +518,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
 
             /* Update background color. */
-            mBackgroundColor = mView.getCheckerboardColor();
+            mBackgroundColor = mView.getLayerClient().getCheckerboardColor();
 
             /* Clear to the page background colour. The bits set here need to
              * match up with those used in gfx/layers/opengl/LayerManagerOGL.cpp.
@@ -562,16 +543,16 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             /* Draw the 'checkerboard'. We use gfx.show_checkerboard_pattern to
              * determine whether to draw the screenshot layer.
              */
-            if (mView.checkerboardShouldShowChecks()) {
+            if (mView.getLayerClient().checkerboardShouldShowChecks()) {
                 /* Find the area the root layer will render into, to mask the checkerboard layer */
                 Rect rootMask = getMaskForLayer(mView.getLayerClient().getRoot());
-                mScreenshotLayer.setMask(rootMask);
+                mCheckerboardLayer.setMask(rootMask);
 
                 /* Scissor around the page-rect, in case the page has shrunk
                  * since the screenshot layer was last updated.
                  */
                 setScissorRect(); // Calls glEnable(GL_SCISSOR_TEST))
-                mScreenshotLayer.draw(mPageContext);
+                mCheckerboardLayer.draw(mPageContext);
             }
         }
 
@@ -687,29 +668,15 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
                 }
             }
 
-            // Remove background color once we've painted. GeckoLayerClient is
-            // responsible for setting this flag before current document is
-            // composited.
+            // Remove white screen once we've painted
             if (mView.getPaintState() == LayerView.PAINT_BEFORE_FIRST) {
-                mView.post(new Runnable() {
+                GeckoAppShell.getMainHandler().postAtFrontOfQueue(new Runnable() {
                     public void run() {
-                        mView.getChildAt(0).setBackgroundColor(Color.TRANSPARENT);
+                        mView.setBackgroundColor(android.graphics.Color.TRANSPARENT);
                     }
                 });
                 mView.setPaintState(LayerView.PAINT_AFTER_FIRST);
             }
-        }
-    }
-
-    @Override
-    public void onTabChanged(final Tab tab, Tabs.TabEvents msg, Object data) {
-        // Sets the background of the newly selected tab. This background color
-        // gets cleared in endDrawing(). This function runs on the UI thread,
-        // but other code that touches the paint state is run on the compositor
-        // thread, so this may need to be changed if any problems appear.
-        if (msg == Tabs.TabEvents.SELECTED) {
-            mView.getChildAt(0).setBackgroundColor(tab.getCheckerboardColor());
-            mView.setPaintState(LayerView.PAINT_START);
         }
     }
 }

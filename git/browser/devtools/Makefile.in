@@ -14,7 +14,6 @@ include $(topsrcdir)/config/config.mk
 
 DIRS = \
   highlighter \
-  markupview \
   webconsole \
   commandline \
   sourceeditor \

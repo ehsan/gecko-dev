@@ -160,7 +160,7 @@ nsStackLayout::GetAscent(nsIFrame* aBox, nsBoxLayoutState& aState)
   return vAscent;
 }
 
-uint8_t
+PRUint8
 nsStackLayout::GetOffset(nsBoxLayoutState& aState, nsIFrame* aChild, nsMargin& aOffset)
 {
   aOffset = nsMargin(0, 0, 0, 0);
@@ -173,7 +173,7 @@ nsStackLayout::GetOffset(nsBoxLayoutState& aState, nsIFrame* aChild, nsMargin& a
       (aChild->GetStateBits() & NS_STATE_STACK_NOT_POSITIONED))
     return 0;
 
-  uint8_t offsetSpecified = 0;
+  PRUint8 offsetSpecified = 0;
   nsIContent* content = aChild->GetContent();
   if (content) {
     bool ltr = aChild->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_LTR;
@@ -287,7 +287,7 @@ nsStackLayout::Layout(nsIFrame* aBox, nsBoxLayoutState& aState)
 
           // obtain our offset from the top left border of the stack's content box.
           nsMargin offset;
-          uint8_t offsetSpecified = GetOffset(aState, child, offset);
+          PRUint8 offsetSpecified = GetOffset(aState, child, offset);
 
           // Set the position and size based on which offsets have been specified:
           //   left only - offset from left edge, preferred width
@@ -364,7 +364,14 @@ nsStackLayout::Layout(nsIFrame* aBox, nsBoxLayoutState& aState)
             // if the new and old rect intersect meaning we just moved a little
             // then just redraw the union. If they don't intersect (meaning
             // we moved a good distance) redraw both separately.
-            aBox->Redraw(aState);
+            if (childRectNoMargin.Intersects(oldRect)) {
+              nsRect u;
+              u.UnionRect(oldRect, childRectNoMargin);
+              aBox->Redraw(aState, &u);
+            } else {
+              aBox->Redraw(aState, &oldRect);
+              aBox->Redraw(aState, &childRectNoMargin);
+            }
           }
        }
 

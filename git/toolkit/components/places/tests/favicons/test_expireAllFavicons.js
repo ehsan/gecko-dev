@@ -34,8 +34,7 @@ add_test(function test_expireAllFavicons() {
   // Add a visited page.
   addVisits({ uri: TEST_PAGE_URI, transition: TRANSITION_TYPED }, function () {
     PlacesUtils.favicons.setAndFetchFaviconForPage(TEST_PAGE_URI,
-                                                   SMALLPNG_DATA_URI, true,
-                                                   PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+                                                   SMALLPNG_DATA_URI, true);
 
     // Add a page with a bookmark.
     PlacesUtils.bookmarks.insertBookmark(
@@ -43,11 +42,9 @@ add_test(function test_expireAllFavicons() {
                           PlacesUtils.bookmarks.DEFAULT_INDEX,
                           "Test bookmark");
     PlacesUtils.favicons.setAndFetchFaviconForPage(
-      BOOKMARKED_PAGE_URI, SMALLPNG_DATA_URI, true,
-        PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
-        function () {
-          // Start expiration only after data has been saved in the database.
-          PlacesUtils.favicons.expireAllFavicons();
-        });
+      BOOKMARKED_PAGE_URI, SMALLPNG_DATA_URI, true, function () {
+        // Start expiration only after data has been saved in the database.
+        PlacesUtils.favicons.expireAllFavicons();
+      });
   });
 });

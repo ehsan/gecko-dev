@@ -89,14 +89,6 @@ public:
   static nsresult AppendTextEquivFromTextContent(nsIContent *aContent,
                                                  nsAString *aString);
 
-  /**
-   * Return true if the given accessible allows name from subtree.
-   */
-  static bool IsNameFromSubtreeAllowed(Accessible* aAccessible)
-  {
-    return GetRoleRule(aAccessible->Role()) == eFromSubtree;
-  }
-
 private:
   /**
    * Iterates accessible children and calculates text equivalent from each
@@ -151,7 +143,7 @@ private:
   /**
    * Returns the rule (constant of ETextEquivRule) for a given role.
    */
-  static uint32_t GetRoleRule(mozilla::a11y::roles::Role aRole);
+  static PRUint32 GetRoleRule(mozilla::a11y::roles::Role aRole);
 
   /**
    * The accessible for which we are computing a text equivalent. It is useful

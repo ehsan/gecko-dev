@@ -64,11 +64,10 @@ VPMContentAnalysis::ComputeContentMetrics(const VideoFrame* inputFrame)
     }
 
     // Init if needed (native dimension change)
-    if (_width != static_cast<int>(inputFrame->Width()) ||
-        _height != static_cast<int>(inputFrame->Height()))
+    if (_width != inputFrame->Width() || _height != inputFrame->Height())
     {
-        if (VPM_OK != Initialize(static_cast<int>(inputFrame->Width()),
-                                 static_cast<int>(inputFrame->Height())))
+        if (VPM_OK != Initialize((WebRtc_UWord16)inputFrame->Width(),
+                                 (WebRtc_UWord16)inputFrame->Height()))
         {
             return NULL;
         }
@@ -115,7 +114,7 @@ VPMContentAnalysis::Release()
 }
 
 WebRtc_Word32
-VPMContentAnalysis::Initialize(int width, int height)
+VPMContentAnalysis::Initialize(WebRtc_UWord16 width, WebRtc_UWord16 height)
 {
    _width = width;
    _height = height;
@@ -191,23 +190,24 @@ WebRtc_Word32
 VPMContentAnalysis::TemporalDiffMetric_C()
 {
     // size of original frame
-    int sizei = _height;
-    int sizej = _width;
+    WebRtc_UWord16 sizei = _height;
+    WebRtc_UWord16 sizej = _width;
 
     WebRtc_UWord32 tempDiffSum = 0;
     WebRtc_UWord32 pixelSum = 0;
     WebRtc_UWord64 pixelSqSum = 0;
 
     WebRtc_UWord32 numPixels = 0; // counter for # of pixels
+    WebRtc_UWord32 ssn;
 
-    const int width_end = ((_width - 2*_border) & -16) + _border;
+    const WebRtc_Word32 width_end = ((_width - 2*_border) & -16) + _border;
 
-    for(int i = _border; i < sizei - _border; i += _skipNum)
+    for(WebRtc_UWord16 i = _border; i < sizei - _border; i += _skipNum)
     {
-        for(int j = _border; j < width_end; j++)
+        for(WebRtc_UWord16 j = _border; j < width_end; j++)
         {
             numPixels += 1;
-            int ssn =  i * sizej + j;
+            ssn =  i * sizej + j;
 
             WebRtc_UWord8 currPixel  = _origFrame[ssn];
             WebRtc_UWord8 prevPixel  = _prevFrame[ssn];
@@ -254,8 +254,8 @@ WebRtc_Word32
 VPMContentAnalysis::ComputeSpatialMetrics_C()
 {
     //size of original frame
-    const int sizei = _height;
-    const int sizej = _width;
+    const WebRtc_UWord16 sizei = _height;
+    const WebRtc_UWord16 sizej = _width;
 
     // pixel mean square average: used to normalize the spatial metrics
     WebRtc_UWord32 pixelMSA = 0;
@@ -265,18 +265,19 @@ VPMContentAnalysis::ComputeSpatialMetrics_C()
     WebRtc_UWord32 spatialErrHSum = 0;
 
     // make sure work section is a multiple of 16
-    const int width_end = ((sizej - 2*_border) & -16) + _border;
+    const WebRtc_UWord32 width_end = ((sizej - 2*_border) & -16) + _border;
 
-    for(int i = _border; i < sizei - _border; i += _skipNum)
+    for(WebRtc_UWord16 i = _border; i < sizei - _border; i += _skipNum)
     {
-        for(int j = _border; j < width_end; j++)
+        for(WebRtc_UWord16 j = _border; j < width_end; j++)
         {
+            WebRtc_UWord32 ssn1,ssn2,ssn3,ssn4,ssn5;
 
-            int ssn1=  i * sizej + j;
-            int ssn2 = (i + 1) * sizej + j; // bottom
-            int ssn3 = (i - 1) * sizej + j; // top
-            int ssn4 = i * sizej + j + 1;   // right
-            int ssn5 = i * sizej + j - 1;   // left
+            ssn1=  i * sizej + j;
+            ssn2 = (i + 1) * sizej + j; // bottom
+            ssn3 = (i - 1) * sizej + j; // top
+            ssn4 = i * sizej + j + 1;   // right
+            ssn5 = i * sizej + j - 1;   // left
 
             WebRtc_UWord16 refPixel1  = _origFrame[ssn1] << 1;
             WebRtc_UWord16 refPixel2  = _origFrame[ssn1] << 2;

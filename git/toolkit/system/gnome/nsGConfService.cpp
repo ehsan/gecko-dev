@@ -82,7 +82,7 @@ nsGConfService::Init()
       return NS_ERROR_FAILURE;
   }
 
-  for (uint32_t i = 0; i < ArrayLength(kGConfSymbols); i++) {
+  for (PRUint32 i = 0; i < ArrayLength(kGConfSymbols); i++) {
     *kGConfSymbols[i].function =
       PR_FindFunctionSymbol(gconfLib, kGConfSymbols[i].functionName);
     if (!*kGConfSymbols[i].function) {
@@ -134,7 +134,7 @@ nsGConfService::GetString(const nsACString &aKey, nsACString &aResult)
 }
 
 NS_IMETHODIMP
-nsGConfService::GetInt(const nsACString &aKey, int32_t* aResult)
+nsGConfService::GetInt(const nsACString &aKey, PRInt32* aResult)
 {
   GError* error = nullptr;
   *aResult = gconf_client_get_int(mClient, PromiseFlatCString(aKey).get(),
@@ -214,7 +214,7 @@ nsGConfService::SetString(const nsACString &aKey, const nsACString &aValue)
 }
 
 NS_IMETHODIMP
-nsGConfService::SetInt(const nsACString &aKey, int32_t aValue)
+nsGConfService::SetInt(const nsACString &aKey, PRInt32 aValue)
 {
   bool res = gconf_client_set_int(mClient, PromiseFlatCString(aKey).get(),
                                     aValue, nullptr);
@@ -235,7 +235,7 @@ NS_IMETHODIMP
 nsGConfService::GetAppForProtocol(const nsACString &aScheme, bool *aEnabled,
                                   nsACString &aHandler)
 {
-  nsAutoCString key("/desktop/gnome/url-handlers/");
+  nsCAutoString key("/desktop/gnome/url-handlers/");
   key.Append(aScheme);
   key.Append("/command");
 
@@ -263,7 +263,7 @@ NS_IMETHODIMP
 nsGConfService::HandlerRequiresTerminal(const nsACString &aScheme,
                                         bool *aResult)
 {
-  nsAutoCString key("/desktop/gnome/url-handlers/");
+  nsCAutoString key("/desktop/gnome/url-handlers/");
   key.Append(aScheme);
   key.Append("/requires_terminal");
 
@@ -281,7 +281,7 @@ NS_IMETHODIMP
 nsGConfService::SetAppForProtocol(const nsACString &aScheme,
                                   const nsACString &aCommand)
 {
-  nsAutoCString key("/desktop/gnome/url-handlers/");
+  nsCAutoString key("/desktop/gnome/url-handlers/");
   key.Append(aScheme);
   key.Append("/command");
 

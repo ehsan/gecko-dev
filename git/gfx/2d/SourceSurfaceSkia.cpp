@@ -15,7 +15,7 @@ namespace mozilla {
 namespace gfx {
 
 SourceSurfaceSkia::SourceSurfaceSkia()
-  : mDrawTarget(nullptr)
+  : mDrawTarget(NULL)
 {
 }
 
@@ -49,16 +49,7 @@ SourceSurfaceSkia::InitFromData(unsigned char* aData,
   if (!temp.copyTo(&mBitmap, GfxFormatToSkiaConfig(aFormat))) {
     return false;
   }
-
-  if (aFormat == FORMAT_B8G8R8X8) {
-    mBitmap.lockPixels();
-    // We have to manually set the A channel to be 255 as Skia doesn't understand BGRX
-    ConvertBGRXToBGRA(reinterpret_cast<unsigned char*>(mBitmap.getPixels()), aSize, aStride);
-    mBitmap.unlockPixels();
-    mBitmap.notifyPixelsChanged();
-    mBitmap.setIsOpaque(true);
-  }
-
+  
   mSize = aSize;
   mFormat = aFormat;
   mStride = aStride;
@@ -99,7 +90,7 @@ void
 SourceSurfaceSkia::DrawTargetWillChange()
 {
   if (mDrawTarget) {
-    mDrawTarget = nullptr;
+    mDrawTarget = NULL;
     SkBitmap temp = mBitmap;
     mBitmap.reset();
     temp.copyTo(&mBitmap, temp.getConfig());
@@ -109,7 +100,7 @@ SourceSurfaceSkia::DrawTargetWillChange()
 void
 SourceSurfaceSkia::DrawTargetDestroyed()
 {
-  mDrawTarget = nullptr;
+  mDrawTarget = NULL;
 }
 
 void
@@ -117,7 +108,7 @@ SourceSurfaceSkia::MarkIndependent()
 {
   if (mDrawTarget) {
     mDrawTarget->RemoveSnapshot(this);
-    mDrawTarget = nullptr;
+    mDrawTarget = NULL;
   }
 }
 

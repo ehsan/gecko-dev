@@ -1,7 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=79:
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -22,10 +20,6 @@
 
 namespace js {
 
-namespace ion {
-    class IonCompartment;
-}
-
 /*
  * A single-entry cache for some base-10 double-to-string conversions. This
  * helps date-format-xparb.js.  It also avoids skewing the results for
@@ -36,21 +30,21 @@ namespace ion {
 class DtoaCache {
     double        d;
     int         base;
-    JSFlatString *s;      // if s==NULL, d and base are not valid
-
+    JSFixedString *s;      // if s==NULL, d and base are not valid
   public:
     DtoaCache() : s(NULL) {}
     void purge() { s = NULL; }
 
-    JSFlatString *lookup(int base, double d) {
+    JSFixedString *lookup(int base, double d) {
         return this->s && base == this->base && d == this->d ? this->s : NULL;
     }
 
-    void cache(int base, double d, JSFlatString *s) {
+    void cache(int base, double d, JSFixedString *s) {
         this->base = base;
         this->d = d;
         this->s = s;
     }
+
 };
 
 /* If HashNumber grows, need to change WrapperHasher. */
@@ -161,42 +155,31 @@ struct JSCompartment
         return needsBarrier_;
     }
 
-    bool compileBarriers(bool needsBarrier) const {
-        return needsBarrier || rt->gcZeal() == js::gc::ZealVerifierPreValue;
-    }
-
-    bool compileBarriers() const {
-        return compileBarriers(needsBarrier());
-    }
-
     void setNeedsBarrier(bool needs);
-
-    static size_t OffsetOfNeedsBarrier() {
-        return offsetof(JSCompartment, needsBarrier_);
-    }
 
     js::GCMarker *barrierTracer() {
         JS_ASSERT(needsBarrier_);
         return &rt->gcMarker;
     }
 
-  public:
+  private:
     enum CompartmentGCState {
-        NoGC,
-        Mark,
-        Sweep
+        NoGCScheduled,
+        GCScheduled,
+        GCRunning
     };
 
-  private:
-    bool                         gcScheduled;
     CompartmentGCState           gcState;
     bool                         gcPreserveCode;
+    bool                         gcStarted;
 
   public:
     bool isCollecting() const {
-        if (rt->isHeapCollecting()) {
-            return gcState != NoGC;
+        /* Allow this if we're in the middle of an incremental GC. */
+        if (rt->isHeapBusy()) {
+            return gcState == GCRunning;
         } else {
+            JS_ASSERT(gcState != GCRunning);
             return needsBarrier();
         }
     }
@@ -210,25 +193,31 @@ struct JSCompartment
      * tracer.
      */
     bool requireGCTracer() const {
-        return rt->isHeapCollecting() && gcState != NoGC;
+        return gcState == GCRunning;
     }
 
-    void setGCState(CompartmentGCState state) {
+    void setCollecting(bool collecting) {
         JS_ASSERT(rt->isHeapBusy());
-        gcState = state;
+        if (collecting)
+            gcState = GCRunning;
+        else
+            gcState = NoGCScheduled;
     }
 
     void scheduleGC() {
         JS_ASSERT(!rt->isHeapBusy());
-        gcScheduled = true;
+        JS_ASSERT(gcState != GCRunning);
+        gcState = GCScheduled;
     }
 
     void unscheduleGC() {
-        gcScheduled = false;
+        JS_ASSERT(!rt->isHeapBusy());
+        JS_ASSERT(gcState != GCRunning);
+        gcState = NoGCScheduled;
     }
 
     bool isGCScheduled() const {
-        return gcScheduled;
+        return gcState == GCScheduled;
     }
 
     void setPreservingCode(bool preserving) {
@@ -236,33 +225,35 @@ struct JSCompartment
     }
 
     bool wasGCStarted() const {
-        return gcState != NoGC;
+        return gcStarted;
     }
 
-    bool isGCMarking() {
-        return gcState == Mark;
+    void setGCStarted(bool started) {
+        JS_ASSERT(rt->isHeapBusy());
+        gcStarted = started;
     }
 
     bool isGCSweeping() {
-        return gcState == Sweep;
+        return wasGCStarted() && rt->gcIncrementalState == js::gc::SWEEP;
     }
 
     size_t                       gcBytes;
     size_t                       gcTriggerBytes;
     size_t                       gcMaxMallocBytes;
     double                       gcHeapGrowthFactor;
-    JSCompartment                *gcNextCompartment;
 
     bool                         hold;
     bool                         isSystemCompartment;
 
     int64_t                      lastCodeRelease;
 
-    /* Pools for analysis and type information in this compartment. */
-    static const size_t LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 128 * 1024;
-    js::LifoAlloc                analysisLifoAlloc;
+    /*
+     * Pool for analysis and intermediate type information in this compartment.
+     * Cleared on every GC, unless the GC happens during analysis (indicated
+     * by activeAnalysis, which is implied by activeInference).
+     */
+    static const size_t TYPE_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 128 * 1024;
     js::LifoAlloc                typeLifoAlloc;
-
     bool                         activeAnalysis;
     bool                         activeInference;
 
@@ -278,14 +269,8 @@ struct JSCompartment
 
     js::RegExpCompartment        regExps;
 
-  private:
+    size_t sizeOfShapeTable(JSMallocSizeOfFun mallocSizeOf);
     void sizeOfTypeInferenceData(JS::TypeInferenceSizes *stats, JSMallocSizeOfFun mallocSizeOf);
-
-  public:
-    void sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compartmentObject,
-                             JS::TypeInferenceSizes *tiSizes,
-                             size_t *shapesCompartmentTables, size_t *crossCompartmentWrappers,
-                             size_t *regexpCompartment, size_t *debuggeesSet);
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
@@ -305,10 +290,12 @@ struct JSCompartment
     js::types::TypeObjectSet     lazyTypeObjects;
     void sweepNewTypeObjectTable(js::types::TypeObjectSet &table);
 
-    js::types::TypeObject *getNewType(JSContext *cx, js::TaggedProto proto,
-                                      JSFunction *fun = NULL, bool isDOM = false);
+    js::ReadBarriered<js::types::TypeObject> emptyTypeObject;
 
-    js::types::TypeObject *getLazyType(JSContext *cx, js::Handle<js::TaggedProto> proto);
+    /* Get the default 'new' type for objects with a NULL prototype. */
+    inline js::types::TypeObject *getEmptyType(JSContext *cx);
+
+    js::types::TypeObject *getLazyType(JSContext *cx, JSObject *proto);
 
     /*
      * Keeps track of the total number of malloc bytes connected to a
@@ -318,9 +305,6 @@ struct JSCompartment
      */
     size_t                       gcMallocAndFreeBytes;
     size_t                       gcTriggerMallocAndFreeBytes;
-
-    /* During GC, stores the index of this compartment in rt->compartments. */
-    unsigned                     index;
 
   private:
     /*
@@ -353,10 +337,8 @@ struct JSCompartment
     bool wrap(JSContext *cx, js::PropertyDescriptor *desc);
     bool wrap(JSContext *cx, js::AutoIdVector &props);
 
-    void mark(JSTracer *trc);
     void markTypes(JSTracer *trc);
-    void discardJitCode(js::FreeOp *fop, bool discardConstraints);
-    bool isDiscardingJitCode(JSTracer *trc);
+    void discardJitCode(js::FreeOp *fop);
     void sweep(js::FreeOp *fop, bool releaseTypes);
     void sweepCrossCompartmentWrappers();
     void purge();
@@ -436,18 +418,9 @@ struct JSCompartment
 
     js::ScriptCountsMap *scriptCountsMap;
 
-    js::DebugScriptMap *debugScriptMap;
-	
-#ifdef JS_ION
-  private:
-    js::ion::IonCompartment *ionCompartment_;
+    js::SourceMapMap *sourceMapMap;
 
-  public:
-    bool ensureIonCompartmentExists(JSContext *cx);
-    js::ion::IonCompartment *ionCompartment() {
-        return ionCompartment_;
-    }
-#endif
+    js::DebugScriptMap *debugScriptMap;
 };
 
 // For use when changing the debug mode flag on one or more compartments.
@@ -477,10 +450,11 @@ class js::AutoDebugModeGC
     }
 };
 
-inline bool
-JSContext::typeInferenceEnabled() const
+inline void
+JSContext::setCompartment(JSCompartment *compartment)
 {
-    return compartment->types.inferenceEnabled;
+    this->compartment = compartment;
+    this->inferenceEnabled = compartment ? compartment->types.inferenceEnabled : false;
 }
 
 inline js::Handle<js::GlobalObject*>
@@ -490,6 +464,47 @@ JSContext::global() const
 }
 
 namespace js {
+
+class PreserveCompartment {
+  protected:
+    JSContext *cx;
+  private:
+    JSCompartment *oldCompartment;
+    bool oldInferenceEnabled;
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+  public:
+     PreserveCompartment(JSContext *cx JS_GUARD_OBJECT_NOTIFIER_PARAM) : cx(cx) {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+        oldCompartment = cx->compartment;
+        oldInferenceEnabled = cx->inferenceEnabled;
+    }
+
+    ~PreserveCompartment() {
+        /* The old compartment may have been destroyed, so we can't use cx->setCompartment. */
+        cx->compartment = oldCompartment;
+        cx->inferenceEnabled = oldInferenceEnabled;
+    }
+};
+
+class SwitchToCompartment : public PreserveCompartment {
+  public:
+    SwitchToCompartment(JSContext *cx, JSCompartment *newCompartment
+                        JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : PreserveCompartment(cx)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+        cx->setCompartment(newCompartment);
+    }
+
+    SwitchToCompartment(JSContext *cx, JSObject *target JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : PreserveCompartment(cx)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+        cx->setCompartment(target->compartment());
+    }
+
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
 
 class AssertCompartmentUnchanged {
   protected:
@@ -509,53 +524,24 @@ class AssertCompartmentUnchanged {
 
 class AutoCompartment
 {
-    JSContext * const cx_;
-    JSCompartment * const origin_;
+  public:
+    JSContext * const context;
+    JSCompartment * const origin;
+    JSCompartment * const destination;
+  private:
+    Maybe<DummyFrameGuard> frame;
+    bool entered;
 
   public:
-    AutoCompartment(JSContext *cx, JSObject *target)
-      : cx_(cx),
-        origin_(cx->compartment)
-    {
-        cx_->enterCompartment(target->compartment());
-    }
+    AutoCompartment(JSContext *cx, JSObject *target);
+    ~AutoCompartment();
 
-    ~AutoCompartment() {
-        cx_->leaveCompartment(origin_);
-    }
-
-    JSContext *context() const { return cx_; }
-    JSCompartment *origin() const { return origin_; }
+    bool enter();
+    void leave();
 
   private:
     AutoCompartment(const AutoCompartment &) MOZ_DELETE;
     AutoCompartment & operator=(const AutoCompartment &) MOZ_DELETE;
-};
-
-/*
- * Entering the atoms comaprtment is not possible with the AutoCompartment
- * since the atoms compartment does not have a global.
- *
- * Note: since most of the VM assumes that cx->global is non-null, only a
- * restricted set of (atom creating/destroying) operations may be used from
- * inside the atoms compartment.
- */
-class AutoEnterAtomsCompartment
-{
-    JSContext *cx;
-    JSCompartment *oldCompartment;
-  public:
-    AutoEnterAtomsCompartment(JSContext *cx)
-      : cx(cx),
-        oldCompartment(cx->compartment)
-    {
-        cx->setCompartment(cx->runtime->atomsCompartment);
-    }
-
-    ~AutoEnterAtomsCompartment()
-    {
-        cx->setCompartment(oldCompartment);
-    }
 };
 
 /*
@@ -565,12 +551,13 @@ class AutoEnterAtomsCompartment
  */
 class ErrorCopier
 {
-    Maybe<AutoCompartment> &ac;
+    AutoCompartment &ac;
     RootedObject scope;
 
   public:
-    ErrorCopier(Maybe<AutoCompartment> &ac, JSObject *scope)
-      : ac(ac), scope(ac.ref().context(), scope) {}
+    ErrorCopier(AutoCompartment &ac, JSObject *scope) : ac(ac), scope(ac.context, scope) {
+        JS_ASSERT(scope->compartment() == ac.origin);
+    }
     ~ErrorCopier();
 };
 

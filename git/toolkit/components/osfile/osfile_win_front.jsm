@@ -16,9 +16,9 @@
     throw new Error("osfile_win_front.jsm cannot be used from the main thread yet");
   }
 
+  importScripts("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
   importScripts("resource://gre/modules/osfile/osfile_win_back.jsm");
   importScripts("resource://gre/modules/osfile/ospath_win_back.jsm");
-  importScripts("resource://gre/modules/osfile/osfile_shared_front.jsm");
 
   (function(exports) {
      "use strict";
@@ -60,136 +60,142 @@
       * @constructor
       */
      let File = function File(fd) {
-       exports.OS.Shared.AbstractFile.call(this, fd);
-       this._closeResult = null;
+       this._fd = fd;
      };
-     File.prototype = Object.create(exports.OS.Shared.AbstractFile.prototype);
+     File.prototype = {
+       /**
+        * If the file is open, this returns the file descriptor.
+        * Otherwise, throw a |File.Error|.
+        */
+       get fd() {
+         return this._fd;
+       },
 
-     /**
-      * Close the file.
-      *
-      * This method has no effect if the file is already closed. However,
-      * if the first call to |close| has thrown an error, further calls
-      * will throw the same error.
-      *
-      * @throws File.Error If closing the file revealed an error that could
-      * not be reported earlier.
-      */
-     File.prototype.close = function close() {
-       if (this._fd) {
-         let fd = this._fd;
-         this._fd = null;
-         // Call |close(fd)|, detach finalizer if any
-         // (|fd| may not be a CDataFinalizer if it has been
-         // instantiated from a controller thread).
-         let result = WinFile._CloseHandle(fd);
-         if (typeof fd == "object" && "forget" in fd) {
-           fd.forget();
+       // Placeholder getter, used to replace |get fd| once
+       // the file is closed.
+       _nofd: function nofd(operation) {
+         operation = operation ||
+             this._nofd.caller.name ||
+             "unknown operation";
+         throw new File.Error(operation, Const.INVALID_HANDLE_VALUE);
+       },
+
+       /**
+        * Close the file.
+        *
+        * This method has no effect if the file is already closed. However,
+        * if the first call to |close| has thrown an error, further calls
+        * will throw the same error.
+        *
+        * @throws File.Error If closing the file revealed an error that could
+        * not be reported earlier.
+        */
+       close: function close() {
+         if (this._fd) {
+           let fd = this._fd;
+           this._fd = null;
+           delete this.fd;
+           Object.defineProperty(this, "fd", {get: File.prototype._nofd});
+           // Call CloseHandle(fd), detach finalizer
+           if (fd.dispose() == 0) {
+             this._closeResult = new File.Error("close", ctypes.errno);
+           }
          }
-         if (result == -1) {
-           this._closeResult = new File.Error("close");
+         if (this._closeResult) {
+           throw this._closeResult;
          }
+         return;
+       },
+       _closeResult: null,
+
+       /**
+        * Read some bytes from a file.
+        *
+        * @param {ArrayBuffer} buffer A buffer for holding the data
+        * once it is read.
+        * @param {number} nbytes The number of bytes to read. It must not
+        * exceed the size of |buffer| in bytes but it may exceed the number
+        * of bytes unread in the file.
+        * @param {*=} options Additional options for reading. Ignored in
+        * this implementation.
+        *
+        * @return {number} The number of bytes effectively read. If zero,
+        * the end of the file has been reached.
+        * @throws {OS.File.Error} In case of I/O error.
+        */
+       read: function read(buffer, nbytes, options) {
+         // |gBytesReadPtr| is a pointer to |gBytesRead|.
+         throw_on_zero("read",
+           WinFile.ReadFile(this.fd, buffer, nbytes, gBytesReadPtr, null)
+         );
+         return gBytesRead.value;
+       },
+
+       /**
+        * Write some bytes to a file.
+        *
+        * @param {ArrayBuffer} buffer A buffer holding the data that must be
+        * written.
+        * @param {number} nbytes The number of bytes to write. It must not
+        * exceed the size of |buffer| in bytes.
+        * @param {*=} options Additional options for writing. Ignored in
+        * this implementation.
+        *
+        * @return {number} The number of bytes effectively written.
+        * @throws {OS.File.Error} In case of I/O error.
+        */
+       write: function write(buffer, nbytes, options) {
+         // |gBytesWrittenPtr| is a pointer to |gBytesWritten|.
+         throw_on_zero("write",
+           WinFile.WriteFile(this.fd, buffer, nbytes, gBytesWrittenPtr, null)
+         );
+         return gBytesWritten.value;
+       },
+
+       /**
+        * Return the current position in the file.
+        */
+       getPosition: function getPosition(pos) {
+         return this.setPosition(0, File.POS_CURRENT);
+       },
+
+       /**
+        * Change the current position in the file.
+        *
+        * @param {number} pos The new position. Whether this position
+        * is considered from the current position, from the start of
+        * the file or from the end of the file is determined by
+        * argument |whence|.  Note that |pos| may exceed the length of
+        * the file.
+        * @param {number=} whence The reference position. If omitted or
+        * |OS.File.POS_START|, |pos| is taken from the start of the file.
+        * If |OS.File.POS_CURRENT|, |pos| is taken from the current position
+        * in the file. If |OS.File.POS_END|, |pos| is taken from the end of
+        * the file.
+        *
+        * @return The new position in the file.
+        */
+       setPosition: function setPosition(pos, whence) {
+         // We are cheating to avoid one unnecessary conversion:
+         // In this implementation,
+         // OS.File.POS_START == OS.Constants.Win.FILE_BEGIN
+         // OS.File.POS_CURRENT == OS.Constants.Win.FILE_CURRENT
+         // OS.File.POS_END == OS.Constants.Win.FILE_END
+         whence = (whence == undefined)?Const.FILE_BEGIN:whence;
+         return throw_on_negative("setPosition",
+           WinFile.SetFilePointer(this.fd, pos, null, whence));
+       },
+
+       /**
+        * Fetch the information on the file.
+        *
+        * @return File.Info The information on |this| file.
+        */
+       stat: function stat() {
+         throw_on_zero("stat",
+           WinFile.GetFileInformationByHandle(this.fd, gFileInfoPtr));
+         return new File.Info(gFileInfo);
        }
-       if (this._closeResult) {
-         throw this._closeResult;
-       }
-       return;
-     };
-
-     /**
-      * Read some bytes from a file.
-      *
-      * @param {C pointer} buffer A buffer for holding the data
-      * once it is read.
-      * @param {number} nbytes The number of bytes to read. It must not
-      * exceed the size of |buffer| in bytes but it may exceed the number
-      * of bytes unread in the file.
-      * @param {*=} options Additional options for reading. Ignored in
-      * this implementation.
-      *
-      * @return {number} The number of bytes effectively read. If zero,
-      * the end of the file has been reached.
-      * @throws {OS.File.Error} In case of I/O error.
-      */
-     File.prototype._read = function _read(buffer, nbytes, options) {
-       // |gBytesReadPtr| is a pointer to |gBytesRead|.
-       throw_on_zero("read",
-         WinFile.ReadFile(this.fd, buffer, nbytes, gBytesReadPtr, null)
-       );
-       return gBytesRead.value;
-     };
-
-     /**
-      * Write some bytes to a file.
-      *
-      * @param {C pointer} buffer A buffer holding the data that must be
-      * written.
-      * @param {number} nbytes The number of bytes to write. It must not
-      * exceed the size of |buffer| in bytes.
-      * @param {*=} options Additional options for writing. Ignored in
-      * this implementation.
-      *
-      * @return {number} The number of bytes effectively written.
-      * @throws {OS.File.Error} In case of I/O error.
-      */
-     File.prototype._write = function _write(buffer, nbytes, options) {
-       // |gBytesWrittenPtr| is a pointer to |gBytesWritten|.
-       throw_on_zero("write",
-         WinFile.WriteFile(this.fd, buffer, nbytes, gBytesWrittenPtr, null)
-       );
-       return gBytesWritten.value;
-     };
-
-     /**
-      * Return the current position in the file.
-      */
-     File.prototype.getPosition = function getPosition(pos) {
-       return this.setPosition(0, File.POS_CURRENT);
-     };
-
-     /**
-      * Change the current position in the file.
-      *
-      * @param {number} pos The new position. Whether this position
-      * is considered from the current position, from the start of
-      * the file or from the end of the file is determined by
-      * argument |whence|.  Note that |pos| may exceed the length of
-      * the file.
-      * @param {number=} whence The reference position. If omitted
-      * or |OS.File.POS_START|, |pos| is relative to the start of the
-      * file.  If |OS.File.POS_CURRENT|, |pos| is relative to the
-      * current position in the file. If |OS.File.POS_END|, |pos| is
-      * relative to the end of the file.
-      *
-      * @return The new position in the file.
-      */
-     File.prototype.setPosition = function setPosition(pos, whence) {
-       if (whence === undefined) {
-         whence = Const.FILE_BEGIN;
-       }
-       return throw_on_negative("setPosition",
-         WinFile.SetFilePointer(this.fd, pos, null, whence));
-     };
-
-     /**
-      * Fetch the information on the file.
-      *
-      * @return File.Info The information on |this| file.
-      */
-     File.prototype.stat = function stat() {
-       throw_on_zero("stat",
-         WinFile.GetFileInformationByHandle(this.fd, gFileInfoPtr));
-       return new File.Info(gFileInfo);
-     };
-
-     /**
-      * Flushes the file's buffers and causes all buffered data
-      * to be written.
-      *
-      * @throws {OS.File.Error} In case of I/O error.
-      */
-     File.prototype.flush = function flush() {
-       throw_on_zero("flush", WinFile.FlushFileBuffers(this.fd));
      };
 
      // Constant used to normalize options.
@@ -276,7 +282,7 @@
          throw new TypeError("OS.File.open requires either both options " +
            "winAccess and winDisposition or neither");
        } else {
-         mode = OS.Shared.AbstractFile.normalizeOpenMode(mode);
+         mode = OS.Shared._aux.normalizeOpenMode(mode);
          if (mode.read) {
            access |= Const.GENERIC_READ;
          }
@@ -318,23 +324,6 @@
      };
 
      /**
-      * Checks if a file exists
-      *
-      * @param {string} path The path to the file.
-      *
-      * @return {bool} true if the file exists, false otherwise.
-      */
-     File.exists = function Win_exists(path) {
-       try {
-         let file = File.open(path);
-         file.close();
-         return true;
-       } catch (x) {
-         return false;
-       }
-     };
-
-     /**
       * Remove an existing file.
       *
       * @param {string} path The name of the file.
@@ -343,45 +332,6 @@
      File.remove = function remove(path) {
        throw_on_zero("remove",
          WinFile.DeleteFile(path));
-     };
-
-     /**
-      * Remove an empty directory.
-      *
-      * @param {string} path The name of the directory to remove.
-      * @param {*=} options Additional options.
-      *   - {bool} ignoreAbsent If |true|, do not fail if the
-      *     directory does not exist yet.
-      */
-     File.removeEmptyDir = function removeEmptyDir(path, options) {
-       options = options || noOptions;
-       let result = WinFile.RemoveDirectory(path);
-       if (!result) {
-         if (options.ignoreAbsent &&
-             ctypes.winLastError == Const.ERROR_FILE_NOT_FOUND) {
-           return;
-         }
-         throw new File.Error("removeEmptyDir");
-       }
-     };
-
-     /**
-      * Create a directory.
-      *
-      * @param {string} path The name of the directory.
-      * @param {*=} options Additional options. This
-      * implementation interprets the following fields:
-      *
-      * - {C pointer} winSecurity If specified, security attributes
-      * as per winapi function |CreateDirectory|. If unspecified,
-      * use the default security descriptor, inherited from the
-      * parent directory.
-      */
-     File.makeDir = function makeDir(path, options) {
-       options = options || noOptions;
-       let security = options.winSecurity || null;
-       throw_on_zero("makeDir",
-         WinFile.CreateDirectory(path, security));
      };
 
      /**
@@ -426,9 +376,6 @@
       * @option {bool} noOverwrite - If set, this function will fail if
       * a file already exists at |destPath|. Otherwise, if this file exists,
       * it will be erased silently.
-      * @option {bool} noCopy - If set, this function will fail if the
-      * operation is more sophisticated than a simple renaming, i.e. if
-      * |sourcePath| and |destPath| are not situated on the same drive.
       *
       * @throws {OS.File.Error} In case of any error.
       *
@@ -442,12 +389,11 @@
       */
      File.move = function move(sourcePath, destPath, options) {
        options = options || noOptions;
-       let flags = 0;
-       if (!options.noCopy) {
+       let flags;
+       if (options.noOverwrite) {
          flags = Const.MOVEFILE_COPY_ALLOWED;
-       }
-       if (!options.noOverwrite) {
-         flags = flags | Const.MOVEFILE_REPLACE_EXISTING;
+       } else {
+         flags = Const.MOVEFILE_COPY_ALLOWED | Const.MOVEFILE_REPLACE_EXISTING;
        }
        throw_on_zero("move",
          WinFile.MoveFileEx(sourcePath, destPath, flags)
@@ -501,7 +447,6 @@
       * @constructor
       */
      File.DirectoryIterator = function DirectoryIterator(path, options) {
-       exports.OS.Shared.AbstractFile.AbstractIterator.call(this);
        if (options && options.winPattern) {
          this._pattern = path + "\\" + options.winPattern;
        } else {
@@ -510,22 +455,18 @@
        this._handle = null;
        this._path = path;
        this._started = false;
-       this._closed = false;
      };
-     File.DirectoryIterator.prototype = Object.create(exports.OS.Shared.AbstractFile.AbstractIterator.prototype);
+     File.DirectoryIterator.prototype = {
+       __iterator__: function __iterator__() {
+         return this;
+       },
 
        /**
         * Fetch the next entry in the directory.
         *
         * @return null If we have reached the end of the directory.
         */
-     File.DirectoryIterator.prototype._next = function _next() {
-        // Bailout if the iterator is closed. Note that this may
-        // happen even before it is fully initialized.
-        if (this._closed) {
-          return null;
-        }
-
+       _next: function _next() {
          // Iterator is not fully initialized yet. Finish
          // initialization.
          if (!this._started) {
@@ -541,6 +482,11 @@
               }
             }
             return gFindData;
+         }
+
+         // We have closed this iterator already.
+         if (!this._handle) {
+           return null;
          }
 
          if (WinFile.FindNextFile(this._handle, gFindDataPtr)) {
@@ -565,7 +511,7 @@
         * @throws {StopIteration} Once all files in the directory have been
         * encountered.
         */
-     File.DirectoryIterator.prototype.next = function next() {
+       next: function next() {
          // FIXME: If we start supporting "\\?\"-prefixed paths, do not forget
          // that "." and ".." are absolutely normal file names if _path starts
          // with such prefix
@@ -577,22 +523,15 @@
            return new File.DirectoryIterator.Entry(entry, this._path);
          }
          throw StopIteration;
-     };
-
-     File.DirectoryIterator.prototype.close = function close() {
-       if (this._closed) {
-         return;
-       }
-       this._closed = true;
-       if (this._handle) {
-         // We might not have a handle if the iterator is closed
-         // before being used.
-         throw_on_zero("FindClose",
-           WinFile.FindClose(this._handle));
+       },
+       close: function close() {
+         if (!this._handle) {
+           return;
+         }
+         WinFile.FindClose(this._handle);
          this._handle = null;
        }
      };
-
      File.DirectoryIterator.Entry = function Entry(win_entry, parent) {
        // Copy the relevant part of |win_entry| to ensure that
        // our data is not overwritten prematurely.
@@ -645,30 +584,30 @@
         * The creation time of this file.
         * @type {Date}
         */
-       get winCreationDate() {
+       get winCreationTime() {
          let date = FILETIME_to_Date(this._ftCreationTime);
-         delete this.winCreationDate;
-         Object.defineProperty(this, "winCreationDate", {value: date});
+         delete this.winCreationTime;
+         Object.defineProperty(this, "winCreationTime", {value: date});
          return date;
        },
        /**
         * The last modification time of this file.
         * @type {Date}
         */
-       get winLastWriteDate() {
+       get winLastWriteTime() {
          let date = FILETIME_to_Date(this._ftLastWriteTime);
-         delete this.winLastWriteDate;
-         Object.defineProperty(this, "winLastWriteDate", {value: date});
+         delete this.winLastWriteTime;
+         Object.defineProperty(this, "winLastWriteTime", {value: date});
          return date;
        },
        /**
         * The last access time of this file.
         * @type {Date}
         */
-       get winLastAccessDate() {
+       get winLastAccessTime() {
          let date = FILETIME_to_Date(this._ftLastAccessTime);
-         delete this.winLastAccessDate;
-         Object.defineProperty(this, "winLastAccessDate", {value: date});
+         delete this.winLastAccessTime;
+         Object.defineProperty(this, "winLastAccessTime", {value: date});
          return date;
        },
        /**
@@ -682,27 +621,6 @@
          return path;
        }
      };
-
-     /**
-      * Return a version of an instance of
-      * File.DirectoryIterator.Entry that can be sent from a worker
-      * thread to the main thread. Note that deserialization is
-      * asymmetric and returns an object with a different
-      * implementation.
-      */
-     File.DirectoryIterator.Entry.toMsg = function toMsg(value) {
-       if (!value instanceof File.DirectoryIterator.Entry) {
-         throw new TypeError("parameter of " +
-           "File.DirectoryIterator.Entry.toMsg must be a " +
-           "File.DirectoryIterator.Entry");
-       }
-       let serialized = {};
-       for (let key in File.DirectoryIterator.Entry.prototype) {
-         serialized[key] = value[key];
-       }
-       return serialized;
-     };
-
 
      /**
       * Information on a file.
@@ -743,8 +661,14 @@
         * @type {number}
         */
        get size() {
-         let value = ctypes.UInt64.join(this._nFileSizeHigh, this._nFileSizeLow);
-         return exports.OS.Shared.Type.uint64_t.importFromC(value);
+         try {
+           return OS.Shared.projectValue(
+             ctypes.uint64_t("" +
+             this._nFileSizeHigh +
+             this._nFileSizeLow));
+         } catch (x) {
+           return NaN;
+         }
        },
        /**
         * The date of creation of this file
@@ -788,23 +712,6 @@
      };
 
      /**
-      * Return a version of an instance of File.Info that can be sent
-      * from a worker thread to the main thread. Note that deserialization
-      * is asymmetric and returns an object with a different implementation.
-      */
-     File.Info.toMsg = function toMsg(stat) {
-       if (!stat instanceof File.Info) {
-         throw new TypeError("parameter of File.Info.toMsg must be a File.Info");
-       }
-       let serialized = {};
-       for (let key in File.Info.prototype) {
-         serialized[key] = stat[key];
-       }
-       return serialized;
-     };
-
-
-     /**
       * Fetch the information on a file.
       *
       * Performance note: if you have opened the file already,
@@ -838,13 +745,15 @@
        winDisposition: OS.Constants.Win.OPEN_EXISTING
      };
 
-     File.read = exports.OS.Shared.AbstractFile.read;
-     File.writeAtomic = exports.OS.Shared.AbstractFile.writeAtomic;
-
      /**
-      * Get the current directory by getCurrentDirectory.
+      * Get/set the current directory.
       */
-     File.getCurrentDirectory = function getCurrentDirectory() {
+     Object.defineProperty(File, "curDir", {
+         set: function(path) {
+           throw_on_zero("set curDir",
+             WinFile.SetCurrentDirectory(path));
+         },
+         get: function() {
            // This function is more complicated than one could hope.
            //
            // This is due to two facts:
@@ -857,10 +766,11 @@
            //  the function with a larger buffer, in the (unlikely byt possible)
            //  case in which the process changes directory to a directory with
            //  a longer name between both calls.
+
            let buffer_size = 4096;
            while (true) {
              let array = new (ctypes.ArrayType(ctypes.jschar, buffer_size))();
-         let expected_size = throw_on_zero("getCurrentDirectory",
+             let expected_size = throw_on_zero("get curDir",
                WinFile.GetCurrentDirectory(buffer_size, array)
              );
              if (expected_size <= buffer_size) {
@@ -874,25 +784,6 @@
              // converge, as the length of the paths cannot increase infinitely.
              buffer_size = expected_size;
            }
-     };
-
-     /**
-      * Set the current directory by setCurrentDirectory.
-      */
-     File.setCurrentDirectory = function setCurrentDirectory(path) {
-       throw_on_zero("setCurrentDirectory",
-         WinFile.SetCurrentDirectory(path));
-     };
-
-     /**
-      * Get/set the current directory by |curDir|.
-      */
-     Object.defineProperty(File, "curDir", {
-         set: function(path) {
-           this.setCurrentDirectory(path);
-         },
-         get: function() {
-           return this.getCurrentDirectory();
          }
        }
      );
@@ -923,14 +814,20 @@
        return result;
      }
 
+
+
+
+     // Constants
+
+     // Constants for File.prototype.setPosition
+     File.POS_START = Const.FILE_BEGIN;
+     File.POS_CURRENT = Const.FILE_CURRENT;
+     File.POS_END = Const.FILE_END;
+
      File.Win = exports.OS.Win.File;
      File.Error = exports.OS.Shared.Win.Error;
      exports.OS.File = File;
 
      exports.OS.Path = exports.OS.Win.Path;
-
-     Object.defineProperty(File, "POS_START", { value: OS.Shared.POS_START });
-     Object.defineProperty(File, "POS_CURRENT", { value: OS.Shared.POS_CURRENT });
-     Object.defineProperty(File, "POS_END", { value: OS.Shared.POS_END });
    })(this);
 }

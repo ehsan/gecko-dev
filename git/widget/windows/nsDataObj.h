@@ -237,10 +237,10 @@ protected:
     class CStream : public IStream, public nsIStreamListener
     {
       nsCOMPtr<nsIChannel> mChannel;
-      nsTArray<uint8_t> mChannelData;
+      nsTArray<PRUint8> mChannelData;
       bool mChannelRead;
       nsresult mChannelResult;
-      uint32_t mStreamRead;
+      PRUint32 mStreamRead;
 
     protected:
       virtual ~CStream();

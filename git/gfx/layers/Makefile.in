@@ -31,20 +31,15 @@ EXPORTS = \
         BasicLayers.h \
         BasicTiledThebesLayer.h \
         BasicImplData.h \
-        GonkIOSurfaceImage.h \
         FrameMetrics.h \
-        CompositorChild.h \
         CompositorParent.h \
-        ImageContainer.h \
         ImageLayers.h \
-        ImageTypes.h \
         Layers.h \
         LayersTypes.h \
         LayerManagerOGLShaders.h \
         LayerManagerOGL.h \
         LayerManagerOGLProgram.h \
         LayerSorter.h \
-        LayerTreeInvalidation.h \
         ReadbackLayer.h \
         ShadowLayersManager.h \
         SharedTextureImage.h \
@@ -62,7 +57,6 @@ CPPSRCS = \
         BasicThebesLayer.cpp \
         BasicBuffers.cpp \
         BasicTiledThebesLayer.cpp \
-        ImageContainer.cpp \
         Layers.cpp \
         RenderTrace.cpp \
         ReadbackProcessor.cpp \
@@ -77,7 +71,6 @@ CPPSRCS = \
         ReusableTileStoreOGL.cpp \
         LayerManagerOGLProgram.cpp \
         LayerSorter.cpp \
-        LayerTreeInvalidation.cpp \
         ImageLayers.cpp \
         TexturePoolOGL.cpp \
         $(NULL)
@@ -140,7 +133,6 @@ EXPORTS_mozilla/layers =\
         ShadowLayersManager.h \
         RenderTrace.h \
         SharedImageUtils.h \
-        ShmemYCbCrImage.h \
         $(NULL)
 
 CPPSRCS += \
@@ -159,7 +151,6 @@ CPPSRCS += \
         ShadowLayersChild.cpp \
         ShadowLayerParent.cpp \
         ShadowLayersParent.cpp \
-        ShmemYCbCrImage.cpp \
         $(NULL)
 
 ifdef MOZ_X11 #{
@@ -177,11 +168,7 @@ endif
 # has full system permissions there.
 ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
 EXPORTS_mozilla/layers += ShadowLayerUtilsGralloc.h
-CPPSRCS += \
-        ShadowLayerUtilsGralloc.cpp \
-        GrallocImages.cpp \
-        GonkIOSurfaceImage.cpp \
-        $(NULL)
+CPPSRCS += ShadowLayerUtilsGralloc.cpp
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -190,16 +177,6 @@ include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 LOCAL_INCLUDES += \
         -I$(topsrcdir)/content/events/src \
-        -I$(ANDROID_SOURCE)/frameworks/base/include/media/stagefright \
-        -I$(ANDROID_SOURCE)/frameworks/base/include/media/stagefright/openmax \
         $(NULL)
 
 CXXFLAGS += $(MOZ_CAIRO_CFLAGS) $(MOZ_PIXMAN_CFLAGS) $(TK_CFLAGS)
-
-ifdef _MSC_VER
-ifeq ($(CPU_ARCH),x86_64)
-# Workaround compiler bug (Bug 795594)
-LayerTreeInvalidation.$(OBJ_SUFFIX): CXXFLAGS += -GL-
-Layers.$(OBJ_SUFFIX): CXXFLAGS += -GL-
-endif
-endif

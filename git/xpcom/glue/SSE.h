@@ -133,7 +133,10 @@
 
 #elif defined(_MSC_VER) && (defined(_M_IX86) || defined(_M_AMD64))
 
-#define MOZILLA_SSE_HAVE_CPUID_DETECTION
+#if _MSC_VER >= 1400
+  // MSVC 2005 or newer on x86 or amd64
+  #define MOZILLA_SSE_HAVE_CPUID_DETECTION
+#endif
 
 #if defined(_M_IX86_FP)
 

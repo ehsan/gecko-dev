@@ -355,16 +355,10 @@ namespace js {
  * spindex is the negative index of v, measured from cx->fp->sp, or from a
  * lower frame's sp if cx->fp is native.
  *
- * The optional argument skipStackHits can be used to skip a hit in the stack
- * frame. This can be useful in self-hosted code that wants to report value
- * errors containing decompiled values that are useful for the user, instead of
- * values used internally by the self-hosted code.
- *
  * The caller must call JS_free on the result after a succsesful call.
  */
 char *
-DecompileValueGenerator(JSContext *cx, int spindex, HandleValue v,
-                        HandleString fallback, int skipStackHits = 0);
+DecompileValueGenerator(JSContext *cx, int spindex, HandleValue v, HandleString fallback);
 
 /*
  * Sprintf, but with unlimited and automatically allocated buffering.
@@ -496,25 +490,6 @@ IsLocalOp(JSOp op)
     return JOF_OPTYPE(op) == JOF_LOCAL;
 }
 
-inline bool
-IsGlobalOp(JSOp op)
-{
-    return js_CodeSpec[op].format & JOF_GNAME;
-}
-
-inline bool
-IsGetterPC(jsbytecode *pc)
-{
-    JSOp op = JSOp(*pc);
-    return op == JSOP_LENGTH  || op == JSOP_GETPROP || op == JSOP_CALLPROP;
-}
-
-inline bool
-IsSetterPC(jsbytecode *pc)
-{
-    JSOp op = JSOp(*pc);
-    return op == JSOP_SETPROP || op == JSOP_SETNAME || op == JSOP_SETGNAME;
-}
 /*
  * Counts accumulated for a single opcode in a script. The counts tracked vary
  * between opcodes, and this structure ensures that counts are accessed in a
@@ -648,12 +623,6 @@ class PCCounts
 
 /* Necessary for alignment with the script. */
 JS_STATIC_ASSERT(sizeof(PCCounts) % sizeof(Value) == 0);
-
-static inline jsbytecode *
-GetNextPc(jsbytecode *pc)
-{
-    return pc + js_CodeSpec[JSOp(*pc)].length;
-}
 
 } /* namespace js */
 

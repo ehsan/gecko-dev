@@ -74,7 +74,7 @@ PluginModuleParent::LoadModule(const char* aFilePath)
 {
     PLUGIN_LOG_DEBUG_FUNCTION;
 
-    int32_t prefSecs = Preferences::GetInt(kLaunchTimeoutPref, 0);
+    PRInt32 prefSecs = Preferences::GetInt(kLaunchTimeoutPref, 0);
 
     // Block on the child process being launched and initialized.
     nsAutoPtr<PluginModuleParent> parent(new PluginModuleParent(aFilePath));
@@ -110,7 +110,7 @@ PluginModuleParent::PluginModuleParent(const char* aFilePath)
     , mPlugin(NULL)
     , mTaskFactory(this)
 #ifdef XP_WIN
-    , mPluginCpuUsageOnHang()
+    , mPluginCpuUsageOnHang(-1)
 #endif
 #ifdef MOZ_CRASHREPORTER_INJECTOR
     , mFlashProcess1(0)
@@ -174,24 +174,18 @@ PluginModuleParent::WriteExtraDataForMinidump(AnnotationTable& notes)
 
     CrashReporterParent* crashReporter = CrashReporter();
     if (crashReporter) {
+        const nsString& hangID = crashReporter->HangID();
+        if (!hangID.IsEmpty()) {
+            notes.Put(CS("HangID"), NS_ConvertUTF16toUTF8(hangID));
 #ifdef XP_WIN
-        if (mPluginCpuUsageOnHang.Length() > 0) {
-            notes.Put(CS("NumberOfProcessors"),
-                      nsPrintfCString("%d", PR_GetNumberOfProcessors()));
-
-            nsCString cpuUsageStr;
-            cpuUsageStr.AppendFloat(std::ceil(mPluginCpuUsageOnHang[0] * 100) / 100);
-            notes.Put(CS("PluginCpuUsage"), cpuUsageStr);
-
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-            for (uint32_t i=1; i<mPluginCpuUsageOnHang.Length(); ++i) {
-                nsCString tempStr;
-                tempStr.AppendFloat(std::ceil(mPluginCpuUsageOnHang[i] * 100) / 100);
-                notes.Put(nsPrintfCString("CpuUsageFlashProcess%d", i), tempStr);
+            if (mPluginCpuUsageOnHang >= 0) {
+              notes.Put(CS("PluginCpuUsage"), 
+                        nsPrintfCString("%.2f", mPluginCpuUsageOnHang));
+              notes.Put(CS("NumberOfProcessors"),
+                        nsPrintfCString("%d", PR_GetNumberOfProcessors()));
             }
 #endif
         }
-#endif
     }
 }
 #endif  // MOZ_CRASHREPORTER
@@ -202,13 +196,13 @@ PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
     NS_ASSERTION(NS_IsMainThread(), "Wrong thead!");
     if (!strcmp(aPref, kChildTimeoutPref)) {
       // The timeout value used by the parent for children
-      int32_t timeoutSecs = Preferences::GetInt(kChildTimeoutPref, 0);
-      int32_t timeoutMs = (timeoutSecs > 0) ? (1000 * timeoutSecs) :
+      PRInt32 timeoutSecs = Preferences::GetInt(kChildTimeoutPref, 0);
+      int32 timeoutMs = (timeoutSecs > 0) ? (1000 * timeoutSecs) :
                         SyncChannel::kNoTimeout;
       static_cast<PluginModuleParent*>(aModule)->SetReplyTimeoutMs(timeoutMs);
     } else if (!strcmp(aPref, kParentTimeoutPref)) {
       // The timeout value used by the child for its parent
-      int32_t timeoutSecs = Preferences::GetInt(kParentTimeoutPref, 0);
+      PRInt32 timeoutSecs = Preferences::GetInt(kParentTimeoutPref, 0);
       unused << static_cast<PluginModuleParent*>(aModule)->SendSetParentHangTimeout(timeoutSecs);
     }
     return 0;
@@ -217,26 +211,14 @@ PluginModuleParent::TimeoutChanged(const char* aPref, void* aModule)
 void
 PluginModuleParent::CleanupFromTimeout()
 {
-    if (mShutdown) {
-      return;
-    }
-
-    if (!OkToCleanup()) {
-        // there's still plugin code on the C++ stack, try again
-        MessageLoop::current()->PostDelayedTask(
-            FROM_HERE,
-            mTaskFactory.NewRunnableMethod(
-                &PluginModuleParent::CleanupFromTimeout), 10);
-        return;
-    }
-
-    Close();
+    if (!mShutdown && OkToCleanup())
+        Close();
 }
 
 #ifdef XP_WIN
 namespace {
 
-uint64_t
+PRUint64
 FileTimeToUTC(const FILETIME& ftime) 
 {
   ULARGE_INTEGER li;
@@ -245,54 +227,41 @@ FileTimeToUTC(const FILETIME& ftime)
   return li.QuadPart;
 }
 
-struct CpuUsageSamples
-{
-  uint64_t sampleTimes[2];
-  uint64_t cpuTimes[2];
-};
-
 bool 
-GetProcessCpuUsage(const InfallibleTArray<base::ProcessHandle>& processHandles, InfallibleTArray<float>& cpuUsage)
+GetProcessCpuUsage(const base::ProcessHandle& processHandle, float& cpuUsage)
 {
-  InfallibleTArray<CpuUsageSamples> samples(processHandles.Length());
   FILETIME creationTime, exitTime, kernelTime, userTime, currentTime;
   BOOL res;
 
-  for (uint32_t i = 0; i < processHandles.Length(); ++i) {
-    ::GetSystemTimeAsFileTime(&currentTime);
-    res = ::GetProcessTimes(processHandles[i], &creationTime, &exitTime, &kernelTime, &userTime);
-    if (!res) {
-      NS_WARNING("failed to get process times");
-      return false;
-    }
-  
-    CpuUsageSamples s;
-    s.sampleTimes[0] = FileTimeToUTC(currentTime);
-    s.cpuTimes[0]    = FileTimeToUTC(kernelTime) + FileTimeToUTC(userTime);
-    samples.AppendElement(s);
+  ::GetSystemTimeAsFileTime(&currentTime);
+  res = ::GetProcessTimes(processHandle, &creationTime, &exitTime, &kernelTime, &userTime);
+  if (!res) {
+    NS_WARNING("failed to get process times");
+    return false;
   }
+
+  PRUint64 sampleTimes[2];
+  PRUint64 cpuTimes[2];
+  
+  sampleTimes[0] = FileTimeToUTC(currentTime);
+  cpuTimes[0]    = FileTimeToUTC(kernelTime) + FileTimeToUTC(userTime);
 
   // we already hung for a while, a little bit longer won't matter
   ::Sleep(50);
 
-  const int32_t numberOfProcessors = PR_GetNumberOfProcessors();
-
-  for (uint32_t i = 0; i < processHandles.Length(); ++i) {
-    ::GetSystemTimeAsFileTime(&currentTime);
-    res = ::GetProcessTimes(processHandles[i], &creationTime, &exitTime, &kernelTime, &userTime);
-    if (!res) {
-      NS_WARNING("failed to get process times");
-      return false;
-    }
-
-    samples[i].sampleTimes[1] = FileTimeToUTC(currentTime);
-    samples[i].cpuTimes[1]    = FileTimeToUTC(kernelTime) + FileTimeToUTC(userTime);    
-
-    const uint64_t deltaSampleTime = samples[i].sampleTimes[1] - samples[i].sampleTimes[0];
-    const uint64_t deltaCpuTime    = samples[i].cpuTimes[1]    - samples[i].cpuTimes[0];
-    const float usage = 100.f * (float(deltaCpuTime) / deltaSampleTime) / numberOfProcessors;
-    cpuUsage.AppendElement(usage);
+  ::GetSystemTimeAsFileTime(&currentTime);
+  res = ::GetProcessTimes(processHandle, &creationTime, &exitTime, &kernelTime, &userTime);
+  if (!res) {
+    NS_WARNING("failed to get process times");
+    return false;
   }
+
+  sampleTimes[1] = FileTimeToUTC(currentTime);
+  cpuTimes[1]    = FileTimeToUTC(kernelTime) + FileTimeToUTC(userTime);    
+
+  const PRUint64 deltaSampleTime = sampleTimes[1] - sampleTimes[0];
+  const PRUint64 deltaCpuTime    = cpuTimes[1]    - cpuTimes[0];
+  cpuUsage = 100.f * (float(deltaCpuTime) / deltaSampleTime) / PR_GetNumberOfProcessors();
 
   return true;
 }
@@ -300,86 +269,28 @@ GetProcessCpuUsage(const InfallibleTArray<base::ProcessHandle>& processHandles, 
 } // anonymous namespace
 #endif // #ifdef XP_WIN
 
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-static bool
-CreateFlashMinidump(DWORD processId, ThreadId childThread,
-                    nsIFile* parentMinidump, const nsACString& name)
-{
-  if (processId == 0) {
-    return false;
-  }
-
-  base::ProcessHandle handle;
-  if (!base::OpenPrivilegedProcessHandle(processId, &handle)) {
-    return false;
-  }
-
-  bool res = CreateAdditionalChildMinidump(handle, 0, parentMinidump, name);
-  base::CloseProcessHandle(handle);
-
-  return res;
-}
-#endif
-
 bool
 PluginModuleParent::ShouldContinueFromReplyTimeout()
 {
 #ifdef MOZ_CRASHREPORTER
     CrashReporterParent* crashReporter = CrashReporter();
-    crashReporter->AnnotateCrashReport(NS_LITERAL_CSTRING("PluginHang"),
-                                       NS_LITERAL_CSTRING("1"));
     if (crashReporter->GeneratePairedMinidump(this)) {
+        mBrowserDumpID = crashReporter->ParentDumpID();
         mPluginDumpID = crashReporter->ChildDumpID();
         PLUGIN_LOG_DEBUG(
-                ("generated paired browser/plugin minidumps: %s)",
-                 NS_ConvertUTF16toUTF8(mPluginDumpID).get()));
-
-        nsAutoCString additionalDumps("browser");
-
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-        nsCOMPtr<nsIFile> pluginDumpFile;
-
-        if (GetMinidumpForID(mPluginDumpID, getter_AddRefs(pluginDumpFile)) &&
-            pluginDumpFile) {
-          nsCOMPtr<nsIFile> childDumpFile;
-
-          if (CreateFlashMinidump(mFlashProcess1, 0, pluginDumpFile,
-                                  NS_LITERAL_CSTRING("flash1"))) {
-            additionalDumps.Append(",flash1");
-          }
-          if (CreateFlashMinidump(mFlashProcess2, 0, pluginDumpFile,
-                                  NS_LITERAL_CSTRING("flash2"))) {
-            additionalDumps.Append(",flash2");
-          }
-        }
-#endif
-
-        crashReporter->AnnotateCrashReport(
-            NS_LITERAL_CSTRING("additional_minidumps"),
-            additionalDumps);
+                ("generated paired browser/plugin minidumps: %s/%s (ID=%s)",
+                 NS_ConvertUTF16toUTF8(mBrowserDumpID).get(),
+                 NS_ConvertUTF16toUTF8(mPluginDumpID).get(),
+                 NS_ConvertUTF16toUTF8(crashReporter->HangID()).get()));
     } else {
         NS_WARNING("failed to capture paired minidumps from hang");
     }
 #endif
 
 #ifdef XP_WIN
-    // collect cpu usage for plugin processes
-
-    InfallibleTArray<base::ProcessHandle> processHandles;
-    base::ProcessHandle handle;
-
-    processHandles.AppendElement(OtherProcess());
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-    if (mFlashProcess1 && base::OpenProcessHandle(mFlashProcess1, &handle)) {
-      processHandles.AppendElement(handle);
-    }
-    if (mFlashProcess2 && base::OpenProcessHandle(mFlashProcess2, &handle)) {
-      processHandles.AppendElement(handle);
-    }
-#endif
-
-    if (!GetProcessCpuUsage(processHandles, mPluginCpuUsageOnHang)) {
-      mPluginCpuUsageOnHang.Clear();
+    float cpuUsage;
+    if (GetProcessCpuUsage(OtherProcess(), cpuUsage)) {
+      mPluginCpuUsageOnHang = cpuUsage;
     }
 #endif
 
@@ -429,20 +340,20 @@ PluginModuleParent::ProcessFirstMinidump()
     AnnotationTable notes;
     notes.Init(4);
     WriteExtraDataForMinidump(notes);
-
-    if (!mPluginDumpID.IsEmpty()) {
-        crashReporter->GenerateChildData(&notes);
+        
+    if (!mPluginDumpID.IsEmpty() && !mBrowserDumpID.IsEmpty()) {
+        crashReporter->GenerateHangCrashReport(&notes);
         return;
     }
 
-    uint32_t sequence = UINT32_MAX;
+    PRUint32 sequence = PR_UINT32_MAX;
     nsCOMPtr<nsIFile> dumpFile;
-    nsAutoCString flashProcessType;
+    nsCAutoString flashProcessType;
     TakeMinidump(getter_AddRefs(dumpFile), &sequence);
 
 #ifdef MOZ_CRASHREPORTER_INJECTOR
     nsCOMPtr<nsIFile> childDumpFile;
-    uint32_t childSequence;
+    PRUint32 childSequence;
 
     if (mFlashProcess1 &&
         TakeMinidumpForChild(mFlashProcess1,
@@ -778,8 +689,9 @@ PluginModuleParent::RecvBackUpXResources(const FileDescriptor& aXSocketFd)
 #else
     NS_ABORT_IF_FALSE(0 > mPluginXSocketFdDup.get(),
                       "Already backed up X resources??");
+    int fd = aXSocketFd.fd; // Copy to discard |const| qualifier
     mPluginXSocketFdDup.forget();
-    mPluginXSocketFdDup.reset(aXSocketFd.PlatformHandle());
+    mPluginXSocketFdDup.reset(fd);
 #endif
     return true;
 }
@@ -1185,17 +1097,7 @@ PluginModuleParent::IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing)
 
     return i->IsRemoteDrawingCoreAnimation(aDrawing);
 }
-
-nsresult
-PluginModuleParent::ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    if (!i)
-        return NS_ERROR_FAILURE;
-
-    return i->ContentsScaleFactorChanged(aContentsScaleFactor);
-}
-#endif // #if defined(XP_MACOSX)
+#endif
 
 bool
 PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,
@@ -1314,7 +1216,7 @@ PluginModuleParent::RecvPluginHideWindow(const uint32_t& aWindowId)
 
 PCrashReporterParent*
 PluginModuleParent::AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
-                                        uint32_t* processType)
+                                        PRUint32* processType)
 {
 #ifdef MOZ_CRASHREPORTER
     return new CrashReporterParent();
@@ -1465,7 +1367,7 @@ PluginModuleParent::InitializeInjector()
 
     nsCString path(Process()->GetPluginFilePath().c_str());
     ToUpperCase(path);
-    int32_t lastSlash = path.RFindCharInSet("\\/");
+    PRInt32 lastSlash = path.RFindCharInSet("\\/");
     if (kNotFound == lastSlash)
         return;
 
@@ -1492,10 +1394,8 @@ PluginModuleParent::InitializeInjector()
 void
 PluginModuleParent::OnCrash(DWORD processID)
 {
-    if (!mShutdown) {
-        GetIPCChannel()->CloseWithError();
-        KillProcess(OtherProcess(), 1, false);
-    }
+    GetIPCChannel()->CloseWithError();
+    KillProcess(OtherProcess(), 1, false);
 }
 
 #endif // MOZ_CRASHREPORTER_INJECTOR

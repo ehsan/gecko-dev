@@ -20,6 +20,7 @@
 #include "nsPluginHost.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
+#include "prmem.h"
 #include "nsGkAtoms.h"
 #include "nsIAppShell.h"
 #include "nsIDocument.h"
@@ -87,7 +88,6 @@
 
 #include "gfxContext.h"
 #include "gfxPlatform.h"
-#include "ImageLayers.h"
 
 #ifdef XP_WIN
 #include "gfxWindowsNativeDrawing.h"
@@ -157,7 +157,9 @@ using mozilla::DefaultXDisplay;
 static PRLogModuleInfo *nsObjectFrameLM = PR_NewLogModule("nsObjectFrame");
 #endif /* PR_LOGGING */
 
-#if defined(XP_MACOSX) && !defined(__LP64__)
+#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
+
+#define MAC_CARBON_PLUGINS
 
 // The header files QuickdrawAPI.h and QDOffscreen.h are missing on OS X 10.7
 // and up (though the QuickDraw APIs defined in them are still present) -- so
@@ -192,7 +194,7 @@ extern "C" {
   #endif /* __QDOFFSCREEN__ */
 }
 
-#endif /* #if defined(XP_MACOSX) && !defined(__LP64__) */
+#endif /* #if defined(XP_MACOSX) && !defined(NP_NO_CARBON) */
 
 using namespace mozilla;
 using namespace mozilla::plugins;
@@ -200,7 +202,7 @@ using namespace mozilla::layers;
 
 class PluginBackgroundSink : public ReadbackSink {
 public:
-  PluginBackgroundSink(nsObjectFrame* aFrame, uint64_t aStartSequenceNumber)
+  PluginBackgroundSink(nsObjectFrame* aFrame, PRUint64 aStartSequenceNumber)
     : mLastSequenceNumber(aStartSequenceNumber), mFrame(aFrame) {}
   ~PluginBackgroundSink()
   {
@@ -209,7 +211,7 @@ public:
     }
   }
 
-  virtual void SetUnknown(uint64_t aSequenceNumber)
+  virtual void SetUnknown(PRUint64 aSequenceNumber)
   {
     if (!AcceptUpdate(aSequenceNumber))
       return;
@@ -217,7 +219,7 @@ public:
   }
 
   virtual already_AddRefed<gfxContext>
-      BeginUpdate(const nsIntRect& aRect, uint64_t aSequenceNumber)
+      BeginUpdate(const nsIntRect& aRect, PRUint64 aSequenceNumber)
   {
     if (!AcceptUpdate(aSequenceNumber))
       return nullptr;
@@ -232,7 +234,7 @@ public:
   void Destroy() { mFrame = nullptr; }
 
 protected:
-  bool AcceptUpdate(uint64_t aSequenceNumber) {
+  bool AcceptUpdate(PRUint64 aSequenceNumber) {
     if (aSequenceNumber > mLastSequenceNumber && mFrame &&
         mFrame->mInstanceOwner) {
       mLastSequenceNumber = aSequenceNumber;
@@ -241,7 +243,7 @@ protected:
     return false;
   }
 
-  uint64_t mLastSequenceNumber;
+  PRUint64 mLastSequenceNumber;
   nsObjectFrame* mFrame;
 };
 
@@ -260,15 +262,18 @@ nsObjectFrame::~nsObjectFrame()
 }
 
 NS_QUERYFRAME_HEAD(nsObjectFrame)
-  NS_QUERYFRAME_ENTRY(nsObjectFrame)
   NS_QUERYFRAME_ENTRY(nsIObjectFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsObjectFrameSuper)
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsObjectFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsObjectFrame::CreateAccessible()
 {
-  return a11y::eHTMLObjectFrameAccessible;
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  return accService ?
+    accService->CreateHTMLObjectFrameAccessible(this, mContent,
+                                                PresContext()->PresShell()) :
+    nullptr;
 }
 
 #ifdef XP_WIN
@@ -375,14 +380,13 @@ nsObjectFrame::PrepForDrawing(nsIWidget *aWidget)
   viewMan->ResizeView(view, r);
   viewMan->MoveViewTo(view, origin.x, origin.y);
 
-  nsPresContext* presContext = PresContext();
-  nsRootPresContext* rpc = presContext->GetRootPresContext();
+  nsRootPresContext* rpc = PresContext()->GetRootPresContext();
   if (!rpc) {
     return NS_ERROR_FAILURE;
   }
 
   if (mWidget) {
-    // Disallow windowed plugins in popups
+    // Disallow plugins in popups
     nsIFrame* rootFrame = rpc->PresShell()->FrameManager()->GetRootFrame();
     nsIWidget* parentWidget = rootFrame->GetNearestWidget();
     if (!parentWidget || nsLayoutUtils::GetDisplayRootFrame(this) != rootFrame) {
@@ -400,33 +404,35 @@ nsObjectFrame::PrepForDrawing(nsIWidget *aWidget)
     mWidget->Show(true);
     mWidget->Enable(true);
 
-    // Set the plugin window to have an empty clip region until we know
-    // what our true position, size and clip region are. These
-    // will be reset when nsRootPresContext computes our true
-    // geometry. The plugin window does need to have a good size here, so
-    // set the size explicitly to a reasonable guess.
-    nsAutoTArray<nsIWidget::Configuration,1> configurations;
-    nsIWidget::Configuration* configuration = configurations.AppendElement();
-    nscoord appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
-    configuration->mChild = mWidget;
-    configuration->mBounds.width = NSAppUnitsToIntPixels(mRect.width, appUnitsPerDevPixel);
-    configuration->mBounds.height = NSAppUnitsToIntPixels(mRect.height, appUnitsPerDevPixel);
-    parentWidget->ConfigureChildren(configurations);
+    // Set the plugin window to have an empty cliprect. The cliprect
+    // will be reset when nsRootPresContext::UpdatePluginGeometry
+    // runs later. The plugin window does need to have the correct
+    // size here. GetEmptyClipConfiguration will probably give it the
+    // size, but just in case we haven't been reflowed or something, set
+    // the size explicitly.
+    nsAutoTArray<nsIWidget::Configuration,1> configuration;
+    GetEmptyClipConfiguration(&configuration);
+    NS_ASSERTION(configuration.Length() > 0, "Empty widget configuration array!");
+    configuration[0].mBounds.width = mRect.width;
+    configuration[0].mBounds.height = mRect.height;
+    parentWidget->ConfigureChildren(configuration);
 
     nsRefPtr<nsDeviceContext> dx;
     viewMan->GetDeviceContext(*getter_AddRefs(dx));
-    mInnerView->AttachWidgetEventHandler(mWidget);
+    EVENT_CALLBACK eventHandler = mInnerView->AttachWidgetEventHandler(mWidget);
+    mWidget->SetEventCallback(eventHandler, dx);
 
 #ifdef XP_MACOSX
     // On Mac, we need to invalidate ourselves since even windowed
     // plugins are painted through Thebes and we need to ensure
     // the Thebes layer containing the plugin is updated.
     if (parentWidget == GetNearestWidget()) {
-      InvalidateFrame();
+      Invalidate(GetContentRectRelativeToSelf());
     }
 #endif
 
-    RegisterPluginForGeometryUpdates();
+    rpc->RegisterPluginForGeometryUpdates(this);
+    rpc->RequestUpdatePluginGeometry(this);
 
     // Here we set the background color for this widget because some plugins will use 
     // the child window background color when painting. If it's not set, it may default to gray
@@ -445,7 +451,8 @@ nsObjectFrame::PrepForDrawing(nsIWidget *aWidget)
     FixupWindow(GetContentRectRelativeToSelf().Size());
 
 #ifndef XP_MACOSX
-    RegisterPluginForGeometryUpdates();
+    rpc->RegisterPluginForGeometryUpdates(this);
+    rpc->RequestUpdatePluginGeometry(this);
 #endif
   }
 
@@ -523,8 +530,8 @@ nsObjectFrame::GetDesiredSize(nsPresContext* aPresContext,
     // exceed the maximum size of X coordinates.  See bug #225357 for
     // more information.  In theory Gtk2 can handle large coordinates,
     // but underlying plugins can't.
-    aMetrics.height = NS_MIN(aPresContext->DevPixelsToAppUnits(INT16_MAX), aMetrics.height);
-    aMetrics.width = NS_MIN(aPresContext->DevPixelsToAppUnits(INT16_MAX), aMetrics.width);
+    aMetrics.height = NS_MIN(aPresContext->DevPixelsToAppUnits(PR_INT16_MAX), aMetrics.height);
+    aMetrics.width = NS_MIN(aPresContext->DevPixelsToAppUnits(PR_INT16_MAX), aMetrics.width);
 #endif
   }
 
@@ -644,16 +651,11 @@ nsObjectFrame::FixupWindow(const nsSize& aSize)
 
   nsIntPoint origin = GetWindowOriginInPixels(windowless);
 
-  // window must be in "display pixels"
-  double scaleFactor = 1.0;
-  if (NS_FAILED(mInstanceOwner->GetContentsScaleFactor(&scaleFactor))) {
-    scaleFactor = 1.0;
-  }
-  int intScaleFactor = ceil(scaleFactor);
-  window->x = origin.x / intScaleFactor;
-  window->y = origin.y / intScaleFactor;
-  window->width = presContext->AppUnitsToDevPixels(aSize.width) / intScaleFactor;
-  window->height = presContext->AppUnitsToDevPixels(aSize.height) / intScaleFactor;
+  window->x = origin.x;
+  window->y = origin.y;
+
+  window->width = presContext->AppUnitsToDevPixels(aSize.width);
+  window->height = presContext->AppUnitsToDevPixels(aSize.height);
 
   // on the Mac we need to set the clipRect to { 0, 0, 0, 0 } for now. This will keep
   // us from drawing on screen until the widget is properly positioned, which will not
@@ -705,21 +707,14 @@ nsObjectFrame::CallSetWindow(bool aCheckIsHidden)
   nsRootPresContext* rootPC = presContext->GetRootPresContext();
   if (!rootPC)
     return NS_ERROR_FAILURE;
-  int32_t appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
+  PRInt32 appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
   nsIFrame* rootFrame = rootPC->PresShell()->FrameManager()->GetRootFrame();
   nsRect bounds = GetContentRectRelativeToSelf() + GetOffsetToCrossDoc(rootFrame);
   nsIntRect intBounds = bounds.ToNearestPixels(appUnitsPerDevPixel);
-
-  // window must be in "display pixels"
-  double scaleFactor = 1.0;
-  if (NS_FAILED(mInstanceOwner->GetContentsScaleFactor(&scaleFactor))) {
-    scaleFactor = 1.0;
-  }
-  size_t intScaleFactor = ceil(scaleFactor);
-  window->x = intBounds.x / intScaleFactor;
-  window->y = intBounds.y / intScaleFactor;
-  window->width = intBounds.width / intScaleFactor;
-  window->height = intBounds.height / intScaleFactor;
+  window->x = intBounds.x;
+  window->y = intBounds.y;
+  window->width = intBounds.width;
+  window->height = intBounds.height;
 
   // Calling SetWindow might destroy this frame. We need to use the instance
   // owner to clean up so hold a ref.
@@ -741,63 +736,41 @@ nsObjectFrame::CallSetWindow(bool aCheckIsHidden)
 }
 
 void
-nsObjectFrame::RegisterPluginForGeometryUpdates()
-{
-  nsRootPresContext* rpc = PresContext()->GetRootPresContext();
-  NS_ASSERTION(rpc, "We should have a root pres context!");
-  if (mRootPresContextRegisteredWith == rpc || !rpc) {
-    // Already registered with current root pres context,
-    // or null root pres context...
-    return;
-  }
-  if (mRootPresContextRegisteredWith && mRootPresContextRegisteredWith != rpc) {
-    // Registered to some other root pres context. Unregister, and
-    // re-register with our current one...
-    UnregisterPluginForGeometryUpdates();
-  }
-  mRootPresContextRegisteredWith = rpc;
-  mRootPresContextRegisteredWith->RegisterPluginForGeometryUpdates(mContent);
-}
-
-void
-nsObjectFrame::UnregisterPluginForGeometryUpdates()
-{
-  if (!mRootPresContextRegisteredWith) {
-    // Not registered...
-    return;
-  }
-  mRootPresContextRegisteredWith->UnregisterPluginForGeometryUpdates(mContent);
-  mRootPresContextRegisteredWith = nullptr;
-}
-
-void
 nsObjectFrame::SetInstanceOwner(nsPluginInstanceOwner* aOwner)
 {
   mInstanceOwner = aOwner;
-  if (mInstanceOwner) {
-    return;
-  }
-  UnregisterPluginForGeometryUpdates();
-  if (mWidget && mInnerView) {
-    mInnerView->DetachWidgetEventHandler(mWidget);
-    // Make sure the plugin is hidden in case an update of plugin geometry
-    // hasn't happened since this plugin became hidden.
-    nsIWidget* parent = mWidget->GetParent();
-    if (parent) {
-      nsTArray<nsIWidget::Configuration> configurations;
-      nsIWidget::Configuration* configuration = configurations.AppendElement();
-      configuration->mChild = mWidget;
-      parent->ConfigureChildren(configurations);
+  if (!mInstanceOwner) {
+    nsRootPresContext* rpc = PresContext()->GetRootPresContext();
+    if (rpc) {
+      if (mWidget) {
+        if (mInnerView) {
+          mInnerView->DetachWidgetEventHandler(mWidget);
 
-      mWidget->Show(false);
-      mWidget->Enable(false);
-      mWidget->SetParent(nullptr);
+          rpc->UnregisterPluginForGeometryUpdates(this);
+          // Make sure the plugin is hidden in case an update of plugin geometry
+          // hasn't happened since this plugin became hidden.
+          nsIWidget* parent = mWidget->GetParent();
+          if (parent) {
+            nsTArray<nsIWidget::Configuration> configurations;
+            this->GetEmptyClipConfiguration(&configurations);
+            parent->ConfigureChildren(configurations);
+
+            mWidget->Show(false);
+            mWidget->Enable(false);
+            mWidget->SetParent(nullptr);
+          }
+        }
+      } else {
+#ifndef XP_MACOSX
+        rpc->UnregisterPluginForGeometryUpdates(this);
+#endif
+      }
     }
   }
 }
 
 bool
-nsObjectFrame::IsFocusable(int32_t *aTabIndex, bool aWithMouse)
+nsObjectFrame::IsFocusable(PRInt32 *aTabIndex, bool aWithMouse)
 {
   if (aTabIndex)
     *aTabIndex = -1;
@@ -919,7 +892,7 @@ public:
                                              LayerManager* aManager,
                                              const ContainerParameters& aContainerParameters)
   {
-    return static_cast<nsObjectFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this, aContainerParameters);
+    return static_cast<nsObjectFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this);
   }
 
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
@@ -989,7 +962,7 @@ public:
                                              LayerManager* aManager,
                                              const ContainerParameters& aContainerParameters)
   {
-    return static_cast<nsObjectFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this, aContainerParameters);
+    return static_cast<nsObjectFrame*>(mFrame)->BuildLayer(aBuilder, aManager, this);
   }
 
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
@@ -1044,44 +1017,8 @@ nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion)
 {
-  if (aBuilder->IsForPluginGeometry()) {
-    nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
-    if (!aBuilder->IsInTransform() || f->IsPaintedByGecko()) {
-      // Since transforms induce reference frames, we don't need to worry
-      // about this method fluffing out due to non-rectilinear transforms.
-      nsRect rAncestor = nsLayoutUtils::TransformFrameRectToAncestor(f,
-          f->GetContentRectRelativeToSelf(), ReferenceFrame());
-      nscoord appUnitsPerDevPixel =
-        ReferenceFrame()->PresContext()->AppUnitsPerDevPixel();
-      f->mNextConfigurationBounds = rAncestor.ToNearestPixels(appUnitsPerDevPixel);
-
-      bool snap;
-      nsRegion visibleRegion;
-      visibleRegion.And(*aVisibleRegion, GetBounds(aBuilder, &snap));
-      // Make visibleRegion relative to f
-      visibleRegion.MoveBy(-ToReferenceFrame());
-
-      f->mNextConfigurationClipRegion.Clear();
-      nsRegionRectIterator iter(visibleRegion);
-      for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
-        nsRect rAncestor =
-          nsLayoutUtils::TransformFrameRectToAncestor(f, *r, ReferenceFrame());
-        nsIntRect rPixels = rAncestor.ToNearestPixels(appUnitsPerDevPixel)
-            - f->mNextConfigurationBounds.TopLeft();
-        if (!rPixels.IsEmpty()) {
-          f->mNextConfigurationClipRegion.AppendElement(rPixels);
-        }
-      }
-    }
-
-    if (f->mInnerView) {
-      // This should produce basically the same rectangle (but not relative
-      // to the root frame). We only call this here for the side-effect of
-      // setting mViewToWidgetOffset on the view.
-      f->mInnerView->CalcWidgetBounds(eWindowType_plugin);
-    }
-  }
-
+  bool snap;
+  mVisibleRegion.And(*aVisibleRegion, GetBounds(aBuilder, &snap));
   return nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
                                           aAllowVisibleRegionExpansion);
 }
@@ -1096,18 +1033,19 @@ nsDisplayPlugin::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
   if (!aBuilder->IsForPluginGeometry()) {
     nsIWidget* widget = f->GetWidget();
     if (widget) {
-      // Be conservative and treat plugins with widgets as not opaque,
-      // because that's simple and we might need the content under the widget
-      // if the widget is unexpectedly clipped away. (As can happen when
-      // chrome content over a plugin forces us to clip out the plugin for
-      // security reasons.)
-      // We shouldn't be repainting the content under plugins much anyway
-      // since there generally shouldn't be anything to invalidate or paint
-      // in ThebesLayers there.
-  	  return result;
+      nsTArray<nsIntRect> clip;
+      widget->GetWindowClipRegion(&clip);
+      nsTArray<nsIWidget::Configuration> configuration;
+      GetWidgetConfiguration(aBuilder, &configuration);
+      NS_ASSERTION(configuration.Length() == 1, "No configuration found");
+      if (clip != configuration[0].mClipRegion) {
+        // Something has clipped us unexpectedly. Perhaps there is a translucent
+        // chrome element overlaying us that forced us to be clipped away. Treat
+        // us as non-opaque since we may have holes.
+    	return result;
+      }
     }
   }
-
   if (f->IsOpaque()) {
     nsRect bounds = GetBounds(aBuilder, aSnap);
     if (aBuilder->IsForPluginGeometry() ||
@@ -1116,8 +1054,70 @@ nsDisplayPlugin::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
       result = bounds;
     }
   }
-
   return result;
+}
+
+void
+nsDisplayPlugin::GetWidgetConfiguration(nsDisplayListBuilder* aBuilder,
+                                        nsTArray<nsIWidget::Configuration>* aConfigurations)
+{
+  nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
+  nsPoint pluginOrigin = mFrame->GetContentRectRelativeToSelf().TopLeft() +
+    ToReferenceFrame();
+  f->ComputeWidgetGeometry(mVisibleRegion, pluginOrigin, aConfigurations);
+}
+
+void
+nsObjectFrame::ComputeWidgetGeometry(const nsRegion& aRegion,
+                                     const nsPoint& aPluginOrigin,
+                                     nsTArray<nsIWidget::Configuration>* aConfigurations)
+{
+  if (!mWidget) {
+#ifndef XP_MACOSX
+    if (mInstanceOwner) {
+      // UpdateWindowVisibility will notify the plugin of position changes
+      // by updating the NPWindow and calling NPP_SetWindow/AsyncSetWindow.
+      mInstanceOwner->UpdateWindowVisibility(!aRegion.IsEmpty());
+    }
+#endif
+    return;
+  }
+
+  if (!mInnerView) {
+    return;
+  }
+
+  nsPresContext* presContext = PresContext();
+  nsRootPresContext* rootPC = presContext->GetRootPresContext();
+  if (!rootPC)
+    return;
+
+  nsIWidget::Configuration* configuration = aConfigurations->AppendElement();
+  if (!configuration)
+    return;
+  configuration->mChild = mWidget;
+
+  PRInt32 appUnitsPerDevPixel = presContext->AppUnitsPerDevPixel();
+  nsIFrame* rootFrame = rootPC->PresShell()->FrameManager()->GetRootFrame();
+  nsRect bounds = GetContentRectRelativeToSelf() + GetOffsetToCrossDoc(rootFrame);
+  configuration->mBounds = bounds.ToNearestPixels(appUnitsPerDevPixel);
+
+  // This should produce basically the same rectangle (but not relative
+  // to the root frame). We only call this here for the side-effect of
+  // setting mViewToWidgetOffset on the view.
+  mInnerView->CalcWidgetBounds(eWindowType_plugin);
+
+  nsRegionRectIterator iter(aRegion);
+  nsIntPoint pluginOrigin = aPluginOrigin.ToNearestPixels(appUnitsPerDevPixel);
+  for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
+    // Snap *r to pixels while it's relative to the painted widget, to
+    // improve consistency with rectangle and image drawing
+    nsIntRect pixRect =
+      r->ToNearestPixels(appUnitsPerDevPixel) - pluginOrigin;
+    if (!pixRect.IsEmpty()) {
+      configuration->mClipRegion.AppendElement(pixRect);
+    }
+  }
 }
 
 nsresult
@@ -1140,12 +1140,6 @@ nsObjectFrame::DidSetWidgetGeometry()
 #if defined(XP_MACOSX)
   if (mInstanceOwner) {
     mInstanceOwner->FixUpPluginWindow(nsPluginInstanceOwner::ePluginPaintEnable);
-  }
-#else
-  if (!mWidget && mInstanceOwner) {
-    // UpdateWindowVisibility will notify the plugin of position changes
-    // by updating the NPWindow and calling NPP_SetWindow/AsyncSetWindow.
-    mInstanceOwner->UpdateWindowVisibility(!mNextConfigurationBounds.IsEmpty());
   }
 #endif
 }
@@ -1235,8 +1229,8 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
 
     nsRefPtr<ImageContainer> container = GetImageContainer();
-    if (container && (container->HasCurrentImage() || !isVisible ||
-        container->GetCurrentSize() != gfxIntSize(window->width, window->height))) {
+    if (container && container->HasCurrentImage() || !isVisible ||
+        container->GetCurrentSize() != gfxIntSize(window->width, window->height)) {
       mInstanceOwner->NotifyPaintWaiter(aBuilder);
     }
   }
@@ -1264,8 +1258,8 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
       nsTArray<nsNPAPIPluginInstance::VideoInfo*> videos;
       mInstanceOwner->GetVideos(videos);
-
-      for (uint32_t i = 0; i < videos.Length(); i++) {
+      
+      for (int i = 0; i < videos.Length(); i++) {
         rv = replacedContent.AppendNewToTop(new (aBuilder)
           nsDisplayPluginVideo(aBuilder, this, videos[i]));
         NS_ENSURE_SUCCESS(rv, rv);
@@ -1338,13 +1332,12 @@ nsObjectFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
 
   window.clipRect.bottom = 0; window.clipRect.top = 0;
   window.clipRect.left = 0; window.clipRect.right = 0;
-
+  
 // platform specific printing code
-#if defined(XP_MACOSX) && !defined(__LP64__)
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#ifdef MAC_CARBON_PLUGINS
   // Don't use this code if any of the QuickDraw APIs it currently requires
   // are missing (as they probably will be on OS X 10.8 and up).
-  if (!&::SetRect || !&::NewGWorldFromPtr || !&::DisposeGWorld) {
+  if (!::SetRect || !::NewGWorldFromPtr || !::DisposeGWorld) {
     NS_WARNING("Cannot print plugin -- required QuickDraw APIs are missing!");
     return;
   }
@@ -1439,7 +1432,6 @@ nsObjectFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
   ::DisposeGWorld(gWorld);
 
   nativeDraw.EndNativeDrawing();
-#pragma clang diagnostic warning "-Wdeprecated-declarations"
 #elif defined(XP_UNIX)
 
   /* XXX this just flat-out doesn't work in a thebes world --
@@ -1597,8 +1589,7 @@ nsObjectFrame::GetLayerState(nsDisplayListBuilder* aBuilder,
 already_AddRefed<Layer>
 nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
                           LayerManager* aManager,
-                          nsDisplayItem* aItem,
-                          const ContainerParameters& aContainerParameters)
+                          nsDisplayItem* aItem)
 {
   if (!mInstanceOwner)
     return nullptr;
@@ -1619,20 +1610,23 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     return nullptr;
   }
 
-  // window is in "display pixels", but size needs to be in device pixels
-  double scaleFactor = 1.0;
-  if (NS_FAILED(mInstanceOwner->GetContentsScaleFactor(&scaleFactor))) {
-    scaleFactor = 1.0;
+  gfxIntSize size;
+
+#ifdef XP_MACOSX
+  if (mInstanceOwner->GetDrawingModel() == NPDrawingModelCoreAnimation) {
+    size = container->GetCurrentSize();
+  } else
+#endif
+  {
+    size = gfxIntSize(window->width, window->height);
   }
-  int intScaleFactor = ceil(scaleFactor);
-  gfxIntSize size(window->width * intScaleFactor, window->height * intScaleFactor);
 
   nsRect area = GetContentRectRelativeToSelf() + aItem->ToReferenceFrame();
   gfxRect r = nsLayoutUtils::RectToGfxRect(area, PresContext()->AppUnitsPerDevPixel());
   // to provide crisper and faster drawing.
   r.Round();
   nsRefPtr<Layer> layer =
-    (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, aItem));
+    (GetLayerBuilderForManager(aManager)->GetLeafLayerFor(aBuilder, aManager, aItem));
 
   if (aItem->GetType() == nsDisplayItem::TYPE_PLUGIN) {
     if (!layer) {
@@ -1648,7 +1642,9 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
     ImageLayer* imglayer = static_cast<ImageLayer*>(layer.get());
     UpdateImageLayer(r);
 
+#ifdef XP_WIN
     imglayer->SetScaleToSize(size, ImageLayer::SCALE_STRETCH);
+#endif
     imglayer->SetContainer(container);
     gfxPattern::GraphicsFilter filter =
       nsLayoutUtils::GetGraphicsFilterForFrame(this);
@@ -1724,7 +1720,7 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
 
   // Set a transform on the layer to draw the plugin in the right place
   gfxMatrix transform;
-  transform.Translate(r.TopLeft() + aContainerParameters.mOffset);
+  transform.Translate(r.TopLeft());
 
   layer->SetBaseTransform(gfx3DMatrix::From2D(transform));
   layer->SetVisibleRegion(nsIntRect(0, 0, size.width, size.height));
@@ -1758,7 +1754,7 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
         mInstanceOwner->GetDrawingModel() == NPDrawingModelCoreAnimation ||
         mInstanceOwner->GetDrawingModel() == 
                                   NPDrawingModelInvalidatingCoreAnimation) {
-      int32_t appUnitsPerDevPixel = PresContext()->AppUnitsPerDevPixel();
+      PRInt32 appUnitsPerDevPixel = PresContext()->AppUnitsPerDevPixel();
       // Clip to the content area where the plugin should be drawn. If
       // we don't do this, the plugin can draw outside its bounds.
       nsIntRect contentPixels = aPluginRect.ToNearestPixels(appUnitsPerDevPixel);
@@ -1810,6 +1806,30 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
         nativeDrawing.EndNativeDrawing();
         return;
       }
+#ifndef NP_NO_CARBON
+      if (mInstanceOwner->GetEventModel() == NPEventModelCarbon &&
+          !mInstanceOwner->SetPluginPortAndDetectChange()) {
+        NS_WARNING("null plugin port during PaintPlugin");
+        nativeDrawing.EndNativeDrawing();
+        return;
+      }
+
+      // In the Carbon event model...
+      // If gfxQuartzNativeDrawing hands out a CGContext different from the
+      // one set by SetPluginPortAndDetectChange(), we need to pass it to the
+      // plugin via SetWindow().  This will happen in nsPluginInstanceOwner::
+      // FixUpPluginWindow(), called from nsPluginInstanceOwner::Paint().
+      // (If SetPluginPortAndDetectChange() made any changes itself, this has
+      // already been detected in that method, and will likewise result in a
+      // call to SetWindow() from FixUpPluginWindow().)
+      NP_CGContext* windowContext = static_cast<NP_CGContext*>(window->window);
+      if (mInstanceOwner->GetEventModel() == NPEventModelCarbon &&
+          windowContext->context != cgContext) {
+        windowContext->context = cgContext;
+        cgPluginPortCopy->context = cgContext;
+        mInstanceOwner->SetPluginPortChanged(true);
+      }
+#endif
 
       mInstanceOwner->BeginCGPaint();
       if (mInstanceOwner->GetDrawingModel() == NPDrawingModelCoreAnimation ||
@@ -2072,15 +2092,6 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
       return fm->FocusPlugin(GetContent());
   }
 
-#ifdef XP_MACOSX
-  if (anEvent->message == NS_PLUGIN_RESOLUTION_CHANGED) {
-    double scaleFactor = 1.0;
-    mInstanceOwner->GetContentsScaleFactor(&scaleFactor);
-    mInstanceOwner->ContentsScaleFactorChanged(scaleFactor);
-    return NS_OK;
-  }
-#endif
-
   if (mInstanceOwner->SendNativeEvents() &&
       NS_IS_PLUGIN_EVENT(anEvent)) {
     *anEventStatus = mInstanceOwner->ProcessEvent(*anEvent);
@@ -2101,6 +2112,13 @@ nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
     return rv;
   }
 #endif
+
+  if (anEvent->message == NS_DESTROY) {
+#ifdef MAC_CARBON_PLUGINS
+    mInstanceOwner->CancelTimer();
+#endif
+    return rv;
+  }
 
   return nsObjectFrameSuper::HandleEvent(aPresContext, anEvent, anEventStatus);
 }
@@ -2199,7 +2217,9 @@ nsObjectFrame::BeginSwapDocShells(nsIContent* aContent, void*)
   nsObjectFrame* objectFrame = static_cast<nsObjectFrame*>(obj);
   NS_ASSERTION(!objectFrame->mWidget || objectFrame->mWidget->GetParent(),
                "Plugin windows must not be toplevel");
-  objectFrame->UnregisterPluginForGeometryUpdates();
+  nsRootPresContext* rootPC = objectFrame->PresContext()->GetRootPresContext();
+  NS_ASSERTION(rootPC, "unable to unregister the plugin frame");
+  rootPC->UnregisterPluginForGeometryUpdates(objectFrame);
 }
 
 /*static*/ void
@@ -2225,7 +2245,8 @@ nsObjectFrame::EndSwapDocShells(nsIContent* aContent, void*)
     objectFrame->CallSetWindow();
 
     // Register for geometry updates and make a request.
-    objectFrame->RegisterPluginForGeometryUpdates();
+    rootPC->RegisterPluginForGeometryUpdates(objectFrame);
+    rootPC->RequestUpdatePluginGeometry(objectFrame);
   }
 }
 
@@ -2236,7 +2257,7 @@ NS_NewObjectFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 }
 
 bool
-nsObjectFrame::IsPaintedByGecko() const
+nsObjectFrame::PaintedByGecko()
 {
 #ifdef XP_MACOSX
   return true;

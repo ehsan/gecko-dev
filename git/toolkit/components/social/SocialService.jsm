@@ -8,10 +8,10 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/MozSocialAPI.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "getFrameWorkerHandle", "resource://gre/modules/FrameWorker.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "WorkerAPI", "resource://gre/modules/WorkerAPI.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "MozSocialAPI", "resource://gre/modules/MozSocialAPI.jsm");
 
 /**
  * The SocialService is the public API to social providers - it tracks which
@@ -27,8 +27,8 @@ let SocialServiceInternal = {
   }
 };
 
-function initService() {
-  // Add a pref observer for the enabled state
+XPCOMUtils.defineLazyGetter(SocialServiceInternal, "providers", function () {
+  // Initialize the service (add a pref observer)
   function prefObserver(subject, topic, data) {
     SocialService._setEnabled(Services.prefs.getBoolPref("social.enabled"));
   }
@@ -39,12 +39,7 @@ function initService() {
   }, "xpcom-shutdown", false);
 
   // Initialize the MozSocialAPI
-  if (SocialServiceInternal.enabled)
-    MozSocialAPI.enabled = true;
-}
-
-XPCOMUtils.defineLazyGetter(SocialServiceInternal, "providers", function () {
-  initService();
+  MozSocialAPI.enabled = SocialServiceInternal.enabled;
 
   // Don't load any providers from prefs if the test pref is set
   let skipLoading = false;
@@ -55,17 +50,15 @@ XPCOMUtils.defineLazyGetter(SocialServiceInternal, "providers", function () {
   if (skipLoading)
     return {};
 
-  // Now retrieve the providers from prefs
+  // Now retrieve the providers
   let providers = {};
   let MANIFEST_PREFS = Services.prefs.getBranch("social.manifest.");
   let prefs = MANIFEST_PREFS.getChildList("", {});
-  let appinfo = Cc["@mozilla.org/xre/app-info;1"]
-                  .getService(Ci.nsIXULRuntime);
   prefs.forEach(function (pref) {
     try {
       var manifest = JSON.parse(MANIFEST_PREFS.getCharPref(pref));
       if (manifest && typeof(manifest) == "object") {
-        let provider = new SocialProvider(manifest, appinfo.inSafeMode ? false : SocialServiceInternal.enabled);
+        let provider = new SocialProvider(manifest, SocialServiceInternal.enabled);
         providers[provider.origin] = provider;
       }
     } catch (err) {
@@ -88,11 +81,7 @@ const SocialService = {
   },
   set enabled(val) {
     let enable = !!val;
-
-    // Allow setting to the same value when in safe mode so the
-    // feature can be force enabled.
-    if (enable == SocialServiceInternal.enabled &&
-        !Services.appinfo.inSafeMode)
+    if (enable == SocialServiceInternal.enabled)
       return;
 
     Services.prefs.setBoolPref("social.enabled", enable);
@@ -103,7 +92,6 @@ const SocialService = {
     SocialServiceInternal.enabled = enable;
     MozSocialAPI.enabled = enable;
     Services.obs.notifyObservers(null, "social:pref-changed", enable ? "enabled" : "disabled");
-    Services.telemetry.getHistogramById("SOCIAL_TOGGLED").add(enable);
   },
 
   // Adds a provider given a manifest, and returns the added provider.
@@ -197,30 +185,25 @@ SocialProvider.prototype = {
     }
   },
 
+  // Active port to the provider's FrameWorker. Null if the provider has no
+  // FrameWorker, or is disabled.
+  port: null,
+
   // Reference to a workerAPI object for this provider. Null if the provider has
   // no FrameWorker, or is disabled.
   workerAPI: null,
 
   // Contains information related to the user's profile. Populated by the
-  // workerAPI via updateUserProfile.
+  // workerAPI via updateUserProfile. Null if the provider has no FrameWorker.
   // Properties:
   //   iconURL, portrait, userName, displayName, profileURL
   // See https://github.com/mozilla/socialapi-dev/blob/develop/docs/socialAPI.md
-  // A value of null or an empty object means 'user not logged in'.
-  // A value of undefined means the service has not yet told us the status of
-  // the profile (ie, the service is still loading/initing, or the provider has
-  // no FrameWorker)
-  // This distinction might be used to cache certain data between runs - eg,
-  // browser-social.js caches the notification icons so they can be displayed
-  // quickly at startup without waiting for the provider to initialize -
-  // 'undefined' means 'ok to use cached values' versus 'null' meaning 'cached
-  // values aren't to be used as the user is logged out'.
-  profile: undefined,
+  profile: null,
 
   // Map of objects describing the provider's notification icons, whose
   // properties include:
   //   name, iconURL, counter, contentPanel
-  // See https://developer.mozilla.org/en-US/docs/Social_API
+  // See https://github.com/mozilla/socialapi-dev/blob/develop/docs/socialAPI.md
   ambientNotificationIcons: null,
 
   // Called by the workerAPI to update our profile information.
@@ -272,9 +255,11 @@ SocialProvider.prototype = {
   _activate: function _activate() {
     // Initialize the workerAPI and its port first, so that its initialization
     // occurs before any other messages are processed by other ports.
-    let workerAPIPort = this.getWorkerPort();
+    let workerAPIPort = this._getWorkerPort();
     if (workerAPIPort)
       this.workerAPI = new WorkerAPI(this, workerAPIPort);
+
+    this.port = this._getWorkerPort();
   },
 
   _terminate: function _terminate() {
@@ -285,9 +270,7 @@ SocialProvider.prototype = {
         Cu.reportError("SocialProvider FrameWorker termination failed: " + e);
       }
     }
-    if (this.workerAPI) {
-      this.workerAPI.terminate();
-    }
+    this.port = null;
     this.workerAPI = null;
   },
 
@@ -299,9 +282,14 @@ SocialProvider.prototype = {
    *
    * @param {DOMWindow} window (optional)
    */
-  getWorkerPort: function getWorkerPort(window) {
+  _getWorkerPort: function _getWorkerPort(window) {
     if (!this.workerURL || !this.enabled)
       return null;
-    return getFrameWorkerHandle(this.workerURL, window).port;
+    try {
+      return getFrameWorkerHandle(this.workerURL, window).port;
+    } catch (ex) {
+      Cu.reportError("SocialProvider: retrieving worker port failed:" + ex);
+      return null;
+    }
   }
 }

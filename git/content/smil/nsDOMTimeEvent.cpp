@@ -68,7 +68,7 @@ nsDOMTimeEvent::GetView(nsIDOMWindow** aView)
 }
 
 NS_IMETHODIMP
-nsDOMTimeEvent::GetDetail(int32_t* aDetail)
+nsDOMTimeEvent::GetDetail(PRInt32* aDetail)
 {
   *aDetail = mDetail;
   return NS_OK;
@@ -77,7 +77,7 @@ nsDOMTimeEvent::GetDetail(int32_t* aDetail)
 NS_IMETHODIMP
 nsDOMTimeEvent::InitTimeEvent(const nsAString& aTypeArg,
                               nsIDOMWindow* aViewArg,
-                              int32_t aDetailArg)
+                              PRInt32 aDetailArg)
 {
   nsresult rv = nsDOMEvent::InitEvent(aTypeArg, false /*doesn't bubble*/,
                                                 false /*can't cancel*/);

@@ -57,7 +57,8 @@ members = [
 
     # dom/interfaces/canvas
     #
-    # canvas friends
+    # nsIDOMCanvasRenderingContext2D and friends
+    'nsIDOMCanvasRenderingContext2D.*',
     'nsIDOMTextMetrics.*',
     'nsIDOMCanvasGradient.*',
     'nsIDOMCanvasPattern.*',
@@ -95,7 +96,6 @@ members = [
     'nsIDOMDocument.onreadystatechange',
     'nsIDOMDocument.onmouseenter',
     'nsIDOMDocument.onmouseleave',
-    'nsIDOMDocument.URL',
     'nsIDOMElement.removeAttributeNS',
     'nsIDOMElement.removeAttribute',
     'nsIDOMElement.getAttribute',
@@ -136,6 +136,7 @@ members = [
     'nsIDOMNodeSelector.querySelector',
     'nsIDOMNodeSelector.querySelectorAll',
     'nsIDOMText.splitText',
+    'nsIDOMDOMImplementation.*',
     'nsIDOMDOMStringList.*',
     'nsIDOMXULDocument.getBoxObjectFor',
     'nsIDOMMutationRecord.*',
@@ -207,6 +208,7 @@ members = [
     'nsIDOMHTMLDocument.getElementsByName',
     'nsIDOMHTMLDocument.anchors',
     'nsIDOMHTMLDocument.links',
+    'nsIDOMHTMLDocument.URL',
     'nsIDOMHTMLDocument.forms',
     'nsIDOMHTMLDocument.cookie',
     'nsIDOMHTMLDocument.images',
@@ -228,9 +230,7 @@ members = [
     'nsIDOMHTMLElement.itemId',
     'nsIDOMHTMLElement.properties',
     'nsIDOMHTMLElement.hidden',
-    'nsIDOMHTMLElement.click',
     'nsIDOMHTMLElement.tabIndex',
-    'nsIDOMHTMLElement.focus',
     'nsIDOMHTMLElement.accessKey',
     'nsIDOMHTMLElement.accessKeyLabel',
     'nsIDOMHTMLElement.draggable',
@@ -412,6 +412,31 @@ members = [
     # FileReader
     'nsIDOMFileReader.*',
     
+    # XHR
+    'nsIXMLHttpRequest.*',
+    # nsIXMLHttpRequest.channel is not used on the web, and more
+    # importantly relies on the CAPS check that quickstubs don't make.
+    '-nsIXMLHttpRequest.channel',
+    # various XHR things use ACString and AUTF8String and [cstring]
+    # which quickstubs don't handle as return values (or at all in the
+    # case of AUTF8String) yet.
+    '-nsIXMLHttpRequest.statusText',
+    '-nsIXMLHttpRequest.getAllResponseHeaders',
+    '-nsIXMLHttpRequest.getResponseHeader',
+    '-nsIXMLHttpRequest.setRequestHeader',
+    '-nsIXMLHttpRequest.overrideMimeType',
+    # nsIXMLHttpRequestUpload doesn't live in its own IDL file, so
+    # can't be quickstubbed
+    '-nsIXMLHttpRequest.upload',
+
+    # WebSocket
+    'nsIWebSocket.*',
+
+    # webgl
+    'nsIDOMWebGLRenderingContext.*',
+    # getContextAttributes is directly manipulating its return value
+    '-nsIDOMWebGLRenderingContext.getContextAttributes',
+
     # Audio
     'nsIDOMNotifyAudioAvailableEvent.frameBuffer',
     'nsIDOMNotifyAudioAvailableEvent.time',
@@ -461,6 +486,22 @@ irregularFilenames = {
 
     'nsIDOMBlob': 'nsIDOMFile',
 
+    'nsIWebGLTexture': 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLBuffer': 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLProgram': 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLShader': 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLShaderArray': 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLFramebuffer': 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLRenderbuffer': 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLShaderPrecisionFormat' : 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLActiveInfo': 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLUniformLocation': 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLExtension': 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLExtensionStandardDerivatives' : 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLExtensionTextureFilterAnisotropic' : 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLExtensionLoseContext' : 'nsIDOMWebGLRenderingContext',
+    'nsIWebGLExtensionCompressedTextureS3TC' : 'nsIDOMWebGLRenderingContext',
+
     'nsIIndexedDatabaseUsageCallback': 'nsIIndexedDatabaseManager',
 
     'nsIDOMTouch': 'nsIDOMTouchEvent',
@@ -484,8 +525,12 @@ customIncludes = [
     'nsSVGStylableElement.h',
     'nsHTMLDocument.h',
     'nsDOMQS.h',
-    'nsDOMStringMap.h',
     'mozilla/dom/ImageData.h'
+    ]
+
+customQuickStubs = [
+    'CustomQS_WebGL.h',
+    'CustomQS_Canvas2D.h'
     ]
 
 customReturnInterfaces = [
@@ -495,8 +540,8 @@ customReturnInterfaces = [
     ]
 
 nsIDOMNode_GetChildNodes_customMethodCallCode = """
-    nsChildContentList* result = static_cast<nsChildContentList*>(self->ChildNodes());
-    rv = NS_OK;
+    nsChildContentList* result = static_cast<nsChildContentList*>(self->GetChildNodesList());
+    rv = result ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 """
 
 nsIDOMHTMLDocument_Write_customMethodCallCode = """
@@ -517,7 +562,7 @@ nsIDOMHTMLDocument_Write_customMethodCallCode = """
 nsIDOMStorage_Clear_customMethodCallCode = """
     rv = self->Clear();
     if (NS_SUCCEEDED(rv))
-        JS_ClearNonGlobalObject(cx, obj);
+        JS_ClearScope(cx, obj);
 """
 
 CUSTOM_QS = {
@@ -562,7 +607,7 @@ customMethodCalls = {
         },
     'nsIDOMNode_GetParentNode': {
         'thisType': 'nsINode',
-        'code': '    nsINode *result = self->GetParentNode();',
+        'code': '    nsINode *result = self->GetNodeParent();',
         'canFail': False
         },
     'nsIDOMNode_GetParentElement': {
@@ -574,59 +619,34 @@ customMethodCalls = {
         'thisType': 'nsINode',
         'arg0Type': 'nsINode',
         'arg1Type': 'nsINode',
-        'code': '    nsINode* result;'
-                '    if (arg0) {\n'
-                '        mozilla::ErrorResult error;\n'
-                '        result = self->InsertBefore(*arg0, arg1, error);\n'
-                '        rv = error.ErrorCode();\n'
-                '    } else {\n'
-                '        rv = NS_ERROR_NULL_POINTER;\n'
-                '        result = nullptr;\n'
-                '    }'
+        'code': '    nsINode *result = self->InsertBefore(arg0, arg1, &rv);\n'
+                '    if(NS_FAILED(rv))\n'
+                '        result = nullptr;'
         },
     'nsIDOMNode_ReplaceChild': {
         'thisType': 'nsINode',
         'arg0Type': 'nsINode',
         'arg1Type': 'nsINode',
-        'code': '    nsINode* result;'
-                '    if (arg0 && arg1) {\n'
-                '        mozilla::ErrorResult error;\n'
-                '        result = self->ReplaceChild(*arg0, *arg1, error);\n'
-                '        rv = error.ErrorCode();\n'
-                '    } else {\n'
-                '        rv = NS_ERROR_NULL_POINTER;\n'
-                '        result = nullptr;\n'
-                '    }'
+        'code': '    nsINode *result = self->ReplaceChild(arg0, arg1, &rv);\n'
+                '    if(NS_FAILED(rv))\n'
+                '        result = nullptr;'
         },
     'nsIDOMNode_RemoveChild': {
         'thisType': 'nsINode',
         'arg0Type': 'nsINode',
-        'code': '    nsINode* result;\n'
-                '    if (arg0) {\n'
-                '        mozilla::ErrorResult error;\n'
-                '        result = self->RemoveChild(*arg0, error);\n'
-                '        rv = error.ErrorCode();\n'
-                '    } else {\n'
-                '        rv = NS_ERROR_NULL_POINTER;\n'
-                '        result = nullptr;\n'
-                '    }'
+        'code': '    rv = self->RemoveChild(arg0);\n'
+                '    nsINode *result = NS_SUCCEEDED(rv) ? arg0 : nullptr;'
         },
     'nsIDOMNode_AppendChild': {
         'thisType': 'nsINode',
         'arg0Type': 'nsINode',
-        'code': '    nsINode* result;\n'
-                '    if (arg0) {\n'
-                '        mozilla::ErrorResult error;\n'
-                '        result = self->AppendChild(*arg0, error);\n'
-                '        rv = error.ErrorCode();\n'
-                '    } else {\n'
-                '        rv = NS_ERROR_NULL_POINTER;\n'
-                '        result = nullptr;\n'
-                '    }'
+        'code': '    nsINode *result = self->AppendChild(arg0, &rv);\n'
+                '    if(NS_FAILED(rv))\n'
+                '        result = nullptr;'
         },
     'nsIDOMNode_GetNodeType': {
         'thisType': 'nsINode',
-        'code': 'uint16_t result = self->NodeType();',
+        'code': 'PRUint16 result = self->NodeType();',
         'canFail': False
         },
     'nsIDOMNode_GetNodeName': {
@@ -669,6 +689,10 @@ customMethodCalls = {
     'nsIDOMStorage_Clear': {
         'code': nsIDOMStorage_Clear_customMethodCallCode
         },
+    'nsIDOMCanvasRenderingContext2D_StrokeStyle': { 'skipgen': True },
+    'nsIDOMCanvasRenderingContext2D_StrokeStyle': { 'skipgen': True },
+    'nsIDOMCanvasRenderingContext2D_FillStyle': { 'skipgen': True },
+    'nsIDOMCanvasRenderingContext2D_FillStyle': { 'skipgen': True },
     'nsIDOMCSS2Properties_': {
         'thisType': 'nsICSSDeclaration',
         'additionalArguments': 'const nsCSSProperty prop',
@@ -680,7 +704,7 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetScrollTop': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->GetScrollTop();',
+        'code': '    PRInt32 result = self->GetScrollTop();',
         'canFail': False
         },
     'nsIDOMElement_SetScrollTop': {
@@ -689,7 +713,7 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetScrollLeft': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->GetScrollLeft();',
+        'code': '    PRInt32 result = self->GetScrollLeft();',
         'canFail': False
         },
     'nsIDOMElement_SetScrollLeft': {
@@ -698,17 +722,17 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetScrollHeight': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->GetScrollHeight();',
+        'code': '    PRInt32 result = self->GetScrollHeight();',
         'canFail': False
         },
     'nsIDOMElement_GetScrollWidth': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->GetScrollWidth();',
+        'code': '    PRInt32 result = self->GetScrollWidth();',
         'canFail': False
         },
     'nsIDOMElement_GetClientTop': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->GetClientTop();',
+        'code': '    PRInt32 result = self->GetClientTop();',
         'canFail': False
         },
     'nsIDOMElement_SetClientTop': {
@@ -717,7 +741,7 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetClientLeft': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->GetClientLeft();',
+        'code': '    PRInt32 result = self->GetClientLeft();',
         'canFail': False
         },
     'nsIDOMElement_SetClientLeft': {
@@ -726,12 +750,12 @@ customMethodCalls = {
         },
     'nsIDOMElement_GetClientHeight': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->GetClientHeight();',
+        'code': '    PRInt32 result = self->GetClientHeight();',
         'canFail': False
         },
     'nsIDOMElement_GetClientWidth': {
         'thisType': 'nsGenericElement',
-        'code': '    int32_t result = self->GetClientWidth();',
+        'code': '    PRInt32 result = self->GetClientWidth();',
         'canFail': False
         },
     'nsIDOMElement_GetFirstElementChild': {
@@ -773,10 +797,13 @@ customMethodCalls = {
     'nsIDOMNodeSelector_QuerySelector': {
         'thisType': 'nsINode',
         'code': '    nsIContent* result = '
-                'self->QuerySelector(arg0, &rv);'
+                'nsGenericElement::doQuerySelector(self, arg0, &rv);'
         },
     'nsIDOMNodeSelector_QuerySelectorAll': {
-        'thisType': 'nsINode'
+        'thisType': 'nsINode',
+        'code': '    nsCOMPtr<nsIDOMNodeList> result;\n'
+                '    rv = nsGenericElement::doQuerySelectorAll(self, '
+                'arg0, getter_AddRefs(result));'
         },
     'nsIDOMNode_Normalize': {
         'thisType': 'nsINode',
@@ -789,13 +816,8 @@ customMethodCalls = {
     'nsIDOMNode_CompareDocumentPosition': {
         'thisType': 'nsINode',
         'arg0Type': 'nsINode',
-        'code': '    uint16_t result;\n'
-                '    if (arg0) {\n'
-                '        result = self->CompareDocumentPosition(*arg0);\n'
-                '        rv = NS_OK;\n'
-                '    } else {\n'
-                '        rv = NS_ERROR_INVALID_ARG;\n'
-                '    }',
+        'code': '    PRUint16 result;\n'
+                '    rv = self->CompareDocPosition(arg0, &result);',
         'canFail': True
         },
     'nsIDOMNode_GetTextContent': {
@@ -808,7 +830,6 @@ customMethodCalls = {
         },
     'nsIDOMNode_IsDefaultNamespace': {
         'thisType': 'nsINode',
-        'code': '    bool result = self->IsDefaultNamespace(arg0);',
         'canFail': False
         },
     'nsIDOMNode_LookupNamespaceURI': {
@@ -818,7 +839,7 @@ customMethodCalls = {
     'nsIDOMNode_IsEqualNode': {
         'thisType': 'nsINode',
         'arg0Type': 'nsINode',
-        'code': '    bool result = self->IsEqualNode(arg0);',
+        'code': '    bool result = self->IsEqualTo(arg0);',
         'canFail': False
         },
     'nsIDOMNode_GetUserData': {
@@ -833,57 +854,6 @@ customMethodCalls = {
         },
     'nsIDOMHTMLElement_': {
         'thisType': 'nsGenericHTMLElement'
-        },
-    'nsIDOMHTMLElement_DOMClick': {
-        'thisType' : 'nsGenericHTMLElement',
-        'code': '    self->Click();',
-        'canFail': False
-        },
-    'nsIDOMHTMLElement_GetTabIndex': {
-        'thisType' : 'nsGenericHTMLElement',
-        'code': '    int32_t result = self->TabIndex();',
-        'canFail': False
-        },
-    'nsIDOMHTMLElement_SetTabIndex': {
-        'thisType' : 'nsGenericHTMLElement',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    self->SetTabIndex(arg0, error);\n'
-                '    rv = error.ErrorCode();'
-        },
-    'nsIDOMHTMLElement_DOMFocus': {
-        'thisType' : 'nsGenericHTMLElement',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    self->Focus(error);\n'
-                '    rv = error.ErrorCode();'
-        },
-    'nsIDOMHTMLElement_GetDraggable': {
-        'thisType' : 'nsGenericHTMLElement',
-        'code': '    bool result = self->Draggable();',
-        'canFail': False
-        },
-    'nsIDOMHTMLElement_SetDraggable': {
-        'thisType' : 'nsGenericHTMLElement',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    self->SetDraggable(arg0, error);\n'
-                '    rv = error.ErrorCode();'
-        },
-    'nsIDOMHTMLElement_GetInnerHTML': {
-        'thisType' : 'nsGenericHTMLElement',
-        'code': '    nsString result;\n'
-                '    mozilla::ErrorResult error;\n'
-                '    self->GetInnerHTML(result, error);\n'
-                '    rv = error.ErrorCode();'
-        },
-    'nsIDOMHTMLElement_SetInnerHTML': {
-        'thisType' : 'nsGenericHTMLElement',
-        'code': '    mozilla::ErrorResult error;\n'
-                '    self->SetInnerHTML(arg0, error);\n'
-                '    rv = error.ErrorCode();'
-        },
-    'nsIDOMHTMLElement_GetDataset': {
-        'thisType' : 'nsGenericHTMLElement',
-        'code': '    nsRefPtr<nsDOMStringMap> result = self->Dataset();',
-        'canFail': False
         },
     'nsIDOMElementCSSInlineStyle_GetStyle': {
         'thisType': 'nsStyledElement',
@@ -998,6 +968,16 @@ customMethodCalls = {
         'thisType' : 'nsIDOMWindow',
         'unwrapThisFailureFatal' : False
         },
+    # WebGL
+    'nsIDOMWebGLRenderingContext_TexImage2D': CUSTOM_QS,
+    'nsIDOMWebGLRenderingContext_TexSubImage2D': CUSTOM_QS,
+    # Canvas 2D
+    'nsIDOMCanvasRenderingContext2D_CreateImageData': CUSTOM_QS,
+    'nsIDOMCanvasRenderingContext2D_PutImageData': CUSTOM_QS,
+    # Nasty hack to make the ordering of |arc| and |arcTo| correct.
+    # |arc| is not traceable because it has an optional argument.
+    'nsIDOMCanvasRenderingContext2D_ArcTo' : { 'traceable' : False },
+
     'nsIDOMImageData_GetWidth': {
         'thisType': 'nsIDOMImageData',
         'code': 'uint32_t result = static_cast<mozilla::dom::ImageData*>(self)->GetWidth();',
@@ -1012,3 +992,4 @@ customMethodCalls = {
         'canFail': False
         }
     }
+

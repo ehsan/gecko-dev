@@ -19,9 +19,6 @@ const CSS_TYPE_SHORTHAND_AND_LONGHAND = 2;
 //	 inherited: Whether the property is inherited by default (stated as
 //	   yes or no in the property header in all CSS specs)
 //	 type: see above
-//	 alias_for: optional, indicates that the property is an alias for
-//	   some other property that is the preferred serialization.  (Type
-//	   must not be CSS_TYPE_LONGHAND.)
 //	 get_computed: if present, the property's computed value shows up on
 //	   another property, and this is a function used to get it
 //	 initial_values: Values whose computed value should be the same as the
@@ -859,6 +856,173 @@ var gCSSProperties = {
 		],
 		invalid_values: [ "20", "-1px", "50%" ]
 	},
+/* XXXdholbert In builds with MOZ_FLEXBOX enabled, this should be uncommented.
+   (This would be #ifdef MOZ_FLEXBOX, if that worked in JS files.)
+	"-moz-align-items": {
+		domProp: "MozAlignItems",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "stretch" ],
+		other_values: [ "flex-start", "flex-end", "center", "baseline" ],
+		invalid_values: [ "space-between", "abc", "30px" ]
+	},
+	"-moz-align-self": {
+		domProp: "MozAlignSelf",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		// (Assuming defaults on the parent, 'auto' will compute to 'stretch'.)
+		initial_values: [ "auto", "stretch" ],
+		other_values: [ "flex-start", "flex-end", "center", "baseline" ],
+		invalid_values: [ "space-between", "abc", "30px" ]
+	},
+	"-moz-flex": {
+		domProp: "MozFlex",
+		inherited: false,
+		type: CSS_TYPE_TRUE_SHORTHAND,
+		subproperties: [
+			"-moz-flex-grow",
+			"-moz-flex-shrink",
+			"-moz-flex-basis"
+		],
+		initial_values: [ "0 1 auto", "auto 0 1", "0 auto", "auto 0" ],
+		other_values: [
+			"none",
+			"1",
+			"0",
+			"0 1",
+			"0.5",
+			"1.2 3.4",
+			"0 0 0px",
+			"0px 0 0",
+			"5px 0 0",
+			"2 auto",
+			"auto 4",
+			"auto 5.6 7.8",
+			"-moz-max-content",
+			"1 -moz-max-content",
+			"1 2 -moz-max-content",
+			"-moz-max-content 1",
+			"-moz-max-content 1 2",
+			"-0"
+		],
+		invalid_values: [
+			"0 0 0",
+			"1 2px 3",
+			"1 auto 3",
+			"1px 2 3px",
+			"1px 2 3 4px",
+			"-1",
+			"1 -1"
+		]
+	},
+	"-moz-flex-basis": {
+		domProp: "MozFlexBasis",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ " auto" ],
+        // NOTE: This is cribbed directly from the "width" chunk, since this
+        // property takes the exact same values as width (albeit with
+        // different semantics on 'auto').
+        // XXXdholbert (Maybe these should get separated out into
+        // a reusable array defined at the top of this file?)
+		other_values: [ "15px", "3em", "15%", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
+			// valid calc() values
+			"calc(-2px)",
+			"calc(2px)",
+			"calc(50%)",
+			"calc(50% + 2px)",
+			"calc( 50% + 2px)",
+			"calc(50% + 2px )",
+			"calc( 50% + 2px )",
+			"calc(50% - -2px)",
+			"calc(2px - -50%)",
+			"calc(3*25px)",
+			"calc(3 *25px)",
+			"calc(3 * 25px)",
+			"calc(3* 25px)",
+			"calc(25px*3)",
+			"calc(25px *3)",
+			"calc(25px* 3)",
+			"calc(25px * 3)",
+			"calc(3*25px + 50%)",
+			"calc(50% - 3em + 2px)",
+			"calc(50% - (3em + 2px))",
+			"calc((50% - 3em) + 2px)",
+			"calc(2em)",
+			"calc(50%)",
+			"calc(50px/2)",
+			"calc(50px/(2 - 1))"
+		],
+		invalid_values: [ "none", "-2px",
+			// invalid calc() values
+			"calc(50%+ 2px)",
+			"calc(50% +2px)",
+			"calc(50%+2px)",
+			"-moz-min()",
+			"calc(min())",
+			"-moz-max()",
+			"calc(max())",
+			"-moz-min(5px)",
+			"calc(min(5px))",
+			"-moz-max(5px)",
+			"calc(max(5px))",
+			"-moz-min(5px,2em)",
+			"calc(min(5px,2em))",
+			"-moz-max(5px,2em)",
+			"calc(max(5px,2em))",
+			"calc(50px/(2 - 2))",
+			// If we ever support division by values, which is
+			// complicated for the reasons described in
+			// http://lists.w3.org/Archives/Public/www-style/2010Jan/0007.html
+			// , we should support all 4 of these as described in
+			// http://lists.w3.org/Archives/Public/www-style/2009Dec/0296.html
+			"calc((3em / 100%) * 3em)",
+			"calc(3em / 100% * 3em)",
+			"calc(3em * (3em / 100%))",
+			"calc(3em * 3em / 100%)"
+		]
+	},
+	"-moz-flex-direction": {
+		domProp: "MozFlexDirection",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "row" ],
+		other_values: [ "row-reverse", "column", "column-reverse" ],
+		invalid_values: [ "10px", "30%", "justify", "column wrap" ]
+	},
+	"-moz-flex-grow": {
+		domProp: "MozFlexGrow",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "0" ],
+		other_values: [ "3", "1", "1.0", "2.5", "123" ],
+		invalid_values: [ "0px", "-5", "1%", "3em", "stretch", "auto" ]
+	},
+	"-moz-flex-shrink": {
+		domProp: "MozFlexShrink",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "1" ],
+		other_values: [ "3", "0", "0.0", "2.5", "123" ],
+		invalid_values: [ "0px", "-5", "1%", "3em", "stretch", "auto" ]
+	},
+	"-moz-order": {
+		domProp: "MozOrder",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "0" ],
+		other_values: [ "1", "99999", "-1", "-50" ],
+		invalid_values: [ "0px", "1.0", "1.", "1%", "0.2", "3em", "stretch" ]
+	},
+	"-moz-justify-content": {
+		domProp: "MozJustifyContent",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "flex-start" ],
+		other_values: [ "flex-end", "center", "space-between", "space-around" ],
+		invalid_values: [ "baseline", "stretch", "30px", "5%" ]
+	},
+*/
 	"-moz-float-edge": {
 		domProp: "MozFloatEdge",
 		inherited: false,
@@ -1170,42 +1334,39 @@ var gCSSProperties = {
 			"calc(20px + 50%) calc(50% - 10px)",
 			"calc(-20px) calc(-50%)",
 			"calc(-20%) calc(-50%)"
-		].concat(SpecialPowers.getBoolPref("layout.3d-transforms.enabled") ? [
-			"6px 5px 5px",
-			"top center 10px"
-		] : []),
+		],
 		invalid_values: ["red", "auto", "none", "0.5 0.5", "40px #0000ff",
 						 "border", "center red", "right diagonal",
 						 "#00ffff bottom"]
 	},
-	"perspective-origin": {
-		domProp: "perspectiveOrigin",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		/* no subproperties */
-		prerequisites: { "width": "10px", "height": "10px", "display": "block"},
-		initial_values: [ "50% 50%", "center", "center center" ],
-		other_values: [ "25% 25%", "6px 5px", "20% 3em", "0 0", "0in 1in",
-		                "top", "bottom","top left", "top right",
-		                "top center", "center left", "center right",
-		                "bottom left", "bottom right", "bottom center",
-		                "20% center", "6px center", "13in bottom",
-		                "left 50px", "right 13%", "center 40px",
-		                "calc(20px)",
-		                "calc(20px) 10px",
-		                "10px calc(20px)",
-		                "calc(20px) 25%",
-		                "25% calc(20px)",
-		                "calc(20px) calc(20px)",
-		                "calc(20px + 1em) calc(20px / 2)",
-		                "calc(20px + 50%) calc(50% - 10px)",
-		                "calc(-20px) calc(-50%)",
-		                "calc(-20%) calc(-50%)" ],
-		invalid_values: [ "red", "auto", "none", "0.5 0.5", "40px #0000ff",
-		                  "border", "center red", "right diagonal",
-		                  "#00ffff bottom"]
-	},
-	"perspective": {
+    "perspective-origin": {
+        domProp: "perspectiveOrigin",
+        inherited: false,
+        type: CSS_TYPE_LONGHAND,
+        /* no subproperties */
+        prerequisites: { "width": "10px", "height": "10px", "display": "block"},
+        initial_values: [ "50% 50%", "center", "center center" ],
+        other_values: [ "25% 25%", "6px 5px", "20% 3em", "0 0", "0in 1in",
+                        "top", "bottom","top left", "top right",
+                        "top center", "center left", "center right",
+                        "bottom left", "bottom right", "bottom center",
+                        "20% center", "6px center", "13in bottom",
+                        "left 50px", "right 13%", "center 40px",
+                        "calc(20px)",
+                        "calc(20px) 10px",
+                        "10px calc(20px)",
+                        "calc(20px) 25%",
+                        "25% calc(20px)",
+                        "calc(20px) calc(20px)",
+                        "calc(20px + 1em) calc(20px / 2)",
+                        "calc(20px + 50%) calc(50% - 10px)",
+                        "calc(-20px) calc(-50%)",
+                        "calc(-20%) calc(-50%)" ],
+        invalid_values: [ "red", "auto", "none", "0.5 0.5", "40px #0000ff",
+                          "border", "center red", "right diagonal",
+                          "#00ffff bottom"]
+    },
+    "perspective": {
 		domProp: "perspective",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
@@ -1213,14 +1374,14 @@ var gCSSProperties = {
 		other_values: [ "1000px", "500.2px" ],
 		invalid_values: [ "pants", "200", "0", "-100px", "-27.2em" ]
 	},
-	"backface-visibility": {
-		domProp: "backfaceVisibility",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "visible" ],
-		other_values: [ "hidden" ],
-		invalid_values: [ "collapse" ]
-	},
+    "backface-visibility": {
+        domProp: "backfaceVisibility",
+        inherited: false,
+        type: CSS_TYPE_LONGHAND,
+        initial_values: [ "visible" ],
+        other_values: [ "hidden" ],
+        invalid_values: [ "collapse" ]
+    },
 	"transform-style": {
 		domProp: "transformStyle",
 		inherited: false,
@@ -1274,9 +1435,7 @@ var gCSSProperties = {
 		inherited: false,
 		type: CSS_TYPE_TRUE_SHORTHAND,
 		subproperties: [ "background-attachment", "background-color", "background-image", "background-position", "background-repeat", "background-clip", "background-origin", "background-size" ],
-		initial_values: [ "transparent", "none", "repeat", "scroll", "0% 0%", "top left", "left top", "0% 0% / auto", "top left / auto", "left top / auto", "0% 0% / auto auto",
-			"transparent none", "top left none", "left top none", "none left top", "none top left", "none 0% 0%", "left top / auto none", "left top / auto auto none",
-			"transparent none repeat scroll top left", "left top repeat none scroll transparent", "transparent none repeat scroll top left / auto", "left top / auto repeat none scroll transparent", "none repeat scroll 0% 0% / auto auto transparent" ],
+		initial_values: [ "transparent", "none", "repeat", "scroll", "0% 0%", "top left", "left top", "transparent none", "top left none", "left top none", "none left top", "none top left", "none 0% 0%", "transparent none repeat scroll top left", "left top repeat none scroll transparent" ],
 		other_values: [
 				/* without multiple backgrounds */
 			"green",
@@ -1293,15 +1452,6 @@ var gCSSProperties = {
 			"left",
 			"50% 50%",
 			"center",
-			"top / 100px",
-			"left / contain",
-			"left / cover",
-			"10px / 10%",
-			"10em / calc(20px)",
-			"top left / 100px 100px",
-			"top left / 100px auto",
-			"top left / 100px 10%",
-			"top left / 100px calc(20px)",
 			"bottom right scroll none transparent repeat",
 			"50% transparent",
 			"transparent 50%",
@@ -1320,7 +1470,6 @@ var gCSSProperties = {
 				"0% top url(404.png), url(404.png) 0% top",
 				"fixed repeat-y top left url(404.png), repeat-x green",
 				"url(404.png), -moz-linear-gradient(20px 20px -45deg, blue, green), -moz-element(#a) black",
-				"top left / contain, bottom right / cover",
 				/* test cases with clip+origin in the shorthand */
 				"url(404.png) green padding-box",
 				"url(404.png) border-box transparent",
@@ -1470,13 +1619,6 @@ var gCSSProperties = {
 		"-moz-linear-gradient(10deg 20px, red, blue)",
 		"-moz-linear-gradient(1turn 20px, red, blue)",
 		"-moz-linear-gradient(.414rad bottom, red, blue)",
-
-		"-moz-linear-gradient(blue calc(0px) ,green calc(25%) ,red calc(40px) ,blue calc(60px) , yellow  calc(100px))",
-		"-moz-linear-gradient(-33deg, blue calc(-25%) ,red 40px)",
-		"-moz-linear-gradient(10deg, blue calc(100px + -25%),red calc(40px))",
-		"-moz-linear-gradient(10deg, blue calc(-25px),red calc(100%))",
-		"-moz-linear-gradient(.414rad, blue calc(100px + -25px) ,green calc(100px + -25px) ,red calc(100px + -25%) ,blue calc(-25px) , yellow  calc(-25px))",
-		"-moz-linear-gradient(1turn, blue calc(-25%) ,green calc(25px) ,red calc(25%),blue calc(0px),white 50px, yellow  calc(-25px))",
 
 		"radial-gradient(red, blue)",
 		"radial-gradient(red, yellow, blue)",
@@ -2241,8 +2383,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ "5" ]
 	},
 	"box-shadow": {
 		domProp: "boxShadow",
@@ -2331,8 +2472,8 @@ var gCSSProperties = {
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "auto" ],
-		other_values: [ "crosshair", "default", "pointer", "move", "e-resize", "ne-resize", "nw-resize", "n-resize", "se-resize", "sw-resize", "s-resize", "w-resize", "text", "wait", "help", "progress", "copy", "alias", "context-menu", "cell", "not-allowed", "col-resize", "row-resize", "no-drop", "vertical-text", "all-scroll", "nesw-resize", "nwse-resize", "ns-resize", "ew-resize", "none", "-moz-grab", "-moz-grabbing", "-moz-zoom-in", "-moz-zoom-out", "url(foo.png), move", "url(foo.png) 5 7, move", "url(foo.png) 12 3, url(bar.png), no-drop", "url(foo.png), url(bar.png) 7 2, wait", "url(foo.png) 3 2, url(bar.png) 7 9, pointer" ],
-		invalid_values: [ "url(foo.png)", "url(foo.png) 5 5" ]
+		other_values: [ "crosshair", "default", "pointer", "move", "e-resize", "ne-resize", "nw-resize", "n-resize", "se-resize", "sw-resize", "s-resize", "w-resize", "text", "wait", "help", "progress", "copy", "alias", "context-menu", "cell", "not-allowed", "col-resize", "row-resize", "no-drop", "vertical-text", "all-scroll", "nesw-resize", "nwse-resize", "ns-resize", "ew-resize", "none", "-moz-grab", "-moz-grabbing", "-moz-zoom-in", "-moz-zoom-out" ],
+		invalid_values: []
 	},
 	"direction": {
 		domProp: "direction",
@@ -2363,6 +2504,11 @@ var gCSSProperties = {
 			"table-column",
 			"table-cell",
 			"table-caption",
+/* XXXdholbert In builds with MOZ_FLEXBOX enabled, this should be uncommented.
+   (This would be #ifdef MOZ_FLEXBOX, if that worked in JS files.)
+			"-moz-flex",
+			"-moz-inline-flex",
+*/
 			"none"
 		],
 		invalid_values: []
@@ -3272,7 +3418,7 @@ var gCSSProperties = {
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "normal" ],
-		other_values: [ "pre", "nowrap", "pre-wrap", "pre-line", "-moz-pre-discard-newlines" ],
+		other_values: [ "pre", "nowrap", "pre-wrap", "pre-line" ],
 		invalid_values: []
 	},
 	"widows": {
@@ -3477,14 +3623,14 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "color": "blue" },
 		initial_values: [ "black", "#000", "#000000", "rgb(0,0,0)", "rgba(0,0,0,1)" ],
-		other_values: [ "green", "#fc3", "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green', "none", "currentColor", "-moz-objectFill", "-moz-objectStroke" ],
+		other_values: [ "green", "#fc3", "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green', "none", "currentColor" ],
 		invalid_values: [ "000000", "ff00ff" ]
 	},
 	"fill-opacity": {
 		domProp: "fillOpacity",
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "1", "2.8", "1.000", "-moz-objectFillOpacity", "-moz-objectStrokeOpacity" ],
+		initial_values: [ "1", "2.8", "1.000" ],
 		other_values: [ "0", "0.3", "-7.3" ],
 		invalid_values: []
 	},
@@ -3609,14 +3755,14 @@ var gCSSProperties = {
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
-		other_values: [ "black", "#000", "#000000", "rgb(0,0,0)", "rgba(0,0,0,1)", "green", "#fc3", "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green', "currentColor", "-moz-objectFill", "-moz-objectStroke" ],
+		other_values: [ "black", "#000", "#000000", "rgb(0,0,0)", "rgba(0,0,0,1)", "green", "#fc3", "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green', "currentColor" ],
 		invalid_values: [ "000000", "ff00ff" ]
 	},
 	"stroke-dasharray": {
 		domProp: "strokeDasharray",
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "none", "-moz-objectValue" ],
+		initial_values: [ "none" ],
 		other_values: [ "5px,3px,2px", "5px 3px 2px", "  5px ,3px	, 2px ", "1px", "5%", "3em" ],
 		invalid_values: [ "-5px,3px,2px", "5px,3px,-2px" ]
 	},
@@ -3624,7 +3770,7 @@ var gCSSProperties = {
 		domProp: "strokeDashoffset",
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "0", "-0px", "0em", "-moz-objectValue" ],
+		initial_values: [ "0", "-0px", "0em" ],
 		other_values: [ "3px", "3%", "1em" ],
 		invalid_values: []
 	},
@@ -3656,7 +3802,7 @@ var gCSSProperties = {
 		domProp: "strokeOpacity",
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "1", "2.8", "1.000", "-moz-objectFillOpacity", "-moz-objectStrokeOpacity" ],
+		initial_values: [ "1", "2.8", "1.000" ],
 		other_values: [ "0", "0.3", "-7.3" ],
 		invalid_values: []
 	},
@@ -3664,7 +3810,7 @@ var gCSSProperties = {
 		domProp: "strokeWidth",
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "1px", "-moz-objectValue" ],
+		initial_values: [ "1px" ],
 		other_values: [ "0", "0px", "-0em", "17px", "0.2em" ],
 		invalid_values: [ "-0.1px", "-3px" ]
 	},
@@ -3691,349 +3837,6 @@ var gCSSProperties = {
 		initial_values: [ "none" ],
 		other_values: [ "non-scaling-stroke" ],
 		invalid_values: []
-	},
-
-	// Aliases
-	"-moz-transform": {
-		domProp: "MozTransform",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "transform",
-		subproperties: [ "transform" ],
-		prerequisites: { "width": "300px", "height": "50px" },
-		initial_values: [ "none" ],
-		other_values: [ "translatex(1px)", "translatex(4em)",
-			"translatex(-4px)", "translatex(3px)",
-			"translatex(0px) translatex(1px) translatex(2px) translatex(3px) translatex(4px)",
-			"translatey(4em)", "translate(3px)", "translate(10px, -3px)",
-			"rotate(45deg)", "rotate(45grad)", "rotate(45rad)",
-			"rotate(0.25turn)", "rotate(0)", "scalex(10)", "scaley(10)",
-			"scale(10)", "scale(10, 20)", "skewx(30deg)", "skewx(0)",
-			"skewy(0)", "skewx(30grad)", "skewx(30rad)", "skewx(0.08turn)",
-			"skewy(30deg)", "skewy(30grad)", "skewy(30rad)", "skewy(0.08turn)",
-			"rotate(45deg) scale(2, 1)", "skewx(45deg) skewx(-50grad)",
-			"translate(0, 0) scale(1, 1) skewx(0) skewy(0) matrix(1, 0, 0, 1, 0, 0)",
-			"translatex(50%)", "translatey(50%)", "translate(50%)",
-			"translate(3%, 5px)", "translate(5px, 3%)",
-			"matrix(1, 2, 3, 4, 5, 6)",
-			/* valid calc() values */
-			"translatex(calc(5px + 10%))",
-			"translatey(calc(0.25 * 5px + 10% / 3))",
-			"translate(calc(5px - 10% * 3))",
-			"translate(calc(5px - 3 * 10%), 50px)",
-			"translate(-50px, calc(5px - 10% * 3))",
-			/* valid only when prefixed */
-			"matrix(1, 2, 3, 4, 5px, 6%)",
-			"matrix(1, 2, 3, 4, 5%, 6px)",
-			"matrix(1, 2, 3, 4, 5%, 6%)",
-			"matrix(1, 2, 3, 4, 5px, 6em)",
-			"matrix(1, 0, 0, 1, calc(5px * 3), calc(10% - 3px))",
-		].concat(SpecialPowers.getBoolPref("layout.3d-transforms.enabled") ? [
-			"translatez(1px)", "translatez(4em)", "translatez(-4px)",
-			"translatez(0px)", "translatez(2px) translatez(5px)",
-			"translate3d(3px, 4px, 5px)", "translate3d(2em, 3px, 1em)",
-			"translatex(2px) translate3d(4px, 5px, 6px) translatey(1px)",
-			"scale3d(4, 4, 4)", "scale3d(-2, 3, -7)", "scalez(4)",
-			"scalez(-6)", "rotate3d(2, 3, 4, 45deg)",
-			"rotate3d(-3, 7, 0, 12rad)", "rotatex(15deg)", "rotatey(-12grad)",
-			"rotatez(72rad)", "rotatex(0.125turn)", "perspective(1000px)",
-			"matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)",
-			/* valid only when prefixed */
-			"matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13px, 14em, 15px, 16)",
-			"matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 20%, 10%, 15, 16)",
-		] : []),
-		invalid_values: ["1px", "#0000ff", "red", "auto",
-			"translatex(1)", "translatey(1)", "translate(2)",
-			"translate(-3, -4)",
-			"translatex(1px 1px)", "translatex(translatex(1px))",
-			"translatex(#0000ff)", "translatex(red)", "translatey()",
-			"matrix(1px, 2px, 3px, 4px, 5px, 6px)", "scale(150%)",
-			"skewx(red)", "matrix(1%, 0, 0, 0, 0px, 0px)",
-			"matrix(0, 1%, 2, 3, 4px,5px)", "matrix(0, 1, 2%, 3, 4px, 5px)",
-			"matrix(0, 1, 2, 3%, 4%, 5%)",
-			/* invalid calc() values */
-			"translatey(-moz-min(5px,10%))",
-			"translatex(-moz-max(5px,10%))",
-			"translate(10px, calc(min(5px,10%)))",
-			"translate(calc(max(5px,10%)), 10%)",
-			"matrix(1, 0, 0, 1, max(5px * 3), calc(10% - 3px))"
-		].concat(SpecialPowers.getBoolPref("layout.3d-transforms.enabled") ? [
-			"perspective(0px)", "perspective(-10px)", "matrix3d(dinosaur)",
-			"matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)",
-			"matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)",
-			"matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15%, 16)",
-			"matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16px)",
-			"rotatey(words)", "rotatex(7)", "translate3d(3px, 4px, 1px, 7px)",
-		] : [])
-	},
-	"-moz-transform-origin": {
-		domProp: "MozTransformOrigin",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "transform-origin",
-		subproperties: [ "transform-origin" ],
-		prerequisites: { "width": "10px", "height": "10px", "display": "block"},
-		initial_values: [ "50% 50%", "center", "center center" ],
-		other_values: [ "25% 25%", "6px 5px", "20% 3em", "0 0", "0in 1in",
-						"top", "bottom","top left", "top right",
-						"top center", "center left", "center right",
-						"bottom left", "bottom right", "bottom center",
-						"20% center", "6px center", "13in bottom",
-						"left 50px", "right 13%", "center 40px",
-			"calc(20px)",
-			"calc(20px) 10px",
-			"10px calc(20px)",
-			"calc(20px) 25%",
-			"25% calc(20px)",
-			"calc(20px) calc(20px)",
-			"calc(20px + 1em) calc(20px / 2)",
-			"calc(20px + 50%) calc(50% - 10px)",
-			"calc(-20px) calc(-50%)",
-			"calc(-20%) calc(-50%)"
-		].concat(SpecialPowers.getBoolPref("layout.3d-transforms.enabled") ? [
-			"6px 5px 5px",
-			"top center 10px"
-		] : []),
-		invalid_values: ["red", "auto", "none", "0.5 0.5", "40px #0000ff",
-						 "border", "center red", "right diagonal",
-						 "#00ffff bottom"]
-	},
-	"-moz-perspective-origin": {
-		domProp: "MozPerspectiveOrigin",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "perspective-origin",
-		subproperties: [ "perspective-origin" ],
-		prerequisites: { "width": "10px", "height": "10px", "display": "block"},
-		initial_values: [ "50% 50%", "center", "center center" ],
-		other_values: [ "25% 25%", "6px 5px", "20% 3em", "0 0", "0in 1in",
-		                "top", "bottom","top left", "top right",
-		                "top center", "center left", "center right",
-		                "bottom left", "bottom right", "bottom center",
-		                "20% center", "6px center", "13in bottom",
-		                "left 50px", "right 13%", "center 40px",
-		                "calc(20px)",
-		                "calc(20px) 10px",
-		                "10px calc(20px)",
-		                "calc(20px) 25%",
-		                "25% calc(20px)",
-		                "calc(20px) calc(20px)",
-		                "calc(20px + 1em) calc(20px / 2)",
-		                "calc(20px + 50%) calc(50% - 10px)",
-		                "calc(-20px) calc(-50%)",
-		                "calc(-20%) calc(-50%)" ],
-		invalid_values: [ "red", "auto", "none", "0.5 0.5", "40px #0000ff",
-		                  "border", "center red", "right diagonal",
-		                  "#00ffff bottom"]
-	},
-	"-moz-perspective": {
-		domProp: "MozPerspective",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "perspective",
-		subproperties: [ "perspective" ],
-		initial_values: [ "none" ],
-		other_values: [ "1000px", "500.2px" ],
-		invalid_values: [ "pants", "200", "0", "-100px", "-27.2em" ]
-	},
-	"-moz-backface-visibility": {
-		domProp: "MozBackfaceVisibility",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "backface-visibility",
-		subproperties: [ "backface-visibility" ],
-		initial_values: [ "visible" ],
-		other_values: [ "hidden" ],
-		invalid_values: [ "collapse" ]
-	},
-	"-moz-transform-style": {
-		domProp: "MozTransformStyle",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "transform-style",
-		subproperties: [ "transform-style" ],
-		initial_values: [ "flat" ],
-		other_values: [ "preserve-3d" ],
-		invalid_values: []
-	},
-	"-moz-border-image": {
-		domProp: "MozBorderImage",
-		inherited: false,
-		type: CSS_TYPE_TRUE_SHORTHAND,
-		alias_for: "border-image",
-		subproperties: [ "border-image-source", "border-image-slice", "border-image-width", "border-image-outset", "border-image-repeat" ],
-		initial_values: [ "none" ],
-		other_values: [ "url('border.png') 27 27 27 27",
-						"url('border.png') 27",
-						"stretch url('border.png')",
-						"url('border.png') 27 fill",
-						"url('border.png') 27 27 27 27 repeat",
-						"repeat url('border.png') 27 27 27 27",
-						"url('border.png') repeat 27 27 27 27",
-						"url('border.png') fill 27 27 27 27 repeat",
-						"url('border.png') 27 27 27 27 / 1em",
-						"27 27 27 27 / 1em url('border.png') ",
-						"url('border.png') 27 27 27 27 / 10 10 10 / 10 10 repeat",
-						"repeat 27 27 27 27 / 10 10 10 / 10 10 url('border.png')",
-						"url('border.png') 27 27 27 27 / / 10 10 1em",
-						"fill 27 27 27 27 / / 10 10 1em url('border.png')",
-						"url('border.png') 27 27 27 27 / 1em 1em 1em 1em repeat",
-						"url('border.png') 27 27 27 27 / 1em 1em 1em 1em stretch round" ],
-		invalid_values: [ "url('border.png') 27 27 27 27 27",
-						  "url('border.png') 27 27 27 27 / 1em 1em 1em 1em 1em",
-						  "url('border.png') 27 27 27 27 /",
-						  "url('border.png') fill",
-						  "url('border.png') fill repeat",
-						  "fill repeat",
-						  "url('border.png') fill / 1em",
-						  "url('border.png') / repeat",
-						  "url('border.png') 1 /",
-						  "url('border.png') 1 / /",
-						  "1 / url('border.png')",
-						  "url('border.png') / 1",
-						  "url('border.png') / / 1"]
-	},
-	"-moz-transition": {
-		domProp: "MozTransition",
-		inherited: false,
-		type: CSS_TYPE_TRUE_SHORTHAND,
-		alias_for: "transition",
-		subproperties: [ "transition-property", "transition-duration", "transition-timing-function", "transition-delay" ],
-		initial_values: [ "all 0s ease 0s", "all", "0s", "0s 0s", "ease" ],
-		other_values: [ "width 1s linear 2s", "width 1s 2s linear", "width linear 1s 2s", "linear width 1s 2s", "linear 1s width 2s", "linear 1s 2s width", "1s width linear 2s", "1s width 2s linear", "1s 2s width linear", "1s linear width 2s", "1s linear 2s width", "1s 2s linear width", "width linear 1s", "width 1s linear", "linear width 1s", "linear 1s width", "1s width linear", "1s linear width", "1s 2s width", "1s width 2s", "width 1s 2s", "1s 2s linear", "1s linear 2s", "linear 1s 2s", "width 1s", "1s width", "linear 1s", "1s linear", "1s 2s", "2s 1s", "width", "linear", "1s", "height", "2s", "ease-in-out", "2s ease-in", "opacity linear", "ease-out 2s", "2s color, 1s width, 500ms height linear, 1s opacity 4s cubic-bezier(0.0, 0.1, 1.0, 1.0)", "1s \\32width linear 2s", "1s -width linear 2s", "1s -\\32width linear 2s", "1s \\32 0width linear 2s", "1s -\\32 0width linear 2s", "1s \\2width linear 2s", "1s -\\2width linear 2s" ],
-		invalid_values: [ "2s, 1s width", "1s width, 2s", "2s all, 1s width", "1s width, 2s all", "1s width, 2s none", "2s none, 1s width", "2s inherit", "inherit 2s", "2s width, 1s inherit", "2s inherit, 1s width", "2s initial", "2s all, 1s width", "2s width, 1s all" ]
-	},
-	"-moz-transition-delay": {
-		domProp: "MozTransitionDelay",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "transition-delay",
-		subproperties: [ "transition-delay" ],
-		initial_values: [ "0s", "0ms" ],
-		other_values: [ "1s", "250ms", "-100ms", "-1s", "1s, 250ms, 2.3s"],
-		invalid_values: [ "0", "0px" ]
-	},
-	"-moz-transition-duration": {
-		domProp: "MozTransitionDuration",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "transition-duration",
-		subproperties: [ "transition-duration" ],
-		initial_values: [ "0s", "0ms" ],
-		other_values: [ "1s", "250ms", "1s, 250ms, 2.3s"],
-		invalid_values: [ "0", "0px", "-1ms", "-2s" ]
-	},
-	"-moz-transition-property": {
-		domProp: "MozTransitionProperty",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "transition-property",
-		subproperties: [ "transition-property" ],
-		initial_values: [ "all" ],
-		other_values: [ "none", "left", "top", "color", "width, height, opacity", "foobar", "auto", "\\32width", "-width", "-\\32width", "\\32 0width", "-\\32 0width", "\\2width", "-\\2width" ],
-		invalid_values: [ "none, none", "all, all", "color, none", "none, color", "all, color", "color, all", "inherit, color", "color, inherit", "initial, color", "color, initial", "none, color", "color, none", "all, color", "color, all" ]
-	},
-	"-moz-transition-timing-function": {
-		domProp: "MozTransitionTimingFunction",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "transition-timing-function",
-		subproperties: [ "transition-timing-function" ],
-		initial_values: [ "ease", "cubic-bezier(0.25, 0.1, 0.25, 1.0)" ],
-		other_values: [ "linear", "ease-in", "ease-out", "ease-in-out", "linear, ease-in, cubic-bezier(0.1, 0.2, 0.8, 0.9)", "cubic-bezier(0.5, 0.5, 0.5, 0.5)", "cubic-bezier(0.25, 1.5, 0.75, -0.5)", "step-start", "step-end", "steps(1)", "steps(2, start)", "steps(386)", "steps(3, end)" ],
-		invalid_values: [ "none", "auto", "cubic-bezier(0.25, 0.1, 0.25)", "cubic-bezier(0.25, 0.1, 0.25, 0.25, 1.0)", "cubic-bezier(-0.5, 0.5, 0.5, 0.5)", "cubic-bezier(1.5, 0.5, 0.5, 0.5)", "cubic-bezier(0.5, 0.5, -0.5, 0.5)", "cubic-bezier(0.5, 0.5, 1.5, 0.5)", "steps(2, step-end)", "steps(0)", "steps(-2)", "steps(0, step-end, 1)" ]
-	},
-	"-moz-animation": {
-		domProp: "MozAnimation",
-		inherited: false,
-		type: CSS_TYPE_TRUE_SHORTHAND,
-		alias_for: "animation",
-		subproperties: [ "animation-name", "animation-duration", "animation-timing-function", "animation-delay", "animation-direction", "animation-fill-mode", "animation-iteration-count" ],
-		initial_values: [ "none none 0s 0s ease normal 1.0", "none", "0s", "ease", "normal", "1.0" ],
-		other_values: [ "bounce 1s linear 2s", "bounce 1s 2s linear", "bounce linear 1s 2s", "linear bounce 1s 2s", "linear 1s bounce 2s", "linear 1s 2s bounce", "1s bounce linear 2s", "1s bounce 2s linear", "1s 2s bounce linear", "1s linear bounce 2s", "1s linear 2s bounce", "1s 2s linear bounce", "bounce linear 1s", "bounce 1s linear", "linear bounce 1s", "linear 1s bounce", "1s bounce linear", "1s linear bounce", "1s 2s bounce", "1s bounce 2s", "bounce 1s 2s", "1s 2s linear", "1s linear 2s", "linear 1s 2s", "bounce 1s", "1s bounce", "linear 1s", "1s linear", "1s 2s", "2s 1s", "bounce", "linear", "1s", "height", "2s", "ease-in-out", "2s ease-in", "opacity linear", "ease-out 2s", "2s color, 1s bounce, 500ms height linear, 1s opacity 4s cubic-bezier(0.0, 0.1, 1.0, 1.0)", "1s \\32bounce linear 2s", "1s -bounce linear 2s", "1s -\\32bounce linear 2s", "1s \\32 0bounce linear 2s", "1s -\\32 0bounce linear 2s", "1s \\2bounce linear 2s", "1s -\\2bounce linear 2s", "2s, 1s bounce", "1s bounce, 2s", "2s all, 1s bounce", "1s bounce, 2s all", "1s bounce, 2s none", "2s none, 1s bounce", "2s bounce, 1s all", "2s all, 1s bounce" ],
-		invalid_values: [  "2s inherit", "inherit 2s", "2s bounce, 1s inherit", "2s inherit, 1s bounce", "2s initial" ]
-	},
-	"-moz-animation-delay": {
-		domProp: "MozAnimationDelay",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "animation-delay",
-		subproperties: [ "animation-delay" ],
-		initial_values: [ "0s", "0ms" ],
-		other_values: [ "1s", "250ms", "-100ms", "-1s", "1s, 250ms, 2.3s"],
-		invalid_values: [ "0", "0px" ]
-	},
-	"-moz-animation-direction": {
-		domProp: "MozAnimationDirection",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "animation-direction",
-		subproperties: [ "animation-direction" ],
-		initial_values: [ "normal" ],
-		other_values: [ "alternate", "normal, alternate", "alternate, normal", "normal, normal", "normal, normal, normal", "reverse", "alternate-reverse", "normal, reverse, alternate-reverse, alternate" ],
-		invalid_values: [ "normal normal", "inherit, normal", "reverse-alternate" ]
-	},
-	"-moz-animation-duration": {
-		domProp: "MozAnimationDuration",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "animation-duration",
-		subproperties: [ "animation-duration" ],
-		initial_values: [ "0s", "0ms" ],
-		other_values: [ "1s", "250ms", "1s, 250ms, 2.3s"],
-		invalid_values: [ "0", "0px", "-1ms", "-2s" ]
-	},
-	"-moz-animation-fill-mode": {
-		domProp: "MozAnimationFillMode",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "animation-fill-mode",
-		subproperties: [ "animation-fill-mode" ],
-		initial_values: [ "none" ],
-		other_values: [ "forwards", "backwards", "both", "none, none", "forwards, backwards", "forwards, none", "none, both" ],
-		invalid_values: [ "all"]
-	},
-	"-moz-animation-iteration-count": {
-		domProp: "MozAnimationIterationCount",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "animation-iteration-count",
-		subproperties: [ "animation-iteration-count" ],
-		initial_values: [ "1" ],
-		other_values: [ "infinite", "0", "0.5", "7.75", "-0.0", "1, 2, 3", "infinite, 2", "1, infinite" ],
-		// negatives forbidden per
-		// http://lists.w3.org/Archives/Public/www-style/2011Mar/0355.html
-		invalid_values: [ "none", "-1", "-0.5", "-1, infinite", "infinite, -3" ]
-	},
-	"-moz-animation-name": {
-		domProp: "MozAnimationName",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "animation-name",
-		subproperties: [ "animation-name" ],
-		initial_values: [ "none" ],
-		other_values: [ "all", "ball", "mall", "color", "bounce, bubble, opacity", "foobar", "auto", "\\32bounce", "-bounce", "-\\32bounce", "\\32 0bounce", "-\\32 0bounce", "\\2bounce", "-\\2bounce" ],
-		invalid_values: [ "bounce, initial", "initial, bounce", "bounce, inherit", "inherit, bounce" ]
-	},
-	"-moz-animation-play-state": {
-		domProp: "MozAnimationPlayState",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "animation-play-state",
-		subproperties: [ "animation-play-state" ],
-		initial_values: [ "running" ],
-		other_values: [ "paused", "running, running", "paused, running", "paused, paused", "running, paused", "paused, running, running, running, paused, running" ],
-		invalid_values: [ "0" ]
-	},
-	"-moz-animation-timing-function": {
-		domProp: "MozAnimationTimingFunction",
-		inherited: false,
-		type: CSS_TYPE_SHORTHAND_AND_LONGHAND,
-		alias_for: "animation-timing-function",
-		subproperties: [ "animation-timing-function" ],
-		initial_values: [ "ease", "cubic-bezier(0.25, 0.1, 0.25, 1.0)" ],
-		other_values: [ "linear", "ease-in", "ease-out", "ease-in-out", "linear, ease-in, cubic-bezier(0.1, 0.2, 0.8, 0.9)", "cubic-bezier(0.5, 0.5, 0.5, 0.5)", "cubic-bezier(0.25, 1.5, 0.75, -0.5)", "step-start", "step-end", "steps(1)", "steps(2, start)", "steps(386)", "steps(3, end)" ],
-		invalid_values: [ "none", "auto", "cubic-bezier(0.25, 0.1, 0.25)", "cubic-bezier(0.25, 0.1, 0.25, 0.25, 1.0)", "cubic-bezier(-0.5, 0.5, 0.5, 0.5)", "cubic-bezier(1.5, 0.5, 0.5, 0.5)", "cubic-bezier(0.5, 0.5, -0.5, 0.5)", "cubic-bezier(0.5, 0.5, 1.5, 0.5)", "steps(2, step-end)", "steps(0)", "steps(-2)", "steps(0, step-end, 1)" ]
 	}
 }
 
@@ -4054,9 +3857,7 @@ function logical_box_prop_get_computed(cs, property)
 function get_computed_value(cs, property)
 {
 	var info = gCSSProperties[property];
-	if (info.type == CSS_TYPE_TRUE_SHORTHAND ||
-	    (info.type == CSS_TYPE_SHORTHAND_AND_LONGHAND &&
-	     property == "text-decoration")) {
+	if ("subproperties" in info) {
 		var results = [];
 		for (var idx in info.subproperties) {
 			var subprop = info.subproperties[idx];
@@ -4067,180 +3868,4 @@ function get_computed_value(cs, property)
 	if (info.get_computed)
 		return info.get_computed(cs, property);
 	return cs.getPropertyValue(property);
-}
-
-// Automatically add pref-controlled CSS properties & keywords
-// to gCSSProperties, if the flexbox pref is enabled.
-if (SpecialPowers.getBoolPref("layout.css.flexbox.enabled")) {
-	var flexProperties = {
-	"align-items": {
-		domProp: "alignItems",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "stretch" ],
-		other_values: [ "flex-start", "flex-end", "center", "baseline" ],
-		invalid_values: [ "space-between", "abc", "30px" ]
-	},
-	"align-self": {
-		domProp: "alignSelf",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		// (Assuming defaults on the parent, 'auto' will compute to 'stretch'.)
-		initial_values: [ "auto", "stretch" ],
-		other_values: [ "flex-start", "flex-end", "center", "baseline" ],
-		invalid_values: [ "space-between", "abc", "30px" ]
-	},
-	"flex": {
-		domProp: "flex",
-		inherited: false,
-		type: CSS_TYPE_TRUE_SHORTHAND,
-		subproperties: [
-			"flex-grow",
-			"flex-shrink",
-			"flex-basis"
-		],
-		initial_values: [ "0 1 auto", "auto 0 1", "0 auto", "auto 0" ],
-		other_values: [
-			"none",
-			"1",
-			"0",
-			"0 1",
-			"0.5",
-			"1.2 3.4",
-			"0 0 0px",
-			"0px 0 0",
-			"5px 0 0",
-			"2 auto",
-			"auto 4",
-			"auto 5.6 7.8",
-			"-moz-max-content",
-			"1 -moz-max-content",
-			"1 2 -moz-max-content",
-			"-moz-max-content 1",
-			"-moz-max-content 1 2",
-			"-0"
-		],
-		invalid_values: [
-			"0 0 0",
-			"1 2px 3",
-			"1 auto 3",
-			"1px 2 3px",
-			"1px 2 3 4px",
-			"-1",
-			"1 -1"
-		]
-	},
-	"flex-basis": {
-		domProp: "flexBasis",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ " auto" ],
-        // NOTE: This is cribbed directly from the "width" chunk, since this
-        // property takes the exact same values as width (albeit with
-        // different semantics on 'auto').
-        // XXXdholbert (Maybe these should get separated out into
-        // a reusable array defined at the top of this file?)
-		other_values: [ "15px", "3em", "15%", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available",
-			// valid calc() values
-			"calc(-2px)",
-			"calc(2px)",
-			"calc(50%)",
-			"calc(50% + 2px)",
-			"calc( 50% + 2px)",
-			"calc(50% + 2px )",
-			"calc( 50% + 2px )",
-			"calc(50% - -2px)",
-			"calc(2px - -50%)",
-			"calc(3*25px)",
-			"calc(3 *25px)",
-			"calc(3 * 25px)",
-			"calc(3* 25px)",
-			"calc(25px*3)",
-			"calc(25px *3)",
-			"calc(25px* 3)",
-			"calc(25px * 3)",
-			"calc(3*25px + 50%)",
-			"calc(50% - 3em + 2px)",
-			"calc(50% - (3em + 2px))",
-			"calc((50% - 3em) + 2px)",
-			"calc(2em)",
-			"calc(50%)",
-			"calc(50px/2)",
-			"calc(50px/(2 - 1))"
-		],
-		invalid_values: [ "none", "-2px",
-			// invalid calc() values
-			"calc(50%+ 2px)",
-			"calc(50% +2px)",
-			"calc(50%+2px)",
-			"-moz-min()",
-			"calc(min())",
-			"-moz-max()",
-			"calc(max())",
-			"-moz-min(5px)",
-			"calc(min(5px))",
-			"-moz-max(5px)",
-			"calc(max(5px))",
-			"-moz-min(5px,2em)",
-			"calc(min(5px,2em))",
-			"-moz-max(5px,2em)",
-			"calc(max(5px,2em))",
-			"calc(50px/(2 - 2))",
-			// If we ever support division by values, which is
-			// complicated for the reasons described in
-			// http://lists.w3.org/Archives/Public/www-style/2010Jan/0007.html
-			// , we should support all 4 of these as described in
-			// http://lists.w3.org/Archives/Public/www-style/2009Dec/0296.html
-			"calc((3em / 100%) * 3em)",
-			"calc(3em / 100% * 3em)",
-			"calc(3em * (3em / 100%))",
-			"calc(3em * 3em / 100%)"
-		]
-	},
-	"flex-direction": {
-		domProp: "flexDirection",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "row" ],
-		other_values: [ "row-reverse", "column", "column-reverse" ],
-		invalid_values: [ "10px", "30%", "justify", "column wrap" ]
-	},
-	"flex-grow": {
-		domProp: "flexGrow",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "0" ],
-		other_values: [ "3", "1", "1.0", "2.5", "123" ],
-		invalid_values: [ "0px", "-5", "1%", "3em", "stretch", "auto" ]
-	},
-	"flex-shrink": {
-		domProp: "flexShrink",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "1" ],
-		other_values: [ "3", "0", "0.0", "2.5", "123" ],
-		invalid_values: [ "0px", "-5", "1%", "3em", "stretch", "auto" ]
-	},
-	"order": {
-		domProp: "order",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "0" ],
-		other_values: [ "1", "99999", "-1", "-50" ],
-		invalid_values: [ "0px", "1.0", "1.", "1%", "0.2", "3em", "stretch" ]
-	},
-	"justify-content": {
-		domProp: "justifyContent",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "flex-start" ],
-		other_values: [ "flex-end", "center", "space-between", "space-around" ],
-		invalid_values: [ "baseline", "stretch", "30px", "5%" ]
-	}
-	};
-	for (var prop in flexProperties) {
-		gCSSProperties[prop] = flexProperties[prop];
-	}
-	gCSSProperties["display"].other_values.push("flex");
-	gCSSProperties["display"].other_values.push("inline-flex");
 }

@@ -1297,8 +1297,7 @@ CSS_PROP_POSITION(
     bottom,
     Bottom,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_STORES_CALC |
-        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
+        CSS_PROPERTY_STORES_CALC,
     "",
     VARIANT_AHLP | VARIANT_CALC,
     nullptr,
@@ -1537,39 +1536,39 @@ CSS_PROP_TABLEBORDER(
     eStyleAnimType_None)
 #ifdef MOZ_FLEXBOX
 CSS_PROP_POSITION(
-    align-items,
+    -moz-align-items,
     align_items,
-    AlignItems,
+    CSS_PROP_DOMPROP_PREFIXED(AlignItems),
     CSS_PROPERTY_PARSE_VALUE,
-    "layout.css.flexbox.enabled",
+    "",
     VARIANT_HK,
     kAlignItemsKTable,
     offsetof(nsStylePosition, mAlignItems),
     eStyleAnimType_EnumU8)
 CSS_PROP_POSITION(
-    align-self,
+    -moz-align-self,
     align_self,
-    AlignSelf,
+    CSS_PROP_DOMPROP_PREFIXED(AlignSelf),
     CSS_PROPERTY_PARSE_VALUE,
-    "layout.css.flexbox.enabled",
+    "",
     VARIANT_HK,
     kAlignSelfKTable,
     offsetof(nsStylePosition, mAlignSelf),
     eStyleAnimType_EnumU8)
 CSS_PROP_SHORTHAND(
+    -moz-flex,
     flex,
-    flex,
-    Flex,
+    CSS_PROP_DOMPROP_PREFIXED(Flex),
     CSS_PROPERTY_PARSE_FUNCTION,
-    "layout.css.flexbox.enabled")
+    "")
 CSS_PROP_POSITION(
-    flex-basis,
+    -moz-flex-basis,
     flex_basis,
-    FlexBasis,
+    CSS_PROP_DOMPROP_PREFIXED(FlexBasis),
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_STORES_CALC,
-    "layout.css.flexbox.enabled",
+    "",
     // NOTE: The parsing implementation for the 'flex' shorthand property has
     // its own code to parse each subproperty. It does not depend on the
     // longhand parsing defined here.
@@ -1578,22 +1577,22 @@ CSS_PROP_POSITION(
     offsetof(nsStylePosition, mFlexBasis),
     eStyleAnimType_Coord)
 CSS_PROP_POSITION(
-    flex-direction,
+    -moz-flex-direction,
     flex_direction,
-    FlexDirection,
+    CSS_PROP_DOMPROP_PREFIXED(FlexDirection),
     CSS_PROPERTY_PARSE_VALUE,
-    "layout.css.flexbox.enabled",
+    "",
     VARIANT_HK,
     kFlexDirectionKTable,
     offsetof(nsStylePosition, mFlexDirection),
     eStyleAnimType_EnumU8)
 CSS_PROP_POSITION(
-    flex-grow,
+    -moz-flex-grow,
     flex_grow,
-    FlexGrow,
+    CSS_PROP_DOMPROP_PREFIXED(FlexGrow),
     CSS_PROPERTY_PARSE_VALUE |
       CSS_PROPERTY_VALUE_NONNEGATIVE,
-    "layout.css.flexbox.enabled",
+    "",
     // NOTE: The parsing implementation for the 'flex' shorthand property has
     // its own code to parse each subproperty. It does not depend on the
     // longhand parsing defined here.
@@ -1602,12 +1601,12 @@ CSS_PROP_POSITION(
     offsetof(nsStylePosition, mFlexGrow),
     eStyleAnimType_float) // float, except animations to/from 0 shouldn't work
 CSS_PROP_POSITION(
-    flex-shrink,
+    -moz-flex-shrink,
     flex_shrink,
-    FlexShrink,
+    CSS_PROP_DOMPROP_PREFIXED(FlexShrink),
     CSS_PROPERTY_PARSE_VALUE |
       CSS_PROPERTY_VALUE_NONNEGATIVE,
-    "layout.css.flexbox.enabled",
+    "",
     // NOTE: The parsing implementation for the 'flex' shorthand property has
     // its own code to parse each subproperty. It does not depend on the
     // longhand parsing defined here.
@@ -1616,21 +1615,21 @@ CSS_PROP_POSITION(
     offsetof(nsStylePosition, mFlexShrink),
     eStyleAnimType_float) // float, except animations to/from 0 shouldn't work
 CSS_PROP_POSITION(
+    -moz-order,
     order,
-    order,
-    Order,
+    CSS_PROP_DOMPROP_PREFIXED(Order),
     CSS_PROPERTY_PARSE_VALUE,
-    "layout.css.flexbox.enabled",
+    "",
     VARIANT_HI,
     nullptr,
     offsetof(nsStylePosition, mOrder),
     eStyleAnimType_Custom) // <integer>
 CSS_PROP_POSITION(
-    justify-content,
+    -moz-justify-content,
     justify_content,
-    JustifyContent,
+    CSS_PROP_DOMPROP_PREFIXED(JustifyContent),
     CSS_PROPERTY_PARSE_VALUE,
-    "layout.css.flexbox.enabled",
+    "",
     VARIANT_HK,
     kJustifyContentKTable,
     offsetof(nsStylePosition, mJustifyContent),
@@ -3094,7 +3093,7 @@ CSS_PROP_SVG(
     CSS_PROPERTY_PARSE_FUNCTION,
     "",
     0,
-    kObjectPatternKTable,
+    nullptr,
     offsetof(nsStyleSVG, mFill),
     eStyleAnimType_PaintServer)
 CSS_PROP_SVG(
@@ -3103,8 +3102,8 @@ CSS_PROP_SVG(
     FillOpacity,
     CSS_PROPERTY_PARSE_VALUE,
     "",
-    VARIANT_HN | VARIANT_KEYWORD,
-    kObjectOpacityKTable,
+    VARIANT_HN,
+    nullptr,
     offsetof(nsStyleSVG, mFillOpacity),
     eStyleAnimType_float)
 CSS_PROP_SVG(
@@ -3250,7 +3249,7 @@ CSS_PROP_SVG(
     CSS_PROPERTY_PARSE_FUNCTION,
     "",
     0,
-    kObjectPatternKTable,
+    nullptr,
     offsetof(nsStyleSVG, mStroke),
     eStyleAnimType_PaintServer)
 CSS_PROP_SVG(
@@ -3262,7 +3261,7 @@ CSS_PROP_SVG(
         // NOTE: Internal values have range restrictions.
     "",
     0,
-    kStrokeObjectValueKTable,
+    nullptr,
     CSS_PROP_NO_OFFSET, /* property stored in 2 separate members */
     eStyleAnimType_Custom)
 CSS_PROP_SVG(
@@ -3271,8 +3270,8 @@ CSS_PROP_SVG(
     StrokeDashoffset,
     CSS_PROPERTY_PARSE_VALUE,
     "",
-    VARIANT_HLPN | VARIANT_KEYWORD,
-    kStrokeObjectValueKTable,
+    VARIANT_HLPN,
+    nullptr,
     offsetof(nsStyleSVG, mStrokeDashoffset),
     eStyleAnimType_Coord)
 CSS_PROP_SVG(
@@ -3312,8 +3311,8 @@ CSS_PROP_SVG(
     StrokeOpacity,
     CSS_PROPERTY_PARSE_VALUE,
     "",
-    VARIANT_HN | VARIANT_KEYWORD,
-    kObjectOpacityKTable,
+    VARIANT_HN,
+    nullptr,
     offsetof(nsStyleSVG, mStrokeOpacity),
     eStyleAnimType_float)
 CSS_PROP_SVG(
@@ -3323,8 +3322,8 @@ CSS_PROP_SVG(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE,
     "",
-    VARIANT_HLPN | VARIANT_KEYWORD,
-    kStrokeObjectValueKTable,
+    VARIANT_HLPN,
+    nullptr,
     offsetof(nsStyleSVG, mStrokeWidth),
     eStyleAnimType_Coord)
 CSS_PROP_SVG(
@@ -3357,16 +3356,6 @@ CSS_PROP_SVGRESET(
     kVectorEffectKTable,
     offsetof(nsStyleSVGReset, mVectorEffect),
     eStyleAnimType_EnumU8)
-
-// The shorthands below are essentially aliases, but they require different
-// parsing rules, and are therefore implemented as shorthands.
-CSS_PROP_SHORTHAND(
-    -moz-transform,
-    _moz_transform,
-    MozTransform,
-    CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_IS_ALIAS,
-    "")
 
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 // We have a few properties that are in style structs but are not stored

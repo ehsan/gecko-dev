@@ -21,6 +21,7 @@ class nsGTKToolkit
 {
 public:
     nsGTKToolkit();
+    virtual ~nsGTKToolkit();
 
     static nsGTKToolkit* GetToolkit();
 
@@ -29,6 +30,9 @@ public:
       gToolkit = nullptr;
     }
 
+    void          CreateSharedGC(void);
+    GdkGC         *GetSharedGC(void);
+    
     /**
      * Get/set our value of DESKTOP_STARTUP_ID. When non-empty, this is applied
      * to the next toplevel window to be shown or focused (and then immediately
@@ -41,14 +45,15 @@ public:
      * Get/set the timestamp value to be used, if non-zero, to focus the
      * next top-level window to be shown or focused (upon which it is cleared).
      */
-    void SetFocusTimestamp(uint32_t aTimestamp) { mFocusTimestamp = aTimestamp; }
-    uint32_t GetFocusTimestamp() { return mFocusTimestamp; }
+    void SetFocusTimestamp(PRUint32 aTimestamp) { mFocusTimestamp = aTimestamp; }
+    PRUint32 GetFocusTimestamp() { return mFocusTimestamp; }
 
 private:
     static nsGTKToolkit* gToolkit;
 
+    GdkGC         *mSharedGC;
     nsCString      mDesktopStartupID;
-    uint32_t       mFocusTimestamp;
+    PRUint32       mFocusTimestamp;
 };
 
 #endif  // GTKTOOLKIT_H

@@ -105,7 +105,7 @@ public:
 
     // nsIJSNativeInitializer
     NS_IMETHODIMP Initialize(nsISupports* aOwner, JSContext *cx, JSObject *obj,
-                             uint32_t argc, jsval *argv);
+                             PRUint32 argc, jsval *argv);
 
     static nsresult Startup();
     static void Shutdown();
@@ -129,7 +129,7 @@ private:
     txNamespaceMap mParamNamespaceMap;
     nsRefPtr<txResultRecycler> mRecycler;
 
-    uint32_t mFlags;
+    PRUint32 mFlags;
 };
 
 extern nsresult TX_LoadSheet(nsIURI* aUri, txMozillaXSLTProcessor* aProcessor,

@@ -2,17 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_a11y_AccCollector_h__
-#define mozilla_a11y_AccCollector_h__
+#ifndef AccCollector_h_
+#define AccCollector_h_
 
-#include "Filters.h"
+#include "filters.h"
 
+#include "nscore.h"
 #include "nsTArray.h"
-
-class Accessible;
-
-namespace mozilla {
-namespace a11y {
 
 /**
  * Collect accessible children complying with filter function. Provides quick
@@ -27,28 +23,28 @@ public:
   /**
    * Return accessible count within the collection.
    */
-  uint32_t Count();
+  PRUint32 Count();
 
   /**
    * Return an accessible from the collection at the given index.
    */
-  Accessible* GetAccessibleAt(uint32_t aIndex);
+  Accessible* GetAccessibleAt(PRUint32 aIndex);
 
   /**
    * Return index of the given accessible within the collection.
    */
-  virtual int32_t GetIndexAt(Accessible* aAccessible);
+  virtual PRInt32 GetIndexAt(Accessible* aAccessible);
 
 protected:
   /**
    * Ensure accessible at the given index is stored and return it.
    */
-  Accessible* EnsureNGetObject(uint32_t aIndex);
+  Accessible* EnsureNGetObject(PRUint32 aIndex);
 
   /**
    * Ensure index for the given accessible is stored and return it.
    */
-  int32_t EnsureNGetIndex(Accessible* aAccessible);
+  PRInt32 EnsureNGetIndex(Accessible* aAccessible);
 
   /**
    * Append the object to collection.
@@ -57,7 +53,7 @@ protected:
 
   filters::FilterFuncPtr mFilterFunc;
   Accessible* mRoot;
-  uint32_t mRootChildIdx;
+  PRUint32 mRootChildIdx;
 
   nsTArray<Accessible*> mObjects;
 
@@ -77,7 +73,7 @@ public:
   virtual ~EmbeddedObjCollector() { };
 
 public:
-  virtual int32_t GetIndexAt(Accessible* aAccessible);
+  virtual PRInt32 GetIndexAt(Accessible* aAccessible);
 
 protected:
   // Make sure it's used by Accessible class only.
@@ -86,10 +82,7 @@ protected:
 
   virtual void AppendObject(Accessible* aAccessible);
 
-  friend class ::Accessible;
+  friend class Accessible;
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif

@@ -19,7 +19,6 @@ ID
 /config.cache
 /config.log
 /.clang_complete
-/mach.ini
 
 # Empty marker file that's generated when we check out NSS
 security/manager/.nss.checkout
@@ -47,7 +46,5 @@ parser/html/java/javaparser/
 .cproject
 .settings/
 
-# Python virtualenv artifacts.
-python/psutil/*.so
-python/psutil/*.pyd
-python/psutil/build/
+# Python stuff installed at build-time
+*.egg-info/

@@ -66,15 +66,9 @@ Volume::SetState(Volume::STATE aNewState)
   if (aNewState == mState) {
     return;
   }
-  if (aNewState == nsIVolume::STATE_MOUNTED) {
-    LOG("Volume %s: changing state from %s to %s @ '%s' (%d observers)",
-        NameStr(), StateStr(mState),
-        StateStr(aNewState), mMountPoint.get(), mEventObserverList.Length());
-  } else {
-    LOG("Volume %s: changing state from %s to %s (%d observers)",
-        NameStr(), StateStr(mState),
-        StateStr(aNewState), mEventObserverList.Length());
-  }
+  LOG("Volume %s: changing state from %s to %s (%d observers)",
+      NameStr(), StateStr(mState),
+      StateStr(aNewState), mEventObserverList.Length());
 
   if (aNewState == nsIVolume::STATE_NOMEDIA) {
     // Cover the startup case where we don't get insertion/removal events
@@ -174,7 +168,7 @@ Volume::HandleVoldResponse(int aResponseCode, nsCWhitespaceTokenizer &aTokenizer
       //
       // So we parse out the state after the string " to "
       while (aTokenizer.hasMoreTokens()) {
-        nsAutoCString token(aTokenizer.nextToken());
+        nsCAutoString token(aTokenizer.nextToken());
         if (token.Equals("to")) {
           nsresult errCode;
           token = aTokenizer.nextToken();

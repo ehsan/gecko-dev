@@ -49,7 +49,7 @@ diff --git a/content/canvas/test/webgl/conformance/extensions/oes-standard-deriv
  debug("");
  successfullyParsed = true;
  </script>
- <script>finishTest();</script>
+ <script src="../../resources/js-test-post.js"></script>
  
  </body>
  </html>
@@ -101,7 +101,7 @@ diff --git a/content/canvas/test/webgl/conformance/extensions/oes-texture-float.
  debug("");
  successfullyParsed = true;
  </script>
- <script>finishTest();</script>
+ <script src="../../resources/js-test-post.js"></script>
  
  </body>
  </html>

@@ -45,7 +45,7 @@ nsListBoxObject::nsListBoxObject()
 //// nsIListBoxObject
 
 NS_IMETHODIMP
-nsListBoxObject::GetRowCount(int32_t *aResult)
+nsListBoxObject::GetRowCount(PRInt32 *aResult)
 {
   nsListBoxBodyFrame* body = GetListBoxBody(true);
   if (body)
@@ -54,7 +54,7 @@ nsListBoxObject::GetRowCount(int32_t *aResult)
 }
 
 NS_IMETHODIMP
-nsListBoxObject::GetNumberOfVisibleRows(int32_t *aResult)
+nsListBoxObject::GetNumberOfVisibleRows(PRInt32 *aResult)
 {
   nsListBoxBodyFrame* body = GetListBoxBody(true);
   if (body)
@@ -63,7 +63,7 @@ nsListBoxObject::GetNumberOfVisibleRows(int32_t *aResult)
 }
 
 NS_IMETHODIMP
-nsListBoxObject::GetIndexOfFirstVisibleRow(int32_t *aResult)
+nsListBoxObject::GetIndexOfFirstVisibleRow(PRInt32 *aResult)
 {
   nsListBoxBodyFrame* body = GetListBoxBody(true);
   if (body)
@@ -71,7 +71,7 @@ nsListBoxObject::GetIndexOfFirstVisibleRow(int32_t *aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsListBoxObject::EnsureIndexIsVisible(int32_t aRowIndex)
+NS_IMETHODIMP nsListBoxObject::EnsureIndexIsVisible(PRInt32 aRowIndex)
 {
   nsListBoxBodyFrame* body = GetListBoxBody(true);
   if (body)
@@ -80,7 +80,7 @@ NS_IMETHODIMP nsListBoxObject::EnsureIndexIsVisible(int32_t aRowIndex)
 }
 
 NS_IMETHODIMP
-nsListBoxObject::ScrollToIndex(int32_t aRowIndex)
+nsListBoxObject::ScrollToIndex(PRInt32 aRowIndex)
 {
   nsListBoxBodyFrame* body = GetListBoxBody(true);
   if (body)
@@ -89,7 +89,7 @@ nsListBoxObject::ScrollToIndex(int32_t aRowIndex)
 }
 
 NS_IMETHODIMP
-nsListBoxObject::ScrollByLines(int32_t aNumLines)
+nsListBoxObject::ScrollByLines(PRInt32 aNumLines)
 {
   nsListBoxBodyFrame* body = GetListBoxBody(true);
   if (body)
@@ -98,7 +98,7 @@ nsListBoxObject::ScrollByLines(int32_t aNumLines)
 }
 
 NS_IMETHODIMP
-nsListBoxObject::GetItemAtIndex(int32_t index, nsIDOMElement **_retval)
+nsListBoxObject::GetItemAtIndex(PRInt32 index, nsIDOMElement **_retval)
 {
   nsListBoxBodyFrame* body = GetListBoxBody(true);
   if (body)
@@ -107,7 +107,7 @@ nsListBoxObject::GetItemAtIndex(int32_t index, nsIDOMElement **_retval)
 }
 
 NS_IMETHODIMP
-nsListBoxObject::GetIndexOfItem(nsIDOMElement* aElement, int32_t *aResult)
+nsListBoxObject::GetIndexOfItem(nsIDOMElement* aElement, PRInt32 *aResult)
 {
   *aResult = 0;
 
@@ -131,7 +131,7 @@ FindBodyContent(nsIContent* aParent, nsIContent** aResult)
     aParent->OwnerDoc()->BindingManager()->GetXBLChildNodesFor(aParent, getter_AddRefs(kids));
     if (!kids) return;
 
-    uint32_t i;
+    PRUint32 i;
     kids->GetLength(&i);
     // start from the end, cuz we're smart and we know the listboxbody is probably at the end
     while (i > 0) {

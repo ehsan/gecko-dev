@@ -47,7 +47,7 @@ public:
   // Swaps the member data (mU & mPtr) of |this| with |aOther|
   void     Swap(nsSMILValue& aOther);
 
-  nsresult Add(const nsSMILValue& aValueToAdd, uint32_t aCount = 1);
+  nsresult Add(const nsSMILValue& aValueToAdd, PRUint32 aCount = 1);
   nsresult SandwichAdd(const nsSMILValue& aValueToAdd);
   nsresult ComputeDistance(const nsSMILValue& aTo, double& aDistance) const;
   nsresult Interpolate(const nsSMILValue& aEndVal,
@@ -56,15 +56,15 @@ public:
 
   union {
     bool mBool;
-    uint64_t mUint;
-    int64_t mInt;
+    PRUint64 mUint;
+    PRInt64 mInt;
     double mDouble;
     struct {
       float mAngle;
-      uint16_t mUnit;
-      uint16_t mOrientType;
+      PRUint16 mUnit;
+      PRUint16 mOrientType;
     } mOrient;
-    int32_t mIntPair[2];
+    PRInt32 mIntPair[2];
     float mNumberPair[2];
     void* mPtr;
   } mU;

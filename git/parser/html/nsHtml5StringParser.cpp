@@ -32,11 +32,11 @@ nsresult
 nsHtml5StringParser::ParseFragment(const nsAString& aSourceBuffer,
                                    nsIContent* aTargetNode,
                                    nsIAtom* aContextLocalName,
-                                   int32_t aContextNamespace,
+                                   PRInt32 aContextNamespace,
                                    bool aQuirks,
                                    bool aPreventScriptExecution)
 {
-  NS_ENSURE_TRUE(aSourceBuffer.Length() <= INT32_MAX,
+  NS_ENSURE_TRUE(aSourceBuffer.Length() <= PR_INT32_MAX,
                  NS_ERROR_OUT_OF_MEMORY);
 
   nsIDocument* doc = aTargetNode->OwnerDoc();
@@ -73,7 +73,7 @@ nsHtml5StringParser::ParseDocument(const nsAString& aSourceBuffer,
 {
   MOZ_ASSERT(!aTargetDoc->GetFirstChild());
 
-  NS_ENSURE_TRUE(aSourceBuffer.Length() <= INT32_MAX,
+  NS_ENSURE_TRUE(aSourceBuffer.Length() <= PR_INT32_MAX,
                  NS_ERROR_OUT_OF_MEMORY);
 
   mTreeBuilder->setFragmentContext(nullptr,

@@ -9,7 +9,7 @@
 #include "gfxTypes.h"
 #include "gfxPattern.h"
 #include "gfxImageSurface.h"
-#include "ImageContainer.h"
+#include "ImageLayers.h"
 #include "mozilla/gfx/2D.h"
 #include "imgIContainer.h"
 
@@ -59,7 +59,7 @@ public:
                                  const gfxRect&   aFill,
                                  const gfxImageSurface::gfxImageFormat aFormat,
                                  gfxPattern::GraphicsFilter aFilter,
-                                 uint32_t         aImageFlags = imgIContainer::FLAG_NONE);
+                                 PRUint32         aImageFlags = imgIContainer::FLAG_NONE);
 
     /**
      * Clip aContext to the region aRegion.
@@ -88,7 +88,7 @@ public:
 
     /**
      * If aIn can be represented exactly using an nsIntRect (i.e.
-     * integer-aligned edges and coordinates in the int32_t range) then we
+     * integer-aligned edges and coordinates in the PRInt32 range) then we
      * set aOut to that rectangle, otherwise return failure.
     */
     static bool GfxRectToIntRect(const gfxRect& aIn, nsIntRect* aOut);
@@ -123,7 +123,7 @@ public:
                       const gfxASurface::gfxImageFormat& aDestFormat,
                       const gfxIntSize& aDestSize,
                       unsigned char* aDestBuffer,
-                      int32_t aStride);
+                      PRInt32 aStride);
 
 #ifdef MOZ_DUMP_PAINTING
     /**

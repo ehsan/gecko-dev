@@ -92,7 +92,7 @@ public:
   /*
    * Returns the name of the target (animated) attribute or property.
    */
-  virtual bool GetTargetAttributeName(int32_t* aNamespaceID,
+  virtual bool GetTargetAttributeName(PRInt32* aNamespaceID,
                                         nsIAtom** aLocalName) const = 0;
 
   /*

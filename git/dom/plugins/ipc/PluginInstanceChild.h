@@ -127,9 +127,6 @@ protected:
     RecvWindowPosChanged(const NPRemoteEvent& event) MOZ_OVERRIDE;
 
     virtual bool
-    RecvContentsScaleFactorChanged(const double& aContentsScaleFactor) MOZ_OVERRIDE;
-
-    virtual bool
     AnswerNPP_Destroy(NPError* result);
 
     virtual PPluginScriptableObjectChild*
@@ -360,9 +357,6 @@ private:
     const NPPluginFuncs* mPluginIface;
     NPP_t mData;
     NPWindow mWindow;
-#if defined(XP_MACOSX)
-    double mContentsScaleFactor;
-#endif
     int16_t               mDrawingModel;
     NPAsyncSurface* mCurrentAsyncSurface;
     struct AsyncBitmapData {
@@ -431,7 +425,7 @@ private:
     };
     gfx::SharedDIBWin mSharedSurfaceDib;
     struct {
-      uint16_t        doublePass;
+      PRUint16        doublePass;
       HDC             hdc;
       HBITMAP         bmp;
     } mAlphaExtract;

@@ -212,7 +212,7 @@ LogGssError(OM_uint32 maj_stat, OM_uint32 min_stat, const char *prefix)
     gss_buffer_desc status1_string;
     gss_buffer_desc status2_string;
     OM_uint32 ret;
-    nsAutoCString errorStr;
+    nsCAutoString errorStr;
     errorStr.Assign(prefix);
 
     if (!gssLibrary)
@@ -335,7 +335,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsAuthGSSAPI, nsIAuthModule)
 
 NS_IMETHODIMP
 nsAuthGSSAPI::Init(const char *serviceName,
-                   uint32_t    serviceFlags,
+                   PRUint32    serviceFlags,
                    const PRUnichar *domain,
                    const PRUnichar *username,
                    const PRUnichar *password)
@@ -358,9 +358,9 @@ nsAuthGSSAPI::Init(const char *serviceName,
 
 NS_IMETHODIMP
 nsAuthGSSAPI::GetNextToken(const void *inToken,
-                           uint32_t    inTokenLen,
+                           PRUint32    inTokenLen,
                            void      **outToken,
-                           uint32_t   *outTokenLen)
+                           PRUint32   *outTokenLen)
 {
     OM_uint32 major_status, minor_status;
     OM_uint32 req_flags = 0;
@@ -368,7 +368,7 @@ nsAuthGSSAPI::GetNextToken(const void *inToken,
     gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
     gss_buffer_t  in_token_ptr = GSS_C_NO_BUFFER;
     gss_name_t server;
-    nsAutoCString userbuf;
+    nsCAutoString userbuf;
     nsresult rv;
 
     LOG(("entering nsAuthGSSAPI::GetNextToken()\n"));
@@ -491,9 +491,9 @@ end:
 
 NS_IMETHODIMP
 nsAuthGSSAPI::Unwrap(const void *inToken,
-                     uint32_t    inTokenLen,
+                     PRUint32    inTokenLen,
                      void      **outToken,
-                     uint32_t   *outTokenLen)
+                     PRUint32   *outTokenLen)
 {
     OM_uint32 major_status, minor_status;
 
@@ -530,10 +530,10 @@ nsAuthGSSAPI::Unwrap(const void *inToken,
  
 NS_IMETHODIMP
 nsAuthGSSAPI::Wrap(const void *inToken,
-                   uint32_t    inTokenLen,
+                   PRUint32    inTokenLen,
                    bool        confidential,
                    void      **outToken,
-                   uint32_t   *outTokenLen)
+                   PRUint32   *outTokenLen)
 {
     OM_uint32 major_status, minor_status;
 
@@ -568,7 +568,7 @@ nsAuthGSSAPI::Wrap(const void *inToken,
 }
 
 NS_IMETHODIMP
-nsAuthGSSAPI::GetModuleProperties(uint32_t *flags)
+nsAuthGSSAPI::GetModuleProperties(PRUint32 *flags)
 {
     *flags = 0;
     return NS_OK;

@@ -10,7 +10,7 @@
 #include "Role.h"
 #include "States.h"
 
-#ifdef A11Y_LOG
+#ifdef DEBUG
 #include "Logging.h"
 #endif
 
@@ -47,10 +47,10 @@ OuterDocAccessible::NativeRole()
 }
 
 Accessible*
-OuterDocAccessible::ChildAtPoint(int32_t aX, int32_t aY,
+OuterDocAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                  EWhichChildAtPoint aWhichChild)
 {
-  int32_t docX = 0, docY = 0, docWidth = 0, docHeight = 0;
+  PRInt32 docX = 0, docY = 0, docWidth = 0, docHeight = 0;
   nsresult rv = GetBounds(&docX, &docY, &docWidth, &docHeight);
   NS_ENSURE_SUCCESS(rv, nullptr);
 
@@ -67,10 +67,23 @@ OuterDocAccessible::ChildAtPoint(int32_t aX, int32_t aY,
   return child;
 }
 
+nsresult
+OuterDocAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
+{
+  nsAutoString tag;
+  aAttributes->GetStringProperty(NS_LITERAL_CSTRING("tag"), tag);
+  if (!tag.IsEmpty()) {
+    // We're overriding the ARIA attributes on an sub document, but we don't want to
+    // override the other attributes
+    return NS_OK;
+  }
+  return Accessible::GetAttributesInternal(aAttributes);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-uint8_t
+PRUint8
 OuterDocAccessible::ActionCount()
 {
   // Internal frame, which is the doc's parent, should not have a click action.
@@ -78,7 +91,7 @@ OuterDocAccessible::ActionCount()
 }
 
 NS_IMETHODIMP
-OuterDocAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+OuterDocAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   aName.Truncate();
 
@@ -86,7 +99,7 @@ OuterDocAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 }
 
 NS_IMETHODIMP
-OuterDocAccessible::GetActionDescription(uint8_t aIndex,
+OuterDocAccessible::GetActionDescription(PRUint8 aIndex,
                                          nsAString& aDescription)
 {
   aDescription.Truncate();
@@ -95,7 +108,7 @@ OuterDocAccessible::GetActionDescription(uint8_t aIndex,
 }
 
 NS_IMETHODIMP
-OuterDocAccessible::DoAction(uint8_t aIndex)
+OuterDocAccessible::DoAction(PRUint8 aIndex)
 {
   return NS_ERROR_INVALID_ARG;
 }
@@ -110,17 +123,17 @@ OuterDocAccessible::Shutdown()
   // change however the presshell of underlying document isn't destroyed and
   // the document doesn't get pagehide events. Shutdown underlying document if
   // any to avoid hanging document accessible.
-#ifdef A11Y_LOG
+#ifdef DEBUG
   if (logging::IsEnabled(logging::eDocDestroy))
     logging::OuterDocDestroy(this);
 #endif
 
   Accessible* childAcc = mChildren.SafeElementAt(0, nullptr);
   if (childAcc) {
-#ifdef A11Y_LOG
+#ifdef DEBUG
     if (logging::IsEnabled(logging::eDocDestroy)) {
       logging::DocDestroy("outerdoc's child document shutdown",
-                          childAcc->AsDoc()->DocumentNode());
+                          childAcc->GetDocumentNode());
     }
 #endif
     childAcc->Shutdown();
@@ -161,10 +174,10 @@ OuterDocAccessible::AppendChild(Accessible* aAccessible)
   if (!AccessibleWrap::AppendChild(aAccessible))
     return false;
 
-#ifdef A11Y_LOG
+#ifdef DEBUG
   if (logging::IsEnabled(logging::eDocCreate)) {
     logging::DocCreate("append document to outerdoc",
-                       aAccessible->AsDoc()->DocumentNode());
+                       aAccessible->GetDocumentNode());
     logging::Address("outerdoc", this);
   }
 #endif
@@ -181,10 +194,10 @@ OuterDocAccessible::RemoveChild(Accessible* aAccessible)
     return false;
   }
 
-#ifdef A11Y_LOG
+#ifdef DEBUG
   if (logging::IsEnabled(logging::eDocDestroy)) {
-    logging::DocDestroy("remove document from outerdoc",
-                        child->AsDoc()->DocumentNode(), child->AsDoc());
+    logging::DocDestroy("remove document from outerdoc", child->GetDocumentNode(),
+                        child->AsDoc());
     logging::Address("outerdoc", this);
   }
 #endif

@@ -9,7 +9,7 @@
 
 nsresult
 gfxQtNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
-                          uint32_t flags, Screen* screen, Visual* visual,
+                          PRUint32 flags, Screen* screen, Visual* visual,
                           DrawOutput* output)
 {
     Display *dpy = DisplayOfScreen(screen);

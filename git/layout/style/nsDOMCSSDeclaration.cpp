@@ -119,7 +119,7 @@ nsDOMCSSDeclaration::SetCssText(const nsAString& aCssText)
 }
 
 NS_IMETHODIMP
-nsDOMCSSDeclaration::GetLength(uint32_t* aLength)
+nsDOMCSSDeclaration::GetLength(PRUint32* aLength)
 {
   css::Declaration* decl = GetCSSDeclaration(false);
 
@@ -144,11 +144,17 @@ nsDOMCSSDeclaration::GetPropertyCSSValue(const nsAString& aPropertyName,
   return NS_OK;
 }
 
-void
-nsDOMCSSDeclaration::IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName)
+NS_IMETHODIMP
+nsDOMCSSDeclaration::Item(PRUint32 aIndex, nsAString& aReturn)
 {
   css::Declaration* decl = GetCSSDeclaration(false);
-  aFound = decl && decl->GetNthProperty(aIndex, aPropName);
+
+  aReturn.SetLength(0);
+  if (decl) {
+    decl->GetNthProperty(aIndex, aReturn);
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -16,7 +16,7 @@
         arriving in registers
 */
 extern "C" nsresult
-PrepareAndDispatch(nsXPTCStubBase* self, uint64_t methodIndex, uint64_t* args, uint64_t *gprData, double *fprData)
+PrepareAndDispatch(nsXPTCStubBase* self, PRUint64 methodIndex, PRUint64* args, PRUint64 *gprData, double *fprData)
 {
 
 #define PARAM_BUFFER_COUNT     16
@@ -25,13 +25,13 @@ PrepareAndDispatch(nsXPTCStubBase* self, uint64_t methodIndex, uint64_t* args, u
     nsXPTCMiniVariant paramBuffer[PARAM_BUFFER_COUNT];
     nsXPTCMiniVariant* dispatchParams = NULL;
     const nsXPTMethodInfo* info = NULL;
-    uint8_t paramCount;
-    uint8_t i;
+    PRUint8 paramCount;
+    PRUint8 i;
     nsresult result = NS_ERROR_FAILURE;
 
     NS_ASSERTION(self,"no self");
 
-    self->mEntry->GetMethodInfo(uint16_t(methodIndex), &info);
+    self->mEntry->GetMethodInfo(PRUint16(methodIndex), &info);
     NS_ASSERTION(info,"no method info");
 
     paramCount = info->GetParamCount();
@@ -43,9 +43,9 @@ PrepareAndDispatch(nsXPTCStubBase* self, uint64_t methodIndex, uint64_t* args, u
         dispatchParams = paramBuffer;
     NS_ASSERTION(dispatchParams,"no place for params");
 
-    uint64_t* ap = args;
-    uint32_t iCount = 0;
-    uint32_t fpCount = 0;
+    PRUint64* ap = args;
+    PRUint32 iCount = 0;
+    PRUint32 fpCount = 0;
     for(i = 0; i < paramCount; i++)
     {
         const nsXPTParamInfo& param = info->GetParam(i);
@@ -64,44 +64,44 @@ PrepareAndDispatch(nsXPTCStubBase* self, uint64_t methodIndex, uint64_t* args, u
         switch(type)
         {
         case nsXPTType::T_I8      :  if (iCount < PARAM_GPR_COUNT)
-                                         dp->val.i8  = (int8_t) gprData[iCount++];
+                                         dp->val.i8  = (PRInt8) gprData[iCount++];
                                      else
-                                         dp->val.i8  = (int8_t)  *ap++;
+                                         dp->val.i8  = (PRInt8)  *ap++;
                                      break;
         case nsXPTType::T_I16     :  if (iCount < PARAM_GPR_COUNT)
-                                         dp->val.i16  = (int16_t) gprData[iCount++];
+                                         dp->val.i16  = (PRInt16) gprData[iCount++];
                                      else
-                                         dp->val.i16  = (int16_t)  *ap++;
+                                         dp->val.i16  = (PRInt16)  *ap++;
                                      break;
         case nsXPTType::T_I32     :  if (iCount < PARAM_GPR_COUNT)
-                                         dp->val.i32  = (int32_t) gprData[iCount++];
+                                         dp->val.i32  = (PRInt32) gprData[iCount++];
                                      else
-                                         dp->val.i32  = (int32_t)  *ap++;
+                                         dp->val.i32  = (PRInt32)  *ap++;
                                      break;
         case nsXPTType::T_I64     :  if (iCount < PARAM_GPR_COUNT)
-                                         dp->val.i64  = (int64_t) gprData[iCount++];
+                                         dp->val.i64  = (PRInt64) gprData[iCount++];
                                      else
-                                         dp->val.i64  = (int64_t) *ap++;
+                                         dp->val.i64  = (PRInt64) *ap++;
                                      break;
         case nsXPTType::T_U8      :  if (iCount < PARAM_GPR_COUNT)
-                                         dp->val.u8  = (uint8_t) gprData[iCount++];
+                                         dp->val.u8  = (PRUint8) gprData[iCount++];
                                      else
-                                         dp->val.u8  = (uint8_t)  *ap++;
+                                         dp->val.u8  = (PRUint8)  *ap++;
                                      break;
         case nsXPTType::T_U16     :  if (iCount < PARAM_GPR_COUNT)
-                                         dp->val.u16  = (uint16_t) gprData[iCount++];
+                                         dp->val.u16  = (PRUint16) gprData[iCount++];
                                      else
-                                         dp->val.u16  = (uint16_t)  *ap++;
+                                         dp->val.u16  = (PRUint16)  *ap++;
                                      break;
         case nsXPTType::T_U32     :  if (iCount < PARAM_GPR_COUNT)
-                                         dp->val.u32  = (uint32_t) gprData[iCount++];
+                                         dp->val.u32  = (PRUint32) gprData[iCount++];
                                      else
-                                         dp->val.u32  = (uint32_t)  *ap++;
+                                         dp->val.u32  = (PRUint32)  *ap++;
                                      break;
         case nsXPTType::T_U64     :  if (iCount < PARAM_GPR_COUNT)
-                                         dp->val.u64  = (uint64_t) gprData[iCount++];
+                                         dp->val.u64  = (PRUint64) gprData[iCount++];
                                      else
-                                         dp->val.u64  = (uint64_t)  *ap++;
+                                         dp->val.u64  = (PRUint64)  *ap++;
                                      break;
         case nsXPTType::T_FLOAT   :  if (fpCount < 13) {
                                          dp->val.f  = (float) fprData[fpCount++];
@@ -150,7 +150,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, uint64_t methodIndex, uint64_t* args, u
         }
     }
 
-    result = self->mOuter->CallMethod((uint16_t)methodIndex,info,dispatchParams);
+    result = self->mOuter->CallMethod((PRUint16)methodIndex,info,dispatchParams);
 
     if(dispatchParams != paramBuffer)
         delete [] dispatchParams;

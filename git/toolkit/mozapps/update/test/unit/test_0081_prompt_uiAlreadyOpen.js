@@ -15,6 +15,7 @@ function run_test() {
               "there is already an application update window open");
 
   removeUpdateDirsAndFiles();
+  setUpdateChannel();
 
   Services.prefs.setBoolPref(PREF_APP_UPDATE_SILENT, false);
 

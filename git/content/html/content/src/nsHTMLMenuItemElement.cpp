@@ -6,7 +6,6 @@
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
 #include "nsHTMLMenuItemElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsContentUtils.h"
 
 using namespace mozilla::dom;
@@ -302,7 +301,7 @@ nsHTMLMenuItemElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault) {
     bool originalCheckedValue =
       !!(aVisitor.mItemFlags & NS_ORIGINAL_CHECKED_VALUE);
-    uint8_t oldType = NS_MENUITEM_TYPE(aVisitor.mItemFlags);
+    PRUint8 oldType = NS_MENUITEM_TYPE(aVisitor.mItemFlags);
 
     nsCOMPtr<nsIDOMHTMLMenuItemElement> selectedRadio =
       do_QueryInterface(aVisitor.mItemData);
@@ -336,7 +335,7 @@ nsHTMLMenuItemElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 bool
-nsHTMLMenuItemElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLMenuItemElement::ParseAttribute(PRInt32 aNamespaceID,
                                       nsIAtom* aAttribute,
                                       const nsAString& aValue,
                                       nsAttrValue& aResult)
@@ -386,7 +385,7 @@ nsHTMLMenuItemElement::GetText(nsAString& aText)
 }
 
 nsresult
-nsHTMLMenuItemElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLMenuItemElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                     const nsAttrValue* aValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {

@@ -54,7 +54,7 @@ private:
     nsCOMPtr<nsIDocument> mDocument;
     nsCOMPtr<nsITransformObserver> mObserver;
     nsCOMArray<nsIScriptElement> mScriptElements;
-    uint32_t mPendingStylesheetCount;
+    PRUint32 mPendingStylesheetCount;
     bool mInTransform;
 };
 
@@ -73,7 +73,7 @@ public:
 
     nsresult closePrevious(bool aFlushText);
 
-    nsresult createResultDocument(const nsSubstring& aName, int32_t aNsID,
+    nsresult createResultDocument(const nsSubstring& aName, PRInt32 aNsID,
                                   nsIDOMDocument* aSourceDocument);
 
 private:
@@ -85,9 +85,9 @@ private:
                                nsIContent** aResult);
 
     nsresult attributeInternal(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                               int32_t aNsID, const nsString& aValue);
+                               PRInt32 aNsID, const nsString& aValue);
     nsresult startElementInternal(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                                  int32_t aNsID);
+                                  PRInt32 aNsID);
 
     nsCOMPtr<nsIDocument> mDocument;
     nsCOMPtr<nsINode> mCurrentNode;     // This is updated once an element is
@@ -104,7 +104,7 @@ private:
 
     nsRefPtr<txTransformNotifier> mNotifier;
 
-    uint32_t mTreeDepth, mBadChildLevel;
+    PRUint32 mTreeDepth, mBadChildLevel;
     nsCString mRefreshString;
 
     txStack mTableStateStack;

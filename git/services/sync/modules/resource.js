@@ -20,13 +20,6 @@ Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/util.js");
 
-const DEFAULT_LOAD_FLAGS =
-  // Always validate the cache:
-  Ci.nsIRequest.LOAD_BYPASS_CACHE |
-  Ci.nsIRequest.INHIBIT_CACHING |
-  // Don't send user cookies over the wire (Bug 644734).
-  Ci.nsIRequest.LOAD_ANONYMOUS;
-
 /*
  * AsyncResource represents a remote network resource, identified by a URI.
  * Create an instance like so:
@@ -104,9 +97,6 @@ AsyncResource.prototype = {
   setHeader: function Res_setHeader(header, value) {
     this._headers[header.toLowerCase()] = value;
   },
-  get headerNames() {
-    return Object.keys(this.headers);
-  },
 
   // ** {{{ AsyncResource.uri }}} **
   //
@@ -150,11 +140,12 @@ AsyncResource.prototype = {
                           .QueryInterface(Ci.nsIRequest)
                           .QueryInterface(Ci.nsIHttpChannel);
 
-    channel.loadFlags |= DEFAULT_LOAD_FLAGS;
+    // Always validate the cache:
+    channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
+    channel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
 
     // Setup a callback to handle channel notifications.
-    let listener = new ChannelNotificationListener(this.headerNames);
-    channel.notificationCallbacks = listener;
+    channel.notificationCallbacks = new ChannelNotificationListener();
 
     // Compose a UA string fragment from the various available identifiers.
     if (Svc.Prefs.get("sendVersionInfo", true)) {
@@ -563,20 +554,10 @@ ChannelListener.prototype = {
  * This class handles channel notification events.
  *
  * An instance of this class is bound to each created channel.
- *
- * Optionally pass an array of header names. Each header named
- * in this array will be copied between the channels in the
- * event of a redirect.
  */
-function ChannelNotificationListener(headersToCopy) {
-  this._headersToCopy = headersToCopy;
-
-  this._log = Log4Moz.repository.getLogger(this._logName);
-  this._log.level = Log4Moz.Level[Svc.Prefs.get("log.logger.network.resources")];
+function ChannelNotificationListener() {
 }
 ChannelNotificationListener.prototype = {
-  _logName: "Sync.Resource",
-
   getInterface: function(aIID) {
     return this.QueryInterface(aIID);
   },
@@ -601,25 +582,6 @@ ChannelNotificationListener.prototype = {
 
   asyncOnChannelRedirect:
     function asyncOnChannelRedirect(oldChannel, newChannel, flags, callback) {
-
-    this._log.debug("Channel redirect: " + oldChannel.URI.spec + ", " +
-                    newChannel.URI.spec + ", " + flags);
-
-    // For internal redirects, copy the headers that our caller set.
-    try {
-      if ((flags & Ci.nsIChannelEventSink.REDIRECT_INTERNAL) &&
-          newChannel.URI.equals(oldChannel.URI)) {
-        this._log.trace("Copying headers for safe internal redirect.");
-        for (let header of this._headersToCopy) {
-          let value = oldChannel.getRequestHeader(header);
-          if (value) {
-            newChannel.setRequestHeader(header, value);
-          }
-        }
-      }
-    } catch (ex) {
-      this._log.error("Error copying headers: " + CommonUtils.exceptionStr(ex));
-    }
 
     // We let all redirects proceed.
     callback.onRedirectVerifyCallback(Cr.NS_OK);

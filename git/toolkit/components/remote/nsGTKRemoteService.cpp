@@ -133,7 +133,7 @@ nsGTKRemoteService::Shutdown()
 // raising an existing window rather than showing a new window for the first time.
 void
 nsGTKRemoteService::SetDesktopStartupIDOrTimestamp(const nsACString& aDesktopStartupID,
-                                                   uint32_t aTimestamp) {
+                                                   PRUint32 aTimestamp) {
   nsGTKToolkit* toolkit = nsGTKToolkit::GetToolkit();
   if (!toolkit)
     return;

@@ -287,7 +287,7 @@ const PRUnichar* const nsHTMLTags::sTagUnicodeTable[] = {
 // static array of tag atoms
 nsIAtom* nsHTMLTags::sTagAtomTable[eHTMLTag_userdefined - 1];
 
-int32_t nsHTMLTags::gTableRefCount;
+PRInt32 nsHTMLTags::gTableRefCount;
 PLHashTable* nsHTMLTags::gTagTable;
 PLHashTable* nsHTMLTags::gTagAtomTable;
 
@@ -362,7 +362,7 @@ nsHTMLTags::AddRefTable(void)
     // keys and the value of the corresponding enum as the value in
     // the table.
 
-    int32_t i;
+    PRInt32 i;
     for (i = 0; i < NS_HTML_TAG_MAX; ++i) {
       PL_HashTableAdd(gTagTable, sTagUnicodeTable[i],
                       NS_INT32_TO_PTR(i + 1));
@@ -392,9 +392,9 @@ nsHTMLTags::AddRefTable(void)
       }
 
       // let's verify that NS_HTMLTAG_NAME_MAX_LENGTH is correct
-      uint32_t maxTagNameLength = 0;
+      PRUint32 maxTagNameLength = 0;
       for (i = 0; i < NS_HTML_TAG_MAX; ++i) {
-        uint32_t len = NS_strlen(sTagUnicodeTable[i]);
+        PRUint32 len = NS_strlen(sTagUnicodeTable[i]);
         maxTagNameLength = NS_MAX(len, maxTagNameLength);        
       }
       NS_ASSERTION(maxTagNameLength == NS_HTMLTAG_NAME_MAX_LENGTH,
@@ -426,7 +426,7 @@ nsHTMLTags::ReleaseTable(void)
 nsHTMLTag
 nsHTMLTags::LookupTag(const nsAString& aTagName)
 {
-  uint32_t length = aTagName.Length();
+  PRUint32 length = aTagName.Length();
 
   if (length > NS_HTMLTAG_NAME_MAX_LENGTH) {
     return eHTMLTag_userdefined;
@@ -435,7 +435,7 @@ nsHTMLTags::LookupTag(const nsAString& aTagName)
   PRUnichar buf[NS_HTMLTAG_NAME_MAX_LENGTH + 1];
 
   nsAString::const_iterator iter;
-  uint32_t i = 0;
+  PRUint32 i = 0;
   PRUnichar c;
 
   aTagName.BeginReading(iter);

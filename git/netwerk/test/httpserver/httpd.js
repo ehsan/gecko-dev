@@ -513,14 +513,12 @@ nsHttpServer.prototype =
     this._host = host;
 
     // The listen queue needs to be long enough to handle
-    // network.http.max-persistent-connections-per-server or
-    // network.http.max-persistent-connections-per-proxy concurrent
-    // connections, plus a safety margin in case some other process is
-    // talking to the server as well.
+    // network.http.max-persistent-connections-per-server concurrent connections,
+    // plus a safety margin in case some other process is talking to
+    // the server as well.
     var prefs = getRootPrefBranch();
-    var maxConnections = 5 + Math.max(
-      prefs.getIntPref("network.http.max-persistent-connections-per-server"),
-      prefs.getIntPref("network.http.max-persistent-connections-per-proxy"));
+    var maxConnections =
+      prefs.getIntPref("network.http.max-persistent-connections-per-server") + 5;
 
     try
     {
@@ -2111,7 +2109,6 @@ function toInternalPath(path, encoded)
   return comps.join("/");
 }
 
-const PERMS_READONLY = (4 << 6) | (4 << 3) | 4;
 
 /**
  * Adds custom-specified headers for the given file to the given response, if
@@ -2139,7 +2136,7 @@ function maybeAddHeaders(file, metadata, response)
     return;
 
   const PR_RDONLY = 0x01;
-  var fis = new FileInputStream(headerFile, PR_RDONLY, PERMS_READONLY,
+  var fis = new FileInputStream(headerFile, PR_RDONLY, 0444,
                                 Ci.nsIFileInputStream.CLOSE_ON_EOF);
 
   try
@@ -2674,7 +2671,7 @@ ServerHandler.prototype =
     var type = this._getTypeFromFile(file);
     if (type === SJS_TYPE)
     {
-      var fis = new FileInputStream(file, PR_RDONLY, PERMS_READONLY,
+      var fis = new FileInputStream(file, PR_RDONLY, 0444,
                                     Ci.nsIFileInputStream.CLOSE_ON_EOF);
 
       try
@@ -2768,7 +2765,7 @@ ServerHandler.prototype =
       maybeAddHeaders(file, metadata, response);
       response.setHeader("Content-Length", "" + count, false);
 
-      var fis = new FileInputStream(file, PR_RDONLY, PERMS_READONLY,
+      var fis = new FileInputStream(file, PR_RDONLY, 0444,
                                     Ci.nsIFileInputStream.CLOSE_ON_EOF);
 
       offset = offset || 0;

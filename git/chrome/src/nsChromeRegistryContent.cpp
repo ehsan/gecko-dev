@@ -25,17 +25,17 @@ nsChromeRegistryContent::RegisterRemoteChrome(
   NS_ABORT_IF_FALSE(mLocale == nsDependentCString(""),
                     "RegisterChrome twice?");
 
-  for (uint32_t i = aPackages.Length(); i > 0; ) {
+  for (PRUint32 i = aPackages.Length(); i > 0; ) {
     --i;
     RegisterPackage(aPackages[i]);
   }
 
-  for (uint32_t i = aResources.Length(); i > 0; ) {
+  for (PRUint32 i = aResources.Length(); i > 0; ) {
     --i;
     RegisterResource(aResources[i]);
   }
 
-  for (uint32_t i = aOverrides.Length(); i > 0; ) {
+  for (PRUint32 i = aOverrides.Length(); i > 0; ) {
     --i;
     RegisterOverride(aOverrides[i]);
   }
@@ -165,7 +165,7 @@ nsChromeRegistryContent::GetBaseURIFromPackage(const nsCString& aPackage,
 
 nsresult
 nsChromeRegistryContent::GetFlagsFromPackage(const nsCString& aPackage,
-                                             uint32_t* aFlags)
+                                             PRUint32* aFlags)
 {
   PackageEntry* entry;
   if (!mPackagesHash.Get(aPackage, &entry)) {

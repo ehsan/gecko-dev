@@ -50,7 +50,7 @@ public:
    */
   NS_IMETHOD RenderContextsExternal(gfxContext *ctx,
                                     gfxPattern::GraphicsFilter aFilter,
-                                    uint32_t aFlags = RenderFlagPremultAlpha) = 0;
+                                    PRUint32 aFlags = RenderFlagPremultAlpha) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsICanvasElementExternal, NS_ICANVASELEMENTEXTERNAL_IID)

@@ -33,7 +33,7 @@ nsHtml5MetaScanner::tryCharset(nsString* charset)
     NS_ERROR("Could not get CharsetConverterManager service.");
     return false;
   }
-  nsAutoCString encoding;
+  nsCAutoString encoding;
   CopyUTF16toUTF8(*charset, encoding);
   encoding.Trim(" \t\r\n\f");
   if (encoding.LowerCaseEqualsLiteral("utf-16") ||
@@ -47,7 +47,7 @@ nsHtml5MetaScanner::tryCharset(nsString* charset)
     }
     return true;
   }
-  nsAutoCString preferred;
+  nsCAutoString preferred;
   res = nsCharsetAlias::GetPreferred(encoding, preferred);
   if (NS_FAILED(res)) {
     return false;
@@ -56,7 +56,10 @@ nsHtml5MetaScanner::tryCharset(nsString* charset)
       preferred.LowerCaseEqualsLiteral("utf-16be") ||
       preferred.LowerCaseEqualsLiteral("utf-16le") ||
       preferred.LowerCaseEqualsLiteral("utf-7") ||
-      preferred.LowerCaseEqualsLiteral("x-imap4-modified-utf7")) {
+      preferred.LowerCaseEqualsLiteral("jis_x0212-1990") ||
+      preferred.LowerCaseEqualsLiteral("x-jis0208") ||
+      preferred.LowerCaseEqualsLiteral("x-imap4-modified-utf7") ||
+      preferred.LowerCaseEqualsLiteral("x-user-defined")) {
     return false;
   }
   res = convManager->GetUnicodeDecoderRaw(preferred.get(), getter_AddRefs(mUnicodeDecoder));

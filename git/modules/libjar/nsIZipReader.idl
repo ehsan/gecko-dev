@@ -179,7 +179,7 @@ interface nsIZipReader : nsISupports
      */
     nsIPrincipal getCertificatePrincipal(in AUTF8String aEntryName);   
     
-    readonly attribute uint32_t manifestEntriesCount;
+    readonly attribute PRUint32 manifestEntriesCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

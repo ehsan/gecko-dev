@@ -12,9 +12,8 @@
 #define WEBRTC_MODULES_VIDEO_CODING_CODECS_INTERFACE_VIDEO_CODEC_INTERFACE_H
 
 #include "common_types.h"
-#include "modules/interface/module_common_types.h"
-#include "modules/video_coding/codecs/interface/video_error_codes.h"
 #include "common_video/interface/video_image.h"
+#include "modules/video_coding/codecs/interface/video_error_codes.h"
 #include "typedefs.h"
 
 namespace webrtc
@@ -98,7 +97,7 @@ public:
     //          - frameType         : The frame type to encode
     //
     // Return value                 : WEBRTC_VIDEO_CODEC_OK if OK, < 0 otherwise.
-    virtual WebRtc_Word32 Encode(const VideoFrame& inputImage,
+    virtual WebRtc_Word32 Encode(const RawImage& inputImage,
                                  const CodecSpecificInfo* codecSpecificInfo,
                                  const VideoFrameType frameType) = 0;
 
@@ -160,10 +159,10 @@ public:
     // Callback function which is called when an image has been decoded.
     //
     // Input:
-    //          - decodedImage         : The decoded image.
+    //          - decodedImage         : The decoded image
     //
     // Return value                    : 0 if OK, < 0 otherwise.
-    virtual WebRtc_Word32 Decoded(VideoFrame& decodedImage) = 0;
+    virtual WebRtc_Word32 Decoded(RawImage& decodedImage) = 0;
 
     virtual WebRtc_Word32 ReceivedDecodedReferenceFrame(const WebRtc_UWord64 pictureId) {return -1;}
 

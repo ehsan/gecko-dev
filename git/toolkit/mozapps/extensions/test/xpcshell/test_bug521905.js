@@ -8,11 +8,21 @@ const ID = "bug521905@tests.mozilla.org";
 
 // Disables security checking our updates which haven't been signed
 Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false);
+// Disables compatibility checking
+Services.prefs.setBoolPref("extensions.checkCompatibility.2.0pre", false);
 
 function run_test() {
+  var channel = "default";
+  try {
+    channel = Services.prefs.getCharPref("app.update.channel");
+  }
+  catch (e) { }
+
   // This test is only relevant on builds where the version is included in the
   // checkCompatibility preference name
-  if (isNightlyChannel()) {
+  if (channel != "aurora" &&
+      channel != "beta" &&
+      channel != "release") {
     return;
   }
 
@@ -20,8 +30,6 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "2.0pre", "2");
 
   startupManager();
-  AddonManager.checkCompatibility = false;
-
   installAllFiles([do_get_addon(ADDON)], function() {
     restartManager();
 

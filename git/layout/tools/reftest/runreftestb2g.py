@@ -24,7 +24,6 @@ from remotereftest import ReftestServer
 from mozprofile import Profile
 from mozrunner import Runner
 
-import devicemanager
 import devicemanagerADB
 import manifestparser
 
@@ -100,11 +99,6 @@ class B2GOptions(ReftestOptions):
                     type = "string", dest = "pidFile",
                     help = "name of the pidfile to generate")
         defaults["pidFile"] = ""
-        self.add_option("--gecko-path", action="store",
-                        type="string", dest="geckoPath",
-                        help="the path to a gecko distribution that should "
-                        "be installed on the emulator prior to test")
-        defaults["geckoPath"] = None
         defaults["remoteTestRoot"] = None
         defaults["logFile"] = "reftest.log"
         defaults["autorun"] = True
@@ -129,9 +123,6 @@ class B2GOptions(ReftestOptions):
                 return None
 
         options.webServer = options.remoteWebServer
-
-        if options.geckoPath and not options.emulator:
-            self.error("You must specify --emulator if you specify --gecko-path")
 
         #if not options.emulator and not options.deviceIP:
         #    print "ERROR: you must provide a device IP"
@@ -242,11 +233,11 @@ class B2GReftest(RefTest):
             self._devicemanager.removeDir(self.remoteTestRoot)
 
             # Restore the original user.js.
-            self._devicemanager._checkCmdAs(['shell', 'rm', '-f', self.userJS])
+            self._devicemanager.checkCmdAs(['shell', 'rm', '-f', self.userJS])
             if self._devicemanager.useDDCopy:
-                self._devicemanager._checkCmdAs(['shell', 'dd', 'if=%s.orig' % self.userJS, 'of=%s' % self.userJS])
+                self._devicemanager.checkCmdAs(['shell', 'dd', 'if=%s.orig' % self.userJS, 'of=%s' % self.userJS])
             else:
-                self._devicemanager._checkCmdAs(['shell', 'cp', '%s.orig' % self.userJS, self.userJS])
+                self._devicemanager.checkCmdAs(['shell', 'cp', '%s.orig' % self.userJS, self.userJS])
 
             # We've restored the original profile, so reboot the device so that
             # it gets picked up.
@@ -339,7 +330,7 @@ class B2GReftest(RefTest):
     def restoreProfilesIni(self):
         # restore profiles.ini on the device to its previous state
         if not self.originalProfilesIni or not os.access(self.originalProfilesIni, os.F_OK):
-            raise devicemanager.DMError('Unable to install original profiles.ini; file not found: %s',
+            raise DMError('Unable to install original profiles.ini; file not found: %s',
                           self.originalProfilesIni)
 
         self._devicemanager.pushFile(self.originalProfilesIni, self.remoteProfilesIniPath)
@@ -374,21 +365,15 @@ class B2GReftest(RefTest):
         # Turn off the locale picker screen
         fhandle = open(os.path.join(profileDir, "user.js"), 'a')
         fhandle.write("""
+user_pref("browser.homescreenURL", "data:text/html,<h1>reftests should start soon</h1>");
+user_pref("browser.manifestURL", "dummy (bug 772307)");
 user_pref("browser.firstrun.show.localepicker", false);
-user_pref("browser.homescreenURL","app://system.gaiamobile.org");\n
-user_pref("browser.manifestURL","app://system.gaiamobile.org/manifest.webapp");\n
-user_pref("browser.tabs.remote", false);\n
-user_pref("dom.ipc.browser_frames.oop_by_default", true);\n
-user_pref("dom.ipc.tabs.disabled", false);\n
-user_pref("dom.mozBrowserFramesEnabled", true);\n
-user_pref("dom.mozBrowserFramesWhitelist","app://system.gaiamobile.org");\n
-user_pref("network.dns.localDomains","app://system.gaiamobile.org");\n
+user_pref("browser.dom.window.dump.enabled", true);
 user_pref("font.size.inflation.emPerLine", 0);
 user_pref("font.size.inflation.minTwips", 0);
-user_pref("reftest.browser.iframe.enabled", true);
 user_pref("reftest.remote", true);
-user_pref("reftest.uri", "%s");
 user_pref("toolkit.telemetry.prompted", true);
+user_pref("reftest.uri", "%s");
 """ % reftestlist)
 
         #workaround for jsreftests.
@@ -403,19 +388,16 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
 
         # Copy the profile to the device.
         self._devicemanager.removeDir(self.remoteProfile)
-        try:
-            self._devicemanager.pushDir(profileDir, self.remoteProfile)
-        except devicemanager.DMError:
-            print "Automation Error: Unable to copy profile to device."
-            raise
+        if self._devicemanager.pushDir(profileDir, self.remoteProfile) == None:
+            raise devicemanager.FileError("Unable to copy profile to device.")
 
         # In B2G, user.js is always read from /data/local, not the profile
         # directory.  Backup the original user.js first so we can restore it.
-        self._devicemanager._checkCmdAs(['shell', 'rm', '-f', '%s.orig' % self.userJS])
+        self._devicemanager.checkCmdAs(['shell', 'rm', '-f', '%s.orig' % self.userJS])
         if self._devicemanager.useDDCopy:
-            self._devicemanager._checkCmdAs(['shell', 'dd', 'if=%s' % self.userJS, 'of=%s.orig' % self.userJS])
+            self._devicemanager.checkCmdAs(['shell', 'dd', 'if=%s' % self.userJS, 'of=%s.orig' % self.userJS])
         else:
-            self._devicemanager._checkCmdAs(['shell', 'cp', self.userJS, '%s.orig' % self.userJS])
+            self._devicemanager.checkCmdAs(['shell', 'cp', self.userJS, '%s.orig' % self.userJS])
         self._devicemanager.pushFile(os.path.join(profileDir, "user.js"), self.userJS)
 
         self.updateProfilesIni(self.remoteProfile)
@@ -425,11 +407,8 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
 
     def copyExtraFilesToProfile(self, options, profileDir):
         RefTest.copyExtraFilesToProfile(self, options, profileDir)
-        try:
-            self._devicemanager.pushDir(profileDir, options.remoteProfile)
-        except devicemanager.DMError:
-            print "Automation Error: Failed to copy extra files to device"
-            raise
+        if (self._devicemanager.pushDir(profileDir, options.remoteProfile) == None):
+            raise devicemanager.FileError("Failed to copy extra files to device")
 
     def getManifestPath(self, path):
         return path
@@ -455,8 +434,6 @@ def main(args=sys.argv[1:]):
         host,port = options.marionette.split(':')
         kwargs['host'] = host
         kwargs['port'] = int(port)
-    if options.geckoPath:
-        kwargs['gecko_path'] = options.geckoPath
     marionette = Marionette(**kwargs)
     auto.marionette = marionette
 
@@ -483,8 +460,7 @@ def main(args=sys.argv[1:]):
             return 1
 
     auto.setProduct("b2g")
-    auto.test_script = os.path.join(SCRIPT_DIRECTORY, 'b2g_start_script.js')
-    auto.test_script_args = [options.remoteWebServer, options.httpPort]
+    auto.testScript = os.path.join(SCRIPT_DIRECTORY, 'b2g_start_script.js')
     auto.logFinish = "REFTEST TEST-START | Shutdown"
 
     reftest = B2GReftest(auto, dm, options, SCRIPT_DIRECTORY)

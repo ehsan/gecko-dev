@@ -49,10 +49,10 @@ public:
      and thread list */
   static mozilla::Mutex* sLock;
 
-  static unsigned tlsIndex;
+  static PRUintn tlsIndex;
   static void ThreadDestruct( void *data );
 #ifdef DEBUG
-  static int32_t totalInstances;
+  static PRInt32 totalInstances;
 #endif
 
 private:

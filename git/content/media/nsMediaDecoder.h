@@ -9,7 +9,6 @@
 #include "mozilla/ReentrantMonitor.h"
 #include "VideoFrameContainer.h"
 #include "MediaStreamGraph.h"
-#include "nsIObserver.h"
 
 class nsHTMLMediaElement;
 class nsIStreamListener;
@@ -20,18 +19,17 @@ class nsITimer;
 
 namespace mozilla {
 class MediaResource;
-class MediaByteRange;
 }
 
 // The size to use for audio data frames in MozAudioAvailable events.
 // This value is per channel, and is chosen to give ~43 fps of events,
 // for example, 44100 with 2 channels, 2*1024 = 2048.
-static const uint32_t FRAMEBUFFER_LENGTH_PER_CHANNEL = 1024;
+static const PRUint32 FRAMEBUFFER_LENGTH_PER_CHANNEL = 1024;
 
 // The total size of the framebuffer used for MozAudioAvailable events
 // has to be within the following range.
-static const uint32_t FRAMEBUFFER_LENGTH_MIN = 512;
-static const uint32_t FRAMEBUFFER_LENGTH_MAX = 16384;
+static const PRUint32 FRAMEBUFFER_LENGTH_MIN = 512;
+static const PRUint32 FRAMEBUFFER_LENGTH_MAX = 16384;
 
 // All methods of nsMediaDecoder must be called from the main thread only
 // with the exception of GetVideoFrameContainer and GetStatistics,
@@ -40,12 +38,8 @@ class nsMediaDecoder : public nsIObserver
 {
 public:
   typedef mozilla::MediaResource MediaResource;
-  typedef mozilla::MediaByteRange MediaByteRange;
   typedef mozilla::ReentrantMonitor ReentrantMonitor;
   typedef mozilla::SourceMediaStream SourceMediaStream;
-  typedef mozilla::ProcessedMediaStream ProcessedMediaStream;
-  typedef mozilla::MediaInputPort MediaInputPort;
-  typedef mozilla::MainThreadMediaStreamListener MainThreadMediaStreamListener;
   typedef mozilla::TimeStamp TimeStamp;
   typedef mozilla::TimeDuration TimeDuration;
   typedef mozilla::VideoFrameContainer VideoFrameContainer;
@@ -74,14 +68,6 @@ public:
 
   // Seek to the time position in (seconds) from the start of the video.
   virtual nsresult Seek(double aTime) = 0;
-
-  // Enables decoders to supply an enclosing byte range for a seek offset.
-  // E.g. used by ChannelMediaResource to download a whole cluster for
-  // DASH-WebM.
-  virtual nsresult GetByteRangeForSeek(int64_t const aOffset,
-                                       MediaByteRange &aByteRange) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
 
   // Called by the element when the playback rate has been changed.
   // Adjust the speed of the playback, optionally with pitch correction,
@@ -115,10 +101,7 @@ public:
   virtual void SetAudioCaptured(bool aCaptured) = 0;
 
   // Add an output stream. All decoder output will be sent to the stream.
-  // The stream is initially blocked. The decoder is responsible for unblocking
-  // it while it is playing back.
-  virtual void AddOutputStream(ProcessedMediaStream* aStream,
-                               bool aFinishWhenEnded) = 0;
+  virtual void AddOutputStream(SourceMediaStream* aStream, bool aFinishWhenEnded) = 0;
 
   // Start playback of a video. 'Load' must have previously been
   // called.
@@ -159,15 +142,15 @@ public:
     // ignores time that the channel was paused by Gecko.
     double mDownloadRate;
     // Total length of media stream in bytes; -1 if not known
-    int64_t mTotalBytes;
+    PRInt64 mTotalBytes;
     // Current position of the download, in bytes. This is the offset of
     // the first uncached byte after the decoder position.
-    int64_t mDownloadPosition;
+    PRInt64 mDownloadPosition;
     // Current position of decoding, in bytes (how much of the stream
     // has been consumed)
-    int64_t mDecoderPosition;
+    PRInt64 mDecoderPosition;
     // Current position of playback, in bytes
-    int64_t mPlaybackPosition;
+    PRInt64 mPlaybackPosition;
     // If false, then mDownloadRate cannot be considered a reliable
     // estimate (probably because the download has only been running
     // a short time).
@@ -191,14 +174,14 @@ public:
 
     // Returns number of frames which have been parsed from the media.
     // Can be called on any thread.
-    uint32_t GetParsedFrames() {
+    PRUint32 GetParsedFrames() {
       mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
       return mParsedFrames;
     }
 
     // Returns the number of parsed frames which have been decoded.
     // Can be called on any thread.
-    uint32_t GetDecodedFrames() {
+    PRUint32 GetDecodedFrames() {
       mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
       return mDecodedFrames;
     }
@@ -206,14 +189,14 @@ public:
     // Returns the number of decoded frames which have been sent to the rendering
     // pipeline for painting ("presented").
     // Can be called on any thread.
-    uint32_t GetPresentedFrames() {
+    PRUint32 GetPresentedFrames() {
       mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
       return mPresentedFrames;
     }
 
     // Increments the parsed and decoded frame counters by the passed in counts.
     // Can be called on any thread.
-    void NotifyDecodedFrames(uint32_t aParsed, uint32_t aDecoded) {
+    void NotifyDecodedFrames(PRUint32 aParsed, PRUint32 aDecoded) {
       if (aParsed == 0 && aDecoded == 0)
         return;
       mozilla::ReentrantMonitorAutoEnter mon(mReentrantMonitor);
@@ -235,15 +218,15 @@ public:
 
     // Number of frames parsed and demuxed from media.
     // Access protected by mStatsReentrantMonitor.
-    uint32_t mParsedFrames;
+    PRUint32 mParsedFrames;
 
     // Number of parsed frames which were actually decoded.
     // Access protected by mStatsReentrantMonitor.
-    uint32_t mDecodedFrames;
+    PRUint32 mDecodedFrames;
 
     // Number of decoded frames which were actually sent down the rendering
     // pipeline to be painted ("presented"). Access protected by mStatsReentrantMonitor.
-    uint32_t mPresentedFrames;
+    PRUint32 mPresentedFrames;
   };
 
   // Stack based class to assist in notifying the frame statistics of
@@ -251,15 +234,15 @@ public:
   // to ensure all parsed and decoded frames are reported on all return paths.
   class AutoNotifyDecoded {
   public:
-    AutoNotifyDecoded(nsMediaDecoder* aDecoder, uint32_t& aParsed, uint32_t& aDecoded)
+    AutoNotifyDecoded(nsMediaDecoder* aDecoder, PRUint32& aParsed, PRUint32& aDecoded)
       : mDecoder(aDecoder), mParsed(aParsed), mDecoded(aDecoded) {}
     ~AutoNotifyDecoded() {
       mDecoder->GetFrameStatistics().NotifyDecodedFrames(mParsed, mDecoded);
     }
   private:
     nsMediaDecoder* mDecoder;
-    uint32_t& mParsed;
-    uint32_t& mDecoded;
+    PRUint32& mParsed;
+    PRUint32& mDecoded;
   };
 
   // Return statistics. This is used for progress events and other things.
@@ -328,7 +311,7 @@ public:
 
   // Called as data arrives on the stream and is read into the cache.  Called
   // on the main thread only.
-  virtual void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset) = 0;
+  virtual void NotifyDataArrived(const char* aBuffer, PRUint32 aLength, PRInt64 aOffset) = 0;
 
   // Cleanup internal data structures. Must be called on the main
   // thread by the owning object before that object disposes of this object.
@@ -355,11 +338,11 @@ public:
 
   // Returns the current size of the framebuffer used in
   // MozAudioAvailable events.
-  uint32_t GetFrameBufferLength() { return mFrameBufferLength; }
+  PRUint32 GetFrameBufferLength() { return mFrameBufferLength; }
 
   // Sets the length of the framebuffer used in MozAudioAvailable events.
   // The new size must be between 512 and 16384.
-  virtual nsresult RequestFrameBufferLength(uint32_t aLength);
+  virtual nsresult RequestFrameBufferLength(PRUint32 aLength);
 
   // Moves any existing channel loads into the background, so that they don't
   // block the load event. This is called when we stop delaying the load
@@ -378,11 +361,11 @@ public:
 
   // Returns the size, in bytes, of the heap memory used by the currently
   // queued decoded video and audio data.
-  virtual int64_t VideoQueueMemoryInUse() = 0;
-  virtual int64_t AudioQueueMemoryInUse() = 0;
+  virtual PRInt64 VideoQueueMemoryInUse() = 0;
+  virtual PRInt64 AudioQueueMemoryInUse() = 0;
 
   VideoFrameContainer* GetVideoFrameContainer() { return mVideoFrameContainer; }
-  virtual mozilla::layers::ImageContainer* GetImageContainer()
+  mozilla::layers::ImageContainer* GetImageContainer()
   {
     return mVideoFrameContainer ? mVideoFrameContainer->GetImageContainer() : nullptr;
   }
@@ -426,7 +409,7 @@ protected:
   TimeStamp mDataTime;
 
   // The framebuffer size to use for audioavailable events.
-  uint32_t mFrameBufferLength;
+  PRUint32 mFrameBufferLength;
 
   // True when our media stream has been pinned. We pin the stream
   // while seeking.
@@ -477,18 +460,18 @@ public:
     }
   }
 
-  static int64_t GetDecodedVideoMemory() {
+  static PRInt64 GetDecodedVideoMemory() {
     DecodersArray& decoders = Decoders();
-    int64_t result = 0;
+    PRInt64 result = 0;
     for (size_t i = 0; i < decoders.Length(); ++i) {
       result += decoders[i]->VideoQueueMemoryInUse();
     }
     return result;
   }
 
-  static int64_t GetDecodedAudioMemory() {
+  static PRInt64 GetDecodedAudioMemory() {
     DecodersArray& decoders = Decoders();
-    int64_t result = 0;
+    PRInt64 result = 0;
     for (size_t i = 0; i < decoders.Length(); ++i) {
       result += decoders[i]->AudioQueueMemoryInUse();
     }

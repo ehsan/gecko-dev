@@ -75,7 +75,7 @@ public:
       gFeaturesAlreadyReported = new nsTArray<nsCString>;
     }
 
-    nsAutoCString featureString;
+    nsCAutoString featureString;
     featureString.AppendPrintf("%s%c ",
                                mFeature,
                                mStatusChar);

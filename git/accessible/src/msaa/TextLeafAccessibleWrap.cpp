@@ -137,9 +137,9 @@ __try {
   if (IsDefunct())
     return E_FAIL;
 
-  if (FAILED(GetCharacterExtents(aStartIndex, aEndIndex,
-                                 aX, aY, aWidth, aHeight))) {
-    return E_FAIL;
+  if (NS_FAILED(GetCharacterExtents(aStartIndex, aEndIndex, 
+                                    aX, aY, aWidth, aHeight))) {
+    return NS_ERROR_FAILURE;
   }
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
@@ -173,12 +173,12 @@ __try {
 
 nsIFrame*
 TextLeafAccessibleWrap::GetPointFromOffset(nsIFrame* aContainingFrame, 
-                                           int32_t aOffset, 
+                                           PRInt32 aOffset, 
                                            bool aPreferNext, 
                                            nsPoint& aOutPoint)
 {
   nsIFrame *textFrame = nullptr;
-  int32_t outOffset;
+  PRInt32 outOffset;
   aContainingFrame->GetChildFrameContainingOffset(aOffset, aPreferNext, &outOffset, &textFrame);
   if (!textFrame) {
     return nullptr;
@@ -191,24 +191,23 @@ TextLeafAccessibleWrap::GetPointFromOffset(nsIFrame* aContainingFrame,
 /*
  * Given an offset, the x, y, width, and height values are filled appropriately.
  */
-HRESULT
-TextLeafAccessibleWrap::GetCharacterExtents(int32_t aStartOffset,
-                                            int32_t aEndOffset,
-                                            int32_t* aX,
-                                            int32_t* aY,
-                                            int32_t* aWidth,
-                                            int32_t* aHeight)
+nsresult
+TextLeafAccessibleWrap::GetCharacterExtents(PRInt32 aStartOffset,
+                                            PRInt32 aEndOffset,
+                                            PRInt32* aX,
+                                            PRInt32* aY,
+                                            PRInt32* aWidth,
+                                            PRInt32* aHeight)
 {
-  if (!aX || !aY || !aWidth || !aHeight)
-    return E_INVALIDARG;
-
   *aX = *aY = *aWidth = *aHeight = 0;
 
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
+  nsPresContext* presContext = mDoc->PresContext();
+
   nsIFrame *frame = GetFrame();
-  NS_ENSURE_TRUE(frame, E_FAIL);
+  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
 
   nsPoint startPoint, endPoint;
   nsIFrame *startFrame = GetPointFromOffset(frame, aStartOffset, true, startPoint);
@@ -216,26 +215,26 @@ TextLeafAccessibleWrap::GetCharacterExtents(int32_t aStartOffset,
   if (!startFrame || !endFrame) {
     return E_FAIL;
   }
-
-  nsRect sum;
+  
+  nsIntRect sum(0, 0, 0, 0);
   nsIFrame *iter = startFrame;
   nsIFrame *stopLoopFrame = endFrame->GetNextContinuation();
   for (; iter != stopLoopFrame; iter = iter->GetNextContinuation()) {
-    nsRect rect = iter->GetScreenRectInAppUnits();
-    nscoord start = (iter == startFrame) ? startPoint.x : 0;
-    nscoord end = (iter == endFrame) ? endPoint.x : rect.width;
+    nsIntRect rect = iter->GetScreenRectExternal();
+    nscoord start = (iter == startFrame) ? presContext->AppUnitsToDevPixels(startPoint.x) : 0;
+    nscoord end = (iter == endFrame) ? presContext->AppUnitsToDevPixels(endPoint.x) :
+                                       rect.width;
     rect.x += start;
     rect.width = end - start;
     sum.UnionRect(sum, rect);
   }
 
-  nsPresContext* presContext = mDoc->PresContext();
-  *aX = presContext->AppUnitsToDevPixels(sum.x);
-  *aY = presContext->AppUnitsToDevPixels(sum.y);
-  *aWidth = presContext->AppUnitsToDevPixels(sum.width);
-  *aHeight = presContext->AppUnitsToDevPixels(sum.height);
+  *aX      = sum.x;
+  *aY      = sum.y;
+  *aWidth  = sum.width;
+  *aHeight = sum.height;
 
-  return S_OK;
+  return NS_OK;
 }
 
 STDMETHODIMP

@@ -38,16 +38,20 @@ class nsPluginNativeWindow;
 class nsObjectLoadingContent;
 class nsPluginInstanceOwner;
 
+#if defined(XP_MACOSX) && !defined(NP_NO_CARBON)
+#define MAC_CARBON_PLUGINS
+#endif
+
 class nsInvalidPluginTag : public nsISupports
 {
 public:
-  nsInvalidPluginTag(const char* aFullPath, int64_t aLastModifiedTime = 0);
+  nsInvalidPluginTag(const char* aFullPath, PRInt64 aLastModifiedTime = 0);
   virtual ~nsInvalidPluginTag();
   
   NS_DECL_ISUPPORTS
   
   nsCString   mFullPath;
-  int64_t     mLastModifiedTime;
+  PRInt64     mLastModifiedTime;
   bool        mSeen;
   
   nsRefPtr<nsInvalidPluginTag> mPrev;
@@ -78,15 +82,14 @@ public:
 
   nsresult SetUpPluginInstance(const char *aMimeType,
                                nsIURI *aURL,
-                               nsPluginInstanceOwner *aOwner);
+                               nsIPluginInstanceOwner *aOwner);
   nsresult IsPluginEnabledForType(const char* aMimeType);
   nsresult IsPluginEnabledForExtension(const char* aExtension, const char* &aMimeType);
   bool     IsPluginClickToPlayForType(const char *aMimeType);
-  bool     IsPluginPlayPreviewForType(const char *aMimeType);
-  nsresult GetBlocklistStateForType(const char *aMimeType, uint32_t *state);
+  nsresult GetBlocklistStateForType(const char *aMimeType, PRUint32 *state);
 
-  nsresult GetPluginCount(uint32_t* aPluginCount);
-  nsresult GetPlugins(uint32_t aPluginCount, nsIDOMPlugin** aPluginArray);
+  nsresult GetPluginCount(PRUint32* aPluginCount);
+  nsresult GetPlugins(PRUint32 aPluginCount, nsIDOMPlugin** aPluginArray);
 
   nsresult GetURL(nsISupports* pluginInst,
                   const char* url,
@@ -97,7 +100,7 @@ public:
                   bool forceJSEnabled);
   nsresult PostURL(nsISupports* pluginInst,
                    const char* url,
-                   uint32_t postDataLen,
+                   PRUint32 postDataLen,
                    const char* postData,
                    bool isFile,
                    const char* target,
@@ -105,13 +108,13 @@ public:
                    const char* altHost,
                    const char* referrer,
                    bool forceJSEnabled,
-                   uint32_t postHeadersLength,
+                   PRUint32 postHeadersLength,
                    const char* postHeaders);
 
   nsresult FindProxyForURL(const char* url, char* *result);
   nsresult UserAgent(const char **retstring);
-  nsresult ParsePostBufferToFixHeaders(const char *inPostData, uint32_t inPostDataLen,
-                                       char **outPostData, uint32_t *outPostDataLen);
+  nsresult ParsePostBufferToFixHeaders(const char *inPostData, PRUint32 inPostDataLen,
+                                       char **outPostData, PRUint32 *outPostDataLen);
   nsresult CreateTempFileToPost(const char *aPostDataURL, nsIFile **aTmpFile);
   nsresult NewPluginNativeWindow(nsPluginNativeWindow ** aPluginNativeWindow);
 
@@ -129,7 +132,7 @@ public:
                      nsNPAPIPluginStreamListener *aListener,
                      nsIInputStream *aPostStream = nullptr,
                      const char *aHeadersData = nullptr, 
-                     uint32_t aHeadersDataLen = 0);
+                     PRUint32 aHeadersDataLen = 0);
 
   nsresult
   GetURLWithHeaders(nsNPAPIPluginInstance *pluginInst, 
@@ -139,7 +142,7 @@ public:
                     const char* altHost = NULL,
                     const char* referrer = NULL,
                     bool forceJSEnabled = false,
-                    uint32_t getHeadersLength = 0, 
+                    PRUint32 getHeadersLength = 0, 
                     const char* getHeaders = NULL);
 
   nsresult
@@ -147,7 +150,7 @@ public:
                          const char* aURL);
 
   nsresult
-  AddHeadersToChannel(const char *aHeadersData, uint32_t aHeadersDataLen, 
+  AddHeadersToChannel(const char *aHeadersData, PRUint32 aHeadersDataLen, 
                       nsIChannel *aGenericChannel);
 
   static nsresult GetPluginTempDir(nsIFile **aDir);
@@ -174,7 +177,7 @@ public:
 
   nsNPAPIPluginInstance *FindInstance(const char *mimetype);
   nsNPAPIPluginInstance *FindOldestStoppedInstance();
-  uint32_t StoppedInstanceCount();
+  PRUint32 StoppedInstanceCount();
 
   nsTArray< nsRefPtr<nsNPAPIPluginInstance> > *InstanceArray();
 
@@ -210,7 +213,7 @@ public:
 
 private:
   nsresult
-  TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsPluginInstanceOwner *aOwner);
+  TrySetUpPluginInstance(const char *aMimeType, nsIURI *aURL, nsIPluginInstanceOwner *aOwner);
 
   nsresult
   NewEmbeddedPluginStream(nsIURI* aURL, nsObjectLoadingContent *aContent, nsNPAPIPluginInstance* aInstance);
@@ -278,7 +281,6 @@ private:
   nsRefPtr<nsPluginTag> mPlugins;
   nsRefPtr<nsPluginTag> mCachedPlugins;
   nsRefPtr<nsInvalidPluginTag> mInvalidPlugins;
-  nsTArray<nsCString> mPlayPreviewMimeTypes;
   bool mPluginsLoaded;
   bool mDontShowBadPluginMessage;
 
@@ -316,6 +318,13 @@ private:
   // We need to hold a global ptr to ourselves because we register for
   // two different CIDs for some reason...
   static nsPluginHost* sInst;
+
+#ifdef MAC_CARBON_PLUGINS
+  nsCOMPtr<nsITimer> mVisiblePluginTimer;
+  nsTObserverArray<nsIPluginInstanceOwner*> mVisibleTimerTargets;
+  nsCOMPtr<nsITimer> mHiddenPluginTimer;
+  nsTObserverArray<nsIPluginInstanceOwner*> mHiddenTimerTargets;
+#endif
 };
 
 class NS_STACK_CLASS PluginDestructionGuard : protected PRCList

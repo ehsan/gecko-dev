@@ -16,7 +16,7 @@
 nsresult
 gfxGdkNativeRenderer::DrawWithXlib(gfxXlibSurface* surface,
                                    nsIntPoint offset,
-                                   nsIntRect* clipRects, uint32_t numClipRects)
+                                   nsIntRect* clipRects, PRUint32 numClipRects)
 {
     GdkDrawable *drawable = gfxPlatformGtk::GetGdkDrawable(surface);
     if (!drawable) {
@@ -49,7 +49,7 @@ gfxGdkNativeRenderer::DrawWithXlib(gfxXlibSurface* surface,
 
 void
 gfxGdkNativeRenderer::Draw(gfxContext* ctx, nsIntSize size,
-                           uint32_t flags, GdkColormap* colormap)
+                           PRUint32 flags, GdkColormap* colormap)
 {
     mColormap = colormap;
 

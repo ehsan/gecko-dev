@@ -59,7 +59,7 @@ if [ ! "$LIBXUL_SDK" ]; then
     mozglue/Makefile
     mozglue/build/Makefile
   "
-  if [ "$MOZ_JEMALLOC" -a -z "$MOZ_NATIVE_JEMALLOC" ]; then
+  if [ "$MOZ_JEMALLOC" ]; then
     add_makefiles "
       memory/jemalloc/Makefile
     "
@@ -105,6 +105,12 @@ if [ "$OS_ARCH" != "WINNT" -a "$OS_ARCH" != "OS2" ]; then
       build/unix/elfhack/Makefile
     "
   fi
+fi
+
+if [ "$COMPILER_DEPEND" = "" -a "$MOZ_NATIVE_MAKEDEPEND" = "" ]; then
+  add_makefiles "
+    config/mkdepend/Makefile
+  "
 fi
 
 if [ "$ENABLE_MARIONETTE" ]; then

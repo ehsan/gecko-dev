@@ -60,34 +60,34 @@ class nsHtml5Portability;
 class nsHtml5StackNode
 {
   public:
-    int32_t flags;
+    PRInt32 flags;
     nsIAtom* name;
     nsIAtom* popName;
-    int32_t ns;
+    PRInt32 ns;
     nsIContent** node;
     nsHtml5HtmlAttributes* attributes;
   private:
-    int32_t refcount;
+    PRInt32 refcount;
   public:
-    inline int32_t getFlags()
+    inline PRInt32 getFlags()
     {
       return flags;
     }
 
-    int32_t getGroup();
+    PRInt32 getGroup();
     bool isScoping();
     bool isSpecial();
     bool isFosterParenting();
     bool isHtmlIntegrationPoint();
-    nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsIContent** node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes);
+    nsHtml5StackNode(PRInt32 flags, PRInt32 ns, nsIAtom* name, nsIContent** node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes);
     nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node);
     nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsHtml5HtmlAttributes* attributes);
     nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName);
     nsHtml5StackNode(nsHtml5ElementName* elementName, nsIAtom* popName, nsIContent** node);
     nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName, bool markAsIntegrationPoint);
   private:
-    static int32_t prepareSvgFlags(int32_t flags);
-    static int32_t prepareMathFlags(int32_t flags, bool markAsIntegrationPoint);
+    static PRInt32 prepareSvgFlags(PRInt32 flags);
+    static PRInt32 prepareMathFlags(PRInt32 flags, bool markAsIntegrationPoint);
   public:
     ~nsHtml5StackNode();
     void dropAttributes();

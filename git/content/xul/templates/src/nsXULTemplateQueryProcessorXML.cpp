@@ -40,7 +40,7 @@ nsXULTemplateResultSetXML::HasMoreElements(bool *aResult)
 {
     // if GetSnapshotLength failed, then the return type was not a set of
     // nodes, so just return false in this case.
-    uint32_t length;
+    PRUint32 length;
     if (NS_SUCCEEDED(mResults->GetSnapshotLength(&length)))
         *aResult = (mPosition < length);
     else
@@ -131,7 +131,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
     *aShouldDelayBuilding = false;
 
     nsresult rv;
-    uint32_t length;
+    PRUint32 length;
 
     aDataSources->GetLength(&length);
     if (length == 0)
@@ -149,7 +149,7 @@ nsXULTemplateQueryProcessorXML::GetDatasource(nsIArray* aDataSources,
     if (!uri)
         return NS_ERROR_UNEXPECTED;
 
-    nsAutoCString uriStr;
+    nsCAutoString uriStr;
     rv = uri->GetSpec(uriStr);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -411,8 +411,8 @@ NS_IMETHODIMP
 nsXULTemplateQueryProcessorXML::CompareResults(nsIXULTemplateResult* aLeft,
                                                nsIXULTemplateResult* aRight,
                                                nsIAtom* aVar,
-                                               uint32_t aSortHints,
-                                               int32_t* aResult)
+                                               PRUint32 aSortHints,
+                                               PRInt32* aResult)
 {
     *aResult = 0;
     if (!aVar)

@@ -27,8 +27,6 @@ class nsSVGViewElement : public nsSVGViewElementBase,
                          public nsIDOMSVGZoomAndPan
 {
   friend class mozilla::SVGFragmentIdentifier;
-  friend class nsSVGSVGElement;
-  friend class nsSVGOuterSVGFrame;
   friend nsresult NS_NewSVGViewElement(nsIContent **aResult,
                                        already_AddRefed<nsINodeInfo> aNodeInfo);
   nsSVGViewElement(already_AddRefed<nsINodeInfo> aNodeInfo);
@@ -43,7 +41,7 @@ public:
 
   // xxx If xpcom allowed virtual inheritance we wouldn't need to
   // forward here :-(
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsSVGViewElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGViewElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGViewElementBase::)
 

@@ -7,7 +7,6 @@
  */
 #include "SkBitmapProcShader.h"
 #include "SkColorPriv.h"
-#include "SkFlattenableBuffers.h"
 #include "SkPixelRef.h"
 
 bool SkBitmapProcShader::CanDo(const SkBitmap& bm, TileMode tx, TileMode ty) {
@@ -34,9 +33,9 @@ SkBitmapProcShader::SkBitmapProcShader(const SkBitmap& src,
 
 SkBitmapProcShader::SkBitmapProcShader(SkFlattenableReadBuffer& buffer)
         : INHERITED(buffer) {
-    buffer.readBitmap(&fRawBitmap);
-    fState.fTileModeX = buffer.readUInt();
-    fState.fTileModeY = buffer.readUInt();
+    fRawBitmap.unflatten(buffer);
+    fState.fTileModeX = buffer.readU8();
+    fState.fTileModeY = buffer.readU8();
     fFlags = 0; // computed in setContext
 }
 
@@ -54,7 +53,8 @@ void SkBitmapProcShader::endSession() {
 
 SkShader::BitmapType SkBitmapProcShader::asABitmap(SkBitmap* texture,
                                                    SkMatrix* texM,
-                                                   TileMode xy[]) const {
+                                                   TileMode xy[],
+                                       SkScalar* twoPointRadialParams) const {
     if (texture) {
         *texture = fRawBitmap;
     }
@@ -71,9 +71,9 @@ SkShader::BitmapType SkBitmapProcShader::asABitmap(SkBitmap* texture,
 void SkBitmapProcShader::flatten(SkFlattenableWriteBuffer& buffer) const {
     this->INHERITED::flatten(buffer);
 
-    buffer.writeBitmap(fRawBitmap);
-    buffer.writeUInt(fState.fTileModeX);
-    buffer.writeUInt(fState.fTileModeY);
+    fRawBitmap.flatten(buffer);
+    buffer.write8(fState.fTileModeX);
+    buffer.write8(fState.fTileModeY);
 }
 
 static bool only_scale_and_translate(const SkMatrix& matrix) {

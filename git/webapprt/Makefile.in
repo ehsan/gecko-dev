@@ -39,7 +39,6 @@ EXTRA_PP_COMPONENTS = \
   $(NULL)
 
 EXTRA_JS_MODULES = \
-  Startup.jsm \
   WebappRT.jsm \
   WebappsHandler.jsm \
   $(NULL)

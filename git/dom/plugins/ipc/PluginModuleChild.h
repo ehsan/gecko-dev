@@ -40,7 +40,11 @@
  * itself), to ensure that the function has the
  * right calling conventions on OS/2.
  */
-#define NP_CALLBACK NP_LOADDS
+#ifdef XP_OS2
+#define NP_CALLBACK _System
+#else
+#define NP_CALLBACK
+#endif
 
 #if defined(XP_WIN)
 #define NS_NPAPIPLUGIN_CALLBACK(_type, _name) _type (__stdcall * _name)
@@ -144,13 +148,13 @@ protected:
 
     virtual PCrashReporterChild*
     AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
-                        uint32_t* processType);
+                        PRUint32* processType);
     virtual bool
     DeallocPCrashReporter(PCrashReporterChild* actor);
     virtual bool
     AnswerPCrashReporterConstructor(PCrashReporterChild* actor,
                                     mozilla::dom::NativeThreadId* id,
-                                    uint32_t* processType);
+                                    PRUint32* processType);
 
     virtual void
     ActorDestroy(ActorDestroyReason why);
@@ -320,7 +324,7 @@ private:
 
     // we get this from the plugin
     NP_PLUGINSHUTDOWN mShutdownFunc;
-#if defined(OS_LINUX) || defined(OS_BSD)
+#ifdef OS_LINUX
     NP_PLUGINUNIXINIT mInitializeFunc;
 #elif defined(OS_WIN) || defined(OS_MACOSX)
     NP_PLUGININIT mInitializeFunc;

@@ -30,7 +30,7 @@ class nsTreeUtils
     UpdateSortIndicators(nsIContent* aColumn, const nsAString& aDirection);
 
     static nsresult
-    GetColumnIndex(nsIContent* aColumn, int32_t* aResult);
+    GetColumnIndex(nsIContent* aColumn, PRInt32* aResult);
 };
 
 #endif // nsTreeUtils_h__

@@ -12,7 +12,7 @@ SimpleTest.waitForExplicitFinish();
 
 function runTest() {
   browserElementTestHelpers.setEnabledPref(true);
-  browserElementTestHelpers.addPermission();
+  browserElementTestHelpers.addToWhitelist();
 
   var iframe = document.createElement('iframe');
   iframe.mozbrowser = true;

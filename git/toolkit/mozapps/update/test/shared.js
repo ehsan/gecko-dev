@@ -12,7 +12,7 @@ const AUS_Cr = Components.results;
 const AUS_Cu = Components.utils;
 
 const PREF_APP_UPDATE_AUTO                = "app.update.auto";
-const PREF_APP_UPDATE_STAGE_ENABLED       = "app.update.staging.enabled";
+const PREF_APP_UPDATE_STAGE_ENABLED       = "app.update.stage.enabled";
 const PREF_APP_UPDATE_BACKGROUNDERRORS    = "app.update.backgroundErrors";
 const PREF_APP_UPDATE_BACKGROUNDMAXERRORS = "app.update.backgroundMaxErrors";
 const PREF_APP_UPDATE_CERTS_BRANCH        = "app.update.certs.";
@@ -79,8 +79,6 @@ const PERMS_DIRECTORY = 0755;
 
 const DEFAULT_UPDATE_VERSION = "999999.0";
 
-var gChannel;
-
 #include sharedUpdateXML.js
 
 AUS_Cu.import("resource://gre/modules/Services.jsm");
@@ -93,8 +91,7 @@ XPCOMUtils.defineLazyGetter(this, "gAUS", function test_gAUS() {
   return AUS_Cc["@mozilla.org/updates/update-service;1"].
          getService(AUS_Ci.nsIApplicationUpdateService).
          QueryInterface(AUS_Ci.nsITimerCallback).
-         QueryInterface(AUS_Ci.nsIObserver).
-         QueryInterface(AUS_Ci.nsIUpdateCheckListener);
+         QueryInterface(AUS_Ci.nsIObserver);
 });
 
 XPCOMUtils.defineLazyServiceGetter(this, "gUpdateManager",
@@ -113,10 +110,6 @@ XPCOMUtils.defineLazyGetter(this, "gUP", function test_gUP() {
 
 XPCOMUtils.defineLazyGetter(this, "gDefaultPrefBranch", function test_gDPB() {
   return Services.prefs.getDefaultBranch(null);
-});
-
-XPCOMUtils.defineLazyGetter(this, "gPrefRoot", function test_gPR() {
-  return Services.prefs.getBranch(null);
 });
 
 XPCOMUtils.defineLazyGetter(this, "gZipW", function test_gZipW() {
@@ -140,27 +133,13 @@ function reloadUpdateManagerData() {
  * Sets the app.update.channel preference.
  *
  * @param  aChannel
- *         The update channel.
+ *         The update channel. If not specified 'test_channel' will be used.
  */
 function setUpdateChannel(aChannel) {
-  gChannel = aChannel;
-  debugDump("setting default pref " + PREF_APP_UPDATE_CHANNEL + " to " + gChannel);
-  gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_CHANNEL, gChannel);
-  gPrefRoot.addObserver(PREF_APP_UPDATE_CHANNEL, observer, false);
+  let channel = aChannel ? aChannel : "test_channel";
+  debugDump("setting default pref " + PREF_APP_UPDATE_CHANNEL + " to " + channel);
+  gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_CHANNEL, channel);
 }
-
-var observer = {
-  observe: function(aSubject, aTopic, aData) {
-    if (aTopic == "nsPref:changed" && aData == PREF_APP_UPDATE_CHANNEL) {
-      var channel = gDefaultPrefBranch.getCharPref(PREF_APP_UPDATE_CHANNEL);
-      if (channel != gChannel) {
-        debugDump("Changing channel from " + channel + " to " + gChannel);
-        gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_CHANNEL, gChannel);
-      }
-    }
-  },
-  QueryInterface: XPCOMUtils.generateQI([AUS_Ci.nsIObserver])
-};
 
 /**
  * Sets the app.update.url.override preference.

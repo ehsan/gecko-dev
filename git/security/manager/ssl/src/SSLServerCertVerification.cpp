@@ -108,7 +108,6 @@
 #include "nsXPCOMCIDInternal.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIConsoleService.h"
 #include "PSMRunnable.h"
 
 #include "ssl.h"
@@ -127,7 +126,7 @@ namespace {
 NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
 NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
-NSSCleanupAutoPtrClass_WithParam(PLArenaPool, PORT_FreeArena, FalseParam, false)
+NSSCleanupAutoPtrClass_WithParam(PRArenaPool, PORT_FreeArena, FalseParam, false)
 
 // do not use a nsCOMPtr to avoid static initializer/destructor
 nsIThreadPool * gCertVerificationThreadPool = nullptr;
@@ -182,27 +181,6 @@ void StopSSLServerCertVerificationThreads()
 
 namespace {
 
-void
-LogInvalidCertError(TransportSecurityInfo *socketInfo, 
-                    const nsACString &host, 
-                    const nsACString &hostWithPort,
-                    int32_t port,
-                    PRErrorCode errorCode,
-                    ::mozilla::psm::SSLErrorMessageType errorMessageType,
-                    nsIX509Cert* ix509)
-{
-  nsString message;
-  socketInfo->GetErrorLogMessage(errorCode, errorMessageType, message);
-  
-  if (!message.IsEmpty()) {
-    nsCOMPtr<nsIConsoleService> console;
-    console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    if (console) {
-      console->LogStringMessage(message.get());
-    }
-  }
-}
-
 // Dispatched to the STS thread to notify the infoObject of the verification
 // result.
 //
@@ -221,7 +199,7 @@ public:
 
   void Dispatch();
 private:
-  const RefPtr<TransportSecurityInfo> mInfoObject;
+  const nsRefPtr<TransportSecurityInfo> mInfoObject;
 public:
   const PRErrorCode mErrorCode;
   const SSLErrorMessageType mErrorMessageType;
@@ -234,7 +212,7 @@ class CertErrorRunnable : public SyncRunnableBase
                     nsIX509Cert * cert,
                     TransportSecurityInfo * infoObject,
                     PRErrorCode defaultErrorCodeToReport,
-                    uint32_t collectedErrors,
+                    PRUint32 collectedErrors,
                     PRErrorCode errorCodeTrust,
                     PRErrorCode errorCodeMismatch,
                     PRErrorCode errorCodeExpired)
@@ -248,15 +226,15 @@ class CertErrorRunnable : public SyncRunnableBase
   }
 
   virtual void RunOnTargetThread();
-  RefPtr<SSLServerCertVerificationResult> mResult; // out
+  nsRefPtr<SSLServerCertVerificationResult> mResult; // out
 private:
-  SSLServerCertVerificationResult *CheckCertOverrides();
+  SSLServerCertVerificationResult* CheckCertOverrides();
   
   const void * const mFdForLogging; // may become an invalid pointer; do not dereference
   const nsCOMPtr<nsIX509Cert> mCert;
-  const RefPtr<TransportSecurityInfo> mInfoObject;
+  const nsRefPtr<TransportSecurityInfo> mInfoObject;
   const PRErrorCode mDefaultErrorCodeToReport;
-  const uint32_t mCollectedErrors;
+  const PRUint32 mCollectedErrors;
   const PRErrorCode mErrorCodeTrust;
   const PRErrorCode mErrorCodeMismatch;
   const PRErrorCode mErrorCodeExpired;
@@ -274,7 +252,7 @@ CertErrorRunnable::CheckCertOverrides()
                                                mDefaultErrorCodeToReport);
   }
 
-  int32_t port;
+  PRInt32 port;
   mInfoObject->GetPort(&port);
 
   nsCString hostWithPortString;
@@ -282,7 +260,7 @@ CertErrorRunnable::CheckCertOverrides()
   hostWithPortString.AppendLiteral(":");
   hostWithPortString.AppendInt(port);
 
-  uint32_t remaining_display_errors = mCollectedErrors;
+  PRUint32 remaining_display_errors = mCollectedErrors;
 
   nsresult nsrv;
 
@@ -306,7 +284,7 @@ CertErrorRunnable::CheckCertOverrides()
       do_GetService(NS_CERTOVERRIDE_CONTRACTID);
     // it is fine to continue without the nsICertOverrideService
 
-    uint32_t overrideBits = 0;
+    PRUint32 overrideBits = 0;
 
     if (overrideService)
     {
@@ -321,7 +299,7 @@ CertErrorRunnable::CheckCertOverrides()
       if (NS_SUCCEEDED(nsrv) && haveOverride) 
       {
        // remove the errors that are already overriden
-        remaining_display_errors &= ~overrideBits;
+        remaining_display_errors -= overrideBits;
       }
     }
 
@@ -377,21 +355,9 @@ CertErrorRunnable::CheckCertOverrides()
                                 : mErrorCodeMismatch ? mErrorCodeMismatch
                                 : mErrorCodeExpired  ? mErrorCodeExpired
                                 : mDefaultErrorCodeToReport;
-                                
-  SSLServerCertVerificationResult *result = 
-    new SSLServerCertVerificationResult(mInfoObject, 
-                                        errorCodeToReport,
-                                        OverridableCertErrorMessage);
 
-  LogInvalidCertError(mInfoObject,
-                      nsDependentCString(mInfoObject->GetHostName()),
-                      hostWithPortString,
-                      port,
-                      result->mErrorCode,
-                      result->mErrorMessageType,
-                      mCert);
-
-  return result;
+  return new SSLServerCertVerificationResult(mInfoObject, errorCodeToReport,
+                                             OverridableCertErrorMessage);
 }
 
 void 
@@ -427,7 +393,8 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
     return nullptr;
   }
 
-  RefPtr<nsNSSCertificate> nssCert(nsNSSCertificate::Create(cert));
+  nsRefPtr<nsNSSCertificate> nssCert;
+  nssCert = nsNSSCertificate::Create(cert);
   if (!nssCert) {
     NS_ERROR("nsNSSCertificate::Create failed");
     PR_SetError(SEC_ERROR_NO_MEMORY, 0);
@@ -444,7 +411,7 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
     return nullptr;
   }
 
-  RefPtr<nsCERTValInParamWrapper> survivingParams;
+  nsRefPtr<nsCERTValInParamWrapper> survivingParams;
   nsrv = inss->GetDefaultCERTValInParam(survivingParams);
   if (NS_FAILED(nsrv)) {
     NS_ERROR("GetDefaultCERTValInParam failed");
@@ -452,8 +419,8 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
     return nullptr;
   }
   
-  PLArenaPool *log_arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-  PLArenaPoolCleanerFalseParam log_arena_cleaner(log_arena);
+  PRArenaPool *log_arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+  PRArenaPoolCleanerFalseParam log_arena_cleaner(log_arena);
   if (!log_arena) {
     NS_ERROR("PORT_NewArena failed");
     return nullptr; // PORT_NewArena set error code
@@ -471,7 +438,7 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
     srv = CERT_VerifyCertificate(CERT_GetDefaultCertDB(), cert,
                                 true, certificateUsageSSLServer,
                                 PR_Now(), static_cast<void*>(infoObject),
-                                verify_log, nullptr);
+                                verify_log, NULL);
   }
   else {
     CERTValOutParam cvout[2];
@@ -494,7 +461,7 @@ CreateCertErrorRunnable(PRErrorCode defaultErrorCodeToReport,
   PRErrorCode errorCodeTrust = 0;
   PRErrorCode errorCodeExpired = 0;
 
-  uint32_t collected_errors = 0;
+  PRUint32 collected_errors = 0;
 
   if (infoObject->IsCertIssuerBlacklisted()) {
     collected_errors |= nsICertOverrideService::ERROR_UNTRUSTED;
@@ -590,7 +557,7 @@ private:
     }
     return rv;
   }
-  RefPtr<CertErrorRunnable> mCertErrorRunnable;
+  nsRefPtr<CertErrorRunnable> mCertErrorRunnable;
 };
 
 class SSLServerCertVerificationJob : public nsRunnable
@@ -610,7 +577,7 @@ private:
   ~SSLServerCertVerificationJob();
 
   const void * const mFdForLogging;
-  const RefPtr<TransportSecurityInfo> mInfoObject;
+  const nsRefPtr<TransportSecurityInfo> mInfoObject;
   CERTCertificate * const mCert;
 };
 
@@ -643,7 +610,7 @@ PSM_SSL_PKIX_AuthCertificate(CERTCertificate *peerCert, void * pinarg,
         nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
         if (!inss)
           return SECFailure;
-        RefPtr<nsCERTValInParamWrapper> survivingParams;
+        nsRefPtr<nsCERTValInParamWrapper> survivingParams;
         if (NS_FAILED(inss->GetDefaultCERTValInParam(survivingParams)))
           return SECFailure;
 
@@ -776,7 +743,7 @@ BlockServerCertChangeForSpdy(nsNSSSocketInfo *infoObject,
   nsCOMPtr<nsIX509Cert> cert;
   nsCOMPtr<nsIX509Cert2> cert2;
 
-  RefPtr<nsSSLStatus> status(infoObject->SSLStatus());
+  nsRefPtr<nsSSLStatus> status = infoObject->SSLStatus();
   if (!status) {
     // If we didn't have a status, then this is the
     // first handshake on this connection, not a
@@ -794,7 +761,7 @@ BlockServerCertChangeForSpdy(nsNSSSocketInfo *infoObject,
   }
 
   // Filter out sockets that did not neogtiate SPDY via NPN
-  nsAutoCString negotiatedNPN;
+  nsCAutoString negotiatedNPN;
   nsresult rv = infoObject->GetNegotiatedNPN(negotiatedNPN);
   NS_ASSERTION(NS_SUCCEEDED(rv),
                "GetNegotiatedNPN() failed during renegotiation");
@@ -872,8 +839,8 @@ AuthCertificate(TransportSecurityInfo * infoObject, CERTCertificate * cert)
   // complete chain at any time it might need it.
   // But we keep only those CA certs in the temp db, that we didn't already know.
 
-  RefPtr<nsSSLStatus> status(infoObject->SSLStatus());
-  RefPtr<nsNSSCertificate> nsc;
+  nsRefPtr<nsSSLStatus> status = infoObject->SSLStatus();
+  nsRefPtr<nsNSSCertificate> nsc;
 
   if (!status || !status->mServerCert) {
     nsc = nsNSSCertificate::Create(cert);
@@ -991,8 +958,8 @@ SSLServerCertVerificationJob::Dispatch(const void * fdForLogging,
     return SECFailure;
   }
   
-  RefPtr<SSLServerCertVerificationJob> job(
-    new SSLServerCertVerificationJob(fdForLogging, infoObject, serverCert));
+  nsRefPtr<SSLServerCertVerificationJob> job
+    = new SSLServerCertVerificationJob(fdForLogging, infoObject, serverCert);
 
   nsresult nrv;
   if (!gCertVerificationThreadPool) {
@@ -1038,16 +1005,16 @@ SSLServerCertVerificationJob::Run()
     PR_SetError(0, 0); 
     SECStatus rv = AuthCertificate(mInfoObject, mCert);
     if (rv == SECSuccess) {
-      RefPtr<SSLServerCertVerificationResult> restart(
-        new SSLServerCertVerificationResult(mInfoObject, 0));
+      nsRefPtr<SSLServerCertVerificationResult> restart 
+        = new SSLServerCertVerificationResult(mInfoObject, 0);
       restart->Dispatch();
       return NS_OK;
     }
 
     error = PR_GetError();
     if (error != 0) {
-      RefPtr<CertErrorRunnable> runnable(CreateCertErrorRunnable(
-        error, mInfoObject, mCert, mFdForLogging));
+      nsRefPtr<CertErrorRunnable> runnable = CreateCertErrorRunnable(
+              error, mInfoObject, mCert, mFdForLogging);
       if (!runnable) {
         // CreateCertErrorRunnable set a new error code
         error = PR_GetError(); 
@@ -1083,8 +1050,8 @@ SSLServerCertVerificationJob::Run()
     error = PR_INVALID_STATE_ERROR;
   }
 
-  RefPtr<SSLServerCertVerificationResult> failure(
-    new SSLServerCertVerificationResult(mInfoObject, error));
+  nsRefPtr<SSLServerCertVerificationResult> failure
+    = new SSLServerCertVerificationResult(mInfoObject, error);
   failure->Dispatch();
   return NS_OK;
 }
@@ -1164,9 +1131,9 @@ AuthCertificateHook(void *arg, PRFileDesc *fd, PRBool checkSig, PRBool isServer)
 
   PRErrorCode error = PR_GetError();
   if (error != 0) {
-    RefPtr<CertErrorRunnable> runnable(CreateCertErrorRunnable(
+    nsRefPtr<CertErrorRunnable> runnable = CreateCertErrorRunnable(
                     error, socketInfo, serverCert,
-                    static_cast<const void *>(fd)));
+                    static_cast<const void *>(fd));
     if (!runnable) {
       // CreateCertErrorRunnable sets a new error code when it fails
       error = PR_GetError();

@@ -21,7 +21,7 @@ BEGIN_TEST(testGCOutOfMemory)
 {
     JS_SetErrorReporter(cx, ErrorCounter);
 
-    js::RootedValue root(cx);
+    JS::RootedValue root(cx);
 
     static const char source[] =
         "var max = 0; (function() {"
@@ -50,7 +50,7 @@ BEGIN_TEST(testGCOutOfMemory)
 }
 
 virtual JSRuntime * createRuntime() {
-    return JS_NewRuntime(512 * 1024, JS_USE_HELPER_THREADS);
+    return JS_NewRuntime(512 * 1024);
 }
 
 virtual void destroyRuntime() {

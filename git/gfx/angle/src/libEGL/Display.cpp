@@ -196,12 +196,6 @@ bool Display::initialize()
 
         mD3d9->GetAdapterIdentifier(mAdapter, 0, &mAdapterIdentifier);
 
-        // ATI cards on XP have problems with non-power-of-two textures.
-        mSupportsNonPower2Textures = !(mDeviceCaps.TextureCaps & D3DPTEXTURECAPS_POW2) &&
-           !(mDeviceCaps.TextureCaps & D3DPTEXTURECAPS_CUBEMAP_POW2) &&
-           !(mDeviceCaps.TextureCaps & D3DPTEXTURECAPS_NONPOW2CONDITIONAL) &&
-           !(getComparableOSVersion() < versionWindowsVista && mAdapterIdentifier.VendorId == VENDOR_ID_AMD);
-
         const D3DFORMAT renderTargetFormats[] =
         {
             D3DFMT_A1R5G5B5,
@@ -1260,7 +1254,9 @@ bool Display::getVertexTextureSupport() const
 
 bool Display::getNonPower2TextureSupport() const
 {
-    return mSupportsNonPower2Textures;
+    return !(mDeviceCaps.TextureCaps & D3DPTEXTURECAPS_POW2) &&
+           !(mDeviceCaps.TextureCaps & D3DPTEXTURECAPS_CUBEMAP_POW2) &&
+           !(mDeviceCaps.TextureCaps & D3DPTEXTURECAPS_NONPOW2CONDITIONAL);
 }
 
 bool Display::getOcclusionQuerySupport() const

@@ -45,14 +45,8 @@
 #include "gfxDrawable.h"
 #include "sampler.h"
 #include "nsCSSRenderingBorders.h"
-#include "mozilla/css/ImageLoader.h"
-#include "ImageContainer.h"
-#include "mozilla/HashFunctions.h"
-#include "mozilla/Telemetry.h"
-#include <ctime>
 
 using namespace mozilla;
-using namespace mozilla::css;
 
 // To avoid storing this data on nsInlineFrame (bloat) and to avoid
 // recalculating this for each frame in a continuation (perf), hold
@@ -274,160 +268,6 @@ protected:
   }
 };
 
-struct GradientCacheKey : public PLDHashEntryHdr {
-  typedef const GradientCacheKey& KeyType;
-  typedef const GradientCacheKey* KeyTypePointer;
-  enum { ALLOW_MEMMOVE = true };
-  const nsRefPtr<nsStyleGradient> mGradient;
-  const gfxSize mGradientSize;
-  enum { SINGLE_CELL = 0x01 };
-  const uint32_t mFlags;
-
-  GradientCacheKey(nsStyleGradient* aGradient, const gfxSize& aGradientSize,
-                   uint32_t aFlags)
-    : mGradient(aGradient), mGradientSize(aGradientSize), mFlags(aFlags)
-  { }
-
-  GradientCacheKey(const GradientCacheKey* aOther)
-    : mGradient(aOther->mGradient), mGradientSize(aOther->mGradientSize),
-      mFlags(aOther->mFlags)
-  { }
-
-  static PLDHashNumber
-  HashKey(const KeyTypePointer aKey)
-  {
-    PLDHashNumber hash = 0;
-    hash = AddToHash(hash, aKey->mGradientSize.width);
-    hash = AddToHash(hash, aKey->mGradientSize.height);
-    hash = AddToHash(hash, aKey->mFlags);
-    hash = aKey->mGradient->Hash(hash);
-    return hash;
-  }
-
-  bool KeyEquals(KeyTypePointer aKey) const
-  {
-    return (*aKey->mGradient == *mGradient) &&
-           (aKey->mGradientSize == mGradientSize) &&
-           (aKey->mFlags == mFlags);
-  }
-  static KeyTypePointer KeyToPointer(KeyType aKey)
-  {
-    return &aKey;
-  }
-};
-
-/**
- * This class is what is cached. It need to be allocated in an object separated
- * to the cache entry to be able to be tracked by the nsExpirationTracker.
- * */
-struct GradientCacheData {
-  GradientCacheData(gfxPattern* aPattern, bool aCoversTile,
-                    const GradientCacheKey& aKey)
-    : mPattern(aPattern), mCoversTile(aCoversTile), mKey(aKey)
-  {}
-
-  GradientCacheData(const GradientCacheData& aOther)
-    : mPattern(aOther.mPattern),
-      mCoversTile(aOther.mCoversTile),
-      mKey(aOther.mKey)
-  { }
-
-  nsExpirationState *GetExpirationState() {
-    return &mExpirationState;
-  }
-
-  nsExpirationState mExpirationState;
-  nsRefPtr<gfxPattern> mPattern;
-  bool mCoversTile;
-  GradientCacheKey mKey;
-};
-
-/**
- * This class implements a cache with no maximum size, that retains the
- * gfxPatterns used to draw the gradients.
- *
- * The key is the nsStyleGradient that defines the gradient, and the size of the
- * gradient.
- *
- * The value is the gfxPattern, and whether or not we perform an optimization
- * based on the actual gradient property.
- *
- * An entry stays in the cache as long as it is used often. As long as a cache
- * entry is in the cache, all the references it has are guaranteed to be valid:
- * the nsStyleRect for the key, the gfxPattern for the value.
- */
-class GradientCache MOZ_FINAL : public nsExpirationTracker<GradientCacheData,4>
-{
-  public:
-    GradientCache()
-      : nsExpirationTracker<GradientCacheData, 4>(MAX_GENERATION_MS)
-    {
-      mHashEntries.Init();
-      srand(time(nullptr));
-      mTimerPeriod = rand() % MAX_GENERATION_MS + 1;
-      Telemetry::Accumulate(Telemetry::GRADIENT_RETENTION_TIME, mTimerPeriod);
-    }
-
-    virtual void NotifyExpired(GradientCacheData* aObject)
-    {
-      // This will free the gfxPattern.
-      RemoveObject(aObject);
-      mHashEntries.Remove(aObject->mKey);
-    }
-
-    GradientCacheData* Lookup(nsStyleGradient* aKey, const gfxSize& aGradientSize,
-                              uint32_t aFlags)
-    {
-      // We don't cache gradient that have Calc value, because the Calc object
-      // can be deallocated by the time we want to compute the hash, and thus we
-      // would have a dangling pointer in some nsStyleCoord in the
-      // nsStyleGradient that are in the hash table.
-      if (aKey->HasCalc()) {
-        return nullptr;
-      }
-
-      GradientCacheData* gradient =
-        mHashEntries.Get(GradientCacheKey(aKey, aGradientSize, aFlags));
-
-      if (gradient) {
-        MarkUsed(gradient);
-      }
-
-      return gradient;
-    }
-
-    // Returns true if we successfully register the gradient in the cache, false
-    // otherwise.
-    bool RegisterEntry(GradientCacheData* aValue)
-    {
-      // We don't cache gradient that have Calc values (see
-      // GradientCache::Lookup).
-      if (aValue->mKey.mGradient->HasCalc()) {
-        return false;
-      }
-      nsresult rv = AddObject(aValue);
-      if (NS_FAILED(rv)) {
-        // We are OOM, and we cannot track this object. We don't want stall
-        // entries in the hash table (since the expiration tracker is responsible
-        // for removing the cache entries), so we avoid putting that entry in the
-        // table, which is a good things considering we are short on memory
-        // anyway, we probably don't want to retain things.
-        return false;
-      }
-      mHashEntries.Put(aValue->mKey, aValue);
-      return true;
-    }
-
-  protected:
-    uint32_t mTimerPeriod;
-    static const uint32_t MAX_GENERATION_MS = 10000;
-    /**
-     * FIXME use nsTHashtable to avoid duplicating the GradientCacheKey.
-     * https://bugzilla.mozilla.org/show_bug.cgi?id=761393#c47
-     */
-    nsClassHashtable<GradientCacheKey, GradientCacheData> mHashEntries;
-};
-
 /* Local functions */
 static void DrawBorderImage(nsPresContext* aPresContext,
                             nsRenderingContext& aRenderingContext,
@@ -442,25 +282,23 @@ static void DrawBorderImageComponent(nsRenderingContext& aRenderingContext,
                                      const nsRect& aDirtyRect,
                                      const nsRect& aFill,
                                      const nsIntRect& aSrc,
-                                     uint8_t aHFill,
-                                     uint8_t aVFill,
+                                     PRUint8 aHFill,
+                                     PRUint8 aVFill,
                                      const nsSize& aUnitSize,
                                      const nsStyleBorder& aStyleBorder,
-                                     uint8_t aIndex);
+                                     PRUint8 aIndex);
 
-static nscolor MakeBevelColor(mozilla::css::Side whichSide, uint8_t style,
+static nscolor MakeBevelColor(mozilla::css::Side whichSide, PRUint8 style,
                               nscolor aBackgroundColor,
                               nscolor aBorderColor);
 
 static InlineBackgroundData* gInlineBGData = nullptr;
-static GradientCache* gGradientCache = nullptr;
 
 // Initialize any static variables used by nsCSSRendering.
 void nsCSSRendering::Init()
 {
   NS_ASSERTION(!gInlineBGData, "Init called twice");
   gInlineBGData = new InlineBackgroundData();
-  gGradientCache = new GradientCache();
 }
 
 // Clean up any global variables used by nsCSSRendering.
@@ -468,15 +306,13 @@ void nsCSSRendering::Shutdown()
 {
   delete gInlineBGData;
   gInlineBGData = nullptr;
-  delete gGradientCache;
-  gGradientCache = nullptr;
 }
 
 /**
  * Make a bevel color
  */
 static nscolor
-MakeBevelColor(mozilla::css::Side whichSide, uint8_t style,
+MakeBevelColor(mozilla::css::Side whichSide, PRUint8 style,
                nscolor aBackgroundColor, nscolor aBorderColor)
 {
 
@@ -672,7 +508,7 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
   gfxCornerSizes borderRadii;
   ComputePixelRadii(twipsRadii, twipsPerPixel, &borderRadii);
 
-  uint8_t borderStyles[4];
+  PRUint8 borderStyles[4];
   nscolor borderColors[4];
   nsBorderColors *compositeColors[4];
 
@@ -822,8 +658,8 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
   gfxCornerSizes outlineRadii;
   ComputePixelRadii(twipsRadii, twipsPerPixel, &outlineRadii);
 
-  uint8_t outlineStyle = ourOutline->GetOutlineStyle();
-  uint8_t outlineStyles[4] = { outlineStyle,
+  PRUint8 outlineStyle = ourOutline->GetOutlineStyle();
+  PRUint8 outlineStyles[4] = { outlineStyle,
                                outlineStyle,
                                outlineStyle,
                                outlineStyle };
@@ -885,7 +721,7 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
                               gfxFloat(oneCSSPixel / oneDevPixel),
                               gfxFloat(oneCSSPixel / oneDevPixel) };
 
-  uint8_t focusStyles[4] = { NS_STYLE_BORDER_STYLE_DOTTED,
+  PRUint8 focusStyles[4] = { NS_STYLE_BORDER_STYLE_DOTTED,
                              NS_STYLE_BORDER_STYLE_DOTTED,
                              NS_STYLE_BORDER_STYLE_DOTTED,
                              NS_STYLE_BORDER_STYLE_DOTTED };
@@ -1034,7 +870,7 @@ nsCSSRendering::FindBackgroundStyleFrame(nsIFrame* aForFrame)
   // SCRIPT that does "document.location.href = 'foo'", then
   // nsParser::Terminate will call |DidBuildModel| methods
   // through to the content sink, which will call |StartLayout|
-  // and thus |Initialize| on the pres shell.  See bug 119351
+  // and thus |InitialReflow| on the pres shell.  See bug 119351
   // for the ugly details.
   if (!bodyContent) {
     return aForFrame;
@@ -1203,7 +1039,7 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
         0, NS_MAX(borderRadii[C_BL].height, borderRadii[C_BR].height)));
   }
 
-  for (uint32_t i = shadows->Length(); i > 0; --i) {
+  for (PRUint32 i = shadows->Length(); i > 0; --i) {
     nsCSSShadowItem* shadowItem = shadows->ShadowAt(i - 1);
     if (shadowItem->mInset)
       continue;
@@ -1233,23 +1069,20 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     shadowGfxRectPlusBlur.RoundOut();
 
     gfxContext* renderContext = aRenderingContext.ThebesContext();
+    nsRefPtr<gfxContext> shadowContext;
     nsContextBoxBlur blurringArea;
 
     // When getting the widget shape from the native theme, we're going
     // to draw the widget into the shadow surface to create a mask.
     // We need to ensure that there actually *is* a shadow surface
     // and that we're not going to draw directly into renderContext.
-    gfxContext* shadowContext =
+    shadowContext = 
       blurringArea.Init(shadowRect, pixelSpreadRadius,
                         blurRadius, twipsPerPixel, renderContext, aDirtyRect,
                         useSkipGfxRect ? &skipGfxRect : nullptr,
                         nativeTheme ? nsContextBoxBlur::FORCE_MASK : 0);
     if (!shadowContext)
       continue;
-
-    // shadowContext is owned by either blurringArea or aRenderingContext.
-    MOZ_ASSERT(shadowContext == renderContext ||
-               shadowContext == blurringArea.GetContext());
 
     // Set the shadow color; if not specified, use the foreground color
     nscolor shadowColor;
@@ -1369,7 +1202,7 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
                                            &innerRadii);
   }
 
-  for (uint32_t i = shadows->Length(); i > 0; --i) {
+  for (PRUint32 i = shadows->Length(); i > 0; --i) {
     nsCSSShadowItem* shadowItem = shadows->ShadowAt(i - 1);
     if (!shadowItem->mInset)
       continue;
@@ -1493,9 +1326,8 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
                                 nsIFrame* aForFrame,
                                 const nsRect& aDirtyRect,
                                 const nsRect& aBorderArea,
-                                uint32_t aFlags,
-                                nsRect* aBGClipRect,
-                                int32_t aLayer)
+                                PRUint32 aFlags,
+                                nsRect* aBGClipRect)
 {
   SAMPLE_LABEL("nsCSSRendering", "PaintBackground");
   NS_PRECONDITION(aForFrame,
@@ -1523,7 +1355,7 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
   PaintBackgroundWithSC(aPresContext, aRenderingContext, aForFrame,
                         aDirtyRect, aBorderArea, sc,
                         *aForFrame->GetStyleBorder(), aFlags,
-                        aBGClipRect, aLayer);
+                        aBGClipRect);
 }
 
 static bool
@@ -1606,7 +1438,7 @@ struct BackgroundClipState {
 };
 
 static void
-GetBackgroundClip(gfxContext *aCtx, uint8_t aBackgroundClip,
+GetBackgroundClip(gfxContext *aCtx, PRUint8 aBackgroundClip,
                   nsIFrame* aForFrame, const nsRect& aBorderArea,
                   const nsRect& aCallerDirtyRect, bool aHaveRoundedCorners,
                   const gfxCornerSizes& aBGRadii, nscoord aAppUnitsPerPixel,
@@ -1794,7 +1626,7 @@ nsCSSRendering::DetermineBackgroundColor(nsPresContext* aPresContext,
 static gfxFloat
 ConvertGradientValueToPixels(const nsStyleCoord& aCoord,
                              gfxFloat aFillLength,
-                             int32_t aAppUnitsPerPixel)
+                             PRInt32 aAppUnitsPerPixel)
 {
   switch (aCoord.GetUnit()) {
     case eStyleUnit_Percent:
@@ -1860,7 +1692,7 @@ ComputeLinearGradientLine(nsPresContext* aPresContext,
     *aLineEnd = ComputeGradientLineEndFromAngle(center, angle, aBoxSize);
     *aLineStart = gfxPoint(aBoxSize.width, aBoxSize.height) - *aLineEnd;
   } else {
-    int32_t appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
+    PRInt32 appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
     *aLineStart = gfxPoint(
       ConvertGradientValueToPixels(aGradient->mBgPosX, aBoxSize.width,
                                    appUnitsPerPixel),
@@ -1894,7 +1726,7 @@ ComputeRadialGradientLine(nsPresContext* aPresContext,
     // Default line start point is the center of the box
     *aLineStart = gfxPoint(aBoxSize.width/2, aBoxSize.height/2);
   } else {
-    int32_t appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
+    PRInt32 appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
     *aLineStart = gfxPoint(
       ConvertGradientValueToPixels(aGradient->mBgPosX, aBoxSize.width,
                                    appUnitsPerPixel),
@@ -1950,7 +1782,7 @@ ComputeRadialGradientLine(nsPresContext* aPresContext,
     break;
   }
   case NS_STYLE_GRADIENT_SIZE_EXPLICIT_SIZE: {
-    int32_t appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
+    PRInt32 appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
     radiusX = ConvertGradientValueToPixels(aGradient->mRadiusX,
                                            aBoxSize.width, appUnitsPerPixel);
     radiusY = ConvertGradientValueToPixels(aGradient->mRadiusY,
@@ -1958,7 +1790,6 @@ ComputeRadialGradientLine(nsPresContext* aPresContext,
     break;
   }
   default:
-    radiusX = radiusY = 0;
     NS_ABORT_IF_FALSE(false, "unknown radial gradient sizing method");
   }
   *aRadiusX = radiusX;
@@ -2016,7 +1847,6 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
                               const nsRect& aFillArea)
 {
   SAMPLE_LABEL("nsCSSRendering", "PaintGradient");
-  Telemetry::AutoTimer<Telemetry::GRADIENT_DURATION, Telemetry::Microsecond> gradientTimer;
   if (aOneCellArea.IsEmpty())
     return;
 
@@ -2024,263 +1854,242 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
   nscoord appUnitsPerPixel = aPresContext->AppUnitsPerDevPixel();
   gfxRect oneCellArea =
     nsLayoutUtils::RectToGfxRect(aOneCellArea, appUnitsPerPixel);
-  bool gradientRegistered = true;
-  uint32_t flags = 0;
-  if (aOneCellArea.Contains(aFillArea)) {
-    flags |= GradientCacheKey::SINGLE_CELL;
+
+  // Compute "gradient line" start and end relative to oneCellArea
+  gfxPoint lineStart, lineEnd;
+  double radiusX = 0, radiusY = 0; // for radial gradients only
+  if (aGradient->mShape == NS_STYLE_GRADIENT_SHAPE_LINEAR) {
+    ComputeLinearGradientLine(aPresContext, aGradient, oneCellArea.Size(),
+                              &lineStart, &lineEnd);
+  } else {
+    ComputeRadialGradientLine(aPresContext, aGradient, oneCellArea.Size(),
+                              &lineStart, &lineEnd, &radiusX, &radiusY);
   }
-  GradientCacheData* pattern =
-    gGradientCache->Lookup(aGradient, oneCellArea.Size(), flags);
+  gfxFloat lineLength = NS_hypot(lineEnd.x - lineStart.x,
+                                 lineEnd.y - lineStart.y);
 
-  if (pattern == nullptr) {
-    // Compute "gradient line" start and end relative to oneCellArea
-    gfxPoint lineStart, lineEnd;
-    double radiusX = 0, radiusY = 0; // for radial gradients only
-    if (aGradient->mShape == NS_STYLE_GRADIENT_SHAPE_LINEAR) {
-      ComputeLinearGradientLine(aPresContext, aGradient, oneCellArea.Size(),
-                                &lineStart, &lineEnd);
-    } else {
-      ComputeRadialGradientLine(aPresContext, aGradient, oneCellArea.Size(),
-                                &lineStart, &lineEnd, &radiusX, &radiusY);
-    }
-    gfxFloat lineLength = NS_hypot(lineEnd.x - lineStart.x,
-                                   lineEnd.y - lineStart.y);
+  NS_ABORT_IF_FALSE(aGradient->mStops.Length() >= 2,
+                    "The parser should reject gradients with less than two stops");
 
-    NS_ABORT_IF_FALSE(aGradient->mStops.Length() >= 2,
-                      "The parser should reject gradients with less than two stops");
-
-    // Build color stop array and compute stop positions
-    nsTArray<ColorStop> stops;
-    // If there is a run of stops before stop i that did not have specified
-    // positions, then this is the index of the first stop in that run, otherwise
-    // it's -1.
-    int32_t firstUnsetPosition = -1;
-    for (uint32_t i = 0; i < aGradient->mStops.Length(); ++i) {
-      const nsStyleGradientStop& stop = aGradient->mStops[i];
-      double position;
-      switch (stop.mLocation.GetUnit()) {
-      case eStyleUnit_None:
-        if (i == 0) {
-          // First stop defaults to position 0.0
-          position = 0.0;
-        } else if (i == aGradient->mStops.Length() - 1) {
-          // Last stop defaults to position 1.0
-          position = 1.0;
-        } else {
-          // Other stops with no specified position get their position assigned
-          // later by interpolation, see below.
-          // Remeber where the run of stops with no specified position starts,
-          // if it starts here.
-          if (firstUnsetPosition < 0) {
-            firstUnsetPosition = i;
-          }
-          stops.AppendElement(ColorStop(0, stop.mColor));
-          continue;
-        }
-        break;
-      case eStyleUnit_Percent:
-        position = stop.mLocation.GetPercentValue();
-        break;
-      case eStyleUnit_Coord:
-        position = lineLength < 1e-6 ? 0.0 :
-            stop.mLocation.GetCoordValue() / appUnitsPerPixel / lineLength;
-        break;
-      case eStyleUnit_Calc:
-        nsStyleCoord::Calc *calc;
-        calc = stop.mLocation.GetCalcValue();
-        position = calc->mPercent +
-            ((lineLength < 1e-6) ? 0.0 :
-            (NSAppUnitsToFloatPixels(calc->mLength, appUnitsPerPixel) / lineLength));
-        break;
-      default:
-        NS_ABORT_IF_FALSE(false, "Unknown stop position type");
-      }
-
-      if (i > 0) {
-        // Prevent decreasing stop positions by advancing this position
-        // to the previous stop position, if necessary
-        position = NS_MAX(position, stops[i - 1].mPosition);
-      }
-      stops.AppendElement(ColorStop(position, stop.mColor));
-      if (firstUnsetPosition > 0) {
-        // Interpolate positions for all stops that didn't have a specified position
-        double p = stops[firstUnsetPosition - 1].mPosition;
-        double d = (stops[i].mPosition - p)/(i - firstUnsetPosition + 1);
-        for (uint32_t j = firstUnsetPosition; j < i; ++j) {
-          p += d;
-          stops[j].mPosition = p;
-        }
-        firstUnsetPosition = -1;
-      }
-    }
-
-    // Eliminate negative-position stops if the gradient is radial.
-    double firstStop = stops[0].mPosition;
-    if (aGradient->mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR && firstStop < 0.0) {
-      if (aGradient->mRepeating) {
-        // Choose an instance of the repeated pattern that gives us all positive
-        // stop-offsets.
-        double lastStop = stops[stops.Length() - 1].mPosition;
-        double stopDelta = lastStop - firstStop;
-        // If all the stops are in approximately the same place then logic below
-        // will kick in that makes us draw just the last stop color, so don't
-        // try to do anything in that case. We certainly need to avoid
-        // dividing by zero.
-        if (stopDelta >= 1e-6) {
-          double instanceCount = ceil(-firstStop/stopDelta);
-          // Advance stops by instanceCount multiples of the period of the
-          // repeating gradient.
-          double offset = instanceCount*stopDelta;
-          for (uint32_t i = 0; i < stops.Length(); i++) {
-            stops[i].mPosition += offset;
-          }
-        }
+  // Build color stop array and compute stop positions
+  nsTArray<ColorStop> stops;
+  // If there is a run of stops before stop i that did not have specified
+  // positions, then this is the index of the first stop in that run, otherwise
+  // it's -1.
+  PRInt32 firstUnsetPosition = -1;
+  for (PRUint32 i = 0; i < aGradient->mStops.Length(); ++i) {
+    const nsStyleGradientStop& stop = aGradient->mStops[i];
+    double position;
+    switch (stop.mLocation.GetUnit()) {
+    case eStyleUnit_None:
+      if (i == 0) {
+        // First stop defaults to position 0.0
+        position = 0.0;
+      } else if (i == aGradient->mStops.Length() - 1) {
+        // Last stop defaults to position 1.0
+        position = 1.0;
       } else {
-        // Move negative-position stops to position 0.0. We may also need
-        // to set the color of the stop to the color the gradient should have
-        // at the center of the ellipse.
-        for (uint32_t i = 0; i < stops.Length(); i++) {
-          double pos = stops[i].mPosition;
-          if (pos < 0.0) {
-            stops[i].mPosition = 0.0;
-            // If this is the last stop, we don't need to adjust the color,
-            // it will fill the entire area.
-            if (i < stops.Length() - 1) {
-              double nextPos = stops[i + 1].mPosition;
-              // If nextPos is approximately equal to pos, then we don't
-              // need to adjust the color of this stop because it's
-              // not going to be displayed.
-              // If nextPos is negative, we don't need to adjust the color of
-              // this stop since it's not going to be displayed because
-              // nextPos will also be moved to 0.0.
-              if (nextPos >= 0.0 && nextPos - pos >= 1e-6) {
-                // Compute how far the new position 0.0 is along the interval
-                // between pos and nextPos.
-                // XXX Color interpolation (in cairo, too) should use the
-                // CSS 'color-interpolation' property!
-                double frac = (0.0 - pos)/(nextPos - pos);
-                stops[i].mColor =
-                  InterpolateColor(stops[i].mColor, stops[i + 1].mColor, frac);
-              }
+        // Other stops with no specified position get their position assigned
+        // later by interpolation, see below.
+        // Remeber where the run of stops with no specified position starts,
+        // if it starts here.
+        if (firstUnsetPosition < 0) {
+          firstUnsetPosition = i;
+        }
+        stops.AppendElement(ColorStop(0, stop.mColor));
+        continue;
+      }
+      break;
+    case eStyleUnit_Percent:
+      position = stop.mLocation.GetPercentValue();
+      break;
+    case eStyleUnit_Coord:
+      position = lineLength < 1e-6 ? 0.0 :
+          stop.mLocation.GetCoordValue() / appUnitsPerPixel / lineLength;
+      break;
+    default:
+      NS_ABORT_IF_FALSE(false, "Unknown stop position type");
+    }
+
+    if (i > 0) {
+      // Prevent decreasing stop positions by advancing this position
+      // to the previous stop position, if necessary
+      position = NS_MAX(position, stops[i - 1].mPosition);
+    }
+    stops.AppendElement(ColorStop(position, stop.mColor));
+    if (firstUnsetPosition > 0) {
+      // Interpolate positions for all stops that didn't have a specified position
+      double p = stops[firstUnsetPosition - 1].mPosition;
+      double d = (stops[i].mPosition - p)/(i - firstUnsetPosition + 1);
+      for (PRUint32 j = firstUnsetPosition; j < i; ++j) {
+        p += d;
+        stops[j].mPosition = p;
+      }
+      firstUnsetPosition = -1;
+    }
+  }
+
+  // Eliminate negative-position stops if the gradient is radial.
+  double firstStop = stops[0].mPosition;
+  if (aGradient->mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR && firstStop < 0.0) {
+    if (aGradient->mRepeating) {
+      // Choose an instance of the repeated pattern that gives us all positive
+      // stop-offsets.
+      double lastStop = stops[stops.Length() - 1].mPosition;
+      double stopDelta = lastStop - firstStop;
+      // If all the stops are in approximately the same place then logic below
+      // will kick in that makes us draw just the last stop color, so don't
+      // try to do anything in that case. We certainly need to avoid
+      // dividing by zero.
+      if (stopDelta >= 1e-6) {
+        double instanceCount = ceil(-firstStop/stopDelta);
+        // Advance stops by instanceCount multiples of the period of the
+        // repeating gradient.
+        double offset = instanceCount*stopDelta;
+        for (PRUint32 i = 0; i < stops.Length(); i++) {
+          stops[i].mPosition += offset;
+        }
+      }
+    } else {
+      // Move negative-position stops to position 0.0. We may also need
+      // to set the color of the stop to the color the gradient should have
+      // at the center of the ellipse.
+      for (PRUint32 i = 0; i < stops.Length(); i++) {
+        double pos = stops[i].mPosition;
+        if (pos < 0.0) {
+          stops[i].mPosition = 0.0;
+          // If this is the last stop, we don't need to adjust the color,
+          // it will fill the entire area.
+          if (i < stops.Length() - 1) {
+            double nextPos = stops[i + 1].mPosition;
+            // If nextPos is approximately equal to pos, then we don't
+            // need to adjust the color of this stop because it's
+            // not going to be displayed.
+            // If nextPos is negative, we don't need to adjust the color of
+            // this stop since it's not going to be displayed because
+            // nextPos will also be moved to 0.0.
+            if (nextPos >= 0.0 && nextPos - pos >= 1e-6) {
+              // Compute how far the new position 0.0 is along the interval
+              // between pos and nextPos.
+              // XXX Color interpolation (in cairo, too) should use the
+              // CSS 'color-interpolation' property!
+              double frac = (0.0 - pos)/(nextPos - pos);
+              stops[i].mColor =
+                InterpolateColor(stops[i].mColor, stops[i + 1].mColor, frac);
             }
           }
         }
       }
-      firstStop = stops[0].mPosition;
-      NS_ABORT_IF_FALSE(firstStop >= 0.0, "Failed to fix stop offsets");
     }
+    firstStop = stops[0].mPosition;
+    NS_ABORT_IF_FALSE(firstStop >= 0.0, "Failed to fix stop offsets");
+  }
 
-    double lastStop = stops[stops.Length() - 1].mPosition;
-    // Cairo gradients must have stop positions in the range [0, 1]. So,
-    // stop positions will be normalized below by subtracting firstStop and then
-    // multiplying by stopScale.
-    double stopScale;
-    double stopDelta = lastStop - firstStop;
-    bool zeroRadius = aGradient->mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR &&
-                        (radiusX < 1e-6 || radiusY < 1e-6);
-    if (stopDelta < 1e-6 || lineLength < 1e-6 || zeroRadius) {
-      // Stops are all at the same place. Map all stops to 0.0.
-      // For repeating radial gradients, or for any radial gradients with
-      // a zero radius, we need to fill with the last stop color, so just set
-      // both radii to 0.
-      stopScale = 0.0;
-      if (aGradient->mRepeating || zeroRadius) {
-        radiusX = radiusY = 0.0;
-      }
-      lastStop = firstStop;
-    } else {
-      stopScale = 1.0/stopDelta;
+  double lastStop = stops[stops.Length() - 1].mPosition;
+  // Cairo gradients must have stop positions in the range [0, 1]. So,
+  // stop positions will be normalized below by subtracting firstStop and then
+  // multiplying by stopScale.
+  double stopScale;
+  double stopDelta = lastStop - firstStop;
+  bool zeroRadius = aGradient->mShape != NS_STYLE_GRADIENT_SHAPE_LINEAR &&
+                      (radiusX < 1e-6 || radiusY < 1e-6);
+  if (stopDelta < 1e-6 || lineLength < 1e-6 || zeroRadius) {
+    // Stops are all at the same place. Map all stops to 0.0.
+    // For repeating radial gradients, or for any radial gradients with
+    // a zero radius, we need to fill with the last stop color, so just set
+    // both radii to 0.
+    stopScale = 0.0;
+    if (aGradient->mRepeating || zeroRadius) {
+      radiusX = radiusY = 0.0;
     }
+    lastStop = firstStop;
+  } else {
+    stopScale = 1.0/stopDelta;
+  }
 
-    // Create the gradient pattern.
-    nsRefPtr<gfxPattern> gradientPattern;
-    bool forceRepeatToCoverTiles = false;
-    if (aGradient->mShape == NS_STYLE_GRADIENT_SHAPE_LINEAR) {
-      // Compute the actual gradient line ends we need to pass to cairo after
-      // stops have been normalized.
-      gfxPoint gradientStart = lineStart + (lineEnd - lineStart)*firstStop;
-      gfxPoint gradientEnd = lineStart + (lineEnd - lineStart)*lastStop;
+  // Create the gradient pattern.
+  nsRefPtr<gfxPattern> gradientPattern;
+  bool forceRepeatToCoverTiles = false;
+  if (aGradient->mShape == NS_STYLE_GRADIENT_SHAPE_LINEAR) {
+    // Compute the actual gradient line ends we need to pass to cairo after
+    // stops have been normalized.
+    gfxPoint gradientStart = lineStart + (lineEnd - lineStart)*firstStop;
+    gfxPoint gradientEnd = lineStart + (lineEnd - lineStart)*lastStop;
 
-      if (stopScale == 0.0) {
-        // Stops are all at the same place. For repeating gradients, this will
-        // just paint the last stop color. We don't need to do anything.
-        // For non-repeating gradients, this should render as two colors, one
-        // on each "side" of the gradient line segment, which is a point. All
-        // our stops will be at 0.0; we just need to set the direction vector
-        // correctly.
-        gradientEnd = gradientStart + (lineEnd - lineStart);
-      }
-
-      gradientPattern = new gfxPattern(gradientStart.x, gradientStart.y,
-                                       gradientEnd.x, gradientEnd.y);
-
-      // When the gradient line is parallel to the x axis from the left edge
-      // to the right edge of a tile, then we can repeat by just repeating the
-      // gradient.
-      if (!(flags & GradientCacheKey::SINGLE_CELL) &&
-          ((gradientStart.y == gradientEnd.y && gradientStart.x == 0 &&
-            gradientEnd.x == oneCellArea.width) ||
-           (gradientStart.x == gradientEnd.x && gradientStart.y == 0 &&
-            gradientEnd.y == oneCellArea.height))) {
-        forceRepeatToCoverTiles = true;
-      }
-    } else {
-      NS_ASSERTION(firstStop >= 0.0,
-                   "Negative stops not allowed for radial gradients");
-
-      // To form an ellipse, we'll stretch a circle vertically, if necessary.
-      // So our radii are based on radiusX.
-      double innerRadius = radiusX*firstStop;
-      double outerRadius = radiusX*lastStop;
-      if (stopScale == 0.0) {
-        // Stops are all at the same place.  See above (except we now have
-        // the inside vs. outside of an ellipse).
-        outerRadius = innerRadius + 1;
-      }
-      gradientPattern = new gfxPattern(lineStart.x, lineStart.y, innerRadius,
-                                       lineStart.x, lineStart.y, outerRadius);
-      if (radiusX != radiusY) {
-        // Stretch the circles into ellipses vertically by setting a transform
-        // in the pattern.
-        // Recall that this is the transform from user space to pattern space.
-        // So to stretch the ellipse by factor of P vertically, we scale
-        // user coordinates by 1/P.
-        gfxMatrix matrix;
-        matrix.Translate(lineStart);
-        matrix.Scale(1.0, radiusX/radiusY);
-        matrix.Translate(-lineStart);
-        gradientPattern->SetMatrix(matrix);
-      }
-    }
-    if (gradientPattern->CairoStatus())
-      return;
-
-    // Now set normalized color stops in pattern.
     if (stopScale == 0.0) {
-      // Non-repeating gradient with all stops in same place -> just add
-      // first stop and last stop, both at position 0.
-      // Repeating gradient with all stops in the same place, or radial
-      // gradient with radius of 0 -> just paint the last stop color.
-      if (!aGradient->mRepeating && !zeroRadius) {
-        gradientPattern->AddColorStop(0.0, stops[0].mColor);
-      }
-      gradientPattern->AddColorStop(0.0, stops[stops.Length() - 1].mColor);
-    } else {
-      // Use all stops
-      for (uint32_t i = 0; i < stops.Length(); i++) {
-        double pos = stopScale*(stops[i].mPosition - firstStop);
-        gradientPattern->AddColorStop(pos, stops[i].mColor);
-      }
+      // Stops are all at the same place. For repeating gradients, this will
+      // just paint the last stop color. We don't need to do anything.
+      // For non-repeating gradients, this should render as two colors, one
+      // on each "side" of the gradient line segment, which is a point. All
+      // our stops will be at 0.0; we just need to set the direction vector
+      // correctly.
+      gradientEnd = gradientStart + (lineEnd - lineStart);
     }
 
-    // Set repeat mode. Default cairo extend mode is PAD.
-    if (aGradient->mRepeating || forceRepeatToCoverTiles) {
-      gradientPattern->SetExtend(gfxPattern::EXTEND_REPEAT);
+    gradientPattern = new gfxPattern(gradientStart.x, gradientStart.y,
+                                     gradientEnd.x, gradientEnd.y);
+
+    // When the gradient line is parallel to the x axis from the left edge
+    // to the right edge of a tile, then we can repeat by just repeating the
+    // gradient.
+    if ((gradientStart.y == gradientEnd.y && gradientStart.x == 0 &&
+         gradientEnd.x == oneCellArea.width) ||
+        (gradientStart.x == gradientEnd.x && gradientStart.y == 0 &&
+         gradientEnd.y == oneCellArea.height)) {
+      forceRepeatToCoverTiles = true;
     }
-    // Register the gradient newly computed in the cache.
-    pattern = new GradientCacheData(gradientPattern, forceRepeatToCoverTiles,
-      GradientCacheKey(aGradient, oneCellArea.Size(), flags));
-    gradientRegistered = gGradientCache->RegisterEntry(pattern);
+  } else {
+    NS_ASSERTION(firstStop >= 0.0,
+                 "Negative stops not allowed for radial gradients");
+
+    // To form an ellipse, we'll stretch a circle vertically, if necessary.
+    // So our radii are based on radiusX.
+    double innerRadius = radiusX*firstStop;
+    double outerRadius = radiusX*lastStop;
+    if (stopScale == 0.0) {
+      // Stops are all at the same place.  See above (except we now have
+      // the inside vs. outside of an ellipse).
+      outerRadius = innerRadius + 1;
+    }
+    gradientPattern = new gfxPattern(lineStart.x, lineStart.y, innerRadius,
+                                     lineStart.x, lineStart.y, outerRadius);
+    if (radiusX != radiusY) {
+      // Stretch the circles into ellipses vertically by setting a transform
+      // in the pattern.
+      // Recall that this is the transform from user space to pattern space.
+      // So to stretch the ellipse by factor of P vertically, we scale
+      // user coordinates by 1/P.
+      gfxMatrix matrix;
+      matrix.Translate(lineStart);
+      matrix.Scale(1.0, radiusX/radiusY);
+      matrix.Translate(-lineStart);
+      gradientPattern->SetMatrix(matrix);
+    }
+  }
+  if (gradientPattern->CairoStatus())
+    return;
+
+  // Now set normalized color stops in pattern.
+  if (stopScale == 0.0) {
+    // Non-repeating gradient with all stops in same place -> just add
+    // first stop and last stop, both at position 0.
+    // Repeating gradient with all stops in the same place, or radial
+    // gradient with radius of 0 -> just paint the last stop color.
+    if (!aGradient->mRepeating && !zeroRadius) {
+      gradientPattern->AddColorStop(0.0, stops[0].mColor);
+    }
+    gradientPattern->AddColorStop(0.0, stops[stops.Length() - 1].mColor);
+  } else {
+    // Use all stops
+    for (PRUint32 i = 0; i < stops.Length(); i++) {
+      double pos = stopScale*(stops[i].mPosition - firstStop);
+      gradientPattern->AddColorStop(pos, stops[i].mColor);
+    }
+  }
+
+  // Set repeat mode. Default cairo extend mode is PAD.
+  if (aGradient->mRepeating || forceRepeatToCoverTiles) {
+    gradientPattern->SetExtend(gfxPattern::EXTEND_REPEAT);
   }
 
   // Paint gradient tiles. This isn't terribly efficient, but doing it this
@@ -2294,13 +2103,12 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
   gfxRect areaToFill =
     nsLayoutUtils::RectToGfxRect(aFillArea, appUnitsPerPixel);
   gfxMatrix ctm = ctx->CurrentMatrix();
-  bool isCTMPreservingAxisAlignedRectangles = ctm.PreservesAxisAlignedRectangles();
 
   // xStart/yStart are the top-left corner of the top-left tile.
   nscoord xStart = FindTileStart(dirty.x, aOneCellArea.x, aOneCellArea.width);
   nscoord yStart = FindTileStart(dirty.y, aOneCellArea.y, aOneCellArea.height);
-  nscoord xEnd = pattern->mCoversTile ? xStart + aOneCellArea.width : dirty.XMost();
-  nscoord yEnd = pattern->mCoversTile ? yStart + aOneCellArea.height : dirty.YMost();
+  nscoord xEnd = forceRepeatToCoverTiles ? xStart + aOneCellArea.width : dirty.XMost();
+  nscoord yEnd = forceRepeatToCoverTiles ? yStart + aOneCellArea.height : dirty.YMost();
 
   // x and y are the top-left corner of the tile to draw
   for (nscoord y = yStart; y < yEnd; y += aOneCellArea.height) {
@@ -2312,41 +2120,14 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
       // The actual area to fill with this tile is the intersection of this
       // tile with the overall area we're supposed to be filling
       gfxRect fillRect =
-        pattern->mCoversTile ? areaToFill : tileRect.Intersect(areaToFill);
+        forceRepeatToCoverTiles ? areaToFill : tileRect.Intersect(areaToFill);
       ctx->NewPath();
-      // Try snapping the fill rect. Snap its top-left and bottom-right
-      // independently to preserve the orientation.
-      gfxPoint snappedFillRectTopLeft = fillRect.TopLeft();
-      gfxPoint snappedFillRectBottomRight = fillRect.BottomRight();
-      if (isCTMPreservingAxisAlignedRectangles &&
-          ctx->UserToDevicePixelSnapped(snappedFillRectTopLeft, true) &&
-          ctx->UserToDevicePixelSnapped(snappedFillRectBottomRight, true)) {
-        if (snappedFillRectTopLeft.x == snappedFillRectBottomRight.x ||
-            snappedFillRectTopLeft.y == snappedFillRectBottomRight.y) {
-          // Nothing to draw; avoid scaling by zero and other weirdness that
-          // could put the context in an error state.
-          continue;
-        }
-        // Set the context's transform to the transform that maps fillRect to
-        // snappedFillRect. The part of the gradient that was going to
-        // exactly fill fillRect will fill snappedFillRect instead.
-        ctx->IdentityMatrix();
-        ctx->Translate(snappedFillRectTopLeft);
-        ctx->Scale((snappedFillRectBottomRight.x - snappedFillRectTopLeft.x)/fillRect.width,
-                   (snappedFillRectBottomRight.y - snappedFillRectTopLeft.y)/fillRect.height);
-        ctx->Translate(-fillRect.TopLeft());
-      }
-      ctx->Rectangle(fillRect);
       ctx->Translate(tileRect.TopLeft());
-      ctx->SetPattern(pattern->mPattern);
+      ctx->SetPattern(gradientPattern);
+      ctx->Rectangle(fillRect - tileRect.TopLeft(), true);
       ctx->Fill();
       ctx->SetMatrix(ctm);
     }
-  }
-  // If we could not put the gradient in the gradient cache, make sure to
-  // release its resources so we don't leak.
-  if (!gradientRegistered) {
-    delete pattern;
   }
 }
 
@@ -2358,9 +2139,8 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
                                       const nsRect& aBorderArea,
                                       nsStyleContext* aBackgroundSC,
                                       const nsStyleBorder& aBorder,
-                                      uint32_t aFlags,
-                                      nsRect* aBGClipRect,
-                                      int32_t aLayer)
+                                      PRUint32 aFlags,
+                                      nsRect* aBGClipRect)
 {
   NS_PRECONDITION(aForFrame,
                   "Frame is expected to be provided to PaintBackground");
@@ -2404,14 +2184,6 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
                                              drawBackgroundImage,
                                              drawBackgroundColor);
 
-  // If we're not drawing the back-most layer, we don't want to draw the
-  // background color.
-  const nsStyleBackground *bg = aBackgroundSC->GetStyleBackground();
-  if (drawBackgroundColor && aLayer >= 0 &&
-      static_cast<uint32_t>(aLayer) != bg->mImageCount - 1) {
-    drawBackgroundColor = false;
-  }
-
   // At this point, drawBackgroundImage and drawBackgroundColor are
   // true if and only if we are actually supposed to paint an image or
   // color into aDirtyRect, respectively.
@@ -2446,8 +2218,9 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
   // SetupCurrentBackgroundClip.  (Arguably it should be the
   // intersection, but that breaks the table painter -- in particular,
   // taking the intersection breaks reftests/bugs/403249-1[ab].)
+  const nsStyleBackground *bg = aBackgroundSC->GetStyleBackground();
   BackgroundClipState clipState;
-  uint8_t currentBackgroundClip;
+  PRUint8 currentBackgroundClip;
   bool isSolidBorder;
   if (aBGClipRect) {
     clipState.mBGClipArea = *aBGClipRect;
@@ -2495,34 +2268,10 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
     return;
   }
 
-  if (bg->mImageCount < 1) {
-    // Return if there are no background layers, all work from this point
-    // onwards happens iteratively on these.
-    return;
-  }
-
-  // Validate the layer range before we start iterating.
-  int32_t startLayer = aLayer;
-  int32_t nLayers = 1;
-  if (startLayer < 0) {
-    startLayer = (int32_t)bg->mImageCount - 1;
-    nLayers = bg->mImageCount;
-  }
-
   // Ensure we get invalidated for loads of the image.  We need to do
   // this here because this might be the only code that knows about the
   // association of the style data with the frame.
-  if (aBackgroundSC != aForFrame->GetStyleContext()) {
-    ImageLoader* loader = aPresContext->Document()->StyleImageLoader();
-
-    NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT_WITH_RANGE(i, bg, startLayer, nLayers) {
-      if (bg->mLayers[i].mImage.GetType() == eStyleImageType_Image) {
-        imgIRequest *image = bg->mLayers[i].mImage.GetImageData();
-
-        loader->AssociateRequestToFrame(image, aForFrame);
-      }
-    }
-  }
+  aPresContext->SetupBackgroundImageLoaders(aForFrame, bg);
 
   // The background color is rendered over the entire dirty area,
   // even if the image isn't.
@@ -2532,10 +2281,10 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
 
   if (drawBackgroundImage) {
     bool clipSet = false;
-    NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT_WITH_RANGE(i, bg, startLayer, nLayers) {
+    NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
       const nsStyleBackground::Layer &layer = bg->mLayers[i];
       if (!aBGClipRect) {
-        uint8_t newBackgroundClip = layer.mClip;
+        PRUint8 newBackgroundClip = layer.mClip;
         if (isSolidBorder && newBackgroundClip == NS_STYLE_BG_CLIP_BORDER) {
           newBackgroundClip = haveRoundedCorners ?
             NS_STYLE_BG_CLIP_MOZ_ALMOST_PADDING : NS_STYLE_BG_CLIP_PADDING;
@@ -2583,7 +2332,7 @@ IsTransformed(nsIFrame* aForFrame, nsIFrame* aTopFrame)
 nsBackgroundLayerState
 nsCSSRendering::PrepareBackgroundLayer(nsPresContext* aPresContext,
                                        nsIFrame* aForFrame,
-                                       uint32_t aFlags,
+                                       PRUint32 aFlags,
                                        const nsRect& aBorderArea,
                                        const nsRect& aBGClipRect,
                                        const nsStyleBackground& aBackground,
@@ -2644,7 +2393,7 @@ nsCSSRendering::PrepareBackgroundLayer(nsPresContext* aPresContext,
    *   background-repeat
    */
 
-  uint32_t irFlags = 0;
+  PRUint32 irFlags = 0;
   if (aFlags & nsCSSRendering::PAINTBG_SYNC_DECODE_IMAGES) {
     irFlags |= nsImageRenderer::FLAG_SYNC_DECODE_IMAGES;
   }
@@ -2825,17 +2574,15 @@ DrawBorderImage(nsPresContext*       aPresContext,
   // XXX We shouldn't really... since if anybody is passing in a
   // different style, they'll potentially have the wrong size for the
   // border too.
-  imgIRequest *req = aStyleBorder.GetBorderImage();
-  ImageLoader* loader = aPresContext->Document()->StyleImageLoader();
+  aPresContext->SetupBorderImageLoaders(aForFrame, &aStyleBorder);
 
-  // If this fails there's not much we can do ...
-  loader->AssociateRequestToFrame(req, aForFrame);
+  imgIRequest *req = aStyleBorder.GetBorderImage();
 
   // Get the actual image.
 
   nsCOMPtr<imgIContainer> imgContainer;
-  DebugOnly<nsresult> rv = req->GetImage(getter_AddRefs(imgContainer));
-  NS_ASSERTION(NS_SUCCEEDED(rv) && imgContainer, "no image to draw");
+  req->GetImage(getter_AddRefs(imgContainer));
+  NS_ASSERTION(imgContainer, "no image to draw");
 
   nsIntSize imageSize;
   if (NS_FAILED(imgContainer->GetWidth(&imageSize.width))) {
@@ -2858,7 +2605,7 @@ DrawBorderImage(nsPresContext*       aPresContext,
   nsMargin border;
   NS_FOR_CSS_SIDES(s) {
     nsStyleCoord coord = aStyleBorder.mBorderImageSlice.Get(s);
-    int32_t imgDimension = NS_SIDE_IS_VERTICAL(s)
+    PRInt32 imgDimension = NS_SIDE_IS_VERTICAL(s)
                            ? imageSize.width : imageSize.height;
     nscoord borderDimension = NS_SIDE_IS_VERTICAL(s)
                            ? borderImgArea.width : borderImgArea.height;
@@ -2952,24 +2699,24 @@ DrawBorderImage(nsPresContext*       aPresContext,
     borderImgArea.height - border.top - border.bottom,
     border.bottom,
   };
-  const int32_t sliceX[3] = {
+  const PRInt32 sliceX[3] = {
     0,
     slice.left,
     imageSize.width - slice.right,
   };
-  const int32_t sliceY[3] = {
+  const PRInt32 sliceY[3] = {
     0,
     slice.top,
     imageSize.height - slice.bottom,
   };
-  const int32_t sliceWidth[3] = {
+  const PRInt32 sliceWidth[3] = {
     slice.left,
-    NS_MAX(imageSize.width - slice.left - slice.right, 0),
+    PR_MAX(imageSize.width - slice.left - slice.right, 0),
     slice.right,
   };
-  const int32_t sliceHeight[3] = {
+  const PRInt32 sliceHeight[3] = {
     slice.top,
-    NS_MAX(imageSize.height - slice.top - slice.bottom, 0),
+    PR_MAX(imageSize.height - slice.top - slice.bottom, 0),
     slice.bottom,
   };
 
@@ -2982,7 +2729,7 @@ DrawBorderImage(nsPresContext*       aPresContext,
       nsRect destArea(borderX[i], borderY[j], borderWidth[i], borderHeight[j]);
       nsIntRect subArea(sliceX[i], sliceY[j], sliceWidth[i], sliceHeight[j]);
 
-      uint8_t fillStyleH, fillStyleV;
+      PRUint8 fillStyleH, fillStyleV;
       nsSize unitSize;
 
       if (i == MIDDLE && j == MIDDLE) {
@@ -3076,11 +2823,11 @@ DrawBorderImageComponent(nsRenderingContext&  aRenderingContext,
                          const nsRect&        aDirtyRect,
                          const nsRect&        aFill,
                          const nsIntRect&     aSrc,
-                         uint8_t              aHFill,
-                         uint8_t              aVFill,
+                         PRUint8              aHFill,
+                         PRUint8              aVFill,
                          const nsSize&        aUnitSize,
                          const nsStyleBorder& aStyleBorder,
-                         uint8_t              aIndex)
+                         PRUint8              aIndex)
 {
   if (aFill.IsEmpty() || aSrc.IsEmpty())
     return;
@@ -3205,9 +2952,9 @@ static void
 DrawSolidBorderSegment(nsRenderingContext& aContext,
                        nsRect               aRect,
                        nscoord              aTwipsPerPixel,
-                       uint8_t              aStartBevelSide = 0,
+                       PRUint8              aStartBevelSide = 0,
                        nscoord              aStartBevelOffset = 0,
-                       uint8_t              aEndBevelSide = 0,
+                       PRUint8              aEndBevelSide = 0,
                        nscoord              aEndBevelOffset = 0)
 {
 
@@ -3271,7 +3018,7 @@ static void
 GetDashInfo(nscoord  aBorderLength,
             nscoord  aDashLength,
             nscoord  aTwipsPerPixel,
-            int32_t& aNumDashSpaces,
+            PRInt32& aNumDashSpaces,
             nscoord& aStartDashLength,
             nscoord& aEndDashLength)
 {
@@ -3293,21 +3040,21 @@ GetDashInfo(nscoord  aBorderLength,
 
 void
 nsCSSRendering::DrawTableBorderSegment(nsRenderingContext&     aContext,
-                                       uint8_t                  aBorderStyle,
+                                       PRUint8                  aBorderStyle,
                                        nscolor                  aBorderColor,
                                        const nsStyleBackground* aBGColor,
                                        const nsRect&            aBorder,
-                                       int32_t                  aAppUnitsPerCSSPixel,
-                                       uint8_t                  aStartBevelSide,
+                                       PRInt32                  aAppUnitsPerCSSPixel,
+                                       PRUint8                  aStartBevelSide,
                                        nscoord                  aStartBevelOffset,
-                                       uint8_t                  aEndBevelSide,
+                                       PRUint8                  aEndBevelSide,
                                        nscoord                  aEndBevelOffset)
 {
   aContext.SetColor (aBorderColor);
 
   bool horizontal = ((NS_SIDE_TOP == aStartBevelSide) || (NS_SIDE_BOTTOM == aStartBevelSide));
   nscoord twipsPerPixel = NSIntPixelsToAppUnits(1, aAppUnitsPerCSSPixel);
-  uint8_t ridgeGroove = NS_STYLE_BORDER_STYLE_RIDGE;
+  PRUint8 ridgeGroove = NS_STYLE_BORDER_STYLE_RIDGE;
 
   if ((twipsPerPixel >= aBorder.width) || (twipsPerPixel >= aBorder.height) ||
       (NS_STYLE_BORDER_STYLE_DASHED == aBorderStyle) || (NS_STYLE_BORDER_STYLE_DOTTED == aBorderStyle)) {
@@ -3342,7 +3089,7 @@ nsCSSRendering::DrawTableBorderSegment(nsRenderingContext&     aContext,
         GetDashInfo(aBorder.width, dashLength, twipsPerPixel, numDashSpaces, startDashLength, endDashLength);
         nsRect rect(aBorder.x, aBorder.y, startDashLength, aBorder.height);
         DrawSolidBorderSegment(aContext, rect, twipsPerPixel);
-        for (int32_t spaceX = 0; spaceX < numDashSpaces; spaceX++) {
+        for (PRInt32 spaceX = 0; spaceX < numDashSpaces; spaceX++) {
           rect.x += rect.width + dashLength;
           rect.width = (spaceX == (numDashSpaces - 1)) ? endDashLength : dashLength;
           DrawSolidBorderSegment(aContext, rect, twipsPerPixel);
@@ -3352,7 +3099,7 @@ nsCSSRendering::DrawTableBorderSegment(nsRenderingContext&     aContext,
         GetDashInfo(aBorder.height, dashLength, twipsPerPixel, numDashSpaces, startDashLength, endDashLength);
         nsRect rect(aBorder.x, aBorder.y, aBorder.width, startDashLength);
         DrawSolidBorderSegment(aContext, rect, twipsPerPixel);
-        for (int32_t spaceY = 0; spaceY < numDashSpaces; spaceY++) {
+        for (PRInt32 spaceY = 0; spaceY < numDashSpaces; spaceY++) {
           rect.y += rect.height + dashLength;
           rect.height = (spaceY == (numDashSpaces - 1)) ? endDashLength : dashLength;
           DrawSolidBorderSegment(aContext, rect, twipsPerPixel);
@@ -3529,7 +3276,7 @@ nsCSSRendering::DrawTableBorderSegment(nsRenderingContext&     aContext,
 
 gfxRect
 nsCSSRendering::ExpandPaintingRectForDecorationLine(nsIFrame* aFrame,
-                                                    const uint8_t aStyle,
+                                                    const PRUint8 aStyle,
                                                     const gfxRect& aClippedRect,
                                                     const gfxFloat aXInFrame,
                                                     const gfxFloat aCycleLength)
@@ -3561,9 +3308,9 @@ nsCSSRendering::ExpandPaintingRectForDecorationLine(nsIFrame* aFrame,
   nscoord frameXInBlockAppUnits = aFrame->GetOffsetTo(block).x - relativeX;
   nsPresContext *pc = aFrame->PresContext();
   gfxFloat frameXInBlock = pc->AppUnitsToGfxUnits(frameXInBlockAppUnits);
-  int32_t rectXInBlock = int32_t(NS_round(frameXInBlock + aXInFrame));
-  int32_t extraLeft =
-    rectXInBlock - (rectXInBlock / int32_t(aCycleLength) * aCycleLength);
+  PRInt32 rectXInBlock = PRInt32(NS_round(frameXInBlock + aXInFrame));
+  PRInt32 extraLeft =
+    rectXInBlock - (rectXInBlock / PRInt32(aCycleLength) * aCycleLength);
   gfxRect rect(aClippedRect);
   rect.x -= extraLeft;
   rect.width += extraLeft;
@@ -3580,8 +3327,8 @@ nsCSSRendering::PaintDecorationLine(nsIFrame* aFrame,
                                     const gfxSize& aLineSize,
                                     const gfxFloat aAscent,
                                     const gfxFloat aOffset,
-                                    const uint8_t aDecoration,
-                                    const uint8_t aStyle,
+                                    const PRUint8 aDecoration,
+                                    const PRUint8 aStyle,
                                     const gfxFloat aDescentLimit)
 {
   NS_ASSERTION(aStyle != NS_STYLE_TEXT_DECORATION_STYLE_NONE, "aStyle is none");
@@ -3747,7 +3494,7 @@ nsCSSRendering::PaintDecorationLine(nsIFrame* aFrame,
       // figure out if we can trim whole cycles from the left and right edges
       // of the line, to try and avoid creating an unnecessarily long and
       // complex path
-      int32_t skipCycles = floor((aDirtyRect.x - rect.x) / cycleLength);
+      PRInt32 skipCycles = floor((aDirtyRect.x - rect.x) / cycleLength);
       if (skipCycles > 0) {
         rect.x += skipCycles * cycleLength;
         rect.width -= skipCycles * cycleLength;
@@ -3771,7 +3518,7 @@ nsCSSRendering::PaintDecorationLine(nsIFrame* aFrame,
       aGfxContext->LineTo(pt); // 2
 
       bool goDown = true;
-      uint32_t iter = 0;
+      PRUint32 iter = 0;
       while (pt.x < rightMost) {
         if (++iter > 1000) {
           // stroke the current path and start again, to avoid pathological
@@ -3817,8 +3564,8 @@ nsCSSRendering::DecorationLineToPath(nsIFrame* aFrame,
                                      const gfxSize& aLineSize,
                                      const gfxFloat aAscent,
                                      const gfxFloat aOffset,
-                                     const uint8_t aDecoration,
-                                     const uint8_t aStyle,
+                                     const PRUint8 aDecoration,
+                                     const PRUint8 aStyle,
                                      const gfxFloat aDescentLimit)
 {
   NS_ASSERTION(aStyle != NS_STYLE_TEXT_DECORATION_STYLE_NONE, "aStyle is none");
@@ -3859,8 +3606,8 @@ nsCSSRendering::GetTextDecorationRect(nsPresContext* aPresContext,
                                       const gfxSize& aLineSize,
                                       const gfxFloat aAscent,
                                       const gfxFloat aOffset,
-                                      const uint8_t aDecoration,
-                                      const uint8_t aStyle,
+                                      const PRUint8 aDecoration,
+                                      const PRUint8 aStyle,
                                       const gfxFloat aDescentLimit)
 {
   NS_ASSERTION(aPresContext, "aPresContext is null");
@@ -3883,8 +3630,8 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
                                               const gfxSize& aLineSize,
                                               const gfxFloat aAscent,
                                               const gfxFloat aOffset,
-                                              const uint8_t aDecoration,
-                                              const uint8_t aStyle,
+                                              const PRUint8 aDecoration,
+                                              const PRUint8 aStyle,
                                               const gfxFloat aDescentLimit)
 {
   NS_ASSERTION(aStyle <= NS_STYLE_TEXT_DECORATION_STYLE_WAVY,
@@ -3997,7 +3744,7 @@ nsCSSRendering::GetTextDecorationRectInternal(const gfxPoint& aPt,
 // ------------------
 nsImageRenderer::nsImageRenderer(nsIFrame* aForFrame,
                                  const nsStyleImage* aImage,
-                                 uint32_t aFlags)
+                                 PRUint32 aFlags)
   : mForFrame(aForFrame)
   , mImage(aImage)
   , mType(aImage->GetType())
@@ -4017,36 +3764,28 @@ nsImageRenderer::~nsImageRenderer()
 bool
 nsImageRenderer::PrepareImage()
 {
-  if (mImage->IsEmpty())
-    return false;
-
-  if (!mImage->IsComplete()) {
+  if (mImage->IsEmpty() || !mImage->IsComplete()) {
     // Make sure the image is actually decoding
-    mImage->StartDecoding();
+    mImage->RequestDecode();
 
-    // check again to see if we finished
-    if (!mImage->IsComplete()) {
-      // We can not prepare the image for rendering if it is not fully loaded.
-      //
-      // Special case: If we requested a sync decode and we have an image, push
-      // on through because the Draw() will do a sync decode then
-      nsCOMPtr<imgIContainer> img;
-      if (!((mFlags & FLAG_SYNC_DECODE_IMAGES) &&
-            (mType == eStyleImageType_Image) &&
-            (NS_SUCCEEDED(mImage->GetImageData()->GetImage(getter_AddRefs(img))))))
-        return false;
-    }
+    // We can not prepare the image for rendering if it is not fully loaded.
+    //
+    // Special case: If we requested a sync decode and we have an image, push
+    // on through
+    nsCOMPtr<imgIContainer> img;
+    if (!((mFlags & FLAG_SYNC_DECODE_IMAGES) &&
+          (mType == eStyleImageType_Image) &&
+          (NS_SUCCEEDED(mImage->GetImageData()->GetImage(getter_AddRefs(img))) && img)))
+      return false;
   }
 
   switch (mType) {
     case eStyleImageType_Image:
     {
       nsCOMPtr<imgIContainer> srcImage;
-      DebugOnly<nsresult> rv =
-        mImage->GetImageData()->GetImage(getter_AddRefs(srcImage));
-      NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv) && srcImage,
-                        "If GetImage() is failing, mImage->IsComplete() "
-                        "should have returned false");
+      mImage->GetImageData()->GetImage(getter_AddRefs(srcImage));
+      NS_ABORT_IF_FALSE(srcImage, "If srcImage is null, mImage->IsComplete() "
+                                  "should have returned false");
 
       if (!mImage->GetCropRect()) {
         mImageContainer.swap(srcImage);
@@ -4065,9 +3804,9 @@ nsImageRenderer::PrepareImage()
           mImageContainer.swap(srcImage);
         } else {
           nsCOMPtr<imgIContainer> subImage;
-          uint32_t aExtractFlags = (mFlags & FLAG_SYNC_DECODE_IMAGES)
-                                     ? (uint32_t) imgIContainer::FLAG_SYNC_DECODE
-                                     : (uint32_t) imgIContainer::FLAG_NONE;
+          PRUint32 aExtractFlags = (mFlags & FLAG_SYNC_DECODE_IMAGES)
+                                     ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
+                                     : (PRUint32) imgIContainer::FLAG_NONE;
           nsresult rv = srcImage->ExtractFrame(imgIContainer::FRAME_CURRENT,
                                                actualCropRect, aExtractFlags,
                                                getter_AddRefs(subImage));
@@ -4188,7 +3927,7 @@ nsImageRenderer::ComputeUnscaledDimensions(const nsSize& aBgPositioningArea,
           // The intrinsic image size for a generic nsIFrame paint server is
           // the union of the border-box rects of all of its continuations,
           // rounded to device pixels.
-          int32_t appUnitsPerDevPixel =
+          PRInt32 appUnitsPerDevPixel =
             mForFrame->PresContext()->AppUnitsPerDevPixel();
           size =
             nsSVGIntegrationUtils::GetContinuationUnionSize(mPaintServerFrame).
@@ -4426,9 +4165,9 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
   switch (mType) {
     case eStyleImageType_Image:
     {
-      uint32_t drawFlags = (mFlags & FLAG_SYNC_DECODE_IMAGES)
-                             ? (uint32_t) imgIContainer::FLAG_SYNC_DECODE
-                             : (uint32_t) imgIContainer::FLAG_NONE;
+      PRUint32 drawFlags = (mFlags & FLAG_SYNC_DECODE_IMAGES)
+                             ? (PRUint32) imgIContainer::FLAG_SYNC_DECODE
+                             : (PRUint32) imgIContainer::FLAG_NONE;
       nsLayoutUtils::DrawBackgroundImage(&aRenderingContext, mImageContainer,
           nsIntSize(nsPresContext::AppUnitsToIntCSSPixels(mSize.width),
                     nsPresContext::AppUnitsToIntCSSPixels(mSize.height)),
@@ -4467,7 +4206,8 @@ nsImageRenderer::IsRasterImage()
   if (mType != eStyleImageType_Image)
     return false;
   nsCOMPtr<imgIContainer> img;
-  if (NS_FAILED(mImage->GetImageData()->GetImage(getter_AddRefs(img))))
+  nsresult rv = mImage->GetImageData()->GetImage(getter_AddRefs(img));
+  if (NS_FAILED(rv) || !img)
     return false;
   return img->GetType() == imgIContainer::TYPE_RASTER;
 }
@@ -4479,7 +4219,7 @@ nsImageRenderer::GetContainer()
     return nullptr;
   nsCOMPtr<imgIContainer> img;
   nsresult rv = mImage->GetImageData()->GetImage(getter_AddRefs(img));
-  if (NS_FAILED(rv))
+  if (NS_FAILED(rv) || !img)
     return nullptr;
   nsRefPtr<ImageContainer> container;
   rv = img->GetImageContainer(getter_AddRefs(container));
@@ -4491,7 +4231,7 @@ nsImageRenderer::GetContainer()
 #define MAX_SPREAD_RADIUS 50
 
 static inline gfxIntSize
-ComputeBlurRadius(nscoord aBlurRadius, int32_t aAppUnitsPerDevPixel, gfxFloat aScaleX = 1.0, gfxFloat aScaleY = 1.0)
+ComputeBlurRadius(nscoord aBlurRadius, PRInt32 aAppUnitsPerDevPixel, gfxFloat aScaleX = 1.0, gfxFloat aScaleY = 1.0)
 {
   // http://dev.w3.org/csswg/css3-background/#box-shadow says that the
   // standard deviation of the blur should be half the given blur value.
@@ -4511,11 +4251,11 @@ ComputeBlurRadius(nscoord aBlurRadius, int32_t aAppUnitsPerDevPixel, gfxFloat aS
 gfxContext*
 nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
                        nscoord aBlurRadius,
-                       int32_t aAppUnitsPerDevPixel,
+                       PRInt32 aAppUnitsPerDevPixel,
                        gfxContext* aDestinationCtx,
                        const nsRect& aDirtyRect,
                        const gfxRect* aSkipRect,
-                       uint32_t aFlags)
+                       PRUint32 aFlags)
 {
   if (aRect.IsEmpty()) {
     mContext = nullptr;
@@ -4539,10 +4279,10 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
 
   // compute a large or smaller blur radius
   gfxIntSize blurRadius = ComputeBlurRadius(aBlurRadius, aAppUnitsPerDevPixel, scaleX, scaleY);
-  gfxIntSize spreadRadius = gfxIntSize(NS_MIN(int32_t(aSpreadRadius * scaleX / aAppUnitsPerDevPixel),
-                                              int32_t(MAX_SPREAD_RADIUS)),
-                                       NS_MIN(int32_t(aSpreadRadius * scaleY / aAppUnitsPerDevPixel),
-                                              int32_t(MAX_SPREAD_RADIUS)));
+  gfxIntSize spreadRadius = gfxIntSize(NS_MIN(PRInt32(aSpreadRadius * scaleX / aAppUnitsPerDevPixel),
+                                              PRInt32(MAX_SPREAD_RADIUS)),
+                                       NS_MIN(PRInt32(aSpreadRadius * scaleY / aAppUnitsPerDevPixel),
+                                              PRInt32(MAX_SPREAD_RADIUS)));
   mDestinationCtx = aDestinationCtx;
 
   // If not blurring, draw directly onto the destination device
@@ -4606,7 +4346,7 @@ nsContextBoxBlur::GetContext()
 
 /* static */ nsMargin
 nsContextBoxBlur::GetBlurRadiusMargin(nscoord aBlurRadius,
-                                      int32_t aAppUnitsPerDevPixel)
+                                      PRInt32 aAppUnitsPerDevPixel)
 {
   gfxIntSize blurRadius = ComputeBlurRadius(aBlurRadius, aAppUnitsPerDevPixel);
 

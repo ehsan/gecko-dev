@@ -46,12 +46,12 @@ public:
     virtual ~nsWindow();
 
     static void DoDraw(void);
-    static nsEventStatus DispatchInputEvent(nsGUIEvent &aEvent,
-                                            bool* aWasCaptured = nullptr);
+    static nsEventStatus DispatchInputEvent(nsGUIEvent &aEvent);
 
     NS_IMETHOD Create(nsIWidget *aParent,
                       void *aNativeParent,
                       const nsIntRect &aRect,
+                      EVENT_CALLBACK aHandleEventFunction,
                       nsDeviceContext *aContext,
                       nsWidgetInitData *aInitData);
     NS_IMETHOD Destroy(void);
@@ -59,24 +59,24 @@ public:
     NS_IMETHOD Show(bool aState);
     virtual bool IsVisible() const;
     NS_IMETHOD ConstrainPosition(bool aAllowSlop,
-                                 int32_t *aX,
-                                 int32_t *aY);
-    NS_IMETHOD Move(int32_t aX,
-                    int32_t aY);
-    NS_IMETHOD Resize(int32_t aWidth,
-                      int32_t aHeight,
+                                 PRInt32 *aX,
+                                 PRInt32 *aY);
+    NS_IMETHOD Move(PRInt32 aX,
+                    PRInt32 aY);
+    NS_IMETHOD Resize(PRInt32 aWidth,
+                      PRInt32 aHeight,
                       bool  aRepaint);
-    NS_IMETHOD Resize(int32_t aX,
-                      int32_t aY,
-                      int32_t aWidth,
-                      int32_t aHeight,
+    NS_IMETHOD Resize(PRInt32 aX,
+                      PRInt32 aY,
+                      PRInt32 aWidth,
+                      PRInt32 aHeight,
                       bool aRepaint);
     NS_IMETHOD Enable(bool aState);
     virtual bool IsEnabled() const;
     NS_IMETHOD SetFocus(bool aRaise = false);
     NS_IMETHOD ConfigureChildren(const nsTArray<nsIWidget::Configuration>&);
     NS_IMETHOD Invalidate(const nsIntRect &aRect);
-    virtual void* GetNativeData(uint32_t aDataType);
+    virtual void* GetNativeData(PRUint32 aDataType);
     NS_IMETHOD SetTitle(const nsAString& aTitle)
     {
         return NS_OK;
@@ -91,8 +91,6 @@ public:
     }
     NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);
 
-    NS_IMETHOD MakeFullScreen(bool aFullScreen) /*MOZ_OVERRIDE*/;
-
     virtual float GetDPI();
     virtual mozilla::layers::LayerManager*
         GetLayerManager(PLayersChild* aShadowManager = nullptr,
@@ -105,10 +103,9 @@ public:
                                       const InputContextAction& aAction);
     NS_IMETHOD_(InputContext) GetInputContext();
 
-    virtual uint32_t GetGLFrameBufferFormat() MOZ_OVERRIDE;
+    virtual PRUint32 GetGLFrameBufferFormat() MOZ_OVERRIDE;
 
     virtual nsIntRect GetNaturalBounds() MOZ_OVERRIDE;
-    virtual bool NeedsPaint();
 
 protected:
     nsWindow* mParent;

@@ -25,12 +25,6 @@
 
 class nsIThread;
 
-#define GONK_GPS_GEOLOCATION_PROVIDER_CID \
-{ 0x48525ec5, 0x5a7f, 0x490a, { 0x92, 0x77, 0xba, 0x66, 0xe0, 0xd2, 0x2c, 0x8b } }
-
-#define GONK_GPS_GEOLOCATION_PROVIDER_CONTRACTID \
-"@mozilla.org/gonk-gps-geolocation-provider;1"
-
 class GonkGPSGeolocationProvider : public nsIGeolocationProvider
                                  , public nsIRILDataCallback
 {
@@ -69,7 +63,7 @@ private:
   void Init();
   void SetupAGPS();
   void StartGPS();
-  void ShutdownGPS();
+  void ShutdownNow();
   void RequestDataConnection();
   void ReleaseDataConnection();
   void RequestSetID(uint32_t flags);

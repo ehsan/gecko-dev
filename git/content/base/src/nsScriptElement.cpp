@@ -22,25 +22,20 @@ nsScriptElement::ScriptAvailable(nsresult aResult,
                                  nsIScriptElement *aElement,
                                  bool aIsInline,
                                  nsIURI *aURI,
-                                 int32_t aLineNo)
+                                 PRInt32 aLineNo)
 {
   if (!aIsInline && NS_FAILED(aResult)) {
-    return FireErrorEvent();
+    nsCOMPtr<nsIContent> cont =
+      do_QueryInterface((nsIScriptElement*) this);
+
+    return nsContentUtils::DispatchTrustedEvent(cont->OwnerDoc(),
+                                                cont,
+                                                NS_LITERAL_STRING("error"),
+                                                false /* bubbles */,
+                                                false /* cancelable */);
   }
+
   return NS_OK;
-}
-
-/* virtual */ nsresult
-nsScriptElement::FireErrorEvent()
-{
-  nsCOMPtr<nsIContent> cont =
-    do_QueryInterface((nsIScriptElement*) this);
-
-  return nsContentUtils::DispatchTrustedEvent(cont->OwnerDoc(),
-                                              cont,
-                                              NS_LITERAL_STRING("error"),
-                                              false /* bubbles */,
-                                              false /* cancelable */);
 }
 
 NS_IMETHODIMP
@@ -57,7 +52,7 @@ nsScriptElement::ScriptEvaluated(nsresult aResult,
       nsContentUtils::GetContextForContent(cont);
 
     nsEventStatus status = nsEventStatus_eIgnore;
-    uint32_t type = NS_SUCCEEDED(aResult) ? NS_LOAD : NS_LOAD_ERROR;
+    PRUint32 type = NS_SUCCEEDED(aResult) ? NS_LOAD : NS_LOAD_ERROR;
     nsEvent event(true, type);
     if (type == NS_LOAD) {
       // Load event doesn't bubble.
@@ -81,9 +76,9 @@ nsScriptElement::CharacterDataChanged(nsIDocument *aDocument,
 void
 nsScriptElement::AttributeChanged(nsIDocument* aDocument,
                                   Element* aElement,
-                                  int32_t aNameSpaceID,
+                                  PRInt32 aNameSpaceID,
                                   nsIAtom* aAttribute,
-                                  int32_t aModType)
+                                  PRInt32 aModType)
 {
   MaybeProcessScript();
 }
@@ -92,7 +87,7 @@ void
 nsScriptElement::ContentAppended(nsIDocument* aDocument,
                                  nsIContent* aContainer,
                                  nsIContent* aFirstNewContent,
-                                 int32_t aNewIndexInContainer)
+                                 PRInt32 aNewIndexInContainer)
 {
   MaybeProcessScript();
 }
@@ -101,7 +96,7 @@ void
 nsScriptElement::ContentInserted(nsIDocument *aDocument,
                                  nsIContent* aContainer,
                                  nsIContent* aChild,
-                                 int32_t aIndexInContainer)
+                                 PRInt32 aIndexInContainer)
 {
   MaybeProcessScript();
 }

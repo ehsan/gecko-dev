@@ -6,7 +6,6 @@
 #ifndef nsMathMLmrowFrame_h___
 #define nsMathMLmrowFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
@@ -21,15 +20,15 @@ public:
   friend nsIFrame* NS_NewMathMLmrowFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  AttributeChanged(int32_t  aNameSpaceID,
+  AttributeChanged(PRInt32  aNameSpaceID,
                    nsIAtom* aAttribute,
-                   int32_t  aModType);
+                   PRInt32  aModType);
 
   NS_IMETHOD
   InheritAutomaticData(nsIFrame* aParent);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE {
+  TransmitAutomaticData() {
     return TransmitAutomaticDataForMrowLikeElement();
   }
 

@@ -6,6 +6,7 @@
 #include "nsFileControlFrame.h"
 
 #include "nsIContent.h"
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
@@ -33,6 +34,9 @@
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
 #include "nsEventListenerManager.h"
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
 
 #include "nsInterfaceHashtable.h"
 #include "nsURIHashKey.h"
@@ -49,9 +53,8 @@
 
 #include "nsIDOMDOMStringList.h"
 #include "nsIDOMDragEvent.h"
-#include "nsContentList.h"
 
-using namespace mozilla;
+namespace dom = mozilla::dom;
 
 #define SYNC_TEXT 0x1
 #define SYNC_BUTTON 0x2
@@ -222,7 +225,7 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   nsCOMPtr<nsIDOMHTMLInputElement> fileContent = do_QueryInterface(mContent);
   nsCOMPtr<nsIDOMHTMLInputElement> browseControl = do_QueryInterface(mBrowse);
   if (fileContent && browseControl) {
-    int32_t tabIndex;
+    PRInt32 tabIndex;
     nsAutoString accessKey;
 
     fileContent->GetAccessKey(accessKey);
@@ -250,7 +253,7 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
 void
 nsFileControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                             uint32_t aFilter)
+                                             PRUint32 aFilter)
 {
   aElements.MaybeAppendElement(mTextContent);
   aElements.MaybeAppendElement(mBrowse);
@@ -278,12 +281,12 @@ bool ShouldProcessMouseClick(nsIDOMEvent* aMouseEvent)
     return false;
   }
 
-  uint16_t whichButton;
+  PRUint16 whichButton;
   if (NS_FAILED(mouseEvent->GetButton(&whichButton)) || whichButton != 0) {
     return false;
   }
 
-  int32_t clickCount;
+  PRInt32 clickCount;
   if (NS_FAILED(mouseEvent->GetDetail(&clickCount)) || clickCount > 1) {
     return false;
   }
@@ -335,7 +338,7 @@ nsFileControlFrame::CaptureMouseListener::HandleEvent(nsIDOMEvent* aMouseEvent)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Show dialog
-  uint32_t result;
+  PRUint32 result;
   rv = capturePicker->Show(&result);
   NS_ENSURE_SUCCESS(rv, rv);
   if (result == nsICapturePicker::RETURN_CANCEL)
@@ -367,11 +370,12 @@ nsFileControlFrame::CaptureMouseListener::HandleEvent(nsIDOMEvent* aMouseEvent)
     // Tell our input element that this update of the value is a user
     // initiated change. Otherwise it'll think that the value is being set by
     // a script and not fire onchange when it should.
-
+   
     inputElement->SetFiles(newFiles, true);
-    nsContentUtils::DispatchTrustedEvent(content->OwnerDoc(), content,
-                                         NS_LITERAL_STRING("change"), true,
-                                         false);
+    
+    // Should fire a change event here since the SetFiles() call above ensures 
+    // a different value from the mFocusedValue of the inputElement. 
+    inputElement->FireChangeEventIfNeeded();
   }
 
   return NS_OK;
@@ -430,10 +434,9 @@ nsFileControlFrame::BrowseMouseListener::HandleEvent(nsIDOMEvent* aEvent)
     nsCOMPtr<nsIDOMFileList> fileList;
     dataTransfer->GetFiles(getter_AddRefs(fileList));
 
+    
     inputElement->SetFiles(fileList, true);
-    nsContentUtils::DispatchTrustedEvent(content->OwnerDoc(), content,
-                                         NS_LITERAL_STRING("change"), true,
-                                         false);
+    inputElement->FireChangeEventIfNeeded();
   }
 
   return NS_OK;
@@ -481,8 +484,8 @@ nsFileControlFrame::GetSkipSides() const
 }
 
 void
-nsFileControlFrame::SyncAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             int32_t aWhichControls)
+nsFileControlFrame::SyncAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                             PRInt32 aWhichControls)
 {
   nsAutoString value;
   if (mContent->GetAttr(aNameSpaceID, aAttribute, value)) {
@@ -518,9 +521,9 @@ nsFileControlFrame::SyncDisabledState()
 }
 
 NS_IMETHODIMP
-nsFileControlFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsFileControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                      nsIAtom*        aAttribute,
-                                     int32_t         aModType)
+                                     PRInt32         aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::size) {
@@ -630,17 +633,23 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 #ifdef ACCESSIBILITY
-a11y::AccType
-nsFileControlFrame::AccessibleType()
+already_AddRefed<Accessible>
+nsFileControlFrame::CreateAccessible()
 {
-  return a11y::eHTMLFileInputAccessible;
+  // Accessible object exists just to hold onto its children, for later shutdown
+  nsAccessibilityService* accService = nsIPresShell::AccService();
+  if (!accService)
+    return nullptr;
+
+  return accService->CreateHTMLFileInputAccessible(mContent,
+                                                   PresContext()->PresShell());
 }
 #endif
 
-uint32_t
+PRUint32
 nsFileControlFrame::GetCaptureMode(const CaptureCallbackData& aData)
 {
-  int32_t filters = nsHTMLInputElement::FromContent(mContent)->GetFilterFromAccept();
+  PRInt32 filters = nsHTMLInputElement::FromContent(mContent)->GetFilterFromAccept();
   nsresult rv;
   bool captureEnabled;
 

@@ -30,15 +30,15 @@ public:
 protected:
 
   NS_IMETHOD ConvertNoBuff(const PRUnichar * aSrc, 
-                            int32_t * aSrcLength, 
+                            PRInt32 * aSrcLength, 
                             char * aDest, 
-                            int32_t * aDestLength);
+                            PRInt32 * aDestLength);
 
   //--------------------------------------------------------------------
   // Subclassing of nsEncoderSupport class [declaration]
 
-  NS_IMETHOD ConvertNoBuffNoErr(const PRUnichar * aSrc, int32_t * aSrcLength, 
-                                char * aDest, int32_t * aDestLength)
+  NS_IMETHOD ConvertNoBuffNoErr(const PRUnichar * aSrc, PRInt32 * aSrcLength, 
+                                char * aDest, PRInt32 * aDestLength)
   {
     return NS_OK;
   }   // just make it not abstract;

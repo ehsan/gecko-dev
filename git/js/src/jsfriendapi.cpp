@@ -39,7 +39,7 @@ JS_FRIEND_API(JSString *)
 JS_GetAnonymousString(JSRuntime *rt)
 {
     JS_ASSERT(rt->hasContexts());
-    return rt->atomState.anonymous;
+    return rt->atomState.anonymousAtom;
 }
 
 JS_FRIEND_API(JSObject *)
@@ -97,8 +97,7 @@ JS_SplicePrototype(JSContext *cx, JSObject *objArg, JSObject *protoArg)
         return JS_SetPrototype(cx, obj, proto);
     }
 
-    Rooted<TaggedProto> tagged(cx, TaggedProto(proto));
-    return obj->splicePrototype(cx, tagged);
+    return obj->splicePrototype(cx, proto);
 }
 
 JS_FRIEND_API(JSObject *)
@@ -106,8 +105,8 @@ JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *protoArg, JS
 {
     RootedObject proto(cx, protoArg);
     RootedObject parent(cx, parentArg);
-    RootedObject obj(cx, JS_NewObject(cx, clasp, proto, parent));
-    if (!obj || !JSObject::setSingletonType(cx, obj))
+    JSObject *obj = JS_NewObject(cx, clasp, proto, parent);
+    if (!obj || !obj->setSingletonType(cx))
         return NULL;
     return obj;
 }
@@ -128,7 +127,7 @@ js::PrepareForFullGC(JSRuntime *rt)
 JS_FRIEND_API(void)
 js::PrepareForIncrementalGC(JSRuntime *rt)
 {
-    if (!IsIncrementalGCInProgress(rt))
+    if (rt->gcIncrementalState == gc::NO_INCREMENTAL)
         return;
 
     for (CompartmentsIter c(rt); !c.done(); c.next()) {
@@ -197,20 +196,10 @@ JS_SetCompartmentPrincipals(JSCompartment *compartment, JSPrincipals *principals
     if (principals == compartment->principals)
         return;
 
-    // Any compartment with the trusted principals -- and there can be
-    // multiple -- is a system compartment.
-    JSPrincipals *trusted = compartment->rt->trustedPrincipals();
-    bool isSystem = principals && principals == trusted;
-
     // Clear out the old principals, if any.
     if (compartment->principals) {
         JS_DropPrincipals(compartment->rt, compartment->principals);
         compartment->principals = NULL;
-        // We'd like to assert that our new principals is always same-origin
-        // with the old one, but JSPrincipals doesn't give us a way to do that.
-        // But we can at least assert that we're not switching between system
-        // and non-system.
-        JS_ASSERT(compartment->isSystemCompartment == isSystem);
     }
 
     // Set up the new principals.
@@ -219,8 +208,10 @@ JS_SetCompartmentPrincipals(JSCompartment *compartment, JSPrincipals *principals
         compartment->principals = principals;
     }
 
-    // Update the system flag.
-    compartment->isSystemCompartment = isSystem;
+    // Any compartment with the trusted principals -- and there can be
+    // multiple -- is a system compartment.
+    JSPrincipals *trusted = compartment->rt->trustedPrincipals();
+    compartment->isSystemCompartment = principals && principals == trusted;
 }
 
 JS_FRIEND_API(JSBool)
@@ -373,7 +364,7 @@ js::DefineFunctionWithReserved(JSContext *cx, JSObject *objArg, const char *name
     if (!atom)
         return NULL;
     Rooted<jsid> id(cx, AtomToId(atom));
-    return js_DefineFunction(cx, obj, id, call, nargs, attrs, NULL, JSFunction::ExtendedFinalizeKind);
+    return js_DefineFunction(cx, obj, id, call, nargs, attrs, JSFunction::ExtendedFinalizeKind);
 }
 
 JS_FRIEND_API(JSFunction *)
@@ -382,18 +373,20 @@ js::NewFunctionWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsi
 {
     RootedObject parent(cx, parentArg);
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
+    JSAtom *atom;
 
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, parent);
 
-    RootedAtom atom(cx);
-    if (name) {
+    if (!name) {
+        atom = NULL;
+    } else {
         atom = Atomize(cx, name, strlen(name));
         if (!atom)
             return NULL;
     }
 
-    return js_NewFunction(cx, NullPtr(), native, nargs, flags, parent, atom,
+    return js_NewFunction(cx, NULL, native, nargs, flags, parent, atom,
                           JSFunction::ExtendedFinalizeKind);
 }
 
@@ -407,8 +400,7 @@ js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, 
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, parent);
 
-    RootedAtom atom(cx, JSID_TO_ATOM(id));
-    return js_NewFunction(cx, NullPtr(), native, nargs, flags, parent, atom,
+    return js_NewFunction(cx, NULL, native, nargs, flags, parent, JSID_TO_ATOM(id),
                           JSFunction::ExtendedFinalizeKind);
 }
 
@@ -448,13 +440,13 @@ js::SetReservedSlotWithBarrier(RawObject obj, size_t slot, const js::Value &valu
 }
 
 JS_FRIEND_API(bool)
-js::GetGeneric(JSContext *cx, JSObject *objArg, JSObject *receiverArg, jsid idArg,
+js::GetGeneric(JSContext *cx, JSObject *obj, JSObject *receiver_, jsid id_,
                Value *vp)
 {
-    RootedObject obj(cx, objArg), receiver(cx, receiverArg);
-    RootedId id(cx, idArg);
+    RootedObject receiver(cx, receiver_);
+    RootedId id(cx, id_);
     RootedValue value(cx);
-    if (!JSObject::getGeneric(cx, obj, receiver, id, &value))
+    if (!obj->getGeneric(cx, receiver, id, &value))
         return false;
     *vp = value;
     return true;
@@ -522,6 +514,13 @@ js::GCThingIsMarkedGray(void *thing)
     return reinterpret_cast<gc::Cell *>(thing)->isMarked(gc::GRAY);
 }
 
+JS_FRIEND_API(JSCompartment*)
+js::GetGCThingCompartment(void *thing)
+{
+    JS_ASSERT(thing);
+    return reinterpret_cast<gc::Cell *>(thing)->compartment();
+}
+
 JS_FRIEND_API(void)
 js::VisitGrayWrapperTargets(JSCompartment *comp, GCThingCallback *callback, void *closure)
 {
@@ -532,27 +531,10 @@ js::VisitGrayWrapperTargets(JSCompartment *comp, GCThingCallback *callback, void
     }
 }
 
-JS_FRIEND_API(JSObject *)
-js::GetWeakmapKeyDelegate(JSObject *key)
-{
-    if (JSWeakmapKeyDelegateOp op = key->getClass()->ext.weakmapKeyDelegateOp)
-        return op(key);
-    return NULL;
-}
-
 JS_FRIEND_API(void)
 JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallback callback)
 {
     rt->telemetryCallback = callback;
-}
-
-JS_FRIEND_API(JSObject *)
-JS_CloneObject(JSContext *cx, JSObject *obj_, JSObject *proto_, JSObject *parent_)
-{
-    RootedObject obj(cx, obj_);
-    Rooted<js::TaggedProto> proto(cx, proto_);
-    RootedObject parent(cx, parent_);
-    return CloneObject(cx, obj, proto, parent);
 }
 
 #ifdef DEBUG
@@ -568,11 +550,36 @@ js_DumpAtom(JSAtom *atom)
     atom->dump();
 }
 
+extern void
+DumpChars(const jschar *s, size_t n)
+{
+    if (n == SIZE_MAX) {
+        n = 0;
+        while (s[n])
+            n++;
+    }
+
+    fputc('"', stderr);
+    for (size_t i = 0; i < n; i++) {
+        if (s[i] == '\n')
+            fprintf(stderr, "\\n");
+        else if (s[i] == '\t')
+            fprintf(stderr, "\\t");
+        else if (s[i] >= 32 && s[i] < 127)
+            fputc(s[i], stderr);
+        else if (s[i] <= 255)
+            fprintf(stderr, "\\x%02x", (unsigned int) s[i]);
+        else
+            fprintf(stderr, "\\u%04x", (unsigned int) s[i]);
+    }
+    fputc('"', stderr);
+}
+
 JS_FRIEND_API(void)
 js_DumpChars(const jschar *s, size_t n)
 {
     fprintf(stderr, "jschar * (%p) = ", (void *) s);
-    JSString::dumpChars(s, n);
+    DumpChars(s, n);
     fputc('\n', stderr);
 }
 
@@ -721,10 +728,10 @@ GetOwnerThread(const JSContext *cx)
     return cx->runtime->ownerThread();
 }
 
-JS_FRIEND_API(bool)
-ContextHasOutstandingRequests(const JSContext *cx)
+JS_FRIEND_API(unsigned)
+GetContextOutstandingRequests(const JSContext *cx)
 {
-    return cx->outstandingRequests > 0;
+    return cx->outstandingRequests;
 }
 #endif
 
@@ -759,6 +766,12 @@ GetRuntimeCompartments(JSRuntime *rt)
     return rt->compartments;
 }
 
+JS_FRIEND_API(size_t)
+SizeOfJSContext()
+{
+    return sizeof(JSContext);
+}
+
 JS_FRIEND_API(GCSliceCallback)
 SetGCSliceCallback(JSRuntime *rt, GCSliceCallback callback)
 {
@@ -785,14 +798,6 @@ GCDescription::formatJSON(JSRuntime *rt, uint64_t timestamp) const
     return rt->gcStats.formatJSON(timestamp);
 }
 
-JS_FRIEND_API(AnalysisPurgeCallback)
-SetAnalysisPurgeCallback(JSRuntime *rt, AnalysisPurgeCallback callback)
-{
-    AnalysisPurgeCallback old = rt->analysisPurgeCallback;
-    rt->analysisPurgeCallback = callback;
-    return old;
-}
-
 JS_FRIEND_API(void)
 NotifyDidPaint(JSRuntime *rt)
 {
@@ -812,7 +817,7 @@ NotifyDidPaint(JSRuntime *rt)
         return;
     }
 
-    if (IsIncrementalGCInProgress(rt) && !rt->gcInterFrameGC) {
+    if (rt->gcIncrementalState != gc::NO_INCREMENTAL && !rt->gcInterFrameGC) {
         PrepareForIncrementalGC(rt);
         GCSlice(rt, GC_NORMAL, gcreason::REFRESH_FRAME);
     }
@@ -824,12 +829,6 @@ extern JS_FRIEND_API(bool)
 IsIncrementalGCEnabled(JSRuntime *rt)
 {
     return rt->gcIncrementalEnabled && rt->gcMode == JSGC_MODE_INCREMENTAL;
-}
-
-JS_FRIEND_API(bool)
-IsIncrementalGCInProgress(JSRuntime *rt)
-{
-    return (rt->gcIncrementalState != gc::NO_INCREMENTAL && !rt->gcVerifyPreData);
 }
 
 extern JS_FRIEND_API(void)

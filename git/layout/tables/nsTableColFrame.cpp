@@ -47,15 +47,13 @@ nsTableColFrame::SetColType(nsTableColType aType)
                 GetPrevContinuation()->GetNextContinuation() == this &&
                 GetPrevContinuation()->GetNextSibling() == this),
                "spanned content cols must be continuations");
-  uint32_t type = aType - eColContent;
+  PRUint32 type = aType - eColContent;
   mState |= (type << COL_TYPE_OFFSET);
 }
 
 /* virtual */ void
 nsTableColFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
-  nsSplittableFrame::DidSetStyleContext(aOldStyleContext);
-
   if (!aOldStyleContext) //avoid this on init
     return;
      
@@ -67,7 +65,7 @@ nsTableColFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 }
 
-void nsTableColFrame::SetContinuousBCBorderWidth(uint8_t     aForSide,
+void nsTableColFrame::SetContinuousBCBorderWidth(PRUint8     aForSide,
                                                  BCPixelSize aPixelValue)
 {
   switch (aForSide) {
@@ -105,17 +103,17 @@ NS_METHOD nsTableColFrame::Reflow(nsPresContext*          aPresContext,
   return NS_OK;
 }
 
-int32_t nsTableColFrame::GetSpan()
+PRInt32 nsTableColFrame::GetSpan()
 {
   return GetStyleTable()->mSpan;
 }
 
 #ifdef DEBUG
-void nsTableColFrame::Dump(int32_t aIndent)
+void nsTableColFrame::Dump(PRInt32 aIndent)
 {
   char* indent = new char[aIndent + 1];
   if (!indent) return;
-  for (int32_t i = 0; i < aIndent + 1; i++) {
+  for (PRInt32 i = 0; i < aIndent + 1; i++) {
     indent[i] = ' ';
   }
   indent[aIndent] = 0;
@@ -138,11 +136,11 @@ void nsTableColFrame::Dump(int32_t aIndent)
     break;
   }
   printf("\nm:%d c:%d(%c) p:%f sm:%d sc:%d sp:%f f:%d",
-         int32_t(mMinCoord), int32_t(mPrefCoord),
+         PRInt32(mMinCoord), PRInt32(mPrefCoord),
          mHasSpecifiedCoord ? 's' : 'u', mPrefPercent,
-         int32_t(mSpanMinCoord), int32_t(mSpanPrefCoord),
+         PRInt32(mSpanMinCoord), PRInt32(mSpanPrefCoord),
          mSpanPrefPercent,
-         int32_t(GetFinalWidth()));
+         PRInt32(GetFinalWidth()));
   printf("\n%s**END COL DUMP** ", indent);
   delete [] indent;
 }
@@ -188,23 +186,5 @@ nsSplittableType
 nsTableColFrame::GetSplittableType() const
 {
   return NS_FRAME_NOT_SPLITTABLE;
-}
-
-void
-nsTableColFrame::InvalidateFrame(uint32_t aDisplayItemKey)
-{
-  nsIFrame::InvalidateFrame(aDisplayItemKey);
-  GetParent()->InvalidateFrameWithRect(GetVisualOverflowRect() + GetPosition(), aDisplayItemKey);
-}
-
-void
-nsTableColFrame::InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey)
-{
-  nsIFrame::InvalidateFrameWithRect(aRect, aDisplayItemKey);
-
-  // If we have filters applied that would affects our bounds, then
-  // we get an inactive layer created and this is computed
-  // within FrameLayerBuilder
-  GetParent()->InvalidateFrameWithRect(aRect + GetPosition(), aDisplayItemKey);
 }
 

@@ -25,7 +25,7 @@ class nsIdleServiceGonk : public nsIdleService
 public:
     NS_DECL_ISUPPORTS_INHERITED
 
-    bool PollIdleTime(uint32_t* aIdleTime);
+    bool PollIdleTime(PRUint32* aIdleTime);
 
     static already_AddRefed<nsIdleServiceGonk> GetInstance()
     {

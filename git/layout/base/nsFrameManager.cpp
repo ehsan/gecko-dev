@@ -51,7 +51,7 @@
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
-#include "nsError.h"
+#include "nsLayoutErrors.h"
 #include "nsLayoutUtils.h"
 #include "nsAutoPtr.h"
 #include "imgIRequest.h"
@@ -61,7 +61,6 @@
 
 #include "nsFrameManager.h"
 #include "nsRuleProcessorData.h"
-#include "sampler.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -154,7 +153,7 @@ public:
 
 class nsFrameManagerBase::UndisplayedMap {
 public:
-  UndisplayedMap(uint32_t aNumBuckets = 16) NS_HIDDEN;
+  UndisplayedMap(PRUint32 aNumBuckets = 16) NS_HIDDEN;
   ~UndisplayedMap(void) NS_HIDDEN;
 
   NS_HIDDEN_(UndisplayedNode*) GetFirstNode(nsIContent* aParentContent);
@@ -286,7 +285,7 @@ nsFrameManager::UnregisterPlaceholderFrame(nsPlaceholderFrame* aPlaceholderFrame
 
 static PLDHashOperator
 UnregisterPlaceholders(PLDHashTable* table, PLDHashEntryHdr* hdr,
-                       uint32_t number, void* arg)
+                       PRUint32 number, void* arg)
 {
   PlaceholderMapEntry* entry = static_cast<PlaceholderMapEntry*>(hdr);
   entry->placeholderFrame->SetOutOfFlowFrame(nullptr);
@@ -419,10 +418,10 @@ nsFrameManager::ClearAllUndisplayedContentIn(nsIContent* aParentContent)
   nsINodeList* list =
     aParentContent->OwnerDoc()->BindingManager()->GetXBLChildNodesFor(aParentContent);
   if (list) {
-    uint32_t length;
+    PRUint32 length;
     list->GetLength(&length);
-    for (uint32_t i = 0; i < length; ++i) {
-      nsIContent* child = list->Item(i);
+    for (PRUint32 i = 0; i < length; ++i) {
+      nsIContent* child = list->GetNodeAt(i);
       if (child->GetParent() != aParentContent) {
         ClearUndisplayedContentIn(child, child->GetParent());
       }
@@ -452,8 +451,8 @@ nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
                              nsFrameList&    aFrameList)
 {
   NS_PRECONDITION(!aPrevFrame || (!aPrevFrame->GetNextContinuation()
-                  || (((aPrevFrame->GetNextContinuation()->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER))
-                  && !(aPrevFrame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER))),
+                  || (aPrevFrame->GetNextContinuation()->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER))
+                  && !(aPrevFrame->GetStateBits() & NS_FRAME_IS_OVERFLOW_CONTAINER),
                   "aPrevFrame must be the last continuation in its chain!");
 
   if (aParentFrame->IsAbsoluteContainer() &&
@@ -467,7 +466,8 @@ nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
 
 nsresult
 nsFrameManager::RemoveFrame(ChildListID     aListID,
-                            nsIFrame*       aOldFrame)
+                            nsIFrame*       aOldFrame,
+                            bool            aInvalidate /* = true */)
 {
   bool wasDestroyingFrames = mIsDestroyingFrames;
   mIsDestroyingFrames = true;
@@ -478,7 +478,9 @@ nsFrameManager::RemoveFrame(ChildListID     aListID,
   // that doesn't change the size of the parent.)
   // This has to sure to invalidate the entire overflow rect; this
   // is important in the presence of absolute positioning
-  aOldFrame->InvalidateFrameForRemoval();
+  if (aInvalidate) {
+    aOldFrame->InvalidateFrameSubtree();
+  }
 
   NS_ASSERTION(!aOldFrame->GetPrevContinuation() ||
                // exception for nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames
@@ -664,7 +666,7 @@ VerifyStyleTree(nsPresContext* aPresContext, nsIFrame* aFrame,
   }
   
   // do additional contexts 
-  int32_t contextIndex = -1;
+  PRInt32 contextIndex = -1;
   while (1) {
     nsStyleContext* extraContext = aFrame->GetAdditionalStyleContext(++contextIndex);
     if (extraContext) {
@@ -879,8 +881,7 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
 
         // Make sure to call CalcStyleDifference so that the new context ends
         // up resolving all the structs the old context resolved.
-        nsChangeHint styleChange =
-          oldContext->CalcStyleDifference(newContext, nsChangeHint(0));
+        nsChangeHint styleChange = oldContext->CalcStyleDifference(newContext);
         // The style change is always 0 because we have the same rulenode and
         // CalcStyleDifference optimizes us away.  That's OK, though:
         // reparenting should never trigger a frame reconstruct, and whenever
@@ -929,7 +930,7 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
         }
 
         // do additional contexts 
-        int32_t contextIndex = -1;
+        PRInt32 contextIndex = -1;
         while (1) {
           nsStyleContext* oldExtraContext =
             aFrame->GetAdditionalStyleContext(++contextIndex);
@@ -944,8 +945,7 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
                 // context ends up resolving all the structs the old context
                 // resolved.
                 styleChange =
-                  oldExtraContext->CalcStyleDifference(newExtraContext,
-                                                       nsChangeHint(0));
+                  oldExtraContext->CalcStyleDifference(newExtraContext);
                 // The style change is always 0 because we have the same
                 // rulenode and CalcStyleDifference optimizes us away.  That's
                 // OK, though: reparenting should never trigger a frame
@@ -971,28 +971,16 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
   return NS_OK;
 }
 
-static void
+static nsChangeHint
 CaptureChange(nsStyleContext* aOldContext, nsStyleContext* aNewContext,
               nsIFrame* aFrame, nsIContent* aContent,
-              nsStyleChangeList* aChangeList,
-              /*inout*/nsChangeHint &aMinChange,
-              /*in*/nsChangeHint aParentHintsNotHandledForDescendants,
-              /*out*/nsChangeHint &aHintsNotHandledForDescendants,
+              nsStyleChangeList* aChangeList, nsChangeHint aMinChange,
               nsChangeHint aChangeToAssume)
 {
-  nsChangeHint ourChange = aOldContext->CalcStyleDifference(aNewContext,
-                             aParentHintsNotHandledForDescendants);
-  NS_ASSERTION(!(ourChange & nsChangeHint_AllReflowHints) ||
+  nsChangeHint ourChange = aOldContext->CalcStyleDifference(aNewContext);
+  NS_ASSERTION(!(ourChange & nsChangeHint_ReflowFrame) ||
                (ourChange & nsChangeHint_NeedReflow),
                "Reflow hint bits set without actually asking for a reflow");
-
-  // nsChangeHint_UpdateEffects is inherited, but it can be set due to changes
-  // in inherited properties (fill and stroke).  Avoid propagating it into
-  // text nodes.
-  if ((ourChange & nsChangeHint_UpdateEffects) &&
-      aContent && !aContent->IsElement()) {
-    ourChange = NS_SubtractHint(ourChange, nsChangeHint_UpdateEffects);
-  }
 
   NS_UpdateHint(ourChange, aChangeToAssume);
   if (NS_UpdateHint(aMinChange, ourChange)) {
@@ -1000,7 +988,7 @@ CaptureChange(nsStyleContext* aOldContext, nsStyleContext* aNewContext,
       aChangeList->AppendChange(aFrame, aContent, ourChange);
     }
   }
-  aHintsNotHandledForDescendants = NS_HintsNotHandledForDescendantsIn(ourChange);
+  return aMinChange;
 }
 
 /**
@@ -1010,9 +998,6 @@ CaptureChange(nsStyleContext* aOldContext, nsStyleContext* aNewContext,
  * context.  This means that, for pseudo-elements, it is the content
  * that should be used for selector matching (rather than the fake
  * content node attached to the frame).
- *
- * For aParentFrameHintsNotHandledForDescendants, see
- * nsStyleContext::CalcStyleDifference.
  */
 nsChangeHint
 nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
@@ -1020,17 +1005,34 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                       nsIContent        *aParentContent,
                                       nsStyleChangeList *aChangeList, 
                                       nsChangeHint       aMinChange,
-                                      nsChangeHint       aParentFrameHintsNotHandledForDescendants,
                                       nsRestyleHint      aRestyleHint,
                                       RestyleTracker&    aRestyleTracker,
                                       DesiredA11yNotifications aDesiredA11yNotifications,
                                       nsTArray<nsIContent*>& aVisibleKidsOfHiddenElement,
                                       TreeMatchContext &aTreeMatchContext)
 {
+  if (!NS_IsHintSubset(nsChangeHint_NeedDirtyReflow, aMinChange)) {
+    // If aMinChange doesn't include nsChangeHint_NeedDirtyReflow, clear out
+    // all the reflow change bits from it, so that we'll make sure to append a
+    // change to the list for ourselves if we need a reflow.  We need this
+    // because the parent may or may not actually end up reflowing us
+    // otherwise.
+    aMinChange = NS_SubtractHint(aMinChange, nsChangeHint_ReflowFrame);
+  } else if (!NS_IsHintSubset(nsChangeHint_ClearDescendantIntrinsics,
+                              aMinChange)) {
+    // If aMinChange doesn't include nsChangeHint_ClearDescendantIntrinsics,
+    // clear out the nsChangeHint_ClearAncestorIntrinsics flag, since it's
+    // possible that we had some random ancestor that cleared ancestor
+    // intrinsic widths, but we still need to clear intrinsic widths on frames
+    // that are our ancestors but its descendants.
+    aMinChange =
+      NS_SubtractHint(aMinChange, nsChangeHint_ClearAncestorIntrinsics);
+  }
+
   // We need to generate a new change list entry for every frame whose style
   // comparision returns one of these hints. These hints don't automatically
   // update all their descendant frames.
-  aMinChange = NS_SubtractHint(aMinChange, NS_HintsNotHandledForDescendantsIn(aMinChange));
+  aMinChange = NS_SubtractHint(aMinChange, nsChangeHint_NonInherited_Hints);
 
   // It would be nice if we could make stronger assertions here; they
   // would let us simplify the ?: expressions below setting |content|
@@ -1121,9 +1123,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
 
       assumeDifferenceHint = ReResolveStyleContext(aPresContext, providerFrame,
                                                    aParentContent, aChangeList,
-                                                   aMinChange,
-                                                   nsChangeHint_Hints_NotHandledForDescendants,
-                                                   aRestyleHint,
+                                                   aMinChange, aRestyleHint,
                                                    aRestyleTracker,
                                                    aDesiredA11yNotifications,
                                                    aVisibleKidsOfHiddenElement,
@@ -1135,13 +1135,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       // Set |resolvedChild| so we don't bother resolving the
       // provider again.
       resolvedChild = providerFrame;
-    }
-
-    if (providerFrame != aFrame->GetParent()) {
-      // We don't actually know what the parent style context's
-      // non-inherited hints were, so assume the worst.
-      aParentFrameHintsNotHandledForDescendants =
-        nsChangeHint_Hints_NotHandledForDescendants;
     }
 
 #ifdef DEBUG
@@ -1192,7 +1185,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
 
     // do primary context
     nsRefPtr<nsStyleContext> newContext;
-    nsChangeHint nonInheritedHints = nsChangeHint(0);
     nsIFrame *prevContinuation =
       GetPrevContinuationWithPossiblySameStyle(aFrame);
     nsStyleContext *prevContinuationContext;
@@ -1207,9 +1199,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       // above, which we would have previously hit for aFrame's previous
       // continuation).
       newContext = prevContinuationContext;
-      // We don't know what changes the previous continuation had, so
-      // assume the worst.
-      nonInheritedHints = nsChangeHint_Hints_NotHandledForDescendants;
     }
     else if (pseudoTag == nsCSSAnonBoxes::mozNonElement) {
       NS_ASSERTION(localContent,
@@ -1295,9 +1284,9 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                 oldContext, &newContext);
         }
 
-        CaptureChange(oldContext, newContext, aFrame, content, aChangeList,
-                      aMinChange, aParentFrameHintsNotHandledForDescendants,
-                      nonInheritedHints, assumeDifferenceHint);
+        aMinChange = CaptureChange(oldContext, newContext, aFrame,
+                                   content, aChangeList, aMinChange,
+                                   assumeDifferenceHint);
         if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
           // if frame gets regenerated, let it keep old context
           aFrame->SetStyleContext(newContext);
@@ -1313,7 +1302,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
     // do additional contexts
     // XXXbz might be able to avoid selector matching here in some
     // cases; won't worry about it for now.
-    int32_t contextIndex = -1;
+    PRInt32 contextIndex = -1;
     while (1 == 1) {
       nsStyleContext* oldExtraContext = nullptr;
       oldExtraContext = aFrame->GetAdditionalStyleContext(++contextIndex);
@@ -1341,13 +1330,9 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
         }
         if (newExtraContext) {
           if (oldExtraContext != newExtraContext) {
-            nsChangeHint extraHintsNotHandledForDescendants = nsChangeHint(0);
-            CaptureChange(oldExtraContext, newExtraContext, aFrame, content,
-                          aChangeList, aMinChange,
-                          aParentFrameHintsNotHandledForDescendants,
-                          extraHintsNotHandledForDescendants,
-                          assumeDifferenceHint);
-            NS_UpdateHint(nonInheritedHints, extraHintsNotHandledForDescendants);
+            aMinChange = CaptureChange(oldExtraContext, newExtraContext,
+                                       aFrame, content, aChangeList,
+                                       aMinChange, assumeDifferenceHint);
             if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
               aFrame->SetAdditionalStyleContext(contextIndex, newExtraContext);
             }
@@ -1555,7 +1540,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
 
               // Note that the out-of-flow may not be a geometric descendant of
               // the frame where we started the reresolve.  Therefore, even if
-              // aMinChange already includes nsChangeHint_AllReflowHints we don't
+              // aMinChange already includes nsChangeHint_ReflowFrame we don't
               // want to pass that on to the out-of-flow reresolve, since that
               // can lead to the out-of-flow not getting reflowed when it should
               // be (eg a reresolve starting at <body> that involves reflowing
@@ -1570,8 +1555,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                 ReResolveStyleContext(aPresContext, outOfFlowFrame,
                                       content, aChangeList,
                                       NS_SubtractHint(aMinChange,
-                                                      nsChangeHint_AllReflowHints),
-                                      nonInheritedHints,
+                                                      nsChangeHint_ReflowFrame),
                                       childRestyleHint,
                                       aRestyleTracker,
                                       kidsDesiredA11yNotification,
@@ -1583,7 +1567,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
               // as the out-of-flow frame
               ReResolveStyleContext(aPresContext, child, content,
                                     aChangeList, aMinChange,
-                                    nonInheritedHints,
                                     childRestyleHint,
                                     aRestyleTracker,
                                     kidsDesiredA11yNotification,
@@ -1594,7 +1577,6 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
               if (child != resolvedChild) {
                 ReResolveStyleContext(aPresContext, child, content,
                                       aChangeList, aMinChange,
-                                      nonInheritedHints,
                                       childRestyleHint,
                                       aRestyleTracker,
                                       kidsDesiredA11yNotification,
@@ -1629,8 +1611,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
           accService->ContentRemoved(presShell, content->GetParent(), content);
 
           // Process children staying shown.
-          uint32_t visibleContentCount = aVisibleKidsOfHiddenElement.Length();
-          for (uint32_t idx = 0; idx < visibleContentCount; idx++) {
+          PRUint32 visibleContentCount = aVisibleKidsOfHiddenElement.Length();
+          for (PRUint32 idx = 0; idx < visibleContentCount; idx++) {
             nsIContent* content = aVisibleKidsOfHiddenElement[idx];
             accService->ContentRangeInserted(presShell, content->GetParent(),
                                              content, content->GetNextSibling());
@@ -1652,8 +1634,6 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
                                       RestyleTracker&    aRestyleTracker,
                                       bool               aRestyleDescendants)
 {
-  SAMPLE_LABEL("CSS", "ComputeStyleChangeFor");
-
   nsIContent *content = aFrame->GetContent();
   if (aMinChange) {
     aChangeList->AppendChange(aFrame, content, aMinChange);
@@ -1686,7 +1666,7 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
       // Inner loop over next-in-flows of the current frame
       nsChangeHint frameChange =
         ReResolveStyleContext(GetPresContext(), frame, nullptr,
-                              aChangeList, topLevelChange, nsChangeHint(0),
+                              aChangeList, topLevelChange,
                               aRestyleDescendants ?
                                 eRestyle_Subtree : eRestyle_Self,
                               aRestyleTracker,
@@ -1746,7 +1726,7 @@ nsFrameManager::CaptureFrameStateFor(nsIFrame* aFrame,
 
   // Generate the hash key to store the state under
   // Exit early if we get empty key
-  nsAutoCString stateKey;
+  nsCAutoString stateKey;
   nsIContent* content = aFrame->GetContent();
   nsIDocument* doc = content ? content->GetCurrentDoc() : nullptr;
   rv = nsContentUtils::GenerateStateKey(content, doc, aID, stateKey);
@@ -1815,7 +1795,7 @@ nsFrameManager::RestoreFrameStateFor(nsIFrame* aFrame,
     return;
   }
 
-  nsAutoCString stateKey;
+  nsCAutoString stateKey;
   nsIDocument* doc = content->GetCurrentDoc();
   nsresult rv = nsContentUtils::GenerateStateKey(content, doc, aID, stateKey);
   if (NS_FAILED(rv) || stateKey.IsEmpty()) {
@@ -1873,7 +1853,7 @@ CompareKeys(void* key1, void* key2)
 
 //----------------------------------------------------------------------
 
-nsFrameManagerBase::UndisplayedMap::UndisplayedMap(uint32_t aNumBuckets)
+nsFrameManagerBase::UndisplayedMap::UndisplayedMap(PRUint32 aNumBuckets)
 {
   MOZ_COUNT_CTOR(nsFrameManagerBase::UndisplayedMap);
   mTable = PL_NewHashTable(aNumBuckets, (PLHashFunction)HashKey,
@@ -2014,4 +1994,4 @@ nsFrameManagerBase::UndisplayedMap::Clear(void)
   PL_HashTableEnumerateEntries(mTable, RemoveUndisplayedEntry, 0);
 }
 
-uint32_t nsFrameManagerBase::sGlobalGenerationNumber;
+PRUint32 nsFrameManagerBase::sGlobalGenerationNumber;

@@ -18,7 +18,7 @@
 
 #include <stdlib.h>
 #include "nsHostResolver.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsISupportsBase.h"
 #include "nsISupportsUtils.h"
 #include "nsAutoPtr.h"
@@ -34,6 +34,7 @@
 #include "nsThreadUtils.h"
 
 #include "mozilla/HashFunctions.h"
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Telemetry.h"
 
@@ -85,10 +86,15 @@ MoveCList(PRCList &from, PRCList &to)
     }             
 }
 
-static uint32_t
+static PRUint32
 NowInMinutes()
 {
-    return uint32_t(PR_Now() / int64_t(60 * PR_USEC_PER_SEC));
+    PRTime now = PR_Now(), minutes, factor;
+    LL_I2L(factor, 60 * PR_USEC_PER_SEC);
+    LL_DIV(minutes, now, factor);
+    PRUint32 result;
+    LL_L2UI(result, minutes);
+    return result;
 }
 
 //----------------------------------------------------------------------------
@@ -200,7 +206,7 @@ nsHostRecord::Blacklisted(PRNetAddr *aQuery)
     }
     nsDependentCString strQuery(buf);
 
-    for (uint32_t i = 0; i < mBlacklistedItems.Length(); i++) {
+    for (PRUint32 i = 0; i < mBlacklistedItems.Length(); i++) {
         if (mBlacklistedItems.ElementAt(i).Equals(strQuery)) {
             LOG(("Address [%s] is blacklisted for host [%s].\n", buf, host));
             return true;
@@ -277,8 +283,8 @@ HostDB_ClearEntry(PLDHashTable *table,
     if (!he->rec->addr_info) {
         LOG(("No address info for host [%s].\n", he->rec->host));
     } else {
-        int32_t now = (int32_t) NowInMinutes();
-        int32_t diff = (int32_t) he->rec->expiration - now;
+        PRInt32 now = (PRInt32) NowInMinutes();
+        PRInt32 diff = (PRInt32) he->rec->expiration - now;
         LOG(("Record for [%s] expires in %d minute(s).\n", he->rec->host, diff));
         void *iter = nullptr;
         PRNetAddr addr;
@@ -320,7 +326,7 @@ static PLDHashTableOps gHostDB_ops =
 static PLDHashOperator
 HostDB_RemoveEntry(PLDHashTable *table,
                    PLDHashEntryHdr *hdr,
-                   uint32_t number,
+                   PRUint32 number,
                    void *arg)
 {
     return PL_DHASH_REMOVE;
@@ -328,9 +334,9 @@ HostDB_RemoveEntry(PLDHashTable *table,
 
 //----------------------------------------------------------------------------
 
-nsHostResolver::nsHostResolver(uint32_t maxCacheEntries,
-                               uint32_t maxCacheLifetime,
-                               uint32_t lifetimeGracePeriod)
+nsHostResolver::nsHostResolver(PRUint32 maxCacheEntries,
+                               PRUint32 maxCacheLifetime,
+                               PRUint32 lifetimeGracePeriod)
     : mMaxCacheEntries(maxCacheEntries)
     , mMaxCacheLifetime(maxCacheLifetime)
     , mGracePeriod(lifetimeGracePeriod)
@@ -361,6 +367,8 @@ nsHostResolver::~nsHostResolver()
 nsresult
 nsHostResolver::Init()
 {
+    NS_TIME_FUNCTION;
+
     PL_DHashTableInit(&mDB, &gHostDB_ops, nullptr, sizeof(nsHostDBEnt), 0);
 
     mShutdown = false;
@@ -454,19 +462,19 @@ nsHostResolver::Shutdown()
 }
 
 static inline bool
-IsHighPriority(uint16_t flags)
+IsHighPriority(PRUint16 flags)
 {
     return !(flags & (nsHostResolver::RES_PRIORITY_LOW | nsHostResolver::RES_PRIORITY_MEDIUM));
 }
 
 static inline bool
-IsMediumPriority(uint16_t flags)
+IsMediumPriority(PRUint16 flags)
 {
     return flags & nsHostResolver::RES_PRIORITY_MEDIUM;
 }
 
 static inline bool
-IsLowPriority(uint16_t flags)
+IsLowPriority(PRUint16 flags)
 {
     return flags & nsHostResolver::RES_PRIORITY_LOW;
 }
@@ -482,8 +490,8 @@ nsHostResolver::MoveQueue(nsHostRecord *aRec, PRCList &aDestQ)
 
 nsresult
 nsHostResolver::ResolveHost(const char            *host,
-                            uint16_t               flags,
-                            uint16_t               af,
+                            PRUint16               flags,
+                            PRUint16               af,
                             nsResolveHostCallback *callback)
 {
     NS_ENSURE_TRUE(host && *host, NS_ERROR_UNEXPECTED);
@@ -589,10 +597,6 @@ nsHostResolver::ResolveHost(const char            *host,
                 // This is a lower priority request and we are swamped, so refuse it.
                 rv = NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
             }
-            else if (flags & RES_OFFLINE) {
-                rv = NS_ERROR_OFFLINE;
-            }
-
             // otherwise, hit the resolver...
             else {
                 // Add callback to the list of pending callbacks.
@@ -638,8 +642,8 @@ nsHostResolver::ResolveHost(const char            *host,
 
 void
 nsHostResolver::DetachCallback(const char            *host,
-                               uint16_t               flags,
-                               uint16_t               af,
+                               PRUint16               flags,
+                               PRUint16               af,
                                nsResolveHostCallback *callback,
                                nsresult               status)
 {
@@ -873,7 +877,7 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, PRAddrInfo 
 
                 if (!head->negative) {
                     // record the age of the entry upon eviction.
-                    uint32_t age =
+                    PRUint32 age =
                         NowInMinutes() - (head->expiration - mMaxCacheLifetime);
                     Telemetry::Accumulate(Telemetry::DNS_CLEANUP_AGE, age);
                 }
@@ -900,8 +904,8 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, PRAddrInfo 
 
 void
 nsHostResolver::CancelAsyncRequest(const char            *host,
-                                   uint16_t               flags,
-                                   uint16_t               af,
+                                   PRUint16               flags,
+                                   PRUint16               af,
                                    nsIDNSListener        *aListener,
                                    nsresult               status)
 
@@ -974,7 +978,7 @@ nsHostResolver::ThreadFunc(void *arg)
 #endif
 
         TimeDuration elapsed = TimeStamp::Now() - startTime;
-        uint32_t millis = static_cast<uint32_t>(elapsed.ToMilliseconds());
+        PRUint32 millis = static_cast<PRUint32>(elapsed.ToMilliseconds());
 
         // convert error code to nsresult.
         nsresult status;
@@ -1001,9 +1005,9 @@ nsHostResolver::ThreadFunc(void *arg)
 //----------------------------------------------------------------------------
 
 nsresult
-nsHostResolver::Create(uint32_t         maxCacheEntries,
-                       uint32_t         maxCacheLifetime,
-                       uint32_t         lifetimeGracePeriod,
+nsHostResolver::Create(PRUint32         maxCacheEntries,
+                       PRUint32         maxCacheLifetime,
+                       PRUint32         lifetimeGracePeriod,
                        nsHostResolver **result)
 {
 #if defined(PR_LOGGING)

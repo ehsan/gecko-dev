@@ -4,15 +4,12 @@
 
 package org.mozilla.gecko.util;
 
-import android.content.res.Resources;
 import android.graphics.drawable.BitmapDrawable;
 import android.util.Log;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.EmptyStackException;
 import java.util.Stack;
@@ -28,7 +25,7 @@ public final class GeckoJarReader {
 
     private GeckoJarReader() {}
 
-    public static BitmapDrawable getBitmapDrawable(Resources resources, String url) {
+    public static BitmapDrawable getBitmapDrawable(String url) {
         Stack<String> jarUrls = parseUrl(url);
         InputStream inputStream = null;
         BitmapDrawable bitmap = null;
@@ -39,7 +36,7 @@ public final class GeckoJarReader {
             zip = getZipFile(jarUrls.pop());
             inputStream = getStream(zip, jarUrls);
             if (inputStream != null) {
-                bitmap = new BitmapDrawable(resources, inputStream);
+                bitmap = new BitmapDrawable(inputStream);
             }
         } catch (IOException ex) {
             Log.e(LOGTAG, "Exception ", ex);
@@ -61,41 +58,6 @@ public final class GeckoJarReader {
         }
 
         return bitmap;
-    }
-
-    public static String getText(String url) {
-        Stack<String> jarUrls = parseUrl(url);
-
-        ZipFile zip = null;
-        BufferedReader reader = null;
-        String text = null;
-        try {
-            zip = getZipFile(jarUrls.pop());
-            InputStream input = getStream(zip, jarUrls);
-            if (input != null) {
-                reader = new BufferedReader(new InputStreamReader(input));
-                text = reader.readLine();
-            }
-        } catch (IOException ex) {
-            Log.e(LOGTAG, "Exception ", ex);
-        } finally {
-            if (reader != null) {
-                try {
-                    reader.close();
-                } catch(IOException ex) {
-                    Log.e(LOGTAG, "Error closing reader", ex);
-                }
-            }
-            if (zip != null) {
-                try {
-                    zip.close();
-                } catch(IOException ex) {
-                    Log.e(LOGTAG, "Error closing zip", ex);
-                }
-            }
-        }
-
-        return text;
     }
 
     private static ZipFile getZipFile(String url) throws IOException {

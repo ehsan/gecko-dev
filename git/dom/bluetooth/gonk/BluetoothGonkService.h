@@ -1,5 +1,5 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* vim: set ts=2 et sw=2 tw=40: */
 /* Copyright 2012 Mozilla Foundation and Mozilla contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,7 +25,7 @@ BEGIN_BLUETOOTH_NAMESPACE
 
 /**
  * BluetoothService functions are used to dispatch messages to Bluetooth DOM
- * objects on the main thread, as well as provide platform independent access
+ * objects on the main thread, as well as provide platform indenpendent access
  * to BT functionality. Tasks for polling for outside messages will usually
  * happen on the IO Thread (see ipc/dbus for instance), and these messages will
  * be encased in runnables that will then be distributed via observers managed

@@ -8,8 +8,6 @@
 #ifndef jshashtable_h_
 #define jshashtable_h_
 
-#include "mozilla/Attributes.h"
-
 #include "TemplateLib.h"
 #include "Utility.h"
 
@@ -216,6 +214,9 @@ class HashTable : private AllocPolicy
          * this operation until the next call to |popFront()|.
          */
         void rekeyFront(const Lookup &l, const Key &k) {
+            JS_ASSERT(&k != &HashPolicy::getKey(this->cur->t));
+            if (match(*this->cur, l))
+                return;
             typename HashTableEntry<T>::NonConstT t = this->cur->t;
             HashPolicy::setKey(t, const_cast<Key &>(k));
             table.remove(*this->cur);
@@ -342,7 +343,8 @@ class HashTable : private AllocPolicy
 
     MOZ_WARN_UNUSED_RESULT bool init(uint32_t length)
     {
-        JS_ASSERT(!initialized());
+        /* Make sure that init isn't called twice. */
+        JS_ASSERT(table == NULL);
 
         /*
          * Correct for sMaxAlphaFrac such that the table will not resize
@@ -388,8 +390,8 @@ class HashTable : private AllocPolicy
     }
 
   private:
-    HashNumber hash1(HashNumber hash0) const {
-        return hash0 >> hashShift;
+    static HashNumber hash1(HashNumber hash0, uint32_t shift) {
+        return hash0 >> shift;
     }
 
     struct DoubleHash {
@@ -397,7 +399,7 @@ class HashTable : private AllocPolicy
         HashNumber sizeMask;
     };
 
-    DoubleHash hash2(HashNumber curKeyHash) const {
+    DoubleHash hash2(HashNumber curKeyHash, uint32_t hashShift) const {
         unsigned sizeLog2 = sHashBits - hashShift;
         DoubleHash dh = {
             ((curKeyHash << sizeLog2) >> hashShift) | 1,
@@ -433,7 +435,7 @@ class HashTable : private AllocPolicy
         METER(stats.searches++);
 
         /* Compute the primary hash address. */
-        HashNumber h1 = hash1(keyHash);
+        HashNumber h1 = hash1(keyHash, hashShift);
         Entry *entry = &table[h1];
 
         /* Miss: return space for a new entry. */
@@ -449,7 +451,7 @@ class HashTable : private AllocPolicy
         }
 
         /* Collision: double hash. */
-        DoubleHash dh = hash2(keyHash);
+        DoubleHash dh = hash2(keyHash, hashShift);
 
         /* Save the first removed entry pointer so we can recycle later. */
         Entry *firstRemoved = NULL;
@@ -495,7 +497,7 @@ class HashTable : private AllocPolicy
         /* N.B. the |keyHash| has already been distributed. */
 
         /* Compute the primary hash address. */
-        HashNumber h1 = hash1(keyHash);
+        HashNumber h1 = hash1(keyHash, hashShift);
         Entry *entry = &table[h1];
 
         /* Miss: return space for a new entry. */
@@ -505,7 +507,7 @@ class HashTable : private AllocPolicy
         }
 
         /* Collision: double hash. */
-        DoubleHash dh = hash2(keyHash);
+        DoubleHash dh = hash2(keyHash, hashShift);
 
         while(true) {
             JS_ASSERT(!entry->isRemoved());
@@ -632,8 +634,8 @@ class HashTable : private AllocPolicy
             }
 
             HashNumber keyHash = src->getKeyHash();
-            HashNumber h1 = hash1(keyHash);
-            DoubleHash dh = hash2(keyHash);
+            HashNumber h1 = hash1(keyHash, hashShift);
+            DoubleHash dh = hash2(keyHash, hashShift);
             Entry *tgt = &table[h1];
             while (true) {
                 if (!tgt->hasCollision()) {
@@ -994,9 +996,6 @@ template <class Key,
           class AllocPolicy = TempAllocPolicy>
 class HashMap
 {
-    typedef typename tl::StaticAssert<tl::IsRelocatableHeapType<Key>::result>::result keyAssert;
-    typedef typename tl::StaticAssert<tl::IsRelocatableHeapType<Value>::result>::result valAssert;
-
   public:
     typedef typename HashPolicy::Lookup Lookup;
 
@@ -1013,6 +1012,10 @@ class HashMap
     typedef detail::HashTable<Entry, MapHashPolicy, AllocPolicy> Impl;
 
     friend class Impl::Enum;
+
+    /* Not implicitly copyable (expensive). May add explicit |clone| later. */
+    HashMap(const HashMap &);
+    HashMap &operator=(const HashMap &);
 
     Impl impl;
 
@@ -1215,11 +1218,6 @@ class HashMap
         if (Ptr p = lookup(l))
             remove(p);
     }
-
-  private:
-    /* Not implicitly copyable (expensive). May add explicit |clone| later. */
-    HashMap(const HashMap &hm) MOZ_DELETE;
-    HashMap &operator=(const HashMap &hm) MOZ_DELETE;
 };
 
 /*
@@ -1252,6 +1250,10 @@ class HashSet
     typedef detail::HashTable<const T, SetOps, AllocPolicy> Impl;
 
     friend class Impl::Enum;
+
+    /* Not implicitly copyable (expensive). May add explicit |clone| later. */
+    HashSet(const HashSet &);
+    HashSet &operator=(const HashSet &);
 
     Impl impl;
 
@@ -1416,11 +1418,6 @@ class HashSet
         if (Ptr p = lookup(l))
             remove(p);
     }
-
-  private:
-    /* Not implicitly copyable (expensive). May add explicit |clone| later. */
-    HashSet(const HashSet &hs) MOZ_DELETE;
-    HashSet &operator=(const HashSet &hs) MOZ_DELETE;
 };
 
 }  /* namespace js */

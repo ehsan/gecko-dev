@@ -10,15 +10,15 @@ USING_INDEXEDDB_NAMESPACE
 
 // static
 FileInfo*
-FileInfo::Create(FileManager* aFileManager, int64_t aId)
+FileInfo::Create(FileManager* aFileManager, PRInt64 aId)
 {
   NS_ASSERTION(aId > 0, "Wrong id!");
 
-  if (aId <= INT16_MAX) {
+  if (aId <= PR_INT16_MAX) {
     return new FileInfo16(aFileManager, aId);
   }
 
-  if (aId <= INT32_MAX) {
+  if (aId <= PR_INT32_MAX) {
     return new FileInfo32(aFileManager, aId);
   }
 
@@ -26,8 +26,8 @@ FileInfo::Create(FileManager* aFileManager, int64_t aId)
 }
 
 void
-FileInfo::GetReferences(int32_t* aRefCnt, int32_t* aDBRefCnt,
-                        int32_t* aSliceRefCnt)
+FileInfo::GetReferences(PRInt32* aRefCnt, PRInt32* aDBRefCnt,
+                        PRInt32* aSliceRefCnt)
 {
   if (IndexedDatabaseManager::IsClosed()) {
     NS_ERROR("Shouldn't be called after shutdown!");
@@ -63,7 +63,7 @@ FileInfo::GetReferences(int32_t* aRefCnt, int32_t* aDBRefCnt,
 }
 
 void
-FileInfo::UpdateReferences(nsAutoRefCnt& aRefCount, int32_t aDelta,
+FileInfo::UpdateReferences(nsAutoRefCnt& aRefCount, PRInt32 aDelta,
                            bool aClear)
 {
   if (IndexedDatabaseManager::IsClosed()) {

@@ -105,7 +105,6 @@
 @BINPATH@/components/dom_battery.xpt
 @BINPATH@/components/dom_canvas.xpt
 @BINPATH@/components/dom_core.xpt
-@BINPATH@/components/dom_contacts.xpt
 @BINPATH@/components/dom_css.xpt
 @BINPATH@/components/dom_events.xpt
 @BINPATH@/components/dom_file.xpt
@@ -120,7 +119,6 @@
 @BINPATH@/components/dom_browserelement.xpt
 @BINPATH@/components/dom_power.xpt
 @BINPATH@/components/dom_range.xpt
-@BINPATH@/components/dom_settings.xpt
 @BINPATH@/components/dom_sidebar.xpt
 @BINPATH@/components/dom_sms.xpt
 @BINPATH@/components/dom_storage.xpt
@@ -197,6 +195,9 @@
 @BINPATH@/components/satchel.xpt
 @BINPATH@/components/saxparser.xpt
 @BINPATH@/components/sessionstore.xpt
+#ifdef MOZ_SERVICES_SYNC
+@BINPATH@/components/services-crypto.xpt
+#endif
 @BINPATH@/components/services-crypto-component.xpt
 @BINPATH@/components/shellservice.xpt
 @BINPATH@/components/shistory.xpt
@@ -240,12 +241,6 @@
 ; JavaScript components
 @BINPATH@/components/ConsoleAPI.manifest
 @BINPATH@/components/ConsoleAPI.js
-@BINPATH@/components/ContactManager.js
-@BINPATH@/components/ContactManager.manifest
-@BINPATH@/components/SettingsManager.js
-@BINPATH@/components/SettingsManager.manifest
-@BINPATH@/components/SettingsService.js
-@BINPATH@/components/SettingsService.manifest
 @BINPATH@/components/BrowserElementParent.manifest
 @BINPATH@/components/BrowserElementParent.js
 @BINPATH@/components/FeedProcessor.manifest
@@ -270,8 +265,6 @@
 @BINPATH@/components/nsLoginInfo.js
 @BINPATH@/components/nsLoginManager.js
 @BINPATH@/components/nsLoginManagerPrompter.js
-@BINPATH@/components/SiteSpecificUserAgent.js
-@BINPATH@/components/SiteSpecificUserAgent.manifest
 @BINPATH@/components/storage-Legacy.js
 @BINPATH@/components/storage-mozStorage.js
 @BINPATH@/components/crypto-SDR.js
@@ -285,6 +278,8 @@
 @BINPATH@/components/nsHelperAppDlg.js
 @BINPATH@/components/nsDownloadManagerUI.manifest
 @BINPATH@/components/nsDownloadManagerUI.js
+@BINPATH@/components/nsProxyAutoConfig.manifest
+@BINPATH@/components/nsProxyAutoConfig.js
 @BINPATH@/components/NetworkGeolocationProvider.manifest
 @BINPATH@/components/NetworkGeolocationProvider.js
 @BINPATH@/components/GPSDGeolocationProvider.manifest
@@ -344,6 +339,12 @@
 @BINPATH@/components/nsINIProcessor.js
 @BINPATH@/components/nsPrompter.manifest
 @BINPATH@/components/nsPrompter.js
+#ifdef MOZ_SERVICES_SYNC
+@BINPATH@/components/SyncComponents.manifest
+@BINPATH@/components/Weave.js
+@BINPATH@/components/WeaveCrypto.manifest
+@BINPATH@/components/WeaveCrypto.js
+#endif
 @BINPATH@/components/TelemetryPing.js
 @BINPATH@/components/TelemetryPing.manifest
 @BINPATH@/components/Webapps.js
@@ -351,21 +352,15 @@
 @BINPATH@/components/AppsService.js
 @BINPATH@/components/AppsService.manifest
 
-@BINPATH@/components/TCPSocket.js
-@BINPATH@/components/TCPSocketParentIntermediary.js
-@BINPATH@/components/TCPSocket.manifest
-
 ; Modules
 @BINPATH@/modules/*
 
-#ifdef MOZ_SAFE_BROWSING
 ; Safe Browsing
 @BINPATH@/components/nsURLClassifier.manifest
 @BINPATH@/components/nsUrlClassifierHashCompleter.js
 @BINPATH@/components/nsUrlClassifierListManager.js
 @BINPATH@/components/nsUrlClassifierLib.js
 @BINPATH@/components/url-classifier.xpt
-#endif
 
 ; GNOME hooks
 #ifdef MOZ_ENABLE_GNOME_COMPONENT
@@ -401,6 +396,9 @@
 @BINPATH@/@PREF_DIR@/mobile.js
 @BINPATH@/@PREF_DIR@/mobile-branding.js
 @BINPATH@/@PREF_DIR@/channel-prefs.js
+#ifdef MOZ_SERVICES_SYNC
+@BINPATH@/@PREF_DIR@/services-sync.js
+#endif
 @BINPATH@/greprefs.js
 @BINPATH@/defaults/autoconfig/platform.js
 @BINPATH@/defaults/autoconfig/prefcalls.js
@@ -525,15 +523,11 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/SessionStore.js
 @BINPATH@/components/Sidebar.js
 #ifdef MOZ_SAFE_BROWSING
-@BINPATH@/components/SafeBrowsing.jsm
+@BINPATH@/components/SafeBrowsing.js
+#endif
+#ifdef MOZ_UPDATER
+@BINPATH@/components/UpdatePrompt.js
 #endif
 @BINPATH@/components/XPIDialogService.js
 @BINPATH@/components/browsercomps.xpt
 @BINPATH@/extensions/feedback@mobile.mozilla.org.xpi
-
-#ifdef ENABLE_MARIONETTE
-@BINPATH@/chrome/marionette@JAREXT@ 
-@BINPATH@/chrome/marionette.manifest
-@BINPATH@/components/MarionetteComponents.manifest
-@BINPATH@/components/marionettecomponent.js
-#endif

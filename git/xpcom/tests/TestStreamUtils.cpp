@@ -22,18 +22,18 @@ static bool test_consume_stream() {
   nsCOMPtr<nsIOutputStream> output;
   NS_NewPipe(getter_AddRefs(input),
              getter_AddRefs(output),
-             10, UINT32_MAX);
+             10, PR_UINT32_MAX);
   if (!input || !output)
     return false;
 
-  uint32_t n = 0;
+  PRUint32 n = 0;
   output->Write(kData, sizeof(kData) - 1, &n);
   if (n != (sizeof(kData) - 1))
     return false;
   output = nullptr;  // close output
 
   nsCString buf;
-  if (NS_FAILED(NS_ConsumeStream(input, UINT32_MAX, buf)))
+  if (NS_FAILED(NS_ConsumeStream(input, PR_UINT32_MAX, buf)))
     return false;
 
   if (!buf.Equals(kData))

@@ -133,7 +133,7 @@ BaseWebSocketChannel::GetScheme(nsACString &aScheme)
 }
 
 NS_IMETHODIMP
-BaseWebSocketChannel::GetDefaultPort(int32_t *aDefaultPort)
+BaseWebSocketChannel::GetDefaultPort(PRInt32 *aDefaultPort)
 {
   LOG(("BaseWebSocketChannel::GetDefaultPort() %p\n", this));
 
@@ -145,7 +145,7 @@ BaseWebSocketChannel::GetDefaultPort(int32_t *aDefaultPort)
 }
 
 NS_IMETHODIMP
-BaseWebSocketChannel::GetProtocolFlags(uint32_t *aProtocolFlags)
+BaseWebSocketChannel::GetProtocolFlags(PRUint32 *aProtocolFlags)
 {
   LOG(("BaseWebSocketChannel::GetProtocolFlags() %p\n", this));
 
@@ -160,7 +160,7 @@ BaseWebSocketChannel::NewURI(const nsACString & aSpec, const char *aOriginCharse
 {
   LOG(("BaseWebSocketChannel::NewURI() %p\n", this));
 
-  int32_t port;
+  PRInt32 port;
   nsresult rv = GetDefaultPort(&port);
   if (NS_FAILED(rv))
     return rv;
@@ -182,7 +182,7 @@ BaseWebSocketChannel::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 }
 
 NS_IMETHODIMP
-BaseWebSocketChannel::AllowPort(int32_t port, const char *scheme,
+BaseWebSocketChannel::AllowPort(PRInt32 port, const char *scheme,
                                 bool *_retval)
 {
   LOG(("BaseWebSocketChannel::AllowPort() %p\n", this));

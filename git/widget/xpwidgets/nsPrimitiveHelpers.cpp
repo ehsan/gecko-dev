@@ -47,7 +47,7 @@
 //
 void
 nsPrimitiveHelpers :: CreatePrimitiveForData ( const char* aFlavor, void* aDataBuff, 
-                                                 uint32_t aDataLen, nsISupports** aPrimitive )
+                                                 PRUint32 aDataLen, nsISupports** aPrimitive )
 {
   if ( !aPrimitive )
     return;
@@ -96,7 +96,7 @@ nsPrimitiveHelpers :: CreatePrimitiveForData ( const char* aFlavor, void* aDataB
 //
 void
 nsPrimitiveHelpers :: CreateDataFromPrimitive ( const char* aFlavor, nsISupports* aPrimitive, 
-                                                   void** aDataBuff, uint32_t aDataLen )
+                                                   void** aDataBuff, PRUint32 aDataLen )
 {
   if ( !aDataBuff )
     return;
@@ -106,7 +106,7 @@ nsPrimitiveHelpers :: CreateDataFromPrimitive ( const char* aFlavor, nsISupports
   if ( strcmp(aFlavor,kTextMime) == 0 ) {
     nsCOMPtr<nsISupportsCString> plainText ( do_QueryInterface(aPrimitive) );
     if ( plainText ) {
-      nsAutoCString data;
+      nsCAutoString data;
       plainText->GetData ( data );
       *aDataBuff = ToNewCString(data);
     }
@@ -132,8 +132,8 @@ nsPrimitiveHelpers :: CreateDataFromPrimitive ( const char* aFlavor, nsISupports
 // but its length parameter, |outPlainTextLen|, does not reflect that.
 //
 nsresult
-nsPrimitiveHelpers :: ConvertUnicodeToPlatformPlainText ( PRUnichar* inUnicode, int32_t inUnicodeLen, 
-                                                            char** outPlainTextData, int32_t* outPlainTextLen )
+nsPrimitiveHelpers :: ConvertUnicodeToPlatformPlainText ( PRUnichar* inUnicode, PRInt32 inUnicodeLen, 
+                                                            char** outPlainTextData, PRInt32* outPlainTextLen )
 {
   if ( !outPlainTextData || !outPlainTextLen )
     return NS_ERROR_INVALID_ARG;
@@ -142,7 +142,7 @@ nsPrimitiveHelpers :: ConvertUnicodeToPlatformPlainText ( PRUnichar* inUnicode, 
   nsresult rv;
   nsCOMPtr <nsIPlatformCharset> platformCharsetService = do_GetService(NS_PLATFORMCHARSET_CONTRACTID, &rv);
 
-  nsAutoCString platformCharset;
+  nsCAutoString platformCharset;
   if (NS_SUCCEEDED(rv))
     rv = platformCharsetService->GetCharset(kPlatformCharsetSel_PlainTextInClipboard, platformCharset);
   if (NS_FAILED(rv))
@@ -177,8 +177,8 @@ nsPrimitiveHelpers :: ConvertUnicodeToPlatformPlainText ( PRUnichar* inUnicode, 
 // the length of the string in characters, not bytes.
 //
 nsresult
-nsPrimitiveHelpers :: ConvertPlatformPlainTextToUnicode ( const char* inText, int32_t inTextLen, 
-                                                            PRUnichar** outUnicode, int32_t* outUnicodeLen )
+nsPrimitiveHelpers :: ConvertPlatformPlainTextToUnicode ( const char* inText, PRInt32 inTextLen, 
+                                                            PRUnichar** outUnicode, PRInt32* outUnicodeLen )
 {
   if ( !outUnicode || !outUnicodeLen )
     return NS_ERROR_INVALID_ARG;
@@ -190,7 +190,7 @@ nsPrimitiveHelpers :: ConvertPlatformPlainTextToUnicode ( const char* inText, in
   static bool hasConverter = false;
   if ( !hasConverter ) {
     // get the charset
-    nsAutoCString platformCharset;
+    nsCAutoString platformCharset;
     nsCOMPtr <nsIPlatformCharset> platformCharsetService = do_GetService(NS_PLATFORMCHARSET_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv))
       rv = platformCharsetService->GetCharset(kPlatformCharsetSel_PlainTextInClipboard, platformCharset);
@@ -239,7 +239,7 @@ nsPrimitiveHelpers :: ConvertPlatformPlainTextToUnicode ( const char* inText, in
 //
 nsresult
 nsLinebreakHelpers :: ConvertPlatformToDOMLinebreaks ( const char* inFlavor, void** ioData, 
-                                                          int32_t* ioLengthInBytes )
+                                                          PRInt32* ioLengthInBytes )
 {
   NS_ASSERTION ( ioData && *ioData && ioLengthInBytes, "Bad Params");
   if ( !(ioData && *ioData && ioLengthInBytes) )
@@ -265,7 +265,7 @@ nsLinebreakHelpers :: ConvertPlatformToDOMLinebreaks ( const char* inFlavor, voi
   else {       
     PRUnichar* buffAsUnichar = reinterpret_cast<PRUnichar*>(*ioData);
     PRUnichar* oldBuffer = buffAsUnichar;
-    int32_t newLengthInChars;
+    PRInt32 newLengthInChars;
     retVal = nsLinebreakConverter::ConvertUnicharLineBreaksInSitu ( &buffAsUnichar, nsLinebreakConverter::eLinebreakAny, 
                                                                      nsLinebreakConverter::eLinebreakContent, 
                                                                      *ioLengthInBytes / sizeof(PRUnichar), &newLengthInChars );

@@ -1,5 +1,5 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* vim: set ts=2 et sw=2 tw=40: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -63,9 +63,6 @@ private:
 
   void Root();
   nsresult StartStopDiscovery(bool aStart, nsIDOMDOMRequest** aRequest);
-  nsresult PairUnpair(bool aPair,
-                      nsIDOMBluetoothDevice* aDevice,
-                      nsIDOMDOMRequest** aRequest);
   
   nsString mAddress;
   nsString mName;
@@ -74,14 +71,18 @@ private:
   bool mDiscovering;
   bool mPairable;
   bool mPowered;
-  uint32_t mPairableTimeout;
-  uint32_t mDiscoverableTimeout;
-  uint32_t mClass;
+  PRUint32 mPairableTimeout;
+  PRUint32 mDiscoverableTimeout;
+  PRUint32 mClass;
   nsTArray<nsString> mDeviceAddresses;
   nsTArray<nsString> mUuids;
   JSObject* mJsUuids;
   JSObject* mJsDeviceAddresses;
   bool mIsRooted;
+  
+  NS_DECL_EVENT_HANDLER(propertychanged)
+  NS_DECL_EVENT_HANDLER(devicefound)
+  NS_DECL_EVENT_HANDLER(devicedisappeared)
 };
 
 END_BLUETOOTH_NAMESPACE

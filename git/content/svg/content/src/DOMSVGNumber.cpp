@@ -9,7 +9,7 @@
 #include "SVGAnimatedNumberList.h"
 #include "nsSVGElement.h"
 #include "nsIDOMSVGNumber.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsContentUtils.h"
 
 // See the architecture comment in DOMSVGAnimatedNumberList.h.
@@ -45,9 +45,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGNumber)
 NS_INTERFACE_MAP_END
 
 DOMSVGNumber::DOMSVGNumber(DOMSVGNumberList *aList,
-                           uint8_t aAttrEnum,
-                           uint32_t aListIndex,
-                           bool aIsAnimValItem)
+                           PRUint8 aAttrEnum,
+                           PRUint32 aListIndex,
+                           PRUint8 aIsAnimValItem)
   : mList(aList)
   , mListIndex(aListIndex)
   , mAttrEnum(aAttrEnum)
@@ -57,7 +57,8 @@ DOMSVGNumber::DOMSVGNumber(DOMSVGNumberList *aList,
   // These shifts are in sync with the members in the header.
   NS_ABORT_IF_FALSE(aList &&
                     aAttrEnum < (1 << 4) &&
-                    aListIndex <= MaxListIndex(), "bad arg");
+                    aListIndex <= MaxListIndex() &&
+                    aIsAnimValItem < (1 << 1), "bad arg");
 
   NS_ABORT_IF_FALSE(IndexIsValid(), "Bad index for DOMSVGNumber!");
 }
@@ -108,9 +109,9 @@ DOMSVGNumber::SetValue(float aValue)
 
 void
 DOMSVGNumber::InsertingIntoList(DOMSVGNumberList *aList,
-                                uint8_t aAttrEnum,
-                                uint32_t aListIndex,
-                                bool aIsAnimValItem)
+                                PRUint8 aAttrEnum,
+                                PRUint32 aListIndex,
+                                PRUint8 aIsAnimValItem)
 {
   NS_ASSERTION(!HasOwner(), "Inserting item that is already in a list");
 

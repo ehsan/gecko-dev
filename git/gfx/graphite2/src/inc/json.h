@@ -31,16 +31,12 @@ of the License or (at your option) any later version.
 #pragma once
 #include "inc/Main.h"
 #include <cassert>
-#include <stdio.h>
+#include <cstdio>
 
 namespace graphite2 {
 
 class json
 {
-    // Prevent copying
-    json(const json &);
-    json & operator = (const json &);
-
 	typedef void (*_context_t)(json &);
 	class _null_t {};
 
@@ -73,8 +69,6 @@ public:
 	json(FILE * stream) throw();
 	~json() throw ();
 
-	FILE * stream() const throw();
-
 	json & operator << (string) throw();
 	json & operator << (number) throw();
 	json & operator << (integer) throw();
@@ -83,19 +77,11 @@ public:
 	json & operator << (_null_t) throw();
 	json & operator << (_context_t) throw();
 
-	operator bool() const throw();
-	bool good() const throw();
-	bool eof() const throw();
-
 	CLASS_NEW_DELETE;
 };
 
 class json::closer
 {
-    // Prevent copying.
-    closer(const closer &);
-    closer & operator = (const closer &);
-
 	json * const	_j;
 public:
 	closer(json * const j) : _j(j) {}
@@ -103,11 +89,11 @@ public:
 };
 
 inline
-json::json(FILE * s) throw()
-: _stream(s), _context(_contexts), _flatten(0)
+json::json(FILE * stream) throw()
+: _stream(stream), _context(_contexts), _flatten(0)
 {
-	if (good())
-		fflush(s);
+	assert(stream != 0);
+	fflush(stream);
 }
 
 
@@ -116,9 +102,6 @@ json::~json() throw ()
 {
 	while (_context > _contexts)	pop_context();
 }
-
-inline
-FILE * json::stream() const throw()		{ return _stream; }
 
 
 inline
@@ -129,22 +112,22 @@ json & json::operator << (json::_context_t ctxt) throw()
 }
 
 inline
-json & operator << (json & j, signed char d) throw() 		{ return j << json::integer(d); }
+json & operator << (json & j, signed char d) throw() { return j << json::integer(d); }
 
 inline
-json & operator << (json & j, short signed int d) throw() 	{ return j << json::integer(d); }
+json & operator << (json & j, short signed int d) throw() { return j << json::integer(d); }
 
 inline
-json & operator << (json & j, signed int d) throw() 		{ return j << json::integer(d); }
+json & operator << (json & j, signed int d) throw() { return j << json::integer(d); }
 
 inline
-json & operator << (json & j, unsigned char d) throw() 		{ return j << json::integer(d); }
+json & operator << (json & j, unsigned char d) throw() { return j << json::integer(d); }
 
 inline
 json & operator << (json & j, short unsigned int d) throw() { return j << json::integer(d); }
 
 inline
-json & operator << (json & j, unsigned int d) throw() 		{ return j << json::integer(d); }
+json & operator << (json & j, unsigned int d) throw() { return j << json::integer(d); }
 
 inline
 json & operator << (json & j, char c) throw ()
@@ -152,14 +135,5 @@ json & operator << (json & j, char c) throw ()
 	const char str[2] = {c,0};
 	return j << str;
 }
-
-inline
-json::operator bool() const throw()		{ return good(); }
-
-inline
-bool json::good() const throw()			{ return _stream && ferror(_stream) == 0; }
-
-inline
-bool json::eof() const throw()			{ return feof(_stream) != 0; }
 
 } // namespace graphite2

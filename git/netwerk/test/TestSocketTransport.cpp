@@ -66,7 +66,7 @@ public:
         LOG(("OnOutputStreamReady\n"));
 
         nsresult rv;
-        uint32_t n, count = mBuf.Length() - mWriteOffset;
+        PRUint32 n, count = mBuf.Length() - mWriteOffset;
 
         rv = out->Write(mBuf.get() + mWriteOffset, count, &n);
 
@@ -91,7 +91,7 @@ public:
         LOG(("OnInputStreamReady\n"));
 
         nsresult rv;
-        uint32_t n;
+        PRUint32 n;
         char buf[500];
 
         rv = in->Read(buf, sizeof(buf), &n);
@@ -112,7 +112,7 @@ private:
     nsCOMPtr<nsIAsyncInputStream>  mInput;
     nsCOMPtr<nsIAsyncOutputStream> mOutput;
     nsCString mBuf;
-    uint32_t  mWriteOffset;
+    PRUint32  mWriteOffset;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS2(MyHandler,
@@ -127,7 +127,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(MyHandler,
 static nsresult
 RunCloseTest(nsISocketTransportService *sts,
              const char *host, int port,
-             uint32_t inFlags, uint32_t outFlags)
+             PRUint32 inFlags, PRUint32 outFlags)
 {
     nsresult rv;
 
@@ -163,7 +163,7 @@ RunCloseTest(nsISocketTransportService *sts,
 static nsresult
 RunTest(nsISocketTransportService *sts,
         const char *host, int port, const char *path,
-        uint32_t inFlags, uint32_t outFlags)
+        PRUint32 inFlags, PRUint32 outFlags)
 {
     nsresult rv;
 

@@ -39,7 +39,7 @@ interface nsIWebBrowserPrint;
 interface nsIVariant;
 interface nsIPrivacyTransitionObserver;
 
-[scriptable, builtinclass, uuid(e93b2f6a-c543-448b-9239-55c96e31672e)]
+[scriptable, builtinclass, uuid(51f2b7f0-6435-40ec-b315-588f52be7eea)]
 interface nsIDocShell : nsISupports
 {
   /**
@@ -127,7 +127,7 @@ interface nsIDocShell : nsISupports
   [noscript]void internalLoad(in nsIURI aURI,
                               in nsIURI aReferrer,
                               in nsISupports aOwner,
-                              in uint32_t aFlags,
+                              in PRUint32 aFlags,
                               in wstring aWindowTarget,
                               in string aTypeHint,
                               in nsIInputStream aPostDataStream,
@@ -570,7 +570,7 @@ interface nsIDocShell : nsISupports
    * In a child docshell, this is the source of parentCharset
    * @see nsIParser
    */
-  attribute int32_t parentCharsetSource;
+  attribute PRInt32 parentCharsetSource;
 
   /**
    * Add an observer to the list of parties to be notified when this docshell's
@@ -589,49 +589,36 @@ interface nsIDocShell : nsISupports
   /**
    * Returns true iff the docshell is marked as a browser frame.
    */
-  [infallible] readonly attribute boolean isBrowserElement;
+  readonly attribute boolean isBrowserElement;
 
   /**
    * Returns true iif the docshell is marked as an app frame.
    */
-  [infallible] readonly attribute boolean isApp;
+  readonly attribute boolean isApp;
 
   /**
    * Returns true iif the docshell is marked as a type that behaves like a
    * content boundary.
    */
-  [infallible] readonly attribute boolean isContentBoundary;
+  readonly attribute boolean isContentBoundary;
 
   /**
    * Returns true iif the docshell is inside a browser element.
    */
-  [infallible] readonly attribute boolean isInBrowserElement;
+  readonly attribute boolean isInBrowserElement;
 
   /**
-   * Returns true iif the docshell is inside an application.  However, it will
-   * return false if the docshell is inside a browser element that is inside
-   * an application.
-   *
-   * Note: Do not use this method for permissions checks!  An app may contain
-   * an <iframe> pointing at arbitrary web code.  This iframe's docshell will
-   * have isInApp() == true, but the iframe's content is not "app code", and
-   * so should not be granted more trust than vanilla web content.
-   *
-   * (For example, suppose when web content calls API method X, we show a
-   * permission prompt, but when "app code" calls method X, we don't.  In this
-   * case, it would be /incorrect/ to show the permission prompt if
-   * !isInApp().)
-   *
-   * If you're doing a security check, use the content's principal instead of
-   * this method.
+   * Returns true iif the docshell is inside an application.
+   * However, it will return false if the docshell is inside a browser element
+   * that is inside an application.
    */
-  [infallible] readonly attribute boolean isInApp;
+  readonly attribute boolean isInApp;
 
   /**
    * Returns if the docshell has a docshell that behaves as a content boundary
    * in his parent hierarchy.
    */
-  [infallible] readonly attribute boolean isBelowContentBoundary;
+  readonly attribute boolean isBelowContentBoundary;
 
   /**
    * Set the app id this docshell is associated with. The id has to be a valid
@@ -650,7 +637,7 @@ interface nsIDocShell : nsISupports
    * Returns the app id of the app the docshell is in. Returns
    * nsIScriptSecurityManager::NO_APP_ID if the docshell is not in an app.
    */
-  [infallible] readonly attribute unsigned long appId;
+  readonly attribute unsigned long appId;
 
   /** 
    * True iff asynchronous panning and zooming is enabled for this
@@ -663,41 +650,4 @@ interface nsIDocShell : nsISupports
    * boundaries.
    */
   nsIDocShell getParentIgnoreBrowserFrame();
-
-  /**
-   * The sandbox flags on the docshell. These reflect the value of the sandbox
-   * attribute of the associated IFRAME or CSP-protectable content, if
-   * existent. See the HTML5 spec for more details.
-   * These flags on the docshell reflect the current state of the sandbox
-   * attribute, which is modifiable. They are only used when loading new
-   * content, sandbox flags are also immutably set on the document when it is
-   * loaded.
-   * The sandbox flags of a document depend on the sandbox flags on its
-   * docshell and of its parent document, if any.
-   * See nsSandboxFlags.h for the possible flags.
-   */
-  attribute unsigned long sandboxFlags;
-
-  /**
-   * Are plugins allowed in the current document loaded in this docshell ?
-   * (if there is one). This depends on whether plugins are allowed by this
-   * docshell itself or if the document is sandboxed and hence plugins should
-   * not be allowed.
-   */
-  [noscript, notxpcom] bool pluginsAllowedInCurrentDoc();
-  
-
-  /**
-   * Attribute that determines whether fullscreen is allowed to be entered for
-   * this subtree of the docshell tree. This is true when all iframes containing
-   * this docshell have their "mozallowfullscreen" attribute set to "true".
-   * fullscreenAllowed is only writable at content boundaries, where it is used
-   * to propagate the value of the cross process parent's iframe's
-   * "mozallowfullscreen" attribute to the child process. Setting
-   * fullscreenAllowed on docshells which aren't content boundaries throws an
-   * exception.
-   */
-  [infallible] readonly attribute boolean fullscreenAllowed;
-  
-  void setFullscreenAllowed(in boolean allowed);
 };

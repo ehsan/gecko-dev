@@ -40,13 +40,13 @@ NS_IMPL_ISUPPORTS_INHERITED1(ImageAccessible, Accessible,
 ////////////////////////////////////////////////////////////////////////////////
 // Accessible public
 
-uint64_t
+PRUint64
 ImageAccessible::NativeState()
 {
   // The state is a bitfield, get our inherited state, then logically OR it with
   // states::ANIMATED if this is an animated image.
 
-  uint64_t state = LinkableAccessible::NativeState();
+  PRUint64 state = LinkableAccessible::NativeState();
 
   nsCOMPtr<nsIImageLoadingContent> content(do_QueryInterface(mContent));
   nsCOMPtr<imgIRequest> imageRequest;
@@ -69,23 +69,26 @@ ImageAccessible::NativeState()
   return state;
 }
 
-ENameValueFlag
-ImageAccessible::NativeName(nsString& aName)
+nsresult
+ImageAccessible::GetNameInternal(nsAString& aName)
 {
   bool hasAltAttrib =
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::alt, aName);
   if (!aName.IsEmpty())
-    return eNameOK;
+    return NS_OK;
 
-  ENameValueFlag nameFlag = Accessible::NativeName(aName);
-  if (!aName.IsEmpty())
-    return nameFlag;
+  nsresult rv = Accessible::GetNameInternal(aName);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  // No accessible name but empty 'alt' attribute is present. If further name
-  // computation algorithm doesn't provide non empty name then it means
-  // an empty 'alt' attribute was used to indicate a decorative image (see
-  // Accessible::Name() method for details).
-  return hasAltAttrib ? eNoNameOnPurpose : eNameOK;
+  if (aName.IsEmpty() && hasAltAttrib) {
+    // No accessible name but empty 'alt' attribute is present. If further name
+    // computation algorithm doesn't provide non empty name then it means
+    // an empty 'alt' attribute was used to indicate a decorative image (see
+    // nsIAccessible::name attribute for details).
+    return NS_OK_EMPTY_NAME;
+  }
+
+  return NS_OK;
 }
 
 role
@@ -97,15 +100,15 @@ ImageAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
 
-uint8_t
+PRUint8
 ImageAccessible::ActionCount()
 {
-  uint8_t actionCount = LinkableAccessible::ActionCount();
+  PRUint8 actionCount = LinkableAccessible::ActionCount();
   return HasLongDesc() ? actionCount + 1 : actionCount;
 }
 
 NS_IMETHODIMP
-ImageAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
+ImageAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 {
   aName.Truncate();
 
@@ -120,7 +123,7 @@ ImageAccessible::GetActionName(uint8_t aIndex, nsAString& aName)
 }
 
 NS_IMETHODIMP
-ImageAccessible::DoAction(uint8_t aIndex)
+ImageAccessible::DoAction(PRUint8 aIndex)
 {
   if (IsDefunct())
     return NS_ERROR_FAILURE;
@@ -133,7 +136,7 @@ ImageAccessible::DoAction(uint8_t aIndex)
   if (!uri)
     return NS_ERROR_INVALID_ARG;
 
-  nsAutoCString utf8spec;
+  nsCAutoString utf8spec;
   uri->GetSpec(utf8spec);
   NS_ConvertUTF8toUTF16 spec(utf8spec);
 
@@ -151,9 +154,9 @@ ImageAccessible::DoAction(uint8_t aIndex)
 // nsIAccessibleImage
 
 NS_IMETHODIMP
-ImageAccessible::GetImagePosition(uint32_t aCoordType, int32_t* aX, int32_t* aY)
+ImageAccessible::GetImagePosition(PRUint32 aCoordType, PRInt32* aX, PRInt32* aY)
 {
-  int32_t width, height;
+  PRInt32 width, height;
   nsresult rv = GetBounds(aX, aY, &width, &height);
   if (NS_FAILED(rv))
     return rv;
@@ -162,25 +165,28 @@ ImageAccessible::GetImagePosition(uint32_t aCoordType, int32_t* aX, int32_t* aY)
 }
 
 NS_IMETHODIMP
-ImageAccessible::GetImageSize(int32_t* aWidth, int32_t* aHeight)
+ImageAccessible::GetImageSize(PRInt32* aWidth, PRInt32* aHeight)
 {
-  int32_t x, y;
+  PRInt32 x, y;
   return GetBounds(&x, &y, aWidth, aHeight);
 }
 
 // Accessible
-already_AddRefed<nsIPersistentProperties>
-ImageAccessible::NativeAttributes()
+nsresult
+ImageAccessible::GetAttributesInternal(nsIPersistentProperties* aAttributes)
 {
-  nsCOMPtr<nsIPersistentProperties> attributes =
-    LinkableAccessible::NativeAttributes();
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  nsresult rv = LinkableAccessible::GetAttributesInternal(aAttributes);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoString src;
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::src, src);
   if (!src.IsEmpty())
-    nsAccUtils::SetAccAttr(attributes, nsGkAtoms::src, src);
+    nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::src, src);
 
-  return attributes.forget();
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -219,7 +225,7 @@ ImageAccessible::GetLongDescURI() const
 }
 
 bool
-ImageAccessible::IsLongDescIndex(uint8_t aIndex)
+ImageAccessible::IsLongDescIndex(PRUint8 aIndex)
 {
   return aIndex == LinkableAccessible::ActionCount();
 }

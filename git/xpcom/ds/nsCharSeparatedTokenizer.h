@@ -39,7 +39,7 @@ public:
 
     nsCharSeparatedTokenizerTemplate(const nsSubstring& aSource,
                                      PRUnichar aSeparatorChar,
-                                     uint32_t  aFlags = 0)
+                                     PRUint32  aFlags = 0)
         : mFirstTokenBeganWithWhitespace(false),
           mLastTokenEndedWithWhitespace(false),
           mLastTokenEndedWithSeparator(false),
@@ -141,7 +141,7 @@ private:
     bool mLastTokenEndedWithWhitespace;
     bool mLastTokenEndedWithSeparator;
     PRUnichar mSeparatorChar;
-    uint32_t  mFlags;
+    PRUint32  mFlags;
 };
 
 class nsCharSeparatedTokenizer: public nsCharSeparatedTokenizerTemplate<>
@@ -149,7 +149,7 @@ class nsCharSeparatedTokenizer: public nsCharSeparatedTokenizerTemplate<>
 public:
     nsCharSeparatedTokenizer(const nsSubstring& aSource,
                              PRUnichar aSeparatorChar,
-                             uint32_t  aFlags = 0)
+                             PRUint32  aFlags = 0)
       : nsCharSeparatedTokenizerTemplate<>(aSource, aSeparatorChar, aFlags)
     {
     }

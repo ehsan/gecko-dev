@@ -93,7 +93,7 @@ STDMETHODIMP_(ULONG) nsNativeDragTarget::Release(void)
 
 void
 nsNativeDragTarget::GetGeckoDragAction(DWORD grfKeyState, LPDWORD pdwEffect,
-                                       uint32_t * aGeckoAction)
+                                       PRUint32 * aGeckoAction)
 {
   // If a window is disabled or a modal window is on top of it
   // (which implies it is disabled), then we should not allow dropping.
@@ -150,7 +150,7 @@ IsKeyDown(char key)
 }
 
 void
-nsNativeDragTarget::DispatchDragDropEvent(uint32_t aEventType, POINTL aPT)
+nsNativeDragTarget::DispatchDragDropEvent(PRUint32 aEventType, POINTL aPT)
 {
   nsEventStatus status;
   nsDragEvent event(true, aEventType, mWidget);
@@ -180,13 +180,13 @@ nsNativeDragTarget::DispatchDragDropEvent(uint32_t aEventType, POINTL aPT)
 }
 
 void
-nsNativeDragTarget::ProcessDrag(uint32_t     aEventType,
+nsNativeDragTarget::ProcessDrag(PRUint32     aEventType,
                                 DWORD        grfKeyState,
                                 POINTL       ptl,
                                 DWORD*       pdwEffect)
 {
   // Before dispatching the event make sure we have the correct drop action set
-  uint32_t geckoAction;
+  PRUint32 geckoAction;
   GetGeckoDragAction(grfKeyState, pdwEffect, &geckoAction);
 
   // Set the current action into the Gecko specific type
@@ -245,7 +245,7 @@ nsNativeDragTarget::DragEnter(LPDATAOBJECT pIDataSource,
   mDragService->StartDragSession();
 
   void* tempOutData = nullptr;
-  uint32_t tempDataLen = 0;
+  PRUint32 tempDataLen = 0;
   nsresult loadResult = nsClipboard::GetNativeDataOffClipboard(
       pIDataSource, 0, ::RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT), nullptr, &tempOutData, &tempDataLen);
   if (NS_SUCCEEDED(loadResult) && tempOutData) {

@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsDOMNotifyAudioAvailableEvent.h"
 #include "nsDOMClassInfoID.h" // DOMCI_DATA, NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO
 #include "nsContentUtils.h" // NS_DROP_JS_OBJECTS
@@ -12,9 +12,9 @@
 
 nsDOMNotifyAudioAvailableEvent::nsDOMNotifyAudioAvailableEvent(nsPresContext* aPresContext,
                                                                nsEvent* aEvent,
-                                                               uint32_t aEventType,
+                                                               PRUint32 aEventType,
                                                                float* aFrameBuffer,
-                                                               uint32_t aFrameBufferLength,
+                                                               PRUint32 aFrameBufferLength,
                                                                float aTime)
   : nsDOMEvent(aPresContext, aEvent),
     mFrameBuffer(aFrameBuffer),
@@ -104,7 +104,7 @@ nsDOMNotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
                                                         bool aCanBubble,
                                                         bool aCancelable,
                                                         float* aFrameBuffer,
-                                                        uint32_t aFrameBufferLength,
+                                                        PRUint32 aFrameBufferLength,
                                                         float aTime,
                                                         bool aAllowAudioData)
 {
@@ -125,9 +125,9 @@ nsDOMNotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
 nsresult NS_NewDOMAudioAvailableEvent(nsIDOMEvent** aInstancePtrResult,
                                       nsPresContext* aPresContext,
                                       nsEvent *aEvent,
-                                      uint32_t aEventType,
+                                      PRUint32 aEventType,
                                       float* aFrameBuffer,
-                                      uint32_t aFrameBufferLength,
+                                      PRUint32 aFrameBufferLength,
                                       float aTime)
 {
   nsDOMNotifyAudioAvailableEvent* it =

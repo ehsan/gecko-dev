@@ -14,7 +14,6 @@
 #endif
 
 #include "AsyncPanZoomController.h"
-#include "AutoOpenSurface.h"
 #include "BasicLayers.h"
 #include "CompositorParent.h"
 #include "LayerManagerOGL.h"
@@ -44,9 +43,6 @@ namespace layers {
 // affects CrossProcessCompositorParent below.
 static CompositorParent* sCurrentCompositor;
 static Thread* sCompositorThread = nullptr;
-// manual reference count of the compositor thread.
-static int sCompositorThreadRefCount = 0;
-static MessageLoop* sMainLoop = nullptr;
 // When ContentParent::StartUp() is called, we use the Thread global.
 // When StartUpWithExistingThread() is used, we have to use the two
 // duplicated globals, because there's no API to make a Thread from an
@@ -78,30 +74,6 @@ struct PanZoomUserData : public LayerUserData {
  */
 static const LayerTreeState* GetIndirectShadowTree(uint64_t aId);
 
-static void DeferredDeleteCompositorParent(CompositorParent* aNowReadyToDie)
-{
-  aNowReadyToDie->Release();
-}
-
-static void DeleteCompositorThread()
-{
-  if (NS_IsMainThread()){
-    delete sCompositorThread;  
-    sCompositorThread = nullptr;
-    sCompositorLoop = nullptr;
-    sCompositorThreadID = 0;
-  } else {
-    sMainLoop->PostTask(FROM_HERE, NewRunnableFunction(&DeleteCompositorThread));
-  }
-}
-
-static void ReleaseCompositorThread()
-{
-  if(--sCompositorThreadRefCount == 0) {
-    DeleteCompositorThread();
-  }
-}
-
 void
 CompositorParent::StartUpWithExistingThread(MessageLoop* aMsgLoop,
                                             PlatformThreadId aThreadID)
@@ -110,8 +82,6 @@ CompositorParent::StartUpWithExistingThread(MessageLoop* aMsgLoop,
   CreateCompositorMap();
   sCompositorLoop = aMsgLoop;
   sCompositorThreadID = aThreadID;
-  sMainLoop = MessageLoop::current();
-  sCompositorThreadRefCount = 1;
 }
 
 void CompositorParent::StartUp()
@@ -119,7 +89,6 @@ void CompositorParent::StartUp()
   MOZ_ASSERT(!sCompositorLoop);
   CreateCompositorMap();
   CreateThread();
-  sMainLoop = MessageLoop::current();
 }
 
 void CompositorParent::ShutDown()
@@ -134,7 +103,6 @@ bool CompositorParent::CreateThread()
   if (sCompositorThread || sCompositorLoop) {
     return true;
   }
-  sCompositorThreadRefCount = 1;
   sCompositorThread = new Thread("Compositor");
   if (!sCompositorThread->Start()) {
     delete sCompositorThread;
@@ -147,7 +115,12 @@ bool CompositorParent::CreateThread()
 void CompositorParent::DestroyThread()
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on the main Thread!");
-  ReleaseCompositorThread();
+  if (sCompositorThread) {
+    delete sCompositorThread;
+    sCompositorThread = nullptr;
+  }
+  sCompositorLoop = nullptr;
+  sCompositorThreadID = 0;
 }
 
 MessageLoop* CompositorParent::CompositorLoop()
@@ -180,10 +153,7 @@ CompositorParent::CompositorParent(nsIWidget* aWidget,
   CompositorLoop()->PostTask(FROM_HERE, NewRunnableFunction(&AddCompositor, 
                                                           this, &mCompositorID));
 
-  if (!sCurrentCompositor) {
-    sCurrentCompositor = this;
-  }
-  ++sCompositorThreadRefCount;
+  sCurrentCompositor = this;
 }
 
 PlatformThreadId
@@ -199,7 +169,6 @@ CompositorParent::~CompositorParent()
   if (this == sCurrentCompositor) {
     sCurrentCompositor = NULL;
   }
-  ReleaseCompositorThread();
 }
 
 void
@@ -228,15 +197,6 @@ bool
 CompositorParent::RecvStop()
 {
   Destroy();
-  // There are chances that the ref count reaches zero on the main thread shortly
-  // after this function returns while some ipdl code still needs to run on 
-  // this thread.
-  // We must keep the compositor parent alive untill the code handling message 
-  // reception is finished on this thread.
-  this->AddRef(); // Corresponds to DeferredDeleteCompositorParent's Release
-  CompositorLoop()->PostTask(FROM_HERE, 
-                           NewRunnableFunction(&DeferredDeleteCompositorParent,
-                                               this));
   return true;
 }
 
@@ -251,17 +211,6 @@ bool
 CompositorParent::RecvResume()
 {
   ResumeComposition();
-  return true;
-}
-
-bool
-CompositorParent::RecvMakeSnapshot(const SurfaceDescriptor& aInSnapshot,
-                                   SurfaceDescriptor* aOutSnapshot)
-{
-  AutoOpenSurface opener(OPEN_READ_WRITE, aInSnapshot);
-  nsRefPtr<gfxContext> target = new gfxContext(opener.Get());
-  ComposeToTarget(target);
-  *aOutSnapshot = aInSnapshot;
   return true;
 }
 
@@ -372,18 +321,6 @@ CompositorParent::ScheduleTask(CancelableTask* task, int time)
 }
 
 void
-CompositorParent::NotifyShadowTreeTransaction()
-{
-  if (mLayerManager) {
-    ShadowLayerManager *shadow = mLayerManager->AsShadowManager();
-    if (shadow) {
-      shadow->NotifyShadowTreeTransaction();
-    }
-  }
-  ScheduleComposition();
-}
-
-void
 CompositorParent::ScheduleComposition()
 {
   if (mCurrentCompositeTask) {
@@ -479,8 +416,8 @@ private:
     }
     const FrameMetrics& fm = c->GetFrameMetrics();
     gfx3DMatrix m(aContainer->GetTransform());
-    m.Translate(gfxPoint3D(-fm.GetScrollOffsetInLayerPixels().x,
-                           -fm.GetScrollOffsetInLayerPixels().y, 0));
+    m.Translate(gfxPoint3D(-fm.mViewportScrollOffset.x,
+                           -fm.mViewportScrollOffset.y, 0));
 
     // The transform already takes the resolution scale into account.  Since we
     // will apply the resolution scale again when computing the effective
@@ -505,11 +442,11 @@ CompositorParent::Composite()
 {
   NS_ABORT_IF_FALSE(CompositorThreadID() == PlatformThread::CurrentId(),
                     "Composite can only be called on the compositor thread");
-  mCurrentCompositeTask = nullptr;
+  mCurrentCompositeTask = NULL;
 
   mLastCompose = TimeStamp::Now();
 
-  if (!CanComposite()) {
+  if (mPaused || !mLayerManager || !mLayerManager->GetRoot()) {
     return;
   }
 
@@ -540,26 +477,37 @@ CompositorParent::Composite()
 #endif
 }
 
-void
-CompositorParent::ComposeToTarget(gfxContext* aTarget)
-{
-  if (!CanComposite()) {
-    return;
-  }
-  mLayerManager->BeginTransactionWithTarget(aTarget);
-  // Since CanComposite() is true, Composite() must end the layers txn
-  // we opened above.
-  Composite();
-}
-
-bool
-CompositorParent::CanComposite()
-{
-  return !(mPaused || !mLayerManager || !mLayerManager->GetRoot());
-}
-
 // Do a breadth-first search to find the first layer in the tree that is
 // scrollable.
+Layer*
+CompositorParent::GetPrimaryScrollableLayer()
+{
+  Layer* root = mLayerManager->GetRoot();
+
+  nsTArray<Layer*> queue;
+  queue.AppendElement(root);
+  while (queue.Length()) {
+    ContainerLayer* containerLayer = queue[0]->AsContainerLayer();
+    queue.RemoveElementAt(0);
+    if (!containerLayer) {
+      continue;
+    }
+
+    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
+    if (frameMetrics.IsScrollable()) {
+      return containerLayer;
+    }
+
+    Layer* child = containerLayer->GetFirstChild();
+    while (child) {
+      queue.AppendElement(child);
+      child = child->GetNextSibling();
+    }
+  }
+
+  return root;
+}
+
 static void
 Translate2D(gfx3DMatrix& aTransform, const gfxPoint& aOffset)
 {
@@ -630,6 +578,9 @@ SetShadowProperties(Layer* aLayer)
   }
 }
 
+// SampleValue should eventually take the CSS property as an argument.  This
+// will be needed if we ever animate two values with the same type but different
+// interpolation rules.
 static void
 SampleValue(float aPortion, Animation& aAnimation, nsStyleAnimation::Value& aStart,
             nsStyleAnimation::Value& aEnd, Animatable* aValue)
@@ -638,33 +589,28 @@ SampleValue(float aPortion, Animation& aAnimation, nsStyleAnimation::Value& aSta
   NS_ASSERTION(aStart.GetUnit() == aEnd.GetUnit() ||
                aStart.GetUnit() == nsStyleAnimation::eUnit_None ||
                aEnd.GetUnit() == nsStyleAnimation::eUnit_None, "Must have same unit");
-  nsStyleAnimation::Interpolate(aAnimation.property(), aStart, aEnd,
-                                aPortion, interpolatedValue);
-  if (aAnimation.property() == eCSSProperty_opacity) {
-    *aValue = interpolatedValue.GetFloatValue();
+  if (aStart.GetUnit() == nsStyleAnimation::eUnit_Transform ||
+      aEnd.GetUnit() == nsStyleAnimation::eUnit_Transform) {
+    nsStyleAnimation::Interpolate(eCSSProperty_transform, aStart, aEnd,
+                                  aPortion, interpolatedValue);
+    nsCSSValueList* interpolatedList = interpolatedValue.GetCSSValueListValue();
+
+    TransformData& data = aAnimation.data().get_TransformData();
+    gfx3DMatrix transform =
+      nsDisplayTransform::GetResultingTransformMatrix(nullptr, data.origin(), nsDeviceContext::AppUnitsPerCSSPixel(),
+                                                      &data.bounds(), interpolatedList, &data.mozOrigin(),
+                                                      &data.perspectiveOrigin(), &data.perspective());
+
+    InfallibleTArray<TransformFunction>* functions = new InfallibleTArray<TransformFunction>();
+    functions->AppendElement(TransformMatrix(transform));
+    *aValue = *functions;
     return;
   }
 
-  nsCSSValueList* interpolatedList = interpolatedValue.GetCSSValueListValue();
-
-  TransformData& data = aAnimation.data().get_TransformData();
-  nsPoint origin = data.origin();
-  int32_t auPerCSSPixel = nsDeviceContext::AppUnitsPerCSSPixel();
-  gfx3DMatrix transform =
-    nsDisplayTransform::GetResultingTransformMatrix(
-      nullptr, origin, auPerCSSPixel,
-      &data.bounds(), interpolatedList, &data.mozOrigin(),
-      &data.perspectiveOrigin(), &data.perspective());
-  // NB: See nsDisplayTransform::GetTransform().
-  gfxPoint3D newOrigin =
-    gfxPoint3D(NS_round(NSAppUnitsToFloatPixels(origin.x, auPerCSSPixel)),
-               NS_round(NSAppUnitsToFloatPixels(origin.y, auPerCSSPixel)),
-               0.0f);
-  transform.Translate(newOrigin);
-
-  InfallibleTArray<TransformFunction>* functions = new InfallibleTArray<TransformFunction>();
-  functions->AppendElement(TransformMatrix(transform));
-  *aValue = *functions;
+  NS_ASSERTION(aStart.GetUnit() == nsStyleAnimation::eUnit_Float, "Should be opacity");
+  nsStyleAnimation::Interpolate(eCSSProperty_opacity, aStart, aEnd,
+                                aPortion, interpolatedValue);
+  *aValue = interpolatedValue.GetFloatValue();
 }
 
 static bool
@@ -675,7 +621,7 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
 
   bool activeAnimations = false;
 
-  for (uint32_t i = animations.Length(); i-- !=0; ) {
+  for (PRUint32 i = animations.Length(); i-- !=0; ) {
     Animation& animation = animations[i];
     AnimData& animData = animationData[i];
 
@@ -689,14 +635,14 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
                                                 animation.direction());
 
     if (positionInIteration == -1) {
-      animations.RemoveElementAt(i);
-      animationData.RemoveElementAt(i);
-      continue;
+        animations.RemoveElementAt(i);
+        animationData.RemoveElementAt(i);
+        continue;
     }
 
     NS_ABORT_IF_FALSE(0.0 <= positionInIteration &&
-                      positionInIteration <= 1.0,
-                      "position should be in [0-1]");
+                          positionInIteration <= 1.0,
+                        "position should be in [0-1]");
 
     int segmentIndex = 0;
     AnimationSegment* segment = animation.segments().Elements();
@@ -717,14 +663,11 @@ SampleAnimations(Layer* aLayer, TimeStamp aPoint)
     SampleValue(portion, animation, animData.mStartValues[segmentIndex],
                 animData.mEndValues[segmentIndex], &interpolatedValue);
     ShadowLayer* shadow = aLayer->AsShadowLayer();
-    switch (animation.property()) {
-    case eCSSProperty_opacity:
-    {
-      shadow->SetShadowOpacity(interpolatedValue.get_float());
+    switch (interpolatedValue.type()) {
+    case Animatable::TOpacity:
+      shadow->SetShadowOpacity(interpolatedValue.get_Opacity().value());
       break;
-    }
-    case eCSSProperty_transform:
-    {
+   case Animatable::TArrayOfTransformFunction: {
       gfx3DMatrix matrix = interpolatedValue.get_ArrayOfTransformFunction()[0].get_TransformMatrix().value();
       shadow->SetShadowTransform(matrix);
       break;
@@ -781,14 +724,14 @@ bool
 CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 {
   bool wantNextFrame = false;
-  Layer* layer = mLayerManager->GetPrimaryScrollableLayer();
+  Layer* layer = GetPrimaryScrollableLayer();
   ShadowLayer* shadow = layer->AsShadowLayer();
   ContainerLayer* container = layer->AsContainerLayer();
   Layer* root = mLayerManager->GetRoot();
 
   // NB: we must sample animations *before* sampling pan/zoom
   // transforms.
-  wantNextFrame |= SampleAnimations(root, mLastCompose);
+  wantNextFrame |= SampleAnimations(layer, mLastCompose);
 
   const FrameMetrics& metrics = container->GetFrameMetrics();
   // We must apply the resolution scale before a pan/zoom transform, so we call
@@ -817,43 +760,28 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 
     float rootScaleX = rootTransform.GetXScale(),
           rootScaleY = rootTransform.GetYScale();
-    // The ratio of layers pixels to device pixels.  The Java
-    // compositor wants to see values in units of device pixels, so we
-    // map our FrameMetrics values to that space.  This is not exposed
-    // as a FrameMetrics helper because it's a deprecated conversion.
-    float devPixelRatioX = 1 / rootScaleX, devPixelRatioY = 1 / rootScaleY;
-
-    gfx::Point scrollOffsetLayersPixels(metrics.GetScrollOffsetInLayerPixels());
-    nsIntPoint scrollOffsetDevPixels(
-      NS_lround(scrollOffsetLayersPixels.x * devPixelRatioX),
-      NS_lround(scrollOffsetLayersPixels.y * devPixelRatioY));
 
     if (mIsFirstPaint) {
       mContentRect = metrics.mContentRect;
-      SetFirstPaintViewport(scrollOffsetDevPixels,
+      SetFirstPaintViewport(metrics.mViewportScrollOffset,
                             1/rootScaleX,
                             mContentRect,
-                            metrics.mScrollableRect);
+                            metrics.mCSSContentRect);
       mIsFirstPaint = false;
     } else if (!metrics.mContentRect.IsEqualEdges(mContentRect)) {
       mContentRect = metrics.mContentRect;
-      SetPageRect(metrics.mScrollableRect);
+      SetPageRect(metrics.mCSSContentRect);
     }
 
     // We synchronise the viewport information with Java after sending the above
     // notifications, so that Java can take these into account in its response.
     // Calculate the absolute display port to send to Java
-    gfx::Rect displayPortLayersPixels(metrics.mDisplayPort);
-    nsIntRect displayPortDevPixels(
-      NS_lround(displayPortLayersPixels.x * devPixelRatioX),
-      NS_lround(displayPortLayersPixels.y * devPixelRatioY),
-      NS_lround(displayPortLayersPixels.width * devPixelRatioX),
-      NS_lround(displayPortLayersPixels.height * devPixelRatioY));
+    nsIntRect displayPort = metrics.mDisplayPort;
+    nsIntPoint scrollOffset = metrics.mViewportScrollOffset;
+    displayPort.x += scrollOffset.x;
+    displayPort.y += scrollOffset.y;
 
-    displayPortDevPixels.x += scrollOffsetDevPixels.x;
-    displayPortDevPixels.y += scrollOffsetDevPixels.y;
-
-    SyncViewportInfo(displayPortDevPixels, 1/rootScaleX, mLayersUpdated,
+    SyncViewportInfo(displayPort, 1/rootScaleX, mLayersUpdated,
                      mScrollOffset, mXScale, mYScale);
     mLayersUpdated = false;
 
@@ -868,7 +796,7 @@ CompositorParent::TransformShadowTree(TimeStamp aCurrentFrame)
 
     nsIntPoint metricsScrollOffset(0, 0);
     if (metrics.IsScrollable()) {
-      metricsScrollOffset = scrollOffsetDevPixels;
+      metricsScrollOffset = metrics.mViewportScrollOffset;
     }
 
     nsIntPoint scrollCompensation(
@@ -958,10 +886,6 @@ CompositorParent::ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
     SetShadowProperties(root);
   }
   ScheduleComposition();
-  ShadowLayerManager *shadow = mLayerManager->AsShadowManager();
-  if (shadow) {
-    shadow->NotifyShadowTreeTransaction();
-  }
 }
 
 PLayersParent*
@@ -975,7 +899,7 @@ CompositorParent::AllocPLayers(const LayersBackend& aBackendHint,
   // mWidget doesn't belong to the compositor thread, so it should be set to
   // NULL before returning from this method, to avoid accessing it elsewhere.
   nsIntRect rect;
-  mWidget->GetClientBounds(rect);
+  mWidget->GetBounds(rect);
   mWidgetSize.width = rect.width;
   mWidgetSize.height = rect.height;
 
@@ -1027,7 +951,7 @@ CompositorParent::DeallocPLayers(PLayersParent* actor)
 }
 
 
-typedef map<uint64_t,CompositorParent*> CompositorMap;
+typedef map<PRUint64,CompositorParent*> CompositorMap;
 static CompositorMap* sCompositorMap;
 
 void CompositorParent::CreateCompositorMap()
@@ -1047,22 +971,22 @@ void CompositorParent::DestroyCompositorMap()
   }
 }
 
-CompositorParent* CompositorParent::GetCompositor(uint64_t id)
+CompositorParent* CompositorParent::GetCompositor(PRUint64 id)
 {
   CompositorMap::iterator it = sCompositorMap->find(id);
   return it != sCompositorMap->end() ? it->second : nullptr;
 }
 
-void CompositorParent::AddCompositor(CompositorParent* compositor, uint64_t* outID)
+void CompositorParent::AddCompositor(CompositorParent* compositor, PRUint64* outID)
 {
-  static uint64_t sNextID = 1;
+  static PRUint64 sNextID = 1;
   
   ++sNextID;
   (*sCompositorMap)[sNextID] = compositor;
   *outID = sNextID;
 }
 
-CompositorParent* CompositorParent::RemoveCompositor(uint64_t id)
+CompositorParent* CompositorParent::RemoveCompositor(PRUint64 id)
 {
   CompositorMap::iterator it = sCompositorMap->find(id);
   if (it == sCompositorMap->end()) {
@@ -1148,9 +1072,6 @@ public:
   virtual bool RecvStop() MOZ_OVERRIDE { return true; }
   virtual bool RecvPause() MOZ_OVERRIDE { return true; }
   virtual bool RecvResume() MOZ_OVERRIDE { return true; }
-  virtual bool RecvMakeSnapshot(const SurfaceDescriptor& aInSnapshot,
-                                SurfaceDescriptor* aOutSnapshot)
-  { return true; }
 
   virtual PLayersParent* AllocPLayers(const LayersBackend& aBackendType,
                                       const uint64_t& aId,
@@ -1161,13 +1082,6 @@ public:
   virtual void ShadowLayersUpdated(ShadowLayersParent* aLayerTree,
                                    const TargetConfig& aTargetConfig,
                                    bool isFirstPaint) MOZ_OVERRIDE;
-
-  virtual PGrallocBufferParent* AllocPGrallocBuffer(
-    const gfxIntSize&, const uint32_t&, const uint32_t&,
-    MaybeMagicGrallocBufferHandle*) MOZ_OVERRIDE
-  { return nullptr; }
-  virtual bool DeallocPGrallocBuffer(PGrallocBufferParent*)
-  { return false; }
 
 private:
   void DeferredDestroy();
@@ -1279,7 +1193,7 @@ CrossProcessCompositorParent::ShadowLayersUpdated(
   }
   UpdateIndirectTree(id, shadowRoot, isFirstPaint);
 
-  sCurrentCompositor->NotifyShadowTreeTransaction();
+  sCurrentCompositor->ScheduleComposition();
 }
 
 void

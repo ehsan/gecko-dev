@@ -12,6 +12,7 @@ Note: removes both source and destination directory before starting. Do not
 
 import os
 import shutil
+import string
 import subprocess
 import sys
 
@@ -58,6 +59,8 @@ def copy(thissrcdir, dest, directories):
   """
   print "Copying %s..." % (directories, )
   for d in directories:
+    dirtocreate = dest
+
     subdirs, mochitests, supportfiles = parseManifestFile(dest, d)
     sourcedir = makePath("hg-%s" % dest, d)
     destdir = makePath(dest, d)
@@ -102,10 +105,11 @@ def printMakefiles(thissrcdir, dest, directories):
 
     subdirs, mochitests, supportfiles = parseManifestFile(dest, d)
 
+    abspath = "%s/%s" % (thissrcdir, path)
     files = ["test_%s" % (mochitest, ) for mochitest in mochitests]
     files.extend(supportfiles)
 
-    result = writeMakefile.substMakefile("importTestsuite.py", subdirs, files)
+    result = writeMakefile.substMakefile("importTestsuite.py", abspath, subdirs, files)
 
     fp = open(path + "/Makefile.in", "wb")
     fp.write(result)

@@ -19,23 +19,19 @@ public:
   NS_DECL_NSIPERMISSION
 
   nsPermission(const nsACString &aHost,
-               uint32_t aAppId,
-               bool aIsInBrowserElement,
-               const nsACString &aType,
-               uint32_t aCapability,
-               uint32_t aExpireType,
-               int64_t aExpireTime);
+               const nsACString &aType, 
+               PRUint32 aCapability,
+               PRUint32 aExpireType,
+               PRInt64 aExpireTime);
 
-  virtual ~nsPermission() {};
-
+  virtual ~nsPermission();
+  
 protected:
   nsCString mHost;
   nsCString mType;
-  uint32_t  mCapability;
-  uint32_t  mExpireType;
-  int64_t   mExpireTime;
-  uint32_t  mAppId;
-  bool      mIsInBrowserElement;
+  PRUint32  mCapability;
+  PRUint32  mExpireType;
+  PRInt64   mExpireTime;
 };
 
 #endif // nsPermission_h__

@@ -64,16 +64,6 @@ tabbrowser {
   display: block; /* position:fixed already does this (bug 579776), but let's be explicit */
 }
 
-.tabbrowser-tabs[movingtab] > .tabbrowser-tab[selected] {
-  position: relative;
-  z-index: 2;
-  pointer-events: none; /* avoid blocking dragover events on scroll buttons */
-}
-
-.tabbrowser-tabs[movingtab] > .tabbrowser-tab[fadein]:not([selected]) {
-  transition: transform 200ms ease-out;
-}
-
 #alltabs-popup {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-alltabs-popup");
 }
@@ -378,6 +368,7 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 }
 
 #full-screen-warning-container {
+  pointer-events: none;
   position: fixed;
   top: 0;
   left: 0;
@@ -392,9 +383,10 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 }
 
 #full-screen-warning-message {
+  pointer-events: auto;
   /* We must specify a max-width, otherwise word-wrap:break-word doesn't
      work in descendant <description> and <label> elements. Bug 630864. */
-  max-width: 800px;
+  max-width: 800px;  
 }
 
 #full-screen-domain-text,
@@ -417,8 +409,8 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   -moz-binding: url("chrome://global/content/bindings/toolbarbutton.xml#toolbarbutton-image");
 }
 
-:-moz-any(.ctrlTab-preview, .allTabs-preview) > html|img,
-:-moz-any(.ctrlTab-preview, .allTabs-preview) > html|canvas {
+.ctrlTab-preview > html|canvas,
+.allTabs-preview > html|canvas {
   min-width: inherit;
   max-width: inherit;
   min-height: inherit;
@@ -467,11 +459,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   display: none;
 }
 
-#notification-popup .text-link.custom-link {
-  -moz-binding: url("chrome://global/content/bindings/text.xml#text-label");
-  text-decoration: none;
-}
-
 #invalid-form-popup > description {
   max-width: 280px;
 }
@@ -482,18 +469,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 
 #addon-progress-notification {
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#addon-progress-notification");
-}
-
-#identity-request-notification {
-  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#identity-request-notification");
-}
-
-#click-to-play-plugins-notification {
-  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#click-to-play-plugins-notification");
-}
-
-popupnotification-centeritem {
-  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#center-item");
 }
 
 /* override hidden="true" for the status bar compatibility shim
@@ -611,7 +586,7 @@ html|*#gcli-output-frame,
 
 /* Responsive Mode */
 
-.browserContainer[responsivemode] {
+vbox[anonid=browserContainer][responsivemode] {
   overflow: auto;
 }
 
@@ -619,24 +594,15 @@ html|*#gcli-output-frame,
   -moz-box-pack: end;
 }
 
-.browserStack[responsivemode] {
+stack[anonid=browserStack][responsivemode] {
   transition-duration: 200ms;
   transition-timing-function: linear;
 }
 
-.browserStack[responsivemode] {
+stack[anonid=browserStack][responsivemode] {
   transition-property: min-width, max-width, min-height, max-height;
 }
 
-.browserStack[responsivemode][notransition] {
+stack[anonid=browserStack][responsivemode][notransition] {
   transition: none;
-}
-
-chatbox {
-  -moz-binding: url("chrome://browser/content/socialchat.xml#chatbox");
-}
-
-chatbar {
-  -moz-binding: url("chrome://browser/content/socialchat.xml#chatbar");
-  height: 0;
 }

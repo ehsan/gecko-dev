@@ -9,7 +9,7 @@
 #include "nsContentCID.h"
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsICharsetDetector.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIClassInfo.h"
@@ -17,7 +17,7 @@
 #include "nsIDocument.h"
 #include "nsIFileStreams.h"
 #include "nsIInputStream.h"
-#include "nsIIPCSerializableInputStream.h"
+#include "nsIIPCSerializable.h"
 #include "nsIMIMEService.h"
 #include "nsIPlatformCharset.h"
 #include "nsISeekableStream.h"
@@ -35,7 +35,7 @@
 
 #include "plbase64.h"
 #include "prmem.h"
-#include "mozilla/dom/FileListBinding.h"
+#include "dombindings.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -47,13 +47,14 @@ using namespace mozilla::dom;
 // stream is.  We do that by passing back this class instead.
 class DataOwnerAdapter MOZ_FINAL : public nsIInputStream,
                                    public nsISeekableStream,
-                                   public nsIIPCSerializableInputStream
+                                   public nsIIPCSerializable,
+                                   public nsIClassInfo
 {
   typedef nsDOMMemoryFile::DataOwner DataOwner;
 public:
   static nsresult Create(DataOwner* aDataOwner,
-                         uint32_t aStart,
-                         uint32_t aLength,
+                         PRUint32 aStart,
+                         PRUint32 aLength,
                          nsIInputStream** _retval);
 
   NS_DECL_ISUPPORTS
@@ -62,16 +63,18 @@ public:
   NS_FORWARD_NSIINPUTSTREAM(mStream->)
   NS_FORWARD_NSISEEKABLESTREAM(mSeekableStream->)
 
-  // This is optional. We use a conditional QI to keep it from being called
-  // if the underlying stream doesn't support it.
-  NS_FORWARD_NSIIPCSERIALIZABLEINPUTSTREAM(mSerializableInputStream->)
+  // These are optional. We use a conditional QI to keep them from being called
+  // if the underlying stream doesn't QI to either interface.
+  NS_FORWARD_NSIIPCSERIALIZABLE(mSerializable->)
+  NS_FORWARD_NSICLASSINFO(mClassInfo->)
 
 private:
   DataOwnerAdapter(DataOwner* aDataOwner,
                    nsIInputStream* aStream)
     : mDataOwner(aDataOwner), mStream(aStream),
       mSeekableStream(do_QueryInterface(aStream)),
-      mSerializableInputStream(do_QueryInterface(aStream))
+      mSerializable(do_QueryInterface(aStream)),
+      mClassInfo(do_QueryInterface(aStream))
   {
     NS_ASSERTION(mSeekableStream, "Somebody gave us the wrong stream!");
   }
@@ -79,7 +82,8 @@ private:
   nsRefPtr<DataOwner> mDataOwner;
   nsCOMPtr<nsIInputStream> mStream;
   nsCOMPtr<nsISeekableStream> mSeekableStream;
-  nsCOMPtr<nsIIPCSerializableInputStream> mSerializableInputStream;
+  nsCOMPtr<nsIIPCSerializable> mSerializable;
+  nsCOMPtr<nsIClassInfo> mClassInfo;
 };
 
 NS_IMPL_THREADSAFE_ADDREF(DataOwnerAdapter)
@@ -88,14 +92,14 @@ NS_IMPL_THREADSAFE_RELEASE(DataOwnerAdapter)
 NS_INTERFACE_MAP_BEGIN(DataOwnerAdapter)
   NS_INTERFACE_MAP_ENTRY(nsIInputStream)
   NS_INTERFACE_MAP_ENTRY(nsISeekableStream)
-  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIIPCSerializableInputStream,
-                                     mSerializableInputStream)
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIIPCSerializable, mSerializable)
+  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIClassInfo, mClassInfo)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIInputStream)
 NS_INTERFACE_MAP_END
 
 nsresult DataOwnerAdapter::Create(DataOwner* aDataOwner,
-                                  uint32_t aStart,
-                                  uint32_t aLength,
+                                  PRUint32 aStart,
+                                  PRUint32 aLength,
                                   nsIInputStream** _retval)
 {
   nsresult rv;
@@ -106,7 +110,7 @@ nsresult DataOwnerAdapter::Create(DataOwner* aDataOwner,
   rv = NS_NewByteInputStream(getter_AddRefs(stream),
                              static_cast<const char*>(aDataOwner->mData) +
                              aStart,
-                             (int32_t)aLength,
+                             (PRInt32)aLength,
                              NS_ASSIGNMENT_DEPEND);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -129,8 +133,7 @@ nsDOMFileBase::GetName(nsAString &aFileName)
 NS_IMETHODIMP
 nsDOMFileBase::GetLastModifiedDate(JSContext* cx, JS::Value *aLastModifiedDate)
 {
-  JSObject* date = JS_NewDateObjectMsec(cx, JS_Now() / PR_USEC_PER_MSEC);
-  aLastModifiedDate->setObject(*date);
+  aLastModifiedDate->setNull();
   return NS_OK;
 }
 
@@ -160,7 +163,7 @@ nsDOMFileBase::GetMozFullPathInternal(nsAString &aFileName)
 }
 
 NS_IMETHODIMP
-nsDOMFileBase::GetSize(uint64_t *aSize)
+nsDOMFileBase::GetSize(PRUint64 *aSize)
 {
   *aSize = mLength;
   return NS_OK;
@@ -173,18 +176,10 @@ nsDOMFileBase::GetType(nsAString &aType)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMFileBase::GetMozLastModifiedDate(uint64_t* aLastModifiedDate)
-{
-  NS_ASSERTION(mIsFile, "Should only be called on files");
-  *aLastModifiedDate = mLastModificationDate;
-  return NS_OK;
-}
-
 // Makes sure that aStart and aEnd is less then or equal to aSize and greater
 // than 0
 static void
-ParseSize(int64_t aSize, int64_t& aStart, int64_t& aEnd)
+ParseSize(PRInt64 aSize, PRInt64& aStart, PRInt64& aEnd)
 {
   CheckedInt64 newStartOffset = aStart;
   if (aStart < -aSize) {
@@ -219,35 +214,35 @@ ParseSize(int64_t aSize, int64_t& aStart, int64_t& aEnd)
 }
 
 NS_IMETHODIMP
-nsDOMFileBase::Slice(int64_t aStart, int64_t aEnd,
-                     const nsAString& aContentType, uint8_t optional_argc,
+nsDOMFileBase::Slice(PRInt64 aStart, PRInt64 aEnd,
+                     const nsAString& aContentType, PRUint8 optional_argc,
                      nsIDOMBlob **aBlob)
 {
   *aBlob = nullptr;
 
   // Truncate aStart and aEnd so that we stay within this file.
-  uint64_t thisLength;
+  PRUint64 thisLength;
   nsresult rv = GetSize(&thisLength);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (optional_argc < 2) {
-    aEnd = (int64_t)thisLength;
+    aEnd = (PRInt64)thisLength;
   }
 
-  ParseSize((int64_t)thisLength, aStart, aEnd);
+  ParseSize((PRInt64)thisLength, aStart, aEnd);
   
   // Create the new file
-  *aBlob = CreateSlice((uint64_t)aStart, (uint64_t)(aEnd - aStart),
+  *aBlob = CreateSlice((PRUint64)aStart, (PRUint64)(aEnd - aStart),
                        aContentType).get();
 
   return *aBlob ? NS_OK : NS_ERROR_UNEXPECTED;
 }
 
 NS_IMETHODIMP
-nsDOMFileBase::MozSlice(int64_t aStart, int64_t aEnd,
+nsDOMFileBase::MozSlice(PRInt64 aStart, PRInt64 aEnd,
                         const nsAString& aContentType, 
                         JSContext* aCx,
-                        uint8_t optional_argc,
+                        PRUint8 optional_argc,
                         nsIDOMBlob **aBlob)
 {
   MOZ_ASSERT(NS_IsMainThread());
@@ -304,10 +299,10 @@ nsDOMFileBase::GetInternalUrl(nsIPrincipal* aPrincipal, nsAString& aURL)
   return NS_OK;
 }
 
-NS_IMETHODIMP_(int64_t)
+NS_IMETHODIMP_(PRInt64)
 nsDOMFileBase::GetFileId()
 {
-  int64_t id = -1;
+  PRInt64 id = -1;
 
   if (IsStoredFile() && IsWholeFile() && !IsSnapshot()) {
     if (!indexedDB::IndexedDatabaseManager::IsClosed()) {
@@ -361,7 +356,7 @@ nsDOMFileBase::GetFileInfo(indexedDB::FileManager* aFileManager)
   // However, we don't support sharing of slices yet, so the slice must be
   // copied again. That's why we have to ignore the first file info.
   // Snapshots are handled in a similar way (they have to be copied).
-  uint32_t startIndex;
+  PRUint32 startIndex;
   if (IsStoredFile() && (!IsWholeFile() || IsSnapshot())) {
     startIndex = 1;
   }
@@ -371,7 +366,7 @@ nsDOMFileBase::GetFileInfo(indexedDB::FileManager* aFileManager)
 
   MutexAutoLock lock(indexedDB::IndexedDatabaseManager::FileMutex());
 
-  for (uint32_t i = startIndex; i < mFileInfos.Length(); i++) {
+  for (PRUint32 i = startIndex; i < mFileInfos.Length(); i++) {
     nsRefPtr<indexedDB::FileInfo>& fileInfo = mFileInfos.ElementAt(i);
     if (fileInfo->Manager() == aFileManager) {
       return fileInfo;
@@ -383,7 +378,6 @@ nsDOMFileBase::GetFileInfo(indexedDB::FileManager* aFileManager)
 
 NS_IMETHODIMP
 nsDOMFileBase::GetSendInfo(nsIInputStream** aBody,
-                           uint64_t* aContentLength,
                            nsACString& aContentType,
                            nsACString& aCharset)
 {
@@ -391,9 +385,6 @@ nsDOMFileBase::GetSendInfo(nsIInputStream** aBody,
 
   nsCOMPtr<nsIInputStream> stream;
   rv = this->GetInternalStream(getter_AddRefs(stream));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = this->GetSize(aContentLength);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsString contentType;
@@ -428,7 +419,7 @@ nsDOMFileBase::SetMutable(bool aMutable)
     rv = this->GetType(dummyString);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    uint64_t dummyInt;
+    PRUint64 dummyInt;
     rv = this->GetSize(&dummyInt);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -482,7 +473,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsDOMFileFile, nsDOMFile,
                              nsIJSNativeInitializer)
 
 already_AddRefed<nsIDOMBlob>
-nsDOMFileFile::CreateSlice(uint64_t aStart, uint64_t aLength,
+nsDOMFileFile::CreateSlice(PRUint64 aStart, PRUint64 aLength,
                            const nsAString& aContentType)
 {
   nsCOMPtr<nsIDOMBlob> t = new nsDOMFileFile(this, aStart, aLength, aContentType);
@@ -505,39 +496,28 @@ nsDOMFileFile::GetMozFullPathInternal(nsAString &aFilename)
 }
 
 NS_IMETHODIMP
-nsDOMFileFile::GetLastModifiedDate(JSContext* cx, JS::Value* aLastModifiedDate)
+nsDOMFileFile::GetLastModifiedDate(JSContext* cx, JS::Value *aLastModifiedDate)
 {
-  NS_ASSERTION(mIsFile, "Should only be called on files");
-
-  PRTime msecs;
+  PRInt64 msecs;
   mFile->GetLastModifiedTime(&msecs);
-  if (IsDateUnknown()) {
-    nsresult rv = mFile->GetLastModifiedTime(&msecs);
-    NS_ENSURE_SUCCESS(rv, rv);
-    mLastModificationDate = msecs;
-  } else {
-    msecs = mLastModificationDate;
-  }
-
   JSObject* date = JS_NewDateObjectMsec(cx, msecs);
   if (date) {
     aLastModifiedDate->setObject(*date);
   }
   else {
-    date = JS_NewDateObjectMsec(cx, JS_Now() / PR_USEC_PER_MSEC);
-    aLastModifiedDate->setObject(*date);
+    aLastModifiedDate->setNull();
   }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMFileFile::GetSize(uint64_t *aFileSize)
+nsDOMFileFile::GetSize(PRUint64 *aFileSize)
 {
   if (IsSizeUnknown()) {
     NS_ASSERTION(mWholeFile,
                  "Should only use lazy size when using the whole file");
-    int64_t fileSize;
+    PRInt64 fileSize;
     nsresult rv = mFile->GetFileSize(&fileSize);
     NS_ENSURE_SUCCESS(rv, rv);
   
@@ -564,7 +544,7 @@ nsDOMFileFile::GetType(nsAString &aType)
       do_GetService(NS_MIMESERVICE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString mimeType;
+    nsCAutoString mimeType;
     rv = mimeService->GetTypeFromFile(mFile, mimeType);
     if (NS_FAILED(rv)) {
       mimeType.Truncate();
@@ -579,15 +559,7 @@ nsDOMFileFile::GetType(nsAString &aType)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMFileFile::GetMozLastModifiedDate(uint64_t* aLastModifiedDate)
-{
-  NS_ASSERTION(mIsFile, "Should only be called on files");
-  *aLastModifiedDate = mLastModificationDate;
-  return NS_OK;
-}
-
-const uint32_t sFileStreamFlags =
+const PRUint32 sFileStreamFlags =
   nsIFileInputStream::CLOSE_ON_EOF |
   nsIFileInputStream::REOPEN_ON_REWIND |
   nsIFileInputStream::DEFER_OPEN;
@@ -605,7 +577,7 @@ NS_IMETHODIMP
 nsDOMFileFile::Initialize(nsISupports* aOwner,
                           JSContext* aCx,
                           JSObject* aObj,
-                          uint32_t aArgc,
+                          PRUint32 aArgc,
                           JS::Value* aArgv)
 {
   nsresult rv;
@@ -670,7 +642,7 @@ nsDOMFileFile::Initialize(nsISupports* aOwner,
 // nsDOMMemoryFile implementation
 
 already_AddRefed<nsIDOMBlob>
-nsDOMMemoryFile::CreateSlice(uint64_t aStart, uint64_t aLength,
+nsDOMMemoryFile::CreateSlice(PRUint64 aStart, PRUint64 aLength,
                              const nsAString& aContentType)
 {
   nsCOMPtr<nsIDOMBlob> t =
@@ -681,7 +653,7 @@ nsDOMMemoryFile::CreateSlice(uint64_t aStart, uint64_t aLength,
 NS_IMETHODIMP
 nsDOMMemoryFile::GetInternalStream(nsIInputStream **aStream)
 {
-  if (mLength > INT32_MAX)
+  if (mLength > PR_INT32_MAX)
     return NS_ERROR_FAILURE;
 
   return DataOwnerAdapter::Create(mDataOwner, mStart, mLength, aStream);
@@ -708,21 +680,27 @@ JSObject*
 nsDOMFileList::WrapObject(JSContext *cx, JSObject *scope,
                           bool *triedToWrap)
 {
-  return FileListBinding::Wrap(cx, scope, this, triedToWrap);
+  return mozilla::dom::binding::FileList::create(cx, scope, this, triedToWrap);
+}
+
+nsIDOMFile*
+nsDOMFileList::GetItemAt(PRUint32 aIndex)
+{
+  return mFiles.SafeObjectAt(aIndex);
 }
 
 NS_IMETHODIMP
-nsDOMFileList::GetLength(uint32_t* aLength)
+nsDOMFileList::GetLength(PRUint32* aLength)
 {
-  *aLength = Length();
+  *aLength = mFiles.Count();
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMFileList::Item(uint32_t aIndex, nsIDOMFile **aFile)
+nsDOMFileList::Item(PRUint32 aIndex, nsIDOMFile **aFile)
 {
-  NS_IF_ADDREF(*aFile = Item(aIndex));
+  NS_IF_ADDREF(*aFile = nsDOMFileList::GetItemAt(aIndex));
 
   return NS_OK;
 }
@@ -739,7 +717,7 @@ nsDOMFileInternalUrlHolder::nsDOMFileInternalUrlHolder(nsIDOMBlob* aFile,
  
 nsDOMFileInternalUrlHolder::~nsDOMFileInternalUrlHolder() {
   if (!mUrl.IsEmpty()) {
-    nsAutoCString narrowUrl;
+    nsCAutoString narrowUrl;
     CopyUTF16toUTF8(mUrl, narrowUrl);
     nsBlobProtocolHandler::RemoveFileDataEntry(narrowUrl);
   }

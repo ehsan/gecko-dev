@@ -21,14 +21,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id={674720}
 
 "use strict";
 
-// this shouldn't be necessary when bug 792594 is fixed
-if (!SpecialPowers.getBoolPref("dom.mozContacts.enabled")) {
-  var comp = SpecialPowers.wrap(SpecialPowers.Components);
-  comp.utils.import("resource://gre/modules/ContactService.jsm");
-  comp.utils.import("resource://gre/modules/PermissionPromptHelper.jsm");
-  SpecialPowers.setBoolPref("dom.mozContacts.enabled", true);
-}
-
+var comp = SpecialPowers.wrap(Components);
+comp.utils.import("resource://gre/modules/ContactService.jsm");
+SpecialPowers.setBoolPref("dom.mozContacts.enabled", true);
 SpecialPowers.addPermission("contacts", true, document);
 
 var utils = SpecialPowers.getDOMWindowUtils(window);
@@ -110,10 +105,10 @@ function onFailure() {
 function verifyBlob(blob1, blob2, isLast)
 {
   dump("islast? " + isLast + "\n");
-  is(blob1 instanceof SpecialPowers.Ci.nsIDOMBlob, true,
+  is(blob1 instanceof Components.interfaces.nsIDOMBlob, true,
      "Instance of nsIDOMBlob");
-  is(blob1 instanceof SpecialPowers.Ci.nsIDOMFile,
-     blob2 instanceof SpecialPowers.Ci.nsIDOMFile,
+  is(blob1 instanceof Components.interfaces.nsIDOMFile,
+     blob2 instanceof Components.interfaces.nsIDOMFile,
      "Instance of nsIDOMFile");
   is(blob1.size, blob2.size, "Correct size");
   is(blob1.type, blob2.type, "Correct type");

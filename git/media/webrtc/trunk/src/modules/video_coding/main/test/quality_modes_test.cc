@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+ *  Copyright (c) 2011 The WebRTC project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -19,7 +19,7 @@
 #include "test_callbacks.h"
 #include "test_macros.h"
 #include "testsupport/metrics/video_metrics.h"
-#include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "common_video/libyuv/include/libyuv.h"
 
 using namespace webrtc;
 
@@ -419,12 +419,9 @@ VCMQMDecodeCompleCallback::FrameToRender(VideoFrame& videoFrame)
 {
     if ((_origWidth == videoFrame.Width()) && (_origHeight == videoFrame.Height()))
     {
-      if (fwrite(videoFrame.Buffer(), 1, videoFrame.Length(),
-                 _decodedFile) !=  videoFrame.Length()) {
-        return -1;
-      }
-      _frameCnt++;
-      //printf("frame dec # %d", _frameCnt);
+        fwrite(videoFrame.Buffer(), 1, videoFrame.Length(), _decodedFile);
+        _frameCnt++;
+        //printf("frame dec # %d", _frameCnt);
         // no need for interpolator and decBuffer
         if (_decBuffer != NULL)
         {
@@ -449,10 +446,7 @@ VCMQMDecodeCompleCallback::FrameToRender(VideoFrame& videoFrame)
         }
 
 //        interpolateFrame(_interpolator, videoFrame.Buffer(),_decBuffer);
-        if (fwrite(_decBuffer, 1, _origWidth*_origHeight * 3/2,
-                   _decodedFile) !=  _origWidth*_origHeight * 3/2) {
-          return -1;
-        }
+        fwrite(_decBuffer, 1, _origWidth*_origHeight*3/2, _decodedFile);
         _frameCnt++;
     }
 

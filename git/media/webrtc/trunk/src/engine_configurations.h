@@ -27,7 +27,16 @@
 //  [Voice] Codec settings
 // ----------------------------------------------------------------------------
 
-// common.gypi now defines WEBRTC_CODEC_FOO if FOO is a configured audio codec
+#define WEBRTC_CODEC_ISAC       // floating-point iSAC implementation (default)
+// #define WEBRTC_CODEC_ISACFX  // fix-point iSAC implementation
+#define WEBRTC_CODEC_AVT
+
+#ifndef WEBRTC_CHROMIUM_BUILD
+#define WEBRTC_CODEC_ILBC
+#define WEBRTC_CODEC_G722
+#define WEBRTC_CODEC_PCM16
+#define WEBRTC_CODEC_RED
+#endif
 
 // ----------------------------------------------------------------------------
 //  [Video] Codec settings
@@ -68,7 +77,6 @@
 #define WEBRTC_VOICE_ENGINE_RTP_RTCP_API
 #define WEBRTC_VOICE_ENGINE_VIDEO_SYNC_API
 #define WEBRTC_VOICE_ENGINE_VOLUME_CONTROL_API
-#define WEBRTC_VOICE_ENGINE_FILE_API
 
 #ifndef WEBRTC_CHROMIUM_BUILD
 #define WEBRTC_VOICE_ENGINE_CALL_REPORT_API
@@ -95,8 +103,9 @@
 #define WEBRTC_VIDEO_ENGINE_RTP_RTCP_API
 // #define WEBRTC_VIDEO_ENGINE_EXTERNAL_CODEC_API
 
-// Now handled by gyp:
-// WEBRTC_VIDEO_ENGINE_FILE_API
+#ifndef WEBRTC_CHROMIUM_BUILD
+#define WEBRTC_VIDEO_ENGINE_FILE_API
+#endif
 
 // ============================================================================
 //                       Platform specific configurations

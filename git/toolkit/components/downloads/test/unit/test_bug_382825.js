@@ -39,7 +39,7 @@ var tests = [test_retry_canceled, test_retry_bad];
 var httpserv = null;
 function run_test()
 {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.registerDirectory("/", do_get_cwd());
   httpserv.start(4444);
 

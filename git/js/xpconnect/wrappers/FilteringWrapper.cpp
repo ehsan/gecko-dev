@@ -107,6 +107,8 @@ FilteringWrapper<Base, Policy>::enter(JSContext *cx, JSObject *wrapper, jsid id,
 #define SCSOW FilteringWrapper<SameCompartmentSecurityWrapper, OnlyIfSubjectIsSystem>
 #define XOW FilteringWrapper<XrayWrapper<CrossCompartmentSecurityWrapper>, \
                              CrossOriginAccessiblePropertiesOnly>
+#define PXOW   FilteringWrapper<XrayProxy, \
+                                CrossOriginAccessiblePropertiesOnly>
 #define DXOW   FilteringWrapper<XrayDOM, \
                                 CrossOriginAccessiblePropertiesOnly>
 #define NNXOW FilteringWrapper<CrossCompartmentSecurityWrapper, \
@@ -123,9 +125,14 @@ template<> SOW SOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
                               WrapperFactory::SOW_FLAG);
 template<> SCSOW SCSOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
                                   WrapperFactory::SOW_FLAG);
-template<> XOW XOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG);
-template<> DXOW DXOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG);
-template<> NNXOW NNXOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG);
+template<> XOW XOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
+                              WrapperFactory::PARTIALLY_TRANSPARENT);
+template<> PXOW PXOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
+                                WrapperFactory::PARTIALLY_TRANSPARENT);
+template<> DXOW DXOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
+                                WrapperFactory::PARTIALLY_TRANSPARENT);
+template<> NNXOW NNXOW::singleton(WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG |
+                                  WrapperFactory::PARTIALLY_TRANSPARENT);
 template<> LW  LW::singleton(WrapperFactory::SHADOWING_FORBIDDEN);
 template<> XLW XLW::singleton(WrapperFactory::SHADOWING_FORBIDDEN);
 
@@ -134,6 +141,7 @@ template<> XCW XCW::singleton(0);
 
 template class SOW;
 template class XOW;
+template class PXOW;
 template class DXOW;
 template class NNXOW;
 template class LW;

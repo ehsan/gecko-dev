@@ -25,7 +25,7 @@ class TimeStamp;
  * Instances of this class represent the length of an interval of time.
  * Negative durations are allowed, meaning the end is before the start.
  * 
- * Internally the duration is stored as a int64_t in units of
+ * Internally the duration is stored as a PRInt64 in units of
  * PR_TicksPerSecond() when building with NSPR interval timers, or a
  * system-dependent unit when building with system clocks.  The
  * system-dependent unit must be constant, otherwise the semantics of
@@ -120,27 +120,27 @@ private:
   friend class TimeStamp;
   friend struct IPC::ParamTraits<mozilla::TimeDuration>;
 
-  static TimeDuration FromTicks(int64_t aTicks) {
+  static TimeDuration FromTicks(PRInt64 aTicks) {
     TimeDuration t;
     t.mValue = aTicks;
     return t;
   }
 
   static TimeDuration FromTicks(double aTicks) {
-    // NOTE: this MUST be a >= test, because int64_t(double(INT64_MAX))
-    // overflows and gives INT64_MIN.
-    if (aTicks >= double(INT64_MAX))
-      return TimeDuration::FromTicks(INT64_MAX);
+    // NOTE: this MUST be a >= test, because PRInt64(double(LL_MAXINT))
+    // overflows and gives LL_MININT.
+    if (aTicks >= double(LL_MAXINT))
+      return TimeDuration::FromTicks(LL_MAXINT);
 
     // This MUST be a <= test.
-    if (aTicks <= double(INT64_MIN))
-      return TimeDuration::FromTicks(INT64_MIN);
+    if (aTicks <= double(LL_MININT))
+      return TimeDuration::FromTicks(LL_MININT);
 
-    return TimeDuration::FromTicks(int64_t(aTicks));
+    return TimeDuration::FromTicks(PRInt64(aTicks));
   }
 
   // Duration in PRIntervalTime units
-  int64_t mValue;
+  PRInt64 mValue;
 };
 
 /**
@@ -198,16 +198,16 @@ public:
   TimeDuration operator-(const TimeStamp& aOther) const {
     MOZ_ASSERT(!IsNull(), "Cannot compute with a null value");
     MOZ_ASSERT(!aOther.IsNull(), "Cannot compute with aOther null value");
-    PR_STATIC_ASSERT(-INT64_MAX > INT64_MIN);
-    int64_t ticks = int64_t(mValue - aOther.mValue);
+    PR_STATIC_ASSERT(-LL_MAXINT > LL_MININT);
+    PRInt64 ticks = PRInt64(mValue - aOther.mValue);
     // Check for overflow.
     if (mValue > aOther.mValue) {
       if (ticks < 0) {
-        ticks = INT64_MAX;
+        ticks = LL_MAXINT;
       }
     } else {
       if (ticks > 0) {
-        ticks = INT64_MIN;
+        ticks = LL_MININT;
       }
     }
     return TimeDuration::FromTicks(ticks);
@@ -275,7 +275,7 @@ public:
 private:
   friend struct IPC::ParamTraits<mozilla::TimeStamp>;
 
-  TimeStamp(uint64_t aValue) : mValue(aValue) {}
+  TimeStamp(PRUint64 aValue) : mValue(aValue) {}
 
   /**
    * When built with PRIntervalTime, a value of 0 means this instance
@@ -290,7 +290,7 @@ private:
    *
    * When using a system clock, a value is system dependent.
    */
-  uint64_t mValue;
+  PRUint64 mValue;
 };
 
 }

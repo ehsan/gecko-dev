@@ -21,7 +21,7 @@ interface nsIContentSecurityPolicy;
 [ptr] native JSPrincipals(JSPrincipals);
 [ptr] native PrincipalArray(nsTArray<nsCOMPtr<nsIPrincipal> >);
 
-[scriptable, uuid(115d1081-373e-4837-8d12-d0f4874f3467)]
+[scriptable, uuid(6df7d16d-5b26-42a1-b1f7-069d46c37aa8)]
 interface nsIPrincipal : nsISerializable
 {
     /**
@@ -173,13 +173,7 @@ interface nsIPrincipal : nsISerializable
      * located at the given URI under the same-origin policy. This means that
      * codebase principals are only allowed to load resources from the same
      * domain, the system principal is allowed to load anything, and null
-     * principals are not allowed to load anything. This is changed slightly
-     * by the optional flag allowIfInheritsPrincipal (which defaults to false)
-     * which allows the load of a data: URI (which inherits the principal of
-     * its loader) or a URI with the same principal as its loader (eg. a 
-     * Blob URI).
-     * In these cases, with allowIfInheritsPrincipal set to true, the URI can
-     * be loaded by a null principal.
+     * principals are not allowed to load anything.
      *
      * If the load is allowed this function does nothing. If the load is not
      * allowed the function throws NS_ERROR_DOM_BAD_URI.
@@ -193,13 +187,9 @@ interface nsIPrincipal : nsISerializable
      * @param uri    The URI about to be loaded.
      * @param report If true, will report a warning to the console service
      *               if the load is not allowed.
-     * @param allowIfInheritsPrincipal   If true, the load is allowed if the
-     *                                   loadee inherits the principal of the
-     *                                   loader.
      * @throws NS_ERROR_DOM_BAD_URI if the load is not allowed.
      */
-    void checkMayLoad(in nsIURI uri, in boolean report,
-                      in boolean allowIfInheritsPrincipal);
+    void checkMayLoad(in nsIURI uri, in boolean report);
 
     /**
      * The subject name for the certificate.  This actually identifies the
@@ -250,18 +240,6 @@ interface nsIPrincipal : nsISerializable
      */
     readonly attribute unsigned short appStatus;
 
-    %{C++
-    uint16_t GetAppStatus()
-    {
-      uint16_t appStatus;
-      nsresult rv = GetAppStatus(&appStatus);
-      if (NS_FAILED(rv)) {
-        return APP_STATUS_NOT_INSTALLED;
-      }
-      return appStatus;
-    }
-    %}
-
     /**
      * Returns the app id the principal is in, or returns
      * nsIScriptSecurityManager::NO_APP_ID if this principal isn't part of an
@@ -273,13 +251,6 @@ interface nsIPrincipal : nsISerializable
      * Returns true iif the principal is inside a browser element.
      */
     readonly attribute boolean isInBrowserElement;
-
-    /**
-     * Returns true if this principal has an unknown appId. This shouldn't
-     * generally be used. We only expose it due to not providing the correct
-     * appId everywhere where we construct principals.
-     */
-    readonly attribute boolean unknownAppId;
 };
 
 /**
@@ -301,5 +272,5 @@ interface nsIExpandedPrincipal : nsISupports
    * Note: this list is not reference counted, it is shared, so 
    * should not be changed and should only be used ephemerally.
    */
-  [noscript] readonly attribute PrincipalArray whiteList;
+  [notxpcom] readonly attribute PrincipalArray whiteList;
 };

@@ -22,13 +22,6 @@
                           accesskey="&newNavigatorCmd.accesskey;"
                           key="key_newNavigator"
                           command="cmd_newNavigator"/>
-#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-                <menuitem id="menu_newPrivateWindow"
-                          label="&newPrivateWindow.label;"
-                          accesskey="&newPrivateWindow.accesskey;"
-                          command="Tools:PrivateBrowsing"
-                          key="key_privatebrowsing"/>
-#endif
                 <menuitem id="menu_openLocation"
                           class="show-only-for-keyboard"
                           label="&openLocationCmd.label;"
@@ -369,7 +362,7 @@
 #ifdef MOZ_SERVICES_SYNC
                 <menuitem id="sync-tabs-menuitem"
                           class="syncTabsMenuItem"
-                          label="&syncTabsMenu2.label;"
+                          label="&syncTabsMenu.label;"
                           oncommand="BrowserOpenSyncTabs();"
                           disabled="true"/>
 #endif
@@ -482,9 +475,7 @@
                   accesskey="&toolsMenu.accesskey;">
               <menupopup id="menu_ToolsPopup"
 #ifdef MOZ_SERVICES_SYNC
-                         onpopupshowing="gSyncUI.updateUI(); SocialMenu.populate();"
-#else
-                         onpopupshowing="SocialMenu.populate();"
+                         onpopupshowing="gSyncUI.updateUI();"
 #endif
                          >
               <menuitem id="menu_search"
@@ -509,11 +500,6 @@
                         type="checkbox"
                         autocheck="false"
                         command="Social:Toggle"/>
-              <menu id="menu_socialAmbientMenu"
-                    class="show-only-for-keyboard"
-                    command="Social:Toggle">
-                <menupopup id="menu_socialAmbientMenuPopup"/>
-              </menu>
 #ifdef MOZ_SERVICES_SYNC
               <!-- only one of sync-setup or sync-menu will be showing at once -->
               <menuitem id="sync-setup"
@@ -534,10 +520,9 @@
                 <menupopup id="menuWebDeveloperPopup">
                   <menuitem id="menu_devToolbar" observes="devtoolsMenuBroadcaster_DevToolbar" accesskey="&devToolbarMenu.accesskey;"/>
                   <menuitem id="webConsole" observes="devtoolsMenuBroadcaster_WebConsole" accesskey="&webConsoleCmd.accesskey;"/>
-                  <menuitem id="menu_remoteWebConsole" observes="devtoolsMenuBroadcaster_RemoteWebConsole"/>
                   <menuitem id="menu_pageinspect" observes="devtoolsMenuBroadcaster_Inspect" accesskey="&inspectMenu.accesskey;"/>
                   <menuitem id="menu_responsiveUI" observes="devtoolsMenuBroadcaster_ResponsiveUI" accesskey="&responsiveDesignTool.accesskey;"/>
-                  <menuitem id="menu_debugger" observes="devtoolsMenuBroadcaster_Debugger" accesskey="&debuggerMenu.accesskey;"/>
+                  <menuitem id="menu_debugger" observes="devtoolsMenuBroadcaster_Debugger"/>
                   <menuitem id="menu_remoteDebugger" observes="devtoolsMenuBroadcaster_RemoteDebugger"/>
                   <menuitem id="menu_chromeDebugger" observes="devtoolsMenuBroadcaster_ChromeDebugger"/>
                   <menuitem id="menu_scratchpad" observes="devtoolsMenuBroadcaster_Scratchpad" accesskey="&scratchpad.accesskey;"/>
@@ -556,7 +541,6 @@
 #endif
                         command="View:PageInfo"/>
               <menuseparator id="sanitizeSeparator"/>
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
               <menuitem id="privateBrowsingItem"
                         label="&privateBrowsingCmd.start.label;"
                         accesskey="&privateBrowsingCmd.start.accesskey;"
@@ -566,7 +550,6 @@
                         stopaccesskey="&privateBrowsingCmd.stop.accesskey;"
                         key="key_privatebrowsing"
                         command="Tools:PrivateBrowsing"/>
-#endif
               <menuitem id="sanitizeItem"
                         accesskey="&clearRecentHistory.accesskey;"
                         label="&clearRecentHistory.label;"

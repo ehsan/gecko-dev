@@ -6,6 +6,7 @@
 #ifndef _nsXULAppAPI_h__
 #define _nsXULAppAPI_h__
 
+#include "prtypes.h"
 #include "nsID.h"
 #include "xrecore.h"
 #include "nsXPCOM.h"
@@ -124,13 +125,6 @@
 #define XRE_UPDATE_ROOT_DIR "UpdRootD"
 
 /**
- * A directory service key which provides the directory where an OS update is
-*  applied.
- * At present this is supported only in Gonk.
- */
-#define XRE_OS_UPDATE_APPLY_TO_DIR "OSUpdApplyToD"
-
-/**
  * Platform flag values for XRE_main.
  *
  * XRE_MAIN_FLAG_USE_METRO - On Windows, use the winrt backend. Defaults
@@ -157,7 +151,7 @@
  */
 XRE_API(int,
         XRE_main, (int argc, char* argv[], const nsXREAppData* aAppData,
-                   uint32_t aFlags))
+                   PRUint32 aFlags))
 
 /**
  * Given a path relative to the current working directory (or an absolute
@@ -373,8 +367,8 @@ XRE_API(GeckoProcessType,
 #if defined(MOZ_CRASHREPORTER)
 // Used in the "master" parent process hosting the crash server
 XRE_API(bool,
-        XRE_TakeMinidumpForChild, (uint32_t aChildPid, nsIFile** aDump,
-                                   uint32_t* aSequence))
+        XRE_TakeMinidumpForChild, (PRUint32 aChildPid, nsIFile** aDump,
+                                   PRUint32* aSequence))
 
 // Used in child processes.
 XRE_API(bool,
@@ -444,7 +438,7 @@ XRE_API(void,
 #endif
 
 XRE_API(void,
-        XRE_TelemetryAccumulate, (int aID, uint32_t aSample))
+        XRE_TelemetryAccumulate, (int aID, PRUint32 aSample))
 
 XRE_API(void,
         XRE_StartupTimelineRecord, (int aEvent, PRTime aWhen))

@@ -1,12 +1,7 @@
 "use strict";
 // https://bugzilla.mozilla.org/show_bug.cgi?id=761228
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpServer = null;
 const testFileName = "test_customConditionalRequest_304";
@@ -41,7 +36,7 @@ function alwaysReturn304Handler(metadata, response) {
 function run_test() {
   evict_cache_entries();
 
-  httpServer = new HttpServer();
+  httpServer = new nsHttpServer();
   httpServer.registerPathHandler(basePath + unexpected304,
                                  alwaysReturn304Handler);
   httpServer.registerPathHandler(basePath + existingCached304,

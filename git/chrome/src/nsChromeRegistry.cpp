@@ -14,7 +14,7 @@
 #include "prprf.h"
 
 #include "nsCOMPtr.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsEscape.h"
 #include "nsLayoutCID.h"
 #include "nsNetUtil.h"
@@ -62,7 +62,7 @@ nsChromeRegistry::LogMessage(const char* aMsg, ...)
 }
 
 void
-nsChromeRegistry::LogMessageWithContext(nsIURI* aURL, uint32_t aLineNumber, uint32_t flags,
+nsChromeRegistry::LogMessageWithContext(nsIURI* aURL, PRUint32 aLineNumber, PRUint32 flags,
                                         const char* aMsg, ...)
 {
   nsresult rv;
@@ -86,9 +86,9 @@ nsChromeRegistry::LogMessageWithContext(nsIURI* aURL, uint32_t aLineNumber, uint
   if (aURL)
     aURL->GetSpec(spec);
 
-  rv = error->Init(NS_ConvertUTF8toUTF16(formatted),
-                   NS_ConvertUTF8toUTF16(spec),
-                   EmptyString(),
+  rv = error->Init(NS_ConvertUTF8toUTF16(formatted).get(),
+                   NS_ConvertUTF8toUTF16(spec).get(),
+                   nullptr,
                    aLineNumber, 0, flags, "chrome registration");
   PR_smprintf_free(formatted);
 
@@ -165,7 +165,7 @@ nsChromeRegistry::GetProviderAndPath(nsIURL* aChromeURL,
   NS_ASSERTION(isChrome, "Non-chrome URI?");
 #endif
 
-  nsAutoCString path;
+  nsCAutoString path;
   rv = aChromeURL->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -177,7 +177,7 @@ nsChromeRegistry::GetProviderAndPath(nsIURL* aChromeURL,
   path.SetLength(nsUnescapeCount(path.BeginWriting()));
   NS_ASSERTION(path.First() == '/', "Path should always begin with a slash!");
 
-  int32_t slash = path.FindChar('/', 1);
+  PRInt32 slash = path.FindChar('/', 1);
   if (slash == 1) {
     LogMessage("Invalid chrome URI: %s", path.get());
     return NS_ERROR_FAILURE;
@@ -187,7 +187,7 @@ nsChromeRegistry::GetProviderAndPath(nsIURL* aChromeURL,
     aPath.Truncate();
   }
   else {
-    if (slash == (int32_t) path.Length() - 1)
+    if (slash == (PRInt32) path.Length() - 1)
       aPath.Truncate();
     else
       aPath.Assign(path.get() + slash + 1, path.Length() - slash - 1);
@@ -207,12 +207,12 @@ nsChromeRegistry::Canonify(nsIURL* aChromeURL)
 
   nsresult rv;
 
-  nsAutoCString provider, path;
+  nsCAutoString provider, path;
   rv = GetProviderAndPath(aChromeURL, provider, path);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (path.IsEmpty()) {
-    nsAutoCString package;
+    nsCAutoString package;
     rv = aChromeURL->GetHost(package);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -277,7 +277,7 @@ nsChromeRegistry::ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult)
   nsCOMPtr<nsIURL> chromeURL (do_QueryInterface(aChromeURI));
   NS_ENSURE_TRUE(chromeURL, NS_NOINTERFACE);
 
-  nsAutoCString package, provider, path;
+  nsCAutoString package, provider, path;
   rv = chromeURL->GetHostPort(package);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -286,7 +286,7 @@ nsChromeRegistry::ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult)
 
   nsIURI* baseURI = GetBaseURIFromPackage(package, provider, path);
 
-  uint32_t flags;
+  PRUint32 flags;
   rv = GetFlagsFromPackage(package, &flags);
   if (NS_FAILED(rv))
     return rv;
@@ -397,9 +397,9 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
   // Deal with our subframes first.
   nsCOMPtr<nsIDOMWindowCollection> frames;
   aWindow->GetFrames(getter_AddRefs(frames));
-  uint32_t length;
+  PRUint32 length;
   frames->GetLength(&length);
-  uint32_t j;
+  PRUint32 j;
   for (j = 0; j < length; j++) {
     nsCOMPtr<nsIDOMWindow> childWin;
     frames->Item(j, getter_AddRefs(childWin));
@@ -426,7 +426,7 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMArray<nsIStyleSheet> newAgentSheets;
-    for (int32_t l = 0; l < agentSheets.Count(); ++l) {
+    for (PRInt32 l = 0; l < agentSheets.Count(); ++l) {
       nsIStyleSheet *sheet = agentSheets[l];
 
       nsIURI* uri = sheet->GetSheetURI();
@@ -456,10 +456,10 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
   nsCOMArray<nsIStyleSheet> oldSheets;
   nsCOMArray<nsIStyleSheet> newSheets;
 
-  int32_t count = document->GetNumberOfStyleSheets();
+  PRInt32 count = document->GetNumberOfStyleSheets();
 
   // Iterate over the style sheets.
-  int32_t i;
+  PRInt32 i;
   for (i = 0; i < count; i++) {
     // Get the style sheet
     nsIStyleSheet *styleSheet = document->GetStyleSheetAt(i);
@@ -564,7 +564,7 @@ nsChromeRegistry::AllowScriptsForPackage(nsIURI* aChromeURI, bool *aResult)
   nsCOMPtr<nsIURL> url (do_QueryInterface(aChromeURI));
   NS_ENSURE_TRUE(url, NS_NOINTERFACE);
 
-  nsAutoCString provider, file;
+  nsCAutoString provider, file;
   rv = GetProviderAndPath(url, provider, file);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -593,11 +593,11 @@ nsChromeRegistry::AllowContentToAccess(nsIURI *aURI, bool *aResult)
     return NS_ERROR_UNEXPECTED;
   }
 
-  nsAutoCString package;
+  nsCAutoString package;
   rv = url->GetHostPort(package);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t flags;
+  PRUint32 flags;
   rv = GetFlagsFromPackage(package, &flags);
 
   if (NS_SUCCEEDED(rv)) {
@@ -618,12 +618,12 @@ nsChromeRegistry::WrappersEnabled(nsIURI *aURI)
   if (NS_FAILED(rv) || !isChrome)
     return false;
 
-  nsAutoCString package;
+  nsCAutoString package;
   rv = chromeURL->GetHostPort(package);
   if (NS_FAILED(rv))
     return false;
 
-  uint32_t flags;
+  PRUint32 flags;
   rv = GetFlagsFromPackage(package, &flags);
   return NS_SUCCEEDED(rv) && (flags & XPCNATIVEWRAPPERS);
 }

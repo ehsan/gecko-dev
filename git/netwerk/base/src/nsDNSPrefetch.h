@@ -44,7 +44,7 @@ private:
     mozilla::TimeStamp mStartTimestamp;
     mozilla::TimeStamp mEndTimestamp;
 
-    nsresult Prefetch(uint16_t flags);
+    nsresult Prefetch(PRUint16 flags);
 };
 
 #endif 

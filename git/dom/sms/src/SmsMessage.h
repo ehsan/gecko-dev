@@ -23,12 +23,12 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMMOZSMSMESSAGE
 
-  SmsMessage(int32_t aId, DeliveryState aDelivery, const nsString& aSender,
+  SmsMessage(PRInt32 aId, DeliveryState aDelivery, const nsString& aSender,
              const nsString& aReceiver, const nsString& aBody,
-             uint64_t aTimestamp, bool aRead);
+             PRUint64 aTimestamp, bool aRead);
   SmsMessage(const SmsMessageData& aData);
 
-  static nsresult Create(int32_t aId,
+  static nsresult Create(PRInt32 aId,
                          const nsAString& aDelivery,
                          const nsAString& aSender,
                          const nsAString& aReceiver,

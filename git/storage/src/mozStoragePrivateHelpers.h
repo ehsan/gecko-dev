@@ -13,7 +13,7 @@
 
 #include "sqlite3.h"
 #include "nsIVariant.h"
-#include "nsError.h"
+#include "mozStorage.h"
 #include "jsapi.h"
 #include "nsAutoPtr.h"
 

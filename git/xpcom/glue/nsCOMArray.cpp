@@ -25,13 +25,13 @@ nsCOMArray_base::~nsCOMArray_base()
   Clear();
 }
 
-int32_t
+PRInt32
 nsCOMArray_base::IndexOfObject(nsISupports* aObject) const {
     nsCOMPtr<nsISupports> supports = do_QueryInterface(aObject);
     NS_ENSURE_TRUE(supports, -1);
 
-    int32_t i, count;
-    int32_t retval = -1;
+    PRInt32 i, count;
+    PRInt32 retval = -1;
     count = mArray.Count();
     for (i = 0; i < count; ++i) {
         nsCOMPtr<nsISupports> arrayItem =
@@ -45,7 +45,7 @@ nsCOMArray_base::IndexOfObject(nsISupports* aObject) const {
 }
 
 bool
-nsCOMArray_base::InsertObjectAt(nsISupports* aObject, int32_t aIndex) {
+nsCOMArray_base::InsertObjectAt(nsISupports* aObject, PRInt32 aIndex) {
     bool result = mArray.InsertElementAt(aObject, aIndex);
     if (result)
         NS_IF_ADDREF(aObject);
@@ -53,12 +53,12 @@ nsCOMArray_base::InsertObjectAt(nsISupports* aObject, int32_t aIndex) {
 }
 
 bool
-nsCOMArray_base::InsertObjectsAt(const nsCOMArray_base& aObjects, int32_t aIndex) {
+nsCOMArray_base::InsertObjectsAt(const nsCOMArray_base& aObjects, PRInt32 aIndex) {
     bool result = mArray.InsertElementsAt(aObjects.mArray, aIndex);
     if (result) {
         // need to addref all these
-        int32_t count = aObjects.Count();
-        for (int32_t i = 0; i < count; ++i) {
+        PRInt32 count = aObjects.Count();
+        for (PRInt32 i = 0; i < count; ++i) {
             NS_IF_ADDREF(aObjects.ObjectAt(i));
         }
     }
@@ -66,7 +66,7 @@ nsCOMArray_base::InsertObjectsAt(const nsCOMArray_base& aObjects, int32_t aIndex
 }
 
 bool
-nsCOMArray_base::ReplaceObjectAt(nsISupports* aObject, int32_t aIndex)
+nsCOMArray_base::ReplaceObjectAt(nsISupports* aObject, PRInt32 aIndex)
 {
     // its ok if oldObject is null here
     nsISupports *oldObject =
@@ -94,9 +94,9 @@ nsCOMArray_base::RemoveObject(nsISupports *aObject)
 }
 
 bool
-nsCOMArray_base::RemoveObjectAt(int32_t aIndex)
+nsCOMArray_base::RemoveObjectAt(PRInt32 aIndex)
 {
-    if (uint32_t(aIndex) < uint32_t(Count())) {
+    if (PRUint32(aIndex) < PRUint32(Count())) {
         nsISupports* element = ObjectAt(aIndex);
 
         bool result = mArray.RemoveElementAt(aIndex);
@@ -108,15 +108,15 @@ nsCOMArray_base::RemoveObjectAt(int32_t aIndex)
 }
 
 bool
-nsCOMArray_base::RemoveObjectsAt(int32_t aIndex, int32_t aCount)
+nsCOMArray_base::RemoveObjectsAt(PRInt32 aIndex, PRInt32 aCount)
 {
-    if (uint32_t(aIndex) + uint32_t(aCount) <= uint32_t(Count())) {
+    if (PRUint32(aIndex) + PRUint32(aCount) <= PRUint32(Count())) {
         nsVoidArray elementsToDestroy(aCount);
-        for (int32_t i = 0; i < aCount; ++i) {
+        for (PRInt32 i = 0; i < aCount; ++i) {
             elementsToDestroy.InsertElementAt(mArray.FastElementAt(aIndex + i), i);
         }
         bool result = mArray.RemoveElementsAt(aIndex, aCount);
-        for (int32_t i = 0; i < aCount; ++i) {
+        for (PRInt32 i = 0; i < aCount; ++i) {
             nsISupports* element = static_cast<nsISupports*> (elementsToDestroy.FastElementAt(i));
             NS_IF_RELEASE(element);
         }
@@ -145,13 +145,13 @@ nsCOMArray_base::Clear()
 }
 
 bool
-nsCOMArray_base::SetCount(int32_t aNewCount)
+nsCOMArray_base::SetCount(PRInt32 aNewCount)
 {
     NS_ASSERTION(aNewCount >= 0,"SetCount(negative index)");
     if (aNewCount < 0)
       return false;
 
-    int32_t count = Count(), i;
+    PRInt32 count = Count(), i;
     nsAutoVoidArray objects;
     if (count > aNewCount) {
         objects.SetCount(count - aNewCount);

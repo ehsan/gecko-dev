@@ -20,11 +20,9 @@
 #include "nsEventDispatcher.h"
 #include "nsPIDOMWindow.h"
 #include "nsFocusManager.h"
-#include "mozilla/ErrorResult.h"
 
 // construction, destruction
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Label)
@@ -81,8 +79,8 @@ nsHTMLLabelElement::GetControl(nsIDOMHTMLElement** aElement)
 
 NS_IMPL_STRING_ATTR(nsHTMLLabelElement, HtmlFor, _for)
 
-void
-nsHTMLLabelElement::Focus(ErrorResult& aError)
+NS_IMETHODIMP
+nsHTMLLabelElement::Focus()
 {
   // retarget the focus method at the for content
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
@@ -91,6 +89,8 @@ nsHTMLLabelElement::Focus(ErrorResult& aError)
     if (elem)
       fm->SetFocus(elem, 0);
   }
+
+  return NS_OK;
 }
 
 nsresult
@@ -248,7 +248,7 @@ nsHTMLLabelElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 }
 
 nsresult
-nsHTMLLabelElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName, nsIAtom* aPrefix,
+nsHTMLLabelElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, nsIAtom* aPrefix,
                             const nsAString& aValue, bool aNotify)
 {
   return nsGenericHTMLFormElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
@@ -256,7 +256,7 @@ nsHTMLLabelElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName, nsIAtom* aPref
 }
 
 nsresult
-nsHTMLLabelElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+nsHTMLLabelElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                               bool aNotify)
 {
   return nsGenericHTMLFormElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);

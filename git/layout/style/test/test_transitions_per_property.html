@@ -115,6 +115,18 @@ var supported_properties = {
                        // opacity is clamped in computed style
                        // (not parsing/interpolation)
                        test_float_zeroToOne_clamped ],
+/* XXXdholbert In builds with MOZ_FLEXBOX enabled, this should be uncommented.
+   (This would be #ifdef MOZ_FLEXBOX, if that worked in JS files.)
+
+    "-moz-flex-basis": [ test_length_transition, test_percent_transition,
+                         test_length_clamped, test_percent_clamped ],
+    "-moz-flex-grow": [ test_float_zeroToOne_transition,
+                        test_float_aboveOne_transition ],
+    "-moz-flex-shrink": [ test_float_zeroToOne_transition,
+                          test_float_aboveOne_transition ],
+    "-moz-order": [ test_integer_transition ],
+
+*/
     "flood-color": [ test_color_transition ],
     "flood-opacity" : [ test_float_zeroToOne_transition,
                         // opacity is clamped in computed style
@@ -236,23 +248,6 @@ var supported_properties = {
     "z-index": [ test_integer_transition, test_pos_integer_or_auto_transition ],
 };
 
-// Automatically add pref-controlled CSS properties & keywords
-// to supported_properties, if the flexbox pref is enabled.
-if (SpecialPowers.getBoolPref("layout.css.flexbox.enabled")) {
-    var flexbox_properties = {
-        "flex-basis": [ test_length_transition, test_percent_transition,
-                        test_length_clamped, test_percent_clamped ],
-        "flex-grow": [ test_float_zeroToOne_transition,
-                       test_float_aboveOne_transition ],
-        "flex-shrink": [ test_float_zeroToOne_transition,
-                         test_float_aboveOne_transition ],
-        "order": [ test_integer_transition ]
-    };
-    for (var prop in flexbox_properties) {
-      supported_properties[prop] = flexbox_properties[prop];
-    }
-}
-
 var div = document.getElementById("display");
 var cs = getComputedStyle(div, "");
 
@@ -273,7 +268,6 @@ for (prop in gCSSProperties) {
   var info = gCSSProperties[prop];
   if (!(prop in supported_properties) &&
       info.type != CSS_TYPE_TRUE_SHORTHAND &&
-      !("alias_for" in info) &&
       !prop.match(/^transition-/) &&
       // FIXME (Bug 119078): THIS SHOULD REALLY NOT BE NEEDED!
       prop != "-moz-binding") {

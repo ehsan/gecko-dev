@@ -14,7 +14,6 @@
 #include "SkDevice.h"
 #include "SkPaint.h"
 #include "SkPath.h"
-#include "SkRect.h"
 #include "SkRefCnt.h"
 #include "SkStream.h"
 #include "SkTScopedPtr.h"
@@ -101,9 +100,6 @@ public:
     virtual void drawDevice(const SkDraw&, SkDevice*, int x, int y,
                             const SkPaint&) SK_OVERRIDE;
 
-    virtual void onAttachToCanvas(SkCanvas* canvas) SK_OVERRIDE;
-    virtual void onDetachFromCanvas() SK_OVERRIDE;
-
     enum DrawingArea {
         kContent_DrawingArea,  // Drawing area for the page content.
         kMargin_DrawingArea,   // Drawing area for the margin content.
@@ -143,10 +139,6 @@ public:
      */
     SK_API SkRefPtr<SkPDFArray> getMediaBox() const;
 
-    /** Get the annotations from this page.
-     */
-    SK_API SkRefPtr<SkPDFArray> getAnnotations() const;
-
     /** Returns a SkStream with the page contents.  The caller is responsible
         for a reference to the returned value.
         DEPRECATED: use copyContentToData()
@@ -185,7 +177,6 @@ private:
     SkMatrix fInitialTransform;
     SkClipStack fExistingClipStack;
     SkRegion fExistingClipRegion;
-    SkRefPtr<SkPDFArray> fAnnotations;
     SkRefPtr<SkPDFDict> fResourceDict;
 
     SkTDArray<SkPDFGraphicState*> fGraphicStateResources;
@@ -198,8 +189,6 @@ private:
     SkTScopedPtr<ContentEntry> fMarginContentEntries;
     ContentEntry* fLastMarginContentEntry;
     DrawingArea fDrawingArea;
-
-    const SkClipStack* fClipStack;
 
     // Accessor and setter functions based on the current DrawingArea.
     SkTScopedPtr<ContentEntry>* getContentEntries();
@@ -269,10 +258,9 @@ private:
      */
     void copyContentEntriesToData(ContentEntry* entry, SkWStream* data) const;
 
-    bool handleAnnotations(const SkRect& r, const SkMatrix& matrix,
-                           const SkPaint& paint);
-
-    typedef SkDevice INHERITED;
+    // Disable the default copy and assign implementation.
+    SkPDFDevice(const SkPDFDevice&);
+    void operator=(const SkPDFDevice&);
 };
 
 #endif

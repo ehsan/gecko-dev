@@ -12,7 +12,7 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= dom
 
-PARALLEL_DIRS = \
+DIRS = \
   interfaces/base \
   interfaces/canvas \
   interfaces/core \
@@ -35,24 +35,24 @@ PARALLEL_DIRS = \
   interfaces/offline \
   interfaces/geolocation \
   interfaces/notification \
-  interfaces/permission \
   interfaces/svg \
   interfaces/smil \
+  $(NULL)
+
+DIRS += \
   interfaces/apps \
   $(NULL)
 
-PARALLEL_DIRS += \
+DIRS += \
   apps \
   base \
   activities \
   bindings \
   battery \
-  bluetooth \
   browser-element \
   contacts \
   alarm \
   devicestorage \
-  encoding \
   file \
   media \
   messages \
@@ -61,7 +61,6 @@ PARALLEL_DIRS += \
   sms \
   mms \
   src \
-  time \
   locales \
   network \
   permission \
@@ -76,20 +75,15 @@ PARALLEL_DIRS += \
   $(NULL)
 
 ifdef MOZ_B2G_RIL
-PARALLEL_DIRS += \
+DIRS += \
   telephony \
   wifi \
-  icc \
   $(NULL)
 endif
 
-ifdef MOZ_B2G_FM
-PARALLEL_DIRS += fm
-endif
-
-ifdef MOZ_PAY
-PARALLEL_DIRS += \
-  payment \
+ifdef MOZ_B2G_BT
+DIRS += \
+  bluetooth \
   $(NULL)
 endif
 

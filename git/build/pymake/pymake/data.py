@@ -6,11 +6,6 @@ import logging, re, os, sys
 import parserdata, parser, functions, process, util, implicit
 from cStringIO import StringIO
 
-if sys.version_info[0] < 3:
-    str_type = basestring
-else:
-    str_type = str
-
 _log = logging.getLogger('pymake.data')
 
 class DataError(util.MakeError):
@@ -146,7 +141,7 @@ class StringExpansion(BaseExpansion):
     simple = True
 
     def __init__(self, s, loc):
-        assert isinstance(s, str_type)
+        assert isinstance(s, str)
         self.s = s
         self.loc = loc
 
@@ -232,7 +227,7 @@ class Expansion(BaseExpansion, list):
         return e
 
     def appendstr(self, s):
-        assert isinstance(s, str_type)
+        assert isinstance(s, str)
         if s == '':
             return
 
@@ -326,9 +321,9 @@ class Expansion(BaseExpansion, list):
             if isfunc:
                 e.resolve(makefile, variables, fd, setting)
             else:
-                assert isinstance(e, str_type)
+                assert isinstance(e, str)
                 fd.write(e)
-
+                    
     def resolvestr(self, makefile, variables, setting=[]):
         fd = StringIO()
         self.resolve(makefile, variables, fd, setting)
@@ -447,7 +442,7 @@ class Variables(object):
 
     def readfromenvironment(self, env):
         for k, v in env.iteritems():
-            self.set(k, self.FLAVOR_RECURSIVE, self.SOURCE_ENVIRONMENT, v)
+            self.set(k, self.FLAVOR_SIMPLE, self.SOURCE_ENVIRONMENT, v)
 
     def get(self, name, expand=True):
         """
@@ -506,7 +501,7 @@ class Variables(object):
     def set(self, name, flavor, source, value):
         assert flavor in (self.FLAVOR_RECURSIVE, self.FLAVOR_SIMPLE)
         assert source in (self.SOURCE_OVERRIDE, self.SOURCE_COMMANDLINE, self.SOURCE_MAKEFILE, self.SOURCE_ENVIRONMENT, self.SOURCE_AUTOMATIC, self.SOURCE_IMPLICIT)
-        assert isinstance(value, str_type), "expected str, got %s" % type(value)
+        assert isinstance(value, str), "expected str, got %s" % type(value)
 
         prevflavor, prevsource, prevvalue = self.get(name)
         if prevsource is not None and source > prevsource:
@@ -518,7 +513,7 @@ class Variables(object):
 
     def append(self, name, source, value, variables, makefile):
         assert source in (self.SOURCE_OVERRIDE, self.SOURCE_MAKEFILE, self.SOURCE_AUTOMATIC)
-        assert isinstance(value, str_type)
+        assert isinstance(value, str)
 
         if name not in self._map:
             self._map[name] = self.FLAVOR_APPEND, source, value, None
@@ -651,7 +646,7 @@ class Pattern(object):
         @param mustmatch If true and this pattern doesn't match the word, throw a DataError. Otherwise
                          return word unchanged.
         """
-        assert isinstance(replacement, str_type)
+        assert isinstance(replacement, str)
 
         stem = self.match(word)
         if stem is None:
@@ -970,7 +965,7 @@ class Target(object):
     wasremade = False
 
     def __init__(self, target, makefile):
-        assert isinstance(target, str_type)
+        assert isinstance(target, str)
         self.target = target
         self.vpathtarget = None
         self.rules = []
@@ -1189,45 +1184,31 @@ class Target(object):
             search += [util.normaljoin(dir, self.target).replace('\\', '/')
                        for dir in makefile.getvpath(self.target)]
 
-        targetandtime = self.searchinlocs(makefile, search)
-        if targetandtime is not None:
-            (self.vpathtarget, self.mtime) = targetandtime
-            return
-
-        self.vpathtarget = self.target
-        self.mtime = None
-
-    def searchinlocs(self, makefile, locs):
-        """
-        Look in the given locations relative to the makefile working directory
-        for a file. Return a pair of the target and the mtime if found, None
-        if not.
-        """
-        for t in locs:
+        for t in search:
             fspath = util.normaljoin(makefile.workdir, t).replace('\\', '/')
             mtime = getmtime(fspath)
 #            _log.info("Searching %s ... checking %s ... mtime %r" % (t, fspath, mtime))
             if mtime is not None:
-                return (t, mtime)
+                self.vpathtarget = t
+                self.mtime = mtime
+                return
 
-        return None
+        self.vpathtarget = self.target
+        self.mtime = None
         
     def beingremade(self):
         """
-        When we remake ourself, we have to drop any vpath prefixes.
+        When we remake ourself, we need to reset our mtime and vpathtarget.
+
+        We store our old mtime so that $? can calculate out-of-date prerequisites.
         """
+        self.realmtime = self.mtime
+        self.mtime = None
         self.vpathtarget = self.target
         self.wasremade = True
 
     def notifydone(self, makefile):
         assert self._state == MAKESTATE_WORKING, "State was %s" % self._state
-        # If we were remade then resolve mtime again
-        if self.wasremade:
-            targetandtime = self.searchinlocs(makefile, [self.target])
-            if targetandtime is not None:
-                (_, self.mtime) = targetandtime
-            else:
-                self.mtime = None
 
         self._state = MAKESTATE_FINISHED
         for cb in self._callbacks:
@@ -1334,7 +1315,7 @@ def setautomaticvariables(v, makefile, target, prerequisites):
     prtargets = [makefile.gettarget(p) for p in prerequisites]
     prall = [pt.vpathtarget for pt in prtargets]
     proutofdate = [pt.vpathtarget for pt in withoutdups(prtargets)
-                   if target.mtime is None or mtimeislater(pt.mtime, target.mtime)]
+                   if target.realmtime is None or mtimeislater(pt.mtime, target.realmtime)]
     
     setautomatic(v, '@', [target.vpathtarget])
     if len(prall):
@@ -1404,24 +1385,24 @@ class _NativeWrapper(_CommandWrapper):
                  pycommandpath, **kwargs):
         _CommandWrapper.__init__(self, cline, ignoreErrors, loc, context,
                                  **kwargs)
+        # get the module and method to call
+        parts, badchar = process.clinetoargv(cline, blacklist_gray=False)
+        if parts is None:
+            raise DataError("native command '%s': shell metacharacter '%s' in command line" % (cline, badchar), self.loc)
+        if len(parts) < 2:
+            raise DataError("native command '%s': no method name specified" % cline, self.loc)
         if pycommandpath:
             self.pycommandpath = re.split('[%s\s]+' % os.pathsep,
                                           pycommandpath)
         else:
             self.pycommandpath = None
+        self.module = parts[0]
+        self.method = parts[1]
+        self.cline_list = parts[2:]
 
     def __call__(self, cb):
-        # get the module and method to call
-        parts, badchar = process.clinetoargv(self.cline, self.kwargs['cwd'])
-        if parts is None:
-            raise DataError("native command '%s': shell metacharacter '%s' in command line" % (cline, badchar), self.loc)
-        if len(parts) < 2:
-            raise DataError("native command '%s': no method name specified" % cline, self.loc)
-        module = parts[0]
-        method = parts[1]
-        cline_list = parts[2:]
         self.usercb = cb
-        process.call_native(module, method, cline_list,
+        process.call_native(self.module, self.method, self.cline_list,
                             loc=self.loc, cb=self._cb, context=self.context,
                             pycommandpath=self.pycommandpath, **self.kwargs)
 
@@ -1692,7 +1673,7 @@ class Makefile(object):
         return target in self._targets
 
     def gettarget(self, target):
-        assert isinstance(target, str_type)
+        assert isinstance(target, str)
 
         target = target.rstrip('/')
 

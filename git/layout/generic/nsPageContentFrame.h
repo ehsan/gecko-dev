@@ -5,7 +5,6 @@
 #ifndef nsPageContentFrame_h___
 #define nsPageContentFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsViewportFrame.h"
 class nsPageFrame;
 class nsSharedPageData;
@@ -23,9 +22,9 @@ public:
   NS_IMETHOD  Reflow(nsPresContext*      aPresContext,
                      nsHTMLReflowMetrics& aDesiredSize,
                      const nsHTMLReflowState& aMaxSize,
-                     nsReflowStatus&      aStatus) MOZ_OVERRIDE;
+                     nsReflowStatus&      aStatus);
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return ViewportFrame::IsFrameOfType(aFlags &
              ~(nsIFrame::eCanContainOverflowContainers));
@@ -40,20 +39,18 @@ public:
   virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             uint32_t aFlags) MOZ_OVERRIDE;
-
-  virtual bool HasTransformGetter() const MOZ_OVERRIDE { return true; }
+                             PRUint32 aFlags) MOZ_OVERRIDE;
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::pageContentFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
   
 #ifdef DEBUG
   // Debugging
-  NS_IMETHOD  GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const;
 #endif
 
 protected:

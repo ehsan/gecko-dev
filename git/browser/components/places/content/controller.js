@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
 
@@ -227,7 +226,7 @@ PlacesController.prototype = {
       }
       else
         host = NetUtil.newURI(this._view.selectedNode.uri).host;
-      ForgetAboutSite.removeDataFromDomain(host);
+      PlacesUIUtils.privateBrowsing.removeDataFromDomain(host);
       break;
     case "cmd_selectAll":
       this.selectAll();
@@ -528,30 +527,30 @@ PlacesController.prototype = {
     }
 
     var selectionAttr = aMenuItem.getAttribute("selection");
-    if (!selectionAttr) {
-      return !aMenuItem.hidden;
-    }
+    if (selectionAttr) {
+      if (selectionAttr == "any")
+        return true;
 
-    if (selectionAttr == "any")
-      return true;
+      var showRules = selectionAttr.split("|");
+      var anyMatched = false;
+      function metaDataNodeMatches(metaDataNode, rules) {
+        for (var i=0; i < rules.length; i++) {
+          if (rules[i] in metaDataNode)
+            return true;
+        }
 
-    var showRules = selectionAttr.split("|");
-    var anyMatched = false;
-    function metaDataNodeMatches(metaDataNode, rules) {
-      for (var i = 0; i < rules.length; i++) {
-        if (rules[i] in metaDataNode)
-          return true;
-      }
-      return false;
-    }
-
-    for (var i = 0; i < aMetaData.length; ++i) {
-      if (metaDataNodeMatches(aMetaData[i], showRules))
-        anyMatched = true;
-      else
         return false;
+      }
+      for (var i = 0; i < aMetaData.length; ++i) {
+        if (metaDataNodeMatches(aMetaData[i], showRules))
+          anyMatched = true;
+        else
+          return false;
+      }
+      return anyMatched;
     }
-    return anyMatched;
+
+    return !aMenuItem.hidden;
   },
 
   /**
@@ -1021,21 +1020,21 @@ PlacesController.prototype = {
     if (!didSuppressNotifications)
       result.suppressNotifications = true;
 
-    function addData(type, index, overrideURI) {
-      let wrapNode = PlacesUtils.wrapNode(node, type, overrideURI, doCopy);
-      dt.mozSetDataAt(type, wrapNode, index);
-    }
-
-    function addURIData(index, overrideURI) {
-      addData(PlacesUtils.TYPE_X_MOZ_URL, index, overrideURI);
-      addData(PlacesUtils.TYPE_UNICODE, index, overrideURI);
-      addData(PlacesUtils.TYPE_HTML, index, overrideURI);
-    }
-
     try {
       let nodes = this._view.draggableSelection;
       for (let i = 0; i < nodes.length; ++i) {
         var node = nodes[i];
+
+        function addData(type, index, overrideURI) {
+          let wrapNode = PlacesUtils.wrapNode(node, type, overrideURI, doCopy);
+          dt.mozSetDataAt(type, wrapNode, index);
+        }
+
+        function addURIData(index, overrideURI) {
+          addData(PlacesUtils.TYPE_X_MOZ_URL, index, overrideURI);
+          addData(PlacesUtils.TYPE_UNICODE, index, overrideURI);
+          addData(PlacesUtils.TYPE_HTML, index, overrideURI);
+        }
 
         // This order is _important_! It controls how this and other
         // applications select data to be inserted based on type.
@@ -1426,13 +1425,13 @@ let PlacesControllerDragHelper = {
       if (ip.isTag && ip.orientation == Ci.nsITreeView.DROP_ON &&
           dragged.type != PlacesUtils.TYPE_X_MOZ_URL &&
           (dragged.type != PlacesUtils.TYPE_X_MOZ_PLACE ||
-           (dragged.uri && dragged.uri.startsWith("place:")) ))
+           /^place:/.test(dragged.uri)))
         return false;
 
       // The following loop disallows the dropping of a folder on itself or
       // on any of its descendants.
       if (dragged.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER ||
-          (dragged.uri && dragged.uri.startsWith("place:")) ) {
+          /^place:/.test(dragged.uri)) {
         let parentId = ip.itemId;
         while (parentId != PlacesUtils.placesRootId) {
           if (dragged.concreteId == parentId || dragged.id == parentId)
@@ -1635,13 +1634,7 @@ function doGetPlacesControllerForCommand(aCommand)
 {
   // A context menu may be built for non-focusable views.  Thus, we first try
   // to look for a view associated with document.popupNode
-  let popupNode; 
-  try {
-    popupNode = document.popupNode;
-  } catch (e) {
-    // The document went away (bug 797307).
-    return null;
-  }
+  let popupNode = document.popupNode;
   if (popupNode) {
     let view = PlacesUIUtils.getViewForNode(popupNode);
     if (view && view._contextMenuShown)

@@ -48,7 +48,7 @@ LayerManagerD3D9::Initialize(bool force)
 
   nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
   if (gfxInfo) {
-    int32_t status;
+    PRInt32 status;
     if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, &status))) {
       if (status != nsIGfxInfo::FEATURE_NO_INFO && !forceAccelerate)
       {
@@ -107,13 +107,11 @@ LayerManagerD3D9::Destroy()
 void
 LayerManagerD3D9::BeginTransaction()
 {
-  mInTransaction = true;
 }
 
 void
 LayerManagerD3D9::BeginTransactionWithTarget(gfxContext *aTarget)
 {
-  mInTransaction = true;
   mTarget = aTarget;
 }
 
@@ -125,8 +123,6 @@ LayerManagerD3D9::EndConstruction()
 bool
 LayerManagerD3D9::EndEmptyTransaction(EndTransactionFlags aFlags)
 {
-  mInTransaction = false;
-
   // If the device reset count from our last EndTransaction doesn't match
   // the current device reset count, the device must have been reset one or
   // more times since our last transaction. In that case, an empty transaction
@@ -143,19 +139,11 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
                                  void* aCallbackData,
                                  EndTransactionFlags aFlags)
 {
-  mInTransaction = false;
-
   mDeviceResetCount = mDeviceManager->GetDeviceResetCount();
 
   if (mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {
     mCurrentCallbackInfo.Callback = aCallback;
     mCurrentCallbackInfo.CallbackData = aCallbackData;
-
-    if (aFlags & END_NO_COMPOSITE) {
-      // Apply pending tree updates before recomputing effective
-      // properties.
-      mRoot->ApplyPendingUpdatesToSubtree();
-    }
 
     // The results of our drawing always go directly into a pixel buffer,
     // so we don't need to pass any global transform here.
@@ -282,7 +270,7 @@ LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
   nsCString msg;
   msg.Append(aMsg);
   msg.AppendLiteral(" Error code: ");
-  msg.AppendInt(uint32_t(aCode));
+  msg.AppendInt(PRUint32(aCode));
   NS_WARNING(msg.BeginReading());
 
   gfx::LogFailure(msg);

@@ -10,7 +10,7 @@
 NS_IMPL_ISUPPORTS2(nsIdleServiceX, nsIIdleService, nsIdleService)
 
 bool
-nsIdleServiceX::PollIdleTime(uint32_t *aIdleTime)
+nsIdleServiceX::PollIdleTime(PRUint32 *aIdleTime)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
@@ -59,10 +59,10 @@ nsIdleServiceX::PollIdleTime(uint32_t *aIdleTime)
 
   // convert to ms from ns
   time /= 1000000;
-  if (time > UINT32_MAX) // Overflow will occur
+  if (time > PR_UINT32_MAX) // Overflow will occur
     return false;
 
-  *aIdleTime = static_cast<uint32_t>(time);
+  *aIdleTime = static_cast<PRUint32>(time);
 
   return true;
 

@@ -189,7 +189,7 @@ nsAsyncStreamCopier::Init(nsIInputStream *source,
                           nsIEventTarget *target,
                           bool sourceBuffered,
                           bool sinkBuffered,
-                          uint32_t chunkSize,
+                          PRUint32 chunkSize,
                           bool closeSource,
                           bool closeSink)
 {

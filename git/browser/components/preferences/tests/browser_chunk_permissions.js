@@ -3,7 +3,6 @@
 
 Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
-Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
 
 const ABOUT_PERMISSIONS_SPEC = "about:permissions";
 
@@ -15,6 +14,7 @@ const TEST_URI_3 = NetUtil.newURI("http://wikipedia.org/");
 const PERM_UNKNOWN = 0;
 const PERM_ALLOW = 1;
 const PERM_DENY = 2;
+const PERM_SESION = 8;
 
 // used to set permissions on test sites
 const TEST_PERMS = {
@@ -116,7 +116,9 @@ var tests = [
   {
     desc: "test removing from sites-list before it is fully constructed.",
     preInit: function() {
-      ForgetAboutSite.removeDataFromDomain(TEST_URI_2.host);
+      let pb = Cc["@mozilla.org/privatebrowsing;1"].
+                 getService(Ci.nsIPrivateBrowsingService);
+      pb.removeDataFromDomain(TEST_URI_2.host);
     },
     run: function() {
       let testSite1 = getSiteItem(TEST_URI_1.host);

@@ -30,6 +30,7 @@
 # include "nsXULAppAPI.h"
 #endif
 
+#include "mozilla/FunctionTimer.h"
 #if defined(NS_FUNCTION_TIMER) && defined(_MSC_VER)
 #include "nsTimerImpl.h"
 #include "nsStackWalk.h"
@@ -49,9 +50,9 @@ NS_DECL_CI_INTERFACE_GETTER(nsThread)
 
 namespace mozilla {
 
-// Fun fact: Android's GCC won't convert bool* to int32_t*, so we can't
+// Fun fact: Android's GCC won't convert bool* to PRInt32*, so we can't
 // PR_ATOMIC_SET a bool.
-static int32_t sMemoryPressurePending = 0;
+static PRInt32 sMemoryPressurePending = 0;
 
 /*
  * It's important that this function not acquire any locks, nor do anything
@@ -83,13 +84,13 @@ NS_IMETHODIMP_(nsrefcnt) nsThreadClassInfo::Release() { return 1; }
 NS_IMPL_QUERY_INTERFACE1(nsThreadClassInfo, nsIClassInfo)
 
 NS_IMETHODIMP
-nsThreadClassInfo::GetInterfaces(uint32_t *count, nsIID ***array)
+nsThreadClassInfo::GetInterfaces(PRUint32 *count, nsIID ***array)
 {
   return NS_CI_INTERFACE_GETTER_NAME(nsThread)(count, array);
 }
 
 NS_IMETHODIMP
-nsThreadClassInfo::GetHelperForLanguage(uint32_t lang, nsISupports **result)
+nsThreadClassInfo::GetHelperForLanguage(PRUint32 lang, nsISupports **result)
 {
   *result = nullptr;
   return NS_OK;
@@ -117,14 +118,14 @@ nsThreadClassInfo::GetClassID(nsCID **result)
 }
 
 NS_IMETHODIMP
-nsThreadClassInfo::GetImplementationLanguage(uint32_t *result)
+nsThreadClassInfo::GetImplementationLanguage(PRUint32 *result)
 {
   *result = nsIProgrammingLanguage::CPLUSPLUS;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThreadClassInfo::GetFlags(uint32_t *result)
+nsThreadClassInfo::GetFlags(PRUint32 *result)
 {
   *result = THREADSAFE;
   return NS_OK;
@@ -290,7 +291,7 @@ nsThread::ThreadFunc(void *arg)
 
 //-----------------------------------------------------------------------------
 
-nsThread::nsThread(MainThreadFlag aMainThread, uint32_t aStackSize)
+nsThread::nsThread(MainThreadFlag aMainThread, PRUint32 aStackSize)
   : mLock("nsThread.mLock")
   , mPriority(PRIORITY_NORMAL)
   , mThread(nullptr)
@@ -374,7 +375,7 @@ nsThread::PutEvent(nsIRunnable *event)
 // nsIEventTarget
 
 NS_IMETHODIMP
-nsThread::Dispatch(nsIRunnable *event, uint32_t flags)
+nsThread::Dispatch(nsIRunnable *event, PRUint32 flags)
 {
   LOG(("THRD(%p) Dispatch [%p %x]\n", this, event, flags));
 
@@ -603,6 +604,17 @@ nsThread::ProcessNextEvent(bool mayWait, bool *result)
     nsCOMPtr<nsIRunnable> event;
     mEvents.GetEvent(mayWait && !ShuttingDown(), getter_AddRefs(event));
 
+#ifdef NS_FUNCTION_TIMER
+    char message[1024] = {'\0'};
+    if (MAIN_THREAD == mIsMainThread) {
+        mozilla::FunctionTimer::ft_snprintf(message, sizeof(message), 
+                                            "@ Main Thread Event %p", (void*)event.get());
+    }
+    // If message is empty, it means that we're not on the main thread, and
+    // FunctionTimer won't time this function.
+    NS_TIME_FUNCTION_MIN_FMT(5.0, message);
+#endif
+
     *result = (event.get() != nullptr);
 
     if (event) {
@@ -631,14 +643,14 @@ nsThread::ProcessNextEvent(bool mayWait, bool *result)
 // nsISupportsPriority
 
 NS_IMETHODIMP
-nsThread::GetPriority(int32_t *priority)
+nsThread::GetPriority(PRInt32 *priority)
 {
   *priority = mPriority;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsThread::SetPriority(int32_t priority)
+nsThread::SetPriority(PRInt32 priority)
 {
   NS_ENSURE_STATE(mThread);
 
@@ -667,7 +679,7 @@ nsThread::SetPriority(int32_t priority)
 }
 
 NS_IMETHODIMP
-nsThread::AdjustPriority(int32_t delta)
+nsThread::AdjustPriority(PRInt32 delta)
 {
   return SetPriority(mPriority + delta);
 }
@@ -694,7 +706,7 @@ nsThread::SetObserver(nsIThreadObserver *obs)
 }
 
 NS_IMETHODIMP
-nsThread::GetRecursionDepth(uint32_t *depth)
+nsThread::GetRecursionDepth(PRUint32 *depth)
 {
   NS_ENSURE_ARG_POINTER(depth);
   NS_ENSURE_STATE(PR_GetCurrentThread() == mThread);

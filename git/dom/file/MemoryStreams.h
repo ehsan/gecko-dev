@@ -20,7 +20,7 @@ public:
   NS_DECL_NSIOUTPUTSTREAM
 
   static already_AddRefed<MemoryOutputStream>
-  Create(uint64_t aSize);
+  Create(PRUint64 aSize);
 
 
   const nsCString&
@@ -38,7 +38,7 @@ private:
   { }
 
   nsCString mData;
-  uint64_t mOffset;
+  PRUint64 mOffset;
 };
 
 END_FILE_NAMESPACE

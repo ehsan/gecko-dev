@@ -162,7 +162,7 @@ nsTreeColumn::GetColumns(nsITreeColumns** aColumns)
 }
 
 NS_IMETHODIMP
-nsTreeColumn::GetX(int32_t* aX)
+nsTreeColumn::GetX(PRInt32* aX)
 {
   nsIFrame* frame = GetFrame();
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
@@ -172,7 +172,7 @@ nsTreeColumn::GetX(int32_t* aX)
 }
 
 NS_IMETHODIMP
-nsTreeColumn::GetWidth(int32_t* aWidth)
+nsTreeColumn::GetWidth(PRInt32* aWidth)
 {
   nsIFrame* frame = GetFrame();
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
@@ -203,7 +203,7 @@ nsTreeColumn::GetAtom(nsIAtom** aAtom)
 }
 
 NS_IMETHODIMP
-nsTreeColumn::GetIndex(int32_t* aIndex)
+nsTreeColumn::GetIndex(PRInt32* aIndex)
 {
   *aIndex = GetIndex();
   return NS_OK;
@@ -238,7 +238,7 @@ nsTreeColumn::GetSelectable(bool* aSelectable)
 }
 
 NS_IMETHODIMP
-nsTreeColumn::GetType(int16_t* aType)
+nsTreeColumn::GetType(PRInt16* aType)
 {
   *aType = GetType();
   return NS_OK;
@@ -371,7 +371,7 @@ nsTreeColumns::GetTree(nsITreeBoxObject** _retval)
 }
 
 NS_IMETHODIMP
-nsTreeColumns::GetCount(int32_t* _retval)
+nsTreeColumns::GetCount(PRInt32* _retval)
 {
   EnsureColumns();
   *_retval = 0;
@@ -382,7 +382,7 @@ nsTreeColumns::GetCount(int32_t* _retval)
 }
 
 NS_IMETHODIMP
-nsTreeColumns::GetLength(int32_t* _retval)
+nsTreeColumns::GetLength(PRInt32* _retval)
 {
   return GetCount(_retval);
 }
@@ -518,7 +518,7 @@ nsTreeColumns::GetNamedColumn(const nsAString& aId, nsITreeColumn** _retval)
 }
 
 nsITreeColumn*
-nsTreeColumns::GetColumnAt(int32_t aIndex)
+nsTreeColumns::GetColumnAt(PRInt32 aIndex)
 {
   EnsureColumns();
   for (nsTreeColumn* currCol = mFirstColumn; currCol; currCol = currCol->GetNext()) {
@@ -530,7 +530,7 @@ nsTreeColumns::GetColumnAt(int32_t aIndex)
 }
 
 NS_IMETHODIMP
-nsTreeColumns::GetColumnAt(int32_t aIndex, nsITreeColumn** _retval)
+nsTreeColumns::GetColumnAt(PRInt32 aIndex, nsITreeColumn** _retval)
 {
   NS_IF_ADDREF(*_retval = GetColumnAt(aIndex));
   return NS_OK;
@@ -564,8 +564,8 @@ nsTreeColumns::RestoreNaturalOrder()
   if (!colsContent)
     return NS_OK;
 
-  uint32_t numChildren = colsContent->GetChildCount();
-  for (uint32_t i = 0; i < numChildren; ++i) {
+  PRUint32 numChildren = colsContent->GetChildCount();
+  for (PRUint32 i = 0; i < numChildren; ++i) {
     nsIContent *child = colsContent->GetChildAt(i);
     nsAutoString ordinal;
     ordinal.AppendInt(i);

@@ -24,9 +24,9 @@ public:
 
     // called by the transaction to handle chunked content.
     nsresult HandleChunkedContent(char *buf,
-                                  uint32_t count,
-                                  uint32_t *contentRead,
-                                  uint32_t *contentRemaining);
+                                  PRUint32 count,
+                                  PRUint32 *contentRead,
+                                  PRUint32 *contentRemaining);
 
     nsHttpHeaderArray *Trailers() { return mTrailers; }
 
@@ -34,16 +34,16 @@ public:
                                         mTrailers = nullptr;
                                         return h; }
 
-    uint32_t GetChunkRemaining() { return mChunkRemaining; }
+    PRUint32 GetChunkRemaining() { return mChunkRemaining; }
 
 private:
     nsresult ParseChunkRemaining(char *buf,
-                                 uint32_t count,
-                                 uint32_t *countRead);
+                                 PRUint32 count,
+                                 PRUint32 *countRead);
 
 private:
     nsHttpHeaderArray *mTrailers;
-    uint32_t           mChunkRemaining;
+    PRUint32           mChunkRemaining;
     nsCString          mLineBuf; // may hold a partial line
     bool               mReachedEOF;
     bool               mWaitEOF;

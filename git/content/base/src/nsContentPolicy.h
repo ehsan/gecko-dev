@@ -30,18 +30,18 @@ class nsContentPolicy : public nsIContentPolicy
     typedef
     NS_STDCALL_FUNCPROTO(nsresult, CPMethod, nsIContentPolicy,
                          ShouldProcess,
-                         (uint32_t, nsIURI*, nsIURI*, nsISupports*,
+                         (PRUint32, nsIURI*, nsIURI*, nsISupports*,
                            const nsACString &, nsISupports*, nsIPrincipal*,
-                           int16_t*));
+                           PRInt16*));
 
     //Helper method that applies policyMethod across all policies in mPolicies
     // with the given parameters
-    nsresult CheckPolicy(CPMethod policyMethod, uint32_t contentType,
+    nsresult CheckPolicy(CPMethod policyMethod, PRUint32 contentType,
                          nsIURI *aURI, nsIURI *origURI,
                          nsISupports *requestingContext,
                          const nsACString &mimeGuess, nsISupports *extra,
                          nsIPrincipal *requestPrincipal,
-                         int16_t *decision);
+                         PRInt16 *decision);
 };
 
 nsresult

@@ -82,19 +82,6 @@ var addon6 = {
   }]
 };
 
-// Dictionary - incompatible in strict compatibility mode
-var addon7= {
-  id: "addon7@tests.mozilla.org",
-  version: "1.0",
-  name: "Test 7",
-  type: "64",
-  targetApplications: [{
-    id: "xpcshell@tests.mozilla.org",
-    minVersion: "0.8",
-    maxVersion: "0.9"
-  }]
-};
-
 
 
 const profileDir = gProfD.clone();
@@ -108,9 +95,8 @@ function do_check_compat_status(aStrict, aAddonCompat, aCallback) {
                                "addon3@tests.mozilla.org",
                                "addon4@tests.mozilla.org",
                                "addon5@tests.mozilla.org",
-                               "addon6@tests.mozilla.org",
-                               "addon7@tests.mozilla.org"],
-                              function([a1, a2, a3, a4, a5, a6, a7]) {
+                               "addon6@tests.mozilla.org"],
+                              function([a1, a2, a3, a4, a5, a6]) {
     do_check_neq(a1, null);
     do_check_eq(a1.isCompatible, aAddonCompat[0]);
     do_check_eq(a1.appDisabled, !aAddonCompat[0]);
@@ -141,11 +127,6 @@ function do_check_compat_status(aStrict, aAddonCompat, aCallback) {
     do_check_eq(a6.appDisabled, !aAddonCompat[5]);
     do_check_false(a6.strictCompatibility);
 
-    do_check_neq(a7, null);
-    do_check_eq(a7.isCompatible, aAddonCompat[6]);
-    do_check_eq(a7.appDisabled, !aAddonCompat[6]);
-    do_check_false(a7.strictCompatibility);
-
     aCallback();
   });
 }
@@ -161,43 +142,42 @@ function run_test() {
   writeInstallRDFForExtension(addon4, profileDir);
   writeInstallRDFForExtension(addon5, profileDir);
   writeInstallRDFForExtension(addon6, profileDir);
-  writeInstallRDFForExtension(addon7, profileDir);
 
   Services.prefs.setCharPref(PREF_EM_MIN_COMPAT_APP_VERSION, "0.1");
 
   startupManager();
 
   // Should default to enabling strict compat.
-  do_check_compat_status(true, [true, false, false, false, false, false, false], run_test_1);
+  do_check_compat_status(true, [true, false, false, false, false, false], run_test_1);
 }
 
 function run_test_1() {
   do_print("Test 1");
   Services.prefs.setBoolPref(PREF_EM_STRICT_COMPATIBILITY, false);
-  do_check_compat_status(false, [true, true, false, false, false, true, true], run_test_2);
+  do_check_compat_status(false, [true, true, false, false, false, true], run_test_2);
 }
 
 function run_test_2() {
   do_print("Test 2");
   restartManager();
-  do_check_compat_status(false, [true, true, false, false, false, true, true], run_test_3);
+  do_check_compat_status(false, [true, true, false, false, false, true], run_test_3);
 }
 
 function run_test_3() {
   do_print("Test 3");
   Services.prefs.setBoolPref(PREF_EM_STRICT_COMPATIBILITY, true);
-  do_check_compat_status(true, [true, false, false, false, false, false, false], run_test_4);
+  do_check_compat_status(true, [true, false, false, false, false, false], run_test_4);
 }
 
 function run_test_4() {
   do_print("Test 4");
   restartManager();
-  do_check_compat_status(true, [true, false, false, false, false, false, false], run_test_5);
+  do_check_compat_status(true, [true, false, false, false, false, false], run_test_5);
 }
 
 function run_test_5() {
   do_print("Test 5");
   Services.prefs.setBoolPref(PREF_EM_STRICT_COMPATIBILITY, false);
   Services.prefs.setCharPref(PREF_EM_MIN_COMPAT_APP_VERSION, "0.4");
-  do_check_compat_status(false, [true, true, false, false, false, false, true], do_test_finished);
+  do_check_compat_status(false, [true, true, false, false, false, false], do_test_finished);
 }

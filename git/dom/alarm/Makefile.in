@@ -15,7 +15,6 @@ LIBRARY_NAME        = domalarm_s
 LIBXUL_LIBRARY      = 1
 FORCE_STATIC_LIB    = 1
 GRE_MODULE          = 1
-FAIL_ON_WARNINGS := 1
 
 include $(topsrcdir)/dom/dom-config.mk
 
@@ -51,7 +50,3 @@ endif
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
-
-XPIDL_FLAGS += \
-  -I$(topsrcdir)/dom/interfaces/base \
-  $(NULL)

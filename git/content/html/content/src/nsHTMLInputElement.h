@@ -18,7 +18,6 @@
 #include "nsDOMFile.h"
 #include "nsHTMLFormElement.h" // for ShouldShowInvalidUI()
 #include "nsIFile.h"
-#include "nsIFilePicker.h"
 
 class nsDOMFileList;
 class nsIFilePicker;
@@ -69,16 +68,26 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLFormElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
-  virtual void Click() MOZ_OVERRIDE;
-  virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
-  virtual void Focus(mozilla::ErrorResult& aError) MOZ_OVERRIDE;
+  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLFormElement::)
+  NS_IMETHOD Click();
+  NS_IMETHOD GetTabIndex(PRInt32* aTabIndex);
+  NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
+  NS_IMETHOD Focus();
+  NS_IMETHOD GetDraggable(bool* aDraggable) {
+    return nsGenericHTMLFormElement::GetDraggable(aDraggable);
+  }
+  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) {
+    return nsGenericHTMLFormElement::GetInnerHTML(aInnerHTML);
+  }
+  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) {
+    return nsGenericHTMLFormElement::SetInnerHTML(aInnerHTML);
+  }
 
   // nsIDOMHTMLInputElement
   NS_DECL_NSIDOMHTMLINPUTELEMENT
@@ -95,7 +104,7 @@ public:
   NS_IMETHOD SetUserInput(const nsAString& aInput);
 
   // Overriden nsIFormControl methods
-  NS_IMETHOD_(uint32_t) GetType() const { return mType; }
+  NS_IMETHOD_(PRUint32) GetType() const { return mType; }
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
   NS_IMETHOD SaveState();
@@ -105,14 +114,14 @@ public:
   virtual void FieldSetDisabledChanged(bool aNotify);
 
   // nsIContent
-  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, int32_t *aTabIndex);
+  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, PRInt32 *aTabIndex);
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                              int32_t aModType) const;
+                                              PRInt32 aModType) const;
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
 
@@ -135,9 +144,9 @@ public:
   NS_IMETHOD_(bool) IsTextArea() const;
   NS_IMETHOD_(bool) IsPlainTextControl() const;
   NS_IMETHOD_(bool) IsPasswordTextControl() const;
-  NS_IMETHOD_(int32_t) GetCols();
-  NS_IMETHOD_(int32_t) GetWrapCols();
-  NS_IMETHOD_(int32_t) GetRows();
+  NS_IMETHOD_(PRInt32) GetCols();
+  NS_IMETHOD_(PRInt32) GetWrapCols();
+  NS_IMETHOD_(PRInt32) GetRows();
   NS_IMETHOD_(void) GetDefaultValueFromContent(nsAString& aValue);
   NS_IMETHOD_(bool) ValueChanged() const;
   NS_IMETHOD_(void) GetTextEditorValue(nsAString& aValue, bool aIgnoreWrap) const;
@@ -261,7 +270,7 @@ public:
    * @note This will only filter for one type of file. If more than one filter
    * is specified by the accept attribute they will *all* be ignored.
    */
-  int32_t GetFilterFromAccept();
+  PRInt32 GetFilterFromAccept();
 
   /**
    * The form might need to request an update of the UI bits
@@ -277,9 +286,6 @@ public:
   bool DefaultChecked() const {
     return HasAttr(kNameSpaceID_None, nsGkAtoms::checked);
   }
-
-  bool Indeterminate() const { return mIndeterminate; }
-  bool Checked() const { return mChecked; }
 
   /**
    * Fires change event if mFocusedValue and current value held are unequal.
@@ -358,18 +364,18 @@ protected:
   nsresult SetIndeterminateInternal(bool aValue,
                                     bool aShouldInvalidate);
 
-  nsresult GetSelectionRange(int32_t* aSelectionStart, int32_t* aSelectionEnd);
+  nsresult GetSelectionRange(PRInt32* aSelectionStart, PRInt32* aSelectionEnd);
 
   /**
    * Called when an attribute is about to be changed
    */
-  virtual nsresult BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAttrValueOrString* aValue,
                                  bool aNotify);
   /**
    * Called when an attribute has just been changed
    */
-  virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue, bool aNotify);
 
   /**
@@ -494,7 +500,7 @@ protected:
   /**
    * Manages the internal data storage across type changes.
    */
-  void HandleTypeChange(uint8_t aNewType);
+  void HandleTypeChange(PRUint8 aNewType);
 
   /**
    * Sanitize the value of the element depending of its current type.
@@ -607,7 +613,7 @@ protected:
    *
    * @param aStep The value used to be multiplied against the step value.
    */
-  nsresult ApplyStep(int32_t aStep);
+  nsresult ApplyStep(PRInt32 aStep);
 
   nsCOMPtr<nsIControllers> mControllers;
 
@@ -663,7 +669,7 @@ protected:
    * The type of this input (<input type=...>) as an integer.
    * @see nsIFormControl.h (specifically NS_FORM_INPUT_*)
    */
-  uint8_t                  mType;
+  PRUint8                  mType;
   bool                     mDisabledChanged     : 1;
   bool                     mValueChanged        : 1;
   bool                     mCheckedChanged      : 1;
@@ -684,7 +690,7 @@ private:
     nsFilePickerFilter()
       : mFilterMask(0), mIsTrusted(false) {}
 
-    nsFilePickerFilter(int32_t aFilterMask)
+    nsFilePickerFilter(PRInt32 aFilterMask)
       : mFilterMask(aFilterMask), mIsTrusted(true) {}
 
     nsFilePickerFilter(const nsString& aTitle,
@@ -711,7 +717,7 @@ private:
     }
     
     // Filter mask, using values defined in nsIFilePicker
-    int32_t mFilterMask;
+    PRInt32 mFilterMask;
     // If mFilterMask is defined, mTitle and mFilter are useless and should be
     // ignored
     nsString mTitle;
@@ -722,38 +728,6 @@ private:
     // mapping, which can be different accross OS, user's personal configuration, ...)
     // For now, only mask filters are considered to be "trusted".
     bool mIsTrusted; 
-  };
-
-  class AsyncClickHandler
-    : public nsRunnable
-  {
-  public:
-    AsyncClickHandler(nsHTMLInputElement* aInput);
-    NS_IMETHOD Run();
-
-  protected:
-    nsRefPtr<nsHTMLInputElement> mInput;
-    PopupControlState mPopupControlState;
-  };
-
-  class nsFilePickerShownCallback
-    : public nsIFilePickerShownCallback
-  {
-  public:
-    nsFilePickerShownCallback(nsHTMLInputElement* aInput,
-                              nsIFilePicker* aFilePicker,
-                              bool aMulti);
-    virtual ~nsFilePickerShownCallback()
-    { }
-
-    NS_DECL_ISUPPORTS
-
-    NS_IMETHOD Done(int16_t aResult);
-
-  private:
-    nsCOMPtr<nsIFilePicker> mFilePicker;
-    nsRefPtr<nsHTMLInputElement> mInput;
-    bool mMulti;
   };
 };
 

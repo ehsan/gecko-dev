@@ -16,9 +16,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
   "resource://gre/modules/PlacesUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
-  "resource:///modules/PageThumbs.jsm");
-
 XPCOMUtils.defineLazyGetter(this, "gPrincipal", function () {
   let uri = Services.io.newURI("about:newtab", null, null);
   return Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
@@ -26,12 +23,6 @@ XPCOMUtils.defineLazyGetter(this, "gPrincipal", function () {
 
 // The preference that tells whether this feature is enabled.
 const PREF_NEWTAB_ENABLED = "browser.newtabpage.enabled";
-
-// The preference that tells the number of rows of the newtab grid.
-const PREF_NEWTAB_ROWS = "browser.newtabpage.rows";
-
-// The preference that tells the number of columns of the newtab grid.
-const PREF_NEWTAB_COLUMNS = "browser.newtabpage.columns";
 
 // The maximum number of results we want to retrieve from history.
 const HISTORY_RESULTS_LIMIT = 100;
@@ -191,60 +182,6 @@ let AllPages = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISupportsWeakReference])
 };
-
-/**
- * Singleton that keeps Grid preferences
- */
-let GridPrefs = {
-  /**
-   * Cached value that tells the number of rows of newtab grid.
-   */
-  _gridRows: null,
-  get gridRows() {
-    if (!this._gridRows) {
-      this._gridRows = Math.max(1, Services.prefs.getIntPref(PREF_NEWTAB_ROWS));
-    }
-
-    return this._gridRows;
-  },
-
-  /**
-   * Cached value that tells the number of columns of newtab grid.
-   */
-  _gridColumns: null,
-  get gridColumns() {
-    if (!this._gridColumns) {
-      this._gridColumns = Math.max(1, Services.prefs.getIntPref(PREF_NEWTAB_COLUMNS));
-    }
-
-    return this._gridColumns;
-  },
-
-
-  /**
-   * Initializes object. Adds a preference observer
-   */
-  init: function GridPrefs_init() {
-    Services.prefs.addObserver(PREF_NEWTAB_ROWS, this, false);
-    Services.prefs.addObserver(PREF_NEWTAB_COLUMNS, this, false);
-  },
-
-  /**
-   * Implements the nsIObserver interface to get notified when the preference
-   * value changes.
-   */
-  observe: function GridPrefs_observe(aSubject, aTopic, aData) {
-    if (aData == PREF_NEWTAB_ROWS) {
-      this._gridRows = null;
-    } else {
-      this._gridColumns = null;
-    }
-
-    AllPages.update();
-  }
-};
-
-GridPrefs.init();
 
 /**
  * Singleton that keeps track of all pinned links and their positions in the
@@ -614,6 +551,8 @@ let Telemetry = {
   }
 };
 
+Telemetry.init();
+
 /**
  * Singleton that checks if a given link should be displayed on about:newtab
  * or if we should rather not do it for security reasons. URIs that inherit
@@ -623,8 +562,7 @@ let LinkChecker = {
   _cache: {},
 
   get flags() {
-    return Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL |
-           Ci.nsIScriptSecurityManager.DONT_REPORT_ERRORS;
+    return Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL;
   },
 
   checkLoadURI: function LinkChecker_checkLoadURI(aURI) {
@@ -646,46 +584,10 @@ let LinkChecker = {
   }
 };
 
-let ExpirationFilter = {
-  init: function ExpirationFilter_init() {
-    PageThumbs.addExpirationFilter(this);
-  },
-
-  filterForThumbnailExpiration:
-  function ExpirationFilter_filterForThumbnailExpiration(aCallback) {
-    if (!AllPages.enabled) {
-      aCallback([]);
-      return;
-    }
-
-    Links.populateCache(function () {
-      let urls = [];
-
-      // Add all URLs to the list that we want to keep thumbnails for.
-      for (let link of Links.getLinks().slice(0, 25)) {
-        if (link && link.url)
-          urls.push(link.url);
-      }
-
-      aCallback(urls);
-    });
-  }
-};
-
 /**
  * Singleton that provides the public API of this JSM.
  */
 let NewTabUtils = {
-  _initialized: false,
-
-  init: function NewTabUtils_init() {
-    if (!this._initialized) {
-      this._initialized = true;
-      ExpirationFilter.init();
-      Telemetry.init();
-    }
-  },
-
   /**
    * Restores all sites that have been removed from the grid.
    */
@@ -704,6 +606,5 @@ let NewTabUtils = {
   allPages: AllPages,
   linkChecker: LinkChecker,
   pinnedLinks: PinnedLinks,
-  blockedLinks: BlockedLinks,
-  gridPrefs: GridPrefs
+  blockedLinks: BlockedLinks
 };

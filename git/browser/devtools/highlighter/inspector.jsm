@@ -13,12 +13,10 @@ var EXPORTED_SYMBOLS = ["InspectorUI"];
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/MarkupView.jsm");
+Cu.import("resource:///modules/TreePanel.jsm");
 Cu.import("resource:///modules/highlighter.jsm");
 Cu.import("resource:///modules/devtools/LayoutView.jsm");
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
-Cu.import("resource:///modules/devtools/EventEmitter.jsm");
-Cu.import("resource:///modules/devtools/DOMHelpers.jsm");
 
 // Inspector notifications dispatched through the nsIObserverService.
 const INSPECTOR_NOTIFICATIONS = {
@@ -68,18 +66,9 @@ function Inspector(aIUI)
   this._IUI = aIUI;
   this._winID = aIUI.winID;
   this._browser = aIUI.browser;
-  this._eventEmitter = new EventEmitter();
+  this._listeners = {};
 
   this._browser.addEventListener("resize", this, true);
-
-  this._markupButton = this._IUI.chromeDoc.getElementById("inspector-treepanel-toolbutton");
-
-  if (Services.prefs.getBoolPref("devtools.inspector.htmlPanelOpen")) {
-    this.openMarkup();
-  } else {
-    this.closeMarkup();
-  }
-
 }
 
 Inspector.prototype = {
@@ -145,10 +134,9 @@ Inspector.prototype = {
   _destroy: function Inspector__destroy()
   {
     this._cancelLayoutChange();
-    this._destroyMarkup();
     this._browser.removeEventListener("resize", this, true);
     delete this._IUI;
-    delete this._eventEmitter;
+    delete this._listeners;
   },
 
   /**
@@ -190,142 +178,12 @@ Inspector.prototype = {
     }
   },
 
-  toggleMarkup: function Inspector_toggleMarkup()
-  {
-    if (this._markupFrame) {
-      this.closeMarkup();
-      Services.prefs.setBoolPref("devtools.inspector.htmlPanelOpen", false);
-    } else {
-      this.openMarkup(true);
-      Services.prefs.setBoolPref("devtools.inspector.htmlPanelOpen", true);
-    }
-  },
-
-  /**
-   * XXX: The sidebar has an object that exists and is manipulated
-   * separately from its actual loading.  So the public api for
-   * the sidebar looks like:
-   *
-   * if (inspector.sidebar.visible) { inspector.sidebar.close() }
-   *
-   * whereas the markup API looks more like
-   *
-   * if (inspector.markupOpen) { inspector.closeMarkup() }
-   *
-   * Maybe we should add an InspectorMarkup object that presents
-   * the public api for the markup panel?
-   */
-  get markupOpen() {
-    return this._markupOpen;
-  },
-
-  openMarkup: function Inspector_openMarkup(aFocus)
-  {
-    this._markupButton.setAttribute("checked", "true");
-    this._markupOpen = true;
-    if (!this._markupFrame) {
-      this._initMarkup(aFocus);
-    }
-  },
-
-  closeMarkup: function Inspector_closeMarkup()
-  {
-    this._markupButton.removeAttribute("checked");
-    this._markupOpen = false;
-    this._destroyMarkup();
-  },
-
-  _initMarkup: function Inspector_initMarkupPane(aFocus)
-  {
-    let doc = this._IUI.chromeDoc;
-
-    this._markupBox = doc.createElement("vbox");
-    try {
-      this._markupBox.height =
-        Services.prefs.getIntPref("devtools.inspector.htmlHeight");
-    } catch(e) {
-      this._markupBox.height = 112;
-    }
-    this._markupBox.minHeight = 64;
-
-    this._markupSplitter = doc.createElement("splitter");
-    this._markupSplitter.className = "devtools-horizontal-splitter";
-
-    let container = doc.getElementById("appcontent");
-    container.appendChild(this._markupSplitter);
-    container.appendChild(this._markupBox);
-
-    // create tool iframe
-    this._markupFrame = doc.createElement("iframe");
-    this._markupFrame.setAttribute("flex", "1");
-    this._markupFrame.setAttribute("tooltip", "aHTMLTooltip");
-    this._markupFrame.setAttribute("context", "inspector-node-popup");
-
-    // This is needed to enable tooltips inside the iframe document.
-    this._boundMarkupFrameLoad = function Inspector_initMarkupPanel_onload() {
-      if (aFocus) {
-        this._markupFrame.contentWindow.focus();
-      }
-      this._onMarkupFrameLoad();
-    }.bind(this);
-    this._markupFrame.addEventListener("load", this._boundMarkupFrameLoad, true);
-
-    this._markupSplitter.setAttribute("hidden", true);
-    this._markupBox.setAttribute("hidden", true);
-    this._markupBox.appendChild(this._markupFrame);
-    this._markupFrame.setAttribute("src", "chrome://browser/content/devtools/markup-view.xhtml");
-  },
-
-  _onMarkupFrameLoad: function Inspector__onMarkupFrameLoad()
-  {
-    this._markupFrame.removeEventListener("load", this._boundMarkupFrameLoad, true);
-    delete this._boundMarkupFrameLoad;
-
-    this._markupSplitter.removeAttribute("hidden");
-    this._markupBox.removeAttribute("hidden");
-
-    this.markup = new MarkupView(this, this._markupFrame);
-    this.emit("markuploaded");
-  },
-
-  _destroyMarkup: function Inspector__destroyMarkup()
-  {
-    if (this._boundMarkupFrameLoad) {
-      this._markupFrame.removeEventListener("load", this._boundMarkupFrameLoad, true);
-      delete this._boundMarkupFrameLoad;
-    }
-
-    if (this.markup) {
-      this.markup.destroy();
-      delete this.markup;
-    }
-
-    if (this._markupFrame) {
-      delete this._markupFrame;
-    }
-
-    if (this._markupBox) {
-      Services.prefs.setIntPref("devtools.inspector.htmlHeight", this._markupBox.height);
-      this._markupBox.parentNode.removeChild(this._markupBox);
-      delete this._markupBox;
-    }
-
-    if (this._markupSplitter) {
-      this._markupSplitter.parentNode.removeChild(this._markupSplitter);
-      delete this._markupSplitter;
-    }
-  },
-
   /**
    * Called by InspectorUI after a tab switch, when the
    * inspector is no longer the active tab.
    */
   _freeze: function Inspector__freeze()
   {
-    if (this._markupBox) {
-      this._markupSplitter.setAttribute("hidden", true);
-      this._markupBox.setAttribute("hidden", true);
-    }
     this._cancelLayoutChange();
     this._browser.removeEventListener("resize", this, true);
     this._frozen = true;
@@ -341,15 +199,12 @@ Inspector.prototype = {
       return;
     }
 
-    if (this._markupOpen && !this._boundMarkupFrameLoad) {
-      this._markupSplitter.removeAttribute("hidden");
-      this._markupBox.removeAttribute("hidden");
-    }
     this._browser.addEventListener("resize", this, true);
     delete this._frozen;
   },
 
-  /// Forward the events related calls to the event emitter.
+  /// Event stuff.  Would like to refactor this eventually.
+  /// Emulates the jetpack event source, which has a nice API.
 
   /**
    * Connect a listener to this object.
@@ -361,7 +216,10 @@ Inspector.prototype = {
    */
   on: function Inspector_on(aEvent, aListener)
   {
-    this._eventEmitter.on(aEvent, aListener);
+    if (!(aEvent in this._listeners)) {
+      this._listeners[aEvent] = [];
+    }
+    this._listeners[aEvent].push(aListener);
   },
 
   /**
@@ -374,7 +232,11 @@ Inspector.prototype = {
    */
   once: function Inspector_once(aEvent, aListener)
   {
-    this._eventEmitter.once(aEvent, aListener);
+    let handler = function() {
+      this.removeListener(aEvent, handler);
+      aListener();
+    }.bind(this);
+    this.on(aEvent, handler);
   },
 
   /**
@@ -386,18 +248,35 @@ Inspector.prototype = {
    * @param function aListener
    *        The listener to remove.
    */
-  off: function Inspector_removeListener(aEvent, aListener)
+  removeListener: function Inspector_removeListener(aEvent, aListener)
   {
-    this._eventEmitter.off(aEvent, aListener);
+    this._listeners[aEvent] = this._listeners[aEvent].filter(function(l) aListener != l);
   },
 
   /**
    * Emit an event on the inspector.  All arguments to this method will
    * be sent to listner functions.
    */
-  emit: function Inspector_emit()
+  _emit: function Inspector__emit(aEvent)
   {
-    this._eventEmitter.emit.apply(this._eventEmitter, arguments);
+    if (!(aEvent in this._listeners))
+      return;
+
+    let originalListeners = this._listeners[aEvent];
+    for (let listener of this._listeners[aEvent]) {
+      // If the inspector was destroyed during event emission, stop
+      // emitting.
+      if (!this._listeners) {
+        break;
+      }
+
+      // If listeners were removed during emission, make sure the
+      // event handler we're going to fire wasn't removed.
+      if (originalListeners === this._listeners[aEvent] ||
+          this._listeners[aEvent].some(function(l) l === listener)) {
+        listener.apply(null, arguments);
+      }
+    }
   }
 }
 
@@ -563,7 +442,15 @@ InspectorUI.prototype = {
    */
   toggleHTMLPanel: function IUI_toggleHTMLPanel()
   {
-    this.currentInspector.toggleMarkup();
+    if (this.treePanel.isOpen()) {
+      this.treePanel.close();
+      Services.prefs.setBoolPref("devtools.inspector.htmlPanelOpen", false);
+      this.currentInspector._htmlPanelOpen = false;
+    } else {
+      this.treePanel.open();
+      Services.prefs.setBoolPref("devtools.inspector.htmlPanelOpen", true);
+      this.currentInspector._htmlPanelOpen = true;
+    }
   },
 
   /**
@@ -574,6 +461,38 @@ InspectorUI.prototype = {
   get isInspectorOpen()
   {
     return !!(this.toolbar && !this.toolbar.hidden && this.highlighter);
+  },
+
+  /**
+   * Toggle highlighter veil.
+   */
+  toggleVeil: function IUI_toggleVeil()
+  {
+    if (this.currentInspector._highlighterShowVeil) {
+      this.highlighter.hideVeil();
+      this.currentInspector._highlighterShowVeil = false;
+      Services.prefs.setBoolPref("devtools.inspector.highlighterShowVeil", false);
+    } else {
+      this.highlighter.showVeil();
+      this.currentInspector._highlighterShowVeil = true;
+      Services.prefs.setBoolPref("devtools.inspector.highlighterShowVeil", true);
+    }
+  },
+
+  /**
+   * Toggle highlighter infobar.
+   */
+  toggleInfobar: function IUI_toggleInfobar()
+  {
+    if (this.currentInspector._highlighterShowInfobar) {
+      this.highlighter.hideInfobar();
+      this.currentInspector._highlighterShowInfobar = false;
+      Services.prefs.setBoolPref("devtools.inspector.highlighterShowInfobar", false);
+    } else {
+      this.highlighter.showInfobar();
+      this.currentInspector._highlighterShowInfobar = true;
+      Services.prefs.setBoolPref("devtools.inspector.highlighterShowInfobar", true);
+    }
   },
 
   /**
@@ -635,6 +554,7 @@ InspectorUI.prototype = {
 
     this.chromeWin.Tilt.setup();
 
+    this.treePanel = new TreePanel(this.chromeWin, this);
     this.toolbar.hidden = false;
 
     // initialize the HTML Breadcrumbs
@@ -655,11 +575,6 @@ InspectorUI.prototype = {
       document: this.chromeDoc,
       inspector: this._currentInspector,
     });
-
-    // Fade out the highlighter when needed
-    let deck = this.chromeDoc.getElementById("devtools-sidebar-deck");
-    deck.addEventListener("mouseenter", this, true);
-    deck.addEventListener("mouseleave", this, true);
 
     // Create UI for any sidebars registered with
     // InspectorUI.registerSidebar()
@@ -719,6 +634,12 @@ InspectorUI.prototype = {
       inspector._activeSidebar =
         Services.prefs.getCharPref("devtools.inspector.activeSidebar");
 
+      inspector._highlighterShowVeil =
+        Services.prefs.getBoolPref("devtools.inspector.highlighterShowVeil");
+
+      inspector._highlighterShowInfobar =
+        Services.prefs.getBoolPref("devtools.inspector.highlighterShowInfobar");
+
       this.win.addEventListener("pagehide", this, true);
 
       this._currentInspector = inspector;
@@ -759,6 +680,13 @@ InspectorUI.prototype = {
    */
   closeInspectorUI: function IUI_closeInspectorUI(aKeepInspector)
   {
+    // if currently editing an attribute value, closing the
+    // highlighter/HTML panel dismisses the editor
+    if (this.treePanel && this.treePanel.editingContext)
+      this.treePanel.closeEditor();
+
+    this.treePanel.destroy();
+
     if (this.closing || !this.win || !this.browser) {
       return;
     }
@@ -799,12 +727,10 @@ InspectorUI.prototype = {
       this._sidebar = null;
     }
 
-    let deck = this.chromeDoc.getElementById("devtools-sidebar-deck");
-    deck.removeEventListener("mouseenter", this, true);
-    deck.removeEventListener("mouseleave", this, true);
-
-    this.highlighter.destroy();
-    this.highlighter = null;
+    if (this.highlighter) {
+      this.highlighter.destroy();
+      this.highlighter = null;
+    }
 
     if (this.breadcrumbs) {
       this.breadcrumbs.destroy();
@@ -826,6 +752,7 @@ InspectorUI.prototype = {
     this.closing = false;
     this.isDirty = false;
 
+    delete this.treePanel;
     delete this.stylePanel;
     delete this.inspectorUICommand;
     delete this.inspectCommand;
@@ -843,18 +770,23 @@ InspectorUI.prototype = {
    */
   startInspecting: function IUI_startInspecting()
   {
+    // if currently editing an attribute value, starting
+    // "live inspection" mode closes the editor
+    if (this.treePanel && this.treePanel.editingContext)
+      this.treePanel.closeEditor();
+
     this.inspectCommand.setAttribute("checked", "true");
 
     this.inspecting = true;
     this.highlighter.unlock();
     this._notifySelected();
-    this._currentInspector.emit("unlocked");
+    this._currentInspector._emit("unlocked");
   },
 
   _notifySelected: function IUI__notifySelected(aFrom)
   {
     this._currentInspector._cancelLayoutChange();
-    this._currentInspector.emit("select", aFrom);
+    this._currentInspector._emit("select", aFrom);
   },
 
   /**
@@ -872,10 +804,6 @@ InspectorUI.prototype = {
     this.inspectCommand.setAttribute("checked", "false");
 
     this.inspecting = false;
-
-    if (this.closing)
-      return;
-
     if (this.highlighter.getNode()) {
       this.select(this.highlighter.getNode(), true, !aPreventScroll);
     } else {
@@ -884,7 +812,7 @@ InspectorUI.prototype = {
 
     this.highlighter.lock();
     this._notifySelected();
-    this._currentInspector.emit("locked");
+    this._currentInspector._emit("locked");
   },
 
   /**
@@ -900,6 +828,11 @@ InspectorUI.prototype = {
    */
   select: function IUI_select(aNode, forceUpdate, aScroll, aFrom)
   {
+    // if currently editing an attribute value, using the
+    // highlighter dismisses the editor
+    if (this.treePanel && this.treePanel.editingContext)
+      this.treePanel.closeEditor();
+
     if (!aNode)
       aNode = this.defaultSelection;
 
@@ -916,6 +849,7 @@ InspectorUI.prototype = {
 
     this.breadcrumbs.update();
     this.chromeWin.Tilt.update(aNode);
+    this.treePanel.select(aNode, aScroll, aFrom);
 
     this._notifySelected(aFrom);
   },
@@ -966,10 +900,9 @@ InspectorUI.prototype = {
    */
   nodeChanged: function IUI_nodeChanged(aUpdater)
   {
-    this.highlighter.updateInfobar();
     this.highlighter.invalidateSize();
     this.breadcrumbs.updateSelectors();
-    this._currentInspector.emit("change", aUpdater);
+    this._currentInspector._emit("change", aUpdater);
   },
 
   /////////////////////////////////////////////////////////////////////////
@@ -1006,8 +939,29 @@ InspectorUI.prototype = {
 
     this.highlighter.highlight();
 
+    if (this.currentInspector._htmlPanelOpen) {
+      this.treePanel.open();
+    }
+
     if (this.currentInspector._sidebarOpen) {
       this._sidebar.show();
+    }
+
+    let menu = this.chromeDoc.getElementById("inspectorToggleVeil");
+    if (this.currentInspector._highlighterShowVeil) {
+      menu.setAttribute("checked", "true");
+    } else {
+      menu.removeAttribute("checked");
+      this.highlighter.hideVeil();
+    }
+
+    menu = this.chromeDoc.getElementById("inspectorToggleInfobar");
+    if (this.currentInspector._highlighterShowInfobar) {
+      menu.setAttribute("checked", "true");
+      this.highlighter.showInfobar();
+    } else {
+      menu.removeAttribute("checked");
+      this.highlighter.hideInfobar();
     }
 
     Services.obs.notifyObservers({wrappedJSObject: this},
@@ -1079,12 +1033,6 @@ InspectorUI.prototype = {
                                                          false);
         }
         break;
-      case "mouseleave":
-        this.highlighter.show();
-        break;
-      case "mouseenter":
-        this.highlighter.hide();
-        break;
     }
   },
 
@@ -1145,30 +1093,12 @@ InspectorUI.prototype = {
   },
 
   /**
-   * Return the currently-selected node for the purposes of the
-   * context menu.  This is usually the highlighter selection, unless
-   * the markup panel has a selected node that can't be highlighted
-   * (such as a text node).  This will be fixed once the highlighter/inspector
-   * is confortable with non-element nodes being the current selection.
-   * See bug 785180.
-   */
-  _contextSelection: function IUI__contextSelection()
-  {
-    let inspector = this.currentInspector;
-    if (inspector.markup) {
-      return inspector.markup.selected;
-    }
-    return this.selection;
-  },
-
-  /**
    * Copy the innerHTML of the selected Node to the clipboard. Called via the
    * Inspector:CopyInner command.
    */
   copyInnerHTML: function IUI_copyInnerHTML()
   {
-    let selection = this._contextSelection();
-    clipboardHelper.copyString(selection.innerHTML, selection.ownerDocument);
+    clipboardHelper.copyString(this.selection.innerHTML, this.selection.ownerDocument);
   },
 
   /**
@@ -1177,8 +1107,7 @@ InspectorUI.prototype = {
    */
   copyOuterHTML: function IUI_copyOuterHTML()
   {
-    let selection = this._contextSelection();
-    clipboardHelper.copyString(selection.outerHTML, selection.ownerDocument);
+    clipboardHelper.copyString(this.selection.outerHTML, this.selection.ownerDocument);
   },
 
   /**
@@ -1186,7 +1115,7 @@ InspectorUI.prototype = {
    */
   deleteNode: function IUI_deleteNode()
   {
-    let selection = this._contextSelection();
+    let selection = this.selection;
 
     let root = selection.ownerDocument.documentElement;
     if (selection === root) {
@@ -1196,20 +1125,15 @@ InspectorUI.prototype = {
 
     let parent = selection.parentNode;
 
-    // If the markup panel is active, use the markup panel to delete
-    // the node, making this an undoable action.
-    let markup = this.currentInspector.markup;
-    if (markup) {
-      markup.deleteNode(selection);
-    } else {
-      // remove the node from content
-      parent.removeChild(selection);
-    }
+    // remove the node from the treepanel
+    if (this.treePanel.isOpen())
+      this.treePanel.deleteChildBox(selection);
 
-    // Otherwise, just delete the node.
+    // remove the node from content
+    parent.removeChild(selection);
     this.breadcrumbs.invalidateHierarchy();
 
-    // select the parent node in the highlighter and breadcrumbs
+    // select the parent node in the highlighter, treepanel, breadcrumbs
     this.inspectNode(parent);
   },
 
@@ -1647,9 +1571,8 @@ InspectorStyleSidebar.prototype = {
     btn.setAttribute("image", aRegObj.icon || "");
     btn.setAttribute("type", "radio");
     btn.setAttribute("group", "sidebar-tools");
+    this._toolbar.appendChild(btn);
 
-    let spacer = this._toolbar.querySelector("spacer");
-    this._toolbar.insertBefore(btn, spacer);
     // create tool iframe
     let frame = this._chromeDoc.createElement("iframe");
     frame.setAttribute("flex", "1");
@@ -1798,8 +1721,8 @@ InspectorStyleSidebar.prototype = {
     // If the current tool is already loaded, notify that we're
     // showing this sidebar.
     if (aTool.loaded) {
-      this._inspector.emit("sidebaractivated", aTool.id);
-      this._inspector.emit("sidebaractivated-" + aTool.id);
+      this._inspector._emit("sidebaractivated", aTool.id);
+      this._inspector._emit("sidebaractivated-" + aTool.id);
       return;
     }
 
@@ -1818,14 +1741,14 @@ InspectorStyleSidebar.prototype = {
       aTool.loaded = true;
       aTool.context = aTool.registration.load(this._inspector, aTool.frame);
 
-      this._inspector.emit("sidebaractivated", aTool.id);
+      this._inspector._emit("sidebaractivated", aTool.id);
 
       // Send an event specific to the activation of this panel.  For
       // this initial event, include a "createpanel" argument
       // to let panels watch sidebaractivated to refresh themselves
       // but ignore the one immediately after their load.
       // I don't really like this, we should find a better solution.
-      this._inspector.emit("sidebaractivated-" + aTool.id, "createpanel");
+      this._inspector._emit("sidebaractivated-" + aTool.id, "createpanel");
     }.bind(this);
     aTool.frame.addEventListener("load", aTool.onLoad, true);
     aTool.frame.setAttribute("src", aTool.registration.contentURL);

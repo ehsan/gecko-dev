@@ -115,16 +115,6 @@ public class ScreenshotLayer extends SingleTileLayer {
             }
         }
 
-        @Override
-        public void destroy() {
-            try {
-                DirectBufferAllocator.free(mBuffer);
-                mBuffer = null;
-            } catch (Exception ex) {
-                Log.e(LOGTAG, "error clearing buffers: ", ex);
-            }
-        }
-
         void copyBuffer(ByteBuffer src, ByteBuffer dst, Rect rect, int stride) {
             int start = (rect.top * stride) + (rect.left * BYTES_FOR_16BPP);
             int end = ((rect.bottom - 1) * stride) + (rect.right * BYTES_FOR_16BPP);
@@ -133,11 +123,7 @@ public class ScreenshotLayer extends SingleTileLayer {
             end = Math.max(start, Math.min(dst.limit(), Math.min(src.capacity(), end)));
             dst.position(start);
             src.position(start).limit(end);
-            // This allocates a lot of memory and can fail sometimes. Handling the
-            // exception is better than crashing.
-            try {
-              dst.put(src);
-            } catch (java.lang.OutOfMemoryError e) {}
+            dst.put(src);
         }
 
         synchronized void setBitmap(ByteBuffer data, int width, int height, int format, Rect rect) {

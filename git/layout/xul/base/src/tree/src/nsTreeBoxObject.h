@@ -6,7 +6,6 @@
 #ifndef nsTreeBoxObject_h___
 #define nsTreeBoxObject_h___
 
-#include "mozilla/Attributes.h"
 #include "nsBoxObject.h"
 #include "nsITreeView.h"
 #include "nsITreeBoxObject.h"
@@ -27,8 +26,8 @@ public:
   nsTreeBodyFrame* GetCachedTreeBody() { return mTreeBody; }
 
   //NS_PIBOXOBJECT interfaces
-  virtual void Clear() MOZ_OVERRIDE;
-  virtual void ClearCachedValues() MOZ_OVERRIDE;
+  virtual void Clear();
+  virtual void ClearCachedValues();
 
 protected:
   nsTreeBodyFrame* mTreeBody;

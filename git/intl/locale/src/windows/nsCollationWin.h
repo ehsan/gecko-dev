@@ -18,7 +18,7 @@ class nsCollationWin : public nsICollation {
 
 protected:
   nsCollation   *mCollation;  // XP collation class
-  uint32_t      mLCID;        // Windows platform locale ID
+  PRUint32      mLCID;        // Windows platform locale ID
 
 public: 
   nsCollationWin();

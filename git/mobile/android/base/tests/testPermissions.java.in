@@ -7,6 +7,7 @@ import android.widget.CheckBox;
 import java.util.ArrayList;
 
 public class testPermissions extends PixelTest {
+    private PaintedSurface mPaintedSurface;
     private Actions.RepeatedEventExpecter mPaintExpecter;
 
     @Override
@@ -22,7 +23,7 @@ public class testPermissions extends PixelTest {
 
     private void geolocationTest() {
         // Test geolocation notification
-        loadAndPaint(getAbsoluteUrl("/robocop/robocop_geolocation.html"));
+        mPaintedSurface = loadAndPaint(getAbsoluteUrl("/robocop/robocop_geolocation.html"));
         mSolo.waitForText("wants your location");
 
         // Uncheck the "Don't ask again for this site" checkbox
@@ -35,12 +36,8 @@ public class testPermissions extends PixelTest {
         // Test "Share" button functionality with unchecked checkbox
         mPaintExpecter = mActions.expectPaint();
         mSolo.clickOnText("Share");
-        PaintedSurface painted = waitForPaint(mPaintExpecter);
-        try {
-            mAsserter.ispixel(painted.getPixelAt(10, 10), 0, 0x80, 0, "checking page background is green");
-        } finally {
-            painted.close();
-        }
+        mPaintedSurface = waitForPaint(mPaintExpecter);
+        mAsserter.ispixel(mPaintedSurface.getPixelAt(10, 10), 0, 0x80, 0, "checking page background is green");
 
         // Re-trigger geolocation notification
         reloadAndPaint();
@@ -52,19 +49,11 @@ public class testPermissions extends PixelTest {
         // Test "Share" button functionality with checked checkbox
         mPaintExpecter = mActions.expectPaint();
         mSolo.clickOnText("Share");
-        painted = waitForPaint(mPaintExpecter);
-        try {
-            mAsserter.ispixel(painted.getPixelAt(10, 10), 0, 0x80, 0, "checking page background is green");
-        } finally {
-            painted.close();
-        }
+        mPaintedSurface = waitForPaint(mPaintExpecter);
+        mAsserter.ispixel(mPaintedSurface.getPixelAt(10, 10), 0, 0x80, 0, "checking page background is green");
 
         // When we reload the page, location should be automatically shared
-        painted = reloadAndGetPainted();
-        try {
-            mAsserter.ispixel(painted.getPixelAt(10, 10), 0, 0x80, 0, "checking page background is green");
-        } finally {
-            painted.close();
-        }
+        mPaintedSurface = reloadAndPaint();
+        mAsserter.ispixel(mPaintedSurface.getPixelAt(10, 10), 0, 0x80, 0, "checking page background is green");
     }
 }

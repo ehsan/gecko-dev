@@ -47,10 +47,10 @@ private:
     nsIConsoleMessage **mMessages;
 
     // How big?
-    uint32_t mBufferSize;
+    PRUint32 mBufferSize;
 
     // Index of slot in mMessages that'll be filled by *next* log message
-    uint32_t mCurrent;
+    PRUint32 mCurrent;
 
     // Is the buffer full? (Has mCurrent wrapped around at least once?)
     bool mFull;

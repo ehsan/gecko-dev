@@ -30,10 +30,8 @@ IPDLDIRS =  \
   dom/ipc \
   dom/sms/src/ipc \
   dom/src/storage \
-  dom/network/src \
   gfx/layers/ipc \
   hal/sandbox \
-  ipc/glue  \
   ipc/testshell  \
   js/ipc  \
   layout/ipc \

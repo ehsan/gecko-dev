@@ -45,7 +45,7 @@ protected:
 
   // pref callback for when the "show tooltips" pref changes
   static bool sShowTooltips;
-  static uint32_t sTooltipListenerCount;
+  static PRUint32 sTooltipListenerCount;
 
   void KillTooltipTimer();
 
@@ -77,7 +77,7 @@ protected:
 
   // screen coordinates of the last mousemove event, stored so that the
   // tooltip can be opened at this location.
-  int32_t mMouseScreenX, mMouseScreenY;
+  PRInt32 mMouseScreenX, mMouseScreenY;
 
   // various constants for tooltips
   enum {
@@ -93,7 +93,7 @@ protected:
   // special members for handling trees
   bool mIsSourceTree;
   bool mNeedTitletip;
-  int32_t mLastTreeRow;
+  PRInt32 mLastTreeRow;
   nsCOMPtr<nsITreeColumn> mLastTreeCol;
 #endif
 };

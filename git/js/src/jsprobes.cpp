@@ -163,9 +163,9 @@ FunctionName(JSContext *cx, const JSFunction *fun, JSAutoByteString* bytes)
 {
     if (!fun)
         return Probes::nullName;
-    if (!fun->displayAtom())
+    if (!fun->atom)
         return Probes::anonymousName;
-    return bytes->encode(cx, fun->displayAtom()) ? bytes->ptr() : Probes::nullName;
+    return bytes->encode(cx, fun->atom) ? bytes->ptr() : Probes::nullName;
 }
 
 /*
@@ -196,7 +196,7 @@ Probes::DTraceExitJSFun(JSContext *cx, JSFunction *fun, JSScript *script)
 static void
 current_location(JSContext *cx, int* lineno, char const **filename)
 {
-    JSScript *script = cx->stack.currentScript()
+    JSScript *script = js_GetCurrentScript(cx);
     if (! script) {
         *lineno = -1;
         *filename = "(uninitialized)";
@@ -213,7 +213,7 @@ current_location(JSContext *cx, int* lineno, char const **filename)
  * windows.h in a header.
  */
 bool
-Probes::ETWCallTrackingActive()
+Probes::ETWCallTrackingActive(JSContext *cx)
 {
     return MCGEN_ENABLE_CHECK(MozillaSpiderMonkey_Context, EvtFunctionEntry);
 }
@@ -425,14 +425,14 @@ Probes::ETWCustomMark(int marker)
 }
 
 bool
-Probes::ETWStartExecution(JSScript *script)
+Probes::ETWStartExecution(JSContext *cx, JSScript *script)
 {
     int lineno = script ? script->lineno : -1;
     return EventWriteEvtExecuteStart(ScriptFilename(script), lineno) == ERROR_SUCCESS;
 }
 
 bool
-Probes::ETWStopExecution(JSScript *script)
+Probes::ETWStopExecution(JSContext *cx, JSScript *script)
 {
     int lineno = script ? script->lineno : -1;
     return EventWriteEvtExecuteDone(ScriptFilename(script), lineno) == ERROR_SUCCESS;

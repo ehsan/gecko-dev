@@ -14,7 +14,6 @@ import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.sync.AlreadySyncingException;
 import org.mozilla.gecko.sync.CredentialException;
 import org.mozilla.gecko.sync.GlobalConstants;
-import org.mozilla.gecko.sync.SyncConstants;
 import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NonObjectJSONException;
@@ -88,8 +87,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   }
 
   /**
-   * Handle an exception: update stats, log errors, etc.
-   * Wakes up sleeping threads by calling notifyMonitor().
+   * Handle an exception: update stats, invalidate auth token, log errors, etc.
    *
    * @param globalSession
    *          current global session, or null.
@@ -98,6 +96,9 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
    */
   protected void processException(final GlobalSession globalSession, final Exception e) {
     try {
+      // Just in case, invalidate auth token.
+      SyncAccounts.invalidateAuthToken(AccountManager.get(mContext), localAccount);
+
       if (e instanceof SQLiteConstraintException) {
         Logger.error(LOG_TAG, "Constraint exception. Aborting sync.", e);
         syncResult.stats.numParseExceptions++;       // This is as good as we can do.
@@ -163,18 +164,10 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
         return;
       }
 
-      // Bug 755638 - Uncaught SecurityException when attempting to sync multiple Fennecs
-      // to the same Sync account.
-      // Uncheck Sync checkbox because we cannot sync this instance.
-      if (e instanceof SecurityException) {
-        Logger.error(LOG_TAG, "SecurityException, multiple Fennecs. Disabling this instance.", e);
-        SyncAccounts.backgroundSetSyncAutomatically(localAccount, false);
-        return;
-      }
       // Generic exception.
       Logger.error(LOG_TAG, "Unknown exception. Aborting sync.", e);
-    } finally {
-      notifyMonitor();
+    } catch (Exception ex) {
+      Logger.error(LOG_TAG, "Unknown exception. Aborting sync.", e);
     }
   }
 
@@ -239,11 +232,11 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
    * @param backoff time to wait in milliseconds.
    */
   @Override
-  public void requestBackoff(final long backoff) {
+  public void requestBackoff(long backoff) {
     if (backoff > 0) {
       // Fuzz the backoff time (up to 25% more) to prevent client lock-stepping; agrees with desktop.
-      final long fuzzedBackoff = backoff + Math.round((double) backoff * 0.25d * Math.random());
-      this.extendEarliestNextSync(System.currentTimeMillis() + fuzzedBackoff);
+      backoff = backoff + Math.round((double) backoff * 0.25d * Math.random());
+      this.extendEarliestNextSync(System.currentTimeMillis() + backoff);
     }
   }
 
@@ -276,7 +269,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
                             final String authority,
                             final ContentProviderClient provider,
                             final SyncResult syncResult) {
-    Logger.setThreadLogTag(SyncConstants.GLOBAL_LOG_TAG);
     Logger.resetLogging();
     Utils.reseedSharedRandom(); // Make sure we don't work with the same random seed for too long.
 
@@ -353,6 +345,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
               username, password, prefsPath, serverURL, syncKey);
         } catch (Exception e) {
           self.processException(null, e);
+          notifyMonitor();
           return;
         }
       }
@@ -486,6 +479,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   public void handleError(GlobalSession globalSession, Exception ex) {
     Logger.info(LOG_TAG, "GlobalSession indicated error.");
     this.processException(globalSession, ex);
+    notifyMonitor();
   }
 
   @Override
@@ -523,7 +517,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   public synchronized String getClientName() {
     String clientName = accountSharedPreferences.getString(SyncConfiguration.PREF_CLIENT_NAME, null);
     if (clientName == null) {
-      clientName = SyncConstants.PRODUCT_NAME + " on " + android.os.Build.MODEL;
+      clientName = GlobalConstants.PRODUCT_NAME + " on " + android.os.Build.MODEL;
       accountSharedPreferences.edit().putString(SyncConfiguration.PREF_CLIENT_NAME, clientName).commit();
     }
     return clientName;

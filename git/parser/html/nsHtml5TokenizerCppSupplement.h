@@ -143,7 +143,7 @@ nsHtml5Tokenizer::errNcrNonCharacter(PRUnichar ch)
 }
 
 void
-nsHtml5Tokenizer::errAstralNonCharacter(int32_t ch)
+nsHtml5Tokenizer::errAstralNonCharacter(PRInt32 ch)
 {
   if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentNode("errNcrNonCharacter");

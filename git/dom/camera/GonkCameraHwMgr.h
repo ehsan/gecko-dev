@@ -20,13 +20,11 @@
 #include "libcameraservice/CameraHardwareInterface.h"
 #include "binder/IMemory.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "GonkCameraListener.h"
-#include <utils/threads.h>
 
 #include "GonkCameraControl.h"
-#include "CameraCommon.h"
 
-#include "GonkNativeWindow.h"
+#define DOM_CAMERA_LOG_LEVEL  3
+#include "CameraCommon.h"
 
 // config
 #define GIHM_TIMING_RECEIVEFRAME    0
@@ -39,41 +37,44 @@ namespace mozilla {
 
 typedef class nsGonkCameraControl GonkCamera;
 
-class GonkCameraHardware : GonkNativeWindowNewFrameCallback
+class GonkCameraHardware
 {
 protected:
-  GonkCameraHardware(GonkCamera* aTarget, uint32_t aCamera);
+  GonkCameraHardware(GonkCamera* aTarget, PRUint32 aCamera);
   ~GonkCameraHardware();
-  void Init();
+  void init();
 
-  static void     DataCallback(int32_t aMsgType, const sp<IMemory> &aDataPtr, camera_frame_metadata_t* aMetadata, void* aUser);
-  static void     NotifyCallback(int32_t aMsgType, int32_t ext1, int32_t ext2, void* aUser);
-  static void     DataCallbackTimestamp(nsecs_t aTimestamp, int32_t aMsgType, const sp<IMemory>& aDataPtr, void* aUser);
+  static void                   DataCallback(int32_t aMsgType, const sp<IMemory> &aDataPtr, camera_frame_metadata_t* aMetadata, void* aUser);
+  static void                   NotifyCallback(int32_t aMsgType, int32_t ext1, int32_t ext2, void* aUser);
 
 public:
-  virtual void    OnNewFrame() MOZ_OVERRIDE;
+  static void                   ReleaseHandle(PRUint32 aHwHandle);
+  static PRUint32               GetHandle(GonkCamera* aTarget, PRUint32 aCamera);
+  static PRUint32               GetFps(PRUint32 aHwHandle);
+  static void                   GetPreviewSize(PRUint32 aHwHandle, PRUint32* aWidth, PRUint32* aHeight);
+  static void                   SetPreviewSize(PRUint32 aHwHandle, PRUint32 aWidth, PRUint32 aHeight);
+  static int                    AutoFocus(PRUint32 aHwHandle);
+  static void                   CancelAutoFocus(PRUint32 aHwHandle);
+  static int                    TakePicture(PRUint32 aHwHandle);
+  static void                   CancelTakePicture(PRUint32 aHwHandle);
+  static int                    StartPreview(PRUint32 aHwHandle);
+  static void                   StopPreview(PRUint32 aHwHandle);
+  static int                    PushParameters(PRUint32 aHwHandle, const CameraParameters& aParams);
+  static void                   PullParameters(PRUint32 aHwHandle, CameraParameters& aParams);
 
-  static void     ReleaseHandle(uint32_t aHwHandle);
-  static uint32_t GetHandle(GonkCamera* aTarget, uint32_t aCamera);
-  static int      AutoFocus(uint32_t aHwHandle);
-  static void     CancelAutoFocus(uint32_t aHwHandle);
-  static int      TakePicture(uint32_t aHwHandle);
-  static void     CancelTakePicture(uint32_t aHwHandle);
-  static int      StartPreview(uint32_t aHwHandle);
-  static void     StopPreview(uint32_t aHwHandle);
-  static int      PushParameters(uint32_t aHwHandle, const CameraParameters& aParams);
-  static void     PullParameters(uint32_t aHwHandle, CameraParameters& aParams);
-  static int      StartRecording(uint32_t aHwHandle);
-  static int      StopRecording(uint32_t aHwHandle);
-  static int      SetListener(uint32_t aHwHandle, const sp<GonkCameraListener>& aListener);
-  static void     ReleaseRecordingFrame(uint32_t aHwHandle, const sp<IMemory>& aFrame);
-  static int      StoreMetaDataInBuffers(uint32_t aHwHandle, bool aEnabled);
+  enum {
+    PREVIEW_FORMAT_UNKNOWN,
+    PREVIEW_FORMAT_YUV420P,
+    PREVIEW_FORMAT_YUV420SP
+  };
+  // GetPreviewFormat() MUST be called only after StartPreview().
+  static PRUint32               GetPreviewFormat(PRUint32 aHwHandle);
 
 protected:
   static GonkCameraHardware*    sHw;
-  static uint32_t               sHwHandle;
+  static PRUint32               sHwHandle;
 
-  static GonkCameraHardware*    GetHardware(uint32_t aHwHandle)
+  static GonkCameraHardware*    GetHardware(PRUint32 aHwHandle)
   {
     if (aHwHandle == sHwHandle) {
       /**
@@ -86,22 +87,27 @@ protected:
     return nullptr;
   }
 
-  // Instance wrapper to make member function access easier.
+  // Instance wrappers to make member function access easier.
+  void SetPreviewSize(PRUint32 aWidth, PRUint32 aHeight);
   int StartPreview();
 
-  uint32_t                      mCamera;
+  PRUint32                      mCamera;
+  PRUint32                      mWidth;
+  PRUint32                      mHeight;
+  PRUint32                      mFps;
+  PRUint32                      mPreviewFormat;
   bool                          mClosing;
   mozilla::ReentrantMonitor     mMonitor;
-  uint32_t                      mNumFrames;
+  PRUint32                      mNumFrames;
   sp<CameraHardwareInterface>   mHardware;
   GonkCamera*                   mTarget;
   camera_module_t*              mModule;
   sp<ANativeWindow>             mWindow;
+  CameraParameters              mParams;
 #if GIHM_TIMING_OVERALL
   struct timespec               mStart;
   struct timespec               mAutoFocusStart;
 #endif
-  sp<GonkCameraListener>        mListener;
   bool                          mInitialized;
 
   bool IsInitialized()

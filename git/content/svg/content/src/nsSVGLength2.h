@@ -9,13 +9,14 @@
 #include "nsAutoPtr.h"
 #include "nsCoord.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsDOMError.h"
 #include "nsError.h"
 #include "nsIDOMSVGAnimatedLength.h"
 #include "nsIDOMSVGLength.h"
 #include "nsISMILAttr.h"
 #include "nsMathUtils.h"
 #include "nsSVGElement.h"
-#include "SVGContentUtils.h"
+#include "nsSVGUtils.h"
 
 class nsIFrame;
 class nsISMILAnimationElement;
@@ -26,10 +27,10 @@ class nsSVGLength2
 {
 
 public:
-  void Init(uint8_t aCtxType = SVGContentUtils::XY,
-            uint8_t aAttrEnum = 0xff,
+  void Init(PRUint8 aCtxType = nsSVGUtils::XY,
+            PRUint8 aAttrEnum = 0xff,
             float aValue = 0,
-            uint8_t aUnitType = nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER) {
+            PRUint8 aUnitType = nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER) {
     mAnimVal = mBaseVal = aValue;
     mSpecifiedUnitType = aUnitType;
     mAttrEnum = aAttrEnum;
@@ -60,8 +61,8 @@ public:
   float GetAnimValue(nsIFrame* aFrame) const
     { return mAnimVal / GetUnitScaleFactor(aFrame, mSpecifiedUnitType); }
 
-  uint8_t GetCtxType() const { return mCtxType; }
-  uint8_t GetSpecifiedUnitType() const { return mSpecifiedUnitType; }
+  PRUint8 GetCtxType() const { return mCtxType; }
+  PRUint8 GetSpecifiedUnitType() const { return mSpecifiedUnitType; }
   bool IsPercentage() const
     { return mSpecifiedUnitType == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE; }
   float GetAnimValInSpecifiedUnits() const { return mAnimVal; }
@@ -92,28 +93,28 @@ private:
   
   float mAnimVal;
   float mBaseVal;
-  uint8_t mSpecifiedUnitType;
-  uint8_t mAttrEnum; // element specified tracking for attribute
-  uint8_t mCtxType; // X, Y or Unspecified
+  PRUint8 mSpecifiedUnitType;
+  PRUint8 mAttrEnum; // element specified tracking for attribute
+  PRUint8 mCtxType; // X, Y or Unspecified
   bool mIsAnimated:1;
   bool mIsBaseSet:1;
   
   static float GetMMPerPixel() { return MM_PER_INCH_FLOAT / 96; }
   float GetAxisLength(nsIFrame *aNonSVGFrame) const;
   static float GetEmLength(nsIFrame *aFrame)
-    { return SVGContentUtils::GetFontSize(aFrame); }
+    { return nsSVGUtils::GetFontSize(aFrame); }
   static float GetExLength(nsIFrame *aFrame)
-    { return SVGContentUtils::GetFontXHeight(aFrame); }
-  float GetUnitScaleFactor(nsIFrame *aFrame, uint8_t aUnitType) const;
+    { return nsSVGUtils::GetFontXHeight(aFrame); }
+  float GetUnitScaleFactor(nsIFrame *aFrame, PRUint8 aUnitType) const;
 
   float GetMMPerPixel(nsSVGSVGElement *aCtx) const;
   float GetAxisLength(nsSVGSVGElement *aCtx) const;
   static float GetEmLength(nsSVGElement *aSVGElement)
-    { return SVGContentUtils::GetFontSize(aSVGElement); }
+    { return nsSVGUtils::GetFontSize(aSVGElement); }
   static float GetExLength(nsSVGElement *aSVGElement)
-    { return SVGContentUtils::GetFontXHeight(aSVGElement); }
-  float GetUnitScaleFactor(nsSVGElement *aSVGElement, uint8_t aUnitType) const;
-  float GetUnitScaleFactor(nsSVGSVGElement *aCtx, uint8_t aUnitType) const;
+    { return nsSVGUtils::GetFontXHeight(aSVGElement); }
+  float GetUnitScaleFactor(nsSVGElement *aSVGElement, PRUint8 aUnitType) const;
+  float GetUnitScaleFactor(nsSVGSVGElement *aCtx, PRUint8 aUnitType) const;
 
   // SetBaseValue and SetAnimValue set the value in user units
   void SetBaseValue(float aValue, nsSVGElement *aSVGElement, bool aDoSetAttr);
@@ -121,13 +122,12 @@ private:
                                     bool aDoSetAttr);
   void SetAnimValue(float aValue, nsSVGElement *aSVGElement);
   void SetAnimValueInSpecifiedUnits(float aValue, nsSVGElement *aSVGElement);
-  nsresult NewValueSpecifiedUnits(uint16_t aUnitType, float aValue,
+  nsresult NewValueSpecifiedUnits(PRUint16 aUnitType, float aValue,
                                   nsSVGElement *aSVGElement);
-  nsresult ConvertToSpecifiedUnits(uint16_t aUnitType, nsSVGElement *aSVGElement);
+  nsresult ConvertToSpecifiedUnits(PRUint16 aUnitType, nsSVGElement *aSVGElement);
   nsresult ToDOMBaseVal(nsIDOMSVGLength **aResult, nsSVGElement* aSVGElement);
   nsresult ToDOMAnimVal(nsIDOMSVGLength **aResult, nsSVGElement* aSVGElement);
 
-public:
   struct DOMBaseVal : public nsIDOMSVGLength
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -140,7 +140,7 @@ public:
     nsSVGLength2* mVal; // kept alive because it belongs to mSVGElement
     nsRefPtr<nsSVGElement> mSVGElement;
     
-    NS_IMETHOD GetUnitType(uint16_t* aResult)
+    NS_IMETHOD GetUnitType(PRUint16* aResult)
       { *aResult = mVal->mSpecifiedUnitType; return NS_OK; }
 
     NS_IMETHOD GetValue(float* aResult)
@@ -170,13 +170,13 @@ public:
     NS_IMETHOD GetValueAsString(nsAString& aValue)
       { mVal->GetBaseValueString(aValue); return NS_OK; }
 
-    NS_IMETHOD NewValueSpecifiedUnits(uint16_t unitType,
+    NS_IMETHOD NewValueSpecifiedUnits(PRUint16 unitType,
                                       float valueInSpecifiedUnits)
       {
         return mVal->NewValueSpecifiedUnits(unitType, valueInSpecifiedUnits,
                                             mSVGElement); }
 
-    NS_IMETHOD ConvertToSpecifiedUnits(uint16_t unitType)
+    NS_IMETHOD ConvertToSpecifiedUnits(PRUint16 unitType)
       { return mVal->ConvertToSpecifiedUnits(unitType, mSVGElement); }
   };
 
@@ -194,7 +194,7 @@ public:
     
     // Script may have modified animation parameters or timeline -- DOM getters
     // need to flush any resample requests to reflect these modifications.
-    NS_IMETHOD GetUnitType(uint16_t* aResult)
+    NS_IMETHOD GetUnitType(PRUint16* aResult)
     {
       mSVGElement->FlushAnimations();
       *aResult = mVal->mSpecifiedUnitType;
@@ -228,14 +228,15 @@ public:
       return NS_OK;
     }
 
-    NS_IMETHOD NewValueSpecifiedUnits(uint16_t unitType,
+    NS_IMETHOD NewValueSpecifiedUnits(PRUint16 unitType,
                                       float valueInSpecifiedUnits)
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
 
-    NS_IMETHOD ConvertToSpecifiedUnits(uint16_t unitType)
+    NS_IMETHOD ConvertToSpecifiedUnits(PRUint16 unitType)
       { return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR; }
   };
 
+public:
   struct DOMAnimatedLength : public nsIDOMSVGAnimatedLength
   {
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS

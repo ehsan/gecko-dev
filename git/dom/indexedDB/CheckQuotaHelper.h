@@ -44,7 +44,7 @@ private:
 
   mozilla::Mutex& mMutex;
   mozilla::CondVar mCondVar;
-  uint32_t mPromptResult;
+  PRUint32 mPromptResult;
   bool mWaiting;
   bool mHasPrompted;
 };

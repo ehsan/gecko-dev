@@ -10,6 +10,7 @@
 /*
  * JS symbol tables.
  */
+#include <new>
 #ifdef DEBUG
 #include <stdio.h>
 #endif
@@ -129,7 +130,7 @@ struct ShapeTable {
     }
 
     ~ShapeTable() {
-        js_free(entries);
+        js::UnwantedForeground::free_(entries);
     }
 
     /* By definition, hashShift = HASH_BITS - log2(capacity). */
@@ -253,17 +254,19 @@ class BaseShape : public js::gc::Cell
          * last property changes.
          */
 
-        DELEGATE           =    0x8,
-        NOT_EXTENSIBLE     =   0x10,
-        INDEXED            =   0x20,
-        BOUND_FUNCTION     =   0x40,
-        VAROBJ             =   0x80,
-        WATCHED            =  0x100,
-        ITERATED_SINGLETON =  0x200,
-        NEW_TYPE_UNKNOWN   =  0x400,
-        UNCACHEABLE_PROTO  =  0x800,
+        EXTENSIBLE_PARENTS =    0x8,
+        DELEGATE           =   0x10,
+        SYSTEM             =   0x20,
+        NOT_EXTENSIBLE     =   0x40,
+        INDEXED            =   0x80,
+        BOUND_FUNCTION     =  0x100,
+        VAROBJ             =  0x200,
+        WATCHED            =  0x400,
+        ITERATED_SINGLETON =  0x800,
+        NEW_TYPE_UNKNOWN   = 0x1000,
+        UNCACHEABLE_PROTO  = 0x2000,
 
-        OBJECT_FLAG_MASK   = 0x1ff8
+        OBJECT_FLAG_MASK   = 0x3ff8
     };
 
   private:
@@ -456,7 +459,7 @@ struct Shape : public js::gc::Cell
 
   protected:
     HeapPtrBaseShape    base_;
-    EncapsulatedId      propid_;
+    HeapId              propid_;
 
     JS_ENUM_HEADER(SlotInfo, uint32_t)
     {
@@ -515,7 +518,7 @@ struct Shape : public js::gc::Cell
 
     /* Replace the base shape of the last shape in a non-dictionary lineage with base. */
     static Shape *replaceLastProperty(JSContext *cx, const StackBaseShape &base,
-                                      TaggedProto proto, Shape *shape);
+                                      JSObject *proto, Shape *shape);
 
     bool hashify(JSContext *cx);
     void handoffTableTo(Shape *newShape);
@@ -600,8 +603,8 @@ struct Shape : public js::gc::Cell
     Class *getObjectClass() const { return base()->clasp; }
     JSObject *getObjectParent() const { return base()->parent; }
 
-    static Shape *setObjectParent(JSContext *cx, JSObject *obj, TaggedProto proto, Shape *last);
-    static Shape *setObjectFlag(JSContext *cx, BaseShape::Flag flag, TaggedProto proto, Shape *last);
+    static Shape *setObjectParent(JSContext *cx, JSObject *obj, JSObject *proto, Shape *last);
+    static Shape *setObjectFlag(JSContext *cx, BaseShape::Flag flag, JSObject *proto, Shape *last);
 
     uint32_t getObjectFlags() const { return base()->getObjectFlags(); }
     bool hasObjectFlag(BaseShape::Flag flag) const {
@@ -742,12 +745,12 @@ struct Shape : public js::gc::Cell
         slotInfo = slotInfo | ((count + 1) << LINEAR_SEARCHES_SHIFT);
     }
 
-    const EncapsulatedId &propid() const {
+    const HeapId &propid() const {
         JS_ASSERT(!isEmptyShape());
         JS_ASSERT(!JSID_IS_VOID(propid_));
         return propid_;
     }
-    EncapsulatedId &propidRef() { JS_ASSERT(!JSID_IS_VOID(propid_)); return propid_; }
+    HeapId &propidRef() { JS_ASSERT(!JSID_IS_VOID(propid_)); return propid_; }
 
     int16_t shortid() const { JS_ASSERT(hasShortID()); return maybeShortid(); }
     int16_t maybeShortid() const { return shortid_; }
@@ -795,6 +798,52 @@ struct Shape : public js::gc::Cell
         JS_ASSERT_IF(isDataDescriptor(), writable());
         return hasSlot() || (attrs & JSPROP_SHADOWABLE);
     }
+
+    /*
+     * Sometimes call objects and run-time block objects need unique shapes, but
+     * sometimes they don't.
+     *
+     * Property cache entries only record the shapes of the first and last
+     * objects along the search path, so if the search traverses more than those
+     * two objects, then those first and last shapes must determine the shapes
+     * of everything else along the path. The js_PurgeScopeChain stuff takes
+     * care of making this work, but that suffices only because we require that
+     * start points with the same shape have the same successor object in the
+     * search path --- a cache hit means the starting shapes were equal, which
+     * means the search path tail (everything but the first object in the path)
+     * was shared, which in turn means the effects of a purge will be seen by
+     * all affected starting search points.
+     *
+     * For call and run-time block objects, the "successor object" is the scope
+     * chain parent. Unlike prototype objects (of which there are usually few),
+     * scope chain parents are created frequently (possibly on every call), so
+     * following the shape-implies-parent rule blindly would lead one to give
+     * every call and block its own shape.
+     *
+     * In many cases, however, it's not actually necessary to give call and
+     * block objects their own shapes, and we can do better. If the code will
+     * always be used with the same global object, and none of the enclosing
+     * call objects could have bindings added to them at runtime (by direct eval
+     * calls or function statements), then we can use a fixed set of shapes for
+     * those objects. You could think of the shapes in the functions' bindings
+     * and compile-time blocks as uniquely identifying the global object(s) at
+     * the end of the scope chain.
+     *
+     * (In fact, some JSScripts we do use against multiple global objects (see
+     * bug 618497), and using the fixed shapes isn't sound there.)
+     *
+     * In deciding whether a call or block has any extensible parents, we
+     * actually only need to consider enclosing calls; blocks are never
+     * extensible, and the other sorts of objects that appear in the scope
+     * chains ('with' blocks, say) are not CacheableNonGlobalScopes.
+     *
+     * If the hasExtensibleParents flag is set for the last property in a
+     * script's bindings or a compiler-generated Block object, then created
+     * Call or Block objects need unique shapes. If the flag is clear, then we
+     * can use lastBinding's shape.
+     */
+    static Shape *setExtensibleParents(JSContext *cx, Shape *shape);
+    bool extensibleParents() const { return !!(base()->flags & BaseShape::EXTENSIBLE_PARENTS); }
 
     uint32_t entryCount() {
         if (hasTable())
@@ -906,7 +955,7 @@ struct EmptyShape : public js::Shape
      * Lookup an initial shape matching the given parameters, creating an empty
      * shape if none was found.
      */
-    static Shape *getInitialShape(JSContext *cx, Class *clasp, TaggedProto proto,
+    static Shape *getInitialShape(JSContext *cx, Class *clasp, JSObject *proto,
                                   JSObject *parent, gc::AllocKind kind, uint32_t objectFlags = 0);
 
     /*
@@ -934,16 +983,16 @@ struct InitialShapeEntry
      * Matching prototype for the entry. The shape of an object determines its
      * prototype, but the prototype cannot be determined from the shape itself.
      */
-    TaggedProto proto;
+    JSObject *proto;
 
     /* State used to determine a match on an initial shape. */
     struct Lookup {
         Class *clasp;
-        TaggedProto proto;
+        JSObject *proto;
         JSObject *parent;
         uint32_t nfixed;
         uint32_t baseFlags;
-        Lookup(Class *clasp, TaggedProto proto, JSObject *parent, uint32_t nfixed,
+        Lookup(Class *clasp, JSObject *proto, JSObject *parent, uint32_t nfixed,
                uint32_t baseFlags)
             : clasp(clasp), proto(proto), parent(parent),
               nfixed(nfixed), baseFlags(baseFlags)
@@ -951,7 +1000,7 @@ struct InitialShapeEntry
     };
 
     inline InitialShapeEntry();
-    inline InitialShapeEntry(const ReadBarriered<Shape> &shape, TaggedProto proto);
+    inline InitialShapeEntry(const ReadBarriered<Shape> &shape, JSObject *proto);
 
     inline Lookup getLookup();
 
@@ -1056,7 +1105,6 @@ namespace js {
 inline Shape *
 Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
 {
-    AssertCanGC();
 #ifdef DEBUG
     {
         SkipRoot skip0(cx, &start);
@@ -1124,9 +1172,6 @@ Shape::searchNoAllocation(Shape *start, jsid id)
 void
 MarkNonNativePropertyFound(HandleObject obj, MutableHandleShape propp);
 
-template<> struct RootKind<Shape *> : SpecificRootKind<Shape *, THING_ROOT_SHAPE> {};
-template<> struct RootKind<BaseShape *> : SpecificRootKind<BaseShape *, THING_ROOT_BASE_SHAPE> {};
-
 } // namespace js
 
 #ifdef _MSC_VER
@@ -1135,8 +1180,11 @@ template<> struct RootKind<BaseShape *> : SpecificRootKind<BaseShape *, THING_RO
 #endif
 
 namespace JS {
-template<> class AnchorPermitted<js::Shape *> { };
-template<> class AnchorPermitted<const js::Shape *> { };
+    template<> class AnchorPermitted<js::Shape *> { };
+    template<> class AnchorPermitted<const js::Shape *> { };
+
+    template<> struct RootKind<js::Shape *> { static ThingRootKind rootKind() { return THING_ROOT_SHAPE; }; };
+    template<> struct RootKind<js::BaseShape *> { static ThingRootKind rootKind() { return THING_ROOT_BASE_SHAPE; }; };
 }
 
 #endif /* jsscope_h___ */

@@ -28,7 +28,7 @@ nsRDFConMemberTestNode::nsRDFConMemberTestNode(TestNode* aParent,
 {
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
-        nsAutoCString props;
+        nsCAutoString props;
 
         nsResourceSet& containmentProps = aProcessor->ContainmentProperties();
         nsResourceSet::ConstIterator last = containmentProps.Last();
@@ -137,7 +137,7 @@ nsRDFConMemberTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
 
             if (rdfcontainer) {
                 // RDF containers are easy. Just use the container API.
-                int32_t index;
+                PRInt32 index;
                 rv = rdfcontainer->IndexOf(memberValue, &index);
                 if (NS_FAILED(rv)) return rv;
 

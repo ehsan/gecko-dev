@@ -110,7 +110,7 @@ SECU_FilePasswd(PK11SlotInfo *slot, PRBool retry, void *arg)
 {
   char* phrases, *phrase;
   PRFileDesc *fd;
-  int32_t nb;
+  PRInt32 nb;
   char *pwFile = arg;
   int i;
   const long maxPwdFileSize = 4096;

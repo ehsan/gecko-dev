@@ -27,7 +27,7 @@ public:
   CreateStream(nsIFile* aFile, bool aReadOnly);
 
   virtual already_AddRefed<nsIDOMFile>
-  CreateFileObject(LockedFile* aLockedFile, uint32_t aFileSize);
+  CreateFileObject(LockedFile* aLockedFile, PRUint32 aFileSize);
 
 protected:
   DOMFileHandle()

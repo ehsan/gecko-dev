@@ -38,9 +38,9 @@
 extern "C" nsresult
 PrepareAndDispatch(
   nsXPTCStubBase *self,
-  uint32_t        methodIndex,
-  uint32_t       *argsStack,
-  uint32_t       *argsGPR,
+  PRUint32        methodIndex,
+  PRUint32       *argsStack,
+  PRUint32       *argsGPR,
   double         *argsFPR) {
 #define PARAM_BUFFER_COUNT 16
 #define PARAM_FPR_COUNT    13
@@ -49,20 +49,20 @@ PrepareAndDispatch(
   nsXPTCMiniVariant      paramBuffer[PARAM_BUFFER_COUNT];
   nsXPTCMiniVariant     *dispatchParams = NULL;
   const nsXPTMethodInfo *methodInfo;
-  uint8_t                paramCount;
-  uint8_t                i;
+  PRUint8                paramCount;
+  PRUint8                i;
   nsresult               result         = NS_ERROR_FAILURE;
-  uint32_t               argIndex       = 0;
-  uint32_t               fprIndex       = 0;
+  PRUint32               argIndex       = 0;
+  PRUint32               fprIndex       = 0;
 
   typedef struct {
-    uint32_t hi;
-    uint32_t lo;
+    PRUint32 hi;
+    PRUint32 lo;
   } DU;
 
   NS_ASSERTION(self, "no self");
 
-  self->mEntry->GetMethodInfo(uint16_t(methodIndex), &methodInfo);
+  self->mEntry->GetMethodInfo(PRUint16(methodIndex), &methodInfo);
   NS_ASSERTION(methodInfo, "no method info");
 
   paramCount = methodInfo->GetParamCount();
@@ -79,7 +79,7 @@ PrepareAndDispatch(
     const nsXPTParamInfo &param = methodInfo->GetParam(i);
     const nsXPTType      &type  = param.GetType();
     nsXPTCMiniVariant    *dp    = &dispatchParams[i];
-    uint32_t              theParam;
+    PRUint32              theParam;
 
     if(argIndex < PARAM_GPR_COUNT)
       theParam =   argsGPR[argIndex];
@@ -91,30 +91,30 @@ PrepareAndDispatch(
     else {
       switch(type) {
         case nsXPTType::T_I8:
-          dp->val.i8  =   (int8_t) theParam;
+          dp->val.i8  =   (PRInt8) theParam;
           break;
         case nsXPTType::T_I16:
-          dp->val.i16 =  (int16_t) theParam;
+          dp->val.i16 =  (PRInt16) theParam;
           break;
         case nsXPTType::T_I32:
-          dp->val.i32 =  (int32_t) theParam;
+          dp->val.i32 =  (PRInt32) theParam;
           break;
         case nsXPTType::T_U8:
-          dp->val.u8  =  (uint8_t) theParam;
+          dp->val.u8  =  (PRUint8) theParam;
           break;
         case nsXPTType::T_U16:
-          dp->val.u16 = (uint16_t) theParam;
+          dp->val.u16 = (PRUint16) theParam;
           break;
         case nsXPTType::T_U32:
-          dp->val.u32 = (uint32_t) theParam;
+          dp->val.u32 = (PRUint32) theParam;
           break;
         case nsXPTType::T_I64:
         case nsXPTType::T_U64:
-          ((DU *)dp)->hi = (uint32_t) theParam;
+          ((DU *)dp)->hi = (PRUint32) theParam;
           if(++argIndex < PARAM_GPR_COUNT)
-            ((DU *)dp)->lo = (uint32_t)   argsGPR[argIndex];
+            ((DU *)dp)->lo = (PRUint32)   argsGPR[argIndex];
           else
-            ((DU *)dp)->lo = (uint32_t) argsStack[argIndex];
+            ((DU *)dp)->lo = (PRUint32) argsStack[argIndex];
           break;
         case nsXPTType::T_BOOL:
           dp->val.b   =   (bool) theParam;
@@ -146,7 +146,7 @@ PrepareAndDispatch(
   }
 
   result = self->mOuter->
-    CallMethod((uint16_t)methodIndex, methodInfo, dispatchParams);
+    CallMethod((PRUint16)methodIndex, methodInfo, dispatchParams);
 
   if(dispatchParams != paramBuffer)
     delete [] dispatchParams;

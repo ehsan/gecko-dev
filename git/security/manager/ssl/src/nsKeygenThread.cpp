@@ -57,7 +57,7 @@ void nsKeygenThread::SetParams(
     PK11AttrFlags a_flags,
     PK11SlotInfo *a_alternative_slot,
     PK11AttrFlags a_alternative_flags,
-    uint32_t a_keyGenMechanism,
+    PRUint32 a_keyGenMechanism,
     void *a_params,
     void *a_wincx )
 {
@@ -111,7 +111,7 @@ nsresult nsKeygenThread::ConsumeResult(
   return rv;
 }
 
-static void nsKeygenThreadRunner(void *arg)
+static void PR_CALLBACK nsKeygenThreadRunner(void *arg)
 {
   PR_SetCurrentThreadName("Keygen");
   nsKeygenThread *self = static_cast<nsKeygenThread *>(arg);

@@ -66,7 +66,7 @@ nsSMILTimeContainer::Begin()
 }
 
 void
-nsSMILTimeContainer::Pause(uint32_t aType)
+nsSMILTimeContainer::Pause(PRUint32 aType)
 {
   bool didStartPause = false;
 
@@ -84,7 +84,7 @@ nsSMILTimeContainer::Pause(uint32_t aType)
 }
 
 void
-nsSMILTimeContainer::Resume(uint32_t aType)
+nsSMILTimeContainer::Resume(PRUint32 aType)
 {
   if (!mPauseState)
     return;
@@ -307,7 +307,7 @@ nsSMILTimeContainer::NotifyTimeChange()
   // registered. Other timed elements don't matter.
   const MilestoneEntry* p = mMilestoneEntries.Elements();
 #if DEBUG
-  uint32_t queueLength = mMilestoneEntries.Length();
+  PRUint32 queueLength = mMilestoneEntries.Length();
 #endif
   while (p < mMilestoneEntries.Elements() + mMilestoneEntries.Length()) {
     nsISMILAnimationElement* elem = p->mTimebase.get();

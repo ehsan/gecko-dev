@@ -20,6 +20,7 @@ class AudioDeviceUtility
 {
 public:
     static WebRtc_UWord32 GetTimeInMS();
+	static void Sleep(WebRtc_UWord32 milliseconds);
 	static void WaitForKey();
     static bool StringCompare(const char* str1,
                               const char* str2,

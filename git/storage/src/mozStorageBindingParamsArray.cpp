@@ -80,7 +80,7 @@ BindingParamsArray::AddParams(mozIStorageBindingParams *aParameters)
 }
 
 NS_IMETHODIMP
-BindingParamsArray::GetLength(uint32_t *_length)
+BindingParamsArray::GetLength(PRUint32 *_length)
 {
   *_length = length();
   return NS_OK;

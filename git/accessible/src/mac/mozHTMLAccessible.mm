@@ -18,7 +18,8 @@
   nsAutoString title;
   // XXX use the flattening API when there are available
   // see bug 768298
-  mGeckoAccessible->GetContent()->GetTextContent(title);
+  nsresult rv = mGeckoAccessible->GetContent()->GetTextContent(title);
+  NS_ENSURE_SUCCESS(rv, nil);
 
   return nsCocoaUtils::ToNSString(title);
 }
@@ -28,7 +29,7 @@
   if (!mGeckoAccessible || !mGeckoAccessible->IsHyperText())
     return nil;
 
-  uint32_t level = mGeckoAccessible->AsHyperText()->GetLevelInternal();
+  PRUint32 level = mGeckoAccessible->AsHyperText()->GetLevelInternal();
   return [NSNumber numberWithInt:level];
 }
 

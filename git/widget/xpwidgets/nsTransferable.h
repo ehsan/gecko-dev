@@ -27,8 +27,8 @@ struct DataStruct
   ~DataStruct();
   
   const nsCString& GetFlavor() const { return mFlavor; }
-  void SetData( nsISupports* inData, uint32_t inDataLen );
-  void GetData( nsISupports** outData, uint32_t *outDataLen );
+  void SetData( nsISupports* inData, PRUint32 inDataLen );
+  void GetData( nsISupports** outData, PRUint32 *outDataLen );
   nsIFile * GetFileSpec(const char * aFileName);
   bool IsDataAvailable() const { return (mData && mDataLen > 0) || (!mData && mCacheFileName); }
   
@@ -40,11 +40,11 @@ protected:
     kLargeDatasetSize = 1000000        // 1 million bytes
   };
   
-  nsresult WriteCache(nsISupports* aData, uint32_t aDataLen );
-  nsresult ReadCache(nsISupports** aData, uint32_t* aDataLen );
+  nsresult WriteCache(nsISupports* aData, PRUint32 aDataLen );
+  nsresult ReadCache(nsISupports** aData, PRUint32* aDataLen );
   
   nsCOMPtr<nsISupports> mData;   // OWNER - some varient of primitive wrapper
-  uint32_t mDataLen;
+  PRUint32 mDataLen;
   const nsCString mFlavor;
   char *   mCacheFileName;
 

@@ -14,7 +14,7 @@ var detectList = [
 var encoderList = [
   "ISO-8859-1",
   "windows-1252",
-  "macintosh",
+  "x-mac-roman",
   "UTF-8",
   "us-ascii",
   "ISO-8859-2",
@@ -84,6 +84,7 @@ var encoderList = [
   "IBM857",
   "IBM862",
   "IBM864",
+  "IBM864i",
   "IBM866",
   "Shift_JIS",
   "ISO-2022-JP",
@@ -105,7 +106,7 @@ var encoderList = [
 var decoderList = [
   "ISO-8859-1",
   "windows-1252",
-  "macintosh",
+  "x-mac-roman",
   "UTF-8",
   "us-ascii",
   "ISO-8859-2",
@@ -169,6 +170,7 @@ var decoderList = [
   "IBM857",
   "IBM862",
   "IBM864",
+  "IBM864i",
   "IBM866",
   "Shift_JIS",
   "ISO-2022-JP",

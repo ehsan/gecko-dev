@@ -1,5 +1,5 @@
 /*
- *  Copyright 2011 The LibYuv Project Authors. All rights reserved.
+ *  Copyright (c) 2011 The LibYuv project authors. All Rights Reserved.
  *
  *  Use of this source code is governed by a BSD-style license
  *  that can be found in the LICENSE file in the root of the source
@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef INCLUDE_LIBYUV_SCALE_H_  // NOLINT
+#ifndef INCLUDE_LIBYUV_SCALE_H_
 #define INCLUDE_LIBYUV_SCALE_H_
 
 #include "libyuv/basic_types.h"
@@ -24,13 +24,6 @@ enum FilterMode {
   kFilterBilinear = 1,  // Faster than box, but lower quality scaling down.
   kFilterBox = 2  // Highest quality
 };
-
-// Scale a YUV plane.
-void ScalePlane(const uint8* src, int src_stride,
-                int src_width, int src_height,
-                uint8* dst, int dst_stride,
-                int dst_width, int dst_height,
-                FilterMode filtering);
 
 // Scales a YUV 4:2:0 image from the src width and height to the
 // dst width and height.
@@ -74,4 +67,4 @@ void SetUseReferenceImpl(bool use);
 }  // namespace libyuv
 #endif
 
-#endif  // INCLUDE_LIBYUV_SCALE_H_  NOLINT
+#endif // INCLUDE_LIBYUV_SCALE_H_

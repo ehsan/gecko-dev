@@ -15,12 +15,8 @@ FORCE_SHARED_LIB = 1
 IS_COMPONENT	= 1
 
 
-CPPSRCS = \
-  nsGnomeModule.cpp \
-  nsAlertsService.cpp \
-  nsAlertsIconListener.cpp \
-  $(NULL)
-
+CPPSRCS = nsGnomeModule.cpp
+	
 ifdef MOZ_ENABLE_GCONF
 CPPSRCS += \
   nsGConfService.cpp \
@@ -40,6 +36,13 @@ CPPSRCS += \
 	$(NULL)
 endif
 
+ifdef MOZ_ENABLE_LIBNOTIFY
+CPPSRCS += \
+	nsAlertsService.cpp \
+	nsAlertsIconListener.cpp \
+	$(NULL)
+endif
+
 EXTRA_DSO_LDOPTS += \
 		$(XPCOM_GLUE_LDOPTS) \
 		$(XPCOM_FROZEN_LDOPTS) \
@@ -47,6 +50,7 @@ EXTRA_DSO_LDOPTS += \
 		$(MOZ_GCONF_LIBS) \
 		$(MOZ_GNOMEVFS_LIBS) \
 		$(GLIB_LIBS) \
+		$(MOZ_LIBNOTIFY_LIBS) \
 		$(MOZ_GIO_LIBS) \
 		$(NULL)
 
@@ -59,5 +63,6 @@ CXXFLAGS += \
 	$(MOZ_GNOMEVFS_CFLAGS) \
 	$(MOZ_GIO_CFLAGS) \
 	$(GLIB_CFLAGS) \
+	$(MOZ_LIBNOTIFY_CFLAGS) \
 	$(MOZ_GTK2_CFLAGS) \
 	$(NULL)

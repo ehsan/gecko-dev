@@ -790,6 +790,7 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
     aFloat->SetPosition(origin);
     nsContainerFrame::PositionFrameView(aFloat);
     nsContainerFrame::PositionChildViews(aFloat);
+    FrameLayerBuilder::InvalidateThebesLayersInSubtree(aFloat);
   }
 
   // Update the float combined area state
@@ -804,8 +805,8 @@ nsBlockReflowState::FlowAndPlaceFloat(nsIFrame* aFloat)
       (NS_UNCONSTRAINEDSIZE != mContentArea.height)) {
     region.height = NS_MAX(region.height, mContentArea.height - floatY);
   }
-  DebugOnly<nsresult> rv =
-    mFloatManager->AddFloat(aFloat, region);
+  nsresult rv =
+  mFloatManager->AddFloat(aFloat, region);
   NS_ABORT_IF_FALSE(NS_SUCCEEDED(rv), "bad float placement");
   // store region
   nsFloatManager::StoreRegionFor(aFloat, region);
@@ -904,9 +905,9 @@ nsBlockReflowState::PlaceBelowCurrentLineFloats(nsFloatCacheFreeList& aList,
 }
 
 nscoord
-nsBlockReflowState::ClearFloats(nscoord aY, uint8_t aBreakType,
+nsBlockReflowState::ClearFloats(nscoord aY, PRUint8 aBreakType,
                                 nsIFrame *aReplacedBlock,
-                                uint32_t aFlags)
+                                PRUint32 aFlags)
 {
 #ifdef DEBUG
   if (nsBlockFrame::gNoisyReflow) {

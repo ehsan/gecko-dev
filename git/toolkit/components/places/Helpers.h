@@ -40,7 +40,7 @@ protected:
  */
 #define NS_DECL_ASYNCSTATEMENTCALLBACK \
   NS_IMETHOD HandleResult(mozIStorageResultSet *); \
-  NS_IMETHOD HandleCompletion(uint16_t);
+  NS_IMETHOD HandleCompletion(PRUint16);
 
 /**
  * Utils to bind a specified URI (or URL) to a statement or binding params, at
@@ -52,11 +52,11 @@ class URIBinder // static
 public:
   // Bind URI to statement by index.
   static nsresult Bind(mozIStorageStatement* statement,
-                       int32_t index,
+                       PRInt32 index,
                        nsIURI* aURI);
   // Statement URLCString to statement by index.
   static nsresult Bind(mozIStorageStatement* statement,
-                       int32_t index,
+                       PRInt32 index,
                        const nsACString& aURLString);
   // Bind URI to statement by name.
   static nsresult Bind(mozIStorageStatement* statement,
@@ -68,11 +68,11 @@ public:
                        const nsACString& aURLString);
   // Bind URI to params by index.
   static nsresult Bind(mozIStorageBindingParams* aParams,
-                       int32_t index,
+                       PRInt32 index,
                        nsIURI* aURI);
   // Bind URLCString to params by index.
   static nsresult Bind(mozIStorageBindingParams* aParams,
-                       int32_t index,
+                       PRInt32 index,
                        const nsACString& aURLString);
   // Bind URI to params by name.
   static nsresult Bind(mozIStorageBindingParams* aParams,
@@ -209,7 +209,7 @@ void ForceWALCheckpoint();
  * @return true if this visit should be hidden.
  */
 bool GetHiddenState(bool aIsRedirect,
-                    uint32_t aTransitionType);
+                    PRUint32 aTransitionType);
 
 /**
  * Notifies a specified topic via the observer service.
@@ -238,7 +238,7 @@ public:
   {
   }
 
-  NS_IMETHOD HandleCompletion(uint16_t aReason);
+  NS_IMETHOD HandleCompletion(PRUint16 aReason);
 
 private:
   const char* mTopic;
@@ -257,7 +257,7 @@ public:
   {
   }
 
-  NS_IMETHOD HandleCompletion(uint16_t aReason);
+  NS_IMETHOD HandleCompletion(PRUint16 aReason);
 
 private:
   const Telemetry::ID mHistogramId;

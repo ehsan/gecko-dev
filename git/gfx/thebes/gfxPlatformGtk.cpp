@@ -28,6 +28,9 @@
 
 #include "cairo.h"
 #include <gtk/gtk.h>
+#if (MOZ_WIDGET_GTK == 2)
+#include "gtk2compat.h"
+#endif
 
 #include "gfxImageSurface.h"
 #ifdef MOZ_X11
@@ -90,9 +93,6 @@ gfxPlatformGtk::gfxPlatformGtk()
     gCodepointsWithNoFonts = new gfxSparseBitSet();
     UpdateFontList();
 #endif
-    uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
-    uint32_t contentMask = (1 << BACKEND_CAIRO);
-    InitBackendPrefs(canvasMask, contentMask);
 }
 
 gfxPlatformGtk::~gfxPlatformGtk()
@@ -145,7 +145,14 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
     // we should try to match
     GdkScreen *gdkScreen = gdk_screen_get_default();
     if (gdkScreen) {
-        if (UseXRender()) {
+        if (!UseXRender()) {
+            // We're not going to use XRender, so we don't need to
+            // search for a render format
+            newSurface = new gfxImageSurface(size, imageFormat);
+            // The gfxImageSurface ctor zeroes this for us, no need to
+            // waste time clearing again
+            needsClear = false;
+        } else {
             Screen *screen = gdk_x11_screen_get_xscreen(gdkScreen);
             XRenderPictFormat* xrenderFormat =
                 gfxXlibSurface::FindRenderFormat(DisplayOfScreen(screen),
@@ -154,13 +161,6 @@ gfxPlatformGtk::CreateOffscreenSurface(const gfxIntSize& size,
             if (xrenderFormat) {
                 newSurface = gfxXlibSurface::Create(screen, xrenderFormat, size);
             }
-        } else {
-            // We're not going to use XRender, so we don't need to
-            // search for a render format
-            newSurface = new gfxImageSurface(size, imageFormat);
-            // The gfxImageSurface ctor zeroes this for us, no need to
-            // waste time clearing again
-            needsClear = false;
         }
     }
 #endif
@@ -235,7 +235,7 @@ gfxPlatformGtk::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
 
 gfxFontEntry* 
 gfxPlatformGtk::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry, 
-                                 const uint8_t *aFontData, uint32_t aLength)
+                                 const PRUint8 *aFontData, PRUint32 aLength)
 {
     // passing ownership of the font data to the new font entry
     return gfxPangoFontGroup::NewFontEntry(*aProxyEntry,
@@ -243,7 +243,7 @@ gfxPlatformGtk::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
 }
 
 bool
-gfxPlatformGtk::IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags)
+gfxPlatformGtk::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 {
     // check for strange format flags
     NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
@@ -285,7 +285,7 @@ gfxPlatformGtk::UpdateFontList()
     FcPattern *pat = NULL;
     FcObjectSet *os = NULL;
     FcFontSet *fs = NULL;
-    int32_t result = -1;
+    PRInt32 result = -1;
 
     pat = FcPatternCreate();
     os = FcObjectSetBuild(FC_FAMILY, FC_FILE, FC_INDEX, FC_WEIGHT, FC_SLANT, FC_WIDTH, NULL);
@@ -371,7 +371,7 @@ gfxPlatformGtk::ResolveFontName(const nsAString& aFontName,
         return NS_OK;
     }
 
-    nsAutoCString utf8Name = NS_ConvertUTF16toUTF8(aFontName);
+    nsCAutoString utf8Name = NS_ConvertUTF16toUTF8(aFontName);
 
     FcPattern *npat = FcPatternCreate();
     FcPatternAddString(npat, FC_FAMILY, (FcChar8*)utf8Name.get());
@@ -450,16 +450,16 @@ gfxPlatformGtk::CreateFontGroup(const nsAString &aFamilies,
 
 #endif
 
-static int32_t sDPI = 0;
+static PRInt32 sDPI = 0;
 
-int32_t
+PRInt32
 gfxPlatformGtk::GetDPI()
 {
     if (!sDPI) {
         // Make sure init is run so we have a resolution
         GdkScreen *screen = gdk_screen_get_default();
         gtk_settings_get_for_screen(screen);
-        sDPI = int32_t(round(gdk_screen_get_resolution(screen)));
+        sDPI = PRInt32(round(gdk_screen_get_resolution(screen)));
         if (sDPI <= 0) {
             // Fall back to something sane
             sDPI = 96;
@@ -639,7 +639,7 @@ FindFontForCharProc(nsStringHashKey::KeyType aKey,
 }
 
 already_AddRefed<gfxFont>
-gfxPlatformGtk::FindFontForChar(uint32_t aCh, gfxFont *aFont)
+gfxPlatformGtk::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
 {
     if (!gPlatformFonts || !gCodepointsWithNoFonts)
         return nullptr;
@@ -729,7 +729,7 @@ gfxPlatformGtk::GetGdkDrawable(gfxASurface *target)
 }
 #endif
 
-TemporaryRef<ScaledFont>
+RefPtr<ScaledFont>
 gfxPlatformGtk::GetScaledFontForFont(DrawTarget* aTarget, gfxFont *aFont)
 {
     NativeFont nativeFont;

@@ -117,7 +117,7 @@ ThrowHook(JSContext *cx, JSScript *, jsbytecode *, jsval *rval, void *closure)
     JS_ASSERT(!closure);
     called = true;
 
-    js::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
+    JS::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
 
     char text[] = "new Error()";
     jsval _;
@@ -150,16 +150,17 @@ END_TEST(testDebugger_throwHook)
 BEGIN_TEST(testDebugger_debuggerObjectVsDebugMode)
 {
     CHECK(JS_DefineDebuggerObject(cx, global));
-    js::RootedObject debuggee(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
+    JS::RootedObject debuggee(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
     CHECK(debuggee);
 
     {
-        JSAutoCompartment ae(cx, debuggee);
+        JSAutoEnterCompartment ae;
+        CHECK(ae.enter(cx, debuggee));
         CHECK(JS_SetDebugMode(cx, true));
         CHECK(JS_InitStandardClasses(cx, debuggee));
     }
 
-    js::RootedObject debuggeeWrapper(cx, debuggee);
+    JS::RootedObject debuggeeWrapper(cx, debuggee);
     CHECK(JS_WrapObject(cx, debuggeeWrapper.address()));
     jsval v = OBJECT_TO_JSVAL(debuggeeWrapper);
     CHECK(JS_SetProperty(cx, global, "debuggee", &v));
@@ -173,7 +174,8 @@ BEGIN_TEST(testDebugger_debuggerObjectVsDebugMode)
     CHECK_SAME(v, JSVAL_ONE);
 
     {
-        JSAutoCompartment ae(cx, debuggee);
+        JSAutoEnterCompartment ae;
+        CHECK(ae.enter(cx, debuggee));
         CHECK(JS_SetDebugMode(cx, false));
     }
 
@@ -190,14 +192,15 @@ BEGIN_TEST(testDebugger_newScriptHook)
 {
     // Test that top-level indirect eval fires the newScript hook.
     CHECK(JS_DefineDebuggerObject(cx, global));
-    js::RootedObject g(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
+    JS::RootedObject g(cx, JS_NewGlobalObject(cx, getGlobalClass(), NULL));
     CHECK(g);
     {
-        JSAutoCompartment ae(cx, g);
+        JSAutoEnterCompartment ae;
+        CHECK(ae.enter(cx, g));
         CHECK(JS_InitStandardClasses(cx, g));
     }
 
-    js::RootedObject gWrapper(cx, g);
+    JS::RootedObject gWrapper(cx, g);
     CHECK(JS_WrapObject(cx, gWrapper.address()));
     jsval v = OBJECT_TO_JSVAL(gWrapper);
     CHECK(JS_SetProperty(cx, global, "g", &v));
@@ -222,7 +225,8 @@ bool testIndirectEval(JS::HandleObject scope, const char *code)
     EXEC("hits = 0;");
 
     {
-        JSAutoCompartment ae(cx, scope);
+        JSAutoEnterCompartment ae;
+        CHECK(ae.enter(cx, scope));
         JSString *codestr = JS_NewStringCopyZ(cx, code);
         CHECK(codestr);
         jsval argv[1] = { STRING_TO_JSVAL(codestr) };

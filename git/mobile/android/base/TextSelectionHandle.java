@@ -4,8 +4,8 @@
 
 package org.mozilla.gecko;
 
+import org.mozilla.gecko.gfx.GeckoLayerClient;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.LayerView;
 
 import org.json.JSONObject;
 
@@ -22,7 +22,7 @@ import android.widget.RelativeLayout;
 class TextSelectionHandle extends ImageView implements View.OnTouchListener {
     private static final String LOGTAG = "GeckoTextSelectionHandle";
 
-    private enum HandleType { START, MIDDLE, END }; 
+    private enum HandleType { START, END }; 
 
     private final HandleType mHandleType;
     private final int mWidth;
@@ -42,16 +42,8 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
         setOnTouchListener(this);
 
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TextSelectionHandle);
-        int handleType = a.getInt(R.styleable.TextSelectionHandle_handleType, 0x01);
-
-        if (handleType == 0x01)
-            mHandleType = HandleType.START;
-        else if (handleType == 0x02)
-            mHandleType = HandleType.MIDDLE;
-        else
-            mHandleType = HandleType.END;
-
-        mGeckoPoint = new PointF(0.0f, 0.0f);
+        String handleType = a.getString(R.styleable.TextSelectionHandle_handleType);
+        mHandleType = handleType.equals("START") ? HandleType.START : HandleType.END;
 
         mWidth = getResources().getDimensionPixelSize(R.dimen.text_selection_handle_width);
         mHeight = getResources().getDimensionPixelSize(R.dimen.text_selection_handle_height);
@@ -91,22 +83,15 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
         mLeft = mLeft + newX - mTouchStartX;
         mTop = mTop + newY - mTouchStartY;
 
-        LayerView layerView = GeckoApp.mAppContext.getLayerView();
-        if (layerView == null) {
-            Log.e(LOGTAG, "Can't move selection because layerView is null");
+        GeckoLayerClient layerClient = GeckoApp.mAppContext.getLayerClient();
+        if (layerClient == null) {
+            Log.e(LOGTAG, "Can't move selection because layerClient is null");
             return;
         }
         // Send x coordinate on the right side of the start handle, left side of the end handle.
-        float left = (float) mLeft;
-        if (mHandleType.equals(HandleType.START))
-            left +=  mWidth - mShadow;
-        else if (mHandleType.equals(HandleType.MIDDLE))
-            left +=  (float) ((mWidth - mShadow) / 2);
-        else
-            left += mShadow;
-
+        float left = (float) mLeft + (mHandleType.equals(HandleType.START) ? mWidth - mShadow : mShadow);
         PointF geckoPoint = new PointF(left, (float) mTop);
-        geckoPoint = layerView.convertViewPointToLayerPoint(geckoPoint);
+        geckoPoint = layerClient.convertViewPointToLayerPoint(geckoPoint);
 
         JSONObject args = new JSONObject();
         try {
@@ -122,14 +107,14 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
     }
 
     void positionFromGecko(int left, int top) {
-        LayerView layerView = GeckoApp.mAppContext.getLayerView();
-        if (layerView == null) {
-            Log.e(LOGTAG, "Can't position handle because layerView is null");
+        GeckoLayerClient layerClient = GeckoApp.mAppContext.getLayerClient();
+        if (layerClient == null) {
+            Log.e(LOGTAG, "Can't position handle because layerClient is null");
             return;
         }
 
         mGeckoPoint = new PointF((float) left, (float) top);
-        ImmutableViewportMetrics metrics = layerView.getViewportMetrics();
+        ImmutableViewportMetrics metrics = layerClient.getViewportMetrics();
         repositionWithViewport(metrics.viewportRectLeft, metrics.viewportRectTop, metrics.zoomFactor);
     }
 
@@ -137,14 +122,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
         PointF viewPoint = new PointF((mGeckoPoint.x * zoom) - x,
                                       (mGeckoPoint.y * zoom) - y);
 
-        mLeft = Math.round(viewPoint.x);
-        if (mHandleType.equals(HandleType.START))
-            mLeft -=  mWidth - mShadow;
-        else if (mHandleType.equals(HandleType.MIDDLE))
-            mLeft -=  (float) ((mWidth - mShadow) / 2);
-        else
-            mLeft -= mShadow;
-
+        mLeft = Math.round(viewPoint.x) - (mHandleType.equals(HandleType.START) ? mWidth - mShadow : mShadow);
         mTop = Math.round(viewPoint.y);
 
         setLayoutPosition();

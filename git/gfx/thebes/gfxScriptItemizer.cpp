@@ -64,7 +64,7 @@
 #define SYNC_FIXUP() (fixupCount = 0)
 
 void
-gfxScriptItemizer::push(uint32_t endPairChar, int32_t scriptCode)
+gfxScriptItemizer::push(PRUint32 endPairChar, PRInt32 scriptCode)
 {
     pushCount  = LIMIT_INC(pushCount);
     fixupCount = LIMIT_INC(fixupCount);
@@ -97,9 +97,9 @@ gfxScriptItemizer::pop()
 }
 
 void
-gfxScriptItemizer::fixup(int32_t scriptCode)
+gfxScriptItemizer::fixup(PRInt32 scriptCode)
 {
-    int32_t fixupSP = DEC(parenSP, fixupCount);
+    PRInt32 fixupSP = DEC(parenSP, fixupCount);
 
     while (fixupCount-- > 0) {
         fixupSP = INC1(fixupSP);
@@ -108,7 +108,7 @@ gfxScriptItemizer::fixup(int32_t scriptCode)
 }
 
 static inline bool
-SameScript(int32_t runScript, int32_t currCharScript)
+SameScript(PRInt32 runScript, PRInt32 currCharScript)
 {
     return runScript <= MOZ_SCRIPT_INHERITED ||
            currCharScript <= MOZ_SCRIPT_INHERITED ||
@@ -119,19 +119,19 @@ SameScript(int32_t runScript, int32_t currCharScript)
 // NOTE that this depends on the implementation of nsCharProps records in
 // nsUnicodeProperties, and may need to be updated if those structures change
 static inline bool
-HasMirroredChar(uint32_t aCh)
+HasMirroredChar(PRUint32 aCh)
 {
     return GetCharProps1(aCh).mMirrorOffsetIndex != 0;
 }
 
-gfxScriptItemizer::gfxScriptItemizer(const PRUnichar *src, uint32_t length)
+gfxScriptItemizer::gfxScriptItemizer(const PRUnichar *src, PRUint32 length)
     : textPtr(src), textLength(length)
 {
     reset();
 }
 
 void
-gfxScriptItemizer::SetText(const PRUnichar *src, uint32_t length)
+gfxScriptItemizer::SetText(const PRUnichar *src, PRUint32 length)
 {
     textPtr  = src;
     textLength = length;
@@ -140,8 +140,8 @@ gfxScriptItemizer::SetText(const PRUnichar *src, uint32_t length)
 }
 
 bool
-gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
-                        int32_t& aRunScript)
+gfxScriptItemizer::Next(PRUint32& aRunStart, PRUint32& aRunLimit,
+                        PRInt32& aRunScript)
 {
     /* if we've fallen off the end of the text, we're done */
     if (scriptLimit >= textLength) {
@@ -152,15 +152,15 @@ gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
     scriptCode = MOZ_SCRIPT_COMMON;
 
     for (scriptStart = scriptLimit; scriptLimit < textLength; scriptLimit += 1) {
-        uint32_t ch;
-        int32_t sc;
-        uint32_t startOfChar = scriptLimit;
+        PRUint32 ch;
+        PRInt32 sc;
+        PRUint32 startOfChar = scriptLimit;
 
         ch = textPtr[scriptLimit];
 
         /* decode UTF-16 (may be surrogate pair) */
         if (NS_IS_HIGH_SURROGATE(ch) && scriptLimit < textLength - 1) {
-            uint32_t low = textPtr[scriptLimit + 1];
+            PRUint32 low = textPtr[scriptLimit + 1];
             if (NS_IS_LOW_SURROGATE(low)) {
                 ch = SURROGATE_TO_UCS4(ch, low);
                 scriptLimit += 1;
@@ -177,7 +177,7 @@ gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
 
         // Initialize gc to UNASSIGNED; we'll only set it to the true GC
         // if the character has script=COMMON, otherwise we don't care.
-        uint8_t gc = HB_UNICODE_GENERAL_CATEGORY_UNASSIGNED;
+        PRUint8 gc = HB_UNICODE_GENERAL_CATEGORY_UNASSIGNED;
 
         sc = charProps.mScriptCode;
         if (sc == MOZ_SCRIPT_COMMON) {
@@ -194,7 +194,7 @@ gfxScriptItemizer::Next(uint32_t& aRunStart, uint32_t& aRunLimit,
              */
             gc = charProps.mCategory;
             if (gc == HB_UNICODE_GENERAL_CATEGORY_OPEN_PUNCTUATION) {
-                uint32_t endPairChar = mozilla::unicode::GetMirroredChar(ch);
+                PRUint32 endPairChar = mozilla::unicode::GetMirroredChar(ch);
                 if (endPairChar != ch) {
                     push(endPairChar, scriptCode);
                 }

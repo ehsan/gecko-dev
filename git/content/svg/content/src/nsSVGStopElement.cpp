@@ -8,6 +8,7 @@
 #include "nsSVGStylableElement.h"
 #include "nsIDOMSVGStopElement.h"
 #include "nsSVGNumber2.h"
+#include "nsSVGUtils.h"
 #include "nsGenericHTMLElement.h"
 
 using namespace mozilla;
@@ -30,7 +31,7 @@ public:
 
   // xxx If xpcom allowed virtual inheritance we wouldn't need to
   // forward here :-(
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsSVGStopElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGStopElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGStopElementBase::)
 

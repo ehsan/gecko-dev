@@ -9,7 +9,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsMappedAttributes.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsRuleData.h"
@@ -31,7 +30,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
@@ -42,7 +41,7 @@ public:
   // nsIDOMHTMLTableColElement
   NS_DECL_NSIDOMHTMLTABLECOLELEMENT
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -96,7 +95,7 @@ NS_IMPL_STRING_ATTR(nsHTMLTableColElement, Width, width)
 
 
 bool
-nsHTMLTableColElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLTableColElement::ParseAttribute(PRInt32 aNamespaceID,
                                       nsIAtom* aAttribute,
                                       const nsAString& aValue,
                                       nsAttrValue& aResult)
@@ -134,7 +133,7 @@ void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aD
       // span: int
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::span);
       if (value && value->Type() == nsAttrValue::eInteger) {
-        int32_t val = value->GetIntegerValue();
+        PRInt32 val = value->GetIntegerValue();
         // Note: Do NOT use this code for table cells!  The value "0"
         // means something special for colspan and rowspan, but for <col
         // span> and <colgroup span> it's just disallowed.

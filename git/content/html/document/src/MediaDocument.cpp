@@ -77,8 +77,8 @@ NS_IMETHODIMP
 MediaDocumentStreamListener::OnDataAvailable(nsIRequest* request,
                                              nsISupports *ctxt,
                                              nsIInputStream *inStr,
-                                             uint64_t sourceOffset,
-                                             uint32_t count)
+                                             PRUint32 sourceOffset,
+                                             PRUint32 count)
 {
   if (mNextStream) {
     return mNextStream->OnDataAvailable(request, ctxt, inStr, sourceOffset, count);
@@ -163,7 +163,7 @@ MediaDocument::StartDocumentLoad(const char*         aCommand,
   // not being able to set the charset is not critical.
   NS_ENSURE_TRUE(docShell, NS_OK); 
 
-  nsAutoCString charset;
+  nsCAutoString charset;
 
   nsCOMPtr<nsIAtom> csAtom;
   docShell->GetParentCharset(getter_AddRefs(csAtom));
@@ -280,9 +280,9 @@ MediaDocument::StartLayout()
   nsCOMPtr<nsIPresShell> shell = GetShell();
   // Don't mess with the presshell if someone has already handled
   // its initial reflow.
-  if (shell && !shell->DidInitialize()) {
+  if (shell && !shell->DidInitialReflow()) {
     nsRect visibleArea = shell->GetPresContext()->GetVisibleArea();
-    nsresult rv = shell->Initialize(visibleArea.width, visibleArea.height);
+    nsresult rv = shell->InitialReflow(visibleArea.width, visibleArea.height);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -298,12 +298,12 @@ MediaDocument::GetFileName(nsAString& aResult)
   if (!url)
     return;
 
-  nsAutoCString fileName;
+  nsCAutoString fileName;
   url->GetFileName(fileName);
   if (fileName.IsEmpty())
     return;
 
-  nsAutoCString docCharset;
+  nsCAutoString docCharset;
   // Now that the charset is set in |StartDocumentLoad| to the charset of
   // the document viewer instead of a bogus value ("ISO-8859-1" set in
   // |nsDocument|'s ctor), the priority is given to the current charset. 
@@ -353,7 +353,7 @@ MediaDocument::LinkStylesheet(const nsAString& aStylesheet)
 void 
 MediaDocument::UpdateTitleAndCharset(const nsACString& aTypeStr,
                                      const char* const* aFormatNames,
-                                     int32_t aWidth, int32_t aHeight,
+                                     PRInt32 aWidth, PRInt32 aHeight,
                                      const nsAString& aStatus)
 {
   nsXPIDLString fileStr;

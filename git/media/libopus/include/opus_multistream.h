@@ -1,10 +1,6 @@
-/* Copyright (c) 2011-2012 IETF Trust, Xiph.Org Foundation. All rights reserved.
+/* Copyright (c) 2011 Xiph.Org Foundation
    Written by Jean-Marc Valin */
 /*
-
-   This file is extracted from RFC6716. Please see that RFC for additional
-   information.
-
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions
    are met:
@@ -43,10 +39,6 @@
 #define OPUS_MULTISTREAM_H
 
 #include "opus.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef struct OpusMSEncoder OpusMSEncoder;
 typedef struct OpusMSDecoder OpusMSDecoder;
@@ -173,9 +165,5 @@ OPUS_EXPORT int opus_multistream_decoder_ctl(OpusMSDecoder *st, int request, ...
 
 /** Deallocate a multistream decoder state object */
 OPUS_EXPORT void opus_multistream_decoder_destroy(OpusMSDecoder *st);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* OPUS_MULTISTREAM_H */

@@ -48,7 +48,7 @@ ifdef MOZ_PKG_MANIFEST_P
 MOZ_PKG_MANIFEST = package-manifest
 endif
 
-MOZ_POST_STAGING_CMD = find chrome -type f -name *.properties -exec $(PERL) -n -i -e 'print unless /^\#/' {} \;
+MOZ_POST_STAGING_CMD = find chrome -type f -name *.properties -exec sed -i '/^\#/d' {} \;
 
 include $(topsrcdir)/toolkit/mozapps/installer/packager.mk
 
@@ -60,10 +60,6 @@ else
 BINPATH = bin
 endif
 DEFINES += -DBINPATH=$(BINPATH)
-
-ifdef ENABLE_MARIONETTE
-DEFINES += -DENABLE_MARIONETTE=1
-endif
 
 ifdef MOZ_PKG_MANIFEST_P
 $(MOZ_PKG_MANIFEST): $(MOZ_PKG_MANIFEST_P) $(GLOBAL_DEPS)

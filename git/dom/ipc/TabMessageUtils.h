@@ -6,7 +6,7 @@
 #ifndef TABMESSAGE_UTILS_H
 #define TABMESSAGE_UTILS_H
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "nsIDOMEvent.h"
 #include "nsCOMPtr.h"
 
@@ -28,7 +28,7 @@ bool ReadRemoteEvent(const IPC::Message* aMsg, void** aIter,
 typedef CrashReporter::ThreadId NativeThreadId;
 #else
 // unused in this case
-typedef int32_t NativeThreadId;
+typedef int32 NativeThreadId;
 #endif
 
 }

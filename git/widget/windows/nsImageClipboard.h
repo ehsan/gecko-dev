@@ -27,7 +27,7 @@ Any other render format? HTML?
 class nsImageToClipboard
 {
 public:
-  nsImageToClipboard(imgIContainer* aInImage, bool aWantDIBV5 = true);
+  nsImageToClipboard ( imgIContainer* inImage );
   ~nsImageToClipboard();
 
     // Call to get the actual bits that go on the clipboard. If |nullptr|, the
@@ -39,28 +39,27 @@ public:
 private:
 
     // Computes # of bytes needed by a bitmap with the specified attributes.
-  int32_t CalcSize(int32_t aHeight, int32_t aColors, WORD aBitsPerPixel, int32_t aSpanBytes);
-  int32_t CalcSpanLength(uint32_t aWidth, uint32_t aBitCount);
+  PRInt32 CalcSize(PRInt32 aHeight, PRInt32 aColors, WORD aBitsPerPixel, PRInt32 aSpanBytes);
+  PRInt32 CalcSpanLength(PRUint32 aWidth, PRUint32 aBitCount);
 
     // Do the work
   nsresult CreateFromImage ( imgIContainer* inImage, HANDLE* outBitmap );
 
   nsCOMPtr<imgIContainer> mImage;            // the image we're working with
-  bool mWantDIBV5;
 
 }; // class nsImageToClipboard
 
 
 struct bitFields {
-    uint32_t red;
-    uint32_t green;
-    uint32_t blue;
-    uint8_t redLeftShift;
-    uint8_t redRightShift;
-    uint8_t greenLeftShift;
-    uint8_t greenRightShift;
-    uint8_t blueLeftShift;
-    uint8_t blueRightShift;
+    PRUint32 red;
+    PRUint32 green;
+    PRUint32 blue;
+    PRUint8 redLeftShift;
+    PRUint8 redRightShift;
+    PRUint8 greenLeftShift;
+    PRUint8 greenRightShift;
+    PRUint8 blueLeftShift;
+    PRUint8 blueRightShift;
 };
 
 //
@@ -80,9 +79,9 @@ public:
 
 private:
 
-  void InvertRows(unsigned char * aInitialBuffer, uint32_t aSizeOfBuffer, uint32_t aNumBytesPerRow);
+  void InvertRows(unsigned char * aInitialBuffer, PRUint32 aSizeOfBuffer, PRUint32 aNumBytesPerRow);
   nsresult ConvertColorBitMap(unsigned char * aInputBuffer, PBITMAPINFO pBitMapInfo, unsigned char * aOutBuffer);
-  void CalcBitmask(uint32_t aMask, uint8_t& aBegin, uint8_t& aLength);
+  void CalcBitmask(PRUint32 aMask, PRUint8& aBegin, PRUint8& aLength);
   void CalcBitShift(bitFields * aColorMask);
 
 }; // nsImageFromClipboard

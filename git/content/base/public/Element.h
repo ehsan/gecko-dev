@@ -18,25 +18,26 @@ class nsGlobalWindow;
 class nsICSSDeclaration;
 class nsISMILAttr;
 
-#define ELEMENT_FLAG_BIT(n_) NODE_FLAG_BIT(NODE_TYPE_SPECIFIC_BITS_OFFSET + (n_))
-
 // Element-specific flags
 enum {
   // Set if the element has a pending style change.
-  ELEMENT_HAS_PENDING_RESTYLE =                 ELEMENT_FLAG_BIT(0),
+  ELEMENT_HAS_PENDING_RESTYLE     = (1 << NODE_TYPE_SPECIFIC_BITS_OFFSET),
 
   // Set if the element is a potential restyle root (that is, has a style
   // change pending _and_ that style change will attempt to restyle
   // descendants).
-  ELEMENT_IS_POTENTIAL_RESTYLE_ROOT =           ELEMENT_FLAG_BIT(1),
+  ELEMENT_IS_POTENTIAL_RESTYLE_ROOT =
+    (1 << (NODE_TYPE_SPECIFIC_BITS_OFFSET + 1)),
 
   // Set if the element has a pending animation style change.
-  ELEMENT_HAS_PENDING_ANIMATION_RESTYLE =       ELEMENT_FLAG_BIT(2),
+  ELEMENT_HAS_PENDING_ANIMATION_RESTYLE =
+    (1 << (NODE_TYPE_SPECIFIC_BITS_OFFSET + 2)),
 
   // Set if the element is a potential animation restyle root (that is,
   // has an animation style change pending _and_ that style change
   // will attempt to restyle descendants).
-  ELEMENT_IS_POTENTIAL_ANIMATION_RESTYLE_ROOT = ELEMENT_FLAG_BIT(3),
+  ELEMENT_IS_POTENTIAL_ANIMATION_RESTYLE_ROOT =
+    (1 << (NODE_TYPE_SPECIFIC_BITS_OFFSET + 3)),
 
   // All of those bits together, for convenience.
   ELEMENT_ALL_RESTYLE_FLAGS = ELEMENT_HAS_PENDING_RESTYLE |
@@ -51,8 +52,6 @@ enum {
   // Remaining bits are for subclasses
   ELEMENT_TYPE_SPECIFIC_BITS_OFFSET = NODE_TYPE_SPECIFIC_BITS_OFFSET + 4
 };
-
-#undef ELEMENT_FLAG_BIT
 
 namespace mozilla {
 namespace dom {
@@ -176,7 +175,7 @@ public:
    *
    * The CALLER OWNS the result and is responsible for deleting it.
    */
-  virtual nsISMILAttr* GetAnimatedAttr(int32_t aNamespaceID, nsIAtom* aName) = 0;
+  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName) = 0;
 
   /**
    * Get the SMIL override style for this element. This is a style declaration
@@ -209,7 +208,7 @@ public:
    * mapped into style data via any type of style rule.
    */
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                              int32_t aModType) const = 0;
+                                              PRInt32 aModType) const = 0;
 
   /**
    * Returns an atom holding the name of the "class" attribute on this
@@ -346,11 +345,6 @@ inline const mozilla::dom::Element* nsINode::AsElement() const
 {
   MOZ_ASSERT(IsElement());
   return static_cast<const mozilla::dom::Element*>(this);
-}
-
-inline bool nsINode::HasAttributes() const
-{
-  return IsElement() && AsElement()->GetAttrCount() > 0;
 }
 
 #endif // mozilla_dom_Element_h__

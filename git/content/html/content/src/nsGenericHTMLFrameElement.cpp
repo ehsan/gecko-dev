@@ -12,7 +12,6 @@
 #include "nsIAppsService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDOMApplicationRegistry.h"
-#include "nsIPermissionManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -31,13 +30,8 @@ NS_INTERFACE_TABLE_HEAD(nsGenericHTMLFrameElement)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsGenericHTMLFrameElement)
 NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLElement)
 
+NS_IMPL_INT_ATTR(nsGenericHTMLFrameElement, TabIndex, tabindex)
 NS_IMPL_BOOL_ATTR(nsGenericHTMLFrameElement, Mozbrowser, mozbrowser)
-
-int32_t
-nsGenericHTMLFrameElement::TabIndexDefault()
-{
-  return 0;
-}
 
 nsGenericHTMLFrameElement::~nsGenericHTMLFrameElement()
 {
@@ -208,7 +202,7 @@ nsGenericHTMLFrameElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsresult
-nsGenericHTMLFrameElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsGenericHTMLFrameElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                    nsIAtom* aPrefix, const nsAString& aValue,
                                    bool aNotify)
 {
@@ -258,7 +252,7 @@ nsGenericHTMLFrameElement::CopyInnerTo(nsGenericElement* aDest)
 bool
 nsGenericHTMLFrameElement::IsHTMLFocusable(bool aWithMouse,
                                            bool *aIsFocusable,
-                                           int32_t *aTabIndex)
+                                           PRInt32 *aTabIndex)
 {
   if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
     return true;
@@ -296,15 +290,18 @@ nsGenericHTMLFrameElement::GetReallyIsBrowser(bool *aOut)
   }
 
   // Fail if the node principal isn't trusted.
+  // TODO: check properly for mozApps rights when mozApps will be less hacky.
   nsIPrincipal *principal = NodePrincipal();
-  nsCOMPtr<nsIPermissionManager> permMgr =
-    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-  NS_ENSURE_STATE(permMgr);
+  nsCOMPtr<nsIURI> principalURI;
+  principal->GetURI(getter_AddRefs(principalURI));
+  if (!nsContentUtils::IsSystemPrincipal(principal) &&
+      !nsContentUtils::URIIsChromeOrInPref(principalURI,
+                                           "dom.mozBrowserFramesWhitelist")) {
+    return NS_OK;
+  }
 
-  uint32_t permission = nsIPermissionManager::DENY_ACTION;
-  nsresult rv = permMgr->TestPermissionFromPrincipal(principal, "browser", &permission);
-  NS_ENSURE_SUCCESS(rv, NS_OK);
-  *aOut = permission == nsIPermissionManager::ALLOW_ACTION;
+  // Otherwise, succeed.
+  *aOut = true;
   return NS_OK;
 }
 
@@ -330,20 +327,8 @@ nsGenericHTMLFrameElement::GetAppManifestURL(nsAString& aOut)
     return NS_OK;
   }
 
-  // Check permission.
-  nsIPrincipal *principal = NodePrincipal();
-  nsCOMPtr<nsIPermissionManager> permMgr =
-    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-  NS_ENSURE_STATE(permMgr);
-
-  uint32_t permission = nsIPermissionManager::DENY_ACTION;
-  nsresult rv = permMgr->TestPermissionFromPrincipal(principal,
-                                                     "embed-apps",
-                                                     &permission);
-  NS_ENSURE_SUCCESS(rv, NS_OK);
-  if (permission != nsIPermissionManager::ALLOW_ACTION) {
-    return NS_OK;
-  }
+  // TODO: We surely need a permissions check here, particularly once we no
+  // longer rely on the mozbrowser permission check.
 
   nsAutoString manifestURL;
   GetAttr(kNameSpaceID_None, nsGkAtoms::mozapp, manifestURL);

@@ -18,8 +18,6 @@
 #include "mozilla/Hal.h"
 #include "AudioManager.h"
 #include "gonk/AudioSystem.h"
-#include "nsIObserverService.h"
-#include "mozilla/Services.h"
 
 using namespace mozilla::dom::gonk;
 using namespace android;
@@ -28,30 +26,7 @@ using namespace mozilla;
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "AudioManager" , ## args) 
 
-#define HEADPHONES_STATUS_CHANGED "headphones-status-changed"
-#define HEADPHONES_STATUS_ON      NS_LITERAL_STRING("on").get()
-#define HEADPHONES_STATUS_OFF     NS_LITERAL_STRING("off").get()
-#define HEADPHONES_STATUS_UNKNOWN NS_LITERAL_STRING("unknown").get()
-#define BLUETOOTH_SCO_STATUS_CHANGED "bluetooth-sco-status-changed"
-
-// A bitwise variable for recording what kind of headset is attached.
-static int sHeadsetState;
-static int kBtSampleRate = 8000;
-
-static bool
-IsFmRadioAudioOn()
-{
-  if (static_cast<
-      audio_policy_dev_state_t (*) (audio_devices_t, const char *)
-      >(AudioSystem::getDeviceConnectionState)) {
-    return AudioSystem::getDeviceConnectionState(AUDIO_DEVICE_OUT_FM, "") == 
-           AUDIO_POLICY_DEVICE_STATE_AVAILABLE ? true : false;
-  } else {
-    return false;
-  }
-}
-
-NS_IMPL_ISUPPORTS2(AudioManager, nsIAudioManager, nsIObserver)
+NS_IMPL_ISUPPORTS1(AudioManager, nsIAudioManager)
 
 static AudioSystem::audio_devices
 GetRoutingMode(int aType) {
@@ -69,100 +44,12 @@ GetRoutingMode(int aType) {
 }
 
 static void
-InternalSetAudioRoutesICS(SwitchState aState)
-{
-  if (aState == SWITCH_STATE_HEADSET) {
-    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_WIRED_HEADSET,
-                                          AUDIO_POLICY_DEVICE_STATE_AVAILABLE, "");
-    sHeadsetState |= AUDIO_DEVICE_OUT_WIRED_HEADSET;
-  } else if (aState == SWITCH_STATE_HEADPHONE) {
-    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_WIRED_HEADPHONE,
-                                          AUDIO_POLICY_DEVICE_STATE_AVAILABLE, "");
-    sHeadsetState |= AUDIO_DEVICE_OUT_WIRED_HEADPHONE;
-  } else if (aState == SWITCH_STATE_OFF) {
-    AudioSystem::setDeviceConnectionState(static_cast<audio_devices_t>(sHeadsetState),
-                                          AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-    sHeadsetState = 0;
-  }
-
-  // The audio volume is not consistent when we plug and unplug the headset.
-  // Set the fm volume again here.
-  if (IsFmRadioAudioOn()) {
-    float masterVolume;
-    AudioSystem::getMasterVolume(&masterVolume);
-    AudioSystem::setFmVolume(masterVolume);
-  }
-}
-
-static void
-InternalSetAudioRoutesGB(SwitchState aState)
-{
-  audio_io_handle_t handle = 
-    AudioSystem::getOutput((AudioSystem::stream_type)AudioSystem::SYSTEM);
-  String8 cmd;
-
-  if (aState == SWITCH_STATE_HEADSET || aState == SWITCH_STATE_HEADPHONE) {
-    cmd.appendFormat("routing=%d", GetRoutingMode(nsIAudioManager::FORCE_HEADPHONES));
-  } else if (aState == SWITCH_STATE_OFF) {
-    cmd.appendFormat("routing=%d", GetRoutingMode(nsIAudioManager::FORCE_SPEAKER));
-  }
-
-  AudioSystem::setParameters(handle, cmd);
-}
-
-static void
 InternalSetAudioRoutes(SwitchState aState)
 {
-  if (static_cast<
-    status_t (*)(audio_devices_t, audio_policy_dev_state_t, const char*)
-    >(AudioSystem::setDeviceConnectionState)) {
-    InternalSetAudioRoutesICS(aState);
-  } else if (static_cast<
-    audio_io_handle_t (*)(AudioSystem::stream_type, uint32_t, uint32_t, uint32_t, AudioSystem::output_flags)
-    >(AudioSystem::getOutput)) {
-    InternalSetAudioRoutesGB(aState);
-  }
-}
-
-nsresult
-AudioManager::Observe(nsISupports* aSubject,
-                      const char* aTopic,
-                      const PRUnichar* aData)
-{
-  if (!strcmp(aTopic, BLUETOOTH_SCO_STATUS_CHANGED)) {
-    if (aData) {
-      String8 cmd;
-      cmd.appendFormat("bt_samplerate=%d", kBtSampleRate);
-      AudioSystem::setParameters(0, cmd);
-      const char* address = NS_ConvertUTF16toUTF8(nsDependentString(aData)).get();
-      AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,
-                                            AUDIO_POLICY_DEVICE_STATE_AVAILABLE, address);
-      AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,
-                                            AUDIO_POLICY_DEVICE_STATE_AVAILABLE, address);
-    } else {
-      AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO_HEADSET,
-                                            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-      AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET,
-                                            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-    }
-
-    return NS_OK;
-  }
-  return NS_ERROR_UNEXPECTED;
-}
-
-static void
-NotifyHeadphonesStatus(SwitchState aState)
-{
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-  if (obs) {
-    if (aState == SWITCH_STATE_ON) {
-      obs->NotifyObservers(nullptr, HEADPHONES_STATUS_CHANGED, HEADPHONES_STATUS_ON);
-    } else if (aState == SWITCH_STATE_OFF) {
-      obs->NotifyObservers(nullptr, HEADPHONES_STATUS_CHANGED, HEADPHONES_STATUS_OFF);
-    } else {
-      obs->NotifyObservers(nullptr, HEADPHONES_STATUS_CHANGED, HEADPHONES_STATUS_UNKNOWN);
-    }
+  if (aState == SWITCH_STATE_ON) {
+    AudioManager::SetAudioRoute(nsIAudioManager::FORCE_HEADPHONES);
+  } else if (aState == SWITCH_STATE_OFF) {
+    AudioManager::SetAudioRoute(nsIAudioManager::FORCE_SPEAKER);
   }
 }
 
@@ -171,7 +58,6 @@ class HeadphoneSwitchObserver : public SwitchObserver
 public:
   void Notify(const SwitchEvent& aEvent) {
     InternalSetAudioRoutes(aEvent.status());
-    NotifyHeadphonesStatus(aEvent.status());
   }
 };
 
@@ -179,23 +65,12 @@ AudioManager::AudioManager() : mPhoneState(PHONE_STATE_CURRENT),
                  mObserver(new HeadphoneSwitchObserver())
 {
   RegisterSwitchObserver(SWITCH_HEADPHONES, mObserver);
-
+  
   InternalSetAudioRoutes(GetCurrentSwitchState(SWITCH_HEADPHONES));
-  NotifyHeadphonesStatus(GetCurrentSwitchState(SWITCH_HEADPHONES));
-
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  if (NS_FAILED(obs->AddObserver(this, BLUETOOTH_SCO_STATUS_CHANGED, false))) {
-    NS_WARNING("Failed to add bluetooth-sco-status-changed oberver!");
-  }
 }
 
 AudioManager::~AudioManager() {
   UnregisterSwitchObserver(SWITCH_HEADPHONES, mObserver);
-
-  nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
-  if (NS_FAILED(obs->RemoveObserver(this, BLUETOOTH_SCO_STATUS_CHANGED))) {
-    NS_WARNING("Failed to add bluetooth-sco-status-changed oberver!");
-  }
 }
 
 NS_IMETHODIMP
@@ -235,11 +110,6 @@ AudioManager::SetMasterVolume(float aMasterVolume)
   if (AudioSystem::setVoiceVolume(aMasterVolume)) {
     return NS_ERROR_FAILURE;
   }
-
-  if (IsFmRadioAudioOn() && AudioSystem::setFmVolume(aMasterVolume)) {
-    return NS_ERROR_FAILURE;
-  }
-
   return NS_OK;
 }
 
@@ -262,14 +132,14 @@ AudioManager::SetMasterMuted(bool aMasterMuted)
 }
 
 NS_IMETHODIMP
-AudioManager::GetPhoneState(int32_t* aState)
+AudioManager::GetPhoneState(PRInt32* aState)
 {
   *aState = mPhoneState;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-AudioManager::SetPhoneState(int32_t aState)
+AudioManager::SetPhoneState(PRInt32 aState)
 {
   if (AudioSystem::setPhoneState(aState)) {
     return NS_ERROR_FAILURE;
@@ -288,7 +158,7 @@ AudioManager::SetPhoneState(int32_t aState)
 // whichever symbol resolves at dynamic link time (if any).
 //
 NS_IMETHODIMP
-AudioManager::SetForceForUse(int32_t aUsage, int32_t aForce)
+AudioManager::SetForceForUse(PRInt32 aUsage, PRInt32 aForce)
 {
   status_t status = 0;
   if (static_cast<
@@ -309,7 +179,7 @@ AudioManager::SetForceForUse(int32_t aUsage, int32_t aForce)
 }
 
 NS_IMETHODIMP
-AudioManager::GetForceForUse(int32_t aUsage, int32_t* aForce) {
+AudioManager::GetForceForUse(PRInt32 aUsage, PRInt32* aForce) {
   if (static_cast<
       AudioSystem::forced_config (*)(AudioSystem::force_use)
       >(AudioSystem::getForceUse)) {
@@ -324,25 +194,20 @@ AudioManager::GetForceForUse(int32_t aUsage, int32_t* aForce) {
   return NS_OK;
 }
 
-NS_IMETHODIMP
-AudioManager::GetFmRadioAudioEnabled(bool *aFmRadioAudioEnabled)
-{
-  *aFmRadioAudioEnabled = IsFmRadioAudioOn();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-AudioManager::SetFmRadioAudioEnabled(bool aFmRadioAudioEnabled)
-{
+void
+AudioManager::SetAudioRoute(int aRoutes) {
+  audio_io_handle_t handle = 0;
   if (static_cast<
-      status_t (*) (AudioSystem::audio_devices, AudioSystem::device_connection_state, const char *)
-      >(AudioSystem::setDeviceConnectionState)) {
-    AudioSystem::setDeviceConnectionState(AUDIO_DEVICE_OUT_FM,
-      aFmRadioAudioEnabled ? AUDIO_POLICY_DEVICE_STATE_AVAILABLE : 
-      AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "");
-    InternalSetAudioRoutes(GetCurrentSwitchState(SWITCH_HEADPHONES));
-    return NS_OK;
-  } else {
-    return NS_ERROR_NOT_IMPLEMENTED;
+      audio_io_handle_t (*)(AudioSystem::stream_type, uint32_t, uint32_t, uint32_t, AudioSystem::output_flags)
+      >(AudioSystem::getOutput)) {
+    handle = AudioSystem::getOutput((AudioSystem::stream_type)AudioSystem::SYSTEM);
+  } else if (static_cast<
+             audio_io_handle_t (*)(audio_stream_type_t, uint32_t, uint32_t, uint32_t, audio_policy_output_flags_t)
+             >(AudioSystem::getOutput)) {
+    handle = AudioSystem::getOutput((audio_stream_type_t)AudioSystem::SYSTEM);
   }
+  
+  String8 cmd;
+  cmd.appendFormat("routing=%d", GetRoutingMode(aRoutes));
+  AudioSystem::setParameters(handle, cmd);
 }

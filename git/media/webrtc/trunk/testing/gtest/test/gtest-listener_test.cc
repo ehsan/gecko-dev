@@ -55,7 +55,7 @@ namespace internal {
 
 class EventRecordingListener : public TestEventListener {
  public:
-  explicit EventRecordingListener(const char* name) : name_(name) {}
+  EventRecordingListener(const char* name) : name_(name) {}
 
  protected:
   virtual void OnTestProgramStart(const UnitTest& /*unit_test*/) {

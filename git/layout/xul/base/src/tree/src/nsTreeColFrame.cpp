@@ -129,9 +129,9 @@ nsTreeColFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
 }
 
 NS_IMETHODIMP
-nsTreeColFrame::AttributeChanged(int32_t aNameSpaceID,
+nsTreeColFrame::AttributeChanged(PRInt32 aNameSpaceID,
                                  nsIAtom* aAttribute,
-                                 int32_t aModType)
+                                 PRInt32 aModType)
 {
   nsresult rv = nsBoxFrame::AttributeChanged(aNameSpaceID, aAttribute,
                                              aModType);

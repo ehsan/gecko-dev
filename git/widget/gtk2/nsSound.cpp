@@ -136,7 +136,7 @@ ca_context_get_default()
 
     nsCOMPtr<nsIXULAppInfo> appInfo = do_GetService("@mozilla.org/xre/app-info;1");
     if (appInfo) {
-        nsAutoCString version;
+        nsCAutoString version;
         appInfo->GetVersion(version);
 
         ca_context_change_props(ctx, "application.version", version.get(), NULL);
@@ -217,8 +217,8 @@ nsSound::Shutdown()
 NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
                                         nsISupports *context,
                                         nsresult aStatus,
-                                        uint32_t dataLen,
-                                        const uint8_t *data)
+                                        PRUint32 dataLen,
+                                        const PRUint8 *data)
 {
     // print a load error on bad status, and return
     if (NS_FAILED(aStatus)) {
@@ -232,7 +232,7 @@ NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
                 if (channel) {
                       channel->GetURI(getter_AddRefs(uri));
                       if (uri) {
-                            nsAutoCString uriSpec;
+                            nsCAutoString uriSpec;
                             uri->GetSpec(uriSpec);
                             printf("Failed to load %s\n", uriSpec.get());
                       }
@@ -267,9 +267,9 @@ NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
     }
 
     // XXX: Should we do this on another thread?
-    uint32_t length = dataLen;
+    PRUint32 length = dataLen;
     while (length > 0) {
-        int32_t amount = PR_Write(fd, data, length);
+        PRInt32 amount = PR_Write(fd, data, length);
         if (amount < 0) {
             return NS_ERROR_FAILURE;
         }
@@ -288,7 +288,7 @@ NS_IMETHODIMP nsSound::OnStreamComplete(nsIStreamLoader *aLoader,
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    nsAutoCString path;
+    nsCAutoString path;
     rv = canberraFile->GetNativePath(path);
     if (NS_FAILED(rv)) {
         return rv;
@@ -326,7 +326,7 @@ NS_METHOD nsSound::Play(nsIURL *aURL)
             return NS_ERROR_OUT_OF_MEMORY;
         }
 
-        nsAutoCString spec;
+        nsCAutoString spec;
         rv = aURL->GetSpec(spec);
         if (NS_FAILED(rv)) {
             return rv;
@@ -346,7 +346,7 @@ NS_METHOD nsSound::Play(nsIURL *aURL)
     return rv;
 }
 
-NS_IMETHODIMP nsSound::PlayEventSound(uint32_t aEventId)
+NS_IMETHODIMP nsSound::PlayEventSound(PRUint32 aEventId)
 {
     if (!mInited)
         Init();
@@ -396,7 +396,7 @@ NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
 {
     if (NS_IsMozAliasSound(aSoundAlias)) {
         NS_WARNING("nsISound::playSystemSound is called with \"_moz_\" events, they are obsolete, use nsISound::playEventSound instead");
-        uint32_t eventId;
+        PRUint32 eventId;
         if (aSoundAlias.Equals(NS_SYSSOUND_ALERT_DIALOG))
             eventId = EVENT_ALERT_DIALOG_OPEN;
         else if (aSoundAlias.Equals(NS_SYSSOUND_CONFIRM_DIALOG))

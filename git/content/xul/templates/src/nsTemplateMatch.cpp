@@ -26,7 +26,7 @@ nsTemplateMatch::Destroy(nsFixedSizeAllocator& aPool,
 nsresult
 nsTemplateMatch::RuleMatched(nsTemplateQuerySet* aQuerySet,
                              nsTemplateRule* aRule,
-                             int16_t aRuleIndex,
+                             PRInt16 aRuleIndex,
                              nsIXULTemplateResult* aResult)
 {
     // assign the rule index, used to indicate that a match is active, and

@@ -39,7 +39,7 @@ static const char *kTypeString[] = {"other",
                                     "websocket"};
 
 #define NUMBER_OF_TYPES NS_ARRAY_LENGTH(kTypeString)
-uint8_t nsContentBlocker::mBehaviorPref[NUMBER_OF_TYPES];
+PRUint8 nsContentBlocker::mBehaviorPref[NUMBER_OF_TYPES];
 
 NS_IMPL_ISUPPORTS3(nsContentBlocker, 
                    nsIContentPolicy,
@@ -68,10 +68,10 @@ nsContentBlocker::Init()
   // Migrate old image blocker pref
   nsCOMPtr<nsIPrefBranch> oldPrefBranch;
   oldPrefBranch = do_QueryInterface(prefService);
-  int32_t oldPref;
+  PRInt32 oldPref;
   rv = oldPrefBranch->GetIntPref("network.image.imageBehavior", &oldPref);
   if (NS_SUCCEEDED(rv) && oldPref) {
-    int32_t newPref;
+    PRInt32 newPref;
     switch (oldPref) {
       default:
         newPref = BEHAVIOR_ACCEPT;
@@ -107,11 +107,11 @@ void
 nsContentBlocker::PrefChanged(nsIPrefBranch *aPrefBranch,
                               const char    *aPref)
 {
-  int32_t val;
+  PRInt32 val;
 
 #define PREF_CHANGED(_P) (!aPref || !strcmp(aPref, _P))
 
-  for(uint32_t i = 0; i < NUMBER_OF_TYPES; ++i) {
+  for(PRUint32 i = 0; i < NUMBER_OF_TYPES; ++i) {
     if (PREF_CHANGED(kTypeString[i]) &&
         NS_SUCCEEDED(aPrefBranch->GetIntPref(kTypeString[i], &val)))
       mBehaviorPref[i] = LIMIT(val, 1, 3, 1);
@@ -121,14 +121,14 @@ nsContentBlocker::PrefChanged(nsIPrefBranch *aPrefBranch,
 
 // nsIContentPolicy Implementation
 NS_IMETHODIMP 
-nsContentBlocker::ShouldLoad(uint32_t          aContentType,
+nsContentBlocker::ShouldLoad(PRUint32          aContentType,
                              nsIURI           *aContentLocation,
                              nsIURI           *aRequestingLocation,
                              nsISupports      *aRequestingContext,
                              const nsACString &aMimeGuess,
                              nsISupports      *aExtra,
                              nsIPrincipal     *aRequestPrincipal,
-                             int16_t          *aDecision)
+                             PRInt16          *aDecision)
 {
   *aDecision = nsIContentPolicy::ACCEPT;
   nsresult rv;
@@ -142,14 +142,9 @@ nsContentBlocker::ShouldLoad(uint32_t          aContentType,
   if (!aContentLocation)
     return NS_OK;
 
-  // The final type of an object tag may mutate before it reaches
-  // shouldProcess, so we cannot make any sane blocking decisions here
-  if (aContentType == nsIContentPolicy::TYPE_OBJECT)
-    return NS_OK;
-  
   // we only want to check http, https, ftp
   // for chrome:// and resources and others, no need to check.
-  nsAutoCString scheme;
+  nsCAutoString scheme;
   aContentLocation->GetScheme(scheme);
   if (!scheme.LowerCaseEqualsLiteral("ftp") &&
       !scheme.LowerCaseEqualsLiteral("http") &&
@@ -167,19 +162,51 @@ nsContentBlocker::ShouldLoad(uint32_t          aContentType,
       *aDecision = nsIContentPolicy::REJECT_SERVER;
     }
   }
+  if (aContentType != nsIContentPolicy::TYPE_OBJECT || aMimeGuess.IsEmpty())
+    return NS_OK;
 
-  return NS_OK;
+  // For TYPE_OBJECT we should check what aMimeGuess might tell us
+  // about what sort of object it is.
+  nsCOMPtr<nsIObjectLoadingContent> objectLoader =
+    do_QueryInterface(aRequestingContext);
+  if (!objectLoader)
+    return NS_OK;
+
+  PRUint32 contentType;
+  rv = objectLoader->GetContentTypeForMIMEType(aMimeGuess, &contentType);
+  if (NS_FAILED(rv))
+    return rv;
+    
+  switch (contentType) {
+  case nsIObjectLoadingContent::TYPE_IMAGE:
+    aContentType = nsIContentPolicy::TYPE_IMAGE;
+    break;
+  case nsIObjectLoadingContent::TYPE_DOCUMENT:
+    aContentType = nsIContentPolicy::TYPE_SUBDOCUMENT;
+    break;
+  default:
+    return NS_OK;
+  }
+
+  NS_ASSERTION(aContentType != nsIContentPolicy::TYPE_OBJECT,
+               "Shouldn't happen.  Infinite loops are bad!");
+
+  // Found a type that tells us more about what we're loading.  Try
+  // the permissions check again!
+  return ShouldLoad(aContentType, aContentLocation, aRequestingLocation,
+                    aRequestingContext, aMimeGuess, aExtra, aRequestPrincipal,
+                    aDecision);
 }
 
 NS_IMETHODIMP
-nsContentBlocker::ShouldProcess(uint32_t          aContentType,
+nsContentBlocker::ShouldProcess(PRUint32          aContentType,
                                 nsIURI           *aContentLocation,
                                 nsIURI           *aRequestingLocation,
                                 nsISupports      *aRequestingContext,
                                 const nsACString &aMimeGuess,
                                 nsISupports      *aExtra,
                                 nsIPrincipal     *aRequestPrincipal,
-                                int16_t          *aDecision)
+                                PRInt16          *aDecision)
 {
   // For loads where aRequestingContext is chrome, we should just
   // accept.  Those are most likely toplevel loads in windows, and
@@ -188,7 +215,7 @@ nsContentBlocker::ShouldProcess(uint32_t          aContentType,
     do_QueryInterface(NS_CP_GetDocShellFromContext(aRequestingContext));
 
   if (item) {
-    int32_t type;
+    PRInt32 type;
     item->GetItemType(&type);
     if (type == nsIDocShellTreeItem::typeChrome) {
       *aDecision = nsIContentPolicy::ACCEPT;
@@ -196,31 +223,8 @@ nsContentBlocker::ShouldProcess(uint32_t          aContentType,
     }
   }
 
-  // For objects, we only check policy in shouldProcess, as the final type isn't
-  // determined until the channel is open -- We don't want to block images in
-  // object tags because plugins are disallowed.
-  // NOTE that this bypasses the aContentLocation checks in ShouldLoad - this is
-  // intentional, as aContentLocation may be null for plugins that load by type
-  // (e.g. java)
-  if (aContentType == nsIContentPolicy::TYPE_OBJECT) {
-    *aDecision = nsIContentPolicy::ACCEPT;
-
-    bool shouldLoad, fromPrefs;
-    nsresult rv = TestPermission(aContentLocation, aRequestingLocation,
-                                 aContentType, &shouldLoad, &fromPrefs);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (!shouldLoad) {
-      if (fromPrefs) {
-        *aDecision = nsIContentPolicy::REJECT_TYPE;
-      } else {
-        *aDecision = nsIContentPolicy::REJECT_SERVER;
-      }
-    }
-    return NS_OK;
-  }
-  
-  // This isn't a load from chrome or an object tag - Just do a ShouldLoad()
-  // check -- we want the same answer here
+  // This isn't a load from chrome.  Just do a ShouldLoad() check --
+  // we want the same answer here
   return ShouldLoad(aContentType, aContentLocation, aRequestingLocation,
                     aRequestingContext, aMimeGuess, aExtra, aRequestPrincipal,
                     aDecision);
@@ -229,7 +233,7 @@ nsContentBlocker::ShouldProcess(uint32_t          aContentType,
 nsresult
 nsContentBlocker::TestPermission(nsIURI *aCurrentURI,
                                  nsIURI *aFirstURI,
-                                 int32_t aContentType,
+                                 PRInt32 aContentType,
                                  bool *aPermission,
                                  bool *aFromPrefs)
 {
@@ -242,7 +246,7 @@ nsContentBlocker::TestPermission(nsIURI *aCurrentURI,
   // default prefs.
   // Don't forget the aContentType ranges from 1..8, while the
   // array is indexed 0..7
-  uint32_t permission;
+  PRUint32 permission;
   nsresult rv = mPermissionManager->TestPermission(aCurrentURI, 
                                                    kTypeString[aContentType - 1],
                                                    &permission);
@@ -287,14 +291,14 @@ nsContentBlocker::TestPermission(nsIURI *aCurrentURI,
     
     // A more generic method somewhere would be nice
 
-    nsAutoCString currentHost;
+    nsCAutoString currentHost;
     rv = aCurrentURI->GetAsciiHost(currentHost);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Search for two dots, starting at the end.
     // If there are no two dots found, ++dot will turn to zero,
     // that will return the entire string.
-    int32_t dot = currentHost.RFindChar('.');
+    PRInt32 dot = currentHost.RFindChar('.');
     dot = currentHost.RFindChar('.', dot-1);
     ++dot;
 
@@ -303,7 +307,7 @@ nsContentBlocker::TestPermission(nsIURI *aCurrentURI,
     const nsCSubstring &tail =
       Substring(currentHost, dot, currentHost.Length() - dot);
 
-    nsAutoCString firstHost;
+    nsCAutoString firstHost;
     rv = aFirstURI->GetAsciiHost(firstHost);
     NS_ENSURE_SUCCESS(rv, rv);
 

@@ -17,98 +17,49 @@
 #ifndef DOM_CAMERA_GONKCAMERACONTROL_H
 #define DOM_CAMERA_GONKCAMERACONTROL_H
 
-#include "base/basictypes.h"
+#include "prtypes.h"
 #include "prrwlock.h"
-#include "nsIDOMCameraManager.h"
-#include "DOMCameraControl.h"
-#include "CameraControlImpl.h"
+#include "CameraControl.h"
+
+#define DOM_CAMERA_LOG_LEVEL  3
 #include "CameraCommon.h"
-#include "GonkRecorder.h"
 
 namespace mozilla {
 
-namespace layers {
-class GraphicBufferLocked;
-}
-
-class nsGonkCameraControl : public CameraControlImpl
+class nsGonkCameraControl : public nsCameraControl
 {
 public:
-  nsGonkCameraControl(uint32_t aCameraId, nsIThread* aCameraThread, nsDOMCameraControl* aDOMCameraControl, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId);
-  nsresult Init();
+  nsGonkCameraControl(PRUint32 aCameraId, nsIThread* aCameraThread);
 
   const char* GetParameter(const char* aKey);
-  const char* GetParameterConstChar(uint32_t aKey);
-  double GetParameterDouble(uint32_t aKey);
-  void GetParameter(uint32_t aKey, nsTArray<dom::CameraRegion>& aRegions);
+  const char* GetParameterConstChar(PRUint32 aKey);
+  double GetParameterDouble(PRUint32 aKey);
+  void GetParameter(PRUint32 aKey, nsTArray<dom::CameraRegion>& aRegions);
   void SetParameter(const char* aKey, const char* aValue);
-  void SetParameter(uint32_t aKey, const char* aValue);
-  void SetParameter(uint32_t aKey, double aValue);
-  void SetParameter(uint32_t aKey, const nsTArray<dom::CameraRegion>& aRegions);
-  nsresult PushParameters();
+  void SetParameter(PRUint32 aKey, const char* aValue);
+  void SetParameter(PRUint32 aKey, double aValue);
+  void SetParameter(PRUint32 aKey, const nsTArray<dom::CameraRegion>& aRegions);
+  void PushParameters();
 
-  nsresult SetupRecording(int aFd);
-  nsresult SetupVideoMode();
-
-  void AutoFocusComplete(bool aSuccess);
-  void TakePictureComplete(uint8_t* aData, uint32_t aLength);
+  void ReceiveFrame(PRUint8 *aData, PRUint32 aLength);
 
 protected:
   ~nsGonkCameraControl();
 
   nsresult GetPreviewStreamImpl(GetPreviewStreamTask* aGetPreviewStream);
-  nsresult StartPreviewImpl(StartPreviewTask* aStartPreview);
-  nsresult StopPreviewImpl(StopPreviewTask* aStopPreview);
-  nsresult StopPreviewInternal(bool aForced = false);
   nsresult AutoFocusImpl(AutoFocusTask* aAutoFocus);
   nsresult TakePictureImpl(TakePictureTask* aTakePicture);
   nsresult StartRecordingImpl(StartRecordingTask* aStartRecording);
   nsresult StopRecordingImpl(StopRecordingTask* aStopRecording);
-  nsresult PushParametersImpl();
-  nsresult PullParametersImpl();
-  nsresult GetPreviewStreamVideoModeImpl(GetPreviewStreamVideoModeTask* aGetPreviewStreamVideoMode);
+  nsresult PushParametersImpl(PushParametersTask* aPushParameters);
+  nsresult PullParametersImpl(PullParametersTask* aPullParameters);
 
-  void SetPreviewSize(uint32_t aWidth, uint32_t aHeight);
-
-  uint32_t                  mHwHandle;
+  PRUint32                  mHwHandle;
   double                    mExposureCompensationMin;
   double                    mExposureCompensationStep;
   bool                      mDeferConfigUpdate;
   PRRWLock*                 mRwLock;
   android::CameraParameters mParams;
-  uint32_t                  mWidth;
-  uint32_t                  mHeight;
-
-  enum {
-    PREVIEW_FORMAT_UNKNOWN,
-    PREVIEW_FORMAT_YUV420P,
-    PREVIEW_FORMAT_YUV420SP
-  };
-  uint32_t                  mFormat;
-
-  uint32_t                  mFps;
-  uint32_t                  mDiscardedFrameCount;
-
-  android::MediaProfiles*   mMediaProfiles;
-  android::GonkRecorder*    mRecorder;
-
-  uint32_t                  mVideoRotation;
-  uint32_t                  mVideoWidth;
-  uint32_t                  mVideoHeight;
-  nsString                  mVideoFile;
-
-  // camcorder profile settings for the desired quality level
-  int mDuration;        // max recording duration (ignored)
-  int mVideoFileFormat; // output file format
-  int mVideoCodec;      // video encoder
-  int mVideoBitRate;    // video bit rate
-  int mVideoFrameRate;  // video frame rate
-  int mVideoFrameWidth; // video frame width
-  int mVideoFrameHeight;// video frame height
-  int mAudioCodec;      // audio encoder
-  int mAudioBitRate;    // audio bit rate
-  int mAudioSampleRate; // audio sample rate
-  int mAudioChannels;   // number of audio channels
 
 private:
   nsGonkCameraControl(const nsGonkCameraControl&) MOZ_DELETE;
@@ -116,11 +67,9 @@ private:
 };
 
 // camera driver callbacks
-void ReceiveImage(nsGonkCameraControl* gc, uint8_t* aData, uint32_t aLength);
-void AutoFocusComplete(nsGonkCameraControl* gc, bool aSuccess);
-void ReceiveFrame(nsGonkCameraControl* gc, layers::GraphicBufferLocked* aBuffer);
-void OnShutter(nsGonkCameraControl* gc);
-void OnClosed(nsGonkCameraControl* gc);
+void ReceiveImage(nsGonkCameraControl* gc, PRUint8* aData, PRUint32 aLength);
+void AutoFocusComplete(nsGonkCameraControl* gc, bool success);
+void ReceiveFrame(nsGonkCameraControl* gc, PRUint8* aData, PRUint32 aLength);
 
 } // namespace mozilla
 

@@ -40,7 +40,7 @@ private:
 
   static const char * kTraceDelimiter;
 
-  nsAutoCString mTrace;
+  nsCAutoString mTrace;
 
 public:
 
@@ -189,7 +189,7 @@ nsresult nsTestUConv::TestEncoders()
   bool hasMore;
   encoders->HasMore(&hasMore);
   
-  nsAutoCString charset;
+  nsCAutoString charset;
   while (hasMore) {
     encoders->GetNext(charset);
 
@@ -258,7 +258,7 @@ nsresult nsTestUConv::DisplayDetectors()
   bool hasMore;
   detectors->HasMore(&hasMore);
   while (hasMore) {
-    nsAutoCString detectorName;
+    nsCAutoString detectorName;
     res = detectors->GetNext(detectorName);
     if (NS_FAILED(res)) {
       mLog.PrintError("GetNext()", res);
@@ -311,12 +311,12 @@ nsresult nsTestUConv::DisplayCharsets()
 
   printf("***** Character Sets *****\n");
 
-  uint32_t encCount = 0, decCount = 0;
-  uint32_t basicEncCount = 0, basicDecCount = 0;
+  PRUint32 encCount = 0, decCount = 0;
+  PRUint32 basicEncCount = 0, basicDecCount = 0;
 
   nsTArray<nsCString> allCharsets;
   
-  nsAutoCString charset;
+  nsCAutoString charset;
   bool hasMore;
   encoders->HasMore(&hasMore);
   while (hasMore) {
@@ -328,15 +328,15 @@ nsresult nsTestUConv::DisplayCharsets()
   }
 
   nsAutoString prop, str;
-  uint32_t count = allCharsets.Length();
-  for (uint32_t i = 0; i < count; i++) {
+  PRUint32 count = allCharsets.Length();
+  for (PRUint32 i = 0; i < count; i++) {
 
     const nsCString& charset = allCharsets[i];
     printf("%s", charset.get());
     PrintSpaces(24 - charset.Length());  // align to hard coded column number
 
 
-    nsCOMPtr<nsIUnicodeDecoder> dec;
+    nsCOMPtr<nsIUnicodeDecoder> dec = NULL;
     res = ccMan->GetUnicodeDecoder(charset.get(), getter_AddRefs(dec));
     if (NS_FAILED(res)) printf (" "); 
     else {
@@ -356,7 +356,7 @@ nsresult nsTestUConv::DisplayCharsets()
     else printf(" ");
 #endif
 
-    nsCOMPtr<nsIUnicodeEncoder> enc;
+    nsCOMPtr<nsIUnicodeEncoder> enc = NULL;
     res = ccMan->GetUnicodeEncoder(charset.get(), getter_AddRefs(enc));
     if (NS_FAILED(res)) printf (" "); 
     else {
@@ -380,22 +380,22 @@ nsresult nsTestUConv::DisplayCharsets()
 
     prop.AssignLiteral(".notForBrowser");
     res = ccMan->GetCharsetData(charset.get(), prop.get(), str);
-    if (dec && (NS_FAILED(res))) printf ("B"); 
+    if ((dec != NULL) && (NS_FAILED(res))) printf ("B"); 
     else printf("X");
 
     prop.AssignLiteral(".notForComposer");
     res = ccMan->GetCharsetData(charset.get(), prop.get(), str);
-    if (enc && (NS_FAILED(res))) printf ("C"); 
+    if ((enc != NULL) && (NS_FAILED(res))) printf ("C"); 
     else printf("X");
 
     prop.AssignLiteral(".notForMailView");
     res = ccMan->GetCharsetData(charset.get(), prop.get(), str);
-    if (dec && (NS_FAILED(res))) printf ("V"); 
+    if ((dec != NULL) && (NS_FAILED(res))) printf ("V"); 
     else printf("X");
 
     prop.AssignLiteral(".notForMailEdit");
     res = ccMan->GetCharsetData(charset.get(), prop.get(), str);
-    if (enc && (NS_FAILED(res))) printf ("E"); 
+    if ((enc != NULL) && (NS_FAILED(res))) printf ("E"); 
     else printf("X");
 
     printf("(%3d, %3d) ", encCount, decCount);
@@ -479,8 +479,8 @@ nsresult nsTestUConv::ConvertEncode(PRUnichar ** aSrc, PRUnichar * aSrcEnd,
 {
   PRUnichar * src = (*aSrc);
   char * dest = (*aDest);
-  int32_t srcLen = aSrcEnd - src;
-  int32_t destLen = aDestEnd - dest;
+  PRInt32 srcLen = aSrcEnd - src;
+  PRInt32 destLen = aDestEnd - dest;
 
   nsresult res = aEncoder->Convert(src, &srcLen, dest, &destLen);
 
@@ -493,7 +493,7 @@ nsresult nsTestUConv::FinishEncode(char ** aDest, char * aDestEnd,
                                    nsIUnicodeEncoder * aEncoder)
 {
   char * dest = (*aDest);
-  int32_t destLen = aDestEnd - dest;
+  PRInt32 destLen = aDestEnd - dest;
 
   nsresult res = aEncoder->Finish(dest, &destLen);
 

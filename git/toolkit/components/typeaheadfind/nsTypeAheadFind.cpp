@@ -25,7 +25,7 @@
 #include "nsIDOMNode.h"
 #include "mozilla/dom/Element.h"
 #include "nsIFrame.h"
-#include "nsFrameTraversal.h"
+#include "nsFrameIterator.h"
 #include "nsIImageDocument.h"
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
@@ -62,8 +62,6 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsTypeAheadFind)
 NS_IMPL_RELEASE(nsTypeAheadFind)
-
-static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 
 #define NS_FIND_CONTRACTID "@mozilla.org/embedcomp/rangefind;1"
 
@@ -180,7 +178,7 @@ nsTypeAheadFind::SetDocShell(nsIDocShell* aDocShell)
 }
 
 NS_IMETHODIMP
-nsTypeAheadFind::SetSelectionModeAndRepaint(int16_t aToggle)
+nsTypeAheadFind::SetSelectionModeAndRepaint(PRInt16 aToggle)
 {
   nsCOMPtr<nsISelectionController> selectionController = 
     do_QueryReferent(mSelectionController);
@@ -264,7 +262,7 @@ nsTypeAheadFind::PlayNotFoundSound()
 nsresult
 nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, bool aIsLinksOnly,
                            bool aIsFirstVisiblePreferred, bool aFindPrev,
-                           uint16_t* aResult)
+                           PRUint16* aResult)
 {
   *aResult = FIND_NOTFOUND;
   mFoundLink = nullptr;
@@ -355,7 +353,7 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, bool aIsLinksOnly,
     return NS_ERROR_FAILURE;
   }
 
-  int16_t rangeCompareResult = 0;
+  PRInt16 rangeCompareResult = 0;
   mStartPointRange->CompareBoundaryPoints(nsIDOMRange::START_TO_START, mSearchRange, &rangeCompareResult);
   // No need to wrap find in doc if starting at beginning
   bool hasWrapped = (rangeCompareResult < 0);
@@ -390,8 +388,10 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, bool aIsLinksOnly,
           (aIsLinksOnly && !isInsideLink) ||
           (mStartLinksOnlyPref && aIsLinksOnly && !isStartingLink)) {
         // ------ Failure ------
-        // mStartPointRange got updated to the right thing already,
-        // but we stil need to collapse it to the right end.
+        // Start find again from here
+        returnRange->CloneRange(getter_AddRefs(mStartPointRange));
+
+        // Collapse to end
         mStartPointRange->Collapse(aFindPrev);
 
         continue;
@@ -681,7 +681,7 @@ nsTypeAheadFind::GetSearchContainers(nsISupports *aContainer,
   if (!rootNode)
     return NS_ERROR_FAILURE;
 
-  uint32_t childCount = rootContent->GetChildCount();
+  PRUint32 childCount = rootContent->GetChildCount();
 
   mSearchRange->SelectNodeContents(rootNode);
 
@@ -709,7 +709,7 @@ nsTypeAheadFind::GetSearchContainers(nsISupports *aContainer,
                    getter_AddRefs(mStartPointRange), nullptr);
   }
   else {
-    int32_t startOffset;
+    PRInt32 startOffset;
     nsCOMPtr<nsIDOMNode> startNode;
     if (aFindPrev) {
       currentSelectionRange->GetStartContainer(getter_AddRefs(startNode));
@@ -750,7 +750,7 @@ nsTypeAheadFind::RangeStartsInsideLink(nsIDOMRange *aRange,
   nsCOMPtr<nsIDOMNode> startNode;
   nsCOMPtr<nsIContent> startContent, origContent;
   aRange->GetStartContainer(getter_AddRefs(startNode));
-  int32_t startOffset;
+  PRInt32 startOffset;
   aRange->GetStartOffset(&startOffset);
 
   startContent = do_QueryInterface(startNode);
@@ -770,7 +770,7 @@ nsTypeAheadFind::RangeStartsInsideLink(nsIDOMRange *aRange,
     const nsTextFragment *textFrag = startContent->GetText();
     if (textFrag) {
       // look for non whitespace character before start offset
-      for (int32_t index = 0; index < startOffset; index++) {
+      for (PRInt32 index = 0; index < startOffset; index++) {
         if (!XP_IS_SPACE(textFrag->CharAt(index))) {
           *aIsStartingLink = false;  // not at start of a node
 
@@ -841,7 +841,7 @@ nsTypeAheadFind::RangeStartsInsideLink(nsIDOMRange *aRange,
 /* Find another match in the page. */
 NS_IMETHODIMP
 nsTypeAheadFind::FindAgain(bool aFindBackwards, bool aLinksOnly,
-                           uint16_t* aResult)
+                           PRUint16* aResult)
 
 {
   *aResult = FIND_NOTFOUND;
@@ -856,7 +856,7 @@ nsTypeAheadFind::FindAgain(bool aFindBackwards, bool aLinksOnly,
 
 NS_IMETHODIMP
 nsTypeAheadFind::Find(const nsAString& aSearchString, bool aLinksOnly,
-                      uint16_t* aResult)
+                      PRUint16* aResult)
 {
   *aResult = FIND_NOTFOUND;
 
@@ -929,7 +929,7 @@ nsTypeAheadFind::Find(const nsAString& aSearchString, bool aLinksOnly,
   mSoundInterface = nullptr;
 #endif
 
-  int32_t bufferLength = mTypeAheadBuffer.Length();
+  PRInt32 bufferLength = mTypeAheadBuffer.Length();
 
   mTypeAheadBuffer = aSearchString;
 
@@ -1076,7 +1076,7 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
     return true; //  Don't need it to be on screen, just in rendering tree
 
   // Get the next in flow frame that contains the range start
-  int32_t startRangeOffset, startFrameOffset, endFrameOffset;
+  PRInt32 startRangeOffset, startFrameOffset, endFrameOffset;
   aRange->GetStartOffset(&startRangeOffset);
   while (true) {
     frame->GetOffsets(startFrameOffset, endFrameOffset);
@@ -1091,7 +1091,7 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
   }
 
   // Set up the variables we need, return true if we can't get at them all
-  const uint16_t kMinPixels  = 12;
+  const PRUint16 kMinPixels  = 12;
   nscoord minDistance = nsPresContext::CSSPixelsToAppUnits(kMinPixels);
 
   // Get the bounds of the current frame, relative to the current view.
@@ -1114,23 +1114,12 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
   // We know that the target range isn't usable because it's not in the
   // view port. Move range forward to first visible point,
   // this speeds us up a lot in long documents
-  nsCOMPtr<nsIFrameEnumerator> frameTraversal;
-  nsCOMPtr<nsIFrameTraversal> trav(do_CreateInstance(kFrameTraversalCID));
-  if (trav)
-    trav->NewFrameTraversal(getter_AddRefs(frameTraversal),
-                            aPresContext, frame,
-                            eLeaf,
-                            false, // aVisual
-                            false, // aLockInScrollView
-                            false     // aFollowOOFs
-                            );
-
-  if (!frameTraversal)
-    return false;
+  nsFrameIterator frameTraversal(aPresContext, frame,
+                                 eLeaf, nsFrameIterator::FLAG_NONE);
 
   while (rectVisibility == nsRectVisibility_kAboveViewport) {
-    frameTraversal->Next();
-    frame = frameTraversal->CurrentItem();
+    frameTraversal.Next();
+    frame = frameTraversal.CurrentItem();
     if (!frame)
       return false;
 
@@ -1149,6 +1138,7 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
       (*aFirstVisibleRange)->SelectNode(firstVisibleNode);
       frame->GetOffsets(startFrameOffset, endFrameOffset);
       (*aFirstVisibleRange)->SetStart(firstVisibleNode, startFrameOffset);
+      (*aFirstVisibleRange)->Collapse(true);  // Collapse to start
     }
   }
 

@@ -150,15 +150,13 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
     def buildXpcsCmd(self, testdir):
         self.xpcsCmd = [
            self.remoteJoin(self.remoteBinDir, "xpcshell"),
-           '-r', self.remoteJoin(self.remoteComponentsDir, 'httpd.manifest')]
-        # If using an APK, --greomni must be specified before any -e arguments.
-        if self.options.localAPK:
-          self.xpcsCmd.extend(['--greomni', self.remoteAPK])
-        self.xpcsCmd.extend([
+           '-r', self.remoteJoin(self.remoteComponentsDir, 'httpd.manifest'),
            '-s',
            '-e', 'const _HTTPD_JS_PATH = "%s";' % self.remoteJoin(self.remoteComponentsDir, 'httpd.js'),
            '-e', 'const _HEAD_JS_PATH = "%s";' % self.remoteJoin(self.remoteScriptsDir, 'head.js'),
-           '-f', self.remoteScriptsDir+'/head.js'])
+           '-f', self.remoteScriptsDir+'/head.js']
+        if self.options.localAPK:
+          self.xpcsCmd.extend(['--greomni', self.remoteAPK])
 
         if self.remoteDebugger:
           # for example, "/data/local/gdbserver" "localhost:12345"
@@ -224,8 +222,8 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         # Guard against an accumulation of hung processes by killing
         # them here. Note also that IPC tests may spawn new instances
         # of xpcshell.
-        self.device.killProcess(cmd[0])
-        self.device.killProcess("xpcshell")
+        self.device.killProcess(cmd[0]);
+        self.device.killProcess("xpcshell");
         return outputFile
 
     def communicate(self, proc):
@@ -234,15 +232,6 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
         f.close()
         os.remove(proc)
         return contents, ""
-
-    def poll(self, proc):
-        if self.device.processExist("xpcshell") is None:
-          return self.getReturnCode(proc)
-        # Process is still running
-        return None
-
-    def kill(self, proc):
-        return self.device.killProcess("xpcshell", True)
 
     def getReturnCode(self, proc):
         if self.shellReturnCode is not None:

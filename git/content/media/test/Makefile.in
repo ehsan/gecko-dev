@@ -80,6 +80,7 @@ MOCHITEST_FILES = \
 		test_defaultMuted.html \
 		test_delay_load.html \
 		test_error_on_404.html \
+		test_error_in_video_document.html \
 		test_info_leak.html \
 		test_load.html \
 		test_load_candidates.html \
@@ -104,14 +105,13 @@ MOCHITEST_FILES = \
 		test_reactivate.html \
 		test_readyState.html \
 		test_replay_metadata.html \
-		test_seek.html \
 		test_seek2.html \
-		test_seek_out_of_range.html \
 		test_source.html \
 		test_source_write.html \
 	        test_source_null.html \
 		test_standalone.html \
-		test_timeupdate_small_files.html \
+		test_streams_element_capture.html \
+		test_streams_element_capture_reset.html \
 		test_too_many_elements.html \
 		test_volume.html \
 		test_video_to_canvas.html \
@@ -127,21 +127,19 @@ MOCHITEST_FILES = \
 		test_media_selection.html \
 		test_playback.html \
 		test_seekLies.html \
-		test_media_sniffer.html \
-		contentType.sjs \
-		test_streams_srcObject.html \
 		$(NULL)
 
-$(warning test_error_in_video_document.html is disabled for intermittent failures. Bug 608634)
-
-# Disabled on Windows for frequent intermittent failures
-ifneq ($(OS_ARCH), WINNT)
+# Tests disabled on Linux for frequent intermittent failures
+ifneq (Linux,$(OS_ARCH))
 MOCHITEST_FILES += \
-		test_streams_element_capture.html \
-		test_streams_element_capture_reset.html \
+		test_seek.html \
+		test_seek_out_of_range.html \
+		test_timeupdate_small_files.html \
 		$(NULL)
 else
-$(warning test_streams_element_capture{,_reset}.html is disabled on Windows for timeouts. Bug 752796)
+$(warning test_seek.html is disabled on Linux for timeouts. Bug 620598)
+$(warning test_seek_out_of_range.html is disabled on Linux for timeouts. Bug 661076)
+$(warning test_timeupdate_small_files.html is disabled on Linux for timeouts. Bug 687972)
 endif
 
 # Don't run in suite
@@ -169,7 +167,6 @@ MOCHITEST_FILES += \
 		448636.ogv \
 		audio-overhang.ogg \
 		audio-gaps.ogg \
-		badtags.ogg \
 		beta-phrasebook.ogg \
 		bogus.ogv \
 		bug495129.ogv \
@@ -216,9 +213,6 @@ MOCHITEST_FILES += \
 		video-overhang.ogg \
 		file_a4_tone.ogg \
 		detodos.opus \
-		short.mp4 \
-		notags.mp3 \
-		id3tags.mp3 \
 		$(NULL)
 
 # Wave sample files

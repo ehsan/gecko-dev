@@ -28,14 +28,17 @@ StorageParent::StorageParent(const StorageConstructData& aData)
 
 bool
 StorageParent::RecvInit(const bool& aUseDB,
+                        const bool& aCanUseChromePersist,
                         const bool& aSessionOnly,
                         const bool& aPrivate,
+                        const nsCString& aDomain,
                         const nsCString& aScopeDBKey,
-                        const nsCString& aQuotaDBKey,
-                        const uint32_t& aStorageType)
+                        const nsCString& aQuotaDomainDBKey,
+                        const nsCString& aQuotaETLDplus1DomainDBKey,
+                        const PRUint32& aStorageType)
 {
-  mStorage->InitFromChild(aUseDB, aSessionOnly, aPrivate,
-                          aScopeDBKey, aQuotaDBKey,
+  mStorage->InitFromChild(aUseDB, aCanUseChromePersist, aSessionOnly, aPrivate, aDomain,
+                          aScopeDBKey, aQuotaDomainDBKey, aQuotaETLDplus1DomainDBKey,
                           aStorageType);
   return true;
 }
@@ -58,7 +61,7 @@ StorageParent::RecvGetKeys(const bool& aCallerSecure, InfallibleTArray<nsString>
 
 bool
 StorageParent::RecvGetLength(const bool& aCallerSecure, const bool& aSessionOnly,
-                             uint32_t* aLength, nsresult* rv)
+                             PRUint32* aLength, nsresult* rv)
 {
   mStorage->SetSessionOnly(aSessionOnly);
   *rv = mStorage->GetLength(aCallerSecure, aLength);
@@ -67,7 +70,7 @@ StorageParent::RecvGetLength(const bool& aCallerSecure, const bool& aSessionOnly
 
 bool
 StorageParent::RecvGetKey(const bool& aCallerSecure, const bool& aSessionOnly,
-                          const uint32_t& aIndex, nsString* aKey, nsresult* rv)
+                          const PRUint32& aIndex, nsString* aKey, nsresult* rv)
 {
   mStorage->SetSessionOnly(aSessionOnly);
   *rv = mStorage->GetKey(aCallerSecure, aIndex, *aKey);
@@ -122,7 +125,7 @@ StorageParent::RecvRemoveValue(const bool& aCallerSecure, const bool& aSessionOn
 
 bool
 StorageParent::RecvClear(const bool& aCallerSecure, const bool& aSessionOnly,
-                         int32_t* aOldCount, nsresult* rv)
+                         PRInt32* aOldCount, nsresult* rv)
 {
   mStorage->SetSessionOnly(aSessionOnly);
   *rv = mStorage->Clear(aCallerSecure, aOldCount);

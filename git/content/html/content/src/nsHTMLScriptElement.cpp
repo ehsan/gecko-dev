@@ -19,7 +19,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIXPConnect.h"
 #include "nsServiceManagerUtils.h"
-#include "nsError.h"
+#include "nsContentErrors.h"
 #include "nsIArray.h"
 #include "nsTArray.h"
 #include "nsDOMJSUtils.h"
@@ -43,17 +43,30 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
-  virtual void GetInnerHTML(nsAString& aInnerHTML,
-                            mozilla::ErrorResult& aError) MOZ_OVERRIDE;
-  virtual void SetInnerHTML(const nsAString& aInnerHTML,
-                            mozilla::ErrorResult& aError) MOZ_OVERRIDE;
+  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLElement::)
+  NS_IMETHOD Click() {
+    return nsGenericHTMLElement::Click();
+  }
+  NS_IMETHOD GetTabIndex(PRInt32* aTabIndex) {
+    return nsGenericHTMLElement::GetTabIndex(aTabIndex);
+  }
+  NS_IMETHOD SetTabIndex(PRInt32 aTabIndex) {
+    return nsGenericHTMLElement::SetTabIndex(aTabIndex);
+  }
+  NS_IMETHOD Focus() {
+    return nsGenericHTMLElement::Focus();
+  }
+  NS_IMETHOD GetDraggable(bool* aDraggable) {
+    return nsGenericHTMLElement::GetDraggable(aDraggable);
+  }
+  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML);
+  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML);
 
   // nsIDOMHTMLScriptElement
   NS_DECL_NSIDOMHTMLSCRIPTELEMENT
@@ -69,7 +82,7 @@ public:
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers);
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                               nsIAtom* aAttribute,
                               const nsAString& aValue,
                               nsAttrValue& aResult);
@@ -77,7 +90,7 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   // nsGenericElement
-  virtual nsresult AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+  virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue, bool aNotify);
 
   virtual nsXPCClassInfo* GetClassInfo();
@@ -141,7 +154,7 @@ nsHTMLScriptElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 bool
-nsHTMLScriptElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLScriptElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsIAtom* aAttribute,
                                     const nsAString& aValue,
                                     nsAttrValue& aResult)
@@ -204,8 +217,11 @@ NS_IMPL_STRING_ATTR(nsHTMLScriptElement, CrossOrigin, crossorigin)
 nsresult
 nsHTMLScriptElement::GetAsync(bool* aValue)
 {
-  *aValue = mForceAsync || GetBoolAttr(nsGkAtoms::async);
-  return NS_OK;
+  if (mForceAsync) {
+    *aValue = true;
+    return NS_OK;
+  }
+  return GetBoolAttr(nsGkAtoms::async, aValue);
 }
 
 nsresult
@@ -216,7 +232,7 @@ nsHTMLScriptElement::SetAsync(bool aValue)
 }
 
 nsresult
-nsHTMLScriptElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+nsHTMLScriptElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                   const nsAttrValue* aValue, bool aNotify)
 {
   if (nsGkAtoms::async == aName && kNameSpaceID_None == aNamespaceID) {
@@ -226,17 +242,17 @@ nsHTMLScriptElement::AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
                                             aNotify);
 }
 
-void
-nsHTMLScriptElement::GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError)
+nsresult
+nsHTMLScriptElement::GetInnerHTML(nsAString& aInnerHTML)
 {
   nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
+  return NS_OK;
 }
 
-void
-nsHTMLScriptElement::SetInnerHTML(const nsAString& aInnerHTML,
-                                  ErrorResult& aError)
+nsresult
+nsHTMLScriptElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
-  aError = nsContentUtils::SetNodeTextContent(this, aInnerHTML, true);
+  return nsContentUtils::SetNodeTextContent(this, aInnerHTML, true);
 }
 
 // variation of this code in nsSVGScriptElement - check if changes

@@ -14,10 +14,10 @@
 
 #define ONE_BYTE_TABLE_SIZE 256
 
-inline bool WillOverrun(PRUnichar* aDest, PRUnichar* aDestEnd, uint32_t aLength)
+inline bool WillOverrun(PRUnichar* aDest, PRUnichar* aDestEnd, PRUint32 aLength)
 {
   NS_ASSERTION(aDest <= aDestEnd, "Pointer overrun even before check");
-  return (uint32_t(aDestEnd - aDest) < aLength);
+  return (PRUint32(aDestEnd - aDest) < aLength);
 }
 #define CHECK_OVERRUN(dest, destEnd, length) (WillOverrun(dest, destEnd, length))
 
@@ -86,11 +86,11 @@ public:
   //--------------------------------------------------------------------
   // Interface nsIUnicodeDecoder [declaration]
 
-  virtual void SetInputErrorBehavior(int32_t aBehavior);
+  virtual void SetInputErrorBehavior(PRInt32 aBehavior);
   virtual PRUnichar GetCharacterForUnMapped();
 
 protected:
-  int32_t   mErrBehavior;
+  PRInt32   mErrBehavior;
 };
 
 //----------------------------------------------------------------------
@@ -113,25 +113,25 @@ protected:
    * Internal buffer for partial conversions.
    */
   char *    mBuffer;
-  int32_t   mBufferCapacity;
-  int32_t   mBufferLength;
+  PRInt32   mBufferCapacity;
+  PRInt32   mBufferLength;
 
-  uint32_t  mMaxLengthFactor;
+  PRUint32  mMaxLengthFactor;
   
   /**
    * Convert method but *without* the buffer management stuff.
    */
-  NS_IMETHOD ConvertNoBuff(const char * aSrc, int32_t * aSrcLength, 
-      PRUnichar * aDest, int32_t * aDestLength) = 0;
+  NS_IMETHOD ConvertNoBuff(const char * aSrc, PRInt32 * aSrcLength, 
+      PRUnichar * aDest, PRInt32 * aDestLength) = 0;
 
-  void FillBuffer(const char ** aSrc, int32_t aSrcLength);
+  void FillBuffer(const char ** aSrc, PRInt32 aSrcLength);
 
 public:
 
   /**
    * Class constructor.
    */
-  nsBufferDecoderSupport(uint32_t aMaxLengthFactor);
+  nsBufferDecoderSupport(PRUint32 aMaxLengthFactor);
 
   /**
    * Class destructor.
@@ -141,12 +141,12 @@ public:
   //--------------------------------------------------------------------
   // Interface nsIUnicodeDecoder [declaration]
 
-  NS_IMETHOD Convert(const char * aSrc, int32_t * aSrcLength, 
-      PRUnichar * aDest, int32_t * aDestLength);
+  NS_IMETHOD Convert(const char * aSrc, PRInt32 * aSrcLength, 
+      PRUnichar * aDest, PRInt32 * aDestLength);
   NS_IMETHOD Reset();
   NS_IMETHOD GetMaxLength(const char *aSrc,
-                          int32_t aSrcLength,
-                          int32_t* aDestLength);
+                          PRInt32 aSrcLength,
+                          PRInt32* aDestLength);
 };
 
 //----------------------------------------------------------------------
@@ -166,7 +166,7 @@ public:
    * Class constructor.
    */
   nsTableDecoderSupport(uScanClassID aScanClass, uShiftInTable * aShiftInTable,
-      uMappingTable * aMappingTable, uint32_t aMaxLengthFactor);
+      uMappingTable * aMappingTable, PRUint32 aMaxLengthFactor);
 
   /**
    * Class destructor.
@@ -182,8 +182,8 @@ protected:
   //--------------------------------------------------------------------
   // Subclassing of nsBufferDecoderSupport class [declaration]
 
-  NS_IMETHOD ConvertNoBuff(const char * aSrc, int32_t * aSrcLength, 
-      PRUnichar * aDest, int32_t * aDestLength);
+  NS_IMETHOD ConvertNoBuff(const char * aSrc, PRInt32 * aSrcLength, 
+      PRUnichar * aDest, PRInt32 * aDestLength);
 };
 
 //----------------------------------------------------------------------
@@ -202,10 +202,10 @@ public:
   /**
    * Class constructor.
    */
-  nsMultiTableDecoderSupport(int32_t aTableCount, const uRange * aRangeArray, 
+  nsMultiTableDecoderSupport(PRInt32 aTableCount, const uRange * aRangeArray, 
                              uScanClassID * aScanClassArray,
                              uMappingTable ** aMappingTable,
-                             uint32_t aMaxLengthFactor);
+                             PRUint32 aMaxLengthFactor);
 
   /**
    * Class destructor.
@@ -214,7 +214,7 @@ public:
 
 protected:
 
-  int32_t                   mTableCount;
+  PRInt32                   mTableCount;
   const uRange              * mRangeArray;
   uScanClassID              * mScanClassArray;
   uMappingTable             ** mMappingTable;
@@ -222,8 +222,8 @@ protected:
   //--------------------------------------------------------------------
   // Subclassing of nsBufferDecoderSupport class [declaration]
 
-  NS_IMETHOD ConvertNoBuff(const char * aSrc, int32_t * aSrcLength, 
-      PRUnichar * aDest, int32_t * aDestLength);
+  NS_IMETHOD ConvertNoBuff(const char * aSrc, PRInt32 * aSrcLength, 
+      PRUnichar * aDest, PRInt32 * aDestLength);
 };
 
 //----------------------------------------------------------------------
@@ -259,10 +259,10 @@ protected:
   //--------------------------------------------------------------------
   // Subclassing of nsBasicDecoderSupport class [declaration]
 
-  NS_IMETHOD Convert(const char * aSrc, int32_t * aSrcLength, 
-      PRUnichar * aDest, int32_t * aDestLength);
-  NS_IMETHOD GetMaxLength(const char * aSrc, int32_t aSrcLength, 
-      int32_t * aDestLength);
+  NS_IMETHOD Convert(const char * aSrc, PRInt32 * aSrcLength, 
+      PRUnichar * aDest, PRInt32 * aDestLength);
+  NS_IMETHOD GetMaxLength(const char * aSrc, PRInt32 aSrcLength, 
+      PRInt32 * aDestLength);
   NS_IMETHOD Reset();
 };
 
@@ -311,36 +311,36 @@ protected:
    * Internal buffer for partial conversions.
    */
   char *    mBuffer;
-  int32_t   mBufferCapacity;
+  PRInt32   mBufferCapacity;
   char *    mBufferStart;
   char *    mBufferEnd;
 
   /**
    * Error handling stuff
    */
-  int32_t   mErrBehavior;
+  PRInt32   mErrBehavior;
   nsCOMPtr<nsIUnicharEncoder> mErrEncoder;
   PRUnichar mErrChar;
-  uint32_t  mMaxLengthFactor;
+  PRUint32  mMaxLengthFactor;
 
   /**
    * Convert method but *without* the buffer management stuff and *with* 
    * error handling stuff.
    */
-  NS_IMETHOD ConvertNoBuff(const PRUnichar * aSrc, int32_t * aSrcLength, 
-      char * aDest, int32_t * aDestLength);
+  NS_IMETHOD ConvertNoBuff(const PRUnichar * aSrc, PRInt32 * aSrcLength, 
+      char * aDest, PRInt32 * aDestLength);
 
   /**
    * Convert method but *without* the buffer management stuff and *without*
    * error handling stuff.
    */
-  NS_IMETHOD ConvertNoBuffNoErr(const PRUnichar * aSrc, int32_t * aSrcLength, 
-      char * aDest, int32_t * aDestLength) = 0;
+  NS_IMETHOD ConvertNoBuffNoErr(const PRUnichar * aSrc, PRInt32 * aSrcLength, 
+      char * aDest, PRInt32 * aDestLength) = 0;
 
   /**
    * Finish method but *without* the buffer management stuff.
    */
-  NS_IMETHOD FinishNoBuff(char * aDest, int32_t * aDestLength);
+  NS_IMETHOD FinishNoBuff(char * aDest, PRInt32 * aDestLength);
 
   /**
    * Copy as much as possible from the internal buffer to the destination.
@@ -352,7 +352,7 @@ public:
   /**
    * Class constructor.
    */
-  nsEncoderSupport(uint32_t aMaxLengthFactor);
+  nsEncoderSupport(PRUint32 aMaxLengthFactor);
 
   /**
    * Class destructor.
@@ -362,15 +362,15 @@ public:
   //--------------------------------------------------------------------
   // Interface nsIUnicodeEncoder [declaration]
 
-  NS_IMETHOD Convert(const PRUnichar * aSrc, int32_t * aSrcLength, 
-      char * aDest, int32_t * aDestLength);
-  NS_IMETHOD Finish(char * aDest, int32_t * aDestLength);
+  NS_IMETHOD Convert(const PRUnichar * aSrc, PRInt32 * aSrcLength, 
+      char * aDest, PRInt32 * aDestLength);
+  NS_IMETHOD Finish(char * aDest, PRInt32 * aDestLength);
   NS_IMETHOD Reset();
-  NS_IMETHOD SetOutputErrorBehavior(int32_t aBehavior, 
+  NS_IMETHOD SetOutputErrorBehavior(PRInt32 aBehavior, 
       nsIUnicharEncoder * aEncoder, PRUnichar aChar);
   NS_IMETHOD GetMaxLength(const PRUnichar * aSrc, 
-                          int32_t aSrcLength, 
-                          int32_t * aDestLength);
+                          PRInt32 aSrcLength, 
+                          PRInt32 * aDestLength);
 };
 
 //----------------------------------------------------------------------
@@ -392,11 +392,11 @@ public:
   nsTableEncoderSupport(uScanClassID  aScanClass,
                         uShiftOutTable * aShiftOutTable,
                         uMappingTable  * aMappingTable,
-                        uint32_t aMaxLengthFactor);
+                        PRUint32 aMaxLengthFactor);
 
   nsTableEncoderSupport(uScanClassID  aScanClass,
                         uMappingTable  * aMappingTable,
-                        uint32_t aMaxLengthFactor);
+                        PRUint32 aMaxLengthFactor);
 
   /**
    * Class destructor.
@@ -412,8 +412,8 @@ protected:
   //--------------------------------------------------------------------
   // Subclassing of nsEncoderSupport class [declaration]
 
-  NS_IMETHOD ConvertNoBuffNoErr(const PRUnichar * aSrc, int32_t * aSrcLength, 
-      char * aDest, int32_t * aDestLength);
+  NS_IMETHOD ConvertNoBuffNoErr(const PRUnichar * aSrc, PRInt32 * aSrcLength, 
+      char * aDest, PRInt32 * aDestLength);
 };
 
 //----------------------------------------------------------------------
@@ -432,11 +432,11 @@ public:
   /**
    * Class constructor.
    */
-  nsMultiTableEncoderSupport(int32_t aTableCount,
+  nsMultiTableEncoderSupport(PRInt32 aTableCount,
                              uScanClassID * aScanClassArray,
                              uShiftOutTable ** aShiftOutTable,
                              uMappingTable  ** aMappingTable,
-                             uint32_t aMaxLengthFactor);
+                             PRUint32 aMaxLengthFactor);
 
   /**
    * Class destructor.
@@ -445,7 +445,7 @@ public:
 
 protected:
 
-  int32_t                   mTableCount;
+  PRInt32                   mTableCount;
   uScanClassID              * mScanClassArray;
   uShiftOutTable            ** mShiftOutTable;
   uMappingTable             ** mMappingTable;
@@ -453,8 +453,8 @@ protected:
   //--------------------------------------------------------------------
   // Subclassing of nsEncoderSupport class [declaration]
 
-  NS_IMETHOD ConvertNoBuffNoErr(const PRUnichar * aSrc, int32_t * aSrcLength, 
-      char * aDest, int32_t * aDestLength);
+  NS_IMETHOD ConvertNoBuffNoErr(const PRUnichar * aSrc, PRInt32 * aSrcLength, 
+      char * aDest, PRInt32 * aDestLength);
 };
 
                         

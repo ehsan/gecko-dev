@@ -9,7 +9,7 @@
 //----------------------------------------------------------------------
 // Global functions and data [declaration]
 
-static const uint16_t g_utMappingTable[] = {
+static const PRUint16 g_utMappingTable[] = {
 #include "8859-13.ut"
 };
 

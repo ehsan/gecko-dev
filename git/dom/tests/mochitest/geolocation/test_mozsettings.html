@@ -21,7 +21,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=478911
 
 function toggleGeolocationSetting(value, callback) {
   var mozSettings = window.navigator.mozSettings;
-  var lock = mozSettings.createLock();
+  var lock = mozSettings.getLock();
 
   var geoenabled = {"geolocation.enabled": value};
 
@@ -37,9 +37,10 @@ resume_geolocationProvider();
 force_prompt(true);
 
 
+var comp = SpecialPowers.wrap(Components);
 SpecialPowers.setBoolPref("dom.mozSettings.enabled", true);
 SpecialPowers.addPermission("settings", true, document);
-SpecialPowers.Cu.import("resource://gre/modules/SettingsChangeNotifier.jsm");
+comp.utils.import("resource://gre/modules/SettingsChangeNotifier.jsm");
 
 toggleGeolocationSetting(false, function() {
     ok(true, "turned off geolocation via mozSettings");

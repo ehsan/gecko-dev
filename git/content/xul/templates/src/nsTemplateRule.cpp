@@ -40,14 +40,14 @@ nsTemplateCondition::nsTemplateCondition(nsIAtom* aSourceVariable,
     SetRelation(aRelation);
 
     if (aIsMultiple) {
-        int32_t start = 0, end = 0;
+        PRInt32 start = 0, end = 0;
         while ((end = aTargets.FindChar(',',start)) >= 0) {
             if (end > start) {
                 mTargetList.AppendElement(Substring(aTargets, start, end - start));
             }
             start = end + 1;
         }
-        if (start < int32_t(aTargets.Length())) {
+        if (start < PRInt32(aTargets.Length())) {
             mTargetList.AppendElement(Substring(aTargets, start));
         }
     }
@@ -117,8 +117,8 @@ nsTemplateCondition::CheckMatch(nsIXULTemplateResult* aResult)
     else {
         // iterate over the strings in the target and determine
         // whether there is a match.
-        uint32_t length = mTargetList.Length();
-        for (uint32_t t = 0; t < length; t++) {
+        PRUint32 length = mTargetList.Length();
+        for (PRUint32 t = 0; t < length; t++) {
             match = CheckMatchStrings(leftString, mTargetList[t]);
 
             // stop once a match is found. In negate mode, stop once a
@@ -156,9 +156,9 @@ nsTemplateCondition::CheckMatchStrings(const nsAString& aLeftString,
             {
                 // non-numbers always compare false
                 nsresult err;
-                int32_t leftint = PromiseFlatString(aLeftString).ToInteger(&err);
+                PRInt32 leftint = PromiseFlatString(aLeftString).ToInteger(&err);
                 if (NS_SUCCEEDED(err)) {
-                    int32_t rightint = PromiseFlatString(aRightString).ToInteger(&err);
+                    PRInt32 rightint = PromiseFlatString(aRightString).ToInteger(&err);
                     if (NS_SUCCEEDED(err)) {
                         match = (mRelation == eLess) ? (leftint < rightint) :
                                                        (leftint > rightint);
@@ -172,10 +172,10 @@ nsTemplateCondition::CheckMatchStrings(const nsAString& aLeftString,
             {
                 nsICollation* collation = nsXULContentUtils::GetCollation();
                 if (collation) {
-                    int32_t sortOrder;
+                    PRInt32 sortOrder;
                     collation->CompareString((mIgnoreCase ?
-                                              static_cast<int32_t>(nsICollation::kCollationCaseInSensitive) :
-                                              static_cast<int32_t>(nsICollation::kCollationCaseSensitive)),
+                                              static_cast<PRInt32>(nsICollation::kCollationCaseInSensitive) :
+                                              static_cast<PRInt32>(nsICollation::kCollationCaseSensitive)),
                                               aLeftString,
                                               aRightString,
                                               &sortOrder);
@@ -195,10 +195,10 @@ nsTemplateCondition::CheckMatchStrings(const nsAString& aLeftString,
             {
                 nsICollation* collation = nsXULContentUtils::GetCollation();
                 if (collation) {
-                    int32_t sortOrder;
+                    PRInt32 sortOrder;
                     collation->CompareString((mIgnoreCase ?
-                                              static_cast<int32_t>(nsICollation::kCollationCaseInSensitive) :
-                                              static_cast<int32_t>(nsICollation::kCollationCaseSensitive)),
+                                              static_cast<PRInt32>(nsICollation::kCollationCaseInSensitive) :
+                                              static_cast<PRInt32>(nsICollation::kCollationCaseSensitive)),
                                               aLeftString,
                                               aRightString,
                                               &sortOrder);

@@ -8,7 +8,7 @@
 
 nsTreeRows::Subtree*
 nsTreeRows::EnsureSubtreeFor(Subtree* aParent,
-                             int32_t aChildIndex)
+                             PRInt32 aChildIndex)
 {
     Subtree* subtree = GetSubtreeFor(aParent, aChildIndex);
 
@@ -22,8 +22,8 @@ nsTreeRows::EnsureSubtreeFor(Subtree* aParent,
 
 nsTreeRows::Subtree*
 nsTreeRows::GetSubtreeFor(const Subtree* aParent,
-                              int32_t aChildIndex,
-                              int32_t* aSubtreeSize)
+                              PRInt32 aChildIndex,
+                              PRInt32* aSubtreeSize)
 {
     NS_PRECONDITION(aParent, "no parent");
     NS_PRECONDITION(aChildIndex >= 0, "bad child index");
@@ -40,7 +40,7 @@ nsTreeRows::GetSubtreeFor(const Subtree* aParent,
 }
 
 void
-nsTreeRows::RemoveSubtreeFor(Subtree* aParent, int32_t aChildIndex)
+nsTreeRows::RemoveSubtreeFor(Subtree* aParent, PRInt32 aChildIndex)
 {
     NS_PRECONDITION(aParent, "no parent");
     NS_PRECONDITION(aChildIndex >= 0 && aChildIndex < aParent->mCount, "bad child index");
@@ -48,7 +48,7 @@ nsTreeRows::RemoveSubtreeFor(Subtree* aParent, int32_t aChildIndex)
     Row& row = aParent->mRows[aChildIndex];
 
     if (row.mSubtree) {
-        int32_t subtreeSize = row.mSubtree->GetSubtreeSize();
+        PRInt32 subtreeSize = row.mSubtree->GetSubtreeSize();
 
         delete row.mSubtree;
         row.mSubtree = nullptr;
@@ -76,9 +76,9 @@ nsTreeRows::Last()
 
     // Build up a path along the rightmost edge of the tree
     Subtree* current = &mRoot;
-    int32_t count = current->Count();
+    PRInt32 count = current->Count();
     do  {
-        int32_t last = count - 1;
+        PRInt32 last = count - 1;
         result.Append(current, last);
         current = count ? GetSubtreeFor(current, last) : nullptr;
     } while (current && ((count = current->Count()) != 0));
@@ -93,12 +93,12 @@ nsTreeRows::Last()
 }
 
 nsTreeRows::iterator
-nsTreeRows::operator[](int32_t aRow)
+nsTreeRows::operator[](PRInt32 aRow)
 {
     // See if we're just lucky, and end up with something
     // nearby. (This tends to happen a lot due to the way that we get
     // asked for rows n' stuff.)
-    int32_t last = mLastRow.GetRowIndex();
+    PRInt32 last = mLastRow.GetRowIndex();
     if (last != -1) {
         if (aRow == last)
             return mLastRow;
@@ -116,11 +116,11 @@ nsTreeRows::operator[](int32_t aRow)
     iterator result;
     Subtree* current = &mRoot;
 
-    int32_t index = 0;
+    PRInt32 index = 0;
     result.SetRowIndex(aRow);
 
     do {
-        int32_t subtreeSize;
+        PRInt32 subtreeSize;
         Subtree* subtree = GetSubtreeFor(current, index, &subtreeSize);
 
         if (subtreeSize >= aRow) {
@@ -218,7 +218,7 @@ nsTreeRows::Subtree::~Subtree()
 void
 nsTreeRows::Subtree::Clear()
 {
-    for (int32_t i = mCount - 1; i >= 0; --i)
+    for (PRInt32 i = mCount - 1; i >= 0; --i)
         delete mRows[i].mSubtree;
 
     delete[] mRows;
@@ -228,15 +228,15 @@ nsTreeRows::Subtree::Clear()
 }
 
 nsTreeRows::iterator
-nsTreeRows::Subtree::InsertRowAt(nsTemplateMatch* aMatch, int32_t aIndex)
+nsTreeRows::Subtree::InsertRowAt(nsTemplateMatch* aMatch, PRInt32 aIndex)
 {
     if (mCount >= mCapacity || aIndex >= mCapacity) {
-        int32_t newCapacity = NS_MAX(mCapacity * 2, aIndex + 1);
+        PRInt32 newCapacity = NS_MAX(mCapacity * 2, aIndex + 1);
         Row* newRows = new Row[newCapacity];
         if (! newRows)
             return iterator();
 
-        for (int32_t i = mCount - 1; i >= 0; --i)
+        for (PRInt32 i = mCount - 1; i >= 0; --i)
             newRows[i] = mRows[i];
 
         delete[] mRows;
@@ -245,7 +245,7 @@ nsTreeRows::Subtree::InsertRowAt(nsTemplateMatch* aMatch, int32_t aIndex)
         mCapacity = newCapacity;
     }
 
-    for (int32_t i = mCount - 1; i >= aIndex; --i)
+    for (PRInt32 i = mCount - 1; i >= aIndex; --i)
         mRows[i + 1] = mRows[i];
 
     mRows[aIndex].mMatch = aMatch;
@@ -256,7 +256,7 @@ nsTreeRows::Subtree::InsertRowAt(nsTemplateMatch* aMatch, int32_t aIndex)
     ++mCount;
 
     // Now build an iterator that points to the newly inserted element.
-    int32_t rowIndex = 0;
+    PRInt32 rowIndex = 0;
     iterator result;
     result.Push(this, aIndex);
 
@@ -277,7 +277,7 @@ nsTreeRows::Subtree::InsertRowAt(nsTemplateMatch* aMatch, int32_t aIndex)
             break;
 
         // Account for open subtrees in the absolute row index.
-        int32_t count = parent->Count();
+        PRInt32 count = parent->Count();
         for (aIndex = 0; aIndex < count; ++aIndex, ++rowIndex) {
             const Subtree *child = (*parent)[aIndex].mSubtree;
             if (subtree == child)
@@ -299,14 +299,14 @@ nsTreeRows::Subtree::InsertRowAt(nsTemplateMatch* aMatch, int32_t aIndex)
 }
 
 void
-nsTreeRows::Subtree::RemoveRowAt(int32_t aIndex)
+nsTreeRows::Subtree::RemoveRowAt(PRInt32 aIndex)
 {
     NS_PRECONDITION(aIndex >= 0 && aIndex < Count(), "bad index");
     if (aIndex < 0 || aIndex >= Count())
         return;
 
     // How big is the subtree we're going to be removing?
-    int32_t subtreeSize = mRows[aIndex].mSubtree
+    PRInt32 subtreeSize = mRows[aIndex].mSubtree
         ? mRows[aIndex].mSubtree->GetSubtreeSize()
         : 0;
 
@@ -314,7 +314,7 @@ nsTreeRows::Subtree::RemoveRowAt(int32_t aIndex)
 
     delete mRows[aIndex].mSubtree;
 
-    for (int32_t i = aIndex + 1; i < mCount; ++i)
+    for (PRInt32 i = aIndex + 1; i < mCount; ++i)
         mRows[i - 1] = mRows[i];
 
     --mCount;
@@ -343,7 +343,7 @@ nsTreeRows::iterator::operator=(const iterator& aIterator)
 }
 
 void
-nsTreeRows::iterator::Append(Subtree* aParent, int32_t aChildIndex)
+nsTreeRows::iterator::Append(Subtree* aParent, PRInt32 aChildIndex)
 {
     Link *link = mLink.AppendElement();
     if (link) {
@@ -355,7 +355,7 @@ nsTreeRows::iterator::Append(Subtree* aParent, int32_t aChildIndex)
 }
 
 void
-nsTreeRows::iterator::Push(Subtree *aParent, int32_t aChildIndex)
+nsTreeRows::iterator::Push(Subtree *aParent, PRInt32 aChildIndex)
 {
     Link *link = mLink.InsertElementAt(0);
     if (link) {
@@ -402,7 +402,7 @@ nsTreeRows::iterator::Next()
         // Yep. See if we've just iterated path the last element in
         // the tree, period. Walk back up the stack, looking for any
         // unfinished subtrees.
-        int32_t unfinished;
+        PRInt32 unfinished;
         for (unfinished = GetDepth() - 2; unfinished >= 0; --unfinished) {
             const Link& link = mLink[unfinished];
             if (link.mChildIndex < link.mParent->Count() - 1)
@@ -442,7 +442,7 @@ nsTreeRows::iterator::Prev()
         // Yep. See if we've just iterated back to the first element
         // in the tree, period. Walk back up the stack, looking for
         // any unfinished subtrees.
-        int32_t unfinished;
+        PRInt32 unfinished;
         for (unfinished = GetDepth() - 2; unfinished >= 0; --unfinished) {
             const Link& link = mLink[unfinished];
             if (link.mChildIndex >= 0)
@@ -465,7 +465,7 @@ nsTreeRows::iterator::Prev()
     // position? If so, descend into it, grovelling down to the
     // deepest, rightmost left edge.
     Subtree* parent = GetTop().GetParent();
-    int32_t index = GetTop().GetChildIndex();
+    PRInt32 index = GetTop().GetChildIndex();
 
     Subtree* subtree = (*parent)[index].mSubtree;
 

@@ -26,6 +26,4 @@ of the License or (at your option) any later version.
 */
 
 #include "inc/Rule.h"
-#include "inc/Segment.h"
 
-using namespace graphite2;

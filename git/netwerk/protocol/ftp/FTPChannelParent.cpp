@@ -12,10 +12,6 @@
 #include "nsIRedirectChannelRegistrar.h"
 #include "nsFtpProtocolHandler.h"
 #include "mozilla/LoadContext.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-#include "mozilla/ipc/URIUtils.h"
-
-using namespace mozilla::ipc;
 
 #undef LOG
 #define LOG(args) PR_LOG(gFTPLog, PR_LOG_DEBUG, args)
@@ -59,15 +55,13 @@ NS_IMPL_ISUPPORTS4(FTPChannelParent,
 //-----------------------------------------------------------------------------
 
 bool
-FTPChannelParent::RecvAsyncOpen(const URIParams& aURI,
-                                const uint64_t& aStartPos,
+FTPChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
+                                const PRUint64& aStartPos,
                                 const nsCString& aEntityID,
-                                const OptionalInputStreamParams& aUploadStream,
+                                const IPC::InputStream& aUploadStream,
                                 const IPC::SerializedLoadContext& loadContext)
 {
-  nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
-  if (!uri)
-      return false;
+  nsCOMPtr<nsIURI> uri(aURI);
 
 #ifdef DEBUG
   nsCString uriSpec;
@@ -88,7 +82,7 @@ FTPChannelParent::RecvAsyncOpen(const URIParams& aURI,
 
   mChannel = static_cast<nsFtpChannel*>(chan.get());
   
-  nsCOMPtr<nsIInputStream> upload = DeserializeInputStream(aUploadStream);
+  nsCOMPtr<nsIInputStream> upload(aUploadStream);
   if (upload) {
     // contentType and contentLength are ignored
     rv = mChannel->SetUploadStream(upload, EmptyCString(), 0);
@@ -102,11 +96,6 @@ FTPChannelParent::RecvAsyncOpen(const URIParams& aURI,
 
   if (loadContext.IsNotNull())
     mLoadContext = new LoadContext(loadContext);
-  else if (loadContext.IsPrivateBitValid()) {
-    nsCOMPtr<nsIPrivateBrowsingChannel> pbChannel = do_QueryInterface(chan);
-    if (pbChannel)
-      pbChannel->SetPrivate(loadContext.mUsePrivateBrowsing);
-  }
 
   rv = mChannel->AsyncOpen(this, nullptr);
   if (NS_FAILED(rv))
@@ -116,7 +105,7 @@ FTPChannelParent::RecvAsyncOpen(const URIParams& aURI,
 }
 
 bool
-FTPChannelParent::RecvConnectChannel(const uint32_t& channelId)
+FTPChannelParent::RecvConnectChannel(const PRUint32& channelId)
 {
   nsresult rv;
 
@@ -166,7 +155,7 @@ FTPChannelParent::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   LOG(("FTPChannelParent::OnStartRequest [this=%x]\n", this));
 
   nsFtpChannel* chan = static_cast<nsFtpChannel*>(aRequest);
-  int32_t aContentLength;
+  PRInt32 aContentLength;
   chan->GetContentLength(&aContentLength);
   nsCString contentType;
   chan->GetContentType(contentType);
@@ -175,11 +164,8 @@ FTPChannelParent::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   PRTime lastModified;
   chan->GetLastModifiedTime(&lastModified);
 
-  URIParams uri;
-  SerializeURI(chan->URI(), uri);
-
   if (mIPCClosed || !SendOnStartRequest(aContentLength, contentType,
-                                       lastModified, entityID, uri)) {
+                                       lastModified, entityID, chan->URI())) {
     return NS_ERROR_UNEXPECTED;
   }
 
@@ -209,8 +195,8 @@ NS_IMETHODIMP
 FTPChannelParent::OnDataAvailable(nsIRequest* aRequest,
                                   nsISupports* aContext,
                                   nsIInputStream* aInputStream,
-                                  uint64_t aOffset,
-                                  uint32_t aCount)
+                                  PRUint32 aOffset,
+                                  PRUint32 aCount)
 {
   LOG(("FTPChannelParent::OnDataAvailable [this=%x]\n", this));
   

@@ -16,12 +16,8 @@
 #include "nsCRT.h" /* should be <limits.h>? */
 
 #include <gtk/gtk.h>
-#if (MOZ_WIDGET_GTK == 2)
 #include <gtk/gtkprinter.h>
 #include <gtk/gtkprintjob.h>
-#else
-#include <gtk/gtkunixprint.h>
-#endif
 
 #define NS_PORTRAIT  0
 #define NS_LANDSCAPE 1
@@ -42,7 +38,7 @@ public:
   NS_IMETHOD GetSurfaceForPrinter(gfxASurface **surface);
 
   NS_IMETHOD Init(nsIWidget *aWidget, nsIPrintSettings* aPS, bool aIsPrintPreview);
-  NS_IMETHOD BeginDocument(PRUnichar * aTitle, PRUnichar * aPrintToFileName, int32_t aStartPage, int32_t aEndPage);
+  NS_IMETHOD BeginDocument(PRUnichar * aTitle, PRUnichar * aPrintToFileName, PRInt32 aStartPage, PRInt32 aEndPage);
   NS_IMETHOD EndDocument();
   NS_IMETHOD BeginPage() { return NS_OK; }
   NS_IMETHOD EndPage() { return NS_OK; }

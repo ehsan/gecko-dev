@@ -36,15 +36,15 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
-  NS_IMETHOD DoAction(uint8_t index);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(PRUint8 index);
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
+  virtual PRUint8 ActionCount();
 
   // Widgets
   virtual bool IsWidget() const;
@@ -72,15 +72,15 @@ public:
   XULCheckboxAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
-  NS_IMETHOD DoAction(uint8_t index);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(PRUint8 index);
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
+  virtual PRUint8 ActionCount();
 };
 
 /**
@@ -93,15 +93,15 @@ public:
   XULDropmarkerAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
-  NS_IMETHOD DoAction(uint8_t index);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(PRUint8 index);
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
+  virtual PRUint8 ActionCount();
 
 private:
   bool DropmarkerOpen(bool aToggleOpen);
@@ -117,11 +117,8 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(uint32_t aRelationType);
-
-protected:
-  // Accessible
-  virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
+  virtual nsresult GetNameInternal(nsAString& aName);
+  virtual Relation RelationByType(PRUint32 aRelationType);
 };
 
 /**
@@ -134,8 +131,8 @@ public:
   XULRadioButtonAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // Accessible
-  virtual uint64_t NativeState();
-  virtual uint64_t NativeInteractiveState() const;
+  virtual PRUint64 NativeState();
+  virtual PRUint64 NativeInteractiveState() const;
 
   // Widgets
   virtual Accessible* ContainerWidget() const;
@@ -151,7 +148,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeInteractiveState() const;
+  virtual PRUint64 NativeInteractiveState() const;
 
   // Widgets
   virtual bool IsWidget() const;
@@ -180,8 +177,8 @@ public:
   XULToolbarButtonAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // Accessible
-  virtual void GetPositionAndSizeInternal(int32_t *aPosInSet,
-                                          int32_t *aSetSize);
+  virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
+                                          PRInt32 *aSetSize);
 
   // nsXULToolbarButtonAccessible
   static bool IsSeparator(Accessible* aAccessible);
@@ -197,10 +194,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-
-protected:
-  // Accessible
-  virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
+  virtual nsresult GetNameInternal(nsAString& aName);
 };
 
 /**
@@ -214,7 +208,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 };
 
 /**
@@ -230,21 +224,21 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
-  NS_IMETHOD DoAction(uint8_t index);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(PRUint8 index);
 
   // HyperTextAccessible
   virtual already_AddRefed<nsIEditor> GetEditor() const;
 
   // Accessible
   virtual void Value(nsString& aValue);
-  virtual void ApplyARIAState(uint64_t* aState) const;
+  virtual void ApplyARIAState(PRUint64* aState) const;
   virtual mozilla::a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
   virtual bool CanHaveAnonChildren();
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
+  virtual PRUint8 ActionCount();
 
 protected:
   // Accessible

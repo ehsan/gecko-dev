@@ -104,7 +104,7 @@ class RegExpCode
         codeBlock.release();
 #endif
         if (byteCode)
-            js_delete<BytecodePattern>(byteCode);
+            Foreground::delete_<BytecodePattern>(byteCode);
     }
 
     static bool checkSyntax(JSContext *cx, frontend::TokenStream *tokenStream,
@@ -132,7 +132,7 @@ class RegExpCode
 
 
     RegExpRunStatus
-    execute(JSContext *cx, StableCharPtr chars, size_t length, size_t start,
+    execute(JSContext *cx, const jschar *chars, size_t length, size_t start,
             int *output, size_t outputCount);
 };
 
@@ -167,15 +167,17 @@ class RegExpShared
     friend class RegExpGuard;
 
     detail::RegExpCode code;
-    unsigned           parenCount;
+    unsigned              parenCount;
     RegExpFlag         flags;
     size_t             activeUseCount;   /* See comment above. */
     uint64_t           gcNumberWhenUsed; /* See comment above. */
 
     bool compile(JSContext *cx, JSAtom *source);
 
-  public:
     RegExpShared(JSRuntime *rt, RegExpFlag flags);
+    JS_DECLARE_ALLOCATION_FRIENDS_FOR_PRIVATE_CONSTRUCTOR;
+
+  public:
 
     /* Called when a RegExpShared is installed into a RegExpObject. */
     inline void prepareForUse(JSContext *cx);
@@ -183,7 +185,7 @@ class RegExpShared
     /* Primary interface: run this regular expression on the given string. */
 
     RegExpRunStatus
-    execute(JSContext *cx, StableCharPtr chars, size_t length, size_t *lastIndex,
+    execute(JSContext *cx, const jschar *chars, size_t length, size_t *lastIndex,
             MatchPairs **output);
 
     /* Accessors */
@@ -290,8 +292,6 @@ class RegExpCompartment
      * mapping property, 'hackedSource' is unambiguous.
      */
     bool lookupHack(JSAtom *source, RegExpFlag flags, JSContext *cx, RegExpGuard *g);
-
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf);
 };
 
 class RegExpObject : public JSObject
@@ -314,11 +314,11 @@ class RegExpObject : public JSObject
      * execution, as opposed to during something like XDR.
      */
     static RegExpObject *
-    create(JSContext *cx, RegExpStatics *res, StableCharPtr chars, size_t length,
+    create(JSContext *cx, RegExpStatics *res, const jschar *chars, size_t length,
            RegExpFlag flags, frontend::TokenStream *ts);
 
     static RegExpObject *
-    createNoStatics(JSContext *cx, StableCharPtr chars, size_t length, RegExpFlag flags,
+    createNoStatics(JSContext *cx, const jschar *chars, size_t length, RegExpFlag flags,
                     frontend::TokenStream *ts);
 
     static RegExpObject *
@@ -336,7 +336,7 @@ class RegExpObject : public JSObject
      * into the |RegExpStatics| appropriately, if necessary.
      */
     RegExpRunStatus
-    execute(JSContext *cx, StableCharPtr chars, size_t length, size_t *lastIndex,
+    execute(JSContext *cx, const jschar *chars, size_t length, size_t *lastIndex,
             MatchPairs **output);
 
     /* Accessors. */

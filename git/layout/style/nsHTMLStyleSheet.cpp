@@ -33,7 +33,7 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsRuleWalker.h"
 #include "nsRuleData.h"
-#include "nsError.h"
+#include "nsContentErrors.h"
 #include "nsRuleProcessorData.h"
 #include "nsCSSRuleProcessor.h"
 #include "mozilla/dom/Element.h"
@@ -56,7 +56,7 @@ nsHTMLStyleSheet::HTMLColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
 
 #ifdef DEBUG
 /* virtual */ void
-nsHTMLStyleSheet::HTMLColorRule::List(FILE* out, int32_t aIndent) const
+nsHTMLStyleSheet::HTMLColorRule::List(FILE* out, PRInt32 aIndent) const
 {
 }
 #endif
@@ -66,7 +66,7 @@ NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::GenericTableRule, nsIStyleRule)
 
 #ifdef DEBUG
 /* virtual */ void
-nsHTMLStyleSheet::GenericTableRule::List(FILE* out, int32_t aIndent) const
+nsHTMLStyleSheet::GenericTableRule::List(FILE* out, PRInt32 aIndent) const
 {
 }
 #endif
@@ -464,7 +464,7 @@ nsHTMLStyleSheet::DropMappedAttributes(nsMappedAttributes* aMapped)
 
   NS_ASSERTION(mMappedAttrTable.ops, "table uninitialized");
 #ifdef DEBUG
-  uint32_t entryCount = mMappedAttrTable.entryCount - 1;
+  PRUint32 entryCount = mMappedAttrTable.entryCount - 1;
 #endif
 
   PL_DHashTableOperate(&mMappedAttrTable, aMapped, PL_DHASH_REMOVE);
@@ -474,13 +474,13 @@ nsHTMLStyleSheet::DropMappedAttributes(nsMappedAttributes* aMapped)
 
 #ifdef DEBUG
 /* virtual */ void
-nsHTMLStyleSheet::List(FILE* out, int32_t aIndent) const
+nsHTMLStyleSheet::List(FILE* out, PRInt32 aIndent) const
 {
   // Indent
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
+  for (PRInt32 index = aIndent; --index >= 0; ) fputs("  ", out);
 
   fputs("HTML Style Sheet: ", out);
-  nsAutoCString urlSpec;
+  nsCAutoString urlSpec;
   mURL->GetSpec(urlSpec);
   if (!urlSpec.IsEmpty()) {
     fputs(urlSpec.get(), out);

@@ -10,11 +10,9 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-bug-599725-response-headers.sjs";
 
-function performTest(lastFinishedRequest, aConsole)
+function performTest(lastFinishedRequest)
 {
   ok(lastFinishedRequest, "page load was logged");
-
-  let headers = null;
 
   function readHeader(aName)
   {
@@ -26,27 +24,30 @@ function performTest(lastFinishedRequest, aConsole)
     return null;
   }
 
-  aConsole.webConsoleClient.getResponseHeaders(lastFinishedRequest.actor,
-    function (aResponse) {
-      headers = aResponse.headers;
-      ok(headers, "we have the response headers");
-      ok(!readHeader("Content-Type"), "we do not have the Content-Type header");
-      isnot(readHeader("Content-Length"), 60, "Content-Length != 60");
-      executeSoon(finishTest);
-    });
+  let headers = lastFinishedRequest.log.entries[0].response.headers;
+  ok(headers, "we have the response headers");
+  ok(!readHeader("Content-Type"), "we do not have the Content-Type header");
+  isnot(readHeader("Content-Length"), 60, "Content-Length != 60");
 
   HUDService.lastFinishedRequestCallback = null;
+  executeSoon(finishTest);
 }
 
 function test()
 {
   addTab(TEST_URI);
 
+  let initialLoad = true;
+
   browser.addEventListener("load", function onLoad() {
-    browser.removeEventListener("load", onLoad, true);
-    openConsole(null, function() {
-      HUDService.lastFinishedRequestCallback = performTest;
-      content.location.reload();
-    });
+    if (initialLoad) {
+      openConsole(null, function() {
+        HUDService.lastFinishedRequestCallback = performTest;
+        content.location.reload();
+      });
+      initialLoad = false;
+    } else {
+      browser.removeEventListener("load", onLoad, true);
+    }
   }, true);
 }

@@ -5,11 +5,7 @@ import @ANDROID_PACKAGE_NAME@.*;
 import android.app.Activity;
 import android.util.Log;
 
-/* Tests related to the about: page:
- *  - check that about: loads from the awesome bar
- *  - check that about: loads from Settings/About...
- */
-public class testAboutPage extends PixelTest {
+public class testAboutPage extends BaseTest {
     @Override
     protected int getTestType() {
         return TEST_MOCHITEST;
@@ -18,11 +14,11 @@ public class testAboutPage extends PixelTest {
     public void testAboutPage() {
         mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
-        // Load the about: page and verify its title
+        // Load the about: page
         String url = "about:";
-        loadAndPaint(url);
+        loadUrl(url);
 
-        Element awesomebar = mDriver.findElement(getActivity(), "awesome_bar_title");
+        Element awesomebar = mDriver.findElement(getActivity(), "awesome_bar");
         mAsserter.isnot(awesomebar, null, "Got the awesomebar");
         assertMatches(awesomebar.getText(), "About (Fennec|Nightly|Aurora|Firefox|Firefox Beta)", "page title match");
 
@@ -35,13 +31,10 @@ public class testAboutPage extends PixelTest {
 
         // Look for the 'More' menu if this device/OS uses it
         if (mSolo.waitForText("^More$")) {
-            mAsserter.dumpLog("found More item in menu");
             mSolo.clickOnText("^More$");
         }
 
-        if (mSolo.waitForText("^Settings$")) {
-            mAsserter.dumpLog("found Settings item in menu");
-        }
+        mSolo.waitForText("^Settings$");
         mSolo.clickOnText("^Settings$");
 
         // Set up listeners to catch the page load we're about to do
@@ -49,9 +42,7 @@ public class testAboutPage extends PixelTest {
         Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
 
         // Tap on the "About Xxxx" setting
-        if (mSolo.waitForText("About (Fennec|Nightly|Aurora|Firefox|Firefox Beta)")) {
-            mAsserter.dumpLog("found About... title text");
-        }
+        mSolo.waitForText("About (Fennec|Nightly|Aurora|Firefox|Firefox Beta)");
         mSolo.clickOnText("About (Fennec|Nightly|Aurora|Firefox|Firefox Beta)");
 
         // Wait for the new tab and page to load
@@ -59,7 +50,7 @@ public class testAboutPage extends PixelTest {
         contentEventExpecter.blockForEvent();
 
         // Grab the title to make sure the about: page was loaded
-        awesomebar = mDriver.findElement(getActivity(), "awesome_bar_title");
+        awesomebar = mDriver.findElement(getActivity(), "awesome_bar");
         mAsserter.isnot(awesomebar, null, "Got the awesomebar");
         assertMatches(awesomebar.getText(), "About (Fennec|Nightly|Aurora|Firefox|Firefox Beta)", "page title match");
     }

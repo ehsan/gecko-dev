@@ -5,6 +5,7 @@
 
 package org.mozilla.gecko;
 
+import org.mozilla.gecko.gfx.GeckoLayerClient;
 import org.mozilla.gecko.gfx.InputConnectionHandler;
 
 import android.R;
@@ -39,7 +40,6 @@ import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 
-import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -86,10 +86,8 @@ class GeckoInputConnection
 
     private static final Timer mIMETimer = new Timer("GeckoInputConnection Timer");
     private static int mIMEState;
-    private static String mIMETypeHint = "";
-    private static String mIMEModeHint = "";
-    private static String mIMEActionHint = "";
-    private static Boolean sIsPreJellyBeanAsusTransformer;
+    private static String mIMETypeHint;
+    private static String mIMEActionHint;
 
     private String mCurrentInputMethod;
 
@@ -98,7 +96,7 @@ class GeckoInputConnection
     private boolean mCommittingText;
     private KeyCharacterMap mKeyCharacterMap;
     private final Editable mEditable;
-    protected int mBatchEditCount;
+    private boolean mBatchMode;
     private ExtractedTextRequest mUpdateRequest;
     private final ExtractedText mUpdateExtract = new ExtractedText();
 
@@ -114,21 +112,19 @@ class GeckoInputConnection
         mEditable = Editable.Factory.getInstance().newEditable("");
         spanAndSelectEditable();
         mIMEState = IME_STATE_DISABLED;
+        mIMETypeHint = "";
+        mIMEActionHint = "";
     }
 
     @Override
     public boolean beginBatchEdit() {
-        mBatchEditCount++;
+        mBatchMode = true;
         return true;
     }
 
     @Override
     public boolean endBatchEdit() {
-        if (mBatchEditCount > 0) {
-            mBatchEditCount--;
-        } else {
-            Log.w(LOGTAG, "endBatchEdit() called, but mBatchEditCount == 0?!");
-        }
+        mBatchMode = false;
         return true;
     }
 
@@ -156,22 +152,18 @@ class GeckoInputConnection
 
     @Override
     public boolean finishComposingText() {
-        // finishComposingText() is called by the input method manager from a background
-        // thread so we have to make sure it's run in the ui thread.
-        postToUiThread(new Runnable() {
-            public void run() {
-                if (hasCompositionString()) {
-                    if (DEBUG) Log.d(LOGTAG, ". . . finishComposingText: endComposition");
-                    endComposition();
-                }
-                final Editable content = getEditable();
-                if (content != null) {
-                    beginBatchEdit();
-                    removeComposingSpans(content);
-                    endBatchEdit();
-                }
-            }
-        });
+        // finishComposingText() is sometimes called even when we are not composing text.
+        if (hasCompositionString()) {
+            if (DEBUG) Log.d(LOGTAG, ". . . finishComposingText: endComposition");
+            endComposition();
+        }
+
+        final Editable content = getEditable();
+        if (content != null) {
+            beginBatchEdit();
+            removeComposingSpans(content);
+            endBatchEdit();
+        }
         return true;
     }
 
@@ -182,7 +174,11 @@ class GeckoInputConnection
 
     @Override
     public boolean performContextMenuAction(int id) {
-        String text = mEditable.toString();
+        final Editable content = getEditable();
+        if (content == null)
+            return false;
+
+        String text = content.toString();
         Span selection = getSelection();
 
         switch (id) {
@@ -218,6 +214,10 @@ class GeckoInputConnection
         if (req == null)
             return null;
 
+        final Editable content = getEditable();
+        if (content == null)
+            return null;
+
         if ((flags & GET_EXTRACTED_TEXT_MONITOR) != 0)
             mUpdateRequest = req;
 
@@ -230,7 +230,7 @@ class GeckoInputConnection
         extract.selectionStart = selection.start;
         extract.selectionEnd = selection.end;
         extract.startOffset = 0;
-        extract.text = mEditable.toString();
+        extract.text = content.toString();
 
         return extract;
     }
@@ -238,17 +238,11 @@ class GeckoInputConnection
     @Override
     public boolean setSelection(int start, int end) {
         // Some IMEs call setSelection() with negative or stale indexes, so clamp them.
-        Span newSelection = Span.clamp(start, end, mEditable);
+        Span newSelection = Span.clamp(start, end, getEditable());
         GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(GeckoEvent.IME_SET_SELECTION,
                                                                  newSelection.start,
                                                                  newSelection.length));
         return super.setSelection(newSelection.start, newSelection.end);
-    }
-
-    private static void postToUiThread(Runnable runnable) {
-        // postToUiThread() is called by the Gecko and TimerTask threads.
-        // The UI thread does not need to post Runnables to itself.
-        GeckoApp.mAppContext.mMainHandler.post(runnable);
     }
 
     @Override
@@ -270,7 +264,7 @@ class GeckoInputConnection
     public CharSequence getTextAfterCursor(int length, int flags) {
         // Avoid overrunning text buffer.
         Span selection = getSelection();
-        int contentLength = mEditable.length();
+        int contentLength = getEditable().length();
         if (selection.end + length > contentLength) {
             length = contentLength - selection.end;
         }
@@ -291,13 +285,15 @@ class GeckoInputConnection
     }
 
     private static View getView() {
-        return GeckoApp.mAppContext.getLayerView();
+        GeckoLayerClient layerClient = GeckoApp.mAppContext.getLayerClient();
+        return (layerClient == null ? null : layerClient.getView());
     }
 
     private Span getSelection() {
-        int start = Selection.getSelectionStart(mEditable);
-        int end = Selection.getSelectionEnd(mEditable);
-        return Span.clamp(start, end, mEditable);
+        Editable content = getEditable();
+        int start = Selection.getSelectionStart(content);
+        int end = Selection.getSelectionEnd(content);
+        return Span.clamp(start, end, content);
     }
 
     private void replaceText(CharSequence text, int newCursorPosition, boolean composing) {
@@ -310,6 +306,11 @@ class GeckoInputConnection
         if (text == null)
             text = "";
 
+        final Editable content = getEditable();
+        if (content == null) {
+            return;
+        }
+
         beginBatchEdit();
 
         // delete composing text set previously.
@@ -318,7 +319,7 @@ class GeckoInputConnection
 
         Span composingSpan = getComposingSpan();
         if (composingSpan != null) {
-            removeComposingSpans(mEditable);
+            removeComposingSpans(content);
             a = composingSpan.start;
             b = composingSpan.end;
             composingSpan = null;
@@ -349,7 +350,7 @@ class GeckoInputConnection
         if (DEBUG) {
             LogPrinter lp = new LogPrinter(Log.VERBOSE, LOGTAG);
             lp.println("Current text:");
-            TextUtils.dumpSpans(mEditable, lp, "  ");
+            TextUtils.dumpSpans(content, lp, "  ");
             lp.println("Composing text:");
             TextUtils.dumpSpans(text, lp, "  ");
         }
@@ -364,16 +365,16 @@ class GeckoInputConnection
             newCursorPosition += a;
         }
         if (newCursorPosition < 0) newCursorPosition = 0;
-        if (newCursorPosition > mEditable.length())
-            newCursorPosition = mEditable.length();
-        Selection.setSelection(mEditable, newCursorPosition);
+        if (newCursorPosition > content.length())
+            newCursorPosition = content.length();
+        Selection.setSelection(content, newCursorPosition);
 
-        mEditable.replace(a, b, text);
+        content.replace(a, b, text);
 
         if (DEBUG) {
             LogPrinter lp = new LogPrinter(Log.VERBOSE, LOGTAG);
             lp.println("Final text:");
-            TextUtils.dumpSpans(mEditable, lp, "  ");
+            TextUtils.dumpSpans(content, lp, "  ");
         }
 
         endBatchEdit();
@@ -386,17 +387,22 @@ class GeckoInputConnection
             endComposition();
         }
 
-        Span newComposingRegion = Span.clamp(start, end, mEditable);
+        Span newComposingRegion = Span.clamp(start, end, getEditable());
         return super.setComposingRegion(newComposingRegion.start, newComposingRegion.end);
     }
 
     public String getComposingText() {
+        final Editable content = getEditable();
+        if (content == null) {
+            return null;
+        }
+
         Span composingSpan = getComposingSpan();
         if (composingSpan == null || composingSpan.length == 0) {
             return "";
         }
 
-        return TextUtils.substring(mEditable, composingSpan.start, composingSpan.end);
+        return TextUtils.substring(content, composingSpan.start, composingSpan.end);
     }
 
     public boolean onKeyDel() {
@@ -428,8 +434,9 @@ class GeckoInputConnection
         return InputMethods.getInputMethodManager(context);
     }
 
-    protected void notifyTextChange(String text, int start, int oldEnd, int newEnd) {
-        if (mBatchEditCount == 0) {
+    protected void notifyTextChange(InputMethodManager imm, String text,
+                                    int start, int oldEnd, int newEnd) {
+        if (!mBatchMode) {
             if (!text.contentEquals(mEditable)) {
                 if (DEBUG) Log.d(LOGTAG, ". . . notifyTextChange: current mEditable="
                                          + prettyPrintString(mEditable));
@@ -443,9 +450,13 @@ class GeckoInputConnection
         if (mUpdateRequest == null)
             return;
 
-        InputMethodManager imm = getInputMethodManager();
-        if (imm == null)
-            return;
+        View v = getView();
+
+        if (imm == null) {
+            imm = getInputMethodManager();
+            if (imm == null)
+                return;
+        }
 
         mUpdateExtract.flags = 0;
 
@@ -464,13 +475,14 @@ class GeckoInputConnection
         mUpdateExtract.text = updatedText;
         mUpdateExtract.startOffset = 0;
 
-        View v = getView();
         imm.updateExtractedText(v, mUpdateRequest.token, mUpdateExtract);
     }
 
-    protected void notifySelectionChange(int start, int end) {
-        if (mBatchEditCount == 0) {
-            Span newSelection = Span.clamp(start, end, mEditable);
+    protected void notifySelectionChange(InputMethodManager imm, int start, int end) {
+        if (!mBatchMode) {
+            final Editable content = getEditable();
+
+            Span newSelection = Span.clamp(start, end, content);
             start = newSelection.start;
             end = newSelection.end;
 
@@ -494,45 +506,28 @@ class GeckoInputConnection
                     int cb = composingSpan.end;
                     if (start < ca || start > cb || end < ca || end > cb) {
                         if (DEBUG) Log.d(LOGTAG, ". . . notifySelectionChange: removeComposingSpans");
-                        removeComposingSpans(mEditable);
+                        removeComposingSpans(content);
                     }
                 }
             }
         }
 
-        // FIXME: Remove this postToUiThread() after bug 780543 is fixed.
-        final int oldStart = start;
-        final int oldEnd = end;
-        postToUiThread(new Runnable() {
-            public void run() {
-                InputMethodManager imm = getInputMethodManager();
-                if (imm != null && imm.isFullscreenMode()) {
-                    int newStart;
-                    int newEnd;
-                    Span span = getComposingSpan();
-                    if (span != null && hasCompositionString()) {
-                        newStart = span.start;
-                        newEnd = span.end;
-                    } else {
-                        newStart = -1;
-                        newEnd = -1;
-                    }
-                    View v = getView();
-                    imm.updateSelection(v, oldStart, oldEnd, newStart, newEnd);
-                }
+        if (imm != null && imm.isFullscreenMode()) {
+            View v = getView();
+            if (hasCompositionString()) {
+                Span span = getComposingSpan();
+                imm.updateSelection(v, start, end, span.start, span.end);
+            } else {
+                imm.updateSelection(v, start, end, -1, -1);
             }
-        });
+
+        }
     }
 
     protected void resetCompositionState() {
-        if (mBatchEditCount > 0) {
-            Log.d(LOGTAG, "resetCompositionState: resetting mBatchEditCount "
-                          + mBatchEditCount + " -> 0");
-            mBatchEditCount = 0;
-        }
-
         removeComposingSpans(mEditable);
         mCompositionStart = NO_COMPOSITION_STRING;
+        mBatchMode = false;
         mUpdateRequest = null;
     }
 
@@ -555,9 +550,9 @@ class GeckoInputConnection
             // Such string cannot be handled by Gecko, so we convert it to a key press instead
             if (changedChar == '\n') {
                 processKeyDown(KeyEvent.KEYCODE_ENTER, new KeyEvent(KeyEvent.ACTION_DOWN,
-                                                                    KeyEvent.KEYCODE_ENTER));
+                                                                    KeyEvent.KEYCODE_ENTER), false);
                 processKeyUp(KeyEvent.KEYCODE_ENTER, new KeyEvent(KeyEvent.ACTION_UP,
-                                                                  KeyEvent.KEYCODE_ENTER));
+                                                                  KeyEvent.KEYCODE_ENTER), false);
                 return;
             }
 
@@ -818,24 +813,16 @@ class GeckoInputConnection
             outAttrs.inputType = InputType.TYPE_CLASS_NUMBER
                                  | InputType.TYPE_NUMBER_FLAG_SIGNED
                                  | InputType.TYPE_NUMBER_FLAG_DECIMAL;
-        else if (mIMETypeHint.equalsIgnoreCase("week") ||
-                 mIMETypeHint.equalsIgnoreCase("month"))
-             outAttrs.inputType = InputType.TYPE_CLASS_DATETIME
-                                  | InputType.TYPE_DATETIME_VARIATION_DATE;
-        else if (mIMEModeHint.equalsIgnoreCase("numeric"))
-            outAttrs.inputType = InputType.TYPE_CLASS_NUMBER |
-                                 InputType.TYPE_NUMBER_FLAG_SIGNED |
-                                 InputType.TYPE_NUMBER_FLAG_DECIMAL;
-        else if (mIMEModeHint.equalsIgnoreCase("digit"))
-            outAttrs.inputType = InputType.TYPE_CLASS_NUMBER;
-        else if (mIMEModeHint.equalsIgnoreCase("uppercase"))
-            outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS;
-        else if (mIMEModeHint.equalsIgnoreCase("lowercase"))
-            outAttrs.inputType = InputType.TYPE_CLASS_TEXT; 
-        else if (mIMEModeHint.equalsIgnoreCase("titlecase"))
-            outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_CAP_WORDS;
-        else if (mIMEModeHint.equalsIgnoreCase("autocapitalized"))
-            outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_CAP_SENTENCES;
+        else if (mIMETypeHint.equalsIgnoreCase("datetime") ||
+                 mIMETypeHint.equalsIgnoreCase("datetime-local"))
+            outAttrs.inputType = InputType.TYPE_CLASS_DATETIME
+                                 | InputType.TYPE_DATETIME_VARIATION_NORMAL;
+        else if (mIMETypeHint.equalsIgnoreCase("date"))
+            outAttrs.inputType = InputType.TYPE_CLASS_DATETIME
+                                 | InputType.TYPE_DATETIME_VARIATION_DATE;
+        else if (mIMETypeHint.equalsIgnoreCase("time"))
+            outAttrs.inputType = InputType.TYPE_CLASS_DATETIME
+                                 | InputType.TYPE_DATETIME_VARIATION_TIME;
 
         if (mIMEActionHint.equalsIgnoreCase("go"))
             outAttrs.imeOptions = EditorInfo.IME_ACTION_GO;
@@ -847,11 +834,8 @@ class GeckoInputConnection
             outAttrs.imeOptions = EditorInfo.IME_ACTION_SEARCH;
         else if (mIMEActionHint.equalsIgnoreCase("send"))
             outAttrs.imeOptions = EditorInfo.IME_ACTION_SEND;
-        else if (mIMEActionHint.length() > 0) {
-            if (DEBUG)
-                Log.w(LOGTAG, "Unexpected mIMEActionHint=\"" + mIMEActionHint + "\"");
+        else if (mIMEActionHint != null && mIMEActionHint.length() != 0)
             outAttrs.actionLabel = mIMEActionHint;
-        }
 
         GeckoApp app = GeckoApp.mAppContext;
         DisplayMetrics metrics = app.getResources().getDisplayMetrics();
@@ -885,14 +869,11 @@ class GeckoInputConnection
     }
 
     public boolean onKeyPreIme(int keyCode, KeyEvent event) {
-        if (hasBuggyHardwareKeyboardLayout())
-            return false;
-
         switch (event.getAction()) {
             case KeyEvent.ACTION_DOWN:
-                return processKeyDown(keyCode, event);
+                return processKeyDown(keyCode, event, true);
             case KeyEvent.ACTION_UP:
-                return processKeyUp(keyCode, event);
+                return processKeyUp(keyCode, event, true);
             case KeyEvent.ACTION_MULTIPLE:
                 return onKeyMultiple(keyCode, event.getRepeatCount(), event);
         }
@@ -900,12 +881,14 @@ class GeckoInputConnection
     }
 
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        return processKeyDown(keyCode, event);
+        return processKeyDown(keyCode, event, false);
     }
 
-    private boolean processKeyDown(int keyCode, KeyEvent event) {
+    private boolean processKeyDown(int keyCode, KeyEvent event, boolean isPreIme) {
         if (DEBUG) {
-            Log.d(LOGTAG, "IME: processKeyDown(keyCode=" + keyCode + ", event=" + event + ")");
+            Log.d(LOGTAG, "IME: processKeyDown(keyCode=" + keyCode + ", event=" + event + ", "
+                          + isPreIme + ")");
+            GeckoApp.assertOnUiThread();
         }
 
         if (keyCode > KeyEvent.getMaxKeyCode())
@@ -933,6 +916,11 @@ class GeckoInputConnection
                 break;
         }
 
+        if (isPreIme && mIMEState != IME_STATE_DISABLED &&
+            (event.getMetaState() & KeyEvent.META_ALT_ON) != 0)
+            // Let active IME process pre-IME key events
+            return false;
+
         View view = getView();
         KeyListener keyListener = TextKeyListener.getInstance();
 
@@ -954,12 +942,14 @@ class GeckoInputConnection
     }
 
     public boolean onKeyUp(int keyCode, KeyEvent event) {
-        return processKeyUp(keyCode, event);
+        return processKeyUp(keyCode, event, false);
     }
 
-    private boolean processKeyUp(int keyCode, KeyEvent event) {
+    private boolean processKeyUp(int keyCode, KeyEvent event, boolean isPreIme) {
         if (DEBUG) {
-            Log.d(LOGTAG, "IME: processKeyUp(keyCode=" + keyCode + ", event=" + event + ")");
+            Log.d(LOGTAG, "IME: processKeyUp(keyCode=" + keyCode + ", event=" + event + ", "
+                          + isPreIme + ")");
+            GeckoApp.assertOnUiThread();
         }
 
         if (keyCode > KeyEvent.getMaxKeyCode())
@@ -973,6 +963,11 @@ class GeckoInputConnection
             default:
                 break;
         }
+
+        if (isPreIme && mIMEState != IME_STATE_DISABLED &&
+            (event.getMetaState() & KeyEvent.META_ALT_ON) != 0)
+            // Let active IME process pre-IME key events
+            return false;
 
         View view = getView();
         KeyListener keyListener = TextKeyListener.getInstance();
@@ -1052,28 +1047,12 @@ class GeckoInputConnection
                         if (DEBUG) Log.d(LOGTAG, ". . . notifyIME: focus");
                         IMEStateUpdater.resetIME();
                         break;
-
-                    case NOTIFY_IME_SETOPENSTATE:
-                    default:
-                        if (DEBUG)
-                            throw new IllegalArgumentException("Unexpected NOTIFY_IME=" + type);
-                        break;
                 }
             }
         });
     }
 
-    public void notifyIMEEnabled(final int state, final String typeHint, final String modeHint, final String actionHint) {
-        // For some input type we will use a  widget to display the ui, for those we must not
-        // display the ime. We can display a widget for date and time types and, if the sdk version
-        // is greater than 11, for datetime/month/week as well.
-        if (typeHint.equals("date") || typeHint.equals("time") ||
-            (Build.VERSION.SDK_INT > 10 &&
-            (typeHint.equals("datetime") || typeHint.equals("month") ||
-            typeHint.equals("week") || typeHint.equals("datetime-local")))) {
-            return;
-        }
-
+    public void notifyIMEEnabled(final int state, final String typeHint, final String actionHint) {
         postToUiThread(new Runnable() {
             public void run() {
                 View v = getView();
@@ -1083,9 +1062,8 @@ class GeckoInputConnection
                 /* When IME is 'disabled', IME processing is disabled.
                    In addition, the IME UI is hidden */
                 mIMEState = state;
-                mIMETypeHint = (typeHint == null) ? "" : typeHint;
-                mIMEModeHint = (modeHint == null) ? "" : modeHint;
-                mIMEActionHint = (actionHint == null) ? "" : actionHint;
+                mIMETypeHint = typeHint;
+                mIMEActionHint = actionHint;
                 IMEStateUpdater.enableIME();
             }
         });
@@ -1093,22 +1071,18 @@ class GeckoInputConnection
 
     public final void notifyIMEChange(final String text, final int start, final int end,
                                       final int newEnd) {
-        if (newEnd < 0) {
-            // FIXME: Post notifySelectionChange() to UI thread after bug 780543 is fixed.
-            // notifyIMEChange() is called on the Gecko thread. We want to run all
-            // InputMethodManager code on the UI thread to avoid IME race conditions that cause
-            // crashes like bug 747629. However, if notifySelectionChange() is run on the UI thread,
-            // it causes mysterious problems with repeating characters like bug 780543. This
-            // band-aid fix is to run all InputMethodManager code on the UI thread except
-            // notifySelectionChange() until I can find the root cause.
-            notifySelectionChange(start, end);
-        } else {
-            postToUiThread(new Runnable() {
-                public void run() {
-                    notifyTextChange(text, start, end, newEnd);
-                }
-            });
-        }
+        postToUiThread(new Runnable() {
+            public void run() {
+                InputMethodManager imm = getInputMethodManager();
+                if (imm == null)
+                    return;
+
+                if (newEnd < 0)
+                    notifySelectionChange(imm, start, end);
+                else
+                    notifyTextChange(imm, text, start, end, newEnd);
+            }
+        });
     }
 
     /* Delay updating IME states (see bug 573800) */
@@ -1184,19 +1158,20 @@ class GeckoInputConnection
     }
 
     private Span getComposingSpan() {
-        int start = getComposingSpanStart(mEditable);
-        int end = getComposingSpanEnd(mEditable);
+        Editable content = getEditable();
+        int start = getComposingSpanStart(content);
+        int end = getComposingSpanEnd(content);
 
         // Does the editable have a composing span?
         if (start < 0 || end < 0) {
             if (start != -1 || end != -1) {
                 throw new IndexOutOfBoundsException("Bad composing span [" + start + "," + end
-                                                     + "), contentLength=" + mEditable.length());
+                                                     + "), contentLength=" + content.length());
             }
             return null;
         }
 
-        return new Span(start, end, mEditable);
+        return new Span(start, end, content);
     }
 
     private static String prettyPrintString(CharSequence s) {
@@ -1204,16 +1179,10 @@ class GeckoInputConnection
         return "\"" + s.toString().replace('\n', UNICODE_CRARR) + "\"";
     }
 
-    private static boolean hasBuggyHardwareKeyboardLayout() {
-        // Asus Transformers generate en-US keycodes for HKB keys, regardless of system locale or
-        // keyboard layout. This bug is reportedly fixed in JB. See bug 669361 and bug 712018.
-        if (sIsPreJellyBeanAsusTransformer == null) {
-            sIsPreJellyBeanAsusTransformer = Build.VERSION.SDK_INT < 16 &&
-                                             "asus".equals(Build.BRAND) &&
-                                             "EeePad".equals(Build.BOARD);
-        }
-        // The locale may change while Firefox is running, but the device and OS should not. :)
-        return sIsPreJellyBeanAsusTransformer && !Locale.getDefault().equals(Locale.US);
+    private static void postToUiThread(Runnable runnable) {
+        // postToUiThread() is called by the Gecko and TimerTask threads.
+        // The UI thread does not need to post Runnables to itself.
+        GeckoApp.mAppContext.mMainHandler.post(runnable);
     }
 
     private static final class Span {
@@ -1260,21 +1229,15 @@ private static final class DebugGeckoInputConnection extends GeckoInputConnectio
 
     @Override
     public boolean beginBatchEdit() {
-        Log.d(LOGTAG, "IME: beginBatchEdit: mBatchEditCount " + mBatchEditCount
-                                                     + " -> " + (mBatchEditCount+1));
+        Log.d(LOGTAG, "IME: beginBatchEdit");
         GeckoApp.assertOnUiThread();
         return super.beginBatchEdit();
     }
 
     @Override
     public boolean endBatchEdit() {
-        Log.d(LOGTAG, "IME: endBatchEdit: mBatchEditCount " + mBatchEditCount
-                                                   + " -> " + (mBatchEditCount-1));
+        Log.d(LOGTAG, "IME: endBatchEdit");
         GeckoApp.assertOnUiThread();
-        if (mBatchEditCount <= 0) {
-            throw new IllegalStateException("Expected positive mBatchEditCount, but got "
-                                            + mBatchEditCount);
-        }
         return super.endBatchEdit();
     }
 
@@ -1303,8 +1266,7 @@ private static final class DebugGeckoInputConnection extends GeckoInputConnectio
     @Override
     public boolean finishComposingText() {
         Log.d(LOGTAG, "IME: finishComposingText");
-        // finishComposingText will post itself to the ui thread,
-        // no need to assert it.
+        GeckoApp.assertOnUiThread();
         return super.finishComposingText();
     }
 
@@ -1312,7 +1274,7 @@ private static final class DebugGeckoInputConnection extends GeckoInputConnectio
     public Editable getEditable() {
         Editable editable = super.getEditable();
         Log.d(LOGTAG, "IME: getEditable -> " + prettyPrintString(editable));
-        // FIXME: Uncomment assert after bug 780543 is fixed. //GeckoApp.assertOnUiThread();
+        GeckoApp.assertOnUiThread();
         return editable;
     }
 
@@ -1391,7 +1353,8 @@ private static final class DebugGeckoInputConnection extends GeckoInputConnectio
     }
 
     @Override
-    protected void notifyTextChange(String text, int start, int oldEnd, int newEnd) {
+    protected void notifyTextChange(InputMethodManager imm, String text,
+                                    int start, int oldEnd, int newEnd) {
         // notifyTextChange() call is posted to UI thread from notifyIMEChange().
         GeckoApp.assertOnUiThread();
         String msg = String.format("IME: >notifyTextChange(%s, start=%d, oldEnd=%d, newEnd=%d)",
@@ -1400,16 +1363,15 @@ private static final class DebugGeckoInputConnection extends GeckoInputConnectio
         if (start < 0 || oldEnd < start || newEnd < start || newEnd > text.length()) {
             throw new IllegalArgumentException("BUG! " + msg);
         }
-        super.notifyTextChange(text, start, oldEnd, newEnd);
+        super.notifyTextChange(imm, text, start, oldEnd, newEnd);
     }
 
     @Override
-    protected void notifySelectionChange(int start, int end) {
+    protected void notifySelectionChange(InputMethodManager imm, int start, int end) {
         // notifySelectionChange() call is posted to UI thread from notifyIMEChange().
-        // FIXME: Uncomment assert after bug 780543 is fixed.
-        //GeckoApp.assertOnUiThread();
+        GeckoApp.assertOnUiThread();
         Log.d(LOGTAG, String.format("IME: >notifySelectionChange(start=%d, end=%d)", start, end));
-        super.notifySelectionChange(start, end);
+        super.notifySelectionChange(imm, start, end);
     }
 
     @Override
@@ -1490,20 +1452,9 @@ private static final class DebugGeckoInputConnection extends GeckoInputConnectio
 
     @Override
     public void notifyIME(int type, int state) {
-        Log.d(LOGTAG, "IME: >notifyIME(type=" + type + ", state=" + state + ")");
+        Log.d(LOGTAG, String.format("IME: >notifyIME(type=%d, state=%d)", type, state));
         GeckoApp.assertOnGeckoThread();
         super.notifyIME(type, state);
-    }
-
-    @Override
-    public void notifyIMEEnabled(int state, String typeHint, String modeHint, String actionHint) {
-        Log.d(LOGTAG, "IME: >notifyIMEEnabled(state=" + state + ", typeHint=\"" + typeHint
-                      + "\", modeHint=\"" + modeHint + "\", actionHint=\""
-                      + actionHint + "\"");
-        GeckoApp.assertOnGeckoThread();
-        if (state < IME_STATE_DISABLED || state > IME_STATE_PLUGIN)
-            throw new IllegalArgumentException("Unexpected IMEState=" + state);
-        super.notifyIMEEnabled(state, typeHint, modeHint, actionHint);
     }
 }
 

@@ -37,14 +37,14 @@ nsJSInspector::~nsJSInspector()
 }
 
 NS_IMETHODIMP
-nsJSInspector::EnterNestedEventLoop(uint32_t *out)
+nsJSInspector::EnterNestedEventLoop(PRUint32 *out)
 {
   nsresult rv;
   nsCOMPtr<nsIJSContextStack> stack =
     do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t nestLevel = ++mNestedLoopLevel;
+  PRUint32 nestLevel = ++mNestedLoopLevel;
   if (NS_SUCCEEDED(stack->Push(nullptr))) {
     while (NS_SUCCEEDED(rv) && mNestedLoopLevel >= nestLevel) {
       if (!NS_ProcessNextEvent())
@@ -69,7 +69,7 @@ nsJSInspector::EnterNestedEventLoop(uint32_t *out)
 }
 
 NS_IMETHODIMP
-nsJSInspector::ExitNestedEventLoop(uint32_t *out)
+nsJSInspector::ExitNestedEventLoop(PRUint32 *out)
 {
   if (mNestedLoopLevel > 0) {
     --mNestedLoopLevel;
@@ -83,7 +83,7 @@ nsJSInspector::ExitNestedEventLoop(uint32_t *out)
 }
 
 NS_IMETHODIMP
-nsJSInspector::GetEventLoopNestLevel(uint32_t *out)
+nsJSInspector::GetEventLoopNestLevel(PRUint32 *out)
 {
   *out = mNestedLoopLevel;
   return NS_OK;

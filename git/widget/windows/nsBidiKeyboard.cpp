@@ -24,7 +24,7 @@ nsBidiKeyboard::~nsBidiKeyboard()
 {
 }
 
-NS_IMETHODIMP nsBidiKeyboard::SetLangFromBidiLevel(uint8_t aLevel)
+NS_IMETHODIMP nsBidiKeyboard::SetLangFromBidiLevel(PRUint8 aLevel)
 {
   nsresult result = SetupBidiKeyboards();
   if (NS_FAILED(result))

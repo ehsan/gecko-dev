@@ -71,10 +71,10 @@ public:
 protected:
 
   void GetGeckoDragAction(DWORD grfKeyState, LPDWORD pdwEffect, 
-                          uint32_t * aGeckoAction);
-  void ProcessDrag(uint32_t aEventType, DWORD grfKeyState,
+                          PRUint32 * aGeckoAction);
+  void ProcessDrag(PRUint32 aEventType, DWORD grfKeyState,
                    POINTL pt, DWORD* pdwEffect);
-  void DispatchDragDropEvent(uint32_t aType, POINTL pt);
+  void DispatchDragDropEvent(PRUint32 aType, POINTL pt);
   void AddLinkSupportIfCanBeGenerated(LPDATAOBJECT aIDataSource);
 
   // Native Stuff

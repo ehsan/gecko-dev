@@ -10,7 +10,7 @@
 
 #include "video_engine/vie_codec_impl.h"
 
-#include "engine_configurations.h"  // NOLINT
+#include "engine_configurations.h"
 #include "modules/video_coding/main/interface/video_coding.h"
 #include "system_wrappers/interface/trace.h"
 #include "video_engine/include/vie_errors.h"
@@ -83,12 +83,12 @@ int ViECodecImpl::GetCodec(const unsigned char list_number,
                list_number, video_codec.codecType);
   if (list_number == VideoCodingModule::NumberOfCodecs()) {
     memset(&video_codec, 0, sizeof(VideoCodec));
-    strncpy(video_codec.plName, "red", 3);
+    strcpy(video_codec.plName, "red");
     video_codec.codecType = kVideoCodecRED;
     video_codec.plType = VCM_RED_PAYLOAD_TYPE;
   } else if (list_number == VideoCodingModule::NumberOfCodecs() + 1) {
     memset(&video_codec, 0, sizeof(VideoCodec));
-    strncpy(video_codec.plName, "ulpfec", 6);
+    strcpy(video_codec.plName, "ulpfec");
     video_codec.codecType = kVideoCodecULPFEC;
     video_codec.plType = VCM_ULPFEC_PAYLOAD_TYPE;
   } else if (VideoCodingModule::Codec(list_number, &video_codec) != VCM_OK) {
@@ -104,7 +104,7 @@ int ViECodecImpl::GetCodec(const unsigned char list_number,
 int ViECodecImpl::SetSendCodec(const int video_channel,
                                const VideoCodec& video_codec) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
-               ViEId(shared_data_->instance_id(), video_channel),
+               ViEId(shared_data_->instance_id(),video_channel),
                "%s(video_channel: %d, codec_type: %d)", __FUNCTION__,
                video_channel, video_codec.codecType);
   WEBRTC_TRACE(kTraceInfo, kTraceVideo,
@@ -174,12 +174,14 @@ int ViECodecImpl::SetSendCodec(const int video_channel,
   }
 
   VideoCodec encoder;
-  vie_encoder->GetEncoder(&encoder);
+  vie_encoder->GetEncoder(encoder);
 
   // Make sure to generate a new SSRC if the codec type and/or resolution has
   // changed. This won't have any effect if the user has set an SSRC.
   bool new_rtp_stream = false;
-  if (encoder.codecType != video_codec_internal.codecType) {
+  if (encoder.codecType != video_codec_internal.codecType ||
+      encoder.width != video_codec_internal.width ||
+      encoder.height != video_codec_internal.height) {
     new_rtp_stream = true;
   }
 
@@ -269,7 +271,7 @@ int ViECodecImpl::GetSendCodec(const int video_channel,
     shared_data_->SetLastError(kViECodecInvalidChannelId);
     return -1;
   }
-  return vie_encoder->GetEncoder(&video_codec);
+  return vie_encoder->GetEncoder(video_codec);
 }
 
 int ViECodecImpl::SetReceiveCodec(const int video_channel,
@@ -331,7 +333,7 @@ int ViECodecImpl::GetReceiveCodec(const int video_channel,
     return -1;
   }
 
-  if (vie_channel->GetReceiveCodec(&video_codec) != 0) {
+  if (vie_channel->GetReceiveCodec(video_codec) != 0) {
     shared_data_->SetLastError(kViECodecUnknownError);
     return -1;
   }
@@ -406,7 +408,7 @@ int ViECodecImpl::GetSendCodecStastistics(const int video_channel,
     return -1;
   }
 
-  if (vie_encoder->SendCodecStatistics(&key_frames, &delta_frames) != 0) {
+  if (vie_encoder->SendCodecStatistics(key_frames, delta_frames) != 0) {
     shared_data_->SetLastError(kViECodecUnknownError);
     return -1;
   }
@@ -430,7 +432,7 @@ int ViECodecImpl::GetReceiveCodecStastistics(const int video_channel,
     shared_data_->SetLastError(kViECodecInvalidChannelId);
     return -1;
   }
-  if (vie_channel->ReceiveCodecStatistics(&key_frames, &delta_frames) != 0) {
+  if (vie_channel->ReceiveCodecStatistics(key_frames, delta_frames) != 0) {
     shared_data_->SetLastError(kViECodecUnknownError);
     return -1;
   }
@@ -713,6 +715,11 @@ bool ViECodecImpl::CodecValid(const VideoCodec& video_codec) {
   if (video_codec.minBitrate < kViEMinCodecBitrate) {
     WEBRTC_TRACE(kTraceError, kTraceVideo, -1, "Invalid min_bitrate: %u",
                  video_codec.minBitrate);
+    return false;
+  }
+  if (video_codec.numberOfSimulcastStreams == 1) {
+    WEBRTC_TRACE(kTraceError, kTraceVideo, -1,
+                 "Number of Simulcast streams can not be 1");
     return false;
   }
   return true;

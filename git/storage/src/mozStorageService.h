@@ -51,7 +51,7 @@ public:
    */
   int localeCompareStrings(const nsAString &aStr1,
                            const nsAString &aStr2,
-                           int32_t aComparisonStrength);
+                           PRInt32 aComparisonStrength);
 
   static Service *getSingleton();
 
@@ -69,7 +69,7 @@ public:
   /**
    * Obtains the cached data for the toolkit.storage.synchronous preference.
    */
-  static int32_t getSynchronousPref();
+  static PRInt32 getSynchronousPref();
 
   /**
    * Registers the connection with the storage service.  Connections are
@@ -162,7 +162,7 @@ private:
 
   static nsIXPConnect *sXPConnect;
 
-  static int32_t sSynchronousPref;
+  static PRInt32 sSynchronousPref;
 
   friend class ServiceMainThreadInitializer;
 };

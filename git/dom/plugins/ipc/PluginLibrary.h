@@ -12,7 +12,7 @@
 #include "npfunctions.h"
 #include "nscore.h"
 #include "nsTArray.h"
-#include "nsError.h"
+#include "nsPluginError.h"
 
 class gfxASurface;
 class gfxContext;
@@ -73,7 +73,6 @@ public:
   virtual bool IsOOP() = 0;
 #if defined(XP_MACOSX)
   virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing) = 0;
-  virtual nsresult ContentsScaleFactorChanged(NPP instance, double aContentsScaleFactor) = 0;
 #endif
 
   /**

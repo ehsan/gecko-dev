@@ -40,7 +40,7 @@ CrossProcessMutexHandle
 CrossProcessMutex::ShareToProcess(base::ProcessHandle aHandle)
 {
   NS_RUNTIMEABORT("Cross-process mutices not allowed on this platform - woah! We should've aborted by now!");
-  return 0;
+  return NULL;
 }
 
 }

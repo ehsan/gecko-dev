@@ -23,7 +23,7 @@ namespace docshell {
 //    Schedule
 //    Init
 #define NS_ADJUSTED_FORWARD_NSIOFFLINECACHEUPDATE(_to) \
-  NS_IMETHOD GetStatus(uint16_t *aStatus) { return !_to ? NS_ERROR_NULL_POINTER : _to->GetStatus(aStatus); } \
+  NS_IMETHOD GetStatus(PRUint16 *aStatus) { return !_to ? NS_ERROR_NULL_POINTER : _to->GetStatus(aStatus); } \
   NS_IMETHOD GetPartial(bool *aPartial) { return !_to ? NS_ERROR_NULL_POINTER : _to->GetPartial(aPartial); } \
   NS_IMETHOD GetIsUpgrade(bool *aIsUpgrade) { return !_to ? NS_ERROR_NULL_POINTER : _to->GetIsUpgrade(aIsUpgrade); } \
   NS_IMETHOD GetUpdateDomain(nsACString & aUpdateDomain) { return !_to ? NS_ERROR_NULL_POINTER : _to->GetUpdateDomain(aUpdateDomain); } \
@@ -33,7 +33,7 @@ namespace docshell {
   NS_IMETHOD AddDynamicURI(nsIURI *aURI) { return !_to ? NS_ERROR_NULL_POINTER : _to->AddDynamicURI(aURI); } \
   NS_IMETHOD AddObserver(nsIOfflineCacheUpdateObserver *aObserver, bool aHoldWeak) { return !_to ? NS_ERROR_NULL_POINTER : _to->AddObserver(aObserver, aHoldWeak); } \
   NS_IMETHOD RemoveObserver(nsIOfflineCacheUpdateObserver *aObserver) { return !_to ? NS_ERROR_NULL_POINTER : _to->RemoveObserver(aObserver); } \
-  NS_IMETHOD GetByteProgress(uint64_t * _result) { return !_to ? NS_ERROR_NULL_POINTER : _to->GetByteProgress(_result); }
+  NS_IMETHOD GetByteProgress(PRUint64 * _result) { return !_to ? NS_ERROR_NULL_POINTER : _to->GetByteProgress(_result); }
 
 class OfflineCacheUpdateGlue MOZ_FINAL : public nsSupportsWeakReference
                                        , public nsIOfflineCacheUpdate
@@ -49,10 +49,9 @@ public:
     NS_ADJUSTED_FORWARD_NSIOFFLINECACHEUPDATE(EnsureUpdate())
     NS_IMETHOD Schedule(void);
     NS_IMETHOD Init(nsIURI *aManifestURI, 
-                    nsIURI *aDocumentURI,
-                    nsIDOMDocument *aDocument,
-                    nsIFile *aCustomProfileDir,
-                    nsILoadContext *aLoadContext);
+                                  nsIURI *aDocumentURI, 
+                                  nsIDOMDocument *aDocument,
+                                  nsIFile *aCustomProfileDir);
 
     NS_DECL_NSIOFFLINECACHEUPDATEOBSERVER
 

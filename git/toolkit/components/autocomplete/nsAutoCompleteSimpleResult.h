@@ -43,8 +43,8 @@ protected:
 
   nsString mSearchString;
   nsString mErrorDescription;
-  int32_t mDefaultIndex;
-  uint32_t mSearchResult;
+  PRInt32 mDefaultIndex;
+  PRUint32 mSearchResult;
 
   bool mTypeAheadResult;
 

@@ -14,7 +14,6 @@ LIBRARY_NAME    = mozcairo
 LIBXUL_LIBRARY = 1
 
 ifdef GNU_CC
-OS_CFLAGS := $(filter-out -pedantic,$(OX_CFLAGS))
 OS_CXXFLAGS := $(filter-out -pedantic,$(OS_CXXFLAGS))
 ifeq ($(OS_TARGET),Android)
 MODULE_OPTIMIZE_FLAGS = -O2
@@ -211,12 +210,9 @@ FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
 
-ifdef GNU_CC
 # Disable spammy "missing initializer" GCC warning
+ifdef GNU_CC
 CFLAGS += -Wno-missing-field-initializers
-
-# Disable spammy "implicit conversion from enumeration type 'cairo_" warnings.
-CFLAGS += -Wno-conversion
 endif # GNU_CC
 
 DEFINES += -DPACKAGE_VERSION="\"moz\"" -DPACKAGE_BUGREPORT="\"http://bugzilla.mozilla.org/\""
@@ -234,10 +230,6 @@ CFLAGS += $(MOZ_PIXMAN_CFLAGS)
 CXXFLAGS += $(MOZ_PIXMAN_CFLAGS)
 else
 DEFINES += -DMOZ_TREE_PIXMAN
-endif
-
-ifdef MOZ_TREE_FREETYPE
-DEFINES += -DHAVE_FT_LIBRARY_SETLCDFILTER -DFT_LCD_FILTER_H="$(topsrcdir)/modules/freetype2/include/freetype/ftlcdfil.h"
 endif
 
 cairo-features.h: $(srcdir)/cairo-features.h.in $(GLOBAL_DEPS)

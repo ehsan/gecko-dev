@@ -24,6 +24,7 @@
 #include "nsITransferable.h"
 #include "nsString.h"
 #include "nsAString.h"
+#include "prtypes.h"
 
 class nsISupports;
 
@@ -870,7 +871,7 @@ nsPasteQuotationCommand::IsCommandEnabled(const char * aCommandName,
   nsCOMPtr<nsIEditor> editor = do_QueryInterface(refCon);
   nsCOMPtr<nsIEditorMailSupport>  mailEditor = do_QueryInterface(refCon);
   if (editor && mailEditor) {
-    uint32_t flags;
+    PRUint32 flags;
     editor->GetFlags(&flags);
     if (!(flags & nsIPlaintextEditor::eEditorSingleLineMask))
       return editor->CanPaste(nsIClipboard::kGlobalClipboard, outCmdEnabled);

@@ -415,7 +415,7 @@ void MozQWidget::showEvent(QShowEvent* aEvent)
     QGraphicsWidget::showEvent(aEvent);
 }
 
-void MozQWidget::SetCursor(nsCursor aCursor)
+bool MozQWidget::SetCursor(nsCursor aCursor)
 {
     Qt::CursorShape cursor = Qt::ArrowCursor;
     switch(aCursor) {
@@ -468,12 +468,16 @@ void MozQWidget::SetCursor(nsCursor aCursor)
     }
 
     setCursor(cursor);
+
+    return NS_OK;
 }
 
-void MozQWidget::SetCursor(const QPixmap& aCursor, int aHotX, int aHotY)
+bool MozQWidget::SetCursor(const QPixmap& aCursor, int aHotX, int aHotY)
 {
     QCursor bitmapCursor(aCursor, aHotX, aHotY);
     setCursor(bitmapCursor);
+
+    return NS_OK;
 }
 
 void MozQWidget::setModal(bool modal)

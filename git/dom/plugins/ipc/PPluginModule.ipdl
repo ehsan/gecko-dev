@@ -14,6 +14,7 @@ include "mozilla/dom/TabMessageUtils.h";
 
 using NPError;
 using NPNVariable;
+using base::FileDescriptor;
 using mozilla::dom::NativeThreadId;
 using mac_plugin_interposing::NSCursorInfo;
 using nsID;
@@ -82,7 +83,7 @@ child:
   async SetParentHangTimeout(uint32_t seconds);
 
   rpc PCrashReporter()
-    returns (NativeThreadId tid, uint32_t processType);
+    returns (NativeThreadId tid, PRUint32 processType);
 
 parent:
   /**

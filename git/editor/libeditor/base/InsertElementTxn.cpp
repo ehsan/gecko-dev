@@ -46,7 +46,7 @@ NS_INTERFACE_MAP_END_INHERITING(EditTxn)
 
 NS_IMETHODIMP InsertElementTxn::Init(nsIDOMNode *aNode,
                                      nsIDOMNode *aParent,
-                                     int32_t     aOffset,
+                                     PRInt32     aOffset,
                                      nsIEditor  *aEditor)
 {
   NS_ASSERTION(aNode && aParent && aEditor, "bad arg");
@@ -86,8 +86,8 @@ NS_IMETHODIMP InsertElementTxn::DoTransaction(void)
   nsCOMPtr<nsINode> parent = do_QueryInterface(mParent);
   NS_ENSURE_STATE(parent);
 
-  uint32_t count = parent->GetChildCount();
-  if (mOffset > int32_t(count) || mOffset == -1) {
+  PRUint32 count = parent->GetChildCount();
+  if (mOffset > PRInt32(count) || mOffset == -1) {
     // -1 is sentinel value meaning "append at end"
     mOffset = count;
   }

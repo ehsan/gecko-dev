@@ -10,7 +10,6 @@
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIDOMHTMLOptionsCollection.h"
 #include "nsISelectControlFrame.h"
@@ -22,12 +21,9 @@
 #include "nsPresState.h"
 #include "nsIComponentManager.h"
 #include "nsCheapSets.h"
-#include "nsError.h"
-#include "nsHTMLOptGroupElement.h"
+#include "nsLayoutErrors.h"
 #include "nsHTMLOptionElement.h"
 #include "nsHTMLFormElement.h"
-#include "mozilla/ErrorResult.h"
-#include "mozilla/dom/UnionTypes.h"
 
 class nsHTMLSelectElement;
 
@@ -35,12 +31,10 @@ class nsHTMLSelectElement;
  * The collection of options in the select (what you get back when you do
  * select.options in DOM)
  */
-class nsHTMLOptionCollection: public nsIHTMLCollection,
-                              public nsIDOMHTMLOptionsCollection,
+class nsHTMLOptionCollection: public nsIDOMHTMLOptionsCollection,
+                              public nsIHTMLCollection,
                               public nsWrapperCache
 {
-typedef mozilla::dom::HTMLOptionElementOrHTMLOptGroupElement HTMLOptionOrOptGroupElement;
-typedef mozilla::dom::HTMLElementOrLong HTMLElementOrLong;
 public:
   nsHTMLOptionCollection(nsHTMLSelectElement* aSelect);
   virtual ~nsHTMLOptionCollection();
@@ -56,7 +50,7 @@ public:
   // nsIDOMHTMLCollection interface, all its methods are defined in
   // nsIDOMHTMLOptionsCollection
 
-  virtual nsGenericElement* GetElementAt(uint32_t aIndex);
+  virtual nsIContent* GetNodeAt(PRUint32 aIndex);
   virtual nsINode* GetParentObject();
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsHTMLOptionCollection,
@@ -68,7 +62,7 @@ public:
    * @param aOption the option to insert
    * @param aIndex the index to insert at
    */
-  void InsertOptionAt(nsHTMLOptionElement* aOption, uint32_t aIndex)
+  void InsertOptionAt(nsHTMLOptionElement* aOption, PRUint32 aIndex)
   {
     mElements.InsertElementAt(aIndex, aOption);
   }
@@ -77,7 +71,7 @@ public:
    * Remove an option
    * @param aIndex the index of the option to remove
    */
-  void RemoveOptionAt(uint32_t aIndex)
+  void RemoveOptionAt(PRUint32 aIndex)
   {
     mElements.RemoveElementAt(aIndex);
   }
@@ -87,7 +81,7 @@ public:
    * @param aIndex the index
    * @param aReturn the option returned [OUT]
    */
-  nsHTMLOptionElement *ItemAsOption(uint32_t aIndex)
+  nsHTMLOptionElement *ItemAsOption(PRUint32 aIndex)
   {
     return mElements.SafeElementAt(aIndex, nullptr);
   }
@@ -124,23 +118,8 @@ public:
    * @return the option index
    */
   nsresult GetOptionIndex(mozilla::dom::Element* aOption,
-                          int32_t aStartIndex, bool aForward,
-                          int32_t* aIndex);
-
-  virtual JSObject* NamedItem(JSContext* aCx, const nsAString& aName,
-                              mozilla::ErrorResult& error);
-
-  inline void Add(const HTMLOptionOrOptGroupElement& aElement,
-                  const Nullable<HTMLElementOrLong>& aBefore,
-                  mozilla::ErrorResult& aError);
-  void Remove(int32_t aIndex, mozilla::ErrorResult& aError);
-  int32_t GetSelectedIndex(mozilla::ErrorResult& aError);
-  void SetSelectedIndex(int32_t aSelectedIndex, mozilla::ErrorResult& aError);
-  void IndexedSetter(uint32_t aIndex, nsIDOMHTMLOptionElement *aOption,
-                     mozilla::ErrorResult& aError)
-  {
-    aError = SetOption(aIndex, aOption);
-  }
+                          PRInt32 aStartIndex, bool aForward,
+                          PRInt32* aIndex);
 
 private:
   /** The list of options (holds strong references).  This is infallible, so
@@ -173,7 +152,7 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_SELECT_STATE_IID)
   NS_DECL_ISUPPORTS
 
-  void PutOption(int32_t aIndex, const nsAString& aValue)
+  void PutOption(PRInt32 aIndex, const nsAString& aValue)
   {
     // If the option is empty, store the index.  If not, store the value.
     if (aValue.IsEmpty()) {
@@ -183,7 +162,7 @@ public:
     }
   }
 
-  bool ContainsOption(int32_t aIndex, const nsAString& aValue)
+  bool ContainsOption(PRInt32 aIndex, const nsAString& aValue)
   {
     return mValues.Contains(aValue) || mIndices.Contains(aIndex);
   }
@@ -205,7 +184,7 @@ public:
    * @param aIndex  The index of the content object in the parent.
    */
   nsSafeOptionListMutation(nsIContent* aSelect, nsIContent* aParent,
-                           nsIContent* aKid, uint32_t aIndex, bool aNotify);
+                           nsIContent* aKid, PRUint32 aIndex, bool aNotify);
   ~nsSafeOptionListMutation();
   void MutationFailed() { mNeedsRebuild = true; }
 private:
@@ -248,14 +227,30 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLFormElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
-  virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
+  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLFormElement::)
+  NS_IMETHOD Click() {
+    return nsGenericHTMLFormElement::Click();
+  }
+  NS_IMETHOD GetTabIndex(PRInt32* aTabIndex);
+  NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
+  NS_IMETHOD Focus() {
+    return nsGenericHTMLFormElement::Focus();
+  }
+  NS_IMETHOD GetDraggable(bool* aDraggable) {
+    return nsGenericHTMLFormElement::GetDraggable(aDraggable);
+  }
+  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) {
+    return nsGenericHTMLFormElement::GetInnerHTML(aInnerHTML);
+  }
+  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) {
+    return nsGenericHTMLFormElement::SetInnerHTML(aInnerHTML);
+  }
 
   // nsIDOMHTMLSelectElement
   NS_DECL_NSIDOMHTMLSELECTELEMENT
@@ -264,13 +259,13 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
-  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, int32_t *aTabIndex);
-  virtual nsresult InsertChildAt(nsIContent* aKid, uint32_t aIndex,
+  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  bool aNotify);
-  virtual void RemoveChildAt(uint32_t aIndex, bool aNotify);
+  virtual void RemoveChildAt(PRUint32 aIndex, bool aNotify);
 
   // Overriden nsIFormControl methods
-  NS_IMETHOD_(uint32_t) GetType() const { return NS_FORM_SELECT; }
+  NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_SELECT; }
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
   NS_IMETHOD SaveState();
@@ -292,7 +287,7 @@ public:
    */
   NS_IMETHOD WillAddOptions(nsIContent* aOptions,
                             nsIContent* aParent,
-                            int32_t aContentIndex,
+                            PRInt32 aContentIndex,
                             bool aNotify);
 
   /**
@@ -304,7 +299,7 @@ public:
    *        parent is an optgroup, the index within the optgroup)
    */
   NS_IMETHOD WillRemoveOptions(nsIContent* aParent,
-                               int32_t aContentIndex,
+                               PRInt32 aContentIndex,
                                bool aNotify);
 
   /**
@@ -313,7 +308,7 @@ public:
    * @param aIndex the index of the option to check
    * @return whether the option is disabled
    */
-  NS_IMETHOD IsOptionDisabled(int32_t aIndex,
+  NS_IMETHOD IsOptionDisabled(PRInt32 aIndex,
                               bool *aIsDisabled);
 
   /**
@@ -333,8 +328,8 @@ public:
    * @param aNotify whether to notify frames and such
    * @return whether any options were actually changed
    */
-  NS_IMETHOD SetOptionsSelectedByIndex(int32_t aStartIndex,
-                                       int32_t aEndIndex,
+  NS_IMETHOD SetOptionsSelectedByIndex(PRInt32 aStartIndex,
+                                       PRInt32 aEndIndex,
                                        bool aIsSelected,
                                        bool aClearAll,
                                        bool aSetDisabled,
@@ -350,9 +345,9 @@ public:
    * @return the option index
    */
   NS_IMETHOD GetOptionIndex(nsIDOMHTMLOptionElement* aOption,
-                            int32_t aStartIndex,
+                            PRInt32 aStartIndex,
                             bool aForward,
-                            int32_t* aIndex);
+                            PRInt32* aIndex);
 
   /**
    * Called when an attribute is about to be changed
@@ -361,12 +356,12 @@ public:
                                nsIContent* aBindingParent,
                                bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep, bool aNullParent);
-  virtual nsresult BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAttrValueOrString* aValue,
                                  bool aNotify);
-  virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue, bool aNotify);
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
   
   virtual void DoneAddingChildren(bool aHaveNotified);
@@ -374,13 +369,13 @@ public:
     return mIsDoneAddingChildren;
   }
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                              int32_t aModType) const;
+                                              PRInt32 aModType) const;
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
@@ -406,20 +401,6 @@ public:
   nsresult GetValidationMessage(nsAString& aValidationMessage,
                                 ValidityStateType aType);
 
-  /**
-   * Insert aElement before the node given by aBefore
-   */
-  nsresult Add(nsIDOMHTMLElement* aElement, nsIDOMHTMLElement* aBefore = nullptr);
-  nsresult Add(nsIDOMHTMLElement* aElement, int32_t aIndex)
-  {
-    // If item index is out of range, insert to last.
-    // (since beforeElement becomes null, it is inserted to last)
-    nsCOMPtr<nsIDOMHTMLElement> beforeElement =
-      do_QueryInterface(mOptions->GetElementAt(aIndex));
-
-    return Add(aElement, beforeElement);
-  }
-
 protected:
   friend class nsSafeOptionListMutation;
 
@@ -429,13 +410,13 @@ protected:
    * @param aIndex the index
    * @return whether the option at the index is selected
    */
-  bool IsOptionSelectedByIndex(int32_t aIndex);
+  bool IsOptionSelectedByIndex(PRInt32 aIndex);
   /**
    * Starting with (and including) aStartIndex, find the first selected index
    * and set mSelectedIndex to it.
    * @param aStartIndex the index to start with
    */
-  void FindSelectedIndex(int32_t aStartIndex, bool aNotify);
+  void FindSelectedIndex(PRInt32 aStartIndex, bool aNotify);
   /**
    * Select some option if possible (generally the first non-disabled option).
    * @return true if something was selected, false otherwise
@@ -459,7 +440,7 @@ protected:
    * @param aNotify whether to notify the style system and such
    */
   void OnOptionSelected(nsISelectControlFrame* aSelectFrame,
-                        int32_t aIndex,
+                        PRInt32 aIndex,
                         bool aSelected,
                         bool aChangeOptionState,
                         bool aNotify);
@@ -477,8 +458,8 @@ protected:
    * @param aDepth the depth of aOptions (1=direct child of select ...)
    */
   nsresult InsertOptionsIntoList(nsIContent* aOptions,
-                                 int32_t aListIndex,
-                                 int32_t aDepth,
+                                 PRInt32 aListIndex,
+                                 PRInt32 aDepth,
                                  bool aNotify);
   /**
    * Remove option(s) from the options[] array
@@ -487,8 +468,8 @@ protected:
    * @param aDepth the depth of aOptions (1=direct child of select ...)
    */
   nsresult RemoveOptionsFromList(nsIContent* aOptions,
-                                 int32_t aListIndex,
-                                 int32_t aDepth,
+                                 PRInt32 aListIndex,
+                                 PRInt32 aDepth,
                                  bool aNotify);
   /**
    * Insert option(s) into the options[] array (called by InsertOptionsIntoList)
@@ -497,8 +478,8 @@ protected:
    * @param aDepth the depth of aOptions (1=direct child of select ...)
    */
   nsresult InsertOptionsIntoListRecurse(nsIContent* aOptions,
-                                        int32_t* aInsertIndex,
-                                        int32_t aDepth);
+                                        PRInt32* aInsertIndex,
+                                        PRInt32 aDepth);
   /**
    * Remove option(s) from the options[] array (called by RemoveOptionsFromList)
    * @param aOptions the option or optgroup being added
@@ -507,9 +488,9 @@ protected:
    * @param aDepth the depth of aOptions (1=direct child of select ...)
    */
   nsresult RemoveOptionsFromListRecurse(nsIContent* aOptions,
-                                        int32_t aRemoveIndex,
-                                        int32_t* aNumRemoved,
-                                        int32_t aDepth);
+                                        PRInt32 aRemoveIndex,
+                                        PRInt32* aNumRemoved,
+                                        PRInt32 aDepth);
 
   // nsIConstraintValidation
   void UpdateBarredFromConstraintValidation();
@@ -521,14 +502,14 @@ protected:
    * @param aContent the content to check
    * @return the depth
    */
-  int32_t GetContentDepth(nsIContent* aContent);
+  PRInt32 GetContentDepth(nsIContent* aContent);
   /**
    * Get the index of the first option at, under or following the content in
    * the select, or length of options[] if none are found
    * @param aOptions the content
    * @return the index of the first option
    */
-  int32_t GetOptionIndexAt(nsIContent* aOptions);
+  PRInt32 GetOptionIndexAt(nsIContent* aOptions);
   /**
    * Get the next option following the content in question (not at or under)
    * (this could include siblings of the current content or siblings of the
@@ -536,13 +517,13 @@ protected:
    * @param aOptions the content
    * @return the index of the next option after the content
    */
-  int32_t GetOptionIndexAfter(nsIContent* aOptions);
+  PRInt32 GetOptionIndexAfter(nsIContent* aOptions);
   /**
    * Get the first option index at or under the content in question.
    * @param aOptions the content
    * @return the index of the first option at or under the content
    */
-  int32_t GetFirstOptionIndex(nsIContent* aOptions);
+  PRInt32 GetFirstOptionIndex(nsIContent* aOptions);
   /**
    * Get the first option index under the content in question, within the
    * range specified.
@@ -551,9 +532,9 @@ protected:
    * @param aEndIndex the child *after* the last child to look at
    * @return the index of the first option at or under the content
    */
-  int32_t GetFirstChildOptionIndex(nsIContent* aOptions,
-                                   int32_t aStartIndex,
-                                   int32_t aEndIndex);
+  PRInt32 GetFirstChildOptionIndex(nsIContent* aOptions,
+                                   PRInt32 aStartIndex,
+                                   PRInt32 aEndIndex);
 
   /**
    * Get the frame as an nsISelectControlFrame (MAY RETURN NULL)
@@ -569,7 +550,7 @@ protected:
       return false;
     }
 
-    uint32_t size = 1;
+    PRUint32 size = 1;
     GetSize(&size);
     return size <= 1;
   }
@@ -589,7 +570,7 @@ protected:
   void VerifyOptionsArray();
 #endif
 
-  nsresult SetSelectedIndexInternal(int32_t aIndex, bool aNotify);
+  nsresult SetSelectedIndexInternal(PRInt32 aIndex, bool aNotify);
 
   void SetSelectionChanged(bool aValue, bool aNotify);
 
@@ -612,6 +593,11 @@ protected:
 
     return mSelectionHasChanged;
   }
+
+  /**
+   * Insert aElement before the node given by aBefore
+   */
+  nsresult Add(nsIDOMHTMLElement* aElement, nsIDOMHTMLElement* aBefore = nullptr);
 
   /** The options[] array */
   nsRefPtr<nsHTMLOptionCollection> mOptions;
@@ -645,40 +631,19 @@ protected:
   bool            mCanShowValidUI;
 
   /** The number of non-options as children of the select */
-  uint32_t  mNonOptionChildren;
+  PRUint32  mNonOptionChildren;
   /** The number of optgroups anywhere under the select */
-  uint32_t  mOptGroupCount;
+  PRUint32  mOptGroupCount;
   /**
    * The current selected index for selectedIndex (will be the first selected
    * index if multiple are selected)
    */
-  int32_t   mSelectedIndex;
+  PRInt32   mSelectedIndex;
   /**
    * The temporary restore state in case we try to restore before parser is
    * done adding options
    */
   nsCOMPtr<nsSelectState> mRestoreState;
 };
-
-void
-nsHTMLOptionCollection::Add(const HTMLOptionOrOptGroupElement& aElement,
-                            const Nullable<HTMLElementOrLong>& aBefore,
-                            mozilla::ErrorResult& aError)
-{
-  nsIDOMHTMLElement* element;
-  if (aElement.IsHTMLOptionElement()) {
-    element = aElement.GetAsHTMLOptionElement();
-  } else {
-    element = aElement.GetAsHTMLOptGroupElement();
-  }
-
-  if (aBefore.IsNull()) {
-    aError = mSelect->Add(element, (nsIDOMHTMLElement*)nullptr);
-  } else if (aBefore.Value().IsHTMLElement()) {
-    aError = mSelect->Add(element, aBefore.Value().GetAsHTMLElement());
-  } else {
-    aError = mSelect->Add(element, aBefore.Value().GetAsLong());
-  }
-}
 
 #endif

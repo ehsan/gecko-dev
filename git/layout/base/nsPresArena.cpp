@@ -16,12 +16,12 @@
 #include "prinit.h"
 #include "prlog.h"
 #include "nsArenaMemoryStats.h"
-#include "nsCOMPtr.h"
-#include "nsServiceManagerUtils.h"
-#include "nsPrintfCString.h"
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
+#include "nsCOMPtr.h"
+#include "nsServiceManagerUtils.h"
+#include "nsPrintfCString.h"
 #endif
 
 #include "mozilla/StandardInteger.h"
@@ -132,19 +132,19 @@ GetDesiredRegionSize()
 static void *
 ReserveRegion(uintptr_t region, uintptr_t size)
 {
-  return mmap(reinterpret_cast<void*>(region), size, PROT_NONE, MAP_PRIVATE|MAP_ANON, -1, 0);
+  return mmap((caddr_t)region, size, PROT_NONE, MAP_PRIVATE|MAP_ANON, -1, 0);
 }
 
 static void
 ReleaseRegion(void *region, uintptr_t size)
 {
-  munmap(region, size);
+  munmap((caddr_t)region, size);
 }
 
 static bool
 ProbeRegion(uintptr_t region, uintptr_t size)
 {
-  if (madvise(reinterpret_cast<void*>(region), size, MADV_NORMAL)) {
+  if (madvise((caddr_t)region, size, MADV_NORMAL)) {
     return true;
   } else {
     return false;
@@ -231,9 +231,9 @@ ARENA_POISON_init()
   bool enabled;
   if (cr && NS_SUCCEEDED(cr->GetEnabled(&enabled)) && enabled) {
     cr->AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonBase"),
-                            nsPrintfCString("%.16llx", uint64_t(rgnbase)));
+                            nsPrintfCString("%.16llx", PRUint64(rgnbase)));
     cr->AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonSize"),
-                            nsPrintfCString("%lu", uint32_t(rgnsize)));
+                            nsPrintfCString("%lu", PRUint32(rgnsize)));
   }
 #endif
   return PR_SUCCESS;
@@ -249,7 +249,7 @@ namespace {
 class FreeList : public PLDHashEntryHdr
 {
 public:
-  typedef uint32_t KeyType;
+  typedef PRUint32 KeyType;
   nsTArray<void *> mEntries;
   size_t mEntrySize;
   size_t mEntriesEverAllocated;
@@ -291,7 +291,7 @@ struct nsPresArena::State {
     PL_FinishArenaPool(&mPool);
   }
 
-  void* Allocate(uint32_t aCode, size_t aSize)
+  void* Allocate(PRUint32 aCode, size_t aSize)
   {
     NS_ABORT_IF_FALSE(aSize > 0, "PresArena cannot allocate zero bytes");
 
@@ -321,16 +321,8 @@ struct nsPresArena::State {
         char* p = reinterpret_cast<char*>(result);
         char* limit = p + list->mEntrySize;
         for (; p < limit; p += sizeof(uintptr_t)) {
-          uintptr_t val = *reinterpret_cast<uintptr_t*>(p);
-          NS_ABORT_IF_FALSE(val == ARENA_POISON,
-                            nsPrintfCString("PresArena: poison overwritten; "
-                                            "wanted %.16llx "
-                                            "found %.16llx "
-                                            "errors in bits %.16llx",
-                                            uint64_t(ARENA_POISON),
-                                            uint64_t(val),
-                                            uint64_t(ARENA_POISON ^ val)
-                                            ).get());
+          NS_ABORT_IF_FALSE(*reinterpret_cast<uintptr_t*>(p) == ARENA_POISON,
+                            "PresArena: poison overwritten");
         }
       }
 #endif
@@ -343,7 +335,7 @@ struct nsPresArena::State {
     return result;
   }
 
-  void Free(uint32_t aCode, void* aPtr)
+  void Free(PRUint32 aCode, void* aPtr)
   {
     // Try to recycle this entry.
     FreeList* list = mFreeLists.GetEntry(aCode);
@@ -466,12 +458,12 @@ struct nsPresArena::State
     PR_CallOnce(&ARENA_POISON_guard, ARENA_POISON_init);
   }
 
-  void* Allocate(uint32_t /* unused */, size_t aSize)
+  void* Allocate(PRUint32 /* unused */, size_t aSize)
   {
     return PR_Malloc(aSize);
   }
 
-  void Free(uint32_t /* unused */, void* aPtr)
+  void Free(PRUint32 /* unused */, void* aPtr)
   {
     PR_Free(aPtr);
   }
@@ -496,14 +488,14 @@ nsPresArena::~nsPresArena()
 void*
 nsPresArena::AllocateBySize(size_t aSize)
 {
-  return mState->Allocate(uint32_t(aSize) | uint32_t(NON_OBJECT_MARKER),
+  return mState->Allocate(PRUint32(aSize) | PRUint32(NON_OBJECT_MARKER),
                           aSize);
 }
 
 void
 nsPresArena::FreeBySize(size_t aSize, void* aPtr)
 {
-  mState->Free(uint32_t(aSize) | uint32_t(NON_OBJECT_MARKER), aPtr);
+  mState->Free(PRUint32(aSize) | PRUint32(NON_OBJECT_MARKER), aPtr);
 }
 
 void*

@@ -25,7 +25,7 @@ public:
   // Accessible
   virtual mozilla::a11y::ENameValueFlag Name(nsString& aName);
   virtual a11y::role NativeRole();
-  virtual uint64_t NativeState();
+  virtual PRUint64 NativeState();
 
   // Widgets
   virtual bool IsWidget() const;

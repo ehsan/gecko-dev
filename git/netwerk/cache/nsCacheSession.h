@@ -59,7 +59,7 @@ public:
 
 private:
     nsCString               mClientID;
-    uint32_t                mInfo;
+    PRUint32                mInfo;
     nsCOMPtr<nsIFile>       mProfileDir;
 };
 

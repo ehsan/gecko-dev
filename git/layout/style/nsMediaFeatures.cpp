@@ -20,13 +20,13 @@
 
 using namespace mozilla;
 
-static const int32_t kOrientationKeywords[] = {
+static const PRInt32 kOrientationKeywords[] = {
   eCSSKeyword_portrait,                 NS_STYLE_ORIENTATION_PORTRAIT,
   eCSSKeyword_landscape,                NS_STYLE_ORIENTATION_LANDSCAPE,
   eCSSKeyword_UNKNOWN,                  -1
 };
 
-static const int32_t kScanKeywords[] = {
+static const PRInt32 kScanKeywords[] = {
   eCSSKeyword_progressive,              NS_STYLE_SCAN_PROGRESSIVE,
   eCSSKeyword_interlace,                NS_STYLE_SCAN_INTERLACE,
   eCSSKeyword_UNKNOWN,                  -1
@@ -135,7 +135,7 @@ GetOrientation(nsPresContext* aPresContext, const nsMediaFeature*,
                nsCSSValue& aResult)
 {
     nsSize size = GetSize(aPresContext);
-    int32_t orientation;
+    PRInt32 orientation;
     if (size.width > size.height) {
         orientation = NS_STYLE_ORIENTATION_LANDSCAPE;
     } else {
@@ -152,7 +152,7 @@ GetDeviceOrientation(nsPresContext* aPresContext, const nsMediaFeature*,
                      nsCSSValue& aResult)
 {
     nsSize size = GetDeviceSize(aPresContext);
-    int32_t orientation;
+    PRInt32 orientation;
     if (size.width > size.height) {
         orientation = NS_STYLE_ORIENTATION_LANDSCAPE;
     } else {
@@ -209,13 +209,13 @@ GetColor(nsPresContext* aPresContext, const nsMediaFeature*,
     // 424386).
     // FIXME: On a monochrome device, return 0!
     nsDeviceContext *dx = GetDeviceContextFor(aPresContext);
-    uint32_t depth;
+    PRUint32 depth;
     dx->GetDepth(depth);
     // The spec says to use bits *per color component*, so divide by 3,
     // and round down, since the spec says to use the smallest when the
     // color components differ.
     depth /= 3;
-    aResult.SetIntValue(int32_t(depth), eCSSUnit_Integer);
+    aResult.SetIntValue(PRInt32(depth), eCSSUnit_Integer);
     return NS_OK;
 }
 
@@ -250,15 +250,7 @@ GetResolution(nsPresContext* aPresContext, const nsMediaFeature*,
 {
     // Resolution measures device pixels per CSS (inch/cm/pixel).  We
     // return it in device pixels per CSS inches.
-    //
-    // However, on platforms where the CSS viewport is not fixed to the
-    // screen viewport, use the device resolution instead (bug 779527).
-    nsIPresShell *shell = aPresContext->PresShell();
-    float appUnitsPerInch = shell->GetIsViewportOverridden() ?
-            GetDeviceContextFor(aPresContext)->AppUnitsPerPhysicalInch() :
-            nsPresContext::AppUnitsPerCSSInch();
-
-    float dpi = appUnitsPerInch /
+    float dpi = float(nsPresContext::AppUnitsPerCSSInch()) /
                 float(aPresContext->AppUnitsPerDevPixel());
     aResult.SetFloatValue(dpi, eCSSUnit_Inch);
     return NS_OK;
@@ -311,7 +303,7 @@ GetWindowsTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
 {
     aResult.Reset();
 #ifdef XP_WIN
-    uint8_t windowsThemeId =
+    PRUint8 windowsThemeId =
         nsCSSRuleProcessor::GetWindowsThemeIdentifier();
 
     // Classic mode should fail to match.
@@ -327,14 +319,6 @@ GetWindowsTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
         }
     }
 #endif
-    return NS_OK;
-}
-
-static nsresult
-GetIsGlyph(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
-          nsCSSValue& aResult)
-{
-    aResult.SetIntValue(aPresContext->IsGlyph() ? 1 : 0, eCSSUnit_Integer);
     return NS_OK;
 }
 
@@ -574,17 +558,6 @@ nsMediaFeatures::features[] = {
         nsMediaFeature::eIdent,
         { nullptr },
         GetWindowsTheme
-    },
-
-    // Internal -moz-is-glyph media feature: applies only inside SVG glyphs.
-    // Internal because it is really only useful in the user agent anyway
-    //  and therefore not worth standardizing.
-    {
-        &nsGkAtoms::_moz_is_glyph,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { nullptr },
-        GetIsGlyph
     },
     // Null-mName terminator:
     {

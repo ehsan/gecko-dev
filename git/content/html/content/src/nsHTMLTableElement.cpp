@@ -10,10 +10,9 @@
 #include "nsIDOMHTMLTableSectionElem.h"
 #include "nsCOMPtr.h"
 #include "nsIDOMEventTarget.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsContentList.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
@@ -25,7 +24,7 @@
 #include "nsIDOMElement.h"
 #include "nsIHTMLCollection.h"
 #include "nsHTMLStyleSheet.h"
-#include "mozilla/dom/HTMLCollectionBinding.h"
+#include "dombindings.h"
 
 using namespace mozilla;
 
@@ -44,14 +43,10 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMHTMLCOLLECTION
 
-  virtual nsGenericElement* GetElementAt(uint32_t aIndex);
   virtual nsINode* GetParentObject()
   {
     return mParent;
   }
-
-  virtual JSObject* NamedItem(JSContext* cx, const nsAString& name,
-                              ErrorResult& error);
 
   NS_IMETHOD    ParentDestroyed();
 
@@ -61,8 +56,8 @@ public:
   virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
                                bool *triedToWrap)
   {
-    return mozilla::dom::HTMLCollectionBinding::Wrap(cx, scope, this,
-                                                     triedToWrap);
+    return mozilla::dom::binding::HTMLCollection::create(cx, scope, this,
+                                                         triedToWrap);
   }
 
 protected:
@@ -137,8 +132,8 @@ NS_INTERFACE_MAP_END
       /* TBodies */                                                  \
       nsContentList *_tbodies = mParent->TBodies();                  \
       nsINode * _node;                                               \
-      uint32_t _tbodyIndex = 0;                                      \
-      _node = _tbodies->Item(_tbodyIndex);                           \
+      PRUint32 _tbodyIndex = 0;                                      \
+      _node = _tbodies->GetNodeAt(_tbodyIndex);                      \
       while (_node) {                                                \
         rowGroup = do_QueryInterface(_node);                         \
         if (rowGroup) {                                              \
@@ -147,7 +142,7 @@ NS_INTERFACE_MAP_END
             _code                                                    \
           } while (0);                                               \
         }                                                            \
-        _node = _tbodies->Item(++_tbodyIndex);                       \
+        _node = _tbodies->GetNodeAt(++_tbodyIndex);                  \
       }                                                              \
       /* orphan rows */                                              \
       rows = mOrphanRows;                                            \
@@ -166,10 +161,10 @@ NS_INTERFACE_MAP_END
     }                                                                \
   } while (0)
 
-static uint32_t
+static PRUint32
 CountRowsInRowGroup(nsIDOMHTMLCollection* rows)
 {
-  uint32_t length = 0;
+  PRUint32 length = 0;
   
   if (rows) {
     rows->GetLength(&length);
@@ -182,7 +177,7 @@ CountRowsInRowGroup(nsIDOMHTMLCollection* rows)
 // ourselves up as an observer of contentAppended, contentInserted,
 // and contentDeleted
 NS_IMETHODIMP 
-TableRowsCollection::GetLength(uint32_t* aLength)
+TableRowsCollection::GetLength(PRUint32* aLength)
 {
   *aLength=0;
 
@@ -196,29 +191,29 @@ TableRowsCollection::GetLength(uint32_t* aLength)
 // Returns the item at index aIndex if available. If null is returned,
 // then aCount will be set to the number of rows in this row collection.
 // Otherwise, the value of aCount is undefined.
-static nsGenericElement*
+static nsIContent*
 GetItemOrCountInRowGroup(nsIDOMHTMLCollection* rows,
-                         uint32_t aIndex, uint32_t* aCount)
+                         PRUint32 aIndex, PRUint32* aCount)
 {
   *aCount = 0;
 
   if (rows) {
     rows->GetLength(aCount);
     if (aIndex < *aCount) {
-      nsIHTMLCollection* list = static_cast<nsIHTMLCollection*>(rows);
-      return list->GetElementAt(aIndex);
+      nsCOMPtr<nsINodeList> list = do_QueryInterface(rows);
+      return list->GetNodeAt(aIndex);
     }
   }
   
   return nullptr;
 }
 
-nsGenericElement*
-TableRowsCollection::GetElementAt(uint32_t aIndex)
+nsIContent*
+TableRowsCollection::GetNodeAt(PRUint32 aIndex)
 {
   DO_FOR_EACH_ROWGROUP(
-    uint32_t count;
-    nsGenericElement* node = GetItemOrCountInRowGroup(rows, aIndex, &count);
+    PRUint32 count;
+    nsIContent* node = GetItemOrCountInRowGroup(rows, aIndex, &count);
     if (node) {
       return node; 
     }
@@ -231,9 +226,9 @@ TableRowsCollection::GetElementAt(uint32_t aIndex)
 }
 
 NS_IMETHODIMP 
-TableRowsCollection::Item(uint32_t aIndex, nsIDOMNode** aReturn)
+TableRowsCollection::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsISupports* node = GetElementAt(aIndex);
+  nsISupports* node = GetNodeAt(aIndex);
   if (!node) {
     *aReturn = nullptr;
 
@@ -243,33 +238,29 @@ TableRowsCollection::Item(uint32_t aIndex, nsIDOMNode** aReturn)
   return CallQueryInterface(node, aReturn);
 }
 
-JSObject*
-TableRowsCollection::NamedItem(JSContext* cx, const nsAString& name,
-                               ErrorResult& error)
+static nsISupports*
+GetNamedItemInRowGroup(nsIDOMHTMLCollection* aRows, const nsAString& aName,
+                       nsWrapperCache** aCache)
+{
+  nsCOMPtr<nsIHTMLCollection> rows = do_QueryInterface(aRows);
+  if (rows) {
+    return rows->GetNamedItem(aName, aCache);
+  }
+
+  return nullptr;
+}
+
+nsISupports* 
+TableRowsCollection::GetNamedItem(const nsAString& aName,
+                                  nsWrapperCache** aCache)
 {
   DO_FOR_EACH_ROWGROUP(
-    nsCOMPtr<nsIHTMLCollection> collection = do_QueryInterface(rows);
-    if (collection) {
-      // We'd like to call the nsIHTMLCollection::NamedItem that returns a
-      // JSObject*, but that relies on collection having a cached wrapper, which
-      // we can't guarantee here.
-      nsCOMPtr<nsIDOMNode> item;
-      error = collection->NamedItem(name, getter_AddRefs(item));
-      if (error.Failed()) {
-        return nullptr;
-      }
-      if (item) {
-        JSObject* wrapper = GetWrapper();
-        JSAutoCompartment ac(cx, wrapper);
-        JS::Value v;
-        if (!mozilla::dom::WrapObject(cx, wrapper, item, &v)) {
-          error.Throw(NS_ERROR_FAILURE);
-          return nullptr;
-        }
-        return &v.toObject();
-      }
+    nsISupports* item = GetNamedItemInRowGroup(rows, aName, aCache);
+    if (item) {
+      return item;
     }
   );
+  *aCache = nullptr;
   return nullptr;
 }
 
@@ -277,18 +268,15 @@ NS_IMETHODIMP
 TableRowsCollection::NamedItem(const nsAString& aName,
                                nsIDOMNode** aReturn)
 {
-  DO_FOR_EACH_ROWGROUP(
-    nsCOMPtr<nsIHTMLCollection> collection = do_QueryInterface(rows);
-    if (collection) {
-      nsresult rv = collection->NamedItem(aName, aReturn);
-      if (NS_FAILED(rv) || *aReturn) {
-        return rv;
-      }
-    }
-  );
+  nsWrapperCache *cache;
+  nsISupports* item = GetNamedItem(aName, &cache);
+  if (!item) {
+    *aReturn = nullptr;
 
-  *aReturn = nullptr;
-  return NS_OK;
+    return NS_OK;
+  }
+
+  return CallQueryInterface(item, aReturn);
 }
 
 NS_IMETHODIMP
@@ -655,7 +643,7 @@ nsHTMLTableElement::DeleteCaption()
 }
 
 NS_IMETHODIMP
-nsHTMLTableElement::InsertRow(int32_t aIndex, nsIDOMHTMLElement** aValue)
+nsHTMLTableElement::InsertRow(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
 {
   /* get the ref row at aIndex
      if there is one, 
@@ -674,15 +662,15 @@ nsHTMLTableElement::InsertRow(int32_t aIndex, nsIDOMHTMLElement** aValue)
   nsCOMPtr<nsIDOMHTMLCollection> rows;
   GetRows(getter_AddRefs(rows));
 
-  uint32_t rowCount;
+  PRUint32 rowCount;
   rows->GetLength(&rowCount);
 
-  if ((uint32_t)aIndex > rowCount && aIndex != -1) {
+  if ((PRUint32)aIndex > rowCount && aIndex != -1) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
   // use local variable refIndex so we can remember original aIndex
-  uint32_t refIndex = (uint32_t)aIndex;
+  PRUint32 refIndex = (PRUint32)aIndex;
 
   nsresult rv;
   if (rowCount > 0) {
@@ -712,7 +700,7 @@ nsHTMLTableElement::InsertRow(int32_t aIndex, nsIDOMHTMLElement** aValue)
 
       // If index is -1 or equal to the number of rows, the new row
       // is appended.
-      if (aIndex == -1 || uint32_t(aIndex) == rowCount) {
+      if (aIndex == -1 || PRUint32(aIndex) == rowCount) {
         rv = parent->AppendChild(newRowNode, getter_AddRefs(retChild));
         NS_ENSURE_SUCCESS(rv, rv);
       }
@@ -799,7 +787,7 @@ nsHTMLTableElement::InsertRow(int32_t aIndex, nsIDOMHTMLElement** aValue)
 }
 
 NS_IMETHODIMP
-nsHTMLTableElement::DeleteRow(int32_t aValue)
+nsHTMLTableElement::DeleteRow(PRInt32 aValue)
 {
   if (aValue < -1) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
@@ -809,7 +797,7 @@ nsHTMLTableElement::DeleteRow(int32_t aValue)
   GetRows(getter_AddRefs(rows));
 
   nsresult rv;
-  uint32_t refIndex;
+  PRUint32 refIndex;
   if (aValue == -1) {
     rv = rows->GetLength(&refIndex);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -821,7 +809,7 @@ nsHTMLTableElement::DeleteRow(int32_t aValue)
     --refIndex;
   }
   else {
-    refIndex = (uint32_t)aValue;
+    refIndex = (PRUint32)aValue;
   }
 
   nsCOMPtr<nsIDOMNode> row;
@@ -870,7 +858,7 @@ static const nsAttrValue::EnumTable kLayoutTable[] = {
 
 
 bool
-nsHTMLTableElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
                                    nsIAtom* aAttribute,
                                    const nsAString& aValue,
                                    nsAttrValue& aResult)
@@ -922,10 +910,7 @@ nsHTMLTableElement::ParseAttribute(int32_t aNamespaceID,
     }
   }
 
-  return nsGenericHTMLElement::ParseBackgroundAttribute(aNamespaceID,
-                                                        aAttribute, aValue,
-                                                        aResult) ||
-         nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
+  return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
 }
 
@@ -1066,7 +1051,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
     const nsAttrValue* borderValue = aAttributes->GetAttr(nsGkAtoms::border);
     if (borderValue) {
       // border = 1 pixel default
-      int32_t borderThickness = 1;
+      PRInt32 borderThickness = 1;
 
       if (borderValue->Type() == nsAttrValue::eInteger)
         borderThickness = borderValue->GetIntegerValue();
@@ -1226,7 +1211,7 @@ nsHTMLTableElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsresult
-nsHTMLTableElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLTableElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                   const nsAttrValueOrString* aValue,
                                   bool aNotify)
 {
@@ -1238,7 +1223,7 @@ nsHTMLTableElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLTableElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLTableElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  const nsAttrValue* aValue,
                                  bool aNotify)
 {

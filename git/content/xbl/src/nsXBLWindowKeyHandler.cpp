@@ -36,7 +36,7 @@ using namespace mozilla;
 
 static nsINativeKeyBindings *sNativeEditorBindings = nullptr;
 
-class nsXBLSpecialDocInfo : public nsIObserver
+class nsXBLSpecialDocInfo
 {
 public:
   nsRefPtr<nsXBLDocumentInfo> mHTMLBindings;
@@ -48,9 +48,6 @@ public:
   bool mInitialized;
 
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
   void LoadDocInfo();
   void GetAllHandlers(const char* aType,
                       nsXBLPrototypeHandler** handler,
@@ -60,38 +57,16 @@ public:
                    nsXBLPrototypeHandler** aResult);
 
   nsXBLSpecialDocInfo() : mInitialized(false) {}
-
-  virtual ~nsXBLSpecialDocInfo() {}
-
 };
 
 const char nsXBLSpecialDocInfo::sHTMLBindingStr[] =
   "chrome://global/content/platformHTMLBindings.xml";
-
-NS_IMPL_ISUPPORTS1(nsXBLSpecialDocInfo, nsIObserver)
-
-NS_IMETHODIMP
-nsXBLSpecialDocInfo::Observe(nsISupports* aSubject,
-                             const char* aTopic,
-                             const PRUnichar* aData)
-{
-  MOZ_ASSERT(!strcmp(aTopic, "xpcom-shutdown"), "wrong topic");
-
-  // On shutdown, clear our fields to avoid an extra cycle collection.
-  mHTMLBindings = nullptr;
-  mUserHTMLBindings = nullptr;
-  mInitialized = false;
-  nsContentUtils::UnregisterShutdownObserver(this);
-
-  return NS_OK;
-}
 
 void nsXBLSpecialDocInfo::LoadDocInfo()
 {
   if (mInitialized)
     return;
   mInitialized = true;
-  nsContentUtils::RegisterShutdownObserver(this);
 
   nsXBLService* xblService = nsXBLService::GetInstance();
   if (!xblService)
@@ -149,7 +124,7 @@ nsXBLSpecialDocInfo::GetAllHandlers(const char* aType,
                                     nsXBLPrototypeHandler** aUserHandler)
 {
   if (mUserHTMLBindings) {
-    nsAutoCString type(aType);
+    nsCAutoString type(aType);
     type.Append("User");
     GetHandlers(mUserHTMLBindings, type, aUserHandler);
   }
@@ -160,7 +135,7 @@ nsXBLSpecialDocInfo::GetAllHandlers(const char* aType,
 
 // Init statics
 nsXBLSpecialDocInfo* nsXBLWindowKeyHandler::sXBLSpecialDocInfo = nullptr;
-uint32_t nsXBLWindowKeyHandler::sRefCnt = 0;
+PRUint32 nsXBLWindowKeyHandler::sRefCnt = 0;
 
 nsXBLWindowKeyHandler::nsXBLWindowKeyHandler(nsIDOMElement* aElement,
                                              nsIDOMEventTarget* aTarget)
@@ -180,7 +155,8 @@ nsXBLWindowKeyHandler::~nsXBLWindowKeyHandler()
 
   --sRefCnt;
   if (!sRefCnt) {
-    NS_IF_RELEASE(sXBLSpecialDocInfo);
+    delete sXBLSpecialDocInfo;
+    sXBLSpecialDocInfo = nullptr;
   }
 }
 
@@ -245,9 +221,13 @@ nsXBLWindowKeyHandler::EnsureHandlers(bool *aIsEditor)
     nsCOMPtr<nsIContent> content(do_QueryInterface(el));
     BuildHandlerChain(content, &mHandler);
   } else { // We are an XBL file of handlers.
-    if (!sXBLSpecialDocInfo) {
+    if (!sXBLSpecialDocInfo)
       sXBLSpecialDocInfo = new nsXBLSpecialDocInfo();
-      NS_ADDREF(sXBLSpecialDocInfo);
+    if (!sXBLSpecialDocInfo) {
+      if (aIsEditor) {
+        *aIsEditor = false;
+      }
+      return NS_ERROR_OUT_OF_MEMORY;
     }
     sXBLSpecialDocInfo->LoadDocInfo();
 
@@ -390,7 +370,7 @@ bool
 nsXBLWindowKeyHandler::EventMatched(nsXBLPrototypeHandler* inHandler,
                                     nsIAtom* inEventType,
                                     nsIDOMKeyEvent* inEvent,
-                                    uint32_t aCharCode, bool aIgnoreShiftKey)
+                                    PRUint32 aCharCode, bool aIgnoreShiftKey)
 {
   return inHandler->KeyEventMatched(inEventType, inEvent, aCharCode,
                                     aIgnoreShiftKey);
@@ -455,7 +435,7 @@ nsXBLWindowKeyHandler::WalkHandlersInternal(nsIDOMKeyEvent* aKeyEvent,
     return NS_OK;
   }
 
-  for (uint32_t i = 0; i < accessKeys.Length(); ++i) {
+  for (PRUint32 i = 0; i < accessKeys.Length(); ++i) {
     nsShortcutCandidate &key = accessKeys[i];
     if (WalkHandlersAndExecute(aKeyEvent, aEventType, aHandler,
                                key.mCharCode, key.mIgnoreShift))
@@ -468,7 +448,7 @@ bool
 nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
                                               nsIAtom* aEventType,
                                               nsXBLPrototypeHandler* aHandler,
-                                              uint32_t aCharCode,
+                                              PRUint32 aCharCode,
                                               bool aIgnoreShiftKey)
 {
   nsresult rv;
@@ -479,7 +459,7 @@ nsXBLWindowKeyHandler::WalkHandlersAndExecute(nsIDOMKeyEvent* aKeyEvent,
     bool stopped = aKeyEvent->IsDispatchStopped();
     if (stopped) {
       // The event is finished, don't execute any more handlers
-      return false;
+      return NS_OK;
     }
 
     if (!EventMatched(currHandler, aEventType, aKeyEvent,

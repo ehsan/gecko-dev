@@ -29,7 +29,6 @@ fails-if(cocoaWidget||winWidget) HTTP(..) == lineheight-metrics-1.html lineheigh
 == pre-line-2.html pre-line-2-ref.html
 == pre-line-3.html pre-line-3-ref.html
 == pre-line-4.html pre-line-4-ref.html
-== pre-discard-newlines-1.html pre-discard-newlines-1-ref.html
 == soft-hyphens-1a.html soft-hyphens-1-ref.html
 == soft-hyphens-1b.html soft-hyphens-1-ref.html
 == soft-hyphens-1c.html soft-hyphens-1-ref.html
@@ -50,7 +49,7 @@ skip-if(!(d2d||cocoaWidget)) random-if(d2d) != subpixel-glyphs-x-2a.html subpixe
 HTTP(..) == subpixel-glyphs-x-3a.html subpixel-glyphs-x-3b.html
 # No platforms do subpixel positioning vertically
 == subpixel-glyphs-y-1a.html subpixel-glyphs-y-1b.html
-fuzzy-if(Android,9,61) == subpixel-lineheight-1a.html subpixel-lineheight-1b.html
+== subpixel-lineheight-1a.html subpixel-lineheight-1b.html
 == swash-1.html swash-1-ref.html
 HTTP(..) != synthetic-bold-metrics-01.html synthetic-bold-metrics-01-notref.html
 == synthetic-bold-papyrus-01.html synthetic-bold-papyrus-01-ref.html
@@ -181,9 +180,6 @@ HTTP(..) == graphite-05-feat.html graphite-05-ref.html
 == auto-hyphenation-5.html auto-hyphenation-5-ref.html
 == auto-hyphenation-6.html auto-hyphenation-6-ref.html
 == auto-hyphenation-7.html auto-hyphenation-7-ref.html
-== auto-hyphenation-8.html auto-hyphenation-4-ref.html
-== auto-hyphenation-9.html auto-hyphenation-4-ref.html
-== auto-hyphenation-10.html auto-hyphenation-4-ref.html
 == auto-hyphenation-af-1.html auto-hyphenation-af-1-ref.html
 == auto-hyphenation-bg-1.html auto-hyphenation-bg-1-ref.html
 == auto-hyphenation-ca-1.html auto-hyphenation-ca-1-ref.html
@@ -221,3 +217,4 @@ HTTP(..) == graphite-05-feat.html graphite-05-ref.html
 != auto-hyphenation-sv-1.html auto-hyphenation-sv-1-notref.html # verify swedish != english
 == auto-hyphenation-tr-1.html auto-hyphenation-tr-1-ref.html
 == auto-hyphenation-uk-1.html auto-hyphenation-uk-1-ref.html
+

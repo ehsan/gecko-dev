@@ -32,8 +32,6 @@ static nscolor GetColorFromNSColor(NSColor* aColor)
 nsresult
 nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
   nsresult res = NS_OK;
   
   switch (aID) {
@@ -274,12 +272,10 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
     }
   
   return res;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 nsresult
-nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
+nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
@@ -380,7 +376,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
                                                             kCFPreferencesAnyHost);
       aResult = 1;    // default to just textboxes
       if (fullKeyboardAccessProperty) {
-        int32_t fullKeyboardAccessPrefVal;
+        PRInt32 fullKeyboardAccessPrefVal;
         if (::CFNumberGetValue((CFNumberRef) fullKeyboardAccessProperty, kCFNumberIntType, &fullKeyboardAccessPrefVal)) {
           // the second bit means  "Full keyboard access" is on
           if (fullKeyboardAccessPrefVal & (1 << 1))
@@ -452,17 +448,14 @@ static void GetStringForNSString(const NSString *aSrc, nsAString& aDest)
 
 bool
 nsLookAndFeel::GetFontImpl(FontID aID, nsString &aFontName,
-                           gfxFontStyle &aFontStyle,
-                           float aDevPixPerCSSPixel)
+                           gfxFontStyle &aFontStyle)
 {
-    NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
     // hack for now
     if (aID == eFont_Window || aID == eFont_Document) {
         aFontStyle.style      = NS_FONT_STYLE_NORMAL;
         aFontStyle.weight     = NS_FONT_WEIGHT_NORMAL;
         aFontStyle.stretch    = NS_FONT_STRETCH_NORMAL;
-        aFontStyle.size       = 14 * aDevPixPerCSSPixel;
+        aFontStyle.size       = 14;
         aFontStyle.systemFont = true;
 
         aFontName.AssignLiteral("sans-serif");
@@ -559,12 +552,9 @@ nsLookAndFeel::GetFontImpl(FontID aID, nsString &aFontName,
         (traits & NSFontExpandedTrait) ?
             NS_FONT_STRETCH_EXPANDED : (traits & NSFontCondensedTrait) ?
                 NS_FONT_STRETCH_CONDENSED : NS_FONT_STRETCH_NORMAL;
-    // convert size from css pixels to device pixels
-    aFontStyle.size = [font pointSize] * aDevPixPerCSSPixel;
+    aFontStyle.size = [font pointSize];
     aFontStyle.systemFont = true;
 
     GetStringForNSString([font familyName], aFontName);
     return true;
-
-    NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
 }

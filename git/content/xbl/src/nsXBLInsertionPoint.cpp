@@ -7,7 +7,7 @@
 #include "nsXBLBinding.h"
 
 nsXBLInsertionPoint::nsXBLInsertionPoint(nsIContent* aParentElement,
-                                         uint32_t aIndex,
+                                         PRUint32 aIndex,
                                          nsIContent* aDefaultContent)
   : mParentElement(aParentElement),
     mIndex(aIndex),
@@ -60,15 +60,15 @@ nsXBLInsertionPoint::GetDefaultContentTemplate()
 }
 
 nsIContent*
-nsXBLInsertionPoint::ChildAt(uint32_t aIndex)
+nsXBLInsertionPoint::ChildAt(PRUint32 aIndex)
 {
   return mElements.ObjectAt(aIndex);
 }
 
 bool
-nsXBLInsertionPoint::Matches(nsIContent* aContent, uint32_t aIndex)
+nsXBLInsertionPoint::Matches(nsIContent* aContent, PRUint32 aIndex)
 {
-  return (aContent == mParentElement && mIndex != -1 && ((int32_t)aIndex) == mIndex);
+  return (aContent == mParentElement && mIndex != -1 && ((PRInt32)aIndex) == mIndex);
 }
 
 void

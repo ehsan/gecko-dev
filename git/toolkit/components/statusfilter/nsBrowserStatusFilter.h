@@ -48,16 +48,16 @@ private:
 
     // delayed values
     nsString                         mStatusMsg;
-    int64_t                          mCurProgress;
-    int64_t                          mMaxProgress;
+    PRInt64                          mCurProgress;
+    PRInt64                          mMaxProgress;
 
     nsString                         mCurrentStatusMsg;
     bool                             mStatusIsDirty;
-    int32_t                          mCurrentPercentage;
+    PRInt32                          mCurrentPercentage;
 
     // used to convert OnStart/OnStop notifications into progress notifications
-    int32_t                          mTotalRequests;
-    int32_t                          mFinishedRequests;
+    PRInt32                          mTotalRequests;
+    PRInt32                          mFinishedRequests;
     bool                             mUseRealProgressFlag;
 
     // indicates whether a timeout is pending

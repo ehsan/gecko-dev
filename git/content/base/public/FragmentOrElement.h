@@ -16,6 +16,7 @@
 #include "nsCOMPtr.h"                     // member
 #include "nsCycleCollectionParticipant.h" // NS_DECL_CYCLE_*
 #include "nsIContent.h"                   // base class
+#include "nsIDOMNodeSelector.h"           // base class
 #include "nsIDOMTouchEvent.h"             // base class (nsITouchEventReceiver)
 #include "nsIDOMXPathNSResolver.h"        // base class
 #include "nsIInlineEventHandlers.h"       // base class
@@ -30,7 +31,7 @@ class nsDOMTokenList;
 class nsIControllers;
 class nsICSSDeclaration;
 class nsIDocument;
-class nsDOMStringMap;
+class nsIDOMDOMStringMap;
 class nsIDOMNamedNodeMap;
 class nsINodeInfo;
 class nsIURI;
@@ -61,8 +62,7 @@ public:
   NS_DECL_NSIDOMNODELIST
 
   // nsINodeList interface
-  virtual int32_t IndexOf(nsIContent* aContent);
-  virtual nsIContent* Item(uint32_t aIndex);
+  virtual PRInt32 IndexOf(nsIContent* aContent);
 
   void DropReference()
   {
@@ -154,6 +154,29 @@ private:
   nsCOMPtr<nsINode> mNode;
 };
 
+/**
+ * A tearoff class for FragmentOrElement to implement NodeSelector
+ */
+class nsNodeSelectorTearoff MOZ_FINAL : public nsIDOMNodeSelector
+{
+public:
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+
+  NS_DECL_NSIDOMNODESELECTOR
+
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsNodeSelectorTearoff)
+
+  nsNodeSelectorTearoff(nsINode *aNode) : mNode(aNode)
+  {
+  }
+
+private:
+  ~nsNodeSelectorTearoff() {}
+
+private:
+  nsCOMPtr<nsINode> mNode;
+};
+
 // Forward declare to allow being a friend
 class nsTouchEventReceiverTearoff;
 class nsInlineEventHandlersTearoff;
@@ -185,29 +208,28 @@ public:
   nsresult PostQueryInterface(REFNSIID aIID, void** aInstancePtr);
 
   // nsINode interface methods
-  virtual uint32_t GetChildCount() const;
-  virtual nsIContent *GetChildAt(uint32_t aIndex) const;
-  virtual nsIContent * const * GetChildArray(uint32_t* aChildCount) const;
-  virtual int32_t IndexOf(const nsINode* aPossibleChild) const MOZ_OVERRIDE;
-  virtual nsresult InsertChildAt(nsIContent* aKid, uint32_t aIndex,
+  virtual PRUint32 GetChildCount() const;
+  virtual nsIContent *GetChildAt(PRUint32 aIndex) const;
+  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
+  virtual PRInt32 IndexOf(nsINode* aPossibleChild) const;
+  virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  bool aNotify);
-  virtual void RemoveChildAt(uint32_t aIndex, bool aNotify);
-  virtual void GetTextContentInternal(nsAString& aTextContent);
-  virtual void SetTextContentInternal(const nsAString& aTextContent,
-                                      mozilla::ErrorResult& aError);
+  virtual void RemoveChildAt(PRUint32 aIndex, bool aNotify);
+  NS_IMETHOD GetTextContent(nsAString &aTextContent);
+  NS_IMETHOD SetTextContent(const nsAString& aTextContent);
 
   // nsIContent interface methods
-  virtual already_AddRefed<nsINodeList> GetChildren(uint32_t aFilter);
+  virtual already_AddRefed<nsINodeList> GetChildren(PRUint32 aFilter);
   virtual const nsTextFragment *GetText();
-  virtual uint32_t TextLength() const;
-  virtual nsresult SetText(const PRUnichar* aBuffer, uint32_t aLength,
+  virtual PRUint32 TextLength() const;
+  virtual nsresult SetText(const PRUnichar* aBuffer, PRUint32 aLength,
                            bool aNotify);
   // Need to implement this here too to avoid hiding.
   nsresult SetText(const nsAString& aStr, bool aNotify)
   {
     return SetText(aStr.BeginReading(), aStr.Length(), aNotify);
   }
-  virtual nsresult AppendText(const PRUnichar* aBuffer, uint32_t aLength,
+  virtual nsresult AppendText(const PRUnichar* aBuffer, PRUint32 aLength,
                               bool aNotify);
   virtual bool TextIsOnlyWhitespace();
   virtual void AppendTextTo(nsAString& aResult);
@@ -221,6 +243,62 @@ public:
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
 
 public:
+  // nsIDOMNode method implementation
+  NS_IMETHOD GetNodeName(nsAString& aNodeName);
+  NS_IMETHOD GetLocalName(nsAString& aLocalName);
+  NS_IMETHOD GetNodeValue(nsAString& aNodeValue);
+  NS_IMETHOD SetNodeValue(const nsAString& aNodeValue);
+  NS_IMETHOD GetNodeType(PRUint16* aNodeType);
+  NS_IMETHOD GetAttributes(nsIDOMNamedNodeMap** aAttributes);
+  NS_IMETHOD GetNamespaceURI(nsAString& aNamespaceURI);
+  NS_IMETHOD GetPrefix(nsAString& aPrefix);
+  NS_IMETHOD IsSupported(const nsAString& aFeature,
+                         const nsAString& aVersion, bool* aReturn);
+  NS_IMETHOD HasAttributes(bool* aHasAttributes);
+  NS_IMETHOD HasChildNodes(bool* aHasChildNodes);
+  nsresult InsertBefore(nsIDOMNode* aNewChild, nsIDOMNode* aRefChild,
+                        nsIDOMNode** aReturn)
+  {
+    return ReplaceOrInsertBefore(false, aNewChild, aRefChild, aReturn);
+  }
+  nsresult ReplaceChild(nsIDOMNode* aNewChild, nsIDOMNode* aOldChild,
+                        nsIDOMNode** aReturn)
+  {
+    return ReplaceOrInsertBefore(true, aNewChild, aOldChild, aReturn);
+  }
+  nsresult RemoveChild(nsIDOMNode* aOldChild, nsIDOMNode** aReturn)
+  {
+    return nsINode::RemoveChild(aOldChild, aReturn);
+  }
+  nsresult AppendChild(nsIDOMNode* aNewChild, nsIDOMNode** aReturn)
+  {
+    return InsertBefore(aNewChild, nullptr, aReturn);
+  }
+
+  nsresult CloneNode(bool aDeep, PRUint8 aOptionalArgc, nsIDOMNode **aResult)
+  {
+    if (!aOptionalArgc) {
+      aDeep = true;
+    }
+    
+    return nsNodeUtils::CloneNodeImpl(this, aDeep, true, aResult);
+  }
+
+  //----------------------------------------
+
+  /**
+   * Check whether a spec feature/version is supported.
+   * @param aObject the object, which should support the feature,
+   *        for example nsIDOMNode or nsIDOMDOMImplementation
+   * @param aFeature the feature ("Views", "Core", "HTML", "Range" ...)
+   * @param aVersion the version ("1.0", "2.0", ...)
+   * @param aReturn whether the feature is supported or not [OUT]
+   */
+  static nsresult InternalIsSupported(nsISupports* aObject,
+                                      const nsAString& aFeature,
+                                      const nsAString& aVersion,
+                                      bool* aReturn);
+
   /**
    * If there are listeners for DOMNodeInserted event, fires the event on all
    * aNodes
@@ -228,6 +306,15 @@ public:
   static void FireNodeInserted(nsIDocument* aDoc,
                                nsINode* aParent,
                                nsTArray<nsCOMPtr<nsIContent> >& aNodes);
+
+  /**
+   * Helper methods for implementing querySelector/querySelectorAll
+   */
+  static nsIContent* doQuerySelector(nsINode* aRoot, const nsAString& aSelector,
+                                     nsresult *aResult);
+  static nsresult doQuerySelectorAll(nsINode* aRoot,
+                                     const nsAString& aSelector,
+                                     nsIDOMNodeList **aReturn);
 
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(FragmentOrElement)
 
@@ -238,7 +325,7 @@ public:
 
   virtual bool OwnedOnlyByTheDOMTree()
   {
-    uint32_t rc = mRefCnt.get();
+    PRUint32 rc = mRefCnt.get();
     if (GetParent()) {
       --rc;
     }
@@ -294,8 +381,6 @@ public:
     void Traverse(nsCycleCollectionTraversalCallback &cb, bool aIsXUL);
     void Unlink(bool aIsXUL);
 
-    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
     /**
      * The .style attribute (an interface that forwards to the actual
      * style rules)
@@ -307,7 +392,7 @@ public:
      * The .dataset attribute.
      * @see nsGenericHTMLElement::GetDataset
      */
-    nsDOMStringMap* mDataset; // [Weak]
+    nsIDOMDOMStringMap* mDataset; // [Weak]
 
     /**
      * SMIL Overridde style rules (for SMIL animation of CSS properties)
@@ -356,7 +441,7 @@ protected:
 
   nsDOMSlots *DOMSlots()
   {
-    return static_cast<nsDOMSlots*>(Slots());
+    return static_cast<nsDOMSlots*>(GetSlots());
   }
 
   nsDOMSlots *GetExistingDOMSlots() const

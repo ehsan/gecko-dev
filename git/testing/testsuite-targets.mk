@@ -308,6 +308,7 @@ package-tests: \
   stage-xpcshell \
   stage-jstests \
   stage-jetpack \
+  stage-firebug \
   stage-peptest \
   stage-mozbase \
   stage-tps \
@@ -327,12 +328,11 @@ else
 	#building tests.jar (bug 543800) fails on unify, so we build tests.jar after unify is run
 	$(MAKE) -C $(DEPTH)/testing/mochitest stage-chromejar PKG_STAGE=$(DIST)/universal
 endif
-	find $(PKG_STAGE) -name "*.pyc" -exec rm {} \;
 	cd $(PKG_STAGE) && \
 	  zip -rq9D "$(call core_abspath,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE))" \
 	  * -x \*/.mkdir.done
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
+ifeq (Android, $(OS_TARGET))
 package-tests: stage-android
 endif
 
@@ -343,6 +343,7 @@ make-stage-dir:
 	$(NSINSTALL) -D $(PKG_STAGE)/bin/components
 	$(NSINSTALL) -D $(PKG_STAGE)/certs
 	$(NSINSTALL) -D $(PKG_STAGE)/jetpack
+	$(NSINSTALL) -D $(PKG_STAGE)/firebug
 	$(NSINSTALL) -D $(PKG_STAGE)/peptest
 	$(NSINSTALL) -D $(PKG_STAGE)/mozbase
 	$(NSINSTALL) -D $(PKG_STAGE)/modules
@@ -376,6 +377,9 @@ stage-android: make-stage-dir
 
 stage-jetpack: make-stage-dir
 	$(NSINSTALL) $(topsrcdir)/testing/jetpack/jetpack-location.txt $(PKG_STAGE)/jetpack
+
+stage-firebug: make-stage-dir
+	$(MAKE) -C $(DEPTH)/testing/firebug stage-package
 
 stage-peptest: make-stage-dir
 	$(MAKE) -C $(DEPTH)/testing/peptest stage-package
@@ -421,6 +425,7 @@ stage-mozbase: make-stage-dir
   stage-jstests \
   stage-android \
   stage-jetpack \
+  stage-firebug \
   stage-peptest \
   stage-mozbase \
   stage-tps \

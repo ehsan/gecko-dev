@@ -6,7 +6,6 @@
 #include "nsGenericHTMLFrameElement.h"
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsIDOMGetSVGDocument.h"
-#include "nsContentUtils.h"
 
 class nsHTMLIFrameElement : public nsGenericHTMLFrameElement
                           , public nsIDOMHTMLIFrameElement
@@ -21,7 +20,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLFrameElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLFrameElement::)
@@ -36,7 +35,7 @@ public:
   NS_DECL_NSIDOMGETSVGDOCUMENT
 
   // nsIContent
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -46,30 +45,6 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   virtual nsXPCClassInfo* GetClassInfo();
   virtual nsIDOMNode* AsDOMNode() { return this; }
-
-  virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                const nsAttrValue* aValue,
-                                bool aNotify);
-
-  uint32_t GetSandboxFlags()
-  {
-    nsAutoString sandboxAttr;
-
-    if (GetAttr(kNameSpaceID_None, nsGkAtoms::sandbox, sandboxAttr)) {
-      return nsContentUtils::ParseSandboxAttributeToFlags(sandboxAttr);
-    }
-
-    // No sandbox attribute, no sandbox flags.
-    return 0;
-  }
-
-  static nsHTMLIFrameElement* FromContent(nsIContent *aContent)
-  {
-    if (aContent->IsHTML(nsGkAtoms::iframe)) {
-      return static_cast<nsHTMLIFrameElement*>(aContent);
-    }
-    return nullptr;
-  }
 
 protected:
   virtual void GetItemValueText(nsAString& text);

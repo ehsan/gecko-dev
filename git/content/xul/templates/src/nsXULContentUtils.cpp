@@ -167,7 +167,7 @@ nsXULContentUtils::GetCollation()
 
 nsresult
 nsXULContentUtils::FindChildByTag(nsIContent* aElement,
-                                  int32_t aNameSpaceID,
+                                  PRInt32 aNameSpaceID,
                                   nsIAtom* aTag,
                                   nsIContent** aResult)
 {
@@ -244,7 +244,7 @@ nsXULContentUtils::GetTextForNode(nsIRDFNode* aNode, nsAString& aResult)
 
     nsCOMPtr<nsIRDFDate> dateLiteral = do_QueryInterface(aNode);
     if (dateLiteral) {
-        PRTime value;
+        PRInt64	value;
         rv = dateLiteral->GetValue(&value);
         if (NS_FAILED(rv)) return rv;
 
@@ -252,7 +252,7 @@ nsXULContentUtils::GetTextForNode(nsIRDFNode* aNode, nsAString& aResult)
         rv = gFormat->FormatPRTime(nullptr /* nsILocale* locale */,
                                   kDateFormatShort,
                                   kTimeFormatSeconds,
-                                  value,
+                                  PRTime(value),
                                   str);
         aResult.Assign(str);
 
@@ -263,7 +263,7 @@ nsXULContentUtils::GetTextForNode(nsIRDFNode* aNode, nsAString& aResult)
 
     nsCOMPtr<nsIRDFInt> intLiteral = do_QueryInterface(aNode);
     if (intLiteral) {
-        int32_t	value;
+        PRInt32	value;
         rv = intLiteral->GetValue(&value);
         if (NS_FAILED(rv)) return rv;
 
@@ -312,7 +312,7 @@ nsXULContentUtils::MakeElementURI(nsIDocument* aDocument,
     rv = docURI->GetSpec(aURI);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString ref;
+    nsCAutoString ref;
     NS_EscapeURL(NS_ConvertUTF16toUTF8(aElementID), esc_FilePath | esc_AlwaysCopy, ref);
 
     aURI.Append('#');
@@ -353,7 +353,7 @@ nsXULContentUtils::MakeElementID(nsIDocument* aDocument,
                             aDocument->GetDocumentCharacterSet().get());
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString ref;
+    nsCAutoString ref;
     uri->GetRef(ref);
     CopyUTF8toUTF16(ref, aElementID);
 
@@ -361,7 +361,7 @@ nsXULContentUtils::MakeElementID(nsIDocument* aDocument,
 }
 
 nsresult
-nsXULContentUtils::GetResource(int32_t aNameSpaceID, nsIAtom* aAttribute, nsIRDFResource** aResult)
+nsXULContentUtils::GetResource(PRInt32 aNameSpaceID, nsIAtom* aAttribute, nsIRDFResource** aResult)
 {
     // construct a fully-qualified URI from the namespace/tag pair.
     NS_PRECONDITION(aAttribute != nullptr, "null ptr");
@@ -374,7 +374,7 @@ nsXULContentUtils::GetResource(int32_t aNameSpaceID, nsIAtom* aAttribute, nsIRDF
 
 
 nsresult
-nsXULContentUtils::GetResource(int32_t aNameSpaceID, const nsAString& aAttribute, nsIRDFResource** aResult)
+nsXULContentUtils::GetResource(PRInt32 aNameSpaceID, const nsAString& aAttribute, nsIRDFResource** aResult)
 {
     // construct a fully-qualified URI from the namespace/tag pair.
 

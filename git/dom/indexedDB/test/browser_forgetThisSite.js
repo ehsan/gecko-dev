@@ -3,8 +3,6 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-Components.utils.import("resource://gre/modules/ForgetAboutSite.jsm");
-
 const domains = [
   "mochi.test:8888",
   "www.example.com"
@@ -66,7 +64,9 @@ function test2()
 function test3()
 {
   // Remove database from domain 2
-  ForgetAboutSite.removeDataFromDomain(domains[1]);
+  Components.classes["@mozilla.org/privatebrowsing;1"]
+            .getService(Components.interfaces.nsIPrivateBrowsingService)
+            .removeDataFromDomain(domains[1]);
   setPermission(testPageURL4, "indexedDB", "unknown");
   executeSoon(test4);
 }

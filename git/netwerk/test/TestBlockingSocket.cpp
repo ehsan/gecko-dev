@@ -34,7 +34,7 @@ static NS_DEFINE_CID(kSocketTransportServiceCID, NS_SOCKETTRANSPORTSERVICE_CID);
 ////////////////////////////////////////////////////////////////////////////////
 
 static nsresult
-RunBlockingTest(const nsACString &host, int32_t port, nsIFile *file)
+RunBlockingTest(const nsACString &host, PRInt32 port, nsIFile *file)
 {
     nsresult rv;
 
@@ -57,7 +57,7 @@ RunBlockingTest(const nsACString &host, int32_t port, nsIFile *file)
     if (NS_FAILED(rv)) return rv;
 
     char buf[120];
-    uint32_t nr, nw;
+    PRUint32 nr, nw;
     for (;;) {
         rv = input->Read(buf, sizeof(buf), &nr);
         if (NS_FAILED(rv) || (nr == 0)) return rv;
@@ -98,7 +98,7 @@ main(int argc, char* argv[])
         return -1;
     }
     char* hostName = argv[1];
-    int32_t port = atoi(argv[2]);
+    PRInt32 port = atoi(argv[2]);
     char* fileName = argv[3];
     {
         nsCOMPtr<nsIServiceManager> servMan;
@@ -110,7 +110,7 @@ main(int argc, char* argv[])
 
         nsCOMPtr<nsIFile> file;
         rv = NS_NewNativeLocalFile(nsDependentCString(fileName), false, getter_AddRefs(file));
-        if (NS_FAILED(rv)) return -1;
+        if (NS_FAILED(rv)) return rv;
 
         rv = RunBlockingTest(nsDependentCString(hostName), port, file);
 #if defined(PR_LOGGING)
@@ -126,5 +126,5 @@ main(int argc, char* argv[])
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
     rv = NS_ShutdownXPCOM(nullptr);
     NS_ASSERTION(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
-    return 0;
+    return NS_OK;
 }

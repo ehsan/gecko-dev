@@ -35,8 +35,8 @@
 
 
 /* buffer var allocations */
-#define indic_category() complex_var_u8_0() /* indic_category_t */
-#define indic_position() complex_var_u8_1() /* indic_matra_category_t */
+#define indic_category() complex_var_persistent_u8_0() /* indic_category_t */
+#define indic_position() complex_var_persistent_u8_1() /* indic_matra_category_t */
 
 
 #define INDIC_TABLE_ELEMENT_TYPE uint8_t
@@ -300,7 +300,7 @@ is_halant_or_coeng (const hb_glyph_info_t &info)
 }
 
 static inline void
-set_indic_properties (hb_glyph_info_t &info)
+set_indic_properties (hb_glyph_info_t   &info)
 {
   hb_codepoint_t u = info.codepoint;
   unsigned int type = get_indic_categories (u);

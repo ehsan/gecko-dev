@@ -32,7 +32,7 @@ public:
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
-                        uint32_t argc, jsval *argv);
+                        PRUint32 argc, jsval *argv);
 
 private:
   nsresult SetUpDocument(DocumentFlavor aFlavor, nsIDOMDocument** aResult);

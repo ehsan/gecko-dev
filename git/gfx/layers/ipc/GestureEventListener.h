@@ -8,8 +8,6 @@
 #include "InputData.h"
 #include "Axis.h"
 
-#include "base/message_loop.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -63,12 +61,7 @@ protected:
   enum GestureState {
     // There's no gesture going on, and we don't think we're about to enter one.
     GESTURE_NONE,
-    // We have detected that two or more fingers are on the screen, but there
-    // hasn't been enough movement yet to make us start actually zooming the
-    // screen.
-    GESTURE_WAITING_PINCH,
-    // There are two or more fingers on the screen, and the user has already
-    // pinched enough for us to start zooming the screen.
+    // There's a pinch happening, which occurs when there are two touch inputs.
     GESTURE_PINCH,
     // A touch start has happened and it may turn into a tap. We use this
     // because, if we put down two fingers and then lift them very quickly, this
@@ -145,14 +138,6 @@ protected:
   GestureState mState;
 
   /**
-   * Total change in span since we detected a pinch gesture. Only used when we
-   * are in the |GESTURE_WAITING_PINCH| state and need to know how far zoomed
-   * out we are compared to our original pinch span. Note that this does _not_
-   * continue to be updated once we jump into the |GESTURE_PINCH| state.
-   */
-  float mSpanChange;
-
-  /**
    * Previous span calculated for the purposes of setting inside a
    * PinchGestureInput.
    */
@@ -161,11 +146,11 @@ protected:
   /**
    * Stores the time a touch started, used for detecting a tap gesture. Only
    * valid when there's exactly one touch in mTouches. This is the time that the
-   * first touch was inserted into the array. This is a uint64_t because it is
+   * first touch was inserted into the array. This is a PRUint64 because it is
    * initialized from interactions with InputData, which stores its timestamps as
-   * a uint64_t.
+   * a PRUint64.
    */
-  uint64_t mTapStartTime;
+  PRUint64 mTapStartTime;
 
   /**
    * Cached copy of the last touch input, only valid when in the

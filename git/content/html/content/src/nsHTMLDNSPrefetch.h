@@ -59,13 +59,13 @@ public:
                                     nsresult aReason);
 
 private:
-  static nsresult Prefetch(const nsAString &host, uint16_t flags);
-  static nsresult Prefetch(mozilla::dom::Link *aElement, uint16_t flags);
+  static nsresult Prefetch(const nsAString &host, PRUint16 flags);
+  static nsresult Prefetch(mozilla::dom::Link *aElement, PRUint16 flags);
   static nsresult CancelPrefetch(const nsAString &hostname,
-                                 uint16_t flags,
+                                 PRUint16 flags,
                                  nsresult aReason);
   static nsresult CancelPrefetch(mozilla::dom::Link *aElement,
-                                 uint16_t flags,
+                                 PRUint16 flags,
                                  nsresult aReason);
   
 public:
@@ -93,7 +93,7 @@ public:
     nsDeferrals();
     
     void Activate();
-    nsresult Add(uint16_t flags, mozilla::dom::Link *aElement);
+    nsresult Add(PRUint16 flags, mozilla::dom::Link *aElement);
     
   private:
     ~nsDeferrals();
@@ -101,9 +101,9 @@ public:
     
     void SubmitQueue();
     
-    uint16_t                  mHead;
-    uint16_t                  mTail;
-    uint32_t                  mActiveLoaderCount;
+    PRUint16                  mHead;
+    PRUint16                  mTail;
+    PRUint32                  mActiveLoaderCount;
 
     nsCOMPtr<nsITimer>        mTimer;
     bool                      mTimerArmed;
@@ -114,7 +114,7 @@ public:
     
     struct deferred_entry
     {
-      uint16_t                         mFlags;
+      PRUint16                         mFlags;
       nsWeakPtr                        mElement;
     } mEntries[sMaxDeferred];
   };

@@ -19,7 +19,7 @@ PredicateList::evaluatePredicates(txNodeSet* nodes,
     NS_ASSERTION(nodes, "called evaluatePredicates with NULL NodeSet");
     nsresult rv = NS_OK;
 
-    uint32_t i, len = mPredicates.Length();
+    PRUint32 i, len = mPredicates.Length();
     for (i = 0; i < len && !nodes->isEmpty(); ++i) {
         txNodeSetContext predContext(nodes, aContext);
         /*
@@ -27,7 +27,7 @@ PredicateList::evaluatePredicates(txNodeSet* nodes,
          * or, if the result is a number, add the node with the right
          * position
          */
-        int32_t index = 0;
+        PRInt32 index = 0;
         while (predContext.hasNext()) {
             predContext.next();
             nsRefPtr<txAExprResult> exprResult;
@@ -63,7 +63,7 @@ PredicateList::isSensitiveTo(Expr::ContextSensitivity aContext)
         return false;
     }
 
-    uint32_t i, len = mPredicates.Length();
+    PRUint32 i, len = mPredicates.Length();
     for (i = 0; i < len; ++i) {
         if (mPredicates[i]->isSensitiveTo(context)) {
             return true;
@@ -76,7 +76,7 @@ PredicateList::isSensitiveTo(Expr::ContextSensitivity aContext)
 #ifdef TX_TO_STRING
 void PredicateList::toString(nsAString& dest)
 {
-    for (uint32_t i = 0; i < mPredicates.Length(); ++i) {
+    for (PRUint32 i = 0; i < mPredicates.Length(); ++i) {
         dest.Append(PRUnichar('['));
         mPredicates[i]->toString(dest);
         dest.Append(PRUnichar(']'));

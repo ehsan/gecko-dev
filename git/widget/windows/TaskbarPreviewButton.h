@@ -23,7 +23,7 @@ class TaskbarWindowPreview;
 class TaskbarPreviewButton : public nsITaskbarPreviewButton, public nsSupportsWeakReference
 {
 public: 
-  TaskbarPreviewButton(TaskbarWindowPreview* preview, uint32_t index);
+  TaskbarPreviewButton(TaskbarWindowPreview* preview, PRUint32 index);
   virtual ~TaskbarPreviewButton();
 
   NS_DECL_ISUPPORTS
@@ -34,7 +34,7 @@ private:
   nsresult                Update();
 
   nsRefPtr<TaskbarWindowPreview> mPreview;
-  uint32_t                mIndex;
+  PRUint32                mIndex;
   nsString                mTooltip;
   nsCOMPtr<imgIContainer> mImage;
 };

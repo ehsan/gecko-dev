@@ -27,8 +27,6 @@ const CL_EXPECT_3S_DELAY = 0x4;
 const CL_SUSPEND = 0x8;
 const CL_ALLOW_UNKNOWN_CL = 0x10;
 const CL_EXPECT_LATE_FAILURE = 0x20;
-const CL_FROM_CACHE = 0x40; // Response must be from the cache
-const CL_NOT_FROM_CACHE = 0x80; // Response must NOT be from the cache
 
 const SUSPEND_DELAY = 3000;
 
@@ -86,19 +84,6 @@ ChannelListener.prototype = {
       }
       if (this._contentLen == -1 && !(this._flags & (CL_EXPECT_FAILURE | CL_ALLOW_UNKNOWN_CL)))
         do_throw("Content length is unknown in onStartRequest!");
-
-      if ((this._flags & CL_FROM_CACHE)) {
-        request.QueryInterface(Ci.nsICachingChannel);
-        if (!request.isFromCache()) {
-          do_throw("Response is not from the cache (CL_FROM_CACHE)");
-        }
-      }
-      if ((this._flags & CL_NOT_FROM_CACHE)) {
-        request.QueryInterface(Ci.nsICachingChannel);
-        if (request.isFromCache()) {
-          do_throw("Response is from the cache (CL_NOT_FROM_CACHE)");
-        }
-      }
 
       if (this._flags & CL_SUSPEND) {
         request.suspend();
@@ -199,37 +184,3 @@ ChannelEventSink.prototype = {
     callback.onRedirectVerifyCallback(Cr.NS_OK);
   }
 };
-
-
-/**
- * Class that implements nsILoadContext.  Use it as callbacks for channel when
- * test needs it.
- */
-function LoadContextCallback(appId, inBrowserElement, isPrivate, isContent) {
-  this.appId = appId;
-  this.isInBrowserElement = inBrowserElement;
-  this.usePrivateBrowsing = isPrivate;
-  this.isContent = isContent;
-}
-
-LoadContextCallback.prototype = {
-  associatedWindow: null,
-  topWindow : null,
-  isAppOfType: function(appType) {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
-  },
-  QueryInterface: function(iid) {
-    if (iid == Ci.nsILoadContext ||
-               Ci.nsIInterfaceRequestor ||
-               Ci.nsISupports) {
-        return this;
-    }
-    throw Cr.NS_ERROR_NO_INTERFACE;
-  },
-  getInterface: function(iid) {
-    if (iid.equals(Ci.nsILoadContext))
-      return this;
-    throw Cr.NS_ERROR_NO_INTERFACE;
-  },
-}
-

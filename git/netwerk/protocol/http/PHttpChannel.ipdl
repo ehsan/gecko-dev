@@ -6,10 +6,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include protocol PNecko;
-include InputStreamParams;
-include URIParams;
-
-include protocol PBlob; //FIXME: bug #792908
 
 include "mozilla/net/PHttpChannelParams.h";
 include "mozilla/net/NeckoMessageUtils.h";
@@ -19,6 +15,9 @@ using RequestHeaderTuples;
 using nsHttpHeaderArray;
 using nsHttpResponseHead;
 using nsHttpAtom;
+using IPC::URI;
+using IPC::InputStream;
+using IPC::SerializedLoadContext;
 using PRNetAddr;
 
 namespace mozilla {
@@ -30,41 +29,42 @@ protocol PHttpChannel
   manager PNecko;
 
 parent:
-  AsyncOpen(URIParams           uri,
+  AsyncOpen(URI                 uri,
             // - TODO: bug 571161: unclear if any HTTP channel clients ever
             // set originalURI != uri (about:credits?); also not clear if
             // chrome channel would ever need to know.  Get rid of next arg?
-            OptionalURIParams   original,
-            OptionalURIParams   doc,
-            OptionalURIParams   referrer,
-            uint32_t            loadFlags,
+            URI                 original,
+            URI                 doc,
+            URI                 referrer,
+            PRUint32            loadFlags,
             RequestHeaderTuples requestHeaders,
             nsHttpAtom          requestMethod,
-            OptionalInputStreamParams uploadStream,
+            InputStream         uploadStream,
             bool                uploadStreamHasHeaders,
-            uint16_t            priority,
-            uint8_t             redirectionLimit,
+            PRUint16            priority,
+            PRUint8             redirectionLimit,
             bool                allowPipelining,
             bool                forceAllowThirdPartyCookie,
             bool                resumeAt,
-            uint64_t            startPos,
+            PRUint64            startPos,
             nsCString           entityID,
             bool                chooseApplicationCache,
             nsCString           appCacheClientID,
-            bool                allowSpdy);
+            bool                allowSpdy,
+            SerializedLoadContext loadContext);
 
   // Used to connect redirected-to channel on the parent with redirected-to
   // channel on the child.
-  ConnectChannel(uint32_t channelId);
+  ConnectChannel(PRUint32 channelId);
 
-  SetPriority(uint16_t priority);
+  SetPriority(PRUint16 priority);
 
   SetCacheTokenCachedCharset(nsCString charset);
 
-  UpdateAssociatedContentSecurity(int32_t high,
-                                  int32_t low,
-                                  int32_t broken,
-                                  int32_t no);
+  UpdateAssociatedContentSecurity(PRInt32 high,
+                                  PRInt32 low,
+                                  PRInt32 broken,
+                                  PRInt32 no);
   Suspend();
   Resume();
 
@@ -101,7 +101,7 @@ child:
                  nsHttpHeaderArray   requestHeaders,
                  bool                isFromCache,
                  bool                cacheEntryAvailable,
-                 uint32_t            cacheExpirationTime,
+                 PRUint32            cacheExpirationTime,
                  nsCString           cachedCharset,
                  nsCString           securityInfoSerialization,
                  PRNetAddr           selfAddr,
@@ -110,15 +110,15 @@ child:
   // Combines a single OnDataAvailable and its associated OnProgress &
   // OnStatus calls into one IPDL message
   OnTransportAndData(nsresult  status,
-                     uint64_t  progress,
-                     uint64_t  progressMax,
+                     PRUint64  progress,
+                     PRUint64  progressMax,
                      nsCString data,
-                     uint64_t  offset,
-                     uint32_t  count);
+                     PRUint32  offset,
+                     PRUint32  count);
 
   OnStopRequest(nsresult statusCode);
 
-  OnProgress(uint64_t progress, uint64_t progressMax);
+  OnProgress(PRUint64 progress, PRUint64 progressMax);
 
   OnStatus(nsresult status);
 
@@ -128,9 +128,9 @@ child:
 
   // Called to initiate content channel redirect, starts talking to sinks
   // on the content process and reports result via Redirect2Verify above
-  Redirect1Begin(uint32_t           newChannelId,
-                 URIParams          newUri,
-                 uint32_t           redirectFlags,
+  Redirect1Begin(PRUint32           newChannelId,
+                 URI                newUri,
+                 PRUint32           redirectFlags,
                  nsHttpResponseHead responseHead);
 
   // Called if redirect successful so that child can complete setup.

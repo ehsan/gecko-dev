@@ -6,9 +6,9 @@
 
 "use strict";
 
-const Cc = SpecialPowers.Cc;
-const Ci = SpecialPowers.Ci;
-const Cu = SpecialPowers.Cu;
+const Cc = SpecialPowers.wrap(Components).classes;
+const Ci = Components.interfaces;
+const Cu = SpecialPowers.wrap(Components).utils;
 
 const TEST_URL = "http://mochi.test:8888";
 const TEST_URL2 = "https://myfavoritebaconinacan.com";
@@ -28,17 +28,6 @@ const Services = Cu.import("resource://gre/modules/Services.jsm").Services;
 // Set the debug pref before loading other modules
 SpecialPowers.setBoolPref("toolkit.identity.debug", true);
 SpecialPowers.setBoolPref("dom.identity.enabled", true);
-
-// Shutdown the UX if it exists so that it won't interfere with tests by also responding to
-// observer notifications.
-try {
-  const SignInToWebsiteUX = Cu.import("resource:///modules/SignInToWebsite.jsm").SignInToWebsiteUX;
-  if (SignInToWebsiteUX) {
-    SignInToWebsiteUX.uninit();
-  }
-} catch (ex) {
-  // The module doesn't exist
-}
 
 const jwcrypto = Cu.import("resource://gre/modules/identity/jwcrypto.jsm").jwcrypto;
 const IdentityStore = Cu.import("resource://gre/modules/identity/IdentityStore.jsm").IdentityStore;
@@ -147,7 +136,8 @@ function call_sequentially() {
 function setup_provisioning(identity, afterSetupCallback, doneProvisioningCallback, callerCallbacks) {
   IDService.reset();
 
-  let util = SpecialPowers.getDOMWindowUtils(window);
+  let util = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                    .getInterface(Ci.nsIDOMWindowUtils);
 
   let provId = util.outerWindowID;
   IDService.IDP._provisionFlows[provId] = {
@@ -185,15 +175,6 @@ function cleanup() {
   resetState();
   SpecialPowers.clearUserPref("toolkit.identity.debug");
   SpecialPowers.clearUserPref("dom.identity.enabled");
-  // Re-init the UX that we uninit
-  try {
-    const SignInToWebsiteUX = Cu.import("resource:///modules/SignInToWebsite.jsm").SignInToWebsiteUX;
-    if (SignInToWebsiteUX) {
-      SignInToWebsiteUX.init();
-    }
-  } catch (ex) {
-    // The module doesn't exist
-  }
 }
 
 var TESTS = [];

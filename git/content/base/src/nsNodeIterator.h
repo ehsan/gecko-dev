@@ -29,7 +29,7 @@ public:
     NS_DECL_NSIDOMNODEITERATOR
 
     nsNodeIterator(nsINode *aRoot,
-                   uint32_t aWhatToShow,
+                   PRUint32 aWhatToShow,
                    nsIDOMNodeFilter *aFilter);
     virtual ~nsNodeIterator();
 

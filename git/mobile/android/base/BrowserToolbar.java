@@ -10,7 +10,6 @@ import android.graphics.Color;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.graphics.Rect;
 import android.os.Build;
 import android.os.Handler;
 import android.os.SystemClock;
@@ -19,21 +18,14 @@ import android.util.Log;
 import android.view.ContextMenu;
 import android.view.LayoutInflater;
 import android.view.MenuInflater;
-import android.view.MotionEvent;
-import android.view.TouchDelegate;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.accessibility.AccessibilityNodeInfo;
-import android.view.animation.AlphaAnimation;
-import android.view.animation.Animation;
-import android.view.animation.DecelerateInterpolator;
 import android.view.animation.TranslateAnimation;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.RelativeLayout;
@@ -47,19 +39,11 @@ import java.util.List;
 
 public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                                        Tabs.OnTabsChangedListener,
-                                       GeckoMenu.ActionItemBarPresenter,
-                                       Animation.AnimationListener {
+                                       GeckoMenu.ActionItemBarPresenter {
     private static final String LOGTAG = "GeckoToolbar";
     private LinearLayout mLayout;
-    private View mAwesomeBar;
-    private View mAwesomeBarRightEdge;
-    private View mAddressBarBg;
-    private TextView mTitle;
-    private int mTitlePadding;
-    private boolean mSiteSecurityVisible;
-    private boolean mAnimateSiteSecurity;
+    private Button mAwesomeBar;
     private ImageButton mTabs;
-    private int mTabsPaneWidth;
     private ImageView mBack;
     private ImageView mForward;
     public ImageButton mFavicon;
@@ -77,6 +61,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     final private BrowserApp mActivity;
     private LayoutInflater mInflater;
     private Handler mHandler;
+    private int[] mPadding;
     private boolean mHasSoftMenuButton;
 
     private boolean mShowSiteSecurity;
@@ -90,10 +75,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     private TranslateAnimation mSlideDownIn;
     private TranslateAnimation mSlideDownOut;
 
-    private AlphaAnimation mLockFadeIn;
-    private TranslateAnimation mTitleSlideLeft;
-    private TranslateAnimation mTitleSlideRight;
-
     private int mCount;
 
     private static final int TABS_CONTRACTED = 1;
@@ -106,7 +87,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
         sActionItems = new ArrayList<View>();
         Tabs.registerOnTabsChangedListener(this);
-        mAnimateSiteSecurity = true;
     }
 
     public void from(LinearLayout layout) {
@@ -115,29 +95,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mShowSiteSecurity = false;
         mShowReader = false;
 
-        // Only used on tablet layout. We need a separate view for the background
-        // because we need to slide it left/right for hiding/shoing the tabs sidebar
-        // See prepareTabsAnimation().
-        mAddressBarBg = mLayout.findViewById(R.id.address_bar_bg);
-
-        // Only used on tablet layout. The tabs sidebar slide animation is implemented
-        // in terms of translating the inner elements of the tablet toolbar to give the
-        // impression of resizing. In order to do this, This "fake" right edge  is kept
-        // in the same position during the animation while the elements on the left
-        // (favicon, back, forware, lock icon, title, ...) slide behind it.
-        // See prepareTabsAnimation().
-        mAwesomeBarRightEdge = mLayout.findViewById(R.id.awesome_bar_right_edge);
-
-        // This will hold the translation width inside the toolbar when the tabs
-        // pane is visible. It will affect the padding applied to the title TextView.
-        mTabsPaneWidth = 0;
-
-        mTitle = (TextView) mLayout.findViewById(R.id.awesome_bar_title);
-        mTitlePadding = mTitle.getPaddingRight();
-        if (Build.VERSION.SDK_INT >= 16)
-            mTitle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-
-        mAwesomeBar = mLayout.findViewById(R.id.awesome_bar);
+        mAwesomeBar = (Button) mLayout.findViewById(R.id.awesome_bar);
         mAwesomeBar.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
                 mActivity.autoHideTabs();
@@ -172,6 +130,11 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             }
         });
 
+        mPadding = new int[] { mAwesomeBar.getPaddingLeft(),
+                               mAwesomeBar.getPaddingTop(),
+                               mAwesomeBar.getPaddingRight(),
+                               mAwesomeBar.getPaddingBottom() };
+
         mTabs = (ImageButton) mLayout.findViewById(R.id.tabs);
         mTabs.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
@@ -185,17 +148,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mTabsCount.setFactory(this);
         mTabsCount.setText("");
         mCount = 0;
-        if (Build.VERSION.SDK_INT >= 16) {
-            // This adds the TextSwitcher to the a11y node tree, where we in turn
-            // could make it return an empty info node. If we don't do this the
-            // TextSwitcher's child TextViews get picked up, and we don't want
-            // that since the tabs ImageButton is already properly labeled for
-            // accessibility.
-            mTabsCount.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
-            mTabsCount.setAccessibilityDelegate(new View.AccessibilityDelegate() {
-                    public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {}
-                });
-        }
 
         mBack = (ImageButton) mLayout.findViewById(R.id.back);
         mBack.setOnClickListener(new Button.OnClickListener() {
@@ -211,23 +163,21 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             }
         });
 
-        Button.OnClickListener faviconListener = new Button.OnClickListener() {
-            public void onClick(View view) {
-                if (mSiteSecurity.getVisibility() != View.VISIBLE)
-                    return;
-
-                SiteIdentityPopup.getInstance().show(mSiteSecurity);
-            }
-        };
-
         mFavicon = (ImageButton) mLayout.findViewById(R.id.favicon);
-        mFavicon.setOnClickListener(faviconListener);
-        if (Build.VERSION.SDK_INT >= 16)
-            mFavicon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-
         mSiteSecurity = (ImageButton) mLayout.findViewById(R.id.site_security);
-        mSiteSecurity.setOnClickListener(faviconListener);
-        mSiteSecurityVisible = (mSiteSecurity.getVisibility() == View.VISIBLE);
+        mSiteSecurity.setOnClickListener(new Button.OnClickListener() {
+            public void onClick(View view) {
+                int[] lockLocation = new int[2];
+                view.getLocationOnScreen(lockLocation);
+
+                RelativeLayout.LayoutParams iconsLayoutParams =
+                        (RelativeLayout.LayoutParams) ((View) view.getParent()).getLayoutParams();
+
+                // Calculate the left margin for the arrow based on the position of the lock icon.
+                int leftMargin = lockLocation[0] - iconsLayoutParams.rightMargin;
+                SiteIdentityPopup.getInstance().show(mSiteSecurity, leftMargin);
+            }
+        });
 
         mProgressSpinner = (AnimationDrawable) mActivity.getResources().getDrawable(R.drawable.progress_spinner);
         
@@ -263,26 +213,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mSlideDownIn.setDuration(mDuration);
         mSlideDownOut.setDuration(mDuration);
 
-        float slideWidth = mActivity.getResources().getDimension(R.dimen.browser_toolbar_lock_width);
-
-        LinearLayout.LayoutParams siteSecParams = (LinearLayout.LayoutParams) mSiteSecurity.getLayoutParams();
-        final float scale = mActivity.getResources().getDisplayMetrics().density;
-        slideWidth += (siteSecParams.leftMargin + siteSecParams.rightMargin) * scale + 0.5f;
-
-        mLockFadeIn = new AlphaAnimation(0.0f, 1.0f);
-        mLockFadeIn.setAnimationListener(this);
-
-        mTitleSlideLeft = new TranslateAnimation(slideWidth, 0, 0, 0);
-        mTitleSlideLeft.setAnimationListener(this);
-
-        mTitleSlideRight = new TranslateAnimation(-slideWidth, 0, 0, 0);
-        mTitleSlideRight.setAnimationListener(this);
-
-        final int lockAnimDuration = 300;
-        mLockFadeIn.setDuration(lockAnimDuration);
-        mTitleSlideLeft.setDuration(lockAnimDuration);
-        mTitleSlideRight.setDuration(lockAnimDuration);
-
         mMenu = (ImageButton) mLayout.findViewById(R.id.menu);
         mActionItemBar = (LinearLayout) mLayout.findViewById(R.id.menu_items);
         mHasSoftMenuButton = !mActivity.hasPermanentMenuKey();
@@ -292,19 +222,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             mMenu.setOnClickListener(new Button.OnClickListener() {
                 public void onClick(View view) {
                     mActivity.openOptionsMenu();
-                }
-            });
-
-            // Set a touch delegate to Tabs button, so the touch events on its tail
-            // are passed to the menu button.
-            mLayout.post(new Runnable() {
-                @Override
-                public void run() {
-                    int height = mTabs.getHeight();
-                    int width = mTabs.getWidth();
-                    int tail = (width - height) / 2;
-                    Rect bounds = new Rect(width - tail, 0, width, height);
-                    mTabs.setTouchDelegate(new TailTouchDelegate(bounds, mMenu));
                 }
             });
         }
@@ -324,12 +241,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                 if (mHasSoftMenuButton) {
                     mMenuPopup = new MenuPopup(mActivity);
                     mMenuPopup.setPanelView(panel);
-
-                    mMenuPopup.setOnDismissListener(new PopupWindow.OnDismissListener() {
-                        public void onDismiss() {
-                            mActivity.onOptionsMenuClosed(null);
-                        }
-                    });
                 }
             }
         }
@@ -354,13 +265,13 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                 break;
             case START:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
+                    setSecurityMode(tab.getSecurityMode());
+                    setReaderMode(tab.getReaderEnabled());
                     updateBackButton(tab.canDoBack());
                     updateForwardButton(tab.canDoForward());
                     Boolean showProgress = (Boolean)data;
                     if (showProgress && tab.getState() == Tab.STATE_LOADING)
                         setProgressVisibility(true);
-                    setSecurityMode(tab.getSecurityMode());
-                    setReaderMode(tab.getReaderEnabled());
                 }
                 break;
             case STOP:
@@ -372,46 +283,18 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                 break;
             case RESTORED:
             case SELECTED:
-                // We should not animate the lock icon when switching or
-                // restoring tabs.
-                mAnimateSiteSecurity = false;
-                // fall through
             case LOCATION_CHANGE:
             case LOAD_ERROR:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
                     refresh();
                 }
-                mAnimateSiteSecurity = true;
                 break;
             case CLOSED:
             case ADDED:
                 updateTabCountAndAnimate(Tabs.getInstance().getCount());
-                if (Tabs.getInstance().isSelectedTab(tab)) {
-                    updateBackButton(tab.canDoBack());
-                    updateForwardButton(tab.canDoForward());
-                }
+                updateBackButton(false);
+                updateForwardButton(false);
                 break;
-        }
-    }
-
-    @Override
-    public void onAnimationStart(Animation animation) {
-        if (animation.equals(mLockFadeIn)) {
-            if (mSiteSecurityVisible)
-                mSiteSecurity.setVisibility(View.VISIBLE);
-        }
-    }
-
-    @Override
-    public void onAnimationRepeat(Animation animation) {
-    }
-
-    @Override
-    public void onAnimationEnd(Animation animation) {
-        if (animation.equals(mTitleSlideLeft)) {
-            mSiteSecurity.setVisibility(View.GONE);
-        } else if (animation.equals(mTitleSlideRight)) {
-            mSiteSecurity.startAnimation(mLockFadeIn);
         }
     }
 
@@ -480,54 +363,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         updateTabs(mActivity.areTabsShown());
     }
 
-    public void prepareTabsAnimation(PropertyAnimator animator, int width) {
-        // This is negative before we want to keep the right edge in the same
-        // position while animating the left-most elements below.
-        animator.attach(mAwesomeBarRightEdge,
-                        PropertyAnimator.Property.TRANSLATION_X,
-                        -width);
-
-        animator.attach(mAwesomeBar,
-                        PropertyAnimator.Property.TRANSLATION_X,
-                        width);
-        animator.attach(mAddressBarBg,
-                        PropertyAnimator.Property.TRANSLATION_X,
-                        width);
-        animator.attach(mTabs,
-                        PropertyAnimator.Property.TRANSLATION_X,
-                        width);
-        animator.attach(mTabsCount,
-                        PropertyAnimator.Property.TRANSLATION_X,
-                        width);
-        animator.attach(mBack,
-                        PropertyAnimator.Property.TRANSLATION_X,
-                        width);
-        animator.attach(mForward,
-                        PropertyAnimator.Property.TRANSLATION_X,
-                        width);
-        animator.attach(mTitle,
-                        PropertyAnimator.Property.TRANSLATION_X,
-                        width);
-        animator.attach(mFavicon,
-                        PropertyAnimator.Property.TRANSLATION_X,
-                        width);
-        animator.attach(mSiteSecurity,
-                        PropertyAnimator.Property.TRANSLATION_X,
-                        width);
-
-        mTabsPaneWidth = width;
-
-        // Only update title padding immediatelly when shrinking the browser
-        // toolbar. Leave the padding update to the end of the animation when
-        // expanding (see finishTabsAnimation()).
-        if (mTabsPaneWidth > 0)
-            setPageActionVisibility(mStop.getVisibility() == View.VISIBLE);
-    }
-
-    public void finishTabsAnimation() {
-        setPageActionVisibility(mStop.getVisibility() == View.VISIBLE);
-    }
-
     public void updateTabs(boolean areTabsShown) {
         if (areTabsShown) {
             mTabs.getBackground().setLevel(TABS_EXPANDED);
@@ -573,43 +408,18 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         mStop.setVisibility(isLoading ? View.VISIBLE : View.GONE);
 
         // Handle the viewing mode page actions
-        setSiteSecurityVisibility(mShowSiteSecurity && !isLoading);
+        mSiteSecurity.setVisibility(mShowSiteSecurity && !isLoading ? View.VISIBLE : View.GONE);
         mReader.setVisibility(mShowReader && !isLoading ? View.VISIBLE : View.GONE);
 
-        // We want title to fill the whole space available for it when there are icons
-        // being shown on the right side of the toolbar as the icons already have some
-        // padding in them. This is just to avoid wasting space when icons are shown.
-        mTitle.setPadding(0, 0, (!mShowReader && !isLoading ? mTitlePadding : 0) + mTabsPaneWidth, 0);
-
-        updateFocusOrder();
-    }
-
-    private void setSiteSecurityVisibility(final boolean visible) {
-        if (visible == mSiteSecurityVisible)
-            return;
-
-        mSiteSecurityVisible = visible;
-
-        if (!mAnimateSiteSecurity) {
-            mSiteSecurity.setVisibility(visible ? View.VISIBLE : View.GONE);
-            return;
+        if (!isLoading && !mShowSiteSecurity && !mShowReader) {
+            // No visible page actions
+            mAwesomeBar.setPadding(mPadding[0], mPadding[1], mPadding[2], mPadding[3]);
+        } else {
+            // At least one visible page action
+            mAwesomeBar.setPadding(mPadding[0], mPadding[1], mPadding[0], mPadding[3]);
         }
 
-        mTitle.clearAnimation();
-        mSiteSecurity.clearAnimation();
-
-        // If any of these animations were cancelled as a result of the
-        // clearAnimation() calls above, we need to reset them.
-        mLockFadeIn.reset();
-        mTitleSlideLeft.reset();
-        mTitleSlideRight.reset();
-
-        if (visible)
-            mSiteSecurity.setVisibility(View.INVISIBLE);
-        else
-            mSiteSecurity.setVisibility(View.GONE);
-
-        mTitle.startAnimation(visible ? mTitleSlideRight : mTitleSlideLeft);
+        updateFocusOrder();
     }
 
     private void updateFocusOrder() {
@@ -635,8 +445,9 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     public void setTitle(CharSequence title) {
         Tab tab = Tabs.getInstance().getSelectedTab();
 
-        // Keep the title unchanged if the tab is entering reader mode
-        if (tab != null && tab.isEnteringReaderMode())
+        // We use about:empty as a placeholder for an external page load and
+        // we don't want to change the title
+        if (tab != null && "about:empty".equals(tab.getURL()))
             return;
 
         // Setting a null title for about:home will ensure we just see
@@ -644,8 +455,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         if (tab != null && "about:home".equals(tab.getURL()))
             title = null;
 
-        mTitle.setText(title);
-        mAwesomeBar.setContentDescription(title != null ? title : mTitle.getHint());
+        mAwesomeBar.setText(title);
     }
 
     public void setFavicon(Drawable image) {
@@ -729,19 +539,14 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             String url = tab.getURL();
             setTitle(tab.getDisplayTitle());
             setFavicon(tab.getFavicon());
-            setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
             setSecurityMode(tab.getSecurityMode());
             setReaderMode(tab.getReaderEnabled());
+            setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
             setShadowVisibility((url == null) || !url.startsWith("about:"));
             updateTabCount(Tabs.getInstance().getCount());
             updateBackButton(tab.canDoBack());
             updateForwardButton(tab.canDoForward());
-            updateBackgroundColor(tab.isPrivate() ? 1 : 0);
         }
-    }
-
-    private void updateBackgroundColor(int level) {
-        mAwesomeBar.getBackground().setLevel(level);
     }
 
     public void destroy() {
@@ -772,20 +577,16 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     }
 
     // MenuPopup holds the MenuPanel in Honeycomb/ICS devices with no hardware key
-    public static class MenuPopup extends PopupWindow {
+    public class MenuPopup extends PopupWindow {
         private RelativeLayout mPanel;
-        private int mYOffset;
 
         public MenuPopup(Context context) {
             super(context);
             setFocusable(true);
 
-            // The arrow height is constant for both orientations.
-            mYOffset = (int) (context.getResources().getDimension(R.dimen.menu_popup_offset));
-
             // Setting a null background makes the popup to not close on touching outside.
             setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            setWindowLayoutMode(View.MeasureSpec.makeMeasureSpec(context.getResources().getDimensionPixelSize(R.dimen.menu_popup_width), View.MeasureSpec.AT_MOST),
+            setWindowLayoutMode(ViewGroup.LayoutParams.WRAP_CONTENT,
                                 ViewGroup.LayoutParams.WRAP_CONTENT);
 
             LayoutInflater inflater = LayoutInflater.from(context);
@@ -798,35 +599,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         public void setPanelView(View view) {
             mPanel.removeAllViews();
             mPanel.addView(view);
-        }
-
-        @Override
-        public void showAsDropDown(View anchor) {
-            showAsDropDown(anchor, 0, -mYOffset);
-        }
-    }
-
-    private class TailTouchDelegate extends TouchDelegate {
-        public TailTouchDelegate(Rect bounds, View delegateView) {
-            super(bounds, delegateView);
-        }
-
-        @Override 
-        public boolean onTouchEvent(MotionEvent event) {
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    // Android bug 36445: Touch Delegation not reset on ACTION_DOWN.
-                    if (!super.onTouchEvent(event)) {
-                        MotionEvent cancelEvent = MotionEvent.obtain(event);
-                        cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
-                        super.onTouchEvent(cancelEvent);
-                        return false;
-                     } else {
-                        return true;
-                     }
-                default:
-                    return super.onTouchEvent(event);
-            }
         }
     }
 }

@@ -36,13 +36,13 @@ public:
   mozInlineSpellStatus(mozInlineSpellChecker* aSpellChecker);
 
   nsresult InitForEditorChange(EditAction aAction,
-                               nsIDOMNode* aAnchorNode, int32_t aAnchorOffset,
-                               nsIDOMNode* aPreviousNode, int32_t aPreviousOffset,
-                               nsIDOMNode* aStartNode, int32_t aStartOffset,
-                               nsIDOMNode* aEndNode, int32_t aEndOffset);
-  nsresult InitForNavigation(bool aForceCheck, int32_t aNewPositionOffset,
-                             nsIDOMNode* aOldAnchorNode, int32_t aOldAnchorOffset,
-                             nsIDOMNode* aNewAnchorNode, int32_t aNewAnchorOffset,
+                               nsIDOMNode* aAnchorNode, PRInt32 aAnchorOffset,
+                               nsIDOMNode* aPreviousNode, PRInt32 aPreviousOffset,
+                               nsIDOMNode* aStartNode, PRInt32 aStartOffset,
+                               nsIDOMNode* aEndNode, PRInt32 aEndOffset);
+  nsresult InitForNavigation(bool aForceCheck, PRInt32 aNewPositionOffset,
+                             nsIDOMNode* aOldAnchorNode, PRInt32 aOldAnchorOffset,
+                             nsIDOMNode* aNewAnchorNode, PRInt32 aNewAnchorOffset,
                              bool* aContinue);
   nsresult InitForSelection();
   nsresult InitForRange(nsRange* aRange);
@@ -59,7 +59,7 @@ public:
   // The total number of words checked in this sequence, using this tally tells
   // us when to stop. This count is preserved as we continue checking in new
   // messages.
-  int32_t mWordCount;
+  PRInt32 mWordCount;
 
   // what happened?
   enum Operation { eOpChange,       // for SpellCheckAfterChange except deleteSelection
@@ -101,7 +101,7 @@ public:
   bool mForceNavigationWordCheck;
 
   // Contains the offset passed in to HandleNavigationEvent
-  int32_t mNewNavigationPositionOffset;
+  PRInt32 mNewNavigationPositionOffset;
 
 protected:
   nsresult FinishNavigationEvent(mozInlineSpellWordUtil& aWordUtil);
@@ -110,7 +110,7 @@ protected:
 
   nsresult GetDocument(nsIDOMDocument** aDocument);
   nsresult PositionToCollapsedRange(nsIDOMDocument* aDocument,
-                                    nsIDOMNode* aNode, int32_t aOffset,
+                                    nsIDOMNode* aNode, PRInt32 aOffset,
                                     nsIDOMRange** aRange);
 };
 
@@ -134,20 +134,20 @@ private:
   nsCOMPtr<nsIDOMTreeWalker> mTreeWalker;
   nsCOMPtr<mozISpellI18NUtil> mConverter;
 
-  int32_t mNumWordsInSpellSelection;
-  int32_t mMaxNumWordsInSpellSelection;
+  PRInt32 mNumWordsInSpellSelection;
+  PRInt32 mMaxNumWordsInSpellSelection;
 
   // How many misspellings we can add at once. This is often less than the max
   // total number of misspellings. When you have a large textarea prepopulated
   // with text with many misspellings, we can hit this limit. By making it
   // lower than the total number of misspelled words, new text typed by the
   // user can also have spellchecking in it.
-  int32_t mMaxMisspellingsPerCheck;
+  PRInt32 mMaxMisspellingsPerCheck;
 
   // we need to keep track of the current text position in the document
   // so we can spell check the old word when the user clicks around the document.
   nsCOMPtr<nsIDOMNode> mCurrentSelectionAnchorNode;
-  int32_t              mCurrentSelectionOffset;
+  PRInt32              mCurrentSelectionOffset;
 
   // Set when we have spellchecked after the last edit operation. See the
   // commment at the top of the .cpp file for more info.
@@ -179,9 +179,9 @@ public:
 
   // spell checks all of the words between two nodes
   nsresult SpellCheckBetweenNodes(nsIDOMNode *aStartNode,
-                                  int32_t aStartOffset,
+                                  PRInt32 aStartOffset,
                                   nsIDOMNode *aEndNode,
-                                  int32_t aEndOffset);
+                                  PRInt32 aEndOffset);
 
   // examines the dom node in question and returns true if the inline spell
   // checker should skip the node (i.e. the text is inside of a block quote
@@ -189,8 +189,8 @@ public:
   nsresult SkipSpellCheckForNode(nsIEditor* aEditor,
                                  nsIDOMNode *aNode, bool * aCheckSpelling);
 
-  nsresult SpellCheckAfterChange(nsIDOMNode* aCursorNode, int32_t aCursorOffset,
-                                 nsIDOMNode* aPreviousNode, int32_t aPreviousOffset,
+  nsresult SpellCheckAfterChange(nsIDOMNode* aCursorNode, PRInt32 aCursorOffset,
+                                 nsIDOMNode* aPreviousNode, PRInt32 aPreviousOffset,
                                  nsISelection* aSpellCheckSelection);
 
   // spell check the text contained within aRange, potentially scheduling
@@ -208,7 +208,7 @@ public:
   // helper routine to determine if a point is inside of the passed in selection.
   nsresult IsPointInSelection(nsISelection *aSelection,
                               nsIDOMNode *aNode,
-                              int32_t aOffset,
+                              PRInt32 aOffset,
                               nsIDOMRange **aRange);
 
   nsresult CleanupRangesInSelection(nsISelection *aSelection);
@@ -217,14 +217,14 @@ public:
   nsresult AddRange(nsISelection *aSpellCheckSelection, nsIDOMRange * aRange);
   bool     SpellCheckSelectionIsFull() { return mNumWordsInSpellSelection >= mMaxNumWordsInSpellSelection; }
 
-  nsresult MakeSpellCheckRange(nsIDOMNode* aStartNode, int32_t aStartOffset,
-                               nsIDOMNode* aEndNode, int32_t aEndOffset,
+  nsresult MakeSpellCheckRange(nsIDOMNode* aStartNode, PRInt32 aStartOffset,
+                               nsIDOMNode* aEndNode, PRInt32 aEndOffset,
                                nsRange** aRange);
 
   // DOM and editor event registration helper routines
   nsresult RegisterEventListeners();
   nsresult UnregisterEventListeners();
-  nsresult HandleNavigationEvent(bool aForceWordSpellCheck, int32_t aNewPositionOffset = 0);
+  nsresult HandleNavigationEvent(bool aForceWordSpellCheck, PRInt32 aNewPositionOffset = 0);
 
   nsresult GetSpellCheckSelection(nsISelection ** aSpellCheckSelection);
   nsresult SaveCurrentSelectionPosition();

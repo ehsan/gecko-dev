@@ -212,7 +212,7 @@ void PRINTDLG::GetPrinter(ULONG printerNdx, char** printerName)
    if (printerNdx >= mQueueCount)
       return;
  
-   nsAutoCString pName(mPQBuf[printerNdx]->QueueName());
+   nsCAutoString pName(mPQBuf[printerNdx]->QueueName());
  
    pName.ReplaceChar('\r', ' ');
    pName.StripChars("\n");

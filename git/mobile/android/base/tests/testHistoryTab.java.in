@@ -4,7 +4,6 @@ package @ANDROID_PACKAGE_NAME@.tests;
 import @ANDROID_PACKAGE_NAME@.*;
 
 import android.app.Activity;
-import android.view.ViewGroup;
 import android.view.View;
 import android.widget.ListView;
 import android.widget.ExpandableListView;
@@ -22,22 +21,18 @@ import android.net.Uri;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.io.File;
-import java.util.Calendar;
-import java.util.GregorianCalendar;
 
 /* Tests opening the history tab, that items look correct, clicking on an item
    and long tapping on an item
 */
 
-public class testHistoryTab extends PixelTest {
+public class testHistoryTab extends BaseTest {
     private static final String ABOUT_HOME_URL = "about:home";
     private static final String OPEN_NEW_TAB = "Open in New Tab";
     private static final int WAIT_FOR_CHILD_TIMEOUT = 2000;
     private String[] bookmarks = new String[] {
         "http://mochi.test:8888/tests/robocop/robocop_blank_01.html"
     };
-    private View mFirstChild;
-    private boolean mNearMidnight;
 
     @Override
     protected int getTestType() {
@@ -47,22 +42,18 @@ public class testHistoryTab extends PixelTest {
     public void testHistoryTab() {
         mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
-        // very approximate date-rollover detection
-        Calendar cal = new GregorianCalendar();
-        mNearMidnight = (cal.get(Calendar.HOUR_OF_DAY) == 23);
-
         // load two pages so there is something in our history
         // bookmark one of them
         String url = getAbsoluteUrl("/robocop/robocop_big_link.html");
-        loadAndPaint(url);
+        loadUrl(url);
 
         url = getAbsoluteUrl("/robocop/robocop_blank_01.html");
-        loadAndPaint(url);
-
+        loadUrl(url);
+        getInstrumentation().waitForIdleSync();
         mActions.sendSpecialKey(Actions.SpecialKey.MENU);
         mSolo.waitForText("Bookmark");
         mSolo.clickOnText("Bookmark");
-        mAsserter.is(mSolo.waitForText("Bookmark added"), true, "bookmark added successfully");
+        mAsserter.is(mSolo.waitForText("Bookmark added"), true, "bookmark added sucessfully");
 
         testList(url);
         testContextMenu(url);
@@ -96,11 +87,7 @@ public class testHistoryTab extends PixelTest {
                     ArrayList<TextView> views2 = mSolo.getCurrentTextViews(v);
                     TextView t = views2.get(0);
                     String string = t.getText().toString();
-                    boolean headerTextOK = string.equals("Today");
-                    if (!headerTextOK && mNearMidnight && string.equals("Yesterday")) {
-                        headerTextOK = true;
-                    }
-                    mAsserter.ok(headerTextOK, "First row has Today header", string);
+                    mAsserter.ok(string.equals("Today"), "First row has Today header", string);
                     expectedImages = 0;
                 } else if (v instanceof TextView) {
                     TextView t = (TextView)v;
@@ -137,51 +124,29 @@ public class testHistoryTab extends PixelTest {
         mActions.sendSpecialKey(Actions.SpecialKey.BACK);
         mSolo.waitForText(url);
 
-        // wait for the history list to be populated
-        mFirstChild = null;
-        boolean success = waitForTest(new BooleanTest() {
+        View child = list.getChildAt(0);
+        mSolo.clickLongOnView(child);
+        mAsserter.is(false, mSolo.waitForText("Open in New Tab"), "Header rows should not show a context menu");
+
+        waitForTest(new BooleanTest() {
             public boolean test() {
-                mFirstChild = list.getChildAt(1);
-                if (mFirstChild == null) {
-                    return false;
-                }
-                if (mFirstChild instanceof android.view.ViewGroup) {
-                    ViewGroup group = (ViewGroup)mFirstChild;
-                    if (group.getChildCount() < 1) {
-                        return false;
-                    }
-                    for (int i = 0; i < group.getChildCount(); i++) {
-                        View grandChild = group.getChildAt(i);
-                        if (grandChild instanceof android.widget.TextView) {
-                            mAsserter.ok(true, "found TextView:", ((android.widget.TextView)grandChild).getText().toString());
-                        }
-                    }
-                } else {
-                    mAsserter.dumpLog("first child not a ViewGroup: "+mFirstChild);
+                if (list.getChildAt(1) == null) {
                     return false;
                 }
                 return true;
             }
         }, WAIT_FOR_CHILD_TIMEOUT);
-        if (success == true && mFirstChild != null) {
-            mAsserter.dumpLog("clickLongOnView: "+mFirstChild);
-            mSolo.clickLongOnView(mFirstChild);
+        child = list.getChildAt(1);
 
-            // TODO: Test clicking these does the right thing
-            mAsserter.ok(mSolo.waitForText("Open in New Tab"), "Context menu has New Tab option", "Open in New Tab");
-            mAsserter.ok(mSolo.searchText("Share", true), "Context menu has Share option", "Share");
-            mAsserter.ok(mSolo.searchText("Remove", true), "Context menu has Remove option", "Remove");
-            mAsserter.ok(mSolo.searchText("Add to Home Screen", true), "Context menu has Add to Home Screen option", "Add to Home Screen");
+        mSolo.clickLongOnView(child);
 
-            mActions.sendSpecialKey(Actions.SpecialKey.BACK);
+        // TODO: Test clicking these does the right thing
+        mAsserter.ok(mSolo.waitForText("Open in New Tab"), "Context menu has New Tab option", "Open in New Tab");
+        mAsserter.ok(mSolo.searchText("Share", true), "Context menu has Share option", "Share");
+        mAsserter.ok(mSolo.searchText("Remove", true), "Context menu has Remove option", "Remove");
+        mAsserter.ok(mSolo.searchText("Add to Home Screen", true), "Context menu has Add to Home Screen option", "Add to Home Screen");
 
-            View child = list.getChildAt(0);
-            mSolo.clickLongOnView(child);
-            mAsserter.is(false, mSolo.waitForText("Open in New Tab"), "Header rows should not show a context menu");
-
-        } else {
-            mAsserter.ok(false, "waiting for history item", "history item available");
-        }
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
         mActions.sendSpecialKey(Actions.SpecialKey.BACK);
     }
 
@@ -196,23 +161,19 @@ public class testHistoryTab extends PixelTest {
         // nothing should happen
 
         Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
-        mFirstChild = null;
-        boolean success = waitForTest(new BooleanTest() {
+        waitForTest(new BooleanTest() {
             public boolean test() {
-                mFirstChild = list.getChildAt(1);
-                if (mFirstChild == null) {
+                if (list.getChildAt(1) == null) {
                     return false;
                 }
                 return true;
             }
         }, WAIT_FOR_CHILD_TIMEOUT);
-        if (success == true && mFirstChild != null) {
-            mSolo.clickOnView(mFirstChild);
-            contentEventExpecter.blockForEvent();
-            verifyUrl(url);
-        } else {
-            mAsserter.ok(false, "waiting for history item", "history item available");
-        }
+        child = list.getChildAt(1);
+
+        mSolo.clickOnView(child);
+        contentEventExpecter.blockForEvent();
+        verifyUrl(url);
     }
 
     private ListView getHistoryList() {
@@ -224,6 +185,8 @@ public class testHistoryTab extends PixelTest {
     }
 
     public void tearDown() throws Exception {
+        super.tearDown();
+
         ContentResolver resolver = getActivity().getContentResolver();
         Uri uri = Uri.parse("content://@ANDROID_PACKAGE_NAME@.db.browser/history");
         uri = uri.buildUpon().appendQueryParameter("profile", "default")
@@ -241,7 +204,5 @@ public class testHistoryTab extends PixelTest {
         resolver.delete(uri, "url = ?", new String[] {
             "http://mochi.test:8888/tests/robocop/robocop_blank_01.html"
         });
-
-        super.tearDown();
     }
 }

@@ -59,7 +59,6 @@ public:
     int ViELoopbackCall();
     int ViESimulcastCall();
     int ViECustomCall();
-    int ViERecordCall();
 
     // All functions except the three above are meant to run in a
     // googletest harness.

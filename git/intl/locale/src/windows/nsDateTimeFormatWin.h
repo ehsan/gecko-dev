@@ -66,7 +66,7 @@ private:
 
   nsString    mLocale;
   nsString    mAppLocale;
-  uint32_t    mLCID;             // Windows platform locale ID
+  PRUint32    mLCID;             // Windows platform locale ID
 };
 
 #endif  /* nsDateTimeFormatWin_h__ */

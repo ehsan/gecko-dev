@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
 #include "nsLayoutStatics.h"
 #include "nscore.h"
 
@@ -59,7 +57,6 @@
 #include "nsMathMLAtoms.h"
 #include "nsMathMLOperators.h"
 #include "Navigator.h"
-#include "nsDOMStorageBaseDB.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -97,20 +94,13 @@
 #include "nsHyphenationManager.h"
 #include "nsEditorSpellCheck.h"
 #include "nsWindowMemoryReporter.h"
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/ipc/ProcessPriorityManager.h"
-#include "nsPermissionManager.h"
-#include "nsCookieService.h"
-#include "nsApplicationCacheService.h"
-#include "mozilla/dom/time/DateCacheCleaner.h"
-#include "nsIMEStateManager.h"
 
 extern void NS_ShutdownChainItemPool();
 
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::dom::ipc;
-using namespace mozilla::dom::time;
 
 nsrefcnt nsLayoutStatics::sLayoutStaticRefcnt = 0;
 
@@ -125,8 +115,6 @@ nsLayoutStatics::Initialize()
                 "nsLayoutStatics", 1);
 
   nsresult rv;
-
-  ContentParent::StartUp();
 
   // Register all of our atoms once
   nsCSSAnonBoxes::AddRefAtoms();
@@ -259,14 +247,6 @@ nsLayoutStatics::Initialize()
 
   InitProcessPriorityManager();
 
-  nsPermissionManager::AppUninstallObserverInit();
-  nsCookieService::AppClearDataObserverInit();
-  nsApplicationCacheService::AppClearDataObserverInit();
-
-  nsDOMStorageBaseDB::Init();
-
-  InitializeDateCacheCleaner();
-
   return NS_OK;
 }
 
@@ -285,7 +265,6 @@ nsLayoutStatics::Shutdown()
   txMozillaXSLTProcessor::Shutdown();
   nsDOMAttribute::Shutdown();
   nsEventListenerManager::Shutdown();
-  nsIMEStateManager::Shutdown();
   nsComputedDOMStyle::Shutdown();
   nsCSSParser::Shutdown();
   nsCSSRuleProcessor::Shutdown();
@@ -365,6 +344,4 @@ nsLayoutStatics::Shutdown()
   nsHyphenationManager::Shutdown();
   nsEditorSpellCheck::ShutDown();
   nsDOMMutationObserver::Shutdown();
-
-  ContentParent::ShutDown();
 }

@@ -13,8 +13,8 @@
 
 BEGIN_TEST(test_cloneScript)
 {
-    js::RootedObject A(cx, createGlobal());
-    js::RootedObject B(cx, createGlobal());
+    JS::RootedObject A(cx, createGlobal());
+    JS::RootedObject B(cx, createGlobal());
 
     CHECK(A);
     CHECK(B);
@@ -28,11 +28,14 @@ BEGIN_TEST(test_cloneScript)
         "}\n"
         "(sum);\n";
 
-    js::RootedObject obj(cx);
+    JS::RootedObject obj(cx);
 
     // compile for A
     {
-        JSAutoCompartment a(cx, A);
+        JSAutoEnterCompartment a;
+        if (!a.enter(cx, A))
+            return false;
+
         JSFunction *fun;
         CHECK(fun = JS_CompileFunction(cx, A, "f", 0, NULL, source, strlen(source), __FILE__, 1));
         CHECK(obj = JS_GetFunctionObject(fun));
@@ -40,7 +43,10 @@ BEGIN_TEST(test_cloneScript)
 
     // clone into B
     {
-        JSAutoCompartment b(cx, B);
+        JSAutoEnterCompartment b;
+        if (!b.enter(cx, B))
+            return false;
+
         CHECK(JS_CloneFunctionObject(cx, obj, B));
     }
 
@@ -90,8 +96,8 @@ BEGIN_TEST(test_cloneScriptWithPrincipals)
     JSPrincipals *principalsB = new Principals();
     AutoDropPrincipals dropB(rt, principalsB);
 
-    js::RootedObject A(cx, createGlobal(principalsA));
-    js::RootedObject B(cx, createGlobal(principalsB));
+    JS::RootedObject A(cx, createGlobal(principalsA));
+    JS::RootedObject B(cx, createGlobal(principalsB));
 
     CHECK(A);
     CHECK(B);
@@ -99,11 +105,14 @@ BEGIN_TEST(test_cloneScriptWithPrincipals)
     const char *argnames[] = { "arg" };
     const char *source = "return function() { return arg; }";
 
-    js::RootedObject obj(cx);
+    JS::RootedObject obj(cx);
 
     // Compile in A
     {
-        JSAutoCompartment a(cx, A);
+        JSAutoEnterCompartment a;
+        if (!a.enter(cx, A))
+            return false;
+
         JSFunction *fun;
         CHECK(fun = JS_CompileFunctionForPrincipals(cx, A, principalsA, "f",
                                                     mozilla::ArrayLength(argnames), argnames,
@@ -118,8 +127,11 @@ BEGIN_TEST(test_cloneScriptWithPrincipals)
 
     // Clone into B
     {
-        JSAutoCompartment b(cx, B);
-        js::RootedObject cloned(cx);
+        JSAutoEnterCompartment b;
+        if (!b.enter(cx, B))
+            return false;
+
+        JS::RootedObject cloned(cx);
         CHECK(cloned = JS_CloneFunctionObject(cx, obj, B));
 
         JSFunction *fun;

@@ -27,8 +27,11 @@ class JSONParser
     /* Data members */
 
     JSContext * const cx;
-    JS::StableCharPtr current;
-    const JS::StableCharPtr end;
+    mozilla::RangedPtr<const jschar> current;
+    const mozilla::RangedPtr<const jschar> end;
+
+    /* For current/end as cursors into a string. */
+    js::SkipRoot root;
 
     js::Value v;
 
@@ -55,12 +58,13 @@ class JSONParser
      * Description of this syntax is deliberately omitted: new code should only
      * use strict JSON parsing.
      */
-    JSONParser(JSContext *cx, JS::StableCharPtr data, size_t length,
+    JSONParser(JSContext *cx, const jschar *data, size_t length,
                ParsingMode parsingMode = StrictJSON,
                ErrorHandling errorHandling = RaiseError)
       : cx(cx),
-        current(data),
-        end((data + length).get(), data.get(), length),
+        current(data, length),
+        end(data + length, data, length),
+        root(cx, thisDuringConstruction()),
         parsingMode(parsingMode),
         errorHandling(errorHandling)
 #ifdef DEBUG

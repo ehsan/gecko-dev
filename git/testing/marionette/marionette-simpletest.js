@@ -13,39 +13,30 @@ function Marionette(scope, window, context, logObj, perfData) {
   this.perfData = perfData;
   this.context = context;
   this.timeout = 0;
-  this.TEST_UNEXPECTED_FAIL = "TEST-UNEXPECTED-FAIL";
-  this.TEST_PASS = "TEST-PASS";
-  this.TEST_KNOWN_FAIL = "TEST-KNOWN-FAIL";
 }
 
 Marionette.prototype = {
   exports: ['ok', 'is', 'isnot', 'log', 'getLogs', 'generate_results', 'waitFor',
-            'runEmulatorCmd', 'addPerfData', 'getPerfData', 'TEST_PASS',
-            'TEST_KNOWN_FAIL', 'TEST_UNEXPECTED_FAIL'],
+            'runEmulatorCmd', 'addPerfData', 'getPerfData'],
 
-  ok: function Marionette__ok(condition, name, passString, failString, diag) {
-    if (typeof(diag) == "undefined") {
-      diag = this.repr(condition) + " was false, expected true";
-    }
+  ok: function Marionette__ok(condition, name, diag) {
     let test = {'result': !!condition, 'name': name, 'diag': diag};
-    this.logResult(test,
-                   typeof(passString) == "undefined" ? this.TEST_PASS : passString,
-                   typeof(failString) == "undefined" ? this.TEST_UNEXPECTED_FAIL : failString);
+    this.logResult(test, "TEST-PASS", "TEST-UNEXPECTED-FAIL");
     this.tests.push(test);
   },
 
-  is: function Marionette__is(a, b, name, passString, failString) {
+  is: function Marionette__is(a, b, name) {
     let pass = (a == b);
     let diag = pass ? this.repr(a) + " should equal " + this.repr(b)
                     : "got " + this.repr(a) + ", expected " + this.repr(b);
-    this.ok(pass, name, passString, failString, diag);
+    this.ok(pass, name, diag);
   },
 
-  isnot: function Marionette__isnot (a, b, name, passString, failString) {
+  isnot: function Marionette__isnot (a, b, name) {
     let pass = (a != b);
     let diag = pass ? this.repr(a) + " should not equal " + this.repr(b)
                     : "didn't expect " + this.repr(a) + ", but got it";
-    this.ok(pass, name, passString, failString, diag);
+    this.ok(pass, name, diag);
   },
 
   addPerfData: function Marionette__addPerfData(testSuite, testName, data) {

@@ -9,7 +9,7 @@
 #include "nsIPipe.h"
 
 #include "nsEmbedStream.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsString.h"
 
 NS_IMPL_ISUPPORTS0(nsEmbedStream)
@@ -50,7 +50,7 @@ nsEmbedStream::OpenStream(nsIURI *aBaseURI, const nsACString& aContentType)
   nsCOMPtr<nsIAsyncOutputStream> outputStream;
   rv = NS_NewPipe2(getter_AddRefs(inputStream),
                    getter_AddRefs(outputStream),
-                   true, false, 0, UINT32_MAX);
+                   true, false, 0, PR_UINT32_MAX);
   if (NS_FAILED(rv))
     return rv;
 
@@ -65,12 +65,12 @@ nsEmbedStream::OpenStream(nsIURI *aBaseURI, const nsACString& aContentType)
 }
 
 NS_METHOD
-nsEmbedStream::AppendToStream(const uint8_t *aData, uint32_t aLen)
+nsEmbedStream::AppendToStream(const PRUint8 *aData, PRUint32 aLen)
 {
   nsresult rv;
   NS_ENSURE_STATE(mOutputStream);
 
-  uint32_t bytesWritten = 0;
+  PRUint32 bytesWritten = 0;
   rv = mOutputStream->Write(reinterpret_cast<const char*>(aData),
                             aLen, &bytesWritten);
   if (NS_FAILED(rv))

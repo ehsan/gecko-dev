@@ -35,7 +35,7 @@ private:
   PK11SlotInfo *altSlot;
   PK11AttrFlags altFlags;
   PK11SlotInfo *usedSlot;
-  uint32_t keyGenMechanism;
+  PRUint32 keyGenMechanism;
   void *params;
   void *wincx;
 
@@ -53,7 +53,7 @@ public:
     PK11AttrFlags a_flags,
     PK11SlotInfo *a_alternative_slot,
     PK11AttrFlags a_alternative_flags,
-    uint32_t a_keyGenMechanism,
+    PRUint32 a_keyGenMechanism,
     void *a_params,
     void *a_wincx );
 

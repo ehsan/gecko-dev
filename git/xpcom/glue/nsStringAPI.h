@@ -25,33 +25,33 @@
 /**
  * Comparison function for use with nsACString::Equals
  */
-NS_HIDDEN_(int32_t)
+NS_HIDDEN_(PRInt32)
 CaseInsensitiveCompare(const char *a, const char *b,
-                       uint32_t length);
+                       PRUint32 length);
 
 class nsAString
 {
 public:
   typedef PRUnichar  char_type;
   typedef nsAString  self_type;
-  typedef uint32_t   size_type;
-  typedef uint32_t   index_type;
+  typedef PRUint32   size_type;
+  typedef PRUint32   index_type;
 
   /**
    * Returns the length, beginning, and end of a string in one operation.
    */
-  NS_HIDDEN_(uint32_t) BeginReading(const char_type **begin,
+  NS_HIDDEN_(PRUint32) BeginReading(const char_type **begin,
                                     const char_type **end = nullptr) const;
 
   NS_HIDDEN_(const char_type*) BeginReading() const;
   NS_HIDDEN_(const char_type*) EndReading() const;
 
-  NS_HIDDEN_(char_type) CharAt(uint32_t aPos) const
+  NS_HIDDEN_(char_type) CharAt(PRUint32 aPos) const
   {
     NS_ASSERTION(aPos < Length(), "Out of bounds");
     return BeginReading()[aPos];
   }
-  NS_HIDDEN_(char_type) operator [](uint32_t aPos) const
+  NS_HIDDEN_(char_type) operator [](PRUint32 aPos) const
   {
     return CharAt(aPos);
   }
@@ -62,7 +62,7 @@ public:
   NS_HIDDEN_(char_type) Last() const
   {
     const char_type* data;
-    uint32_t dataLen = NS_StringGetData(*this, &data);
+    PRUint32 dataLen = NS_StringGetData(*this, &data);
     return data[dataLen - 1];
   }
 
@@ -70,18 +70,18 @@ public:
    * Get the length, begin writing, and optionally set the length of a
    * string all in one operation.
    *
-   * @param   newSize Size the string to this length. Pass UINT32_MAX
+   * @param   newSize Size the string to this length. Pass PR_UINT32_MAX
    *                  to leave the length unchanged.
    * @return  The new length of the string, or 0 if resizing failed.
    */
-  NS_HIDDEN_(uint32_t) BeginWriting(char_type **begin,
+  NS_HIDDEN_(PRUint32) BeginWriting(char_type **begin,
                                     char_type **end = nullptr,
-                                    uint32_t newSize = UINT32_MAX);
+                                    PRUint32 newSize = PR_UINT32_MAX);
 
-  NS_HIDDEN_(char_type*) BeginWriting(uint32_t = UINT32_MAX);
+  NS_HIDDEN_(char_type*) BeginWriting(PRUint32 = PR_UINT32_MAX);
   NS_HIDDEN_(char_type*) EndWriting();
 
-  NS_HIDDEN_(bool) SetLength(uint32_t aLen);
+  NS_HIDDEN_(bool) SetLength(PRUint32 aLen);
 
   NS_HIDDEN_(size_type) Length() const
   {
@@ -107,7 +107,7 @@ public:
   {
     NS_StringCopy(*this, aString);
   }
-  NS_HIDDEN_(void) Assign(const char_type* aData, size_type aLength = UINT32_MAX)
+  NS_HIDDEN_(void) Assign(const char_type* aData, size_type aLength = PR_UINT32_MAX)
   {
     NS_StringSetData(*this, aData, aLength);
   }
@@ -134,7 +134,7 @@ public:
   NS_HIDDEN_(void) Replace( index_type cutStart, size_type cutLength, const self_type& readable )
   {
     const char_type* data;
-    uint32_t dataLen = NS_StringGetData(readable, &data);
+    PRUint32 dataLen = NS_StringGetData(readable, &data);
     NS_StringSetDataRange(*this, cutStart, cutLength, data, dataLen);
   }
   NS_HIDDEN_(void) SetCharAt( char_type c, index_type pos )
@@ -174,18 +174,18 @@ public:
   /**
    * Compare strings of characters. Return 0 if the characters are equal,
    */
-  typedef int32_t (*ComparatorFunc)(const char_type *a,
+  typedef PRInt32 (*ComparatorFunc)(const char_type *a,
                                     const char_type *b,
-                                    uint32_t length);
+                                    PRUint32 length);
 
-  static NS_HIDDEN_(int32_t) DefaultComparator(const char_type *a,
+  static NS_HIDDEN_(PRInt32) DefaultComparator(const char_type *a,
                                                const char_type *b,
-                                               uint32_t length);
+                                               PRUint32 length);
 
-  NS_HIDDEN_(int32_t) Compare( const char_type *other,
+  NS_HIDDEN_(PRInt32) Compare( const char_type *other,
                                ComparatorFunc c = DefaultComparator ) const;
 
-  NS_HIDDEN_(int32_t) Compare( const self_type &other,
+  NS_HIDDEN_(PRInt32) Compare( const self_type &other,
                                ComparatorFunc c = DefaultComparator ) const;
 
   NS_HIDDEN_(bool) Equals( const char_type *other,
@@ -264,7 +264,7 @@ public:
    *
    * @return the offset of aStr, or -1 if not found
    */
-  NS_HIDDEN_(int32_t) Find(const self_type& aStr,
+  NS_HIDDEN_(PRInt32) Find(const self_type& aStr,
                            ComparatorFunc c = DefaultComparator) const
   { return Find(aStr, 0, c); }
 
@@ -273,7 +273,7 @@ public:
    *
    * @return the offset of aStr, or -1 if not found
    */
-  NS_HIDDEN_(int32_t) Find(const self_type& aStr, uint32_t aOffset,
+  NS_HIDDEN_(PRInt32) Find(const self_type& aStr, PRUint32 aOffset,
                            ComparatorFunc c = DefaultComparator) const;
 
   /**
@@ -281,10 +281,10 @@ public:
    *
    * @return the offset of aStr, or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) Find(const char *aStr, bool aIgnoreCase = false) const
+  NS_HIDDEN_(PRInt32) Find(const char *aStr, bool aIgnoreCase = false) const
   { return Find(aStr, 0, aIgnoreCase); }
 
-  NS_HIDDEN_(int32_t) Find(const char *aStr, uint32_t aOffset, bool aIgnoreCase = false) const;
+  NS_HIDDEN_(PRInt32) Find(const char *aStr, PRUint32 aOffset, bool aIgnoreCase = false) const;
 
   /**
    * Find the last occurrence of aStr in this string.
@@ -292,7 +292,7 @@ public:
    * @return The offset of aStr from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) RFind(const self_type& aStr,
+  NS_HIDDEN_(PRInt32) RFind(const self_type& aStr,
                             ComparatorFunc c = DefaultComparator) const
   { return RFind(aStr, -1, c); }
 
@@ -304,7 +304,7 @@ public:
    * @return The offset of aStr from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) RFind(const self_type& aStr, int32_t aOffset,
+  NS_HIDDEN_(PRInt32) RFind(const self_type& aStr, PRInt32 aOffset,
                             ComparatorFunc c = DefaultComparator) const;
 
   /**
@@ -313,7 +313,7 @@ public:
    * @return The offset of aStr from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) RFind(const char *aStr, bool aIgnoreCase = false) const
+  NS_HIDDEN_(PRInt32) RFind(const char *aStr, bool aIgnoreCase = false) const
   { return RFind(aStr, -1, aIgnoreCase); }
 
   /**
@@ -324,7 +324,7 @@ public:
    * @return The offset of aStr from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) RFind(const char *aStr, int32_t aOffset, bool aIgnoreCase) const;
+  NS_HIDDEN_(PRInt32) RFind(const char *aStr, PRInt32 aOffset, bool aIgnoreCase) const;
 
   /**
    * Search for the offset of the first occurrence of a character in a
@@ -335,7 +335,7 @@ public:
    * @return The offset of the character from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) FindChar(char_type aChar, uint32_t aOffset = 0) const;
+  NS_HIDDEN_(PRInt32) FindChar(char_type aChar, PRUint32 aOffset = 0) const;
 
   /**
    * Search for the offset of the last occurrence of a character in a
@@ -344,12 +344,12 @@ public:
    * @return The offset of the character from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) RFindChar(char_type aChar) const;
+  NS_HIDDEN_(PRInt32) RFindChar(char_type aChar) const;
 
   /**
    * Append a string representation of a number.
    */
-  NS_HIDDEN_(void) AppendInt(int aInt, int32_t aRadix = 10);
+  NS_HIDDEN_(void) AppendInt(int aInt, PRInt32 aRadix = 10);
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
   /**
@@ -358,16 +358,8 @@ public:
    * @param aErrorCode pointer to contain result code.
    * @param aRadix must be 10 or 16
    */
-  NS_HIDDEN_(int32_t) ToInteger(nsresult* aErrorCode,
-                                uint32_t aRadix = 10) const;
-  /**
-   * Convert this string to a 64-bit integer.
-   *
-   * @param aErrorCode pointer to contain result code.
-   * @param aRadix must be 10 or 16
-   */
-  NS_HIDDEN_(int64_t) ToInteger64(nsresult* aErrorCode,
-                                  uint32_t aRadix = 10) const;
+  NS_HIDDEN_(PRInt32) ToInteger(nsresult* aErrorCode,
+                                PRUint32 aRadix = 10) const;
 #endif // XPCOM_GLUE_AVOID_NSPR
 
 protected:
@@ -380,24 +372,24 @@ class nsACString
 public:
   typedef char       char_type;
   typedef nsACString self_type;
-  typedef uint32_t   size_type;
-  typedef uint32_t   index_type;
+  typedef PRUint32   size_type;
+  typedef PRUint32   index_type;
 
   /**
    * Returns the length, beginning, and end of a string in one operation.
    */
-  NS_HIDDEN_(uint32_t) BeginReading(const char_type **begin,
+  NS_HIDDEN_(PRUint32) BeginReading(const char_type **begin,
                                     const char_type **end = nullptr) const;
 
   NS_HIDDEN_(const char_type*) BeginReading() const;
   NS_HIDDEN_(const char_type*) EndReading() const;
 
-  NS_HIDDEN_(char_type) CharAt(uint32_t aPos) const
+  NS_HIDDEN_(char_type) CharAt(PRUint32 aPos) const
   {
     NS_ASSERTION(aPos < Length(), "Out of bounds");
     return BeginReading()[aPos];
   }
-  NS_HIDDEN_(char_type) operator [](uint32_t aPos) const
+  NS_HIDDEN_(char_type) operator [](PRUint32 aPos) const
   {
     return CharAt(aPos);
   }
@@ -408,7 +400,7 @@ public:
   NS_HIDDEN_(char_type) Last() const
   {
     const char_type* data;
-    uint32_t dataLen = NS_CStringGetData(*this, &data);
+    PRUint32 dataLen = NS_CStringGetData(*this, &data);
     return data[dataLen - 1];
   }
 
@@ -416,18 +408,18 @@ public:
    * Get the length, begin writing, and optionally set the length of a
    * string all in one operation.
    *
-   * @param   newSize Size the string to this length. Pass UINT32_MAX
+   * @param   newSize Size the string to this length. Pass PR_UINT32_MAX
    *                  to leave the length unchanged.
    * @return  The new length of the string, or 0 if resizing failed.
    */
-  NS_HIDDEN_(uint32_t) BeginWriting(char_type **begin,
+  NS_HIDDEN_(PRUint32) BeginWriting(char_type **begin,
                                     char_type **end = nullptr,
-                                    uint32_t newSize = UINT32_MAX);
+                                    PRUint32 newSize = PR_UINT32_MAX);
 
-  NS_HIDDEN_(char_type*) BeginWriting(uint32_t aLen = UINT32_MAX);
+  NS_HIDDEN_(char_type*) BeginWriting(PRUint32 aLen = PR_UINT32_MAX);
   NS_HIDDEN_(char_type*) EndWriting();
 
-  NS_HIDDEN_(bool) SetLength(uint32_t aLen);
+  NS_HIDDEN_(bool) SetLength(PRUint32 aLen);
 
   NS_HIDDEN_(size_type) Length() const
   {
@@ -453,7 +445,7 @@ public:
   {
     NS_CStringCopy(*this, aString);
   }
-  NS_HIDDEN_(void) Assign(const char_type* aData, size_type aLength = UINT32_MAX)
+  NS_HIDDEN_(void) Assign(const char_type* aData, size_type aLength = PR_UINT32_MAX)
   {
     NS_CStringSetData(*this, aData, aLength);
   }
@@ -485,7 +477,7 @@ public:
   NS_HIDDEN_(void) Replace( index_type cutStart, size_type cutLength, const self_type& readable )
   {
     const char_type* data;
-    uint32_t dataLen = NS_CStringGetData(readable, &data);
+    PRUint32 dataLen = NS_CStringGetData(readable, &data);
     NS_CStringSetDataRange(*this, cutStart, cutLength, data, dataLen);
   }
   NS_HIDDEN_(void) SetCharAt( char_type c, index_type pos )
@@ -525,18 +517,18 @@ public:
   /**
    * Compare strings of characters. Return 0 if the characters are equal,
    */
-  typedef int32_t (*ComparatorFunc)(const char_type *a,
+  typedef PRInt32 (*ComparatorFunc)(const char_type *a,
                                     const char_type *b,
-                                    uint32_t length);
+                                    PRUint32 length);
 
-  static NS_HIDDEN_(int32_t) DefaultComparator(const char_type *a,
+  static NS_HIDDEN_(PRInt32) DefaultComparator(const char_type *a,
                                                const char_type *b,
-                                               uint32_t length);
+                                               PRUint32 length);
 
-  NS_HIDDEN_(int32_t) Compare( const char_type *other,
+  NS_HIDDEN_(PRInt32) Compare( const char_type *other,
                                ComparatorFunc c = DefaultComparator ) const;
 
-  NS_HIDDEN_(int32_t) Compare( const self_type &other,
+  NS_HIDDEN_(PRInt32) Compare( const self_type &other,
                                ComparatorFunc c = DefaultComparator ) const;
 
   NS_HIDDEN_(bool) Equals( const char_type *other,
@@ -621,7 +613,7 @@ public:
    *
    * @return the offset of aStr, or -1 if not found
    */
-  NS_HIDDEN_(int32_t) Find(const self_type& aStr,
+  NS_HIDDEN_(PRInt32) Find(const self_type& aStr,
                            ComparatorFunc c = DefaultComparator) const
   { return Find(aStr, 0, c); }
 
@@ -630,7 +622,7 @@ public:
    *
    * @return the offset of aStr, or -1 if not found
    */
-  NS_HIDDEN_(int32_t) Find(const self_type& aStr, uint32_t aOffset,
+  NS_HIDDEN_(PRInt32) Find(const self_type& aStr, PRUint32 aOffset,
                            ComparatorFunc c = DefaultComparator) const;
 
   /**
@@ -638,10 +630,10 @@ public:
    *
    * @return the offset of aStr, or -1 if not found
    */
-  NS_HIDDEN_(int32_t) Find(const char_type *aStr,
+  NS_HIDDEN_(PRInt32) Find(const char_type *aStr,
                            ComparatorFunc c = DefaultComparator) const;
 
-  NS_HIDDEN_(int32_t) Find(const char_type *aStr, uint32_t aLen,
+  NS_HIDDEN_(PRInt32) Find(const char_type *aStr, PRUint32 aLen,
                            ComparatorFunc c = DefaultComparator) const;
 
   /**
@@ -650,7 +642,7 @@ public:
    * @return The offset of the character from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) RFind(const self_type& aStr,
+  NS_HIDDEN_(PRInt32) RFind(const self_type& aStr,
                             ComparatorFunc c = DefaultComparator) const
   { return RFind(aStr, -1, c); }
 
@@ -662,7 +654,7 @@ public:
    * @return The offset of aStr from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) RFind(const self_type& aStr, int32_t aOffset,
+  NS_HIDDEN_(PRInt32) RFind(const self_type& aStr, PRInt32 aOffset,
                             ComparatorFunc c = DefaultComparator) const;
 
   /**
@@ -671,7 +663,7 @@ public:
    * @return The offset of aStr from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) RFind(const char_type *aStr,
+  NS_HIDDEN_(PRInt32) RFind(const char_type *aStr,
                             ComparatorFunc c = DefaultComparator) const;
 
   /**
@@ -682,7 +674,7 @@ public:
    * @return The offset of aStr from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) RFind(const char_type *aStr, int32_t aLen,
+  NS_HIDDEN_(PRInt32) RFind(const char_type *aStr, PRInt32 aLen,
                             ComparatorFunc c = DefaultComparator) const;
 
   /**
@@ -694,7 +686,7 @@ public:
    * @return The offset of the character from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) FindChar(char_type aChar, uint32_t aOffset = 0) const;
+  NS_HIDDEN_(PRInt32) FindChar(char_type aChar, PRUint32 aOffset = 0) const;
 
   /**
    * Search for the offset of the last occurrence of a character in a
@@ -703,12 +695,12 @@ public:
    * @return The offset of the character from the beginning of the string,
    *         or -1 if not found.
    */
-  NS_HIDDEN_(int32_t) RFindChar(char_type aChar) const;
+  NS_HIDDEN_(PRInt32) RFindChar(char_type aChar) const;
 
   /**
    * Append a string representation of a number.
    */
-  NS_HIDDEN_(void) AppendInt(int aInt, int32_t aRadix = 10);
+  NS_HIDDEN_(void) AppendInt(int aInt, PRInt32 aRadix = 10);
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
   /**
@@ -717,16 +709,8 @@ public:
    * @param aErrorCode pointer to contain result code.
    * @param aRadix must be 10 or 16
    */
-  NS_HIDDEN_(int32_t) ToInteger(nsresult* aErrorCode,
-                                uint32_t aRadix = 10) const;
-  /**
-   * Convert this string to a 64-bit integer.
-   *
-   * @param aErrorCode pointer to contain result code.
-   * @param aRadix must be 10 or 16
-   */
-  NS_HIDDEN_(int64_t) ToInteger64(nsresult* aErrorCode,
-                                  uint32_t aRadix = 10) const;
+  NS_HIDDEN_(PRInt32) ToInteger(nsresult* aErrorCode,
+                                PRUint32 aRadix = 10) const;
 #endif // XPCOM_GLUE_AVOID_NSPR
 
 protected:
@@ -803,7 +787,7 @@ public:
   }
 
   explicit
-  nsString(const char_type* aData, size_type aLength = UINT32_MAX)
+  nsString(const char_type* aData, size_type aLength = PR_UINT32_MAX)
   {
     NS_StringContainerInit2(*this, aData, aLength, 0);
   }
@@ -823,7 +807,7 @@ public:
   self_type& operator=(const char_type* aPtr)                 { Assign(aPtr);      return *this; }
   self_type& operator=(char_type aChar)                       { Assign(aChar);     return *this; }
 
-  void Adopt(const char_type *aData, size_type aLength = UINT32_MAX)
+  void Adopt(const char_type *aData, size_type aLength = PR_UINT32_MAX)
   {
     NS_StringContainerFinish(*this);
     NS_StringContainerInit2(*this, aData, aLength,
@@ -832,7 +816,7 @@ public:
 
 protected:
   
-  nsString(const char_type* aData, size_type aLength, uint32_t aFlags)
+  nsString(const char_type* aData, size_type aLength, PRUint32 aFlags)
   {
     NS_StringContainerInit2(*this, aData, aLength, aFlags);
   }
@@ -863,7 +847,7 @@ public:
   }
 
   explicit
-  nsCString(const char_type* aData, size_type aLength = UINT32_MAX)
+  nsCString(const char_type* aData, size_type aLength = PR_UINT32_MAX)
   {
     NS_CStringContainerInit(*this);
     NS_CStringSetData(*this, aData, aLength);
@@ -884,7 +868,7 @@ public:
   self_type& operator=(const char_type* aPtr)                 { Assign(aPtr);      return *this; }
   self_type& operator=(char_type aChar)                       { Assign(aChar);     return *this; }
 
-  void Adopt(const char_type *aData, size_type aLength = UINT32_MAX)
+  void Adopt(const char_type *aData, size_type aLength = PR_UINT32_MAX)
   {
     NS_CStringContainerFinish(*this);
     NS_CStringContainerInit2(*this, aData, aLength,
@@ -893,7 +877,7 @@ public:
 
 protected:
   
-  nsCString(const char_type* aData, size_type aLength, uint32_t aFlags)
+  nsCString(const char_type* aData, size_type aLength, PRUint32 aFlags)
   {
     NS_CStringContainerInit2(*this, aData, aLength, aFlags);
   }
@@ -912,11 +896,11 @@ public:
   nsDependentString() {}
 
   explicit
-  nsDependentString(const char_type* aData, size_type aLength = UINT32_MAX)
+  nsDependentString(const char_type* aData, size_type aLength = PR_UINT32_MAX)
     : nsString(aData, aLength, NS_CSTRING_CONTAINER_INIT_DEPEND)
   {}
 
-  void Rebind(const char_type* aData, size_type aLength = UINT32_MAX)
+  void Rebind(const char_type* aData, size_type aLength = PR_UINT32_MAX)
   {
     NS_StringContainerFinish(*this);
     NS_StringContainerInit2(*this, aData, aLength,
@@ -935,11 +919,11 @@ public:
   nsDependentCString() {}
 
   explicit
-  nsDependentCString(const char_type* aData, size_type aLength = UINT32_MAX)
+  nsDependentCString(const char_type* aData, size_type aLength = PR_UINT32_MAX)
     : nsCString(aData, aLength, NS_CSTRING_CONTAINER_INIT_DEPEND)
   {}
 
-  void Rebind(const char_type* aData, size_type aLength = UINT32_MAX)
+  void Rebind(const char_type* aData, size_type aLength = PR_UINT32_MAX)
   {
     NS_CStringContainerFinish(*this);
     NS_CStringContainerInit2(*this, aData, aLength,
@@ -994,7 +978,7 @@ public:
   }
 
   explicit
-  NS_ConvertASCIItoUTF16(const char* aData, uint32_t aLength = UINT32_MAX)
+  NS_ConvertASCIItoUTF16(const char* aData, PRUint32 aLength = PR_UINT32_MAX)
   {
     NS_CStringToUTF16(nsDependentCString(aData, aLength),
                       NS_CSTRING_ENCODING_ASCII, *this);
@@ -1016,7 +1000,7 @@ public:
   }
 
   explicit
-  NS_ConvertUTF8toUTF16(const char* aData, uint32_t aLength = UINT32_MAX)
+  NS_ConvertUTF8toUTF16(const char* aData, PRUint32 aLength = PR_UINT32_MAX)
   {
     NS_CStringToUTF16(nsDependentCString(aData, aLength),
                       NS_CSTRING_ENCODING_UTF8, *this);
@@ -1038,7 +1022,7 @@ public:
   }
 
   explicit
-  NS_ConvertUTF16toUTF8(const PRUnichar* aData, uint32_t aLength = UINT32_MAX)
+  NS_ConvertUTF16toUTF8(const PRUnichar* aData, PRUint32 aLength = PR_UINT32_MAX)
   {
     NS_UTF16ToCString(nsDependentString(aData, aLength),
                       NS_CSTRING_ENCODING_UTF8, *this);
@@ -1060,7 +1044,7 @@ public:
   }
 
   explicit
-  NS_LossyConvertUTF16toASCII(const PRUnichar* aData, uint32_t aLength = UINT32_MAX)
+  NS_LossyConvertUTF16toASCII(const PRUnichar* aData, PRUint32 aLength = PR_UINT32_MAX)
   {
     NS_UTF16ToCString(nsDependentString(aData, aLength),
                       NS_CSTRING_ENCODING_ASCII, *this);
@@ -1087,15 +1071,15 @@ private:
   MOZ_STATIC_ASSERT(sizeof(wchar_t) == 2, "size of wchar_t must be 2");
   #define NS_LL(s)                                L##s
 #endif
-  #define NS_MULTILINE_LITERAL_STRING(s)          nsDependentString(reinterpret_cast<const nsAString::char_type*>(s), uint32_t((sizeof(s)/2)-1))
-  #define NS_MULTILINE_LITERAL_STRING_INIT(n,s)   n(reinterpret_cast<const nsAString::char_type*>(s), uint32_t((sizeof(s)/2)-1))
-  #define NS_NAMED_MULTILINE_LITERAL_STRING(n,s)  const nsDependentString n(reinterpret_cast<const nsAString::char_type*>(s), uint32_t((sizeof(s)/2)-1))
+  #define NS_MULTILINE_LITERAL_STRING(s)          nsDependentString(reinterpret_cast<const nsAString::char_type*>(s), PRUint32((sizeof(s)/2)-1))
+  #define NS_MULTILINE_LITERAL_STRING_INIT(n,s)   n(reinterpret_cast<const nsAString::char_type*>(s), PRUint32((sizeof(s)/2)-1))
+  #define NS_NAMED_MULTILINE_LITERAL_STRING(n,s)  const nsDependentString n(reinterpret_cast<const nsAString::char_type*>(s), PRUint32((sizeof(s)/2)-1))
   typedef nsDependentString nsLiteralString;
 #else
   #define NS_LL(s)                                s
-  #define NS_MULTILINE_LITERAL_STRING(s)          NS_ConvertASCIItoUTF16(s, uint32_t(sizeof(s)-1))
-  #define NS_MULTILINE_LITERAL_STRING_INIT(n,s)   n(s, uint32_t(sizeof(s)-1))
-  #define NS_NAMED_MULTILINE_LITERAL_STRING(n,s)  const NS_ConvertASCIItoUTF16 n(s, uint32_t(sizeof(s)-1))
+  #define NS_MULTILINE_LITERAL_STRING(s)          NS_ConvertASCIItoUTF16(s, PRUint32(sizeof(s)-1))
+  #define NS_MULTILINE_LITERAL_STRING_INIT(n,s)   n(s, PRUint32(sizeof(s)-1))
+  #define NS_NAMED_MULTILINE_LITERAL_STRING(n,s)  const NS_ConvertASCIItoUTF16 n(s, PRUint32(sizeof(s)-1))
   typedef NS_ConvertASCIItoUTF16 nsLiteralString;
 #endif
 
@@ -1117,9 +1101,9 @@ MOZ_STATIC_ASSERT(PRUnichar(-1) > PRUnichar(0), "PRUnichar is by definition an u
 #define NS_LITERAL_STRING_INIT(n,s)               NS_MULTILINE_LITERAL_STRING_INIT(n, NS_LL(s))
 #define NS_NAMED_LITERAL_STRING(n,s)              NS_NAMED_MULTILINE_LITERAL_STRING(n, NS_LL(s))
 
-#define NS_LITERAL_CSTRING(s)                     static_cast<const nsDependentCString&>(nsDependentCString(s, uint32_t(sizeof(s)-1)))
-#define NS_LITERAL_CSTRING_INIT(n,s)              n(s, uint32_t(sizeof(s)-1))
-#define NS_NAMED_LITERAL_CSTRING(n,s)             const nsDependentCString n(s, uint32_t(sizeof(s)-1))
+#define NS_LITERAL_CSTRING(s)                     static_cast<const nsDependentCString&>(nsDependentCString(s, PRUint32(sizeof(s)-1)))
+#define NS_LITERAL_CSTRING_INIT(n,s)              n(s, PRUint32(sizeof(s)-1))
+#define NS_NAMED_LITERAL_CSTRING(n,s)             const nsDependentCString n(s, PRUint32(sizeof(s)-1))
 
 typedef nsDependentCString nsLiteralCString;
 
@@ -1218,7 +1202,7 @@ public:
     NS_StringContainerInit(*this);
   }
 
-  nsDependentSubstring(const char_type *aStart, uint32_t aLength)
+  nsDependentSubstring(const char_type *aStart, PRUint32 aLength)
   {
     NS_StringContainerInit2(*this, aStart, aLength,
                             NS_STRING_CONTAINER_INIT_DEPEND |
@@ -1226,11 +1210,11 @@ public:
   }
 
   nsDependentSubstring(const abstract_string_type& aStr,
-                       uint32_t aStartPos);
+                       PRUint32 aStartPos);
   nsDependentSubstring(const abstract_string_type& aStr,
-                       uint32_t aStartPos, uint32_t aLength);
+                       PRUint32 aStartPos, PRUint32 aLength);
 
-  void Rebind(const char_type *aStart, uint32_t aLength)
+  void Rebind(const char_type *aStart, PRUint32 aLength)
   {
     NS_StringContainerFinish(*this);
     NS_StringContainerInit2(*this, aStart, aLength,
@@ -1258,7 +1242,7 @@ public:
     NS_CStringContainerInit(*this);
   }
 
-  nsDependentCSubstring(const char_type *aStart, uint32_t aLength)
+  nsDependentCSubstring(const char_type *aStart, PRUint32 aLength)
   {
     NS_CStringContainerInit2(*this, aStart, aLength,
                              NS_CSTRING_CONTAINER_INIT_DEPEND |
@@ -1266,11 +1250,11 @@ public:
   }
 
   nsDependentCSubstring(const abstract_string_type& aStr,
-                        uint32_t aStartPos);
+                        PRUint32 aStartPos);
   nsDependentCSubstring(const abstract_string_type& aStr,
-                        uint32_t aStartPos, uint32_t aLength);
+                        PRUint32 aStartPos, PRUint32 aLength);
 
-  void Rebind(const char_type *aStart, uint32_t aLength)
+  void Rebind(const char_type *aStart, PRUint32 aLength)
   {
     NS_CStringContainerFinish(*this);
     NS_CStringContainerInit2(*this, aStart, aLength,
@@ -1289,13 +1273,13 @@ private:
 
 // PRUnichar
 inline const nsDependentSubstring
-Substring( const nsAString& str, uint32_t startPos )
+Substring( const nsAString& str, PRUint32 startPos )
 {
   return nsDependentSubstring(str, startPos);
 }
 
 inline const nsDependentSubstring
-Substring( const nsAString& str, uint32_t startPos, uint32_t length )
+Substring( const nsAString& str, PRUint32 startPos, PRUint32 length )
 {
   return nsDependentSubstring(str, startPos, length);
 }
@@ -1303,37 +1287,37 @@ Substring( const nsAString& str, uint32_t startPos, uint32_t length )
 inline const nsDependentSubstring
 Substring( const PRUnichar* start, const PRUnichar* end )
 {
-  NS_ABORT_IF_FALSE(uint32_t(end - start) == uintptr_t(end - start), "string too long");
-  return nsDependentSubstring(start, uint32_t(end - start));
+  NS_ABORT_IF_FALSE(PRUint32(end - start) == uintptr_t(end - start), "string too long");
+  return nsDependentSubstring(start, PRUint32(end - start));
 }
 
 inline const nsDependentSubstring
-Substring( const PRUnichar* start, uint32_t length )
+Substring( const PRUnichar* start, PRUint32 length )
 {
   return nsDependentSubstring(start, length);
 }
 
 inline const nsDependentSubstring
-StringHead( const nsAString& str, uint32_t count )
+StringHead( const nsAString& str, PRUint32 count )
 {
   return nsDependentSubstring(str, 0, count);
 }
 
 inline const nsDependentSubstring
-StringTail( const nsAString& str, uint32_t count )
+StringTail( const nsAString& str, PRUint32 count )
 {
   return nsDependentSubstring(str, str.Length() - count, count);
 }
 
 // char
 inline const nsDependentCSubstring
-Substring( const nsACString& str, uint32_t startPos )
+Substring( const nsACString& str, PRUint32 startPos )
 {
   return nsDependentCSubstring(str, startPos);
 }
 
 inline const nsDependentCSubstring
-Substring( const nsACString& str, uint32_t startPos, uint32_t length )
+Substring( const nsACString& str, PRUint32 startPos, PRUint32 length )
 {
   return nsDependentCSubstring(str, startPos, length);
 }
@@ -1342,25 +1326,25 @@ inline
 const nsDependentCSubstring
 Substring( const char* start, const char* end )
 {
-  NS_ABORT_IF_FALSE(uint32_t(end - start) == uintptr_t(end - start), "string too long");
-  return nsDependentCSubstring(start, uint32_t(end - start));
+  NS_ABORT_IF_FALSE(PRUint32(end - start) == uintptr_t(end - start), "string too long");
+  return nsDependentCSubstring(start, PRUint32(end - start));
 }
 
 inline
 const nsDependentCSubstring
-Substring( const char* start, uint32_t length )
+Substring( const char* start, PRUint32 length )
 {
   return nsDependentCSubstring(start, length);
 }
 
 inline const nsDependentCSubstring
-StringHead( const nsACString& str, uint32_t count )
+StringHead( const nsACString& str, PRUint32 count )
 {
   return nsDependentCSubstring(str, 0, count);
 }
 
 inline const nsDependentCSubstring
-StringTail( const nsACString& str, uint32_t count )
+StringTail( const nsACString& str, PRUint32 count )
 {
   return nsDependentCSubstring(str, str.Length() - count, count);
 }
@@ -1412,16 +1396,16 @@ CompressWhitespace(nsAString& aString);
  * Convert an ASCII string to all upper/lowercase (a-z,A-Z only). As a bonus,
  * returns the string length.
  */
-NS_HIDDEN_(uint32_t)
+NS_HIDDEN_(PRUint32)
 ToLowerCase(nsACString& aStr);
 
-NS_HIDDEN_(uint32_t)
+NS_HIDDEN_(PRUint32)
 ToUpperCase(nsACString& aStr);
 
-NS_HIDDEN_(uint32_t)
+NS_HIDDEN_(PRUint32)
 ToLowerCase(const nsACString& aSrc, nsACString& aDest);
 
-NS_HIDDEN_(uint32_t)
+NS_HIDDEN_(PRUint32)
 ToUpperCase(const nsACString& aSrc, nsACString& aDest);
 
 /**
@@ -1445,13 +1429,10 @@ ToNewUnicode(const nsAString& aStr)
 typedef nsString PromiseFlatString;
 typedef nsCString PromiseFlatCString;
 
-typedef nsCString nsAutoCString;
+typedef nsCString nsCAutoString;
 typedef nsString nsAutoString;
 
 NS_HIDDEN_(bool) ParseString(const nsACString& aAstring, char aDelimiter, 
                                nsTArray<nsCString>& aArray);
-
-/* for back compatibility for pre-name-change code */
-typedef nsAutoCString nsCAutoString;
 
 #endif // nsStringAPI_h__

@@ -269,12 +269,12 @@ nsHttp::FindToken(const char *input, const char *token, const char *seps)
 }
 
 bool
-nsHttp::ParseInt64(const char *input, const char **next, int64_t *r)
+nsHttp::ParseInt64(const char *input, const char **next, PRInt64 *r)
 {
     const char *start = input;
     *r = 0;
     while (*input >= '0' && *input <= '9') {
-        int64_t next = 10 * (*r) + (*input - '0');
+        PRInt64 next = 10 * (*r) + (*input - '0');
         if (next < *r) // overflow?
             return false;
         *r = next;
@@ -286,39 +286,3 @@ nsHttp::ParseInt64(const char *input, const char **next, int64_t *r)
         *next = input;
     return true;
 }
-
-bool
-nsHttp::IsPermanentRedirect(uint32_t httpStatus)
-{
-  return httpStatus == 301 || httpStatus == 308;
-}
-
-bool
-nsHttp::ShouldRewriteRedirectToGET(uint32_t httpStatus, nsHttpAtom method)
-{
-  // for 301 and 302, only rewrite POST
-  if (httpStatus == 301 || httpStatus == 302)
-    return method == nsHttp::Post;
-
-  // rewrite for 303 unless it was HEAD
-  if (httpStatus == 303)
-    return method != nsHttp::Head;
-
-  // otherwise, such as for 307, do not rewrite
-  return false;
-}
-
-bool
-nsHttp::IsSafeMethod(nsHttpAtom method)
-{
-  // This code will need to be extended for new safe methods, otherwise
-  // they'll default to "not safe".
-  return method == nsHttp::Get ||
-         method == nsHttp::Head ||
-         method == nsHttp::Options ||
-         method == nsHttp::Propfind ||
-         method == nsHttp::Report ||
-         method == nsHttp::Search ||
-         method == nsHttp::Trace;
-}
-

@@ -44,7 +44,7 @@ struct nsSortState
   bool sortStaticsLast;
   bool isContainerRDFSeq;
 
-  uint32_t sortHints;
+  PRUint32 sortHints;
 
   nsSortState_direction direction;
   nsAutoString sort;
@@ -152,7 +152,7 @@ public:
    */
   nsresult
   InvertSortInfo(nsTArray<contentSortInfo>& aData,
-                 int32_t aStart, int32_t aNumItems);
+                 PRInt32 aStart, PRInt32 aNumItems);
 
   /**
    * Initialize sort information from attributes specified on the container,
@@ -175,7 +175,7 @@ public:
    * Compares aLeft and aRight and returns < 0, 0, or > 0. The sort
    * hints are checked for case matching and integer sorting.
    */
-  static int32_t CompareValues(const nsAString& aLeft,
+  static PRInt32 CompareValues(const nsAString& aLeft,
                                const nsAString& aRight,
-                               uint32_t aSortHints);
+                               PRUint32 aSortHints);
 };

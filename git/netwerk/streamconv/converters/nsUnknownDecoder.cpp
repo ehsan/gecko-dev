@@ -110,15 +110,15 @@ NS_IMETHODIMP
 nsUnknownDecoder::OnDataAvailable(nsIRequest* request, 
                                   nsISupports *aCtxt,
                                   nsIInputStream *aStream, 
-                                  uint64_t aSourceOffset, 
-                                  uint32_t aCount)
+                                  PRUint32 aSourceOffset, 
+                                  PRUint32 aCount)
 {
   nsresult rv = NS_OK;
 
   if (!mNextListener) return NS_ERROR_FAILURE;
 
   if (mContentType.IsEmpty()) {
-    uint32_t count, len;
+    PRUint32 count, len;
 
     // If the buffer has not been allocated by now, just fail...
     if (!mBuffer) return NS_ERROR_OUT_OF_MEMORY;
@@ -227,8 +227,8 @@ nsUnknownDecoder::OnStopRequest(nsIRequest* request, nsISupports *aCtxt,
 // ----
 NS_IMETHODIMP
 nsUnknownDecoder::GetMIMETypeFromContent(nsIRequest* aRequest,
-                                         const uint8_t* aData,
-                                         uint32_t aLength,
+                                         const PRUint8* aData,
+                                         PRUint32 aLength,
                                          nsACString& type)
 {
   mBuffer = const_cast<char*>(reinterpret_cast<const char*>(aData));
@@ -298,7 +298,7 @@ nsUnknownDecoder::nsSnifferEntry nsUnknownDecoder::sSnifferEntries[] = {
   SNIFFER_ENTRY_WITH_FUNC("<?xml", &nsUnknownDecoder::SniffForXML)
 };
 
-uint32_t nsUnknownDecoder::sSnifferEntryNum =
+PRUint32 nsUnknownDecoder::sSnifferEntryNum =
   sizeof(nsUnknownDecoder::sSnifferEntries) /
     sizeof(nsUnknownDecoder::nsSnifferEntry);
 
@@ -309,15 +309,15 @@ void nsUnknownDecoder::DetermineContentType(nsIRequest* aRequest)
 
   // First, run through all the types we can detect reliably based on
   // magic numbers
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < sSnifferEntryNum; ++i) {
     if (mBufferLen >= sSnifferEntries[i].mByteLen &&  // enough data
         memcmp(mBuffer, sSnifferEntries[i].mBytes, sSnifferEntries[i].mByteLen) == 0) {  // and type matches
       NS_ASSERTION(sSnifferEntries[i].mMimeType ||
                    sSnifferEntries[i].mContentTypeSniffer,
                    "Must have either a type string or a function to set the type");
-      NS_ASSERTION(!sSnifferEntries[i].mMimeType ||
-                   !sSnifferEntries[i].mContentTypeSniffer,
+      NS_ASSERTION(sSnifferEntries[i].mMimeType == nullptr ||
+                   sSnifferEntries[i].mContentTypeSniffer == nullptr,
                    "Both a type string and a type sniffing function set;"
                    " using type string");
       if (sSnifferEntries[i].mMimeType) {
@@ -381,7 +381,7 @@ bool nsUnknownDecoder::TryContentSniffers(nsIRequest* aRequest)
 
     nsCOMPtr<nsISupportsCString> sniffer_id(do_QueryInterface(elem));
     NS_ASSERTION(sniffer_id, "element is no nsISupportsCString!?");
-    nsAutoCString contractid;
+    nsCAutoString contractid;
     nsresult rv = sniffer_id->GetData(contractid);
     if (NS_FAILED(rv)) {
       continue;
@@ -392,7 +392,7 @@ bool nsUnknownDecoder::TryContentSniffers(nsIRequest* aRequest)
       continue;
     }
 
-    rv = sniffer->GetMIMETypeFromContent(aRequest, (const uint8_t*)mBuffer,
+    rv = sniffer->GetMIMETypeFromContent(aRequest, (const PRUint8*)mBuffer,
                                          mBufferLen, mContentType);
     if (NS_SUCCEEDED(rv)) {
       return true;
@@ -433,7 +433,7 @@ bool nsUnknownDecoder::SniffForHTML(nsIRequest* aRequest)
     return true;
   }
   
-  uint32_t bufSize = end - str;
+  PRUint32 bufSize = end - str;
   // We use sizeof(_tagstr) below because that's the length of _tagstr
   // with the one char " " or ">" appended.
 #define MATCHES_TAG(_tagstr)                                              \
@@ -505,7 +505,7 @@ bool nsUnknownDecoder::SniffURI(nsIRequest* aRequest)
       nsCOMPtr<nsIURI> uri;
       nsresult result = channel->GetURI(getter_AddRefs(uri));
       if (NS_SUCCEEDED(result) && uri) {
-        nsAutoCString type;
+        nsCAutoString type;
         result = mimeService->GetTypeFromURI(uri, type);
         if (NS_SUCCEEDED(result)) {
           mContentType = type;
@@ -548,10 +548,8 @@ bool nsUnknownDecoder::LastDitchSniff(nsIRequest* aRequest)
   // Now see whether the buffer has any non-text chars.  If not, then let's
   // just call it text/plain...
   //
-  uint32_t i;
-  for (i = 0; i < mBufferLen && IS_TEXT_CHAR(mBuffer[i]); i++) {
-    continue;
-  }
+  PRUint32 i;
+  for (i=0; i<mBufferLen && IS_TEXT_CHAR(mBuffer[i]); i++);
 
   if (i == mBufferLen) {
     mContentType = TEXT_PLAIN;
@@ -608,7 +606,7 @@ nsresult nsUnknownDecoder::FireListenerNotifications(nsIRequest* request,
   // Fire the first OnDataAvailable for the data that was read from the
   // stream into the sniffer buffer...
   if (NS_SUCCEEDED(rv) && (mBufferLen > 0)) {
-    uint32_t len = 0;
+    PRUint32 len = 0;
     nsCOMPtr<nsIInputStream> in;
     nsCOMPtr<nsIOutputStream> out;
 
@@ -645,10 +643,10 @@ nsBinaryDetector::DetermineContentType(nsIRequest* aRequest)
   }
 
   // It's an HTTP channel.  Check for the text/plain mess
-  nsAutoCString contentTypeHdr;
+  nsCAutoString contentTypeHdr;
   httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Type"),
                                  contentTypeHdr);
-  nsAutoCString contentType;
+  nsCAutoString contentType;
   httpChannel->GetContentType(contentType);
 
   // Make sure to do a case-sensitive exact match comparison here.  Apache
@@ -670,7 +668,7 @@ nsBinaryDetector::DetermineContentType(nsIRequest* aRequest)
   // detect the type.
   // XXXbz we could improve this by doing a local decompress if we
   // wanted, I'm sure.  
-  nsAutoCString contentEncoding;
+  nsCAutoString contentEncoding;
   httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Encoding"),
                                  contentEncoding);
   if (!contentEncoding.IsEmpty()) {

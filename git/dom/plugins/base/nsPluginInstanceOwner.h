@@ -7,16 +7,23 @@
 #ifndef nsPluginInstanceOwner_h_
 #define nsPluginInstanceOwner_h_
 
+#include "prtypes.h"
 #include "npapi.h"
 #include "nsCOMPtr.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsIPluginTagInfo.h"
 #include "nsIPrivacyTransitionObserver.h"
 #include "nsIDOMEventListener.h"
+#include "nsIScrollPositionListener.h"
 #include "nsPluginHost.h"
 #include "nsPluginNativeWindow.h"
 #include "nsWeakReference.h"
 #include "gfxRect.h"
+
+// X.h defines KeyPress
+#ifdef KeyPress
+#undef KeyPress
+#endif
 
 #ifdef XP_MACOSX
 #include "mozilla/gfx/QuartzSupport.h"
@@ -44,9 +51,15 @@ class gfxXlibSurface;
 #include <os2.h>
 #endif
 
+// X.h defines KeyPress
+#ifdef KeyPress
+#undef KeyPress
+#endif
+
 class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
                               public nsIPluginTagInfo,
                               public nsIDOMEventListener,
+                              public nsIScrollPositionListener,
                               public nsIPrivacyTransitionObserver,
                               public nsSupportsWeakReference
 {
@@ -60,7 +73,7 @@ public:
   
   NS_IMETHOD GetURL(const char *aURL, const char *aTarget,
                     nsIInputStream *aPostStream, 
-                    void *aHeadersData, uint32_t aHeadersDataLen);
+                    void *aHeadersData, PRUint32 aHeadersDataLen);
   
   NS_IMETHOD ShowStatus(const PRUnichar *aStatusMsg);
   
@@ -80,8 +93,8 @@ public:
   // nsIDOMEventListener interfaces 
   NS_DECL_NSIDOMEVENTLISTENER
   
-  nsresult ProcessMouseDown(nsIDOMEvent* aKeyEvent);
-  nsresult ProcessKeyPress(nsIDOMEvent* aKeyEvent);
+  nsresult MouseDown(nsIDOMEvent* aKeyEvent);
+  nsresult KeyPress(nsIDOMEvent* aKeyEvent);
 #if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
   nsresult Text(nsIDOMEvent* aTextEvent);
 #endif
@@ -101,7 +114,17 @@ public:
 #elif defined(XP_OS2)
   void Paint(const nsRect& aDirtyRect, HPS aHPS);
 #endif
-
+  
+#ifdef MAC_CARBON_PLUGINS
+  void CancelTimer();
+  void StartTimer(bool isVisible);
+#endif
+  void SendIdleEvent();
+  
+  // nsIScrollPositionListener interface
+  virtual void ScrollPositionWillChange(nscoord aX, nscoord aY);
+  virtual void ScrollPositionDidChange(nscoord aX, nscoord aY);
+  
   //locals
   
   nsresult Init(nsIContent* aContent);
@@ -116,13 +139,12 @@ public:
   
   NPDrawingModel GetDrawingModel();
   bool IsRemoteDrawingCoreAnimation();
-  nsresult ContentsScaleFactorChanged(double aContentsScaleFactor);
   NPEventModel GetEventModel();
   static void CARefresh(nsITimer *aTimer, void *aClosure);
   void AddToCARefreshTimer();
   void RemoveFromCARefreshTimer();
   // This calls into the plugin (NPP_SetWindow) and can run script.
-  void* FixUpPluginWindow(int32_t inPaintState);
+  void* FixUpPluginWindow(PRInt32 inPaintState);
   void HidePluginWindow();
   // Set a flag that (if true) indicates the plugin port info has changed and
   // SetWindow() needs to be called.
@@ -151,14 +173,14 @@ public:
   void SetFrame(nsObjectFrame *aFrame);
   nsObjectFrame* GetFrame();
 
-  uint32_t GetLastEventloopNestingLevel() const {
+  PRUint32 GetLastEventloopNestingLevel() const {
     return mLastEventloopNestingLevel; 
   }
   
-  static uint32_t GetEventloopNestingLevel();
+  static PRUint32 GetEventloopNestingLevel();
   
   void ConsiderNewEventloopNestingLevel() {
-    uint32_t currentLevel = GetEventloopNestingLevel();
+    PRUint32 currentLevel = GetEventloopNestingLevel();
     
     if (currentLevel < mLastEventloopNestingLevel) {
       mLastEventloopNestingLevel = currentLevel;
@@ -236,6 +258,8 @@ public:
   void GetVideos(nsTArray<nsNPAPIPluginInstance::VideoInfo*>& aVideos);
   already_AddRefed<ImageContainer> GetImageContainerForVideo(nsNPAPIPluginInstance::VideoInfo* aVideoInfo);
 
+  nsIntRect GetVisibleRect();
+
   void Invalidate();
 
   void RequestFullScreen();
@@ -277,7 +301,10 @@ private:
   
 #ifdef XP_MACOSX
   NP_CGContext                              mCGPluginPortCopy;
-  int32_t                                   mInCGPaintLevel;
+#ifndef NP_NO_QUICKDRAW
+  NP_Port                                   mQDPluginPortCopy;
+#endif
+  PRInt32                                   mInCGPaintLevel;
   mozilla::RefPtr<MacIOSurface>             mIOSurface;
   mozilla::RefPtr<nsCARenderer>             mCARenderer;
   CGColorSpaceRef                           mColorProfile;
@@ -289,7 +316,7 @@ private:
   // Initially, the event loop nesting level we were created on, it's updated
   // if we detect the appshell is on a lower level as long as we're not stopped.
   // We delay DoStopPlugin() until the appshell reaches this level or lower.
-  uint32_t                    mLastEventloopNestingLevel;
+  PRUint32                    mLastEventloopNestingLevel;
   bool                        mContentFocused;
   bool                        mWidgetVisible;    // used on Mac to store our widget's visible state
 #ifdef XP_MACOSX
@@ -302,8 +329,8 @@ private:
   bool                        mPluginWindowVisible;
   bool                        mPluginDocumentActiveState;
 
-  uint16_t          mNumCachedAttrs;
-  uint16_t          mNumCachedParams;
+  PRUint16          mNumCachedAttrs;
+  PRUint16          mNumCachedParams;
   char              **mCachedAttrParamNames;
   char              **mCachedAttrParamValues;
   
@@ -340,7 +367,7 @@ private:
     mPluginSize(aPluginSize), mDirtyRect(aDirtyRect)
     {}
     virtual nsresult DrawWithXlib(gfxXlibSurface* surface, nsIntPoint offset, 
-                                  nsIntRect* clipRects, uint32_t numClipRects);
+                                  nsIntRect* clipRects, PRUint32 numClipRects);
   private:
     NPWindow* mWindow;
     nsPluginInstanceOwner* mInstanceOwner;

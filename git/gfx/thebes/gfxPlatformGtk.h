@@ -35,7 +35,7 @@ public:
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
                                                          gfxASurface::gfxContentType contentType);
 
-    mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
+    mozilla::RefPtr<mozilla::gfx::ScaledFont>
       GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
 
     nsresult GetFontList(nsIAtom *aLangGroup,
@@ -67,21 +67,21 @@ public:
      *
      */
     virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           const uint8_t *aFontData,
-                                           uint32_t aLength);
+                                           const PRUint8 *aFontData,
+                                           PRUint32 aLength);
 
     /**
      * Check whether format is supported on a platform or not (if unclear,
      * returns true).
      */
     virtual bool IsFontFormatSupported(nsIURI *aFontURI,
-                                         uint32_t aFormatFlags);
+                                         PRUint32 aFormatFlags);
 #endif
 
 #ifndef MOZ_PANGO
     FontFamily *FindFontFamily(const nsAString& aName);
     FontEntry *FindFontEntry(const nsAString& aFamilyName, const gfxFontStyle& aFontStyle);
-    already_AddRefed<gfxFont> FindFontForChar(uint32_t aCh, gfxFont *aFont);
+    already_AddRefed<gfxFont> FindFontForChar(PRUint32 aCh, gfxFont *aFont);
     bool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> > *aFontEntryList);
     void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& aFontEntryList);
 #endif
@@ -96,9 +96,9 @@ public:
     static GdkDrawable *GetGdkDrawable(gfxASurface *target);
 #endif
 
-    static int32_t GetDPI();
+    static PRInt32 GetDPI();
 
-    bool UseXRender() {
+    static bool UseXRender() {
 #if defined(MOZ_X11) && defined(MOZ_PLATFORM_MAEMO)
         // XRender is not accelerated on the Maemo at the moment, and 
         // X server pixman is out of our control; it's likely to be 
@@ -111,10 +111,6 @@ public:
         // this, we'll only disable this for maemo.
         return true;
 #elif defined(MOZ_X11)
-        if (GetContentBackend() != mozilla::gfx::BACKEND_NONE &&
-            GetContentBackend() != mozilla::gfx::BACKEND_CAIRO)
-            return false;
-
         return sUseXRender;
 #else
         return false;

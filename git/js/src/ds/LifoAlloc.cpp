@@ -7,6 +7,8 @@
 
 #include "LifoAlloc.h"
 
+#include <new>
+
 using namespace js;
 
 namespace js {
@@ -21,7 +23,7 @@ BumpChunk::new_(size_t chunkSize)
         return NULL;
     BumpChunk *result = new (mem) BumpChunk(chunkSize - sizeof(BumpChunk));
 
-    /*
+    /* 
      * We assume that the alignment of sAlign is less than that of
      * the underlying memory allocator -- creating a new BumpChunk should
      * always satisfy the sAlign alignment constraint.
@@ -140,12 +142,3 @@ LifoAlloc::transferUnusedFrom(LifoAlloc *other)
         other->last = other->latest;
     }
 }
-
-bool
-LifoAlloc::ensureUnusedApproximateSlow(size_t n)
-{
-    // This relies on the behavior that releasing a chunk does not immediately free it.
-    LifoAllocScope scope(this);
-    return !!getOrCreateChunk(n);
-}
-

@@ -50,8 +50,8 @@ public:
   NS_DECL_NSIOBSERVER
 
 private:
-  int32_t AddEnumerator(nsAppShellWindowEnumerator* inEnumerator);
-  int32_t RemoveEnumerator(nsAppShellWindowEnumerator* inEnumerator);
+  PRInt32 AddEnumerator(nsAppShellWindowEnumerator* inEnumerator);
+  PRInt32 RemoveEnumerator(nsAppShellWindowEnumerator* inEnumerator);
   nsWindowInfo *MostRecentWindowInfo(const PRUnichar* inType);
 
   nsresult      UnregisterWindow(nsWindowInfo *inInfo);
@@ -63,7 +63,7 @@ private:
   nsTArray<nsAppShellWindowEnumerator*> mEnumeratorList;
   nsWindowInfo *mOldestWindow;
   nsWindowInfo *mTopmostWindow;
-  int32_t       mTimeStamp;
+  PRInt32       mTimeStamp;
   bool          mSortingZOrder;
   bool          mReady;
   mozilla::Mutex mListLock;

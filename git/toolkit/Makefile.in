@@ -10,11 +10,9 @@ VPATH     = @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 PARALLEL_DIRS = \
-  addon-sdk \
   components \
   content \
   devtools \
-  forgetaboutsite \
   identity \
   locales \
   mozapps/downloads \

@@ -37,10 +37,6 @@ public:
   OrientationObserver();
   ~OrientationObserver();
 
-  // Call DisableAutoOrientation on the existing OrientatiOnobserver singleton,
-  // if it exists.  If no OrientationObserver exists, do nothing.
-  static void ShutDown();
-
   // Notification from sensor.
   void Notify(const SensorData& aSensorData);
 
@@ -57,15 +53,13 @@ public:
 private:
   bool mAutoOrientationEnabled;
   PRTime mLastUpdate;
-  uint32_t mAllowedOrientations;
+  PRUint32 mAllowedOrientations;
 
   // 200 ms, the latency which is barely perceptible by human.
   static const PRTime sMinUpdateInterval = 200 * PR_USEC_PER_MSEC;
-  static const uint32_t sDefaultOrientations =
-      mozilla::dom::eScreenOrientation_PortraitPrimary |
-      mozilla::dom::eScreenOrientation_PortraitSecondary |
-      mozilla::dom::eScreenOrientation_LandscapePrimary |
-      mozilla::dom::eScreenOrientation_LandscapeSecondary;
+  static const PRUint32 sDefaultOrientations =
+      mozilla::dom::eScreenOrientation_Portrait |
+      mozilla::dom::eScreenOrientation_Landscape;
 };
 
 #endif

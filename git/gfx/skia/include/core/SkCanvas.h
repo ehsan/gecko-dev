@@ -26,7 +26,6 @@ class SkDevice;
 class SkDraw;
 class SkDrawFilter;
 class SkPicture;
-class SkSurface_Base;
 
 /** \class SkCanvas
 
@@ -45,8 +44,6 @@ class SkSurface_Base;
 */
 class SK_API SkCanvas : public SkRefCnt {
 public:
-    SK_DECLARE_INST_COUNT(SkCanvas)
-
     SkCanvas();
 
     /** Construct a canvas with the specified device to draw into.
@@ -387,15 +384,33 @@ public:
         return this->clipRegion(deviceRgn, SkRegion::kReplace_Op);
     }
 
+    /** Enum describing how to treat edges when performing quick-reject tests
+        of a geometry against the current clip. Treating them as antialiased
+        (kAA_EdgeType) will take into account the extra pixels that may be drawn
+        if the edge does not lie exactly on a device pixel boundary (after being
+        transformed by the current matrix).
+    */
+    enum EdgeType {
+        /** Treat the edges as B&W (not antialiased) for the purposes of testing
+            against the current clip
+        */
+        kBW_EdgeType,
+        /** Treat the edges as antialiased for the purposes of testing
+            against the current clip
+        */
+        kAA_EdgeType
+    };
+
     /** Return true if the specified rectangle, after being transformed by the
         current matrix, would lie completely outside of the current clip. Call
         this to check if an area you intend to draw into is clipped out (and
         therefore you can skip making the draw calls).
         @param rect the rect to compare with the current clip
+        @param et  specifies how to treat the edges (see EdgeType)
         @return true if the rect (transformed by the canvas' matrix) does not
                      intersect with the canvas' clip
     */
-    bool quickReject(const SkRect& rect) const;
+    bool quickReject(const SkRect& rect, EdgeType et) const;
 
     /** Return true if the specified path, after being transformed by the
         current matrix, would lie completely outside of the current clip. Call
@@ -404,10 +419,11 @@ public:
         return false even if the path itself might not intersect the clip
         (i.e. the bounds of the path intersects, but the path does not).
         @param path The path to compare with the current clip
+        @param et  specifies how to treat the edges (see EdgeType)
         @return true if the path (transformed by the canvas' matrix) does not
                      intersect with the canvas' clip
     */
-    bool quickReject(const SkPath& path) const;
+    bool quickReject(const SkPath& path, EdgeType et) const;
 
     /** Return true if the horizontal band specified by top and bottom is
         completely clipped out. This is a conservative calculation, meaning
@@ -419,9 +435,9 @@ public:
         @return true if the horizontal band is completely clipped out (i.e. does
                      not intersect the current clip)
     */
-    bool quickRejectY(SkScalar top, SkScalar bottom) const {
+    bool quickRejectY(SkScalar top, SkScalar bottom, EdgeType et) const {
         SkASSERT(SkScalarToCompareType(top) <= SkScalarToCompareType(bottom));
-        const SkRectCompareType& clipR = this->getLocalClipBoundsCompareType();
+        const SkRectCompareType& clipR = this->getLocalClipBoundsCompareType(et);
         // In the case where the clip is empty and we are provided with a
         // negative top and positive bottom parameter then this test will return
         // false even though it will be clipped. We have chosen to exclude that
@@ -435,7 +451,7 @@ public:
         in a way similar to quickReject, in that it tells you that drawing
         outside of these bounds will be clipped out.
     */
-    bool getClipBounds(SkRect* bounds) const;
+    bool getClipBounds(SkRect* bounds, EdgeType et = kAA_EdgeType) const;
 
     /** Return the bounds of the current clip, in device coordinates; returns
         true if non-empty. Maybe faster than getting the clip explicitly and
@@ -870,20 +886,10 @@ public:
      */
     const SkRegion& getTotalClip() const;
 
-    /** Return the clip stack. The clip stack stores all the individual
-     *  clips organized by the save/restore frame in which they were
-     *  added.
-     *  @return the current clip stack ("list" of individual clip elements)
-     */
-    const SkClipStack* getClipStack() const {
-        return &fClipStack;
-    }
-
     void setExternalMatrix(const SkMatrix* = NULL);
 
     class ClipVisitor {
     public:
-        virtual ~ClipVisitor();
         virtual void clipRect(const SkRect&, SkRegion::Op, bool antialias) = 0;
         virtual void clipPath(const SkPath&, SkRegion::Op, bool antialias) = 0;
     };
@@ -951,10 +957,6 @@ protected:
     bool clipRectBounds(const SkRect* bounds, SaveFlags flags,
                         SkIRect* intersection);
 
-    // notify our surface (if we have one) that we are about to draw, so it
-    // can perform copy-on-write or invalidate any cached images
-    void predrawNotify();
-
 private:
     class MCRec;
 
@@ -969,14 +971,8 @@ private:
     SkDevice*   fLastDeviceToGainFocus;
     int         fSaveLayerCount;    // number of successful saveLayer calls
 
-    SkSurface_Base*  fSurfaceBase;
-    SkSurface_Base* getSurfaceBase() const { return fSurfaceBase; }
-    void setSurfaceBase(SkSurface_Base* sb) {
-        fSurfaceBase = sb;
-    }
-    friend class SkSurface_Base;
-
-    void prepareForDeviceDraw(SkDevice*, const SkMatrix&, const SkRegion&);
+    void prepareForDeviceDraw(SkDevice*, const SkMatrix&, const SkRegion&,
+                              const SkClipStack& clipStack);
 
     bool fDeviceCMDirty;            // cleared by updateDeviceCMCache()
     void updateDeviceCMCache();
@@ -1017,14 +1013,31 @@ private:
     mutable SkRectCompareType fLocalBoundsCompareType;
     mutable bool              fLocalBoundsCompareTypeDirty;
 
+    mutable SkRectCompareType fLocalBoundsCompareTypeBW;
+    mutable bool              fLocalBoundsCompareTypeDirtyBW;
+
+    /* Get the local clip bounds with an anti-aliased edge.
+     */
     const SkRectCompareType& getLocalClipBoundsCompareType() const {
-        if (fLocalBoundsCompareTypeDirty) {
-            this->computeLocalClipBoundsCompareType();
-            fLocalBoundsCompareTypeDirty = false;
-        }
-        return fLocalBoundsCompareType;
+        return getLocalClipBoundsCompareType(kAA_EdgeType);
     }
-    void computeLocalClipBoundsCompareType() const;
+
+    const SkRectCompareType& getLocalClipBoundsCompareType(EdgeType et) const {
+        if (et == kAA_EdgeType) {
+            if (fLocalBoundsCompareTypeDirty) {
+                this->computeLocalClipBoundsCompareType(et);
+                fLocalBoundsCompareTypeDirty = false;
+            }
+            return fLocalBoundsCompareType;
+        } else {
+            if (fLocalBoundsCompareTypeDirtyBW) {
+                this->computeLocalClipBoundsCompareType(et);
+                fLocalBoundsCompareTypeDirtyBW = false;
+            }
+            return fLocalBoundsCompareTypeBW;
+        }
+    }
+    void computeLocalClipBoundsCompareType(EdgeType et) const;
 
     SkMatrix    fExternalMatrix, fExternalInverse;
     bool        fUseExternalMatrix;
@@ -1045,8 +1058,6 @@ private:
 #else
     void validateClip() const {}
 #endif
-
-    typedef SkRefCnt INHERITED;
 };
 
 /** Stack helper class to automatically call restoreToCount() on the canvas

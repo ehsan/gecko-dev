@@ -5,7 +5,7 @@
 "use strict";
 
 browserElementTestHelpers.setEnabledPref(true);
-browserElementTestHelpers.addPermission();
+browserElementTestHelpers.addToWhitelist();
 
 var iframe;
 function runTest() {

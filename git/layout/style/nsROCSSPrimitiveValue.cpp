@@ -13,7 +13,7 @@
 #include "nsIDOMRect.h"
 #include "nsDOMClassInfoID.h" // DOMCI_DATA
 #include "nsIURI.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 nsROCSSPrimitiveValue::nsROCSSPrimitiveValue()
   : mType(CSS_PX)
@@ -75,7 +75,7 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
     case CSS_URI :
       {
         if (mValue.mURI) {
-          nsAutoCString specUTF8;
+          nsCAutoString specUTF8;
           mValue.mURI->GetSpec(specUTF8);
 
           tmpStr.AssignLiteral("url(");
@@ -83,11 +83,9 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
                                               tmpStr);
           tmpStr.AppendLiteral(")");
         } else {
-          // http://dev.w3.org/csswg/css3-values/#attr defines
-          // 'about:invalid' as the default value for url attributes,
-          // so let's also use it here as the default computed value
-          // for invalid URLs.
-          tmpStr.Assign(NS_LITERAL_STRING("url(about:invalid)"));
+          // XXXldb Any better ideas?  It's good to have something that
+          // doesn't parse so that things round-trip "correctly".
+          tmpStr.Assign(NS_LITERAL_STRING("url(invalid-url:)"));
         }
         break;
       }
@@ -244,7 +242,7 @@ nsROCSSPrimitiveValue::SetCssText(const nsAString& aCssText)
 
 
 NS_IMETHODIMP
-nsROCSSPrimitiveValue::GetCssValueType(uint16_t* aValueType)
+nsROCSSPrimitiveValue::GetCssValueType(PRUint16* aValueType)
 {
   NS_ENSURE_ARG_POINTER(aValueType);
   *aValueType = nsIDOMCSSValue::CSS_PRIMITIVE_VALUE;
@@ -255,7 +253,7 @@ nsROCSSPrimitiveValue::GetCssValueType(uint16_t* aValueType)
 // nsIDOMCSSPrimitiveValue
 
 NS_IMETHODIMP
-nsROCSSPrimitiveValue::GetPrimitiveType(uint16_t* aPrimitiveType)
+nsROCSSPrimitiveValue::GetPrimitiveType(PRUint16* aPrimitiveType)
 {
   NS_ENSURE_ARG_POINTER(aPrimitiveType);
   *aPrimitiveType = mType;
@@ -265,14 +263,14 @@ nsROCSSPrimitiveValue::GetPrimitiveType(uint16_t* aPrimitiveType)
 
 
 NS_IMETHODIMP
-nsROCSSPrimitiveValue::SetFloatValue(uint16_t aUnitType, float aFloatValue)
+nsROCSSPrimitiveValue::SetFloatValue(PRUint16 aUnitType, float aFloatValue)
 {
   return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
 }
 
 
 NS_IMETHODIMP
-nsROCSSPrimitiveValue::GetFloatValue(uint16_t aUnitType, float* aReturn)
+nsROCSSPrimitiveValue::GetFloatValue(PRUint16 aUnitType, float* aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = 0;
@@ -348,7 +346,7 @@ nsROCSSPrimitiveValue::GetFloatValue(uint16_t aUnitType, float* aReturn)
 
 
 NS_IMETHODIMP
-nsROCSSPrimitiveValue::SetStringValue(uint16_t aStringType,
+nsROCSSPrimitiveValue::SetStringValue(PRUint16 aStringType,
                                       const nsAString& aStringValue)
 {
   return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
@@ -367,7 +365,7 @@ nsROCSSPrimitiveValue::GetStringValue(nsAString& aReturn)
       aReturn.Assign(mValue.mString);
       break;
     case CSS_URI: {
-      nsAutoCString spec;
+      nsCAutoString spec;
       if (mValue.mURI)
         mValue.mURI->GetSpec(spec);
       CopyUTF8toUTF16(spec, aReturn);
@@ -421,7 +419,7 @@ nsROCSSPrimitiveValue::SetNumber(float aValue)
 }
 
 void
-nsROCSSPrimitiveValue::SetNumber(int32_t aValue)
+nsROCSSPrimitiveValue::SetNumber(PRInt32 aValue)
 {
   Reset();
   mValue.mFloat = float(aValue);
@@ -429,7 +427,7 @@ nsROCSSPrimitiveValue::SetNumber(int32_t aValue)
 }
 
 void
-nsROCSSPrimitiveValue::SetNumber(uint32_t aValue)
+nsROCSSPrimitiveValue::SetNumber(PRUint32 aValue)
 {
   Reset();
   mValue.mFloat = float(aValue);
@@ -471,7 +469,7 @@ nsROCSSPrimitiveValue::SetIdent(nsCSSKeyword aKeyword)
 
 // FIXME: CSS_STRING should imply a string with "" and a need for escaping.
 void
-nsROCSSPrimitiveValue::SetString(const nsACString& aString, uint16_t aType)
+nsROCSSPrimitiveValue::SetString(const nsACString& aString, PRUint16 aType)
 {
   Reset();
   mValue.mString = ToNewUnicode(aString);
@@ -485,7 +483,7 @@ nsROCSSPrimitiveValue::SetString(const nsACString& aString, uint16_t aType)
 
 // FIXME: CSS_STRING should imply a string with "" and a need for escaping.
 void
-nsROCSSPrimitiveValue::SetString(const nsAString& aString, uint16_t aType)
+nsROCSSPrimitiveValue::SetString(const nsAString& aString, PRUint16 aType)
 {
   Reset();
   mValue.mString = ToNewUnicode(aString);

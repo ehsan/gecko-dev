@@ -6,7 +6,7 @@
 #ifndef mozilla_RegistryMessageUtils_h
 #define mozilla_RegistryMessageUtils_h
 
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
 #include "nsStringGlue.h"
 
 struct SerializedURI
@@ -21,7 +21,7 @@ struct ChromePackage
   SerializedURI contentBaseURI;
   SerializedURI localeBaseURI;
   SerializedURI skinBaseURI;
-  uint32_t flags;
+  PRUint32 flags;
 };
 
 struct ResourceMapping
@@ -80,7 +80,7 @@ struct ParamTraits<ChromePackage>
   {
     nsCString package;
     SerializedURI contentBaseURI, localeBaseURI, skinBaseURI;
-    uint32_t flags;
+    PRUint32 flags;
     
     if (ReadParam(aMsg, aIter, &package) &&
         ReadParam(aMsg, aIter, &contentBaseURI) &&

@@ -43,30 +43,6 @@ wrap(_ZdaPv)(void *ptr)
 {
   wrap(free)(ptr);
 }
-/*operator new(unsigned int, std::nothrow_t const&)*/
-MOZ_EXPORT_API(void *)
-wrap(_ZnwjRKSt9nothrow_t)(unsigned int size)
-{
-  return wrap(malloc)(size);
-}
-/*operator new[](unsigned int, std::nothrow_t const&)*/
-MOZ_EXPORT_API(void *)
-wrap(_ZnajRKSt9nothrow_t)(unsigned int size)
-{
-  return wrap(malloc)(size);
-}
-/* operator delete(void*, std::nothrow_t const&) */
-MOZ_EXPORT_API(void)
-wrap(_ZdlPvRKSt9nothrow_t)(void *ptr)
-{
-  wrap(free)(ptr);
-}
-/* operator delete[](void*, std::nothrow_t const&) */
-MOZ_EXPORT_API(void)
-wrap(_ZdaPvRKSt9nothrow_t)(void *ptr)
-{
-  wrap(free)(ptr);
-}
 #endif
 
 #ifdef wrap
@@ -118,16 +94,8 @@ wrap(wcsdup)(const wchar_t *src)
 #endif
 
 #ifdef MOZ_JEMALLOC
-
-#undef wrap
-#if defined(MOZ_NATIVE_JEMALLOC)
-#define wrap(a) a
-#else
-#define wrap(a) je_ ## a
-#endif
-
 /* Override some jemalloc defaults */
-MOZ_EXPORT_DATA(const char *) wrap(malloc_conf) = "narenas:1,lg_chunk:20";
+const char *je_malloc_conf = "narenas:1,lg_chunk:20";
 
 #ifdef ANDROID
 #include <android/log.h>

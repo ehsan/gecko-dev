@@ -83,16 +83,15 @@ MessagePump::Run(MessagePump::Delegate* aDelegate)
     if (!keep_running_)
       break;
 
-    // NB: it is crucial *not* to directly call |aDelegate->DoWork()|
-    // here.  To ensure that MessageLoop tasks and XPCOM events have
-    // equal priority, we sensitively rely on processing exactly one
-    // Task per DoWorkRunnable XPCOM event.
+    did_work |= aDelegate->DoWork();
+    if (!keep_running_)
+      break;
 
 #ifdef MOZ_WIDGET_ANDROID
     // This processes messages in the Android Looper. Note that we only
     // get here if the normal Gecko event loop has been awoken above.
     // Bug 750713
-    did_work |= AndroidBridge::Bridge()->PumpMessageLoop();
+    AndroidBridge::Bridge()->PumpMessageLoop();
 #endif
 
     did_work |= aDelegate->DoDelayedWork(&delayed_work_time_);
@@ -166,7 +165,7 @@ MessagePump::ScheduleDelayedWork(const base::Time& aDelayedTime)
   delayed_work_time_ = aDelayedTime;
 
   base::TimeDelta delay = aDelayedTime - base::Time::Now();
-  uint32_t delayMS = uint32_t(delay.InMilliseconds());
+  PRUint32 delayMS = PRUint32(delay.InMilliseconds());
   mDelayedWorkTimer->InitWithCallback(mDoWorkEvent, delayMS,
                                       nsITimer::TYPE_ONE_SHOT);
 }
@@ -208,25 +207,6 @@ MessagePumpForChildProcess::Run(MessagePump::Delegate* aDelegate)
 #ifdef DEBUG
   NS_ASSERTION(aDelegate && aDelegate == gFirstDelegate, "Huh?!");
 #endif
-
-  // We can get to this point in startup with Tasks in our loop's
-  // incoming_queue_ or pending_queue_, but without a matching
-  // DoWorkRunnable().  In MessagePump::Run() above, we sensitively
-  // depend on *not* directly calling delegate->DoWork(), because that
-  // prioritizes Tasks above XPCOM events.  However, from this point
-  // forward, any Task posted to our loop is guaranteed to have a
-  // DoWorkRunnable enqueued for it.
-  //
-  // So we just flush the pending work here and move on.
-  MessageLoop* loop = MessageLoop::current();
-  bool nestableTasksAllowed = loop->NestableTasksAllowed();
-  loop->SetNestableTasksAllowed(true);
-
-  while (aDelegate->DoWork());
-
-  loop->SetNestableTasksAllowed(nestableTasksAllowed);
-
-
   // Really run.
   mozilla::ipc::MessagePump::Run(aDelegate);
 }

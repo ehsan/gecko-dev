@@ -4,10 +4,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-typedef long myLong;
-typedef TestInterface AnotherNameForTestInterface;
-typedef TestInterface? NullableTestInterface;
-
 interface TestExternalInterface;
 
 interface TestNonCastableInterface {
@@ -24,7 +20,6 @@ enum TestEnum {
 };
 
 callback TestCallback = void();
-[TreatNonCallableAsNull] callback TestTreatAsNullCallback = void();
 
 TestInterface implements ImplementedInterface;
 
@@ -34,14 +29,14 @@ interface OnlyForUseInConstructor {
 
 [Constructor,
  Constructor(DOMString str),
- Constructor(unsigned long num, boolean? boolArg),
+ Constructor(unsigned long num, boolean? bool),
  Constructor(TestInterface? iface),
  Constructor(TestNonCastableInterface iface)
  // , Constructor(long arg1, long arg2, (TestInterface or OnlyForUseInConstructor) arg3)
  ]
 interface TestInterface {
   // Integer types
-  // XXXbz add tests for throwing versions of all the integer stuff
+  // XXXbz add tests for infallible versions of all the integer stuff
   readonly attribute byte readonlyByte;
   attribute byte writableByte;
   void passByte(byte arg);
@@ -101,7 +96,7 @@ interface TestInterface {
   void passOptionalUnsignedLongLongWithDefault(optional unsigned long long arg = 17);
 
   // Castable interface types
-  // XXXbz add tests for throwing versions of all the castable interface stuff
+  // XXXbz add tests for infallible versions of all the castable interface stuff
   TestInterface receiveSelf();
   TestInterface? receiveNullableSelf();
   TestInterface receiveWeakSelf();
@@ -198,9 +193,7 @@ interface TestInterface {
   void passOptionalSequenceOfNullableInts(optional sequence<long?> arg);
   void passOptionalNullableSequenceOfNullableInts(optional sequence<long?>? arg);
   sequence<TestInterface> receiveCastableObjectSequence();
-  sequence<TestCallbackInterface> receiveCallbackObjectSequence();
   sequence<TestInterface?> receiveNullableCastableObjectSequence();
-  sequence<TestCallbackInterface?> receiveNullableCallbackObjectSequence();
   sequence<TestInterface>? receiveCastableObjectNullableSequence();
   sequence<TestInterface?>? receiveNullableCastableObjectNullableSequence();
   sequence<TestInterface> receiveWeakCastableObjectSequence();
@@ -219,9 +212,6 @@ interface TestInterface {
   sequence<DOMString> receiveStringSequence();
   void passStringSequence(sequence<DOMString> arg);
 
-  sequence<any> receiveAnySequence();
-  sequence<any>? receiveNullableAnySequence();
-
   // Typed array types
   void passArrayBuffer(ArrayBuffer arg);
   void passNullableArrayBuffer(ArrayBuffer? arg);
@@ -238,7 +228,6 @@ interface TestInterface {
   void passUint8ClampedArray(Uint8ClampedArray arg);
   void passFloat32Array(Float32Array arg);
   void passFloat64Array(Float64Array arg);
-  Uint8Array receiveUint8Array();
 
   // String types
   void passString(DOMString arg);
@@ -268,9 +257,6 @@ interface TestInterface {
   void passOptionalNullableCallbackWithDefaultValue(optional TestCallback? arg = null);
   TestCallback receiveCallback();
   TestCallback? receiveNullableCallback();
-  void passNullableTreatAsNullCallback(TestTreatAsNullCallback? arg);
-  void passOptionalNullableTreatAsNullCallback(optional TestTreatAsNullCallback? arg);
-  void passOptionalNullableTreatAsNullCallbackWithDefaultValue(optional TestTreatAsNullCallback? arg = null);
 
   // Any types
   void passAny(any arg);
@@ -317,23 +303,6 @@ interface TestInterface {
   void passDictionaryOrLong(long x);
 
   void passDictContainingDict(optional DictContainingDict arg);
-  void passDictContainingSequence(optional DictContainingSequence arg);
-
-  // EnforceRange/Clamp tests
-  void dontEnforceRangeOrClamp(byte arg);
-  void doEnforceRange([EnforceRange] byte arg);
-  void doClamp([Clamp] byte arg);
-
-  // Typedefs
-  const myLong myLongConstant = 5;
-  void exerciseTypedefInterfaces1(AnotherNameForTestInterface arg);
-  AnotherNameForTestInterface exerciseTypedefInterfaces2(NullableTestInterface arg);
-  void exerciseTypedefInterfaces3(YetAnotherNameForTestInterface arg);
-
-  // Miscellania
-  [LenientThis] attribute long attrWithLenientThis;
-
-  // If you add things here, add them to TestExampleGen as well
 };
 
 interface TestNonWrapperCacheInterface {
@@ -402,49 +371,4 @@ dictionary ParentDict : GrandparentDict {
 
 dictionary DictContainingDict {
   Dict memberDict;
-};
-
-dictionary DictContainingSequence {
-  sequence<long> ourSequence;
-};
-
-interface TestIndexedGetterInterface {
-  getter long item(unsigned long index);
-  [Infallible]
-  readonly attribute unsigned long length;
-};
-
-interface TestNamedGetterInterface {
-  getter DOMString (DOMString name);
-};
-
-interface TestIndexedAndNamedGetterInterface {
-  getter long (unsigned long index);
-  getter DOMString namedItem(DOMString name);
-  [Infallible]
-  readonly attribute unsigned long length;
-};
-
-interface TestIndexedSetterInterface {
-  setter creator void setItem(unsigned long index, DOMString item);
-};
-
-interface TestNamedSetterInterface {
-  setter creator void (DOMString name, TestIndexedSetterInterface item);
-};
-
-interface TestIndexedAndNamedSetterInterface {
-  setter creator void (unsigned long index, TestIndexedSetterInterface item);
-  setter creator void setNamedItem(DOMString name, TestIndexedSetterInterface item);
-};
-
-interface TestIndexedAndNamedGetterAndSetterInterface : TestIndexedSetterInterface {
-  getter long item(unsigned long index);
-  getter DOMString namedItem(DOMString name);
-  setter creator void (unsigned long index, long item);
-  setter creator void (DOMString name, DOMString item);
-  [Infallible]
-  stringifier DOMString ();
-  [Infallible]
-  readonly attribute unsigned long length;
 };

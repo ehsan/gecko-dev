@@ -9,8 +9,6 @@
 #include "base/message_loop.h"
 #include "base/waitable_event.h"
 
-#include "mozilla/Attributes.h"
-
 namespace base {
 
 // -----------------------------------------------------------------------------
@@ -52,7 +50,7 @@ class Flag : public RefCountedThreadSafe<Flag> {
 // This is an asynchronous waiter which posts a task to a MessageLoop when
 // fired. An AsyncWaiter may only be in a single wait-list.
 // -----------------------------------------------------------------------------
-class AsyncWaiter MOZ_FINAL : public WaitableEvent::Waiter {
+class AsyncWaiter : public WaitableEvent::Waiter {
  public:
   AsyncWaiter(MessageLoop* message_loop, Task* task, Flag* flag)
       : message_loop_(message_loop),

@@ -179,16 +179,9 @@ namespace RTCPUtility {
         WebRtc_UWord16 NumberOfValidBits;
         WebRtc_UWord8  NativeBitString[RTCP_RPSI_DATA_SIZE];
     };
-    struct RTCPPacketPSFBAPP
-    {
-        WebRtc_UWord32 SenderSSRC;
-        WebRtc_UWord32 MediaSSRC;
-    };
-    struct RTCPPacketPSFBREMBItem
+    struct RTCPPacketPSFBREMB
     {
         WebRtc_UWord32 BitRate;
-        WebRtc_UWord8 NumberOfSSRCs;
-        WebRtc_UWord32 SSRCs[MAX_NUMBER_OF_REMB_FEEDBACK_SSRCS];
     };
     // generic name APP
     struct RTCPPacketAPP
@@ -217,8 +210,7 @@ namespace RTCPUtility {
         RTCPPacketPSFBSLI         SLI;
         RTCPPacketPSFBSLIItem     SLIItem;
         RTCPPacketPSFBRPSI        RPSI;
-        RTCPPacketPSFBAPP         PSFBAPP;
-        RTCPPacketPSFBREMBItem    REMBItem;
+        RTCPPacketPSFBREMB        REMB;
 
         RTCPPacketRTPFBTMMBR      TMMBR;
         RTCPPacketRTPFBTMMBRItem  TMMBRItem;
@@ -259,7 +251,6 @@ namespace RTCPUtility {
         kRtcpPsfbSliCode,
         kRtcpPsfbSliItemCode,
         kRtcpPsfbAppCode,
-        kRtcpPsfbRembCode,
         kRtcpPsfbRembItemCode,
 
         // RFC5104

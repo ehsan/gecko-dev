@@ -32,7 +32,7 @@ public:
   {
   public:
     nsStorageItemsTable mTable;
-    int32_t mUsageDelta;
+    PRInt32 mUsageDelta;
 
     nsInMemoryStorage() : mUsageDelta(0) {}
   };
@@ -78,7 +78,10 @@ public:
   SetKey(DOMStorageImpl* aStorage,
          const nsAString& aKey,
          const nsAString& aValue,
-         bool aSecure);
+         bool aSecure,
+         PRInt32 aQuota,
+         bool aExcludeOfflineFromUsage,
+         PRInt32* aNewUsage);
 
   /**
    * Set the secure flag for a key in storage. Does nothing if the key was
@@ -94,7 +97,9 @@ public:
    */
   nsresult
   RemoveKey(DOMStorageImpl* aStorage,
-            const nsAString& aKey);
+            const nsAString& aKey,
+            bool aExcludeOfflineFromUsage,
+            PRInt32 aKeyUsage);
 
   /**
     * Remove all keys belonging to this storage.
@@ -112,7 +117,15 @@ public:
    * Removes all keys added by a given domain.
    */
   nsresult
-  RemoveOwner(const nsACString& aOwner);
+  RemoveOwner(const nsACString& aOwner, bool aIncludeSubDomains);
+
+  /**
+   * Removes keys owned by domains that either match or don't match the
+   * list.
+   */
+  nsresult
+  RemoveOwners(const nsTArray<nsString>& aOwners,
+               bool aIncludeSubDomains, bool aMatch);
 
   /**
    * Removes all keys from storage. Used when clearing storage.
@@ -121,16 +134,16 @@ public:
   RemoveAll();
 
   /**
-    * Returns usage for a storage using its GetQuotaDBKey() as a key.
+    * Returns usage for a storage using its GetQuotaDomainDBKey() as a key.
     */
   nsresult
-  GetUsage(DOMStorageImpl* aStorage, int32_t *aUsage);
+  GetUsage(DOMStorageImpl* aStorage, bool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 
   /**
     * Returns usage of the domain and optionaly by any subdomain.
     */
   nsresult
-  GetUsage(const nsACString& aDomain, int32_t *aUsage);
+  GetUsage(const nsACString& aDomain, bool aIncludeSubDomains, PRInt32 *aUsage);
 
 protected:
 
@@ -139,7 +152,7 @@ protected:
   bool mPreloading;
 
   nsresult
-  GetUsageInternal(const nsACString& aQuotaDBKey, int32_t *aUsage);
+  GetUsageInternal(const nsACString& aQuotaDomainDBKey, bool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 };
 
 #endif

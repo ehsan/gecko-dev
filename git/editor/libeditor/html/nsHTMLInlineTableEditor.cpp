@@ -21,6 +21,7 @@
 #include "nsReadableUtils.h"
 #include "nsString.h"
 #include "nscore.h"
+#include "prtypes.h"
 
 // Uncomment the following line if you want to disable
 // table deletion when the only column/row is removed
@@ -144,7 +145,7 @@ nsHTMLEditor::DoInlineTableEditingAction(nsIDOMElement * aElement)
 
     nsCOMPtr<nsIDOMNode> tableNode = GetEnclosingTable(mInlineEditedCell);
     nsCOMPtr<nsIDOMElement> tableElement = do_QueryInterface(tableNode);
-    int32_t rowCount, colCount;
+    PRInt32 rowCount, colCount;
     res = GetTableSize(tableElement, &rowCount, &colCount);
     NS_ENSURE_SUCCESS(res, res);
 
@@ -212,7 +213,7 @@ nsHTMLEditor::RefreshInlineTableEditingUI()
     return NS_ERROR_NULL_POINTER;
   }
 
-  int32_t xCell, yCell, wCell, hCell;
+  PRInt32 xCell, yCell, wCell, hCell;
   GetElementOrigin(mInlineEditedCell, xCell, yCell);
 
   nsresult res = htmlElement->GetOffsetWidth(&wCell);
@@ -220,12 +221,12 @@ nsHTMLEditor::RefreshInlineTableEditingUI()
   res = htmlElement->GetOffsetHeight(&hCell);
   NS_ENSURE_SUCCESS(res, res);
 
-  int32_t xHoriz = xCell + wCell/2;
-  int32_t yVert  = yCell + hCell/2;
+  PRInt32 xHoriz = xCell + wCell/2;
+  PRInt32 yVert  = yCell + hCell/2;
 
   nsCOMPtr<nsIDOMNode> tableNode = GetEnclosingTable(mInlineEditedCell);
   nsCOMPtr<nsIDOMElement> tableElement = do_QueryInterface(tableNode);
-  int32_t rowCount, colCount;
+  PRInt32 rowCount, colCount;
   res = GetTableSize(tableElement, &rowCount, &colCount);
   NS_ENSURE_SUCCESS(res, res);
 

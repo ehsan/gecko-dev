@@ -15,7 +15,7 @@
 #include "nsContentUtils.h"
 #include "nsJSEnvironment.h"
 #include "nsServiceManagerUtils.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsGlobalWindow.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsAlgorithm.h"
@@ -39,7 +39,7 @@ public:
   virtual JSObject *GetScriptObject() {
     return mFunObj;
   }
-  virtual void GetLocation(const char **aFileName, uint32_t *aLineNo) {
+  virtual void GetLocation(const char **aFileName, PRUint32 *aLineNo) {
     *aFileName = mFileName.get();
     *aLineNo = mLineNo;
   }
@@ -49,7 +49,7 @@ public:
   }
 
   nsresult Init(nsGlobalWindow *aWindow, bool *aIsInterval,
-                int32_t *aInterval);
+                PRInt32 *aInterval);
 
   void ReleaseJSObjects();
 
@@ -60,7 +60,7 @@ private:
   // filename, line number and JS language version string of the
   // caller of setTimeout()
   nsCString mFileName;
-  uint32_t mLineNo;
+  PRUint32 mLineNo;
   nsCOMPtr<nsIJSArgArray> mArgv;
 
   // The JS expression to evaluate or function to call, if !mExpr
@@ -77,30 +77,31 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSScriptTimeoutHandler)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
   if (NS_UNLIKELY(cb.WantDebugInfo())) {
-    nsAutoCString name("nsJSScriptTimeoutHandler");
+    nsCAutoString foo("nsJSScriptTimeoutHandler");
     if (tmp->mExpr) {
-      name.AppendLiteral(" [");
-      name.Append(tmp->mFileName);
-      name.AppendLiteral(":");
-      name.AppendInt(tmp->mLineNo);
-      name.AppendLiteral("]");
+      foo.AppendLiteral(" [");
+      foo.Append(tmp->mFileName);
+      foo.AppendLiteral(":");
+      foo.AppendInt(tmp->mLineNo);
+      foo.AppendLiteral("]");
     }
     else if (tmp->mFunObj) {
       JSFunction* fun = JS_GetObjectFunction(tmp->mFunObj);
       if (fun && JS_GetFunctionId(fun)) {
         JSFlatString *funId = JS_ASSERT_STRING_IS_FLAT(JS_GetFunctionId(fun));
         size_t size = 1 + JS_PutEscapedFlatString(NULL, 0, funId, 0);
-        char *funIdName = new char[size];
-        if (funIdName) {
-          JS_PutEscapedFlatString(funIdName, size, funId, 0);
-          name.AppendLiteral(" [");
-          name.Append(funIdName);
-          delete[] funIdName;
-          name.AppendLiteral("]");
+        char *name = new char[size];
+        if (name) {
+          JS_PutEscapedFlatString(name, size, funId, 0);
+          foo.AppendLiteral(" [");
+          foo.Append(name);
+          delete[] name;
+          foo.AppendLiteral("]");
         }
       }
     }
-    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), name.get());
+    cb.DescribeRefCountedNode(tmp->mRefCnt.get(),
+                              sizeof(nsJSScriptTimeoutHandler), foo.get());
   }
   else {
     NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsJSScriptTimeoutHandler,
@@ -155,7 +156,7 @@ nsJSScriptTimeoutHandler::ReleaseJSObjects()
 
 nsresult
 nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
-                               int32_t *aInterval)
+                               PRInt32 *aInterval)
 {
   mContext = aWindow->GetContextInternal();
   if (!mContext) {
@@ -178,7 +179,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   rv = ncc->GetJSContext(&cx);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t argc;
+  PRUint32 argc;
   jsval *argv = nullptr;
 
   ncc->GetArgc(&argc);
@@ -292,13 +293,13 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    uint32_t dummy;
+    PRUint32 dummy;
     jsval *jsargv = nullptr;
     array->GetArgs(&dummy, reinterpret_cast<void **>(&jsargv));
 
     // jsargv might be null if we have argc <= 2
     if (jsargv) {
-      for (int32_t i = 2; (uint32_t)i < argc; ++i) {
+      for (PRInt32 i = 2; (PRUint32)i < argc; ++i) {
         jsargv[i - 2] = argv[i];
       }
     } else {
@@ -321,7 +322,7 @@ nsJSScriptTimeoutHandler::GetHandlerText()
 
 nsresult NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
                                    bool *aIsInterval,
-                                   int32_t *aInterval,
+                                   PRInt32 *aInterval,
                                    nsIScriptTimeoutHandler **aRet)
 {
   *aRet = nullptr;

@@ -32,7 +32,8 @@
 #ifndef bspatch_h__
 #define bspatch_h__
 
-#include "mozilla/StandardInteger.h"
+// We use the NSPR types, but we don't link with NSPR
+#include "prtypes.h"
 #include <stdio.h>
 
 typedef struct MBSPatchHeader_ {
@@ -40,22 +41,22 @@ typedef struct MBSPatchHeader_ {
   char tag[8];
   
   /* Length of the file to be patched */
-  uint32_t slen;
+  PRUint32 slen;
 
   /* CRC32 of the file to be patched */
-  uint32_t scrc32;
+  PRUint32 scrc32;
 
   /* Length of the result file */
-  uint32_t dlen;
+  PRUint32 dlen;
 
   /* Length of the control block in bytes */
-  uint32_t cblen;
+  PRUint32 cblen;
 
   /* Length of the diff block in bytes */
-  uint32_t difflen;
+  PRUint32 difflen;
 
   /* Length of the extra block in bytes */
-  uint32_t extralen;
+  PRUint32 extralen;
 
   /* Control block (MBSPatchTriple[]) */
   /* Diff block (binary data) */
@@ -85,9 +86,9 @@ int MBS_ApplyPatch(const MBSPatchHeader *header, FILE* patchFile,
                    unsigned char *fbuffer, FILE* file);
 
 typedef struct MBSPatchTriple_ {
-  uint32_t x; /* add x bytes from oldfile to x bytes from the diff block */
-  uint32_t y; /* copy y bytes from the extra block */
-  int32_t  z; /* seek forwards in oldfile by z bytes */
+  PRUint32 x; /* add x bytes from oldfile to x bytes from the diff block */
+  PRUint32 y; /* copy y bytes from the extra block */
+  PRInt32  z; /* seek forwards in oldfile by z bytes */
 } MBSPatchTriple;
 
 #endif  // bspatch_h__

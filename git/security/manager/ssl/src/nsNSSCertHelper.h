@@ -11,7 +11,7 @@
 #define INET6_ADDRSTRLEN 46
 #endif
 
-uint32_t
+PRUint32
 getCertType(CERTCertificate *cert);
 
 CERTCertNicknames *

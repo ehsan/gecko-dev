@@ -25,7 +25,6 @@
 #include "gfxColor.h"
 #include "gfxUtils.h"
 #include "nsNPAPIPluginInstance.h"
-#include "Layers.h"
 
 #if defined(OS_WIN)
 #include <windowsx.h>
@@ -188,6 +187,27 @@ bool
 PluginInstanceParent::DeallocPPluginStream(PPluginStreamParent* stream)
 {
     delete stream;
+    return true;
+}
+
+bool
+PluginInstanceParent::AnswerNPN_GetValue_NPNVjavascriptEnabledBool(
+                                                       bool* value,
+                                                       NPError* result)
+{
+    NPBool v;
+    *result = mNPNIface->getvalue(mNPP, NPNVjavascriptEnabledBool, &v);
+    *value = v;
+    return true;
+}
+
+bool
+PluginInstanceParent::AnswerNPN_GetValue_NPNVisOfflineBool(bool* value,
+                                                           NPError* result)
+{
+    NPBool v;
+    *result = mNPNIface->getvalue(mNPP, NPNVisOfflineBool, &v);
+    *value = v;
     return true;
 }
 
@@ -409,6 +429,9 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginDrawingModel(
 #if defined(XP_WIN)
                drawingModel == NPDrawingModelSyncWin
 #elif defined(XP_MACOSX)
+#ifndef NP_NO_QUICKDRAW
+               drawingModel == NPDrawingModelQuickDraw ||
+#endif
                drawingModel == NPDrawingModelOpenGL ||
                drawingModel == NPDrawingModelCoreGraphics
 #elif defined(MOZ_X11)
@@ -447,7 +470,7 @@ PluginInstanceParent::AnswerNPN_SetValue_NPPVpluginEventModel(
 {
 #ifdef XP_MACOSX
     *result = mNPNIface->setvalue(mNPP, NPPVpluginEventModel,
-                                  (void*)(intptr_t)eventModel);
+                                  (void*)eventModel);
     return true;
 #else
     *result = NPERR_GENERIC_ERROR;
@@ -568,10 +591,8 @@ PluginInstanceParent::RecvShow(const NPRect& updatedRect,
 #ifdef XP_MACOSX
     else if (newSurface.type() == SurfaceDescriptor::TIOSurfaceDescriptor) {
         IOSurfaceDescriptor iodesc = newSurface.get_IOSurfaceDescriptor();
-
-        RefPtr<MacIOSurface> newIOSurface =
-          MacIOSurface::LookupSurface(iodesc.surfaceId(),
-                                      iodesc.contentsScaleFactor());
+    
+        RefPtr<MacIOSurface> newIOSurface = MacIOSurface::LookupSurface(iodesc.surfaceId());
 
         if (!newIOSurface) {
             NS_WARNING("Got bad IOSurfaceDescriptor in RecvShow");
@@ -579,8 +600,7 @@ PluginInstanceParent::RecvShow(const NPRect& updatedRect,
         }
       
         if (mFrontIOSurface)
-            *prevSurface = IOSurfaceDescriptor(mFrontIOSurface->GetIOSurfaceID(),
-                                               mFrontIOSurface->GetContentsScaleFactor());
+            *prevSurface = IOSurfaceDescriptor(mFrontIOSurface->GetIOSurfaceID());
         else
             *prevSurface = null_t();
 
@@ -660,11 +680,6 @@ PluginInstanceParent::AsyncSetWindow(NPWindow* aWindow)
     window.height = aWindow->height;
     window.clipRect = aWindow->clipRect;
     window.type = aWindow->type;
-#ifdef XP_MACOSX
-    double scaleFactor = 1.0;
-    mNPNIface->getvalue(mNPP, NPNVcontentsScaleFactor, &scaleFactor);
-    window.contentsScaleFactor = scaleFactor;
-#endif
     if (!SendAsyncSetWindow(gfxPlatform::GetPlatform()->ScreenReferenceSurface()->GetType(),
                             window))
         return NS_ERROR_FAILURE;
@@ -715,10 +730,10 @@ PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
 #endif
         return NS_ERROR_NOT_AVAILABLE;
 
-    ImageFormat format = CAIRO_SURFACE;
+    Image::Format format = Image::CAIRO_SURFACE;
 #ifdef XP_MACOSX
     if (ioSurface) {
-        format = MAC_IO_SURFACE;
+        format = Image::MAC_IO_SURFACE;
     }
 #endif
 
@@ -742,7 +757,7 @@ PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
 
 #ifdef XP_MACOSX
     if (ioSurface) {
-        NS_ASSERTION(image->GetFormat() == MAC_IO_SURFACE, "Wrong format?");
+        NS_ASSERTION(image->GetFormat() == Image::MAC_IO_SURFACE, "Wrong format?");
         MacIOSurfaceImage* ioImage = static_cast<MacIOSurfaceImage*>(image.get());
         MacIOSurfaceImage::Data ioData;
         ioData.mIOSurface = ioSurface;
@@ -755,7 +770,7 @@ PluginInstanceParent::GetImageContainer(ImageContainer** aContainer)
     }
 #endif
 
-    NS_ASSERTION(image->GetFormat() == CAIRO_SURFACE, "Wrong format?");
+    NS_ASSERTION(image->GetFormat() == Image::CAIRO_SURFACE, "Wrong format?");
     CairoImage* pluginImage = static_cast<CairoImage*>(image.get());
     CairoImage::Data cairoData;
     cairoData.mSurface = mFrontSurface;
@@ -799,14 +814,7 @@ PluginInstanceParent::IsRemoteDrawingCoreAnimation(bool *aDrawing)
                  NPDrawingModelInvalidatingCoreAnimation == (NPDrawingModel)mDrawingModel);
     return NS_OK;
 }
-
-nsresult
-PluginInstanceParent::ContentsScaleFactorChanged(double aContentsScaleFactor)
-{
-    bool rv = SendContentsScaleFactorChanged(aContentsScaleFactor);
-    return rv ? NS_OK : NS_ERROR_FAILURE;
-}
-#endif // #ifdef XP_MACOSX
+#endif
 
 nsresult
 PluginInstanceParent::SetBackgroundUnknown()
@@ -1015,18 +1023,11 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
 #endif
 
 #if defined(XP_MACOSX)
-    double floatScaleFactor = 1.0;
-    mNPNIface->getvalue(mNPP, NPNVcontentsScaleFactor, &floatScaleFactor);
-    int scaleFactor = ceil(floatScaleFactor);
-    window.contentsScaleFactor = floatScaleFactor;
-
-    if (mShWidth != window.width * scaleFactor || mShHeight != window.height * scaleFactor) {
+    if (mShWidth != window.width || mShHeight != window.height) {
         if (mDrawingModel == NPDrawingModelCoreAnimation || 
             mDrawingModel == NPDrawingModelInvalidatingCoreAnimation) {
-            mIOSurface = MacIOSurface::CreateIOSurface(window.width, window.height,
-                                                       floatScaleFactor);
-        } else if (uint32_t(mShWidth * mShHeight) !=
-                   window.width * scaleFactor * window.height * scaleFactor) {
+            mIOSurface = MacIOSurface::CreateIOSurface(window.width, window.height);
+        } else if (uint32_t(mShWidth * mShHeight) != window.width * window.height) {
             if (mShWidth != 0 && mShHeight != 0) {
                 DeallocShmem(mShSurface);
                 mShWidth = 0;
@@ -1034,15 +1035,15 @@ PluginInstanceParent::NPP_SetWindow(const NPWindow* aWindow)
             }
 
             if (window.width != 0 && window.height != 0) {
-                if (!AllocShmem(window.width * scaleFactor * window.height*4 * scaleFactor,
+                if (!AllocShmem(window.width * window.height*4, 
                                 SharedMemory::TYPE_BASIC, &mShSurface)) {
                     PLUGIN_LOG_DEBUG(("Shared memory could not be allocated."));
                     return NPERR_GENERIC_ERROR;
                 } 
             }
         }
-        mShWidth = window.width * scaleFactor;
-        mShHeight = window.height * scaleFactor;
+        mShWidth = window.width;
+        mShHeight = window.height;
     }
 #endif
 
@@ -1198,11 +1199,6 @@ PluginInstanceParent::NPP_HandleEvent(void* event)
 #endif
     NPRemoteEvent npremoteevent;
     npremoteevent.event = *npevent;
-#if defined(XP_MACOSX)
-    double scaleFactor = 1.0;
-    mNPNIface->getvalue(mNPP, NPNVcontentsScaleFactor, &scaleFactor);
-    npremoteevent.contentsScaleFactor = scaleFactor;
-#endif
     int16_t handled = 0;
 
 #if defined(OS_WIN)

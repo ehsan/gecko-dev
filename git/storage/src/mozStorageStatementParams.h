@@ -31,7 +31,7 @@ public:
 
 protected:
   mozIStorageStatement *mStatement;
-  uint32_t mParamCount;
+  PRUint32 mParamCount;
 
   friend class Statement;
 };

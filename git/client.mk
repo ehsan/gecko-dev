@@ -60,11 +60,6 @@ endif
 # MacOS X 10.4 sends "no autoconf*" errors to stdout, discard those via grep
 AUTOCONF ?= $(shell which autoconf-2.13 autoconf2.13 autoconf213 2>/dev/null | grep -v '^no autoconf' | head -1)
 
-# See if the autoconf package was installed through fink
-ifeq (,$(strip $(AUTOCONF)))
-AUTOCONF = $(shell which fink >/dev/null 2>&1 && echo `which fink`/../../lib/autoconf2.13/bin/autoconf)
-endif
-
 ifeq (,$(strip $(AUTOCONF)))
 AUTOCONF=$(error Could not find autoconf 2.13)
 endif
@@ -75,7 +70,7 @@ PYTHON ?= python
 
 CONFIG_GUESS_SCRIPT := $(wildcard $(TOPSRCDIR)/build/autoconf/config.guess)
 ifdef CONFIG_GUESS_SCRIPT
-  CONFIG_GUESS := $(shell $(CONFIG_GUESS_SCRIPT))
+  CONFIG_GUESS = $(shell $(CONFIG_GUESS_SCRIPT))
 endif
 
 
@@ -97,6 +92,8 @@ endif
 # See build pages, http://www.mozilla.org/build/ for how to set up mozconfig.
 
 MOZCONFIG_LOADER := build/autoconf/mozconfig2client-mk
+MOZCONFIG_FINDER := build/autoconf/mozconfig-find 
+MOZCONFIG_MODULES := build/unix/uniq.pl
 
 define CR
 

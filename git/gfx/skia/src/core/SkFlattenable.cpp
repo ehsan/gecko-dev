@@ -6,9 +6,7 @@
  * found in the LICENSE file.
  */
 #include "SkFlattenable.h"
-#include "SkPtrRecorder.h"
-
-SK_DEFINE_INST_COUNT(SkFlattenable)
+#include "SkTypeface.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -22,26 +20,63 @@ void SkFlattenable::flatten(SkFlattenableWriteBuffer&) const
 
 ///////////////////////////////////////////////////////////////////////////////
 
-SkNamedFactorySet::SkNamedFactorySet() : fNextAddedFactory(0) {}
+SkFlattenableReadBuffer::SkFlattenableReadBuffer() {
+    fRCArray = NULL;
+    fRCCount = 0;
 
-uint32_t SkNamedFactorySet::find(SkFlattenable::Factory factory) {
-    uint32_t index = fFactorySet.find(factory);
-    if (index > 0) {
-        return index;
-    }
-    const char* name = SkFlattenable::FactoryToName(factory);
-    if (NULL == name) {
-        return 0;
-    }
-    *fNames.append() = name;
-    return fFactorySet.add(factory);
+    fTFArray = NULL;
+    fTFCount = 0;
+
+    fFactoryTDArray = NULL;
+    fFactoryArray = NULL;
+    fFactoryCount = 0;
 }
 
-const char* SkNamedFactorySet::getNextAddedFactoryName() {
-    if (fNextAddedFactory < fNames.count()) {
-        return fNames[fNextAddedFactory++];
+///////////////////////////////////////////////////////////////////////////////
+
+SkFlattenableWriteBuffer::SkFlattenableWriteBuffer() {
+    fFlags = (Flags)0;
+    fRCSet = NULL;
+    fTFSet = NULL;
+    fFactorySet = NULL;
+}
+
+SkFlattenableWriteBuffer::~SkFlattenableWriteBuffer() {
+    SkSafeUnref(fRCSet);
+    SkSafeUnref(fTFSet);
+    SkSafeUnref(fFactorySet);
+}
+
+SkRefCntSet* SkFlattenableWriteBuffer::setRefCntRecorder(SkRefCntSet* rec) {
+    SkRefCnt_SafeAssign(fRCSet, rec);
+    return rec;
+}
+
+SkRefCntSet* SkFlattenableWriteBuffer::setTypefaceRecorder(SkRefCntSet* rec) {
+    SkRefCnt_SafeAssign(fTFSet, rec);
+    return rec;
+}
+
+SkFactorySet* SkFlattenableWriteBuffer::setFactoryRecorder(SkFactorySet* rec) {
+    SkRefCnt_SafeAssign(fFactorySet, rec);
+    return rec;
+}
+
+void SkFlattenableWriteBuffer::writeRefCnt(SkRefCnt* obj) {
+    SkASSERT(!isCrossProcess());
+    if (NULL == obj || NULL == fRCSet) {
+        this->write32(0);
+    } else {
+        this->write32(fRCSet->add(obj));
     }
-    return NULL;
+}
+
+void SkFlattenableWriteBuffer::writeTypeface(SkTypeface* obj) {
+    if (NULL == obj || NULL == fTFSet) {
+        this->write32(0);
+    } else {
+        this->write32(fTFSet->add(obj));
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -63,7 +98,7 @@ void SkRefCntSet::decPtr(void* ptr) {
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
-#define MAX_PAIR_COUNT  1024
+#define MAX_PAIR_COUNT  64
 
 struct Pair {
     const char*             fName;

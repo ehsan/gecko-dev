@@ -13,17 +13,6 @@ namespace mozilla {
 
 NS_IMPL_ISUPPORTS1(LoadContext, nsILoadContext);
 
-LoadContext::LoadContext(const IPC::SerializedLoadContext& aToCopy,
-                         nsIDOMElement* aTopFrameElemenet)
-  : mIsNotNull(aToCopy.mIsNotNull)
-  , mIsContent(aToCopy.mIsContent)
-  , mUsePrivateBrowsing(aToCopy.mUsePrivateBrowsing)
-  , mIsInBrowserElement(aToCopy.mIsInBrowserElement)
-  , mAppId(aToCopy.mAppId)
-  , mTopFrameElement(do_GetWeakReference(aTopFrameElemenet))
-{}
-
-
 //-----------------------------------------------------------------------------
 // LoadContext::nsILoadContext
 //-----------------------------------------------------------------------------
@@ -47,15 +36,7 @@ LoadContext::GetTopWindow(nsIDOMWindow**)
 }
 
 NS_IMETHODIMP
-LoadContext::GetTopFrameElement(nsIDOMElement** aElement)
-{
-  nsCOMPtr<nsIDOMElement> element = do_QueryReferent(mTopFrameElement);
-  element.forget(aElement);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-LoadContext::IsAppOfType(uint32_t, bool*)
+LoadContext::IsAppOfType(PRUint32, bool*)
 {
   MOZ_ASSERT(mIsNotNull);
 
@@ -106,7 +87,7 @@ LoadContext::GetIsInBrowserElement(bool* aIsInBrowserElement)
 }
 
 NS_IMETHODIMP
-LoadContext::GetAppId(uint32_t* aAppId)
+LoadContext::GetAppId(PRUint32* aAppId)
 {
   MOZ_ASSERT(mIsNotNull);
 

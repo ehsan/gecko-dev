@@ -9,7 +9,7 @@
 //----------------------------------------------------------------------
 // Global functions and data [declaration]
 
-static const uint16_t g_MacTurkishMappingTable[] = {
+static const PRUint16 g_MacTurkishMappingTable[] = {
 #include "macturki.uf"
 };
 

@@ -148,8 +148,7 @@ public final class GeckoProfile {
         try {
             // Check for old profiles that may need migration.
             ProfileMigrator profileMigrator = new ProfileMigrator(mContext);
-            if (!GeckoApp.sIsUsingCustomProfile &&
-                !profileMigrator.isProfileMoved()) {
+            if (!profileMigrator.isProfileMoved()) {
                 Log.i(LOGTAG, "New installation or update, checking for old profiles.");
                 profileMigrator.launchMoveProfile();
             }
@@ -370,6 +369,7 @@ public final class GeckoProfile {
             parser.addSection(generalSection);
 
             // only set as default if this is the first profile we're creating
+            Log.i(LOGTAG, "WESJ - SET DEFAULT");
             profileSection.setProperty("Default", 1);
         }
 

@@ -11,10 +11,8 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
-#ifndef MOZ_WIDGET_GONK
 Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
-#endif
-Cu.import("resource://gre/modules/ctypes.jsm");
+Cu.import("resource://gre/modules/ctypes.jsm"); 
 
 // When modifying the payload in incompatible ways, please bump this version number
 const PAYLOAD_VERSION = 1;
@@ -25,13 +23,10 @@ const PREF_ENABLED = "toolkit.telemetry.enabled";
 const TELEMETRY_INTERVAL = 60000;
 // Delay before intializing telemetry (ms)
 const TELEMETRY_DELAY = 60000;
-// Delete ping files that have been lying around for longer than this.
-const MAX_PING_FILE_AGE = 7 * 24 * 60 * 60 * 1000; // 1 week
 // Constants from prio.h for nsIFileOutputStream.init
 const PR_WRONLY = 0x2;
 const PR_CREATE_FILE = 0x8;
 const PR_TRUNCATE = 0x20;
-const PR_EXCL = 0x80;
 const RW_OWNER = 0600;
 const RWX_OWNER = 0700;
 
@@ -86,8 +81,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "Telemetry",
 XPCOMUtils.defineLazyServiceGetter(this, "idleService",
                                    "@mozilla.org/widget/idleservice;1",
                                    "nsIIdleService");
-XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
-                                  "resource://gre/modules/UpdateChannel.jsm");
 
 function generateUUID() {
   let str = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator).generateUUID().toString();
@@ -142,11 +135,47 @@ function getSimpleMeasurements() {
            .getService(Ci.nsIJSEngineTelemetryStats)
            .telemetryValue;
 
-  let shutdownDuration = Services.startup.lastShutdownDuration;
+  let shutdownDuration = si.lastShutdownDuration;
   if (shutdownDuration)
     ret.shutdownDuration = shutdownDuration;
 
   return ret;
+}
+
+/**
+ * Read the update channel from defaults only.  We do this to ensure that
+ * the channel is tightly coupled with the application and does not apply
+ * to other installations of the application that may use the same profile.
+ */
+function getUpdateChannel() {
+  var channel = "default";
+  var prefName;
+  var prefValue;
+
+  var defaults = Services.prefs.getDefaultBranch(null);
+  try {
+    channel = defaults.getCharPref("app.update.channel");
+  } catch (e) {
+    // use default when pref not found
+  }
+
+  try {
+    var partners = Services.prefs.getChildList("app.partner.");
+    if (partners.length) {
+      channel += "-cck";
+      partners.sort();
+
+      for each (prefName in partners) {
+        prefValue = Services.prefs.getCharPref(prefName);
+        channel += "-" + prefValue;
+      }
+    }
+  }
+  catch (e) {
+    Cu.reportError(e);
+  }
+
+  return channel;
 }
 
 /**
@@ -205,7 +234,6 @@ TelemetryPing.prototype = {
   // duplicate submissions.
   _uuid: generateUUID(),
   // Regex that matches histograms we care about during startup.
-  // Keep this in sync with gen-histogram-bucket-ranges.py.
   _startupHistogramRegex: /SQLITE|HTTP|SPDY|CACHE|DNS/,
   _slowSQLStartup: {},
   _prevSession: null,
@@ -330,31 +358,30 @@ TelemetryPing.prototype = {
       appVersion: ai.version,
       appName: ai.name,
       appBuildID: ai.appBuildID,
-      appUpdateChannel: UpdateChannel.get(),
+      appUpdateChannel: getUpdateChannel(),
       platformBuildID: ai.platformBuildID,
       locale: getLocale()
     };
 
     // sysinfo fields are not always available, get what we can.
     let sysInfo = Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2);
-    let fields = ["cpucount", "memsize", "arch", "version", "kernel_version",
-                  "device", "manufacturer", "hardware",
+    let fields = ["cpucount", "memsize", "arch", "version", "device", "manufacturer", "hardware",
                   "hasMMX", "hasSSE", "hasSSE2", "hasSSE3",
                   "hasSSSE3", "hasSSE4A", "hasSSE4_1", "hasSSE4_2",
-                  "hasEDSP", "hasARMv6", "hasARMv7", "hasNEON"];
+                  "hasEDSP", "hasARMv6", "hasNEON"];
     for each (let field in fields) {
       let value;
       try {
         value = sysInfo.getProperty(field);
       } catch (e) {
-        continue;
+        continue
       }
       if (field == "memsize") {
         // Send RAM size in megabytes. Rounding because sysinfo doesn't
         // always provide RAM in multiples of 1024.
-        value = Math.round(value / 1024 / 1024);
+        value = Math.round(value / 1024 / 1024)
       }
-      ret[field] = value;
+      ret[field] = value
     }
 
     // gfxInfo fields are not always available, get what we can.
@@ -381,11 +408,9 @@ TelemetryPing.prototype = {
       }
     }
 
-#ifndef MOZ_WIDGET_GONK
     let theme = LightweightThemeManager.currentTheme;
     if (theme)
       ret.persona = theme.id;
-#endif
 
     if (this._addons)
       ret.addons = this._addons;
@@ -487,7 +512,8 @@ TelemetryPing.prototype = {
         Telemetry.histogramFrom("STARTUP_" + name, name);
       }
     }
-    this._slowSQLStartup = Telemetry.slowSQL;
+    // Bug 777220: Temporarily turn off slowSQL reporting
+    this._slowSQLStartup = {mainThread:{}, otherThreads:{}};
   },
 
   getCurrentSessionPayloadAndSlug: function getCurrentSessionPayloadAndSlug(reason) {
@@ -497,7 +523,8 @@ TelemetryPing.prototype = {
       ver: PAYLOAD_VERSION,
       simpleMeasurements: getSimpleMeasurements(),
       histograms: this.getHistograms(Telemetry.histogramSnapshots),
-      slowSQL: Telemetry.slowSQL,
+      // Bug 777220: Temporarily turn off slowSQL reporting
+      slowSQL: {mainThread:{}, otherThreads:{}},
       chromeHangs: Telemetry.chromeHangs,
       addonHistograms: this.getAddonHistograms()
     };
@@ -519,7 +546,7 @@ TelemetryPing.prototype = {
     function payloadIter() {
       yield this.getCurrentSessionPayloadAndSlug(reason);
 
-      while (this._pendingPings.length > 0) {
+      if (this._pendingPings.length > 0) {
         let data = this._pendingPings.pop();
         // Send persisted pings to the test URL too.
         if (reason == "test-ping") {
@@ -727,9 +754,7 @@ TelemetryPing.prototype = {
     return ping.checksum == checksumNow;
   },
 
-  addToPendingPings: function addToPendingPings(file, stream) {
-    let success = false;
-
+  addToPendingPings: function addToPendingPings(stream) {
     try {
       let string = NetUtil.readInputStreamToString(stream, stream.available(), { charset: "UTF-8" });
       stream.close();
@@ -744,30 +769,18 @@ TelemetryPing.prototype = {
           this._pingLoadsCompleted == this._pingsLoaded) {
         Services.obs.notifyObservers(null, "telemetry-test-load-complete", null);
       }
-      success = true;
     } catch (e) {
       // An error reading the file, or an error parsing the contents.
-      stream.close();           // close is idempotent.
-      file.remove(true);
     }
-    let success_histogram = Telemetry.getHistogramById("READ_SAVED_PING_SUCCESS");
-    success_histogram.add(success);
   },
 
   loadHistograms: function loadHistograms(file, sync) {
-    let now = new Date();
-    if (now - file.lastModifiedTime > MAX_PING_FILE_AGE) {
-      // We haven't had much luck in sending this file; delete it.
-      file.remove(true);
-      return;
-    }
-
     this._pingsLoaded++;
     if (sync) {
       let stream = Cc["@mozilla.org/network/file-input-stream;1"]
                    .createInstance(Ci.nsIFileInputStream);
       stream.init(file, -1, -1, 0);
-      this.addToPendingPings(file, stream);
+      this.addToPendingPings(stream);
     } else {
       let channel = NetUtil.newChannel(file);
       channel.contentType = "application/json"
@@ -776,7 +789,7 @@ TelemetryPing.prototype = {
         if (!Components.isSuccessCode(result)) {
           return;
         }
-        this.addToPendingPings(file, stream);
+        this.addToPendingPings(stream);
       }).bind(this));
     }
   },
@@ -798,42 +811,30 @@ TelemetryPing.prototype = {
   },
 
   finishTelemetrySave: function finishTelemetrySave(ok, stream) {
+    stream.QueryInterface(Ci.nsISafeOutputStream).finish();
     stream.close();
     if (this._doLoadSaveNotifications && ok) {
       Services.obs.notifyObservers(null, "telemetry-test-save-complete", null);
     }
   },
 
-  savePingToFile: function savePingToFile(ping, file, sync, overwrite) {
+  savePingToFile: function savePingToFile(ping, file, sync) {
     let pingString = JSON.stringify(ping);
 
     let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
                     .createInstance(Ci.nsIScriptableUnicodeConverter);
     converter.charset = "UTF-8";
 
-    let ostream = Cc["@mozilla.org/network/file-output-stream;1"]
+    let ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"]
                   .createInstance(Ci.nsIFileOutputStream);
-    let initFlags = PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE;
-    if (!overwrite) {
-      initFlags |= PR_EXCL;
-    }
-    try {
-      ostream.init(file, initFlags, RW_OWNER, 0);
-    } catch (e) {
-      // Probably due to PR_EXCL.
-      return;
-    }
+    ostream.init(file, PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,
+                 RW_OWNER, ostream.DEFER_OPEN);
 
     if (sync) {
       let utf8String = converter.ConvertFromUnicode(pingString);
       utf8String += converter.Finish();
-      let success = false;
-      try {
-        let amount = ostream.write(utf8String, utf8String.length);
-        success = amount == utf8String.length;
-      } catch (e) {
-      }
-      this.finishTelemetrySave(success, ostream);
+      let amount = ostream.write(utf8String, utf8String.length);
+      this.finishTelemetrySave(amount == utf8String.length, ostream);
     } else {
       let istream = converter.convertToInputStream(pingString)
       let self = this;
@@ -861,11 +862,18 @@ TelemetryPing.prototype = {
     let profileDirectory = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
     let directory = profileDirectory.clone();
     directory.append("saved-telemetry-pings");
-    try {
-      directory.create(Ci.nsIFile.DIRECTORY_TYPE, RWX_OWNER);
-    } catch (e) {
-      // Already exists, just ignore this.
+    if (directory.exists()) {
+      if (directory.isDirectory()) {
+        // We used to wrongly create the directory with mode 0600.
+        // Fix that.
+        directory.permissions = RWX_OWNER;
+        return directory;
+      } else {
+        directory.remove(true);
+      }
     }
+
+    directory.create(Ci.nsIFile.DIRECTORY_TYPE, RWX_OWNER);
     return directory;
   },
 
@@ -878,22 +886,19 @@ TelemetryPing.prototype = {
     return file;
   },
 
-  savePing: function savePing(ping, overwrite) {
-    this.savePingToFile(ping, this.saveFileForPing(ping), true, overwrite);
+  savePing: function savePing(ping) {
+    this.savePingToFile(ping, this.saveFileForPing(ping), true);
   },
 
   savePendingPings: function savePendingPings() {
-    let sessionPing = this.getCurrentSessionPayloadAndSlug("saved-session");
-    this.savePing(sessionPing, true);
-    this._pendingPings.forEach(function sppcb(e, i, a) {
-                                 this.savePing(e, false);
-                               }, this);
+    this._pendingPings.push(this.getCurrentSessionPayloadAndSlug("saved-session"));
+    this._pendingPings.forEach(function sppcb(e, i, a) { this.savePing(e); }, this);
     this._pendingPings = [];
   },
 
   saveHistograms: function saveHistograms(file, sync) {
     this.savePingToFile(this.getCurrentSessionPayloadAndSlug("saved-session"),
-                        file, sync, true);
+                        file, sync);
   },
 
   /** 
@@ -1016,9 +1021,7 @@ TelemetryPing.prototype = {
       }
       break;
     case "quit-application-granted":
-      if (Telemetry.canSend) {
-        this.savePendingPings();
-      }
+      this.savePendingPings();
       break;
     }
   },

@@ -123,7 +123,7 @@ public:
    * @param  aContent  the given element
    * @param  aKey      accesskey
    */
-  void RegisterAccessKey(nsIContent* aContent, uint32_t aKey);
+  void RegisterAccessKey(nsIContent* aContent, PRUint32 aKey);
 
   /**
    * Unregister accesskey for the given element.
@@ -131,19 +131,19 @@ public:
    * @param  aContent  the given element
    * @param  aKey      accesskey
    */
-  void UnregisterAccessKey(nsIContent* aContent, uint32_t aKey);
+  void UnregisterAccessKey(nsIContent* aContent, PRUint32 aKey);
 
   /**
    * Get accesskey registered on the given element or 0 if there is none.
    *
-   * @param  aContent  the given element (must not be null)
+   * @param  aContent  the given element
    * @return           registered accesskey
    */
-  uint32_t GetRegisteredAccessKey(nsIContent* aContent);
+  PRUint32 GetRegisteredAccessKey(nsIContent* aContent);
 
   bool GetAccessKeyLabelPrefix(nsAString& aPrefix);
 
-  nsresult SetCursor(int32_t aCursor, imgIContainer* aContainer,
+  nsresult SetCursor(PRInt32 aCursor, imgIContainer* aContainer,
                      bool aHaveHotspot, float aHotspotX, float aHotspotY,
                      nsIWidget* aWidget, bool aLockCursor); 
 
@@ -204,9 +204,6 @@ public:
 
   static bool IsRemoteTarget(nsIContent* aTarget);
 
-  static void MapEventCoordinatesForChildProcess(nsFrameLoader* aFrameLoader,
-                                                 nsEvent* aEvent);
-
   // Holds the point in screen coords that a mouse event was dispatched to,
   // before we went into pointer lock mode. This is constantly updated while
   // the pointer is not locked, but we don't update it while the pointer is
@@ -233,7 +230,7 @@ protected:
    * content.  This returns the primary frame for the content (or null
    * if it goes away during the event).
    */
-  nsIFrame* DispatchMouseEvent(nsGUIEvent* aEvent, uint32_t aMessage,
+  nsIFrame* DispatchMouseEvent(nsGUIEvent* aEvent, PRUint32 aMessage,
                                nsIContent* aTargetContent,
                                nsIContent* aRelatedContent);
   /**
@@ -267,7 +264,7 @@ protected:
    */
   void FireDragEnterOrExit(nsPresContext* aPresContext,
                            nsGUIEvent* aEvent,
-                           uint32_t aMsg,
+                           PRUint32 aMsg,
                            nsIContent* aRelatedTarget,
                            nsIContent* aTargetContent,
                            nsWeakFrame& aTargetFrame);
@@ -315,9 +312,9 @@ protected:
                        nsEventStatus* aStatus,
                        nsIDocShellTreeItem* aBubbledFrom,
                        ProcessingAccessKeyState aAccessKeyState,
-                       int32_t aModifierMask);
+                       PRInt32 aModifierMask);
 
-  bool ExecuteAccessKey(nsTArray<uint32_t>& aAccessCharCodes,
+  bool ExecuteAccessKey(nsTArray<PRUint32>& aAccessCharCodes,
                           bool aIsTrustedEvent);
 
   //---------------------------------------------
@@ -444,7 +441,7 @@ protected:
   void SendLineScrollEvent(nsIFrame* aTargetFrame,
                            mozilla::widget::WheelEvent* aEvent,
                            nsEventStatus* aStatus,
-                           int32_t aDelta,
+                           PRInt32 aDelta,
                            DeltaDirection aDeltaDirection);
 
   /**
@@ -462,7 +459,7 @@ protected:
   void SendPixelScrollEvent(nsIFrame* aTargetFrame,
                             mozilla::widget::WheelEvent* aEvent,
                             nsEventStatus* aStatus,
-                            int32_t aPixelDelta,
+                            PRInt32 aPixelDelta,
                             DeltaDirection aDeltaDirection);
 
   /**
@@ -471,41 +468,15 @@ protected:
    *
    * @param aTargetFrame        The event target of the wheel event.
    * @param aEvent              The handling mouse wheel event.
-   * @param aOptions            The options for finding the scroll target.
-   *                            Callers should use COMPUTE_*.
+   * @param aForDefaultAction   Whether this uses wheel transaction or not.
+   *                            If true, returns the latest scrolled frame if
+   *                            there is it.  Otherwise, the nearest ancestor
+   *                            scrollable frame from aTargetFrame.
    * @return                    The scrollable frame which should be scrolled.
    */
-  // These flags are used in ComputeScrollTarget(). Callers should use
-  // COMPUTE_*.
-  enum
-  {
-    PREFER_MOUSE_WHEEL_TRANSACTION               = 1,
-    PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_X_AXIS = 2,
-    PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_Y_AXIS = 4,
-    START_FROM_PARENT                            = 8
-  };
-  enum ComputeScrollTargetOptions
-  {
-    // At computing scroll target for legacy mouse events, we should return
-    // first scrollable element even when it's not scrollable to the direction.
-    COMPUTE_LEGACY_MOUSE_SCROLL_EVENT_TARGET     = 0,
-    // Default action prefers the scrolled element immediately before if it's
-    // still under the mouse cursor.  Otherwise, it prefers the nearest
-    // scrollable ancestor which will be scrolled actually.
-    COMPUTE_DEFAULT_ACTION_TARGET                =
-      (PREFER_MOUSE_WHEEL_TRANSACTION |
-       PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_X_AXIS |
-       PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_Y_AXIS),
-    // Look for the nearest scrollable ancestor which can be scrollable with
-    // aEvent.
-    COMPUTE_SCROLLABLE_ANCESTOR_ALONG_X_AXIS     =
-      (PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_X_AXIS | START_FROM_PARENT),
-    COMPUTE_SCROLLABLE_ANCESTOR_ALONG_Y_AXIS     =
-      (PREFER_ACTUAL_SCROLLABLE_TARGET_ALONG_Y_AXIS | START_FROM_PARENT)
-  };
   nsIScrollableFrame* ComputeScrollTarget(nsIFrame* aTargetFrame,
                                           mozilla::widget::WheelEvent* aEvent,
-                                          ComputeScrollTargetOptions aOptions);
+                                          bool aForDefaultAction);
 
   /**
    * GetScrollAmount() returns the scroll amount in app uints of one line or
@@ -529,11 +500,11 @@ protected:
   void DoScrollText(nsIScrollableFrame* aScrollableFrame,
                     mozilla::widget::WheelEvent* aEvent);
 
-  void DoScrollHistory(int32_t direction);
-  void DoScrollZoom(nsIFrame *aTargetFrame, int32_t adjustment);
+  void DoScrollHistory(PRInt32 direction);
+  void DoScrollZoom(nsIFrame *aTargetFrame, PRInt32 adjustment);
   nsresult GetMarkupDocumentViewer(nsIMarkupDocumentViewer** aMv);
-  nsresult ChangeTextSize(int32_t change);
-  nsresult ChangeFullZoom(int32_t change);
+  nsresult ChangeTextSize(PRInt32 change);
+  nsresult ChangeFullZoom(PRInt32 change);
 
   /**
    * DeltaAccumulator class manages delta values for dispatching DOMMouseScroll
@@ -558,8 +529,6 @@ protected:
       sInstance = nullptr;
     }
 
-    bool IsInTransaction() { return mHandlingDeltaMode != UINT32_MAX; }
-
     /**
      * InitLineOrPageDelta() stores pixel delta values of WheelEvents which are
      * caused if it's needed.  And if the accumulated delta becomes a
@@ -570,37 +539,22 @@ protected:
                              mozilla::widget::WheelEvent* aEvent);
 
     /**
-     * Reset() resets all members.
+     * Reset() resets both delta values.
      */
     void Reset();
 
-    /**
-     * ComputeScrollAmountForDefaultAction() computes the default action's
-     * scroll amount in device pixels with mPendingScrollAmount*.
-     */
-    nsIntPoint ComputeScrollAmountForDefaultAction(
-                 mozilla::widget::WheelEvent* aEvent,
-                 const nsIntSize& aScrollAmountInDevPixels);
-
   private:
     DeltaAccumulator() :
-      mX(0.0), mY(0.0), mPendingScrollAmountX(0.0), mPendingScrollAmountY(0.0),
-      mHandlingDeltaMode(UINT32_MAX), mHandlingPixelOnlyDevice(false)
+      mX(0.0), mY(0.0), mHandlingDeltaMode(PR_UINT32_MAX),
+      mHandlingPixelOnlyDevice(false)
     {
     }
 
     double mX;
     double mY;
-
-    // When default action of a wheel event is scroll but some delta values
-    // are ignored because the computed amount values are not integer, the
-    // fractional values are saved by these members.
-    double mPendingScrollAmountX;
-    double mPendingScrollAmountY;
-
     TimeStamp mLastTime;
 
-    uint32_t mHandlingDeltaMode;
+    PRUint32 mHandlingDeltaMode;
     bool mHandlingPixelOnlyDevice;
 
     static DeltaAccumulator* sInstance;
@@ -690,19 +644,12 @@ private:
                                   nsEventStates aState,
                                   bool aAddState);
 
-  int32_t     mLockCursor;
+  PRInt32     mLockCursor;
 
   // Last mouse event refPoint (the offset from the widget's origin in
   // device pixels) when mouse was locked, used to restore mouse position
   // after unlocking.
   nsIntPoint  mPreLockPoint;
-
-  // Stores the refPoint of the last synthetic mouse move we dispatched
-  // to re-center the mouse when we were pointer locked. If this is (-1,-1) it
-  // means we've not recently dispatched a centering event. We use this to
-  // detect when we receive the synth event, so we can cancel and not send it
-  // to content.
-  static nsIntPoint sSynthCenteringPoint;
 
   nsWeakFrame mCurrentTarget;
   nsCOMPtr<nsIContent> mCurrentTargetContent;
@@ -724,7 +671,7 @@ private:
   nsCOMPtr<nsIContent> mGestureDownFrameOwner;
   // State of keys when the original gesture-down happened
   mozilla::widget::Modifiers mGestureModifiers;
-  uint16_t mGestureDownButtons;
+  PRUint16 mGestureDownButtons;
 
   nsCOMPtr<nsIContent> mLastLeftMouseDownContent;
   nsCOMPtr<nsIContent> mLastLeftMouseDownContentParent;
@@ -749,9 +696,9 @@ private:
   nsPresContext* mPresContext;      // Not refcnted
   nsCOMPtr<nsIDocument> mDocument;   // Doesn't necessarily need to be owner
 
-  uint32_t mLClickCount;
-  uint32_t mMClickCount;
-  uint32_t mRClickCount;
+  PRUint32 mLClickCount;
+  PRUint32 mMClickCount;
+  PRUint32 mRClickCount;
 
   bool m_haveShutdown;
 
@@ -763,7 +710,7 @@ public:
   // Array for accesskey support
   nsCOMArray<nsIContent> mAccessKeys;
 
-  static int32_t sUserInputEventDepth;
+  static PRInt32 sUserInputEventDepth;
   
   static bool sNormalLMouseEventInProcess;
 

@@ -240,9 +240,7 @@ add_test(function test_import_chromefavicon()
                                                     "Test");
 
       PlacesUtils.favicons.setAndFetchFaviconForPage(
-        PAGE_URI, CHROME_FAVICON_URI, true,
-          PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
-          function () {
+        PAGE_URI, CHROME_FAVICON_URI, true, function () {
           PlacesUtils.favicons.getFaviconDataForPage(
             PAGE_URI, function (aURI, aDataLen, aData, aMimeType) {
               let base64Icon = "data:image/png;base64," +
@@ -257,9 +255,7 @@ add_test(function test_import_chromefavicon()
 
               // Change the favicon to check it's really imported again later.
               PlacesUtils.favicons.setAndFetchFaviconForPage(
-                PAGE_URI, CHROME_FAVICON_URI_2, true,
-                PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
-                function () {
+                PAGE_URI, CHROME_FAVICON_URI_2, true, function () {
 
                   remove_all_bookmarks();
 

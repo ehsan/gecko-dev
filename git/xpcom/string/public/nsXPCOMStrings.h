@@ -8,7 +8,6 @@
 
 #include <string.h>
 #include "nscore.h"
-#include <limits>
 
 /**
  * nsXPCOMStrings.h
@@ -135,8 +134,8 @@ struct nsStringContainer_base
 {
 protected:
   void *d1;
-  uint32_t d2;
-  uint32_t d3;
+  PRUint32 d2;
+  PRUint32 d3;
 };
 
 /**
@@ -178,7 +177,7 @@ NS_StringContainerInit(nsStringContainer &aContainer);
  * @param aContainer    string container reference
  * @param aData         character buffer (may be null)
  * @param aDataLength   number of characters stored at aData (may pass
- *                      UINT32_MAX if aData is null-terminated)
+ *                      PR_UINT32_MAX if aData is null-terminated)
  * @param aFlags        flags affecting how the string container is
  *                      initialized.  this parameter is ignored when aData
  *                      is null.  otherwise, if this parameter is 0, then
@@ -194,7 +193,7 @@ NS_StringContainerInit(nsStringContainer &aContainer);
 XPCOM_API(nsresult)
 NS_StringContainerInit2
   (nsStringContainer &aContainer, const PRUnichar *aData = nullptr,
-   uint32_t aDataLength = UINT32_MAX, uint32_t aFlags = 0);
+   PRUint32 aDataLength = PR_UINT32_MAX, PRUint32 aFlags = 0);
 
 /**
  * NS_StringContainerFinish
@@ -223,7 +222,7 @@ NS_StringContainerFinish(nsStringContainer &aContainer);
  *                      terminated
  * @return              length of aStr's internal buffer
  */
-XPCOM_API(uint32_t)
+XPCOM_API(PRUint32)
 NS_StringGetData
   (const nsAString &aStr, const PRUnichar **aData,
    bool *aTerminated = nullptr);
@@ -238,14 +237,14 @@ NS_StringGetData
  *
  * Optionally, this function may be used to resize the string's internal
  * buffer.  The aDataLength parameter specifies the requested length of the
- * string's internal buffer.  By passing some value other than UINT32_MAX,
+ * string's internal buffer.  By passing some value other than PR_UINT32_MAX,
  * the caller can request that the buffer be resized to the specified number of
  * characters before returning.  The caller is not responsible for writing a
  * null-terminator.
  *
  * @param aStr          abstract string reference
  * @param aDataLength   number of characters to resize the string's internal
- *                      buffer to or UINT32_MAX if no resizing is needed
+ *                      buffer to or PR_UINT32_MAX if no resizing is needed
  * @param aData         out param that upon return holds the address of aStr's
  *                      internal buffer or null if the function failed
  * @return              number of characters or zero if the function failed
@@ -255,9 +254,9 @@ NS_StringGetData
  * string, aStr.  If aStr is a reference to a nsStringContainer, then its data
  * will be null-terminated by this function.
  */
-XPCOM_API(uint32_t)
+XPCOM_API(PRUint32)
 NS_StringGetMutableData
-  (nsAString &aStr, uint32_t aDataLength, PRUnichar **aData);
+  (nsAString &aStr, PRUint32 aDataLength, PRUnichar **aData);
 
 /**
  * NS_StringCloneData
@@ -281,7 +280,7 @@ NS_StringCloneData
  * @param aStr          abstract string reference
  * @param aData         character buffer
  * @param aDataLength   number of characters to copy from source string (pass
- *                      UINT32_MAX to copy until end of aData, designated by
+ *                      PR_UINT32_MAX to copy until end of aData, designated by
  *                      a null character)
  * @return              NS_OK if function succeeded
  *
@@ -293,7 +292,7 @@ NS_StringCloneData
 XPCOM_API(nsresult)
 NS_StringSetData
   (nsAString &aStr, const PRUnichar *aData,
-   uint32_t aDataLength = UINT32_MAX);
+   PRUint32 aDataLength = PR_UINT32_MAX);
 
 /**
  * NS_StringSetDataRange
@@ -303,16 +302,16 @@ NS_StringSetData
  *
  * @param aStr          abstract string reference
  * @param aCutOffset    starting index where the string's existing data
- *                      is to be overwritten (pass UINT32_MAX to cause
+ *                      is to be overwritten (pass PR_UINT32_MAX to cause
  *                      aData to be appended to the end of aStr, in which
  *                      case the value of aCutLength is ignored).
  * @param aCutLength    number of characters to overwrite starting at
- *                      aCutOffset (pass UINT32_MAX to overwrite until the
+ *                      aCutOffset (pass PR_UINT32_MAX to overwrite until the
  *                      end of aStr).
  * @param aData         character buffer (pass null to cause this function
  *                      to simply remove the "cut" range)
  * @param aDataLength   number of characters to copy from source string (pass
- *                      UINT32_MAX to copy until end of aData, designated by
+ *                      PR_UINT32_MAX to copy until end of aData, designated by
  *                      a null character)
  * @return              NS_OK if function succeeded
  *
@@ -323,8 +322,8 @@ NS_StringSetData
  */
 XPCOM_API(nsresult)
 NS_StringSetDataRange
-  (nsAString &aStr, uint32_t aCutOffset, uint32_t aCutLength,
-   const PRUnichar *aData, uint32_t aDataLength = UINT32_MAX);
+  (nsAString &aStr, PRUint32 aCutOffset, PRUint32 aCutLength,
+   const PRUnichar *aData, PRUint32 aDataLength = PR_UINT32_MAX);
 
 /**
  * NS_StringCopy
@@ -352,7 +351,7 @@ NS_StringCopy
  *
  * @param aStr          abstract string reference to be modified
  * @param aData         character buffer
- * @param aDataLength   number of characters to append (pass UINT32_MAX to
+ * @param aDataLength   number of characters to append (pass PR_UINT32_MAX to
  *                      append until a null-character is encountered)
  * @return              NS_OK if function succeeded
  *
@@ -363,9 +362,9 @@ NS_StringCopy
  */
 inline NS_HIDDEN_(nsresult)
 NS_StringAppendData(nsAString &aStr, const PRUnichar *aData,
-                    uint32_t aDataLength = UINT32_MAX)
+                    PRUint32 aDataLength = PR_UINT32_MAX)
 {
-  return NS_StringSetDataRange(aStr, UINT32_MAX, 0, aData, aDataLength);
+  return NS_StringSetDataRange(aStr, PR_UINT32_MAX, 0, aData, aDataLength);
 }
 
 /**
@@ -377,7 +376,7 @@ NS_StringAppendData(nsAString &aStr, const PRUnichar *aData,
  * @param aStr          abstract string reference to be modified
  * @param aOffset       specifies where in the string to insert aData
  * @param aData         character buffer
- * @param aDataLength   number of characters to append (pass UINT32_MAX to
+ * @param aDataLength   number of characters to append (pass PR_UINT32_MAX to
  *                      append until a null-character is encountered)
  * @return              NS_OK if function succeeded
  *
@@ -387,8 +386,8 @@ NS_StringAppendData(nsAString &aStr, const PRUnichar *aData,
  * terminated by this function.
  */
 inline NS_HIDDEN_(nsresult)
-NS_StringInsertData(nsAString &aStr, uint32_t aOffset, const PRUnichar *aData,
-                    uint32_t aDataLength = UINT32_MAX)
+NS_StringInsertData(nsAString &aStr, PRUint32 aOffset, const PRUnichar *aData,
+                    PRUint32 aDataLength = PR_UINT32_MAX)
 {
   return NS_StringSetDataRange(aStr, aOffset, 0, aData, aDataLength);
 }
@@ -405,7 +404,7 @@ NS_StringInsertData(nsAString &aStr, uint32_t aOffset, const PRUnichar *aData,
  * @return              NS_OK if function succeeded
  */
 inline NS_HIDDEN_(nsresult)
-NS_StringCutData(nsAString &aStr, uint32_t aCutOffset, uint32_t aCutLength)
+NS_StringCutData(nsAString &aStr, PRUint32 aCutOffset, PRUint32 aCutLength)
 {
   return NS_StringSetDataRange(aStr, aCutOffset, aCutLength, nullptr, 0);
 }
@@ -483,7 +482,7 @@ NS_CStringContainerInit(nsCStringContainer &aContainer);
  * @param aContainer    string container reference
  * @param aData         character buffer (may be null)
  * @param aDataLength   number of characters stored at aData (may pass
- *                      UINT32_MAX if aData is null-terminated)
+ *                      PR_UINT32_MAX if aData is null-terminated)
  * @param aFlags        flags affecting how the string container is
  *                      initialized.  this parameter is ignored when aData
  *                      is null.  otherwise, if this parameter is 0, then
@@ -499,7 +498,7 @@ NS_CStringContainerInit(nsCStringContainer &aContainer);
 XPCOM_API(nsresult)
 NS_CStringContainerInit2
   (nsCStringContainer &aContainer, const char *aData = nullptr,
-   uint32_t aDataLength = UINT32_MAX, uint32_t aFlags = 0);
+   PRUint32 aDataLength = PR_UINT32_MAX, PRUint32 aFlags = 0);
 
 /**
  * NS_CStringContainerFinish
@@ -528,7 +527,7 @@ NS_CStringContainerFinish(nsCStringContainer &aContainer);
  *                      terminated
  * @return              length of aStr's internal buffer
  */
-XPCOM_API(uint32_t)
+XPCOM_API(PRUint32)
 NS_CStringGetData
   (const nsACString &aStr, const char **aData,
    bool *aTerminated = nullptr);
@@ -543,14 +542,14 @@ NS_CStringGetData
  *
  * Optionally, this function may be used to resize the string's internal
  * buffer.  The aDataLength parameter specifies the requested length of the
- * string's internal buffer.  By passing some value other than UINT32_MAX,
+ * string's internal buffer.  By passing some value other than PR_UINT32_MAX,
  * the caller can request that the buffer be resized to the specified number of
  * characters before returning.  The caller is not responsible for writing a
  * null-terminator.
  *
  * @param aStr          abstract string reference
  * @param aDataLength   number of characters to resize the string's internal
- *                      buffer to or UINT32_MAX if no resizing is needed
+ *                      buffer to or PR_UINT32_MAX if no resizing is needed
  * @param aData         out param that upon return holds the address of aStr's
  *                      internal buffer or null if the function failed
  * @return              number of characters or zero if the function failed
@@ -560,9 +559,9 @@ NS_CStringGetData
  * string, aStr.  If aStr is a reference to a nsStringContainer, then its data
  * will be null-terminated by this function.
  */
-XPCOM_API(uint32_t)
+XPCOM_API(PRUint32)
 NS_CStringGetMutableData
-  (nsACString &aStr, uint32_t aDataLength, char **aData);
+  (nsACString &aStr, PRUint32 aDataLength, char **aData);
 
 /**
  * NS_CStringCloneData
@@ -586,7 +585,7 @@ NS_CStringCloneData
  * @param aStr          abstract string reference
  * @param aData         character buffer
  * @param aDataLength   number of characters to copy from source string (pass
- *                      UINT32_MAX to copy until end of aData, designated by
+ *                      PR_UINT32_MAX to copy until end of aData, designated by
  *                      a null character)
  * @return              NS_OK if function succeeded
  *
@@ -598,7 +597,7 @@ NS_CStringCloneData
 XPCOM_API(nsresult)
 NS_CStringSetData
   (nsACString &aStr, const char *aData,
-   uint32_t aDataLength = UINT32_MAX);
+   PRUint32 aDataLength = PR_UINT32_MAX);
 
 /**
  * NS_CStringSetDataRange
@@ -608,16 +607,16 @@ NS_CStringSetData
  *
  * @param aStr          abstract string reference
  * @param aCutOffset    starting index where the string's existing data
- *                      is to be overwritten (pass UINT32_MAX to cause
+ *                      is to be overwritten (pass PR_UINT32_MAX to cause
  *                      aData to be appended to the end of aStr, in which
  *                      case the value of aCutLength is ignored).
  * @param aCutLength    number of characters to overwrite starting at
- *                      aCutOffset (pass UINT32_MAX to overwrite until the
+ *                      aCutOffset (pass PR_UINT32_MAX to overwrite until the
  *                      end of aStr).
  * @param aData         character buffer (pass null to cause this function
  *                      to simply remove the "cut" range)
  * @param aDataLength   number of characters to copy from source string (pass
- *                      UINT32_MAX to copy until end of aData, designated by
+ *                      PR_UINT32_MAX to copy until end of aData, designated by
  *                      a null character)
  * @return              NS_OK if function succeeded
  *
@@ -628,8 +627,8 @@ NS_CStringSetData
  */
 XPCOM_API(nsresult)
 NS_CStringSetDataRange
-  (nsACString &aStr, uint32_t aCutOffset, uint32_t aCutLength,
-   const char *aData, uint32_t aDataLength = UINT32_MAX);
+  (nsACString &aStr, PRUint32 aCutOffset, PRUint32 aCutLength,
+   const char *aData, PRUint32 aDataLength = PR_UINT32_MAX);
 
 /**
  * NS_CStringCopy
@@ -657,7 +656,7 @@ NS_CStringCopy
  *
  * @param aStr          abstract string reference to be modified
  * @param aData         character buffer
- * @param aDataLength   number of characters to append (pass UINT32_MAX to
+ * @param aDataLength   number of characters to append (pass PR_UINT32_MAX to
  *                      append until a null-character is encountered)
  * @return              NS_OK if function succeeded
  *
@@ -668,9 +667,9 @@ NS_CStringCopy
  */
 inline NS_HIDDEN_(nsresult)
 NS_CStringAppendData(nsACString &aStr, const char *aData,
-                    uint32_t aDataLength = UINT32_MAX)
+                    PRUint32 aDataLength = PR_UINT32_MAX)
 {
-  return NS_CStringSetDataRange(aStr, UINT32_MAX, 0, aData, aDataLength);
+  return NS_CStringSetDataRange(aStr, PR_UINT32_MAX, 0, aData, aDataLength);
 }
 
 /**
@@ -682,7 +681,7 @@ NS_CStringAppendData(nsACString &aStr, const char *aData,
  * @param aStr          abstract string reference to be modified
  * @param aOffset       specifies where in the string to insert aData
  * @param aData         character buffer
- * @param aDataLength   number of characters to append (pass UINT32_MAX to
+ * @param aDataLength   number of characters to append (pass PR_UINT32_MAX to
  *                      append until a null-character is encountered)
  * @return              NS_OK if function succeeded
  *
@@ -692,8 +691,8 @@ NS_CStringAppendData(nsACString &aStr, const char *aData,
  * terminated by this function.
  */
 inline NS_HIDDEN_(nsresult)
-NS_CStringInsertData(nsACString &aStr, uint32_t aOffset, const char *aData,
-                    uint32_t aDataLength = UINT32_MAX)
+NS_CStringInsertData(nsACString &aStr, PRUint32 aOffset, const char *aData,
+                    PRUint32 aDataLength = PR_UINT32_MAX)
 {
   return NS_CStringSetDataRange(aStr, aOffset, 0, aData, aDataLength);
 }
@@ -710,7 +709,7 @@ NS_CStringInsertData(nsACString &aStr, uint32_t aOffset, const char *aData,
  * @return              NS_OK if function succeeded
  */
 inline NS_HIDDEN_(nsresult)
-NS_CStringCutData(nsACString &aStr, uint32_t aCutOffset, uint32_t aCutLength)
+NS_CStringCutData(nsACString &aStr, PRUint32 aCutOffset, PRUint32 aCutLength)
 {
   return NS_CStringSetDataRange(aStr, aCutOffset, aCutLength, nullptr, 0);
 }

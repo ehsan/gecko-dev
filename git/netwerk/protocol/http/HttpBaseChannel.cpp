@@ -27,7 +27,7 @@ namespace mozilla {
 namespace net {
 
 HttpBaseChannel::HttpBaseChannel()
-  : mStartPos(UINT64_MAX)
+  : mStartPos(LL_MAXUINT)
   , mStatus(NS_OK)
   , mLoadFlags(LOAD_NORMAL)
   , mPriority(PRIORITY_NORMAL)
@@ -48,9 +48,8 @@ HttpBaseChannel::HttpBaseChannel()
   , mTracingEnabled(true)
   , mTimingEnabled(false)
   , mAllowSpdy(true)
+  , mPrivateBrowsing(false)
   , mSuspendCount(0)
-  , mProxyResolveFlags(0)
-  , mContentDispositionHint(UINT32_MAX)
 {
   LOG(("Creating HttpBaseChannel @%x\n", this));
 
@@ -74,10 +73,8 @@ HttpBaseChannel::~HttpBaseChannel()
 
 nsresult
 HttpBaseChannel::Init(nsIURI *aURI,
-                      uint8_t aCaps,
-                      nsProxyInfo *aProxyInfo,
-                      uint32_t aProxyResolveFlags,
-                      nsIURI *aProxyURI)
+                      PRUint8 aCaps,
+                      nsProxyInfo *aProxyInfo)
 {
   LOG(("HttpBaseChannel::Init [this=%p]\n", this));
 
@@ -90,12 +87,10 @@ HttpBaseChannel::Init(nsIURI *aURI,
   mOriginalURI = aURI;
   mDocumentURI = nullptr;
   mCaps = aCaps;
-  mProxyResolveFlags = aProxyResolveFlags;
-  mProxyURI = aProxyURI;
 
   // Construct connection info object
-  nsAutoCString host;
-  int32_t port = -1;
+  nsCAutoString host;
+  PRInt32 port = -1;
   bool usingSSL = false;
 
   rv = mURI->SchemeIs("https", &usingSSL);
@@ -117,24 +112,26 @@ HttpBaseChannel::Init(nsIURI *aURI,
   if (NS_FAILED(rv)) return rv;
   LOG(("uri=%s\n", mSpec.get()));
 
+  mConnectionInfo = new nsHttpConnectionInfo(host, port,
+                                             aProxyInfo, usingSSL);
+  if (!mConnectionInfo)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   // Set default request method
   mRequestHead.SetMethod(nsHttp::Get);
 
   // Set request headers
-  nsAutoCString hostLine;
+  nsCAutoString hostLine;
   rv = nsHttpHandler::GenerateHostPort(host, port, hostLine);
   if (NS_FAILED(rv)) return rv;
 
   rv = mRequestHead.SetHeader(nsHttp::Host, hostLine);
   if (NS_FAILED(rv)) return rv;
 
-  rv = gHttpHandler->AddStandardRequestHeaders(&mRequestHead.Headers());
-  if (NS_FAILED(rv)) return rv;
-
-  nsAutoCString type;
-  if (aProxyInfo && NS_SUCCEEDED(aProxyInfo->GetType(type)) &&
-      !type.EqualsLiteral("unknown"))
-    mProxyInfo = aProxyInfo;
+  rv = gHttpHandler->
+      AddStandardRequestHeaders(&mRequestHead.Headers(), aCaps,
+                                !mConnectionInfo->UsingConnect() &&
+                                mConnectionInfo->UsingHttpProxy());
 
   return rv;
 }
@@ -143,7 +140,7 @@ HttpBaseChannel::Init(nsIURI *aURI,
 // HttpBaseChannel::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS_INHERITED10(HttpBaseChannel,
+NS_IMPL_ISUPPORTS_INHERITED9( HttpBaseChannel,
                               nsHashPropertyBag,
                               nsIRequest,
                               nsIChannel,
@@ -153,8 +150,7 @@ NS_IMPL_ISUPPORTS_INHERITED10(HttpBaseChannel,
                               nsIUploadChannel,
                               nsIUploadChannel2,
                               nsISupportsPriority,
-                              nsITraceableChannel,
-                              nsIPrivateBrowsingChannel)
+                              nsITraceableChannel)
 
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsIRequest
@@ -195,13 +191,8 @@ HttpBaseChannel::GetLoadGroup(nsILoadGroup **aLoadGroup)
 NS_IMETHODIMP
 HttpBaseChannel::SetLoadGroup(nsILoadGroup *aLoadGroup)
 {
-  if (!CanSetLoadGroup(aLoadGroup)) {
-    return NS_ERROR_FAILURE;
-  }
-
   mLoadGroup = aLoadGroup;
   mProgressSink = nullptr;
-  mPrivateBrowsing = NS_UsePrivateBrowsing(this);
   return NS_OK;
 }
 
@@ -279,13 +270,10 @@ HttpBaseChannel::GetNotificationCallbacks(nsIInterfaceRequestor **aCallbacks)
 NS_IMETHODIMP
 HttpBaseChannel::SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks)
 {
-  if (!CanSetCallbacks(aCallbacks)) {
-    return NS_ERROR_FAILURE;
-  }
-
   mCallbacks = aCallbacks;
   mProgressSink = nullptr;
 
+  // Will never change unless SetNotificationCallbacks called again, so cache
   mPrivateBrowsing = NS_UsePrivateBrowsing(this);
   return NS_OK;
 }
@@ -314,7 +302,7 @@ HttpBaseChannel::SetContentType(const nsACString& aContentType)
     if (!mResponseHead)
       return NS_ERROR_NOT_AVAILABLE;
 
-    nsAutoCString contentTypeBuf, charsetBuf;
+    nsCAutoString contentTypeBuf, charsetBuf;
     bool hadCharset;
     net_ParseContentType(aContentType, contentTypeBuf, charsetBuf, &hadCharset);
 
@@ -360,28 +348,17 @@ HttpBaseChannel::SetContentCharset(const nsACString& aContentCharset)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetContentDisposition(uint32_t *aContentDisposition)
+HttpBaseChannel::GetContentDisposition(PRUint32 *aContentDisposition)
 {
   nsresult rv;
   nsCString header;
 
   rv = GetContentDispositionHeader(header);
-  if (NS_FAILED(rv)) {
-    if (mContentDispositionHint == UINT32_MAX)
-      return rv;
-
-    *aContentDisposition = mContentDispositionHint;
-    return NS_OK;
-  }
+  if (NS_FAILED(rv))
+    return rv;
 
   *aContentDisposition = NS_GetContentDispositionFromHeader(header, this);
-  return NS_OK;
-}
 
-NS_IMETHODIMP
-HttpBaseChannel::SetContentDisposition(uint32_t aContentDisposition)
-{
-  mContentDispositionHint = aContentDisposition;
   return NS_OK;
 }
 
@@ -389,27 +366,16 @@ NS_IMETHODIMP
 HttpBaseChannel::GetContentDispositionFilename(nsAString& aContentDispositionFilename)
 {
   aContentDispositionFilename.Truncate();
+
   nsresult rv;
   nsCString header;
 
   rv = GetContentDispositionHeader(header);
-  if (NS_FAILED(rv)) {
-    if (!mContentDispositionFilename)
-      return rv;
-
-    aContentDispositionFilename = *mContentDispositionFilename;
-    return NS_OK;
-  }
+  if (NS_FAILED(rv))
+    return rv;
 
   return NS_GetFilenameFromDisposition(aContentDispositionFilename,
                                        header, mURI);
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::SetContentDispositionFilename(const nsAString& aContentDispositionFilename)
-{
-  mContentDispositionFilename = new nsString(aContentDispositionFilename);
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -427,7 +393,7 @@ HttpBaseChannel::GetContentDispositionHeader(nsACString& aContentDispositionHead
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetContentLength(int32_t *aContentLength)
+HttpBaseChannel::GetContentLength(PRInt32 *aContentLength)
 {
   NS_ENSURE_ARG_POINTER(aContentLength);
 
@@ -440,7 +406,7 @@ HttpBaseChannel::GetContentLength(int32_t *aContentLength)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::SetContentLength(int32_t value)
+HttpBaseChannel::SetContentLength(PRInt32 value)
 {
   NS_NOTYETIMPLEMENTED("HttpBaseChannel::SetContentLength");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -469,7 +435,7 @@ HttpBaseChannel::GetUploadStream(nsIInputStream **stream)
 NS_IMETHODIMP
 HttpBaseChannel::SetUploadStream(nsIInputStream *stream,
                                const nsACString &contentType,
-                               int64_t contentLength)
+                               PRInt32 contentLength)
 {
   // NOTE: for backwards compatibility and for compatibility with old style
   // plugins, |stream| may include headers, specifically Content-Type and
@@ -479,7 +445,7 @@ HttpBaseChannel::SetUploadStream(nsIInputStream *stream,
   // contentLength are unspecified.
 
   if (stream) {
-    nsAutoCString method;
+    nsCAutoString method;
     bool hasHeaders;
 
     if (contentType.IsEmpty()) {
@@ -508,7 +474,7 @@ HttpBaseChannel::SetUploadStream(nsIInputStream *stream,
 NS_IMETHODIMP
 HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
                                        const nsACString &aContentType,
-                                       int64_t aContentLength,
+                                       PRInt64 aContentLength,
                                        const nsACString &aMethod,
                                        bool aStreamHasHeaders)
 {
@@ -516,7 +482,7 @@ HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
   NS_ENSURE_TRUE(aStream, NS_ERROR_FAILURE);
 
   if (aContentLength < 0 && !aStreamHasHeaders) {
-    nsresult rv = aStream->Available(reinterpret_cast<uint64_t*>(&aContentLength));
+    nsresult rv = aStream->Available(reinterpret_cast<PRUint64*>(&aContentLength));
     if (NS_FAILED(rv) || aContentLength < 0) {
       NS_ERROR("unable to determine content length");
       return NS_ERROR_FAILURE;
@@ -528,7 +494,7 @@ HttpBaseChannel::ExplicitSetUploadStream(nsIInputStream *aStream,
 
   if (!aStreamHasHeaders) {
     // SetRequestHeader propagates headers to chrome if HttpChannelChild 
-    nsAutoCString contentLengthStr;
+    nsCAutoString contentLengthStr;
     contentLengthStr.AppendInt(aContentLength);
     SetRequestHeader(NS_LITERAL_CSTRING("Content-Length"), contentLengthStr, 
                      false);
@@ -582,7 +548,7 @@ HttpBaseChannel::ApplyContentConversions()
     return NS_OK;
   }
 
-  nsAutoCString contentEncoding;
+  nsCAutoString contentEncoding;
   char *cePtr, *val;
   nsresult rv;
 
@@ -597,7 +563,7 @@ HttpBaseChannel::ApplyContentConversions()
   // to accept the raw network data.
 
   cePtr = contentEncoding.BeginWriting();
-  uint32_t count = 0;
+  PRUint32 count = 0;
   while ((val = nsCRT::strtok(cePtr, HTTP_LWS ",", &cePtr))) {
     if (++count > 16) {
       // That's ridiculous. We only understand 2 different ones :)
@@ -620,7 +586,7 @@ HttpBaseChannel::ApplyContentConversions()
       }
 
       nsCOMPtr<nsIStreamListener> converter;
-      nsAutoCString from(val);
+      nsCAutoString from(val);
       ToLowerCase(from);
       rv = serv->AsyncConvertData(from.get(),
                                   "uncompressed",
@@ -849,7 +815,7 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
       return NS_OK;
 
   // check referrer blocking pref
-  uint32_t referrerLevel;
+  PRUint32 referrerLevel;
   if (mLoadFlags & LOAD_INITIAL_DOCUMENT_URI)
     referrerLevel = 1; // user action
   else
@@ -872,21 +838,21 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
   rv = referrer->SchemeIs("wyciwyg", &match);
   if (NS_FAILED(rv)) return rv;
   if (match) {
-    nsAutoCString path;
+    nsCAutoString path;
     rv = referrer->GetPath(path);
     if (NS_FAILED(rv)) return rv;
 
-    uint32_t pathLength = path.Length();
+    PRUint32 pathLength = path.Length();
     if (pathLength <= 2) return NS_ERROR_FAILURE;
 
     // Path is of the form "//123/http://foo/bar", with a variable number of digits.
     // To figure out where the "real" URL starts, search path for a '/', starting at 
     // the third character.
-    int32_t slashIndex = path.FindChar('/', 2);
+    PRInt32 slashIndex = path.FindChar('/', 2);
     if (slashIndex == kNotFound) return NS_ERROR_FAILURE;
 
     // Get the charset of the original URI so we can pass it to our fixed up URI.
-    nsAutoCString charset;
+    nsCAutoString charset;
     referrer->GetOriginCharset(charset);
 
     // Replace |referrer| with a URI without wyciwyg://123/.
@@ -932,8 +898,8 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
       return NS_OK;
 
     if (!gHttpHandler->SendSecureXSiteReferrer()) {
-      nsAutoCString referrerHost;
-      nsAutoCString host;
+      nsCAutoString referrerHost;
+      nsCAutoString host;
 
       rv = referrer->GetAsciiHost(referrerHost);
       if (NS_FAILED(rv)) return rv;
@@ -961,7 +927,7 @@ HttpBaseChannel::SetReferrer(nsIURI *referrer)
   rv = clone->SetUserPass(EmptyCString());
   if (NS_FAILED(rv)) return rv;
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = clone->GetAsciiSpec(spec);
   if (NS_FAILED(rv)) return rv;
 
@@ -1090,7 +1056,7 @@ HttpBaseChannel::SetAllowPipelining(bool value)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetRedirectionLimit(uint32_t *value)
+HttpBaseChannel::GetRedirectionLimit(PRUint32 *value)
 {
   NS_ENSURE_ARG_POINTER(value);
   *value = mRedirectionLimit;
@@ -1098,11 +1064,11 @@ HttpBaseChannel::GetRedirectionLimit(uint32_t *value)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::SetRedirectionLimit(uint32_t value)
+HttpBaseChannel::SetRedirectionLimit(PRUint32 value)
 {
   ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
-  mRedirectionLimit = NS_MIN<uint32_t>(value, 0xff);
+  mRedirectionLimit = NS_MIN<PRUint32>(value, 0xff);
   return NS_OK;
 }
 
@@ -1127,7 +1093,7 @@ HttpBaseChannel::IsNoCacheResponse(bool *value)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetResponseStatus(uint32_t *aValue)
+HttpBaseChannel::GetResponseStatus(PRUint32 *aValue)
 {
   if (!mResponseHead)
     return NS_ERROR_NOT_AVAILABLE;
@@ -1149,7 +1115,7 @@ HttpBaseChannel::GetRequestSucceeded(bool *aValue)
 {
   if (!mResponseHead)
     return NS_ERROR_NOT_AVAILABLE;
-  uint32_t status = mResponseHead->Status();
+  PRUint32 status = mResponseHead->Status();
   *aValue = (status / 100 == 2);
   return NS_OK;
 }
@@ -1177,7 +1143,7 @@ HttpBaseChannel::SetDocumentURI(nsIURI *aDocumentURI)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetRequestVersion(uint32_t *major, uint32_t *minor)
+HttpBaseChannel::GetRequestVersion(PRUint32 *major, PRUint32 *minor)
 {
   nsHttpVersion version = mRequestHead.Version();
 
@@ -1188,7 +1154,7 @@ HttpBaseChannel::GetRequestVersion(uint32_t *major, uint32_t *minor)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetResponseVersion(uint32_t *major, uint32_t *minor)
+HttpBaseChannel::GetResponseVersion(PRUint32 *major, PRUint32 *minor)
 {
   if (!mResponseHead)
   {
@@ -1280,15 +1246,15 @@ HttpBaseChannel::GetLocalAddress(nsACString& addr)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetLocalPort(int32_t* port)
+HttpBaseChannel::GetLocalPort(PRInt32* port)
 {
   NS_ENSURE_ARG_POINTER(port);
 
   if (mSelfAddr.raw.family == PR_AF_INET) {
-    *port = (int32_t)PR_ntohs(mSelfAddr.inet.port);
+    *port = (PRInt32)PR_ntohs(mSelfAddr.inet.port);
   }
   else if (mSelfAddr.raw.family == PR_AF_INET6) {
-    *port = (int32_t)PR_ntohs(mSelfAddr.ipv6.port);
+    *port = (PRInt32)PR_ntohs(mSelfAddr.ipv6.port);
   }
   else
     return NS_ERROR_NOT_AVAILABLE;
@@ -1310,15 +1276,15 @@ HttpBaseChannel::GetRemoteAddress(nsACString& addr)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetRemotePort(int32_t* port)
+HttpBaseChannel::GetRemotePort(PRInt32* port)
 {
   NS_ENSURE_ARG_POINTER(port);
 
   if (mPeerAddr.raw.family == PR_AF_INET) {
-    *port = (int32_t)PR_ntohs(mPeerAddr.inet.port);
+    *port = (PRInt32)PR_ntohs(mPeerAddr.inet.port);
   }
   else if (mPeerAddr.raw.family == PR_AF_INET6) {
-    *port = (int32_t)PR_ntohs(mPeerAddr.ipv6.port);
+    *port = (PRInt32)PR_ntohs(mPeerAddr.ipv6.port);
   }
   else
     return NS_ERROR_NOT_AVAILABLE;
@@ -1359,14 +1325,14 @@ HttpBaseChannel::SetAllowSpdy(bool aAllowSpdy)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-HttpBaseChannel::GetPriority(int32_t *value)
+HttpBaseChannel::GetPriority(PRInt32 *value)
 {
   *value = mPriority;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::AdjustPriority(int32_t delta)
+HttpBaseChannel::AdjustPriority(PRInt32 delta)
 {
   return SetPriority(mPriority + delta);
 }
@@ -1384,8 +1350,8 @@ HttpBaseChannel::GetEntityID(nsACString& aEntityID)
     return NS_ERROR_NOT_RESUMABLE;
   }
 
-  uint64_t size = UINT64_MAX;
-  nsAutoCString etag, lastmod;
+  PRUint64 size = LL_MAXUINT;
+  nsCAutoString etag, lastmod;
   if (mResponseHead) {
     // Don't return an entity if the server sent the following header:
     // Accept-Ranges: none
@@ -1410,7 +1376,7 @@ HttpBaseChannel::GetEntityID(nsACString& aEntityID)
   NS_EscapeURL(etag.BeginReading(), etag.Length(), esc_AlwaysCopy |
                esc_FileBaseName | esc_Forced, entityID);
   entityID.Append('/');
-  entityID.AppendInt(int64_t(size));
+  entityID.AppendInt(PRInt64(size));
   entityID.Append('/');
   entityID.Append(lastmod);
   // NOTE: Appending lastmod as the last part avoids having to escape it
@@ -1444,15 +1410,6 @@ HttpBaseChannel::SetNewListener(nsIStreamListener *aListener, nsIStreamListener 
 //-----------------------------------------------------------------------------
 
 void
-HttpBaseChannel::ReleaseListeners()
-{
-  mListener = nullptr;
-  mListenerContext = nullptr;
-  mCallbacks = nullptr;
-  mProgressSink = nullptr;
-}
-
-void
 HttpBaseChannel::DoNotifyListener()
 {
   // Make sure mIsPending is set to false. At this moment we are done from
@@ -1462,12 +1419,14 @@ HttpBaseChannel::DoNotifyListener()
     mListener->OnStartRequest(this, mListenerContext);
     mIsPending = false;
     mListener->OnStopRequest(this, mListenerContext, mStatus);
+    mListener = 0;
+    mListenerContext = 0;
   } else {
     mIsPending = false;
   }
-  // We have to make sure to drop the references to listeners and callbacks
-  // no longer  needed
-  ReleaseListeners();
+  // We have to make sure to drop the reference to the callbacks too
+  mCallbacks = nullptr;
+  mProgressSink = nullptr;
 
   DoNotifyListenerCleanup();
 }
@@ -1515,6 +1474,40 @@ CopyProperties(const nsAString& aKey, nsIVariant *aData, void *aClosure)
   return PL_DHASH_NEXT;
 }
 
+// Return whether upon a redirect code of httpStatus for method, the
+// request method should be rewritten to GET.
+//
+bool
+HttpBaseChannel::ShouldRewriteRedirectToGET(PRUint32 httpStatus,
+                                            nsHttpAtom method)
+{
+  // for 301 and 302, only rewrite POST
+  if (httpStatus == 301 || httpStatus == 302)
+    return method == nsHttp::Post;
+
+  // rewrite for 303 unless it was HEAD
+  if (httpStatus == 303)
+    return method != nsHttp::Head;
+
+  // otherwise, such as for 307, do not rewrite
+  return false;
+}   
+
+// Return whether the specified method is safe as per RFC 2616, Section 9.1.1.
+bool
+HttpBaseChannel::IsSafeMethod(nsHttpAtom method)
+{
+  // This code will need to be extended for new safe methods, otherwise
+  // they'll default to "not safe".
+  return method == nsHttp::Get ||
+         method == nsHttp::Head ||
+         method == nsHttp::Options ||
+         method == nsHttp::Propfind ||
+         method == nsHttp::Report ||
+         method == nsHttp::Search ||
+         method == nsHttp::Trace;
+}
+
 nsresult
 HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI, 
                                          nsIChannel   *newChannel,
@@ -1523,16 +1516,14 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   LOG(("HttpBaseChannel::SetupReplacementChannel "
      "[this=%p newChannel=%p preserveMethod=%d]",
      this, newChannel, preserveMethod));
-  uint32_t newLoadFlags = mLoadFlags | LOAD_REPLACE;
+  PRUint32 newLoadFlags = mLoadFlags | LOAD_REPLACE;
   // if the original channel was using SSL and this channel is not using
   // SSL, then no need to inhibit persistent caching.  however, if the
   // original channel was not using SSL and has INHIBIT_PERSISTENT_CACHING
   // set, then allow the flag to apply to the redirected channel as well.
   // since we force set INHIBIT_PERSISTENT_CACHING on all HTTPS channels,
   // we only need to check if the original channel was using SSL.
-  bool usingSSL = false;
-  nsresult rv = mURI->SchemeIs("https", &usingSSL);
-  if (NS_SUCCEEDED(rv) && usingSSL)
+  if (mConnectionInfo->UsingSSL())
     newLoadFlags &= ~INHIBIT_PERSISTENT_CACHING;
 
   // Do not pass along LOAD_CHECK_OFFLINE_CACHE
@@ -1541,15 +1532,6 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   newChannel->SetLoadGroup(mLoadGroup); 
   newChannel->SetNotificationCallbacks(mCallbacks);
   newChannel->SetLoadFlags(newLoadFlags);
-
-  // Try to preserve the privacy bit if it has been overridden
-  if (mPrivateBrowsingOverriden) {
-    nsCOMPtr<nsIPrivateBrowsingChannel> newPBChannel =
-      do_QueryInterface(newChannel);
-    if (newPBChannel) {
-      newPBChannel->SetPrivate(mPrivateBrowsing);
-    }
-  }
 
   nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(newChannel);
   if (!httpChannel)
@@ -1572,7 +1554,7 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
         if (!ctype)
           ctype = "";
         const char *clen  = mRequestHead.PeekHeader(nsHttp::Content_Length);
-        int64_t len = clen ? nsCRT::atoll(clen) : -1;
+        PRInt64 len = clen ? nsCRT::atoll(clen) : -1;
         uploadChannel2->ExplicitSetUploadStream(
                                   mUploadStream, nsDependentCString(ctype), len,
                                   nsDependentCString(mRequestHead.Method()),
@@ -1592,7 +1574,7 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
           if (clen) {
             uploadChannel->SetUploadStream(mUploadStream,
                                            nsDependentCString(ctype),
-                                           nsCRT::atoll(clen));
+                                           atoi(clen));
           }
         }
       }

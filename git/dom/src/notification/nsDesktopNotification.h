@@ -104,6 +104,9 @@ protected:
   nsString mDescription;
   nsString mIconURL;
 
+  nsRefPtr<nsDOMEventListenerWrapper> mOnClickCallback;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnCloseCallback;
+
   nsRefPtr<AlertServiceObserver> mObserver;
   nsCOMPtr<nsIPrincipal> mPrincipal;
   bool mAllow;

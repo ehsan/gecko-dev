@@ -40,7 +40,6 @@
 #include "mozilla/FileUtils.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Services.h"
-#include "mozilla/StaticPtr.h"
 #include "mozilla/Preferences.h"
 #include "nsAlgorithm.h"
 #include "nsPrintfCString.h"
@@ -56,31 +55,9 @@
 #include "UeventPoller.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk", args)
-#define NsecPerMsec  1000000LL
+#define NsecPerMsec  1000000
 #define NsecPerSec   1000000000
 
-// The header linux/oom.h is not available in bionic libc. We
-// redefine some of its constants here.
-
-#ifndef OOM_DISABLE
-#define OOM_DISABLE  (-17)
-#endif
-
-#ifndef OOM_ADJUST_MIN
-#define OOM_ADJUST_MIN  (-16)
-#endif
-
-#ifndef OOM_ADJUST_MAX
-#define OOM_ADJUST_MAX  15
-#endif
-
-#ifndef OOM_SCORE_ADJ_MIN
-#define OOM_SCORE_ADJ_MIN  (-1000)
-#endif
-
-#ifndef OOM_SCORE_ADJ_MAX
-#define OOM_SCORE_ADJ_MAX  1000
-#endif
 
 using namespace mozilla;
 using namespace mozilla::hal;
@@ -102,6 +79,7 @@ public:
   VibratorRunnable()
     : mMonitor("VibratorRunnable")
     , mIndex(0)
+    , mShuttingDown(false)
   {
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
     if (!os) {
@@ -109,9 +87,8 @@ public:
       return;
     }
 
-    os->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
-  }
-
+    os->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, /* weak ref */ true);
+  } 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
   NS_DECL_NSIOBSERVER
@@ -119,8 +96,6 @@ public:
   // Run on the main thread, not the vibrator thread.
   void Vibrate(const nsTArray<uint32_t> &pattern);
   void CancelVibrate();
-
-  static bool ShuttingDown() { return sShuttingDown; }
 
 private:
   Monitor mMonitor;
@@ -134,14 +109,10 @@ private:
 
   // Set to true in our shutdown observer.  When this is true, we kill the
   // vibrator thread.
-  static bool sShuttingDown;
+  bool mShuttingDown;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(VibratorRunnable, nsIRunnable, nsIObserver);
-
-bool VibratorRunnable::sShuttingDown = false;
-
-static nsRefPtr<VibratorRunnable> sVibratorRunnable;
+NS_IMPL_ISUPPORTS2(VibratorRunnable, nsIRunnable, nsIObserver);
 
 NS_IMETHODIMP
 VibratorRunnable::Run()
@@ -157,7 +128,7 @@ VibratorRunnable::Run()
   // condvar onto another thread.  Better just to be chill about small errors in
   // the timing here.
 
-  while (!sShuttingDown) {
+  while (!mShuttingDown) {
     if (mIndex < mPattern.Length()) {
       uint32_t duration = mPattern[mIndex];
       if (mIndex % 2 == 0) {
@@ -170,7 +141,7 @@ VibratorRunnable::Run()
       mMonitor.Wait();
     }
   }
-  sVibratorRunnable = NULL;
+
   return NS_OK;
 }
 
@@ -180,9 +151,8 @@ VibratorRunnable::Observe(nsISupports *subject, const char *topic,
 {
   MOZ_ASSERT(strcmp(topic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0);
   MonitorAutoLock lock(mMonitor);
-  sShuttingDown = true;
+  mShuttingDown = true;
   mMonitor.Notify();
-
   return NS_OK;
 }
 
@@ -205,6 +175,8 @@ VibratorRunnable::CancelVibrate()
   mMonitor.Notify();
 }
 
+VibratorRunnable *sVibratorRunnable = NULL;
+
 void
 EnsureVibratorThreadInitialized()
 {
@@ -212,7 +184,8 @@ EnsureVibratorThreadInitialized()
     return;
   }
 
-  sVibratorRunnable = new VibratorRunnable();
+  nsRefPtr<VibratorRunnable> runnable = new VibratorRunnable();
+  sVibratorRunnable = runnable;
   nsCOMPtr<nsIThread> thread;
   NS_NewThread(getter_AddRefs(thread), sVibratorRunnable);
 }
@@ -222,10 +195,6 @@ EnsureVibratorThreadInitialized()
 void
 Vibrate(const nsTArray<uint32_t> &pattern, const hal::WindowIdentifier &)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  if (VibratorRunnable::ShuttingDown()) {
-    return;
-  }
   EnsureVibratorThreadInitialized();
   sVibratorRunnable->Vibrate(pattern);
 }
@@ -233,10 +202,6 @@ Vibrate(const nsTArray<uint32_t> &pattern, const hal::WindowIdentifier &)
 void
 CancelVibrate(const hal::WindowIdentifier &)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  if (VibratorRunnable::ShuttingDown()) {
-    return;
-  }
   EnsureVibratorThreadInitialized();
   sVibratorRunnable->CancelVibrate();
 }
@@ -285,7 +250,7 @@ private:
 
 // sBatteryObserver is owned by the IO thread. Only the IO thread may
 // create or destroy it.
-static StaticRefPtr<BatteryObserver> sBatteryObserver;
+static BatteryObserver *sBatteryObserver = NULL;
 
 static void
 RegisterBatteryObserverIOThread()
@@ -312,6 +277,7 @@ UnregisterBatteryObserverIOThread()
   MOZ_ASSERT(sBatteryObserver);
 
   UnregisterUeventListener(sBatteryObserver);
+  delete sBatteryObserver;
   sBatteryObserver = NULL;
 }
 
@@ -351,8 +317,8 @@ GetCurrentBatteryInformation(hal::BatteryInformation *aBatteryInfo)
     chargingFile = fopen("/sys/class/power_supply/battery/status", "r");
     if (chargingFile) {
       char status[16];
-      char *str = fgets(status, sizeof(status), chargingFile);
-      if (str && (!strcmp(str, "Charging\n") || !strcmp(str, "Full\n"))) {
+      fscanf(chargingFile, "%s", &status);
+      if (!strcmp(status, "Charging") || !strcmp(status, "Full")) {
         // no way here to know if we're charging from USB or AC.
         chargingSrc = BATTERY_CHARGING_USB;
       } else {
@@ -401,25 +367,23 @@ bool ReadFromFile(const char *filename, char (&buf)[n])
     return false;
   }
 
-  buf[NS_MIN(numRead, n - 1)] = '\0';
+  buf[PR_MIN(numRead, n - 1)] = '\0';
   return true;
 }
 
-bool WriteToFile(const char *filename, const char *toWrite)
+void WriteToFile(const char *filename, const char *toWrite)
 {
   int fd = open(filename, O_WRONLY);
   ScopedClose autoClose(fd);
   if (fd < 0) {
     HAL_LOG(("Unable to open file %s.", filename));
-    return false;
+    return;
   }
 
   if (write(fd, toWrite, strlen(toWrite)) < 0) {
     HAL_LOG(("Unable to write to file %s.", filename));
-    return false;
+    return;
   }
-
-  return true;
 }
 
 // We can write to screenEnabledFilename to enable/disable the screen, but when
@@ -603,78 +567,49 @@ GetLight(hal::LightType light, hal::LightConfiguration* aConfig)
   return true;
 }
 
-void
-AdjustSystemClock(int64_t aDeltaMilliseconds)
+/**
+ * clock_settime() is not exposed through bionic. 
+ * we define the new function to set system time.
+ * The result is the same as using clock_settime() system call.     
+ */
+static int
+sys_clock_settime(clockid_t clk_id, const struct timespec *tp)
 {
-  int fd;
+  return syscall(__NR_clock_settime, clk_id, tp);
+}
+
+void 
+AdjustSystemClock(int32_t aDeltaMilliseconds)
+{
   struct timespec now;
-
-  if (aDeltaMilliseconds == 0) {
-    return;
-  }
-
-  // Preventing context switch before setting system clock
+  
+  // Preventing context switch before setting system clock 
   sched_yield();
   clock_gettime(CLOCK_REALTIME, &now);
-  now.tv_sec += (time_t)(aDeltaMilliseconds / 1000LL);
-  now.tv_nsec += (long)((aDeltaMilliseconds % 1000LL) * NsecPerMsec);
-  if (now.tv_nsec >= NsecPerSec) {
+  now.tv_sec += aDeltaMilliseconds/1000;
+  now.tv_nsec += (aDeltaMilliseconds%1000)*NsecPerMsec;
+  if (now.tv_nsec >= NsecPerSec)
+  {
     now.tv_sec += 1;
     now.tv_nsec -= NsecPerSec;
   }
 
-  if (now.tv_nsec < 0) {
+  if (now.tv_nsec < 0)
+  {
     now.tv_nsec += NsecPerSec;
-    now.tv_sec -= 1;
+    now.tv_sec -= 1;  
   }
-
-  do {
-    fd = open("/dev/alarm", O_RDWR);
-  } while (fd == -1 && errno == EINTR);
-  ScopedClose autoClose(fd);
-  if (fd < 0) {
-    HAL_LOG(("Failed to open /dev/alarm: %s", strerror(errno)));
-    return;
-  }
-
-  if (ioctl(fd, ANDROID_ALARM_SET_RTC, &now) < 0) {
-    HAL_LOG(("ANDROID_ALARM_SET_RTC failed: %s", strerror(errno)));
-    return;
-  }
-
-  hal::NotifySystemTimeChange(hal::SYS_TIME_CHANGE_CLOCK);
+  // we need to have root privilege. 
+  sys_clock_settime(CLOCK_REALTIME, &now);   
 }
 
-void
+void 
 SetTimezone(const nsCString& aTimezoneSpec)
-{
-  if (aTimezoneSpec.Equals(GetTimezone())) {
-    return;
-  }
-
+{ 
   property_set("persist.sys.timezone", aTimezoneSpec.get());
-  // this function is automatically called by the other time conversion
-  // functions that depend on the timezone. To be safe, we call it manually.
+  // this function is automatically called by the other time conversion 
+  // functions that depend on the timezone. To be safe, we call it manually.  
   tzset();
-  hal::NotifySystemTimeChange(hal::SYS_TIME_CHANGE_TZ);
-}
-
-nsCString
-GetTimezone()
-{
-  char timezone[32];
-  property_get("persist.sys.timezone", timezone, "");
-  return nsCString(timezone);
-}
-
-void
-EnableSystemTimeChangeNotifications()
-{
-}
-
-void
-DisableSystemTimeChangeNotifications()
-{
 }
 
 // Nothing to do here.  Gonk widgetry always listens for screen
@@ -747,7 +682,7 @@ private:
 };
 
 // Runs on alarm-watcher thread.
-static void
+static void 
 DestroyAlarmData(void* aData)
 {
   AlarmData* alarmData = static_cast<AlarmData*>(aData);
@@ -763,7 +698,7 @@ void ShutDownAlarm(int aSigno)
   return;
 }
 
-static void*
+static void* 
 WaitForAlarm(void* aData)
 {
   pthread_cleanup_push(DestroyAlarmData, aData);
@@ -781,7 +716,7 @@ WaitForAlarm(void* aData)
       alarmTypeFlags = ioctl(alarmData->mFd, ANDROID_ALARM_WAIT);
     } while (alarmTypeFlags < 0 && errno == EINTR && !alarmData->mShuttingDown);
 
-    if (!alarmData->mShuttingDown &&
+    if (!alarmData->mShuttingDown && 
         alarmTypeFlags >= 0 && (alarmTypeFlags & ANDROID_ALARM_RTC_WAKEUP_MASK)) {
       NS_DispatchToMainThread(new AlarmFiredEvent(alarmData->mGeneration));
     }
@@ -847,7 +782,7 @@ DisableAlarm()
 }
 
 bool
-SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
+SetAlarm(PRInt32 aSeconds, PRInt32 aNanoseconds)
 {
   if (!sAlarmData) {
     HAL_LOG(("We should have enabled the alarm."));
@@ -867,23 +802,6 @@ SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
   }
 
   return true;
-}
-
-static int
-oomAdjOfOomScoreAdj(int aOomScoreAdj)
-{
-  // Convert OOM adjustment from the domain of /proc/<pid>/oom_score_adj
-  // to thew domain of /proc/<pid>/oom_adj.
-
-  int adj;
-
-  if (aOomScoreAdj < 0) {
-    adj = (OOM_DISABLE * aOomScoreAdj) / OOM_SCORE_ADJ_MIN;
-  } else {
-    adj = (OOM_ADJUST_MAX * aOomScoreAdj) / OOM_SCORE_ADJ_MAX;
-  }
-
-  return adj;
 }
 
 void
@@ -909,37 +827,16 @@ SetProcessPriority(int aPid, ProcessPriority aPriority)
   // Notice that you can disable oom_adj and renice by deleting the prefs
   // hal.processPriorityManager{foreground,background,master}{OomAdjust,Nice}.
 
-  int32_t oomScoreAdj = 0;
+  PRInt32 oomAdj = 0;
   nsresult rv = Preferences::GetInt(nsPrintfCString(
-    "hal.processPriorityManager.gonk.%sOomScoreAdjust",
-    priorityStr).get(), &oomScoreAdj);
-
+    "hal.processPriorityManager.gonk.%sOomAdjust", priorityStr).get(), &oomAdj);
   if (NS_SUCCEEDED(rv)) {
-
-    int clampedOomScoreAdj = clamped<int>(oomScoreAdj, OOM_SCORE_ADJ_MIN,
-                                                       OOM_SCORE_ADJ_MAX);
-    if(clampedOomScoreAdj != oomScoreAdj) {
-      HAL_LOG(("Clamping OOM adjustment for pid %d to %d",
-               aPid, clampedOomScoreAdj));
-    } else {
-      HAL_LOG(("Setting OOM adjustment for pid %d to %d",
-               aPid, clampedOomScoreAdj));
-    }
-
-    // We try the newer interface first, and fall back to the older interface
-    // on failure.
-
-    if (!WriteToFile(nsPrintfCString("/proc/%d/oom_score_adj", aPid).get(),
-                     nsPrintfCString("%d", clampedOomScoreAdj).get()))
-    {
-      int oomAdj = oomAdjOfOomScoreAdj(clampedOomScoreAdj);
-
-      WriteToFile(nsPrintfCString("/proc/%d/oom_adj", aPid).get(),
-                  nsPrintfCString("%d", oomAdj).get());
-    }
+    HAL_LOG(("Setting oom_adj for pid %d to %d", aPid, oomAdj));
+    WriteToFile(nsPrintfCString("/proc/%d/oom_adj", aPid).get(),
+                nsPrintfCString("%d", oomAdj).get());
   }
 
-  int32_t nice = 0;
+  PRInt32 nice = 0;
   rv = Preferences::GetInt(nsPrintfCString(
     "hal.processPriorityManager.gonk.%sNice", priorityStr).get(), &nice);
   if (NS_SUCCEEDED(rv)) {

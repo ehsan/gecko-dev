@@ -313,14 +313,14 @@
  * specified by placing MOZ_ENUM_TYPE(type) immediately after the enum name in
  * its declaration, and before the opening curly brace, like
  *
- *   enum MyEnum MOZ_ENUM_TYPE(uint16_t)
+ *   enum MyEnum MOZ_ENUM_TYPE(PRUint16)
  *   {
  *     A,
  *     B = 7,
  *     C
  *   };
  *
- * In supporting compilers, the macro will expand to ": uint16_t".  The
+ * In supporting compilers, the macro will expand to ": PRUint16".  The
  * compiler will allocate exactly two bytes for MyEnum, and will require all
  * enumerators to have values between 0 and 65535.  (Thus specifying "B =
  * 100000" instead of "B = 7" would fail to compile.)  In old compilers, the
@@ -342,7 +342,7 @@
  * "enum EnumName {", and MOZ_END_ENUM_CLASS(EnumName) in place of the closing
  * "};".  For example,
  *
- *   MOZ_BEGIN_ENUM_CLASS(Enum, int32_t)
+ *   MOZ_BEGIN_ENUM_CLASS(Enum, PRInt32)
  *     A, B = 6
  *   MOZ_END_ENUM_CLASS(Enum)
  *
@@ -380,9 +380,7 @@
     * implicit.
     *
     * We have an explicit constructor from int defined, so that casts like
-    * (Enum)7 will still work.  We also have a zero-argument constructor with
-    * no arguments, so declaration without initialization (like "Enum foo;")
-    * will work.
+    * (Enum)7 will still work.
     *
     * Additionally, we'll delete as many operators as possible for the inner
     * enum type, so statements like this will still fail:
@@ -406,7 +404,6 @@
          {
 #  define MOZ_END_ENUM_CLASS(Name) \
          }; \
-         Name() {} \
          Name(Enum aEnum) : mEnum(aEnum) {} \
          explicit Name(int num) : mEnum((Enum)num) {} \
          operator Enum() const { return mEnum; } \

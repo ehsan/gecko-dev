@@ -36,6 +36,7 @@ CPPSRCS		= \
 		nsDOMMouseScrollEvent.cpp \
 		nsDOMDragEvent.cpp \
 		nsDOMMutationEvent.cpp \
+		nsDOMPopupBlockedEvent.cpp \
 		nsDOMDeviceMotionEvent.cpp \
 		nsDOMBeforeUnloadEvent.cpp \
 		nsDOMXULCommandEvent.cpp \
@@ -50,10 +51,12 @@ CPPSRCS		= \
 		nsIMEStateManager.cpp \
 		nsContentEventHandler.cpp \
 		nsEventListenerService.cpp \
+		nsDOMProgressEvent.cpp \
 		nsDOMDataTransfer.cpp \
 		nsDOMNotifyPaintEvent.cpp \
 		nsDOMNotifyAudioAvailableEvent.cpp \
 		nsDOMSimpleGestureEvent.cpp \
+		nsDOMMozTouchEvent.cpp \
 		nsDOMEventTargetHelper.cpp \
 		nsDOMScrollAreaEvent.cpp \
 		nsDOMTransitionEvent.cpp \
@@ -61,7 +64,6 @@ CPPSRCS		= \
 		nsDOMTouchEvent.cpp \
 		nsDOMCompositionEvent.cpp \
 		DOMWheelEvent.cpp \
-		TextComposition.cpp \
 		$(NULL)
 
 ifdef MOZ_B2G_RIL

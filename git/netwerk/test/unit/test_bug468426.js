@@ -1,11 +1,6 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
-
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var index = 0;
 var tests = [
     // Initial request. Cached variant will have no cookie

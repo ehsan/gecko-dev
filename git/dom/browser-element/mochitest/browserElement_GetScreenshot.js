@@ -9,7 +9,7 @@ SimpleTest.waitForExplicitFinish();
 function runTest() {
 
   browserElementTestHelpers.setEnabledPref(true);
-  browserElementTestHelpers.addPermission();
+  browserElementTestHelpers.addToWhitelist();
 
   var iframe1 = document.createElement('iframe');
   iframe1.mozbrowser = true;
@@ -37,7 +37,7 @@ function runTest() {
   }
 
   // We continually take screenshots until we get one that we are
-  // happy with.
+  // happy with
   function waitForScreenshot(filter) {
 
     function screenshotLoaded(e) {
@@ -50,13 +50,13 @@ function runTest() {
         SimpleTest.finish();
       } else {
         content.document.defaultView.setTimeout(function() {
-          iframe1.getScreenshot(1000, 1000).onsuccess = screenshotLoaded;
+          iframe1.getScreenshot().onsuccess = screenshotLoaded;
         }, 200);
       }
     }
 
     var attempts = 10;
-    iframe1.getScreenshot(1000, 1000).onsuccess = screenshotLoaded;
+    iframe1.getScreenshot().onsuccess = screenshotLoaded;
   }
 
   function iframeLoadedHandler() {
@@ -72,3 +72,5 @@ function runTest() {
 }
 
 addEventListener('load', function() { SimpleTest.executeSoon(runTest); });
+
+

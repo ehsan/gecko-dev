@@ -7,7 +7,7 @@
 #ifndef COMPATIBILITY_MANAGER_H
 #define COMPATIBILITY_MANAGER_H
 
-#include "mozilla/StandardInteger.h"
+#include "prtypes.h"
 
 class nsAccessNodeWrap;
 
@@ -72,7 +72,7 @@ private:
   };
 
 private:
-  static uint32_t sConsumers;
+  static PRUint32 sConsumers;
 };
 
 } // a11y namespace

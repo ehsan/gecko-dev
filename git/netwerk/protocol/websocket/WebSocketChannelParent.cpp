@@ -8,10 +8,6 @@
 #include "WebSocketChannelParent.h"
 #include "nsIAuthPromptProvider.h"
 #include "mozilla/LoadContext.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-#include "mozilla/ipc/URIUtils.h"
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
@@ -44,17 +40,14 @@ WebSocketChannelParent::RecvDeleteSelf()
 }
 
 bool
-WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
+WebSocketChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
                                       const nsCString& aOrigin,
                                       const nsCString& aProtocol,
                                       const bool& aSecure,
                                       const IPC::SerializedLoadContext& loadContext)
 {
   LOG(("WebSocketChannelParent::RecvAsyncOpen() %p\n", this));
-
   nsresult rv;
-  nsCOMPtr<nsIURI> uri;
-
   if (aSecure) {
     mChannel =
       do_CreateInstance("@mozilla.org/network/protocol;1?name=wss", &rv);
@@ -67,11 +60,6 @@ WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
 
   if (loadContext.IsNotNull())
     mLoadContext = new LoadContext(loadContext);
-#ifdef DEBUG
-  else
-    // websocket channels cannot have a private bit override
-    MOZ_ASSERT(!loadContext.IsPrivateBitValid());
-#endif
 
   rv = mChannel->SetNotificationCallbacks(this);
   if (NS_FAILED(rv))
@@ -81,13 +69,7 @@ WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
   if (NS_FAILED(rv))
     goto fail;
 
-  uri = DeserializeURI(aURI);
-  if (!uri) {
-    rv = NS_ERROR_FAILURE;
-    goto fail;
-  }
-
-  rv = mChannel->AsyncOpen(uri, aOrigin, this, nullptr);
+  rv = mChannel->AsyncOpen(aURI, aOrigin, this, nullptr);
   if (NS_FAILED(rv))
     goto fail;
 
@@ -99,7 +81,7 @@ fail:
 }
 
 bool
-WebSocketChannelParent::RecvClose(const uint16_t& code, const nsCString& reason)
+WebSocketChannelParent::RecvClose(const PRUint16& code, const nsCString& reason)
 {
   LOG(("WebSocketChannelParent::RecvClose() %p\n", this));
   if (mChannel) {
@@ -132,16 +114,12 @@ WebSocketChannelParent::RecvSendBinaryMsg(const nsCString& aMsg)
 }
 
 bool
-WebSocketChannelParent::RecvSendBinaryStream(const InputStreamParams& aStream,
-                                             const uint32_t& aLength)
+WebSocketChannelParent::RecvSendBinaryStream(const InputStream& aStream,
+                                             const PRUint32& aLength)
 {
   LOG(("WebSocketChannelParent::RecvSendBinaryStream() %p\n", this));
   if (mChannel) {
-    nsCOMPtr<nsIInputStream> stream = DeserializeInputStream(aStream);
-    if (!stream) {
-      return false;
-    }
-    nsresult rv = mChannel->SendBinaryStream(stream, aLength);
+    nsresult rv = mChannel->SendBinaryStream(aStream, aLength);
     NS_ENSURE_SUCCESS(rv, true);
   }
   return true;
@@ -155,7 +133,7 @@ NS_IMETHODIMP
 WebSocketChannelParent::OnStart(nsISupports *aContext)
 {
   LOG(("WebSocketChannelParent::OnStart() %p\n", this));
-  nsAutoCString protocol, extensions;
+  nsCAutoString protocol, extensions;
   if (mChannel) {
     mChannel->GetProtocol(protocol);
     mChannel->GetExtensions(extensions);
@@ -197,7 +175,7 @@ WebSocketChannelParent::OnBinaryMessageAvailable(nsISupports *aContext, const ns
 }
 
 NS_IMETHODIMP
-WebSocketChannelParent::OnAcknowledge(nsISupports *aContext, uint32_t aSize)
+WebSocketChannelParent::OnAcknowledge(nsISupports *aContext, PRUint32 aSize)
 {
   LOG(("WebSocketChannelParent::OnAcknowledge() %p\n", this));
   if (!mIPCOpen || !SendOnAcknowledge(aSize)) {
@@ -208,7 +186,7 @@ WebSocketChannelParent::OnAcknowledge(nsISupports *aContext, uint32_t aSize)
 
 NS_IMETHODIMP
 WebSocketChannelParent::OnServerClose(nsISupports *aContext,
-                                      uint16_t code, const nsACString & reason)
+                                      PRUint16 code, const nsACString & reason)
 {
   LOG(("WebSocketChannelParent::OnServerClose() %p\n", this));
   if (!mIPCOpen || !SendOnServerClose(code, nsCString(reason))) {

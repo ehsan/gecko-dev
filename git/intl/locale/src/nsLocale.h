@@ -45,7 +45,7 @@ protected:
 	static int Hash_EnumerateDelete(PLHashEntry *he, int hashIndex, void *arg);
 
 	PLHashTable*	fHashtable;
-	uint32_t		fCategoryCount;
+	PRUint32		fCategoryCount;
 
 };
 

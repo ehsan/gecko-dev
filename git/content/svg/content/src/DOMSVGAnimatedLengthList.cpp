@@ -55,16 +55,17 @@ DOMSVGAnimatedLengthList::GetAnimVal(nsIDOMSVGLengthList **_retval)
 /* static */ already_AddRefed<DOMSVGAnimatedLengthList>
 DOMSVGAnimatedLengthList::GetDOMWrapper(SVGAnimatedLengthList *aList,
                                         nsSVGElement *aElement,
-                                        uint8_t aAttrEnum,
-                                        uint8_t aAxis)
+                                        PRUint8 aAttrEnum,
+                                        PRUint8 aAxis)
 {
-  nsRefPtr<DOMSVGAnimatedLengthList> wrapper =
+  DOMSVGAnimatedLengthList *wrapper =
     sSVGAnimatedLengthListTearoffTable.GetTearoff(aList);
   if (!wrapper) {
     wrapper = new DOMSVGAnimatedLengthList(aElement, aAttrEnum, aAxis);
     sSVGAnimatedLengthListTearoffTable.AddTearoff(aList, wrapper);
   }
-  return wrapper.forget();
+  NS_ADDREF(wrapper);
+  return wrapper;
 }
 
 /* static */ DOMSVGAnimatedLengthList*
@@ -92,7 +93,7 @@ DOMSVGAnimatedLengthList::InternalBaseValListWillChangeTo(const SVGLengthList& a
 
   nsRefPtr<DOMSVGAnimatedLengthList> kungFuDeathGrip;
   if (mBaseVal) {
-    if (aNewValue.Length() < mBaseVal->LengthNoFlush()) {
+    if (aNewValue.Length() < mBaseVal->Length()) {
       // InternalListLengthWillChange might clear last reference to |this|.
       // Retain a temporary reference to keep from dying before returning.
       kungFuDeathGrip = this;

@@ -54,7 +54,7 @@ class Subprocess
 {
 public:
     // not available until process finishes
-    int32_t mExitCode;
+    PRInt32 mExitCode;
     nsCString mStdout;
     nsCString mStderr;
 
@@ -116,15 +116,15 @@ public:
         PR_DestroyProcessAttr(pattr);
     }
 
-    void RunToCompletion(uint32_t aWaitMs)
+    void RunToCompletion(PRUint32 aWaitMs)
     {
         PR_Close(mStdinfd);
 
         PRPollDesc pollfds[2];
-        int32_t nfds;
+        PRInt32 nfds;
         bool stdoutOpen = true, stderrOpen = true;
         char buf[4096];
-        int32_t len;
+        PRInt32 len;
 
         PRIntervalTime now = PR_IntervalNow();
         PRIntervalTime deadline = now + PR_MillisecondsToInterval(aWaitMs);
@@ -144,7 +144,7 @@ public:
                 ++nfds;
             }
 
-            int32_t rv = PR_Poll(pollfds, nfds, deadline - now);
+            PRInt32 rv = PR_Poll(pollfds, nfds, deadline - now);
             NS_ASSERTION(0 <= rv, PR_ErrorToName(PR_GetError()));
 
             if (0 == rv) {      // timeout
@@ -153,7 +153,7 @@ public:
                 return;
             }
 
-            for (int32_t i = 0; i < nfds; ++i) {
+            for (PRInt32 i = 0; i < nfds; ++i) {
                 if (!pollfds[i].out_flags)
                     continue;
 
@@ -203,7 +203,7 @@ private:
         if (!normalExit) {
             PR_KillProcess(mProc);
             mExitCode = -1;
-            int32_t dummy;
+            PRInt32 dummy;
             PR_WaitProcess(mProc, &dummy);
         }
         else {
@@ -231,7 +231,7 @@ CheckForDeadlock(const char* test, const char* const* findTokens)
     if (0 == proc.mExitCode)
         return false;
 
-    int32_t idx = 0;
+    PRInt32 idx = 0;
     for (const char* const* tp = findTokens; *tp; ++tp) {
         const char* const token = *tp;
 #ifdef MOZILLA_INTERNAL_API
@@ -257,13 +257,13 @@ CheckForDeadlock(const char* test, const char* const* findTokens)
 // Single-threaded sanity tests
 
 // Stupidest possible deadlock.
-int
+nsresult
 Sanity_Child()
 {
     mozilla::Mutex m1("dd.sanity.m1");
     m1.Lock();
     m1.Lock();
-    return 0;                  // not reached
+    return NS_OK;                  // not reached
 }
 
 nsresult
@@ -285,7 +285,7 @@ Sanity()
 }
 
 // Slightly less stupid deadlock.
-int
+nsresult
 Sanity2_Child()
 {
     mozilla::Mutex m1("dd.sanity2.m1");
@@ -293,7 +293,7 @@ Sanity2_Child()
     m1.Lock();
     m2.Lock();
     m1.Lock();
-    return 0;                  // not reached
+    return NS_OK;                  // not reached
 }
 
 nsresult
@@ -316,7 +316,7 @@ Sanity2()
 }
 
 
-int
+nsresult
 Sanity3_Child()
 {
     mozilla::Mutex m1("dd.sanity3.m1");
@@ -335,7 +335,7 @@ Sanity3_Child()
 
     m4.Lock();
     m1.Lock();
-    return 0;
+    return NS_OK;
 }
 
 nsresult
@@ -359,7 +359,7 @@ Sanity3()
 }
 
 
-int
+nsresult
 Sanity4_Child()
 {
     mozilla::ReentrantMonitor m1("dd.sanity4.m1");
@@ -367,7 +367,7 @@ Sanity4_Child()
     m1.Enter();
     m2.Lock();
     m1.Enter();
-    return 0;
+    return NS_OK;
 }
 
 nsresult
@@ -398,7 +398,7 @@ mozilla::Mutex* ttM2;
 static void
 TwoThreads_thread(void* arg)
 {
-    int32_t m1First = NS_PTR_TO_INT32(arg);
+    PRInt32 m1First = NS_PTR_TO_INT32(arg);
     if (m1First) {
         ttM1->Lock();
         ttM2->Lock();
@@ -413,7 +413,7 @@ TwoThreads_thread(void* arg)
     }
 }
 
-int
+nsresult
 TwoThreads_Child()
 {
     ttM1 = new mozilla::Mutex("dd.twothreads.m1");
@@ -427,7 +427,7 @@ TwoThreads_Child()
     PRThread* t2 = spawn(TwoThreads_thread, (void*) 1);
     PR_JoinThread(t2);
 
-    return 0;
+    return NS_OK;
 }
 
 nsresult
@@ -451,42 +451,42 @@ TwoThreads()
 
 
 mozilla::Mutex* cndMs[4];
-const uint32_t K = 100000;
+const PRUint32 K = 100000;
 
 static void
 ContentionNoDeadlock_thread(void* arg)
 {
-    int32_t starti = NS_PTR_TO_INT32(arg);
+    PRInt32 starti = NS_PTR_TO_INT32(arg);
 
-    for (uint32_t k = 0; k < K; ++k) {
-        for (int32_t i = starti; i < (int32_t) ArrayLength(cndMs); ++i)
+    for (PRUint32 k = 0; k < K; ++k) {
+        for (PRInt32 i = starti; i < (PRInt32) ArrayLength(cndMs); ++i)
             cndMs[i]->Lock();
         // comment out the next two lines for deadlocking fun!
-        for (int32_t i = ArrayLength(cndMs) - 1; i >= starti; --i)
+        for (PRInt32 i = ArrayLength(cndMs) - 1; i >= starti; --i)
             cndMs[i]->Unlock();
 
         starti = (starti + 1) % 3;
     }
 }
 
-int
+nsresult
 ContentionNoDeadlock_Child()
 {
     PRThread* threads[3];
 
-    for (uint32_t i = 0; i < ArrayLength(cndMs); ++i)
+    for (PRUint32 i = 0; i < ArrayLength(cndMs); ++i)
         cndMs[i] = new mozilla::Mutex("dd.cnd.ms");
 
-    for (int32_t i = 0; i < (int32_t) ArrayLength(threads); ++i)
+    for (PRInt32 i = 0; i < (PRInt32) ArrayLength(threads); ++i)
         threads[i] = spawn(ContentionNoDeadlock_thread, NS_INT32_TO_PTR(i));
 
-    for (uint32_t i = 0; i < ArrayLength(threads); ++i)
+    for (PRUint32 i = 0; i < ArrayLength(threads); ++i)
         PR_JoinThread(threads[i]);
 
-    for (uint32_t i = 0; i < ArrayLength(cndMs); ++i)
+    for (PRUint32 i = 0; i < ArrayLength(cndMs); ++i)
         delete cndMs[i];
 
-    return 0;
+    return NS_OK;
 }
 
 nsresult
@@ -538,8 +538,7 @@ main(int argc, char** argv)
         if (!strcmp("ContentionNoDeadlock", test))
             return ContentionNoDeadlock_Child();
 
-        fail("%s | %s - unknown child test", __FILE__, __FUNCTION__);
-        return 2;
+        FAIL("unknown child test");
     }
 
     ScopedXPCOM xpcom("XPCOM deadlock detector correctness (" __FILE__ ")");

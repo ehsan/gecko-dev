@@ -5,6 +5,7 @@
 
 #include "GfxInfo.h"
 #include "nsUnicharUtils.h"
+#include "mozilla/FunctionTimer.h"
 #include "prenv.h"
 #include "prprf.h"
 #include "nsHashKeys.h"
@@ -272,7 +273,7 @@ GfxInfo::AddCrashReportAnnotations()
 
   /* Add an App Note for now so that we get the data immediately. These
    * can go away after we store the above in the socorro db */
-  nsAutoCString note;
+  nsCAutoString note;
   note.AppendPrintf("AdapterDescription: '%s'\n", mAdapterDescription.get());
 
   CrashReporter::AppendAppNotesToCrashReport(note);
@@ -283,7 +284,7 @@ const nsTArray<GfxDriverInfo>&
 GfxInfo::GetGfxDriverInfo()
 {
   if (mDriverInfo->IsEmpty()) {
-#ifdef MOZ_ANDROID_OMTC
+#ifdef MOZ_JAVA_COMPOSITOR
     APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_ALL,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAll), GfxDriverInfo::allDevices,
       nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_NO_INFO,
@@ -300,8 +301,8 @@ GfxInfo::GetGfxDriverInfo()
 }
 
 nsresult
-GfxInfo::GetFeatureStatusImpl(int32_t aFeature, 
-                              int32_t *aStatus, 
+GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, 
+                              PRInt32 *aStatus, 
                               nsAString & aSuggestedDriverVersion,
                               const nsTArray<GfxDriverInfo>& aDriverInfo, 
                               OperatingSystem* aOS /* = nullptr */)
@@ -364,7 +365,7 @@ NS_IMETHODIMP GfxInfo::SpoofDriverVersion(const nsAString & aDriverVersion)
 }
 
 /* void spoofOSVersion (in unsigned long aVersion); */
-NS_IMETHODIMP GfxInfo::SpoofOSVersion(uint32_t aVersion)
+NS_IMETHODIMP GfxInfo::SpoofOSVersion(PRUint32 aVersion)
 {
   return NS_OK;
 }

@@ -38,7 +38,7 @@ var asyncTests = [
   function (tab) {
     info("closing tab with accel+w");
     gBrowser.selectedTab = tab;
-    gBrowser.selectedBrowser.focus();
+    content.focus();
     EventUtils.synthesizeKey("w", { accelKey: true });
   },
   function (tab) {

@@ -15,9 +15,7 @@
 #define setlinebuf(stream) setvbuf((stream), (char *)NULL, _IOLBF, 0)
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 /**
  * Magic "number" at start of a trace-malloc log file.  Inspired by the PNG
@@ -220,8 +218,6 @@ NS_TraceMallocGetStackTrace(void);
 PR_EXTERN(void)
 NS_TraceMallocPrintStackTrace(FILE *ofp, nsTMStackTraceID id);
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 
 #endif /* nsTraceMalloc_h___ */

@@ -45,7 +45,7 @@ public:
     nsDiskCacheRecord       mRecord;
     nsDiskCacheStreamIO*    mStreamIO;      // strong reference
     bool                    mDoomed;        // record is not stored in cache map
-    uint8_t                 mGeneration;    // possibly just reservation
+    PRUint8                 mGeneration;    // possibly just reservation
 
     // If set, points to a pending event which will deactivate |mCacheEntry|.
     // If not set then either |mCacheEntry| is not deactivated, or it has been
@@ -101,7 +101,7 @@ public:
     nsDiskCacheBinding *    CreateBinding(nsCacheEntry *       entry,
                                           nsDiskCacheRecord *  record);
 
-    nsDiskCacheBinding *    FindActiveBinding(uint32_t  hashNumber);
+    nsDiskCacheBinding *    FindActiveBinding(PRUint32  hashNumber);
     void                    RemoveBinding(nsDiskCacheBinding * binding);
     bool                    ActiveBindings();
     

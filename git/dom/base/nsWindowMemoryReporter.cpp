@@ -68,15 +68,10 @@ GetWindowURI(nsIDOMWindow *aWindow)
       do_QueryInterface(aWindow);
     NS_ENSURE_TRUE(scriptObjPrincipal, NULL);
 
-    // GetPrincipal() will print a warning if the window does not have an outer
-    // window, so check here for an outer window first.  This code is
-    // functionally correct if we leave out the GetOuterWindow() check, but we
-    // end up printing a lot of warnings during debug mochitests.
-    if (pWindow->GetOuterWindow()) {
-      nsIPrincipal* principal = scriptObjPrincipal->GetPrincipal();
-      if (principal) {
-        principal->GetURI(getter_AddRefs(uri));
-      }
+    nsIPrincipal *principal = scriptObjPrincipal->GetPrincipal();
+
+    if (principal) {
+      principal->GetURI(getter_AddRefs(uri));
     }
   }
 
@@ -118,7 +113,7 @@ CollectWindowReports(nsGlobalWindow *aWindow,
                      nsIMemoryMultiReporterCallback *aCb,
                      nsISupports *aClosure)
 {
-  nsAutoCString windowPath("explicit/window-objects/");
+  nsCAutoString windowPath("explicit/window-objects/");
 
   // Avoid calling aWindow->GetTop() if there's no outer window.  It will work
   // just fine, but will spew a lot of warnings.
@@ -156,7 +151,7 @@ CollectWindowReports(nsGlobalWindow *aWindow,
 #define REPORT(_pathTail, _amount, _desc)                                     \
   do {                                                                        \
     if (_amount > 0) {                                                        \
-        nsAutoCString path(windowPath);                                       \
+        nsCAutoString path(windowPath);                                       \
         path += _pathTail;                                                    \
         nsresult rv;                                                          \
         rv = aCb->Callback(EmptyCString(), path, nsIMemoryReporter::KIND_HEAP,\
@@ -237,9 +232,7 @@ CollectWindowReports(nsGlobalWindow *aWindow,
   // There are many different kinds of frames, but it is very likely
   // that only a few matter.  Implement a cutoff so we don't bloat
   // about:memory with many uninteresting entries.
-  const size_t FRAME_SUNDRIES_THRESHOLD =
-    js::MemoryReportingSundriesThreshold();
-
+  static const size_t FRAME_SUNDRIES_THRESHOLD = 8192;
   size_t frameSundriesSize = 0;
 #define FRAME_ID(classname)                                             \
   {                                                                     \
@@ -273,7 +266,7 @@ typedef nsTArray< nsRefPtr<nsGlobalWindow> > WindowArray;
 
 static
 PLDHashOperator
-GetWindows(const uint64_t& aId, nsGlobalWindow*& aWindow, void* aClosure)
+GetWindows(const PRUint64& aId, nsGlobalWindow*& aWindow, void* aClosure)
 {
   ((WindowArray *)aClosure)->AppendElement(aWindow);
 
@@ -314,7 +307,7 @@ nsWindowMemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
 
   // Collect window memory usage.
   nsWindowSizes windowTotalSizes(NULL);
-  for (uint32_t i = 0; i < windows.Length(); i++) {
+  for (PRUint32 i = 0; i < windows.Length(); i++) {
     nsresult rv = CollectWindowReports(windows[i], &windowTotalSizes,
                                        &ghostWindows, &windowPaths,
                                        aCb, aClosure);
@@ -414,14 +407,14 @@ nsWindowMemoryReporter::CollectReports(nsIMemoryMultiReporterCallback* aCb,
 }
 
 NS_IMETHODIMP
-nsWindowMemoryReporter::GetExplicitNonHeap(int64_t* aAmount)
+nsWindowMemoryReporter::GetExplicitNonHeap(PRInt64* aAmount)
 {
   // This reporter only measures heap memory, so we don't need to report any
   // bytes for it.  However, the JS multi-reporter needs to be invoked.
   return xpc::JSMemoryMultiReporter::GetExplicitNonHeap(aAmount);
 }
 
-uint32_t
+PRUint32
 nsWindowMemoryReporter::GetGhostTimeout()
 {
   return Preferences::GetUint("memory.ghost_window_timeout_seconds", 60);
@@ -503,7 +496,7 @@ struct CheckForGhostWindowsEnumeratorData
   nsTHashtable<nsCStringHashKey> *nonDetachedDomains;
   nsTHashtable<nsUint64HashKey> *ghostWindowIDs;
   nsIEffectiveTLDService *tldService;
-  uint32_t ghostTimeout;
+  PRUint32 ghostTimeout;
   TimeStamp now;
 };
 
@@ -537,7 +530,7 @@ CheckForGhostWindowsEnumerator(nsISupports *aKey, TimeStamp& aTimeStamp,
 
   nsCOMPtr<nsIURI> uri = GetWindowURI(window);
 
-  nsAutoCString domain;
+  nsCAutoString domain;
   if (uri) {
     // GetBaseDomain works fine if |uri| is null, but it outputs a warning
     // which ends up overrunning the mochitest logs.
@@ -576,7 +569,7 @@ struct GetNonDetachedWindowDomainsEnumeratorData
 };
 
 static PLDHashOperator
-GetNonDetachedWindowDomainsEnumerator(const uint64_t& aId, nsGlobalWindow* aWindow,
+GetNonDetachedWindowDomainsEnumerator(const PRUint64& aId, nsGlobalWindow* aWindow,
                                       void* aClosure)
 {
   GetNonDetachedWindowDomainsEnumeratorData *data =
@@ -591,7 +584,7 @@ GetNonDetachedWindowDomainsEnumerator(const uint64_t& aId, nsGlobalWindow* aWind
 
   nsCOMPtr<nsIURI> uri = GetWindowURI(aWindow);
 
-  nsAutoCString domain;
+  nsCAutoString domain;
   if (uri) {
     data->tldService->GetBaseDomain(uri, 0, domain);
   }
@@ -673,7 +666,7 @@ GhostURLsReporter::GetName(nsACString& aName)
 
 NS_IMETHODIMP
 nsWindowMemoryReporter::
-GhostURLsReporter::GetExplicitNonHeap(int64_t* aOut)
+GhostURLsReporter::GetExplicitNonHeap(PRInt64* aOut)
 {
   *aOut = 0;
   return NS_OK;
@@ -705,7 +698,7 @@ ReportGhostWindowsEnumerator(nsUint64HashKey* aIDHashKey, void* aClosure)
     return PL_DHASH_NEXT;
   }
 
-  nsAutoCString path;
+  nsCAutoString path;
   path.AppendLiteral("ghost-windows/");
   AppendWindowURI(window, path);
 
@@ -773,7 +766,7 @@ NumGhostsReporter::GetPath(nsACString& aPath)
 
 NS_IMETHODIMP
 nsWindowMemoryReporter::
-NumGhostsReporter::GetKind(int32_t* aKind)
+NumGhostsReporter::GetKind(PRInt32* aKind)
 {
   *aKind = KIND_OTHER;
   return NS_OK;
@@ -781,7 +774,7 @@ NumGhostsReporter::GetKind(int32_t* aKind)
 
 NS_IMETHODIMP
 nsWindowMemoryReporter::
-NumGhostsReporter::GetUnits(int32_t* aUnits)
+NumGhostsReporter::GetUnits(PRInt32* aUnits)
 {
   *aUnits = nsIMemoryReporter::UNITS_COUNT;
   return NS_OK;
@@ -808,7 +801,7 @@ in the browser or add-ons.",
 
 NS_IMETHODIMP
 nsWindowMemoryReporter::
-NumGhostsReporter::GetAmount(int64_t* aAmount)
+NumGhostsReporter::GetAmount(PRInt64* aAmount)
 {
   nsTHashtable<nsUint64HashKey> ghostWindows;
   ghostWindows.Init();

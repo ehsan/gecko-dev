@@ -9,6 +9,7 @@
 #include "nsITextToSubURI.h"
 #include "nsIServiceManager.h"
 #include "nsEscape.h"
+#include "prmem.h"
 #include "nsTextToSubURI.h"
 #include "nsCRT.h"
 
@@ -44,8 +45,8 @@ NS_IMETHODIMP  nsTextToSubURI::ConvertAndEscape(
        {
           char buf[256];
           char *pBuf = buf;
-          int32_t ulen = text ? NS_strlen(text) : 0;
-          int32_t outlen = 0;
+          PRInt32 ulen = NS_strlen(text);
+          PRInt32 outlen = 0;
           if(NS_SUCCEEDED(rv = encoder->GetMaxLength(text, ulen, &outlen))) 
           {
              if(outlen >= 256) {
@@ -55,10 +56,10 @@ NS_IMETHODIMP  nsTextToSubURI::ConvertAndEscape(
                 outlen = 255;
                 pBuf = buf;
              }
-             int32_t bufLen = outlen;
+             PRInt32 bufLen = outlen;
              if(NS_SUCCEEDED(rv = encoder->Convert(text,&ulen, pBuf, &outlen))) {
                 // put termination characters (e.g. ESC(B of ISO-2022-JP) if necessary
-                int32_t finLen = bufLen - outlen;
+                PRInt32 finLen = bufLen - outlen;
                 if (finLen > 0) {
                   if (NS_SUCCEEDED(encoder->Finish((char *)(pBuf+outlen), &finLen)))
                     outlen += finLen;
@@ -107,8 +108,8 @@ NS_IMETHODIMP  nsTextToSubURI::UnEscapeAndConvert(
     rv = ccm->GetUnicodeDecoder(charset, &decoder);
     if (NS_SUCCEEDED(rv)) {
       PRUnichar *pBuf = nullptr;
-      int32_t len = strlen(unescaped);
-      int32_t outlen = 0;
+      PRInt32 len = strlen(unescaped);
+      PRInt32 outlen = 0;
       if (NS_SUCCEEDED(rv = decoder->GetMaxLength(unescaped, len, &outlen))) {
         pBuf = (PRUnichar *) NS_Alloc((outlen+1)*sizeof(PRUnichar));
         if (nullptr == pBuf)
@@ -175,8 +176,8 @@ nsresult nsTextToSubURI::convertURItoUnicode(const nsAFlatCString &aCharset,
                                                   getter_AddRefs(unicodeDecoder));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t srcLen = aURI.Length();
-  int32_t dstLen;
+  PRInt32 srcLen = aURI.Length();
+  PRInt32 dstLen;
   rv = unicodeDecoder->GetMaxLength(aURI.get(), srcLen, &dstLen);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -197,7 +198,7 @@ NS_IMETHODIMP  nsTextToSubURI::UnEscapeURIForUI(const nsACString & aCharset,
                                                 const nsACString &aURIFragment, 
                                                 nsAString &_retval)
 {
-  nsAutoCString unescapedSpec;
+  nsCAutoString unescapedSpec;
   // skip control octets (0x00 - 0x1f and 0x7f) when unescaping
   NS_UnescapeURL(PromiseFlatCString(aURIFragment), 
                  esc_SkipControl | esc_AlwaysCopy, unescapedSpec);
@@ -217,7 +218,7 @@ NS_IMETHODIMP  nsTextToSubURI::UnEscapeNonAsciiURI(const nsACString & aCharset,
                                                    const nsACString & aURIFragment, 
                                                    nsAString &_retval)
 {
-  nsAutoCString unescapedSpec;
+  nsCAutoString unescapedSpec;
   NS_UnescapeURL(PromiseFlatCString(aURIFragment),
                  esc_AlwaysCopy | esc_OnlyNonASCII, unescapedSpec);
   // leave the URI as it is if it's not UTF-8 and aCharset is not a ASCII

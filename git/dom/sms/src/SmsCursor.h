@@ -27,7 +27,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(SmsCursor)
 
   SmsCursor();
-  SmsCursor(int32_t aListId, nsIDOMMozSmsRequest* aRequest);
+  SmsCursor(PRInt32 aListId, nsIDOMMozSmsRequest* aRequest);
 
   ~SmsCursor();
 
@@ -36,7 +36,7 @@ public:
   void Disconnect();
 
 private:
-  int32_t                       mListId;
+  PRInt32                       mListId;
   nsCOMPtr<nsIDOMMozSmsRequest> mRequest;
   nsCOMPtr<nsIDOMMozSmsMessage> mMessage;
 };

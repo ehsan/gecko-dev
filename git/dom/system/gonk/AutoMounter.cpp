@@ -235,16 +235,6 @@ public:
 
   void UpdateState();
 
-  const char *ModeStr(int32_t aMode)
-  {
-    switch (aMode) {
-      case AUTOMOUNTER_DISABLE:                 return "Disable";
-      case AUTOMOUNTER_ENABLE:                  return "Enable";
-      case AUTOMOUNTER_DISABLE_WHEN_UNPLUGGED:  return "DisableWhenUnplugged";
-    }
-    return "??? Unknown ???";
-  }
-
   void SetMode(int32_t aMode)
   {
     if ((aMode == AUTOMOUNTER_DISABLE_WHEN_UNPLUGGED) &&
@@ -253,27 +243,9 @@ public:
       // AUTOMOUNTER_DISABLE_WHEN_UNPLUGGED implies "enabled until unplugged"
       aMode = AUTOMOUNTER_DISABLE;
     }
-
-    if ((aMode == AUTOMOUNTER_DISABLE) &&
-        (mMode == AUTOMOUNTER_ENABLE) && IsUsbCablePluggedIn()) {
-      // On many devices (esp non-Samsung), we can't force the disable, so we
-      // need to defer until the USB cable is actually unplugged.
-      // See bug 777043.
-      //
-      // Otherwise our attempt to disable it will fail, and we'll wind up in a bad
-      // state where the AutoMounter thinks that Sharing has been turned off, but
-      // the files are actually still being Shared because the attempt to unshare
-      // failed.
-      LOG("Attempting to disable UMS. Deferring until USB cable is unplugged.");
-      aMode = AUTOMOUNTER_DISABLE_WHEN_UNPLUGGED;
-    }
-
-    if (aMode != mMode) {
-      LOG("Changing mode from '%s' to '%s'", ModeStr(mMode), ModeStr(aMode));
-      mMode = aMode;
-      DBG("Calling UpdateState due to mode set to %d", mMode);
-      UpdateState();
-    }
+    mMode = aMode;
+    DBG("Calling UpdateState due to mode set to %d", mMode);
+    UpdateState();
   }
 
 private:

@@ -16,22 +16,23 @@ var endCount = 0;
 
 function startTest() {
   if (completed)
-    return;
+    return false;
 
   var v = document.getElementById('v');
   v.play();
+  return false;
 }
 
 function playbackStarted() {
   if (completed)
-    return;
+    return false;
 
   playingCount++;
 }
 
 function playbackEnded() {
   if (completed)
-    return;
+    return false
 
   endCount++;
   var v = document.getElementById('v');
@@ -47,6 +48,7 @@ function playbackEnded() {
     completed = true;
     SimpleTest.finish();
   }
+  return false;
 }
 
 SimpleTest.waitForExplicitFinish();

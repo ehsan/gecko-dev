@@ -19,7 +19,6 @@
 #include "ShadowLayers.h"
 #include "ShadowLayerUtils.h"
 #include "TiledLayerBuffer.h"
-#include "gfxPlatform.h" 
 
 typedef std::vector<mozilla::layers::EditReply> EditReplyVector;
 
@@ -84,33 +83,6 @@ ShadowContainer(const OpRemoveChild& op)
 }
 static ShadowLayerParent*
 ShadowChild(const OpRemoveChild& op)
-{
-  return cast(op.childLayerParent());
-}
-
-static ShadowLayerParent*
-ShadowContainer(const OpRepositionChild& op)
-{
-  return cast(op.containerParent());
-}
-static ShadowLayerParent*
-ShadowChild(const OpRepositionChild& op)
-{
-  return cast(op.childLayerParent());
-}
-static ShadowLayerParent*
-ShadowAfter(const OpRepositionChild& op)
-{
-  return cast(op.afterParent());
-}
-
-static ShadowLayerParent*
-ShadowContainer(const OpRaiseToTopChild& op)
-{
-  return cast(op.containerParent());
-}
-static ShadowLayerParent*
-ShadowChild(const OpRaiseToTopChild& op)
 {
   return cast(op.childLayerParent());
 }
@@ -242,7 +214,7 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       const CommonLayerAttributes& common = attrs.common();
       layer->SetVisibleRegion(common.visibleRegion());
       layer->SetContentFlags(common.contentFlags());
-      layer->SetOpacity(common.opacity());
+      layer->SetOpacity(common.opacity().value());
       layer->SetClipRect(common.useClipRect() ? &common.clipRect() : NULL);
       layer->SetBaseTransform(common.transform().value());
       layer->SetPostScale(common.postXScale(), common.postYScale());
@@ -354,22 +326,6 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       ShadowContainer(orc)->AsContainer()->RemoveChild(childLayer);
       break;
     }
-    case Edit::TOpRepositionChild: {
-      MOZ_LAYERS_LOG(("[ParentSide] RepositionChild"));
-
-      const OpRepositionChild& orc = edit.get_OpRepositionChild();
-      ShadowContainer(orc)->AsContainer()->RepositionChild(
-        ShadowChild(orc)->AsLayer(), ShadowAfter(orc)->AsLayer());
-      break;
-    }
-    case Edit::TOpRaiseToTopChild: {
-      MOZ_LAYERS_LOG(("[ParentSide] RaiseToTopChild"));
-
-      const OpRaiseToTopChild& rtc = edit.get_OpRaiseToTopChild();
-      ShadowContainer(rtc)->AsContainer()->RepositionChild(
-        ShadowChild(rtc)->AsLayer(), NULL);
-      break;
-    }
 
     case Edit::TOpPaintTiledLayerBuffer: {
       MOZ_LAYERS_LOG(("[ParentSide] Paint TiledLayerBuffer"));
@@ -478,6 +434,30 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   }
 #endif
 
+  return true;
+}
+
+bool
+ShadowLayersParent::RecvDrawToSurface(const SurfaceDescriptor& surfaceIn,
+                                      SurfaceDescriptor* surfaceOut)
+{
+  *surfaceOut = surfaceIn;
+  if (mDestroyed || layer_manager()->IsDestroyed()) {
+    return true;
+  }
+
+  AutoOpenSurface sharedSurface(OPEN_READ_WRITE, surfaceIn);
+
+  nsRefPtr<gfxASurface> localSurface =
+    gfxPlatform::GetPlatform()->CreateOffscreenSurface(sharedSurface.Size(),
+                                                       sharedSurface.ContentType());
+  nsRefPtr<gfxContext> context = new gfxContext(localSurface);
+
+  layer_manager()->BeginTransactionWithTarget(context);
+  layer_manager()->EndTransaction(NULL, NULL);
+  nsRefPtr<gfxContext> contextForCopy = new gfxContext(sharedSurface.Get());
+  contextForCopy->SetOperator(gfxContext::OPERATOR_SOURCE);
+  contextForCopy->DrawSurface(localSurface, localSurface->GetSize());
   return true;
 }
 

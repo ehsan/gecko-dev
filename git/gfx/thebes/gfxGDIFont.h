@@ -34,13 +34,13 @@ public:
     /* overrides for the pure virtual methods in gfxFont */
     virtual const gfxFont::Metrics& GetMetrics();
 
-    virtual uint32_t GetSpaceGlyph();
+    virtual PRUint32 GetSpaceGlyph();
 
     virtual bool SetupCairoFont(gfxContext *aContext);
 
     /* override Measure to add padding for antialiasing */
     virtual RunMetrics Measure(gfxTextRun *aTextRun,
-                               uint32_t aStart, uint32_t aEnd,
+                               PRUint32 aStart, PRUint32 aEnd,
                                BoundingBoxType aBoundingBoxType,
                                gfxContext *aContextForTightBoundingBox,
                                Spacing *aSpacing);
@@ -51,7 +51,7 @@ public:
     virtual bool ProvidesGlyphWidths() { return true; }
 
     // get hinted glyph width in pixels as 16.16 fixed-point value
-    virtual int32_t GetGlyphWidth(gfxContext *aCtx, uint16_t aGID);
+    virtual PRInt32 GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID);
 
     virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontCacheSizes*   aSizes) const;
@@ -84,12 +84,12 @@ protected:
     cairo_font_face_t    *mFontFace;
 
     Metrics              *mMetrics;
-    uint32_t              mSpaceGlyph;
+    PRUint32              mSpaceGlyph;
 
     bool                  mNeedsBold;
 
     // cache of glyph widths in 16.16 fixed-point pixels
-    nsDataHashtable<nsUint32HashKey,int32_t>    mGlyphWidths;
+    nsDataHashtable<nsUint32HashKey,PRInt32>    mGlyphWidths;
 };
 
 #endif /* GFX_GDIFONT_H */

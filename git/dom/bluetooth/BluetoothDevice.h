@@ -1,5 +1,5 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* vim: set ts=2 et sw=2 tw=40: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -20,7 +20,6 @@ BEGIN_BLUETOOTH_NAMESPACE
 class BluetoothNamedValue;
 class BluetoothValue;
 class BluetoothSignal;
-class BluetoothSocket;
 
 class BluetoothDevice : public nsDOMEventTargetHelper
                       , public nsIDOMBluetoothDevice
@@ -65,19 +64,17 @@ private:
   void Root();
   
   JSObject* mJsUuids;
-  JSObject* mJsServices;
 
   nsString mAdapterPath;
   nsString mAddress;
   nsString mName;
-  nsString mIcon;
-  uint32_t mClass;
+  PRUint32 mClass;
   bool mConnected;
   bool mPaired;
   bool mIsRooted;
   nsTArray<nsString> mUuids;
-  nsTArray<nsString> mServices;
 
+  NS_DECL_EVENT_HANDLER(propertychanged)
 };
 
 END_BLUETOOTH_NAMESPACE

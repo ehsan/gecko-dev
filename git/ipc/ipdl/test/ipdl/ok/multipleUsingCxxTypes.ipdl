@@ -1,7 +1,0 @@
-using mozilla::void_t;
-using mozilla::void_t;
-
-protocol multipleUsingCxxTypes {
-child:
-    Msg(void_t foo);
-};

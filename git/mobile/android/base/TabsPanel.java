@@ -9,7 +9,6 @@ import org.mozilla.gecko.sync.setup.SyncAccounts;
 
 import android.content.Context;
 import android.content.res.TypedArray;
-import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -98,23 +97,6 @@ public class TabsPanel extends LinearLayout {
         });
     }
 
-    private static int getTabContainerHeight(View view) {
-        Context context = view.getContext();
-
-        int actionBarHeight = context.getResources().getDimensionPixelSize(R.dimen.browser_toolbar_height);
-        int screenHeight = context.getResources().getDisplayMetrics().heightPixels;
-
-        Rect windowRect = new Rect();
-        view.getWindowVisibleDisplayFrame(windowRect);
-        int windowHeight = windowRect.bottom - windowRect.top;
-
-        // The web content area should have at least 1.5x the height of the action bar.
-        // The tabs panel shouldn't take less than 50% of the screen height and can take
-        // up to 80% of the window height.
-        return (int) Math.max(screenHeight * 0.5f,
-                              Math.min(windowHeight - 2.5f * actionBarHeight, windowHeight * 0.8f) - actionBarHeight);
-    }
-
     // Tabs List Container holds the ListView
     public static class TabsListContainer extends LinearLayout {
         private Context mContext;
@@ -127,7 +109,7 @@ public class TabsPanel extends LinearLayout {
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
             if (!GeckoApp.mAppContext.hasTabsSideBar()) {
-                int heightSpec = MeasureSpec.makeMeasureSpec(getTabContainerHeight(this), MeasureSpec.EXACTLY);
+                int heightSpec = MeasureSpec.makeMeasureSpec((int) (0.5 * mContext.getResources().getDisplayMetrics().heightPixels), MeasureSpec.EXACTLY);
                 super.onMeasure(widthMeasureSpec, heightSpec);
             } else {
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec);
@@ -161,7 +143,6 @@ public class TabsPanel extends LinearLayout {
             mListContainer.removeAllViews();
         }
 
-        final boolean showAnimation = !mVisible;
         mVisible = true;
         mCurrentPanel = panel;
 
@@ -181,11 +162,15 @@ public class TabsPanel extends LinearLayout {
         mListContainer.addView(mPanel.getLayout());
 
         if (isSideBar()) {
-            if (showAnimation)
-                dispatchLayoutChange(getWidth(), getHeight());
+            dispatchLayoutChange(getWidth(), getHeight());
         } else {
-            int actionBarHeight = mContext.getResources().getDimensionPixelSize(R.dimen.browser_toolbar_height);
-            int height = actionBarHeight + getTabContainerHeight(mListContainer);
+            int actionBarHeight = (int) (mContext.getResources().getDimension(R.dimen.browser_toolbar_height));
+
+            // TabsListContainer takes time to resize on rotation.
+            // It's better to add 50% of the screen-size and dispatch it as height.
+            int listHeight = (int) (0.5 * mContext.getResources().getDisplayMetrics().heightPixels);
+
+            int height = actionBarHeight + listHeight; 
             dispatchLayoutChange(getWidth(), height);
         }
 

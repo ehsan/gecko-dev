@@ -37,12 +37,12 @@ public:
   /**
    * Return area elements count associated with the image map.
    */
-  uint32_t AreaCount() const { return mAreas.Length(); }
+  PRUint32 AreaCount() const { return mAreas.Length(); }
 
   /**
    * Return area element at the given index.
    */
-  nsIContent* GetAreaAt(uint32_t aIndex) const;
+  nsIContent* GetAreaAt(PRUint32 aIndex) const;
 
   void Draw(nsIFrame* aFrame, nsRenderingContext& aRC);
   

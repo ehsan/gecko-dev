@@ -6,6 +6,7 @@
 #ifndef GFX_FONTMISSINGGLYPHS_H
 #define GFX_FONTMISSINGGLYPHS_H
 
+#include "prtypes.h"
 #include "gfxTypes.h"
 #include "gfxContext.h"
 #include "gfxRect.h"
@@ -23,12 +24,12 @@ public:
      * @param aChar the UTF16 codepoint for the character
      */
     static void DrawMissingGlyph(gfxContext *aContext, const gfxRect& aRect,
-                                 uint32_t aChar);
+                                 PRUint32 aChar);
     /**
      * @return the desired minimum width for a glyph-box that will allow
      * the hexboxes to be drawn reasonably.
      */
-    static gfxFloat GetDesiredMinWidth(uint32_t aChar);
+    static gfxFloat GetDesiredMinWidth(PRUint32 aChar);
 };
 
 #endif

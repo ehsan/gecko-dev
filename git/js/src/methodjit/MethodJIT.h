@@ -37,10 +37,6 @@ namespace mjit {
     struct JITScript;
 }
 
-namespace analyze {
-    struct ScriptLiveness;
-}
-
 struct VMFrame
 {
 #if defined(JS_CPU_SPARC)
@@ -218,7 +214,7 @@ struct VMFrame
     inline unsigned chunkIndex();
 
     /* Get the inner script/PC in case of inlining. */
-    inline Return<JSScript*> script();
+    inline JSScript *script();
     inline jsbytecode *pc();
 
 #if defined(JS_CPU_SPARC)
@@ -241,9 +237,6 @@ struct VMFrame
 #if defined(JS_CPU_ARM) || defined(JS_CPU_SPARC) || defined(JS_CPU_MIPS)
 // WARNING: Do not call this function directly from C(++) code because it is not ABI-compliant.
 extern "C" void JaegerStubVeneer(void);
-# if defined(JS_CPU_ARM)
-extern "C" void IonVeneer(void);
-# endif
 #endif
 
 namespace mjit {
@@ -306,9 +299,6 @@ enum RejoinState {
      * .prototype property has been fetched.
      */
     REJOIN_THIS_PROTOTYPE,
-
-    /* As above, after the 'this' object has been created. */
-    REJOIN_THIS_CREATED,
 
     /*
      * Type check on arguments failed during prologue, need stack check and
@@ -659,8 +649,6 @@ struct JITChunk
     uint32_t        nCallSites;
     uint32_t        nRootedTemplates;
     uint32_t        nRootedRegExps;
-    uint32_t        nMonitoredBytecodes;
-    uint32_t        nTypeBarrierBytecodes;
 #ifdef JS_MONOIC
     uint32_t        nGetGlobalNames;
     uint32_t        nSetGlobalNames;
@@ -679,8 +667,6 @@ struct JITChunk
     ExecPoolVector execPools;
 #endif
 
-    types::RecompileInfo recompileInfo;
-
     // Additional ExecutablePools for native call and getter stubs.
     Vector<NativeCallStub, 0, SystemAllocPolicy> nativeCallStubs;
 
@@ -689,15 +675,6 @@ struct JITChunk
     js::mjit::CallSite *callSites() const;
     JSObject **rootedTemplates() const;
     RegExpShared **rootedRegExps() const;
-
-    /*
-     * Offsets of bytecodes which were monitored or had type barriers at the
-     * point of compilation. Used to avoid unnecessary recompilation after
-     * analysis purges.
-     */
-    uint32_t *monitoredBytecodes() const;
-    uint32_t *typeBarrierBytecodes() const;
-
 #ifdef JS_MONOIC
     ic::GetGlobalNameIC *getGlobalNames() const;
     ic::SetGlobalNameIC *setGlobalNames() const;
@@ -807,25 +784,6 @@ struct JITScript
      */
     JSC::ExecutablePool *shimPool;
 
-    /*
-     * Optional liveness information attached to the JITScript if the analysis
-     * information is purged while retaining JIT info.
-     */
-    analyze::ScriptLiveness *liveness;
-
-    /*
-     * Number of calls made to IonMonkey functions, used to avoid slow
-     * JM -> Ion calls.
-     */
-    uint32_t        ionCalls;
-
-    /*
-     * If set, we decided to keep the JITChunk so that Ion can access its caches.
-     * The chunk has to be destroyed the next time the script runs in JM.
-     * Note that this flag implies nchunks == 1.
-     */
-    bool mustDestroyEntryChunk;
-
 #ifdef JS_MONOIC
     /* Inline cache at function entry for checking this/argument types. */
     JSC::CodeLocationLabel argsCheckStub;
@@ -876,8 +834,6 @@ struct JITScript
 
     void trace(JSTracer *trc);
     void purgeCaches();
-
-    void disableScriptEntry();
 };
 
 /*
@@ -932,10 +888,6 @@ ReleaseScriptCode(FreeOp *fop, JSScript *script)
 
     script->destroyMJITInfo(fop);
 }
-
-/* Can be called at any time. */
-void
-ReleaseScriptCodeFromVM(JSContext *cx, JSScript *script);
 
 // Expand all stack frames inlined by the JIT within a compartment.
 void
@@ -1013,21 +965,6 @@ IsLowerableFunCallOrApply(jsbytecode *pc)
 #endif
 }
 
-Shape *
-GetPICSingleShape(JSContext *cx, JSScript *script, jsbytecode *pc, bool constructing);
-
-static inline void
-PurgeCaches(JSScript *script)
-{
-    for (int constructing = 0; constructing <= 1; constructing++) {
-        for (int barriers = 0; barriers <= 1; barriers++) {
-            mjit::JITScript *jit = script->getJIT((bool) constructing, (bool) barriers);
-            if (jit)
-                jit->purgeCaches();
-        }
-    }
-}
-
 } /* namespace mjit */
 
 inline mjit::JITChunk *
@@ -1042,10 +979,9 @@ VMFrame::chunkIndex()
     return jit()->chunkIndex(regs.pc);
 }
 
-inline Return<JSScript*>
+inline JSScript *
 VMFrame::script()
 {
-    AutoAssertNoGC nogc;
     if (regs.inlined())
         return chunk()->inlineFrames()[regs.inlined()->inlineIndex].fun->script();
     return fp()->script();
@@ -1054,7 +990,6 @@ VMFrame::script()
 inline jsbytecode *
 VMFrame::pc()
 {
-    AutoAssertNoGC nogc;
     if (regs.inlined())
         return script()->code + regs.inlined()->pcOffset;
     return regs.pc;
@@ -1065,7 +1000,7 @@ VMFrame::pc()
 inline void *
 JSScript::nativeCodeForPC(bool constructing, jsbytecode *pc)
 {
-    js::mjit::JITScript *jit = getJIT(constructing, compartment()->compileBarriers());
+    js::mjit::JITScript *jit = getJIT(constructing, compartment()->needsBarrier());
     if (!jit)
         return NULL;
     js::mjit::JITChunk *chunk = jit->chunk(pc);

@@ -31,12 +31,12 @@ public:
   {
     return nsSVGStylableElementBase::GetStyle(retval);
   }
-  virtual bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                               const nsAString& aValue, nsAttrValue& aResult);
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
 
-  virtual nsISMILAttr* GetAnimatedAttr(int32_t aNamespaceID, nsIAtom* aName);
+  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName);
 
   void DidAnimateClass();
 

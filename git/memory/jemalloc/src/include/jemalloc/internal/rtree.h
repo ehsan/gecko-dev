@@ -36,9 +36,6 @@ struct rtree_s {
 #ifdef JEMALLOC_H_EXTERNS
 
 rtree_t	*rtree_new(unsigned bits);
-void	rtree_prefork(rtree_t *rtree);
-void	rtree_postfork_parent(rtree_t *rtree);
-void	rtree_postfork_child(rtree_t *rtree);
 
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/

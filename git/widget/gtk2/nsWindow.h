@@ -85,6 +85,7 @@ public:
     // event handling code
     void DispatchActivateEvent(void);
     void DispatchDeactivateEvent(void);
+    void DispatchResizeEvent(nsIntRect &aRect, nsEventStatus &aStatus);
 
     virtual nsresult DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
     
@@ -98,6 +99,7 @@ public:
     NS_IMETHOD         Create(nsIWidget        *aParent,
                               nsNativeWidget   aNativeParent,
                               const nsIntRect  &aRect,
+                              EVENT_CALLBACK   aHandleEventFunction,
                               nsDeviceContext *aContext,
                               nsWidgetInitData *aInitData);
     NS_IMETHOD         Destroy(void);
@@ -107,19 +109,19 @@ public:
     NS_IMETHOD         SetModal(bool aModal);
     virtual bool       IsVisible() const;
     NS_IMETHOD         ConstrainPosition(bool aAllowSlop,
-                                         int32_t *aX,
-                                         int32_t *aY);
+                                         PRInt32 *aX,
+                                         PRInt32 *aY);
     virtual void       SetSizeConstraints(const SizeConstraints& aConstraints);
-    NS_IMETHOD         Move(int32_t aX,
-                            int32_t aY);
+    NS_IMETHOD         Move(PRInt32 aX,
+                            PRInt32 aY);
     NS_IMETHOD         Show             (bool aState);
-    NS_IMETHOD         Resize           (int32_t aWidth,
-                                         int32_t aHeight,
+    NS_IMETHOD         Resize           (PRInt32 aWidth,
+                                         PRInt32 aHeight,
                                          bool    aRepaint);
-    NS_IMETHOD         Resize           (int32_t aX,
-                                         int32_t aY,
-                                         int32_t aWidth,
-                                         int32_t aHeight,
+    NS_IMETHOD         Resize           (PRInt32 aX,
+                                         PRInt32 aY,
+                                         PRInt32 aWidth,
+                                         PRInt32 aHeight,
                                          bool     aRepaint);
     virtual bool       IsEnabled() const;
 
@@ -127,8 +129,8 @@ public:
     NS_IMETHOD         PlaceBehind(nsTopLevelWidgetZPlacement  aPlacement,
                                    nsIWidget                  *aWidget,
                                    bool                        aActivate);
-    NS_IMETHOD         SetZIndex(int32_t aZIndex);
-    NS_IMETHOD         SetSizeMode(int32_t aMode);
+    NS_IMETHOD         SetZIndex(PRInt32 aZIndex);
+    NS_IMETHOD         SetSizeMode(PRInt32 aMode);
     NS_IMETHOD         Enable(bool aState);
     NS_IMETHOD         SetFocus(bool aRaise = false);
     NS_IMETHOD         GetScreenBounds(nsIntRect &aRect);
@@ -138,9 +140,9 @@ public:
     NS_IMETHOD         SetBackgroundColor(const nscolor &aColor);
     NS_IMETHOD         SetCursor(nsCursor aCursor);
     NS_IMETHOD         SetCursor(imgIContainer* aCursor,
-                                 uint32_t aHotspotX, uint32_t aHotspotY);
+                                 PRUint32 aHotspotX, PRUint32 aHotspotY);
     NS_IMETHOD         Invalidate(const nsIntRect &aRect);
-    virtual void*      GetNativeData(uint32_t aDataType);
+    virtual void*      GetNativeData(PRUint32 aDataType);
     NS_IMETHOD         SetTitle(const nsAString& aTitle);
     NS_IMETHOD         SetIcon(const nsAString& aIconSpec);
     NS_IMETHOD         SetWindowClass(const nsAString& xulWinType);
@@ -150,7 +152,7 @@ public:
     NS_IMETHOD         CaptureRollupEvents(nsIRollupListener *aListener,
                                            bool aDoCapture,
                                            bool aConsumeRollupEvent);
-    NS_IMETHOD         GetAttention(int32_t aCycleCount);
+    NS_IMETHOD         GetAttention(PRInt32 aCycleCount);
 
     virtual bool       HasPendingInputEvent();
 
@@ -214,14 +216,14 @@ public:
                                                gpointer         aData);
 
 private:
-    void               NativeResize(int32_t aWidth,
-                                    int32_t aHeight,
+    void               NativeResize(PRInt32 aWidth,
+                                    PRInt32 aHeight,
                                     bool    aRepaint);
 
-    void               NativeResize(int32_t aX,
-                                    int32_t aY,
-                                    int32_t aWidth,
-                                    int32_t aHeight,
+    void               NativeResize(PRInt32 aX,
+                                    PRInt32 aY,
+                                    PRInt32 aWidth,
+                                    PRInt32 aHeight,
                                     bool    aRepaint);
 
     void               NativeShow  (bool    aAction);
@@ -253,7 +255,7 @@ public:
 
     static guint32     sLastButtonPressTime;
 
-    NS_IMETHOD         BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVertical);
+    NS_IMETHOD         BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical);
     NS_IMETHOD         BeginMoveDrag(nsMouseEvent* aEvent);
 
     MozContainer*      GetMozContainer() { return mContainer; }
@@ -263,7 +265,7 @@ public:
     GdkWindow*         GetGdkWindow() { return mGdkWindow; }
     bool               IsDestroyed() { return mIsDestroyed; }
 
-    void               DispatchDragEvent(uint32_t aMsg,
+    void               DispatchDragEvent(PRUint32 aMsg,
                                          const nsIntPoint& aRefPoint,
                                          guint aTime);
     static void        UpdateDragStatus (GdkDragContext *aDragContext,
@@ -279,18 +281,15 @@ public:
     NS_IMETHOD_(InputContext) GetInputContext();
     NS_IMETHOD CancelIMEComposition();
     NS_IMETHOD OnIMEFocusChange(bool aFocus);
-    NS_IMETHOD GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState);
+    NS_IMETHOD GetToggledKeyState(PRUint32 aKeyCode, bool* aLEDState);
 
-    // These methods are for toplevel windows only.
-    void               ResizeTransparencyBitmap();
-    void               ApplyTransparencyBitmap();
-    void               ClearTransparencyBitmap();
-
+   void                ResizeTransparencyBitmap(PRInt32 aNewWidth, PRInt32 aNewHeight);
+   void                ApplyTransparencyBitmap();
    virtual void        SetTransparencyMode(nsTransparencyMode aMode);
    virtual nsTransparencyMode GetTransparencyMode();
    virtual nsresult    ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
    nsresult            UpdateTranslucentWindowAlphaInternal(const nsIntRect& aRect,
-                                                            uint8_t* aAlphas, int32_t aStride);
+                                                            PRUint8* aAlphas, PRInt32 aStride);
 
 #if defined(MOZ_WIDGET_GTK2)
     gfxASurface       *GetThebesSurface();
@@ -303,8 +302,8 @@ public:
     NS_IMETHOD         ReparentNativeWidget(nsIWidget* aNewParent);
 
     virtual nsresult SynthesizeNativeMouseEvent(nsIntPoint aPoint,
-                                                uint32_t aNativeMessage,
-                                                uint32_t aModifierFlags);
+                                                PRUint32 aNativeMessage,
+                                                PRUint32 aModifierFlags);
 
     virtual nsresult SynthesizeNativeMouseMove(nsIntPoint aPoint)
     { return SynthesizeNativeMouseEvent(aPoint, GDK_MOTION_NOTIFY, 0); }
@@ -346,7 +345,7 @@ private:
     void               SetDefaultIcon(void);
     void               InitButtonEvent(nsMouseEvent &aEvent, GdkEventButton *aGdkEvent);
     bool               DispatchCommandEvent(nsIAtom* aCommand);
-    bool               DispatchContentCommandEvent(int32_t aMsg);
+    bool               DispatchContentCommandEvent(PRInt32 aMsg);
     void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                            bool aIntersectWithExisting);
     bool               GetDragInfo(nsMouseEvent* aMouseEvent,
@@ -360,15 +359,15 @@ private:
 
     GtkWindowGroup     *mWindowGroup;
 
-    uint32_t            mHasMappedToplevel : 1,
+    PRUint32            mHasMappedToplevel : 1,
                         mIsFullyObscured : 1,
                         mRetryPointerGrab : 1;
     GtkWindow          *mTransientParent;
-    nsSizeMode          mSizeState;
+    PRInt32             mSizeState;
     PluginType          mPluginType;
 
-    int32_t             mTransparencyBitmapWidth;
-    int32_t             mTransparencyBitmapHeight;
+    PRInt32             mTransparencyBitmapWidth;
+    PRInt32             mTransparencyBitmapHeight;
 
 #ifdef MOZ_HAVE_SHMIMAGE
     // If we're using xshm rendering, mThebesSurface wraps mShmImage
@@ -385,11 +384,17 @@ private:
     void                CreateRootAccessible();
 
     /**
+     * Generate the NS_GETACCESSIBLE event to get accessible for this window
+     * and return it.
+     */
+    Accessible       *DispatchAccessibleEvent();
+
+    /**
      * Dispatch accessible event for the top level window accessible.
      *
      * @param  aEventType  [in] the accessible event type to dispatch
      */
-    void                DispatchEventToRootAccessible(uint32_t aEventType);
+    void                DispatchEventToRootAccessible(PRUint32 aEventType);
 
     /**
      * Dispatch accessible window activate event for the top level window
@@ -444,14 +449,6 @@ private:
     static bool DragInProgress(void);
 
     void DispatchMissedButtonReleases(GdkEventCrossing *aGdkEvent);
-
-    // nsBaseWidget
-    virtual LayerManager* GetLayerManager(PLayersChild* aShadowManager = nullptr,
-                                          LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
-                                          LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
-                                          bool* aAllowRetaining = nullptr) MOZ_OVERRIDE;
-
-    void CleanLayerManagerRecursive();
 
     /**
      * |mIMModule| takes all IME related stuff.

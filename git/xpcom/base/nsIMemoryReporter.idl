@@ -6,7 +6,6 @@
 #include "nsISupports.idl"
 
 interface nsISimpleEnumerator;
-interface nsIRunnable;
 
 /*
  * Memory reporters measure Firefox's memory usage.  They are mainly used to
@@ -119,14 +118,14 @@ interface nsIMemoryReporter : nsISupports
    * The kind only matters for reporters in the "explicit" tree;
    * aboutMemory.js uses it to calculate "heap-unclassified".
    */
-  const int32_t KIND_NONHEAP = 0;
-  const int32_t KIND_HEAP    = 1;
-  const int32_t KIND_OTHER   = 2;
+  const PRInt32 KIND_NONHEAP = 0;
+  const PRInt32 KIND_HEAP    = 1;
+  const PRInt32 KIND_OTHER   = 2;
 
   /*
    * The reporter kind.  See KIND_* above.
    */
-  readonly attribute int32_t kind;
+  readonly attribute PRInt32 kind;
 
   /*
    * The amount reported by a memory reporter must have one of the following
@@ -155,21 +154,21 @@ interface nsIMemoryReporter : nsISupports
    *
    *    Values greater than 100% are allowed.
    */
-  const int32_t UNITS_BYTES = 0;
-  const int32_t UNITS_COUNT = 1;
-  const int32_t UNITS_COUNT_CUMULATIVE = 2;
-  const int32_t UNITS_PERCENTAGE = 3;
+  const PRInt32 UNITS_BYTES = 0;
+  const PRInt32 UNITS_COUNT = 1;
+  const PRInt32 UNITS_COUNT_CUMULATIVE = 2;
+  const PRInt32 UNITS_PERCENTAGE = 3;
 
   /*
    * The units on the reporter's amount.  See UNITS_* above.
    */
-  readonly attribute int32_t units;
+  readonly attribute PRInt32 units;
 
   /*
    * The numeric value reported by this memory reporter.  Accesses can fail if
    * something goes wrong when getting the amount.
    */
-  readonly attribute int64_t amount;
+  readonly attribute PRInt64 amount;
 
   /*
    * A human-readable description of this memory usage report.
@@ -180,8 +179,8 @@ interface nsIMemoryReporter : nsISupports
 [scriptable, function, uuid(5b15f3fa-ba15-443c-8337-7770f5f0ce5d)]
 interface nsIMemoryMultiReporterCallback : nsISupports
 {
-  void callback(in ACString process, in AUTF8String path, in int32_t kind,
-                in int32_t units, in int64_t amount,
+  void callback(in ACString process, in AUTF8String path, in PRInt32 kind,
+                in PRInt32 units, in PRInt64 amount,
                 in AUTF8String description, in nsISupports closure);
 };
 
@@ -223,10 +222,10 @@ interface nsIMemoryMultiReporter : nsISupports
    * than getting all the reports, filtering out the unneeded ones, and
    * summing the remainder.
    */
-  readonly attribute int64_t explicitNonHeap;
+  readonly attribute PRInt64 explicitNonHeap;
 };
 
-[scriptable, builtinclass, uuid(8b670411-ea2a-44c2-a36b-529db0670821)]
+[scriptable, uuid(4527b1d8-a81f-4af3-9623-80e4120392c7)]
 interface nsIMemoryReporterManager : nsISupports
 {
   /*
@@ -276,7 +275,7 @@ interface nsIMemoryReporterManager : nsISupports
    * platforms, and returns a meaningful result on all common platforms.
    * Accesses can fail.
    */
-  readonly attribute int64_t resident;
+  readonly attribute PRInt64 resident;
 
   /*
    * Get the total size of explicit memory allocations, both at the OS-level
@@ -286,18 +285,12 @@ interface nsIMemoryReporterManager : nsISupports
    * is special-cased because it's interesting, and is moderately difficult
    * to compute in JS.  Accesses can fail.
    */
-  readonly attribute int64_t explicit;
+  readonly attribute PRInt64 explicit;
 
   /*
    * This attribute indicates if moz_malloc_usable_size() works.
    */
-  [infallible] readonly attribute boolean hasMozMallocUsableSize;
-
-  /*
-   * Run a series of GC/CC's in an attempt to minimize the application's memory
-   * usage.  When we're finished, we invoke the given runnable.
-   */
-  void minimizeMemoryUsage(in nsIRunnable callback);
+  readonly attribute boolean hasMozMallocUsableSize;
 };
 
 %{C++
@@ -313,7 +306,7 @@ interface nsIMemoryReporterManager : nsISupports
       NS_IMETHOD GetPath(nsACString &memoryPath) { memoryPath.AssignLiteral(_path); return NS_OK; }  \
       NS_IMETHOD GetKind(int *kind) { *kind = _kind; return NS_OK; }                          \
       NS_IMETHOD GetUnits(int *units) { *units = _units; return NS_OK; }                      \
-      NS_IMETHOD GetAmount(int64_t *amount) { *amount = _amountFunction(); return NS_OK; }    \
+      NS_IMETHOD GetAmount(PRInt64 *amount) { *amount = _amountFunction(); return NS_OK; }    \
       NS_IMETHOD GetDescription(nsACString &desc) { desc.AssignLiteral(_desc); return NS_OK; }       \
     };                                                                                        \
     NS_IMPL##_ts##ISUPPORTS1(MemoryReporter_##_classname, nsIMemoryReporter)
@@ -330,7 +323,7 @@ interface nsIMemoryReporterManager : nsISupports
       NS_IMETHOD GetPath(nsACString &memoryPath) { memoryPath.AssignLiteral(_path); return NS_OK; }  \
       NS_IMETHOD GetKind(int *kind) { *kind = _kind; return NS_OK; }                          \
       NS_IMETHOD GetUnits(int *units) { *units = _units; return NS_OK; }                      \
-      NS_IMETHOD GetAmount(int64_t *amount) { return _amountFunction(amount); }               \
+      NS_IMETHOD GetAmount(PRInt64 *amount) { return _amountFunction(amount); }               \
       NS_IMETHOD GetDescription(nsACString &desc) { desc.AssignLiteral(_desc); return NS_OK; }       \
     };                                                                                        \
     NS_IMPL##_ts##ISUPPORTS1(MemoryReporter_##_classname, nsIMemoryReporter)
@@ -346,24 +339,20 @@ interface nsIMemoryReporterManager : nsISupports
 
 #define NS_MEMORY_REPORTER_NAME(_classname)  MemoryReporter_##_classname
 
-// Note that the memory reporters are held in an nsCOMArray, which means
-// that individual reporters should be referenced with |nsIMemoryReporter *|
-// instead of nsCOMPtr<nsIMemoryReporter>.
-
 nsresult NS_RegisterMemoryReporter(nsIMemoryReporter *reporter);
 nsresult NS_RegisterMemoryMultiReporter(nsIMemoryMultiReporter *reporter);
 
 nsresult NS_UnregisterMemoryReporter(nsIMemoryReporter *reporter);
 nsresult NS_UnregisterMemoryMultiReporter(nsIMemoryMultiReporter *reporter);
 
-// Because DMDV is not a tool that comes with the standard Valgrind
-// distribution, we have to #include our own local copy of dmdv.h.  Ugly but
+// Because DMD is not a tool that comes with the standard Valgrind
+// distribution, we have to #include our own local copy of dmd.h.  Ugly but
 // unavoidable.
-#ifdef MOZ_DMDV
+#ifdef MOZ_DMD
 #if MOZ_MEMORY
-#error "--disable-jemalloc should have been forced when --enable-dmdv was specified"
+#error "--disable-jemalloc should have been forced when --enable-dmd was specified"
 #endif
-#include "dmdv.h"
+#include "dmd.h"
 #endif
 
 namespace mozilla {
@@ -375,7 +364,7 @@ namespace mozilla {
  *
  * You might be wondering why we have a macro that creates multiple functions
  * distinguished only by |name|, instead of a single MemoryReporterMallocSizeOf
- * function.  It's mostly to help with DMDV integration, though it sometimes
+ * function.  It's mostly to help with DMD integration, though it sometimes
  * also helps with debugging and temporary ad hoc profiling.  The |name| chosen
  * doesn't matter greatly, but it's best to make it similar to the path used by
  * the relevant memory reporter(s).
@@ -384,38 +373,38 @@ namespace mozilla {
   static size_t fn(const void *ptr)                                           \
   {                                                                           \
       size_t usable = moz_malloc_size_of(ptr);                                \
-      VALGRIND_DMDV_REPORT(ptr, usable, name);                                \
+      VALGRIND_DMD_REPORT(ptr, usable, name);                                 \
       return usable;                                                          \
   }
 
 /*
  * Like NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN, but the created function sends an
- * "unreport" message to DMDV.
+ * "unreport" message to DMD.
  */
 #define NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN_UN(fn)                           \
   static size_t fn(const void *ptr)                                           \
   {                                                                           \
       size_t usable = moz_malloc_size_of(ptr);                                \
-      VALGRIND_DMDV_UNREPORT(ptr);                                            \
+      VALGRIND_DMD_UNREPORT(ptr);                                             \
       return usable;                                                          \
   }
 
-#ifdef MOZ_DMDV
+#ifdef MOZ_DMD
 
 /*
  * This runs all the memory reporters but does nothing with the results;  i.e.
- * it does the minimal amount of work possible for DMDV to do its thing.  Then
- * it dumps the DMDV output to stderr (or somewhere else, if one of
- * DMDV/Valgrind's logging options was used).
+ * it does the minimal amount of work possible for DMD to do its thing.  Then
+ * it dumps the DMD output to stderr (or somewhere else, if one of
+ * DMD/Valgrind's logging options was used).
  */
-void DMDVCheckAndDump();
+void DMDCheckAndDump();
 
 #else
 
-#define VALGRIND_DMDV_REPORT(ptr, usable, name)
-#define VALGRIND_DMDV_UNREPORT(ptr)
+#define VALGRIND_DMD_REPORT(ptr, usable, name)
+#define VALGRIND_DMD_UNREPORT(ptr)
 
-#endif  /* defined(MOZ_DMDV) */
+#endif  /* defined(MOZ_DMD) */
 }
 
 %}

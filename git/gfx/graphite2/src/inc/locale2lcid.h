@@ -28,9 +28,6 @@ of the License or (at your option) any later version.
 #include <cstring>
 #include <cassert>
 
-#include "inc/Main.h"
-
-
 namespace graphite2 {
 
 struct IsoLangEntry
@@ -253,9 +250,6 @@ const IsoLangEntry LANG_ENTRIES[] = {
 
 class Locale2Lang
 {
-    Locale2Lang(const Locale2Lang &);
-    Locale2Lang & operator = (const Locale2Lang &);
-
 public:
     Locale2Lang() : mSeedPosition(128)
     {
@@ -433,8 +427,7 @@ public:
         }
         return &LANG_ENTRIES[guess];
     }
-
-    CLASS_NEW_DELETE;
+    CLASS_NEW_DELETE
 
 private:
     const IsoLangEntry ** mLangLookup[26][26];

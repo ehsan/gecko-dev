@@ -70,7 +70,7 @@ nsSMILAnimationController::Disconnect()
 // nsSMILTimeContainer methods:
 
 void
-nsSMILAnimationController::Pause(uint32_t aType)
+nsSMILAnimationController::Pause(PRUint32 aType)
 {
   nsSMILTimeContainer::Pause(aType);
 
@@ -81,7 +81,7 @@ nsSMILAnimationController::Pause(uint32_t aType)
 }
 
 void
-nsSMILAnimationController::Resume(uint32_t aType)
+nsSMILAnimationController::Resume(PRUint32 aType)
 {
   bool wasPaused = (mPauseState != 0);
   // Update mCurrentSampleTime so that calls to GetParentTime--used for
@@ -213,7 +213,7 @@ nsSMILAnimationController::Traverse(
   }
 }
 
-/*static*/ PLDHashOperator
+/*static*/ PR_CALLBACK PLDHashOperator
 nsSMILAnimationController::CompositorTableEntryTraverse(
                                       nsSMILCompositor* aCompositor,
                                       void* aArg)
@@ -303,7 +303,7 @@ nsSMILAnimationController::MaybeStartSampling(nsRefreshDriver* aRefreshDriver)
 //----------------------------------------------------------------------
 // Sample-related methods and callbacks
 
-PLDHashOperator
+PR_CALLBACK PLDHashOperator
 TransferCachedBaseValue(nsSMILCompositor* aCompositor,
                         void* aData)
 {
@@ -319,7 +319,7 @@ TransferCachedBaseValue(nsSMILCompositor* aCompositor,
   return PL_DHASH_NEXT;  
 }
 
-PLDHashOperator
+PR_CALLBACK PLDHashOperator
 RemoveCompositorFromTable(nsSMILCompositor* aCompositor,
                           void* aData)
 {
@@ -329,7 +329,7 @@ RemoveCompositorFromTable(nsSMILCompositor* aCompositor,
   return PL_DHASH_NEXT;
 }
 
-PLDHashOperator
+PR_CALLBACK PLDHashOperator
 DoClearAnimationEffects(nsSMILCompositor* aCompositor,
                         void* /*aData*/)
 {
@@ -337,7 +337,7 @@ DoClearAnimationEffects(nsSMILCompositor* aCompositor,
   return PL_DHASH_NEXT;
 }
 
-PLDHashOperator
+PR_CALLBACK PLDHashOperator
 DoComposeAttribute(nsSMILCompositor* aCompositor,
                    void* /*aData*/)
 {
@@ -356,10 +356,6 @@ nsSMILAnimationController::DoSample(bool aSkipUnchangedContainers)
 {
   if (!mDocument) {
     NS_ERROR("Shouldn't be sampling after document has disconnected");
-    return;
-  }
-  if (mRunningSample) {
-    NS_ERROR("Shouldn't be recursively sampling");
     return;
   }
 
@@ -467,7 +463,7 @@ nsSMILAnimationController::RewindElements()
   mChildContainerTable.EnumerateEntries(ClearRewindNeeded, nullptr);
 }
 
-/*static*/ PLDHashOperator
+/*static*/ PR_CALLBACK PLDHashOperator
 nsSMILAnimationController::RewindNeeded(TimeContainerPtrKey* aKey,
                                         void* aData)
 {
@@ -484,7 +480,7 @@ nsSMILAnimationController::RewindNeeded(TimeContainerPtrKey* aKey,
   return PL_DHASH_NEXT;
 }
 
-/*static*/ PLDHashOperator
+/*static*/ PR_CALLBACK PLDHashOperator
 nsSMILAnimationController::RewindAnimation(AnimationElementPtrKey* aKey,
                                            void* aData)
 {
@@ -497,7 +493,7 @@ nsSMILAnimationController::RewindAnimation(AnimationElementPtrKey* aKey,
   return PL_DHASH_NEXT;
 }
 
-/*static*/ PLDHashOperator
+/*static*/ PR_CALLBACK PLDHashOperator
 nsSMILAnimationController::ClearRewindNeeded(TimeContainerPtrKey* aKey,
                                              void* aData)
 {
@@ -525,7 +521,7 @@ nsSMILAnimationController::DoMilestoneSamples()
   // registered for those times. This way events can fire in the correct order,
   // dependencies can be resolved etc.
 
-  nsSMILTime sampleTime = INT64_MIN;
+  nsSMILTime sampleTime = LL_MININT;
 
   while (true) {
     // We want to find any milestones AT OR BEFORE the current sample time so we
@@ -543,7 +539,7 @@ nsSMILAnimationController::DoMilestoneSamples()
     GetMilestoneElementsParams params;
     params.mMilestone = nextMilestone;
     mChildContainerTable.EnumerateEntries(GetMilestoneElements, &params);
-    uint32_t length = params.mElements.Length();
+    PRUint32 length = params.mElements.Length();
 
     // During the course of a sampling we don't want to actually go backwards.
     // Due to negative offsets, early ends and the like, a timed element might
@@ -556,7 +552,7 @@ nsSMILAnimationController::DoMilestoneSamples()
     // dependencies will be appropriately resolved.
     sampleTime = NS_MAX(nextMilestone.mTime, sampleTime);
 
-    for (uint32_t i = 0; i < length; ++i) {
+    for (PRUint32 i = 0; i < length; ++i) {
       nsISMILAnimationElement* elem = params.mElements[i].get();
       NS_ABORT_IF_FALSE(elem, "NULL animation element in list");
       nsSMILTimeContainer* container = elem->GetTimeContainer();
@@ -582,7 +578,7 @@ nsSMILAnimationController::DoMilestoneSamples()
   }
 }
 
-/*static*/ PLDHashOperator
+/*static*/ PR_CALLBACK PLDHashOperator
 nsSMILAnimationController::GetNextMilestone(TimeContainerPtrKey* aKey,
                                             void* aData)
 {
@@ -607,7 +603,7 @@ nsSMILAnimationController::GetNextMilestone(TimeContainerPtrKey* aKey,
   return PL_DHASH_NEXT;
 }
 
-/*static*/ PLDHashOperator
+/*static*/ PR_CALLBACK PLDHashOperator
 nsSMILAnimationController::GetMilestoneElements(TimeContainerPtrKey* aKey,
                                                 void* aData)
 {
@@ -629,7 +625,7 @@ nsSMILAnimationController::GetMilestoneElements(TimeContainerPtrKey* aKey,
   return PL_DHASH_NEXT;
 }
 
-/*static*/ PLDHashOperator
+/*static*/ PR_CALLBACK PLDHashOperator
 nsSMILAnimationController::SampleTimeContainer(TimeContainerPtrKey* aKey,
                                                void* aData)
 {
@@ -652,7 +648,7 @@ nsSMILAnimationController::SampleTimeContainer(TimeContainerPtrKey* aKey,
   return PL_DHASH_NEXT;
 }
 
-/*static*/ PLDHashOperator
+/*static*/ PR_CALLBACK PLDHashOperator
 nsSMILAnimationController::SampleAnimation(AnimationElementPtrKey* aKey,
                                            void* aData)
 {
@@ -752,7 +748,7 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
   // SMILANIM section 3.1, attributeName may
   // have an XMLNS prefix to indicate the XML namespace.
   nsCOMPtr<nsIAtom> attributeName;
-  int32_t attributeNamespaceID;
+  PRInt32 attributeNamespaceID;
   if (!aAnimElem->GetTargetAttributeName(&attributeNamespaceID,
                                          getter_AddRefs(attributeName)))
     // Animation has no target attr -- skip it.

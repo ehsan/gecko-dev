@@ -51,8 +51,6 @@ const BLANK_URL_FOR_CLEARING = "data:text/html,%3C%21%2D%2DCLEAR%2D%2D%3E";
 var gBrowser;
 // Are we testing web content loaded in a separate process?
 var gBrowserIsRemote;           // bool
-// Are we using <iframe mozbrowser>?
-var gBrowserIsIframe;           // bool
 var gBrowserMessageManager;
 var gCanvas1, gCanvas2;
 // gCurrentCanvas is non-null between InitCurrentCanvasWithSnapshot and the next
@@ -221,12 +219,6 @@ function OnRefTestLoad(win)
         gBrowserIsRemote = false;
     }
 
-    try {
-      gBrowserIsIframe = prefs.getBoolPref("reftest.browser.iframe.enabled");
-    } catch (e) {
-      gBrowserIsIframe = false;
-    }
-
     if (win === undefined || win == null) {
       win = window;
     }
@@ -234,12 +226,7 @@ function OnRefTestLoad(win)
       gContainingWindow = win;
     }
 
-    if (gBrowserIsIframe) {
-      gBrowser = gContainingWindow.document.createElementNS(XHTML_NS, "iframe");
-      gBrowser.setAttribute("mozbrowser", "");
-    } else {
-      gBrowser = gContainingWindow.document.createElementNS(XUL_NS, "xul:browser");
-    }
+    gBrowser = gContainingWindow.document.createElementNS(XUL_NS, "xul:browser");
     gBrowser.setAttribute("id", "browser");
     gBrowser.setAttribute("type", "content-primary");
     gBrowser.setAttribute("remote", gBrowserIsRemote ? "true" : "false");
@@ -262,7 +249,7 @@ function OnRefTestLoad(win)
 #endif
 
     gBrowserMessageManager = gBrowser.QueryInterface(CI.nsIFrameLoaderOwner)
-                                     .frameLoader.messageManager;
+                             .frameLoader.messageManager;
     // The content script waits for the initial onload, then notifies
     // us.
     RegisterMessageListenersAndLoadContentScript();
@@ -277,10 +264,6 @@ function InitAndStartRefTests()
     } catch(e) {
         gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | | EXCEPTION: " + e + "\n");
     }
-
-    try {
-      prefs.setBoolPref("android.widget_paints_background", false);
-    } catch (e) {}
 
     /* set the gLoadTimeout */
     try {
@@ -502,8 +485,8 @@ function BuildConditionSandbox(aURL) {
     } catch(e) {
         sandbox.xulRuntime.XPCOMABI = "";
     }
-
-
+ 
+    
 #if REFTEST_B2G
     // XXX nsIGfxInfo isn't available in B2G
     sandbox.d2d = false;
@@ -548,11 +531,6 @@ function BuildConditionSandbox(aURL) {
         sandbox.http[prop] = hh[prop];
         sandbox.http.__exposedProps__[prop] = "r";
     }
-
-    // Set OSX to the Mac OS X version for Mac, and 0 otherwise.
-    var osxmatch = /Mac OS X (\d+.\d+)$/.exec(hh.oscpu);
-    sandbox.OSX = osxmatch ? parseFloat(osxmatch[1]) : 0;
-
     // see if we have the test plugin available,
     // and set a sandox prop accordingly
     sandbox.haveTestPlugin = false;
@@ -630,11 +608,6 @@ function BuildConditionSandbox(aURL) {
     // Tests shouldn't care about this except for when they need to
     // crash the content process
     sandbox.browserIsRemote = gBrowserIsRemote;
-    sandbox.bug685516 = sandbox.browserIsRemote && sandbox.Android;
-
-    // Distinguish the Fennecs:
-    sandbox.xulFennec    = sandbox.Android &&  sandbox.browserIsRemote;
-    sandbox.nativeFennec = sandbox.Android && !sandbox.browserIsRemote;
 
     if (!gDumpedConditionSandbox) {
         dump("REFTEST INFO | Dumping JSON representation of sandbox \n");
@@ -1488,29 +1461,25 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
                          gURLs[0].prettyPath + " | "; // the URL being tested
             switch (gURLs[0].type) {
                 case TYPE_REFTEST_NOTEQUAL:
-                    result += "image comparison (!=)";
+                    result += "image comparison (!=) ";
                     break;
                 case TYPE_REFTEST_EQUAL:
-                    result += "image comparison (==)";
+                    result += "image comparison (==) ";
                     break;
             }
+            gDumpLog(result + "\n");
 
             if (!test_passed && expected == EXPECTED_PASS ||
                 !test_passed && expected == EXPECTED_FUZZY ||
                 test_passed && expected == EXPECTED_FAIL) {
                 if (!equal) {
-                    result += ", max difference: " + maxDifference.value + ", number of differing pixels: " + differences + "\n";
-                    result += "REFTEST   IMAGE 1 (TEST): " + gCanvas1.toDataURL() + "\n";
-                    result += "REFTEST   IMAGE 2 (REFERENCE): " + gCanvas2.toDataURL() + "\n";
+                    gDumpLog("REFTEST   IMAGE 1 (TEST): " + gCanvas1.toDataURL() + "\n");
+                    gDumpLog("REFTEST   IMAGE 2 (REFERENCE): " + gCanvas2.toDataURL() + "\n");
+                    gDumpLog("REFTEST max difference: " + maxDifference.value + " number of differing pixels: " + differences + "\n");
                 } else {
-                    result += "\n";
                     gDumpLog("REFTEST   IMAGE: " + gCanvas1.toDataURL() + "\n");
                 }
-            } else {
-                result += "\n";
             }
-
-            gDumpLog(result);
 
             if (!test_passed && expected == EXPECTED_PASS) {
                 FlushTestLog();
@@ -1571,7 +1540,6 @@ function FindUnexpectedCrashDumpFiles()
         let path = String(file.path);
         if (path.match(/\.(dmp|extra)$/) && !gUnexpectedCrashDumpFiles[path]) {
             if (!foundCrashDumpFile) {
-                ++gTestResults.UnexpectedFail;
                 foundCrashDumpFile = true;
                 gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | " + gCurrentURL +
                          " | This test left crash dumps behind, but we weren't expecting it to!\n");

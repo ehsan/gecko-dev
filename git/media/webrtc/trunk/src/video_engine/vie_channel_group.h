@@ -17,11 +17,7 @@
 
 namespace webrtc {
 
-class BitrateController;
-struct OverUseDetectorOptions;
 class ProcessThread;
-class RemoteBitrateEstimator;
-class RemoteBitrateObserver;
 class ViEChannel;
 class ViEEncoder;
 class VieRemb;
@@ -30,12 +26,11 @@ class VieRemb;
 // group are assumed to send/receive data to the same end-point.
 class ChannelGroup {
  public:
-  ChannelGroup(ProcessThread* process_thread,
-               const OverUseDetectorOptions& options);
+  explicit ChannelGroup(ProcessThread* process_thread);
   ~ChannelGroup();
 
   void AddChannel(int channel_id);
-  void RemoveChannel(int channel_id, unsigned int ssrc);
+  void RemoveChannel(int channel_id);
   bool HasChannel(int channel_id);
   bool Empty();
 
@@ -45,15 +40,10 @@ class ChannelGroup {
                             ViEChannel* channel,
                             ViEEncoder* encoder);
 
-  BitrateController* GetBitrateController();
-  RemoteBitrateEstimator* GetRemoteBitrateEstimator();
-
  private:
   typedef std::set<int> ChannelSet;
 
   scoped_ptr<VieRemb> remb_;
-  scoped_ptr<BitrateController> bitrate_controller_;
-  scoped_ptr<RemoteBitrateEstimator> remote_bitrate_estimator_;
   ChannelSet channels_;
 };
 

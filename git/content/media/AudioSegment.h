@@ -22,7 +22,7 @@ struct AudioChunk {
     NS_ASSERTION(aStart >= 0 && aStart < aEnd && aEnd <= mDuration,
                  "Slice out of bounds");
     if (mBuffer) {
-      mOffset += int32_t(aStart);
+      mOffset += PRInt32(aStart);
     }
     mDuration = aEnd - aStart;
   }
@@ -50,9 +50,9 @@ struct AudioChunk {
 
   TrackTicks mDuration;           // in frames within the buffer
   nsRefPtr<SharedBuffer> mBuffer; // null means data is all zeroes
-  int32_t mBufferLength;          // number of frames in mBuffer (only meaningful if mBuffer is nonnull)
+  PRInt32 mBufferLength;          // number of frames in mBuffer (only meaningful if mBuffer is nonnull)
   SampleFormat mBufferFormat;     // format of frames in mBuffer (only meaningful if mBuffer is nonnull)
-  int32_t mOffset;                // in frames within the buffer (zero if mBuffer is null)
+  PRInt32 mOffset;                // in frames within the buffer (zero if mBuffer is null)
   float mVolume;                  // volume multiplier to apply (1.0f if mBuffer is nonnull)
 };
 
@@ -68,7 +68,7 @@ public:
   {
     switch (aFormat) {
     case nsAudioStream::FORMAT_U8: return 1;
-    case nsAudioStream::FORMAT_S16: return 2;
+    case nsAudioStream::FORMAT_S16_LE: return 2;
     case nsAudioStream::FORMAT_FLOAT32: return 4;
     }
     NS_ERROR("Bad format");
@@ -81,13 +81,13 @@ public:
   {
     return mChannels > 0;
   }
-  void Init(int32_t aChannels)
+  void Init(PRInt32 aChannels)
   {
     NS_ASSERTION(aChannels > 0, "Bad number of channels");
     NS_ASSERTION(!IsInitialized(), "Already initialized");
     mChannels = aChannels;
   }
-  int32_t GetChannels()
+  PRInt32 GetChannels()
   {
     NS_ASSERTION(IsInitialized(), "Not initialized");
     return mChannels;
@@ -105,8 +105,8 @@ public:
     }
     return nsAudioStream::FORMAT_FLOAT32;
   }
-  void AppendFrames(already_AddRefed<SharedBuffer> aBuffer, int32_t aBufferLength,
-                    int32_t aStart, int32_t aEnd, SampleFormat aFormat)
+  void AppendFrames(already_AddRefed<SharedBuffer> aBuffer, PRInt32 aBufferLength,
+                    PRInt32 aStart, PRInt32 aEnd, SampleFormat aFormat)
   {
     NS_ASSERTION(mChannels > 0, "Not initialized");
     AudioChunk* chunk = AppendChunk(aEnd - aStart);
@@ -123,20 +123,28 @@ public:
    */
   void WriteTo(nsAudioStream* aOutput);
 
+  using MediaSegmentBase<AudioSegment, AudioChunk>::AppendFrom;
+  void AppendFrom(AudioSegment* aSource)
+  {
+    NS_ASSERTION(aSource->mChannels == mChannels, "Non-matching channels");
+    MediaSegmentBase<AudioSegment, AudioChunk>::AppendFrom(aSource);
+  }
+
   // Segment-generic methods not in MediaSegmentBase
   void InitFrom(const AudioSegment& aOther)
   {
     NS_ASSERTION(mChannels == 0, "Channels already set");
     mChannels = aOther.mChannels;
   }
-  void CheckCompatible(const AudioSegment& aOther) const
+  void SliceFrom(const AudioSegment& aOther, TrackTicks aStart, TrackTicks aEnd)
   {
-    NS_ASSERTION(aOther.mChannels == mChannels, "Non-matching channels");
+    InitFrom(aOther);
+    BaseSliceFrom(aOther, aStart, aEnd);
   }
   static Type StaticType() { return AUDIO; }
 
 protected:
-  int32_t mChannels;
+  PRInt32 mChannels;
 };
 
 }

@@ -320,8 +320,8 @@ mjit::Compiler::compileGetChar(FrameEntry *thisValue, FrameEntry *arg, GetCharMo
     masm.move(reg1, reg2);
 
     /* Slow path if string is a rope */
-    masm.andPtr(ImmPtr((void *)JSString::FLAGS_MASK), reg1);
-    Jump isRope = masm.branchTestPtr(Assembler::Zero, reg1);
+    masm.andPtr(ImmPtr((void *)JSString::ROPE_BIT), reg1);
+    Jump isRope = masm.branchTestPtr(Assembler::NonZero, reg1);
     stubcc.linkExit(isRope, Uses(3));
 
     /* Slow path if out-of-range. */
@@ -473,7 +473,7 @@ mjit::Compiler::compileArrayPopShift(FrameEntry *thisValue, bool isPacked, bool 
 
 #ifdef JSGC_INCREMENTAL_MJ
     /* Write barrier. */
-    if (cx->compartment->compileBarriers())
+    if (cx->compartment->needsBarrier())
         return Compile_InlineAbort;
 #endif
 
@@ -615,7 +615,9 @@ mjit::Compiler::compileArrayConcat(types::TypeSet *thisTypes, types::TypeSet *ar
      * so check that type information already reflects possible side effects of
      * this call.
      */
-    types::HeapTypeSet *thisElemTypes = thisType->getProperty(cx, JSID_VOID, false);
+    thisTypes->addFreeze(cx);
+    argTypes->addFreeze(cx);
+    types::TypeSet *thisElemTypes = thisType->getProperty(cx, JSID_VOID, false);
     if (!thisElemTypes)
         return Compile_Error;
     if (!pushedTypeSet(0)->hasType(types::Type::ObjectType(thisType)))
@@ -626,7 +628,7 @@ mjit::Compiler::compileArrayConcat(types::TypeSet *thisTypes, types::TypeSet *ar
         types::TypeObject *argType = argTypes->getTypeObject(i);
         if (!argType)
             continue;
-        types::HeapTypeSet *elemTypes = argType->getProperty(cx, JSID_VOID, false);
+        types::TypeSet *elemTypes = argType->getProperty(cx, JSID_VOID, false);
         if (!elemTypes)
             return Compile_Error;
         if (!elemTypes->knownSubset(cx, thisElemTypes))
@@ -703,7 +705,6 @@ mjit::Compiler::compileArrayWithLength(uint32_t argc)
             return Compile_InlineAbort;
     }
 
-    RootedScript script(cx, script_);
     types::TypeObject *type = types::TypeScript::InitObject(cx, script, PC, JSProto_Array);
     if (!type)
         return Compile_Error;
@@ -745,7 +746,6 @@ mjit::Compiler::compileArrayWithArgs(uint32_t argc)
     if (argc > maxArraySlots)
         return Compile_InlineAbort;
 
-    RootedScript script(cx, script_);
     types::TypeObject *type = types::TypeScript::InitObject(cx, script, PC, JSProto_Array);
     if (!type)
         return Compile_Error;
@@ -875,7 +875,7 @@ mjit::Compiler::inlineNativeFunction(uint32_t argc, bool callingNew)
 
     FrameEntry *origCallee = frame.peek(-((int)argc + 2));
     FrameEntry *thisValue = frame.peek(-((int)argc + 1));
-    types::StackTypeSet *thisTypes = analysis->poppedTypes(PC, argc);
+    types::TypeSet *thisTypes = analysis->poppedTypes(PC, argc);
 
     if (!origCallee->isConstant() || !origCallee->isType(JSVAL_TYPE_OBJECT))
         return Compile_InlineAbort;
@@ -947,7 +947,7 @@ mjit::Compiler::inlineNativeFunction(uint32_t argc, bool callingNew)
         }
     } else if (argc == 1) {
         FrameEntry *arg = frame.peek(-1);
-        types::StackTypeSet *argTypes = frame.extra(arg).types;
+        types::TypeSet *argTypes = frame.extra(arg).types;
         if (!argTypes)
             return Compile_InlineAbort;
         JSValueType argType = arg->isTypeKnown() ? arg->getKnownType() : JSVAL_TYPE_UNKNOWN;

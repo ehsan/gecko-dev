@@ -6,7 +6,6 @@
 package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.util.FloatUtils;
 
 import org.json.JSONArray;
@@ -16,7 +15,6 @@ import android.graphics.RectF;
 import android.util.FloatMath;
 import android.util.Log;
 
-import java.util.HashMap;
 import java.util.Map;
 
 final class DisplayPortCalculator {
@@ -60,8 +58,7 @@ final class DisplayPortCalculator {
         sStrategy.resetPageState();
     }
 
-    static void initPrefs() {
-        JSONArray prefs = new JSONArray();
+    static void addPrefNames(JSONArray prefs) {
         prefs.put(PREF_DISPLAYPORT_STRATEGY);
         prefs.put(PREF_DISPLAYPORT_FM_MULTIPLIER);
         prefs.put(PREF_DISPLAYPORT_FM_DANGER_X);
@@ -74,18 +71,6 @@ final class DisplayPortCalculator {
         prefs.put(PREF_DISPLAYPORT_VB_DANGER_X_INCR);
         prefs.put(PREF_DISPLAYPORT_VB_DANGER_Y_INCR);
         prefs.put(PREF_DISPLAYPORT_PB_VELOCITY_THRESHOLD);
-
-        PrefsHelper.getPrefs(prefs, new PrefsHelper.PrefHandlerBase() {
-            private Map<String, Integer> mValues = new HashMap<String, Integer>();
-
-            @Override public void prefValue(String pref, int value) {
-                mValues.put(pref, value);
-            }
-
-            @Override public void finish() {
-                setStrategy(mValues);
-            }
-        });
     }
 
     /**

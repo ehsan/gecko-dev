@@ -9,17 +9,11 @@
   <link rel="stylesheet" href="chrome://browser/skin/aboutReader.css" type="text/css"/>
 </head>
 
-<body>
+<body onload="AboutReader.init();" onunload="AboutReader.uninit();">
   <div id="reader-header" class="header">
-    <div id="reader-domain" class="domain"></div>
-    <h1 id="reader-title"></h1>
-    <div id="reader-credits" class="credits"></div>
   </div>
 
   <div id="reader-content" class="content">
-  </div>
-
-  <div id="reader-message" class="message">
   </div>
 
   <ul id="reader-toolbar" class="toolbar toolbar-hidden">
@@ -38,6 +32,8 @@
     <li><a id="toggle-button" class="button toggle-button" href="#"></a></li>
   </ul>
 
+  <script type="application/javascript;version=1.8" src="chrome://browser/content/aboutReader.js">
+  </script>
 </body>
 
 </html>

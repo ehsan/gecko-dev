@@ -6,7 +6,6 @@
 #ifndef nsMathMLContainerFrame_h___
 #define nsMathMLContainerFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsContainerFrame.h"
 #include "nsBlockFrame.h"
@@ -49,10 +48,10 @@ public:
           nsHTMLReflowMetrics& aDesiredStretchSize);
 
   NS_IMETHOD
-  UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
-                                    int32_t         aLastIndex,
-                                    uint32_t        aFlagsValues,
-                                    uint32_t        aFlagsToUpdate)
+  UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
+                                    PRInt32         aLastIndex,
+                                    PRUint32        aFlagsValues,
+                                    PRUint32        aFlagsToUpdate)
   {
     PropagatePresentationDataFromChildAt(this, aFirstIndex, aLastIndex,
       aFlagsValues, aFlagsToUpdate);
@@ -69,12 +68,12 @@ public:
   // to ensure that restyle and reflow happens immediately after the current
   // reflow.
   void
-  SetIncrementScriptLevel(int32_t aChildIndex, bool aIncrement);
+  SetIncrementScriptLevel(PRInt32 aChildIndex, bool aIncrement);
 
   // --------------------------------------------------------------------------
   // Overloaded nsContainerFrame methods -- see documentation in nsIFrame.h
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(PRUint32 aFlags) const
   {
     return !(aFlags & nsIFrame::eLineParticipant) &&
       nsContainerFrame::IsFrameOfType(aFlags &
@@ -90,11 +89,11 @@ public:
   NS_IMETHOD
   InsertFrames(ChildListID     aListID,
                nsIFrame*       aPrevFrame,
-               nsFrameList&    aFrameList) MOZ_OVERRIDE;
+               nsFrameList&    aFrameList);
 
   NS_IMETHOD
   RemoveFrame(ChildListID     aListID,
-              nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+              nsIFrame*       aOldFrame);
 
   /**
    * Both GetMinWidth and GetPrefWidth return whatever
@@ -133,7 +132,7 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
   virtual bool UpdateOverflow();
 
@@ -155,9 +154,9 @@ public:
   //        Therefore, there is an overhead here in that our siblings are re-laid
   //        too (e.g., this happens with <mstyle>, <munder>, <mover>, <munderover>). 
   NS_IMETHOD
-  AttributeChanged(int32_t         aNameSpaceID,
+  AttributeChanged(PRInt32         aNameSpaceID,
                    nsIAtom*        aAttribute,
-                   int32_t         aModType);
+                   PRInt32         aModType);
 
   // helper function to apply mirroring to a horizontal coordinate, if needed.
   nscoord
@@ -221,13 +220,13 @@ protected:
   // helper to re-sync the automatic data in our children and notify our parent to
   // reflow us when changes (e.g., append/insert/remove) happen in our child list
   virtual nsresult
-  ChildListChanged(int32_t aModType);
+  ChildListChanged(PRInt32 aModType);
 
   // helper to get the preferred size that a container frame should use to fire
   // the stretch on its stretchy child frames.
   void
   GetPreferredStretchSize(nsRenderingContext& aRenderingContext,
-                          uint32_t             aOptions,
+                          PRUint32             aOptions,
                           nsStretchDirection   aStretchDirection,
                           nsBoundingMetrics&   aPreferredStretchSize);
 
@@ -297,16 +296,16 @@ protected:
   // a subtree that may contain non-MathML container frames
   static void
   PropagatePresentationDataFor(nsIFrame*       aFrame,
-                               uint32_t        aFlagsValues,
-                               uint32_t        aFlagsToUpdate);
+                               PRUint32        aFlagsValues,
+                               PRUint32        aFlagsToUpdate);
 
 public:
   static void
   PropagatePresentationDataFromChildAt(nsIFrame*       aParentFrame,
-                                       int32_t         aFirstChildIndex,
-                                       int32_t         aLastChildIndex,
-                                       uint32_t        aFlagsValues,
-                                       uint32_t        aFlagsToUpdate);
+                                       PRInt32         aFirstChildIndex,
+                                       PRInt32         aLastChildIndex,
+                                       PRUint32        aFlagsValues,
+                                       PRUint32        aFlagsToUpdate);
 
   // helper to let the rebuild of automatic data (presentation data
   // and embellishement data) walk through a subtree that may contain
@@ -375,7 +374,7 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   friend nsIFrame* NS_NewMathMLmathBlockFrame(nsIPresShell* aPresShell,
-          nsStyleContext* aContext, uint32_t aFlags);
+          nsStyleContext* aContext, PRUint32 aFlags);
 
   // beware, mFrames is not set by nsBlockFrame
   // cannot use mFrames{.FirstChild()|.etc} since the block code doesn't set mFrames
@@ -405,7 +404,7 @@ public:
   NS_IMETHOD
   InsertFrames(ChildListID     aListID,
                nsIFrame*       aPrevFrame,
-               nsFrameList&    aFrameList) MOZ_OVERRIDE
+               nsFrameList&    aFrameList)
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
@@ -417,7 +416,7 @@ public:
 
   NS_IMETHOD
   RemoveFrame(ChildListID     aListID,
-              nsIFrame*       aOldFrame) MOZ_OVERRIDE
+              nsIFrame*       aOldFrame)
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
@@ -427,7 +426,7 @@ public:
     return rv;
   }
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE {
+  virtual bool IsFrameOfType(PRUint32 aFlags) const {
     return nsBlockFrame::IsFrameOfType(aFlags &
               ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }
@@ -462,7 +461,7 @@ public:
 
   NS_IMETHOD
   AppendFrames(ChildListID     aListID,
-               nsFrameList&    aFrameList) MOZ_OVERRIDE
+               nsFrameList&    aFrameList)
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
@@ -475,7 +474,7 @@ public:
   NS_IMETHOD
   InsertFrames(ChildListID     aListID,
                nsIFrame*       aPrevFrame,
-               nsFrameList&    aFrameList) MOZ_OVERRIDE
+               nsFrameList&    aFrameList)
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
@@ -487,7 +486,7 @@ public:
 
   NS_IMETHOD
   RemoveFrame(ChildListID     aListID,
-              nsIFrame*       aOldFrame) MOZ_OVERRIDE
+              nsIFrame*       aOldFrame)
   {
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
@@ -497,7 +496,7 @@ public:
     return rv;
   }
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const {
+  virtual bool IsFrameOfType(PRUint32 aFlags) const {
       return nsInlineFrame::IsFrameOfType(aFlags &
                 ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }

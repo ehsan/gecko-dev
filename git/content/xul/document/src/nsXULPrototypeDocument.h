@@ -110,7 +110,7 @@ public:
     // nsIScriptGlobalObjectOwner methods
     virtual nsIScriptGlobalObject* GetScriptGlobalObject();
 
-    void MarkInCCGeneration(uint32_t aCCGeneration)
+    void MarkInCCGeneration(PRUint32 aCCGeneration)
     {
         mCCGeneration = aCCGeneration;
     }
@@ -131,7 +131,7 @@ protected:
 
     nsRefPtr<nsNodeInfoManager> mNodeInfoManager;
 
-    uint32_t mCCGeneration;
+    PRUint32 mCCGeneration;
 
     nsXULPrototypeDocument();
     virtual ~nsXULPrototypeDocument();
@@ -144,7 +144,7 @@ protected:
 
     static nsIPrincipal* gSystemPrincipal;
     static nsXULPDGlobalObject* gSystemGlobal;
-    static uint32_t gRefCnt;
+    static PRUint32 gRefCnt;
 
     friend class nsXULPDGlobalObject;
 };

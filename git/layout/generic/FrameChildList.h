@@ -46,8 +46,8 @@ friend class FrameChildListIterator;
   }
 
  protected:
-  FrameChildListIDs(uint32_t aIDs) : mIDs(aIDs) {}
-  uint32_t mIDs;
+  FrameChildListIDs(PRUint32 aIDs) : mIDs(aIDs) {}
+  PRUint32 mIDs;
 };
 
 class FrameChildList {
@@ -81,7 +81,7 @@ class NS_STACK_CLASS FrameChildListArrayIterator {
 
 protected:
   const nsTArray<FrameChildList>& mLists;
-  uint32_t mCurrentIndex;
+  PRUint32 mCurrentIndex;
 };
 
 /**

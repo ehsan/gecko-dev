@@ -45,7 +45,7 @@ public:
   // If > 0, the OS is indexing all the app's menus (triggered by opening
   // Help menu on Leopard and higher).  There are some things that are
   // unsafe to do while this is happening.
-  static int32_t sIndexingMenuLevel;
+  static PRInt32 sIndexingMenuLevel;
 
   NS_DECL_CHANGEOBSERVER
 
@@ -55,10 +55,10 @@ public:
 
   // nsMenuX
   nsresult       Create(nsMenuObjectX* aParent, nsMenuGroupOwnerX* aMenuGroupOwner, nsIContent* aNode);
-  uint32_t       GetItemCount();
-  nsMenuObjectX* GetItemAt(uint32_t aPos);
-  nsresult       GetVisibleItemCount(uint32_t &aCount);
-  nsMenuObjectX* GetVisibleItemAt(uint32_t aPos);
+  PRUint32       GetItemCount();
+  nsMenuObjectX* GetItemAt(PRUint32 aPos);
+  nsresult       GetVisibleItemCount(PRUint32 &aCount);
+  nsMenuObjectX* GetVisibleItemAt(PRUint32 aPos);
   nsEventStatus  MenuOpened();
   void           MenuClosed();
   void           SetRebuild(bool aMenuEvent);
@@ -83,7 +83,7 @@ protected:
 
   nsTArray< nsAutoPtr<nsMenuObjectX> > mMenuObjectsArray;
   nsString                  mLabel;
-  uint32_t                  mVisibleItemsCount; // cache
+  PRUint32                  mVisibleItemsCount; // cache
   nsMenuObjectX*            mParent; // [weak]
   nsMenuGroupOwnerX*        mMenuGroupOwner; // [weak]
   // The icon object should never outlive its creating nsMenuX object.

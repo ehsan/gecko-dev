@@ -6,7 +6,6 @@
 #ifndef nsMathMLmpaddedFrame_h___
 #define nsMathMLmpaddedFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
@@ -32,12 +31,12 @@ public:
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus);
   
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+        nsHTMLReflowMetrics& aDesiredSize);
 
 protected:
   nsMathMLmpaddedFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
@@ -52,17 +51,17 @@ private:
   nsCSSValue mLeadingSpace;
   nsCSSValue mVerticalOffset;
 
-  int32_t    mWidthSign;
-  int32_t    mHeightSign;
-  int32_t    mDepthSign;
-  int32_t    mLeadingSpaceSign;
-  int32_t    mVerticalOffsetSign;
+  PRInt32    mWidthSign;
+  PRInt32    mHeightSign;
+  PRInt32    mDepthSign;
+  PRInt32    mLeadingSpaceSign;
+  PRInt32    mVerticalOffsetSign;
 
-  int32_t    mWidthPseudoUnit;
-  int32_t    mHeightPseudoUnit;
-  int32_t    mDepthPseudoUnit;
-  int32_t    mLeadingSpacePseudoUnit;
-  int32_t    mVerticalOffsetPseudoUnit;
+  PRInt32    mWidthPseudoUnit;
+  PRInt32    mHeightPseudoUnit;
+  PRInt32    mDepthPseudoUnit;
+  PRInt32    mLeadingSpacePseudoUnit;
+  PRInt32    mVerticalOffsetPseudoUnit;
 
   // helpers to process the attributes
   void
@@ -70,13 +69,13 @@ private:
 
   static bool
   ParseAttribute(nsString&   aString,
-                 int32_t&    aSign,
+                 PRInt32&    aSign,
                  nsCSSValue& aCSSValue,
-                 int32_t&    aPseudoUnit);
+                 PRInt32&    aPseudoUnit);
 
   void
-  UpdateValue(int32_t                  aSign,
-              int32_t                  aPseudoUnit,
+  UpdateValue(PRInt32                  aSign,
+              PRInt32                  aPseudoUnit,
               const nsCSSValue&        aCSSValue,
               const nsBoundingMetrics& aBoundingMetrics,
               nscoord&                 aValueToUpdate) const;

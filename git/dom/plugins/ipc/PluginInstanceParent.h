@@ -23,18 +23,15 @@
 #include "nsHashKeys.h"
 #include "nsRect.h"
 #include "gfxASurface.h"
-
+#include "ImageLayers.h"
 #ifdef MOZ_X11
 class gfxXlibSurface;
 #endif
+#include "mozilla/unused.h"
 #include "nsGUIEvent.h"
 #include "mozilla/unused.h"
 
 namespace mozilla {
-namespace layers {
-class ImageContainer;
-class CompositionNotifySink;
-}
 namespace plugins {
 
 class PBrowserStreamParent;
@@ -88,6 +85,10 @@ public:
     virtual bool
     DeallocPPluginStream(PPluginStreamParent* stream);
 
+    virtual bool
+    AnswerNPN_GetValue_NPNVjavascriptEnabledBool(bool* value, NPError* result);
+    virtual bool
+    AnswerNPN_GetValue_NPNVisOfflineBool(bool* value, NPError* result);
     virtual bool
     AnswerNPN_GetValue_NPNVnetscapeWindow(NativeWindowHandle* value,
                                           NPError* result);
@@ -271,7 +272,6 @@ public:
     nsresult GetImageSize(nsIntSize* aSize);
 #ifdef XP_MACOSX
     nsresult IsRemoteDrawingCoreAnimation(bool *aDrawing);
-    nsresult ContentsScaleFactorChanged(double aContentsScaleFactor);
 #endif
     nsresult SetBackgroundUnknown();
     nsresult BeginUpdateBackground(const nsIntRect& aRect,
@@ -364,7 +364,7 @@ private:
     // the consistency of the pixels in |mBackground|.  A plugin may
     // be able to observe partial updates to the background.
     nsRefPtr<gfxASurface>    mBackground;
-
+    
     nsRefPtr<ImageContainer> mImageContainer;
 };
 

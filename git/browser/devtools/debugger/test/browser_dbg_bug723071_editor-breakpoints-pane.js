@@ -160,17 +160,17 @@ function test()
 
       executeSoon(function()
       {
-        line = 6;
+        line = 4;
         gPane.addBreakpoint({url: gScripts.selected, line: line},
           function(cl, err) {
           onBreakpointAdd.call({ increment: increment, line: line }, cl, err);
 
-          line = 7;
+          line = 5;
           gPane.addBreakpoint({url: gScripts.selected, line: line},
             function(cl, err) {
             onBreakpointAdd.call({ increment: increment, line: line }, cl, err);
 
-            line = 8;
+            line = 6;
             gPane.addBreakpoint({url: gScripts.selected, line: line},
               function(cl, err) {
               onBreakpointAdd.call({ increment: increment, line: line }, cl, err);
@@ -247,7 +247,7 @@ function test()
       let check = bkp.querySelector("checkbox");
 
       is(bkp.id, id,
-        "Breakpoint element " + id + " found successfully.");
+        "Breakpoint element " + id + " found succesfully.");
       is(info.getAttribute("value"), getExpectedBreakpointInfo(this.line),
         "The expected information wasn't found in the breakpoint element.");
       is(text.getAttribute("value"), getExpectedLineText(this.line).trim(),

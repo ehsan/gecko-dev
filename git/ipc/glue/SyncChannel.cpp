@@ -6,7 +6,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/ipc/SyncChannel.h"
-#include "mozilla/Util.h"
 
 #include "nsDebug.h"
 #include "nsTraceRefcnt.h"
@@ -23,18 +22,18 @@ struct RunnableMethodTraits<mozilla::ipc::SyncChannel>
 namespace mozilla {
 namespace ipc {
 
-const int32_t SyncChannel::kNoTimeout = INT32_MIN;
+const int32 SyncChannel::kNoTimeout = PR_INT32_MIN;
 
 SyncChannel::SyncChannel(SyncListener* aListener)
   : AsyncChannel(aListener)
-#ifdef OS_WIN
-  , mTopFrame(NULL)
-#endif
   , mPendingReply(0)
   , mProcessingSyncMessage(false)
   , mNextSeqno(0)
   , mInTimeoutSecondHalf(false)
   , mTimeoutMs(kNoTimeout)
+#ifdef OS_WIN
+  , mTopFrame(NULL)
+#endif
 {
     MOZ_COUNT_CTOR(SyncChannel);
 #ifdef OS_WIN
@@ -89,7 +88,7 @@ SyncChannel::Send(Message* _msg, Message* reply)
     }
 
     mPendingReply = msg->type() + 1;
-    DebugOnly<int32_t> msgSeqno = msg->seqno();
+    int32 msgSeqno = msg->seqno();
     mLink->SendMessage(msg.forget());
 
     while (1) {

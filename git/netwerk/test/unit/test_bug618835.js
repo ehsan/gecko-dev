@@ -10,13 +10,7 @@
 // /cl", whose cached entries are to be invalidated. The tests verifies that
 // "/redirect" and "/cl" are loaded from server the expected number of times.
 //
-
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpserv;
 
@@ -79,7 +73,7 @@ FinalListener.prototype = {
 };
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.registerPathHandler("/cl", content_location);
   httpserv.registerPathHandler("/post", post_target);
   httpserv.registerPathHandler("/redirect", redirect_target);

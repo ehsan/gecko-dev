@@ -52,13 +52,6 @@ MOCHITEST_FILES = \
   file_loopback_inner.html \
   $(NULL)
 
-MOCHITEST_CHROME_FILES = \
-  test_permissionmanager_app_isolation.html \
-  test_app_uninstall_permissions.html \
-  test_app_uninstall_cookies.html \
-  channel_utils.js \
-  $(NULL)
-
 MOCHITEST_BROWSER_FILES = \
   browser_test_favicon.js \
   $(NULL)

@@ -311,7 +311,7 @@ static const char *metricToString[] = {
 #endif
 
 nsresult
-nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
+nsLookAndFeel::GetIntImpl(IntID aID, PRInt32 &aResult)
 {
 #ifdef NS_LOOKANDFEEL_DEBUG
   qDebug("nsLookAndFeel::GetIntImpl aID = %s", metricToString[aID]);
@@ -454,8 +454,7 @@ GetSystemFontInfo(const char *aClassName, nsString *aFontName,
 
 bool
 nsLookAndFeel::GetFontImpl(FontID aID, nsString& aFontName,
-                           gfxFontStyle& aFontStyle,
-                           float aDevPixPerCSSPixel)
+                           gfxFontStyle& aFontStyle)
 {
   const char *className = NULL;
   nsString *cachedFontName = NULL;

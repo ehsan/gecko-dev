@@ -16,7 +16,6 @@
 /****** SkThread_platform needs to define the following...
 
 int32_t sk_atomic_inc(int32_t*);
-int32_t sk_atomic_add(int32_t*, int32_t);
 int32_t sk_atomic_dec(int32_t*);
 int32_t sk_atomic_conditional_inc(int32_t*);
 
@@ -37,7 +36,7 @@ public:
         SkASSERT(fMutex != NULL);
         mutex.acquire();
     }
-
+    
     SkAutoMutexAcquire(SkBaseMutex* mutex) : fMutex(mutex) {
         if (mutex) {
             mutex->acquire();
@@ -60,7 +59,7 @@ public:
             fMutex = NULL;
         }
     }
-
+        
 private:
     SkBaseMutex* fMutex;
 };

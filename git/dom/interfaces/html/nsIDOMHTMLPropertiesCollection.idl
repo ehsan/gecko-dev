@@ -4,17 +4,29 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "nsIDOMHTMLElement.idl"
 #include "nsIDOMPropertyNodeList.idl"
 #include "nsIDOMDOMStringList.idl"
 
 // This interface should extend nsIDOMHTMLCollection, which will be fixed when
 // it is converted to webidl.
-[scriptable, uuid(b3a368e4-61a4-4578-94ce-57f98b0e79e8)]
+[scriptable, uuid(da1101db-d1d7-465d-9fd6-49ec9960cb20)]
 interface nsIDOMHTMLPropertiesCollection : nsISupports
 {
   readonly attribute unsigned long    length;
   readonly attribute nsIDOMDOMStringList names;
 
-  nsIDOMNode                item(in unsigned long index);
+  [getter,forward(getNodeAt)] nsIDOMNode                item(in unsigned long index);
   nsIDOMPropertyNodeList namedItem(in DOMString name);
+
+  /**
+   * Get the node at the index.  Returns null if the index is out of bounds.
+   */
+  [noscript,notxpcom,nostdcall] nsIContent  getNodeAt(in unsigned long index);
+
+  /**
+   * Get the node for the name.  Returns null if no node exists for the name.
+   */
+  [noscript,notxpcom,nostdcall] nsISupports getNamedItem(in DOMString name,
+                                                         out nsWrapperCachePtr cache);
 };

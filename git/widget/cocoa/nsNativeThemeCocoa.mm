@@ -149,8 +149,8 @@ extern "C" {
   tdi.version = 0;
   tdi.min = 0;
 
-  tdi.value = INT32_MAX * (mValue / mMax);
-  tdi.max = INT32_MAX;
+  tdi.value = PR_INT32_MAX * (mValue / mMax);
+  tdi.max = PR_INT32_MAX;
   tdi.bounds = NSRectToCGRect(cellFrame);
   tdi.attributes = mIsHorizontal ? kThemeTrackHorizontal : 0;
   tdi.enableState = [self controlTint] == NSClearControlTint ? kThemeTrackInactive
@@ -167,8 +167,8 @@ extern "C" {
                                 : kThemeMediumProgressBar;
   }
 
-  int32_t stepsPerSecond = mIsIndeterminate ? 60 : 30;
-  int32_t milliSecondsPerStep = 1000 / stepsPerSecond;
+  PRInt32 stepsPerSecond = mIsIndeterminate ? 60 : 30;
+  PRInt32 milliSecondsPerStep = 1000 / stepsPerSecond;
   tdi.trackInfo.progress.phase = PR_IntervalToMilliseconds(PR_IntervalNow()) /
                                  milliSecondsPerStep % 32;
 
@@ -306,7 +306,7 @@ static int EnumSizeForCocoaSize(NSControlSize cocoaControlSize) {
     return regularControlSize;
 }
 
-static NSControlSize CocoaSizeForEnum(int32_t enumControlSize) {
+static NSControlSize CocoaSizeForEnum(PRInt32 enumControlSize) {
   if (enumControlSize == miniControlSize)
     return NSMiniControlSize;
   else if (enumControlSize == smallControlSize)
@@ -379,7 +379,7 @@ static BOOL FrameIsInActiveWindow(nsIFrame* aFrame)
 static BOOL IsActive(nsIFrame* aFrame, BOOL aIsToolbarControl)
 {
   if (aIsToolbarControl)
-    return [NativeWindowForFrame(aFrame) isMainWindow];
+    return [NativeWindowForFrame(aFrame) isMainWindow] || ![NSView focusView];
   return FrameIsInActiveWindow(aFrame);
 }
 
@@ -459,16 +459,6 @@ nsNativeThemeCocoa::~nsNativeThemeCocoa()
 // by trial and error, on OS X 10.4.11 and 10.5.4, and on systems with
 // different amounts of RAM.
 #define BITMAP_MAX_AREA 500000
-
-static int
-GetBackingScaleFactorForRendering(CGContextRef cgContext)
-{
-  CGAffineTransform ctm = CGContextGetUserSpaceToDeviceSpaceTransform(cgContext);
-  CGRect transformedUserSpacePixel = CGRectApplyAffineTransform(CGRectMake(0, 0, 1, 1), ctm);
-  float maxScale = NS_MAX(fabs(transformedUserSpacePixel.size.width),
-                          fabs(transformedUserSpacePixel.size.height));
-  return maxScale > 1.0 ? 2 : 1;  
-}
 
 /*
  * Draw the given NSCell into the given cgContext.
@@ -552,11 +542,10 @@ static void DrawCellWithScaling(NSCell *cell,
     w += MAX_FOCUS_RING_WIDTH * 2.0;
     h += MAX_FOCUS_RING_WIDTH * 2.0;
 
-    int backingScaleFactor = GetBackingScaleFactorForRendering(cgContext);
     CGColorSpaceRef rgb = CGColorSpaceCreateDeviceRGB();
     CGContextRef ctx = CGBitmapContextCreate(NULL,
-                                             (int) w * backingScaleFactor, (int) h * backingScaleFactor,
-                                             8, (int) w * backingScaleFactor * 4,
+                                             (int) w, (int) h,
+                                             8, (int) w * 4,
                                              rgb, kCGImageAlphaPremultipliedFirst);
     CGColorSpaceRelease(rgb);
 
@@ -571,8 +560,6 @@ static void DrawCellWithScaling(NSCell *cell,
 
     NSGraphicsContext* savedContext = [NSGraphicsContext currentContext];
     [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:YES]];
-
-    CGContextScaleCTM(ctx, backingScaleFactor, backingScaleFactor);
 
     // This is the second flip transform, applied to ctx.
     CGContextScaleCTM(ctx, 1.0f, -1.0f);
@@ -638,14 +625,14 @@ struct CellRenderSettings {
  */
 static NSControlSize FindControlSize(CGFloat size, const CGFloat* sizes, CGFloat tolerance)
 {
-  for (uint32_t i = miniControlSize; i <= regularControlSize; ++i) {
+  for (PRUint32 i = miniControlSize; i <= regularControlSize; ++i) {
     if (sizes[i] == 0) {
       continue;
     }
 
     CGFloat next = 0;
     // Find next value.
-    for (uint32_t j = i+1; j <= regularControlSize; ++j) {
+    for (PRUint32 j = i+1; j <= regularControlSize; ++j) {
       if (sizes[j] != 0) {
         next = sizes[j];
         break;
@@ -751,7 +738,7 @@ static float VerticalAlignFactor(nsIFrame *aFrame)
     return 0.5f; // default: center
 
   const nsStyleCoord& va = aFrame->GetStyleTextReset()->mVerticalAlign;
-  uint8_t intval = (va.GetUnit() == eStyleUnit_Enumerated)
+  PRUint8 intval = (va.GetUnit() == eStyleUnit_Enumerated)
                      ? va.GetIntValue()
                      : NS_STYLE_VERTICAL_ALIGN_MIDDLE;
   switch (intval) {
@@ -980,18 +967,12 @@ RenderTransformedHIThemeControl(CGContextRef aCGContext, const HIRect& aRect,
     int w = ceil(drawRect.size.width) + 2 * MAX_FOCUS_RING_WIDTH;
     int h = ceil(drawRect.size.height) + 2 * MAX_FOCUS_RING_WIDTH;
 
-    int backingScaleFactor = GetBackingScaleFactorForRendering(aCGContext);
     CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-    CGContextRef bitmapctx = CGBitmapContextCreate(NULL,
-                                                   w * backingScaleFactor,
-                                                   h * backingScaleFactor,
-                                                   8,
-                                                   w * backingScaleFactor * 4,
+    CGContextRef bitmapctx = CGBitmapContextCreate(NULL, w, h, 8, w * 4,
                                                    colorSpace,
                                                    kCGImageAlphaPremultipliedFirst);
     CGColorSpaceRelease(colorSpace);
 
-    CGContextScaleCTM(bitmapctx, backingScaleFactor, backingScaleFactor);
     CGContextTranslateCTM(bitmapctx, MAX_FOCUS_RING_WIDTH, MAX_FOCUS_RING_WIDTH);
 
     // HITheme always wants to draw into a flipped context, or things
@@ -1156,7 +1137,7 @@ static const CellRenderSettings editableMenulistSettings = {
 
 void
 nsNativeThemeCocoa::DrawDropdown(CGContextRef cgContext, const HIRect& inBoxRect,
-                                 nsEventStates inState, uint8_t aWidgetType,
+                                 nsEventStates inState, PRUint8 aWidgetType,
                                  nsIFrame* aFrame)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -1497,8 +1478,8 @@ nsNativeThemeCocoa::DrawTabPanel(CGContextRef cgContext, const HIRect& inBoxRect
 void
 nsNativeThemeCocoa::DrawScale(CGContextRef cgContext, const HIRect& inBoxRect,
                               nsEventStates inState, bool inIsVertical,
-                              bool inIsReverse, int32_t inCurrentValue,
-                              int32_t inMinValue, int32_t inMaxValue,
+                              bool inIsReverse, PRInt32 inCurrentValue,
+                              PRInt32 inMinValue, PRInt32 inMaxValue,
                               nsIFrame* aFrame)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -1661,7 +1642,7 @@ nsNativeThemeCocoa::GetScrollbarPressStates(nsIFrame *aFrame, nsEventStates aBut
 
     nsIContent *childContent = childFrame->GetContent();
     if (!childContent) continue;
-    int32_t attrIndex = childContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::sbattr, 
+    PRInt32 attrIndex = childContent->FindAttrValueIn(kNameSpaceID_None, nsGkAtoms::sbattr, 
                                                       attributeValues, eCaseMatters);
     if (attrIndex < 0) continue;
 
@@ -1685,10 +1666,10 @@ nsNativeThemeCocoa::GetScrollbarDrawInfo(HIThemeTrackDrawInfo& aTdi, nsIFrame *a
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  int32_t curpos = CheckIntAttr(aFrame, nsGkAtoms::curpos, 0);
-  int32_t minpos = CheckIntAttr(aFrame, nsGkAtoms::minpos, 0);
-  int32_t maxpos = CheckIntAttr(aFrame, nsGkAtoms::maxpos, 100);
-  int32_t thumbSize = CheckIntAttr(aFrame, nsGkAtoms::pageincrement, 10);
+  PRInt32 curpos = CheckIntAttr(aFrame, nsGkAtoms::curpos, 0);
+  PRInt32 minpos = CheckIntAttr(aFrame, nsGkAtoms::minpos, 0);
+  PRInt32 maxpos = CheckIntAttr(aFrame, nsGkAtoms::maxpos, 100);
+  PRInt32 thumbSize = CheckIntAttr(aFrame, nsGkAtoms::pageincrement, 10);
 
   bool isHorizontal = aFrame->GetContent()->AttrValueIs(kNameSpaceID_None, nsGkAtoms::orient, 
                                                           nsGkAtoms::horizontal, eCaseMatters);
@@ -1715,7 +1696,7 @@ nsNativeThemeCocoa::GetScrollbarDrawInfo(HIThemeTrackDrawInfo& aTdi, nsIFrame *a
   /* Only display features if we have enough room for them.
    * Gecko still maintains the scrollbar info; this is just a visual issue (bug 380185).
    */
-  int32_t longSideLength = (int32_t)(isHorizontal ? (aSize.width) : (aSize.height));
+  PRInt32 longSideLength = (PRInt32)(isHorizontal ? (aSize.width) : (aSize.height));
   if (longSideLength >= (isSmall ? MIN_SMALL_SCROLLBAR_SIZE_WITH_THUMB : MIN_SCROLLBAR_SIZE_WITH_THUMB)) {
     aTdi.attributes |= kThemeTrackShowThumb;
   }
@@ -1793,12 +1774,10 @@ ToolbarCanBeUnified(CGContextRef cgContext, const HIRect& inBoxRect, NSWindow* a
     return false;
 
   float unifiedToolbarHeight = [(ToolbarWindow*)aWindow unifiedToolbarHeight];
-  CGAffineTransform ctm = CGContextGetUserSpaceToDeviceSpaceTransform(cgContext);
-  CGRect deviceRect = CGRectApplyAffineTransform(inBoxRect, ctm);
   return inBoxRect.origin.x == 0 &&
-         deviceRect.size.width >= [aWindow frame].size.width &&
+         inBoxRect.size.width >= [aWindow frame].size.width &&
          inBoxRect.origin.y <= 0.0 &&
-         floor(inBoxRect.origin.y + inBoxRect.size.height) <= unifiedToolbarHeight;
+         inBoxRect.origin.y + inBoxRect.size.height <= unifiedToolbarHeight;
 }
 
 void
@@ -1810,7 +1789,7 @@ nsNativeThemeCocoa::DrawUnifiedToolbar(CGContextRef cgContext, const HIRect& inB
   float titlebarHeight = [(ToolbarWindow*)aWindow titlebarHeight];
   float unifiedHeight = titlebarHeight + inBoxRect.size.height;
 
-  BOOL isMain = [aWindow isMainWindow];
+  BOOL isMain = [aWindow isMainWindow] || ![NSView focusView];
 
   CGContextSaveGState(cgContext);
   CGContextClipToRect(cgContext, inBoxRect);
@@ -1897,24 +1876,17 @@ nsNativeThemeCocoa::DrawResizer(CGContextRef cgContext, const HIRect& aRect,
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-static bool
-IsHiDPIContext(nsDeviceContext* aContext)
-{
-  return nsPresContext::AppUnitsPerCSSPixel() >=
-    2 * aContext->UnscaledAppUnitsPerDevPixel();
-}
-
 NS_IMETHODIMP
 nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
                                          nsIFrame* aFrame,
-                                         uint8_t aWidgetType,
+                                         PRUint8 aWidgetType,
                                          const nsRect& aRect,
                                          const nsRect& aDirtyRect)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   // setup to draw into the correct port
-  int32_t p2a = aContext->AppUnitsPerDevPixel();
+  PRInt32 p2a = aContext->AppUnitsPerDevPixel();
 
   gfxRect nativeDirtyRect(aDirtyRect.x, aDirtyRect.y,
                           aDirtyRect.width, aDirtyRect.height);
@@ -1928,15 +1900,6 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
   gfxContext* thebesCtx = aContext->ThebesContext();
   if (!thebesCtx)
     return NS_ERROR_FAILURE;
-
-  gfxContextMatrixAutoSaveRestore save(thebesCtx);
-
-  if (IsHiDPIContext(aContext->DeviceContext())) {
-    // Use high-resolution drawing.
-    nativeWidgetRect.ScaleInverse(2.0f);
-    nativeDirtyRect.ScaleInverse(2.0f);
-    thebesCtx->Scale(2.0f, 2.0f);
-  }
 
   gfxQuartzNativeDrawing nativeDrawing(thebesCtx, nativeDirtyRect);
 
@@ -2111,7 +2074,7 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
         DrawUnifiedToolbar(cgContext, macRect, win);
         break;
       }
-      BOOL isMain = [win isMainWindow];
+      BOOL isMain = [win isMainWindow] || ![NSView focusView];
       CGRect drawRect = macRect;
 
       // top border
@@ -2240,9 +2203,9 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
 
     case NS_THEME_SCALE_HORIZONTAL:
     case NS_THEME_SCALE_VERTICAL: {
-      int32_t curpos = CheckIntAttr(aFrame, nsGkAtoms::curpos, 0);
-      int32_t minpos = CheckIntAttr(aFrame, nsGkAtoms::minpos, 0);
-      int32_t maxpos = CheckIntAttr(aFrame, nsGkAtoms::maxpos, 100);
+      PRInt32 curpos = CheckIntAttr(aFrame, nsGkAtoms::curpos, 0);
+      PRInt32 minpos = CheckIntAttr(aFrame, nsGkAtoms::minpos, 0);
+      PRInt32 maxpos = CheckIntAttr(aFrame, nsGkAtoms::maxpos, 100);
       if (!maxpos)
         maxpos = 100;
 
@@ -2335,8 +2298,8 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
       CGContextFillRect(cgContext, macRect);
 
       // #8E8E8E for the top border, #BEBEBE for the rest.
-      float x = macRect.origin.x, y = macRect.origin.y;
-      float w = macRect.size.width, h = macRect.size.height;
+      int x = macRect.origin.x, y = macRect.origin.y;
+      int w = macRect.size.width, h = macRect.size.height;
       CGContextSetRGBFillColor(cgContext, 0.557, 0.557, 0.557, 1.0);
       CGContextFillRect(cgContext, CGRectMake(x, y, w, 1));
       CGContextSetRGBFillColor(cgContext, 0.745, 0.745, 0.745, 1.0);
@@ -2382,7 +2345,7 @@ static const nsIntMargin kAquaSearchfieldBorder(19, 3, 5, 2);
 NS_IMETHODIMP
 nsNativeThemeCocoa::GetWidgetBorder(nsDeviceContext* aContext, 
                                     nsIFrame* aFrame,
-                                    uint8_t aWidgetType,
+                                    PRUint8 aWidgetType,
                                     nsIntMargin* aResult)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -2470,7 +2433,7 @@ nsNativeThemeCocoa::GetWidgetBorder(nsDeviceContext* aContext,
 
           // There isn't a metric for this, so just hardcode a best guess at the value.
           // This value is even less exact due to the fact that the endcap is partially concave.
-          int32_t endcapSize = isSmall ? 5 : 6;
+          PRInt32 endcapSize = isSmall ? 5 : 6;
 
           if (isHorizontal)
             aResult->SizeTo(endcapSize, 0, 0, 0);
@@ -2486,10 +2449,6 @@ nsNativeThemeCocoa::GetWidgetBorder(nsDeviceContext* aContext,
       break;
   }
 
-  if (IsHiDPIContext(aContext)) {
-    *aResult = *aResult + *aResult; // doubled
-  }
-
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
@@ -2502,7 +2461,7 @@ nsNativeThemeCocoa::GetWidgetBorder(nsDeviceContext* aContext,
 bool
 nsNativeThemeCocoa::GetWidgetPadding(nsDeviceContext* aContext, 
                                      nsIFrame* aFrame,
-                                     uint8_t aWidgetType,
+                                     PRUint8 aWidgetType,
                                      nsIntMargin* aResult)
 {
   // We don't want CSS padding being used for certain widgets.
@@ -2522,9 +2481,9 @@ nsNativeThemeCocoa::GetWidgetPadding(nsDeviceContext* aContext,
 
 bool
 nsNativeThemeCocoa::GetWidgetOverflow(nsDeviceContext* aContext, nsIFrame* aFrame,
-                                      uint8_t aWidgetType, nsRect* aOverflowRect)
+                                      PRUint8 aWidgetType, nsRect* aOverflowRect)
 {
-  int32_t p2a = aContext->AppUnitsPerDevPixel();
+  PRInt32 p2a = aContext->AppUnitsPerDevPixel();
   switch (aWidgetType) {
     case NS_THEME_BUTTON:
     case NS_THEME_TOOLBAR_BUTTON:
@@ -2561,13 +2520,13 @@ nsNativeThemeCocoa::GetWidgetOverflow(nsDeviceContext* aContext, nsIFrame* aFram
   return false;
 }
 
-static const int32_t kRegularScrollbarThumbMinSize = 22;
-static const int32_t kSmallScrollbarThumbMinSize = 19;
+static const PRInt32 kRegularScrollbarThumbMinSize = 22;
+static const PRInt32 kSmallScrollbarThumbMinSize = 19;
 
 NS_IMETHODIMP
 nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
                                          nsIFrame* aFrame,
-                                         uint8_t aWidgetType,
+                                         PRUint8 aWidgetType,
                                          nsIntSize* aResult,
                                          bool* aIsOverridable)
 {
@@ -2692,7 +2651,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
 
       bool isSmall = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL);
       bool isHorizontal = (aWidgetType == NS_THEME_SCROLLBAR_THUMB_HORIZONTAL);
-      int32_t& minSize = isHorizontal ? aResult->width : aResult->height;
+      PRInt32& minSize = isHorizontal ? aResult->width : aResult->height;
       minSize = isSmall ? kSmallScrollbarThumbMinSize : kRegularScrollbarThumbMinSize;
       break;
     }
@@ -2709,7 +2668,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       nsIFrame *scrollbarFrame = GetParentScrollbarFrame(aFrame);
       if (!scrollbarFrame) return NS_ERROR_FAILURE;
 
-      int32_t themeMetric = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL) ?
+      PRInt32 themeMetric = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL) ?
                             kThemeMetricSmallScrollBarWidth :
                             kThemeMetricScrollBarWidth;
       SInt32 scrollbarWidth = 0;
@@ -2728,7 +2687,7 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
       if (!scrollbarFrame) return NS_ERROR_FAILURE;
 
       // Since there is no NS_THEME_SCROLLBAR_BUTTON_UP_SMALL we need to ask the parent what appearance style it has.
-      int32_t themeMetric = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL) ?
+      PRInt32 themeMetric = (scrollbarFrame->GetStyleDisplay()->mAppearance == NS_THEME_SCROLLBAR_SMALL) ?
                             kThemeMetricSmallScrollBarWidth :
                             kThemeMetricScrollBarWidth;
       SInt32 scrollbarWidth = 0;
@@ -2759,17 +2718,13 @@ nsNativeThemeCocoa::GetMinimumWidgetSize(nsRenderingContext* aContext,
     }
   }
 
-  if (IsHiDPIContext(aContext->DeviceContext())) {
-    *aResult = *aResult * 2;
-  }
-
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP
-nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, uint8_t aWidgetType, 
+nsNativeThemeCocoa::WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType, 
                                      nsIAtom* aAttribute, bool* aShouldRepaint)
 {
   // Some widget types just never change state.
@@ -2832,7 +2787,7 @@ nsNativeThemeCocoa::ThemeChanged()
 
 bool 
 nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* aFrame,
-                                      uint8_t aWidgetType)
+                                      PRUint8 aWidgetType)
 {
   // We don't have CSS set up to render non-native scrollbars on Mac OS X so we
   // render natively even if native theme support is disabled.
@@ -2938,7 +2893,7 @@ nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext, nsIFrame* a
 }
 
 bool
-nsNativeThemeCocoa::WidgetIsContainer(uint8_t aWidgetType)
+nsNativeThemeCocoa::WidgetIsContainer(PRUint8 aWidgetType)
 {
   // flesh this out at some point
   switch (aWidgetType) {
@@ -2954,7 +2909,7 @@ nsNativeThemeCocoa::WidgetIsContainer(uint8_t aWidgetType)
 }
 
 bool
-nsNativeThemeCocoa::ThemeDrawsFocusForWidget(nsPresContext* aPresContext, nsIFrame* aFrame, uint8_t aWidgetType)
+nsNativeThemeCocoa::ThemeDrawsFocusForWidget(nsPresContext* aPresContext, nsIFrame* aFrame, PRUint8 aWidgetType)
 {
   if (aWidgetType == NS_THEME_DROPDOWN ||
       aWidgetType == NS_THEME_DROPDOWN_TEXTFIELD ||
@@ -2973,7 +2928,7 @@ nsNativeThemeCocoa::ThemeNeedsComboboxDropmarker()
 }
 
 nsITheme::Transparency
-nsNativeThemeCocoa::GetWidgetTransparency(nsIFrame* aFrame, uint8_t aWidgetType)
+nsNativeThemeCocoa::GetWidgetTransparency(nsIFrame* aFrame, PRUint8 aWidgetType)
 {
   switch (aWidgetType) {
   case NS_THEME_MENUPOPUP:

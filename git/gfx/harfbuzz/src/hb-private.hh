@@ -66,19 +66,14 @@
 
 
 #undef MIN
-template <typename Type>
-static inline Type MIN (const Type &a, const Type &b) { return a < b ? a : b; }
+template <typename Type> static inline Type MIN (const Type &a, const Type &b) { return a < b ? a : b; }
 
 #undef MAX
-template <typename Type>
-static inline Type MAX (const Type &a, const Type &b) { return a > b ? a : b; }
+template <typename Type> static inline Type MAX (const Type &a, const Type &b) { return a > b ? a : b; }
 
 
 #undef  ARRAY_LENGTH
-template <typename Type, unsigned int n>
-static inline unsigned int ARRAY_LENGTH (const Type (&a)[n]) { return n; }
-/* A const version, but does not detect erratically being called on pointers. */
-#define ARRAY_LENGTH_CONST(__array) ((signed int) (sizeof (__array) / sizeof (__array[0])))
+#define ARRAY_LENGTH(__array) ((signed int) (sizeof (__array) / sizeof (__array[0])))
 
 #define HB_STMT_START do
 #define HB_STMT_END   while (0)
@@ -546,7 +541,7 @@ _hb_debug (unsigned int level,
 #define DEBUG_LEVEL(WHAT, LEVEL) (_hb_debug ((LEVEL), HB_DEBUG_##WHAT))
 #define DEBUG(WHAT) (DEBUG_LEVEL (WHAT, 0))
 
-template <int max_level> static inline void
+template <int max_level> inline void
 _hb_debug_msg_va (const char *what,
 		  const void *obj,
 		  const char *func,
@@ -583,13 +578,12 @@ _hb_debug_msg_va (const char *what,
     fprintf (stderr, "   " VRBAR LBAR);
 
   if (func) {
-    /* Skip return type */
+    /* If there's a class name, just write that. */
+    const char *dotdot = strstr (func, "::");
     const char *space = strchr (func, ' ');
-    if (space)
+    if (space && dotdot && space < dotdot)
       func = space + 1;
-    /* Skip parameter list */
-    const char *paren = strchr (func, '(');
-    unsigned int func_len = paren ? paren - func : strlen (func);
+    unsigned int func_len = dotdot ? dotdot - func : strlen (func);
     fprintf (stderr, "%.*s: ", func_len, func);
   }
 
@@ -608,7 +602,7 @@ _hb_debug_msg_va<0> (const char *what HB_UNUSED,
 		     const char *message HB_UNUSED,
 		     va_list ap HB_UNUSED) {}
 
-template <int max_level> static inline void
+template <int max_level> inline void
 _hb_debug_msg (const char *what,
 	       const void *obj,
 	       const char *func,
@@ -617,7 +611,7 @@ _hb_debug_msg (const char *what,
 	       int level_dir,
 	       const char *message,
 	       ...) HB_PRINTF_FUNC(7, 8);
-template <int max_level> static inline void
+template <int max_level> inline void
 _hb_debug_msg (const char *what,
 	       const void *obj,
 	       const char *func,
@@ -794,22 +788,6 @@ hb_bubble_sort (T *array, unsigned int len, int(*compar)(const T *, const T *))
   hb_bubble_sort (array, len, compar, (int *) NULL);
 }
 
-static inline hb_bool_t
-hb_codepoint_parse (const char *s, unsigned int len, int base, hb_codepoint_t *out)
-{
-  /* Pain because we don't know whether s is nul-terminated. */
-  char buf[64];
-  strncpy (buf, s, MIN (ARRAY_LENGTH (buf) - 1, len));
-  buf[MIN (ARRAY_LENGTH (buf) - 1, len)] = '\0';
-
-  char *end;
-  errno = 0;
-  unsigned long v = strtoul (buf, &end, base);
-  if (errno) return false;
-  if (*end) return false;
-  *out = v;
-  return true;
-}
 
 
 #endif /* HB_PRIVATE_HH */

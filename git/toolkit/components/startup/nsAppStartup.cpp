@@ -34,6 +34,7 @@
 #include "nsAppShellCID.h"
 #include "nsXPCOMCIDInternal.h"
 #include "mozilla/Services.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 #include "prenv.h"
@@ -49,40 +50,17 @@
 #include <sys/syscall.h>
 #endif
 
-#if defined(XP_MACOSX) || defined(__DragonFly__) || defined(__FreeBSD__) \
-  || defined(__NetBSD__) || defined(__OpenBSD__)
+#ifdef XP_MACOSX
+#include <sys/sysctl.h>
+#endif
+
+#ifdef __OpenBSD__
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #endif
 
-#if defined(__DragonFly__) || defined(__FreeBSD__)
-#include <sys/user.h>
-#endif
-
 #include "mozilla/Telemetry.h"
 #include "mozilla/StartupTimeline.h"
-
-#if defined(__NetBSD__)
-#undef KERN_PROC
-#define KERN_PROC KERN_PROC2
-#define KINFO_PROC struct kinfo_proc2
-#else
-#define KINFO_PROC struct kinfo_proc
-#endif
-
-#if defined(XP_MACOSX)
-#define KP_START_SEC kp_proc.p_un.__p_starttime.tv_sec
-#define KP_START_USEC kp_proc.p_un.__p_starttime.tv_usec
-#elif defined(__DragonFly__)
-#define KP_START_SEC kp_start.tv_sec
-#define KP_START_USEC kp_start.tv_usec
-#elif defined(__FreeBSD__)
-#define KP_START_SEC ki_start.tv_sec
-#define KP_START_USEC ki_start.tv_usec
-#else
-#define KP_START_SEC p_ustart_sec
-#define KP_START_USEC p_ustart_usec
-#endif
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
@@ -162,25 +140,28 @@ nsAppStartup::nsAppStartup() :
   mRestart(false),
   mInterrupted(false),
   mIsSafeModeNecessary(false),
-  mStartupCrashTrackingEnded(false),
-  mCachedShutdownTime(false),
-  mLastShutdownTime(0)
+  mStartupCrashTrackingEnded(false)
 { }
 
 
 nsresult
 nsAppStartup::Init()
 {
+  NS_TIME_FUNCTION;
   nsresult rv;
 
   // Create widget application shell
   mAppShell = do_GetService(kAppShellCID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  NS_TIME_FUNCTION_MARK("Got AppShell service");
+
   nsCOMPtr<nsIObserverService> os =
     mozilla::services::GetObserverService();
   if (!os)
     return NS_ERROR_FAILURE;
+
+  NS_TIME_FUNCTION_MARK("Got Observer service");
 
   os->AddObserver(this, "quit-application-forced", true);
   os->AddObserver(this, "sessionstore-windows-restored", true);
@@ -308,12 +289,12 @@ GetShutdownTimeFileName()
 
   if (!gRecordedShutdownTimeFileName) {
     nsCOMPtr<nsIFile> mozFile;
-    NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(mozFile));
+    NS_GetSpecialDirectory(NS_APP_PREFS_50_DIR, getter_AddRefs(mozFile));
     if (!mozFile)
       return NULL;
 
     mozFile->AppendNative(NS_LITERAL_CSTRING("Telemetry.ShutdownTime.txt"));
-    nsAutoCString nativePath;
+    nsCAutoString nativePath;
     nsresult rv = mozFile->GetNativePath(nativePath);
     if (!NS_SUCCEEDED(rv))
       return NULL;
@@ -587,16 +568,8 @@ nsAppStartup::ExitLastWindowClosingSurvivalArea(void)
 }
 
 NS_IMETHODIMP
-nsAppStartup::GetLastShutdownDuration(uint32_t *aResult)
+nsAppStartup::GetLastShutdownDuration(PRUint32 *aResult)
 {
-  // We make this check so that GetShutdownTimeFileName() doesn't get
-  // called; calling that function without telemetry enabled violates
-  // assumptions that the write-the-shutdown-timestamp machinery makes.
-  if (!Telemetry::CanRecord()) {
-    *aResult = 0;
-    return NS_OK;
-  }
-
   if (!mCachedShutdownTime) {
     const char *filename = GetShutdownTimeFileName();
 
@@ -613,12 +586,12 @@ nsAppStartup::GetLastShutdownDuration(uint32_t *aResult)
 
     int shutdownTime;
     int r = fscanf(f, "%d\n", &shutdownTime);
-    fclose(f);
     if (r != 1) {
       *aResult = 0;
       return NS_OK;
     }
 
+    fclose(f);
     mLastShutdownTime = shutdownTime;
     mCachedShutdownTime = true;
   }
@@ -853,30 +826,42 @@ CalculateProcessCreationTimestamp()
 #endif
   return timestamp;
 }
-#elif defined(XP_MACOSX) || defined(__DragonFly__) || defined(__FreeBSD__) \
-  || defined(__NetBSD__) || defined(__OpenBSD__)
+#elif defined(XP_MACOSX)
 static PRTime
 CalculateProcessCreationTimestamp()
 {
-  int mib[] = {
-    CTL_KERN,
-    KERN_PROC,
-    KERN_PROC_PID,
-    getpid(),
-#if defined(__NetBSD__) || defined(__OpenBSD__)
-    sizeof(KINFO_PROC),
-    1,
-#endif
-  };
-  u_int miblen = sizeof(mib) / sizeof(mib[0]);
-
-  KINFO_PROC proc;
-  size_t buffer_size = sizeof(proc);
-  if (sysctl(mib, miblen, &proc, &buffer_size, NULL, 0))
+  int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid() };
+  size_t buffer_size;
+  if (sysctl(mib, 4, NULL, &buffer_size, NULL, 0))
     return 0;
 
-  PRTime starttime = static_cast<PRTime>(proc.KP_START_SEC) * PR_USEC_PER_SEC;
-  starttime += proc.KP_START_USEC;
+  struct kinfo_proc *proc = (kinfo_proc*) malloc(buffer_size);  
+  if (sysctl(mib, 4, proc, &buffer_size, NULL, 0)) {
+    free(proc);
+    return 0;
+  }
+  PRTime starttime = static_cast<PRTime>(proc->kp_proc.p_un.__p_starttime.tv_sec) * PR_USEC_PER_SEC;
+  starttime += proc->kp_proc.p_un.__p_starttime.tv_usec;
+  free(proc);
+  return starttime;
+}
+#elif defined(__OpenBSD__)
+static PRTime
+CalculateProcessCreationTimestamp()
+{
+  int mib[6] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid(), sizeof(struct kinfo_proc), 1 };
+  size_t buffer_size;
+  if (sysctl(mib, 6, NULL, &buffer_size, NULL, 0))
+    return 0;
+
+  struct kinfo_proc *proc = (struct kinfo_proc*) malloc(buffer_size);
+  if (sysctl(mib, 6, proc, &buffer_size, NULL, 0)) {
+    free(proc);
+    return 0;
+  }
+  PRTime starttime = static_cast<PRTime>(proc->p_ustart_sec) * PR_USEC_PER_SEC;
+  starttime += proc->p_ustart_usec;
+  free(proc);
   return starttime;
 }
 #else
@@ -962,7 +947,7 @@ nsAppStartup::TrackStartupCrashBegin(bool *aIsSafeModeNecessary)
 
   xr->GetInSafeMode(&inSafeMode);
 
-  PRTime replacedLockTime;
+  PRInt64 replacedLockTime;
   rv = xr->GetReplacedLockTime(&replacedLockTime);
 
   if (NS_FAILED(rv) || !replacedLockTime) {

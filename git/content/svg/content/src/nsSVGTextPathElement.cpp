@@ -11,14 +11,14 @@
 #include "nsIDOMSVGURIReference.h"
 #include "nsIFrame.h"
 #include "nsSVGTextPathElement.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsContentUtils.h"
 
 using namespace mozilla;
 
 nsSVGElement::LengthInfo nsSVGTextPathElement::sLengthInfo[1] =
 {
-  { &nsGkAtoms::startOffset, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::X },
+  { &nsGkAtoms::startOffset, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::X },
 };
 
 nsSVGEnumMapping nsSVGTextPathElement::sMethodMap[] = {

@@ -23,10 +23,10 @@ using namespace mozilla::dom;
 
 nsSVGElement::LengthInfo nsSVGUseElement::sLengthInfo[4] =
 {
-  { &nsGkAtoms::x, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::X },
-  { &nsGkAtoms::y, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::Y },
-  { &nsGkAtoms::width, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::X },
-  { &nsGkAtoms::height, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::Y },
+  { &nsGkAtoms::x, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::X },
+  { &nsGkAtoms::y, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::Y },
+  { &nsGkAtoms::width, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::X },
+  { &nsGkAtoms::height, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::Y },
 };
 
 nsSVGElement::StringInfo nsSVGUseElement::sStringInfo[1] =
@@ -172,9 +172,9 @@ nsSVGUseElement::CharacterDataChanged(nsIDocument *aDocument,
 void
 nsSVGUseElement::AttributeChanged(nsIDocument* aDocument,
                                   Element* aElement,
-                                  int32_t aNameSpaceID,
+                                  PRInt32 aNameSpaceID,
                                   nsIAtom* aAttribute,
-                                  int32_t aModType)
+                                  PRInt32 aModType)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aElement)) {
     TriggerReclone();
@@ -185,7 +185,7 @@ void
 nsSVGUseElement::ContentAppended(nsIDocument *aDocument,
                                  nsIContent *aContainer,
                                  nsIContent *aFirstNewContent,
-                                 int32_t aNewIndexInContainer)
+                                 PRInt32 aNewIndexInContainer)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aContainer)) {
     TriggerReclone();
@@ -196,7 +196,7 @@ void
 nsSVGUseElement::ContentInserted(nsIDocument *aDocument,
                                  nsIContent *aContainer,
                                  nsIContent *aChild,
-                                 int32_t aIndexInContainer)
+                                 PRInt32 aIndexInContainer)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aChild)) {
     TriggerReclone();
@@ -207,7 +207,7 @@ void
 nsSVGUseElement::ContentRemoved(nsIDocument *aDocument,
                                 nsIContent *aContainer,
                                 nsIContent *aChild,
-                                int32_t aIndexInContainer,
+                                PRInt32 aIndexInContainer,
                                 nsIContent *aPreviousSibling)
 {
   if (nsContentUtils::IsInSameAnonymousTree(this, aChild)) {
@@ -280,7 +280,7 @@ nsSVGUseElement::CreateAnonymousContent()
     }
   }
 
-  nsCOMPtr<nsINode> newnode;
+  nsCOMPtr<nsIDOMNode> newnode;
   nsCOMArray<nsINode> unused;
   nsNodeInfoManager* nodeInfoManager =
     targetContent->OwnerDoc() == OwnerDoc() ?
@@ -321,10 +321,10 @@ nsSVGUseElement::CreateAnonymousContent()
     
     // copy attributes
     const nsAttrName* name;
-    uint32_t i;
+    PRUint32 i;
     for (i = 0; (name = newcontent->GetAttrNameAt(i)); i++) {
       nsAutoString value;
-      int32_t nsID = name->NamespaceID();
+      PRInt32 nsID = name->NamespaceID();
       nsIAtom* lname = name->LocalName();
 
       newcontent->GetAttr(nsID, lname, value);
@@ -332,7 +332,7 @@ nsSVGUseElement::CreateAnonymousContent()
     }
 
     // move the children over
-    uint32_t num = newcontent->GetChildCount();
+    PRUint32 num = newcontent->GetChildCount();
     for (i = 0; i < num; i++) {
       nsCOMPtr<nsIContent> child = newcontent->GetFirstChild();
       newcontent->RemoveChildAt(0, false);
@@ -398,7 +398,7 @@ nsSVGUseElement::SyncWidthOrHeight(nsIAtom* aName)
 
   if (symbol || svg) {
     nsSVGElement *target = static_cast<nsSVGElement*>(mClone.get());
-    uint32_t index = *sLengthInfo[WIDTH].mName == aName ? WIDTH : HEIGHT;
+    PRUint32 index = *sLengthInfo[WIDTH].mName == aName ? WIDTH : HEIGHT;
 
     if (mLengthAttributes[index].IsExplicitlySet()) {
       target->SetLength(aName, mLengthAttributes[index]);
@@ -414,7 +414,7 @@ nsSVGUseElement::SyncWidthOrHeight(nsIAtom* aName)
     // Our width/height attribute is now no longer explicitly set, so we
     // need to set the value to 100%
     nsSVGLength2 length;
-    length.Init(SVGContentUtils::XY, 0xff,
+    length.Init(nsSVGUtils::XY, 0xff,
                 100, nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE);
     target->SetLength(aName, length);
     return;

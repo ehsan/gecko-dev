@@ -20,9 +20,9 @@ struct StorageWithTArray
 
   static void Reverse(StorageType& aStorage)
   {
-    uint32_t length = aStorage.Length();
-    for (uint32_t index = 0; index < length / 2; index++) {
-      uint32_t reverseIndex = length - 1 - index;
+    PRUint32 length = aStorage.Length();
+    for (PRUint32 index = 0; index < length / 2; index++) {
+      PRUint32 reverseIndex = length - 1 - index;
 
       T t1 = aStorage.ElementAt(index);
       T t2 = aStorage.ElementAt(reverseIndex);
@@ -48,7 +48,7 @@ struct StorageWithTArray
       return false;
     }
 
-    uint32_t index = aStorage.Length() - 1;
+    PRUint32 index = aStorage.Length() - 1;
     aEntry = aStorage.ElementAt(index);
     aStorage.RemoveElementAt(index);
     return true;

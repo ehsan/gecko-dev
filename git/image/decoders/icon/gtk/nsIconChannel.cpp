@@ -80,9 +80,9 @@ moz_gdk_pixbuf_to_channel(GdkPixbuf* aPixbuf, nsIURI *aURI,
 
   const int n_channels = 4;
   gsize buf_size = 2 + n_channels * height * width;
-  uint8_t * const buf = (uint8_t*)NS_Alloc(buf_size);
+  PRUint8 * const buf = (PRUint8*)NS_Alloc(buf_size);
   NS_ENSURE_TRUE(buf, NS_ERROR_OUT_OF_MEMORY);
-  uint8_t *out = buf;
+  PRUint8 *out = buf;
 
   *(out++) = width;
   *(out++) = height;
@@ -94,11 +94,11 @@ moz_gdk_pixbuf_to_channel(GdkPixbuf* aPixbuf, nsIURI *aURI,
   const guchar * in = pixels;
   for (int y = 0; y < height; ++y, in += rowextra) {
     for (int x = 0; x < width; ++x) {
-      uint8_t r = *(in++);
-      uint8_t g = *(in++);
-      uint8_t b = *(in++);
-      uint8_t a = *(in++);
-#define DO_PREMULTIPLY(c_) uint8_t(uint16_t(c_) * uint16_t(a) / uint16_t(255))
+      PRUint8 r = *(in++);
+      PRUint8 g = *(in++);
+      PRUint8 b = *(in++);
+      PRUint8 a = *(in++);
+#define DO_PREMULTIPLY(c_) PRUint8(PRUint16(c_) * PRUint16(a) / PRUint16(255))
 #ifdef IS_LITTLE_ENDIAN
       *(out++) = DO_PREMULTIPLY(b);
       *(out++) = DO_PREMULTIPLY(g);
@@ -251,14 +251,14 @@ moz_gtk_icon_size(const char *name)
 }
 
 #if defined(MOZ_ENABLE_GNOMEUI) || defined(MOZ_ENABLE_GIO)
-static int32_t
+static PRInt32
 GetIconSize(nsIMozIconURI *aIconURI)
 {
-  nsAutoCString iconSizeString;
+  nsCAutoString iconSizeString;
 
   aIconURI->GetIconSize(iconSizeString);
   if (iconSizeString.IsEmpty()) {
-    uint32_t size;
+    PRUint32 size;
     mozilla::DebugOnly<nsresult> rv = aIconURI->GetImageSize(&size);
     NS_ASSERTION(NS_SUCCEEDED(rv), "GetImageSize failed");
     return size; 
@@ -273,7 +273,7 @@ GetIconSize(nsIMozIconURI *aIconURI)
 
 /* Scale icon buffer to preferred size */
 static nsresult
-ScaleIconBuf(GdkPixbuf **aBuf, int32_t iconSize)
+ScaleIconBuf(GdkPixbuf **aBuf, PRInt32 iconSize)
 {
   // Scale buffer only if width or height differ from preferred size
   if (gdk_pixbuf_get_width(*aBuf)  != iconSize &&
@@ -329,14 +329,14 @@ nsIconChannel::InitWithGnome(nsIMozIconURI *aIconURI)
     _gnome_init(NS_ConvertUTF16toUTF8(appName).get(), "1.0", 1, empty, NULL, 0, NULL);
   }
 
-  uint32_t iconSize = GetIconSize(aIconURI);
-  nsAutoCString type;
+  PRUint32 iconSize = GetIconSize(aIconURI);
+  nsCAutoString type;
   aIconURI->GetContentType(type);
 
   GnomeVFSFileInfo fileInfo = {0};
   fileInfo.refcount = 1; // In case some GnomeVFS function addrefs and releases it
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   nsCOMPtr<nsIURL> url;
   rv = aIconURI->GetIconURL(getter_AddRefs(url));
   if (url) {
@@ -353,7 +353,7 @@ nsIconChannel::InitWithGnome(nsIMozIconURI *aIconURI)
       // "Whenever we can detect the charset used for the URI type we try to
       //  convert it to/from utf8 automatically inside gnome-vfs."
       // I'll interpret that as "otherwise, this field is random junk".
-      nsAutoCString name;
+      nsCAutoString name;
       url->GetFileName(name);
       fileInfo.name = g_strdup(name.get());
 
@@ -367,7 +367,7 @@ nsIconChannel::InitWithGnome(nsIMozIconURI *aIconURI)
   if (type.IsEmpty()) {
     nsCOMPtr<nsIMIMEService> ms(do_GetService("@mozilla.org/mime;1"));
     if (ms) {
-      nsAutoCString fileExt;
+      nsCAutoString fileExt;
       aIconURI->GetFileExtension(fileExt);
       if (!fileExt.IsEmpty()) {
         ms->GetTypeFromExtension(fileExt, type);
@@ -424,6 +424,8 @@ nsIconChannel::InitWithGnome(nsIMozIconURI *aIconURI)
 nsresult
 nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
 {
+  nsresult rv;
+
   GIcon *icon = NULL;
   nsCOMPtr<nsIURL> fileURI;
 
@@ -433,7 +435,7 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
   // Get icon for file specified by URI
   if (fileURI) {
     bool isFile;
-    nsAutoCString spec;
+    nsCAutoString spec;
     fileURI->GetAsciiSpec(spec);
     if (NS_SUCCEEDED(fileURI->SchemeIs("file", &isFile)) && isFile) {
       GFile *file = g_file_new_for_uri(spec.get());
@@ -453,13 +455,13 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
   
   // Try to get icon by using MIME type
   if (!icon) {
-    nsAutoCString type;
+    nsCAutoString type;
     aIconURI->GetContentType(type);
     // Try to get MIME type from file extension by using nsIMIMEService
     if (type.IsEmpty()) {
       nsCOMPtr<nsIMIMEService> ms(do_GetService("@mozilla.org/mime;1"));
       if (ms) {
-        nsAutoCString fileExt;
+        nsCAutoString fileExt;
         aIconURI->GetFileExtension(fileExt);
         ms->GetTypeFromExtension(fileExt, type);
       }
@@ -478,9 +480,11 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
   GtkIconTheme *iconTheme = gtk_icon_theme_get_default();  
   GtkIconInfo *iconInfo = NULL;
   // Get icon size
-  int32_t iconSize = GetIconSize(aIconURI);
+  PRInt32 iconSize = GetIconSize(aIconURI);
 
   if (icon) {
+    NS_SUCCEEDED(rv);
+
     // Use icon and theme to get GtkIconInfo
     iconInfo = gtk_icon_theme_lookup_by_gicon(iconTheme,
                                               icon, iconSize,
@@ -505,7 +509,7 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
     return NS_ERROR_UNEXPECTED;
   }
   
-  nsresult rv = ScaleIconBuf(&buf, iconSize);
+  rv = ScaleIconBuf(&buf, iconSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = moz_gdk_pixbuf_to_channel(buf, aIconURI,
@@ -521,7 +525,7 @@ nsIconChannel::Init(nsIURI* aURI)
   nsCOMPtr<nsIMozIconURI> iconURI = do_QueryInterface(aURI);
   NS_ASSERTION(iconURI, "URI is not an nsIMozIconURI");
 
-  nsAutoCString stockIcon;
+  nsCAutoString stockIcon;
   iconURI->GetStockIcon(stockIcon);
   if (stockIcon.IsEmpty()) {
 #ifdef MOZ_ENABLE_GNOMEUI
@@ -536,10 +540,10 @@ nsIconChannel::Init(nsIURI* aURI)
   }
 
   // Search for stockIcon
-  nsAutoCString iconSizeString;
+  nsCAutoString iconSizeString;
   iconURI->GetIconSize(iconSizeString);
 
-  nsAutoCString iconStateString;
+  nsCAutoString iconStateString;
   iconURI->GetIconState(iconStateString);
 
   GtkIconSize icon_size = moz_gtk_icon_size(iconSizeString.get());
@@ -555,7 +559,7 @@ nsIconChannel::Init(nsIURI* aURI)
   }
 
   bool forceDirection = direction != GTK_TEXT_DIR_NONE;
-  nsAutoCString stockID;
+  nsCAutoString stockID;
   bool useIconName = false;
   if (!forceDirection) {
     direction = gtk_widget_get_default_direction();

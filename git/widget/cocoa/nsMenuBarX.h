@@ -98,9 +98,9 @@ public:
   // nsMenuBarX
   nsresult          Create(nsIWidget* aParent, nsIContent* aContent);
   void              SetParent(nsIWidget* aParent);
-  uint32_t          GetMenuCount();
+  PRUint32          GetMenuCount();
   bool              MenuContainsAppMenu();
-  nsMenuX*          GetMenuAt(uint32_t aIndex);
+  nsMenuX*          GetMenuAt(PRUint32 aIndex);
   nsMenuX*          GetXULHelpMenu();
   void              SetSystemHelpMenu();
   nsresult          Paint();
@@ -110,8 +110,8 @@ public:
 
 protected:
   void              ConstructNativeMenus();
-  nsresult          InsertMenuAtIndex(nsMenuX* aMenu, uint32_t aIndex);
-  void              RemoveMenuAtIndex(uint32_t aIndex);
+  nsresult          InsertMenuAtIndex(nsMenuX* aMenu, PRUint32 aIndex);
+  void              RemoveMenuAtIndex(PRUint32 aIndex);
   void              HideItem(nsIDOMDocument* inDoc, const nsAString & inID, nsIContent** outHiddenNode);
   void              AquifyMenuBar();
   NSMenuItem*       CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString& nodeID, SEL action,

@@ -24,10 +24,10 @@
 class IdleListener {
 public:
   nsCOMPtr<nsIObserver> observer;
-  uint32_t reqIdleTime;
+  PRUint32 reqIdleTime;
   bool isIdle;
 
-  IdleListener(nsIObserver* obs, uint32_t reqIT, bool aIsIdle = false) :
+  IdleListener(nsIObserver* obs, PRUint32 reqIT, bool aIsIdle = false) :
     observer(obs), reqIdleTime(reqIT), isIdle(aIsIdle) {}
   ~IdleListener() {}
 };
@@ -58,18 +58,6 @@ public:
 
 private:
   /**
-   * StageIdleDaily is the interim call made when an idle-daily event is due.
-   * However we don't want to fire idle-daily until the user is idle for this
-   * session, so this sets up a short wait for an idle event which triggers
-   * the actual idle-daily event.
-   *
-   * @param aHasBeenLongWait Pass true indicating nsIdleServiceDaily is having
-   * trouble getting the idle-daily event fired. If true StageIdleDaily will
-   * use a shorter idle wait time before firing idle-daily.
-   */
-  void StageIdleDaily(bool aHasBeenLongWait);
-
-  /**
    * @note This is a normal pointer, part to avoid creating a cycle with the
    * idle service, part to avoid potential pointer corruption due to this class
    * being instantiated in the constructor of the service itself.
@@ -98,17 +86,10 @@ private:
   bool mShutdownInProgress;
 
   /**
-   * Next time we expect an idle-daily timer to fire, in case timers aren't
-   * very reliable on the platform. Value is in PR_Now microsecond units.
+   * Real time we fired off the one-day timer, in case timers aren't
+   * very reliable.
    */
-  PRTime mExpectedTriggerTime;
-
-  /**
-   * Tracks which idle daily observer callback we ask for. There are two: a
-   * regular long idle wait and a shorter wait if we've been waiting to fire
-   * idle daily for an extended period. Set by StageIdleDaily.
-   */
-  int32_t mIdleDailyTriggerWait;
+  PRTime mDailyTimerStart;
 };
 
 class nsIdleService : public nsIIdleServiceInternal
@@ -140,7 +121,7 @@ protected:
    *       returned by GetIdleTime, as that is corrected by any calls to
    *       ResetIdleTimeOut(), unless you overwrite that function too...
    */
-  virtual bool PollIdleTime(uint32_t* aIdleTime);
+  virtual bool PollIdleTime(PRUint32* aIdleTime);
 
   /**
    * Function that determines if we are in poll mode or not.
@@ -194,7 +175,7 @@ private:
    *
    * If this value is 0 it means there are no active observers
    */
-  uint32_t mDeltaToNextIdleSwitchInS;
+  PRUint32 mDeltaToNextIdleSwitchInS;
 
   /**
    * Absolute value for when the last user interaction took place.

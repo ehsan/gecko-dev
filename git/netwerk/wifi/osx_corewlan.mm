@@ -19,7 +19,7 @@
 #include "nsWifiAccessPoint.h"
 
 BOOL UsingSnowLeopard() {
-  static int32_t gOSXVersion = 0x0;
+  static PRInt32 gOSXVersion = 0x0;
   if (gOSXVersion == 0x0) {
     Gestalt(gestaltSystemVersion, (SInt32*)&gOSXVersion);
   }

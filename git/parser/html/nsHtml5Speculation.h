@@ -17,8 +17,8 @@ class nsHtml5Speculation MOZ_FINAL : public nsAHtml5TreeOpSink
 {
   public:
     nsHtml5Speculation(nsHtml5OwningUTF16Buffer* aBuffer,
-                       int32_t aStart, 
-                       int32_t aStartLineNumber, 
+                       PRInt32 aStart, 
+                       PRInt32 aStartLineNumber, 
                        nsAHtml5TreeBuilderState* aSnapshot);
     
     ~nsHtml5Speculation();
@@ -27,11 +27,11 @@ class nsHtml5Speculation MOZ_FINAL : public nsAHtml5TreeOpSink
       return mBuffer;
     }
     
-    int32_t GetStart() {
+    PRInt32 GetStart() {
       return mStart;
     }
 
-    int32_t GetStartLineNumber() {
+    PRInt32 GetStartLineNumber() {
       return mStartLineNumber;
     }
     
@@ -56,12 +56,12 @@ class nsHtml5Speculation MOZ_FINAL : public nsAHtml5TreeOpSink
     /**
      * The start index of this speculation in the first buffer
      */
-    int32_t                             mStart;
+    PRInt32                             mStart;
 
     /**
      * The current line number at the start of the speculation
      */
-    int32_t                             mStartLineNumber;
+    PRInt32                             mStartLineNumber;
     
     nsAutoPtr<nsAHtml5TreeBuilderState> mSnapshot;
 

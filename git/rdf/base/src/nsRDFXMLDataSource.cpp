@@ -138,7 +138,7 @@ protected:
     nsNameSpaceMap      mNameSpaces;
 
     // pseudo-constants
-    static int32_t gRefCnt;
+    static PRInt32 gRefCnt;
     static nsIRDFService* gRDFService;
 
     nsresult Init();
@@ -360,7 +360,7 @@ protected:
     BlockingParse(nsIURI* aURL, nsIStreamListener* aConsumer);
 };
 
-int32_t         RDFXMLDataSourceImpl::gRefCnt = 0;
+PRInt32         RDFXMLDataSourceImpl::gRefCnt = 0;
 nsIRDFService*  RDFXMLDataSourceImpl::gRDFService;
 
 static const char kFileURIPrefix[] = "file:";
@@ -505,7 +505,7 @@ RDFXMLDataSourceImpl::BlockingParse(nsIURI* aURL, nsIStreamListener* aConsumer)
     if (NS_FAILED(rv)) return rv;
 
     // Notify load observers
-    int32_t i;
+    PRInt32 i;
     for (i = mObservers.Count() - 1; i >= 0; --i) {
         // Make sure to hold a strong reference to the observer so
         // that it doesn't go away in this call if it removes itself
@@ -519,24 +519,24 @@ RDFXMLDataSourceImpl::BlockingParse(nsIURI* aURL, nsIStreamListener* aConsumer)
 
     rv = aConsumer->OnStartRequest(channel, nullptr);
 
-    uint64_t offset = 0;
+    PRUint64 offset = 0;
     while (NS_SUCCEEDED(rv)) {
         // Skip ODA if the channel is canceled
         channel->GetStatus(&rv);
         if (NS_FAILED(rv))
             break;
 
-        uint64_t avail;
+        PRUint64 avail;
         if (NS_FAILED(rv = bufStream->Available(&avail)))
             break; // error
 
         if (avail == 0)
             break; // eof
 
-        if (avail > UINT32_MAX)
-            avail = UINT32_MAX;
+        if (avail > PR_UINT32_MAX)
+            avail = PR_UINT32_MAX;
 
-        rv = aConsumer->OnDataAvailable(channel, nullptr, bufStream, offset, (uint32_t)avail);
+        rv = aConsumer->OnDataAvailable(channel, nullptr, bufStream, (PRUint32)NS_MIN(offset, (PRUint64)PR_UINT32_MAX), (PRUint32)avail);
         if (NS_SUCCEEDED(rv))
             offset += avail;
     }
@@ -606,7 +606,7 @@ RDFXMLDataSourceImpl::GetURI(char* *aURI)
         return NS_OK;
     }
     
-    nsAutoCString spec;
+    nsCAutoString spec;
     mURL->GetSpec(spec);
     *aURI = ToNewCString(spec);
     if (!*aURI) {
@@ -826,7 +826,7 @@ RDFXMLDataSourceImpl::Flush(void)
         return NS_ERROR_NOT_INITIALIZED;
 
 #ifdef PR_LOGGING
-    nsAutoCString spec;
+    nsCAutoString spec;
     mURL->GetSpec(spec);
     PR_LOG(gLog, PR_LOG_NOTICE,
            ("rdfxml[%p] flush(%s)", this, spec.get()));
@@ -870,7 +870,7 @@ RDFXMLDataSourceImpl::SetReadOnly(bool aIsReadOnly)
 NS_IMETHODIMP
 RDFXMLDataSourceImpl::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
                                              nsIChannel *aNewChannel,
-                                             uint32_t aFlags,
+                                             PRUint32 aFlags,
                                              nsIAsyncVerifyRedirectCallback *cb)
 {
     NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
@@ -890,9 +890,9 @@ RDFXMLDataSourceImpl::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
 
     NS_ENSURE_STATE(oldPrincipal && newURI && newOriginalURI);
 
-    rv = oldPrincipal->CheckMayLoad(newURI, false, false);
+    rv = oldPrincipal->CheckMayLoad(newURI, false);
     if (NS_SUCCEEDED(rv) && newOriginalURI != newURI) {
-        rv = oldPrincipal->CheckMayLoad(newOriginalURI, false, false);
+        rv = oldPrincipal->CheckMayLoad(newOriginalURI, false);
     }
 
     if (NS_FAILED(rv))
@@ -906,7 +906,7 @@ NS_IMETHODIMP
 RDFXMLDataSourceImpl::Refresh(bool aBlocking)
 {
 #ifdef PR_LOGGING
-    nsAutoCString spec;
+    nsCAutoString spec;
     if (mURL) {
         mURL->GetSpec(spec);
     }
@@ -961,7 +961,7 @@ NS_IMETHODIMP
 RDFXMLDataSourceImpl::BeginLoad(void)
 {
 #ifdef PR_LOGGING
-    nsAutoCString spec;
+    nsCAutoString spec;
     if (mURL) {
         mURL->GetSpec(spec);
     }
@@ -970,7 +970,7 @@ RDFXMLDataSourceImpl::BeginLoad(void)
 #endif
     
     mLoadState = eLoadState_Loading;
-    for (int32_t i = mObservers.Count() - 1; i >= 0; --i) {
+    for (PRInt32 i = mObservers.Count() - 1; i >= 0; --i) {
         // Make sure to hold a strong reference to the observer so
         // that it doesn't go away in this call if it removes itself
         // as an observer
@@ -987,7 +987,7 @@ NS_IMETHODIMP
 RDFXMLDataSourceImpl::Interrupt(void)
 {
 #ifdef PR_LOGGING
-    nsAutoCString spec;
+    nsCAutoString spec;
     if (mURL) {
         mURL->GetSpec(spec);
     }
@@ -995,7 +995,7 @@ RDFXMLDataSourceImpl::Interrupt(void)
            ("rdfxml[%p] interrupt(%s)", this, spec.get()));
 #endif
     
-    for (int32_t i = mObservers.Count() - 1; i >= 0; --i) {
+    for (PRInt32 i = mObservers.Count() - 1; i >= 0; --i) {
         // Make sure to hold a strong reference to the observer so
         // that it doesn't go away in this call if it removes itself
         // as an observer
@@ -1012,7 +1012,7 @@ NS_IMETHODIMP
 RDFXMLDataSourceImpl::Resume(void)
 {
 #ifdef PR_LOGGING
-    nsAutoCString spec;
+    nsCAutoString spec;
     if (mURL) {
         mURL->GetSpec(spec);
     }
@@ -1020,7 +1020,7 @@ RDFXMLDataSourceImpl::Resume(void)
            ("rdfxml[%p] resume(%s)", this, spec.get()));
 #endif
     
-    for (int32_t i = mObservers.Count() - 1; i >= 0; --i) {
+    for (PRInt32 i = mObservers.Count() - 1; i >= 0; --i) {
         // Make sure to hold a strong reference to the observer so
         // that it doesn't go away in this call if it removes itself
         // as an observer
@@ -1037,7 +1037,7 @@ NS_IMETHODIMP
 RDFXMLDataSourceImpl::EndLoad(void)
 {
 #ifdef PR_LOGGING
-    nsAutoCString spec;
+    nsCAutoString spec;
     if (mURL) {
         mURL->GetSpec(spec);
     }
@@ -1054,7 +1054,7 @@ RDFXMLDataSourceImpl::EndLoad(void)
     }
 
     // Notify load observers
-    for (int32_t i = mObservers.Count() - 1; i >= 0; --i) {
+    for (PRInt32 i = mObservers.Count() - 1; i >= 0; --i) {
         // Make sure to hold a strong reference to the observer so
         // that it doesn't go away in this call if it removes itself
         // as an observer
@@ -1114,7 +1114,7 @@ RDFXMLDataSourceImpl::OnStopRequest(nsIRequest *request,
                                     nsresult status)
 {
     if (NS_FAILED(status)) {
-        for (int32_t i = mObservers.Count() - 1; i >= 0; --i) {
+        for (PRInt32 i = mObservers.Count() - 1; i >= 0; --i) {
             // Make sure to hold a strong reference to the observer so
             // that it doesn't go away in this call if it removes
             // itself as an observer
@@ -1143,8 +1143,8 @@ NS_IMETHODIMP
 RDFXMLDataSourceImpl::OnDataAvailable(nsIRequest *request,
                                       nsISupports *ctxt,
                                       nsIInputStream *inStr,
-                                      uint64_t sourceOffset,
-                                      uint32_t count)
+                                      PRUint32 sourceOffset,
+                                      PRUint32 count)
 {
     return mListener->OnDataAvailable(request, ctxt, inStr, sourceOffset, count);
 }

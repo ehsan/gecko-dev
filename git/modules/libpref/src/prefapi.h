@@ -12,14 +12,12 @@
 #include "nscore.h"
 #include "pldhash.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 typedef union
 {
     char*       stringVal;
-    int32_t     intVal;
+    PRInt32     intVal;
     bool        boolVal;
 } PrefValue;
 
@@ -28,7 +26,7 @@ struct PrefHashEntry : PLDHashEntryHdr
     const char *key;
     PrefValue defaultPref;
     PrefValue userPref;
-    uint16_t  flags;
+    PRUint16  flags;
 };
 
 /*
@@ -77,7 +75,7 @@ typedef enum { PREF_INVALID = 0,
 // </font>
 */
 nsresult PREF_SetCharPref(const char *pref,const char* value, bool set_default = false);
-nsresult PREF_SetIntPref(const char *pref,int32_t value, bool set_default = false);
+nsresult PREF_SetIntPref(const char *pref,PRInt32 value, bool set_default = false);
 nsresult PREF_SetBoolPref(const char *pref,bool value, bool set_default = false);
 
 bool     PREF_HasUserPref(const char* pref_name);
@@ -96,7 +94,7 @@ bool     PREF_HasUserPref(const char* pref_name);
 // </font>
 */
 nsresult PREF_GetIntPref(const char *pref,
-                           int32_t * return_int, bool get_default);	
+                           PRInt32 * return_int, bool get_default);	
 nsresult PREF_GetBoolPref(const char *pref, bool * return_val, bool get_default);	
 /*
 // <font color=blue>
@@ -180,7 +178,5 @@ void PREF_ReaderCallback( void *closure,
                           PrefType    type,
                           bool        isDefault);
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 #endif

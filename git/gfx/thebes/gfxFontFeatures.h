@@ -7,10 +7,12 @@
 #ifndef GFX_FONT_FEATURES_H
 #define GFX_FONT_FEATURES_H
 
+#include "prtypes.h"
+
 // An OpenType feature tag and value pair
 struct gfxFontFeature {
-    uint32_t mTag; // see http://www.microsoft.com/typography/otspec/featuretags.htm
-    uint32_t mValue; // 0 = off, 1 = on, larger values may be used as parameters
+    PRUint32 mTag; // see http://www.microsoft.com/typography/otspec/featuretags.htm
+    PRUint32 mValue; // 0 = off, 1 = on, larger values may be used as parameters
                      // to features that select among multiple alternatives
 };
 

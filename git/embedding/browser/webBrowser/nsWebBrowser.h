@@ -36,7 +36,6 @@
 #include "nsIWindowWatcher.h"
 #include "nsIPrintSettings.h"
 #include "nsEmbedStream.h"
-#include "nsIWidgetListener.h"
 
 #include "nsTArray.h"
 #include "nsWeakPtr.h"
@@ -47,10 +46,10 @@ class nsWebBrowserInitInfo
 {
 public:
    //nsIBaseWindow Stuff
-   int32_t                 x;
-   int32_t                 y;
-   int32_t                 cx;
-   int32_t                 cy;
+   PRInt32                 x;
+   PRInt32                 y;
+   PRInt32                 cx;
+   PRInt32                 cy;
    bool                    visible;
    nsCOMPtr<nsISHistory>   sessionHistory;
    nsString                name;
@@ -85,7 +84,6 @@ class nsWebBrowser : public nsIWebBrowser,
                      public nsIWebBrowserFocus,
                      public nsIWebProgressListener,
                      public nsIWebBrowserStream,
-                     public nsIWidgetListener,
                      public nsSupportsWeakReference
 {
 friend class nsDocShellTreeOwner;
@@ -121,10 +119,7 @@ protected:
     NS_IMETHOD UnBindListener(nsISupports *aListener, const nsIID& aIID);
     NS_IMETHOD EnableGlobalHistory(bool aEnable);
 
-    // nsIWidgetListener
-    virtual void WindowRaised(nsIWidget* aWidget);
-    virtual void WindowLowered(nsIWidget* aWidget);
-    virtual bool PaintWindow(nsIWidget* aWidget, bool isRequest, nsIntRegion aRegion, bool aWillSendDidPaint);
+    static nsEventStatus HandleEvent(nsGUIEvent *aEvent);
 
 protected:
    nsDocShellTreeOwner*       mDocShellTreeOwner;
@@ -138,7 +133,7 @@ protected:
    nsCOMPtr<nsIWidget>        mInternalWidget;
    nsCOMPtr<nsIWindowWatcher> mWWatch;
    nsWebBrowserInitInfo*      mInitInfo;
-   uint32_t                   mContentType;
+   PRUint32                   mContentType;
    bool                       mActivating;
    bool                       mShouldEnableHistory;
    bool                       mIsActive;
@@ -153,9 +148,9 @@ protected:
 
    // persistence object
    nsCOMPtr<nsIWebBrowserPersist> mPersist;
-   uint32_t                       mPersistCurrentState;
-   nsresult                       mPersistResult;
-   uint32_t                       mPersistFlags;
+   PRUint32                       mPersistCurrentState;
+   PRUint32                       mPersistResult;
+   PRUint32                       mPersistFlags;
 
    // stream
    nsEmbedStream                 *mStream;

@@ -17,7 +17,6 @@
 #include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/PLayersChild.h"
 #include "PuppetWidget.h"
-#include "nsIWidgetListener.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::hal;
@@ -83,12 +82,13 @@ NS_IMETHODIMP
 PuppetWidget::Create(nsIWidget        *aParent,
                      nsNativeWidget   aNativeParent,
                      const nsIntRect  &aRect,
+                     EVENT_CALLBACK   aHandleEventFunction,
                      nsDeviceContext *aContext,
                      nsWidgetInitData *aInitData)
 {
   NS_ABORT_IF_FALSE(!aNativeParent, "got a non-Puppet native parent");
 
-  BaseCreate(nullptr, aRect, aContext, aInitData);
+  BaseCreate(nullptr, aRect, aHandleEventFunction, aContext, aInitData);
 
   mBounds = aRect;
   mEnabled = true;
@@ -99,7 +99,11 @@ PuppetWidget::Create(nsIWidget        *aParent,
                                       gfxASurface::ContentFromFormat(gfxASurface::ImageFormatARGB32));
 
   mIMEComposing = false;
-  mNeedIMEStateInit = MightNeedIMEFocus(aInitData);
+  if (MightNeedIMEFocus(aInitData)) {
+    PRUint32 chromeSeqno;
+    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
+    mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
+  }
 
   PuppetWidget* parent = static_cast<PuppetWidget*>(aParent);
   if (parent) {
@@ -113,19 +117,9 @@ PuppetWidget::Create(nsIWidget        *aParent,
   return NS_OK;
 }
 
-void
-PuppetWidget::InitIMEState()
-{
-  if (mNeedIMEStateInit) {
-    uint32_t chromeSeqno;
-    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
-    mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
-    mNeedIMEStateInit = false;
-  }
-}
-
 already_AddRefed<nsIWidget>
 PuppetWidget::CreateChild(const nsIntRect  &aRect,
+                          EVENT_CALLBACK   aHandleEventFunction,
                           nsDeviceContext *aContext,
                           nsWidgetInitData *aInitData,
                           bool             aForceUseIWidgetParent)
@@ -134,6 +128,7 @@ PuppetWidget::CreateChild(const nsIntRect  &aRect,
   nsCOMPtr<nsIWidget> widget = nsIWidget::CreatePuppetWidget(mTabChild);
   return ((widget &&
            NS_SUCCEEDED(widget->Create(isPopup ? nullptr: this, nullptr, aRect,
+                                       aHandleEventFunction,
                                        aContext, aInitData))) ?
           widget.forget() : nullptr);
 }
@@ -170,8 +165,8 @@ PuppetWidget::Show(bool aState)
 }
 
 NS_IMETHODIMP
-PuppetWidget::Resize(int32_t aWidth,
-                     int32_t aHeight,
+PuppetWidget::Resize(PRInt32 aWidth,
+                     PRInt32 aHeight,
                      bool    aRepaint)
 {
   nsIntRect oldBounds = mBounds;
@@ -189,8 +184,8 @@ PuppetWidget::Resize(int32_t aWidth,
     InvalidateRegion(this, dirty);
   }
 
-  if (!oldBounds.IsEqualEdges(mBounds) && mAttachedWidgetListener) {
-    mAttachedWidgetListener->WindowResized(this, mBounds.width, mBounds.height);
+  if (!oldBounds.IsEqualEdges(mBounds)) {
+    DispatchResizeEvent();
   }
 
   return NS_OK;
@@ -209,7 +204,7 @@ PuppetWidget::Invalidate(const nsIntRect& aRect)
 {
 #ifdef DEBUG
   debug_DumpInvalidate(stderr, this, &aRect,
-                       nsAutoCString("PuppetWidget"), 0);
+                       nsCAutoString("PuppetWidget"), 0);
 #endif
 
   if (mChild) {
@@ -246,7 +241,7 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 {
 #ifdef DEBUG
   debug_DumpEvent(stdout, event->widget, event,
-                  nsAutoCString("PuppetWidget"), 0);
+                  nsCAutoString("PuppetWidget"), 0);
 #endif
 
   NS_ABORT_IF_FALSE(!mChild || mChild->mWindowType == eWindowType_popup,
@@ -254,7 +249,7 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 
   aStatus = nsEventStatus_eIgnore;
 
-  NS_ABORT_IF_FALSE(mAttachedWidgetListener, "No listener!");
+  NS_ABORT_IF_FALSE(mViewCallback, "No view callback!");
 
   if (event->message == NS_COMPOSITION_START) {
     mIMEComposing = true;
@@ -276,8 +271,7 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
       return NS_OK;
     break;
   }
-
-  aStatus = mAttachedWidgetListener->HandleEvent(event, mUseAttachedEvents);
+  aStatus = (*mViewCallback)(event);
 
   if (event->message == NS_COMPOSITION_END) {
     mIMEComposing = false;
@@ -367,13 +361,12 @@ PuppetWidget::SetInputContext(const InputContext& aContext,
     return;
   }
   mTabChild->SendSetInputContext(
-    static_cast<int32_t>(aContext.mIMEState.mEnabled),
-    static_cast<int32_t>(aContext.mIMEState.mOpen),
+    static_cast<PRInt32>(aContext.mIMEState.mEnabled),
+    static_cast<PRInt32>(aContext.mIMEState.mOpen),
     aContext.mHTMLInputType,
-    aContext.mHTMLInputInputmode,
     aContext.mActionHint,
-    static_cast<int32_t>(aAction.mCause),
-    static_cast<int32_t>(aAction.mFocusChange));
+    static_cast<PRInt32>(aAction.mCause),
+    static_cast<PRInt32>(aAction.mFocusChange));
 }
 
 NS_IMETHODIMP_(InputContext)
@@ -381,7 +374,7 @@ PuppetWidget::GetInputContext()
 {
   InputContext context;
   if (mTabChild) {
-    int32_t enabled, open;
+    PRInt32 enabled, open;
     mTabChild->SendGetInputContext(&enabled, &open);
     context.mIMEState.mEnabled = static_cast<IMEState::Enabled>(enabled);
     context.mIMEState.mOpen = static_cast<IMEState::Open>(open);
@@ -400,7 +393,7 @@ PuppetWidget::OnIMEFocusChange(bool aFocus)
     nsQueryContentEvent queryEvent(true, NS_QUERY_TEXT_CONTENT, this);
     InitEvent(queryEvent, nullptr);
     // Query entire content
-    queryEvent.InitForQueryTextContent(0, UINT32_MAX);
+    queryEvent.InitForQueryTextContent(0, PR_UINT32_MAX);
     DispatchEvent(&queryEvent, status);
 
     if (queryEvent.mSucceeded) {
@@ -411,7 +404,7 @@ PuppetWidget::OnIMEFocusChange(bool aFocus)
     ResetInputState();
   }
 
-  uint32_t chromeSeqno;
+  PRUint32 chromeSeqno;
   mIMEPreference.mWantUpdates = false;
   mIMEPreference.mWantHints = false;
   if (!mTabChild->SendNotifyIMEFocus(aFocus, &mIMEPreference, &chromeSeqno))
@@ -429,7 +422,7 @@ PuppetWidget::OnIMEFocusChange(bool aFocus)
 }
 
 NS_IMETHODIMP
-PuppetWidget::OnIMETextChange(uint32_t aStart, uint32_t aEnd, uint32_t aNewEnd)
+PuppetWidget::OnIMETextChange(PRUint32 aStart, PRUint32 aEnd, PRUint32 aNewEnd)
 {
   if (!mTabChild)
     return NS_ERROR_FAILURE;
@@ -438,7 +431,7 @@ PuppetWidget::OnIMETextChange(uint32_t aStart, uint32_t aEnd, uint32_t aNewEnd)
     nsEventStatus status;
     nsQueryContentEvent queryEvent(true, NS_QUERY_TEXT_CONTENT, this);
     InitEvent(queryEvent, nullptr);
-    queryEvent.InitForQueryTextContent(0, UINT32_MAX);
+    queryEvent.InitForQueryTextContent(0, PR_UINT32_MAX);
     DispatchEvent(&queryEvent, status);
 
     if (queryEvent.mSucceeded) {
@@ -475,56 +468,69 @@ PuppetWidget::OnIMESelectionChange(void)
 NS_IMETHODIMP
 PuppetWidget::SetCursor(nsCursor aCursor)
 {
-  if (mCursor == aCursor) {
-    return NS_OK;
-  }
-
   if (!mTabChild ||
       !mTabChild->SendSetCursor(aCursor)) {
     return NS_ERROR_FAILURE;
   }
-
-  mCursor = aCursor;
-
   return NS_OK;
 }
 
 nsresult
-PuppetWidget::Paint()
+PuppetWidget::DispatchPaintEvent()
 {
   NS_ABORT_IF_FALSE(!mDirtyRegion.IsEmpty(), "paint event logic messed up");
 
-  if (!mAttachedWidgetListener)
-    return NS_OK;
-
-  nsIntRegion region = mDirtyRegion;
+  nsIntRect dirtyRect = mDirtyRegion.GetBounds();
+  nsPaintEvent event(true, NS_PAINT, this);
+  event.refPoint.x = dirtyRect.x;
+  event.refPoint.y = dirtyRect.y;
+  event.region = mDirtyRegion;
+  event.willSendDidPaint = true;
 
   // reset repaint tracking
   mDirtyRegion.SetEmpty();
   mPaintTask.Revoke();
 
+  nsEventStatus status;
   {
 #ifdef DEBUG
-    debug_DumpPaintEvent(stderr, this, region,
-                         nsAutoCString("PuppetWidget"), 0);
+    debug_DumpPaintEvent(stderr, this, &event,
+                         nsCAutoString("PuppetWidget"), 0);
 #endif
 
     if (mozilla::layers::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
-      mAttachedWidgetListener->PaintWindow(this, region, nsIWidgetListener::WILL_SEND_DID_PAINT);
+      DispatchEvent(&event, status);
     } else {
       nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
       ctx->Rectangle(gfxRect(0,0,0,0));
       ctx->Clip();
       AutoLayerManagerSetup setupLayerManager(this, ctx,
                                               BUFFER_NONE);
-      mAttachedWidgetListener->PaintWindow(this, region, nsIWidgetListener::WILL_SEND_DID_PAINT);
+      DispatchEvent(&event, status);
       mTabChild->NotifyPainted();
     }
   }
 
-  mAttachedWidgetListener->DidPaintWindow();
+  nsPaintEvent didPaintEvent(true, NS_DID_PAINT, this);
+  DispatchEvent(&didPaintEvent, status);
 
   return NS_OK;
+}
+
+nsresult
+PuppetWidget::DispatchResizeEvent()
+{
+  nsSizeEvent event(true, NS_SIZE, this);
+
+  nsIntRect rect = mBounds;     // copy in case something messes with it
+  event.windowSize = &rect;
+  event.refPoint.x = rect.x;
+  event.refPoint.y = rect.y;
+  event.mWinWidth = rect.width;
+  event.mWinHeight = rect.height;
+
+  nsEventStatus status;
+  return DispatchEvent(&event, status);
 }
 
 void
@@ -541,7 +547,7 @@ NS_IMETHODIMP
 PuppetWidget::PaintTask::Run()
 {
   if (mWidget) {
-    mWidget->Paint();
+    mWidget->DispatchPaintEvent();
   }
   return NS_OK;
 }
@@ -551,14 +557,14 @@ PuppetWidget::GetDPI()
 {
   if (mDPI < 0) {
     NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the DPI from!");
-    mTabChild->GetDPI(&mDPI);
+    mTabChild->SendGetDPI(&mDPI);
   }
 
   return mDPI;
 }
 
 void*
-PuppetWidget::GetNativeData(uint32_t aDataType)
+PuppetWidget::GetNativeData(PRUint32 aDataType)
 {
   switch (aDataType) {
   case NS_NATIVE_SHAREABLE_WINDOW: {
@@ -599,8 +605,8 @@ ScreenConfig()
 }
 
 NS_IMETHODIMP
-PuppetScreen::GetRect(int32_t *outLeft,  int32_t *outTop,
-                      int32_t *outWidth, int32_t *outHeight)
+PuppetScreen::GetRect(PRInt32 *outLeft,  PRInt32 *outTop,
+                      PRInt32 *outWidth, PRInt32 *outHeight)
 {
   nsIntRect r = ScreenConfig().rect();
   *outLeft = r.x;
@@ -611,36 +617,36 @@ PuppetScreen::GetRect(int32_t *outLeft,  int32_t *outTop,
 }
 
 NS_IMETHODIMP
-PuppetScreen::GetAvailRect(int32_t *outLeft,  int32_t *outTop,
-                           int32_t *outWidth, int32_t *outHeight)
+PuppetScreen::GetAvailRect(PRInt32 *outLeft,  PRInt32 *outTop,
+                           PRInt32 *outWidth, PRInt32 *outHeight)
 {
   return GetRect(outLeft, outTop, outWidth, outHeight);
 }
 
 
 NS_IMETHODIMP
-PuppetScreen::GetPixelDepth(int32_t *aPixelDepth)
+PuppetScreen::GetPixelDepth(PRInt32 *aPixelDepth)
 {
   *aPixelDepth = ScreenConfig().pixelDepth();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PuppetScreen::GetColorDepth(int32_t *aColorDepth)
+PuppetScreen::GetColorDepth(PRInt32 *aColorDepth)
 {
   *aColorDepth = ScreenConfig().colorDepth();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PuppetScreen::GetRotation(uint32_t* aRotation)
+PuppetScreen::GetRotation(PRUint32* aRotation)
 {
   NS_WARNING("Attempt to get screen rotation through nsIScreen::GetRotation().  Nothing should know or care this in sandboxed contexts.  If you want *orientation*, use hal.");
   return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP
-PuppetScreen::SetRotation(uint32_t aRotation)
+PuppetScreen::SetRotation(PRUint32 aRotation)
 {
   NS_WARNING("Attempt to set screen rotation through nsIScreen::GetRotation().  Nothing should know or care this in sandboxed contexts.  If you want *orientation*, use hal.");
   return NS_ERROR_NOT_AVAILABLE;
@@ -665,10 +671,10 @@ PuppetScreenManager::GetPrimaryScreen(nsIScreen** outScreen)
 }
 
 NS_IMETHODIMP
-PuppetScreenManager::ScreenForRect(int32_t inLeft,
-                                   int32_t inTop,
-                                   int32_t inWidth,
-                                   int32_t inHeight,
+PuppetScreenManager::ScreenForRect(PRInt32 inLeft,
+                                   PRInt32 inTop,
+                                   PRInt32 inWidth,
+                                   PRInt32 inHeight,
                                    nsIScreen** outScreen)
 {
   return GetPrimaryScreen(outScreen);
@@ -682,7 +688,7 @@ PuppetScreenManager::ScreenForNativeWidget(void* aWidget,
 }
 
 NS_IMETHODIMP
-PuppetScreenManager::GetNumberOfScreens(uint32_t* aNumberOfScreens)
+PuppetScreenManager::GetNumberOfScreens(PRUint32* aNumberOfScreens)
 {
   *aNumberOfScreens = 1;
   return NS_OK;

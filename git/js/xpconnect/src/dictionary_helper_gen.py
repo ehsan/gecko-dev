@@ -5,6 +5,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+from codegen import *
 import sys, os.path, re, xpidl, itertools
 
 # --makedepend-output support.
@@ -22,9 +23,6 @@ def strip_end(text, suffix):
     return text[:-len(suffix)]
 
 # Copied from dombindingsgen.py
-def makeQuote(filename):
-    return filename.replace(' ', '\\ ')  # enjoy!
-
 def writeMakeDependOutput(filename):
     print "Creating makedepend file", filename
     f = open(filename, 'w')
@@ -112,7 +110,7 @@ def print_header_file(fd, conf):
              "#define _gen_mozilla_idl_dictionary_helpers_h_\n\n")
 
     fd.write("#include \"jsapi.h\"\n"
-             "#include \"nsError.h\"\n"
+             "#include \"nsDOMError.h\"\n"
              "#include \"nsString.h\"\n"
              "#include \"nsCOMPtr.h\"\n\n")
 
@@ -307,28 +305,24 @@ def write_getter(a, iface, fd):
         fd.write("    JSBool b;\n")
         fd.write("    MOZ_ALWAYS_TRUE(JS_ValueToBoolean(aCx, v, &b));\n")
         fd.write("    aDict.%s = b;\n" % a.name)
-    elif realtype.count("uint16_t"):
-        fd.write("    uint32_t u;\n")
-        fd.write("    NS_ENSURE_STATE(JS_ValueToECMAUint32(aCx, v, &u));\n")
-        fd.write("    aDict.%s = u;\n" % a.name)
-    elif realtype.count("int16_t"):
-        fd.write("    int32_t i;\n")
-        fd.write("    NS_ENSURE_STATE(JS_ValueToECMAInt32(aCx, v, &i));\n")
-        fd.write("    aDict.%s = i;\n" % a.name)
-    elif realtype.count("uint32_t"):
+    elif realtype.count("PRUint32"):
         fd.write("    NS_ENSURE_STATE(JS_ValueToECMAUint32(aCx, v, &aDict.%s));\n" % a.name)
-    elif realtype.count("int32_t"):
+    elif realtype.count("PRInt32"):
         fd.write("    NS_ENSURE_STATE(JS_ValueToECMAInt32(aCx, v, &aDict.%s));\n" % a.name)
-    elif realtype.count("uint64_t"):
-        fd.write("    NS_ENSURE_STATE(JS::ToUint64(aCx, v, &aDict.%s));\n" % a.name)
-    elif realtype.count("int64_t"):
-        fd.write("    NS_ENSURE_STATE(JS::ToInt64(aCx, v, &aDict.%s));\n" % a.name)
     elif realtype.count("double"):
         fd.write("    NS_ENSURE_STATE(JS_ValueToNumber(aCx, v, &aDict.%s));\n" % a.name)
     elif realtype.count("float"):
         fd.write("    double d;\n")
         fd.write("    NS_ENSURE_STATE(JS_ValueToNumber(aCx, v, &d));")
         fd.write("    aDict.%s = (float) d;\n" % a.name)
+    elif realtype.count("PRUint16"):
+        fd.write("    uint32_t u;\n")
+        fd.write("    NS_ENSURE_STATE(JS_ValueToECMAUint32(aCx, v, &u));\n")
+        fd.write("    aDict.%s = u;\n" % a.name)
+    elif realtype.count("PRInt16"):
+        fd.write("    int32_t i;\n")
+        fd.write("    NS_ENSURE_STATE(JS_ValueToECMAInt32(aCx, v, &i));\n")
+        fd.write("    aDict.%s = i;\n" % a.name)
     elif realtype.count("nsAString"):
         if a.nullable:
             fd.write("    xpc_qsDOMString d(aCx, v, &v, xpc_qsDOMString::eNull, xpc_qsDOMString::eNull);\n")
@@ -414,7 +408,6 @@ def write_cpp(iface, fd):
     
     fd.write("nsresult\n%s::Init(JSContext* aCx, const jsval* aVal)\n" % iface.name)
     fd.write("{\n"
-             "  MOZ_ASSERT(NS_IsMainThread());\n"
              "  if (!aCx || !aVal) {\n"
              "    return NS_OK;\n"
              "  }\n"
@@ -422,10 +415,14 @@ def write_cpp(iface, fd):
              "    return aVal->isNullOrUndefined() ? NS_OK : NS_ERROR_TYPE_ERR;\n"
              "  }\n\n"
              "  JSObject* obj = &aVal->toObject();\n"
-             "  nsCxPusher pusher;\n"
-             "  NS_ENSURE_STATE(pusher.Push(aCx, false));\n"
+             "  Maybe<nsCxPusher> pusher;\n"
+             "  if (NS_IsMainThread()) {\n"
+             "    pusher.construct();\n"
+             "    NS_ENSURE_STATE(pusher.ref().Push(aCx, false));\n"
+             "  }\n"
              "  JSAutoRequest ar(aCx);\n"
-             "  JSAutoCompartment ac(aCx, obj);\n")
+             "  JSAutoEnterCompartment ac;\n"
+             "  NS_ENSURE_STATE(ac.enter(aCx, obj));\n")
 
     fd.write("  return %s_InitInternal(*this, aCx, obj);\n}\n\n" %
                  iface.name)

@@ -95,7 +95,7 @@ public:
 
     static PLDHashNumber HashKey(KeyTypePointer aKey)
     {
-        uint32_t hash;
+        PRUint32 hash;
         const_cast<nsIPrincipal*>(aKey)->GetHashValue(&hash);
         return PLDHashNumber(hash);
     }
@@ -298,12 +298,12 @@ public:
     ClassPolicy* mWildcardPolicy;
 
 private:
-    uint32_t mRefCount;
-    uint32_t mGeneration;
-    static uint32_t sGeneration;
+    PRUint32 mRefCount;
+    PRUint32 mGeneration;
+    static PRUint32 sGeneration;
     
 #ifdef DEBUG_CAPS_DomainPolicyLifeCycle
-    static uint32_t sObjects;
+    static PRUint32 sObjects;
     static void _printPopulationInfo();
 #endif
 
@@ -365,7 +365,7 @@ public:
      * false otherwise.
      */
     static bool SecurityCompareURIs(nsIURI* aSourceURI, nsIURI* aTargetURI);
-    static uint32_t SecurityHashURI(nsIURI* aURI);
+    static PRUint32 SecurityHashURI(nsIURI* aURI);
 
     static nsresult 
     ReportError(JSContext* cx, const nsAString& messageTag,
@@ -374,7 +374,7 @@ public:
     static nsresult
     CheckSameOriginPrincipal(nsIPrincipal* aSubject,
                              nsIPrincipal* aObject);
-    static uint32_t
+    static PRUint32
     HashPrincipalByOrigin(nsIPrincipal* aPrincipal);
 
     static bool
@@ -392,7 +392,10 @@ private:
     static JSBool
     CheckObjectAccess(JSContext *cx, JSHandleObject obj,
                       JSHandleId id, JSAccessMode mode,
-                      JSMutableHandleValue vp);
+                      jsval *vp);
+
+    static JSPrincipals *
+    ObjectPrincipalFinder(JSObject *obj);
     
     // Decides, based on CSP, whether or not eval() and stuff can be executed.
     static JSBool
@@ -412,7 +415,7 @@ private:
     doGetSubjectPrincipal(nsresult* rv);
     
     nsresult
-    CheckPropertyAccessImpl(uint32_t aAction,
+    CheckPropertyAccessImpl(PRUint32 aAction,
                             nsAXPCNativeCallContext* aCallContext,
                             JSContext* cx, JSObject* aJSObject,
                             nsISupports* aObj,
@@ -423,22 +426,22 @@ private:
     nsresult
     CheckSameOriginDOMProp(nsIPrincipal* aSubject, 
                            nsIPrincipal* aObject,
-                           uint32_t aAction);
+                           PRUint32 aAction);
 
     nsresult
     LookupPolicy(nsIPrincipal* principal,
                  ClassInfoData& aClassData, jsid aProperty,
-                 uint32_t aAction,
+                 PRUint32 aAction,
                  ClassPolicy** aCachedClassPolicy,
                  SecurityLevel* result);
 
     nsresult
-    GetCodebasePrincipalInternal(nsIURI* aURI, uint32_t aAppId,
+    GetCodebasePrincipalInternal(nsIURI* aURI, PRUint32 aAppId,
                                  bool aInMozBrowser,
                                  nsIPrincipal** result);
 
     nsresult
-    CreateCodebasePrincipal(nsIURI* aURI, uint32_t aAppId, bool aInMozBrowser,
+    CreateCodebasePrincipal(nsIURI* aURI, PRUint32 aAppId, bool aInMozBrowser,
                             nsIPrincipal** result);
 
     // This is just like the API method, but it doesn't check that the subject
@@ -549,7 +552,7 @@ private:
                      DomainPolicy* aDomainPolicy);
 
     nsresult
-    InitPrincipals(uint32_t prefCount, const char** prefNames);
+    InitPrincipals(PRUint32 prefCount, const char** prefNames);
 
 #ifdef DEBUG_CAPS_HACKER
     void
@@ -602,7 +605,7 @@ public:
 namespace mozilla {
 
 void
-GetExtendedOrigin(nsIURI* aURI, uint32_t aAppid,
+GetExtendedOrigin(nsIURI* aURI, PRUint32 aAppid,
                   bool aInMozBrowser,
                   nsACString& aExtendedOrigin);
 

@@ -13,7 +13,6 @@
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsMappedAttributes.h"
-#include "nsAttrValueInlines.h"
 #include "nsRuleData.h"
 #include "nsCSSProps.h"
 
@@ -30,7 +29,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
@@ -41,7 +40,7 @@ public:
   // nsIDOMHTMLHRElement
   NS_DECL_NSIDOMHTMLHRELEMENT
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -98,7 +97,7 @@ static const nsAttrValue::EnumTable kAlignTable[] = {
 };
 
 bool
-nsHTMLHRElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLHRElement::ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult)

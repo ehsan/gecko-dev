@@ -474,7 +474,7 @@ AsyncChannel::OnDispatchMessage(const Message& msg)
 }
 
 bool
-AsyncChannel::OnSpecialMessage(uint16_t id, const Message& msg)
+AsyncChannel::OnSpecialMessage(uint16 id, const Message& msg)
 {
     return false;
 }
@@ -570,10 +570,10 @@ AsyncChannel::Clear()
 static void
 PrintErrorMessage(bool isChild, const char* channelName, const char* msg)
 {
-    if (LoggingEnabled()) {
-        printf_stderr("\n###!!! [%s][%s] Error: %s\n\n",
-                      isChild ? "Child" : "Parent", channelName, msg);
-    }
+#ifdef DEBUG
+    fprintf(stderr, "\n###!!! [%s][%s] Error: %s\n\n",
+            isChild ? "Child" : "Parent", channelName, msg);
+#endif
 }
 
 bool
@@ -582,7 +582,7 @@ AsyncChannel::MaybeHandleError(Result code, const char* channelName)
     if (MsgProcessed == code)
         return true;
 
-    const char* errorMsg = nullptr;
+    const char* errorMsg;
     switch (code) {
     case MsgNotKnown:
         errorMsg = "Unknown message: not processed";
@@ -618,7 +618,7 @@ AsyncChannel::MaybeHandleError(Result code, const char* channelName)
 void
 AsyncChannel::ReportConnectionError(const char* channelName) const
 {
-    const char* errorMsg = nullptr;
+    const char* errorMsg;
     switch (mChannelState) {
     case ChannelClosed:
         errorMsg = "Closed channel: cannot send/recv";
@@ -646,7 +646,7 @@ AsyncChannel::ReportConnectionError(const char* channelName) const
 }
 
 void
-AsyncChannel::DispatchOnChannelConnected(int32_t peer_pid)
+AsyncChannel::DispatchOnChannelConnected(int32 peer_pid)
 {
     AssertWorkerThread();
     if (mListener)
@@ -722,7 +722,7 @@ AsyncChannel::ProcessLink::OnTakeConnectedChannel()
 }
 
 void
-AsyncChannel::ProcessLink::OnChannelConnected(int32_t peer_pid)
+AsyncChannel::ProcessLink::OnChannelConnected(int32 peer_pid)
 {
     AssertIOThread();
 

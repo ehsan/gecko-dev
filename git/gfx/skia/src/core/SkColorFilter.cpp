@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2006 The Android Open Source Project
  *
@@ -5,13 +6,10 @@
  * found in the LICENSE file.
  */
 
+
 #include "SkColorFilter.h"
-#include "SkFilterShader.h"
-#include "SkFlattenableBuffers.h"
 #include "SkShader.h"
 #include "SkUnPreMultiply.h"
-
-SK_DEFINE_INST_COUNT(SkColorFilter)
 
 bool SkColorFilter::asColorMode(SkColor* color, SkXfermode::Mode* mode) {
     return false;
@@ -49,8 +47,8 @@ SkFilterShader::SkFilterShader(SkShader* shader, SkColorFilter* filter) {
 
 SkFilterShader::SkFilterShader(SkFlattenableReadBuffer& buffer) :
         INHERITED(buffer) {
-    fShader = buffer.readFlattenableT<SkShader>();
-    fFilter = buffer.readFlattenableT<SkColorFilter>();
+    fShader = static_cast<SkShader*>(buffer.readFlattenable());
+    fFilter = static_cast<SkColorFilter*>(buffer.readFlattenable());
 }
 
 SkFilterShader::~SkFilterShader() {
@@ -77,7 +75,7 @@ void SkFilterShader::flatten(SkFlattenableWriteBuffer& buffer) const {
 uint32_t SkFilterShader::getFlags() {
     uint32_t shaderF = fShader->getFlags();
     uint32_t filterF = fFilter->getFlags();
-
+    
     // if the filter doesn't support 16bit, clear the matching bit in the shader
     if (!(filterF & SkColorFilter::kHasFilter16_Flag)) {
         shaderF &= ~SkShader::kHasSpan16_Flag;

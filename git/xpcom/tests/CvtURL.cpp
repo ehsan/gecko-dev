@@ -63,10 +63,10 @@ int main(int argc, char** argv)
 
   // Read the input and write some output
   PRTime start = PR_Now();
-  int32_t count = 0;
+  PRInt32 count = 0;
   for (;;) {
     PRUnichar buf[1000];
-    uint32_t nb;
+    PRUint32 nb;
     ec = uin->Read(buf, 0, 1000, &nb);
     if (NS_FAILED(ec)) {
       printf("i/o error: %d\n", ec);
@@ -76,7 +76,10 @@ int main(int argc, char** argv)
     count += nb;
   }
   PRTime end = PR_Now();
-  PRTime conversion = (end - start) / 1000;
+  PRTime conversion, ustoms;
+  LL_I2L(ustoms, 1000);
+  LL_SUB(conversion, end, start);
+  LL_DIV(conversion, conversion, ustoms);
   char buf[500];
   PR_snprintf(buf, sizeof(buf),
               "converting and discarding %d bytes took %lldms",

@@ -8,7 +8,6 @@
  <name>Init dictionary for the event constructor. """
 
 simple_events = [
-    'ProgressEvent',
     'StorageEvent',
     'DeviceProximityEvent',
     'MozSettingsEvent',
@@ -22,15 +21,7 @@ simple_events = [
     'DeviceOrientationEvent',
     'DeviceLightEvent',
     'MozApplicationEvent',
-#ifdef MOZ_B2G_BT
-    'BluetoothDeviceEvent',
-    'BluetoothDeviceAddressEvent',
-#endif
-#ifdef MOZ_B2G_RIL
-    'ICCCardLockErrorEvent',
-#endif
-    'DeviceStorageChangeEvent',
-    'PopupBlockedEvent'
+    'DeviceStorageChangeEvent'
   ]
 
 """ include file names """

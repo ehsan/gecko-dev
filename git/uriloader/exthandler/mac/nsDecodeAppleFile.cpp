@@ -59,7 +59,7 @@ NS_IMETHODIMP nsDecodeAppleFile::Close(void)
   nsresult rv;
   rv = m_output->Close();
 
-  int32_t i;
+  PRInt32 i;
 
   if (m_rfRefNum != -1)
     FSClose(m_rfRefNum);
@@ -146,12 +146,12 @@ NS_IMETHODIMP nsDecodeAppleFile::Flush(void)
   return m_output->Flush();
 } 
 
-NS_IMETHODIMP nsDecodeAppleFile::WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_retval)
+NS_IMETHODIMP nsDecodeAppleFile::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_retval)
 {
   return m_output->WriteFrom(inStr, count, _retval);
 }
 
-NS_IMETHODIMP nsDecodeAppleFile::WriteSegments(nsReadSegmentFun reader, void * closure, uint32_t count, uint32_t *_retval)
+NS_IMETHODIMP nsDecodeAppleFile::WriteSegments(nsReadSegmentFun reader, void * closure, PRUint32 count, PRUint32 *_retval)
 {
   return m_output->WriteSegments(reader, closure, count, _retval);
 }
@@ -161,14 +161,14 @@ NS_IMETHODIMP nsDecodeAppleFile::IsNonBlocking(bool *aNonBlocking)
   return m_output->IsNonBlocking(aNonBlocking);
 }
 
-NS_IMETHODIMP nsDecodeAppleFile::Write(const char *buffer, uint32_t bufferSize, uint32_t* writeCount)
+NS_IMETHODIMP nsDecodeAppleFile::Write(const char *buffer, PRUint32 bufferSize, PRUint32* writeCount)
 {
   /* WARNING: to simplify my life, I presume that I should get all appledouble headers in the first block,
               else I would have to implement a buffer */
 
   const char * buffPtr = buffer;
-  uint32_t dataCount;
-  int32_t i;
+  PRUint32 dataCount;
+  PRInt32 i;
   nsresult rv = NS_OK;
 
   *writeCount = 0;
@@ -215,7 +215,7 @@ NS_IMETHODIMP nsDecodeAppleFile::Write(const char *buffer, uint32_t bufferSize, 
           if (!m_entries)
             return NS_ERROR_OUT_OF_MEMORY;
         }
-        uint32_t entriesSize = sizeof(ap_entry) * m_headers.entriesCount;
+        PRUint32 entriesSize = sizeof(ap_entry) * m_headers.entriesCount;
         dataCount = entriesSize - m_dataBufferLength;
         if (dataCount > bufferSize)
           dataCount = bufferSize;
@@ -229,7 +229,7 @@ NS_IMETHODIMP nsDecodeAppleFile::Write(const char *buffer, uint32_t bufferSize, 
             memcpy(&m_entries[i], &m_dataBuffer[i * sizeof(ap_entry)], sizeof(ap_entry));
             if (m_headers.magic == APPLEDOUBLE_MAGIC)
             {
-              uint32_t offset = m_entries[i].offset + m_entries[i].length;
+              PRUint32 offset = m_entries[i].offset + m_entries[i].length;
               if (offset > m_dataForkOffset)
                 m_dataForkOffset = offset;
             }
@@ -334,7 +334,7 @@ NS_IMETHODIMP nsDecodeAppleFile::Write(const char *buffer, uint32_t bufferSize, 
         
         if (m_output)
         {
-          uint32_t writeCount;
+          PRUint32 writeCount;
           rv = m_output->Write((const char *)buffPtr, dataCount, &writeCount);
           if (dataCount != writeCount)
             rv = NS_ERROR_FAILURE;
@@ -366,7 +366,7 @@ NS_IMETHODIMP nsDecodeAppleFile::Write(const char *buffer, uint32_t bufferSize, 
         dataCount = bufferSize;
         if (m_output)
         {
-          uint32_t writeCount;
+          PRUint32 writeCount;
           rv = m_output->Write((const char *)buffPtr, dataCount, &writeCount);
           if (dataCount != writeCount)
             rv = NS_ERROR_FAILURE;

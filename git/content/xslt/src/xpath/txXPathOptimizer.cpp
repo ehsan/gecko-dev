@@ -20,7 +20,7 @@ public:
     }
 
     // txIEvalContext
-    nsresult getVariable(int32_t aNamespace, nsIAtom* aLName,
+    nsresult getVariable(PRInt32 aNamespace, nsIAtom* aLName,
                          txAExprResult*& aResult)
     {
         NS_NOTREACHED("shouldn't depend on this context");
@@ -52,12 +52,12 @@ public:
 
         return *static_cast<txXPathNode*>(nullptr);
     }
-    uint32_t size()
+    PRUint32 size()
     {
         NS_NOTREACHED("shouldn't depend on this context");
         return 1;
     }
-    uint32_t position()
+    PRUint32 position()
     {
         NS_NOTREACHED("shouldn't depend on this context");
         return 1;
@@ -99,7 +99,7 @@ txXPathOptimizer::optimize(Expr* aInExpr, Expr** aOutExpr)
     }
 
     // Then optimize sub expressions
-    uint32_t i = 0;
+    PRUint32 i = 0;
     Expr* subExpr;
     while ((subExpr = aInExpr->getSubExprAt(i))) {
         Expr* newExpr = nullptr;
@@ -173,7 +173,7 @@ txXPathOptimizer::optimizePath(Expr* aInExpr, Expr** aOutExpr)
 {
     PathExpr* path = static_cast<PathExpr*>(aInExpr);
 
-    uint32_t i;
+    PRUint32 i;
     Expr* subExpr;
     // look for steps like "//foo" that can be turned into "/descendant::foo"
     // and "//." that can be turned into "/descendant-or-self::node()"
@@ -236,7 +236,7 @@ txXPathOptimizer::optimizeUnion(Expr* aInExpr, Expr** aOutExpr)
     // "descendant::foo | descendant::bar"
 
     nsresult rv;
-    uint32_t current;
+    PRUint32 current;
     Expr* subExpr;
     for (current = 0; (subExpr = uni->getSubExprAt(current)); ++current) {
         if (subExpr->getType() != Expr::LOCATIONSTEP_EXPR ||
@@ -251,7 +251,7 @@ txXPathOptimizer::optimizeUnion(Expr* aInExpr, Expr** aOutExpr)
 
         // Check if there are any other steps with the same axis and merge
         // them with currentStep
-        uint32_t i;
+        PRUint32 i;
         for (i = current + 1; (subExpr = uni->getSubExprAt(i)); ++i) {
             if (subExpr->getType() != Expr::LOCATIONSTEP_EXPR ||
                 subExpr->getSubExprAt(0)) {

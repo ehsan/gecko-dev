@@ -66,7 +66,7 @@ NS_IMETHODIMP nsDeviceContextSpecQt::GetSurfaceForPrinter(
 
     // If we're in landscape mode, we'll be rotating the output --
     // need to swap width & height.
-    int32_t orientation;
+    PRInt32 orientation;
     mPrintSettings->GetOrientation(&orientation);
     if (nsIPrintSettings::kLandscapeOrientation == orientation) {
         double tmp = width;
@@ -106,7 +106,7 @@ NS_IMETHODIMP nsDeviceContextSpecQt::GetSurfaceForPrinter(
     if (NS_FAILED(rv))
         return rv;
 
-    int16_t format;
+    PRInt16 format;
     mPrintSettings->GetOutputFormat(&format);
 
     nsRefPtr<gfxASurface> surface;
@@ -163,8 +163,8 @@ NS_IMETHODIMP nsDeviceContextSpecQt::GetPath(const char** aPath)
 NS_IMETHODIMP nsDeviceContextSpecQt::BeginDocument(
         PRUnichar* aTitle,
         PRUnichar* aPrintToFileName,
-        int32_t aStartPage,
-        int32_t aEndPage)
+        PRInt32 aStartPage,
+        PRInt32 aEndPage)
 {
     if (mToPrinter) {
         return NS_ERROR_NOT_IMPLEMENTED;
@@ -229,7 +229,7 @@ NS_IMETHODIMP nsPrinterEnumeratorQt::GetPrinterNameList(
     nsTArray<nsString>* printers =
         new nsTArray<nsString>(qprinters.size()); 
 
-    for (int32_t i = 0; i < qprinters.size(); ++i) {
+    for (PRInt32 i = 0; i < qprinters.size(); ++i) {
         printers->AppendElement(
                 nsDependentString(
                     (const PRUnichar*)qprinters[i].printerName().constData()));

@@ -1,5 +1,5 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
+/* vim: set ts=2 et sw=2 tw=40: */
 /* Copyright 2012 Mozilla Foundation and Mozilla contributors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +15,11 @@
  * limitations under the License.
  */
 
-#include "base/basictypes.h"
 #include "BluetoothGonkService.h"
 #include "BluetoothDBusService.h"
 
 #include "nsDebug.h"
 #include "nsError.h"
-#include "nsThreadUtils.h"
 #include <dlfcn.h>
 
 USING_BLUETOOTH_NAMESPACE
@@ -140,7 +138,7 @@ BluetoothGonkService::StartInternal()
   ret = StartStopGonkBluetooth(true);
 
   if (NS_FAILED(ret)) {
-    return ret;
+    return ret;    
   }
 
   return BluetoothDBusService::StartInternal();
@@ -150,15 +148,14 @@ nsresult
 BluetoothGonkService::StopInternal()
 {
   NS_ASSERTION(!NS_IsMainThread(), "This should not run on the main thread!");
-
   nsresult ret;
 
-  ret = BluetoothDBusService::StopInternal();
+  ret = StartStopGonkBluetooth(false);
 
   if (NS_FAILED(ret)) {
-    return ret;
+    return ret;    
   }
 
-  return StartStopGonkBluetooth(false);
+  return BluetoothDBusService::StopInternal();
 }
 

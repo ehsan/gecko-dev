@@ -60,7 +60,7 @@ nsGnomeVFSMimeApp::GetCanOpenMultipleFiles(bool* aCanOpen)
 }
 
 NS_IMETHODIMP
-nsGnomeVFSMimeApp::GetExpectsURIs(int32_t* aExpects)
+nsGnomeVFSMimeApp::GetExpectsURIs(PRInt32* aExpects)
 {
   *aExpects = mApp->expects_uris;
   return NS_OK;
@@ -96,7 +96,7 @@ public:
   NS_DECL_NSIUTF8STRINGENUMERATOR
 
   nsTArray<nsCString> mStrings;
-  uint32_t            mIndex;
+  PRUint32            mIndex;
 };
 
 NS_IMPL_ISUPPORTS1(UTF8StringEnumerator, nsIUTF8StringEnumerator)
@@ -156,7 +156,7 @@ NS_IMETHODIMP
 nsGnomeVFSService::GetMimeTypeFromExtension(const nsACString &aExtension,
                                             nsACString& aMimeType)
 {
-  nsAutoCString fileExtToUse(".");
+  nsCAutoString fileExtToUse(".");
   fileExtToUse.Append(aExtension);
 
   const char *mimeType = gnome_vfs_mime_type_from_name(fileExtToUse.get());
@@ -201,7 +201,7 @@ nsGnomeVFSService::GetDescriptionForMimeType(const nsACString &aMimeType,
 NS_IMETHODIMP
 nsGnomeVFSService::ShowURI(nsIURI *aURI)
 {
-  nsAutoCString spec;
+  nsCAutoString spec;
   aURI->GetSpec(spec);
 
   if (gnome_vfs_url_show_with_env(spec.get(), NULL) == GNOME_VFS_OK)

@@ -60,7 +60,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=418368
     //gA11yEventDumpToConsole = true; // debug stuff
     function doPreTest()
     {
-      waitForImageMap("imgmap", doTest);
+      var imgMap = document.getElementById("imgmap");
+      waitForImageMap(imgMap, doTest);
     }
 
     var gQueue = null;

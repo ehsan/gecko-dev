@@ -22,10 +22,10 @@
 // the next multipart token.  A token is usually preceded by a LF
 // or CRLF delimiter.
 // 
-static uint32_t
+static PRUint32
 LengthToToken(const char *cursor, const char *token)
 {
-    uint32_t len = token - cursor;
+    PRUint32 len = token - cursor;
     // Trim off any LF or CRLF preceding the token
     if (len && *(token-1) == '\n') {
         --len;
@@ -35,12 +35,12 @@ LengthToToken(const char *cursor, const char *token)
     return len;
 }
 
-nsPartChannel::nsPartChannel(nsIChannel *aMultipartChannel, uint32_t aPartID,
+nsPartChannel::nsPartChannel(nsIChannel *aMultipartChannel, PRUint32 aPartID,
                              nsIStreamListener* aListener) :
   mMultipartChannel(aMultipartChannel),
   mListener(aListener),
   mStatus(NS_OK),
-  mContentLength(UINT64_MAX),
+  mContentLength(LL_MAXUINT),
   mIsByteRangeRequest(false),
   mByteRangeStart(0),
   mByteRangeEnd(0),
@@ -59,7 +59,7 @@ nsPartChannel::~nsPartChannel()
 {
 }
 
-void nsPartChannel::InitializeByteRange(int64_t aStart, int64_t aEnd)
+void nsPartChannel::InitializeByteRange(PRInt64 aStart, PRInt64 aEnd)
 {
     mIsByteRangeRequest = true;
     
@@ -74,7 +74,7 @@ nsresult nsPartChannel::SendOnStartRequest(nsISupports* aContext)
 
 nsresult nsPartChannel::SendOnDataAvailable(nsISupports* aContext,
                                             nsIInputStream* aStream,
-                                            uint64_t aOffset, uint32_t aLen)
+                                            PRUint32 aOffset, PRUint32 aLen)
 {
     return mListener->OnDataAvailable(this, aContext, aStream, aOffset, aLen);
 }
@@ -301,33 +301,27 @@ nsPartChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetContentLength(int32_t *aContentLength)
+nsPartChannel::GetContentLength(PRInt32 *aContentLength)
 {
     *aContentLength = mContentLength; // XXX truncates 64-bit value
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPartChannel::SetContentLength(int32_t aContentLength)
+nsPartChannel::SetContentLength(PRInt32 aContentLength)
 {
     mContentLength = aContentLength;
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetContentDisposition(uint32_t *aContentDisposition)
+nsPartChannel::GetContentDisposition(PRUint32 *aContentDisposition)
 {
     if (mContentDispositionHeader.IsEmpty())
         return NS_ERROR_NOT_AVAILABLE;
 
     *aContentDisposition = mContentDisposition;
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPartChannel::SetContentDisposition(uint32_t aContentDisposition)
-{
-    return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP
@@ -341,13 +335,6 @@ nsPartChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilen
 }
 
 NS_IMETHODIMP
-nsPartChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-
-NS_IMETHODIMP
 nsPartChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)
 {
     if (mContentDispositionHeader.IsEmpty())
@@ -358,7 +345,7 @@ nsPartChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader
 }
 
 NS_IMETHODIMP
-nsPartChannel::GetPartID(uint32_t *aPartID)
+nsPartChannel::GetPartID(PRUint32 *aPartID)
 {
     *aPartID = mPartID;
     return NS_OK;
@@ -385,7 +372,7 @@ nsPartChannel::GetIsByteRangeRequest(bool *aIsByteRangeRequest)
 
 
 NS_IMETHODIMP 
-nsPartChannel::GetStartRange(int64_t *aStartRange)
+nsPartChannel::GetStartRange(PRInt64 *aStartRange)
 {
     *aStartRange = mByteRangeStart;
 
@@ -393,7 +380,7 @@ nsPartChannel::GetStartRange(int64_t *aStartRange)
 }
 
 NS_IMETHODIMP 
-nsPartChannel::GetEndRange(int64_t *aEndRange)
+nsPartChannel::GetEndRange(PRInt64 *aEndRange)
 {
     *aEndRange = mByteRangeEnd;
     return NS_OK;
@@ -471,15 +458,14 @@ private:
 // nsIStreamListener implementation
 NS_IMETHODIMP
 nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
-                                  nsIInputStream *inStr, uint64_t sourceOffset,
-                                  uint32_t count) {
+                                  nsIInputStream *inStr, PRUint32 sourceOffset, PRUint32 count) {
 
     if (mToken.IsEmpty()) // no token, no love.
         return NS_ERROR_FAILURE;
 
     nsresult rv = NS_OK;
     AutoFree buffer = nullptr;
-    uint32_t bufLen = 0, read = 0;
+    PRUint32 bufLen = 0, read = 0;
 
     NS_ASSERTION(request, "multimixed converter needs a request");
 
@@ -561,7 +547,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
         }
     }
 
-    int32_t tokenLinefeed = 1;
+    PRInt32 tokenLinefeed = 1;
     while ( (token = FindToken(cursor, bufLen)) ) {
 
         if (*(token+mTokenLen+1) == '-') {
@@ -605,7 +591,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
             mNewPart = true;
             // Reset state so we don't carry it over from part to part
             mContentType.Truncate();
-            mContentLength = UINT64_MAX;
+            mContentLength = LL_MAXUINT;
             mContentDisposition.Truncate();
             mIsByteRangeRequest = false;
             mByteRangeStart = 0;
@@ -626,7 +612,7 @@ nsMultiMixedConv::OnDataAvailable(nsIRequest *request, nsISupports *context,
     // we buffer enough data to handle a broken token.
 
     // carry over
-    uint32_t bufAmt = 0;
+    PRUint32 bufAmt = 0;
     if (mProcessingHeaders)
         bufAmt = bufLen;
     else if (bufLen) {
@@ -661,7 +647,7 @@ nsMultiMixedConv::OnStartRequest(nsIRequest *request, nsISupports *ctxt) {
     // we're assuming the content-type is available at this stage
     NS_ASSERTION(mToken.IsEmpty(), "a second on start???");
     const char *bndry = nullptr;
-    nsAutoCString delimiter;
+    nsCAutoString delimiter;
     nsresult rv = NS_OK;
     mContext = ctxt;
 
@@ -693,7 +679,7 @@ nsMultiMixedConv::OnStartRequest(nsIRequest *request, nsISupports *ctxt) {
     char *attrib = (char *) strchr(bndry, ';');
     if (attrib) *attrib = '\0';
 
-    nsAutoCString boundaryString(bndry);
+    nsCAutoString boundaryString(bndry);
     if (attrib) *attrib = ';';
 
     boundaryString.Trim(" \"");
@@ -751,7 +737,7 @@ nsMultiMixedConv::nsMultiMixedConv() :
 {
     mTokenLen           = 0;
     mNewPart            = true;
-    mContentLength      = UINT64_MAX;
+    mContentLength      = LL_MAXUINT;
     mBuffer             = nullptr;
     mBufLen             = 0;
     mProcessingHeaders  = false;
@@ -770,7 +756,7 @@ nsMultiMixedConv::~nsMultiMixedConv() {
 }
 
 nsresult
-nsMultiMixedConv::BufferData(char *aData, uint32_t aLen) {
+nsMultiMixedConv::BufferData(char *aData, PRUint32 aLen) {
     NS_ASSERTION(!mBuffer, "trying to over-write buffer");
 
     char *buffer = (char *) malloc(aLen);
@@ -872,23 +858,23 @@ nsMultiMixedConv::SendStop(nsresult aStatus) {
 }
 
 nsresult
-nsMultiMixedConv::SendData(char *aBuffer, uint32_t aLen) {
+nsMultiMixedConv::SendData(char *aBuffer, PRUint32 aLen) {
 
     nsresult rv = NS_OK;
     
     if (!mPartChannel) return NS_ERROR_FAILURE; // something went wrong w/ processing
 
-    if (mContentLength != UINT64_MAX) {
+    if (mContentLength != LL_MAXUINT) {
         // make sure that we don't send more than the mContentLength
         // XXX why? perhaps the Content-Length header was actually wrong!!
-        if ((uint64_t(aLen) + mTotalSent) > mContentLength)
+        if ((PRUint64(aLen) + mTotalSent) > mContentLength)
             aLen = mContentLength - mTotalSent;
 
         if (aLen == 0)
             return NS_OK;
     }
 
-    uint64_t offset = mTotalSent;
+    PRUint32 offset = mTotalSent;
     mTotalSent += aLen;
 
     nsCOMPtr<nsIStringInputStream> ss(
@@ -906,9 +892,9 @@ nsMultiMixedConv::SendData(char *aBuffer, uint32_t aLen) {
     return mPartChannel->SendOnDataAvailable(mContext, inStream, offset, aLen);
 }
 
-int32_t
-nsMultiMixedConv::PushOverLine(char *&aPtr, uint32_t &aLen) {
-    int32_t chars = 0;
+PRInt32
+nsMultiMixedConv::PushOverLine(char *&aPtr, PRUint32 &aLen) {
+    PRInt32 chars = 0;
     if ((aLen > 0) && (*aPtr == nsCRT::CR || *aPtr == nsCRT::LF)) {
         if ((aLen > 1) && (aPtr[1] == nsCRT::LF))
             chars++;
@@ -921,16 +907,16 @@ nsMultiMixedConv::PushOverLine(char *&aPtr, uint32_t &aLen) {
 
 nsresult
 nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr, 
-                               uint32_t &aLen, bool *_retval) {
+                               PRUint32 &aLen, bool *_retval) {
     // NOTE: this data must be ascii.
     // NOTE: aPtr is NOT null terminated!
     nsresult rv = NS_OK;
     char *cursor = aPtr, *newLine = nullptr;
-    uint32_t cursorLen = aLen;
+    PRUint32 cursorLen = aLen;
     bool done = false;
-    uint32_t lineFeedIncrement = 1;
+    PRUint32 lineFeedIncrement = 1;
     
-    mContentLength = UINT64_MAX; // XXX what if we were already called?
+    mContentLength = LL_MAXUINT; // XXX what if we were already called?
     while (cursorLen && (newLine = (char *) memchr(cursor, nsCRT::LF, cursorLen))) {
         // adjust for linefeeds
         if ((newLine > cursor) && (newLine[-1] == nsCRT::CR) ) { // CRLF
@@ -956,18 +942,18 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
         char *colon = (char *) strchr(cursor, ':');
         if (colon) {
             *colon = '\0';
-            nsAutoCString headerStr(cursor);
+            nsCAutoString headerStr(cursor);
             headerStr.CompressWhitespace();
             *colon = ':';
 
-            nsAutoCString headerVal(colon + 1);
+            nsCAutoString headerVal(colon + 1);
             headerVal.CompressWhitespace();
 
             // examine header
             if (headerStr.LowerCaseEqualsLiteral("content-type")) {
                 mContentType = headerVal;
             } else if (headerStr.LowerCaseEqualsLiteral("content-length")) {
-                mContentLength = nsCRT::atoll(headerVal.get());
+                mContentLength = atoi(headerVal.get()); // XXX 64-bit math?
             } else if (headerStr.LowerCaseEqualsLiteral("content-disposition")) {
                 mContentDisposition = headerVal;
             } else if (headerStr.LowerCaseEqualsLiteral("set-cookie")) {
@@ -1001,14 +987,14 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
                     
                     tmpPtr[0] = '\0';
                     
-                    mByteRangeStart = nsCRT::atoll(range);
+                    mByteRangeStart = atoi(range); // XXX want 64-bit conv
                     tmpPtr++;
-                    mByteRangeEnd = nsCRT::atoll(tmpPtr);
+                    mByteRangeEnd = atoi(tmpPtr);
                 }
 
                 mIsByteRangeRequest = true;
-                if (mContentLength == UINT64_MAX)
-                    mContentLength = uint64_t(mByteRangeEnd - mByteRangeStart + 1);
+                if (mContentLength == LL_MAXUINT)
+                    mContentLength = PRUint64(PRInt64(mByteRangeEnd - mByteRangeStart + PRInt64(1)));
             }
         }
         *newLine = tmpChar;
@@ -1025,7 +1011,7 @@ nsMultiMixedConv::ParseHeaders(nsIChannel *aChannel, char *&aPtr,
 }
 
 char *
-nsMultiMixedConv::FindToken(char *aCursor, uint32_t aLen) {
+nsMultiMixedConv::FindToken(char *aCursor, PRUint32 aLen) {
     // strnstr without looking for null termination
     const char *token = mToken.get();
     char *cur = aCursor;

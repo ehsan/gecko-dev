@@ -8,27 +8,37 @@
 #ifndef nsBulletFrame_h___
 #define nsBulletFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsFrame.h"
 #include "nsStyleContext.h"
 
 #include "imgIRequest.h"
 #include "imgIDecoderObserver.h"
-#include "imgINotificationObserver.h"
+#include "nsStubImageDecoderObserver.h"
 
 #define BULLET_FRAME_IMAGE_LOADING NS_FRAME_STATE_BIT(63)
 #define BULLET_FRAME_HAS_FONT_INFLATION NS_FRAME_STATE_BIT(62)
 
 class nsBulletFrame;
 
-class nsBulletListener : public imgINotificationObserver
+class nsBulletListener : public nsStubImageDecoderObserver
 {
 public:
   nsBulletListener();
   virtual ~nsBulletListener();
 
   NS_DECL_ISUPPORTS
-  NS_DECL_IMGINOTIFICATIONOBSERVER
+  // imgIDecoderObserver (override nsStubImageDecoderObserver)
+  NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
+  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, bool aCurrentFrame,
+                             const nsIntRect *aRect);
+  NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
+                          const PRUnichar *statusArg);
+  NS_IMETHOD OnImageIsAnimated(imgIRequest *aRequest);
+
+  // imgIContainerObserver (override nsStubImageDecoderObserver)
+  NS_IMETHOD FrameChanged(imgIRequest *aRequest,
+                          imgIContainer *aContainer,
+                          const nsIntRect *dirtyRect);
 
   void SetFrame(nsBulletFrame *frame) { mFrame = frame; }
 
@@ -50,35 +60,44 @@ public:
   }
   virtual ~nsBulletFrame();
 
-  NS_IMETHOD Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData);
-
   // nsIFrame
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext) MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   // nsIHTMLReflow
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
                     nsHTMLReflowMetrics& aMetrics,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus& aStatus) MOZ_OVERRIDE;
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+                    nsReflowStatus& aStatus);
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
 
   // nsBulletFrame
-  int32_t SetListItemOrdinal(int32_t aNextOrdinal, bool* aChanged,
-                             int32_t aIncrement);
+  PRInt32 SetListItemOrdinal(PRInt32 aNextOrdinal, bool* aChanged);
 
+
+  NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
+  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest,
+                             bool aCurrentFrame,
+                             const nsIntRect *aRect);
+  NS_IMETHOD OnStopDecode(imgIRequest *aRequest,
+                          nsresult aStatus,
+                          const PRUnichar *aStatusArg);
+  NS_IMETHOD OnImageIsAnimated(imgIRequest *aRequest);
+  NS_IMETHOD FrameChanged(imgIRequest *aRequest,
+                          imgIContainer *aContainer,
+                          const nsIntRect *aDirtyRect);
 
   /* get list item text, without '.' */
-  static bool AppendCounterText(int32_t aListStyleType,
-                                  int32_t aOrdinal,
+  static bool AppendCounterText(PRInt32 aListStyleType,
+                                  PRInt32 aOrdinal,
                                   nsString& aResult);
 
   /* get list item text, with '.' */
@@ -88,8 +107,8 @@ public:
   void PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                    const nsRect& aDirtyRect);
   
-  virtual bool IsEmpty() MOZ_OVERRIDE;
-  virtual bool IsSelfEmpty() MOZ_OVERRIDE;
+  virtual bool IsEmpty();
+  virtual bool IsSelfEmpty();
   virtual nscoord GetBaseline() const;
 
   float GetFontSizeInflation() const;
@@ -99,8 +118,6 @@ public:
   void SetFontSizeInflation(float aInflation);
 
 protected:
-  nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-
   void GetDesiredSize(nsPresContext* aPresContext,
                       nsRenderingContext *aRenderingContext,
                       nsHTMLReflowMetrics& aMetrics,
@@ -113,7 +130,7 @@ protected:
   nsRefPtr<nsBulletListener> mListener;
 
   nsSize mIntrinsicSize;
-  int32_t mOrdinal;
+  PRInt32 mOrdinal;
   bool mTextIsRTL;
 
 private:

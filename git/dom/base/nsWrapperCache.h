@@ -12,6 +12,8 @@ struct JSObject;
 struct JSContext;
 class XPCWrappedNativeScope;
 
+typedef PRUptrdiff PtrBits;
+
 namespace mozilla {
 namespace dom {
 namespace workers {
@@ -157,12 +159,6 @@ public:
    */
   bool IsBlack();
 
-  /**
-   * Returns true if the object has a black wrapper,
-   * and all the GC things it is keeping alive are black too.
-   */
-  bool IsBlackAndDoesNotNeedTracing(nsISupports* aThis);
-
   // Only meant to be called by code that preserves a wrapper.
   void SetPreservingWrapper(bool aPreserve)
   {
@@ -181,7 +177,7 @@ private:
   }
   void SetWrapperBits(void *aWrapper)
   {
-    mWrapperPtrBits = reinterpret_cast<uintptr_t>(aWrapper) |
+    mWrapperPtrBits = reinterpret_cast<PtrBits>(aWrapper) |
                       (mWrapperPtrBits & WRAPPER_IS_DOM_BINDING);
   }
 
@@ -206,7 +202,7 @@ private:
 
   enum { kWrapperBitMask = (WRAPPER_BIT_PRESERVED | WRAPPER_IS_DOM_BINDING) };
 
-  uintptr_t mWrapperPtrBits;
+  PtrBits mWrapperPtrBits;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsWrapperCache, NS_WRAPPERCACHE_IID)
@@ -225,9 +221,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsWrapperCache, NS_WRAPPERCACHE_IID)
 
 #define NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER \
   nsContentUtils::ReleaseWrapper(s, tmp);
-
-#define NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER_NATIVE \
-  nsContentUtils::ReleaseWrapper(tmp, tmp);
 
 #define NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(_class) \
   NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(_class)              \

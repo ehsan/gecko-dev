@@ -32,13 +32,10 @@
 #include "hb-font.h"
 #include "hb-buffer.h"
 
-/* buffer var allocations, used during the normalization process */
-#define glyph_index()	var1.u32
 
 enum hb_ot_shape_normalization_mode_t {
   HB_OT_SHAPE_NORMALIZATION_MODE_DECOMPOSED,
   HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS, /* never composes base-to-base */
-  HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS_NO_SHORT_CIRCUIT, /* always fully decomposes and then recompose back */
   HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_FULL, /* including base-to-base composition */
 
   HB_OT_SHAPE_NORMALIZATION_MODE_DEFAULT = HB_OT_SHAPE_NORMALIZATION_MODE_COMPOSED_DIACRITICS

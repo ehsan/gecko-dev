@@ -38,10 +38,10 @@ public:
   nsHTMLTokenizer(nsDTDMode aParseMode = eDTDMode_quirks,
                   eParserDocType aDocType = eHTML_Quirks,
                   eParserCommands aCommand = eViewNormal,
-                  uint32_t aFlags = 0);
+                  PRUint32 aFlags = 0);
   virtual ~nsHTMLTokenizer();
 
-  static uint32_t GetFlags(const nsIContentSink* aSink);
+  static PRUint32 GetFlags(const nsIContentSink* aSink);
 
 protected:
 
@@ -67,8 +67,8 @@ protected:
   // This variable saves the position of the last tag we inspected in
   // ScanDocStructure. We start scanning the general well-formedness of the
   // document starting at this position each time.
-  int32_t            mTokenScanPos;
-  uint32_t           mFlags;
+  PRInt32            mTokenScanPos;
+  PRUint32           mFlags;
 };
 
 #endif

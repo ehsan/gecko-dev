@@ -33,21 +33,21 @@
  */
 
 typedef struct Allocation {
-    int32_t     start;
-    int32_t     count;
+    PRInt32     start;
+    PRInt32     count;
 } Allocation;
 
 nsresult
-StressTest(nsIFile *  localFile, int32_t  testNumber, bool readWrite)
+StressTest(nsIFile *  localFile, PRInt32  testNumber, bool readWrite)
 {
     nsresult  rv = NS_OK;
 
 #define ITERATIONS      1024
 #define MAX_ALLOCATIONS 256
     Allocation  block[MAX_ALLOCATIONS];
-    int32_t     currentAllocations = 0;
-    int32_t     i;
-    uint32_t    a;
+    PRInt32     currentAllocations = 0;
+    PRInt32     i;
+    PRUint32    a;
 
     char * writeBuf[4];
     char   readBuf[256 * 4];
@@ -242,9 +242,9 @@ main(void)
         //----------------------------------------------------------------
         //  local variables used in tests
         //----------------------------------------------------------------
-        uint32_t bytesWritten = 0;
-        int32_t  startBlock;
-        int32_t  i = 0;
+        PRUint32 bytesWritten = 0;
+        PRInt32  startBlock;
+        PRInt32  i = 0;
 
 
         //----------------------------------------------------------------
@@ -438,7 +438,7 @@ main(void)
         //----------------------------------------------------------------
         //  Test 8: LastBlock
         //----------------------------------------------------------------
-        int32_t  lastBlock = blockFile->LastBlock();
+        PRInt32  lastBlock = blockFile->LastBlock();
         if (lastBlock != 11) {
             printf("Test 8: failed (LastBlock() returned: %d)\n", lastBlock);
             goto exit;

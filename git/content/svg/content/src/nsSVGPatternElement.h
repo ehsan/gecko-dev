@@ -52,7 +52,7 @@ public:
   // FitToViewbox
   NS_DECL_NSIDOMSVGFITTOVIEWBOX
 
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsSVGElement::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGElement::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGElement::)
 
@@ -69,7 +69,7 @@ public:
   virtual bool HasValidDimensions() const;
 
   virtual mozilla::SVGAnimatedTransformList*
-    GetAnimatedTransformList(uint32_t aFlags = 0);
+    GetAnimatedTransformList(PRUint32 aFlags = 0);
   virtual nsIAtom* GetTransformListAttrName() const {
     return nsGkAtoms::patternTransform;
   }

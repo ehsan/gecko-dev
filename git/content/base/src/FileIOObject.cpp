@@ -5,7 +5,7 @@
 
 #include "FileIOObject.h"
 #include "nsDOMFile.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMProgressEvent.h"
 #include "nsComponentManagerUtils.h"
@@ -18,7 +18,7 @@
 namespace mozilla {
 namespace dom {
 
-const uint64_t kUnknownSize = uint64_t(-1);
+const PRUint64 kUnknownSize = PRUint64(-1);
 
 NS_IMPL_ADDREF_INHERITED(FileIOObject, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(FileIOObject, nsDOMEventTargetHelper)
@@ -34,20 +34,20 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(FileIOObject)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(FileIOObject,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mProgressNotifier)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(abort)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(error)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(progress)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mError)
-  // Can't traverse mChannel because it's a multithreaded object.
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(FileIOObject,
                                                 nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mProgressNotifier)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(abort)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(error)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(progress)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mError)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChannel)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
- 
-NS_IMPL_EVENT_HANDLER(FileIOObject, abort);
-NS_IMPL_EVENT_HANDLER(FileIOObject, error);
-NS_IMPL_EVENT_HANDLER(FileIOObject, progress);
 
 FileIOObject::FileIOObject()
   : mProgressEventWasDelayed(false),
@@ -116,7 +116,7 @@ FileIOObject::DispatchProgressEvent(const nsAString& aType)
   NS_ENSURE_TRUE(progress, NS_ERROR_UNEXPECTED);
 
   bool known;
-  uint64_t size;
+  PRUint64 size;
   if (mTotal != kUnknownSize) {
     known = true;
     size = mTotal;
@@ -165,8 +165,8 @@ NS_IMETHODIMP
 FileIOObject::OnDataAvailable(nsIRequest *aRequest,
                               nsISupports *aContext,
                               nsIInputStream *aInputStream,
-                              uint64_t aOffset,
-                              uint32_t aCount)
+                              PRUint32 aOffset,
+                              PRUint32 aCount)
 {
   nsresult rv;
   rv = DoOnDataAvailable(aRequest, aContext, aInputStream, aOffset, aCount);
@@ -246,7 +246,7 @@ FileIOObject::Abort()
 }
 
 NS_IMETHODIMP
-FileIOObject::GetReadyState(uint16_t *aReadyState)
+FileIOObject::GetReadyState(PRUint16 *aReadyState)
 {
   *aReadyState = mReadyState;
   return NS_OK;

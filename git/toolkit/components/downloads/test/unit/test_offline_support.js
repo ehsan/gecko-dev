@@ -48,7 +48,7 @@ function run_test()
   /**
    * 2. Start the http server that can handle resume
    */
-  let httpserv = new HttpServer();
+  let httpserv = new nsHttpServer();
   let didResumeServer = false;
   httpserv.registerPathHandler("/resume", function(meta, resp) {
     let body = data;
@@ -143,9 +143,9 @@ function run_test()
   let dl = dm.addDownload(nsIDM.DOWNLOAD_TYPE_DOWNLOAD,
                           createURI("http://localhost:4444/resume"),
                           createURI(destFile), null, null,
-                          Math.round(Date.now() * 1000), null, persist, false);
+                          Math.round(Date.now() * 1000), null, persist);
   persist.progressListener = dl.QueryInterface(nsIWPL);
-  persist.saveURI(dl.source, null, null, null, null, dl.targetFile, null);
+  persist.saveURI(dl.source, null, null, null, null, dl.targetFile);
 
   // Mark as pending, so clear this when we actually finish the download
   do_test_pending();

@@ -3,14 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
 #include "ThebesLayerBuffer.h"
 #include "Layers.h"
 #include "gfxContext.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
-#include "ipc/AutoOpenSurface.h"
 #include "nsDeviceContext.h"
 #include "sampler.h"
 
@@ -60,7 +57,7 @@ ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
                      true);
 
   gfxPoint quadrantTranslation(quadrantRect.x, quadrantRect.y);
-  nsRefPtr<gfxPattern> pattern = new gfxPattern(EnsureBuffer());
+  nsRefPtr<gfxPattern> pattern = new gfxPattern(mBuffer);
 
 #ifdef MOZ_GFX_OPTIMIZE_MOBILE
   gfxPattern::GraphicsFilter filter = gfxPattern::FILTER_NEAREST;
@@ -116,11 +113,11 @@ ThebesLayerBuffer::DrawBufferWithRotation(gfxContext* aTarget, float aOpacity,
 already_AddRefed<gfxContext>
 ThebesLayerBuffer::GetContextForQuadrantUpdate(const nsIntRect& aBounds)
 {
-  nsRefPtr<gfxContext> ctx = new gfxContext(EnsureBuffer());
+  nsRefPtr<gfxContext> ctx = new gfxContext(mBuffer);
 
   // Figure out which quadrant to draw in
-  int32_t xBoundary = mBufferRect.XMost() - mBufferRotation.x;
-  int32_t yBoundary = mBufferRect.YMost() - mBufferRotation.y;
+  PRInt32 xBoundary = mBufferRect.XMost() - mBufferRotation.x;
+  PRInt32 yBoundary = mBufferRect.YMost() - mBufferRotation.y;
   XSide sideX = aBounds.XMost() <= xBoundary ? RIGHT : LEFT;
   YSide sideY = aBounds.YMost() <= yBoundary ? BOTTOM : TOP;
   nsIntRect quadrantRect = GetQuadrantRectangle(sideX, sideY);
@@ -130,37 +127,8 @@ ThebesLayerBuffer::GetContextForQuadrantUpdate(const nsIntRect& aBounds)
   return ctx.forget();
 }
 
-gfxASurface::gfxContentType
-ThebesLayerBuffer::BufferContentType()
-{
-  return mBuffer ? mBuffer->GetContentType() : mBufferProvider->ContentType();
-}
-
-bool
-ThebesLayerBuffer::BufferSizeOkFor(const nsIntSize& aSize)
-{
-  return (aSize == mBufferRect.Size() ||
-          (SizedToVisibleBounds != mBufferSizePolicy &&
-           aSize < mBufferRect.Size()));
-}
-
-gfxASurface*
-ThebesLayerBuffer::EnsureBuffer()
-{
-  if (!mBuffer && mBufferProvider) {
-    mBuffer = mBufferProvider->Get();
-  }
-  return mBuffer;
-}
-
-bool
-ThebesLayerBuffer::HaveBuffer()
-{
-  return mBuffer || mBufferProvider;
-}
-
 static void
-WrapRotationAxis(int32_t* aRotationPoint, int32_t aSize)
+WrapRotationAxis(PRInt32* aRotationPoint, PRInt32 aSize)
 {
   if (*aRotationPoint < 0) {
     *aRotationPoint += aSize;
@@ -169,22 +137,9 @@ WrapRotationAxis(int32_t* aRotationPoint, int32_t aSize)
   }
 }
 
-static nsIntRect
-ComputeBufferRect(const nsIntRect& aRequestedRect)
-{
-  nsIntRect rect(aRequestedRect);
-  // Set a minimum width to guarantee a minimum size of buffers we
-  // allocate (and work around problems on some platforms with smaller
-  // dimensions).  64 is the magic number needed to work around the
-  // rendering glitch, and guarantees image rows can be SIMD'd for
-  // even r5g6b5 surfaces pretty much everywhere.
-  rect.width = NS_MAX(aRequestedRect.width, 64);
-  return rect;
-}
-
 ThebesLayerBuffer::PaintState
 ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
-                              uint32_t aFlags)
+                              PRUint32 aFlags)
 {
   PaintState result;
   // We need to disable rotation if we're going to be resampled when
@@ -201,7 +156,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
   while (true) {
     contentType = aContentType;
     neededRegion = aLayer->GetVisibleRegion();
-    canReuseBuffer = HaveBuffer() && BufferSizeOkFor(neededRegion.GetBounds().Size());
+    canReuseBuffer = mBuffer && BufferSizeOkFor(neededRegion.GetBounds().Size());
 
     if (canReuseBuffer) {
       if (mBufferRect.Contains(neededRegion.GetBounds())) {
@@ -215,8 +170,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
         destBufferRect = neededRegion.GetBounds();
       }
     } else {
-      // We won't be reusing the buffer.  Compute a new rect.
-      destBufferRect = ComputeBufferRect(neededRegion.GetBounds());
+      destBufferRect = neededRegion.GetBounds();
     }
 
     if ((aFlags & PAINT_WILL_RESAMPLE) &&
@@ -230,7 +184,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       neededRegion = destBufferRect;
     }
 
-    if (HaveBuffer() && contentType != BufferContentType()) {
+    if (mBuffer && contentType != mBuffer->GetContentType()) {
       // We're effectively clearing the valid region, so we need to draw
       // the entire needed region now.
       result.mRegionToInvalidate = aLayer->GetValidRegion();
@@ -253,7 +207,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
 
   nsIntRect drawBounds = result.mRegionToDraw.GetBounds();
   nsRefPtr<gfxASurface> destBuffer;
-  uint32_t bufferFlags = canHaveRotation ? ALLOW_REPEAT : 0;
+  PRUint32 bufferFlags = canHaveRotation ? ALLOW_REPEAT : 0;
   if (canReuseBuffer) {
     nsIntRect keepArea;
     if (keepArea.IntersectRect(destBufferRect, mBufferRect)) {
@@ -266,8 +220,8 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       WrapRotationAxis(&newRotation.y, mBufferRect.height);
       NS_ASSERTION(nsIntRect(nsIntPoint(0,0), mBufferRect.Size()).Contains(newRotation),
                    "newRotation out of bounds");
-      int32_t xBoundary = destBufferRect.XMost() - newRotation.x;
-      int32_t yBoundary = destBufferRect.YMost() - newRotation.y;
+      PRInt32 xBoundary = destBufferRect.XMost() - newRotation.x;
+      PRInt32 yBoundary = destBufferRect.YMost() - newRotation.y;
       if ((drawBounds.x < xBoundary && xBoundary < drawBounds.XMost()) ||
           (drawBounds.y < yBoundary && yBoundary < drawBounds.YMost()) ||
           (newRotation != nsIntPoint(0,0) && !canHaveRotation)) {
@@ -277,7 +231,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
         if (mBufferRotation == nsIntPoint(0,0)) {
           nsIntRect srcRect(nsIntPoint(0, 0), mBufferRect.Size());
           nsIntPoint dest = mBufferRect.TopLeft() - destBufferRect.TopLeft();
-          EnsureBuffer()->MovePixels(srcRect, dest);
+          mBuffer->MovePixels(srcRect, dest);
           result.mDidSelfCopy = true;
           // Don't set destBuffer; we special-case self-copies, and
           // just did the necessary work above.
@@ -285,7 +239,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
         } else {
           // We can't do a real self-copy because the buffer is rotated.
           // So allocate a new buffer for the destination.
-          destBufferRect = ComputeBufferRect(neededRegion.GetBounds());
+          destBufferRect = neededRegion.GetBounds();
           destBuffer = CreateBuffer(contentType, destBufferRect.Size(), bufferFlags);
           if (!destBuffer)
             return result;
@@ -312,10 +266,10 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
 
   // If we have no buffered data already, then destBuffer will be a fresh buffer
   // and we do not need to clear it below.
-  bool isClear = !HaveBuffer();
+  bool isClear = mBuffer == nullptr;
 
   if (destBuffer) {
-    if (HaveBuffer()) {
+    if (mBuffer) {
       // Copy the bits
       nsRefPtr<gfxContext> tmpCtx = new gfxContext(destBuffer);
       nsIntPoint offset = -destBufferRect.TopLeft();

@@ -97,7 +97,7 @@ protected:
 
 public:
   ColorModel
-  GetInputColorModel(nsSVGFilterInstance* aInstance, int32_t aInputIndex,
+  GetInputColorModel(nsSVGFilterInstance* aInstance, PRInt32 aInputIndex,
                      Image* aImage) {
     return ColorModel(
           (OperatesOnSRGB(aInstance, aInputIndex, aImage) ?
@@ -177,24 +177,24 @@ public:
   // returns true if changes to the attribute should cause us to
   // repaint the filter
   virtual bool AttributeAffectsRendering(
-          int32_t aNameSpaceID, nsIAtom* aAttribute) const;
+          PRInt32 aNameSpaceID, nsIAtom* aAttribute) const;
 
   static nsIntRect GetMaxRect() {
     // Try to avoid overflow errors dealing with this rect. It will
     // be intersected with some other reasonable-sized rect eventually.
-    return nsIntRect(INT32_MIN/2, INT32_MIN/2, INT32_MAX, INT32_MAX);
+    return nsIntRect(PR_INT32_MIN/2, PR_INT32_MIN/2, PR_INT32_MAX, PR_INT32_MAX);
   }
 
   operator nsISupports*() { return static_cast<nsIContent*>(this); }
   
 protected:
-  virtual bool OperatesOnPremultipledAlpha(int32_t) { return true; }
+  virtual bool OperatesOnPremultipledAlpha(PRInt32) { return true; }
 
   // Called either with aInputIndex >=0 in which case this is
   // testing whether the input 'aInputIndex' should be SRGB, or
   // if aInputIndex is -1 returns true if the output will be SRGB
   virtual bool OperatesOnSRGB(nsSVGFilterInstance* aInstance,
-                                int32_t aInputIndex, Image* aImage) {
+                                PRInt32 aInputIndex, Image* aImage) {
     nsIFrame* frame = GetPrimaryFrame();
     if (!frame) return false;
 
@@ -241,7 +241,7 @@ public:
                           const Image* aTarget,
                           const nsIntRect& aDataRect);
   virtual bool AttributeAffectsRendering(
-          int32_t aNameSpaceID, nsIAtom* aAttribute) const;
+          PRInt32 aNameSpaceID, nsIAtom* aAttribute) const;
   virtual nsSVGString& GetResultImageName() { return mStringAttributes[RESULT]; }
   virtual nsIntRect ComputeTargetBBox(const nsTArray<nsIntRect>& aSourceBBoxes,
           const nsSVGFilterInstance& aInstance);
@@ -251,7 +251,7 @@ public:
 
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGFEImageElementBase::)
 
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsSVGFEImageElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGFEImageElementBase::)
 
   // nsIContent
@@ -259,15 +259,23 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  virtual nsresult AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+  virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue, bool aNotify);
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               bool aCompileEventHandlers);
-  virtual void UnbindFromTree(bool aDeep, bool aNullParent);
   virtual nsEventStates IntrinsicState() const;
 
-  NS_IMETHODIMP Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData);
+  // imgIDecoderObserver
+  NS_IMETHOD OnStopDecode(imgIRequest *aRequest, nsresult status,
+                          const PRUnichar *statusArg);
+  // imgIContainerObserver
+  NS_IMETHOD FrameChanged(imgIRequest* aRequest,
+                          imgIContainer *aContainer,
+                          const nsIntRect *aDirtyRect);
+  // imgIContainerObserver
+  NS_IMETHOD OnStartContainer(imgIRequest *aRequest,
+                              imgIContainer *aContainer);
 
   void MaybeLoadSVGImage();
 
@@ -282,7 +290,7 @@ private:
 
 protected:
   virtual bool OperatesOnSRGB(nsSVGFilterInstance*,
-                                int32_t, Image*) { return true; }
+                                PRInt32, Image*) { return true; }
 
   virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
@@ -306,7 +314,7 @@ public:
   // returns true if changes to the attribute should cause us to
   // repaint the filter
   virtual bool AttributeAffectsRendering(
-          int32_t aNameSpaceID, nsIAtom* aAttribute) const = 0;
+          PRInt32 aNameSpaceID, nsIAtom* aAttribute) const = 0;
 };
 
 #endif

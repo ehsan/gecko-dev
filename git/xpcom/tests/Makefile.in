@@ -12,7 +12,6 @@ relativesrcdir = @relativesrcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= xpcom
-FAIL_ON_WARNINGS = 1
 
 DIRS		= \
   external \
@@ -61,6 +60,7 @@ CPP_UNIT_TESTS = \
                  ShowSSEConfig.cpp \
                  TestAutoPtr.cpp \
                  TestAutoRef.cpp \
+                 TestBloomFilter.cpp \
                  TestCOMArray.cpp \
                  TestCOMPtr.cpp \
                  TestCOMPtrEq.cpp \

@@ -7,10 +7,10 @@ function test() {
 
   let manifest = { // normal provider
     name: "provider 1",
-    origin: "https://example.com",
-    sidebarURL: "https://example.com/browser/browser/base/content/test/social_sidebar.html",
-    workerURL: "https://example.com/browser/browser/base/content/test/social_worker.js",
-    iconURL: "https://example.com/browser/browser/base/content/test/moz.png"
+    origin: "http://example.com",
+    sidebarURL: "http://example.com/browser/browser/base/content/test/social_sidebar.html",
+    workerURL: "http://example.com/browser/browser/base/content/test/social_worker.js",
+    iconURL: "chrome://branding/content/icon48.png"
   };
   runSocialTestWithProvider(manifest, function (finishcb) {
     runSocialTests(tests, undefined, undefined, finishcb);
@@ -28,54 +28,98 @@ var tests = {
     }
 
     function triggerIconPanel() {
-      let statusIcon = document.querySelector("#social-toolbar-item > box");
-      info("status icon is " + statusIcon);
-      waitForCondition(function() {
-        statusIcon = document.querySelector("#social-toolbar-item > box");
-        info("status icon is " + statusIcon);
-        return !!statusIcon;
-      }, function() {
-        // Click the button to trigger its contentPanel
-        let panel = document.getElementById("social-notification-panel");
-        EventUtils.synthesizeMouseAtCenter(statusIcon, {});
-      }, "Status icon didn't become non-hidden");
+      let statusIcons = document.getElementById("social-status-iconbox");
+      ok(!statusIcons.firstChild.collapsed, "status icon is visible");
+      // Click the button to trigger its contentPanel
+      let panel = document.getElementById("social-notification-panel");
+      EventUtils.synthesizeMouseAtCenter(statusIcons.firstChild, {});
     }
 
-    let port = Social.provider.getWorkerPort();
+    let port = Social.provider.port;
     ok(port, "provider has a port");
-    port.onmessage = function (e) {
+    port.postMessage({topic: "test-init"});
+    Social.provider.port.onmessage = function (e) {
       let topic = e.data.topic;
       switch (topic) {
-        case "test-init-done":
-          iconsReady = true;
-          checkNext();
-          break;
         case "got-panel-message":
           ok(true, "got panel message");
-          // Check the panel isn't in our history.
-          ensureSocialUrlNotRemembered(e.data.location);
-          break;
-        case "got-social-panel-visibility":
-          if (e.data.result == "shown") {
-            ok(true, "panel shown");
-            let panel = document.getElementById("social-notification-panel");
-            panel.hidePopup();
-          } else if (e.data.result == "hidden") {
-            ok(true, "panel hidden");
-            port.close();
+          // Wait for the panel to close before ending the test
+          let panel = document.getElementById("social-notification-panel");
+          panel.addEventListener("popuphidden", function hiddenListener() {
+            panel.removeEventListener("popuphidden", hiddenListener);
             next();
-          }
+          });
+          panel.hidePopup();
           break;
         case "got-sidebar-message":
           // The sidebar message will always come first, since it loads by default
           ok(true, "got sidebar message");
           gotSidebarMessage = true;
-          // load a status panel
-          port.postMessage({topic: "test-ambient-notification"});
           checkNext();
           break;
       }
     }
-    port.postMessage({topic: "test-init"});
+
+    // Our worker sets up ambient notification at the same time as it responds to
+    // the workerAPI initialization. If it's already initialized, we can
+    // immediately check the icons, otherwise wait for initialization by
+    // observing the topic sent out by the social service.
+    if (Social.provider.workerAPI.initialized) {
+      iconsReady = true;
+      checkNext();
+    } else {
+      Services.obs.addObserver(function obs() {
+        Services.obs.removeObserver(obs, "social:ambient-notification-changed");
+        // Let the other observers (like the one that updates the UI) run before
+        // checking the icons.
+        executeSoon(function () {
+          iconsReady = true;
+          checkNext();
+        });
+      }, "social:ambient-notification-changed", false);
+    }
+  },
+
+  testServiceWindow: function(next) {
+    // our test provider was initialized in the test above, we just
+    // initiate our specific test now.
+    let port = Social.provider.port;
+    ok(port, "provider has a port");
+    port.postMessage({topic: "test-service-window"});
+    port.onmessage = function (e) {
+      let topic = e.data.topic;
+      switch (topic) {
+        case "got-service-window-message":
+          // The sidebar message will always come first, since it loads by default
+          ok(true, "got service window message");
+          port.postMessage({topic: "test-close-service-window"});
+          break;
+        case "got-service-window-closed-message":
+          ok(true, "got service window closed message");
+          next();
+          break;
+      }
+    }
+  },
+
+  testServiceWindowTwice: function(next) {
+    let port = Social.provider.port;
+    port.postMessage({topic: "test-service-window-twice"});
+    Social.provider.port.onmessage = function (e) {
+      let topic = e.data.topic;
+      switch (topic) {
+        case "test-service-window-twice-result":
+          is(e.data.result, "ok", "only one window should open when name is reused");
+          break;
+        case "got-service-window-message":
+          ok(true, "got service window message");
+          port.postMessage({topic: "test-close-service-window"});
+          break;
+        case "got-service-window-closed-message":
+          ok(true, "got service window closed message");
+          next();
+          break;
+      }
+    }
   }
 }

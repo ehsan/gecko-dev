@@ -79,11 +79,12 @@ MOCHITEST_FILES = \
 		test_bug738366.html \
 		test_bug757371.html \
 		test_bug767684.html \
-		test_bug780035.html \
-		test_bug787432.html \
-		test_bug796839.html \
-		test_spellcheck_pref.html \
 		$(NULL)
+
+ifneq (mobile,$(MOZ_BUILD_APP))
+MOCHITEST_FILES +=  test_spellcheck_pref.html \
+		$(NULL)
+endif
 
 _DATA_FILES = \
 		data/cfhtml-chromium.txt \
@@ -101,7 +102,6 @@ MOCHITEST_CHROME_FILES = \
 		test_bug607584.xul \
 		test_bug616590.xul \
 		test_bug635636.html \
-		test_bug780908.xul \
 		green.png \
 		$(NULL)
 

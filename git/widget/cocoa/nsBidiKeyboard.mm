@@ -23,11 +23,11 @@ nsBidiKeyboard::~nsBidiKeyboard()
 
 NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(bool *aIsRTL)
 {
-  *aIsRTL = TISInputSourceWrapper::CurrentInputSource().IsForRTLLanguage();
+  *aIsRTL = TISInputSourceWrapper::CurrentKeyboardLayout().IsForRTLLanguage();
   return NS_OK;
 }
 
-NS_IMETHODIMP nsBidiKeyboard::SetLangFromBidiLevel(uint8_t aLevel)
+NS_IMETHODIMP nsBidiKeyboard::SetLangFromBidiLevel(PRUint8 aLevel)
 {
   // XXX Insert platform specific code to set keyboard language
   return NS_OK;

@@ -10,7 +10,7 @@ interface nsIURI;
 interface nsIChannel;
 interface nsIDocShell;
 
-[scriptable, uuid(2182f772-16c8-4b6d-be65-921d4da5751d)]
+[scriptable, uuid(75a7afe3-d7c9-46fe-b305-ae686457bc7f)]
 interface nsIScriptSecurityManager : nsIXPCSecurityManager
 {
     ///////////////// Security Checks //////////////////
@@ -21,7 +21,7 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
                                         in JSObjectPtr aJSObject,
                                         in string aClassName,
                                         in jsid aProperty,
-                                        in uint32_t aAction);
+                                        in PRUint32 aAction);
 
     /**
      * Check that the script currently running in context "cx" can load "uri".
@@ -70,10 +70,6 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
     // When using this, make sure that you actually want DISALLOW_SCRIPT, not
     // DISALLOW_INHERIT_PRINCIPAL
     const unsigned long DISALLOW_SCRIPT = 1 << 3;
-
-    // Do not report errors if we just want to check if a principal can load
-    // a URI to not unnecessarily spam the error console.
-    const unsigned long DONT_REPORT_ERRORS = 1 << 4;
 
     /**
      * Check that content with principal aPrincipal can load "uri".
@@ -266,9 +262,12 @@ interface nsIScriptSecurityManager : nsIXPCSecurityManager
      * principal.
      */
     [noscript,notxpcom] nsIPrincipal getCxSubjectPrincipal(in JSContextPtr cx);
+    [noscript,notxpcom] nsIPrincipal getCxSubjectPrincipalAndFrame(in JSContextPtr cx,
+                                                                   out JSStackFramePtr fp);
+
 
     const unsigned long NO_APP_ID = 0;
-    const unsigned long UNKNOWN_APP_ID = 4294967295; // UINT32_MAX
+    const unsigned long UNKNOWN_APP_ID = 4294967295; // PR_UINT32_MAX
 
     /**
      * Returns the extended origin for the uri.

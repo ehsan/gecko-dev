@@ -48,20 +48,20 @@ HTMLImageMapAccessible::NativeRole()
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLImageMapAccessible: HyperLinkAccessible
 
-uint32_t
+PRUint32
 HTMLImageMapAccessible::AnchorCount()
 {
   return ChildCount();
 }
 
 Accessible*
-HTMLImageMapAccessible::AnchorAt(uint32_t aAnchorIndex)
+HTMLImageMapAccessible::AnchorAt(PRUint32 aAnchorIndex)
 {
   return GetChildAt(aAnchorIndex);
 }
 
 already_AddRefed<nsIURI>
-HTMLImageMapAccessible::AnchorURIAt(uint32_t aAnchorIndex)
+HTMLImageMapAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
 {
   Accessible* area = GetChildAt(aAnchorIndex);
   if (!area)
@@ -87,7 +87,7 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
   bool doReorderEvent = false;
 
   // Remove areas that are not a valid part of the image map anymore.
-  for (int32_t childIdx = mChildren.Length() - 1; childIdx >= 0; childIdx--) {
+  for (PRInt32 childIdx = mChildren.Length() - 1; childIdx >= 0; childIdx--) {
     Accessible* area = mChildren.ElementAt(childIdx);
     if (area->GetContent()->GetPrimaryFrame())
       continue;
@@ -102,8 +102,8 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
   }
 
   // Insert new areas into the tree.
-  uint32_t areaElmCount = imageMapObj->AreaCount();
-  for (uint32_t idx = 0; idx < areaElmCount; idx++) {
+  PRUint32 areaElmCount = imageMapObj->AreaCount();
+  for (PRUint32 idx = 0; idx < areaElmCount; idx++) {
     nsIContent* areaContent = imageMapObj->GetAreaAt(idx);
 
     Accessible* area = mChildren.SafeElementAt(idx);
@@ -152,25 +152,24 @@ HTMLAreaAccessible::
   HTMLAreaAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   HTMLLinkAccessible(aContent, aDoc)
 {
-  // Make HTML area DOM element not accessible. HTML image map accessible
-  // manages its tree itself.
-  mFlags |= eNotNodeMapEntry;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLAreaAccessible: nsIAccessible
 
-ENameValueFlag
-HTMLAreaAccessible::NativeName(nsString& aName)
+nsresult
+HTMLAreaAccessible::GetNameInternal(nsAString& aName)
 {
-  ENameValueFlag nameFlag = Accessible::NativeName(aName);
+  nsresult rv = Accessible::GetNameInternal(aName);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   if (!aName.IsEmpty())
-    return nameFlag;
+    return NS_OK;
 
   if (!mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::alt, aName))
-    GetValue(aName);
+    return GetValue(aName);
 
-  return eNameOK;
+  return NS_OK;
 }
 
 void
@@ -185,10 +184,21 @@ HTMLAreaAccessible::Description(nsString& aDescription)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// HTMLAreaAccessible: nsAccessNode public
+
+bool
+HTMLAreaAccessible::IsPrimaryForNode() const
+{
+  // Make HTML area DOM element not accessible. HTML image map accessible
+  // manages its tree itself.
+  return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // HTMLAreaAccessible: Accessible public
 
 Accessible*
-HTMLAreaAccessible::ChildAtPoint(int32_t aX, int32_t aY,
+HTMLAreaAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                  EWhichChildAtPoint aWhichChild)
 {
   // Don't walk into area accessibles.
@@ -198,7 +208,7 @@ HTMLAreaAccessible::ChildAtPoint(int32_t aX, int32_t aY,
 ////////////////////////////////////////////////////////////////////////////////
 // HTMLImageMapAccessible: HyperLinkAccessible
 
-uint32_t
+PRUint32
 HTMLAreaAccessible::StartOffset()
 {
   // Image map accessible is not hypertext accessible therefore
@@ -209,7 +219,7 @@ HTMLAreaAccessible::StartOffset()
   return IndexInParent();
 }
 
-uint32_t
+PRUint32
 HTMLAreaAccessible::EndOffset()
 {
   return IndexInParent() + 1;

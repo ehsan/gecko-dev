@@ -29,7 +29,7 @@ nsCategoryImp* nsCategoryImp::GetInstance()
   return &gCategoryImp;
 }
 
-nsIUGenCategory::nsUGenCategory nsCategoryImp::Get(uint32_t aChar)
+nsIUGenCategory::nsUGenCategory nsCategoryImp::Get(PRUint32 aChar)
 {
   return mozilla::unicode::GetGenCategory(aChar);
 }

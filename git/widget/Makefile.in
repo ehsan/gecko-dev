@@ -72,7 +72,6 @@ EXPORTS		= \
 		nsINativeKeyBindings.h \
 		nsIDeviceContextSpec.h \
 		nsIRollupListener.h \
-		nsIWidgetListener.h \
 		$(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
@@ -135,6 +134,7 @@ XPIDLSRCS	+= nsIPrintSettingsWin.idl \
 		nsITaskbarPreviewController.idl \
 		nsITaskbarPreviewButton.idl \
 		nsITaskbarProgress.idl \
+		nsITaskbarPreviewButton.idl \
 		nsITaskbarOverlayIconController.idl \
 		nsIJumpListBuilder.idl \
 		nsIJumpListItem.idl \

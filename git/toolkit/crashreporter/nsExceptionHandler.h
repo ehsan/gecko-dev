@@ -40,8 +40,6 @@ nsresult SetMinidumpPath(const nsAString& aPath);
 nsresult AnnotateCrashReport(const nsACString& key, const nsACString& data);
 nsresult AppendAppNotesToCrashReport(const nsACString& data);
 
-nsresult SetGarbageCollecting(bool collecting);
-
 nsresult SetRestartArgs(int argc, char** argv);
 nsresult SetupExtraData(nsIFile* aAppDataDirectory,
                         const nsACString& aBuildID);
@@ -60,8 +58,6 @@ bool GetExtraFileForID(const nsAString& id, nsIFile** extraFile);
 bool GetExtraFileForMinidump(nsIFile* minidump, nsIFile** extraFile);
 bool AppendExtraData(const nsAString& id, const AnnotationTable& data);
 bool AppendExtraData(nsIFile* extraFile, const AnnotationTable& data);
-void RenameAdditionalHangMinidump(nsIFile* minidump, nsIFile* childMinidump,
-                                  const nsACString& name);
 
 #ifdef XP_WIN32
   nsresult WriteMinidumpForException(EXCEPTION_POINTERS* aExceptionInfo);
@@ -82,9 +78,9 @@ void OOPInit();
 // path in |dump|.  The caller owns the last reference to |dump| if it
 // is non-NULL. The sequence parameter will be filled with an ordinal
 // indicating which remote process crashed first.
-bool TakeMinidumpForChild(uint32_t childPid,
+bool TakeMinidumpForChild(PRUint32 childPid,
                           nsIFile** dump,
-                          uint32_t* aSequence = NULL);
+                          PRUint32* aSequence = NULL);
 
 #if defined(XP_WIN)
 typedef HANDLE ProcessHandle;
@@ -105,28 +101,18 @@ typedef int ThreadId;
 // hoops for us.
 ThreadId CurrentThreadId();
 
-// Create a hang report with two minidumps that are snapshots of the state
-// of this parent process and |childPid|. The "main" minidump will be the
-// child process, and this parent process will have the -browser extension.
+// Create new minidumps that are snapshots of the state of this parent
+// process and |childPid|.  Return true on success along with the
+// minidumps and a new UUID that can be used to correlate the dumps.
 //
-// Returns true on success. If this function fails, it will attempt to delete
-// any files that were created.
-//
-// The .extra information created will not include an additional_minidumps
-// annotation: the caller should annotate additional_minidumps with
-// at least "browser" and perhaps other minidumps attached to this report.
+// If this function fails, it's the caller's responsibility to clean
+// up |childDump| and |parentDump|.  Either or both can be created and
+// returned non-null on failure.
 bool CreatePairedMinidumps(ProcessHandle childPid,
                            ThreadId childBlamedThread,
-                           nsIFile** childDump);
-
-// Create an additional minidump for a child of a process which already has
-// a minidump (|parentMinidump|).
-// The resulting dump will get the id of the parent and use the |name| as
-// an extension.
-bool CreateAdditionalChildMinidump(ProcessHandle childPid,
-                                   ThreadId childBlamedThread,
-                                   nsIFile* parentMinidump,
-                                   const nsACString& name);
+                           nsAString* pairGUID,
+                           nsIFile** childDump,
+                           nsIFile** parentDump);
 
 #  if defined(XP_WIN32) || defined(XP_MACOSX)
 // Parent-side API for children
@@ -191,13 +177,13 @@ void AddLibraryMapping(const char* library_name,
                        size_t      mapping_length,
                        size_t      file_offset);
 
-void AddLibraryMappingForChild(uint32_t    childPid,
+void AddLibraryMappingForChild(PRUint32    childPid,
                                const char* library_name,
                                const char* file_id,
                                uintptr_t   start_address,
                                size_t      mapping_length,
                                size_t      file_offset);
-void RemoveLibraryMappingsForChild(uint32_t childPid);
+void RemoveLibraryMappingsForChild(PRUint32 childPid);
 #endif
 }
 

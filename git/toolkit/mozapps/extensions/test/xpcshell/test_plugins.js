@@ -18,7 +18,7 @@ function run_test() {
 
 // Finds the test plugin library
 function get_test_plugin() {
-  var plugins = Services.dirsvc.get("CurProcD", AM_Ci.nsIFile);
+  var plugins = Services.dirsvc.get("CurProcD", AM_Ci.nsILocalFile);
   plugins.append("plugins");
   do_check_true(plugins.exists());
 

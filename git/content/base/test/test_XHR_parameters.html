@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8">
   <title>Test for XMLHttpRequest with system privileges</title>
-  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body onload="runTests();">
 <p id="display">
 </p>
 <div id="content" style="display: none">
-
+  
 </div>
 <pre id="test">
 <script class="testbody" type="application/javascript;version=1.8">
@@ -29,15 +29,15 @@ function runTests() {
     {mozAnon: 1},
     {mozAnon: []},
     {get mozAnon() { return true; }},
+  ];
+
+  let invalidParameters = [
     0,
     7,
     Math.PI,
     "string",
     true,
     false,
-  ];
-
-  let invalidParameters = [
     {get mozSystem() { throw "Bla"; } },
   ];
 
@@ -84,11 +84,11 @@ function runTests() {
 
   // ...and once with privileges.
   havePrivileges = true;
-  SpecialPowers.addPermission("systemXHR", true, document);
-
+  SpecialPowers.setCharPref("dom.systemXHR.whitelist",
+                            "http://mochi.test:8888");
   validParameters.forEach(testValidParameter);
   invalidParameters.forEach(testInvalidParameter);
-  SpecialPowers.removePermission("systemXHR", document);
+  SpecialPowers.clearUserPref("dom.systemXHR.whitelist");
 
   SimpleTest.finish();
 }

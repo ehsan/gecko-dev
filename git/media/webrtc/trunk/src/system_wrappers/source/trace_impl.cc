@@ -17,16 +17,17 @@
 #include "trace_win.h"
 #else
 #include <stdio.h>
+#include <time.h>
 #include <stdarg.h>
 #include "trace_posix.h"
 #endif // _WIN32
 
-#include "system_wrappers/interface/sleep.h"
-
 #define KEY_LEN_CHARS 31
 
 #ifdef _WIN32
-#pragma warning(disable:4355)
+    #pragma warning(disable:4355)
+// VS 2005: Disable warnings for default initialized arrays.
+    #pragma warning(disable:4351)
 #endif // _WIN32
 
 namespace webrtc {
@@ -107,7 +108,14 @@ bool TraceImpl::StopThread()
     // TODO (hellner): why not use condition variables to do this? Or let the
     //                 worker thread die and let this thread flush remaining
     //                 messages?
-    SleepMs(10);
+#ifdef _WIN32
+    Sleep(10);
+#else
+    timespec t;
+    t.tv_sec = 0;
+    t.tv_nsec = 10*1000000;
+    nanosleep(&t,NULL);
+#endif
 
     _thread.SetNotAlive();
     // Make sure the thread finishes as quickly as possible (instead of having

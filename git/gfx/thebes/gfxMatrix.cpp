@@ -5,7 +5,6 @@
 
 #include "gfxMatrix.h"
 #include "cairo.h"
-#include "mozilla/gfx/Tools.h"
 
 #define CAIRO_MATRIX(x) reinterpret_cast<cairo_matrix_t*>((x))
 #define CONST_CAIRO_MATRIX(x) reinterpret_cast<const cairo_matrix_t*>((x))
@@ -128,8 +127,10 @@ gfxMatrix::TransformBounds(const gfxRect& rect) const
 static void NudgeToInteger(double *aVal)
 {
     float f = float(*aVal);
-    mozilla::gfx::NudgeToInteger(&f);
-    *aVal = f;
+    float r = NS_roundf(f);
+    if (f == r) {
+        *aVal = r;
+    }
 }
 
 void

@@ -41,7 +41,7 @@ using namespace mozilla;
 class nsAccessKeyInfo
 {
 public:
-    int32_t mAccesskeyIndex;
+    PRInt32 mAccesskeyIndex;
     nscoord mBeforeWidth, mAccessWidth, mAccessUnderlineSize, mAccessOffset;
 };
 
@@ -61,9 +61,9 @@ NS_IMPL_FRAMEARENA_HELPERS(nsTextBoxFrame)
 
 
 NS_IMETHODIMP
-nsTextBoxFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsTextBoxFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                  nsIAtom*        aAttribute,
-                                 int32_t         aModType)
+                                 PRInt32         aModType)
 {
     bool aResize;
     bool aRedraw;
@@ -392,14 +392,14 @@ nsTextBoxFrame::DrawText(nsRenderingContext& aRenderingContext,
     nscolor overColor;
     nscolor underColor;
     nscolor strikeColor;
-    uint8_t overStyle;
-    uint8_t underStyle;
-    uint8_t strikeStyle;
+    PRUint8 overStyle;
+    PRUint8 underStyle;
+    PRUint8 strikeStyle;
 
     // Begin with no decorations
-    uint8_t decorations = NS_STYLE_TEXT_DECORATION_LINE_NONE;
+    PRUint8 decorations = NS_STYLE_TEXT_DECORATION_LINE_NONE;
     // A mask of all possible decorations.
-    uint8_t decorMask = NS_STYLE_TEXT_DECORATION_LINE_LINES_MASK;
+    PRUint8 decorMask = NS_STYLE_TEXT_DECORATION_LINE_LINES_MASK;
 
     nsIFrame* f = this;
     do {  // find decoration colors
@@ -420,7 +420,7 @@ nsTextBoxFrame::DrawText(nsRenderingContext& aRenderingContext,
             color = nsLayoutUtils::GetColor(f, eCSSProperty_color);
           }
         }
-        uint8_t style = styleText->GetDecorationStyle();
+        PRUint8 style = styleText->GetDecorationStyle();
 
         if (NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE & decorMask &
               styleText->mTextDecorationLine) {
@@ -783,7 +783,7 @@ nsTextBoxFrame::UpdateAccessTitle()
      * toolkit/content/commonDialog.js (setLabelForNode)
      * toolkit/content/widgets/text.xml (formatAccessKey)
      */
-    int32_t menuAccessKey;
+    PRInt32 menuAccessKey;
     nsMenuBarListener::GetMenuAccessKey(&menuAccessKey);
     if (!menuAccessKey || mAccessKey.IsEmpty())
         return;
@@ -804,7 +804,7 @@ nsTextBoxFrame::UpdateAccessTitle()
     }
 
     const nsDependentString& kEllipsis = nsContentUtils::GetLocalizedEllipsis();
-    uint32_t offset = mTitle.Length();
+    PRUint32 offset = mTitle.Length();
     if (StringEndsWith(mTitle, kEllipsis)) {
         offset -= kEllipsis.Length();
     } else if (StringEndsWith(mTitle, OLD_ELLIPSIS)) {
@@ -830,7 +830,7 @@ nsTextBoxFrame::UpdateAccessTitle()
 void
 nsTextBoxFrame::UpdateAccessIndex()
 {
-    int32_t menuAccessKey;
+    PRInt32 menuAccessKey;
     nsMenuBarListener::GetMenuAccessKey(&menuAccessKey);
     if (menuAccessKey) {
         if (mAccessKey.IsEmpty()) {
@@ -1113,7 +1113,7 @@ nsTextBoxFrame::RegUnregAccessKey(bool aDoReg)
     // and (un)register the access key
     nsEventStateManager *esm = PresContext()->EventStateManager();
 
-    uint32_t key = accessKey.First();
+    PRUint32 key = accessKey.First();
     if (aDoReg)
         esm->RegisterAccessKey(mContent, key);
     else

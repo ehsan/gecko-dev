@@ -93,7 +93,7 @@ nsGIOMimeApp::GetCommand(nsACString& aCommand)
 }
 
 NS_IMETHODIMP
-nsGIOMimeApp::GetExpectsURIs(int32_t* aExpects)
+nsGIOMimeApp::GetExpectsURIs(PRInt32* aExpects)
 {
   *aExpects = g_app_info_supports_uris(mApp);
   return NS_OK;
@@ -128,7 +128,7 @@ public:
   NS_DECL_NSIUTF8STRINGENUMERATOR
 
   nsTArray<nsCString> mStrings;
-  uint32_t            mIndex;
+  PRUint32            mIndex;
 };
 
 NS_IMPL_ISUPPORTS1(GIOUTF8StringEnumerator, nsIUTF8StringEnumerator)
@@ -249,7 +249,7 @@ NS_IMETHODIMP
 nsGIOMimeApp::SetAsDefaultForURIScheme(nsACString const& aURIScheme)
 {
   GError *error = NULL;
-  nsAutoCString contentType("x-scheme-handler/");
+  nsCAutoString contentType("x-scheme-handler/");
   contentType.Append(aURIScheme);
 
   g_app_info_set_as_default_for_type(mApp,
@@ -272,7 +272,7 @@ NS_IMETHODIMP
 nsGIOService::GetMimeTypeFromExtension(const nsACString& aExtension,
                                              nsACString& aMimeType)
 {
-  nsAutoCString fileExtToUse("file.");
+  nsCAutoString fileExtToUse("file.");
   fileExtToUse.Append(aExtension);
 
   gboolean result_uncertain;
@@ -362,7 +362,7 @@ nsGIOService::GetDescriptionForMimeType(const nsACString& aMimeType,
 NS_IMETHODIMP
 nsGIOService::ShowURI(nsIURI* aURI)
 {
-  nsAutoCString spec;
+  nsCAutoString spec;
   aURI->GetSpec(spec);
   GError *error = NULL;
   if (!g_app_info_launch_default_for_uri(spec.get(), NULL, &error)) {

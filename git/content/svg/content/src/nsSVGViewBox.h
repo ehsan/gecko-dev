@@ -8,6 +8,7 @@
 
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsDOMError.h"
 #include "nsError.h"
 #include "nsIDOMSVGAnimatedRect.h"
 #include "nsIDOMSVGRect.h"
@@ -64,15 +65,14 @@ public:
                     nsSVGElement *aSVGElement);
 
   nsresult SetBaseValueString(const nsAString& aValue,
-                              nsSVGElement *aSVGElement,
-                              bool aDoSetAttr);
+                              nsSVGElement *aSVGElement);
   void GetBaseValueString(nsAString& aValue) const;
 
   nsresult ToDOMAnimatedRect(nsIDOMSVGAnimatedRect **aResult,
                              nsSVGElement *aSVGElement);
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
-
+  
 private:
 
   nsSVGViewBoxRect mBaseVal;

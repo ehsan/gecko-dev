@@ -65,10 +65,10 @@ public:
   void FreeGlobalPrinters();
 
   bool         PrintersAreAllocated() { return mPrinters != nullptr; }
-  LPWSTR       GetItemFromList(int32_t aInx) { return mPrinters?mPrinters->ElementAt(aInx):nullptr; }
+  LPWSTR       GetItemFromList(PRInt32 aInx) { return mPrinters?mPrinters->ElementAt(aInx):nullptr; }
   nsresult     EnumeratePrinterList();
   void         GetDefaultPrinterName(nsString& aDefaultPrinterName);
-  uint32_t     GetNumPrinters() { return mPrinters?mPrinters->Length():0; }
+  PRUint32     GetNumPrinters() { return mPrinters?mPrinters->Length():0; }
 
 protected:
   GlobalPrinters() {}
@@ -138,7 +138,7 @@ const NativePaperSizes kPaperSizes[] = {
   {DMPAPER_FANFOLD_STD_GERMAN, 8.5, 12.0, true},  
   {DMPAPER_FANFOLD_LGL_GERMAN, 8.5, 13.0, true},  
 };
-const int32_t kNumPaperSizes = 41;
+const PRInt32 kNumPaperSizes = 41;
 
 //----------------------------------------------------------------------------------
 nsDeviceContextSpecWin::nsDeviceContextSpecWin()
@@ -298,7 +298,7 @@ GetFileNameForPrintSettings(nsIPrintSettings* aPS)
     nsMemory::Free(fileName);
   }
 
-  int16_t dialogResult;
+  PRInt16 dialogResult;
   filePicker->Show(&dialogResult);
 
   if (dialogResult == nsIFilePicker::returnCancel) {
@@ -471,7 +471,7 @@ NS_IMETHODIMP nsDeviceContextSpecWin::GetSurfaceForPrinter(gfxASurface **surface
 
   nsRefPtr<gfxASurface> newSurface;
 
-  int16_t outputFormat = 0;
+  PRInt16 outputFormat = 0;
   if (mPrintSettings) {
     mPrintSettings->GetOutputFormat(&outputFormat);
   }
@@ -550,7 +550,7 @@ nsDeviceContextSpecWin::GetDevMode(LPDEVMODEW &aDevMode)
 // Map an incoming size to a Windows Native enum in the DevMode
 static void 
 MapPaperSizeToNativeEnum(LPDEVMODEW aDevMode,
-                         int16_t   aType, 
+                         PRInt16   aType, 
                          double    aW, 
                          double    aH)
 {
@@ -562,7 +562,7 @@ MapPaperSizeToNativeEnum(LPDEVMODEW aDevMode,
   BOOL doingPaperWidth  = aDevMode->dmFields & DM_PAPERWIDTH;
 #endif
 
-  for (int32_t i=0;i<kNumPaperSizes;i++) {
+  for (PRInt32 i=0;i<kNumPaperSizes;i++) {
     if (kPaperSizes[i].mWidth == aW && kPaperSizes[i].mHeight == aH) {
       aDevMode->dmPaperSize = kPaperSizes[i].mPaperSize;
       aDevMode->dmFields &= ~DM_PAPERLENGTH;
@@ -603,17 +603,17 @@ SetupDevModeFromSettings(LPDEVMODEW aDevMode, nsIPrintSettings* aPrintSettings)
 {
   // Setup paper size
   if (aPrintSettings) {
-    int16_t type;
+    PRInt16 type;
     aPrintSettings->GetPaperSizeType(&type);
     if (type == nsIPrintSettings::kPaperSizeNativeData) {
-      int16_t paperEnum;
+      PRInt16 paperEnum;
       aPrintSettings->GetPaperData(&paperEnum);
       aDevMode->dmPaperSize = paperEnum;
       aDevMode->dmFields &= ~DM_PAPERLENGTH;
       aDevMode->dmFields &= ~DM_PAPERWIDTH;
       aDevMode->dmFields |= DM_PAPERSIZE;
     } else {
-      int16_t unit;
+      PRInt16 unit;
       double width, height;
       aPrintSettings->GetPaperSizeUnit(&unit);
       aPrintSettings->GetPaperWidth(&width);
@@ -622,13 +622,13 @@ SetupDevModeFromSettings(LPDEVMODEW aDevMode, nsIPrintSettings* aPrintSettings)
     }
 
     // Setup Orientation
-    int32_t orientation;
+    PRInt32 orientation;
     aPrintSettings->GetOrientation(&orientation);
     aDevMode->dmOrientation = orientation == nsIPrintSettings::kPortraitOrientation?DMORIENT_PORTRAIT:DMORIENT_LANDSCAPE;
     aDevMode->dmFields |= DM_ORIENTATION;
 
     // Setup Number of Copies
-    int32_t copies;
+    PRInt32 copies;
     aPrintSettings->GetNumCopies(&copies);
     aDevMode->dmCopies = copies;
     aDevMode->dmFields |= DM_COPIES;
@@ -745,14 +745,14 @@ nsDeviceContextSpecWin::SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSett
   BOOL doingPaperWidth  = aDevMode->dmFields & DM_PAPERWIDTH;
 
   if (doingOrientation) {
-    int32_t orientation  = aDevMode->dmOrientation == DMORIENT_PORTRAIT?
-      int32_t(nsIPrintSettings::kPortraitOrientation):nsIPrintSettings::kLandscapeOrientation;
+    PRInt32 orientation  = aDevMode->dmOrientation == DMORIENT_PORTRAIT?
+      PRInt32(nsIPrintSettings::kPortraitOrientation):nsIPrintSettings::kLandscapeOrientation;
     aPrintSettings->SetOrientation(orientation);
   }
 
   // Setup Number of Copies
   if (doingNumCopies) {
-    aPrintSettings->SetNumCopies(int32_t(aDevMode->dmCopies));
+    aPrintSettings->SetNumCopies(PRInt32(aDevMode->dmCopies));
   }
 
   if (aDevMode->dmFields & DM_SCALE) {
@@ -768,23 +768,23 @@ nsDeviceContextSpecWin::SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSett
   if (doingPaperSize) {
     aPrintSettings->SetPaperSizeType(nsIPrintSettings::kPaperSizeNativeData);
     aPrintSettings->SetPaperData(aDevMode->dmPaperSize);
-    for (int32_t i=0;i<kNumPaperSizes;i++) {
+    for (PRInt32 i=0;i<kNumPaperSizes;i++) {
       if (kPaperSizes[i].mPaperSize == aDevMode->dmPaperSize) {
         aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches
-          ?int16_t(nsIPrintSettings::kPaperSizeInches):nsIPrintSettings::kPaperSizeMillimeters);
+          ?PRInt16(nsIPrintSettings::kPaperSizeInches):nsIPrintSettings::kPaperSizeMillimeters);
         break;
       }
     }
 
   } else if (doingPaperLength && doingPaperWidth) {
     bool found = false;
-    for (int32_t i=0;i<kNumPaperSizes;i++) {
+    for (PRInt32 i=0;i<kNumPaperSizes;i++) {
       if (kPaperSizes[i].mPaperSize == aDevMode->dmPaperSize) {
         aPrintSettings->SetPaperSizeType(nsIPrintSettings::kPaperSizeDefined);
         aPrintSettings->SetPaperWidth(kPaperSizes[i].mWidth);
         aPrintSettings->SetPaperHeight(kPaperSizes[i].mHeight);
         aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches
-          ?int16_t(nsIPrintSettings::kPaperSizeInches):nsIPrintSettings::kPaperSizeMillimeters);
+          ?PRInt16(nsIPrintSettings::kPaperSizeInches):nsIPrintSettings::kPaperSizeMillimeters);
         found = true;
         break;
       }
@@ -875,12 +875,12 @@ nsPrinterEnumeratorWin::GetPrinterNameList(nsIStringEnumerator **aPrinterNameLis
     return rv;
   }
 
-  uint32_t numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
+  PRUint32 numPrinters = GlobalPrinters::GetInstance()->GetNumPrinters();
   nsTArray<nsString> *printers = new nsTArray<nsString>(numPrinters);
   if (!printers)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  uint32_t printerInx = 0;
+  PRUint32 printerInx = 0;
   while( printerInx < numPrinters ) {
     LPWSTR name = GlobalPrinters::GetInstance()->GetItemFromList(printerInx++);
     printers->AppendElement(nsDependentString(name));
@@ -918,7 +918,7 @@ void
 GlobalPrinters::FreeGlobalPrinters()
 {
   if (mPrinters != nullptr) {
-    for (uint32_t i=0;i<mPrinters->Length();i++) {
+    for (PRUint32 i=0;i<mPrinters->Length();i++) {
       free(mPrinters->ElementAt(i));
     }
     delete mPrinters;
@@ -1006,7 +1006,7 @@ GlobalPrinters::EnumeratePrinterList()
 
   // put the default printer at the beginning of list
   if (!defPrinterName.IsEmpty()) {
-    for (uint32_t i=0;i<mPrinters->Length();i++) {
+    for (PRUint32 i=0;i<mPrinters->Length();i++) {
       LPWSTR name = mPrinters->ElementAt(i);
       if (defPrinterName.Equals(name)) {
         if (i > 0) {

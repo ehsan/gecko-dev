@@ -39,7 +39,7 @@ AudioMixerManagerLinuxPulse::AudioMixerManagerLinuxPulse(const WebRtc_Word32 id)
     _paMute(0),
     _paVolSteps(0),
     _paSpeakerMute(false),
-    _paSpeakerVolume(PA_VOLUME_NORM),
+    _paSpeakerVolume(0),
     _paChannels(0),
     _paObjectsSet(false),
     _callbackValues(false)
@@ -175,6 +175,9 @@ WebRtc_Word32 AudioMixerManagerLinuxPulse::OpenSpeaker(
     // Set the index for the PulseAudio
     // output device to control
     _paOutputDeviceIndex = deviceIndex;
+
+    // Init the speaker volume to the normal volume
+    _paSpeakerVolume = PA_VOLUME_NORM;
 
     WEBRTC_TRACE(kTraceInfo, kTraceAudioDevice, _id,
                  "  the output mixer device is now open");

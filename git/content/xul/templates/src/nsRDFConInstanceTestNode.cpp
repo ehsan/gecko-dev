@@ -40,7 +40,7 @@ nsRDFConInstanceTestNode::nsRDFConInstanceTestNode(TestNode* aParent,
 {
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
-        nsAutoCString props;
+        nsCAutoString props;
 
         nsResourceSet& containmentProps = aProcessor->ContainmentProperties();
         nsResourceSet::ConstIterator last = containmentProps.Last();
@@ -137,7 +137,7 @@ nsRDFConInstanceTestNode::FilterInstantiations(InstantiationSet& aInstantiations
                 rv = rdfcontainer->Init(ds, valueres);
                 if (NS_FAILED(rv)) return rv;
 
-                int32_t count;
+                PRInt32 count;
                 rv = rdfcontainer->GetCount(&count);
                 if (NS_FAILED(rv)) return rv;
 

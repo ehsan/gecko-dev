@@ -102,7 +102,7 @@ static struct nsMyTrustedEVInfo myTrustedEVInfos[] = {
   },
   {
     // CN=StartCom Certification Authority,OU=Secure Digital Certificate Signing,O=StartCom Ltd.,C=IL
-    "1.3.6.1.4.1.23223.1.1.1",
+    "1.3.6.1.4.1.23223.2",
     "StartCom EV OID",
     SEC_OID_UNKNOWN,
     "3E:2B:F7:F2:03:1B:96:F3:8C:E6:C4:D8:A8:5D:3E:2D:58:47:6A:0F",
@@ -110,29 +110,6 @@ static struct nsMyTrustedEVInfo myTrustedEVInfos[] = {
     "EyJTZWN1cmUgRGlnaXRhbCBDZXJ0aWZpY2F0ZSBTaWduaW5nMSkwJwYDVQQDEyBT"
     "dGFydENvbSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eQ==",
     "AQ==",
-    nullptr
-  },
-  {
-    // CN=StartCom Certification Authority,OU=Secure Digital Certificate Signing,O=StartCom Ltd.,C=IL
-    "1.3.6.1.4.1.23223.1.1.1",
-    "StartCom EV OID",
-    SEC_OID_UNKNOWN,
-    "A3:F1:33:3F:E2:42:BF:CF:C5:D1:4E:8F:39:42:98:40:68:10:D1:A0",
-    "MH0xCzAJBgNVBAYTAklMMRYwFAYDVQQKEw1TdGFydENvbSBMdGQuMSswKQYDVQQL"
-    "EyJTZWN1cmUgRGlnaXRhbCBDZXJ0aWZpY2F0ZSBTaWduaW5nMSkwJwYDVQQDEyBT"
-    "dGFydENvbSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eQ==",
-    "LQ==",
-    nullptr
-  },
-  {
-    // CN=StartCom Certification Authority G2,O=StartCom Ltd.,C=IL
-    "1.3.6.1.4.1.23223.1.1.1",
-    "StartCom EV OID",
-    SEC_OID_UNKNOWN,
-    "31:F1:FD:68:22:63:20:EE:C6:3B:3F:9D:EA:4A:3E:53:7C:7C:39:17",
-    "MFMxCzAJBgNVBAYTAklMMRYwFAYDVQQKEw1TdGFydENvbSBMdGQuMSwwKgYDVQQD"
-    "EyNTdGFydENvbSBDZXJ0aWZpY2F0aW9uIEF1dGhvcml0eSBHMg==",
-    "Ow==",
     nullptr
   },
   {
@@ -428,22 +405,11 @@ static struct nsMyTrustedEVInfo myTrustedEVInfos[] = {
   {
     // CN=Buypass Class 3 CA 1,O=Buypass AS-983163327,C=NO
     "2.16.578.1.26.1.3.3",
-    "Buypass EV OID",
+    "Buypass Class 3 CA 1",
     SEC_OID_UNKNOWN,
     "61:57:3A:11:DF:0E:D8:7E:D5:92:65:22:EA:D0:56:D7:44:B3:23:71",
     "MEsxCzAJBgNVBAYTAk5PMR0wGwYDVQQKDBRCdXlwYXNzIEFTLTk4MzE2MzMyNzEd"
     "MBsGA1UEAwwUQnV5cGFzcyBDbGFzcyAzIENBIDE=",
-    "Ag==",
-    nullptr
-  },
-  {
-    // CN=Buypass Class 3 Root CA,O=Buypass AS-983163327,C=NO
-    "2.16.578.1.26.1.3.3",
-    "Buypass EV OID",
-    SEC_OID_UNKNOWN,
-    "DA:FA:F7:FA:66:84:EC:06:8F:14:50:BD:C7:C2:81:A5:BC:A9:64:57",
-    "ME4xCzAJBgNVBAYTAk5PMR0wGwYDVQQKDBRCdXlwYXNzIEFTLTk4MzE2MzMyNzEg"
-    "MB4GA1UEAwwXQnV5cGFzcyBDbGFzcyAzIFJvb3QgQ0E=",
     "Ag==",
     nullptr
   },
@@ -707,7 +673,7 @@ loadTestEVInfos()
   if (NS_FAILED(rv))
     return;
 
-  nsAutoCString buffer;
+  nsCAutoString buffer;
   bool isMore = true;
 
   /* file format
@@ -740,7 +706,7 @@ loadTestEVInfos()
       continue;
     }
 
-    int32_t seperatorIndex = buffer.FindChar(' ', 0);
+    PRInt32 seperatorIndex = buffer.FindChar(' ', 0);
     if (seperatorIndex == 0) {
       found_error = true;
       break;
@@ -988,7 +954,7 @@ isApprovedForEV(SECOidTag policyOIDTag, CERTCertificate *rootCert)
   return false;
 }
 
-PRStatus
+PRStatus PR_CALLBACK
 nsNSSComponent::IdentityInfoInit()
 {
   for (size_t iEV=0; iEV < (sizeof(myTrustedEVInfos)/sizeof(nsMyTrustedEVInfo)); ++iEV) {
@@ -1060,7 +1026,7 @@ static SECStatus getFirstEVPolicy(CERTCertificate *cert, SECOidTag &outOidTag)
     return SECFailure;
 
   if (cert->extensions) {
-    for (int i=0; cert->extensions[i]; i++) {
+    for (int i=0; cert->extensions[i] != nullptr; i++) {
       const SECItem *oid = &cert->extensions[i]->id;
 
       SECOidTag oidTag = SECOID_FindOIDTag(oid);
@@ -1079,7 +1045,7 @@ static SECStatus getFirstEVPolicy(CERTCertificate *cert, SECOidTag &outOidTag)
       policyInfos = policies->policyInfos;
 
       bool found = false;
-      while (*policyInfos) {
+      while (*policyInfos != NULL) {
         policyInfo = *policyInfos++;
 
         SECOidTag oid_tag = policyInfo->oid;
@@ -1168,7 +1134,7 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, bool &validEV)
     cert_revocation_method_ocsp
   };
 
-  uint64_t revMethodFlags = 
+  PRUint64 revMethodFlags = 
     CERT_REV_M_TEST_USING_THIS_METHOD
     | CERT_REV_M_ALLOW_NETWORK_FETCHING
     | CERT_REV_M_ALLOW_IMPLICIT_DEFAULT_SOURCE
@@ -1176,13 +1142,10 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, bool &validEV)
     | CERT_REV_M_IGNORE_MISSING_FRESH_INFO
     | CERT_REV_M_STOP_TESTING_ON_FRESH_INFO;
 
-  uint64_t revMethodIndependentFlags = 
+  PRUint64 revMethodIndependentFlags = 
     CERT_REV_MI_TEST_ALL_LOCAL_INFORMATION_FIRST
     | CERT_REV_MI_REQUIRE_SOME_FRESH_INFO_AVAILABLE;
 
-  // We need a PRUint64 here instead of a nice int64_t (until bug 634793 is
-  // fixed) to match the type used in security/nss/lib/certdb/certt.h for
-  // cert_rev_flags_per_method.
   PRUint64 methodFlags[2];
   methodFlags[cert_revocation_method_crl] = revMethodFlags;
   methodFlags[cert_revocation_method_ocsp] = revMethodFlags;

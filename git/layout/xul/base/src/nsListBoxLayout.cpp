@@ -107,7 +107,7 @@ nsListBoxLayout::Layout(nsIFrame* aBox, nsBoxLayoutState& aState)
 NS_IMETHODIMP
 nsListBoxLayout::LayoutInternal(nsIFrame* aBox, nsBoxLayoutState& aState)
 {
-  int32_t redrawStart = -1;
+  PRInt32 redrawStart = -1;
 
   // Get the start y position.
   nsListBoxBodyFrame* body = static_cast<nsListBoxBodyFrame*>(aBox);
@@ -166,7 +166,7 @@ nsListBoxLayout::LayoutInternal(nsIFrame* aBox, nsBoxLayoutState& aState)
     } else {
       // if the child did not need to be relayed out. Then its easy.
       // Place the child by just grabbing its rect and adjusting the y.
-      int32_t newPos = yOffset+margin.top;
+      PRInt32 newPos = yOffset+margin.top;
 
       // are we pushing down or pulling up any rows?
       // Then we may have to redraw everything below the moved 
@@ -197,7 +197,9 @@ nsListBoxLayout::LayoutInternal(nsIFrame* aBox, nsBoxLayoutState& aState)
   // before them then redraw everything under the inserted rows. The inserted
   // rows will automatically be redrawn because the were marked dirty on insertion.
   if (redrawStart > -1) {
-    aBox->Redraw(aState);
+    nsRect bounds(aBox->GetRect());
+    nsRect tempRect(0,redrawStart,bounds.width, bounds.height - redrawStart);
+    aBox->Redraw(aState, &tempRect);
   }
 
   return NS_OK;

@@ -30,8 +30,6 @@
 #include "hb-open-type-private.hh"
 
 
-namespace OT {
-
 
 /*
  * maxp -- The Maximum Profile Table
@@ -62,8 +60,6 @@ struct maxp
   DEFINE_SIZE_STATIC (6);
 };
 
-
-} // namespace OT
 
 
 #endif /* HB_OT_MAXP_TABLE_HH */

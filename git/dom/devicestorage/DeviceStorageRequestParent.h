@@ -37,8 +37,9 @@ private:
   public:
     CancelableRunnable(DeviceStorageRequestParent* aParent)
       : mParent(aParent)
+      , mCanceled(false)
     {
-      mCanceled = !(mParent->AddRunnable(this));
+      mParent->AddRunnable(this);
     }
 
     virtual ~CancelableRunnable() {
@@ -86,12 +87,11 @@ private:
   class PostBlobSuccessEvent : public CancelableRunnable
   {
     public:
-      PostBlobSuccessEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile, uint32_t aLength, nsACString& aMimeType, uint64_t aLastModifiedDate);
+      PostBlobSuccessEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile, PRUint32 aLength, nsACString& aMimeType);
       virtual ~PostBlobSuccessEvent();
       virtual nsresult CancelableRun();
     private:
-      uint32_t mLength;
-      uint64_t mLastModificationDate;
+      PRUint32 mLength;
       nsRefPtr<DeviceStorageFile> mFile;
       nsCString mMimeType;
   };
@@ -151,12 +151,12 @@ private:
   class EnumerateFileEvent : public CancelableRunnable
   {
     public:
-      EnumerateFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile, uint64_t aSince);
+      EnumerateFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile, PRUint32 aSince);
       virtual ~EnumerateFileEvent();
       virtual nsresult CancelableRun();
     private:
       nsRefPtr<DeviceStorageFile> mFile;
-      uint64_t mSince;
+      PRUint32 mSince;
   };
 
   class PostPathResultEvent : public CancelableRunnable
@@ -174,31 +174,21 @@ private:
  {
     public:
       PostStatResultEvent(DeviceStorageRequestParent* aParent,
-                          int64_t aFreeBytes,
-                          int64_t aTotalBytes);
+                          PRInt64 aFreeBytes,
+                          PRInt64 aTotalBytes);
       virtual ~PostStatResultEvent();
       virtual nsresult CancelableRun();
     private:
-      int64_t mFreeBytes, mTotalBytes;
+      PRInt64 mFreeBytes, mTotalBytes;
    };
 
 protected:
-  bool AddRunnable(CancelableRunnable* aRunnable) {
-    MutexAutoLock lock(mMutex);
-    if (mActorDestoryed)
-      return false;
-
+  void AddRunnable(CancelableRunnable* aRunnable) {
     mRunnables.AppendElement(aRunnable);
-    return true;
   }
-
   void RemoveRunnable(CancelableRunnable* aRunnable) {
-    MutexAutoLock lock(mMutex);
     mRunnables.RemoveElement(aRunnable);
   }
-
-  Mutex mMutex;
-  bool mActorDestoryed;
   nsTArray<nsRefPtr<CancelableRunnable> > mRunnables;
 };
 

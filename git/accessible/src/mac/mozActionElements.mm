@@ -148,7 +148,7 @@ enum CheckboxValue {
 
 - (int)isChecked
 {
-  uint64_t state = mGeckoAccessible->NativeState();
+  PRUint64 state = mGeckoAccessible->NativeState();
 
   // check if we're checked or in a mixed state
   if (state & states::CHECKED) {
@@ -337,19 +337,6 @@ enum CheckboxValue {
 @end
 
 @implementation mozPaneAccessible
-
-- (NSUInteger)accessibilityArrayAttributeCount:(NSString*)attribute
-{
-  if (!mGeckoAccessible)
-    return 0;
-
-  // By default this calls -[[mozAccessible children] count].
-  // Since we don't cache mChildren. This is faster.
-  if ([attribute isEqualToString:NSAccessibilityChildrenAttribute])
-    return mGeckoAccessible->ChildCount() ? 1 : 0;
-
-  return [super accessibilityArrayAttributeCount:attribute];
-}
 
 - (NSArray*)children
 {

@@ -5,7 +5,6 @@
 #ifndef nsPageFrame_h___
 #define nsPageFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
 #include "nsLeafFrame.h"
 
@@ -26,17 +25,17 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::pageFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
   
 #ifdef DEBUG
-  NS_IMETHOD  GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const;
 #endif
 
   //////////////////
@@ -44,7 +43,7 @@ public:
   //////////////////
 
   // Tell the page which page number it is out of how many
-  virtual void  SetPageNumInfo(int32_t aPageNumber, int32_t aTotalPages);
+  virtual void  SetPageNumInfo(PRInt32 aPageNumber, PRInt32 aTotalPages);
 
   virtual void SetSharedPageData(nsSharedPageData* aPD);
 
@@ -54,6 +53,9 @@ public:
 
   void PaintHeaderFooter(nsRenderingContext& aRenderingContext,
                          nsPoint aPt);
+  void PaintPageContent(nsRenderingContext& aRenderingContext,
+                        const nsRect&        aDirtyRect,
+                        nsPoint              aPt);
 
 protected:
   nsPageFrame(nsStyleContext* aContext);
@@ -66,12 +68,12 @@ protected:
 
   nscoord GetXPosition(nsRenderingContext& aRenderingContext, 
                        const nsRect&        aRect, 
-                       int32_t              aJust,
+                       PRInt32              aJust,
                        const nsString&      aStr);
 
   void DrawHeaderFooter(nsRenderingContext& aRenderingContext,
                         nsHeaderFooterEnum   aHeaderFooter,
-                        int32_t              aJust,
+                        PRInt32              aJust,
                         const nsString&      sStr,
                         const nsRect&        aRect,
                         nscoord              aHeight,
@@ -89,8 +91,8 @@ protected:
 
   void ProcessSpecialCodes(const nsString& aStr, nsString& aNewStr);
 
-  int32_t     mPageNum;
-  int32_t     mTotNumPages;
+  PRInt32     mPageNum;
+  PRInt32     mTotNumPages;
 
   nsSharedPageData* mPD;
 };
@@ -106,18 +108,18 @@ class nsPageBreakFrame : public nsLeafFrame
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+                    nsReflowStatus&          aStatus);
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
 
 #ifdef DEBUG
-  NS_IMETHOD  GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD  GetFrameName(nsAString& aResult) const;
 #endif
 
 protected:
 
-  virtual nscoord GetIntrinsicWidth() MOZ_OVERRIDE;
-  virtual nscoord GetIntrinsicHeight() MOZ_OVERRIDE;
+  virtual nscoord GetIntrinsicWidth();
+  virtual nscoord GetIntrinsicHeight();
 
     bool mHaveReflowed;
 

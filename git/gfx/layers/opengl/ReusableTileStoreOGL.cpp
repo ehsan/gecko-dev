@@ -13,7 +13,7 @@ ReusableTileStoreOGL::~ReusableTileStoreOGL()
     return;
 
   mContext->MakeCurrent();
-  for (uint32_t i = 0; i < mTiles.Length(); i++)
+  for (PRUint32 i = 0; i < mTiles.Length(); i++)
     mContext->fDeleteTextures(1, &mTiles[i]->mTexture.mTextureHandle);
   mTiles.Clear();
 }
@@ -37,9 +37,7 @@ ReusableTileStoreOGL::InvalidateTiles(TiledThebesLayerOGL* aLayer,
           // This will be incorrect when the transform involves rotation, but
           // it'd be quite hard to retain invalid tiles correctly in this
           // situation anyway.
-          renderBounds = parent->GetEffectiveTransform().TransformBounds(
-              gfxRect(metrics.mDisplayPort.x, metrics.mDisplayPort.y,
-                      metrics.mDisplayPort.width, metrics.mDisplayPort.height));
+          renderBounds = parent->GetEffectiveTransform().TransformBounds(gfxRect(metrics.mDisplayPort));
           break;
       }
   }
@@ -57,7 +55,7 @@ ReusableTileStoreOGL::InvalidateTiles(TiledThebesLayerOGL* aLayer,
   // assumption is that anything within this area should be valid, so there's
   // no need to keep invalid tiles there.
   mContext->MakeCurrent();
-  for (uint32_t i = 0; i < mTiles.Length();) {
+  for (PRUint32 i = 0; i < mTiles.Length();) {
     ReusableTiledTextureOGL* tile = mTiles[i];
 
     // Check if the tile region is contained within the new valid region.
@@ -218,27 +216,11 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
       if (parentMetrics.IsScrollable())
         scrollableLayer = parent;
       if (!parentMetrics.mDisplayPort.IsEmpty() && scrollableLayer) {
-          // Get the display-port bounds in screen-space.
-          displayPort = gfxRect(parentMetrics.mDisplayPort.x,
-                                parentMetrics.mDisplayPort.y,
-                                parentMetrics.mDisplayPort.width,
-                                parentMetrics.mDisplayPort.height);
-
-          // Calculate the scale transform applied to the root layer to determine
-          // the content resolution.
-          Layer* rootLayer = aLayer->Manager()->GetRoot();
-          const gfx3DMatrix& rootTransform = rootLayer->GetTransform();
-          float scaleX = rootTransform.GetXScale();
-          float scaleY = rootTransform.GetYScale();
-
-          // Get the content document bounds, in screen-space.
+          displayPort = parent->GetEffectiveTransform().
+            TransformBounds(gfxRect(parentMetrics.mDisplayPort));
           const FrameMetrics& metrics = scrollableLayer->GetFrameMetrics();
           const nsIntSize& contentSize = metrics.mContentRect.Size();
-          gfx::Point scrollOffset =
-            gfx::Point((metrics.mScrollOffset.x * metrics.LayersPixelsPerCSSPixel().width) / scaleX,
-                       (metrics.mScrollOffset.y * metrics.LayersPixelsPerCSSPixel().height) / scaleY);
-          const nsIntPoint& contentOrigin = metrics.mContentRect.TopLeft() -
-            nsIntPoint(NS_lround(scrollOffset.x), NS_lround(scrollOffset.y));
+          const nsIntPoint& contentOrigin = metrics.mContentRect.TopLeft() - metrics.mViewportScrollOffset;
           gfxRect contentRect = gfxRect(contentOrigin.x, contentOrigin.y,
                                         contentSize.width, contentSize.height);
           contentBounds = scrollableLayer->GetEffectiveTransform().TransformBounds(contentRect);
@@ -247,7 +229,7 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
   }
 
   // Render old tiles to fill in gaps we haven't had the time to render yet.
-  for (uint32_t i = 0; i < mTiles.Length(); i++) {
+  for (PRUint32 i = 0; i < mTiles.Length(); i++) {
     ReusableTiledTextureOGL* tile = mTiles[i];
 
     // Work out the scaling factor in case of resolution differences.
@@ -269,7 +251,6 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
 
     // Subtract the display-port from the tile region.
     if (!displayPort.IsEmpty()) {
-      // Transform the display-port from screen space to layer space.
       gfxRect transformedRenderBounds = transform.Inverse().TransformBounds(displayPort);
       tileRegion.Sub(tileRegion, nsIntRect(transformedRenderBounds.x,
                                            transformedRenderBounds.y,
@@ -279,7 +260,6 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
 
     // Intersect the tile region with the content area.
     if (!contentBounds.IsEmpty()) {
-      // Transform the content bounds from screen space to layer space.
       gfxRect transformedRenderBounds = transform.Inverse().TransformBounds(contentBounds);
       tileRegion.And(tileRegion, nsIntRect(transformedRenderBounds.x,
                                            transformedRenderBounds.y,

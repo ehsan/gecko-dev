@@ -32,8 +32,3 @@ SDK_XPIDLSRCS =                      \
        $(NULL)
 
 include $(topsrcdir)/config/rules.mk
-
-XPIDL_FLAGS += \
-  -I$(topsrcdir)/dom/interfaces/base \
-  -I$(topsrcdir)/dom/interfaces/events \
-  $(NULL)

@@ -197,11 +197,7 @@ if (typeof Components != "undefined") {
               stack.push("..");
              }
            } else {
-             if (stack[stack.length - 1] == "..") {
-               stack.push("..");
-             } else {
-               stack.pop();
-             }
+             stack.pop();
            }
            break;
          default:
@@ -264,6 +260,4 @@ if (typeof Components != "undefined") {
     let trimBackslashes = function trimBackslashes(string) {
       return string.replace(/^\\+|\\+$/g,'');
     };
-
-   exports.OS.Path = exports.OS.Win.Path;
 }(this));

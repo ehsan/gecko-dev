@@ -13,8 +13,8 @@
 #ifndef nsImageLoadingContent_h__
 #define nsImageLoadingContent_h__
 
-#include "imgINotificationObserver.h"
-#include "imgIOnloadBlocker.h"
+#include "imgIContainerObserver.h"
+#include "imgIDecoderObserver.h"
 #include "mozilla/CORSMode.h"
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h" // NS_CONTENT_DELETE_LIST_MEMBER
@@ -27,17 +27,16 @@ class nsIDocument;
 class imgILoader;
 class nsIIOService;
 
-class nsImageLoadingContent : public nsIImageLoadingContent,
-                              public imgIOnloadBlocker
+class nsImageLoadingContent : public nsIImageLoadingContent
 {
   /* METHODS */
 public:
   nsImageLoadingContent();
   virtual ~nsImageLoadingContent();
 
-  NS_DECL_IMGINOTIFICATIONOBSERVER
+  NS_DECL_IMGICONTAINEROBSERVER
+  NS_DECL_IMGIDECODEROBSERVER
   NS_DECL_NSIIMAGELOADINGCONTENT
-  NS_DECL_IMGIONLOADBLOCKER
 
 protected:
   /**
@@ -88,14 +87,13 @@ protected:
                      nsLoadFlags aLoadFlags = nsIRequest::LOAD_NORMAL);
 
   /**
-   * helpers to get the document for this content (from the nodeinfo
-   * and such).  Not named GetOwnerDoc/GetCurrentDoc to prevent ambiguous
-   * method names in subclasses
+   * helper to get the document for this content (from the nodeinfo
+   * and such).  Not named GetDocument to prevent ambiguous method
+   * names in subclasses
    *
    * @return the document we belong to
    */
-  nsIDocument* GetOurOwnerDoc();
-  nsIDocument* GetOurCurrentDoc();
+  nsIDocument* GetOurDocument();
 
   /**
    * Helper function to get the frame associated with this content. Not named
@@ -154,20 +152,12 @@ protected:
    */
   virtual mozilla::CORSMode GetCORSMode();
 
-  // Subclasses are *required* to call BindToTree/UnbindFromTree.
-  void BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                  nsIContent* aBindingParent, bool aCompileEventHandlers);
-  void UnbindFromTree(bool aDeep, bool aNullParent);
-
-  nsresult OnStopRequest(imgIRequest* aRequest, nsresult aStatus);
-  nsresult OnImageIsAnimated(imgIRequest *aRequest);
-
 private:
   /**
    * Struct used to manage the image observers.
    */
   struct ImageObserver {
-    ImageObserver(imgINotificationObserver* aObserver) :
+    ImageObserver(imgIDecoderObserver* aObserver) :
       mObserver(aObserver),
       mNext(nullptr)
     {
@@ -179,7 +169,7 @@ private:
       NS_CONTENT_DELETE_LIST_MEMBER(ImageObserver, this, mNext);
     }
 
-    nsCOMPtr<imgINotificationObserver> mObserver;
+    nsCOMPtr<imgIDecoderObserver> mObserver;
     ImageObserver* mNext;
   };
 
@@ -226,7 +216,7 @@ private:
    * @param aNewImageStatus the nsIContentPolicy status of the new image load
    */
   void CancelImageRequests(nsresult aReason, bool aEvenIfSizeAvailable,
-                           int16_t aNewImageStatus);
+                           PRInt16 aNewImageStatus);
 
   /**
    * Method to fire an event once we know what's going on with the image load.
@@ -261,7 +251,7 @@ protected:
    * Called when we would normally call PrepareNextRequest(), but the request was
    * blocked.
    */
-  void SetBlockedRequest(nsIURI* aURI, int16_t aContentDecision);
+  void SetBlockedRequest(nsIURI* aURI, PRInt16 aContentDecision);
 
   /**
    * Returns a COMPtr reference to the current/pending image requests, cleaning
@@ -318,18 +308,6 @@ protected:
   /* MEMBERS */
   nsCOMPtr<imgIRequest> mCurrentRequest;
   nsCOMPtr<imgIRequest> mPendingRequest;
-  uint32_t mCurrentRequestFlags;
-  uint32_t mPendingRequestFlags;
-
-  enum {
-    // Set if the request needs 
-    REQUEST_NEEDS_ANIMATION_RESET = 0x00000001U,
-    // Set if the request should be tracked.  This is true if the request is
-    // not tracked iff this node is not in the document.
-    REQUEST_SHOULD_BE_TRACKED = 0x00000002U,
-    // Set if the request is blocking onload.
-    REQUEST_BLOCKS_ONLOAD = 0x00000004U
-  };
 
   // If the image was blocked or if there was an error loading, it's nice to
   // still keep track of what the URI was despite not having an imgIRequest.
@@ -354,7 +332,7 @@ private:
    */
   nsEventStates mForcedImageState;
 
-  int16_t mImageBlockingStatus;
+  PRInt16 mImageBlockingStatus;
   bool mLoadingEnabled : 1;
 
   /**
@@ -371,6 +349,11 @@ private:
   bool mUserDisabled : 1;
   bool mSuppressed : 1;
 
+  /**
+   * Whether we're currently blocking document load.
+   */
+  bool mBlockingOnload : 1;
+
 protected:
   /**
    * A hack to get animations to reset, see bug 594771. On requests
@@ -383,8 +366,11 @@ protected:
   bool mNewRequestsWillNeedAnimationReset : 1;
 
 private:
+  bool mPendingRequestNeedsResetAnimation : 1;
+  bool mCurrentRequestNeedsResetAnimation : 1;
+
   /* The number of nested AutoStateChangers currently tracking our state. */
-  uint8_t mStateChangerDepth;
+  PRUint8 mStateChangerDepth;
 
   // Flags to indicate whether each of the current and pending requests are
   // registered with the refresh driver.

@@ -4,8 +4,14 @@
 
 {
   if (typeof Components != "undefined") {
-    var EXPORTED_SYMBOLS = ["OS"];
+    // We do not wish osfile_shared.jsm to be used directly as a main thread
+    // module yet. When time comes, it will be loaded by a combination of
+    // a main thread front-end/worker thread implementation that makes sure
+    // that we are not executing synchronous IO code in the main thread.
+
+    throw new Error("osfile_shared_allthreads.jsm cannot be used from the main thread yet");
   }
+
   (function(exports) {
      "use strict";
      /*
@@ -23,34 +29,6 @@
        return; // Avoid double-initialization
      }
 
-     // Import components after having initialized |exports.OS|, to ensure
-     // that everybody uses the same definition of |OS|.
-     if (typeof Components != "undefined") {
-       Components.utils.import("resource://gre/modules/ctypes.jsm");
-       Components.classes["@mozilla.org/net/osfileconstantsservice;1"].
-         getService(Components.interfaces.nsIOSFileConstantsService).init();
-     }
-
-     // Define a lazy getter for a property
-     let defineLazyGetter = function defineLazyGetter(object, name, getter) {
-       Object.defineProperty(object, name, {
-         configurable: true,
-         get: function lazy() {
-           delete this[name];
-           let value = getter.call(this);
-           Object.defineProperty(object, name, {
-             value: value
-           });
-           return value;
-         }
-       });
-     };
-     exports.OS.Shared.defineLazyGetter = defineLazyGetter;
-
-     /**
-      * A variable controlling whether we should printout logs.
-      */
-     exports.OS.Shared.DEBUG = false;
      let LOG;
      if (typeof console != "undefined" && console.log) {
        LOG = console.log.bind(console, "OS");
@@ -109,25 +87,6 @@
      }
      Type.prototype = {
        /**
-        * Serialize a value of |this| |Type| into a format that can
-        * be transmitted as a message (not necessarily a string).
-        *
-        * In the default implementation, the method returns the
-        * value unchanged.
-        */
-       toMsg: function default_toMsg(value) {
-         return value;
-       },
-       /**
-        * Deserialize a message to a value of |this| |Type|.
-        *
-        * In the default implementation, the method returns the
-        * message unchanged.
-        */
-       fromMsg: function default_fromMsg(msg) {
-         return msg;
-       },
-       /**
         * Import a value from C.
         *
         * In this default implementation, return the value
@@ -142,10 +101,8 @@
         */
        get in_ptr() {
          delete this.in_ptr;
-         let ptr_t = new PtrType(
-           "[in] " + this.name + "*",
-           this.implementation.ptr,
-           this);
+         let ptr_t = new PtrType("[in] " + this.name + "*",
+           this.implementation.ptr);
          Object.defineProperty(this, "in_ptr",
            {
              get: function() {
@@ -160,10 +117,8 @@
         */
        get out_ptr() {
          delete this.out_ptr;
-         let ptr_t = new PtrType(
-           "[out] " + this.name + "*",
-           this.implementation.ptr,
-           this);
+         let ptr_t = new PtrType("[out] " + this.name + "*",
+           this.implementation.ptr);
          Object.defineProperty(this, "out_ptr",
            {
              get: function() {
@@ -182,10 +137,8 @@
         */
        get inout_ptr() {
          delete this.inout_ptr;
-         let ptr_t = new PtrType(
-           "[inout] " + this.name + "*",
-           this.implementation.ptr,
-           this);
+         let ptr_t = new PtrType("[inout] " + this.name + "*",
+           this.implementation.ptr);
          Object.defineProperty(this, "inout_ptr",
            {
              get: function() {
@@ -223,101 +176,20 @@
         */
        cast: function cast(value) {
          return ctypes.cast(value, this.implementation);
-       },
-
-       /**
-        * Return the number of bytes in a value of |this| type.
-        *
-        * This may not be defined, e.g. for |void_t|, array types
-        * without length, etc.
-        */
-       get size() {
-         return this.implementation.size;
-       }
+        }
      };
 
-     /**
-      * Utility function used to determine whether an object is a typed array
-      */
-     let isTypedArray = function isTypedArray(obj) {
-       return typeof obj == "object"
-         && "byteOffset" in obj;
-     };
-     exports.OS.Shared.isTypedArray = isTypedArray;
 
      /**
       * A |Type| of pointers.
       *
       * @param {string} name The name of this type.
       * @param {CType} implementation The type of this pointer.
-      * @param {Type} targetType The target type.
       */
-     function PtrType(name, implementation, targetType) {
+     function PtrType(name, implementation) {
        Type.call(this, name, implementation);
-       if (targetType == null || !targetType instanceof Type) {
-         throw new TypeError("targetType must be an instance of Type");
-       }
-       /**
-        * The type of values targeted by this pointer type.
-        */
-       Object.defineProperty(this, "targetType", {
-         value: targetType
-       });
      }
      PtrType.prototype = Object.create(Type.prototype);
-
-     /**
-      * Convert a value to a pointer.
-      *
-      * Protocol:
-      * - |null| returns |null|
-      * - a string returns |{string: value}|
-      * - a typed array returns |{ptr: address_of_buffer}|
-      * - a C array returns |{ptr: address_of_buffer}|
-      * everything else raises an error
-      */
-     PtrType.prototype.toMsg = function ptr_toMsg(value) {
-       if (value == null) {
-         return null;
-       }
-       if (typeof value == "string") {
-         return { string: value };
-       }
-       let normalized;
-       if (isTypedArray(value)) { // Typed array
-         normalized = Types.uint8_t.in_ptr.implementation(value.buffer);
-         if (value.byteOffset != 0) {
-           normalized = exports.OS.Shared.offsetBy(normalized, value.byteOffset);
-         }
-       } else if ("addressOfElement" in value) { // C array
-         normalized = value.addressOfElement(0);
-       } else if ("isNull" in value) { // C pointer
-         normalized = value;
-       } else {
-         throw new TypeError("Value " + value +
-           " cannot be converted to a pointer");
-       }
-       let cast = Types.uintptr_t.cast(normalized);
-       return {ptr: cast.value.toString()};
-     };
-
-     /**
-      * Convert a message back to a pointer.
-      */
-     PtrType.prototype.fromMsg = function ptr_fromMsg(msg) {
-       if (msg == null) {
-         return null;
-       }
-       if ("string" in msg) {
-         return msg.string;
-       }
-       if ("ptr" in msg) {
-         let address = ctypes.uintptr_t(msg.ptr);
-         return this.cast(address);
-       }
-       throw new TypeError("Message " + msg.toSource() +
-         " does not represent a pointer");
-     };
 
      exports.OS.Shared.Type = Type;
      let Types = Type;
@@ -345,10 +217,8 @@
      };
 
      function projector(type, signed) {
-       if (exports.OS.Shared.DEBUG) {
-         LOG("Determining best projection for", type,
+       LOG("Determining best projection for", type,
              "(size: ", type.size, ")", signed?"signed":"unsigned");
-       }
        if (type instanceof Type) {
          type = type.implementation;
        }
@@ -366,20 +236,14 @@
            || type == ctypes.uintptr_t
            || type == ctypes.off_t){
           if (signed) {
-	    if (exports.OS.Shared.DEBUG) {
-             LOG("Projected as a large signed integer");
-	    }
+            LOG("Projected as a large signed integer");
             return projectLargeInt;
           } else {
-	    if (exports.OS.Shared.DEBUG) {
-             LOG("Projected as a large unsigned integer");
-	    }
+            LOG("Projected as a large unsigned integer");
             return projectLargeUInt;
           }
        }
-       if (exports.OS.Shared.DEBUG) {
-         LOG("Projected as a regular number");
-       }
+       LOG("Projected as a regular number");
        return projectValue;
      };
      exports.OS.Shared.projectValue = projectValue;
@@ -440,8 +304,7 @@
       */
      Types.voidptr_t =
        new PtrType("void*",
-                   ctypes.voidptr_t,
-                   Types.void_t);
+                ctypes.voidptr_t);
 
      // void* is a special case as we can cast any pointer to/from it
      // so we have to shortcut |in_ptr|/|out_ptr|/|inout_ptr| and
@@ -466,15 +329,8 @@
      function IntType(name, implementation, signed) {
        Type.call(this, name, implementation);
        this.importFromC = projector(implementation, signed);
-       this.project = this.importFromC;
      };
      IntType.prototype = Object.create(Type.prototype);
-     IntType.prototype.toMsg = function toMsg(value) {
-       if (typeof value == "number") {
-         return value;
-       }
-       return this.project(value);
-     };
 
      /**
       * A C char (one byte)
@@ -782,9 +638,7 @@
         // thread
      let declareFFI = function declareFFI(lib, symbol, abi,
                                           returnType /*, argTypes ...*/) {
-       if (exports.OS.Shared.DEBUG) {
-         LOG("Attempting to declare FFI ", symbol);
-       }
+       LOG("Attempting to declare FFI ", symbol);
        // We guard agressively, to avoid any late surprise
        if (typeof symbol != "string") {
          throw new TypeError("declareFFI expects as first argument a string");
@@ -822,66 +676,154 @@
          if (exports.OS.Shared.DEBUG) {
            result.fun = fun; // Also return the raw FFI function.
          }
-	 if (exports.OS.Shared.DEBUG) {
-          LOG("Function", symbol, "declared");
-	 }
+         LOG("Function", symbol, "declared");
          return result;
        } catch (x) {
          // Note: Not being able to declare a function is normal.
          // Some functions are OS (or OS version)-specific.
-	 if (exports.OS.Shared.DEBUG) {
-          LOG("Could not declare function " + symbol, x);
-	 }
+         LOG("Could not declare function " + symbol, x);
          return null;
        }
      };
      exports.OS.Shared.declareFFI = declareFFI;
 
-     // A bogus array type used to perform pointer arithmetics
-     let gOffsetByType;
 
      /**
-      * Advance a pointer by a number of items.
-      *
-      * This method implements adding an integer to a pointer in C.
-      *
-      * Example:
-      *   // ptr is a uint16_t*,
-      *   offsetBy(ptr, 3)
-      *  // returns a uint16_t* with the address ptr + 3 * 2 bytes
-      *
-      * @param {C pointer} pointer The start pointer.
-      * @param {number} length The number of items to advance. Must not be
-      * negative.
-      *
-      * @return {C pointer} |pointer| advanced by |length| items
+      * Libxul-based utilities, shared by all back-ends.
       */
-     exports.OS.Shared.offsetBy =
-       function offsetBy(pointer, length) {
-         if (length === undefined || length < 0) {
-           throw new TypeError("offsetBy expects a positive number");
-         }
-        if (!("isNull" in pointer)) {
-           throw new TypeError("offsetBy expects a pointer");
-         }
-         if (length == 0) {
-           return pointer;
-         }
-         let type = pointer.constructor;
-         let size = type.targetType.size;
-         if (size == 0 || size == null) {
-           throw new TypeError("offsetBy cannot be applied to a pointer without size");
-         }
-         let bytes = length * size;
-         if (!gOffsetByType || gOffsetByType.size <= bytes) {
-           gOffsetByType = ctypes.uint8_t.array(bytes * 2);
-         }
-         let addr = ctypes.cast(pointer, gOffsetByType.ptr).
-           contents.addressOfElement(bytes);
-         return ctypes.cast(addr, type);
+
+     let libxul = ctypes.open(OS.Constants.Path.libxul);
+     exports.OS.Shared.libxul = libxul;
+
+     exports.OS.Shared.Utils = {};
+
+     let Strings = exports.OS.Shared.Utils.Strings = {};
+     let Pointers = exports.OS.Shared.Utils.Pointers = {};
+
+     /**
+      * Import a wide string (e.g. a |jschar.ptr|) as a string.
+      *
+      * @param {CData} wstring The C representation of a widechar string
+      * (can be jschar* or a jschar[]).
+      * @return {string} The same string, as a JavaScript String.
+      */
+     Strings.importWString = function importWString(wstring) {
+       return wstring.readString();
      };
+
+
+     let NS_Free = libxul.declare("osfile_ns_free", ctypes.default_abi,
+       /*return*/ Types.void_t.implementation,
+       /*ptr*/ Types.voidptr_t.implementation);
+
+     let wstrdup = declareFFI(libxul, "osfile_wstrdup", ctypes.default_abi,
+       /*return*/ Types.out_wstring.releaseWith(NS_Free),
+       /*ptr*/ Types.wstring);
+
+
+      /**
+        * Export a string as a wide string (e.g. a |jschar.ptr|).
+        *
+        * @param {string} string A JavaScript String.
+        * @return {CData} The C representation of that string, as a |jschar*|.
+        * This value will be automatically garbage-collected once it is
+        * not referenced anymore.
+        */
+      Strings.exportWString = function exportWString(string) {
+        return wstrdup(string);
+      };
 
 // Encodings
 
+     Strings.encodeAll = declareFFI(libxul, "osfile_EncodeAll",
+        ctypes.default_abi,
+         /*return*/     Types.void_t.out_ptr.releaseWith(NS_Free),
+         /*encoding*/   Types.cstring,
+         /*source*/     Types.wstring,
+         /*bytes*/      Types.uint32_t.out_ptr);
+
+     let _decodeAll = declareFFI(libxul, "osfile_DecodeAll",
+        ctypes.default_abi,
+         /*return*/     Types.out_wstring.releaseWith(NS_Free),
+         /*encoding*/   Types.cstring,
+         /*source*/     Types.void_t.in_ptr,
+         /*bytes*/      Types.uint32_t);
+
+     Strings.decodeAll = function decodeAll(encoding, source, bytes) {
+       let decoded = _decodeAll(encoding, source, bytes);
+       if (!decoded) {
+         return null;
+       }
+       return Strings.importWString(decoded);
+     };
+
+     /**
+      * Specific tools that don't really fit anywhere.
+      */
+     let _aux = {};
+     exports.OS.Shared._aux = _aux;
+
+     /**
+      * Utility function shared by implementations of |OS.File.open|:
+      * extract read/write/trunc/create/existing flags from a |mode|
+      * object.
+      *
+      * @param {*=} mode An object that may contain fields |read|,
+      * |write|, |truncate|, |create|, |existing|. These fields
+      * are interpreted only if true-ish.
+      * @return {{read:bool, write:bool, trunc:bool, create:bool,
+      * existing:bool}} an object recapitulating the options set
+      * by |mode|.
+      * @throws {TypeError} If |mode| contains other fields, or
+      * if it contains both |create| and |truncate|, or |create|
+      * and |existing|.
+      */
+     _aux.normalizeOpenMode = function normalizeOpenMode(mode) {
+       let result = {
+         read: false,
+         write: false,
+         trunc: false,
+         create: false,
+         existing: false
+       };
+       for (let key in mode) {
+         if (!mode[key]) continue; // Only interpret true-ish keys
+         switch (key) {
+         case "read":
+           result.read = true;
+           break;
+         case "write":
+           result.write = true;
+           break;
+         case "truncate": // fallthrough
+         case "trunc":
+           result.trunc = true;
+           result.write = true;
+           break;
+         case "create":
+           result.create = true;
+           result.write = true;
+           break;
+         case "existing": // fallthrough
+         case "exist":
+           result.existing = true;
+           break;
+         default:
+           throw new TypeError("Mode " + key + " not understood");
+         }
+       }
+       // Reject opposite modes
+       if (result.existing && result.create) {
+         throw new TypeError("Cannot specify both existing:true and create:true");
+       }
+       if (result.trunc && result.create) {
+         throw new TypeError("Cannot specify both trunc:true and create:true");
+       }
+       // Handle read/write
+       if (!result.write) {
+         result.read = true;
+       }
+       return result;
+     };
    })(this);
 }

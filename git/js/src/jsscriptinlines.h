@@ -24,17 +24,61 @@ namespace js {
 
 inline
 Bindings::Bindings()
-    : callObjShape_(NULL), bindingArrayAndFlag_(TEMPORARY_STORAGE_BIT), numArgs_(0), numVars_(0)
+    : lastBinding(NULL), nargs(0), nvars(0), hasDup_(false)
 {}
 
-inline
-AliasedFormalIter::AliasedFormalIter(JSScript *script)
-  : begin_(script->bindings.bindingArray()),
-    p_(begin_),
-    end_(begin_ + (script->funHasAnyAliasedFormal ? script->bindings.numArgs() : 0)),
-    slot_(CallObject::RESERVED_SLOTS)
+inline void
+Bindings::transfer(Bindings *bindings)
 {
-    settle();
+    JS_ASSERT(!lastBinding);
+    JS_ASSERT(!bindings->lastBinding || !bindings->lastBinding->inDictionary());
+
+    *this = *bindings;
+#ifdef DEBUG
+    bindings->lastBinding = NULL;
+#endif
+}
+
+Shape *
+Bindings::initialShape(JSContext *cx) const
+{
+    /* Get an allocation kind to match an empty call object. */
+    gc::AllocKind kind = gc::FINALIZE_OBJECT2_BACKGROUND;
+    JS_ASSERT(gc::GetGCKindSlots(kind) == CallObject::RESERVED_SLOTS);
+
+    return EmptyShape::getInitialShape(cx, &CallClass, NULL, cx->global(),
+                                       kind, BaseShape::VAROBJ);
+}
+
+bool
+Bindings::ensureShape(JSContext *cx)
+{
+    if (!lastBinding) {
+        lastBinding = initialShape(cx);
+        if (!lastBinding)
+            return false;
+    }
+    return true;
+}
+
+bool
+Bindings::extensibleParents()
+{
+    return lastBinding && lastBinding->extensibleParents();
+}
+
+uint16_t
+Bindings::formalIndexToSlot(uint16_t i)
+{
+    JS_ASSERT(i < nargs);
+    return CallObject::RESERVED_SLOTS + i;
+}
+
+uint16_t
+Bindings::varIndexToSlot(uint16_t i)
+{
+    JS_ASSERT(i < nvars);
+    return CallObject::RESERVED_SLOTS + i + nargs;
 }
 
 extern void
@@ -45,10 +89,9 @@ CurrentScriptFileLineOrigin(JSContext *cx, const char **file, unsigned *linenop,
                             LineOption opt = NOT_CALLED_FROM_JSOP_EVAL)
 {
     if (opt == CALLED_FROM_JSOP_EVAL) {
-        AutoAssertNoGC nogc;
         JS_ASSERT(JSOp(*cx->regs().pc) == JSOP_EVAL);
         JS_ASSERT(*(cx->regs().pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
-        RawScript script = cx->fp()->script();
+        JSScript *script = cx->fp()->script();
         *file = script->filename;
         *linenop = GET_UINT16(cx->regs().pc + JSOP_EVAL_LENGTH);
         *origin = script->originPrincipals;
@@ -99,14 +142,14 @@ JSScript::getCallerFunction()
     return getFunction(0);
 }
 
-inline js::RegExpObject *
+inline JSObject *
 JSScript::getRegExp(size_t index)
 {
     js::ObjectArray *arr = regexps();
     JS_ASSERT(uint32_t(index) < arr->length);
     JSObject *obj = arr->vector[index];
     JS_ASSERT(obj->isRegExp());
-    return (js::RegExpObject *) obj;
+    return obj;
 }
 
 inline bool
@@ -121,6 +164,17 @@ JSScript::isEmpty() const
     return JSOp(*pc) == JSOP_STOP;
 }
 
+inline bool
+JSScript::hasGlobal() const
+{
+    /*
+     * Make sure that we don't try to query information about global objects
+     * which have had their scopes cleared. compileAndGo code should not run
+     * anymore against such globals.
+     */
+    return compileAndGo && !global().isCleared();
+}
+
 inline js::GlobalObject &
 JSScript::global() const
 {
@@ -129,6 +183,13 @@ JSScript::global() const
      * can assert that maybeGlobal is non-null here.
      */
     return *compartment()->maybeGlobal();
+}
+
+inline bool
+JSScript::hasClearedGlobal() const
+{
+    JS_ASSERT(types);
+    return global().isCleared();
 }
 
 #ifdef JS_METHODJIT

@@ -7,10 +7,9 @@
 
 #include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
-#include "mozilla/Telemetry.h"
+#include "mozilla/layers/ImageBridgeChild.h" // TODO: temp
 
 #include "ImageLayers.h"
-#include "ImageContainer.h"
 #include "Layers.h"
 #include "gfxPlatform.h"
 #include "ReadbackLayer.h"
@@ -27,8 +26,6 @@ typedef FrameMetrics::ViewID ViewID;
 const ViewID FrameMetrics::NULL_SCROLL_ID = 0;
 const ViewID FrameMetrics::ROOT_SCROLL_ID = 1;
 const ViewID FrameMetrics::START_SCROLL_ID = 2;
-
-uint8_t gLayerManagerLayerBuilder;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
 FILE*
@@ -86,7 +83,7 @@ AppendToString(nsACString& s, const gfxRGBA& c,
   s += pfx;
   s += nsPrintfCString(
     "rgba(%d, %d, %d, %g)",
-    uint8_t(c.r*255.0), uint8_t(c.g*255.0), uint8_t(c.b*255.0), c.a);
+    PRUint8(c.r*255.0), PRUint8(c.g*255.0), PRUint8(c.b*255.0), c.a);
   return s += sfx;
 }
 
@@ -125,32 +122,12 @@ AppendToString(nsACString& s, const nsIntPoint& p,
 }
 
 nsACString&
-AppendToString(nsACString& s, const Point& p,
-               const char* pfx="", const char* sfx="")
-{
-  s += pfx;
-  s += nsPrintfCString("(x=%f, y=%f)", p.x, p.y);
-  return s += sfx;
-}
-
-nsACString&
 AppendToString(nsACString& s, const nsIntRect& r,
                const char* pfx="", const char* sfx="")
 {
   s += pfx;
   s += nsPrintfCString(
     "(x=%d, y=%d, w=%d, h=%d)",
-    r.x, r.y, r.width, r.height);
-  return s += sfx;
-}
-
-nsACString&
-AppendToString(nsACString& s, const Rect& r,
-               const char* pfx="", const char* sfx="")
-{
-  s += pfx;
-  s.AppendPrintf(
-    "(x=%f, y=%f, w=%f, h=%f)",
     r.x, r.y, r.width, r.height);
   return s += sfx;
 }
@@ -185,7 +162,7 @@ AppendToString(nsACString& s, const FrameMetrics& m,
 {
   s += pfx;
   AppendToString(s, m.mViewport, "{ viewport=");
-  AppendToString(s, m.mScrollOffset, " viewportScroll=");
+  AppendToString(s, m.mViewportScrollOffset, " viewportScroll=");
   AppendToString(s, m.mDisplayPort, " displayport=");
   AppendToString(s, m.mScrollId, " scrollId=", " }");
   return s += sfx;
@@ -198,37 +175,6 @@ namespace layers {
 
 //--------------------------------------------------
 // LayerManager
-Layer*
-LayerManager::GetPrimaryScrollableLayer()
-{
-  if (!mRoot) {
-    return nullptr;
-  }
-
-  nsTArray<Layer*> queue;
-  queue.AppendElement(mRoot);
-  while (queue.Length()) {
-    ContainerLayer* containerLayer = queue[0]->AsContainerLayer();
-    queue.RemoveElementAt(0);
-    if (!containerLayer) {
-      continue;
-    }
-
-    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
-    if (frameMetrics.IsScrollable()) {
-      return containerLayer;
-    }
-
-    Layer* child = containerLayer->GetFirstChild();
-    while (child) {
-      queue.AppendElement(child);
-      child = child->GetNextSibling();
-    }
-  }
-
-  return mRoot;
-}
-
 already_AddRefed<gfxASurface>
 LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
                                    gfxASurface::gfxImageFormat aFormat)
@@ -295,20 +241,16 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
 Layer::~Layer()
 {}
 
-Animation*
-Layer::AddAnimation(TimeStamp aStart, TimeDuration aDuration, float aIterations,
-                    int aDirection, nsCSSProperty aProperty, const AnimationData& aData)
+void
+Layer::AddAnimation(const Animation& aAnimation)
 {
-  Animation* anim = mAnimations.AppendElement();
-  anim->startTime() = aStart;
-  anim->duration() = aDuration;
-  anim->numIterations() = aIterations;
-  anim->direction() = aDirection;
-  anim->property() = aProperty;
-  anim->data() = aData;
+  if (!AsShadowableLayer() || !AsShadowableLayer()->HasShadow())
+    return;
 
+  MOZ_ASSERT(aAnimation.segments().Length() >= 1);
+
+  mAnimations.AppendElement(aAnimation);
   Mutated();
-  return anim;
 }
 
 void
@@ -324,7 +266,7 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
 {
   nsAutoPtr<nsCSSValueList> result;
   nsCSSValueList** resultTail = getter_Transfers(result);
-  for (uint32_t i = 0; i < aFunctions.Length(); i++) {
+  for (PRUint32 i = 0; i < aFunctions.Length(); i++) {
     nsRefPtr<nsCSSValue::Array> arr;
     switch (aFunctions[i].type()) {
       case TransformFunction::TRotationX:
@@ -431,10 +373,6 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
         NS_ASSERTION(false, "All functions should be implemented?");
     }
   }
-  if (aFunctions.Length() == 0) {
-    result = new nsCSSValueList();
-    result->mValue.SetNoneValue();
-  }
   return result.forget();
 }
 
@@ -443,11 +381,12 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
 {
   mAnimations = aAnimations;
   mAnimationData.Clear();
-  for (uint32_t i = 0; i < mAnimations.Length(); i++) {
-    AnimData* data = mAnimationData.AppendElement();
-    InfallibleTArray<css::ComputedTimingFunction*>& functions = data->mFunctions;
+  for (PRUint32 i = 0; i < mAnimations.Length(); i++) {
+    AnimData data;
+    InfallibleTArray<css::ComputedTimingFunction*>* functions =
+      &data.mFunctions;
     nsTArray<AnimationSegment> segments = mAnimations.ElementAt(i).segments();
-    for (uint32_t j = 0; j < segments.Length(); j++) {
+    for (PRUint32 j = 0; j < segments.Length(); j++) {
       TimingFunction tf = segments.ElementAt(j).sampleFn();
       css::ComputedTimingFunction* ctf = new css::ComputedTimingFunction();
       switch (tf.type()) {
@@ -466,46 +405,59 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
           break;
         }
       }
-      functions.AppendElement(ctf);
+      functions->AppendElement(ctf);
     }
 
     // Precompute the nsStyleAnimation::Values that we need if this is a transform
     // animation.
-    InfallibleTArray<nsStyleAnimation::Value>& startValues = data->mStartValues;
-    InfallibleTArray<nsStyleAnimation::Value>& endValues = data->mEndValues;
-    for (uint32_t j = 0; j < mAnimations[i].segments().Length(); j++) {
+    InfallibleTArray<nsStyleAnimation::Value>* startValues =
+      &data.mStartValues;
+    InfallibleTArray<nsStyleAnimation::Value>* endValues =
+      &data.mEndValues;
+    for (PRUint32 j = 0; j < mAnimations[i].segments().Length(); j++) {
       const AnimationSegment& segment = mAnimations[i].segments()[j];
-      nsStyleAnimation::Value* startValue = startValues.AppendElement();
-      nsStyleAnimation::Value* endValue = endValues.AppendElement();
       if (segment.endState().type() == Animatable::TArrayOfTransformFunction) {
         const InfallibleTArray<TransformFunction>& startFunctions =
           segment.startState().get_ArrayOfTransformFunction();
-        startValue->SetAndAdoptCSSValueListValue(CreateCSSValueList(startFunctions),
-                                                 nsStyleAnimation::eUnit_Transform);
+        nsStyleAnimation::Value startValue;
+        nsCSSValueList* startList;
+        if (startFunctions.Length() > 0) {
+          startList = CreateCSSValueList(startFunctions);
+        } else {
+          startList = new nsCSSValueList();
+          startList->mValue.SetNoneValue();
+        }
+        startValue.SetAndAdoptCSSValueListValue(startList, nsStyleAnimation::eUnit_Transform);
+        startValues->AppendElement(startValue);
 
         const InfallibleTArray<TransformFunction>& endFunctions =
           segment.endState().get_ArrayOfTransformFunction();
-        endValue->SetAndAdoptCSSValueListValue(CreateCSSValueList(endFunctions),
-                                               nsStyleAnimation::eUnit_Transform);
+        nsStyleAnimation::Value endValue;
+        nsCSSValueList* endList;
+        if (endFunctions.Length() > 0) {
+          endList = CreateCSSValueList(endFunctions);
+        } else {
+          endList = new nsCSSValueList();
+          endList->mValue.SetNoneValue();
+        }
+        endValue.SetAndAdoptCSSValueListValue(endList, nsStyleAnimation::eUnit_Transform);
+        endValues->AppendElement(endValue);
       } else {
-        NS_ASSERTION(segment.endState().type() == Animatable::Tfloat,
+        NS_ASSERTION(segment.endState().type() == Animatable::TOpacity,
                      "Unknown Animatable type");
-        startValue->SetFloatValue(segment.startState().get_float());
-        endValue->SetFloatValue(segment.endState().get_float());
+        nsStyleAnimation::Value startValue;
+        startValue.SetFloatValue(segment.startState().get_Opacity().value());
+        startValues->AppendElement(startValue);
+
+        nsStyleAnimation::Value endValue;
+        endValue.SetFloatValue(segment.endState().get_Opacity().value());
+        endValues->AppendElement(endValue);
       }
     }
+    mAnimationData.AppendElement(data);
   }
 
   Mutated();
-}
-
-void
-Layer::ApplyPendingUpdatesToSubtree()
-{
-  ApplyPendingUpdatesForThisTransaction();
-  for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
-    child->ApplyPendingUpdatesToSubtree();
-  }
 }
 
 bool
@@ -675,16 +627,6 @@ Layer::GetLocalTransform()
   return transform;
 }
 
-void
-Layer::ApplyPendingUpdatesForThisTransaction()
-{
-  if (mPendingTransform && *mPendingTransform != mTransform) {
-    mTransform = *mPendingTransform;
-    Mutated();
-  }
-  mPendingTransform = nullptr;
-}
-
 const float
 Layer::GetLocalOpacity()
 {
@@ -728,7 +670,7 @@ ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 bool
 ContainerLayer::HasMultipleChildren()
 {
-  uint32_t count = 0;
+  PRUint32 count = 0;
   for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
     const nsIntRect *clipRect = child->GetEffectiveClipRect();
     if (clipRect && clipRect->IsEmpty())
@@ -877,11 +819,6 @@ LayerManager::PostPresent()
     mFrameTimes.AppendElement((now - mLastFrameTime).ToMilliseconds());
     mLastFrameTime = now;
   }
-  if (!mTabSwitchStart.IsNull()) {
-    Telemetry::Accumulate(Telemetry::FX_TAB_SWITCH_TOTAL_MS,
-                          uint32_t((TimeStamp::Now() - mTabSwitchStart).ToMilliseconds()));
-    mTabSwitchStart = TimeStamp();
-  }
 }
 
 nsTArray<float>
@@ -893,11 +830,7 @@ LayerManager::StopFrameTimeRecording()
   return result;
 }
 
-void
-LayerManager::BeginTabSwitch()
-{
-  mTabSwitchStart = TimeStamp::Now();
-}
+
 
 #ifdef MOZ_LAYERS_HAVE_LOG
 
@@ -909,7 +842,7 @@ void WriteSnapshotLinkToDumpFile(T* aObj, FILE* aFile)
 {
   nsCString string(aObj->Name());
   string.Append("-");
-  string.AppendInt((uint64_t)aObj);
+  string.AppendInt((PRUint64)aObj);
   fprintf(aFile, "href=\"javascript:ViewImage('%s')\"", string.BeginReading());
 }
 
@@ -918,7 +851,7 @@ void WriteSnapshotToDumpFile_internal(T* aObj, gfxASurface* aSurf)
 {
   nsCString string(aObj->Name());
   string.Append("-");
-  string.AppendInt((uint64_t)aObj);
+  string.AppendInt((PRUint64)aObj);
   if (gfxUtils::sDumpPaintFile)
     fprintf(gfxUtils::sDumpPaintFile, "array[\"%s\"]=\"", string.BeginReading());
   aSurf->DumpAsDataURL(gfxUtils::sDumpPaintFile);
@@ -955,13 +888,13 @@ Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
   }
 
   if (Layer* mask = GetMaskLayer()) {
-    nsAutoCString pfx(aPrefix);
+    nsCAutoString pfx(aPrefix);
     pfx += "  Mask layer: ";
     mask->Dump(aFile, pfx.get());
   }
 
   if (Layer* kid = GetFirstChild()) {
-    nsAutoCString pfx(aPrefix);
+    nsCAutoString pfx(aPrefix);
     pfx += "  ";
     if (aDumpHtml) {
       fprintf(aFile, "<ul>");
@@ -982,7 +915,7 @@ Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
 void
 Layer::DumpSelf(FILE* aFile, const char* aPrefix)
 {
-  nsAutoCString str;
+  nsCAutoString str;
   PrintInfo(str, aPrefix);
   fprintf(FILEOrDefault(aFile), "%s\n", str.get());
 }
@@ -996,7 +929,7 @@ Layer::Log(const char* aPrefix)
   LogSelf(aPrefix);
 
   if (Layer* kid = GetFirstChild()) {
-    nsAutoCString pfx(aPrefix);
+    nsCAutoString pfx(aPrefix);
     pfx += "  ";
     kid->Log(pfx.get());
   }
@@ -1011,7 +944,7 @@ Layer::LogSelf(const char* aPrefix)
   if (!IsLogEnabled())
     return;
 
-  nsAutoCString str;
+  nsCAutoString str;
   PrintInfo(str, aPrefix);
   MOZ_LAYERS_LOG(("%s", str.get()));
 }
@@ -1035,8 +968,6 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   }
   if (!mVisibleRegion.IsEmpty()) {
     AppendToString(aTo, mVisibleRegion, " [visible=", "]");
-  } else {
-    aTo += " [not visible]";
   }
   if (1.0 != mOpacity) {
     aTo.AppendPrintf(" [opacity=%g]", mOpacity);
@@ -1112,7 +1043,7 @@ nsACString&
 RefLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 {
   ContainerLayer::PrintInfo(aTo, aPrefix);
-  if (0 != mId) {
+  if (-1 != mId) {
     AppendToString(aTo, mId, " [id=", "]");
   }
   return aTo;
@@ -1156,7 +1087,7 @@ LayerManager::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
   }
 #endif
 
-  nsAutoCString pfx(aPrefix);
+  nsCAutoString pfx(aPrefix);
   pfx += "  ";
   if (!GetRoot()) {
     fprintf(file, "%s(null)", pfx.get());
@@ -1179,7 +1110,7 @@ LayerManager::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
 void
 LayerManager::DumpSelf(FILE* aFile, const char* aPrefix)
 {
-  nsAutoCString str;
+  nsCAutoString str;
   PrintInfo(str, aPrefix);
   fprintf(FILEOrDefault(aFile), "%s\n", str.get());
 }
@@ -1192,7 +1123,7 @@ LayerManager::Log(const char* aPrefix)
 
   LogSelf(aPrefix);
 
-  nsAutoCString pfx(aPrefix);
+  nsCAutoString pfx(aPrefix);
   pfx += "  ";
   if (!GetRoot()) {
     MOZ_LAYERS_LOG(("%s(null)", pfx.get()));
@@ -1205,7 +1136,7 @@ LayerManager::Log(const char* aPrefix)
 void
 LayerManager::LogSelf(const char* aPrefix)
 {
-  nsAutoCString str;
+  nsCAutoString str;
   PrintInfo(str, aPrefix);
   MOZ_LAYERS_LOG(("%s", str.get()));
 }

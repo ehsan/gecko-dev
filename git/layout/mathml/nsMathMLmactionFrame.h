@@ -31,30 +31,30 @@ public:
 
   NS_IMETHOD
   SetInitialChildList(ChildListID     aListID,
-                      nsFrameList&    aChildList) MOZ_OVERRIDE;
+                      nsFrameList&    aChildList);
 
   virtual nsresult
-  ChildListChanged(int32_t aModType) MOZ_OVERRIDE;
+  ChildListChanged(PRInt32 aModType);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+        nsHTMLReflowMetrics& aDesiredSize);
 
   NS_IMETHOD
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus);
 
   NS_IMETHOD
-  AttributeChanged(int32_t  aNameSpaceID,
+  AttributeChanged(PRInt32  aNameSpaceID,
                    nsIAtom* aAttribute,
-                   int32_t  aModType) MOZ_OVERRIDE;
+                   PRInt32  aModType);
 
 private:
   void MouseClick();
@@ -78,9 +78,9 @@ protected:
   virtual int GetSkipSides() const { return 0; }
 
 private:
-  int32_t         mActionType;
-  int32_t         mChildCount;
-  int32_t         mSelection;
+  PRInt32         mActionType;
+  PRInt32         mChildCount;
+  PRInt32         mSelection;
   nsIFrame*       mSelectedFrame;
   nsCOMPtr<MouseListener> mListener;
 

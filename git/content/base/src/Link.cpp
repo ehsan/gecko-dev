@@ -188,7 +188,7 @@ Link::SetHost(const nsAString &aHost)
     if (iter != end) {
       nsAutoString portStr(Substring(iter, end));
       nsresult rv;
-      int32_t port = portStr.ToInteger(&rv);
+      PRInt32 port = portStr.ToInteger(&rv);
       if (NS_SUCCEEDED(rv)) {
         (void)uri->SetPort(port);
       }
@@ -254,7 +254,7 @@ Link::SetPort(const nsAString &aPort)
 
   nsresult rv;
   nsAutoString portStr(aPort);
-  int32_t port = portStr.ToInteger(&rv);
+  PRInt32 port = portStr.ToInteger(&rv);
   if (NS_FAILED(rv)) {
     return NS_OK;
   }
@@ -286,7 +286,7 @@ Link::GetProtocol(nsAString &_protocol)
     _protocol.AssignLiteral("http");
   }
   else {
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     (void)uri->GetScheme(scheme);
     CopyASCIItoUTF16(scheme, _protocol);
   }
@@ -305,7 +305,7 @@ Link::GetHost(nsAString &_host)
     return NS_OK;
   }
 
-  nsAutoCString hostport;
+  nsCAutoString hostport;
   nsresult rv = uri->GetHostPort(hostport);
   if (NS_SUCCEEDED(rv)) {
     CopyUTF8toUTF16(hostport, _host);
@@ -324,7 +324,7 @@ Link::GetHostname(nsAString &_hostname)
     return NS_OK;
   }
 
-  nsAutoCString host;
+  nsCAutoString host;
   nsresult rv = uri->GetHost(host);
   // Note that failure to get the host from the URI is not necessarily a bad
   // thing.  Some URIs do not have a host.
@@ -347,7 +347,7 @@ Link::GetPathname(nsAString &_pathname)
     return NS_OK;
   }
 
-  nsAutoCString file;
+  nsCAutoString file;
   nsresult rv = url->GetFilePath(file);
   NS_ENSURE_SUCCESS(rv, rv);
   CopyUTF8toUTF16(file, _pathname);
@@ -367,7 +367,7 @@ Link::GetSearch(nsAString &_search)
     return NS_OK;
   }
 
-  nsAutoCString search;
+  nsCAutoString search;
   nsresult rv = url->GetQuery(search);
   if (NS_SUCCEEDED(rv) && !search.IsEmpty()) {
     CopyUTF8toUTF16(NS_LITERAL_CSTRING("?") + search, _search);
@@ -386,7 +386,7 @@ Link::GetPort(nsAString &_port)
     return NS_OK;
   }
 
-  int32_t port;
+  PRInt32 port;
   nsresult rv = uri->GetPort(&port);
   // Note that failure to get the port from the URI is not necessarily a bad
   // thing.  Some URIs do not have a port.
@@ -410,7 +410,7 @@ Link::GetHash(nsAString &_hash)
     return NS_OK;
   }
 
-  nsAutoCString ref;
+  nsCAutoString ref;
   nsresult rv = uri->GetRef(ref);
   if (NS_SUCCEEDED(rv) && !ref.IsEmpty()) {
     NS_UnescapeURL(ref); // XXX may result in random non-ASCII bytes!
@@ -492,7 +492,7 @@ Link::SetHrefAttribute(nsIURI *aURI)
 {
   NS_ASSERTION(aURI, "Null URI is illegal!");
 
-  nsAutoCString href;
+  nsCAutoString href;
   (void)aURI->GetSpec(href);
   (void)mElement->SetAttr(kNameSpaceID_None, nsGkAtoms::href,
                           NS_ConvertUTF8toUTF16(href), true);

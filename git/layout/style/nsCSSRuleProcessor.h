@@ -12,7 +12,6 @@
 #ifndef nsCSSRuleProcessor_h_
 #define nsCSSRuleProcessor_h_
 
-#include "mozilla/Attributes.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsCSSStyleSheet.h"
 #include "nsTArray.h"
@@ -43,7 +42,7 @@ class nsCSSRuleProcessor: public nsIStyleRuleProcessor {
 public:
   typedef nsTArray<nsRefPtr<nsCSSStyleSheet> > sheet_array_type;
 
-  nsCSSRuleProcessor(const sheet_array_type& aSheets, uint8_t aSheetType);
+  nsCSSRuleProcessor(const sheet_array_type& aSheets, PRUint8 aSheetType);
   virtual ~nsCSSRuleProcessor();
 
   NS_DECL_ISUPPORTS
@@ -89,24 +88,24 @@ public:
   static bool IsLink(mozilla::dom::Element* aElement);
 
   // nsIStyleRuleProcessor
-  virtual void RulesMatching(ElementRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual void RulesMatching(ElementRuleProcessorData* aData);
 
-  virtual void RulesMatching(PseudoElementRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual void RulesMatching(PseudoElementRuleProcessorData* aData);
 
-  virtual void RulesMatching(AnonBoxRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual void RulesMatching(AnonBoxRuleProcessorData* aData);
 
 #ifdef MOZ_XUL
-  virtual void RulesMatching(XULTreeRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual void RulesMatching(XULTreeRuleProcessorData* aData);
 #endif
 
-  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual nsRestyleHint HasStateDependentStyle(StateRuleProcessorData* aData);
 
-  virtual bool HasDocumentStateDependentStyle(StateRuleProcessorData* aData) MOZ_OVERRIDE;
+  virtual bool HasDocumentStateDependentStyle(StateRuleProcessorData* aData);
 
   virtual nsRestyleHint
-    HasAttributeDependentStyle(AttributeRuleProcessorData* aData) MOZ_OVERRIDE;
+    HasAttributeDependentStyle(AttributeRuleProcessorData* aData);
 
-  virtual bool MediumFeaturesChanged(nsPresContext* aPresContext) MOZ_OVERRIDE;
+  virtual bool MediumFeaturesChanged(nsPresContext* aPresContext);
 
   virtual NS_MUST_OVERRIDE size_t
     SizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf) const MOZ_OVERRIDE;
@@ -130,8 +129,8 @@ public:
 
 #ifdef XP_WIN
   // Cached theme identifier for the moz-windows-theme media query.
-  static uint8_t GetWindowsThemeIdentifier();
-  static void SetWindowsThemeIdentifier(uint8_t aId) { 
+  static PRUint8 GetWindowsThemeIdentifier();
+  static void SetWindowsThemeIdentifier(PRUint8 aId) { 
     sWinThemeId = aId;
   }
 #endif
@@ -162,10 +161,10 @@ private:
   nsPresContext *mLastPresContext;
   
   // type of stylesheet using this processor
-  uint8_t mSheetType;  // == nsStyleSet::sheetType
+  PRUint8 mSheetType;  // == nsStyleSet::sheetType
 
 #ifdef XP_WIN
-  static uint8_t sWinThemeId;
+  static PRUint8 sWinThemeId;
 #endif
 };
 

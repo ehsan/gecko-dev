@@ -120,7 +120,7 @@ ScriptErrorReporter(JSContext *cx,
         if (cc) {
             nsAXPCNativeCallContext *prev = cc;
             while (NS_SUCCEEDED(prev->GetPreviousCallContext(&prev)) && prev) {
-                uint16_t lang;
+                PRUint16 lang;
                 if (NS_SUCCEEDED(prev->GetLanguage(&lang)) &&
                     lang == nsAXPCNativeCallContext::LANG_JS) {
                     return;
@@ -395,7 +395,7 @@ GCZeal(JSContext *cx,
   if (!JS_ValueToECMAUint32(cx, argv[0], &zeal))
     return JS_FALSE;
 
-  JS_SetGCZeal(cx, uint8_t(zeal), JS_DEFAULT_ZEAL_FREQ);
+  JS_SetGCZeal(cx, PRUint8(zeal), JS_DEFAULT_ZEAL_FREQ);
   return JS_TRUE;
 }
 #endif
@@ -562,7 +562,12 @@ ProcessFile(JSContext *cx,
         ungetc(ch, file);
 
         JSAutoRequest ar(cx);
-        JSAutoCompartment ac(cx, obj);
+
+        JSAutoEnterCompartment ac;
+        if (!ac.enter(cx, obj)) {
+            NS_ERROR("Failed to enter compartment!");
+            return;
+        }
 
         JSScript* script =
             JS_CompileUTF8FileHandleForPrincipals(cx, obj, filename, file,
@@ -581,7 +586,12 @@ ProcessFile(JSContext *cx,
         *bufp = '\0';
 
         JSAutoRequest ar(cx);
-        JSAutoCompartment ac(cx, obj);
+
+        JSAutoEnterCompartment ac;
+        if (!ac.enter(cx, obj)) {
+            NS_ERROR("Failed to enter compartment!");
+            return;
+        }
 
         /*
          * Accumulate lines until we get a 'compilable unit' - one that either
@@ -666,7 +676,7 @@ FullTrustSecMan::CanGetService(JSContext * aJSContext,
 }
 
 NS_IMETHODIMP
-FullTrustSecMan::CanAccess(uint32_t aAction,
+FullTrustSecMan::CanAccess(PRUint32 aAction,
                            nsAXPCNativeCallContext *aCallContext,
                            JSContext * aJSContext,
                            JSObject * aJSObject,
@@ -683,7 +693,7 @@ FullTrustSecMan::CheckPropertyAccess(JSContext * aJSContext,
                                      JSObject * aJSObject,
                                      const char *aClassName,
                                      jsid aProperty,
-                                     uint32_t aAction)
+                                     PRUint32 aAction)
 {
     return NS_OK;
 }
@@ -698,7 +708,7 @@ FullTrustSecMan::CheckLoadURIFromScript(JSContext * cx,
 NS_IMETHODIMP
 FullTrustSecMan::CheckLoadURIWithPrincipal(nsIPrincipal *aPrincipal,
                                            nsIURI *uri,
-                                           uint32_t flags)
+                                           PRUint32 flags)
 {
     return NS_OK;
 }
@@ -706,7 +716,7 @@ FullTrustSecMan::CheckLoadURIWithPrincipal(nsIPrincipal *aPrincipal,
 NS_IMETHODIMP
 FullTrustSecMan::CheckLoadURIStrWithPrincipal(nsIPrincipal *aPrincipal,
                                               const nsACString & uri,
-                                              uint32_t flags)
+                                              PRUint32 flags)
 {
     return NS_OK;
 }
@@ -771,7 +781,7 @@ FullTrustSecMan::GetNoAppCodebasePrincipal(nsIURI *aURI,
 
 NS_IMETHODIMP
 FullTrustSecMan::GetAppCodebasePrincipal(nsIURI *aURI,
-                                         uint32_t aAppId,
+                                         PRUint32 aAppId,
                                          bool aInMozBrowser,
                                          nsIPrincipal **_retval)
 {
@@ -789,7 +799,7 @@ FullTrustSecMan::GetDocShellCodebasePrincipal(nsIURI *aURI,
 NS_IMETHODIMP
 FullTrustSecMan::RequestCapability(nsIPrincipal *principal,
                                    const char *capability,
-                                   int16_t *_retval)
+                                   PRInt16 *_retval)
 {
     *_retval = nsIPrincipal::ENABLE_GRANTED;
     return NS_OK;
@@ -870,8 +880,16 @@ FullTrustSecMan::GetCxSubjectPrincipal(JSContext *cx)
     return mSystemPrincipal;
 }
 
+NS_IMETHODIMP_(nsIPrincipal *)
+FullTrustSecMan::GetCxSubjectPrincipalAndFrame(JSContext *cx,
+                                               JSStackFrame **fp)
+{
+    *fp = nullptr;
+    return mSystemPrincipal;
+}
+
 NS_IMETHODIMP
-FullTrustSecMan::GetExtendedOrigin(nsIURI* aURI, uint32_t aAppId,
+FullTrustSecMan::GetExtendedOrigin(nsIURI* aURI, PRUint32 aAppId,
                                    bool aInMozBrowser,
                                    nsACString& aExtendedOrigin)
 {
@@ -963,7 +981,7 @@ XPCShellEnvironment::~XPCShellEnvironment()
 
         JSObject* global = GetGlobalObject();
         if (global) {
-            JS_SetAllNonReservedSlotsToUndefined(mCx, global);
+            JS_ClearScope(mCx, global);
         }
         mGlobalHolder.Release();
 
@@ -1080,7 +1098,9 @@ XPCShellEnvironment::Init()
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,
-                                              principal, 0,
+                                              principal,
+                                              nsIXPConnect::
+                                                  FLAG_SYSTEM_GLOBAL_OBJECT,
                                               getter_AddRefs(holder));
     if (NS_FAILED(rv)) {
         NS_ERROR("InitClassesWithNewWrappedGlobal failed!");
@@ -1097,7 +1117,12 @@ XPCShellEnvironment::Init()
 
     {
         JSAutoRequest ar(cx);
-        JSAutoCompartment ac(cx, globalObj);
+
+        JSAutoEnterCompartment ac;
+        if (!ac.enter(cx, globalObj)) {
+            NS_ERROR("Failed to enter compartment!");
+            return false;
+        }
 
         if (!JS_DefineFunctions(cx, globalObj, gGlobalFunctions) ||
 	    !JS_DefineProfilingFunctions(cx, globalObj)) {
@@ -1131,7 +1156,12 @@ XPCShellEnvironment::EvaluateString(const nsString& aString,
   JS_ClearPendingException(mCx);
 
   JSObject* global = GetGlobalObject();
-  JSAutoCompartment ac(mCx, global);
+
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(mCx, global)) {
+      NS_ERROR("Failed to enter compartment!");
+      return false;
+  }
 
   JSScript* script =
       JS_CompileUCScriptForPrincipals(mCx, global, GetPrincipal(),

@@ -5,7 +5,6 @@
 import socket
 
 from client import MarionetteClient
-from application_cache import ApplicationCache
 from keys import Keys
 from errors import *
 from emulator import Emulator
@@ -63,29 +62,24 @@ class HTMLElement(object):
                     typing.append(val[i])
         return self.marionette._send_message('sendKeysToElement', 'ok', element=self.id, value=typing)
 
+    def value(self):
+        return self.marionette._send_message('getElementValue', 'value', element=self.id)
+
     def clear(self):
         return self.marionette._send_message('clearElement', 'ok', element=self.id)
 
-    def is_selected(self):
+    def selected(self):
         return self.marionette._send_message('isElementSelected', 'value', element=self.id)
 
-    def is_enabled(self):
+    def enabled(self):
         return self.marionette._send_message('isElementEnabled', 'value', element=self.id)
 
     def is_displayed(self):
         return self.marionette._send_message('isElementDisplayed', 'value', element=self.id)
-     
-    @property
-    def size(self):
-        return self.marionette._send_message('getElementSize', 'value', element=self.id)
 
     @property
     def tag_name(self):
         return self.marionette._send_message('getElementTagName', 'value', element=self.id)
-
-    @property
-    def location(self):
-        return self.marionette._send_message('getElementPosition', 'value', element=self.id)
 
 
 class Marionette(object):
@@ -94,10 +88,9 @@ class Marionette(object):
     CONTEXT_CONTENT = 'content'
 
     def __init__(self, host='localhost', port=2828, bin=None, profile=None,
-                 emulator=None, sdcard=None, emulatorBinary=None,
-                 emulatorImg=None, emulator_res='480x800', gecko_path=None,
-                 connectToRunningEmulator=False, homedir=None, baseurl=None,
-                 noWindow=False, logcat_dir=None):
+                 emulator=None, emulatorBinary=None, emulatorImg=None,
+                 emulator_res='480x800', connectToRunningEmulator=False,
+                 homedir=None, baseurl=None, noWindow=False, logcat_dir=None):
         self.host = host
         self.port = self.local_port = port
         self.bin = bin
@@ -111,7 +104,6 @@ class Marionette(object):
         self.baseurl = baseurl
         self.noWindow = noWindow
         self.logcat_dir = logcat_dir
-        self.gecko_path = gecko_path
 
         if bin:
             self.instance = GeckoInstance(host=self.host, port=self.port,
@@ -123,55 +115,25 @@ class Marionette(object):
                                      noWindow=self.noWindow,
                                      logcat_dir=self.logcat_dir,
                                      arch=emulator,
-                                     sdcard=sdcard,
                                      emulatorBinary=emulatorBinary,
                                      userdata=emulatorImg,
-                                     res=emulator_res,
-                                     gecko_path=self.gecko_path)
+                                     res=emulator_res)
             self.emulator.start()
             self.port = self.emulator.setup_port_forwarding(self.port)
             assert(self.emulator.wait_for_port())
 
         if connectToRunningEmulator:
-            self.emulator = Emulator(homedir=homedir,
-                                     logcat_dir=self.logcat_dir,
-                                     gecko_path=self.gecko_path)
+            self.emulator = Emulator(homedir=homedir, logcat_dir=self.logcat_dir)
             self.emulator.connect()
             self.port = self.emulator.setup_port_forwarding(self.port)
             assert(self.emulator.wait_for_port())
 
         self.client = MarionetteClient(self.host, self.port)
 
-        if emulator:
-            # When launching an emulator, telephony API's are not
-            # available immediately.  They start working after the
-            # system-message-listener-ready event is observed.  See
-            # bug 792647.  This code causes us to wait for this event
-            # after launching an emulator, before allowing any tests
-            # to run.
-            self.start_session()
-            self.set_context(self.CONTEXT_CHROME)
-            self.set_script_timeout(30000)
-            try:
-                self.execute_async_script("""
-    waitFor(
-        function() { marionetteScriptFinished(true); },
-        function() { return isSystemMessageListenerReady(); }
-    );
-                """)
-            except ScriptTimeoutException:
-                # We silently ignore the timeout if it occurs, since
-                # isSystemMessageListenerReady() isn't available on
-                # older emulators.  30s *should* be enough of a delay
-                # to allow telephony API's to work.
-                pass
-            self.set_context(self.CONTEXT_CONTENT)
-            self.delete_session()
-
     def __del__(self):
         if self.emulator:
             self.emulator.close()
-        if self.instance:
+        if self.bin:
             self.instance.close()
         for qemu in self.extra_emulators:
             qemu.emulator.close()
@@ -302,7 +264,7 @@ class Marionette(object):
     def current_window_handle(self):
         self.window = self._send_message('getWindow', 'value')
         return self.window
-
+    
     @property
     def title(self):
         response = self._send_message('getTitle', 'value') 
@@ -466,7 +428,3 @@ class Marionette(object):
         f = open(file, "r")
         js = f.read()
         return self._send_message('importScript', 'ok', script=js)
-
-    @property
-    def application_cache(self):
-        return ApplicationCache(self)

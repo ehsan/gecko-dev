@@ -6,7 +6,6 @@
 #ifndef nsSprocketLayout_h___
 #define nsSprocketLayout_h___
 
-#include "mozilla/Attributes.h"
 #include "nsBoxLayout.h"
 #include "nsCOMPtr.h"
 #include "nsIFrame.h"
@@ -70,7 +69,7 @@ public:
 
   NS_IMETHOD Layout(nsIFrame* aBox, nsBoxLayoutState& aState);
 
-  virtual nsSize GetPrefSize(nsIFrame* aBox, nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
+  virtual nsSize GetPrefSize(nsIFrame* aBox, nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMinSize(nsIFrame* aBox, nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMaxSize(nsIFrame* aBox, nsBoxLayoutState& aBoxLayoutState);
   virtual nscoord GetAscent(nsIFrame* aBox, nsBoxLayoutState& aBoxLayoutState);
@@ -106,11 +105,12 @@ protected:
                     const nsRect& aChildLayoutRect, 
                     nsRect& aChildActualRect, 
                     nsRect& aContainingRect, 
-                    int32_t aFlexes, 
+                    PRInt32 aFlexes, 
                     bool& aFinished);
 
   void AlignChildren(nsIFrame* aBox,
-                     nsBoxLayoutState& aState);
+                     nsBoxLayoutState& aState,
+                     bool* aNeedsRedraw);
 
   virtual void ComputeChildSizes(nsIFrame* aBox, 
                          nsBoxLayoutState& aState, 
@@ -121,11 +121,11 @@ protected:
 
   virtual void PopulateBoxSizes(nsIFrame* aBox, nsBoxLayoutState& aBoxLayoutState,
                                 nsBoxSize*& aBoxSizes, nscoord& aMinSize,
-                                nscoord& aMaxSize, int32_t& aFlexes);
+                                nscoord& aMaxSize, PRInt32& aFlexes);
 
   virtual void InvalidateComputedSizes(nsComputedBoxSize* aComputedBoxSizes);
 
-  virtual bool GetDefaultFlex(int32_t& aFlex);
+  virtual bool GetDefaultFlex(PRInt32& aFlex);
 
   virtual void GetFrameState(nsIFrame* aBox, nsFrameState& aState);
 

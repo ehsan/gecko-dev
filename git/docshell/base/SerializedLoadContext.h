@@ -8,7 +8,8 @@
 #define SerializedLoadContext_h
 
 #include "base/basictypes.h"
-#include "ipc/IPCMessageUtils.h"
+#include "IPC/IPCMessageUtils.h"
+#include "nsIIPCSerializable.h"
 #include "nsILoadContext.h"
 
 /*
@@ -27,7 +28,7 @@ class SerializedLoadContext
 public:
   SerializedLoadContext()
   {
-    Init(nullptr);
+    Init(nsnull);
   }
 
   SerializedLoadContext(nsILoadContext* aLoadContext);
@@ -36,25 +37,17 @@ public:
 
   void Init(nsILoadContext* aLoadContext);
 
-  bool IsNotNull() const
+  bool IsNotNull() const 
   {
     return mIsNotNull;
   }
 
-  bool IsPrivateBitValid() const
-  {
-    return mIsPrivateBitValid;
-  }
-
   // used to indicate if child-side LoadContext * was null.
   bool          mIsNotNull;
-  // used to indicate if child-side mUsePrivateBrowsing flag is valid, even if
-  // mIsNotNull is false, i.e., child LoadContext was null.
-  bool          mIsPrivateBitValid;
   bool          mIsContent;
   bool          mUsePrivateBrowsing;
   bool          mIsInBrowserElement;
-  uint32_t      mAppId;
+  PRUint32      mAppId;
 };
 
 // Function to serialize over IPDL

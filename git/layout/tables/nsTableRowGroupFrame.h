@@ -5,7 +5,6 @@
 #ifndef nsTableRowGroupFrame_h__
 #define nsTableRowGroupFrame_h__
 
-#include "mozilla/Attributes.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
 #include "nsIAtom.h"
@@ -80,14 +79,14 @@ public:
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
   
   NS_IMETHOD AppendFrames(ChildListID     aListID,
-                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                          nsFrameList&    aFrameList);
   
   NS_IMETHOD InsertFrames(ChildListID     aListID,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList) MOZ_OVERRIDE;
+                          nsFrameList&    aFrameList);
 
   NS_IMETHOD RemoveFrame(ChildListID     aListID,
-                         nsIFrame*       aOldFrame) MOZ_OVERRIDE;
+                         nsIFrame*       aOldFrame);
 
   virtual nsMargin GetUsedMargin() const;
   virtual nsMargin GetUsedBorder() const;
@@ -95,7 +94,7 @@ public:
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
    /** calls Reflow for all of its child rows.
     * Rows are all set to the same width and stacked vertically.
@@ -125,19 +124,19 @@ public:
 #endif
 
   /** return the number of child rows (not necessarily == number of child frames) */
-  int32_t GetRowCount();
+  PRInt32 GetRowCount();
 
   /** return the table-relative row index of the first row in this rowgroup.
     * if there are no rows, -1 is returned.
     */
-  int32_t GetStartRowIndex();
+  PRInt32 GetStartRowIndex();
 
   /** Adjust the row indices of all rows  whose index is >= aRowIndex.  
     * @param aRowIndex   - start adjusting with this index
     * @param aAdjustment - shift the row index by this amount
     */
-  void AdjustRowIndices(int32_t   aRowIndex,
-                        int32_t   anAdjustment);
+  void AdjustRowIndices(PRInt32   aRowIndex,
+                        PRInt32   anAdjustment);
 
   /**
    * Used for header and footer row group frames that are repeated when
@@ -170,7 +169,7 @@ public:
    * Sets full border widths before collapsing with cell borders
    * @param aForSide - side to set; only right, left, and bottom valid
    */
-  void SetContinuousBCBorderWidth(uint8_t     aForSide,
+  void SetContinuousBCBorderWidth(PRUint8     aForSide,
                                   BCPixelSize aPixelValue);
   /**
     * Adjust to the effect of visibibility:collapse on the row group and
@@ -186,7 +185,7 @@ public:
 
 // nsILineIterator methods
 public:
-  virtual void DisposeLineIterator() MOZ_OVERRIDE { }
+  virtual void DisposeLineIterator() { }
 
   // The table row is the equivalent to a line in block layout. 
   // The nsILineIterator assumes that a line resides in a block, this role is
@@ -198,12 +197,12 @@ public:
   /** Get the number of rows in a row group
     * @return the number of lines in a row group
     */
-  virtual int32_t GetNumLines() MOZ_OVERRIDE;
+  virtual PRInt32 GetNumLines();
 
   /** @see nsILineIterator.h GetDirection
     * @return true if the table is rtl
     */
-  virtual bool GetDirection() MOZ_OVERRIDE;
+  virtual bool GetDirection();
   
   /** Return structural information about a line. 
     * @param aLineNumber       - the index of the row relative to the row group
@@ -217,11 +216,11 @@ public:
     * @param aLineBounds       - rect of the row
     * @param aLineFlags        - unused set to 0
     */
-  NS_IMETHOD GetLine(int32_t aLineNumber,
+  NS_IMETHOD GetLine(PRInt32 aLineNumber,
                      nsIFrame** aFirstFrameOnLine,
-                     int32_t* aNumFramesOnLine,
+                     PRInt32* aNumFramesOnLine,
                      nsRect& aLineBounds,
-                     uint32_t* aLineFlags) MOZ_OVERRIDE;
+                     PRUint32* aLineFlags);
   
   /** Given a frame that's a child of the rowgroup, find which line its on.
     * @param aFrame       - frame, should be a row
@@ -230,7 +229,7 @@ public:
     *                       frame and the index is at least aStartLine.
     *                       -1 if the frame cannot be found.
     */
-  virtual int32_t FindLineContaining(nsIFrame* aFrame, int32_t aStartLine = 0) MOZ_OVERRIDE;
+  virtual PRInt32 FindLineContaining(nsIFrame* aFrame, PRInt32 aStartLine = 0);
 
   /** Find the orginating cell frame on a row that is the nearest to the
     * coordinate X.
@@ -243,11 +242,11 @@ public:
     * @param aXIsAfterLastFrame   - the point is after the last originating
     *                               cellframe
     */
-  NS_IMETHOD FindFrameAt(int32_t aLineNumber,
+  NS_IMETHOD FindFrameAt(PRInt32 aLineNumber,
                          nscoord aX,
                          nsIFrame** aFrameFound,
                          bool* aXIsBeforeFirstFrame,
-                         bool* aXIsAfterLastFrame) MOZ_OVERRIDE;
+                         bool* aXIsAfterLastFrame);
 
 #ifdef IBMBIDI
    /** Check whether visual and logical order of cell frames within a line are
@@ -258,10 +257,10 @@ public:
      * @param aLastVisual  - if the table is rtl last originating cell frame
      */
 
-  NS_IMETHOD CheckLineOrder(int32_t                  aLine,
+  NS_IMETHOD CheckLineOrder(PRInt32                  aLine,
                             bool                     *aIsReordered,
                             nsIFrame                 **aFirstVisual,
-                            nsIFrame                 **aLastVisual) MOZ_OVERRIDE;
+                            nsIFrame                 **aLastVisual);
 #endif
 
   /** Find the next originating cell frame that originates in the row.    
@@ -269,7 +268,7 @@ public:
     *                      originating in a row
     * @param aLineNumber - the index of the row relative to the table
     */  
-  NS_IMETHOD GetNextSiblingOnLine(nsIFrame*& aFrame, int32_t aLineNumber) MOZ_OVERRIDE;
+  NS_IMETHOD GetNextSiblingOnLine(nsIFrame*& aFrame, PRInt32 aLineNumber);
 
   // row cursor methods to speed up searching for the row(s)
   // containing a point. The basic idea is that we set the cursor
@@ -283,7 +282,7 @@ public:
   // though, and could be extracted and used elsewhere.
   struct FrameCursorData {
     nsTArray<nsIFrame*> mFrames;
-    uint32_t            mCursorIndex;
+    PRUint32            mCursorIndex;
     nscoord             mOverflowAbove;
     nscoord             mOverflowBelow;
     
@@ -324,10 +323,6 @@ public:
   FrameCursorData* SetupRowCursor();
 
   virtual nsILineIterator* GetLineIterator() { return this; }
-
-  virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
-  virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
 
 protected:
   nsTableRowGroupFrame(nsStyleContext* aContext);
@@ -445,7 +440,7 @@ inline void nsTableRowGroupFrame::SetHasStyleHeight(bool aValue)
 inline void
 nsTableRowGroupFrame::GetContinuousBCBorderWidth(nsMargin& aBorder)
 {
-  int32_t aPixelsToTwips = nsPresContext::AppUnitsPerCSSPixel();
+  PRInt32 aPixelsToTwips = nsPresContext::AppUnitsPerCSSPixel();
   aBorder.right = BC_BORDER_LEFT_HALF_COORD(aPixelsToTwips,
                                             mRightContBorderWidth);
   aBorder.bottom = BC_BORDER_TOP_HALF_COORD(aPixelsToTwips,

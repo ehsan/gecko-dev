@@ -7,7 +7,6 @@
 #ifndef nsMathMLmencloseFrame_h___
 #define nsMathMLmencloseFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
@@ -55,31 +54,31 @@ public:
   
   virtual nsresult
   MeasureForWidth(nsRenderingContext& aRenderingContext,
-                  nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+                  nsHTMLReflowMetrics& aDesiredSize);
   
   NS_IMETHOD
-  AttributeChanged(int32_t         aNameSpaceID,
+  AttributeChanged(PRInt32         aNameSpaceID,
                    nsIAtom*        aAttribute,
-                   int32_t         aModType) MOZ_OVERRIDE;
+                   PRInt32         aModType);
   
   virtual void
-  SetAdditionalStyleContext(int32_t          aIndex, 
+  SetAdditionalStyleContext(PRInt32          aIndex, 
                             nsStyleContext*  aStyleContext);
   virtual nsStyleContext*
-  GetAdditionalStyleContext(int32_t aIndex) const;
+  GetAdditionalStyleContext(PRInt32 aIndex) const;
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                              const nsDisplayListSet& aLists);
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE;
+  TransmitAutomaticData();
 
   virtual nscoord
-  FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+  FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize);
 
 protected:
   nsMathMLmencloseFrame(nsStyleContext* aContext);
@@ -95,7 +94,7 @@ protected:
   void InitNotations();
 
   // Description of the notations to draw
-  uint32_t mNotationsToDraw;
+  PRUint32 mNotationsToDraw;
   bool IsToDraw(nsMencloseNotation mask)
   {
     return mask & mNotationsToDraw;
@@ -103,7 +102,7 @@ protected:
 
   nscoord mRuleThickness;
   nsTArray<nsMathMLChar> mMathMLChar;
-  int8_t mLongDivCharIndex, mRadicalCharIndex;
+  PRInt8 mLongDivCharIndex, mRadicalCharIndex;
   nscoord mContentWidth;
   nsresult AllocateMathMLChar(nsMencloseNotation mask);
 

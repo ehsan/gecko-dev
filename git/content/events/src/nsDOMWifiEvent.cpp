@@ -108,31 +108,24 @@ nsDOMMozWifiConnectionInfoEvent::GetNetwork(nsIVariant** aNetwork)
 }
 
 NS_IMETHODIMP
-nsDOMMozWifiConnectionInfoEvent::GetSignalStrength(int16_t* aSignalStrength)
+nsDOMMozWifiConnectionInfoEvent::GetSignalStrength(PRInt16* aSignalStrength)
 {
   *aSignalStrength = mSignalStrength;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMMozWifiConnectionInfoEvent::GetRelSignalStrength(int16_t* aRelSignalStrength)
+nsDOMMozWifiConnectionInfoEvent::GetRelSignalStrength(PRInt16* aRelSignalStrength)
 {
   *aRelSignalStrength = mRelSignalStrength;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDOMMozWifiConnectionInfoEvent::GetLinkSpeed(int32_t* aLinkSpeed)
+nsDOMMozWifiConnectionInfoEvent::GetLinkSpeed(PRInt32* aLinkSpeed)
 {
   *aLinkSpeed = mLinkSpeed;
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMMozWifiConnectionInfoEvent::GetIpAddress(nsAString& aIpAddress)
-{
-    aIpAddress = mIpAddress;
-    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -140,10 +133,9 @@ nsDOMMozWifiConnectionInfoEvent::InitMozWifiConnectionInfoEvent(const nsAString&
                                                                 bool aCanBubble,
                                                                 bool aCancelable,
                                                                 nsIVariant *aNetwork,
-                                                                int16_t aSignalStrength,
-                                                                int16_t aRelSignalStrength,
-                                                                int32_t aLinkSpeed,
-                                                                const nsAString &aIpAddress)
+                                                                PRInt16 aSignalStrength,
+                                                                PRInt16 aRelSignalStrength,
+                                                                PRInt32 aLinkSpeed)
 {
   nsresult rv = nsDOMEvent::InitEvent(aType, aCanBubble, aCancelable);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -152,7 +144,6 @@ nsDOMMozWifiConnectionInfoEvent::InitMozWifiConnectionInfoEvent(const nsAString&
   mSignalStrength = aSignalStrength;
   mRelSignalStrength = aRelSignalStrength;
   mLinkSpeed = aLinkSpeed;
-  mIpAddress = aIpAddress;
 
   return NS_OK;
 }
@@ -165,8 +156,7 @@ nsDOMMozWifiConnectionInfoEvent::InitFromCtor(const nsAString& aType,
   nsresult rv = d.Init(aCx, aVal);
   NS_ENSURE_SUCCESS(rv, rv);
   return InitMozWifiConnectionInfoEvent(aType, d.bubbles, d.cancelable, d.network,
-                                        d.signalStrength, d.relSignalStrength, d.linkSpeed,
-                                        d.ipAddress);
+                                        d.signalStrength, d.relSignalStrength, d.linkSpeed);
 }
 
 nsresult

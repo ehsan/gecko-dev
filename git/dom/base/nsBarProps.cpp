@@ -45,14 +45,14 @@ NS_IMPL_ADDREF(nsBarProp)
 NS_IMPL_RELEASE(nsBarProp)
 
 NS_IMETHODIMP
-nsBarProp::GetVisibleByFlag(bool *aVisible, uint32_t aChromeFlag)
+nsBarProp::GetVisibleByFlag(bool *aVisible, PRUint32 aChromeFlag)
 {
   *aVisible = false;
 
   nsCOMPtr<nsIWebBrowserChrome> browserChrome = GetBrowserChrome();
   NS_ENSURE_TRUE(browserChrome, NS_OK);
 
-  uint32_t chromeFlags;
+  PRUint32 chromeFlags;
 
   NS_ENSURE_SUCCESS(browserChrome->GetChromeFlags(&chromeFlags),
                     NS_ERROR_FAILURE);
@@ -63,7 +63,7 @@ nsBarProp::GetVisibleByFlag(bool *aVisible, uint32_t aChromeFlag)
 }
 
 NS_IMETHODIMP
-nsBarProp::SetVisibleByFlag(bool aVisible, uint32_t aChromeFlag)
+nsBarProp::SetVisibleByFlag(bool aVisible, PRUint32 aChromeFlag)
 {
   nsCOMPtr<nsIWebBrowserChrome> browserChrome = GetBrowserChrome();
   NS_ENSURE_TRUE(browserChrome, NS_OK);
@@ -77,7 +77,7 @@ nsBarProp::SetVisibleByFlag(bool aVisible, uint32_t aChromeFlag)
   if (!enabled)
     return NS_OK;
 
-  uint32_t chromeFlags;
+  PRUint32 chromeFlags;
 
   NS_ENSURE_SUCCESS(browserChrome->GetChromeFlags(&chromeFlags),
                     NS_ERROR_FAILURE);
@@ -267,7 +267,7 @@ nsScrollbarsProp::GetVisible(bool *aVisible)
       do_QueryInterface(mDOMWindow->GetDocShell());
 
     if (scroller) {
-      int32_t prefValue;
+      PRInt32 prefValue;
       scroller->GetDefaultScrollbarPreferences(
                   nsIScrollable::ScrollOrientation_Y, &prefValue);
       if (prefValue == nsIScrollable::Scrollbar_Never) // try the other way
@@ -307,7 +307,7 @@ nsScrollbarsProp::SetVisible(bool aVisible)
       do_QueryInterface(mDOMWindow->GetDocShell());
 
     if (scroller) {
-      int32_t prefValue;
+      PRInt32 prefValue;
 
       if (aVisible) {
         prefValue = nsIScrollable::Scrollbar_Auto;

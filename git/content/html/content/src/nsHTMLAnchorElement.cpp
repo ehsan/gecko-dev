@@ -35,15 +35,28 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
-  virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
-  virtual bool Draggable() const MOZ_OVERRIDE;
+  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLElement::)
+  NS_IMETHOD Click() {
+    return nsGenericHTMLElement::Click();
+  }
+  NS_IMETHOD GetTabIndex(PRInt32* aTabIndex);
+  NS_IMETHOD SetTabIndex(PRInt32 aTabIndex);
+  NS_IMETHOD Focus() {
+    return nsGenericHTMLElement::Focus();
+  }
+  NS_IMETHOD GetDraggable(bool* aDraggable);
+  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) {
+    return nsGenericHTMLElement::GetInnerHTML(aInnerHTML);
+  }
+  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) {
+    return nsGenericHTMLElement::SetInnerHTML(aInnerHTML);
+  }
 
   // nsIDOMHTMLAnchorElement
   NS_DECL_NSIDOMHTMLANCHORELEMENT  
@@ -60,7 +73,7 @@ public:
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
-  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, int32_t *aTabIndex);
+  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, PRInt32 *aTabIndex);
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
@@ -69,17 +82,17 @@ public:
   virtual nsLinkState GetLinkState() const;
   virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
   }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            bool aNotify);
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -101,21 +114,15 @@ protected:
   virtual void SetItemValueText(const nsAString& text);
 };
 
-#define ANCHOR_ELEMENT_FLAG_BIT(n_) NODE_FLAG_BIT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + (n_))
-
-// Anchor element specific bits
-enum {
-  // Indicates that a DNS Prefetch has been requested from this Anchor elem
-  HTML_ANCHOR_DNS_PREFETCH_REQUESTED =    ANCHOR_ELEMENT_FLAG_BIT(0),
-
-  // Indicates that a DNS Prefetch was added to the deferral queue
-  HTML_ANCHOR_DNS_PREFETCH_DEFERRED =     ANCHOR_ELEMENT_FLAG_BIT(1)
-};
+// Indicates that a DNS Prefetch has been requested from this Anchor elem
+#define HTML_ANCHOR_DNS_PREFETCH_REQUESTED \
+  (1 << ELEMENT_TYPE_SPECIFIC_BITS_OFFSET)
+// Indicates that a DNS Prefetch was added to the deferral queue
+#define HTML_ANCHOR_DNS_PREFETCH_DEFERRED \
+  (1 << (ELEMENT_TYPE_SPECIFIC_BITS_OFFSET+1))
 
 // Make sure we have enough space for those bits
-PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
-
-#undef ANCHOR_ELEMENT_FLAG_BIT
+PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET+1 < 32);
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Anchor)
 
@@ -158,13 +165,8 @@ NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Name, name)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Rel, rel)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Rev, rev)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Shape, shape)
+NS_IMPL_INT_ATTR(nsHTMLAnchorElement, TabIndex, tabindex)
 NS_IMPL_STRING_ATTR(nsHTMLAnchorElement, Type, type)
-
-int32_t
-nsHTMLAnchorElement::TabIndexDefault()
-{
-  return 0;
-}
 
 void
 nsHTMLAnchorElement::GetItemValueText(nsAString& aValue)
@@ -178,18 +180,19 @@ nsHTMLAnchorElement::SetItemValueText(const nsAString& aValue)
   SetHref(aValue);
 }
 
-bool
-nsHTMLAnchorElement::Draggable() const
+NS_IMETHODIMP
+nsHTMLAnchorElement::GetDraggable(bool* aDraggable)
 {
   // links can be dragged as long as there is an href and the
   // draggable attribute isn't false
-  if (!HasAttr(kNameSpaceID_None, nsGkAtoms::href)) {
-    // no href, so just use the same behavior as other elements
-    return nsGenericHTMLElement::Draggable();
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::href)) {
+    *aDraggable = !AttrValueIs(kNameSpaceID_None, nsGkAtoms::draggable,
+                               nsGkAtoms::_false, eIgnoreCase);
+    return NS_OK;
   }
 
-  return !AttrValueIs(kNameSpaceID_None, nsGkAtoms::draggable,
-                      nsGkAtoms::_false, eIgnoreCase);
+  // no href, so just use the same behavior as other elements
+  return nsGenericHTMLElement::GetDraggable(aDraggable);
 }
 
 void
@@ -267,7 +270,7 @@ nsHTMLAnchorElement::UnbindFromTree(bool aDeep, bool aNullParent)
 
 bool
 nsHTMLAnchorElement::IsHTMLFocusable(bool aWithMouse,
-                                     bool *aIsFocusable, int32_t *aTabIndex)
+                                     bool *aIsFocusable, PRInt32 *aTabIndex)
 {
   if (nsGenericHTMLElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
     return true;
@@ -434,7 +437,7 @@ nsHTMLAnchorElement::GetHrefURI() const
 }
 
 nsresult
-nsHTMLAnchorElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                              nsIAtom* aPrefix, const nsAString& aValue,
                              bool aNotify)
 {
@@ -471,7 +474,7 @@ nsHTMLAnchorElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLAnchorElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+nsHTMLAnchorElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                bool aNotify)
 {
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
@@ -490,7 +493,7 @@ nsHTMLAnchorElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
 }
 
 bool
-nsHTMLAnchorElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLAnchorElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsIAtom* aAttribute,
                                     const nsAString& aValue,
                                     nsAttrValue& aResult)

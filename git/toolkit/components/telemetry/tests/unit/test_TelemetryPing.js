@@ -2,21 +2,15 @@
    http://creativecommons.org/publicdomain/zero/1.0/ 
 */
 /* This testcase triggers two telemetry pings.
- *
+ * 
  * Telemetry code keeps histograms of past telemetry pings. The first
  * ping populates these histograms. One of those histograms is then
  * checked in the second request.
  */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const PATH = "/submit/telemetry/test-ping";
 const SERVER = "http://localhost:4444";
@@ -26,13 +20,6 @@ const IGNORE_CLONED_HISTOGRAM = "test::ignore_me_also";
 const ADDON_NAME = "Telemetry test addon";
 const ADDON_HISTOGRAM = "addon-histogram";
 const FLASH_VERSION = "1.1.1.1";
-const SHUTDOWN_TIME = 10000;
-
-// Constants from prio.h for nsIFileOutputStream.init
-const PR_WRONLY = 0x2;
-const PR_CREATE_FILE = 0x8;
-const PR_TRUNCATE = 0x20;
-const RW_OWNER = 0600;
 
 const BinaryInputStream = Components.Constructor(
   "@mozilla.org/binaryinputstream;1",
@@ -40,7 +27,7 @@ const BinaryInputStream = Components.Constructor(
   "setInputStream");
 const Telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
 
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var gFinished = false;
 
 function telemetry_ping () {
@@ -84,12 +71,7 @@ function getSavedHistogramsFile(basename) {
   if (histogramsFile.exists()) {
     histogramsFile.remove(true);
   }
-  do_register_cleanup(function () {
-    try {
-      histogramsFile.remove(true);
-    } catch (e) {
-    }
-  });
+  do_register_cleanup(function () histogramsFile.remove(true));
   return histogramsFile;
 }
 
@@ -179,8 +161,6 @@ function checkPayload(request, reason, successfulPings) {
   do_check_eq(request.getHeader("content-type"), "application/json; charset=UTF-8");
   do_check_true(payload.simpleMeasurements.uptime >= 0);
   do_check_true(payload.simpleMeasurements.startupInterrupted === 1);
-  do_check_eq(payload.simpleMeasurements.shutdownDuration, SHUTDOWN_TIME);
-
   var isWindows = ("@mozilla.org/windows-registry-key;1" in Components.classes);
   if (isWindows) {
     do_check_true(payload.simpleMeasurements.startupSessionRestoreReadBytes > 0);
@@ -190,9 +170,7 @@ function checkPayload(request, reason, successfulPings) {
   const TELEMETRY_PING = "TELEMETRY_PING";
   const TELEMETRY_SUCCESS = "TELEMETRY_SUCCESS";
   const TELEMETRY_TEST_FLAG = "TELEMETRY_TEST_FLAG";
-  const READ_SAVED_PING_SUCCESS = "READ_SAVED_PING_SUCCESS";
   do_check_true(TELEMETRY_PING in payload.histograms);
-  do_check_true(READ_SAVED_PING_SUCCESS in payload.histograms);
   let rh = Telemetry.registeredHistograms;
   for (let name in rh) {
     if (/SQLITE/.test(name) && name in payload.histograms) {
@@ -223,9 +201,6 @@ function checkPayload(request, reason, successfulPings) {
   };
   let tc = payload.histograms[TELEMETRY_SUCCESS];
   do_check_eq(uneval(tc), uneval(expected_tc));
-
-  let h = payload.histograms[READ_SAVED_PING_SUCCESS];
-  do_check_eq(h.values[0], 1);
 
   // The ping should include data from memory reporters.  We can't check that
   // this data is correct, because we can't control the values returned by the
@@ -291,35 +266,11 @@ function checkPersistedHistogramsAsync(request, response) {
   checkPayload(request, "saved-session", 3);
 
   gFinished = true;
-
-  runOldPingFileTest();
 }
 
 function checkHistogramsAsync(request, response) {
   httpserver.registerPathHandler(PATH, checkPersistedHistogramsAsync);
   checkPayload(request, "test-ping", 3);
-}
-
-function runInvalidJSONTest() {
-  let histogramsFile = getSavedHistogramsFile("invalid-histograms.dat");
-  writeStringToFile(histogramsFile, "this.is.invalid.JSON");
-  do_check_true(histogramsFile.exists());
-  
-  const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].getService(Ci.nsIObserver);
-  TelemetryPing.observe(histogramsFile, "test-load-histograms", null);
-  do_check_false(histogramsFile.exists());
-}
-
-function runOldPingFileTest() {
-  let histogramsFile = getSavedHistogramsFile("old-histograms.dat");
-  const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].getService(Ci.nsIObserver);
-  TelemetryPing.observe(histogramsFile, "test-save-histograms", null);
-  do_check_true(histogramsFile.exists());
-
-  let mtime = histogramsFile.lastModifiedTime;
-  histogramsFile.lastModifiedTime = mtime - 8 * 24 * 60 * 60 * 1000; // 8 days.
-  TelemetryPing.observe(histogramsFile, "test-load-histograms", null);
-  do_check_false(histogramsFile.exists());
 }
 
 // copied from toolkit/mozapps/extensions/test/xpcshell/head_addons.js
@@ -416,24 +367,6 @@ function registerFakePluginHost() {
                             PLUGINHOST_CONTRACTID, PluginHostFactory);
 }
 
-function writeStringToFile(file, contents) {
-  let ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"]
-                .createInstance(Ci.nsIFileOutputStream);
-  ostream.init(file, PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE,
-	       RW_OWNER, ostream.DEFER_OPEN);
-  ostream.write(contents, contents.length);
-  ostream.QueryInterface(Ci.nsISafeOutputStream).finish();
-  ostream.close();
-}
-
-function write_fake_shutdown_file() {
-  let profileDirectory = Services.dirsvc.get("ProfD", Ci.nsIFile);
-  let file = profileDirectory.clone();
-  file.append("Telemetry.ShutdownTime.txt");
-  let contents = "" + SHUTDOWN_TIME;
-  writeStringToFile(file, contents);
-}
-
 function run_test() {
   try {
     var gfxInfo = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfoDebug);
@@ -446,10 +379,6 @@ function run_test() {
   // Addon manager needs a profile directory
   do_get_profile();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1.9.2");
-
-  // Make it look like we've shutdown before.
-  write_fake_shutdown_file();
-  
   // try to make LightweightThemeManager do stuff
   let gInternalManager = Cc["@mozilla.org/addons/integration;1"]
                          .getService(Ci.nsIObserver)
@@ -460,8 +389,6 @@ function run_test() {
 
   // fake plugin host for consistent flash version data
   registerFakePluginHost();
-
-  runInvalidJSONTest();
 
   Services.obs.addObserver(nonexistentServerObserver, "telemetry-test-xhr-complete", false);
   telemetry_ping();

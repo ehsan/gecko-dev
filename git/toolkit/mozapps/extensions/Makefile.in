@@ -17,14 +17,6 @@ endif
 # out of sync.
 DEFINES += -DMOZ_EXTENSIONS_DB_SCHEMA=13
 
-# Additional debugging info is exposed in debug builds, or by setting the
-# MOZ_EM_DEBUG environment variable when building.
-ifneq (,$(MOZ_EM_DEBUG))
-DEFINES += -DMOZ_EM_DEBUG=1
-else ifdef MOZ_DEBUG
-DEFINES += -DMOZ_EM_DEBUG=1
-endif
-
 MODULE = extensions
 
 XPIDLSRCS = \
@@ -35,10 +27,10 @@ XPIDLSRCS = \
 
 EXTRA_PP_COMPONENTS = \
   nsBlocklistService.js \
-  extensions.manifest \
   $(NULL)
 
 EXTRA_COMPONENTS = \
+  extensions.manifest \
   addonManager.js \
   amContentHandler.js \
   amWebInstallListener.js \
@@ -55,7 +47,6 @@ EXTRA_JS_MODULES = \
   AddonRepository.jsm \
   AddonUpdateChecker.jsm \
   ChromeManifestParser.jsm \
-  LightweightThemeImageOptimizer.jsm \
   LightweightThemeManager.jsm \
   PluginProvider.jsm \
   SpellCheckDictionaryBootstrap.js \

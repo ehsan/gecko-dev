@@ -8,20 +8,20 @@
 #include "nsGkAtoms.h"
 #include "nsCOMPtr.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
-#include "nsError.h"
+#include "nsDOMError.h"
+#include "nsSVGUtils.h"
 #include "nsSVGMarkerElement.h"
 #include "gfxMatrix.h"
 #include "nsContentUtils.h" // NS_ENSURE_FINITE
-#include "SVGContentUtils.h"
 
 using namespace mozilla;
 
 nsSVGElement::LengthInfo nsSVGMarkerElement::sLengthInfo[4] =
 {
-  { &nsGkAtoms::refX, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::X },
-  { &nsGkAtoms::refY, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::Y },
-  { &nsGkAtoms::markerWidth, 3, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::X },
-  { &nsGkAtoms::markerHeight, 3, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, SVGContentUtils::Y },
+  { &nsGkAtoms::refX, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::X },
+  { &nsGkAtoms::refY, 0, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::Y },
+  { &nsGkAtoms::markerWidth, 3, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::X },
+  { &nsGkAtoms::markerHeight, 3, nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER, nsSVGUtils::Y },
 };
 
 nsSVGEnumMapping nsSVGMarkerElement::sUnitsMap[] = {
@@ -75,7 +75,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGMarkerElementBase)
 // Implementation
 
 nsresult
-nsSVGOrientType::SetBaseValue(uint16_t aValue,
+nsSVGOrientType::SetBaseValue(PRUint16 aValue,
                               nsSVGElement *aSVGElement)
 {
   if (aValue == nsIDOMSVGMarkerElement::SVG_MARKER_ORIENT_AUTO ||
@@ -223,7 +223,7 @@ nsSVGMarkerElement::IsAttributeMapped(const nsIAtom* name) const
 // nsSVGElement methods
 
 bool
-nsSVGMarkerElement::GetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsSVGMarkerElement::GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                             nsAString &aResult) const
 {
   if (aNameSpaceID == kNameSpaceID_None &&
@@ -236,7 +236,7 @@ nsSVGMarkerElement::GetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 bool
-nsSVGMarkerElement::ParseAttribute(int32_t aNameSpaceID, nsIAtom* aName,
+nsSVGMarkerElement::ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
                                    const nsAString& aValue,
                                    nsAttrValue& aResult)
 {
@@ -253,7 +253,7 @@ nsSVGMarkerElement::ParseAttribute(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsSVGMarkerElement::UnsetAttr(int32_t aNamespaceID, nsIAtom* aName,
+nsSVGMarkerElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                               bool aNotify)
 {
   if (aNamespaceID == kNameSpaceID_None) {
@@ -363,11 +363,11 @@ nsSVGMarkerElement::GetViewBoxTransform()
                       "Rendering should be disabled");
 
     gfxMatrix viewBoxTM =
-      SVGContentUtils::GetViewBoxTransform(this,
-                                           viewportWidth, viewportHeight,
-                                           viewbox.x, viewbox.y,
-                                           viewbox.width, viewbox.height,
-                                           mPreserveAspectRatio);
+      nsSVGUtils::GetViewBoxTransform(this,
+                                      viewportWidth, viewportHeight,
+                                      viewbox.x, viewbox.y,
+                                      viewbox.width, viewbox.height,
+                                      mPreserveAspectRatio);
 
     float refX = mLengthAttributes[REFX].GetAnimValue(mCoordCtx);
     float refY = mLengthAttributes[REFY].GetAnimValue(mCoordCtx);

@@ -92,8 +92,7 @@ NS_IMETHODIMP
 OfflineCacheUpdateGlue::Init(nsIURI *aManifestURI, 
                              nsIURI *aDocumentURI,
                              nsIDOMDocument *aDocument,
-                             nsIFile *aCustomProfileDir,
-                             nsILoadContext *aLoadContext)
+                             nsIFile *aCustomProfileDir)
 {
     if (!EnsureUpdate())
         return NS_ERROR_NULL_POINTER;
@@ -103,7 +102,7 @@ OfflineCacheUpdateGlue::Init(nsIURI *aManifestURI,
     if (aDocument)
         SetDocument(aDocument);
 
-    return mUpdate->Init(aManifestURI, aDocumentURI, nullptr, aCustomProfileDir, aLoadContext);
+    return mUpdate->Init(aManifestURI, aDocumentURI, nullptr, aCustomProfileDir);
 }
 
 void
@@ -142,7 +141,7 @@ OfflineCacheUpdateGlue::SetDocument(nsIDOMDocument *aDocument)
 }
 
 NS_IMETHODIMP
-OfflineCacheUpdateGlue::UpdateStateChanged(nsIOfflineCacheUpdate *aUpdate, uint32_t state)
+OfflineCacheUpdateGlue::UpdateStateChanged(nsIOfflineCacheUpdate *aUpdate, PRUint32 state)
 {
     if (state == nsIOfflineCacheUpdateObserver::STATE_FINISHED) {
         LOG(("OfflineCacheUpdateGlue got STATE_FINISHED [%p]", this));
@@ -183,7 +182,7 @@ OfflineCacheUpdateGlue::ApplicationCacheAvailable(nsIApplicationCache *aApplicat
     if (!existingCache) {
 #if defined(PR_LOGGING)
         if (LOG_ENABLED()) {
-            nsAutoCString clientID;
+            nsCAutoString clientID;
             if (aApplicationCache) {
                 aApplicationCache->GetClientID(clientID);
             }

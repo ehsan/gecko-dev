@@ -135,7 +135,6 @@ class LinkerHelper : public JSC::LinkBuffer
     }
 
     JSC::CodeLocationLabel finalize(VMFrame &f) {
-        AutoAssertNoGC nogc;
         masm.finalize(*this);
         JSC::CodeLocationLabel label = finalizeCodeAddendum();
         Probes::registerICCode(f.cx, f.chunk(), f.script(), f.pc(),
@@ -171,7 +170,7 @@ class NativeStubLinker : public LinkerHelper
 #endif
 
     NativeStubLinker(Assembler &masm, JITChunk *chunk, jsbytecode *pc, FinalJump done)
-        : LinkerHelper(masm, JSC::JAEGER_CODE), chunk(chunk), pc(pc), done(done)
+        : LinkerHelper(masm, JSC::METHOD_CODE), chunk(chunk), pc(pc), done(done)
     {}
 
     bool init(JSContext *cx);

@@ -8,7 +8,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-let menuitems = [], menupopups = [], huds = [], tabs = [], runCount = 0;
+let menuitems = [], menupopups = [], huds = [], tabs = [];
 
 function test()
 {
@@ -43,18 +43,13 @@ function test()
 function startTest()
 {
   // Find the relevant elements in the Web Console of tab 2.
-  let win2 = tabs[runCount*2 + 1].linkedBrowser.contentWindow;
+  let win2 = tabs[1].linkedBrowser.contentWindow;
   let hudId2 = HUDService.getHudIdByWindow(win2);
   huds[1] = HUDService.hudReferences[hudId2];
   HUDService.disableAnimation(hudId2);
 
-  if (runCount == 0) {
-    menuitems[1] = huds[1].ui.rootElement.querySelector("#saveBodies");
-  }
-  else {
-    menuitems[1] = huds[1].ui.rootElement.querySelector("#saveBodiesContextMenu");
-  }
-  menupopups[1] = menuitems[1].parentNode;
+  menuitems[1] = huds[1].ui.rootElement.querySelector("#saveBodies");
+  menupopups[1] = huds[1].ui.rootElement.querySelector("menupopup");
 
   // Open the context menu from tab 2.
   menupopups[1].addEventListener("popupshown", onpopupshown2, false);
@@ -86,17 +81,8 @@ function onpopupshown2(aEvent)
     });
   }, false);
 
-  waitForSuccess({
-    name: "saveRequestAndResponseBodies update",
-    validatorFn: function()
-    {
-      return huds[1].ui.saveRequestAndResponseBodies;
-    },
-    successFn: function()
-    {
-      menupopups[1].hidePopup();
-    },
-    failureFn: finishTest,
+  executeSoon(function() {
+    menupopups[1].hidePopup();
   });
 }
 
@@ -109,10 +95,10 @@ function onpopupshown2b(aEvent)
     menupopups[1].removeEventListener(aEvent.type, _onhidden, false);
 
     // Switch to tab 1 and open the Web Console context menu from there.
-    gBrowser.selectedTab = tabs[runCount*2];
+    gBrowser.selectedTab = tabs[0];
     waitForFocus(function() {
       // Find the relevant elements in the Web Console of tab 1.
-      let win1 = tabs[runCount*2].linkedBrowser.contentWindow;
+      let win1 = tabs[0].linkedBrowser.contentWindow;
       let hudId1 = HUDService.getHudIdByWindow(win1);
       huds[0] = HUDService.hudReferences[hudId1];
       HUDService.disableAnimation(hudId1);
@@ -125,7 +111,7 @@ function onpopupshown2b(aEvent)
 
       menupopups[0].addEventListener("popupshown", onpopupshown1, false);
       menupopups[0].openPopup();
-    }, tabs[runCount*2].linkedBrowser.contentWindow);
+    }, tabs[0].linkedBrowser.contentWindow);
   }, false);
 
   executeSoon(function() {
@@ -148,25 +134,16 @@ function onpopupshown1(aEvent)
   menupopups[0].addEventListener("popuphidden", function _onhidden(aEvent) {
     menupopups[0].removeEventListener(aEvent.type, _onhidden, false);
 
-    gBrowser.selectedTab = tabs[runCount*2 + 1];
+    gBrowser.selectedTab = tabs[1];
     waitForFocus(function() {
       // Reopen the context menu from tab 2.
       menupopups[1].addEventListener("popupshown", onpopupshown2c, false);
       menupopups[1].openPopup();
-    }, tabs[runCount*2 + 1].linkedBrowser.contentWindow);
+    }, tabs[1].linkedBrowser.contentWindow);
   }, false);
 
-  waitForSuccess({
-    name: "saveRequestAndResponseBodies update",
-    validatorFn: function()
-    {
-      return huds[0].ui.saveRequestAndResponseBodies;
-    },
-    successFn: function()
-    {
-      menupopups[0].hidePopup();
-    },
-    failureFn: finishTest,
+  executeSoon(function() {
+    menupopups[0].hidePopup();
   });
 }
 
@@ -179,25 +156,12 @@ function onpopupshown2c(aEvent)
   menupopups[1].addEventListener("popuphidden", function _onhidden(aEvent) {
     menupopups[1].removeEventListener(aEvent.type, _onhidden, false);
 
-    // Done if on second run
+    // Done!
+    huds = menuitems = menupopups = tabs = null;
     closeConsole(gBrowser.selectedTab, function() {
-      if (runCount == 0) {
-        runCount++;
-        executeSoon(test);
-      }
-      else {
-        gBrowser.removeCurrentTab();
-        gBrowser.selectedTab = tabs[2];
-        gBrowser.removeCurrentTab();
-        gBrowser.selectedTab = tabs[1];
-        gBrowser.removeCurrentTab();
-        gBrowser.selectedTab = tabs[0];
-        gBrowser.removeCurrentTab();
-        huds = menuitems = menupopups = tabs = null;
-        executeSoon(finishTest);
-      }
+      gBrowser.removeCurrentTab();
+      executeSoon(finishTest);
     });
-
   }, false);
 
   executeSoon(function() {

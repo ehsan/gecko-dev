@@ -4,8 +4,11 @@
 
 "use strict";
 
-const DEBUG = false;
-function debug(s) { dump("-*- Fallback ContactService component: " + s + "\n"); }
+let DEBUG = 0;
+if (DEBUG)
+  debug = function (s) { dump("-*- Fallback ContactService component: " + s + "\n"); }
+else
+  debug = function (s) {}
 
 const Cu = Components.utils; 
 const Cc = Components.classes;
@@ -17,22 +20,16 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/ContactDB.jsm");
 
-XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
-                                   "@mozilla.org/parentprocessmessagemanager;1",
-                                   "nsIMessageListenerManager");
-
-XPCOMUtils.defineLazyGetter(this, "mRIL", function () {
-  return Cc["@mozilla.org/telephony/system-worker-manager;1"].
-           getService(Ci.nsIInterfaceRequestor).
-           getInterface(Ci.nsIRadioInterfaceLayer);
+XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
+  return Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
 });
 
 let myGlobal = this;
 
 let DOMContactManager = {
   init: function() {
-    if (DEBUG) debug("Init");
-    this._messages = ["Contacts:Find", "Contacts:Clear", "Contact:Save", "Contact:Remove", "Contacts:GetSimContacts"];
+    debug("Init");
+    this._messages = ["Contacts:Find", "Contacts:Clear", "Contact:Save", "Contact:Remove"];
     this._messages.forEach((function(msgName) {
       ppmm.addMessageListener(msgName, this);
     }).bind(this));
@@ -59,8 +56,8 @@ let DOMContactManager = {
   },
 
   receiveMessage: function(aMessage) {
-    if (DEBUG) debug("Fallback DOMContactManager::receiveMessage " + aMessage.name);
-    let mm = aMessage.target;
+    debug("Fallback DOMContactManager::receiveMessage " + aMessage.name);
+    let mm = aMessage.target.QueryInterface(Ci.nsIFrameMessageManager);
     let msg = aMessage.data;
 
     /*
@@ -115,14 +112,14 @@ let DOMContactManager = {
             if (msg.options && msg.options.findOptions) {
               let findOptions = msg.options.findOptions;
               if (findOptions.sortOrder !== 'undefined' && findOptions.sortBy !== 'undefined') {
-                if (DEBUG) debug('sortBy: ' + findOptions.sortBy + ', sortOrder: ' + findOptions.sortOrder );
+                debug('sortBy: ' + findOptions.sortBy + ', sortOrder: ' + findOptions.sortOrder );
                 result.sort(sortfunction);
                 if (findOptions.filterLimit)
                   result = result.slice(0, findOptions.filterLimit);
               }
             }
 
-            if (DEBUG) debug("result:" + JSON.stringify(result));
+            debug("result:" + JSON.stringify(result));
             mm.sendAsyncMessage("Contacts:Find:Return:OK", {requestID: msg.requestID, contacts: result});
           }.bind(this),
           function(aErrorMsg) { mm.sendAsyncMessage("Contacts:Find:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }) }.bind(this),
@@ -147,24 +144,8 @@ let DOMContactManager = {
           function() { mm.sendAsyncMessage("Contacts:Clear:Return:OK", { requestID: msg.requestID }); }.bind(this),
           function(aErrorMsg) { mm.sendAsyncMessage("Contacts:Clear:Return:KO", { requestID: msg.requestID, errorMsg: aErrorMsg }); }.bind(this)
         );
-        break;
-      case "Contacts:GetSimContacts":
-        mRIL.getICCContacts(
-          msg.options.contactType,
-          function (aErrorMsg, aType, aContacts) {
-            if (aErrorMsg !== 'undefined') {
-              mm.sendAsyncMessage("Contacts:GetSimContacts:Return:KO",
-                                  {requestID: msg.requestID,
-                                   errorMsg: aErrorMsg});
-            } else {
-              mm.sendAsyncMessage("Contacts:GetSimContacts:Return:OK",
-                                  {requestID: msg.requestID,
-                                   contacts: aContacts});
-            }
-          }.bind(this));
-        break;
       default:
-        if (DEBUG) debug("WRONG MESSAGE NAME: " + aMessage.name);
+        debug("WRONG MESSAGE NAME: " + aMessage.name);
     }
   }
 }

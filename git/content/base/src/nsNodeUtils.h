@@ -48,9 +48,9 @@ public:
    * @see nsIMutationObserver::AttributeWillChange
    */
   static void AttributeWillChange(mozilla::dom::Element* aElement,
-                                  int32_t aNameSpaceID,
+                                  PRInt32 aNameSpaceID,
                                   nsIAtom* aAttribute,
-                                  int32_t aModType);
+                                  PRInt32 aModType);
 
   /**
    * Send AttributeChanged notifications to nsIMutationObservers.
@@ -61,19 +61,9 @@ public:
    * @see nsIMutationObserver::AttributeChanged
    */
   static void AttributeChanged(mozilla::dom::Element* aElement,
-                               int32_t aNameSpaceID,
+                               PRInt32 aNameSpaceID,
                                nsIAtom* aAttribute,
-                               int32_t aModType);
-  /**
-   * Send AttributeSetToCurrentValue notifications to nsIMutationObservers.
-   * @param aElement      Element whose data changed
-   * @param aNameSpaceID  Namespace of the attribute
-   * @param aAttribute    Local-name of the attribute
-   * @see nsIMutationObserver::AttributeSetToCurrentValue
-   */
-  static void AttributeSetToCurrentValue(mozilla::dom::Element* aElement,
-                                         int32_t aNameSpaceID,
-                                         nsIAtom* aAttribute);
+                               PRInt32 aModType);
 
   /**
    * Send ContentAppended notifications to nsIMutationObservers
@@ -84,7 +74,7 @@ public:
    */
   static void ContentAppended(nsIContent* aContainer,
                               nsIContent* aFirstNewContent,
-                              int32_t aNewIndexInContainer);
+                              PRInt32 aNewIndexInContainer);
 
   /**
    * Send ContentInserted notifications to nsIMutationObservers
@@ -95,7 +85,7 @@ public:
    */
   static void ContentInserted(nsINode* aContainer,
                               nsIContent* aChild,
-                              int32_t aIndexInContainer);
+                              PRInt32 aIndexInContainer);
   /**
    * Send ContentRemoved notifications to nsIMutationObservers
    * @param aContainer        Node from which child was removed
@@ -105,7 +95,7 @@ public:
    */
   static void ContentRemoved(nsINode* aContainer,
                              nsIContent* aChild,
-                             int32_t aIndexInContainer,
+                             PRInt32 aIndexInContainer,
                              nsIContent* aPreviousSibling);
   /**
    * Send ParentChainChanged notifications to nsIMutationObservers
@@ -150,10 +140,10 @@ public:
   static nsresult Clone(nsINode *aNode, bool aDeep,
                         nsNodeInfoManager *aNewNodeInfoManager,
                         nsCOMArray<nsINode> &aNodesWithProperties,
-                        nsINode **aResult)
+                        nsIDOMNode **aResult)
   {
     return CloneAndAdopt(aNode, true, aDeep, aNewNodeInfoManager, nullptr,
-                         nullptr, aNodesWithProperties, nullptr, aResult);
+                         nullptr, aNodesWithProperties, aResult);
   }
 
   /**
@@ -179,10 +169,9 @@ public:
                         JSContext *aCx, JSObject *aNewScope,
                         nsCOMArray<nsINode> &aNodesWithProperties)
   {
-    nsCOMPtr<nsINode> node;
     nsresult rv = CloneAndAdopt(aNode, false, true, aNewNodeInfoManager,
                                 aCx, aNewScope, aNodesWithProperties,
-                                nullptr, getter_AddRefs(node));
+                                nullptr);
 
     nsMutationGuard::DidMutate();
 
@@ -206,7 +195,7 @@ public:
    */
   static nsresult CallUserDataHandlers(nsCOMArray<nsINode> &aNodesWithProperties,
                                        nsIDocument *aOwnerDocument,
-                                       uint16_t aOperation, bool aCloned);
+                                       PRUint16 aOperation, bool aCloned);
 
   /**
    * Helper for the cycle collector to traverse the DOM UserData and
@@ -229,7 +218,7 @@ public:
    */
   static nsresult CloneNodeImpl(nsINode *aNode, bool aDeep,
                                 bool aCallUserDataHandlers,
-                                nsINode **aResult);
+                                nsIDOMNode **aResult);
 
   /**
    * Release the UserData and UserDataHandlers for aNode.
@@ -264,6 +253,31 @@ private:
    *                             descendants) with properties. If aClone is
    *                             true every node will be followed by its
    *                             clone.
+   * @param aResult If aClone is false then aResult must be null, else
+   *                *aResult will contain the cloned node.
+   */
+  static nsresult CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
+                                nsNodeInfoManager *aNewNodeInfoManager,
+                                JSContext *aCx, JSObject *aNewScope,
+                                nsCOMArray<nsINode> &aNodesWithProperties,
+                                nsIDOMNode **aResult)
+  {
+    NS_ASSERTION(!aClone == !aResult,
+                 "aResult must be null when adopting and non-null when "
+                 "cloning");
+
+    nsCOMPtr<nsINode> clone;
+    nsresult rv = CloneAndAdopt(aNode, aClone, aDeep, aNewNodeInfoManager,
+                                aCx, aNewScope, aNodesWithProperties,
+                                nullptr, getter_AddRefs(clone));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return clone ? CallQueryInterface(clone, aResult) : NS_OK;
+  }
+
+  /**
+   * See above for arguments that aren't described here.
+   *
    * @param aParent If aClone is true the cloned node will be appended to
    *                aParent's children. May be null. If not null then aNode
    *                must be an nsIContent.

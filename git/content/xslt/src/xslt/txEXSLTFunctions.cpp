@@ -171,11 +171,11 @@ static const char * const sTypes[] = {
 
 struct txEXSLTFunctionDescriptor
 {
-    int8_t mMinParams;
-    int8_t mMaxParams;
+    PRInt8 mMinParams;
+    PRInt8 mMaxParams;
     Expr::ResultType mReturnType;
     nsIAtom** mName;
-    int32_t mNamespaceID;
+    PRInt32 mNamespaceID;
     const char* mNamespaceURI;
 };
 
@@ -342,11 +342,11 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
 
             bool insertOnFound = mType == INTERSECTION;
 
-            int32_t searchPos = 0;
-            int32_t i, len = nodes1->size();
+            PRInt32 searchPos = 0;
+            PRInt32 i, len = nodes1->size();
             for (i = 0; i < len; ++i) {
                 const txXPathNode& node = nodes1->get(i);
-                int32_t foundPos = nodes2->indexOf(node, searchPos);
+                PRInt32 foundPos = nodes2->indexOf(node, searchPos);
                 if (foundPos >= 0) {
                     searchPos = foundPos + 1;
                 }
@@ -375,7 +375,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             nsTHashtable<nsStringHashKey> hash;
             hash.Init();
 
-            int32_t i, len = nodes->size();
+            PRInt32 i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 const txXPathNode& node = nodes->get(i);
@@ -404,7 +404,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             NS_ENSURE_SUCCESS(rv, rv);
 
             bool found = false;
-            int32_t i, len = nodes1->size();
+            PRInt32 i, len = nodes1->size();
             for (i = 0; i < len; ++i) {
                 if (nodes2->contains(nodes1->get(i))) {
                     found = true;
@@ -440,9 +440,9 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             rv = aContext->recycler()->getNodeSet(getter_AddRefs(resultSet));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            int32_t end = nodes1->indexOf(nodes2->get(0));
+            PRInt32 end = nodes1->indexOf(nodes2->get(0));
             if (end >= 0) {
-                int32_t i = 0;
+                PRInt32 i = 0;
                 if (mType == TRAILING) {
                     i = end + 1;
                     end = nodes1->size();
@@ -465,7 +465,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             NS_ENSURE_SUCCESS(rv, rv);
 
             nsAutoString str;
-            int32_t i, len = nodes->size();
+            PRInt32 i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 txXPathNodeUtils::appendNodeValue(nodes->get(i), str);
             }
@@ -501,7 +501,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             rv = aContext->recycler()->getNodeSet(getter_AddRefs(resultSet));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            uint32_t tailIndex;
+            PRUint32 tailIndex;
 
             // Start splitting
             if (pattern.IsEmpty()) {
@@ -536,7 +536,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
                 tailIndex = strStart.get() - string.get();
             }
             else {
-                int32_t found, start = 0;
+                PRInt32 found, start = 0;
                 while ((found = string.FindCharInSet(pattern, start)) !=
                        kNotFound) {
                     if (found != start) {
@@ -553,7 +553,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             }
 
             // Add tail if needed
-            if (tailIndex != (uint32_t)string.Length()) {
+            if (tailIndex != (PRUint32)string.Length()) {
                 rv = createAndAddToResult(nsGkAtoms::token,
                                           Substring(string, tailIndex),
                                           resultSet, docFrag);
@@ -581,7 +581,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
 
             double res = findMax ? MOZ_DOUBLE_NEGATIVE_INFINITY() :
                                    MOZ_DOUBLE_POSITIVE_INFINITY();
-            int32_t i, len = nodes->size();
+            PRInt32 i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 txXPathNodeUtils::appendNodeValue(nodes->get(i), str);
@@ -619,7 +619,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             bool findMax = mType == HIGHEST;
             double res = findMax ? MOZ_DOUBLE_NEGATIVE_INFINITY() :
                                    MOZ_DOUBLE_POSITIVE_INFINITY();
-            int32_t i, len = nodes->size();
+            PRInt32 i, len = nodes->size();
             for (i = 0; i < len; ++i) {
                 nsAutoString str;
                 const txXPathNode& node = nodes->get(i);
@@ -653,7 +653,7 @@ txEXSLTFunctionCall::evaluate(txIEvalContext *aContext,
             PRExplodedTime prtime;
             PR_ExplodeTime(PR_Now(), PR_LocalTimeParameters, &prtime);
             
-            int32_t offset = (prtime.tm_params.tp_gmt_offset +
+            PRInt32 offset = (prtime.tm_params.tp_gmt_offset +
               prtime.tm_params.tp_dst_offset) / 60;
               
             bool isneg = offset < 0;
@@ -706,11 +706,11 @@ txEXSLTFunctionCall::getNameAtom(nsIAtom **aAtom)
 
 extern nsresult
 TX_ConstructEXSLTFunction(nsIAtom *aName,
-                          int32_t aNamespaceID,
+                          PRInt32 aNamespaceID,
                           txStylesheetCompilerState* aState,
                           FunctionCall **aResult)
 {
-    uint32_t i;
+    PRUint32 i;
     for (i = 0; i < ArrayLength(descriptTable); ++i) {
         txEXSLTFunctionDescriptor& desc = descriptTable[i];
         if (aName == *desc.mName && aNamespaceID == desc.mNamespaceID) {
@@ -727,7 +727,7 @@ TX_ConstructEXSLTFunction(nsIAtom *aName,
 extern bool
 TX_InitEXSLTFunction()
 {
-    uint32_t i;
+    PRUint32 i;
     for (i = 0; i < ArrayLength(descriptTable); ++i) {
         txEXSLTFunctionDescriptor& desc = descriptTable[i];
         NS_ConvertASCIItoUTF16 namespaceURI(desc.mNamespaceURI);

@@ -35,7 +35,6 @@
 
 #include "nsICacheEntryDescriptor.h"
 #include "nsICacheListener.h"
-#include "nsIProtocolProxyCallback.h"
 
 // ftp server types
 #define FTP_GENERIC_TYPE     0
@@ -78,7 +77,6 @@ typedef enum _FTP_STATE {
 typedef enum _FTP_ACTION {GET, PUT} FTP_ACTION;
 
 class nsFtpChannel;
-class nsICancelable;
 
 // The nsFtpState object is the content stream for the channel.  It implements
 // nsIInputStreamCallback, so it can read data from the control connection.  It
@@ -90,25 +88,22 @@ class nsFtpState : public nsBaseContentStream,
                    public nsITransportEventSink,
                    public nsICacheListener,
                    public nsIRequestObserver,
-                   public nsFtpControlConnectionListener,
-                   public nsIProtocolProxyCallback
-{
+                   public nsFtpControlConnectionListener {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIINPUTSTREAMCALLBACK
     NS_DECL_NSITRANSPORTEVENTSINK
     NS_DECL_NSICACHELISTENER
     NS_DECL_NSIREQUESTOBSERVER
-    NS_DECL_NSIPROTOCOLPROXYCALLBACK
 
     // Override input stream methods:
     NS_IMETHOD CloseWithStatus(nsresult status);
-    NS_IMETHOD Available(uint64_t *result);
+    NS_IMETHOD Available(PRUint64 *result);
     NS_IMETHOD ReadSegments(nsWriteSegmentFun fun, void *closure,
-                            uint32_t count, uint32_t *result);
+                            PRUint32 count, PRUint32 *result);
 
     // nsFtpControlConnectionListener methods:
-    virtual void OnControlDataAvailable(const char *data, uint32_t dataLen);
+    virtual void OnControlDataAvailable(const char *data, PRUint32 dataLen);
     virtual void OnControlError(nsresult status);
 
     nsFtpState();
@@ -213,7 +208,7 @@ private:
     FTP_STATE           mState;             // the current state
     FTP_STATE           mNextState;         // the next state
     bool                mKeepRunning;       // thread event loop boolean
-    int32_t             mResponseCode;      // the last command response code
+    PRInt32             mResponseCode;      // the last command response code
     nsCString           mResponseMsg;       // the last command response text
 
         // ****** channel/transport/stream vars 
@@ -221,7 +216,7 @@ private:
     bool                            mReceivedControlData;  
     bool                            mTryingCachedControl;     // retrying the password
     bool                            mRETRFailed;              // Did we already try a RETR and it failed?
-    uint64_t                        mFileSize;
+    PRUint64                        mFileSize;
     nsCString                       mModTime;
 
         // ****** consumer vars
@@ -229,7 +224,7 @@ private:
     nsCOMPtr<nsIProxyInfo>          mProxyInfo;
 
         // ****** connection cache vars
-    int32_t             mServerType;    // What kind of server are we talking to
+    PRInt32             mServerType;    // What kind of server are we talking to
 
         // ****** protocol interpretation related state vars
     nsString            mUsername;      // username
@@ -244,7 +239,7 @@ private:
     bool                mCacheConnection;
 
         // ****** URI vars
-    int32_t                mPort;       // the port to connect to
+    PRInt32                mPort;       // the port to connect to
     nsString               mFilename;   // url filename (if any)
     nsCString              mPath;       // the url's path
     nsCString              mPwd;        // login Path
@@ -256,7 +251,7 @@ private:
     bool                    mAddressChecked;
     bool                    mServerIsIPv6;
     
-    static uint32_t         mSessionStartTime;
+    static PRUint32         mSessionStartTime;
 
     PRNetAddr               mServerAddress;
 
@@ -268,9 +263,6 @@ private:
     bool                    mDoomCache;
     
     nsCString mSuppliedEntityID;
-
-    nsCOMPtr<nsICancelable>  mProxyRequest;
-    bool                     mDeferredCallbackPending;
 };
 
 #endif //__nsFtpState__h_

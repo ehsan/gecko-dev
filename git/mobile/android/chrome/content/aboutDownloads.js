@@ -7,7 +7,6 @@ let Ci = Components.interfaces, Cc = Components.classes, Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/DownloadUtils.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/PluralForm.jsm");
 
 let gStrings = Services.strings.createBundle("chrome://browser/locale/aboutDownloads.properties");
 
@@ -36,7 +35,7 @@ XPCOMUtils.defineLazyGetter(window, "gChromeWin", function ()
     .QueryInterface(Ci.nsIDOMChromeWindow));
 
 let Downloads = {
-  init: function dl_init() {
+  init: function () {
     this._list = document.getElementById("downloads-list");
     this._list.addEventListener("click", function (event) {
       let target = event.target;
@@ -112,17 +111,9 @@ let Downloads = {
         Downloads.cancelDownload(aTarget);
       }
     );
-
-    // Delete All shown when item is finished, canceled, or failed
-    Downloads.deleteAllMenuItem = contextmenus.add(gStrings.GetStringFromName("downloadAction.deleteAll"),
-                                                   contextmenus.SelectorContext("li[state='" + this._dlmgr.DOWNLOAD_FINISHED + "']," +
-                                                                                "li[state='" + this._dlmgr.DOWNLOAD_CANCELED + "']," +
-                                                                                "li[state='" + this._dlmgr.DOWNLOAD_FAILED + "']"),
-                                                   this.deleteAll.bind(this)
-    );
   },
 
-  uninit: function dl_uninit() {
+  uninit: function () {
     let contextmenus = gChromeWin.NativeWindow.contextmenus;
     contextmenus.remove(this.openMenuItem);
     contextmenus.remove(this.removeMenuItem);
@@ -130,7 +121,6 @@ let Downloads = {
     contextmenus.remove(this.resumeMenuItem);
     contextmenus.remove(this.retryMenuItem);
     contextmenus.remove(this.cancelMenuItem);
-    contextmenus.remove(this.deleteAllMenuItem);
 
     Services.obs.removeObserver(this, "dl-start");
     Services.obs.removeObserver(this, "dl-failed");
@@ -141,7 +131,7 @@ let Downloads = {
     Services.obs.removeObserver(this, "dl-cancel");
   },
 
-  observe: function dl_observe(aSubject, aTopic, aData) {
+  observe: function (aSubject, aTopic, aData) {
     let download = aSubject.QueryInterface(Ci.nsIDownload);
     switch (aTopic) {
       case "dl-blocked":
@@ -164,7 +154,7 @@ let Downloads = {
     }
   },
 
-  _moveDownloadAfterActive: function dl_moveDownloadAfterActive(aItem) {
+  _moveDownloadAfterActive: function (aItem) {
     // Move downloads that just reached a "completed" state below any active
     try {
       // Iterate down until we find a non-active download
@@ -178,7 +168,7 @@ let Downloads = {
     }
   },
   
-  _inProgress: function dl_inProgress(aState) {
+  _inProgress: function (aState) {
     return [
       this._dlmgr.DOWNLOAD_NOTSTARTED,
       this._dlmgr.DOWNLOAD_QUEUED,
@@ -188,7 +178,7 @@ let Downloads = {
     ].indexOf(parseInt(aState)) != -1;
   },
 
-  _insertDownloadRow: function dl_insertDownloadRow(aDownload) {
+  _insertDownloadRow: function (aDownload) {
     let updatedState = this._getState(aDownload.state);
     let item = this._createItem(downloadTemplate, {
       id: aDownload.id,
@@ -203,7 +193,7 @@ let Downloads = {
     this._list.insertAdjacentHTML("afterbegin", item);
   },
 
-  _getDownloadSize: function dl_getDownloadSize(aSize) {
+  _getDownloadSize: function (aSize) {
     let displaySize = DownloadUtils.convertByteUnits(aSize);
     if (displaySize[0] > 0) // [0] is size, [1] is units
       return displaySize.join("");
@@ -212,7 +202,7 @@ let Downloads = {
   },
   
   // Not all states are displayed as-is on mobile, some are translated to a generic state
-  _getState: function dl_getState(aState) {
+  _getState: function (aState) {
     let str;
     switch (aState) {
       // Downloading and Scanning states show up as "Downloading"
@@ -240,7 +230,7 @@ let Downloads = {
   },
   
   // Note: This doesn't cover all states as some of the states are translated in _getState()
-  _getStateString: function dl_getStateString(aState) {
+  _getStateString: function (aState) {
     let str;
     switch (aState) {
       case this._dlmgr.DOWNLOAD_DOWNLOADING:
@@ -268,7 +258,7 @@ let Downloads = {
     return gStrings.GetStringFromName(str);
   },
 
-  _updateItem: function dl_updateItem(aItem, aValues) {
+  _updateItem: function (aItem, aValues) {
     for (let i in aValues) {
       aItem.querySelector("." + i).textContent = aValues[i];
     }
@@ -348,7 +338,7 @@ let Downloads = {
     }
   },
 
-  getDownloads: function dl_getDownloads() {
+  getDownloads: function () {
     this._dlmgr = Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager);
 
     this._initStatement();
@@ -369,16 +359,16 @@ let Downloads = {
     }, 0);
   },
 
-  _getElementForDownload: function dl_getElementForDownload(aKey) {
+  _getElementForDownload: function (aKey) {
     return this._list.querySelector("li[downloadID='" + aKey + "']");
   },
 
-  _getDownloadForElement: function dl_getDownloadForElement(aElement) {
+  _getDownloadForElement: function (aElement) {
     let id = parseInt(aElement.getAttribute("downloadID"));
     return this._dlmgr.getDownload(id);
   },
 
-  _removeItem: function dl_removeItem(aItem) {
+  _removeItem: function dv__removeItem(aItem) {
     // Make sure we have an item to remove
     if (!aItem)
       return;
@@ -388,7 +378,7 @@ let Downloads = {
     this._list.selectedIndex = Math.min(index, this._list.itemCount - 1);
   },
   
-  openDownload: function dl_openDownload(aItem) {
+  openDownload: function (aItem) {
     let f = null;
     try {
       let download = this._getDownloadForElement(aItem);
@@ -400,7 +390,7 @@ let Downloads = {
     } catch (ex) { }
   },
 
-  removeDownload: function dl_removeDownload(aItem) {
+  removeDownload: function (aItem) {
     let f = null;
     try {
       let download = this._getDownloadForElement(aItem);
@@ -420,26 +410,7 @@ let Downloads = {
     } catch(ex) { }
   },
 
-  deleteAll: function dl_deleteAll() {
-    let title = gStrings.GetStringFromName("downloadAction.deleteAll");
-    let messageForm = gStrings.GetStringFromName("downloadMessage.deleteAll");
-    let elements = this._list.querySelectorAll("li[state='" + this._dlmgr.DOWNLOAD_FINISHED + "']," +
-                                               "li[state='" + this._dlmgr.DOWNLOAD_CANCELED + "']," +
-                                               "li[state='" + this._dlmgr.DOWNLOAD_FAILED + "']");
-    let message = PluralForm.get(elements.length, messageForm)
-                            .replace("#1", elements.length);
-    let flags = Services.prompt.BUTTON_POS_0 * Services.prompt.BUTTON_TITLE_OK +
-                Services.prompt.BUTTON_POS_1 * Services.prompt.BUTTON_TITLE_CANCEL;
-    let choice = Services.prompt.confirmEx(null, title, message, flags,
-                                           null, null, null, null, {});
-    if (choice == 0) {
-      for (let i = 0; i < elements.length; i++) {
-        this.removeDownload(elements[i]);
-      }
-    }
-  },
-
-  pauseDownload: function dl_pauseDownload(aItem) {
+  pauseDownload: function (aItem) {
     try {
       let download = this._getDownloadForElement(aItem);
       this._dlmgr.pauseDownload(aItem.getAttribute("downloadID"));
@@ -450,7 +421,7 @@ let Downloads = {
 
   },
 
-  resumeDownload: function dl_resumeDownload(aItem) {
+  resumeDownload: function (aItem) {
     try {
       let download = this._getDownloadForElement(aItem);
       this._dlmgr.resumeDownload(aItem.getAttribute("downloadID"));
@@ -460,7 +431,7 @@ let Downloads = {
     }
   },
 
-  retryDownload: function dl_retryDownload(aItem) {
+  retryDownload: function (aItem) {
     try {
       let download = this._getDownloadForElement(aItem);
       this._removeItem(aItem);
@@ -470,7 +441,7 @@ let Downloads = {
     }
   },
 
-  cancelDownload: function dl_cancelDownload(aItem) {
+  cancelDownload: function (aItem) {
     try {
       this._dlmgr.cancelDownload(aItem.getAttribute("downloadID"));
       let download = this._getDownloadForElement(aItem);
@@ -485,7 +456,7 @@ let Downloads = {
     }
   },
   
-  _updateDownloadRow: function dl_updateDownloadRow(aItem){
+  _updateDownloadRow: function (aItem){
     try {
       let download = this._getDownloadForElement(aItem);
       let updatedState = this._getState(download.state);

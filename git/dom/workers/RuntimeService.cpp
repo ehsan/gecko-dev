@@ -8,7 +8,6 @@
 
 #include "RuntimeService.h"
 
-#include "nsIContentSecurityPolicy.h"
 #include "nsIDOMChromeWindow.h"
 #include "nsIEffectiveTLDService.h"
 #include "nsIObserverService.h"
@@ -20,7 +19,6 @@
 #include "nsITimer.h"
 #include "nsPIDOMWindow.h"
 
-#include "jsdbgapi.h"
 #include "mozilla/dom/EventTargetBinding.h"
 #include "mozilla/Preferences.h"
 #include "nsContentUtils.h"
@@ -55,8 +53,14 @@ using mozilla::Preferences;
 // consistency.
 #define WORKER_STACK_SIZE 256 * sizeof(size_t) * 1024
 
+// The stack limit the JS engine will check. 
+#ifdef MOZ_ASAN
+// For ASan, we need more stack space, so we use all that is available
+#define WORKER_CONTEXT_NATIVE_STACK_LIMIT WORKER_STACK_SIZE
+#else
 // Half the size of the actual C stack, to be safe.
 #define WORKER_CONTEXT_NATIVE_STACK_LIMIT 128 * sizeof(size_t) * 1024
+#endif
 
 // The maximum number of threads to use for workers, overridable via pref.
 #define MAX_WORKERS_PER_DOMAIN 10
@@ -94,20 +98,20 @@ MOZ_STATIC_ASSERT(MAX_WORKERS_PER_DOMAIN >= 1,
                                                                                \
     if (!workers.IsEmpty()) {                                                  \
       AutoSafeJSContext cx;                                                    \
-      for (uint32_t index = 0; index < workers.Length(); index++) {            \
-        workers[index]-> _func (cx, __VA_ARGS__);                              \
+      for (PRUint32 index = 0; index < workers.Length(); index++) {            \
+        workers[index]-> _func (cx, ##__VA_ARGS__);                            \
       }                                                                        \
     }                                                                          \
   PR_END_MACRO
 
 namespace {
 
-const uint32_t kNoIndex = uint32_t(-1);
+const PRUint32 kNoIndex = PRUint32(-1);
 
-const uint32_t kRequiredJSContextOptions =
+const PRUint32 kRequiredJSContextOptions =
   JSOPTION_DONT_REPORT_UNCAUGHT | JSOPTION_NO_SCRIPT_RVAL;
 
-uint32_t gMaxWorkersPerDomain = MAX_WORKERS_PER_DOMAIN;
+PRUint32 gMaxWorkersPerDomain = MAX_WORKERS_PER_DOMAIN;
 
 // Does not hold an owning reference.
 RuntimeService* gRuntimeService = nullptr;
@@ -142,13 +146,13 @@ MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(gStringChars) == ID_COUNT,
 enum {
   PREF_strict = 0,
   PREF_werror,
+  PREF_relimit,
   PREF_methodjit,
   PREF_methodjit_always,
   PREF_typeinference,
   PREF_allow_xml,
   PREF_jit_hardening,
   PREF_mem_max,
-  PREF_ion,
 
 #ifdef JS_GC_ZEAL
   PREF_gczeal,
@@ -162,13 +166,13 @@ enum {
 const char* gPrefsToWatch[] = {
   JS_OPTIONS_DOT_STR "strict",
   JS_OPTIONS_DOT_STR "werror",
+  JS_OPTIONS_DOT_STR "relimit",
   JS_OPTIONS_DOT_STR "methodjit.content",
   JS_OPTIONS_DOT_STR "methodjit_always",
   JS_OPTIONS_DOT_STR "typeinference",
   JS_OPTIONS_DOT_STR "allow_xml",
   JS_OPTIONS_DOT_STR "jit_hardening",
-  JS_OPTIONS_DOT_STR "mem.max",
-  JS_OPTIONS_DOT_STR "ion.content"
+  JS_OPTIONS_DOT_STR "mem.max"
 
 #ifdef JS_GC_ZEAL
   , PREF_WORKERS_GCZEAL
@@ -189,20 +193,23 @@ PrefCallback(const char* aPrefName, void* aClosure)
   NS_NAMED_LITERAL_CSTRING(jsOptionStr, JS_OPTIONS_DOT_STR);
 
   if (!strcmp(aPrefName, gPrefsToWatch[PREF_mem_max])) {
-    int32_t pref = Preferences::GetInt(aPrefName, -1);
-    uint32_t maxBytes = (pref <= 0 || pref >= 0x1000) ?
-                        uint32_t(-1) :
-                        uint32_t(pref) * 1024 * 1024;
+    PRInt32 pref = Preferences::GetInt(aPrefName, -1);
+    PRUint32 maxBytes = (pref <= 0 || pref >= 0x1000) ?
+                        PRUint32(-1) :
+                        PRUint32(pref) * 1024 * 1024;
     RuntimeService::SetDefaultJSRuntimeHeapSize(maxBytes);
     rts->UpdateAllWorkerJSRuntimeHeapSize();
   }
   else if (StringBeginsWith(nsDependentCString(aPrefName), jsOptionStr)) {
-    uint32_t newOptions = kRequiredJSContextOptions;
+    PRUint32 newOptions = kRequiredJSContextOptions;
     if (Preferences::GetBool(gPrefsToWatch[PREF_strict])) {
       newOptions |= JSOPTION_STRICT;
     }
     if (Preferences::GetBool(gPrefsToWatch[PREF_werror])) {
       newOptions |= JSOPTION_WERROR;
+    }
+    if (Preferences::GetBool(gPrefsToWatch[PREF_relimit])) {
+      newOptions |= JSOPTION_RELIMIT;
     }
     if (Preferences::GetBool(gPrefsToWatch[PREF_methodjit])) {
       newOptions |= JSOPTION_METHODJIT;
@@ -213,9 +220,6 @@ PrefCallback(const char* aPrefName, void* aClosure)
     if (Preferences::GetBool(gPrefsToWatch[PREF_typeinference])) {
       newOptions |= JSOPTION_TYPE_INFERENCE;
     }
-    if (Preferences::GetBool(gPrefsToWatch[PREF_ion])) {
-      newOptions |= JSOPTION_ION;
-    }
     if (Preferences::GetBool(gPrefsToWatch[PREF_allow_xml])) {
       newOptions |= JSOPTION_ALLOW_XML;
     }
@@ -225,8 +229,8 @@ PrefCallback(const char* aPrefName, void* aClosure)
   }
 #ifdef JS_GC_ZEAL
   else if (!strcmp(aPrefName, gPrefsToWatch[PREF_gczeal])) {
-    int32_t gczeal = Preferences::GetInt(gPrefsToWatch[PREF_gczeal]);
-    RuntimeService::SetDefaultGCZeal(uint8_t(clamped(gczeal, 0, 3)));
+    PRInt32 gczeal = Preferences::GetInt(gPrefsToWatch[PREF_gczeal]);
+    RuntimeService::SetDefaultGCZeal(PRUint8(clamped(gczeal, 0, 3)));
     rts->UpdateAllWorkerGCZeal();
   }
 #endif
@@ -247,129 +251,6 @@ OperationCallback(JSContext* aCx)
   return worker->OperationCallback(aCx);
 }
 
-class LogViolationDetailsRunnable : public nsRunnable
-{
-  WorkerPrivate* mWorkerPrivate;
-  nsString mFileName;
-  uint32_t mLineNum;
-  uint32_t mSyncQueueKey;
-
-private:
-  class LogViolationDetailsResponseRunnable : public WorkerSyncRunnable
-  {
-    uint32_t mSyncQueueKey;
-
-  public:
-    LogViolationDetailsResponseRunnable(WorkerPrivate* aWorkerPrivate,
-                                        uint32_t aSyncQueueKey)
-    : WorkerSyncRunnable(aWorkerPrivate, aSyncQueueKey, false),
-      mSyncQueueKey(aSyncQueueKey)
-    {
-      NS_ASSERTION(aWorkerPrivate, "Don't hand me a null WorkerPrivate!");
-    }
-
-    bool
-    WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
-    {
-      aWorkerPrivate->StopSyncLoop(mSyncQueueKey, true);
-      return true;
-    }
-
-    bool
-    PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
-    {
-      AssertIsOnMainThread();
-      return true;
-    }
-
-    void
-    PostDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
-                 bool aDispatchResult)
-    {
-      AssertIsOnMainThread();
-    }
-  };
-
-public:
-  LogViolationDetailsRunnable(WorkerPrivate* aWorker,
-                              const nsString& aFileName,
-                              uint32_t aLineNum)
-  : mWorkerPrivate(aWorker),
-    mFileName(aFileName),
-    mLineNum(aLineNum),
-    mSyncQueueKey(0)
-  {
-    NS_ASSERTION(aWorker, "WorkerPrivate cannot be null");
-  }
-
-  bool
-  Dispatch(JSContext* aCx)
-  {
-    mSyncQueueKey = mWorkerPrivate->CreateNewSyncLoop();
-
-    if (NS_FAILED(NS_DispatchToMainThread(this, NS_DISPATCH_NORMAL))) {
-      JS_ReportError(aCx, "Failed to dispatch to main thread!");
-      return false;
-    }
-
-    return mWorkerPrivate->RunSyncLoop(aCx, mSyncQueueKey);
-  }
-
-  NS_IMETHOD
-  Run()
-  {
-    AssertIsOnMainThread();
-
-    nsIContentSecurityPolicy* csp = mWorkerPrivate->GetCSP();
-    if (csp) {
-      NS_NAMED_LITERAL_STRING(scriptSample,
-         "Call to eval() or related function blocked by CSP.");
-      csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_EVAL,
-                                mFileName, scriptSample, mLineNum);
-    }
-
-    nsRefPtr<LogViolationDetailsResponseRunnable> response =
-        new LogViolationDetailsResponseRunnable(mWorkerPrivate, mSyncQueueKey);
-    if (!response->Dispatch(nullptr)) {
-      NS_WARNING("Failed to dispatch response!");
-    }
-
-    return NS_OK;
-  }
-};
-
-JSBool
-ContentSecurityPolicyAllows(JSContext* aCx)
-{
-  WorkerPrivate* worker = GetWorkerPrivateFromContext(aCx);
-  worker->AssertIsOnWorkerThread();
-
-  if (worker->IsEvalAllowed()) {
-    return true;
-  }
-
-  nsString fileName;
-  uint32_t lineNum = 0;
-
-  JSScript* script;
-  const char* file;
-  if (JS_DescribeScriptedCaller(aCx, &script, &lineNum) &&
-      (file = JS_GetScriptFilename(aCx, script))) {
-    fileName.AssignASCII(file);
-  } else {
-    JS_ReportPendingException(aCx);
-  }
-
-  nsRefPtr<LogViolationDetailsRunnable> runnable =
-      new LogViolationDetailsRunnable(worker, fileName, lineNum);
-
-  if (!runnable->Dispatch(aCx)) {
-    JS_ReportPendingException(aCx);
-  }
-
-  return false;
-}
-
 JSContext*
 CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate)
 {
@@ -378,7 +259,7 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate)
 
   // The number passed here doesn't matter, we're about to change it in the call
   // to JS_SetGCParameter.
-  JSRuntime* runtime = JS_NewRuntime(WORKER_DEFAULT_RUNTIME_HEAPSIZE, JS_NO_HELPER_THREADS);
+  JSRuntime* runtime = JS_NewRuntime(WORKER_DEFAULT_RUNTIME_HEAPSIZE);
   if (!runtime) {
     NS_WARNING("Could not create new runtime!");
     return nullptr;
@@ -389,19 +270,6 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate)
                     aWorkerPrivate->GetJSRuntimeHeapSize());
 
   JS_SetNativeStackQuota(runtime, WORKER_CONTEXT_NATIVE_STACK_LIMIT);
-
-  // Security policy:
-  static JSSecurityCallbacks securityCallbacks = {
-    NULL,
-    ContentSecurityPolicyAllows
-  };
-  JS_SetSecurityCallbacks(runtime, &securityCallbacks);
-
-  // DOM helpers:
-  static js::DOMCallbacks DOMCallbacks = {
-    InstanceClassHasProtoAtDepth
-  };
-  SetDOMCallbacks(runtime, &DOMCallbacks);
 
   JSContext* workerCx = JS_NewContext(runtime, 0);
   if (!workerCx) {
@@ -423,10 +291,10 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate)
 
 #ifdef JS_GC_ZEAL
   {
-    uint8_t zeal = aWorkerPrivate->GetGCZeal();
+    PRUint8 zeal = aWorkerPrivate->GetGCZeal();
     NS_ASSERTION(zeal <= 3, "Bad zeal value!");
 
-    uint32_t frequency = zeal <= 2 ? JS_DEFAULT_ZEAL_FREQ : 1;
+    PRUint32 frequency = zeal <= 2 ? JS_DEFAULT_ZEAL_FREQ : 1;
     JS_SetGCZeal(workerCx, zeal, frequency);
   }
 #endif
@@ -515,7 +383,7 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
 
   // Make sure our strings are interned.
   if (JSID_IS_VOID(gStringIDs[0])) {
-    for (uint32_t i = 0; i < ID_COUNT; i++) {
+    for (PRUint32 i = 0; i < ID_COUNT; i++) {
       JSString* str = JS_InternString(aCx, gStringChars[i]);
       if (!str) {
         while (i) {
@@ -530,7 +398,7 @@ ResolveWorkerClasses(JSContext* aCx, JSHandleObject aObj, JSHandleId aId, unsign
   bool isChrome = false;
   bool shouldResolve = false;
 
-  for (uint32_t i = 0; i < ID_COUNT; i++) {
+  for (PRUint32 i = 0; i < ID_COUNT; i++) {
     if (gStringIDs[i] == aId) {
       nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
       NS_ASSERTION(ssm, "This should never be null!");
@@ -662,15 +530,15 @@ WorkerCrossThreadDispatcher::PostTask(WorkerTask* aTask)
 
 END_WORKERS_NAMESPACE
 
-uint32_t RuntimeService::sDefaultJSContextOptions = kRequiredJSContextOptions;
+PRUint32 RuntimeService::sDefaultJSContextOptions = kRequiredJSContextOptions;
 
-uint32_t RuntimeService::sDefaultJSRuntimeHeapSize =
+PRUint32 RuntimeService::sDefaultJSRuntimeHeapSize =
   WORKER_DEFAULT_RUNTIME_HEAPSIZE;
 
-int32_t RuntimeService::sCloseHandlerTimeoutSeconds = MAX_SCRIPT_RUN_TIME_SEC;
+PRInt32 RuntimeService::sCloseHandlerTimeoutSeconds = MAX_SCRIPT_RUN_TIME_SEC;
 
 #ifdef JS_GC_ZEAL
-uint8_t RuntimeService::sDefaultGCZeal = 0;
+PRUint8 RuntimeService::sDefaultGCZeal = 0;
 #endif
 
 RuntimeService::RuntimeService()
@@ -837,7 +705,7 @@ RuntimeService::UnregisterWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     }
 
     // Remove old worker from everywhere.
-    uint32_t index = domainInfo->mQueuedWorkers.IndexOf(aWorkerPrivate);
+    PRUint32 index = domainInfo->mQueuedWorkers.IndexOf(aWorkerPrivate);
     if (index != kNoIndex) {
       // Was queued, remove from the list.
       domainInfo->mQueuedWorkers.RemoveElementAt(index);
@@ -910,7 +778,7 @@ RuntimeService::ScheduleWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
     MutexAutoLock lock(mMutex);
     if (!mIdleThreadArray.IsEmpty()) {
-      uint32_t index = mIdleThreadArray.Length() - 1;
+      PRUint32 index = mIdleThreadArray.Length() - 1;
       mIdleThreadArray[index].mThread.swap(thread);
       mIdleThreadArray.RemoveElementAt(index);
     }
@@ -966,7 +834,7 @@ RuntimeService::ShutdownIdleThreads(nsITimer* aTimer, void* /* aClosure */)
   {
     MutexAutoLock lock(runtime->mMutex);
 
-    for (uint32_t index = 0; index < runtime->mIdleThreadArray.Length();
+    for (PRUint32 index = 0; index < runtime->mIdleThreadArray.Length();
          index++) {
       IdleThreadInfo& info = runtime->mIdleThreadArray[index];
       if (info.mExpirationTime > now) {
@@ -987,7 +855,7 @@ RuntimeService::ShutdownIdleThreads(nsITimer* aTimer, void* /* aClosure */)
                "Should have a new time or there should be some threads to shut "
                "down");
 
-  for (uint32_t index = 0; index < expiredThreads.Length(); index++) {
+  for (PRUint32 index = 0; index < expiredThreads.Length(); index++) {
     if (NS_FAILED(expiredThreads[index]->Shutdown())) {
       NS_WARNING("Failed to shutdown thread!");
     }
@@ -995,7 +863,7 @@ RuntimeService::ShutdownIdleThreads(nsITimer* aTimer, void* /* aClosure */)
 
   if (!nextExpiration.IsNull()) {
     TimeDuration delta = nextExpiration - TimeStamp::Now();
-    uint32_t delay(delta > TimeDuration(0) ? delta.ToMilliseconds() : 0);
+    PRUint32 delay(delta > TimeDuration(0) ? delta.ToMilliseconds() : 0);
 
     // Reschedule the timer.
     if (NS_FAILED(aTimer->InitWithFuncCallback(ShutdownIdleThreads, nullptr,
@@ -1035,7 +903,7 @@ RuntimeService::Init()
     NS_WARNING("Failed to register for memory pressure notifications!");
   }
 
-  for (uint32_t index = 0; index < ArrayLength(gPrefsToWatch); index++) {
+  for (PRUint32 index = 0; index < ArrayLength(gPrefsToWatch); index++) {
     if (NS_FAILED(Preferences::RegisterCallback(PrefCallback,
                                                 gPrefsToWatch[index], this))) {
       NS_WARNING("Failed to register pref callback?!");
@@ -1052,7 +920,7 @@ RuntimeService::Init()
       NS_WARNING("Failed to register timeout cache?!");
   }
 
-  int32_t maxPerDomain = Preferences::GetInt(PREF_WORKERS_MAX_PER_DOMAIN,
+  PRInt32 maxPerDomain = Preferences::GetInt(PREF_WORKERS_MAX_PER_DOMAIN,
                                              MAX_WORKERS_PER_DOMAIN);
   gMaxWorkersPerDomain = NS_MAX(0, maxPerDomain);
 
@@ -1117,7 +985,7 @@ RuntimeService::Cleanup()
 
         AutoSafeJSContext cx;
 
-        for (uint32_t index = 0; index < workers.Length(); index++) {
+        for (PRUint32 index = 0; index < workers.Length(); index++) {
           if (!workers[index]->Kill(cx)) {
             NS_WARNING("Failed to cancel worker!");
           }
@@ -1128,10 +996,10 @@ RuntimeService::Cleanup()
       if (!mIdleThreadArray.IsEmpty()) {
         nsAutoTArray<nsCOMPtr<nsIThread>, 20> idleThreads;
 
-        uint32_t idleThreadCount = mIdleThreadArray.Length();
+        PRUint32 idleThreadCount = mIdleThreadArray.Length();
         idleThreads.SetLength(idleThreadCount);
 
-        for (uint32_t index = 0; index < idleThreadCount; index++) {
+        for (PRUint32 index = 0; index < idleThreadCount; index++) {
           NS_ASSERTION(mIdleThreadArray[index].mThread, "Null thread!");
           idleThreads[index].swap(mIdleThreadArray[index].mThread);
         }
@@ -1140,7 +1008,7 @@ RuntimeService::Cleanup()
 
         MutexAutoUnlock unlock(mMutex);
 
-        for (uint32_t index = 0; index < idleThreadCount; index++) {
+        for (PRUint32 index = 0; index < idleThreadCount; index++) {
           if (NS_FAILED(idleThreads[index]->Shutdown())) {
             NS_WARNING("Failed to shutdown thread!");
           }
@@ -1165,7 +1033,7 @@ RuntimeService::Cleanup()
   }
 
   if (mObserved) {
-    for (uint32_t index = 0; index < ArrayLength(gPrefsToWatch); index++) {
+    for (PRUint32 index = 0; index < ArrayLength(gPrefsToWatch); index++) {
       Preferences::UnregisterCallback(PrefCallback, gPrefsToWatch[index], this);
     }
 
@@ -1198,7 +1066,7 @@ RuntimeService::AddAllTopLevelWorkersToArray(const nsACString& aKey,
     static_cast<nsTArray<WorkerPrivate*>*>(aUserArg);
 
 #ifdef DEBUG
-  for (uint32_t index = 0; index < aData->mActiveWorkers.Length(); index++) {
+  for (PRUint32 index = 0; index < aData->mActiveWorkers.Length(); index++) {
     NS_ASSERTION(!aData->mActiveWorkers[index]->GetParent(),
                  "Shouldn't have a parent in this list!");
   }
@@ -1207,7 +1075,7 @@ RuntimeService::AddAllTopLevelWorkersToArray(const nsACString& aKey,
   array->AppendElements(aData->mActiveWorkers);
 
   // These might not be top-level workers...
-  for (uint32_t index = 0; index < aData->mQueuedWorkers.Length(); index++) {
+  for (PRUint32 index = 0; index < aData->mQueuedWorkers.Length(); index++) {
     WorkerPrivate* worker = aData->mQueuedWorkers[index];
     if (!worker->GetParent()) {
       array->AppendElement(worker);
@@ -1244,7 +1112,7 @@ RuntimeService::CancelWorkersForWindow(JSContext* aCx,
 
   if (!workers.IsEmpty()) {
     AutoSafeJSContext cx(aCx);
-    for (uint32_t index = 0; index < workers.Length(); index++) {
+    for (PRUint32 index = 0; index < workers.Length(); index++) {
       if (!workers[index]->Cancel(aCx)) {
         NS_WARNING("Failed to cancel worker!");
       }
@@ -1263,7 +1131,7 @@ RuntimeService::SuspendWorkersForWindow(JSContext* aCx,
 
   if (!workers.IsEmpty()) {
     AutoSafeJSContext cx(aCx);
-    for (uint32_t index = 0; index < workers.Length(); index++) {
+    for (PRUint32 index = 0; index < workers.Length(); index++) {
       if (!workers[index]->Suspend(aCx)) {
         NS_WARNING("Failed to cancel worker!");
       }
@@ -1282,7 +1150,7 @@ RuntimeService::ResumeWorkersForWindow(JSContext* aCx,
 
   if (!workers.IsEmpty()) {
     AutoSafeJSContext cx(aCx);
-    for (uint32_t index = 0; index < workers.Length(); index++) {
+    for (PRUint32 index = 0; index < workers.Length(); index++) {
       if (!workers[index]->Resume(aCx)) {
         NS_WARNING("Failed to cancel worker!");
       }

@@ -49,7 +49,7 @@ public:
   class iterator {
   public:
     iterator(BindingParamsArray *aArray,
-             uint32_t aIndex)
+             PRUint32 aIndex)
     : mArray(aArray)
     , mIndex(aIndex)
     {
@@ -78,7 +78,7 @@ public:
   private:
     void operator--() { }
     BindingParamsArray *mArray;
-    uint32_t mIndex;
+    PRUint32 mIndex;
   };
 
   /**

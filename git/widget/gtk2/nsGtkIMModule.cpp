@@ -31,7 +31,7 @@ using namespace mozilla::widget;
 PRLogModuleInfo* gGtkIMLog = nullptr;
 
 static const char*
-GetRangeTypeName(uint32_t aRangeType)
+GetRangeTypeName(PRUint32 aRangeType)
 {
     switch (aRangeType) {
         case NS_TEXTRANGE_RAWINPUT:
@@ -50,7 +50,7 @@ GetRangeTypeName(uint32_t aRangeType)
 }
 
 static const char*
-GetEnabledStateName(uint32_t aState)
+GetEnabledStateName(PRUint32 aState)
 {
     switch (aState) {
         case IMEState::DISABLED:
@@ -80,7 +80,7 @@ nsGtkIMModule::nsGtkIMModule(nsWindow* aOwnerWindow) :
     mSimpleContext(nullptr),
 #endif
     mDummyContext(nullptr),
-    mCompositionStart(UINT32_MAX), mProcessingKeyEvent(nullptr),
+    mCompositionStart(PR_UINT32_MAX), mProcessingKeyEvent(nullptr),
     mCompositionState(eCompositionState_NotComposing),
     mIsIMFocused(false), mIgnoreNativeCompositionEvent(false)
 {
@@ -101,7 +101,7 @@ nsGtkIMModule::Init()
 
     MozContainer* container = mOwnerWindow->GetMozContainer();
     NS_PRECONDITION(container, "container is null");
-    GdkWindow* gdkWindow = gtk_widget_get_window(GTK_WIDGET(container));
+    GdkWindow* gdkWindow = GTK_WIDGET(container)->window;
 
     // NOTE: gtk_im_*_new() abort (kill) the whole process when it fails.
     //       So, we don't need to check the result.
@@ -255,11 +255,7 @@ nsGtkIMModule::PrepareToDestroyContext(GtkIMContext *aContext)
     NS_PRECONDITION(container, "The container of the window is null");
 
     GtkIMMulticontext *multicontext = GTK_IM_MULTICONTEXT(aContext);
-#if (MOZ_WIDGET_GTK == 2)
     GtkIMContext *slave = multicontext->slave;
-#else
-    GtkIMContext *slave = NULL; //TODO GTK3
-#endif
     if (!slave) {
         return;
     }
@@ -619,7 +615,7 @@ nsGtkIMModule::SetInputContext(nsWindow* aCaller,
         mozilla::services::GetObserverService();
     if (observerService) {
         nsAutoString rectBuf;
-        int32_t x, y, w, h;
+        PRInt32 x, y, w, h;
         gdk_window_get_position(aCaller->GetGdkWindow(), &x, &y);
         gdk_window_get_size(aCaller->GetGdkWindow(), &w, &h);
         rectBuf.Assign(NS_LITERAL_STRING("{\"left\": "));
@@ -877,13 +873,13 @@ nsGtkIMModule::OnRetrieveSurroundingNative(GtkIMContext *aContext)
     }
 
     nsAutoString uniStr;
-    uint32_t cursorPos;
+    PRUint32 cursorPos;
     if (NS_FAILED(GetCurrentParagraph(uniStr, cursorPos))) {
         return FALSE;
     }
 
     NS_ConvertUTF16toUTF8 utf8Str(nsDependentSubstring(uniStr, 0, cursorPos));
-    uint32_t cursorPosInUTF8 = utf8Str.Length();
+    PRUint32 cursorPosInUTF8 = utf8Str.Length();
     AppendUTF16toUTF8(nsDependentSubstring(uniStr, cursorPos), utf8Str);
     gtk_im_context_set_surrounding(aContext, utf8Str.get(), utf8Str.Length(),
                                    cursorPosInUTF8);
@@ -916,7 +912,7 @@ nsGtkIMModule::OnDeleteSurroundingNative(GtkIMContext  *aContext,
         return FALSE;
     }
 
-    if (NS_SUCCEEDED(DeleteText(aOffset, (uint32_t)aNChars))) {
+    if (NS_SUCCEEDED(DeleteText(aOffset, (PRUint32)aNChars))) {
         return TRUE;
     }
 
@@ -1055,7 +1051,7 @@ nsGtkIMModule::DispatchCompositionStart()
     InitEvent(selection);
     mLastFocusedWindow->DispatchEvent(&selection, status);
 
-    if (!selection.mSucceeded || selection.mReply.mOffset == UINT32_MAX) {
+    if (!selection.mSucceeded || selection.mReply.mOffset == PR_UINT32_MAX) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, cannot query the selection offset"));
         return false;
@@ -1139,7 +1135,7 @@ nsGtkIMModule::DispatchCompositionEnd()
     nsCOMPtr<nsIWidget> kungFuDeathGrip = mLastFocusedWindow;
     mLastFocusedWindow->DispatchEvent(&compEvent, status);
     mCompositionState = eCompositionState_NotComposing;
-    mCompositionStart = UINT32_MAX;
+    mCompositionStart = PR_UINT32_MAX;
     mDispatchedCompositionString.Truncate();
     if (static_cast<nsWindow*>(kungFuDeathGrip.get())->IsDestroyed() ||
         kungFuDeathGrip != mLastFocusedWindow) {
@@ -1209,14 +1205,14 @@ nsGtkIMModule::DispatchTextEvent(const nsAString &aCompositionString,
     nsTextEvent textEvent(true, NS_TEXT_TEXT, mLastFocusedWindow);
     InitEvent(textEvent);
 
-    uint32_t targetOffset = mCompositionStart;
+    PRUint32 targetOffset = mCompositionStart;
 
     nsAutoTArray<nsTextRange, 4> textRanges;
     if (!aIsCommit) {
         // NOTE: SetTextRangeList() assumes that mDispatchedCompositionString
         //       has been updated already.
         SetTextRangeList(textRanges);
-        for (uint32_t i = 0; i < textRanges.Length(); i++) {
+        for (PRUint32 i = 0; i < textRanges.Length(); i++) {
             nsTextRange& range = textRanges[i];
             if (range.mRangeType == NS_TEXTRANGE_SELECTEDRAWTEXT ||
                 range.mRangeType == NS_TEXTRANGE_SELECTEDCONVERTEDTEXT) {
@@ -1352,10 +1348,10 @@ nsGtkIMModule::SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList)
     nsTextRange range;
     if (cursor_pos < 0) {
         range.mStartOffset = 0;
-    } else if (uint32_t(cursor_pos) > mDispatchedCompositionString.Length()) {
+    } else if (PRUint32(cursor_pos) > mDispatchedCompositionString.Length()) {
         range.mStartOffset = mDispatchedCompositionString.Length();
     } else {
-        range.mStartOffset = uint32_t(cursor_pos);
+        range.mStartOffset = PRUint32(cursor_pos);
     }
     range.mEndOffset = range.mStartOffset;
     range.mRangeType = NS_TEXTRANGE_CARETPOSITION;
@@ -1372,13 +1368,13 @@ nsGtkIMModule::SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList)
 }
 
 void
-nsGtkIMModule::SetCursorPosition(uint32_t aTargetOffset)
+nsGtkIMModule::SetCursorPosition(PRUint32 aTargetOffset)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("GtkIMModule(%p): SetCursorPosition, aTargetOffset=%u",
          this, aTargetOffset));
 
-    if (aTargetOffset == UINT32_MAX) {
+    if (aTargetOffset == PR_UINT32_MAX) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, aTargetOffset is wrong offset"));
         return;
@@ -1430,7 +1426,7 @@ nsGtkIMModule::SetCursorPosition(uint32_t aTargetOffset)
 }
 
 nsresult
-nsGtkIMModule::GetCurrentParagraph(nsAString& aText, uint32_t& aCursorPos)
+nsGtkIMModule::GetCurrentParagraph(nsAString& aText, PRUint32& aCursorPos)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("GtkIMModule(%p): GetCurrentParagraph, mCompositionState=%s",
@@ -1444,8 +1440,8 @@ nsGtkIMModule::GetCurrentParagraph(nsAString& aText, uint32_t& aCursorPos)
 
     nsEventStatus status;
 
-    uint32_t selOffset = mCompositionStart;
-    uint32_t selLength = mSelectedString.Length();
+    PRUint32 selOffset = mCompositionStart;
+    PRUint32 selLength = mSelectedString.Length();
 
     // If focused editor doesn't have composition string, we should use
     // current selection.
@@ -1465,11 +1461,11 @@ nsGtkIMModule::GetCurrentParagraph(nsAString& aText, uint32_t& aCursorPos)
         ("        selOffset=%u, selLength=%u",
          selOffset, selLength));
 
-    // XXX nsString::Find and nsString::RFind take int32_t for offset, so,
+    // XXX nsString::Find and nsString::RFind take PRInt32 for offset, so,
     //     we cannot support this request when the current offset is larger
-    //     than INT32_MAX.
-    if (selOffset > INT32_MAX || selLength > INT32_MAX ||
-        selOffset + selLength > INT32_MAX) {
+    //     than PR_INT32_MAX.
+    if (selOffset > PR_INT32_MAX || selLength > PR_INT32_MAX ||
+        selOffset + selLength > PR_INT32_MAX) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, The selection is out of range"));
         return NS_ERROR_FAILURE;
@@ -1479,7 +1475,7 @@ nsGtkIMModule::GetCurrentParagraph(nsAString& aText, uint32_t& aCursorPos)
     nsQueryContentEvent queryTextContentEvent(true,
                                               NS_QUERY_TEXT_CONTENT,
                                               mLastFocusedWindow);
-    queryTextContentEvent.InitForQueryTextContent(0, UINT32_MAX);
+    queryTextContentEvent.InitForQueryTextContent(0, PR_UINT32_MAX);
     mLastFocusedWindow->DispatchEvent(&queryTextContentEvent, status);
     NS_ENSURE_TRUE(queryTextContentEvent.mSucceeded, NS_ERROR_FAILURE);
 
@@ -1501,14 +1497,14 @@ nsGtkIMModule::GetCurrentParagraph(nsAString& aText, uint32_t& aCursorPos)
     }
 
     // Get only the focused paragraph, by looking for newlines
-    int32_t parStart = (selOffset == 0) ? 0 :
+    PRInt32 parStart = (selOffset == 0) ? 0 :
         textContent.RFind("\n", false, selOffset - 1, -1) + 1;
-    int32_t parEnd = textContent.Find("\n", false, selOffset + selLength, -1);
+    PRInt32 parEnd = textContent.Find("\n", false, selOffset + selLength, -1);
     if (parEnd < 0) {
         parEnd = textContent.Length();
     }
     aText = nsDependentSubstring(textContent, parStart, parEnd - parStart);
-    aCursorPos = selOffset - uint32_t(parStart);
+    aCursorPos = selOffset - PRUint32(parStart);
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("    aText=%s, aText.Length()=%u, aCursorPos=%u",
@@ -1519,7 +1515,7 @@ nsGtkIMModule::GetCurrentParagraph(nsAString& aText, uint32_t& aCursorPos)
 }
 
 nsresult
-nsGtkIMModule::DeleteText(const int32_t aOffset, const uint32_t aNChars)
+nsGtkIMModule::DeleteText(const PRInt32 aOffset, const PRUint32 aNChars)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("GtkIMModule(%p): DeleteText, aOffset=%d, aNChars=%d, "
@@ -1543,7 +1539,7 @@ nsGtkIMModule::DeleteText(const int32_t aOffset, const uint32_t aNChars)
 
     // First, we should cancel current composition because editor cannot
     // handle changing selection and deleting text.
-    uint32_t selOffset;
+    PRUint32 selOffset;
     bool wasComposing = IsComposing();
     bool editorHadCompositionString = EditorHasCompositionString();
     if (wasComposing) {
@@ -1574,7 +1570,7 @@ nsGtkIMModule::DeleteText(const int32_t aOffset, const uint32_t aNChars)
     nsQueryContentEvent queryTextContentEvent(true,
                                               NS_QUERY_TEXT_CONTENT,
                                               mLastFocusedWindow);
-    queryTextContentEvent.InitForQueryTextContent(0, UINT32_MAX);
+    queryTextContentEvent.InitForQueryTextContent(0, PR_UINT32_MAX);
     mLastFocusedWindow->DispatchEvent(&queryTextContentEvent, status);
     NS_ENSURE_TRUE(queryTextContentEvent.mSucceeded, NS_ERROR_FAILURE);
     if (queryTextContentEvent.mReply.mString.IsEmpty()) {

@@ -9,7 +9,6 @@
 #include "nsCOMPtr.h"
 #include "nsIDOMHTMLBodyElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
@@ -22,7 +21,7 @@
 #include "nsIDocShell.h"
 #include "nsIEditorDocShell.h"
 #include "nsRuleWalker.h"
-#include "jspubtd.h"
+#include "jsapi.h"
 
 //----------------------------------------------------------------------
 
@@ -40,7 +39,7 @@ public:
   // nsIStyleRule interface
   virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
+  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
 
   nsHTMLBodyElement*  mPart;  // not ref-counted, cleared by content 
@@ -62,7 +61,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
@@ -83,10 +82,10 @@ public:
 #undef FORWARDED_EVENT
 #undef EVENT
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
-                              nsIAtom* aAttribute,
-                              const nsAString& aValue,
-                              nsAttrValue& aResult);
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
+                                nsIAtom* aAttribute,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
   virtual void UnbindFromTree(bool aDeep = true,
                               bool aNullParent = true);
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
@@ -122,12 +121,12 @@ BodyRule::MapRuleInfoInto(nsRuleData* aData)
   if (!(aData->mSIDs & NS_STYLE_INHERIT_BIT(Margin)) || !mPart)
     return; // We only care about margins.
 
-  int32_t bodyMarginWidth  = -1;
-  int32_t bodyMarginHeight = -1;
-  int32_t bodyTopMargin = -1;
-  int32_t bodyBottomMargin = -1;
-  int32_t bodyLeftMargin = -1;
-  int32_t bodyRightMargin = -1;
+  PRInt32 bodyMarginWidth  = -1;
+  PRInt32 bodyMarginHeight = -1;
+  PRInt32 bodyTopMargin = -1;
+  PRInt32 bodyBottomMargin = -1;
+  PRInt32 bodyLeftMargin = -1;
+  PRInt32 bodyRightMargin = -1;
 
   // check the mode (fortunately, the ruleData has a presContext for us to use!)
   NS_ASSERTION(aData->mPresContext, "null presContext in ruleNode was unexpected");
@@ -253,7 +252,7 @@ BodyRule::MapRuleInfoInto(nsRuleData* aData)
 
 #ifdef DEBUG
 /* virtual */ void
-BodyRule::List(FILE* out, int32_t aIndent) const
+BodyRule::List(FILE* out, PRInt32 aIndent) const
 {
 }
 #endif
@@ -302,7 +301,7 @@ NS_IMPL_STRING_ATTR(nsHTMLBodyElement, Text, text)
 NS_IMPL_STRING_ATTR(nsHTMLBodyElement, BgColor, bgcolor)
 
 bool
-nsHTMLBodyElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLBodyElement::ParseAttribute(PRInt32 aNamespaceID,
                                   nsIAtom* aAttribute,
                                   const nsAString& aValue,
                                   nsAttrValue& aResult)
@@ -325,10 +324,7 @@ nsHTMLBodyElement::ParseAttribute(int32_t aNamespaceID,
     }
   }
 
-  return nsGenericHTMLElement::ParseBackgroundAttribute(aNamespaceID,
-                                                        aAttribute, aValue,
-                                                        aResult) ||
-         nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
+  return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
 }
 

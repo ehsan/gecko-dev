@@ -43,7 +43,7 @@ protected:
 
   nsCOMPtr<nsIWordBreaker> mWordBreaker;
 
-  int32_t mIterOffset;
+  PRInt32 mIterOffset;
   nsCOMPtr<nsIDOMNode> mIterNode;
 
   // Last block parent, so that we will notice crossing block boundaries:
@@ -65,8 +65,8 @@ protected:
   void ResetAll();
 
   // The iterator we use to move through the document:
-  nsresult InitIterator(nsIDOMNode* aStartNode, int32_t aStartOffset,
-                        nsIDOMNode* aEndNode, int32_t aEndOffset);
+  nsresult InitIterator(nsIDOMNode* aStartNode, PRInt32 aStartOffset,
+                        nsIDOMNode* aEndNode, PRInt32 aEndOffset);
   nsCOMPtr<nsFindContentIterator> mIterator;
 };
 

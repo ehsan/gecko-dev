@@ -24,7 +24,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsINetworkManager.h"
 #include "nsIRadioInterfaceLayer.h"
-#include "nsIDOMMobileConnection.h"
 #include "nsThreadUtils.h"
 
 #ifdef AGPS_TYPE_INVALID
@@ -37,10 +36,7 @@ using namespace mozilla;
 
 static const int kDefaultPeriod = 1000; // ms
 
-// While most methods of GonkGPSGeolocationProvider should only be
-// called from main thread, we deliberately put the Init and ShutdownGPS
-// methods off main thread to avoid blocking.
-NS_IMPL_THREADSAFE_ISUPPORTS2(GonkGPSGeolocationProvider, nsIGeolocationProvider, nsIRILDataCallback)
+NS_IMPL_ISUPPORTS2(GonkGPSGeolocationProvider, nsIGeolocationProvider, nsIRILDataCallback)
 
 GonkGPSGeolocationProvider* GonkGPSGeolocationProvider::sSingleton;
 GpsCallbacks GonkGPSGeolocationProvider::mCallbacks = {
@@ -129,29 +125,19 @@ GonkGPSGeolocationProvider::NmeaCallback(GpsUtcTime timestamp, const char* nmea,
 void
 GonkGPSGeolocationProvider::SetCapabilitiesCallback(uint32_t capabilities)
 {
-  class UpdateCapabilitiesEvent : public nsRunnable {
-  public:
-    UpdateCapabilitiesEvent(uint32_t aCapabilities)
-      : mCapabilities(aCapabilities)
-    {}
-    NS_IMETHOD Run() {
-      nsRefPtr<GonkGPSGeolocationProvider> provider =
-        GonkGPSGeolocationProvider::GetSingleton();
+  // Called by GPS engine in init(), hence we don't have to
+  // protect the memebers
 
-      provider->mSupportsScheduling = mCapabilities & GPS_CAPABILITY_SCHEDULING;
-      provider->mSupportsMSB = mCapabilities & GPS_CAPABILITY_MSB;
-      provider->mSupportsMSA = mCapabilities & GPS_CAPABILITY_MSA;
-      provider->mSupportsSingleShot = mCapabilities & GPS_CAPABILITY_SINGLE_SHOT;
+  nsRefPtr<GonkGPSGeolocationProvider> provider =
+    GonkGPSGeolocationProvider::GetSingleton();
+
+  provider->mSupportsScheduling = capabilities & GPS_CAPABILITY_SCHEDULING;
+  provider->mSupportsMSB = capabilities & GPS_CAPABILITY_MSB;
+  provider->mSupportsMSA = capabilities & GPS_CAPABILITY_MSA;
+  provider->mSupportsSingleShot = capabilities & GPS_CAPABILITY_SINGLE_SHOT;
 #ifdef GPS_CAPABILITY_ON_DEMAND_TIME
-      provider->mSupportsTimeInjection = mCapabilities & GPS_CAPABILITY_ON_DEMAND_TIME;
+  provider->mSupportsTimeInjection = capabilities & GPS_CAPABILITY_ON_DEMAND_TIME;
 #endif
-      return NS_OK;
-    }
-  private:
-    uint32_t mCapabilities;
-  };
-
-  NS_DispatchToMainThread(new UpdateCapabilitiesEvent(capabilities));
 }
 
 void
@@ -194,30 +180,21 @@ GonkGPSGeolocationProvider::AGPSStatusCallback(AGpsStatus* status)
 {
   MOZ_ASSERT(status);
 
-  class AGPSStatusEvent : public nsRunnable {
-  public:
-    AGPSStatusEvent(AGpsStatusValue aStatus)
-      : mStatus(aStatus)
-    {}
-    NS_IMETHOD Run() {
-      nsRefPtr<GonkGPSGeolocationProvider> provider =
-        GonkGPSGeolocationProvider::GetSingleton();
+  nsRefPtr<GonkGPSGeolocationProvider> provider =
+    GonkGPSGeolocationProvider::GetSingleton();
 
-      switch (mStatus) {
-        case GPS_REQUEST_AGPS_DATA_CONN:
-          provider->RequestDataConnection();
-          break;
-        case GPS_RELEASE_AGPS_DATA_CONN:
-          provider->ReleaseDataConnection();
-          break;
-      }
-      return NS_OK;
-    }
-  private:
-    AGpsStatusValue mStatus;
-  };
-
-  NS_DispatchToMainThread(new AGPSStatusEvent(status->status));
+  nsCOMPtr<nsIRunnable> event;
+  switch (status->status) {
+    case GPS_REQUEST_AGPS_DATA_CONN:
+      event = NS_NewRunnableMethod(provider, &GonkGPSGeolocationProvider::RequestDataConnection);
+      break;
+    case GPS_RELEASE_AGPS_DATA_CONN:
+      event = NS_NewRunnableMethod(provider, &GonkGPSGeolocationProvider::ReleaseDataConnection);
+      break;
+  }
+  if (event) {
+    NS_DispatchToMainThread(event);
+  }
 }
 
 void
@@ -267,17 +244,13 @@ GonkGPSGeolocationProvider::GonkGPSGeolocationProvider()
 
 GonkGPSGeolocationProvider::~GonkGPSGeolocationProvider()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(!mStarted, "Must call Shutdown before destruction");
-
+  ShutdownNow();
   sSingleton = nullptr;
 }
 
 already_AddRefed<GonkGPSGeolocationProvider>
 GonkGPSGeolocationProvider::GetSingleton()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   if (!sSingleton)
     sSingleton = new GonkGPSGeolocationProvider();
 
@@ -309,8 +282,6 @@ GonkGPSGeolocationProvider::GetGPSInterface()
 void
 GonkGPSGeolocationProvider::RequestDataConnection()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   if (!mRIL) {
     return;
   }
@@ -332,8 +303,6 @@ GonkGPSGeolocationProvider::RequestDataConnection()
 void
 GonkGPSGeolocationProvider::ReleaseDataConnection()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   if (!mRIL) {
     return;
   }
@@ -402,15 +371,11 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
       icc->GetMcc(&location.u.cellID.mcc);
       icc->GetMnc(&location.u.cellID.mnc);
     }
-    nsCOMPtr<nsIDOMMozMobileConnectionInfo> voice;
-    rilCtx->GetVoice(getter_AddRefs(voice));
-    if (voice) {
-      nsCOMPtr<nsIDOMMozMobileCellInfo> cell;
-      voice->GetCell(getter_AddRefs(cell));
-      if (cell) {
-        cell->GetGsmLocationAreaCode(&location.u.cellID.lac);
-        cell->GetGsmCellId(&location.u.cellID.cid);
-      }
+    nsCOMPtr<nsICellLocation> cell;
+    rilCtx->GetCell(getter_AddRefs(cell));
+    if (cell) {
+      cell->GetLac(&location.u.cellID.lac);
+      cell->GetCid(&location.u.cellID.cid);
     }
     if (mAGpsRilInterface) {
       mAGpsRilInterface->set_ref_location(&location, sizeof(location));
@@ -451,10 +416,9 @@ GonkGPSGeolocationProvider::Init()
 void
 GonkGPSGeolocationProvider::StartGPS()
 {
-  MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mGpsInterface);
 
-  int32_t update = Preferences::GetInt("geo.default.update", kDefaultPeriod);
+  PRInt32 update = Preferences::GetInt("geo.default.update", kDefaultPeriod);
 
   if (mSupportsMSA || mSupportsMSB) {
     SetupAGPS();
@@ -488,10 +452,10 @@ void
 GonkGPSGeolocationProvider::SetupAGPS()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(mAGpsInterface);
+  MOZ_ASSERT(mAGpsRilInterface);
 
   const nsAdoptingCString& suplServer = Preferences::GetCString("geo.gps.supl_server");
-  int32_t suplPort = Preferences::GetInt("geo.gps.supl_port", -1);
+  PRInt32 suplPort = Preferences::GetInt("geo.gps.supl_port", -1);
   if (!suplServer.IsEmpty() && suplPort > 0) {
     mAGpsInterface->set_server(AGPS_TYPE_SUPL, suplServer.get(), suplPort);
   } else {
@@ -514,8 +478,6 @@ GonkGPSGeolocationProvider::SetupAGPS()
 NS_IMETHODIMP
 GonkGPSGeolocationProvider::Startup()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   if (mStarted) {
     return NS_OK;
   }
@@ -535,8 +497,6 @@ GonkGPSGeolocationProvider::Startup()
 NS_IMETHODIMP
 GonkGPSGeolocationProvider::Watch(nsIGeolocationUpdate* aCallback)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   mLocationCallback = aCallback;
   return NS_OK;
 }
@@ -544,28 +504,29 @@ GonkGPSGeolocationProvider::Watch(nsIGeolocationUpdate* aCallback)
 NS_IMETHODIMP
 GonkGPSGeolocationProvider::Shutdown()
 {
-  MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mInitThread);
 
   if (!mStarted) {
     return NS_OK;
   }
-  mStarted = false;
 
-  if (mRIL) {
-    mRIL->UnregisterDataCallCallback(this);
-  }
-
-  mInitThread->Dispatch(NS_NewRunnableMethod(this, &GonkGPSGeolocationProvider::ShutdownGPS),
+  mInitThread->Dispatch(NS_NewRunnableMethod(this, &GonkGPSGeolocationProvider::ShutdownNow),
                         NS_DISPATCH_NORMAL);
 
   return NS_OK;
 }
 
 void
-GonkGPSGeolocationProvider::ShutdownGPS()
+GonkGPSGeolocationProvider::ShutdownNow()
 {
-  MOZ_ASSERT(!mStarted, "Should only be called after Shutdown");
+  if (!mStarted) {
+    return;
+  }
+  mStarted = false;
+
+  if (mRIL) {
+    mRIL->UnregisterDataCallCallback(this);
+  }
 
   if (mGpsInterface) {
     mGpsInterface->stop();
@@ -586,12 +547,11 @@ GonkGPSGeolocationProvider::SetHighAccuracy(bool)
 NS_IMETHODIMP
 GonkGPSGeolocationProvider::DataCallStateChanged(nsIRILDataCallInfo* aDataCall)
 {
-  MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aDataCall);
   MOZ_ASSERT(mAGpsInterface);
   nsCOMPtr<nsIRILDataCallInfo> datacall = aDataCall;
 
-  uint32_t callState;
+  PRUint32 callState;
   nsresult rv = datacall->GetState(&callState);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -610,7 +570,7 @@ GonkGPSGeolocationProvider::DataCallStateChanged(nsIRILDataCallInfo* aDataCall)
     switch (callState) {
       case nsINetworkInterface::NETWORK_STATE_CONNECTED:
 #ifdef AGPS_HAVE_DUAL_APN
-        mAGpsInterface->data_conn_open(AGPS_TYPE_SUPL,
+        mAGpsInterface->data_conn_open(AGPS_TYPE_ANY,
                                        agpsApn.get(),
                                        AGPS_APN_BEARER_IPV4);
 #else
@@ -619,7 +579,7 @@ GonkGPSGeolocationProvider::DataCallStateChanged(nsIRILDataCallInfo* aDataCall)
         break;
       case nsINetworkInterface::NETWORK_STATE_DISCONNECTED:
 #ifdef AGPS_HAVE_DUAL_APN
-        mAGpsInterface->data_conn_closed(AGPS_TYPE_SUPL);
+        mAGpsInterface->data_conn_closed(AGPS_TYPE_ANY);
 #else
         mAGpsInterface->data_conn_closed();
 #endif
@@ -631,7 +591,7 @@ GonkGPSGeolocationProvider::DataCallStateChanged(nsIRILDataCallInfo* aDataCall)
 
 NS_IMETHODIMP
 GonkGPSGeolocationProvider::ReceiveDataCallList(nsIRILDataCallInfo** aDataCalls,
-                                                uint32_t aLength)
+                                                PRUint32 aLength)
 {
   return NS_OK;
 }

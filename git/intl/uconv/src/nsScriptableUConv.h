@@ -25,9 +25,9 @@ protected:
   nsCOMPtr<nsIUnicodeDecoder> mDecoder;
   bool mIsInternal;
 
-  nsresult FinishWithLength(char **_retval, int32_t* aLength);
+  nsresult FinishWithLength(char **_retval, PRInt32* aLength);
   nsresult ConvertFromUnicodeWithLength(const nsAString& aSrc,
-                                        int32_t* aOutLen,
+                                        PRInt32* aOutLen,
                                         char **_retval);
 
 

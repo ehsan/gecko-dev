@@ -27,6 +27,11 @@ XPIDLSRCS	= \
               nsIRelativeFilePref.idl \
               $(NULL)
 
+EXPORTS     = \
+              PPrefTuple.h \
+              PrefTuple.h \
+              $(NULL)
+
 EXPORTS_mozilla = \
               Preferences.h \
               $(NULL)

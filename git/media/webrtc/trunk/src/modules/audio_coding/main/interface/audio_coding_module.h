@@ -108,44 +108,42 @@ class AudioCodingModule: public Module {
 
   ///////////////////////////////////////////////////////////////////////////
   // WebRtc_Word32 Codec()
-  // Get supported codec with the given codec name, sampling frequency, and
-  // a given number of channels.
+  // Get supported codec with the given codec name and sampling frequency.
+  // If the sampling frequency is -1 then the search will be only based on
+  // codec name.
   //
   // Input:
-  //   -payload_name       : name of the codec.
-  //   -sampling_freq_hz   : sampling frequency of the codec. Note! for RED
-  //                         a sampling frequency of -1 is a valid input.
-  //   -channels           : number of channels ( 1 - mono, 2 - stereo).
+  //   -payloadName        : name of the codec.
+  //   -samplingFreqHz     : samling frequency of the codec.
   //
   // Output:
-  //   -codec              : a structure where the function returns the
-  //                         default parameters of the codec.
+  //   -codec              : a structure where the parameters of the codec,
+  //                         given by name is written to.
   //
   // Return value:
   //   -1 if the list number (listId) is invalid.
   //    0 if succeeded.
   //
-  static WebRtc_Word32 Codec(const char* payload_name, CodecInst& codec,
-                             int sampling_freq_hz, int channels);
+  static WebRtc_Word32 Codec(const char* payloadName, CodecInst& codec,
+                             const WebRtc_Word32 samplingFreqHz = -1);
 
   ///////////////////////////////////////////////////////////////////////////
   // WebRtc_Word32 Codec()
   //
-  // Returns the list number of the given codec name, sampling frequency, and
-  // a given number of channels.
+  // Returns the list number of the given codec name and sampling frequency.
+  // If the sampling frequency is -1 then the search will be only based on
+  // codec name.
   //
   // Input:
-  //   -payload_name        : name of the codec.
-  //   -sampling_freq_hz    : sampling frequency of the codec. Note! for RED
-  //                          a sampling frequency of -1 is a valid input.
-  //   -channels            : number of channels ( 1 - mono, 2 - stereo).
+  //   -payloadName        : name of the codec.
+  //   -samplingFreqHz     : samling frequency of the codec.
   //
   // Return value:
   //   if the codec is found, the index of the codec in the list,
   //   -1 if the codec is not found.
   //
-  static WebRtc_Word32 Codec(const char* payload_name, int sampling_freq_hz,
-                             int channels);
+  static WebRtc_Word32 Codec(const char* payloadName,
+                             const WebRtc_Word32 samplingFreqHz = -1);
 
   ///////////////////////////////////////////////////////////////////////////
   // bool IsCodecValid()
@@ -200,9 +198,6 @@ class AudioCodingModule: public Module {
   // Note that registering CNG and RED won't overwrite speech codecs.
   // This API can be called to set/change the send payload-type, frame-size
   // or encoding rate (if applicable for the codec).
-  //
-  // Note: If a stereo codec is registered as send codec, VAD/DTX will
-  // automatically be turned off, since it is not supported for stereo sending.
   //
   // Input:
   //   -sendCodec          : Parameters of the codec to be registered, c.f.
@@ -353,8 +348,6 @@ class AudioCodingModule: public Module {
   // If DTX is disabled but VAD is enabled no DTX packets are send,
   // regardless of whether the codec has internal DTX/VAD or not. In this
   // case, WebRtc VAD is running to label frames as active/in-active.
-  //
-  // NOTE! VAD/DTX is not supported when sending stereo.
   //
   // Inputs:
   //   -enableDTX          : if true DTX is enabled,

@@ -25,9 +25,6 @@
 #include "../d3d9/Nv3DVUtils.h"
 
 #include "gfxCrashReporterUtils.h"
-#ifdef MOZ_METRO
-#include "DXGI1_2.h"
-#endif
 
 using namespace std;
 using namespace mozilla::gfx;
@@ -247,7 +244,7 @@ LayerManagerD3D10::Initialize(bool force)
     */
     nsRefPtr<IDXGISwapChain1> swapChain1;
     hr = dxgiFactory->CreateSwapChainForCoreWindow(
-           dxgiDevice, (IUnknown *)mWidget->GetNativeData(NS_NATIVE_ICOREWINDOW),
+           dxgiDevice, (IUnknown *)mWidget->GetNativeData(NS_NATIVE_WINDOW),
            &swapDesc, nullptr, getter_AddRefs(swapChain1));
     if (FAILED(hr)) {
         return false;
@@ -325,8 +322,6 @@ LayerManagerD3D10::SetRoot(Layer *aRoot)
 void
 LayerManagerD3D10::BeginTransaction()
 {
-  mInTransaction = true;
-
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("[----- BeginTransaction"));
   Log();
@@ -336,15 +331,12 @@ LayerManagerD3D10::BeginTransaction()
 void
 LayerManagerD3D10::BeginTransactionWithTarget(gfxContext* aTarget)
 {
-  mInTransaction = true;
   mTarget = aTarget;
 }
 
 bool
 LayerManagerD3D10::EndEmptyTransaction(EndTransactionFlags aFlags)
 {
-  mInTransaction = false;
-
   if (!mRoot)
     return false;
 
@@ -357,17 +349,9 @@ LayerManagerD3D10::EndTransaction(DrawThebesLayerCallback aCallback,
                                   void* aCallbackData,
                                   EndTransactionFlags aFlags)
 {
-  mInTransaction = false;
-
   if (mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {
     mCurrentCallbackInfo.Callback = aCallback;
     mCurrentCallbackInfo.CallbackData = aCallbackData;
-
-    if (aFlags & END_NO_COMPOSITE) {
-      // Apply pending tree updates before recomputing effective
-      // properties.
-      mRoot->ApplyPendingUpdatesToSubtree();
-    }
 
     // The results of our drawing always go directly into a pixel buffer,
     // so we don't need to pass any global transform here.
@@ -502,6 +486,7 @@ LayerManagerD3D10::CreateDrawTarget(const IntSize &aSize,
 {
   if ((aFormat != FORMAT_B8G8R8A8 &&
        aFormat != FORMAT_B8G8R8X8) ||
+       !gfxPlatform::GetPlatform()->SupportsAzureCanvas() ||
        gfxPlatform::GetPlatform()->GetPreferredCanvasBackend() != BACKEND_DIRECT2D) {
     return LayerManager::CreateDrawTarget(aSize, aFormat);
   }
@@ -873,7 +858,7 @@ LayerManagerD3D10::ReportFailure(const nsACString &aMsg, HRESULT aCode)
   nsCString msg;
   msg.Append(aMsg);
   msg.AppendLiteral(" Error code: ");
-  msg.AppendInt(uint32_t(aCode));
+  msg.AppendInt(PRUint32(aCode));
   NS_WARNING(msg.BeginReading());
 
   gfx::LogFailure(msg);
@@ -885,7 +870,7 @@ LayerD3D10::LayerD3D10(LayerManagerD3D10 *aManager)
 }
 
 ID3D10EffectTechnique*
-LayerD3D10::SelectShader(uint8_t aFlags)
+LayerD3D10::SelectShader(PRUint8 aFlags)
 {
   switch (aFlags) {
   case (SHADER_RGBA | SHADER_NON_PREMUL | SHADER_LINEAR | SHADER_MASK):
@@ -932,7 +917,7 @@ LayerD3D10::SelectShader(uint8_t aFlags)
   }
 }
 
-uint8_t
+PRUint8
 LayerD3D10::LoadMaskTexture()
 {
   if (Layer* maskLayer = GetLayer()->GetMaskLayer()) {
@@ -999,11 +984,6 @@ DummyRoot::RemoveChild(Layer* aNull)
 {
   NS_ABORT_IF_FALSE(!aNull, "Unused argument should be null");
   NS_IF_RELEASE(mFirstChild);
-}
-
-void
-DummyRoot::RepositionChild(Layer* aUnused1, Layer* aUnused2)
-{
 }
 
 

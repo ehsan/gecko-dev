@@ -45,6 +45,14 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
     if (!JS_SetProperty(cx, info, "exact-rooting", &value))
         return false;
 
+#ifdef JSGC_ROOT_ANALYSIS
+    value = BooleanValue(true);
+#else
+    value = BooleanValue(false);
+#endif
+    if (!JS_SetProperty(cx, info, "rooting-analysis", &value))
+        return false;
+
 #ifdef DEBUG
     value = BooleanValue(true);
 #else
@@ -74,7 +82,7 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
 #else
     value = BooleanValue(false);
 #endif
-    if (!JS_SetProperty(cx, info, "threadsafe", &value))
+    if (!JS_SetProperty(cx, info, "has-gczeal", &value))
         return false;
 
 #ifdef JS_MORE_DETERMINISTIC
@@ -167,8 +175,8 @@ GC(JSContext *cx, unsigned argc, jsval *vp)
     /*
      * If the first argument is 'compartment', we collect any compartments
      * previously scheduled for GC via schedulegc. If the first argument is an
-     * object, we collect the object's compartment (and any other compartments
-     * scheduled for GC). Otherwise, we collect all compartments.
+     * object, we collect the object's compartment (any any other compartments
+     * scheduled for GC). Otherwise, we collect call compartments.
      */
     JSBool compartment = false;
     if (argc == 1) {
@@ -478,22 +486,6 @@ DeterministicGC(JSContext *cx, unsigned argc, jsval *vp)
 }
 #endif /* JS_GC_ZEAL */
 
-static JSBool
-ValidateGC(JSContext *cx, unsigned argc, jsval *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (argc != 1) {
-        RootedObject callee(cx, &args.callee());
-        ReportUsageError(cx, callee, "Wrong number of arguments");
-        return JS_FALSE;
-    }
-
-    gc::SetValidateGC(cx, ToBoolean(vp[2]));
-    *vp = JSVAL_VOID;
-    return JS_TRUE;
-}
-
 struct JSCountHeapNode {
     void                *thing;
     JSGCTraceKind       kind;
@@ -534,7 +526,7 @@ CountHeapNotify(JSTracer *trc, void **thingp, JSGCTraceKind kind)
     if (node) {
         countTracer->recycleList = node->next;
     } else {
-        node = js_pod_malloc<JSCountHeapNode>();
+        node = (JSCountHeapNode *) js_malloc(sizeof *node);
         if (!node) {
             countTracer->ok = false;
             return;
@@ -747,22 +739,6 @@ EnableSPSProfilingAssertions(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static JSBool
-DisplayName(JSContext *cx, unsigned argc, jsval *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (argc == 0 || !args[0].isObject() || !args[0].toObject().isFunction()) {
-        RootedObject arg(cx, &args.callee());
-        ReportUsageError(cx, arg, "Must have one function argument");
-        return false;
-    }
-
-    JSFunction *fun = args[0].toObject().toFunction();
-    JSString *str = fun->displayAtom();
-    vp->setString(str == NULL ? cx->runtime->emptyString : str);
-    return true;
-}
-
 static JSFunctionSpecWithHelp TestingFunctions[] = {
     JS_FN_HELP("gc", ::GC, 0, 0,
 "gc([obj] | 'compartment')",
@@ -814,7 +790,6 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "   10: Incremental GC in multiple slices\n"
 "   11: Verify post write barriers between instructions\n"
 "   12: Verify post write barriers between paints\n"
-"   13: Purge analysis state when memory is allocated\n"
 "  Period specifies that collection happens every n allocations.\n"),
 
     JS_FN_HELP("schedulegc", ScheduleGC, 1, 0,
@@ -847,10 +822,6 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "  If true, only allow determinstic GCs to run."),
 #endif
 
-    JS_FN_HELP("validategc", ValidateGC, 1, 0,
-"validategc(true|false)",
-"  If true, a separate validation step is performed after an incremental GC."),
-
     JS_FN_HELP("internalConst", InternalConst, 1, 0,
 "internalConst(name)",
 "  Query an internal constant for the engine. See InternalConst source for\n"
@@ -875,12 +846,6 @@ static JSFunctionSpecWithHelp TestingFunctions[] = {
 "  true, then even slower assertions are enabled for all generated JIT code.\n"
 "  When 'slow' is false, then instrumentation is enabled, but the slow\n"
 "  assertions are disabled."),
-
-    JS_FN_HELP("displayName", DisplayName, 1, 0,
-"displayName(fn)",
-"  Gets the display name for a function, which can possibly be a guessed or\n"
-"  inferred name based on where the function was defined. This can be\n"
-"  different from the 'name' property on the function."),
 
     JS_FS_HELP_END
 };

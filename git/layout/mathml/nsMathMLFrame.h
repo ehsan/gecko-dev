@@ -6,7 +6,6 @@
 #ifndef nsMathMLFrame_h___
 #define nsMathMLFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nsPresContext.h"
 #include "nsFontMetrics.h"
@@ -33,64 +32,64 @@ public:
   }
 
   NS_IMETHOD
-  GetBoundingMetrics(nsBoundingMetrics& aBoundingMetrics) MOZ_OVERRIDE {
+  GetBoundingMetrics(nsBoundingMetrics& aBoundingMetrics) {
     aBoundingMetrics = mBoundingMetrics;
     return NS_OK;
   }
 
   NS_IMETHOD
-  SetBoundingMetrics(const nsBoundingMetrics& aBoundingMetrics) MOZ_OVERRIDE {
+  SetBoundingMetrics(const nsBoundingMetrics& aBoundingMetrics) {
     mBoundingMetrics = aBoundingMetrics;
     return NS_OK;
   }
 
   NS_IMETHOD
-  SetReference(const nsPoint& aReference) MOZ_OVERRIDE {
+  SetReference(const nsPoint& aReference) {
     mReference = aReference;
     return NS_OK;
   }
 
-  virtual eMathMLFrameType GetMathMLFrameType() MOZ_OVERRIDE;
+  virtual eMathMLFrameType GetMathMLFrameType();
 
   NS_IMETHOD
   Stretch(nsRenderingContext& aRenderingContext,
           nsStretchDirection   aStretchDirection,
           nsBoundingMetrics&   aContainerSize,
-          nsHTMLReflowMetrics& aDesiredStretchSize) MOZ_OVERRIDE
+          nsHTMLReflowMetrics& aDesiredStretchSize)
   {
     return NS_OK;
   }
 
   NS_IMETHOD
-  GetEmbellishData(nsEmbellishData& aEmbellishData) MOZ_OVERRIDE {
+  GetEmbellishData(nsEmbellishData& aEmbellishData) {
     aEmbellishData = mEmbellishData;
     return NS_OK;
   }
 
   NS_IMETHOD
-  GetPresentationData(nsPresentationData& aPresentationData) MOZ_OVERRIDE {
+  GetPresentationData(nsPresentationData& aPresentationData) {
     aPresentationData = mPresentationData;
     return NS_OK;
   }
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE
+  TransmitAutomaticData()
   {
     return NS_OK;
   }
 
   NS_IMETHOD
-  UpdatePresentationData(uint32_t        aFlagsValues,
-                         uint32_t        aFlagsToUpdate) MOZ_OVERRIDE;
+  UpdatePresentationData(PRUint32        aFlagsValues,
+                         PRUint32        aFlagsToUpdate);
 
   NS_IMETHOD
-  UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
-                                    int32_t         aLastIndex,
-                                    uint32_t        aFlagsValues,
-                                    uint32_t        aFlagsToUpdate) MOZ_OVERRIDE
+  UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
+                                    PRInt32         aLastIndex,
+                                    PRUint32        aFlagsValues,
+                                    PRUint32        aFlagsToUpdate)
   {
     return NS_OK;
   }
@@ -157,7 +156,7 @@ public:
   // @post aLengthValue is the length value computed from the attribute.
   static void ParseNumericValue(const nsString&   aString,
                                 nscoord*          aLengthValue,
-                                uint32_t          aFlags,
+                                PRUint32          aFlags,
                                 nsPresContext*    aPresContext,
                                 nsStyleContext*   aStyleContext);
 

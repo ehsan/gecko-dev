@@ -21,7 +21,8 @@ const gXPInstallObserver = {
 
   _getBrowser: function (aDocShell)
   {
-    for (let browser of gBrowser.browsers) {
+    for (var i = 0; i < gBrowser.browsers.length; ++i) {
+      var browser = gBrowser.getBrowserAtIndex(i);
       if (this._findChildShell(browser.docShell, aDocShell))
         return browser;
     }
@@ -115,23 +116,23 @@ const gXPInstallObserver = {
       break;
     case "addon-install-failed":
       // TODO This isn't terribly ideal for the multiple failure case
-      for (let install of installInfo.installs) {
-        let host = (installInfo.originatingURI instanceof Ci.nsIStandardURL) &&
+      installInfo.installs.forEach(function(aInstall) {
+        var host = (installInfo.originatingURI instanceof Ci.nsIStandardURL) &&
                    installInfo.originatingURI.host;
         if (!host)
-          host = (install.sourceURI instanceof Ci.nsIStandardURL) &&
-                 install.sourceURI.host;
+          host = (aInstall.sourceURI instanceof Ci.nsIStandardURL) &&
+                 aInstall.sourceURI.host;
 
-        let error = (host || install.error == 0) ? "addonError" : "addonLocalError";
-        if (install.error != 0)
-          error += install.error;
-        else if (install.addon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
+        var error = (host || aInstall.error == 0) ? "addonError" : "addonLocalError";
+        if (aInstall.error != 0)
+          error += aInstall.error;
+        else if (aInstall.addon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
           error += "Blocklisted";
         else
           error += "Incompatible";
 
         messageString = gNavigatorBundle.getString(error);
-        messageString = messageString.replace("#1", install.name);
+        messageString = messageString.replace("#1", aInstall.name);
         if (host)
           messageString = messageString.replace("#2", host);
         messageString = messageString.replace("#3", brandShortName);
@@ -139,7 +140,7 @@ const gXPInstallObserver = {
 
         PopupNotifications.show(browser, notificationID, messageString, anchorID,
                                 action, null, options);
-      }
+      });
       break;
     case "addon-install-complete":
       var needsRestart = installInfo.installs.some(function(i) {
@@ -158,7 +159,26 @@ const gXPInstallObserver = {
       }
       else {
         messageString = gNavigatorBundle.getString("addonsInstalled");
-        action = null;
+        action = {
+          label: gNavigatorBundle.getString("addonInstallManage"),
+          accessKey: gNavigatorBundle.getString("addonInstallManage.accesskey"),
+          callback: function() {
+            // Calculate the add-on type that is most popular in the list of
+            // installs
+            var types = {};
+            var bestType = null;
+            installInfo.installs.forEach(function(aInstall) {
+              if (aInstall.type in types)
+                types[aInstall.type]++;
+              else
+                types[aInstall.type] = 1;
+              if (!bestType || types[aInstall.type] > types[bestType])
+                bestType = aInstall.type;
+            });
+
+            BrowserOpenAddonsMgr("addons://list/" + bestType);
+          }
+        };
       }
 
       messageString = PluralForm.get(installInfo.installs.length, messageString);
@@ -194,10 +214,10 @@ let AddonsMgrListener = {
     var defaultOrNoninteractive = this.addonBar.getAttribute("defaultset")
                                       .split(",")
                                       .concat(["separator", "spacer", "spring"]);
-    for (let item of this.addonBar.currentSet.split(",")) {
+    this.addonBar.currentSet.split(",").forEach(function (item) {
       if (defaultOrNoninteractive.indexOf(item) == -1)
         itemCount++;
-    }
+    });
 
     return itemCount;
   },

@@ -6,16 +6,20 @@
 // Services = object with smart getters for common XPCOM services
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "BROWSER_NEW_TAB_URL", function () {
   const PREF = "browser.newtab.url";
   const TOPIC = "private-browsing-transition-complete";
 
   function getNewTabPageURL() {
-    if (!Services.prefs.prefHasUserValue(PREF)) {
-      if (PrivateBrowsingUtils.isWindowPrivate(window) &&
-          !PrivateBrowsingUtils.permanentPrivateBrowsing)
+    if (("gPrivateBrowsingUI" in window) &&
+        !Services.prefs.prefHasUserValue(PREF)) {
+      // gPrivateBrowsingUI may not be initialized yet, in that case we'll
+      // update BROWSER_NEW_TAB_URL when it gets initialized.
+      if (!gPrivateBrowsingUI.initialized)
+        gPrivateBrowsingUI.addInitializationCallback(update);
+      else if (gPrivateBrowsingUI.privateWindow &&
+               !gPrivateBrowsingUI.autoStarted)
         return "about:privatebrowsing";
     }
     return Services.prefs.getCharPref(PREF) || "about:blank";
@@ -105,8 +109,7 @@ function openUILink(url, event, aIgnoreButton, aIgnoreAlt, aAllowThirdPartyFixup
     params = {
       allowThirdPartyFixup: aAllowThirdPartyFixup,
       postData: aPostData,
-      referrerURI: aReferrerURI,
-      initiatingDoc: event.target.ownerDocument
+      referrerURI: aReferrerURI
     };
   }
 
@@ -221,10 +224,9 @@ function openLinkIn(url, where, params) {
   var aDisallowInheritPrincipal = params.disallowInheritPrincipal;
   // Currently, this parameter works only for where=="tab" or "current"
   var aIsUTF8               = params.isUTF8;
-  var aInitiatingDoc        = params.initiatingDoc;
 
   if (where == "save") {
-    saveURL(url, null, null, true, null, aReferrerURI, aInitiatingDoc);
+    saveURL(url, null, null, true, null, aReferrerURI);
     return;
   }
   const Cc = Components.classes;
@@ -321,8 +323,9 @@ function openLinkIn(url, where, params) {
   var fm = Components.classes["@mozilla.org/focus-manager;1"].
              getService(Components.interfaces.nsIFocusManager);
   if (window == fm.activeWindow)
-    w.focus();
-  w.gBrowser.selectedBrowser.focus();
+    w.content.focus();
+  else
+    w.gBrowser.selectedBrowser.focus();
 
   if (!loadInBackground && isBlankPageURL(url))
     w.focusAndSelectUrlBar();

@@ -343,7 +343,7 @@ typename GrRedBlackTree<T,C>::Iter GrRedBlackTree<T,C>::insert(const T& t) {
 
     ++fCount;
 
-    Node* x = SkNEW(Node);
+    Node* x = new Node;
     x->fChildren[kLeft_Child] = NULL;
     x->fChildren[kRight_Child] = NULL;
     x->fItem = t;

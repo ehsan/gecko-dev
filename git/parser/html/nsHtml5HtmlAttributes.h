@@ -61,24 +61,24 @@ class nsHtml5HtmlAttributes
   public:
     static nsHtml5HtmlAttributes* EMPTY_ATTRIBUTES;
   private:
-    int32_t mode;
-    int32_t length;
-    autoJArray<nsHtml5AttributeName*,int32_t> names;
-    autoJArray<nsString*,int32_t> values;
+    PRInt32 mode;
+    PRInt32 length;
+    autoJArray<nsHtml5AttributeName*,PRInt32> names;
+    autoJArray<nsString*,PRInt32> values;
   public:
-    nsHtml5HtmlAttributes(int32_t mode);
+    nsHtml5HtmlAttributes(PRInt32 mode);
     ~nsHtml5HtmlAttributes();
-    int32_t getIndex(nsHtml5AttributeName* name);
+    PRInt32 getIndex(nsHtml5AttributeName* name);
+    PRInt32 getLength();
+    nsIAtom* getLocalName(PRInt32 index);
+    nsHtml5AttributeName* getAttributeName(PRInt32 index);
+    PRInt32 getURI(PRInt32 index);
+    nsIAtom* getPrefix(PRInt32 index);
+    nsString* getValue(PRInt32 index);
     nsString* getValue(nsHtml5AttributeName* name);
-    int32_t getLength();
-    nsIAtom* getLocalNameNoBoundsCheck(int32_t index);
-    int32_t getURINoBoundsCheck(int32_t index);
-    nsIAtom* getPrefixNoBoundsCheck(int32_t index);
-    nsString* getValueNoBoundsCheck(int32_t index);
-    nsHtml5AttributeName* getAttributeNameNoBoundsCheck(int32_t index);
     void addAttribute(nsHtml5AttributeName* name, nsString* value);
-    void clear(int32_t m);
-    void releaseValue(int32_t i);
+    void clear(PRInt32 m);
+    void releaseValue(PRInt32 i);
     void clearWithoutReleasingContents();
     bool contains(nsHtml5AttributeName* name);
     void adjustForMath();

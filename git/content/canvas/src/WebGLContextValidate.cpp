@@ -83,11 +83,6 @@ WebGLContext::ValidateBuffers(int32_t *maxAllowedCount, const char *info)
         return false;
 #endif
 
-    if (mMinInUseAttribArrayLength != -1) {
-        *maxAllowedCount = mMinInUseAttribArrayLength;
-        return true;
-    }
-
     *maxAllowedCount = -1;
 
     uint32_t attribs = mAttribBuffers.Length();
@@ -137,7 +132,7 @@ WebGLContext::ValidateBuffers(int32_t *maxAllowedCount, const char *info)
               *maxAllowedCount = checked_maxAllowedCount.value();
         }
     }
-    mMinInUseAttribArrayLength = *maxAllowedCount;
+
     return true;
 }
 
@@ -371,52 +366,37 @@ bool WebGLContext::ValidateTexImage2DTarget(WebGLenum target, WebGLsizei width, 
     return true;
 }
 
-bool WebGLContext::ValidateCompressedTextureSize(WebGLenum target, WebGLint level,
-                                                 WebGLenum format,
-                                                 WebGLsizei width, WebGLsizei height, uint32_t byteLength, const char* info)
+bool WebGLContext::ValidateCompressedTextureSize(WebGLint level, WebGLenum format, WebGLsizei width,
+                                                 WebGLsizei height, uint32_t byteLength, const char* info)
 {
-    if (!ValidateLevelWidthHeightForTarget(target, level, width, height, info)) {
+    CheckedUint32 calculated_byteLength = 0;
+    CheckedUint32 checked_byteLength = byteLength;
+    if (!checked_byteLength.isValid()) {
+        ErrorInvalidValue("%s: data length out of bounds", info);
         return false;
     }
-
-    // negative width and height must already have been handled above
-    MOZ_ASSERT(width >= 0 && height >= 0);
-
-    CheckedUint32 required_byteLength = 0;
 
     switch (format) {
         case LOCAL_GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
         case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-        case LOCAL_GL_ATC_RGB:
         {
-            required_byteLength = ((CheckedUint32(width) + 3) / 4) * ((CheckedUint32(height) + 3) / 4) * 8;
+            calculated_byteLength = ((CheckedUint32(width) + 3) / 4) * ((CheckedUint32(height) + 3) / 4) * 8;
+            if (!calculated_byteLength.isValid() || !(checked_byteLength == calculated_byteLength)) {
+                ErrorInvalidValue("%s: data size does not match dimensions", info);
+                return false;
+            }
             break;
         }
         case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
         case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case LOCAL_GL_ATC_RGBA_EXPLICIT_ALPHA:
-        case LOCAL_GL_ATC_RGBA_INTERPOLATED_ALPHA:
         {
-            required_byteLength = ((CheckedUint32(width) + 3) / 4) * ((CheckedUint32(height) + 3) / 4) * 16;
+            calculated_byteLength = ((CheckedUint32(width) + 3) / 4) * ((CheckedUint32(height) + 3) / 4) * 16;
+            if (!calculated_byteLength.isValid() || !(checked_byteLength == calculated_byteLength)) {
+                ErrorInvalidValue("%s: data size does not match dimensions", info);
+                return false;
+            }
             break;
         }
-        case LOCAL_GL_COMPRESSED_RGB_PVRTC_4BPPV1:
-        case LOCAL_GL_COMPRESSED_RGBA_PVRTC_4BPPV1:
-        {
-            required_byteLength = CheckedUint32(NS_MAX(width, 8)) * CheckedUint32(NS_MAX(height, 8)) / 2;
-            break;
-        }
-        case LOCAL_GL_COMPRESSED_RGB_PVRTC_2BPPV1:
-        case LOCAL_GL_COMPRESSED_RGBA_PVRTC_2BPPV1:
-        {
-            required_byteLength = CheckedUint32(NS_MAX(width, 16)) * CheckedUint32(NS_MAX(height, 8)) / 4;
-            break;
-        }
-    }
-
-    if (!required_byteLength.isValid() || required_byteLength.value() != byteLength) {
-        ErrorInvalidValue("%s: data size does not match dimensions", info);
-        return false;
     }
 
     switch (format) {
@@ -426,32 +406,19 @@ bool WebGLContext::ValidateCompressedTextureSize(WebGLenum target, WebGLint leve
         case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
         {
             if (level == 0 && width % 4 == 0 && height % 4 == 0) {
-                break;
+                return true;
             }
             if (level > 0
                 && (width == 0 || width == 1 || width == 2 || width % 4 == 0)
                 && (height == 0 || height == 1 || height == 2 || height % 4 == 0))
             {
-                break;
-            }
-            ErrorInvalidOperation("%s: level parameter does not match width and height", info);
-            return false;
-        }
-        case LOCAL_GL_COMPRESSED_RGB_PVRTC_4BPPV1:
-        case LOCAL_GL_COMPRESSED_RGB_PVRTC_2BPPV1:
-        case LOCAL_GL_COMPRESSED_RGBA_PVRTC_4BPPV1:
-        case LOCAL_GL_COMPRESSED_RGBA_PVRTC_2BPPV1:
-        {
-            if (!is_pot_assuming_nonnegative(width) ||
-                !is_pot_assuming_nonnegative(height))
-            {
-                ErrorInvalidValue("%s: width and height must be powers of two", info);
-                return false;
+                return true;
             }
         }
     }
 
-    return true;
+    ErrorInvalidOperation("%s: level parameter does not match width and height", info);
+    return false;
 }
 
 bool WebGLContext::ValidateLevelWidthHeightForTarget(WebGLenum target, WebGLint level, WebGLsizei width,
@@ -464,9 +431,7 @@ bool WebGLContext::ValidateLevelWidthHeightForTarget(WebGLenum target, WebGLint 
         return false;
     }
 
-    WebGLsizei maxAllowedSize = maxTextureSize >> level;
-
-    if (!maxAllowedSize) {
+    if (!(maxTextureSize >> level)) {
         ErrorInvalidValue("%s: 2^level exceeds maximum texture size", info);
         return false;
     }
@@ -476,8 +441,8 @@ bool WebGLContext::ValidateLevelWidthHeightForTarget(WebGLenum target, WebGLint 
         return false;
     }
 
-    if (width > maxAllowedSize || height > maxAllowedSize) {
-        ErrorInvalidValue("%s: the maximum texture size for level %d is %d", info, level, maxAllowedSize);
+    if (width > maxTextureSize || height > maxTextureSize) {
+        ErrorInvalidValue("%s: width or height exceeds maximum texture size", info);
         return false;
     }
 
@@ -489,16 +454,6 @@ uint32_t WebGLContext::GetBitsPerTexel(WebGLenum format, WebGLenum type)
     // If there is no defined format or type, we're not taking up any memory
     if (!format || !type) {
         return 0;
-    }
-
-    if (format == LOCAL_GL_DEPTH_COMPONENT) {
-        if (type == LOCAL_GL_UNSIGNED_SHORT)
-            return 2;
-        else if (type == LOCAL_GL_UNSIGNED_INT)
-            return 4;
-    } else if (format == LOCAL_GL_DEPTH_STENCIL) {
-        if (type == LOCAL_GL_UNSIGNED_INT_24_8_EXT)
-            return 4;
     }
 
     if (type == LOCAL_GL_UNSIGNED_BYTE || type == LOCAL_GL_FLOAT) {
@@ -513,19 +468,11 @@ uint32_t WebGLContext::GetBitsPerTexel(WebGLenum format, WebGLenum type)
                 return 3 * multiplier;
             case LOCAL_GL_RGBA:
                 return 4 * multiplier;
-            case LOCAL_GL_COMPRESSED_RGB_PVRTC_2BPPV1:
-            case LOCAL_GL_COMPRESSED_RGBA_PVRTC_2BPPV1:
-                return 2;
             case LOCAL_GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
             case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-            case LOCAL_GL_ATC_RGB:
-            case LOCAL_GL_COMPRESSED_RGB_PVRTC_4BPPV1:
-            case LOCAL_GL_COMPRESSED_RGBA_PVRTC_4BPPV1:
                 return 4;
             case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
             case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-            case LOCAL_GL_ATC_RGBA_EXPLICIT_ALPHA:
-            case LOCAL_GL_ATC_RGBA_INTERPOLATED_ALPHA:
                 return 8;
             default:
                 break;
@@ -544,48 +491,6 @@ uint32_t WebGLContext::GetBitsPerTexel(WebGLenum format, WebGLenum type)
 bool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type, int jsArrayType,
                                               uint32_t *texelSize, const char *info)
 {
-    if (IsExtensionEnabled(WEBGL_depth_texture)) {
-        if (format == LOCAL_GL_DEPTH_COMPONENT) {
-            if (jsArrayType != -1) {
-                if ((type == LOCAL_GL_UNSIGNED_SHORT && jsArrayType != js::ArrayBufferView::TYPE_UINT16) ||
-                    (type == LOCAL_GL_UNSIGNED_INT && jsArrayType != js::ArrayBufferView::TYPE_UINT32)) {
-                    ErrorInvalidOperation("%s: invalid typed array type for given texture data type", info);
-                    return false;
-                }
-            }
-
-            switch(type) {
-                case LOCAL_GL_UNSIGNED_SHORT:
-                    *texelSize = 2;
-                    break;
-                case LOCAL_GL_UNSIGNED_INT:
-                    *texelSize = 4;
-                    break;
-                default:
-                    ErrorInvalidOperation("%s: invalid type 0x%x", info, type);
-                    return false;
-            }
-
-            return true;
-
-        } else if (format == LOCAL_GL_DEPTH_STENCIL) {
-            if (type != LOCAL_GL_UNSIGNED_INT_24_8_EXT) {
-                ErrorInvalidOperation("%s: invalid format 0x%x", info, format);
-                return false;
-            }
-            if (jsArrayType != -1) {
-                if (jsArrayType != js::ArrayBufferView::TYPE_UINT32) {
-                    ErrorInvalidOperation("%s: invalid typed array type for given texture data type", info);
-                    return false;
-                }
-            }
-
-            *texelSize = 4;
-            return true;
-        }
-    }
-
-
     if (type == LOCAL_GL_UNSIGNED_BYTE ||
         (IsExtensionEnabled(OES_texture_float) && type == LOCAL_GL_FLOAT))
     {
@@ -655,151 +560,6 @@ bool WebGLContext::ValidateTexFormatAndType(WebGLenum format, WebGLenum type, in
 
     ErrorInvalidEnum("%s: invalid type 0x%x", info, type);
     return false;
-}
-
-bool
-WebGLContext::ValidateUniformLocation(const char* info, WebGLUniformLocation *location_object)
-{
-    if (!ValidateObjectAllowNull(info, location_object))
-        return false;
-    if (!location_object)
-        return false;
-    /* the need to check specifically for !mCurrentProgram here is explained in bug 657556 */
-    if (!mCurrentProgram) {
-        ErrorInvalidOperation("%s: no program is currently bound", info);
-        return false;
-    }
-    if (mCurrentProgram != location_object->Program()) {
-        ErrorInvalidOperation("%s: this uniform location doesn't correspond to the current program", info);
-        return false;
-    }
-    if (mCurrentProgram->Generation() != location_object->ProgramGeneration()) {
-        ErrorInvalidOperation("%s: This uniform location is obsolete since the program has been relinked", info);
-        return false;
-    }
-    return true;
-}
-
-bool
-WebGLContext::ValidateAttribArraySetter(const char* name, uint32_t cnt, uint32_t arrayLength)
-{
-    if (!IsContextStable()) {
-        return false;
-    }
-    if (arrayLength < cnt) {
-        ErrorInvalidOperation("%s: array must be >= %d elements", name, cnt);
-        return false;
-    }
-    return true;
-}
-
-bool
-WebGLContext::ValidateUniformArraySetter(const char* name, uint32_t expectedElemSize, WebGLUniformLocation *location_object,
-                                         GLint& location, uint32_t& numElementsToUpload, uint32_t arrayLength)
-{
-    if (!IsContextStable())
-        return false;
-    nsCString nameString(name);
-    nsCString suffix = NS_LITERAL_CSTRING(": location");
-    nsCString concatenated = nameString + suffix;
-    if (!ValidateUniformLocation(concatenated.get(), location_object))
-        return false;
-    location = location_object->Location();
-    uint32_t uniformElemSize = location_object->ElementSize();
-    if (expectedElemSize != uniformElemSize) {
-        ErrorInvalidOperation("%s: this function expected a uniform of element size %d,"
-                              " got a uniform of element size %d", name,
-                              expectedElemSize,
-                              uniformElemSize);
-        return false;
-    }
-    const WebGLUniformInfo& info = location_object->Info();
-    if (arrayLength == 0 ||
-        arrayLength % expectedElemSize)
-    {
-        ErrorInvalidValue("%s: expected an array of length a multiple"
-                          " of %d, got an array of length %d", name,
-                          expectedElemSize,
-                          arrayLength);
-        return false;
-    }
-    if (!info.isArray &&
-        arrayLength != expectedElemSize) {
-        ErrorInvalidOperation("%s: expected an array of length exactly"
-                              " %d (since this uniform is not an array"
-                              " uniform), got an array of length %d", name,
-                              expectedElemSize,
-                              arrayLength);
-        return false;
-    }
-    numElementsToUpload =
-        NS_MIN(info.arraySize, arrayLength / expectedElemSize);
-    return true;
-}
-
-bool
-WebGLContext::ValidateUniformMatrixArraySetter(const char* name, int dim, WebGLUniformLocation *location_object,
-                                              GLint& location, uint32_t& numElementsToUpload, uint32_t arrayLength,
-                                              WebGLboolean aTranspose)
-{
-    uint32_t expectedElemSize = (dim)*(dim);
-    if (!IsContextStable())
-        return false;
-    nsCString nameString(name);
-    nsCString suffix = NS_LITERAL_CSTRING(": location");
-    nsCString concatenated = nameString + suffix;
-    if (!ValidateUniformLocation(concatenated.get(), location_object))
-        return false;
-    location = location_object->Location();
-    uint32_t uniformElemSize = location_object->ElementSize();
-    if (expectedElemSize != uniformElemSize) {
-        ErrorInvalidOperation("%s: this function expected a uniform of element size %d,"
-                              " got a uniform of element size %d", name,
-                              expectedElemSize,
-                              uniformElemSize);
-        return false;
-    }
-    const WebGLUniformInfo& info = location_object->Info();
-    if (arrayLength == 0 ||
-        arrayLength % expectedElemSize)
-    {
-        ErrorInvalidValue("%s: expected an array of length a multiple"
-                          " of %d, got an array of length %d", name,
-                          expectedElemSize,
-                          arrayLength);
-        return false;
-    }
-    if (!info.isArray &&
-        arrayLength != expectedElemSize) {
-        ErrorInvalidOperation("%s: expected an array of length exactly"
-                              " %d (since this uniform is not an array"
-                              " uniform), got an array of length %d", name,
-                              expectedElemSize,
-                              arrayLength);
-        return false;
-    }
-    if (aTranspose) {
-        ErrorInvalidValue("%s: transpose must be FALSE as per the "
-                          "OpenGL ES 2.0 spec", name);
-        return false;
-    }
-    numElementsToUpload =
-        NS_MIN(info.arraySize, arrayLength / (expectedElemSize));
-    return true;
-}
-
-bool
-WebGLContext::ValidateUniformSetter(const char* name, WebGLUniformLocation *location_object, GLint& location)
-{
-    if (!IsContextStable())
-        return false;
-    nsCString nameString(name);
-    nsCString suffix = NS_LITERAL_CSTRING(": location");
-    nsCString concatenated = nameString + suffix;
-    if (!ValidateUniformLocation(concatenated.get(), location_object))
-        return false;
-    location = location_object->Location();
-    return true;
 }
 
 bool WebGLContext::ValidateAttribIndex(WebGLuint index, const char *info)

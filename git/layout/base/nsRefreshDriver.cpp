@@ -44,7 +44,7 @@ nsRefreshDriver::InitializeStatics()
                                false);
 }
 
-/* static */ int32_t
+/* static */ PRInt32
 nsRefreshDriver::DefaultInterval()
 {
   return NSToIntRound(1000.0 / DEFAULT_FRAME_RATE);
@@ -52,18 +52,18 @@ nsRefreshDriver::DefaultInterval()
 
 // Compute the interval to use for the refresh driver timer, in
 // milliseconds
-int32_t
+PRInt32
 nsRefreshDriver::GetRefreshTimerInterval() const
 {
   const char* prefName =
     mThrottled ? "layout.throttled_frame_rate" : "layout.frame_rate";
-  int32_t rate = Preferences::GetInt(prefName, -1);
+  PRInt32 rate = Preferences::GetInt(prefName, -1);
   if (rate <= 0) {
     // TODO: get the rate from the platform
     rate = mThrottled ? DEFAULT_THROTTLED_FRAME_RATE : DEFAULT_FRAME_RATE;
   }
   NS_ASSERTION(rate > 0, "Must have positive rate here");
-  int32_t interval = NSToIntRound(1000.0/rate);
+  PRInt32 interval = NSToIntRound(1000.0/rate);
   if (mThrottled) {
     interval = NS_MAX(interval, mLastTimerInterval * 2);
   }
@@ -71,7 +71,7 @@ nsRefreshDriver::GetRefreshTimerInterval() const
   return interval;
 }
 
-int32_t
+PRInt32
 nsRefreshDriver::GetRefreshTimerType() const
 {
   if (mThrottled) {
@@ -100,17 +100,12 @@ nsRefreshDriver::~nsRefreshDriver()
   NS_ABORT_IF_FALSE(ObserverCount() == 0,
                     "observers should have unregistered");
   NS_ABORT_IF_FALSE(!mTimer, "timer should be gone");
-  
-  for (uint32_t i = 0; i < mPresShellsToInvalidateIfHidden.Length(); i++) {
-    mPresShellsToInvalidateIfHidden[i]->InvalidatePresShellIfHidden();
-  }
-  mPresShellsToInvalidateIfHidden.Clear();
 }
 
 // Method for testing.  See nsIDOMWindowUtils.advanceTimeAndRefresh
 // for description.
 void
-nsRefreshDriver::AdvanceTimeAndRefresh(int64_t aMilliseconds)
+nsRefreshDriver::AdvanceTimeAndRefresh(PRInt64 aMilliseconds)
 {
   mTestControllingRefreshes = true;
   mMostRecentRefreshEpochTime += aMilliseconds * 1000;
@@ -141,7 +136,7 @@ nsRefreshDriver::MostRecentRefresh() const
   return mMostRecentRefresh;
 }
 
-int64_t
+PRInt64
 nsRefreshDriver::MostRecentRefreshEpochTime() const
 {
   const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted(false);
@@ -216,7 +211,7 @@ nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
     return;
   }
 
-  int32_t timerType = GetRefreshTimerType();
+  PRInt32 timerType = GetRefreshTimerType();
   mTimerIsPrecise = (timerType == nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP);
 
   nsresult rv = mTimer->InitWithCallback(this,
@@ -238,11 +233,11 @@ nsRefreshDriver::StopTimer()
   mTimer = nullptr;
 }
 
-uint32_t
+PRUint32
 nsRefreshDriver::ObserverCount() const
 {
-  uint32_t sum = 0;
-  for (uint32_t i = 0; i < ArrayLength(mObservers); ++i) {
+  PRUint32 sum = 0;
+  for (PRUint32 i = 0; i < ArrayLength(mObservers); ++i) {
     sum += mObservers[i].Length();
   }
 
@@ -257,7 +252,7 @@ nsRefreshDriver::ObserverCount() const
   return sum;
 }
 
-uint32_t
+PRUint32
 nsRefreshDriver::ImageRequestCount() const
 {
   return mRequests.Count();
@@ -337,7 +332,7 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
    * the pres context, which will cause our |mPresContext| to become
    * null.  If this happens, we must stop notifying observers.
    */
-  for (uint32_t i = 0; i < ArrayLength(mObservers); ++i) {
+  for (PRUint32 i = 0; i < ArrayLength(mObservers); ++i) {
     ObserverArray::EndLimitedIterator etor(mObservers[i]);
     while (etor.HasMore()) {
       nsRefPtr<nsARefreshObserver> obs = etor.GetNext();
@@ -352,7 +347,7 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
     if (i == 0) {
       // Grab all of our frame request callbacks up front.
       nsIDocument::FrameRequestCallbackList frameRequestCallbacks;
-      for (uint32_t i = 0; i < mFrameRequestCallbackDocs.Length(); ++i) {
+      for (PRUint32 i = 0; i < mFrameRequestCallbackDocs.Length(); ++i) {
         mFrameRequestCallbackDocs[i]->
           TakeFrameRequestCallbacks(frameRequestCallbacks);
       }
@@ -360,8 +355,8 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
       // readded as needed.
       mFrameRequestCallbackDocs.Clear();
 
-      int64_t eventTime = mMostRecentRefreshEpochTime / PR_USEC_PER_MSEC;
-      for (uint32_t i = 0; i < frameRequestCallbacks.Length(); ++i) {
+      PRInt64 eventTime = mMostRecentRefreshEpochTime / PR_USEC_PER_MSEC;
+      for (PRUint32 i = 0; i < frameRequestCallbacks.Length(); ++i) {
         nsAutoMicroTask mt;
         frameRequestCallbacks[i]->Sample(eventTime);
       }
@@ -370,7 +365,7 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
       if (mPresContext && mPresContext->GetPresShell()) {
         nsAutoTArray<nsIPresShell*, 16> observers;
         observers.AppendElements(mStyleFlushObservers);
-        for (uint32_t j = observers.Length();
+        for (PRUint32 j = observers.Length();
              j && mPresContext && mPresContext->GetPresShell(); --j) {
           // Make sure to not process observers which might have been removed
           // during previous iterations.
@@ -389,7 +384,7 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
       if (mPresContext && mPresContext->GetPresShell()) {
         nsAutoTArray<nsIPresShell*, 16> observers;
         observers.AppendElements(mLayoutFlushObservers);
-        for (uint32_t j = observers.Length();
+        for (PRUint32 j = observers.Length();
              j && mPresContext && mPresContext->GetPresShell(); --j) {
           // Make sure to not process observers which might have been removed
           // during previous iterations.
@@ -417,11 +412,6 @@ nsRefreshDriver::Notify(nsITimer *aTimer)
     mRequests.EnumerateEntries(nsRefreshDriver::ImageRequestEnumerator, &parms);
     EnsureTimerStarted(false);
   }
-    
-  for (uint32_t i = 0; i < mPresShellsToInvalidateIfHidden.Length(); i++) {
-    mPresShellsToInvalidateIfHidden[i]->InvalidatePresShellIfHidden();
-  }
-  mPresShellsToInvalidateIfHidden.Clear();
 
   if (mViewManagerFlushIsPending) {
 #ifdef DEBUG_INVALIDATIONS
@@ -464,7 +454,8 @@ nsRefreshDriver::ImageRequestEnumerator(nsISupportsHashKey* aEntry,
   imgIRequest* req = static_cast<imgIRequest*>(aEntry->GetKey());
   NS_ABORT_IF_FALSE(req, "Unable to retrieve the image request");
   nsCOMPtr<imgIContainer> image;
-  if (NS_SUCCEEDED(req->GetImage(getter_AddRefs(image)))) {
+  req->GetImage(getter_AddRefs(image));
+  if (image) {
     image->RequestRefresh(mostRecentRefresh);
   }
 
@@ -526,15 +517,6 @@ nsRefreshDriver::IsRefreshObserver(nsARefreshObserver *aObserver,
   return array.Contains(aObserver);
 }
 #endif
-
-void
-nsRefreshDriver::ScheduleViewManagerFlush()
-{
-  NS_ASSERTION(mPresContext->IsRoot(),
-               "Should only schedule view manager flush on root prescontexts");
-  mViewManagerFlushIsPending = true;
-  EnsureTimerStarted(false);
-}
 
 void
 nsRefreshDriver::ScheduleFrameRequestCallbacks(nsIDocument* aDocument)

@@ -48,8 +48,8 @@ static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
 
 NS_IMETHODIMP
 nsParserUtils::ConvertToPlainText(const nsAString& aFromStr,
-                                  uint32_t aFlags,
-                                  uint32_t aWrapCol,
+                                  PRUint32 aFlags,
+                                  PRUint32 aWrapCol,
                                   nsAString& aToStr)
 {
   return nsContentUtils::ConvertToPlainText(aFromStr,
@@ -71,7 +71,7 @@ nsParserUtils::Unescape(const nsAString& aFromStr,
 
 NS_IMETHODIMP
 nsParserUtils::Sanitize(const nsAString& aFromStr,
-                        uint32_t aFlags,
+                        PRUint32 aFlags,
                         nsAString& aToStr)
 {
   nsCOMPtr<nsIURI> uri;
@@ -128,7 +128,7 @@ nsParserUtils::ParseFragment(const nsAString& aFragment,
 
 NS_IMETHODIMP
 nsParserUtils::ParseFragment(const nsAString& aFragment,
-                             uint32_t aFlags,
+                             PRUint32 aFlags,
                              bool aIsXML,
                              nsIURI* aBaseURI,
                              nsIDOMElement* aContextElement,
@@ -161,7 +161,7 @@ nsParserUtils::ParseFragment(const nsAString& aFragment,
   // Wrap things in a div or body for parsing, but it won't show up in
   // the fragment.
   nsAutoTArray<nsString, 2> tagStack;
-  nsAutoCString base, spec;
+  nsCAutoString base, spec;
   if (aIsXML) {
     // XHTML
     if (aBaseURI) {

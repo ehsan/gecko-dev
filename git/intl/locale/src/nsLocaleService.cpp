@@ -102,6 +102,7 @@ protected:
 // nsLocaleService methods
 //
 nsLocaleService::nsLocaleService(void) 
+    : mSystemLocale(0), mApplicationLocale(0)
 {
 #ifdef XP_WIN
     nsAutoString        xpLocale;
@@ -109,23 +110,23 @@ nsLocaleService::nsLocaleService(void)
     // get the system LCID
     //
     LCID win_lcid = GetSystemDefaultLCID();
-    NS_ENSURE_TRUE_VOID(win_lcid);
+    NS_ENSURE_TRUE(win_lcid, );
     nsWin32Locale::GetXPLocale(win_lcid, xpLocale);
     nsresult rv = NewLocale(xpLocale, getter_AddRefs(mSystemLocale));
-    NS_ENSURE_SUCCESS_VOID(rv);
+    NS_ENSURE_SUCCESS(rv, );
 
     //
     // get the application LCID
     //
     win_lcid = GetUserDefaultLCID();
-    NS_ENSURE_TRUE_VOID(win_lcid);
+    NS_ENSURE_TRUE(win_lcid, );
     nsWin32Locale::GetXPLocale(win_lcid, xpLocale);
     rv = NewLocale(xpLocale, getter_AddRefs(mApplicationLocale));
-    NS_ENSURE_SUCCESS_VOID(rv);
+    NS_ENSURE_SUCCESS(rv, );
 #endif
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
     nsRefPtr<nsLocale> resultLocale(new nsLocale());
-    NS_ENSURE_TRUE_VOID(resultLocale);
+    NS_ENSURE_TRUE(resultLocale, );
 
 #ifdef MOZ_WIDGET_QT
     const char* lang = QLocale::system().name().toAscii();
@@ -175,6 +176,9 @@ nsLocaleService::nsLocaleService(void)
         int i;
 
         nsRefPtr<nsLocale> resultLocale(new nsLocale());
+        if ( resultLocale == NULL ) { 
+            return; 
+        }
 
         LocaleObject locale_object = NULL;
         int result = UniCreateLocaleObject(UNI_UCS_STRING_POINTER,
@@ -263,7 +267,7 @@ nsLocaleService::NewLocale(const nsAString &aLocale, nsILocale **_retval)
     nsRefPtr<nsLocale> resultLocale(new nsLocale());
     if (!resultLocale) return NS_ERROR_OUT_OF_MEMORY;
 
-    for (int32_t i = 0; i < LocaleListLength; i++) {
+    for (PRInt32 i = 0; i < LocaleListLength; i++) {
       NS_ConvertASCIItoUTF16 category(LocaleList[i]);
       result = resultLocale->AddCategory(category, aLocale);
       if (NS_FAILED(result)) return result;
@@ -306,6 +310,7 @@ nsLocaleService::GetApplicationLocale(nsILocale **_retval)
 NS_IMETHODIMP
 nsLocaleService::GetLocaleFromAcceptLanguage(const char *acceptLanguage, nsILocale **_retval)
 {
+  char* input;
   char* cPtr;
   char* cPtr1;
   char* cPtr2;
@@ -315,7 +320,9 @@ nsLocaleService::GetLocaleFromAcceptLanguage(const char *acceptLanguage, nsILoca
   char	acceptLanguageList[NSILOCALE_MAX_ACCEPT_LANGUAGE][NSILOCALE_MAX_ACCEPT_LENGTH];
   nsresult	result;
 
-  nsAutoArrayPtr<char> input(new char[strlen(acceptLanguage)+1]);
+  input = new char[strlen(acceptLanguage)+1];
+  NS_ASSERTION(input!=nullptr,"nsLocaleFactory::GetLocaleFromAcceptLanguage: memory allocation failed.");
+  if (input == (char*)NULL){ return NS_ERROR_OUT_OF_MEMORY; }
 
   strcpy(input, acceptLanguage);
   cPtr1 = input-1;
@@ -400,6 +407,7 @@ nsLocaleService::GetLocaleFromAcceptLanguage(const char *acceptLanguage, nsILoca
   //
   // clean up
   //
+  delete[] input;
   return result;
 }
 

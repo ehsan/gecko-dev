@@ -29,23 +29,20 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
-  NS_IMETHOD GetActionName(uint8_t aIndex, nsAString& aName);
-  NS_IMETHOD DoAction(uint8_t index);
+  NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
+  NS_IMETHOD DoAction(PRUint8 index);
 
   // nsIAccessibleImage
   NS_DECL_NSIACCESSIBLEIMAGE
 
   // Accessible
+  virtual nsresult GetNameInternal(nsAString& aName);
   virtual a11y::role NativeRole();
-  virtual uint64_t NativeState();
-  virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
+  virtual PRUint64 NativeState();
+  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
   // ActionAccessible
-  virtual uint8_t ActionCount();
-
-protected:
-  // Accessible
-  virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
+  virtual PRUint8 ActionCount();
 
 private:
   /**
@@ -73,7 +70,7 @@ private:
    *
    * @returns  true if index is valid for longdesc action.
    */
-  inline bool IsLongDescIndex(uint8_t aIndex);
+  inline bool IsLongDescIndex(PRUint8 aIndex);
 
 };
 

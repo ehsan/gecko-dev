@@ -21,9 +21,6 @@
 #include "nsReadableUtils.h"
 #endif
 
-// For PRUnichar
-#include "prtypes.h"
-
 #include NEW_H
 
   // enable support for the obsolete string API if not explicitly disabled
@@ -58,7 +55,7 @@ PR_STATIC_ASSERT(sizeof(nsCString::char_type) == 1);
   /**
    * A helper class that converts a UTF-16 string to ASCII in a lossy manner
    */
-class NS_LossyConvertUTF16toASCII : public nsAutoCString
+class NS_LossyConvertUTF16toASCII : public nsCAutoString
   {
     public:
       explicit
@@ -67,7 +64,7 @@ class NS_LossyConvertUTF16toASCII : public nsAutoCString
           LossyAppendUTF16toASCII(aString, *this);
         }
 
-      NS_LossyConvertUTF16toASCII( const PRUnichar* aString, uint32_t aLength )
+      NS_LossyConvertUTF16toASCII( const PRUnichar* aString, PRUint32 aLength )
         {
           LossyAppendUTF16toASCII(Substring(aString, aLength), *this);
         }
@@ -93,7 +90,7 @@ class NS_ConvertASCIItoUTF16 : public nsAutoString
           AppendASCIItoUTF16(aCString, *this);
         }
 
-      NS_ConvertASCIItoUTF16( const char* aCString, uint32_t aLength )
+      NS_ConvertASCIItoUTF16( const char* aCString, PRUint32 aLength )
         {
           AppendASCIItoUTF16(Substring(aCString, aLength), *this);
         }
@@ -113,7 +110,7 @@ class NS_ConvertASCIItoUTF16 : public nsAutoString
   /**
    * A helper class that converts a UTF-16 string to UTF-8
    */
-class NS_ConvertUTF16toUTF8 : public nsAutoCString
+class NS_ConvertUTF16toUTF8 : public nsCAutoString
   {
     public:
       explicit
@@ -122,7 +119,7 @@ class NS_ConvertUTF16toUTF8 : public nsAutoCString
           AppendUTF16toUTF8(aString, *this);
         }
 
-      NS_ConvertUTF16toUTF8( const PRUnichar* aString, uint32_t aLength )
+      NS_ConvertUTF16toUTF8( const PRUnichar* aString, PRUint32 aLength )
         {
           AppendUTF16toUTF8(Substring(aString, aLength), *this);
         }
@@ -148,7 +145,7 @@ class NS_ConvertUTF8toUTF16 : public nsAutoString
           AppendUTF8toUTF16(aCString, *this);
         }
 
-      NS_ConvertUTF8toUTF16( const char* aCString, uint32_t aLength )
+      NS_ConvertUTF8toUTF16( const char* aCString, PRUint32 aLength )
         {
           AppendUTF8toUTF16(Substring(aCString, aLength), *this);
         }
@@ -186,12 +183,12 @@ typedef nsAutoString nsVoidableString;
 #include <stdio.h>
 #include "plhash.h"
 
-inline int32_t MinInt(int32_t x, int32_t y)
+inline PRInt32 MinInt(PRInt32 x, PRInt32 y)
   {
     return NS_MIN(x, y);
   }
 
-inline int32_t MaxInt(int32_t x, int32_t y)
+inline PRInt32 MaxInt(PRInt32 x, PRInt32 y)
   {
     return NS_MAX(x, y);
   }

@@ -71,11 +71,11 @@
       <menuitem id="context_reloadTab" label="&reloadTab.label;" accesskey="&reloadTab.accesskey;"
                 oncommand="gBrowser.reloadTab(TabContextMenu.contextTab);"/>
       <menuseparator/>
-      <menuitem id="context_pinTab" label="&pinTab.label;"
-                accesskey="&pinTab.accesskey;"
+      <menuitem id="context_pinTab" label="&pinAppTab.label;"
+                accesskey="&pinAppTab.accesskey;"
                 oncommand="gBrowser.pinTab(TabContextMenu.contextTab);"/>
-      <menuitem id="context_unpinTab" label="&unpinTab.label;" hidden="true"
-                accesskey="&unpinTab.accesskey;"
+      <menuitem id="context_unpinTab" label="&unpinAppTab.label;" hidden="true"
+                accesskey="&unpinAppTab.accesskey;"
                 oncommand="gBrowser.unpinTab(TabContextMenu.contextTab);"/>
       <menu id="context_tabViewMenu" label="&moveToGroup.label;"
             accesskey="&moveToGroup.accesskey;">
@@ -192,8 +192,8 @@
           <hbox pack="end" align="center" class="popup-notification-button-container">
 #ifdef XP_UNIX
         <button id="social-undoactivation-button"
-                label="&social.activated.undobutton.label;"
-                accesskey="&social.activated.undobutton.accesskey;"
+                label="&social.activated.button.label;"
+                accesskey="&social.activated.button.accesskey;"
                 onclick="SocialUI.undoActivation();"/>
         <button default="true"
                 autofocus="autofocus"
@@ -207,8 +207,8 @@
                 accesskey="&social.ok.accesskey;"
                 oncommand="SocialUI.notificationPanel.hidePopup();"/>
         <button id="social-undoactivation-button"
-                label="&social.activated.undobutton.label;"
-                accesskey="&social.activated.undobutton.accesskey;"
+                label="&social.activated.button.label;"
+                accesskey="&social.activated.button.accesskey;"
                 onclick="SocialUI.undoActivation();"/>
 #endif
           </hbox>
@@ -216,7 +216,7 @@
       </hbox>
     </panel>
 
-    <panel id="unsharePopup"
+    <panel id="editSharePopup"
            type="arrow"
            orient="vertical"
            ignorekeys="true"
@@ -224,59 +224,53 @@
            onpopupshown="SocialShareButton.panelShown(event);"
            consumeoutsideclicks="true"
            level="top">
-      <!-- Note that 'label', 'accesskey', 'value' and 'aria-label' attributes
-           for many of these elements are supplied by the provider and filled
-           in at runtime
-      -->
-      <row id="unsharePopupHeader" align="center">
+      <row id="editSharePopupHeader" align="center">
         <vbox align="center">
-          <image id="socialUserPortrait" onclick="SocialUI.showProfile();"/>
+          <image id="socialUserPortrait" onclick="SocialUI.showProfile();"
+                 aria-label="&social.sharePopup.portrait.arialabel;"/>
         </vbox>
-        <vbox id="unsharePopupText">
-          <button id="socialUserDisplayName" pack="start"
+        <vbox id="editSharePopupText">
+          <button id="socialUserDisplayName"
                   oncommand="SocialUI.showProfile();"/>
           <spacer flex="1"/>
-          <label id="socialUserRecommendedText"/>
+          <label id="socialUserRecommendedText"
+                 value="&social.sharePopup.shared.label;"/>
         </vbox>
       </row>
-      <hbox id="unsharePopupBottomButtons" pack="end">
+      <hbox id="editSharePopupBottomButtons" pack="end">
 #ifdef XP_UNIX
-        <button id="unsharePopupStopSharingButton"
-                class="unsharePopupBottomButton"
+        <button id="editSharePopupUndoButton"
+                class="editSharePopupBottomButton"
+                label="&social.sharePopup.undo.label;"
+                accesskey="&social.sharePopup.undo.accesskey;"
                 command="Social:UnsharePage"/>
-        <button id="unsharePopupContinueSharingButton"
-                class="unsharePopupBottomButton"
+        <button id="editSharePopupOkButton"
+                class="editSharePopupBottomButton"
                 default="true"
                 autofocus="autofocus"
-                oncommand="SocialShareButton.dismissUnsharePopup();"/>
+                label="&social.ok.label;"
+                accesskey="&social.ok.accesskey;"
+                oncommand="SocialShareButton.dismissSharePopup();"/>
 #else
-        <button id="unsharePopupContinueSharingButton"
-                class="unsharePopupBottomButton"
+        <button id="editSharePopupOkButton"
+                class="editSharePopupBottomButton"
                 default="true"
                 autofocus="autofocus"
-                oncommand="SocialShareButton.dismissUnsharePopup();"/>
-        <button id="unsharePopupStopSharingButton"
-                class="unsharePopupBottomButton"
+                label="&social.ok.label;"
+                accesskey="&social.ok.accesskey;"
+                oncommand="SocialShareButton.dismissSharePopup();"/>
+        <button id="editSharePopupUndoButton"
+                class="editSharePopupBottomButton"
+                label="&social.sharePopup.undo.label;"
+                accesskey="&social.sharePopup.undo.accesskey;"
                 command="Social:UnsharePage"/>
 #endif
       </hbox>
     </panel>
 
-    <panel id="social-notification-panel"
-           class="social-panel"
-           type="arrow"
-           hidden="true"
-           consumeoutsideclicks="true"
-           noautofocus="true"/>
-    <panel id="social-flyout-panel"
-           class="social-panel"
-           onpopupshown="SocialFlyout.onShown()"
-           onpopuphidden="SocialFlyout.onHidden()"
-           side="right"
-           type="arrow"
-           hidden="true"
-           noautofocus="true"
-           position="topcenter topright"/>
+    <panel id="social-notification-panel" type="arrow" hidden="true" noautofocus="true">
+      <browser id="social-notification-browser" type="content" flex="1"/>
+    </panel>
 
     <menupopup id="inspector-node-popup">
       <menuitem id="inspectorHTMLCopyInner"
@@ -396,6 +390,10 @@
         </vbox>
       </hbox>
     </panel>
+
+    <tooltip id="urlTooltip">
+      <label crop="center" flex="1" class="tooltip-label"/>
+    </tooltip>
 
     <panel id="ctrlTab-panel" class="KUI-panel" hidden="true" norestorefocus="true" level="top">
       <hbox>
@@ -517,7 +515,7 @@
              toolbarname="&navbarCmd.label;" accesskey="&navbarCmd.accesskey;"
              fullscreentoolbar="true" mode="icons" customizable="true"
              iconsize="large"
-             defaultset="unified-back-forward-button,urlbar-container,reload-button,stop-button,search-container,downloads-button,home-button,bookmarks-menu-button-container,window-controls"
+             defaultset="unified-back-forward-button,urlbar-container,reload-button,stop-button,search-container,home-button,bookmarks-menu-button-container,window-controls"
              context="toolbar-context-menu">
 
       <toolbaritem id="unified-back-forward-button" class="chromeclass-toolbar-additional"
@@ -566,7 +564,6 @@
                  onblur="setTimeout(function() document.getElementById('identity-box').style.MozUserFocus = '', 0);">
           <box id="notification-popup-box" hidden="true" align="center">
             <image id="default-notification-icon" class="notification-anchor-icon" role="button"/>
-            <image id="identity-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="geo-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="addons-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="indexedDB-notification-icon" class="notification-anchor-icon" role="button"/>
@@ -658,41 +655,52 @@
                      onclick="BrowserGoHome(event);"
                      aboutHomeOverrideTooltip="&abouthome.pageTitle;"/>
 
-      <toolbaritem id="social-toolbar-item"
-                   class="chromeclass-toolbar-additional"
+      <toolbaritem id="social-toolbar-button"
+                   class="toolbarbutton-1 chromeclass-toolbar-additional"
                    removable="false"
+                   pack="center"
                    title="&socialToolbar.title;"
                    hidden="true">
-        <toolbarbutton id="social-provider-button"
-                       class="toolbarbutton-1"
-                       type="menu">
-          <menupopup id="social-statusarea-popup">
-            <menuitem id="social-statusarea-user" pack="start" align="center" class="menuitem-iconic"
-                  onclick="SocialUI.showProfile(); document.getElementById('social-statusarea-popup').hidePopup();">
-              <image id="social-statusarea-user-portrait"/>
-              <vbox>
-                <label id="social-statusarea-notloggedin"
-                       value="&social.notLoggedIn.label;"/>
-                <label id="social-statusarea-username"/>
-              </vbox>
-            </menuitem>
-#ifndef XP_WIN
-            <menuseparator/>
-#endif
-            <menuitem id="social-toggle-sidebar-menuitem"
-                      type="checkbox"
-                      autocheck="false"
-                      command="Social:ToggleSidebar"
-                      label="&social.toggleSidebar.label;"
-                      accesskey="&social.toggleSidebar.accesskey;"/>
-            <menuitem id="social-toggle-notifications-menuitem"
-                      type="checkbox"
-                      autocheck="false"
-                      command="Social:ToggleNotifications"
-                      label="&social.toggleNotifications.label;"
-                      accesskey="&social.toggleNotifications.accesskey;"/>
-          </menupopup>
-        </toolbarbutton>
+        <hbox id="social-toolbar-button-box" class="social-statusarea-container">
+          <button id="social-provider-image" type="menu">
+            <menupopup id="social-statusarea-popup">
+              <hbox id="social-statusarea-user" pack="left" align="center">
+                <image id="social-statusarea-user-portrait"/>
+                <vbox>
+                  <label id="social-statusarea-notloggedin"
+                         value="&social.notLoggedIn.label;"/>
+                  <button id="social-statusarea-username"
+                          oncommand="SocialUI.showProfile(); document.getElementById('social-statusarea-popup').hidePopup();"/>
+                </vbox>
+              </hbox>
+              <menuitem id="social-remove-menuitem"
+                        oncommand="Social.active = false;"/>
+              <menuitem id="social-toggle-sidebar-menuitem"
+                        type="checkbox"
+                        autocheck="false"
+                        command="Social:ToggleSidebar"
+                        label="&social.toggleSidebar.label;"
+                        accesskey="&social.toggleSidebar.accesskey;"/>
+            </menupopup>
+          </button>
+          <hbox id="social-status-iconbox" flex="1">
+            <box class="social-notification-icon-container" collapsed="true"
+                     onclick="SocialToolbar.showAmbientPopup(this);">
+              <image class="social-notification-icon-image"/>
+              <box class="social-notification-icon-counter" collapsed="true"/>
+            </box>
+            <box class="social-notification-icon-container" collapsed="true"
+                     onclick="SocialToolbar.showAmbientPopup(this);">
+              <image class="social-notification-icon-image"/>
+              <box class="social-notification-icon-counter" collapsed="true"/>
+            </box>
+            <box class="social-notification-icon-container" collapsed="true"
+                     onclick="SocialToolbar.showAmbientPopup(this);">
+              <image class="social-notification-icon-image"/>
+              <box class="social-notification-icon-counter" collapsed="true"/>
+            </box>
+          </hbox>
+        </hbox>
       </toolbaritem>
 
       <toolbaritem id="bookmarks-menu-button-container"
@@ -780,7 +788,7 @@
         </toolbarbutton>
       </toolbaritem>
 
-      <hbox id="window-controls" hidden="true" pack="end">
+      <hbox id="window-controls" hidden="true" fullscreencontrol="true" pack="end">
         <toolbarbutton id="minimize-button"
                        tooltiptext="&fullScreenMinimize.tooltip;"
                        oncommand="window.minimize();"/>
@@ -938,14 +946,14 @@
                      tooltiptext="&printButton.tooltip;"/>
 
       <!-- This is a placeholder for the Downloads Indicator.  It is visible
-           during the customization of the toolbar, in the palette, and before
-           the Downloads Indicator overlay is loaded. -->
+           only during the customization of the toolbar or in the palette, and
+           is replaced when customization is done. -->
       <toolbarbutton id="downloads-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
-                     oncommand="DownloadsIndicatorView.onCommand(event);"
-                     ondrop="DownloadsIndicatorView.onDrop(event);"
-                     ondragover="DownloadsIndicatorView.onDragOver(event);"
-                     ondragenter="DownloadsIndicatorView.onDragOver(event);"
-                     ondragleave="DownloadsIndicatorView.onDragLeave(event);"
+                     observes="Tools:Downloads"
+                     ondrop="DownloadsButtonDNDObserver.onDrop(event)"
+                     ondragover="DownloadsButtonDNDObserver.onDragOver(event)"
+                     ondragenter="DownloadsButtonDNDObserver.onDragOver(event)"
+                     ondragexit="DownloadsButtonDNDObserver.onDragExit(event)"
                      label="&downloads.label;"
                      tooltiptext="&downloads.tooltip;"/>
 
@@ -1057,7 +1065,6 @@
                   contentcontextmenu="contentAreaContextMenu"
                   autocompletepopup="PopupAutoComplete"
                   onclick="contentAreaClick(event, false);"/>
-      <chatbar id="pinnedchats" layer="true" mousethrough="always"/>
       <statuspanel id="statusbar-display" inactive="true"/>
     </vbox>
     <splitter id="devtools-side-splitter" hidden="true"/>
@@ -1065,12 +1072,7 @@
           style="min-width: 18em; width: 22em; max-width: 42em;" persist="width">
       <toolbar id="devtools-sidebar-toolbar"
                class="devtools-toolbar"
-               nowindowdrag="true">
-        <spacer flex="1"/>
-        <toolbarbutton tooltiptext="&inspectSidebarCloseButton.tooltiptext;"
-                       class="devtools-closebutton"
-                       command="Inspector:Sidebar"/>
-      </toolbar>
+               nowindowdrag="true"/>
       <deck id="devtools-sidebar-deck" flex="1"/>
     </vbox>
     <splitter id="social-sidebar-splitter"
@@ -1078,11 +1080,9 @@
               observes="socialSidebarBroadcaster"/>
     <vbox id="social-sidebar-box"
           class="chromeclass-extrachrome"
-          observes="socialSidebarBroadcaster"
-          persist="width">
+          observes="socialSidebarBroadcaster">
       <browser id="social-sidebar-browser"
                type="content"
-               disableglobalhistory="true"
                flex="1"
                style="min-width: 14em; width: 18em; max-width: 36em;"/>
     </vbox>
@@ -1121,6 +1121,24 @@
                      oncommand="InspectorUI.closeInspectorUI(false);"
                      tooltiptext="&inspectCloseButton.tooltiptext;"/>
 #endif
+      <toolbarbutton id="inspector-option-toolbarbutton"
+                     type="menu"
+                     tabindex="0"
+                     tooltiptext="&inspectOptionButton.tooltiptext;">
+        <menupopup id="inspector-option-popup"
+                   position="before_start">
+          <menuitem id="inspectorToggleVeil"
+                    type="checkbox"
+                    label="&inspectorToggleVeil.label;"
+                    accesskey="&inspectorToggleVeil.accesskey;"
+                    command="Inspector:ToggleVeil"/>
+          <menuitem id="inspectorToggleInfobar"
+                    type="checkbox"
+                    label="&inspectorToggleInfobar.label;"
+                    accesskey="&inspectorToggleInfobar.accesskey;"
+                    command="Inspector:ToggleInfobar"/>
+        </menupopup>
+      </toolbarbutton>
       <toolbarbutton id="inspector-inspect-toolbutton"
                      class="devtools-toolbarbutton"
                      command="Inspector:Inspect"/>

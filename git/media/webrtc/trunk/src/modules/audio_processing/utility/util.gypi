@@ -22,7 +22,6 @@
       'sources': [
         'delay_estimator.c',
         'delay_estimator.h',
-        'delay_estimator_internal.h',
         'delay_estimator_wrapper.c',
         'delay_estimator_wrapper.h',
         'fft4g.c',

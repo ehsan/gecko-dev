@@ -15,7 +15,6 @@
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/Attributes.h"
 
-#include "nsFrameMessageManager.h"
 #include "nsIObserver.h"
 #include "nsIThreadInternal.h"
 #include "nsNetUtil.h"
@@ -24,24 +23,22 @@
 #include "nsIMemoryReporter.h"
 #include "nsCOMArray.h"
 #include "nsDataHashtable.h"
+#include "nsInterfaceHashtable.h"
 #include "nsHashKeys.h"
 
-#define CHILD_PROCESS_SHUTDOWN_MESSAGE NS_LITERAL_STRING("child-process-shutdown")
-
 class mozIApplication;
+class nsFrameMessageManager;
 class nsIDOMBlob;
 
 namespace mozilla {
 
 namespace ipc {
-class OptionalURIParams;
-class URIParams;
 class TestShellParent;
-} // namespace ipc
+}
 
 namespace layers {
 class PCompositorParent;
-} // namespace layers
+}
 
 namespace dom {
 
@@ -53,24 +50,15 @@ class ContentParent : public PContentParent
                     , public nsIObserver
                     , public nsIThreadObserver
                     , public nsIDOMGeoPositionCallback
-                    , public mozilla::dom::ipc::MessageManagerCallback
 {
+private:
     typedef mozilla::ipc::GeckoChildProcessHost GeckoChildProcessHost;
-    typedef mozilla::ipc::OptionalURIParams OptionalURIParams;
     typedef mozilla::ipc::TestShellParent TestShellParent;
-    typedef mozilla::ipc::URIParams URIParams;
+    typedef mozilla::layers::PCompositorParent PCompositorParent;
     typedef mozilla::dom::ClonedMessageData ClonedMessageData;
 
 public:
-    /**
-     * Start up the content-process machinery.  This might include
-     * scheduling pre-launch tasks.
-     */
-    static void StartUp();
-    /** Shut down the content-process machinery. */
-    static void ShutDown();
-
-    static ContentParent* GetNewOrUsed(bool aForBrowserElement = false);
+    static ContentParent* GetNewOrUsed();
 
     /**
      * Get or create a content process for the given app descriptor,
@@ -89,13 +77,6 @@ public:
     NS_DECL_NSIOBSERVER
     NS_DECL_NSITHREADOBSERVER
     NS_DECL_NSIDOMGEOPOSITIONCALLBACK
-
-    /**
-     * MessageManagerCallback methods that we override.
-     */
-    virtual bool DoSendAsyncMessage(const nsAString& aMessage,
-                                    const mozilla::dom::StructuredCloneData& aData);
-    virtual bool CheckPermission(const nsAString& aPermission);
 
     /** Notify that a tab was destroyed during normal operation. */
     void NotifyTabDestroyed(PBrowserParent* aTab);
@@ -122,44 +103,24 @@ public:
 
     BlobParent* GetOrCreateActorForBlob(nsIDOMBlob* aBlob);
 
-    /**
-     * Kill our subprocess and make sure it dies.  Should only be used
-     * in emergency situations since it bypasses the normal shutdown
-     * process.
-     */
-    void KillHard();
-
 protected:
-    void OnChannelConnected(int32_t pid);
+    void OnChannelConnected(int32 pid);
     virtual void ActorDestroy(ActorDestroyReason why);
 
 private:
-    typedef base::ChildPrivileges ChildOSPrivileges;
-
     static nsDataHashtable<nsStringHashKey, ContentParent*> *gAppContentParents;
     static nsTArray<ContentParent*>* gNonAppContentParents;
     static nsTArray<ContentParent*>* gPrivateContent;
-
-    static void PreallocateAppProcess();
-    static void DelayedPreallocateAppProcess();
-    static void ScheduleDelayedPreallocateAppProcess();
-    static already_AddRefed<ContentParent> MaybeTakePreallocatedAppProcess();
-    static void FirstIdle();
 
     // Hide the raw constructor methods since we don't want client code
     // using them.
     using PContentParent::SendPBrowserConstructor;
     using PContentParent::SendPTestShellConstructor;
 
-    ContentParent(const nsAString& aAppManifestURL, bool aIsForBrowser,
-                  ChildOSPrivileges aOSPrivileges = base::PRIVILEGES_DEFAULT);
+    ContentParent(const nsAString& aAppManifestURL);
     virtual ~ContentParent();
 
     void Init();
-
-    // Transform a pre-allocated app process into a "real" app
-    // process, for the specified manifest URL.
-    void SetManifestFromPreallocated(const nsAString& aAppManifestURL);
 
     /**
      * Mark this ContentParent as dead for the purposes of Get*().
@@ -173,21 +134,12 @@ private:
      * by the Get*() funtions.  However, the shutdown sequence itself
      * may be asynchronous.
      */
-    void ShutDownProcess();
+    void ShutDown();
 
-    PCompositorParent*
-    AllocPCompositor(mozilla::ipc::Transport* aTransport,
-                     base::ProcessId aOtherProcess) MOZ_OVERRIDE;
-    PImageBridgeParent*
-    AllocPImageBridge(mozilla::ipc::Transport* aTransport,
-                      base::ProcessId aOtherProcess) MOZ_OVERRIDE;
+    PCompositorParent* AllocPCompositor(mozilla::ipc::Transport* aTransport,
+                                        base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
-    virtual bool RecvGetProcessAttributes(uint64_t* aId,
-                                          bool* aStartBackground,
-                                          bool* aIsForApp,
-                                          bool* aIsForBrowser) MOZ_OVERRIDE;
-
-    virtual PBrowserParent* AllocPBrowser(const uint32_t& aChromeFlags,
+    virtual PBrowserParent* AllocPBrowser(const PRUint32& aChromeFlags,
                                           const bool& aIsBrowserElement,
                                           const AppId& aApp);
     virtual bool DeallocPBrowser(PBrowserParent* frame);
@@ -199,11 +151,11 @@ private:
     virtual bool DeallocPBlob(PBlobParent*);
 
     virtual PCrashReporterParent* AllocPCrashReporter(const NativeThreadId& tid,
-                                                      const uint32_t& processType);
+                                                      const PRUint32& processType);
     virtual bool DeallocPCrashReporter(PCrashReporterParent* crashreporter);
     virtual bool RecvPCrashReporterConstructor(PCrashReporterParent* actor,
                                                const NativeThreadId& tid,
-                                               const uint32_t& processType);
+                                               const PRUint32& processType);
 
     virtual PHalParent* AllocPHal() MOZ_OVERRIDE;
     virtual bool DeallocPHal(PHalParent*) MOZ_OVERRIDE;
@@ -221,21 +173,21 @@ private:
     virtual PTestShellParent* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellParent* shell);
 
-    virtual PAudioParent* AllocPAudio(const int32_t&,
-                                     const int32_t&,
-                                     const int32_t&);
+    virtual PAudioParent* AllocPAudio(const PRInt32&,
+                                     const PRInt32&,
+                                     const PRInt32&);
     virtual bool DeallocPAudio(PAudioParent*);
 
     virtual PNeckoParent* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoParent* necko);
 
     virtual PExternalHelperAppParent* AllocPExternalHelperApp(
-            const OptionalURIParams& aUri,
+            const IPC::URI& uri,
             const nsCString& aMimeContentType,
             const nsCString& aContentDisposition,
             const bool& aForceSave,
-            const int64_t& aContentLength,
-            const OptionalURIParams& aReferrer);
+            const PRInt64& aContentLength,
+            const IPC::URI& aReferrer);
     virtual bool DeallocPExternalHelperApp(PExternalHelperAppParent* aService);
 
     virtual PSmsParent* AllocPSms();
@@ -244,35 +196,31 @@ private:
     virtual PStorageParent* AllocPStorage(const StorageConstructData& aData);
     virtual bool DeallocPStorage(PStorageParent* aActor);
 
-    virtual PBluetoothParent* AllocPBluetooth();
-    virtual bool DeallocPBluetooth(PBluetoothParent* aActor);
-    virtual bool RecvPBluetoothConstructor(PBluetoothParent* aActor);
-
-    virtual bool RecvReadPrefsArray(InfallibleTArray<PrefSetting>* aPrefs);
+    virtual bool RecvReadPrefsArray(InfallibleTArray<PrefTuple> *retValue);
     virtual bool RecvReadFontList(InfallibleTArray<FontListEntry>* retValue);
 
     virtual bool RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissions);
 
-    virtual bool RecvSetClipboardText(const nsString& text, const bool& isPrivateData, const int32_t& whichClipboard);
-    virtual bool RecvGetClipboardText(const int32_t& whichClipboard, nsString* text);
+    virtual bool RecvSetClipboardText(const nsString& text, const PRInt32& whichClipboard);
+    virtual bool RecvGetClipboardText(const PRInt32& whichClipboard, nsString* text);
     virtual bool RecvEmptyClipboard();
     virtual bool RecvClipboardHasText(bool* hasText);
 
-    virtual bool RecvGetSystemColors(const uint32_t& colorsCount, InfallibleTArray<uint32_t>* colors);
-    virtual bool RecvGetIconForExtension(const nsCString& aFileExt, const uint32_t& aIconSize, InfallibleTArray<uint8_t>* bits);
+    virtual bool RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray<PRUint32>* colors);
+    virtual bool RecvGetIconForExtension(const nsCString& aFileExt, const PRUint32& aIconSize, InfallibleTArray<PRUint8>* bits);
     virtual bool RecvGetShowPasswordSetting(bool* showPassword);
 
-    virtual bool RecvStartVisitedQuery(const URIParams& uri);
+    virtual bool RecvStartVisitedQuery(const IPC::URI& uri);
 
-    virtual bool RecvVisitURI(const URIParams& uri,
-                              const OptionalURIParams& referrer,
-                              const uint32_t& flags);
+    virtual bool RecvVisitURI(const IPC::URI& uri,
+                              const IPC::URI& referrer,
+                              const PRUint32& flags);
 
-    virtual bool RecvSetURITitle(const URIParams& uri,
+    virtual bool RecvSetURITitle(const IPC::URI& uri,
                                  const nsString& title);
     
-    virtual bool RecvShowFilePicker(const int16_t& mode,
-                                    const int16_t& selectedType,
+    virtual bool RecvShowFilePicker(const PRInt16& mode,
+                                    const PRInt16& selectedType,
                                     const bool& addToRecentDocs,
                                     const nsString& title,
                                     const nsString& defaultFile,
@@ -280,14 +228,14 @@ private:
                                     const InfallibleTArray<nsString>& filters,
                                     const InfallibleTArray<nsString>& filterNames,
                                     InfallibleTArray<nsString>* files,
-                                    int16_t* retValue,
+                                    PRInt16* retValue,
                                     nsresult* result);
  
     virtual bool RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
                                            const nsString& aText, const bool& aTextClickable,
                                            const nsString& aCookie, const nsString& aName);
 
-    virtual bool RecvLoadURIExternal(const URIParams& uri);
+    virtual bool RecvLoadURIExternal(const IPC::URI& uri);
 
     virtual bool RecvSyncMessage(const nsString& aMsg,
                                  const ClonedMessageData& aData,
@@ -302,21 +250,21 @@ private:
     virtual bool RecvScriptError(const nsString& aMessage,
                                  const nsString& aSourceName,
                                  const nsString& aSourceLine,
-                                 const uint32_t& aLineNumber,
-                                 const uint32_t& aColNumber,
-                                 const uint32_t& aFlags,
+                                 const PRUint32& aLineNumber,
+                                 const PRUint32& aColNumber,
+                                 const PRUint32& aFlags,
                                  const nsCString& aCategory);
 
     virtual bool RecvPrivateDocShellsExist(const bool& aExist);
 
-    virtual bool RecvFirstIdle();
+    virtual bool RecvAddFileWatch(const nsString& root);
+    virtual bool RecvRemoveFileWatch(const nsString& root);
 
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 
     GeckoChildProcessHost* mSubprocess;
-    ChildOSPrivileges mOSPrivileges;
 
-    int32_t mGeolocationWatchID;
+    PRInt32 mGeolocationWatchID;
     int mRunToCompletionDepth;
     bool mShouldCallUnblockChild;
 
@@ -326,12 +274,39 @@ private:
     // the nsIObserverService.
     nsCOMArray<nsIMemoryReporter> mMemoryReporters;
 
+    bool mIsAlive;
+    bool mSendPermissionUpdates;
+
     const nsString mAppManifestURL;
     nsRefPtr<nsFrameMessageManager> mMessageManager;
 
-    bool mIsAlive;
-    bool mSendPermissionUpdates;
-    bool mIsForBrowser;
+    class WatchedFile MOZ_FINAL : public nsIFileUpdateListener {
+      public:
+        WatchedFile(ContentParent* aParent, const nsString& aPath)
+          : mParent(aParent)
+          , mUsageCount(1)
+        {
+          NS_NewLocalFile(aPath, false, getter_AddRefs(mFile));
+        }
+
+        NS_DECL_ISUPPORTS
+        NS_DECL_NSIFILEUPDATELISTENER
+
+        void Watch() {
+          mFile->Watch(this);
+        }
+
+        void Unwatch() {
+          mFile->Watch(this);
+        }
+
+        nsRefPtr<ContentParent> mParent;
+        PRInt32 mUsageCount;
+        nsCOMPtr<nsIFile> mFile;
+    };
+
+    // This is a cache of all of the registered file watchers.
+    nsInterfaceHashtable<nsStringHashKey, WatchedFile> mFileWatchers;
 
     friend class CrashReporterParent;
 };

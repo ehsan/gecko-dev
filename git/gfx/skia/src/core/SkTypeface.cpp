@@ -11,8 +11,6 @@
 #include "SkTypeface.h"
 #include "SkFontHost.h"
 
-SK_DEFINE_INST_COUNT(SkTypeface)
-
 //#define TRACE_LIFECYCLE
 
 #ifdef TRACE_LIFECYCLE
@@ -115,23 +113,5 @@ size_t SkTypeface::getTableSize(SkFontTableTag tag) const {
 size_t SkTypeface::getTableData(SkFontTableTag tag, size_t offset, size_t length,
                                 void* data) const {
     return SkFontHost::GetTableData(fUniqueID, tag, offset, length, data);
-}
-
-int SkTypeface::getUnitsPerEm() const {
-    int upem = 0;
-
-#ifdef SK_BUILD_FOR_ANDROID
-    upem = SkFontHost::GetUnitsPerEm(fUniqueID);
-#else
-    SkAdvancedTypefaceMetrics* metrics;
-    metrics = SkFontHost::GetAdvancedTypefaceMetrics(fUniqueID,
-                                 SkAdvancedTypefaceMetrics::kNo_PerGlyphInfo,
-                                 NULL, 0);
-    if (metrics) {
-        upem = metrics->fEmSize;
-        metrics->unref();
-    }
-#endif
-    return upem;
 }
 

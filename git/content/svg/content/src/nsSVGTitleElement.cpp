@@ -5,7 +5,6 @@
 
 #include "nsSVGStylableElement.h"
 #include "nsIDOMSVGTitleElement.h"
-#include "nsStubMutationObserver.h"
 
 typedef nsSVGStylableElement nsSVGTitleElementBase;
 
@@ -26,7 +25,7 @@ public:
   NS_DECL_NSIDOMSVGTITLEELEMENT
 
   // xxx I wish we could use virtual inheritance
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsSVGTitleElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGTitleElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGTitleElementBase::)
 
@@ -100,7 +99,7 @@ void
 nsSVGTitleElement::ContentAppended(nsIDocument *aDocument,
                                    nsIContent *aContainer,
                                    nsIContent *aFirstNewContent,
-                                   int32_t aNewIndexInContainer)
+                                   PRInt32 aNewIndexInContainer)
 {
   SendTitleChangeEvent(false);
 }
@@ -109,7 +108,7 @@ void
 nsSVGTitleElement::ContentInserted(nsIDocument *aDocument,
                                    nsIContent *aContainer,
                                    nsIContent *aChild,
-                                   int32_t aIndexInContainer)
+                                   PRInt32 aIndexInContainer)
 {
   SendTitleChangeEvent(false);
 }
@@ -118,7 +117,7 @@ void
 nsSVGTitleElement::ContentRemoved(nsIDocument *aDocument,
                                   nsIContent *aContainer,
                                   nsIContent *aChild,
-                                  int32_t aIndexInContainer,
+                                  PRInt32 aIndexInContainer,
                                   nsIContent *aPreviousSibling)
 {
   SendTitleChangeEvent(false);

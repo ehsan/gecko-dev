@@ -83,6 +83,7 @@ nsWyciwygChannel::nsWyciwygChannel()
     mIsPending(false),
     mCharsetAndSourceSet(false),
     mNeedToWriteCharset(false),
+    mPrivateBrowsing(false),
     mCharsetSource(kCharsetUninitialized),
     mContentLength(-1),
     mLoadFlags(LOAD_NORMAL)
@@ -93,14 +94,13 @@ nsWyciwygChannel::~nsWyciwygChannel()
 {
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS7(nsWyciwygChannel,
+NS_IMPL_THREADSAFE_ISUPPORTS6(nsWyciwygChannel,
                               nsIChannel,
                               nsIRequest,
                               nsIStreamListener,
                               nsIRequestObserver,
-                              nsICacheListener,
-                              nsIWyciwygChannel,
-                              nsIPrivateBrowsingChannel)
+                              nsICacheListener, 
+                              nsIWyciwygChannel)
 
 nsresult
 nsWyciwygChannel::Init(nsIURI* uri)
@@ -188,28 +188,23 @@ nsWyciwygChannel::GetLoadGroup(nsILoadGroup* *aLoadGroup)
 NS_IMETHODIMP
 nsWyciwygChannel::SetLoadGroup(nsILoadGroup* aLoadGroup)
 {
-  if (!CanSetLoadGroup(aLoadGroup)) {
-    return NS_ERROR_FAILURE;
-  }
-
   mLoadGroup = aLoadGroup;
   NS_QueryNotificationCallbacks(mCallbacks,
                                 mLoadGroup,
                                 NS_GET_IID(nsIProgressEventSink),
                                 getter_AddRefs(mProgressSink));
-  mPrivateBrowsing = NS_UsePrivateBrowsing(this);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::SetLoadFlags(uint32_t aLoadFlags)
+nsWyciwygChannel::SetLoadFlags(PRUint32 aLoadFlags)
 {
   mLoadFlags = aLoadFlags;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::GetLoadFlags(uint32_t * aLoadFlags)
+nsWyciwygChannel::GetLoadFlags(PRUint32 * aLoadFlags)
 {
   *aLoadFlags = mLoadFlags;
   return NS_OK;
@@ -271,16 +266,13 @@ nsWyciwygChannel::GetNotificationCallbacks(nsIInterfaceRequestor* *aCallbacks)
 NS_IMETHODIMP
 nsWyciwygChannel::SetNotificationCallbacks(nsIInterfaceRequestor* aNotificationCallbacks)
 {
-  if (!CanSetCallbacks(aNotificationCallbacks)) {
-    return NS_ERROR_FAILURE;
-  }
-
   mCallbacks = aNotificationCallbacks;
   NS_QueryNotificationCallbacks(mCallbacks,
                                 mLoadGroup,
                                 NS_GET_IID(nsIProgressEventSink),
                                 getter_AddRefs(mProgressSink));
 
+  // Will never change unless SetNotificationCallbacks called again, so cache
   mPrivateBrowsing = NS_UsePrivateBrowsing(this);
 
   return NS_OK;
@@ -321,13 +313,7 @@ nsWyciwygChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::GetContentDisposition(uint32_t *aContentDisposition)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsWyciwygChannel::SetContentDisposition(uint32_t aContentDisposition)
+nsWyciwygChannel::GetContentDisposition(PRUint32 *aContentDisposition)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
@@ -339,26 +325,20 @@ nsWyciwygChannel::GetContentDispositionFilename(nsAString &aContentDispositionFi
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
 nsWyciwygChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)
 {
   return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::GetContentLength(int32_t *aContentLength)
+nsWyciwygChannel::GetContentLength(PRInt32 *aContentLength)
 {
   *aContentLength = mContentLength;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::SetContentLength(int32_t aContentLength)
+nsWyciwygChannel::SetContentLength(PRInt32 aContentLength)
 {
   mContentLength = aContentLength;
 
@@ -379,7 +359,7 @@ nsWyciwygChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);
   NS_ENSURE_ARG_POINTER(listener);
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   mURI->GetSpec(spec);
 
   // open a cache entry for this channel...
@@ -414,7 +394,7 @@ NS_IMETHODIMP
 nsWyciwygChannel::WriteToCacheEntry(const nsAString &aData)
 {
   // URIs not thread-safe, so get spec now in case we need it
-  nsAutoCString spec;
+  nsCAutoString spec;
   nsresult rv = mURI->GetAsciiSpec(spec);
   if (NS_FAILED(rv)) 
     return rv;
@@ -449,7 +429,7 @@ nsWyciwygChannel::WriteToCacheEntryInternal(const nsAString &aData, const nsACSt
     mNeedToWriteCharset = false;
   }
   
-  uint32_t out;
+  PRUint32 out;
   if (!mCacheOutputStream) {
     // Get the outputstream from the cache entry.
     rv = mCacheEntry->OpenOutputStream(0, getter_AddRefs(mCacheOutputStream));    
@@ -501,7 +481,7 @@ nsWyciwygChannel::SetSecurityInfo(nsISupports *aSecurityInfo)
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::SetCharsetAndSource(int32_t aSource,
+nsWyciwygChannel::SetCharsetAndSource(PRInt32 aSource,
                                       const nsACString& aCharset)
 {
   NS_ENSURE_ARG(!aCharset.IsEmpty());
@@ -527,7 +507,7 @@ nsWyciwygChannel::SetCharsetAndSourceInternal()
 }
 
 NS_IMETHODIMP
-nsWyciwygChannel::GetCharsetAndSource(int32_t* aSource, nsACString& aCharset)
+nsWyciwygChannel::GetCharsetAndSource(PRInt32* aSource, nsACString& aCharset)
 {
   if (mCharsetAndSourceSet) {
     *aSource = mCharsetSource;
@@ -549,7 +529,7 @@ nsWyciwygChannel::GetCharsetAndSource(int32_t* aSource, nsACString& aCharset)
   nsXPIDLCString sourceStr;
   mCacheEntry->GetMetaDataElement("charset-source", getter_Copies(sourceStr));
 
-  int32_t source;
+  PRInt32 source;
   nsresult err;
   source = sourceStr.ToInteger(&err);
   if (NS_FAILED(err) || source == 0) {
@@ -613,9 +593,9 @@ nsWyciwygChannel::OnCacheEntryDoomed(nsresult status)
 NS_IMETHODIMP
 nsWyciwygChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctx,
                                   nsIInputStream *input,
-                                  uint64_t offset, uint32_t count)
+                                  PRUint32 offset, PRUint32 count)
 {
-  LOG(("nsWyciwygChannel::OnDataAvailable [this=%x request=%x offset=%llu count=%u]\n",
+  LOG(("nsWyciwygChannel::OnDataAvailable [this=%x request=%x offset=%u count=%u]\n",
       this, request, offset, count));
 
   nsresult rv;
@@ -624,8 +604,8 @@ nsWyciwygChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctx,
 
   // XXX handle 64-bit stuff for real
   if (mProgressSink && NS_SUCCEEDED(rv) && !(mLoadFlags & LOAD_BACKGROUND))
-    mProgressSink->OnProgress(this, nullptr, offset + count,
-                              uint64_t(mContentLength));
+    mProgressSink->OnProgress(this, nullptr, PRUint64(offset + count),
+                              PRUint64(mContentLength));
 
   return rv; // let the pump cancel on failure
 }
@@ -722,7 +702,7 @@ nsWyciwygChannel::ReadFromCache()
   // Get the stored security info
   mCacheEntry->GetSecurityInfo(getter_AddRefs(mSecurityInfo));
 
-  nsAutoCString tmpStr;
+  nsCAutoString tmpStr;
   rv = mCacheEntry->GetMetaDataElement("inhibit-persistent-caching",
                                        getter_Copies(tmpStr));
   if (NS_SUCCEEDED(rv) && tmpStr == NS_LITERAL_CSTRING("1"))
@@ -742,7 +722,7 @@ nsWyciwygChannel::ReadFromCache()
 }
 
 void
-nsWyciwygChannel::WriteCharsetAndSourceToCache(int32_t aSource,
+nsWyciwygChannel::WriteCharsetAndSourceToCache(PRInt32 aSource,
                                                const nsCString& aCharset)
 {
   NS_ASSERTION(IsOnCacheIOThread(), "wrong thread");
@@ -750,7 +730,7 @@ nsWyciwygChannel::WriteCharsetAndSourceToCache(int32_t aSource,
   
   mCacheEntry->SetMetaDataElement("charset", aCharset.get());
 
-  nsAutoCString source;
+  nsCAutoString source;
   source.AppendInt(aSource);
   mCacheEntry->SetMetaDataElement("charset-source", source.get());
 }

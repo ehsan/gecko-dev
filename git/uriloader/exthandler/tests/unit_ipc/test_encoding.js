@@ -1,14 +1,9 @@
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_get_profile();
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-
-do_get_profile();
 
 // Dynamically generates a classID for our component, registers it to mask
 // the existing component, and stored the masked components classID to be
@@ -273,7 +268,7 @@ let tests = [
 
 function run_test() {
 //  do_load_child_test_harness();
-  httpserver = new HttpServer();
+  httpserver = new nsHttpServer();
   httpserver.start(4444);
   do_test_pending();
 

@@ -63,7 +63,7 @@ private:
   nsRefPtr<nsCSSStyleSheet> mQuirkSheet;
   nsRefPtr<nsCSSStyleSheet> mFullScreenOverrideSheet;
 
-  nsIMemoryReporter* mReporter;
+  nsIMemoryReporter* mSheetsReporter;
 };
 
 #endif

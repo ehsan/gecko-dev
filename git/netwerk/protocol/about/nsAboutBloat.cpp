@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "NSPRFormatTime.h" // must be before anything that includes prtime.h
 #include "nsTraceRefcntImpl.h"
 
 // if NS_BUILD_REFCNT_LOGGING isn't defined, don't try to build
@@ -15,6 +14,7 @@
 #include "nsStringStream.h"
 #include "nsXPIDLString.h"
 #include "nsIURI.h"
+#include "prtime.h"
 #include "nsCOMPtr.h"
 #include "nsIFileStreams.h"
 #include "nsNetUtil.h"
@@ -30,7 +30,7 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
 {
     NS_ENSURE_ARG_POINTER(aURI);
     nsresult rv;
-    nsAutoCString path;
+    nsCAutoString path;
     rv = aURI->GetPath(path);
     if (NS_FAILED(rv)) return rv;
 
@@ -38,9 +38,9 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
     bool clear = false;
     bool leaks = false;
 
-    int32_t pos = path.Find("?");
+    PRInt32 pos = path.Find("?");
     if (pos > 0) {
-        nsAutoCString param;
+        nsCAutoString param;
         (void)path.Right(param, path.Length() - (pos+1));
         if (param.EqualsLiteral("new"))
             statType = nsTraceRefcntImpl::NEW_STATS;
@@ -87,7 +87,7 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
             if (NS_FAILED(rv)) return rv;
         }
 
-        nsAutoCString dumpFileName;
+        nsCAutoString dumpFileName;
         if (statType == nsTraceRefcntImpl::ALL_STATS)
             dumpFileName.AssignLiteral("all-");
         else
@@ -123,7 +123,7 @@ nsAboutBloat::NewChannel(nsIURI *aURI, nsIChannel **result)
 }
 
 NS_IMETHODIMP
-nsAboutBloat::GetURIFlags(nsIURI *aURI, uint32_t *result)
+nsAboutBloat::GetURIFlags(nsIURI *aURI, PRUint32 *result)
 {
     *result = 0;
     return NS_OK;

@@ -190,21 +190,12 @@ WebGLContext::IsTextureFormatCompressed(GLenum format)
         case LOCAL_GL_ALPHA:
         case LOCAL_GL_LUMINANCE:
         case LOCAL_GL_LUMINANCE_ALPHA:
-        case LOCAL_GL_DEPTH_COMPONENT:
-        case LOCAL_GL_DEPTH_STENCIL:
             return false;
 
         case LOCAL_GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
         case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
         case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
         case LOCAL_GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case LOCAL_GL_ATC_RGB:
-        case LOCAL_GL_ATC_RGBA_EXPLICIT_ALPHA:
-        case LOCAL_GL_ATC_RGBA_INTERPOLATED_ALPHA:
-        case LOCAL_GL_COMPRESSED_RGB_PVRTC_4BPPV1:
-        case LOCAL_GL_COMPRESSED_RGB_PVRTC_2BPPV1:
-        case LOCAL_GL_COMPRESSED_RGBA_PVRTC_4BPPV1:
-        case LOCAL_GL_COMPRESSED_RGBA_PVRTC_2BPPV1:
             return true;
     }
 

@@ -50,9 +50,7 @@ if (typeof Components != "undefined") {
       libc = ctypes.open(libc_candidates[i]);
       break;
     } catch (x) {
-      if (exports.OS.Shared.DEBUG) {
-        LOG("Could not open libc "+libc_candidates[i]);
-      }
+      LOG("Could not open libc "+libc_candidates[i]);
     }
   }
   if (!libc) {
@@ -111,7 +109,7 @@ if (typeof Components != "undefined") {
    */
   Object.defineProperty(OSError.prototype, "becauseExists", {
     get: function becauseExists() {
-      return this.unixErrno == OS.Constants.libc.EEXIST;
+      return this.unixErrno == OS.Constants.libc.EEXISTS;
     }
   });
   /**
@@ -124,69 +122,5 @@ if (typeof Components != "undefined") {
     }
   });
 
-  /**
-   * |true| if the error was raised because a directory is not empty
-   * does not exist, |false| otherwise.
-   */
-   Object.defineProperty(OSError.prototype, "becauseNotEmpty", {
-     get: function becauseNotEmpty() {
-       return this.unixErrno == OS.Constants.libc.ENOTEMPTY;
-     }
-   });
-  /**
-   * |true| if the error was raised because a file or directory
-   * is closed, |false| otherwise.
-   */
-  Object.defineProperty(OSError.prototype, "becauseClosed", {
-    get: function becauseClosed() {
-      return this.unixErrno == OS.Constants.libc.EBADF;
-    }
-  });
-
-  /**
-   * Serialize an instance of OSError to something that can be
-   * transmitted across threads (not necessarily a string).
-   */
-  OSError.toMsg = function toMsg(error) {
-    return {
-      operation: error.operation,
-      unixErrno: error.unixErrno
-    };
-  };
-
-  /**
-   * Deserialize a message back to an instance of OSError
-   */
-  OSError.fromMsg = function fromMsg(msg) {
-    return new OSError(msg.operation, msg.unixErrno);
-  };
-
   exports.OS.Shared.Unix.Error = OSError;
-
-  // Special constants that need to be defined on all platforms
-
-   Object.defineProperty(exports.OS.Shared, "POS_START", { value: exports.OS.Constants.libc.SEEK_SET });
-   Object.defineProperty(exports.OS.Shared, "POS_CURRENT", { value: exports.OS.Constants.libc.SEEK_CUR });
-   Object.defineProperty(exports.OS.Shared, "POS_END", { value: exports.OS.Constants.libc.SEEK_END });
-
-  // Special types that need to be defined for communication
-  // between threads
-  let Types = exports.OS.Shared.Type;
-
-   /**
-    * Native paths
-    *
-    * Under Unix, expressed as C strings
-    */
-  Types.path = Types.cstring.withName("[in] path");
-  Types.out_path = Types.out_cstring.withName("[out] path");
-
-  // Special constructors that need to be defined on all threads
-  OSError.closed = function closed(operation) {
-    return new OSError(operation, OS.Constants.libc.EBADF);
-  };
-
-  OSError.exists = function exists(operation) {
-    return new OSError(operation, OS.Constants.libc.EEXIST);
-  };
 })(this);

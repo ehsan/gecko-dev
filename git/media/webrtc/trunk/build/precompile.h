@@ -1,4 +1,4 @@
-// Copyright (c) 2012 The Chromium Authors. All rights reserved.
+// Copyright (c) 2011 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,9 +9,8 @@
 //
 // Numeric comments beside includes are the number of times they were
 // included under src/chrome/browser on 2011/8/20, which was used as a
-// baseline for deciding what to include in the PCH. Includes without
-// a numeric comment are generally included at least 5 times. It may
-// be possible to tweak the speed of the build by commenting out or
+// baseline for deciding what to include in the PCH. It may be
+// possible to tweak the speed of the build by commenting out or
 // removing some of the less frequently used headers.
 
 #if defined(BUILD_PRECOMPILE_H_)
@@ -28,9 +27,9 @@
 #include <wincrypt.h>  // 4
 #include <wtypes.h>  // 2
 
-// Defines in atlbase.h cause conflicts; if we could figure out how
-// this family of headers can be included in the PCH, it might speed
-// up the build as several of them are used frequently.
+// TODO(joi): Defines in atlbase.h cause conflicts; need to figure out
+// if/how this family of headers can be included in the PCH; several
+// of them are used quite frequently.
 /*
 #include <atlbase.h>
 #include <atlapp.h>
@@ -43,11 +42,11 @@
 #include <atlwin.h>  // 2
 */
 
-// Objbase.h and other files that rely on it bring in [ #define
-// interface struct ] which can cause problems in a multi-platform
-// build like Chrome's. #undef-ing it does not work as there are
-// currently 118 targets that break if we do this, so leaving out of
-// the precompiled header for now.
+// TODO(joi): Objbase.h and other files that rely on it bring in
+// [ #define interface struct ] which can cause problems in a
+// multi-platform build like Chrome's. Tried #undef-ing it, but
+// there are currently 118 targets that break if we do this, so
+// leaving out of the precompiled header for now.
 //#include <commctrl.h>  // 2
 //#include <commdlg.h>  // 3
 //#include <cryptuiapi.h>  // 2
@@ -65,8 +64,9 @@
 //#include <shobjidl.h>  // 4
 //#include <urlhist.h>  // 2
 
-// Caused other conflicts in addition to the 'interface' issue above.
-// #include <shlobj.h>
+// TODO(joi): Caused other conflicts in addition to the 'interface' issue
+// above, see if they can be resolved.
+//#include <shlobj.h>
 
 #include <errno.h>
 #include <fcntl.h>

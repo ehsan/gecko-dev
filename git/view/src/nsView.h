@@ -12,7 +12,6 @@
 #include "nsCRT.h"
 #include "nsIFactory.h"
 #include "nsEvent.h"
-#include "nsIWidgetListener.h"
 #include <stdio.h>
 
 //mmptemp
@@ -20,8 +19,7 @@
 class nsIViewManager;
 class nsViewManager;
 
-class nsView : public nsIView,
-               public nsIWidgetListener
+class nsView : public nsIView
 {
 public:
   nsView(nsViewManager* aViewManager = nullptr,
@@ -63,7 +61,7 @@ public:
    * relative to the view's siblings.
    * @param zindex new z depth
    */
-  void SetZIndex(bool aAuto, int32_t aZIndex, bool aTopMost);
+  void SetZIndex(bool aAuto, PRInt32 aZIndex, bool aTopMost);
 
   /**
    * Set/Get whether the view "floats" above all other views,
@@ -113,7 +111,7 @@ public:
   nsView* GetParent() const { return mParent; }
   nsViewManager* GetViewManager() const { return mViewManager; }
   // These are superseded by a better interface in nsIView
-  int32_t GetZIndex() const { return mZIndex; }
+  PRInt32 GetZIndex() const { return mZIndex; }
   bool GetZIndexIsAuto() const { return (mVFlags & NS_VIEW_FLAG_AUTO_ZINDEX) != 0; }
   // Same as GetBounds but converts to parent appunits if they are different.
   nsRect GetBoundsInParentUnits() const;
@@ -138,14 +136,10 @@ public:
   void RemoveChild(nsView *aChild);
 
   void SetParent(nsView *aParent) { mParent = aParent; }
-  void SetNextSibling(nsView *aSibling)
-  {
-    NS_ASSERTION(aSibling != this, "Can't be our own sibling!");
-    mNextSibling = aSibling;
-  }
+  void SetNextSibling(nsView *aSibling) { mNextSibling = aSibling; }
 
-  uint32_t GetViewFlags() const { return mVFlags; }
-  void SetViewFlags(uint32_t aFlags) { mVFlags = aFlags; }
+  PRUint32 GetViewFlags() const { return mVFlags; }
+  void SetViewFlags(PRUint32 aFlags) { mVFlags = aFlags; }
 
   void SetTopMost(bool aTopMost) { aTopMost ? mVFlags |= NS_VIEW_FLAG_TOPMOST : mVFlags &= ~NS_VIEW_FLAG_TOPMOST; }
   bool IsTopMost() { return((mVFlags & NS_VIEW_FLAG_TOPMOST) != 0); }
@@ -161,23 +155,12 @@ public:
   // released if it points to any view in this view hierarchy.
   void InvalidateHierarchy(nsViewManager *aViewManagerParent);
 
-  // nsIWidgetListener
-  virtual nsIPresShell* GetPresShell();
-  virtual nsIView* GetView() { return this; }
-  bool WindowMoved(nsIWidget* aWidget, int32_t x, int32_t y);
-  bool WindowResized(nsIWidget* aWidget, int32_t aWidth, int32_t aHeight);
-  bool RequestWindowClose(nsIWidget* aWidget);
-  void WillPaintWindow(nsIWidget* aWidget, bool aWillSendDidPaint);
-  bool PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion, uint32_t aFlags);
-  void DidPaintWindow();
-  nsEventStatus HandleEvent(nsGUIEvent* aEvent, bool aUseAttachedEvents);
-
   virtual ~nsView();
 
   nsPoint GetOffsetTo(const nsView* aOther) const;
   nsIWidget* GetNearestWidget(nsPoint* aOffset) const;
-  nsPoint GetOffsetTo(const nsView* aOther, const int32_t aAPD) const;
-  nsIWidget* GetNearestWidget(nsPoint* aOffset, const int32_t aAPD) const;
+  nsPoint GetOffsetTo(const nsView* aOther, const PRInt32 aAPD) const;
+  nsIWidget* GetNearestWidget(nsPoint* aOffset, const PRInt32 aAPD) const;
 
 protected:
   // Do the actual work of ResetWidgetBounds, unconditionally.  Don't

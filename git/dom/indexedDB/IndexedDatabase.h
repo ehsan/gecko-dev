@@ -14,7 +14,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsDebug.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 
@@ -143,7 +143,7 @@ struct StructuredCloneWriteInfo
   JSAutoStructuredCloneBuffer mCloneBuffer;
   nsTArray<StructuredCloneFile> mFiles;
   IDBTransaction* mTransaction;
-  uint64_t mOffsetToKeyProp;
+  PRUint64 mOffsetToKeyProp;
 };
 
 struct SerializedStructuredCloneWriteInfo

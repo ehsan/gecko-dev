@@ -76,14 +76,14 @@ public:
   // Finds the index of the first function that will affect our animation
   // sandwich. Also toggles the 'mForceCompositing' flag if it finds that any
   // (used) functions have changed.
-  uint32_t GetFirstFuncToAffectSandwich();
+  PRUint32 GetFirstFuncToAffectSandwich();
 
   // If the passed-in base value differs from our cached base value, this
   // method updates the cached value (and toggles the 'mForceCompositing' flag)
   void UpdateCachedBaseValue(const nsSMILValue& aBaseValue);
 
   // Static callback methods
-  static PLDHashOperator DoComposeAttribute(
+  PR_STATIC_CALLBACK(PLDHashOperator) DoComposeAttribute(
       nsSMILCompositor* aCompositor, void *aData);
 
   // The hash key (tuple of element/attributeName/attributeType)

@@ -60,7 +60,7 @@ SVGViewBoxSMILType::IsEqual(const nsSMILValue& aLeft,
 
 nsresult
 SVGViewBoxSMILType::Add(nsSMILValue& aDest, const nsSMILValue& aValueToAdd,
-                        uint32_t aCount) const
+                        PRUint32 aCount) const
 {
   NS_PRECONDITION(aValueToAdd.mType == aDest.mType,
                   "Trying to add invalid types");

@@ -14,8 +14,7 @@ EXTRA_COMPONENTS = \
 	PageThumbsProtocol.js \
 	$(NULL)
 
-EXTRA_JS_MODULES = \
-	PageThumbsWorker.js \
+EXTRA_PP_JS_MODULES = \
 	PageThumbs.jsm \
 	$(NULL)
 

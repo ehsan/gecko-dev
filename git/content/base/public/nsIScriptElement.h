@@ -17,8 +17,8 @@
 #include "mozilla/CORSMode.h"
 
 #define NS_ISCRIPTELEMENT_IID \
-{ 0x491628bc, 0xce7c, 0x4db4, \
- { 0x93, 0x3f, 0xce, 0x1b, 0x75, 0xee, 0x75, 0xce } }
+{ 0x24ab3ff2, 0xd75e, 0x4be4, \
+  { 0x8d, 0x50, 0xd6, 0x75, 0x31, 0x29, 0xab, 0x65 } }
 
 /**
  * Internal interface implemented by script elements
@@ -112,11 +112,11 @@ public:
     return mParserCreated;
   }
 
-  void SetScriptLineNumber(uint32_t aLineNumber)
+  void SetScriptLineNumber(PRUint32 aLineNumber)
   {
     mLineNumber = aLineNumber;
   }
-  uint32_t GetScriptLineNumber()
+  PRUint32 GetScriptLineNumber()
   {
     return mLineNumber;
   }
@@ -235,11 +235,6 @@ public:
     return mozilla::CORS_NONE;
   }
 
-  /**
-   * Fire an error event
-   */
-  virtual nsresult FireErrorEvent() = 0;
-
 protected:
   /**
    * Processes the script if it's in the document-tree and links to or
@@ -262,7 +257,7 @@ protected:
   /**
    * The start line number of the script.
    */
-  uint32_t mLineNumber;
+  PRUint32 mLineNumber;
   
   /**
    * The "already started" flag per HTML5.

@@ -44,10 +44,10 @@ public:
       Matrix transform = state.surfTransform;
 
       if (state.patternTransformChanged) {
-        Matrix mat = mContext->mTransform;
+        Matrix mat = mContext->mDT->GetTransform();
         mat.Invert();
 
-        transform = transform * state.patternTransform * mat;
+        transform = mat * state.patternTransform * transform;
       }
 
       mPattern = new (mSurfacePattern.addr())
@@ -183,7 +183,7 @@ gfxContext::Save()
   if (mCairo) {
     cairo_save(mCairo);
   } else {
-    CurrentState().transform = mTransform;
+    CurrentState().transform = mDT->GetTransform();
     mStateStack.AppendElement(AzureState(CurrentState()));
     CurrentState().clipWasReset = false;
     CurrentState().pushedClips.Clear();
@@ -207,18 +207,16 @@ gfxContext::Restore()
 
     mStateStack.RemoveElementAt(mStateStack.Length() - 1);
 
-    if ((mPathBuilder || mPath || mPathIsRect) && !mTransformChanged) {
+    if (mPathBuilder || mPath || mPathIsRect) {
       // Support here isn't fully correct if the path is continued -after-
       // the restore. We don't currently have users that do this and we should
       // make sure there will not be any. Sadly we can't assert this easily.
       mTransformChanged = true;
-      mPathTransform = mTransform;
+      mPathTransform = mDT->GetTransform();
     }
 
     mDT = CurrentState().drawTarget;
-
-    mTransform = CurrentState().transform;
-    mDT->SetTransform(GetDTTransform());
+    mDT->SetTransform(CurrentState().transform);
   }
 }
 
@@ -462,7 +460,7 @@ gfxContext::Rectangle(const gfxRect& rect, bool snapToPixels)
     if (snapToPixels) {
       gfxRect newRect(rect);
       if (UserToDevicePixelSnapped(newRect, true)) {
-        gfxMatrix mat = ThebesMatrix(mTransform);
+        gfxMatrix mat = ThebesMatrix(mDT->GetTransform());
         mat.Invert();
 
         // We need the user space rect.
@@ -497,14 +495,14 @@ gfxContext::Ellipse(const gfxPoint& center, const gfxSize& dimensions)
 }
 
 void
-gfxContext::Polygon(const gfxPoint *points, uint32_t numPoints)
+gfxContext::Polygon(const gfxPoint *points, PRUint32 numPoints)
 {
   if (mCairo) {
     if (numPoints == 0)
         return;
 
     cairo_move_to(mCairo, points[0].x, points[0].y);
-    for (uint32_t i = 1; i < numPoints; ++i) {
+    for (PRUint32 i = 1; i < numPoints; ++i) {
         cairo_line_to(mCairo, points[i].x, points[i].y);
     }
   } else {
@@ -515,7 +513,7 @@ gfxContext::Polygon(const gfxPoint *points, uint32_t numPoints)
     EnsurePathBuilder();
 
     mPathBuilder->MoveTo(ToPoint(points[0]));
-    for (uint32_t i = 1; i < numPoints; i++) {
+    for (PRUint32 i = 1; i < numPoints; i++) {
       mPathBuilder->LineTo(ToPoint(points[i]));
     }
   }
@@ -554,7 +552,7 @@ gfxContext::Translate(const gfxPoint& pt)
   if (mCairo) {
     cairo_translate(mCairo, pt.x, pt.y);
   } else {
-    Matrix newMatrix = mTransform;
+    Matrix newMatrix = mDT->GetTransform();
 
     ChangeTransform(newMatrix.Translate(Float(pt.x), Float(pt.y)));
   }
@@ -566,7 +564,7 @@ gfxContext::Scale(gfxFloat x, gfxFloat y)
   if (mCairo) {
     cairo_scale(mCairo, x, y);
   } else {
-    Matrix newMatrix = mTransform;
+    Matrix newMatrix = mDT->GetTransform();
 
     ChangeTransform(newMatrix.Scale(Float(x), Float(y)));
   }
@@ -579,7 +577,7 @@ gfxContext::Rotate(gfxFloat angle)
     cairo_rotate(mCairo, angle);
   } else {
     Matrix rotation = Matrix::Rotation(Float(angle));
-    ChangeTransform(rotation * mTransform);
+    ChangeTransform(rotation * mDT->GetTransform());
   }
 }
 
@@ -590,21 +588,7 @@ gfxContext::Multiply(const gfxMatrix& matrix)
     const cairo_matrix_t& mat = reinterpret_cast<const cairo_matrix_t&>(matrix);
     cairo_transform(mCairo, &mat);
   } else {
-    ChangeTransform(ToMatrix(matrix) * mTransform);
-  }
-}
-
-void
-gfxContext::MultiplyAndNudgeToIntegers(const gfxMatrix& matrix)
-{
-  if (mCairo) {
-    const cairo_matrix_t& mat = reinterpret_cast<const cairo_matrix_t&>(matrix);
-    cairo_transform(mCairo, &mat);
-    // XXX nudging to integers not currently supported for Thebes
-  } else {
-    Matrix transform = ToMatrix(matrix) * mTransform;
-    transform.NudgeToIntegers();
-    ChangeTransform(transform);
+    ChangeTransform(ToMatrix(matrix) * mDT->GetTransform());
   }
 }
 
@@ -615,8 +599,6 @@ gfxContext::SetMatrix(const gfxMatrix& matrix)
     const cairo_matrix_t& mat = reinterpret_cast<const cairo_matrix_t&>(matrix);
     cairo_set_matrix(mCairo, &mat);
   } else {
-    Matrix mat;
-    mat.Translate(-CurrentState().deviceOffset.x, -CurrentState().deviceOffset.y);
     ChangeTransform(ToMatrix(matrix));
   }
 }
@@ -639,7 +621,7 @@ gfxContext::CurrentMatrix() const
     cairo_get_matrix(mCairo, &mat);
     return gfxMatrix(*reinterpret_cast<gfxMatrix*>(&mat));
   } else {
-    return ThebesMatrix(mTransform);
+    return ThebesMatrix(mDT->GetTransform());
   }
 }
 
@@ -654,7 +636,7 @@ gfxContext::NudgeCurrentMatrixToIntegers()
   } else {
     gfxMatrix matrix = ThebesMatrix(mTransform);
     matrix.NudgeToIntegers();
-    ChangeTransform(ToMatrix(matrix));
+    mTransform = ToMatrix(matrix);
   }
 }
 
@@ -666,7 +648,7 @@ gfxContext::DeviceToUser(const gfxPoint& point) const
     cairo_device_to_user(mCairo, &ret.x, &ret.y);
     return ret;
   } else {
-    Matrix matrix = mTransform;
+    Matrix matrix = mDT->GetTransform();
 
     matrix.Invert();
 
@@ -682,7 +664,7 @@ gfxContext::DeviceToUser(const gfxSize& size) const
     cairo_device_to_user_distance(mCairo, &ret.width, &ret.height);
     return ret;
   } else {
-    Matrix matrix = mTransform;
+    Matrix matrix = mDT->GetTransform();
 
     matrix.Invert();
 
@@ -699,7 +681,7 @@ gfxContext::DeviceToUser(const gfxRect& rect) const
     cairo_device_to_user_distance(mCairo, &ret.width, &ret.height);
     return ret;
   } else {
-    Matrix matrix = mTransform;
+    Matrix matrix = mDT->GetTransform();
 
     matrix.Invert();
 
@@ -715,7 +697,7 @@ gfxContext::UserToDevice(const gfxPoint& point) const
     cairo_user_to_device(mCairo, &ret.x, &ret.y);
     return ret;
   } else {
-    return ThebesPoint(mTransform * ToPoint(point));
+    return ThebesPoint(mDT->GetTransform() * ToPoint(point));
   }
 }
 
@@ -727,7 +709,7 @@ gfxContext::UserToDevice(const gfxSize& size) const
     cairo_user_to_device_distance(mCairo, &ret.width, &ret.height);
     return ret;
   } else {
-    const Matrix &matrix = mTransform;
+    const Matrix &matrix = mDT->GetTransform();
 
     gfxSize newSize = size;
     newSize.width = newSize.width * matrix._11 + newSize.height * matrix._12;
@@ -760,7 +742,7 @@ gfxContext::UserToDevice(const gfxRect& rect) const
 
     return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
   } else {
-    const Matrix &matrix = mTransform;
+    const Matrix &matrix = mDT->GetTransform();
     return ThebesRect(matrix.TransformBounds(ToRect(rect)));
   }
 }
@@ -784,7 +766,7 @@ gfxContext::UserToDevicePixelSnapped(gfxRect& rect, bool ignoreScale) const
           !WITHIN_E(mat.xy,0.0) || !WITHIN_E(mat.yx,0.0)))
         return false;
   } else {
-    Matrix mat = mTransform;
+    Matrix mat = mDT->GetTransform();
     if (!ignoreScale &&
         (!WITHIN_E(mat._11,1.0) || !WITHIN_E(mat._22,1.0) ||
           !WITHIN_E(mat._12,0.0) || !WITHIN_E(mat._21,0.0)))
@@ -834,7 +816,7 @@ gfxContext::UserToDevicePixelSnapped(gfxPoint& pt, bool ignoreScale) const
           !WITHIN_E(mat.xy,0.0) || !WITHIN_E(mat.yx,0.0)))
         return false;
   } else {
-    Matrix mat = mTransform;
+    Matrix mat = mDT->GetTransform();
     if (!ignoreScale &&
         (!WITHIN_E(mat._11,1.0) || !WITHIN_E(mat._22,1.0) ||
           !WITHIN_E(mat._12,0.0) || !WITHIN_E(mat._21,0.0)))
@@ -1125,7 +1107,7 @@ gfxContext::Clip(const gfxRect& rect)
     cairo_rectangle(mCairo, rect.X(), rect.Y(), rect.Width(), rect.Height());
     cairo_clip(mCairo);
   } else {
-    AzureState::PushedClip clip = { NULL, ToRect(rect), mTransform };
+    AzureState::PushedClip clip = { NULL, ToRect(rect), mDT->GetTransform() };
     CurrentState().pushedClips.AppendElement(clip);
     mDT->PushClipRect(ToRect(rect));
     NewPath();
@@ -1139,13 +1121,13 @@ gfxContext::Clip()
     cairo_clip_preserve(mCairo);
   } else {
     if (mPathIsRect && !mTransformChanged) {
-      AzureState::PushedClip clip = { NULL, mRect, mTransform };
+      AzureState::PushedClip clip = { NULL, mRect, mDT->GetTransform() };
       CurrentState().pushedClips.AppendElement(clip);
       mDT->PushClipRect(mRect);
     } else {
       EnsurePath();
       mDT->PushClip(mPath);
-      AzureState::PushedClip clip = { mPath, Rect(), mTransform };
+      AzureState::PushedClip clip = { mPath, Rect(), mDT->GetTransform() };
       CurrentState().pushedClips.AppendElement(clip);
     }
   }
@@ -1192,13 +1174,31 @@ gfxContext::GetClipExtents()
     cairo_clip_extents(mCairo, &xmin, &ymin, &xmax, &ymax);
     return gfxRect(xmin, ymin, xmax - xmin, ymax - ymin);
   } else {
-    Rect rect = GetAzureDeviceSpaceClipBounds();
+    unsigned int lastReset = 0;
+    for (int i = mStateStack.Length() - 1; i > 0; i--) {
+      if (mStateStack[i].clipWasReset) {
+        lastReset = i;
+      }
+    }
+
+    Rect rect(0, 0, Float(mDT->GetSize().width), Float(mDT->GetSize().height));
+    for (unsigned int i = lastReset; i < mStateStack.Length(); i++) {
+      for (unsigned int c = 0; c < mStateStack[i].pushedClips.Length(); c++) {
+        AzureState::PushedClip &clip = mStateStack[i].pushedClips[c];
+        if (clip.path) {
+          Rect bounds = clip.path->GetBounds(clip.transform);
+          rect.IntersectRect(rect, bounds);
+        } else {
+          rect.IntersectRect(rect, clip.transform.TransformBounds(clip.rect));
+        }
+      }
+    }
 
     if (rect.width == 0 || rect.height == 0) {
       return gfxRect(0, 0, 0, 0);
     }
 
-    Matrix mat = mTransform;
+    Matrix mat = mDT->GetTransform();
     mat.Invert();
     rect = mat.TransformBounds(rect);
 
@@ -1455,10 +1455,16 @@ gfxContext::PushGroup(gfxASurface::gfxContentType content)
   if (mCairo) {
     cairo_push_group_with_content(mCairo, (cairo_content_t) content);
   } else {
-    PushNewDT(content);
+    RefPtr<DrawTarget> newDT =
+      mDT->CreateSimilarDrawTarget(mDT->GetSize(), gfxPlatform::GetPlatform()->Optimal2DFormatForContent(content));
 
-    PushClipsToDT(mDT);
-    mDT->SetTransform(GetDTTransform());
+    Save();
+
+    CurrentState().drawTarget = newDT;
+
+    PushClipsToDT(newDT);
+    newDT->SetTransform(mDT->GetTransform());
+    mDT = newDT;
   }
 }
 
@@ -1506,7 +1512,7 @@ gfxContext::PushGroupAndCopyBackground(gfxASurface::gfxContentType content)
           static_cast<gfxTeeSurface*>(d.get())->GetSurfaces(&ds);
           NS_ASSERTION(ss.Length() == ds.Length(), "Mismatched lengths");
           gfxPoint translation = d->GetDeviceOffset() - s->GetDeviceOffset();
-          for (uint32_t i = 0; i < ss.Length(); ++i) {
+          for (PRUint32 i = 0; i < ss.Length(); ++i) {
               CopySurface(ss[i], ds[i], translation);
           }
         } else {
@@ -1526,22 +1532,13 @@ gfxContext::PushGroupAndCopyBackground(gfxASurface::gfxContentType content)
         mDT->GetOpaqueRect().Contains(clipExtents)) {
       DrawTarget *oldDT = mDT;
       RefPtr<SourceSurface> source = mDT->Snapshot();
-      Point oldDeviceOffset = CurrentState().deviceOffset;
-
-      PushNewDT(gfxASurface::CONTENT_COLOR);
-
-      Point offset = CurrentState().deviceOffset - oldDeviceOffset;
+      PushGroup(content);
       Rect surfRect(0, 0, Float(mDT->GetSize().width), Float(mDT->GetSize().height));
-      Rect sourceRect = surfRect;
-      sourceRect.x += offset.x;
-      sourceRect.y += offset.y;
-
+      Matrix oldTransform = mDT->GetTransform();
       mDT->SetTransform(Matrix());
-      mDT->DrawSurface(source, surfRect, sourceRect);
+      mDT->DrawSurface(source, surfRect, surfRect); 
+      mDT->SetTransform(oldTransform);
       mDT->SetOpaqueRect(oldDT->GetOpaqueRect());
-
-      PushClipsToDT(mDT);
-      mDT->SetTransform(GetDTTransform());
       return;
     }
   }
@@ -1559,17 +1556,12 @@ gfxContext::PopGroup()
     return wrapper;
   } else {
     RefPtr<SourceSurface> src = mDT->Snapshot();
-    Point deviceOffset = CurrentState().deviceOffset;
 
     Restore();
 
-    Matrix mat = mTransform;
+    Matrix mat = mDT->GetTransform();
     mat.Invert();
-
-    Matrix deviceOffsetTranslation;
-    deviceOffsetTranslation.Translate(deviceOffset.x, deviceOffset.y);
-
-    nsRefPtr<gfxPattern> pat = new gfxPattern(src, deviceOffsetTranslation * mat);
+    nsRefPtr<gfxPattern> pat = new gfxPattern(src, mat);
 
     return pat.forget();
   }
@@ -1582,19 +1574,15 @@ gfxContext::PopGroupToSource()
     cairo_pop_group_to_source(mCairo);
   } else {
     RefPtr<SourceSurface> src = mDT->Snapshot();
-    Point deviceOffset = CurrentState().deviceOffset;
     Restore();
     CurrentState().sourceSurfCairo = NULL;
     CurrentState().sourceSurface = src;
     CurrentState().pattern = NULL;
     CurrentState().patternTransformChanged = false;
 
-    Matrix mat = mTransform;
+    Matrix mat = mDT->GetTransform();
     mat.Invert();
-
-    Matrix deviceOffsetTranslation;
-    deviceOffsetTranslation.Translate(deviceOffset.x, deviceOffset.y);
-    CurrentState().surfTransform = deviceOffsetTranslation * mat;
+    CurrentState().surfTransform = mat;
   }
 }
 
@@ -1920,7 +1908,7 @@ gfxContext::EnsurePath()
 
   if (mPath) {
     if (mTransformChanged) {
-      Matrix mat = mTransform;
+      Matrix mat = mDT->GetTransform();
       mat.Invert();
       mat = mPathTransform * mat;
       mPathBuilder = mPath->TransformedCopyToBuilder(mat, CurrentState().fillRule);
@@ -1968,7 +1956,7 @@ gfxContext::EnsurePathBuilder()
     mPathBuilder->Close();
   } else if (mPathIsRect) {
     mTransformChanged = false;
-    Matrix mat = mTransform;
+    Matrix mat = mDT->GetTransform();
     mat.Invert();
     mat = mPathTransform * mat;
     mPathBuilder->MoveTo(mat * mRect.TopLeft());
@@ -2026,7 +2014,7 @@ gfxContext::PushClipsToDT(DrawTarget *aDT)
   // reset to the clip before ours.
   for (unsigned int i = lastReset; i < mStateStack.Length() - 1; i++) {
     for (unsigned int c = 0; c < mStateStack[i].pushedClips.Length(); c++) {
-      aDT->SetTransform(mStateStack[i].pushedClips[c].transform * GetDeviceTransform());
+      aDT->SetTransform(mStateStack[i].pushedClips[c].transform);
       if (mStateStack[i].pushedClips[c].path) {
         aDT->PushClip(mStateStack[i].pushedClips[c].path);
       } else {
@@ -2078,7 +2066,7 @@ gfxContext::ChangeTransform(const Matrix &aNewMatrix)
 
   if ((state.pattern || state.sourceSurface)
       && !state.patternTransformChanged) {
-    state.patternTransform = mTransform;
+    state.patternTransform = mDT->GetTransform();
     state.patternTransformChanged = true;
   }
 
@@ -2087,11 +2075,10 @@ gfxContext::ChangeTransform(const Matrix &aNewMatrix)
     
     invMatrix.Invert();
 
-    Matrix toNewUS = mTransform * invMatrix;
+    Matrix toNewUS = mDT->GetTransform() * invMatrix;
 
     if (toNewUS.IsRectilinear() && mPathIsRect) {
       mRect = toNewUS.TransformBounds(mRect);
-      mRect.NudgeToIntegers();
     } else if (mPathIsRect) {
       mPathBuilder = mDT->CreatePathBuilder(CurrentState().fillRule);
       
@@ -2109,72 +2096,5 @@ gfxContext::ChangeTransform(const Matrix &aNewMatrix)
     mTransformChanged = false;
   }
 
-  mTransform = aNewMatrix;
-
-  mDT->SetTransform(GetDTTransform());
-}
-
-Rect
-gfxContext::GetAzureDeviceSpaceClipBounds()
-{
-  unsigned int lastReset = 0;
-  for (int i = mStateStack.Length() - 1; i > 0; i--) {
-    if (mStateStack[i].clipWasReset) {
-      lastReset = i;
-    }
-  }
-
-  Rect rect(CurrentState().deviceOffset.x, CurrentState().deviceOffset.y,
-            Float(mDT->GetSize().width), Float(mDT->GetSize().height));
-  for (unsigned int i = lastReset; i < mStateStack.Length(); i++) {
-    for (unsigned int c = 0; c < mStateStack[i].pushedClips.Length(); c++) {
-      AzureState::PushedClip &clip = mStateStack[i].pushedClips[c];
-      if (clip.path) {
-        Rect bounds = clip.path->GetBounds(clip.transform);
-        rect.IntersectRect(rect, bounds);
-      } else {
-        rect.IntersectRect(rect, clip.transform.TransformBounds(clip.rect));
-      }
-    }
-  }
-
-  return rect;
-}
-
-Matrix
-gfxContext::GetDeviceTransform() const
-{
-  Matrix mat;
-  mat.Translate(-CurrentState().deviceOffset.x, -CurrentState().deviceOffset.y);
-  return mat;
-}
-
-Matrix
-gfxContext::GetDTTransform() const
-{
-  Matrix mat = mTransform;
-  mat._31 -= CurrentState().deviceOffset.x;
-  mat._32 -= CurrentState().deviceOffset.y;
-  return mat;
-}
-
-void
-gfxContext::PushNewDT(gfxASurface::gfxContentType content)
-{
-  Rect clipBounds = GetAzureDeviceSpaceClipBounds();
-  clipBounds.RoundOut();
-
-  clipBounds.width = NS_MAX(1.0f, clipBounds.width);
-  clipBounds.height = NS_MAX(1.0f, clipBounds.height);
-
-  RefPtr<DrawTarget> newDT =
-    mDT->CreateSimilarDrawTarget(IntSize(int32_t(clipBounds.width), int32_t(clipBounds.height)),
-                                  gfxPlatform::GetPlatform()->Optimal2DFormatForContent(content));
-
-  Save();
-
-  CurrentState().drawTarget = newDT;
-  CurrentState().deviceOffset = clipBounds.TopLeft();
-
-  mDT = newDT;
+  mDT->SetTransform(aNewMatrix);
 }

@@ -23,7 +23,7 @@
 //----------------------------------------------------------------------
 // Global functions and data [declaration]
 
-static const uint16_t g_ufMappingTable[] = {
+static const PRUint16 g_ufMappingTable[] = {
 #include "cp857.uf"
 };
 

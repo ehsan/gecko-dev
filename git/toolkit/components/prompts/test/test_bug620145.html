@@ -27,11 +27,13 @@ SimpleTest.waitForExplicitFinish();
 
 var selectionTest = false;
 var testNum = 0;
-var utils = SpecialPowers.DOMWindowUtils;
+var utils = SpecialPowers.wrap(window)
+                        .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                        .getInterface(Components.interfaces.nsIDOMWindowUtils);
 
 function hasTabModalPrompts() {
   var prefName = "prompts.tab_modal.enabled";
-  var Services = SpecialPowers.Cu
+  var Services = SpecialPowers.wrap(Components).utils
                               .import("resource://gre/modules/Services.jsm")
                               .Services;
   return Services.prefs.getPrefType(prefName) == Services.prefs.PREF_BOOL &&

@@ -23,7 +23,7 @@ function run_test() {
   do_execute_soon(run_test_pt1);
 }
 
-// The HttpServer must be stopped before calling do_test_finished
+// The nsHttpServer must be stopped before calling do_test_finished
 function finish_test() {
   stop_httpserver(do_test_finished);
 }
@@ -77,9 +77,8 @@ function check_test_helper_pt1_2() {
   gNextRunFunc();
 }
 
-function setResponseBody(aHashFunction, aHashValue, aSize) {
-  var patches = getRemotePatchString(null, null,
-                                     aHashFunction, aHashValue, aSize);
+function setResponseBody(aHashFunction, aHashValue) {
+  var patches = getRemotePatchString(null, null, aHashFunction, aHashValue);
   var updates = getRemoteUpdateString(patches);
   gResponseBody = getRemoteUpdatesXMLString(updates);
 }
@@ -95,7 +94,7 @@ function run_test_pt1() {
 function run_test_pt2() {
   setResponseBody("MD5", MD5_HASH_SIMPLE_MAR + "0");
   run_test_helper_pt1("mar download with an invalid MD5 hash",
-                      AUS_Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt3);
+                      AUS_Cr.NS_ERROR_UNEXPECTED, run_test_pt3);
 }
 
 // mar download with a valid SHA1 hash
@@ -109,7 +108,7 @@ function run_test_pt3() {
 function run_test_pt4() {
   setResponseBody("SHA1", SHA1_HASH_SIMPLE_MAR + "0");
   run_test_helper_pt1("mar download with an invalid SHA1 hash",
-                      AUS_Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt5);
+                      AUS_Cr.NS_ERROR_UNEXPECTED, run_test_pt5);
 }
 
 // mar download with a valid SHA256 hash
@@ -123,7 +122,7 @@ function run_test_pt5() {
 function run_test_pt6() {
   setResponseBody("SHA256", SHA256_HASH_SIMPLE_MAR + "0");
   run_test_helper_pt1("mar download with an invalid SHA256 hash",
-                      AUS_Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt7);
+                      AUS_Cr.NS_ERROR_UNEXPECTED, run_test_pt7);
 }
 
 // mar download with a valid SHA384 hash
@@ -137,7 +136,7 @@ function run_test_pt7() {
 function run_test_pt8() {
   setResponseBody("SHA384", SHA384_HASH_SIMPLE_MAR + "0");
   run_test_helper_pt1("mar download with an invalid SHA384 hash",
-                      AUS_Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt9);
+                      AUS_Cr.NS_ERROR_UNEXPECTED, run_test_pt9);
 }
 
 // mar download with a valid SHA512 hash
@@ -151,7 +150,7 @@ function run_test_pt9() {
 function run_test_pt10() {
   setResponseBody("SHA512", SHA512_HASH_SIMPLE_MAR + "0");
   run_test_helper_pt1("mar download with an invalid SHA512 hash",
-                      AUS_Cr.NS_ERROR_CORRUPTED_CONTENT, run_test_pt11);
+                      AUS_Cr.NS_ERROR_UNEXPECTED, run_test_pt11);
 }
 
 // mar download with the mar not found
@@ -160,14 +159,6 @@ function run_test_pt11() {
   var updates = getRemoteUpdateString(patches);
   gResponseBody = getRemoteUpdatesXMLString(updates);
   run_test_helper_pt1("mar download with the mar not found",
-                      AUS_Cr.NS_ERROR_UNEXPECTED, run_test_pt12);
-}
-
-// mar download with a valid MD5 hash but invalid file size
-function run_test_pt12() {
-  const arbitraryFileSize = 1024000;
-  setResponseBody("MD5", MD5_HASH_SIMPLE_MAR ,arbitraryFileSize);
-  run_test_helper_pt1("mar download with a valid MD5 hash but invalid file size",
                       AUS_Cr.NS_ERROR_UNEXPECTED, finish_test);
 }
 

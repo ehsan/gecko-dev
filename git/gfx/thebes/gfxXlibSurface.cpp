@@ -23,7 +23,7 @@ using namespace mozilla;
 
 gfxXlibSurface::gfxXlibSurface(Display *dpy, Drawable drawable, Visual *visual)
     : mPixmapTaken(false), mDisplay(dpy), mDrawable(drawable)
-#if !defined(MOZ_PLATFORM_MAEMO)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     , mGLXPixmap(None)
 #endif
 {
@@ -34,7 +34,7 @@ gfxXlibSurface::gfxXlibSurface(Display *dpy, Drawable drawable, Visual *visual)
 
 gfxXlibSurface::gfxXlibSurface(Display *dpy, Drawable drawable, Visual *visual, const gfxIntSize& size)
     : mPixmapTaken(false), mDisplay(dpy), mDrawable(drawable), mSize(size)
-#if !defined(MOZ_PLATFORM_MAEMO)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     , mGLXPixmap(None)
 #endif
 {
@@ -49,7 +49,7 @@ gfxXlibSurface::gfxXlibSurface(Screen *screen, Drawable drawable, XRenderPictFor
                                const gfxIntSize& size)
     : mPixmapTaken(false), mDisplay(DisplayOfScreen(screen)),
       mDrawable(drawable), mSize(size)
-#if !defined(MOZ_PLATFORM_MAEMO)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
       , mGLXPixmap(None)
 #endif
 {
@@ -67,7 +67,7 @@ gfxXlibSurface::gfxXlibSurface(cairo_surface_t *csurf)
     : mPixmapTaken(false),
       mSize(cairo_xlib_surface_get_width(csurf),
             cairo_xlib_surface_get_height(csurf))
-#if !defined(MOZ_PLATFORM_MAEMO)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
       , mGLXPixmap(None)
 #endif
 {
@@ -82,9 +82,9 @@ gfxXlibSurface::gfxXlibSurface(cairo_surface_t *csurf)
 
 gfxXlibSurface::~gfxXlibSurface()
 {
-#if !defined(MOZ_PLATFORM_MAEMO)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
     if (mGLXPixmap) {
-        gl::sDefGLXLib.DestroyPixmap(mGLXPixmap);
+        gl::sGLXLibrary.DestroyPixmap(mGLXPixmap);
     }
 #endif
     // gfxASurface's destructor calls RecordMemoryFreed().
@@ -325,7 +325,7 @@ DisplayTable::GetColormapAndVisual(Screen* aScreen, XRenderPictFormat* aFormat,
     }
 
     nsTArray<DisplayInfo>* displays = &sDisplayTable->mDisplays;
-    uint32_t d = displays->IndexOf(display, 0, FindDisplay());
+    PRUint32 d = displays->IndexOf(display, 0, FindDisplay());
 
     if (d == displays->NoIndex) {
         d = displays->Length();
@@ -345,7 +345,7 @@ DisplayTable::GetColormapAndVisual(Screen* aScreen, XRenderPictFormat* aFormat,
 
     // Only a small number of formats are expected to be used, so just do a
     // simple linear search.
-    for (uint32_t i = 0; i < entries->Length(); ++i) {
+    for (PRUint32 i = 0; i < entries->Length(); ++i) {
         const ColormapEntry& entry = entries->ElementAt(i);
         // Only the format and screen need to match.  (The visual may differ.)
         // If there is no format (e.g. no RENDER extension) then just compare
@@ -506,12 +506,12 @@ gfxXlibSurface::XRenderFormat()
     return cairo_xlib_surface_get_xrender_format(CairoSurface());
 }
 
-#if !defined(MOZ_PLATFORM_MAEMO)
+#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
 GLXPixmap
 gfxXlibSurface::GetGLXPixmap()
 {
     if (!mGLXPixmap) {
-        mGLXPixmap = gl::sDefGLXLib.CreatePixmap(this);
+        mGLXPixmap = gl::sGLXLibrary.CreatePixmap(this);
     }
     return mGLXPixmap;
 }

@@ -16,13 +16,10 @@
 #include "nsIObserver.h"
 
 class nsImageFrame;
-class nsObjectFrame;
 class nsITreeView;
 
 namespace mozilla {
 namespace a11y {
-
-class ApplicationAccessible;
 
 /**
  * Return focus manager.
@@ -39,11 +36,6 @@ enum EPlatformDisabledState {
  * Return the platform disabled state.
  */
 EPlatformDisabledState PlatformDisabledState();
-
-/**
- * Returns the application accessible.
- */
-ApplicationAccessible* ApplicationAcc();
 
 #ifdef MOZ_ACCESSIBILITY_ATK
 /**
@@ -81,8 +73,54 @@ public:
   virtual Accessible* GetRootDocumentAccessible(nsIPresShell* aPresShell,
                                                 bool aCanCreate);
   already_AddRefed<Accessible>
+    CreateHTMLButtonAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLBRAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLCanvasAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLCaptionAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLCheckboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLComboboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLFileInputAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLGroupboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLHRAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLImageAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLImageMapAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLLabelAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLLIAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLListboxAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLMediaAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
     CreateHTMLObjectFrameAccessible(nsObjectFrame* aFrame, nsIContent* aContent,
-                                    DocAccessible* aDoc);
+                                    nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLRadioButtonAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLTableAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLTableCellAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLTableRowAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateTextLeafAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHTMLTextFieldAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateHyperTextAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
+  already_AddRefed<Accessible>
+    CreateOuterDocAccessible(nsIContent* aContent, nsIPresShell* aPresShell);
 
   /**
    * Adds/remove ATK root accessible for gtk+ native window to/from children
@@ -140,7 +178,7 @@ public:
    */
   void RecreateAccessible(nsIPresShell* aPresShell, nsIContent* aContent);
 
-  virtual void FireAccessibleEvent(uint32_t aEvent, Accessible* aTarget);
+  virtual void FireAccessibleEvent(PRUint32 aEvent, Accessible* aTarget);
 
   // nsAccessibiltiyService
 
@@ -191,15 +229,7 @@ private:
    */
   already_AddRefed<Accessible>
     CreateHTMLAccessibleByMarkup(nsIFrame* aFrame, nsIContent* aContent,
-                                 DocAccessible* aDoc,
-                                 bool aIsLegalPartOfHTMLTable);
-
-  /**
-   * Create an accessible whose type depends on the given frame.
-   */
-  already_AddRefed<Accessible>
-    CreateAccessibleByFrameType(nsIFrame* aFrame, nsIContent* aContent,
-                                DocAccessible* aDoc);
+                                 DocAccessible* aDoc);
 
   /**
    * Create accessible if parent is a deck frame.
@@ -222,11 +252,6 @@ private:
   static nsAccessibilityService* gAccessibilityService;
 
   /**
-   * Reference for application accessible instance.
-   */
-  static mozilla::a11y::ApplicationAccessible* gApplicationAccessible;
-
-  /**
    * Indicates whether accessibility service was shutdown.
    */
   static bool gIsShutdown;
@@ -242,7 +267,6 @@ private:
 
   friend nsAccessibilityService* GetAccService();
   friend mozilla::a11y::FocusManager* mozilla::a11y::FocusMgr();
-  friend mozilla::a11y::ApplicationAccessible* mozilla::a11y::ApplicationAcc();
 
   friend nsresult NS_GetAccessibilityService(nsIAccessibilityService** aResult);
 };

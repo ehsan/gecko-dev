@@ -5,7 +5,6 @@
 #ifndef nsTitleBarFrame_h___
 #define nsTitleBarFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsBoxFrame.h"
 
 class nsTitleBarFrame : public nsBoxFrame  
@@ -19,15 +18,15 @@ public:
 
   NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                          const nsRect&           aDirtyRect,
-                                         const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                                         const nsDisplayListSet& aLists);
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                                       nsGUIEvent* aEvent,
-                                      nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+                                      nsEventStatus* aEventStatus);
 
   virtual void MouseClicked(nsPresContext* aPresContext, nsGUIEvent* aEvent);
 
-  void UpdateMouseThrough() MOZ_OVERRIDE { AddStateBits(NS_FRAME_MOUSE_THROUGH_NEVER); }
+  void UpdateMouseThrough() { AddStateBits(NS_FRAME_MOUSE_THROUGH_NEVER); }
 
 protected:
 	bool mTrackingMouseMove;	

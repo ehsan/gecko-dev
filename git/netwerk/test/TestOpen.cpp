@@ -11,11 +11,8 @@
 #include "nsIHttpChannel.h"
 #include "nsIInputStream.h"
 #include "nsNetUtil.h"
-#include "mozilla/unused.h"
 
 #include <stdio.h>
-
-using namespace mozilla;
 
 /*
  * Test synchronous Open.
@@ -24,7 +21,7 @@ using namespace mozilla;
 #define RETURN_IF_FAILED(rv, what) \
     PR_BEGIN_MACRO \
     if (NS_FAILED(rv)) { \
-        printf(what ": failed - %08x\n", static_cast<uint32_t>(rv)); \
+        printf(what ": failed - %08x\n", rv); \
         return -1; \
     } \
     PR_END_MACRO
@@ -36,7 +33,7 @@ main(int argc, char **argv)
         return -1;
 
     nsresult rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
-    if (NS_FAILED(rv)) return -1;
+    if (NS_FAILED(rv)) return rv;
 
     char buf[256];
 
@@ -60,9 +57,9 @@ main(int argc, char **argv)
       return 1;
     }
 
-    uint32_t read;
+    PRUint32 read;
     while (NS_SUCCEEDED(stream->Read(buf, sizeof(buf), &read)) && read) {
-      unused << fwrite(buf, 1, read, outfile);
+      fwrite(buf, 1, read, outfile);
     }
     printf("Done\n");
 

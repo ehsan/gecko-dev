@@ -35,7 +35,6 @@
 #include "nsIDOMElement.h"
 #include "nsBindingManager.h"
 #include "nsIServiceManager.h"
-#include "nsXULPopupManager.h"
 
 #include "jsapi.h"
 #include "nsIScriptGlobalObject.h"
@@ -49,7 +48,7 @@ extern nsIWidget         * gRollupWidget;
 static bool gConstructingMenu = false;
 static bool gMenuMethodsSwizzled = false;
 
-int32_t nsMenuX::sIndexingMenuLevel = 0;
+PRInt32 nsMenuX::sIndexingMenuLevel = 0;
 
 
 //
@@ -260,22 +259,22 @@ nsresult nsMenuX::AddMenu(nsMenuX* aMenu)
 }
 
 // Includes all items, including hidden/collapsed ones
-uint32_t nsMenuX::GetItemCount()
+PRUint32 nsMenuX::GetItemCount()
 {
   return mMenuObjectsArray.Length();
 }
 
 // Includes all items, including hidden/collapsed ones
-nsMenuObjectX* nsMenuX::GetItemAt(uint32_t aPos)
+nsMenuObjectX* nsMenuX::GetItemAt(PRUint32 aPos)
 {
-  if (aPos >= (uint32_t)mMenuObjectsArray.Length())
+  if (aPos >= (PRUint32)mMenuObjectsArray.Length())
     return NULL;
 
   return mMenuObjectsArray[aPos];
 }
 
 // Only includes visible items
-nsresult nsMenuX::GetVisibleItemCount(uint32_t &aCount)
+nsresult nsMenuX::GetVisibleItemCount(PRUint32 &aCount)
 {
   aCount = mVisibleItemsCount;
   return NS_OK;
@@ -283,10 +282,10 @@ nsresult nsMenuX::GetVisibleItemCount(uint32_t &aCount)
 
 // Only includes visible items. Note that this is provides O(N) access
 // If you need to iterate or search, consider using GetItemAt and doing your own filtering
-nsMenuObjectX* nsMenuX::GetVisibleItemAt(uint32_t aPos)
+nsMenuObjectX* nsMenuX::GetVisibleItemAt(PRUint32 aPos)
 {
   
-  uint32_t count = mMenuObjectsArray.Length();
+  PRUint32 count = mMenuObjectsArray.Length();
   if (aPos >= mVisibleItemsCount || aPos >= count)
     return NULL;
 
@@ -296,8 +295,8 @@ nsMenuObjectX* nsMenuX::GetVisibleItemAt(uint32_t aPos)
 
   // Otherwise, traverse the array until we find the the item we're looking for.
   nsMenuObjectX* item;
-  uint32_t visibleNodeIndex = 0;
-  for (uint32_t i = 0; i < count; i++) {
+  PRUint32 visibleNodeIndex = 0;
+  for (PRUint32 i = 0; i < count; i++) {
     item = mMenuObjectsArray[i];
     if (!nsMenuUtilsX::NodeIsHiddenOrCollapsed(item->Content())) {
       if (aPos == visibleNodeIndex) {
@@ -319,7 +318,7 @@ nsresult nsMenuX::RemoveAll()
     // clear command id's
     int itemCount = [mNativeMenu numberOfItems];
     for (int i = 0; i < itemCount; i++)
-      mMenuGroupOwner->UnregisterCommand((uint32_t)[[mNativeMenu itemAtIndex:i] tag]);
+      mMenuGroupOwner->UnregisterCommand((PRUint32)[[mNativeMenu itemAtIndex:i] tag]);
     // get rid of Cocoa menu items
     for (int i = [mNativeMenu numberOfItems] - 1; i >= 0; i--)
       [mNativeMenu removeItemAtIndex:i];
@@ -432,8 +431,8 @@ void nsMenuX::MenuConstruct()
   }
 
   // Iterate over the kids
-  uint32_t count = menuPopup->GetChildCount();
-  for (uint32_t i = 0; i < count; i++) {
+  PRUint32 count = menuPopup->GetChildCount();
+  for (PRUint32 i = 0; i < count; i++) {
     nsIContent *child = menuPopup->GetChildAt(i);
     if (child) {
       // depending on the type, create a menu item, separator, or submenu
@@ -574,7 +573,7 @@ bool nsMenuX::OnOpen()
     return false;
 
   // If the open is going to succeed we need to walk our menu items, checking to
-  // see if any of them have a command attribute. If so, several attributes
+  // see if any of them have a command attribute. If so, several apptributes
   // must potentially be updated.
 
   // Get new popup content first since it might have changed as a result of the
@@ -583,9 +582,56 @@ bool nsMenuX::OnOpen()
   if (!popupContent)
     return true;
 
-  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm) {
-    pm->UpdateMenuItems(popupContent);
+  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(popupContent->GetDocument()));
+  if (!domDoc)
+    return true;
+
+  PRUint32 count = popupContent->GetChildCount();
+  for (PRUint32 i = 0; i < count; i++) {
+    nsIContent *grandChild = popupContent->GetChildAt(i);
+    if (grandChild->Tag() == nsGkAtoms::menuitem) {
+      // See if we have a command attribute.
+      nsAutoString command;
+      grandChild->GetAttr(kNameSpaceID_None, nsGkAtoms::command, command);
+      if (!command.IsEmpty()) {
+        // We do! Look it up in our document
+        nsCOMPtr<nsIDOMElement> commandElt;
+        domDoc->GetElementById(command, getter_AddRefs(commandElt));
+        nsCOMPtr<nsIContent> commandContent(do_QueryInterface(commandElt));
+        
+        if (commandContent) {
+          nsAutoString commandDisabled, menuDisabled;
+          commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::disabled, commandDisabled);
+          grandChild->GetAttr(kNameSpaceID_None, nsGkAtoms::disabled, menuDisabled);
+          if (!commandDisabled.Equals(menuDisabled)) {
+            // The menu's disabled state needs to be updated to match the command.
+            if (commandDisabled.IsEmpty()) 
+              grandChild->UnsetAttr(kNameSpaceID_None, nsGkAtoms::disabled, true);
+            else
+              grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled, commandDisabled, true);
+          }
+          
+          // The menu's value and checked states need to be updated to match the command.
+          // Note that (unlike the disabled state) if the command has *no* value for either, we
+          // assume the menu is supplying its own.
+          nsAutoString commandChecked, menuChecked;
+          commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::checked, commandChecked);
+          grandChild->GetAttr(kNameSpaceID_None, nsGkAtoms::checked, menuChecked);
+          if (!commandChecked.Equals(menuChecked)) {
+            if (!commandChecked.IsEmpty()) 
+              grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::checked, commandChecked, true);
+          }
+          
+          nsAutoString commandValue, menuValue;
+          commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::label, commandValue);
+          grandChild->GetAttr(kNameSpaceID_None, nsGkAtoms::label, menuValue);
+          if (!commandValue.Equals(menuValue)) {
+            if (!commandValue.IsEmpty()) 
+              grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::label, commandValue, true);
+          }
+        }
+      }
+    }
   }
 
   return true;
@@ -628,7 +674,7 @@ void nsMenuX::GetMenuPopupContent(nsIContent** aResult)
   
   // Check to see if we are a "menupopup" node (if we are a native menu).
   {
-    int32_t dummy;
+    PRInt32 dummy;
     nsCOMPtr<nsIAtom> tag = mContent->OwnerDoc()->BindingManager()->ResolveTag(mContent, &dummy);
     if (tag == nsGkAtoms::menupopup) {
       *aResult = mContent;
@@ -639,10 +685,10 @@ void nsMenuX::GetMenuPopupContent(nsIContent** aResult)
 
   // Otherwise check our child nodes.
   
-  uint32_t count = mContent->GetChildCount();
+  PRUint32 count = mContent->GetChildCount();
 
-  for (uint32_t i = 0; i < count; i++) {
-    int32_t dummy;
+  for (PRUint32 i = 0; i < count; i++) {
+    PRInt32 dummy;
     nsIContent *child = mContent->GetChildAt(i);
     nsCOMPtr<nsIAtom> tag = child->OwnerDoc()->BindingManager()->ResolveTag(child, &dummy);
     if (tag == nsGkAtoms::menupopup) {
@@ -756,7 +802,7 @@ void nsMenuX::ObserveAttributeChanged(nsIDocument *aDocument, nsIContent *aConte
 }
 
 void nsMenuX::ObserveContentRemoved(nsIDocument *aDocument, nsIContent *aChild,
-                                    int32_t aIndexInContainer)
+                                    PRInt32 aIndexInContainer)
 {
   if (gConstructingMenu)
     return;
@@ -808,7 +854,7 @@ nsresult nsMenuX::SetupIcon()
   if (!menu || !item || !mGeckoMenu)
     return;
 
-  nsMenuObjectX* target = mGeckoMenu->GetVisibleItemAt((uint32_t)[menu indexOfItem:item]);
+  nsMenuObjectX* target = mGeckoMenu->GetVisibleItemAt((PRUint32)[menu indexOfItem:item]);
   if (target && (target->MenuObjectType() == eMenuItemObjectType)) {
     nsMenuItemX* targetMenuItem = static_cast<nsMenuItemX*>(target);
     bool handlerCalledPreventDefault; // but we don't actually care
@@ -1034,7 +1080,7 @@ static NSMutableDictionary *gShadowKeyEquivDB = nil;
 - (void)nsMenuX_SCTGRLIndex_indexMenuBarDynamically
 {
   // This method appears to be called (once) whenever the OS (re)indexes our
-  // menus.  sIndexingMenuLevel is a int32_t just in case it might be
+  // menus.  sIndexingMenuLevel is a PRInt32 just in case it might be
   // reentered.  As it's running, it spawns calls to two undocumented
   // HIToolbox methods (_SimulateMenuOpening() and _SimulateMenuClosed()),
   // which "simulate" the opening and closing of our menus without actually

@@ -28,6 +28,7 @@
 #ifdef MOZ_MEDIA
 #include "nsHTMLMediaElement.h"
 #endif // MOZ_MEDIA
+#include "nsImageLoadingContent.h"
 #include "jsgc.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsObjectLoadingContent.h"
@@ -58,7 +59,7 @@ using namespace mozilla::dom;
         slots->mMutationObservers, nsIMutationObserver,           \
         func_, params_);                                          \
     }                                                             \
-    node = node->GetParentNode();                                 \
+    node = node->GetNodeParent();                                 \
   } while (node);                                                 \
   if (needsEnterLeave) {                                          \
     nsDOMMutationObserver::LeaveMutationHandling();               \
@@ -85,9 +86,9 @@ nsNodeUtils::CharacterDataChanged(nsIContent* aContent,
 
 void
 nsNodeUtils::AttributeWillChange(Element* aElement,
-                                 int32_t aNameSpaceID,
+                                 PRInt32 aNameSpaceID,
                                  nsIAtom* aAttribute,
-                                 int32_t aModType)
+                                 PRInt32 aModType)
 {
   nsIDocument* doc = aElement->OwnerDoc();
   IMPL_MUTATION_NOTIFICATION(AttributeWillChange, aElement,
@@ -97,9 +98,9 @@ nsNodeUtils::AttributeWillChange(Element* aElement,
 
 void
 nsNodeUtils::AttributeChanged(Element* aElement,
-                              int32_t aNameSpaceID,
+                              PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t aModType)
+                              PRInt32 aModType)
 {
   nsIDocument* doc = aElement->OwnerDoc();
   IMPL_MUTATION_NOTIFICATION(AttributeChanged, aElement,
@@ -108,19 +109,9 @@ nsNodeUtils::AttributeChanged(Element* aElement,
 }
 
 void
-nsNodeUtils::AttributeSetToCurrentValue(Element* aElement,
-                                        int32_t aNameSpaceID,
-                                        nsIAtom* aAttribute)
-{
-  nsIDocument* doc = aElement->OwnerDoc();
-  IMPL_MUTATION_NOTIFICATION(AttributeSetToCurrentValue, aElement,
-                             (doc, aElement, aNameSpaceID, aAttribute));
-}
-
-void
 nsNodeUtils::ContentAppended(nsIContent* aContainer,
                              nsIContent* aFirstNewContent,
-                             int32_t aNewIndexInContainer)
+                             PRInt32 aNewIndexInContainer)
 {
   nsIDocument* doc = aContainer->OwnerDoc();
 
@@ -132,7 +123,7 @@ nsNodeUtils::ContentAppended(nsIContent* aContainer,
 void
 nsNodeUtils::ContentInserted(nsINode* aContainer,
                              nsIContent* aChild,
-                             int32_t aIndexInContainer)
+                             PRInt32 aIndexInContainer)
 {
   NS_PRECONDITION(aContainer->IsNodeOfType(nsINode::eCONTENT) ||
                   aContainer->IsNodeOfType(nsINode::eDOCUMENT),
@@ -156,7 +147,7 @@ nsNodeUtils::ContentInserted(nsINode* aContainer,
 void
 nsNodeUtils::ContentRemoved(nsINode* aContainer,
                             nsIContent* aChild,
-                            int32_t aIndexInContainer,
+                            PRInt32 aIndexInContainer,
                             nsIContent* aPreviousSibling)
 {
   NS_PRECONDITION(aContainer->IsNodeOfType(nsINode::eCONTENT) ||
@@ -262,7 +253,7 @@ nsNodeUtils::LastRelease(nsINode* aNode)
 
 struct NS_STACK_CLASS nsHandlerData
 {
-  uint16_t mOperation;
+  PRUint16 mOperation;
   nsCOMPtr<nsIDOMNode> mSource;
   nsCOMPtr<nsIDOMNode> mDest;
   nsCxPusher mPusher;
@@ -292,7 +283,7 @@ CallHandler(void *aObject, nsIAtom *aKey, void *aHandler, void *aData)
 nsresult
 nsNodeUtils::CallUserDataHandlers(nsCOMArray<nsINode> &aNodesWithProperties,
                                   nsIDocument *aOwnerDocument,
-                                  uint16_t aOperation, bool aCloned)
+                                  PRUint16 aOperation, bool aCloned)
 {
   NS_PRECONDITION(!aCloned || (aNodesWithProperties.Count() % 2 == 0),
                   "Expected aNodesWithProperties to contain original and "
@@ -317,7 +308,7 @@ nsNodeUtils::CallUserDataHandlers(nsCOMArray<nsINode> &aNodesWithProperties,
   nsHandlerData handlerData;
   handlerData.mOperation = aOperation;
 
-  uint32_t i, count = aNodesWithProperties.Count();
+  PRUint32 i, count = aNodesWithProperties.Count();
   for (i = 0; i < count; ++i) {
     nsINode *nodeWithProperties = aNodesWithProperties[i];
 
@@ -359,11 +350,11 @@ nsNodeUtils::TraverseUserData(nsINode* aNode,
 nsresult
 nsNodeUtils::CloneNodeImpl(nsINode *aNode, bool aDeep,
                            bool aCallUserDataHandlers,
-                           nsINode **aResult)
+                           nsIDOMNode **aResult)
 {
   *aResult = nullptr;
 
-  nsCOMPtr<nsINode> newNode;
+  nsCOMPtr<nsIDOMNode> newNode;
   nsCOMArray<nsINode> nodesWithProperties;
   nsresult rv = Clone(aNode, aDeep, nullptr, nodesWithProperties,
                       getter_AddRefs(newNode));
@@ -520,9 +511,16 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
         olc->NotifyOwnerDocumentActivityChanged();
       }
     }
- 
-    if (oldDoc != newDoc && oldDoc->MayHaveDOMMutationObservers()) {
-      newDoc->SetMayHaveDOMMutationObservers();
+
+    // nsImageLoadingContent needs to know when its document changes
+    if (oldDoc != newDoc) {
+      nsCOMPtr<nsIImageLoadingContent> imageContent(do_QueryInterface(aNode));
+      if (imageContent) {
+        imageContent->NotifyOwnerDocumentChanged(oldDoc);
+      }
+      if (oldDoc->MayHaveDOMMutationObservers()) {
+        newDoc->SetMayHaveDOMMutationObservers();
+      }
     }
 
     if (elem) {

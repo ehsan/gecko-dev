@@ -13,6 +13,7 @@
 #include <netcon.h>
 #include <objbase.h>
 #include <iprtrmib.h>
+#include "prmem.h"
 #include "plstr.h"
 #include "nsThreadUtils.h"
 #include "nsIObserverService.h"
@@ -90,7 +91,7 @@ nsNotifyAddrListener::GetLinkStatusKnown(bool *aIsUp)
 }
 
 NS_IMETHODIMP
-nsNotifyAddrListener::GetLinkType(uint32_t *aLinkType)
+nsNotifyAddrListener::GetLinkType(PRUint32 *aLinkType)
 {
   NS_ENSURE_ARG_POINTER(aLinkType);
 

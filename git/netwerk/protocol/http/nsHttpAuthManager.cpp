@@ -47,7 +47,7 @@ nsHttpAuthManager::~nsHttpAuthManager()
 NS_IMETHODIMP
 nsHttpAuthManager::GetAuthIdentity(const nsACString & aScheme,
                                    const nsACString & aHost,
-                                   int32_t aPort,
+                                   PRInt32 aPort,
                                    const nsACString & aAuthType,
                                    const nsACString & aRealm,
                                    const nsACString & aPath,
@@ -84,7 +84,7 @@ nsHttpAuthManager::GetAuthIdentity(const nsACString & aScheme,
 NS_IMETHODIMP
 nsHttpAuthManager::SetAuthIdentity(const nsACString & aScheme,
                                    const nsACString & aHost,
-                                   int32_t aPort,
+                                   PRInt32 aPort,
                                    const nsACString & aAuthType,
                                    const nsACString & aRealm,
                                    const nsACString & aPath,

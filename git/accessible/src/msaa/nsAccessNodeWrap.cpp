@@ -47,7 +47,7 @@ nsAccessNodeWrap::~nsAccessNodeWrap()
 // nsISupports methods
 //-----------------------------------------------------
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsAccessNodeWrap, nsAccessNode, nsIWinAccessNode)
+NS_IMPL_ISUPPORTS_INHERITED1(nsAccessNodeWrap, nsAccessNode, nsIWinAccessNode);
 
 //-----------------------------------------------------
 // nsIWinAccessNode methods
@@ -56,8 +56,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsAccessNodeWrap, nsAccessNode, nsIWinAccessNode)
 NS_IMETHODIMP
 nsAccessNodeWrap::QueryNativeInterface(REFIID aIID, void** aInstancePtr)
 {
-  // XXX Wrong for E_NOINTERFACE
-  return static_cast<nsresult>(QueryInterface(aIID, aInstancePtr));
+  return QueryInterface(aIID, aInstancePtr);
 }
 
 //-----------------------------------------------------
@@ -92,7 +91,7 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
   // A use case for this is for screen readers that need to switch context or
   // 'virtual buffer' when focus moves from one browser tab area to another.
   static const GUID SID_IAccessibleContentDocument =
-    { 0xa5d8e1f3,0x3571,0x4d8f,{0x95,0x21,0x07,0xed,0x28,0xfb,0x07,0x2e} };
+    { 0xa5d8e1f3,0x3571,0x4d8f,0x95,0x21,0x07,0xed,0x28,0xfb,0x07,0x2e };
   if (guidService == SID_IAccessibleContentDocument) {
     if (iid != IID_IAccessible)
       return E_NOINTERFACE;
@@ -112,7 +111,7 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
 
     // If the item type is typeContent, we assume we are in browser tab content.
     // Note this includes content such as about:addons, for consistency.
-    int32_t itemType;
+    PRInt32 itemType;
     root->GetItemType(&itemType);
     if (itemType != nsIDocShellTreeItem::typeContent)
       return E_NOINTERFACE;
@@ -125,12 +124,12 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
     *ppv = static_cast<IAccessible*>(docAcc);
 
     (reinterpret_cast<IUnknown*>(*ppv))->AddRef();
-    return S_OK;
+    return NS_OK;
   }
 
   // Can get to IAccessibleApplication from any node via QS
   if (guidService == IID_IAccessibleApplication) {
-    ApplicationAccessible* applicationAcc = ApplicationAcc();
+    ApplicationAccessible* applicationAcc = GetApplicationAccessible();
     if (!applicationAcc)
       return E_NOINTERFACE;
 
@@ -153,7 +152,7 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
    */
 
   static const GUID IID_SimpleDOMDeprecated =
-    { 0x0c539790,0x12e4,0x11cf,{0xb6,0x61,0x00,0xaa,0x00,0x4c,0xd6,0xd8} };
+    { 0x0c539790,0x12e4,0x11cf,0xb6,0x61,0x00,0xaa,0x00,0x4c,0xd6,0xd8 };
   if (guidService == IID_ISimpleDOMNode ||
       guidService == IID_SimpleDOMDeprecated ||
       guidService == IID_IAccessible ||  guidService == IID_IAccessible2)
@@ -184,7 +183,7 @@ __try{
 
   nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(node));
 
-  uint16_t nodeType = 0;
+  PRUint16 nodeType = 0;
   DOMNode->GetNodeType(&nodeType);
   *aNodeType=static_cast<unsigned short>(nodeType);
 
@@ -229,12 +228,12 @@ __try{
   if (!mContent || IsDocumentNode())
     return E_FAIL;
 
-  uint32_t numAttribs = mContent->GetAttrCount();
+  PRUint32 numAttribs = mContent->GetAttrCount();
   if (numAttribs > aMaxAttribs)
     numAttribs = aMaxAttribs;
   *aNumAttribs = static_cast<unsigned short>(numAttribs);
 
-  for (uint32_t index = 0; index < numAttribs; index++) {
+  for (PRUint32 index = 0; index < numAttribs; index++) {
     aNameSpaceIDs[index] = 0; aAttribValues[index] = aAttribNames[index] = nullptr;
     nsAutoString attributeValue;
 
@@ -264,7 +263,7 @@ __try {
   nsCOMPtr<nsINameSpaceManager> nameSpaceManager =
     do_GetService(NS_NAMESPACEMANAGER_CONTRACTID);
 
-  int32_t index;
+  PRInt32 index;
 
   for (index = 0; index < aNumAttribs; index++) {
     aAttribValues[index] = nullptr;
@@ -306,10 +305,10 @@ __try{
     nsWinUtils::GetComputedStyleDeclaration(mContent);
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
-  uint32_t length;
+  PRUint32 length;
   cssDecl->GetLength(&length);
 
-  uint32_t index, realIndex;
+  PRUint32 index, realIndex;
   for (index = realIndex = 0; index < length && realIndex < aMaxStyleProperties; index ++) {
     nsAutoString property, value;
     if (NS_SUCCEEDED(cssDecl->Item(index, property)) && property.CharAt(0) != '-')  // Ignore -moz-* properties
@@ -341,7 +340,7 @@ __try {
     nsWinUtils::GetComputedStyleDeclaration(mContent);
   NS_ENSURE_TRUE(cssDecl, E_FAIL);
 
-  uint32_t index;
+  PRUint32 index;
   for (index = 0; index < aNumStyleProperties; index ++) {
     nsAutoString value;
     if (aStyleProperties[index])
@@ -356,7 +355,7 @@ __try {
 STDMETHODIMP nsAccessNodeWrap::scrollTo(/* [in] */ boolean aScrollTopLeft)
 {
 __try {
-  uint32_t scrollType =
+  PRUint32 scrollType =
     aScrollTopLeft ? nsIAccessibleScrollType::SCROLL_TYPE_TOP_LEFT :
                      nsIAccessibleScrollType::SCROLL_TYPE_BOTTOM_RIGHT;
 
@@ -409,7 +408,7 @@ __try {
   if (!node)
     return E_FAIL;
 
-  *aNode = MakeAccessNode(node->GetParentNode());
+  *aNode = MakeAccessNode(node->GetNodeParent());
 
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
@@ -501,7 +500,7 @@ __try {
     return E_FAIL; // Node already shut down
 
   nsAutoString innerHTML;
-  htmlElement->GetDOMInnerHTML(innerHTML);
+  htmlElement->GetInnerHTML(innerHTML);
   if (innerHTML.IsEmpty())
     return S_FALSE;
 
@@ -558,6 +557,8 @@ void nsAccessNodeWrap::ShutdownAccessibility()
   ::DestroyCaret();
 
   nsWinUtils::ShutdownWindowEmulation();
+
+  nsAccessNode::ShutdownXPAccessibility();
 }
 
 int nsAccessNodeWrap::FilterA11yExceptions(unsigned int aCode, EXCEPTION_POINTERS *aExceptionInfo)

@@ -31,14 +31,14 @@ public:
                    nsRenderingContext* aRenderingContext = nullptr,
                    // see OuterReflowState() below
                    const nsHTMLReflowState* aOuterReflowState = nullptr,
-                   uint16_t aReflowDepth = 0) NS_HIDDEN;
+                   PRUint16 aReflowDepth = 0) NS_HIDDEN;
   nsBoxLayoutState(const nsBoxLayoutState& aState) NS_HIDDEN;
 
   nsPresContext* PresContext() const { return mPresContext; }
   nsIPresShell* PresShell() const { return mPresContext->PresShell(); }
 
-  uint32_t LayoutFlags() const { return mLayoutFlags; }
-  void SetLayoutFlags(uint32_t aFlags) { mLayoutFlags = aFlags; }
+  PRUint32 LayoutFlags() const { return mLayoutFlags; }
+  void SetLayoutFlags(PRUint32 aFlags) { mLayoutFlags = aFlags; }
 
   // if true no one under us will paint during reflow.
   void SetPaintingDisabled(bool aDisable) { mPaintingDisabled = aDisable; }
@@ -61,14 +61,14 @@ public:
   // May not be set reliably yet.
   const nsHTMLReflowState* OuterReflowState() { return mOuterReflowState; }
 
-  uint16_t GetReflowDepth() { return mReflowDepth; }
+  PRUint16 GetReflowDepth() { return mReflowDepth; }
   
 private:
   nsRefPtr<nsPresContext> mPresContext;
   nsRenderingContext *mRenderingContext;
   const nsHTMLReflowState *mOuterReflowState;
-  uint32_t mLayoutFlags;
-  uint16_t mReflowDepth; 
+  PRUint32 mLayoutFlags;
+  PRUint16 mReflowDepth; 
   bool mPaintingDisabled;
 };
 

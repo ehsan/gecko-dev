@@ -8,7 +8,6 @@
 #ifndef nsXULLabelFrame_h_
 #define nsXULLabelFrame_h_
 
-#include "mozilla/Attributes.h"
 #include "nsBlockFrame.h"
 
 #ifndef MOZ_XUL
@@ -28,21 +27,21 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
-  NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t aModType) MOZ_OVERRIDE;
+                              PRInt32 aModType);
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::XULLabelFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const;
   
 #ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+  NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
 protected:

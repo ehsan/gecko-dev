@@ -101,11 +101,7 @@ if (typeof Components != "undefined") {
                stack.push("..");
              }
            } else {
-             if (stack[stack.length - 1] == "..") {
-               stack.push("..");
-             } else {
-               stack.pop();
-             }
+             stack.pop();
            }
            break;
          default:
@@ -133,6 +129,4 @@ if (typeof Components != "undefined") {
        };
      }
    };
-
-   exports.OS.Path = exports.OS.Unix.Path;
 }(this));

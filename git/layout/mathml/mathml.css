@@ -182,14 +182,11 @@ math[display="inline"] {
 ms {
   display: inline;
 }
-ms:before, ms:after {
-  content: "\0022";
+ms:before {
+  content: open-quote;
 }
-ms[lquote]:before {
-  content: attr(lquote);
-}
-ms[rquote]:after {
-  content: attr(rquote);
+ms:after {
+  content: close-quote;
 }
 
 merror {

@@ -17,7 +17,7 @@ NS_IMPL_ISUPPORTS1(AboutRedirector, nsIAboutModule)
 struct RedirEntry {
   const char* id;
   const char* url;
-  uint32_t flags;  // See nsIAboutModule.  The URI_SAFE_FOR_UNTRUSTED_CONTENT
+  PRUint32 flags;  // See nsIAboutModule.  The URI_SAFE_FOR_UNTRUSTED_CONTENT
                    // flag does double duty here -- if it's not set, we don't
                    // drop chrome privileges.
 };
@@ -41,9 +41,6 @@ static RedirEntry kRedirMap[] = {
 #endif
   { "certerror", "chrome://browser/content/certerror/aboutCertError.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-    nsIAboutModule::ALLOW_SCRIPT |
-    nsIAboutModule::HIDE_FROM_ABOUTABOUT },
-  { "socialerror", "chrome://browser/content/aboutSocialError.xhtml",
     nsIAboutModule::ALLOW_SCRIPT |
     nsIAboutModule::HIDE_FROM_ABOUTABOUT },
   { "feeds", "chrome://browser/content/feeds/subscribe.xhtml",
@@ -83,13 +80,13 @@ static RedirEntry kRedirMap[] = {
 };
 static const int kRedirTotal = NS_ARRAY_LENGTH(kRedirMap);
 
-static nsAutoCString
+static nsCAutoString
 GetAboutModuleName(nsIURI *aURI)
 {
-  nsAutoCString path;
+  nsCAutoString path;
   aURI->GetPath(path);
 
-  int32_t f = path.FindChar('#');
+  PRInt32 f = path.FindChar('#');
   if (f >= 0)
     path.SetLength(f);
 
@@ -107,7 +104,7 @@ AboutRedirector::NewChannel(nsIURI *aURI, nsIChannel **result)
   NS_ENSURE_ARG_POINTER(aURI);
   NS_ASSERTION(result, "must not be null");
 
-  nsAutoCString path = GetAboutModuleName(aURI);
+  nsCAutoString path = GetAboutModuleName(aURI);
 
   nsresult rv;
   nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
@@ -140,11 +137,11 @@ AboutRedirector::NewChannel(nsIURI *aURI, nsIChannel **result)
 }
 
 NS_IMETHODIMP
-AboutRedirector::GetURIFlags(nsIURI *aURI, uint32_t *result)
+AboutRedirector::GetURIFlags(nsIURI *aURI, PRUint32 *result)
 {
   NS_ENSURE_ARG_POINTER(aURI);
 
-  nsAutoCString name = GetAboutModuleName(aURI);
+  nsCAutoString name = GetAboutModuleName(aURI);
 
   for (int i = 0; i < kRedirTotal; i++) {
     if (name.Equals(kRedirMap[i].id)) {

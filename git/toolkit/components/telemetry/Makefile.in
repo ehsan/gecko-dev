@@ -25,20 +25,16 @@ EXPORTS_NAMESPACES = mozilla
 
 EXPORTS_mozilla = \
   Telemetry.h \
-  ProcessedStack.h \
-  TelemetryHistogramEnums.h \
+  TelemetryHistograms.h \
   $(NULL)
 
 XPIDLSRCS = \
   nsITelemetry.idl \
   $(NULL)
 
-EXTRA_PP_COMPONENTS = \
-  TelemetryPing.js \
-  $(NULL)
-
 EXTRA_COMPONENTS = \
   TelemetryPing.manifest \
+  TelemetryPing.js \
   $(NULL)
 
 EXTRA_JS_MODULES = \
@@ -63,26 +59,3 @@ endif
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/config/rules.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
-
-histograms_file := $(srcdir)/Histograms.json
-histogram_enum_file := TelemetryHistogramEnums.h
-histogram_data_file := TelemetryHistogramData.inc
-
-enum_python_deps := \
-  $(srcdir)/gen-histogram-enum.py \
-  $(srcdir)/histogram_tools.py \
-  $(NULL)
-
-data_python_deps := \
-  $(srcdir)/gen-histogram-data.py \
-  $(srcdir)/histogram_tools.py \
-  $(NULL)
-
-$(histogram_enum_file): $(histograms_file) $(enum_python_deps)
-	$(PYTHON) $(srcdir)/gen-histogram-enum.py $< > $@
-$(histogram_data_file): $(histograms_file) $(data_python_deps)
-	$(PYTHON) $(srcdir)/gen-histogram-data.py $< > $@
-
-Telemetry.$(OBJ_SUFFIX): $(histogram_data_file)
-
-GARBAGE += $(histogram_data_file) $(histogram_enum_file)

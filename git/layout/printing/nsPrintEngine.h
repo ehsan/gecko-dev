@@ -13,10 +13,6 @@
 #include "nsPrintData.h"
 #include "nsFrameList.h"
 #include "mozilla/Attributes.h"
-#include "nsIWebProgress.h"
-#include "nsHTMLCanvasElement.h"
-#include "nsIWebProgressListener.h"
-#include "nsWeakReference.h"
 
 // Interfaces
 #include "nsIDocument.h"
@@ -37,9 +33,7 @@ class nsIWeakReference;
 // nsPrintEngine Class
 //
 //------------------------------------------------------------------------
-class nsPrintEngine MOZ_FINAL : public nsIObserver,
-                                public nsIWebProgressListener,
-                                public nsSupportsWeakReference
+class nsPrintEngine MOZ_FINAL : public nsIObserver
 {
 public:
   // nsISupports interface...
@@ -47,8 +41,6 @@ public:
 
   // nsIObserver
   NS_DECL_NSIOBSERVER
-
-  NS_DECL_NSIWEBPROGRESSLISTENER
 
   // Old nsIWebBrowserPrint methods; not cleaned up yet
   NS_IMETHOD Print(nsIPrintSettings*       aPrintSettings,
@@ -60,8 +52,8 @@ public:
   NS_IMETHOD GetIsIFrameSelected(bool *aIsIFrameSelected);
   NS_IMETHOD GetIsRangeSelection(bool *aIsRangeSelection);
   NS_IMETHOD GetIsFramesetFrameSelected(bool *aIsFramesetFrameSelected);
-  NS_IMETHOD GetPrintPreviewNumPages(int32_t *aPrintPreviewNumPages);
-  NS_IMETHOD EnumerateDocumentNames(uint32_t* aCount, PRUnichar*** aResult);
+  NS_IMETHOD GetPrintPreviewNumPages(PRInt32 *aPrintPreviewNumPages);
+  NS_IMETHOD EnumerateDocumentNames(PRUint32* aCount, PRUnichar*** aResult);
   static nsresult GetGlobalPrintSettings(nsIPrintSettings** aPrintSettings);
   NS_IMETHOD GetDoingPrint(bool *aDoingPrint);
   NS_IMETHOD GetDoingPrintPreview(bool *aDoingPrintPreview);
@@ -88,7 +80,7 @@ public:
                       float                   aScreenDPI,
                       FILE*                   aDebugFile);
 
-  nsresult GetSeqFrameAndCountPages(nsIFrame*& aSeqFrame, int32_t& aCount);
+  nsresult GetSeqFrameAndCountPages(nsIFrame*& aSeqFrame, PRInt32& aCount);
 
   //
   // The following three methods are used for printing...
@@ -111,8 +103,6 @@ public:
   void InstallPrintPreviewListener();
 
   // nsIDocumentViewerPrint Printing Methods
-  bool     HasPrintCallbackCanvas();
-  bool     PrePrintPage();
   bool     PrintPage(nsPrintObject* aPOect, bool& aInRange);
   bool     DonePrintingPages(nsPrintObject* aPO, nsresult aResult);
 
@@ -126,7 +116,7 @@ public:
 
   void CheckForChildFrameSets(nsPrintObject* aPO);
 
-  void CalcNumPrintablePages(int32_t& aNumPages);
+  void CalcNumPrintablePages(PRInt32& aNumPages);
   void ShowPrintProgress(bool aIsForPrinting, bool& aDoNotify);
   nsresult CleanupOnFailure(nsresult aResult, bool aIsPrinting);
   // If FinishPrintPreview() fails, caller may need to reset the state of the
@@ -135,9 +125,9 @@ public:
   static void CloseProgressDialog(nsIWebProgressListener* aWebProgressListener);
   void SetDocAndURLIntoProgress(nsPrintObject* aPO,
                                 nsIPrintProgressParams* aParams);
-  void ElipseLongString(PRUnichar *& aStr, const uint32_t aLen, bool aDoFront);
+  void ElipseLongString(PRUnichar *& aStr, const PRUint32 aLen, bool aDoFront);
   nsresult CheckForPrinters(nsIPrintSettings* aPrintSettings);
-  void CleanupDocTitleArray(PRUnichar**& aArray, int32_t& aCount);
+  void CleanupDocTitleArray(PRUnichar**& aArray, PRInt32& aCount);
 
   bool IsThereARangeSelection(nsIDOMWindow * aDOMWin);
 
@@ -217,7 +207,7 @@ protected:
   void FirePrintCompletionEvent();
   static nsresult GetSeqFrameAndCountPagesInternal(nsPrintObject*  aPO,
                                                    nsIFrame*&      aSeqFrame,
-                                                   int32_t&        aCount);
+                                                   PRInt32&        aCount);
 
   static nsresult FindSelectionBoundsWithList(nsPresContext* aPresContext,
                                               nsRenderingContext& aRC,
@@ -244,10 +234,10 @@ protected:
                                            nsISelection*         aSelection,
                                            nsIPageSequenceFrame* aPageSeqFrame,
                                            nsIFrame**            aStartFrame,
-                                           int32_t&              aStartPageNum,
+                                           PRInt32&              aStartPageNum,
                                            nsRect&               aStartRect,
                                            nsIFrame**            aEndFrame,
-                                           int32_t&              aEndPageNum,
+                                           PRInt32&              aEndPageNum,
                                            nsRect&               aEndRect);
 
   static void MapContentForPO(nsPrintObject* aPO, nsIContent* aContent);
@@ -278,23 +268,6 @@ protected:
 
   FILE* mDebugFile;
 
-  int32_t mLoadCounter;
-  bool mDidLoadDataForPrinting;
-
-  nsresult AfterNetworkPrint(bool aHandleError);
-
-  nsresult SetRootView(nsPrintObject* aPO,
-                       bool& aDoReturn,
-                       bool& aDocumentIsTopLevel,
-                       nsSize& aAdjSize);
-  nsIView* GetParentViewForRoot();
-  bool DoSetPixelScale();
-  void UpdateZoomRatio(nsPrintObject* aPO, bool aSetPixelScale);
-  nsresult ReconstructAndReflow(bool aDoSetPixelScale);
-  nsresult UpdateSelectionAndShrinkPrintObject(nsPrintObject* aPO,
-                                               bool aDocumentIsTopLevel);
-  nsresult InitPrintDocConstruction(bool aHandleError);
-  void FirePrintPreviewUpdateEvent();
 private:
   nsPrintEngine& operator=(const nsPrintEngine& aOther) MOZ_DELETE;
 };

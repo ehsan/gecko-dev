@@ -41,6 +41,9 @@ static const char *kPrintProgressDialogURL  = "chrome://global/content/printProg
 static const char *kPrtPrvProgressDialogURL = "chrome://global/content/printPreviewProgress.xul";
 static const char *kPageSetupDialogURL      = "chrome://global/content/printPageSetup.xul";
 
+// Static Data 
+static HINSTANCE gInstance;
+
 /****************************************************************
  ************************* ParamBlock ***************************
  ****************************************************************/
@@ -93,6 +96,7 @@ HWND
 nsPrintingPromptService::GetHWNDForDOMWindow(nsIDOMWindow *aWindow)
 {
     nsCOMPtr<nsIWebBrowserChrome> chrome;
+    HWND hWnd = NULL;
 
     // We might be embedded so check this path first
     if (mWatcher) {
@@ -221,7 +225,7 @@ nsPrintingPromptService::ShowPageSetup(nsIDOMWindow *parent, nsIPrintSettings *p
     // so we want to pass back NS_ERROR_ABORT on cancel
     if (NS_SUCCEEDED(rv)) 
     {
-      int32_t status;
+      PRInt32 status;
       block->GetInt(0, &status);
       return status == 0?NS_ERROR_ABORT:NS_OK;
     }
@@ -295,7 +299,7 @@ nsPrintingPromptService::DoDialog(nsIDOMWindow *aParent,
 
 /* void onStateChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in long aStateFlags, in nsresult aStatus); */
 NS_IMETHODIMP 
-nsPrintingPromptService::OnStateChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, uint32_t aStateFlags, nsresult aStatus)
+nsPrintingPromptService::OnStateChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, PRUint32 aStateFlags, nsresult aStatus)
 {
     if ((aStateFlags & STATE_STOP) && mWebProgressListener) 
     {
@@ -312,7 +316,7 @@ nsPrintingPromptService::OnStateChange(nsIWebProgress *aWebProgress, nsIRequest 
 
 /* void onProgressChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in long aCurSelfProgress, in long aMaxSelfProgress, in long aCurTotalProgress, in long aMaxTotalProgress); */
 NS_IMETHODIMP 
-nsPrintingPromptService::OnProgressChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, int32_t aCurSelfProgress, int32_t aMaxSelfProgress, int32_t aCurTotalProgress, int32_t aMaxTotalProgress)
+nsPrintingPromptService::OnProgressChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, PRInt32 aCurSelfProgress, PRInt32 aMaxSelfProgress, PRInt32 aCurTotalProgress, PRInt32 aMaxTotalProgress)
 {
   if (mWebProgressListener) 
   {
@@ -323,7 +327,7 @@ nsPrintingPromptService::OnProgressChange(nsIWebProgress *aWebProgress, nsIReque
 
 /* void onLocationChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in nsIURI location, in unsigned long aFlags); */
 NS_IMETHODIMP 
-nsPrintingPromptService::OnLocationChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, nsIURI *location, uint32_t aFlags)
+nsPrintingPromptService::OnLocationChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, nsIURI *location, PRUint32 aFlags)
 {
   if (mWebProgressListener) 
   {
@@ -345,7 +349,7 @@ nsPrintingPromptService::OnStatusChange(nsIWebProgress *aWebProgress, nsIRequest
 
 /* void onSecurityChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in unsigned long state); */
 NS_IMETHODIMP 
-nsPrintingPromptService::OnSecurityChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, uint32_t state)
+nsPrintingPromptService::OnSecurityChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, PRUint32 state)
 {
   if (mWebProgressListener) 
   {

@@ -212,7 +212,7 @@ IDBTransaction::OnRequestFinished()
   NS_ASSERTION(mPendingRequests, "Mismatched calls!");
   --mPendingRequests;
   if (!mPendingRequests) {
-    NS_ASSERTION(NS_FAILED(mAbortCode) || mReadyState == IDBTransaction::LOADING,
+    NS_ASSERTION(mAbortCode || mReadyState == IDBTransaction::LOADING,
                  "Bad state!");
     mReadyState = IDBTransaction::COMMITTING;
     CommitOrRollback();
@@ -227,7 +227,7 @@ IDBTransaction::RemoveObjectStore(const nsAString& aName)
 
   mDatabaseInfo->RemoveObjectStore(aName);
 
-  for (uint32_t i = 0; i < mCreatedObjectStores.Length(); i++) {
+  for (PRUint32 i = 0; i < mCreatedObjectStores.Length(); i++) {
     if (mCreatedObjectStores[i]->Name() == aName) {
       nsRefPtr<IDBObjectStore> objectStore = mCreatedObjectStores[i];
       mCreatedObjectStores.RemoveElementAt(i);
@@ -329,12 +329,12 @@ IDBTransaction::RollbackSavepoint()
   nsCOMPtr<mozIStorageStatement> stmt = GetCachedStatement(NS_LITERAL_CSTRING(
     "ROLLBACK TO SAVEPOINT " SAVEPOINT_NAME
   ));
-  NS_ENSURE_TRUE_VOID(stmt);
+  NS_ENSURE_TRUE(stmt,);
 
   mozStorageStatementScoper scoper(stmt);
 
   nsresult rv = stmt->Execute();
-  NS_ENSURE_SUCCESS_VOID(rv);
+  NS_ENSURE_SUCCESS(rv,);
 }
 
 nsresult
@@ -461,7 +461,7 @@ IDBTransaction::GetOrCreateObjectStore(const nsAString& aName,
 
   nsRefPtr<IDBObjectStore> retval;
 
-  for (uint32_t index = 0; index < mCreatedObjectStores.Length(); index++) {
+  for (PRUint32 index = 0; index < mCreatedObjectStores.Length(); index++) {
     nsRefPtr<IDBObjectStore>& objectStore = mCreatedObjectStores[index];
     if (objectStore->Name() == aName) {
       retval = objectStore;
@@ -527,7 +527,7 @@ IDBTransaction::AbortInternal(nsresult aAbortCode,
 
     DatabaseInfo* dbInfo = mDatabase->Info();
 
-    for (uint32_t i = 0; i < mCreatedObjectStores.Length(); i++) {
+    for (PRUint32 i = 0; i < mCreatedObjectStores.Length(); i++) {
       nsRefPtr<IDBObjectStore>& objectStore = mCreatedObjectStores[i];
       ObjectStoreInfo* info = dbInfo->GetObjectStore(objectStore->Name());
 
@@ -539,7 +539,7 @@ IDBTransaction::AbortInternal(nsresult aAbortCode,
       objectStore->SetInfo(info);
     }
 
-    for (uint32_t i = 0; i < mDeletedObjectStores.Length(); i++) {
+    for (PRUint32 i = 0; i < mDeletedObjectStores.Length(); i++) {
       nsRefPtr<IDBObjectStore>& objectStore = mDeletedObjectStores[i];
       ObjectStoreInfo* info = dbInfo->GetObjectStore(objectStore->Name());
 
@@ -591,13 +591,16 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBTransaction,
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mDatabase,
                                                        nsIDOMEventTarget)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mError);
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(error)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(complete)
+  NS_CYCLE_COLLECTION_TRAVERSE_EVENT_HANDLER(abort)
 
-  for (uint32_t i = 0; i < tmp->mCreatedObjectStores.Length(); i++) {
+  for (PRUint32 i = 0; i < tmp->mCreatedObjectStores.Length(); i++) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mCreatedObjectStores[i]");
     cb.NoteXPCOMChild(static_cast<nsIIDBObjectStore*>(
                       tmp->mCreatedObjectStores[i].get()));
   }
-  for (uint32_t i = 0; i < tmp->mDeletedObjectStores.Length(); i++) {
+  for (PRUint32 i = 0; i < tmp->mDeletedObjectStores.Length(); i++) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mDeletedObjectStores[i]");
     cb.NoteXPCOMChild(static_cast<nsIIDBObjectStore*>(
                       tmp->mDeletedObjectStores[i].get()));
@@ -607,6 +610,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBTransaction, IDBWrapperCache)
   // Don't unlink mDatabase!
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mError);
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(error)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(complete)
+  NS_CYCLE_COLLECTION_UNLINK_EVENT_HANDLER(abort)
 
   tmp->mCreatedObjectStores.Clear();
   tmp->mDeletedObjectStores.Clear();
@@ -624,9 +630,9 @@ NS_IMPL_RELEASE_INHERITED(IDBTransaction, IDBWrapperCache)
 
 DOMCI_DATA(IDBTransaction, IDBTransaction)
 
-NS_IMPL_EVENT_HANDLER(IDBTransaction, error)
-NS_IMPL_EVENT_HANDLER(IDBTransaction, complete)
-NS_IMPL_EVENT_HANDLER(IDBTransaction, abort)
+NS_IMPL_EVENT_HANDLER(IDBTransaction, error);
+NS_IMPL_EVENT_HANDLER(IDBTransaction, complete);
+NS_IMPL_EVENT_HANDLER(IDBTransaction, abort);
 
 NS_IMETHODIMP
 IDBTransaction::GetDb(nsIIDBDatabase** aDB)
@@ -694,8 +700,8 @@ IDBTransaction::GetObjectStoreNames(nsIDOMDOMStringList** aObjectStores)
     arrayOfNames = &mObjectStoreNames;
   }
 
-  uint32_t count = arrayOfNames->Length();
-  for (uint32_t index = 0; index < count; index++) {
+  PRUint32 count = arrayOfNames->Length();
+  for (PRUint32 index = 0; index < count; index++) {
     NS_ENSURE_TRUE(list->Add(arrayOfNames->ElementAt(index)),
                    NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
@@ -798,7 +804,7 @@ CommitHelper::CommitHelper(
   mConnection.swap(aTransaction->mConnection);
   mUpdateFileRefcountFunction.swap(aTransaction->mUpdateFileRefcountFunction);
 
-  for (uint32_t i = 0; i < aUpdatedObjectStores.Length(); i++) {
+  for (PRUint32 i = 0; i < aUpdatedObjectStores.Length(); i++) {
     ObjectStoreInfo* info = aUpdatedObjectStores[i]->Info();
     if (info->comittedAutoIncrementId != info->nextAutoIncrementId) {
       mAutoIncrementObjectStores.AppendElement(aUpdatedObjectStores[i]);
@@ -837,7 +843,7 @@ CommitHelper::Run()
     }
 
     nsCOMPtr<nsIDOMEvent> event;
-    if (NS_FAILED(mAbortCode)) {
+    if (mAbortCode) {
       if (mTransaction->GetMode() == IDBTransaction::VERSION_CHANGE) {
         // This will make the database take a snapshot of it's DatabaseInfo
         mTransaction->Database()->Close();
@@ -892,21 +898,21 @@ CommitHelper::Run()
   if (mConnection) {
     IndexedDatabaseManager::SetCurrentWindow(database->GetOwner());
 
-    if (NS_SUCCEEDED(mAbortCode) && mUpdateFileRefcountFunction &&
-        NS_FAILED(mUpdateFileRefcountFunction->WillCommit(mConnection))) {
+    if (!mAbortCode && mUpdateFileRefcountFunction &&
+        NS_FAILED(mUpdateFileRefcountFunction->UpdateDatabase(mConnection))) {
       mAbortCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    if (NS_SUCCEEDED(mAbortCode) && NS_FAILED(WriteAutoIncrementCounts())) {
+    if (!mAbortCode && NS_FAILED(WriteAutoIncrementCounts())) {
       mAbortCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
     }
 
-    if (NS_SUCCEEDED(mAbortCode)) {
+    if (!mAbortCode) {
       NS_NAMED_LITERAL_CSTRING(release, "COMMIT TRANSACTION");
       nsresult rv = mConnection->ExecuteSimpleSQL(release);
       if (NS_SUCCEEDED(rv)) {
         if (mUpdateFileRefcountFunction) {
-          mUpdateFileRefcountFunction->DidCommit();
+          mUpdateFileRefcountFunction->UpdateFileInfos();
         }
         CommitAutoIncrementCounts();
       }
@@ -920,10 +926,7 @@ CommitHelper::Run()
       }
     }
 
-    if (NS_FAILED(mAbortCode)) {
-      if (mUpdateFileRefcountFunction) {
-        mUpdateFileRefcountFunction->DidAbort();
-      }
+    if (mAbortCode) {
       RevertAutoIncrementCounts();
       NS_NAMED_LITERAL_CSTRING(rollback, "ROLLBACK TRANSACTION");
       if (NS_FAILED(mConnection->ExecuteSimpleSQL(rollback))) {
@@ -957,7 +960,7 @@ CommitHelper::WriteAutoIncrementCounts()
 {
   nsCOMPtr<mozIStorageStatement> stmt;
   nsresult rv;
-  for (uint32_t i = 0; i < mAutoIncrementObjectStores.Length(); i++) {
+  for (PRUint32 i = 0; i < mAutoIncrementObjectStores.Length(); i++) {
     ObjectStoreInfo* info = mAutoIncrementObjectStores[i]->Info();
     if (!stmt) {
       rv = mConnection->CreateStatement(NS_LITERAL_CSTRING(
@@ -986,7 +989,7 @@ CommitHelper::WriteAutoIncrementCounts()
 void
 CommitHelper::CommitAutoIncrementCounts()
 {
-  for (uint32_t i = 0; i < mAutoIncrementObjectStores.Length(); i++) {
+  for (PRUint32 i = 0; i < mAutoIncrementObjectStores.Length(); i++) {
     ObjectStoreInfo* info = mAutoIncrementObjectStores[i]->Info();
     info->comittedAutoIncrementId = info->nextAutoIncrementId;
   }
@@ -995,7 +998,7 @@ CommitHelper::CommitAutoIncrementCounts()
 void
 CommitHelper::RevertAutoIncrementCounts()
 {
-  for (uint32_t i = 0; i < mAutoIncrementObjectStores.Length(); i++) {
+  for (PRUint32 i = 0; i < mAutoIncrementObjectStores.Length(); i++) {
     ObjectStoreInfo* info = mAutoIncrementObjectStores[i]->Info();
     info->nextAutoIncrementId = info->comittedAutoIncrementId;
   }
@@ -1017,16 +1020,16 @@ UpdateRefcountFunction::OnFunctionCall(mozIStorageValueArray* aValues,
 {
   *_retval = nullptr;
 
-  uint32_t numEntries;
+  PRUint32 numEntries;
   nsresult rv = aValues->GetNumEntries(&numEntries);
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ASSERTION(numEntries == 2, "unexpected number of arguments");
 
 #ifdef DEBUG
-  int32_t type1 = mozIStorageValueArray::VALUE_TYPE_NULL;
+  PRInt32 type1 = mozIStorageValueArray::VALUE_TYPE_NULL;
   aValues->GetTypeOfIndex(0, &type1);
 
-  int32_t type2 = mozIStorageValueArray::VALUE_TYPE_NULL;
+  PRInt32 type2 = mozIStorageValueArray::VALUE_TYPE_NULL;
   aValues->GetTypeOfIndex(1, &type2);
 
   NS_ASSERTION(!(type1 == mozIStorageValueArray::VALUE_TYPE_NULL &&
@@ -1044,43 +1047,11 @@ UpdateRefcountFunction::OnFunctionCall(mozIStorageValueArray* aValues,
 }
 
 nsresult
-UpdateRefcountFunction::WillCommit(mozIStorageConnection* aConnection)
-{
-  DatabaseUpdateFunction function(aConnection, this);
-
-  mFileInfoEntries.EnumerateRead(DatabaseUpdateCallback, &function);
-
-  nsresult rv = function.ErrorCode();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = CreateJournals();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-void
-UpdateRefcountFunction::DidCommit()
-{
-  mFileInfoEntries.EnumerateRead(FileInfoUpdateCallback, nullptr);
-
-  nsresult rv = RemoveJournals(mJournalsToRemoveAfterCommit);
-  NS_ENSURE_SUCCESS_VOID(rv);
-}
-
-void
-UpdateRefcountFunction::DidAbort()
-{
-  nsresult rv = RemoveJournals(mJournalsToRemoveAfterAbort);
-  NS_ENSURE_SUCCESS_VOID(rv);
-}
-
-nsresult
 UpdateRefcountFunction::ProcessValue(mozIStorageValueArray* aValues,
-                                     int32_t aIndex,
+                                     PRInt32 aIndex,
                                      UpdateType aUpdateType)
 {
-  int32_t type;
+  PRInt32 type;
   aValues->GetTypeOfIndex(aIndex, &type);
   if (type == mozIStorageValueArray::VALUE_TYPE_NULL) {
     return NS_OK;
@@ -1089,12 +1060,12 @@ UpdateRefcountFunction::ProcessValue(mozIStorageValueArray* aValues,
   nsString ids;
   aValues->GetString(aIndex, ids);
 
-  nsTArray<int64_t> fileIds;
+  nsTArray<PRInt64> fileIds;
   nsresult rv = IDBObjectStore::ConvertFileIdsToArray(ids, fileIds);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  for (uint32_t i = 0; i < fileIds.Length(); i++) {
-    int64_t id = fileIds.ElementAt(i);
+  for (PRUint32 i = 0; i < fileIds.Length(); i++) {
+    PRInt64 id = fileIds.ElementAt(i);
 
     FileInfoEntry* entry;
     if (!mFileInfoEntries.Get(id, &entry)) {
@@ -1121,49 +1092,8 @@ UpdateRefcountFunction::ProcessValue(mozIStorageValueArray* aValues,
   return NS_OK;
 }
 
-nsresult
-UpdateRefcountFunction::CreateJournals()
-{
-  nsCOMPtr<nsIFile> journalDirectory = mFileManager->GetJournalDirectory();
-  NS_ENSURE_TRUE(journalDirectory, NS_ERROR_FAILURE);
-
-  for (uint32_t i = 0; i < mJournalsToCreateBeforeCommit.Length(); i++) {
-    int64_t id = mJournalsToCreateBeforeCommit[i];
-
-    nsCOMPtr<nsIFile> file =
-      mFileManager->GetFileForId(journalDirectory, id);
-    NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
-
-    nsresult rv = file->Create(nsIFile::NORMAL_FILE_TYPE, 0644);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    mJournalsToRemoveAfterAbort.AppendElement(id);
-  }
-
-  return NS_OK;
-}
-
-nsresult
-UpdateRefcountFunction::RemoveJournals(const nsTArray<int64_t>& aJournals)
-{
-  nsCOMPtr<nsIFile> journalDirectory = mFileManager->GetJournalDirectory();
-  NS_ENSURE_TRUE(journalDirectory, NS_ERROR_FAILURE);
-
-  for (uint32_t index = 0; index < aJournals.Length(); index++) {
-    nsCOMPtr<nsIFile> file =
-      mFileManager->GetFileForId(journalDirectory, aJournals[index]);
-    NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
-
-    if (NS_FAILED(file->Remove(false))) {
-      NS_WARNING("Failed to removed journal!");
-    }
-  }
-
-  return NS_OK;
-}
-
 PLDHashOperator
-UpdateRefcountFunction::DatabaseUpdateCallback(const uint64_t& aKey,
+UpdateRefcountFunction::DatabaseUpdateCallback(const PRUint64& aKey,
                                                FileInfoEntry* aValue,
                                                void* aUserArg)
 {
@@ -1182,7 +1112,7 @@ UpdateRefcountFunction::DatabaseUpdateCallback(const uint64_t& aKey,
 }
 
 PLDHashOperator
-UpdateRefcountFunction::FileInfoUpdateCallback(const uint64_t& aKey,
+UpdateRefcountFunction::FileInfoUpdateCallback(const PRUint64& aKey,
                                                FileInfoEntry* aValue,
                                                void* aUserArg)
 {
@@ -1194,8 +1124,8 @@ UpdateRefcountFunction::FileInfoUpdateCallback(const uint64_t& aKey,
 }
 
 bool
-UpdateRefcountFunction::DatabaseUpdateFunction::Update(int64_t aId,
-                                                       int32_t aDelta)
+UpdateRefcountFunction::DatabaseUpdateFunction::Update(PRInt64 aId,
+                                                       PRInt32 aDelta)
 {
   nsresult rv = UpdateInternal(aId, aDelta);
   if (NS_FAILED(rv)) {
@@ -1207,8 +1137,8 @@ UpdateRefcountFunction::DatabaseUpdateFunction::Update(int64_t aId,
 }
 
 nsresult
-UpdateRefcountFunction::DatabaseUpdateFunction::UpdateInternal(int64_t aId,
-                                                               int32_t aDelta)
+UpdateRefcountFunction::DatabaseUpdateFunction::UpdateInternal(PRInt64 aId,
+                                                               PRInt32 aDelta)
 {
   nsresult rv;
 
@@ -1230,33 +1160,11 @@ UpdateRefcountFunction::DatabaseUpdateFunction::UpdateInternal(int64_t aId,
   rv = mUpdateStatement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t rows;
+  PRInt32 rows;
   rv = mConnection->GetAffectedRows(&rows);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (rows > 0) {
-    if (!mSelectStatement) {
-      rv = mConnection->CreateStatement(NS_LITERAL_CSTRING(
-        "SELECT id FROM file where id = :id"
-      ), getter_AddRefs(mSelectStatement));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    mozStorageStatementScoper selectScoper(mSelectStatement);
-
-    rv = mSelectStatement->BindInt64ByName(NS_LITERAL_CSTRING("id"), aId);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    bool hasResult;
-    rv = mSelectStatement->ExecuteStep(&hasResult);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!hasResult) {
-      // Don't have to create the journal here, we can create all at once,
-      // just before commit
-      mFunction->mJournalsToCreateBeforeCommit.AppendElement(aId);
-    }
-
     return NS_OK;
   }
 
@@ -1277,8 +1185,6 @@ UpdateRefcountFunction::DatabaseUpdateFunction::UpdateInternal(int64_t aId,
 
   rv = mInsertStatement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
-
-  mFunction->mJournalsToRemoveAfterCommit.AppendElement(aId);
 
   return NS_OK;
 }

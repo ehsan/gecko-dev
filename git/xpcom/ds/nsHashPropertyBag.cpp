@@ -159,7 +159,7 @@ PropertyHashToArrayFunc (const nsAString &aKey,
 NS_IMETHODIMP
 nsHashPropertyBag::GetEnumerator(nsISimpleEnumerator* *_retval)
 {
-    nsCOMPtr<nsIMutableArray> propertyArray = nsArray::Create();
+    nsCOMPtr<nsIMutableArray> propertyArray = new nsArray();
     if (!propertyArray)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -188,10 +188,10 @@ nsHashPropertyBag::SetPropertyAs ## Name (const nsAString & prop, Type value) \
     return SetProperty(prop, var); \
 }
 
-IMPL_GETSETPROPERTY_AS(Int32, int32_t)
-IMPL_GETSETPROPERTY_AS(Uint32, uint32_t)
-IMPL_GETSETPROPERTY_AS(Int64, int64_t)
-IMPL_GETSETPROPERTY_AS(Uint64, uint64_t)
+IMPL_GETSETPROPERTY_AS(Int32, PRInt32)
+IMPL_GETSETPROPERTY_AS(Uint32, PRUint32)
+IMPL_GETSETPROPERTY_AS(Int64, PRInt64)
+IMPL_GETSETPROPERTY_AS(Uint64, PRUint64)
 IMPL_GETSETPROPERTY_AS(Double, double)
 IMPL_GETSETPROPERTY_AS(Bool, bool)
 

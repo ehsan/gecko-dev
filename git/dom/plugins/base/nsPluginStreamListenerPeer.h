@@ -65,7 +65,7 @@ public:
 
   // Called by RequestRead
   void
-  MakeByteRangeString(NPByteRange* aRangeList, nsACString &string, int32_t *numRequests);
+  MakeByteRangeString(NPByteRange* aRangeList, nsACString &string, PRInt32 *numRequests);
   
   bool UseExistingPluginCacheFile(nsPluginStreamListenerPeer* psi);
   
@@ -87,13 +87,13 @@ public:
   nsNPAPIPluginInstance *GetPluginInstance() { return mPluginInstance; }
   
   nsresult RequestRead(NPByteRange* rangeList);
-  nsresult GetLength(uint32_t* result);
+  nsresult GetLength(PRUint32* result);
   nsresult GetURL(const char** result);
-  nsresult GetLastModified(uint32_t* result);
+  nsresult GetLastModified(PRUint32* result);
   nsresult IsSeekable(bool* result);
   nsresult GetContentType(char** result);
-  nsresult GetStreamOffset(int32_t* result);
-  nsresult SetStreamOffset(int32_t value);
+  nsresult GetStreamOffset(PRInt32* result);
+  nsresult SetStreamOffset(PRInt32 value);
 
   void TrackRequest(nsIRequest* request)
   {
@@ -102,7 +102,7 @@ public:
 
   void ReplaceRequest(nsIRequest* oldRequest, nsIRequest* newRequest)
   {
-    int32_t i = mRequests.IndexOfObject(oldRequest);
+    PRInt32 i = mRequests.IndexOfObject(oldRequest);
     if (i == -1) {
       NS_ASSERTION(mRequests.Count() == 0,
                    "Only our initial stream should be unknown!");
@@ -117,19 +117,19 @@ public:
   {
     // Copy the array to avoid modification during the loop.
     nsCOMArray<nsIRequest> requestsCopy(mRequests);
-    for (int32_t i = 0; i < requestsCopy.Count(); ++i)
+    for (PRInt32 i = 0; i < requestsCopy.Count(); ++i)
       requestsCopy[i]->Cancel(status);
   }
 
   void SuspendRequests() {
     nsCOMArray<nsIRequest> requestsCopy(mRequests);
-    for (int32_t i = 0; i < requestsCopy.Count(); ++i)
+    for (PRInt32 i = 0; i < requestsCopy.Count(); ++i)
       requestsCopy[i]->Suspend();
   }
 
   void ResumeRequests() {
     nsCOMArray<nsIRequest> requestsCopy(mRequests);
-    for (int32_t i = 0; i < requestsCopy.Count(); ++i)
+    for (PRInt32 i = 0; i < requestsCopy.Count(); ++i)
       requestsCopy[i]->Resume();
   }
 
@@ -155,8 +155,8 @@ private:
   bool              mStartBinding;
   bool              mHaveFiredOnStartRequest;
   // these get passed to the plugin stream listener
-  uint32_t                mLength;
-  int32_t                 mStreamType;
+  PRUint32                mLength;
+  PRInt32                 mStreamType;
   
   // local cached file, we save the content into local cache if browser cache is not available,
   // or plugin asks stream as file and it expects file extension until bug 90558 got fixed
@@ -166,14 +166,14 @@ private:
   
   nsCString mContentType;
   bool mSeekable;
-  uint32_t mModified;
+  PRUint32 mModified;
   nsRefPtr<nsNPAPIPluginInstance> mPluginInstance;
-  int32_t mStreamOffset;
+  PRInt32 mStreamOffset;
   bool mStreamComplete;
   
 public:
   bool                    mAbort;
-  int32_t                 mPendingRequests;
+  PRInt32                 mPendingRequests;
   nsWeakPtr               mWeakPtrChannelCallbacks;
   nsWeakPtr               mWeakPtrChannelLoadGroup;
   nsCOMArray<nsIRequest> mRequests;

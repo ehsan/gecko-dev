@@ -9,10 +9,16 @@
 
 namespace mozilla {
 
-void
-FindVisualAndDepth(Display* aDisplay, VisualID aVisualID,
-                   Visual** aVisual, int* aDepth)
+bool
+XVisualIDToInfo(Display* aDisplay, VisualID aVisualID,
+                Visual** aVisual, unsigned int* aDepth)
 {
+    if (aVisualID == None) {
+        *aVisual = NULL;
+        *aDepth = 0;
+        return true;
+    }
+
     const Screen* screen = DefaultScreenOfDisplay(aDisplay);
 
     for (int d = 0; d < screen->ndepths; d++) {
@@ -22,15 +28,13 @@ FindVisualAndDepth(Display* aDisplay, VisualID aVisualID,
             if (visual->visualid == aVisualID) {
                 *aVisual = visual;
                 *aDepth = d_info->depth;
-                return;
+                return true;
             }
         }
     }
 
-    NS_ASSERTION(aVisualID == None, "VisualID not on Screen.");
-    *aVisual = nullptr;
-    *aDepth = 0;
-    return;
+    NS_ERROR("VisualID not on Screen.");
+    return false;
 }
 
 void

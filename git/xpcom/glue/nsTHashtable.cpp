@@ -8,7 +8,7 @@
 PLDHashOperator
 PL_DHashStubEnumRemove(PLDHashTable    *table,
                                        PLDHashEntryHdr *entry,
-                                       uint32_t         ordinal,
+                                       PRUint32         ordinal,
                                        void            *userarg)
 {
   return PL_DHASH_REMOVE;

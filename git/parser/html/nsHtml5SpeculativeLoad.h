@@ -55,14 +55,12 @@ class nsHtml5SpeculativeLoad {
       mCrossOrigin.Assign(aCrossOrigin);
     }
     
-    inline void InitStyle(const nsAString& aUrl, const nsAString& aCharset,
-			  const nsAString& aCrossOrigin) {
+    inline void InitStyle(const nsAString& aUrl, const nsAString& aCharset) {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadStyle;
       mUrl.Assign(aUrl);
       mCharset.Assign(aCharset);
-      mCrossOrigin.Assign(aCrossOrigin);
     }
 
     /**
@@ -94,7 +92,7 @@ class nsHtml5SpeculativeLoad {
      * the queue order relative to true speculative loads. See bug 675499.
      */
     inline void InitSetDocumentCharset(nsACString& aCharset,
-                                       int32_t aCharsetSource) {
+                                       PRInt32 aCharsetSource) {
       NS_PRECONDITION(mOpCode == eSpeculativeLoadUninitialized,
                       "Trying to reinitialize a speculative load!");
       mOpCode = eSpeculativeLoadSetDocumentCharset;

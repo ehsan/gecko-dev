@@ -7,7 +7,6 @@
 #ifndef mozilla_a11y_RootAccessibleWrap_h__
 #define mozilla_a11y_RootAccessibleWrap_h__
 
-#include "BaseAccessibles.h"
 #include "RootAccessible.h"
 
 namespace mozilla {
@@ -15,16 +14,16 @@ namespace a11y {
 
 typedef RootAccessible RootAccessibleWrap;
 
-/* GtkWindowAccessible is the accessible class for gtk+ native window.
- * The instance of GtkWindowAccessible is a child of MaiAppRoot instance.
+/* NativeRootAccessibleWrap is the accessible class for gtk+ native window.
+ * The instance of NativeRootAccessibleWrap is a child of MaiAppRoot instance.
  * It is added into root when the toplevel window is created, and removed
  * from root when the toplevel window is destroyed.
  */
-class GtkWindowAccessible MOZ_FINAL : public DummyAccessible
+class NativeRootAccessibleWrap : public RootAccessible
 {
 public:
-  GtkWindowAccessible(AtkObject* aAccessible);
-  virtual ~GtkWindowAccessible();
+  NativeRootAccessibleWrap(AtkObject* aAccessible);
+  virtual ~NativeRootAccessibleWrap();
 };
 
 } // namespace a11y

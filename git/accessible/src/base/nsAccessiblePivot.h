@@ -17,6 +17,10 @@
 class Accessible;
 class nsIAccessibleTraversalRule;
 
+// raised when current pivot's position is needed but it is not in the tree.
+#define NS_ERROR_NOT_IN_TREE \
+NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_GENERAL, 0x26)
+
 /**
  * Class represents an accessible pivot.
  */
@@ -45,7 +49,7 @@ private:
    * observers have been notified.
    */
   bool NotifyOfPivotChange(Accessible* aOldAccessible,
-                           int32_t aOldStart, int32_t aOldEnd,
+                           PRInt32 aOldStart, PRInt32 aOldEnd,
                            PivotMoveReason aReason);
 
   /*
@@ -88,12 +92,12 @@ private:
   /*
    * The text start offset ofthe pivot.
    */
-  int32_t mStartOffset;
+  PRInt32 mStartOffset;
 
   /*
    * The text end offset ofthe pivot.
    */
-  int32_t mEndOffset;
+  PRInt32 mEndOffset;
 
   /*
    * The list of pivot-changed observers.

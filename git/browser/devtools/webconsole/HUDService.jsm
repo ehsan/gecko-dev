@@ -18,10 +18,12 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
                                   "resource://gre/modules/Services.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleUtils",
-                                  "resource://gre/modules/devtools/WebConsoleUtils.jsm");
+                                  "resource:///modules/WebConsoleUtils.jsm");
 
-const STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
-let l10n = new WebConsoleUtils.l10n(STRINGS_URI);
+XPCOMUtils.defineLazyGetter(this, "l10n", function() {
+  return WebConsoleUtils.l10n;
+});
+
 
 var EXPORTED_SYMBOLS = ["HUDService"];
 
@@ -56,6 +58,9 @@ const MINIMUM_PAGE_HEIGHT = 50;
 
 // The default console height, as a ratio from the content window inner height.
 const DEFAULT_CONSOLE_HEIGHT = 0.33;
+
+// This script is inserted into the content process.
+const CONTENT_SCRIPT_URL = "chrome://browser/content/devtools/HUDService-content.js";
 
 // points to the file to load in the Web Console iframe.
 const UI_IFRAME_URL = "chrome://browser/content/devtools/webconsole.xul";
@@ -113,17 +118,10 @@ HUD_SERVICE.prototype =
    *        The xul:tab element.
    * @param boolean aAnimated
    *        True if you want to animate the opening of the Web console.
-   * @param object aOptions
-   *        Options for the Web Console:
-   *        - host
-   *          Server to connect to.
-   *        - port
-   *          Port to connect to.
    * @return object
    *         The new HeadsUpDisplay instance.
    */
-  activateHUDForContext:
-  function HS_activateHUDForContext(aTab, aAnimated, aOptions)
+  activateHUDForContext: function HS_activateHUDForContext(aTab, aAnimated)
   {
     let hudId = "hud_" + aTab.linkedPanel;
     if (hudId in this.hudReferences) {
@@ -139,7 +137,7 @@ HUD_SERVICE.prototype =
     gBrowser.tabContainer.addEventListener("TabSelect", this.onTabSelect, false);
     window.addEventListener("unload", this.onWindowUnload, false);
 
-    let hud = new WebConsole(aTab, aOptions);
+    let hud = new WebConsole(aTab);
     this.hudReferences[hudId] = hud;
 
     if (!aAnimated || hud.consolePanel) {
@@ -174,10 +172,7 @@ HUD_SERVICE.prototype =
     let hud = this.getHudReferenceById(hudId);
     let document = hud.chromeDocument;
 
-    hud.destroy(function() {
-      let id = WebConsoleUtils.supportsString(hudId);
-      Services.obs.notifyObservers(id, "web-console-destroyed", null);
-    });
+    hud.destroy();
 
     delete this.hudReferences[hudId];
 
@@ -204,6 +199,9 @@ HUD_SERVICE.prototype =
     contentWindow.focus();
 
     HeadsUpDisplayUICommands.refreshCommand();
+
+    let id = WebConsoleUtils.supportsString(hudId);
+    Services.obs.notifyObservers(id, "web-console-destroyed", null);
   },
 
   /**
@@ -443,9 +441,7 @@ HUD_SERVICE.prototype =
       let splitterStyle = chromeWindow.getComputedStyle(HUD.splitter, null);
       innerHeight += parseInt(splitterStyle.height) +
                      parseInt(splitterStyle.borderTopWidth) +
-                     parseInt(splitterStyle.borderBottomWidth) +
-                     parseInt(splitterStyle.marginTop) +
-                     parseInt(splitterStyle.marginBottom);
+                     parseInt(splitterStyle.borderBottomWidth);
     }
 
     let boxStyle = chromeWindow.getComputedStyle(HUD.iframe, null);
@@ -500,21 +496,13 @@ HUD_SERVICE.prototype =
  *
  * @param nsIDOMElement aTab
  *        The xul:tab for which you want the WebConsole object.
- * @param object aOptions
- *        Web Console options: host and port, for the remote Web console.
  */
-function WebConsole(aTab, aOptions = {})
+function WebConsole(aTab)
 {
   this.tab = aTab;
-  this.chromeDocument = this.tab.ownerDocument;
-  this.chromeWindow = this.chromeDocument.defaultView;
-  this.hudId = "hud_" + this.tab.linkedPanel;
-
-  this.remoteHost = aOptions.host;
-  this.remotePort = aOptions.port;
-
   this._onIframeLoad = this._onIframeLoad.bind(this);
-  this._initUI();
+  this._asyncRequests = {};
+  this._init();
 }
 
 WebConsole.prototype = {
@@ -523,9 +511,6 @@ WebConsole.prototype = {
    * @type nsIDOMElement
    */
   tab: null,
-
-  chromeWindow: null,
-  chromeDocument: null,
 
   /**
    * Getter for HUDService.lastFinishedRequestCallback.
@@ -536,10 +521,39 @@ WebConsole.prototype = {
   get lastFinishedRequestCallback() HUDService.lastFinishedRequestCallback,
 
   /**
+   * Track callback functions registered for specific async requests sent to
+   * the content process.
+   *
+   * @private
+   * @type object
+   */
+  _asyncRequests: null,
+
+  /**
+   * Message names that the HUD listens for. These messages come from the remote
+   * Web Console content script.
+   *
+   * @private
+   * @type array
+   */
+  _messageListeners: ["JSTerm:EvalObject", "WebConsole:ConsoleAPI",
+    "WebConsole:CachedMessages", "WebConsole:PageError", "JSTerm:EvalResult",
+    "JSTerm:AutocompleteProperties", "JSTerm:ClearOutput",
+    "JSTerm:InspectObject", "WebConsole:NetworkActivity",
+    "WebConsole:FileActivity", "WebConsole:LocationChange",
+    "JSTerm:NonNativeConsoleAPI"],
+
+  /**
    * The xul:panel that holds the Web Console when it is positioned as a window.
    * @type nsIDOMElement
    */
   consolePanel: null,
+
+  /**
+   * The current tab location.
+   * @type string
+   */
+  contentLocation: "",
 
   /**
    * Getter for the xul:popupset that holds any popups we open.
@@ -562,17 +576,33 @@ WebConsole.prototype = {
   get gViewSourceUtils() this.chromeWindow.gViewSourceUtils,
 
   /**
+   * Initialize the Web Console instance.
+   * @private
+   */
+  _init: function WC__init()
+  {
+    this.chromeDocument = this.tab.ownerDocument;
+    this.chromeWindow = this.chromeDocument.defaultView;
+    this.messageManager = this.tab.linkedBrowser.messageManager;
+    this.hudId = "hud_" + this.tab.linkedPanel;
+    this.notificationBox = this.chromeDocument
+                           .getElementById(this.tab.linkedPanel);
+
+    this._initUI();
+  },
+
+  /**
    * Initialize the Web Console UI. This method sets up the iframe.
    * @private
    */
   _initUI: function WC__initUI()
   {
     this.splitter = this.chromeDocument.createElement("splitter");
-    this.splitter.className = "devtools-horizontal-splitter";
+    this.splitter.setAttribute("class", "web-console-splitter");
 
     this.iframe = this.chromeDocument.createElement("iframe");
     this.iframe.setAttribute("id", this.hudId);
-    this.iframe.className = "web-console-frame";
+    this.iframe.setAttribute("class", "web-console-frame");
     this.iframe.setAttribute("animated", "true");
     this.iframe.setAttribute("tooltip", "aHTMLTooltip");
     this.iframe.style.height = 0;
@@ -595,6 +625,7 @@ WebConsole.prototype = {
 
     this.iframeWindow = this.iframe.contentWindow.wrappedJSObject;
     this.ui = new this.iframeWindow.WebConsoleFrame(this, position);
+    this._setupMessageManager();
   },
 
   /**
@@ -739,8 +770,8 @@ WebConsole.prototype = {
    */
   getPanelTitle: function WC_getPanelTitle()
   {
-    let url = this.ui ? this.ui.contentLocation : "";
-    return l10n.getFormatStr("webConsoleWindowTitleAndURL", [url]);
+    return l10n.getFormatStr("webConsoleWindowTitleAndURL",
+                             [this.contentLocation]);
   },
 
   positions: {
@@ -773,7 +804,7 @@ WebConsole.prototype = {
 
     // get the node position index
     let nodeIdx = this.positions[aPosition];
-    let nBox = this.chromeDocument.getElementById(this.tab.linkedPanel);
+    let nBox = this.notificationBox;
     let node = nBox.childNodes[nodeIdx];
 
     // check to see if console is already positioned in aPosition
@@ -870,24 +901,126 @@ WebConsole.prototype = {
 
   /**
    * The clear output button handler.
-   * @private
    */
-  _onClearButton: function WC__onClearButton()
+  onClearButton: function WC_onClearButton()
   {
+    this.ui.jsterm.clearOutput(true);
     this.chromeWindow.DeveloperToolbar.resetErrorsCount(this.tab);
   },
 
   /**
-   * Handler for page location changes. If the Web Console is
+   * Setup the message manager used to communicate with the Web Console content
+   * script. This method loads the content script, adds the message listeners
+   * and initializes the connection to the content script.
+   *
+   * @private
+   */
+  _setupMessageManager: function WC__setupMessageManager()
+  {
+    this.messageManager.loadFrameScript(CONTENT_SCRIPT_URL, true);
+
+    this._messageListeners.forEach(function(aName) {
+      this.messageManager.addMessageListener(aName, this.ui);
+    }, this);
+
+    let message = {
+      features: ["ConsoleAPI", "JSTerm", "PageError", "NetworkMonitor",
+                 "LocationChange"],
+      cachedMessages: ["ConsoleAPI", "PageError"],
+      NetworkMonitor: { monitorFileActivity: true },
+      JSTerm: { notifyNonNativeConsoleAPI: true },
+      preferences: {
+        "NetworkMonitor.saveRequestAndResponseBodies":
+          this.ui.saveRequestAndResponseBodies,
+      },
+    };
+
+    this.sendMessageToContent("WebConsole:Init", message);
+  },
+
+  /**
+   * Callback method for when the Web Console initialization is complete. For
+   * now this method sends the web-console-created notification using the
+   * nsIObserverService.
+   *
+   * @private
+   */
+  _onInitComplete: function WC__onInitComplete()
+  {
+    let id = WebConsoleUtils.supportsString(this.hudId);
+    Services.obs.notifyObservers(id, "web-console-created", null);
+  },
+
+  /**
+   * Handler for messages that have an associated callback function. The
+   * this.sendMessageToContent() allows one to provide a function to be invoked
+   * when the content script replies to the message previously sent. This is the
+   * method that invokes the callback.
+   *
+   * @see this.sendMessageToContent
+   * @private
+   * @param object aResponse
+   *        Message object received from the content script.
+   */
+  _receiveMessageWithCallback:
+  function WC__receiveMessageWithCallback(aResponse)
+  {
+    if (aResponse.id in this._asyncRequests) {
+      let request = this._asyncRequests[aResponse.id];
+      request.callback(aResponse, request.message);
+      delete this._asyncRequests[aResponse.id];
+    }
+    else {
+      Cu.reportError("receiveMessageWithCallback response for stale request " +
+                     "ID " + aResponse.id);
+    }
+  },
+
+  /**
+   * Send a message to the content script.
+   *
+   * @param string aName
+   *        The name of the message you want to send.
+   *
+   * @param object aMessage
+   *        The message object you want to send. This object needs to have no
+   *        cyclic references and it needs to be JSON-stringifiable.
+   *
+   * @param function [aCallback]
+   *        Optional function you want to have called when the content script
+   *        replies to your message. Your callback receives two arguments:
+   *        (1) the response object from the content script and (2) the message
+   *        you sent to the content script (which is aMessage here).
+   */
+  sendMessageToContent:
+  function WC_sendMessageToContent(aName, aMessage, aCallback)
+  {
+    aMessage.hudId = this.hudId;
+    if (!("id" in aMessage)) {
+      aMessage.id = "HUDChrome-" + HUDService.sequenceId();
+    }
+
+    if (aCallback) {
+      this._asyncRequests[aMessage.id] = {
+        name: aName,
+        message: aMessage,
+        callback: aCallback,
+      };
+    }
+    this.messageManager.sendAsyncMessage(aName, aMessage);
+  },
+
+  /**
+   * Handler for the "WebConsole:LocationChange" message. If the Web Console is
    * opened in a panel the panel title is updated.
    *
-   * @param string aURI
-   *        New page location.
-   * @param string aTitle
-   *        New page title.
+   * @param object aMessage
+   *        The message received from the content script. It needs to hold two
+   *        properties: location and title.
    */
-  onLocationChange: function WC_onLocationChange(aURI, aTitle)
+  onLocationChange: function WC_onLocationChange(aMessage)
   {
+    this.contentLocation = aMessage.location;
     if (this.consolePanel) {
       this.consolePanel.label = this.getPanelTitle();
     }
@@ -914,62 +1047,17 @@ WebConsole.prototype = {
   },
 
   /**
-   * Open a link in Firefox's view source.
-   *
-   * @param string aSourceURL
-   *        The URL of the file.
-   * @param integer aSourceLine
-   *        The line number which should be highlighted.
-   */
-  viewSource: function WC_viewSource(aSourceURL, aSourceLine)
-  {
-    this.gViewSourceUtils.viewSource(aSourceURL, null,
-                                     this.iframeWindow.document, aSourceLine);
-  },
-
-  /**
-   * Tries to open a Stylesheet file related to the web page for the web console
-   * instance in the Style Editor. If the file is not found, it is opened in
-   * source view instead.
-   *
-   * @param string aSourceURL
-   *        The URL of the file.
-   * @param integer aSourceLine
-   *        The line number which you want to place the caret.
-   * TODO: This function breaks the client-server boundaries.
-   *       To be fixed in bug 793259.
-   */
-  viewSourceInStyleEditor:
-  function WC_viewSourceInStyleEditor(aSourceURL, aSourceLine)
-  {
-    let styleSheets = this.tab.linkedBrowser.contentWindow.document.styleSheets;
-    for each (let style in styleSheets) {
-      if (style.href == aSourceURL) {
-        let SEM = this.chromeWindow.StyleEditor.StyleEditorManager;
-        let win = SEM.getEditorForWindow(this.chromeWindow.content.window);
-        if (win) {
-          SEM.selectEditor(win, style, aSourceLine);
-        }
-        else {
-          this.chromeWindow.StyleEditor.openChrome(style, aSourceLine);
-        }
-        return;
-      }
-    }
-    // Open view source if style editor fails.
-    this.viewSource(aSourceURL, aSourceLine);
-  },
-
-  /**
    * Destroy the object. Call this method to avoid memory leaks when the Web
    * Console is closed.
-   *
-   * @param function [aOnDestroy]
-   *        Optional function to invoke when the Web Console instance is
-   *        destroyed.
    */
-  destroy: function WC_destroy(aOnDestroy)
+  destroy: function WC_destroy()
   {
+    this.sendMessageToContent("WebConsole:Destroy", {});
+
+    this._messageListeners.forEach(function(aName) {
+      this.messageManager.removeMessageListener(aName, this.ui);
+    }, this);
+
     // Make sure that the console panel does not try to call
     // deactivateHUDForContext() again.
     this.consoleWindowUnregisterOnHide = false;
@@ -982,31 +1070,24 @@ WebConsole.prototype = {
       }
     }
 
-    let onDestroy = function WC_onDestroyUI() {
-      // Remove the iframe and the consolePanel if the Web Console is inside a
-      // floating panel.
-      if (this.consolePanel && this.consolePanel.parentNode) {
-        this.consolePanel.hidePopup();
-        this.consolePanel.parentNode.removeChild(this.consolePanel);
-        this.consolePanel = null;
-      }
-
-      if (this.iframe.parentNode) {
-        this.iframe.parentNode.removeChild(this.iframe);
-      }
-
-      if (this.splitter.parentNode) {
-        this.splitter.parentNode.removeChild(this.splitter);
-      }
-
-      aOnDestroy && aOnDestroy();
-    }.bind(this);
-
     if (this.ui) {
-      this.ui.destroy(onDestroy);
+      this.ui.destroy();
     }
-    else {
-      onDestroy();
+
+    // Remove the iframe and the consolePanel if the Web Console is inside a
+    // floating panel.
+    if (this.consolePanel && this.consolePanel.parentNode) {
+      this.consolePanel.hidePopup();
+      this.consolePanel.parentNode.removeChild(this.consolePanel);
+      this.consolePanel = null;
+    }
+
+    if (this.iframe.parentNode) {
+      this.iframe.parentNode.removeChild(this.iframe);
+    }
+
+    if (this.splitter.parentNode) {
+      this.splitter.parentNode.removeChild(this.splitter);
     }
   },
 };
@@ -1030,8 +1111,7 @@ var HeadsUpDisplayUICommands = {
     }
   },
 
-  toggleHUD: function UIC_toggleHUD(aOptions)
-  {
+  toggleHUD: function UIC_toggleHUD() {
     var window = HUDService.currentContext();
     var gBrowser = window.gBrowser;
     var linkedBrowser = gBrowser.selectedTab.linkedBrowser;
@@ -1060,50 +1140,9 @@ var HeadsUpDisplayUICommands = {
       }
     }
     else {
-      HUDService.activateHUDForContext(gBrowser.selectedTab, true, aOptions);
+      HUDService.activateHUDForContext(gBrowser.selectedTab, true);
       HUDService.animate(hudId, ANIMATE_IN);
     }
-  },
-
-  toggleRemoteHUD: function UIC_toggleRemoteHUD()
-  {
-    if (this.getOpenHUD()) {
-      this.toggleHUD();
-      return;
-    }
-
-    let host = Services.prefs.getCharPref("devtools.debugger.remote-host");
-    let port = Services.prefs.getIntPref("devtools.debugger.remote-port");
-
-    let check = { value: false };
-    let input = { value: host + ":" + port };
-
-    let result = Services.prompt.prompt(null,
-      l10n.getStr("remoteWebConsolePromptTitle"),
-      l10n.getStr("remoteWebConsolePromptMessage"),
-      input, null, check);
-
-    if (!result) {
-      return;
-    }
-
-    let parts = input.value.split(":");
-    if (parts.length != 2) {
-      return;
-    }
-
-    [host, port] = parts;
-    if (!host.length || !port.length) {
-      return;
-    }
-
-    Services.prefs.setCharPref("devtools.debugger.remote-host", host);
-    Services.prefs.setIntPref("devtools.debugger.remote-port", port);
-
-    this.toggleHUD({
-      host: host,
-      port: port,
-    });
   },
 
   /**

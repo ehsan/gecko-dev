@@ -23,7 +23,6 @@
 #include "nsISecureBrowserUI.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "nsIConsoleService.h"
 #include "PSMRunnable.h"
 
 #include "ssl.h"
@@ -147,7 +146,7 @@ static void
 getSecureBrowserUI(nsIInterfaceRequestor * callbacks,
                    nsISecureBrowserUI ** result)
 {
-  NS_ASSERTION(result, "result parameter to getSecureBrowserUI is null");
+  NS_ASSERTION(result != nullptr, "result parameter to getSecureBrowserUI is null");
   *result = nullptr;
 
   NS_ASSERTION(NS_IsMainThread(),
@@ -175,7 +174,7 @@ getSecureBrowserUI(nsIInterfaceRequestor * callbacks,
 }
 
 void
-nsNSSSocketInfo::SetNegotiatedNPN(const char *value, uint32_t length)
+nsNSSSocketInfo::SetNegotiatedNPN(const char *value, PRUint32 length)
 {
   if (!value)
     mNegotiatedNPN.Truncate();
@@ -197,7 +196,7 @@ nsNSSSocketInfo::GetNegotiatedNPN(nsACString &aNegotiatedNPN)
 NS_IMETHODIMP
 nsNSSSocketInfo::JoinConnection(const nsACString & npnProtocol,
                                 const nsACString & hostname,
-                                int32_t port,
+                                PRInt32 port,
                                 bool *_retval)
 {
   *_retval = false;
@@ -295,7 +294,7 @@ nsNSSSocketInfo::SetNPNList(nsTArray<nsCString> &protocolArray)
   // the npn list is a concatenated list of 8 bit byte strings.
   nsCString npnList;
 
-  for (uint32_t index = 0; index < protocolArray.Length(); ++index) {
+  for (PRUint32 index = 0; index < protocolArray.Length(); ++index) {
     if (protocolArray[index].IsEmpty() ||
         protocolArray[index].Length() > 255)
       return NS_ERROR_ILLEGAL_VALUE;
@@ -373,7 +372,7 @@ void nsNSSSocketInfo::GetPreviousCert(nsIX509Cert** _result)
   NS_ASSERTION(_result, "_result parameter to GetPreviousCert is null");
   *_result = nullptr;
 
-  RefPtr<PreviousCertRunnable> runnable(new PreviousCertRunnable(mCallbacks));
+  nsRefPtr<PreviousCertRunnable> runnable = new PreviousCertRunnable(mCallbacks);
   nsresult rv = runnable->DispatchToMainThreadAndWait();
   NS_ASSERTION(NS_SUCCEEDED(rv), "runnable->DispatchToMainThreadAndWait() failed");
   runnable->mPreviousCert.forget(_result);
@@ -486,9 +485,7 @@ void nsSSLIOLayerHelpers::Cleanup()
 }
 
 static void
-nsHandleSSLError(nsNSSSocketInfo *socketInfo, 
-                 ::mozilla::psm::SSLErrorMessageType errtype, 
-                 PRErrorCode err)
+nsHandleSSLError(nsNSSSocketInfo *socketInfo, PRErrorCode err)
 {
   if (!NS_IsMainThread()) {
     NS_ERROR("nsHandleSSLError called off the main thread");
@@ -514,7 +511,7 @@ nsHandleSSLError(nsNSSSocketInfo *socketInfo,
   nsXPIDLCString hostName;
   socketInfo->GetHostName(getter_Copies(hostName));
 
-  int32_t port;
+  PRInt32 port;
   socketInfo->GetPort(&port);
 
   // Try to get a nsISSLErrorListener implementation from the socket consumer.
@@ -532,26 +529,15 @@ nsHandleSSLError(nsNSSSocketInfo *socketInfo,
       rv = sel->NotifySSLError(csi, err, hostWithPortString, &suppressMessage);
     }
   }
-  
-  // We must cancel first, which sets the error code.
+
   socketInfo->SetCanceled(err, PlainErrorMessage);
-  nsXPIDLString errorString;
-  socketInfo->GetErrorLogMessage(err, errtype, errorString);
-  
-  if (!errorString.IsEmpty()) {
-    nsCOMPtr<nsIConsoleService> console;
-    console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-    if (console) {
-      console->LogStringMessage(errorString.get());
-    }
-  }
 }
 
 namespace {
 
 enum Operation { reading, writing, not_reading_or_writing };
 
-int32_t checkHandshake(int32_t bytesTransfered, bool wasReading,
+PRInt32 checkHandshake(PRInt32 bytesTransfered, bool wasReading,
                        PRFileDesc* ssl_layer_fd,
                        nsNSSSocketInfo *socketInfo);
 
@@ -592,7 +578,7 @@ getSocketInfoIfRunning(PRFileDesc * fd, Operation op,
 
 } // unnnamed namespace
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSSLIOLayerConnect(PRFileDesc* fd, const PRNetAddr* addr,
                     PRIntervalTime timeout)
 {
@@ -615,7 +601,7 @@ nsSSLIOLayerConnect(PRFileDesc* fd, const PRNetAddr* addr,
 void
 nsSSLIOLayerHelpers::getSiteKey(nsNSSSocketInfo *socketInfo, nsCSubstring &key)
 {
-  int32_t port;
+  PRInt32 port;
   socketInfo->GetPort(&port);
 
   nsXPIDLCString host;
@@ -631,7 +617,7 @@ nsSSLIOLayerHelpers::getSiteKey(nsNSSSocketInfo *socketInfo, nsCSubstring &key)
 bool
 nsSSLIOLayerHelpers::rememberPossibleTLSProblemSite(nsNSSSocketInfo *socketInfo)
 {
-  nsAutoCString key;
+  nsCAutoString key;
   getSiteKey(socketInfo, key);
 
   if (!socketInfo->IsTLSEnabled()) {
@@ -660,14 +646,14 @@ nsSSLIOLayerHelpers::rememberTolerantSite(nsNSSSocketInfo *socketInfo)
   if (!socketInfo->IsTLSEnabled())
     return;
 
-  nsAutoCString key;
+  nsCAutoString key;
   getSiteKey(socketInfo, key);
 
   MutexAutoLock lock(*mutex);
   nsSSLIOLayerHelpers::mTLSTolerantSites->PutEntry(key);
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSSLIOLayerClose(PRFileDesc *fd)
 {
   nsNSSShutDownPreventionLock locker;
@@ -763,7 +749,7 @@ nsDumpBuffer(unsigned char *buf, int len)
 #endif
 
 static bool
-isNonSSLErrorThatWeAllowToRetry(int32_t err, bool withInitialCleartext)
+isNonSSLErrorThatWeAllowToRetry(PRInt32 err, bool withInitialCleartext)
 {
   switch (err)
   {
@@ -780,7 +766,7 @@ isNonSSLErrorThatWeAllowToRetry(int32_t err, bool withInitialCleartext)
 }
 
 static bool
-isTLSIntoleranceError(int32_t err, bool withInitialCleartext)
+isTLSIntoleranceError(PRInt32 err, bool withInitialCleartext)
 {
   // This function is supposed to decide, which error codes should
   // be used to conclude server is TLS intolerant.
@@ -820,28 +806,23 @@ isTLSIntoleranceError(int32_t err, bool withInitialCleartext)
 class SSLErrorRunnable : public SyncRunnableBase
 {
  public:
-  SSLErrorRunnable(nsNSSSocketInfo * infoObject, 
-                   ::mozilla::psm::SSLErrorMessageType errtype, 
-                   PRErrorCode errorCode)
-    : mInfoObject(infoObject)
-    , mErrType(errtype)
-    , mErrorCode(errorCode)
+  SSLErrorRunnable(nsNSSSocketInfo * infoObject, PRErrorCode errorCode)
+    : mInfoObject(infoObject), mErrorCode(errorCode)
   {
   }
 
   virtual void RunOnTargetThread()
   {
-    nsHandleSSLError(mInfoObject, mErrType, mErrorCode);
+    nsHandleSSLError(mInfoObject, mErrorCode);
   }
   
-  RefPtr<nsNSSSocketInfo> mInfoObject;
-  ::mozilla::psm::SSLErrorMessageType mErrType;
+  nsRefPtr<nsNSSSocketInfo> mInfoObject;
   const PRErrorCode mErrorCode;
 };
 
 namespace {
 
-int32_t checkHandshake(int32_t bytesTransfered, bool wasReading,
+PRInt32 checkHandshake(PRInt32 bytesTransfered, bool wasReading,
                        PRFileDesc* ssl_layer_fd,
                        nsNSSSocketInfo *socketInfo)
 {
@@ -882,7 +863,7 @@ int32_t checkHandshake(int32_t bytesTransfered, bool wasReading,
   bool wantRetry = false;
 
   if (0 > bytesTransfered) {
-    int32_t err = PR_GetError();
+    PRInt32 err = PR_GetError();
 
     if (handleHandshakeResultNow) {
       if (PR_WOULD_BLOCK_ERROR == err) {
@@ -908,9 +889,8 @@ int32_t checkHandshake(int32_t bytesTransfered, bool wasReading,
     // expensive no-op.)
     if (!wantRetry && (IS_SSL_ERROR(err) || IS_SEC_ERROR(err)) &&
         !socketInfo->GetErrorCode()) {
-      RefPtr<SyncRunnableBase> runnable(new SSLErrorRunnable(socketInfo,
-                                                             PlainErrorMessage,
-                                                             err));
+      nsRefPtr<SyncRunnableBase> runnable = new SSLErrorRunnable(socketInfo,
+                                                                 err);
       (void) runnable->DispatchToMainThreadAndWait();
     }
   }
@@ -947,8 +927,8 @@ int32_t checkHandshake(int32_t bytesTransfered, bool wasReading,
 
 }
 
-static int16_t
-nsSSLIOLayerPoll(PRFileDesc * fd, int16_t in_flags, int16_t *out_flags)
+static PRInt16 PR_CALLBACK
+nsSSLIOLayerPoll(PRFileDesc * fd, PRInt16 in_flags, PRInt16 *out_flags)
 {
   nsNSSShutDownPreventionLock locker;
 
@@ -1001,7 +981,7 @@ nsSSLIOLayerPoll(PRFileDesc * fd, int16_t in_flags, int16_t *out_flags)
   // don't need to do anything special here. libssl automatically blocks when
   // it reaches any point that would be unsafe to send/receive something before
   // cert validation is complete.
-  int16_t result = fd->lower->methods->poll(fd->lower, in_flags, out_flags);
+  PRInt16 result = fd->lower->methods->poll(fd->lower, in_flags, out_flags);
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("[%p] poll SSL socket returned %d\n",
                                     (void*)fd, (int) result));
   return result;
@@ -1015,7 +995,7 @@ nsTHashtable<nsCStringHashKey> *nsSSLIOLayerHelpers::mTLSIntolerantSites = nullp
 nsTHashtable<nsCStringHashKey> *nsSSLIOLayerHelpers::mTLSTolerantSites = nullptr;
 nsTHashtable<nsCStringHashKey> *nsSSLIOLayerHelpers::mRenegoUnrestrictedSites = nullptr;
 bool nsSSLIOLayerHelpers::mTreatUnsafeNegotiationAsBroken = false;
-int32_t nsSSLIOLayerHelpers::mWarnLevelMissingRFC5746 = 1;
+PRInt32 nsSSLIOLayerHelpers::mWarnLevelMissingRFC5746 = 1;
 
 static int _PSM_InvalidInt(void)
 {
@@ -1024,7 +1004,7 @@ static int _PSM_InvalidInt(void)
     return -1;
 }
 
-static int64_t _PSM_InvalidInt64(void)
+static PRInt64 _PSM_InvalidInt64(void)
 {
     PR_ASSERT(!"I/O method is invalid");
     PR_SetError(PR_INVALID_METHOD_ERROR, 0);
@@ -1042,10 +1022,10 @@ static PRFileDesc *_PSM_InvalidDesc(void)
 {
     PR_ASSERT(!"I/O method is invalid");
     PR_SetError(PR_INVALID_METHOD_ERROR, 0);
-    return nullptr;
+    return NULL;
 }
 
-static PRStatus PSMGetsockname(PRFileDesc *fd, PRNetAddr *addr)
+static PRStatus PR_CALLBACK PSMGetsockname(PRFileDesc *fd, PRNetAddr *addr)
 {
   nsNSSShutDownPreventionLock locker;
   if (!getSocketInfoIfRunning(fd, not_reading_or_writing, locker))
@@ -1054,7 +1034,7 @@ static PRStatus PSMGetsockname(PRFileDesc *fd, PRNetAddr *addr)
   return fd->lower->methods->getsockname(fd->lower, addr);
 }
 
-static PRStatus PSMGetpeername(PRFileDesc *fd, PRNetAddr *addr)
+static PRStatus PR_CALLBACK PSMGetpeername(PRFileDesc *fd, PRNetAddr *addr)
 {
   nsNSSShutDownPreventionLock locker;
   if (!getSocketInfoIfRunning(fd, not_reading_or_writing, locker))
@@ -1063,7 +1043,8 @@ static PRStatus PSMGetpeername(PRFileDesc *fd, PRNetAddr *addr)
   return fd->lower->methods->getpeername(fd->lower, addr);
 }
 
-static PRStatus PSMGetsocketoption(PRFileDesc *fd, PRSocketOptionData *data)
+static PRStatus PR_CALLBACK PSMGetsocketoption(PRFileDesc *fd, 
+                                        PRSocketOptionData *data)
 {
   nsNSSShutDownPreventionLock locker;
   if (!getSocketInfoIfRunning(fd, not_reading_or_writing, locker))
@@ -1072,8 +1053,8 @@ static PRStatus PSMGetsocketoption(PRFileDesc *fd, PRSocketOptionData *data)
   return fd->lower->methods->getsocketoption(fd, data);
 }
 
-static PRStatus PSMSetsocketoption(PRFileDesc *fd,
-                                   const PRSocketOptionData *data)
+static PRStatus PR_CALLBACK PSMSetsocketoption(PRFileDesc *fd, 
+                                        const PRSocketOptionData *data)
 {
   nsNSSShutDownPreventionLock locker;
   if (!getSocketInfoIfRunning(fd, not_reading_or_writing, locker))
@@ -1082,7 +1063,7 @@ static PRStatus PSMSetsocketoption(PRFileDesc *fd,
   return fd->lower->methods->setsocketoption(fd, data);
 }
 
-static int32_t PSMRecv(PRFileDesc *fd, void *buf, int32_t amount,
+static PRInt32 PR_CALLBACK PSMRecv(PRFileDesc *fd, void *buf, PRInt32 amount,
     int flags, PRIntervalTime timeout)
 {
   nsNSSShutDownPreventionLock locker;
@@ -1095,7 +1076,7 @@ static int32_t PSMRecv(PRFileDesc *fd, void *buf, int32_t amount,
     return -1;
   }
 
-  int32_t bytesRead = fd->lower->methods->recv(fd->lower, buf, amount, flags,
+  PRInt32 bytesRead = fd->lower->methods->recv(fd->lower, buf, amount, flags,
                                                timeout);
 
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("[%p] read %d bytes\n", (void*)fd, bytesRead));
@@ -1107,7 +1088,7 @@ static int32_t PSMRecv(PRFileDesc *fd, void *buf, int32_t amount,
   return checkHandshake(bytesRead, true, fd, socketInfo);
 }
 
-static int32_t PSMSend(PRFileDesc *fd, const void *buf, int32_t amount,
+static PRInt32 PR_CALLBACK PSMSend(PRFileDesc *fd, const void *buf, PRInt32 amount,
     int flags, PRIntervalTime timeout)
 {
   nsNSSShutDownPreventionLock locker;
@@ -1124,7 +1105,7 @@ static int32_t PSMSend(PRFileDesc *fd, const void *buf, int32_t amount,
   DEBUG_DUMP_BUFFER((unsigned char*)buf, amount);
 #endif
 
-  int32_t bytesWritten = fd->lower->methods->send(fd->lower, buf, amount,
+  PRInt32 bytesWritten = fd->lower->methods->send(fd->lower, buf, amount,
                                                   flags, timeout);
 
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("[%p] wrote %d bytes\n",
@@ -1133,19 +1114,19 @@ static int32_t PSMSend(PRFileDesc *fd, const void *buf, int32_t amount,
   return checkHandshake(bytesWritten, false, fd, socketInfo);
 }
 
-static int32_t
-nsSSLIOLayerRead(PRFileDesc* fd, void* buf, int32_t amount)
+static PRInt32 PR_CALLBACK
+nsSSLIOLayerRead(PRFileDesc* fd, void* buf, PRInt32 amount)
 {
   return PSMRecv(fd, buf, amount, 0, PR_INTERVAL_NO_TIMEOUT);
 }
 
-static int32_t
-nsSSLIOLayerWrite(PRFileDesc* fd, const void* buf, int32_t amount)
+static PRInt32 PR_CALLBACK
+nsSSLIOLayerWrite(PRFileDesc* fd, const void* buf, PRInt32 amount)
 {
   return PSMSend(fd, buf, amount, 0, PR_INTERVAL_NO_TIMEOUT);
 }
 
-static PRStatus PSMConnectcontinue(PRFileDesc *fd, int16_t out_flags)
+static PRStatus PR_CALLBACK PSMConnectcontinue(PRFileDesc *fd, PRInt16 out_flags)
 {
   nsNSSShutDownPreventionLock locker;
   if (!getSocketInfoIfRunning(fd, not_reading_or_writing, locker)) {
@@ -1162,7 +1143,7 @@ static int PSMAvailable(void)
   return -1;
 }
 
-static int64_t PSMAvailable64(void)
+static PRInt64 PSMAvailable64(void)
 {
   // This is called through PR_Available(), but is not implemented in PSM
   PR_SetError(PR_NOT_IMPLEMENTED_ERROR, 0);
@@ -1212,15 +1193,24 @@ nsresult nsSSLIOLayerHelpers::Init()
   mutex = new Mutex("nsSSLIOLayerHelpers.mutex");
 
   mTLSIntolerantSites = new nsTHashtable<nsCStringHashKey>();
+  if (!mTLSIntolerantSites)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   mTLSIntolerantSites->Init(1);
 
   mTLSTolerantSites = new nsTHashtable<nsCStringHashKey>();
+  if (!mTLSTolerantSites)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   // Initialize the tolerant site hashtable to 16 items at the start seems
   // reasonable as most servers are TLS tolerant. We just want to lower 
   // the rate of hashtable array reallocation.
   mTLSTolerantSites->Init(16);
 
   mRenegoUnrestrictedSites = new nsTHashtable<nsCStringHashKey>();
+  if (!mRenegoUnrestrictedSites)
+    return NS_ERROR_OUT_OF_MEMORY;
+
   mRenegoUnrestrictedSites->Init(1);
 
   mTreatUnsafeNegotiationAsBroken = false;
@@ -1291,24 +1281,24 @@ bool nsSSLIOLayerHelpers::treatUnsafeNegotiationAsBroken()
   return mTreatUnsafeNegotiationAsBroken;
 }
 
-void nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(int32_t level)
+void nsSSLIOLayerHelpers::setWarnLevelMissingRFC5746(PRInt32 level)
 {
   MutexAutoLock lock(*mutex);
   mWarnLevelMissingRFC5746 = level;
 }
 
-int32_t nsSSLIOLayerHelpers::getWarnLevelMissingRFC5746()
+PRInt32 nsSSLIOLayerHelpers::getWarnLevelMissingRFC5746()
 {
   MutexAutoLock lock(*mutex);
   return mWarnLevelMissingRFC5746;
 }
 
 nsresult
-nsSSLIOLayerNewSocket(int32_t family,
+nsSSLIOLayerNewSocket(PRInt32 family,
                       const char *host,
-                      int32_t port,
+                      PRInt32 port,
                       const char *proxyHost,
-                      int32_t proxyPort,
+                      PRInt32 proxyPort,
                       PRFileDesc **fd,
                       nsISupports** info,
                       bool forSTARTTLS,
@@ -1341,19 +1331,19 @@ nsSSLIOLayerNewSocket(int32_t family,
  *
  * Note: copied in its entirety from Nova code
  */
-SECStatus nsConvertCANamesToStrings(PLArenaPool* arena, char** caNameStrings,
+SECStatus nsConvertCANamesToStrings(PRArenaPool* arena, char** caNameStrings,
                                       CERTDistNames* caNames)
 {
     SECItem* dername;
     SECStatus rv;
     int headerlen;
-    uint32_t contentlen;
+    PRUint32 contentlen;
     SECItem newitem;
     int n;
     char* namestring;
 
     for (n = 0; n < caNames->nnames; n++) {
-        newitem.data = nullptr;
+        newitem.data = NULL;
         dername = &caNames->names[n];
 
         rv = DER_Lengths(dername, &headerlen, &contentlen);
@@ -1370,7 +1360,7 @@ SECStatus nsConvertCANamesToStrings(PLArenaPool* arena, char** caNameStrings,
              */
             if (dername->len <= 127) {
                 newitem.data = (unsigned char *) PR_Malloc(dername->len + 2);
-                if (!newitem.data) {
+                if (newitem.data == NULL) {
                     goto loser;
                 }
                 newitem.data[0] = (unsigned char)0x30;
@@ -1379,7 +1369,7 @@ SECStatus nsConvertCANamesToStrings(PLArenaPool* arena, char** caNameStrings,
             }
             else if (dername->len <= 255) {
                 newitem.data = (unsigned char *) PR_Malloc(dername->len + 3);
-                if (!newitem.data) {
+                if (newitem.data == NULL) {
                     goto loser;
                 }
                 newitem.data[0] = (unsigned char)0x30;
@@ -1390,7 +1380,7 @@ SECStatus nsConvertCANamesToStrings(PLArenaPool* arena, char** caNameStrings,
             else {
                 /* greater than 256, better be less than 64k */
                 newitem.data = (unsigned char *) PR_Malloc(dername->len + 4);
-                if (!newitem.data) {
+                if (newitem.data == NULL) {
                     goto loser;
                 }
                 newitem.data[0] = (unsigned char)0x30;
@@ -1403,26 +1393,26 @@ SECStatus nsConvertCANamesToStrings(PLArenaPool* arena, char** caNameStrings,
         }
 
         namestring = CERT_DerNameToAscii(dername);
-        if (!namestring) {
+        if (namestring == NULL) {
             /* XXX - keep going until we fail to convert the name */
             caNameStrings[n] = const_cast<char*>("");
         }
         else {
             caNameStrings[n] = PORT_ArenaStrdup(arena, namestring);
             PR_Free(namestring);
-            if (!caNameStrings[n]) {
+            if (caNameStrings[n] == NULL) {
                 goto loser;
             }
         }
 
-        if (newitem.data) {
+        if (newitem.data != NULL) {
             PR_Free(newitem.data);
         }
     }
 
     return SECSuccess;
 loser:
-    if (newitem.data) {
+    if (newitem.data != NULL) {
         PR_Free(newitem.data);
     }
     return SECFailure;
@@ -1456,7 +1446,7 @@ typedef struct {
 /* corresponding ASN1 templates */
 static const SEC_ASN1Template cert_CertificateScopeEntryTemplate[] = {
     { SEC_ASN1_SEQUENCE, 
-      0, nullptr, sizeof(CERTCertificateScopeEntry) },
+      0, NULL, sizeof(CERTCertificateScopeEntry) },
     { SEC_ASN1_ANY,
       offsetof(CERTCertificateScopeEntry, derConstraint) },
     { SEC_ASN1_OPTIONAL | SEC_ASN1_INTEGER,
@@ -1478,16 +1468,16 @@ SECStatus cert_DecodeScopeOfUseEntries(PRArenaPool* arena, SECItem* extData,
                                        CERTCertificateScopeEntry*** entries,
                                        int* numEntries)
 {
-    certCertificateScopeOfUse* scope = nullptr;
+    certCertificateScopeOfUse* scope = NULL;
     SECStatus rv = SECSuccess;
     int i;
 
-    *entries = nullptr; /* in case of failure */
+    *entries = NULL; /* in case of failure */
     *numEntries = 0; /* ditto */
 
     scope = (certCertificateScopeOfUse*)
         PORT_ArenaZAlloc(arena, sizeof(certCertificateScopeOfUse));
-    if (!scope) {
+    if (scope == NULL) {
         goto loser;
     }
 
@@ -1498,10 +1488,10 @@ SECStatus cert_DecodeScopeOfUseEntries(PRArenaPool* arena, SECItem* extData,
     }
 
     *entries = scope->entries;
-    PR_ASSERT(*entries);
+    PR_ASSERT(*entries != NULL);
 
     /* first, let's count 'em. */
-    for (i = 0; (*entries)[i]; i++) ;
+    for (i = 0; (*entries)[i] != NULL; i++) ;
     *numEntries = i;
 
     /* convert certCertificateScopeEntry sequence into what we can readily
@@ -1510,8 +1500,8 @@ SECStatus cert_DecodeScopeOfUseEntries(PRArenaPool* arena, SECItem* extData,
     for (i = 0; i < *numEntries; i++) {
         (*entries)[i]->constraint = 
             CERT_DecodeGeneralName(arena, &((*entries)[i]->derConstraint), 
-                                   nullptr);
-        if ((*entries)[i]->derPort.data) {
+                                   NULL);
+        if ((*entries)[i]->derPort.data != NULL) {
             (*entries)[i]->port = 
                 (int)DER_GetInteger(&((*entries)[i]->derPort));
         }
@@ -1530,14 +1520,14 @@ done:
 }
 
 static SECStatus cert_DecodeCertIPAddress(SECItem* genname, 
-                                          uint32_t* constraint, uint32_t* mask)
+                                          PRUint32* constraint, PRUint32* mask)
 {
     /* in case of failure */
     *constraint = 0;
     *mask = 0;
 
-    PR_ASSERT(genname->data);
-    if (!genname->data) {
+    PR_ASSERT(genname->data != NULL);
+    if (genname->data == NULL) {
         return SECFailure;
     }
     if (genname->len != 8) {
@@ -1546,8 +1536,8 @@ static SECStatus cert_DecodeCertIPAddress(SECItem* genname,
     }
 
     /* get them in the right order */
-    *constraint = PR_ntohl((uint32_t)(*genname->data));
-    *mask = PR_ntohl((uint32_t)(*(genname->data + 4)));
+    *constraint = PR_ntohl((PRUint32)(*genname->data));
+    *mask = PR_ntohl((PRUint32)(*(genname->data + 4)));
 
     return SECSuccess;
 }
@@ -1577,15 +1567,15 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
     bool rv = true; /* whether the cert can be presented */
     SECStatus srv;
     SECItem extData;
-    PLArenaPool* arena = nullptr;
-    CERTCertificateScopeEntry** entries = nullptr;
+    PRArenaPool* arena = NULL;
+    CERTCertificateScopeEntry** entries = NULL;
     /* arrays of decoded scope entries */
     int numEntries = 0;
     int i;
-    char* hostLower = nullptr;
-    uint32_t hostIPAddr = 0;
+    char* hostLower = NULL;
+    PRUint32 hostIPAddr = 0;
 
-    PR_ASSERT(cert && hostname && hostIP);
+    PR_ASSERT((cert != NULL) && (hostname != NULL) && (hostIP != NULL));
 
     /* find cert extension */
     srv = CERT_FindCertExtension(cert, SEC_OID_NS_CERT_EXT_SCOPE_OF_USE,
@@ -1599,7 +1589,7 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
     }
 
     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-    if (!arena) {
+    if (arena == NULL) {
         goto done;
     }
 
@@ -1624,8 +1614,8 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
          */
         CERTGeneralName* genname = entries[i]->constraint;
 
-        /* if constraint is nullptr, don't bother looking */
-        if (!genname) {
+        /* if constraint is NULL, don't bother looking */
+        if (genname == NULL) {
             /* this is not a failure: just continue */
             continue;
         }
@@ -1635,20 +1625,20 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
             /* we have a DNS name constraint; we should use only the host name
              * information
              */
-            char* pattern = nullptr;
-            char* substring = nullptr;
+            char* pattern = NULL;
+            char* substring = NULL;
 
             /* null-terminate the string */
             genname->name.other.data[genname->name.other.len] = '\0';
             pattern = _str_to_lower((char*)genname->name.other.data);
 
-            if (!hostLower) {
+            if (hostLower == NULL) {
                 /* so that it's done only if necessary and only once */
                 hostLower = _str_to_lower(PL_strdup(hostname));
             }
 
             /* the hostname satisfies the constraint */
-            if (((substring = strstr(hostLower, pattern)) != nullptr) &&
+            if (((substring = strstr(hostLower, pattern)) != NULL) &&
                 /* the hostname contains the pattern */
                 (strlen(substring) == strlen(pattern)) &&
                 /* the hostname ends with the pattern */
@@ -1665,8 +1655,8 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
             break;
         }
         case certIPAddress: {
-            uint32_t constraint;
-            uint32_t mask;
+            PRUint32 constraint;
+            PRUint32 mask;
             PRNetAddr addr;
             
             if (hostIPAddr == 0) {
@@ -1710,10 +1700,10 @@ static bool CERT_MatchesScopeOfUse(CERTCertificate* cert, char* hostname,
     }
 done:
     /* clean up entries */
-    if (arena) {
+    if (arena != NULL) {
         PORT_FreeArena(arena, false);
     }
-    if (hostLower) {
+    if (hostLower != NULL) {
         PR_Free(hostLower);
     }
     return rv;
@@ -1738,7 +1728,7 @@ done:
  */
 nsresult nsGetUserCertChoice(SSM_UserCertChoice* certChoice)
 {
-	char *mode = nullptr;
+	char *mode=NULL;
 	nsresult ret;
 
 	NS_ENSURE_ARG_POINTER(certChoice);
@@ -1777,7 +1767,7 @@ static bool hasExplicitKeyUsageNonRepudiation(CERTCertificate *cert)
 
   SECStatus srv;
   SECItem keyUsageItem;
-  keyUsageItem.data = nullptr;
+  keyUsageItem.data = NULL;
 
   srv = CERT_FindKeyUsageExtension(cert, &keyUsageItem);
   if (srv == SECFailure)
@@ -1846,8 +1836,8 @@ SECStatus nsNSS_SSLGetClientAuthData(void* arg, PRFileDesc* socket,
     return SECFailure;
   }
 
-  RefPtr<nsNSSSocketInfo> info(
-    reinterpret_cast<nsNSSSocketInfo*>(socket->higher->secret));
+  nsRefPtr<nsNSSSocketInfo> info
+        = reinterpret_cast<nsNSSSocketInfo*>(socket->higher->secret);
 
   CERTCertificate* serverCert = SSL_PeerCertificate(socket);
   if (!serverCert) {
@@ -1870,8 +1860,8 @@ SECStatus nsNSS_SSLGetClientAuthData(void* arg, PRFileDesc* socket,
   }
 
   // XXX: This should be done asynchronously; see bug 696976
-  RefPtr<ClientAuthDataRunnable> runnable(
-    new ClientAuthDataRunnable(caNames, pRetCert, pRetKey, info, serverCert));
+  nsRefPtr<ClientAuthDataRunnable> runnable =
+    new ClientAuthDataRunnable(caNames, pRetCert, pRetKey, info, serverCert);
   nsresult rv = runnable->DispatchToMainThreadAndWait();
   if (NS_FAILED(rv)) {
     PR_SetError(SEC_ERROR_NO_MEMORY, 0);
@@ -1890,28 +1880,28 @@ SECStatus nsNSS_SSLGetClientAuthData(void* arg, PRFileDesc* socket,
 
 void ClientAuthDataRunnable::RunOnTargetThread()
 {
-  PLArenaPool* arena = nullptr;
+  PRArenaPool* arena = NULL;
   char** caNameStrings;
-  CERTCertificate* cert = nullptr;
-  SECKEYPrivateKey* privKey = nullptr;
-  CERTCertList* certList = nullptr;
+  CERTCertificate* cert = NULL;
+  SECKEYPrivateKey* privKey = NULL;
+  CERTCertList* certList = NULL;
   CERTCertListNode* node;
-  CERTCertNicknames* nicknames = nullptr;
-  char* extracted = nullptr;
+  CERTCertNicknames* nicknames = NULL;
+  char* extracted = NULL;
   int keyError = 0; /* used for private key retrieval error */
   SSM_UserCertChoice certChoice;
-  int32_t NumberOfCerts = 0;
+  PRInt32 NumberOfCerts = 0;
   void * wincx = mSocketInfo;
 
   /* create caNameStrings */
   arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-  if (!arena) {
+  if (arena == NULL) {
     goto loser;
   }
 
   caNameStrings = (char**)PORT_ArenaAlloc(arena, 
                                           sizeof(char*)*(mCANames->nnames));
-  if (!caNameStrings) {
+  if (caNameStrings == NULL) {
     goto loser;
   }
 
@@ -1933,7 +1923,7 @@ void ClientAuthDataRunnable::RunOnTargetThread()
     certList = CERT_FindUserCertsByUsage(CERT_GetDefaultCertDB(), 
                                          certUsageSSLClient, false,
                                          true, wincx);
-    if (!certList) {
+    if (certList == NULL) {
       goto noCert;
     }
 
@@ -1950,7 +1940,7 @@ void ClientAuthDataRunnable::RunOnTargetThread()
       goto noCert;
     }
 
-    CERTCertificate* low_prio_nonrep_cert = nullptr;
+    CERTCertificate* low_prio_nonrep_cert = NULL;
     CERTCertificateCleaner low_prio_cleaner(low_prio_nonrep_cert);
 
     /* loop through the list until we find a cert with a key */
@@ -1967,10 +1957,10 @@ void ClientAuthDataRunnable::RunOnTargetThread()
 #endif
 
       privKey = PK11_FindKeyByAnyCert(node->cert, wincx);
-      if (privKey) {
+      if (privKey != NULL) {
         if (hasExplicitKeyUsageNonRepudiation(node->cert)) {
           SECKEY_DestroyPrivateKey(privKey);
-          privKey = nullptr;
+          privKey = NULL;
           // Not a prefered cert
           if (!low_prio_nonrep_cert) // did not yet find a low prio cert
             low_prio_nonrep_cert = CERT_DupCertificate(node->cert);
@@ -1992,11 +1982,11 @@ void ClientAuthDataRunnable::RunOnTargetThread()
 
     if (!cert && low_prio_nonrep_cert) {
       cert = low_prio_nonrep_cert;
-      low_prio_nonrep_cert = nullptr; // take it away from the cleaner
+      low_prio_nonrep_cert = NULL; // take it away from the cleaner
       privKey = PK11_FindKeyByAnyCert(cert, wincx);
     }
 
-    if (!cert) {
+    if (cert == NULL) {
         goto noCert;
     }
   }
@@ -2009,9 +1999,9 @@ void ClientAuthDataRunnable::RunOnTargetThread()
     nsresult rv;
     NS_DEFINE_CID(nssComponentCID, NS_NSSCOMPONENT_CID);
     nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(nssComponentCID, &rv));
-    RefPtr<nsClientAuthRememberService> cars;
+    nsRefPtr<nsClientAuthRememberService> cars;
     if (nssComponent) {
-      nssComponent->GetClientAuthRememberService(byRef(cars));
+      nssComponent->GetClientAuthRememberService(getter_AddRefs(cars));
     }
 
     bool hasRemembered = false;
@@ -2071,17 +2061,17 @@ if (hasRemembered)
 if (!hasRemembered)
 {
     /* user selects a cert to present */
-    nsIClientAuthDialogs *dialogs = nullptr;
-    int32_t selectedIndex = -1;
-    PRUnichar **certNicknameList = nullptr;
-    PRUnichar **certDetailsList = nullptr;
+    nsIClientAuthDialogs *dialogs = NULL;
+    PRInt32 selectedIndex = -1;
+    PRUnichar **certNicknameList = NULL;
+    PRUnichar **certDetailsList = NULL;
 
     /* find all user certs that are for SSL */
     /* note that we are allowing expired certs in this list */
     certList = CERT_FindUserCertsByUsage(CERT_GetDefaultCertDB(), 
                                          certUsageSSLClient, false, 
                                          false, wincx);
-    if (!certList) {
+    if (certList == NULL) {
       goto noCert;
     }
 
@@ -2125,7 +2115,7 @@ if (!hasRemembered)
 
     nicknames = getNSSCertNicknamesFromCertList(certList);
 
-    if (!nicknames) {
+    if (nicknames == NULL) {
       goto loser;
     }
 
@@ -2137,7 +2127,7 @@ if (!hasRemembered)
     voidCleaner ccnCleaner(v);
     NS_ConvertUTF8toUTF16 cn(ccn);
 
-    int32_t port;
+    PRInt32 port;
     mSocketInfo->GetPort(&port);
 
     nsString cn_host_port;
@@ -2171,13 +2161,13 @@ if (!hasRemembered)
       goto loser;
     }
 
-    int32_t CertsToUse;
+    PRInt32 CertsToUse;
     for (CertsToUse = 0, node = CERT_LIST_HEAD(certList);
          !CERT_LIST_END(node, certList) && CertsToUse < nicknames->numnicknames;
          node = CERT_LIST_NEXT(node)
         )
     {
-      RefPtr<nsNSSCertificate> tempCert(nsNSSCertificate::Create(node->cert));
+      nsRefPtr<nsNSSCertificate> tempCert = nsNSSCertificate::Create(node->cert);
 
       if (!tempCert)
         continue;
@@ -2254,13 +2244,13 @@ if (!hasRemembered)
 
     if (canceled) { rv = NS_ERROR_NOT_AVAILABLE; goto loser; }
 
-    if (!cert) {
+    if (cert == NULL) {
       goto loser;
     }
 
     /* go get the private key */
     privKey = PK11_FindKeyByAnyCert(cert, wincx);
-    if (!privKey) {
+    if (privKey == NULL) {
       keyError = PR_GetError();
       if (keyError == SEC_ERROR_BAD_PASSWORD) {
           /* problem with password: bail */
@@ -2278,23 +2268,23 @@ loser:
   if (mRV == SECSuccess) {
     mRV = SECFailure;
   }
-  if (cert) {
+  if (cert != NULL) {
     CERT_DestroyCertificate(cert);
-    cert = nullptr;
+    cert = NULL;
   }
 done:
   int error = PR_GetError();
 
-  if (extracted) {
+  if (extracted != NULL) {
     PR_Free(extracted);
   }
-  if (nicknames) {
+  if (nicknames != NULL) {
     CERT_FreeNicknames(nicknames);
   }
-  if (certList) {
+  if (certList != NULL) {
     CERT_DestroyCertList(certList);
   }
-  if (arena) {
+  if (arena != NULL) {
     PORT_FreeArena(arena, false);
   }
 
@@ -2323,7 +2313,7 @@ nsSSLIOLayerImportFD(PRFileDesc *fd,
 
   // Disable this hook if we connect anonymously. See bug 466080.
   if (anonymousLoad) {
-      SSL_GetClientAuthDataHook(sslSock, nullptr, infoObject);
+      SSL_GetClientAuthDataHook(sslSock, NULL, infoObject);
   } else {
       SSL_GetClientAuthDataHook(sslSock, 
                             (SSLGetClientAuthData)nsNSS_SSLGetClientAuthData,
@@ -2349,7 +2339,7 @@ loser:
 
 static nsresult
 nsSSLIOLayerSetOptions(PRFileDesc *fd, bool forSTARTTLS, 
-                       const char *proxyHost, const char *host, int32_t port,
+                       const char *proxyHost, const char *host, PRInt32 port,
                        bool anonymousLoad, nsNSSSocketInfo *infoObject)
 {
   nsNSSShutDownPreventionLock locker;
@@ -2362,7 +2352,7 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, bool forSTARTTLS,
 
   // Let's see if we're trying to connect to a site we know is
   // TLS intolerant.
-  nsAutoCString key;
+  nsCAutoString key;
   key = nsDependentCString(host) + NS_LITERAL_CSTRING(":") + nsPrintfCString("%d", port);
 
   if (nsSSLIOLayerHelpers::isKnownAsIntolerantSite(key)) {
@@ -2420,11 +2410,11 @@ nsSSLIOLayerSetOptions(PRFileDesc *fd, bool forSTARTTLS,
 }
 
 nsresult
-nsSSLIOLayerAddToSocket(int32_t family,
+nsSSLIOLayerAddToSocket(PRInt32 family,
                         const char* host,
-                        int32_t port,
+                        PRInt32 port,
                         const char* proxyHost,
-                        int32_t proxyPort,
+                        PRInt32 proxyPort,
                         PRFileDesc* fd,
                         nsISupports** info,
                         bool forSTARTTLS,

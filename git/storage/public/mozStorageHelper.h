@@ -10,7 +10,7 @@
 
 #include "mozIStorageConnection.h"
 #include "mozIStorageStatement.h"
-#include "nsError.h"
+#include "mozStorage.h"
 
 
 /**
@@ -33,7 +33,7 @@ class mozStorageTransaction
 public:
   mozStorageTransaction(mozIStorageConnection* aConnection,
                         bool aCommitOnComplete,
-                        int32_t aType = mozIStorageConnection::TRANSACTION_DEFERRED)
+                        PRInt32 aType = mozIStorageConnection::TRANSACTION_DEFERRED)
     : mConnection(aConnection),
       mHasTransaction(false),
       mCommitOnComplete(aCommitOnComplete),

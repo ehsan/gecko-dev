@@ -15,6 +15,7 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsThreadUtils.h"
+#include "nsAutoPtr.h"
 
 #include "mozilla/Telemetry.h"
 #include "nsISecurityUITelemetry.h"
@@ -124,7 +125,7 @@ public:
                const PRUnichar* aShowAgainName,
                nsIPrefBranch*   aPrefBranch,
                nsIStringBundle* aStringBundle,
-               uint32_t         aBucket)
+               PRUint32         aBucket)
   : mPrompt(aPrompt), mPrefName(aPrefName),
     mDialogMessageName(aDialogMessageName),
     mShowAgainName(aShowAgainName), mPrefBranch(aPrefBranch),
@@ -139,7 +140,7 @@ protected:
   nsString                  mShowAgainName;
   nsCOMPtr<nsIPrefBranch>   mPrefBranch;
   nsCOMPtr<nsIStringBundle> mStringBundle;
-  uint32_t                  mBucket;
+  PRUint32                  mBucket;
 };
 
 NS_IMETHODIMP
@@ -161,7 +162,7 @@ nsAsyncAlert::Run()
   //   - The default value of the "show every time" checkbox is unchecked
   //   - If the user checks the checkbox, we clear the show-once pref.
 
-  nsAutoCString showOncePref(mPrefName);
+  nsCAutoString showOncePref(mPrefName);
   showOncePref += ".show_once";
 
   bool showOnce = false;
@@ -200,7 +201,7 @@ nsSecurityWarningDialogs::AlertDialog(nsIInterfaceRequestor* aCtx,
                                       const PRUnichar* aDialogMessageName,
                                       const PRUnichar* aShowAgainName,
                                       bool aAsync,
-                                      const uint32_t aBucket)
+                                      const PRUint32 aBucket)
 {
   // Get Prompt to use
   nsCOMPtr<nsIPrompt> prompt = do_GetInterface(aCtx);
@@ -254,7 +255,7 @@ nsresult
 nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *prefName,
                             const PRUnichar *messageName, 
                             const PRUnichar *showAgainName, 
-                            const uint32_t aBucket,
+                            const PRUint32 aBucket,
                             bool* _result)
 {
   nsresult rv;
@@ -263,7 +264,7 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   // prefName, showAgainName are null if there is no preference for this dialog
   bool prefValue = true;
   
-  if (prefName) {
+  if (prefName != nullptr) {
     rv = mPrefBranch->GetBoolPref(prefName, &prefValue);
     if (NS_FAILED(rv)) prefValue = true;
   }
@@ -277,7 +278,7 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   MOZ_ASSERT(NS_IsMainThread());
   mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, aBucket);
   // See AlertDialog() for a description of how showOnce works.
-  nsAutoCString showOncePref(prefName);
+  nsCAutoString showOncePref(prefName);
   showOncePref += ".show_once";
 
   bool showOnce = false;
@@ -297,7 +298,7 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
                                    getter_Copies(windowTitle));
   mStringBundle->GetStringFromName(messageName,
                                    getter_Copies(message));
-  if (showAgainName) {
+  if (showAgainName != nullptr) {
     mStringBundle->GetStringFromName(showAgainName,
                                      getter_Copies(alertMe));
   }
@@ -309,14 +310,14 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   // Replace # characters with newlines to lay out the dialog.
   PRUnichar* msgchars = message.BeginWriting();
   
-  uint32_t i = 0;
+  PRUint32 i = 0;
   for (i = 0; msgchars[i] != '\0'; i++) {
     if (msgchars[i] == '#') {
       msgchars[i] = '\n';
     }
   }  
 
-  int32_t buttonPressed;
+  PRInt32 buttonPressed;
 
   rv  = prompt->ConfirmEx(windowTitle, 
                           message, 
@@ -338,7 +339,7 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, aBucket + 1);
   }
 
-  if (!prefValue && prefName) {
+  if (!prefValue && prefName != nullptr) {
     mPrefBranch->SetBoolPref(prefName, false);
   } else if (prefValue && showOnce) {
     mPrefBranch->SetBoolPref(showOncePref.get(), false);

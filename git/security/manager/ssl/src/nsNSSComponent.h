@@ -8,7 +8,6 @@
 #define _nsNSSComponent_h_
 
 #include "mozilla/Mutex.h"
-#include "mozilla/RefPtr.h"
 #include "nsCOMPtr.h"
 #include "nsISignatureVerifier.h"
 #include "nsIURIContentListener.h"
@@ -79,7 +78,7 @@ class PSMContentDownloader : public nsIStreamListener
 {
 public:
   PSMContentDownloader() {NS_ASSERTION(false, "don't use this constructor."); }
-  PSMContentDownloader(uint32_t type);
+  PSMContentDownloader(PRUint32 type);
   virtual ~PSMContentDownloader();
   void setSilentDownload(bool flag);
   void setCrlAutodownloadKey(nsAutoString key);
@@ -97,9 +96,9 @@ public:
 
 protected:
   char* mByteData;
-  int32_t mBufferOffset;
-  int32_t mBufferSize;
-  uint32_t mType;
+  PRInt32 mBufferOffset;
+  PRInt32 mBufferSize;
+  PRUint32 mType;
   bool mDoSilentDownload;
   nsString mCrlAutoDownloadKey;
   nsCOMPtr<nsIURI> mURI;
@@ -118,14 +117,14 @@ class NS_NO_VTABLE nsINSSComponent : public nsISupports {
                                    nsAString &outString) = 0;
   NS_IMETHOD PIPBundleFormatStringFromName(const char *name,
                                            const PRUnichar **params,
-                                           uint32_t numParams,
+                                           PRUint32 numParams,
                                            nsAString &outString) = 0;
 
   NS_IMETHOD GetNSSBundleString(const char *name,
                                 nsAString &outString) = 0;
   NS_IMETHOD NSSBundleFormatStringFromName(const char *name,
                                            const PRUnichar **params,
-                                           uint32_t numParams,
+                                           PRUint32 numParams,
                                            nsAString &outString) = 0;
 
   // This method will just disable OCSP in NSS, it will not
@@ -160,10 +159,8 @@ class NS_NO_VTABLE nsINSSComponent : public nsISupports {
 
   NS_IMETHOD IsNSSInitialized(bool *initialized) = 0;
 
-  NS_IMETHOD GetDefaultCERTValInParam(
-                  mozilla::RefPtr<nsCERTValInParamWrapper> &out) = 0;
-  NS_IMETHOD GetDefaultCERTValInParamLocalOnly(
-                  mozilla::RefPtr<nsCERTValInParamWrapper> &out) = 0;
+  NS_IMETHOD GetDefaultCERTValInParam(nsRefPtr<nsCERTValInParamWrapper> &out) = 0;
+  NS_IMETHOD GetDefaultCERTValInParamLocalOnly(nsRefPtr<nsCERTValInParamWrapper> &out) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsINSSComponent, NS_INSSCOMPONENT_IID)
@@ -237,13 +234,13 @@ public:
                                    nsAString &outString);
   NS_IMETHOD PIPBundleFormatStringFromName(const char *name,
                                            const PRUnichar **params,
-                                           uint32_t numParams,
+                                           PRUint32 numParams,
                                            nsAString &outString);
   NS_IMETHOD GetNSSBundleString(const char *name,
                                nsAString &outString);
   NS_IMETHOD NSSBundleFormatStringFromName(const char *name,
                                            const PRUnichar **params,
-                                           uint32_t numParams,
+                                           PRUint32 numParams,
                                            nsAString &outString);
   NS_IMETHOD SkipOcsp();
   NS_IMETHOD SkipOcspOff();
@@ -263,10 +260,8 @@ public:
   NS_IMETHOD EnsureIdentityInfoLoaded();
   NS_IMETHOD IsNSSInitialized(bool *initialized);
 
-  NS_IMETHOD GetDefaultCERTValInParam(
-                  mozilla::RefPtr<nsCERTValInParamWrapper> &out);
-  NS_IMETHOD GetDefaultCERTValInParamLocalOnly(
-                  mozilla::RefPtr<nsCERTValInParamWrapper> &out);
+  NS_IMETHOD GetDefaultCERTValInParam(nsRefPtr<nsCERTValInParamWrapper> &out);
+  NS_IMETHOD GetDefaultCERTValInParamLocalOnly(nsRefPtr<nsCERTValInParamWrapper> &out);
 private:
 
   nsresult InitializeNSS(bool showWarningBox);
@@ -327,11 +322,11 @@ private:
   nsCertVerificationThread *mCertVerificationThread;
 
   nsNSSHttpInterface mHttpForNSS;
-  mozilla::RefPtr<nsClientAuthRememberService> mClientAuthRememberService;
-  mozilla::RefPtr<nsCERTValInParamWrapper> mDefaultCERTValInParam;
-  mozilla::RefPtr<nsCERTValInParamWrapper> mDefaultCERTValInParamLocalOnly;
+  nsRefPtr<nsClientAuthRememberService> mClientAuthRememberService;
+  nsRefPtr<nsCERTValInParamWrapper> mDefaultCERTValInParam;
+  nsRefPtr<nsCERTValInParamWrapper> mDefaultCERTValInParamLocalOnly;
 
-  static PRStatus IdentityInfoInit(void);
+  static PRStatus PR_CALLBACK IdentityInfoInit(void);
   PRCallOnceType mIdentityInfoCallOnce;
 
 public:

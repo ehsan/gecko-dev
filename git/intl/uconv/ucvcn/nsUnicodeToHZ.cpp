@@ -32,13 +32,13 @@ nsUnicodeToHZ::nsUnicodeToHZ() : nsEncoderSupport(6)
 }
 NS_IMETHODIMP nsUnicodeToHZ::ConvertNoBuff(
   const PRUnichar * aSrc, 
-  int32_t * aSrcLength, 
+  PRInt32 * aSrcLength, 
   char * aDest, 
-  int32_t * aDestLength)
+  PRInt32 * aDestLength)
 {
-  int32_t i=0;
-  int32_t iSrcLength = *aSrcLength;
-  int32_t iDestLength = 0;
+  PRInt32 i=0;
+  PRInt32 iSrcLength = *aSrcLength;
+  PRInt32 iDestLength = 0;
 
   for (i=0;i< iSrcLength;i++)
   {
@@ -102,7 +102,7 @@ NS_IMETHODIMP nsUnicodeToHZ::ConvertNoBuff(
   return NS_OK;
 }
 
-NS_IMETHODIMP nsUnicodeToHZ::FinishNoBuff(char * aDest, int32_t * aDestLength)
+NS_IMETHODIMP nsUnicodeToHZ::FinishNoBuff(char * aDest, PRInt32 * aDestLength)
 {
   if ( mHZState == HZ_STATE_GB )
   {

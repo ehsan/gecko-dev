@@ -17,14 +17,16 @@
 #include "nscore.h"
 #include "private/pprio.h"
 #include "mozilla/FileUtils.h"
+#include "mozilla/FunctionTimer.h"
 
 bool 
-mozilla::fallocate(PRFileDesc *aFD, int64_t aLength) 
+mozilla::fallocate(PRFileDesc *aFD, PRInt64 aLength) 
 {
+  NS_TIME_FUNCTION;
 #if defined(HAVE_POSIX_FALLOCATE)
   return posix_fallocate(PR_FileDesc2NativeHandle(aFD), 0, aLength) == 0;
 #elif defined(XP_WIN)
-  int64_t oldpos = PR_Seek64(aFD, 0, PR_SEEK_CUR);
+  PROffset64 oldpos = PR_Seek64(aFD, 0, PR_SEEK_CUR);
   if (oldpos == -1)
     return false;
 
@@ -36,8 +38,8 @@ mozilla::fallocate(PRFileDesc *aFD, int64_t aLength)
   PR_Seek64(aFD, oldpos, PR_SEEK_SET);
   return retval;
 #elif defined(XP_OS2)
-  return aLength <= UINT32_MAX
-    && 0 == DosSetFileSize(PR_FileDesc2NativeHandle(aFD), (uint32_t)aLength);
+  return aLength <= PR_UINT32_MAX
+    && 0 == DosSetFileSize(PR_FileDesc2NativeHandle(aFD), (PRUint32)aLength);
 #elif defined(XP_MACOSX)
   int fd = PR_FileDesc2NativeHandle(aFD);
   fstore_t store = {F_ALLOCATECONTIG, F_PEOFPOSMODE, 0, aLength};
@@ -59,7 +61,7 @@ mozilla::fallocate(PRFileDesc *aFD, int64_t aLength)
   ** is the same technique used by glibc to implement posix_fallocate()
   ** on systems that do not have a real fallocate() system call.
   */
-  int64_t oldpos = PR_Seek64(aFD, 0, PR_SEEK_CUR);
+  PROffset64 oldpos = PR_Seek64(aFD, 0, PR_SEEK_CUR);
   if (oldpos == -1)
     return false;
 
@@ -80,14 +82,13 @@ mozilla::fallocate(PRFileDesc *aFD, int64_t aLength)
     return false;
 
   int nWrite; // Return value from write()
-  int64_t iWrite = ((buf.st_size + 2 * nBlk - 1) / nBlk) * nBlk - 1; // Next offset to write to
-  while (iWrite < aLength) {
+  PRInt64 iWrite = ((buf.st_size + 2 * nBlk - 1) / nBlk) * nBlk - 1; // Next offset to write to
+  do {
     nWrite = 0;
     if (PR_Seek64(aFD, iWrite, PR_SEEK_SET) == iWrite)
       nWrite = PR_Write(aFD, "", 1);
-    if (nWrite != 1) break;
     iWrite += nBlk;
-  }
+  } while (nWrite == 1 && iWrite < aLength);
 
   PR_Seek64(aFD, oldpos, PR_SEEK_SET);
   return nWrite == 1;

@@ -45,13 +45,13 @@ class nsNativeTheme : public nsITimerCallback
   virtual ~nsNativeTheme() {}
 
   // Returns the content state (hover, focus, etc), see nsEventStateManager.h
-  nsEventStates GetContentState(nsIFrame* aFrame, uint8_t aWidgetType);
+  nsEventStates GetContentState(nsIFrame* aFrame, PRUint8 aWidgetType);
 
   // Returns whether the widget is already styled by content
   // Normally called from ThemeSupportsWidget to turn off native theming
   // for elements that are already styled.
   bool IsWidgetStyled(nsPresContext* aPresContext, nsIFrame* aFrame,
-                        uint8_t aWidgetType);                                              
+                        PRUint8 aWidgetType);                                              
 
   // Accessors to widget-specific state information
 
@@ -82,14 +82,14 @@ class nsNativeTheme : public nsITimerCallback
   }
   
   // scrollbar button:
-  int32_t GetScrollbarButtonType(nsIFrame* aFrame);
+  PRInt32 GetScrollbarButtonType(nsIFrame* aFrame);
 
   // tab:
   bool IsSelectedTab(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsGkAtoms::selected);
   }
   
-  bool IsNextToSelectedTab(nsIFrame* aFrame, int32_t aOffset);
+  bool IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset);
   
   bool IsBeforeSelectedTab(nsIFrame* aFrame) {
     return IsNextToSelectedTab(aFrame, -1);
@@ -154,20 +154,20 @@ class nsNativeTheme : public nsITimerCallback
   bool IsMenuListEditable(nsIFrame *aFrame);
 
   nsIPresShell *GetPresShell(nsIFrame* aFrame);
-  int32_t CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom, int32_t defaultValue);
+  PRInt32 CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom, PRInt32 defaultValue);
   bool CheckBooleanAttr(nsIFrame* aFrame, nsIAtom* aAtom);
 
   bool GetCheckedOrSelected(nsIFrame* aFrame, bool aCheckSelected);
   bool GetIndeterminate(nsIFrame* aFrame);
 
   bool QueueAnimatedContentForRefresh(nsIContent* aContent,
-                                        uint32_t aMinimumFrameRate);
+                                        PRUint32 aMinimumFrameRate);
 
   nsIFrame* GetAdjacentSiblingFrameWithSameAppearance(nsIFrame* aFrame,
                                                       bool aNextSibling);
 
  private:
-  uint32_t mAnimatedContentTimeout;
+  PRUint32 mAnimatedContentTimeout;
   nsCOMPtr<nsITimer> mAnimatedContentTimer;
   nsAutoTArray<nsCOMPtr<nsIContent>, 20> mAnimatedContentList;
 };

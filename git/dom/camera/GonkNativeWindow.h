@@ -1,5 +1,3 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=4 et sw=4 tw=80: */
 /*
  * Copyright (C) 2010 The Android Open Source Project
  * Copyright (C) 2012 Mozilla Foundation
@@ -33,33 +31,16 @@
 #include <utils/String8.h>
 #include <utils/threads.h>
 
-#include "mozilla/layers/LayersSurfaces.h"
-#include "mozilla/layers/ImageBridgeChild.h"
-#include "GonkIOSurfaceImage.h"
-#include "CameraCommon.h"
-
 namespace android {
-
-// The user of GonkNativeWindow who wants to receive notification of
-// new frames should implement this interface.
-class GonkNativeWindowNewFrameCallback {
-public:
-    virtual void OnNewFrame() = 0;
-};
 
 class GonkNativeWindow : public EGLNativeBase<ANativeWindow, GonkNativeWindow, RefBase>
 {
-    typedef mozilla::layers::SurfaceDescriptor SurfaceDescriptor;
-    typedef mozilla::layers::GraphicBufferLocked GraphicBufferLocked;
-
 public:
     enum { MIN_UNDEQUEUED_BUFFERS = 2 };
     enum { MIN_BUFFER_SLOTS = MIN_UNDEQUEUED_BUFFERS };
     enum { NUM_BUFFER_SLOTS = 32 };
-    enum { NATIVE_WINDOW_SET_BUFFERS_SIZE = 0x10000000 };
 
     GonkNativeWindow();
-    GonkNativeWindow(GonkNativeWindowNewFrameCallback* aCallback);
     ~GonkNativeWindow(); // this class cannot be overloaded
 
     // ANativeWindow hooks
@@ -70,19 +51,6 @@ public:
     static int hook_query(const ANativeWindow* window, int what, int* value);
     static int hook_queueBuffer(ANativeWindow* window, ANativeWindowBuffer* buffer);
     static int hook_setSwapInterval(ANativeWindow* window, int interval);
-
-    // Get next frame from the queue and mark it as RENDERING, caller
-    // owns the returned buffer.
-    already_AddRefed<GraphicBufferLocked> getCurrentBuffer();
-
-    // Return the buffer to the queue and mark it as FREE. After that
-    // the buffer is useable again for the decoder.
-    bool returnBuffer(uint32_t index, uint32_t generation);
-
-    // Release all internal buffers
-    void abandon();
-
-    SurfaceDescriptor *getSurfaceDescriptorFromBuffer(ANativeWindowBuffer* buffer);
 
 protected:
     virtual int cancelBuffer(ANativeWindowBuffer* buffer);
@@ -135,9 +103,6 @@ private:
         // if no buffer has been allocated.
         sp<GraphicBuffer> mGraphicBuffer;
 
-        // mSurfaceDescriptor is the token to remotely allocated GraphicBuffer.
-        SurfaceDescriptor mSurfaceDescriptor;
-
         // BufferState represents the different states in which a buffer slot
         // can be.
         enum BufferState {
@@ -166,12 +131,6 @@ private:
             // circumstances. See the note about the current buffer in the
             // documentation for DEQUEUED.
             QUEUED = 2,
-
-            // RENDERING indicates that the buffer has been sent to
-            // the compositor, and has not yet available for the
-            // client to dequeue. When the compositor has finished its
-            // job, the buffer will be returned to FREE state.
-            RENDERING = 3,
         };
 
         // mBufferState is the current state of this buffer slot.
@@ -226,63 +185,6 @@ private:
 
     // mFrameCounter is the free running counter, incremented for every buffer queued
     uint64_t mFrameCounter;
-
-    // mGeneration is the current generation of buffer slots
-    uint32_t mGeneration;
-
-    GonkNativeWindowNewFrameCallback* mNewFrameCallback;
-};
-
-
-// CameraGraphicBuffer maintains the buffer returned from GonkNativeWindow
-class CameraGraphicBuffer : public mozilla::layers::GraphicBufferLocked
-{
-    typedef mozilla::layers::SurfaceDescriptor SurfaceDescriptor;
-    typedef mozilla::layers::ImageBridgeChild ImageBridgeChild;
-
-public:
-    CameraGraphicBuffer(GonkNativeWindow* aNativeWindow,
-                        uint32_t aIndex,
-                        uint32_t aGeneration,
-                        SurfaceDescriptor aBuffer)
-        : GraphicBufferLocked(aBuffer)
-        , mNativeWindow(aNativeWindow)
-        , mIndex(aIndex)
-        , mGeneration(aGeneration)
-        , mLocked(true)
-    {
-        DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
-    }
-
-    virtual ~CameraGraphicBuffer()
-    {
-        DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
-    }
-
-    // Unlock either returns the buffer to the native window or
-    // destroys the buffer if the window is already released.
-    virtual void Unlock() MOZ_OVERRIDE
-    {
-        if (mLocked) {
-            // The window might have been destroyed. The buffer is no longer
-            // valid at that point.
-            sp<GonkNativeWindow> window = mNativeWindow.promote();
-            if (window.get() && window->returnBuffer(mIndex, mGeneration)) {
-                mLocked = false;
-            } else {
-                // If the window doesn't exist any more, release the buffer
-                // directly.
-                ImageBridgeChild *ibc = ImageBridgeChild::GetSingleton();
-                ibc->DeallocSurfaceDescriptorGralloc(mSurfaceDescriptor);
-            }
-        }
-    }
-
-protected:
-    wp<GonkNativeWindow> mNativeWindow;
-    uint32_t mIndex;
-    uint32_t mGeneration;
-    bool mLocked;
 };
 
 }; // namespace android

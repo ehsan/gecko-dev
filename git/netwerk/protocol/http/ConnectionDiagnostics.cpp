@@ -22,7 +22,7 @@ nsHttpConnectionMgr::PrintDiagnostics()
 }
 
 void
-nsHttpConnectionMgr::OnMsgPrintDiagnostics(int32_t, void *)
+nsHttpConnectionMgr::OnMsgPrintDiagnostics(PRInt32, void *)
 {
   NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
@@ -50,7 +50,7 @@ nsHttpConnectionMgr::PrintDiagnosticsCB(const nsACString &key,
                                         void *closure)
 {
   nsHttpConnectionMgr *self = static_cast<nsHttpConnectionMgr *>(closure);
-  uint32_t i;
+  PRUint32 i;
 
   self->mLogData.AppendPrintf(" ent host = %s hashkey = %s\n",
                               ent->mConnInfo->Host(), ent->mConnInfo->HashKey().get());
@@ -237,7 +237,7 @@ nsHttpTransaction::PrintDiagnostics(nsCString &log)
     return;
 
   log.AppendPrintf("     ::: uri = %s\n",
-                   nsAutoCString(mRequestHead->RequestURI()).get());
+                   nsCAutoString(mRequestHead->RequestURI()).get());
   log.AppendPrintf("     caps = 0x%x\n", mCaps);
   log.AppendPrintf("     priority = %d\n", mPriority);
   log.AppendPrintf("     restart count = %u\n", mRestartCount);

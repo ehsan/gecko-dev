@@ -14,9 +14,9 @@
 #include "nspr.h"
 #include "nsNSSCertHeader.h"
 
+extern "C" {
 #include "secerr.h"
-
-using namespace mozilla;
+}
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
@@ -31,11 +31,11 @@ nsUsageArrayHelper::nsUsageArrayHelper(CERTCertificate *aCert)
 void
 nsUsageArrayHelper::check(const char *suffix,
                         SECCertificateUsage aCertUsage,
-                        uint32_t &aCounter,
+                        PRUint32 &aCounter,
                         PRUnichar **outUsages)
 {
   if (!aCertUsage) return;
-  nsAutoCString typestr;
+  nsCAutoString typestr;
   switch (aCertUsage) {
   case certificateUsageSSLClient:
     typestr = "VerifySSLClient";
@@ -87,7 +87,7 @@ nsUsageArrayHelper::check(const char *suffix,
 }
 
 void
-nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
+nsUsageArrayHelper::verifyFailed(PRUint32 *_verified, int err)
 {
   switch (err) {
   /* For these cases, verify only failed for the particular usage */
@@ -122,9 +122,9 @@ nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
 nsresult
 nsUsageArrayHelper::GetUsagesArray(const char *suffix,
                       bool localOnly,
-                      uint32_t outArraySize,
-                      uint32_t *_verified,
-                      uint32_t *_count,
+                      PRUint32 outArraySize,
+                      PRUint32 *_verified,
+                      PRUint32 *_count,
                       PRUnichar **outUsages)
 {
   nsNSSShutDownPreventionLock locker;
@@ -147,7 +147,7 @@ nsUsageArrayHelper::GetUsagesArray(const char *suffix,
     }
   }
   
-  uint32_t &count = *_count;
+  PRUint32 &count = *_count;
   count = 0;
   SECCertificateUsage usages = 0;
   int err = 0;
@@ -166,7 +166,7 @@ if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
 			    certificateUsageObjectSigner |
 			    certificateUsageSSLCA |
 			    certificateUsageStatusResponder,
-			    nullptr, &usages);
+			    NULL, &usages);
   err = PR_GetError();
 }
 else {
@@ -174,7 +174,7 @@ else {
   nsCOMPtr<nsINSSComponent> inss = do_GetService(kNSSComponentCID, &nsrv);
   if (!inss)
     return nsrv;
-  RefPtr<nsCERTValInParamWrapper> survivingParams;
+  nsRefPtr<nsCERTValInParamWrapper> survivingParams;
   if (localOnly)
     nsrv = inss->GetDefaultCERTValInParamLocalOnly(survivingParams);
   else
@@ -190,7 +190,7 @@ else {
   
   CERT_PKIXVerifyCert(mCert, certificateUsageCheckAllUsages,
                       survivingParams->GetRawPointerForNSS(),
-                      cvout, nullptr);
+                      cvout, NULL);
   err = PR_GetError();
   usages = cvout[0].value.scalar.usages;
 }

@@ -80,7 +80,7 @@ RDFBindingSet::SyncAssignments(nsIRDFResource* aSubject,
         return false;
 
     RDFBinding* binding = mFirst;
-    int32_t count = 0;
+    PRInt32 count = 0;
 
     // QI for proper comparisons just to be safe
     nsCOMPtr<nsIRDFNode> subjectnode = do_QueryInterface(aSubject);
@@ -165,10 +165,10 @@ RDFBindingSet::RemoveDependencies(nsIRDFResource* aSubject,
     }
 }
 
-int32_t
+PRInt32
 RDFBindingSet::LookupTargetIndex(nsIAtom* aTargetVariable, RDFBinding** aBinding)
 {
-    int32_t idx = 0;
+    PRInt32 idx = 0;
     RDFBinding* binding = mFirst;
 
     while (binding) {
@@ -205,7 +205,7 @@ nsBindingValues::SetBindingSet(RDFBindingSet* aBindings)
 {
     ClearBindingSet();
 
-    int32_t count = aBindings->Count();
+    PRInt32 count = aBindings->Count();
     if (count) {
         mValues = new nsCOMPtr<nsIRDFNode>[count];
         if (!mValues)
@@ -233,7 +233,7 @@ nsBindingValues::GetAssignmentFor(nsXULTemplateResultRDF* aResult,
 
     if (mBindings && mValues) {
         RDFBinding* binding;
-        int32_t idx = mBindings->LookupTargetIndex(aVar, &binding);
+        PRInt32 idx = mBindings->LookupTargetIndex(aVar, &binding);
         if (idx >= 0) {
             *aValue = mValues[idx];
             if (*aValue) {

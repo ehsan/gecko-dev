@@ -32,24 +32,24 @@ static const float EPSILON = 0.0001;
  * Maximum amount of time while panning before sending a viewport change. This
  * will asynchronously repaint the page. It is also forced when panning stops.
  */
-static const int32_t PAN_REPAINT_INTERVAL = 250;
+static const PRInt32 PAN_REPAINT_INTERVAL = 250;
 
 /**
  * Maximum amount of time flinging before sending a viewport change. This will
  * asynchronously repaint the page.
  */
-static const int32_t FLING_REPAINT_INTERVAL = 75;
+static const PRInt32 FLING_REPAINT_INTERVAL = 75;
 
 /**
  * Minimum amount of speed along an axis before we begin painting far ahead by
  * adjusting the displayport.
  */
-static const float MIN_SKATE_SPEED = 0.7f;
+static const float MIN_SKATE_SPEED = 0.5f;
 
 /**
  * Angle from axis within which we stay axis-locked.
  */
-static const float AXIS_LOCK_ANGLE = M_PI / 9.0;
+static const float AXIS_LOCK_ANGLE = M_PI / 6.0;
 
 /**
  * Duration of a zoom to animation.
@@ -71,36 +71,18 @@ static const double MAX_ZOOM = 8.0;
  */
 static const double MIN_ZOOM = 0.125;
 
-/**
- * Amount of time before we timeout touch event listeners. For example, if
- * content is being unruly/slow and we don't get a response back within this
- * time, we will just pretend that content did not preventDefault any touch
- * events we dispatched to it.
- */
-static const int TOUCH_LISTENER_TIMEOUT = 300;
-
-/**
- * Number of samples to store of how long it took to paint after the previous
- * requests.
- */
-static const int NUM_PAINT_DURATION_SAMPLES = 3;
-
 AsyncPanZoomController::AsyncPanZoomController(GeckoContentController* aGeckoContentController,
                                                GestureBehavior aGestures)
   :  mGeckoContentController(aGeckoContentController),
-     mTouchListenerTimeoutTask(nullptr),
      mX(this),
      mY(this),
-     mAllowZoom(true),
-     mMinZoom(MIN_ZOOM),
-     mMaxZoom(MAX_ZOOM),
      mMonitor("AsyncPanZoomController"),
      mLastSampleTime(TimeStamp::Now()),
      mState(NOTHING),
      mDPI(72),
-     mWaitingForContentToPaint(false),
-     mDisableNextTouchBatch(false),
-     mHandlingTouchQueue(false)
+     mContentPainterStatus(CONTENT_IDLE),
+     mMayHaveTouchListeners(false),
+     mDisableNextTouchBatch(false)
 {
   if (aGestures == USE_GESTURE_DETECTOR) {
     mGestureEventListener = new GestureEventListener(this);
@@ -139,30 +121,30 @@ WidgetSpaceToCompensatedViewportSpace(const gfx::Point& aPoint,
 }
 
 nsEventStatus
-AsyncPanZoomController::ReceiveInputEvent(const nsInputEvent& aEvent,
-                                          nsInputEvent* aOutEvent)
+AsyncPanZoomController::HandleInputEvent(const nsInputEvent& aEvent,
+                                         nsInputEvent* aOutEvent)
 {
-  gfxFloat currentResolution;
+  float currentZoom;
   gfx::Point currentScrollOffset, lastScrollOffset;
   {
     MonitorAutoLock monitor(mMonitor);
-    currentResolution = CalculateResolution(mFrameMetrics).width;
-    currentScrollOffset = gfx::Point(mFrameMetrics.mScrollOffset.x,
-                                     mFrameMetrics.mScrollOffset.y);
-    lastScrollOffset = gfx::Point(mLastContentPaintMetrics.mScrollOffset.x,
-                                  mLastContentPaintMetrics.mScrollOffset.y);
+    currentZoom = mFrameMetrics.mResolution.width;
+    currentScrollOffset = gfx::Point(mFrameMetrics.mViewportScrollOffset.x,
+                                     mFrameMetrics.mViewportScrollOffset.y);
+    lastScrollOffset = gfx::Point(mLastContentPaintMetrics.mViewportScrollOffset.x,
+                                  mLastContentPaintMetrics.mViewportScrollOffset.y);
   }
 
   nsEventStatus status;
   switch (aEvent.eventStructType) {
   case NS_TOUCH_EVENT: {
     MultiTouchInput event(static_cast<const nsTouchEvent&>(aEvent));
-    status = ReceiveInputEvent(event);
+    status = HandleInputEvent(event);
     break;
   }
   case NS_MOUSE_EVENT: {
     MultiTouchInput event(static_cast<const nsMouseEvent&>(aEvent));
-    status = ReceiveInputEvent(event);
+    status = HandleInputEvent(event);
     break;
   }
   default:
@@ -174,12 +156,12 @@ AsyncPanZoomController::ReceiveInputEvent(const nsInputEvent& aEvent,
   case NS_TOUCH_EVENT: {
     nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aOutEvent);
     const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
-    for (uint32_t i = 0; i < touches.Length(); ++i) {
+    for (PRUint32 i = 0; i < touches.Length(); ++i) {
       nsIDOMTouch* touch = touches[i];
       if (touch) {
         gfx::Point refPoint = WidgetSpaceToCompensatedViewportSpace(
           gfx::Point(touch->mRefPoint.x, touch->mRefPoint.y),
-          currentResolution);
+          currentZoom);
         touch->mRefPoint = nsIntPoint(refPoint.x, refPoint.y);
       }
     }
@@ -188,7 +170,7 @@ AsyncPanZoomController::ReceiveInputEvent(const nsInputEvent& aEvent,
   default: {
     gfx::Point refPoint = WidgetSpaceToCompensatedViewportSpace(
       gfx::Point(aOutEvent->refPoint.x, aOutEvent->refPoint.y),
-      currentResolution);
+      currentZoom);
     aOutEvent->refPoint = nsIntPoint(refPoint.x, refPoint.y);
     break;
   }
@@ -197,47 +179,11 @@ AsyncPanZoomController::ReceiveInputEvent(const nsInputEvent& aEvent,
   return status;
 }
 
-nsEventStatus AsyncPanZoomController::ReceiveInputEvent(const InputData& aEvent) {
-  // If we may have touch listeners, we enable the machinery that allows touch
-  // listeners to preventDefault any touch inputs. This should not happen unless
-  // there are actually touch listeners as it introduces potentially unbounded
-  // lag because it causes a round-trip through content.  Usually, if content is
-  // responding in a timely fashion, this only introduces a nearly constant few
-  // hundred ms of lag.
-  if (mFrameMetrics.mMayHaveTouchListeners && aEvent.mInputType == MULTITOUCH_INPUT &&
-      (mState == NOTHING || mState == TOUCHING || mState == PANNING)) {
-    const MultiTouchInput& multiTouchInput = aEvent.AsMultiTouchInput();
-    if (multiTouchInput.mType == MultiTouchInput::MULTITOUCH_START) {
-      SetState(WAITING_LISTENERS);
-    }
-  }
-
-  if (mState == WAITING_LISTENERS || mHandlingTouchQueue) {
-    if (aEvent.mInputType == MULTITOUCH_INPUT) {
-      const MultiTouchInput& multiTouchInput = aEvent.AsMultiTouchInput();
-      mTouchQueue.AppendElement(multiTouchInput);
-
-      if (!mTouchListenerTimeoutTask) {
-        mTouchListenerTimeoutTask =
-          NewRunnableMethod(this, &AsyncPanZoomController::TimeoutTouchListeners);
-
-        MessageLoop::current()->PostDelayedTask(
-          FROM_HERE,
-          mTouchListenerTimeoutTask,
-          TOUCH_LISTENER_TIMEOUT);
-      }
-    }
-    return nsEventStatus_eConsumeNoDefault;
-  }
-
-  return HandleInputEvent(aEvent);
-}
-
 nsEventStatus AsyncPanZoomController::HandleInputEvent(const InputData& aEvent) {
   nsEventStatus rv = nsEventStatus_eIgnore;
 
   if (mGestureEventListener && !mDisableNextTouchBatch) {
-    rv = mGestureEventListener->HandleInputEvent(aEvent);
+    nsEventStatus rv = mGestureEventListener->HandleInputEvent(aEvent);
     if (rv == nsEventStatus_eConsumeNoDefault)
       return rv;
   }
@@ -287,19 +233,14 @@ nsEventStatus AsyncPanZoomController::OnTouchStart(const MultiTouchInput& aEvent
   SingleTouchData& touch = GetFirstSingleTouch(aEvent);
 
   nsIntPoint point = touch.mScreenPoint;
-  int32_t xPos = point.x, yPos = point.y;
+  PRInt32 xPos = point.x, yPos = point.y;
 
   switch (mState) {
     case ANIMATING_ZOOM:
       // We just interrupted a double-tap animation, so force a redraw in case
       // this touchstart is just a tap that doesn't end up triggering a redraw.
-      {
-        MonitorAutoLock monitor(mMonitor);
-        // Bring the resolution back in sync with the zoom.
-        SetZoomAndResolution(mFrameMetrics.mZoom.width);
-        RequestContentRepaint();
-        ScheduleComposite();
-      }
+      RequestContentRepaint();
+      ScheduleComposite();
       // Fall through.
     case FLING:
       CancelAnimation();
@@ -312,7 +253,6 @@ nsEventStatus AsyncPanZoomController::OnTouchStart(const MultiTouchInput& aEvent
     case TOUCHING:
     case PANNING:
     case PINCHING:
-    case WAITING_LISTENERS:
       NS_WARNING("Received impossible touch in OnTouchStart");
       break;
     default:
@@ -357,10 +297,6 @@ nsEventStatus AsyncPanZoomController::OnTouchMove(const MultiTouchInput& aEvent)
       // The scale gesture listener should have handled this.
       NS_WARNING("Gesture listener should have handled pinching in OnTouchMove.");
       return nsEventStatus_eIgnore;
-
-    case WAITING_LISTENERS:
-      NS_WARNING("Received impossible touch in OnTouchMove");
-      break;
   }
 
   return nsEventStatus_eConsumeNoDefault;
@@ -393,20 +329,13 @@ nsEventStatus AsyncPanZoomController::OnTouchEnd(const MultiTouchInput& aEvent) 
       ScheduleComposite();
       RequestContentRepaint();
     }
-    mX.EndTouch();
-    mY.EndTouch();
     SetState(FLING);
     return nsEventStatus_eConsumeNoDefault;
-
   case PINCHING:
     SetState(NOTHING);
     // Scale gesture listener should have handled this.
     NS_WARNING("Gesture listener should have handled pinching in OnTouchEnd.");
     return nsEventStatus_eIgnore;
-
-  case WAITING_LISTENERS:
-    NS_WARNING("Received impossible touch in OnTouchEnd");
-    break;
   }
 
   return nsEventStatus_eConsumeNoDefault;
@@ -418,10 +347,6 @@ nsEventStatus AsyncPanZoomController::OnTouchCancel(const MultiTouchInput& aEven
 }
 
 nsEventStatus AsyncPanZoomController::OnScaleBegin(const PinchGestureInput& aEvent) {
-  if (!mAllowZoom) {
-    return nsEventStatus_eConsumeNoDefault;
-  }
-
   SetState(PINCHING);
   mLastZoomFocus = aEvent.mFocusPoint;
 
@@ -429,10 +354,6 @@ nsEventStatus AsyncPanZoomController::OnScaleBegin(const PinchGestureInput& aEve
 }
 
 nsEventStatus AsyncPanZoomController::OnScale(const PinchGestureInput& aEvent) {
-  if (mState != PINCHING) {
-    return nsEventStatus_eConsumeNoDefault;
-  }
-
   float prevSpan = aEvent.mPreviousSpan;
   if (fabsf(prevSpan) <= EPSILON || fabsf(aEvent.mCurrentSpan) <= EPSILON) {
     // We're still handling it; we've just decided to throw this event away.
@@ -444,11 +365,10 @@ nsEventStatus AsyncPanZoomController::OnScale(const PinchGestureInput& aEvent) {
   {
     MonitorAutoLock monitor(mMonitor);
 
-    gfxFloat resolution = CalculateResolution(mFrameMetrics).width;
-    gfxFloat userZoom = mFrameMetrics.mZoom.width;
+    float scale = mFrameMetrics.mResolution.width;
+
     nsIntPoint focusPoint = aEvent.mFocusPoint;
-    gfxFloat xFocusChange = (mLastZoomFocus.x - focusPoint.x) / resolution;
-    gfxFloat yFocusChange = (mLastZoomFocus.y - focusPoint.y) / resolution;
+    PRInt32 xFocusChange = (mLastZoomFocus.x - focusPoint.x) / scale, yFocusChange = (mLastZoomFocus.y - focusPoint.y) / scale;
     // If displacing by the change in focus point will take us off page bounds,
     // then reduce the displacement such that it doesn't.
     if (mX.DisplacementWillOverscroll(xFocusChange) != Axis::OVERSCROLL_NONE) {
@@ -457,23 +377,22 @@ nsEventStatus AsyncPanZoomController::OnScale(const PinchGestureInput& aEvent) {
     if (mY.DisplacementWillOverscroll(yFocusChange) != Axis::OVERSCROLL_NONE) {
       yFocusChange -= mY.DisplacementWillOverscrollAmount(yFocusChange);
     }
-    ScrollBy(gfx::Point(xFocusChange, yFocusChange));
+    ScrollBy(nsIntPoint(xFocusChange, yFocusChange));
 
     // When we zoom in with focus, we can zoom too much towards the boundaries
     // that we actually go over them. These are the needed displacements along
     // either axis such that we don't overscroll the boundaries when zooming.
-    gfxFloat neededDisplacementX = 0, neededDisplacementY = 0;
+    PRInt32 neededDisplacementX = 0, neededDisplacementY = 0;
 
     // Only do the scaling if we won't go over 8x zoom in or out.
-    bool doScale = (spanRatio > 1.0 && userZoom < mMaxZoom) ||
-                   (spanRatio < 1.0 && userZoom > mMinZoom);
+    bool doScale = (scale < MAX_ZOOM && spanRatio > 1.0f) || (scale > MIN_ZOOM && spanRatio < 1.0f);
 
     // If this zoom will take it over 8x zoom in either direction, but it's not
     // already there, then normalize it.
-    if (userZoom * spanRatio > mMaxZoom) {
-      spanRatio = userZoom / mMaxZoom;
-    } else if (userZoom * spanRatio < mMinZoom) {
-      spanRatio = userZoom / mMinZoom;
+    if (scale * spanRatio > MAX_ZOOM) {
+      spanRatio = scale / MAX_ZOOM;
+    } else if (scale * spanRatio < MIN_ZOOM) {
+      spanRatio = scale / MIN_ZOOM;
     }
 
     if (doScale) {
@@ -511,10 +430,11 @@ nsEventStatus AsyncPanZoomController::OnScale(const PinchGestureInput& aEvent) {
     }
 
     if (doScale) {
-      ScaleWithFocus(userZoom * spanRatio, focusPoint);
+      ScaleWithFocus(scale * spanRatio,
+                     focusPoint);
 
       if (neededDisplacementX != 0 || neededDisplacementY != 0) {
-        ScrollBy(gfx::Point(neededDisplacementX, neededDisplacementY));
+        ScrollBy(nsIntPoint(neededDisplacementX, neededDisplacementY));
       }
 
       ScheduleComposite();
@@ -547,17 +467,7 @@ nsEventStatus AsyncPanZoomController::OnLongPress(const TapGestureInput& aEvent)
 }
 
 nsEventStatus AsyncPanZoomController::OnSingleTapUp(const TapGestureInput& aEvent) {
-  if (mGeckoContentController) {
-    MonitorAutoLock monitor(mMonitor);
-
-    gfxFloat resolution = CalculateResolution(mFrameMetrics).width;
-    gfx::Point point = WidgetSpaceToCompensatedViewportSpace(
-      gfx::Point(aEvent.mPoint.x, aEvent.mPoint.y),
-      resolution);
-    mGeckoContentController->HandleSingleTap(nsIntPoint(NS_lround(point.x),
-                                                        NS_lround(point.y)));
-    return nsEventStatus_eConsumeNoDefault;
-  }
+  // XXX: Implement this.
   return nsEventStatus_eIgnore;
 }
 
@@ -570,15 +480,10 @@ nsEventStatus AsyncPanZoomController::OnDoubleTap(const TapGestureInput& aEvent)
   if (mGeckoContentController) {
     MonitorAutoLock monitor(mMonitor);
 
-    if (mAllowZoom) {
-      gfxFloat resolution = CalculateResolution(mFrameMetrics).width;
-      gfx::Point point = WidgetSpaceToCompensatedViewportSpace(
-        gfx::Point(aEvent.mPoint.x, aEvent.mPoint.y),
-        resolution);
-      mGeckoContentController->HandleDoubleTap(nsIntPoint(NS_lround(point.x),
-                                                          NS_lround(point.y)));
-    }
-
+    gfx::Point point = WidgetSpaceToCompensatedViewportSpace(
+      gfx::Point(aEvent.mPoint.x, aEvent.mPoint.y),
+      mFrameMetrics.mResolution.width);
+    mGeckoContentController->HandleDoubleTap(nsIntPoint(NS_lround(point.x), NS_lround(point.y)));
     return nsEventStatus_eConsumeNoDefault;
   }
   return nsEventStatus_eIgnore;
@@ -598,17 +503,17 @@ const gfx::Point AsyncPanZoomController::GetVelocityVector() {
   return gfx::Point(mX.GetVelocity(), mY.GetVelocity());
 }
 
-const gfx::Point AsyncPanZoomController::GetAccelerationVector() {
-  return gfx::Point(mX.GetAccelerationFactor(), mY.GetAccelerationFactor());
-}
-
 void AsyncPanZoomController::StartPanning(const MultiTouchInput& aEvent) {
+  SingleTouchData& touch = GetFirstSingleTouch(aEvent);
+
   float dx = mX.PanDistance(),
         dy = mY.PanDistance();
 
   double angle = atan2(dy, dx); // range [-pi, pi]
   angle = fabs(angle); // range [0, pi]
 
+  mX.StartTouch(touch.mScreenPoint.x);
+  mY.StartTouch(touch.mScreenPoint.y);
   SetState(PANNING);
 
   if (angle < AXIS_LOCK_ANGLE || angle > (M_PI - AXIS_LOCK_ANGLE)) {
@@ -621,7 +526,7 @@ void AsyncPanZoomController::StartPanning(const MultiTouchInput& aEvent) {
 void AsyncPanZoomController::UpdateWithTouchAtDevicePoint(const MultiTouchInput& aEvent) {
   SingleTouchData& touch = GetFirstSingleTouch(aEvent);
   nsIntPoint point = touch.mScreenPoint;
-  int32_t xPos = point.x, yPos = point.y;
+  PRInt32 xPos = point.x, yPos = point.y;
   TimeDuration timeDelta = TimeDuration().FromMilliseconds(aEvent.mTime - mLastEventTime);
 
   // Probably a duplicate event, just throw it away.
@@ -648,17 +553,15 @@ void AsyncPanZoomController::TrackTouch(const MultiTouchInput& aEvent) {
 
     // We want to inversely scale it because when you're zoomed further in, a
     // larger swipe should move you a shorter distance.
-    gfxFloat inverseResolution = 1 / CalculateResolution(mFrameMetrics).width;
+    float inverseScale = 1 / mFrameMetrics.mResolution.width;
 
-    int32_t xDisplacement = mX.GetDisplacementForDuration(inverseResolution,
-                                                          timeDelta);
-    int32_t yDisplacement = mY.GetDisplacementForDuration(inverseResolution,
-                                                          timeDelta);
+    PRInt32 xDisplacement = mX.GetDisplacementForDuration(inverseScale, timeDelta);
+    PRInt32 yDisplacement = mY.GetDisplacementForDuration(inverseScale, timeDelta);
     if (!xDisplacement && !yDisplacement) {
       return;
     }
 
-    ScrollBy(gfx::Point(xDisplacement, yDisplacement));
+    ScrollBy(nsIntPoint(xDisplacement, yDisplacement));
     ScheduleComposite();
 
     RequestContentRepaint();
@@ -678,9 +581,6 @@ bool AsyncPanZoomController::DoFling(const TimeDuration& aDelta) {
        shouldContinueFlingY = mY.FlingApplyFrictionOrCancel(aDelta);
   // If we shouldn't continue the fling, let's just stop and repaint.
   if (!shouldContinueFlingX && !shouldContinueFlingY) {
-    // Bring the resolution back in sync with the zoom, in case we scaled down
-    // the zoom while accelerating.
-    SetZoomAndResolution(mFrameMetrics.mZoom.width);
     RequestContentRepaint();
     mState = NOTHING;
     return false;
@@ -688,11 +588,11 @@ bool AsyncPanZoomController::DoFling(const TimeDuration& aDelta) {
 
   // We want to inversely scale it because when you're zoomed further in, a
   // larger swipe should move you a shorter distance.
-  gfxFloat inverseResolution = 1 / CalculateResolution(mFrameMetrics).width;
+  float inverseScale = 1 / mFrameMetrics.mResolution.width;
 
-  ScrollBy(gfx::Point(
-    mX.GetDisplacementForDuration(inverseResolution, aDelta),
-    mY.GetDisplacementForDuration(inverseResolution, aDelta)
+  ScrollBy(nsIntPoint(
+    mX.GetDisplacementForDuration(inverseScale, aDelta),
+    mY.GetDisplacementForDuration(inverseScale, aDelta)
   ));
   RequestContentRepaint();
 
@@ -707,202 +607,133 @@ void AsyncPanZoomController::SetCompositorParent(CompositorParent* aCompositorPa
   mCompositorParent = aCompositorParent;
 }
 
-void AsyncPanZoomController::ScrollBy(const gfx::Point& aOffset) {
-  gfx::Point newOffset(mFrameMetrics.mScrollOffset.x + aOffset.x,
-                       mFrameMetrics.mScrollOffset.y + aOffset.y);
+void AsyncPanZoomController::ScrollBy(const nsIntPoint& aOffset) {
+  nsIntPoint newOffset(mFrameMetrics.mViewportScrollOffset.x + aOffset.x,
+                       mFrameMetrics.mViewportScrollOffset.y + aOffset.y);
   FrameMetrics metrics(mFrameMetrics);
-  metrics.mScrollOffset = newOffset;
+  metrics.mViewportScrollOffset = newOffset;
   mFrameMetrics = metrics;
 }
 
 void AsyncPanZoomController::SetPageRect(const gfx::Rect& aCSSPageRect) {
   FrameMetrics metrics = mFrameMetrics;
   gfx::Rect pageSize = aCSSPageRect;
-  gfxFloat resolution = CalculateResolution(mFrameMetrics).width;
+  float scale = mFrameMetrics.mResolution.width;
 
   // The page rect is the css page rect scaled by the current zoom.
-  pageSize.ScaleInverseRoundOut(resolution);
+  pageSize.ScaleRoundOut(1 / scale);
 
   // Round the page rect so we don't get any truncation, then get the nsIntRect
   // from this.
-  metrics.mContentRect = nsIntRect(pageSize.x, pageSize.y,
-                                   pageSize.width, pageSize.height);
-  metrics.mScrollableRect = aCSSPageRect;
+  metrics.mContentRect = nsIntRect(pageSize.x, pageSize.y, pageSize.width, pageSize.height);
+  metrics.mCSSContentRect = aCSSPageRect;
 
   mFrameMetrics = metrics;
 }
 
-void AsyncPanZoomController::ScaleWithFocus(float aZoom,
-                                            const nsIntPoint& aFocus) {
-  float zoomFactor = aZoom / mFrameMetrics.mZoom.width;
-  gfxFloat resolution = CalculateResolution(mFrameMetrics).width;
+void AsyncPanZoomController::ScaleWithFocus(float aScale, const nsIntPoint& aFocus) {
+  FrameMetrics metrics(mFrameMetrics);
 
-  SetZoomAndResolution(aZoom);
+  // Don't set the scale to the inputted value, but rather multiply it in.
+  float scaleFactor = aScale / metrics.mResolution.width,
+        oldScale = metrics.mResolution.width;
+
+  metrics.mResolution.width = metrics.mResolution.height = aScale;
 
   // Force a recalculation of the page rect based on the new zoom and the
   // current CSS page rect (which is unchanged since it's not affected by zoom).
-  SetPageRect(mFrameMetrics.mScrollableRect);
+  SetPageRect(mFrameMetrics.mCSSContentRect);
 
-  // If the new scale is very small, we risk multiplying in huge rounding
-  // errors, so don't bother adjusting the scroll offset.
-  if (resolution >= 0.01f) {
-    mFrameMetrics.mScrollOffset.x +=
-      gfxFloat(aFocus.x) * (zoomFactor - 1.0) / resolution;
-    mFrameMetrics.mScrollOffset.y +=
-      gfxFloat(aFocus.y) * (zoomFactor - 1.0) / resolution;
-  }
+  nsIntPoint scrollOffset = metrics.mViewportScrollOffset;
+
+  scrollOffset.x += NS_lround(float(aFocus.x) * (scaleFactor - 1.0f) / oldScale);
+  scrollOffset.y += NS_lround(float(aFocus.y) * (scaleFactor - 1.0f) / oldScale);
+
+  metrics.mViewportScrollOffset = scrollOffset;
+
+  mFrameMetrics = metrics;
 }
 
-bool AsyncPanZoomController::EnlargeDisplayPortAlongAxis(float aSkateSizeMultiplier,
-                                                         double aEstimatedPaintDuration,
-                                                         float aCompositionBounds,
+bool AsyncPanZoomController::EnlargeDisplayPortAlongAxis(float aViewport,
                                                          float aVelocity,
-                                                         float aAcceleration,
                                                          float* aDisplayPortOffset,
                                                          float* aDisplayPortLength)
 {
-  if (fabsf(aVelocity) > MIN_SKATE_SPEED) {
-    // Enlarge the area we paint.
-    *aDisplayPortLength = aCompositionBounds * aSkateSizeMultiplier;
-    // Position the area we paint such that all of the excess that extends past
-    // the screen is on the side towards the velocity.
-    *aDisplayPortOffset = aVelocity > 0 ? 0 : aCompositionBounds - *aDisplayPortLength;
+  const float MIN_SKATE_SIZE_MULTIPLIER = 2.0f;
+  const float MAX_SKATE_SIZE_MULTIPLIER = 4.0f;
 
-    // Only compensate for acceleration when we actually have any. Otherwise
-    // we'll overcompensate when a user is just panning around without flinging.
-    if (aAcceleration > 1.01f) {
-      // Compensate for acceleration and how long we expect a paint to take. We
-      // try to predict where the viewport will be when painting has finished.
-      *aDisplayPortOffset +=
-        fabsf(aAcceleration) * aVelocity * aCompositionBounds * aEstimatedPaintDuration;
-      // If our velocity is in the negative direction of the axis, we have to
-      // compensate for the fact that our scroll offset is the top-left position
-      // of the viewport. In this case, let's make it relative to the
-      // bottom-right. That way, we'll always be growing the displayport upwards
-      // and to the left when skating negatively.
-      *aDisplayPortOffset -= aVelocity < 0 ? aCompositionBounds : 0;
-    }
+  if (fabsf(aVelocity) > MIN_SKATE_SPEED) {
+    *aDisplayPortLength = aViewport * clamped(fabsf(aVelocity),
+      MIN_SKATE_SIZE_MULTIPLIER, MAX_SKATE_SIZE_MULTIPLIER);
+    *aDisplayPortOffset = aVelocity > 0 ? 0 : aViewport - *aDisplayPortLength;
     return true;
   }
   return false;
 }
 
-const gfx::Rect AsyncPanZoomController::CalculatePendingDisplayPort(
-  const FrameMetrics& aFrameMetrics,
-  const gfx::Point& aVelocity,
-  const gfx::Point& aAcceleration,
-  double aEstimatedPaintDuration)
-{
-  // The multiplier we apply to a dimension's length if it is skating. That is,
-  // if it's going above MIN_SKATE_SPEED. We prefer to increase the size of the
-  // Y axis because it is more natural in the case that a user is reading a page
-  // that scrolls up/down. Note that one, both or neither of these may be used
-  // at any instant.
-  const float X_SKATE_SIZE_MULTIPLIER = 3.0f;
-  const float Y_SKATE_SIZE_MULTIPLIER = 3.5f;
+const nsIntRect AsyncPanZoomController::CalculatePendingDisplayPort() {
+  float scale = mFrameMetrics.mResolution.width;
+  nsIntRect viewport = mFrameMetrics.mViewport;
+  viewport.ScaleRoundIn(1 / scale);
 
-  // The multiplier we apply to a dimension's length if it is stationary. We
-  // prefer to increase the size of the Y axis because it is more natural in the
-  // case that a user is reading a page that scrolls up/down. Note that one,
-  // both or neither of these may be used at any instant.
-  const float X_STATIONARY_SIZE_MULTIPLIER = 1.5f;
-  const float Y_STATIONARY_SIZE_MULTIPLIER = 2.5f;
+  nsIntPoint scrollOffset = mFrameMetrics.mViewportScrollOffset;
+  gfx::Point velocity = GetVelocityVector();
 
-  // If we don't get an estimated paint duration, we probably don't have any
-  // data. In this case, we're dealing with either a stationary frame or a first
-  // paint. In either of these cases, we can just assume it'll take 1 second to
-  // paint. Getting this correct is not important anyways since it's only really
-  // useful when accelerating, which can't be happening at this point.
-  double estimatedPaintDuration =
-    aEstimatedPaintDuration > EPSILON ? aEstimatedPaintDuration : 1.0;
-
-  gfxFloat resolution = CalculateResolution(aFrameMetrics).width;
-  nsIntRect compositionBounds = aFrameMetrics.mCompositionBounds;
-  compositionBounds.ScaleInverseRoundIn(resolution);
-  const gfx::Rect& scrollableRect = aFrameMetrics.mScrollableRect;
-
-  gfx::Point scrollOffset = aFrameMetrics.mScrollOffset;
-
+  // The displayport is relative to the current scroll offset. Here's a little
+  // diagram to make it easier to see:
+  //
+  //       - - - -
+  //       |     |
+  //    *************
+  //    *  |     |  *
+  // - -*- @------ -*- -
+  // |  *  |=====|  *  |
+  //    *  |=====|  *
+  // |  *  |=====|  *  |
+  // - -*- ------- -*- -
+  //    *  |     |  *
+  //    *************
+  //       |     |
+  //       - - - -
+  //
+  // The full --- area with === inside it is the actual viewport rect, the *** area
+  // is the displayport, and the - - - area is an imaginary additional page on all 4
+  // borders of the actual page. Notice that the displayport intersects half-way with
+  // each of the imaginary extra pages. The @ symbol at the top left of the
+  // viewport marks the current scroll offset. From the @ symbol to the far left
+  // and far top, it is clear that this distance is 1/4 of the displayport's
+  // height/width dimension.
+  const float STATIONARY_SIZE_MULTIPLIER = 2.0f;
   gfx::Rect displayPort(0, 0,
-                        compositionBounds.width * X_STATIONARY_SIZE_MULTIPLIER,
-                        compositionBounds.height * Y_STATIONARY_SIZE_MULTIPLIER);
+                        viewport.width * STATIONARY_SIZE_MULTIPLIER,
+                        viewport.height * STATIONARY_SIZE_MULTIPLIER);
 
   // If there's motion along an axis of movement, and it's above a threshold,
   // then we want to paint a larger area in the direction of that motion so that
   // it's less likely to checkerboard.
   bool enlargedX = EnlargeDisplayPortAlongAxis(
-    X_SKATE_SIZE_MULTIPLIER, estimatedPaintDuration,
-    compositionBounds.width, aVelocity.x, aAcceleration.x,
-    &displayPort.x, &displayPort.width);
+    viewport.width, velocity.x, &displayPort.x, &displayPort.width);
   bool enlargedY = EnlargeDisplayPortAlongAxis(
-    Y_SKATE_SIZE_MULTIPLIER, estimatedPaintDuration,
-    compositionBounds.height, aVelocity.y, aAcceleration.y,
-    &displayPort.y, &displayPort.height);
+    viewport.height, velocity.y, &displayPort.y, &displayPort.height);
 
   if (!enlargedX && !enlargedY) {
-    // Position the x and y such that the screen falls in the middle of the displayport.
-    displayPort.x = -(displayPort.width - compositionBounds.width) / 2;
-    displayPort.y = -(displayPort.height - compositionBounds.height) / 2;
+    displayPort.x = -displayPort.width / 4;
+    displayPort.y = -displayPort.height / 4;
   } else if (!enlargedX) {
-    displayPort.width = compositionBounds.width;
+    displayPort.width = viewport.width;
   } else if (!enlargedY) {
-    displayPort.height = compositionBounds.height;
-  }
-
-  // If we go over the bounds when trying to predict where we will be when this
-  // paint finishes, move it back into the range of the CSS content rect.
-  // FIXME/bug 780395: Generalize this. This code is pretty hacky as it will
-  // probably not work at all for RTL content. This is not intended to be
-  // incredibly accurate; it'll just prevent the entire displayport from being
-  // outside the content rect (which causes bad things to happen).
-  if (enlargedX || enlargedY) {
-    if (scrollOffset.x + compositionBounds.width > scrollableRect.width) {
-      scrollOffset.x -= compositionBounds.width + scrollOffset.x - scrollableRect.width;
-    } else if (scrollOffset.x < scrollableRect.x) {
-      scrollOffset.x = scrollableRect.x;
-    }
-    if (scrollOffset.y + compositionBounds.height > scrollableRect.height) {
-      scrollOffset.y -= compositionBounds.height + scrollOffset.y - scrollableRect.height;
-    } else if (scrollOffset.y < scrollableRect.y) {
-      scrollOffset.y = scrollableRect.y;
-    }
+    displayPort.height = viewport.height;
   }
 
   gfx::Rect shiftedDisplayPort = displayPort;
   shiftedDisplayPort.MoveBy(scrollOffset.x, scrollOffset.y);
-  displayPort = shiftedDisplayPort.Intersect(aFrameMetrics.mScrollableRect);
+  displayPort = shiftedDisplayPort.Intersect(mFrameMetrics.mCSSContentRect);
   displayPort.MoveBy(-scrollOffset.x, -scrollOffset.y);
 
-  return displayPort;
-}
-
-/*static*/ gfxSize
-AsyncPanZoomController::CalculateIntrinsicScale(const FrameMetrics& aMetrics)
-{
-  gfxFloat intrinsicScale = (gfxFloat(aMetrics.mCompositionBounds.width) / 
-                             gfxFloat(aMetrics.mViewport.width));
-  return gfxSize(intrinsicScale, intrinsicScale);
-}
-
-/*static*/ gfxSize
-AsyncPanZoomController::CalculateResolution(const FrameMetrics& aMetrics)
-{
-  gfxSize intrinsicScale = CalculateIntrinsicScale(aMetrics);
-  gfxSize userZoom = aMetrics.mZoom;
-  return gfxSize(intrinsicScale.width * userZoom.width,
-                 intrinsicScale.height * userZoom.height);
-}
-
-/*static*/ gfx::Rect
-AsyncPanZoomController::CalculateCompositedRectInCssPixels(const FrameMetrics& aMetrics)
-{
-  gfxSize resolution = CalculateResolution(aMetrics);
-  gfx::Rect rect(aMetrics.mCompositionBounds.x,
-                 aMetrics.mCompositionBounds.y,
-                 aMetrics.mCompositionBounds.width,
-                 aMetrics.mCompositionBounds.height);
-  rect.ScaleInverseRoundIn(resolution.width, resolution.height);
-  return rect;
+  // Round the displayport so we don't get any truncation, then get the nsIntRect
+  // from this.
+  displayPort.Round();
+  return nsIntRect(displayPort.x, displayPort.y, displayPort.width, displayPort.height);
 }
 
 void AsyncPanZoomController::SetDPI(int aDPI) {
@@ -920,63 +751,27 @@ void AsyncPanZoomController::ScheduleComposite() {
 }
 
 void AsyncPanZoomController::RequestContentRepaint() {
-  mPreviousPaintStartTime = TimeStamp::Now();
-
-  double estimatedPaintSum = 0.0;
-  for (uint32_t i = 0; i < mPreviousPaintDurations.Length(); i++) {
-    estimatedPaintSum += mPreviousPaintDurations[i].ToSeconds();
-  }
-
-  double estimatedPaintDuration = 0.0;
-  if (estimatedPaintSum > EPSILON) {
-    estimatedPaintDuration = estimatedPaintSum / mPreviousPaintDurations.Length();
-  }
-
-  mFrameMetrics.mDisplayPort =
-    CalculatePendingDisplayPort(mFrameMetrics,
-                                GetVelocityVector(),
-                                GetAccelerationVector(),
-                                estimatedPaintDuration);
-
-  gfx::Point oldScrollOffset = mLastPaintRequestMetrics.mScrollOffset,
-             newScrollOffset = mFrameMetrics.mScrollOffset;
+  mFrameMetrics.mDisplayPort = CalculatePendingDisplayPort();
 
   // If we're trying to paint what we already think is painted, discard this
   // request since it's a pointless paint.
-  gfx::Rect oldDisplayPort = mLastPaintRequestMetrics.mDisplayPort;
-  gfx::Rect newDisplayPort = mFrameMetrics.mDisplayPort;
+  nsIntRect oldDisplayPort = mLastPaintRequestMetrics.mDisplayPort,
+            newDisplayPort = mFrameMetrics.mDisplayPort;
+  oldDisplayPort.MoveBy(mLastPaintRequestMetrics.mViewportScrollOffset);
+  newDisplayPort.MoveBy(mFrameMetrics.mViewportScrollOffset);
 
-  oldDisplayPort.MoveBy(oldScrollOffset.x, oldScrollOffset.y);
-  newDisplayPort.MoveBy(newScrollOffset.x, newScrollOffset.y);
-
-  if (fabsf(oldDisplayPort.x - newDisplayPort.x) < EPSILON &&
-      fabsf(oldDisplayPort.y - newDisplayPort.y) < EPSILON &&
-      fabsf(oldDisplayPort.width - newDisplayPort.width) < EPSILON &&
-      fabsf(oldDisplayPort.height - newDisplayPort.height) < EPSILON &&
+  if (oldDisplayPort.IsEqualEdges(newDisplayPort) &&
       mFrameMetrics.mResolution.width == mLastPaintRequestMetrics.mResolution.width) {
     return;
   }
 
-  // Cache the zoom since we're temporarily changing it for
-  // acceleration-scaled painting.
-  gfxFloat actualZoom = mFrameMetrics.mZoom.width;
-  // Calculate the factor of acceleration based on the faster of the two axes.
-  float accelerationFactor =
-    clamped(NS_MAX(mX.GetAccelerationFactor(), mY.GetAccelerationFactor()),
-            float(MIN_ZOOM) / 2.0f, float(MAX_ZOOM));
-  // Scale down the resolution a bit based on acceleration.
-  mFrameMetrics.mZoom.width = mFrameMetrics.mZoom.height =
-                              actualZoom / accelerationFactor;
-
-  // This message is compressed, so fire whether or not we already have a paint
-  // queued up. We need to know whether or not a paint was requested anyways,
-  // for the purposes of content calling window.scrollTo().
-  mGeckoContentController->RequestContentRepaint(mFrameMetrics);
-  mLastPaintRequestMetrics = mFrameMetrics;
-  mWaitingForContentToPaint = true;
-
-  // Set the zoom back to what it was for the purpose of logic control.
-  mFrameMetrics.mZoom = gfxSize(actualZoom, actualZoom);
+  if (mContentPainterStatus == CONTENT_IDLE) {
+    mContentPainterStatus = CONTENT_PAINTING;
+    mLastPaintRequestMetrics = mFrameMetrics;
+    mGeckoContentController->RequestContentRepaint(mFrameMetrics);
+  } else {
+    mContentPainterStatus = CONTENT_PAINTING_AND_PAINT_PENDING;
+  }
 }
 
 bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSampleTime,
@@ -995,17 +790,18 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
   float rootScaleX = currentTransform.GetXScale(),
         rootScaleY = currentTransform.GetYScale();
 
-  gfx::Point metricsScrollOffset(0, 0);
-  gfx::Point scrollOffset;
+  nsIntPoint metricsScrollOffset(0, 0);
+  nsIntPoint scrollOffset;
   float localScaleX, localScaleY;
   const FrameMetrics& frame = aLayer->GetFrameMetrics();
   {
     MonitorAutoLock mon(mMonitor);
 
-    switch (mState) {
+    switch (mState)
+    {
     case FLING:
-      // If a fling is currently happening, apply it now. We can pull
-      // the updated metrics afterwards.
+      // If a fling is currently happening, apply it now. We can pull the updated
+      // metrics afterwards.
       requestAnimationFrame |= DoFling(aSampleTime - mLastSampleTime);
       break;
     case ANIMATING_ZOOM: {
@@ -1013,28 +809,22 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
       if (animPosition > 1.0) {
         animPosition = 1.0;
       }
-      // Sample the zoom at the current time point.  The sampled zoom
-      // will affect the final computed resolution.
       double sampledPosition = gComputedTimingFunction->GetValue(animPosition);
 
-      gfxFloat startZoom = mStartZoomToMetrics.mZoom.width;
-      gfxFloat endZoom = mEndZoomToMetrics.mZoom.width;
-      gfxFloat sampledZoom = (endZoom * sampledPosition +
-                              startZoom * (1 - sampledPosition));
-      mFrameMetrics.mZoom = gfxSize(sampledZoom, sampledZoom);
+      mFrameMetrics.mResolution.width = mFrameMetrics.mResolution.height =
+        mEndZoomToMetrics.mResolution.width * sampledPosition +
+          mStartZoomToMetrics.mResolution.width * (1 - sampledPosition);
 
-      mFrameMetrics.mScrollOffset = gfx::Point(
-        mEndZoomToMetrics.mScrollOffset.x * sampledPosition +
-          mStartZoomToMetrics.mScrollOffset.x * (1 - sampledPosition),
-        mEndZoomToMetrics.mScrollOffset.y * sampledPosition +
-          mStartZoomToMetrics.mScrollOffset.y * (1 - sampledPosition)
+      mFrameMetrics.mViewportScrollOffset = nsIntPoint(
+        mEndZoomToMetrics.mViewportScrollOffset.x * sampledPosition +
+          mStartZoomToMetrics.mViewportScrollOffset.x * (1 - sampledPosition),
+        mEndZoomToMetrics.mViewportScrollOffset.y * sampledPosition +
+          mStartZoomToMetrics.mViewportScrollOffset.y * (1 - sampledPosition)
       );
 
       requestAnimationFrame = true;
 
       if (aSampleTime - mAnimationStartTime >= ZOOM_TO_DURATION) {
-        // Bring the resolution in sync with the zoom.
-        SetZoomAndResolution(mFrameMetrics.mZoom.width);
         mState = NOTHING;
         RequestContentRepaint();
       }
@@ -1045,24 +835,23 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
       break;
     }
 
-    // Current local transform; this is not what's painted but rather
-    // what PZC has transformed due to touches like panning or
-    // pinching. Eventually, the root layer transform will become this
-    // during runtime, but we must wait for Gecko to repaint.
-    gfxSize localScale = CalculateResolution(mFrameMetrics);
-    localScaleX = localScale.width;
-    localScaleY = localScale.height;
+    // Current local transform; this is not what's painted but rather what PZC has
+    // transformed due to touches like panning or pinching. Eventually, the root
+    // layer transform will become this during runtime, but we must wait for Gecko
+    // to repaint.
+    localScaleX = mFrameMetrics.mResolution.width;
+    localScaleY = mFrameMetrics.mResolution.height;
 
     if (frame.IsScrollable()) {
-      metricsScrollOffset = frame.GetScrollOffsetInLayerPixels();
+      metricsScrollOffset = frame.mViewportScrollOffset;
     }
 
-    scrollOffset = mFrameMetrics.mScrollOffset;
+    scrollOffset = mFrameMetrics.mViewportScrollOffset;
   }
 
   nsIntPoint scrollCompensation(
-    NS_lround((scrollOffset.x / rootScaleX - metricsScrollOffset.x) * localScaleX),
-    NS_lround((scrollOffset.y / rootScaleY - metricsScrollOffset.y) * localScaleY));
+    (scrollOffset.x / rootScaleX - metricsScrollOffset.x) * localScaleX,
+    (scrollOffset.y / rootScaleY - metricsScrollOffset.y) * localScaleY);
 
   ViewTransform treeTransform(-scrollCompensation, localScaleX, localScaleY);
   *aNewTransform = gfx3DMatrix(treeTransform) * currentTransform;
@@ -1087,65 +876,36 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aViewportFr
 
   mLastContentPaintMetrics = aViewportFrame;
 
-  if (mWaitingForContentToPaint) {
-    // Remove the oldest sample we have if adding a new sample takes us over our
-    // desired number of samples.
-    if (mPreviousPaintDurations.Length() >= NUM_PAINT_DURATION_SAMPLES) {
-      mPreviousPaintDurations.RemoveElementAt(0);
+  if (mContentPainterStatus != CONTENT_IDLE) {
+    if (mContentPainterStatus == CONTENT_PAINTING_AND_PAINT_PENDING) {
+      mContentPainterStatus = CONTENT_IDLE;
+      RequestContentRepaint();
+    } else {
+      mContentPainterStatus = CONTENT_IDLE;
     }
-
-    mPreviousPaintDurations.AppendElement(
-      TimeStamp::Now() - mPreviousPaintStartTime);
-  } else {
-    // No paint was requested, but we got one anyways. One possible cause of this
-    // is that content could have fired a scrollTo(). In this case, we should take
-    // the new scroll offset. Document/viewport changes are handled elsewhere.
-    // Also note that, since NotifyLayersUpdated() is called whenever there's a
-    // layers update, we didn't necessarily get a new scroll offset, but we're
-    // updating our local copy of it anyways just in case.
-    switch (mState) {
-    case NOTHING:
-    case FLING:
-    case TOUCHING:
-    case WAITING_LISTENERS:
-      mFrameMetrics.mScrollOffset = aViewportFrame.mScrollOffset;
-      break;
-    // Don't clobber if we're in other states.
-    default:
-      break;
-    }
-  }
-
-  mWaitingForContentToPaint = false;
-  bool needContentRepaint = false;
-  if (aViewportFrame.mCompositionBounds.width == mFrameMetrics.mCompositionBounds.width &&
-      aViewportFrame.mCompositionBounds.height == mFrameMetrics.mCompositionBounds.height) {
-    // Remote content has sync'd up to the composition geometry
-    // change, so we can accept the viewport it's calculated.
-    gfxSize previousResolution = CalculateResolution(mFrameMetrics);
-    mFrameMetrics.mViewport = aViewportFrame.mViewport;
-    gfxSize newResolution = CalculateResolution(mFrameMetrics);
-    needContentRepaint |= (previousResolution != newResolution);
   }
 
   if (aIsFirstPaint || mFrameMetrics.IsDefault()) {
-    mPreviousPaintDurations.Clear();
+    mContentPainterStatus = CONTENT_IDLE;
 
-    mX.CancelTouch();
-    mY.CancelTouch();
-
+    mX.StopTouch();
+    mY.StopTouch();
     mFrameMetrics = aViewportFrame;
+    mFrameMetrics.mResolution.width = 1 / mFrameMetrics.mResolution.width;
+    mFrameMetrics.mResolution.height = 1 / mFrameMetrics.mResolution.height;
+    SetPageRect(mFrameMetrics.mCSSContentRect);
 
-    SetPageRect(mFrameMetrics.mScrollableRect);
-
-    mState = NOTHING;
-  } else if (!mFrameMetrics.mScrollableRect.IsEqualEdges(aViewportFrame.mScrollableRect)) {
-    mFrameMetrics.mScrollableRect = aViewportFrame.mScrollableRect;
-    SetPageRect(mFrameMetrics.mScrollableRect);
-  }
-
-  if (needContentRepaint) {
+    // Bug 776413/fixme: Request a repaint as soon as a page is loaded so that
+    // we get a larger displayport. This is very bad because we're wasting a
+    // paint and not initializating the displayport correctly.
     RequestContentRepaint();
+
+    // Assuming a first paint means a new page has been loaded, clear the flag
+    // indicating that we may have touch listeners.
+    mMayHaveTouchListeners = false;
+  } else if (!mFrameMetrics.mCSSContentRect.IsEqualEdges(aViewportFrame.mCSSContentRect)) {
+    mFrameMetrics.mCSSContentRect = aViewportFrame.mCSSContentRect;
+    SetPageRect(mFrameMetrics.mCSSContentRect);
   }
 }
 
@@ -1154,23 +914,15 @@ const FrameMetrics& AsyncPanZoomController::GetFrameMetrics() {
   return mFrameMetrics;
 }
 
-void AsyncPanZoomController::UpdateCompositionBounds(const nsIntRect& aCompositionBounds) {
+void AsyncPanZoomController::UpdateViewportSize(int aWidth, int aHeight) {
   MonitorAutoLock mon(mMonitor);
+  FrameMetrics metrics = GetFrameMetrics();
+  metrics.mViewport = nsIntRect(0, 0, aWidth, aHeight);
+  mFrameMetrics = metrics;
+}
 
-  nsIntRect oldCompositionBounds = mFrameMetrics.mCompositionBounds;
-  mFrameMetrics.mCompositionBounds = aCompositionBounds;
-
-  // If the window had 0 dimensions before, or does now, we don't want to
-  // repaint or update the zoom since we'll run into rendering issues and/or
-  // divide-by-zero. This manifests itself as the screen flashing. If the page
-  // has gone out of view, the buffer will be cleared elsewhere anyways.
-  if (aCompositionBounds.width && aCompositionBounds.height &&
-      oldCompositionBounds.width && oldCompositionBounds.height) {
-    SetZoomAndResolution(mFrameMetrics.mZoom.width);
-
-    // Repaint on a rotation so that our new resolution gets properly updated.
-    RequestContentRepaint();
-  }
+void AsyncPanZoomController::NotifyDOMTouchListenerAdded() {
+  mMayHaveTouchListeners = true;
 }
 
 void AsyncPanZoomController::CancelDefaultPanZoom() {
@@ -1182,37 +934,32 @@ void AsyncPanZoomController::CancelDefaultPanZoom() {
 
 void AsyncPanZoomController::ZoomToRect(const gfxRect& aRect) {
   gfx::Rect zoomToRect(gfx::Rect(aRect.x, aRect.y, aRect.width, aRect.height));
+  gfx::Rect cssPageRect = mFrameMetrics.mCSSContentRect;
 
   SetState(ANIMATING_ZOOM);
 
   {
     MonitorAutoLock mon(mMonitor);
 
-    nsIntRect compositionBounds = mFrameMetrics.mCompositionBounds;
-    gfx::Rect cssPageRect = mFrameMetrics.mScrollableRect;
-    gfx::Point scrollOffset = mFrameMetrics.mScrollOffset;
-    gfxSize resolution = CalculateResolution(mFrameMetrics);
+    nsIntRect viewport = mFrameMetrics.mViewport;
 
     // If the rect is empty, treat it as a request to zoom out to the full page
     // size.
     if (zoomToRect.IsEmpty()) {
-      // composition bounds in CSS coordinates
-      nsIntRect cssCompositionBounds = compositionBounds;
-      cssCompositionBounds.ScaleInverseRoundIn(resolution.width,
-                                               resolution.height);
-      cssCompositionBounds.MoveBy(scrollOffset.x, scrollOffset.y);
+      nsIntRect cssViewport = viewport;
+      cssViewport.ScaleRoundIn(1 / mFrameMetrics.mResolution.width);
+      cssViewport.MoveBy(mFrameMetrics.mViewportScrollOffset);
 
-      float y = mFrameMetrics.mScrollOffset.y;
-      float newHeight =
-        cssCompositionBounds.height * cssPageRect.width / cssCompositionBounds.width;
-      float dh = cssCompositionBounds.height - newHeight;
+      float y = mFrameMetrics.mViewportScrollOffset.y;
+      float newHeight = cssViewport.height * cssPageRect.width / cssViewport.width;
+      float dh = cssViewport.height - newHeight;
 
       zoomToRect = gfx::Rect(0.0f,
                              y + dh/2,
                              cssPageRect.width,
                              y + dh/2 + newHeight);
     } else {
-      float targetRatio = float(compositionBounds.width) / float(compositionBounds.height);
+      float targetRatio = float(viewport.width) / float(viewport.height);
       float rectRatio = zoomToRect.width / zoomToRect.height;
 
       if (fabsf(targetRatio - rectRatio) < EPSILON) {
@@ -1232,29 +979,26 @@ void AsyncPanZoomController::ZoomToRect(const gfxRect& aRect) {
       zoomToRect = zoomToRect.Intersect(cssPageRect);
     }
 
-    gfxFloat targetResolution =
-      NS_MIN(compositionBounds.width / zoomToRect.width,
-             compositionBounds.height / zoomToRect.height);
-    gfxFloat targetZoom = clamped(float(targetResolution / resolution.width),
-                                  mMinZoom, mMaxZoom);
-    mEndZoomToMetrics.mZoom = gfxSize(targetZoom, targetZoom);
+    mEndZoomToMetrics.mResolution.width = mEndZoomToMetrics.mResolution.height =
+      NS_MIN(viewport.width / zoomToRect.width, viewport.height / zoomToRect.height);
+
+    mEndZoomToMetrics.mResolution.width = mEndZoomToMetrics.mResolution.height =
+      clamped(mEndZoomToMetrics.mResolution.width, MIN_ZOOM, MAX_ZOOM);
 
     // Recalculate the zoom to rect using the new dimensions.
-    zoomToRect.width = compositionBounds.width / targetResolution;
-    zoomToRect.height = compositionBounds.height / targetResolution;
+    zoomToRect.width = viewport.width / mEndZoomToMetrics.mResolution.width;
+    zoomToRect.height = viewport.height / mEndZoomToMetrics.mResolution.height;
 
     // Clamp the zoom to rect to the CSS rect to make sure it fits.
     zoomToRect = zoomToRect.Intersect(cssPageRect);
 
     // Do one final recalculation to get the resolution.
-    targetResolution = NS_MAX(compositionBounds.width / zoomToRect.width,
-                              compositionBounds.height / zoomToRect.height);
-    targetZoom = targetResolution / resolution.width;
-    mEndZoomToMetrics.mZoom = gfxSize(targetZoom, targetZoom);
+    mEndZoomToMetrics.mResolution.width = mEndZoomToMetrics.mResolution.height =
+      NS_MAX(viewport.width / zoomToRect.width, viewport.height / zoomToRect.height);
 
     mStartZoomToMetrics = mFrameMetrics;
-    mEndZoomToMetrics.mScrollOffset =
-      gfx::Point(zoomToRect.x, zoomToRect.y);
+    mEndZoomToMetrics.mViewportScrollOffset =
+      nsIntPoint(NS_lround(zoomToRect.x), NS_lround(zoomToRect.y));
 
     mAnimationStartTime = TimeStamp::Now();
 
@@ -1262,63 +1006,9 @@ void AsyncPanZoomController::ZoomToRect(const gfxRect& aRect) {
   }
 }
 
-void AsyncPanZoomController::ContentReceivedTouch(bool aPreventDefault) {
-  if (!mFrameMetrics.mMayHaveTouchListeners) {
-    mTouchQueue.Clear();
-    return;
-  }
-
-  if (mTouchListenerTimeoutTask) {
-    mTouchListenerTimeoutTask->Cancel();
-    mTouchListenerTimeoutTask = nullptr;
-  }
-
-  if (mState == WAITING_LISTENERS) {
-    if (!aPreventDefault) {
-      SetState(NOTHING);
-    }
-
-    mHandlingTouchQueue = true;
-
-    while (!mTouchQueue.IsEmpty()) {
-      if (!aPreventDefault) {
-        HandleInputEvent(mTouchQueue[0]);
-      }
-
-      if (mTouchQueue[0].mType == MultiTouchInput::MULTITOUCH_END ||
-          mTouchQueue[0].mType == MultiTouchInput::MULTITOUCH_CANCEL) {
-        mTouchQueue.RemoveElementAt(0);
-        break;
-      }
-
-      mTouchQueue.RemoveElementAt(0);
-    }
-
-    mHandlingTouchQueue = false;
-  }
-}
-
 void AsyncPanZoomController::SetState(PanZoomState aState) {
   MonitorAutoLock monitor(mMonitor);
   mState = aState;
-}
-
-void AsyncPanZoomController::TimeoutTouchListeners() {
-  ContentReceivedTouch(false);
-}
-
-void AsyncPanZoomController::SetZoomAndResolution(float aZoom) {
-  mMonitor.AssertCurrentThreadOwns();
-  mFrameMetrics.mZoom = gfxSize(aZoom, aZoom);
-  mFrameMetrics.mResolution = CalculateResolution(mFrameMetrics);
-}
-
-void AsyncPanZoomController::UpdateZoomConstraints(bool aAllowZoom,
-                                                   float aMinZoom,
-                                                   float aMaxZoom) {
-  mAllowZoom = aAllowZoom;
-  mMinZoom = aMinZoom;
-  mMaxZoom = aMaxZoom;
 }
 
 }

@@ -8,6 +8,9 @@
 #include "nsFormControlFrame.h"
 #include "nsIFormControl.h"
 #include "nsINameSpaceManager.h"
+#ifdef ACCESSIBILITY
+#include "nsAccessibilityService.h"
+#endif
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
 #include "nsGkAtoms.h"
@@ -21,7 +24,6 @@
 
 #include "nsNodeInfoManager.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsContentList.h"
 
 const nscoord kSuggestedNotSet = -1;
 
@@ -55,7 +57,7 @@ nsGfxButtonControlFrame::GetType() const
 // We'll return true if type is NS_FORM_INPUT_BUTTON and our parent
 // is a file input.
 bool
-nsGfxButtonControlFrame::IsFileBrowseButton(int32_t type) const
+nsGfxButtonControlFrame::IsFileBrowseButton(PRInt32 type)
 {
   bool rv = false;
   if (NS_FORM_INPUT_BUTTON == type) {
@@ -99,7 +101,7 @@ nsGfxButtonControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements
 
 void
 nsGfxButtonControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                                  uint32_t aFilter)
+                                                  PRUint32 aFilter)
 {
   aElements.MaybeAppendElement(mTextContent);
 }
@@ -140,7 +142,7 @@ nsGfxButtonControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) cons
     // This property is used by accessibility to get
     // the default label of the button.
     nsXPIDLString temp;
-    rv = GetDefaultLabel(temp);
+    rv = const_cast<nsGfxButtonControlFrame*>(this)->GetDefaultLabel(temp);
     aValue = temp;
   } else {
     aValue.Truncate();
@@ -159,19 +161,19 @@ NS_QUERYFRAME_TAIL_INHERITING(nsHTMLButtonControlFrame)
 // label from a string bundle as is done for all other UI strings.
 // See bug 16999 for further details.
 nsresult
-nsGfxButtonControlFrame::GetDefaultLabel(nsXPIDLString& aString) const
+nsGfxButtonControlFrame::GetDefaultLabel(nsXPIDLString& aString)
 {
   nsCOMPtr<nsIFormControl> form = do_QueryInterface(mContent);
   NS_ENSURE_TRUE(form, NS_ERROR_UNEXPECTED);
 
-  int32_t type = form->GetType();
+  PRInt32 type = form->GetType();
   const char *prop;
   if (type == NS_FORM_INPUT_RESET) {
     prop = "Reset";
-  }
+  } 
   else if (type == NS_FORM_INPUT_SUBMIT) {
     prop = "Submit";
-  }
+  } 
   else if (IsFileBrowseButton(type)) {
     prop = "Browse";
   }
@@ -231,9 +233,9 @@ nsGfxButtonControlFrame::GetLabel(nsXPIDLString& aLabel)
 }
 
 NS_IMETHODIMP
-nsGfxButtonControlFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsGfxButtonControlFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                           nsIAtom*        aAttribute,
-                                          int32_t         aModType)
+                                          PRInt32         aModType)
 {
   nsresult rv = NS_OK;
 

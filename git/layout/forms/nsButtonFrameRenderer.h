@@ -44,7 +44,7 @@ public:
                                 nsRenderingContext& aRenderingContext,
                                 const nsRect& aDirtyRect,
                                 const nsRect& aRect,
-                                uint32_t aBGFlags);
+                                PRUint32 aBGFlags);
 
   void SetFrame(nsFrame* aFrame, nsPresContext* aPresContext);
  
@@ -62,8 +62,8 @@ public:
   nsMargin GetButtonInnerFocusBorderAndPadding();
   nsMargin GetAddedButtonBorderAndPadding();
 
-  nsStyleContext* GetStyleContext(int32_t aIndex) const;
-  void SetStyleContext(int32_t aIndex, nsStyleContext* aStyleContext);
+  nsStyleContext* GetStyleContext(PRInt32 aIndex) const;
+  void SetStyleContext(PRInt32 aIndex, nsStyleContext* aStyleContext);
   void ReResolveStyles(nsPresContext* aPresContext);
 
   nsIFrame* GetFrame();

@@ -108,9 +108,9 @@ CSS_PSEUDO_CLASS(mozTableBorderNonzero, ":-moz-table-border-nonzero")
 // it doesn't actually get directly matched on in SelectorMatches.
 CSS_PSEUDO_CLASS(notPseudo, ":not")
 
-// :-moz-dir(ltr) and :-moz-dir(rtl) match elements whose resolved
-// directionality in the markup language is ltr or rtl respectively
-CSS_STATE_DEPENDENT_PSEUDO_CLASS(dir, ":-moz-dir",
+// :dir(ltr) and :dir(rtl) match elements whose resolved directionality
+// in the markup language is ltr or rtl respectively
+CSS_STATE_DEPENDENT_PSEUDO_CLASS(dir, ":dir",
                                  NS_EVENT_STATE_LTR | NS_EVENT_STATE_RTL)
 
 CSS_STATE_PSEUDO_CLASS(link, ":link", NS_EVENT_STATE_UNVISITED)
@@ -154,8 +154,6 @@ CSS_STATE_PSEUDO_CLASS(mozTypeUnsupportedPlatform, ":-moz-type-unsupported-platf
                        NS_EVENT_STATE_TYPE_UNSUPPORTED_PLATFORM)
 CSS_STATE_PSEUDO_CLASS(mozHandlerClickToPlay, ":-moz-handler-clicktoplay",
                        NS_EVENT_STATE_TYPE_CLICK_TO_PLAY)
-CSS_STATE_PSEUDO_CLASS(mozHandlerPlayPreview, ":-moz-handler-playpreview",
-                       NS_EVENT_STATE_TYPE_PLAY_PREVIEW)
 CSS_STATE_PSEUDO_CLASS(mozHandlerVulnerableUpdatable, ":-moz-handler-vulnerable-updatable",
                        NS_EVENT_STATE_VULNERABLE_UPDATABLE)
 CSS_STATE_PSEUDO_CLASS(mozHandlerVulnerableNoUpdate, ":-moz-handler-vulnerable-no-update",

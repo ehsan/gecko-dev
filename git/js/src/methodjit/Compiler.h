@@ -128,7 +128,6 @@ class Compiler : public BaseCompiler
         Label        slowJoinPoint;
         Label        slowPathStart;
         Label        hotPathLabel;
-        Label        ionJoinPoint;
         DataLabelPtr addrLabel1;
         DataLabelPtr addrLabel2;
         Jump         oolJump;
@@ -210,6 +209,7 @@ class Compiler : public BaseCompiler
         bool hasTypeCheck;
         bool typeMonitored;
         bool cached;
+        types::TypeSet *rhsTypes;
         ValueRemat vr;
         union {
             ic::GetPropLabels getPropLabels_;
@@ -249,6 +249,7 @@ class Compiler : public BaseCompiler
             }
             ic.typeMonitored = typeMonitored;
             ic.cached = cached;
+            ic.rhsTypes = rhsTypes;
             if (ic.isGet())
                 ic.setLabels(getPropLabels());
             else if (ic.isSet())
@@ -320,19 +321,19 @@ class Compiler : public BaseCompiler
      */
     class VarType {
         JSValueType type;
-        types::StackTypeSet *types;
+        types::TypeSet *types;
 
       public:
-        void setTypes(types::StackTypeSet *types) {
+        void setTypes(types::TypeSet *types) {
             this->types = types;
             this->type = JSVAL_TYPE_MISSING;
         }
 
         types::TypeSet *getTypes() { return types; }
 
-        JSValueType getTypeTag() {
+        JSValueType getTypeTag(JSContext *cx) {
             if (type == JSVAL_TYPE_MISSING)
-                type = types ? types->getKnownTypeTag() : JSVAL_TYPE_UNKNOWN;
+                type = types ? types->getKnownTypeTag(cx) : JSVAL_TYPE_UNKNOWN;
             return type;
         }
     };
@@ -367,7 +368,7 @@ class Compiler : public BaseCompiler
     Rooted<GlobalObject*> globalObj;
     const HeapSlot *globalSlots;  /* Original slots pointer. */
 
-    MJITInstrumentation sps;
+    SPSInstrumentation sps;
     Assembler masm;
     FrameState frame;
 
@@ -406,7 +407,7 @@ private:
     ActiveFrame *a;
     ActiveFrame *outer;
 
-    RootedScript script_;
+    JSScript *script;
     analyze::ScriptAnalysis *analysis;
     jsbytecode *PC;
 
@@ -432,8 +433,6 @@ private:
     js::Vector<DoublePatch, 16, CompilerAllocPolicy> doubleList;
     js::Vector<JSObject*, 0, CompilerAllocPolicy> rootedTemplates;
     js::Vector<RegExpShared*, 0, CompilerAllocPolicy> rootedRegExps;
-    js::Vector<uint32_t> monitoredBytecodes;
-    js::Vector<uint32_t> typeBarrierBytecodes;
     js::Vector<uint32_t> fixedIntToDoubleEntries;
     js::Vector<uint32_t> fixedDoubleToAnyEntries;
     js::Vector<JumpTable, 16> jumpTables;
@@ -487,7 +486,7 @@ private:
     }
 
     JITScript *outerJIT() {
-        return outerScript->getJIT(isConstructing, cx->compartment->compileBarriers());
+        return outerScript->getJIT(isConstructing, cx->compartment->needsBarrier());
     }
 
     ChunkDescriptor &outerChunkRef() {
@@ -548,7 +547,7 @@ private:
     void restoreVarType();
     JSValueType knownPushedType(uint32_t pushed);
     bool mayPushUndefined(uint32_t pushed);
-    types::StackTypeSet *pushedTypeSet(uint32_t which);
+    types::TypeSet *pushedTypeSet(uint32_t which);
     bool monitored(jsbytecode *pc);
     bool hasTypeBarriers(jsbytecode *pc);
     bool testSingletonProperty(HandleObject obj, HandleId id);
@@ -563,8 +562,8 @@ private:
         RegisterID dataReg;
     };
 
-    MaybeJump trySingleTypeTest(types::StackTypeSet *types, RegisterID typeReg);
-    Jump addTypeTest(types::StackTypeSet *types, RegisterID typeReg, RegisterID dataReg);
+    MaybeJump trySingleTypeTest(types::TypeSet *types, RegisterID typeReg);
+    Jump addTypeTest(types::TypeSet *types, RegisterID typeReg, RegisterID dataReg);
     BarrierState pushAddressMaybeBarrier(Address address, JSValueType type, bool reuseBase,
                                          bool testUndefined = false);
     BarrierState testBarrier(RegisterID typeReg, RegisterID dataReg,
@@ -631,8 +630,7 @@ private:
     void emitInlineReturnValue(FrameEntry *fe);
     void dispatchCall(VoidPtrStubUInt32 stub, uint32_t argc);
     void interruptCheckHelper();
-    void ionCompileHelper();
-    void inliningCompileHelper();
+    void recompileCheckHelper();
     CompileStatus methodEntryHelper();
     CompileStatus profilingPushHelper();
     void profilingPopHelper();

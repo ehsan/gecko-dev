@@ -288,7 +288,7 @@ private:
                                                     HDDEDATA hdata,
                                                     ULONG    dwData1,
                                                     ULONG    dwData2 );
-    static void HandleCommandLine(const char* aCmdLineString, nsIFile* aWorkingDir, uint32_t aState);
+    static void HandleCommandLine(const char* aCmdLineString, nsIFile* aWorkingDir, PRUint32 aState);
     static void ParseDDEArg( HSZ args, int index, nsCString& string);
     static void ParseDDEArg( const char* args, int index, nsCString& aString);
     static void ActivateLastWindow();
@@ -1033,7 +1033,7 @@ static nsCString hszValue( DWORD instance, HSZ hsz ) {
 
 // Utility function to escape double-quotes within a string.
 static void escapeQuotes( nsAString &aString ) {
-    int32_t offset = -1;
+    PRInt32 offset = -1;
     while( 1 ) {
        // Find next '"'.
        offset = aString.FindChar( '"', ++offset );
@@ -1095,12 +1095,12 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
                     // Open a given URL...
 
                     // Get the URL from the first argument in the command.
-                    nsAutoCString url;
+                    nsCAutoString url;
                     ParseDDEArg(hsz2, 0, url);
 
                     // Read the 3rd argument in the command to determine if a
                     // new window is to be used.
-                    nsAutoCString windowID;
+                    nsCAutoString windowID;
                     ParseDDEArg(hsz2, 2, windowID);
                     // to open the URL in a new window, the old OS/2 code
                     // looks for "0" while the new Win32 code looks for "";
@@ -1182,7 +1182,7 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
 
                         // Use a string buffer for the output data, first
                         // save a quote.
-                        nsAutoCString   outpt( NS_LITERAL_CSTRING("\"") );
+                        nsCAutoString   outpt( NS_LITERAL_CSTRING("\"") );
                         // Now copy the URL converting the Unicode string
                         // to a single-byte ASCII string
                         outpt.Append( NS_LossyConvertUTF16toASCII( url ) );
@@ -1208,7 +1208,7 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
                 }
                 case topicActivate: {
                     // Activate a Nav window...
-                    nsAutoCString windowID;
+                    nsCAutoString windowID;
                     ParseDDEArg(hsz2, 0, windowID);
                     // 4294967295 is decimal for 0xFFFFFFFF which is also a
                     //   correct value to do that Activate last window stuff
@@ -1259,12 +1259,12 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
 #if MOZ_DEBUG_DDE
             printf( "Handling dde request: [%s]...\n", (char*)request );
 #endif
-            nsAutoCString url;
+            nsCAutoString url;
             ParseDDEArg((const char*) request, 0, url);
 
             // Read the 3rd argument in the command to determine if a
             // new window is to be used.
-            nsAutoCString windowID;
+            nsCAutoString windowID;
             ParseDDEArg((const char*) request, 2, windowID);
 
             // to open the URL in a new window, the old OS/2 code
@@ -1302,7 +1302,7 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
 // if the closing '"' is missing) if the arg is quoted.  If the arg
 // is not quoted, then p+result will point to the first character
 // of the arg.
-static int32_t advanceToEndOfQuotedArg( const char *p, int32_t offset, int32_t len ) {
+static PRInt32 advanceToEndOfQuotedArg( const char *p, PRInt32 offset, PRInt32 len ) {
     // Check whether the current arg is quoted.
     if ( p[++offset] == '"' ) {
         // Advance past the closing quote.
@@ -1323,7 +1323,7 @@ void nsNativeAppSupportOS2::ParseDDEArg( const char* args, int index, nsCString&
         nsDependentCString temp(args, argLen);
 
         // offset points to the comma preceding the desired arg.
-        int32_t offset = -1;
+        PRInt32 offset = -1;
         // Skip commas till we get to the arg we want.
         while( index-- ) {
             // If this arg is quoted, then go to closing quote.
@@ -1344,7 +1344,7 @@ void nsNativeAppSupportOS2::ParseDDEArg( const char* args, int index, nsCString&
         // deal with that before searching for the terminating comma.
         // We advance offset so it ends up pointing to the start of
         // the argument we want.
-        int32_t end = advanceToEndOfQuotedArg( args, offset++, argLen );
+        PRInt32 end = advanceToEndOfQuotedArg( args, offset++, argLen );
         // Find next comma (or end of string).
         end = temp.FindChar( ',', end );
         if ( end == kNotFound ) {
@@ -1362,7 +1362,7 @@ void nsNativeAppSupportOS2::ParseDDEArg( HSZ args, int index, nsCString& aString
     DWORD argLen = WinDdeQueryString( args, NULL, NULL, CP_WINANSI );
     // there wasn't any string, so return empty string
     if ( !argLen ) return;
-    nsAutoCString temp;
+    nsCAutoString temp;
     // Ensure result's buffer is sufficiently big.
     temp.SetLength( argLen );
     // Now get the string contents.
@@ -1401,7 +1401,7 @@ HDDEDATA nsNativeAppSupportOS2::CreateDDEData( LPBYTE value, DWORD len ) {
 void
 nsNativeAppSupportOS2::HandleCommandLine(const char* aCmdLineString,
                                          nsIFile* aWorkingDir,
-                                         uint32_t aState)
+                                         PRUint32 aState)
 {
     nsresult rv;
 
@@ -1412,7 +1412,7 @@ nsNativeAppSupportOS2::HandleCommandLine(const char* aCmdLineString,
     int between, quoted, bSlashCount;
     int argc;
     const char *p;
-    nsAutoCString arg;
+    nsCAutoString arg;
 
     nsCOMPtr<nsICommandLineRunner> cmdLine
         (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));

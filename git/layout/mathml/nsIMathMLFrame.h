@@ -167,8 +167,8 @@ public:
   *        update some flags in the frame, leaving the other flags unchanged.
   */
   NS_IMETHOD
-  UpdatePresentationData(uint32_t        aFlagsValues,
-                         uint32_t        aWhichFlags) = 0;
+  UpdatePresentationData(PRUint32        aFlagsValues,
+                         PRUint32        aWhichFlags) = 0;
 
  /* UpdatePresentationDataFromChildAt :
   * Sets displaystyle and compression flags on the whole tree. For child frames
@@ -196,10 +196,10 @@ public:
   *        for more details about this parameter.
   */
   NS_IMETHOD
-  UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
-                                    int32_t         aLastIndex,
-                                    uint32_t        aFlagsValues,
-                                    uint32_t        aWhichFlags) = 0;
+  UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
+                                    PRInt32         aLastIndex,
+                                    PRUint32        aFlagsValues,
+                                    PRUint32        aWhichFlags) = 0;
 };
 
 // struct used by a container frame to keep track of its embellishments.
@@ -209,7 +209,7 @@ public:
 // state in those frames that are not part of the embellished hierarchy.
 struct nsEmbellishData {
   // bits used to mark certain properties of our embellishments 
-  uint32_t flags;
+  PRUint32 flags;
 
   // pointer on the <mo> frame at the core of the embellished hierarchy
   nsIFrame* coreFrame;
@@ -243,7 +243,7 @@ struct nsEmbellishData {
 // descendants that affects us.
 struct nsPresentationData {
   // bits for: displaystyle, compressed, etc
-  uint32_t flags;
+  PRUint32 flags;
 
   // handy pointer on our base child (the 'nucleus' in TeX), but it may be
   // null here (e.g., tags like <mrow>, <mfrac>, <mtable>, etc, won't

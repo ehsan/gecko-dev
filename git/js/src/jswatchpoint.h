@@ -21,13 +21,13 @@ struct WatchKey {
     WatchKey() {}
     WatchKey(JSObject *obj, jsid id) : object(obj), id(id) {}
     WatchKey(const WatchKey &key) : object(key.object.get()), id(key.id.get()) {}
-    EncapsulatedPtrObject object;
-    EncapsulatedId id;
+    HeapPtrObject object;
+    HeapId id;
 };
 
 struct Watchpoint {
     JSWatchPointHandler handler;
-    RelocatablePtrObject closure;
+    HeapPtrObject closure;
     bool held;  /* true if currently running handler */
 };
 

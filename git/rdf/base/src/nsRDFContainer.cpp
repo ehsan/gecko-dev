@@ -69,22 +69,22 @@ private:
 
     nsresult Init();
 
-    nsresult Renumber(int32_t aStartIndex, int32_t aIncrement);
-    nsresult SetNextValue(int32_t aIndex);
+    nsresult Renumber(PRInt32 aStartIndex, PRInt32 aIncrement);
+    nsresult SetNextValue(PRInt32 aIndex);
     nsresult GetNextValue(nsIRDFResource** aResult);
     
     nsIRDFDataSource* mDataSource;
     nsIRDFResource*   mContainer;
 
     // pseudo constants
-    static int32_t gRefCnt;
+    static PRInt32 gRefCnt;
     static nsIRDFService*        gRDFService;
     static nsIRDFContainerUtils* gRDFContainerUtils;
     static nsIRDFResource*       kRDF_nextVal;
 };
 
 
-int32_t               RDFContainerImpl::gRefCnt = 0;
+PRInt32               RDFContainerImpl::gRefCnt = 0;
 nsIRDFService*        RDFContainerImpl::gRDFService;
 nsIRDFContainerUtils* RDFContainerImpl::gRDFContainerUtils;
 nsIRDFResource*       RDFContainerImpl::kRDF_nextVal;
@@ -151,7 +151,7 @@ RDFContainerImpl::Init(nsIRDFDataSource *aDataSource, nsIRDFResource *aContainer
 
 
 NS_IMETHODIMP
-RDFContainerImpl::GetCount(int32_t *aCount)
+RDFContainerImpl::GetCount(PRInt32 *aCount)
 {
     if (!mDataSource || !mContainer)
         return NS_ERROR_NOT_INITIALIZED;
@@ -183,7 +183,7 @@ RDFContainerImpl::GetCount(int32_t *aCount)
 
     nsAutoString nextValStr(s);
 
-    int32_t nextVal;
+    PRInt32 nextVal;
     nsresult err;
     nextVal = nextValStr.ToInteger(&err);
     if (NS_FAILED(err))
@@ -239,7 +239,7 @@ RDFContainerImpl::RemoveElement(nsIRDFNode *aElement, bool aRenumber)
 
     nsresult rv;
 
-    int32_t idx;
+    PRInt32 idx;
     rv = IndexOf(aElement, &idx);
     if (NS_FAILED(rv)) return rv;
 
@@ -268,7 +268,7 @@ RDFContainerImpl::RemoveElement(nsIRDFNode *aElement, bool aRenumber)
 
 
 NS_IMETHODIMP
-RDFContainerImpl::InsertElementAt(nsIRDFNode *aElement, int32_t aIndex, bool aRenumber)
+RDFContainerImpl::InsertElementAt(nsIRDFNode *aElement, PRInt32 aIndex, bool aRenumber)
 {
     if (!mDataSource || !mContainer)
         return NS_ERROR_NOT_INITIALIZED;
@@ -283,7 +283,7 @@ RDFContainerImpl::InsertElementAt(nsIRDFNode *aElement, int32_t aIndex, bool aRe
 
     nsresult rv;
 
-    int32_t count;
+    PRInt32 count;
     rv = GetCount(&count);
     if (NS_FAILED(rv)) return rv;
 
@@ -310,7 +310,7 @@ RDFContainerImpl::InsertElementAt(nsIRDFNode *aElement, int32_t aIndex, bool aRe
 }
 
 NS_IMETHODIMP
-RDFContainerImpl::RemoveElementAt(int32_t aIndex, bool aRenumber, nsIRDFNode** _retval)
+RDFContainerImpl::RemoveElementAt(PRInt32 aIndex, bool aRenumber, nsIRDFNode** _retval)
 {
     if (!mDataSource || !mContainer)
         return NS_ERROR_NOT_INITIALIZED;
@@ -322,7 +322,7 @@ RDFContainerImpl::RemoveElementAt(int32_t aIndex, bool aRenumber, nsIRDFNode** _
 
     nsresult rv;
 
-    int32_t count;
+    PRInt32 count;
     rv = GetCount(&count);
     if (NS_FAILED(rv)) return rv;
 
@@ -356,7 +356,7 @@ RDFContainerImpl::RemoveElementAt(int32_t aIndex, bool aRenumber, nsIRDFNode** _
 }
 
 NS_IMETHODIMP
-RDFContainerImpl::IndexOf(nsIRDFNode *aElement, int32_t *aIndex)
+RDFContainerImpl::IndexOf(nsIRDFNode *aElement, PRInt32 *aIndex)
 {
     if (!mDataSource || !mContainer)
         return NS_ERROR_NOT_INITIALIZED;
@@ -458,7 +458,7 @@ NS_NewRDFContainer(nsIRDFDataSource* aDataSource,
 
 
 nsresult
-RDFContainerImpl::Renumber(int32_t aStartIndex, int32_t aIncrement)
+RDFContainerImpl::Renumber(PRInt32 aStartIndex, PRInt32 aIncrement)
 {
     if (!mDataSource || !mContainer)
         return NS_ERROR_NOT_INITIALIZED;
@@ -478,7 +478,7 @@ RDFContainerImpl::Renumber(int32_t aStartIndex, int32_t aIncrement)
     if (! aIncrement)
         return NS_OK;
 
-    int32_t count;
+    PRInt32 count;
     rv = GetCount(&count);
     if (NS_FAILED(rv)) return rv;
 
@@ -491,7 +491,7 @@ RDFContainerImpl::Renumber(int32_t aStartIndex, int32_t aIncrement)
         if (NS_FAILED(rv)) return rv;
     }
 
-    int32_t i;
+    PRInt32 i;
     if (aIncrement < 0) {
         i = aStartIndex;
     }
@@ -613,7 +613,7 @@ RDFContainerImpl::Renumber(int32_t aStartIndex, int32_t aIncrement)
 
 
 nsresult
-RDFContainerImpl::SetNextValue(int32_t aIndex)
+RDFContainerImpl::SetNextValue(PRInt32 aIndex)
 {
     if (!mDataSource || !mContainer)
         return NS_ERROR_NOT_INITIALIZED;
@@ -676,7 +676,7 @@ RDFContainerImpl::GetNextValue(nsIRDFResource** aResult)
     rv = nextValLiteral->GetValueConst(&s);
     if (NS_FAILED(rv)) return rv;
 
-    int32_t nextVal = 0;
+    PRInt32 nextVal = 0;
     {
         for (const PRUnichar* p = s; *p != 0; ++p) {
             NS_ASSERTION(*p >= '0' && *p <= '9', "not a digit");

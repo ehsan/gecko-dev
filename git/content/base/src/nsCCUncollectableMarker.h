@@ -22,18 +22,18 @@ class nsCCUncollectableMarker MOZ_FINAL : public nsIObserver
   /**
    * Checks if we're collecting during a given generation
    */
-  static bool InGeneration(uint32_t aGeneration)
+  static bool InGeneration(PRUint32 aGeneration)
   {
     return aGeneration && aGeneration == sGeneration;
   }
 
   static bool InGeneration(nsCycleCollectionTraversalCallback& aCb,
-                           uint32_t aGeneration)
+                           PRUint32 aGeneration)
   {
     return InGeneration(aGeneration) && !aCb.WantAllTraces();
   }
 
-  static uint32_t sGeneration;
+  static PRUint32 sGeneration;
 
 private:
   nsCCUncollectableMarker() {}

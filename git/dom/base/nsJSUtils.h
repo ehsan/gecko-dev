@@ -28,7 +28,7 @@ class nsJSUtils
 {
 public:
   static JSBool GetCallingLocation(JSContext* aContext, const char* *aFilename,
-                                   uint32_t* aLineno);
+                                   PRUint32* aLineno);
 
   static nsIScriptGlobalObject *GetStaticScriptGlobal(JSContext* aContext,
                                                       JSObject* aObj);
@@ -46,9 +46,9 @@ public:
    * @param JSContext aContext
    *        The JSContext from which you want to find the inner window ID.
    *
-   * @returns uint64_t the inner window ID.
+   * @returns PRUint64 the inner window ID.
    */
-  static uint64_t GetCurrentlyRunningCodeInnerWindowID(JSContext *aContext);
+  static PRUint64 GetCurrentlyRunningCodeInnerWindowID(JSContext *aContext);
 };
 
 

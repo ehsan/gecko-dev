@@ -81,7 +81,7 @@ static PRUnichar const WINDOWS_1252_DATA[] = {
  * the positions of each within the big arrays.
  */
 
-static const int8_t ALL_NAMES[] = {
+static const PRInt8 ALL_NAMES[] = {
 #define NAMED_CHARACTER_REFERENCE(N, CHARS, LEN, FLAG, VALUE) \
 CHARS ,
 #include "nsHtml5NamedCharactersInclude.h"
@@ -115,14 +115,14 @@ const nsHtml5CharacterName nsHtml5NamedCharacters::NAMES[] = {
 #undef NAMED_CHARACTER_REFERENCE
 };
 
-int32_t
+PRInt32
 nsHtml5CharacterName::length() const
 {
   return nameLen;
 }
 
 PRUnichar
-nsHtml5CharacterName::charAt(int32_t index) const
+nsHtml5CharacterName::charAt(PRInt32 index) const
 {
   return static_cast<PRUnichar> (ALL_NAMES[nameStart + index]);
 }
@@ -131,7 +131,7 @@ void
 nsHtml5NamedCharacters::initializeStatics()
 {
   WINDOWS_1252 = new PRUnichar*[32];
-  for (int32_t i = 0; i < 32; ++i) {
+  for (PRInt32 i = 0; i < 32; ++i) {
     WINDOWS_1252[i] = (PRUnichar*)&(WINDOWS_1252_DATA[i]);
   }
 }

@@ -8,30 +8,33 @@ var completed = false;
 
 function startTest() {
   if (completed)
-    return;
+    return false;
 
   v.currentTime=seekTime;
   v.play();
+  return false;
 }
 
 function seekStarted() {
   if (completed)
-    return;
+    return false;
 
   ok(v.currentTime >= seekTime - 0.1, "Video currentTime should be around " + seekTime + ": " + v.currentTime);
   startPassed = true;
+  return false;
 }
 
 function seekEnded() {
   if (completed)
-    return;
+    return false;
 
   endPassed = true;
+  return false;
 }
 
 function playbackEnded() {
   if (completed)
-    return;
+    return false
 
   completed = true;
   ok(startPassed, "send seeking event");
@@ -39,6 +42,7 @@ function playbackEnded() {
   ok(v.ended, "Checking playback has ended");
   ok(Math.abs(v.currentTime - v.duration) <= 0.1, "Checking currentTime at end: " + v.currentTime);
   finish();
+  return false;
 }
 
 v.addEventListener("ended", playbackEnded, false);

@@ -31,7 +31,7 @@ public:
      * @param dataLen
      *        The data length in bytes.
      */
-    virtual void OnControlDataAvailable(const char *data, uint32_t dataLen) = 0;
+    virtual void OnControlDataAvailable(const char *data, PRUint32 dataLen) = 0;
 
     /**
      * Called when an error occurs on the control connection.
@@ -47,7 +47,7 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIINPUTSTREAMCALLBACK
 
-    nsFtpControlConnection(const nsCSubstring& host, uint32_t port);
+    nsFtpControlConnection(const nsCSubstring& host, PRUint32 port);
     ~nsFtpControlConnection();
 
     nsresult Connect(nsIProxyInfo* proxyInfo, nsITransportEventSink* eventSink);
@@ -66,15 +66,15 @@ public:
      */
     nsresult WaitData(nsFtpControlConnectionListener *listener);
 
-    uint32_t         mServerType;           // what kind of server is it.
+    PRUint32         mServerType;           // what kind of server is it.
     nsString         mPassword;
-    int32_t          mSuspendedWrite;
+    PRInt32          mSuspendedWrite;
     nsCString        mPwd;
-    uint32_t         mSessionId;
+    PRUint32         mSessionId;
 
 private:
     nsCString mHost;
-    uint32_t  mPort;
+    PRUint32  mPort;
 
     nsCOMPtr<nsISocketTransport>     mSocket;
     nsCOMPtr<nsIOutputStream>        mSocketOutput;

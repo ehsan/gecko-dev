@@ -20,9 +20,9 @@ Cu.import("resource://gre/modules/AlarmDB.jsm");
 
 let EXPORTED_SYMBOLS = ["AlarmService"];
 
-XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
-                                   "@mozilla.org/parentprocessmessagemanager;1",
-                                   "nsIMessageListenerManager");
+XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
+  return Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
+});
 
 XPCOMUtils.defineLazyGetter(this, "messenger", function() {
   return Cc["@mozilla.org/system-message-internal;1"].getService(Ci.nsISystemMessagesInternal);
@@ -75,7 +75,7 @@ let AlarmService = {
   receiveMessage: function receiveMessage(aMessage) {
     debug("receiveMessage(): " + aMessage.name);
 
-    let mm = aMessage.target.QueryInterface(Ci.nsIMessageSender);
+    let mm = aMessage.target.QueryInterface(Ci.nsIFrameMessageManager);
     let json = aMessage.json;
     switch (aMessage.name) {
       case "AlarmsManager:GetAll":
@@ -98,7 +98,6 @@ let AlarmService = {
           ignoreTimezone: json.ignoreTimezone, 
           timezoneOffset: this._currentTimezoneOffset, 
           data: json.data,
-          pageURL: json.pageURL,
           manifestURL: json.manifestURL
         };
 
@@ -254,8 +253,7 @@ let AlarmService = {
   _fireSystemMessage: function _fireSystemMessage(aAlarm) {
     debug("Fire system message: " + JSON.stringify(aAlarm));
     let manifestURI = Services.io.newURI(aAlarm.manifestURL, null, null);
-    let pageURI = Services.io.newURI(aAlarm.pageURL, null, null);
-    messenger.sendMessage("alarm", aAlarm, pageURI, manifestURI);
+    messenger.sendMessage("alarm", aAlarm, manifestURI);
   },
 
   _onAlarmFired: function _onAlarmFired() {
@@ -305,16 +303,12 @@ let AlarmService = {
         let alarmQueue = this._alarmQueue;
         alarmQueue.length = 0;
         this._currentAlarm = null;
-
-        // Only restore the alarm that's not yet expired; otherwise,
-        // fire a system message for it and remove it from database.
+        
+        // only add the alarm that is valid
+        let nowTime = Date.now();
         aAlarms.forEach(function addAlarm(aAlarm) {
-          if (this._getAlarmTime(aAlarm) > Date.now()) {
+          if (this._getAlarmTime(aAlarm) > nowTime)
             alarmQueue.push(aAlarm);
-          } else {
-            this._fireSystemMessage(aAlarm);
-            this._removeAlarmFromDb(aAlarm.id, null);
-          }
         }.bind(this));
 
         // set the next alarm from queue
@@ -333,7 +327,7 @@ let AlarmService = {
 
   _getAlarmTime: function _getAlarmTime(aAlarm) {
     let alarmTime = (new Date(aAlarm.date)).getTime();
-
+    
     // For an alarm specified with "ignoreTimezone",
     // it must be fired respect to the user's timezone.
     // Supposing an alarm was set at 7:00pm at Tokyo,

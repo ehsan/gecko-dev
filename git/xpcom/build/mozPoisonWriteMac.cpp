@@ -11,7 +11,6 @@
 #include "mozilla/Scoped.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/ProcessedStack.h"
 #include "nsStackWalk.h"
 #include "nsPrintfCString.h"
 #include "mach_override.h"
@@ -39,11 +38,131 @@ struct FuncData {
                            // 'Function' after it has been replaced.
 };
 
+
+// FIXME: duplicated code. The HangMonitor could also report processed addresses,
+// this class should be moved somewhere it can be shared.
+class ProcessedStack
+{
+public:
+    ProcessedStack() : mProcessed(false)
+    {
+    }
+    void Reserve(unsigned int n)
+    {
+        mStack.reserve(n);
+    }
+    size_t GetStackSize()
+    {
+        return mStack.size();
+    }
+    struct ProcessedStackFrame
+    {
+        uintptr_t mOffset;
+        uint16_t mModIndex;
+    };
+    ProcessedStackFrame GetFrame(unsigned aIndex)
+    {
+        const StackFrame &Frame = mStack[aIndex];
+        ProcessedStackFrame Ret = { Frame.mPC, Frame.mModIndex };
+        return Ret;
+    }
+    size_t GetNumModules()
+    {
+        MOZ_ASSERT(mProcessed);
+        return mModules.GetSize();
+    }
+    const char *GetModuleName(unsigned aIndex)
+    {
+        MOZ_ASSERT(mProcessed);
+        return mModules.GetEntry(aIndex).GetName();
+    }
+    void AddStackFrame(uintptr_t aPC)
+    {
+        MOZ_ASSERT(!mProcessed);
+        StackFrame Frame = {aPC, static_cast<uint16_t>(mStack.size()),
+                            std::numeric_limits<uint16_t>::max()};
+        mStack.push_back(Frame);
+    }
+    void Process()
+    {
+        mProcessed = true;
+        mModules = SharedLibraryInfo::GetInfoForSelf();
+        mModules.SortByAddress();
+
+        // Remove all modules not referenced by a PC on the stack
+        std::sort(mStack.begin(), mStack.end(), CompareByPC);
+
+        size_t moduleIndex = 0;
+        size_t stackIndex = 0;
+        size_t stackSize = mStack.size();
+
+        while (moduleIndex < mModules.GetSize()) {
+            SharedLibrary& module = mModules.GetEntry(moduleIndex);
+            uintptr_t moduleStart = module.GetStart();
+            uintptr_t moduleEnd = module.GetEnd() - 1;
+            // the interval is [moduleStart, moduleEnd)
+
+            bool moduleReferenced = false;
+            for (;stackIndex < stackSize; ++stackIndex) {
+                uintptr_t pc = mStack[stackIndex].mPC;
+                if (pc >= moduleEnd)
+                    break;
+
+                if (pc >= moduleStart) {
+                    // If the current PC is within the current module, mark
+                    // module as used
+                    moduleReferenced = true;
+                    mStack[stackIndex].mPC -= moduleStart;
+                    mStack[stackIndex].mModIndex = moduleIndex;
+                } else {
+                    // PC does not belong to any module. It is probably from
+                    // the JIT. Use a fixed mPC so that we don't get different
+                    // stacks on different runs.
+                    mStack[stackIndex].mPC =
+                        std::numeric_limits<uintptr_t>::max();
+                }
+            }
+
+            if (moduleReferenced) {
+                ++moduleIndex;
+            } else {
+                // Remove module if no PCs within its address range
+                mModules.RemoveEntries(moduleIndex, moduleIndex + 1);
+            }
+        }
+
+        for (;stackIndex < stackSize; ++stackIndex) {
+            // These PCs are past the last module.
+            mStack[stackIndex].mPC = std::numeric_limits<uintptr_t>::max();
+        }
+
+        std::sort(mStack.begin(), mStack.end(), CompareByIndex);
+    }
+
+private:
+  struct StackFrame
+  {
+      uintptr_t mPC;      // The program counter at this position in the call stack.
+      uint16_t mIndex;    // The number of this frame in the call stack.
+      uint16_t mModIndex; // The index of module that has this program counter.
+  };
+  static bool CompareByPC(const StackFrame &a, const StackFrame &b)
+  {
+      return a.mPC < b.mPC;
+  }
+  static bool CompareByIndex(const StackFrame &a, const StackFrame &b)
+  {
+    return a.mIndex < b.mIndex;
+  }
+  SharedLibraryInfo mModules;
+  std::vector<StackFrame> mStack;
+  bool mProcessed;
+};
+
 void RecordStackWalker(void *aPC, void *aSP, void *aClosure)
 {
-    std::vector<uintptr_t> *stack =
-        static_cast<std::vector<uintptr_t>*>(aClosure);
-    stack->push_back(reinterpret_cast<uintptr_t>(aPC));
+    ProcessedStack *stack = static_cast<ProcessedStack*>(aClosure);
+    stack->AddStackFrame(reinterpret_cast<uintptr_t>(aPC));
 }
 
 char *sProfileDirectory = NULL;
@@ -58,10 +177,9 @@ bool ValidWriteAssert(bool ok)
 
     // Write the stack and loaded libraries to a file. We can get here
     // concurrently from many writes, so we use multiple temporary files.
-    std::vector<uintptr_t> rawStack;
-
-    NS_StackWalk(RecordStackWalker, 0, reinterpret_cast<void*>(&rawStack), 0);
-    Telemetry::ProcessedStack stack = Telemetry::GetStackAndModules(rawStack, true);
+    ProcessedStack stack;
+    NS_StackWalk(RecordStackWalker, 0, reinterpret_cast<void*>(&stack), 0);
+    stack.Process();
 
     nsPrintfCString nameAux("%s%s", sProfileDirectory,
                             "/Telemetry.LateWriteTmpXXXXXX");
@@ -74,15 +192,14 @@ bool ValidWriteAssert(bool ok)
     size_t numModules = stack.GetNumModules();
     fprintf(f, "%zu\n", numModules);
     for (int i = 0; i < numModules; ++i) {
-        Telemetry::ProcessedStack::Module module = stack.GetModule(i);
-        fprintf(f, "%s\n", module.mName.c_str());
+        const char *name = stack.GetModuleName(i);
+        fprintf(f, "%s\n", name ? name : "");
     }
 
     size_t numFrames = stack.GetStackSize();
     fprintf(f, "%zu\n", numFrames);
     for (size_t i = 0; i < numFrames; ++i) {
-        const Telemetry::ProcessedStack::Frame &frame =
-            stack.GetFrame(i);
+        const ProcessedStack::ProcessedStackFrame &frame = stack.GetFrame(i);
         // NOTE: We write the offsets, while the atos tool expects a value with
         // the virtual address added. For example, running otool -l on the the firefox
         // binary shows
@@ -130,8 +247,14 @@ ssize_t wrap_pwrite_temp(int fd, const void *buf, size_t nbyte, off_t offset) {
 }
 
 // Define a FuncData for a pwrite-like functions.
+// FIXME: clang accepts usinging wrap_pwrite_temp<X ## _data> in the struct
+// initialization. Is this a gcc 4.2 bug?
 #define DEFINE_PWRITE_DATA(X, NAME)                                        \
-FuncData X ## _data = { NAME, (void*) wrap_pwrite_temp<X ## _data> };      \
+ssize_t wrap_ ## X (int fd, const void *buf, size_t nbyte, off_t offset);  \
+FuncData X ## _data = { NAME, (void*) wrap_ ## X };                        \
+ssize_t wrap_ ## X (int fd, const void *buf, size_t nbyte, off_t offset) { \
+    return wrap_pwrite_temp<X ## _data>(fd, buf, nbyte, offset);           \
+}
 
 // This exists everywhere.
 DEFINE_PWRITE_DATA(pwrite, "pwrite")
@@ -152,8 +275,12 @@ ssize_t wrap_writev_temp(int fd, const struct iovec *iov, int iovcnt) {
 }
 
 // Define a FuncData for a writev-like functions.
-#define DEFINE_WRITEV_DATA(X, NAME)                                   \
-FuncData X ## _data = { NAME, (void*) wrap_writev_temp<X ## _data> }; \
+#define DEFINE_WRITEV_DATA(X, NAME)                                  \
+ssize_t wrap_ ## X (int fd, const struct iovec *iov, int iovcnt);    \
+FuncData X ## _data = { NAME, (void*) wrap_ ## X };                  \
+ssize_t wrap_ ## X (int fd, const struct iovec *iov, int iovcnt) {   \
+    return wrap_writev_temp<X ## _data>(fd, iov, iovcnt);            \
+}
 
 // This exists everywhere.
 DEFINE_WRITEV_DATA(writev, "writev");
@@ -173,7 +300,11 @@ ssize_t wrap_write_temp(int fd, const void *buf, size_t count) {
 
 // Define a FuncData for a write-like functions.
 #define DEFINE_WRITE_DATA(X, NAME)                                   \
-FuncData X ## _data = { NAME, (void*) wrap_write_temp<X ## _data> }; \
+ssize_t wrap_ ## X (int fd, const void *buf, size_t count);          \
+FuncData X ## _data = { NAME, (void*) wrap_ ## X };                  \
+ssize_t wrap_ ## X (int fd, const void *buf, size_t count) {         \
+    return wrap_write_temp<X ## _data>(fd, buf, count);              \
+}
 
 // This exists everywhere.
 DEFINE_WRITE_DATA(write, "write");
@@ -337,7 +468,7 @@ void PoisonWrite() {
     nsCOMPtr<nsIFile> mozFile;
     NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(mozFile));
     if (mozFile) {
-        nsAutoCString nativePath;
+        nsCAutoString nativePath;
         nsresult rv = mozFile->GetNativePath(nativePath);
         if (NS_SUCCEEDED(rv)) {
             sProfileDirectory = PL_strdup(nativePath.get());

@@ -57,6 +57,7 @@
 #include "private/pprthred.h"
 #include "nsTArray.h"
 #include "prio.h"
+#include "mozilla/FunctionTimer.h"
 #include "ManifestParser.h"
 #include "mozilla/Services.h"
 
@@ -129,6 +130,20 @@ NS_DEFINE_CID(kCategoryManagerCID, NS_CATEGORYMANAGER_CID);
 
 #define UID_STRING_LENGTH 39
 
+#ifdef NS_FUNCTION_TIMER
+#define COMPMGR_TIME_FUNCTION_CID(cid)                                          \
+  char cid_buf__[NSID_LENGTH] = { '\0' };                                      \
+  cid.ToProvidedString(cid_buf__);                                             \
+  NS_TIME_FUNCTION_MIN_FMT(5, "%s (line %d) (cid: %s)", MOZ_FUNCTION_NAME, \
+                           __LINE__, cid_buf__)
+#define COMPMGR_TIME_FUNCTION_CONTRACTID(cid)                                  \
+  NS_TIME_FUNCTION_MIN_FMT(5, "%s (line %d) (contractid: %s)", MOZ_FUNCTION_NAME, \
+                           __LINE__, (cid))
+#else
+#define COMPMGR_TIME_FUNCTION_CID(cid) do {} while (0)
+#define COMPMGR_TIME_FUNCTION_CONTRACTID(cid) do {} while (0)
+#endif
+
 nsresult
 nsGetServiceFromCategory::operator()(const nsIID& aIID, void** aInstancePtr) const
 {
@@ -177,7 +192,7 @@ nsGetServiceFromCategory::operator()(const nsIID& aIID, void** aInstancePtr) con
 // Arena helper functions
 ////////////////////////////////////////////////////////////////////////////////
 char *
-ArenaStrndup(const char *s, uint32_t len, PLArenaPool *arena)
+ArenaStrndup(const char *s, PRUint32 len, PLArenaPool *arena)
 {
     void *mem;
     // Include trailing null in the len
@@ -279,6 +294,8 @@ nsComponentManagerImpl::InitializeModuleLocations()
 
 nsresult nsComponentManagerImpl::Init()
 {
+    NS_TIME_FUNCTION;
+
     PR_ASSERT(NOT_INITIALIZED == mStatus);
 
     if (nsComponentManagerLog == nullptr)
@@ -287,6 +304,7 @@ nsresult nsComponentManagerImpl::Init()
     }
 
     // Initialize our arena
+    NS_TIME_FUNCTION_MARK("Next: init component manager arena");
     PL_INIT_ARENA_POOL(&mArena, "ComponentManagerArena", NS_CM_BLOCK_SIZE);
 
     mFactories.Init(CONTRACTID_HASHTABLE_INITIAL_SIZE);
@@ -319,6 +337,7 @@ nsresult nsComponentManagerImpl::Init()
     PR_LOG(nsComponentManagerLog, PR_LOG_DEBUG,
            ("nsComponentManager: Initialized."));
 
+    NS_TIME_FUNCTION_MARK("Next: init native module loader");
     nsresult rv = mNativeModuleLoader.Init();
     if (NS_FAILED(rv))
         return rv;
@@ -327,7 +346,7 @@ nsresult nsComponentManagerImpl::Init()
 
     RegisterModule(&kXPCOMModule, NULL);
 
-    for (uint32_t i = 0; i < sStaticModules->Length(); ++i)
+    for (PRUint32 i = 0; i < sStaticModules->Length(); ++i)
         RegisterModule((*sStaticModules)[i], NULL);
 
     nsRefPtr<nsZipArchive> appOmnijar = mozilla::Omnijar::GetReader(mozilla::Omnijar::APP);
@@ -450,7 +469,7 @@ nsComponentManagerImpl::RegisterContractID(const mozilla::Module::ContractIDEntr
 static void
 CutExtension(nsCString& path)
 {
-    int32_t dotPos = path.RFindChar('.');
+    PRInt32 dotPos = path.RFindChar('.');
     if (kNotFound == dotPos)
         path.Truncate();
     else
@@ -462,7 +481,7 @@ nsComponentManagerImpl::RegisterManifest(NSLocationType aType,
                                          FileLocation &aFile,
                                          bool aChromeOnly)
 {
-    uint32_t len;
+    PRUint32 len;
     FileLocation::Data data;
     nsAutoArrayPtr<char> buf;
     nsresult rv = aFile.GetData(data);
@@ -524,7 +543,7 @@ void
 nsComponentManagerImpl::ManifestXPT(ManifestProcessingContext& cx, int lineno, char *const * argv)
 {
     FileLocation f(cx.mFile, argv[0]);
-    uint32_t len;
+    PRUint32 len;
     FileLocation::Data data;
     nsAutoArrayPtr<char> buf;
     nsresult rv = f.GetData(data);
@@ -641,7 +660,7 @@ nsComponentManagerImpl::ManifestCategory(ManifestProcessingContext& cx, int line
 void
 nsComponentManagerImpl::RereadChromeManifests(bool aChromeOnly)
 {
-    for (uint32_t i = 0; i < sModuleLocations->Length(); ++i) {
+    for (PRUint32 i = 0; i < sModuleLocations->Length(); ++i) {
         ComponentLocation& l = sModuleLocations->ElementAt(i);
         RegisterManifest(l.type, l.location, aChromeOnly);
     }
@@ -701,6 +720,8 @@ nsComponentManagerImpl::KnownModule::Description() const
 
 nsresult nsComponentManagerImpl::Shutdown(void)
 {
+    NS_TIME_FUNCTION;
+
     PR_ASSERT(NORMAL == mStatus);
 
     mStatus = SHUTDOWN_IN_PROGRESS;
@@ -762,7 +783,7 @@ nsComponentManagerImpl::GetInterface(const nsIID & uuid, void **result)
 
 nsFactoryEntry *
 nsComponentManagerImpl::GetFactoryEntry(const char *aContractID,
-                                        uint32_t aContractIDLen)
+                                        PRUint32 aContractIDLen)
 {
     ReentrantMonitorAutoEnter mon(mMon);
     return mContractIDs.Get(nsDependentCString(aContractID, aContractIDLen));
@@ -788,7 +809,7 @@ nsComponentManagerImpl::FindFactory(const nsCID& aClass)
 
 already_AddRefed<nsIFactory>
 nsComponentManagerImpl::FindFactory(const char *contractID,
-                                    uint32_t aContractIDLen)
+                                    PRUint32 aContractIDLen)
 {
     nsFactoryEntry *entry = GetFactoryEntry(contractID, aContractIDLen);
     if (!entry)
@@ -877,6 +898,8 @@ nsComponentManagerImpl::CreateInstance(const nsCID &aClass,
                                        const nsIID &aIID,
                                        void **aResult)
 {
+    COMPMGR_TIME_FUNCTION_CID(aClass);
+
     // test this first, since there's no point in creating a component during
     // shutdown -- whether it's available or not would depend on the order it
     // occurs in the list
@@ -907,7 +930,7 @@ nsComponentManagerImpl::CreateInstance(const nsCID &aClass,
     if (entry->mServiceObject) {
         nsXPIDLCString cid;
         cid.Adopt(aClass.ToString());
-        nsAutoCString message;
+        nsCAutoString message;
         message = NS_LITERAL_CSTRING("You are calling CreateInstance \"") +
                   cid + NS_LITERAL_CSTRING("\" when a service for this CID already exists!");
         NS_ERROR(message.get());
@@ -959,6 +982,8 @@ nsComponentManagerImpl::CreateInstanceByContractID(const char *aContractID,
                                                    const nsIID &aIID,
                                                    void **aResult)
 {
+    COMPMGR_TIME_FUNCTION_CONTRACTID(aContractID);
+
     NS_ENSURE_ARG_POINTER(aContractID);
 
     // test this first, since there's no point in creating a component during
@@ -988,7 +1013,7 @@ nsComponentManagerImpl::CreateInstanceByContractID(const char *aContractID,
 
 #ifdef SHOW_CI_ON_EXISTING_SERVICE
     if (entry->mServiceObject) {
-        nsAutoCString message;
+        nsCAutoString message;
         message =
           NS_LITERAL_CSTRING("You are calling CreateInstance \"") +
           nsDependentCString(aContractID) +
@@ -1060,8 +1085,8 @@ nsComponentManagerImpl::AddPendingService(const nsCID& aServiceCID,
 void
 nsComponentManagerImpl::RemovePendingService(const nsCID& aServiceCID)
 {
-  uint32_t pendingCount = mPendingServices.Length();
-  for (uint32_t index = 0; index < pendingCount; ++index) {
+  PRUint32 pendingCount = mPendingServices.Length();
+  for (PRUint32 index = 0; index < pendingCount; ++index) {
     const PendingServiceInfo& info = mPendingServices.ElementAt(index);
     if (info.cid->Equals(aServiceCID)) {
       mPendingServices.RemoveElementAt(index);
@@ -1074,8 +1099,8 @@ nsComponentManagerImpl::RemovePendingService(const nsCID& aServiceCID)
 PRThread*
 nsComponentManagerImpl::GetPendingServiceThread(const nsCID& aServiceCID) const
 {
-  uint32_t pendingCount = mPendingServices.Length();
-  for (uint32_t index = 0; index < pendingCount; ++index) {
+  PRUint32 pendingCount = mPendingServices.Length();
+  for (PRUint32 index = 0; index < pendingCount; ++index) {
     const PendingServiceInfo& info = mPendingServices.ElementAt(index);
     if (info.cid->Equals(aServiceCID)) {
       return info.thread;
@@ -1122,7 +1147,7 @@ struct NS_STACK_CLASS AutoReentrantMonitor
     }
 
     ReentrantMonitor* mReentrantMonitor;
-    int32_t mEnterCount;
+    PRInt32 mEnterCount;
 };
 
 NS_IMETHODIMP
@@ -1156,6 +1181,9 @@ nsComponentManagerImpl::GetService(const nsCID& aClass,
         mon.Exit();
         return supports->QueryInterface(aIID, result);
     }
+
+    // We only care about time when we create the service.
+    COMPMGR_TIME_FUNCTION_CID(aClass);
 
     PRThread* currentPRThread = PR_GetCurrentThread();
     NS_ASSERTION(currentPRThread, "This should never be null!");
@@ -1237,6 +1265,8 @@ nsComponentManagerImpl::IsServiceInstantiated(const nsCID & aClass,
                                               const nsIID& aIID,
                                               bool *result)
 {
+    COMPMGR_TIME_FUNCTION_CID(aClass);
+
     // Now we want to get the service if we already got it. If not, we don't want
     // to create an instance of it. mmh!
 
@@ -1276,6 +1306,8 @@ NS_IMETHODIMP nsComponentManagerImpl::IsServiceInstantiatedByContractID(const ch
                                                                         const nsIID& aIID,
                                                                         bool *result)
 {
+    COMPMGR_TIME_FUNCTION_CONTRACTID(aContractID);
+
     // Now we want to get the service if we already got it. If not, we don't want
     // to create an instance of it. mmh!
 
@@ -1344,6 +1376,9 @@ nsComponentManagerImpl::GetServiceByContractID(const char* aContractID,
         mon.Exit();
         return serviceObject->QueryInterface(aIID, result);
     }
+
+    // We only care about time when we create the service.
+    COMPMGR_TIME_FUNCTION_CONTRACTID(aContractID);
 
     PRThread* currentPRThread = PR_GetCurrentThread();
     NS_ASSERTION(currentPRThread, "This should never be null!");
@@ -1565,6 +1600,8 @@ EnumerateCIDHelper(const nsID& id, nsFactoryEntry* entry, void* closure)
 NS_IMETHODIMP
 nsComponentManagerImpl::EnumerateCIDs(nsISimpleEnumerator **aEnumerator)
 {
+    NS_TIME_FUNCTION;
+
     nsCOMArray<nsISupports> array;
     mFactories.EnumerateRead(EnumerateCIDHelper, &array);
 
@@ -1582,6 +1619,8 @@ EnumerateContractsHelper(const nsACString& contract, nsFactoryEntry* entry, void
 NS_IMETHODIMP
 nsComponentManagerImpl::EnumerateContractIDs(nsISimpleEnumerator **aEnumerator)
 {
+    NS_TIME_FUNCTION;
+
     nsTArray<nsCString>* array = new nsTArray<nsCString>;
     mContractIDs.EnumerateRead(EnumerateContractsHelper, array);
 

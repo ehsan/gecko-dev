@@ -15,7 +15,7 @@ struct ObjectHashEntry : PLDHashEntryHdr {
   nsNSSShutDownObject *obj;
 };
 
-static bool
+PR_STATIC_CALLBACK(bool)
 ObjectSetMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
                          const void *key)
 {
@@ -23,7 +23,7 @@ ObjectSetMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->obj == static_cast<const nsNSSShutDownObject*>(key);
 }
 
-static bool
+PR_STATIC_CALLBACK(bool)
 ObjectSetInitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
                      const void *key)
 {
@@ -157,9 +157,9 @@ nsresult nsNSSShutDownList::doPK11Logout()
   return NS_OK;
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 nsNSSShutDownList::doPK11LogoutHelper(PLDHashTable *table, 
-  PLDHashEntryHdr *hdr, uint32_t number, void *arg)
+  PLDHashEntryHdr *hdr, PRUint32 number, void *arg)
 {
   ObjectHashEntry *entry = static_cast<ObjectHashEntry*>(hdr);
 
@@ -209,9 +209,9 @@ nsresult nsNSSShutDownList::evaporateAllNSSResources()
   return NS_OK;
 }
 
-PLDHashOperator
+PLDHashOperator PR_CALLBACK
 nsNSSShutDownList::evaporateAllNSSResourcesHelper(PLDHashTable *table, 
-  PLDHashEntryHdr *hdr, uint32_t number, void *arg)
+  PLDHashEntryHdr *hdr, PRUint32 number, void *arg)
 {
   ObjectHashEntry *entry = static_cast<ObjectHashEntry*>(hdr);
   {

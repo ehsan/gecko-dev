@@ -8,7 +8,6 @@
 #ifndef nsContainerFrame_h___
 #define nsContainerFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsSplittableFrame.h"
 #include "nsFrameList.h"
 #include "nsLayoutUtils.h"
@@ -54,27 +53,27 @@ public:
                   nsIFrame*   aParent,
                   nsIFrame*   aPrevInFlow);
   NS_IMETHOD SetInitialChildList(ChildListID  aListID,
-                                 nsFrameList& aChildList) MOZ_OVERRIDE;
+                                 nsFrameList& aChildList);
   NS_IMETHOD AppendFrames(ChildListID  aListID,
                           nsFrameList& aFrameList);
   NS_IMETHOD InsertFrames(ChildListID aListID,
                           nsIFrame* aPrevFrame,
                           nsFrameList& aFrameList);
   NS_IMETHOD RemoveFrame(ChildListID aListID,
-                         nsIFrame* aOldFrame) MOZ_OVERRIDE;
+                         nsIFrame* aOldFrame);
 
-  virtual const nsFrameList& GetChildList(ChildListID aList) const MOZ_OVERRIDE;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const MOZ_OVERRIDE;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
-  virtual void ChildIsDirty(nsIFrame* aChild) MOZ_OVERRIDE;
+  virtual const nsFrameList& GetChildList(ChildListID aList) const;
+  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void ChildIsDirty(nsIFrame* aChild);
 
   virtual bool IsLeaf() const;
-  virtual bool PeekOffsetNoAmount(bool aForward, int32_t* aOffset) MOZ_OVERRIDE;
-  virtual bool PeekOffsetCharacter(bool aForward, int32_t* aOffset,
-                                     bool aRespectClusters = true) MOZ_OVERRIDE;
+  virtual bool PeekOffsetNoAmount(bool aForward, PRInt32* aOffset);
+  virtual bool PeekOffsetCharacter(bool aForward, PRInt32* aOffset,
+                                     bool aRespectClusters = true);
   
 #ifdef DEBUG
-  NS_IMETHOD List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const MOZ_OVERRIDE;
+  NS_IMETHOD List(FILE* out, PRInt32 aIndent) const;
 #endif  
 
   // nsContainerFrame methods
@@ -136,7 +135,7 @@ public:
                                        nsIFrame*       aFrame,
                                        nsIView*        aView,
                                        const nsRect&   aVisualOverflowArea,
-                                       uint32_t        aFlags = 0);
+                                       PRUint32        aFlags = 0);
 
   // Syncs properties to the top level view and window, like transparency and
   // shadow.
@@ -155,7 +154,7 @@ public:
                                       nsIFrame*        aFrame,
                                       nsStyleContext*  aStyleContext,
                                       nsIView*         aView,
-                                      uint32_t         aFlags = 0);
+                                      PRUint32         aFlags = 0);
 
   /**
    * Converts the minimum and maximum sizes given in inner window app units to
@@ -183,7 +182,7 @@ public:
   virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
-                                 nsSize aPadding, bool aShrinkWrap) MOZ_OVERRIDE;
+                                 nsSize aPadding, bool aShrinkWrap);
 
   /**
    * Invokes the WillReflow() function, positions the frame and its view (if
@@ -202,7 +201,7 @@ public:
                        const nsHTMLReflowState&       aReflowState,
                        nscoord                        aX,
                        nscoord                        aY,
-                       uint32_t                       aFlags,
+                       PRUint32                       aFlags,
                        nsReflowStatus&                aStatus,
                        nsOverflowContinuationTracker* aTracker = nullptr);
 
@@ -229,7 +228,7 @@ public:
                                     const nsHTMLReflowMetrics& aDesiredSize,
                                     nscoord                    aX,
                                     nscoord                    aY,
-                                    uint32_t                   aFlags);
+                                    PRUint32                   aFlags);
 
   
   static void PositionChildViews(nsIFrame* aFrame);
@@ -300,14 +299,8 @@ public:
   nsresult ReflowOverflowContainerChildren(nsPresContext*           aPresContext,
                                            const nsHTMLReflowState& aReflowState,
                                            nsOverflowAreas&         aOverflowRects,
-                                           uint32_t                 aFlags,
+                                           PRUint32                 aFlags,
                                            nsReflowStatus&          aStatus);
-
-  /**
-   * Move any frames on our overflow list to the end of our principal list.
-   * @return true if there were any overflow frames
-   */
-  virtual bool DrainSelfOverflowList();
 
   /**
    * Removes aChild without destroying it and without requesting reflow.
@@ -383,7 +376,7 @@ protected:
   nsresult BuildDisplayListForNonBlockChildren(nsDisplayListBuilder*   aBuilder,
                                                const nsRect&           aDirtyRect,
                                                const nsDisplayListSet& aLists,
-                                               uint32_t                aFlags = 0);
+                                               PRUint32                aFlags = 0);
 
   /**
    * A version of BuildDisplayList that use DISPLAY_CHILD_INLINE.

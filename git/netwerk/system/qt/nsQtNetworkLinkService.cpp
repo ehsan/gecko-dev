@@ -38,7 +38,7 @@ nsQtNetworkLinkService::GetLinkStatusKnown(bool* aIsKnown)
 }
 
 NS_IMETHODIMP
-nsQtNetworkLinkService::GetLinkType(uint32_t *aLinkType)
+nsQtNetworkLinkService::GetLinkType(PRUint32 *aLinkType)
 {
   NS_ENSURE_ARG_POINTER(aLinkType);
 

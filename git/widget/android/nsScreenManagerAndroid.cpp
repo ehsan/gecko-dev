@@ -20,7 +20,7 @@ nsScreenAndroid::~nsScreenAndroid()
 }
 
 NS_IMETHODIMP
-nsScreenAndroid::GetRect(int32_t *outLeft, int32_t *outTop, int32_t *outWidth, int32_t *outHeight)
+nsScreenAndroid::GetRect(PRInt32 *outLeft, PRInt32 *outTop, PRInt32 *outWidth, PRInt32 *outHeight)
 {
     gfxIntSize sz = nsWindow::GetAndroidScreenBounds();
 
@@ -35,7 +35,7 @@ nsScreenAndroid::GetRect(int32_t *outLeft, int32_t *outTop, int32_t *outWidth, i
 
 
 NS_IMETHODIMP
-nsScreenAndroid::GetAvailRect(int32_t *outLeft, int32_t *outTop, int32_t *outWidth, int32_t *outHeight)
+nsScreenAndroid::GetAvailRect(PRInt32 *outLeft, PRInt32 *outTop, PRInt32 *outWidth, PRInt32 *outHeight)
 {
     return GetRect(outLeft, outTop, outWidth, outHeight);
 }
@@ -43,7 +43,7 @@ nsScreenAndroid::GetAvailRect(int32_t *outLeft, int32_t *outTop, int32_t *outWid
 
 
 NS_IMETHODIMP
-nsScreenAndroid::GetPixelDepth(int32_t *aPixelDepth)
+nsScreenAndroid::GetPixelDepth(PRInt32 *aPixelDepth)
 {
     // XXX do we need to lie here about 16bpp?  Or
     // should we actually check and return the right thing?
@@ -53,13 +53,13 @@ nsScreenAndroid::GetPixelDepth(int32_t *aPixelDepth)
 
 
 NS_IMETHODIMP
-nsScreenAndroid::GetColorDepth(int32_t *aColorDepth)
+nsScreenAndroid::GetColorDepth(PRInt32 *aColorDepth)
 {
     return GetPixelDepth(aColorDepth);
 }
 
 void
-nsScreenAndroid::ApplyMinimumBrightness(uint32_t aBrightness)
+nsScreenAndroid::ApplyMinimumBrightness(PRUint32 aBrightness)
 {
   AndroidBridge::Bridge()->SetKeepScreenOn(aBrightness == BRIGHTNESS_FULL);
 }
@@ -83,10 +83,10 @@ nsScreenManagerAndroid::GetPrimaryScreen(nsIScreen **outScreen)
 }
 
 NS_IMETHODIMP
-nsScreenManagerAndroid::ScreenForRect(int32_t inLeft,
-                                      int32_t inTop,
-                                      int32_t inWidth,
-                                      int32_t inHeight,
+nsScreenManagerAndroid::ScreenForRect(PRInt32 inLeft,
+                                      PRInt32 inTop,
+                                      PRInt32 inWidth,
+                                      PRInt32 inHeight,
                                       nsIScreen **outScreen)
 {
     return GetPrimaryScreen(outScreen);
@@ -99,7 +99,7 @@ nsScreenManagerAndroid::ScreenForNativeWidget(void *aWidget, nsIScreen **outScre
 }
 
 NS_IMETHODIMP
-nsScreenManagerAndroid::GetNumberOfScreens(uint32_t *aNumberOfScreens)
+nsScreenManagerAndroid::GetNumberOfScreens(PRUint32 *aNumberOfScreens)
 {
     *aNumberOfScreens = 1;
     return NS_OK;

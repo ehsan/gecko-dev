@@ -35,8 +35,8 @@ AudioChild::ActorDestroy(ActorDestroyReason aWhy)
 }
 
 bool
-AudioChild::RecvPositionInFramesUpdate(const int64_t& position,
-                                       const int64_t& time)
+AudioChild::RecvPositionInFramesUpdate(const PRInt64& position,
+                                       const PRInt64& time)
 {
   mLastPosition = position;
   mLastPositionTimestamp = time;
@@ -52,7 +52,7 @@ AudioChild::RecvDrainDone()
   return true;
 }
 
-int32_t
+PRInt32
 AudioChild::WaitForMinWriteSize()
 {
   ReentrantMonitorAutoEnter mon(mAudioReentrantMonitor);
@@ -64,7 +64,7 @@ AudioChild::WaitForMinWriteSize()
 }
 
 bool
-AudioChild::RecvMinWriteSizeDone(const int32_t& minFrames)
+AudioChild::RecvMinWriteSizeDone(const PRInt32& minFrames)
 {
   ReentrantMonitorAutoEnter mon(mAudioReentrantMonitor);
   mMinWriteSize = minFrames;
@@ -94,19 +94,19 @@ void
 AudioChild::WaitForWrite()
 {
   ReentrantMonitorAutoEnter mon(mAudioReentrantMonitor);
-  uint64_t writeCounter = mWriteCounter;
+  PRUint64 writeCounter = mWriteCounter;
   while (mWriteCounter == writeCounter && mIPCOpen) {
     mAudioReentrantMonitor.Wait();
   }
 }
 
-int64_t
+PRInt64
 AudioChild::GetLastKnownPosition()
 {
   return mLastPosition;
 }
 
-int64_t
+PRInt64
 AudioChild::GetLastKnownPositionTimestamp()
 {
   return mLastPositionTimestamp;

@@ -35,14 +35,14 @@ Spinner::HandleResult(mozIStorageResultSet *aResultSet)
   do_check_eq(row->AsInt64(0), 0);
   do_check_eq(row->AsDouble(0), 0.0);
 
-  uint32_t len = 100;
-  do_check_eq(row->AsSharedUTF8String(0, &len), '\0');
+  PRUint32 len = 100;
+  do_check_eq(row->AsSharedUTF8String(0, &len), NULL);
   do_check_eq(len, 0);
   len = 100;
-  do_check_eq(row->AsSharedWString(0, &len), '\0');
+  do_check_eq(row->AsSharedWString(0, &len), NULL);
   do_check_eq(len, 0);
   len = 100;
-  do_check_eq(row->AsSharedBlob(0, &len), '\0');
+  do_check_eq(row->AsSharedBlob(0, &len), NULL);
   do_check_eq(len, 0);
 
   do_check_eq(row->IsNull(0), true);
@@ -68,14 +68,14 @@ test_NULLFallback()
   do_check_eq(stmt->AsInt32(0), 0);
   do_check_eq(stmt->AsInt64(0), 0);
   do_check_eq(stmt->AsDouble(0), 0.0);
-  uint32_t len = 100;
-  do_check_eq(stmt->AsSharedUTF8String(0, &len), '\0');
+  PRUint32 len = 100;
+  do_check_eq(stmt->AsSharedUTF8String(0, &len), NULL);
   do_check_eq(len, 0);
   len = 100;
-  do_check_eq(stmt->AsSharedWString(0, &len), '\0');
+  do_check_eq(stmt->AsSharedWString(0, &len), NULL);
   do_check_eq(len, 0);
   len = 100;
-  do_check_eq(stmt->AsSharedBlob(0, &len), '\0');
+  do_check_eq(stmt->AsSharedBlob(0, &len), NULL);
   do_check_eq(len, 0);
   do_check_eq(stmt->IsNull(0), true);
 
@@ -83,13 +83,13 @@ test_NULLFallback()
   do_check_eq(valueArray->AsInt64(0), 0);
   do_check_eq(valueArray->AsDouble(0), 0.0);
   len = 100;
-  do_check_eq(valueArray->AsSharedUTF8String(0, &len), '\0');
+  do_check_eq(valueArray->AsSharedUTF8String(0, &len), NULL);
   do_check_eq(len, 0);
   len = 100;
-  do_check_eq(valueArray->AsSharedWString(0, &len), '\0');
+  do_check_eq(valueArray->AsSharedWString(0, &len), NULL);
   do_check_eq(len, 0);
   len = 100;
-  do_check_eq(valueArray->AsSharedBlob(0, &len), '\0');
+  do_check_eq(valueArray->AsSharedBlob(0, &len), NULL);
   do_check_eq(len, 0);
   do_check_eq(valueArray->IsNull(0), true);
 }

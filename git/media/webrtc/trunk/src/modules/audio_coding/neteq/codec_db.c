@@ -97,13 +97,10 @@ int WebRtcNetEQ_DbAdd(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec,
     {
 #ifdef NETEQ_PCM16B_CODEC
         case kDecoderPCM16B :
-        case kDecoderPCM16B_2ch :
 #endif
 #ifdef NETEQ_G711_CODEC
         case kDecoderPCMu :
         case kDecoderPCMa :
-        case kDecoderPCMu_2ch :
-        case kDecoderPCMa_2ch :
 #endif
 #ifdef NETEQ_ILBC_CODEC
         case kDecoderILBC :
@@ -114,20 +111,14 @@ int WebRtcNetEQ_DbAdd(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec,
 #ifdef NETEQ_ISAC_SWB_CODEC
         case kDecoderISACswb :
 #endif
-#ifdef NETEQ_OPUS_CODEC
-        case kDecoderOpus :
-#endif
 #ifdef NETEQ_G722_CODEC
         case kDecoderG722 :
-        case kDecoderG722_2ch :
 #endif
 #ifdef NETEQ_WIDEBAND
         case kDecoderPCM16Bwb :
-        case kDecoderPCM16Bwb_2ch :
 #endif
 #ifdef NETEQ_32KHZ_WIDEBAND
         case kDecoderPCM16Bswb32kHz :
-        case kDecoderPCM16Bswb32kHz_2ch :
 #endif
 #ifdef NETEQ_CNG_CODEC
         case kDecoderCNG :
@@ -172,7 +163,6 @@ int WebRtcNetEQ_DbAdd(CodecDbInst_t *inst, enum WebRtcNetEQDecoder codec,
 #endif
 #ifdef NETEQ_CELT_CODEC
         case kDecoderCELT_32 :
-        case kDecoderCELT_32_2ch :
 #endif
 #ifdef NETEQ_GSMFR_CODEC
         case kDecoderGSMFR :
@@ -481,12 +471,8 @@ int WebRtcNetEQ_DbGetSplitInfo(SplitInfo_t *inst, enum WebRtcNetEQDecoder codecI
         case kDecoderSPEEX_8:
         case kDecoderSPEEX_16:
 #endif
-#ifdef NETEQ_OPUS_CODEC
-        case kDecoderOpus :
-#endif
 #ifdef NETEQ_CELT_CODEC
         case kDecoderCELT_32 :
-        case kDecoderCELT_32_2ch :
 #endif
 #ifdef NETEQ_G729_1_CODEC
         case kDecoderG729_1:
@@ -505,8 +491,6 @@ int WebRtcNetEQ_DbGetSplitInfo(SplitInfo_t *inst, enum WebRtcNetEQDecoder codecI
 #if (defined NETEQ_G711_CODEC)
         case kDecoderPCMu:
         case kDecoderPCMa:
-        case kDecoderPCMu_2ch:
-        case kDecoderPCMa_2ch:
         {
             inst->deltaBytes = -12;
             inst->deltaTime = 1;
@@ -515,7 +499,6 @@ int WebRtcNetEQ_DbGetSplitInfo(SplitInfo_t *inst, enum WebRtcNetEQDecoder codecI
 #endif
 #if (defined NETEQ_G722_CODEC)
         case kDecoderG722:
-        case kDecoderG722_2ch:
         {
             inst->deltaBytes = -14;
             inst->deltaTime = 0;
@@ -524,7 +507,6 @@ int WebRtcNetEQ_DbGetSplitInfo(SplitInfo_t *inst, enum WebRtcNetEQDecoder codecI
 #endif
 #if (defined NETEQ_PCM16B_CODEC)
         case kDecoderPCM16B:
-        case kDecoderPCM16B_2ch:
         {
             inst->deltaBytes = -12;
             inst->deltaTime = 2;
@@ -533,7 +515,6 @@ int WebRtcNetEQ_DbGetSplitInfo(SplitInfo_t *inst, enum WebRtcNetEQDecoder codecI
 #endif
 #if ((defined NETEQ_PCM16B_CODEC)&&(defined NETEQ_WIDEBAND))
         case kDecoderPCM16Bwb:
-        case kDecoderPCM16Bwb_2ch:
         {
             inst->deltaBytes = -14;
             inst->deltaTime = 2;
@@ -542,7 +523,6 @@ int WebRtcNetEQ_DbGetSplitInfo(SplitInfo_t *inst, enum WebRtcNetEQDecoder codecI
 #endif
 #if ((defined NETEQ_PCM16B_CODEC)&&(defined NETEQ_32KHZ_WIDEBAND))
         case kDecoderPCM16Bswb32kHz:
-        case kDecoderPCM16Bswb32kHz_2ch:
         {
             inst->deltaBytes = -18;
             inst->deltaTime = 2;

@@ -30,8 +30,7 @@ BEGIN_TEST(testTypedArrays)
     RootedObject buffer(cx, JS_NewArrayBuffer(cx, nbytes));
     CHECK(JS_IsArrayBufferObject(buffer, cx));
 
-    RootedObject proto(cx);
-    JS_GetPrototype(cx, buffer, proto.address());
+    RootedObject proto(cx, JS_GetPrototype(buffer));
     CHECK(!JS_IsArrayBufferObject(proto, cx));
     RootedObject dummy(cx, JS_GetParent(proto));
     CHECK(!JS_IsArrayBufferObject(dummy, cx));
@@ -61,8 +60,7 @@ TestPlainTypedArray(JSContext *cx)
 {
     RootedObject array(cx, Create(cx, 7));
     CHECK(JS_IsTypedArrayObject(array, cx));
-    RootedObject proto(cx);
-    JS_GetPrototype(cx, array, proto.address());
+    RootedObject proto(cx, JS_GetPrototype(array));
     CHECK(!JS_IsTypedArrayObject(proto, cx));
     RootedObject dummy(cx, JS_GetParent(proto));
     CHECK(!JS_IsTypedArrayObject(dummy, cx));

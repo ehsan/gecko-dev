@@ -65,15 +65,15 @@ NS_IMETHODIMP
 InputTestConsumer::OnDataAvailable(nsIRequest *request, 
                                    nsISupports* context,
                                    nsIInputStream *aIStream, 
-                                   uint64_t aSourceOffset,
-                                   uint32_t aLength)
+                                   PRUint32 aSourceOffset,
+                                   PRUint32 aLength)
 {
   char buf[1025];
-  uint32_t amt, size;
+  PRUint32 amt, size;
   nsresult rv;
 
   while (aLength) {
-    size = NS_MIN<uint32_t>(aLength, sizeof(buf));
+    size = NS_MIN<PRUint32>(aLength, sizeof(buf));
     rv = aIStream->Read(buf, size, &amt);
     if (NS_FAILED(rv)) {
       NS_ASSERTION((NS_BASE_STREAM_WOULD_BLOCK != rv), 
@@ -127,16 +127,16 @@ main(int argc, char* argv[])
                                   true,
                                   nsDependentCString(fileName), // XXX UTF-8
                                   0, ioService);
-        if (NS_FAILED(rv)) return -1;
+        if (NS_FAILED(rv)) return rv;
 
         // create our url.
         nsCOMPtr<nsIURI> uri;
         rv = NS_NewURI(getter_AddRefs(uri), uriSpec);
-        if (NS_FAILED(rv)) return -1;
+        if (NS_FAILED(rv)) return rv;
 
         nsCOMPtr<nsIChannel> channel;
         rv = ioService->NewChannelFromURI(uri, getter_AddRefs(channel));
-        if (NS_FAILED(rv)) return -1;
+        if (NS_FAILED(rv)) return rv;
 	
         // QI and set the upload stream
         nsCOMPtr<nsIUploadChannel> uploadChannel(do_QueryInterface(channel));

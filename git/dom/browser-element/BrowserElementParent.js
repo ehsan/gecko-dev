@@ -7,16 +7,9 @@
 let Cu = Components.utils;
 let Ci = Components.interfaces;
 let Cc = Components.classes;
-let Cr = Components.results;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/BrowserElementPromptService.jsm");
-
-XPCOMUtils.defineLazyGetter(this, "DOMApplicationRegistry", function () {
-  Cu.import("resource://gre/modules/Webapps.jsm");
-  return DOMApplicationRegistry;
-});
 
 const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID = "nsPref:changed";
 const BROWSER_FRAMES_ENABLED_PREF = "dom.mozBrowserFramesEnabled";
@@ -33,33 +26,6 @@ function getBoolPref(prefName, def) {
   catch(err) {
     return def;
   }
-}
-
-function exposeAll(obj) {
-  // Filter for Objects and Arrays.
-  if (typeof obj !== "object" || !obj)
-    return;
-
-  // Recursively expose our children.
-  Object.keys(obj).forEach(function(key) {
-    exposeAll(obj[key]);
-  });
-
-  // If we're not an Array, generate an __exposedProps__ object for ourselves.
-  if (obj instanceof Array)
-    return;
-  var exposed = {};
-  Object.keys(obj).forEach(function(key) {
-    exposed[key] = 'rw';
-  });
-  obj.__exposedProps__ = exposed;
-}
-
-function defineAndExpose(obj, name, value) {
-  obj[name] = value;
-  if (!('__exposedProps__' in obj))
-    obj.__exposedProps__ = {};
-  obj.__exposedProps__[name] = 'r';
 }
 
 /**
@@ -191,8 +157,6 @@ function BrowserElementParent(frameLoader, hasRemoteFrame) {
   }
 
   addMessageListener("hello", this._recvHello);
-  addMessageListener("get-name", this._recvGetName);
-  addMessageListener("get-fullscreen-allowed", this._recvGetFullscreenAllowed);
   addMessageListener("contextmenu", this._fireCtxMenuEvent);
   addMessageListener("locationchange", this._fireEventFromMsg);
   addMessageListener("loadstart", this._fireEventFromMsg);
@@ -203,7 +167,7 @@ function BrowserElementParent(frameLoader, hasRemoteFrame) {
   addMessageListener("securitychange", this._fireEventFromMsg);
   addMessageListener("error", this._fireEventFromMsg);
   addMessageListener("scroll", this._fireEventFromMsg);
-  addMessageListener("firstpaint", this._fireEventFromMsg);
+  addMessageListener("get-mozapp-manifest-url", this._sendMozAppManifestURL);
   addMessageListener("keyevent", this._fireKeyEvent);
   addMessageListener("showmodalprompt", this._handleShowModalPrompt);
   addMessageListener('got-screenshot', this._gotDOMRequestResult);
@@ -243,7 +207,7 @@ function BrowserElementParent(frameLoader, hasRemoteFrame) {
   defineMethod('goForward', this._goForward);
   defineMethod('reload', this._reload);
   defineMethod('stop', this._stop);
-  defineMethod('getScreenshot', this._getScreenshot);
+  defineDOMRequestMethod('getScreenshot', 'get-screenshot');
   defineDOMRequestMethod('getCanGoBack', 'get-can-go-back');
   defineDOMRequestMethod('getCanGoForward', 'get-can-go-forward');
 
@@ -253,21 +217,6 @@ function BrowserElementParent(frameLoader, hasRemoteFrame) {
                                 this._ownerVisibilityChange.bind(this),
                                 /* useCapture = */ false,
                                 /* wantsUntrusted = */ false);
-
-  // Insert ourself into the prompt service.
-  BrowserElementPromptService.mapFrameToBrowserElementParent(this._frameElement, this);
-
-  // If this browser represents an app then let the Webapps module register for
-  // any messages that it needs.
-  let appManifestURL =
-    this._frameElement.QueryInterface(Ci.nsIMozBrowserFrame).appManifestURL;
-  if (appManifestURL) {
-    let appId =
-      DOMApplicationRegistry.getAppLocalIdByManifestURL(appManifestURL);
-    if (appId != Ci.nsIScriptSecurityManager.NO_APP_ID) {
-      DOMApplicationRegistry.registerBrowserElementParentForApp(this, appId);
-    }
-  }
 }
 
 BrowserElementParent.prototype = {
@@ -294,55 +243,11 @@ BrowserElementParent.prototype = {
                        .getInterface(Ci.nsIDOMWindowUtils);
   },
 
-  promptAuth: function(authDetail, callback) {
-    let evt;
-    let self = this;
-    let callbackCalled = false;
-    let cancelCallback = function() {
-      if (!callbackCalled) {
-        callbackCalled = true;
-        callback(false, null, null);
-      }
-    };
-
-    if (authDetail.isOnlyPassword) {
-      // We don't handle password-only prompts, so just cancel it.
-      cancelCallback();
-      return;
-    } else { /* username and password */
-      let detail = {
-        host:     authDetail.host,
-        realm:    authDetail.realm
-      };
-
-      evt = this._createEvent('usernameandpasswordrequired', detail,
-                              /* cancelable */ true);
-      defineAndExpose(evt.detail, 'authenticate', function(username, password) {
-        if (callbackCalled)
-          return;
-        callbackCalled = true;
-        callback(true, username, password);
-      });
-    }
-
-    defineAndExpose(evt.detail, 'cancel', function() {
-      cancelCallback();
-    });
-
-    this._frameElement.dispatchEvent(evt);
-
-    if (!evt.defaultPrevented) {
-      cancelCallback();
-    }
-  },
-
   _sendAsyncMsg: function(msg, data) {
-    try {
-      this._mm.sendAsyncMessage('browser-element-api:' + msg, data);
-    } catch (e) {
-      return false;
-    }
-    return true;
+    this._frameElement.QueryInterface(Ci.nsIFrameLoaderOwner)
+                      .frameLoader
+                      .messageManager
+                      .sendAsyncMessage('browser-element-api:' + msg, data);
   },
 
   _recvHello: function(data) {
@@ -357,14 +262,6 @@ BrowserElementParent.prototype = {
     }
   },
 
-  _recvGetName: function(data) {
-    return this._frameElement.getAttribute('name');
-  },
-  
-  _recvGetFullscreenAllowed: function(data) {
-    return this._frameElement.hasAttribute('mozallowfullscreen');
-  },
-
   _fireCtxMenuEvent: function(data) {
     let evtName = data.name.substring('browser-element-api:'.length);
     let detail = data.json;
@@ -374,9 +271,9 @@ BrowserElementParent.prototype = {
 
     if (detail.contextmenu) {
       var self = this;
-      defineAndExpose(evt.detail, 'contextMenuItemSelected', function(id) {
+      XPCNativeWrapper.unwrap(evt.detail).contextMenuItemSelected = function(id) {
         self._sendAsyncMsg('fire-ctx-callback', {menuitem: id});
-      });
+      };
     }
     // The embedder may have default actions on context menu events, so
     // we fire a context menu event even if the child didn't define a
@@ -437,9 +334,9 @@ BrowserElementParent.prototype = {
       self._sendAsyncMsg('unblock-modal-prompt', data);
     }
 
-    defineAndExpose(evt.detail, 'unblock', function() {
+    XPCNativeWrapper.unwrap(evt.detail).unblock = function() {
       sendUnblockMsg();
-    });
+    };
 
     this._frameElement.dispatchEvent(evt);
 
@@ -454,7 +351,6 @@ BrowserElementParent.prototype = {
     // This will have to change if we ever want to send a CustomEvent with null
     // detail.  For now, it's OK.
     if (detail !== undefined && detail !== null) {
-      exposeAll(detail);
       return new this._window.CustomEvent('mozbrowser' + evtName,
                                           { bubbles: true,
                                             cancelable: cancelable,
@@ -466,54 +362,39 @@ BrowserElementParent.prototype = {
                                     cancelable: cancelable });
   },
 
+  _sendMozAppManifestURL: function(data) {
+    return this._frameElement.getAttribute('mozapp');
+  },
+
   /**
    * Kick off a DOMRequest in the child process.
    *
    * We'll fire an event called |msgName| on the child process, passing along
-   * an object with two fields:
-   *
-   *  - id:  the ID of this request.
-   *  - arg: arguments to pass to the child along with this request.
+   * an object with a single field, id, containing the ID of this request.
    *
    * We expect the child to pass the ID back to us upon completion of the
-   * request.  See _gotDOMRequestResult.
+   * request; see _gotDOMRequestResult.
    */
-  _sendDOMRequest: function(msgName, args) {
+  _sendDOMRequest: function(msgName) {
     let id = 'req_' + this._domRequestCounter++;
     let req = Services.DOMRequest.createRequest(this._window);
-    if (this._sendAsyncMsg(msgName, {id: id, args: args})) {
-      this._pendingDOMRequests[id] = req;
-    } else {
-      Services.DOMRequest.fireErrorAsync(req, "fail");
-    }
+    this._pendingDOMRequests[id] = req;
+    this._sendAsyncMsg(msgName, {id: id});
     return req;
   },
 
   /**
-   * Called when the child process finishes handling a DOMRequest.  data.json
-   * must have the fields [id, successRv], if the DOMRequest was successful, or
-   * [id, errorMsg], if the request was not successful.
+   * Called when the child process finishes handling a DOMRequest.  We expect
+   * data.json to have two fields:
    *
-   * The fields have the following meanings:
-   *
-   *  - id:        the ID of the DOM request (see _sendDOMRequest)
-   *  - successRv: the request's return value, if the request succeeded
-   *  - errorMsg:  the message to pass to DOMRequest.fireError(), if the request
-   *               failed.
+   *  - id: the ID of the DOM request (see _sendDOMRequest), and
+   *  - rv: the request's return value.
    *
    */
   _gotDOMRequestResult: function(data) {
     let req = this._pendingDOMRequests[data.json.id];
     delete this._pendingDOMRequests[data.json.id];
-
-    if ('successRv' in data.json) {
-      debug("Successful gotDOMRequestResult.");
-      Services.DOMRequest.fireSuccess(req, data.json.successRv);
-    }
-    else {
-      debug("Got error in gotDOMRequestResult.");
-      Services.DOMRequest.fireErrorAsync(req, data.json.errorMsg);
-    }
+    Services.DOMRequest.fireSuccess(req, data.json.rv);
   },
 
   _setVisible: function(visible) {
@@ -562,18 +443,6 @@ BrowserElementParent.prototype = {
 
   _stop: function() {
     this._sendAsyncMsg('stop');
-  },
-
-  _getScreenshot: function(_width, _height) {
-    let width = parseInt(_width);
-    let height = parseInt(_height);
-    if (isNaN(width) || isNaN(height) || width < 0 || height < 0) {
-      throw Components.Exception("Invalid argument",
-                                 Cr.NS_ERROR_INVALID_ARG);
-    }
-
-    return this._sendDOMRequest('get-screenshot',
-                                {width: width, height: height});
   },
 
   _fireKeyEvent: function(data) {

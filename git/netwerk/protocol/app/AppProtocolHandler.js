@@ -11,12 +11,14 @@ const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
-                                   "@mozilla.org/childprocessmessagemanager;1",
-                                   "nsISyncMessageSender");
+XPCOMUtils.defineLazyGetter(this, "cpmm", function() {
+  return Cc["@mozilla.org/childprocessmessagemanager;1"]
+         .getService(Ci.nsIFrameMessageManager)
+         .QueryInterface(Ci.nsISyncMessageSender);
+});
 
 function AppProtocolHandler() {
-  this._basePath = [];
+  this._basePath = null;
 }
 
 AppProtocolHandler.prototype = {
@@ -25,19 +27,17 @@ AppProtocolHandler.prototype = {
 
   scheme: "app",
   defaultPort: -1,
-  // Don't allow loading from other protocols, and only from app:// if webapps is granted
-  protocolFlags: Ci.nsIProtocolHandler.URI_NOAUTH |
-                 Ci.nsIProtocolHandler.URI_DANGEROUS_TO_LOAD |
-                 Ci.nsIProtocolHandler.URI_CROSS_ORIGIN_NEEDS_WEBAPPS_PERM,
+  // Using the same flags as the JAR protocol handler.
+  protocolFlags2: Ci.nsIProtocolHandler.URI_NORELATIVE |
+                  Ci.nsIProtocolHandler.URI_NOAUTH |
+                  Ci.nsIProtocolHandler.URI_LOADABLE_BY_ANYONE,
 
-  getBasePath: function app_phGetBasePath(aId) {
-
-    if (!this._basePath[aId]) {
-      this._basePath[aId] = cpmm.sendSyncMessage("Webapps:GetBasePath",
-                                                 { id: aId })[0] + "/";
+  get basePath() {
+    if (!this._basePath) {
+      this._basePath = cpmm.sendSyncMessage("Webapps:GetBasePath", { })[0] + "/";
     }
 
-    return this._basePath[aId];
+    return this._basePath;
   },
 
   newURI: function app_phNewURI(aSpec, aOriginCharset, aBaseURI) {
@@ -61,8 +61,18 @@ AppProtocolHandler.prototype = {
       appId = noScheme.substring(0, firstSlash);
     }
 
+    // Simulates default behavior of http servers:
+    // Adds index.html if the file spec ends in / in /#anchor
+    let lastSlash = fileSpec.lastIndexOf("/");
+    if (lastSlash == fileSpec.length - 1) {
+      fileSpec += "index.html";
+    } else if (fileSpec[lastSlash + 1] == '#') {
+      let anchor = fileSpec.substring(lastSlash + 1);
+      fileSpec = fileSpec.substring(0, lastSlash) + "/index.html" + anchor;
+    }
+
     // Build a jar channel and masquerade as an app:// URI.
-    let uri = "jar:file://" + this.getBasePath(appId) + appId + "/application.zip!" + fileSpec;
+    let uri = "jar:file://" + this.basePath + appId + "/application.zip!" + fileSpec;
     let channel = Services.io.newChannel(uri, null, null);
     channel.QueryInterface(Ci.nsIJARChannel).setAppURI(aURI);
     channel.QueryInterface(Ci.nsIChannel).originalURI = aURI;

@@ -17,6 +17,8 @@
 #include "nsIRedirectResultListener.h"
 #include "nsIProgressEventSink.h"
 
+using namespace mozilla::dom;
+
 class nsICacheEntryDescriptor;
 
 namespace mozilla {
@@ -42,7 +44,7 @@ public:
 
 private:
   nsCOMPtr<nsIParentChannel> mActiveChannel;
-  uint32_t mRedirectChannelId;
+  PRUint32 mRedirectChannelId;
 };
 
 } // namespace net

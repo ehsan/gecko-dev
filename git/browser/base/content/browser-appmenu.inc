@@ -27,12 +27,6 @@
                       label="&newNavigatorCmd.label;"
                       command="cmd_newNavigator"
                       key="key_newNavigator"/>
-#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
-            <menuitem id="appmenu_newPrivateWindow"
-                      label="&newPrivateWindow.label;"
-                      command="Tools:PrivateBrowsing"
-                      key="key_privatebrowsing"/>
-#endif
             <menuseparator/>
             <menuitem id="appmenu_openFile"
                       label="&openFileCmd.label;"
@@ -40,7 +34,6 @@
                       key="openFileKb"/>
           </menupopup>
       </splitmenu>
-#ifndef MOZ_PER_WINDOW_PRIVATE_BROWSING
       <menuitem id="appmenu_privateBrowsing"
                 class="menuitem-iconic menuitem-iconic-tooltip"
                 label="&privateBrowsingCmd.start.label;"
@@ -48,7 +41,6 @@
                 stoplabel="&privateBrowsingCmd.stop.label;"
                 command="Tools:PrivateBrowsing"
                 key="key_privatebrowsing"/>
-#endif
       <menuitem label="&goOfflineCmd.label;"
                 id="appmenu_offlineModeRecovery"
                 type="checkbox"
@@ -152,7 +144,6 @@
         <menupopup id="appmenu_webDeveloper_popup">
           <menuitem id="appmenu_devToolbar" observes="devtoolsMenuBroadcaster_DevToolbar"/>
           <menuitem id="appmenu_webConsole" observes="devtoolsMenuBroadcaster_WebConsole"/>
-          <menuitem id="appmenu_remoteWebConsole" observes="devtoolsMenuBroadcaster_RemoteWebConsole"/>
           <menuitem id="appmenu_pageinspect" observes="devtoolsMenuBroadcaster_Inspect"/>
           <menuitem id="appmenu_responsiveUI" observes="devtoolsMenuBroadcaster_ResponsiveUI"/>
           <menuitem id="appmenu_debugger" observes="devtoolsMenuBroadcaster_Debugger"/>
@@ -297,7 +288,7 @@
 #ifdef MOZ_SERVICES_SYNC
             <menuitem id="appmenu_sync-tabs"
                       class="syncTabsMenuItem"
-                      label="&syncTabsMenu2.label;"
+                      label="&syncTabsMenu.label;"
                       oncommand="BrowserOpenSyncTabs();"
                       disabled="true"/>
 #endif

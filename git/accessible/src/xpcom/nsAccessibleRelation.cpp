@@ -13,7 +13,7 @@
 
 using namespace mozilla::a11y;
 
-nsAccessibleRelation::nsAccessibleRelation(uint32_t aType,
+nsAccessibleRelation::nsAccessibleRelation(PRUint32 aType,
                                            Relation* aRel) :
   mType(aType)
 {
@@ -28,7 +28,7 @@ NS_IMPL_ISUPPORTS1(nsAccessibleRelation, nsIAccessibleRelation)
 
 // nsIAccessibleRelation
 NS_IMETHODIMP
-nsAccessibleRelation::GetRelationType(uint32_t *aType)
+nsAccessibleRelation::GetRelationType(PRUint32 *aType)
 {
   NS_ENSURE_ARG_POINTER(aType);
   *aType = mType;
@@ -36,7 +36,7 @@ nsAccessibleRelation::GetRelationType(uint32_t *aType)
 }
 
 NS_IMETHODIMP
-nsAccessibleRelation::GetTargetsCount(uint32_t *aCount)
+nsAccessibleRelation::GetTargetsCount(PRUint32 *aCount)
 {
   NS_ENSURE_ARG_POINTER(aCount);
   *aCount = 0;
@@ -44,7 +44,7 @@ nsAccessibleRelation::GetTargetsCount(uint32_t *aCount)
 }
 
 NS_IMETHODIMP
-nsAccessibleRelation::GetTarget(uint32_t aIndex, nsIAccessible **aTarget)
+nsAccessibleRelation::GetTarget(PRUint32 aIndex, nsIAccessible **aTarget)
 {
   NS_ENSURE_ARG_POINTER(aTarget);
   nsresult rv = NS_OK;

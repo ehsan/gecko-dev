@@ -25,10 +25,6 @@
 #endif
 #endif
 
-class nsIAndroidDisplayport;
-class nsIAndroidViewport;
-
-
 namespace mozilla {
 
 class AndroidGeckoLayerClient;
@@ -51,10 +47,10 @@ public:
 
     ~RefCountedJavaObject();
 
-    int32_t AddRef() { return ++mRefCnt; }
+    PRInt32 AddRef() { return ++mRefCnt; }
 
-    int32_t Release() {
-        int32_t refcnt = --mRefCnt;
+    PRInt32 Release() {
+        PRInt32 refcnt = --mRefCnt;
         if (refcnt == 0)
             delete this;
         return refcnt;
@@ -62,7 +58,7 @@ public:
 
     jobject GetObject() { return mObject; }
 private:
-    int32_t mRefCnt;
+    PRInt32 mRefCnt;
     jobject mObject;
 };
 
@@ -148,38 +144,6 @@ protected:
     static jfieldID jTopField;
 };
 
-class AndroidRectF : public WrappedJavaObject
-{
-public:
-    static void InitRectFClass(JNIEnv *jEnv);
-
-    AndroidRectF() { }
-    AndroidRectF(JNIEnv *jenv, jobject jobj) {
-        Init(jenv, jobj);
-    }
-
-    void Init(JNIEnv *jenv, jobject jobj);
-
-    float Bottom() { return mBottom; }
-    float Left() { return mLeft; }
-    float Right() { return mRight; }
-    float Top() { return mTop; }
-    float Width() { return mRight - mLeft; }
-    float Height() { return mBottom - mTop; }
-
-protected:
-    float mBottom;
-    float mLeft;
-    float mRight;
-    float mTop;
-
-    static jclass jRectClass;
-    static jfieldID jBottomField;
-    static jfieldID jLeftField;
-    static jfieldID jRightField;
-    static jfieldID jTopField;
-};
-
 class AndroidViewTransform : public WrappedJavaObject {
 public:
     static void InitViewTransformClass(JNIEnv *jEnv);
@@ -198,32 +162,6 @@ private:
     static jfieldID jXField;
     static jfieldID jYField;
     static jfieldID jScaleField;
-};
-
-class AndroidProgressiveUpdateData : public WrappedJavaObject {
-public:
-    static void InitProgressiveUpdateDataClass(JNIEnv *jEnv);
-
-    void Init(jobject jobj);
-
-    AndroidProgressiveUpdateData() {}
-    AndroidProgressiveUpdateData(jobject jobj) { Init(jobj); }
-
-    float GetX(JNIEnv *env);
-    float GetY(JNIEnv *env);
-    float GetWidth(JNIEnv *env);
-    float GetHeight(JNIEnv *env);
-    float GetScale(JNIEnv *env);
-    bool GetShouldAbort(JNIEnv *env);
-
-private:
-    static jclass jProgressiveUpdateDataClass;
-    static jfieldID jXField;
-    static jfieldID jYField;
-    static jfieldID jWidthField;
-    static jfieldID jHeightField;
-    static jfieldID jScaleField;
-    static jfieldID jShouldAbortField;
 };
 
 class AndroidLayerRendererFrame : public WrappedJavaObject {
@@ -259,11 +197,9 @@ public:
     void SetPageRect(const gfx::Rect& aCssPageRect);
     void SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                           nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY);
-    bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution, gfx::Rect& aViewport, float& aScaleX, float& aScaleY);
     bool CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame);
     bool ActivateProgram(AutoLocalJNIFrame *jniFrame);
     bool DeactivateProgram(AutoLocalJNIFrame *jniFrame);
-    void GetDisplayPort(AutoLocalJNIFrame *jniFrame, bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort);
 
 protected:
     static jclass jGeckoLayerClientClass;
@@ -273,15 +209,6 @@ protected:
     static jmethodID jCreateFrameMethod;
     static jmethodID jActivateProgramMethod;
     static jmethodID jDeactivateProgramMethod;
-    static jmethodID jGetDisplayPort;
-    static jmethodID jProgressiveUpdateCallbackMethod;
-
-public:
-    static jclass jViewportClass;
-    static jclass jDisplayportClass;
-    static jmethodID jViewportCtor;
-    static jfieldID jDisplayportPosition;
-    static jfieldID jDisplayportResolution;
 };
 
 class AndroidGeckoSurfaceView : public WrappedJavaObject
@@ -552,14 +479,6 @@ public:
         META_SHIFT_LEFT_ON         = 0x00000040,
         META_SHIFT_RIGHT_ON        = 0x00000080,
         META_SHIFT_MASK            = META_SHIFT_RIGHT_ON | META_SHIFT_LEFT_ON | META_SHIFT_ON,
-        META_CTRL_ON               = 0x00001000,
-        META_CTRL_LEFT_ON          = 0x00002000,
-        META_CTRL_RIGHT_ON         = 0x00004000,
-        META_CTRL_MASK             = META_CTRL_RIGHT_ON | META_CTRL_LEFT_ON | META_CTRL_ON,
-        META_META_ON               = 0x00010000,
-        META_META_LEFT_ON          = 0x00020000,
-        META_META_RIGHT_ON         = 0x00040000,
-        META_META_MASK             = META_META_RIGHT_ON | META_META_LEFT_ON | META_META_ON,
         META_SYM_ON                = 0x00000004,
         FLAG_WOKE_HERE             = 0x00000001,
         FLAG_SOFT_KEYBOARD         = 0x00000002,
@@ -591,9 +510,6 @@ public:
         ACTION_HOVER_MOVE = 7,
         ACTION_HOVER_ENTER = 9,
         ACTION_HOVER_EXIT = 10,
-        ACTION_MAGNIFY_START = 11,
-        ACTION_MAGNIFY = 12,
-        ACTION_MAGNIFY_END = 13,
         ACTION_POINTER_ID_MASK = 0xff00,
         ACTION_POINTER_ID_SHIFT = 8,
         EDGE_TOP = 0x00000001,
@@ -668,11 +584,8 @@ public:
     nsAString& CharactersExtra() { return mCharactersExtra; }
     int KeyCode() { return mKeyCode; }
     int MetaState() { return mMetaState; }
-    int DomKeyLocation() { return mDomKeyLocation; }
     bool IsAltPressed() const { return (mMetaState & AndroidKeyEvent::META_ALT_MASK) != 0; }
     bool IsShiftPressed() const { return (mMetaState & AndroidKeyEvent::META_SHIFT_MASK) != 0; }
-    bool IsCtrlPressed() const { return (mMetaState & AndroidKeyEvent::META_CTRL_MASK) != 0; }
-    bool IsMetaPressed() const { return (mMetaState & AndroidKeyEvent::META_META_MASK) != 0; }
     int Flags() { return mFlags; }
     int UnicodeChar() { return mUnicodeChar; }
     int RepeatCount() const { return mRepeatCount; }
@@ -700,7 +613,6 @@ protected:
     nsTArray<float> mPressures;
     nsIntRect mRect;
     int mFlags, mMetaState;
-    int mDomKeyLocation;
     int mKeyCode, mUnicodeChar;
     int mRepeatCount;
     int mOffset, mCount;
@@ -718,15 +630,15 @@ protected:
     void ReadIntArray(nsTArray<int> &aVals,
                       JNIEnv *jenv,
                       jfieldID field,
-                      int32_t count);
+                      PRInt32 count);
     void ReadFloatArray(nsTArray<float> &aVals,
                         JNIEnv *jenv,
                         jfieldID field,
-                        int32_t count);
+                        PRInt32 count);
     void ReadPointArray(nsTArray<nsIntPoint> &mPoints,
                         JNIEnv *jenv,
                         jfieldID field,
-                        int32_t count);
+                        PRInt32 count);
     void ReadRectField(JNIEnv *jenv);
     void ReadCharactersField(JNIEnv *jenv);
     void ReadCharactersExtraField(JNIEnv *jenv);
@@ -751,7 +663,6 @@ protected:
     static jfieldID jCharactersExtraField;
     static jfieldID jKeyCodeField;
     static jfieldID jMetaStateField;
-    static jfieldID jDomKeyLocationField;
     static jfieldID jFlagsField;
     static jfieldID jOffsetField;
     static jfieldID jCountField;
@@ -802,7 +713,6 @@ public:
         COMPOSITOR_PAUSE = 28,
         COMPOSITOR_RESUME = 29,
         PAINT_LISTEN_START_EVENT = 30,
-        NATIVE_GESTURE_EVENT = 31,
         dummy_java_enum_list_end
     };
 

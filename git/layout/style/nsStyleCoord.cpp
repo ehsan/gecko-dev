@@ -11,7 +11,6 @@
 #include "prlog.h"
 #include "nsMathUtils.h"
 #include "nsStyleContext.h"
-#include "mozilla/HashFunctions.h"
 
 nsStyleCoord::nsStyleCoord(nsStyleUnit aUnit)
   : mUnit(aUnit)
@@ -23,7 +22,7 @@ nsStyleCoord::nsStyleCoord(nsStyleUnit aUnit)
   mValue.mInt = 0;
 }
 
-nsStyleCoord::nsStyleCoord(int32_t aValue, nsStyleUnit aUnit)
+nsStyleCoord::nsStyleCoord(PRInt32 aValue, nsStyleUnit aUnit)
   : mUnit(aUnit)
 {
   //if you want to pass in eStyleUnit_Coord, don't. instead, use the
@@ -80,39 +79,6 @@ bool nsStyleCoord::operator==(const nsStyleCoord& aOther) const
   return false;
 }
 
-uint32_t nsStyleCoord::HashValue(uint32_t aHash = 0) const
-{
-  aHash = mozilla::AddToHash(aHash, mUnit);
-
-  switch (mUnit) {
-    case eStyleUnit_Null:
-    case eStyleUnit_Normal:
-    case eStyleUnit_Auto:
-    case eStyleUnit_None:
-      return mozilla::AddToHash(aHash, true);
-    case eStyleUnit_Percent:
-    case eStyleUnit_Factor:
-    case eStyleUnit_Degree:
-    case eStyleUnit_Grad:
-    case eStyleUnit_Radian:
-    case eStyleUnit_Turn:
-      return mozilla::AddToHash(aHash, mValue.mFloat);
-    case eStyleUnit_Coord:
-    case eStyleUnit_Integer:
-    case eStyleUnit_Enumerated:
-      return mozilla::AddToHash(aHash, mValue.mInt);
-    case eStyleUnit_Calc:
-      Calc* calcValue = GetCalcValue();
-      aHash = mozilla::AddToHash(aHash, calcValue->mLength);
-      if (HasPercent()) {
-        return mozilla::AddToHash(aHash, calcValue->mPercent);
-      }
-      return aHash;
-  }
-  NS_ABORT_IF_FALSE(false, "unexpected unit");
-  return aHash;
-}
-
 void nsStyleCoord::Reset()
 {
   mUnit = eStyleUnit_Null;
@@ -125,7 +91,7 @@ void nsStyleCoord::SetCoordValue(nscoord aValue)
   mValue.mInt = aValue;
 }
 
-void nsStyleCoord::SetIntValue(int32_t aValue, nsStyleUnit aUnit)
+void nsStyleCoord::SetIntValue(PRInt32 aValue, nsStyleUnit aUnit)
 {
   NS_ASSERTION((aUnit == eStyleUnit_Enumerated) ||
                (aUnit == eStyleUnit_Integer), "not an int value");

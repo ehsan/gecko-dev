@@ -15,13 +15,13 @@ static const uScanClassID g_BIG5ScanClassIDs[] = {
   u2BytesCharset
 };
 
-static const uint16_t *g_BIG5MappingTableSet [] ={
-  g_ASCIIMappingTable,
+static const PRUint16 *g_BIG5MappingTableSet [] ={
+  g_ASCIIMapping,
   g_utBIG5Mapping
 };
 
 static const uRange g_BIG5Ranges[] = {
-  { 0x00, 0x7F },
+  { 0x00, 0x7E },
   { 0x81, 0xFE }
 };
 

@@ -60,13 +60,13 @@ public:
     return mConfig.lastModified;
   }
 
-  uint64_t
+  PRUint64
   Size() const
   {
     return mSize;
   }
 
-  int64_t
+  PRInt64
   LastModified() const
   {
     return mLastModified;
@@ -75,8 +75,8 @@ public:
 private:
   DOMFileMetadataParameters mConfig;
 
-  uint64_t mSize;
-  int64_t mLastModified;
+  PRUint64 mSize;
+  PRInt64 mLastModified;
 };
 
 class MetadataHelper : public FileHelper

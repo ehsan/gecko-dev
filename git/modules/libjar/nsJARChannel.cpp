@@ -83,7 +83,7 @@ public:
         NS_IF_ADDREF(*result = mJarReader);
     }
 
-    int32_t GetContentLength()
+    PRInt32 GetContentLength()
     {
         return mContentLength;
     }
@@ -97,7 +97,7 @@ private:
     nsCString                   mJarDirSpec;
     nsCOMPtr<nsIInputStream>    mJarStream;
     nsCString                   mJarEntry;
-    int32_t                     mContentLength;
+    PRInt32                     mContentLength;
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsJARInputThunk, nsIInputStream)
@@ -132,11 +132,11 @@ nsJARInputThunk::EnsureJarStream()
     }
 
     // ask the JarStream for the content length
-    uint64_t avail;
-    rv = mJarStream->Available((uint64_t *) &avail);
+    PRUint64 avail;
+    rv = mJarStream->Available((PRUint64 *) &avail);
     if (NS_FAILED(rv)) return rv;
 
-    mContentLength = avail < INT32_MAX ? (int32_t) avail : -1;
+    mContentLength = avail < PR_INT32_MAX ? (PRInt32) avail : -1;
 
     return NS_OK;
 }
@@ -151,7 +151,7 @@ nsJARInputThunk::Close()
 }
 
 NS_IMETHODIMP
-nsJARInputThunk::Available(uint64_t *avail)
+nsJARInputThunk::Available(PRUint64 *avail)
 {
     nsresult rv = EnsureJarStream();
     if (NS_FAILED(rv)) return rv;
@@ -160,7 +160,7 @@ nsJARInputThunk::Available(uint64_t *avail)
 }
 
 NS_IMETHODIMP
-nsJARInputThunk::Read(char *buf, uint32_t count, uint32_t *countRead)
+nsJARInputThunk::Read(char *buf, PRUint32 count, PRUint32 *countRead)
 {
     nsresult rv = EnsureJarStream();
     if (NS_FAILED(rv)) return rv;
@@ -170,7 +170,7 @@ nsJARInputThunk::Read(char *buf, uint32_t count, uint32_t *countRead)
 
 NS_IMETHODIMP
 nsJARInputThunk::ReadSegments(nsWriteSegmentFun writer, void *closure,
-                              uint32_t count, uint32_t *countRead)
+                              PRUint32 count, PRUint32 *countRead)
 {
     // stream transport does only calls Read()
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -189,8 +189,7 @@ nsJARInputThunk::IsNonBlocking(bool *nonBlocking)
 
 
 nsJARChannel::nsJARChannel()
-    : mOpened(false)
-    , mAppURI(nullptr)
+    : mAppURI(nullptr)
     , mContentLength(-1)
     , mLoadFlags(LOAD_NORMAL)
     , mStatus(NS_OK)
@@ -491,11 +490,62 @@ nsJARChannel::GetURI(nsIURI **aURI)
 }
 
 NS_IMETHODIMP
-nsJARChannel::GetOwner(nsISupports **aOwner)
+nsJARChannel::GetOwner(nsISupports **result)
 {
-    // JAR signatures are not processed to avoid main-thread network I/O (bug 726125)
-    *aOwner = mOwner;
-    NS_IF_ADDREF(*aOwner);
+    nsresult rv;
+
+    if (mOwner) {
+        NS_ADDREF(*result = mOwner);
+        return NS_OK;
+    }
+
+    if (!mJarInput) {
+        *result = nullptr;
+        return NS_OK;
+    }
+
+    //-- Verify signature, if one is present, and set owner accordingly
+    nsCOMPtr<nsIZipReader> jarReader;
+    mJarInput->GetJarReader(getter_AddRefs(jarReader));
+    if (!jarReader)
+        return NS_ERROR_NOT_INITIALIZED;
+
+    nsCOMPtr<nsIPrincipal> cert;
+    rv = jarReader->GetCertificatePrincipal(mJarEntry, getter_AddRefs(cert));
+    if (NS_FAILED(rv)) return rv;
+
+    if (cert) {
+        nsCAutoString certFingerprint;
+        rv = cert->GetFingerprint(certFingerprint);
+        if (NS_FAILED(rv)) return rv;
+
+        nsCAutoString subjectName;
+        rv = cert->GetSubjectName(subjectName);
+        if (NS_FAILED(rv)) return rv;
+
+        nsCAutoString prettyName;
+        rv = cert->GetPrettyName(prettyName);
+        if (NS_FAILED(rv)) return rv;
+
+        nsCOMPtr<nsISupports> certificate;
+        rv = cert->GetCertificate(getter_AddRefs(certificate));
+        if (NS_FAILED(rv)) return rv;
+        
+        nsCOMPtr<nsIScriptSecurityManager> secMan = 
+                 do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
+        if (NS_FAILED(rv)) return rv;
+
+        rv = secMan->GetCertificatePrincipal(certFingerprint, subjectName,
+                                             prettyName, certificate,
+                                             mJarBaseURI,
+                                             getter_AddRefs(cert));
+        if (NS_FAILED(rv)) return rv;
+
+        mOwner = do_QueryInterface(cert, &rv);
+        if (NS_FAILED(rv)) return rv;
+
+        NS_ADDREF(*result = mOwner);
+    }
     return NS_OK;
 }
 
@@ -531,20 +581,12 @@ nsJARChannel::GetSecurityInfo(nsISupports **aSecurityInfo)
 NS_IMETHODIMP
 nsJARChannel::GetContentType(nsACString &result)
 {
-    // If the Jar file has not been open yet,
-    // We return application/x-unknown-content-type
-    if (!mOpened) {
-      result.Assign(UNKNOWN_CONTENT_TYPE);
-      return NS_OK;
-    }
-
     if (mContentType.IsEmpty()) {
-
         //
         // generate content type and set it
         //
         const char *ext = nullptr, *fileName = mJarEntry.get();
-        int32_t len = mJarEntry.Length();
+        PRInt32 len = mJarEntry.Length();
 
         // check if we're displaying a directory
         // mJarEntry will be empty if we're trying to display
@@ -554,7 +596,7 @@ nsJARChannel::GetContentType(nsACString &result)
         }
         else {
             // not a directory, take a guess by its extension
-            for (int32_t i = len-1; i >= 0; i--) {
+            for (PRInt32 i = len-1; i >= 0; i--) {
                 if (fileName[i] == '.') {
                     ext = &fileName[i + 1];
                     break;
@@ -601,7 +643,7 @@ nsJARChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsJARChannel::GetContentDisposition(uint32_t *aContentDisposition)
+nsJARChannel::GetContentDisposition(PRUint32 *aContentDisposition)
 {
     if (mContentDispositionHeader.IsEmpty())
         return NS_ERROR_NOT_AVAILABLE;
@@ -611,19 +653,7 @@ nsJARChannel::GetContentDisposition(uint32_t *aContentDisposition)
 }
 
 NS_IMETHODIMP
-nsJARChannel::SetContentDisposition(uint32_t aContentDisposition)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
 nsJARChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
-{
-    return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsJARChannel::SetContentDispositionFilename(const nsAString &aContentDispositionFilename)
 {
     return NS_ERROR_NOT_AVAILABLE;
 }
@@ -639,7 +669,7 @@ nsJARChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)
 }
 
 NS_IMETHODIMP
-nsJARChannel::GetContentLength(int32_t *result)
+nsJARChannel::GetContentLength(PRInt32 *result)
 {
     // if content length is unknown, query mJarInput...
     if (mContentLength < 0 && mJarInput)
@@ -650,7 +680,7 @@ nsJARChannel::GetContentLength(int32_t *result)
 }
 
 NS_IMETHODIMP
-nsJARChannel::SetContentLength(int32_t aContentLength)
+nsJARChannel::SetContentLength(PRInt32 aContentLength)
 {
     // XXX does this really make any sense at all?
     mContentLength = aContentLength;
@@ -680,8 +710,6 @@ nsJARChannel::Open(nsIInputStream **stream)
     if (NS_FAILED(rv)) return rv;
 
     NS_ADDREF(*stream = mJarInput);
-
-    mOpened = true;
     return NS_OK;
 }
 
@@ -726,7 +754,6 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
     if (mLoadGroup)
         mLoadGroup->AddRequest(this, nullptr);
 
-    mOpened = true;
     return NS_OK;
 }
 
@@ -744,7 +771,7 @@ NS_IMETHODIMP
 nsJARChannel::SetAppURI(nsIURI *aURI) {
     NS_ENSURE_ARG_POINTER(aURI);
 
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     aURI->GetScheme(scheme);
     if (!scheme.EqualsLiteral("app")) {
         return NS_ERROR_INVALID_ARG;
@@ -769,7 +796,7 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
 
     nsCOMPtr<nsIChannel> channel(do_QueryInterface(request));
     if (channel) {
-        uint32_t loadFlags;
+        PRUint32 loadFlags;
         channel->GetLoadFlags(&loadFlags);
         if (loadFlags & LOAD_REPLACE) {
             mLoadFlags |= LOAD_REPLACE;
@@ -803,13 +830,13 @@ nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
             // We only want to run scripts if the server really intended to
             // send us a JAR file.  Check the server-supplied content type for
             // a JAR type.
-            nsAutoCString header;
+            nsCAutoString header;
             httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("Content-Type"),
                                            header);
-            nsAutoCString contentType;
-            nsAutoCString charset;
+            nsCAutoString contentType;
+            nsCAutoString charset;
             NS_ParseContentType(header, contentType, charset);
-            nsAutoCString channelContentType;
+            nsCAutoString channelContentType;
             channel->GetContentType(channelContentType);
             mIsUnsafe = !(contentType.Equals(channelContentType) &&
                           (contentType.EqualsLiteral("application/java-archive") ||
@@ -907,7 +934,7 @@ nsJARChannel::OnStopRequest(nsIRequest *req, nsISupports *ctx, nsresult status)
 NS_IMETHODIMP
 nsJARChannel::OnDataAvailable(nsIRequest *req, nsISupports *ctx,
                                nsIInputStream *stream,
-                               uint64_t offset, uint32_t count)
+                               PRUint32 offset, PRUint32 count)
 {
 #if defined(PR_LOGGING)
     LOG(("nsJARChannel::OnDataAvailable [this=%x %s]\n", this, mSpec.get()));
@@ -921,8 +948,8 @@ nsJARChannel::OnDataAvailable(nsIRequest *req, nsISupports *ctx,
     // nsITransportEventSink implementation.
     // XXX do the 64-bit stuff for real
     if (mProgressSink && NS_SUCCEEDED(rv) && !(mLoadFlags & LOAD_BACKGROUND))
-        mProgressSink->OnProgress(this, nullptr, offset + count,
-                                  uint64_t(mContentLength));
+        mProgressSink->OnProgress(this, nullptr, PRUint64(offset + count),
+                                  PRUint64(mContentLength));
 
     return rv; // let the pump cancel on failure
 }

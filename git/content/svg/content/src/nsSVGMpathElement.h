@@ -41,7 +41,7 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
 
   // Forward interface implementations to base class
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsSVGMpathElementBase::)
   NS_FORWARD_NSIDOMELEMENT(nsSVGMpathElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGMpathElementBase::)
 
@@ -52,10 +52,10 @@ public:
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep, bool aNullParent);
 
-  virtual nsresult UnsetAttr(int32_t aNamespaceID, nsIAtom* aAttribute,
+  virtual nsresult UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aAttribute,
                              bool aNotify);
   // nsGenericElement specializations
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);

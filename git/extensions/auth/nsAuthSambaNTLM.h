@@ -42,8 +42,8 @@ private:
 
     void Shutdown();
 
-    uint8_t*    mInitialMessage; /* free with free() */
-    uint32_t    mInitialMessageLen;
+    PRUint8*    mInitialMessage; /* free with free() */
+    PRUint32    mInitialMessageLen;
     PRProcess*  mChildPID;
     PRFileDesc* mFromChildFD;
     PRFileDesc* mToChildFD;

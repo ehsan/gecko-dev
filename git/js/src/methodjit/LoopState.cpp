@@ -17,6 +17,39 @@ using namespace js::mjit;
 using namespace js::analyze;
 using namespace js::types;
 
+inline bool
+SafeAdd(int32_t one, int32_t two, int32_t *res)
+{
+    *res = one + two;
+    int64_t ores = (int64_t)one + (int64_t)two;
+    if (ores == (int64_t)*res)
+        return true;
+    JaegerSpew(JSpew_Analysis, "Overflow computing %d + %d\n", one, two);
+    return false;
+}
+
+inline bool
+SafeSub(int32_t one, int32_t two, int32_t *res)
+{
+    *res = one - two;
+    int64_t ores = (int64_t)one - (int64_t)two;
+    if (ores == (int64_t)*res)
+        return true;
+    JaegerSpew(JSpew_Analysis, "Overflow computing %d - %d\n", one, two);
+    return false;
+}
+
+inline bool
+SafeMul(int32_t one, int32_t two, int32_t *res)
+{
+    *res = one * two;
+    int64_t ores = (int64_t)one * (int64_t)two;
+    if (ores == (int64_t)*res)
+        return true;
+    JaegerSpew(JSpew_Analysis, "Overflow computing %d * %d\n", one, two);
+    return false;
+}
+
 LoopState::LoopState(JSContext *cx, analyze::CrossScriptSSA *ssa,
                      mjit::Compiler *cc, FrameState *frame)
     : cx(cx), ssa(ssa),
@@ -42,9 +75,9 @@ bool
 LoopState::init(jsbytecode *head, Jump entry, jsbytecode *entryTarget)
 {
     this->lifetime = outerAnalysis->getLoop(head);
-    JS_ASSERT(lifetime);
-    JS_ASSERT(lifetime->head == uint32_t(head - outerScript->code));
-    JS_ASSERT(lifetime->entry == uint32_t(entryTarget - outerScript->code));
+    JS_ASSERT(lifetime &&
+              lifetime->head == uint32_t(head - outerScript->code) &&
+              lifetime->entry == uint32_t(entryTarget - outerScript->code));
 
     this->entry = entry;
 
@@ -93,7 +126,7 @@ LoopState::init(jsbytecode *head, Jump entry, jsbytecode *entryTarget)
     RegisterAllocation *&alloc = outerAnalysis->getAllocation(head);
     JS_ASSERT(!alloc);
 
-    alloc = cx->analysisLifoAlloc().new_<RegisterAllocation>(true);
+    alloc = cx->typeLifoAlloc().new_<RegisterAllocation>(true);
     if (!alloc) {
         js_ReportOutOfMemory(cx);
         return false;
@@ -107,7 +140,7 @@ LoopState::init(jsbytecode *head, Jump entry, jsbytecode *entryTarget)
      * had indirect modification of their arguments.
      */
     if (outerScript->function()) {
-        if (HeapTypeSet::HasObjectFlags(cx, outerScript->function()->getType(cx), OBJECT_FLAG_UNINLINEABLE))
+        if (TypeSet::HasObjectFlags(cx, outerScript->function()->getType(cx), OBJECT_FLAG_UNINLINEABLE))
             this->skipAnalysis = true;
     }
 
@@ -745,10 +778,10 @@ LoopState::invariantLength(const CrossSSAValue &obj)
     int32_t objConstant;
     if (!getEntryValue(obj, &objSlot, &objConstant) || objSlot == UNASSIGNED || objConstant != 0)
         return NULL;
-    StackTypeSet *objTypes = ssa->getValueTypes(obj);
+    TypeSet *objTypes = ssa->getValueTypes(obj);
 
     /* Check for 'length' on the lazy arguments for the current frame. */
-    if (objTypes->isMagicArguments()) {
+    if (objTypes->isMagicArguments(cx)) {
         JS_ASSERT(obj.frame == CrossScriptSSA::OUTER_FRAME);
 
         for (unsigned i = 0; i < invariantEntries.length(); i++) {
@@ -791,6 +824,9 @@ LoopState::invariantLength(const CrossSSAValue &obj)
 
     /* Hoist 'length' access on typed arrays. */
     if (!objTypes->hasObjectFlags(cx, OBJECT_FLAG_NON_TYPED_ARRAY)) {
+        /* Recompile if object type changes. */
+        objTypes->addFreeze(cx);
+
         uint32_t which = frame.allocTemporary();
         if (which == UINT32_MAX)
             return NULL;
@@ -825,6 +861,7 @@ LoopState::invariantLength(const CrossSSAValue &obj)
         if (object && hasModifiedProperty(object, JSID_VOID))
             return NULL;
     }
+    objTypes->addFreeze(cx);
 
     uint32_t which = frame.allocTemporary();
     if (which == UINT32_MAX)
@@ -849,7 +886,7 @@ LoopState::invariantProperty(const CrossSSAValue &obj, jsid id)
     if (skipAnalysis)
         return NULL;
 
-    if (id == NameToId(cx->names().length))
+    if (id == NameToId(cx->runtime->atomState.lengthAtom))
         return NULL;
 
     uint32_t objSlot;
@@ -876,11 +913,12 @@ LoopState::invariantProperty(const CrossSSAValue &obj, jsid id)
     TypeObject *object = objTypes->getTypeObject(0);
     if (!object || object->unknownProperties() || hasModifiedProperty(object, id) || id != MakeTypeId(cx, id))
         return NULL;
-    HeapTypeSet *propertyTypes = object->getProperty(cx, id, false);
+    TypeSet *propertyTypes = object->getProperty(cx, id, false);
     if (!propertyTypes)
         return NULL;
-    if (!propertyTypes->definiteProperty() || propertyTypes->isOwnProperty(cx, object, true))
+    if (!propertyTypes->isDefiniteProperty() || propertyTypes->isOwnProperty(cx, object, true))
         return NULL;
+    objTypes->addFreeze(cx);
 
     uint32_t which = frame.allocTemporary();
     if (which == UINT32_MAX)
@@ -922,7 +960,7 @@ LoopState::cannotIntegerOverflow(const CrossSSAValue &pushed)
     jsbytecode *PC = ssa->getFrame(pushed.frame).script->code + pushed.v.pushedOffset();
     ScriptAnalysis *analysis = ssa->getFrame(pushed.frame).script->analysis();
 
-    if (!analysis->integerOperation(PC))
+    if (!analysis->integerOperation(cx, PC))
         return false;
 
     uint32_t baseSlot = UNASSIGNED;
@@ -1140,8 +1178,8 @@ LoopState::ignoreIntegerOverflow(const CrossSSAValue &pushed)
             return false;
         }
 
-        StackTypeSet *lhsTypes = outerAnalysis->poppedTypes(use->offset, 1);
-        if (lhsTypes->getKnownTypeTag() != JSVAL_TYPE_INT32)
+        TypeSet *lhsTypes = outerAnalysis->poppedTypes(use->offset, 1);
+        if (lhsTypes->getKnownTypeTag(cx) != JSVAL_TYPE_INT32)
             return false;
 
         JaegerSpew(JSpew_Analysis, "Integer result is RHS in integer addition\n");
@@ -1405,7 +1443,7 @@ LoopState::restoreInvariants(jsbytecode *pc, Assembler &masm,
     }
 
     if (temporaryCopies)
-        js_delete(temporaryCopies);
+        cx->delete_(temporaryCopies);
 }
 
 /* Loop analysis methods. */
@@ -1467,7 +1505,7 @@ LoopState::getLoopTestAccess(const SSAValue &v, uint32_t *pslot, int32_t *pconst
       case JSOP_DECARG:
       case JSOP_ARGINC:
       case JSOP_ARGDEC: {
-        if (!outerAnalysis->integerOperation(pc))
+        if (!outerAnalysis->integerOperation(cx, pc))
             return false;
         uint32_t slot = GetBytecodeSlot(outerScript, pc);
         if (outerAnalysis->slotEscapes(slot))
@@ -1533,8 +1571,8 @@ LoopState::analyzeLoopTest()
     SSAValue two = outerAnalysis->poppedValue(test.pushedOffset(), 0);
 
     /* The test must be comparing known integers. */
-    if (outerAnalysis->getValueTypes(one)->getKnownTypeTag() != JSVAL_TYPE_INT32 ||
-        outerAnalysis->getValueTypes(two)->getKnownTypeTag() != JSVAL_TYPE_INT32) {
+    if (outerAnalysis->getValueTypes(one)->getKnownTypeTag(cx) != JSVAL_TYPE_INT32 ||
+        outerAnalysis->getValueTypes(two)->getKnownTypeTag(cx) != JSVAL_TYPE_INT32) {
         return;
     }
 
@@ -1610,7 +1648,7 @@ LoopState::analyzeLoopIncrements()
         JSOp op = JSOp(*pc);
         const JSCodeSpec *cs = &js_CodeSpec[op];
         if (cs->format & (JOF_INC | JOF_DEC)) {
-            if (!outerAnalysis->integerOperation(pc))
+            if (!outerAnalysis->integerOperation(cx, pc))
                 continue;
 
             Increment inc;
@@ -1637,19 +1675,18 @@ LoopState::definiteArrayAccess(const SSAValue &obj, const SSAValue &index)
      * other value by which the overflow could be observed.
      */
 
-    StackTypeSet *objTypes = outerAnalysis->getValueTypes(obj);
-    StackTypeSet *elemTypes = outerAnalysis->getValueTypes(index);
+    TypeSet *objTypes = outerAnalysis->getValueTypes(obj);
+    TypeSet *elemTypes = outerAnalysis->getValueTypes(index);
 
-    if (objTypes->getKnownTypeTag() != JSVAL_TYPE_OBJECT ||
-        elemTypes->getKnownTypeTag() != JSVAL_TYPE_INT32) {
+    if (objTypes->getKnownTypeTag(cx) != JSVAL_TYPE_OBJECT ||
+        elemTypes->getKnownTypeTag(cx) != JSVAL_TYPE_INT32) {
         return false;
     }
 
     if (objTypes->hasObjectFlags(cx, OBJECT_FLAG_NON_DENSE_ARRAY))
         return false;
 
-    RootedScript rOuterScript(cx, outerScript);
-    if (ArrayPrototypeHasIndexedProperty(cx, rOuterScript))
+    if (ArrayPrototypeHasIndexedProperty(cx, outerScript))
         return false;
 
     uint32_t objSlot;
@@ -1764,18 +1801,19 @@ LoopState::analyzeLoopBody(unsigned frame)
             SSAValue objValue = analysis->poppedValue(pc, 2);
             SSAValue elemValue = analysis->poppedValue(pc, 1);
 
-            StackTypeSet *objTypes = analysis->getValueTypes(objValue);
-            StackTypeSet *elemTypes = analysis->getValueTypes(elemValue);
+            TypeSet *objTypes = analysis->getValueTypes(objValue);
+            TypeSet *elemTypes = analysis->getValueTypes(elemValue);
 
             /*
              * Mark the modset as unknown if the index might be non-integer,
              * we don't want to consider the SETELEM PIC here.
              */
-            if (objTypes->unknownObject() || elemTypes->getKnownTypeTag() != JSVAL_TYPE_INT32) {
+            if (objTypes->unknownObject() || elemTypes->getKnownTypeTag(cx) != JSVAL_TYPE_INT32) {
                 unknownModset = true;
                 break;
             }
 
+            objTypes->addFreeze(cx);
             for (unsigned i = 0; i < objTypes->getObjectCount(); i++) {
                 TypeObject *object = objTypes->getTypeObject(i);
                 if (!object)
@@ -1810,6 +1848,7 @@ LoopState::analyzeLoopBody(unsigned frame)
                 break;
             }
 
+            objTypes->addFreeze(cx);
             for (unsigned i = 0; i < objTypes->getObjectCount(); i++) {
                 TypeObject *object = objTypes->getTypeObject(i);
                 if (!object)
@@ -1877,7 +1916,7 @@ LoopState::analyzeLoopBody(unsigned frame)
           case JSOP_GE:
           case JSOP_STRICTEQ:
           case JSOP_STRICTNE: {
-            JSValueType type = analysis->poppedTypes(pc, 1)->getKnownTypeTag();
+            JSValueType type = analysis->poppedTypes(pc, 1)->getKnownTypeTag(cx);
             if (type != JSVAL_TYPE_INT32 && type != JSVAL_TYPE_DOUBLE)
                 constrainedLoop = false;
           }
@@ -1886,7 +1925,7 @@ LoopState::analyzeLoopBody(unsigned frame)
           case JSOP_POS:
           case JSOP_NEG:
           case JSOP_BITNOT: {
-            JSValueType type = analysis->poppedTypes(pc, 0)->getKnownTypeTag();
+            JSValueType type = analysis->poppedTypes(pc, 0)->getKnownTypeTag(cx);
             if (type != JSVAL_TYPE_INT32 && type != JSVAL_TYPE_DOUBLE)
                 constrainedLoop = false;
             break;
@@ -2071,7 +2110,7 @@ LoopState::getEntryValue(const CrossSSAValue &iv, uint32_t *pslot, int32_t *pcon
       case JSOP_GETARG:
       case JSOP_ARGINC:
       case JSOP_INCARG: {
-        if (cv.frame != CrossScriptSSA::OUTER_FRAME || !analysis->integerOperation(pc))
+        if (cv.frame != CrossScriptSSA::OUTER_FRAME || !analysis->integerOperation(cx, pc))
             return false;
         uint32_t slot = GetBytecodeSlot(outerScript, pc);
         if (outerAnalysis->slotEscapes(slot))

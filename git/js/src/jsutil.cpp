@@ -33,13 +33,13 @@ using namespace js;
 static void *
 zlib_alloc(void *cx, uInt items, uInt size)
 {
-    return js_malloc(items * size);
+    return OffTheBooks::malloc_(items * size);
 }
 
 static void
 zlib_free(void *cx, void *addr)
 {
-    js_free(addr);
+    Foreground::free_(addr);
 }
 
 bool

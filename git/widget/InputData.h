@@ -41,17 +41,17 @@ class InputData
 public:
   InputType mInputType;
   // Time in milliseconds that this data is relevant to. This only really
-  // matters when this data is used as an event. We use uint32_t instead of
+  // matters when this data is used as an event. We use PRUint32 instead of
   // TimeStamp because it is easier to convert from nsInputEvent. The time is
   // platform-specific but it in the case of B2G and Fennec it is since startup.
-  uint32_t mTime;
+  PRUint32 mTime;
 
   INPUTDATA_AS_CHILD_TYPE(MultiTouchInput, MULTITOUCH_INPUT)
   INPUTDATA_AS_CHILD_TYPE(PinchGestureInput, PINCHGESTURE_INPUT)
   INPUTDATA_AS_CHILD_TYPE(TapGestureInput, TAPGESTURE_INPUT)
 
 protected:
-  InputData(InputType aInputType, uint32_t aTime)
+  InputData(InputType aInputType, PRUint32 aTime)
     : mInputType(aInputType),
       mTime(aTime)
   {
@@ -78,7 +78,7 @@ protected:
 class SingleTouchData
 {
 public:
-  SingleTouchData(int32_t aIdentifier,
+  SingleTouchData(PRInt32 aIdentifier,
                   nsIntPoint aScreenPoint,
                   nsIntPoint aRadius,
                   float aRotationAngle,
@@ -95,7 +95,7 @@ public:
 
   // A unique number assigned to each SingleTouchData within a MultiTouchInput so
   // that they can be easily distinguished when handling a touch start/move/end.
-  int32_t mIdentifier;
+  PRInt32 mIdentifier;
 
   // Point on the screen that the touch hit, in device pixels. They are
   // coordinates on the screen.
@@ -136,7 +136,7 @@ public:
     MULTITOUCH_CANCEL
   };
 
-  MultiTouchInput(MultiTouchType aType, uint32_t aTime)
+  MultiTouchInput(MultiTouchType aType, PRUint32 aTime)
     : InputData(MULTITOUCH_INPUT, aTime),
       mType(aType)
   {
@@ -178,7 +178,7 @@ public:
       nsDOMTouch* domTouch = (nsDOMTouch*)(aTouchEvent.touches[i].get());
 
       // Extract data from weird interfaces.
-      int32_t identifier, radiusX, radiusY;
+      PRInt32 identifier, radiusX, radiusY;
       float rotationAngle, force;
       domTouch->GetIdentifier(&identifier);
       domTouch->GetRadiusX(&radiusX);
@@ -256,7 +256,7 @@ public:
   };
 
   PinchGestureInput(PinchGestureType aType,
-                    uint32_t aTime,
+                    PRUint32 aTime,
                     const nsIntPoint& aFocusPoint,
                     float aCurrentSpan,
                     float aPreviousSpan)
@@ -307,7 +307,7 @@ public:
     TAPGESTURE_CANCEL
   };
 
-  TapGestureInput(TapGestureType aType, uint32_t aTime, const nsIntPoint& aPoint)
+  TapGestureInput(TapGestureType aType, PRUint32 aTime, const nsIntPoint& aPoint)
     : InputData(TAPGESTURE_INPUT, aTime),
       mType(aType),
       mPoint(aPoint)

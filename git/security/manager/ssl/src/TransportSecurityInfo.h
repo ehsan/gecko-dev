@@ -9,7 +9,6 @@
 
 #include "certt.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/RefPtr.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsITransportSecurityInfo.h"
 #include "nsSSLStatus.h"
@@ -46,7 +45,7 @@ public:
   NS_DECL_NSISERIALIZABLE
   NS_DECL_NSICLASSINFO
 
-  nsresult SetSecurityState(uint32_t aState);
+  nsresult SetSecurityState(PRUint32 aState);
   nsresult SetShortSecurityDescription(const PRUnichar *aText);
 
   const char * GetHostName() const {
@@ -55,23 +54,18 @@ public:
   nsresult GetHostName(char **aHostName);
   nsresult SetHostName(const char *aHostName);
 
-  int32_t GetPort() const { return mPort; }
-  nsresult GetPort(int32_t *aPort);
-  nsresult SetPort(int32_t aPort);
+  PRInt32 GetPort() const { return mPort; }
+  nsresult GetPort(PRInt32 *aPort);
+  nsresult SetPort(PRInt32 aPort);
 
   PRErrorCode GetErrorCode() const;
-  
-  void GetErrorLogMessage(PRErrorCode errorCode,
-                          ::mozilla::psm::SSLErrorMessageType errorMessageType,
-                          nsString &result);
-  
   void SetCanceled(PRErrorCode errorCode,
                    ::mozilla::psm::SSLErrorMessageType errorMessageType);
   
   /* Set SSL Status values */
   nsresult SetSSLStatus(nsSSLStatus *aSSLStatus);
   nsSSLStatus* SSLStatus() { return mSSLStatus; }
-  void SetStatusErrorBits(nsIX509Cert & cert, uint32_t collected_errors);
+  void SetStatusErrorBits(nsIX509Cert & cert, PRUint32 collected_errors);
 
   bool IsCertIssuerBlacklisted() const {
     return mIsCertIssuerBlacklisted;
@@ -87,28 +81,24 @@ protected:
   nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
 
 private:
-  uint32_t mSecurityState;
-  int32_t mSubRequestsHighSecurity;
-  int32_t mSubRequestsLowSecurity;
-  int32_t mSubRequestsBrokenSecurity;
-  int32_t mSubRequestsNoSecurity;
+  PRUint32 mSecurityState;
+  PRInt32 mSubRequestsHighSecurity;
+  PRInt32 mSubRequestsLowSecurity;
+  PRInt32 mSubRequestsBrokenSecurity;
+  PRInt32 mSubRequestsNoSecurity;
   nsString mShortDesc;
 
   PRErrorCode mErrorCode;
   ::mozilla::psm::SSLErrorMessageType mErrorMessageType;
   nsString mErrorMessageCached;
-  nsresult formatErrorMessage(::mozilla::MutexAutoLock const & proofOfLock, 
-                              PRErrorCode errorCode,
-                              ::mozilla::psm::SSLErrorMessageType errorMessageType,
-                              bool wantsHtml, bool suppressPort443, 
-                              nsString &result);
+  nsresult formatErrorMessage(::mozilla::MutexAutoLock const & proofOfLock);
 
-  int32_t mPort;
+  PRInt32 mPort;
   nsXPIDLCString mHostName;
   PRErrorCode mIsCertIssuerBlacklisted;
 
   /* SSL Status */
-  mozilla::RefPtr<nsSSLStatus> mSSLStatus;
+  nsRefPtr<nsSSLStatus> mSSLStatus;
 
   virtual void virtualDestroyNSSReference();
   void destructorSafeDestroyNSSReference();

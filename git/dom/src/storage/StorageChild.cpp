@@ -6,7 +6,7 @@
 
 #include "StorageChild.h"
 #include "mozilla/dom/ContentChild.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 #include "sampler.h"
 
@@ -34,7 +34,7 @@ NS_IMETHODIMP_(nsrefcnt) StorageChild::Release(void)
     return 0;
   }
   if (count == 0) {
-    mRefCnt.stabilizeForDeletion();
+    mRefCnt.stabilizeForDeletion(base);
     delete this;
     return 0;
   }
@@ -83,21 +83,21 @@ StorageChild::InitRemote()
   ContentChild* child = ContentChild::GetSingleton();
   AddIPDLReference();
   child->SendPStorageConstructor(this, null_t());
-  SendInit(mUseDB, mSessionOnly, mInPrivateBrowsing, mScopeDBKey,
-           mQuotaDBKey, mStorageType);
+  SendInit(mUseDB, mCanUseChromePersist, mSessionOnly, mInPrivateBrowsing, mDomain, mScopeDBKey,
+           mQuotaDomainDBKey, mQuotaETLDplus1DomainDBKey, mStorageType);
 }
 
 void
-StorageChild::InitAsSessionStorage(nsIPrincipal* aPrincipal, bool aPrivate)
+StorageChild::InitAsSessionStorage(nsIURI* aDomainURI, bool aPrivate)
 {
-  DOMStorageBase::InitAsSessionStorage(aPrincipal, aPrivate);
+  DOMStorageBase::InitAsSessionStorage(aDomainURI, aPrivate);
   InitRemote();
 }
 
 void
-StorageChild::InitAsLocalStorage(nsIPrincipal* aPrincipal, bool aPrivate)
+StorageChild::InitAsLocalStorage(nsIURI* aDomainURI, bool aCanUseChromePersist, bool aPrivate)
 {
-  DOMStorageBase::InitAsLocalStorage(aPrincipal, aPrivate);
+  DOMStorageBase::InitAsLocalStorage(aDomainURI, aCanUseChromePersist, aPrivate);
   InitRemote();
 }
 
@@ -112,7 +112,7 @@ StorageChild::GetKeys(bool aCallerSecure)
 }
 
 nsresult
-StorageChild::GetLength(bool aCallerSecure, uint32_t* aLength)
+StorageChild::GetLength(bool aCallerSecure, PRUint32* aLength)
 {
   nsresult rv;
   SendGetLength(aCallerSecure, mSessionOnly, aLength, &rv);
@@ -120,7 +120,7 @@ StorageChild::GetLength(bool aCallerSecure, uint32_t* aLength)
 }
 
 nsresult
-StorageChild::GetKey(bool aCallerSecure, uint32_t aIndex, nsAString& aKey)
+StorageChild::GetKey(bool aCallerSecure, PRUint32 aIndex, nsAString& aKey)
 {
   nsresult rv;
   nsString key;
@@ -185,15 +185,21 @@ StorageChild::RemoveValue(bool aCallerSecure, const nsAString& aKey,
 }
 
 nsresult
-StorageChild::Clear(bool aCallerSecure, int32_t* aOldCount)
+StorageChild::Clear(bool aCallerSecure, PRInt32* aOldCount)
 {
   nsresult rv;
-  int32_t oldCount;
+  PRInt32 oldCount;
   SendClear(aCallerSecure, mSessionOnly, &oldCount, &rv);
   if (NS_FAILED(rv))
     return rv;
   *aOldCount = oldCount;
   return NS_OK;
+}
+
+bool
+StorageChild::CanUseChromePersist()
+{
+  return mCanUseChromePersist;
 }
 
 nsresult
@@ -233,8 +239,8 @@ StorageChild::CloneFrom(bool aCallerSecure, DOMStorageBase* aThat)
   StorageClone clone(nullptr, other, aCallerSecure);
   AddIPDLReference();
   child->SendPStorageConstructor(this, clone);
-  SendInit(mUseDB, mSessionOnly, mInPrivateBrowsing,
-           mScopeDBKey, mQuotaDBKey, mStorageType);
+  SendInit(mUseDB, mCanUseChromePersist, mSessionOnly, mInPrivateBrowsing, mDomain,
+           mScopeDBKey, mQuotaDomainDBKey, mQuotaETLDplus1DomainDBKey, mStorageType);
   return NS_OK;
 }
 

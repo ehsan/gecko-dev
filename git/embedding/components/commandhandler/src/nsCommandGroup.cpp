@@ -34,7 +34,7 @@ protected:
 protected:
 
   nsHashtable&  mHashTable;
-  int32_t       mIndex;
+  PRInt32       mIndex;
   char **       mGroupNames;        // array of pointers to PRUnichar* in the hash table
   bool          mInitted;
   
@@ -145,7 +145,7 @@ public:
 protected:
 
   nsTArray<char*>* mGroupArray;
-  int32_t          mIndex;
+  PRInt32          mIndex;
   
 };
 
@@ -167,7 +167,7 @@ nsNamedGroupEnumerator::HasMoreElements(bool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
   
-  int32_t arrayLen = mGroupArray ? mGroupArray->Length() : 0;
+  PRInt32 arrayLen = mGroupArray ? mGroupArray->Length() : 0;
   *_retval = (mIndex < arrayLen - 1); 
   return NS_OK;
 }
@@ -182,7 +182,7 @@ nsNamedGroupEnumerator::GetNext(nsISupports **_retval)
     return NS_ERROR_FAILURE;
 
   mIndex ++;
-  if (mIndex >= int32_t(mGroupArray->Length()))
+  if (mIndex >= PRInt32(mGroupArray->Length()))
     return NS_ERROR_FAILURE;
     
   PRUnichar   *thisGroupName = (PRUnichar*)mGroupArray->ElementAt(mIndex);
@@ -256,8 +256,8 @@ nsControllerCommandGroup::RemoveCommandFromGroup(const char * aCommand, const ch
   nsTArray<char*>* commandList = (nsTArray<char*> *)mGroupsHash.Get(&groupKey);
   if (!commandList) return NS_OK;     // no group
 
-  uint32_t numEntries = commandList->Length();
-  for (uint32_t i = 0; i < numEntries; i ++)
+  PRUint32 numEntries = commandList->Length();
+  for (PRUint32 i = 0; i < numEntries; i ++)
   {
     char*  commandString = commandList->ElementAt(i);
     if (!nsCRT::strcmp(aCommand,commandString))
@@ -282,8 +282,8 @@ nsControllerCommandGroup::IsCommandInGroup(const char * aCommand, const char * a
   nsTArray<char*>* commandList = (nsTArray<char*> *)mGroupsHash.Get(&groupKey);
   if (!commandList) return NS_OK;     // no group
   
-  uint32_t numEntries = commandList->Length();
-  for (uint32_t i = 0; i < numEntries; i ++)
+  PRUint32 numEntries = commandList->Length();
+  for (PRUint32 i = 0; i < numEntries; i ++)
   {
     char*  commandString = commandList->ElementAt(i);
     if (!nsCRT::strcmp(aCommand,commandString))
@@ -327,8 +327,8 @@ bool nsControllerCommandGroup::ClearEnumerator(nsHashKey *aKey, void *aData, voi
   nsTArray<char*>* commandList = (nsTArray<char*> *)aData;
   if (commandList)
   {  
-    uint32_t numEntries = commandList->Length();
-    for (uint32_t i = 0; i < numEntries; i ++)
+    PRUint32 numEntries = commandList->Length();
+    for (PRUint32 i = 0; i < numEntries; i ++)
     {
       char* commandString = commandList->ElementAt(i);
       nsMemory::Free(commandString);

@@ -41,46 +41,44 @@ public:
   virtual void Shutdown();
 
   // TableAccessible
-  virtual uint32_t ColCount();
-  virtual uint32_t RowCount();
-  virtual Accessible* CellAt(uint32_t aRowIndex, uint32_t aColumnIndex);
-  virtual bool IsColSelected(uint32_t aColIdx);
-  virtual bool IsRowSelected(uint32_t aRowIdx);
-  virtual bool IsCellSelected(uint32_t aRowIdx, uint32_t aColIdx);
-  virtual uint32_t SelectedCellCount();
-  virtual uint32_t SelectedColCount();
-  virtual uint32_t SelectedRowCount();
+  virtual PRUint32 ColCount();
+  virtual PRUint32 RowCount();
+  virtual Accessible* CellAt(PRUint32 aRowIndex, PRUint32 aColumnIndex);
+  virtual bool IsColSelected(PRUint32 aColIdx);
+  virtual bool IsRowSelected(PRUint32 aRowIdx);
+  virtual bool IsCellSelected(PRUint32 aRowIdx, PRUint32 aColIdx);
+  virtual PRUint32 SelectedCellCount();
+  virtual PRUint32 SelectedColCount();
+  virtual PRUint32 SelectedRowCount();
   virtual void SelectedCells(nsTArray<Accessible*>* aCells);
-  virtual void SelectedCellIndices(nsTArray<uint32_t>* aCells);
-  virtual void SelectedColIndices(nsTArray<uint32_t>* aCols);
-  virtual void SelectedRowIndices(nsTArray<uint32_t>* aRows);
-  virtual void SelectCol(uint32_t aColIdx);
-  virtual void SelectRow(uint32_t aRowIdx);
-  virtual void UnselectCol(uint32_t aColIdx);
-  virtual void UnselectRow(uint32_t aRowIdx);
-  virtual Accessible* AsAccessible() { return this; }
+  virtual void SelectedCellIndices(nsTArray<PRUint32>* aCells);
+  virtual void SelectedColIndices(nsTArray<PRUint32>* aCols);
+  virtual void SelectedRowIndices(nsTArray<PRUint32>* aRows);
+  virtual void SelectCol(PRUint32 aColIdx);
+  virtual void SelectRow(PRUint32 aRowIdx);
+  virtual void UnselectCol(PRUint32 aColIdx);
+  virtual void UnselectRow(PRUint32 aRowIdx);
 
 protected:
-
   /**
    * Return true if the given row index is valid.
    */
-  bool IsValidRow(int32_t aRow);
+  bool IsValidRow(PRInt32 aRow);
 
   /**
    * Retrn true if the given column index is valid.
    */
-  bool IsValidColumn(int32_t aColumn);
+  bool IsValidColumn(PRInt32 aColumn);
 
   /**
    * Return row accessible at the given row index.
    */
-  Accessible* GetRowAt(int32_t aRow);
+  Accessible* GetRowAt(PRInt32 aRow);
 
   /**
    * Return cell accessible at the given column index in the row.
    */
-  Accessible* GetCellInRowAt(Accessible* aRow, int32_t aColumn);
+  Accessible* GetCellInRowAt(Accessible* aRow, PRInt32 aColumn);
 
   /**
    * Set aria-selected attribute value on DOM node of the given accessible.
@@ -110,40 +108,12 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessibleTableCell
-  NS_FORWARD_NSIACCESSIBLETABLECELL(xpcAccessibleTableCell::)
+  NS_DECL_OR_FORWARD_NSIACCESSIBLETABLECELL_WITH_XPCACCESSIBLETABLECELL
 
   // Accessible
-  virtual TableCellAccessible* AsTableCell() { return this; }
   virtual void Shutdown();
-  virtual void ApplyARIAState(uint64_t* aState) const;
-  virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
-
-protected:
-
-  /**
-   * Return a containing row.
-   */
-  Accessible* Row() const
-  {
-    Accessible* row = Parent();
-    return row && row->Role() == roles::ROW ? row : nullptr;
-  }
-
-  /**
-   * Return a table for the given row.
-   */
-  Accessible* TableFor(Accessible* aRow) const;
-
-  /**
-   * Return index of the given row.
-   */
-  int32_t RowIndexFor(Accessible* aRow) const;
-
-  // TableCellAccessible
-  virtual TableAccessible* Table() const MOZ_OVERRIDE;
-  virtual uint32_t ColIdx() const MOZ_OVERRIDE;
-  virtual uint32_t RowIdx() const MOZ_OVERRIDE;
-  virtual bool Selected() MOZ_OVERRIDE;
+  virtual void ApplyARIAState(PRUint64* aState) const;
+  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 };
 
 } // namespace a11y

@@ -26,8 +26,7 @@
 #include <stdio.h>
 #endif
 
-#include "system_wrappers/interface/tick_util.h"
-#include "system_wrappers/interface/trace.h"
+#include "trace.h"
 
 #if (defined(_DEBUG) && defined(_WIN32) && (_MSC_VER >= 1400))
 #define DEBUG_PRINT(...)           \
@@ -148,7 +147,7 @@ void get_time(WindowsHelpTimer* help_timer, FILETIME& current_time) {
 
     virtual ~WindowsSystemClock() {}
 
-    virtual WebRtc_Word64 GetTimeInMS();
+    virtual WebRtc_UWord32 GetTimeInMS();
 
     virtual void CurrentNTP(WebRtc_UWord32& secs, WebRtc_UWord32& frac);
 
@@ -164,15 +163,15 @@ public:
   UnixSystemClock() {}
   virtual ~UnixSystemClock() {}
 
-  virtual WebRtc_Word64 GetTimeInMS();
+  virtual WebRtc_UWord32 GetTimeInMS();
 
   virtual void CurrentNTP(WebRtc_UWord32& secs, WebRtc_UWord32& frac);
 };
 #endif
 
 #if defined(_WIN32)
-WebRtc_Word64 WindowsSystemClock::GetTimeInMS() {
-  return TickTime::MillisecondTimestamp();
+WebRtc_UWord32 WindowsSystemClock::GetTimeInMS() {
+  return timeGetTime();
 }
 
 // Use the system time (roughly synchronised to the tick, and
@@ -216,8 +215,14 @@ void WindowsSystemClock::CurrentNTP(WebRtc_UWord32& secs,
 
 #elif ((defined WEBRTC_LINUX) || (defined WEBRTC_MAC))
 
-WebRtc_Word64 UnixSystemClock::GetTimeInMS() {
-  return TickTime::MillisecondTimestamp();
+WebRtc_UWord32 UnixSystemClock::GetTimeInMS() {
+  struct timeval tv;
+  struct timezone tz;
+  WebRtc_UWord32 val;
+
+  gettimeofday(&tv, &tz);
+  val = (WebRtc_UWord32)(tv.tv_sec * 1000 + tv.tv_usec / 1000);
+  return val;
 }
 
 // Use the system time.
@@ -608,6 +613,7 @@ void RTPHeaderParser::ParseOneByteExtensionHeader(
     const WebRtc_UWord8* ptrRTPDataExtensionEnd,
     const WebRtc_UWord8* ptr) const {
   if (!ptrExtensionMap) {
+    WEBRTC_TRACE(kTraceWarning, kTraceRtpRtcp, -1, "No extension map.");
     return;
   }
 
@@ -652,10 +658,6 @@ void RTPHeaderParser::ParseOneByteExtensionHeader(
         transmissionTimeOffset += *ptr++ << 8;
         transmissionTimeOffset += *ptr++;
         parsedPacket.extension.transmissionTimeOffset = transmissionTimeOffset;
-        if (transmissionTimeOffset & 0x800000) {
-          // Negative offset, correct sign for Word24 to Word32.
-          parsedPacket.extension.transmissionTimeOffset |= 0xFF000000;
-        }
         break;
       }
       case kRtpExtensionAudioLevel: {
@@ -675,7 +677,7 @@ void RTPHeaderParser::ParseOneByteExtensionHeader(
         break;
       }
       default: {
-        WEBRTC_TRACE(kTraceStream, kTraceRtpRtcp, -1,
+        WEBRTC_TRACE(kTraceWarning, kTraceRtpRtcp, -1,
                      "Extension type not implemented.");
         return;
       }

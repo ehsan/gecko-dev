@@ -10,32 +10,20 @@
 #include "nsIOfflineCacheUpdate.h"
 
 #include "nsString.h"
-#include "nsILoadContext.h"
 
 namespace mozilla {
-
-namespace ipc {
-class URIParams;
-} // namespace ipc
-
 namespace docshell {
 
 class OfflineCacheUpdateParent : public POfflineCacheUpdateParent
                                , public nsIOfflineCacheUpdateObserver
-                               , public nsILoadContext
 {
-    typedef mozilla::ipc::URIParams URIParams;
-
-public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOFFLINECACHEUPDATEOBSERVER
-    NS_DECL_NSILOADCONTEXT
 
     nsresult
-    Schedule(const URIParams& manifestURI,
-             const URIParams& documentURI,
-             const bool& isInBrowserElement,
-             const uint32_t& appId,
+    Schedule(const URI& manifestURI,
+             const URI& documentURI,
+             const nsCString& clientID,
              const bool& stickDocument);
 
     OfflineCacheUpdateParent();
@@ -46,12 +34,9 @@ public:
 private:
     void RefcountHitZero();
     bool mIPCClosed;
-
-    bool     mIsInBrowserElement;
-    uint32_t mAppId;
 };
 
-} // namespace docshell
-} // namespace mozilla
+}
+}
 
 #endif

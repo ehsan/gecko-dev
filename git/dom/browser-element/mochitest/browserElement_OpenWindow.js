@@ -8,7 +8,7 @@ SimpleTest.waitForExplicitFinish();
 
 function runTest() {
   browserElementTestHelpers.setEnabledPref(true);
-  browserElementTestHelpers.addPermission();
+  browserElementTestHelpers.addToWhitelist();
 
   var iframe = document.createElement('iframe');
   iframe.mozbrowser = true;
@@ -23,7 +23,7 @@ function runTest() {
     ok(/file_browserElement_Open2\.html$/.test(e.detail.url),
        "Popup's URL (got " + e.detail.url + ")");
     is(e.detail.name, "name");
-    is(e.detail.features, "dialog=1");
+    is(e.detail.features, "features");
   });
 
   iframe.addEventListener('mozbrowsershowmodalprompt', function(e) {
@@ -45,7 +45,7 @@ function runTest() {
   /**
    * file_browserElementOpen1 does
    *
-   *   window.open('file_browserElement_Open2.html', 'name', 'dialog=1')
+   *   window.open('file_browserElement_Open2.html', 'name', 'features')
    *
    * then adds an event listener to the opened window and waits for onload.
    *

@@ -53,7 +53,7 @@ NS_IMPL_ISUPPORTS4(nsBrowserStatusFilter,
 
 NS_IMETHODIMP
 nsBrowserStatusFilter::AddProgressListener(nsIWebProgressListener *aListener,
-                                           uint32_t aNotifyMask)
+                                           PRUint32 aNotifyMask)
 {
     mListener = aListener;
     return NS_OK;
@@ -89,7 +89,7 @@ nsBrowserStatusFilter::GetIsLoadingDocument(bool *aIsLoadingDocument)
 NS_IMETHODIMP
 nsBrowserStatusFilter::OnStateChange(nsIWebProgress *aWebProgress,
                                      nsIRequest *aRequest,
-                                     uint32_t aStateFlags,
+                                     PRUint32 aStateFlags,
                                      nsresult aStatus)
 {
     if (!mListener)
@@ -156,10 +156,10 @@ nsBrowserStatusFilter::OnStateChange(nsIWebProgress *aWebProgress,
 NS_IMETHODIMP
 nsBrowserStatusFilter::OnProgressChange(nsIWebProgress *aWebProgress,
                                         nsIRequest *aRequest,
-                                        int32_t aCurSelfProgress,
-                                        int32_t aMaxSelfProgress,
-                                        int32_t aCurTotalProgress,
-                                        int32_t aMaxTotalProgress)
+                                        PRInt32 aCurSelfProgress,
+                                        PRInt32 aMaxSelfProgress,
+                                        PRInt32 aCurTotalProgress,
+                                        PRInt32 aMaxTotalProgress)
 {
     if (!mListener)
         return NS_OK;
@@ -171,8 +171,8 @@ nsBrowserStatusFilter::OnProgressChange(nsIWebProgress *aWebProgress,
     // limit frequency of calls to OnProgressChange
     //
 
-    mCurProgress = (int64_t)aCurTotalProgress;
-    mMaxProgress = (int64_t)aMaxTotalProgress;
+    mCurProgress = (PRInt64)aCurTotalProgress;
+    mMaxProgress = (PRInt64)aMaxTotalProgress;
 
     if (mDelayedProgress)
         return NS_OK;
@@ -191,7 +191,7 @@ NS_IMETHODIMP
 nsBrowserStatusFilter::OnLocationChange(nsIWebProgress *aWebProgress,
                                         nsIRequest *aRequest,
                                         nsIURI *aLocation,
-                                        uint32_t aFlags)
+                                        PRUint32 aFlags)
 {
     if (!mListener)
         return NS_OK;
@@ -233,7 +233,7 @@ nsBrowserStatusFilter::OnStatusChange(nsIWebProgress *aWebProgress,
 NS_IMETHODIMP
 nsBrowserStatusFilter::OnSecurityChange(nsIWebProgress *aWebProgress,
                                         nsIRequest *aRequest,
-                                        uint32_t aState)
+                                        PRUint32 aState)
 {
     if (!mListener)
         return NS_OK;
@@ -247,23 +247,23 @@ nsBrowserStatusFilter::OnSecurityChange(nsIWebProgress *aWebProgress,
 NS_IMETHODIMP
 nsBrowserStatusFilter::OnProgressChange64(nsIWebProgress *aWebProgress,
                                           nsIRequest *aRequest,
-                                          int64_t aCurSelfProgress,
-                                          int64_t aMaxSelfProgress,
-                                          int64_t aCurTotalProgress,
-                                          int64_t aMaxTotalProgress)
+                                          PRInt64 aCurSelfProgress,
+                                          PRInt64 aMaxSelfProgress,
+                                          PRInt64 aCurTotalProgress,
+                                          PRInt64 aMaxTotalProgress)
 {
     // XXX truncates 64-bit to 32-bit
     return OnProgressChange(aWebProgress, aRequest,
-                            (int32_t)aCurSelfProgress,
-                            (int32_t)aMaxSelfProgress,
-                            (int32_t)aCurTotalProgress,
-                            (int32_t)aMaxTotalProgress);
+                            (PRInt32)aCurSelfProgress,
+                            (PRInt32)aMaxSelfProgress,
+                            (PRInt32)aCurTotalProgress,
+                            (PRInt32)aMaxTotalProgress);
 }
 
 NS_IMETHODIMP
 nsBrowserStatusFilter::OnRefreshAttempted(nsIWebProgress *aWebProgress,
                                           nsIURI *aUri,
-                                          int32_t aDelay,
+                                          PRInt32 aDelay,
                                           bool aSameUri,
                                           bool *allowRefresh)
 {
@@ -301,15 +301,15 @@ nsBrowserStatusFilter::MaybeSendProgress()
         return;
 
     // check our percentage
-    int32_t percentage = (int32_t) double(mCurProgress) * 100 / mMaxProgress;
+    PRInt32 percentage = (PRInt32) double(mCurProgress) * 100 / mMaxProgress;
 
     // The progress meter only updates for increases greater than 3 percent
     if (percentage > (mCurrentPercentage + 3)) {
         mCurrentPercentage = percentage;
         // XXX truncates 64-bit to 32-bit
         mListener->OnProgressChange(nullptr, nullptr, 0, 0,
-                                    (int32_t)mCurProgress,
-                                    (int32_t)mMaxProgress);
+                                    (PRInt32)mCurProgress,
+                                    (PRInt32)mMaxProgress);
     }
 }
 

@@ -14,7 +14,7 @@ nsresult
 net_GetURLSpecFromActualFile(nsIFile *aFile, nsACString &result)
 {
     nsresult rv;
-    nsAutoCString nativePath, ePath;
+    nsCAutoString nativePath, ePath;
     nsAutoString path;
 
     rv = aFile->GetNativePath(nativePath);
@@ -30,7 +30,7 @@ net_GetURLSpecFromActualFile(nsIFile *aFile, nsACString &result)
     else
         ePath = nativePath;
     
-    nsAutoCString escPath;
+    nsCAutoString escPath;
     NS_NAMED_LITERAL_CSTRING(prefix, "file://");
         
     // Escape the path with the directory mask
@@ -60,7 +60,7 @@ net_GetFileFromURLSpec(const nsACString &aURL, nsIFile **result)
     if (NS_FAILED(rv))
       return rv;
     
-    nsAutoCString directory, fileBaseName, fileExtension, path;
+    nsCAutoString directory, fileBaseName, fileExtension, path;
 
     rv = net_ParseFileURL(aURL, directory, fileBaseName, fileExtension);
     if (NS_FAILED(rv)) return rv;

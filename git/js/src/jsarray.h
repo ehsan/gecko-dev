@@ -41,7 +41,7 @@ js_IdIsIndex(jsid id, uint32_t *indexp)
 }
 
 extern JSObject *
-js_InitArrayClass(JSContext *cx, js::HandleObject obj);
+js_InitArrayClass(JSContext *cx, JSObject *obj);
 
 extern bool
 js_InitContextBusyArrayTable(JSContext *cx);
@@ -71,11 +71,15 @@ NewDenseCopiedArray(JSContext *cx, uint32_t length, const Value *vp, RawObject p
 extern JSObject *
 NewSlowEmptyArray(JSContext *cx);
 
-extern JSBool
-GetLengthProperty(JSContext *cx, HandleObject obj, uint32_t *lengthp);
+} /* namespace js */
 
 extern JSBool
-SetLengthProperty(JSContext *cx, HandleObject obj, double length);
+js_GetLengthProperty(JSContext *cx, JSObject *obj, uint32_t *lengthp);
+
+extern JSBool
+js_SetLengthProperty(JSContext *cx, js::HandleObject obj, double length);
+
+namespace js {
 
 extern JSBool
 array_defineElement(JSContext *cx, HandleObject obj, uint32_t index, HandleValue value,
@@ -108,12 +112,6 @@ array_pop(JSContext *cx, unsigned argc, js::Value *vp);
 extern JSBool
 array_concat(JSContext *cx, unsigned argc, js::Value *vp);
 
-extern bool
-array_concat_dense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObject result);
-
-extern void
-ArrayShiftMoveElements(JSObject *obj);
-
 extern JSBool
 array_shift(JSContext *cx, unsigned argc, js::Value *vp);
 
@@ -135,7 +133,7 @@ extern JSBool
 js_NewbornArrayPush(JSContext *cx, js::HandleObject obj, const js::Value &v);
 
 JSBool
-js_PrototypeHasIndexedProperties(JSObject *obj);
+js_PrototypeHasIndexedProperties(JSContext *cx, JSObject *obj);
 
 /*
  * Utility to access the value from the id returned by array_lookupProperty.

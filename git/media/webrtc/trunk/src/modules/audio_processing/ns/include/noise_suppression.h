@@ -20,14 +20,14 @@ extern "C" {
 #endif
 
 /*
- * This function creates an instance to the noise suppression structure
+ * This function creates an instance to the noise reduction structure
  *
  * Input:
- *      - NS_inst       : Pointer to noise suppression instance that should be
+ *      - NS_inst       : Pointer to noise reduction instance that should be
  *                        created
  *
  * Output:
- *      - NS_inst       : Pointer to created noise suppression instance
+ *      - NS_inst       : Pointer to created noise reduction instance
  *
  * Return value         :  0 - Ok
  *                        -1 - Error
@@ -36,7 +36,7 @@ int WebRtcNs_Create(NsHandle** NS_inst);
 
 
 /*
- * This function frees the dynamic memory of a specified noise suppression
+ * This function frees the dynamic memory of a specified Noise Reduction
  * instance.
  *
  * Input:
@@ -49,8 +49,7 @@ int WebRtcNs_Free(NsHandle* NS_inst);
 
 
 /*
- * This function initializes a NS instance and has to be called before any other
- * processing is made.
+ * This function initializes a NS instance
  *
  * Input:
  *      - NS_inst       : Instance that should be initialized
@@ -68,11 +67,11 @@ int WebRtcNs_Init(NsHandle* NS_inst, WebRtc_UWord32 fs);
  * This changes the aggressiveness of the noise suppression method.
  *
  * Input:
- *      - NS_inst       : Noise suppression instance.
+ *      - NS_inst       : Instance that should be initialized
  *      - mode          : 0: Mild, 1: Medium , 2: Aggressive
  *
  * Output:
- *      - NS_inst       : Updated instance.
+ *      - NS_inst       : Initialized instance
  *
  * Return value         :  0 - Ok
  *                        -1 - Error
@@ -85,7 +84,7 @@ int WebRtcNs_set_policy(NsHandle* NS_inst, int mode);
  * input and output signals should always be 10ms (80 or 160 samples).
  *
  * Input
- *      - NS_inst       : Noise suppression instance.
+ *      - NS_inst       : NS Instance. Needs to be initiated before call.
  *      - spframe       : Pointer to speech frame buffer for L band
  *      - spframe_H     : Pointer to speech frame buffer for H band
  *      - fs            : sampling frequency
@@ -103,18 +102,6 @@ int WebRtcNs_Process(NsHandle* NS_inst,
                      short* spframe_H,
                      short* outframe,
                      short* outframe_H);
-
-/* Returns the internally used prior speech probability of the current frame.
- * There is a frequency bin based one as well, with which this should not be
- * confused.
- *
- * Input
- *      - handle        : Noise suppression instance.
- *
- * Return value         : Prior speech probability in interval [0.0, 1.0].
- *                        -1 - NULL pointer or uninitialized instance.
- */
-float WebRtcNs_prior_speech_probability(NsHandle* handle);
 
 #ifdef __cplusplus
 }

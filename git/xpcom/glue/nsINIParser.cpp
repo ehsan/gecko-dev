@@ -69,7 +69,7 @@ nsINIParser::Init(nsIFile* aFile)
 
     fd = _wfopen(path.get(), READ_BINARYMODE);
 #else
-    nsAutoCString path;
+    nsCAutoString path;
     aFile->GetNativePath(path);
 
     fd = fopen(path.get(), READ_BINARYMODE);
@@ -264,7 +264,7 @@ nsINIParser::GetString(const char *aSection, const char *aKey,
 
 nsresult
 nsINIParser::GetString(const char *aSection, const char *aKey, 
-                       char *aResult, uint32_t aResultLen)
+                       char *aResult, PRUint32 aResultLen)
 {
     INIValue *val;
     mSections.Get(aSection, &val);

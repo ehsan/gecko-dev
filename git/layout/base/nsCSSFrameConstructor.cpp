@@ -70,13 +70,14 @@
 #include "nsIDOMMutationEvent.h"
 #include "nsChildIterator.h"
 #include "nsCSSRendering.h"
-#include "nsError.h"
+#include "nsLayoutErrors.h"
 #include "nsLayoutUtils.h"
 #include "nsAutoPtr.h"
 #include "nsBoxFrame.h"
 #include "nsBoxLayout.h"
 #include "nsImageFrame.h"
 #include "nsIObjectLoadingContent.h"
+#include "nsContentErrors.h"
 #include "nsIPrincipal.h"
 #include "nsStyleUtil.h"
 #include "nsBox.h"
@@ -119,7 +120,6 @@
 
 #include "nsRefreshDriver.h"
 #include "nsRuleProcessorData.h"
-#include "sampler.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -165,8 +165,6 @@ nsIFrame*
 NS_NewSVGContainerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame*
 NS_NewSVGUseFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-nsIFrame*
-NS_NewSVGViewFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 extern nsIFrame*
 NS_NewSVGLinearGradientFrame(nsIPresShell *aPresShell, nsStyleContext* aContext);
 extern nsIFrame*
@@ -286,7 +284,7 @@ nsIFrame*
 NS_NewPopupSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 nsIFrame*
-NS_NewMenuFrame (nsIPresShell* aPresShell, nsStyleContext* aContext, uint32_t aFlags);
+NS_NewMenuFrame (nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
 
 nsIFrame*
 NS_NewMenuBarFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
@@ -330,11 +328,11 @@ NS_NewScrollbarButtonFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 
 #ifdef NOISY_FINDFRAME
-static int32_t FFWC_totalCount=0;
-static int32_t FFWC_doLoop=0;
-static int32_t FFWC_doSibling=0;
-static int32_t FFWC_recursions=0;
-static int32_t FFWC_nextInFlows=0;
+static PRInt32 FFWC_totalCount=0;
+static PRInt32 FFWC_doLoop=0;
+static PRInt32 FFWC_doSibling=0;
+static PRInt32 FFWC_recursions=0;
+static PRInt32 FFWC_nextInFlows=0;
 #endif
 
 #ifdef MOZ_FLEXBOX
@@ -985,7 +983,7 @@ nsFrameConstructorState::~nsFrameConstructorState()
 #ifdef MOZ_XUL
   ProcessFrameInsertions(mPopupItems, nsIFrame::kPopupList);
 #endif
-  for (int32_t i = mGeneratedTextNodesWithInitializer.Count() - 1; i >= 0; --i) {
+  for (PRInt32 i = mGeneratedTextNodesWithInitializer.Count() - 1; i >= 0; --i) {
     mGeneratedTextNodesWithInitializer[i]->
       DeleteProperty(nsGkAtoms::genConInitializerProperty);
   }
@@ -1268,7 +1266,7 @@ nsFrameConstructorState::ProcessFrameInsertions(nsAbsoluteItems& aFrameItems,
       nsIFrame* insertionPoint = nullptr;
       for (nsIFrame* f = childList.FirstChild(); f != lastChild;
            f = f->GetNextSibling()) {
-        int32_t compare =
+        PRInt32 compare =
           nsLayoutUtils::CompareTreePosition(f, firstNewFrame, containingBlock);
         if (compare > 0) {
           // f comes after the new children, so stop here and insert after
@@ -1525,7 +1523,7 @@ already_AddRefed<nsIContent>
 nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
                                               nsIContent*     aParentContent,
                                               nsStyleContext* aStyleContext,
-                                              uint32_t        aContentIndex)
+                                              PRUint32        aContentIndex)
 {
   // Get the content value
   const nsStyleContentData &data =
@@ -1562,10 +1560,10 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
   case eStyleContentType_Attr:
     {
       nsCOMPtr<nsIAtom> attrName;
-      int32_t attrNameSpace = kNameSpaceID_None;
+      PRInt32 attrNameSpace = kNameSpaceID_None;
       nsAutoString contentString(data.mContent.mString);
       
-      int32_t barIndex = contentString.FindChar('|'); // CSS namespace delimiter
+      PRInt32 barIndex = contentString.FindChar('|'); // CSS namespace delimiter
       if (-1 != barIndex) {
         nsAutoString  nameSpaceVal;
         contentString.Left(nameSpaceVal, barIndex);
@@ -1731,8 +1729,8 @@ nsCSSFrameConstructor::CreateGeneratedContentItem(nsFrameConstructorState& aStat
     return;
   }
 
-  uint32_t contentCount = pseudoStyleContext->GetStyleContent()->ContentCount();
-  for (uint32_t contentIndex = 0; contentIndex < contentCount; contentIndex++) {
+  PRUint32 contentCount = pseudoStyleContext->GetStyleContent()->ContentCount();
+  for (PRUint32 contentIndex = 0; contentIndex < contentCount; contentIndex++) {
     nsCOMPtr<nsIContent> content =
       CreateGeneratedContent(aState, aParentContent, pseudoStyleContext,
                              contentIndex);
@@ -1882,7 +1880,7 @@ nsCSSFrameConstructor::ConstructTable(nsFrameConstructorState& aState,
 
   nsIContent* const content = aItem.mContent;
   nsStyleContext* const styleContext = aItem.mStyleContext;
-  const uint32_t nameSpaceID = aItem.mNameSpaceID;
+  const PRUint32 nameSpaceID = aItem.mNameSpaceID;
 
   nsresult rv = NS_OK;
 
@@ -1981,7 +1979,7 @@ nsCSSFrameConstructor::ConstructTableRow(nsFrameConstructorState& aState,
                   "Unexpected call");
   nsIContent* const content = aItem.mContent;
   nsStyleContext* const styleContext = aItem.mStyleContext;
-  const uint32_t nameSpaceID = aItem.mNameSpaceID;
+  const PRUint32 nameSpaceID = aItem.mNameSpaceID;
 
   nsIFrame* newFrame;
   if (kNameSpaceID_MathML == nameSpaceID)
@@ -2036,8 +2034,8 @@ nsCSSFrameConstructor::ConstructTableCol(nsFrameConstructorState& aState,
   *aNewFrame = colFrame;
 
   // construct additional col frames if the col frame has a span > 1
-  int32_t span = colFrame->GetSpan();
-  for (int32_t spanX = 1; spanX < span; spanX++) {
+  PRInt32 span = colFrame->GetSpan();
+  for (PRInt32 spanX = 1; spanX < span; spanX++) {
     nsTableColFrame* newCol = NS_NewTableColFrame(mPresShell, styleContext);
     if (NS_UNLIKELY(!newCol)) {
       return NS_ERROR_OUT_OF_MEMORY;
@@ -2066,7 +2064,7 @@ nsCSSFrameConstructor::ConstructTableCell(nsFrameConstructorState& aState,
 
   nsIContent* const content = aItem.mContent;
   nsStyleContext* const styleContext = aItem.mStyleContext;
-  const uint32_t nameSpaceID = aItem.mNameSpaceID;
+  const PRUint32 nameSpaceID = aItem.mNameSpaceID;
 
   bool borderCollapse = IsBorderCollapse(aParentFrame);
   nsIFrame* newFrame;
@@ -2935,7 +2933,7 @@ nsCSSFrameConstructor::ConstructSelectFrame(nsFrameConstructorState& aState,
 
   // Construct a frame-based listbox or combobox
   nsCOMPtr<nsIDOMHTMLSelectElement> sel(do_QueryInterface(content));
-  uint32_t size = 1;
+  PRUint32 size = 1;
   if (sel) {
     sel->GetSize(&size); 
     bool multipleSelect = false;
@@ -2947,7 +2945,7 @@ nsCSSFrameConstructor::ConstructSelectFrame(nsFrameConstructorState& aState,
         // a dropdown list. The display area and button are created through anonymous content.
         // The drop-down list's frame is created explicitly. The combobox frame shares its content
         // with the drop-down list.
-      uint32_t flags = NS_BLOCK_FLOAT_MGR;
+      PRUint32 flags = NS_BLOCK_FLOAT_MGR;
       nsIFrame* comboboxFrame = NS_NewComboboxControlFrame(mPresShell, styleContext, flags);
 
       // Save the history state so we don't restore during construction
@@ -3279,11 +3277,11 @@ nsCSSFrameConstructor::ConstructTextFrame(const FrameConstructionData* aData,
 
 /* static */
 const nsCSSFrameConstructor::FrameConstructionData*
-nsCSSFrameConstructor::FindDataByInt(int32_t aInt,
+nsCSSFrameConstructor::FindDataByInt(PRInt32 aInt,
                                      Element* aElement,
                                      nsStyleContext* aStyleContext,
                                      const FrameConstructionDataByInt* aDataPtr,
-                                     uint32_t aDataLength)
+                                     PRUint32 aDataLength)
 {
   for (const FrameConstructionDataByInt *curData = aDataPtr,
          *endData = aDataPtr + aDataLength;
@@ -3308,7 +3306,7 @@ nsCSSFrameConstructor::FindDataByTag(nsIAtom* aTag,
                                      Element* aElement,
                                      nsStyleContext* aStyleContext,
                                      const FrameConstructionDataByTag* aDataPtr,
-                                     uint32_t aDataLength)
+                                     PRUint32 aDataLength)
 {
   for (const FrameConstructionDataByTag *curData = aDataPtr,
          *endData = aDataPtr + aDataLength;
@@ -3345,7 +3343,7 @@ nsCSSFrameConstructor::FindDataByTag(nsIAtom* aTag,
 const nsCSSFrameConstructor::FrameConstructionData*
 nsCSSFrameConstructor::FindHTMLData(Element* aElement,
                                     nsIAtom* aTag,
-                                    int32_t aNameSpaceID,
+                                    PRInt32 aNameSpaceID,
                                     nsIFrame* aParentFrame,
                                     nsStyleContext* aStyleContext)
 {
@@ -3493,7 +3491,7 @@ nsCSSFrameConstructor::FindObjectData(Element* aElement,
   // GetDisplayedType isn't necessarily nsIObjectLoadingContent::TYPE_NULL for
   // cases when the object is broken/suppressed/etc (e.g. a broken image), but
   // we want to treat those cases as TYPE_NULL
-  uint32_t type;
+  PRUint32 type;
   if (aElement->State().HasAtLeastOneOfStates(NS_EVENT_STATE_BROKEN |
                                               NS_EVENT_STATE_USERDISABLED |
                                               NS_EVENT_STATE_SUPPRESSED)) {
@@ -3519,7 +3517,7 @@ nsCSSFrameConstructor::FindObjectData(Element* aElement,
     // Nothing for TYPE_NULL so we'll construct frames by display there
   };
 
-  return FindDataByInt((int32_t)type, aElement, aStyleContext,
+  return FindDataByInt((PRInt32)type, aElement, aStyleContext,
                        sObjectData, ArrayLength(sObjectData));
 }
 
@@ -3555,7 +3553,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
   const FrameConstructionData* data = aItem.mFCData;
   NS_ASSERTION(data, "Must have frame construction data");
 
-  uint32_t bits = data->mBits;
+  PRUint32 bits = data->mBits;
 
   NS_ASSERTION(!(bits & FCDATA_FUNC_IS_DATA_GETTER),
                "Should have dealt with this inside the data finder");
@@ -3833,7 +3831,7 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsFrameConstructorState& aState,
   nsresult rv = GetAnonymousContent(aParent, aParentFrame, newAnonymousItems);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t count = newAnonymousItems.Length();
+  PRUint32 count = newAnonymousItems.Length();
   if (count == 0) {
     return NS_OK;
   }
@@ -3849,7 +3847,7 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsFrameConstructorState& aState,
   NS_ASSERTION(creator,
                "How can that happen if we have nodes to construct frames for?");
 
-  for (uint32_t i=0; i < count; i++) {
+  for (PRUint32 i=0; i < count; i++) {
     nsIContent* content = newAnonymousItems[i].mContent;
     NS_ASSERTION(content, "null anonymous content?");
     NS_ASSERTION(!newAnonymousItems[i].mStyleContext, "Unexpected style context");
@@ -3870,7 +3868,7 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsFrameConstructorState& aState,
 }
 
 static void
-SetFlagsOnSubtree(nsIContent *aNode, uintptr_t aFlagsToSet)
+SetFlagsOnSubtree(nsIContent *aNode, PtrBits aFlagsToSet)
 {
 #ifdef DEBUG
   // Make sure that the node passed to us doesn't have any XBL children
@@ -3886,10 +3884,10 @@ SetFlagsOnSubtree(nsIContent *aNode, uintptr_t aFlagsToSet)
   aNode->SetFlags(aFlagsToSet);
 
   // Set the flag on all of its children recursively
-  uint32_t count;
+  PRUint32 count;
   nsIContent * const *children = aNode->GetChildArray(&count);
 
-  for (uint32_t index = 0; index < count; ++index) {
+  for (PRUint32 index = 0; index < count; ++index) {
     SetFlagsOnSubtree(children[index], aFlagsToSet);
   }
 }
@@ -3906,15 +3904,16 @@ nsCSSFrameConstructor::GetAnonymousContent(nsIContent* aParent,
   nsresult rv = creator->CreateAnonymousContent(aContent);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t count = aContent.Length();
-  for (uint32_t i=0; i < count; i++) {
+  PRUint32 count = aContent.Length();
+  for (PRUint32 i=0; i < count; i++) {
     // get our child's content and set its parent to our content
     nsIContent* content = aContent[i].mContent;
     NS_ASSERTION(content, "null anonymous content?");
 
     // least-surprise CSS binding until we do the SVG specified
     // cascading rules for <svg:use> - bug 265894
-    if (aParentFrame->GetType() == nsGkAtoms::svgUseFrame) {
+    if (aParent &&
+        aParent->NodeInfo()->Equals(nsGkAtoms::use, kNameSpaceID_SVG)) {
       content->SetFlags(NODE_IS_ANONYMOUS);
     } else {
       content->SetNativeAnonymous();
@@ -4003,7 +4002,7 @@ nsIFrame* NS_NewGridBoxFrame(nsIPresShell* aPresShell,
 const nsCSSFrameConstructor::FrameConstructionData*
 nsCSSFrameConstructor::FindXULTagData(Element* aElement,
                                       nsIAtom* aTag,
-                                      int32_t aNameSpaceID,
+                                      PRInt32 aNameSpaceID,
                                       nsStyleContext* aStyleContext)
 {
   if (aNameSpaceID != kNameSpaceID_XUL) {
@@ -4120,7 +4119,7 @@ nsCSSFrameConstructor::FindXULMenubarData(Element* aElement,
   if (container) {
     nsCOMPtr<nsIDocShellTreeItem> treeItem(do_QueryInterface(container));
     if (treeItem) {
-      int32_t type;
+      PRInt32 type;
       treeItem->GetItemType(&type);
       if (nsIDocShellTreeItem::typeChrome == type) {
         nsCOMPtr<nsIDocShellTreeItem> parent;
@@ -4666,7 +4665,7 @@ nsCSSFrameConstructor::FlushAccumulatedBlock(nsFrameConstructorState& aState,
 const nsCSSFrameConstructor::FrameConstructionData*
 nsCSSFrameConstructor::FindMathMLData(Element* aElement,
                                       nsIAtom* aTag,
-                                      int32_t aNameSpaceID,
+                                      PRInt32 aNameSpaceID,
                                       nsStyleContext* aStyleContext)
 {
   // Make sure that we remain confined in the MathML world
@@ -4831,7 +4830,7 @@ IsFilterPrimitiveChildTag(const nsIAtom* aTag)
 const nsCSSFrameConstructor::FrameConstructionData*
 nsCSSFrameConstructor::FindSVGData(Element* aElement,
                                    nsIAtom* aTag,
-                                   int32_t aNameSpaceID,
+                                   PRInt32 aNameSpaceID,
                                    nsIFrame* aParentFrame,
                                    nsStyleContext* aStyleContext)
 {
@@ -4850,7 +4849,7 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
   // frame's content?  Should it not be based on the type of the parent frame
   // (e.g. whether it's an SVG frame)?
   if (parentContent) {
-    int32_t parentNSID;
+    PRInt32 parentNSID;
     nsIAtom* parentTag =
       parentContent->OwnerDoc()->BindingManager()->
         ResolveTag(parentContent, &parentNSID);
@@ -4976,7 +4975,6 @@ nsCSSFrameConstructor::FindSVGData(Element* aElement,
     SIMPLE_SVG_CREATE(radialGradient, NS_NewSVGRadialGradientFrame),
     SIMPLE_SVG_CREATE(stop, NS_NewSVGStopFrame),
     SIMPLE_SVG_CREATE(use, NS_NewSVGUseFrame),
-    SIMPLE_SVG_CREATE(view, NS_NewSVGViewFrame),
     SIMPLE_SVG_CREATE(marker, NS_NewSVGMarkerFrame),
     SIMPLE_SVG_CREATE(image, NS_NewSVGImageFrame),
     SIMPLE_SVG_CREATE(clipPath, NS_NewSVGClipPathFrame),
@@ -5143,10 +5141,10 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
                                                          nsIContent* aContent,
                                                          nsIFrame* aParentFrame,
                                                          nsIAtom* aTag,
-                                                         int32_t aNameSpaceID,
+                                                         PRInt32 aNameSpaceID,
                                                          bool aSuppressWhiteSpaceOptimizations,
                                                          nsStyleContext* aStyleContext,
-                                                         uint32_t aFlags,
+                                                         PRUint32 aFlags,
                                                          FrameConstructionItemList& aItems)
 {
   NS_PRECONDITION(aContent->IsNodeOfType(nsINode::eTEXT) ||
@@ -5300,7 +5298,7 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
 #endif /* MOZ_XUL */
   }
 
-  uint32_t bits = data->mBits;
+  PRUint32 bits = data->mBits;
 
   // Inside colgroups, suppress everything except columns.
   if (aParentFrame &&
@@ -5514,7 +5512,7 @@ nsCSSFrameConstructor::ConstructFramesFromItem(nsFrameConstructorState& aState,
     // We don't do it for SVG text, since we might need to position and
     // measure the white space glyphs due to x/y/dx/dy attributes.
     if (AtLineBoundary(aIter) &&
-        !styleContext->GetStyleText()->WhiteSpaceOrNewlineIsSignificant() &&
+        !styleContext->GetStyleText()->NewlineIsSignificant() &&
         aIter.List()->ParentHasNoXBLChildren() &&
         !(aState.mAdditionalStateBits & NS_FRAME_GENERATED_CONTENT) &&
         (item.mFCData->mBits & FCDATA_IS_LINE_PARTICIPANT) &&
@@ -5691,9 +5689,6 @@ AdjustAppendParentForAfterContent(nsPresContext* aPresContext,
   if (nsLayoutUtils::HasPseudoStyle(aContainer, parentStyle,
                                     nsCSSPseudoElements::ePseudo_after,
                                     aPresContext)) {
-    // Ensure that the :after frame is on the principal child list.
-    aParentFrame->DrainSelfOverflowList();
-
     nsIFrame* afterFrame = nsLayoutUtils::GetAfterFrame(aParentFrame);
     if (afterFrame) {
       *aAfterFrame = afterFrame;
@@ -5736,13 +5731,8 @@ FindAppendPrevSibling(nsIFrame* aParentFrame, nsIFrame* aAfterFrame)
 {
   if (aAfterFrame) {
     NS_ASSERTION(aAfterFrame->GetParent() == aParentFrame, "Wrong parent");
-    NS_ASSERTION(aAfterFrame->GetPrevSibling() ||
-                 aParentFrame->GetFirstPrincipalChild() == aAfterFrame,
-                 ":after frame must be on the principal child list here");
     return aAfterFrame->GetPrevSibling();
   }
-
-  aParentFrame->DrainSelfOverflowList();
 
   return aParentFrame->GetLastChild(kPrincipalList);
 }
@@ -5873,7 +5863,7 @@ nsCSSFrameConstructor::AppendFramesToParent(nsFrameConstructorState&       aStat
 bool
 nsCSSFrameConstructor::IsValidSibling(nsIFrame*              aSibling,
                                       nsIContent*            aContent,
-                                      uint8_t&               aDisplay)
+                                      PRUint8&               aDisplay)
 {
   nsIFrame* parentFrame = aSibling->GetParent();
   nsIAtom* parentType = nullptr;
@@ -5886,7 +5876,7 @@ nsCSSFrameConstructor::IsValidSibling(nsIFrame*              aSibling,
     }
   }
 
-  uint8_t siblingDisplay = aSibling->GetDisplay();
+  PRUint8 siblingDisplay = aSibling->GetDisplay();
   if ((NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP == siblingDisplay) ||
       (NS_STYLE_DISPLAY_TABLE_COLUMN       == siblingDisplay) ||
       (NS_STYLE_DISPLAY_TABLE_CAPTION      == siblingDisplay) ||
@@ -5961,7 +5951,7 @@ nsCSSFrameConstructor::IsValidSibling(nsIFrame*              aSibling,
 nsIFrame*
 nsCSSFrameConstructor::FindFrameForContentSibling(nsIContent* aContent,
                                                   nsIContent* aTargetContent,
-                                                  uint8_t& aTargetContentDisplay,
+                                                  PRUint8& aTargetContentDisplay,
                                                   bool aPrevSibling)
 {
   nsIFrame* sibling = aContent->GetPrimaryFrame();
@@ -6005,7 +5995,7 @@ nsCSSFrameConstructor::FindFrameForContentSibling(nsIContent* aContent,
 nsIFrame*
 nsCSSFrameConstructor::FindPreviousSibling(const ChildIterator& aFirst,
                                            ChildIterator aIter,
-                                           uint8_t& aTargetContentDisplay)
+                                           PRUint8& aTargetContentDisplay)
 {
   nsIContent* child = *aIter;
 
@@ -6028,7 +6018,7 @@ nsCSSFrameConstructor::FindPreviousSibling(const ChildIterator& aFirst,
 nsIFrame*
 nsCSSFrameConstructor::FindNextSibling(ChildIterator aIter,
                                        const ChildIterator& aLast,
-                                       uint8_t& aTargetContentDisplay)
+                                       PRUint8& aTargetContentDisplay)
 {
   if (aIter == aLast) {
     // XXXbz Can happen when XBL lies to us about insertion points.  This check
@@ -6113,7 +6103,7 @@ nsCSSFrameConstructor::GetInsertionPrevSibling(nsIFrame*& aParentFrame,
   }
 #endif
 
-  uint8_t childDisplay = UNSET_DISPLAY;
+  PRUint8 childDisplay = UNSET_DISPLAY;
   nsIFrame* prevSibling = FindPreviousSibling(first, iter, childDisplay);
 
   // Now, find the geometric parent so that we can handle
@@ -6357,10 +6347,10 @@ nsCSSFrameConstructor::CreateNeededFrames(nsIContent* aContent)
 
   // Scan the children of aContent to see what operations (if any) we need to
   // perform.
-  uint32_t childCount = aContent->GetChildCount();
+  PRUint32 childCount = aContent->GetChildCount();
   bool inRun = false;
   nsIContent* firstChildInRun = nullptr;
-  for (uint32_t i = 0; i < childCount; i++) {
+  for (PRUint32 i = 0; i < childCount; i++) {
     nsIContent* child = aContent->GetChildAt(i);
     if (child->HasFlag(NODE_NEEDS_FRAME)) {
       NS_ASSERTION(!child->GetPrimaryFrame() ||
@@ -6471,7 +6461,7 @@ nsCSSFrameConstructor::GetRangeInsertionPoint(nsIContent* aContainer,
   if (multiple || hasInsertion) {
     // We have an insertion point.  There are some additional tests we need to do
     // in order to ensure that an append is a safe operation.
-    uint32_t childCount = 0;
+    PRUint32 childCount = 0;
 
     if (!multiple) {
       // We may need to make multiple ContentInserted calls instead.  A
@@ -6558,7 +6548,7 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
 
 #ifdef MOZ_XUL
   if (aContainer) {
-    int32_t namespaceID;
+    PRInt32 namespaceID;
     nsIAtom* tag =
       mDocument->BindingManager()->ResolveTag(aContainer, &namespaceID);
 
@@ -7095,7 +7085,7 @@ nsCSSFrameConstructor::ContentRangeInserted(nsIContent*            aContainer,
   // containing block haveFirst* flags if the parent frame where
   // the insertion/append is occurring is an inline or block
   // container. For other types of containers this isn't relevant.
-  uint8_t parentDisplay = parentFrame->GetDisplay();
+  PRUint8 parentDisplay = parentFrame->GetDisplay();
 
   // Examine the parentFrame where the insertion is taking
   // place. If it's a certain kind of container then some special
@@ -7703,47 +7693,16 @@ UpdateViewsForTree(nsIFrame* aFrame,
           DoApplyRenderingChangeToTree(child, aFrameManager,
                                        aChange);
         } else {  // regular frame
+          if ((child->GetStateBits() & NS_FRAME_HAS_CONTAINER_LAYER) &&
+              (aChange & nsChangeHint_RepaintFrame)) {
+            FrameLayerBuilder::InvalidateThebesLayerContents(child,
+              child->GetVisualOverflowRectRelativeToSelf());
+          }
           UpdateViewsForTree(child, aFrameManager, aChange);
         }
       }
     }
   }
-}
-
-/**
- * To handle nsChangeHint_ChildrenOnlyTransform we must iterate over the child
- * frames of the SVG frame concerned. This helper function is used to find that
- * SVG frame when we encounter nsChangeHint_ChildrenOnlyTransform to ensure
- * that we iterate over the intended children, since sometimes we end up
- * handling that hint while processing hints for one of the SVG frame's
- * ancestor frames.
- *
- * The reason that we sometimes end up trying to process the hint for an
- * ancestor of the SVG frame that the hint is intended for is due to the way we
- * process restyle events. ApplyRenderingChangeToTree adjusts the frame from
- * the restyled element's principle frame to one of its ancestor frames based
- * on what nsCSSRendering::FindBackground returns, since the background style
- * may have been propagated up to an ancestor frame. Processing hints using an
- * ancestor frame is fine in general, but nsChangeHint_ChildrenOnlyTransform is
- * a special case since it is intended to update the children of a specific
- * frame.
- */
-static nsIFrame*
-GetFrameForChildrenOnlyTransformHint(nsIFrame *aFrame)
-{
-  if (aFrame->GetType() == nsGkAtoms::viewportFrame) {
-    // This happens if the root-<svg> is fixed positioned, in which case we
-    // can't use aFrame->GetContent() to find the primary frame, since
-    // GetContent() returns nullptr for ViewportFrame.
-    aFrame = aFrame->GetFirstPrincipalChild();
-  }
-  // For an nsHTMLScrollFrame, this will get the SVG frame that has the
-  // children-only transforms:
-  aFrame = aFrame->GetContent()->GetPrimaryFrame();
-  NS_ABORT_IF_FALSE(aFrame->IsFrameOfType(nsIFrame::eSVG |
-                                          nsIFrame::eSVGContainer),
-                    "Children-only transforms only expected on SVG frames");
-  return aFrame;
 }
 
 static void
@@ -7767,56 +7726,49 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
                        nsChangeHint(aChange & (nsChangeHint_RepaintFrame |
                                                nsChangeHint_SyncFrameView |
                                                nsChangeHint_UpdateOpacityLayer)));
-    // This must be set to true if the rendering change needs to
-    // invalidate content.  If it's false, a composite-only paint
-    // (empty transaction) will be scheduled.
-    bool needInvalidatingPaint = false;
 
     // if frame has view, will already be invalidated
     if (aChange & nsChangeHint_RepaintFrame) {
       if (aFrame->IsFrameOfType(nsIFrame::eSVG) &&
           !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
         if (aChange & nsChangeHint_UpdateEffects) {
-          needInvalidatingPaint = true;
           // Invalidate and update our area:
           nsSVGUtils::InvalidateAndScheduleReflowSVG(aFrame);
         } else {
-          needInvalidatingPaint = true;
           // Just invalidate our area:
           nsSVGUtils::InvalidateBounds(aFrame);
         }
       } else {
-        needInvalidatingPaint = true;
-        aFrame->InvalidateFrameSubtree();
+        aFrame->InvalidateOverflowRect();
       }
     }
     if (aChange & nsChangeHint_UpdateOpacityLayer) {
-      // FIXME/bug 796697: we can get away with empty transactions for
-      // opacity updates in many cases.
-      needInvalidatingPaint = true;
       aFrame->MarkLayersActive(nsChangeHint_UpdateOpacityLayer);
+      aFrame->InvalidateLayer(aFrame->GetVisualOverflowRectRelativeToSelf(),
+                              nsDisplayItem::TYPE_OPACITY);
     }
+    
     if (aChange & nsChangeHint_UpdateTransformLayer) {
       aFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
-      // If we're not already going to do an invalidating paint, see
-      // if we can get away with only updating the transform on a
-      // layer for this frame, and not scheduling an invalidating
-      // paint.
-      if (!needInvalidatingPaint) {
-        needInvalidatingPaint |= !aFrame->TryUpdateTransformOnly();
-      }
+      // Invalidate the old transformed area. The new transformed area
+      // will be invalidated by nsFrame::FinishAndStoreOverflowArea.
+      aFrame->InvalidateTransformLayer();
     }
     if (aChange & nsChangeHint_ChildrenOnlyTransform) {
-      needInvalidatingPaint = true;
-      nsIFrame* childFrame =
-        GetFrameForChildrenOnlyTransformHint(aFrame)->GetFirstPrincipalChild();
+      // The long comment in ProcessRestyledFrames that precedes the
+      // |frame->GetContent()->GetPrimaryFrame()| and abort applies here too.
+      nsIFrame *f = aFrame->GetContent()->GetPrimaryFrame();
+      NS_ABORT_IF_FALSE(f->IsFrameOfType(nsIFrame::eSVG |
+                                         nsIFrame::eSVGContainer),
+                        "Children-only transforms only expected on SVG frames");
+      nsIFrame* childFrame = f->GetFirstPrincipalChild();
       for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
         childFrame->MarkLayersActive(nsChangeHint_UpdateTransformLayer);
+        // Invalidate the old transformed area. The new transformed area
+        // will be invalidated by nsFrame::FinishAndStoreOverflowArea.
+        childFrame->InvalidateTransformLayer();
       }
     }
-    aFrame->SchedulePaint(needInvalidatingPaint ?
-                          nsIFrame::PAINT_DEFAULT :
-                          nsIFrame::PAINT_COMPOSITE_ONLY);
   }
 }
 
@@ -8025,11 +7977,11 @@ nsCSSFrameConstructor::CharacterDataChanged(nsIContent* aContent,
 NS_DECLARE_FRAME_PROPERTY(ChangeListProperty, nullptr)
 
 /**
- * Return true if aFrame's subtree has placeholders for out-of-flow content
- * whose 'position' style's bit in aPositionMask is set.
+ * Return true if aFrame's subtree has placeholders for abs-pos or fixed-pos
+ * content.
  */
 static bool
-FrameHasPositionedPlaceholderDescendants(nsIFrame* aFrame, uint32_t aPositionMask)
+FrameHasAbsPosPlaceholderDescendants(nsIFrame* aFrame)
 {
   const nsIFrame::ChildListIDs skip(nsIFrame::kAbsoluteList |
                                     nsIFrame::kFixedList);
@@ -8038,17 +7990,9 @@ FrameHasPositionedPlaceholderDescendants(nsIFrame* aFrame, uint32_t aPositionMas
       for (nsFrameList::Enumerator childFrames(lists.CurrentList());
            !childFrames.AtEnd(); childFrames.Next()) {
         nsIFrame* f = childFrames.get();
-        if (f->GetType() == nsGkAtoms::placeholderFrame) {
-          nsIFrame* outOfFlow = nsPlaceholderFrame::GetRealFrameForPlaceholder(f);
-          // If SVG text frames could appear here, they could confuse us since
-          // they ignore their position style ... but they can't.
-          NS_ASSERTION(!outOfFlow->IsSVGText(),
-                       "SVG text frames can't be out of flow");
-          if (aPositionMask & (1 << outOfFlow->GetStyleDisplay()->mPosition)) {
-            return true;
-          }
-        }
-        if (FrameHasPositionedPlaceholderDescendants(f, aPositionMask)) {
+        if ((f->GetType() == nsGkAtoms::placeholderFrame &&
+             nsPlaceholderFrame::GetRealFrameForPlaceholder(f)->IsAbsolutelyPositioned()) ||
+            FrameHasAbsPosPlaceholderDescendants(f)) {
           return true;
         }
       }
@@ -8057,43 +8001,14 @@ FrameHasPositionedPlaceholderDescendants(nsIFrame* aFrame, uint32_t aPositionMas
   return false;
 }
 
-static bool
-NeedToReframeForAddingOrRemovingTransform(nsIFrame* aFrame)
-{
-  MOZ_STATIC_ASSERT(0 <= NS_STYLE_POSITION_ABSOLUTE &&
-                    NS_STYLE_POSITION_ABSOLUTE < 32, "Style constant out of range");
-  MOZ_STATIC_ASSERT(0 <= NS_STYLE_POSITION_FIXED &&
-                    NS_STYLE_POSITION_FIXED < 32, "Style constant out of range");
-
-  uint32_t positionMask;
-  // Don't call aFrame->IsPositioned here, since that returns true if
-  // the frame already has a transform, and we want to ignore that here
-  if (aFrame->IsAbsolutelyPositioned() ||
-      aFrame->IsRelativelyPositioned()) {
-    // This frame is a container for abs-pos descendants whether or not it
-    // has a transform.
-    // So abs-pos descendants are no problem; we only need to reframe if
-    // we have fixed-pos descendants.
-    positionMask = 1 << NS_STYLE_POSITION_FIXED;
-  } else {
-    // This frame may not be a container for abs-pos descendants already.
-    // So reframe if we have abs-pos or fixed-pos descendants.
-    positionMask = (1 << NS_STYLE_POSITION_FIXED) |
-        (1 << NS_STYLE_POSITION_ABSOLUTE);
-  }
-  return FrameHasPositionedPlaceholderDescendants(aFrame, positionMask);
-}
-
 nsresult
 nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
 {
   NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                "Someone forgot a script blocker");
-  int32_t count = aChangeList.Count();
+  PRInt32 count = aChangeList.Count();
   if (!count)
     return NS_OK;
-
-  SAMPLE_LABEL("CSS", "ProcessRestyledFrames");
 
   // Make sure to not rebuild quote or counter lists while we're
   // processing restyles
@@ -8105,7 +8020,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
   // Mark frames so that we skip frames that die along the way, bug 123049.
   // A frame can be in the list multiple times with different hints. Further
   // optmization is possible if nsStyleChangeList::AppendChange could coalesce
-  int32_t index = count;
+  PRInt32 index = count;
 
   while (0 <= --index) {
     const nsStyleChangeData* changeData;
@@ -8117,6 +8032,8 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
   }
 
   index = count;
+  bool didInvalidate = false;
+  bool didReflow = false;
 
   while (0 <= --index) {
     nsIFrame* frame;
@@ -8125,7 +8042,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
     nsChangeHint hint;
     aChangeList.ChangeAt(index, frame, content, hint);
 
-    NS_ASSERTION(!(hint & nsChangeHint_AllReflowHints) ||
+    NS_ASSERTION(!(hint & nsChangeHint_ReflowFrame) ||
                  (hint & nsChangeHint_NeedReflow),
                  "Reflow hint bits set without actually asking for a reflow");
 
@@ -8146,7 +8063,7 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
 
     if ((hint & nsChangeHint_AddOrRemoveTransform) && frame &&
         !(hint & nsChangeHint_ReconstructFrame)) {
-      if (NeedToReframeForAddingOrRemovingTransform(frame)) {
+      if (FrameHasAbsPosPlaceholderDescendants(frame)) {
         NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
       } else {
         // We can just add this state bit unconditionally, since it's
@@ -8173,16 +8090,19 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
       }
       if (hint & nsChangeHint_NeedReflow) {
         StyleChangeReflow(frame, hint);
+        didReflow = true;
         didReflowThisFrame = true;
       }
       if (hint & (nsChangeHint_RepaintFrame | nsChangeHint_SyncFrameView |
                   nsChangeHint_UpdateOpacityLayer | nsChangeHint_UpdateTransformLayer |
                   nsChangeHint_ChildrenOnlyTransform)) {
         ApplyRenderingChangeToTree(presContext, frame, hint);
+        didInvalidate = true;
       }
       if ((hint & nsChangeHint_RecomputePosition) && !didReflowThisFrame) {
         // It is possible for this to fall back to a reflow
         if (!RecomputePosition(frame)) {
+          didReflow = true;
           didReflowThisFrame = true;
         }
       }
@@ -8191,9 +8111,25 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
                    "nsChangeHint_UpdateOverflow should be passed too");
       if ((hint & nsChangeHint_UpdateOverflow) && !didReflowThisFrame) {
         if (hint & nsChangeHint_ChildrenOnlyTransform) {
+          // When we process restyle events starting from the root of the frame
+          // tree, we start at a ViewportFrame and traverse down the tree from
+          // there. When we reach its nsHTMLScrollFrame child, that frame's
+          // GetContent() returns the root element of the document, even though
+          // that frame is not the root element's primary frame. The result of
+          // this quirk is that we remove any pending change hints for the
+          // root element and process them for the nsHTMLScrollFrame instead of
+          // the root element's primary frame. For most change hints this is
+          // not a problem, but for nsChangeHint_ChildrenOnlyTransform it is,
+          // since the children that we want to call UpdateOverflow on are the
+          // frames for the children of the root element, not the nsCanvasFrame
+          // child of the nsHTMLScrollFrame. As a result we need to ignore
+          // |frame| here and use frame->GetContent()->GetPrimaryFrame().
+          nsIFrame *f = frame->GetContent()->GetPrimaryFrame();
+          NS_ABORT_IF_FALSE(f->IsFrameOfType(nsIFrame::eSVG |
+                                             nsIFrame::eSVGContainer),
+                            "Children-only transforms only expected on SVG frames");
           // Update overflow areas of children first:
-          nsIFrame* childFrame =
-            GetFrameForChildrenOnlyTransformHint(frame)->GetFirstPrincipalChild();
+          nsIFrame* childFrame = f->GetFirstPrincipalChild();
           for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
             NS_ABORT_IF_FALSE(childFrame->IsFrameOfType(nsIFrame::eSVG),
                               "Not expecting non-SVG children");
@@ -8238,6 +8174,17 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
   }
 
   EndUpdate();
+
+  if (didInvalidate && !didReflow) {
+    // RepaintFrame changes can indicate changes in opacity etc which
+    // can require plugin clipping to change. If we requested a reflow,
+    // we don't need to do this since the reflow will do it for us.
+    nsIFrame* rootFrame = GetRootFrame();
+    nsRootPresContext* rootPC = presContext->GetRootPresContext();
+    if (rootPC) {
+      rootPC->RequestUpdatePluginGeometry(rootFrame);
+    }
+  }
 
   // cleanup references and verify the style tree.  Note that the latter needs
   // to happen once we've processed the whole list, since until then the tree
@@ -8330,7 +8277,7 @@ nsCSSFrameConstructor::ContentStateChanged(nsIContent* aContent,
                                          NS_EVENT_STATE_LOADING)) {
       hint = nsChangeHint_ReconstructFrame;
     } else {
-      uint8_t app = primaryFrame->GetStyleDisplay()->mAppearance;
+      PRUint8 app = primaryFrame->GetStyleDisplay()->mAppearance;
       if (app) {
         nsITheme *theme = presContext->GetTheme();
         if (theme && theme->ThemeSupportsWidget(presContext,
@@ -8368,9 +8315,9 @@ nsCSSFrameConstructor::ContentStateChanged(nsIContent* aContent,
 
 void
 nsCSSFrameConstructor::AttributeWillChange(Element* aElement,
-                                           int32_t aNameSpaceID,
+                                           PRInt32 aNameSpaceID,
                                            nsIAtom* aAttribute,
-                                           int32_t aModType)
+                                           PRInt32 aModType)
 {
   nsRestyleHint rshint =
     mPresShell->StyleSet()->HasAttributeDependentStyle(mPresShell->GetPresContext(),
@@ -8383,9 +8330,9 @@ nsCSSFrameConstructor::AttributeWillChange(Element* aElement,
 
 void
 nsCSSFrameConstructor::AttributeChanged(Element* aElement,
-                                        int32_t aNameSpaceID,
+                                        PRInt32 aNameSpaceID,
                                         nsIAtom* aAttribute,
-                                        int32_t aModType)
+                                        PRInt32 aModType)
 {
   // Hold onto the PresShell to prevent ourselves from being destroyed.
   // XXXbz how, exactly, would this attribute change cause us to be
@@ -8411,7 +8358,7 @@ nsCSSFrameConstructor::AttributeChanged(Element* aElement,
   // content from being removed and re-inserted (which is what would
   // happen otherwise).
   if (!primaryFrame && !reframe) {
-    int32_t namespaceID;
+    PRInt32 namespaceID;
     nsIAtom* tag =
       mDocument->BindingManager()->ResolveTag(aElement, &namespaceID);
 
@@ -9022,14 +8969,14 @@ nsCSSFrameConstructor::GetInsertionPoint(nsIFrame*     aParentFrame,
       return NS_OK;
     }
 
-    uint32_t index;
+    PRUint32 index;
     insertionElement = bindingManager->GetInsertionPoint(container,
                                                          aChildContent,
                                                          &index);
   }
   else {
     bool multiple;
-    uint32_t index;
+    PRUint32 index;
     insertionElement = bindingManager->GetSingleInsertionPoint(container,
                                                                &index,
                                                                &multiple);
@@ -9082,42 +9029,23 @@ nsCSSFrameConstructor::CaptureStateForFramesOf(nsIContent* aContent,
   }
 }
 
-static bool EqualURIs(mozilla::css::URLValue *aURI1,
-                      mozilla::css::URLValue *aURI2)
-{
-  return aURI1 == aURI2 ||    // handle null==null, and optimize
-         (aURI1 && aURI2 && aURI1->URIEquals(*aURI2));
-}
-
 nsresult
 nsCSSFrameConstructor::MaybeRecreateFramesForElement(Element* aElement)
 {
-  nsRefPtr<nsStyleContext> oldContext = GetUndisplayedContent(aElement);
-  if (!oldContext) {
-    return NS_OK;
-  }
+  nsresult result = NS_OK;
 
-  // The parent has a frame, so try resolving a new context.
-  nsRefPtr<nsStyleContext> newContext = mPresShell->StyleSet()->
-    ResolveStyleFor(aElement, oldContext->GetParent());
+  nsStyleContext *oldContext = GetUndisplayedContent(aElement);
+  if (oldContext) {
+    // The parent has a frame, so try resolving a new context.
+    nsRefPtr<nsStyleContext> newContext = mPresShell->StyleSet()->
+      ResolveStyleFor(aElement, oldContext->GetParent());
 
-  ChangeUndisplayedContent(aElement, newContext);
-  const nsStyleDisplay* disp = newContext->GetStyleDisplay();
-  if (disp->mDisplay == NS_STYLE_DISPLAY_NONE) {
-    // We can skip trying to recreate frames here, but only if our style
-    // context does not have a binding URI that differs from our old one.
-    // Otherwise, we should try to recreate, because we may want to apply the
-    // new binding
-    if (!disp->mBinding) {
-      return NS_OK;
-    }
-    const nsStyleDisplay* oldDisp = oldContext->PeekStyleDisplay();
-    if (oldDisp && EqualURIs(disp->mBinding, oldDisp->mBinding)) {
-      return NS_OK;
+    ChangeUndisplayedContent(aElement, newContext);
+    if (newContext->GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_NONE) {
+      result = RecreateFramesForContent(aElement, false);
     }
   }
-
-  return RecreateFramesForContent(aElement, false);
+  return result;
 }
 
 static nsIFrame*
@@ -9384,7 +9312,7 @@ nsCSSFrameConstructor::RecreateFramesForContent(nsIContent* aContent,
     return rv;
   }
 
-  nsINode* containerNode = aContent->GetParentNode();
+  nsINode* containerNode = aContent->GetNodeParent();
   // XXXbz how can containerNode be null here?
   if (containerNode) {
     // Before removing the frames associated with the content object,
@@ -9480,7 +9408,7 @@ nsCSSFrameConstructor::ShouldHaveFirstLineStyle(nsIContent* aContent,
                                   mPresShell->GetPresContext());
   if (hasFirstLine) {
     // But disable for fieldsets
-    int32_t namespaceID;
+    PRInt32 namespaceID;
     nsIAtom* tag = mDocument->BindingManager()->ResolveTag(aContent,
                                                            &namespaceID);
     // This check must match the one in FindHTMLData.
@@ -9627,7 +9555,7 @@ nsCSSFrameConstructor::CreateNeededAnonFlexItems(
                                 true);
 
     newItem->mIsAllInline = newItem->mHasInlineEnds =
-      newItem->mStyleContext->GetStyleDisplay()->IsInlineOutsideStyle();
+      newItem->mStyleContext->GetStyleDisplay()->IsInlineOutside();
     newItem->mIsBlock = !newItem->mIsAllInline;
 
     NS_ABORT_IF_FALSE(!newItem->mIsAllInline && newItem->mIsBlock,
@@ -9952,7 +9880,7 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
   // constructed before the popupset.
   nsAutoTArray<nsIAnonymousContentCreator::ContentInfo, 4> anonymousItems;
   GetAnonymousContent(aContent, aPossiblyLeafFrame, anonymousItems);
-  for (uint32_t i = 0; i < anonymousItems.Length(); ++i) {
+  for (PRUint32 i = 0; i < anonymousItems.Length(); ++i) {
     nsIContent* content = anonymousItems[i].mContent;
 #ifdef DEBUG
     nsIAnonymousContentCreator* creator = do_QueryFrame(aFrame);
@@ -10367,13 +10295,13 @@ nsCSSFrameConstructor::InsertFirstLineFrames(
 
 // Determine how many characters in the text fragment apply to the
 // first letter
-static int32_t
+static PRInt32
 FirstLetterCount(const nsTextFragment* aFragment)
 {
-  int32_t count = 0;
-  int32_t firstLetterLength = 0;
+  PRInt32 count = 0;
+  PRInt32 firstLetterLength = 0;
 
-  int32_t i, n = aFragment->GetLength();
+  PRInt32 i, n = aFragment->GetLength();
   for (i = 0; i < n; i++) {
     PRUnichar ch = aFragment->CharAt(i);
     if (XP_IS_SPACE(ch)) {
@@ -10409,8 +10337,8 @@ NeedFirstLetterContinuation(nsIContent* aContent)
   if (aContent) {
     const nsTextFragment* frag = aContent->GetText();
     if (frag) {
-      int32_t flc = FirstLetterCount(frag);
-      int32_t tl = frag->GetLength();
+      PRInt32 flc = FirstLetterCount(frag);
+      PRInt32 tl = frag->GetLength();
       if (flc < tl) {
         result = true;
       }
@@ -11812,7 +11740,7 @@ nsCSSFrameConstructor::RestyleForAppend(Element* aContainer,
     }
   }
 #endif
-  uint32_t selectorFlags =
+  PRUint32 selectorFlags =
     aContainer->GetFlags() & (NODE_ALL_SELECTOR_FLAGS &
                               ~NODE_HAS_SLOW_SELECTOR_LATER_SIBLINGS);
   if (selectorFlags == 0)
@@ -11889,7 +11817,7 @@ nsCSSFrameConstructor::RestyleForInsertOrChange(Element* aContainer,
 {
   NS_ASSERTION(!aChild->IsRootOfAnonymousSubtree(),
                "anonymous nodes should not be in child lists");
-  uint32_t selectorFlags =
+  PRUint32 selectorFlags =
     aContainer ? (aContainer->GetFlags() & NODE_ALL_SELECTOR_FLAGS) : 0;
   if (selectorFlags == 0)
     return;
@@ -11977,7 +11905,7 @@ nsCSSFrameConstructor::RestyleForRemove(Element* aContainer,
     // up the logs.  Make it an assert again when that's fixed.
     NS_WARNING("anonymous nodes should not be in child lists (bug 439258)");
   }
-  uint32_t selectorFlags =
+  PRUint32 selectorFlags =
     aContainer ? (aContainer->GetFlags() & NODE_ALL_SELECTOR_FLAGS) : 0;
   if (selectorFlags == 0)
     return;
@@ -12134,7 +12062,7 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
   mPendingRestyles.ProcessRestyles();
 
 #ifdef DEBUG
-  uint32_t oldPendingRestyleCount = mPendingRestyles.Count();
+  PRUint32 oldPendingRestyleCount = mPendingRestyles.Count();
 #endif
 
   // ...and then process animation restyles.  This needs to happen
@@ -12279,7 +12207,7 @@ FrameConstructionItem::IsWhitespace(nsFrameConstructorState& aState) const
 //////////////////////////////////////////////////////////////
 void
 nsCSSFrameConstructor::FrameConstructionItemList::
-AdjustCountsForItem(FrameConstructionItem* aItem, int32_t aDelta)
+AdjustCountsForItem(FrameConstructionItem* aItem, PRInt32 aDelta)
 {
   NS_PRECONDITION(aDelta == 1 || aDelta == -1, "Unexpected delta");
   mItemCount += aDelta;
@@ -12478,22 +12406,11 @@ nsCSSFrameConstructor::RecomputePosition(nsIFrame* aFrame)
     return true;
   }
 
-  // Don't process position changes on frames which have views or the ones which
-  // have a view somewhere in their descendants, because the corresponding view
-  // needs to be repositioned properly as well.
-  if (aFrame->HasView() ||
-      (aFrame->GetStateBits() & NS_FRAME_HAS_CHILD_WITH_VIEW)) {
-    StyleChangeReflow(aFrame, nsChangeHint_NeedReflow);
-    return false;
-  }
-
   const nsStyleDisplay* display = aFrame->GetStyleDisplay();
   // Changes to the offsets of a non-positioned element can safely be ignored.
   if (display->mPosition == NS_STYLE_POSITION_STATIC) {
     return true;
   }
-
-  aFrame->SchedulePaint();
 
   // For relative positioning, we can simply update the frame rect
   if (display->mPosition == NS_STYLE_POSITION_RELATIVE) {
@@ -12501,6 +12418,9 @@ nsCSSFrameConstructor::RecomputePosition(nsIFrame* aFrame)
     const nsSize size = cb->GetSize();
     const nsPoint oldOffsets = aFrame->GetRelativeOffset();
     nsMargin newOffsets;
+
+    // Invalidate the old rect
+    aFrame->InvalidateOverflowRect();
 
     // Move the frame
     nsHTMLReflowState::ComputeRelativeOffsets(
@@ -12511,6 +12431,9 @@ nsCSSFrameConstructor::RecomputePosition(nsIFrame* aFrame)
                  "ComputeRelativeOffsets should return valid results");
     aFrame->SetPosition(aFrame->GetPosition() - oldOffsets +
                         nsPoint(newOffsets.left, newOffsets.top));
+
+    // Invalidate the new rect
+    aFrame->InvalidateFrameSubtree();
 
     return true;
   }
@@ -12582,13 +12505,19 @@ nsCSSFrameConstructor::RecomputePosition(nsIFrame* aFrame)
                                          size.height -
                                          reflowState.mComputedMargin.top;
     }
-    
+
+    // Invalidate the old rect
+    aFrame->InvalidateFrameSubtree();
+
     // Move the frame
     nsPoint pos(parentBorder.left + reflowState.mComputedOffsets.left +
                 reflowState.mComputedMargin.left,
                 parentBorder.top + reflowState.mComputedOffsets.top +
                 reflowState.mComputedMargin.top);
     aFrame->SetPosition(pos);
+
+    // Invalidate the new rect
+    aFrame->InvalidateFrameSubtree();
 
     return true;
   }

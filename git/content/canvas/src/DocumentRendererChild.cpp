@@ -36,7 +36,7 @@ DocumentRendererChild::RenderDocument(nsIDOMWindow *window,
                                       const nsRect& documentRect,
                                       const gfxMatrix& transform,
                                       const nsString& aBGColor,
-                                      uint32_t renderFlags,
+                                      PRUint32 renderFlags,
                                       bool flushLayout, 
                                       const nsIntSize& renderSize,
                                       nsCString& data)

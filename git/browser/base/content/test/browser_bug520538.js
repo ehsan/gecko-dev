@@ -1,6 +1,6 @@
 function test() {
   var tabCount = gBrowser.tabs.length;
-  gBrowser.selectedBrowser.focus();
+  content.focus();
   browserDOMWindow.openURI(makeURI("about:blank"),
                            null,
                            Ci.nsIBrowserDOMWindow.OPEN_NEWTAB,

@@ -30,7 +30,7 @@ CacheLogInit()
 void
 CacheLogPrintPath(PRLogModuleLevel level, const char * format, nsIFile * item)
 {
-    nsAutoCString path;
+    nsCAutoString path;
     nsresult rv = item->GetNativePath(path);
     if (NS_SUCCEEDED(rv)) {
         PR_LOG(gCacheLog, level, (format, path.get()));
@@ -42,21 +42,28 @@ CacheLogPrintPath(PRLogModuleLevel level, const char * format, nsIFile * item)
 #endif
 
 
-uint32_t
+PRUint32
 SecondsFromPRTime(PRTime prTime)
 {
-  int64_t  microSecondsPerSecond = PR_USEC_PER_SEC;
-  return uint32_t(prTime / microSecondsPerSecond);
+  PRInt64  microSecondsPerSecond, intermediateResult;
+  PRUint32 seconds;
+
+  LL_I2L(microSecondsPerSecond, PR_USEC_PER_SEC);
+  LL_DIV(intermediateResult, prTime, microSecondsPerSecond);
+  LL_L2UI(seconds, intermediateResult);
+  return seconds;
 }
 
 
 PRTime
-PRTimeFromSeconds(uint32_t seconds)
+PRTimeFromSeconds(PRUint32 seconds)
 {
-  int64_t intermediateResult;
+  PRInt64 microSecondsPerSecond, intermediateResult;
+  PRTime  prTime;
 
+  LL_I2L(microSecondsPerSecond, PR_USEC_PER_SEC);
   LL_UI2L(intermediateResult, seconds);
-  PRTime prTime = intermediateResult * PR_USEC_PER_SEC;
+  LL_MUL(prTime, intermediateResult, microSecondsPerSecond);
   return prTime;
 }
 

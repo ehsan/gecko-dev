@@ -11,7 +11,7 @@ function run_test() {
   //        593407 which will clean that up. After that, use
   //        the commented out line below it.
   messageHandler = cps.wrappedJSObject;
-  //messageHandler = cps.QueryInterface(Ci.nsIMessageListener);
+  //messageHandler = cps.QueryInterface(Ci.nsIFrameMessageListener);
 
   // Cannot get values
   do_check_false(messageHandler.receiveMessage({
@@ -55,7 +55,7 @@ function run_test() {
   };
 
   var mM = Cc["@mozilla.org/parentprocessmessagemanager;1"].
-           getService(Ci.nsIMessageListenerManager);
+           getService(Ci.nsIFrameMessageManager);
   mM.addMessageListener("ContentPref:setPref", messageProxy);
   mM.addMessageListener("ContentPref:getPref", messageProxy);
   mM.addMessageListener("ContentPref:QUIT", messageProxy);

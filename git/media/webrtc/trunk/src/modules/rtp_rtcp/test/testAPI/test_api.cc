@@ -33,15 +33,13 @@ class RtpRtcpAPITest : public ::testing::Test {
   ~RtpRtcpAPITest() {}
 
   virtual void SetUp() {
-    RtpRtcp::Configuration configuration;
-    configuration.id = test_id;
-    configuration.audio = true;
-    configuration.clock = &fake_clock;
-    module = RtpRtcp::CreateRtpRtcp(configuration);
+    module = RtpRtcp::CreateRtpRtcp(test_id, true, &fake_clock);
+    EXPECT_EQ(0, module->InitReceiver());
+    EXPECT_EQ(0, module->InitSender());
   }
 
   virtual void TearDown() {
-    delete module;
+    RtpRtcp::DestroyRtpRtcp(module);
   }
 
   int test_id;
@@ -103,10 +101,12 @@ TEST_F(RtpRtcpAPITest, RTCP) {
   EXPECT_EQ(kRtcpCompound, module->RTCP());
 
   EXPECT_EQ(0, module->SetCNAME("john.doe@test.test"));
+  EXPECT_EQ(-1, module->SetCNAME(NULL));
 
   char cName[RTCP_CNAME_SIZE];
   EXPECT_EQ(0, module->CNAME(cName));
   EXPECT_STRCASEEQ(cName, "john.doe@test.test");
+  EXPECT_EQ(-1, module->CNAME(NULL));
 
   EXPECT_FALSE(module->TMMBR());
   EXPECT_EQ(0, module->SetTMMBRStatus(true));

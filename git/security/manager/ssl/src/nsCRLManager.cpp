@@ -20,6 +20,7 @@
 #include "nsNSSCertHeader.h"
 
 #include "nspr.h"
+extern "C" {
 #include "pk11func.h"
 #include "certdb.h"
 #include "cert.h"
@@ -27,6 +28,7 @@
 #include "nssb64.h"
 #include "secasn1.h"
 #include "secder.h"
+}
 #include "ssl.h"
 #include "ocsp.h"
 #include "plbase64.h"
@@ -44,7 +46,7 @@ nsCRLManager::~nsCRLManager()
 }
 
 NS_IMETHODIMP 
-nsCRLManager::ImportCrl (uint8_t *aData, uint32_t aLength, nsIURI * aURI, uint32_t aType, bool doSilentDownload, const PRUnichar* crlKey)
+nsCRLManager::ImportCrl (PRUint8 *aData, PRUint32 aLength, nsIURI * aURI, PRUint32 aType, bool doSilentDownload, const PRUnichar* crlKey)
 {
   if (!NS_IsMainThread()) {
     NS_ERROR("nsCRLManager::ImportCrl called off the main thread");
@@ -53,17 +55,17 @@ nsCRLManager::ImportCrl (uint8_t *aData, uint32_t aLength, nsIURI * aURI, uint32
   
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
-  PLArenaPool *arena = nullptr;
+  PRArenaPool *arena = NULL;
   CERTCertificate *caCert;
-  SECItem derName = { siBuffer, nullptr, 0 };
+  SECItem derName = { siBuffer, NULL, 0 };
   SECItem derCrl;
   CERTSignedData sd;
   SECStatus sec_rv;
   CERTSignedCrl *crl;
-  nsAutoCString url;
+  nsCAutoString url;
   nsCOMPtr<nsICRLInfo> crlData;
   bool importSuccessful;
-  int32_t errorCode;
+  PRInt32 errorCode;
   nsString errorMessage;
   
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));
@@ -180,7 +182,7 @@ done:
       }
     }
   } else {
-    if (!crlKey) {
+    if(crlKey == nullptr){
       return NS_ERROR_FAILURE;
     }
     nsCOMPtr<nsIPrefService> prefSvc = do_GetService(NS_PREFSERVICE_CONTRACTID,&rv);
@@ -189,20 +191,20 @@ done:
       return rv;
     }
     
-    nsAutoCString updateErrCntPrefStr(CRL_AUTOUPDATE_ERRCNT_PREF);
+    nsCAutoString updateErrCntPrefStr(CRL_AUTOUPDATE_ERRCNT_PREF);
     LossyAppendUTF16toASCII(crlKey, updateErrCntPrefStr);
     if(importSuccessful){
       PRUnichar *updateTime;
-      nsAutoCString updateTimeStr;
+      nsCAutoString updateTimeStr;
       nsCString updateURL;
-      int32_t timingTypePref;
+      PRInt32 timingTypePref;
       double dayCnt;
       char *dayCntStr;
-      nsAutoCString updateTypePrefStr(CRL_AUTOUPDATE_TIMIINGTYPE_PREF);
-      nsAutoCString updateTimePrefStr(CRL_AUTOUPDATE_TIME_PREF);
-      nsAutoCString updateUrlPrefStr(CRL_AUTOUPDATE_URL_PREF);
-      nsAutoCString updateDayCntPrefStr(CRL_AUTOUPDATE_DAYCNT_PREF);
-      nsAutoCString updateFreqCntPrefStr(CRL_AUTOUPDATE_FREQCNT_PREF);
+      nsCAutoString updateTypePrefStr(CRL_AUTOUPDATE_TIMIINGTYPE_PREF);
+      nsCAutoString updateTimePrefStr(CRL_AUTOUPDATE_TIME_PREF);
+      nsCAutoString updateUrlPrefStr(CRL_AUTOUPDATE_URL_PREF);
+      nsCAutoString updateDayCntPrefStr(CRL_AUTOUPDATE_DAYCNT_PREF);
+      nsCAutoString updateFreqCntPrefStr(CRL_AUTOUPDATE_FREQCNT_PREF);
       LossyAppendUTF16toASCII(crlKey, updateTypePrefStr);
       LossyAppendUTF16toASCII(crlKey, updateTimePrefStr);
       LossyAppendUTF16toASCII(crlKey, updateUrlPrefStr);
@@ -229,7 +231,7 @@ done:
         //with the next update date. We will not reschedule this crl in this
         //session anymore - or else, we land into a loop. It would anyway be
         //imported once the browser is restarted.
-        if(int64_t(updateTime) > int64_t(PR_Now())){
+        if(LL_CMP(updateTime, > , PR_Now())){
           toBeRescheduled = true;
         }
         nsMemory::Free(updateTime);
@@ -248,9 +250,9 @@ done:
       }
 
     } else{
-      int32_t errCnt;
-      nsAutoCString errMsg;
-      nsAutoCString updateErrDetailPrefStr(CRL_AUTOUPDATE_ERRDETAIL_PREF);
+      PRInt32 errCnt;
+      nsCAutoString errMsg;
+      nsCAutoString updateErrDetailPrefStr(CRL_AUTOUPDATE_ERRDETAIL_PREF);
       LossyAppendUTF16toASCII(crlKey, updateErrDetailPrefStr);
       errMsg.AssignWithConversion(errorMessage.get());
       rv = pref->GetIntPref(updateErrCntPrefStr.get(),&errCnt);
@@ -326,7 +328,7 @@ nsCRLManager::GetCrls(nsIArray ** aCrls)
   }
 
   if (head) {
-    for (node=head->first; node; node = node->next) {
+    for (node=head->first; node != nullptr; node = node->next) {
 
       nsCOMPtr<nsICRLInfo> entry = new nsCRLInfo((node->crl));
       crlsArray->AppendElement(entry, false);
@@ -345,14 +347,14 @@ nsCRLManager::GetCrls(nsIArray ** aCrls)
  * Delete a Crl entry from the cert db.
  */
 NS_IMETHODIMP 
-nsCRLManager::DeleteCrl(uint32_t aCrlIndex)
+nsCRLManager::DeleteCrl(PRUint32 aCrlIndex)
 {
   nsNSSShutDownPreventionLock locker;
   CERTSignedCrl *realCrl = nullptr;
   CERTCrlHeadNode *head = nullptr;
   CERTCrlNode *node = nullptr;
   SECStatus sec_rv;
-  uint32_t i;
+  PRUint32 i;
 
   // Get the list of certs //
   sec_rv = SEC_LookupCrls(CERT_GetDefaultCertDB(), &head, -1);
@@ -361,7 +363,7 @@ nsCRLManager::DeleteCrl(uint32_t aCrlIndex)
   }
 
   if (head) {
-    for (i = 0, node=head->first; node; i++, node = node->next) {
+    for (i = 0, node=head->first; node != nullptr; i++, node = node->next) {
       if (i != aCrlIndex) {
         continue;
       }
@@ -377,7 +379,7 @@ nsCRLManager::DeleteCrl(uint32_t aCrlIndex)
 
 NS_IMETHODIMP
 nsCRLManager::ComputeNextAutoUpdateTime(nsICRLInfo *info, 
-  uint32_t autoUpdateType, double dayCnt, PRUnichar **nextAutoUpdate)
+  PRUint32 autoUpdateType, double dayCnt, PRUnichar **nextAutoUpdate)
 {
   if (!info)
     return NS_ERROR_FAILURE;
@@ -386,15 +388,17 @@ nsCRLManager::ComputeNextAutoUpdateTime(nsICRLInfo *info,
   PRTime microsecInDayCnt;
   PRTime now = PR_Now();
   PRTime tempTime;
-  int64_t diff = 0;
-  int64_t secsInDay = 86400UL;
-  int64_t temp;
-  int64_t cycleCnt = 0;
-  int64_t secsInDayCnt;
-  double tmpData = double(secsInDay);
-  tmpData *= dayCnt;
+  PRInt64 diff = 0;
+  PRInt64 secsInDay = 86400UL;
+  PRInt64 temp;
+  PRInt64 cycleCnt = 0;
+  PRInt64 secsInDayCnt;
+  double tmpData;
+  
+  LL_L2F(tmpData,secsInDay);
+  LL_MUL(tmpData,dayCnt,tmpData);
   LL_F2L(secsInDayCnt,tmpData);
-  microsecInDayCnt = secsInDayCnt * PR_USEC_PER_SEC;
+  LL_MUL(microsecInDayCnt, secsInDayCnt, PR_USEC_PER_SEC);
     
   PRTime lastUpdate;
   PRTime nextUpdate;
@@ -411,17 +415,17 @@ nsCRLManager::ComputeNextAutoUpdateTime(nsICRLInfo *info,
 
   switch (autoUpdateType) {
   case TYPE_AUTOUPDATE_FREQ_BASED:
-    diff = now - lastUpdate;                    //diff is the no of micro sec between now and last update
-    cycleCnt = diff / microsecInDayCnt;       //temp is the number of full cycles from lst update
-    temp = diff % microsecInDayCnt;
-    if(temp != 0) {
-      ++cycleCnt;            //no of complete cycles till next autoupdate instant
+    LL_SUB(diff, now, lastUpdate);             //diff is the no of micro sec between now and last update
+    LL_DIV(cycleCnt, diff, microsecInDayCnt);   //temp is the number of full cycles from lst update
+    LL_MOD(temp, diff, microsecInDayCnt);
+    if(!(LL_IS_ZERO(temp))) {
+      LL_ADD(cycleCnt,cycleCnt,1);            //no of complete cycles till next autoupdate instant
     }
-    temp = cycleCnt * microsecInDayCnt;    //micro secs from last update
-    tempTime = lastUpdate + temp;
+    LL_MUL(temp,cycleCnt,microsecInDayCnt);    //micro secs from last update
+    LL_ADD(tempTime, lastUpdate, temp);
     break;  
   case TYPE_AUTOUPDATE_TIME_BASED:
-    tempTime = nextUpdate - microsecInDayCnt;
+    LL_SUB(tempTime, nextUpdate, microsecInDayCnt);
     break;
   default:
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -429,8 +433,8 @@ nsCRLManager::ComputeNextAutoUpdateTime(nsICRLInfo *info,
 
   //Now, a basic constraing is that the next auto update date can never be after
   //next update, if one is defined
-  if(nextUpdate > 0) {
-    if(tempTime > nextUpdate) {
+  if(LL_CMP(nextUpdate , > , 0 )) {
+    if(LL_CMP(tempTime , > , nextUpdate)) {
       tempTime = nextUpdate;
     }
   }

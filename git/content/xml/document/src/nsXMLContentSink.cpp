@@ -10,6 +10,7 @@
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentType.h"
+#include "nsIDOMDOMImplementation.h"
 #include "nsIContent.h"
 #include "nsIURI.h"
 #include "nsNetUtil.h"
@@ -39,6 +40,7 @@
 #include "nsIScriptElement.h"
 #include "nsScriptLoader.h"
 #include "nsStyleLinkElement.h"
+#include "nsIImageLoadingContent.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsICookieService.h"
@@ -50,7 +52,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
-#include "nsError.h"
+#include "nsContentErrors.h"
 #include "nsIDOMProcessingInstruction.h"
 #include "nsNodeUtils.h"
 #include "nsIScriptGlobalObject.h"
@@ -145,7 +147,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXMLContentSink,
                                                   nsContentSink)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCurrentHead)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mDocElement)
-  for (uint32_t i = 0, count = tmp->mContentStack.Length(); i < count; i++) {
+  for (PRUint32 i = 0, count = tmp->mContentStack.Length(); i < count; i++) {
     const StackNode& node = tmp->mContentStack.ElementAt(i);
     cb.NoteXPCOMChild(node.mContent);
   }
@@ -168,7 +170,7 @@ nsXMLContentSink::WillBuildModel(nsDTDMode aDTDMode)
 
   // Check for correct load-command for maybe prettyprinting
   if (mPrettyPrintXML) {
-    nsAutoCString command;
+    nsCAutoString command;
     GetParser()->GetCommand(command);
     if (!command.EqualsLiteral("view")) {
       mPrettyPrintXML = false;
@@ -452,8 +454,8 @@ nsXMLContentSink::SetParser(nsParserBase* aParser)
 }
 
 nsresult
-nsXMLContentSink::CreateElement(const PRUnichar** aAtts, uint32_t aAttsCount,
-                                nsINodeInfo* aNodeInfo, uint32_t aLineNumber,
+nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
+                                nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, bool* aAppendContent,
                                 FromParser aFromParser)
 {
@@ -611,7 +613,7 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
       nsAutoString relVal;
       aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::rel, relVal);
       if (!relVal.IsEmpty()) {
-        uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(relVal);
+        PRUint32 linkTypes = nsStyleLinkElement::ParseLinkTypes(relVal);
         bool hasPrefetch = linkTypes & PREFETCH;
         if (hasPrefetch || (linkTypes & NEXT)) {
           nsAutoString hrefVal;
@@ -696,7 +698,7 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
   nsresult rv = NS_OK;
   mPrettyPrintXML = false;
 
-  nsAutoCString cmd;
+  nsCAutoString cmd;
   if (mParser)
     GetParser()->GetCommand(cmd);
   if (cmd.EqualsASCII(kLoadAsData))
@@ -728,7 +730,7 @@ nsXMLContentSink::ProcessStyleLink(nsIContent* aElement,
     NS_ENSURE_SUCCESS(rv, NS_OK);
 
     // Do content policy check
-    int16_t decision = nsIContentPolicy::ACCEPT;
+    PRInt16 decision = nsIContentPolicy::ACCEPT;
     rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_STYLESHEET,
                                    url,
                                    mDocument->NodePrincipal(),
@@ -845,7 +847,7 @@ nsXMLContentSink::GetCurrentContent()
 StackNode*
 nsXMLContentSink::GetCurrentStackNode()
 {
-  int32_t count = mContentStack.Length();
+  PRInt32 count = mContentStack.Length();
   return count != 0 ? &mContentStack[count-1] : nullptr;
 }
 
@@ -865,7 +867,7 @@ nsXMLContentSink::PushContent(nsIContent *aContent)
 void
 nsXMLContentSink::PopContent()
 {
-  int32_t count = mContentStack.Length();
+  PRInt32 count = mContentStack.Length();
 
   if (count == 0) {
     NS_WARNING("Popping empty stack");
@@ -878,7 +880,7 @@ nsXMLContentSink::PopContent()
 bool
 nsXMLContentSink::HaveNotifiedForCurrentContent() const
 {
-  uint32_t stackLength = mContentStack.Length();
+  PRUint32 stackLength = mContentStack.Length();
   if (stackLength) {
     const StackNode& stackNode = mContentStack[stackLength - 1];
     nsIContent* parent = stackNode.mContent;
@@ -901,7 +903,7 @@ nsXMLContentSink::MaybeStartLayout(bool aIgnorePendingSheets)
 ////////////////////////////////////////////////////////////////////////
 
 bool
-nsXMLContentSink::SetDocElement(int32_t aNameSpaceID,
+nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
                                 nsIAtom* aTagName,
                                 nsIContent *aContent)
 {
@@ -946,9 +948,9 @@ nsXMLContentSink::SetDocElement(int32_t aNameSpaceID,
 NS_IMETHODIMP
 nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
                                      const PRUnichar **aAtts,
-                                     uint32_t aAttsCount,
-                                     int32_t aIndex,
-                                     uint32_t aLineNumber)
+                                     PRUint32 aAttsCount,
+                                     PRInt32 aIndex,
+                                     PRUint32 aLineNumber)
 {
   return HandleStartElement(aName, aAtts, aAttsCount, aIndex, aLineNumber,
                             true);
@@ -957,9 +959,9 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
 nsresult
 nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
                                      const PRUnichar **aAtts,
-                                     uint32_t aAttsCount,
-                                     int32_t aIndex,
-                                     uint32_t aLineNumber,
+                                     PRUint32 aAttsCount,
+                                     PRInt32 aIndex,
+                                     PRUint32 aLineNumber,
                                      bool aInterruptable)
 {
   NS_PRECONDITION(aIndex >= -1, "Bogus aIndex");
@@ -981,7 +983,7 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
 
   mState = eXMLContentSinkState_InDocumentElement;
 
-  int32_t nameSpaceID;
+  PRInt32 nameSpaceID;
   nsCOMPtr<nsIAtom> prefix, localName;
   nsContentUtils::SplitExpatName(aName, getter_AddRefs(prefix),
                                  getter_AddRefs(localName), &nameSpaceID);
@@ -1099,14 +1101,14 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
 
   nsCOMPtr<nsIContent> content;
   sn->mContent.swap(content);
-  uint32_t numFlushed = sn->mNumFlushed;
+  PRUint32 numFlushed = sn->mNumFlushed;
 
   PopContent();
   NS_ASSERTION(content, "failed to pop content");
 #ifdef DEBUG
   // Check that we're closing the right thing
   nsCOMPtr<nsIAtom> debugNameSpacePrefix, debugTagAtom;
-  int32_t debugNameSpaceID;
+  PRInt32 debugNameSpaceID;
   nsContentUtils::SplitExpatName(aName, getter_AddRefs(debugNameSpacePrefix),
                                  getter_AddRefs(debugTagAtom),
                                  &debugNameSpaceID);
@@ -1129,7 +1131,7 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
     MaybeStartLayout(false);
   }
 
-  int32_t stackLen = mContentStack.Length();
+  PRInt32 stackLen = mContentStack.Length();
   if (mNotifyLevel >= stackLen) {
     if (numFlushed < content->GetChildCount()) {
     	  NotifyAppend(content, numFlushed);
@@ -1168,7 +1170,7 @@ nsXMLContentSink::HandleComment(const PRUnichar *aName)
 
 NS_IMETHODIMP 
 nsXMLContentSink::HandleCDataSection(const PRUnichar *aData, 
-                                     uint32_t aLength)
+                                     PRUint32 aLength)
 {
   // XSLT doesn't differentiate between text and cdata and wants adjacent
   // textnodes merged, so add as text.
@@ -1222,7 +1224,7 @@ nsXMLContentSink::HandleDoctypeDecl(const nsAString & aSubset,
       mCSSLoader->LoadSheetSync(uri, true, true, getter_AddRefs(sheet));
 
 #ifdef DEBUG
-      nsAutoCString uriStr;
+      nsCAutoString uriStr;
       uri->GetSpec(uriStr);
       printf("Loading catalog stylesheet: %s ... %s\n", uriStr.get(), sheet.get() ? "Done" : "Failed");
 #endif
@@ -1244,13 +1246,13 @@ nsXMLContentSink::HandleDoctypeDecl(const nsAString & aSubset,
 
 NS_IMETHODIMP
 nsXMLContentSink::HandleCharacterData(const PRUnichar *aData, 
-                                      uint32_t aLength)
+                                      PRUint32 aLength)
 {
   return HandleCharacterData(aData, aLength, true);
 }
 
 nsresult
-nsXMLContentSink::HandleCharacterData(const PRUnichar *aData, uint32_t aLength,
+nsXMLContentSink::HandleCharacterData(const PRUnichar *aData, PRUint32 aLength,
                                       bool aInterruptable)
 {
   nsresult rv = NS_OK;
@@ -1360,7 +1362,7 @@ nsXMLContentSink::ParsePIData(const nsString &aData, nsString &aHref,
 NS_IMETHODIMP
 nsXMLContentSink::HandleXMLDeclaration(const PRUnichar *aVersion,
                                        const PRUnichar *aEncoding,
-                                       int32_t aStandalone)
+                                       PRInt32 aStandalone)
 {
   mDocument->SetXMLDeclaration(aVersion, aEncoding, aStandalone);
 
@@ -1431,7 +1433,7 @@ nsXMLContentSink::ReportError(const PRUnichar* aErrorText,
   parsererror.Append((PRUnichar)0xFFFF);
   parsererror.AppendLiteral("parsererror");
   
-  rv = HandleStartElement(parsererror.get(), noAtts, 0, -1, (uint32_t)-1,
+  rv = HandleStartElement(parsererror.get(), noAtts, 0, -1, (PRUint32)-1,
                           false);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1442,7 +1444,7 @@ nsXMLContentSink::ReportError(const PRUnichar* aErrorText,
   sourcetext.Append((PRUnichar)0xFFFF);
   sourcetext.AppendLiteral("sourcetext");
 
-  rv = HandleStartElement(sourcetext.get(), noAtts, 0, -1, (uint32_t)-1,
+  rv = HandleStartElement(sourcetext.get(), noAtts, 0, -1, (PRUint32)-1,
                           false);
   NS_ENSURE_SUCCESS(rv, rv);
   
@@ -1467,7 +1469,7 @@ nsXMLContentSink::AddAttributes(const PRUnichar** aAtts,
   // Add tag attributes to the content attributes
   nsCOMPtr<nsIAtom> prefix, localName;
   while (*aAtts) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -1484,7 +1486,7 @@ nsXMLContentSink::AddAttributes(const PRUnichar** aAtts,
 
 nsresult
 nsXMLContentSink::AddText(const PRUnichar* aText, 
-                          int32_t aLength)
+                          PRInt32 aLength)
 {
   // Create buffer when we first need it
   if (0 == mTextSize) {
@@ -1496,9 +1498,9 @@ nsXMLContentSink::AddText(const PRUnichar* aText,
   }
 
   // Copy data from string into our buffer; flush buffer when it fills up
-  int32_t offset = 0;
+  PRInt32 offset = 0;
   while (0 != aLength) {
-    int32_t amount = mTextSize - mTextLength;
+    PRInt32 amount = mTextSize - mTextLength;
     if (0 == amount) {
       // XSLT wants adjacent textnodes merged.
       if (mConstrainSize && !mXSLTProcessor) {
@@ -1571,7 +1573,7 @@ nsXMLContentSink::FlushTags()
 {
   mDeferredFlushTags = false;
   bool oldBeganUpdate = mBeganUpdate;
-  uint32_t oldUpdates = mUpdatesInNotification;
+  PRUint32 oldUpdates = mUpdatesInNotification;
 
   mUpdatesInNotification = 0;
   ++mInNotification;
@@ -1587,10 +1589,10 @@ nsXMLContentSink::FlushTags()
     // a notification from the node that is closest to the root of
     // tree for any content that has been added.
 
-    int32_t stackPos;
-    int32_t stackLen = mContentStack.Length();
+    PRInt32 stackPos;
+    PRInt32 stackLen = mContentStack.Length();
     bool flushed = false;
-    uint32_t childCount;
+    PRUint32 childCount;
     nsIContent* content;
 
     for (stackPos = 0; stackPos < stackLen; ++stackPos) {
@@ -1629,8 +1631,8 @@ nsXMLContentSink::UpdateChildCounts()
   // have been generated for it and we should make sure that no
   // further reflows occur.  Note that we have to include stackPos == 0
   // to properly notify on kids of <html>.
-  int32_t stackLen = mContentStack.Length();
-  int32_t stackPos = stackLen - 1;
+  PRInt32 stackLen = mContentStack.Length();
+  PRInt32 stackPos = stackLen - 1;
   while (stackPos >= 0) {
     StackNode & node = mContentStack[stackPos];
     node.mNumFlushed = node.mContent->GetChildCount();

@@ -239,7 +239,7 @@ PluginDocument::StartDocumentLoad(const char*         aCommand,
 nsresult
 PluginDocument::CreateSyntheticPluginDocument()
 {
-  NS_ASSERTION(!GetShell() || !GetShell()->DidInitialize(),
+  NS_ASSERTION(!GetShell() || !GetShell()->DidInitialReflow(),
                "Creating synthetic plugin document content too late");
 
   // make our generic document
@@ -281,7 +281,7 @@ PluginDocument::CreateSyntheticPluginDocument()
                           false);
 
   // set URL
-  nsAutoCString src;
+  nsCAutoString src;
   mDocumentURI->GetSpec(src);
   mPluginContent->SetAttr(kNameSpaceID_None, nsGkAtoms::src,
                           NS_ConvertUTF8toUTF16(src), false);

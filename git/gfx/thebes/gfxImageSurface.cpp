@@ -3,6 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "prmem.h"
 
 #include "gfxAlphaRecovery.h"
 #include "gfxImageSurface.h"
@@ -315,7 +316,7 @@ gfxImageSurface::MovePixels(const nsIntRect& aSourceRect,
     }
 
     // Slow(er) path: have to move row-by-row.
-    const int32_t bpp = BytePerPixelFromFormat(mFormat);
+    const PRInt32 bpp = BytePerPixelFromFormat(mFormat);
     const size_t nRowBytes = dest.width * bpp;
     // dstRow points at the first pixel within the current destination
     // row, and similarly for srcRow.  endSrcRow is one row beyond the

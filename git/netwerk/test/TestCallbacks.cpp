@@ -29,7 +29,7 @@
 static NS_DEFINE_CID(kIOServiceCID,              NS_IOSERVICE_CID);
 
 static bool gError = false;
-static int32_t gKeepRunning = 0;
+static PRInt32 gKeepRunning = 0;
 
 #define NS_IEQUALS_IID \
     { 0x11c5c8ee, 0x1dd2, 0x11b2, \
@@ -72,7 +72,7 @@ public:
     // member data
     bool    mOnStart; // have we received an OnStart?
     bool    mOnStop;  // have we received an onStop?
-    int32_t mOnDataCount; // number of times OnData was called.
+    PRInt32 mOnDataCount; // number of times OnData was called.
     nsCOMPtr<nsIURI>     mURI;
     nsCOMPtr<nsIChannel> mChannel;
     nsCOMPtr<nsIEquals>  mContext;
@@ -129,7 +129,7 @@ Consumer::OnStopRequest(nsIRequest *request, nsISupports *aContext,
 NS_IMETHODIMP
 Consumer::OnDataAvailable(nsIRequest *request, nsISupports *aContext,
                           nsIInputStream *aIStream,
-                          uint64_t aOffset, uint32_t aLength) {
+                          PRUint32 aOffset, PRUint32 aLength) {
     fprintf(stderr, "Consumer::OnData() -> in\n\n");
 
     if (!mOnStart) {
@@ -221,14 +221,14 @@ int main(int argc, char *argv[]) {
     }
 
     rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
-    if (NS_FAILED(rv)) return -1;
+    if (NS_FAILED(rv)) return rv;
 
     if (cmdLineURL) {
         rv = StartLoad(argv[1]);
     } else {
         rv = StartLoad("http://badhostnamexyz/test.txt");
     }
-    if (NS_FAILED(rv)) return -1;
+    if (NS_FAILED(rv)) return rv;
 
     // Enter the message pump to allow the URL load to proceed.
     PumpEvents();
@@ -237,7 +237,7 @@ int main(int argc, char *argv[]) {
     if (gError) {
         fprintf(stderr, "\n\n-------ERROR-------\n\n");
     }
-    return 0;
+    return rv;
 }
 
 nsresult StartLoad(const char *aURISpec) {

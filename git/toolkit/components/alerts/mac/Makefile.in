@@ -15,9 +15,10 @@ IS_COMPONENT = 1
 FORCE_SHARED_LIB = 1
 
 CMMSRCS = \
-  nsMacAlertsService.mm \
-  mozNotificationCenterDelegate.mm \
-  ObserverPair.mm \
+  nsGrowlAlertsService.mm \
+  mozGrowlDelegate.mm \
+  nsAlertsImageLoadListener.mm \
+  nsNotificationsList.mm \
   $(NULL)
 
 CPPSRCS = \
@@ -25,11 +26,16 @@ CPPSRCS = \
   $(NULL)
 
 LOCAL_INCLUDES += \
+  -I$(srcdir)/growl/ \
   -I$(topsrcdir)/toolkit/components/build/ \
   $(NULL)
 
 EXPORTS = \
-  nsMacAlertsService.h \
+  nsGrowlAlertsService.h \
+  $(NULL)
+
+SHARED_LIBRARY_LIBS = \
+  growl/$(LIB_PREFIX)growl_s.$(LIB_SUFFIX) \
   $(NULL)
 
 ifdef JS_SHARED_LIBRARY

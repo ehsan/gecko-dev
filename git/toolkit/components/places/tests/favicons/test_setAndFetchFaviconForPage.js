@@ -32,8 +32,7 @@ add_test(function test_normal()
   });
 
   addVisits({ uri: pageURI, transition: TRANSITION_TYPED}, function () {
-    PlacesUtils.favicons.setAndFetchFaviconForPage(pageURI, FAVICON_URI, true,
-                                                   PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+    PlacesUtils.favicons.setAndFetchFaviconForPage(pageURI, FAVICON_URI, true);
   });
 });
 
@@ -49,8 +48,7 @@ add_test(function test_aboutURI_bookmarked()
   PlacesUtils.bookmarks.insertBookmark(
                           PlacesUtils.unfiledBookmarksFolderId, pageURI,
                           PlacesUtils.bookmarks.DEFAULT_INDEX, pageURI.spec);
-  PlacesUtils.favicons.setAndFetchFaviconForPage(pageURI, FAVICON_URI, true,
-                                                 PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+  PlacesUtils.favicons.setAndFetchFaviconForPage(pageURI, FAVICON_URI, true);
 });
 
 add_test(function test_privateBrowsing_bookmarked()
@@ -78,8 +76,7 @@ add_test(function test_privateBrowsing_bookmarked()
   PlacesUtils.bookmarks.insertBookmark(
                           PlacesUtils.unfiledBookmarksFolderId, pageURI,
                           PlacesUtils.bookmarks.DEFAULT_INDEX, pageURI.spec);
-  PlacesUtils.favicons.setAndFetchFaviconForPage(pageURI, FAVICON_URI, true,
-                                                 PlacesUtils.favicons.FAVICON_LOAD_PRIVATE);
+  PlacesUtils.favicons.setAndFetchFaviconForPage(pageURI, FAVICON_URI, true);
 
   // The setAndFetchFaviconForPage function calls CanAddURI synchronously,
   // thus we can exit Private Browsing Mode immediately.
@@ -102,8 +99,7 @@ add_test(function test_disabledHistory_bookmarked()
   PlacesUtils.bookmarks.insertBookmark(
                           PlacesUtils.unfiledBookmarksFolderId, pageURI,
                           PlacesUtils.bookmarks.DEFAULT_INDEX, pageURI.spec);
-  PlacesUtils.favicons.setAndFetchFaviconForPage(pageURI, FAVICON_URI, true,
-                                                 PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+  PlacesUtils.favicons.setAndFetchFaviconForPage(pageURI, FAVICON_URI, true);
 
   // The setAndFetchFaviconForPage function calls CanAddURI synchronously, thus
   // we can set the preference back to true immediately.  We don't clear the

@@ -84,9 +84,9 @@ public:
   // Returns the first coordinate >= aY that clears the
   // floats indicated by aBreakType and has enough width between floats
   // (or no floats remaining) to accomodate aReplacedBlock.
-  nscoord ClearFloats(nscoord aY, uint8_t aBreakType,
+  nscoord ClearFloats(nscoord aY, PRUint8 aBreakType,
                       nsIFrame *aReplacedBlock = nullptr,
-                      uint32_t aFlags = 0);
+                      PRUint32 aFlags = 0);
 
   bool IsAdjacentWithTop() const {
     return mY ==
@@ -258,13 +258,13 @@ public:
 
   nscoord mMinLineHeight;
 
-  int32_t mLineNumber;
+  PRInt32 mLineNumber;
 
-  int16_t mFlags;
+  PRInt16 mFlags;
  
-  uint8_t mFloatBreakType;
+  PRUint8 mFloatBreakType;
 
-  void SetFlag(uint32_t aFlag, bool aValue)
+  void SetFlag(PRUint32 aFlag, bool aValue)
   {
     NS_ASSERTION(aFlag<=BRS_LASTFLAG, "bad flag");
     NS_ASSERTION(aValue==false || aValue==true, "bad value");
@@ -276,7 +276,7 @@ public:
     }
   }
 
-  bool GetFlag(uint32_t aFlag) const
+  bool GetFlag(PRUint32 aFlag) const
   {
     NS_ASSERTION(aFlag<=BRS_LASTFLAG, "bad flag");
     return !!(mFlags & aFlag);

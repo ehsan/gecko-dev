@@ -14,7 +14,6 @@ namespace dom {
 namespace devicestorage {
 
 DeviceStorageRequestChild::DeviceStorageRequestChild()
-  : mCallback(nullptr)
 {
   MOZ_COUNT_CTOR(DeviceStorageRequestChild);
 }
@@ -23,7 +22,6 @@ DeviceStorageRequestChild::DeviceStorageRequestChild(DOMRequest* aRequest,
                                                      DeviceStorageFile* aFile)
   : mRequest(aRequest)
   , mFile(aFile)
-  , mCallback(nullptr)
 {
   MOZ_COUNT_CTOR(DeviceStorageRequestChild);
 }
@@ -35,11 +33,6 @@ DeviceStorageRequestChild::~DeviceStorageRequestChild() {
 bool
 DeviceStorageRequestChild::Recv__delete__(const DeviceStorageResponseValue& aValue)
 {
-  if (mCallback) {
-    mCallback->RequestComplete();
-    mCallback = nullptr;
-  }
-
   switch (aValue.type()) {
 
     case DeviceStorageResponseValue::TErrorResponse:
@@ -62,8 +55,7 @@ DeviceStorageRequestChild::Recv__delete__(const DeviceStorageResponseValue& aVal
       BlobChild* actor = static_cast<BlobChild*>(r.blobChild());
       nsCOMPtr<nsIDOMBlob> blob = actor->GetBlob();
 
-      nsCOMPtr<nsIDOMFile> file = do_QueryInterface(blob);
-      jsval result = InterfaceToJsval(mRequest->GetOwner(), file, &NS_GET_IID(nsIDOMFile));
+      jsval result = InterfaceToJsval(mRequest->GetOwner(), blob, &NS_GET_IID(nsIDOMBlob));
       mRequest->FireSuccess(result);
       break;
     }
@@ -72,7 +64,7 @@ DeviceStorageRequestChild::Recv__delete__(const DeviceStorageResponseValue& aVal
     {
       StatStorageResponse r = aValue;
 
-      nsRefPtr<nsIDOMDeviceStorageStat> domstat = new nsDOMDeviceStorageStat(r.freeBytes(), r.totalBytes(), r.mountState());
+      nsRefPtr<nsIDOMDeviceStorageStat> domstat = new nsDOMDeviceStorageStat(r.freeBytes(), r.totalBytes());
       jsval result = InterfaceToJsval(mRequest->GetOwner(), domstat, &NS_GET_IID(nsIDOMDeviceStorageStat));
       mRequest->FireSuccess(result);
       break;
@@ -83,21 +75,21 @@ DeviceStorageRequestChild::Recv__delete__(const DeviceStorageResponseValue& aVal
       EnumerationResponse r = aValue;
       nsDOMDeviceStorageCursor* cursor = static_cast<nsDOMDeviceStorageCursor*>(mRequest.get());
 
-      uint32_t count = r.paths().Length();
-      for (uint32_t i = 0; i < count; i++) {
+      PRUint32 count = r.paths().Length();
+      for (PRUint32 i = 0; i < count; i++) {
         nsCOMPtr<nsIFile> f;
         nsresult rv = NS_NewLocalFile(r.paths()[i].fullpath(), false, getter_AddRefs(f));
         if (NS_FAILED(rv)) {
           continue;
         }
 
-        nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(r.paths()[i].type(), f);
+        nsRefPtr<DeviceStorageFile> dsf = new DeviceStorageFile(f);
         dsf->SetPath(r.paths()[i].name());
         cursor->mFiles.AppendElement(dsf);
       }
 
       nsCOMPtr<ContinueCursorEvent> event = new ContinueCursorEvent(cursor);
-      event->Continue();
+      NS_DispatchToMainThread(event);
       break;
     }
 
@@ -110,11 +102,6 @@ DeviceStorageRequestChild::Recv__delete__(const DeviceStorageResponseValue& aVal
   return true;
 }
 
-void
-DeviceStorageRequestChild::SetCallback(DeviceStorageRequestChildCallback *aCallback)
-{
-  mCallback = aCallback;
-}
 
 } // namespace devicestorage
 } // namespace dom

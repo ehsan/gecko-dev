@@ -1,11 +1,5 @@
-
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import('resource://gre/modules/CSPUtils.jsm');
-Cu.import("resource://testing-common/httpd.js");
+Components.utils.import('resource://gre/modules/CSPUtils.jsm');
+do_load_httpd_js();
 
 var httpserv = null;
 
@@ -22,9 +16,9 @@ var TESTS = [];
 
 // helper to make URIs
 function mkuri(foo) {
-  return Cc["@mozilla.org/network/io-service;1"]
-           .getService(Ci.nsIIOService)
-           .newURI(foo, null, null);
+  return Components.classes["@mozilla.org/network/io-service;1"]
+                           .getService(Components.interfaces.nsIIOService)
+                           .newURI(foo, null, null);
 }
 
 // helper to use .equals on stuff
@@ -93,7 +87,7 @@ listener.prototype = {
 };
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.registerPathHandler("/document", csp_doc_response);
   httpserv.registerPathHandler("/policy", csp_policy_response);
   httpserv.start(POLICY_PORT);

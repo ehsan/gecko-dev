@@ -23,7 +23,7 @@
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsDOMClassInfoID.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsContentUtils.h"
 #include "nsISHistoryInternal.h"
 #include "mozilla/Preferences.h"
@@ -63,7 +63,7 @@ NS_IMPL_RELEASE(nsHistory)
 
 
 NS_IMETHODIMP
-nsHistory::GetLength(int32_t* aLength)
+nsHistory::GetLength(PRInt32* aLength)
 {
   nsCOMPtr<nsISHistory>   sHistory;
 
@@ -79,8 +79,8 @@ nsHistory::GetCurrent(nsAString& aCurrent)
   if (!nsContentUtils::IsCallerTrustedForRead())
     return NS_ERROR_DOM_SECURITY_ERR;
 
-  int32_t curIndex=0;
-  nsAutoCString curURL;
+  PRInt32 curIndex=0;
+  nsCAutoString curURL;
   nsCOMPtr<nsISHistory> sHistory;
 
   // Get SessionHistory from docshell
@@ -111,8 +111,8 @@ nsHistory::GetPrevious(nsAString& aPrevious)
   if (!nsContentUtils::IsCallerTrustedForRead())
     return NS_ERROR_DOM_SECURITY_ERR;
 
-  int32_t curIndex;
-  nsAutoCString prevURL;
+  PRInt32 curIndex;
+  nsCAutoString prevURL;
   nsCOMPtr<nsISHistory>  sHistory;
 
   // Get session History from docshell
@@ -143,8 +143,8 @@ nsHistory::GetNext(nsAString& aNext)
   if (!nsContentUtils::IsCallerTrustedForRead())
     return NS_ERROR_DOM_SECURITY_ERR;
 
-  int32_t curIndex;
-  nsAutoCString nextURL;
+  PRInt32 curIndex;
+  nsCAutoString nextURL;
   nsCOMPtr<nsISHistory>  sHistory;
 
   // Get session History from docshell
@@ -202,7 +202,7 @@ nsHistory::Forward()
 }
 
 NS_IMETHODIMP
-nsHistory::Go(int32_t aDelta)
+nsHistory::Go(PRInt32 aDelta)
 {
   if (aDelta == 0) {
     nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(GetDocShell()));
@@ -238,12 +238,12 @@ nsHistory::Go(int32_t aDelta)
   nsCOMPtr<nsIWebNavigation> webnav(do_QueryInterface(session_history));
   NS_ENSURE_TRUE(webnav, NS_ERROR_FAILURE);
 
-  int32_t curIndex=-1;
-  int32_t len = 0;
+  PRInt32 curIndex=-1;
+  PRInt32 len = 0;
   session_history->GetIndex(&curIndex);
   session_history->GetCount(&len);
 
-  int32_t index = curIndex + aDelta;
+  PRInt32 index = curIndex + aDelta;
   if (index > -1  &&  index < len)
     webnav->GotoIndex(index);
 
@@ -332,7 +332,7 @@ nsHistory::GetState(nsIVariant **aState)
 }
 
 NS_IMETHODIMP
-nsHistory::Item(uint32_t aIndex, nsAString& aReturn)
+nsHistory::Item(PRUint32 aIndex, nsAString& aReturn)
 {
   aReturn.Truncate();
   if (!nsContentUtils::IsCallerTrustedForRead()) {
@@ -356,7 +356,7 @@ nsHistory::Item(uint32_t aIndex, nsAString& aReturn)
   }
 
   if (uri) {
-    nsAutoCString urlCString;
+    nsCAutoString urlCString;
     rv = uri->GetSpec(urlCString);
 
     CopyUTF8toUTF16(urlCString, aReturn);

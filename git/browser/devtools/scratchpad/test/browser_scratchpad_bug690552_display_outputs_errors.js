@@ -36,8 +36,7 @@ function runTests()
   scratchpad.setText(error);
   scratchpad.display();
   is(scratchpad.getText(), 
-      error + openComment +
-      "Exception: Ouch!\n@" + scratchpad.uniqueName + ":1" + closeComment,
+      error + openComment + "Exception: Ouch!\n@Scratchpad:1" + closeComment,
       "error display output");
 
   scratchpad.setText(message);
@@ -47,8 +46,7 @@ function runTests()
   scratchpad.setText(error);
   scratchpad.run();
   is(scratchpad.getText(), 
-      error + openComment +
-      "Exception: Ouch!\n@" + scratchpad.uniqueName + ":1" + closeComment,
+      error + openComment + "Exception: Ouch!\n@Scratchpad:1" + closeComment,
       "error display output");
 
   finish();

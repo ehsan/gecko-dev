@@ -70,12 +70,6 @@ BrowserElementChild.prototype = {
     debug("Starting up.");
     sendAsyncMsg("hello");
 
-    // Set the docshell's name according to our <iframe>'s name attribute.
-    docShell.QueryInterface(Ci.nsIDocShellTreeItem).name =
-      sendSyncMsg('get-name')[0];
-
-    docShell.setFullscreenAllowed(sendSyncMsg('get-fullscreen-allowed')[0]);
-
     BrowserElementPromptService.mapWindowToBrowserElementChild(content, this);
 
     docShell.QueryInterface(Ci.nsIWebProgress)
@@ -93,6 +87,26 @@ BrowserElementChild.prototype = {
                        .createInstance(Ci.nsISecureBrowserUI);
     securityUI.init(content);
 
+    // A mozbrowser iframe contained inside a mozapp iframe should return false
+    // for nsWindowUtils::IsPartOfApp (unless the mozbrowser iframe is itself
+    // also mozapp).  That is, mozapp is transitive down to its children, but
+    // mozbrowser serves as a barrier.
+    //
+    // This is because mozapp iframes have some privileges which we don't want
+    // to extend to untrusted mozbrowser content.
+    //
+    // Get the app manifest from the parent, if our frame has one.
+    let appManifestURL = sendSyncMsg('get-mozapp-manifest-url')[0];
+    let windowUtils = content.QueryInterface(Ci.nsIInterfaceRequestor)
+                             .getInterface(Ci.nsIDOMWindowUtils);
+
+    if (!!appManifestURL) {
+      windowUtils.setIsApp(true);
+      windowUtils.setApp(appManifestURL);
+    } else {
+      windowUtils.setIsApp(false);
+    }
+
     // A cache of the menuitem dom objects keyed by the id we generate
     // and pass to the embedder
     this._ctxHandlers = {};
@@ -106,12 +120,6 @@ BrowserElementChild.prototype = {
 
     addEventListener('DOMLinkAdded',
                      this._iconChangedHandler.bind(this),
-                     /* useCapture = */ true,
-                     /* wantsUntrusted = */ false);
-
-    this._afterPaintHandlerClosure = this._afterPaintHandler.bind(this);
-    addEventListener('MozAfterPaint',
-                     this._afterPaintHandlerClosure,
                      /* useCapture = */ true,
                      /* wantsUntrusted = */ false);
 
@@ -359,19 +367,6 @@ BrowserElementChild.prototype = {
     }
   },
 
-  _afterPaintHandler: function(e) {
-    let uri = docShell.QueryInterface(Ci.nsIWebNavigation).currentURI;
-    debug("Got afterpaint event: " + uri.spec);
-    if (uri.spec != "about:blank") {
-      /* this._afterPaintHandlerClosure == arguments.callee, except we're in
-       * strict mode so we don't have arguments.callee. */
-      removeEventListener('MozAfterPaint', this._afterPaintHandlerClosure,
-                          /* useCapture */ true);
-
-      sendAsyncMsg('firstpaint');
-    }
-  },
-
   _closeHandler: function(e) {
     let win = e.target;
     if (win != content || e.defaultPrevented) {
@@ -401,7 +396,7 @@ BrowserElementChild.prototype = {
     var menuData = {systemTargets: [], contextmenu: null};
     var ctxMenuId = null;
 
-    while (elem && elem.parentNode) {
+    while (elem && elem.hasAttribute) {
       var ctxData = this._getSystemCtxMenuData(elem);
       if (ctxData) {
         menuData.systemTargets.push({
@@ -410,7 +405,7 @@ BrowserElementChild.prototype = {
         });
       }
 
-      if (!ctxMenuId && 'hasAttribute' in elem && elem.hasAttribute('contextmenu')) {
+      if (!ctxMenuId && elem.hasAttribute('contextmenu')) {
         ctxMenuId = elem.getAttribute('contextmenu');
       }
       elem = elem.parentNode;
@@ -452,56 +447,17 @@ BrowserElementChild.prototype = {
 
   _recvGetScreenshot: function(data) {
     debug("Received getScreenshot message: (" + data.json.id + ")");
-
-    // You can think of the screenshotting algorithm as carrying out the
-    // following steps:
-    //
-    // - Let max-width be data.json.args.width, and let max-height be
-    //   data.json.args.height.
-    //
-    // - Let scale-width be the factor by which we'd need to downscale the
-    //   viewport so it would fit within max-width.  (If the viewport's width
-    //   is less than max-width, let scale-width be 1.) Compute scale-height
-    //   the same way.
-    //
-    // - Scale the viewport by max(scale-width, scale-height).  Now either the
-    //   viewport's width is no larger than max-width, the viewport's height is
-    //   no larger than max-height, or both.
-    //
-    // - Crop the viewport so its width is no larger than max-width and its
-    //   height is no larger than max-height.
-    //
-    // - Return a screenshot of the page's viewport scaled and cropped per
-    //   above.
-
-    let maxWidth = data.json.args.width;
-    let maxHeight = data.json.args.height;
-
-    let scaleWidth = Math.min(1, maxWidth / content.innerWidth);
-    let scaleHeight = Math.min(1, maxHeight / content.innerHeight);
-
-    let scale = Math.max(scaleWidth, scaleHeight);
-
-    let canvasWidth = Math.min(maxWidth, Math.round(content.innerWidth * scale));
-    let canvasHeight = Math.min(maxHeight, Math.round(content.innerHeight * scale));
-
     var canvas = content.document
       .createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-    canvas.mozOpaque = true;
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
-
     var ctx = canvas.getContext("2d");
-    ctx.scale(scale, scale);
-    ctx.drawWindow(content, 0, 0, content.innerWidth, content.innerHeight,
-                   "rgb(255,255,255)");
-
+    canvas.mozOpaque = true;
+    canvas.height = content.innerHeight;
+    canvas.width = content.innerWidth;
+    ctx.drawWindow(content, 0, 0, content.innerWidth,
+                   content.innerHeight, "rgb(255,255,255)");
     sendAsyncMsg('got-screenshot', {
       id: data.json.id,
-      // Hack around the fact that we can't specify opaque PNG, this requires
-      // us to unpremultiply the alpha channel which is expensive on ARM
-      // processors because they lack a hardware integer division instruction.
-      successRv: canvas.toDataURL("image/jpeg")
+      rv: canvas.toDataURL("image/png")
     });
   },
 
@@ -586,7 +542,7 @@ BrowserElementChild.prototype = {
     var webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
     sendAsyncMsg('got-can-go-back', {
       id: data.json.id,
-      successRv: webNav.canGoBack
+      rv: webNav.canGoBack
     });
   },
 
@@ -594,7 +550,7 @@ BrowserElementChild.prototype = {
     var webNav = docShell.QueryInterface(Ci.nsIWebNavigation);
     sendAsyncMsg('got-can-go-forward', {
       id: data.json.id,
-      successRv: webNav.canGoForward
+      rv: webNav.canGoForward
     });
   },
 
@@ -660,10 +616,6 @@ BrowserElementChild.prototype = {
         return;
       }
 
-      // Remove password and wyciwyg from uri.
-      location = Cc["@mozilla.org/docshell/urifixup;1"]
-        .getService(Ci.nsIURIFixup).createExposableURI(location);
-
       sendAsyncMsg('locationchange', location.spec);
     },
 
@@ -720,18 +672,6 @@ BrowserElementChild.prototype = {
     onProgressChange: function(webProgress, request, curSelfProgress,
                                maxSelfProgress, curTotalProgress, maxTotalProgress) {},
   },
-
-  // Expose the message manager for WebApps and others.
-  _messageManagerPublic: {
-    sendAsyncMessage: global.sendAsyncMessage.bind(global),
-    sendSyncMessage: global.sendSyncMessage.bind(global),
-    addMessageListener: global.addMessageListener.bind(global),
-    removeMessageListener: global.removeMessageListener.bind(global)
-  },
-
-  get messageManager() {
-    return this._messageManagerPublic;
-  }
 };
 
 var api = new BrowserElementChild();

@@ -7,6 +7,7 @@
 #define nsPluginTags_h_
 
 #include "nscore.h"
+#include "prtypes.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
@@ -14,7 +15,6 @@
 #include "nsNPAPIPluginInstance.h"
 #include "nsISupportsArray.h"
 #include "nsITimer.h"
-#include "nsIDOMMimeType.h"
 
 class nsPluginHost;
 struct PRLibrary;
@@ -47,17 +47,17 @@ public:
               const char* const* aMimeTypes,
               const char* const* aMimeDescriptions,
               const char* const* aExtensions,
-              int32_t aVariants,
-              int64_t aLastModifiedTime = 0,
+              PRInt32 aVariants,
+              PRInt64 aLastModifiedTime = 0,
               bool aArgsAreUTF8 = false);
   virtual ~nsPluginTag();
   
   void SetHost(nsPluginHost * aHost);
   void TryUnloadPlugin(bool inShutdown);
-  void Mark(uint32_t mask);
-  void UnMark(uint32_t mask);
-  bool HasFlag(uint32_t flag);
-  uint32_t Flags();
+  void Mark(PRUint32 mask);
+  void UnMark(PRUint32 mask);
+  bool HasFlag(PRUint32 flag);
+  PRUint32 Flags();
   bool HasSameNameAndMimes(const nsPluginTag *aPluginTag) const;
   bool IsEnabled();
   
@@ -75,62 +75,16 @@ public:
   nsCString     mFileName; // UTF-8
   nsCString     mFullPath; // UTF-8
   nsCString     mVersion;  // UTF-8
-  int64_t       mLastModifiedTime;
+  PRInt64       mLastModifiedTime;
   nsCOMPtr<nsITimer> mUnloadTimer;
 private:
-  uint32_t      mFlags;
+  PRUint32      mFlags;
 
   void InitMime(const char* const* aMimeTypes,
                 const char* const* aMimeDescriptions,
                 const char* const* aExtensions,
-                uint32_t aVariantCount);
+                PRUint32 aVariantCount);
   nsresult EnsureMembersAreUTF8();
-};
-
-class DOMMimeTypeImpl : public nsIDOMMimeType {
-public:
-  NS_DECL_ISUPPORTS
-
-  DOMMimeTypeImpl(nsPluginTag* aTag, uint32_t aMimeTypeIndex)
-  {
-    if (!aTag)
-      return;
-    CopyUTF8toUTF16(aTag->mMimeDescriptions[aMimeTypeIndex], mDescription);
-    CopyUTF8toUTF16(aTag->mExtensions[aMimeTypeIndex], mSuffixes);
-    CopyUTF8toUTF16(aTag->mMimeTypes[aMimeTypeIndex], mType);
-  }
-
-  virtual ~DOMMimeTypeImpl() {
-  }
-
-  NS_METHOD GetDescription(nsAString& aDescription)
-  {
-    aDescription.Assign(mDescription);
-    return NS_OK;
-  }
-
-  NS_METHOD GetEnabledPlugin(nsIDOMPlugin** aEnabledPlugin)
-  {
-    // this has to be implemented by the DOM version.
-    *aEnabledPlugin = nullptr;
-    return NS_OK;
-  }
-
-  NS_METHOD GetSuffixes(nsAString& aSuffixes)
-  {
-    aSuffixes.Assign(mSuffixes);
-    return NS_OK;
-  }
-
-  NS_METHOD GetType(nsAString& aType)
-  {
-    aType.Assign(mType);
-    return NS_OK;
-  }
-private:
-  nsString mDescription;
-  nsString mSuffixes;
-  nsString mType;
 };
 
 #endif // nsPluginTags_h_

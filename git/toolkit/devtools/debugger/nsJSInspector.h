@@ -23,7 +23,7 @@ public:
 private:
   ~nsJSInspector();
 
-  uint32_t mNestedLoopLevel;
+  PRUint32 mNestedLoopLevel;
 };
 
 }

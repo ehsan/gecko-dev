@@ -112,7 +112,7 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
 
 nsresult
 nsHtml5TreeOperation::AppendTextToTextNode(const PRUnichar* aBuffer,
-                                           uint32_t aLength,
+                                           PRUint32 aLength,
                                            nsIContent* aTextNode,
                                            nsHtml5TreeOpExecutor* aBuilder)
 {
@@ -122,7 +122,7 @@ nsHtml5TreeOperation::AppendTextToTextNode(const PRUnichar* aBuffer,
     // This text node has already been notified on, so it's necessary to
     // notify on the append
     nsresult rv = NS_OK;
-    uint32_t oldLength = aTextNode->TextLength();
+    PRUint32 oldLength = aTextNode->TextLength();
     CharacterDataChangeInfo info = {
       true,
       oldLength,
@@ -144,7 +144,7 @@ nsHtml5TreeOperation::AppendTextToTextNode(const PRUnichar* aBuffer,
 
 nsresult
 nsHtml5TreeOperation::AppendText(const PRUnichar* aBuffer,
-                                 uint32_t aLength,
+                                 PRUint32 aLength,
                                  nsIContent* aParent,
                                  nsHtml5TreeOpExecutor* aBuilder)
 {
@@ -191,7 +191,7 @@ nsHtml5TreeOperation::Append(nsIContent* aNode,
   // The parent has been moved to another doc
   parentDoc->BeginUpdate(UPDATE_CONTENT_MODEL);
 
-  uint32_t childCount = aParent->GetChildCount();
+  PRUint32 childCount = aParent->GetChildCount();
   rv = aParent->AppendChildTo(aNode, false);
   if (NS_SUCCEEDED(rv)) {
     nsNodeUtils::ContentAppended(aParent, aNode, childCount);
@@ -207,7 +207,7 @@ nsHtml5TreeOperation::AppendToDocument(nsIContent* aNode,
   nsresult rv = NS_OK;
   aBuilder->FlushPendingAppendNotifications();
   nsIDocument* doc = aBuilder->GetDocument();
-  uint32_t childCount = doc->GetChildCount();
+  PRUint32 childCount = doc->GetChildCount();
   rv = doc->AppendChildTo(aNode, false);
   NS_ENSURE_SUCCESS(rv, rv);
   nsNodeUtils::ContentInserted(doc, aNode, childCount);
@@ -239,7 +239,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       if (parent) {
         nsHtml5OtherDocUpdate update(parent->OwnerDoc(),
                                      aBuilder->GetDocument());
-        int32_t pos = parent->IndexOf(node);
+        PRInt32 pos = parent->IndexOf(node);
         NS_ASSERTION((pos >= 0), "Element not found as child of its parent");
         parent->RemoveChildAt(pos, true);
       }
@@ -253,7 +253,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsHtml5OtherDocUpdate update(parent->OwnerDoc(),
                                    aBuilder->GetDocument());
 
-      uint32_t childCount = parent->GetChildCount();
+      PRUint32 childCount = parent->GetChildCount();
       bool didAppend = false;
       while (node->HasChildren()) {
         nsCOMPtr<nsIContent> child = node->GetFirstChild();
@@ -280,7 +280,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         nsHtml5OtherDocUpdate update(foster->OwnerDoc(),
                                      aBuilder->GetDocument());
 
-        uint32_t pos = foster->IndexOf(table);
+        PRUint32 pos = foster->IndexOf(table);
         rv = foster->InsertChildAt(node, pos, false);
         NS_ENSURE_SUCCESS(rv, rv);
         nsNodeUtils::ContentInserted(foster, node, pos);
@@ -300,22 +300,17 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsHtml5OtherDocUpdate update(node->OwnerDoc(),
                                    aBuilder->GetDocument());
 
-      int32_t len = attributes->getLength();
-      for (int32_t i = len; i > 0;) {
+      PRInt32 len = attributes->getLength();
+      for (PRInt32 i = len; i > 0;) {
         --i;
         // prefix doesn't need regetting. it is always null or a static atom
         // local name is never null
-        nsCOMPtr<nsIAtom> localName =
-          Reget(attributes->getLocalNameNoBoundsCheck(i));
-        int32_t nsuri = attributes->getURINoBoundsCheck(i);
+        nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));
+        PRInt32 nsuri = attributes->getURI(i);
         if (!node->HasAttr(nsuri, localName)) {
           // prefix doesn't need regetting. it is always null or a static atom
           // local name is never null
-          node->SetAttr(nsuri,
-                        localName,
-                        attributes->getPrefixNoBoundsCheck(i),
-                        *(attributes->getValueNoBoundsCheck(i)),
-                        true);
+          node->SetAttr(nsuri, localName, attributes->getPrefix(i), *(attributes->getValue(i)), true);
           // XXX what to do with nsresult?
         }
       }
@@ -325,7 +320,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpCreateElementNetwork:
     case eTreeOpCreateElementNotNetwork: {
       nsIContent** target = mOne.node;
-      int32_t ns = mFour.integer;
+      PRInt32 ns = mFour.integer;
       nsCOMPtr<nsIAtom> name = Reget(mTwo.atom);
       nsHtml5HtmlAttributes* attributes = mThree.attributes;
       
@@ -380,7 +375,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                                                       kNameSpaceID_XHTML,
                                                       nsIDOMNode::ELEMENT_NODE);
                                                       
-        for (uint32_t i = 0; i < theContent.Length(); ++i) {
+        for (PRUint32 i = 0; i < theContent.Length(); ++i) {
           nsCOMPtr<nsIContent> optionElt;
           nsCOMPtr<nsINodeInfo> ni = optionNodeInfo;
           NS_NewElement(getter_AddRefs(optionElt), 
@@ -404,31 +399,24 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         return rv;
       }
 
-      int32_t len = attributes->getLength();
-      for (int32_t i = len; i > 0;) {
+      PRInt32 len = attributes->getLength();
+      for (PRInt32 i = len; i > 0;) {
         --i;
         // prefix doesn't need regetting. it is always null or a static atom
         // local name is never null
-        nsCOMPtr<nsIAtom> localName =
-          Reget(attributes->getLocalNameNoBoundsCheck(i));
+        nsCOMPtr<nsIAtom> localName = Reget(attributes->getLocalName(i));
         if (ns == kNameSpaceID_XHTML &&
             nsHtml5Atoms::a == name &&
             nsHtml5Atoms::name == localName) {
           // This is an HTML5-incompliant Geckoism.
           // Remove when fixing bug 582361
-          NS_ConvertUTF16toUTF8 cname(*(attributes->getValueNoBoundsCheck(i)));
+          NS_ConvertUTF16toUTF8 cname(*(attributes->getValue(i)));
           NS_ConvertUTF8toUTF16 uv(nsUnescape(cname.BeginWriting()));
-          newContent->SetAttr(attributes->getURINoBoundsCheck(i),
-                              localName,
-                              attributes->getPrefixNoBoundsCheck(i),
-                              uv,
-                              false);
+          newContent->SetAttr(attributes->getURI(i), localName,
+              attributes->getPrefix(i), uv, false);
         } else {
-          newContent->SetAttr(attributes->getURINoBoundsCheck(i),
-                              localName,
-                              attributes->getPrefixNoBoundsCheck(i),
-                              *(attributes->getValueNoBoundsCheck(i)),
-                              false);
+          newContent->SetAttr(attributes->getURI(i), localName,
+              attributes->getPrefix(i), *(attributes->getValue(i)), false);
         }
       }
 
@@ -452,7 +440,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpAppendText: {
       nsIContent* parent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      uint32_t length = mFour.integer;
+      PRUint32 length = mFour.integer;
       return AppendText(buffer, length, parent, aBuilder);
     }
     case eTreeOpAppendIsindexPrompt: {
@@ -461,7 +449,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsresult rv =
           nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
                                              "IsIndexPromptWithSpace", prompt);
-      uint32_t len = prompt.Length();
+      PRUint32 len = prompt.Length();
       if (NS_FAILED(rv)) {
         return rv;
       }
@@ -474,7 +462,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpFosterParentText: {
       nsIContent* stackParent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      uint32_t length = mFour.integer;
+      PRUint32 length = mFour.integer;
       nsIContent* table = *mThree.node;
       
       nsIContent* foster = table->GetParent();
@@ -485,7 +473,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         nsHtml5OtherDocUpdate update(foster->OwnerDoc(),
                                      aBuilder->GetDocument());
 
-        uint32_t pos = foster->IndexOf(table);
+        PRUint32 pos = foster->IndexOf(table);
 
         nsIContent* previousSibling = table->GetPreviousSibling();
         if (previousSibling && previousSibling->IsNodeOfType(nsINode::eTEXT)) {
@@ -512,7 +500,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpAppendComment: {
       nsIContent* parent = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      int32_t length = mFour.integer;
+      PRInt32 length = mFour.integer;
       
       nsCOMPtr<nsIContent> comment;
       NS_NewCommentNode(getter_AddRefs(comment), aBuilder->GetNodeInfoManager());
@@ -524,7 +512,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpAppendCommentToDocument: {
       PRUnichar* buffer = mTwo.unicharPtr;
-      int32_t length = mFour.integer;
+      PRInt32 length = mFour.integer;
       
       nsCOMPtr<nsIContent> comment;
       NS_NewCommentNode(getter_AddRefs(comment), aBuilder->GetNodeInfoManager());
@@ -597,16 +585,16 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpSetDocumentCharset: {
       char* str = mOne.charPtr;
-      int32_t charsetSource = mFour.integer;
+      PRInt32 charsetSource = mFour.integer;
       nsDependentCString dependentString(str);
       aBuilder->SetDocumentCharsetAndSource(dependentString, charsetSource);
       return rv;
     }
     case eTreeOpNeedsCharsetSwitchTo: {
       char* str = mOne.charPtr;
-      int32_t charsetSource = mFour.integer;
-      int32_t lineNumber = mTwo.integer;
-      aBuilder->NeedsCharsetSwitchTo(str, charsetSource, (uint32_t)lineNumber);
+      PRInt32 charsetSource = mFour.integer;
+      PRInt32 lineNumber = mTwo.integer;
+      aBuilder->NeedsCharsetSwitchTo(str, charsetSource, (PRUint32)lineNumber);
       return rv;    
     }
     case eTreeOpUpdateStyleSheet: {
@@ -673,8 +661,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpMaybeComplainAboutCharset: {
       char* msgId = mOne.charPtr;
       bool error = mTwo.integer;
-      int32_t lineNumber = mThree.integer;
-      aBuilder->MaybeComplainAboutCharset(msgId, error, (uint32_t)lineNumber);
+      PRInt32 lineNumber = mThree.integer;
+      aBuilder->MaybeComplainAboutCharset(msgId, error, (PRUint32)lineNumber);
       return rv;
     }
     case eTreeOpAddClass: {
@@ -695,7 +683,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpAddLineNumberId: {
       nsIContent* node = *(mOne.node);
-      int32_t lineNumber = mFour.integer;
+      PRInt32 lineNumber = mFour.integer;
       nsAutoString val(NS_LITERAL_STRING("line"));
       val.AppendInt(lineNumber);
       node->SetAttr(kNameSpaceID_None, nsGkAtoms::id, val, true);
@@ -704,7 +692,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpAddViewSourceHref: {
       nsIContent* node = *mOne.node;
       PRUnichar* buffer = mTwo.unicharPtr;
-      int32_t length = mFour.integer;
+      PRInt32 length = mFour.integer;
 
       nsDependentString relative(buffer, length);
 
@@ -731,7 +719,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         return NS_OK;
       }
 
-      nsAutoCString viewSourceUrl;
+      nsCAutoString viewSourceUrl;
 
       // URLs that return data (e.g. "http:" URLs) should be prefixed with
       // "view-source:".  URLs that don't return data should just be returned
@@ -745,7 +733,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         viewSourceUrl.AssignLiteral("view-source:");
       }
 
-      nsAutoCString spec;
+      nsCAutoString spec;
       uri->GetSpec(spec);
 
       viewSourceUrl.Append(spec);

@@ -61,33 +61,20 @@ class nsObjectLoadingContent : public nsImageLoadingContent
       eType_Null           = TYPE_NULL
     };
     enum FallbackType {
-      // The content type is not supported (e.g. plugin not installed)
-      eFallbackUnsupported = nsIObjectLoadingContent::PLUGIN_UNSUPPORTED,
-      // Showing alternate content
-      eFallbackAlternate = nsIObjectLoadingContent::PLUGIN_ALTERNATE,
-      // The plugin exists, but is disabled
-      eFallbackDisabled = nsIObjectLoadingContent::PLUGIN_DISABLED,
-      // The plugin is blocklisted and disabled
-      eFallbackBlocklisted = nsIObjectLoadingContent::PLUGIN_BLOCKLISTED,
-      // The plugin is considered outdated, but not disabled
-      eFallbackOutdated = nsIObjectLoadingContent::PLUGIN_OUTDATED,
-      // The plugin has crashed
-      eFallbackCrashed = nsIObjectLoadingContent::PLUGIN_CRASHED,
-      // Suppressed by security policy
-      eFallbackSuppressed = nsIObjectLoadingContent::PLUGIN_SUPPRESSED,
-      // Blocked by content policy
-      eFallbackUserDisabled = nsIObjectLoadingContent::PLUGIN_USER_DISABLED,
-      /// ** All values >= eFallbackClickToPlay are plugin placeholder types
-      ///    that would be replaced by a real plugin if activated (PlayPlugin())
-      // The plugin is disabled until the user clicks on it
-      eFallbackClickToPlay = nsIObjectLoadingContent::PLUGIN_CLICK_TO_PLAY,
-      // The plugin is vulnerable (update available)
-      eFallbackVulnerableUpdatable = nsIObjectLoadingContent::PLUGIN_VULNERABLE_UPDATABLE,
-      // The plugin is vulnerable (no update available)
-      eFallbackVulnerableNoUpdate = nsIObjectLoadingContent::PLUGIN_VULNERABLE_NO_UPDATE,
-      // The plugin is disabled and play preview content is displayed until
-      // the extension code enables it by sending the MozPlayPlugin event
-      eFallbackPlayPreview = nsIObjectLoadingContent::PLUGIN_PLAY_PREVIEW
+      eFallbackUnsupported,  // The content type is not supported (e.g. plugin 
+                             // not installed)
+      eFallbackAlternate,    // Showing alternate content
+      eFallbackDisabled,     // The plugin exists, but is disabled
+      eFallbackBlocklisted,  // The plugin is blocklisted and disabled
+      eFallbackOutdated,     // The plugin is considered outdated, but not
+                             // disabled
+      eFallbackCrashed,      // The plugin has crashed
+      eFallbackSuppressed,   // Suppressed by security policy
+      eFallbackUserDisabled, // Blocked by content policy
+      eFallbackClickToPlay,  // The plugin is disabled until the user clicks on
+                             // it
+      eFallbackVulnerableUpdatable, // The plugin is vulnerable (update avail)
+      eFallbackVulnerableNoUpdate  // The plugin is vulnerable (no update avail)
     };
 
     nsObjectLoadingContent();
@@ -99,6 +86,13 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     NS_DECL_NSIOBJECTLOADINGCONTENT
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSICHANNELEVENTSINK
+
+#ifdef HAVE_CPP_AMBIGUITY_RESOLVING_USING
+    // Fix gcc compile warnings
+    using nsImageLoadingContent::OnStartRequest;
+    using nsImageLoadingContent::OnDataAvailable;
+    using nsImageLoadingContent::OnStopRequest;
+#endif
 
     /**
      * Object state. This is a bitmask of NS_EVENT_STATEs epresenting the
@@ -194,7 +188,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * The default implementation supports all types but not
      * eSupportClassID or eAllowPluginSkipChannel
      */
-    virtual uint32_t GetCapabilities() const;
+    virtual PRUint32 GetCapabilities() const;
 
     /**
      * Destroys all loaded documents/plugins and releases references
@@ -224,14 +218,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
       eParamChannelChanged     = PR_BIT(0),
       // Parameters that affect displayed content changed
       // - mURI, mContentType, mType, mBaseURI
-      eParamStateChanged       = PR_BIT(1),
-      // The effective content type changed, independant of object type. This
-      // can happen when changing from Loading -> Final type, but doesn't
-      // necessarily happen when changing between object types. E.g., if a PDF
-      // handler was installed between the last load of this object and now, we
-      // might change from eType_Document -> eType_Plugin without changing
-      // ContentType
-      eParamContentTypeChanged = PR_BIT(2)
+      eParamStateChanged       = PR_BIT(1)
     };
 
     /**
@@ -280,8 +267,10 @@ class nsObjectLoadingContent : public nsImageLoadingContent
 
     /**
      * Opens the channel pointed to by mURI into mChannel.
+     *
+     * @param aPolicyType The value to be passed to channelPolicy->SetLoadType
      */
-    nsresult OpenChannel();
+    nsresult OpenChannel(PRInt32 aPolicyType);
 
     /**
      * Closes and releases references to mChannel and, if opened, mFinalListener
@@ -296,28 +285,35 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     bool ShouldPlay(FallbackType &aReason);
 
     /**
-     * If the object should display preview content for the current mContentType
+     * Checks if a URI passes security checks and content policy, relative to
+     * the current document's principal
+     *
+     * @param aURI                The URI to consider
+     * @param aContentPolicy      [in/out] A pointer to the initial content
+     *                            policy, that will be updated to contain the
+     *                            final determined policy
+     * @param aContentPolicyType  The 'contentType' parameter passed to
+     *                            NS_CheckContentLoadPolicy
+     *
+     * @return true if this URI is acceptable for loading
      */
-    bool ShouldPreview();
+    bool CheckURILoad(nsIURI *aURI,
+                      PRInt16 *aContentPolicy,
+                      PRInt32 aContentPolicyType);
 
     /**
-     * Helper to check if our current URI passes policy
+     * Checks if the current mURI and mBaseURI pass content policy and security
+     * checks for loading
      *
-     * @param aContentPolicy [out] The result of the content policy decision
+     * @param aContentPolicy     [in/out] A pointer to the initial content
+     *                           policy, that will be updated to contain the
+     *                           final determined policy if a URL is rejected
+     * @param aContentPolicyType The 'contentType' parameter passed to
+     *                           NS_CheckContentLoadPolicy
      *
-     * @return true if call succeeded and NS_CP_ACCEPTED(*aContentPolicy)
+     * @return true if the URIs are acceptable for loading
      */
-    bool CheckLoadPolicy(int16_t *aContentPolicy);
-
-    /**
-     * Helper to check if the object passes process policy. Assumes we have a
-     * final determined type.
-     *
-     * @param aContentPolicy [out] The result of the content policy decision
-     *
-     * @return true if call succeeded and NS_CP_ACCEPTED(*aContentPolicy)
-     */
-    bool CheckProcessPolicy(int16_t *aContentPolicy);
+    bool CheckObjectURIs(PRInt16 *aContentPolicy, PRInt32 aContentPolicyType);
 
     /**
      * Checks whether the given type is a supported document type
@@ -365,6 +361,16 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      *      click-to-play or other content policy checks
      */
     ObjectType GetTypeOfContent(const nsCString& aMIMEType);
+
+    /**
+     * For a classid, returns the MIME type that can be used to instantiate
+     * a plugin for this ID.
+     *
+     * @param aClassID The class ID in question
+     * @param aType    [out] The corresponding type, if the call is successful
+     * @return NS_ERROR_NOT_AVAILABLE Unsupported class ID.
+     */
+    nsresult TypeForClassID(const nsAString& aClassID, nsACString& aType);
 
     /**
      * Gets the frame that's associated with this content node.
@@ -432,9 +438,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     // Used to keep track of whether or not a plugin has been explicitly
     // activated by PlayPlugin(). (see ShouldPlay())
     bool                        mActivated : 1;
-
-    // Used to keep track of whether or not a plugin is blocked by play-preview.
-    bool                        mPlayPreviewCanceled : 1;
 
     // Protects DoStopPlugin from reentry (bug 724781).
     bool                        mIsStopping : 1;

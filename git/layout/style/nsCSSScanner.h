@@ -18,7 +18,6 @@
 
 // for #ifdef CSS_REPORT_PARSE_ERRORS
 #include "nsXPIDLString.h"
-#include "nsThreadUtils.h"
 class nsIURI;
 
 // Token types
@@ -76,8 +75,8 @@ enum nsCSSTokenType {
 struct nsCSSToken {
   nsAutoString    mIdent NS_OKONHEAP;
   float           mNumber;
-  int32_t         mInteger;
-  int32_t         mInteger2;
+  PRInt32         mInteger;
+  PRInt32         mInteger2;
   nsCSSTokenType  mType;
   PRUnichar       mSymbol;
   bool            mIntegerValid; // for number, dimension, urange
@@ -92,8 +91,6 @@ struct nsCSSToken {
   void AppendToString(nsString& aBuffer);
 };
 
-class DeferredCleanupRunnable; 
-
 // CSS Scanner API. Used to tokenize an input stream using the CSS
 // forward compatible tokenization rules. This implementation is
 // private to this package and is only used internally by the css
@@ -107,7 +104,7 @@ class nsCSSScanner {
   // |aLineNumber == 1| is the beginning of a file, use |aLineNumber == 0|
   // when the line number is unknown.
   void Init(const nsAString& aBuffer,
-            nsIURI* aURI, uint32_t aLineNumber,
+            nsIURI* aURI, PRUint32 aLineNumber,
             nsCSSStyleSheet* aSheet, mozilla::css::Loader* aLoader);
   void Close();
 
@@ -123,9 +120,6 @@ class nsCSSScanner {
   }
 
 #ifdef CSS_REPORT_PARSE_ERRORS
-  // Clean up any reclaimable cached resources.
-  void PerformDeferredCleanup();
-
   void AddToError(const nsSubstring& aErrorText);
   void OutputError();
   void ClearError();
@@ -134,14 +128,12 @@ class nsCSSScanner {
   void ReportUnexpected(const char* aMessage);
   
 private:
-  void Reset();
-
   void ReportUnexpectedParams(const char* aMessage,
                               const PRUnichar** aParams,
-                              uint32_t aParamsLength);
+                              PRUint32 aParamsLength);
 
 public:
-  template<uint32_t N>                           
+  template<PRUint32 N>                           
   void ReportUnexpectedParams(const char* aMessage,
                               const PRUnichar* (&aParams)[N])
     {
@@ -158,10 +150,10 @@ public:
   void ReportUnexpectedTokenParams(nsCSSToken& tok,
                                    const char* aMessage,
                                    const PRUnichar **aParams,
-                                   uint32_t aParamsLength);
+                                   PRUint32 aParamsLength);
 #endif
 
-  uint32_t GetLineNumber() { return mLineNumber; }
+  PRUint32 GetLineNumber() { return mLineNumber; }
 
   // Get the next token. Return false on EOF. aTokenResult
   // is filled in with the data for the token.
@@ -187,45 +179,44 @@ public:
   void StopRecording(nsString& aBuffer);
 
 protected:
-  int32_t Read();
-  int32_t Peek();
+  PRInt32 Read();
+  PRInt32 Peek();
   bool LookAhead(PRUnichar aChar);
   bool LookAheadOrEOF(PRUnichar aChar); // expect either aChar or EOF
   void EatWhiteSpace();
 
   bool ParseAndAppendEscape(nsString& aOutput, bool aInString);
-  bool ParseIdent(int32_t aChar, nsCSSToken& aResult);
-  bool ParseAtKeyword(nsCSSToken& aResult);
-  bool ParseNumber(int32_t aChar, nsCSSToken& aResult);
-  bool ParseRef(int32_t aChar, nsCSSToken& aResult);
-  bool ParseString(int32_t aChar, nsCSSToken& aResult);
-  bool ParseURange(int32_t aChar, nsCSSToken& aResult);
+  bool ParseIdent(PRInt32 aChar, nsCSSToken& aResult);
+  bool ParseAtKeyword(PRInt32 aChar, nsCSSToken& aResult);
+  bool ParseNumber(PRInt32 aChar, nsCSSToken& aResult);
+  bool ParseRef(PRInt32 aChar, nsCSSToken& aResult);
+  bool ParseString(PRInt32 aChar, nsCSSToken& aResult);
+  bool ParseURange(PRInt32 aChar, nsCSSToken& aResult);
   bool SkipCComment();
 
-  bool GatherIdent(int32_t aChar, nsString& aIdent);
+  bool GatherIdent(PRInt32 aChar, nsString& aIdent);
 
   const PRUnichar *mReadPointer;
-  uint32_t mOffset;
-  uint32_t mCount;
+  PRUint32 mOffset;
+  PRUint32 mCount;
   PRUnichar* mPushback;
-  int32_t mPushbackCount;
-  int32_t mPushbackSize;
+  PRInt32 mPushbackCount;
+  PRInt32 mPushbackSize;
   PRUnichar mLocalPushback[4];
 
-  uint32_t mLineNumber;
+  PRUint32 mLineNumber;
   // True if we are in SVG mode; false in "normal" CSS
   bool mSVGMode;
   bool mRecording;
-  uint32_t mRecordStartOffset;
+  PRUint32 mRecordStartOffset;
 
 #ifdef CSS_REPORT_PARSE_ERRORS
-  nsRevocableEventPtr<DeferredCleanupRunnable> mDeferredCleaner;
-  nsCOMPtr<nsIURI> mCachedURI;  // Used to invalidate the cached filename.
-  nsString mCachedFileName;
-  uint32_t mErrorLineNumber, mColNumber, mErrorColNumber;
+  nsXPIDLCString mFileName;
+  nsCOMPtr<nsIURI> mURI;  // Cached so we know to not refetch mFileName
+  PRUint32 mErrorLineNumber, mColNumber, mErrorColNumber;
   nsFixedString mError;
   PRUnichar mErrorBuf[200];
-  uint64_t mInnerWindowID;
+  PRUint64 mInnerWindowID;
   bool mWindowIDCached;
   nsCSSStyleSheet* mSheet;
   mozilla::css::Loader* mLoader;

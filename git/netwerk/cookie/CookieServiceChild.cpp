@@ -4,22 +4,18 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/net/CookieServiceChild.h"
-
-#include "mozilla/ipc/URIUtils.h"
 #include "mozilla/net/NeckoChild.h"
 #include "nsIURI.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 
-using namespace mozilla::ipc;
-
 namespace mozilla {
 namespace net {
 
 // Behavior pref constants
-static const int32_t BEHAVIOR_ACCEPT = 0;
-static const int32_t BEHAVIOR_REJECTFOREIGN = 1;
-static const int32_t BEHAVIOR_REJECT = 2;
+static const PRInt32 BEHAVIOR_ACCEPT = 0;
+static const PRInt32 BEHAVIOR_REJECTFOREIGN = 1;
+static const PRInt32 BEHAVIOR_REJECT = 2;
 
 // Pref string constants
 static const char kPrefCookieBehavior[] = "network.cookie.cookieBehavior";
@@ -75,7 +71,7 @@ CookieServiceChild::~CookieServiceChild()
 void
 CookieServiceChild::PrefChanged(nsIPrefBranch *aPrefBranch)
 {
-  int32_t val;
+  PRInt32 val;
   if (NS_SUCCEEDED(aPrefBranch->GetIntPref(kPrefCookieBehavior, &val)))
     mCookieBehavior =
       val >= BEHAVIOR_ACCEPT && val <= BEHAVIOR_REJECT ? val : BEHAVIOR_ACCEPT;
@@ -112,13 +108,9 @@ CookieServiceChild::GetCookieStringInternal(nsIURI *aHostURI,
   if (RequireThirdPartyCheck())
     mThirdPartyUtil->IsThirdPartyChannel(aChannel, aHostURI, &isForeign);
 
-  URIParams uriParams;
-  SerializeURI(aHostURI, uriParams);
-
   // Synchronously call the parent.
-  nsAutoCString result;
-  SendGetCookieString(uriParams, !!isForeign, aFromHttp,
-                      IPC::SerializedLoadContext(aChannel), &result);
+  nsCAutoString result;
+  SendGetCookieString(IPC::URI(aHostURI), !!isForeign, aFromHttp, &result);
   if (!result.IsEmpty())
     *aCookieString = ToNewCString(result);
 
@@ -145,12 +137,9 @@ CookieServiceChild::SetCookieStringInternal(nsIURI *aHostURI,
   if (aServerTime)
     serverTime.Rebind(aServerTime);
 
-  URIParams uriParams;
-  SerializeURI(aHostURI, uriParams);
-
   // Synchronously call the parent.
-  SendSetCookieString(uriParams, !!isForeign, cookieString, serverTime,
-                      aFromHttp, IPC::SerializedLoadContext(aChannel));
+  SendSetCookieString(IPC::URI(aHostURI), !!isForeign,
+                      cookieString, serverTime, aFromHttp);
   return NS_OK;
 }
 

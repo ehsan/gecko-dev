@@ -64,8 +64,8 @@ UpdateMenu(nsMenuX * aMenu)
   aMenu->MenuOpened();
   aMenu->MenuClosed();
 
-  uint32_t itemCount = aMenu->GetItemCount();
-  for (uint32_t i = 0; i < itemCount; i++) {
+  PRUint32 itemCount = aMenu->GetItemCount();
+  for (PRUint32 i = 0; i < itemCount; i++) {
     nsMenuObjectX * menuObject = aMenu->GetItemAt(i);
     if (menuObject->MenuObjectType() == eSubmenuObjectType) {
       UpdateMenu(static_cast<nsMenuX*>(menuObject));
@@ -175,7 +175,7 @@ nsStandaloneNativeMenu::ForceUpdateNativeMenuAt(const nsAString& indexString)
   for (unsigned int i = 1; currentMenu && i < indexCount; i++) {
     int targetIndex = [[indexes objectAtIndex:i] intValue];
     int visible = 0;
-    uint32_t length = currentMenu->GetItemCount();
+    PRUint32 length = currentMenu->GetItemCount();
     for (unsigned int j = 0; j < length; j++) {
       nsMenuObjectX* targetMenu = currentMenu->GetItemAt(j);
       if (!targetMenu)

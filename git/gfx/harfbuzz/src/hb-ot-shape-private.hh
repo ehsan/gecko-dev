@@ -34,8 +34,8 @@
 
 
 /* buffer var allocations, used during the entire shaping process */
-#define unicode_props0()	var2.u8[0]
-#define unicode_props1()	var2.u8[1]
+#define unicode_props0()	var1.u8[0]
+#define unicode_props1()	var1.u8[1]
 
 
 
@@ -93,12 +93,6 @@ inline hb_unicode_general_category_t
 _hb_glyph_info_get_general_category (const hb_glyph_info_t *info)
 {
   return (hb_unicode_general_category_t) (info->unicode_props0() & 0x7F);
-}
-
-inline void
-_hb_glyph_info_set_modified_combining_class (hb_glyph_info_t *info, unsigned int modified_class)
-{
-  info->unicode_props1() = modified_class;
 }
 
 inline unsigned int

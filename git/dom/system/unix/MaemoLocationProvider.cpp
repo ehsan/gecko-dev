@@ -67,7 +67,7 @@ void MaemoLocationProvider::LocationChanged(LocationGPSDevice* device, void* sel
     return;
 
   MaemoLocationProvider* provider = static_cast<MaemoLocationProvider*>(self);
-  NS_ENSURE_TRUE_VOID(provider);
+  NS_ENSURE_TRUE(provider, );
   provider->LocationUpdate(device);
 }
 
@@ -185,7 +185,7 @@ NS_IMETHODIMP MaemoLocationProvider::Startup()
     return NS_OK;
 
   // 0 second no timer created
-  int32_t update = Preferences::GetInt("geo.default.update", 0);
+  PRInt32 update = Preferences::GetInt("geo.default.update", 0);
 
   if (!update)
     return NS_OK;

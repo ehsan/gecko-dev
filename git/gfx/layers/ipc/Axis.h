@@ -44,27 +44,20 @@ public:
    * indicating how long it has been since the previous one. This triggers a
    * recalculation of velocity.
    */
-  void UpdateWithTouchAtDevicePoint(int32_t aPos, const TimeDuration& aTimeDelta);
+  void UpdateWithTouchAtDevicePoint(PRInt32 aPos, const TimeDuration& aTimeDelta);
 
   /**
    * Notify this Axis that a touch has begun, i.e. the user has put their finger
    * on the screen but has not yet tried to pan.
    */
-  void StartTouch(int32_t aPos);
+  void StartTouch(PRInt32 aPos);
 
   /**
-   * Notify this Axis that a touch has ended gracefully. This may perform
-   * recalculations of the axis velocity.
+   * Notify this Axis that a touch has ended. Useful for stopping flings when a
+   * user puts their finger down in the middle of one (i.e. to stop a previous
+   * touch including its fling so that a new one can take its place).
    */
-  void EndTouch();
-
-  /**
-   * Notify this Axis that a touch has ended forcefully. Useful for stopping
-   * flings when a user puts their finger down in the middle of one (i.e. to
-   * stop a previous touch including its fling so that a new one can take its
-   * place).
-   */
-  void CancelTouch();
+  void StopTouch();
 
   /**
    * Sets axis locking. This prevents any panning along this axis. If the
@@ -84,7 +77,7 @@ public:
    * apply a displacement that takes you to the boundary of the page, then call
    * it again. The result will be different in this case.
    */
-  float GetDisplacementForDuration(float aScale, const TimeDuration& aDelta);
+  PRInt32 GetDisplacementForDuration(float aScale, const TimeDuration& aDelta);
 
   /**
    * Gets the distance between the starting position of the touch supplied in
@@ -114,13 +107,7 @@ public:
    * in both directions, this returns 0; it assumes that you check
    * GetOverscroll() first.
    */
-  float GetExcess();
-
-  /**
-   * Gets the factor of acceleration applied to the velocity, based on the
-   * amount of flings that have been done successively.
-   */
-  float GetAccelerationFactor();
+  PRInt32 GetExcess();
 
   /**
    * Gets the raw velocity of this axis at this moment.
@@ -132,13 +119,13 @@ public:
    * That is to say, if the given displacement is applied, this will tell you
    * whether or not it will overscroll, and in what direction.
    */
-  Overscroll DisplacementWillOverscroll(int32_t aDisplacement);
+  Overscroll DisplacementWillOverscroll(PRInt32 aDisplacement);
 
   /**
    * If a displacement will overscroll the axis, this returns the amount and in
    * what direction. Similar to getExcess() but takes a displacement to apply.
    */
-  float DisplacementWillOverscrollAmount(int32_t aDisplacement);
+  PRInt32 DisplacementWillOverscrollAmount(PRInt32 aDisplacement);
 
   /**
    * Gets the overscroll state of the axis given a scaling of the page. That is
@@ -149,7 +136,7 @@ public:
    * scroll offset in such a way that it remains in the same place on the page
    * relative.
    */
-  Overscroll ScaleWillOverscroll(float aScale, int32_t aFocus);
+  Overscroll ScaleWillOverscroll(float aScale, PRInt32 aFocus);
 
   /**
    * If a scale will overscroll the axis, this returns the amount and in what
@@ -159,7 +146,7 @@ public:
    * scroll offset in such a way that it remains in the same place on the page
    * relative.
    */
-  float ScaleWillOverscrollAmount(float aScale, int32_t aFocus);
+  PRInt32 ScaleWillOverscrollAmount(float aScale, PRInt32 aFocus);
 
   /**
    * Checks if an axis will overscroll in both directions by computing the
@@ -170,27 +157,21 @@ public:
    */
   bool ScaleWillOverscrollBothSides(float aScale);
 
-  float GetOrigin();
-  float GetCompositionLength();
-  float GetPageStart();
-  float GetPageLength();
-  float GetCompositionEnd();
-  float GetPageEnd();
+  PRInt32 GetOrigin();
+  PRInt32 GetViewportLength();
+  PRInt32 GetPageStart();
+  PRInt32 GetPageLength();
+  PRInt32 GetViewportEnd();
+  PRInt32 GetPageEnd();
 
-  virtual float GetPointOffset(const gfx::Point& aPoint) = 0;
-  virtual float GetRectLength(const gfx::Rect& aRect) = 0;
-  virtual float GetRectOffset(const gfx::Rect& aRect) = 0;
+  virtual PRInt32 GetPointOffset(const nsIntPoint& aPoint) = 0;
+  virtual PRInt32 GetRectLength(const gfx::Rect& aRect) = 0;
+  virtual PRInt32 GetRectOffset(const gfx::Rect& aRect) = 0;
 
 protected:
-  int32_t mPos;
-  int32_t mStartPos;
+  PRInt32 mPos;
+  PRInt32 mStartPos;
   float mVelocity;
-  // Acceleration is represented by an int, which is the power we raise a
-  // constant to and then multiply the velocity by whenever it is sampled. We do
-  // this only when we detect that the user wants to do a fast fling; that is,
-  // they are flinging multiple times in a row very quickly, probably trying to
-  // reach one of the extremes of the page.
-  int32_t mAcceleration;
   nsRefPtr<AsyncPanZoomController> mAsyncPanZoomController;
   bool mLockPanning;
 };
@@ -198,17 +179,17 @@ protected:
 class AxisX : public Axis {
 public:
   AxisX(AsyncPanZoomController* mAsyncPanZoomController);
-  virtual float GetPointOffset(const gfx::Point& aPoint);
-  virtual float GetRectLength(const gfx::Rect& aRect);
-  virtual float GetRectOffset(const gfx::Rect& aRect);
+  virtual PRInt32 GetPointOffset(const nsIntPoint& aPoint);
+  virtual PRInt32 GetRectLength(const gfx::Rect& aRect);
+  virtual PRInt32 GetRectOffset(const gfx::Rect& aRect);
 };
 
 class AxisY : public Axis {
 public:
   AxisY(AsyncPanZoomController* mAsyncPanZoomController);
-  virtual float GetPointOffset(const gfx::Point& aPoint);
-  virtual float GetRectLength(const gfx::Rect& aRect);
-  virtual float GetRectOffset(const gfx::Rect& aRect);
+  virtual PRInt32 GetPointOffset(const nsIntPoint& aPoint);
+  virtual PRInt32 GetRectLength(const gfx::Rect& aRect);
+  virtual PRInt32 GetRectOffset(const gfx::Rect& aRect);
 };
 
 }

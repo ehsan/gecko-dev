@@ -59,7 +59,7 @@ public:
 
     inline uint32_t Count() {return mTable.count();}
 
-    inline void Dump(int16_t depth) {
+    inline void Dump(PRInt16 depth) {
         for (Map::Range r = mTable.all(); !r.empty(); r.popFront())
             r.front().value->DebugDump(depth);
     }
@@ -69,8 +69,9 @@ public:
     void ShutdownMarker(JSRuntime* rt);
 
     size_t SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf) {
-        size_t n = mallocSizeOf(this);
-        n += mTable.sizeOfExcludingThis(mallocSizeOf);
+        size_t n = 0;
+        n += mallocSizeOf(this);
+        n += mTable.sizeOfIncludingThis(mallocSizeOf);
         return n;
     }
 
@@ -545,7 +546,7 @@ public:
 
     static XPCNativeScriptableSharedMap* newMap(int size);
 
-    JSBool GetNewOrUsed(uint32_t flags, char* name, uint32_t interfacesBitmap,
+    JSBool GetNewOrUsed(uint32_t flags, char* name, PRUint32 interfacesBitmap,
                         XPCNativeScriptableInfo* si);
 
     inline uint32_t Count() {return mTable->entryCount;}

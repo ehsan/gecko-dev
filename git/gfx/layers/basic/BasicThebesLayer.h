@@ -37,9 +37,7 @@ public:
   {
     NS_ASSERTION(BasicManager()->InConstruction(),
                  "Can only set properties in construction phase");
-    mInvalidRegion.Or(mInvalidRegion, aRegion);
-    mInvalidRegion.SimplifyOutward(10);
-    mValidRegion.Sub(mValidRegion, mInvalidRegion);
+    mValidRegion.Sub(mValidRegion, aRegion);
   }
 
   virtual void PaintThebes(gfxContext* aContext,
@@ -123,7 +121,11 @@ public:
   {
     MOZ_COUNT_CTOR(BasicShadowableThebesLayer);
   }
-  virtual ~BasicShadowableThebesLayer();
+  virtual ~BasicShadowableThebesLayer()
+  {
+    DestroyBackBuffer();
+    MOZ_COUNT_DTOR(BasicShadowableThebesLayer);
+  }
 
   virtual void PaintThebes(gfxContext* aContext,
                            Layer* aMaskLayer,
@@ -165,6 +167,10 @@ private:
               LayerManager::DrawThebesLayerCallback aCallback,
               void* aCallbackData) MOZ_OVERRIDE;
 
+  // This function may *not* open the buffer it allocates.
+  void
+  AllocBackBuffer(Buffer::ContentType aType, const nsIntSize& aSize);
+
   virtual already_AddRefed<gfxASurface>
   CreateBuffer(Buffer::ContentType aType, const nsIntSize& aSize) MOZ_OVERRIDE;
 
@@ -191,6 +197,7 @@ private:
   bool mIsNewBuffer;
   OptionalThebesBuffer mROFrontBuffer;
   nsIntRegion mFrontUpdatedRegion;
+  nsIntRegion mFrontValidRegion;
   bool mFrontAndBackBufferDiffer;
 };
 

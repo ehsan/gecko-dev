@@ -6,15 +6,16 @@ var completed = false;
 
 function startTest() {
   if (completed)
-    return;
+    return false;
 
   v.currentTime=seekTime;
   v._seekTarget=seekTime;
+  return false;
 }
 
 function seekStarted() {
   if (completed)
-    return;
+    return false;
 
   seekCount += 1;
 
@@ -24,17 +25,20 @@ function seekStarted() {
     v.currentTime=seekTime/2;
     v._seekTarget=seekTime/2;
   }
+  return false;
 }
 
 function seekEnded() {
   if (completed)
-    return;
+    return false;
 
   if (seekCount == 2) {
     ok(Math.abs(v.currentTime - seekTime/2) <= 0.1, "seek on target: " + v.currentTime);
     completed = true;
     finish();
   }
+
+  return false;
 }
 
 v.addEventListener("loadedmetadata", startTest, false);

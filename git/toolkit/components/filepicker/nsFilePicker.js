@@ -183,21 +183,6 @@ nsFilePicker.prototype = {
     this.mFilters.push(extensions);
   },
 
-  open: function(aFilePickerShownCallback) {
-    var tm = Components.classes["@mozilla.org/thread-manager;1"]
-                       .getService(Components.interfaces.nsIThreadManager);
-    tm.mainThread.dispatch(function() {
-      let result = Components.interfaces.nsIFilePicker.returnCancel;
-      try {
-        result = this.show();
-      } catch(ex) {
-      }
-      if (aFilePickerShownCallback) {
-        aFilePickerShownCallback.done(result);
-      }
-    }.bind(this), Components.interfaces.nsIThread.DISPATCH_NORMAL);
-  },
-
   show: function() {
     var o = new Object();
     o.title = this.mTitle;

@@ -10,7 +10,6 @@
 #include "ipc/ShadowLayerChild.h"
 #include "BasicLayers.h"
 #include "BasicImplData.h"
-#include "ReadbackLayer.h"
 #include "ReadbackProcessor.h"
 
 namespace mozilla {

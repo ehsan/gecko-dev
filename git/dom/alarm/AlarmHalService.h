@@ -19,11 +19,8 @@ namespace mozilla {
 namespace dom {
 namespace alarm {
 
-using namespace hal;
-
 class AlarmHalService : public nsIAlarmHalService, 
-                        public AlarmObserver,
-                        public SystemTimeObserver
+                        mozilla::hal::AlarmObserver
 {
 public:
   NS_DECL_ISUPPORTS
@@ -37,17 +34,20 @@ public:
   // Implementing hal::AlarmObserver
   void Notify(const mozilla::void_t& aVoid);
 
-  // Implementing hal::SystemTimeObserver
-  void Notify(const SystemTimeChange& aReason);
-
 private:
   bool mAlarmEnabled;
+  nsCOMPtr<nsIAlarmFiredCb> mAlarmFiredCb;
   static StaticRefPtr<AlarmHalService> sSingleton;
 
-  nsCOMPtr<nsIAlarmFiredCb> mAlarmFiredCb;
+  // TODO The mTimezoneChangedCb would be called 
+  // when a timezone-changed event is detected 
+  // at run-time. To do so, we can register a 
+  // timezone-changed observer, see bug 714358.
+  // We need to adjust the alarm time respect to
+  // the correct timezone where user is located.
   nsCOMPtr<nsITimezoneChangedCb> mTimezoneChangedCb;
 
-  int32_t GetTimezoneOffset(bool aIgnoreDST);
+  PRInt32 GetTimezoneOffset(bool aIgnoreDST);
 };
 
 } // namespace alarm

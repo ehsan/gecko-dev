@@ -20,11 +20,6 @@ DIRS = \
   test \
   $(NULL)
 
-EXTRA_COMPONENTS = \
-  SiteSpecificUserAgent.js \
-  SiteSpecificUserAgent.manifest \
-  $(NULL)
-
 EXTRA_PP_COMPONENTS = \
   ConsoleAPI.js \
   ConsoleAPI.manifest \
@@ -36,7 +31,6 @@ EXTRA_JS_MODULES = ConsoleAPIStorage.jsm \
 EXTRA_JS_MODULES += \
   DOMRequestHelper.jsm \
   IndexedDBHelper.jsm \
-  ObjectWrapper.jsm \
   $(NULL)
 
 XPIDLSRCS = \
@@ -44,13 +38,13 @@ XPIDLSRCS = \
   nsIDOMDOMRequest.idl \
   nsIEntropyCollector.idl \
   nsIScriptChannel.idl \
-  nsISiteSpecificUserAgent.idl \
   $(NULL)
 
 EXPORTS = \
   nsDOMCID.h \
   nsDOMClassInfoClasses.h \
   nsDOMClassInfoID.h \
+  nsDOMError.h \
   nsDOMJSUtils.h \
   nsDOMScriptObjectHolder.h \
   nsDOMString.h \
@@ -66,8 +60,6 @@ EXPORTS = \
   nsIScriptObjectPrincipal.h \
   nsIScriptRuntime.h \
   nsIScriptTimeoutHandler.h \
-  nsJSEnvironment.h \
-  nsJSUtils.h \
   nsPIDOMWindow.h \
   nsPIWindowRoot.h \
   nsFocusManager.h \
@@ -127,10 +119,6 @@ ifdef MOZ_B2G_RIL
 DEFINES += -DMOZ_B2G_RIL
 endif
 
-ifdef MOZ_B2G_FM
-DEFINES += -DMOZ_B2G_FM
-endif
-
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
@@ -146,8 +134,3 @@ ifdef MOZ_X11
 CXXFLAGS += $(TK_CFLAGS)
 LDFLAGS += $(TK_LIBS)
 endif
-
-XPIDL_FLAGS += \
-  -I$(topsrcdir)/dom/interfaces/base \
-  -I$(topsrcdir)/dom/interfaces/events \
-  $(NULL)

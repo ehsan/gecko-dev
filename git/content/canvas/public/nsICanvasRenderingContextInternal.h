@@ -57,14 +57,14 @@ public:
 
   // Sets the dimensions of the canvas, in pixels.  Called
   // whenever the size of the element changes.
-  NS_IMETHOD SetDimensions(int32_t width, int32_t height) = 0;
+  NS_IMETHOD SetDimensions(PRInt32 width, PRInt32 height) = 0;
 
-  NS_IMETHOD InitializeWithSurface(nsIDocShell *docShell, gfxASurface *surface, int32_t width, int32_t height) = 0;
+  NS_IMETHOD InitializeWithSurface(nsIDocShell *docShell, gfxASurface *surface, PRInt32 width, PRInt32 height) = 0;
 
   // Render the canvas at the origin of the given gfxContext
   NS_IMETHOD Render(gfxContext *ctx,
                     gfxPattern::GraphicsFilter aFilter,
-                    uint32_t aFlags = RenderFlagPremultAlpha) = 0;
+                    PRUint32 aFlags = RenderFlagPremultAlpha) = 0;
 
   // Gives you a stream containing the image represented by this context.
   // The format is given in aMimeTime, for example "image/png".
@@ -81,7 +81,8 @@ public:
   NS_IMETHOD GetThebesSurface(gfxASurface **surface) = 0;
   
   // This gets an Azure SourceSurface for the canvas, this will be a snapshot
-  // of the canvas at the time it was called.
+  // of the canvas at the time it was called. This will return null for a
+  // non-azure canvas.
   virtual mozilla::TemporaryRef<mozilla::gfx::SourceSurface> GetSurfaceSnapshot() = 0;
 
   // If this context is opaque, the backing store of the canvas should
@@ -130,6 +131,8 @@ protected:
 
 namespace mozilla {
 namespace dom {
+
+extern bool AzureCanvasEnabled();
 
 }
 }

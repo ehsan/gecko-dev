@@ -16,12 +16,12 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsRandomGenerator, nsIRandomGenerator)
 /* void generateRandomBytes(in unsigned long aLength,
                             [retval, array, size_is(aLength)] out octet aBuffer) */
 NS_IMETHODIMP
-nsRandomGenerator::GenerateRandomBytes(uint32_t aLength,
-                                       uint8_t **aBuffer)
+nsRandomGenerator::GenerateRandomBytes(PRUint32 aLength,
+                                       PRUint8 **aBuffer)
 {
   NS_ENSURE_ARG_POINTER(aBuffer);
 
-  uint8_t *buf = reinterpret_cast<uint8_t *>(NS_Alloc(aLength));
+  PRUint8 *buf = reinterpret_cast<PRUint8 *>(NS_Alloc(aLength));
   if (!buf)
     return NS_ERROR_OUT_OF_MEMORY;
 

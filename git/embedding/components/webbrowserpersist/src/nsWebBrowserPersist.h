@@ -63,7 +63,7 @@ protected:
     nsresult SaveURIInternal(
         nsIURI *aURI, nsISupports *aCacheKey, nsIURI *aReferrer,
         nsIInputStream *aPostData, const char *aExtraHeaders, nsIURI *aFile,
-        bool aCalcFileExt, bool aIsPrivate);
+        bool aCalcFileExt);
     nsresult SaveChannelInternal(
         nsIChannel *aChannel, nsIURI *aFile, bool aCalcFileExt);
     nsresult SaveDocumentInternal(
@@ -136,7 +136,7 @@ private:
     nsresult SaveDocumentWithFixup(
         nsIDOMDocument *pDocument, nsIDocumentEncoderNodeFixup *pFixup,
         nsIURI *aFile, bool aReplaceExisting, const nsACString &aFormatType,
-        const nsCString &aSaveCharset, uint32_t  aFlags);
+        const nsCString &aSaveCharset, PRUint32  aFlags);
     nsresult SaveSubframeContent(
         nsIDOMDocument *aFrameContent, URIData *aData);
     nsresult SetDocumentBase(nsIDOMDocument *aDocument, nsIURI *aBaseURI);
@@ -177,7 +177,7 @@ private:
     nsCOMPtr<nsIURI>          mCurrentBaseURI;
     nsCString                 mCurrentCharset;
     nsCOMPtr<nsIURI>          mTargetBaseURI;
-    uint32_t                  mCurrentThingsToPersist;
+    PRUint32                  mCurrentThingsToPersist;
 
     nsCOMPtr<nsIMIMEService>  mMIMEService;
     nsCOMPtr<nsIURI>          mURI;
@@ -202,13 +202,12 @@ private:
     bool                      mStartSaving;
     bool                      mReplaceExisting;
     bool                      mSerializingOutput;
-    bool                      mIsPrivate;
-    uint32_t                  mPersistFlags;
-    nsresult                  mPersistResult;
-    int64_t                   mTotalCurrentProgress;
-    int64_t                   mTotalMaxProgress;
-    int16_t                   mWrapColumn;
-    uint32_t                  mEncodingFlags;
+    PRUint32                  mPersistFlags;
+    PRUint32                  mPersistResult;
+    PRInt64                   mTotalCurrentProgress;
+    PRInt64                   mTotalMaxProgress;
+    PRInt16                   mWrapColumn;
+    PRUint32                  mEncodingFlags;
     nsString                  mContentType;
 };
 

@@ -72,8 +72,8 @@ private:
     ~Statement();
 
     sqlite3_stmt *mDBStatement;
-    uint32_t mParamCount;
-    uint32_t mResultColumnCount;
+    PRUint32 mParamCount;
+    PRUint32 mResultColumnCount;
     nsTArray<nsCString> mColumnNames;
     bool mExecuting;
 

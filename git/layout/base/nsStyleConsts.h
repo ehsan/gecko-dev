@@ -27,7 +27,7 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
     return side;
 }
 
-#define NS_FOR_CSS_FULL_CORNERS(var_) for (int32_t var_ = 0; var_ < 4; ++var_)
+#define NS_FOR_CSS_FULL_CORNERS(var_) for (PRInt32 var_ = 0; var_ < 4; ++var_)
 
 // Indices into "half corner" arrays (nsStyleCorners e.g.)
 #define NS_CORNER_TOP_LEFT_X      0
@@ -39,7 +39,7 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_CORNER_BOTTOM_LEFT_X   6
 #define NS_CORNER_BOTTOM_LEFT_Y   7
 
-#define NS_FOR_CSS_HALF_CORNERS(var_) for (int32_t var_ = 0; var_ < 8; ++var_)
+#define NS_FOR_CSS_HALF_CORNERS(var_) for (PRInt32 var_ = 0; var_ < 8; ++var_)
 
 // The results of these conversion macros are exhaustively checked in
 // nsStyleCoord.cpp.
@@ -206,9 +206,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_COLOR_MOZ_HYPERLINKTEXT              -4
 #define NS_COLOR_MOZ_VISITEDHYPERLINKTEXT       -5
 #define NS_COLOR_MOZ_ACTIVEHYPERLINKTEXT        -6
-// Only valid as paints in SVG glyphs
-#define NS_COLOR_OBJECTFILL                     -7
-#define NS_COLOR_OBJECTSTROKE                   -8
 
 // See nsStyleDisplay
 #define NS_STYLE_ANIMATION_DIRECTION_NORMAL       0
@@ -713,12 +710,11 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_TABSIZE_INITIAL                8
 
 // See nsStyleText
-#define NS_STYLE_WHITESPACE_NORMAL               0
-#define NS_STYLE_WHITESPACE_PRE                  1
-#define NS_STYLE_WHITESPACE_NOWRAP               2
-#define NS_STYLE_WHITESPACE_PRE_WRAP             3
-#define NS_STYLE_WHITESPACE_PRE_LINE             4
-#define NS_STYLE_WHITESPACE_PRE_DISCARD_NEWLINES 5
+#define NS_STYLE_WHITESPACE_NORMAL              0
+#define NS_STYLE_WHITESPACE_PRE                 1
+#define NS_STYLE_WHITESPACE_NOWRAP              2
+#define NS_STYLE_WHITESPACE_PRE_WRAP            3
+#define NS_STYLE_WHITESPACE_PRE_LINE            4
 
 // See nsStyleText
 #define NS_STYLE_WORDBREAK_NORMAL               0
@@ -768,7 +764,7 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_TABLE_RULES_ALL                4
 
 #define NS_STYLE_TABLE_COLS_NONE                (-1)
-#define NS_STYLE_TABLE_COLS_ALL                 int32_t(1 << 30)
+#define NS_STYLE_TABLE_COLS_ALL                 PRInt32(1 << 30)
 
 #define NS_STYLE_TABLE_LAYOUT_AUTO              0
 #define NS_STYLE_TABLE_LAYOUT_FIXED             1
@@ -874,9 +870,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_STROKE_LINEJOIN_ROUND          1
 #define NS_STYLE_STROKE_LINEJOIN_BEVEL          2
 
-// stroke-dasharray, stroke-dashoffset, stroke-width
-#define NS_STYLE_STROKE_PROP_OBJECTVALUE        0
-
 // text-anchor
 #define NS_STYLE_TEXT_ANCHOR_START              0
 #define NS_STYLE_TEXT_ANCHOR_MIDDLE             1
@@ -903,10 +896,6 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 
 #define NS_STYLE_TRANSFORM_STYLE_FLAT               0
 #define NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D        1
-
-// object {fill,stroke}-opacity for SVG glyphs
-#define NS_STYLE_OBJECT_FILL_OPACITY                0
-#define NS_STYLE_OBJECT_STROKE_OPACITY              1
 
 /*****************************************************************************
  * Constants for media features.                                             *

@@ -30,13 +30,13 @@ nsLayoutDebugCLH::Handle(nsICommandLine* aCmdLine)
 {
     nsresult rv;
 
-    int32_t idx;
+    PRInt32 idx;
     rv = aCmdLine->FindFlag(NS_LITERAL_STRING("layoutdebug"), false, &idx);
     NS_ENSURE_SUCCESS(rv, rv);
     if (idx < 0)
       return NS_OK;
 
-    int32_t length;
+    PRInt32 length;
     aCmdLine->GetLength(&length);
 
     nsAutoString url;

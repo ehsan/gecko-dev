@@ -8,11 +8,9 @@
 
 #include "Workers.h"
 
-#include "nsIContentSecurityPolicy.h"
 #include "nsIRunnable.h"
 #include "nsIThread.h"
 #include "nsIThreadInternal.h"
-#include "nsPIDOMWindow.h"
 
 #include "jsapi.h"
 #include "mozilla/CondVar.h"
@@ -112,13 +110,13 @@ private:
 class WorkerSyncRunnable : public WorkerRunnable
 {
 protected:
-  uint32_t mSyncQueueKey;
+  PRUint32 mSyncQueueKey;
   bool mBypassSyncQueue;
 
 protected:
   friend class WorkerPrivate;
 
-  WorkerSyncRunnable(WorkerPrivate* aWorkerPrivate, uint32_t aSyncQueueKey,
+  WorkerSyncRunnable(WorkerPrivate* aWorkerPrivate, PRUint32 aSyncQueueKey,
                      bool aBypassSyncQueue = false,
                      ClearingBehavior aClearingBehavior = SkipWhenClearing)
   : WorkerRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount,
@@ -183,22 +181,21 @@ private:
   nsCOMPtr<nsIURI> mBaseURI;
   nsCOMPtr<nsIURI> mScriptURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  nsCOMPtr<nsIContentSecurityPolicy> mCSP;
+  nsCOMPtr<nsIDocument> mDocument;
 
   // Only used for top level workers.
   nsTArray<nsRefPtr<WorkerRunnable> > mQueuedRunnables;
 
-  uint64_t mBusyCount;
+  PRUint64 mBusyCount;
   Status mParentStatus;
-  uint32_t mJSContextOptions;
-  uint32_t mJSRuntimeHeapSize;
-  uint8_t mGCZeal;
+  PRUint32 mJSContextOptions;
+  PRUint32 mJSRuntimeHeapSize;
+  PRUint8 mGCZeal;
   bool mJSObjectRooted;
   bool mParentSuspended;
   bool mIsChromeWorker;
   bool mPrincipalIsSystem;
   bool mMainThreadObjectsForgotten;
-  bool mEvalAllowed;
 
 protected:
   WorkerPrivateParent(JSContext* aCx, JSObject* aObject, WorkerPrivate* aParent,
@@ -208,8 +205,7 @@ protected:
                       nsCOMPtr<nsIScriptContext>& aScriptContext,
                       nsCOMPtr<nsIURI>& aBaseURI,
                       nsCOMPtr<nsIPrincipal>& aPrincipal,
-                      nsCOMPtr<nsIContentSecurityPolicy>& aCSP,
-                      bool aEvalAllowed);
+                      nsCOMPtr<nsIDocument>& aDocument);
 
   ~WorkerPrivateParent();
 
@@ -294,20 +290,20 @@ public:
   ForgetMainThreadObjects(nsTArray<nsCOMPtr<nsISupports> >& aDoomed);
 
   bool
-  PostMessage(JSContext* aCx, jsval aMessage, jsval aTransferable);
+  PostMessage(JSContext* aCx, jsval aMessage);
 
-  uint64_t
+  PRUint64
   GetInnerWindowId();
 
   void
-  UpdateJSContextOptions(JSContext* aCx, uint32_t aOptions);
+  UpdateJSContextOptions(JSContext* aCx, PRUint32 aOptions);
 
   void
-  UpdateJSRuntimeHeapSize(JSContext* aCx, uint32_t aJSRuntimeHeapSize);
+  UpdateJSRuntimeHeapSize(JSContext* aCx, PRUint32 aJSRuntimeHeapSize);
 
 #ifdef JS_GC_ZEAL
   void
-  UpdateGCZeal(JSContext* aCx, uint8_t aGCZeal);
+  UpdateGCZeal(JSContext* aCx, PRUint8 aGCZeal);
 #endif
 
   void
@@ -430,7 +426,14 @@ public:
   GetDocument() const
   {
     AssertIsOnMainThread();
-    return mWindow ? mWindow->GetExtantDoc() : nullptr;
+    return mDocument;
+  }
+
+  void
+  SetDocument(nsIDocument* aDocument)
+  {
+    AssertIsOnMainThread();
+    mDocument = aDocument;
   }
 
   nsPIDOMWindow*
@@ -440,52 +443,26 @@ public:
     return mWindow;
   }
 
-  nsIContentSecurityPolicy*
-  GetCSP() const
-  {
-    AssertIsOnMainThread();
-    return mCSP;
-  }
-
-  void
-  SetCSP(nsIContentSecurityPolicy* aCSP)
-  {
-    AssertIsOnMainThread();
-    mCSP = aCSP;
-  }
-
-  bool
-  IsEvalAllowed() const
-  {
-    return mEvalAllowed;
-  }
-
-  void
-  SetEvalAllowed(bool aEvalAllowed)
-  {
-    mEvalAllowed = aEvalAllowed;
-  }
-
   LocationInfo&
   GetLocationInfo()
   {
     return mLocationInfo;
   }
 
-  uint32_t
+  PRUint32
   GetJSContextOptions() const
   {
     return mJSContextOptions;
   }
 
-  uint32_t
+  PRUint32
   GetJSRuntimeHeapSize() const
   {
     return mJSRuntimeHeapSize;
   }
 
 #ifdef JS_GC_ZEAL
-  uint8_t
+  PRUint8
   GetGCZeal() const
   {
     return mGCZeal;
@@ -561,8 +538,8 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   nsRefPtr<WorkerMemoryReporter> mMemoryReporter;
 
   mozilla::TimeStamp mKillTime;
-  uint32_t mErrorHandlerRecursionCount;
-  uint32_t mNextTimeoutId;
+  PRUint32 mErrorHandlerRecursionCount;
+  PRUint32 mNextTimeoutId;
   Status mStatus;
   bool mSuspended;
   bool mTimerRunning;
@@ -570,7 +547,6 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   bool mCloseHandlerStarted;
   bool mCloseHandlerFinished;
   bool mMemoryReporterRunning;
-  bool mXHRParamsAllowed;
 
 #ifdef DEBUG
   nsCOMPtr<nsIThread> mThread;
@@ -652,18 +628,17 @@ public:
              mFeatures.IsEmpty());
   }
 
-  uint32_t
+  PRUint32
   CreateNewSyncLoop();
 
   bool
-  RunSyncLoop(JSContext* aCx, uint32_t aSyncLoopKey);
+  RunSyncLoop(JSContext* aCx, PRUint32 aSyncLoopKey);
 
   void
-  StopSyncLoop(uint32_t aSyncLoopKey, bool aSyncResult);
+  StopSyncLoop(PRUint32 aSyncLoopKey, bool aSyncResult);
 
   bool
-  PostMessageToParent(JSContext* aCx, jsval aMessage,
-                      jsval transferable);
+  PostMessageToParent(JSContext* aCx, jsval aMessage);
 
   bool
   NotifyInternal(JSContext* aCx, Status aStatus);
@@ -675,7 +650,7 @@ public:
   SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp, bool aIsInterval);
 
   bool
-  ClearTimeout(JSContext* aCx, uint32_t aId);
+  ClearTimeout(JSContext* aCx, uint32 aId);
 
   bool
   RunExpiredTimeouts(JSContext* aCx);
@@ -698,10 +673,10 @@ public:
   }
 
   void
-  UpdateJSContextOptionsInternal(JSContext* aCx, uint32_t aOptions);
+  UpdateJSContextOptionsInternal(JSContext* aCx, PRUint32 aOptions);
 
   void
-  UpdateJSRuntimeHeapSizeInternal(JSContext* aCx, uint32_t aJSRuntimeHeapSize);
+  UpdateJSRuntimeHeapSizeInternal(JSContext* aCx, PRUint32 aJSRuntimeHeapSize);
 
   void
   ScheduleDeletion(bool aWasPending);
@@ -712,21 +687,9 @@ public:
   bool
   DisableMemoryReporter();
 
-  bool
-  XHRParamsAllowed() const
-  {
-    return mXHRParamsAllowed;
-  }
-
-  void
-  SetXHRParamsAllowed(bool aAllowed)
-  {
-    mXHRParamsAllowed = aAllowed;
-  }
-
 #ifdef JS_GC_ZEAL
   void
-  UpdateGCZealInternal(JSContext* aCx, uint8_t aGCZeal);
+  UpdateGCZealInternal(JSContext* aCx, PRUint8 aGCZeal);
 #endif
 
   void
@@ -765,12 +728,7 @@ private:
                 nsCOMPtr<nsPIDOMWindow>& aWindow,
                 nsCOMPtr<nsIScriptContext>& aScriptContext,
                 nsCOMPtr<nsIURI>& aBaseURI, nsCOMPtr<nsIPrincipal>& aPrincipal,
-                nsCOMPtr<nsIContentSecurityPolicy>& aCSP, bool aEvalAllowed,
-                bool aXHRParamsAllowed);
-
-  static bool
-  GetContentSecurityPolicy(JSContext *aCx,
-                           nsIContentSecurityPolicy** aCsp);
+                nsCOMPtr<nsIDocument>& aDocument);
 
   bool
   Dispatch(WorkerRunnable* aEvent, EventQueue* aQueue);
@@ -801,7 +759,7 @@ private:
     return true;
   }
 
-  uint32_t
+  PRUint32
   RemainingRunTimeMS() const;
 
   void
@@ -826,9 +784,6 @@ private:
 
   bool
   ProcessAllControlRunnables();
-
-  static bool
-  CheckXHRParamsAllowed(nsPIDOMWindow* aWindow);
 };
 
 WorkerPrivate*

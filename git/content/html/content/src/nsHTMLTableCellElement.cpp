@@ -12,7 +12,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsMappedAttributes.h"
 #include "nsGenericHTMLElement.h"
-#include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
@@ -33,7 +32,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIDOMNode
-  NS_FORWARD_NSIDOMNODE_TO_NSINODE
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
 
   // nsIDOMElement
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
@@ -44,10 +43,10 @@ public:
   // nsIDOMHTMLTableCellElement
   NS_DECL_NSIDOMHTMLTABLECELLELEMENT
 
-  virtual bool ParseAttribute(int32_t aNamespaceID,
-                              nsIAtom* aAttribute,
-                              const nsAString& aValue,
-                              nsAttrValue& aResult);
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
+                                nsIAtom* aAttribute,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   NS_IMETHOD WalkContentStyleRules(nsRuleWalker* aRuleWalker);
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
@@ -133,7 +132,7 @@ nsHTMLTableCellElement::GetTable() const
 }
 
 NS_IMETHODIMP
-nsHTMLTableCellElement::GetCellIndex(int32_t* aCellIndex)
+nsHTMLTableCellElement::GetCellIndex(PRInt32* aCellIndex)
 {
   *aCellIndex = -1;
 
@@ -150,10 +149,10 @@ nsHTMLTableCellElement::GetCellIndex(int32_t* aCellIndex)
     return NS_OK;
   }
 
-  uint32_t numCells;
+  PRUint32 numCells;
   cells->GetLength(&numCells);
 
-  for (uint32_t i = 0; i < numCells; i++) {
+  for (PRUint32 i = 0; i < numCells; i++) {
     nsCOMPtr<nsIDOMNode> node;
     cells->Item(i, getter_AddRefs(node));
 
@@ -229,7 +228,7 @@ static const nsAttrValue::EnumTable kCellScopeTable[] = {
 };
 
 bool
-nsHTMLTableCellElement::ParseAttribute(int32_t aNamespaceID,
+nsHTMLTableCellElement::ParseAttribute(PRInt32 aNamespaceID,
                                        nsIAtom* aAttribute,
                                        const nsAString& aValue,
                                        nsAttrValue& aResult)
@@ -245,7 +244,7 @@ nsHTMLTableCellElement::ParseAttribute(int32_t aNamespaceID,
     if (aAttribute == nsGkAtoms::colspan) {
       bool res = aResult.ParseIntWithBounds(aValue, -1);
       if (res) {
-        int32_t val = aResult.GetIntegerValue();
+        PRInt32 val = aResult.GetIntegerValue();
         // reset large colspan values as IE and opera do
         // quirks mode does not honor the special html 4 value of 0
         if (val > MAX_COLSPAN || val < 0 ||
@@ -258,7 +257,7 @@ nsHTMLTableCellElement::ParseAttribute(int32_t aNamespaceID,
     if (aAttribute == nsGkAtoms::rowspan) {
       bool res = aResult.ParseIntWithBounds(aValue, -1, MAX_ROWSPAN);
       if (res) {
-        int32_t val = aResult.GetIntegerValue();
+        PRInt32 val = aResult.GetIntegerValue();
         // quirks mode does not honor the special html 4 value of 0
         if (val < 0 || (0 == val && InNavQuirksMode(OwnerDoc()))) {
           aResult.SetTo(1);
@@ -286,10 +285,7 @@ nsHTMLTableCellElement::ParseAttribute(int32_t aNamespaceID,
     }
   }
 
-  return nsGenericHTMLElement::ParseBackgroundAttribute(aNamespaceID,
-                                                        aAttribute, aValue,
-                                                        aResult) ||
-         nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
+  return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
                                               aResult);
 }
 

@@ -13,7 +13,7 @@
 #include "nsString.h"
 #include "nsContentCID.h"
 #include "nsContentUtils.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 
 nsDOMSerializer::nsDOMSerializer()
 {
@@ -66,7 +66,7 @@ SetUpEncoder(nsIDOMNode *aRoot, const nsACString& aCharset,
   if (NS_FAILED(rv))
     return rv;
 
-  nsAutoCString charset(aCharset);
+  nsCAutoString charset(aCharset);
   if (charset.IsEmpty()) {
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
     NS_ASSERTION(doc, "Need a document");

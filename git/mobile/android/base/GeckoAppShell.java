@@ -9,9 +9,13 @@ import org.mozilla.gecko.gfx.BitmapUtils;
 import org.mozilla.gecko.gfx.GeckoLayerClient;
 import org.mozilla.gecko.gfx.GfxInfoThread;
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
+import org.mozilla.gecko.gfx.IntSize;
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.TouchEventHandler;
+import org.mozilla.gecko.gfx.RectUtils;
+import org.mozilla.gecko.gfx.ScreenshotLayer;
+import org.mozilla.gecko.mozglue.DirectBufferAllocator;
 import org.mozilla.gecko.util.EventDispatcher;
+import org.mozilla.gecko.util.FloatUtils;
 import org.mozilla.gecko.util.GeckoBackgroundThread;
 import org.mozilla.gecko.util.GeckoEventListener;
 
@@ -23,7 +27,6 @@ import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
@@ -49,6 +52,7 @@ import android.media.MediaScannerConnection.MediaScannerConnectionClient;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.opengl.GLES20;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
@@ -60,6 +64,7 @@ import android.os.Vibrator;
 import android.provider.Settings;
 import android.util.Base64;
 import android.util.DisplayMetrics;
+import android.util.FloatMath;
 import android.util.Log;
 import android.view.ContextThemeWrapper;
 import android.view.HapticFeedbackConstants;
@@ -68,7 +73,6 @@ import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.MimeTypeMap;
 import android.widget.Toast;
-import android.text.TextUtils;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -93,6 +97,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
+import java.util.Queue;
 import java.util.StringTokenizer;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.SynchronousQueue;
@@ -124,8 +129,6 @@ public class GeckoAppShell
 
     public static final String SHORTCUT_TYPE_WEBAPP = "webapp";
     public static final String SHORTCUT_TYPE_BOOKMARK = "bookmark";
-
-    static private final boolean LOGGING = false;
 
     static public final int RESTORE_NONE = 0;
     static public final int RESTORE_OOM = 1;
@@ -199,14 +202,6 @@ public class GeckoAppShell
                 Throwable cause;
                 while ((cause = e.getCause()) != null) {
                     e = cause;
-                }
-
-                if (e instanceof java.lang.OutOfMemoryError) {
-                    SharedPreferences prefs =
-                        GeckoApp.mAppContext.getSharedPreferences(GeckoApp.PREFS_NAME, 0);
-                    SharedPreferences.Editor editor = prefs.edit();
-                    editor.putBoolean(GeckoApp.PREFS_OOM_EXCEPTION, true);
-                    editor.commit();
                 }
 
                 reportJavaCrash(getStackTraceString(e));
@@ -510,7 +505,7 @@ public class GeckoAppShell
         Log.i(LOGTAG, "post native init");
 
         // Tell Gecko where the target byte buffer is for rendering
-        GeckoAppShell.setLayerClient(GeckoApp.mAppContext.getLayerView().getLayerClient());
+        GeckoAppShell.setLayerClient(GeckoApp.mAppContext.getLayerClient());
 
         Log.i(LOGTAG, "setLayerClient called");
 
@@ -540,9 +535,11 @@ public class GeckoAppShell
 
     // Called on the UI thread after Gecko loads.
     private static void geckoLoaded() {
-        LayerView v = GeckoApp.mAppContext.getLayerView();
+        final GeckoLayerClient layerClient = GeckoApp.mAppContext.getLayerClient();
+        LayerView v = layerClient.getView();
         mInputConnection = GeckoInputConnection.create(v);
         v.setInputConnectionHandler(mInputConnection);
+        layerClient.setForceRedraw();
     }
 
     static void sendPendingEventsToGecko() {
@@ -579,17 +576,25 @@ public class GeckoAppShell
             mInputConnection.notifyIME(type, state);
     }
 
-    public static void notifyIMEEnabled(int state, String typeHint, String modeHint,
+    public static void notifyIMEEnabled(int state, String typeHint,
                                         String actionHint, boolean landscapeFS) {
         // notifyIMEEnabled() still needs the landscapeFS parameter because it is called from JNI
         // code that assumes it has the same signature as XUL Fennec's (which does use landscapeFS).
         if (mInputConnection != null)
-            mInputConnection.notifyIMEEnabled(state, typeHint, modeHint, actionHint);
+            mInputConnection.notifyIMEEnabled(state, typeHint, actionHint);
     }
 
     public static void notifyIMEChange(String text, int start, int end, int newEnd) {
         if (mInputConnection != null)
             mInputConnection.notifyIMEChange(text, start, end, newEnd);
+    }
+
+    // Called by AndroidBridge using JNI
+    public static void notifyScreenShot(final ByteBuffer data, final int tabId, 
+                                        final int left, final int top,
+                                        final int right, final int bottom, 
+                                        final int bufferWidth, final int bufferHeight, final int token) {
+        ScreenshotHandler.notifyScreenShot(data, tabId, left, top, right, bottom, bufferWidth, bufferHeight, token);
     }
 
     private static CountDownLatch sGeckoPendingAcks = null;
@@ -788,31 +793,27 @@ public class GeckoAppShell
     }
 
     public static File installWebApp(String aTitle, String aURI, String aUniqueURI, String aIconURL) {
-        int index = WebAppAllocator.getInstance(GeckoApp.mAppContext).findAndAllocateIndex(aUniqueURI, aTitle, aIconURL);
+        int index = WebAppAllocator.getInstance(GeckoApp.mAppContext).findAndAllocateIndex(aUniqueURI);
         GeckoProfile profile = GeckoProfile.get(GeckoApp.mAppContext, "webapp" + index);
         createShortcut(aTitle, aURI, aUniqueURI, aIconURL, "webapp");
         return profile.getDir();
     }
 
-    public static Intent getWebAppIntent(String aURI, String aUniqueURI, String aTitle, Bitmap aIcon) {
+    public static Intent getWebAppIntent(String aURI, String aUniqueURI, boolean forInstall) {
         int index;
 
-        if (aIcon != null && !TextUtils.isEmpty(aTitle))
-            index = WebAppAllocator.getInstance(GeckoApp.mAppContext).findAndAllocateIndex(aUniqueURI, aTitle, aIcon);
+        if (forInstall)
+            index = WebAppAllocator.getInstance(GeckoApp.mAppContext).findAndAllocateIndex(aUniqueURI);
         else
             index = WebAppAllocator.getInstance(GeckoApp.mAppContext).getIndexForApp(aUniqueURI);
 
         if (index == -1)
             return null;
 
-        return getWebAppIntent(index, aURI);
-    }
-
-    public static Intent getWebAppIntent(int aIndex, String aURI) {
         Intent intent = new Intent();
-        intent.setAction(GeckoApp.ACTION_WEBAPP_PREFIX + aIndex);
+        intent.setAction(GeckoApp.ACTION_WEBAPP_PREFIX + index);
         intent.setData(Uri.parse(aURI));
-        intent.setClassName(GeckoApp.mAppContext, GeckoApp.mAppContext.getPackageName() + ".WebApps$WebApp" + aIndex);
+        intent.setClassName(GeckoApp.mAppContext, GeckoApp.mAppContext.getPackageName() + ".WebApps$WebApp" + index);
         return intent;
     }
 
@@ -823,7 +824,9 @@ public class GeckoAppShell
             Log.e(LOGTAG, "createShortcut with no unique URI should not be used for aType = webapp!");
         }
 
-        createShortcut(aTitle, aURI, aURI, aIconData, aType);
+        byte[] raw = Base64.decode(aIconData.substring(22), Base64.DEFAULT);
+        Bitmap bitmap = BitmapFactory.decodeByteArray(raw, 0, raw.length);
+        createShortcut(aTitle, aURI, aURI, bitmap, aType);
     }
 
     // internal, for non-webapps
@@ -846,7 +849,7 @@ public class GeckoAppShell
                 // the intent to be launched by the shortcut
                 Intent shortcutIntent;
                 if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP)) {
-                    shortcutIntent = getWebAppIntent(aURI, aUniqueURI, aTitle, aIcon);
+                    shortcutIntent = getWebAppIntent(aURI, aUniqueURI, true);
                 } else {
                     shortcutIntent = new Intent();
                     shortcutIntent.setAction(GeckoApp.ACTION_BOOKMARK);
@@ -882,8 +885,8 @@ public class GeckoAppShell
                 // the intent to be launched by the shortcut
                 Intent shortcutIntent;
                 if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP)) {
-                    int index = WebAppAllocator.getInstance(GeckoApp.mAppContext).getIndexForApp(aUniqueURI);
-                    shortcutIntent = getWebAppIntent(aURI, aUniqueURI, "", null);
+                    int index = WebAppAllocator.getInstance(GeckoApp.mAppContext).findAndAllocateIndex(aUniqueURI);
+                    shortcutIntent = getWebAppIntent(aURI, aUniqueURI, false);
                     if (shortcutIntent == null)
                         return;
                 } else {
@@ -940,34 +943,31 @@ public class GeckoAppShell
         });
     }
 
-    static public int getPreferredIconSize() {
-        if (android.os.Build.VERSION.SDK_INT >= 11) {
-            ActivityManager am = (ActivityManager)GeckoApp.mAppContext.getSystemService(Context.ACTIVITY_SERVICE);
-            return am.getLauncherLargeIconSize();
-        } else {
-            switch (getDpi()) {
-                case DisplayMetrics.DENSITY_MEDIUM:
-                    return 48;
-                case DisplayMetrics.DENSITY_XHIGH:
-                    return 96;
-                case DisplayMetrics.DENSITY_HIGH:
-                default:
-                    return 72;
-            }
-        }
-    }
-
     static private Bitmap getLauncherIcon(Bitmap aSource, String aType) {
         final int kOffset = 6;
         final int kRadius = 5;
-        int size = getPreferredIconSize();
-        int insetSize = aSource != null ? size*2/3 : size;
+        int kIconSize;
+        int kOverlaySize;
+        switch (getDpi()) {
+            case DisplayMetrics.DENSITY_MEDIUM:
+                kIconSize = 48;
+                kOverlaySize = 32;
+                break;
+            case DisplayMetrics.DENSITY_XHIGH:
+                kIconSize = 96;
+                kOverlaySize = 48;
+                break;
+            case DisplayMetrics.DENSITY_HIGH:
+            default:
+                kIconSize = 72;
+                kOverlaySize = 32;
+        }
 
-        Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        Bitmap bitmap = Bitmap.createBitmap(kIconSize, kIconSize, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
 
         if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP)) {
-            Rect iconBounds = new Rect(0, 0, size, size);
+            Rect iconBounds = new Rect(0, 0, bitmap.getWidth(), bitmap.getHeight());
             canvas.drawBitmap(aSource, null, iconBounds, null);
             return bitmap;
         }
@@ -975,49 +975,45 @@ public class GeckoAppShell
         // draw a base color
         Paint paint = new Paint();
         if (aSource == null) {
-            // if we aren't drawing a favicon, just use an orange color
             float[] hsv = new float[3];
             hsv[0] = 32.0f;
             hsv[1] = 1.0f;
             hsv[2] = 1.0f;
             paint.setColor(Color.HSVToColor(hsv));
-            canvas.drawRoundRect(new RectF(kOffset, kOffset, size - kOffset, size - kOffset), kRadius, kRadius, paint);
+            canvas.drawRoundRect(new RectF(kOffset, kOffset, kIconSize - kOffset, kIconSize - kOffset), kRadius, kRadius, paint);
         } else {
-            // otherwise use the dominant color from the icon + a layer of transparent white to lighten it somewhat
             int color = BitmapUtils.getDominantColor(aSource);
             paint.setColor(color);
-            canvas.drawRoundRect(new RectF(kOffset, kOffset, size - kOffset, size - kOffset), kRadius, kRadius, paint);
+            canvas.drawRoundRect(new RectF(kOffset, kOffset, kIconSize - kOffset, kIconSize - kOffset), kRadius, kRadius, paint);
             paint.setColor(Color.argb(100, 255, 255, 255));
-            canvas.drawRoundRect(new RectF(kOffset, kOffset, size - kOffset, size - kOffset), kRadius, kRadius, paint);
+            canvas.drawRoundRect(new RectF(kOffset, kOffset, kIconSize - kOffset, kIconSize - kOffset), kRadius, kRadius, paint);
         }
 
         // draw the overlay
         Bitmap overlay = BitmapFactory.decodeResource(GeckoApp.mAppContext.getResources(), R.drawable.home_bg);
-        canvas.drawBitmap(overlay, null, new Rect(0, 0, size, size), null);
+        canvas.drawBitmap(overlay, null, new Rect(0, 0, kIconSize, kIconSize), null);
 
-        // draw the favicon
+        // draw the bitmap
         if (aSource == null)
             aSource = BitmapFactory.decodeResource(GeckoApp.mAppContext.getResources(), R.drawable.home_star);
 
-        // by default, we scale the icon to this size
-        int sWidth = insetSize/2;
-        int sHeight = sWidth;
-
-        if (aSource.getWidth() > insetSize || aSource.getHeight() > insetSize) {
-            // however, if the icon is larger than our minimum, we allow it to be drawn slightly larger
-            // (but not necessarily at its full resolution)
-            sWidth = Math.min(size/3, aSource.getWidth()/2);
-            sHeight = Math.min(size/3, aSource.getHeight()/2);
+        if (aSource.getWidth() < kOverlaySize || aSource.getHeight() < kOverlaySize) {
+            canvas.drawBitmap(aSource,
+                              null,
+                              new Rect(kIconSize/2 - kOverlaySize/2,
+                                       kIconSize/2 - kOverlaySize/2,
+                                       kIconSize/2 + kOverlaySize/2,
+                                       kIconSize/2 + kOverlaySize/2),
+                              null);
+        } else {
+            canvas.drawBitmap(aSource,
+                              null,
+                              new Rect(kIconSize/2 - aSource.getWidth()/2,
+                                       kIconSize/2 - aSource.getHeight()/2,
+                                       kIconSize/2 + aSource.getWidth()/2,
+                                       kIconSize/2 + aSource.getHeight()/2),
+                              null);
         }
-
-        int halfSize = size/2;
-        canvas.drawBitmap(aSource,
-                          null,
-                          new Rect(halfSize - sWidth,
-                                   halfSize - sHeight,
-                                   halfSize + sWidth,
-                                   halfSize + sHeight),
-                          null);
 
         return bitmap;
     }
@@ -1069,7 +1065,7 @@ public class GeckoAppShell
 
     static String getMimeTypeFromExtensions(String aFileExt) {
         MimeTypeMap mtm = MimeTypeMap.getSingleton();
-        StringTokenizer st = new StringTokenizer(aFileExt, ".,; ");
+        StringTokenizer st = new StringTokenizer(aFileExt, "., ");
         String type = null;
         String subType = null;
         while (st.hasMoreElements()) {
@@ -1188,16 +1184,7 @@ public class GeckoAppShell
             intent.setDataAndType(Uri.parse(aUriSpec), aMimeType);
         } else {
             Uri uri = Uri.parse(aUriSpec);
-            final String scheme = uri.getScheme();
-            if ("tel".equals(scheme)) {
-                // Bug 794034 - We don't want to pass MWI or USSD codes to the
-                // dialer, and ensure the Uri class doesn't parse a tel: URI as
-                // containing a fragment ('#')
-                final String number = uri.getSchemeSpecificPart();
-                if (number.contains("#") || number.contains("*") || uri.getFragment() != null) {
-                    return false;
-                }
-            } else if ("sms".equals(scheme)) {
+            if ("sms".equals(uri.getScheme())) {
                 // Have a apecial handling for the SMS, as the message body
                 // is not extracted from the URI automatically
                 final String query = uri.getEncodedQuery();
@@ -1334,15 +1321,8 @@ public class GeckoAppShell
         notificationIntent.setClassName(GeckoApp.mAppContext,
             GeckoApp.mAppContext.getPackageName() + ".NotificationHandler");
 
-        // Put the strings into the intent as an URI "alert:?name=<alertName>&app=<appName>&cookie=<cookie>"
-        Uri.Builder b = new Uri.Builder();
-        String app = GeckoApp.mAppContext.getClass().getName();
-        Uri dataUri = b.scheme("alert")
-                                 .path(Integer.toString(notificationID))
-                                 .appendQueryParameter("name", aAlertName)
-                                 .appendQueryParameter("app", app)
-                                 .appendQueryParameter("cookie", aAlertCookie)
-                                 .build();
+        // Put the strings into the intent as an URI "alert:<name>#<cookie>"
+        Uri dataUri = Uri.fromParts("alert", aAlertName, aAlertCookie);
         notificationIntent.setData(dataUri);
 
         PendingIntent contentIntent = PendingIntent.getBroadcast(GeckoApp.mAppContext, 0, notificationIntent, 0);
@@ -1389,11 +1369,10 @@ public class GeckoAppShell
     }
 
     public static void handleNotification(String aAction, String aAlertName, String aAlertCookie) {
-        if (LOGGING) Log.i(LOGTAG, "handleNotification " + aAction + " " + aAlertName + " " + aAlertCookie);
         int notificationID = aAlertName.hashCode();
 
-        if (GeckoApp.ACTION_ALERT_CALLBACK.equals(aAction)) {
-            if (LOGGING) Log.i(LOGTAG, "GeckoAppShell.handleNotification: callObserver(alertclickcallback)");
+        if (GeckoApp.ACTION_ALERT_CLICK.equals(aAction)) {
+            Log.i(LOGTAG, "GeckoAppShell.handleNotification: callObserver(alertclickcallback)");
             callObserver(aAlertName, "alertclickcallback", aAlertCookie);
 
             AlertNotification notification = mAlertNotifications.get(notificationID);
@@ -1404,11 +1383,7 @@ public class GeckoAppShell
         }
 
         callObserver(aAlertName, "alertfinished", aAlertCookie);
-        // Also send a notification to the observer service
-        // New listeners should register for these notifications since they will be called even if
-        // Gecko has been killed and restared between when your notification was shown and when the
-        // user clicked on it.
-        sendEventToGecko(GeckoEvent.createBroadcastEvent("Notification:Clicked", aAlertCookie));
+
         removeObserver(aAlertName);
 
         removeNotification(notificationID);
@@ -1446,7 +1421,8 @@ public class GeckoAppShell
         // Don't perform haptic feedback if a vibration is currently playing,
         // because the haptic feedback will nuke the vibration.
         if (!sVibrationMaybePlaying || System.nanoTime() >= sVibrationEndTime) {
-            LayerView layerView = GeckoApp.mAppContext.getLayerView();
+            GeckoLayerClient layerClient = GeckoApp.mAppContext.getLayerClient();
+            LayerView layerView = layerClient.getView();
             layerView.performHapticFeedback(aIsLongPress ?
                                             HapticFeedbackConstants.LONG_PRESS :
                                             HapticFeedbackConstants.VIRTUAL_KEY);
@@ -1454,7 +1430,9 @@ public class GeckoAppShell
     }
 
     private static Vibrator vibrator() {
-        LayerView layerView = GeckoApp.mAppContext.getLayerView();
+        GeckoLayerClient layerClient = GeckoApp.mAppContext.getLayerClient();
+        LayerView layerView = layerClient.getView();
+
         return (Vibrator) layerView.getContext().getSystemService(Context.VIBRATOR_SERVICE);
     }
 
@@ -1501,11 +1479,8 @@ public class GeckoAppShell
     public static void notifyDefaultPrevented(final boolean defaultPrevented) {
         getMainHandler().post(new Runnable() {
             public void run() {
-                LayerView view = GeckoApp.mAppContext.getLayerView();
-                TouchEventHandler handler = (view == null ? null : view.getTouchEventHandler());
-                if (handler != null) {
-                    handler.handleEventListenerAction(!defaultPrevented);
-                }
+                LayerView view = GeckoApp.mAppContext.getLayerClient().getView();
+                view.getTouchEventHandler().handleEventListenerAction(!defaultPrevented);
             }
         });
     }
@@ -1797,8 +1772,22 @@ public class GeckoAppShell
         return null;
     }
 
-    public static android.hardware.Camera sCamera = null;
+    static native void executeNextRunnable();
 
+    static class GeckoRunnableCallback implements Runnable {
+        public void run() {
+            Log.i(LOGTAG, "run GeckoRunnableCallback");
+            GeckoAppShell.executeNextRunnable();
+        }
+    }
+
+    public static void postToJavaThread(boolean mainThread) {
+        Log.i(LOGTAG, "post to " + (mainThread ? "main " : "") + "java thread");
+        getMainHandler().post(new GeckoRunnableCallback());
+    }
+    
+    public static android.hardware.Camera sCamera = null;
+    
     static native void cameraCallbackBridge(byte[] data);
 
     static int kPreferedFps = 25;
@@ -1932,6 +1921,24 @@ public class GeckoAppShell
 
     static EventDispatcher getEventDispatcher() {
         return sEventDispatcher;
+    }
+
+    static SynchronousQueue<Date> sTracerQueue = new SynchronousQueue<Date>();
+    public static void fireAndWaitForTracerEvent() {
+        getMainHandler().post(new Runnable() { 
+                public void run() {
+                    try {
+                        sTracerQueue.put(new Date());
+                    } catch(InterruptedException ie) {
+                        Log.w(LOGTAG, "exception firing tracer", ie);
+                    }
+                }
+        });
+        try {
+            sTracerQueue.take();
+        } catch(InterruptedException ie) {
+            Log.w(LOGTAG, "exception firing tracer", ie);
+        }
     }
 
     /**
@@ -2200,17 +2207,16 @@ public class GeckoAppShell
         GeckoScreenOrientationListener.getInstance().unlockScreenOrientation();
     }
 
-    public static boolean pumpMessageLoop() {
+    public static void pumpMessageLoop() {
         MessageQueue mq = Looper.myQueue();
         Message msg = getNextMessageFromQueue(mq); 
         if (msg == null)
-            return false;
-        if (msg.getTarget() == null) 
+            return;
+        if (msg.getTarget() == null)
             Looper.myLooper().quit();
         else
             msg.getTarget().dispatchMessage(msg);
         msg.recycle();
-        return true;
     }
 
     static class AsyncResultHandler extends FilePickerResultHandler {
@@ -2235,6 +2241,15 @@ public class GeckoAppShell
         }
     }
 
+    public static void screenshotWholePage(Tab tab) {
+        ScreenshotHandler.screenshotWholePage(tab);
+    }
+
+    // Called by AndroidBridge using JNI
+    public static void notifyPaintedRect(float top, float left, float bottom, float right) {
+        ScreenshotHandler.notifyPaintedRect(top, left, bottom, right);
+    }
+
     public static void notifyWakeLockChanged(String topic, String state) {
         GeckoApp.mAppContext.notifyWakeLockChanged(topic, state);
     }
@@ -2256,23 +2271,329 @@ public class GeckoAppShell
     public static void unregisterSurfaceTextureFrameListener(Object surfaceTexture) {
         ((SurfaceTexture)surfaceTexture).setOnFrameAvailableListener(null);
     }
+}
 
-    public static void notifyCheckUpdateResult(boolean result) {
-        if (GeckoApp.mAppContext != null)
-            GeckoApp.mAppContext.notifyCheckUpdateResult(result);
-    }
-    
-    public static boolean unlockProfile() {
-        // Try to kill any zombie Fennec's that might be running
-        GeckoAppShell.killAnyZombies();
+class ScreenshotHandler implements Runnable {
+    public static final int SCREENSHOT_THUMBNAIL = 0;
+    public static final int SCREENSHOT_CHECKERBOARD = 1;
 
-        // Then force unlock this profile
-        GeckoProfile profile = GeckoApp.mAppContext.getProfile();
-        File lock = profile.getFile(".parentlock");
-        if (lock.exists()) {
-            lock.delete();
-            return true;
+    private static final String LOGTAG = "GeckoScreenshotHandler";
+    private static final int BYTES_FOR_16BPP = 2;
+    private static final int MAX_PIXELS_PER_SLICE = 100000;
+
+    private static boolean sDisableScreenshot;
+    private static ScreenshotHandler sInstance;
+
+    private final int mMaxTextureSize;
+    private final int mMinTextureSize;
+    private final int mMaxPixels;
+
+    private final Queue<PendingScreenshot> mPendingScreenshots;
+    private final ByteBuffer mBuffer;
+    private int mBufferWidth;
+    private int mBufferHeight;
+    private RectF mPageRect;
+    private float mWidthRatio;
+    private float mHeightRatio;
+
+    private int mTabId;
+    private RectF mDirtyRect;
+    private boolean mIsRepaintRunnablePosted;
+
+    private static synchronized ScreenshotHandler getInstance() {
+        if (sInstance == null) {
+            try {
+                sInstance = new ScreenshotHandler();
+            } catch (UnsupportedOperationException e) {
+                // initialization failed, fall through and return null
+            }
         }
-        return false;
+        return sInstance;
+    }
+
+    private ScreenshotHandler() {
+        int[] maxTextureSize = new int[1];
+        GLES20.glGetIntegerv(GLES20.GL_MAX_TEXTURE_SIZE, maxTextureSize, 0);
+        mMaxTextureSize = maxTextureSize[0];
+        if (mMaxTextureSize == 0) {
+            throw new UnsupportedOperationException();
+        }
+        mMaxPixels = Math.min(ScreenshotLayer.getMaxNumPixels(), mMaxTextureSize * mMaxTextureSize);
+        mMinTextureSize = (int)Math.ceil(mMaxPixels / mMaxTextureSize);
+        mPendingScreenshots = new LinkedList<PendingScreenshot>();
+        mBuffer = DirectBufferAllocator.allocate(mMaxPixels * BYTES_FOR_16BPP);
+        mDirtyRect = new RectF();
+        clearDirtyRect();
+    }
+
+    // Invoked via reflection from robocop test
+    public static void disableScreenshot() {
+        sDisableScreenshot = true;
+    }
+
+    public static void screenshotWholePage(Tab tab) {
+        if (sDisableScreenshot || GeckoApp.mAppContext.isApplicationInBackground()) {
+            return;
+        }
+        ScreenshotHandler handler = getInstance();
+        if (handler == null) {
+            return;
+        }
+
+        handler.screenshotWholePage(tab.getId());
+    }
+
+    private void screenshotWholePage(int tabId) {
+        GeckoLayerClient layerClient = GeckoApp.mAppContext.getLayerClient();
+        if (layerClient == null) {
+            return;
+        }
+        ImmutableViewportMetrics viewport = layerClient.getViewportMetrics();
+        RectF pageRect = viewport.getCssPageRect();
+
+        if (FloatUtils.fuzzyEquals(pageRect.width(), 0) || FloatUtils.fuzzyEquals(pageRect.height(), 0)) {
+            return;
+        }
+
+        synchronized (this) {
+            // if we're doing a full-page screenshot, toss any
+            // dirty rects we have saved up and reset the tab id.
+            mTabId = tabId;
+            clearDirtyRect();
+        }
+        synchronized (mPendingScreenshots) {
+            for (Iterator<PendingScreenshot> i = mPendingScreenshots.iterator(); i.hasNext(); ) {
+                i.next().discard();
+            }
+        }
+
+        int dstx = 0;
+        int dsty = 0;
+        float bestZoomFactor = (float)Math.sqrt(pageRect.width() * pageRect.height() / mMaxPixels);
+        int dstw = IntSize.largestPowerOfTwoLessThan(pageRect.width() / bestZoomFactor);
+        // clamp with min texture size so that the height doesn't exceed the sMaxTextureSize
+        dstw = clamp(mMinTextureSize, dstw, mMaxTextureSize);
+        int dsth = mMaxPixels / dstw;
+
+        mPageRect = pageRect;
+        mBufferWidth = dstw;
+        mBufferHeight = dsth;
+        mWidthRatio = dstw / pageRect.width();
+        mHeightRatio = dsth / pageRect.height();
+
+        scheduleCheckerboardScreenshotEvent(pageRect, dstx, dsty, dstw, dsth);
+    }
+
+    private static int clamp(int min, int val, int max) {
+        return Math.max(Math.min(max, val), min);
+    }
+
+    public static void notifyPaintedRect(float top, float left, float bottom, float right) {
+        if (sDisableScreenshot) {
+            return;
+        }
+        ScreenshotHandler handler = getInstance();
+        if (handler == null) {
+            return;
+        }
+
+        handler.notifyPageUpdated(top, left, bottom, right);
+    }
+
+    private void notifyPageUpdated(float top, float left, float bottom, float right) {
+        synchronized (this) {
+            if (mPageRect == null || Tabs.getInstance().getSelectedTab().getId() != mTabId) {
+                // if mPageRect is null, we haven't done a full-page
+                // screenshot yet (or screenshotWholePage failed for some reason),
+                // so ignore partial updates. also if the tab changed, ignore
+                // partial updates until we do the next whole-page screenshot.
+                return;
+            }
+            mDirtyRect.top = Math.max(mPageRect.top, Math.min(top, mDirtyRect.top));
+            mDirtyRect.left = Math.max(mPageRect.left, Math.min(left, mDirtyRect.left));
+            mDirtyRect.bottom = Math.min(mPageRect.bottom, Math.max(bottom, mDirtyRect.bottom));
+            mDirtyRect.right = Math.min(mPageRect.right, Math.max(right, mDirtyRect.right));
+            if (!mIsRepaintRunnablePosted) {
+                GeckoAppShell.getHandler().postDelayed(this, 5000);
+                mIsRepaintRunnablePosted = true;
+            }
+        }
+    }
+
+    private void clearDirtyRect() {
+        mDirtyRect.set(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY,
+                       Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY);
+    }
+
+    public void run() {
+        // make a copy of the dirty rect to work with so we can keep
+        // accumulating new dirty rects.
+        RectF dirtyRect = new RectF();
+        synchronized (this) {
+            dirtyRect.set(mDirtyRect);
+            clearDirtyRect();
+            mIsRepaintRunnablePosted = false;
+        }
+
+        if (dirtyRect.width() <= 0 || dirtyRect.height() <= 0) {
+            // we have nothing in the dirty rect, so nothing to do
+            return;
+        }
+
+        Tab selectedTab = Tabs.getInstance().getSelectedTab();
+        if (selectedTab == null || selectedTab.getId() != mTabId) {
+            // tab changed, so bail out before we start screenshotting
+            // the wrong tab. note we must do this *after* resetting
+            // mIsRepaintRunnablePosted above.
+            return;
+        }
+
+        GeckoLayerClient layerClient = GeckoApp.mAppContext.getLayerClient();
+        if (layerClient == null) {
+            // we could be in the midst of an activity tear-down and re-start, so guard
+            // against a null layer controller.
+            return;
+        }
+
+        ImmutableViewportMetrics viewport = layerClient.getViewportMetrics();
+        if (RectUtils.fuzzyEquals(mPageRect, viewport.getCssPageRect())) {
+            // the page size hasn't changed, so our dirty rect is still valid and we can just
+            // repaint that area
+            int dstx = (int)(mWidthRatio * (dirtyRect.left - viewport.cssPageRectLeft));
+            int dsty = (int)(mHeightRatio * (dirtyRect.top - viewport.cssPageRectTop));
+            int dstw = (int)(mWidthRatio * dirtyRect.width());
+            int dsth = (int)(mHeightRatio * dirtyRect.height());
+            scheduleCheckerboardScreenshotEvent(dirtyRect, dstx, dsty, dstw, dsth);
+        } else {
+            // the page size changed, so we need to re-screenshot the whole page
+            screenshotWholePage(mTabId);
+        }
+    }
+
+    private void scheduleCheckerboardScreenshotEvent(RectF srcRect, int dstx, int dsty, int dstw, int dsth) {
+        int numSlices = (int)FloatMath.ceil(srcRect.width() * srcRect.height() / MAX_PIXELS_PER_SLICE);
+        if (numSlices == 0 || dstw == 0 || dsth == 0) {
+            return;
+        }
+
+        PendingScreenshot pending = new PendingScreenshot(mTabId);
+        int sliceDstH = Math.max(1, dsth / numSlices);
+        float sliceSrcH = sliceDstH * srcRect.height() / dsth;
+        float srcY = srcRect.top;
+        for (int i = 0; i < dsth; i += sliceDstH) {
+            if (i + sliceDstH > dsth) {
+                // the last slice may be smaller to account for rounding error.
+                sliceDstH = dsth - i;
+                sliceSrcH = sliceDstH * srcRect.height() / dsth;
+            }
+            GeckoEvent event = GeckoEvent.createScreenshotEvent(mTabId,
+                (int)srcRect.left, (int)srcY, (int)srcRect.width(), (int)sliceSrcH,
+                dstx, dsty + i, dstw, sliceDstH,
+                mBufferWidth, mBufferHeight, SCREENSHOT_CHECKERBOARD, mBuffer);
+            srcY += sliceSrcH;
+            pending.addEvent(event);
+        }
+        synchronized (mPendingScreenshots) {
+            mPendingScreenshots.add(pending);
+            if (mPendingScreenshots.size() == 1) {
+                sendNextEventToGecko();
+            }
+        }
+    }
+
+    private void sendNextEventToGecko() {
+        synchronized (mPendingScreenshots) {
+            while (!mPendingScreenshots.isEmpty()) {
+                // some of the pending screenshots may have been discard()ed
+                // so keep looping until we find a real one
+                if (mPendingScreenshots.element().sendNextEventToGecko()) {
+                    break;
+                }
+                mPendingScreenshots.remove();
+            }
+        }
+    }
+
+    public static void notifyScreenShot(final ByteBuffer data, final int tabId,
+                                        final int left, final int top,
+                                        final int right, final int bottom,
+                                        final int bufferWidth, final int bufferHeight, final int token) {
+        GeckoAppShell.getHandler().post(new Runnable() {
+            public void run() {
+                switch (token) {
+                    case SCREENSHOT_CHECKERBOARD:
+                    {
+                        ScreenshotHandler handler = getInstance();
+                        if (Tabs.getInstance().getSelectedTab().getId() == tabId) {
+                            PendingScreenshot current;
+                            synchronized (handler.mPendingScreenshots) {
+                                current = handler.mPendingScreenshots.element();
+                                current.slicePainted(left, top, right, bottom);
+                                if (current.sendNextEventToGecko()) {
+                                    break;
+                                }
+                                // this screenshot has all its slices done, so push it out
+                                // to the layer renderer and remove it from the list
+                            }
+                            GeckoLayerClient layerClient = GeckoApp.mAppContext.getLayerClient();
+                            if (layerClient != null) {
+                                layerClient.getView().getRenderer().setCheckerboardBitmap(
+                                    data, bufferWidth, bufferHeight, handler.mPageRect,
+                                    current.getPaintedRegion());
+                            }
+                        }
+                        synchronized (handler.mPendingScreenshots) {
+                            handler.mPendingScreenshots.remove();
+                            handler.sendNextEventToGecko();
+                        }
+                        break;
+                    }
+                    case SCREENSHOT_THUMBNAIL:
+                    {
+                        Tab tab = Tabs.getInstance().getTab(tabId);
+                        if (tab != null) {
+                            GeckoApp.mAppContext.handleThumbnailData(tab, data);
+                        }
+                        break;
+                    }
+                }
+            }
+        });
+    }
+
+    static class PendingScreenshot {
+        private final int mTabId;
+        private final LinkedList<GeckoEvent> mEvents;
+        private final Rect mPainted;
+
+        PendingScreenshot(int tabId) {
+            mTabId = tabId;
+            mEvents = new LinkedList<GeckoEvent>();
+            mPainted = new Rect();
+        }
+
+        void addEvent(GeckoEvent event) {
+            mEvents.add(event);
+        }
+
+        boolean sendNextEventToGecko() {
+            if (!mEvents.isEmpty()) {
+                GeckoAppShell.sendEventToGecko(mEvents.remove());
+                return true;
+            }
+            return false;
+        }
+
+        void slicePainted(int left, int top, int right, int bottom) {
+            mPainted.union(left, top, right, bottom);
+        }
+
+        Rect getPaintedRegion() {
+            return mPainted;
+        }
+
+        void discard() {
+            mEvents.clear();
+        }
     }
 }

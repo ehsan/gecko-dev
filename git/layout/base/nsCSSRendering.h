@@ -34,7 +34,7 @@ public:
   enum {
     FLAG_SYNC_DECODE_IMAGES = 0x01
   };
-  nsImageRenderer(nsIFrame* aForFrame, const nsStyleImage* aImage, uint32_t aFlags);
+  nsImageRenderer(nsIFrame* aForFrame, const nsStyleImage* aImage, PRUint32 aFlags);
   ~nsImageRenderer();
   /**
    * Populates member variables to get ready for rendering.
@@ -96,7 +96,7 @@ private:
   nsLayoutUtils::SurfaceFromElementResult mImageElementSurface;
   bool                      mIsReady;
   nsSize                    mSize; // unscaled size of the image, in app units
-  uint32_t                  mFlags;
+  PRUint32                  mFlags;
 };
 
 /**
@@ -108,7 +108,7 @@ struct nsBackgroundLayerState {
   /**
    * @param aFlags some combination of nsCSSRendering::PAINTBG_* flags
    */
-  nsBackgroundLayerState(nsIFrame* aForFrame, const nsStyleImage* aImage, uint32_t aFlags)
+  nsBackgroundLayerState(nsIFrame* aForFrame, const nsStyleImage* aImage, PRUint32 aFlags)
     : mImageRenderer(aForFrame, aImage, aFlags) {}
 
   /**
@@ -303,7 +303,7 @@ struct nsCSSRendering {
   static nsBackgroundLayerState
   PrepareBackgroundLayer(nsPresContext* aPresContext,
                          nsIFrame* aForFrame,
-                         uint32_t aFlags,
+                         PRUint32 aFlags,
                          const nsRect& aBorderArea,
                          const nsRect& aBGClipRect,
                          const nsStyleBackground& aBackground,
@@ -334,18 +334,13 @@ struct nsCSSRendering {
                               nsIFrame* aForFrame,
                               const nsRect& aDirtyRect,
                               const nsRect& aBorderArea,
-                              uint32_t aFlags,
-                              nsRect* aBGClipRect = nullptr,
-                              int32_t aLayer = -1);
+                              PRUint32 aFlags,
+                              nsRect* aBGClipRect = nullptr);
 
   /**
    * Same as |PaintBackground|, except using the provided style structs.
    * This short-circuits the code that ensures that the root element's
    * background is drawn on the canvas.
-   * The aLayer parameter allows you to paint a single layer of the background.
-   * The default value for aLayer, -1, means that all layers will be painted.
-   * The background color will only be painted if the back-most layer is also
-   * being painted.
    */
   static void PaintBackgroundWithSC(nsPresContext* aPresContext,
                                     nsRenderingContext& aRenderingContext,
@@ -354,9 +349,8 @@ struct nsCSSRendering {
                                     const nsRect& aBorderArea,
                                     nsStyleContext *aStyleContext,
                                     const nsStyleBorder& aBorder,
-                                    uint32_t aFlags,
-                                    nsRect* aBGClipRect = nullptr,
-                                    int32_t aLayer = -1);
+                                    PRUint32 aFlags,
+                                    nsRect* aBGClipRect = nullptr);
 
   /**
    * Returns the rectangle covered by the given background layer image, taking
@@ -378,14 +372,14 @@ struct nsCSSRendering {
   // Draw a border segment in the table collapsing border model without
   // beveling corners
   static void DrawTableBorderSegment(nsRenderingContext& aContext,
-                                     uint8_t              aBorderStyle,  
+                                     PRUint8              aBorderStyle,  
                                      nscolor              aBorderColor,
                                      const nsStyleBackground* aBGColor,
                                      const nsRect&        aBorderRect,
-                                     int32_t              aAppUnitsPerCSSPixel,
-                                     uint8_t              aStartBevelSide = 0,
+                                     PRInt32              aAppUnitsPerCSSPixel,
+                                     PRUint8              aStartBevelSide = 0,
                                      nscoord              aStartBevelOffset = 0,
-                                     uint8_t              aEndBevelSide = 0,
+                                     PRUint8              aEndBevelSide = 0,
                                      nscoord              aEndBevelOffset = 0);
 
   /**
@@ -436,8 +430,8 @@ struct nsCSSRendering {
                                   const gfxSize& aLineSize,
                                   const gfxFloat aAscent,
                                   const gfxFloat aOffset,
-                                  const uint8_t aDecoration,
-                                  const uint8_t aStyle,
+                                  const PRUint8 aDecoration,
+                                  const PRUint8 aStyle,
                                   const gfxFloat aDescentLimit = -1.0);
 
   /**
@@ -456,8 +450,8 @@ struct nsCSSRendering {
                                    const gfxSize& aLineSize,
                                    const gfxFloat aAscent,
                                    const gfxFloat aOffset,
-                                   const uint8_t aDecoration,
-                                   const uint8_t aStyle,
+                                   const PRUint8 aDecoration,
+                                   const PRUint8 aStyle,
                                    const gfxFloat aDescentLimit = -1.0);
 
   /**
@@ -497,8 +491,8 @@ struct nsCSSRendering {
                                       const gfxSize& aLineSize,
                                       const gfxFloat aAscent,
                                       const gfxFloat aOffset,
-                                      const uint8_t aDecoration,
-                                      const uint8_t aStyle,
+                                      const PRUint8 aDecoration,
+                                      const PRUint8 aStyle,
                                       const gfxFloat aDescentLimit = -1.0);
 
 protected:
@@ -506,8 +500,8 @@ protected:
                                                const gfxSize& aLineSize,
                                                const gfxFloat aAscent,
                                                const gfxFloat aOffset,
-                                               const uint8_t aDecoration,
-                                               const uint8_t aStyle,
+                                               const PRUint8 aDecoration,
+                                               const PRUint8 aStyle,
                                                const gfxFloat aDscentLimit);
 
   /**
@@ -531,7 +525,7 @@ protected:
    */
   static gfxRect ExpandPaintingRectForDecorationLine(
                    nsIFrame* aFrame,
-                   const uint8_t aStyle,
+                   const PRUint8 aStyle,
                    const gfxRect &aClippedRect,
                    const gfxFloat aXInFrame,
                    const gfxFloat aCycleLength);
@@ -605,9 +599,9 @@ public:
    */
   gfxContext* Init(const nsRect& aRect, nscoord aSpreadRadius,
                    nscoord aBlurRadius,
-                   int32_t aAppUnitsPerDevPixel, gfxContext* aDestinationCtx,
+                   PRInt32 aAppUnitsPerDevPixel, gfxContext* aDestinationCtx,
                    const nsRect& aDirtyRect, const gfxRect* aSkipRect,
-                   uint32_t aFlags = 0);
+                   PRUint32 aFlags = 0);
 
   /**
    * Does the actual blurring/spreading. Users of this object *must*
@@ -637,7 +631,7 @@ public:
    * margin for a spread radius is itself, on all sides.)
    */
   static nsMargin GetBlurRadiusMargin(nscoord aBlurRadius,
-                                      int32_t aAppUnitsPerDevPixel);
+                                      PRInt32 aAppUnitsPerDevPixel);
 
 protected:
   gfxAlphaBoxBlur blur;

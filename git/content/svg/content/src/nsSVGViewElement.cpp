@@ -63,14 +63,14 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGViewElement)
 
 /* attribute unsigned short zoomAndPan; */
 NS_IMETHODIMP
-nsSVGViewElement::GetZoomAndPan(uint16_t *aZoomAndPan)
+nsSVGViewElement::GetZoomAndPan(PRUint16 *aZoomAndPan)
 {
   *aZoomAndPan = mEnumAttributes[ZOOMANDPAN].GetAnimValue();
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSVGViewElement::SetZoomAndPan(uint16_t aZoomAndPan)
+nsSVGViewElement::SetZoomAndPan(PRUint16 aZoomAndPan)
 {
   if (aZoomAndPan == nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_DISABLE ||
       aZoomAndPan == nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_MAGNIFY) {

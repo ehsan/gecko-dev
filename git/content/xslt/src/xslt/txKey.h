@@ -20,7 +20,7 @@ class txKeyValueHashKey
 {
 public:
     txKeyValueHashKey(const txExpandedName& aKeyName,
-                      int32_t aRootIdentifier,
+                      PRInt32 aRootIdentifier,
                       const nsAString& aKeyValue)
         : mKeyName(aKeyName),
           mKeyValue(aKeyValue),
@@ -30,7 +30,7 @@ public:
 
     txExpandedName mKeyName;
     nsString mKeyValue;
-    int32_t mRootIdentifier;
+    PRInt32 mRootIdentifier;
 };
 
 struct txKeyValueHashEntry : public PLDHashEntryHdr
@@ -65,14 +65,14 @@ class txIndexedKeyHashKey
 {
 public:
     txIndexedKeyHashKey(txExpandedName aKeyName,
-                        int32_t aRootIdentifier)
+                        PRInt32 aRootIdentifier)
         : mKeyName(aKeyName),
           mRootIdentifier(aRootIdentifier)
     {
     }
 
     txExpandedName mKeyName;
-    int32_t mRootIdentifier;
+    PRInt32 mRootIdentifier;
 };
 
 struct txIndexedKeyHashEntry : public PLDHashEntryHdr

@@ -235,18 +235,16 @@ ElementManager.prototype = {
    *        as the start node instead of the document root
    *        If this object has a 'time' member, this number will be
    *        used to see if we have hit the search timelimit.
-   * @param function on_success
-   *        The notification callback used when we are returning successfully.
-   * @param function on_error
-            The callback to invoke when an error occurs.
+   * @param function notify
+   *        The notification callback used when we are returning
    * @param boolean all
    *        If true, all found elements will be returned.
    *        If false, only the first element will be returned.
    *
    * @return nsIDOMElement or list of nsIDOMElements
-   *        Returns the element(s) by calling the on_success function.
+   *        Returns the element(s) by calling the notify function.
    */
-  find: function EM_find(win, values, on_success, on_error, all) {
+  find: function EM_find(win, values, notify, all) {
     let startTime = values.time ? values.time : new Date().getTime();
     let startNode = (values.element != undefined) ? this.getKnownElement(values.element, win) : win.document;
     if (this.elementStrategies.indexOf(values.using) < 0) {
@@ -255,24 +253,24 @@ ElementManager.prototype = {
     let found = all ? this.findElements(values.using, values.value, win.document, startNode) : this.findElement(values.using, values.value, win.document, startNode);
     if (found) {
       let type = Object.prototype.toString.call(found);
-      if ((type == '[object Array]') || (type == '[object HTMLCollection]') || (type == '[object NodeList]')) {
+      if ((type == '[object Array]') || (type == '[object HTMLCollection]')) {
         let ids = []
         for (let i = 0 ; i < found.length ; i++) {
           ids.push(this.addToKnownElements(found[i]));
         }
-        on_success(ids);
+        notify(ids);
       }
       else {
         let id = this.addToKnownElements(found);
-        on_success(id);
+        notify(id);
       }
       return;
     } else {
       if (this.searchTimeout == 0 || new Date().getTime() - startTime > this.searchTimeout) {
-        on_error("Unable to locate element: " + values.value, 7, null);
+        throw new ElementException("Unable to locate element: " + values.value, 7, null);
       } else {
         values.time = startTime;
-        this.timer.initWithCallback(this.find.bind(this, win, values, on_success, on_error, all), 100, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+        this.timer.initWithCallback(this.find.bind(this, win, values, notify, all), 100, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
       }
     }
   },
@@ -429,7 +427,7 @@ ElementManager.prototype = {
         }
         break;
       case SELECTOR:
-        elements = Array.slice(startNode.querySelectorAll(value));
+        elements = Array.slice(rootNode.querySelectorAll(value));
         break;
       default:
         throw new ElementException("No such strategy", 500, null);

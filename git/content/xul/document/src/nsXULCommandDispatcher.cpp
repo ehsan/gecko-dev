@@ -31,7 +31,7 @@
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "nsCRT.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsEventDispatcher.h"
 #include "nsDOMClassInfoID.h"
 
@@ -272,7 +272,7 @@ nsXULCommandDispatcher::AddCommandUpdater(nsIDOMElement* aElement,
 
 #ifdef DEBUG
       if (PR_LOG_TEST(gLog, PR_LOG_NOTICE)) {
-        nsAutoCString eventsC, targetsC, aeventsC, atargetsC; 
+        nsCAutoString eventsC, targetsC, aeventsC, atargetsC; 
         eventsC.AssignWithConversion(updater->mEvents);
         targetsC.AssignWithConversion(updater->mTargets);
         CopyUTF16toUTF8(aEvents, aeventsC);
@@ -300,7 +300,7 @@ nsXULCommandDispatcher::AddCommandUpdater(nsIDOMElement* aElement,
   }
 #ifdef DEBUG
   if (PR_LOG_TEST(gLog, PR_LOG_NOTICE)) {
-    nsAutoCString aeventsC, atargetsC; 
+    nsCAutoString aeventsC, atargetsC; 
     CopyUTF16toUTF8(aEvents, aeventsC);
     CopyUTF16toUTF8(aTargets, atargetsC);
 
@@ -335,7 +335,7 @@ nsXULCommandDispatcher::RemoveCommandUpdater(nsIDOMElement* aElement)
     if (updater->mElement == aElement) {
 #ifdef DEBUG
       if (PR_LOG_TEST(gLog, PR_LOG_NOTICE)) {
-        nsAutoCString eventsC, targetsC; 
+        nsCAutoString eventsC, targetsC; 
         eventsC.AssignWithConversion(updater->mEvents);
         targetsC.AssignWithConversion(updater->mTargets);
         PR_LOG(gLog, PR_LOG_NOTICE,
@@ -390,7 +390,7 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
     updaters.AppendObject(content);
   }
 
-  for (int32_t u = 0; u < updaters.Count(); u++) {
+  for (PRInt32 u = 0; u < updaters.Count(); u++) {
     nsIContent* content = updaters[u];
 
     nsCOMPtr<nsIDocument> document = content->GetDocument();
@@ -401,7 +401,7 @@ nsXULCommandDispatcher::UpdateCommands(const nsAString& aEventName)
 
 #ifdef DEBUG
     if (PR_LOG_TEST(gLog, PR_LOG_NOTICE)) {
-      nsAutoCString aeventnameC; 
+      nsCAutoString aeventnameC; 
       CopyUTF16toUTF8(aEventName, aeventnameC);
       PR_LOG(gLog, PR_LOG_NOTICE,
              ("xulcmd[%p] update %p event=%s",
@@ -433,7 +433,7 @@ nsXULCommandDispatcher::Matches(const nsString& aList,
   if (aList.EqualsLiteral("*"))
     return true; // match _everything_!
 
-  int32_t indx = aList.Find(PromiseFlatString(aElement));
+  PRInt32 indx = aList.Find(PromiseFlatString(aElement));
   if (indx == -1)
     return false; // not in the list at all
 

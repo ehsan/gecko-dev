@@ -45,7 +45,7 @@ Decoder::Init()
 
   // Fire OnStartDecode at init time to support bug 512435
   if (!IsSizeDecode() && mObserver)
-      mObserver->OnStartDecode();
+      mObserver->OnStartDecode(nullptr);
 
   // Implementation-specific initialization
   InitInternal();
@@ -66,7 +66,7 @@ Decoder::InitSharedDecoder()
 }
 
 void
-Decoder::Write(const char* aBuffer, uint32_t aCount)
+Decoder::Write(const char* aBuffer, PRUint32 aCount)
 {
   // We're strict about decoder errors
   NS_ABORT_IF_FALSE(!HasDecoderError(),
@@ -106,9 +106,9 @@ Decoder::Finish()
                        NS_ConvertASCIItoUTF16(mImage.GetURIString()));
 
       if (NS_SUCCEEDED(errorObject->InitWithWindowID(
-                         msg,
-                         NS_ConvertUTF8toUTF16(mImage.GetURIString()),
-                         EmptyString(), 0, 0, nsIScriptError::errorFlag,
+                         msg.get(),
+                         NS_ConvertUTF8toUTF16(mImage.GetURIString()).get(),
+                         nullptr, 0, 0, nsIScriptError::errorFlag,
                          "Image", mImage.InnerWindowID()
                        ))) {
         consoleService->LogMessage(errorObject);
@@ -124,7 +124,8 @@ Decoder::Finish()
 
     // Fire teardown notifications
     if (mObserver) {
-      mObserver->OnStopDecode(salvage ? NS_OK : NS_ERROR_FAILURE);
+      mObserver->OnStopContainer(nullptr, &mImage);
+      mObserver->OnStopDecode(nullptr, salvage ? NS_OK : NS_ERROR_FAILURE, nullptr);
     }
   }
 }
@@ -156,8 +157,8 @@ Decoder::FlushInvalidations()
     // Bug 703231
     // Because of high quality down sampling on mac we show scan lines while decoding.
     // Bypass this problem by redrawing the border.
-    int32_t width;
-    int32_t height;
+    PRInt32 width;
+    PRInt32 height;
 
     mImage.GetWidth(&width);
     mImage.GetHeight(&height);
@@ -166,7 +167,8 @@ Decoder::FlushInvalidations()
     mInvalidRect.Inflate(1);
     mInvalidRect = mInvalidRect.Intersect(mImageBound);
 #endif
-    mObserver->OnDataAvailable(&mInvalidRect);
+    bool isCurrentFrame = mImage.GetCurrentFrameIndex() == (mFrameCount - 1);
+    mObserver->OnDataAvailable(nullptr, isCurrentFrame, &mInvalidRect);
   }
 
   // Clear the invalidation rectangle
@@ -178,7 +180,7 @@ Decoder::FlushInvalidations()
  */
 
 void Decoder::InitInternal() { }
-void Decoder::WriteInternal(const char* aBuffer, uint32_t aCount) { }
+void Decoder::WriteInternal(const char* aBuffer, PRUint32 aCount) { }
 void Decoder::FinishInternal() { }
 
 /*
@@ -186,7 +188,7 @@ void Decoder::FinishInternal() { }
  */
 
 void
-Decoder::PostSize(int32_t aWidth, int32_t aHeight)
+Decoder::PostSize(PRInt32 aWidth, PRInt32 aHeight)
 {
   // Validate
   NS_ABORT_IF_FALSE(aWidth >= 0, "Width can't be negative!");
@@ -197,7 +199,7 @@ Decoder::PostSize(int32_t aWidth, int32_t aHeight)
 
   // Notify the observer
   if (mObserver)
-    mObserver->OnStartContainer();
+    mObserver->OnStartContainer(nullptr, &mImage);
 }
 
 void
@@ -220,6 +222,10 @@ Decoder::PostFrameStart()
   // reported by the Image.
   NS_ABORT_IF_FALSE(mFrameCount == mImage.GetNumFrames(),
                     "Decoder frame count doesn't match image's!");
+
+  // Fire notification
+  if (mObserver)
+    mObserver->OnStartFrame(nullptr, mFrameCount - 1); // frame # is zero-indexed
 }
 
 void
@@ -236,10 +242,10 @@ Decoder::PostFrameStop()
 
   // Fire notifications
   if (mObserver) {
-    mObserver->OnStopFrame();
+    mObserver->OnStopFrame(nullptr, mFrameCount - 1); // frame # is zero-indexed
     if (mFrameCount > 1 && !mIsAnimated) {
       mIsAnimated = true;
-      mObserver->OnImageIsAnimated();
+      mObserver->OnImageIsAnimated(nullptr);
     }
   }
 }
@@ -272,7 +278,8 @@ Decoder::PostDecodeDone()
   // Notify
   mImage.DecodingComplete();
   if (mObserver) {
-    mObserver->OnStopDecode(NS_OK);
+    mObserver->OnStopContainer(nullptr, &mImage);
+    mObserver->OnStopDecode(nullptr, NS_OK, nullptr);
   }
 }
 

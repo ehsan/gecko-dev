@@ -8,7 +8,6 @@
 #ifndef nsQuoteList_h___
 #define nsQuoteList_h___
 
-#include "mozilla/Attributes.h"
 #include "nsGenConList.h"
 
 struct nsQuoteNode : public nsGenConNode {
@@ -16,9 +15,9 @@ struct nsQuoteNode : public nsGenConNode {
   const nsStyleContentType mType;
 
   // Quote depth before this quote, which is always non-negative.
-  int32_t mDepthBefore;
+  PRInt32 mDepthBefore;
 
-  nsQuoteNode(nsStyleContentType& aType, uint32_t aContentIndex)
+  nsQuoteNode(nsStyleContentType& aType, PRUint32 aContentIndex)
     : nsGenConNode(aContentIndex)
     , mType(aType)
     , mDepthBefore(0)
@@ -28,11 +27,11 @@ struct nsQuoteNode : public nsGenConNode {
                  aType == eStyleContentType_NoOpenQuote ||
                  aType == eStyleContentType_NoCloseQuote,
                  "incorrect type");
-    NS_ASSERTION(aContentIndex <= INT32_MAX, "out of range");
+    NS_ASSERTION(aContentIndex <= PR_INT32_MAX, "out of range");
   }
 
   virtual bool InitTextFrame(nsGenConList* aList, 
-          nsIFrame* aPseudoFrame, nsIFrame* aTextFrame) MOZ_OVERRIDE;
+          nsIFrame* aPseudoFrame, nsIFrame* aTextFrame);
 
   // is this 'open-quote' or 'no-open-quote'?
   bool IsOpenQuote() {
@@ -54,12 +53,12 @@ struct nsQuoteNode : public nsGenConNode {
   // Depth of the quote for *this* node.  Either non-negative or -1.
   // -1 means this is a closing quote that tried to decrement the
   // counter below zero (which means no quote should be rendered).
-  int32_t Depth() {
+  PRInt32 Depth() {
     return IsOpenQuote() ? mDepthBefore : mDepthBefore - 1;
   }
 
   // always non-negative
-  int32_t DepthAfter() {
+  PRInt32 DepthAfter() {
     return IsOpenQuote() ? mDepthBefore + 1
                          : (mDepthBefore == 0 ? 0 : mDepthBefore - 1);
   }

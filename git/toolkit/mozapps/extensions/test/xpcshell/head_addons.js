@@ -26,16 +26,6 @@ var gAddonsList;
 
 var TEST_UNPACKED = false;
 
-function isNightlyChannel() {
-  var channel = "default";
-  try {
-    channel = Services.prefs.getCharPref("app.update.channel");
-  }
-  catch (e) { }
-
-  return channel != "aurora" && channel != "beta" && channel != "release" && channel != "esr";
-}
-
 function createAppInfo(id, name, version, platformVersion) {
   gAppInfo = {
     // nsIXULAppInfo
@@ -132,7 +122,7 @@ function do_check_not_in_crash_annotation(aId, aVersion) {
  *
  * @param  aName
  *         The name of the testcase (without extension)
- * @return an nsIFile pointing to the testcase xpi
+ * @return an nsILocalFile pointing to the testcase xpi
  */
 function do_get_addon(aName) {
   return do_get_file("addons/" + aName + ".xpi");
@@ -403,8 +393,7 @@ function shutdownManager() {
   }, "addon-repository-shutdown", false);
 
   obs.notifyObservers(null, "quit-application-granted", null);
-  let scope = Components.utils.import("resource://gre/modules/AddonManager.jsm");
-  scope.AddonManagerInternal.shutdown();
+  gInternalManager.observe(null, "xpcom-shutdown", null);
   gInternalManager = null;
 
   AddonRepository.shutdown();
@@ -427,7 +416,7 @@ function shutdownManager() {
 
   // Force the XPIProvider provider to reload to better
   // simulate real-world usage.
-  scope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
+  let scope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
   AddonManagerPrivate.unregisterProvider(scope.XPIProvider);
   Components.utils.unload("resource://gre/modules/XPIProvider.jsm");
 }
@@ -440,7 +429,7 @@ function loadAddonsList() {
       let descriptor = parser.getString(aSection, keys.getNext());
       try {
         let file = AM_Cc["@mozilla.org/file/local;1"].
-                   createInstance(AM_Ci.nsIFile);
+                   createInstance(AM_Ci.nsILocalFile);
         file.persistentDescriptor = descriptor;
         dirs.push(file);
       }
@@ -1170,9 +1159,9 @@ if ("nsIWindowsRegKey" in AM_Ci) {
     },
 
     readStringValue: function(aName) {
-      for (let value of this.values) {
-        if (value.name == aName)
-          return value.value;
+      for (let i = 0; i < this.values.length; i++) {
+        if (this.values[i].name == aName)
+          return this.values[i].value;
       }
     }
   };
@@ -1194,7 +1183,7 @@ if ("nsIWindowsRegKey" in AM_Ci) {
 }
 
 // Get the profile directory for tests to use.
-const gProfD = do_get_profile();
+const gProfD = do_get_profile().QueryInterface(AM_Ci.nsILocalFile);
 
 // Enable more extensive EM logging
 Services.prefs.setBoolPref("extensions.logging.enabled", true);

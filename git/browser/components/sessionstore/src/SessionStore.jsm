@@ -2987,7 +2987,6 @@ let SessionStoreInternal = {
       // a tab gets closed before it's been properly restored
       browser.__SS_data = tabData;
       browser.__SS_restoreState = TAB_STATE_NEEDS_RESTORE;
-      browser.setAttribute("pending", "true");
       tab.setAttribute("pending", "true");
 
       // Make sure that set/getTabValue will set/read the correct data by
@@ -3036,7 +3035,7 @@ let SessionStoreInternal = {
   },
 
   /**
-   * Restore history for a window
+   * Restory history for a window
    * @param aWindow
    *        Window reference
    * @param aTabs
@@ -3172,7 +3171,6 @@ let SessionStoreInternal = {
 
     // Set this tab's state to restoring
     browser.__SS_restoreState = TAB_STATE_RESTORING;
-    browser.removeAttribute("pending");
     aTab.removeAttribute("pending");
 
     // Remove the history listener, since we no longer need it once we start restoring
@@ -3579,8 +3577,8 @@ let SessionStoreInternal = {
     }
     // since resizing/moving a window brings it to the foreground,
     // we might want to re-focus the last focused window
-    if (this.windowToFocus) {
-      this.windowToFocus.focus();
+    if (this.windowToFocus && this.windowToFocus.content) {
+      this.windowToFocus.content.focus();
     }
   },
 
@@ -3651,10 +3649,8 @@ let SessionStoreInternal = {
     TelemetryStopwatch.start("FX_SESSION_RESTORE_COLLECT_DATA_MS");
 
     var oState = this._getCurrentState(aUpdateAll, pinnedOnly);
-    if (!oState) {
-      TelemetryStopwatch.cancel("FX_SESSION_RESTORE_COLLECT_DATA_MS");
+    if (!oState)
       return;
-    }
 
 #ifndef XP_MACOSX
     // We want to restore closed windows that are marked with _shouldRestore.
@@ -3869,17 +3865,16 @@ let SessionStoreInternal = {
                      aState.windows.every(function (win)
                        win.tabs.every(function (tab) tab.pinned));
 
-    let hasFirstArgument = aWindow.arguments && aWindow.arguments[0];
     if (!pinnedOnly) {
       let defaultArgs = Cc["@mozilla.org/browser/clh;1"].
                         getService(Ci.nsIBrowserHandler).defaultArgs;
       if (aWindow.arguments &&
           aWindow.arguments[0] &&
           aWindow.arguments[0] == defaultArgs)
-        hasFirstArgument = false;
+        aWindow.arguments[0] = null;
     }
 
-    return !hasFirstArgument;
+    return !aWindow.arguments || !aWindow.arguments[0];
   },
 
   /**
@@ -4339,9 +4334,6 @@ let SessionStoreInternal = {
     // The browser is no longer in any sort of restoring state.
     delete browser.__SS_restoreState;
 
-    aTab.removeAttribute("pending");
-    browser.removeAttribute("pending");
-
     // We want to decrement window.__SS_tabsToRestore here so that we always
     // decrement it AFTER a tab is done restoring or when a tab gets "reset".
     window.__SS_tabsToRestore--;
@@ -4431,8 +4423,7 @@ let SessionStoreInternal = {
    *        String data
    */
   _writeFile: function ssi_writeFile(aFile, aData) {
-    let refObj = {};
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
+    TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_MS");
     // Initialize the file output stream.
     var ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"].
                   createInstance(Ci.nsIFileOutputStream);
@@ -4448,7 +4439,7 @@ let SessionStoreInternal = {
     var self = this;
     NetUtil.asyncCopy(istream, ostream, function(rc) {
       if (Components.isSuccessCode(rc)) {
-        TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
+        TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_MS");
         Services.obs.notifyObservers(null,
                                      "sessionstore-state-write-complete",
                                      "");

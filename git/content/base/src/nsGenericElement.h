@@ -30,13 +30,13 @@
 #include "nsIDOMXPathNSResolver.h"
 #include "nsPresContext.h"
 #include "nsIDOMDOMStringMap.h"
+#include "nsContentList.h"
 #include "nsDOMClassInfoID.h" // DOMCI_DATA
 #include "nsIDOMTouchEvent.h"
 #include "nsIInlineEventHandlers.h"
 #include "mozilla/CORSMode.h"
 #include "mozilla/Attributes.h"
-#include "nsContentUtils.h"
-#include "nsINodeList.h"
+
 #include "nsISMILAttr.h"
 
 class nsIDOMAttr;
@@ -57,6 +57,8 @@ class nsDOMTokenList;
 class ContentUnbinder;
 struct nsRect;
 
+typedef PRUptrdiff PtrBits;
+
 /**
  * A generic base class for DOM elements, implementing many nsIContent,
  * nsIDOMNode and nsIDOMElement methods.
@@ -74,14 +76,11 @@ public:
                               bool aNullParent = true);
   virtual nsIAtom *GetClassAttributeName() const;
   virtual already_AddRefed<nsINodeInfo> GetExistingAttrNameFromQName(const nsAString& aStr) const;
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                    const nsAString& aValue, bool aNotify)
   {
     return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
   }
-
-  NS_IMETHOD GetAttributes(nsIDOMNamedNodeMap** aAttributes);
-
   /**
    * Helper for SetAttr/SetParsedAttr. This method will return true if aNotify
    * is true or there are mutation listeners that must be triggered, the
@@ -98,52 +97,36 @@ public:
    * @param aHasListeners Set to true if there are mutation event listeners
    *   listening for NS_EVENT_BITS_MUTATION_ATTRMODIFIED
    */
-  bool MaybeCheckSameAttrVal(int32_t aNamespaceID, nsIAtom* aName,
+  bool MaybeCheckSameAttrVal(PRInt32 aNamespaceID, nsIAtom* aName,
                              nsIAtom* aPrefix,
                              const nsAttrValueOrString& aValue,
                              bool aNotify, nsAttrValue& aOldValue,
-                             uint8_t* aModType, bool* aHasListeners);
-
-  bool OnlyNotifySameValueSet(int32_t aNamespaceID, nsIAtom* aName,
-                              nsIAtom* aPrefix,
-                              const nsAttrValueOrString& aValue,
-                              bool aNotify, nsAttrValue& aOldValue,
-                              uint8_t* aModType, bool* aHasListeners)
-  {
-    if (MaybeCheckSameAttrVal(aNamespaceID, aName, aPrefix, aValue, aNotify,
-                              aOldValue, aModType, aHasListeners)) {
-      nsAutoScriptBlocker scriptBlocker;
-      nsNodeUtils::AttributeSetToCurrentValue(this, aNamespaceID, aName);
-      return true;
-    }
-    return false;
-  }
-
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName, nsIAtom* aPrefix,
+                             PRUint8* aModType, bool* aHasListeners);
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, nsIAtom* aPrefix,
                            const nsAString& aValue, bool aNotify);
-  virtual nsresult SetParsedAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetParsedAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                                  nsIAtom* aPrefix, nsAttrValue& aParsedValue,
                                  bool aNotify);
-  virtual bool GetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual bool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                          nsAString& aResult) const;
-  virtual bool HasAttr(int32_t aNameSpaceID, nsIAtom* aName) const;
-  virtual bool AttrValueIs(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual bool HasAttr(PRInt32 aNameSpaceID, nsIAtom* aName) const;
+  virtual bool AttrValueIs(PRInt32 aNameSpaceID, nsIAtom* aName,
                              const nsAString& aValue,
                              nsCaseTreatment aCaseSensitive) const;
-  virtual bool AttrValueIs(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual bool AttrValueIs(PRInt32 aNameSpaceID, nsIAtom* aName,
                              nsIAtom* aValue,
                              nsCaseTreatment aCaseSensitive) const;
-  virtual int32_t FindAttrValueIn(int32_t aNameSpaceID,
+  virtual PRInt32 FindAttrValueIn(PRInt32 aNameSpaceID,
                                   nsIAtom* aName,
                                   AttrValuesArray* aValues,
                                   nsCaseTreatment aCaseSensitive) const;
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
-  virtual const nsAttrName* GetAttrNameAt(uint32_t aIndex) const;
-  virtual uint32_t GetAttrCount() const;
-  virtual bool IsNodeOfType(uint32_t aFlags) const;
+  virtual const nsAttrName* GetAttrNameAt(PRUint32 aIndex) const;
+  virtual PRUint32 GetAttrCount() const;
+  virtual bool IsNodeOfType(PRUint32 aFlags) const;
 
-  virtual nsISMILAttr* GetAnimatedAttr(int32_t /*aNamespaceID*/, nsIAtom* /*aName*/)
+  virtual nsISMILAttr* GetAnimatedAttr(PRInt32 /*aNamespaceID*/, nsIAtom* /*aName*/)
   {
     return nullptr;
   }
@@ -154,12 +137,12 @@ public:
   virtual bool IsLabelable() const;
 
 #ifdef DEBUG
-  virtual void List(FILE* out, int32_t aIndent) const
+  virtual void List(FILE* out, PRInt32 aIndent) const
   {
     List(out, aIndent, EmptyCString());
   }
-  virtual void DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const;
-  void List(FILE* out, int32_t aIndent, const nsCString& aPrefix) const;
+  virtual void DumpContent(FILE* out, PRInt32 aIndent, bool aDumpAll) const;
+  void List(FILE* out, PRInt32 aIndent, const nsCString& aPrefix) const;
   void ListAttributes(FILE* out) const;
 #endif
 
@@ -170,7 +153,7 @@ public:
   NS_IMETHOD_(bool)
     IsAttributeMapped(const nsIAtom* aAttribute) const;
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                              int32_t aModType) const;
+                                              PRInt32 aModType) const;
   /*
    * Attribute Mapping Helpers
    */
@@ -196,20 +179,11 @@ private:
   static bool
   FindAttributeDependence(const nsIAtom* aAttribute,
                           const MappedAttributeEntry* const aMaps[],
-                          uint32_t aMapCount);
+                          PRUint32 aMapCount);
 
 public:
   // nsIDOMElement method implementation
   NS_DECL_NSIDOMELEMENT
-  nsDOMAttributeMap* GetAttributes()
-  {
-    nsDOMSlots *slots = DOMSlots();
-    if (!slots->mAttributeMap) {
-      slots->mAttributeMap = new nsDOMAttributeMap(this);
-    }
-
-    return slots->mAttributeMap;
-  }
 
   //----------------------------------------
 
@@ -220,9 +194,9 @@ public:
    * @param aValue the JS to attach
    * @param aDefer indicates if deferred execution is allowed
    */
-  nsresult SetEventHandler(nsIAtom* aEventName,
-                           const nsAString& aValue,
-                           bool aDefer = true);
+  nsresult AddScriptEventListener(nsIAtom* aEventName,
+                                  const nsAString& aValue,
+                                  bool aDefer = true);
 
   /**
    * Do whatever needs to be done when the mouse leaves a link
@@ -242,7 +216,7 @@ public:
                                      nsInputEvent* aSourceEvent,
                                      nsIContent* aTarget,
                                      bool aFullDispatch,
-                                     uint32_t aFlags,
+                                     PRUint32 aFlags,
                                      nsEventStatus* aStatus);
 
   /**
@@ -307,25 +281,25 @@ public:
   {
   }
 
-  int32_t GetScrollTop();
-  int32_t GetScrollLeft();
-  int32_t GetScrollHeight();
-  int32_t GetScrollWidth();
-  int32_t GetScrollLeftMax();
-  int32_t GetScrollTopMax();
-  int32_t GetClientTop()
+  PRInt32 GetScrollTop();
+  PRInt32 GetScrollLeft();
+  PRInt32 GetScrollHeight();
+  PRInt32 GetScrollWidth();
+  PRInt32 GetScrollLeftMax();
+  PRInt32 GetScrollTopMax();
+  PRInt32 GetClientTop()
   {
     return nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().y);
   }
-  int32_t GetClientLeft()
+  PRInt32 GetClientLeft()
   {
     return nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().x);
   }
-  int32_t GetClientHeight()
+  PRInt32 GetClientHeight()
   {
     return nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().height);
   }
-  int32_t GetClientWidth()
+  PRInt32 GetClientWidth()
   {
     return nsPresContext::AppUnitsToIntCSSPixels(GetClientAreaRect().width);
   }
@@ -344,7 +318,7 @@ public:
    * is, this should only be called from methods that only care about attrs
    * that effectively live in mAttrsAndChildren.
    */
-  virtual nsAttrInfo GetAttrInfo(int32_t aNamespaceID, nsIAtom* aName) const;
+  virtual nsAttrInfo GetAttrInfo(PRInt32 aNamespaceID, nsIAtom* aName) const;
 
   virtual void NodeInfoChanged(nsINodeInfo* aOldNodeInfo)
   {
@@ -402,12 +376,12 @@ protected:
    * @param aNotify       should we notify document-observers?
    * @param aCallAfterSetAttr should we call AfterSetAttr?
    */
-  nsresult SetAttrAndNotify(int32_t aNamespaceID,
+  nsresult SetAttrAndNotify(PRInt32 aNamespaceID,
                             nsIAtom* aName,
                             nsIAtom* aPrefix,
                             const nsAttrValue& aOldValue,
                             nsAttrValue& aParsedValue,
-                            uint8_t aModType,
+                            PRUint8 aModType,
                             bool aFireMutation,
                             bool aNotify,
                             bool aCallAfterSetAttr);
@@ -423,7 +397,7 @@ protected:
    * @param aResult the nsAttrValue [OUT]
    * @return true if the parsing was successful, false otherwise
    */
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+  virtual bool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
@@ -462,7 +436,7 @@ protected:
    */
   // Note that this is inlined so that when subclasses call it it gets
   // inlined.  Those calls don't go through a vtable.
-  virtual nsresult BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+  virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                  const nsAttrValueOrString* aValue,
                                  bool aNotify)
   {
@@ -483,7 +457,7 @@ protected:
    */
   // Note that this is inlined so that when subclasses call it it gets
   // inlined.  Those calls don't go through a vtable.
-  virtual nsresult AfterSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+  virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
                                 const nsAttrValue* aValue, bool aNotify)
   {
     return NS_OK;

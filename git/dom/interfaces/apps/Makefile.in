@@ -16,16 +16,9 @@ GRE_MODULE     = 1
 
 XPIDLSRCS =                               \
             mozIApplication.idl \
-            mozIApplicationClearPrivateDataParams.idl \
             nsIDOMApplicationRegistry.idl \
-            nsIDOMApplicationRegistry2.idl \
             nsIAppsService.idl \
             nsIDOMMozApplicationEvent.idl \
             $(NULL)
 
 include $(topsrcdir)/config/rules.mk
-
-XPIDL_FLAGS += \
-  -I$(topsrcdir)/dom/interfaces/base \
-  -I$(topsrcdir)/dom/interfaces/events \
-  $(NULL)

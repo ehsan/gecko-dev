@@ -27,7 +27,7 @@ namespace {
         nsCxPusher mStack;
         JSAutoRequest mRequest;
         JSContext* const mContext;
-        const uint32_t mSavedOptions;
+        const uint32 mSavedOptions;
         JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 
     public:
@@ -374,8 +374,8 @@ ObjectWrapperChild::AnswerDelProperty(const nsString& id,
     return jsval_to_JSVariant(cx, aco.Ok() ? val : JSVAL_VOID, vp);
 }
 
-static const uint32_t sNextIdIndexSlot = 0;
-static const uint32_t sNumNewEnumerateStateSlots = 1;
+static const PRUint32 sNextIdIndexSlot = 0;
+static const PRUint32 sNumNewEnumerateStateSlots = 1;
 
 static void
 CPOW_NewEnumerateState_FreeIds(JSObject* state)
@@ -422,14 +422,14 @@ ObjectWrapperChild::AnswerNewEnumerateInit(/* no in-parameters */
         return false;
     AutoObjectRooter tvr(cx, state);
 
-    for (JSObject* proto = mObj; proto; ) {
+    for (JSObject* proto = mObj;
+         proto;
+         proto = JS_GetPrototype(proto))
+    {
         AutoIdArray ids(cx, JS_Enumerate(cx, proto));
         for (size_t i = 0; i < ids.length(); ++i)
             JS_DefinePropertyById(cx, state, ids[i], JSVAL_VOID,
                                   NULL, NULL, JSPROP_ENUMERATE | JSPROP_SHARED);
-
-        if (!JS_GetPrototype(cx, proto, &proto))
-            return false;
     }
 
     InfallibleTArray<nsString>* strIds;
@@ -569,13 +569,13 @@ ObjectWrapperChild::AnswerCall(PObjectWrapperChild* receiver, const InfallibleTA
         return false;
 
     AutoJSArgs args;
-    uint32_t argc = argv.Length();
+    PRUint32 argc = argv.Length();
     jsval *jsargs = args.AppendElements(argc);
     if (!jsargs)
         return false;
     AutoArrayRooter tvr(cx, argc, jsargs);
 
-    for (uint32_t i = 0; i < argc; ++i)
+    for (PRUint32 i = 0; i < argc; ++i)
         if (!jsval_from_JSVariant(cx, argv.ElementAt(i), jsargs + i))
             return false;
 
@@ -595,13 +595,13 @@ ObjectWrapperChild::AnswerConstruct(const InfallibleTArray<JSVariant>& argv,
     AutoCheckOperation aco(this, status);
 
     AutoJSArgs args;
-    uint32_t argc = argv.Length();
+    PRUint32 argc = argv.Length();
     jsval* jsargs = args.AppendElements(argc);
     if (!jsargs)
         return false;
     AutoArrayRooter tvr(cx, argc, jsargs);
 
-    for (uint32_t i = 0; i < argc; ++i)
+    for (PRUint32 i = 0; i < argc; ++i)
         if (!jsval_from_JSVariant(cx, argv.ElementAt(i), jsargs + i))
             return false;
 

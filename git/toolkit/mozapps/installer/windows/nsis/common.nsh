@@ -68,11 +68,29 @@
   !include WinMessages.nsh
 !endif
 
+!ifndef MUI_VERBOSE
+  !include MUI.nsh
+!endif
+
 ; When including WinVer.nsh check if ___WINVER__NSH___ is defined to prevent
 ; loading the file a second time. NSIS versions prior to 2.21 didn't include
 ; WinVer.nsh so include it with the /NOFATAL option.
 !ifndef ___WINVER__NSH___
   !include /NONFATAL WinVer.nsh
+!endif
+
+; Add Windows 7 / 2008 support for versions of WinVer.nsh that don't support
+; them. This can be removed after bug 571381 is fixed.
+!ifndef WINVER_7
+  !define WINVER_7 0x601
+
+  !macro __MOZ__WinVer_DefineOSTests Test
+    !insertmacro __WinVer_DefineOSTest ${Test} 7
+  !macroend
+
+  !insertmacro __MOZ__WinVer_DefineOSTests AtLeast
+  !insertmacro __MOZ__WinVer_DefineOSTests Is
+  !insertmacro __MOZ__WinVer_DefineOSTests AtMost
 !endif
 
 !include x64.nsh
@@ -81,7 +99,6 @@
 !include overrides.nsh
 
 !define SHORTCUTS_LOG "shortcuts_log.ini"
-!define TO_BE_DELETED "to_be_deleted"
 
 
 ################################################################################
@@ -1111,7 +1128,7 @@
 
       Pop $R5
       Pop $R6
-      Pop $R7 ; stack: old R8, old R9
+      Pop $R7 ; stack: old R8, old R9 
       Pop $R8 ; stack: old R9
       Exch $R9 ; stack: result
     FunctionEnd
@@ -1508,7 +1525,7 @@
       ; Note, changes in SHCTX should propegate to hkey classes root when
       ; current user or local machine entries are written. Windows will also
       ; attempt to propegate entries when a handler is used. CR entries are a
-      ; combination of LM and CU, with CU taking priority.
+      ; combination of LM and CU, with CU taking priority. 
       ;
       ; To disable dde, an empty shell/ddeexec key must be created in current
       ; user or local machine. Unfortunately, settings have various different
@@ -4141,115 +4158,6 @@
 !macroend
 
 /**
- * Parses the uninstall.log for the stub installer on install to first remove a
- * previous installation's files prior to installing.
- *
- * When modifying this macro be aware that LineFind uses all registers except
- * $R0-$R3 so be cautious. Callers of this macro are not affected.
- */
-!macro OnStubInstallUninstall
-
-  !ifndef OnStubInstallUninstall
-    !insertmacro GetParent
-    !insertmacro LineFind
-    !insertmacro TrimNewLines
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define OnStubInstallUninstall "!insertmacro OnStubInstallUninstallCall"
-
-    Function OnStubInstallUninstall
-      Push $R9
-      Push $R8
-      Push $R7
-      Push $R6
-      Push $R5
-      Push $R4
-      Push $R3
-      Push $R2
-      Push $R1
-      Push $R0
-      Push $TmpVal
-
-      IfFileExists "$INSTDIR\uninstall\uninstall.log" +1 end
-
-      ; Copy the uninstall log file to a temporary file
-      GetTempFileName $TmpVal
-      CopyFiles /SILENT /FILESONLY "$INSTDIR\uninstall\uninstall.log" "$TmpVal"
-
-      CreateDirectory "$INSTDIR\${TO_BE_DELETED}"
-
-      ; Delete files
-      ${LineFind} "$TmpVal" "/NUL" "1:-1" "StubRemoveFilesCallback"
-
-      ; Delete the temporary uninstall log file
-      Delete /REBOOTOK "$TmpVal"
-
-      RmDir /r /REBOOTOK "$INSTDIR\${TO_BE_DELETED}"
-
-      end:
-      ClearErrors
-
-      Pop $TmpVal
-      Pop $R0
-      Pop $R1
-      Pop $R2
-      Pop $R3
-      Pop $R4
-      Pop $R5
-      Pop $R6
-      Pop $R7
-      Pop $R8
-      Pop $R9
-    FunctionEnd
-
-    Function StubRemoveFilesCallback
-      ${TrimNewLines} "$R9" $R9
-      StrCpy $R1 "$R9" 5       ; Copy the first five chars
-
-      StrCmp "$R1" "File:" +1 end
-      StrCpy $R9 "$R9" "" 6    ; Copy string starting after the 6th char
-      StrCpy $R0 "$R9" 1       ; Copy the first char
-
-      StrCmp "$R0" "\" +1 end  ; If this isn't a relative path goto end
-      StrCmp "$R9" "\MapiProxy_InUse.dll" end +1 ; Skip the MapiProxy_InUse.dll
-      StrCmp "$R9" "\mozMapi32_InUse.dll" end +1 ; Skip the mozMapi32_InUse.dll
-
-      StrCpy $R1 "$INSTDIR$R9" ; Copy the install dir path and suffix it with the string
-      IfFileExists "$R1" +1 end
-
-      ClearErrors
-      Delete "$R1"
-      ${Unless} ${Errors}
-        Goto end
-      ${EndUnless}
-
-      GetTempFileName $R2 "$INSTDIR\${TO_BE_DELETED}"
-      Delete "$R2"
-      ClearErrors
-      Rename "$R1" "$R2"
-      ${If} ${Errors}
-        Delete /REBOOTOK "$R1"
-      ${EndUnless}
-
-      end:
-      ClearErrors
-
-      Push 0
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro OnStubInstallUninstallCall
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Call OnStubInstallUninstall
-  !verbose pop
-!macroend
-
-/**
  * Parses the uninstall.log to unregister dll's, remove files, and remove
  * empty directories for this installation.
  *
@@ -4836,7 +4744,7 @@
         ${If} ${AtMostWin2000}
           StrCpy $R8 "1"
         ${EndIf}
-
+        
         ${If} ${IsWinXP}
         ${AndIf} ${AtMostServicePack} 1
           StrCpy $R8 "1"
@@ -5835,12 +5743,8 @@
         ${LogMsg} "OS Name    : Windows 2003"
       ${ElseIf} ${IsWinVista}
         ${LogMsg} "OS Name    : Windows Vista"
-      ${ElseIf} ${IsWin7}
-        ${LogMsg} "OS Name    : Windows 7"
-      ${ElseIf} ${IsWin8}
-        ${LogMsg} "OS Name    : Windows 8"
-      ${ElseIf} ${AtLeastWin8}
-        ${LogMsg} "OS Name    : Above Windows 8"
+      ${ElseIf} ${AtLeastWinVista} ; Workaround for NSIS 2.33 WinVer.nsh not knowing Win7
+        ${LogMsg} "OS Name    : Windows 7 or above"
       ${Else}
         ${LogMsg} "OS Name    : Unable to detect"
       ${EndIf}
@@ -6915,27 +6819,27 @@
     Push $R0
     Push $R1
     Push $R2
-
+ 
     ClearErrors
     UserInfo::GetName
     IfErrors Win9x
     Pop $R1
     UserInfo::GetAccountType
     Pop $R2
-
+ 
     StrCmp $R2 "Admin" 0 Continue
     StrCpy $R0 "true"
     Goto Done
-
+ 
     Continue:
 
     StrCmp $R2 "" Win9x
     StrCpy $R0 "false"
     Goto Done
-
+ 
     Win9x:
     StrCpy $R0 "true"
-
+ 
     Done:
     Pop $R2
     Pop $R1
@@ -7064,510 +6968,3 @@
     !verbose pop
   !endif
 !macroend
-
-
-################################################################################
-# Helpers for the new user interface
-
-!define DT_WORDBREAK 0x0010
-!define DT_SINGLELINE 0x0020
-!define DT_NOCLIP 0x0100
-!define DT_CALCRECT 0x0400
-!define DT_EDITCONTROL 0x2000
-!define DT_RTLREADING 0x00020000
-!define DT_NOFULLWIDTHCHARBREAK 0x00080000
-
-!define WS_EX_NOINHERITLAYOUT 0x00100000
-!define WS_EX_LAYOUTRTL 0x00400000
-
-!define PBS_MARQUEE 0x08
-
-!define /math PBM_SETRANGE32 ${WM_USER} + 6
-
-!define SHACF_FILESYSTEM 1
-
-!define MOZ_LOADTRANSPARENT ${LR_LOADFROMFILE}|${LR_LOADTRANSPARENT}|${LR_LOADMAP3DCOLORS}
-
-; Extend nsDialogs.nsh to support creating centered labels if it is already
-; included
-!ifmacrodef __NSD_DefineControl
-!insertmacro __NSD_DefineControl LabelCenter
-!define __NSD_LabelCenter_CLASS STATIC
-!define __NSD_LabelCenter_STYLE ${DEFAULT_STYLES}|${SS_NOTIFY}|${SS_CENTER}
-!define __NSD_LabelCenter_EXSTYLE ${WS_EX_TRANSPARENT}
-!endif
-
-/**
- * Modified version of the __NSD_SetStretchedImage macro from nsDialogs.nsh that
- * supports transparency. See nsDialogs documentation for additional info.
- */
-!macro __SetStretchedTransparentImage CONTROL IMAGE HANDLE
-  Push $0
-  Push $1
-  Push $2
-  Push $R0
-
-  StrCpy $R0 ${CONTROL} ; in case ${CONTROL} is $0
-  StrCpy $1 ""
-  StrCpy $2 ""
-
-  System::Call '*(i, i, i, i) i.s'
-  Pop $0
-
-  ${If} $0 <> 0
-    System::Call 'user32::GetClientRect(i R0, i r0)'
-    System::Call '*$0(i, i, i .s, i .s)'
-    System::Free $0
-    Pop $1
-    Pop $2
-  ${EndIf}
-
-  System::Call 'user32::LoadImageW(i 0, t s, i ${IMAGE_BITMAP}, i r1, i r2, \
-                                   i ${MOZ_LOADTRANSPARENT}) i .s' "${IMAGE}"
-  Pop $0
-  SendMessage $R0 ${STM_SETIMAGE} ${IMAGE_BITMAP} $0
-
-  SetCtlColors $R0 "" transparent
-  ${NSD_AddExStyle} $R0 ${WS_EX_TRANSPARENT}|${WS_EX_TOPMOST}
-
-  Pop $R0
-  Pop $2
-  Pop $1
-  Exch $0
-  Pop ${HANDLE}
-!macroend
-!define SetStretchedTransparentImage `!insertmacro __SetStretchedTransparentImage`
-
-/**
- * Removes a single style from a control.
- *
- * _HANDLE the handle of the control
- * _STYLE  the style to remove
- */
-!macro _RemoveStyle _HANDLE _STYLE
-  Push $0
-
-  System::Call 'user32::GetWindowLongW(i ${_HANDLE}, i ${GWL_STYLE}) i .r0'
-  IntOp $0 $0 | ${_STYLE}
-  IntOp $0 $0 - ${_STYLE}
-  System::Call 'user32::SetWindowLongW(i ${_HANDLE}, i ${GWL_STYLE}, i r0)'
-
-  Pop $0
-!macroend
-!define RemoveStyle "!insertmacro _RemoveStyle"
-
-/**
- * Removes a single extended style from a control.
- *
- * _HANDLE  the handle of the control
- * _EXSTYLE the extended style to remove
- */
-!macro _RemoveExStyle _HANDLE _EXSTYLE
-  Push $0
-
-  System::Call 'user32::GetWindowLongW(i ${_HANDLE}, i ${GWL_EXSTYLE}) i .r0'
-  IntOp $0 $0 | ${_EXSTYLE}
-  IntOp $0 $0 - ${_EXSTYLE}
-  System::Call 'user32::SetWindowLongW(i ${_HANDLE}, i ${GWL_EXSTYLE}, i r0)'
-
-  Pop $0
-!macroend
-!define RemoveExStyle "!insertmacro _RemoveExStyle"
-
-/**
- * Gets the extent of the specified text in pixels for sizing a control.
- *
- * _TEXT       the text to get the text extent for
- * _FONT       the font to use when getting the text extent
- * _RES_WIDTH  return value - control width for the text
- * _RES_HEIGHT return value - control height for the text
- */
-!macro GetTextExtentCall _TEXT _FONT _RES_WIDTH _RES_HEIGHT
-  Push "${_TEXT}"
-  Push "${_FONT}"
-  ${CallArtificialFunction} GetTextExtent_
-  Pop ${_RES_WIDTH}
-  Pop ${_RES_HEIGHT}
-!macroend
-
-!define GetTextExtent "!insertmacro GetTextExtentCall"
-!define un.GetTextExtent "!insertmacro GetTextExtentCall"
-
-!macro GetTextExtent_
-  Exch $0 ; font
-  Exch 1
-  Exch $1 ; text
-  Push $2
-  Push $3
-  Push $4
-  Push $5
-  Push $6
-  Push $7
-
-  ; Reuse the existing NSIS control which is used for BrandingText instead of
-  ; creating a new control.
-  GetDlgItem $2 $HWNDPARENT 1028
-
-  System::Call 'user32::GetDC(i r2) i .r3'
-  System::Call 'gdi32::SelectObject(i r3, i r0)'
-
-  StrLen $4 "$1"
-
-  System::Call '*(i, i) i .r5'
-  System::Call 'gdi32::GetTextExtentPoint32W(i r3, t$\"$1$\", i r4, i r5)'
-  System::Call '*$5(i .r6, i .r7)'
-  System::Free $5
-
-  System::Call 'user32::ReleaseDC(i r2, i r3)'
-
-  StrCpy $1 $7
-  StrCpy $0 $6
-
-  Pop $7
-  Pop $6
-  Pop $5
-  Pop $4
-  Pop $3
-  Pop $2
-  Exch $1 ; return height
-  Exch 1
-  Exch $0 ; return width
-!macroend
-
-/**
- * Gets the width and the height of a control in pixels.
- *
- * _HANDLE     the handle of the control
- * _RES_WIDTH  return value - control width for the text
- * _RES_HEIGHT return value - control height for the text
- */
-!macro GetDlgItemWidthHeightCall _HANDLE _RES_WIDTH _RES_HEIGHT
-  Push "${_HANDLE}"
-  ${CallArtificialFunction} GetDlgItemWidthHeight_
-  Pop ${_RES_WIDTH}
-  Pop ${_RES_HEIGHT}
-!macroend
-
-!define GetDlgItemWidthHeight "!insertmacro GetDlgItemWidthHeightCall"
-!define un.GetDlgItemWidthHeight "!insertmacro GetDlgItemWidthHeightCall"
-
-!macro GetDlgItemWidthHeight_
-  Exch $0 ; handle for the control
-  Push $1
-  Push $2
-
-  System::Call '*(i, i, i, i) i .r2'
-  ; The left and top values will always be 0 so the right and bottom values
-  ; will be the width and height.
-  System::Call 'user32::GetClientRect(i r0, i r2)'
-  System::Call '*$2(i, i, i .r0, i .r1)'
-  System::Free $2
-
-  Pop $2
-  Exch $1 ; return height
-  Exch 1
-  Exch $0 ; return width
-!macroend
-
-/**
- * Gets the number of pixels from the beginning of the dialog to the end of a
- * control in a RTL friendly manner.
- *
- * _HANDLE the handle of the control
- * _RES_PX return value - pixels from the beginning of the dialog to the end of
- *         the control
- */
-!macro GetDlgItemEndPXCall _HANDLE _RES_PX
-  Push "${_HANDLE}"
-  ${CallArtificialFunction} GetDlgItemEndPX_
-  Pop ${_RES_PX}
-!macroend
-
-!define GetDlgItemEndPX "!insertmacro GetDlgItemEndPXCall"
-!define un.GetDlgItemEndPX "!insertmacro GetDlgItemEndPXCall"
-
-!macro GetDlgItemEndPX_
-  Exch $0 ; handle of the control
-  Push $1
-  Push $2
-
-  ; #32770 is the dialog class
-  FindWindow $1 "#32770" "" $HWNDPARENT
-  System::Call '*(i, i, i, i) i .r2'
-  System::Call 'user32::GetWindowRect(i r0, i r2)'
-  System::Call 'user32::MapWindowPoints(i 0, i r1,i r2, i 2)'
-  System::Call '*$2(i, i, i .r0, i)'
-  System::Free $2
-
-  Pop $2
-  Pop $1
-  Exch $0 ; pixels from the beginning of the dialog to the end of the control
-!macroend
-
-/**
- * Gets the width and height for sizing a control that has the specified text.
- * If the text has embedded newlines then the width and height will be
- * determined without trying to optimize the control's width and height. If the
- * text doesn't contain newlines the control's height and width will be
- * dynamically determined using a minimum of 3 lines (incrementing the
- * number of lines if necessary) for the height and the maximum width specified.
- *
- * _TEXT       the text
- * _FONT       the font to use when getting the width and height
- * _MAX_WIDTH  the maximum width for the control
- * _RES_WIDTH  return value - control width for the text
- * _RES_HEIGHT return value - control height for the text
- */
-!macro GetTextWidthHeight
-
-  !ifndef ${_MOZFUNC_UN}GetTextWidthHeight
-    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
-    !insertmacro ${_MOZFUNC_UN_TMP}WordFind
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
-    !undef _MOZFUNC_UN_TMP
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}GetTextWidthHeight "!insertmacro ${_MOZFUNC_UN}GetTextWidthHeightCall"
-
-    Function ${_MOZFUNC_UN}GetTextWidthHeight
-      Exch $0  ; maximum width use to calculate the control's width and height
-      Exch 1
-      Exch $1  ; font
-      Exch 2
-      Exch $2  ; text
-      Push $3
-      Push $4
-      Push $5
-      Push $6
-      Push $7
-      Push $8
-      Push $9
-      Push $R0
-      Push $R1
-      Push $R2
-
-      StrCpy $R2 "${DT_NOCLIP}|${DT_CALCRECT}"
-      !ifdef ${AB_CD}_rtl
-        StrCpy $R2 "$R2|${DT_RTLREADING}"
-      !endif
-
-      ; Reuse the existing NSIS control which is used for BrandingText instead
-      ; of creating a new control.
-      GetDlgItem $3 $HWNDPARENT 1028
-
-      System::Call 'user32::GetDC(i r3) i .r4'
-      System::Call 'gdi32::SelectObject(i r4, i r1)'
-
-      StrLen $5 "$2" ; text length
-      System::Call '*(i, i, i, i) i .r6'
-
-      ClearErrors
-      ${${_MOZFUNC_UN}WordFind} "$2" "$\n" "E#" $R0
-      ${If} ${Errors}
-        ; When there aren't newlines in the text calculate the size of the
-        ; rectangle needed for the text with a minimum of three lines of text.
-        ClearErrors
-        System::Call 'user32::DrawTextW(i r4, t $\"$2$\", i r5, i r6, \
-                                        i $R2|${DT_SINGLELINE})'
-        System::Call '*$6(i, i, i .r8, i .r7)'
-        System::Free $6
-
-        ; Get the approximate number height needed to display the text starting
-        ; with a minimum of 3 lines of text.
-        StrCpy $9 $8
-        StrCpy $R1 2 ; set the number of lines initially to 2
-        ${While} $9 > $0
-          IntOp $R1 $R1 + 1 ; increment the number of lines
-          IntOp $9 $8 / $R1
-        ${EndWhile}
-        IntOp $7 $7 * $R1
-
-        StrCpy $R0 $9
-        ${Do}
-          IntOp $R0 $R0 + 20
-          System::Call '*(i, i, i R0, i r7) i .r6'
-          System::Call 'user32::DrawTextW(i r4, t $\"$2$\", i r5, i r6, \
-                                          i $R2|${DT_WORDBREAK}|${DT_NOFULLWIDTHCHARBREAK}) i .R1'
-          System::Call '*$6(i, i, i .r8, i .r9)'
-          System::Free $6
-        ${LoopUntil} $7 >= $R1
-      ${Else}
-        ; When there are newlines in the text just return the size of the
-        ; rectangle for the text.
-        System::Call 'user32::DrawTextW(i r4, t $\"$2$\", i r5, i r6, i $R2)'
-        System::Call '*$6(i, i, i .r8, i .r9)'
-        System::Free $6
-      ${EndIf}
-
-      ; Reselect the original DC
-      System::Call 'gdi32::SelectObject(i r4, i r1)'
-      System::Call 'user32::ReleaseDC(i r3, i r4)'
-
-      StrCpy $1 $9
-      StrCpy $0 $8
-
-      Pop $R2
-      Pop $R1
-      Pop $R0
-      Pop $9
-      Pop $8
-      Pop $7
-      Pop $6
-      Pop $5
-      Pop $4
-      Pop $3
-      Exch $2
-      Exch 2
-      Exch $1 ; return height
-      Exch 1
-      Exch $0 ; return width
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro GetTextWidthHeightCall _TEXT _FONT _MAX_WIDTH _RES_WIDTH _RES_HEIGHT
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_TEXT}"
-  Push "${_FONT}"
-  Push "${_MAX_WIDTH}"
-  Call GetTextWidthHeight
-  Pop ${_RES_WIDTH}
-  Pop ${_RES_HEIGHT}
-  !verbose pop
-!macroend
-
-!macro un.GetTextWidthHeightCall _TEXT _FONT _MAX_WIDTH _RES_WIDTH _RES_HEIGHT
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_TEXT}"
-  Push "${_FONT}"
-  Push "${_MAX_WIDTH}"
-  Call un.GetTextWidthHeight
-  Pop ${_RES_WIDTH}
-  Pop ${_RES_HEIGHT}
-  !verbose pop
-!macroend
-
-!macro un.GetTextWidthHeight
-  !ifndef un.GetTextWidthHeight
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro GetTextWidthHeight
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
-!macroend
-
-!ifdef MOZ_METRO
-; Removes the CEH registration if it's set to our installation directory.
-; If it's set to some other installation directory, then it should be removed
-; by that installation. 
-!macro RemoveDEHRegistrationIfMatchingCall un
-  Function ${un}RemoveDEHRegistrationIfMatchingCall
-    ; Move the old $R0 on the stack and set it to DEH ID
-    Exch $R0
-    ; Backup the old values of R8 and R7 on the stack
-    Push $R8
-    Push $R7
-
-    ; Conditionally remove the DEH as long as we are the default (HKCU)
-    ReadRegStr $R8 HKCU "Software\Classes\CLSID\$R0\LocalServer32" ""
-    ${${un}GetLongPath} "$INSTDIR" $R7
-    StrCmp "$R8" "" next +1
-    IfFileExists "$R8" +1 clearHKCU
-    ${${un}GetParent} "$R8" $R8
-    ${${un}GetLongPath} "$R8" $R8
-    StrCmp "$R7" "$R8" clearHKCU next
-    clearHKCU:
-    DeleteRegKey HKCU "Software\Classes\CLSID\$R0"
-    next:
-
-    ; Conditionally remove the DEH as long as we are the default (HKLM)
-    ReadRegStr $R8 HKLM "Software\Classes\CLSID\$R0\LocalServer32" ""
-    ${${un}GetLongPath} "$INSTDIR" $R7
-    StrCmp "$R8" "" done +1
-    IfFileExists "$R8" +1 clearHKLM
-    ${${un}GetParent} "$R8" $R8
-    ${${un}GetLongPath} "$R8" $R8
-    StrCmp "$R7" "$R8" clearHKLM done
-    clearHKLM:
-    DeleteRegKey HKLM "Software\Classes\CLSID\$R0"
-    done:
-
-    ; Always remove the AppUserModelID keys for this installation
-    DeleteRegKey HKCU "Software\Classes\$AppUserModelID"
-    DeleteRegKey HKLM "Software\Classes\$AppUserModelID"
-
-    ; Restore the stack back to its original state
-    Pop $R7
-    Pop $R8
-    Pop $R0
-  FunctionEnd
-!macroend
-
-!macro RemoveDEHRegistrationIfMatching
-  !insertmacro RemoveDEHRegistrationIfMatchingCall ""
-!macroend
-
-!macro un.RemoveDEHRegistrationIfMatching
-  !insertmacro RemoveDEHRegistrationIfMatchingCall "un."
-!macroend
-
-!macro CleanupMetroBrowserHandlerValues un DELEGATE_EXECUTE_HANDLER_ID
-  Push ${DELEGATE_EXECUTE_HANDLER_ID}
-  Call ${un}RemoveDEHRegistrationIfMatchingCall
-!macroend
-!define CleanupMetroBrowserHandlerValues '!insertmacro CleanupMetroBrowserHandlerValues ""'
-!define un.CleanupMetroBrowserHandlerValues '!insertmacro CleanupMetroBrowserHandlerValues "un."'
-
-!macro AddMetroBrowserHandlerValues DELEGATE_EXECUTE_HANDLER_ID \
-                                    DELEGATE_EXECUTE_HANDLER_PATH \
-                                    APP_USER_MODEL_ID \
-                                    PROTOCOL_ACTIVATION_ID \
-                                    FILE_ACTIVATION_ID
-  ; Win8 doesn't use conventional progid command data to launch anymore.
-  ; Instead it uses a delegate execute handler which is a light weight COM
-  ; server for choosing the metro or desktop browser to launch depending
-  ; on the current environment (metro/desktop) it was activated in.
-  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}" "" ""
-  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}\.exe" "" ""
-  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}\.exe\shell" "" "open"
-  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}\.exe\shell\open" "CommandId" "open"
-  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}\.exe\shell\open\command" "" "$2"
-  WriteRegStr SHCTX "Software\Classes\${APP_USER_MODEL_ID}\.exe\shell\open\command" "DelegateExecute" "${DELEGATE_EXECUTE_HANDLER_ID}"
-
-  ; Augment the url handler registrations with additional data needed for Metro
-  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}" "AppUserModelID" "${APP_USER_MODEL_ID}"
-  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\Application" "AppUserModelID" "${APP_USER_MODEL_ID}"
-  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\Application" "ApplicationName" "$BrandShortName"
-  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\Application" "ApplicationIcon" "$INSTDIR\${FileMainEXE},0"
-  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\Application" "ApplicationCompany" "${CompanyName}"
-  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\Application" "ApplicationDescription" "$(REG_APP_DESC)"
-  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\shell" "" "open"
-  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\shell\open" "CommandId" "open"
-  WriteRegStr SHCTX "Software\Classes\${PROTOCOL_ACTIVATION_ID}\shell\open\command" "DelegateExecute" "${DELEGATE_EXECUTE_HANDLER_ID}"
-
-  ; Augment the file handler registrations with additional data needed for Metro
-  WriteRegStr SHCTX "Software\Classes\${FILE_ACTIVATION_ID}" "AppUserModelID" "${APP_USER_MODEL_ID}"
-  WriteRegStr SHCTX "Software\Classes\${FILE_ACTIVATION_ID}\shell" "" "open"
-  WriteRegStr SHCTX "Software\Classes\${FILE_ACTIVATION_ID}\shell\open" "CommandId" "open"
-  WriteRegStr SHCTX "Software\Classes\${FILE_ACTIVATION_ID}\shell\open\command" "DelegateExecute" "${DELEGATE_EXECUTE_HANDLER_ID}"
-
-  ; Win8 Metro delegate execute handler registration
-  WriteRegStr SHCTX "Software\Classes\CLSID\${DELEGATE_EXECUTE_HANDLER_ID}" "" "$BrandShortName CommandExecuteHandler"
-  WriteRegStr SHCTX "Software\Classes\CLSID\${DELEGATE_EXECUTE_HANDLER_ID}" "AppId" "${DELEGATE_EXECUTE_HANDLER_ID}"
-  WriteRegStr SHCTX "Software\Classes\CLSID\${DELEGATE_EXECUTE_HANDLER_ID}\LocalServer32" "" "${DELEGATE_EXECUTE_HANDLER_PATH}"
-!macroend
-!define AddMetroBrowserHandlerValues "!insertmacro AddMetroBrowserHandlerValues"
-!endif ;end MOZ_METRO
-

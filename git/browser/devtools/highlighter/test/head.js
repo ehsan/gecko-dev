@@ -7,10 +7,6 @@ let tempScope = {};
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm", tempScope);
 let LayoutHelpers = tempScope.LayoutHelpers;
 
-// Import the GCLI test helper
-let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
-Services.scriptloader.loadSubScript(testDir + "/helpers.js", this);
-
 // Clear preferences that may be set during the course of tests.
 function clearUserPrefs()
 {
@@ -23,8 +19,8 @@ registerCleanupFunction(clearUserPrefs);
 
 function isHighlighting()
 {
-  let outline = InspectorUI.highlighter.outline;
-  return !(outline.getAttribute("hidden") == "true");
+  let veil = InspectorUI.highlighter.veilTransparentBox;
+  return !(veil.style.visibility == "hidden");
 }
 
 function getHighlitNode()

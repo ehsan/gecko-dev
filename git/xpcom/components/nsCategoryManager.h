@@ -63,9 +63,9 @@ public:
     mTable.Clear();
   }
 
-  uint32_t Count() {
+  PRUint32 Count() {
     mozilla::MutexAutoLock lock(mLock);
-    uint32_t tCount = mTable.Count();
+    PRUint32 tCount = mTable.Count();
     return tCount;
   }
 

@@ -28,7 +28,7 @@ private:
 
 protected:
   nsISupportsArray*     mArray;
-  int32_t               mCursor;
+  PRInt32               mCursor;
 
 };
 

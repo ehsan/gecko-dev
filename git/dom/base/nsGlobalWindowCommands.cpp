@@ -244,7 +244,7 @@ nsSelectMoveScrollCommand::DoCommand(const char *aCommandName, nsISupports *aCom
     if (caretOn) {
       nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(piWindow->GetDocShell());
       if (dsti) {
-        int32_t itemType;
+        PRInt32 itemType;
         dsti->GetItemType(&itemType);
         if (itemType == nsIDocShellTreeItem::typeChrome) {
           caretOn = false;
@@ -534,7 +534,7 @@ nsClipboardImageCommands::DoClipboardCommand(const char *aCommandName, nsIConten
     return aEdit->CopyImage(nsIContentViewerEdit::COPY_IMAGE_TEXT);
   if (!nsCRT::strcmp(sCopyImageContentsString, aCommandName))
     return aEdit->CopyImage(nsIContentViewerEdit::COPY_IMAGE_DATA);
-  int32_t copyFlags = nsIContentViewerEdit::COPY_IMAGE_DATA | 
+  PRInt32 copyFlags = nsIContentViewerEdit::COPY_IMAGE_DATA | 
                       nsIContentViewerEdit::COPY_IMAGE_HTML;
   if (aParams)
     aParams->GetLongValue("imageCopy", &copyFlags);
@@ -577,7 +577,7 @@ nsClipboardGetContentsCommand::DoClipboardCommand(const char *aCommandName, nsIC
 {
   NS_ENSURE_ARG(aParams);
 
-  nsAutoCString mimeType("text/plain");
+  nsCAutoString mimeType("text/plain");
 
   nsXPIDLCString format;    // nsICommandParams needs to use nsACString
   if (NS_SUCCEEDED(aParams->GetCStringValue("format", getter_Copies(format))))

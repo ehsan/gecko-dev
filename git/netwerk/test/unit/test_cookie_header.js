@@ -1,11 +1,6 @@
 // This file tests bug 250375
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 function check_request_header(chan, name, value) {
   var chanValue;
@@ -61,7 +56,7 @@ function makeChan() {
 var httpserv = null;
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.start(4444);
 
   var chan = makeChan();

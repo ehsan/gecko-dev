@@ -24,7 +24,7 @@
 #include "nsString.h"
 #include "nsStringFwd.h"
 
-#define TEST_RESULT(r) { if (NS_FAILED(r)) {printf("FAILURE result=%X\n", static_cast<uint32_t>(r)); return r; } }
+#define TEST_RESULT(r) { if (NS_FAILED(r)) {printf("FAILURE result=%X\n", r); return r; } }
 #define TEST_POINTER(p) { if (!p) {printf("FAILURE null pointer\n"); return NS_ERROR_NULL_POINTER; } }
 
 TextEditorTest::TextEditorTest()
@@ -37,7 +37,7 @@ TextEditorTest::~TextEditorTest()
   printf("destroyed a TextEditorTest\n");
 }
 
-void TextEditorTest::Run(nsIEditor *aEditor, int32_t *outNumTests, int32_t *outNumTestsFailed)
+void TextEditorTest::Run(nsIEditor *aEditor, PRInt32 *outNumTests, PRInt32 *outNumTestsFailed)
 {
   if (!aEditor) return;
   mTextEditor = do_QueryInterface(aEditor);
@@ -45,7 +45,7 @@ void TextEditorTest::Run(nsIEditor *aEditor, int32_t *outNumTests, int32_t *outN
   RunUnitTest(outNumTests, outNumTestsFailed);
 }
 
-nsresult TextEditorTest::RunUnitTest(int32_t *outNumTests, int32_t *outNumTestsFailed)
+nsresult TextEditorTest::RunUnitTest(PRInt32 *outNumTests, PRInt32 *outNumTestsFailed)
 {
   nsresult result;
   
@@ -138,7 +138,7 @@ nsresult TextEditorTest::TestTextProperties()
   result = doc->GetElementsByTagName(textTag, getter_AddRefs(nodeList));
   TEST_RESULT(result);
   TEST_POINTER(nodeList.get());
-  uint32_t count;
+  PRUint32 count;
   nodeList->GetLength(&count);
   NS_ASSERTION(0!=count, "there are no text nodes in the document!");
   nsCOMPtr<nsIDOMNode>textNode;
@@ -154,7 +154,7 @@ nsresult TextEditorTest::TestTextProperties()
   TEST_POINTER(selection.get());
   nsCOMPtr<nsIDOMCharacterData>textData;
   textData = do_QueryInterface(textNode);
-  uint32_t length;
+  PRUint32 length;
   textData->GetLength(&length);
   selection->Collapse(textNode, 0);
   selection->Extend(textNode, length);

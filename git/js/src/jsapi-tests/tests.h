@@ -57,9 +57,9 @@ class JSAPITest
     JSObject *global;
     bool knownFail;
     JSAPITestString msgs;
-    JSCompartment *oldCompartment;
+    JSCrossCompartmentCall *call;
 
-    JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false), oldCompartment(NULL) {
+    JSAPITest() : rt(NULL), cx(NULL), global(NULL), knownFail(false), call(NULL) {
         next = list;
         list = this;
     }
@@ -69,9 +69,9 @@ class JSAPITest
     virtual bool init();
 
     virtual void uninit() {
-        if (oldCompartment) {
-            JS_LeaveCompartment(cx, oldCompartment);
-            oldCompartment = NULL;
+        if (call) {
+            JS_LeaveCrossCompartmentCall(call);
+            call = NULL;
         }
         if (cx) {
             JS_RemoveObjectRoot(cx, &global);
@@ -203,7 +203,7 @@ class JSAPITest
 
     bool fail(JSAPITestString msg = JSAPITestString(), const char *filename = "-", int lineno = 0) {
         if (JS_IsExceptionPending(cx)) {
-            js::RootedValue v(cx);
+            JS::RootedValue v(cx);
             JS_GetPendingException(cx, v.address());
             JS_ClearPendingException(cx);
             JSString *s = JS_ValueToString(cx, v);
@@ -254,7 +254,7 @@ class JSAPITest
     bool definePrint();
 
     virtual JSRuntime * createRuntime() {
-        JSRuntime *rt = JS_NewRuntime(8L * 1024 * 1024, JS_USE_HELPER_THREADS);
+        JSRuntime *rt = JS_NewRuntime(8L * 1024 * 1024);
         if (!rt)
             return NULL;
 

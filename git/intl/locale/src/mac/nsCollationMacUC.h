@@ -13,10 +13,10 @@
 
 // Maximum number of characters for a buffer to remember 
 // the generated collation key.
-const uint32_t kCacheSize = 128;
+const PRUint32 kCacheSize = 128;
 // According to the documentation, the length of the key should typically be
 // at least 5 * textLength, but 6* would be safer.
-const uint32_t kCollationValueSizeFactor = 6;
+const PRUint32 kCollationValueSizeFactor = 6;
 
 class nsCollationMacUC MOZ_FINAL : public nsICollation {
 
@@ -32,18 +32,18 @@ public:
 
 protected:
   nsresult ConvertLocale(nsILocale* aNSLocale, LocaleRef* aMacLocale);
-  nsresult StrengthToOptions(const int32_t aStrength,
+  nsresult StrengthToOptions(const PRInt32 aStrength,
                              UCCollateOptions* aOptions);
-  nsresult EnsureCollator(const int32_t newStrength);
+  nsresult EnsureCollator(const PRInt32 newStrength);
 
 private:
   bool mInit;
   bool mHasCollator;
   LocaleRef mLocale;
-  int32_t mLastStrength;
+  PRInt32 mLastStrength;
   CollatorRef mCollator;
   void *mBuffer; // temporary buffer to generate collation keys
-  uint32_t mBufferLen; // byte length of buffer
+  PRUint32 mBufferLen; // byte length of buffer
 };
 
 #endif  /* nsCollationMacUC_h_ */

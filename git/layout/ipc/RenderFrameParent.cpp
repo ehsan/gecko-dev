@@ -158,9 +158,7 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
   nsIntPoint scrollOffset =
     aConfig.mScrollOffset.ToNearestPixels(auPerDevPixel);
   // metricsScrollOffset is in layer coordinates.
-  gfx::Point metricsScrollOffset = aMetrics->GetScrollOffsetInLayerPixels();
-  nsIntPoint roundedMetricsScrollOffset =
-    nsIntPoint(NS_lround(metricsScrollOffset.x), NS_lround(metricsScrollOffset.y));
+  nsIntPoint metricsScrollOffset = aMetrics->mViewportScrollOffset;
 
   if (aRootFrameLoader->AsyncScrollEnabled() && !aMetrics->mDisplayPort.IsEmpty()) {
     // Only use asynchronous scrolling if it is enabled and there is a
@@ -168,8 +166,8 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
     // synchronously scrolled for identifying a scroll area before it is
     // being actively scrolled.
     nsIntPoint scrollCompensation(
-      (scrollOffset.x / aTempScaleX - roundedMetricsScrollOffset.x) * aConfig.mXScale,
-      (scrollOffset.y / aTempScaleY - roundedMetricsScrollOffset.y) * aConfig.mYScale);
+      (scrollOffset.x / aTempScaleX - metricsScrollOffset.x) * aConfig.mXScale,
+      (scrollOffset.y / aTempScaleY - metricsScrollOffset.y) * aConfig.mYScale);
 
     return ViewTransform(-scrollCompensation, aConfig.mXScale, aConfig.mYScale);
   } else {
@@ -217,9 +215,7 @@ BuildListForLayer(Layer* aLayer,
     nsRect bounds;
     {
       nscoord auPerDevPixel = aSubdocFrame->PresContext()->AppUnitsPerDevPixel();
-      gfx::Rect viewport = metrics->mViewport;
-      bounds = nsIntRect(viewport.x, viewport.y,
-                         viewport.width, viewport.height).ToAppUnits(auPerDevPixel);
+      bounds = metrics->mViewport.ToAppUnits(auPerDevPixel);
       ApplyTransform(bounds, tmpTransform, auPerDevPixel);
 
     }
@@ -364,7 +360,6 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
   if (metrics.IsScrollable()) {
     nscoord auPerDevPixel = aFrameLoader->GetPrimaryFrameOfOwningContent()
                                         ->PresContext()->AppUnitsPerDevPixel();
-    nscoord auPerCSSPixel = auPerDevPixel * metrics.mDevPixelsPerCSSPixel;
     nsContentView* view = FindViewForId(oldContentViews, scrollId);
     if (view) {
       // View already exists. Be sure to propagate scales for any values
@@ -395,8 +390,8 @@ BuildViewMap(ViewMap& oldContentViews, ViewMap& newContentViews,
       // The default scale is 1, so no need to propagate scale down.
       ViewConfig config;
       config.mScrollOffset = nsPoint(
-        NSIntPixelsToAppUnits(metrics.mScrollOffset.x, auPerCSSPixel) * aXScale,
-        NSIntPixelsToAppUnits(metrics.mScrollOffset.y, auPerCSSPixel) * aYScale);
+        NSIntPixelsToAppUnits(metrics.mViewportScrollOffset.x, auPerDevPixel) * aXScale,
+        NSIntPixelsToAppUnits(metrics.mViewportScrollOffset.y, auPerDevPixel) * aYScale);
       view = new nsContentView(aFrameLoader, scrollId, config);
       view->mParentScaleX = aAccConfigXScale;
       view->mParentScaleY = aAccConfigYScale;
@@ -514,23 +509,6 @@ public:
     }
   }
 
-  virtual void HandleSingleTap(const nsIntPoint& aPoint) MOZ_OVERRIDE
-  {
-    if (MessageLoop::current() != mUILoop) {
-      // We have to send this message from the "UI thread" (main
-      // thread).
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &RemoteContentController::HandleSingleTap,
-                          aPoint));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->HandleSingleTap(aPoint);
-    }
-  }
-
   void ClearRenderFrame() { mRenderFrame = nullptr; }
 
 private:
@@ -623,9 +601,7 @@ already_AddRefed<Layer>
 RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
                               nsIFrame* aFrame,
                               LayerManager* aManager,
-                              const nsIntRect& aVisibleRect,
-                              nsDisplayItem* aItem,
-                              const ContainerParameters& aContainerParameters)
+                              const nsIntRect& aVisibleRect)
 {
   NS_ABORT_IF_FALSE(aFrame,
                     "makes no sense to have a shadow tree without a frame");
@@ -648,22 +624,17 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
   if (0 != id) {
     MOZ_ASSERT(!GetRootLayer());
 
-    nsRefPtr<Layer> layer =
-      (aManager->GetLayerBuilder()->GetLeafLayerFor(aBuilder, aItem));
-    if (!layer) {
-      layer = aManager->CreateRefLayer();
-    }
+    nsRefPtr<RefLayer> layer = aManager->CreateRefLayer();
     if (!layer) {
       // Probably a temporary layer manager that doesn't know how to
       // use ref layers.
       return nullptr;
     }
-    static_cast<RefLayer*>(layer.get())->SetReferentId(id);
+    layer->SetReferentId(id);
     layer->SetVisibleRegion(aVisibleRect);
     nsIntPoint rootFrameOffset = GetRootFrameOffset(aFrame, aBuilder);
     layer->SetBaseTransform(
-      gfx3DMatrix::Translation(rootFrameOffset.x + aContainerParameters.mOffset.x, 
-                               rootFrameOffset.y + aContainerParameters.mOffset.y, 0.0));
+      gfx3DMatrix::Translation(rootFrameOffset.x, rootFrameOffset.y, 0.0));
 
     return layer.forget();
   }
@@ -723,7 +694,7 @@ RenderFrameParent::NotifyInputEvent(const nsInputEvent& aEvent,
                                     nsInputEvent* aOutEvent)
 {
   if (mPanZoomController) {
-    mPanZoomController->ReceiveInputEvent(aEvent, aOutEvent);
+    mPanZoomController->HandleInputEvent(aEvent, aOutEvent);
   }
 }
 
@@ -731,8 +702,7 @@ void
 RenderFrameParent::NotifyDimensionsChanged(int width, int height)
 {
   if (mPanZoomController) {
-    mPanZoomController->UpdateCompositionBounds(
-      nsIntRect(0, 0, width, height));
+    mPanZoomController->UpdateViewportSize(width, height);
   }
 }
 
@@ -842,7 +812,17 @@ RenderFrameParent::TriggerRepaint()
     return;
   }
 
-  docFrame->SchedulePaint();
+  // FIXME/cjones: we should collect the rects/regions updated for
+  // Painted*Layer() calls and pass that region to here, then only
+  // invalidate that rect
+  //
+  // We pass INVALIDATE_NO_THEBES_LAYERS here because we're
+  // invalidating the <browser> on behalf of its counterpart in the
+  // content process.  Not only do we not need to invalidate the
+  // shadow layers, things would just break if we did --- we have no
+  // way to repaint shadow layers from this process.
+  nsRect rect = nsRect(nsPoint(0, 0), docFrame->GetRect().Size());
+  docFrame->InvalidateWithFlags(rect, nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
 }
 
 ShadowLayersParent*
@@ -879,6 +859,7 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   nsDisplayList shadowTree;
   ContainerLayer* container = GetRootLayer();
   if (aBuilder->IsForEventDelivery() && container) {
+    nsRect bounds = aFrame->EnsureInnerView()->GetBounds();
     ViewTransform offset =
       ViewTransform(GetRootFrameOffset(aFrame, aBuilder), 1, 1);
     BuildListForLayer(container, mFrameLoader, offset,
@@ -889,7 +870,7 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   }
 
   // Clip the shadow layers to subdoc bounds
-  nsPoint offset = aBuilder->ToReferenceFrame(aFrame);
+  nsPoint offset = aFrame->GetOffsetToCrossDoc(aBuilder->ReferenceFrame());
   nsRect bounds = aFrame->EnsureInnerView()->GetBounds() + offset;
 
   return aLists.Content()->AppendNewToTop(
@@ -898,26 +879,18 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
 }
 
 void
+RenderFrameParent::NotifyDOMTouchListenerAdded()
+{
+  if (mPanZoomController) {
+    mPanZoomController->NotifyDOMTouchListenerAdded();
+  }
+}
+
+void
 RenderFrameParent::ZoomToRect(const gfxRect& aRect)
 {
   if (mPanZoomController) {
     mPanZoomController->ZoomToRect(aRect);
-  }
-}
-
-void
-RenderFrameParent::ContentReceivedTouch(bool aPreventDefault)
-{
-  if (mPanZoomController) {
-    mPanZoomController->ContentReceivedTouch(aPreventDefault);
-  }
-}
-
-void
-RenderFrameParent::UpdateZoomConstraints(bool aAllowZoom, float aMinZoom, float aMaxZoom)
-{
-  if (mPanZoomController) {
-    mPanZoomController->UpdateZoomConstraints(aAllowZoom, aMinZoom, aMaxZoom);
   }
 }
 
@@ -929,10 +902,9 @@ nsDisplayRemote::BuildLayer(nsDisplayListBuilder* aBuilder,
                             LayerManager* aManager,
                             const ContainerParameters& aContainerParameters)
 {
-  int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
+  PRInt32 appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
   nsIntRect visibleRect = GetVisibleRect().ToNearestPixels(appUnitsPerDevPixel);
-  visibleRect += aContainerParameters.mOffset;
-  nsRefPtr<Layer> layer = mRemoteFrame->BuildLayer(aBuilder, mFrame, aManager, visibleRect, this, aContainerParameters);
+  nsRefPtr<Layer> layer = mRemoteFrame->BuildLayer(aBuilder, mFrame, aManager, visibleRect);
   return layer.forget();
 }
 

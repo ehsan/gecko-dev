@@ -20,6 +20,7 @@ WIN_LIBS=                                       \
 
 ---------------------------------------------------------------------- */
 
+#include "prmem.h"
 #include "plstr.h"
 #include <windows.h>
 #include <tchar.h>
@@ -128,13 +129,13 @@ const NativePaperSizes kPaperSizes[] = {
   {DMPAPER_FANFOLD_STD_GERMAN, 8.5, 12.0, true},  
   {DMPAPER_FANFOLD_LGL_GERMAN, 8.5, 13.0, true},  
 };
-const int32_t kNumPaperSizes = 41;
+const PRInt32 kNumPaperSizes = 41;
 
 //----------------------------------------------------------------------------------
 // Map an incoming size to a Windows Native enum in the DevMode
 static void 
 MapPaperSizeToNativeEnum(LPDEVMODEW aDevMode,
-                         int16_t   aType, 
+                         PRInt16   aType, 
                          double    aW, 
                          double    aH)
 {
@@ -147,7 +148,7 @@ MapPaperSizeToNativeEnum(LPDEVMODEW aDevMode,
 #endif
 
   const double kThreshold = 0.05;
-  for (int32_t i=0;i<kNumPaperSizes;i++) {
+  for (PRInt32 i=0;i<kNumPaperSizes;i++) {
     double width  = kPaperSizes[i].mWidth;
     double height = kPaperSizes[i].mHeight;
     if (aW < width+kThreshold && aW > width-kThreshold && 
@@ -191,17 +192,17 @@ SetupDevModeFromSettings(LPDEVMODEW aDevMode, nsIPrintSettings* aPrintSettings)
 {
   // Setup paper size
   if (aPrintSettings) {
-    int16_t type;
+    PRInt16 type;
     aPrintSettings->GetPaperSizeType(&type);
     if (type == nsIPrintSettings::kPaperSizeNativeData) {
-      int16_t paperEnum;
+      PRInt16 paperEnum;
       aPrintSettings->GetPaperData(&paperEnum);
       aDevMode->dmPaperSize = paperEnum;
       aDevMode->dmFields &= ~DM_PAPERLENGTH;
       aDevMode->dmFields &= ~DM_PAPERWIDTH;
       aDevMode->dmFields |= DM_PAPERSIZE;
     } else {
-      int16_t unit;
+      PRInt16 unit;
       double width, height;
       aPrintSettings->GetPaperSizeUnit(&unit);
       aPrintSettings->GetPaperWidth(&width);
@@ -210,13 +211,13 @@ SetupDevModeFromSettings(LPDEVMODEW aDevMode, nsIPrintSettings* aPrintSettings)
     }
 
     // Setup Orientation
-    int32_t orientation;
+    PRInt32 orientation;
     aPrintSettings->GetOrientation(&orientation);
     aDevMode->dmOrientation = orientation == nsIPrintSettings::kPortraitOrientation?DMORIENT_PORTRAIT:DMORIENT_LANDSCAPE;
     aDevMode->dmFields |= DM_ORIENTATION;
 
     // Setup Number of Copies
-    int32_t copies;
+    PRInt32 copies;
     aPrintSettings->GetNumCopies(&copies);
     aDevMode->dmCopies = copies;
     aDevMode->dmFields |= DM_COPIES;
@@ -237,14 +238,14 @@ SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSettings,
 
   aPrintSettings->SetIsInitializedFromPrinter(true);
   if (aDevMode->dmFields & DM_ORIENTATION) {
-    int32_t orientation  = aDevMode->dmOrientation == DMORIENT_PORTRAIT?
+    PRInt32 orientation  = aDevMode->dmOrientation == DMORIENT_PORTRAIT?
                            nsIPrintSettings::kPortraitOrientation:nsIPrintSettings::kLandscapeOrientation;
     aPrintSettings->SetOrientation(orientation);
   }
 
   // Setup Number of Copies
   if (aDevMode->dmFields & DM_COPIES) {
-    aPrintSettings->SetNumCopies(int32_t(aDevMode->dmCopies));
+    aPrintSettings->SetNumCopies(PRInt32(aDevMode->dmCopies));
   }
 
   // Scaling
@@ -264,7 +265,7 @@ SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSettings,
   if (aDevMode->dmFields & DM_PAPERSIZE) {
     aPrintSettings->SetPaperSizeType(nsIPrintSettings::kPaperSizeNativeData);
     aPrintSettings->SetPaperData(aDevMode->dmPaperSize);
-    for (int32_t i=0;i<kNumPaperSizes;i++) {
+    for (PRInt32 i=0;i<kNumPaperSizes;i++) {
       if (kPaperSizes[i].mPaperSize == aDevMode->dmPaperSize) {
         aPrintSettings->SetPaperSizeUnit(kPaperSizes[i].mIsInches?nsIPrintSettings::kPaperSizeInches:nsIPrintSettings::kPaperSizeMillimeters);
         break;
@@ -273,7 +274,7 @@ SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSettings,
 
   } else if (aDevMode->dmFields & DM_PAPERLENGTH && aDevMode->dmFields & DM_PAPERWIDTH) {
     bool found = false;
-    for (int32_t i=0;i<kNumPaperSizes;i++) {
+    for (PRInt32 i=0;i<kNumPaperSizes;i++) {
       if (kPaperSizes[i].mPaperSize == aDevMode->dmPaperSize) {
         aPrintSettings->SetPaperSizeType(nsIPrintSettings::kPaperSizeDefined);
         aPrintSettings->SetPaperWidth(kPaperSizes[i].mWidth);
@@ -339,7 +340,7 @@ GetLocalizedString(nsIStringBundle* aStrBundle, const char* aKey, nsString& oVal
 // Set a multi-byte string in the control
 static void SetTextOnWnd(HWND aControl, const nsString& aStr)
 {
-  nsAutoCString text;
+  nsCAutoString text;
   if (NS_SUCCEEDED(NS_CopyUnicodeToNative(aStr, text))) {
     ::SetWindowText(aControl, text.get());
   }
@@ -408,7 +409,7 @@ static PropKeyInfo gAllPropKeys[] = {
     {"asLaidOutWindows", rad4},
     {"selectedFrameWindows", rad5},
     {"separateFramesWindows", rad6},
-    {NULL, 0}};
+    {NULL, NULL}};
 
 //--------------------------------------------------------
 //--------------------------------------------------------
@@ -444,7 +445,7 @@ static HWND CreateControl(LPCTSTR          aType,
                           const nsAString& aStr, 
                           const nsIntRect& aRect)
 {
-  nsAutoCString str;
+  nsCAutoString str;
   if (NS_FAILED(NS_CopyUnicodeToNative(aStr, str)))
     return NULL;
 
@@ -490,7 +491,7 @@ static HWND CreateGroupBox(HINSTANCE        aHInst,
 
 //--------------------------------------------------------
 // Localizes and initializes the radio buttons and group
-static void InitializeExtendedDialog(HWND hdlg, int16_t aHowToEnableFrameUI) 
+static void InitializeExtendedDialog(HWND hdlg, PRInt16 aHowToEnableFrameUI) 
 {
   NS_ABORT_IF_FALSE(aHowToEnableFrameUI != nsIPrintSettings::kFrameEnableNone,
                     "should not be called");
@@ -498,7 +499,7 @@ static void InitializeExtendedDialog(HWND hdlg, int16_t aHowToEnableFrameUI)
   // Localize the new controls in the print dialog
   nsCOMPtr<nsIStringBundle> strBundle;
   if (NS_SUCCEEDED(GetLocalizedBundle(PRINTDLG_PROPERTIES, getter_AddRefs(strBundle)))) {
-    int32_t i = 0;
+    PRInt32 i = 0;
     while (gAllPropKeys[i].mKeyStr != NULL) {
       SetText(hdlg, gAllPropKeys[i].mKeyId, strBundle, gAllPropKeys[i].mKeyStr);
       i++;
@@ -539,7 +540,7 @@ static UINT CALLBACK PrintHookProc(HWND hdlg, UINT uiMsg, WPARAM wParam, LPARAM 
     PRINTDLG * printDlg = (PRINTDLG *)lParam;
     if (printDlg == NULL) return 0L;
 
-    int16_t howToEnableFrameUI = (int16_t)printDlg->lCustData;
+    PRInt16 howToEnableFrameUI = (PRInt16)printDlg->lCustData;
     // don't add frame options if they would be disabled anyway
     // because there are no frames
     if (howToEnableFrameUI == nsIPrintSettings::kFrameEnableNone)
@@ -814,7 +815,7 @@ ShowNativePrintDialog(HWND              aHWnd,
 
   // Now create a DEVNAMES struct so the the dialog is initialized correctly.
 
-  uint32_t len = printerName.Length();
+  PRUint32 len = printerName.Length();
   hDevNames = (HGLOBAL)::GlobalAlloc(GHND, sizeof(wchar_t) * (len + 1) + 
                                      sizeof(DEVNAMES));
   if (!hDevNames) {
@@ -855,7 +856,7 @@ ShowNativePrintDialog(HWND              aHWnd,
                         PD_USEDEVMODECOPIESANDCOLLATE | PD_COLLATE;
 
   // if there is a current selection then enable the "Selection" radio button
-  int16_t howToEnableFrameUI = nsIPrintSettings::kFrameEnableNone;
+  PRInt16 howToEnableFrameUI = nsIPrintSettings::kFrameEnableNone;
   bool isOn;
   aPrintSettings->GetPrintOptions(nsIPrintSettings::kEnableSelectionRB, &isOn);
   if (!isOn) {
@@ -863,7 +864,7 @@ ShowNativePrintDialog(HWND              aHWnd,
   }
   aPrintSettings->GetHowToEnableFrameUI(&howToEnableFrameUI);
 
-  int32_t pg = 1;
+  PRInt32 pg = 1;
   aPrintSettings->GetStartPageRange(&pg);
   prntdlg.nFromPage           = pg;
   
@@ -882,7 +883,7 @@ ShowNativePrintDialog(HWND              aHWnd,
   prntdlg.lpPrintTemplateName = NULL;
 
   if (!ShouldExtendPrintDialog()) {
-    prntdlg.lCustData         = 0;
+    prntdlg.lCustData         = NULL;
     prntdlg.lpfnPrintHook     = NULL;
   } else {
     // Set up print dialog "hook" procedure for extending the dialog
@@ -999,8 +1000,8 @@ ShowNativePrintDialog(HWND              aHWnd,
     bool    printSelection = prntdlg.Flags & PD_SELECTION;
     bool    printAllPages  = prntdlg.Flags & PD_ALLPAGES;
     bool    printNumPages  = prntdlg.Flags & PD_PAGENUMS;
-    int32_t fromPageNum    = 0;
-    int32_t toPageNum      = 0;
+    PRInt32 fromPageNum    = 0;
+    PRInt32 toPageNum      = 0;
 
     if (printNumPages) {
       fromPageNum = prntdlg.nFromPage;

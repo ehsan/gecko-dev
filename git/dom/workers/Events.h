@@ -28,7 +28,7 @@ CreateMessageEvent(JSContext* aCx, JSAutoStructuredCloneBuffer& aData,
 
 JSObject*
 CreateErrorEvent(JSContext* aCx, JSString* aMessage, JSString* aFilename,
-                 uint32_t aLineNumber, bool aMainRuntime);
+                 uint32 aLineNumber, bool aMainRuntime);
 
 JSObject*
 CreateProgressEvent(JSContext* aCx, JSString* aType, bool aLengthComputable,
