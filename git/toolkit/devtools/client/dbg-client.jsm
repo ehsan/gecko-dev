@@ -1792,13 +1792,7 @@ ThreadClient.prototype = {
         aOnResponse(aResponse);
         return;
       }
-
-      const { type, why } = aResponse;
-      const cleanUp = type == "paused" && why.type == "interrupted"
-        ? () => this.resume()
-        : noop;
-
-      doSetBreakpoint(cleanUp);
+      doSetBreakpoint(this.resume.bind(this));
     });
   },
 
