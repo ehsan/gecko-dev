@@ -5747,9 +5747,9 @@ JS_AbortIfWrongThread(JSRuntime *rt)
 
 #ifdef JS_GC_ZEAL
 JS_PUBLIC_API(void)
-JS_GetGCZeal(JSContext *cx, uint8_t *zeal, uint32_t *frequency, uint32_t *nextScheduled)
+JS_GetGCZeal(JSContext *cx, uint8_t *zeal, uint32_t *frequency)
 {
-    cx->runtime()->gc.getZeal(zeal, frequency, nextScheduled);
+    cx->runtime()->gc.getZeal(zeal, frequency);
 }
 
 JS_PUBLIC_API(void)

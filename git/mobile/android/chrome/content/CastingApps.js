@@ -330,14 +330,8 @@ var CastingApps = {
     } catch(e) {}
   },
 
-  _getContentTypeForURI: function(aURI, aElement, aCallback) {
-    let channel = Services.io.newChannelFromURI2(aURI,
-                                                 aElement,
-                                                 null, // aLoadingPrincipal
-                                                 null, // aTriggeringPrincipal
-                                                 Ci.nsILoadInfo.SEC_NORMAL,
-                                                 Ci.nsIContentPolicy.TYPE_OTHER);
-
+  _getContentTypeForURI: function(aURI, aCallback) {
+    let channel = Services.io.newChannelFromURI(aURI);
     let listener = {
       onStartRequest: function(request, context) {
         switch (channel.responseStatus) {
@@ -346,7 +340,7 @@ var CastingApps = {
           case 303:
             request.cancel(0);
             let location = channel.getResponseHeader("Location");
-            CastingApps._getContentTypeForURI(CastingApps.makeURI(location), aElement, aCallback);
+            CastingApps._getContentTypeForURI(CastingApps.makeURI(location), aCallback);
             break;
           default:
             aCallback(channel.contentType);
@@ -427,7 +421,7 @@ var CastingApps = {
     aCallback.fired = false;
     for (let sourceURI of asyncURIs) {
       // Do an async fetch to figure out the mimetype of the source video
-      this._getContentTypeForURI(sourceURI, aElement, (aType) => {
+      this._getContentTypeForURI(sourceURI, (aType) => {
         if (!aCallback.fired && this.allowableMimeType(aType, aTypes)) {
           aCallback.fired = true;
           aCallback({ element: aElement, source: sourceURI.spec, poster: posterURL, sourceURI: sourceURI, type: aType });

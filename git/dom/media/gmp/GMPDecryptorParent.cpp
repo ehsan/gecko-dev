@@ -43,8 +43,7 @@ GMPDecryptorParent::Init(GMPDecryptorProxyCallback* aCallback)
 }
 
 void
-GMPDecryptorParent::CreateSession(uint32_t aCreateSessionToken,
-                                  uint32_t aPromiseId,
+GMPDecryptorParent::CreateSession(uint32_t aPromiseId,
                                   const nsCString& aInitDataType,
                                   const nsTArray<uint8_t>& aInitData,
                                   GMPSessionType aSessionType)
@@ -55,7 +54,7 @@ GMPDecryptorParent::CreateSession(uint32_t aCreateSessionToken,
   }
   // Caller should ensure parameters passed in from JS are valid.
   MOZ_ASSERT(!aInitDataType.IsEmpty() && !aInitData.IsEmpty());
-  unused << SendCreateSession(aCreateSessionToken, aPromiseId, aInitDataType, aInitData, aSessionType);
+  unused << SendCreateSession(aPromiseId, aInitDataType, aInitData, aSessionType);
 }
 
 void
@@ -146,14 +145,14 @@ GMPDecryptorParent::Decrypt(uint32_t aId,
 }
 
 bool
-GMPDecryptorParent::RecvSetSessionId(const uint32_t& aCreateSessionId,
-                                     const nsCString& aSessionId)
+GMPDecryptorParent::RecvResolveNewSessionPromise(const uint32_t& aPromiseId,
+                                                 const nsCString& aSessionId)
 {
   if (!mIsOpen) {
     NS_WARNING("Trying to use a dead GMP decrypter!");
     return false;
   }
-  mCallback->SetSessionId(aCreateSessionId, aSessionId);
+  mCallback->ResolveNewSessionPromise(aPromiseId, aSessionId);
   return true;
 }
 

@@ -180,15 +180,15 @@ struct ShapeTable {
      * and returns false.  This will make any extant pointers into the
      * table invalid.  Don't call this unless needsToGrow() is true.
      */
-    bool grow(ExclusiveContext *cx);
+    bool grow(ThreadSafeContext *cx);
 
     /*
      * NB: init and change are fallible but do not report OOM, so callers can
      * cope or ignore. They do however use the context's calloc method in
      * order to update the malloc counter on success.
      */
-    bool            init(ExclusiveContext *cx, Shape *lastProp);
-    bool            change(int log2Delta, ExclusiveContext *cx);
+    bool            init(ThreadSafeContext *cx, Shape *lastProp);
+    bool            change(int log2Delta, ThreadSafeContext *cx);
     Shape           **search(jsid id, bool adding);
 
 #ifdef JSGC_COMPACTING
@@ -357,7 +357,7 @@ class BaseShape : public gc::TenuredCell
     /* For owned BaseShapes, the shape's shape table. */
     ShapeTable       *table_;
 
-    BaseShape(const BaseShape &base) = delete;
+    BaseShape(const BaseShape &base) MOZ_DELETE;
 
   public:
     void finalize(FreeOp *fop);
@@ -430,6 +430,12 @@ class BaseShape : public gc::TenuredCell
      * not already found.
      */
     static UnownedBaseShape* getUnowned(ExclusiveContext *cx, StackBaseShape &base);
+
+    /*
+     * Lookup base shapes from the compartment's baseShapes table, returning
+     * nullptr if not found.
+     */
+    static UnownedBaseShape *lookupUnowned(ThreadSafeContext *cx, const StackBaseShape &base);
 
     /* Get the canonical base shape. */
     inline UnownedBaseShape* unowned();
@@ -527,7 +533,7 @@ struct StackBaseShape : public DefaultHasher<ReadBarrieredUnownedBaseShape>
         compartment(base->compartment())
     {}
 
-    inline StackBaseShape(ExclusiveContext *cx, const Class *clasp,
+    inline StackBaseShape(ThreadSafeContext *cx, const Class *clasp,
                           JSObject *parent, JSObject *metadata, uint32_t objectFlags);
     explicit inline StackBaseShape(Shape *shape);
 
@@ -615,6 +621,8 @@ class Shape : public gc::TenuredCell
 
     static inline Shape *search(ExclusiveContext *cx, Shape *start, jsid id,
                                 Shape ***pspp, bool adding = false);
+    static inline Shape *searchThreadLocal(ThreadSafeContext *cx, Shape *start, jsid id,
+                                           Shape ***pspp, bool adding = false);
     static inline Shape *searchNoHashify(Shape *start, jsid id);
 
     void removeFromDictionary(NativeObject *obj);
@@ -631,7 +639,7 @@ class Shape : public gc::TenuredCell
      * is thread local, which is the case when we clone the entire shape
      * lineage in preparation for converting an object to dictionary mode.
      */
-    static bool hashify(ExclusiveContext *cx, Shape *shape);
+    static bool hashify(ThreadSafeContext *cx, Shape *shape);
     void handoffTableTo(Shape *newShape);
 
     void setParent(Shape *p) {
@@ -642,13 +650,13 @@ class Shape : public gc::TenuredCell
         parent = p;
     }
 
-    bool ensureOwnBaseShape(ExclusiveContext *cx) {
+    bool ensureOwnBaseShape(ThreadSafeContext *cx) {
         if (base()->isOwned())
             return true;
         return makeOwnBaseShape(cx);
     }
 
-    bool makeOwnBaseShape(ExclusiveContext *cx);
+    bool makeOwnBaseShape(ThreadSafeContext *cx);
 
   public:
     bool hasTable() const { return base()->hasTable(); }
@@ -770,7 +778,7 @@ class Shape : public gc::TenuredCell
     inline Shape(UnownedBaseShape *base, uint32_t nfixed);
 
     /* Copy constructor disabled, to avoid misuse of the above form. */
-    Shape(const Shape &other) = delete;
+    Shape(const Shape &other) MOZ_DELETE;
 
     /* Allocate a new shape based on the given StackShape. */
     static inline Shape *new_(ExclusiveContext *cx, StackShape &unrootedOther, uint32_t nfixed);
@@ -1050,7 +1058,7 @@ class AutoRooterGetterSetter
     class Inner : private JS::CustomAutoRooter
     {
       public:
-        inline Inner(ExclusiveContext *cx, uint8_t attrs,
+        inline Inner(ThreadSafeContext *cx, uint8_t attrs,
                      PropertyOp *pgetter_, StrictPropertyOp *psetter_);
 
       private:
@@ -1062,10 +1070,10 @@ class AutoRooterGetterSetter
     };
 
   public:
-    inline AutoRooterGetterSetter(ExclusiveContext *cx, uint8_t attrs,
+    inline AutoRooterGetterSetter(ThreadSafeContext *cx, uint8_t attrs,
                                   PropertyOp *pgetter, StrictPropertyOp *psetter
                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
-    inline AutoRooterGetterSetter(ExclusiveContext *cx, uint8_t attrs,
+    inline AutoRooterGetterSetter(ThreadSafeContext *cx, uint8_t attrs,
                                   JSNative *pgetter, JSNative *psetter
                                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
 

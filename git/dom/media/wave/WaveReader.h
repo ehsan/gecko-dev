@@ -26,27 +26,32 @@ protected:
   ~WaveReader();
 
 public:
-  virtual nsresult Init(MediaDecoderReader* aCloneDonor) MOZ_OVERRIDE;
-  virtual bool DecodeAudioData() MOZ_OVERRIDE;
+  virtual nsresult Init(MediaDecoderReader* aCloneDonor);
+  virtual bool DecodeAudioData();
   virtual bool DecodeVideoFrame(bool &aKeyframeSkip,
-                                  int64_t aTimeThreshold) MOZ_OVERRIDE;
+                                  int64_t aTimeThreshold);
 
-  virtual bool HasAudio() MOZ_OVERRIDE
+  virtual bool HasAudio()
   {
     return true;
   }
 
-  virtual bool HasVideo() MOZ_OVERRIDE
+  virtual bool HasVideo()
   {
     return false;
   }
 
   virtual nsresult ReadMetadata(MediaInfo* aInfo,
-                                MetadataTags** aTags) MOZ_OVERRIDE;
+                                MetadataTags** aTags);
   virtual nsRefPtr<SeekPromise>
   Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime, int64_t aCurrentTime) MOZ_OVERRIDE;
 
-  virtual nsresult GetBuffered(dom::TimeRanges* aBuffered) MOZ_OVERRIDE;
+  virtual nsresult GetBuffered(dom::TimeRanges* aBuffered);
+
+  // To seek in a buffered range, we just have to seek the stream.
+  virtual bool IsSeekableInBufferedRanges() {
+    return true;
+  }
 
   virtual bool IsMediaSeekable() MOZ_OVERRIDE;
 

@@ -344,7 +344,7 @@ class GCRuntime
 
 #ifdef JS_GC_ZEAL
     const void *addressOfZealMode() { return &zealMode; }
-    void getZeal(uint8_t *zeal, uint32_t *frequency, uint32_t *nextScheduled);
+    void getZeal(uint8_t *zeal, uint32_t *frequency);
     void setZeal(uint8_t zeal, uint32_t frequency);
     bool parseAndSetZeal(const char *str);
     void setNextScheduled(uint32_t count);
@@ -835,7 +835,7 @@ class GCRuntime
 
     bool poked;
 
-    volatile js::HeapState heapState;
+    mozilla::Atomic<js::HeapState> heapState;
 
     /*
      * These options control the zealousness of the GC. The fundamental values
@@ -849,10 +849,10 @@ class GCRuntime
      *
      * You can control these values in several ways:
      *   - Set the JS_GC_ZEAL environment variable
-     *   - Call gczeal() or schedulegc() from inside shell-executed JS code
+     *   - Call zeal() or schedulegc() from inside shell-executed JS code
      *     (see the help for details)
      *
-     * If gcZeal_ == 1 then we perform GCs in select places (during MaybeGC and
+     * If gzZeal_ == 1 then we perform GCs in select places (during MaybeGC and
      * whenever a GC poke happens). This option is mainly useful to embedders.
      *
      * We use zeal_ == 4 to enable write barrier verification. See the comment

@@ -98,13 +98,11 @@ ClearKeyPersistence::GetNewSessionId(GMPSessionType aSessionType)
 class CreateSessionTask : public GMPTask {
 public:
   CreateSessionTask(ClearKeyDecryptionManager* aTarget,
-                    uint32_t aCreateSessionToken,
                     uint32_t aPromiseId,
                     const uint8_t* aInitData,
                     uint32_t aInitDataSize,
                     GMPSessionType aSessionType)
     : mTarget(aTarget)
-    , mCreateSessionToken(aCreateSessionToken)
     , mPromiseId(aPromiseId)
     , mSessionType(aSessionType)
   {
@@ -113,8 +111,7 @@ public:
                      aInitData + aInitDataSize);
   }
   virtual void Run() MOZ_OVERRIDE {
-    mTarget->CreateSession(mCreateSessionToken,
-                           mPromiseId,
+    mTarget->CreateSession(mPromiseId,
                            "cenc",
                            strlen("cenc"),
                            &mInitData.front(),
@@ -126,7 +123,6 @@ public:
   }
 private:
   RefPtr<ClearKeyDecryptionManager> mTarget;
-  uint32_t mCreateSessionToken;
   uint32_t mPromiseId;
   vector<uint8_t> mInitData;
   GMPSessionType mSessionType;
@@ -135,7 +131,6 @@ private:
 
 /* static */ bool
 ClearKeyPersistence::DeferCreateSessionIfNotReady(ClearKeyDecryptionManager* aInstance,
-                                                  uint32_t aCreateSessionToken,
                                                   uint32_t aPromiseId,
                                                   const uint8_t* aInitData,
                                                   uint32_t aInitDataSize,
@@ -145,7 +140,6 @@ ClearKeyPersistence::DeferCreateSessionIfNotReady(ClearKeyDecryptionManager* aIn
     return false;
   }
   GMPTask* t = new CreateSessionTask(aInstance,
-                                     aCreateSessionToken,
                                      aPromiseId,
                                      aInitData,
                                      aInitDataSize,

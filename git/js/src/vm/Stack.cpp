@@ -583,7 +583,7 @@ FrameIter::settleOnActivation()
     }
 }
 
-FrameIter::Data::Data(JSContext *cx, SavedOption savedOption,
+FrameIter::Data::Data(ThreadSafeContext *cx, SavedOption savedOption,
                       ContextOption contextOption, JSPrincipals *principals)
   : cx_(cx),
     savedOption_(savedOption),
@@ -613,7 +613,7 @@ FrameIter::Data::Data(const FrameIter::Data &other)
 {
 }
 
-FrameIter::FrameIter(JSContext *cx, SavedOption savedOption)
+FrameIter::FrameIter(ThreadSafeContext *cx, SavedOption savedOption)
   : data_(cx, savedOption, CURRENT_CONTEXT, nullptr),
     ionInlineFrames_(cx, (js::jit::JitFrameIterator*) nullptr)
 {
@@ -622,7 +622,7 @@ FrameIter::FrameIter(JSContext *cx, SavedOption savedOption)
     settleOnActivation();
 }
 
-FrameIter::FrameIter(JSContext *cx, ContextOption contextOption,
+FrameIter::FrameIter(ThreadSafeContext *cx, ContextOption contextOption,
                      SavedOption savedOption)
   : data_(cx, savedOption, contextOption, nullptr),
     ionInlineFrames_(cx, (js::jit::JitFrameIterator*) nullptr)
@@ -1394,6 +1394,18 @@ jit::JitActivation::JitActivation(JSContext *cx, bool active)
         prevJitTop_ = nullptr;
         prevJitJSContext_ = nullptr;
     }
+}
+
+jit::JitActivation::JitActivation(ForkJoinContext *cx)
+  : Activation(cx, Jit),
+    active_(true),
+    rematerializedFrames_(nullptr),
+    ionRecovery_(cx),
+    bailoutData_(nullptr)
+{
+    prevJitTop_ = cx->perThreadData->jitTop;
+    prevJitJSContext_ = cx->perThreadData->jitJSContext;
+    cx->perThreadData->jitJSContext = nullptr;
 }
 
 jit::JitActivation::~JitActivation()

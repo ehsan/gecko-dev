@@ -357,7 +357,7 @@ protected:
 
 private:
   // copy constructor, not implemented
-  nsTHashtable(nsTHashtable<EntryType>& aToCopy) = delete;
+  nsTHashtable(nsTHashtable<EntryType>& aToCopy) MOZ_DELETE;
 
   /**
    * Initialize the table.
@@ -374,7 +374,7 @@ private:
                                                  void*);
 
   // assignment operator, not implemented
-  nsTHashtable<EntryType>& operator=(nsTHashtable<EntryType>& aToEqual) = delete;
+  nsTHashtable<EntryType>& operator=(nsTHashtable<EntryType>& aToEqual) MOZ_DELETE;
 };
 
 //

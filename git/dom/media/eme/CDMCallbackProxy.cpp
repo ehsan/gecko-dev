@@ -23,36 +23,36 @@ CDMCallbackProxy::CDMCallbackProxy(CDMProxy* aProxy)
 
 }
 
-class SetSessionIdTask : public nsRunnable {
+class NewSessionTask : public nsRunnable {
 public:
-  SetSessionIdTask(CDMProxy* aProxy,
-                   uint32_t aToken,
-                   const nsCString& aSessionId)
+  NewSessionTask(CDMProxy* aProxy,
+                 uint32_t aPromiseId,
+                 const nsCString& aSessionId)
     : mProxy(aProxy)
-    , mToken(aToken)
+    , mPid(aPromiseId)
     , mSid(NS_ConvertUTF8toUTF16(aSessionId))
   {
   }
 
   NS_IMETHOD Run() {
-    mProxy->OnSetSessionId(mToken, mSid);
+    mProxy->OnResolveNewSessionPromise(mPid, mSid);
     return NS_OK;
   }
 
   nsRefPtr<CDMProxy> mProxy;
-  uint32_t mToken;
+  dom::PromiseId mPid;
   nsString mSid;
 };
 
 void
-CDMCallbackProxy::SetSessionId(uint32_t aToken,
-                               const nsCString& aSessionId)
+CDMCallbackProxy::ResolveNewSessionPromise(uint32_t aPromiseId,
+                                           const nsCString& aSessionId)
 {
   MOZ_ASSERT(mProxy->IsOnGMPThread());
 
-  nsRefPtr<nsIRunnable> task(new SetSessionIdTask(mProxy,
-                                                  aToken,
-                                                  aSessionId));
+  nsRefPtr<nsIRunnable> task(new NewSessionTask(mProxy,
+                                                aPromiseId,
+                                                aSessionId));
   NS_DispatchToMainThread(task);
 }
 

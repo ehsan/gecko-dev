@@ -266,7 +266,7 @@ public:
    */
   void RunThread();
   friend class MediaStreamGraphInitThreadRunnable;
-  virtual uint32_t IterationDuration() MOZ_OVERRIDE {
+  uint32_t IterationDuration() {
     return MEDIA_GRAPH_TARGET_PERIOD_MS;
   }
 
@@ -312,7 +312,7 @@ public:
   virtual void WaitForNextIteration() MOZ_OVERRIDE;
   virtual void WakeUp() MOZ_OVERRIDE;
   virtual TimeStamp GetCurrentTimeStamp() MOZ_OVERRIDE;
-  virtual OfflineClockDriver* AsOfflineClockDriver() MOZ_OVERRIDE {
+  virtual OfflineClockDriver* AsOfflineClockDriver() {
     return this;
   }
 
@@ -378,7 +378,7 @@ public:
   void StateCallback(cubeb_state aState);
   /* This is an approximation of the number of millisecond there are between two
    * iterations of the graph. */
-  virtual uint32_t IterationDuration() MOZ_OVERRIDE;
+  uint32_t IterationDuration();
 
   /* This function gets called when the graph has produced the audio frames for
    * this iteration. */
@@ -388,7 +388,7 @@ public:
                              uint32_t aFrames,
                              uint32_t aSampleRate) MOZ_OVERRIDE;
 
-  virtual AudioCallbackDriver* AsAudioCallbackDriver() MOZ_OVERRIDE {
+  virtual AudioCallbackDriver* AsAudioCallbackDriver() {
     return this;
   }
 

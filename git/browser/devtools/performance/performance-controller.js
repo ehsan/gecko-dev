@@ -33,8 +33,6 @@ devtools.lazyRequireGetter(this, "CallView",
   "devtools/profiler/tree-view", true);
 devtools.lazyRequireGetter(this, "ThreadNode",
   "devtools/profiler/tree-model", true);
-devtools.lazyRequireGetter(this, "TIMELINE_BLUEPRINT",
-  "devtools/timeline/global", true);
 
 devtools.lazyImporter(this, "CanvasGraphUtils",
   "resource:///modules/devtools/Graphs.jsm");

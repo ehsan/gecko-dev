@@ -29,8 +29,7 @@ ClearKeySession::~ClearKeySession()
 }
 
 void
-ClearKeySession::Init(uint32_t aCreateSessionToken,
-                      uint32_t aPromiseId,
+ClearKeySession::Init(uint32_t aPromiseId,
                       const uint8_t* aInitData, uint32_t aInitDataSize)
 {
   CK_LOGD("ClearKeySession::Init");
@@ -41,10 +40,8 @@ ClearKeySession::Init(uint32_t aCreateSessionToken,
     mCallback->RejectPromise(aPromiseId, kGMPAbortError, message, strlen(message));
     return;
   }
-
-  mCallback->SetSessionId(aCreateSessionToken, &mSessionId[0], mSessionId.length());
-
-  mCallback->ResolvePromise(aPromiseId);
+  mCallback->ResolveNewSessionPromise(aPromiseId,
+                                      mSessionId.data(), mSessionId.length());
 }
 
 GMPSessionType

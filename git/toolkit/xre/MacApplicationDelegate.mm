@@ -16,7 +16,6 @@
 #include "nsCOMPtr.h"
 #include "nsINativeAppSupport.h"
 #include "nsAppRunner.h"
-#include "nsAppShell.h"
 #include "nsComponentManagerUtils.h"
 #include "nsIServiceManager.h"
 #include "nsServiceManagerUtils.h"
@@ -47,13 +46,15 @@ private:
   NSAutoreleasePool *mLocalPool;
 };
 
-@interface MacApplicationDelegate : NSObject<NSApplicationDelegate>
+@interface MacApplicationDelegate : NSObject
 {
 }
 
 @end
 
 static bool sProcessedGetURLEvent = false;
+
+@class GeckoNSApplication;
 
 // Methods that can be called from non-Objective-C code.
 
@@ -88,8 +89,8 @@ SetupMacApplicationDelegate()
                                             forKey:@"NSTreatUnknownArgumentsAsOpen"];
 
   // Create the delegate. This should be around for the lifetime of the app.
-  id<NSApplicationDelegate> delegate = [[MacApplicationDelegate alloc] init];
-  [[GeckoNSApplication sharedApplication] setDelegate:delegate];
+  MacApplicationDelegate *delegate = [[MacApplicationDelegate alloc] init];
+  [NSApp setDelegate:delegate];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }

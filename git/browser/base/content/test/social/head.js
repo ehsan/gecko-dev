@@ -167,13 +167,7 @@ function runSocialTestWithProvider(manifest, callback, finishcallback) {
 }
 
 function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
-  let testIter = (function*() {
-    for (let name in tests) {
-      if (tests.hasOwnProperty(name)) {
-        yield [name, tests[name]];
-      }
-    }
-  })();
+  let testIter = Iterator(tests);
   let providersAtStart = Social.providers.length;
   info("runSocialTests: start test run with " + providersAtStart + " providers");
   window.focus();
@@ -188,15 +182,16 @@ function runSocialTests(tests, cbPreTest, cbPostTest, cbFinish) {
   }
 
   function runNextTest() {
-    let result = testIter.next();
-    if (result.done) {
+    let name, func;
+    try {
+      [name, func] = testIter.next();
+    } catch (err if err instanceof StopIteration) {
       // out of items:
       (cbFinish || defaultFinishChecks)();
       is(providersAtStart, Social.providers.length,
          "runSocialTests: finish test run with " + Social.providers.length + " providers");
       return;
     }
-    let [name, func] = result.value;
     // We run on a timeout as the frameworker also makes use of timeouts, so
     // this helps keep the debug messages sane.
     executeSoon(function() {

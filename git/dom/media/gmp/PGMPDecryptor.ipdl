@@ -20,8 +20,7 @@ child:
 
   Init();
 
-  CreateSession(uint32_t aCreateSessionToken,
-                uint32_t aPromiseId,
+  CreateSession(uint32_t aPromiseId,
                 nsCString aInitDataType,
                 uint8_t[] aInitData,
                 GMPSessionType aSessionType);
@@ -51,8 +50,8 @@ child:
 parent:
   __delete__();
 
-  SetSessionId(uint32_t aCreateSessionToken,
-               nsCString aSessionId);
+  ResolveNewSessionPromise(uint32_t aPromiseId,
+                           nsCString aSessionId);
 
   ResolveLoadSessionPromise(uint32_t aPromiseId,
                             bool aSuccess);

@@ -212,8 +212,8 @@ public:
                            uint64_t* bytesSent) MOZ_OVERRIDE;
 
 private:
-  WebrtcAudioConduit(const WebrtcAudioConduit& other) = delete;
-  void operator=(const WebrtcAudioConduit& other) = delete;
+  WebrtcAudioConduit(const WebrtcAudioConduit& other) MOZ_DELETE;
+  void operator=(const WebrtcAudioConduit& other) MOZ_DELETE;
 
   //Local database of currently applied receive codecs
   typedef std::vector<AudioCodecConfig* > RecvCodecList;

@@ -57,8 +57,7 @@ public:
   // Uses the CDM to create a key session.
   // Calls MediaKeys::OnSessionActivated() when session is created.
   // Assumes ownership of (Move()s) aInitData's contents.
-  void CreateSession(uint32_t aCreateSessionToken,
-                     dom::SessionType aSessionType,
+  void CreateSession(dom::SessionType aSessionType,
                      PromiseId aPromiseId,
                      const nsAString& aInitDataType,
                      nsTArray<uint8_t>& aInitData);
@@ -112,8 +111,8 @@ public:
   const nsCString& GetNodeId() const;
 
   // Main thread only.
-  void OnSetSessionId(uint32_t aCreateSessionToken,
-                      const nsAString& aSessionId);
+  void OnResolveNewSessionPromise(uint32_t aPromiseId,
+                                  const nsAString& aSessionId);
 
   // Main thread only.
   void OnResolveLoadSessionPromise(uint32_t aPromiseId, bool aSuccess);
@@ -190,7 +189,6 @@ private:
 
   struct CreateSessionData {
     dom::SessionType mSessionType;
-    uint32_t mCreateSessionToken;
     PromiseId mPromiseId;
     nsAutoCString mInitDataType;
     nsTArray<uint8_t> mInitData;

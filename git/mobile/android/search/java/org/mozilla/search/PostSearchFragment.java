@@ -4,9 +4,7 @@
 
 package org.mozilla.search;
 
-import java.net.MalformedURLException;
 import java.net.URISyntaxException;
-import java.net.URL;
 
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.R;
@@ -42,8 +40,6 @@ public class PostSearchFragment extends Fragment {
     private WebView webview;
     private View errorView;
 
-    private String resultsPageHost;
-
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -76,7 +72,6 @@ public class PostSearchFragment extends Fragment {
         final String url = engine.resultsUriForQuery(query);
         // Only load urls if the url is different than the webview's current url.
         if (!TextUtils.equals(webview.getUrl(), url)) {
-            resultsPageHost = null;
             webview.loadUrl(Constants.ABOUT_BLANK);
             webview.loadUrl(url);
         }
@@ -100,22 +95,14 @@ public class PostSearchFragment extends Fragment {
 
         @Override
         public boolean shouldOverrideUrlLoading(WebView view, String url) {
-            // Ignore about:blank URL loads and the first results page we try to load.
-            if (TextUtils.equals(url, Constants.ABOUT_BLANK) || resultsPageHost == null) {
+            // Ignore about:blank URL loads.
+            if (TextUtils.equals(url, Constants.ABOUT_BLANK)) {
                 return false;
             }
 
-            String host = null;
-            try {
-                host = new URL(url).getHost();
-            } catch (MalformedURLException e) {
-                Log.e(LOG_TAG, "Error getting host from URL loading in webview", e);
-            }
-
-            // If the host name is the same as the results page, don't override the URL load, but
+            // If the URL is a results page, don't override the URL load, but
             // do update the query in the search bar if possible.
-            if (TextUtils.equals(resultsPageHost, host)) {
-                // This won't work for results pages that redirect (e.g. Google in different country)
+            if (engine.isSearchResultsPage(url)) {
                 final String query = engine.queryForResultsUrl(url);
                 if (!TextUtils.isEmpty(query)) {
                     ((AcceptsSearchQuery) getActivity()).onQueryChange(query);
@@ -145,7 +132,7 @@ public class PostSearchFragment extends Fragment {
             }
 
             return false;
-        }
+}
 
         @Override
         public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
@@ -178,14 +165,6 @@ public class PostSearchFragment extends Fragment {
             if (errorView != null) {
                 errorView.setVisibility(networkError ? View.VISIBLE : View.GONE);
                 webview.setVisibility(networkError ? View.GONE : View.VISIBLE);
-            }
-
-            if (!TextUtils.equals(url, Constants.ABOUT_BLANK) && resultsPageHost == null) {
-                try {
-                    resultsPageHost = new URL(url).getHost();
-                } catch (MalformedURLException e) {
-                    Log.e(LOG_TAG, "Error getting host from results page URL", e);
-                }
             }
         }
     }

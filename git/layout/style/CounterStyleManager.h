@@ -41,8 +41,8 @@ protected:
   }
 
 private:
-  CounterStyle(const CounterStyle& aOther) = delete;
-  void operator=(const CounterStyle& other) = delete;
+  CounterStyle(const CounterStyle& aOther) MOZ_DELETE;
+  void operator=(const CounterStyle& other) MOZ_DELETE;
 
 public:
   int32_t GetStyle() const { return mStyle; }

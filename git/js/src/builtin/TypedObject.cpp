@@ -505,7 +505,9 @@ const JSFunctionSpec ArrayMetaTypeDescr::typeObjectMethods[] = {
     JS_SELF_HOSTED_FN("toSource", "DescrToSource", 0, 0),
     {"equivalent", {nullptr, nullptr}, 1, 0, "TypeDescrEquivalent"},
     JS_SELF_HOSTED_FN("build",    "TypedObjectArrayTypeBuild", 3, 0),
+    JS_SELF_HOSTED_FN("buildPar", "TypedObjectArrayTypeBuildPar", 3, 0),
     JS_SELF_HOSTED_FN("from",     "TypedObjectArrayTypeFrom", 3, 0),
+    JS_SELF_HOSTED_FN("fromPar",  "TypedObjectArrayTypeFromPar", 3, 0),
     JS_FS_END
 };
 
@@ -517,8 +519,13 @@ const JSFunctionSpec ArrayMetaTypeDescr::typedObjectMethods[] = {
     {"forEach", {nullptr, nullptr}, 1, 0, "ArrayForEach"},
     {"redimension", {nullptr, nullptr}, 1, 0, "TypedObjectArrayRedimension"},
     JS_SELF_HOSTED_FN("map",        "TypedObjectArrayMap",        2, 0),
+    JS_SELF_HOSTED_FN("mapPar",     "TypedObjectArrayMapPar",     2, 0),
     JS_SELF_HOSTED_FN("reduce",     "TypedObjectArrayReduce",     2, 0),
+    JS_SELF_HOSTED_FN("reducePar",  "TypedObjectArrayReducePar",  2, 0),
+    JS_SELF_HOSTED_FN("scatter",    "TypedObjectArrayScatter",    4, 0),
+    JS_SELF_HOSTED_FN("scatterPar", "TypedObjectArrayScatterPar", 4, 0),
     JS_SELF_HOSTED_FN("filter",     "TypedObjectArrayFilter",     1, 0),
+    JS_SELF_HOSTED_FN("filterPar",  "TypedObjectArrayFilterPar",  1, 0),
     JS_FS_END
 };
 
@@ -2554,7 +2561,7 @@ js::NewDerivedTypedObject(JSContext *cx, unsigned argc, Value *vp)
 }
 
 bool
-js::AttachTypedObject(JSContext *cx, unsigned argc, Value *vp)
+js::AttachTypedObject(ThreadSafeContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 3);
@@ -2565,13 +2572,21 @@ js::AttachTypedObject(JSContext *cx, unsigned argc, Value *vp)
     MOZ_ASSERT(!handle.isAttached());
     size_t offset = args[2].toInt32();
 
-    handle.attach(cx, target, offset);
-
+    if (cx->isForkJoinContext()) {
+        LockedJSContext ncx(cx->asForkJoinContext());
+        handle.attach(ncx, target, offset);
+    } else {
+        handle.attach(cx->asJSContext(), target, offset);
+    }
     return true;
 }
 
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::AttachTypedObjectJitInfo,
+                                      AttachTypedObjectJitInfo,
+                                      js::AttachTypedObject);
+
 bool
-js::SetTypedObjectOffset(JSContext *, unsigned argc, Value *vp)
+js::SetTypedObjectOffset(ThreadSafeContext *, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 2);
@@ -2588,7 +2603,19 @@ js::SetTypedObjectOffset(JSContext *, unsigned argc, Value *vp)
 }
 
 bool
-js::ObjectIsTypeDescr(JSContext *, unsigned argc, Value *vp)
+js::intrinsic_SetTypedObjectOffset(JSContext *cx, unsigned argc, Value *vp)
+{
+    // Do not use JSNativeThreadSafeWrapper<> so that ion can reference
+    // this function more easily when inlining.
+    return SetTypedObjectOffset(cx, argc, vp);
+}
+
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::intrinsic_SetTypedObjectOffsetJitInfo,
+                                      SetTypedObjectJitInfo,
+                                      SetTypedObjectOffset);
+
+bool
+js::ObjectIsTypeDescr(ThreadSafeContext *, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 1);
@@ -2597,8 +2624,11 @@ js::ObjectIsTypeDescr(JSContext *, unsigned argc, Value *vp)
     return true;
 }
 
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::ObjectIsTypeDescrJitInfo, ObjectIsTypeDescrJitInfo,
+                                      js::ObjectIsTypeDescr);
+
 bool
-js::ObjectIsTypedObject(JSContext *, unsigned argc, Value *vp)
+js::ObjectIsTypedObject(ThreadSafeContext *, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 1);
@@ -2607,8 +2637,12 @@ js::ObjectIsTypedObject(JSContext *, unsigned argc, Value *vp)
     return true;
 }
 
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::ObjectIsTypedObjectJitInfo,
+                                      ObjectIsTypedObjectJitInfo,
+                                      js::ObjectIsTypedObject);
+
 bool
-js::ObjectIsOpaqueTypedObject(JSContext *, unsigned argc, Value *vp)
+js::ObjectIsOpaqueTypedObject(ThreadSafeContext *, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 1);
@@ -2617,8 +2651,12 @@ js::ObjectIsOpaqueTypedObject(JSContext *, unsigned argc, Value *vp)
     return true;
 }
 
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::ObjectIsOpaqueTypedObjectJitInfo,
+                                      ObjectIsOpaqueTypedObjectJitInfo,
+                                      js::ObjectIsOpaqueTypedObject);
+
 bool
-js::ObjectIsTransparentTypedObject(JSContext *, unsigned argc, Value *vp)
+js::ObjectIsTransparentTypedObject(ThreadSafeContext *, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 1);
@@ -2627,8 +2665,12 @@ js::ObjectIsTransparentTypedObject(JSContext *, unsigned argc, Value *vp)
     return true;
 }
 
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::ObjectIsTransparentTypedObjectJitInfo,
+                                      ObjectIsTransparentTypedObjectJitInfo,
+                                      js::ObjectIsTransparentTypedObject);
+
 bool
-js::TypeDescrIsSimpleType(JSContext *, unsigned argc, Value *vp)
+js::TypeDescrIsSimpleType(ThreadSafeContext *, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 1);
@@ -2638,8 +2680,12 @@ js::TypeDescrIsSimpleType(JSContext *, unsigned argc, Value *vp)
     return true;
 }
 
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::TypeDescrIsSimpleTypeJitInfo,
+                                      TypeDescrIsSimpleTypeJitInfo,
+                                      js::TypeDescrIsSimpleType);
+
 bool
-js::TypeDescrIsArrayType(JSContext *, unsigned argc, Value *vp)
+js::TypeDescrIsArrayType(ThreadSafeContext *, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 1);
@@ -2650,8 +2696,12 @@ js::TypeDescrIsArrayType(JSContext *, unsigned argc, Value *vp)
     return true;
 }
 
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::TypeDescrIsArrayTypeJitInfo,
+                                      TypeDescrIsArrayTypeJitInfo,
+                                      js::TypeDescrIsArrayType);
+
 bool
-js::TypedObjectIsAttached(JSContext *cx, unsigned argc, Value *vp)
+js::TypedObjectIsAttached(ThreadSafeContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     TypedObject &typedObj = args[0].toObject().as<TypedObject>();
@@ -2659,8 +2709,12 @@ js::TypedObjectIsAttached(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::TypedObjectIsAttachedJitInfo,
+                                      TypedObjectIsAttachedJitInfo,
+                                      js::TypedObjectIsAttached);
+
 bool
-js::TypedObjectTypeDescr(JSContext *cx, unsigned argc, Value *vp)
+js::TypedObjectTypeDescr(ThreadSafeContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     TypedObject &typedObj = args[0].toObject().as<TypedObject>();
@@ -2668,8 +2722,12 @@ js::TypedObjectTypeDescr(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::TypedObjectTypeDescrJitInfo,
+                                      TypedObjectTypeDescrJitInfo,
+                                      js::TypedObjectTypeDescr);
+
 bool
-js::ClampToUint8(JSContext *, unsigned argc, Value *vp)
+js::ClampToUint8(ThreadSafeContext *, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     MOZ_ASSERT(args.length() == 1);
@@ -2677,6 +2735,9 @@ js::ClampToUint8(JSContext *, unsigned argc, Value *vp)
     args.rval().setNumber(ClampDoubleToUint8(args[0].toNumber()));
     return true;
 }
+
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::ClampToUint8JitInfo, ClampToUint8JitInfo,
+                                      js::ClampToUint8);
 
 bool
 js::GetTypedObjectModule(JSContext *cx, unsigned argc, Value *vp)
@@ -2710,7 +2771,7 @@ js::GetInt32x4TypeDescr(JSContext *cx, unsigned argc, Value *vp)
 
 #define JS_STORE_SCALAR_CLASS_IMPL(_constant, T, _name)                         \
 bool                                                                            \
-js::StoreScalar##T::Func(JSContext *, unsigned argc, Value *vp)         \
+js::StoreScalar##T::Func(ThreadSafeContext *, unsigned argc, Value *vp)         \
 {                                                                               \
     CallArgs args = CallArgsFromVp(argc, vp);                                   \
     MOZ_ASSERT(args.length() == 3);                                             \
@@ -2729,11 +2790,15 @@ js::StoreScalar##T::Func(JSContext *, unsigned argc, Value *vp)         \
     *target = ConvertScalar<T>(d);                                              \
     args.rval().setUndefined();                                                 \
     return true;                                                                \
-}
+}                                                                               \
+                                                                                \
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::StoreScalar##T::JitInfo,              \
+                                      StoreScalar##T,                           \
+                                      js::StoreScalar##T::Func);
 
 #define JS_STORE_REFERENCE_CLASS_IMPL(_constant, T, _name)                      \
 bool                                                                            \
-js::StoreReference##T::Func(JSContext *cx, unsigned argc, Value *vp)    \
+js::StoreReference##T::Func(ThreadSafeContext *cx, unsigned argc, Value *vp)    \
 {                                                                               \
     CallArgs args = CallArgsFromVp(argc, vp);                                   \
     MOZ_ASSERT(args.length() == 4);                                             \
@@ -2756,11 +2821,15 @@ js::StoreReference##T::Func(JSContext *cx, unsigned argc, Value *vp)    \
         return false;                                                           \
     args.rval().setUndefined();                                                 \
     return true;                                                                \
-}
+}                                                                               \
+                                                                                \
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::StoreReference##T::JitInfo,           \
+                                      StoreReference##T,                        \
+                                      js::StoreReference##T::Func);
 
 #define JS_LOAD_SCALAR_CLASS_IMPL(_constant, T, _name)                                  \
 bool                                                                                    \
-js::LoadScalar##T::Func(JSContext *, unsigned argc, Value *vp)                  \
+js::LoadScalar##T::Func(ThreadSafeContext *, unsigned argc, Value *vp)                  \
 {                                                                                       \
     CallArgs args = CallArgsFromVp(argc, vp);                                           \
     MOZ_ASSERT(args.length() == 2);                                                     \
@@ -2776,11 +2845,14 @@ js::LoadScalar##T::Func(JSContext *, unsigned argc, Value *vp)                  
     T *target = reinterpret_cast<T*>(typedObj.typedMem(offset));                        \
     args.rval().setNumber((double) *target);                                            \
     return true;                                                                        \
-}
+}                                                                                       \
+                                                                                        \
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::LoadScalar##T::JitInfo, LoadScalar##T,        \
+                                      js::LoadScalar##T::Func);
 
 #define JS_LOAD_REFERENCE_CLASS_IMPL(_constant, T, _name)                       \
 bool                                                                            \
-js::LoadReference##T::Func(JSContext *, unsigned argc, Value *vp)       \
+js::LoadReference##T::Func(ThreadSafeContext *, unsigned argc, Value *vp)       \
 {                                                                               \
     CallArgs args = CallArgsFromVp(argc, vp);                                   \
     MOZ_ASSERT(args.length() == 2);                                             \
@@ -2796,14 +2868,18 @@ js::LoadReference##T::Func(JSContext *, unsigned argc, Value *vp)       \
     T *target = reinterpret_cast<T*>(typedObj.typedMem(offset));                \
     load(target, args.rval());                                                  \
     return true;                                                                \
-}
+}                                                                               \
+                                                                                \
+JS_JITINFO_NATIVE_PARALLEL_THREADSAFE(js::LoadReference##T::JitInfo,            \
+                                      LoadReference##T,                         \
+                                      js::LoadReference##T::Func);
 
 // Because the precise syntax for storing values/objects/strings
 // differs, we abstract it away using specialized variants of the
 // private methods `store()` and `load()`.
 
 bool
-StoreReferenceHeapValue::store(JSContext *cx, HeapValue *heap, const Value &v,
+StoreReferenceHeapValue::store(ThreadSafeContext *cx, HeapValue *heap, const Value &v,
                                TypedObject *obj, jsid id)
 {
     // Undefined values are not included in type inference information for
@@ -2821,7 +2897,7 @@ StoreReferenceHeapValue::store(JSContext *cx, HeapValue *heap, const Value &v,
 }
 
 bool
-StoreReferenceHeapPtrObject::store(JSContext *cx, HeapPtrObject *heap, const Value &v,
+StoreReferenceHeapPtrObject::store(ThreadSafeContext *cx, HeapPtrObject *heap, const Value &v,
                                    TypedObject *obj, jsid id)
 {
     MOZ_ASSERT(v.isObjectOrNull()); // or else Store_object is being misused
@@ -2841,7 +2917,7 @@ StoreReferenceHeapPtrObject::store(JSContext *cx, HeapPtrObject *heap, const Val
 }
 
 bool
-StoreReferenceHeapPtrString::store(JSContext *cx, HeapPtrString *heap, const Value &v,
+StoreReferenceHeapPtrString::store(ThreadSafeContext *cx, HeapPtrString *heap, const Value &v,
                                    TypedObject *obj, jsid id)
 {
     MOZ_ASSERT(v.isString()); // or else Store_string is being misused

@@ -17,12 +17,12 @@
 SimpleTest.waitForExplicitFinish();
 SimpleTest.waitForFocus(runNextTest, window);
 
-const kTests = [
+const kTests = Iterator([
   { type: "text", value: "foo", key: "b", expectedNewValue: "foo" },
   { type: "number", value: "123", key: "4", expectedNewValue: "123" },
   { type: "number", value: "123", key: KeyEvent.DOM_VK_UP, expectedNewValue: "123" },
   { type: "number", value: "123", key: KeyEvent.DOM_VK_DOWN, expectedNewValue: "123" },
-];
+]);
 
 function sendUntrustedKeyEvent(eventType, keyCode, target) {
   var evt = document.createEvent("KeyboardEvent");
@@ -70,11 +70,14 @@ function runNextTest() {
   gotEvents.keyup = false;
   gotEvents.keypress = false;
 
-
-  var test = kTests.shift();
-  if (!test) {
-    SimpleTest.finish();
-    return; // We're all done
+  try {
+    var [index, test] = kTests.next();
+  } catch(e) {
+    if (e == StopIteration) {
+      SimpleTest.finish();
+      return; // We're all done
+    }
+    throw e;
   }
 
   input.type = test.type;

@@ -513,11 +513,8 @@ loop.panel = (function(_, mozL10n) {
    * FxA sign in/up link component.
    */
   var AuthLink = React.createClass({
-    mixins: [sharedMixins.WindowCloseMixin],
-
     handleSignUpLinkClick: function() {
       navigator.mozLoop.logInToFxA();
-      this.closeWindow();
     },
 
     render: function() {

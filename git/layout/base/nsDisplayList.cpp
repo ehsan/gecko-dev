@@ -1465,8 +1465,7 @@ StartPendingAnimationsOnSubDocuments(nsIDocument* aDocument, void* aReadyTime)
     // If paint-suppression is in effect then we haven't finished painting
     // this document yet so we shouldn't start animations
     if (!shell || !shell->IsPaintingSuppressed()) {
-      const TimeStamp& readyTime = *static_cast<TimeStamp*>(aReadyTime);
-      tracker->StartPendingPlayersOnNextTick(readyTime);
+      tracker->StartPendingPlayers(*static_cast<TimeStamp*>(aReadyTime));
     }
   }
   aDocument->EnumerateSubDocuments(StartPendingAnimationsOnSubDocuments,

@@ -374,8 +374,8 @@ private:
 
   gfxPrefs();
   ~gfxPrefs();
-  gfxPrefs(const gfxPrefs&) = delete;
-  gfxPrefs& operator=(const gfxPrefs&) = delete;
+  gfxPrefs(const gfxPrefs&) MOZ_DELETE;
+  gfxPrefs& operator=(const gfxPrefs&) MOZ_DELETE;
 };
 
 #undef DECL_GFX_PREF /* Don't need it outside of this file */
