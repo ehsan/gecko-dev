@@ -10,7 +10,6 @@
 
 class nsAccessKeyInfo;
 class nsAsyncAccesskeyUpdate;
-class nsFontMetrics;
 
 typedef nsLeafBoxFrame nsTextBoxFrameSuper;
 class nsTextBoxFrame : public nsTextBoxFrameSuper
@@ -85,8 +84,7 @@ protected:
                    nsRenderingContext& aRenderingContext,
                    const nsRect&        aRect);
 
-  void CalculateUnderline(nsRenderingContext& aRenderingContext,
-                          nsFontMetrics& aFontMetrics);
+  void CalculateUnderline(nsRenderingContext& aRenderingContext);
 
   void CalcTextSize(nsBoxLayoutState& aBoxLayoutState);
 

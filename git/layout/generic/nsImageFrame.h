@@ -21,7 +21,6 @@
 #include "nsIReflowCallback.h"
 #include "nsTObserverArray.h"
 
-class nsFontMetrics;
 class nsImageMap;
 class nsIURI;
 class nsILoadGroup;
@@ -206,8 +205,7 @@ protected:
                         int32_t              aLength,
                         nscoord              aMaxWidth,
                         uint32_t&            aMaxFit,
-                        nsRenderingContext& aContext,
-                        nsFontMetrics&      aFontMetrics);
+                        nsRenderingContext& aContext);
 
   void DisplayAltText(nsPresContext*      aPresContext,
                       nsRenderingContext& aRenderingContext,

@@ -4686,7 +4686,7 @@ GCRuntime::endMarkingZoneGroup()
         JSRuntime *runtime;\
         virtual void run() MOZ_OVERRIDE;\
       public:\
-        explicit name (JSRuntime *rt) : runtime(rt) {}\
+        name (JSRuntime *rt) : runtime(rt) {}\
     }
 MAKE_GC_PARALLEL_TASK(SweepAtomsTask);
 MAKE_GC_PARALLEL_TASK(SweepInnerViewsTask);

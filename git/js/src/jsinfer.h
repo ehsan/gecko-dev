@@ -1106,12 +1106,12 @@ struct TypeObject : public gc::TenuredCell
     }
 
     void addFlags(TypeObjectFlags flags) {
-        maybeSweep(nullptr);
+        MOZ_ASSERT(!needsSweep());
         flags_ |= flags;
     }
 
     void clearFlags(TypeObjectFlags flags) {
-        maybeSweep(nullptr);
+        MOZ_ASSERT(!needsSweep());
         flags_ &= ~flags;
     }
 

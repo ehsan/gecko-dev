@@ -6,7 +6,6 @@
 #include "mozilla/DebugOnly.h"
 
 #include "nsCOMPtr.h"
-#include "nsFontMetrics.h"
 #include "nsTextControlFrame.h"
 #include "nsIPlaintextEditor.h"
 #include "nsCaret.h"
@@ -156,6 +155,7 @@ nsTextControlFrame::CalcIntrinsicSize(nsRenderingContext* aRenderingContext,
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fontMet),
                                           aFontSizeInflation);
   NS_ENSURE_SUCCESS(rv, rv);
+  aRenderingContext->SetFont(fontMet);
 
   lineHeight =
     nsHTMLReflowState::CalcLineHeight(GetContent(), StyleContext(),

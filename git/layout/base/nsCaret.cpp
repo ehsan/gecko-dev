@@ -13,7 +13,6 @@
 #include "gfxUtils.h"
 #include "mozilla/gfx/2D.h"
 #include "nsCOMPtr.h"
-#include "nsFontMetrics.h"
 #include "nsITimer.h"
 #include "nsFrameSelection.h"
 #include "nsIFrame.h"

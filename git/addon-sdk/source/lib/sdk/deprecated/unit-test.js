@@ -62,8 +62,7 @@ TestRunner.prototype = {
   },
 
   _uncaughtErrorObserver: function({message, date, fileName, stack, lineNumber}) {
-    this.fail("There was an uncaught Promise rejection: " + message + " @ " +
-              fileName + ":" + lineNumber + "\n" + stack);
+    this.fail("There was an uncaught Promise rejection: " + stack);
   },
 
   pass: function pass(message) {

@@ -221,6 +221,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   const nsStyleFont* font = StyleFont();
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
+  aReflowState.rendContext->SetFont(fm);
   nscoord axisHeight, em;
   GetAxisHeight(*aReflowState.rendContext, fm, axisHeight);
   GetEmHeight(fm, em);
@@ -339,19 +340,19 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
 
   /////////////////
   // opening fence ...
-  ReflowChar(aPresContext, *aReflowState.rendContext, *fm, mOpenChar,
+  ReflowChar(aPresContext, *aReflowState.rendContext, mOpenChar,
              NS_MATHML_OPERATOR_FORM_PREFIX, font->mScriptLevel, 
              axisHeight, leading, em, containerSize, ascent, descent, isRTL);
   /////////////////
   // separators ...
   for (i = 0; i < mSeparatorsCount; i++) {
-    ReflowChar(aPresContext, *aReflowState.rendContext, *fm, &mSeparatorsChar[i],
+    ReflowChar(aPresContext, *aReflowState.rendContext, &mSeparatorsChar[i],
                NS_MATHML_OPERATOR_FORM_INFIX, font->mScriptLevel,
                axisHeight, leading, em, containerSize, ascent, descent, isRTL);
   }
   /////////////////
   // closing fence ...
-  ReflowChar(aPresContext, *aReflowState.rendContext, *fm, mCloseChar,
+  ReflowChar(aPresContext, *aReflowState.rendContext, mCloseChar,
              NS_MATHML_OPERATOR_FORM_POSTFIX, font->mScriptLevel,
              axisHeight, leading, em, containerSize, ascent, descent, isRTL);
 
@@ -469,7 +470,6 @@ GetCharSpacing(nsMathMLChar*        aMathMLChar,
 /*static*/ nsresult
 nsMathMLmfencedFrame::ReflowChar(nsPresContext*      aPresContext,
                                  nsRenderingContext& aRenderingContext,
-                                 nsFontMetrics&       aFontMetrics,
                                  nsMathMLChar*        aMathMLChar,
                                  nsOperatorFlags      aForm,
                                  int32_t              aScriptLevel,
@@ -501,14 +501,13 @@ nsMathMLmfencedFrame::ReflowChar(nsPresContext*      aPresContext,
     }
     else {
       // either it hasn't changed or stretching the char failed (i.e.,
-      // nsLayoutUtils::AppUnitBoundsOfString failed)
+      // GetBoundingMetrics failed)
       leading = 0;
       if (NS_FAILED(res)) {
         nsAutoString data;
         aMathMLChar->GetData(data);
         nsBoundingMetrics metrics =
-          nsLayoutUtils::AppUnitBoundsOfString(data.get(), data.Length(),
-                                               aFontMetrics, aRenderingContext);
+          aRenderingContext.GetBoundingMetrics(data.get(), data.Length());
         charSize.ascent = metrics.ascent;
         charSize.descent = metrics.descent;
         charSize.width = metrics.width;

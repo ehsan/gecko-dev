@@ -172,11 +172,15 @@ nsMathMLFrame::GetRuleThickness(nsRenderingContext& aRenderingContext,
                                 nsFontMetrics*      aFontMetrics,
                                 nscoord&             aRuleThickness)
 {
+  // get the bounding metrics of the overbar char, the rendering context
+  // is assumed to have been set with the font of the current style context
+  NS_ASSERTION(aRenderingContext.FontMetrics()->Font().
+               Equals(aFontMetrics->Font()),
+               "unexpected state");
+
   nscoord xHeight = aFontMetrics->XHeight();
   char16_t overBar = 0x00AF;
-  nsBoundingMetrics bm =
-    nsLayoutUtils::AppUnitBoundsOfString(&overBar, 1, *aFontMetrics,
-                                         aRenderingContext);
+  nsBoundingMetrics bm = aRenderingContext.GetBoundingMetrics(&overBar, 1);
   aRuleThickness = bm.ascent + bm.descent;
   if (aRuleThickness <= 0 || aRuleThickness >= xHeight) {
     // fall-back to the other version
@@ -197,11 +201,15 @@ nsMathMLFrame::GetAxisHeight(nsRenderingContext& aRenderingContext,
     return;
   }
 
+  // get the bounding metrics of the minus sign, the rendering context
+  // is assumed to have been set with the font of the current style context
+  NS_ASSERTION(aRenderingContext.FontMetrics()->Font().
+               Equals(aFontMetrics->Font()),
+               "unexpected state");
+
   nscoord xHeight = aFontMetrics->XHeight();
   char16_t minus = 0x2212; // not '-', but official Unicode minus sign
-  nsBoundingMetrics bm =
-    nsLayoutUtils::AppUnitBoundsOfString(&minus, 1, *aFontMetrics,
-                                         aRenderingContext);
+  nsBoundingMetrics bm = aRenderingContext.GetBoundingMetrics(&minus, 1);
   aAxisHeight = bm.ascent - (bm.ascent + bm.descent)/2;
   if (aAxisHeight <= 0 || aAxisHeight >= xHeight) {
     // fall-back to the other version

@@ -17,7 +17,6 @@
 #include "mozilla/MouseEvents.h"
 
 #include "nsCOMPtr.h"
-#include "nsFontMetrics.h"
 #include "nsIImageLoadingContent.h"
 #include "nsString.h"
 #include "nsPrintfCString.h"
@@ -1013,12 +1012,11 @@ nsImageFrame::MeasureString(const char16_t*     aString,
                             int32_t              aLength,
                             nscoord              aMaxWidth,
                             uint32_t&            aMaxFit,
-                            nsRenderingContext& aContext,
-                            nsFontMetrics& aFontMetrics)
+                            nsRenderingContext& aContext)
 {
   nscoord totalWidth = 0;
-  aFontMetrics.SetTextRunRTL(false);
-  nscoord spaceWidth = aFontMetrics.SpaceWidth();
+  aContext.FontMetrics()->SetTextRunRTL(false);
+  nscoord spaceWidth = aContext.FontMetrics()->SpaceWidth();
 
   aMaxFit = 0;
   while (aLength > 0) {
@@ -1035,7 +1033,7 @@ nsImageFrame::MeasureString(const char16_t*     aString,
   
     // Measure this chunk of text, and see if it fits
     nscoord width =
-      nsLayoutUtils::GetStringWidth(this, &aContext, aFontMetrics, aString, len);
+      nsLayoutUtils::GetStringWidth(this, &aContext, aString, len);
     bool    fits = (totalWidth + width) <= aMaxWidth;
 
     // If it fits on the line, or it's the first word we've processed then
@@ -1082,6 +1080,7 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
     nsLayoutUtils::FontSizeInflationFor(this));
+  aRenderingContext.SetFont(fm);
 
   // Format the text to display within the formatting rect
 
@@ -1106,7 +1105,7 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
     // Determine how much of the text to display on this line
     uint32_t  maxFit;  // number of characters that fit
     nscoord strWidth = MeasureString(str, strLen, aRect.width, maxFit,
-                                     aRenderingContext, *fm);
+                                     aRenderingContext);
     
     // Display the text
     nsresult rv = NS_ERROR_FAILURE;
@@ -1116,17 +1115,17 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
       if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
         rv = nsBidiPresUtils::RenderText(str, maxFit, NSBIDI_RTL,
                                          aPresContext, aRenderingContext,
-                                         aRenderingContext, *fm,
+                                         aRenderingContext,
                                          aRect.XMost() - strWidth, y + maxAscent);
       else
         rv = nsBidiPresUtils::RenderText(str, maxFit, NSBIDI_LTR,
                                          aPresContext, aRenderingContext,
-                                         aRenderingContext, *fm,
+                                         aRenderingContext,
                                          aRect.x, y + maxAscent);
     }
     if (NS_FAILED(rv)) {
       nsLayoutUtils::DrawUniDirString(str, maxFit,
-                                      nsPoint(aRect.x, y + maxAscent), *fm,
+                                      nsPoint(aRect.x, y + maxAscent),
                                       aRenderingContext);
     }
 

@@ -18,7 +18,6 @@
 #include "nsBlockReflowContext.h"
 #include "nsBlockReflowState.h"
 #include "nsBulletFrame.h"
-#include "nsFontMetrics.h"
 #include "nsLineBox.h"
 #include "nsLineLayout.h"
 #include "nsPlaceholderFrame.h"
@@ -2514,6 +2513,7 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
       nsRefPtr<nsFontMetrics> fm;
       nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
         nsLayoutUtils::FontSizeInflationFor(this));
+      aState.mReflowState.rendContext->SetFont(fm); // FIXME: needed?
 
       nscoord minAscent =
         nsLayoutUtils::GetCenteredFontBaseline(fm, aState.mMinLineHeight);
@@ -3065,10 +3065,10 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
       // Now compute the collapsed margin-block-start value into
       // aState.mPrevBEndMargin, assuming that all child margins
       // collapse down to clearanceFrame.
-      brc.ComputeCollapsedBStartMargin(reflowState,
-                                       &aState.mPrevBEndMargin,
-                                       clearanceFrame,
-                                       &mayNeedRetry);
+      nsBlockReflowContext::ComputeCollapsedBStartMargin(reflowState,
+                                                         &aState.mPrevBEndMargin,
+                                                         clearanceFrame,
+                                                         &mayNeedRetry);
 
       // XXX optimization; we could check the collapsing children to see if they are sure
       // to require clearance, and so avoid retrying them
@@ -3101,10 +3101,10 @@ nsBlockFrame::ReflowBlockFrame(nsBlockReflowState& aState,
 
           // Compute the collapsed margin again, ignoring the incoming margin this time
           mayNeedRetry = false;
-          brc.ComputeCollapsedBStartMargin(reflowState,
-                                           &aState.mPrevBEndMargin,
-                                           clearanceFrame,
-                                           &mayNeedRetry);
+          nsBlockReflowContext::ComputeCollapsedBStartMargin(reflowState,
+                                                             &aState.mPrevBEndMargin,
+                                                             clearanceFrame,
+                                                             &mayNeedRetry);
         }
       }
 
@@ -5855,9 +5855,9 @@ nsBlockFrame::ReflowFloat(nsBlockReflowState& aState,
     floatRS.mDiscoveredClearance = nullptr;
     // Only first in flow gets a top margin.
     if (!aFloat->GetPrevInFlow()) {
-      brc.ComputeCollapsedBStartMargin(floatRS, &margin,
-                                       clearanceFrame,
-                                       &mayNeedRetry);
+      nsBlockReflowContext::ComputeCollapsedBStartMargin(floatRS, &margin,
+                                                         clearanceFrame,
+                                                         &mayNeedRetry);
 
       if (mayNeedRetry && !clearanceFrame) {
         floatRS.mDiscoveredClearance = &clearanceFrame;

@@ -34,7 +34,6 @@
 #if defined(MOZ_ASAN)
 #include <stddef.h>
 
-#include "mozilla/Attributes.h"
 #include "mozilla/Types.h"
 
 #ifdef _MSC_VER
@@ -62,14 +61,6 @@ __asan_unpoison_memory_region(void const volatile *addr, size_t size);
 
 #define MOZ_MAKE_MEM_DEFINED(addr, size) \
   __asan_unpoison_memory_region((addr), (size))
-
-/*
- * These definitions are usually provided through the
- * sanitizer/lsan_interface.h header installed by LSan.
- */
-void MOZ_EXPORT
-__lsan_ignore_object(const void *p);
-
 }
 #elif defined(MOZ_MSAN)
 #include <stddef.h>
@@ -110,20 +101,5 @@ __msan_unpoison(void const volatile *addr, size_t size);
 #define MOZ_MAKE_MEM_DEFINED(addr, size) do {} while (0)
 
 #endif
-
-/*
- * MOZ_LSAN_INTENTIONAL_LEAK(X) is a macro to tell LeakSanitizer that X
- * points to a value that will intentionally never be deallocated during
- * the execution of the process.
- *
- * Additional uses of this macro should be reviewed by people
- * conversant in leak-checking and/or MFBT peers.
- */
-#if defined(MOZ_ASAN)
-#  define MOZ_LSAN_INTENTIONALLY_LEAK_OBJECT(X) __lsan_ignore_object(X)
-#else
-#  define MOZ_LSAN_INTENTIONALLY_LEAK_OBJECT(X) /* nothing */
-#endif // defined(MOZ_ASAN)
-
 
 #endif /* mozilla_MemoryChecking_h */

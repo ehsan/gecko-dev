@@ -892,9 +892,10 @@ PreliminaryHandshakeDone(PRFileDesc* fd)
         infoObject->SetSSLStatus(status);
       }
 
-      status->mHaveCipherSuiteAndProtocol = true;
-      status->mCipherSuite = channelInfo.cipherSuite;
-      status->mProtocolVersion = channelInfo.protocolVersion & 0xFF;
+      status->mHaveKeyLengthAndCipher = true;
+      status->mKeyLength = cipherInfo.symKeyBits;
+      status->mSecretKeyLength = cipherInfo.effectiveKeyBits;
+      status->mCipherName.Assign(cipherInfo.cipherSuiteName);
       infoObject->SetKEAUsed(cipherInfo.keaType);
       infoObject->SetKEAKeyBits(channelInfo.keaKeyBits);
       infoObject->SetMACAlgorithmUsed(cipherInfo.macAlgorithm);

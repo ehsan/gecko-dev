@@ -225,6 +225,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
 
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
+  renderingContext.SetFont(fm);
 
   nscoord ruleThickness, leading, psi;
   GetRadicalParameters(fm, StyleFont()->mMathDisplay ==
@@ -233,8 +234,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
 
   // built-in: adjust clearance psi to emulate \mathstrut using '1' (TexBook, p.131)
   char16_t one = '1';
-  nsBoundingMetrics bmOne =
-    nsLayoutUtils::AppUnitBoundsOfString(&one, 1, *fm, renderingContext);
+  nsBoundingMetrics bmOne = renderingContext.GetBoundingMetrics(&one, 1);
   if (bmOne.ascent > bmBase.ascent)
     psi += bmOne.ascent - bmBase.ascent;
 

@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsBidiPresUtils.h"
-#include "nsFontMetrics.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsRenderingContext.h"
@@ -2055,51 +2054,42 @@ nsresult nsBidiPresUtils::ProcessText(const char16_t*       aText,
   return NS_OK;
 }
 
-class MOZ_STACK_CLASS nsIRenderingContextBidiProcessor MOZ_FINAL
-  : public nsBidiPresUtils::BidiProcessor
-{
+class MOZ_STACK_CLASS nsIRenderingContextBidiProcessor : public nsBidiPresUtils::BidiProcessor {
 public:
   nsIRenderingContextBidiProcessor(nsRenderingContext* aCtx,
                                    nsRenderingContext* aTextRunConstructionContext,
-                                   nsFontMetrics* aFontMetrics,
                                    const nsPoint&       aPt)
-    : mCtx(aCtx)
-    , mTextRunConstructionContext(aTextRunConstructionContext)
-    , mFontMetrics(aFontMetrics)
-    , mPt(aPt)
-  {}
+    : mCtx(aCtx), mTextRunConstructionContext(aTextRunConstructionContext), mPt(aPt) { }
 
   ~nsIRenderingContextBidiProcessor()
   {
-    mFontMetrics->SetTextRunRTL(false);
+    mCtx->SetTextRunRTL(false);
   }
 
   virtual void SetText(const char16_t* aText,
                        int32_t          aLength,
                        nsBidiDirection  aDirection) MOZ_OVERRIDE
   {
-    mFontMetrics->SetTextRunRTL(aDirection==NSBIDI_RTL);
+    mTextRunConstructionContext->SetTextRunRTL(aDirection==NSBIDI_RTL);
     mText = aText;
     mLength = aLength;
   }
 
   virtual nscoord GetWidth() MOZ_OVERRIDE
   {
-    return nsLayoutUtils::AppUnitWidthOfString(mText, mLength, *mFontMetrics,
-                                               *mTextRunConstructionContext);
+    return mTextRunConstructionContext->GetWidth(mText, mLength);
   }
 
   virtual void DrawText(nscoord aXOffset,
                         nscoord) MOZ_OVERRIDE
   {
-    mFontMetrics->DrawString(mText, mLength, mPt.x + aXOffset, mPt.y,
-                             mCtx, mTextRunConstructionContext);
+    mCtx->FontMetrics()->DrawString(mText, mLength, mPt.x + aXOffset, mPt.y,
+                                    mCtx, mTextRunConstructionContext);
   }
 
 private:
   nsRenderingContext* mCtx;
   nsRenderingContext* mTextRunConstructionContext;
-  nsFontMetrics* mFontMetrics;
   nsPoint mPt;
   const char16_t* mText;
   int32_t mLength;
@@ -2111,7 +2101,6 @@ nsresult nsBidiPresUtils::ProcessTextForRenderingContext(const char16_t*       a
                                                          nsPresContext*         aPresContext,
                                                          nsRenderingContext&   aRenderingContext,
                                                          nsRenderingContext&   aTextRunConstructionContext,
-                                                         nsFontMetrics&         aFontMetrics,
                                                          Mode                   aMode,
                                                          nscoord                aX,
                                                          nscoord                aY,
@@ -2119,10 +2108,7 @@ nsresult nsBidiPresUtils::ProcessTextForRenderingContext(const char16_t*       a
                                                          int32_t                aPosResolveCount,
                                                          nscoord*               aWidth)
 {
-  nsIRenderingContextBidiProcessor processor(&aRenderingContext,
-                                             &aTextRunConstructionContext,
-                                             &aFontMetrics,
-                                             nsPoint(aX, aY));
+  nsIRenderingContextBidiProcessor processor(&aRenderingContext, &aTextRunConstructionContext, nsPoint(aX, aY));
   nsBidi bidiEngine;
   return ProcessText(aText, aLength, aBaseLevel, aPresContext, processor,
                      aMode, aPosResolve, aPosResolveCount, aWidth, &bidiEngine);
