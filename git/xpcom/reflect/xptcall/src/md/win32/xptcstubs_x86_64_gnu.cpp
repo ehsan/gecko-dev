@@ -217,7 +217,6 @@ __asm__ (
   ".globl SharedStub\n"
   ".def SharedStub ; .scl 3 ; .type 46 ; .endef \n"
   "SharedStub:\n"
-  "sub     rsp, 104\n"
 
   /* rcx is this pointer.  Need backup for optimized build */
 
@@ -315,7 +314,8 @@ asm(".intel_syntax\n" /* this is in intel syntax */ \
     ".else\n" \
     ".err       \"stub number " #n " >= 1000 not yet supported\"\n" \
     ".endif\n" \
-    "mov          r11, " #n "\n" \
+    "push         rbx\n" \
+    "mov          rbx, " #n "\n" \
     "jmp          SharedStub\n" \
     ".att_syntax\n" /* back to AT&T syntax */ \
     "");

@@ -1618,8 +1618,7 @@ nsFrame::GetContentForEvent(nsPresContext* aPresContext,
                             nsEvent* aEvent,
                             nsIContent** aContent)
 {
-  nsIFrame* f = nsLayoutUtils::GetNonGeneratedAncestor(this);
-  *aContent = f->GetContent();
+  *aContent = GetContent();
   NS_IF_ADDREF(*aContent);
   return NS_OK;
 }

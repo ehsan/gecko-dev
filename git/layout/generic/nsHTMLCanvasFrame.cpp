@@ -274,6 +274,17 @@ nsHTMLCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                  nsISelectionDisplay::DISPLAY_IMAGES);
 }
 
+NS_IMETHODIMP  
+nsHTMLCanvasFrame::GetContentForEvent(nsPresContext* aPresContext,
+                                      nsEvent* aEvent,
+                                      nsIContent** aContent)
+{
+  NS_ENSURE_ARG_POINTER(aContent);
+  *aContent = GetContent();
+  NS_IF_ADDREF(*aContent);
+  return NS_OK;
+}
+
 nsIAtom*
 nsHTMLCanvasFrame::GetType() const
 {

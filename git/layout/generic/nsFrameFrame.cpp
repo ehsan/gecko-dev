@@ -1013,7 +1013,10 @@ nsSubDocumentFrame::CreateViewAndWidget(nsContentType aContentType)
   nsRect viewBounds(0, 0, 0, 0); // size will be fixed during reflow
 
   nsIViewManager* viewMan = outerView->GetViewManager();
-  nsIView* innerView = viewMan->CreateView(viewBounds, outerView);
+  // Create the inner view hidden if the outer view is already hidden
+  // (it won't get hidden properly otherwise)
+  nsIView* innerView = viewMan->CreateView(viewBounds, outerView,
+                                           outerView->GetVisibility());
   if (!innerView) {
     NS_ERROR("Could not create inner view");
     return NS_ERROR_OUT_OF_MEMORY;

@@ -1399,12 +1399,6 @@ nsImageFrame::GetContentForEvent(nsPresContext* aPresContext,
                                  nsIContent** aContent)
 {
   NS_ENSURE_ARG_POINTER(aContent);
-
-  nsIFrame* f = nsLayoutUtils::GetNonGeneratedAncestor(this);
-  if (f != this) {
-    return f->GetContentForEvent(aPresContext, aEvent, aContent);
-  }
-
   nsImageMap* map;
   map = GetImageMap(aPresContext);
 

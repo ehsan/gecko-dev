@@ -253,7 +253,7 @@ protected:
    * @note This method might destroy |this|.
    * @return PR_FALSE if this frame is destroyed, PR_TRUE if still alive.
    */
-  PRBool ShowList(PRBool aShowList);
+  PRBool ShowList(nsPresContext* aPresContext, PRBool aShowList);
   void CheckFireOnChange();
   void FireValueChangeEvent();
   nsresult RedisplayText(PRInt32 aIndex);
