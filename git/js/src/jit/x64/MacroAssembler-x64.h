@@ -1104,7 +1104,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     void boxDouble(FloatRegister src, const ValueOperand &dest) {
-        vmovq(src, dest.valueReg());
+        movq(src, dest.valueReg());
     }
     void boxNonDouble(JSValueType type, Register src, const ValueOperand &dest) {
         MOZ_ASSERT(src != dest.valueReg());
@@ -1151,7 +1151,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     void unboxDouble(const ValueOperand &src, FloatRegister dest) {
-        vmovq(src.valueReg(), dest);
+        movq(src.valueReg(), dest);
     }
     void unboxPrivate(const ValueOperand &src, const Register dest) {
         movq(src.valueReg(), dest);

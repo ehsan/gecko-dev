@@ -411,12 +411,7 @@ function getIsUS() {
     geoSpecificDefaults = Services.prefs.getBoolPref("browser.search.geoSpecificDefaults");
   } catch(e) {}
 
-  let distroID;
-  try {
-    distroID = Services.prefs.getCharPref("distribution.id");
-  } catch (e) {}
-
-  if (!geoSpecificDefaults || distroID) {
+  if (!geoSpecificDefaults) {
     return false;
   }
 
