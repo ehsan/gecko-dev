@@ -44,7 +44,7 @@ add_task(function test_corrupt_file() {
                                          true);
 
   // Check that bookmarks that are not corrupt have been imported.
-  yield Task.spawn(database_check);
+  yield database_check();
 });
 
 add_task(function test_corrupt_database() {
@@ -66,7 +66,7 @@ add_task(function test_corrupt_database() {
   // Import again and check for correctness.
   remove_all_bookmarks();
   yield BookmarkHTMLUtils.importFromFile(bookmarksFile, true);
-  yield Task.spawn(database_check);
+  yield database_check();
 });
 
 /*
@@ -129,8 +129,7 @@ function database_check() {
               as.getItemAnnotation(testBookmark1.itemId, POST_DATA_ANNO));
   // last charset
   var testURI = uri(testBookmark1.uri);
-  do_check_eq((yield PlacesUtils.getCharsetForURI(testURI)), "ISO-8859-1");
-
+  do_check_eq("ISO-8859-1", hs.getCharsetForURI(testURI));
   // description
   do_check_true(as.itemHasAnnotation(testBookmark1.itemId,
                                           DESCRIPTION_ANNO));
@@ -148,7 +147,7 @@ function database_check() {
   var toolbar = result.root;
   toolbar.containerOpen = true;
   do_check_eq(toolbar.childCount, 3);
-
+  
   // livemark
   var livemark = toolbar.getChild(1);
   // title
@@ -176,6 +175,7 @@ function database_check() {
   unfiledBookmarks.containerOpen = false;
 
   // favicons
+  let deferred = Promise.defer();
   icos.getFaviconDataForPage(uri(TEST_FAVICON_PAGE_URL),
     function DC_onComplete(aURI, aDataLen, aData, aMimeType) {
       // aURI should never be null when aDataLen > 0.
@@ -184,6 +184,7 @@ function database_check() {
       // simplicity, instead of converting the data we receive to a "data:" URI
       // and comparing it, we just check the data size.
       do_check_eq(TEST_FAVICON_DATA_SIZE, aDataLen);
-    }
-  );
+      deferred.resolve();
+    });
+  return deferred.promise;
 }

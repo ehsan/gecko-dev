@@ -483,20 +483,24 @@ struct GetNativePropertyStub
             JS_ASSERT_IF(expando, expando->isNative() && expando->getProto() == NULL);
 
             masm.loadValue(expandoAddr, tempVal);
+            if (expando && expando->nativeLookup(cx, propName)) {
+                // Reference object has an expando that doesn't define the name.
+                // Check incoming object's expando and make sure it's an object.
 
-            // If the incoming object does not have an expando object then we're sure we're not
-            // shadowing.
-            masm.branchTestUndefined(Assembler::Equal, tempVal, &listBaseOk);
+                // If checkExpando is true, we'll temporarily use register(s) for a ValueOperand.
+                // If we do that, we save the register(s) on stack before use and pop them
+                // on both exit paths.
 
-            if (expando && !expando->nativeContains(cx, propName)) {
-                // Reference object has an expando object that doesn't define the name. Check that
-                // the incoming object has an expando object with the same shape.
                 masm.branchTestObject(Assembler::NotEqual, tempVal, &failListBaseCheck);
                 masm.extractObject(tempVal, tempVal.scratchReg());
                 masm.branchPtr(Assembler::Equal,
                                Address(tempVal.scratchReg(), JSObject::offsetOfShape()),
                                ImmGCPtr(expando->lastProperty()),
                                &listBaseOk);
+            } else {
+                // Reference object has no expando.  Check incoming object and ensure
+                // it has no expando.
+                masm.branchTestUndefined(Assembler::Equal, tempVal, &listBaseOk);
             }
 
             // Failure case: restore the tempVal registers and jump to failures.
@@ -1011,14 +1015,6 @@ GetPropertyIC::update(JSContext *cx, size_t cacheIndex,
     }
 
     return true;
-}
-
-void
-GetPropertyIC::reset()
-{
-    IonCache::reset();
-    hasArrayLengthStub_ = false;
-    hasTypedArrayLengthStub_ = false;
 }
 
 void
@@ -1746,13 +1742,6 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
     return true;
 }
 
-void
-GetElementIC::reset()
-{
-    IonCache::reset();
-    hasDenseStub_ = false;
-}
-
 bool
 BindNameIC::attachGlobal(JSContext *cx, IonScript *ion, JSObject *scopeChain)
 {
@@ -2116,7 +2105,7 @@ CallsiteCloneIC::update(JSContext *cx, size_t cacheIndex, HandleObject callee)
     // Act as the identity for functions that are not clone-at-callsite, as we
     // generate this cache as long as some callees are clone-at-callsite.
     RootedFunction fun(cx, callee->toFunction());
-    if (!fun->hasScript() || !fun->nonLazyScript()->shouldCloneAtCallsite)
+    if (!fun->nonLazyScript()->shouldCloneAtCallsite)
         return fun;
 
     IonScript *ion = GetTopIonJSScript(cx)->ionScript();

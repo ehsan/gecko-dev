@@ -33,9 +33,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
 XPCOMUtils.defineLazyModuleGetter(this, "TargetFactory",
                                   "resource:///modules/devtools/Target.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "require",
-                                  "resource://gre/modules/devtools/Require.jsm");
-
 XPCOMUtils.defineLazyGetter(this, "prefBranch", function() {
   let prefService = Components.classes["@mozilla.org/preferences-service;1"]
           .getService(Components.interfaces.nsIPrefService);
@@ -46,8 +43,6 @@ XPCOMUtils.defineLazyGetter(this, "prefBranch", function() {
 XPCOMUtils.defineLazyGetter(this, "toolboxStrings", function () {
   return Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
 });
-
-const converters = require("gcli/converters");
 
 /**
  * A collection of utilities to help working with commands
@@ -343,7 +338,7 @@ DeveloperToolbar.prototype.show = function DT_show(aFocus, aCallback)
 
   this._input = this._doc.querySelector(".gclitoolbar-input-node");
   this.tooltipPanel = new TooltipPanel(this._doc, this._input, checkLoad);
-  this.outputPanel = new OutputPanel(this, checkLoad);
+  this.outputPanel = new OutputPanel(this._doc, this._input, checkLoad);
 };
 
 /**
@@ -374,19 +369,16 @@ DeveloperToolbar.prototype._onload = function DT_onload(aFocus)
   this.display.focusManager.addMonitoredElement(this.outputPanel._frame);
   this.display.focusManager.addMonitoredElement(this._element);
 
-  this.display.onVisibilityChange.add(this.outputPanel._visibilityChanged,
-                                      this.outputPanel);
-  this.display.onVisibilityChange.add(this.tooltipPanel._visibilityChanged,
-                                      this.tooltipPanel);
+  this.display.onVisibilityChange.add(this.outputPanel._visibilityChanged, this.outputPanel);
+  this.display.onVisibilityChange.add(this.tooltipPanel._visibilityChanged, this.tooltipPanel);
   this.display.onOutput.add(this.outputPanel._outputChanged, this.outputPanel);
 
-  let tabbrowser = this._chromeWindow.getBrowser();
-  tabbrowser.tabContainer.addEventListener("TabSelect", this, false);
-  tabbrowser.tabContainer.addEventListener("TabClose", this, false);
-  tabbrowser.addEventListener("load", this, true);
-  tabbrowser.addEventListener("beforeunload", this, true);
+  this._chromeWindow.getBrowser().tabContainer.addEventListener("TabSelect", this, false);
+  this._chromeWindow.getBrowser().tabContainer.addEventListener("TabClose", this, false);
+  this._chromeWindow.getBrowser().addEventListener("load", this, true);
+  this._chromeWindow.getBrowser().addEventListener("beforeunload", this, true);
 
-  this._initErrorsCount(tabbrowser.selectedTab);
+  this._initErrorsCount(this._chromeWindow.getBrowser().selectedTab);
 
   this._element.hidden = false;
 
@@ -503,13 +495,13 @@ DeveloperToolbar.prototype.destroy = function DT_destroy()
     return;
   }
 
-  let tabbrowser = this._chromeWindow.getBrowser();
-  tabbrowser.tabContainer.removeEventListener("TabSelect", this, false);
-  tabbrowser.tabContainer.removeEventListener("TabClose", this, false);
-  tabbrowser.removeEventListener("load", this, true); 
-  tabbrowser.removeEventListener("beforeunload", this, true);
+  this._chromeWindow.getBrowser().tabContainer.removeEventListener("TabSelect", this, false);
+  this._chromeWindow.getBrowser().tabContainer.removeEventListener("TabClose", this, false);
+  this._chromeWindow.getBrowser().removeEventListener("load", this, true); 
+  this._chromeWindow.getBrowser().removeEventListener("beforeunload", this, true);
 
-  Array.prototype.forEach.call(tabbrowser.tabs, this._stopErrorsCount, this);
+  let tabs = this._chromeWindow.getBrowser().tabs;
+  Array.prototype.forEach.call(tabs, this._stopErrorsCount, this);
 
   this.display.focusManager.removeMonitoredElement(this.outputPanel._frame);
   this.display.focusManager.removeMonitoredElement(this._element);
@@ -708,11 +700,10 @@ function DT_resetErrorsCount(aTab)
  * @param aInput the input element that should get focus.
  * @param aLoadCallback called when the panel is loaded properly.
  */
-function OutputPanel(aDevToolbar, aLoadCallback)
+function OutputPanel(aChromeDoc, aInput, aLoadCallback)
 {
-  this._devtoolbar = aDevToolbar;
-  this._input = this._devtoolbar._input;
-  this._toolbar = this._devtoolbar._doc.getElementById("developer-toolbar");
+  this._input = aInput;
+  this._toolbar = aChromeDoc.getElementById("developer-toolbar");
 
   this._loadCallback = aLoadCallback;
 
@@ -730,7 +721,7 @@ function OutputPanel(aDevToolbar, aLoadCallback)
 
   // TODO: Switch back from tooltip to panel when metacity focus issue is fixed:
   // https://bugzilla.mozilla.org/show_bug.cgi?id=780102
-  this._panel = this._devtoolbar._doc.createElement(isLinux ? "tooltip" : "panel");
+  this._panel = aChromeDoc.createElement(isLinux ? "tooltip" : "panel");
 
   this._panel.id = "gcli-output";
   this._panel.classList.add("gcli-panel");
@@ -752,7 +743,7 @@ function OutputPanel(aDevToolbar, aLoadCallback)
 
   this._toolbar.parentElement.insertBefore(this._panel, this._toolbar);
 
-  this._frame = this._devtoolbar._doc.createElementNS(NS_XHTML, "iframe");
+  this._frame = aChromeDoc.createElementNS(NS_XHTML, "iframe");
   this._frame.id = "gcli-output-frame";
   this._frame.setAttribute("src", "chrome://browser/content/devtools/commandlineoutput.xhtml");
   this._frame.setAttribute("sandbox", "allow-same-origin");
@@ -918,28 +909,12 @@ OutputPanel.prototype._outputChanged = function OP_outputChanged(aEvent)
  */
 OutputPanel.prototype.update = function OP_update()
 {
-  // Empty this._div
-  while (this._div.hasChildNodes()) {
-    this._div.removeChild(this._div.firstChild);
-  }
-
-  if (this.displayedOutput.data != null) {
-    let requisition = this._devtoolbar.display.requisition;
-    let nodePromise = converters.convert(this.displayedOutput.data,
-                                         this.displayedOutput.type, 'dom',
-                                         requisition.context);
-    nodePromise.then(function(node) {
-      while (this._div.hasChildNodes()) {
-        this._div.removeChild(this._div.firstChild);
-      }
-
-      var links = node.ownerDocument.querySelectorAll('*[href]');
-      for (var i = 0; i < links.length; i++) {
-        links[i].setAttribute('target', '_blank');
-      }
-
-      this._div.appendChild(node);
-    }.bind(this));
+  if (this.displayedOutput.data == null) {
+    while (this._div.hasChildNodes()) {
+      this._div.removeChild(this._div.firstChild);
+    }
+  } else {
+    this.displayedOutput.toDom(this._div);
     this.show();
   }
 };
@@ -976,7 +951,6 @@ OutputPanel.prototype.destroy = function OP_destroy()
   this._panel.removeChild(this._frame);
   this._toolbar.parentElement.removeChild(this._panel);
 
-  delete this._devtoolbar;
   delete this._input;
   delete this._toolbar;
   delete this._onload;

@@ -689,7 +689,7 @@ canvas {
 
 /* hidden elements */
 base, basefont, datalist, head, meta, script, style, title,
-noembed, param, template {
+noembed, param {
    display: none;
 }
 

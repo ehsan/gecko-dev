@@ -100,19 +100,13 @@ class MediaPipeline : public sigslot::has_slots<> {
     MOZ_ASSERT(!stream_);  // Check that we have shut down already.
   }
 
-
-
-  // Must be called on the STS thread. Must be called
-  // before ShutdownMedia_m.
-  void ShutdownTransport_s();
-
-  // Must be called on the main thread.
-  void ShutdownMedia_m() {
+  void Shutdown() {
     ASSERT_ON_THREAD(main_thread_);
-
-    MOZ_ASSERT(!rtp_transport_);
-    MOZ_ASSERT(!rtcp_transport_);
-
+    // First shut down networking and then disconnect from
+    // the media streams. DetachTransport() is sync so
+    // we are sure that the transport is shut down before
+    // we touch stream_ or conduit_.
+    DetachTransport();
     if (stream_) {
       DetachMediaStream();
     }
@@ -158,8 +152,8 @@ class MediaPipeline : public sigslot::has_slots<> {
   };
   friend class PipelineTransport;
 
-  virtual nsresult TransportFailed_s(TransportFlow *flow);  // The transport is down
-  virtual nsresult TransportReady_s(TransportFlow *flow);   // The transport is ready
+  virtual nsresult TransportReady(TransportFlow *flow); // The transport is ready
+  virtual nsresult TransportFailed(TransportFlow *flow);  // The transport is down
 
   void increment_rtp_packets_sent();
   void increment_rtcp_packets_sent();
@@ -222,6 +216,10 @@ class MediaPipeline : public sigslot::has_slots<> {
 
  private:
   nsresult Init_s();
+  void DetachTransport();
+  void DetachTransport_s();
+
+  nsresult TransportReadyInt(TransportFlow *flow);
 
   bool IsRtp(const unsigned char *data, size_t len);
 };
@@ -270,7 +268,7 @@ class MediaPipelineTransmit : public MediaPipeline {
   }
 
   // Override MediaPipeline::TransportReady.
-  virtual nsresult TransportReady_s(TransportFlow *flow);
+  virtual nsresult TransportReady(TransportFlow *flow);
 
   // Separate class to allow ref counting
   class PipelineListener : public MediaStreamListener {
@@ -509,9 +507,7 @@ class MediaPipelineReceiveVideo : public MediaPipelineReceive {
    private:
     SourceMediaStream *source_;
     TrackID track_id_;
-#ifdef MOZILLA_INTERNAL_API
     TrackTicks played_;  // Amount of media played.
-#endif
     int width_;
     int height_;
 #ifdef MOZILLA_INTERNAL_API

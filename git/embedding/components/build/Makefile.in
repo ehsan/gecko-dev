@@ -14,6 +14,7 @@ EXPORT_LIBRARY = 1
 SHORT_LIBNAME	= embedcmp
 IS_COMPONENT	= 1
 MODULE_NAME	= embedcomponents
+GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
 CPPSRCS		= nsEmbeddingModule.cpp

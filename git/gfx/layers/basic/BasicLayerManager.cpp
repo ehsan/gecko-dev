@@ -15,7 +15,7 @@
 #include "gfxPlatform.h"
 #include "nsXULAppAPI.h"
 #include "RenderTrace.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 #define PIXMAN_DONT_DEFINE_STDINT
 #include "pixman.h"
@@ -523,7 +523,7 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
                                           void* aCallbackData,
                                           EndTransactionFlags aFlags)
 {
-  PROFILER_LABEL("BasicLayerManager", "EndTransactionInternal");
+  SAMPLE_LABEL("BasicLayerManager", "EndTranscationInternal");
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("  ----- (beginning paint)"));
   Log();
@@ -871,7 +871,6 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
                               void* aCallbackData,
                               ReadbackProcessor* aReadback)
 {
-  PROFILER_LABEL("BasicLayerManager", "PaintLayer");
   PaintContext paintContext(aTarget, aLayer, aCallback, aCallbackData, aReadback);
 
   // Don't attempt to paint layers with a singular transform, cairo will

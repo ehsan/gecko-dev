@@ -55,7 +55,7 @@ namespace mozilla {
 namespace dom {
 
 DocumentFragment::DocumentFragment(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : FragmentOrElement(aNodeInfo), mHost(nullptr)
+  : FragmentOrElement(aNodeInfo)
 {
   NS_ABORT_IF_FALSE(mNodeInfo->NodeType() ==
                     nsIDOMNode::DOCUMENT_FRAGMENT_NODE &&

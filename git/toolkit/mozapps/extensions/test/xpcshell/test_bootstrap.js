@@ -39,10 +39,6 @@ function resetPrefs() {
   Services.prefs.setIntPref("bootstraptest.shutdown_reason", -1);
   Services.prefs.setIntPref("bootstraptest.install_reason", -1);
   Services.prefs.setIntPref("bootstraptest.uninstall_reason", -1);
-  Services.prefs.setIntPref("bootstraptest.startup_oldversion", -1);
-  Services.prefs.setIntPref("bootstraptest.shutdown_newversion", -1);
-  Services.prefs.setIntPref("bootstraptest.install_oldversion", -1);
-  Services.prefs.setIntPref("bootstraptest.uninstall_newversion", -1);
 }
 
 function waitForPref(aPref, aCallback) {
@@ -83,22 +79,6 @@ function getInstallReason() {
 
 function getUninstallReason() {
   return Services.prefs.getIntPref("bootstraptest.uninstall_reason");
-}
-
-function getStartupOldVersion() {
-  return Services.prefs.getIntPref("bootstraptest.startup_oldversion");
-}
-
-function getShutdownNewVersion() {
-  return Services.prefs.getIntPref("bootstraptest.shutdown_newversion");
-}
-
-function getInstallOldVersion() {
-  return Services.prefs.getIntPref("bootstraptest.install_oldversion");
-}
-
-function getUninstallNewVersion() {
-  return Services.prefs.getIntPref("bootstraptest.uninstall_newversion");
 }
 
 function run_test() {
@@ -192,7 +172,6 @@ function check_test_1(installSyncGUID) {
       do_check_eq(getInstalledVersion(), 1);
       do_check_eq(getActiveVersion(), 1);
       do_check_eq(getStartupReason(), ADDON_INSTALL);
-      do_check_eq(getStartupOldVersion(), 0);
       do_check_true(b1.hasResource("install.rdf"));
       do_check_true(b1.hasResource("bootstrap.js"));
       do_check_false(b1.hasResource("foo.bar"));
@@ -233,7 +212,6 @@ function run_test_2() {
     do_check_eq(getInstalledVersion(), 1);
     do_check_eq(getActiveVersion(), 0);
     do_check_eq(getShutdownReason(), ADDON_DISABLE);
-    do_check_eq(getShutdownNewVersion(), 0);
     do_check_not_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
     AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(newb1) {
@@ -254,12 +232,10 @@ function run_test_3() {
   do_check_eq(getInstalledVersion(), 1);
   do_check_eq(getActiveVersion(), 0);
   do_check_eq(getShutdownReason(), ADDON_DISABLE);
-  do_check_eq(getShutdownNewVersion(), 0);
   startupManager(false);
   do_check_eq(getInstalledVersion(), 1);
   do_check_eq(getActiveVersion(), 0);
   do_check_eq(getShutdownReason(), ADDON_DISABLE);
-  do_check_eq(getShutdownNewVersion(), 0);
   do_check_not_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
   let file = gProfD.clone();
@@ -300,7 +276,6 @@ function run_test_4() {
     do_check_eq(getInstalledVersion(), 1);
     do_check_eq(getActiveVersion(), 1);
     do_check_eq(getStartupReason(), ADDON_ENABLE);
-    do_check_eq(getStartupOldVersion(), 0);
     do_check_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
     AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(newb1) {
@@ -321,13 +296,11 @@ function run_test_5() {
   do_check_eq(getInstalledVersion(), 1);
   do_check_eq(getActiveVersion(), 0);
   do_check_eq(getShutdownReason(), APP_SHUTDOWN);
-  do_check_eq(getShutdownNewVersion(), 0);
   do_check_not_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
   startupManager(false);
   do_check_eq(getInstalledVersion(), 1);
   do_check_eq(getActiveVersion(), 1);
   do_check_eq(getStartupReason(), APP_STARTUP);
-  do_check_eq(getStartupOldVersion(), 0);
   do_check_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
   AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
@@ -382,11 +355,7 @@ function check_test_6() {
     do_check_eq(getInstalledVersion(), 2);
     do_check_eq(getActiveVersion(), 2);
     do_check_eq(getStartupReason(), ADDON_UPGRADE);
-    do_check_eq(getInstallOldVersion(), 1);
-    do_check_eq(getStartupOldVersion(), 1);
     do_check_eq(getShutdownReason(), ADDON_UPGRADE);
-    do_check_eq(getShutdownNewVersion(), 2);
-    do_check_eq(getUninstallNewVersion(), 2);
     do_check_not_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
     do_check_in_crash_annotation("bootstrap1@tests.mozilla.org", "2.0");
 
@@ -417,7 +386,6 @@ function check_test_7() {
   do_check_eq(getInstalledVersion(), 0);
   do_check_eq(getActiveVersion(), 0);
   do_check_eq(getShutdownReason(), ADDON_UNINSTALL);
-  do_check_eq(getShutdownNewVersion(), 0);
   do_check_not_in_crash_annotation("bootstrap1@tests.mozilla.org", "2.0");
 
   AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
@@ -452,7 +420,6 @@ function run_test_8() {
     do_check_eq(getInstalledVersion(), 1);
     do_check_eq(getActiveVersion(), 1);
     do_check_eq(getStartupReason(), APP_STARTUP);
-    do_check_eq(getStartupOldVersion(), 0);
     do_check_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
     run_test_9();
@@ -520,7 +487,6 @@ function check_test_10_pt1() {
     do_check_eq(getInstalledVersion(), 2);
     do_check_eq(getActiveVersion(), 2);
     do_check_eq(getStartupReason(), ADDON_INSTALL);
-    do_check_eq(getStartupOldVersion(), 0);
     do_check_true(b1.hasResource("install.rdf"));
     do_check_true(b1.hasResource("bootstrap.js"));
     do_check_false(b1.hasResource("foo.bar"));
@@ -565,11 +531,7 @@ function check_test_10_pt2() {
     do_check_eq(getInstalledVersion(), 1);
     do_check_eq(getActiveVersion(), 1);
     do_check_eq(getStartupReason(), ADDON_DOWNGRADE);
-    do_check_eq(getInstallOldVersion(), 2);
-    do_check_eq(getStartupOldVersion(), 2);
     do_check_eq(getShutdownReason(), ADDON_DOWNGRADE);
-    do_check_eq(getShutdownNewVersion(), 1);
-    do_check_eq(getUninstallNewVersion(), 1);
     do_check_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
     do_check_not_in_crash_annotation("bootstrap1@tests.mozilla.org", "2.0");
 
@@ -594,7 +556,6 @@ function run_test_11() {
     do_check_eq(getInstalledVersion(), 1);
     do_check_eq(getActiveVersion(), 0);
     do_check_eq(getShutdownReason(), ADDON_DISABLE);
-    do_check_eq(getShutdownNewVersion(), 0);
     do_check_not_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
     b1.uninstall();
@@ -631,7 +592,6 @@ function run_test_12() {
     do_check_eq(getInstalledVersion(), 1);
     do_check_eq(getActiveVersion(), 1);
     do_check_eq(getStartupReason(), APP_STARTUP);
-    do_check_eq(getStartupOldVersion(), 0);
     do_check_in_crash_annotation("bootstrap1@tests.mozilla.org", "1.0");
 
     b1.uninstall();
@@ -894,11 +854,6 @@ function run_test_18() {
       do_check_eq(getInstallReason(), ADDON_UPGRADE);
       do_check_eq(getStartupReason(), ADDON_UPGRADE);
 
-      do_check_eq(getShutdownNewVersion(), 2);
-      do_check_eq(getUninstallNewVersion(), 2);
-      do_check_eq(getInstallOldVersion(), 1);
-      do_check_eq(getStartupOldVersion(), 1);
-
       run_test_19();
     });
   });
@@ -937,11 +892,6 @@ function check_test_19() {
     do_check_eq(getInstallReason(), ADDON_INSTALL);
     do_check_eq(getStartupReason(), ADDON_INSTALL);
 
-    do_check_eq(getShutdownNewVersion(), 0);
-    do_check_eq(getUninstallNewVersion(), 0);
-    do_check_eq(getInstallOldVersion(), 0);
-    do_check_eq(getStartupOldVersion(), 0);
-
     run_test_20();
   });
 }
@@ -970,11 +920,6 @@ function run_test_20() {
     do_check_eq(getInstallReason(), ADDON_UPGRADE);
     do_check_eq(getStartupReason(), APP_STARTUP);
 
-    do_check_eq(getShutdownNewVersion(), 0);
-    do_check_eq(getUninstallNewVersion(), 2);
-    do_check_eq(getInstallOldVersion(), 1);
-    do_check_eq(getStartupOldVersion(), 0);
-
     run_test_21();
   });
 }
@@ -997,19 +942,15 @@ function run_test_21() {
     do_check_true(b1.isActive);
 
     do_check_eq(getShutdownReason(), APP_SHUTDOWN);
-    do_check_eq(getShutdownNewVersion(), 0);
 
     // This won't be set as the bootstrap script was gone so we couldn't
     // uninstall it properly
     do_check_eq(getUninstallReason(), -1);
-    do_check_eq(getUninstallNewVersion(), -1);
 
     // TODO this reason should probably be ADDON_DOWNGRADE (bug 607818)
     do_check_eq(getInstallReason(), ADDON_INSTALL);
-    do_check_eq(getInstallOldVersion(), 0);
 
     do_check_eq(getStartupReason(), APP_STARTUP);
-    do_check_eq(getStartupOldVersion(), 0);
 
     manuallyUninstall(userExtDir, "bootstrap1@tests.mozilla.org");
 
@@ -1057,17 +998,13 @@ function run_test_22() {
       do_check_true(b1.isActive);
 
       do_check_eq(getShutdownReason(), APP_SHUTDOWN);
-      do_check_eq(getShutdownNewVersion(), 0);
 
       // This won't be set as the bootstrap script was gone so we couldn't
       // uninstall it properly
       do_check_eq(getUninstallReason(), -1);
-      do_check_eq(getUninstallNewVersion(), -1);
 
       do_check_eq(getInstallReason(), ADDON_UPGRADE);
-      do_check_eq(getInstallOldVersion(), 1);
       do_check_eq(getStartupReason(), APP_STARTUP);
-      do_check_eq(getStartupOldVersion(), 0);
 
       b1.uninstall();
 
@@ -1137,7 +1074,6 @@ function check_test_23() {
       do_check_eq(getInstalledVersion(), 1);
       do_check_eq(getActiveVersion(), 1);
       do_check_eq(getStartupReason(), ADDON_INSTALL);
-      do_check_eq(getStartupOldVersion(), 0);
       do_check_true(b1.hasResource("install.rdf"));
       do_check_true(b1.hasResource("bootstrap.js"));
       do_check_false(b1.hasResource("foo.bar"));
@@ -1228,7 +1164,6 @@ function run_test_25() {
   
           do_check_eq(getInstalledVersion(), 0);
           do_check_eq(getUninstallReason(), ADDON_UPGRADE);
-          do_check_eq(getUninstallNewVersion(), 4);
           do_check_eq(getActiveVersion(), 0);
   
           AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
@@ -1263,7 +1198,6 @@ function run_test_26() {
 
       do_check_eq(getInstalledVersion(), 1);
       do_check_eq(getInstallReason(), ADDON_DOWNGRADE);
-      do_check_eq(getInstallOldVersion(), 4);
       do_check_eq(getActiveVersion(), 1);
 
       AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
@@ -1294,7 +1228,6 @@ function run_test_27() {
       // Updating disabled things happens immediately
       do_check_eq(getInstalledVersion(), 0);
       do_check_eq(getUninstallReason(), ADDON_UPGRADE);
-      do_check_eq(getUninstallNewVersion(), 4);
       do_check_eq(getActiveVersion(), 0);
 
       AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {
@@ -1328,7 +1261,6 @@ function run_test_28() {
     // Doesn't need a restart to complete this
     do_check_eq(getInstalledVersion(), 1);
     do_check_eq(getInstallReason(), ADDON_DOWNGRADE);
-    do_check_eq(getInstallOldVersion(), 4);
     do_check_eq(getActiveVersion(), 0);
 
     AddonManager.getAddonByID("bootstrap1@tests.mozilla.org", function(b1) {

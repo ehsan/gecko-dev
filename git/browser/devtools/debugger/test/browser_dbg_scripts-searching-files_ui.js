@@ -30,6 +30,7 @@ function test()
       Services.tm.currentThread.dispatch({ run: testScriptSearching }, 0);
     });
   });
+
 }
 
 function testScriptSearching() {
@@ -57,14 +58,14 @@ function firstSearch() {
          gDebugger.SourceUtils.trimUrlLength(gSources.labels[i]),
         "The filtered sources view should have the correct labels.");
       is(gFilteredSources.values[i],
-         gDebugger.SourceUtils.trimUrlLength(gSources.values[i], 0, "start"),
+         gDebugger.SourceUtils.trimUrlLength(gSources.values[i]),
         "The filtered sources view should have the correct values.");
 
       is(gFilteredSources.visibleItems[i].label,
          gDebugger.SourceUtils.trimUrlLength(gSources.labels[i]),
         "The filtered sources view should have the correct labels.");
       is(gFilteredSources.visibleItems[i].value,
-         gDebugger.SourceUtils.trimUrlLength(gSources.values[i], 0, "start"),
+         gDebugger.SourceUtils.trimUrlLength(gSources.values[i]),
         "The filtered sources view should have the correct values.");
 
       is(gFilteredSources.visibleItems[i].attachment.fullLabel, gSources.labels[i],
@@ -74,7 +75,7 @@ function firstSearch() {
     }
 
     is(gFilteredSources.selectedValue,
-       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue, 0, "start"),
+       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue),
       "The correct item should be selected in the filtered sources view");
     is(gFilteredSources.selectedLabel,
        gDebugger.SourceUtils.trimUrlLength(gSources.selectedLabel),
@@ -134,14 +135,14 @@ function secondSearch() {
          gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].label),
         "The filtered sources view should have the correct labels.");
       is(gFilteredSources.values[i],
-         gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].value, 0, "start"),
+         gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].value),
         "The filtered sources view should have the correct values.");
 
       is(gFilteredSources.visibleItems[i].label,
          gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].label),
         "The filtered sources view should have the correct labels.");
       is(gFilteredSources.visibleItems[i].value,
-         gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].value, 0, "start"),
+         gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].value),
         "The filtered sources view should have the correct values.");
 
       is(gFilteredSources.visibleItems[i].attachment.fullLabel, gSources.visibleItems[i].label,
@@ -151,7 +152,7 @@ function secondSearch() {
     }
 
     is(gFilteredSources.selectedValue,
-       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue, 0, "start"),
+       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue),
       "The correct item should be selected in the filtered sources view");
     is(gFilteredSources.selectedLabel,
        gDebugger.SourceUtils.trimUrlLength(gSources.selectedLabel),
@@ -174,7 +175,7 @@ function secondSearch() {
       ok(false, "How did you get here?");
     }
   }
-  write(".-0");
+  append("-0")
 }
 
 function thirdSearch() {
@@ -211,14 +212,14 @@ function thirdSearch() {
          gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].label),
         "The filtered sources view should have the correct labels.");
       is(gFilteredSources.values[i],
-         gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].value, 0, "start"),
+         gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].value),
         "The filtered sources view should have the correct values.");
 
       is(gFilteredSources.visibleItems[i].label,
          gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].label),
         "The filtered sources view should have the correct labels.");
       is(gFilteredSources.visibleItems[i].value,
-         gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].value, 0, "start"),
+         gDebugger.SourceUtils.trimUrlLength(gSources.visibleItems[i].value),
         "The filtered sources view should have the correct values.");
 
       is(gFilteredSources.visibleItems[i].attachment.fullLabel, gSources.visibleItems[i].label,
@@ -228,7 +229,7 @@ function thirdSearch() {
     }
 
     is(gFilteredSources.selectedValue,
-       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue, 0, "start"),
+       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue),
       "The correct item should be selected in the filtered sources view");
     is(gFilteredSources.selectedLabel,
        gDebugger.SourceUtils.trimUrlLength(gSources.selectedLabel),
@@ -251,7 +252,7 @@ function thirdSearch() {
       ok(false, "How did you get here?");
     }
   }
-  write(".-");
+  backspace(1)
 }
 
 function goDown() {
@@ -265,7 +266,7 @@ function goDown() {
       "The filtered sources view should have 3 items visible.");
 
     is(gFilteredSources.selectedValue,
-       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue, 0, "start"),
+       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue),
       "The correct item should be selected in the filtered sources view");
     is(gFilteredSources.selectedLabel,
        gDebugger.SourceUtils.trimUrlLength(gSources.selectedLabel),
@@ -303,7 +304,7 @@ function goDownAgain() {
       "The filtered sources view should have 3 items visible.");
 
     is(gFilteredSources.selectedValue,
-       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue, 0, "start"),
+       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue),
       "The correct item should be selected in the filtered sources view");
     is(gFilteredSources.selectedLabel,
        gDebugger.SourceUtils.trimUrlLength(gSources.selectedLabel),
@@ -341,7 +342,7 @@ function goDownAndWrap() {
       "The filtered sources view should have 3 items visible.");
 
     is(gFilteredSources.selectedValue,
-       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue, 0, "start"),
+       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue),
       "The correct item should be selected in the filtered sources view");
     is(gFilteredSources.selectedLabel,
        gDebugger.SourceUtils.trimUrlLength(gSources.selectedLabel),
@@ -379,7 +380,7 @@ function goUpAndWrap() {
       "The filtered sources view should have 3 items visible.");
 
     is(gFilteredSources.selectedValue,
-       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue, 0, "start"),
+       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue),
       "The correct item should be selected in the filtered sources view");
     is(gFilteredSources.selectedLabel,
        gDebugger.SourceUtils.trimUrlLength(gSources.selectedLabel),
@@ -457,7 +458,7 @@ function clickAndSwitch() {
       "The filtered sources view should have 3 items visible.");
 
     is(gFilteredSources.selectedValue,
-       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue, 0, "start"),
+       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue),
       "The correct item should be selected in the filtered sources view");
     is(gFilteredSources.selectedLabel,
        gDebugger.SourceUtils.trimUrlLength(gSources.selectedLabel),
@@ -484,12 +485,12 @@ function clickAndSwitch() {
     }
   });
 
-  ok(gFilteredSources._container._parent.querySelectorAll(".results-panel-item")[0]
-     .classList.contains("results-panel-item"),
+  ok(gFilteredSources._container._parent.querySelectorAll(".dbg-source-item")[0]
+     .classList.contains("dbg-source-item"),
      "The first visible item target isn't the correct one.");
 
   EventUtils.sendMouseEvent({ type: "click" },
-    gFilteredSources._container._parent.querySelectorAll(".results-panel-item")[0],
+    gFilteredSources._container._parent.querySelector(".dbg-source-item"),
     gDebugger);
 }
 
@@ -544,7 +545,7 @@ function clickAndSwitchAgain() {
       "The filtered sources view should have 3 items visible.");
 
     is(gFilteredSources.selectedValue,
-       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue, 0, "start"),
+       gDebugger.SourceUtils.trimUrlLength(gSources.selectedValue),
       "The correct item should be selected in the filtered sources view");
     is(gFilteredSources.selectedLabel,
        gDebugger.SourceUtils.trimUrlLength(gSources.selectedLabel),
@@ -571,12 +572,12 @@ function clickAndSwitchAgain() {
     }
   });
 
-  ok(gFilteredSources._container._parent.querySelectorAll(".results-panel-item")[2]
-     .classList.contains("results-panel-item"),
+  ok(gFilteredSources._container._parent.querySelectorAll(".dbg-source-item")[2]
+     .classList.contains("dbg-source-item"),
      "The first visible item target isn't the correct one.");
 
   EventUtils.sendMouseEvent({ type: "click" },
-    gFilteredSources._container._parent.querySelectorAll(".results-panel-item")[2],
+    gFilteredSources._container._parent.querySelectorAll(".dbg-source-item")[2],
     gDebugger);
 }
 
@@ -669,6 +670,12 @@ function clear() {
 function write(text) {
   clear();
   append(text);
+}
+
+function backspace(times) {
+  for (let i = 0; i < times; i++) {
+    EventUtils.sendKey("BACK_SPACE", gDebugger);
+  }
 }
 
 function append(text) {

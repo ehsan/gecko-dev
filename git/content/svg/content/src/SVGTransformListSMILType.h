@@ -111,7 +111,7 @@ public:
   static bool AppendTransforms(const SVGTransformList& aList,
                                  nsSMILValue& aValue);
   static bool GetTransforms(const nsSMILValue& aValue,
-                              FallibleTArray<SVGTransform>& aTransforms);
+                              nsTArray<SVGTransform>& aTransforms);
 
 
 private:

@@ -3719,9 +3719,8 @@ nsFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
                            nsIFrame::InlineMinWidthData *aData)
 {
   NS_ASSERTION(GetParent(), "Must have a parent if we get here!");
-  nsIFrame* parent = GetParent();
   bool canBreak = !CanContinueTextRun() &&
-    parent->StyleText()->WhiteSpaceCanWrap(parent);
+    GetParent()->StyleText()->WhiteSpaceCanWrap();
   
   if (canBreak)
     aData->OptionallyBreak(aRenderingContext);

@@ -25,7 +25,7 @@ AllocationIntegrityState::record()
     if (!virtualRegisters.reserve(graph.numVirtualRegisters()))
         return false;
     for (size_t i = 0; i < graph.numVirtualRegisters(); i++)
-        virtualRegisters.infallibleAppend((LDefinition *)NULL);
+        virtualRegisters.infallibleAppend(NULL);
 
     if (!blocks.reserve(graph.numBlocks()))
         return false;

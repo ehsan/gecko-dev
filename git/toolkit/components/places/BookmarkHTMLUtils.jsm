@@ -534,8 +534,12 @@ BookmarkImporter.prototype = {
 
     // Import last charset.
     if (lastCharset) {
-      PlacesUtils.setCharsetForURI(frame.previousLink, lastCharset);
+      try {
+        PlacesUtils.history.setCharsetForURI(frame.previousLink, lastCharset);
+      } catch(e) {
+      }
     }
+
   },
 
   _handleContainerBegin: function handleContainerBegin() {
@@ -1116,7 +1120,7 @@ BookmarkExporter.prototype = {
     }
 
     try {
-      let lastCharset = yield PlacesUtils.getCharsetForURI(itemUri);
+      let lastCharset = PlacesUtils.history.getCharsetForURI(itemUri);
       if (lastCharset) {
         this._write(" LAST_CHARSET=\"" + this.escapeHtml(lastCharset) + "\"");
       }

@@ -497,11 +497,8 @@ private:
     // and remove the text node from the map
     nsINode* oldTextNode = static_cast<Element*>(aData);
     Element* rootNode = aEntry->GetKey();
-    nsINode* newTextNode = nullptr;
-    if (rootNode->HasDirAuto()) {
-      newTextNode = WalkDescendantsSetDirectionFromText(rootNode, true,
-                                                        oldTextNode);
-    }
+    nsINode* newTextNode = WalkDescendantsSetDirectionFromText(rootNode, true,
+                                                               oldTextNode);
     if (newTextNode) {
       nsTextNodeDirectionalityMap::AddEntryToMap(newTextNode, rootNode);
     } else {
@@ -663,13 +660,8 @@ WalkDescendantsResetAutoDirection(Element* aElement)
 void
 WalkDescendantsSetDirAuto(Element* aElement, bool aNotify)
 {
-  // Only test for DoesNotParticipateInAutoDirection -- in other words, if
-  // aElement is a <bdi> which is having its dir attribute set to auto (or
-  // removed or set to an invalid value, which are equivalent to dir=auto for
-  // <bdi>, we *do* want to set AncestorHasDirAuto on its descendants, unlike
-  // in SetDirOnBind where we don't propagate AncestorHasDirAuto to a <bdi>
-  // being bound to an existing node with dir=auto.
-  if (!DoesNotParticipateInAutoDirection(aElement)) {
+  if (!DoesNotParticipateInAutoDirection(aElement) &&
+      !IsBdiWithoutDirAuto(aElement)) {
 
     bool setAncestorDirAutoFlag =
 #ifdef DEBUG
@@ -690,7 +682,7 @@ WalkDescendantsSetDirAuto(Element* aElement, bool aNotify)
         MOZ_ASSERT(!aElement->AncestorHasDirAuto() ||
                    child->AncestorHasDirAuto(),
                    "AncestorHasDirAuto set on node but not its children");
-        child->SetAncestorHasDirAuto();
+        child->SetHasDirAuto();
         child = child->GetNextNode(aElement);
       }
     }

@@ -18,7 +18,7 @@
 #include "nsVariant.h"
 #include "mozilla/storage.h"
 
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 #include "nsNetCID.h"
 
@@ -262,7 +262,7 @@ nsAnnotationService::SetItemAnnotation(int64_t aItemId,
                                        int32_t aFlags,
                                        uint16_t aExpiration)
 {
-  PROFILER_LABEL("AnnotationService", "SetItemAnnotation");
+  SAMPLE_LABEL("AnnotationService", "SetItemAnnotation");
   NS_ENSURE_ARG_MIN(aItemId, 1);
   NS_ENSURE_ARG(aValue);
 

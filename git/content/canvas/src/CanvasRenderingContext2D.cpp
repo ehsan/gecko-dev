@@ -96,7 +96,7 @@
 #include "mozilla/dom/HTMLVideoElement.h"
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 
-#ifdef USE_SKIA_GPU
+#ifdef USE_SKIA
 #include "GLContext.h"
 #include "GLContextProvider.h"
 #include "SurfaceTypes.h"
@@ -467,7 +467,7 @@ public:
     }
   }
 
-#ifdef USE_SKIA_GPU
+#ifdef USE_SKIA
   static void PreTransactionCallback(void* aData)
   {
     CanvasRenderingContext2DUserData* self =
@@ -799,7 +799,7 @@ CanvasRenderingContext2D::EnsureTarget()
     }
 
      if (layerManager) {
-#ifdef USE_SKIA_GPU
+#ifdef USE_SKIA
        if (gfxPlatform::GetPlatform()->UseAcceleratedSkiaCanvas()) {
          mGLContext = mozilla::gl::GLContextProvider::CreateOffscreen(gfxIntSize(size.width,
                                                                                  size.height),
@@ -1148,7 +1148,7 @@ CanvasRenderingContext2D::SetTransform(double m11, double m12,
 JSObject*
 MatrixToJSObject(JSContext* cx, const Matrix& matrix, ErrorResult& error)
 {
-  JS::Value elts[] = {
+  jsval elts[] = {
     DOUBLE_TO_JSVAL(matrix._11), DOUBLE_TO_JSVAL(matrix._12),
     DOUBLE_TO_JSVAL(matrix._21), DOUBLE_TO_JSVAL(matrix._22),
     DOUBLE_TO_JSVAL(matrix._31), DOUBLE_TO_JSVAL(matrix._32)
@@ -1175,7 +1175,7 @@ ObjectToMatrix(JSContext* cx, JSObject& obj, Matrix& matrix, ErrorResult& error)
   Float* elts[] = { &matrix._11, &matrix._12, &matrix._21, &matrix._22,
                     &matrix._31, &matrix._32 };
   for (uint32_t i = 0; i < 6; ++i) {
-    JS::Value elt;
+    jsval elt;
     double d;
     if (!JS_GetElement(cx, &obj, i, &elt)) {
       error.Throw(NS_ERROR_FAILURE);
@@ -3786,7 +3786,7 @@ CanvasRenderingContext2D::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
   canvasLayer->SetUserData(&g2DContextLayerUserData, userData);
 
   CanvasLayer::Data data;
-#ifdef USE_SKIA_GPU
+#ifdef USE_SKIA
   if (mGLContext) {
     canvasLayer->SetPreTransactionCallback(
             CanvasRenderingContext2DUserData::PreTransactionCallback, userData);

@@ -405,8 +405,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
         IsGenerator,
         IsGeneratorExp,
         OwnSource,
-        ExplicitUseStrict,
-        SelfHosted
+        ExplicitUseStrict
     };
 
     uint32_t length, lineno, nslots;
@@ -474,8 +473,6 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
             scriptBits |= (1 << Strict);
         if (script->explicitUseStrict)
             scriptBits |= (1 << ExplicitUseStrict);
-        if (script->selfHosted)
-            scriptBits |= (1 << SelfHosted);
         if (script->bindingsAccessedDynamically)
             scriptBits |= (1 << ContainsDynamicNameAccess);
         if (script->funHasExtensibleScope)
@@ -534,8 +531,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
         // staticLevel is set below.
         CompileOptions options(cx);
         options.setVersion(version_)
-               .setNoScriptRval(!!(scriptBits & (1 << NoScriptRval)))
-               .setSelfHostingMode(!!(scriptBits & (1 << SelfHosted)));
+               .setNoScriptRval(!!(scriptBits & (1 << NoScriptRval)));
         ScriptSource *ss;
         if (scriptBits & (1 << OwnSource)) {
             ss = cx->new_<ScriptSource>();
@@ -2402,6 +2398,7 @@ js::CloneFunctionScript(JSContext *cx, HandleFunction original, HandleFunction c
 
     RootedScript script(cx, clone->nonLazyScript());
     JS_ASSERT(script);
+    JS_ASSERT(!script->asmJS);
     JS_ASSERT(script->compartment() == original->compartment());
     JS_ASSERT_IF(script->compartment() != cx->compartment,
                  !script->enclosingStaticScope());
@@ -2715,6 +2712,8 @@ JSScript::markChildren(JSTracer *trc)
 
 #ifdef JS_ION
     ion::TraceIonScripts(trc, this);
+    if (asmJS)
+        MarkObject(trc, &asmJS, "asmJS");
 #endif
 }
 

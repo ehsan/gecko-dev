@@ -766,7 +766,7 @@ HTMLCanvasElement::GetContext(const nsAString& aContextId,
       JS::AutoIdArray props(cx, JS_Enumerate(cx, &opts));
       for (size_t i = 0; !!props && i < props.length(); ++i) {
         jsid propid = props[i];
-        JS::Value propname, propval;
+        jsval propname, propval;
         if (!JS_IdToValue(cx, propid, &propname) ||
             !JS_GetPropertyById(cx, &opts, propid, &propval)) {
           return NS_ERROR_FAILURE;

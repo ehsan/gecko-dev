@@ -11,5 +11,4 @@ function buildSimple() {
   assertEqParallelArrayArray(p, a2);
 }
 
-if (getBuildConfiguration().parallelJS)
-  buildSimple();
+buildSimple();

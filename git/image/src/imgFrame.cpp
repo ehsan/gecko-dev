@@ -17,7 +17,7 @@
 static bool gDisableOptimize = false;
 
 #include "cairo.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 #include "mozilla/Likely.h"
 
 #if defined(XP_WIN)
@@ -438,7 +438,7 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
                     const nsIntMargin &aPadding, const nsIntRect &aSubimage,
                     uint32_t aImageFlags)
 {
-  PROFILER_LABEL("image", "imgFrame::Draw");
+  SAMPLE_LABEL("image", "imgFrame::Draw");
   NS_ASSERTION(!aFill.IsEmpty(), "zero dest size --- fix caller");
   NS_ASSERTION(!aSubimage.IsEmpty(), "zero source size --- fix caller");
   NS_ASSERTION(!mPalettedImageData, "Directly drawing a paletted image!");
@@ -707,34 +707,7 @@ nsresult imgFrame::UnlockImageData()
   if (mQuartzSurface)
     mQuartzSurface->Flush();
 #endif
-
   return NS_OK;
-}
-
-void imgFrame::MarkImageDataDirty()
-{
-  if (mImageSurface)
-    mImageSurface->Flush();
-
-#ifdef USE_WIN_SURFACE
-  if (mWinSurface)
-    mWinSurface->Flush();
-#endif
-
-  if (mImageSurface)
-    mImageSurface->MarkDirty();
-
-#ifdef USE_WIN_SURFACE
-  if (mWinSurface)
-    mWinSurface->MarkDirty();
-#endif
-
-#ifdef XP_MACOSX
-  // The quartz image surface (ab)uses the flush method to get the
-  // cairo_image_surface data into a CGImage, so we have to call Flush() here.
-  if (mQuartzSurface)
-    mQuartzSurface->Flush();
-#endif
 }
 
 int32_t imgFrame::GetTimeout() const

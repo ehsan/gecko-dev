@@ -14,5 +14,4 @@ function testCopyBigArray() {
   }
 }
 
-if (getBuildConfiguration().parallelJS)
-  testCopyBigArray();
+testCopyBigArray();

@@ -91,7 +91,6 @@ webidl_files = \
   HTMLHeadingElement.webidl \
   HTMLHRElement.webidl \
   HTMLHtmlElement.webidl \
-  HTMLIFrameElement.webidl \
   HTMLImageElement.webidl \
   HTMLLabelElement.webidl \
   HTMLLegendElement.webidl \
@@ -125,7 +124,6 @@ webidl_files = \
   HTMLTableElement.webidl \
   HTMLTableRowElement.webidl \
   HTMLTableSectionElement.webidl \
-  HTMLTemplateElement.webidl \
   HTMLTextAreaElement.webidl \
   HTMLTimeElement.webidl \
   HTMLTitleElement.webidl \
@@ -191,9 +189,6 @@ webidl_files = \
   SVGFEColorMatrixElement.webidl \
   SVGFEComponentTransferElement.webidl \
   SVGFECompositeElement.webidl \
-  SVGFEConvolveMatrixElement.webidl \
-  SVGFEDiffuseLightingElement.webidl \
-  SVGFEDisplacementMapElement.webidl \
   SVGFEDistantLightElement.webidl \
   SVGFEFloodElement.webidl \
   SVGFEFuncAElement.webidl \
@@ -204,10 +199,7 @@ webidl_files = \
   SVGFEImageElement.webidl \
   SVGFEMergeElement.webidl \
   SVGFEMergeNodeElement.webidl \
-  SVGFEOffsetElement.webidl \
   SVGFEPointLightElement.webidl \
-  SVGFESpecularLightingElement.webidl \
-  SVGFESpotLightElement.webidl \
   SVGFETileElement.webidl \
   SVGFitToViewBox.webidl \
   SVGForeignObjectElement.webidl \

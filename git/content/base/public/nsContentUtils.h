@@ -210,15 +210,6 @@ public:
                                       const nsINode* aPossibleAncestor);
 
   /**
-   * Similar to ContentIsDescendantOf, except will treat an HTMLTemplateElement
-   * or ShadowRoot as an ancestor of things in the corresponding DocumentFragment.
-   * See the concept of "host-including inclusive ancestor" in the DOM
-   * specification.
-   */
-  static bool ContentIsHostIncludingDescendantOf(
-    const nsINode* aPossibleDescendant, const nsINode* aPossibleAncestor);
-
-  /**
    * Similar to ContentIsDescendantOf except it crosses document boundaries.
    */
   static bool ContentIsCrossDocDescendantOf(nsINode* aPossibleDescendant,
@@ -342,12 +333,6 @@ public:
    * HTML 4.01 also lists U+200B (zero-width space).
    */
   static bool IsHTMLWhitespace(PRUnichar aChar);
-
-  /*
-   * Returns whether the character is an HTML whitespace (see IsHTMLWhitespace)
-   * or a nbsp character (U+00A0).
-   */
-  static bool IsHTMLWhitespaceOrNBSP(PRUnichar aChar);
 
   /**
    * Is the HTML local name a block element?
@@ -1892,12 +1877,6 @@ public:
   static nsIDocument* GetFullscreenAncestor(nsIDocument* aDoc);
 
   /**
-   * Returns true if aWin and the current pointer lock document
-   * have common scriptable top window.
-   */
-  static bool IsInPointerLockContext(nsIDOMWindow* aWin);
-
-  /**
    * Returns the time limit on handling user input before
    * nsEventStateManager::IsHandlingUserInput() stops returning true.
    * This enables us to detect long running user-generated event handlers.
@@ -2004,6 +1983,13 @@ public:
 
   static nsresult Atob(const nsAString& aAsciiString,
                        nsAString& aBinaryData);
+
+  /** If aJSArray is a Javascript array, this method iterates over its
+   *  elements and appends values to aRetVal as nsIAtoms.
+   *  @throw NS_ERROR_ILLEGAL_VALUE if aJSArray isn't a JS array.
+   */ 
+  static nsresult JSArrayToAtomArray(JSContext* aCx, const JS::Value& aJSArray,
+                                     nsCOMArray<nsIAtom>& aRetVal);
 
   /**
    * Returns whether the input element passed in parameter has the autocomplete

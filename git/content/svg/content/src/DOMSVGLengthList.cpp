@@ -20,7 +20,7 @@ namespace {
 
 using mozilla::DOMSVGLength;
 
-void UpdateListIndicesFromIndex(FallibleTArray<DOMSVGLength*>& aItemsArray,
+void UpdateListIndicesFromIndex(nsTArray<DOMSVGLength*>& aItemsArray,
                                 uint32_t aStartingIndex)
 {
   uint32_t length = aItemsArray.Length();

@@ -15,7 +15,6 @@
 #include "nsGlobalWindow.h"
 #include "nsHostObjectProtocolHandler.h"
 
-#include "nsIDocument.h"
 #include "nsIDOMFile.h"
 
 USING_WORKERS_NAMESPACE

@@ -35,10 +35,8 @@ function test() {
 
 'use strict';
 
-var nodetype = require('gcli/types/node');
-var canon = require('gcli/canon');
-// var assert = require('test/assert');
 // var mockCommands = require('gclitest/mockCommands');
+var nodetype = require('gcli/types/node');
 // var helpers = require('gclitest/helpers');
 
 
@@ -71,16 +69,6 @@ var mockDoc = {
       };
     }
   }
-};
-
-exports.testParamGroup = function(options) {
-  var tsg = canon.getCommand('tsg');
-
-  assert.is(tsg.params[0].groupName, null, 'tsg param 0 group null');
-  assert.is(tsg.params[1].groupName, 'First', 'tsg param 1 group First');
-  assert.is(tsg.params[2].groupName, 'First', 'tsg param 2 group First');
-  assert.is(tsg.params[3].groupName, 'Second', 'tsg param 3 group Second');
-  assert.is(tsg.params[4].groupName, 'Second', 'tsg param 4 group Second');
 };
 
 exports.testWithHelpers = function(options) {

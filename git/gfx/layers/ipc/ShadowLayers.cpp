@@ -20,7 +20,7 @@
 #include "ShadowLayerChild.h"
 #include "gfxipc/ShadowLayerUtils.h"
 #include "RenderTrace.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 #include "nsXULAppAPI.h"
 
 using namespace mozilla::ipc;
@@ -297,20 +297,10 @@ ShadowLayerForwarder::PaintedCanvas(ShadowableLayer* aCanvas,
                                aNeedYFlip));
 }
 
-void
-ShadowLayerForwarder::PaintedCanvasNoSwap(ShadowableLayer* aCanvas,
-                                          bool aNeedYFlip,
-                                          const SurfaceDescriptor& aNewFrontSurface)
-{
-  mTxn->AddNoSwapPaint(OpPaintCanvas(NULL, Shadow(aCanvas),
-                                     aNewFrontSurface,
-                                     aNeedYFlip));
-}
-
 bool
 ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
 {
-  PROFILER_LABEL("ShadowLayerForwarder", "EndTranscation");
+  SAMPLE_LABEL("ShadowLayerForwarder", "EndTranscation");
   RenderTraceScope rendertrace("Foward Transaction", "000091");
   NS_ABORT_IF_FALSE(HasShadowManager(), "no manager to forward to");
   NS_ABORT_IF_FALSE(!mTxn->Finished(), "forgot BeginTransaction?");

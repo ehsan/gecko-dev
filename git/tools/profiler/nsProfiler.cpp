@@ -8,7 +8,7 @@
 #ifdef MOZ_INSTRUMENT_EVENT_LOOP
 #include "EventTracer.h"
 #endif
-#include "GeckoProfiler.h"
+#include "sampler.h"
 #include "nsProfiler.h"
 #include "nsMemory.h"
 #include "nsString.h"
@@ -60,11 +60,11 @@ nsProfiler::Observe(nsISupports *aSubject,
     nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(parentWebNav);
     if (loadContext && loadContext->UsePrivateBrowsing() && !mLockedForPrivateBrowsing) {
       mLockedForPrivateBrowsing = true;
-      profiler_lock();
+      SAMPLER_LOCK();
     }
   } else if (strcmp(aTopic, "last-pb-context-exited") == 0) {
     mLockedForPrivateBrowsing = false;
-    profiler_unlock();
+    SAMPLER_UNLOCK();
   }
   return NS_OK;
 }
@@ -77,7 +77,7 @@ nsProfiler::StartProfiler(uint32_t aEntries, uint32_t aInterval,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  profiler_start(aEntries, aInterval, aFeatures, aFeatureCount);
+  SAMPLER_START(aEntries, aInterval, aFeatures, aFeatureCount);
 #ifdef MOZ_INSTRUMENT_EVENT_LOOP
   mozilla::InitEventTracing();
 #endif
@@ -87,21 +87,21 @@ nsProfiler::StartProfiler(uint32_t aEntries, uint32_t aInterval,
 NS_IMETHODIMP
 nsProfiler::StopProfiler()
 {
-  profiler_stop();
+  SAMPLER_STOP();
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsProfiler::AddMarker(const char *aMarker)
 {
-  PROFILER_MARKER(aMarker);
+  SAMPLE_MARKER(aMarker);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsProfiler::GetProfile(char **aProfile)
 {
-  char *profile = profiler_get_profile();
+  char *profile = SAMPLER_GET_PROFILE();
   if (profile) {
     uint32_t len = strlen(profile);
     char *profileStr = static_cast<char *>
@@ -178,7 +178,7 @@ nsProfiler::GetSharedLibraryInformation(nsAString& aOutString)
 
 NS_IMETHODIMP nsProfiler::GetProfileData(JSContext* aCx, JS::Value* aResult)
 {
-  JSObject *obj = profiler_get_profile_jsobject(aCx);
+  JSObject *obj = SAMPLER_GET_PROFILE_DATA(aCx);
   if (!obj)
     return NS_ERROR_FAILURE;
 
@@ -189,7 +189,7 @@ NS_IMETHODIMP nsProfiler::GetProfileData(JSContext* aCx, JS::Value* aResult)
 NS_IMETHODIMP
 nsProfiler::IsActive(bool *aIsActive)
 {
-  *aIsActive = profiler_is_active();
+  *aIsActive = SAMPLER_IS_ACTIVE();
   return NS_OK;
 }
 
@@ -197,7 +197,7 @@ NS_IMETHODIMP
 nsProfiler::GetResponsivenessTimes(uint32_t *aCount, double **aResult)
 {
   unsigned int len = 100;
-  const double* times = profiler_get_responsiveness();
+  const double* times = SAMPLER_GET_RESPONSIVENESS();
   if (!times) {
     *aCount = 0;
     *aResult = nullptr;
@@ -218,7 +218,7 @@ nsProfiler::GetFeatures(uint32_t *aCount, char ***aFeatures)
 {
   uint32_t len = 0;
 
-  const char **features = profiler_get_features();
+  const char **features = SAMPLER_GET_FEATURES();
   if (!features) {
     *aCount = 0;
     *aFeatures = nullptr;

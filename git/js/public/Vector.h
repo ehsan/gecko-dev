@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -297,7 +297,7 @@ class Vector : private AllocPolicy
 #endif
 
     /* Append operations guaranteed to succeed due to pre-reserved space. */
-    template <class U> void internalAppend(U u);
+    template <class U> void internalAppend(U t);
     void internalAppendN(const T &t, size_t n);
     template <class U> void internalAppend(const U *begin, size_t length);
     template <class U, size_t O, class BP> void internalAppend(const Vector<U,O,BP> &other);
@@ -395,11 +395,8 @@ class Vector : private AllocPolicy
 
     /* mutators */
 
-    /* Given that the Vector is empty and has no inline storage, grow to |capacity|. */
-    bool initCapacity(size_t request);
-
     /* If reserve(length() + N) succeeds, the N next appends are guaranteed to succeed. */
-    bool reserve(size_t request);
+    bool reserve(size_t capacity);
 
     /*
      * Destroy elements in the range [end() - incr, end()). Does not deallocate
@@ -444,8 +441,8 @@ class Vector : private AllocPolicy
      * Guaranteed-infallible append operations for use upon vectors whose
      * memory has been pre-reserved.
      */
-    template <class U> void infallibleAppend(const U &u) {
-        internalAppend(u);
+    void infallibleAppend(const T &t) {
+        internalAppend(t);
     }
     void infallibleAppendN(const T &t, size_t n) {
         internalAppendN(t, n);
@@ -704,25 +701,6 @@ Vector<T,N,AP>::growStorageBy(size_t incr)
 
 template <class T, size_t N, class AP>
 inline bool
-Vector<T,N,AP>::initCapacity(size_t request)
-{
-    JS_ASSERT(empty());
-    JS_ASSERT(usingInlineStorage());
-    if (request == 0)
-        return true;
-    T *newbuf = reinterpret_cast<T *>(this->malloc_(request * sizeof(T)));
-    if (!newbuf)
-        return false;
-    mBegin = newbuf;
-    mCapacity = request;
-#ifdef DEBUG
-    mReserved = request;
-#endif
-    return true;
-}
-
-template <class T, size_t N, class AP>
-inline bool
 Vector<T,N,AP>::reserve(size_t request)
 {
     REENTRANCY_GUARD_ET_AL;
@@ -859,11 +837,11 @@ Vector<T,N,AP>::append(U t)
 template <class T, size_t N, class AP>
 template <class U>
 JS_ALWAYS_INLINE void
-Vector<T,N,AP>::internalAppend(U u)
+Vector<T,N,AP>::internalAppend(U t)
 {
     JS_ASSERT(mLength + 1 <= mReserved);
     JS_ASSERT(mReserved <= mCapacity);
-    new(endNoCheck()) T(u);
+    new(endNoCheck()) T(t);
     ++mLength;
 }
 

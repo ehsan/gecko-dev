@@ -13,6 +13,7 @@ include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME	    = mozjs
 STATIC_LIBRARY_NAME = js_static
+GRE_MODULE	    = 1
 
 LIBS		= $(NSPR_LIBS)
 
@@ -216,7 +217,6 @@ EXPORTS_js = \
 #
 ifeq (,$(filter beta release esr,$(MOZ_UPDATE_CHANNEL)))
 DEFINES += -DENABLE_TYPEDARRAY_MOVE
-DEFINES += -DENABLE_PARALLEL_JS
 endif
 
 ifdef ENABLE_TRACE_LOGGING
@@ -414,7 +414,10 @@ CPPSRCS += ExecutableAllocatorOS2.cpp \
            $(NONE)
 endif
 
-ifneq (,$(ENABLE_METHODJIT)$(ENABLE_ION)$(ENABLE_YARR_JIT))
+ifneq (,$(filter arm% sparc %86 x86_64 mips%,$(TARGET_CPU)))
+ENABLE_YARR_JIT = 1
+DEFINES += -DENABLE_YARR_JIT=1
+
 VPATH += 	$(srcdir)/assembler/assembler \
 		$(srcdir)/methodjit \
 		$(NONE)
@@ -422,11 +425,8 @@ VPATH += 	$(srcdir)/assembler/assembler \
 CPPSRCS +=	ARMAssembler.cpp \
 		MacroAssemblerARM.cpp \
 		MacroAssemblerX86Common.cpp \
+		YarrJIT.cpp \
 		$(NONE)
-
-ifdef ENABLE_YARR_JIT
-CPPSRCS +=	YarrJIT.cpp
-endif
 
 ifeq (86, $(findstring 86,$(TARGET_CPU)))
 ifeq (x86_64, $(TARGET_CPU))
@@ -962,12 +962,9 @@ selfhosting:: selfhosted.out.h
 selfhosting_srcs := \
   $(srcdir)/builtin/Utilities.js \
   $(srcdir)/builtin/Array.js \
-  $(srcdir)/builtin/Date.js \
   $(srcdir)/builtin/Intl.js \
   $(srcdir)/builtin/IntlData.js \
-  $(srcdir)/builtin/Number.js \
   $(srcdir)/builtin/ParallelArray.js \
-  $(srcdir)/builtin/String.js \
   $(NULL)
 
 selfhosted_out_h_deps := \

@@ -132,6 +132,7 @@ abstract public class GeckoApp
     public static final String ACTION_BOOKMARK      = "org.mozilla.gecko.BOOKMARK";
     public static final String ACTION_LOAD          = "org.mozilla.gecko.LOAD";
     public static final String ACTION_INIT_PW       = "org.mozilla.gecko.INIT_PW";
+    public static final String ACTION_WIDGET        = "org.mozilla.gecko.WIDGET";
     public static final String SAVED_STATE_IN_BACKGROUND = "inBackground";
     public static final String SAVED_STATE_PRIVATE_SESSION = "privateSession";
 
@@ -828,21 +829,9 @@ abstract public class GeckoApp
                 String manifestURL = message.getString("manifestURL");
                 String iconURL = message.getString("iconURL");
                 String origin = message.getString("origin");
-                // preInstallWebapp will return a File object pointing to the profile directory of the webapp
-                mCurrentResponse = GeckoAppShell.preInstallWebApp(name, manifestURL, origin).toString();
-                GeckoAppShell.postInstallWebApp(name, manifestURL, origin, iconURL);
-            } else if (event.equals("WebApps:PreInstall")) {
-                String name = message.getString("name");
-                String manifestURL = message.getString("manifestURL");
-                String origin = message.getString("origin");
-                // preInstallWebapp will return a File object pointing to the profile directory of the webapp
-                mCurrentResponse = GeckoAppShell.preInstallWebApp(name, manifestURL, origin).toString();
-            } else if (event.equals("WebApps:PostInstall")) {
-                String name = message.getString("name");
-                String manifestURL = message.getString("manifestURL");
-                String iconURL = message.getString("iconURL");
-                String origin = message.getString("origin");
-                GeckoAppShell.postInstallWebApp(name, manifestURL, origin, iconURL);
+
+                // installWebapp will return a File object pointing to the profile directory of the webapp
+                mCurrentResponse = GeckoAppShell.installWebApp(name, manifestURL, origin, iconURL).toString();
             } else if (event.equals("WebApps:Uninstall")) {
                 String origin = message.getString("origin");
                 GeckoAppShell.uninstallWebApp(origin);
@@ -1468,8 +1457,6 @@ abstract public class GeckoApp
                 editor.commit();
             }
         });
-
-        GeckoAppShell.setNotificationClient(makeNotificationClient());
     }
 
     protected void initializeChrome(String uri, boolean isExternalURL) {
@@ -1684,8 +1671,6 @@ abstract public class GeckoApp
         registerEventListener("Accessibility:Ready");
         registerEventListener("Shortcut:Remove");
         registerEventListener("WebApps:Open");
-        registerEventListener("WebApps:PreInstall");
-        registerEventListener("WebApps:PostInstall");
         registerEventListener("WebApps:Install");
         registerEventListener("WebApps:Uninstall");
         registerEventListener("Share:Text");
@@ -1760,7 +1745,14 @@ abstract public class GeckoApp
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Viewport:Flush", null));
         }
 
-        if (ACTION_ALERT_CALLBACK.equals(action)) {
+        // Homescreen Widget requests awesome bar
+        if (ACTION_WIDGET.equals(action)) {
+            if (mRestoreMode != RESTORE_NONE && !mIsRestoringActivity) {
+                addTab();
+            } else {
+                onSearchRequested();
+            }
+        } else if (ACTION_ALERT_CALLBACK.equals(action)) {
             processAlertCallback(intent);
         }
     }
@@ -1906,6 +1898,8 @@ abstract public class GeckoApp
             GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(uri));
         } else if (ACTION_ALERT_CALLBACK.equals(action)) {
             processAlertCallback(intent);
+        } else if (ACTION_WIDGET.equals(action)) {
+            addTab();
         }
     }
 
@@ -2069,8 +2063,6 @@ abstract public class GeckoApp
         unregisterEventListener("Accessibility:Ready");
         unregisterEventListener("Shortcut:Remove");
         unregisterEventListener("WebApps:Open");
-        unregisterEventListener("WebApps:PreInstall");
-        unregisterEventListener("WebApps:PostInstall");
         unregisterEventListener("WebApps:Install");
         unregisterEventListener("WebApps:Uninstall");
         unregisterEventListener("Share:Text");
@@ -2643,11 +2635,5 @@ abstract public class GeckoApp
             }
         }
         return false;
-    }
-
-    protected NotificationClient makeNotificationClient() {
-        // Don't use a notification service; we may be killed in the background
-        // during downloads.
-        return new AppNotificationClient(getApplicationContext());
     }
 }

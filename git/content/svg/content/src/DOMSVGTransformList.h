@@ -160,7 +160,7 @@ private:
 
   // Weak refs to our DOMSVGTransform items. The items are friends and take care
   // of clearing our pointer to them when they die.
-  FallibleTArray<DOMSVGTransform*> mItems;
+  nsTArray<DOMSVGTransform*> mItems;
 
   nsRefPtr<DOMSVGAnimatedTransformList> mAList;
 };

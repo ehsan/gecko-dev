@@ -7,6 +7,7 @@
 #define nsContentDLF_h__
 
 #include "nsIDocumentLoaderFactory.h"
+#include "nsIDocument.h"
 #include "nsMimeTypes.h"
 
 class nsIChannel;

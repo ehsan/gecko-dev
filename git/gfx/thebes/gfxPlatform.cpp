@@ -63,7 +63,7 @@
 #include "TexturePoolOGL.h"
 #endif
 
-#ifdef USE_SKIA_GPU
+#ifdef USE_SKIA
 #include "skia/GrContext.h"
 #include "skia/GrGLInterface.h"
 #include "GLContextSkia.h"
@@ -379,23 +379,11 @@ gfxPlatform::Init()
         = do_CreateInstance("@mozilla.org/gfx/init;1");
 
     if (Preferences::GetBool("gfx.2d.recording", false)) {
-
-      nsAutoCString fileName;
-      nsAdoptingString prefFileName = Preferences::GetString("gfx.2d.recordingfile");
-
-      if (prefFileName) {
-        fileName.Append(NS_ConvertUTF16toUTF8(prefFileName));
-      } else {
-        fileName.AssignLiteral("browserrecording.aer");
-      }
-
-      gPlatform->mRecorder = Factory::CreateEventRecorderForFile(fileName.BeginReading());
+      gPlatform->mRecorder = Factory::CreateEventRecorderForFile("browserrecording.aer");
       Factory::SetGlobalEventRecorder(gPlatform->mRecorder);
     }
 
     gPlatform->mOrientationSyncMillis = Preferences::GetUint("layers.orientation.sync.timeout", (uint32_t)0);
-
-    CreateCMSOutputProfile();
 }
 
 void
@@ -799,7 +787,7 @@ RefPtr<DrawTarget>
 gfxPlatform::CreateDrawTargetForFBO(unsigned int aFBOID, mozilla::gl::GLContext* aGLContext, const IntSize& aSize, SurfaceFormat aFormat)
 {
   NS_ASSERTION(mPreferredCanvasBackend, "No backend.");
-#ifdef USE_SKIA_GPU
+#ifdef USE_SKIA
   if (mPreferredCanvasBackend == BACKEND_SKIA) {
     static uint8_t sGrContextKey;
     GrContext* ctx = reinterpret_cast<GrContext*>(aGLContext->GetUserData(&sGrContextKey));
@@ -1440,8 +1428,8 @@ gfxPlatform::GetPlatformCMSOutputProfile()
     return nullptr;
 }
 
-void
-gfxPlatform::CreateCMSOutputProfile()
+qcms_profile *
+gfxPlatform::GetCMSOutputProfile()
 {
     if (!gCMSOutputProfile) {
         /* Determine if we're using the internal override to force sRGB as
@@ -1483,11 +1471,7 @@ gfxPlatform::CreateCMSOutputProfile()
            bug 444661 for details. */
         qcms_profile_precache_output_transform(gCMSOutputProfile);
     }
-}
 
-qcms_profile *
-gfxPlatform::GetCMSOutputProfile()
-{
     return gCMSOutputProfile;
 }
 

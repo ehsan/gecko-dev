@@ -40,18 +40,6 @@ Debug_SetSlotRangeToCrashOnTouch(HeapSlot *begin, HeapSlot *end)
 
 } // namespace js
 
-inline JSCompartment *
-js::ObjectImpl::compartment() const
-{
-    return lastProperty()->base()->compartment();
-}
-
-inline js::TaggedProto
-js::ObjectImpl::getTaggedProto() const
-{
-    return TaggedProto(getProto());
-}
-
 inline js::RawShape
 js::ObjectImpl::nativeLookup(JSContext *cx, PropertyId pid)
 {
@@ -324,24 +312,9 @@ js::ObjectImpl::dynamicSlotsCount(uint32_t nfixed, uint32_t span)
 }
 
 inline size_t
-js::ObjectImpl::tenuredSizeOfThis() const
+js::ObjectImpl::sizeOfThis() const
 {
-    return js::gc::Arena::thingSize(tenuredGetAllocKind());
-}
-
-JS_ALWAYS_INLINE JS::Zone *
-js::ObjectImpl::zone() const
-{
-    return shape_->zone();
-}
-
-JS_ALWAYS_INLINE JS::Zone *
-ZoneOfValue(const JS::Value &value)
-{
-    JS_ASSERT(value.isMarkable());
-    if (value.isObject())
-        return value.toObject().zone();
-    return static_cast<js::gc::Cell *>(value.toGCThing())->tenuredZone();
+    return js::gc::Arena::thingSize(getAllocKind());
 }
 
 /* static */ inline void

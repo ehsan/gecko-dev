@@ -11,10 +11,6 @@ function indirectCallCannotGC(caller, name)
     if (/CallDestroyScriptHook/.test(caller))
         return true;
 
-    // hooks called deep inside utility libraries.
-    if (name == "_malloc_message")
-        return true;
-
     return false;
 }
 
@@ -24,9 +20,7 @@ var ignoreClasses = [
     "JSStringFinalizer",
     "SprintfStateStr",
     "JSLocaleCallbacks",
-    "JSC::ExecutableAllocator",
-    "_MD_IOVector",
-    "PRIOMethods"
+    "JSC::ExecutableAllocator"
 ];
 
 function fieldCallCannotGC(csu, field)
@@ -73,19 +67,8 @@ function ignoreEdgeUse(edge, variable)
     return false;
 }
 
-var ignoreFunctions = [
-    "ptio.c:pt_MapError",
-    "PR_ExplodeTime",
-    "PR_ErrorInstallTable"
-];
-
 function ignoreGCFunction(fun)
 {
-    for (var i = 0; i < ignoreFunctions.length; i++) {
-        if (fun == ignoreFunctions[i])
-            return true;
-    }
-
     // XXX modify refillFreeList<NoGC> to not need data flow analysis to understand it cannot GC.
     if (/refillFreeList/.test(fun) && /\(js::AllowGC\)0u/.test(fun))
         return true;

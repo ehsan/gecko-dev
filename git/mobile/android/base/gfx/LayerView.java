@@ -20,7 +20,6 @@ import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.os.Build;
 import android.os.Handler;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -492,9 +491,7 @@ public class LayerView extends FrameLayout {
 
     @Override
     public void setOverScrollMode(int overscrollMode) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
-            super.setOverScrollMode(overscrollMode);
-        }
+        super.setOverScrollMode(overscrollMode);
         if (mPanZoomController != null) {
             mPanZoomController.setOverScrollMode(overscrollMode);
         }
@@ -505,11 +502,7 @@ public class LayerView extends FrameLayout {
         if (mPanZoomController != null) {
             return mPanZoomController.getOverScrollMode();
         }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
-            return super.getOverScrollMode();
-        }
-        return View.OVER_SCROLL_ALWAYS;
+        return super.getOverScrollMode();
     }
 
     @Override

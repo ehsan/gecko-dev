@@ -174,7 +174,7 @@
 
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 #include "mozilla/css/ImageLoader.h"
 
 #include "Layers.h"
@@ -3805,7 +3805,7 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
   // Make sure that we don't miss things added to mozFlushType!
   MOZ_ASSERT(static_cast<uint32_t>(flushType) <= ArrayLength(flushTypeNames));
 
-  PROFILER_LABEL_PRINTF("layout", "Flush", "(Flush_%s)",
+  SAMPLE_LABEL_PRINTF("layout", "Flush", "(Flush_%s)",
                       flushTypeNames[flushType - 1]);
 #endif
 
@@ -5496,7 +5496,7 @@ PresShell::Paint(nsView*        aViewToPaint,
                  const nsRegion& aDirtyRegion,
                  uint32_t        aFlags)
 {
-  PROFILER_LABEL("Paint", "PresShell::Paint");
+  SAMPLE_LABEL("Paint", "PresShell::Paint");
   NS_ASSERTION(!mIsDestroying, "painting a destroyed PresShell");
   NS_ASSERTION(aViewToPaint, "null view");
 
@@ -6059,7 +6059,6 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
   nsIFrame* frame = aFrame;
 
   if (aEvent->eventStructType == NS_TOUCH_EVENT) {
-    nsIDocument::UnlockPointer();
     FlushPendingNotifications(Flush_Layout);
     frame = GetNearestFrameContainingPresShell(this);
   }
@@ -6660,37 +6659,27 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
         nsIDocument* doc = GetCurrentEventContent() ?
                            mCurrentEventContent->OwnerDoc() : nullptr;
         nsIDocument* fullscreenAncestor = nullptr;
-        if (static_cast<const nsKeyEvent*>(aEvent)->keyCode == NS_VK_ESCAPE) {
-          if ((fullscreenAncestor = nsContentUtils::GetFullscreenAncestor(doc))) {
-            // Prevent default action on ESC key press when exiting
-            // DOM fullscreen mode. This prevents the browser ESC key
-            // handler from stopping all loads in the document, which
-            // would cause <video> loads to stop.
-            aEvent->mFlags.mDefaultPrevented = true;
-            aEvent->mFlags.mOnlyChromeDispatch = true;
+        if (static_cast<const nsKeyEvent*>(aEvent)->keyCode == NS_VK_ESCAPE &&
+            (fullscreenAncestor = nsContentUtils::GetFullscreenAncestor(doc))) {
+          // Prevent default action on ESC key press when exiting
+          // DOM fullscreen mode. This prevents the browser ESC key
+          // handler from stopping all loads in the document, which
+          // would cause <video> loads to stop.
+          aEvent->mFlags.mDefaultPrevented = true;
+          aEvent->mFlags.mOnlyChromeDispatch = true;
 
-            if (aEvent->message == NS_KEY_UP) {
-              // ESC key released while in DOM fullscreen mode.
-              // If fullscreen is running in content-only mode, exit the target
-              // doctree branch from fullscreen, otherwise fully exit all
-              // browser windows and documents from fullscreen mode.
-              // Note: in the content-only fullscreen case, we pass the
-              // fullscreenAncestor since |doc| may not actually be fullscreen
-              // here, and ExitFullscreen() has no affect when passed a
-              // non-fullscreen document.
-              nsIDocument::ExitFullscreen(
-                nsContentUtils::IsFullscreenApiContentOnly() ? fullscreenAncestor : nullptr,
-                /* async */ true);
-            }
-          }
-          nsCOMPtr<nsIDocument> pointerLockedDoc =
-            do_QueryReferent(nsEventStateManager::sPointerLockedDoc);
-          if (pointerLockedDoc) {
-            aEvent->mFlags.mDefaultPrevented = true;
-            aEvent->mFlags.mOnlyChromeDispatch = true;
-            if (aEvent->message == NS_KEY_UP) {
-              nsIDocument::UnlockPointer();
-            }
+          if (aEvent->message == NS_KEY_UP) {
+            // ESC key released while in DOM fullscreen mode.
+            // If fullscreen is running in content-only mode, exit the target
+            // doctree branch from fullscreen, otherwise fully exit all
+            // browser windows and documents from fullscreen mode.
+            // Note: in the content-only fullscreen case, we pass the
+            // fullscreenAncestor since |doc| may not actually be fullscreen
+            // here, and ExitFullscreen() has no affect when passed a
+            // non-fullscreen document.
+            nsIDocument::ExitFullscreen(
+              nsContentUtils::IsFullscreenApiContentOnly() ? fullscreenAncestor : nullptr,
+              /* async */ true);
           }
         }
         // Else not full-screen mode or key code is unrestricted, fall
@@ -7760,7 +7749,7 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   nsIURI *uri = mDocument->GetDocumentURI();
   if (uri)
     uri->GetSpec(docURL);
-  PROFILER_LABEL_PRINTF("layout", "DoReflow", "(%s)", docURL.get());
+  SAMPLE_LABEL_PRINTF("layout", "DoReflow", "(%s)", docURL.get());
 
   if (mReflowContinueTimer) {
     mReflowContinueTimer->Cancel();

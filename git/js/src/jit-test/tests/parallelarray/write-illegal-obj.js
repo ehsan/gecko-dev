@@ -30,4 +30,4 @@ function buildSimple() {
 
 }
 
-if (getBuildConfiguration().parallelJS) buildSimple();
+buildSimple();

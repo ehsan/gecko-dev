@@ -114,10 +114,10 @@ public:
                                     nsWrapperCache **aCache,
                                     nsresult *aResult);
 
-  nsISupports* ResolveName(const nsAString& aName, nsWrapperCache **aCache);
-  virtual already_AddRefed<nsISupports> ResolveName(const nsAString& aName,
-                                                    nsIContent *aForm,
-                                                    nsWrapperCache **aCache);
+  virtual nsresult ResolveName(const nsAString& aName,
+                               nsIContent *aForm,
+                               nsISupports **aResult,
+                               nsWrapperCache **aCache);
 
   virtual void AddedForm();
   virtual void RemovedForm();
@@ -360,12 +360,6 @@ protected:
 
   // When false, the .cookies property is completely disabled
   bool mDisableCookieAccess;
-
-  /**
-   * Temporary flag that is set in EndUpdate() to ignore
-   * MaybeEditingStateChanged() script runners from a nested scope.
-   */
-  bool mPendingMaybeEditingStateChanged;
 };
 
 #define NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                        \

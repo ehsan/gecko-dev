@@ -10,4 +10,4 @@ function testShape() {
 }
 
 // FIXME(bug 844988) immutability not enforced
-// if (getBuildConfiguration().parallelJS) testShape();
+// testShape();

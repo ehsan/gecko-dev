@@ -7,6 +7,7 @@
 #ifndef nsXULTemplateQueryProcessorRDF_h__
 #define nsXULTemplateQueryProcessorRDF_h__
 
+#include "nsIContent.h"
 #include "nsIRDFContainer.h"
 #include "nsIRDFContainerUtils.h"
 #include "nsIRDFDataSource.h"
@@ -14,6 +15,7 @@
 #include "nsIRDFService.h"
 #include "nsIXULTemplateBuilder.h"
 #include "nsIXULTemplateQueryProcessor.h"
+#include "nsICollation.h"
 #include "nsCollationCID.h"
 
 #include "nsResourceSet.h"
@@ -22,6 +24,7 @@
 #include "nsRDFBinding.h"
 #include "nsXULTemplateResultSetRDF.h"
 #include "nsCOMArray.h"
+#include "nsIArray.h"
 #include "nsString.h"
 #include "nsClassHashtable.h"
 #include "nsRefPtrHashtable.h"
@@ -33,7 +36,6 @@
 extern PRLogModuleInfo* gXULTemplateLog;
 #endif
 
-class nsIContent;
 class nsIRDFCompositeDataSource;
 class nsXULTemplateResultRDF;
 

@@ -5,5 +5,4 @@ function testGetNoCraziness() {
   assertEq(p.get(42), undefined);
 }
 
-if (getBuildConfiguration().parallelJS)
-  testGetNoCraziness();
+testGetNoCraziness();

@@ -1799,9 +1799,7 @@ this.DOMApplicationRegistry = {
     delete this.queuedDownload[aManifestURL];
   },
 
-  confirmInstall: function(aData, aFromSync, aProfileDir,
-                           aOfflineCacheObserver,
-                           aZipDownloadSuccessCallback) {
+  confirmInstall: function(aData, aFromSync, aProfileDir, aOfflineCacheObserver) {
     let isReinstall = false;
     let app = aData.app;
     app.removable = true;
@@ -1958,9 +1956,6 @@ this.DOMApplicationRegistry = {
                                   manifestURL: appObject.manifestURL,
                                   app: app,
                                   manifest: aManifest });
-          if (aZipDownloadSuccessCallback) {
-            aZipDownloadSuccessCallback(aManifest);
-          }
         }).bind(this));
       }).bind(this));
     }
@@ -2406,45 +2401,28 @@ this.DOMApplicationRegistry = {
       sendProgressEvent();
     };
 
-    let checkDownloadSize = function (freeBytes) {
-       if (freeBytes) {
-         debug("Free storage: " + freeBytes + ". Download size: " +
-               aApp.downloadSize);
-         if (freeBytes <=
-             aApp.downloadSize + AppDownloadManager.MIN_REMAINING_FREESPACE) {
-           cleanup("INSUFFICIENT_STORAGE");
-           return;
-         }
-       }
-       download();
-    };
-
     let deviceStorage = Services.wm.getMostRecentWindow("navigator:browser")
                                 .navigator.getDeviceStorage("apps");
-    if (deviceStorage) {
-      let req = deviceStorage.freeSpace();
-      req.onsuccess = req.onerror = function statResult(e) {
-        // Even if we could not retrieve the device storage free space, we try
-        // to download the package.
-        if (!e.target.result) {
-          download();
+    let req = deviceStorage.freeSpace();
+    req.onsuccess = req.onerror = function statResult(e) {
+      // Even if we could not retrieve the device storage free space, we try
+      // to download the package.
+      if (!e.target.result) {
+        download();
+        return;
+      }
+
+      let freeBytes = e.target.result;
+      if (freeBytes) {
+        debug("Free storage: " + freeBytes + ". Download size: " +
+              aApp.downloadSize);
+        if (freeBytes <=
+            aApp.downloadSize + AppDownloadManager.MIN_REMAINING_FREESPACE) {
+          cleanup("INSUFFICIENT_STORAGE");
           return;
         }
-
-        let freeBytes = e.target.result;
-        checkDownloadSize(freeBytes);
       }
-    } else {
-      // deviceStorage isn't available, so use FileUtils to find the size of available storage.
-      let dir = FileUtils.getDir(DIRECTORY_NAME, ["webapps"], true, true);
-      try {
-        checkDownloadSize(dir.diskSpaceAvailable);
-      } catch(ex) {
-        // If disk space information isn't available, we'll end up here.
-        // We should either proceed anyway, otherwise devices that support neither
-        // deviceStorage nor diskSpaceAvailable will never be able to install packaged apps.
-        download();
-      }
+      download();
     }
   },
 

@@ -108,7 +108,7 @@ AudioContext::CreateGain()
 already_AddRefed<DelayNode>
 AudioContext::CreateDelay(double aMaxDelayTime, ErrorResult& aRv)
 {
-  if (aMaxDelayTime > 0. && aMaxDelayTime < 180.) {
+  if (aMaxDelayTime > 0. && aMaxDelayTime < 3.) {
     nsRefPtr<DelayNode> delayNode = new DelayNode(this, aMaxDelayTime);
     return delayNode.forget();
   }
@@ -195,18 +195,6 @@ double
 AudioContext::CurrentTime() const
 {
   return MediaTimeToSeconds(Destination()->Stream()->GetCurrentTime());
-}
-
-void
-AudioContext::Suspend()
-{
-  DestinationStream()->ChangeExplicitBlockerCount(1);
-}
-
-void
-AudioContext::Resume()
-{
-  DestinationStream()->ChangeExplicitBlockerCount(-1);
 }
 
 }

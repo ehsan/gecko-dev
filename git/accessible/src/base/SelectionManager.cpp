@@ -36,13 +36,17 @@ SelectionManager::Shutdown()
 void
 SelectionManager::ClearControlSelectionListener()
 {
-  if (!mCurrCtrlFrame)
+  if (!mCurrentControl)
     return;
 
-  const nsFrameSelection* frameSel = mCurrCtrlFrame->GetConstFrameSelection();
-  NS_ASSERTION(frameSel, "No frame selection for the element!");
+  nsIFrame* frame = mCurrentControl->GetPrimaryFrame();
+  if (!frame)
+    return;
 
-  mCurrCtrlFrame = nullptr;
+  mCurrentControl = nullptr;
+
+  const nsFrameSelection* frameSel = frame->GetConstFrameSelection();
+  NS_ASSERTION(frameSel, "No frame selection for the element!");
   if (!frameSel)
     return;
 
@@ -66,13 +70,14 @@ SelectionManager::SetControlSelectionListener(dom::Element* aFocusedElm)
   // the current focus.
   ClearControlSelectionListener();
 
+  mCurrentControl = aFocusedElm;
   mLastTextAccessible = nullptr;
 
-  mCurrCtrlFrame = aFocusedElm->GetPrimaryFrame();
-  if (!mCurrCtrlFrame)
+  nsIFrame* frame = aFocusedElm->GetPrimaryFrame();
+  if (!frame)
     return;
 
-  const nsFrameSelection* frameSel = mCurrCtrlFrame->GetConstFrameSelection();
+  const nsFrameSelection* frameSel = frame->GetConstFrameSelection();
   NS_ASSERTION(frameSel, "No frame selection for focused element!");
   if (!frameSel)
     return;

@@ -17,4 +17,4 @@ function test() {
   function sum(a, b) { return a+b; }
 }
 
-if (getBuildConfiguration().parallelJS) test();
+test();

@@ -5,8 +5,5 @@ function testMap() {
   var m = p.map(42);
 }
 
-if (getBuildConfiguration().parallelJS)
-  testMap();
-else
-  throw new TypeError();
+testMap();
 

@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsIAtom.h"
-#include "nsIContent.h"
 #include "nsString.h"
 #include "nsJSUtils.h"
 #include "jsapi.h"
@@ -414,7 +413,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
   // the evaluation.
   JSObject* scopeObject = xpc::GetXBLScope(cx, aBoundNode);
   JSAutoCompartment ac(cx, scopeObject);
-  JS::Value result = JSVAL_NULL;
+  jsval result = JSVAL_NULL;
 
   JSObject* wrappedNode = aBoundNode;
   if (!JS_WrapObject(cx, &wrappedNode))

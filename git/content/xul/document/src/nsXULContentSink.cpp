@@ -548,7 +548,8 @@ XULContentSinkImpl::HandleEndElement(const PRUnichar *aName)
 
         int32_t count = children->Length();
         if (count) {
-            element->mChildren.SetCapacity(count);
+            if (!element->mChildren.SetCapacity(count))
+                return NS_ERROR_OUT_OF_MEMORY;
 
             for (int32_t i = 0; i < count; ++i)
                 element->mChildren.AppendElement(children->ElementAt(i));

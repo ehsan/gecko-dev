@@ -7,7 +7,7 @@ function expectException(func, exceptionCode) {
   } catch (ex) {
     threw = true;
     ok(ex instanceof DOMException, "Expect a DOM exception");
-    is(ex.code, exceptionCode, "Expect the correct exception code");
+    ok(ex.code, exceptionCode, "Expect the correct exception code");
   }
   ok(threw, "The exception was thrown");
 }

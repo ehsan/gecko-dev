@@ -31,6 +31,5 @@ function testMap() {
   }
 }
 
-if (getBuildConfiguration().parallelJS)
-  testMap();
+testMap();
 

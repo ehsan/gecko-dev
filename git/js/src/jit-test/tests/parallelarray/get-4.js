@@ -3,5 +3,4 @@ function testGetBounds() {
   assertEq(p.get(42), undefined);
 }
 
-if (getBuildConfiguration().parallelJS)
-  testGetBounds();
+testGetBounds();

@@ -5,5 +5,4 @@ function test() {
     assertEq(p.get(i), i);
 }
 
-if (getBuildConfiguration().parallelJS)
-  test();
+test();

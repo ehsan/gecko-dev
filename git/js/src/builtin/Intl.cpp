@@ -69,7 +69,13 @@ using icu::NumberingSystem;
  * directory for license.
  */
 
-static int32_t
+#ifdef __GNUC__
+#  define SUPPRESS_UNUSED_WARNING __attribute__ ((unused))
+#else
+#  define SUPPRESS_UNUSED_WARNING
+#endif
+
+SUPPRESS_UNUSED_WARNING static int32_t
 u_strlen(const UChar *s)
 {
     MOZ_NOT_REACHED("u_strlen: Intl API disabled");
@@ -207,21 +213,21 @@ enum UNumberFormatTextAttribute {
   UNUM_CURRENCY_CODE,
 };
 
-static int32_t
+SUPPRESS_UNUSED_WARNING static int32_t
 unum_countAvailable(void)
 {
     MOZ_NOT_REACHED("unum_countAvailable: Intl API disabled");
     return 0;
 }
 
-static const char *
+SUPPRESS_UNUSED_WARNING static const char *
 unum_getAvailable(int32_t localeIndex)
 {
     MOZ_NOT_REACHED("unum_getAvailable: Intl API disabled");
     return NULL;
 }
 
-static UNumberFormat *
+SUPPRESS_UNUSED_WARNING static UNumberFormat *
 unum_open(UNumberFormatStyle style, const UChar *pattern, int32_t patternLength,
           const char *locale, UParseError *parseErr, UErrorCode *status)
 {
@@ -230,13 +236,13 @@ unum_open(UNumberFormatStyle style, const UChar *pattern, int32_t patternLength,
     return NULL;
 }
 
-static void
+SUPPRESS_UNUSED_WARNING static void
 unum_setAttribute(UNumberFormat *fmt, UNumberFormatAttribute  attr, int32_t newValue)
 {
     MOZ_NOT_REACHED("unum_setAttribute: Intl API disabled");
 }
 
-static int32_t
+SUPPRESS_UNUSED_WARNING static int32_t
 unum_formatDouble(const UNumberFormat *fmt, double number, UChar *result,
                   int32_t resultLength, UFieldPosition *pos, UErrorCode *status)
 {
@@ -245,13 +251,13 @@ unum_formatDouble(const UNumberFormat *fmt, double number, UChar *result,
     return 0;
 }
 
-static void
+SUPPRESS_UNUSED_WARNING static void
 unum_close(UNumberFormat *fmt)
 {
     MOZ_NOT_REACHED("unum_close: Intl API disabled");
 }
 
-static void
+SUPPRESS_UNUSED_WARNING static void
 unum_setTextAttribute(UNumberFormat *fmt, UNumberFormatTextAttribute tag, const UChar *newValue,
                       int32_t newValueLength, UErrorCode *status)
 {
@@ -300,7 +306,7 @@ enum UCalendarType {
   UCAL_GREGORIAN
 };
 
-static UCalendar *
+SUPPRESS_UNUSED_WARNING static UCalendar *
 ucal_open(const UChar *zoneID, int32_t len, const char *locale,
           UCalendarType type, UErrorCode *status)
 {
@@ -309,7 +315,7 @@ ucal_open(const UChar *zoneID, int32_t len, const char *locale,
     return NULL;
 }
 
-static const char *
+SUPPRESS_UNUSED_WARNING static const char *
 ucal_getType(const UCalendar *cal, UErrorCode *status)
 {
     MOZ_NOT_REACHED("ucal_getType: Intl API disabled");
@@ -317,7 +323,7 @@ ucal_getType(const UCalendar *cal, UErrorCode *status)
     return NULL;
 }
 
-static UEnumeration *
+SUPPRESS_UNUSED_WARNING static UEnumeration *
 ucal_getKeywordValuesForLocale(const char *key, const char *locale,
                                UBool commonlyUsed, UErrorCode *status)
 {
@@ -326,7 +332,7 @@ ucal_getKeywordValuesForLocale(const char *key, const char *locale,
     return NULL;
 }
 
-static void
+SUPPRESS_UNUSED_WARNING static void
 ucal_close(UCalendar *cal)
 {
     MOZ_NOT_REACHED("ucal_close: Intl API disabled");
@@ -334,7 +340,7 @@ ucal_close(UCalendar *cal)
 
 typedef void *UDateTimePatternGenerator;
 
-static UDateTimePatternGenerator *
+SUPPRESS_UNUSED_WARNING static UDateTimePatternGenerator *
 udatpg_open(const char *locale, UErrorCode *pErrorCode)
 {
     MOZ_NOT_REACHED("udatpg_open: Intl API disabled");
@@ -342,7 +348,7 @@ udatpg_open(const char *locale, UErrorCode *pErrorCode)
     return NULL;
 }
 
-static int32_t
+SUPPRESS_UNUSED_WARNING static int32_t
 udatpg_getBestPattern(UDateTimePatternGenerator *dtpg, const UChar *skeleton,
                       int32_t length, UChar *bestPattern, int32_t capacity,
                       UErrorCode *pErrorCode)
@@ -352,7 +358,7 @@ udatpg_getBestPattern(UDateTimePatternGenerator *dtpg, const UChar *skeleton,
     return 0;
 }
 
-static void
+SUPPRESS_UNUSED_WARNING static void
 udatpg_close(UDateTimePatternGenerator *dtpg)
 {
     MOZ_NOT_REACHED("udatpg_close: Intl API disabled");
@@ -366,21 +372,21 @@ enum UDateFormatStyle {
     UDAT_IGNORE = UDAT_PATTERN
 };
 
-static int32_t
+SUPPRESS_UNUSED_WARNING static int32_t
 udat_countAvailable(void)
 {
     MOZ_NOT_REACHED("udat_countAvailable: Intl API disabled");
     return 0;
 }
 
-static const char *
+SUPPRESS_UNUSED_WARNING static const char *
 udat_getAvailable(int32_t localeIndex)
 {
     MOZ_NOT_REACHED("udat_getAvailable: Intl API disabled");
     return NULL;
 }
 
-static UDateFormat *
+SUPPRESS_UNUSED_WARNING static UDateFormat *
 udat_open(UDateFormatStyle timeStyle, UDateFormatStyle dateStyle, const char *locale,
           const UChar *tzID, int32_t tzIDLength, const UChar *pattern,
           int32_t patternLength, UErrorCode *status)
@@ -390,21 +396,21 @@ udat_open(UDateFormatStyle timeStyle, UDateFormatStyle dateStyle, const char *lo
     return NULL;
 }
 
-static const UCalendar *
+SUPPRESS_UNUSED_WARNING static const UCalendar *
 udat_getCalendar(const UDateFormat *fmt)
 {
     MOZ_NOT_REACHED("udat_getCalendar: Intl API disabled");
     return NULL;
 }
 
-static void
+SUPPRESS_UNUSED_WARNING static void
 ucal_setGregorianChange(UCalendar *cal, UDate date, UErrorCode *pErrorCode)
 {
     MOZ_NOT_REACHED("ucal_setGregorianChange: Intl API disabled");
     *pErrorCode = U_UNSUPPORTED_ERROR;
 }
 
-static int32_t
+SUPPRESS_UNUSED_WARNING static int32_t
 udat_format(const UDateFormat *format, UDate dateToFormat, UChar *result,
             int32_t resultLength, UFieldPosition *position, UErrorCode *status)
 {
@@ -413,7 +419,7 @@ udat_format(const UDateFormat *format, UDate dateToFormat, UChar *result,
     return 0;
 }
 
-static void
+SUPPRESS_UNUSED_WARNING static void
 udat_close(UDateFormat *format)
 {
     MOZ_NOT_REACHED("udat_close: Intl API disabled");
@@ -455,7 +461,7 @@ typedef int32_t
 typedef const char *
 (* GetAvailable)(int32_t localeIndex);
 
-static bool
+SUPPRESS_UNUSED_WARNING static bool
 intl_availableLocales(JSContext *cx, CountAvailable countAvailable,
                       GetAvailable getAvailable, MutableHandleValue result)
 {
@@ -491,7 +497,7 @@ intl_availableLocales(JSContext *cx, CountAvailable countAvailable,
 /**
  * Returns the object holding the internal properties for obj.
  */
-static bool
+SUPPRESS_UNUSED_WARNING static bool
 GetInternals(JSContext *cx, HandleObject obj, MutableHandleObject internals)
 {
     RootedValue getInternalsValue(cx);
@@ -520,13 +526,13 @@ equal(const char *s1, const char *s2)
     return !strcmp(s1, s2);
 }
 
-static bool
+SUPPRESS_UNUSED_WARNING static bool
 equal(JSAutoByteString &s1, const char *s2)
 {
     return !strcmp(s1.ptr(), s2);
 }
 
-static const char *
+SUPPRESS_UNUSED_WARNING static const char *
 icuLocale(const char *locale)
 {
     if (equal(locale, "und"))
@@ -617,11 +623,14 @@ static JSFunctionSpec collator_methods[] = {
  * Collator constructor.
  * Spec: ECMAScript Internationalization API Specification, 10.1
  */
-static bool
-Collator(JSContext *cx, CallArgs args, bool construct)
+static JSBool
+Collator(JSContext *cx, unsigned argc, Value *vp)
 {
+    CallArgs args = CallArgsFromVp(argc, vp);
+
     RootedObject obj(cx);
 
+    bool construct = IsConstructing(args);
     if (!construct) {
         // 10.1.2.1 step 3
         JSObject *intl = cx->global()->getOrCreateIntlObject(cx);
@@ -665,21 +674,6 @@ Collator(JSContext *cx, CallArgs args, bool construct)
     // 10.1.2.1 steps 3.a and 7
     args.rval().setObject(*obj);
     return true;
-}
-
-static JSBool
-Collator(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return Collator(cx, args, IsConstructing(args));
-}
-
-JSBool
-js::intl_Collator(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ASSERT(args.length() == 2);
-    return Collator(cx, args, true);
 }
 
 static void
@@ -1095,11 +1089,14 @@ static JSFunctionSpec numberFormat_methods[] = {
  * NumberFormat constructor.
  * Spec: ECMAScript Internationalization API Specification, 11.1
  */
-static bool
-NumberFormat(JSContext *cx, CallArgs args, bool construct)
+static JSBool
+NumberFormat(JSContext *cx, unsigned argc, Value *vp)
 {
+    CallArgs args = CallArgsFromVp(argc, vp);
+
     RootedObject obj(cx);
 
+    bool construct = IsConstructing(args);
     if (!construct) {
         // 11.1.2.1 step 3
         JSObject *intl = cx->global()->getOrCreateIntlObject(cx);
@@ -1145,26 +1142,10 @@ NumberFormat(JSContext *cx, CallArgs args, bool construct)
     return true;
 }
 
-static JSBool
-NumberFormat(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return NumberFormat(cx, args, IsConstructing(args));
-}
-
-JSBool
-js::intl_NumberFormat(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ASSERT(args.length() == 2);
-    return NumberFormat(cx, args, true);
-}
-
 static void
 numberFormat_finalize(FreeOp *fop, JSObject *obj)
 {
-    UNumberFormat *nf =
-        static_cast<UNumberFormat*>(obj->getReservedSlot(UNUMBER_FORMAT_SLOT).toPrivate());
+    UNumberFormat *nf = static_cast<UNumberFormat *>(obj->getReservedSlot(UNUMBER_FORMAT_SLOT).toPrivate());
     if (nf)
         unum_close(nf);
 }
@@ -1442,10 +1423,6 @@ intl_FormatNumber(JSContext *cx, UNumberFormat *nf, double x, MutableHandleValue
         return false;
     }
 
-    // Trim any unused characters.
-    if (!chars.resize(size))
-        return false;
-
     RootedString str(cx, chars.finishString());
     if (!str)
         return false;
@@ -1544,11 +1521,14 @@ static JSFunctionSpec dateTimeFormat_methods[] = {
  * DateTimeFormat constructor.
  * Spec: ECMAScript Internationalization API Specification, 12.1
  */
-static bool
-DateTimeFormat(JSContext *cx, CallArgs args, bool construct)
+static JSBool
+DateTimeFormat(JSContext *cx, unsigned argc, Value *vp)
 {
+    CallArgs args = CallArgsFromVp(argc, vp);
+
     RootedObject obj(cx);
 
+    bool construct = IsConstructing(args);
     if (!construct) {
         // 12.1.2.1 step 3
         JSObject *intl = cx->global()->getOrCreateIntlObject(cx);
@@ -1592,21 +1572,6 @@ DateTimeFormat(JSContext *cx, CallArgs args, bool construct)
     // 12.1.2.1 steps 3.a and 7
     args.rval().setObject(*obj);
     return true;
-}
-
-static JSBool
-DateTimeFormat(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return DateTimeFormat(cx, args, IsConstructing(args));
-}
-
-JSBool
-js::intl_DateTimeFormat(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    JS_ASSERT(args.length() == 2);
-    return DateTimeFormat(cx, args, true);
 }
 
 static void
@@ -1891,7 +1856,7 @@ NewUDateFormat(JSContext *cx, HandleObject dateTimeFormat)
 
     // ECMAScript requires the Gregorian calendar to be used from the beginning
     // of ECMAScript time.
-    UCalendar *cal = const_cast<UCalendar*>(udat_getCalendar(df));
+    UCalendar *cal = (UCalendar *) udat_getCalendar(df);
     ucal_setGregorianChange(cal, StartOfTime, &status);
 
     // An error here means the calendar is not Gregorian, so we don't care.
@@ -1922,10 +1887,6 @@ intl_FormatDateTime(JSContext *cx, UDateFormat *df, double x, MutableHandleValue
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INTERNAL_INTL_ERROR);
         return false;
     }
-
-    // Trim any unused characters.
-    if (!chars.resize(size))
-        return false;
 
     RootedString str(cx, chars.finishString());
     if (!str)

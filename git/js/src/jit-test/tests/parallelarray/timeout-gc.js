@@ -20,8 +20,4 @@ function timeoutfunc() {
 }
 
 timeout(1, timeoutfunc);
-
-if (getBuildConfiguration().parallelJS)
-  new ParallelArray([2048], iterate);
-else
-  while(true);
+new ParallelArray([2048], iterate);

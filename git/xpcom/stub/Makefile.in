@@ -18,6 +18,7 @@ NSDISTMODE = copy
 
 # Do not set EXPORT_LIBRARY as we do not want xpcom in the static libs list
 #EXPORT_LIBRARY = 1
+GRE_MODULE	= 1
 MOZILLA_INTERNAL_API = 1
 
 

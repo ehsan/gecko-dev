@@ -969,7 +969,7 @@ public:
 
   virtual void RequestPointerLock(Element* aElement) = 0;
 
-  static void UnlockPointer(nsIDocument* aDoc = nullptr);
+  static void UnlockPointer();
 
 
   //----------------------------------------------------------------------
@@ -1631,12 +1631,6 @@ public:
   }
 
   /**
-   * Returns the template content owner document that owns the content of
-   * HTMLTemplateElement.
-   */
-  virtual nsIDocument* GetTemplateContentsOwner() = 0;
-
-  /**
    * true when this document is a static clone of a normal document.
    * For example print preview and printing use static documents.
    */
@@ -2027,7 +2021,7 @@ public:
   Element* GetMozPointerLockElement();
   void MozExitPointerLock()
   {
-    UnlockPointer(this);
+    UnlockPointer();
   }
   bool Hidden() const
   {

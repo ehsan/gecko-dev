@@ -332,9 +332,12 @@ ParseContext<ParseHandler>::generateFunctionBindings(JSContext *cx, InternalHand
 
 template <typename ParseHandler>
 bool
-Parser<ParseHandler>::reportHelper(ParseReportKind kind, bool strict, uint32_t offset,
-                             unsigned errorNumber, va_list args)
+Parser<ParseHandler>::report(ParseReportKind kind, bool strict, Node pn, unsigned errorNumber, ...)
 {
+    uint32_t offset = (pn ? handler.getPosition(pn) : tokenStream.currentToken().pos).begin;
+
+    va_list args;
+    va_start(args, errorNumber);
     bool result = false;
     switch (kind) {
       case ParseError:
@@ -351,30 +354,6 @@ Parser<ParseHandler>::reportHelper(ParseReportKind kind, bool strict, uint32_t o
         result = tokenStream.reportStrictModeErrorNumberVA(offset, strict, errorNumber, args);
         break;
     }
-    return result;
-}
-
-template <typename ParseHandler>
-bool
-Parser<ParseHandler>::report(ParseReportKind kind, bool strict, Node pn, unsigned errorNumber, ...)
-{
-    uint32_t offset = (pn ? handler.getPosition(pn) : tokenStream.currentToken().pos).begin;
-
-    va_list args;
-    va_start(args, errorNumber);
-    bool result = reportHelper(kind, strict, offset, errorNumber, args);
-    va_end(args);
-    return result;
-}
-
-template <typename ParseHandler>
-bool
-Parser<ParseHandler>::reportWithOffset(ParseReportKind kind, bool strict, uint32_t offset,
-                                       unsigned errorNumber, ...)
-{
-    va_list args;
-    va_start(args, errorNumber);
-    bool result = reportHelper(kind, strict, offset, errorNumber, args);
     va_end(args);
     return result;
 }
@@ -458,7 +437,6 @@ FunctionBox::FunctionBox(JSContext *cx, ObjectBox* traceListHead, JSFunction *fu
     bindings(),
     bufStart(0),
     bufEnd(0),
-    asmStart(0),
     ndefaults(0),
     inWith(false),                  // initialized below
     inGenexpLambda(false),
@@ -840,7 +818,7 @@ Parser<FullParseHandler>::standaloneFunctionBody(HandleFunction fun, const AutoN
         return null();
     handler.setFunctionBox(fn, *funbox);
 
-    ParseContext<FullParseHandler> funpc(this, *funbox, /* staticLevel = */ 0, /* bodyid = */ 0);
+    ParseContext<FullParseHandler> funpc(this, *funbox, 0, /* staticLevel = */ 0);
     if (!funpc.init())
         return null();
 
@@ -2188,7 +2166,6 @@ Parser<ParseHandler>::maybeParseDirective(Node pn, bool *cont)
         } else if (directive == context->names().useAsm) {
             if (pc->sc->isFunctionBox()) {
                 pc->sc->asFunctionBox()->useAsm = true;
-                pc->sc->asFunctionBox()->asmStart = handler.getPosition(pn).begin;
             } else {
                 if (!report(ParseWarning, false, pn, JSMSG_USE_ASM_DIRECTIVE_FAIL))
                     return false;
@@ -2903,7 +2880,7 @@ Parser<ParseHandler>::returnOrYield(bool useAssignExpr)
             pc->sc->asFunctionBox()->setIsGenerator();
         } else {
             pc->yieldCount++;
-            pc->yieldOffset = handler.getPosition(pn).begin;
+            pc->yieldNode = pn;
         }
     }
 #endif
@@ -4655,157 +4632,212 @@ Parser<SyntaxParseHandler>::expr()
     return pn;
 }
 
-static const JSOp ParseNodeKindToJSOp[] = {
-    JSOP_OR,
-    JSOP_AND,
-    JSOP_BITOR,
-    JSOP_BITXOR,
-    JSOP_BITAND,
-    JSOP_STRICTEQ,
-    JSOP_EQ,
-    JSOP_STRICTNE,
-    JSOP_NE,
-    JSOP_LT,
-    JSOP_LE,
-    JSOP_GT,
-    JSOP_GE,
-    JSOP_INSTANCEOF,
-    JSOP_IN,
-    JSOP_LSH,
-    JSOP_RSH,
-    JSOP_URSH,
-    JSOP_ADD,
-    JSOP_SUB,
-    JSOP_MUL,
-    JSOP_DIV,
-    JSOP_MOD
-};
+/*
+ * For a number of the expression parsers we define an always-inlined version
+ * and a never-inlined version (which just calls the always-inlined version).
+ * Using the always-inlined version in the hot call-sites givs a ~5% parsing
+ * speedup.  These macros help avoid some boilerplate code.
+ */
+#define BEGIN_EXPR_PARSER(name)                                               \
+    template <typename ParseHandler>                                          \
+    JS_ALWAYS_INLINE typename ParseHandler::Node                              \
+    Parser<ParseHandler>::name##i()
 
-static inline JSOp
-BinaryOpParseNodeKindToJSOp(ParseNodeKind pnk)
+#define END_EXPR_PARSER(name)                                                 \
+    template <typename ParseHandler>                                          \
+    JS_NEVER_INLINE typename ParseHandler::Node                               \
+    Parser<ParseHandler>::name##n() {                                         \
+        return name##i();                                                     \
+    }
+
+BEGIN_EXPR_PARSER(mulExpr1)
 {
-    JS_ASSERT(pnk >= PNK_BINOP_FIRST);
-    JS_ASSERT(pnk <= PNK_BINOP_LAST);
-    return ParseNodeKindToJSOp[pnk - PNK_BINOP_FIRST];
-}
+    Node pn = unaryExpr();
 
-static bool
-IsBinaryOpToken(TokenKind tok, bool parsingForInit)
+    /*
+     * Note: unlike addExpr1() et al, we use getToken() here instead of
+     * isCurrentTokenType() because unaryExpr() doesn't leave the TokenStream
+     * state one past the end of the unary expression.
+     */
+    TokenKind tt;
+    while (pn && ((tt = tokenStream.getToken()) == TOK_STAR || tt == TOK_DIV || tt == TOK_MOD)) {
+        ParseNodeKind kind = (tt == TOK_STAR)
+                             ? PNK_STAR
+                             : (tt == TOK_DIV)
+                             ? PNK_DIV
+                             : PNK_MOD;
+        JSOp op = tokenStream.currentToken().t_op;
+        pn = handler.newBinaryOrAppend(kind, pn, unaryExpr(), pc, op);
+    }
+    return pn;
+}
+END_EXPR_PARSER(mulExpr1)
+
+BEGIN_EXPR_PARSER(addExpr1)
 {
-    return tok == TOK_IN ? !parsingForInit : TokenKindIsBinaryOp(tok);
+    Node pn = mulExpr1i();
+    while (pn && tokenStream.isCurrentTokenType(TOK_PLUS, TOK_MINUS)) {
+        TokenKind tt = tokenStream.currentToken().type;
+        JSOp op = (tt == TOK_PLUS) ? JSOP_ADD : JSOP_SUB;
+        ParseNodeKind kind = (tt == TOK_PLUS) ? PNK_ADD : PNK_SUB;
+        pn = handler.newBinaryOrAppend(kind, pn, mulExpr1n(), pc, op);
+    }
+    return pn;
 }
+END_EXPR_PARSER(addExpr1)
 
-static ParseNodeKind
-BinaryOpTokenKindToParseNodeKind(TokenKind tok)
+inline ParseNodeKind
+ShiftTokenToParseNodeKind(const Token &token)
 {
-    JS_ASSERT(TokenKindIsBinaryOp(tok));
-    return ParseNodeKind(PNK_BINOP_FIRST + (tok - TOK_BINOP_FIRST));
+    switch (token.type) {
+      case TOK_LSH:
+        return PNK_LSH;
+      case TOK_RSH:
+        return PNK_RSH;
+      default:
+        JS_ASSERT(token.type == TOK_URSH);
+        return PNK_URSH;
+    }
 }
 
-static const int PrecedenceTable[] = {
-    1, /* PNK_OR */
-    2, /* PNK_AND */
-    3, /* PNK_BITOR */
-    4, /* PNK_BITXOR */
-    5, /* PNK_BITAND */
-    6, /* PNK_STRICTEQ */
-    6, /* PNK_EQ */
-    6, /* PNK_STRICTNE */
-    6, /* PNK_NE */
-    7, /* PNK_LT */
-    7, /* PNK_LE */
-    7, /* PNK_GT */
-    7, /* PNK_GE */
-    7, /* PNK_INSTANCEOF */
-    7, /* PNK_IN */
-    8, /* PNK_LSH */
-    8, /* PNK_RSH */
-    8, /* PNK_URSH */
-    9, /* PNK_ADD */
-    9, /* PNK_SUB */
-    10, /* PNK_STAR */
-    10, /* PNK_DIV */
-    10  /* PNK_MOD */
-};
-
-static const int PRECEDENCE_CLASSES = 10;
-
-static int
-Precedence(ParseNodeKind pnk) {
-    // Everything binds tighter than PNK_LIMIT, because we want to reduce all
-    // nodes to a single node when we reach a token that is not another binary
-    // operator.
-    if (pnk == PNK_LIMIT)
-        return 0;
-
-    JS_ASSERT(pnk >= PNK_BINOP_FIRST);
-    JS_ASSERT(pnk <= PNK_BINOP_LAST);
-    return PrecedenceTable[pnk - PNK_BINOP_FIRST];
+BEGIN_EXPR_PARSER(shiftExpr1)
+{
+    Node left = addExpr1i();
+    while (left && tokenStream.isCurrentTokenShift()) {
+        ParseNodeKind kind = ShiftTokenToParseNodeKind(tokenStream.currentToken());
+        JSOp op = tokenStream.currentToken().t_op;
+        Node right = addExpr1n();
+        if (!right)
+            return null();
+        left = handler.newBinary(kind, left, right, op);
+    }
+    return left;
 }
+END_EXPR_PARSER(shiftExpr1)
+
+inline ParseNodeKind
+RelationalTokenToParseNodeKind(const Token &token)
+{
+    switch (token.type) {
+      case TOK_IN:
+        return PNK_IN;
+      case TOK_INSTANCEOF:
+        return PNK_INSTANCEOF;
+      case TOK_LT:
+        return PNK_LT;
+      case TOK_LE:
+        return PNK_LE;
+      case TOK_GT:
+        return PNK_GT;
+      default:
+        JS_ASSERT(token.type == TOK_GE);
+        return PNK_GE;
+    }
+}
+
+BEGIN_EXPR_PARSER(relExpr1)
+{
+    /*
+     * Uses of the in operator in shiftExprs are always unambiguous,
+     * so unset the flag that prohibits recognizing it.
+     */
+    bool oldParsingForInit = pc->parsingForInit;
+    pc->parsingForInit = false;
+
+    Node pn = shiftExpr1i();
+    while (pn &&
+           (tokenStream.isCurrentTokenRelational() ||
+            /*
+             * Recognize the 'in' token as an operator only if we're not
+             * currently in the init expr of a for loop.
+             */
+            (oldParsingForInit == 0 && tokenStream.isCurrentTokenType(TOK_IN)) ||
+            tokenStream.isCurrentTokenType(TOK_INSTANCEOF))) {
+        ParseNodeKind kind = RelationalTokenToParseNodeKind(tokenStream.currentToken());
+        JSOp op = tokenStream.currentToken().t_op;
+        pn = handler.newBinaryOrAppend(kind, pn, shiftExpr1n(), pc, op);
+    }
+    /* Restore previous state of parsingForInit flag. */
+    pc->parsingForInit |= oldParsingForInit;
+
+    return pn;
+}
+END_EXPR_PARSER(relExpr1)
+
+inline ParseNodeKind
+EqualityTokenToParseNodeKind(const Token &token)
+{
+    switch (token.type) {
+      case TOK_STRICTEQ:
+        return PNK_STRICTEQ;
+      case TOK_EQ:
+        return PNK_EQ;
+      case TOK_STRICTNE:
+        return PNK_STRICTNE;
+      default:
+        JS_ASSERT(token.type == TOK_NE);
+        return PNK_NE;
+    }
+}
+
+BEGIN_EXPR_PARSER(eqExpr1)
+{
+    Node left = relExpr1i();
+    while (left && tokenStream.isCurrentTokenEquality()) {
+        ParseNodeKind kind = EqualityTokenToParseNodeKind(tokenStream.currentToken());
+        JSOp op = tokenStream.currentToken().t_op;
+        Node right = relExpr1n();
+        if (!right)
+            return null();
+        left = handler.newBinary(kind, left, right, op);
+    }
+    return left;
+}
+END_EXPR_PARSER(eqExpr1)
+
+BEGIN_EXPR_PARSER(bitAndExpr1)
+{
+    Node pn = eqExpr1i();
+    while (pn && tokenStream.isCurrentTokenType(TOK_BITAND))
+        pn = handler.newBinaryOrAppend(PNK_BITAND, pn, eqExpr1n(), pc, JSOP_BITAND);
+    return pn;
+}
+END_EXPR_PARSER(bitAndExpr1)
+
+BEGIN_EXPR_PARSER(bitXorExpr1)
+{
+    Node pn = bitAndExpr1i();
+    while (pn && tokenStream.isCurrentTokenType(TOK_BITXOR))
+        pn = handler.newBinaryOrAppend(PNK_BITXOR, pn, bitAndExpr1n(), pc, JSOP_BITXOR);
+    return pn;
+}
+END_EXPR_PARSER(bitXorExpr1)
+
+BEGIN_EXPR_PARSER(bitOrExpr1)
+{
+    Node pn = bitXorExpr1i();
+    while (pn && tokenStream.isCurrentTokenType(TOK_BITOR))
+        pn = handler.newBinaryOrAppend(PNK_BITOR, pn, bitXorExpr1n(), pc, JSOP_BITOR);
+    return pn;
+}
+END_EXPR_PARSER(bitOrExpr1)
+
+BEGIN_EXPR_PARSER(andExpr1)
+{
+    Node pn = bitOrExpr1i();
+    while (pn && tokenStream.isCurrentTokenType(TOK_AND))
+        pn = handler.newBinaryOrAppend(PNK_AND, pn, bitOrExpr1n(), pc, JSOP_AND);
+    return pn;
+}
+END_EXPR_PARSER(andExpr1)
 
 template <typename ParseHandler>
 JS_ALWAYS_INLINE typename ParseHandler::Node
 Parser<ParseHandler>::orExpr1()
 {
-    // Shift-reduce parser for the left-associative binary operator part of
-    // the JS syntax.
-
-    // Conceptually there's just one stack, a stack of pairs (lhs, op).
-    // It's implemented using two separate arrays, though.
-    Node nodeStack[PRECEDENCE_CLASSES];
-    ParseNodeKind kindStack[PRECEDENCE_CLASSES];
-    int depth = 0;
-
-    bool oldParsingForInit = pc->parsingForInit;
-    pc->parsingForInit = false;
-
-    Node pn;
-    for (;;) {
-        pn = unaryExpr();
-        if (!pn)
-            return pn;
-
-        // If a binary operator follows, consume it and compute the
-        // corresponding operator.
-        TokenKind tok = tokenStream.getToken();
-        if (tok == TOK_ERROR)
-            return null();
-        ParseNodeKind pnk;
-        if (IsBinaryOpToken(tok, oldParsingForInit)) {
-            pnk = BinaryOpTokenKindToParseNodeKind(tok);
-        } else {
-            tok = TOK_EOF;
-            pnk = PNK_LIMIT;
-        }
-
-        // If pnk has precedence less than or equal to another operator on the
-        // stack, reduce. This combines nodes on the stack until we form the
-        // actual lhs of pnk.
-        //
-        // The >= in this condition works because all the operators in question
-        // are left-associative; if any were not, the case where two operators
-        // have equal precedence would need to be handled specially, and the
-        // stack would need to be a Vector.
-        while (depth > 0 && Precedence(kindStack[depth - 1]) >= Precedence(pnk)) {
-            depth--;
-            ParseNodeKind combiningPnk = kindStack[depth];
-            JSOp combiningOp = BinaryOpParseNodeKindToJSOp(combiningPnk);
-            pn = handler.newBinaryOrAppend(combiningPnk, nodeStack[depth], pn, pc, combiningOp);
-            if (!pn)
-                return pn;
-        }
-
-        if (pnk == PNK_LIMIT)
-            break;
-
-        nodeStack[depth] = pn;
-        kindStack[depth] = pnk;
-        depth++;
-        JS_ASSERT(depth <= PRECEDENCE_CLASSES);
-    }
-
-    JS_ASSERT(depth == 0);
-    pc->parsingForInit = oldParsingForInit;
+    Node pn = andExpr1i();
+    while (pn && tokenStream.isCurrentTokenType(TOK_OR))
+        pn = handler.newBinaryOrAppend(PNK_OR, pn, andExpr1n(), pc, JSOP_OR);
     return pn;
 }
 
@@ -5107,8 +5139,7 @@ Parser<ParseHandler>::unaryExpr()
       case TOK_DEC:
       {
         uint32_t begin = tokenStream.currentToken().pos.begin;
-        TokenKind tt2 = tokenStream.getToken(TSF_OPERAND);
-        pn2 = memberExpr(tt2, true);
+        pn2 = memberExpr(true);
         if (!pn2)
             return null();
         pn = handler.newUnary((tt == TOK_INC) ? PNK_PREINCREMENT : PNK_PREDECREMENT, pn2);
@@ -5140,7 +5171,8 @@ Parser<ParseHandler>::unaryExpr()
         return null();
 
       default:
-        pn = memberExpr(tt, true);
+        tokenStream.ungetToken();
+        pn = memberExpr(true);
         if (!pn)
             return null();
 
@@ -5236,7 +5268,7 @@ class GenexpGuard
         ParseContext<ParseHandler> *pc = parser->pc;
         if (pc->parenDepth == 0) {
             pc->yieldCount = 0;
-            pc->yieldOffset = 0;
+            pc->yieldNode = ParseHandler::null();
         }
         startYieldCount = pc->yieldCount;
         pc->parenDepth++;
@@ -5267,12 +5299,10 @@ GenexpGuard<ParseHandler>::checkValidBody(Node pn, unsigned err)
 {
     ParseContext<ParseHandler> *pc = parser->pc;
     if (pc->yieldCount > startYieldCount) {
-        uint32_t offset = pc->yieldOffset
-                          ? pc->yieldOffset
-                          : (pn ? parser->handler.getPosition(pn)
-                                : parser->tokenStream.currentToken().pos).begin;
-
-        parser->reportWithOffset(ParseError, false, offset, err, js_yield_str);
+        Node errorNode = pc->yieldNode;
+        if (!errorNode)
+            errorNode = pn;
+        parser->report(ParseError, false, errorNode, err, js_yield_str);
         return false;
     }
 
@@ -6002,22 +6032,20 @@ Parser<SyntaxParseHandler>::foldPropertyByValue(Node pn)
 
 template <typename ParseHandler>
 typename ParseHandler::Node
-Parser<ParseHandler>::memberExpr(TokenKind tt, bool allowCallSyntax)
+Parser<ParseHandler>::memberExpr(bool allowCallSyntax)
 {
-    JS_ASSERT(tokenStream.isCurrentTokenType(tt));
-
     Node lhs;
 
     JS_CHECK_RECURSION(context, return null());
 
     /* Check for new expression first. */
+    TokenKind tt = tokenStream.getToken(TSF_OPERAND);
     if (tt == TOK_NEW) {
         lhs = handler.newList(PNK_NEW, null(), JSOP_NEW);
         if (!lhs)
             return null();
 
-        tt = tokenStream.getToken(TSF_OPERAND);
-        Node ctorExpr = memberExpr(tt, false);
+        Node ctorExpr = memberExpr(false);
         if (!ctorExpr)
             return null();
 

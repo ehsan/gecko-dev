@@ -76,7 +76,7 @@ public:
   void FlushInvalidations();
 
   // We're not COM-y, so we don't get refcounts by default
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Decoder)
+  NS_INLINE_DECL_REFCOUNTING(Decoder)
 
   /*
    * State.
@@ -95,11 +95,6 @@ public:
   void SetSynchronous(bool aSynchronous)
   {
     mSynchronous = aSynchronous;
-  }
-
-  bool IsSynchronous() const
-  {
-    return mSynchronous;
   }
 
   void SetObserver(imgDecoderObserver* aObserver)
@@ -166,12 +161,6 @@ public:
   // Try to allocate a frame as described in mNewFrameData and return the
   // status code from that attempt. Clears mNewFrameData.
   virtual nsresult AllocateFrame();
-
-  // Called when a chunk of decoding has been done and the frame needs to be
-  // marked as dirty. Must be called only on the main thread.
-  void MarkFrameDirty();
-
-  imgFrame* GetCurrentFrame() const { return mCurrentFrame; }
 
 protected:
 

@@ -61,7 +61,7 @@ const ContentPanning = {
   },
 
   handleEvent: function cp_handleEvent(evt) {
-    if (evt.defaultPrevented || evt.multipleActionsPrevented)
+    if (evt.defaultPrevented)
       return;
 
     switch (evt.type) {

@@ -7,11 +7,7 @@
 #include "SourceSurfaceSkia.h"
 #include "ScaledFontBase.h"
 #include "skia/SkDevice.h"
-
-#ifdef USE_SKIA_GPU
 #include "skia/SkGpuDevice.h"
-#endif
-
 #include "skia/SkTypeface.h"
 #include "skia/SkGradientShader.h"
 #include "skia/SkBlurDrawLooper.h"
@@ -598,7 +594,6 @@ DrawTargetSkia::Init(const IntSize &aSize, SurfaceFormat aFormat)
   return true;
 }
 
-#ifdef USE_SKIA_GPU
 void
 DrawTargetSkia::InitWithFBO(unsigned int aFBOID, GrContext* aGrContext, const IntSize &aSize, SurfaceFormat aFormat)
 {
@@ -620,7 +615,6 @@ DrawTargetSkia::InitWithFBO(unsigned int aFBOID, GrContext* aGrContext, const In
   mCanvas = canvas.get();
   mFormat = aFormat;
 }
-#endif
 
 void
 DrawTargetSkia::Init(unsigned char* aData, const IntSize &aSize, int32_t aStride, SurfaceFormat aFormat)

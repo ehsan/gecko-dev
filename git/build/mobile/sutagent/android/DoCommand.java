@@ -441,12 +441,6 @@ public class DoCommand {
                     strReturn += GetProcessInfo();
                     strReturn += "\n";
                     strReturn += GetSutUserInfo();
-                    strReturn += "\n";
-                    strReturn += GetDiskInfo("/data");
-                    strReturn += "\n";
-                    strReturn += GetDiskInfo("/system");
-                    strReturn += "\n";
-                    strReturn += GetDiskInfo("/mnt/sdcard");
                     }
                 else
                     {
@@ -499,15 +493,6 @@ public class DoCommand {
 
                         case TEMPERATURE:
                             strReturn += GetTemperatureInfo();
-                            break;
-
-                        case DISK:
-                            strReturn += "\n";
-                            strReturn += GetDiskInfo("/data");
-                            strReturn += "\n";
-                            strReturn += GetDiskInfo("/system");
-                            strReturn += "\n";
-                            strReturn += GetDiskInfo("/mnt/sdcard");
                             break;
 
                         default:
@@ -2685,19 +2670,18 @@ private void CancelNotification()
         return "Temperature: " + sTempVal;
         }
 
+    // todo
     public String GetDiskInfo(String sPath)
         {
         String sRet = "";
         StatFs statFS = new StatFs(sPath);
 
-        long nBlockCount = statFS.getBlockCount();
-        long nBlockSize = statFS.getBlockSize();
-        long nBlocksAvail = statFS.getAvailableBlocks();
-        // Free is often the same as Available, but can include reserved
-        // blocks that are not available to normal applications.
-        // long nBlocksFree = statFS.getFreeBlocks();
+        int nBlockCount = statFS.getBlockCount();
+        int nBlockSize = statFS.getBlockSize();
+        int nBlocksAvail = statFS.getAvailableBlocks();
+        int nBlocksFree = statFS.getFreeBlocks();
 
-        sRet = sPath + ": " + (nBlockCount * nBlockSize) + " total, " + (nBlocksAvail * nBlockSize) + " available";
+        sRet = "total:     " + (nBlockCount * nBlockSize) + "\nfree:      " + (nBlocksFree * nBlockSize) + "\navailable: " + (nBlocksAvail * nBlockSize);
 
         return (sRet);
         }

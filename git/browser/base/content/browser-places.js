@@ -295,7 +295,7 @@ var PlacesCommandHook = {
       PlacesUtils.transactionManager.doTransaction(txn);
       // Set the character-set
       if (charset && !PrivateBrowsingUtils.isWindowPrivate(aBrowser.contentWindow))
-        PlacesUtils.setCharsetForURI(uri, charset);
+        PlacesUtils.history.setCharsetForURI(uri, charset);
       itemId = PlacesUtils.getMostRecentBookmarkForURI(uri);
     }
 

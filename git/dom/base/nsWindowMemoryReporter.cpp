@@ -6,7 +6,6 @@
 
 #include "nsWindowMemoryReporter.h"
 #include "nsGlobalWindow.h"
-#include "nsIDocument.h"
 #include "nsIEffectiveTLDService.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"

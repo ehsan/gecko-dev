@@ -30,7 +30,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/HTMLTemplateElement.h"
 #include "mozilla/dom/TextDecoderBase.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Preferences.h"
@@ -1202,13 +1201,6 @@ nsContentUtils::IsHTMLWhitespace(PRUnichar aChar)
 
 /* static */
 bool
-nsContentUtils::IsHTMLWhitespaceOrNBSP(PRUnichar aChar)
-{
-  return IsHTMLWhitespace(aChar) || aChar == PRUnichar(0xA0);
-}
-
-/* static */
-bool
 nsContentUtils::IsHTMLBlock(nsIAtom* aLocalName)
 {
   return
@@ -1776,9 +1768,8 @@ nsContentUtils::IsCallerXBL()
         return false;
 
     // New Hotness.
-    JSCompartment *c = js::GetContextCompartment(cx);
-    if (xpc::AllowXBLScope(c))
-        return xpc::IsXBLScope(c);
+    if (XPCJSRuntime::Get()->XBLScopesEnabled())
+        return xpc::IsXBLScope(js::GetContextCompartment(cx));
 
     // XBL scopes are behind a pref, so check the XBL bit as well.
     if (!JS_DescribeScriptedCaller(cx, &script, nullptr) || !script)
@@ -1850,27 +1841,6 @@ nsContentUtils::ContentIsDescendantOf(const nsINode* aPossibleDescendant,
     if (aPossibleDescendant == aPossibleAncestor)
       return true;
     aPossibleDescendant = aPossibleDescendant->GetParentNode();
-  } while (aPossibleDescendant);
-
-  return false;
-}
-
-bool
-nsContentUtils::ContentIsHostIncludingDescendantOf(
-  const nsINode* aPossibleDescendant, const nsINode* aPossibleAncestor)
-{
-  NS_PRECONDITION(aPossibleDescendant, "The possible descendant is null!");
-  NS_PRECONDITION(aPossibleAncestor, "The possible ancestor is null!");
-
-  do {
-    if (aPossibleDescendant == aPossibleAncestor)
-      return true;
-    if (aPossibleDescendant->NodeType() == nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
-      aPossibleDescendant =
-        static_cast<const DocumentFragment*>(aPossibleDescendant)->GetHost();
-    } else {
-      aPossibleDescendant = aPossibleDescendant->GetParentNode();
-    }
   } while (aPossibleDescendant);
 
   return false;
@@ -2188,9 +2158,6 @@ nsContentUtils::TrimWhitespace<nsCRT::IsAsciiSpace>(const nsAString&, bool);
 template
 const nsDependentSubstring
 nsContentUtils::TrimWhitespace<nsContentUtils::IsHTMLWhitespace>(const nsAString&, bool);
-template
-const nsDependentSubstring
-nsContentUtils::TrimWhitespace<nsContentUtils::IsHTMLWhitespaceOrNBSP>(const nsAString&, bool);
 
 static inline void KeyAppendSep(nsACString& aKey)
 {
@@ -5912,7 +5879,7 @@ nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
 // static
 nsresult
 nsContentUtils::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-                           nsWrapperCache *cache, const nsIID* aIID, JS::Value *vp,
+                           nsWrapperCache *cache, const nsIID* aIID, jsval *vp,
                            nsIXPConnectJSObjectHolder **aHolder,
                            bool aAllowWrapping)
 {
@@ -5999,7 +5966,7 @@ nsContentUtils::CreateArrayBuffer(JSContext *aCx, const nsACString& aData,
 nsresult
 nsContentUtils::CreateBlobBuffer(JSContext* aCx,
                                  const nsACString& aData,
-                                 JS::Value& aBlob)
+                                 jsval& aBlob)
 {
   uint32_t blobLen = aData.Length();
   void* blobData = moz_malloc(blobLen);
@@ -6674,29 +6641,6 @@ nsContentUtils::GetFullscreenAncestor(nsIDocument* aDoc)
   return nullptr;
 }
 
-/* static */
-bool
-nsContentUtils::IsInPointerLockContext(nsIDOMWindow* aWin)
-{
-  if (!aWin) {
-    return false;
-  }
-
-  nsCOMPtr<nsIDocument> pointerLockedDoc =
-    do_QueryReferent(nsEventStateManager::sPointerLockedDoc);
-  if (!pointerLockedDoc || !pointerLockedDoc->GetWindow()) {
-    return false;
-  }
-
-  nsCOMPtr<nsIDOMWindow> lockTop;
-  pointerLockedDoc->GetWindow()->GetScriptableTop(getter_AddRefs(lockTop));
-
-  nsCOMPtr<nsIDOMWindow> top;
-  aWin->GetScriptableTop(getter_AddRefs(top));
-
-  return top == lockTop;
-}
-
 // static
 void
 nsContentUtils::ReleaseWrapper(void* aScriptObjectHolder,
@@ -6726,6 +6670,46 @@ nsContentUtils::TraceWrapper(nsWrapperCache* aCache, TraceCallback aCallback,
       aCallback(wrapper, "Preserved wrapper", aClosure);
     }
   }
+}
+
+nsresult
+nsContentUtils::JSArrayToAtomArray(JSContext* aCx, const JS::Value& aJSArray,
+                                   nsCOMArray<nsIAtom>& aRetVal)
+{
+  JSAutoRequest ar(aCx);
+  if (!aJSArray.isObject()) {
+    return NS_ERROR_ILLEGAL_VALUE;
+  }
+  
+  JSObject* obj = &aJSArray.toObject();
+  JSAutoCompartment ac(aCx, obj);
+  
+  uint32_t length;
+  if (!JS_IsArrayObject(aCx, obj) || !JS_GetArrayLength(aCx, obj, &length)) {
+    return NS_ERROR_ILLEGAL_VALUE;
+  }
+
+  JSString* str = nullptr;
+  JS::Anchor<JSString *> deleteProtector(str);
+  for (uint32_t i = 0; i < length; ++i) {
+    jsval v;
+    if (!JS_GetElement(aCx, obj, i, &v) ||
+        !(str = JS_ValueToString(aCx, v))) {
+      return NS_ERROR_ILLEGAL_VALUE;
+    }
+
+    nsDependentJSString depStr;
+    if (!depStr.init(aCx, str)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    nsCOMPtr<nsIAtom> a = do_GetAtom(depStr);
+    if (!a) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    aRetVal.AppendObject(a);
+  }
+  return NS_OK;
 }
 
 // static

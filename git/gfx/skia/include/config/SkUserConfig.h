@@ -184,11 +184,7 @@
    directories from your include search path when you're not building the GPU
    backend. Defaults to 1 (build the GPU code).
  */
-#ifdef USE_SKIA_GPU
-    #define SK_SUPPORT_GPU 1
-#else
-    #define SK_SUPPORT_GPU 0
-#endif
+#define SK_SUPPORT_GPU 1
 
 /*  Don't dither 32bit gradients, to match what the canvas test suite expects.
  */

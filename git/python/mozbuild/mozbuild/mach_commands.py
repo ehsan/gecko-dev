@@ -115,29 +115,9 @@ class Build(MachCommandBase):
         warnings_database.save_to_file(warnings_path)
 
         time_end = time.time()
-        time_elapsed = time_end - time_start
-        self._handle_finder_cpu_usage(time_elapsed, finder_start_cpu)
+        self._handle_finder_cpu_usage(time_end - time_start, finder_start_cpu)
 
-        long_build = time_elapsed > 600
-
-        if status:
-            return status
-
-        if long_build:
-            print('We know it took a while, but your build finally finished successfully!')
-        else:
-            print('Your build was successful!')
-
-        app_path = self.get_binary_path('app')
-        print('To take your build for a test drive, run: %s' % app_path)
-
-        # Only for full builds because incremental builders likely don't
-        # need to be burdened with this.
-        if not what:
-            app = self.substs['MOZ_BUILD_APP']
-            if app in ('browser', 'mobile/android'):
-                print('For more information on what to do now, see '
-                    'https://developer.mozilla.org/docs/Developer_Guide/So_You_Just_Built_Firefox')
+        print('Finished building. Built files are in %s' % self.topobjdir)
 
         return status
 
@@ -337,26 +317,6 @@ class Install(MachCommandBase):
     @Command('install', help='Install the package on the machine, or on a device.')
     def install(self):
         return self._run_make(directory=".", target='install', ensure_exit_code=False)
-
-@CommandProvider
-class RunProgram(MachCommandBase):
-    """Launch the compiled binary"""
-
-    @Command('run', help='Run the compiled program.', prefix_chars='+')
-    @CommandArgument('params', default=None, nargs='*',
-        help='Command-line arguments to pass to the program.')
-    def run(self, params):
-        try:
-            args = [self.get_binary_path('app')]
-        except Exception as e:
-            print("It looks like your program isn't built.",
-                "You can run |mach build| to build it.")
-            print(e)
-            return 1
-        if params:
-            args.extend(params)
-        return self.run_process(args=args, ensure_exit_code=False,
-            pass_thru=True)
 
 @CommandProvider
 class Buildsymbols(MachCommandBase):

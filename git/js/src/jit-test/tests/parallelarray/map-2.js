@@ -5,5 +5,5 @@ function testMap() {
   assertEq(m.get(0), (1 << 30) * 4);
 }
 
-if (getBuildConfiguration().parallelJS) testMap();
+testMap();
 

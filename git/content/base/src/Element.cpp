@@ -101,7 +101,6 @@
 #include "nsRuleProcessorData.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsTextNode.h"
-#include "mozilla/dom/HTMLTemplateElement.h"
 
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
@@ -3107,9 +3106,7 @@ IsVoidTag(Element* aElement)
 static bool
 Serialize(Element* aRoot, bool aDescendentsOnly, nsAString& aOut)
 {
-  nsINode* current = aDescendentsOnly ?
-    nsNodeUtils::GetFirstChildOfTemplateOrNode(aRoot) : aRoot;
-
+  nsINode* current = aDescendentsOnly ? aRoot->GetFirstChild() : aRoot;
   if (!current) {
     return true;
   }
@@ -3123,8 +3120,7 @@ Serialize(Element* aRoot, bool aDescendentsOnly, nsAString& aOut)
         Element* elem = current->AsElement();
         StartElement(elem, builder);
         isVoid = IsVoidTag(elem);
-        if (!isVoid &&
-            (next = nsNodeUtils::GetFirstChildOfTemplateOrNode(current))) {
+        if (!isVoid && (next = current->GetFirstChild())) {
           current = next;
           continue;
         }
@@ -3190,17 +3186,6 @@ Serialize(Element* aRoot, bool aDescendentsOnly, nsAString& aOut)
       }
 
       current = current->GetParentNode();
-
-      // Template case, if we are in a template's content, then the parent
-      // should be the host template element.
-      if (current->NodeType() == nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
-        DocumentFragment* frag = static_cast<DocumentFragment*>(current);
-        HTMLTemplateElement* fragHost = frag->GetHost();
-        if (fragHost) {
-          current = fragHost;
-        }
-      }
-
       if (aDescendentsOnly && current == aRoot) {
         return builder.ToString(aOut);
       }
@@ -3307,39 +3292,30 @@ Element::GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError)
 void
 Element::SetInnerHTML(const nsAString& aInnerHTML, ErrorResult& aError)
 {
-  FragmentOrElement* target = this;
-  // Handle template case.
-  if (nsNodeUtils::IsTemplateElement(target)) {
-    DocumentFragment* frag =
-      static_cast<HTMLTemplateElement*>(target)->Content();
-    MOZ_ASSERT(frag);
-    target = frag;
-  }
-
-  nsIDocument* doc = target->OwnerDoc();
+  nsIDocument* doc = OwnerDoc();
 
   // Batch possible DOMSubtreeModified events.
   mozAutoSubtreeModified subtree(doc, nullptr);
 
-  target->FireNodeRemovedForChildren();
+  FireNodeRemovedForChildren();
 
   // Needed when innerHTML is used in combination with contenteditable
   mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, true);
 
   // Remove childnodes.
-  uint32_t childCount = target->GetChildCount();
-  nsAutoMutationBatch mb(target, true, false);
+  uint32_t childCount = GetChildCount();
+  nsAutoMutationBatch mb(this, true, false);
   for (uint32_t i = 0; i < childCount; ++i) {
-    target->RemoveChildAt(0, true);
+    RemoveChildAt(0, true);
   }
   mb.RemovalDone();
 
   nsAutoScriptLoaderDisabler sld(doc);
 
   if (doc->IsHTML()) {
-    int32_t oldChildCount = target->GetChildCount();
+    int32_t oldChildCount = GetChildCount();
     aError = nsContentUtils::ParseFragmentHTML(aInnerHTML,
-                                               target,
+                                               this,
                                                Tag(),
                                                GetNameSpaceID(),
                                                doc->GetCompatibilityMode() ==
@@ -3347,10 +3323,10 @@ Element::SetInnerHTML(const nsAString& aInnerHTML, ErrorResult& aError)
                                                true);
     mb.NodesAdded();
     // HTML5 parser has notified, but not fired mutation events.
-    FireMutationEventsForDirectParsing(doc, target, oldChildCount);
+    FireMutationEventsForDirectParsing(doc, this, oldChildCount);
   } else {
     nsCOMPtr<nsIDOMDocumentFragment> df;
-    aError = nsContentUtils::CreateContextualFragment(target, aInnerHTML,
+    aError = nsContentUtils::CreateContextualFragment(this, aInnerHTML,
                                                       true,
                                                       getter_AddRefs(df));
     nsCOMPtr<nsINode> fragment = do_QueryInterface(df);
@@ -3360,7 +3336,7 @@ Element::SetInnerHTML(const nsAString& aInnerHTML, ErrorResult& aError)
       // listeners on the fragment that comes from the parser.
       nsAutoScriptBlockerSuppressNodeRemoved scriptBlocker;
 
-      static_cast<nsINode*>(target)->AppendChild(*fragment, aError);
+      static_cast<nsINode*>(this)->AppendChild(*fragment, aError);
       mb.NodesAdded();
     }
   }

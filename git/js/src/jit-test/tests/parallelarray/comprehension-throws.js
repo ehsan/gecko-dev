@@ -23,5 +23,4 @@ function buildComprehension() {
 }
 
 // FIXME(bug 844887) throw correct exception
-// if (getBuildConfiguration().parallelJS)
-//   buildComprehension();
+// buildComprehension();
