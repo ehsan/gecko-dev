@@ -484,8 +484,6 @@ nsStandardURL::AppendSegmentToBuf(char *buf, PRUint32 i, const char *str, URLSeg
             memcpy(buf + i, str + seg.mPos, seg.mLen);
         seg.mPos = i;
         i += seg.mLen;
-    } else {
-        seg.mPos = i;
     }
     return i;
 }
@@ -834,8 +832,6 @@ nsStandardURL::ParseURL(const char *spec, PRInt32 specLen)
 nsresult
 nsStandardURL::ParsePath(const char *spec, PRUint32 pathPos, PRInt32 pathLen)
 {
-    LOG(("ParsePath: %s pathpos %d len %d\n",spec,pathPos,pathLen));
-
     nsresult rv = mParser->ParsePath(spec + pathPos, pathLen,
                                      &mFilepath.mPos, &mFilepath.mLen,
                                      &mParam.mPos, &mParam.mLen,
