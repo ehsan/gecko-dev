@@ -6,8 +6,8 @@ function test() {
     waitForExplicitFinish();
 
     var pagetitle = "Page Title for Bug 503832";
-    var pageurl = "http://mochi.test:8888/browser/docshell/test/browser/file_bug503832.html";
-    var fragmenturl = "http://mochi.test:8888/browser/docshell/test/browser/file_bug503832.html#firefox";
+    var pageurl = "http://localhost:8888/browser/docshell/test/browser/file_bug503832.html";
+    var fragmenturl = "http://localhost:8888/browser/docshell/test/browser/file_bug503832.html#firefox";
 
     /* Global history observer that triggers for the two test URLs above. */
     var historyObserver = {
@@ -26,7 +26,6 @@ function test() {
                 // If titles for fragment URLs aren't set, this code
                 // branch won't be called and the test will timeout,
                 // resulting in a failure
-                historyService.removeObserver(historyObserver, false);
                 finish();
             }
         },
