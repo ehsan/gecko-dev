@@ -104,42 +104,26 @@ function sendSmsWithSuccess(aReceiver, aText) {
  * otherwise.
  *
  * Fulfill params:
- *   {
- *     message,  -- the failed MmsMessage
- *     error,    -- error of the send request
- *   }
+ *   message -- the failed MmsMessage
  *
  * Reject params: (none)
  *
  * @param aMmsParameters a MmsParameters instance.
  *
- * @param aSendParameters a MmsSendParameters instance.
- *
  * @return A deferred promise.
  */
-function sendMmsWithFailure(aMmsParameters, aSendParameters) {
+function sendMmsWithFailure(aMmsParameters) {
   let deferred = Promise.defer();
 
-  let result = { message: null, error: null };
-  function got(which, value) {
-    result[which] = value;
-    if (result.message != null && result.error != null) {
-      deferred.resolve(result);
-    }
-  }
+  manager.onfailed = function(event) {
+    manager.onfailed = null;
+    deferred.resolve(event.message);
+  };
 
-  manager.addEventListener("failed", function onfailed(event) {
-    manager.removeEventListener("failed", onfailed);
-    got("message", event.message);
-  });
-
-  let request = manager.sendMMS(aMmsParameters, aSendParameters);
+  let request = manager.sendMMS(aMmsParameters);
   request.onsuccess = function(event) {
     deferred.reject();
   };
-  request.onerror = function(event) {
-    got("error", event.target.error);
-  }
 
   return deferred.promise;
 }
@@ -479,27 +463,4 @@ function startTestCommon(aTestCaseMain) {
       .then(aTestCaseMain)
       .then(deleteAllMessages);
   });
-}
-
-/**
- * Helper to run the test case only needed in Multi-SIM environment.
- *
- * @param  aTest
- *         A function which will be invoked w/o parameter.
- * @return a Promise object.
- */
-function runIfMultiSIM(aTest) {
-  let numRIL;
-  try {
-    numRIL = SpecialPowers.getIntPref("ril.numRadioInterfaces");
-  } catch (ex) {
-    numRIL = 1;  // Pref not set.
-  }
-
-  if (numRIL > 1) {
-    return aTest();
-  } else {
-    log("Not a Multi-SIM environment. Test is skipped.");
-    return Promise.resolve();
-  }
 }

@@ -23,6 +23,7 @@
 function ContentActor(connection, chromeGlobal)
 {
   TabActor.call(this, connection, chromeGlobal);
+  this._chromeGlobal = chromeGlobal;
   this.traits.reconfigure = false;
 }
 
@@ -32,7 +33,7 @@ ContentActor.prototype.constructor = ContentActor;
 
 Object.defineProperty(ContentActor.prototype, "docShell", {
   get: function() {
-    return this.chromeEventHandler.docShell;
+    return this._chromeGlobal.docShell;
   },
   enumerable: true,
   configurable: false
@@ -40,6 +41,7 @@ Object.defineProperty(ContentActor.prototype, "docShell", {
 
 ContentActor.prototype.exit = function() {
   TabActor.prototype.exit.call(this);
+  this._chromeGlobal = null;
 };
 
 // Override grip just to rename this._tabActorPool to this._tabActorPool2
