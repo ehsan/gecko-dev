@@ -500,34 +500,11 @@ WebappsActor.prototype = {
 
     let defer = promise.defer();
     let reg = DOMApplicationRegistry;
-    reg.getAll(apps => {
-      defer.resolve({ apps: this._filterAllowedApps(apps) });
+    reg.getAll(function onsuccess(apps) {
+      defer.resolve({ apps: apps });
     });
 
     return defer.promise;
-  },
-
-  _areCertifiedAppsAllowed: function wa__areCertifiedAppsAllowed() {
-    let pref = "devtools.debugger.forbid-certified-apps";
-    return !Services.prefs.getBoolPref(pref);
-  },
-
-  _isAppAllowedForManifest: function wa__isAppAllowedForManifest(aManifest) {
-    if (this._areCertifiedAppsAllowed()) {
-      return true;
-    }
-    let type = this._getAppType(aManifest.type);
-    return type !== Ci.nsIPrincipal.APP_STATUS_CERTIFIED;
-  },
-
-  _filterAllowedApps: function wa__filterAllowedApps(aApps) {
-    return aApps.filter(app => this._isAppAllowedForManifest(app.manifest));
-  },
-
-  _isAppAllowedForURL: function wa__isAppAllowedForURL(aManifestURL) {
-    return this._findManifestByURL(aManifestURL).then(manifest => {
-      return this._isAppAllowedForManifest(manifest);
-    });
   },
 
   uninstall: function wa_actorUninstall(aRequest) {
@@ -554,19 +531,6 @@ WebappsActor.prototype = {
     return defer.promise;
   },
 
-  _findManifestByURL: function wa__findManifestByURL(aManifestURL) {
-    let deferred = promise.defer();
-
-    let reg = DOMApplicationRegistry;
-    let id = reg._appIdForManifestURL(aManifestURL);
-
-    reg._readManifests([{ id: id }], function (aResults) {
-      deferred.resolve(aResults[0].manifest);
-    });
-
-    return deferred.promise;
-  },
-
   getIconAsDataURL: function (aRequest) {
     debug("getIconAsDataURL");
 
@@ -585,7 +549,9 @@ WebappsActor.prototype = {
 
     let deferred = promise.defer();
 
-    this._findManifestByURL(manifestURL).then(jsonManifest => {
+    let id = reg._appIdForManifestURL(manifestURL);
+    reg._readManifests([{ id: id }], function (aResults) {
+      let jsonManifest = aResults[0].manifest;
       let manifest = new ManifestHelper(jsonManifest, app.origin);
       let iconURL = manifest.iconURLForSize(aRequest.size || 128);
       if (!iconURL) {
@@ -699,22 +665,14 @@ WebappsActor.prototype = {
   listRunningApps: function (aRequest) {
     debug("listRunningApps\n");
 
-    let appPromises = [];
     let apps = [];
 
     for each (let frame in this._appFrames()) {
       let manifestURL = frame.getAttribute("mozapp");
-
-      appPromises.push(this._isAppAllowedForURL(manifestURL).then(allowed => {
-        if (allowed) {
-          apps.push(manifestURL);
-        }
-      }));
+      apps.push(manifestURL);
     }
 
-    return promise.all(appPromises).then(() => {
-      return { apps: apps };
-    });
+    return { apps: apps };
   },
 
   _connectToApp: function (aFrame) {
@@ -787,34 +745,24 @@ WebappsActor.prototype = {
       }
     }
 
-    let notFoundError = {
-      error: "appNotFound",
-      message: "Unable to find any opened app whose manifest " +
-               "is '" + manifestURL + "'"
-    };
-
     if (!appFrame) {
-      return notFoundError;
+      return { error: "appNotFound",
+               message: "Unable to find any opened app whose manifest " +
+                        "is '" + manifestURL + "'" };
     }
 
-    return this._isAppAllowedForURL(manifestURL).then(allowed => {
-      if (!allowed) {
-        return notFoundError;
-      }
+    // Only create a new actor, if we haven't already
+    // instanciated one for this connection.
+    let mm = appFrame.QueryInterface(Ci.nsIFrameLoaderOwner)
+                     .frameLoader
+                     .messageManager;
+    let actor = this._appActorsMap.get(mm);
+    if (!actor) {
+      return this._connectToApp(appFrame)
+                 .then(function (actor) ({ actor: actor }));
+    }
 
-      // Only create a new actor, if we haven't already
-      // instanciated one for this connection.
-      let mm = appFrame.QueryInterface(Ci.nsIFrameLoaderOwner)
-                       .frameLoader
-                       .messageManager;
-      let actor = this._appActorsMap.get(mm);
-      if (!actor) {
-        return this._connectToApp(appFrame)
-                   .then(function (actor) ({ actor: actor }));
-      }
-
-      return { actor: actor };
-    });
+    return { actor: actor };
   },
 
   watchApps: function () {
@@ -852,30 +800,19 @@ WebappsActor.prototype = {
         }
         this._openedApps.add(manifestURL);
 
-        this._isAppAllowedForURL(manifestURL).then(allowed => {
-          if (allowed) {
-            this.conn.send({ from: this.actorID,
-                             type: "appOpen",
-                             manifestURL: manifestURL
-                           });
-          }
-        });
-
+        this.conn.send({ from: this.actorID,
+                         type: "appOpen",
+                         manifestURL: manifestURL
+                       });
         break;
 
       case "appterminated":
         manifestURL = event.detail.manifestURL;
         this._openedApps.delete(manifestURL);
-
-        this._isAppAllowedForURL(manifestURL).then(allowed => {
-          if (allowed) {
-            this.conn.send({ from: this.actorID,
-                             type: "appClose",
-                             manifestURL: manifestURL
-                           });
-          }
-        });
-
+        this.conn.send({ from: this.actorID,
+                         type: "appClose",
+                         manifestURL: manifestURL
+                       });
         break;
     }
   }

@@ -14,11 +14,7 @@
  */
 
 #include "GonkDisplayJB.h"
-#if ANDROID_VERSION == 17
-#include <gui/SurfaceTextureClient.h>
-#else
 #include <gui/Surface.h>
-#endif
 
 #include <hardware/hardware.h>
 #include <hardware/hwcomposer.h>
@@ -50,10 +46,10 @@ GonkDisplayJB::GonkDisplayJB()
         ALOGW_IF(err, "could not open framebuffer");
     }
 
-    if (!err && mFBDevice) {
+    if (!err) {
         mWidth = mFBDevice->width;
-	 mHeight = mFBDevice->height;
-	 xdpi = mFBDevice->xdpi;
+        mHeight = mFBDevice->height;
+        xdpi = mFBDevice->xdpi;
         /* The emulator actually reports RGBA_8888, but EGL doesn't return
          * any matching configuration. We force RGBX here to fix it. */
         surfaceformat = HAL_PIXEL_FORMAT_RGBX_8888;
@@ -103,11 +99,7 @@ GonkDisplayJB::GonkDisplayJB()
     mAlloc = new GraphicBufferAlloc();
     mFBSurface = new FramebufferSurface(0, mWidth, mHeight, surfaceformat, mAlloc);
 
-#if ANDROID_VERSION == 17
-    sp<SurfaceTextureClient> stc = new SurfaceTextureClient(static_cast<sp<ISurfaceTexture> >(mFBSurface->getBufferQueue()));
-#else
     sp<Surface> stc = new Surface(static_cast<sp<IGraphicBufferProducer> >(mFBSurface->getBufferQueue()));
-#endif
     mSTClient = stc;
 
     mList = (hwc_display_contents_1_t *)malloc(sizeof(*mList) + (sizeof(hwc_layer_1_t)*2));
@@ -116,10 +108,7 @@ GonkDisplayJB::GonkDisplayJB()
 
     status_t error;
     mBootAnimBuffer = mAlloc->createGraphicBuffer(mWidth, mHeight, surfaceformat, GRALLOC_USAGE_HW_FB | GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_COMPOSER, &error);
-    if (error == NO_ERROR && mBootAnimBuffer.get())
-        StartBootAnimation();
-    else
-        ALOGW("Couldn't show bootanimation (%s)", strerror(-error));
+    StartBootAnimation();
 }
 
 GonkDisplayJB::~GonkDisplayJB()
@@ -171,12 +160,6 @@ GonkDisplayJB::GetHWCDevice()
     return mHwc;
 }
 
-void*
-GonkDisplayJB::GetFBSurface()
-{
-    return mFBSurface.get();
-}
-
 bool
 GonkDisplayJB::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
 {
@@ -190,14 +173,8 @@ GonkDisplayJB::SwapBuffers(EGLDisplay dpy, EGLSurface sur)
     if (mFBDevice && mFBDevice->compositionComplete) {
         mFBDevice->compositionComplete(mFBDevice);
     }
-
-#if ANDROID_VERSION == 17
-    mList->dpy = dpy;
-    mList->sur = sur;
-#else
     mList->outbuf = nullptr;
     mList->outbufAcquireFenceFd = -1;
-#endif
     eglSwapBuffers(dpy, sur);
     return Post(mFBSurface->lastHandle, mFBSurface->lastFenceFD);
 }
@@ -236,9 +213,7 @@ GonkDisplayJB::Post(buffer_handle_t buf, int fence)
     mList->hwLayers[1].visibleRegionScreen.rects = &mList->hwLayers[1].sourceCrop;
     mList->hwLayers[1].acquireFenceFd = fence;
     mList->hwLayers[1].releaseFenceFd = -1;
-#if ANDROID_VERSION == 18
     mList->hwLayers[1].planeAlpha = 0xFF;
-#endif
     mHwc->prepare(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
     int err = mHwc->set(mHwc, HWC_NUM_DISPLAY_TYPES, displays);
     mFBSurface->setReleaseFenceFd(mList->hwLayers[1].releaseFenceFd);
