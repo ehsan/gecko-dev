@@ -282,6 +282,7 @@ public:
 
   void FreeToShell(size_t aSize, void* aFreeChunk)
   {
+    NS_ASSERTION(mShell, "freeing after shutdown");
     if (mShell)
       mShell->FreeFrame(aSize, aFreeChunk);
   }
@@ -1020,9 +1021,7 @@ struct nsAutoLayoutPhase {
                      "constructing frames in the middle of a paint");
         NS_ASSERTION(mPresContext->mLayoutPhaseCount[eLayoutPhase_Reflow] == 0,
                      "constructing frames in the middle of reflow");
-        // The nsXBLService::LoadBindings call in ConstructFrameInternal
-        // makes us hit this one too often to be an NS_ASSERTION,
-        // despite how scary it is.
+        // Once bug 337957 is fixed this should become an NS_ASSERTION
         NS_WARN_IF_FALSE(mPresContext->mLayoutPhaseCount[eLayoutPhase_FrameC] == 0,
                          "recurring into frame construction");
         break;

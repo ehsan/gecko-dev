@@ -4161,6 +4161,26 @@ function testReverseArgTypes() {
 testReverseArgTypes.expected = 1;
 test(testReverseArgTypes);
 
+function testBug458838() {
+    var a = 1;
+    function g() {
+        var b = 0
+            for (var i = 0; i < 10; ++i) {
+                b += a;
+            }
+        return b;
+    }
+
+    return g();
+}
+testBug458838.expected = 10;
+testBug458838.jitstats = {
+  recorderStarted: 1,
+  recorderAborted: 0,
+  traceCompleted: 1
+};
+test(testBug458838);
+
 function testInterpreterReentry() {
     this.__defineSetter__('x', function(){})
     for (var j = 0; j < 5; ++j) { x = 3; }

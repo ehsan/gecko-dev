@@ -1258,7 +1258,7 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
   // Vista:
   // Downloads
   // XP/2K:
-  // Desktop/Downloads
+  // My Documents/Downloads
   // Linux:
   // XDG user dir spec, with a fallback to Home/Downloads
 
@@ -1311,11 +1311,17 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
   rv = infoService->GetPropertyAsInt32(osVersion, &version);
   NS_ENSURE_SUCCESS(rv, rv);
   if (version < 6) { // XP/2K
+    // First get "My Documents"
+    rv = dirService->Get(NS_WIN_PERSONAL_DIR,
+                         NS_GET_IID(nsILocalFile),
+                         getter_AddRefs(downloadDir));
+    NS_ENSURE_SUCCESS(rv, rv);
+
     rv = downloadDir->Append(folderName);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // This could be the first time we are creating the downloads folder on the
-    // desktop, so make sure it exists.
+    // This could be the first time we are creating the downloads folder in My
+    // Documents, so make sure it exists.
     PRBool exists;
     rv = downloadDir->Exists(&exists);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1346,7 +1352,7 @@ nsDownloadManager::GetDefaultDownloadsDirectory(nsILocalFile **aResult)
   NS_ENSURE_SUCCESS(rv, rv);
 #endif
 
-  downloadDir.swap(*aResult);
+  downloadDir.forget(aResult);
 
   return NS_OK;
 }
@@ -1388,7 +1394,7 @@ nsDownloadManager::GetUserDownloadsDirectory(nsILocalFile **aResult)
                              NS_GET_IID(nsILocalFile),
                              getter_AddRefs(downloadDir));
         NS_ENSURE_SUCCESS(rv, rv);
-        downloadDir.swap(*aResult);
+        downloadDir.forget(aResult);
         return NS_OK;
       }
       break;
@@ -1407,7 +1413,7 @@ nsDownloadManager::GetUserDownloadsDirectory(nsILocalFile **aResult)
           if (!exists) {
             rv = customDirectory->Create(nsIFile::DIRECTORY_TYPE, 0755);
             if (NS_SUCCEEDED(rv)) {
-              customDirectory.swap(*aResult);
+              customDirectory.forget(aResult);
               return NS_OK;
             }
 
@@ -1421,7 +1427,7 @@ nsDownloadManager::GetUserDownloadsDirectory(nsILocalFile **aResult)
           (void)customDirectory->IsDirectory(&directory);
 
           if (exists && writable && directory) {
-            customDirectory.swap(*aResult);
+            customDirectory.forget(aResult);
             return NS_OK;
           }
         }
