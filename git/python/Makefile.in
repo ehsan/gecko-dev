@@ -2,20 +2,20 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DEPTH		= @DEPTH@
-topsrcdir	= @top_srcdir@
-srcdir          = @srcdir@
-VPATH           = @srcdir@
+DEPTH := @DEPTH@
+topsrcdir := @top_srcdir@
+srcdir := @srcdir@
+VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-DIRS = \
-  trunk \
-  trunk/testing \
-  signaling \
-  signalingtest \
+test_dirs := \
+  mozbuild/mozbuild/test \
+  mozbuild/mozbuild/test/compilation \
   $(NULL)
 
-# These Makefiles don't have corresponding Makefile.ins
-NO_SUBMAKEFILES_RULE = 1
+PYTHON_UNIT_TESTS := $(foreach dir,$(test_dirs),$(wildcard $(srcdir)/$(dir)/*.py))
+
 include $(topsrcdir)/config/rules.mk
+
+
