@@ -39,21 +39,12 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/styleinspector/test/browser/browser_styleinspector_webconsole.htm";
 
-Cu.import("resource://gre/modules/Services.jsm");
-
 let doc;
 let jsterm;
 let hudBox;
 let stylePanels = [];
 
 function test() {
-  // This tests functionality that is disabled when the pref is not
-  // set.
-  if (!Services.prefs.getBoolPref("devtools.styleinspector.enabled")) {
-    finishTest();
-    return;
-  }
-
   addTab(TEST_URI);
   browser.addEventListener("DOMContentLoaded", prepConsole, false);
 }
@@ -124,8 +115,10 @@ function teststylePanels() {
   for (let i = 0, max = stylePanels.length; i < max; i++) {
     ok(stylePanels[i], "style inspector instance " + i +
        " correctly initialized");
-    ok(stylePanels[i].isOpen(), "style inspector " + i + " is open");
+    is(stylePanels[i].state, "open", "style inspector " + i + " is open");
 
+/*  // the following should be tested elsewhere
+    // TODO bug 696166
     let htmlTree = stylePanels[i].cssHtmlTree;
     let cssLogic = htmlTree.cssLogic;
     let elt = eltArray[i];
@@ -158,6 +151,7 @@ function teststylePanels() {
         is(selector, "#container", "correct best match for #container");
         is(value, "fantasy", "correct css property value for #" + eltId);
     }
+*/
   }
 
   info("hiding stylePanels[1]");
@@ -169,9 +163,9 @@ function teststylePanels() {
 function styleInspectorClosedByHide()
 {
   Services.obs.removeObserver(styleInspectorClosedByHide, "StyleInspector-closed", false);
-  ok(stylePanels[0].isOpen(), "instance stylePanels[0] is still open");
-  ok(!stylePanels[1].isOpen(), "instance stylePanels[1] is hidden");
-  ok(stylePanels[2].isOpen(), "instance stylePanels[2] is still open");
+  is(stylePanels[0].state, "open", "instance stylePanels[0] is still open");
+  isnot(stylePanels[1].state, "open", "instance stylePanels[1] is not open");
+  is(stylePanels[2].state, "open", "instance stylePanels[2] is still open");
 
   info("closing web console");
   Services.obs.addObserver(styleInspectorClosedFromConsole1,

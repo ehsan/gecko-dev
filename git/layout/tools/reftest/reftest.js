@@ -882,14 +882,13 @@ function Focus()
         return false;
     }
 
-    // FIXME/bug 623625: determine if the window is focused and/or try
-    // to acquire focus if it's not.
-    //
-    // NB: we can't add anything here that would return false on
-    // tinderbox, otherwise we could lose testing coverage due to
-    // problems on the test machines.  We might want a require-focus
-    // mode, defaulting to false for developers, but that's true on
-    // tinderbox.
+    var fm = CC["@mozilla.org/focus-manager;1"].getService(CI.nsIFocusManager);
+    fm.activeWindow = window;
+    try {
+        var dock = CC["@mozilla.org/widget/macdocksupport;1"].getService(CI.nsIMacDockSupport);
+        dock.activateApplication(true);
+    } catch(ex) {
+    }
     return true;
 }
 
@@ -941,7 +940,9 @@ function StartCurrentURI(aState)
         // there's already a canvas for this URL
         setTimeout(RecordResult, 0);
     } else {
-        gDumpLog("REFTEST TEST-START | " + gCurrentURL + "\n");
+        var currentTest = gTotalTests - gURLs.length;
+        gDumpLog("REFTEST TEST-START | " + gCurrentURL + " | " + currentTest + " / " + gTotalTests +
+            " (" + Math.floor(100 * (currentTest / gTotalTests)) + "%)\n");
         LogInfo("START " + gCurrentURL);
         var type = gURLs[0].type
         if (TYPE_SCRIPT == type) {
@@ -1345,6 +1346,7 @@ function FinishTestItem()
     gDumpLog("REFTEST INFO | Loading a blank page\n");
     // After clearing, content will notify us of the assertion count
     // and tests will continue.
+    SetAsyncScroll(false);
     SendClear();
 }
 
@@ -1441,8 +1443,19 @@ function RegisterMessageListenersAndLoadContentScript()
         "reftest:ExpectProcessCrash",
         function (m) { RecvExpectProcessCrash(); }
     );
+    gBrowserMessageManager.addMessageListener(
+        "reftest:EnableAsyncScroll",
+        function (m) { SetAsyncScroll(true); }
+    );
 
     gBrowserMessageManager.loadFrameScript("chrome://reftest/content/reftest-content.js", true);
+}
+
+function SetAsyncScroll(enabled)
+{
+    gBrowser.QueryInterface(CI.nsIFrameLoaderOwner).frameLoader.renderMode =
+        enabled ? CI.nsIFrameLoader.RENDER_MODE_ASYNC_SCROLL :
+                  CI.nsIFrameLoader.RENDER_MODE_DEFAULT;
 }
 
 function RecvAssertionCount(count)

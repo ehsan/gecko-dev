@@ -36,6 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#include "mozilla/Util.h"
+
 #include "txStylesheetCompiler.h"
 #include "txStylesheetCompileHandlers.h"
 #include "nsGkAtoms.h"
@@ -52,6 +54,8 @@
 #include "nsICategoryManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
+
+using namespace mozilla;
 
 txStylesheetCompiler::txStylesheetCompiler(const nsAString& aStylesheetURI,
                                            txACompileObserver* aObserver)
@@ -98,7 +102,7 @@ txStylesheetCompiler::startElement(PRInt32 aNamespaceID, nsIAtom* aLocalName,
     NS_ENSURE_SUCCESS(rv, rv);
 
     // look for new namespace mappings
-    PRBool hasOwnNamespaceMap = PR_FALSE;
+    bool hasOwnNamespaceMap = false;
     PRInt32 i;
     for (i = 0; i < aAttrCount; ++i) {
         txStylesheetAttr* attr = aAttributes + i;
@@ -111,7 +115,7 @@ txStylesheetCompiler::startElement(PRInt32 aNamespaceID, nsIAtom* aLocalName,
                     new txNamespaceMap(*mElementContext->mMappings);
                 NS_ENSURE_TRUE(mElementContext->mMappings,
                                NS_ERROR_OUT_OF_MEMORY);
-                hasOwnNamespaceMap = PR_TRUE;
+                hasOwnNamespaceMap = true;
             }
 
             if (attr->mLocalName == nsGkAtoms::xmlns) {
@@ -148,7 +152,7 @@ txStylesheetCompiler::startElement(const PRUnichar *aName,
         NS_ENSURE_TRUE(atts, NS_ERROR_OUT_OF_MEMORY);
     }
 
-    PRBool hasOwnNamespaceMap = PR_FALSE;
+    bool hasOwnNamespaceMap = false;
     PRInt32 i;
     for (i = 0; i < aAttrCount; ++i) {
         rv = XMLUtils::splitExpatName(aAttrs[i * 2],
@@ -175,7 +179,7 @@ txStylesheetCompiler::startElement(const PRUnichar *aName,
                     new txNamespaceMap(*mElementContext->mMappings);
                 NS_ENSURE_TRUE(mElementContext->mMappings,
                                NS_ERROR_OUT_OF_MEMORY);
-                hasOwnNamespaceMap = PR_TRUE;
+                hasOwnNamespaceMap = true;
             }
 
             rv = mElementContext->mMappings->
@@ -411,7 +415,7 @@ txStylesheetCompiler::doneLoading()
         return mStatus;
     }
 
-    mDoneWithThisStylesheet = PR_TRUE;
+    mDoneWithThisStylesheet = true;
 
     return maybeDoneCompiling();
 }
@@ -551,11 +555,11 @@ txStylesheetCompiler::maybeDoneCompiling()
 txStylesheetCompilerState::txStylesheetCompilerState(txACompileObserver* aObserver)
     : mHandlerTable(nsnull),
       mSorter(nsnull),
-      mDOE(PR_FALSE),
-      mSearchingForFallback(PR_FALSE),
+      mDOE(false),
+      mSearchingForFallback(false),
       mObserver(aObserver),
       mEmbedStatus(eNoEmbed),
-      mDoneWithThisStylesheet(PR_FALSE),
+      mDoneWithThisStylesheet(false),
       mNextInstrPtr(nsnull),
       mToplevelIterator(nsnull)
 {
@@ -590,7 +594,7 @@ txStylesheetCompilerState::init(const nsAString& aStylesheetURI,
     if (aStylesheet) {
         mStylesheet = aStylesheet;
         mToplevelIterator = *aInsertPosition;
-        mIsTopCompiler = PR_FALSE;
+        mIsTopCompiler = false;
     }
     else {
         mStylesheet = new txStylesheet;
@@ -602,7 +606,7 @@ txStylesheetCompilerState::init(const nsAString& aStylesheetURI,
         mToplevelIterator =
             txListIterator(&mStylesheet->mRootFrame->mToplevelItems);
         mToplevelIterator.next(); // go to the end of the list
-        mIsTopCompiler = PR_TRUE;
+        mIsTopCompiler = true;
     }
    
     mElementContext = new txElementContext(aStylesheetURI);
@@ -904,12 +908,12 @@ txErrorFunctionCall::getReturnType()
     return ANY_RESULT;
 }
 
-PRBool
+bool
 txErrorFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 {
     // It doesn't really matter what we return here, but it might
     // be a good idea to try to keep this as unoptimizable as possible
-    return PR_TRUE;
+    return true;
 }
 
 #ifdef TX_TO_STRING
@@ -1021,7 +1025,7 @@ findFunction(nsIAtom* aName, PRInt32 aNamespaceID,
 {
     if (kExtensionFunctions[0].mNamespaceID == kNameSpaceID_Unknown) {
         PRUint32 i;
-        for (i = 0; i < NS_ARRAY_LENGTH(kExtensionFunctions); ++i) {
+        for (i = 0; i < ArrayLength(kExtensionFunctions); ++i) {
             txFunctionFactoryMapping& mapping = kExtensionFunctions[i];
             NS_ConvertASCIItoUTF16 namespaceURI(mapping.mNamespaceURI);
             mapping.mNamespaceID =
@@ -1030,7 +1034,7 @@ findFunction(nsIAtom* aName, PRInt32 aNamespaceID,
     }
 
     PRUint32 i;
-    for (i = 0; i < NS_ARRAY_LENGTH(kExtensionFunctions); ++i) {
+    for (i = 0; i < ArrayLength(kExtensionFunctions); ++i) {
         const txFunctionFactoryMapping& mapping = kExtensionFunctions[i];
         if (mapping.mNamespaceID == aNamespaceID) {
             return mapping.mFactory(aName, aNamespaceID, aState, aResult);
@@ -1085,12 +1089,12 @@ findFunction(nsIAtom* aName, PRInt32 aNamespaceID,
                                        nsnull, aResult);
 }
 
-extern PRBool
+extern bool
 TX_XSLTFunctionAvailable(nsIAtom* aName, PRInt32 aNameSpaceID)
 {
     nsRefPtr<txStylesheetCompiler> compiler =
         new txStylesheetCompiler(EmptyString(), nsnull);
-    NS_ENSURE_TRUE(compiler, PR_FALSE);
+    NS_ENSURE_TRUE(compiler, false);
 
     nsAutoPtr<FunctionCall> fnCall;
 
@@ -1114,10 +1118,10 @@ txStylesheetCompilerState::resolveFunctionCall(nsIAtom* aName, PRInt32 aID,
     return rv;
 }
 
-PRBool
+bool
 txStylesheetCompilerState::caseInsensitiveNameTests()
 {
-    return PR_FALSE;
+    return false;
 }
 
 void
@@ -1135,8 +1139,8 @@ txStylesheetCompilerState::shutdown()
 }
 
 txElementContext::txElementContext(const nsAString& aBaseURI)
-    : mPreserveWhitespace(PR_FALSE),
-      mForwardsCompatibleParsing(PR_TRUE),
+    : mPreserveWhitespace(false),
+      mForwardsCompatibleParsing(true),
       mBaseURI(aBaseURI),
       mMappings(new txNamespaceMap),
       mDepth(0)

@@ -69,7 +69,7 @@ GetCairoAntialiasOption(gfxFont::AntialiasOption anAntialiasOption)
 
 gfxGDIFont::gfxGDIFont(GDIFontEntry *aFontEntry,
                        const gfxFontStyle *aFontStyle,
-                       PRBool aNeedsBold,
+                       bool aNeedsBold,
                        AntialiasOption anAAOption)
     : gfxFont(aFontEntry, aFontStyle, anAAOption),
       mFont(NULL),
@@ -111,16 +111,16 @@ gfxGDIFont::CopyWithAntialiasOption(AntialiasOption anAAOption)
                           &mStyle, mNeedsBold, anAAOption);
 }
 
-static PRBool
+static bool
 UseUniscribe(gfxTextRun *aTextRun,
              const PRUnichar *aString,
              PRUint32 aRunStart,
              PRUint32 aRunLength)
 {
     PRUint32 flags = aTextRun->GetFlags();
-    PRBool useGDI;
+    bool useGDI;
 
-    PRBool isXP = (gfxWindowsPlatform::WindowsOSVersion() 
+    bool isXP = (gfxWindowsPlatform::WindowsOSVersion() 
                        < gfxWindowsPlatform::kWindowsVista);
 
     // bug 561304 - Uniscribe bug produces bad positioning at certain
@@ -136,24 +136,24 @@ UseUniscribe(gfxTextRun *aTextRun,
         ScriptIsComplex(aString + aRunStart, aRunLength, SIC_COMPLEX) == S_OK;
 }
 
-PRBool
+bool
 gfxGDIFont::InitTextRun(gfxContext *aContext,
                         gfxTextRun *aTextRun,
                         const PRUnichar *aString,
                         PRUint32 aRunStart,
                         PRUint32 aRunLength,
                         PRInt32 aRunScript,
-                        PRBool aPreferPlatformShaping)
+                        bool aPreferPlatformShaping)
 {
     if (!mMetrics) {
         Initialize();
     }
     if (!mIsValid) {
         NS_WARNING("invalid font! expect incorrect text rendering");
-        return PR_FALSE;
+        return false;
     }
 
-    PRBool ok = PR_FALSE;
+    bool ok = false;
 
     // ensure the cairo font is set up, so there's no risk it'll fall back to
     // creating a "toy" font internally (see bug 544617)
@@ -169,7 +169,7 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
 
     if (!ok) {
         GDIFontEntry *fe = static_cast<GDIFontEntry*>(GetFontEntry());
-        PRBool preferUniscribe =
+        bool preferUniscribe =
             (!fe->IsTrueType() || fe->IsSymbolFont()) && !fe->mForceGDI;
 
         if (preferUniscribe ||
@@ -184,7 +184,7 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
                                                aRunStart, aRunLength, 
                                                aRunScript);
             if (ok) {
-                return PR_TRUE;
+                return true;
             }
 
             // fallback to GDI shaping
@@ -206,7 +206,7 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
                                               aRunScript);
 
             if (ok) {
-                return PR_TRUE;
+                return true;
             }
 
             // try Uniscribe if GDI failed
@@ -255,7 +255,7 @@ gfxGDIFont::GetSpaceGlyph()
     return mSpaceGlyph;
 }
 
-PRBool
+bool
 gfxGDIFont::SetupCairoFont(gfxContext *aContext)
 {
     if (!mMetrics) {
@@ -265,10 +265,10 @@ gfxGDIFont::SetupCairoFont(gfxContext *aContext)
         cairo_scaled_font_status(mScaledFont) != CAIRO_STATUS_SUCCESS) {
         // Don't cairo_set_scaled_font as that would propagate the error to
         // the cairo_t, precluding any further drawing.
-        return PR_FALSE;
+        return false;
     }
     cairo_set_scaled_font(aContext->GetCairo(), mScaledFont);
-    return PR_TRUE;
+    return true;
 }
 
 gfxFont::RunMetrics
@@ -377,7 +377,7 @@ gfxGDIFont::Initialize()
         BOOL result = GetTextMetrics(dc.GetDC(), &metrics);
         if (!result) {
             NS_WARNING("Missing or corrupt font data, fasten your seatbelt");
-            mIsValid = PR_FALSE;
+            mIsValid = false;
             memset(mMetrics, 0, sizeof(*mMetrics));
             return;
         }
@@ -462,7 +462,7 @@ gfxGDIFont::Initialize()
 #endif
     }
 
-    mIsValid = PR_TRUE;
+    mIsValid = true;
 
 #if 0
     printf("Font: %p (%s) size: %f\n", this,
@@ -483,13 +483,13 @@ gfxGDIFont::FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize)
     GDIFontEntry *fe = static_cast<GDIFontEntry*>(GetFontEntry());
 
     PRUint16 weight = mNeedsBold ? 700 : fe->Weight();
-    PRBool italic = (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE));
+    bool italic = (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE));
 
     // if user font, disable italics/bold if defined to be italics/bold face
     // this avoids unwanted synthetic italics/bold
     if (fe->mIsUserFont) {
         if (fe->IsItalic())
-            italic = PR_FALSE; // avoid synthetic italic
+            italic = false; // avoid synthetic italic
         if (fe->IsBold() || !mNeedsBold) {
             // avoid GDI synthetic bold which occurs when weight
             // specified is >= font data weight + 200
@@ -498,7 +498,7 @@ gfxGDIFont::FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize)
     }
 
     fe->FillLogFont(&aLogFont, italic, weight, aSize, 
-                    (mAntialiasOption == kAntialiasSubpixel) ? PR_TRUE : PR_FALSE);
+                    (mAntialiasOption == kAntialiasSubpixel) ? true : false);
 }
 
 PRInt32
