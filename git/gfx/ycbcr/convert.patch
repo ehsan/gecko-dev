@@ -1,0 +1,2578 @@
+diff --git b/gfx/ycbcr/yuv_convert.cpp a/gfx/ycbcr/yuv_convert.cpp
+index bea0e50..ab4f10a 100644
+--- b/gfx/ycbcr/yuv_convert.cpp
++++ a/gfx/ycbcr/yuv_convert.cpp
+@@ -6,77 +6,104 @@
+ // http://www.fourcc.org/yuv.php
+ // The actual conversion is best described here
+ // http://en.wikipedia.org/wiki/YUV
+ // An article on optimizing YUV conversion using tables instead of multiplies
+ // http://lestourtereaux.free.fr/papers/data/yuvrgb.pdf
+ //
+ // YV12 is a full plane of Y and a half height, half width chroma planes
+ // YV16 is a full plane of Y and a full height, half width chroma planes
++// YV24 is a full plane of Y and a full height, full width chroma planes
+ //
+ // ARGB pixel format is output, which on little endian is stored as BGRA.
+ // The alpha is set to 255, allowing the application to use RGBA or RGB32.
+ 
+-#include "media/base/yuv_convert.h"
++#include "yuv_convert.h"
+ 
+ // Header for low level row functions.
+-#include "media/base/yuv_row.h"
++#include "yuv_row.h"
++#define MOZILLA_SSE_INCLUDE_HEADER_FOR_SSE2
++#define MOZILLA_SSE_INCLUDE_HEADER_FOR_MMX
++#include "mozilla/SSE.h"
+ 
+-#if USE_MMX
+-#if defined(_MSC_VER)
+-#include <intrin.h>
+-#else
+-#include <mmintrin.h>
+-#endif
+-#endif
+-
+-#if USE_SSE2
+-#include <emmintrin.h>
+-#endif
+-
+-namespace media {
++namespace mozilla {
+ 
++namespace gfx {
++ 
+ // 16.16 fixed point arithmetic
+ const int kFractionBits = 16;
+ const int kFractionMax = 1 << kFractionBits;
+ const int kFractionMask = ((1 << kFractionBits) - 1);
+ 
+ // Convert a frame of YUV to 32 bit ARGB.
+-void ConvertYUVToRGB32(const uint8* y_buf,
+-                       const uint8* u_buf,
+-                       const uint8* v_buf,
+-                       uint8* rgb_buf,
+-                       int width,
+-                       int height,
+-                       int y_pitch,
+-                       int uv_pitch,
+-                       int rgb_pitch,
+-                       YUVType yuv_type) {
+-  unsigned int y_shift = yuv_type;
+-  for (int y = 0; y < height; ++y) {
+-    uint8* rgb_row = rgb_buf + y * rgb_pitch;
+-    const uint8* y_ptr = y_buf + y * y_pitch;
+-    const uint8* u_ptr = u_buf + (y >> y_shift) * uv_pitch;
+-    const uint8* v_ptr = v_buf + (y >> y_shift) * uv_pitch;
++NS_GFX_(void) ConvertYCbCrToRGB32(const uint8* y_buf,
++                                  const uint8* u_buf,
++                                  const uint8* v_buf,
++                                  uint8* rgb_buf,
++                                  int pic_x,
++                                  int pic_y,
++                                  int pic_width,
++                                  int pic_height,
++                                  int y_pitch,
++                                  int uv_pitch,
++                                  int rgb_pitch,
++                                  YUVType yuv_type) {
++  unsigned int y_shift = yuv_type == YV12 ? 1 : 0;
++  unsigned int x_shift = yuv_type == YV24 ? 0 : 1;
++  // Test for SSE because the optimized code uses movntq, which is not part of MMX.
++  bool has_sse = supports_mmx() && supports_sse();
++  // There is no optimized YV24 SSE routine so we check for this and
++  // fall back to the C code.
++  has_sse &= yuv_type != YV24;
++  bool odd_pic_x = yuv_type != YV24 && pic_x % 2 != 0;
++  int x_width = odd_pic_x ? pic_width - 1 : pic_width;
++
++  for (int y = pic_y; y < pic_height + pic_y; ++y) {
++    uint8* rgb_row = rgb_buf + (y - pic_y) * rgb_pitch;
++    const uint8* y_ptr = y_buf + y * y_pitch + pic_x;
++    const uint8* u_ptr = u_buf + (y >> y_shift) * uv_pitch + (pic_x >> x_shift);
++    const uint8* v_ptr = v_buf + (y >> y_shift) * uv_pitch + (pic_x >> x_shift);
+ 
+-    FastConvertYUVToRGB32Row(y_ptr,
+-                             u_ptr,
+-                             v_ptr,
+-                             rgb_row,
+-                             width);
++    if (odd_pic_x) {
++      // Handle the single odd pixel manually and use the
++      // fast routines for the remaining.
++      FastConvertYUVToRGB32Row_C(y_ptr++,
++                                 u_ptr++,
++                                 v_ptr++,
++                                 rgb_row,
++                                 1,
++                                 x_shift);
++      rgb_row += 4;
++    }
++
++    if (has_sse) {
++      FastConvertYUVToRGB32Row(y_ptr,
++                               u_ptr,
++                               v_ptr,
++                               rgb_row,
++                               x_width);
++    }
++    else {
++      FastConvertYUVToRGB32Row_C(y_ptr,
++                                 u_ptr,
++                                 v_ptr,
++                                 rgb_row,
++                                 x_width,
++                                 x_shift);
++    }
+   }
+ 
+   // MMX used for FastConvertYUVToRGB32Row requires emms instruction.
+-  EMMS();
++  if (has_sse)
++    EMMS();
+ }
+ 
+-#if USE_SSE2
++#if defined(MOZILLA_COMPILE_WITH_SSE2)
+ // FilterRows combines two rows of the image using linear interpolation.
+ // SSE2 version does 16 pixels at a time
+-
+ static void FilterRows(uint8* ybuf, const uint8* y0_ptr, const uint8* y1_ptr,
+                        int source_width, int source_y_fraction) {
+   __m128i zero = _mm_setzero_si128();
+   __m128i y1_fraction = _mm_set1_epi16(source_y_fraction);
+   __m128i y0_fraction = _mm_set1_epi16(256 - source_y_fraction);
+ 
+   const __m128i* y0_ptr128 = reinterpret_cast<const __m128i*>(y0_ptr);
+   const __m128i* y1_ptr128 = reinterpret_cast<const __m128i*>(y1_ptr);
+@@ -99,17 +126,17 @@ static void FilterRows(uint8* ybuf, const uint8* y0_ptr, const uint8* y1_ptr,
+     y0 = _mm_srli_epi16(y0, 8);
+     y2 = _mm_srli_epi16(y2, 8);
+     y0 = _mm_packus_epi16(y0, y2);
+     *dest128++ = y0;
+     ++y0_ptr128;
+     ++y1_ptr128;
+   } while (dest128 < end128);
+ }
+-#elif USE_MMX
++#elif defined(MOZILLA_COMPILE_WITH_MMX)
+ // MMX version does 8 pixels at a time
+ static void FilterRows(uint8* ybuf, const uint8* y0_ptr, const uint8* y1_ptr,
+                        int source_width, int source_y_fraction) {
+   __m64 zero = _mm_setzero_si64();
+   __m64 y1_fraction = _mm_set1_pi16(source_y_fraction);
+   __m64 y0_fraction = _mm_set1_pi16(256 - source_y_fraction);
+ 
+   const __m64* y0_ptr64 = reinterpret_cast<const __m64*>(y0_ptr);
+@@ -154,44 +181,45 @@ static void FilterRows(uint8* ybuf, const uint8* y0_ptr, const uint8* y1_ptr,
+     ybuf[7] = (y0_ptr[7] * y0_fraction + y1_ptr[7] * y1_fraction) >> 8;
+     y0_ptr += 8;
+     y1_ptr += 8;
+     ybuf += 8;
+   } while (ybuf < end);
+ }
+ #endif
+ 
+-
+ // Scale a frame of YUV to 32 bit ARGB.
+-void ScaleYUVToRGB32(const uint8* y_buf,
+-                     const uint8* u_buf,
+-                     const uint8* v_buf,
+-                     uint8* rgb_buf,
+-                     int source_width,
+-                     int source_height,
+-                     int width,
+-                     int height,
+-                     int y_pitch,
+-                     int uv_pitch,
+-                     int rgb_pitch,
+-                     YUVType yuv_type,
+-                     Rotate view_rotate,
+-                     ScaleFilter filter) {
++NS_GFX_(void) ScaleYCbCrToRGB32(const uint8* y_buf,
++                                const uint8* u_buf,
++                                const uint8* v_buf,
++                                uint8* rgb_buf,
++                                int source_width,
++                                int source_height,
++                                int width,
++                                int height,
++                                int y_pitch,
++                                int uv_pitch,
++                                int rgb_pitch,
++                                YUVType yuv_type,
++                                Rotate view_rotate,
++                                ScaleFilter filter) {
++  bool has_mmx = supports_mmx();
++
+   // 4096 allows 3 buffers to fit in 12k.
+   // Helps performance on CPU with 16K L1 cache.
+   // Large enough for 3830x2160 and 30" displays which are 2560x1600.
+   const int kFilterBufferSize = 4096;
+   // Disable filtering if the screen is too big (to avoid buffer overflows).
+   // This should never happen to regular users: they don't have monitors
+   // wider than 4096 pixels.
+   // TODO(fbarchard): Allow rotated videos to filter.
+   if (source_width > kFilterBufferSize || view_rotate)
+     filter = FILTER_NONE;
+ 
+-  unsigned int y_shift = yuv_type;
++  unsigned int y_shift = yuv_type == YV12 ? 1 : 0;
+   // Diagram showing origin and direction of source sampling.
+   // ->0   4<-
+   // 7       3
+   //
+   // 6       5
+   // ->1   2<-
+   // Rotations that start at right side of image.
+   if ((view_rotate == ROTATE_180) ||
+@@ -243,17 +271,17 @@ void ScaleYUVToRGB32(const uint8* y_buf,
+       uv_pitch = 1;
+     }
+   }
+ 
+   // Need padding because FilterRows() will write 1 to 16 extra pixels
+   // after the end for SSE2 version.
+   uint8 yuvbuf[16 + kFilterBufferSize * 3 + 16];
+   uint8* ybuf =
+-      reinterpret_cast<uint8*>(reinterpret_cast<uintptr_t>(yuvbuf + 15) & ~15);
++      reinterpret_cast<uint8*>(reinterpret_cast<PRUptrdiff>(yuvbuf + 15) & ~15);
+   uint8* ubuf = ybuf + kFilterBufferSize;
+   uint8* vbuf = ubuf + kFilterBufferSize;
+   // TODO(fbarchard): Fixed point math is off by 1 on negatives.
+   int yscale_fixed = (source_height << kFractionBits) / height;
+ 
+   // TODO(fbarchard): Split this into separate function for better efficiency.
+   for (int y = 0; y < height; ++y) {
+     uint8* dest_pixel = rgb_buf + y * rgb_pitch;
+@@ -276,17 +304,17 @@ void ScaleYUVToRGB32(const uint8* y_buf,
+     int source_uv_fraction =
+         ((source_y_subpixel >> y_shift) & kFractionMask) >> 8;
+ 
+     const uint8* y_ptr = y0_ptr;
+     const uint8* u_ptr = u0_ptr;
+     const uint8* v_ptr = v0_ptr;
+     // Apply vertical filtering if necessary.
+     // TODO(fbarchard): Remove memcpy when not necessary.
+-    if (filter & media::FILTER_BILINEAR_V) {
++    if (filter & mozilla::gfx::FILTER_BILINEAR_V) {
+       if (yscale_fixed != kFractionMax &&
+           source_y_fraction && ((source_y + 1) < source_height)) {
+         FilterRows(ybuf, y0_ptr, y1_ptr, source_width, source_y_fraction);
+       } else {
+         memcpy(ybuf, y0_ptr, source_width);
+       }
+       y_ptr = ybuf;
+       ybuf[source_width] = ybuf[source_width-1];
+@@ -309,17 +337,17 @@ void ScaleYUVToRGB32(const uint8* y_buf,
+       FastConvertYUVToRGB32Row(y_ptr, u_ptr, v_ptr,
+                                dest_pixel, width);
+     } else {
+       if (filter & FILTER_BILINEAR_H) {
+         LinearScaleYUVToRGB32Row(y_ptr, u_ptr, v_ptr,
+                                  dest_pixel, width, source_dx);
+     } else {
+ // Specialized scalers and rotation.
+-#if USE_MMX && defined(_MSC_VER)
++#if defined(_MSC_VER) && defined(_M_IX86)
+         if (width == (source_width * 2)) {
+           DoubleYUVToRGB32Row(y_ptr, u_ptr, v_ptr,
+                               dest_pixel, width);
+         } else if ((source_dx & kFractionMask) == 0) {
+           // Scaling by integer scale factor. ie half.
+           ConvertYUVToRGB32Row(y_ptr, u_ptr, v_ptr,
+                                dest_pixel, width,
+                                source_dx >> kFractionBits);
+@@ -331,16 +359,18 @@ void ScaleYUVToRGB32(const uint8* y_buf,
+                                      dest_pixel, width,
+                                      source_dx >> kFractionBits,
+                                      source_dx_uv >> kFractionBits);
+         }
+ #else
+         ScaleYUVToRGB32Row(y_ptr, u_ptr, v_ptr,
+                            dest_pixel, width, source_dx);
+ #endif
+-      }
++      }      
+     }
+   }
+   // MMX used for FastConvertYUVToRGB32Row and FilterRows requires emms.
+-  EMMS();
++  if (has_mmx)
++    EMMS();
+ }
+ 
+-}  // namespace media
++}  // namespace gfx
++}  // namespace mozilla
+diff --git b/gfx/ycbcr/yuv_convert.h a/gfx/ycbcr/yuv_convert.h
+index 24a2c4e..eb99903 100644
+--- b/gfx/ycbcr/yuv_convert.h
++++ a/gfx/ycbcr/yuv_convert.h
+@@ -1,72 +1,79 @@
+ // Copyright (c) 2010 The Chromium Authors. All rights reserved.
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+ #ifndef MEDIA_BASE_YUV_CONVERT_H_
+ #define MEDIA_BASE_YUV_CONVERT_H_
+ 
+-#include "base/basictypes.h"
+-
+-namespace media {
++#include "chromium_types.h"
++#include "gfxCore.h"
++ 
++namespace mozilla {
+ 
++namespace gfx {
++ 
+ // Type of YUV surface.
+ // The value of these enums matter as they are used to shift vertical indices.
+ enum YUVType {
+-  YV16 = 0,           // YV16 is half width and full height chroma channels.
+-  YV12 = 1,           // YV12 is half width and half height chroma channels.
++  YV12 = 0,           // YV12 is half width and half height chroma channels.
++  YV16 = 1,           // YV16 is half width and full height chroma channels.
++  YV24 = 2            // YV24 is full width and full height chroma channels.
+ };
+ 
+ // Mirror means flip the image horizontally, as in looking in a mirror.
+ // Rotate happens after mirroring.
+ enum Rotate {
+   ROTATE_0,           // Rotation off.
+   ROTATE_90,          // Rotate clockwise.
+   ROTATE_180,         // Rotate upside down.
+   ROTATE_270,         // Rotate counter clockwise.
+   MIRROR_ROTATE_0,    // Mirror horizontally.
+   MIRROR_ROTATE_90,   // Mirror then Rotate clockwise.
+   MIRROR_ROTATE_180,  // Mirror vertically.
+-  MIRROR_ROTATE_270,  // Transpose.
++  MIRROR_ROTATE_270   // Transpose.
+ };
+ 
+ // Filter affects how scaling looks.
+ enum ScaleFilter {
+   FILTER_NONE = 0,        // No filter (point sampled).
+   FILTER_BILINEAR_H = 1,  // Bilinear horizontal filter.
+   FILTER_BILINEAR_V = 2,  // Bilinear vertical filter.
+-  FILTER_BILINEAR = 3,    // Bilinear filter.
++  FILTER_BILINEAR = 3     // Bilinear filter.
+ };
+ 
+ // Convert a frame of YUV to 32 bit ARGB.
+ // Pass in YV16/YV12 depending on source format
+-void ConvertYUVToRGB32(const uint8* yplane,
+-                       const uint8* uplane,
+-                       const uint8* vplane,
+-                       uint8* rgbframe,
+-                       int width,
+-                       int height,
+-                       int ystride,
+-                       int uvstride,
+-                       int rgbstride,
+-                       YUVType yuv_type);
++NS_GFX_(void) ConvertYCbCrToRGB32(const uint8* yplane,
++                                  const uint8* uplane,
++                                  const uint8* vplane,
++                                  uint8* rgbframe,
++                                  int pic_x,
++                                  int pic_y,
++                                  int pic_width,
++                                  int pic_height,
++                                  int ystride,
++                                  int uvstride,
++                                  int rgbstride,
++                                  YUVType yuv_type);
+ 
+ // Scale a frame of YUV to 32 bit ARGB.
+ // Supports rotation and mirroring.
+-void ScaleYUVToRGB32(const uint8* yplane,
+-                     const uint8* uplane,
+-                     const uint8* vplane,
+-                     uint8* rgbframe,
+-                     int source_width,
+-                     int source_height,
+-                     int width,
+-                     int height,
+-                     int ystride,
+-                     int uvstride,
+-                     int rgbstride,
+-                     YUVType yuv_type,
+-                     Rotate view_rotate,
+-                     ScaleFilter filter);
+-
+-}  // namespace media
++NS_GFX_(void) ScaleYCbCrToRGB32(const uint8* yplane,
++                                const uint8* uplane,
++                                const uint8* vplane,
++                                uint8* rgbframe,
++                                int source_width,
++                                int source_height,
++                                int width,
++                                int height,
++                                int ystride,
++                                int uvstride,
++                                int rgbstride,
++                                YUVType yuv_type,
++                                Rotate view_rotate,
++                                ScaleFilter filter);
+ 
++}  // namespace gfx
++}  // namespace mozilla
++ 
+ #endif  // MEDIA_BASE_YUV_CONVERT_H_
+diff --git b/gfx/ycbcr/yuv_row.h a/gfx/ycbcr/yuv_row.h
+index 0a2990b..4ce9eb8 100644
+--- b/gfx/ycbcr/yuv_row.h
++++ a/gfx/ycbcr/yuv_row.h
+@@ -5,27 +5,40 @@
+ // yuv_row internal functions to handle YUV conversion and scaling to RGB.
+ // These functions are used from both yuv_convert.cc and yuv_scale.cc.
+ 
+ // TODO(fbarchard): Write function that can handle rotation and scaling.
+ 
+ #ifndef MEDIA_BASE_YUV_ROW_H_
+ #define MEDIA_BASE_YUV_ROW_H_
+ 
+-#include "base/basictypes.h"
++#include "chromium_types.h"
+ 
+ extern "C" {
+ // Can only do 1x.
+ // This is the second fastest of the scalers.
+ void FastConvertYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width);
+ 
++void FastConvertYUVToRGB32Row_C(const uint8* y_buf,
++                                const uint8* u_buf,
++                                const uint8* v_buf,
++                                uint8* rgb_buf,
++                                int width,
++                                unsigned int x_shift);
++
++void FastConvertYUVToRGB32Row(const uint8* y_buf,
++                              const uint8* u_buf,
++                              const uint8* v_buf,
++                              uint8* rgb_buf,
++                              int width);
++
+ // Can do 1x, half size or any scale down by an integer amount.
+ // Step can be negative (mirroring, rotate 180).
+ // This is the third fastest of the scalers.
+ void ConvertYUVToRGB32Row(const uint8* y_buf,
+                           const uint8* u_buf,
+                           const uint8* v_buf,
+                           uint8* rgb_buf,
+                           int width,
+@@ -55,59 +68,67 @@ void DoubleYUVToRGB32Row(const uint8* y_buf,
+ // Chroma is under sampled every 2 pixels for performance.
+ void ScaleYUVToRGB32Row(const uint8* y_buf,
+                         const uint8* u_buf,
+                         const uint8* v_buf,
+                         uint8* rgb_buf,
+                         int width,
+                         int source_dx);
+ 
++void ScaleYUVToRGB32Row(const uint8* y_buf,
++                        const uint8* u_buf,
++                        const uint8* v_buf,
++                        uint8* rgb_buf,
++                        int width,
++                        int source_dx);
++
++void ScaleYUVToRGB32Row_C(const uint8* y_buf,
++                          const uint8* u_buf,
++                          const uint8* v_buf,
++                          uint8* rgb_buf,
++                          int width,
++                          int source_dx);
++
+ // Handles arbitrary scaling up or down with bilinear filtering.
+ // Mirroring is supported, but not 90 or 270 degree rotation.
+ // Chroma is under sampled every 2 pixels for performance.
+ // This is the slowest of the scalers.
+ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width,
+                               int source_dx);
+ 
++void LinearScaleYUVToRGB32Row(const uint8* y_buf,
++                              const uint8* u_buf,
++                              const uint8* v_buf,
++                              uint8* rgb_buf,
++                              int width,
++                              int source_dx);
++
++void LinearScaleYUVToRGB32Row_C(const uint8* y_buf,
++                                const uint8* u_buf,
++                                const uint8* v_buf,
++                                uint8* rgb_buf,
++                                int width,
++                                int source_dx);
++
++
+ #if defined(_MSC_VER)
+ #define SIMD_ALIGNED(var) __declspec(align(16)) var
+ #else
+ #define SIMD_ALIGNED(var) var __attribute__((aligned(16)))
+ #endif
+ extern SIMD_ALIGNED(int16 kCoefficientsRgbY[768][4]);
+ 
+-// Method to force C version.
+-//#define USE_MMX 0
+-//#define USE_SSE2 0
+-
+-#if !defined(USE_MMX)
+-// Windows, Mac and Linux/BSD use MMX
+-#if defined(__MMX__) || defined(_MSC_VER)
+-#define USE_MMX 1
+-#else
+-#define USE_MMX 0
+-#endif
+-#endif
+-
+-#if !defined(USE_SSE2)
+-#if defined(__SSE2__) || defined(ARCH_CPU_X86_64) || _M_IX86_FP==2
+-#define USE_SSE2 1
+-#else
+-#define USE_SSE2 0
+-#endif
+-#endif
+-
+ // x64 uses MMX2 (SSE) so emms is not required.
+ // Warning C4799: function has no EMMS instruction.
+ // EMMS() is slow and should be called by the calling function once per image.
+-#if USE_MMX && !defined(ARCH_CPU_X86_64)
++#if !defined(ARCH_CPU_X86_64)
+ #if defined(_MSC_VER)
+ #define EMMS() __asm emms
+ #pragma warning(disable: 4799)
+ #else
+ #define EMMS() asm("emms")
+ #endif
+ #else
+ #define EMMS()
+diff --git b/gfx/ycbcr/yuv_row_c.cpp a/gfx/ycbcr/yuv_row_c.cpp
+index a66fa7b..d327f85 100644
+--- b/gfx/ycbcr/yuv_row_c.cpp
++++ a/gfx/ycbcr/yuv_row_c.cpp
+@@ -1,812 +1,18 @@
+ // Copyright (c) 2010 The Chromium Authors. All rights reserved.
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "media/base/yuv_row.h"
++#include "yuv_row.h"
+ 
+-#ifdef _DEBUG
+-#include "base/logging.h"
+-#else
+ #define DCHECK(a)
+-#endif
+ 
+ extern "C" {
+ 
+-#if USE_SSE2 && defined(ARCH_CPU_X86_64)
+-
+-// AMD64 ABI uses register paremters.
+-void FastConvertYUVToRGB32Row(const uint8* y_buf,  // rdi
+-                              const uint8* u_buf,  // rsi
+-                              const uint8* v_buf,  // rdx
+-                              uint8* rgb_buf,      // rcx
+-                              int width) {         // r8
+-  asm(
+-  "jmp    convertend\n"
+-"convertloop:"
+-  "movzb  (%1),%%r10\n"
+-  "add    $0x1,%1\n"
+-  "movzb  (%2),%%r11\n"
+-  "add    $0x1,%2\n"
+-  "movq   2048(%5,%%r10,8),%%xmm0\n"
+-  "movzb  (%0),%%r10\n"
+-  "movq   4096(%5,%%r11,8),%%xmm1\n"
+-  "movzb  0x1(%0),%%r11\n"
+-  "paddsw %%xmm1,%%xmm0\n"
+-  "movq   (%5,%%r10,8),%%xmm2\n"
+-  "add    $0x2,%0\n"
+-  "movq   (%5,%%r11,8),%%xmm3\n"
+-  "paddsw %%xmm0,%%xmm2\n"
+-  "paddsw %%xmm0,%%xmm3\n"
+-  "shufps $0x44,%%xmm3,%%xmm2\n"
+-  "psraw  $0x6,%%xmm2\n"
+-  "packuswb %%xmm2,%%xmm2\n"
+-  "movq   %%xmm2,0x0(%3)\n"
+-  "add    $0x8,%3\n"
+-"convertend:"
+-  "sub    $0x2,%4\n"
+-  "jns    convertloop\n"
+-
+-"convertnext:"
+-  "add    $0x1,%4\n"
+-  "js     convertdone\n"
+-
+-  "movzb  (%1),%%r10\n"
+-  "movq   2048(%5,%%r10,8),%%xmm0\n"
+-  "movzb  (%2),%%r10\n"
+-  "movq   4096(%5,%%r10,8),%%xmm1\n"
+-  "paddsw %%xmm1,%%xmm0\n"
+-  "movzb  (%0),%%r10\n"
+-  "movq   (%5,%%r10,8),%%xmm1\n"
+-  "paddsw %%xmm0,%%xmm1\n"
+-  "psraw  $0x6,%%xmm1\n"
+-  "packuswb %%xmm1,%%xmm1\n"
+-  "movd   %%xmm1,0x0(%3)\n"
+-"convertdone:"
+-  :
+-  : "r"(y_buf),  // %0
+-    "r"(u_buf),  // %1
+-    "r"(v_buf),  // %2
+-    "r"(rgb_buf),  // %3
+-    "r"(width),  // %4
+-    "r" (kCoefficientsRgbY)  // %5
+-  : "memory", "r10", "r11", "xmm0", "xmm1", "xmm2", "xmm3"
+-);
+-}
+-
+-void ScaleYUVToRGB32Row(const uint8* y_buf,  // rdi
+-                        const uint8* u_buf,  // rsi
+-                        const uint8* v_buf,  // rdx
+-                        uint8* rgb_buf,      // rcx
+-                        int width,           // r8
+-                        int source_dx) {     // r9
+-  asm(
+-  "xor    %%r11,%%r11\n"
+-  "sub    $0x2,%4\n"
+-  "js     scalenext\n"
+-
+-"scaleloop:"
+-  "mov    %%r11,%%r10\n"
+-  "sar    $0x11,%%r10\n"
+-  "movzb  (%1,%%r10,1),%%rax\n"
+-  "movq   2048(%5,%%rax,8),%%xmm0\n"
+-  "movzb  (%2,%%r10,1),%%rax\n"
+-  "movq   4096(%5,%%rax,8),%%xmm1\n"
+-  "lea    (%%r11,%6),%%r10\n"
+-  "sar    $0x10,%%r11\n"
+-  "movzb  (%0,%%r11,1),%%rax\n"
+-  "paddsw %%xmm1,%%xmm0\n"
+-  "movq   (%5,%%rax,8),%%xmm1\n"
+-  "lea    (%%r10,%6),%%r11\n"
+-  "sar    $0x10,%%r10\n"
+-  "movzb  (%0,%%r10,1),%%rax\n"
+-  "movq   (%5,%%rax,8),%%xmm2\n"
+-  "paddsw %%xmm0,%%xmm1\n"
+-  "paddsw %%xmm0,%%xmm2\n"
+-  "shufps $0x44,%%xmm2,%%xmm1\n"
+-  "psraw  $0x6,%%xmm1\n"
+-  "packuswb %%xmm1,%%xmm1\n"
+-  "movq   %%xmm1,0x0(%3)\n"
+-  "add    $0x8,%3\n"
+-  "sub    $0x2,%4\n"
+-  "jns    scaleloop\n"
+-
+-"scalenext:"
+-  "add    $0x1,%4\n"
+-  "js     scaledone\n"
+-
+-  "mov    %%r11,%%r10\n"
+-  "sar    $0x11,%%r10\n"
+-  "movzb  (%1,%%r10,1),%%rax\n"
+-  "movq   2048(%5,%%rax,8),%%xmm0\n"
+-  "movzb  (%2,%%r10,1),%%rax\n"
+-  "movq   4096(%5,%%rax,8),%%xmm1\n"
+-  "paddsw %%xmm1,%%xmm0\n"
+-  "sar    $0x10,%%r11\n"
+-  "movzb  (%0,%%r11,1),%%rax\n"
+-  "movq   (%5,%%rax,8),%%xmm1\n"
+-  "paddsw %%xmm0,%%xmm1\n"
+-  "psraw  $0x6,%%xmm1\n"
+-  "packuswb %%xmm1,%%xmm1\n"
+-  "movd   %%xmm1,0x0(%3)\n"
+-
+-"scaledone:"
+-  :
+-  : "r"(y_buf),  // %0
+-    "r"(u_buf),  // %1
+-    "r"(v_buf),  // %2
+-    "r"(rgb_buf),  // %3
+-    "r"(width),  // %4
+-    "r" (kCoefficientsRgbY),  // %5
+-    "r"(static_cast<long>(source_dx))  // %6
+-  : "memory", "r10", "r11", "rax", "xmm0", "xmm1", "xmm2"
+-);
+-}
+-
+-void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+-                              const uint8* u_buf,
+-                              const uint8* v_buf,
+-                              uint8* rgb_buf,
+-                              int width,
+-                              int source_dx) {
+-  asm(
+-  "xor    %%r11,%%r11\n"   // x = 0
+-  "sub    $0x2,%4\n"
+-  "js     .lscalenext\n"
+-  "cmp    $0x20000,%6\n"   // if source_dx >= 2.0
+-  "jl     .lscalehalf\n"
+-  "mov    $0x8000,%%r11\n" // x = 0.5 for 1/2 or less
+-".lscalehalf:"
+-
+-".lscaleloop:"
+-  "mov    %%r11,%%r10\n"
+-  "sar    $0x11,%%r10\n"
+-
+-  "movzb  (%1, %%r10, 1), %%r13 \n"
+-  "movzb  1(%1, %%r10, 1), %%r14 \n"
+-  "mov    %%r11, %%rax \n"
+-  "and    $0x1fffe, %%rax \n"
+-  "imul   %%rax, %%r14 \n"
+-  "xor    $0x1fffe, %%rax \n"
+-  "imul   %%rax, %%r13 \n"
+-  "add    %%r14, %%r13 \n"
+-  "shr    $17, %%r13 \n"
+-  "movq   2048(%5,%%r13,8), %%xmm0\n"
+-
+-  "movzb  (%2, %%r10, 1), %%r13 \n"
+-  "movzb  1(%2, %%r10, 1), %%r14 \n"
+-  "mov    %%r11, %%rax \n"
+-  "and    $0x1fffe, %%rax \n"
+-  "imul   %%rax, %%r14 \n"
+-  "xor    $0x1fffe, %%rax \n"
+-  "imul   %%rax, %%r13 \n"
+-  "add    %%r14, %%r13 \n"
+-  "shr    $17, %%r13 \n"
+-  "movq   4096(%5,%%r13,8), %%xmm1\n"
+-
+-  "mov    %%r11, %%rax \n"
+-  "lea    (%%r11,%6),%%r10\n"
+-  "sar    $0x10,%%r11\n"
+-  "paddsw %%xmm1,%%xmm0\n"
+-
+-  "movzb  (%0, %%r11, 1), %%r13 \n"
+-  "movzb  1(%0, %%r11, 1), %%r14 \n"
+-  "and    $0xffff, %%rax \n"
+-  "imul   %%rax, %%r14 \n"
+-  "xor    $0xffff, %%rax \n"
+-  "imul   %%rax, %%r13 \n"
+-  "add    %%r14, %%r13 \n"
+-  "shr    $16, %%r13 \n"
+-  "movq   (%5,%%r13,8),%%xmm1\n"
+-
+-  "mov    %%r10, %%rax \n"
+-  "lea    (%%r10,%6),%%r11\n"
+-  "sar    $0x10,%%r10\n"
+-
+-  "movzb  (%0,%%r10,1), %%r13 \n"
+-  "movzb  1(%0,%%r10,1), %%r14 \n"
+-  "and    $0xffff, %%rax \n"
+-  "imul   %%rax, %%r14 \n"
+-  "xor    $0xffff, %%rax \n"
+-  "imul   %%rax, %%r13 \n"
+-  "add    %%r14, %%r13 \n"
+-  "shr    $16, %%r13 \n"
+-  "movq   (%5,%%r13,8),%%xmm2\n"
+-
+-  "paddsw %%xmm0,%%xmm1\n"
+-  "paddsw %%xmm0,%%xmm2\n"
+-  "shufps $0x44,%%xmm2,%%xmm1\n"
+-  "psraw  $0x6,%%xmm1\n"
+-  "packuswb %%xmm1,%%xmm1\n"
+-  "movq   %%xmm1,0x0(%3)\n"
+-  "add    $0x8,%3\n"
+-  "sub    $0x2,%4\n"
+-  "jns    .lscaleloop\n"
+-
+-".lscalenext:"
+-  "add    $0x1,%4\n"
+-  "js     .lscaledone\n"
+-
+-  "mov    %%r11,%%r10\n"
+-  "sar    $0x11,%%r10\n"
+-
+-  "movzb  (%1,%%r10,1), %%r13 \n"
+-  "movq   2048(%5,%%r13,8),%%xmm0\n"
+-
+-  "movzb  (%2,%%r10,1), %%r13 \n"
+-  "movq   4096(%5,%%r13,8),%%xmm1\n"
+-
+-  "paddsw %%xmm1,%%xmm0\n"
+-  "sar    $0x10,%%r11\n"
+-
+-  "movzb  (%0,%%r11,1), %%r13 \n"
+-  "movq   (%5,%%r13,8),%%xmm1\n"
+-
+-  "paddsw %%xmm0,%%xmm1\n"
+-  "psraw  $0x6,%%xmm1\n"
+-  "packuswb %%xmm1,%%xmm1\n"
+-  "movd   %%xmm1,0x0(%3)\n"
+-
+-".lscaledone:"
+-  :
+-  : "r"(y_buf),  // %0
+-    "r"(u_buf),  // %1
+-    "r"(v_buf),  // %2
+-    "r"(rgb_buf),  // %3
+-    "r"(width),  // %4
+-    "r" (kCoefficientsRgbY),  // %5
+-    "r"(static_cast<long>(source_dx))  // %6
+-  : "memory", "r10", "r11", "r13", "r14", "rax", "xmm0", "xmm1", "xmm2"
+-);
+-}
+-
+-#elif USE_MMX && !defined(ARCH_CPU_X86_64) && !defined(__PIC__)
+-
+-// PIC version is slower because less registers are available, so
+-// non-PIC is used on platforms where it is possible.
+-
+-void FastConvertYUVToRGB32Row(const uint8* y_buf,
+-                              const uint8* u_buf,
+-                              const uint8* v_buf,
+-                              uint8* rgb_buf,
+-                              int width);
+-  asm(
+-  ".text\n"
+-  ".global FastConvertYUVToRGB32Row\n"
+-"FastConvertYUVToRGB32Row:\n"
+-  "pusha\n"
+-  "mov    0x24(%esp),%edx\n"
+-  "mov    0x28(%esp),%edi\n"
+-  "mov    0x2c(%esp),%esi\n"
+-  "mov    0x30(%esp),%ebp\n"
+-  "mov    0x34(%esp),%ecx\n"
+-  "jmp    convertend\n"
+-
+-"convertloop:"
+-  "movzbl (%edi),%eax\n"
+-  "add    $0x1,%edi\n"
+-  "movzbl (%esi),%ebx\n"
+-  "add    $0x1,%esi\n"
+-  "movq   kCoefficientsRgbY+2048(,%eax,8),%mm0\n"
+-  "movzbl (%edx),%eax\n"
+-  "paddsw kCoefficientsRgbY+4096(,%ebx,8),%mm0\n"
+-  "movzbl 0x1(%edx),%ebx\n"
+-  "movq   kCoefficientsRgbY(,%eax,8),%mm1\n"
+-  "add    $0x2,%edx\n"
+-  "movq   kCoefficientsRgbY(,%ebx,8),%mm2\n"
+-  "paddsw %mm0,%mm1\n"
+-  "paddsw %mm0,%mm2\n"
+-  "psraw  $0x6,%mm1\n"
+-  "psraw  $0x6,%mm2\n"
+-  "packuswb %mm2,%mm1\n"
+-  "movntq %mm1,0x0(%ebp)\n"
+-  "add    $0x8,%ebp\n"
+-"convertend:"
+-  "sub    $0x2,%ecx\n"
+-  "jns    convertloop\n"
+-
+-  "and    $0x1,%ecx\n"
+-  "je     convertdone\n"
+-
+-  "movzbl (%edi),%eax\n"
+-  "movq   kCoefficientsRgbY+2048(,%eax,8),%mm0\n"
+-  "movzbl (%esi),%eax\n"
+-  "paddsw kCoefficientsRgbY+4096(,%eax,8),%mm0\n"
+-  "movzbl (%edx),%eax\n"
+-  "movq   kCoefficientsRgbY(,%eax,8),%mm1\n"
+-  "paddsw %mm0,%mm1\n"
+-  "psraw  $0x6,%mm1\n"
+-  "packuswb %mm1,%mm1\n"
+-  "movd   %mm1,0x0(%ebp)\n"
+-"convertdone:"
+-  "popa\n"
+-  "ret\n"
+-);
+-
+-
+-void ScaleYUVToRGB32Row(const uint8* y_buf,
+-                        const uint8* u_buf,
+-                        const uint8* v_buf,
+-                        uint8* rgb_buf,
+-                        int width,
+-                        int source_dx);
+-  asm(
+-  ".text\n"
+-  ".global ScaleYUVToRGB32Row\n"
+-"ScaleYUVToRGB32Row:\n"
+-  "pusha\n"
+-  "mov    0x24(%esp),%edx\n"
+-  "mov    0x28(%esp),%edi\n"
+-  "mov    0x2c(%esp),%esi\n"
+-  "mov    0x30(%esp),%ebp\n"
+-  "mov    0x34(%esp),%ecx\n"
+-  "xor    %ebx,%ebx\n"
+-  "jmp    scaleend\n"
+-
+-"scaleloop:"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-  "movzbl (%edi,%eax,1),%eax\n"
+-  "movq   kCoefficientsRgbY+2048(,%eax,8),%mm0\n"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-  "movzbl (%esi,%eax,1),%eax\n"
+-  "paddsw kCoefficientsRgbY+4096(,%eax,8),%mm0\n"
+-  "mov    %ebx,%eax\n"
+-  "add    0x38(%esp),%ebx\n"
+-  "sar    $0x10,%eax\n"
+-  "movzbl (%edx,%eax,1),%eax\n"
+-  "movq   kCoefficientsRgbY(,%eax,8),%mm1\n"
+-  "mov    %ebx,%eax\n"
+-  "add    0x38(%esp),%ebx\n"
+-  "sar    $0x10,%eax\n"
+-  "movzbl (%edx,%eax,1),%eax\n"
+-  "movq   kCoefficientsRgbY(,%eax,8),%mm2\n"
+-  "paddsw %mm0,%mm1\n"
+-  "paddsw %mm0,%mm2\n"
+-  "psraw  $0x6,%mm1\n"
+-  "psraw  $0x6,%mm2\n"
+-  "packuswb %mm2,%mm1\n"
+-  "movntq %mm1,0x0(%ebp)\n"
+-  "add    $0x8,%ebp\n"
+-"scaleend:"
+-  "sub    $0x2,%ecx\n"
+-  "jns    scaleloop\n"
+-
+-  "and    $0x1,%ecx\n"
+-  "je     scaledone\n"
+-
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-  "movzbl (%edi,%eax,1),%eax\n"
+-  "movq   kCoefficientsRgbY+2048(,%eax,8),%mm0\n"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-  "movzbl (%esi,%eax,1),%eax\n"
+-  "paddsw kCoefficientsRgbY+4096(,%eax,8),%mm0\n"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x10,%eax\n"
+-  "movzbl (%edx,%eax,1),%eax\n"
+-  "movq   kCoefficientsRgbY(,%eax,8),%mm1\n"
+-  "paddsw %mm0,%mm1\n"
+-  "psraw  $0x6,%mm1\n"
+-  "packuswb %mm1,%mm1\n"
+-  "movd   %mm1,0x0(%ebp)\n"
+-
+-"scaledone:"
+-  "popa\n"
+-  "ret\n"
+-);
+-
+-void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+-                              const uint8* u_buf,
+-                              const uint8* v_buf,
+-                              uint8* rgb_buf,
+-                              int width,
+-                              int source_dx);
+-  asm(
+-  ".text\n"
+-  ".global LinearScaleYUVToRGB32Row\n"
+-"LinearScaleYUVToRGB32Row:\n"
+-  "pusha\n"
+-  "mov    0x24(%esp),%edx\n"
+-  "mov    0x28(%esp),%edi\n"
+-  "mov    0x30(%esp),%ebp\n"
+-
+-  // source_width = width * source_dx + ebx
+-  "mov    0x34(%esp), %ecx\n"
+-  "imull  0x38(%esp), %ecx\n"
+-  "mov    %ecx, 0x34(%esp)\n"
+-
+-  "mov    0x38(%esp), %ecx\n"
+-  "xor    %ebx,%ebx\n"     // x = 0
+-  "cmp    $0x20000,%ecx\n" // if source_dx >= 2.0
+-  "jl     .lscaleend\n"
+-  "mov    $0x8000,%ebx\n"  // x = 0.5 for 1/2 or less
+-  "jmp    .lscaleend\n"
+-
+-".lscaleloop:"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-
+-  "movzbl (%edi,%eax,1),%ecx\n"
+-  "movzbl 1(%edi,%eax,1),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "andl   $0x1fffe, %eax \n"
+-  "imul   %eax, %esi \n"
+-  "xorl   $0x1fffe, %eax \n"
+-  "imul   %eax, %ecx \n"
+-  "addl   %esi, %ecx \n"
+-  "shrl   $17, %ecx \n"
+-  "movq   kCoefficientsRgbY+2048(,%ecx,8),%mm0\n"
+-
+-  "mov    0x2c(%esp),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-
+-  "movzbl (%esi,%eax,1),%ecx\n"
+-  "movzbl 1(%esi,%eax,1),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "andl   $0x1fffe, %eax \n"
+-  "imul   %eax, %esi \n"
+-  "xorl   $0x1fffe, %eax \n"
+-  "imul   %eax, %ecx \n"
+-  "addl   %esi, %ecx \n"
+-  "shrl   $17, %ecx \n"
+-  "paddsw kCoefficientsRgbY+4096(,%ecx,8),%mm0\n"
+-
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x10,%eax\n"
+-  "movzbl (%edx,%eax,1),%ecx\n"
+-  "movzbl 1(%edx,%eax,1),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "add    0x38(%esp),%ebx\n"
+-  "andl   $0xffff, %eax \n"
+-  "imul   %eax, %esi \n"
+-  "xorl   $0xffff, %eax \n"
+-  "imul   %eax, %ecx \n"
+-  "addl   %esi, %ecx \n"
+-  "shrl   $16, %ecx \n"
+-  "movq   kCoefficientsRgbY(,%ecx,8),%mm1\n"
+-
+-  "cmp    0x34(%esp), %ebx\n"
+-  "jge    .lscalelastpixel\n"
+-
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x10,%eax\n"
+-  "movzbl (%edx,%eax,1),%ecx\n"
+-  "movzbl 1(%edx,%eax,1),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "add    0x38(%esp),%ebx\n"
+-  "andl   $0xffff, %eax \n"
+-  "imul   %eax, %esi \n"
+-  "xorl   $0xffff, %eax \n"
+-  "imul   %eax, %ecx \n"
+-  "addl   %esi, %ecx \n"
+-  "shrl   $16, %ecx \n"
+-  "movq   kCoefficientsRgbY(,%ecx,8),%mm2\n"
+-
+-  "paddsw %mm0,%mm1\n"
+-  "paddsw %mm0,%mm2\n"
+-  "psraw  $0x6,%mm1\n"
+-  "psraw  $0x6,%mm2\n"
+-  "packuswb %mm2,%mm1\n"
+-  "movntq %mm1,0x0(%ebp)\n"
+-  "add    $0x8,%ebp\n"
+-
+-".lscaleend:"
+-  "cmp    0x34(%esp), %ebx\n"
+-  "jl     .lscaleloop\n"
+-  "popa\n"
+-  "ret\n"
+-
+-".lscalelastpixel:"
+-  "paddsw %mm0, %mm1\n"
+-  "psraw $6, %mm1\n"
+-  "packuswb %mm1, %mm1\n"
+-  "movd %mm1, (%ebp)\n"
+-  "popa\n"
+-  "ret\n"
+-);
+-
+-#elif USE_MMX && !defined(ARCH_CPU_X86_64) && defined(__PIC__)
+-
+-extern void PICConvertYUVToRGB32Row(const uint8* y_buf,
+-                                    const uint8* u_buf,
+-                                    const uint8* v_buf,
+-                                    uint8* rgb_buf,
+-                                    int width,
+-                                    int16 *kCoefficientsRgbY);
+-  asm(
+-  ".text\n"
+-#if defined(OS_MACOSX)
+-"_PICConvertYUVToRGB32Row:\n"
+-#else
+-"PICConvertYUVToRGB32Row:\n"
+-#endif
+-  "pusha\n"
+-  "mov    0x24(%esp),%edx\n"
+-  "mov    0x28(%esp),%edi\n"
+-  "mov    0x2c(%esp),%esi\n"
+-  "mov    0x30(%esp),%ebp\n"
+-  "mov    0x38(%esp),%ecx\n"
+-
+-  "jmp    .Lconvertend\n"
+-
+-".Lconvertloop:"
+-  "movzbl (%edi),%eax\n"
+-  "add    $0x1,%edi\n"
+-  "movzbl (%esi),%ebx\n"
+-  "add    $0x1,%esi\n"
+-  "movq   2048(%ecx,%eax,8),%mm0\n"
+-  "movzbl (%edx),%eax\n"
+-  "paddsw 4096(%ecx,%ebx,8),%mm0\n"
+-  "movzbl 0x1(%edx),%ebx\n"
+-  "movq   0(%ecx,%eax,8),%mm1\n"
+-  "add    $0x2,%edx\n"
+-  "movq   0(%ecx,%ebx,8),%mm2\n"
+-  "paddsw %mm0,%mm1\n"
+-  "paddsw %mm0,%mm2\n"
+-  "psraw  $0x6,%mm1\n"
+-  "psraw  $0x6,%mm2\n"
+-  "packuswb %mm2,%mm1\n"
+-  "movntq %mm1,0x0(%ebp)\n"
+-  "add    $0x8,%ebp\n"
+-".Lconvertend:"
+-  "subl   $0x2,0x34(%esp)\n"
+-  "jns    .Lconvertloop\n"
+-
+-  "andl   $0x1,0x34(%esp)\n"
+-  "je     .Lconvertdone\n"
+-
+-  "movzbl (%edi),%eax\n"
+-  "movq   2048(%ecx,%eax,8),%mm0\n"
+-  "movzbl (%esi),%eax\n"
+-  "paddsw 4096(%ecx,%eax,8),%mm0\n"
+-  "movzbl (%edx),%eax\n"
+-  "movq   0(%ecx,%eax,8),%mm1\n"
+-  "paddsw %mm0,%mm1\n"
+-  "psraw  $0x6,%mm1\n"
+-  "packuswb %mm1,%mm1\n"
+-  "movd   %mm1,0x0(%ebp)\n"
+-".Lconvertdone:\n"
+-  "popa\n"
+-  "ret\n"
+-);
+-
+-void FastConvertYUVToRGB32Row(const uint8* y_buf,
+-                              const uint8* u_buf,
+-                              const uint8* v_buf,
+-                              uint8* rgb_buf,
+-                              int width) {
+-  PICConvertYUVToRGB32Row(y_buf, u_buf, v_buf, rgb_buf, width,
+-                          &kCoefficientsRgbY[0][0]);
+-}
+-
+-extern void PICScaleYUVToRGB32Row(const uint8* y_buf,
+-                               const uint8* u_buf,
+-                               const uint8* v_buf,
+-                               uint8* rgb_buf,
+-                               int width,
+-                               int source_dx,
+-                               int16 *kCoefficientsRgbY);
+-
+-  asm(
+-  ".text\n"
+-#if defined(OS_MACOSX)
+-"_PICScaleYUVToRGB32Row:\n"
+-#else
+-"PICScaleYUVToRGB32Row:\n"
+-#endif
+-  "pusha\n"
+-  "mov    0x24(%esp),%edx\n"
+-  "mov    0x28(%esp),%edi\n"
+-  "mov    0x2c(%esp),%esi\n"
+-  "mov    0x30(%esp),%ebp\n"
+-  "mov    0x3c(%esp),%ecx\n"
+-  "xor    %ebx,%ebx\n"
+-  "jmp    Lscaleend\n"
+-
+-"Lscaleloop:"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-  "movzbl (%edi,%eax,1),%eax\n"
+-  "movq   2048(%ecx,%eax,8),%mm0\n"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-  "movzbl (%esi,%eax,1),%eax\n"
+-  "paddsw 4096(%ecx,%eax,8),%mm0\n"
+-  "mov    %ebx,%eax\n"
+-  "add    0x38(%esp),%ebx\n"
+-  "sar    $0x10,%eax\n"
+-  "movzbl (%edx,%eax,1),%eax\n"
+-  "movq   0(%ecx,%eax,8),%mm1\n"
+-  "mov    %ebx,%eax\n"
+-  "add    0x38(%esp),%ebx\n"
+-  "sar    $0x10,%eax\n"
+-  "movzbl (%edx,%eax,1),%eax\n"
+-  "movq   0(%ecx,%eax,8),%mm2\n"
+-  "paddsw %mm0,%mm1\n"
+-  "paddsw %mm0,%mm2\n"
+-  "psraw  $0x6,%mm1\n"
+-  "psraw  $0x6,%mm2\n"
+-  "packuswb %mm2,%mm1\n"
+-  "movntq %mm1,0x0(%ebp)\n"
+-  "add    $0x8,%ebp\n"
+-"Lscaleend:"
+-  "subl   $0x2,0x34(%esp)\n"
+-  "jns    Lscaleloop\n"
+-
+-  "andl   $0x1,0x34(%esp)\n"
+-  "je     Lscaledone\n"
+-
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-  "movzbl (%edi,%eax,1),%eax\n"
+-  "movq   2048(%ecx,%eax,8),%mm0\n"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-  "movzbl (%esi,%eax,1),%eax\n"
+-  "paddsw 4096(%ecx,%eax,8),%mm0\n"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x10,%eax\n"
+-  "movzbl (%edx,%eax,1),%eax\n"
+-  "movq   0(%ecx,%eax,8),%mm1\n"
+-  "paddsw %mm0,%mm1\n"
+-  "psraw  $0x6,%mm1\n"
+-  "packuswb %mm1,%mm1\n"
+-  "movd   %mm1,0x0(%ebp)\n"
+-
+-"Lscaledone:"
+-  "popa\n"
+-  "ret\n"
+-);
+-
+-
+-void ScaleYUVToRGB32Row(const uint8* y_buf,
+-                        const uint8* u_buf,
+-                        const uint8* v_buf,
+-                        uint8* rgb_buf,
+-                        int width,
+-                        int source_dx) {
+-  PICScaleYUVToRGB32Row(y_buf, u_buf, v_buf, rgb_buf, width, source_dx,
+-                        &kCoefficientsRgbY[0][0]);
+-}
+-
+-void PICLinearScaleYUVToRGB32Row(const uint8* y_buf,
+-                                 const uint8* u_buf,
+-                                 const uint8* v_buf,
+-                                 uint8* rgb_buf,
+-                                 int width,
+-                                 int source_dx,
+-                                 int16 *kCoefficientsRgbY);
+-  asm(
+-  ".text\n"
+-#if defined(OS_MACOSX)
+-"_PICLinearScaleYUVToRGB32Row:\n"
+-#else
+-"PICLinearScaleYUVToRGB32Row:\n"
+-#endif
+-  "pusha\n"
+-  "mov    0x24(%esp),%edx\n"
+-  "mov    0x30(%esp),%ebp\n"
+-  "mov    0x34(%esp),%ecx\n"
+-  "mov    0x3c(%esp),%edi\n"
+-  "xor    %ebx,%ebx\n"
+-
+-  // source_width = width * source_dx + ebx
+-  "mov    0x34(%esp), %ecx\n"
+-  "imull  0x38(%esp), %ecx\n"
+-  "mov    %ecx, 0x34(%esp)\n"
+-
+-  "mov    0x38(%esp), %ecx\n"
+-  "xor    %ebx,%ebx\n"     // x = 0
+-  "cmp    $0x20000,%ecx\n" // if source_dx >= 2.0
+-  "jl     .lscaleend\n"
+-  "mov    $0x8000,%ebx\n"  // x = 0.5 for 1/2 or less
+-  "jmp    .lscaleend\n"
+-
+-".lscaleloop:"
+-  "mov    0x28(%esp),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-
+-  "movzbl (%esi,%eax,1),%ecx\n"
+-  "movzbl 1(%esi,%eax,1),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "andl   $0x1fffe, %eax \n"
+-  "imul   %eax, %esi \n"
+-  "xorl   $0x1fffe, %eax \n"
+-  "imul   %eax, %ecx \n"
+-  "addl   %esi, %ecx \n"
+-  "shrl   $17, %ecx \n"
+-  "movq   2048(%edi,%ecx,8),%mm0\n"
+-
+-  "mov    0x2c(%esp),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x11,%eax\n"
+-
+-  "movzbl (%esi,%eax,1),%ecx\n"
+-  "movzbl 1(%esi,%eax,1),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "andl   $0x1fffe, %eax \n"
+-  "imul   %eax, %esi \n"
+-  "xorl   $0x1fffe, %eax \n"
+-  "imul   %eax, %ecx \n"
+-  "addl   %esi, %ecx \n"
+-  "shrl   $17, %ecx \n"
+-  "paddsw 4096(%edi,%ecx,8),%mm0\n"
+-
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x10,%eax\n"
+-  "movzbl (%edx,%eax,1),%ecx\n"
+-  "movzbl 1(%edx,%eax,1),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "add    0x38(%esp),%ebx\n"
+-  "andl   $0xffff, %eax \n"
+-  "imul   %eax, %esi \n"
+-  "xorl   $0xffff, %eax \n"
+-  "imul   %eax, %ecx \n"
+-  "addl   %esi, %ecx \n"
+-  "shrl   $16, %ecx \n"
+-  "movq   (%edi,%ecx,8),%mm1\n"
+-
+-  "cmp    0x34(%esp), %ebx\n"
+-  "jge    .lscalelastpixel\n"
+-
+-  "mov    %ebx,%eax\n"
+-  "sar    $0x10,%eax\n"
+-  "movzbl (%edx,%eax,1),%ecx\n"
+-  "movzbl 1(%edx,%eax,1),%esi\n"
+-  "mov    %ebx,%eax\n"
+-  "add    0x38(%esp),%ebx\n"
+-  "andl   $0xffff, %eax \n"
+-  "imul   %eax, %esi \n"
+-  "xorl   $0xffff, %eax \n"
+-  "imul   %eax, %ecx \n"
+-  "addl   %esi, %ecx \n"
+-  "shrl   $16, %ecx \n"
+-  "movq   (%edi,%ecx,8),%mm2\n"
+-
+-  "paddsw %mm0,%mm1\n"
+-  "paddsw %mm0,%mm2\n"
+-  "psraw  $0x6,%mm1\n"
+-  "psraw  $0x6,%mm2\n"
+-  "packuswb %mm2,%mm1\n"
+-  "movntq %mm1,0x0(%ebp)\n"
+-  "add    $0x8,%ebp\n"
+-
+-".lscaleend:"
+-  "cmp    %ebx, 0x34(%esp)\n"
+-  "jg     .lscaleloop\n"
+-  "popa\n"
+-  "ret\n"
+-
+-".lscalelastpixel:"
+-  "paddsw %mm0, %mm1\n"
+-  "psraw $6, %mm1\n"
+-  "packuswb %mm1, %mm1\n"
+-  "movd %mm1, (%ebp)\n"
+-  "popa\n"
+-  "ret\n"
+-);
+-
+-void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+-                        const uint8* u_buf,
+-                        const uint8* v_buf,
+-                        uint8* rgb_buf,
+-                        int width,
+-                        int source_dx) {
+-  PICLinearScaleYUVToRGB32Row(y_buf, u_buf, v_buf, rgb_buf, width, source_dx,
+-                              &kCoefficientsRgbY[0][0]);
+-}
+-
+-#else  // USE_MMX
+-
+ // C reference code that mimic the YUV assembly.
+ #define packuswb(x) ((x) < 0 ? 0 : ((x) > 255 ? 255 : (x)))
+ #define paddsw(x, y) (((x) + (y)) < -32768 ? -32768 : \
+     (((x) + (y)) > 32767 ? 32767 : ((x) + (y))))
+ 
+ static inline void YuvPixel(uint8 y,
+                             uint8 u,
+                             uint8 v,
+@@ -833,66 +39,71 @@ static inline void YuvPixel(uint8 y,
+   a >>= 6;
+ 
+   *reinterpret_cast<uint32*>(rgb_buf) = (packuswb(b)) |
+                                         (packuswb(g) << 8) |
+                                         (packuswb(r) << 16) |
+                                         (packuswb(a) << 24);
+ }
+ 
+-void FastConvertYUVToRGB32Row(const uint8* y_buf,
+-                              const uint8* u_buf,
+-                              const uint8* v_buf,
+-                              uint8* rgb_buf,
+-                              int width) {
++void FastConvertYUVToRGB32Row_C(const uint8* y_buf,
++                                const uint8* u_buf,
++                                const uint8* v_buf,
++                                uint8* rgb_buf,
++                                int width,
++                                unsigned int x_shift) {
+   for (int x = 0; x < width; x += 2) {
+-    uint8 u = u_buf[x >> 1];
+-    uint8 v = v_buf[x >> 1];
++    uint8 u = u_buf[x >> x_shift];
++    uint8 v = v_buf[x >> x_shift];
+     uint8 y0 = y_buf[x];
+     YuvPixel(y0, u, v, rgb_buf);
+     if ((x + 1) < width) {
+       uint8 y1 = y_buf[x + 1];
++      if (x_shift == 0) {
++        u = u_buf[x + 1];
++        v = v_buf[x + 1];
++      }
+       YuvPixel(y1, u, v, rgb_buf + 4);
+     }
+     rgb_buf += 8;  // Advance 2 pixels.
+   }
+ }
+ 
+ // 16.16 fixed point is used.  A shift by 16 isolates the integer.
+ // A shift by 17 is used to further subsample the chrominence channels.
+ // & 0xffff isolates the fixed point fraction.  >> 2 to get the upper 2 bits,
+ // for 1/65536 pixel accurate interpolation.
+-void ScaleYUVToRGB32Row(const uint8* y_buf,
+-                        const uint8* u_buf,
+-                        const uint8* v_buf,
+-                        uint8* rgb_buf,
+-                        int width,
+-                        int source_dx) {
++void ScaleYUVToRGB32Row_C(const uint8* y_buf,
++                          const uint8* u_buf,
++                          const uint8* v_buf,
++                          uint8* rgb_buf,
++                          int width,
++                          int source_dx) {
+   int x = 0;
+   for (int i = 0; i < width; i += 2) {
+     int y = y_buf[x >> 16];
+     int u = u_buf[(x >> 17)];
+     int v = v_buf[(x >> 17)];
+     YuvPixel(y, u, v, rgb_buf);
+     x += source_dx;
+     if ((i + 1) < width) {
+       y = y_buf[x >> 16];
+       YuvPixel(y, u, v, rgb_buf+4);
+       x += source_dx;
+     }
+     rgb_buf += 8;
+   }
+ }
+ 
+-void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+-                              const uint8* u_buf,
+-                              const uint8* v_buf,
+-                              uint8* rgb_buf,
+-                              int width,
+-                              int source_dx) {
++void LinearScaleYUVToRGB32Row_C(const uint8* y_buf,
++                                const uint8* u_buf,
++                                const uint8* v_buf,
++                                uint8* rgb_buf,
++                                int width,
++                                int source_dx) {
+   int x = 0;
+   if (source_dx >= 0x20000) {
+     x = 32768;
+   }
+   for (int i = 0; i < width; i += 2) {
+     int y0 = y_buf[x >> 16];
+     int y1 = y_buf[(x >> 16) + 1];
+     int u0 = u_buf[(x >> 17)];
+@@ -913,11 +124,10 @@ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+       y = (y_frac * y1 + (y_frac ^ 65535) * y0) >> 16;
+       YuvPixel(y, u, v, rgb_buf+4);
+       x += source_dx;
+     }
+     rgb_buf += 8;
+   }
+ }
+ 
+-#endif  // USE_MMX
+ }  // extern "C"
+ 
+diff --git b/gfx/ycbcr/yuv_row_posix.cpp a/gfx/ycbcr/yuv_row_posix.cpp
+index a66fa7b..382c2bd 100644
+--- b/gfx/ycbcr/yuv_row_posix.cpp
++++ a/gfx/ycbcr/yuv_row_posix.cpp
+@@ -1,33 +1,29 @@
+ // Copyright (c) 2010 The Chromium Authors. All rights reserved.
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "media/base/yuv_row.h"
++#include "yuv_row.h"
+ 
+-#ifdef _DEBUG
+-#include "base/logging.h"
+-#else
+ #define DCHECK(a)
+-#endif
+ 
+ extern "C" {
+ 
+-#if USE_SSE2 && defined(ARCH_CPU_X86_64)
++#if defined(ARCH_CPU_X86_64)
+ 
+ // AMD64 ABI uses register paremters.
+ void FastConvertYUVToRGB32Row(const uint8* y_buf,  // rdi
+                               const uint8* u_buf,  // rsi
+                               const uint8* v_buf,  // rdx
+                               uint8* rgb_buf,      // rcx
+                               int width) {         // r8
+   asm(
+-  "jmp    convertend\n"
+-"convertloop:"
++  "jmp    1f\n"
++"0:"
+   "movzb  (%1),%%r10\n"
+   "add    $0x1,%1\n"
+   "movzb  (%2),%%r11\n"
+   "add    $0x1,%2\n"
+   "movq   2048(%5,%%r10,8),%%xmm0\n"
+   "movzb  (%0),%%r10\n"
+   "movq   4096(%5,%%r11,8),%%xmm1\n"
+   "movzb  0x1(%0),%%r11\n"
+@@ -37,36 +33,36 @@ void FastConvertYUVToRGB32Row(const uint8* y_buf,  // rdi
+   "movq   (%5,%%r11,8),%%xmm3\n"
+   "paddsw %%xmm0,%%xmm2\n"
+   "paddsw %%xmm0,%%xmm3\n"
+   "shufps $0x44,%%xmm3,%%xmm2\n"
+   "psraw  $0x6,%%xmm2\n"
+   "packuswb %%xmm2,%%xmm2\n"
+   "movq   %%xmm2,0x0(%3)\n"
+   "add    $0x8,%3\n"
+-"convertend:"
++"1:"
+   "sub    $0x2,%4\n"
+-  "jns    convertloop\n"
++  "jns    0b\n"
+ 
+-"convertnext:"
++"2:"
+   "add    $0x1,%4\n"
+-  "js     convertdone\n"
++  "js     3f\n"
+ 
+   "movzb  (%1),%%r10\n"
+   "movq   2048(%5,%%r10,8),%%xmm0\n"
+   "movzb  (%2),%%r10\n"
+   "movq   4096(%5,%%r10,8),%%xmm1\n"
+   "paddsw %%xmm1,%%xmm0\n"
+   "movzb  (%0),%%r10\n"
+   "movq   (%5,%%r10,8),%%xmm1\n"
+   "paddsw %%xmm0,%%xmm1\n"
+   "psraw  $0x6,%%xmm1\n"
+   "packuswb %%xmm1,%%xmm1\n"
+   "movd   %%xmm1,0x0(%3)\n"
+-"convertdone:"
++"3:"
+   :
+   : "r"(y_buf),  // %0
+     "r"(u_buf),  // %1
+     "r"(v_buf),  // %2
+     "r"(rgb_buf),  // %3
+     "r"(width),  // %4
+     "r" (kCoefficientsRgbY)  // %5
+   : "memory", "r10", "r11", "xmm0", "xmm1", "xmm2", "xmm3"
+@@ -77,19 +73,19 @@ void ScaleYUVToRGB32Row(const uint8* y_buf,  // rdi
+                         const uint8* u_buf,  // rsi
+                         const uint8* v_buf,  // rdx
+                         uint8* rgb_buf,      // rcx
+                         int width,           // r8
+                         int source_dx) {     // r9
+   asm(
+   "xor    %%r11,%%r11\n"
+   "sub    $0x2,%4\n"
+-  "js     scalenext\n"
++  "js     1f\n"
+ 
+-"scaleloop:"
++"0:"
+   "mov    %%r11,%%r10\n"
+   "sar    $0x11,%%r10\n"
+   "movzb  (%1,%%r10,1),%%rax\n"
+   "movq   2048(%5,%%rax,8),%%xmm0\n"
+   "movzb  (%2,%%r10,1),%%rax\n"
+   "movq   4096(%5,%%rax,8),%%xmm1\n"
+   "lea    (%%r11,%6),%%r10\n"
+   "sar    $0x10,%%r11\n"
+@@ -103,38 +99,38 @@ void ScaleYUVToRGB32Row(const uint8* y_buf,  // rdi
+   "paddsw %%xmm0,%%xmm1\n"
+   "paddsw %%xmm0,%%xmm2\n"
+   "shufps $0x44,%%xmm2,%%xmm1\n"
+   "psraw  $0x6,%%xmm1\n"
+   "packuswb %%xmm1,%%xmm1\n"
+   "movq   %%xmm1,0x0(%3)\n"
+   "add    $0x8,%3\n"
+   "sub    $0x2,%4\n"
+-  "jns    scaleloop\n"
++  "jns    0b\n"
+ 
+-"scalenext:"
++"1:"
+   "add    $0x1,%4\n"
+-  "js     scaledone\n"
++  "js     2f\n"
+ 
+   "mov    %%r11,%%r10\n"
+   "sar    $0x11,%%r10\n"
+   "movzb  (%1,%%r10,1),%%rax\n"
+   "movq   2048(%5,%%rax,8),%%xmm0\n"
+   "movzb  (%2,%%r10,1),%%rax\n"
+   "movq   4096(%5,%%rax,8),%%xmm1\n"
+   "paddsw %%xmm1,%%xmm0\n"
+   "sar    $0x10,%%r11\n"
+   "movzb  (%0,%%r11,1),%%rax\n"
+   "movq   (%5,%%rax,8),%%xmm1\n"
+   "paddsw %%xmm0,%%xmm1\n"
+   "psraw  $0x6,%%xmm1\n"
+   "packuswb %%xmm1,%%xmm1\n"
+   "movd   %%xmm1,0x0(%3)\n"
+ 
+-"scaledone:"
++"2:"
+   :
+   : "r"(y_buf),  // %0
+     "r"(u_buf),  // %1
+     "r"(v_buf),  // %2
+     "r"(rgb_buf),  // %3
+     "r"(width),  // %4
+     "r" (kCoefficientsRgbY),  // %5
+     "r"(static_cast<long>(source_dx))  // %6
+@@ -146,23 +142,23 @@ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width,
+                               int source_dx) {
+   asm(
+   "xor    %%r11,%%r11\n"   // x = 0
+   "sub    $0x2,%4\n"
+-  "js     .lscalenext\n"
++  "js     2f\n"
+   "cmp    $0x20000,%6\n"   // if source_dx >= 2.0
+-  "jl     .lscalehalf\n"
++  "jl     0f\n"
+   "mov    $0x8000,%%r11\n" // x = 0.5 for 1/2 or less
+-".lscalehalf:"
++"0:"
+ 
+-".lscaleloop:"
++"1:"
+   "mov    %%r11,%%r10\n"
+   "sar    $0x11,%%r10\n"
+ 
+   "movzb  (%1, %%r10, 1), %%r13 \n"
+   "movzb  1(%1, %%r10, 1), %%r14 \n"
+   "mov    %%r11, %%rax \n"
+   "and    $0x1fffe, %%rax \n"
+   "imul   %%rax, %%r14 \n"
+@@ -215,21 +211,21 @@ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+   "paddsw %%xmm0,%%xmm1\n"
+   "paddsw %%xmm0,%%xmm2\n"
+   "shufps $0x44,%%xmm2,%%xmm1\n"
+   "psraw  $0x6,%%xmm1\n"
+   "packuswb %%xmm1,%%xmm1\n"
+   "movq   %%xmm1,0x0(%3)\n"
+   "add    $0x8,%3\n"
+   "sub    $0x2,%4\n"
+-  "jns    .lscaleloop\n"
++  "jns    1b\n"
+ 
+-".lscalenext:"
++"2:"
+   "add    $0x1,%4\n"
+-  "js     .lscaledone\n"
++  "js     3f\n"
+ 
+   "mov    %%r11,%%r10\n"
+   "sar    $0x11,%%r10\n"
+ 
+   "movzb  (%1,%%r10,1), %%r13 \n"
+   "movq   2048(%5,%%r13,8),%%xmm0\n"
+ 
+   "movzb  (%2,%%r10,1), %%r13 \n"
+@@ -241,52 +237,52 @@ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+   "movzb  (%0,%%r11,1), %%r13 \n"
+   "movq   (%5,%%r13,8),%%xmm1\n"
+ 
+   "paddsw %%xmm0,%%xmm1\n"
+   "psraw  $0x6,%%xmm1\n"
+   "packuswb %%xmm1,%%xmm1\n"
+   "movd   %%xmm1,0x0(%3)\n"
+ 
+-".lscaledone:"
++"3:"
+   :
+   : "r"(y_buf),  // %0
+     "r"(u_buf),  // %1
+     "r"(v_buf),  // %2
+     "r"(rgb_buf),  // %3
+     "r"(width),  // %4
+     "r" (kCoefficientsRgbY),  // %5
+     "r"(static_cast<long>(source_dx))  // %6
+   : "memory", "r10", "r11", "r13", "r14", "rax", "xmm0", "xmm1", "xmm2"
+ );
+ }
+ 
+-#elif USE_MMX && !defined(ARCH_CPU_X86_64) && !defined(__PIC__)
++#elif defined(ARCH_CPU_X86_32) && !defined(__PIC__)
+ 
+ // PIC version is slower because less registers are available, so
+ // non-PIC is used on platforms where it is possible.
+-
+ void FastConvertYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width);
+   asm(
+   ".text\n"
+   ".global FastConvertYUVToRGB32Row\n"
++  ".type FastConvertYUVToRGB32Row, @function\n"
+ "FastConvertYUVToRGB32Row:\n"
+   "pusha\n"
+   "mov    0x24(%esp),%edx\n"
+   "mov    0x28(%esp),%edi\n"
+   "mov    0x2c(%esp),%esi\n"
+   "mov    0x30(%esp),%ebp\n"
+   "mov    0x34(%esp),%ecx\n"
+-  "jmp    convertend\n"
++  "jmp    1f\n"
+ 
+-"convertloop:"
++"0:"
+   "movzbl (%edi),%eax\n"
+   "add    $0x1,%edi\n"
+   "movzbl (%esi),%ebx\n"
+   "add    $0x1,%esi\n"
+   "movq   kCoefficientsRgbY+2048(,%eax,8),%mm0\n"
+   "movzbl (%edx),%eax\n"
+   "paddsw kCoefficientsRgbY+4096(,%ebx,8),%mm0\n"
+   "movzbl 0x1(%edx),%ebx\n"
+@@ -295,59 +291,63 @@ void FastConvertYUVToRGB32Row(const uint8* y_buf,
+   "movq   kCoefficientsRgbY(,%ebx,8),%mm2\n"
+   "paddsw %mm0,%mm1\n"
+   "paddsw %mm0,%mm2\n"
+   "psraw  $0x6,%mm1\n"
+   "psraw  $0x6,%mm2\n"
+   "packuswb %mm2,%mm1\n"
+   "movntq %mm1,0x0(%ebp)\n"
+   "add    $0x8,%ebp\n"
+-"convertend:"
++"1:"
+   "sub    $0x2,%ecx\n"
+-  "jns    convertloop\n"
++  "jns    0b\n"
+ 
+   "and    $0x1,%ecx\n"
+-  "je     convertdone\n"
++  "je     2f\n"
+ 
+   "movzbl (%edi),%eax\n"
+   "movq   kCoefficientsRgbY+2048(,%eax,8),%mm0\n"
+   "movzbl (%esi),%eax\n"
+   "paddsw kCoefficientsRgbY+4096(,%eax,8),%mm0\n"
+   "movzbl (%edx),%eax\n"
+   "movq   kCoefficientsRgbY(,%eax,8),%mm1\n"
+   "paddsw %mm0,%mm1\n"
+   "psraw  $0x6,%mm1\n"
+   "packuswb %mm1,%mm1\n"
+   "movd   %mm1,0x0(%ebp)\n"
+-"convertdone:"
++"2:"
+   "popa\n"
+   "ret\n"
++#if !defined(XP_MACOSX)
++  ".previous\n"
++#endif
+ );
+ 
+ 
+ void ScaleYUVToRGB32Row(const uint8* y_buf,
+                         const uint8* u_buf,
+                         const uint8* v_buf,
+                         uint8* rgb_buf,
+                         int width,
+                         int source_dx);
+   asm(
+   ".text\n"
+   ".global ScaleYUVToRGB32Row\n"
++  ".type ScaleYUVToRGB32Row, @function\n"
+ "ScaleYUVToRGB32Row:\n"
+   "pusha\n"
+   "mov    0x24(%esp),%edx\n"
+   "mov    0x28(%esp),%edi\n"
+   "mov    0x2c(%esp),%esi\n"
+   "mov    0x30(%esp),%ebp\n"
+   "mov    0x34(%esp),%ecx\n"
+   "xor    %ebx,%ebx\n"
+-  "jmp    scaleend\n"
++  "jmp    1f\n"
+ 
+-"scaleloop:"
++"0:"
+   "mov    %ebx,%eax\n"
+   "sar    $0x11,%eax\n"
+   "movzbl (%edi,%eax,1),%eax\n"
+   "movq   kCoefficientsRgbY+2048(,%eax,8),%mm0\n"
+   "mov    %ebx,%eax\n"
+   "sar    $0x11,%eax\n"
+   "movzbl (%esi,%eax,1),%eax\n"
+   "paddsw kCoefficientsRgbY+4096(,%eax,8),%mm0\n"
+@@ -363,22 +363,22 @@ void ScaleYUVToRGB32Row(const uint8* y_buf,
+   "movq   kCoefficientsRgbY(,%eax,8),%mm2\n"
+   "paddsw %mm0,%mm1\n"
+   "paddsw %mm0,%mm2\n"
+   "psraw  $0x6,%mm1\n"
+   "psraw  $0x6,%mm2\n"
+   "packuswb %mm2,%mm1\n"
+   "movntq %mm1,0x0(%ebp)\n"
+   "add    $0x8,%ebp\n"
+-"scaleend:"
++"1:"
+   "sub    $0x2,%ecx\n"
+-  "jns    scaleloop\n"
++  "jns    0b\n"
+ 
+   "and    $0x1,%ecx\n"
+-  "je     scaledone\n"
++  "je     2f\n"
+ 
+   "mov    %ebx,%eax\n"
+   "sar    $0x11,%eax\n"
+   "movzbl (%edi,%eax,1),%eax\n"
+   "movq   kCoefficientsRgbY+2048(,%eax,8),%mm0\n"
+   "mov    %ebx,%eax\n"
+   "sar    $0x11,%eax\n"
+   "movzbl (%esi,%eax,1),%eax\n"
+@@ -387,49 +387,53 @@ void ScaleYUVToRGB32Row(const uint8* y_buf,
+   "sar    $0x10,%eax\n"
+   "movzbl (%edx,%eax,1),%eax\n"
+   "movq   kCoefficientsRgbY(,%eax,8),%mm1\n"
+   "paddsw %mm0,%mm1\n"
+   "psraw  $0x6,%mm1\n"
+   "packuswb %mm1,%mm1\n"
+   "movd   %mm1,0x0(%ebp)\n"
+ 
+-"scaledone:"
++"2:"
+   "popa\n"
+   "ret\n"
++#if !defined(XP_MACOSX)
++  ".previous\n"
++#endif
+ );
+ 
+ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width,
+                               int source_dx);
+   asm(
+   ".text\n"
+   ".global LinearScaleYUVToRGB32Row\n"
++  ".type LinearScaleYUVToRGB32Row, @function\n"
+ "LinearScaleYUVToRGB32Row:\n"
+   "pusha\n"
+   "mov    0x24(%esp),%edx\n"
+   "mov    0x28(%esp),%edi\n"
+   "mov    0x30(%esp),%ebp\n"
+ 
+   // source_width = width * source_dx + ebx
+   "mov    0x34(%esp), %ecx\n"
+   "imull  0x38(%esp), %ecx\n"
+   "mov    %ecx, 0x34(%esp)\n"
+ 
+   "mov    0x38(%esp), %ecx\n"
+   "xor    %ebx,%ebx\n"     // x = 0
+   "cmp    $0x20000,%ecx\n" // if source_dx >= 2.0
+-  "jl     .lscaleend\n"
++  "jl     1f\n"
+   "mov    $0x8000,%ebx\n"  // x = 0.5 for 1/2 or less
+-  "jmp    .lscaleend\n"
++  "jmp    1f\n"
+ 
+-".lscaleloop:"
++"0:"
+   "mov    %ebx,%eax\n"
+   "sar    $0x11,%eax\n"
+ 
+   "movzbl (%edi,%eax,1),%ecx\n"
+   "movzbl 1(%edi,%eax,1),%esi\n"
+   "mov    %ebx,%eax\n"
+   "andl   $0x1fffe, %eax \n"
+   "imul   %eax, %esi \n"
+@@ -464,17 +468,17 @@ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+   "imul   %eax, %esi \n"
+   "xorl   $0xffff, %eax \n"
+   "imul   %eax, %ecx \n"
+   "addl   %esi, %ecx \n"
+   "shrl   $16, %ecx \n"
+   "movq   kCoefficientsRgbY(,%ecx,8),%mm1\n"
+ 
+   "cmp    0x34(%esp), %ebx\n"
+-  "jge    .lscalelastpixel\n"
++  "jge    2f\n"
+ 
+   "mov    %ebx,%eax\n"
+   "sar    $0x10,%eax\n"
+   "movzbl (%edx,%eax,1),%ecx\n"
+   "movzbl 1(%edx,%eax,1),%esi\n"
+   "mov    %ebx,%eax\n"
+   "add    0x38(%esp),%ebx\n"
+   "andl   $0xffff, %eax \n"
+@@ -488,56 +492,60 @@ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+   "paddsw %mm0,%mm1\n"
+   "paddsw %mm0,%mm2\n"
+   "psraw  $0x6,%mm1\n"
+   "psraw  $0x6,%mm2\n"
+   "packuswb %mm2,%mm1\n"
+   "movntq %mm1,0x0(%ebp)\n"
+   "add    $0x8,%ebp\n"
+ 
+-".lscaleend:"
++"1:"
+   "cmp    0x34(%esp), %ebx\n"
+-  "jl     .lscaleloop\n"
++  "jl     0b\n"
+   "popa\n"
+   "ret\n"
+ 
+-".lscalelastpixel:"
++"2:"
+   "paddsw %mm0, %mm1\n"
+   "psraw $6, %mm1\n"
+   "packuswb %mm1, %mm1\n"
+   "movd %mm1, (%ebp)\n"
+   "popa\n"
+   "ret\n"
++#if !defined(XP_MACOSX)
++  ".previous\n"
++#endif
+ );
+ 
+-#elif USE_MMX && !defined(ARCH_CPU_X86_64) && defined(__PIC__)
++#elif defined(ARCH_CPU_X86_32) && defined(__PIC__)
++
++void PICConvertYUVToRGB32Row(const uint8* y_buf,
++                             const uint8* u_buf,
++                             const uint8* v_buf,
++                             uint8* rgb_buf,
++                             int width,
++                             int16 *kCoefficientsRgbY);
+ 
+-extern void PICConvertYUVToRGB32Row(const uint8* y_buf,
+-                                    const uint8* u_buf,
+-                                    const uint8* v_buf,
+-                                    uint8* rgb_buf,
+-                                    int width,
+-                                    int16 *kCoefficientsRgbY);
+   asm(
+   ".text\n"
+-#if defined(OS_MACOSX)
++#if defined(XP_MACOSX)
+ "_PICConvertYUVToRGB32Row:\n"
+ #else
+ "PICConvertYUVToRGB32Row:\n"
+ #endif
+   "pusha\n"
+   "mov    0x24(%esp),%edx\n"
+   "mov    0x28(%esp),%edi\n"
+   "mov    0x2c(%esp),%esi\n"
+   "mov    0x30(%esp),%ebp\n"
+   "mov    0x38(%esp),%ecx\n"
+ 
+-  "jmp    .Lconvertend\n"
++  "jmp    1f\n"
+ 
+-".Lconvertloop:"
++"0:"
+   "movzbl (%edi),%eax\n"
+   "add    $0x1,%edi\n"
+   "movzbl (%esi),%ebx\n"
+   "add    $0x1,%esi\n"
+   "movq   2048(%ecx,%eax,8),%mm0\n"
+   "movzbl (%edx),%eax\n"
+   "paddsw 4096(%ecx,%ebx,8),%mm0\n"
+   "movzbl 0x1(%edx),%ebx\n"
+@@ -546,72 +554,75 @@ extern void PICConvertYUVToRGB32Row(const uint8* y_buf,
+   "movq   0(%ecx,%ebx,8),%mm2\n"
+   "paddsw %mm0,%mm1\n"
+   "paddsw %mm0,%mm2\n"
+   "psraw  $0x6,%mm1\n"
+   "psraw  $0x6,%mm2\n"
+   "packuswb %mm2,%mm1\n"
+   "movntq %mm1,0x0(%ebp)\n"
+   "add    $0x8,%ebp\n"
+-".Lconvertend:"
++"1:"
+   "subl   $0x2,0x34(%esp)\n"
+-  "jns    .Lconvertloop\n"
++  "jns    0b\n"
+ 
+   "andl   $0x1,0x34(%esp)\n"
+-  "je     .Lconvertdone\n"
++  "je     2f\n"
+ 
+   "movzbl (%edi),%eax\n"
+   "movq   2048(%ecx,%eax,8),%mm0\n"
+   "movzbl (%esi),%eax\n"
+   "paddsw 4096(%ecx,%eax,8),%mm0\n"
+   "movzbl (%edx),%eax\n"
+   "movq   0(%ecx,%eax,8),%mm1\n"
+   "paddsw %mm0,%mm1\n"
+   "psraw  $0x6,%mm1\n"
+   "packuswb %mm1,%mm1\n"
+   "movd   %mm1,0x0(%ebp)\n"
+-".Lconvertdone:\n"
++"2:"
+   "popa\n"
+   "ret\n"
++#if !defined(XP_MACOSX)
++  ".previous\n"
++#endif
+ );
+ 
+ void FastConvertYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width) {
+   PICConvertYUVToRGB32Row(y_buf, u_buf, v_buf, rgb_buf, width,
+                           &kCoefficientsRgbY[0][0]);
+ }
+ 
+-extern void PICScaleYUVToRGB32Row(const uint8* y_buf,
+-                               const uint8* u_buf,
+-                               const uint8* v_buf,
+-                               uint8* rgb_buf,
+-                               int width,
+-                               int source_dx,
+-                               int16 *kCoefficientsRgbY);
++void PICScaleYUVToRGB32Row(const uint8* y_buf,
++                           const uint8* u_buf,
++                           const uint8* v_buf,
++                           uint8* rgb_buf,
++                           int width,
++                           int source_dx,
++                           int16 *kCoefficientsRgbY);
+ 
+   asm(
+   ".text\n"
+-#if defined(OS_MACOSX)
++#if defined(XP_MACOSX)
+ "_PICScaleYUVToRGB32Row:\n"
+ #else
+ "PICScaleYUVToRGB32Row:\n"
+ #endif
+   "pusha\n"
+   "mov    0x24(%esp),%edx\n"
+   "mov    0x28(%esp),%edi\n"
+   "mov    0x2c(%esp),%esi\n"
+   "mov    0x30(%esp),%ebp\n"
+   "mov    0x3c(%esp),%ecx\n"
+   "xor    %ebx,%ebx\n"
+-  "jmp    Lscaleend\n"
++  "jmp    1f\n"
+ 
+-"Lscaleloop:"
++"0:"
+   "mov    %ebx,%eax\n"
+   "sar    $0x11,%eax\n"
+   "movzbl (%edi,%eax,1),%eax\n"
+   "movq   2048(%ecx,%eax,8),%mm0\n"
+   "mov    %ebx,%eax\n"
+   "sar    $0x11,%eax\n"
+   "movzbl (%esi,%eax,1),%eax\n"
+   "paddsw 4096(%ecx,%eax,8),%mm0\n"
+@@ -627,22 +638,22 @@ extern void PICScaleYUVToRGB32Row(const uint8* y_buf,
+   "movq   0(%ecx,%eax,8),%mm2\n"
+   "paddsw %mm0,%mm1\n"
+   "paddsw %mm0,%mm2\n"
+   "psraw  $0x6,%mm1\n"
+   "psraw  $0x6,%mm2\n"
+   "packuswb %mm2,%mm1\n"
+   "movntq %mm1,0x0(%ebp)\n"
+   "add    $0x8,%ebp\n"
+-"Lscaleend:"
++"1:"
+   "subl   $0x2,0x34(%esp)\n"
+-  "jns    Lscaleloop\n"
++  "jns    0b\n"
+ 
+   "andl   $0x1,0x34(%esp)\n"
+-  "je     Lscaledone\n"
++  "je     2f\n"
+ 
+   "mov    %ebx,%eax\n"
+   "sar    $0x11,%eax\n"
+   "movzbl (%edi,%eax,1),%eax\n"
+   "movq   2048(%ecx,%eax,8),%mm0\n"
+   "mov    %ebx,%eax\n"
+   "sar    $0x11,%eax\n"
+   "movzbl (%esi,%eax,1),%eax\n"
+@@ -651,22 +662,24 @@ extern void PICScaleYUVToRGB32Row(const uint8* y_buf,
+   "sar    $0x10,%eax\n"
+   "movzbl (%edx,%eax,1),%eax\n"
+   "movq   0(%ecx,%eax,8),%mm1\n"
+   "paddsw %mm0,%mm1\n"
+   "psraw  $0x6,%mm1\n"
+   "packuswb %mm1,%mm1\n"
+   "movd   %mm1,0x0(%ebp)\n"
+ 
+-"Lscaledone:"
++"2:"
+   "popa\n"
+   "ret\n"
++#if !defined(XP_MACOSX)
++  ".previous\n"
++#endif
+ );
+ 
+-
+ void ScaleYUVToRGB32Row(const uint8* y_buf,
+                         const uint8* u_buf,
+                         const uint8* v_buf,
+                         uint8* rgb_buf,
+                         int width,
+                         int source_dx) {
+   PICScaleYUVToRGB32Row(y_buf, u_buf, v_buf, rgb_buf, width, source_dx,
+                         &kCoefficientsRgbY[0][0]);
+@@ -674,19 +687,20 @@ void ScaleYUVToRGB32Row(const uint8* y_buf,
+ 
+ void PICLinearScaleYUVToRGB32Row(const uint8* y_buf,
+                                  const uint8* u_buf,
+                                  const uint8* v_buf,
+                                  uint8* rgb_buf,
+                                  int width,
+                                  int source_dx,
+                                  int16 *kCoefficientsRgbY);
++
+   asm(
+   ".text\n"
+-#if defined(OS_MACOSX)
++#if defined(XP_MACOSX)
+ "_PICLinearScaleYUVToRGB32Row:\n"
+ #else
+ "PICLinearScaleYUVToRGB32Row:\n"
+ #endif
+   "pusha\n"
+   "mov    0x24(%esp),%edx\n"
+   "mov    0x30(%esp),%ebp\n"
+   "mov    0x34(%esp),%ecx\n"
+@@ -696,21 +710,21 @@ void PICLinearScaleYUVToRGB32Row(const uint8* y_buf,
+   // source_width = width * source_dx + ebx
+   "mov    0x34(%esp), %ecx\n"
+   "imull  0x38(%esp), %ecx\n"
+   "mov    %ecx, 0x34(%esp)\n"
+ 
+   "mov    0x38(%esp), %ecx\n"
+   "xor    %ebx,%ebx\n"     // x = 0
+   "cmp    $0x20000,%ecx\n" // if source_dx >= 2.0
+-  "jl     .lscaleend\n"
++  "jl     1f\n"
+   "mov    $0x8000,%ebx\n"  // x = 0.5 for 1/2 or less
+-  "jmp    .lscaleend\n"
++  "jmp    1f\n"
+ 
+-".lscaleloop:"
++"0:"
+   "mov    0x28(%esp),%esi\n"
+   "mov    %ebx,%eax\n"
+   "sar    $0x11,%eax\n"
+ 
+   "movzbl (%esi,%eax,1),%ecx\n"
+   "movzbl 1(%esi,%eax,1),%esi\n"
+   "mov    %ebx,%eax\n"
+   "andl   $0x1fffe, %eax \n"
+@@ -746,17 +760,17 @@ void PICLinearScaleYUVToRGB32Row(const uint8* y_buf,
+   "imul   %eax, %esi \n"
+   "xorl   $0xffff, %eax \n"
+   "imul   %eax, %ecx \n"
+   "addl   %esi, %ecx \n"
+   "shrl   $16, %ecx \n"
+   "movq   (%edi,%ecx,8),%mm1\n"
+ 
+   "cmp    0x34(%esp), %ebx\n"
+-  "jge    .lscalelastpixel\n"
++  "jge    2f\n"
+ 
+   "mov    %ebx,%eax\n"
+   "sar    $0x10,%eax\n"
+   "movzbl (%edx,%eax,1),%ecx\n"
+   "movzbl 1(%edx,%eax,1),%esi\n"
+   "mov    %ebx,%eax\n"
+   "add    0x38(%esp),%ebx\n"
+   "andl   $0xffff, %eax \n"
+@@ -770,154 +784,66 @@ void PICLinearScaleYUVToRGB32Row(const uint8* y_buf,
+   "paddsw %mm0,%mm1\n"
+   "paddsw %mm0,%mm2\n"
+   "psraw  $0x6,%mm1\n"
+   "psraw  $0x6,%mm2\n"
+   "packuswb %mm2,%mm1\n"
+   "movntq %mm1,0x0(%ebp)\n"
+   "add    $0x8,%ebp\n"
+ 
+-".lscaleend:"
++"1:"
+   "cmp    %ebx, 0x34(%esp)\n"
+-  "jg     .lscaleloop\n"
++  "jg     0b\n"
+   "popa\n"
+   "ret\n"
+ 
+-".lscalelastpixel:"
++"2:"
+   "paddsw %mm0, %mm1\n"
+   "psraw $6, %mm1\n"
+   "packuswb %mm1, %mm1\n"
+   "movd %mm1, (%ebp)\n"
+   "popa\n"
+   "ret\n"
++#if !defined(XP_MACOSX)
++  ".previous\n"
++#endif
+ );
+ 
++
+ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+-                        const uint8* u_buf,
+-                        const uint8* v_buf,
+-                        uint8* rgb_buf,
+-                        int width,
+-                        int source_dx) {
++                              const uint8* u_buf,
++                              const uint8* v_buf,
++                              uint8* rgb_buf,
++                              int width,
++                              int source_dx) {
+   PICLinearScaleYUVToRGB32Row(y_buf, u_buf, v_buf, rgb_buf, width, source_dx,
+                               &kCoefficientsRgbY[0][0]);
+ }
+-
+-#else  // USE_MMX
+-
+-// C reference code that mimic the YUV assembly.
+-#define packuswb(x) ((x) < 0 ? 0 : ((x) > 255 ? 255 : (x)))
+-#define paddsw(x, y) (((x) + (y)) < -32768 ? -32768 : \
+-    (((x) + (y)) > 32767 ? 32767 : ((x) + (y))))
+-
+-static inline void YuvPixel(uint8 y,
+-                            uint8 u,
+-                            uint8 v,
+-                            uint8* rgb_buf) {
+-
+-  int b = kCoefficientsRgbY[256+u][0];
+-  int g = kCoefficientsRgbY[256+u][1];
+-  int r = kCoefficientsRgbY[256+u][2];
+-  int a = kCoefficientsRgbY[256+u][3];
+-
+-  b = paddsw(b, kCoefficientsRgbY[512+v][0]);
+-  g = paddsw(g, kCoefficientsRgbY[512+v][1]);
+-  r = paddsw(r, kCoefficientsRgbY[512+v][2]);
+-  a = paddsw(a, kCoefficientsRgbY[512+v][3]);
+-
+-  b = paddsw(b, kCoefficientsRgbY[y][0]);
+-  g = paddsw(g, kCoefficientsRgbY[y][1]);
+-  r = paddsw(r, kCoefficientsRgbY[y][2]);
+-  a = paddsw(a, kCoefficientsRgbY[y][3]);
+-
+-  b >>= 6;
+-  g >>= 6;
+-  r >>= 6;
+-  a >>= 6;
+-
+-  *reinterpret_cast<uint32*>(rgb_buf) = (packuswb(b)) |
+-                                        (packuswb(g) << 8) |
+-                                        (packuswb(r) << 16) |
+-                                        (packuswb(a) << 24);
+-}
+-
++#else
+ void FastConvertYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width) {
+-  for (int x = 0; x < width; x += 2) {
+-    uint8 u = u_buf[x >> 1];
+-    uint8 v = v_buf[x >> 1];
+-    uint8 y0 = y_buf[x];
+-    YuvPixel(y0, u, v, rgb_buf);
+-    if ((x + 1) < width) {
+-      uint8 y1 = y_buf[x + 1];
+-      YuvPixel(y1, u, v, rgb_buf + 4);
+-    }
+-    rgb_buf += 8;  // Advance 2 pixels.
+-  }
++  FastConvertYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf, width, 1);
+ }
+ 
+-// 16.16 fixed point is used.  A shift by 16 isolates the integer.
+-// A shift by 17 is used to further subsample the chrominence channels.
+-// & 0xffff isolates the fixed point fraction.  >> 2 to get the upper 2 bits,
+-// for 1/65536 pixel accurate interpolation.
+ void ScaleYUVToRGB32Row(const uint8* y_buf,
+                         const uint8* u_buf,
+                         const uint8* v_buf,
+                         uint8* rgb_buf,
+                         int width,
+                         int source_dx) {
+-  int x = 0;
+-  for (int i = 0; i < width; i += 2) {
+-    int y = y_buf[x >> 16];
+-    int u = u_buf[(x >> 17)];
+-    int v = v_buf[(x >> 17)];
+-    YuvPixel(y, u, v, rgb_buf);
+-    x += source_dx;
+-    if ((i + 1) < width) {
+-      y = y_buf[x >> 16];
+-      YuvPixel(y, u, v, rgb_buf+4);
+-      x += source_dx;
+-    }
+-    rgb_buf += 8;
+-  }
++  ScaleYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf, width, source_dx);
+ }
+ 
+ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width,
+                               int source_dx) {
+-  int x = 0;
+-  if (source_dx >= 0x20000) {
+-    x = 32768;
+-  }
+-  for (int i = 0; i < width; i += 2) {
+-    int y0 = y_buf[x >> 16];
+-    int y1 = y_buf[(x >> 16) + 1];
+-    int u0 = u_buf[(x >> 17)];
+-    int u1 = u_buf[(x >> 17) + 1];
+-    int v0 = v_buf[(x >> 17)];
+-    int v1 = v_buf[(x >> 17) + 1];
+-    int y_frac = (x & 65535);
+-    int uv_frac = ((x >> 1) & 65535);
+-    int y = (y_frac * y1 + (y_frac ^ 65535) * y0) >> 16;
+-    int u = (uv_frac * u1 + (uv_frac ^ 65535) * u0) >> 16;
+-    int v = (uv_frac * v1 + (uv_frac ^ 65535) * v0) >> 16;
+-    YuvPixel(y, u, v, rgb_buf);
+-    x += source_dx;
+-    if ((i + 1) < width) {
+-      y0 = y_buf[x >> 16];
+-      y1 = y_buf[(x >> 16) + 1];
+-      y_frac = (x & 65535);
+-      y = (y_frac * y1 + (y_frac ^ 65535) * y0) >> 16;
+-      YuvPixel(y, u, v, rgb_buf+4);
+-      x += source_dx;
+-    }
+-    rgb_buf += 8;
+-  }
++  LinearScaleYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf, width, source_dx);
+ }
++#endif
+ 
+-#endif  // USE_MMX
+ }  // extern "C"
+ 
+diff --git b/gfx/ycbcr/yuv_row_table.cpp a/gfx/ycbcr/yuv_row_table.cpp
+index 296380b..ad71341 100644
+--- b/gfx/ycbcr/yuv_row_table.cpp
++++ a/gfx/ycbcr/yuv_row_table.cpp
+@@ -1,13 +1,13 @@
+ // Copyright (c) 2010 The Chromium Authors. All rights reserved.
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "media/base/yuv_row.h"
++#include "yuv_row.h"
+ 
+ extern "C" {
+ 
+ #define RGBY(i) { \
+   static_cast<int16>(1.164 * 64 * (i - 16) + 0.5), \
+   static_cast<int16>(1.164 * 64 * (i - 16) + 0.5), \
+   static_cast<int16>(1.164 * 64 * (i - 16) + 0.5), \
+   0 \
+diff --git b/gfx/ycbcr/yuv_row_win.cpp a/gfx/ycbcr/yuv_row_win.cpp
+index b5049a5..627b8cb 100644
+--- b/gfx/ycbcr/yuv_row_win.cpp
++++ a/gfx/ycbcr/yuv_row_win.cpp
+@@ -1,20 +1,23 @@
+ // Copyright (c) 2010 The Chromium Authors. All rights reserved.
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "media/base/yuv_row.h"
++#include "yuv_row.h"
++#define MOZILLA_SSE_INCLUDE_HEADER_FOR_SSE2
++#define MOZILLA_SSE_INCLUDE_HEADER_FOR_MMX
++#include "mozilla/SSE.h"
++
+ 
+ #define kCoefficientsRgbU kCoefficientsRgbY + 2048
+ #define kCoefficientsRgbV kCoefficientsRgbY + 4096
+ 
+ extern "C" {
+-
+-#if USE_MMX
++#if defined(MOZILLA_COMPILE_WITH_SSE2) && defined(_M_IX86)
+ __declspec(naked)
+ void FastConvertYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width) {
+   __asm {
+     pushad
+@@ -438,152 +441,37 @@ lscalelastpixel:
+     paddsw    mm1, mm0
+     psraw     mm1, 6
+     packuswb  mm1, mm1
+     movd      [ebp], mm1
+     popad
+     ret
+   };
+ }
+-#else  // USE_MMX
+-
+-// C reference code that mimic the YUV assembly.
+-#define packuswb(x) ((x) < 0 ? 0 : ((x) > 255 ? 255 : (x)))
+-#define paddsw(x, y) (((x) + (y)) < -32768 ? -32768 : \
+-    (((x) + (y)) > 32767 ? 32767 : ((x) + (y))))
+-
+-static inline void YuvPixel(uint8 y,
+-                            uint8 u,
+-                            uint8 v,
+-                            uint8* rgb_buf) {
+-
+-  int b = kCoefficientsRgbY[256+u][0];
+-  int g = kCoefficientsRgbY[256+u][1];
+-  int r = kCoefficientsRgbY[256+u][2];
+-  int a = kCoefficientsRgbY[256+u][3];
+-
+-  b = paddsw(b, kCoefficientsRgbY[512+v][0]);
+-  g = paddsw(g, kCoefficientsRgbY[512+v][1]);
+-  r = paddsw(r, kCoefficientsRgbY[512+v][2]);
+-  a = paddsw(a, kCoefficientsRgbY[512+v][3]);
+-
+-  b = paddsw(b, kCoefficientsRgbY[y][0]);
+-  g = paddsw(g, kCoefficientsRgbY[y][1]);
+-  r = paddsw(r, kCoefficientsRgbY[y][2]);
+-  a = paddsw(a, kCoefficientsRgbY[y][3]);
+-
+-  b >>= 6;
+-  g >>= 6;
+-  r >>= 6;
+-  a >>= 6;
+-
+-  *reinterpret_cast<uint32*>(rgb_buf) = (packuswb(b)) |
+-                                        (packuswb(g) << 8) |
+-                                        (packuswb(r) << 16) |
+-                                        (packuswb(a) << 24);
+-}
+-
+-#if TEST_MMX_YUV
+-static inline void YuvPixel(uint8 y,
+-                            uint8 u,
+-                            uint8 v,
+-                            uint8* rgb_buf) {
+-
+-  __asm {
+-    movzx     eax, u
+-    movq      mm0, [kCoefficientsRgbY+2048 + 8 * eax]
+-    movzx     eax, v
+-    paddsw    mm0, [kCoefficientsRgbY+4096 + 8 * eax]
+-    movzx     eax, y
+-    movq      mm1, [kCoefficientsRgbY + 8 * eax]
+-    paddsw    mm1, mm0
+-    psraw     mm1, 6
+-    packuswb  mm1, mm1
+-    mov       eax, rgb_buf
+-    movd      [eax], mm1
+-    emms
+-  }
+-}
+-#endif
+-
++#else // MOZILLA_COMPILE_WITH_SSE2
+ void FastConvertYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width) {
+-  for (int x = 0; x < width; x += 2) {
+-    uint8 u = u_buf[x >> 1];
+-    uint8 v = v_buf[x >> 1];
+-    uint8 y0 = y_buf[x];
+-    YuvPixel(y0, u, v, rgb_buf);
+-    if ((x + 1) < width) {
+-      uint8 y1 = y_buf[x + 1];
+-      YuvPixel(y1, u, v, rgb_buf + 4);
+-    }
+-    rgb_buf += 8;  // Advance 2 pixels.
+-  }
++  FastConvertYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf, width, 1);
+ }
+ 
+-// 16.16 fixed point is used.  A shift by 16 isolates the integer.
+-// A shift by 17 is used to further subsample the chrominence channels.
+-// & 0xffff isolates the fixed point fraction.  >> 2 to get the upper 2 bits,
+-// for 1/65536 pixel accurate interpolation.
+ void ScaleYUVToRGB32Row(const uint8* y_buf,
+                         const uint8* u_buf,
+                         const uint8* v_buf,
+                         uint8* rgb_buf,
+                         int width,
+                         int source_dx) {
+-  int x = 0;
+-  for (int i = 0; i < width; i += 2) {
+-    int y = y_buf[x >> 16];
+-    int u = u_buf[(x >> 17)];
+-    int v = v_buf[(x >> 17)];
+-    YuvPixel(y, u, v, rgb_buf);
+-    x += source_dx;
+-    if ((i + 1) < width) {
+-      y = y_buf[x >> 16];
+-      YuvPixel(y, u, v, rgb_buf+4);
+-      x += source_dx;
+-    }
+-    rgb_buf += 8;
+-  }
++  ScaleYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf, width, source_dx);
+ }
+ 
+ void LinearScaleYUVToRGB32Row(const uint8* y_buf,
+                               const uint8* u_buf,
+                               const uint8* v_buf,
+                               uint8* rgb_buf,
+                               int width,
+                               int source_dx) {
+-  int x = 0;
+-  if (source_dx >= 0x20000) {
+-    x = 32768;
+-  }
+-  for (int i = 0; i < width; i += 2) {
+-    int y0 = y_buf[x >> 16];
+-    int y1 = y_buf[(x >> 16) + 1];
+-    int u0 = u_buf[(x >> 17)];
+-    int u1 = u_buf[(x >> 17) + 1];
+-    int v0 = v_buf[(x >> 17)];
+-    int v1 = v_buf[(x >> 17) + 1];
+-    int y_frac = (x & 65535);
+-    int uv_frac = ((x >> 1) & 65535);
+-    int y = (y_frac * y1 + (y_frac ^ 65535) * y0) >> 16;
+-    int u = (uv_frac * u1 + (uv_frac ^ 65535) * u0) >> 16;
+-    int v = (uv_frac * v1 + (uv_frac ^ 65535) * v0) >> 16;
+-    YuvPixel(y, u, v, rgb_buf);
+-    x += source_dx;
+-    if ((i + 1) < width) {
+-      y0 = y_buf[x >> 16];
+-      y1 = y_buf[(x >> 16) + 1];
+-      y_frac = (x & 65535);
+-      y = (y_frac * y1 + (y_frac ^ 65535) * y0) >> 16;
+-      YuvPixel(y, u, v, rgb_buf+4);
+-      x += source_dx;
+-    }
+-    rgb_buf += 8;
+-  }
++  LinearScaleYUVToRGB32Row_C(y_buf, u_buf, v_buf, rgb_buf, width, source_dx);
+ }
+-
+-#endif  // USE_MMX
++#endif
+ }  // extern "C"
+ 
