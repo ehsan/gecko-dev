@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* ***** BEGIN LICENSE BLOCK *****
+/*
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -12,14 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is JavaScript Engine testing utilities.
+ * The Original Code is Mozilla code.
  *
  * The Initial Developer of the Original Code is
- * Jeff Walden.
- * Portions created by the Initial Developer are Copyright (C) 2008
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s): Philip Taylor
+ * Contributor(s):
+ *    Dave Townsend <dtownsend@oxymoronical.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,20 +35,17 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+ 
+function run_test() {
+  var file = do_get_file("js/src/xpconnect/tests/unit/syntax_error.jsm");
+  var ios = Components.classes["@mozilla.org/network/io-service;1"]
+                      .getService(Components.interfaces.nsIIOService);
+  var uri = ios.newFileURI(file);
 
-var gTestfile = '15.7.4.3-02.js';
-//-----------------------------------------------------------------------------
-var BUGNUMBER = "446494";
-var summary = "num.toLocaleString should handle exponents";
-var actual, expect;
-
-printBugNumber(BUGNUMBER);
-printStatus(summary);
-
-expect = '1e-10';
-actual = 1e-10.toLocaleString();
-reportCompare(expect, actual, summary + ': ' + expect);
-
-expect = 'Infinity';
-actual = Infinity.toLocaleString();
-reportCompare(expect, actual, summary + ': ' + expect);
+  try {
+    Components.utils.import(uri.spec);
+    do_throw("Failed to report any error at all");
+  } catch (e) {
+    do_check_neq(/^SyntaxError:/(e + ''), null);
+  }
+}
