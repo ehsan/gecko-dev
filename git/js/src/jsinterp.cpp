@@ -5203,8 +5203,7 @@ js_Interpret(JSContext *cx)
                  */
                 funobj = fp->callee;
                 slot += JSCLASS_RESERVED_SLOTS(&js_FunctionClass);
-                if (script->upvarsOffset != 0)
-                    slot += JS_SCRIPT_UPVARS(script)->length;
+                slot += JS_SCRIPT_UPVARS(script)->length;
                 if (!JS_GetReservedSlot(cx, funobj, slot, &rval))
                     goto error;
                 if (JSVAL_IS_VOID(rval))

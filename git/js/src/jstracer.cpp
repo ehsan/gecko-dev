@@ -1851,8 +1851,7 @@ js_ContinueRecording(JSContext* cx, TraceRecorder* r, jsbytecode* oldpc, uintN& 
     Fragmento* fragmento = JS_TRACE_MONITOR(cx).fragmento;
     if (r->isLoopHeader(cx)) { /* did we hit the start point? */
         if (fragmento->assm()->error()) {
-            /* error during recording, blacklist the fragment we were recording */
-            r->blacklist();
+            js_AbortRecording(cx, oldpc, "Error during recording");
             /* if we ran out of memory, flush the cache */
             if (fragmento->assm()->error() == OutOMem)
                 js_FlushJITCache(cx);
@@ -2100,6 +2099,7 @@ js_LoopEdge(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount)
             return true;
         /* recording was aborted, treat like a regular loop edge hit */
     }
+    JS_ASSERT(!tm->recorder);
 
     /* check if our quick cache has an entry for this ip, otherwise ask fragmento. */
     jsbytecode* pc = cx->fp->regs->pc;
@@ -4060,29 +4060,28 @@ TraceRecorder::record_JSOP_CALL()
         ABORT_TRACE("slow native");
 
     static JSTraceableNative knownNatives[] = {
-        { js_array_join,               F_Array_p_join,         "TC",  "s",    FAIL_NULL,   NULL },
         { js_math_sin,                 F_Math_sin,             "",    "d",    INFALLIBLE,  NULL },
         { js_math_cos,                 F_Math_cos,             "",    "d",    INFALLIBLE,  NULL },
         { js_math_pow,                 F_Math_pow,             "",   "dd",    INFALLIBLE,  NULL },
         { js_math_sqrt,                F_Math_sqrt,            "",    "d",    INFALLIBLE,  NULL },
         { js_math_floor,               F_Math_floor,           "",    "d",    INFALLIBLE,  NULL },
+        { js_str_substring,            F_String_p_substring,   "TC", "ii",    FAIL_NULL,   NULL },
+        { js_str_substring,            F_String_p_substring_1, "TC",  "i",    FAIL_NULL,   NULL },
+        { js_str_fromCharCode,         F_String_fromCharCode,  "C",   "i",    FAIL_NULL,   NULL },
+        { js_str_charCodeAt,           F_String_p_charCodeAt,  "T",   "i",    FAIL_NEG,    NULL },
+        { js_str_charAt,               F_String_getelem,       "TC",  "i",    FAIL_NULL,   NULL },
+        { js_str_match,                F_String_p_match,       "PTC", "r",    FAIL_VOID,   NULL },
+        { js_str_replace,              F_String_p_replace_str3,"TC","sss",    FAIL_NULL,   NULL },
+        { js_str_replace,              F_String_p_replace_str, "TC", "sr",    FAIL_NULL,   NULL },
         { js_math_random,              F_Math_random,          "R",    "",    INFALLIBLE,  NULL },
-        { js_num_parseInt,             F_ParseInt,             "C",   "s",    INFALLIBLE,  NULL },
-        { js_num_parseFloat,           F_ParseFloat,           "C",   "s",    INFALLIBLE,  NULL },
+        { js_str_concat,               F_String_p_concat_1int, "TC",  "i",    FAIL_NULL,   NULL },
+        { js_array_join,               F_Array_p_join,         "TC",  "s",    FAIL_NULL,   NULL },
         { js_obj_hasOwnProperty,       F_Object_p_hasOwnProperty,
                                                                "TC",  "s",    FAIL_VOID,   NULL },
         { js_obj_propertyIsEnumerable, F_Object_p_propertyIsEnumerable,
                                                                "TC",  "s",    FAIL_VOID,   NULL },
-        { js_str_charAt,               F_String_getelem,       "TC",  "i",    FAIL_NULL,   NULL },
-        { js_str_charCodeAt,           F_String_p_charCodeAt,  "T",   "i",    FAIL_NEG,    NULL },
-        { js_str_concat,               F_String_p_concat_1int, "TC",  "i",    FAIL_NULL,   NULL },
-        { js_str_fromCharCode,         F_String_fromCharCode,  "C",   "i",    FAIL_NULL,   NULL },
-        { js_str_match,                F_String_p_match,       "PTC", "r",    FAIL_VOID,   NULL },
-        { js_str_replace,              F_String_p_replace_str, "TC", "sr",    FAIL_NULL,   NULL },
-        { js_str_replace,              F_String_p_replace_str3,"TC","sss",    FAIL_NULL,   NULL },
-        { js_str_split,                F_String_p_split,       "TC",  "s",    FAIL_NULL,   NULL },
-        { js_str_substring,            F_String_p_substring,   "TC", "ii",    FAIL_NULL,   NULL },
-        { js_str_substring,            F_String_p_substring_1, "TC",  "i",    FAIL_NULL,   NULL },
+        { js_num_parseInt,             F_ParseInt,             "C",   "s",    INFALLIBLE,  NULL },
+        { js_num_parseFloat,           F_ParseFloat,           "C",   "s",    INFALLIBLE,  NULL },
     };
 
     for (uintN i = 0; i < JS_ARRAY_LENGTH(knownNatives); i++) {
