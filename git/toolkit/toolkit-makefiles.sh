@@ -352,10 +352,6 @@ MAKEFILES_plugin="
   modules/plugin/sdk/samples/winless/windows/Makefile
 "
 
-MAKEFILES_freetype2="
-  modules/freetype2/Makefile
-"
-
 MAKEFILES_netwerk="
   netwerk/Makefile
   netwerk/base/Makefile
@@ -578,7 +574,13 @@ MAKEFILES_xpfe="
   xpfe/components/find/Makefile
   xpfe/components/find/public/Makefile
   xpfe/components/find/src/Makefile
+  xpfe/components/history/Makefile
+  xpfe/components/history/src/Makefile
+  xpfe/components/history/public/Makefile
   xpfe/components/intl/Makefile
+  xpfe/components/related/Makefile
+  xpfe/components/related/src/Makefile
+  xpfe/components/related/public/Makefile
   xpfe/components/autocomplete/Makefile
   xpfe/components/autocomplete/public/Makefile
   xpfe/components/autocomplete/src/Makefile
@@ -1066,7 +1068,6 @@ if [ "$MOZ_MEDIA" ]; then
    content/media/video/Makefile
    content/media/video/public/Makefile
    content/media/video/src/Makefile
-   content/media/video/test/Makefile
  "
 fi
 
@@ -1084,11 +1085,5 @@ fi
 if [ "$MOZ_SYDNEYAUDIO" ]; then
  add_makefiles "
    $MAKEFILES_libsydneyaudio
- "
-fi
-
-if [ "$MOZ_TREE_FREETYPE" ]; then
- add_makefiles "
-   $MAKEFILES_freetype2
  "
 fi

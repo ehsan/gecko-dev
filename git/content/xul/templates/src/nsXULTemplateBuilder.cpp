@@ -91,7 +91,6 @@
 #include "nsString.h"
 #include "nsVoidArray.h"
 #include "nsXPIDLString.h"
-#include "nsWhitespaceTokenizer.h"
 #include "nsGkAtoms.h"
 #include "nsXULElement.h"
 #include "jsapi.h"
@@ -1754,16 +1753,12 @@ nsXULTemplateBuilder::CompileQueries()
     mRoot->GetAttr(kNameSpaceID_None, nsGkAtoms::flags, flags);
 
     // if the dont-test-empty flag is set, containers should not be checked to
-    // see if they are empty. If dont-recurse is set, then don't process the
-    // template recursively and only show one level of results.
-    nsWhitespaceTokenizer tokenizer(flags);
-    while (tokenizer.hasMoreTokens()) {
-      const nsDependentSubstring& token(tokenizer.nextToken());
-      if (token.EqualsLiteral("dont-test-empty"))
+    // see if they are empty
+    if (flags.Find(NS_LITERAL_STRING("dont-test-empty")) >= 0)
         mFlags |= eDontTestEmpty;
-      else if (token.EqualsLiteral("dont-recurse"))
+
+    if (flags.Find(NS_LITERAL_STRING("dont-recurse")) >= 0)
         mFlags |= eDontRecurse;
-    }
 
     nsCOMPtr<nsIDOMNode> rootnode = do_QueryInterface(mRoot);
     nsresult rv =

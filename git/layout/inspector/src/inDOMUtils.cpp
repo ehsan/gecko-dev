@@ -73,9 +73,8 @@ NS_IMETHODIMP
 inDOMUtils::IsIgnorableWhitespace(nsIDOMCharacterData *aDataNode,
                                   PRBool *aReturn)
 {
+  NS_PRECONDITION(aDataNode, "Must have a character data node");
   NS_PRECONDITION(aReturn, "Must have an out parameter");
-
-  NS_ENSURE_ARG_POINTER(aDataNode);
 
   *aReturn = PR_FALSE;
 
@@ -120,9 +119,7 @@ inDOMUtils::GetParentForNode(nsIDOMNode* aNode,
                              PRBool aShowingAnonymousContent,
                              nsIDOMNode** aParent)
 {
-  NS_ENSURE_ARG_POINTER(aNode);
-
-  // First do the special cases -- document nodes and anonymous content
+    // First do the special cases -- document nodes and anonymous content
   nsCOMPtr<nsIDOMDocument> doc(do_QueryInterface(aNode));
   nsCOMPtr<nsIDOMNode> parent;
 
@@ -154,7 +151,7 @@ NS_IMETHODIMP
 inDOMUtils::GetCSSStyleRules(nsIDOMElement *aElement,
                              nsISupportsArray **_retval)
 {
-  NS_ENSURE_ARG_POINTER(aElement);
+  if (!aElement) return NS_ERROR_NULL_POINTER;
 
   *_retval = nsnull;
 
@@ -197,29 +194,27 @@ NS_IMETHODIMP
 inDOMUtils::GetRuleLine(nsIDOMCSSStyleRule *aRule, PRUint32 *_retval)
 {
   *_retval = 0;
-
-  NS_ENSURE_ARG_POINTER(aRule);
-
+  if (!aRule)
+    return NS_OK;
   nsCOMPtr<nsICSSStyleRuleDOMWrapper> rule = do_QueryInterface(aRule);
   nsCOMPtr<nsICSSStyleRule> cssrule;
-  nsresult rv = rule->GetCSSStyleRule(getter_AddRefs(cssrule));
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(cssrule != nsnull, NS_ERROR_FAILURE);
-  *_retval = cssrule->GetLineNumber();
+  rule->GetCSSStyleRule(getter_AddRefs(cssrule));
+  if (cssrule)
+    *_retval = cssrule->GetLineNumber();
   return NS_OK;
 }
 
 NS_IMETHODIMP 
 inDOMUtils::GetBindingURLs(nsIDOMElement *aElement, nsIArray **_retval)
 {
-  NS_ENSURE_ARG_POINTER(aElement);
   return mCSSUtils->GetBindingURLs(aElement, _retval);
 }
 
 NS_IMETHODIMP
 inDOMUtils::SetContentState(nsIDOMElement *aElement, PRInt32 aState)
 {
-  NS_ENSURE_ARG_POINTER(aElement);
+  if (!aElement)
+    return NS_ERROR_NULL_POINTER;
   
   nsCOMPtr<nsIEventStateManager> esm = inLayoutUtils::GetEventStateManagerFor(aElement);
   if (esm) {
@@ -237,7 +232,8 @@ inDOMUtils::GetContentState(nsIDOMElement *aElement, PRInt32* aState)
 {
   *aState = 0;
 
-  NS_ENSURE_ARG_POINTER(aElement);
+  if (!aElement)
+    return NS_ERROR_NULL_POINTER;
 
   nsCOMPtr<nsIEventStateManager> esm = inLayoutUtils::GetEventStateManagerFor(aElement);
   if (esm) {

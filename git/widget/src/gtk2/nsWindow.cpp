@@ -398,7 +398,6 @@ nsWindow::nsWindow()
     mDragMotionY = 0;
     mDragMotionTime = 0;
     mDragMotionTimerID = 0;
-    mLastMotionPressure = 0;
 
 #ifdef USE_XIM
     mIMEData = nsnull;
@@ -2535,15 +2534,6 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
 
     nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
 
-    // should we move this into !synthEvent?
-    gdouble pressure = 0;
-    gdk_event_get_axis ((GdkEvent*)aEvent, GDK_AXIS_PRESSURE, &pressure);
-    // Sometime gdk generate 0 pressure value between normal values
-    // We have to ignore that and use last valid value
-    if (pressure)
-      mLastMotionPressure = pressure;
-    event.pressure = mLastMotionPressure;
-
     nsRect windowRect;
     ScreenToWidget(nsRect(nscoord(cursorX), nscoord(cursorY), 1, 1), windowRect);
 
@@ -2596,14 +2586,6 @@ nsWindow::OnMotionNotifyEvent(GtkWidget *aWidget, GdkEventMotion *aEvent)
 #endif /* MOZ_X11 */
 
     nsMouseEvent event(PR_TRUE, NS_MOUSE_MOVE, this, nsMouseEvent::eReal);
-
-    gdouble pressure = 0;
-    gdk_event_get_axis ((GdkEvent*)aEvent, GDK_AXIS_PRESSURE, &pressure);
-    // Sometime gdk generate 0 pressure value between normal values
-    // We have to ignore that and use last valid value
-    if (pressure)
-      mLastMotionPressure = pressure;
-    event.pressure = mLastMotionPressure;
 
     if (synthEvent) {
 #ifdef MOZ_X11
@@ -2733,10 +2715,6 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     if (gConsumeRollupEvent && rolledUp)
             return;
 
-    gdouble pressure = 0;
-    gdk_event_get_axis ((GdkEvent*)aEvent, GDK_AXIS_PRESSURE, &pressure);
-    mLastMotionPressure = pressure;
-
     PRUint16 domButton;
     switch (aEvent->button) {
     case 1:
@@ -2753,7 +2731,6 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     case 7:
         {
             nsMouseScrollEvent event(PR_TRUE, NS_MOUSE_SCROLL, this);
-            event.pressure = mLastMotionPressure;
             event.scrollFlags = nsMouseScrollEvent::kIsHorizontal;
             event.refPoint.x = nscoord(aEvent->x);
             event.refPoint.y = nscoord(aEvent->y);
@@ -2784,7 +2761,6 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     nsMouseEvent event(PR_TRUE, NS_MOUSE_BUTTON_DOWN, this, nsMouseEvent::eReal);
     event.button = domButton;
     InitButtonEvent(event, aEvent);
-    event.pressure = mLastMotionPressure;
 
     DispatchEvent(&event, status);
 
@@ -2794,7 +2770,6 @@ nsWindow::OnButtonPressEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
         nsMouseEvent contextMenuEvent(PR_TRUE, NS_CONTEXTMENU, this,
                                       nsMouseEvent::eReal);
         InitButtonEvent(contextMenuEvent, aEvent);
-        contextMenuEvent.pressure = mLastMotionPressure;
         DispatchEvent(&contextMenuEvent, status);
     }
 }
@@ -2822,13 +2797,9 @@ nsWindow::OnButtonReleaseEvent(GtkWidget *aWidget, GdkEventButton *aEvent)
     nsMouseEvent event(PR_TRUE, NS_MOUSE_BUTTON_UP, this, nsMouseEvent::eReal);
     event.button = domButton;
     InitButtonEvent(event, aEvent);
-    gdouble pressure = 0;
-    gdk_event_get_axis ((GdkEvent*)aEvent, GDK_AXIS_PRESSURE, &pressure);
-    event.pressure = pressure ? pressure : mLastMotionPressure;
 
     nsEventStatus status;
     DispatchEvent(&event, status);
-    mLastMotionPressure = pressure;
 }
 
 void
@@ -5536,32 +5507,6 @@ key_press_event_cb(GtkWidget *widget, GdkEventKey *event)
 
     nsRefPtr<nsWindow> focusWindow = gFocusWindow ? gFocusWindow : window;
 
-#ifdef MOZ_X11
-    // Keyboard repeat can cause key press events to queue up when there are
-    // slow event handlers (bug 301029).  Throttle these events by removing
-    // consecutive pending duplicate KeyPress events to the same window.
-    // We use the event time of the last one.
-    // Note: GDK calls XkbSetDetectableAutorepeat so that KeyRelease events
-    // are generated only when the key is physically released.
-#define NS_GDKEVENT_MATCH_MASK 0x1FFF /* GDK_SHIFT_MASK .. GDK_BUTTON5_MASK */
-    GdkDisplay* gdkDisplay = gtk_widget_get_display(widget);
-    Display* dpy = GDK_DISPLAY_XDISPLAY(gdkDisplay);
-    while (XPending(dpy)) {
-        XEvent next_event;
-        XPeekEvent(dpy, &next_event);
-        GdkWindow* nextGdkWindow =
-            gdk_window_lookup_for_display(gdkDisplay, next_event.xany.window);
-        if (nextGdkWindow != event->window ||
-            next_event.type != KeyPress ||
-            next_event.xkey.keycode != event->hardware_keycode ||
-            next_event.xkey.state != (event->state & NS_GDKEVENT_MATCH_MASK)) {
-            break;
-        }
-        XNextEvent(dpy, &next_event);
-        event->time = next_event.xkey.time;
-    }
-#endif
-
     return focusWindow->OnKeyPressEvent(widget, event);
 }
 
@@ -6407,8 +6352,7 @@ nsWindow::IMEGetContext()
 static PRBool
 IsIMEEnabledState(PRUint32 aState)
 {
-    return aState == nsIWidget::IME_STATUS_ENABLED ||
-           aState == nsIWidget::IME_STATUS_PLUGIN;
+    return aState == nsIWidget::IME_STATUS_ENABLED;
 }
 
 PRBool
@@ -6421,7 +6365,6 @@ static PRBool
 IsIMEEditableState(PRUint32 aState)
 {
     return aState == nsIWidget::IME_STATUS_ENABLED ||
-           aState == nsIWidget::IME_STATUS_PLUGIN ||
            aState == nsIWidget::IME_STATUS_PASSWORD;
 }
 
@@ -6620,18 +6563,6 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
         focusedWin->IMESetFocus();
 #ifdef MOZ_PLATFORM_HILDON
         if (mIMEData->mEnabled) {
-            // It is not desired that the hildon's autocomplete mechanism displays
-            // user previous entered passwds, so lets make completions invisible
-            // in these cases.
-            int mode;
-            g_object_get (G_OBJECT(focusedIm), "hildon-input-mode", &mode, NULL);
-
-            if (mIMEData->mEnabled == IME_STATUS_ENABLED)
-                mode &= ~HILDON_GTK_INPUT_MODE_INVISIBLE;
-            else if (mIMEData->mEnabled == nsIWidget::IME_STATUS_PASSWORD)
-               mode |= HILDON_GTK_INPUT_MODE_INVISIBLE;
-
-            g_object_set (G_OBJECT(focusedIm), "hildon-input-mode", (HildonGtkInputMode)mode, NULL);
             gIMEVirtualKeyboardOpened = PR_TRUE;
             hildon_gtk_im_context_show (focusedIm);
         } else {
@@ -6983,8 +6914,7 @@ IM_get_input_context(nsWindow *aWindow)
     nsWindow::nsIMEData *data = aWindow->mIMEData;
     if (!data)
         return nsnull;
-    if (data->mEnabled == nsIWidget::IME_STATUS_ENABLED ||
-        data->mEnabled == nsIWidget::IME_STATUS_PLUGIN)
+    if (data->mEnabled == nsIWidget::IME_STATUS_ENABLED)
         return data->mContext;
     if (data->mEnabled == nsIWidget::IME_STATUS_PASSWORD)
         return data->mSimpleContext;

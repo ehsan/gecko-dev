@@ -762,6 +762,7 @@ struct nsCallbackEventRequest
 
 // ----------------------------------------------------------------------------
 class nsPresShellEventCB;
+class nsAutoCauseReflowNotifier;
 
 class PresShell : public nsIPresShell, public nsIViewObserver,
                   public nsStubDocumentObserver,
@@ -878,7 +879,8 @@ public:
 
   virtual nsIFrame* GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt);
 
-  NS_IMETHOD RenderDocument(const nsRect& aRect, PRUint32 aFlags,
+  NS_IMETHOD RenderDocument(const nsRect& aRect, PRBool aUntrusted,
+                            PRBool aIgnoreViewportScrolling,
                             nscolor aBackgroundColor,
                             gfxContext* aThebesContext);
 
@@ -1012,6 +1014,13 @@ protected:
 
   void UnsuppressAndInvalidate();
 
+  void WillCauseReflow() {
+    nsContentUtils::AddScriptBlocker();
+    ++mChangeNestCount;
+  }
+  nsresult DidCauseReflow();
+  friend class nsAutoCauseReflowNotifier;
+
   void     WillDoReflow();
   void     DidDoReflow();
   nsresult ProcessReflowCommands(PRBool aInterruptible);
@@ -1125,6 +1134,11 @@ protected:
 
   PRPackedBool mIgnoreFrameDestruction;
   PRPackedBool mHaveShutDown;
+
+  // This is used to protect ourselves from triggering reflow while in the
+  // middle of frame construction and the like... it really shouldn't be
+  // needed, one hopes, but it is for now.
+  PRUint32  mChangeNestCount;
   
   nsIFrame*   mCurrentEventFrame;
   nsCOMPtr<nsIContent> mCurrentEventContent;
@@ -1201,6 +1215,29 @@ private:
   void EnumeratePlugins(nsIDOMDocument *aDocument,
                         const nsString &aPluginTag,
                         nsPluginEnumCallback aCallback);
+};
+
+class nsAutoCauseReflowNotifier
+{
+public:
+  nsAutoCauseReflowNotifier(PresShell* aShell)
+    : mShell(aShell)
+  {
+    mShell->WillCauseReflow();
+  }
+  ~nsAutoCauseReflowNotifier()
+  {
+    // This check should not be needed. Currently the only place that seem
+    // to need it is the code that deals with bug 337586.
+    if (!mShell->mHaveShutDown) {
+      mShell->DidCauseReflow();
+    }
+    else {
+      nsContentUtils::RemoveScriptBlocker();
+    }
+  }
+
+  PresShell* mShell;
 };
 
 class NS_STACK_CLASS nsPresShellEventCB : public nsDispatchingCallback
@@ -1668,7 +1705,7 @@ PresShell::Destroy()
   CancelPostedReflowCallbacks();
 
   // Destroy the frame manager. This will destroy the frame hierarchy
-  mFrameConstructor->WillDestroyFrameTree(PR_TRUE);
+  mFrameConstructor->WillDestroyFrameTree();
   FrameManager()->Destroy();
 
   NS_WARN_IF_FALSE(!mWeakFrames, "Weak frames alive after destroying FrameManager");
@@ -2372,7 +2409,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     MOZ_TIMER_START(mFrameCreationWatch);
 
     {
-      nsAutoScriptBlocker scriptBlocker;
+      nsAutoCauseReflowNotifier reflowNotifier(this);
       mFrameConstructor->BeginUpdate();
 
       if (!rootFrame) {
@@ -2518,7 +2555,7 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
       // the way don't have region accumulation issues?
 
       {
-        nsAutoScriptBlocker scriptBlocker;
+        nsAutoCauseReflowNotifier crNotifier(this);
         WillDoReflow();
 
         // Kick off a top-down reflow
@@ -3053,6 +3090,7 @@ PresShell::RestoreRootScrollPosition()
   // scrollable frame will cause it to reenter ScrollToRestoredPosition(), and
   // it'll get all confused.
   nsAutoScriptBlocker scriptBlocker;
+  ++mChangeNestCount;
 
   if (historyState) {
     nsIFrame* scrollFrame = GetRootScrollFrame();
@@ -3066,6 +3104,8 @@ PresShell::RestoreRootScrollPosition()
       }
     }
   }
+
+  --mChangeNestCount;
 }
 
 void
@@ -3345,7 +3385,10 @@ PresShell::RecreateFramesFor(nsIContent* aContent)
   nsStyleChangeList changeList;
   changeList.AppendChange(nsnull, aContent, nsChangeHint_ReconstructFrame);
 
+  // Mark ourselves as not safe to flush while we're doing frame construction.
+  ++mChangeNestCount;
   nsresult rv = mFrameConstructor->ProcessRestyledFrames(changeList);
+  --mChangeNestCount;
   
   batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
 #ifdef ACCESSIBILITY
@@ -4445,21 +4488,29 @@ PresShell::HandlePostedReflowCallbacks()
 NS_IMETHODIMP 
 PresShell::IsSafeToFlush(PRBool& aIsSafeToFlush)
 {
-  aIsSafeToFlush = nsContentUtils::IsSafeToRunScript();
-#ifdef DEBUG
+  // XXX technically we don't need to check anything but
+  // nsContentUtils::IsSafeToRunScript here since that should be false
+  // if any of the other flags are set.
+  
   // Not safe if we are reflowing or in the middle of frame construction
-  PRBool isSafeToFlush = !mIsReflowing;
-  // Not safe if we are painting
-  nsIViewManager* viewManager = GetViewManager();
-  if (viewManager) {
-    PRBool isPainting = PR_FALSE;
-    viewManager->IsPainting(isPainting);
-    if (isPainting) {
-      isSafeToFlush = PR_FALSE;
+  aIsSafeToFlush = !mIsReflowing &&
+                   !mChangeNestCount;
+
+  if (aIsSafeToFlush) {
+    // Not safe if we are painting
+    nsIViewManager* viewManager = GetViewManager();
+    if (viewManager) {
+      PRBool isPainting = PR_FALSE;
+      viewManager->IsPainting(isPainting);
+      if (isPainting) {
+        aIsSafeToFlush = PR_FALSE;
+      }
     }
   }
-  NS_ASSERTION(!aIsSafeToFlush || isSafeToFlush, "Missing a script blocker!");
-#endif
+
+  NS_ASSERTION(aIsSafeToFlush == nsContentUtils::IsSafeToRunScript(),
+               "Someone forgot to block scripts");
+
   return NS_OK;
 }
 
@@ -4572,7 +4623,7 @@ PresShell::CharacterDataChanged(nsIDocument *aDocument,
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected CharacterDataChanged");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
 
-  nsAutoScriptBlocker scriptBlocker;
+  nsAutoCauseReflowNotifier crNotifier(this);
 
   if (mCaret) {
     // Invalidate the caret's current location before we call into the frame
@@ -4614,7 +4665,7 @@ PresShell::ContentStatesChanged(nsIDocument* aDocument,
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
 
   if (mDidInitialReflow) {
-    nsAutoScriptBlocker scriptBlocker;
+    nsAutoCauseReflowNotifier crNotifier(this);
     mFrameConstructor->ContentStatesChanged(aContent1, aContent2, aStateMask);
     VERIFY_STYLE_TREE;
   }
@@ -4636,7 +4687,7 @@ PresShell::AttributeChanged(nsIDocument* aDocument,
   // initial reflow to begin observing the document. That would
   // squelch any other inappropriate notifications as well.
   if (mDidInitialReflow) {
-    nsAutoScriptBlocker scriptBlocker;
+    nsAutoCauseReflowNotifier crNotifier(this);
     mFrameConstructor->AttributeChanged(aContent, aNameSpaceID,
                                         aAttribute, aModType, aStateMask);
     VERIFY_STYLE_TREE;
@@ -4656,7 +4707,7 @@ PresShell::ContentAppended(nsIDocument *aDocument,
     return;
   }
   
-  nsAutoScriptBlocker scriptBlocker;
+  nsAutoCauseReflowNotifier crNotifier(this);
   MOZ_TIMER_DEBUGLOG(("Start: Frame Creation: PresShell::ContentAppended(), this=%p\n", this));
   MOZ_TIMER_START(mFrameCreationWatch);
 
@@ -4685,7 +4736,7 @@ PresShell::ContentInserted(nsIDocument* aDocument,
     return;
   }
   
-  nsAutoScriptBlocker scriptBlocker;
+  nsAutoCauseReflowNotifier crNotifier(this);
 
   // Call this here so it only happens for real content mutations and
   // not cases when the frame constructor calls its own methods to force
@@ -4716,7 +4767,7 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
   // it can clean up any state related to the content.
   mPresContext->EventStateManager()->ContentRemoved(aChild);
 
-  nsAutoScriptBlocker scriptBlocker;
+  nsAutoCauseReflowNotifier crNotifier(this);
 
   // Call this here so it only happens for real content mutations and
   // not cases when the frame constructor calls its own methods to force
@@ -4734,7 +4785,7 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
 nsresult
 PresShell::ReconstructFrames(void)
 {
-  nsAutoScriptBlocker scriptBlocker;
+  nsAutoCauseReflowNotifier crNotifier(this);
   mFrameConstructor->BeginUpdate();
   nsresult rv = mFrameConstructor->ReconstructDocElementHierarchy();
   VERIFY_STYLE_TREE;
@@ -4884,11 +4935,12 @@ PresShell::ComputeRepaintRegionForCopy(nsIView*      aRootView,
 }
 
 NS_IMETHODIMP
-PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
+PresShell::RenderDocument(const nsRect& aRect, PRBool aUntrusted,
+                          PRBool aIgnoreViewportScrolling,
                           nscolor aBackgroundColor,
                           gfxContext* aThebesContext)
 {
-  NS_ENSURE_TRUE(!(aFlags & RENDER_IS_UNTRUSTED), NS_ERROR_NOT_IMPLEMENTED);
+  NS_ENSURE_TRUE(!aUntrusted, NS_ERROR_NOT_IMPLEMENTED);
 
   gfxRect r(0, 0,
             nsPresContext::AppUnitsToFloatCSSPixels(aRect.width),
@@ -4934,13 +4986,12 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
 
   nsIFrame* rootFrame = FrameManager()->GetRootFrame();
   if (rootFrame) {
-    nsDisplayListBuilder builder(rootFrame, PR_FALSE,
-        (aFlags & RENDER_CARET) != 0);
+    nsDisplayListBuilder builder(rootFrame, PR_FALSE, PR_FALSE);
     nsDisplayList list;
 
     nsRect rect(aRect);
     nsIFrame* rootScrollFrame = GetRootScrollFrame();
-    if ((aFlags & RENDER_IGNORE_VIEWPORT_SCROLLING) && rootScrollFrame) {
+    if (aIgnoreViewportScrolling && rootScrollFrame) {
       nsPoint pos = GetRootScrollFrameAsScrollable()->GetScrollPosition();
       rect.MoveBy(-pos);
       builder.SetIgnoreScrollFrame(rootScrollFrame);
@@ -5358,54 +5409,41 @@ PresShell::Paint(nsIView*             aView,
                  const nsRegion&      aDirtyRegion)
 {
   AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Paint);
+  nsIFrame* frame;
+  nsresult  rv = NS_OK;
 
-  NS_ASSERTION(!mIsDestroying, "painting a destroyed PresShell");
-  NS_ASSERTION(aView, "null view");
+  if (mIsDestroying) {
+    NS_ASSERTION(PR_FALSE, "A paint message was dispatched to a destroyed PresShell");
+    return NS_OK;
+  }
 
-  // Compute the backstop color for the view.  This color must be
-  // totally transparent if the view is within a glass or transparent
-  // widget; otherwise, we compose all the view managers' default
-  // background colors in order to get something completely opaque.
-  // Nested view managers might not have an opaque default, but the
-  // root view manager must.  See bug 467459.
+  NS_ASSERTION(!(nsnull == aView), "null view");
 
-  PRBool needTransparency = PR_FALSE;
-  nsIViewManager *lastMgr = mViewManager;
+  frame = static_cast<nsIFrame*>(aView->GetClientData());
   nscolor backgroundColor;
-  lastMgr->GetDefaultBackgroundColor(&backgroundColor);
-
+  mViewManager->GetDefaultBackgroundColor(&backgroundColor);
   for (nsIView *view = aView; view; view = view->GetParent()) {
-    if (view->HasWidget() &&
-        view->GetWidget()->GetTransparencyMode() != eTransparencyOpaque) {
-      backgroundColor = NS_RGBA(0,0,0,0);
-      needTransparency = PR_TRUE;
-      break;
-    }
-    if (NS_GET_A(backgroundColor) < 255) {
-      nsIViewManager *thisMgr = view->GetViewManager();
-      NS_ASSERTION(thisMgr, "view without view manager");
-      if (lastMgr != thisMgr) {
-        nscolor underColor;
-        thisMgr->GetDefaultBackgroundColor(&underColor);
-        backgroundColor = NS_ComposeColors(underColor, backgroundColor);
-        lastMgr = thisMgr;
+    if (view->HasWidget()) {
+      // Both glass and transparent windows need the transparent bg color
+      if (eTransparencyOpaque != view->GetWidget()->GetTransparencyMode()) {
+        backgroundColor = NS_RGBA(0,0,0,0);
+        break;
       }
     }
   }
-
-  NS_ASSERTION(needTransparency || NS_GET_A(backgroundColor) == 255,
-               "root view manager's default background isn't opaque");
   
-  nsIFrame* frame = static_cast<nsIFrame*>(aView->GetClientData());
-  if (frame) {
-    nsLayoutUtils::PaintFrame(aRenderingContext, frame, aDirtyRegion,
-                              backgroundColor);
-  } else if (NS_GET_A(backgroundColor) > 0) {
-    aRenderingContext->SetColor(backgroundColor);
-    aRenderingContext->FillRect(aDirtyRegion.GetBounds());
+  if (!frame) {
+    if (NS_GET_A(backgroundColor) > 0) {
+      aRenderingContext->SetColor(backgroundColor);
+      aRenderingContext->FillRect(aDirtyRegion.GetBounds());
+    }
+    return NS_OK;
   }
 
-  return NS_OK;
+  nsLayoutUtils::PaintFrame(aRenderingContext, frame, aDirtyRegion,
+                            backgroundColor);
+
+  return rv;
 }
 
 nsIFrame*
@@ -5541,7 +5579,7 @@ PresShell::HandleEvent(nsIView         *aView,
 {
   NS_ASSERTION(aView, "null view");
 
-  if (mIsDestroying || !nsContentUtils::IsSafeToRunScript()) {
+  if (mIsDestroying || mIsReflowing || mChangeNestCount) {
     return NS_OK;
   }
 
@@ -5552,6 +5590,9 @@ PresShell::HandleEvent(nsIView         *aView,
     return HandleEventInternal(aEvent, aView, aEventStatus);
   }
 #endif
+
+  NS_ASSERTION(nsContentUtils::IsSafeToRunScript(),
+               "How did we get here if it's not safe to run scripts?");
 
   // Check for a theme change up front, since the frame type is irrelevant
   if (aEvent->message == NS_THEMECHANGED && mPresContext) {
@@ -5583,8 +5624,7 @@ PresShell::HandleEvent(nsIView         *aView,
 
   PRBool dispatchUsingCoordinates =
       !NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_EVENT(aEvent) &&
-      !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent) &&
-      !NS_IS_PLUGIN_EVENT(aEvent);
+      !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_FOCUS_EVENT(aEvent);
 
   // if this event has no frame, we need to retarget it at a parent
   // view that has a frame.
@@ -5682,7 +5722,7 @@ PresShell::HandleEvent(nsIView         *aView,
     nsIEventStateManager *esm = mPresContext->EventStateManager();
 
     if (NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
-        NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_PLUGIN_EVENT(aEvent)) {
+        NS_IS_CONTEXT_MENU_KEY(aEvent)) {
       esm->GetFocusedFrame(&mCurrentEventFrame);
       if (mCurrentEventFrame) {
         esm->GetFocusedContent(getter_AddRefs(mCurrentEventContent));
@@ -5915,7 +5955,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
                                  aStatus, aView);
 
     // 2. Give event to the DOM for third party and JS use.
-    if (GetCurrentEventFrame() && NS_SUCCEEDED(rv)) {
+    if ((GetCurrentEventFrame()) && NS_SUCCEEDED(rv)) {
       // We want synthesized mouse moves to cause mouseover and mouseout
       // DOM events (PreHandleEvent above), but not mousemove DOM events.
       if (!IsSynthesizedMouseMove(aEvent)) {
@@ -5940,7 +5980,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
 
       // 3. Give event to event manager for post event state changes and
       //    generation of synthetic events.
-      if (!mIsDestroying && NS_SUCCEEDED(rv)) {
+      if (NS_SUCCEEDED(rv)) {
         rv = manager->PostHandleEvent(mPresContext, aEvent,
                                       GetCurrentEventFrame(), aStatus,
                                       weakView.GetView());
@@ -5996,9 +6036,10 @@ PresShell::IsVisible()
 NS_IMETHODIMP_(void)
 PresShell::WillPaint()
 {
-  // Don't bother reflowing if some viewmanager in our tree is painting while
+  // Don't reenter reflow and don't reflow during frame construction.  Also
+  // don't bother reflowing if some viewmanager in our tree is painting while
   // we still have painting suppressed.
-  if (mPaintingSuppressed) {
+  if (mIsReflowing || mChangeNestCount || mPaintingSuppressed) {
     return;
   }
   
@@ -6208,6 +6249,25 @@ PresShell::PostReflowEvent()
     }
 #endif    
   }
+}
+
+nsresult
+PresShell::DidCauseReflow()
+{
+  NS_ASSERTION(mChangeNestCount != 0, "Unexpected call to DidCauseReflow()");
+  if (--mChangeNestCount == 0) {
+    // We may have had more reflow commands appended to the queue during
+    // our reflow.  Make sure these get processed at some point.
+
+    // XXXbz why is this really needed?  ProcessReflowCommands handles posting
+    // reflow events if there are reflow roots remaining, and FrameNeedsReflow
+    // posts events as needed as well.  I think we should remove this.
+    PostReflowEvent();
+  }
+
+  nsContentUtils::RemoveScriptBlocker();
+
+  return NS_OK;
 }
 
 void
@@ -6559,7 +6619,9 @@ PresShell::Observe(nsISupports* aSubject,
       // construction.
       {
         nsAutoScriptBlocker scriptBlocker;
+        ++mChangeNestCount;
         mFrameConstructor->ProcessRestyledFrames(changeList);
+        --mChangeNestCount;
       }
 
       batch.EndUpdateViewBatch(NS_VMREFRESH_NO_SYNC);
@@ -7042,7 +7104,8 @@ DumpToPNG(nsIPresShell* shell, nsAString& name) {
   nsRefPtr<gfxContext> context = new gfxContext(surface);
   NS_ENSURE_TRUE(context, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = shell->RenderDocument(r, 0, NS_RGB(255, 255, 0), context);
+  nsresult rv = shell->RenderDocument(r, PR_FALSE, PR_FALSE,
+                                      NS_RGB(255, 255, 0), context);
   NS_ENSURE_SUCCESS(rv, rv);
 
   imgContext->DrawSurface(surface, gfxSize(width, height));
@@ -7139,10 +7202,9 @@ PresShell::VerifyIncrementalReflow()
   // Note that after we create the shell, we must make sure to destroy it
   sh->SetVerifyReflowEnable(PR_FALSE); // turn off verify reflow while we're reflowing the test frame tree
   vm->SetViewObserver((nsIViewObserver *)((PresShell*)sh.get()));
-  {
-    nsAutoScriptBlocker scriptBlocker;
-    sh->InitialReflow(r.width, r.height);
-  }
+  WillCauseReflow();
+  sh->InitialReflow(r.width, r.height);
+  DidCauseReflow();
   mDocument->BindingManager()->ProcessAttachedQueue();
   sh->FlushPendingNotifications(Flush_Layout);
   sh->SetVerifyReflowEnable(PR_TRUE);  // turn on verify reflow again now that we're done reflowing the test frame tree

@@ -46,7 +46,6 @@
 #include "prthread.h"
 #include "nsEvent.h"
 #include "nsCOMPtr.h"
-#include "nsITheme.h"
 
 // forward declarations
 class   nsIAppShell;
@@ -236,6 +235,12 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
   eZPlacementBottom = 0,  // bottom of the window stack
   eZPlacementBelow,       // just below another widget
   eZPlacementTop          // top of the window stack
+};
+
+enum nsTransparencyMode {
+  eTransparencyOpaque = 0,  // Fully opaque
+  eTransparencyTransparent, // Parts of the window may be transparent
+  eTransparencyGlass        // Transparent parts of the window have Vista AeroGlass effect applied
 };
 
 /**
@@ -1206,14 +1211,7 @@ class nsIWidget : public nsISupports {
        * keyboard layouts at getting focus. Thus, the password editor may have
        * special rules on some platforms.
        */
-      IME_STATUS_PASSWORD = 2,
-      /*
-       * This state is used when a plugin is focused.
-       * When a plug-in is focused content, we should send native events
-       * directly. Because we don't process some native events, but they may
-       * be needed by the plug-in.
-       */
-      IME_STATUS_PLUGIN = 3
+      IME_STATUS_PASSWORD = 2
     };
 
     /*

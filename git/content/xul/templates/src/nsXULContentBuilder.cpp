@@ -1233,7 +1233,9 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
                 }
 
                 // Grab the template node
-                nsCOMPtr<nsIContent> action = matchedrule->GetAction();
+                nsCOMPtr<nsIContent> action;
+                matchedrule->GetAction(getter_AddRefs(action));
+
                 BuildContentFromTemplate(action, aElement, aElement, PR_TRUE,
                                          mRefVariable == matchedrule->GetMemberVariable(),
                                          nextresult, aNotify, newmatch,
@@ -1705,7 +1707,9 @@ nsXULContentBuilder::ReplaceMatch(nsIXULTemplateResult* aOldResult,
     }
 
     if (aNewMatch) {
-        nsCOMPtr<nsIContent> action = aNewMatchRule->GetAction();
+        nsCOMPtr<nsIContent> action;
+        aNewMatchRule->GetAction(getter_AddRefs(action));
+
         return BuildContentFromTemplate(action, content, content, PR_TRUE,
                                         mRefVariable == aNewMatchRule->GetMemberVariable(),
                                         aNewMatch->mResult, PR_TRUE, aNewMatch,

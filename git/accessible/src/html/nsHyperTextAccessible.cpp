@@ -1632,46 +1632,23 @@ NS_IMETHODIMP nsHyperTextAccessible::SetCaretOffset(PRInt32 aCaretOffset)
 /*
  * Gets the offset position of the caret (cursor).
  */
-NS_IMETHODIMP
-nsHyperTextAccessible::GetCaretOffset(PRInt32 *aCaretOffset)
+NS_IMETHODIMP nsHyperTextAccessible::GetCaretOffset(PRInt32 *aCaretOffset)
 {
-  *aCaretOffset = -1;
+  *aCaretOffset = 0;
 
-  // No caret if the focused node is not inside this DOM node and this DOM node
-  // is not inside of focused node.
-  PRBool isInsideOfFocusedNode =
-    nsCoreUtils::IsAncestorOf(gLastFocusedNode, mDOMNode);
-
-  if (!isInsideOfFocusedNode && mDOMNode != gLastFocusedNode &&
-      !nsCoreUtils::IsAncestorOf(mDOMNode, gLastFocusedNode))
-    return NS_OK;
-
-  // Turn the focus node and offset of the selection into caret hypretext
-  // offset.
   nsCOMPtr<nsISelection> domSel;
   nsresult rv = GetSelections(nsISelectionController::SELECTION_NORMAL,
                               nsnull, getter_AddRefs(domSel));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsIDOMNode> focusNode;
-  rv = domSel->GetFocusNode(getter_AddRefs(focusNode));
+  nsCOMPtr<nsIDOMNode> caretNode;
+  rv = domSel->GetFocusNode(getter_AddRefs(caretNode));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRInt32 focusOffset;
-  rv = domSel->GetFocusOffset(&focusOffset);
-  NS_ENSURE_SUCCESS(rv, rv);
+  PRInt32 caretOffset;
+  domSel->GetFocusOffset(&caretOffset);
 
-  // No caret if this DOM node is inside of focused node but the selection's
-  // focus point is not inside of this DOM node.
-  if (isInsideOfFocusedNode) {
-    nsCOMPtr<nsIDOMNode> resultNode =
-      nsCoreUtils::GetDOMNodeFromDOMPoint(focusNode, focusOffset);
-    if (resultNode != mDOMNode &&
-        !nsCoreUtils::IsAncestorOf(mDOMNode, resultNode))
-      return NS_OK;
-  }
-
-  return DOMPointToHypertextOffset(focusNode, focusOffset, aCaretOffset);
+  return DOMPointToHypertextOffset(caretNode, caretOffset, aCaretOffset);
 }
 
 PRInt32 nsHyperTextAccessible::GetCaretLineNumber()

@@ -219,15 +219,15 @@ endif # ENABLE_TESTS
 #
 
 ifndef LIBRARY
-ifdef STATIC_LIBRARY_NAME
+ifdef LIBRARY_NAME
 ifneq (,$(filter OS2 WINNT WINCE,$(OS_ARCH)))
 ifdef SHORT_LIBNAME
-STATIC_LIBRARY_NAME	:= $(SHORT_LIBNAME)
+LIBRARY_NAME		:= $(SHORT_LIBNAME)
 endif
 endif
-LIBRARY			:= $(LIB_PREFIX)$(STATIC_LIBRARY_NAME).$(LIB_SUFFIX)
-endif # STATIC_LIBRARY_NAME
-endif # LIBRARY
+LIBRARY			:= $(LIB_PREFIX)$(LIBRARY_NAME).$(LIB_SUFFIX)
+endif
+endif
 
 ifndef HOST_LIBRARY
 ifdef HOST_LIBRARY_NAME
@@ -244,9 +244,9 @@ MKSHLIB			= $(MKCSHLIB)
 endif
 
 ifdef MAKE_FRAMEWORK
-SHARED_LIBRARY		:= $(SHARED_LIBRARY_NAME)
+SHARED_LIBRARY		:= $(LIBRARY_NAME)
 else
-SHARED_LIBRARY		:= $(DLL_PREFIX)$(SHARED_LIBRARY_NAME)$(DLL_SUFFIX)
+SHARED_LIBRARY		:= $(DLL_PREFIX)$(LIBRARY_NAME)$(DLL_SUFFIX)
 endif
 
 ifeq ($(OS_ARCH),OS2)
@@ -254,7 +254,7 @@ DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
 endif
 
 ifneq (,$(filter OS2 WINNT WINCE,$(OS_ARCH)))
-IMPORT_LIBRARY		:= $(LIB_PREFIX)$(SHARED_LIBRARY_NAME).$(IMPORT_LIB_SUFFIX)
+IMPORT_LIBRARY		:= $(LIB_PREFIX)$(LIBRARY_NAME).$(IMPORT_LIB_SUFFIX)
 endif
 
 ifdef MOZ_ENABLE_LIBXUL
@@ -319,8 +319,8 @@ CODFILE=$(basename $(@F)).cod
 endif
 
 ifdef MOZ_MAPINFO
-ifdef SHARED_LIBRARY_NAME
-MAPFILE=$(SHARED_LIBRARY_NAME).map
+ifdef LIBRARY_NAME
+MAPFILE=$(LIBRARY_NAME).map
 else
 MAPFILE=$(basename $(@F)).map
 endif # LIBRARY_NAME
@@ -333,7 +333,14 @@ endif
 
 ifdef MAPFILE
 OS_LDFLAGS += -MAP:$(MAPFILE)
+#CFLAGS += -Fm$(MAPFILE)
+#CXXFLAGS += -Fm$(MAPFILE)
 endif
+
+#ifdef CODFILE
+#CFLAGS += -Fa$(CODFILE) -FAsc
+#CFLAGS += -Fa$(CODFILE) -FAsc
+#endif
 
 endif # !GNU_CC
 
@@ -458,30 +465,22 @@ UPDATE_TITLE_libs = sed -e "s!Y!libs in $(shell $(BUILD_TOOLS)/print-depth-path.
 UPDATE_TITLE_tools = sed -e "s!Y!tools in $(shell $(BUILD_TOOLS)/print-depth-path.sh)/$*!" $(MOZILLA_DIR)/config/xterm.str;
 endif
 
-ifneq (,$(strip $(DIRS)))
 LOOP_OVER_DIRS = \
     @$(EXIT_ON_ERROR) \
-    $(foreach dir,$(DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; )
-endif
+    $(foreach dir,$(DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; ) true
 
 # we only use this for the makefiles target and other stuff that doesn't matter
-ifneq (,$(strip $(PARALLEL_DIRS)))
 LOOP_OVER_PARALLEL_DIRS = \
     @$(EXIT_ON_ERROR) \
-    $(foreach dir,$(PARALLEL_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; )
-endif
+    $(foreach dir,$(PARALLEL_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; ) true
 
-ifneq (,$(strip $(STATIC_DIRS)))
 LOOP_OVER_STATIC_DIRS = \
     @$(EXIT_ON_ERROR) \
-    $(foreach dir,$(STATIC_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; )
-endif
+    $(foreach dir,$(STATIC_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; ) true
 
-ifneq (,$(strip $(TOOL_DIRS)))
 LOOP_OVER_TOOL_DIRS = \
     @$(EXIT_ON_ERROR) \
-    $(foreach dir,$(TOOL_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; )
-endif
+    $(foreach dir,$(TOOL_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) $@; ) true
 
 ifdef PARALLEL_DIRS
 # create a bunch of fake targets for order-only processing
@@ -710,6 +709,10 @@ SUBMAKEFILES += $(addsuffix /Makefile, $(DIRS) $(TOOL_DIRS) $(PARALLEL_DIRS))
 # default rule before including rules.mk
 ifndef SUPPRESS_DEFAULT_RULES
 ifdef TIERS
+
+DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_dirs))
+STATIC_DIRS += $(foreach tier,$(TIERS),$(tier_$(tier)_staticdirs))
+
 default all alldep::
 	$(EXIT_ON_ERROR) \
 	$(foreach tier,$(TIERS),$(MAKE) tier_$(tier); ) true
@@ -717,9 +720,8 @@ default all alldep::
 else
 
 default all::
-ifneq (,$(strip $(STATIC_DIRS)))
-	$(foreach dir,$(STATIC_DIRS),$(MAKE) -C $(dir); )
-endif
+	@$(EXIT_ON_ERROR) \
+	$(foreach dir,$(STATIC_DIRS),$(MAKE) -C $(dir); ) true
 	$(MAKE) export
 	$(MAKE) libs
 	$(MAKE) tools
@@ -821,9 +823,9 @@ endif
 
 tools:: $(SUBMAKEFILES) $(MAKE_DIRS)
 	+$(LOOP_OVER_DIRS)
-ifneq (,$(strip $(TOOL_DIRS)))
+ifdef TOOL_DIRS
 	@$(EXIT_ON_ERROR) \
-	$(foreach dir,$(TOOL_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) libs; )
+	$(foreach dir,$(TOOL_DIRS),$(UPDATE_TITLE) $(MAKE) -C $(dir) libs; ) true
 endif
 
 #
@@ -834,13 +836,13 @@ ifdef LIBRARY_NAME
 ifdef EXPORT_LIBRARY
 ifdef IS_COMPONENT
 ifdef BUILD_STATIC_LIBS
-	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_COMPS) $(STATIC_LIBRARY_NAME)
+	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_COMPS) $(LIBRARY_NAME)
 ifdef MODULE_NAME
 	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_COMP_NAMES) $(MODULE_NAME)
 endif
-endif # BUILD_STATIC_LIBS
-else  # !IS_COMPONENT
-	$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_LIBS) $(STATIC_LIBRARY_NAME)
+endif
+else
+	$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_LIBS) $(LIBRARY_NAME)
 endif # IS_COMPONENT
 endif # EXPORT_LIBRARY
 endif # LIBRARY_NAME
@@ -1176,7 +1178,7 @@ endif
 ifeq ($(OS_ARCH),OS2)
 $(DEF_FILE): $(OBJS) $(SHARED_LIBRARY_LIBS)
 	rm -f $@
-	echo LIBRARY $(SHARED_LIBRARY_NAME) INITINSTANCE TERMINSTANCE > $@
+	echo LIBRARY $(LIBRARY_NAME) INITINSTANCE TERMINSTANCE > $@
 	echo PROTMODE >> $@
 	echo CODE    LOADONCALL MOVEABLE DISCARDABLE >> $@
 	echo DATA    PRELOAD MOVEABLE MULTIPLE NONSHARED >> $@
@@ -2168,13 +2170,10 @@ TAGS: $(SUBMAKEFILES) $(CSRCS) $(CPPSRCS) $(wildcard *.h)
 	+$(LOOP_OVER_DIRS)
 
 echo-variable-%:
-	@echo "$($*)"
+	@echo $($*)
 
 echo-tiers:
 	@echo $(TIERS)
-
-echo-tier-dirs:
-	@$(foreach tier,$(TIERS),echo '$(tier):'; echo '  dirs: $(tier_$(tier)_dirs)'; echo '  staticdirs: $(tier_$(tier)_staticdirs)'; )
 
 echo-dirs:
 	@echo $(DIRS)

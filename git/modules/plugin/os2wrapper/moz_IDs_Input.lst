@@ -724,6 +724,7 @@ nsIReadConfig
 nsIRecyclingAllocator
 nsIRefreshURI
 nsIRegistry
+nsIRelatedLinksHandler
 nsIRelativeFilePref
 nsIRequest
 nsIRequestObserver

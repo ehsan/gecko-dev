@@ -138,7 +138,6 @@ fails == 25888-3r.html 25888-3r-ref.html # bug 25888
 == 210876-1.html 210876-1-ref.html
 == 212563-1.html 212563-1-ref.html
 == 212563-2.html 212563-2-ref.html
-== 213834-1.html 213834-1-ref.html
 == 214077-1a.html 214077-1-ref.html
 == 214077-1b.html 214077-1-ref.html
 == 218473-1.html 218473-1-ref.html
@@ -841,12 +840,6 @@ skip-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 413292-1.html 413292-1-ref.html # disabl
 == 421069.html 421069-ref.html
 == 421069.html 421069-ref2.html
 == 421069-ref.html 421069-ref2.html
-== 421203-1.xul 421203-1-ref.html
-== 421203-2.xul 421203-1-ref.html
-== 421203-3.xul 321402-3-ref.xul
-== 421203-4.xul 321402-4-ref.xul
-== 421203-5.xul 321402-5-ref.xul
-== 421203-6.xul 321402-6-ref.xul
 == 421234-1.html 421234-1-ref.html
 == 421419-1.html 421419-1-ref.html
 == 421436-1a.html 421436-1-ref.html
@@ -944,9 +937,6 @@ fails == 441259-2.html 441259-2-ref.html # bug 441400
 == 446100-1h.html about:blank
 # == 448193.html 448193-ref.html  # Fails due to 2 small single-pixel differences
 # == 448987.html 448987-ref.html  # Disabled for now - it needs privileges
-!= 449149-1a.html about:blank
-!= 449149-1b.html about:blank
-== 449149-2.html 449149-2-ref.html
 == 449171-1.html 449171-ref.html
 == 449519-1.html 449519-1-ref.html
 # == 449653-1.html 449653-1-ref.html # Disabled for now - it needs privileges
@@ -979,7 +969,6 @@ fails-if(MOZ_WIDGET_TOOLKIT=="cocoa") == 456147.xul 456147-ref.html # bug 456147
 == 458487-4c.html 458487-4-ref.html
 == 458487-5a.html 458487-5-ref.html
 == 458487-5b.html 458487-5-ref.html
-== 459613-1.html 459613-1-ref.html
 == 460012-1.html 460012-1-ref.html
 == 461266-1.html 461266-1-ref.html
 fails == 461512-1.html 461512-1-ref.html # Bug 461512
@@ -997,4 +986,3 @@ fails == 461512-1.html 461512-1-ref.html # Bug 461512
 == 467084-1.html 467084-1-ref.html
 == 467084-2.html 467084-2-ref.html
 == 467460-1.html 467460-1-ref.html
-== 468473-1.xul 468473-1-ref.xul

@@ -163,42 +163,36 @@ TaggingService.prototype = {
     if (!aURI || !aTags)
       throw Cr.NS_ERROR_INVALID_ARG;
 
-    this._bms.runInBatchMode({
-      _self: this,
-      runBatched: function(aUserData) {
-        for (var i = 0; i < aTags.length; i++) {
-          var tag = aTags[i];
-          var tagId = null;
-          if (typeof(tag) == "number") {
-            // is it a tag folder id?
-            if (this._self._tagFolders[tag]) {
-              tagId = tag;
-              tag = this._self._tagFolders[tagId];
-            }
-            else
-              throw Cr.NS_ERROR_INVALID_ARG;
-          }
-          else {
-            tagId = this._self._getItemIdForTag(tag);
-            if (tagId == -1)
-              tagId = this._self._createTag(tag);
-          }
-
-          var itemId = this._self._getItemIdForTaggedURI(aURI, tag);
-          if (itemId == -1)
-            this._self._bms.insertBookmark(tagId, aURI,
-                                           this._self._bms.DEFAULT_INDEX, null);
-
-          // Rename the tag container so the Places view would match the
-          // most-recent user-typed values.
-          var currentTagTitle = this._self._bms.getItemTitle(tagId);
-          if (currentTagTitle != tag) {
-            this._self._bms.setItemTitle(tagId, tag);
-            this._self._tagFolders[tagId] = tag;
-          }
+    for (var i=0; i < aTags.length; i++) {
+      var tag = aTags[i];
+      var tagId = null;
+      if (typeof(tag) == "number") {
+        // is it a tag folder id?
+        if (this._tagFolders[tag]) {
+          tagId = tag;
+          tag = this._tagFolders[tagId];
         }
+        else
+          throw Cr.NS_ERROR_INVALID_ARG;
       }
-    }, null);
+      else {
+        tagId = this._getItemIdForTag(tag);
+        if (tagId == -1)
+          tagId = this._createTag(tag);
+      }
+
+      var itemId = this._getItemIdForTaggedURI(aURI, tag);
+      if (itemId == -1)
+        this._bms.insertBookmark(tagId, aURI, this._bms.DEFAULT_INDEX, null);
+
+      // Rename the tag container so the Places view would match the
+      // most-recent user-typed values.
+      var currentTagTitle = this._bms.getItemTitle(tagId);
+      if (currentTagTitle != tag) {
+        this._bms.setItemTitle(tagId, tag);
+        this._tagFolders[tagId] = tag;
+      }
+    }
   },
 
   /**
@@ -231,34 +225,29 @@ TaggingService.prototype = {
       aTags = this.getTagsForURI(aURI, { });
     }
 
-    this._bms.runInBatchMode({
-      _self: this,
-      runBatched: function(aUserData) {
-        for (var i = 0; i < aTags.length; i++) {
-          var tag = aTags[i];
-          var tagId = null;
-          if (typeof(tag) == "number") {
-            // is it a tag folder id?
-            if (this._self._tagFolders[tag]) {
-              tagId = tag;
-              tag = this._self._tagFolders[tagId];
-            }
-            else
-              throw Cr.NS_ERROR_INVALID_ARG;
-          }
-          else
-            tagId = this._self._getItemIdForTag(tag);
+    for (var i=0; i < aTags.length; i++) {
+      var tag = aTags[i];
+      var tagId = null;
+      if (typeof(tag) == "number") {
+        // is it a tag folder id?
+        if (this._tagFolders[tag]) {
+          tagId = tag;
+          tag = this._tagFolders[tagId];
+        }
+        else
+          throw Cr.NS_ERROR_INVALID_ARG;
+      }
+      else
+        tagId = this._getItemIdForTag(tag);
 
-          if (tagId != -1) {
-            var itemId = this._self._getItemIdForTaggedURI(aURI, tag);
-            if (itemId != -1) {
-              this._self._bms.removeItem(itemId);
-              this._self._removeTagIfEmpty(tagId);
-            }
-          }
+      if (tagId != -1) {
+        var itemId = this._getItemIdForTaggedURI(aURI, tag);
+        if (itemId != -1) {
+          this._bms.removeItem(itemId);
+          this._removeTagIfEmpty(tagId);
         }
       }
-    }, null);
+    }
   },
 
   // nsITaggingService
@@ -310,8 +299,9 @@ TaggingService.prototype = {
     if (!this.__tagFolders) {
       this.__tagFolders = [];
       var options = this._history.getNewQueryOptions();
+      options.resultType = Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_QUERY;
+      options.expandQueries = 0;
       var query = this._history.getNewQuery();
-      query.setFolders([this._bms.tagsFolder], 1);
       var tagsResult = this._history.executeQuery(query, options);
       var root = tagsResult.root;
       root.containerOpen = true;
@@ -538,8 +528,9 @@ TagAutoCompleteSearch.prototype = {
         if (self._stopped)
           yield false;
         // for each match, prepend what the user has typed so far
+        var pattern = new RegExp("(^" + searchResults[i] + "$|" + searchResults[i] + "(,|;))");
         if (searchResults[i].indexOf(searchString) == 0 &&
-            comments.indexOf(searchResults[i]) == -1) {
+            !pattern.test(before)) {
           results.push(before + searchResults[i]);
           comments.push(searchResults[i]);
         }
@@ -576,15 +567,12 @@ TagAutoCompleteSearch.prototype = {
     driveGenerator();
   },
 
-  /**
-   * nsITimer callback
-   */
   notify: function PTACS_notify(timer) {
     if (this._callback) 
       this._callback();
   },
 
-  /**
+  /*
    * Stop an asynchronous search that is in progress
    */
   stopSearch: function PTACS_stopSearch() {

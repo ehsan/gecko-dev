@@ -370,8 +370,6 @@ public:
                                nsTArray<nsRefPtr<FontEntry> > *list);
 
     void UpdateFontList();
-    virtual gfxFloat GetUnderlineOffset();
-
 
 protected:
     void InitFontList();

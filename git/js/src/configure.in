@@ -160,17 +160,6 @@ then
 fi
 MOZ_BUILD_ROOT=`pwd`
 
-dnl Choose where to put the 'dist' directory.
-dnl ==============================================================
-
-MOZ_ARG_WITH_STRING(dist-dir,
-[  --with-dist-dir=DIR     Use DIR as 'dist' staging area.  DIR may be
-                          relative to the top of SpiderMonkey build tree,
-                          or absolute.],
-    TOP_DIST=$withval,
-    TOP_DIST=dist)
-AC_SUBST(TOP_DIST)
-
 dnl Default to MSVC for win32
 dnl ==============================================================
 if test -z "$CROSS_COMPILE"; then
@@ -198,11 +187,15 @@ MOZ_ARG_ENABLE_BOOL(compile-environment,
 dnl ========================================================
 dnl Checks for compilers.
 dnl ========================================================
+dnl Set CROSS_COMPILE in the environment when running configure
+dnl to use the cross-compile setup for now
+dnl ========================================================
 
 if test "$COMPILE_ENVIRONMENT"; then
 
-if test "$target" != "$host"; then
+if test -n "$CROSS_COMPILE" && test "$target" != "$host"; then
     echo "cross compiling from $host to $target"
+    cross_compiling=yes
 
     _SAVE_CC="$CC"
     _SAVE_CFLAGS="$CFLAGS"
@@ -291,15 +284,28 @@ if test "$target" != "$host"; then
     AC_CHECK_PROGS(STRIP, $STRIP "${target_alias}-strip" "${target}-strip", :)
     AC_CHECK_PROGS(WINDRES, $WINDRES "${target_alias}-windres" "${target}-windres", :)
     AC_DEFINE(CROSS_COMPILE)
-
-    dnl If we cross compile for ppc on Mac OS X x86, cross_compiling will
-    dnl have erroneously been set to "no", because the x86 build host is
-    dnl able to run ppc code in a translated environment, making a cross
-    dnl compiler appear native.  So we override that here.
-    cross_compiling=yes
 else
+    case "$build:$target" in
+      powerpc-apple-darwin8*:i?86-apple-darwin*)
+        dnl The Darwin cross compiler doesn't necessarily point itself at a
+        dnl root that has libraries for the proper architecture, it defaults
+        dnl to the system root.  The libraries in the system root on current
+        dnl versions of PPC OS X 10.4 aren't fat, so these target compiler
+        dnl checks will fail.  Fake a working SDK in that case.
+        _SAVE_CFLAGS=$CFLAGS
+        _SAVE_CXXFLAGS=$CXXLAGS
+        CFLAGS="-isysroot /Developer/SDKs/MacOSX10.4u.sdk $CFLAGS"
+        CXXFLAGS="-isysroot /Developer/SDKs/MacOSX10.4u.sdk $CXXFLAGS"
+        ;;
+    esac
     AC_PROG_CC
     AC_PROG_CXX
+    case "$build:$target" in
+      powerpc-apple-darwin8*:i?86-apple-darwin*)
+        CFLAGS=$_SAVE_CFLAGS
+        CXXFLAGS=$_SAVE_CXXFLAGS
+        ;;
+    esac
     AC_PROG_RANLIB
     AC_PATH_PROGS(AS, $AS as, $CC)
     AC_CHECK_PROGS(AR, ar, :)
@@ -1180,9 +1186,6 @@ Darwin)
         ;;
     i*86*)
         OS_TEST=i386 
-        ;;
-    x86_64)
-        OS_TEST=x86_64
         ;;
     *)
         if test -z "$CROSS_COMPILE" ; then
@@ -2795,6 +2798,17 @@ dnl NB - later gcc versions require -mmmx for this header to be successfully
 dnl included (or another option which implies it, such as -march=pentium-mmx)
 AC_CHECK_HEADERS(mmintrin.h)
 
+AC_MSG_CHECKING(for ARM SIMD support)
+AC_TRY_COMPILE([],
+               [asm("uqadd8 r1, r1, r2");],
+               result="yes", result="no")
+AC_MSG_RESULT("$result")
+if test "$result" = "yes"; then
+    AC_DEFINE(HAVE_ARM_SIMD)
+    HAVE_ARM_SIMD=1
+fi
+AC_SUBST(HAVE_ARM_SIMD)
+
 dnl Check whether the compiler supports the new-style C++ standard
 dnl library headers (i.e. <new>) or needs the old "new.h"
 AC_LANG_CPLUSPLUS
@@ -2871,25 +2885,6 @@ if test ! "$GNU_CXX"; then
      esac
 fi
 AC_CHECK_LIB(socket, socket)
-
-dnl Enable VFP support on ARM
-MOZ_ARG_DISABLE_BOOL(arm-vfp,
-[  --disable-arm-vfp       Disable ARM VFP instructions in JavaScript JIT],
-   MOZ_ARM_VFP=, MOZ_ARM_VFP=1, MOZ_ARM_VFP=1)
-if test "$MOZ_ARM_VFP"; then
-   AC_DEFINE(NJ_ARM_VFP)
-fi
-
-AC_MSG_CHECKING(for ARM SIMD support)
-AC_TRY_COMPILE([],
-               [asm("uqadd8 r1, r1, r2");],
-               result="yes", result="no")
-AC_MSG_RESULT("$result")
-if test "$result" = "yes"; then
-    AC_DEFINE(HAVE_ARM_SIMD)
-    HAVE_ARM_SIMD=1
-fi
-AC_SUBST(HAVE_ARM_SIMD)
 
 dnl ========================================================
 dnl = pthread support
@@ -3808,6 +3803,7 @@ MOZ_ARG_HEADER(Application)
 BUILD_STATIC_LIBS=
 ENABLE_TESTS=1
 MOZ_DBGRINFO_MODULES=
+JS_STATIC_BUILD=
 
 dnl ========================================================
 dnl =
@@ -4745,33 +4741,23 @@ MOZ_ARG_ENABLE_BOOL(static,
     BUILD_STATIC_LIBS=)
 
 dnl ========================================================
-dnl = Link js shell to system readline
+dnl = Force JS to be a static lib
 dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(readline,
-[  --enable-readline  Link js shell to system readline library],
-    JS_WANT_READLINE=1,
-    JS_WANT_READLINE= )
+MOZ_ARG_ENABLE_BOOL(js-static-build,
+[  --enable-js-static-build  Force js to be a static lib],
+    JS_STATIC_BUILD=1,
+    JS_STATIC_BUILD= )
 
-JS_NATIVE_EDITLINE=
-EDITLINE_LIBS=
+AC_SUBST(JS_STATIC_BUILD)
+        
+if test -n "$JS_STATIC_BUILD"; then
+    AC_DEFINE(EXPORT_JS_API)
 
-dnl Conveniently, Win32 sets SKIP_LIBRARY_CHECKS...
-if test -z "$SKIP_LIBRARY_CHECKS"; then
-  if test -n "$JS_WANT_READLINE"; then
-    AC_CHECK_LIB(readline, readline,
-                 EDITLINE_LIBS="-lreadline",
-                 AC_MSG_ERROR([No system readline library found.]))
-  else
-    dnl By default, we use editline
-    JS_NATIVE_EDITLINE=1
-    EDITLINE_LIBS='$(DEPTH)/editline/$(LIB_PREFIX)editline.$(LIB_SUFFIX)'
-  fi
-
-  dnl Either way, we want to build with line editing support.
-  AC_DEFINE(EDITLINE)
+if test -z "$BUILD_STATIC_LIBS"; then
+    AC_MSG_ERROR([--enable-js-static-build is only compatible with --enable-static])
 fi
-AC_SUBST(JS_NATIVE_EDITLINE)
-AC_SUBST(EDITLINE_LIBS)
+
+fi
 
 dnl ========================================================
 dnl =
@@ -5065,12 +5051,6 @@ done
 AC_SUBST(LIBS_PATH)
 
 dnl ========================================================
-dnl JavaScript shell
-dnl ========================================================
-
-AC_HAVE_FUNCS(setlocale)
-
-dnl ========================================================
 dnl Use cygwin wrapper for win32 builds, except MSYS/MinGW
 dnl ========================================================
 case "$host_os" in
@@ -5156,17 +5136,10 @@ mv confdefs.h.save confdefs.h
 
 MAKEFILES="
   Makefile
-  shell/Makefile
   config/Makefile
   config/autoconf.mk
   config/mkdepend/Makefile
 "
-
-if test -n "$JS_NATIVE_EDITLINE"; then
-   MAKEFILES="$MAKEFILES
-editline/Makefile
-"
-fi
 
 dnl 
 dnl Run a perl script to quickly create the makefiles.

@@ -352,12 +352,6 @@ function getShellService()
 }
 
 function isBidiEnabled() {
-  // first check the pref.
-  if (getBoolPref("bidi.browser.ui", false))
-    return true;
-
-  // if the pref isn't set, check for an RTL locale and force the pref to true
-  // if we find one.
   var rv = false;
 
   try {
@@ -372,11 +366,12 @@ function isBidiEnabled() {
       case "ur-":
       case "syr":
         rv = true;
-        var pref = Components.classes["@mozilla.org/preferences-service;1"]
-                             .getService(Components.interfaces.nsIPrefBranch);
-        pref.setBoolPref("bidi.browser.ui", true);
     }
   } catch (e) {}
+
+  // check the overriding pref
+  if (!rv)
+    rv = getBoolPref("bidi.browser.ui");
 
   return rv;
 }

@@ -141,15 +141,6 @@ public:
       MOZ_COUNT_DTOR(FrameData);
     }
 
-    // Write the audio data from the frame to the Audio stream.
-    void Write(nsAudioStream* aStream)
-    {
-      PRUint32 length = mAudioData.Length();
-      if (length == 0)
-        return;
-
-      aStream->Write(mAudioData.Elements(), length);
-    }
 
     nsAutoArrayPtr<unsigned char> mVideoData;
     nsTArray<float> mAudioData;
@@ -269,8 +260,9 @@ public:
   void PlayVideo(FrameData* aFrame);
 
   // Play the audio data from the given frame. The decode monitor must
-  // be locked when calling this method.
-  void PlayAudio(FrameData* aFrame);
+  // be locked when calling this method. Returns PR_FALSE if unable to
+  // write to the audio device without blocking.
+  PRBool PlayAudio(FrameData* aFrame);
 
   // Called from the main thread to get the current frame time. The decoder
   // monitor must be obtained before calling this.
@@ -637,13 +629,13 @@ void nsOggDecodeStateMachine::PlayFrame() {
 
       double time = (PR_IntervalToMilliseconds(PR_IntervalNow()-mPlayStartTime-mPauseDuration)/1000.0);
       if (time >= frame->mTime) {
+        mDecodedFrames.Pop();
         // Audio for the current frame is played, but video for the next frame
         // is displayed, to account for lag from the time the audio is written
         // to when it is played. This will go away when we move to a/v sync
         // using the audio hardware clock.
-        PlayAudio(frame);
-        mDecodedFrames.Pop();
         PlayVideo(mDecodedFrames.IsEmpty() ? frame : mDecodedFrames.Peek());
+        PlayAudio(frame);
         UpdatePlaybackPosition(frame->mDecodedFrameTime);
         delete frame;
       }
@@ -685,13 +677,17 @@ void nsOggDecodeStateMachine::PlayVideo(FrameData* aFrame)
   }
 }
 
-void nsOggDecodeStateMachine::PlayAudio(FrameData* aFrame)
+PRBool nsOggDecodeStateMachine::PlayAudio(FrameData* aFrame)
 {
   //  NS_ASSERTION(PR_InMonitor(mDecoder->GetMonitor()), "PlayAudio() called without acquiring decoder monitor");
-  if (!mAudioStream)
-    return;
+  if (mAudioStream && aFrame && !aFrame->mAudioData.IsEmpty()) {
+    if (PRUint32(mAudioStream->Available()) < aFrame->mAudioData.Length())
+      return PR_FALSE;
 
-  aFrame->Write(mAudioStream);
+    mAudioStream->Write(aFrame->mAudioData.Elements(), aFrame->mAudioData.Length());
+  }
+
+  return PR_TRUE;
 }
 
 void nsOggDecodeStateMachine::OpenAudioStream()
@@ -1058,20 +1054,12 @@ nsresult nsOggDecodeStateMachine::Run()
         if (mState != DECODER_STATE_COMPLETED)
           continue;
 
-        if (mAudioStream) {
-          mon.Exit();
-          mAudioStream->Drain();
-          mon.Enter();
-          if (mState != DECODER_STATE_COMPLETED)
-            continue;
-        }
-
         nsCOMPtr<nsIRunnable> event =
           NS_NEW_RUNNABLE_METHOD(nsOggDecoder, mDecoder, PlaybackEnded);
         NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
         do {
           mon.Wait();
-        } while (mState == DECODER_STATE_COMPLETED);
+        } while (mState != DECODER_STATE_SHUTDOWN);
       }
       break;
     }
@@ -1209,6 +1197,32 @@ PRBool nsOggDecoder::Init()
   return mMonitor && nsMediaDecoder::Init();
 }
 
+// An event that gets posted to the main thread, when the media
+// element is being destroyed, to destroy the decoder. Since the
+// decoder shutdown can block and post events this cannot be done
+// inside destructor calls. So this event is posted asynchronously to
+// the main thread to perform the shutdown. It keeps a strong
+// reference to the decoder to ensure it does not get deleted when the
+// element is deleted.
+class nsOggDecoderShutdown : public nsRunnable
+{
+public:
+  nsOggDecoderShutdown(nsOggDecoder* aDecoder) :
+    mDecoder(aDecoder)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    mDecoder->Stop();
+    return NS_OK;
+  }
+
+private:
+  nsRefPtr<nsOggDecoder> mDecoder;
+};
+
+
 void nsOggDecoder::Shutdown() 
 {
   mShuttingDown = PR_TRUE;
@@ -1216,7 +1230,8 @@ void nsOggDecoder::Shutdown()
   ChangeState(PLAY_STATE_SHUTDOWN);
   nsMediaDecoder::Shutdown();
 
-  Stop();
+  nsCOMPtr<nsIRunnable> event = new nsOggDecoderShutdown(this);
+  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
 
 nsOggDecoder::~nsOggDecoder()
@@ -1231,10 +1246,6 @@ nsresult nsOggDecoder::Load(nsIURI* aURI, nsIChannel* aChannel,
   // Reset Stop guard flag flag, else shutdown won't occur properly when
   // reusing decoder.
   mStopping = PR_FALSE;
-
-  NS_ASSERTION(!mReader, "Didn't shutdown properly!");
-  NS_ASSERTION(!mDecodeStateMachine, "Didn't shutdown properly!");
-  NS_ASSERTION(!mDecodeThread, "Didn't shutdown properly!");
 
   if (aStreamListener) {
     *aStreamListener = nsnull;
@@ -1299,6 +1310,10 @@ nsresult nsOggDecoder::Seek(float aTime)
   if (aTime < 0.0)
     return NS_ERROR_FAILURE;
 
+  if (mPlayState == PLAY_STATE_LOADING && aTime == 0.0) {
+    return NS_OK;
+  }
+
   mRequestedSeekTime = aTime;
 
   // If we are already in the seeking state, then setting mRequestedSeekTime
@@ -1316,42 +1331,6 @@ nsresult nsOggDecoder::PlaybackRateChanged()
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
-
-// Postpones destruction of nsOggDecoder's objects, so they can be safely
-// performed later, when events can't interfere.
-class nsDestroyStateMachine : public nsRunnable {
-public:
-  nsDestroyStateMachine(nsOggDecoder *aDecoder,
-                        nsOggDecodeStateMachine *aMachine,
-                        nsChannelReader *aReader,
-                        nsIThread *aThread)
-  : mDecoder(aDecoder),
-    mDecodeStateMachine(aMachine),
-    mReader(aReader),
-    mDecodeThread(aThread)
-  {
-  }
-
-  NS_IMETHOD Run() {
-    NS_ASSERTION(NS_IsMainThread(), "Should be called on main thread");
-    // The decode thread must die before the state machine can die.
-    // The state machine must die before the reader.
-    // The state machine must die before the decoder.
-    if (mDecodeThread)
-      mDecodeThread->Shutdown();
-    mDecodeThread = nsnull;
-    mDecodeStateMachine = nsnull;
-    mReader = nsnull;
-    mDecoder = nsnull;
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<nsOggDecoder> mDecoder;
-  nsCOMPtr<nsOggDecodeStateMachine> mDecodeStateMachine;
-  nsAutoPtr<nsChannelReader> mReader;
-  nsCOMPtr<nsIThread> mDecodeThread;
-};
 
 void nsOggDecoder::Stop()
 {
@@ -1380,28 +1359,16 @@ void nsOggDecoder::Stop()
     mDecodeStateMachine->Shutdown();
   }
 
-  // mDecodeThread holds a ref to mDecodeStateMachine, so we can't destroy
-  // mDecodeStateMachine until mDecodeThread is destroyed. We can't destroy
-  // mReader until mDecodeStateMachine is destroyed because mDecodeStateMachine
-  // uses mReader in its destructor. In addition, it's unsafe to Shutdown() the
-  // decode thread here, as nsIThread::Shutdown() may run events, such as JS
-  // event handlers, which could kick off a new Load().
-  // mDecodeStateMachine::Run() may also be holding a reference to the decoder
-  // in an event runner object on its stack, so the decoder must outlive the
-  // state machine, else we may destroy the decoder on a non-main thread,
-  // and its monitor doesn't like that. So we need to create a new event which
-  // holds references the decoder, reader, thread, and state machine, and
-  // releases them safely later on the main thread when events can't interfere.
-  // See bug 468721.
-  nsCOMPtr<nsIRunnable> event = new nsDestroyStateMachine(this,
-                                                          mDecodeStateMachine,
-                                                          mReader.forget(),
-                                                          mDecodeThread);
-  NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
+  // The state machines must be Shutdown() before the thread is
+  // Shutdown. The Shutdown() on the state machine unblocks any
+  // blocking calls preventing the thread Shutdown from deadlocking.
+  if (mDecodeThread) {
+    mDecodeThread->Shutdown();
+    mDecodeThread = nsnull;
+  }
 
-  // Null data fields. They can be reinitialized in future Load()s safely now.
-  mDecodeThread = nsnull;
   mDecodeStateMachine = nsnull;
+  mReader = nsnull;
   UnregisterShutdownObserver();
 }
 
@@ -1498,17 +1465,12 @@ void nsOggDecoder::NetworkError()
 
 PRBool nsOggDecoder::IsSeeking() const
 {
-  return mPlayState == PLAY_STATE_SEEKING || mNextState == PLAY_STATE_SEEKING;
-}
-
-PRBool nsOggDecoder::IsEnded() const
-{
-  return mPlayState == PLAY_STATE_ENDED || mPlayState == PLAY_STATE_SHUTDOWN;
+  return mPlayState == PLAY_STATE_SEEKING;
 }
 
 void nsOggDecoder::PlaybackEnded()
 {
-  if (mShuttingDown || mPlayState == nsOggDecoder::PLAY_STATE_SEEKING)
+  if (mShuttingDown)
     return;
 
   Stop();
@@ -1558,7 +1520,7 @@ void nsOggDecoder::BufferingStopped()
     return;
 
   if (mElement) {
-    mElement->ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_FUTURE_DATA);
+    mElement->ChangeReadyState(nsIDOMHTMLMediaElement::CAN_SHOW_CURRENT_FRAME);
   }
 }
 
@@ -1568,7 +1530,7 @@ void nsOggDecoder::BufferingStarted()
     return;
 
   if (mElement) {
-    mElement->ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA);
+    mElement->ChangeReadyState(nsIDOMHTMLMediaElement::DATA_UNAVAILABLE);
   }
 }
 

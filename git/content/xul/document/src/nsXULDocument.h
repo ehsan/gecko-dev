@@ -705,22 +705,20 @@ protected:
                                nsIDOMElement* aListener,
                                const nsAString &aAttr)
       : mBroadcaster(aBroadcaster), mListener(aListener), mAttr(aAttr),
-        mSetAttr(PR_FALSE), mNeedsAttrChange(PR_FALSE) {}
+        mSetAttr(PR_FALSE) {}
 
       nsDelayedBroadcastUpdate(nsIDOMElement* aBroadcaster,
                                nsIDOMElement* aListener,
                                nsIAtom* aAttrName,
                                const nsAString &aAttr,
-                               PRBool aSetAttr,
-                               PRBool aNeedsAttrChange)
+                               PRBool aSetAttr)
       : mBroadcaster(aBroadcaster), mListener(aListener), mAttr(aAttr),
-        mAttrName(aAttrName), mSetAttr(aSetAttr),
-        mNeedsAttrChange(aNeedsAttrChange) {}
+        mAttrName(aAttrName), mSetAttr(aSetAttr) {}
 
       nsDelayedBroadcastUpdate(const nsDelayedBroadcastUpdate& aOther)
       : mBroadcaster(aOther.mBroadcaster), mListener(aOther.mListener),
         mAttr(aOther.mAttr), mAttrName(aOther.mAttrName),
-        mSetAttr(aOther.mSetAttr), mNeedsAttrChange(aOther.mNeedsAttrChange) {}
+        mSetAttr(aOther.mSetAttr) {}
 
       nsCOMPtr<nsIDOMElement> mBroadcaster;
       nsCOMPtr<nsIDOMElement> mListener;
@@ -728,8 +726,7 @@ protected:
       // this is the value of the attribute.
       nsString                mAttr;
       nsCOMPtr<nsIAtom>       mAttrName;
-      PRPackedBool            mSetAttr;
-      PRPackedBool            mNeedsAttrChange;
+      PRBool                  mSetAttr;
     };
 
     nsTArray<nsDelayedBroadcastUpdate> mDelayedBroadcasters;

@@ -141,17 +141,9 @@ nsSVGIntegrationUtils::GetInvalidAreaForChangedSource(nsIFrame* aFrame,
   // already have been set up during reflow/ComputeFrameEffectsRect
   nsIFrame* firstFrame =
     nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
-  nsSVGEffects::EffectProperties effectProperties =
-    nsSVGEffects::GetEffectProperties(firstFrame);
-  if (!effectProperties.mFilter)
-    return aInvalidRect;
   nsSVGFilterFrame* filterFrame = nsSVGEffects::GetFilterFrame(firstFrame);
-  if (!filterFrame) {
-    // The frame is either not there or not currently available,
-    // perhaps because we're in the middle of tearing stuff down.
-    // Be conservative.
-    return aFrame->GetOverflowRect();
-  }
+  if (!filterFrame)
+    return aInvalidRect;
 
   PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
   nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame);

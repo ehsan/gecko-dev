@@ -47,7 +47,6 @@
 #include "nsIJSRuntimeService.h"
 #include "nsIServiceManager.h"
 #include "nsReadableUtils.h"
-#include "nsContentUtils.h"
 #include "nsCycleCollectionParticipant.h"
 
 class nsIScriptContext;
@@ -100,10 +99,7 @@ class nsXBLProtoImplMember
 {
 public:
   nsXBLProtoImplMember(const PRUnichar* aName) :mNext(nsnull) { mName = ToNewUnicode(nsDependentString(aName)); }
-  virtual ~nsXBLProtoImplMember() {
-    nsMemory::Free(mName);
-    NS_CONTENT_DELETE_LIST_MEMBER(nsXBLProtoImplMember, this, mNext);
-  }
+  virtual ~nsXBLProtoImplMember() { nsMemory::Free(mName); delete mNext; }
 
   nsXBLProtoImplMember* GetNext() { return mNext; }
   void SetNext(nsXBLProtoImplMember* aNext) { mNext = aNext; }

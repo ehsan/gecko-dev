@@ -1019,24 +1019,12 @@ nsXULDocument::AttributeChanged(nsIDocument* aDocument,
                     (bl->mAttribute == nsGkAtoms::_asterix)) {
                     nsCOMPtr<nsIDOMElement> listenerEl
                         = do_QueryReferent(bl->mListener);
-                    nsCOMPtr<nsIContent> l = do_QueryInterface(listenerEl);
-                    if (l) {
-                      nsAutoString currentValue;
-                      PRBool hasAttr = l->GetAttr(kNameSpaceID_None,
-                                                  aAttribute,
-                                                  currentValue);
-                      // We need to update listener only if we're
-                      // (1) removing an existing attribute,
-                      // (2) adding a new attribute or
-                      // (3) changing the value of an attribute.
-                      PRBool needsAttrChange =
-                          attrSet != hasAttr || !value.Equals(currentValue);
+                    if (listenerEl) {
                       nsDelayedBroadcastUpdate delayedUpdate(domele,
                                                              listenerEl,
                                                              aAttribute,
                                                              value,
-                                                             attrSet,
-                                                             needsAttrChange);
+                                                             attrSet);
                       mDelayedAttrChangeBroadcasts.AppendElement(delayedUpdate);
                     }
                 }
@@ -2018,6 +2006,8 @@ nsXULDocument::StartLayout(void)
         if (! docShell)
             return NS_ERROR_UNEXPECTED;
 
+        nsRect r = cx->GetVisibleArea();
+
         // Trigger a refresh before the call to InitialReflow(),
         // because the view manager's UpdateView() function is
         // dropping dirty rects if refresh is disabled rather than
@@ -2039,11 +2029,7 @@ nsXULDocument::StartLayout(void)
         }
 
         mMayStartLayout = PR_TRUE;
-
-        // Don't try to call GetVisibleArea earlier than this --- the EnableRefresh call
-        // above can flush reflows, which can cause a parent document to be flushed,
-        // calling ResizeReflow on our document which does SetVisibleArea.
-        nsRect r = cx->GetVisibleArea();
+        
         // Make sure we're holding a strong ref to |shell| before we call
         // InitialReflow()
         nsCOMPtr<nsIPresShell> shellGrip = shell;
@@ -3295,18 +3281,17 @@ nsXULDocument::EndUpdate(nsUpdateType aUpdateType)
             mDelayedAttrChangeBroadcasts.SwapElements(
                                              delayedAttrChangeBroadcasts);
             for (PRUint32 i = 0; i < length; ++i) {
+                nsCOMPtr<nsIContent> listener =
+                    do_QueryInterface(delayedAttrChangeBroadcasts[i].mListener);
                 nsIAtom* attrName = delayedAttrChangeBroadcasts[i].mAttrName;
-                if (delayedAttrChangeBroadcasts[i].mNeedsAttrChange) {
-                    nsCOMPtr<nsIContent> listener =
-                        do_QueryInterface(delayedAttrChangeBroadcasts[i].mListener);
-                    nsString value = delayedAttrChangeBroadcasts[i].mAttr;
-                    if (delayedAttrChangeBroadcasts[i].mSetAttr) {
-                        listener->SetAttr(kNameSpaceID_None, attrName, value,
-                                          PR_TRUE);
-                    } else {
-                        listener->UnsetAttr(kNameSpaceID_None, attrName,
-                                            PR_TRUE);
-                    }
+                nsString value = delayedAttrChangeBroadcasts[i].mAttr;
+                if (delayedAttrChangeBroadcasts[i].mSetAttr) {
+                    listener->SetAttr(kNameSpaceID_None, attrName, value,
+                                      PR_TRUE);
+                }
+                else {
+                    listener->UnsetAttr(kNameSpaceID_None, attrName,
+                                        PR_TRUE);
                 }
                 nsCOMPtr<nsIContent> broadcaster =
                     do_QueryInterface(delayedAttrChangeBroadcasts[i].mBroadcaster);

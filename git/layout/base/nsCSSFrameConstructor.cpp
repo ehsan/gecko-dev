@@ -1854,7 +1854,6 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
   , mGfxScrollFrame(nsnull)
   , mPageSequenceFrame(nsnull)
   , mUpdateCount(0)
-  , mFocusSuppressCount(0)
   , mQuotesDirty(PR_FALSE)
   , mCountersDirty(PR_FALSE)
   , mIsDestroyingFrameTree(PR_FALSE)
@@ -3306,7 +3305,6 @@ IsSpecialContent(nsIContent*     aContent,
       aTag == nsGkAtoms::canvas ||
 #if defined(MOZ_MEDIA)
       aTag == nsGkAtoms::video ||
-      aTag == nsGkAtoms::audio ||
 #endif
       PR_FALSE;
   }
@@ -5550,10 +5548,7 @@ nsCSSFrameConstructor::ConstructHTMLFrame(nsFrameConstructorState& aState,
     triedFrame = PR_TRUE;
   }
 #if defined(MOZ_MEDIA)
-  else if (nsGkAtoms::video == aTag || nsGkAtoms::audio == aTag) {
-    // We create video frames for audio elements so we can show controls.
-    // Note that html.css specifies display:none for audio elements
-    // without the "controls" attribute.
+  else if (nsGkAtoms::video == aTag) {
     if (!aHasPseudoParent && !aState.mPseudoFrames.IsEmpty()) {
       ProcessPseudoFrames(aState, aFrameItems); 
     }
@@ -5676,7 +5671,6 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsIAtom*                 aTag,
 #endif
 #ifdef MOZ_MEDIA
       && aTag != nsGkAtoms::video
-      && aTag != nsGkAtoms::audio
 #endif
       )
     return NS_OK;
@@ -6222,6 +6216,47 @@ nsCSSFrameConstructor::ConstructXULFrame(nsFrameConstructorState& aState,
       if (mDocument->BindingManager()->ShouldBuildChildFrames(aContent)) {
         rv = ProcessChildren(aState, aContent, newFrame, PR_FALSE,
                              childItems, PR_FALSE);
+        nsIContent *badKid;
+        if (newFrame->IsBoxFrame() &&
+            (badKid = AnyKidsNeedBlockParent(childItems.childList))) {
+          nsAutoString parentTag, kidTag;
+          aContent->Tag()->ToString(parentTag);
+          badKid->Tag()->ToString(kidTag);
+          const PRUnichar* params[] = { parentTag.get(), kidTag.get() };
+          const char *message =
+            (display->mDisplay == NS_STYLE_DISPLAY_INLINE_BOX)
+              ? "NeededToWrapXULInlineBox" : "NeededToWrapXUL";
+          nsContentUtils::ReportToConsole(nsContentUtils::eXUL_PROPERTIES,
+                                          message,
+                                          params, NS_ARRAY_LENGTH(params),
+                                          mDocument->GetDocumentURI(),
+                                          EmptyString(), 0, 0, // not useful
+                                          nsIScriptError::warningFlag,
+                                          "FrameConstructor");
+
+          nsRefPtr<nsStyleContext> blockSC = mPresShell->StyleSet()->
+            ResolvePseudoStyleFor(aContent,
+                                  nsCSSAnonBoxes::mozXULAnonymousBlock,
+                                  aStyleContext);
+          nsIFrame *blockFrame = NS_NewBlockFrame(mPresShell, blockSC);
+          // We might, in theory, want to set NS_BLOCK_SPACE_MGR and
+          // NS_BLOCK_MARGIN_ROOT, but I think it's a bad idea given that
+          // a real block placed here wouldn't get those set on it.
+
+          InitAndRestoreFrame(aState, aContent, newFrame, nsnull,
+                              blockFrame, PR_FALSE);
+
+          NS_ASSERTION(!blockFrame->HasView(), "need to do view reparenting");
+          for (nsIFrame *f = childItems.childList; f; f = f->GetNextSibling()) {
+            ReparentFrame(aState.mFrameManager, blockFrame, f);
+          }
+
+          blockFrame->AppendFrames(nsnull, childItems.childList);
+          childItems = nsFrameItems();
+          childItems.AddChild(blockFrame);
+
+          newFrame->AddStateBits(NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK);
+        }
       }
     }
       
@@ -7639,7 +7674,7 @@ nsCSSFrameConstructor::ReconstructDocElementHierarchyInternal()
           // RemoveMappingsForFrameSubtree() which would otherwise lead to a
           // crash since we cleared the placeholder map above (bug 398982).
           PRBool wasDestroyingFrameTree = mIsDestroyingFrameTree;
-          WillDestroyFrameTree(PR_FALSE);
+          WillDestroyFrameTree();
 
           rv = state.mFrameManager->RemoveFrame(docElementFrame->GetParent(),
                     GetChildListNameFor(docElementFrame), docElementFrame);
@@ -10129,7 +10164,6 @@ nsCSSFrameConstructor::AttributeChanged(nsIContent* aContent,
 void
 nsCSSFrameConstructor::BeginUpdate() {
   NS_SuppressFocusEvent();
-  ++mFocusSuppressCount;
   ++mUpdateCount;
 }
 
@@ -10143,11 +10177,8 @@ nsCSSFrameConstructor::EndUpdate()
     RecalcQuotesAndCounters();
     NS_ASSERTION(mUpdateCount == 1, "Odd update count");
   }
+  NS_UnsuppressFocusEvent();
   --mUpdateCount;
-  if (mFocusSuppressCount) {
-    NS_UnsuppressFocusEvent();
-    --mFocusSuppressCount;
-  }
 }
 
 void
@@ -10167,25 +10198,8 @@ nsCSSFrameConstructor::RecalcQuotesAndCounters()
   NS_ASSERTION(!mCountersDirty, "Counter updates will be lost");  
 }
 
-class nsFocusUnsuppressEvent : public nsRunnable {
-  public:
-    NS_DECL_NSIRUNNABLE
-    nsFocusUnsuppressEvent(PRUint32 aCount) : mCount(aCount) {}
-  private:
-    PRUint32 mCount;
-  };
-
-NS_IMETHODIMP nsFocusUnsuppressEvent::Run()
-{
-  while (mCount) {
-    --mCount;
-    NS_UnsuppressFocusEvent();
-  }
-  return NS_OK;
-}
-
 void
-nsCSSFrameConstructor::WillDestroyFrameTree(PRBool aDestroyingPresShell)
+nsCSSFrameConstructor::WillDestroyFrameTree()
 {
 #if defined(DEBUG_dbaron_off)
   mCounterManager.Dump();
@@ -10199,14 +10213,6 @@ nsCSSFrameConstructor::WillDestroyFrameTree(PRBool aDestroyingPresShell)
 
   // Cancel all pending re-resolves
   mRestyleEvent.Revoke();
-
-  if (mFocusSuppressCount && aDestroyingPresShell) {
-    nsRefPtr<nsFocusUnsuppressEvent> ev =
-      new nsFocusUnsuppressEvent(mFocusSuppressCount);
-    if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
-      mFocusSuppressCount = 0;
-    }
-  }
 }
 
 //STATIC
@@ -11357,9 +11363,6 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
   // restore the incoming pseudo frame state
   aState.mPseudoFrames = priorPseudoFrames;
 
-  NS_ASSERTION(!aParentIsBlock || !aFrame->IsBoxFrame(),
-               "can't be both block and box");
-
   if (aParentIsBlock) {
     if (aState.mFirstLetterStyle) {
       rv = WrapFramesInFirstLetterFrame(aState, aContent, aFrame, aFrameItems);
@@ -11367,50 +11370,6 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
     if (aState.mFirstLineStyle) {
       rv = WrapFramesInFirstLineFrame(aState, aContent, aFrame, aFrameItems);
     }
-  }
-
-  nsIContent *badKid;
-  if (aFrame->IsBoxFrame() &&
-      (badKid = AnyKidsNeedBlockParent(aFrameItems.childList))) {
-    nsAutoString parentTag, kidTag;
-    aContent->Tag()->ToString(parentTag);
-    badKid->Tag()->ToString(kidTag);
-    const PRUnichar* params[] = { parentTag.get(), kidTag.get() };
-    nsStyleContext *frameStyleContext = aFrame->GetStyleContext();
-    const nsStyleDisplay *display = frameStyleContext->GetStyleDisplay();
-    const char *message =
-      (display->mDisplay == NS_STYLE_DISPLAY_INLINE_BOX)
-        ? "NeededToWrapXULInlineBox" : "NeededToWrapXUL";
-    nsContentUtils::ReportToConsole(nsContentUtils::eXUL_PROPERTIES,
-                                    message,
-                                    params, NS_ARRAY_LENGTH(params),
-                                    mDocument->GetDocumentURI(),
-                                    EmptyString(), 0, 0, // not useful
-                                    nsIScriptError::warningFlag,
-                                    "FrameConstructor");
-
-    nsRefPtr<nsStyleContext> blockSC = mPresShell->StyleSet()->
-      ResolvePseudoStyleFor(aContent,
-                            nsCSSAnonBoxes::mozXULAnonymousBlock,
-                            frameStyleContext);
-    nsIFrame *blockFrame = NS_NewBlockFrame(mPresShell, blockSC);
-    // We might, in theory, want to set NS_BLOCK_SPACE_MGR and
-    // NS_BLOCK_MARGIN_ROOT, but I think it's a bad idea given that
-    // a real block placed here wouldn't get those set on it.
-
-    InitAndRestoreFrame(aState, aContent, aFrame, nsnull,
-                        blockFrame, PR_FALSE);
-
-    NS_ASSERTION(!blockFrame->HasView(), "need to do view reparenting");
-    for (nsIFrame *f = aFrameItems.childList; f; f = f->GetNextSibling()) {
-      ReparentFrame(aState.mFrameManager, blockFrame, f);
-    }
-
-    blockFrame->AppendFrames(nsnull, aFrameItems.childList);
-    aFrameItems = nsFrameItems();
-    aFrameItems.AddChild(blockFrame);
-
-    aFrame->AddStateBits(NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK);
   }
 
   return rv;
@@ -11818,6 +11777,9 @@ nsCSSFrameConstructor::CreateFloatingLetterFrame(
   // its primary frame to be a text frame).  So use its parent for the
   // first-letter.
   nsIContent* letterContent = aTextContent->GetParent();
+  NS_ASSERTION(!letterContent->IsRootOfNativeAnonymousSubtree(),
+               "Reframes of this letter frame will mess with the root of a "
+               "native anonymous content subtree!");
   InitAndRestoreFrame(aState, letterContent,
                       aState.GetGeometricParent(aStyleContext->GetStyleDisplay(),
                                                 aParentFrame),

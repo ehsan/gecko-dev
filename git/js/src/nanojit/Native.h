@@ -92,11 +92,7 @@ namespace nanojit {
 	
 	#define isSPorFP(r)		( (r)==SP || (r)==FP )
 
-	#if defined(_MSC_VER) && _MSC_VER < 1400
-		static void asm_output(const char *f, ...) {}
-		#define gpn(r)					regNames[(r)]
-		#define fpn(r)					regNames[(r)]
-	#elif defined(NJ_VERBOSE)
+	#ifdef NJ_VERBOSE
 		#define asm_output(...) do {\
 			counter_increment(native);\
 			if (verbose_enabled()) {\

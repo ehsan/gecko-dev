@@ -84,7 +84,7 @@ namespace CrashReporter {
   void UIError(const std::string& message);
 
   // The UI finished sending the report
-  void SendCompleted(bool success, const std::string& serverResponse);
+  bool SendCompleted(bool success, const std::string& serverResponse);
 
   bool ReadStrings(std::istream& in,
                    StringTable& strings,

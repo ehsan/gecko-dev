@@ -986,10 +986,19 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
   background-color: transparent;
 }
 
+#feed-button > hbox > .button-menu-dropmarker,
+#feed-button > hbox > .button-text {
+  display: none;
+}
+
 #feed-button {
+  -moz-binding: url("chrome://global/content/bindings/button.xml#menu");
   -moz-appearance: none; 
   min-width: 0px; 
   margin-right: 1px !important;
+}
+
+#feed-button[feeds] {
   list-style-image: url("chrome://browser/skin/page-livemarks.png");
 }
 
@@ -1121,8 +1130,14 @@ statusbarpanel#statusbar-display {
 }
 
 #page-report-button {
-  list-style-image: url("chrome://browser/skin/Info.png");
+  list-style-image: none;
   width: 20px;
+  display: none;
+}
+
+#page-report-button[blocked] {
+  list-style-image: url("chrome://browser/skin/Info.png");
+  display: -moz-box;
 }
 
 /* Throbber */

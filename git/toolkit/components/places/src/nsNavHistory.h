@@ -848,7 +848,7 @@ protected:
 
   PRBool mInPrivateBrowsing;
 
-  PRUint16 mDatabaseStatus;
+  PRBool mDatabaseStatus;
 };
 
 /**

@@ -1106,7 +1106,7 @@ nsTextControlFrame::PreDestroy()
       // in content).
       SetValue(value);
     }
-    mEditor->PreDestroy(PR_TRUE);
+    mEditor->PreDestroy();
   }
   
   // Clean up the controller

@@ -1320,7 +1320,7 @@ DocumentViewerImpl::Close(nsISHEntry *aSHEntry)
       // out of band cleanup of webshell
       mDocument->SetScriptGlobalObject(nsnull);
 
-      if (!mSHEntry && mDocument)
+      if (!mSHEntry)
         mDocument->RemovedFromDocShell();
     }
 

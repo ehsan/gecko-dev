@@ -45,10 +45,14 @@
 #include "nsRDFCID.h"
 #endif
 
+#ifdef MOZ_SUITE
+#include "nsRelatedLinksHandlerImpl.h"
+#include "nsDocShellCID.h"
 #ifdef SUITE_USING_XPFE_DM
 #include "nsDownloadManager.h"
 #include "nsDownloadProxy.h"
 #endif
+#endif // MOZ_SUITE
 
 #if !defined(MOZ_MACBROWSER)
 #include "nsBrowserStatusFilter.h"
@@ -68,10 +72,13 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsBrowserStatusFilter)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBrowserInstance)
 #endif
 
+#ifdef MOZ_SUITE
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(RelatedLinksHandlerImpl, Init)
 #ifdef SUITE_USING_XPFE_DM
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsDownloadManager, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDownloadProxy)
 #endif
+#endif // MOZ_SUITE
 
 static NS_METHOD
 RegisterProc(nsIComponentManager *aCompMgr,
@@ -117,12 +124,16 @@ static const nsModuleComponentInfo components[] = {
       nsHTTPIndexConstructor },
 #endif
 
+#ifdef MOZ_SUITE
 #ifdef SUITE_USING_XPFE_DM
     { "Download Manager", NS_DOWNLOADMANAGER_CID, NS_DOWNLOADMANAGER_CONTRACTID,
       nsDownloadManagerConstructor },
     { "Download", NS_DOWNLOAD_CID, NS_TRANSFER_CONTRACTID,
       nsDownloadProxyConstructor },
 #endif
+    { "Related Links Handler", NS_RELATEDLINKSHANDLER_CID, NS_RELATEDLINKSHANDLER_CONTRACTID,
+       RelatedLinksHandlerImplConstructor},
+#endif // MOZ_SUITE
 
 #if !defined(MOZ_MACBROWSER)
     { NS_BROWSERSTATUSFILTER_CLASSNAME,

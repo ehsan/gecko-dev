@@ -221,10 +221,8 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (HasVideoData()) {
-    rv = aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayGeneric(this, ::PaintVideo, "Video"));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
+  rv = aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayGeneric(this, ::PaintVideo, "Video"));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (mFrames.FirstChild()) {
     rv = mFrames.FirstChild()->BuildDisplayListForStackingContext(aBuilder, aDirtyRect, aLists.Content());
@@ -262,7 +260,7 @@ nsSize nsVideoFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                      nsSize aPadding,
                                      PRBool aShrinkWrap)
 {
-  nsSize size = GetIntrinsicSize(aRenderingContext);
+  nsSize size = GetVideoSize();
 
   IntrinsicSize intrinsicSize;
   intrinsicSize.width.SetCoordValue(size.width);
@@ -282,41 +280,31 @@ nsSize nsVideoFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
 
 nscoord nsVideoFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
-  nscoord result = GetIntrinsicSize(aRenderingContext).width;
+  // XXX The caller doesn't account for constraints of the height,
+  // min-height, and max-height properties.
+  nscoord result = GetVideoSize().width;
   DISPLAY_MIN_WIDTH(this, result);
   return result;
 }
 
 nscoord nsVideoFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
-  nscoord result = GetIntrinsicSize(aRenderingContext).width;
+  // XXX The caller doesn't account for constraints of the height,
+  // min-height, and max-height properties.
+  nscoord result = GetVideoSize().width;
   DISPLAY_PREF_WIDTH(this, result);
   return result;
 }
 
 nsSize nsVideoFrame::GetIntrinsicRatio()
 {
-  return GetIntrinsicSize(nsnull);
+  return GetVideoSize();
 }
 
-nsSize nsVideoFrame::GetIntrinsicSize(nsIRenderingContext *aRenderingContext)
+nsSize nsVideoFrame::GetVideoSize()
 {
   // Defaulting size to 300x150 if no size given.
   nsIntSize size(300,150);
-
-  if (!HasVideoData()) {
-    if (!aRenderingContext || !mFrames.FirstChild()) {
-      // We just want our intrinsic ratio, but audio elements need no
-      // intrinsic ratio, so just return "no ratio". Also, if there's
-      // no controls frame, we prefer to be zero-sized.
-      return nsSize(0, 0);
-    }
-
-    // Ask the controls frame what its preferred height is
-    nsBoxLayoutState boxState(PresContext(), aRenderingContext, 0);
-    nscoord prefHeight = mFrames.FirstChild()->GetPrefSize(boxState).height;
-    return nsSize(nsPresContext::CSSPixelsToAppUnits(size.width), prefHeight);
-  }
 
   nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
   if (element) {
@@ -341,10 +329,4 @@ nsSize nsVideoFrame::GetIntrinsicSize(nsIRenderingContext *aRenderingContext)
 
   return nsSize(nsPresContext::CSSPixelsToAppUnits(size.width), 
                 nsPresContext::CSSPixelsToAppUnits(size.height));
-}
-
-PRBool nsVideoFrame::HasVideoData()
-{
-  nsCOMPtr<nsIDOMHTMLVideoElement> videoElem = do_QueryInterface(mContent);
-  return videoElem != nsnull;
 }

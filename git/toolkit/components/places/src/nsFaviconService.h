@@ -44,13 +44,11 @@
 #include "mozIStorageConnection.h"
 #include "mozIStorageValueArray.h"
 #include "mozIStorageStatement.h"
-#include "nsIObserver.h"
 
 // forward definition for friend class
 class FaviconLoadListener;
 
 class nsFaviconService : public nsIFaviconService
-                       , public nsIObserver
 {
 public:
   nsFaviconService();
@@ -100,7 +98,6 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIFAVICONSERVICE
-  NS_DECL_NSIOBSERVER
 
 private:
   ~nsFaviconService();
@@ -128,15 +125,10 @@ private:
   nsDataHashtable<nsCStringHashKey, PRUint32> mFailedFavicons;
 
   nsresult SetFaviconUrlForPageInternal(nsIURI* aURI, nsIURI* aFavicon,
-                                        PRBool* aHasData);
+                                        PRBool* aHasData, PRTime* aExpiration);
 
   nsresult UpdateBookmarkRedirectFavicon(nsIURI* aPage, nsIURI* aFavicon);
   void SendFaviconNotifications(nsIURI* aPage, nsIURI* aFaviconURI);
-
-  /**
-   * Expires all favicons
-   */
-  nsresult ExpireAllFavicons();
 
   friend class FaviconLoadListener;
 };

@@ -231,8 +231,7 @@ js_FillPropertyCache(JSContext *cx, JSObject *obj, jsuword kshape,
 #endif
                         SCOPE_MAKE_UNIQUE_SHAPE(cx, scope);
                         SCOPE_SET_BRANDED(scope);
-                        if (OBJ_SCOPE(obj) == scope)
-                            kshape = scope->shape;
+                        kshape = scope->shape;
                     }
                     vword = JSVAL_OBJECT_TO_PCVAL(v);
                     break;
@@ -850,10 +849,8 @@ ComputeThis(JSContext *cx, JSBool lazy, jsval *argv)
         thisp = JSVAL_TO_OBJECT(argv[-1]);
     } else {
         thisp = JSVAL_TO_OBJECT(argv[-1]);
-        if (OBJ_GET_CLASS(cx, thisp) == &js_CallClass ||
-            OBJ_GET_CLASS(cx, thisp) == &js_BlockClass) {
+        if (OBJ_GET_CLASS(cx, thisp) == &js_CallClass)
             return js_ComputeGlobalThis(cx, lazy, argv);
-        }
 
         if (thisp->map->ops->thisObject) {
             /* Some objects (e.g., With) delegate 'this' to another object. */

@@ -465,8 +465,6 @@
 // Simple gestures include
 #include "nsIDOMSimpleGestureEvent.h"
 
-#include "nsIDOMNSMouseEvent.h"
-
 static NS_DEFINE_CID(kCPluginManagerCID, NS_PLUGINMANAGER_CID);
 static NS_DEFINE_CID(kDOMSOF_CID, NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
@@ -1635,12 +1633,12 @@ nsDOMClassInfo::DefineStaticJSVals(JSContext *cx)
 // static
 nsresult
 nsDOMClassInfo::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-                           const nsIID* aIID, jsval *vp,
+                           const nsIID& aIID, jsval *vp,
                            nsIXPConnectJSObjectHolder **aHolder)
 {
+  *aHolder = nsnull;
+  
   if (!native) {
-    NS_ASSERTION(!aHolder || !*aHolder, "*aHolder should be null!");
-
     *vp = JSVAL_NULL;
 
     return NS_OK;
@@ -1648,8 +1646,19 @@ nsDOMClassInfo::WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
 
   NS_ENSURE_TRUE(sXPConnect, NS_ERROR_UNEXPECTED);
 
-  return sXPConnect->WrapNativeToJSVal(cx, ::JS_GetGlobalForObject(cx, scope),
-                                       native, aIID, vp, aHolder);
+  nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+  nsresult rv = sXPConnect->WrapNative(cx, ::JS_GetGlobalForObject(cx, scope),
+                                       native, aIID, getter_AddRefs(holder));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSObject* obj = nsnull;
+  rv = holder->GetJSObject(&obj);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *vp = OBJECT_TO_JSVAL(obj);
+  holder.swap(*aHolder);
+
+  return rv;
 }
 
 // static
@@ -1680,7 +1689,7 @@ nsDOMClassInfo::ThrowJSException(JSContext *cx, nsresult aResult)
     jsval jv;
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     rv = WrapNative(cx, ::JS_GetGlobalObject(cx), exception,
-                    &NS_GET_IID(nsIException), &jv, getter_AddRefs(holder));
+                    NS_GET_IID(nsIException), &jv, getter_AddRefs(holder));
     if (NS_FAILED(rv) || JSVAL_IS_NULL(jv)) {
       break;
     }
@@ -2140,20 +2149,17 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(MouseEvent, nsIDOMMouseEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(MouseScrollEvent, nsIDOMMouseScrollEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseScrollEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMouseEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(DragEvent, nsIDOMDragEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDragEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSMouseEvent)
     DOM_CLASSINFO_UI_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
@@ -4484,7 +4490,8 @@ nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSObject *obj,
   if (result) {
     jsval v;
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    nsresult rv = WrapNative(cx, obj, result, &v, getter_AddRefs(holder));
+    nsresult rv = WrapNative(cx, obj, result, NS_GET_IID(nsISupports), &v,
+                             getter_AddRefs(holder));
     NS_ENSURE_SUCCESS(rv, JS_FALSE);
 
     if (!::JS_DefineUCProperty(cx, obj, ::JS_GetStringChars(jsstr),
@@ -4678,7 +4685,7 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
       nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
       rv = WrapNative(cx, frameWin->GetGlobalJSObject(), frame,
-                      &NS_GET_IID(nsIDOMWindow), vp,
+                      NS_GET_IID(nsIDOMWindow), vp,
                       getter_AddRefs(holder));
     }
 
@@ -4795,7 +4802,7 @@ nsWindowSH::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     NS_ENSURE_TRUE(NS_SUCCEEDED(rv) && location, rv);
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv = WrapNative(cx, obj, location, &NS_GET_IID(nsIDOMLocation), vp,
+    rv = WrapNative(cx, obj, location, NS_GET_IID(nsIDOMLocation), vp,
                     getter_AddRefs(holder));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -5050,8 +5057,8 @@ BaseStubConstructor(nsIWeakReference* aWeakOwner,
   }
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  rv = nsDOMGenericSH::WrapNative(cx, obj, native, rval,
-                                  getter_AddRefs(holder));
+  rv = nsDOMGenericSH::WrapNative(cx, obj, native, NS_GET_IID(nsISupports),
+                                  rval, getter_AddRefs(holder));
 
   return rv;
 }
@@ -5517,7 +5524,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     jsval v;
 
-    rv = WrapNative(cx, obj, constructor, &NS_GET_IID(nsIDOMDOMConstructor), &v,
+    rv = WrapNative(cx, obj, constructor, NS_GET_IID(nsIDOMDOMConstructor), &v,
                     getter_AddRefs(holder));
 
     sDoSecurityCheckInAddProperty = doSecurityCheckInAddProperty;
@@ -5579,7 +5586,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     jsval v;
 
-    rv = WrapNative(cx, obj, constructor, &NS_GET_IID(nsIDOMDOMConstructor), &v,
+    rv = WrapNative(cx, obj, constructor, NS_GET_IID(nsIDOMDOMConstructor), &v,
                     getter_AddRefs(holder));
 
     sDoSecurityCheckInAddProperty = doSecurityCheckInAddProperty;
@@ -5794,7 +5801,7 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
 
     jsval val;
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv = WrapNative(cx, obj, constructor, &NS_GET_IID(nsIDOMDOMConstructor),
+    rv = WrapNative(cx, obj, constructor, NS_GET_IID(nsIDOMDOMConstructor),
                     &val, getter_AddRefs(holder));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -5842,7 +5849,8 @@ nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
         scope = aWin->GetGlobalJSObject();
       }
 
-      rv = WrapNative(cx, scope, native, &prop_val, getter_AddRefs(holder));
+      rv = WrapNative(cx, scope, native, NS_GET_IID(nsISupports), &prop_val,
+                      getter_AddRefs(holder));
     }
 
     NS_ENSURE_SUCCESS(rv, rv);
@@ -6133,7 +6141,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         jsval v;
         nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
         rv = WrapNative(cx, wrapperObj, child_win,
-                        &NS_GET_IID(nsIDOMWindowInternal), &v,
+                        NS_GET_IID(nsIDOMWindowInternal), &v,
                         getter_AddRefs(holder));
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -6254,7 +6262,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
     jsval v;
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv = WrapNative(cx, scope, location, &NS_GET_IID(nsIDOMLocation), &v,
+    rv = WrapNative(cx, scope, location, NS_GET_IID(nsIDOMLocation), &v,
                     getter_AddRefs(holder));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -6311,7 +6319,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
       jsval v;
       nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-      rv = WrapNative(cx, obj, navigator, &NS_GET_IID(nsIDOMNavigator), &v,
+      rv = WrapNative(cx, obj, navigator, NS_GET_IID(nsIDOMNavigator), &v,
                       getter_AddRefs(holder));
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -6335,7 +6343,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
       jsval v;
       nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-      rv = WrapNative(cx, obj, document, &NS_GET_IID(nsIDOMDocument), &v,
+      rv = WrapNative(cx, obj, document, NS_GET_IID(nsIDOMDocument), &v,
                       getter_AddRefs(holder));
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -6940,7 +6948,8 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
 
   jsval v;
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  nsresult rv = WrapNative(cx, globalObj, native_parent, &v,
+  nsresult rv = WrapNative(cx, globalObj, native_parent,
+                           NS_GET_IID(nsISupports), &v,
                            getter_AddRefs(holder));
 
   *parentObj = JSVAL_TO_OBJECT(v);
@@ -7007,7 +7016,7 @@ nsNodeSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     }
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    nsresult rv = WrapNative(cx, obj, uri, &NS_GET_IID(nsIURI), vp,
+    nsresult rv = WrapNative(cx, obj, uri, NS_GET_IID(nsIURI), vp,
                              getter_AddRefs(holder));
     return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;
   }
@@ -7018,7 +7027,7 @@ nsNodeSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
     nsresult rv = WrapNative(cx, obj, node->NodePrincipal(),
-                             &NS_GET_IID(nsIPrincipal), vp,
+                             NS_GET_IID(nsIPrincipal), vp,
                              getter_AddRefs(holder));
     return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;
   }    
@@ -7716,7 +7725,9 @@ nsArraySH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (array_item) {
-      rv = WrapNative(cx, obj, array_item, vp);
+      nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+      rv = WrapNative(cx, obj, array_item, NS_GET_IID(nsISupports), vp,
+                      getter_AddRefs(holder));
       NS_ENSURE_SUCCESS(rv, rv);
 
       rv = NS_SUCCESS_I_DID_SOMETHING;
@@ -7750,7 +7761,8 @@ nsNodeListSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
   jsval v;
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  nsresult rv = WrapNative(cx, globalObj, native_parent, &v,
+  nsresult rv = WrapNative(cx, globalObj, native_parent,
+                           NS_GET_IID(nsISupports), &v,
                            getter_AddRefs(holder));
 
   *parentObj = JSVAL_TO_OBJECT(v);
@@ -7850,7 +7862,9 @@ nsNamedArraySH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (item) {
-      rv = WrapNative(cx, obj, item, vp);
+      nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+      rv = WrapNative(cx, obj, item, NS_GET_IID(nsISupports), vp,
+                      getter_AddRefs(holder));
       NS_ENSURE_SUCCESS(rv, rv);
 
       rv = NS_SUCCESS_I_DID_SOMETHING;
@@ -7962,7 +7976,8 @@ nsContentListSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
   jsval v;
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  nsresult rv = WrapNative(cx, globalObj, native_parent, &v,
+  nsresult rv = WrapNative(cx, globalObj, native_parent,
+                           NS_GET_IID(nsISupports), &v,
                            getter_AddRefs(holder));
 
   *parentObj = JSVAL_TO_OBJECT(v);
@@ -8078,7 +8093,7 @@ nsDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     jsval v;
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv = WrapNative(cx, obj, location, &NS_GET_IID(nsIDOMLocation), &v,
+    rv = WrapNative(cx, obj, location, NS_GET_IID(nsIDOMLocation), &v,
                     getter_AddRefs(holder));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -8122,7 +8137,7 @@ nsDocumentSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     NS_ENSURE_TRUE(uri, NS_ERROR_NOT_AVAILABLE);
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    nsresult rv = WrapNative(cx, obj, uri, &NS_GET_IID(nsIURI), vp,
+    nsresult rv = WrapNative(cx, obj, uri, NS_GET_IID(nsIURI), vp,
                              getter_AddRefs(holder));
 
     return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;
@@ -8154,7 +8169,7 @@ nsDocumentSH::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
       NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-      rv = WrapNative(cx, obj, location, &NS_GET_IID(nsIDOMLocation), vp,
+      rv = WrapNative(cx, obj, location, NS_GET_IID(nsIDOMLocation), vp,
                       getter_AddRefs(holder));
       return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;
     }
@@ -8212,7 +8227,7 @@ nsDocumentSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     jsval winVal;
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv = WrapNative(cx, obj, win, &NS_GET_IID(nsIDOMWindow), &winVal,
+    rv = WrapNative(cx, obj, win, NS_GET_IID(nsIDOMWindow), &winVal,
                     getter_AddRefs(holder));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -8331,7 +8346,7 @@ nsHTMLDocumentSH::DocumentOpen(JSContext *cx, JSObject *obj, uintN argc,
   }
 
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  rv = WrapNative(cx, obj, retval, &NS_GET_IID(nsIDOMDocument), rval,
+  rv = WrapNative(cx, obj, retval, NS_GET_IID(nsIDOMDocument), rval,
                   getter_AddRefs(holder));
   NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to wrap native!");
 
@@ -8406,7 +8421,8 @@ nsHTMLDocumentSH::GetDocumentAllNodeList(JSContext *cx, JSObject *obj,
     rv |= domdoc->GetElementsByTagName(NS_LITERAL_STRING("*"), nodeList);
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv |= nsDOMClassInfo::WrapNative(cx, obj, *nodeList, &collection,
+    rv |= nsDOMClassInfo::WrapNative(cx, obj, *nodeList,
+                                     NS_GET_IID(nsISupports), &collection,
                                      getter_AddRefs(holder));
 
     // ... and store it in our reserved slot.
@@ -8493,7 +8509,9 @@ nsHTMLDocumentSH::DocumentAllGetProperty(JSContext *cx, JSObject *obj,
   }
 
   if (result) {
-    rv = WrapNative(cx, obj, result, vp);
+    nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+    rv = nsDOMClassInfo::WrapNative(cx, obj, result, NS_GET_IID(nsISupports),
+                                    vp, getter_AddRefs(holder));
     if (NS_FAILED(rv)) {
       nsDOMClassInfo::ThrowJSException(cx, rv);
 
@@ -8765,7 +8783,8 @@ nsHTMLDocumentSH::DocumentAllTagsNewResolve(JSContext *cx, JSObject *obj,
     if (tags) {
       jsval v;
       nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-      nsresult rv = nsDOMClassInfo::WrapNative(cx, obj, tags, &v,
+      nsresult rv = nsDOMClassInfo::WrapNative(cx, obj, tags,
+                                               NS_GET_IID(nsISupports), &v,
                                                getter_AddRefs(holder));
       if (NS_FAILED(rv)) {
         nsDOMClassInfo::ThrowJSException(cx, rv);
@@ -8924,7 +8943,9 @@ nsHTMLDocumentSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (result) {
-      rv = WrapNative(cx, obj, result, vp);
+      nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+      rv = WrapNative(cx, obj, result, NS_GET_IID(nsISupports), vp,
+                      getter_AddRefs(holder));
       if (NS_SUCCEEDED(rv)) {
         rv = NS_SUCCESS_I_DID_SOMETHING;
       }
@@ -9064,7 +9085,9 @@ nsHTMLFormElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
       if (result) {
         // Wrap result, result can be either an element or a list of
         // elements
-        nsresult rv = WrapNative(cx, obj, result, vp);
+        nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+        nsresult rv = WrapNative(cx, obj, result, NS_GET_IID(nsISupports), vp,
+                                 getter_AddRefs(holder));
         return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;
       }
     }
@@ -9076,7 +9099,9 @@ nsHTMLFormElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
       form->GetElementAt(n, getter_AddRefs(control));
 
       if (control) {
-        nsresult rv = WrapNative(cx, obj, control, vp);
+        nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+        nsresult rv = WrapNative(cx, obj, control, NS_GET_IID(nsISupports), vp,
+                                 getter_AddRefs(holder));
         return NS_FAILED(rv) ? rv : NS_SUCCESS_I_DID_SOMETHING;
       }
     }
@@ -9183,7 +9208,9 @@ nsHTMLSelectElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
 
       options->Item(n, getter_AddRefs(node));
 
-      rv = WrapNative(cx, obj, node, &NS_GET_IID(nsIDOMNode), vp);
+      nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+      rv = WrapNative(cx, obj, node, NS_GET_IID(nsIDOMNode), vp,
+                      getter_AddRefs(holder));
       if (NS_SUCCEEDED(rv)) {
         rv = NS_SUCCESS_I_DID_SOMETHING;
       }

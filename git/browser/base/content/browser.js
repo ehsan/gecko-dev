@@ -333,12 +333,12 @@ const gPopupBlockerObserver = {
 
     if (!gBrowser.pageReport) {
       // Hide the popup blocker statusbar button
-      this._reportButton.hidden = true;
+      this._reportButton.removeAttribute("blocked");
 
       return;
     }
 
-    this._reportButton.hidden = false;
+    this._reportButton.setAttribute("blocked", true);
 
     // Only show the notification again if we've not already shown it. Since
     // notifications are per-browser, we don't need to worry about re-adding
@@ -6103,15 +6103,20 @@ var FeedHandler = {
     var feeds = gBrowser.mCurrentBrowser.feeds;
     if (!feeds || feeds.length == 0) {
       if (feedButton) {
-        feedButton.collapsed = true;
+        feedButton.removeAttribute("feeds");
         feedButton.removeAttribute("feed");
+        feedButton.setAttribute("tooltiptext", 
+                                gNavigatorBundle.getString("feedNoFeeds"));
       }
       this._feedMenuitem.setAttribute("disabled", "true");
       this._feedMenupopup.setAttribute("hidden", "true");
       this._feedMenuitem.removeAttribute("hidden");
     } else {
-      if (feedButton)
-        feedButton.collapsed = false;
+      if (feedButton) {
+        feedButton.setAttribute("feeds", "true");
+        feedButton.setAttribute("tooltiptext", 
+                                gNavigatorBundle.getString("feedHasFeedsNew"));
+      }
       
       if (feeds.length > 1) {
         this._feedMenuitem.setAttribute("hidden", "true");
@@ -6147,8 +6152,11 @@ var FeedHandler = {
       browserForLink.feeds = feeds;
       if (browserForLink == gBrowser || browserForLink == gBrowser.mCurrentBrowser) {
         var feedButton = document.getElementById("feed-button");
-        if (feedButton)
-          feedButton.collapsed = false;
+        if (feedButton) {
+          feedButton.setAttribute("feeds", "true");
+          feedButton.setAttribute("tooltiptext", 
+                                  gNavigatorBundle.getString("feedHasFeedsNew"));
+        }
       }
     }
   }

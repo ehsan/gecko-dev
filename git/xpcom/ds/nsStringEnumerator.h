@@ -75,11 +75,11 @@
 // NS_RELEASE(enumerator);
 //
 NS_COM nsresult
-NS_NewUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult NS_OUTPARAM,
+NS_NewUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult,
                            const nsCStringArray* aArray);
 
 NS_COM nsresult
-NS_NewStringEnumerator(nsIStringEnumerator** aResult NS_OUTPARAM,
+NS_NewStringEnumerator(nsIStringEnumerator** aResult,
                        const nsStringArray* aArray);
 
 // Adopting string enumerators assume ownership of the array and will
@@ -92,11 +92,11 @@ NS_NewStringEnumerator(nsIStringEnumerator** aResult NS_OUTPARAM,
 // array->AppendString("abcd");
 // NS_NewAdoptingStringEnumerator(&result, array);
 NS_COM nsresult
-NS_NewAdoptingStringEnumerator(nsIStringEnumerator** aResult NS_OUTPARAM,
+NS_NewAdoptingStringEnumerator(nsIStringEnumerator** aResult,
                                nsStringArray* aArray);
 
 NS_COM nsresult
-NS_NewAdoptingUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult NS_OUTPARAM,
+NS_NewAdoptingUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult,
                                    nsCStringArray* aArray);
 
 
@@ -113,10 +113,10 @@ NS_NewAdoptingUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult NS_OUTPARAM
 // }
 //
 NS_COM nsresult
-NS_NewStringEnumerator(nsIStringEnumerator** aResult NS_OUTPARAM,
+NS_NewStringEnumerator(nsIStringEnumerator** aResult,
                        const nsStringArray* aArray,
                        nsISupports* aOwner);
 NS_COM nsresult
-NS_NewUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult NS_OUTPARAM,
+NS_NewUTF8StringEnumerator(nsIUTF8StringEnumerator** aResult,
                            const nsCStringArray* aArray,
                            nsISupports* aOwner);

@@ -44,6 +44,7 @@
 #include "nsScriptLoader.h"
 #include "nsIDOMCharacterData.h"
 #include "nsParserUtils.h"
+#include "nsIMIMEHeaderParam.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsIContent.h"
@@ -330,10 +331,16 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   // If type exists, it trumps the deprecated 'language='
   aElement->GetScriptType(type);
   if (!type.IsEmpty()) {
-    nsContentTypeParser parser(type);
+    nsCOMPtr<nsIMIMEHeaderParam> mimeHdrParser =
+      do_GetService("@mozilla.org/network/mime-hdrparam;1");
+    NS_ENSURE_TRUE(mimeHdrParser, NS_ERROR_FAILURE);
+
+    NS_ConvertUTF16toUTF8 typeAndParams(type);
 
     nsAutoString mimeType;
-    rv = parser.GetType(mimeType);
+    rv = mimeHdrParser->GetParameter(typeAndParams, nsnull,
+                                     EmptyCString(), PR_FALSE, nsnull,
+                                     mimeType);
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Javascript keeps the fast path, optimized for most-likely type
@@ -372,7 +379,9 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     if (typeID != nsIProgrammingLanguage::UNKNOWN) {
       // Get the version string, and ensure the language supports it.
       nsAutoString versionName;
-      rv = parser.GetParameter("version", versionName);
+      rv = mimeHdrParser->GetParameter(typeAndParams, "version",
+                                       EmptyCString(), PR_FALSE, nsnull,
+                                       versionName);
       if (NS_FAILED(rv)) {
         // no version attribute - version remains 0.
         if (rv != NS_ERROR_INVALID_ARG)
@@ -395,7 +404,10 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     // Some js specifics yet to be abstracted.
     if (typeID == nsIProgrammingLanguage::JAVASCRIPT) {
       nsAutoString value;
-      rv = parser.GetParameter("e4x", value);
+
+      rv = mimeHdrParser->GetParameter(typeAndParams, "e4x",
+                                       EmptyCString(), PR_FALSE, nsnull,
+                                       value);
       if (NS_FAILED(rv)) {
         if (rv != NS_ERROR_INVALID_ARG)
           return rv;

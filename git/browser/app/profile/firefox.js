@@ -431,7 +431,7 @@ pref("intl.charsetmenu.browser.more2",  "chrome://global/locale/intl.properties"
 pref("intl.charsetmenu.browser.more3",  "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.more4",  "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.more5",  "chrome://global/locale/intl.properties");
-pref("intl.charsetmenu.browser.unicode",  "UTF-8, UTF-16LE, UTF-16BE, UTF-32, UTF-32LE, UTF-32BE");
+pref("intl.charsetmenu.browser.unicode",  "chrome://global/locale/intl.properties");
 pref("intl.charset.detector", "chrome://global/locale/intl.properties");
 pref("intl.charset.default",  "chrome://global-platform/locale/intl.properties");
 pref("font.language.group", "chrome://global/locale/intl.properties");
@@ -551,6 +551,10 @@ pref("browser.preferences.animateFadeIn", false);
 
 pref("browser.download.show_plugins_in_list", true);
 pref("browser.download.hide_plugins_without_extensions", true);
+
+// Setting this pref to |true| forces BiDi UI menu items and keyboard shortcuts
+// to be exposed. By default, only expose it for bidi-associated system locales.
+pref("bidi.browser.ui", false);
 
 // Backspace and Shift+Backspace behavior
 // 0 goes Back/Forward

@@ -25,7 +25,7 @@
  *   Håkan Waara <hwaara@gmail.com>
  *   Stuart Morgan <stuart.morgan@alumni.case.edu>
  *   Mats Palmgren <mats.palmgren@bredband.net>
- *   Thomas K. Dyas <tdyas@zecador.org>
+ *   Thomas K. Dyas <tdyas@zecador.org> (simple gestures support)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or 
@@ -135,8 +135,6 @@ static void blinkRgn(RgnHandle rgn);
 
 nsIRollupListener * gRollupListener = nsnull;
 nsIWidget         * gRollupWidget   = nsnull;
-
-PRUint32 gLastModifierState = 0;
 
 
 @interface ChildView(Private)
@@ -1797,13 +1795,17 @@ nsChildView::OnPaint(nsPaintEvent &event)
 }
 
 
-// The OS manages repaints well enough on its own, so we don't have to
-// flush them out here.  In other words, the OS will automatically call
-// displayIfNeeded at the appropriate times, so we don't need to do it
-// ourselves.  See bmo bug 459319.
+// this is handled for us by UpdateWidget
 NS_IMETHODIMP nsChildView::Update()
 {
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  // Update means "Flush any pending changes right now."  It does *not* mean
+  // repaint the world. :) -- dwh
+  [mView displayIfNeeded];
   return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 
@@ -2222,7 +2224,6 @@ NS_IMETHODIMP nsChildView::SetIMEEnabled(PRUint32 aState)
 
   switch (aState) {
     case nsIWidget::IME_STATUS_ENABLED:
-    case nsIWidget::IME_STATUS_PLUGIN:
       nsTSMManager::SetRomanKeyboardsOnly(PR_FALSE);
       nsTSMManager::EnableIME(PR_TRUE);
       break;
@@ -2387,22 +2388,6 @@ NSPasteboard* globalDragPboard = nil;
 // is on the stack.
 NSView* gLastDragView = nil;
 NSEvent* gLastDragEvent = nil;
-
-
-+ (void)initialize
-{
-  static BOOL initialized = NO;
-
-  if (!initialized) {
-    // Inform the OS about the types of services (from the "Services" menu)
-    // that we can handle.
-    NSArray *sendTypes = [NSArray arrayWithObject:NSStringPboardType];
-    NSArray *returnTypes = [NSArray array];
-    [NSApp registerServicesMenuSendTypes:sendTypes returnTypes:returnTypes];
-
-    initialized = YES;
-  }
-}
 
 
 // initWithFrame:geckoChild:
@@ -2948,7 +2933,7 @@ NSEvent* gLastDragEvent = nil;
 static const PRInt32 sShadowInvalidationInterval = 100;
 - (void)maybeInvalidateShadow
 {
-  if ([mWindow isOpaque] || ![mWindow hasShadow])
+  if (!mIsTransparent || ![mWindow hasShadow])
     return;
 
   PRIntervalTime now = PR_IntervalNow();
@@ -6019,7 +6004,10 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   // CapsLock state and other modifier states are different:
   // CapsLock state does not revert when the CapsLock key goes up, as the
-  // modifier state does for other modifier keys on key up.
+  // modifier state does for other modifier keys on key up. Also,
+  // mLastModifierState is set only when this view is the first responder. We
+  // cannot trust mLastModifierState to accurately reflect the state of CapsLock
+  // since CapsLock maybe have been toggled when another window was active.
   if ([theEvent keyCode] == kCapsLockKeyCode) {
     // Fire key down event for caps lock.
     [self fireKeyEventForFlagsChanged:theEvent keyDown:YES];
@@ -6038,7 +6026,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
     for (PRUint32 i = 0; i < kModifierCount; i++) {
       PRUint32 modifierBit = kModifierMaskTable[i];
-      if ((modifiers & modifierBit) != (gLastModifierState & modifierBit)) {
+      if ((modifiers & modifierBit) != (mLastModifierState & modifierBit)) {
         BOOL isKeyDown = (modifiers & modifierBit) != 0 ? YES : NO;
 
         [self fireKeyEventForFlagsChanged:theEvent keyDown:isKeyDown];
@@ -6053,7 +6041,7 @@ static BOOL keyUpAlreadySentKeyDown = NO;
       }
     }
 
-    gLastModifierState = modifiers;
+    mLastModifierState = modifiers;
   }
 
   // check if the hand scroll cursor needs to be set/unset
@@ -6414,89 +6402,6 @@ static BOOL keyUpAlreadySentKeyDown = NO;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
-
-
-#pragma mark -
-
-// Support for the "Services" menu. We currently only support sending strings
-// to services.
-
-- (id)validRequestorForSendType:(NSString *)sendType
-                     returnType:(NSString *)returnType
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
-
-  // sendType contains the type of data that the service would like this
-  // application to send to it.  sendType is nil if the service is not
-  // requesting any data.
-  //
-  // returnType contains the type of data the the service would like to
-  // return to this application (e.g., to overwrite the selection).
-  // returnType is nil if the service will not return any data.
-  //
-  // The following condition thus triggers when the service expects a string
-  // from us or no data at all AND when the service will not send back any
-  // data to us.
-
-  if ((!sendType || [sendType isEqual:NSStringPboardType]) && !returnType) {
-    // Query Gecko window to determine if there is a current selection.
-    bool hasSelection = false;
-    if (mGeckoChild) {
-      nsAutoRetainCocoaObject kungFuDeathGrip(self);
-      nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT,
-                                    mGeckoChild);
-      mGeckoChild->DispatchWindowEvent(selection);
-      if (selection.mSucceeded && !selection.mReply.mString.IsEmpty())
-        hasSelection = true;
-    }
-
-    // Return this object if it can handle the request.
-    if ((!sendType || hasSelection) && !returnType)
-      return self;
-  }
-
-  return [super validRequestorForSendType:sendType returnType:returnType];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
-}
-
-
-- (BOOL)writeSelectionToPasteboard:(NSPasteboard *)pboard
-                             types:(NSArray *)types
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  nsAutoRetainCocoaObject kungFuDeathGrip(self);
- 
-  // Ensure that the service will accept strings. (We only support strings.)
-  if ([types containsObject:NSStringPboardType] == NO)
-    return NO;
-
-  // Obtain the current selection.
-  if (!mGeckoChild)
-    return NO;
-  nsQueryContentEvent selection(PR_TRUE, NS_QUERY_SELECTED_TEXT, mGeckoChild);
-  mGeckoChild->DispatchWindowEvent(selection);
-  if (!selection.mSucceeded || selection.mReply.mString.IsEmpty())
-    return NO;
-
-  // Copy the current selection to the pasteboard.
-  NSArray *typesDeclared = [NSArray arrayWithObject:NSStringPboardType];
-  [pboard declareTypes:typesDeclared owner:nil];
-  return [pboard setString:ToNSString(selection.mReply.mString)
-                   forType:NSStringPboardType];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
-}
-
-
-// Called if the service wants us to replace the current selection. We do
-// not currently support replacing the current selection so just return NO.
-- (BOOL)readSelectionFromPasteboard:(NSPasteboard *)pboard
-{
-  return NO;
-}
-
 
 #pragma mark -
 

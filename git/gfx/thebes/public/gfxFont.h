@@ -78,8 +78,7 @@ struct THEBES_API gfxFontStyle {
     gfxFontStyle(PRUint8 aStyle, PRUint16 aWeight, gfxFloat aSize,
                  const nsACString& aLangGroup,
                  float aSizeAdjust, PRPackedBool aSystemFont,
-                 PRPackedBool aFamilyNameQuirks,
-                 PRPackedBool aPrinterFont);
+                 PRPackedBool aFamilyNameQuirks);
     gfxFontStyle(const gfxFontStyle& aStyle);
 
     // The style of font (normal, italic, oblique)
@@ -89,9 +88,6 @@ struct THEBES_API gfxFontStyle {
     // require certain fixup that we do for fonts from untrusted
     // sources.
     PRPackedBool systemFont : 1;
-
-    // Say that this font is used for print or print preview.
-    PRPackedBool printerFont : 1;
 
     // True if the character set quirks (for treatment of "Symbol",
     // "Wingdings", etc.) should be applied.
@@ -137,7 +133,6 @@ struct THEBES_API gfxFontStyle {
         return (size == other.size) &&
             (style == other.style) &&
             (systemFont == other.systemFont) &&
-            (printerFont == other.printerFont) &&
             (familyNameQuirks == other.familyNameQuirks) &&
             (weight == other.weight) &&
             (langGroup.Equals(other.langGroup)) &&
@@ -1418,9 +1413,6 @@ public:
 #ifdef DEBUG
     // number of entries referencing this textrun in the gfxTextRunWordCache
     PRUint32 mCachedWords;
-    // generation of gfxTextRunWordCache that refers to this textrun;
-    // if the cache gets cleared, then mCachedWords is no longer meaningful
-    PRUint32 mCacheGeneration;
     
     void Dump(FILE* aOutput);
 #endif
@@ -1608,7 +1600,7 @@ public:
     // The value should be lower value of first font's metrics and the bad font's metrics.
     // Otherwise, this returns from first font's metrics.
     enum { UNDERLINE_OFFSET_NOT_SET = PR_INT16_MAX };
-    virtual gfxFloat GetUnderlineOffset() {
+    gfxFloat GetUnderlineOffset() {
         if (mUnderlineOffset == UNDERLINE_OFFSET_NOT_SET)
             mUnderlineOffset = GetFontAt(0)->GetMetrics().underlineOffset;
         return mUnderlineOffset;

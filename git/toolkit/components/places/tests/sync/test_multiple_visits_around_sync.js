@@ -80,9 +80,9 @@ var observer = {
         let stmt = db.createStatement(
           "SELECT place_id " +
           "FROM moz_historyvisits " +
-          "WHERE id = ?1"
+          "WHERE id = :visit_id"
         );
-        stmt.bindInt64Parameter(0, this.visitId);
+        stmt.params["visit_id"] = this.visitId;
         do_check_true(stmt.executeStep());
         this._placeId = stmt.getInt64(0);
         this._lastVisitId = this.visitId;
@@ -99,9 +99,9 @@ var observer = {
         let stmt = db.createStatement(
           "SELECT place_id " +
           "FROM moz_historyvisits " +
-          "WHERE id = ?1"
+          "WHERE id = :visit_id"
         );
-        stmt.bindInt64Parameter(0, this.visitId);
+        stmt.params["visit_id"] = this.visitId;
         do_check_true(stmt.executeStep());
         do_check_eq(this._placeId, stmt.getInt64(0));
         stmt.finalize();
@@ -110,7 +110,7 @@ var observer = {
         // remove the observers
         os.removeObserver(this, kSyncFinished);
         hs.removeObserver(historyObserver, false);
-        finish_test();
+        do_test_finished();
       }
       else
         do_throw("bad runCount!");

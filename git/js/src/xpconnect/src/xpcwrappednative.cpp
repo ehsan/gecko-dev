@@ -302,8 +302,7 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     // in a pointer that hasn't been QI'd to IDispatch properly this could
     // create multiple wrappers for the same object, creating a fair bit of
     // confusion.
-    PRBool isIDispatch = Interface &&
-                         Interface->GetIID()->Equals(NSID_IDISPATCH);
+    PRBool isIDispatch = Interface->GetIID()->Equals(NSID_IDISPATCH);
     if(isIDispatch)
         identity = Object;
     else
@@ -334,7 +333,7 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
 
     if(wrapper)
     {
-        if(Interface && !wrapper->FindTearOff(ccx, Interface, JS_FALSE, &rv))
+        if(!wrapper->FindTearOff(ccx, Interface, JS_FALSE, &rv))
         {
             NS_RELEASE(wrapper);
             NS_ASSERTION(NS_FAILED(rv), "returning NS_OK on failure");
@@ -357,8 +356,7 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
     // If we are making a wrapper for the nsIClassInfo interface then
     // We *don't* want to have it use the prototype meant for instances
     // of that class.
-    JSBool isClassInfo = Interface &&
-                         Interface->GetIID()->Equals(NS_GET_IID(nsIClassInfo));
+    JSBool isClassInfo = Interface->GetIID()->Equals(NS_GET_IID(nsIClassInfo));
 
     nsCOMPtr<nsIClassInfo> info;
 
@@ -431,7 +429,7 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
 
         if(wrapper)
         {
-            if(Interface && !wrapper->FindTearOff(ccx, Interface, JS_FALSE, &rv))
+            if(!wrapper->FindTearOff(ccx, Interface, JS_FALSE, &rv))
             {
                 NS_RELEASE(wrapper);
                 NS_ASSERTION(NS_FAILED(rv), "returning NS_OK on failure");
@@ -490,7 +488,7 @@ XPCWrappedNative::GetNewOrUsed(XPCCallContext& ccx,
         return NS_ERROR_FAILURE;
     }
 
-    if(Interface && !wrapper->FindTearOff(ccx, Interface, JS_FALSE, &rv))
+    if(!wrapper->FindTearOff(ccx, Interface, JS_FALSE, &rv))
     {
         // Second reference will be released by the FlatJSObject's finializer.
         wrapper->Release();
@@ -638,7 +636,7 @@ XPCWrappedNative::GetUsedOnly(XPCCallContext& ccx,
     }
 
     nsresult rv;
-    if(Interface && !wrapper->FindTearOff(ccx, Interface, JS_FALSE, &rv))
+    if(!wrapper->FindTearOff(ccx, Interface, JS_FALSE, &rv))
     {
         NS_RELEASE(wrapper);
         NS_ASSERTION(NS_FAILED(rv), "returning NS_OK on failure");
@@ -1444,10 +1442,10 @@ return_tearoff:
 
         if(XPCNativeWrapper::IsNativeWrapperClass(clazz))
         {
-            unsafeObj =
-                XPCNativeWrapper::GetWrappedNative(cur)->GetFlatJSObject();
-            return GetWrappedNativeOfJSObject(cx, unsafeObj, funobj, pobj2,
-                                              pTearOff);
+            if(pobj2)
+                *pobj2 = cur;
+
+            return XPCNativeWrapper::GetWrappedNative(cur);
         }
 
         if(IsXPCSafeJSObjectWrapperClass(clazz) &&
