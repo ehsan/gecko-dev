@@ -13,11 +13,8 @@ function handleRequest(request, response) {
   let cachedCount = 0;
   let cacheExpire = 60; // seconds
 
-  function setCacheHeaders() {
+  function maybeMakeCached() {
     if (status != 304) {
-      response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-      response.setHeader("Pragma", "no-cache");
-      response.setHeader("Expires", "0");
       return;
     }
     // Spice things up a little!
@@ -34,7 +31,7 @@ function handleRequest(request, response) {
       case "txt": {
         response.setStatusLine(request.httpVersion, status, "DA DA DA");
         response.setHeader("Content-Type", "text/plain", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write("Братан, ты вообще качаешься?");
         response.finish();
         break;
@@ -42,7 +39,7 @@ function handleRequest(request, response) {
       case "xml": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "text/xml; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write("<label value='greeting'>Hello XML!</label>");
         response.finish();
         break;
@@ -51,7 +48,7 @@ function handleRequest(request, response) {
         let content = params.filter((s) => s.contains("res="))[0].split("=")[1];
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "text/html; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write(content || "<p>Hello HTML!</p>");
         response.finish();
         break;
@@ -60,7 +57,7 @@ function handleRequest(request, response) {
         let str = new Array(102400 /* 100 KB in bytes */).join(".");
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "text/html; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write("<p>" + str + "</p>");
         response.finish();
         break;
@@ -68,7 +65,7 @@ function handleRequest(request, response) {
       case "css": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "text/css; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write("body:pre { content: 'Hello CSS!' }");
         response.finish();
         break;
@@ -76,7 +73,7 @@ function handleRequest(request, response) {
       case "js": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "application/javascript; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write("function() { return 'Hello JS!'; }");
         response.finish();
         break;
@@ -84,7 +81,7 @@ function handleRequest(request, response) {
       case "json": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "application/json; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write("{ \"greeting\": \"Hello JSON!\" }");
         response.finish();
         break;
@@ -93,7 +90,7 @@ function handleRequest(request, response) {
         let fun = params.filter((s) => s.contains("jsonp="))[0].split("=")[1];
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "text/json; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write(fun + "({ \"greeting\": \"Hello JSONP!\" })");
         response.finish();
         break;
@@ -102,7 +99,7 @@ function handleRequest(request, response) {
         let fun = params.filter((s) => s.contains("jsonp="))[0].split("=")[1];
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "text/json; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write(" " + fun + " ( { \"greeting\": \"Hello weird JSONP!\" } ) ; ");
         response.finish();
         break;
@@ -111,7 +108,7 @@ function handleRequest(request, response) {
         let str = "{ \"greeting\": \"Hello long string JSON!\" },";
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "text/json; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write("[" + new Array(2048).join(str).slice(0, -1) + "]");
         response.finish();
         break;
@@ -119,7 +116,7 @@ function handleRequest(request, response) {
       case "json-malformed": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "text/json; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write("{ \"greeting\": \"Hello malformed JSON!\" },");
         response.finish();
         break;
@@ -127,7 +124,7 @@ function handleRequest(request, response) {
       case "json-text-mime": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "text/plain; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write("{ \"greeting\": \"Hello third-party JSON!\" }");
         response.finish();
         break;
@@ -135,7 +132,7 @@ function handleRequest(request, response) {
       case "json-custom-mime": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "text/x-bigcorp-json; charset=utf-8", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.write("{ \"greeting\": \"Hello oddly-named JSON!\" }");
         response.finish();
         break;
@@ -143,42 +140,41 @@ function handleRequest(request, response) {
       case "font": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "font/woff", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.finish();
         break;
       }
       case "image": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "image/png", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.finish();
         break;
       }
       case "audio": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "audio/ogg", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.finish();
         break;
       }
       case "video": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "video/webm", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.finish();
         break;
       }
       case "flash": {
         response.setStatusLine(request.httpVersion, status, "OK");
         response.setHeader("Content-Type", "application/x-shockwave-flash", false);
-        setCacheHeaders();
+        maybeMakeCached();
         response.finish();
         break;
       }
       default: {
         response.setStatusLine(request.httpVersion, 404, "Not Found");
         response.setHeader("Content-Type", "text/html; charset=utf-8", false);
-        setCacheHeaders();
         response.write("<blink>Not Found</blink>");
         response.finish();
         break;

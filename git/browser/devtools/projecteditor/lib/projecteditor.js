@@ -79,7 +79,6 @@ var ProjectEditor = Class({
    */
   initialize: function(iframe) {
     this._onTreeSelected = this._onTreeSelected.bind(this);
-    this._onTreeResourceRemoved = this._onTreeResourceRemoved.bind(this);
     this._onEditorCreated = this._onEditorCreated.bind(this);
     this._onEditorActivated = this._onEditorActivated.bind(this);
     this._onEditorDeactivated = this._onEditorDeactivated.bind(this);
@@ -168,8 +167,7 @@ var ProjectEditor = Class({
       resourceVisible: this.resourceVisible.bind(this),
       resourceFormatter: this.resourceFormatter.bind(this)
     });
-    on(this, this.projectTree, "selection", this._onTreeSelected);
-    on(this, this.projectTree, "resource-removed", this._onTreeResourceRemoved);
+    this.projectTree.on("selection", this._onTreeSelected);
 
     let sourcesBox = this.document.querySelector("#sources");
     sourcesBox.appendChild(this.projectTree.elt);
@@ -220,15 +218,18 @@ var ProjectEditor = Class({
   destroy: function() {
     this._plugins.forEach(plugin => { plugin.destroy(); });
 
-    forget(this, this.projectTree);
-    this.projectTree.destroy();
-    this.projectTree = null;
-
-    this.shells.destroy();
+    this.project.allResources().forEach((resource) => {
+      let editor = this.editorFor(resource);
+      if (editor) {
+        editor.destroy();
+      }
+    });
 
     forget(this, this.project);
     this.project.destroy();
     this.project = null;
+    this.projectTree.destroy();
+    this.projectTree = null;
   },
 
   /**
@@ -248,7 +249,10 @@ var ProjectEditor = Class({
     // exist for resources within it.
     on(this, project, "store-removed", (store) => {
       store.allResources().forEach((resource) => {
-        this.shells.removeResource(resource);
+        let editor = this.editorFor(resource);
+        if (editor) {
+          editor.destroy();
+        }
       });
     });
   },
@@ -310,16 +314,6 @@ var ProjectEditor = Class({
     }
     this.pluginDispatch("onTreeSelected", resource);
     this.openResource(resource);
-  },
-
-  /**
-   * When a node is removed, destroy it and its associated editor.
-   *
-   * @param Resource resource
-   *                 The resource being removed
-   */
-  _onTreeResourceRemoved: function(resource) {
-    this.shells.removeResource(resource);
   },
 
   /**

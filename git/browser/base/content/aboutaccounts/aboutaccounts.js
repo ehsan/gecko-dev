@@ -170,7 +170,7 @@ let wrapper = {
       // If the user data is verified, we want it to immediately look like
       // they are signed in without waiting for messages to bounce around.
       if (accountData.verified) {
-        show("stage", "manage");
+        showManage();
       }
       this.injectData("message", { status: "login" });
       // until we sort out a better UX, just leave the jelly page in place.
@@ -270,6 +270,8 @@ function handleOldSync() {
 }
 
 function getStarted() {
+  hide("intro");
+  hide("stage");
   show("remote");
 }
 
@@ -287,7 +289,7 @@ function init() {
     if (window.location.href.contains("action=signin")) {
       if (user) {
         // asking to sign-in when already signed in just shows manage.
-        show("stage", "manage");
+        showManage();
       } else {
         show("remote");
         wrapper.init(fxAccounts.getAccountsSignInURI());
@@ -295,7 +297,7 @@ function init() {
     } else if (window.location.href.contains("action=signup")) {
       if (user) {
         // asking to sign-up when already signed in just shows manage.
-        show("stage", "manage");
+        showManage();
       } else {
         show("remote");
         wrapper.init();
@@ -312,11 +314,12 @@ function init() {
     } else {
       // No action specified
       if (user) {
-        show("stage", "manage");
+        showManage();
         let sb = Services.strings.createBundle("chrome://browser/locale/syncSetup.properties");
         document.title = sb.GetStringFromName("manage.pageTitle");
       } else {
-        show("stage", "intro");
+        show("stage");
+        show("intro");
         // load the remote frame in the background
         wrapper.init();
       }
@@ -324,30 +327,18 @@ function init() {
   });
 }
 
-// Causes the "top-level" element with |id| to be shown - all other top-level
-// elements are hidden.  Optionally, ensures that only 1 "second-level" element
-// inside the top-level one is shown.
-function show(id, childId) {
-  // top-level items are either <div> or <iframe>
-  let allTop = document.querySelectorAll("body > div, iframe");
-  for (let elt of allTop) {
-    if (elt.getAttribute("id") == id) {
-      elt.style.display = 'block';
-    } else {
-      elt.style.display = 'none';
-    }
-  }
-  if (childId) {
-    // child items are all <div>
-    let allSecond = document.querySelectorAll("#" + id + " > div");
-    for (let elt of allSecond) {
-      if (elt.getAttribute("id") == childId) {
-        elt.style.display = 'block';
-      } else {
-        elt.style.display = 'none';
-      }
-    }
-  }
+function show(id) {
+  document.getElementById(id).style.display = 'block';
+}
+function hide(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+function showManage() {
+  show("stage");
+  show("manage");
+  hide("remote");
+  hide("intro");
 }
 
 document.addEventListener("DOMContentLoaded", function onload() {

@@ -328,29 +328,18 @@ OutputParser.prototype = {
     let colorObj = new colorUtils.CssColor(color);
 
     if (this._isValidColor(colorObj)) {
-      let container = this._createNode("span", {
-         "data-color": color
-      });
-
       if (options.colorSwatchClass) {
-        let swatch = this._createNode("span", {
+        this._appendNode("span", {
           class: options.colorSwatchClass,
           style: "background-color:" + color
         });
-        container.appendChild(swatch);
       }
-
       if (options.defaultColorType) {
         color = colorObj.toString();
-        container.dataset["color"] = color;
       }
-
-      let value = this._createNode("span", {
+      this._appendNode("span", {
         class: options.colorClass
       }, color);
-
-      container.appendChild(value);
-      this.parsed.push(container);
       return true;
     }
     return false;
@@ -391,7 +380,7 @@ OutputParser.prototype = {
   },
 
   /**
-   * Create a node.
+   * Append a node to the output.
    *
    * @param  {String} tagName
    *         Tag type e.g. "div"
@@ -400,9 +389,8 @@ OutputParser.prototype = {
    * @param  {String} [value]
    *         If a value is included it will be appended as a text node inside
    *         the tag. This is useful e.g. for span tags.
-   * @return {Node} Newly created Node.
    */
-  _createNode: function(tagName, attributes, value="") {
+  _appendNode: function(tagName, attributes, value="") {
     let win = Services.appShell.hiddenDOMWindow;
     let doc = win.document;
     let node = doc.createElementNS(HTML_NS, tagName);
@@ -419,22 +407,6 @@ OutputParser.prototype = {
       node.appendChild(textNode);
     }
 
-    return node;
-  },
-
-  /**
-   * Append a node to the output.
-   *
-   * @param  {String} tagName
-   *         Tag type e.g. "div"
-   * @param  {Object} attributes
-   *         e.g. {class: "someClass", style: "cursor:pointer"};
-   * @param  {String} [value]
-   *         If a value is included it will be appended as a text node inside
-   *         the tag. This is useful e.g. for span tags.
-   */
-  _appendNode: function(tagName, attributes, value="") {
-    let node = this._createNode(tagName, attributes, value);
     this.parsed.push(node);
   },
 

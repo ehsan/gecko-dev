@@ -235,7 +235,7 @@ struct RtspConnectionHandler : public AHandler {
         setCheckPending(true);
         ++mCheckGeneration;
 
-        sp<AMessage> reply = new AMessage('paus', id());
+        sp<AMessage> reply = new AMessage('pause', id());
         mConn->sendRequest(request.c_str(), reply);
     }
 
@@ -253,7 +253,7 @@ struct RtspConnectionHandler : public AHandler {
 
         setCheckPending(false);
 
-        sp<AMessage> reply = new AMessage('resu', id());
+        sp<AMessage> reply = new AMessage('resume', id());
         mConn->sendRequest(request.c_str(), reply);
 
     }
@@ -737,7 +737,7 @@ struct RtspConnectionHandler : public AHandler {
                 }
                 break;
             }
-            case 'paus':
+            case 'pause':
             {
                 mPausePending = true;
                 LOGI("pause completed");
@@ -746,7 +746,7 @@ struct RtspConnectionHandler : public AHandler {
                 msg->post();
                 break;
             }
-            case 'resu':
+            case 'resume':
                  break;
             case 'play':
             {
@@ -831,7 +831,7 @@ struct RtspConnectionHandler : public AHandler {
                 break;
             }
 
-            case 'eost':
+            case 'endofstream':
             {
                 size_t trackIndex = 0;
                 msg->findSize("trackIndex", &trackIndex);
@@ -947,7 +947,7 @@ struct RtspConnectionHandler : public AHandler {
 
                 if (track->mNumAccessUnitsReceiveds == 0) {
                     LOGI("stream ended? aborting.");
-                    sp<AMessage> endStreamMsg = new AMessage('eost', id());
+                    sp<AMessage> endStreamMsg = new AMessage('endofstream', id());
                     endStreamMsg->setSize("trackIndex", trackIndex);
                     endStreamMsg->post();
                     break;

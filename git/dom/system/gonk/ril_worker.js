@@ -75,8 +75,6 @@ const MMI_MAX_LENGTH_SHORT_CODE = 2;
 
 const MMI_END_OF_USSD = "#";
 
-const GET_CURRENT_CALLS_RETRY_MAX = 3;
-
 let RILQUIRKS_CALLSTATE_EXTRA_UINT32;
 // This may change at runtime since in RIL v6 and later, we get the version
 // number via the UNSOLICITED_RIL_CONNECTED parcel.
@@ -349,7 +347,6 @@ function RilObject(aContext) {
   this._pendingSentSmsMap = {};
   this.pendingNetworkType = {};
   this._receivedSmsCbPagesMap = {};
-  this._getCurrentCallsRetryCount = 0;
 
   // Init properties that are only initialized once.
   this.v5Legacy = RILQUIRKS_V5_LEGACY;
@@ -4427,19 +4424,6 @@ RilObject.prototype = {
     this.sendChromeMessage(message);
   },
 
-  _updateNetworkSelectionMode: function(mode) {
-    if (this.networkSelectionMode === mode) {
-      return;
-    }
-
-    let options = {
-      rilMessageType: "networkselectionmodechange",
-      mode: mode
-    };
-    this.networkSelectionMode = mode;
-    this._sendNetworkInfoMessage(NETWORK_INFO_NETWORK_SELECTION_MODE, options);
-  },
-
   _processNetworks: function() {
     let strings = this.context.Buf.readStringList();
     let networks = [];
@@ -5486,15 +5470,9 @@ RilObject.prototype[REQUEST_ENTER_NETWORK_DEPERSONALIZATION_CODE] =
   this._processEnterAndChangeICCResponses(length, options);
 };
 RilObject.prototype[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CALLS(length, options) {
-  // Retry getCurrentCalls several times when error occurs.
-  if (options.rilRequestError &&
-      this._getCurrentCallsRetryCount < GET_CURRENT_CALLS_RETRY_MAX) {
-    this._getCurrentCallsRetryCount++;
-    this.getCurrentCalls();
+  if (options.rilRequestError) {
     return;
   }
-
-  this._getCurrentCallsRetryCount = 0;
 
   let Buf = this.context.Buf;
   let calls_length = 0;
@@ -5529,7 +5507,7 @@ RilObject.prototype[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CA
     if (RILQUIRKS_CALLSTATE_EXTRA_UINT32) {
       Buf.readInt32();
     }
-    call.number             = Buf.readString();
+    call.number             = Buf.readString(); //TODO munge with TOA
     call.numberPresentation = Buf.readInt32(); // CALL_PRESENTATION_*
     call.name               = Buf.readString();
     call.namePresentation   = Buf.readInt32();
@@ -6167,13 +6145,15 @@ RilObject.prototype[REQUEST_QUERY_NETWORK_SELECTION_MODE] = function REQUEST_QUE
       break;
   }
 
-  this._updateNetworkSelectionMode(selectionMode);
+  if (this.networkSelectionMode != selectionMode) {
+    this.networkSelectionMode = options.mode = selectionMode;
+    options.rilMessageType = "networkselectionmodechange";
+    this._sendNetworkInfoMessage(NETWORK_INFO_NETWORK_SELECTION_MODE, options);
+  }
 };
 RilObject.prototype[REQUEST_SET_NETWORK_SELECTION_AUTOMATIC] = function REQUEST_SET_NETWORK_SELECTION_AUTOMATIC(length, options) {
   if (options.rilRequestError) {
     options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  } else {
-    this._updateNetworkSelectionMode(GECKO_NETWORK_SELECTION_AUTOMATIC);
   }
 
   this.sendChromeMessage(options);
@@ -6181,8 +6161,6 @@ RilObject.prototype[REQUEST_SET_NETWORK_SELECTION_AUTOMATIC] = function REQUEST_
 RilObject.prototype[REQUEST_SET_NETWORK_SELECTION_MANUAL] = function REQUEST_SET_NETWORK_SELECTION_MANUAL(length, options) {
   if (options.rilRequestError) {
     options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-  } else {
-    this._updateNetworkSelectionMode(GECKO_NETWORK_SELECTION_MANUAL);
   }
 
   this.sendChromeMessage(options);
@@ -6855,7 +6833,7 @@ RilObject.prototype[UNSOLICITED_CDMA_CALL_WAITING] = function UNSOLICITED_CDMA_C
   call.alertPitch          = Buf.readInt32();
   call.signal              = Buf.readInt32();
   this.sendChromeMessage({rilMessageType: "cdmaCallWaiting",
-                          waitingCall: call});
+                          number: call.number});
 };
 RilObject.prototype[UNSOLICITED_CDMA_OTA_PROVISION_STATUS] = function UNSOLICITED_CDMA_OTA_PROVISION_STATUS() {
   let status = this.context.Buf.readInt32List()[0];

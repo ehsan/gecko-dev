@@ -69,6 +69,3 @@ MOZ_LOCALE_SWITCHER=1
 
 # Enable second screen and casting support for external devices.
 MOZ_DEVICES=1
-
-# Enable second screen using native Android libraries
-MOZ_NATIVE_DEVICES=

@@ -105,19 +105,12 @@ function testSelectNetworkErrors(aNetworkToSelect, aAnotherNetwork) {
 
   isnot(aNetworkToSelect.longName, mobileConnection.voice.network.longName,
         "aNetworkToSelect.longName");
+  let promise = selectNetworkAndWait(aNetworkToSelect);
 
-  let promises = [];
-  promises.push(selectNetworkAndWait(aNetworkToSelect));
-  // attempt to selectNetwork while one request has already been sent, we except
-  // to get an error here.
-  promises.push(selectNetwork(aAnotherNetwork)
-    .then(function resolve() {
-      ok(false, "should not success");
-    }, function reject(aError) {
-      is(aError.name, "AlreadySelectingANetwork", "got an error");
-    }));
+  // attempt to selectNetwork while one request has already been sent
+  throwsException(() => mobileConnection.selectNetwork(aAnotherNetwork));
 
-  return Promise.all(promises);
+  return promise;
 }
 
 function testSelectExistingNetworkManual(aNetwork) {

@@ -441,6 +441,7 @@ function RILContentHelper() {
 
   this.initDOMRequestHelper(/* aWindow */ null, RIL_IPC_MSG_NAMES);
   this._windowsMap = [];
+  this._selectingNetworks = [];
   this._mobileConnectionListeners = [];
   this._cellBroadcastListeners = [];
   this._voicemailListeners = [];
@@ -670,6 +671,12 @@ RILContentHelper.prototype = {
     })[0];
   },
 
+  /**
+   * The networks that are currently trying to be selected (or "automatic").
+   * This helps ensure that only one network per client is selected at a time.
+   */
+  _selectingNetworks: null,
+
   getNetworks: function(clientId, window) {
     if (window == null) {
       throw Components.Exception("Can't get window object",
@@ -697,22 +704,35 @@ RILContentHelper.prototype = {
                                   Cr.NS_ERROR_UNEXPECTED);
     }
 
+    if (this._selectingNetworks[clientId]) {
+      throw new Error("Already selecting a network: " + this._selectingNetworks[clientId]);
+    }
+
+    if (!network) {
+      throw new Error("Invalid network provided: " + network);
+    }
+
+    if (isNaN(parseInt(network.mnc, 10))) {
+      throw new Error("Invalid network MNC: " + network.mnc);
+    }
+
+    if (isNaN(parseInt(network.mcc, 10))) {
+      throw new Error("Invalid network MCC: " + network.mcc);
+    }
+
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
 
-    if (!network ||
-        isNaN(parseInt(network.mcc, 10)) || isNaN(parseInt(network.mnc, 10))) {
-      this.dispatchFireRequestError(RIL.GECKO_ERROR_INVALID_PARAMETER);
-      return request;
-    }
-
     if (this.rilContexts[clientId].networkSelectionMode == RIL.GECKO_NETWORK_SELECTION_MANUAL &&
         this.rilContexts[clientId].voiceConnectionInfo.network === network) {
+
       // Already manually selected this network, so schedule
       // onsuccess to be fired on the next tick
       this.dispatchFireRequestSuccess(requestId, null);
       return request;
     }
+
+    this._selectingNetworks[clientId] = network;
 
     cpmm.sendAsyncMessage("RIL:SelectNetwork", {
       clientId: clientId,
@@ -727,9 +747,14 @@ RILContentHelper.prototype = {
   },
 
   selectNetworkAutomatically: function(clientId, window) {
+
     if (window == null) {
       throw Components.Exception("Can't get window object",
                                   Cr.NS_ERROR_UNEXPECTED);
+    }
+
+    if (this._selectingNetworks[clientId]) {
+      throw new Error("Already selecting a network: " + this._selectingNetworks[clientId]);
     }
 
     let request = Services.DOMRequest.createRequest(window);
@@ -742,6 +767,7 @@ RILContentHelper.prototype = {
       return request;
     }
 
+    this._selectingNetworks[clientId] = "automatic";
     cpmm.sendAsyncMessage("RIL:SelectNetworkAuto", {
       clientId: clientId,
       data: {
@@ -1700,10 +1726,12 @@ RILContentHelper.prototype = {
         this.rilContexts[clientId].networkSelectionMode = data.mode;
         break;
       case "RIL:SelectNetwork":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSelectNetwork(clientId, data,
+                                 RIL.GECKO_NETWORK_SELECTION_MANUAL);
         break;
       case "RIL:SelectNetworkAuto":
-        this.handleSimpleRequest(data.requestId, data.errorMsg, null);
+        this.handleSelectNetwork(clientId, data,
+                                 RIL.GECKO_NETWORK_SELECTION_AUTOMATIC);
         break;
       case "RIL:SetPreferredNetworkType":
         this.handleSimpleRequest(data.requestId, data.errorMsg, null);
@@ -1907,6 +1935,17 @@ RILContentHelper.prototype = {
     }
 
     this.fireRequestSuccess(message.requestId, networks);
+  },
+
+  handleSelectNetwork: function(clientId, message, mode) {
+    this._selectingNetworks[clientId] = null;
+    this.rilContexts[clientId].networkSelectionMode = mode;
+
+    if (message.errorMsg) {
+      this.fireRequestError(message.requestId, message.errorMsg);
+    } else {
+      this.fireRequestSuccess(message.requestId, null);
+    }
   },
 
   handleIccExchangeAPDU: function(message) {

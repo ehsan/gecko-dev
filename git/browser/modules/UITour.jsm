@@ -418,14 +418,6 @@ this.UITour = {
         this.getConfiguration(contentDocument, data.configuration, data.callbackID);
         break;
       }
-
-      case "showFirefoxAccounts": {
-        // 'signup' is the only action that makes sense currently, so we don't
-        // accept arbitrary actions just to be safe...
-        // We want to replace the current tab.
-        contentDocument.location.href = "about:accounts?action=signup";
-        break;
-      }
     }
 
     if (!this.originTabs.has(window))

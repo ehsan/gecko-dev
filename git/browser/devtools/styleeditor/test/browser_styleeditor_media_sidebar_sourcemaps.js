@@ -4,6 +4,7 @@
 
 // https rather than chrome to improve coverage
 const TESTCASE_URI = TEST_BASE_HTTPS + "media-rules-sourcemaps.html";
+const MEDIA_PREF = "devtools.styleeditor.showMediaSidebar";
 const MAP_PREF = "devtools.styleeditor.source-maps-enabled";
 
 const LABELS = ["screen and (max-width: 320px)",
@@ -13,6 +14,7 @@ const LINE_NOS = [4, 4];
 waitForExplicitFinish();
 
 let test = asyncTest(function*() {
+  Services.prefs.setBoolPref(MEDIA_PREF, true);
   Services.prefs.setBoolPref(MAP_PREF, true);
 
   let {UI} = yield addTabAndOpenStyleEditors(2, null, TESTCASE_URI);
@@ -26,6 +28,7 @@ let test = asyncTest(function*() {
   yield openEditor(mediaEditor);
   testMediaEditor(mediaEditor);
 
+  Services.prefs.clearUserPref(MEDIA_PREF);
   Services.prefs.clearUserPref(MAP_PREF);
 });
 
