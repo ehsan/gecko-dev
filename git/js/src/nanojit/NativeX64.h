@@ -384,7 +384,7 @@ namespace nanojit
     typedef uint8_t NIns;
 
     // Bytes of icache to flush after Assembler::patch
-    const size_t LARGEST_BRANCH_PATCH = 16 * sizeof(NIns);
+    const size_t LARGEST_BRANCH_PATCH = 16 * sizeof(Nins);
 
     inline Register nextreg(Register r) {
         return Register(r+1);
