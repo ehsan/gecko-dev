@@ -6440,13 +6440,26 @@ nsCSSFrameConstructor::AddPageBreakItem(nsIContent* aContent,
   NS_ASSERTION(pseudoStyle->GetStyleDisplay()->mDisplay ==
                  NS_STYLE_DISPLAY_BLOCK, "Unexpected display");
 
+  FrameConstructionItem* item = aItems.AppendItem();
+  if (!item) {
+    return;
+  }
+
   static const FrameConstructionData sPageBreakData =
     FCDATA_DECL(FCDATA_SKIP_FRAMEMAP, NS_NewPageBreakFrame);
 
+  item->mFCData = &sPageBreakData;
+  item->mContent = aContent;
   // Lie about the tag and namespace so we don't trigger anything
   // interesting during frame construction.
-  aItems.AppendItem(&sPageBreakData, aContent, nsCSSAnonBoxes::pageBreak,
-                    kNameSpaceID_None, pseudoStyle.forget());
+  item->mTag = nsCSSAnonBoxes::pageBreak;
+  item->mNameSpaceID = kNameSpaceID_None;
+  item->mStyleContext.swap(pseudoStyle);
+  item->mIsText = PR_FALSE;
+  item->mIsGeneratedContent = PR_FALSE;
+  item->mIsRootPopupgroup = PR_FALSE;
+  item->mIsAllInline = item->mHasInlineEnds = PR_FALSE;
+  item->mIsPopup = PR_FALSE;
 }
 
 nsresult
@@ -6639,9 +6652,7 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
 
   PRBool isGeneratedContent = ((aFlags & ITEM_IS_GENERATED_CONTENT) != 0);
 
-  FrameConstructionItem* item =
-    aItems.AppendItem(data, aContent, aTag, aNameSpaceID,
-                      styleContext.forget());
+  FrameConstructionItem* item = aItems.AppendItem();
   if (!item) {
     if (isGeneratedContent) {
       aContent->UnbindFromTree();
@@ -6649,6 +6660,11 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
     return;
   }
 
+  item->mFCData = data;
+  item->mContent = aContent;
+  item->mTag = aTag;
+  item->mNameSpaceID = aNameSpaceID;
+  item->mStyleContext.swap(styleContext);
   item->mIsText = isText;
   item->mIsGeneratedContent = isGeneratedContent;
   if (isGeneratedContent) {

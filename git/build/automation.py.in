@@ -407,10 +407,10 @@ def environment(env = None, xrePath = DIST_BIN):
 # RUN THE APP #
 ###############
 
-def processLeakLog(leakLogFile, leakThreshold):
+def processLeakLog(LEAK_REPORT_FILE, leakThreshold):
   "Process the leak log."
 
-  if not os.path.exists(leakLogFile):
+  if not os.path.exists(LEAK_REPORT_FILE):
     log.info("WARNING refcount logging is off, so leaks can't be detected!")
   else:
     #                  Per-Inst  Leaked      Total  Rem ...
@@ -420,7 +420,7 @@ def processLeakLog(leakLogFile, leakThreshold):
                         r"(?P<size>-?\d+)\s+(?P<bytesLeaked>-?\d+)\s+"
                         r"\d+\s+(?P<numLeaked>-?\d+)")
 
-    leaks = open(leakLogFile, "r")
+    leaks = open(LEAK_REPORT_FILE, "r")
     for line in leaks:
       matches = lineRe.match(line)
       if (matches and
@@ -430,7 +430,8 @@ def processLeakLog(leakLogFile, leakThreshold):
       log.info(line.rstrip())
     leaks.close()
 
-    leaks = open(leakLogFile, "r")
+    threshold = leakThreshold
+    leaks = open(LEAK_REPORT_FILE, "r")
     seenTotal = False
     prefix = "TEST-PASS"
     for line in leaks:
@@ -446,7 +447,7 @@ def processLeakLog(leakLogFile, leakThreshold):
       if "TOTAL" == name:
         seenTotal = True
         # Check for leaks.
-        if bytesLeaked < 0 or bytesLeaked > leakThreshold:
+        if bytesLeaked < 0 or bytesLeaked > threshold:
           prefix = "TEST-UNEXPECTED-FAIL"
           leakLog = "TEST-UNEXPECTED-FAIL | runtests-leaks | leaked" \
                     " %d bytes during test execution" % bytesLeaked
@@ -456,8 +457,8 @@ def processLeakLog(leakLogFile, leakThreshold):
         else:
           leakLog = "TEST-PASS | runtests-leaks | no leaks detected!"
         # Remind the threshold if it is not 0, which is the default/goal.
-        if leakThreshold != 0:
-          leakLog += " (threshold set at %d bytes)" % leakThreshold
+        if threshold != 0:
+          leakLog += " (threshold set at %d bytes)" % threshold
         # Log the information.
         log.info(leakLog)
       else:

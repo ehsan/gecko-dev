@@ -431,6 +431,7 @@ GetLinkStateFromURI(nsIURI* aURI, nsIContent* aContent,
 /*static*/
 PRBool nsStyleUtil::IsHTMLLink(nsIContent *aContent, nsIAtom *aTag,
                                nsILinkHandler *aLinkHandler,
+                               PRBool aForStyling,
                                nsLinkState *aState)
 {
   NS_ASSERTION(aContent && aState, "null arg in IsHTMLLink");
@@ -465,7 +466,8 @@ PRBool nsStyleUtil::IsHTMLLink(nsIContent *aContent, nsIAtom *aTag,
         } else {
           linkState = eLinkState_NotLink;
         }
-        if (linkState != eLinkState_NotLink && aContent->IsInDoc()) {
+        if (linkState != eLinkState_NotLink && aForStyling &&
+            aContent->IsInDoc()) {
           aContent->GetCurrentDoc()->AddStyleRelevantLink(aContent, hrefURI);
         }
         link->SetLinkState(linkState);
@@ -483,6 +485,7 @@ PRBool nsStyleUtil::IsHTMLLink(nsIContent *aContent, nsIAtom *aTag,
 /*static*/
 PRBool nsStyleUtil::IsLink(nsIContent     *aContent,
                            nsILinkHandler *aLinkHandler,
+                           PRBool          aForStyling,
                            nsLinkState    *aState)
 {
   // XXX PERF This function will cause serious performance problems on
@@ -497,7 +500,7 @@ PRBool nsStyleUtil::IsLink(nsIContent     *aContent,
     nsCOMPtr<nsIURI> absURI;
     if (aContent->IsLink(getter_AddRefs(absURI))) {
       *aState = GetLinkStateFromURI(absURI, aContent, aLinkHandler);
-      if (aContent->IsInDoc()) {
+      if (aForStyling && aContent->IsInDoc()) {
         aContent->GetCurrentDoc()->AddStyleRelevantLink(aContent, absURI);
       }
 

@@ -1060,7 +1060,24 @@ nsGenericHTMLElement::GetHrefURIForAnchors(nsIURI** aURI) const
   // Get href= attribute (relative URI).
 
   // We use the nsAttrValue's copy of the URI string to avoid copying.
-  GetURIAttr(nsGkAtoms::href, nsnull, aURI);
+  const nsAttrValue* attr = mAttrsAndChildren.GetAttr(nsGkAtoms::href);
+  if (attr) {
+    // Get base URI.
+    nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+
+    // Get absolute URI.
+    nsresult rv = nsContentUtils::NewURIWithDocumentCharset(aURI,
+                                                            attr->GetStringValue(),
+                                                            GetOwnerDoc(),
+                                                            baseURI);
+    if (NS_FAILED(rv)) {
+      *aURI = nsnull;
+    }
+  }
+  else {
+    // Absolute URI is null to say we have no HREF.
+    *aURI = nsnull;
+  }
 
   return NS_OK;
 }
@@ -2139,72 +2156,51 @@ nsGenericHTMLElement::SetFloatAttr(nsIAtom* aAttr, float aValue)
 nsresult
 nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr, nsAString& aResult)
 {
-  nsCOMPtr<nsIURI> uri;
-  PRBool hadAttr = GetURIAttr(aAttr, aBaseAttr, getter_AddRefs(uri));
-  if (!hadAttr) {
+  nsAutoString attrValue;
+  if (!GetAttr(kNameSpaceID_None, aAttr, attrValue)) {
     aResult.Truncate();
+
     return NS_OK;
   }
 
-  if (!uri) {
-    // Just return the attr value
-    GetAttr(kNameSpaceID_None, aAttr, aResult);
-    return NS_OK;
-  }
-
-  nsCAutoString spec;
-  uri->GetSpec(spec);
-  CopyUTF8toUTF16(spec, aResult);
-  return NS_OK;
-}
-
-PRBool
-nsGenericHTMLElement::GetURIAttr(nsIAtom* aAttr, nsIAtom* aBaseAttr,
-                                 nsIURI** aURI) const
-{
-  *aURI = nsnull;
-
-  const nsAttrValue* attr = mAttrsAndChildren.GetAttr(aAttr);
-  if (!attr) {
-    return PR_FALSE;
-  }
-
-  PRBool isURIAttr = (attr->Type() == nsAttrValue::eLazyURIValue);
-
-  if (isURIAttr && (*aURI = attr->GetURIValue())) {
-    NS_ADDREF(*aURI);
-    return PR_TRUE;
-  }
-  
   nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  nsresult rv;
 
   if (aBaseAttr) {
     nsAutoString baseAttrValue;
     if (GetAttr(kNameSpaceID_None, aBaseAttr, baseAttrValue)) {
       nsCOMPtr<nsIURI> baseAttrURI;
-      nsresult rv =
-        nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(baseAttrURI),
-                                                  baseAttrValue, GetOwnerDoc(),
-                                                  baseURI);
+      rv = nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(baseAttrURI),
+                                                     baseAttrValue, GetOwnerDoc(),
+                                                     baseURI);
       if (NS_FAILED(rv)) {
-        return PR_TRUE;
+        // Just use the attr value as the result...
+        aResult = attrValue;
+
+        return NS_OK;
       }
       baseURI.swap(baseAttrURI);
     }
   }
 
-  // Don't care about return value.  If it fails, we still want to
-  // return PR_TRUE, and *aURI will be null.
-  nsContentUtils::NewURIWithDocumentCharset(aURI,
-                                            isURIAttr ?
-                                              attr->GetURIStringValue() :
-                                              attr->GetStringValue(),
-                                            GetOwnerDoc(), baseURI);
+  nsCOMPtr<nsIURI> attrURI;
+  rv = nsContentUtils::NewURIWithDocumentCharset(getter_AddRefs(attrURI),
+                                                 attrValue, GetOwnerDoc(),
+                                                 baseURI);
+  if (NS_FAILED(rv)) {
+    // Just use the attr value as the result...
+    aResult = attrValue;
 
-  if (isURIAttr) {
-    const_cast<nsAttrValue*>(attr)->CacheURIValue(*aURI);
+    return NS_OK;
   }
-  return PR_TRUE;
+
+  NS_ASSERTION(attrURI,
+               "nsContentUtils::NewURIWithDocumentCharset return value lied");
+
+  nsCAutoString spec;
+  attrURI->GetSpec(spec);
+  CopyUTF8toUTF16(spec, aResult);
+  return NS_OK;
 }
 
 nsresult

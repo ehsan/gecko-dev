@@ -914,7 +914,8 @@ RuleProcessorData::RuleProcessorData(nsPresContext* aPresContext,
       mPresContext ? mPresContext->GetLinkHandler() : nsnull;
     if (mIsHTMLContent && mHasAttributes) {
       // check if it is an HTML Link
-      if(nsStyleUtil::IsHTMLLink(aContent, mContentTag, linkHandler,
+      if(nsStyleUtil::IsHTMLLink(aContent, mContentTag,
+                                 linkHandler, aRuleWalker != nsnull,
                                  &mLinkState)) {
         mIsLink = PR_TRUE;
       }
@@ -925,7 +926,8 @@ RuleProcessorData::RuleProcessorData(nsPresContext* aPresContext,
     if(!mIsLink &&
        mHasAttributes && 
        !(mIsHTMLContent || aContent->IsNodeOfType(nsINode::eXUL)) && 
-       nsStyleUtil::IsLink(aContent, linkHandler, &mLinkState)) {
+       nsStyleUtil::IsLink(aContent, linkHandler,
+                           aRuleWalker != nsnull, &mLinkState)) {
       mIsLink = PR_TRUE;
     } 
   }

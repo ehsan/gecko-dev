@@ -733,53 +733,23 @@ private:
   public:
     FrameConstructionItemList() :
       mInlineCount(0),
-      mLineParticipantCount(0),
-      mItemCount(0)
-    {
-      PR_INIT_CLIST(&mItems);
-    }
+      mLineParticipantCount(0)
+    {}
 
-    ~FrameConstructionItemList() {
-      PRCList* cur = PR_NEXT_LINK(&mItems);
-      while (cur != &mItems) {
-        PRCList* next = PR_NEXT_LINK(cur);
-        delete ToItem(cur);
-        cur = next;
-      }
-
-      // Leaves our mItems pointing to deleted memory in both directions,
-      // but that's OK at this point.
-    }
-
-    PRBool IsEmpty() const { return PR_CLIST_IS_EMPTY(&mItems); }
+    PRBool IsEmpty() const { return mItems.Length() == 0; }
     PRBool AnyItemsNeedBlockParent() const { return mLineParticipantCount != 0; }
-    PRBool AreAllItemsInline() const { return mInlineCount == mItemCount; }
+    PRBool AreAllItemsInline() const { return mInlineCount == mItems.Length(); }
     PRBool IsStartInline() const {
       NS_ASSERTION(!IsEmpty(), "Someone forgot to check IsEmpty()");
-      return ToItem(PR_LIST_HEAD(&mItems))->mHasInlineEnds;
+      return mItems[0].mHasInlineEnds;
     }
     PRBool IsEndInline() const {
       NS_ASSERTION(!IsEmpty(), "Someone forgot to check IsEmpty()");
-      return ToItem(PR_LIST_TAIL(&mItems))->mHasInlineEnds;
+      return mItems[mItems.Length() - 1].mHasInlineEnds;
     }
 
-    FrameConstructionItem* AppendItem(const FrameConstructionData* aFCData,
-                                      nsIContent* aContent,
-                                      nsIAtom* aTag,
-                                      PRInt32 aNameSpaceID,
-                                      already_AddRefed<nsStyleContext> aStyleContext)
-    {
-      FrameConstructionItem* item =
-        new FrameConstructionItem(aFCData, aContent, aTag, aNameSpaceID,
-                                  aStyleContext);
-      if (item) {
-        PR_APPEND_LINK(item, &mItems);
-        ++mItemCount;
-      } else {
-        // Clean up the style context
-        nsRefPtr<nsStyleContext> sc(aStyleContext);
-      }
-      return item;
+    FrameConstructionItem* AppendItem() {
+      return mItems.AppendElement();
     }
 
     void InlineItemAdded() { ++mInlineCount; }
@@ -790,32 +760,27 @@ private:
     class Iterator {
     public:
       Iterator(FrameConstructionItemList& list) :
-        mCurrent(PR_NEXT_LINK(&list.mItems)),
-        mEnd(&list.mItems)
+        mList(list.mItems),
+        mPosition(0),
+        mLimit(mList.Length())
       {}
 
-      operator FrameConstructionItem& () {
-        return *FrameConstructionItemList::ToItem(mCurrent);
-      }
-      PRBool IsDone() const { return mCurrent == mEnd; }
+      operator FrameConstructionItem& () { return mList[mPosition]; }
+      PRBool IsDone() const { return mPosition == mLimit; }
       void Next() {
-        NS_ASSERTION(!IsDone(), "Should have checked IsDone()!");
-        mCurrent = PR_NEXT_LINK(mCurrent);
+        NS_ASSERTION(mPosition < mLimit, "Should have checked IsDone()!");
+        ++mPosition;
       }
     private:
-      PRCList* mCurrent;
-      PRCList* mEnd;
+      nsTArray<FrameConstructionItem> & mList;
+      PRUint32 mPosition;
+      PRUint32 mLimit;
     };
 
   private:
-    static FrameConstructionItem* ToItem(PRCList* item) {
-      return static_cast<FrameConstructionItem*>(item);
-    }
-
-    PRCList mItems;
+    nsTArray<FrameConstructionItem> mItems;
     PRUint32 mInlineCount;
     PRUint32 mLineParticipantCount;
-    PRUint32 mItemCount;
   };
 
   typedef FrameConstructionItemList::Iterator FCItemIterator;
@@ -824,20 +789,9 @@ private:
    * constructed.  This contains all the information needed to construct the
    * frame other than the parent frame and whatever would be stored in the
    * frame constructor state. */
-  struct FrameConstructionItem : public PRCList {
-    // No need to PR_INIT_CLIST in the constructor because the only
-    // place that creates us immediately appends us.
-    FrameConstructionItem(const FrameConstructionData* aFCData,
-                          nsIContent* aContent,
-                          nsIAtom* aTag,
-                          PRInt32 aNameSpaceID,
-                          already_AddRefed<nsStyleContext> aStyleContext) :
-      mFCData(aFCData), mContent(aContent), mTag(aTag),
-      mNameSpaceID(aNameSpaceID), mStyleContext(aStyleContext),
-      mIsText(PR_FALSE), mIsGeneratedContent(PR_FALSE),
-      mIsRootPopupgroup(PR_FALSE), mIsAllInline(PR_FALSE),
-      mHasInlineEnds(PR_FALSE), mIsPopup(PR_FALSE)
-    {}
+  struct FrameConstructionItem {
+    FrameConstructionItem() :
+      mIsGeneratedContent(PR_FALSE) {}
     ~FrameConstructionItem() {
       if (mIsGeneratedContent) {
         mContent->UnbindFromTree();

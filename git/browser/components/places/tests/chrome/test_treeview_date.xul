@@ -156,10 +156,10 @@
           var text = treeView.getCellText(r, c);
           switch (c.element.getAttribute("anonid")) {
             case "title":
-              is(text, node.title, "Title is correct");
+              ok(text == node.title, "Title is correct")
               break;
             case "url":
-              is(text, node.uri, "Uri is correct");
+              ok(text == node.uri, "Uri is correct")
               break;
             case "date":
               var timeObj = new Date(node.time / 1000);
@@ -182,16 +182,15 @@
                     timeObj.getDate(), timeObj.getHours(),
                     timeObj.getMinutes(), timeObj.getSeconds())
 
-              is(text, timeStr, "Date format is correct");
+              ok(text == timeStr, "Date format is correct");
               break;
             case "visitCount":
-              is(text, 1, "Visit count is correct");
+              ok(text == 1, "Visit count is correct")
               break;         
           }
         }
       }
       // Cleanup.
-      bs.removeItem(itemId);
       bh.removeAllPages();
 
       SimpleTest.finish();

@@ -131,16 +131,10 @@ public:
                            PRBool aNotify);
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify);
-  virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
-                                nsIAtom* aAttribute,
-                                const nsAString& aValue,
-                                nsAttrValue& aResult);
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
-  void ResetLinkCacheState();
-  
   // The cached visited state
   nsLinkState mLinkState;
 };
@@ -229,9 +223,13 @@ nsHTMLAnchorElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsHTMLAnchorElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  if (IsInDoc()) {
+  nsIDocument* doc = GetCurrentDoc();
+  if (doc) {
     RegUnRegAccessKey(PR_FALSE);
-    ResetLinkCacheState();
+    doc->ForgetLink(this);
+    // If this link is ever reinserted into a document, it might
+    // be under a different xml:base, so forget the cached state now
+    mLinkState = eLinkState_Unknown;
   }
     
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
@@ -466,7 +464,14 @@ nsHTMLAnchorElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     nsAutoString val;
     GetHref(val);
     if (!val.Equals(aValue)) {
-      ResetLinkCacheState();
+      nsIDocument* doc = GetCurrentDoc();
+      if (doc) {
+        doc->ForgetLink(this);
+        // The change to 'href' will cause style reresolution which will
+        // eventually recompute the link state and re-add this element
+        // to the link map if necessary.
+      }
+      SetLinkState(eLinkState_Unknown);
     }
   }
 
@@ -490,7 +495,11 @@ nsHTMLAnchorElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                                PRBool aNotify)
 {
   if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    ResetLinkCacheState();
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+    }
+    SetLinkState(eLinkState_Unknown);
   }
 
   if (aAttribute == nsGkAtoms::accesskey &&
@@ -499,35 +508,4 @@ nsHTMLAnchorElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   }
 
   return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
-}
-
-PRBool
-nsHTMLAnchorElement::ParseAttribute(PRInt32 aNamespaceID,
-                                nsIAtom* aAttribute,
-                                const nsAString& aValue,
-                                nsAttrValue& aResult)
-{
-  if (aNamespaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::href) {
-    return aResult.ParseLazyURIValue(aValue);
-  }
-
-  return nsGenericHTMLElement::ParseAttribute(aNamespaceID, aAttribute, aValue,
-                                              aResult);
-}
-
-void
-nsHTMLAnchorElement::ResetLinkCacheState()
-{
-  nsIDocument* doc = GetCurrentDoc();
-  if (doc) {
-    doc->ForgetLink(this);
-  }
-  mLinkState = eLinkState_Unknown;
-
-  // Clear our cached URI _after_ we ForgetLink(), since ForgetLink()
-  // wants that URI.
-  const nsAttrValue* attr = mAttrsAndChildren.GetAttr(nsGkAtoms::href);
-  if (attr && attr->Type() == nsAttrValue::eLazyURIValue) {
-    const_cast<nsAttrValue*>(attr)->DropCachedURI();
-  }
 }
