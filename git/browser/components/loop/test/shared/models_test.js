@@ -52,74 +52,68 @@ describe("loop.shared.models", function() {
     });
 
     describe("constructed", function() {
-      var conversation, fakeClient, fakeBaseServerUrl,
-          requestCallInfoStub, requestCallsInfoStub;
+      var conversation, reqCallInfoStub, reqCallsInfoStub, fakeBaseServerUrl;
 
       beforeEach(function() {
         conversation = new sharedModels.ConversationModel({}, {sdk: fakeSDK});
         conversation.set("loopToken", "fakeToken");
         fakeBaseServerUrl = "http://fakeBaseServerUrl";
-        fakeClient = {
-          requestCallInfo: sandbox.stub(),
-          requestCallsInfo: sandbox.stub()
-        };
-        requestCallInfoStub = fakeClient.requestCallInfo;
-        requestCallsInfoStub = fakeClient.requestCallsInfo;
+        reqCallInfoStub = sandbox.stub(loop.shared.Client.prototype,
+          "requestCallInfo");
+        reqCallsInfoStub = sandbox.stub(loop.shared.Client.prototype,
+          "requestCallsInfo");
       });
 
       describe("#initiate", function() {
         it("call requestCallInfo on the client for outgoing calls",
           function() {
             conversation.initiate({
-              client: fakeClient,
-              outgoing: true,
-              callType: "audio"
+              baseServerUrl: fakeBaseServerUrl,
+              outgoing: true
             });
 
-            sinon.assert.calledOnce(requestCallInfoStub);
-            sinon.assert.calledWith(requestCallInfoStub, "fakeToken", "audio");
+            sinon.assert.calledOnce(reqCallInfoStub);
+            sinon.assert.calledWith(reqCallInfoStub, "fakeToken");
           });
 
         it("should not call requestCallsInfo on the client for outgoing calls",
           function() {
             conversation.initiate({
-              client: fakeClient,
-              outgoing: true,
-              callType: "audio"
+              baseServerUrl: fakeBaseServerUrl,
+              outgoing: true
             });
 
-            sinon.assert.notCalled(requestCallsInfoStub);
+            sinon.assert.notCalled(reqCallsInfoStub);
           });
 
         it("call requestCallsInfo on the client for incoming calls",
           function() {
-            conversation.set("loopVersion", 42);
             conversation.initiate({
-              client: fakeClient,
+              baseServerUrl: fakeBaseServerUrl,
               outgoing: false
             });
 
-            sinon.assert.calledOnce(requestCallsInfoStub);
-            sinon.assert.calledWith(requestCallsInfoStub, 42);
+            sinon.assert.calledOnce(reqCallsInfoStub);
+            sinon.assert.calledWith(reqCallsInfoStub);
           });
 
         it("should not call requestCallInfo on the client for incoming calls",
           function() {
             conversation.initiate({
-              client: fakeClient,
+              baseServerUrl: fakeBaseServerUrl,
               outgoing: false
             });
 
-            sinon.assert.notCalled(requestCallInfoStub);
+            sinon.assert.notCalled(reqCallInfoStub);
           });
 
         it("should update conversation session information from server data",
           function() {
             sandbox.stub(conversation, "setReady");
-            requestCallInfoStub.callsArgWith(2, null, fakeSessionData);
+            reqCallInfoStub.callsArgWith(1, null, fakeSessionData);
 
             conversation.initiate({
-              client: fakeClient,
+              baseServerUrl: fakeBaseServerUrl,
               outgoing: true
             });
 
@@ -128,14 +122,14 @@ describe("loop.shared.models", function() {
           });
 
         it("should trigger a `session:error` on failure", function(done) {
-          requestCallInfoStub.callsArgWith(2,
+          reqCallInfoStub.callsArgWith(1,
             new Error("failed: HTTP 400 Bad Request; fake"));
 
           conversation.on("session:error", function(err) {
             expect(err.message).to.match(/failed: HTTP 400 Bad Request; fake/);
             done();
           }).initiate({
-            client: fakeClient,
+            baseServerUrl: fakeBaseServerUrl,
             outgoing: true
           });
         });

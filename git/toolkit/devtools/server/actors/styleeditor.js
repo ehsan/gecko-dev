@@ -254,6 +254,8 @@ let StyleEditorFront = protocol.FrontClass(StyleEditorActor, {
   initialize: function(client, tabForm) {
     protocol.Front.prototype.initialize.call(this, client);
     this.actorID = tabForm.styleEditorActor;
+
+    client.addActorPool(this);
     this.manage(this);
   },
 

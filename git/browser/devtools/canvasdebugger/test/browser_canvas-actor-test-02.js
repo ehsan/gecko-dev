@@ -14,8 +14,7 @@ function ifTestingSupported() {
   yield front.setup({
     tracedGlobals: ["CanvasRenderingContext2D", "WebGLRenderingContext"],
     startRecording: true,
-    performReload: true,
-    storeCalls: true
+    performReload: true
   });
   ok(true, "The front was setup up successfully.");
 
