@@ -226,15 +226,8 @@ public:
   }
 
   already_AddRefed<IDBRequest>
-  CreateMutableFile(const nsAString& aName, const Optional<nsAString>& aType,
-                    ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
   MozCreateFileHandle(const nsAString& aName, const Optional<nsAString>& aType,
-                      ErrorResult& aRv)
-  {
-    return CreateMutableFile(aName, aType, aRv);
-  }
+                      ErrorResult& aRv);
 
   virtual void LastRelease() MOZ_OVERRIDE;
 

@@ -22,65 +22,65 @@
     var testBlob = getBlob("binary/random", testBuffer);
 
     for each (let fileStorage in fileStorages) {
-      let request = getMutableFile(fileStorage.key, "test.txt");
+      let request = getFileHandle(fileStorage.key, "test.txt");
       request.onerror = errorHandler;
       request.onsuccess = grabEventAndContinueHandler;
       let event = yield undefined;
 
-      let mutableFile = event.target.result;
-      mutableFile.onerror = errorHandler;
+      let fileHandle = event.target.result;
+      fileHandle.onerror = errorHandler;
 
       let location = 0;
 
-      let fileHandle = mutableFile.open("readwrite");
-      is(fileHandle.location, location, "Correct location");
+      let lockedFile = fileHandle.open("readwrite");
+      is(lockedFile.location, location, "Correct location");
 
-      request = fileHandle.write(testString);
+      request = lockedFile.write(testString);
       location += testString.length;
-      is(fileHandle.location, location, "Correct location");
+      is(lockedFile.location, location, "Correct location");
       request.onsuccess = grabEventAndContinueHandler;
       event = yield undefined;
 
-      fileHandle.location = 0;
-      request = fileHandle.readAsText(testString.length);
-      is(fileHandle.location, location, "Correct location");
+      lockedFile.location = 0;
+      request = lockedFile.readAsText(testString.length);
+      is(lockedFile.location, location, "Correct location");
       request.onsuccess = grabEventAndContinueHandler;
       event = yield undefined;
 
       let resultString = event.target.result;
       ok(resultString == testString, "Correct string data");
 
-      request = fileHandle.write(testBuffer);
+      request = lockedFile.write(testBuffer);
       location += testBuffer.byteLength;
-      is(fileHandle.location, location, "Correct location");
+      is(lockedFile.location, location, "Correct location");
       request.onsuccess = grabEventAndContinueHandler;
       event = yield undefined;
 
-      fileHandle.location -= testBuffer.byteLength;
-      request = fileHandle.readAsArrayBuffer(testBuffer.byteLength);
-      is(fileHandle.location, location, "Correct location");
+      lockedFile.location -= testBuffer.byteLength;
+      request = lockedFile.readAsArrayBuffer(testBuffer.byteLength);
+      is(lockedFile.location, location, "Correct location");
       request.onsuccess = grabEventAndContinueHandler;
       event = yield undefined;
 
       let resultBuffer = event.target.result;
       ok(compareBuffers(resultBuffer, testBuffer), "Correct array buffer data");
 
-      request = fileHandle.write(testBlob);
+      request = lockedFile.write(testBlob);
       location += testBlob.size;
-      is(fileHandle.location, location, "Correct location");
+      is(lockedFile.location, location, "Correct location");
       request.onsuccess = grabEventAndContinueHandler;
       event = yield undefined;
 
-      fileHandle.location -= testBlob.size;
-      request = fileHandle.readAsArrayBuffer(testBlob.size);
-      is(fileHandle.location, location, "Correct location");
+      lockedFile.location -= testBlob.size;
+      request = lockedFile.readAsArrayBuffer(testBlob.size);
+      is(lockedFile.location, location, "Correct location");
       request.onsuccess = grabEventAndContinueHandler;
       event = yield undefined;
 
       resultBuffer = event.target.result;
       ok(compareBuffers(resultBuffer, testBuffer), "Correct blob data");
 
-      request = fileHandle.getMetadata({ size: true });
+      request = lockedFile.getMetadata({ size: true });
       request.onsuccess = grabEventAndContinueHandler;
       event = yield undefined;
 

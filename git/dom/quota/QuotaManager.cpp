@@ -522,10 +522,10 @@ private:
   uint32_t mCountdown;
 };
 
-class WaitForFileHandlesToFinishRunnable MOZ_FINAL : public nsRunnable
+class WaitForLockedFilesToFinishRunnable MOZ_FINAL : public nsRunnable
 {
 public:
-  WaitForFileHandlesToFinishRunnable()
+  WaitForLockedFilesToFinishRunnable()
   : mBusy(true)
   { }
 
@@ -1441,7 +1441,7 @@ QuotaManager::AbortCloseStoragesForWindow(nsPIDOMWindow* aWindow)
         }
 
         if (utilized) {
-          service->AbortFileHandlesForStorage(storage);
+          service->AbortLockedFilesForStorage(storage);
         }
 
         if (activated) {
@@ -1478,7 +1478,7 @@ QuotaManager::HasOpenTransactions(nsPIDOMWindow* aWindow)
         nsIOfflineStorage*& storage = storages[j];
 
         if (storage->IsOwned(aWindow) &&
-            ((utilized && service->HasFileHandlesForStorage(storage)) ||
+            ((utilized && service->HasLockedFilesForStorage(storage)) ||
              (activated && client->HasTransactionsForStorage(storage)))) {
           return true;
         }
@@ -2350,7 +2350,7 @@ QuotaManager::Observe(nsISupports* aSubject,
       FileService* service = FileService::Get();
       if (service) {
         // This should only wait for storages registered in this manager
-        // to complete. Other storages may still have running file handles.
+        // to complete. Other storages may still have running locked files.
         // If the necko service (thread pool) gets the shutdown notification
         // first then the sync loop won't be processed at all, otherwise it will
         // lock the main thread until all storages registered in this manager
@@ -2367,8 +2367,8 @@ QuotaManager::Observe(nsISupports* aSubject,
         liveStorages.Find(mLiveStorages, &indexes);
 
         if (!liveStorages.IsEmpty()) {
-          nsRefPtr<WaitForFileHandlesToFinishRunnable> runnable =
-            new WaitForFileHandlesToFinishRunnable();
+          nsRefPtr<WaitForLockedFilesToFinishRunnable> runnable =
+            new WaitForLockedFilesToFinishRunnable();
 
           service->WaitForStoragesToComplete(liveStorages, runnable);
 
@@ -4000,7 +4000,7 @@ WaitForTransactionsToFinishRunnable::Run()
 }
 
 NS_IMETHODIMP
-WaitForFileHandlesToFinishRunnable::Run()
+WaitForLockedFilesToFinishRunnable::Run()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 

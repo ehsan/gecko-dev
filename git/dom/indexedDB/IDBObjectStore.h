@@ -47,7 +47,7 @@ struct IndexInfo;
 struct IndexUpdateInfo;
 struct ObjectStoreInfo;
 
-struct MutableFileData;
+struct FileHandleData;
 struct BlobOrFileData;
 
 class IDBObjectStore MOZ_FINAL : public nsISupports,
@@ -387,8 +387,8 @@ protected:
   ClearStructuredCloneBuffer(JSAutoStructuredCloneBuffer& aBuffer);
 
   static bool
-  ReadMutableFile(JSStructuredCloneReader* aReader,
-                  MutableFileData* aRetval);
+  ReadFileHandle(JSStructuredCloneReader* aReader,
+                 FileHandleData* aRetval);
 
   static bool
   ReadBlobOrFile(JSStructuredCloneReader* aReader,
