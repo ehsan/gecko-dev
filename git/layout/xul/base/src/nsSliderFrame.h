@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsSliderFrame_h__
 #define nsSliderFrame_h__
@@ -52,20 +84,21 @@ public:
   }
 #endif
 
+  // nsIBox
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState);
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
 
   // nsIFrame overrides
-  NS_IMETHOD  AppendFrames(ChildListID     aListID,
+  NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
                            nsFrameList&    aFrameList);
 
-  NS_IMETHOD  InsertFrames(ChildListID     aListID,
+  NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
                            nsFrameList&    aFrameList);
 
-  NS_IMETHOD  RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
@@ -78,9 +111,9 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
  
-  NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
-                              int32_t aModType);
+                              PRInt32 aModType);
 
   NS_IMETHOD  Init(nsIContent*      aContent,
                    nsIFrame*        aParent,
@@ -91,19 +124,19 @@ public:
                          nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus);
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
   virtual nsIAtom* GetType() const;
 
-  nsresult StartDrag(nsIDOMEvent* aEvent);
+  nsresult MouseDown(nsIDOMEvent* aMouseEvent);
 
-  static int32_t GetCurrentPosition(nsIContent* content);
-  static int32_t GetMinPosition(nsIContent* content);
-  static int32_t GetMaxPosition(nsIContent* content);
-  static int32_t GetIncrement(nsIContent* content);
-  static int32_t GetPageIncrement(nsIContent* content);
-  static int32_t GetIntegerAttribute(nsIContent* content, nsIAtom* atom, int32_t defaultValue);
+  static PRInt32 GetCurrentPosition(nsIContent* content);
+  static PRInt32 GetMinPosition(nsIContent* content);
+  static PRInt32 GetMaxPosition(nsIContent* content);
+  static PRInt32 GetIncrement(nsIContent* content);
+  static PRInt32 GetPageIncrement(nsIContent* content);
+  static PRInt32 GetIntegerAttribute(nsIContent* content, nsIAtom* atom, PRInt32 defaultValue);
   void EnsureOrient();
 
   NS_IMETHOD HandlePress(nsPresContext* aPresContext,
@@ -113,11 +146,7 @@ public:
   NS_IMETHOD HandleMultiplePress(nsPresContext* aPresContext,
                                  nsGUIEvent *    aEvent,
                                  nsEventStatus*  aEventStatus,
-                                 bool aControlHeld)  { return NS_OK; }
-
-  NS_IMETHOD HandleDrag(nsPresContext* aPresContext,
-                        nsGUIEvent *    aEvent,
-                        nsEventStatus*  aEventStatus)  { return NS_OK; }
+                                 PRBool aControlHeld)  { return NS_OK; }
 
   NS_IMETHOD HandleRelease(nsPresContext* aPresContext,
                            nsGUIEvent *    aEvent,
@@ -125,23 +154,22 @@ public:
 
 private:
 
-  bool GetScrollToClick();
-  nsIFrame* GetScrollbar();
+  PRBool GetScrollToClick();
+  nsIBox* GetScrollbar();
 
   void PageUpDown(nscoord change);
-  void SetCurrentThumbPosition(nsIContent* aScrollbar, nscoord aNewPos, bool aIsSmooth,
-                               bool aImmediateRedraw, bool aMaySnap);
-  void SetCurrentPosition(nsIContent* aScrollbar, int32_t aNewPos, bool aIsSmooth,
-                          bool aImmediateRedraw);
-  void SetCurrentPositionInternal(nsIContent* aScrollbar, int32_t pos,
-                                  bool aIsSmooth, bool aImmediateRedraw);
+  void SetCurrentThumbPosition(nsIContent* aScrollbar, nscoord aNewPos, PRBool aIsSmooth,
+                               PRBool aImmediateRedraw, PRBool aMaySnap);
+  void SetCurrentPosition(nsIContent* aScrollbar, PRInt32 aNewPos, PRBool aIsSmooth,
+                          PRBool aImmediateRedraw);
+  void SetCurrentPositionInternal(nsIContent* aScrollbar, PRInt32 pos,
+                                  PRBool aIsSmooth, PRBool aImmediateRedraw);
   nsresult CurrentPositionChanged(nsPresContext* aPresContext,
-                                  bool aImmediateRedraw);
-
-  void DragThumb(bool aGrabMouseEvents);
+                                  PRBool aImmediateRedraw);
+  void DragThumb(PRBool aGrabMouseEvents);
   void AddListener();
   void RemoveListener();
-  bool isDraggingThumb();
+  PRBool isDraggingThumb();
 
   void StartRepeat() {
     nsRepeatService::GetInstance()->Start(Notify, this);
@@ -162,17 +190,17 @@ private:
   nscoord mDragStart;
   nscoord mThumbStart;
 
-  int32_t mCurPos;
+  PRInt32 mCurPos;
 
   nscoord mChange;
 
   // true if an attribute change has been caused by the user manipulating the
   // slider. This allows notifications to tell how a slider's current position
   // was changed.
-  bool mUserChanged;
+  PRBool mUserChanged;
 
-  static bool gMiddlePref;
-  static int32_t gSnapMultiplier;
+  static PRBool gMiddlePref;
+  static PRInt32 gSnapMultiplier;
 }; // class nsSliderFrame
 
 #endif

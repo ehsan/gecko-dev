@@ -1,7 +1,4 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
-
-Cu.import("resource://services-common/observers.js");
+Cu.import("resource://services-sync/ext/Observers.js");
 Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/util.js");
@@ -10,11 +7,9 @@ Cu.import("resource://services-sync/engines.js");
 function run_test() {
   _("When imported, Service.onStartup is called");
 
-  Svc.Prefs.set("registerEngines", "Tab,Bookmarks,Form,History");
-  new SyncTestingInfrastructure();
-
   // Test fixtures
-  Identity.username = "johndoe";
+  Svc.Prefs.set("registerEngines", "Tab,Bookmarks,Form,History");
+  Svc.Prefs.set("username", "johndoe");
 
   Cu.import("resource://services-sync/service.js");
 
@@ -25,6 +20,10 @@ function run_test() {
   let engines = Engines.getAll();
   do_check_true(Utils.deepEquals([engine.name for each (engine in engines)],
                                  ['tabs', 'bookmarks', 'forms', 'history']));
+
+  _("Identities are registered.");
+  do_check_eq(ID.get('WeaveID').username, "johndoe");
+  do_check_eq(ID.get('WeaveCryptoID').username, "johndoe");
 
   _("Observers are notified of startup");
   do_test_pending();

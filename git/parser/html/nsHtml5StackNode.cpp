@@ -34,13 +34,17 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
+#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
 
 #include "nsHtml5Tokenizer.h"
@@ -55,38 +59,38 @@
 
 #include "nsHtml5StackNode.h"
 
-int32_t 
+PRInt32 
 nsHtml5StackNode::getGroup()
 {
   return flags & NS_HTML5ELEMENT_NAME_GROUP_MASK;
 }
 
-bool 
+PRBool 
 nsHtml5StackNode::isScoping()
 {
   return (flags & NS_HTML5ELEMENT_NAME_SCOPING);
 }
 
-bool 
+PRBool 
 nsHtml5StackNode::isSpecial()
 {
   return (flags & NS_HTML5ELEMENT_NAME_SPECIAL);
 }
 
-bool 
+PRBool 
 nsHtml5StackNode::isFosterParenting()
 {
   return (flags & NS_HTML5ELEMENT_NAME_FOSTER_PARENTING);
 }
 
-bool 
+PRBool 
 nsHtml5StackNode::isHtmlIntegrationPoint()
 {
   return (flags & NS_HTML5ELEMENT_NAME_HTML_INTEGRATION_POINT);
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(int32_t flags, int32_t ns, nsIAtom* name, nsIContent** node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes)
+nsHtml5StackNode::nsHtml5StackNode(PRInt32 flags, PRInt32 ns, nsIAtom* name, nsIContent** node, nsIAtom* popName, nsHtml5HtmlAttributes* attributes)
   : flags(flags),
     name(name),
     popName(popName),
@@ -105,7 +109,7 @@ nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent**
     popName(elementName->name),
     ns(kNameSpaceID_XHTML),
     node(node),
-    attributes(nullptr),
+    attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
@@ -133,7 +137,7 @@ nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent**
     popName(popName),
     ns(kNameSpaceID_XHTML),
     node(node),
-    attributes(nullptr),
+    attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
@@ -146,27 +150,27 @@ nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIAtom* pop
     popName(popName),
     ns(kNameSpaceID_SVG),
     node(node),
-    attributes(nullptr),
+    attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
 }
 
 
-nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName, bool markAsIntegrationPoint)
+nsHtml5StackNode::nsHtml5StackNode(nsHtml5ElementName* elementName, nsIContent** node, nsIAtom* popName, PRBool markAsIntegrationPoint)
   : flags(prepareMathFlags(elementName->getFlags(), markAsIntegrationPoint)),
     name(elementName->name),
     popName(popName),
     ns(kNameSpaceID_MathML),
     node(node),
-    attributes(nullptr),
+    attributes(nsnull),
     refcount(1)
 {
   MOZ_COUNT_CTOR(nsHtml5StackNode);
 }
 
-int32_t 
-nsHtml5StackNode::prepareSvgFlags(int32_t flags)
+PRInt32 
+nsHtml5StackNode::prepareSvgFlags(PRInt32 flags)
 {
   flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_OPTIONAL_END_TAG);
   if ((flags & NS_HTML5ELEMENT_NAME_SCOPING_AS_SVG)) {
@@ -175,8 +179,8 @@ nsHtml5StackNode::prepareSvgFlags(int32_t flags)
   return flags;
 }
 
-int32_t 
-nsHtml5StackNode::prepareMathFlags(int32_t flags, bool markAsIntegrationPoint)
+PRInt32 
+nsHtml5StackNode::prepareMathFlags(PRInt32 flags, PRBool markAsIntegrationPoint)
 {
   flags &= ~(NS_HTML5ELEMENT_NAME_FOSTER_PARENTING | NS_HTML5ELEMENT_NAME_SCOPING | NS_HTML5ELEMENT_NAME_SPECIAL | NS_HTML5ELEMENT_NAME_OPTIONAL_END_TAG);
   if ((flags & NS_HTML5ELEMENT_NAME_SCOPING_AS_MATHML)) {
@@ -198,7 +202,7 @@ nsHtml5StackNode::~nsHtml5StackNode()
 void 
 nsHtml5StackNode::dropAttributes()
 {
-  attributes = nullptr;
+  attributes = nsnull;
 }
 
 void 

@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=569988
 -->
 <head>
   <title>Test for Bug 569988</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -35,13 +36,12 @@ function runTest()
   os.addObserver(onPromptLoad, "common-dialog-loaded", false);
   os.addObserver(onPromptLoad, "tabmodal-dialog-loaded", false);
 
-  info("opening prompt...");
+  ok(true, "opening prompt...");
   prompt("summary", "text");
-  info("prompt is closed");
+  ok(true, "prompt is closed");
 
   os.removeObserver(onPromptLoad, "tabmodal-dialog-loaded");
   os.removeObserver(onPromptLoad, "common-dialog-loaded");
-  SimpleTest.finish();
 }
 
 function onPromptLoad(subject, topic, data)
@@ -63,15 +63,16 @@ function onPromptFocus() {
   var listener = {
     handleEvent: function _hv(aEvent)
     {
-      var isPrevented = aEvent.defaultPrevented;
+      var isPrevented = aEvent.getPreventDefault();
       ok(!isPrevented, "ESC key event is prevented by editor");
       SpecialPowers.removeSystemEventListener(gPromptInput, "keypress",
                                               listener, false);
+      SimpleTest.finish();
     }
   };
   SpecialPowers.addSystemEventListener(gPromptInput, "keypress", listener,
                                        false);
-  info("sending key");
+  ok(true, "sending key");
   synthesizeKey("VK_ESCAPE", { }, gPromptInput.ownerDocument.defaultView);
 }
 

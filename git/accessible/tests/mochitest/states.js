@@ -3,7 +3,6 @@
 //
 // requires:
 //   common.js
-//   role.js
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,10 +13,8 @@
 const STATE_CHECKED = nsIAccessibleStates.STATE_CHECKED;
 const STATE_CHECKABLE = nsIAccessibleStates.STATE_CHECKABLE;
 const STATE_COLLAPSED = nsIAccessibleStates.STATE_COLLAPSED;
-const STATE_DEFAULT = nsIAccessibleStates.STATE_DEFAULT;
 const STATE_EXPANDED = nsIAccessibleStates.STATE_EXPANDED;
 const STATE_EXTSELECTABLE = nsIAccessibleStates.STATE_EXTSELECTABLE;
-const STATE_FLOATING = nsIAccessibleStates.STATE_FLOATING;
 const STATE_FOCUSABLE = nsIAccessibleStates.STATE_FOCUSABLE;
 const STATE_FOCUSED = nsIAccessibleStates.STATE_FOCUSED;
 const STATE_HASPOPUP = nsIAccessibleStates.STATE_HASPOPUP;
@@ -39,19 +36,15 @@ const STATE_UNAVAILABLE = nsIAccessibleStates.STATE_UNAVAILABLE;
 const EXT_STATE_ACTIVE = nsIAccessibleStates.EXT_STATE_ACTIVE;
 const EXT_STATE_DEFUNCT = nsIAccessibleStates.EXT_STATE_DEFUNCT;
 const EXT_STATE_EDITABLE = nsIAccessibleStates.EXT_STATE_EDITABLE;
-const EXT_STATE_ENABLED = nsIAccessibleStates.EXT_STATE_ENABLED;
 const EXT_STATE_EXPANDABLE = nsIAccessibleStates.EXT_STATE_EXPANDABLE;
 const EXT_STATE_HORIZONTAL = nsIAccessibleStates.EXT_STATE_HORIZONTAL;
 const EXT_STATE_MULTI_LINE = nsIAccessibleStates.EXT_STATE_MULTI_LINE;
-const EXT_STATE_SENSITIVE = nsIAccessibleStates.EXT_STATE_SENSITIVE;
 const EXT_STATE_SINGLE_LINE = nsIAccessibleStates.EXT_STATE_SINGLE_LINE;
 const EXT_STATE_STALE = nsIAccessibleStates.EXT_STATE_STALE;
 const EXT_STATE_SUPPORTS_AUTOCOMPLETION =
   nsIAccessibleStates.EXT_STATE_SUPPORTS_AUTOCOMPLETION;
 const EXT_STATE_VERTICAL = nsIAccessibleStates.EXT_STATE_VERTICAL;
 
-const kOrdinalState = 0;
-const kExtraState = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Test functions
@@ -73,7 +66,7 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
                     aAbsentExtraState, aTestName)
 {
   var [state, extraState] = getStates(aAccOrElmOrID);
-  var role = getRole(aAccOrElmOrID);
+
   var id = prettyName(aAccOrElmOrID) + (aTestName ? " [" + aTestName + "]": "");
 
   // Primary test.
@@ -94,15 +87,14 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
 
   // Additional test.
 
-  // focused/focusable
-  if (state & STATE_FOCUSED)
-    isState(state & STATE_FOCUSABLE, STATE_FOCUSABLE, false,
-            "Focussed " + id + " must be focusable!");
+  // readonly/editable
+  if (state & STATE_READONLY)
+    isState(extraState & EXT_STATE_EDITABLE, 0, true,
+            "Read-only " + id + " cannot be editable!");
 
-  if (aAbsentState && (aAbsentState & STATE_FOCUSABLE)) {
-    isState(state & STATE_FOCUSED, 0, false,
-              "Not focusable " + id + " must be not focused!");
-  }
+  if (extraState & EXT_STATE_EDITABLE)
+    isState(state & STATE_READONLY, 0, true,
+            "Editable " + id + " cannot be readonly!");
 
   // multiline/singleline
   if (extraState & EXT_STATE_MULTI_LINE)
@@ -116,7 +108,7 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
   // expanded/collapsed/expandable
   if (state & STATE_COLLAPSED || state & STATE_EXPANDED)
     isState(extraState & EXT_STATE_EXPANDABLE, EXT_STATE_EXPANDABLE, true,
-            "Collapsed or expanded " + id + " must be expandable!");
+            "Collapsed or expanded " + id + " should be expandable!");
 
   if (state & STATE_COLLAPSED)
     isState(state & STATE_EXPANDED, 0, false,
@@ -126,18 +118,8 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
     isState(state & STATE_COLLAPSED, 0, false,
             "Expanded " + id + " cannot be collapsed!");
 
-  if (aAbsentState && (extraState & EXT_STATE_EXPANDABLE)) {
-    if (aAbsentState & STATE_EXPANDED) {
-      isState(state & STATE_COLLAPSED, STATE_COLLAPSED, false,
-              "Not expanded " + id + " must be collapsed!");
-    } else if (aAbsentState & STATE_COLLAPSED) {
-      isState(state & STATE_EXPANDED, STATE_EXPANDED, false,
-              "Not collapsed " + id + " must be expanded!");
-    }
-  }
-
   // checked/mixed/checkable
-  if (state & STATE_CHECKED || state & STATE_MIXED && role != ROLE_PROGRESSBAR)
+  if (state & STATE_CHECKED || state & STATE_MIXED)
     isState(state & STATE_CHECKABLE, STATE_CHECKABLE, false,
             "Checked or mixed element must be checkable!");
 
@@ -152,7 +134,7 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
   // selected/selectable
   if (state & STATE_SELECTED) {
     isState(state & STATE_SELECTABLE, STATE_SELECTABLE, false,
-            "Selected element must be selectable!");
+            "Selected element should be selectable!");
   }
 }
 

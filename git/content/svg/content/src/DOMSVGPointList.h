@@ -1,22 +1,49 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla SVG Project code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef MOZILLA_DOMSVGPOINTLIST_H__
 #define MOZILLA_DOMSVGPOINTLIST_H__
 
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDebug.h"
 #include "nsIDOMSVGPointList.h"
-#include "nsSVGElement.h"
-#include "nsTArray.h"
-#include "SVGPointList.h" // IWYU pragma: keep
-#include "mozilla/Attributes.h"
+#include "SVGPointList.h"
+#include "SVGPoint.h"
+#include "nsCOMArray.h"
+#include "nsAutoPtr.h"
 
-class nsIDOMSVGPoint;
+class nsSVGElement;
 
 namespace mozilla {
 
@@ -48,23 +75,14 @@ class SVGAnimatedPointList;
  *
  * Our DOM items are created lazily on demand as and when script requests them.
  */
-class DOMSVGPointList MOZ_FINAL : public nsIDOMSVGPointList,
-                                  public nsWrapperCache
+class DOMSVGPointList : public nsIDOMSVGPointList
 {
   friend class DOMSVGPoint;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGPointList)
+  NS_DECL_CYCLE_COLLECTION_CLASS(DOMSVGPointList)
   NS_DECL_NSIDOMSVGPOINTLIST
-
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
-                               bool *triedToWrap);
-
-  nsISupports* GetParentObject()
-  {
-    return static_cast<nsIContent*>(mElement);
-  }
 
   /**
    * Factory method to create and return a DOMSVGPointList wrapper
@@ -86,12 +104,12 @@ public:
   static already_AddRefed<DOMSVGPointList>
   GetDOMWrapper(void *aList,
                 nsSVGElement *aElement,
-                bool aIsAnimValList);
+                PRBool aIsAnimValList);
 
   /**
    * This method returns the DOMSVGPointList wrapper for an internal
    * SVGPointList object if it currently has a wrapper. If it does
-   * not, then nullptr is returned.
+   * not, then nsnull is returned.
    */
   static DOMSVGPointList*
   GetDOMWrapperIfExists(void *aList);
@@ -100,12 +118,15 @@ public:
    * This will normally be the same as InternalList().Length(), except if
    * we've hit OOM, in which case our length will be zero.
    */
-  uint32_t Length() const {
+  PRUint32 Length() const {
     NS_ABORT_IF_FALSE(mItems.Length() == 0 ||
-                      mItems.Length() == InternalList().Length(),
+                      mItems.Length() ==
+                        const_cast<DOMSVGPointList*>(this)->InternalList().Length(),
                       "DOM wrapper's list length is out of sync");
     return mItems.Length();
   }
+
+  nsIDOMSVGPoint* GetItemWithoutAddRef(PRUint32 aIndex);
 
   /**
    * WATCH OUT! If you add code to call this on a baseVal wrapper, then you
@@ -129,7 +150,7 @@ public:
    * Returns true if our attribute is animating (in which case our animVal is
    * not simply a mirror of our baseVal).
    */
-  bool AttrIsAnimating() const;
+  PRBool AttrIsAnimating() const;
 
 private:
 
@@ -137,12 +158,10 @@ private:
    * Only our static GetDOMWrapper() factory method may create objects of our
    * type.
    */
-  DOMSVGPointList(nsSVGElement *aElement, bool aIsAnimValList)
+  DOMSVGPointList(nsSVGElement *aElement, PRBool aIsAnimValList)
     : mElement(aElement)
     , mIsAnimValList(aIsAnimValList)
   {
-    SetIsDOMBinding();
-
     InternalListWillChangeTo(InternalList()); // Sync mItems
   }
 
@@ -153,7 +172,7 @@ private:
   }
 
   /// Used to determine if this list is the baseVal or animVal list.
-  bool IsAnimValList() const {
+  PRBool IsAnimValList() const {
     return mIsAnimValList;
   }
 
@@ -165,15 +184,15 @@ private:
    * get const protection, but our setter methods guard against changing
    * anim val lists.
    */
-  SVGPointList& InternalList() const;
+  SVGPointList& InternalList();
 
-  SVGAnimatedPointList& InternalAList() const;
+  SVGAnimatedPointList& InternalAList();
 
   /// Creates a DOMSVGPoint for aIndex, if it doesn't already exist.
-  void EnsureItemAt(uint32_t aIndex);
+  void EnsureItemAt(PRUint32 aIndex);
 
-  void MaybeInsertNullInAnimValListAt(uint32_t aIndex);
-  void MaybeRemoveItemFromAnimValListAt(uint32_t aIndex);
+  void MaybeInsertNullInAnimValListAt(PRUint32 aIndex);
+  void MaybeRemoveItemFromAnimValListAt(PRUint32 aIndex);
 
   // Weak refs to our DOMSVGPoint items. The items are friends and take care
   // of clearing our pointer to them when they die.
@@ -183,7 +202,7 @@ private:
   // ourself, but also for our DOMSVGPoint items too.
   nsRefPtr<nsSVGElement> mElement;
 
-  bool mIsAnimValList;
+  PRPackedBool mIsAnimValList;
 };
 
 } // namespace mozilla

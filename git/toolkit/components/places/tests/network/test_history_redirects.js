@@ -8,12 +8,13 @@
 let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
          getService(Ci.nsINavHistoryService);
 let bh = hs.QueryInterface(Ci.nsIBrowserHistory);
+let ghist3 = hs.QueryInterface(Ci.nsIGlobalHistory3);
 
 const PERMA_REDIR_PATH = "/permaredir";
 const TEMP_REDIR_PATH = "/tempredir";
 const FOUND_PATH = "/found";
 
-const HTTPSVR = new HttpServer();
+const HTTPSVR = new nsHttpServer();
 const PORT = 4444;
 HTTPSVR.registerPathHandler(PERMA_REDIR_PATH, permaRedirHandler);
 HTTPSVR.registerPathHandler(TEMP_REDIR_PATH, tempRedirHandler);
@@ -180,6 +181,10 @@ ChannelListener.prototype = {
     do_check_true(this._got_onchannelredirect);
     do_check_true(this._buffer.length > 0);
 
+    // The referrer is wrong since it's the first element in the redirects
+    // chain, but this is good, since it will test a special path.
+    ghist3.addURI(uri(FOUND_URL), false, true, uri(PERMA_REDIR_URL));
+
     continue_test();
   },
 
@@ -187,6 +192,7 @@ ChannelListener.prototype = {
   asyncOnChannelRedirect: function (aOldChannel, aNewChannel, aFlags, callback) {
     do_log_info("onChannelRedirect");
     this._got_onchannelredirect = true;
+    ghist3.addDocumentRedirect(aOldChannel, aNewChannel, aFlags, true);
     callback.onRedirectVerifyCallback(Components.results.NS_OK);
   },
 };

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   IBM Corporation
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Storage of the children and attributes of a DOM node; storage for
@@ -18,7 +51,6 @@
 #include "nsMappedAttributes.h"
 #include "nsUnicharUtils.h"
 #include "nsAutoPtr.h"
-#include "nsContentUtils.h" // nsAutoScriptBlocker
 
 /*
 CACHE_POINTER_SHIFT indicates how many steps to downshift the |this| pointer.
@@ -45,7 +77,7 @@ any index will get used.
 struct IndexCacheSlot
 {
   const nsAttrAndChildArray* array;
-  int32_t index;
+  PRInt32 index;
 };
 
 // This is inited to all zeroes since it's static. Though even if it wasn't
@@ -56,19 +88,19 @@ static IndexCacheSlot indexCache[CACHE_NUM_SLOTS];
 static
 inline
 void
-AddIndexToCache(const nsAttrAndChildArray* aArray, int32_t aIndex)
+AddIndexToCache(const nsAttrAndChildArray* aArray, PRInt32 aIndex)
 {
-  uint32_t ix = CACHE_GET_INDEX(aArray);
+  PRUint32 ix = CACHE_GET_INDEX(aArray);
   indexCache[ix].array = aArray;
   indexCache[ix].index = aIndex;
 }
 
 static
 inline
-int32_t
+PRInt32
 GetIndexFromCache(const nsAttrAndChildArray* aArray)
 {
-  uint32_t ix = CACHE_GET_INDEX(aArray);
+  PRUint32 ix = CACHE_GET_INDEX(aArray);
   return indexCache[ix].array == aArray ? indexCache[ix].index : -1;
 }
 
@@ -88,7 +120,7 @@ GetIndexFromCache(const nsAttrAndChildArray* aArray)
   ((sizeof(Impl) - sizeof(mImpl->mBuffer)) / sizeof(void*))
 
 nsAttrAndChildArray::nsAttrAndChildArray()
-  : mImpl(nullptr)
+  : mImpl(nsnull)
 {
 }
 
@@ -104,35 +136,35 @@ nsAttrAndChildArray::~nsAttrAndChildArray()
 }
 
 nsIContent*
-nsAttrAndChildArray::GetSafeChildAt(uint32_t aPos) const
+nsAttrAndChildArray::GetSafeChildAt(PRUint32 aPos) const
 {
   if (aPos < ChildCount()) {
     return ChildAt(aPos);
   }
   
-  return nullptr;
+  return nsnull;
 }
 
 nsIContent * const *
-nsAttrAndChildArray::GetChildArray(uint32_t* aChildCount) const
+nsAttrAndChildArray::GetChildArray(PRUint32* aChildCount) const
 {
   *aChildCount = ChildCount();
   
   if (!*aChildCount) {
-    return nullptr;
+    return nsnull;
   }
   
   return reinterpret_cast<nsIContent**>(mImpl->mBuffer + AttrSlotsSize());
 }
 
 nsresult
-nsAttrAndChildArray::InsertChildAt(nsIContent* aChild, uint32_t aPos)
+nsAttrAndChildArray::InsertChildAt(nsIContent* aChild, PRUint32 aPos)
 {
   NS_ASSERTION(aChild, "nullchild");
   NS_ASSERTION(aPos <= ChildCount(), "out-of-bounds");
 
-  uint32_t offset = AttrSlotsSize();
-  uint32_t childCount = ChildCount();
+  PRUint32 offset = AttrSlotsSize();
+  PRUint32 childCount = ChildCount();
 
   NS_ENSURE_TRUE(childCount < ATTRCHILD_ARRAY_MAX_CHILD_COUNT,
                  NS_ERROR_FAILURE);
@@ -154,7 +186,7 @@ nsAttrAndChildArray::InsertChildAt(nsIContent* aChild, uint32_t aPos)
   if (offset && !mImpl->mBuffer[offset - ATTRSIZE]) {
     // Compress away all empty slots while we're at it. This might not be the
     // optimal thing to do.
-    uint32_t attrCount = NonMappedAttrCount();
+    PRUint32 attrCount = NonMappedAttrCount();
     void** newStart = mImpl->mBuffer + attrCount * ATTRSIZE;
     void** oldStart = mImpl->mBuffer + offset;
     memmove(newStart, oldStart, aPos * sizeof(nsIContent*));
@@ -184,19 +216,11 @@ nsAttrAndChildArray::InsertChildAt(nsIContent* aChild, uint32_t aPos)
 }
 
 void
-nsAttrAndChildArray::RemoveChildAt(uint32_t aPos)
-{
-  // Just store the return value of TakeChildAt in an nsCOMPtr to
-  // trigger a release.
-  nsCOMPtr<nsIContent> child = TakeChildAt(aPos);
-}
-
-already_AddRefed<nsIContent>
-nsAttrAndChildArray::TakeChildAt(uint32_t aPos)
+nsAttrAndChildArray::RemoveChildAt(PRUint32 aPos)
 {
   NS_ASSERTION(aPos < ChildCount(), "out-of-bounds");
 
-  uint32_t childCount = ChildCount();
+  PRUint32 childCount = ChildCount();
   void** pos = mImpl->mBuffer + AttrSlotsSize() + aPos;
   nsIContent* child = static_cast<nsIContent*>(*pos);
   if (child->mPreviousSibling) {
@@ -205,15 +229,14 @@ nsAttrAndChildArray::TakeChildAt(uint32_t aPos)
   if (child->mNextSibling) {
     child->mNextSibling->mPreviousSibling = child->mPreviousSibling;
   }
-  child->mPreviousSibling = child->mNextSibling = nullptr;
+  child->mPreviousSibling = child->mNextSibling = nsnull;
 
+  NS_RELEASE(child);
   memmove(pos, pos + 1, (childCount - aPos - 1) * sizeof(nsIContent*));
   SetChildCount(childCount - 1);
-
-  return child;
 }
 
-int32_t
+PRInt32
 nsAttrAndChildArray::IndexOfChild(nsINode* aPossibleChild) const
 {
   if (!mImpl) {
@@ -221,10 +244,10 @@ nsAttrAndChildArray::IndexOfChild(nsINode* aPossibleChild) const
   }
   void** children = mImpl->mBuffer + AttrSlotsSize();
   // Use signed here since we compare count to cursor which has to be signed
-  int32_t i, count = ChildCount();
+  PRInt32 i, count = ChildCount();
 
   if (count >= CACHE_CHILD_LIMIT) {
-    int32_t cursor = GetIndexFromCache(this);
+    PRInt32 cursor = GetIndexFromCache(this);
     // Need to compare to count here since we may have removed children since
     // the index was added to the cache.
     // We're also relying on that GetIndexFromCache returns -1 if no cached
@@ -236,7 +259,7 @@ nsAttrAndChildArray::IndexOfChild(nsINode* aPossibleChild) const
     // Seek outward from the last found index. |inc| will change sign every
     // run through the loop. |sign| just exists to make sure the absolute
     // value of |inc| increases each time through.
-    int32_t inc = 1, sign = 1;
+    PRInt32 inc = 1, sign = 1;
     while (cursor >= 0 && cursor < count) {
       if (children[cursor] == aPossibleChild) {
         AddIndexToCache(this, cursor);
@@ -259,7 +282,7 @@ nsAttrAndChildArray::IndexOfChild(nsINode* aPossibleChild) const
         if (children[cursor] == aPossibleChild) {
           AddIndexToCache(this, cursor);
 
-          return static_cast<int32_t>(cursor);
+          return static_cast<PRInt32>(cursor);
         }
       }
     }
@@ -268,7 +291,7 @@ nsAttrAndChildArray::IndexOfChild(nsINode* aPossibleChild) const
         if (children[cursor] == aPossibleChild) {
           AddIndexToCache(this, cursor);
 
-          return static_cast<int32_t>(cursor);
+          return static_cast<PRInt32>(cursor);
         }
       }
     }
@@ -279,23 +302,23 @@ nsAttrAndChildArray::IndexOfChild(nsINode* aPossibleChild) const
 
   for (i = 0; i < count; ++i) {
     if (children[i] == aPossibleChild) {
-      return static_cast<int32_t>(i);
+      return static_cast<PRInt32>(i);
     }
   }
 
   return -1;
 }
 
-uint32_t
+PRUint32
 nsAttrAndChildArray::AttrCount() const
 {
   return NonMappedAttrCount() + MappedAttrCount();
 }
 
 const nsAttrValue*
-nsAttrAndChildArray::GetAttr(nsIAtom* aLocalName, int32_t aNamespaceID) const
+nsAttrAndChildArray::GetAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID) const
 {
-  uint32_t i, slotCount = AttrSlotCount();
+  PRUint32 i, slotCount = AttrSlotCount();
   if (aNamespaceID == kNameSpaceID_None) {
     // This should be the common case so lets make an optimized loop
     for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
@@ -316,49 +339,16 @@ nsAttrAndChildArray::GetAttr(nsIAtom* aLocalName, int32_t aNamespaceID) const
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 const nsAttrValue*
-nsAttrAndChildArray::GetAttr(const nsAString& aName,
-                             nsCaseTreatment aCaseSensitive) const
-{
-  // Check whether someone is being silly and passing non-lowercase
-  // attr names.
-  if (aCaseSensitive == eIgnoreCase &&
-      nsContentUtils::StringContainsASCIIUpper(aName)) {
-    // Try again with a lowercased name, but make sure we can't reenter this
-    // block by passing eCaseSensitive for aCaseSensitive.
-    nsAutoString lowercase;
-    nsContentUtils::ASCIIToLower(aName, lowercase);
-    return GetAttr(lowercase, eCaseMatters);
-  }
-
-  uint32_t i, slotCount = AttrSlotCount();
-  for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
-    if (ATTRS(mImpl)[i].mName.QualifiedNameEquals(aName)) {
-      return &ATTRS(mImpl)[i].mValue;
-    }
-  }
-
-  if (mImpl && mImpl->mMappedAttrs) {
-    const nsAttrValue* val =
-      mImpl->mMappedAttrs->GetAttr(aName);
-    if (val) {
-      return val;
-    }
-  }
-
-  return nullptr;
-}
-
-const nsAttrValue*
-nsAttrAndChildArray::AttrAt(uint32_t aPos) const
+nsAttrAndChildArray::AttrAt(PRUint32 aPos) const
 {
   NS_ASSERTION(aPos < AttrCount(),
                "out-of-bounds access in nsAttrAndChildArray");
 
-  uint32_t mapped = MappedAttrCount();
+  PRUint32 mapped = MappedAttrCount();
   if (aPos < mapped) {
     return mImpl->mMappedAttrs->AttrAt(aPos);
   }
@@ -367,9 +357,34 @@ nsAttrAndChildArray::AttrAt(uint32_t aPos) const
 }
 
 nsresult
+nsAttrAndChildArray::SetAttr(nsIAtom* aLocalName, const nsAString& aValue)
+{
+  PRUint32 i, slotCount = AttrSlotCount();
+  for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
+    if (ATTRS(mImpl)[i].mName.Equals(aLocalName)) {
+      ATTRS(mImpl)[i].mValue.SetTo(aValue);
+
+      return NS_OK;
+    }
+  }
+
+  NS_ENSURE_TRUE(slotCount < ATTRCHILD_ARRAY_MAX_ATTR_COUNT,
+                 NS_ERROR_FAILURE);
+
+  if (i == slotCount && !AddAttrSlot()) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  new (&ATTRS(mImpl)[i].mName) nsAttrName(aLocalName);
+  new (&ATTRS(mImpl)[i].mValue) nsAttrValue(aValue);
+
+  return NS_OK;
+}
+
+nsresult
 nsAttrAndChildArray::SetAndTakeAttr(nsIAtom* aLocalName, nsAttrValue& aValue)
 {
-  uint32_t i, slotCount = AttrSlotCount();
+  PRUint32 i, slotCount = AttrSlotCount();
   for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
     if (ATTRS(mImpl)[i].mName.Equals(aLocalName)) {
       ATTRS(mImpl)[i].mValue.Reset();
@@ -396,13 +411,13 @@ nsAttrAndChildArray::SetAndTakeAttr(nsIAtom* aLocalName, nsAttrValue& aValue)
 nsresult
 nsAttrAndChildArray::SetAndTakeAttr(nsINodeInfo* aName, nsAttrValue& aValue)
 {
-  int32_t namespaceID = aName->NamespaceID();
+  PRInt32 namespaceID = aName->NamespaceID();
   nsIAtom* localName = aName->NameAtom();
   if (namespaceID == kNameSpaceID_None) {
     return SetAndTakeAttr(localName, aValue);
   }
 
-  uint32_t i, slotCount = AttrSlotCount();
+  PRUint32 i, slotCount = AttrSlotCount();
   for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
     if (ATTRS(mImpl)[i].mName.Equals(localName, namespaceID)) {
       ATTRS(mImpl)[i].mName.SetTo(aName);
@@ -429,11 +444,11 @@ nsAttrAndChildArray::SetAndTakeAttr(nsINodeInfo* aName, nsAttrValue& aValue)
 
 
 nsresult
-nsAttrAndChildArray::RemoveAttrAt(uint32_t aPos, nsAttrValue& aValue)
+nsAttrAndChildArray::RemoveAttrAt(PRUint32 aPos, nsAttrValue& aValue)
 {
   NS_ASSERTION(aPos < AttrCount(), "out-of-bounds");
 
-  uint32_t mapped = MappedAttrCount();
+  PRUint32 mapped = MappedAttrCount();
   if (aPos < mapped) {
     if (mapped == 1) {
       // We're removing the last mapped attribute.  Can't swap in this
@@ -444,8 +459,10 @@ nsAttrAndChildArray::RemoveAttrAt(uint32_t aPos, nsAttrValue& aValue)
       return NS_OK;
     }
 
-    nsRefPtr<nsMappedAttributes> mapped =
-      GetModifiableMapped(nullptr, nullptr, false);
+    nsRefPtr<nsMappedAttributes> mapped;
+    nsresult rv = GetModifiableMapped(nsnull, nsnull, PR_FALSE,
+                                      getter_AddRefs(mapped));
+    NS_ENSURE_SUCCESS(rv, rv);
 
     mapped->RemoveAttrAt(aPos, aValue);
 
@@ -456,22 +473,22 @@ nsAttrAndChildArray::RemoveAttrAt(uint32_t aPos, nsAttrValue& aValue)
   ATTRS(mImpl)[aPos].mValue.SwapValueWith(aValue);
   ATTRS(mImpl)[aPos].~InternalAttr();
 
-  uint32_t slotCount = AttrSlotCount();
+  PRUint32 slotCount = AttrSlotCount();
   memmove(&ATTRS(mImpl)[aPos],
           &ATTRS(mImpl)[aPos + 1],
           (slotCount - aPos - 1) * sizeof(InternalAttr));
-  memset(&ATTRS(mImpl)[slotCount - 1], 0, sizeof(InternalAttr));
+  memset(&ATTRS(mImpl)[slotCount - 1], nsnull, sizeof(InternalAttr));
 
   return NS_OK;
 }
 
 const nsAttrName*
-nsAttrAndChildArray::AttrNameAt(uint32_t aPos) const
+nsAttrAndChildArray::AttrNameAt(PRUint32 aPos) const
 {
   NS_ASSERTION(aPos < AttrCount(),
                "out-of-bounds access in nsAttrAndChildArray");
 
-  uint32_t mapped = MappedAttrCount();
+  PRUint32 mapped = MappedAttrCount();
   if (aPos < mapped) {
     return mImpl->mMappedAttrs->NameAt(aPos);
   }
@@ -480,21 +497,21 @@ nsAttrAndChildArray::AttrNameAt(uint32_t aPos) const
 }
 
 const nsAttrName*
-nsAttrAndChildArray::GetSafeAttrNameAt(uint32_t aPos) const
+nsAttrAndChildArray::GetSafeAttrNameAt(PRUint32 aPos) const
 {
-  uint32_t mapped = MappedAttrCount();
+  PRUint32 mapped = MappedAttrCount();
   if (aPos < mapped) {
     return mImpl->mMappedAttrs->NameAt(aPos);
   }
 
   aPos -= mapped;
   if (aPos >= AttrSlotCount()) {
-    return nullptr;
+    return nsnull;
   }
 
   void** pos = mImpl->mBuffer + aPos * ATTRSIZE;
   if (!*pos) {
-    return nullptr;
+    return nsnull;
   }
 
   return &reinterpret_cast<InternalAttr*>(pos)->mName;
@@ -503,7 +520,7 @@ nsAttrAndChildArray::GetSafeAttrNameAt(uint32_t aPos) const
 const nsAttrName*
 nsAttrAndChildArray::GetExistingAttrNameFromQName(const nsAString& aName) const
 {
-  uint32_t i, slotCount = AttrSlotCount();
+  PRUint32 i, slotCount = AttrSlotCount();
   for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
     if (ATTRS(mImpl)[i].mName.QualifiedNameEquals(aName)) {
       return &ATTRS(mImpl)[i].mName;
@@ -514,23 +531,23 @@ nsAttrAndChildArray::GetExistingAttrNameFromQName(const nsAString& aName) const
     return mImpl->mMappedAttrs->GetExistingAttrNameFromQName(aName);
   }
 
-  return nullptr;
+  return nsnull;
 }
 
-int32_t
-nsAttrAndChildArray::IndexOfAttr(nsIAtom* aLocalName, int32_t aNamespaceID) const
+PRInt32
+nsAttrAndChildArray::IndexOfAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID) const
 {
-  int32_t idx;
-  if (mImpl && mImpl->mMappedAttrs && aNamespaceID == kNameSpaceID_None) {
-    idx = mImpl->mMappedAttrs->IndexOfAttr(aLocalName);
+  PRInt32 idx;
+  if (mImpl && mImpl->mMappedAttrs) {
+    idx = mImpl->mMappedAttrs->IndexOfAttr(aLocalName, aNamespaceID);
     if (idx >= 0) {
       return idx;
     }
   }
 
-  uint32_t i;
-  uint32_t mapped = MappedAttrCount();
-  uint32_t slotCount = AttrSlotCount();
+  PRUint32 i;
+  PRUint32 mapped = MappedAttrCount();
+  PRUint32 slotCount = AttrSlotCount();
   if (aNamespaceID == kNameSpaceID_None) {
     // This should be the common case so lets make an optimized loop
     for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
@@ -556,30 +573,29 @@ nsAttrAndChildArray::SetAndTakeMappedAttr(nsIAtom* aLocalName,
                                           nsMappedAttributeElement* aContent,
                                           nsHTMLStyleSheet* aSheet)
 {
-  bool willAdd = true;
-  if (mImpl && mImpl->mMappedAttrs) {
-    willAdd = !mImpl->mMappedAttrs->GetAttr(aLocalName);
-  }
+  nsRefPtr<nsMappedAttributes> mapped;
+  nsresult rv = GetModifiableMapped(aContent, aSheet, PR_TRUE,
+                                    getter_AddRefs(mapped));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<nsMappedAttributes> mapped =
-    GetModifiableMapped(aContent, aSheet, willAdd);
-
-  mapped->SetAndTakeAttr(aLocalName, aValue);
+  rv = mapped->SetAndTakeAttr(aLocalName, aValue);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return MakeMappedUnique(mapped);
 }
 
 nsresult
-nsAttrAndChildArray::DoSetMappedAttrStyleSheet(nsHTMLStyleSheet* aSheet)
+nsAttrAndChildArray::SetMappedAttrStyleSheet(nsHTMLStyleSheet* aSheet)
 {
-  NS_PRECONDITION(mImpl && mImpl->mMappedAttrs,
-                  "Should have mapped attrs here!");
-  if (aSheet == mImpl->mMappedAttrs->GetStyleSheet()) {
+  if (!mImpl || !mImpl->mMappedAttrs ||
+      aSheet == mImpl->mMappedAttrs->GetStyleSheet()) {
     return NS_OK;
   }
 
-  nsRefPtr<nsMappedAttributes> mapped =
-    GetModifiableMapped(nullptr, nullptr, false);
+  nsRefPtr<nsMappedAttributes> mapped;
+  nsresult rv = GetModifiableMapped(nsnull, nsnull, PR_FALSE, 
+                                    getter_AddRefs(mapped));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   mapped->SetStyleSheet(aSheet);
 
@@ -602,9 +618,9 @@ nsAttrAndChildArray::Compact()
   }
 
   // First compress away empty attrslots
-  uint32_t slotCount = AttrSlotCount();
-  uint32_t attrCount = NonMappedAttrCount();
-  uint32_t childCount = ChildCount();
+  PRUint32 slotCount = AttrSlotCount();
+  PRUint32 attrCount = NonMappedAttrCount();
+  PRUint32 childCount = ChildCount();
 
   if (attrCount < slotCount) {
     memmove(mImpl->mBuffer + attrCount * ATTRSIZE,
@@ -614,10 +630,10 @@ nsAttrAndChildArray::Compact()
   }
 
   // Then resize or free buffer
-  uint32_t newSize = attrCount * ATTRSIZE + childCount;
+  PRUint32 newSize = attrCount * ATTRSIZE + childCount;
   if (!newSize && !mImpl->mMappedAttrs) {
     PR_Free(mImpl);
-    mImpl = nullptr;
+    mImpl = nsnull;
   }
   else if (newSize < mImpl->mBufferSize) {
     mImpl = static_cast<Impl*>(PR_Realloc(mImpl, (newSize + NS_IMPL_EXTRA_SIZE) * sizeof(nsIContent*)));
@@ -638,18 +654,18 @@ nsAttrAndChildArray::Clear()
     NS_RELEASE(mImpl->mMappedAttrs);
   }
 
-  uint32_t i, slotCount = AttrSlotCount();
+  PRUint32 i, slotCount = AttrSlotCount();
   for (i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
     ATTRS(mImpl)[i].~InternalAttr();
   }
 
   nsAutoScriptBlocker scriptBlocker;
-  uint32_t end = slotCount * ATTRSIZE + ChildCount();
+  PRUint32 end = slotCount * ATTRSIZE + ChildCount();
   for (i = slotCount * ATTRSIZE; i < end; ++i) {
     nsIContent* child = static_cast<nsIContent*>(mImpl->mBuffer[i]);
-    // making this false so tree teardown doesn't end up being
+    // making this PR_FALSE so tree teardown doesn't end up being
     // O(N*D) (number of nodes times average depth of tree).
-    child->UnbindFromTree(false); // XXX is it better to let the owner do this?
+    child->UnbindFromTree(PR_FALSE); // XXX is it better to let the owner do this?
     // Make sure to unlink our kids from each other, since someone
     // else could stil be holding references to some of them.
 
@@ -661,21 +677,21 @@ nsAttrAndChildArray::Clear()
     // to point to each other but keep the kid being removed pointing to them
     // through ContentRemoved so consumers can find where it used to be in the
     // list?
-    child->mPreviousSibling = child->mNextSibling = nullptr;
+    child->mPreviousSibling = child->mNextSibling = nsnull;
     NS_RELEASE(child);
   }
 
   SetAttrSlotAndChildCount(0, 0);
 }
 
-uint32_t
+PRUint32
 nsAttrAndChildArray::NonMappedAttrCount() const
 {
   if (!mImpl) {
     return 0;
   }
 
-  uint32_t count = AttrSlotCount();
+  PRUint32 count = AttrSlotCount();
   while (count > 0 && !mImpl->mBuffer[(count - 1) * ATTRSIZE]) {
     --count;
   }
@@ -683,26 +699,39 @@ nsAttrAndChildArray::NonMappedAttrCount() const
   return count;
 }
 
-uint32_t
+PRUint32
 nsAttrAndChildArray::MappedAttrCount() const
 {
-  return mImpl && mImpl->mMappedAttrs ? (uint32_t)mImpl->mMappedAttrs->Count() : 0;
+  return mImpl && mImpl->mMappedAttrs ? (PRUint32)mImpl->mMappedAttrs->Count() : 0;
 }
 
-nsMappedAttributes*
+nsresult
 nsAttrAndChildArray::GetModifiableMapped(nsMappedAttributeElement* aContent,
                                          nsHTMLStyleSheet* aSheet,
-                                         bool aWillAddAttr)
+                                         PRBool aWillAddAttr,
+                                         nsMappedAttributes** aModifiable)
 {
+  *aModifiable = nsnull;
+
   if (mImpl && mImpl->mMappedAttrs) {
-    return mImpl->mMappedAttrs->Clone(aWillAddAttr);
+    *aModifiable = mImpl->mMappedAttrs->Clone(aWillAddAttr);
+    NS_ENSURE_TRUE(*aModifiable, NS_ERROR_OUT_OF_MEMORY);
+
+    NS_ADDREF(*aModifiable);
+    
+    return NS_OK;
   }
 
-  MOZ_ASSERT(aContent, "Trying to create modifiable without content");
+  NS_ASSERTION(aContent, "Trying to create modifiable without content");
 
   nsMapRuleToAttributesFunc mapRuleFunc =
     aContent->GetAttributeMappingFunction();
-  return new nsMappedAttributes(aSheet, mapRuleFunc);
+  *aModifiable = new nsMappedAttributes(aSheet, mapRuleFunc);
+  NS_ENSURE_TRUE(*aModifiable, NS_ERROR_OUT_OF_MEMORY);
+
+  NS_ADDREF(*aModifiable);
+
+  return NS_OK;
 }
 
 nsresult
@@ -741,11 +770,11 @@ nsAttrAndChildArray::MakeMappedUnique(nsMappedAttributes* aAttributes)
 }
 
 
-bool
-nsAttrAndChildArray::GrowBy(uint32_t aGrowSize)
+PRBool
+nsAttrAndChildArray::GrowBy(PRUint32 aGrowSize)
 {
-  uint32_t size = mImpl ? mImpl->mBufferSize + NS_IMPL_EXTRA_SIZE : 0;
-  uint32_t minSize = size + aGrowSize;
+  PRUint32 size = mImpl ? mImpl->mBufferSize + NS_IMPL_EXTRA_SIZE : 0;
+  PRUint32 minSize = size + aGrowSize;
 
   if (minSize <= ATTRCHILD_ARRAY_LINEAR_THRESHOLD) {
     do {
@@ -756,33 +785,33 @@ nsAttrAndChildArray::GrowBy(uint32_t aGrowSize)
     size = PR_BIT(PR_CeilingLog2(minSize));
   }
 
-  bool needToInitialize = !mImpl;
+  PRBool needToInitialize = !mImpl;
   Impl* newImpl = static_cast<Impl*>(PR_Realloc(mImpl, size * sizeof(void*)));
-  NS_ENSURE_TRUE(newImpl, false);
+  NS_ENSURE_TRUE(newImpl, PR_FALSE);
 
   mImpl = newImpl;
 
   // Set initial counts if we didn't have a buffer before
   if (needToInitialize) {
-    mImpl->mMappedAttrs = nullptr;
+    mImpl->mMappedAttrs = nsnull;
     SetAttrSlotAndChildCount(0, 0);
   }
 
   mImpl->mBufferSize = size - NS_IMPL_EXTRA_SIZE;
 
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 nsAttrAndChildArray::AddAttrSlot()
 {
-  uint32_t slotCount = AttrSlotCount();
-  uint32_t childCount = ChildCount();
+  PRUint32 slotCount = AttrSlotCount();
+  PRUint32 childCount = ChildCount();
 
   // Grow buffer if needed
   if (!(mImpl && mImpl->mBufferSize >= (slotCount + 1) * ATTRSIZE + childCount) &&
       !GrowBy(ATTRSIZE)) {
-    return false;
+    return PR_FALSE;
   }
   void** offset = mImpl->mBuffer + slotCount * ATTRSIZE;
 
@@ -792,15 +821,15 @@ nsAttrAndChildArray::AddAttrSlot()
   }
 
   SetAttrSlotCount(slotCount + 1);
-  offset[0] = nullptr;
-  offset[1] = nullptr;
+  offset[0] = nsnull;
+  offset[1] = nsnull;
 
-  return true;
+  return PR_TRUE;
 }
 
 inline void
 nsAttrAndChildArray::SetChildAtPos(void** aPos, nsIContent* aChild,
-                                   uint32_t aIndex, uint32_t aChildCount)
+                                   PRUint32 aIndex, PRUint32 aChildCount)
 {
   NS_PRECONDITION(!aChild->GetNextSibling(), "aChild with next sibling?");
   NS_PRECONDITION(!aChild->GetPreviousSibling(), "aChild with prev sibling?");
@@ -819,22 +848,20 @@ nsAttrAndChildArray::SetChildAtPos(void** aPos, nsIContent* aChild,
   }
 }
 
-size_t
-nsAttrAndChildArray::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+PRInt64
+nsAttrAndChildArray::SizeOf() const
 {
-  size_t n = 0;
+  PRInt64 size = sizeof(*this);
+
   if (mImpl) {
     // Don't add the size taken by *mMappedAttrs because it's shared.
 
-    n += aMallocSizeOf(mImpl);
-
-    uint32_t slotCount = AttrSlotCount();
-    for (uint32_t i = 0; i < slotCount && AttrSlotIsTaken(i); ++i) {
-      nsAttrValue* value = &ATTRS(mImpl)[i].mValue;
-      n += value->SizeOfExcludingThis(aMallocSizeOf);
-    }
+    // mBuffer cointains InternalAttr and nsIContent* (even if it's void**)
+    // so, we just have to compute the size of *mBuffer given that this object
+    // doesn't own the children list.
+    size += mImpl->mBufferSize * sizeof(*(mImpl->mBuffer)) + NS_IMPL_EXTRA_SIZE;
   }
 
-  return n;
+  return size;
 }
 

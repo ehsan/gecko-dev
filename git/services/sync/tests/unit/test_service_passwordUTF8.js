@@ -62,8 +62,10 @@ function run_test() {
     "/user/1.0/johndoe/password":       change_password
   });
 
-  setBasicCredentials("johndoe", JAPANESE, "irrelevant");
-  Service.serverURL = TEST_SERVER_URL;
+  Service.username = "johndoe";
+  Service.password = JAPANESE;
+  Service.passphrase = "cantentsveryrelevantabbbb";
+  Service.serverURL = "http://localhost:8080/";
 
   try {
     _("Try to log in with the password.");
@@ -71,14 +73,13 @@ function run_test() {
     do_check_false(Service.verifyLogin());
     do_check_eq(server_password, "foobar");
 
-    _("Make the server password the low byte version of our password.");
+    _("Make the server password the low byte version of our password.  Login should work and have transparently changed the password to the UTF8 version.");
     server_password = LOWBYTES;
-    do_check_false(Service.verifyLogin());
-    do_check_eq(server_password, LOWBYTES);
+    do_check_true(Service.verifyLogin());
+    do_check_eq(server_password, Utils.encodeUTF8(JAPANESE));
 
     _("Can't use a password that has the same low bytes as ours.");
-    server_password = Utils.encodeUTF8(JAPANESE);
-    Identity.basicPassword = APPLES;
+    Service.password = APPLES;
     do_check_false(Service.verifyLogin());
     do_check_eq(server_password, Utils.encodeUTF8(JAPANESE));
 

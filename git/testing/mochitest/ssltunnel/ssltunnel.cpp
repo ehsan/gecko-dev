@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla test code
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ted Mielczarek <ted.mielczarek@gmail.com>
+ *   Honza Bambas <honzab@firemni.cz>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * WARNING: DO NOT USE THIS CODE IN PRODUCTION SYSTEMS.  It is highly likely to
@@ -108,7 +142,7 @@ char* strtok2(char* string, const char* delims, char* *newStr)
   PR_ASSERT(string);
   
   char delimTable[DELIM_TABLE_SIZE];
-  uint32_t i;
+  PRUint32 i;
   char* result;
   char* str = string;
   
@@ -116,18 +150,18 @@ char* strtok2(char* string, const char* delims, char* *newStr)
     delimTable[i] = '\0';
   
   for (i = 0; delims[i]; i++) {
-    SET_DELIM(delimTable, static_cast<uint8_t>(delims[i]));
+    SET_DELIM(delimTable, static_cast<PRUint8>(delims[i]));
   }
   
   // skip to beginning
-  while (*str && IS_DELIM(delimTable, static_cast<uint8_t>(*str))) {
+  while (*str && IS_DELIM(delimTable, static_cast<PRUint8>(*str))) {
     str++;
   }
   result = str;
   
   // fix up the end of the token
   while (*str) {
-    if (IS_DELIM(delimTable, static_cast<uint8_t>(*str))) {
+    if (IS_DELIM(delimTable, static_cast<PRUint8>(*str))) {
       *str++ = '\0';
       break;
     }
@@ -148,11 +182,10 @@ enum client_auth_option {
 
 // Structs for passing data into jobs on the thread pool
 typedef struct {
-  int32_t listen_port;
+  PRInt32 listen_port;
   string cert_nickname;
   PLHashTable* host_cert_table;
   PLHashTable* host_clientauth_table;
-  PLHashTable* host_redir_table;
 } server_info_t;
 
 typedef struct {
@@ -173,9 +206,9 @@ typedef struct {
   bool matched;
 } server_match_t;
 
-const int32_t BUF_SIZE = 16384;
-const int32_t BUF_MARGIN = 1024;
-const int32_t BUF_TOTAL = BUF_SIZE + BUF_MARGIN;
+const PRInt32 BUF_SIZE = 16384;
+const PRInt32 BUF_MARGIN = 1024;
+const PRInt32 BUF_TOTAL = BUF_SIZE + BUF_MARGIN;
 
 struct relayBuffer
 {
@@ -242,15 +275,11 @@ private:
   PRFileDesc* fd_;
 };
 
-// These numbers are multiplied by the number of listening ports (actual
-// servers running).  According the thread pool implementation there is no
-// need to limit the number of threads initially, threads are allocated
-// dynamically and stored in a linked list.  Initial number of 2 is chosen
-// to allocate a thread for socket accept and preallocate one for the first
-// connection that is with high probability expected to come.
-const uint32_t INITIAL_THREADS = 2;
-const uint32_t MAX_THREADS = 100;
-const uint32_t DEFAULT_STACKSIZE = (512 * 1024);
+// These are suggestions. If the number of ports to proxy on * 2
+// is greater than either of these, then we'll use that value instead.
+const PRUint32 INITIAL_THREADS = 1;
+const PRUint32 MAX_THREADS = 5;
+const PRUint32 DEFAULT_STACKSIZE = (512 * 1024);
 
 // global data
 string nssconfigdir;
@@ -265,7 +294,7 @@ bool shutdown_server = false;
 bool do_http_proxy = false;
 bool any_host_spec_config = false;
 
-PR_CALLBACK int ClientAuthValueComparator(const void *v1, const void *v2)
+PR_CALLBACK PRIntn ClientAuthValueComparator(const void *v1, const void *v2)
 {
   int a = *static_cast<const client_auth_option*>(v1) -
           *static_cast<const client_auth_option*>(v2);
@@ -277,7 +306,7 @@ PR_CALLBACK int ClientAuthValueComparator(const void *v1, const void *v2)
     return -1;
 }
 
-static int match_hostname(PLHashEntry *he, int index, void* arg)
+static PRIntn match_hostname(PLHashEntry *he, PRIntn index, void* arg)
 {
   server_match_t *match = (server_match_t*)arg;
   if (match->fullHost.find((char*)he->key) != string::npos)
@@ -296,8 +325,8 @@ void SignalShutdown()
 }
 
 bool ReadConnectRequest(server_info_t* server_info, 
-    relayBuffer& buffer, int32_t* result, string& certificate,
-    client_auth_option* clientauth, string& host, string& location)
+    relayBuffer& buffer, PRInt32* result, string& certificate,
+    client_auth_option* clientauth, string& host)
 {
   if (buffer.present() < 4) {
     LOG_DEBUG((" !! only %d bytes present in the buffer", (int)buffer.present()));
@@ -342,17 +371,13 @@ bool ReadConnectRequest(server_info_t* server_info,
   else
     *clientauth = caNone;
 
-  void *redir = PL_HashTableLookup(server_info->host_redir_table, token);
-  if (redir)
-    location = static_cast<char*>(redir);
-
   token = strtok2(_caret, "/", &_caret);
   if (strcmp(token, "HTTP")) {  
     LOG_ERRORD((" not tailed with HTTP but with %s", token));
     return true;
   }
 
-  *result = (redir) ? 302 : 200;
+  *result = 200;
   return true;
 }
 
@@ -387,17 +412,17 @@ bool ConfigureSSLServerSocket(PRFileDesc* socket, server_info_t* si, string &cer
     return false;
   }
 
-  SSL_OptionSet(ssl_socket, SSL_SECURITY, true);
-  SSL_OptionSet(ssl_socket, SSL_HANDSHAKE_AS_CLIENT, false);
-  SSL_OptionSet(ssl_socket, SSL_HANDSHAKE_AS_SERVER, true);
+  SSL_OptionSet(ssl_socket, SSL_SECURITY, PR_TRUE);
+  SSL_OptionSet(ssl_socket, SSL_HANDSHAKE_AS_CLIENT, PR_FALSE);
+  SSL_OptionSet(ssl_socket, SSL_HANDSHAKE_AS_SERVER, PR_TRUE);
 
   if (clientAuth != caNone)
   {
-    SSL_OptionSet(ssl_socket, SSL_REQUEST_CERTIFICATE, true);
+    SSL_OptionSet(ssl_socket, SSL_REQUEST_CERTIFICATE, PR_TRUE);
     SSL_OptionSet(ssl_socket, SSL_REQUIRE_CERTIFICATE, clientAuth == caRequire);
   }
 
-  SSL_ResetHandshake(ssl_socket, true);
+  SSL_ResetHandshake(ssl_socket, PR_TRUE);
 
   return true;
 }
@@ -559,7 +584,7 @@ bool ConnectSocket(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime timeout
 
   PRSocketOptionData option;
   option.option = PR_SockOpt_Nonblocking;
-  option.value.non_blocking = true;
+  option.value.non_blocking = PR_TRUE;
   PR_SetSocketOption(fd, &option);
 
   return true;
@@ -584,7 +609,6 @@ void HandleConnection(void* data)
   bool ssl_updated = !do_http_proxy;
   bool expect_request_start = do_http_proxy;
   string certificateToUse;
-  string locationHeader;
   client_auth_option clientAuth;
   string fullHost;
 
@@ -594,13 +618,14 @@ void HandleConnection(void* data)
          static_cast<void*>(other_sock)));
   if (other_sock) 
   {
-    int32_t numberOfSockets = 1;
+    PRInt32 numberOfSockets = 1;
 
     relayBuffer buffers[2];
 
     if (!do_http_proxy)
     {
-      if (!ConfigureSSLServerSocket(ci->client_sock, ci->server_info, certificateToUse, caNone))
+      if (!ci->http_proxy_only && 
+          !ConfigureSSLServerSocket(ci->client_sock, ci->server_info, certificateToUse, caNone))
         client_error = true;
       else if (!ConnectSocket(other_sock, &remote_addr, connect_timeout))
         client_error = true;
@@ -613,7 +638,7 @@ void HandleConnection(void* data)
       {ci->client_sock, PR_POLL_READ, 0},
       {other_sock, PR_POLL_READ, 0}
     };
-    bool socketErrorState[2] = {false, false};
+    PRBool socketErrorState[2] = {PR_FALSE, PR_FALSE};
 
     while (!((client_error||client_done) && buffers[0].empty() && buffers[1].empty()))
     {
@@ -625,7 +650,7 @@ void HandleConnection(void* data)
                  sockets[0].in_flags & PR_POLL_WRITE ? 'W' : '-',
                  sockets[1].in_flags & PR_POLL_READ  ? 'R' : '-',
                  sockets[1].in_flags & PR_POLL_WRITE ? 'W' : '-'));
-      int32_t pollStatus = PR_Poll(sockets, numberOfSockets, PR_MillisecondsToInterval(1000));
+      PRInt32 pollStatus = PR_Poll(sockets, numberOfSockets, PR_MillisecondsToInterval(1000));
       if (pollStatus < 0)
       {
         LOG_DEBUG(("SSLTUNNEL(%p)): pollStatus=%d, exiting\n",
@@ -642,12 +667,12 @@ void HandleConnection(void* data)
         continue;
       }
 
-      for (int32_t s = 0; s < numberOfSockets; ++s)
+      for (PRInt32 s = 0; s < numberOfSockets; ++s)
       {
-        int32_t s2 = s == 1 ? 0 : 1;
-        int16_t out_flags = sockets[s].out_flags;
-        int16_t &in_flags = sockets[s].in_flags;
-        int16_t &in_flags2 = sockets[s2].in_flags;
+        PRInt32 s2 = s == 1 ? 0 : 1;
+        PRInt16 out_flags = sockets[s].out_flags;
+        PRInt16 &in_flags = sockets[s].in_flags;
+        PRInt16 &in_flags2 = sockets[s2].in_flags;
         sockets[s].out_flags = 0;
 
         LOG_BEGIN_BLOCK();
@@ -661,7 +686,7 @@ void HandleConnection(void* data)
         {
           LOG_DEBUG((" :exception\n"));
           client_error = true;
-          socketErrorState[s] = true;
+          socketErrorState[s] = PR_TRUE;
           // We got a fatal error state on the socket. Clear the output buffer
           // for this socket to break the main loop, we will never more be able
           // to send those data anyway.
@@ -678,7 +703,7 @@ void HandleConnection(void* data)
         if (out_flags & PR_POLL_READ && buffers[s].areafree())
         {
           LOG_DEBUG((" :reading"));
-          int32_t bytesRead = PR_Recv(sockets[s].fd, buffers[s].buffertail, 
+          PRInt32 bytesRead = PR_Recv(sockets[s].fd, buffers[s].buffertail, 
               buffers[s].areafree(), 0, PR_INTERVAL_NO_TIMEOUT);
 
           if (bytesRead == 0)
@@ -695,7 +720,7 @@ void HandleConnection(void* data)
               // We are in error state, indicate that the connection was 
               // not closed gracefully
               client_error = true;
-              socketErrorState[s] = true;
+              socketErrorState[s] = PR_TRUE;
               // Wipe out our send buffer, we cannot send it anyway.
               buffers[s2].bufferhead = buffers[s2].buffertail = buffers[s2].buffer;
             }
@@ -716,9 +741,9 @@ void HandleConnection(void* data)
             LOG_DEBUG((", read %d bytes", bytesRead));
 
             // We have to accept and handle the initial CONNECT request here
-            int32_t response;
+            PRInt32 response;
             if (!connect_accepted && ReadConnectRequest(ci->server_info, buffers[s],
-                &response, certificateToUse, &clientAuth, fullHost, locationHeader))
+                &response, certificateToUse, &clientAuth, fullHost))
             {
               // Mark this as a proxy-only connection (no SSL) if the CONNECT
               // request didn't come for port 443 or from any of the server's
@@ -747,33 +772,19 @@ void HandleConnection(void* data)
               connect_accepted = true;
 
               // Store response to the oposite buffer
-              if (response == 200)
-              {
-                  LOG_DEBUG((" accepted CONNECT request, connected to the server, sending OK to the client\n"));
-                  strcpy(buffers[s2].buffer, "HTTP/1.1 200 Connected\r\nConnection: keep-alive\r\n\r\n");
-              }
-              else if (response == 302)
-              {
-                  LOG_DEBUG((" accepted CONNECT request with redirection, "
-                             "sending location and 302 to the client\n"));
-                  client_done = true;
-                  sprintf(buffers[s2].buffer, 
-                          "HTTP/1.1 302 Moved\r\n"
-                          "Location: https://%s/\r\n"
-                          "Connection: close\r\n\r\n",
-                          locationHeader.c_str());
-              }
-              else
+              if (response != 200)
               {
                 LOG_ERRORD((" could not read the connect request, closing connection with %d", response));
                 client_done = true;
                 sprintf(buffers[s2].buffer, "HTTP/1.1 %d ERROR\r\nConnection: close\r\n\r\n", response);
-
+                buffers[s2].buffertail = buffers[s2].buffer + strlen(buffers[s2].buffer);
                 break;
               }
 
+              strcpy(buffers[s2].buffer, "HTTP/1.1 200 Connected\r\nConnection: keep-alive\r\n\r\n");
               buffers[s2].buffertail = buffers[s2].buffer + strlen(buffers[s2].buffer);
 
+              LOG_DEBUG((" accepted CONNECT request, connected to the server, sending OK to the client\n"));
               // Send the response to the client socket
               break;
             } // end of CONNECT handling
@@ -829,7 +840,7 @@ void HandleConnection(void* data)
         if (out_flags & PR_POLL_WRITE)
         {
           LOG_DEBUG((" :writing"));
-          int32_t bytesWrite = PR_Send(sockets[s].fd, buffers[s2].bufferhead, 
+          PRInt32 bytesWrite = PR_Send(sockets[s].fd, buffers[s2].bufferhead, 
               buffers[s2].present(), 0, PR_INTERVAL_NO_TIMEOUT);
 
           if (bytesWrite < 0)
@@ -837,7 +848,7 @@ void HandleConnection(void* data)
             if (PR_GetError() != PR_WOULD_BLOCK_ERROR) {
               LOG_DEBUG((" error=%d", PR_GetError()));
               client_error = true;
-              socketErrorState[s] = true;
+              socketErrorState[s] = PR_TRUE;
               // We got a fatal error while writting the buffer. Clear it to break
               // the main loop, we will never more be able to send it.
               buffers[s2].bufferhead = buffers[s2].buffertail = buffers[s2].buffer;
@@ -864,21 +875,15 @@ void HandleConnection(void* data)
                 LOG_DEBUG((" proxy response sent to the client"));
                 // Proxy response has just been writen, update to ssl
                 ssl_updated = true;
-                if (ci->http_proxy_only)
-                {
-                  LOG_DEBUG((" not updating to SSL based on http_proxy_only for this socket"));
-                }
-                else if (!ConfigureSSLServerSocket(ci->client_sock, ci->server_info, 
-                                                   certificateToUse, clientAuth))
+                if (!ci->http_proxy_only && 
+                    !ConfigureSSLServerSocket(ci->client_sock, ci->server_info, certificateToUse, clientAuth))
                 {
                   LOG_ERRORD((" failed to config server socket\n"));
                   client_error = true;
                   break;
                 }
-                else
-                {
-                  LOG_DEBUG((" client socket updated to SSL"));
-                }
+
+                LOG_DEBUG((" client socket updated to SSL"));
               } // sslUpdate
 
               LOG_DEBUG((" dropping our write flag and setting other socket read flag"));
@@ -928,7 +933,7 @@ void StartServer(void* data)
   // instance of ssltunnel we ask to reuse the port.
   PRSocketOptionData socket_option;
   socket_option.option = PR_SockOpt_Reuseaddr;
-  socket_option.value.reuse_addr = true;
+  socket_option.value.reuse_addr = PR_TRUE;
   PR_SetSocketOption(listen_socket, &socket_option);
 
   PRNetAddr server_addr;
@@ -951,20 +956,19 @@ void StartServer(void* data)
   while (!shutdown_server) {
     connection_info_t* ci = new connection_info_t();
     ci->server_info = si;
-    ci->http_proxy_only = do_http_proxy;
     // block waiting for connections
     ci->client_sock = PR_Accept(listen_socket, &ci->client_addr,
                                 PR_INTERVAL_NO_TIMEOUT);
     
     PRSocketOptionData option;
     option.option = PR_SockOpt_Nonblocking;
-    option.value.non_blocking = true;
+    option.value.non_blocking = PR_TRUE;
     PR_SetSocketOption(ci->client_sock, &option);
 
     if (ci->client_sock)
       // Not actually using this PRJob*...
       //PRJob* job =
-      PR_QueueJob(threads, HandleConnection, ci, true);
+      PR_QueueJob(threads, HandleConnection, ci, PR_TRUE);
     else
       delete ci;
   }
@@ -1098,12 +1102,6 @@ int processConfigLine(char* configLine)
         LOG_ERROR(("Internal, could not create hash table\n"));
         return 1;
       }
-      server.host_redir_table = PL_NewHashTable(0, PL_HashString, PL_CompareStrings, PL_CompareStrings, NULL, NULL);
-      if (!server.host_redir_table)
-      {
-        LOG_ERROR(("Internal, could not create hash table\n"));
-        return 1;
-      }
       servers.push_back(server);
     }
 
@@ -1170,51 +1168,6 @@ int processConfigLine(char* configLine)
     return 0;
   }
 
-  if (!strcmp(keyword, "redirhost"))
-  {
-    char* hostname = strtok2(_caret, ":", &_caret);
-    char* hostportstring = strtok2(_caret, ":", &_caret);
-    char* serverportstring = strtok2(_caret, ":", &_caret);
-
-    int port = atoi(serverportstring);
-    if (port <= 0) {
-      LOG_ERROR(("Invalid port specified: %s\n", serverportstring));
-      return 1;
-    }
-
-    if (server_info_t* existingServer = findServerInfo(port))
-    {
-      char* redirhoststring = strtok2(_caret, ":", &_caret);
-
-      any_host_spec_config = true;
-
-      char *hostname_copy = new char[strlen(hostname)+strlen(hostportstring)+2];
-      if (!hostname_copy) {
-        LOG_ERROR(("Out of memory"));
-        return 1;
-      }
-
-      strcpy(hostname_copy, hostname);
-      strcat(hostname_copy, ":");
-      strcat(hostname_copy, hostportstring);
-
-      char *redir_copy = new char[strlen(redirhoststring)+1];
-      strcpy(redir_copy, redirhoststring);
-      PLHashEntry* entry = PL_HashTableAdd(existingServer->host_redir_table, hostname_copy, redir_copy);
-      if (!entry) {
-        LOG_ERROR(("Out of memory"));
-        return 1;
-      }
-    }
-    else
-    {
-      LOG_ERROR(("Server on port %d for redirhost option is not defined, use 'listen' option first", port));
-      return 1;
-    }
-
-    return 0;
-  }
-
   // Configure the NSS certificate database directory
   if (!strcmp(keyword, "certdbdir"))
   {
@@ -1268,21 +1221,14 @@ int parseConfigFile(const char* filePath)
   return 0;
 }
 
-int freeHostCertHashItems(PLHashEntry *he, int i, void *arg)
+PRIntn freeHostCertHashItems(PLHashEntry *he, PRIntn i, void *arg)
 {
   delete [] (char*)he->key;
   delete [] (char*)he->value;
   return HT_ENUMERATE_REMOVE;
 }
 
-int freeHostRedirHashItems(PLHashEntry *he, int i, void *arg)
-{
-  delete [] (char*)he->key;
-  delete [] (char*)he->value;
-  return HT_ENUMERATE_REMOVE;
-}
-
-int freeClientAuthHashItems(PLHashEntry *he, int i, void *arg)
+PRIntn freeClientAuthHashItems(PLHashEntry *he, PRIntn i, void *arg)
 {
   delete [] (char*)he->key;
   delete (client_auth_option*)he->value;
@@ -1338,8 +1284,8 @@ int main(int argc, char** argv)
   }
 
   // create a thread pool to handle connections
-  threads = PR_CreateThreadPool(INITIAL_THREADS * servers.size(),
-                                MAX_THREADS * servers.size(),
+  threads = PR_CreateThreadPool(NS_MAX<PRInt32>(INITIAL_THREADS, servers.size()*2),
+                                NS_MAX<PRInt32>(MAX_THREADS, servers.size()*2),
                                 DEFAULT_STACKSIZE);
   if (!threads) {
     LOG_ERROR(("Failed to create thread pool\n"));
@@ -1364,7 +1310,7 @@ int main(int argc, char** argv)
 
   // Initialize NSS
   if (NSS_Init(nssconfigdir.c_str()) != SECSuccess) {
-    int32_t errorlen = PR_GetErrorTextLength();
+    PRInt32 errorlen = PR_GetErrorTextLength();
     char* err = new char[errorlen+1];
     PR_GetErrorText(err);
     LOG_ERROR(("Failed to init NSS: %s", err));
@@ -1398,7 +1344,7 @@ int main(int argc, char** argv)
        it != servers.end(); it++) {
     // Not actually using this PRJob*...
     // PRJob* server_job =
-    PR_QueueJob(threads, StartServer, &(*it), true);
+    PR_QueueJob(threads, StartServer, &(*it), PR_TRUE);
   }
   // now wait for someone to tell us to quit
   PR_Lock(shutdown_lock);
@@ -1420,10 +1366,8 @@ int main(int argc, char** argv)
   {
     PL_HashTableEnumerateEntries(it->host_cert_table, freeHostCertHashItems, NULL);
     PL_HashTableEnumerateEntries(it->host_clientauth_table, freeClientAuthHashItems, NULL);
-    PL_HashTableEnumerateEntries(it->host_redir_table, freeHostRedirHashItems, NULL);
     PL_HashTableDestroy(it->host_cert_table);
     PL_HashTableDestroy(it->host_clientauth_table);
-    PL_HashTableDestroy(it->host_redir_table);
   }
 
   PR_Cleanup();

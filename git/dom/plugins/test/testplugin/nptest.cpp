@@ -45,7 +45,6 @@
 #include <string>
 #include <sstream>
 #include <list>
-#include <ctime>
 
 #ifdef XP_WIN
 #include <process.h>
@@ -59,13 +58,19 @@
 
 using namespace std;
 
+#define PLUGIN_NAME        "Test Plug-in"
+#define PLUGIN_DESCRIPTION "Plug-in for testing purposes.\xE2\x84\xA2 "          \
+    "(\xe0\xa4\xb9\xe0\xa4\xbf\xe0\xa4\xa8\xe0\xa5\x8d\xe0\xa4\xa6\xe0\xa5\x80 " \
+    "\xe4\xb8\xad\xe6\x96\x87 "                                                  \
+    "\xd8\xa7\xd9\x84\xd8\xb9\xd8\xb1\xd8\xa8\xd9\x8a\xd8\xa9)"
 #define PLUGIN_VERSION     "1.0.0.0"
+
 #define ARRAY_LENGTH(a) (sizeof(a)/sizeof(a[0]))
 #define STATIC_ASSERT(condition)                                \
     extern void np_static_assert(int arg[(condition) ? 1 : -1])
 
-extern const char *sPluginName;
-extern const char *sPluginDescription;
+static char sPluginName[] = PLUGIN_NAME; 
+static char sPluginDescription[] = PLUGIN_DESCRIPTION;
 static char sPluginVersion[] = PLUGIN_VERSION;
 
 //
@@ -162,8 +167,6 @@ static bool constructObject(NPObject* npobj, const NPVariant* args, uint32_t arg
 static bool setSitesWithData(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool setSitesWithDataCapabilities(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 static bool getLastKeyText(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getNPNVdocumentOrigin(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
-static bool getMouseUpEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result);
 
 static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "npnEvaluateTest",
@@ -222,9 +225,7 @@ static const NPUTF8* sPluginMethodIdentifierNames[] = {
   "constructObject",
   "setSitesWithData",
   "setSitesWithDataCapabilities",
-  "getLastKeyText",
-  "getNPNVdocumentOrigin",
-  "getMouseUpEventCount"
+  "getLastKeyText"
 };
 static NPIdentifier sPluginMethodIdentifiers[ARRAY_LENGTH(sPluginMethodIdentifierNames)];
 static const ScriptableFunction sPluginMethodFunctions[] = {
@@ -284,9 +285,7 @@ static const ScriptableFunction sPluginMethodFunctions[] = {
   constructObject,
   setSitesWithData,
   setSitesWithDataCapabilities,
-  getLastKeyText,
-  getNPNVdocumentOrigin,
-  getMouseUpEventCount
+  getLastKeyText
 };
 
 STATIC_ASSERT(ARRAY_LENGTH(sPluginMethodIdentifierNames) ==
@@ -538,39 +537,6 @@ DuplicateNPVariant(NPVariant& aDest, const NPVariant& aSrc)
   }
 }
 
-void
-drawAsyncBitmapColor(InstanceData* instanceData)
-{
-  NPP npp = instanceData->npp;
-
-  uint32_t *pixelData = (uint32_t*)instanceData->backBuffer->bitmap.data;
-
-  uint32_t rgba = instanceData->scriptableObject->drawColor;
-
-  unsigned char subpixels[4];
-  subpixels[0] = rgba & 0xFF;
-  subpixels[1] = (rgba & 0xFF00) >> 8;
-  subpixels[2] = (rgba & 0xFF0000) >> 16;
-  subpixels[3] = (rgba & 0xFF000000) >> 24;
-
-  subpixels[0] = uint8_t(float(subpixels[3] * subpixels[0]) / 0xFF);
-  subpixels[1] = uint8_t(float(subpixels[3] * subpixels[1]) / 0xFF);
-  subpixels[2] = uint8_t(float(subpixels[3] * subpixels[2]) / 0xFF);
-  uint32_t premultiplied;
-  memcpy(&premultiplied, subpixels, sizeof(premultiplied));
-
-  for (uint32_t* lastPixel = pixelData + instanceData->backBuffer->size.width * instanceData->backBuffer->size.height;
-	pixelData < lastPixel;
-	++pixelData) {
-    *pixelData = premultiplied;
-  }
-
-  NPN_SetCurrentAsyncSurface(npp, instanceData->backBuffer, NULL);
-  NPAsyncSurface *oldFront = instanceData->frontBuffer;
-  instanceData->frontBuffer = instanceData->backBuffer;
-  instanceData->backBuffer = oldFront;
-}
-
 //
 // function signatures
 //
@@ -600,12 +566,12 @@ NP_GetPluginVersion()
 }
 #endif
 
-extern const char *sMimeDescription;
+static char sMimeDescription[] = "application/x-test:tst:Test mimetype";
 
 #if defined(XP_UNIX)
-NP_EXPORT(const char*) NP_GetMIMEDescription()
+NP_EXPORT(char*) NP_GetMIMEDescription()
 #elif defined(XP_WIN) || defined(XP_OS2)
-const char* NP_GetMIMEDescription()
+char* NP_GetMIMEDescription()
 #endif
 {
   return sMimeDescription;
@@ -616,10 +582,10 @@ NP_EXPORT(NPError)
 NP_GetValue(void* future, NPPVariable aVariable, void* aValue) {
   switch (aVariable) {
     case NPPVpluginNameString:
-      *((const char**)aValue) = sPluginName;
+      *((char**)aValue) = sPluginName;
       break;
     case NPPVpluginDescriptionString:
-      *((const char**)aValue) = sPluginDescription;
+      *((char**)aValue) = sPluginDescription;
       break;
     default:
       return NPERR_INVALID_PARAM;
@@ -777,10 +743,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
   instanceData->eventModel = 0;
   instanceData->closeStream = false;
   instanceData->wantsAllStreams = false;
-  instanceData->asyncDrawing = AD_NONE;
-  instanceData->frontBuffer = NULL;
-  instanceData->backBuffer = NULL;
-  instanceData->mouseUpEventCount = 0;
   instance->pdata = instanceData;
 
   TestNPObject* scriptableObject = (TestNPObject*)NPN_CreateObject(instance, &sNPClass);
@@ -815,18 +777,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
     else if (strcmp(argn[i], "wmode") == 0) {
       if (strcmp(argv[i], "window") == 0) {
         requestWindow = true;
-      }
-    }
-    else if (strcmp(argn[i], "asyncmodel") == 0) {
-      if (strcmp(argv[i], "bitmap") == 0) {
-        if (pluginSupportsAsyncBitmapDrawing()) {
-          instanceData->asyncDrawing = AD_BITMAP;
-        }
-      }
-      if (strcmp(argv[i], "dxgi") == 0) {
-        if (pluginSupportsAsyncDXGIDrawing()) {
-          instanceData->asyncDrawing = AD_DXGI;
-        }
       }
     }
     if (strcmp(argn[i], "streammode") == 0) {
@@ -931,27 +881,6 @@ NPP_New(NPMIMEType pluginType, NPP instance, uint16_t mode, int16_t argc, char* 
     NPN_SetValue(instance, NPPVpluginTransparentBool, (void*)true);
   }
 
-  if (instanceData->asyncDrawing == AD_BITMAP) {
-    NPBool supportsAsyncBitmap = false;
-    if ((NPN_GetValue(instance, NPNVsupportsAsyncBitmapSurfaceBool, &supportsAsyncBitmap) == NPERR_NO_ERROR) &&
-        supportsAsyncBitmap) {
-      NPN_SetValue(instance, NPPVpluginDrawingModel, (void*)NPDrawingModelAsyncBitmapSurface);
-    } else {
-      instanceData->asyncDrawing = AD_NONE;
-    }
-  }
-#ifdef XP_WIN
-  else if (instanceData->asyncDrawing == AD_DXGI) {
-    NPBool supportsAsyncDXGI = false;
-    if ((NPN_GetValue(instance, NPNVsupportsAsyncWindowsDXGISurfaceBool, &supportsAsyncDXGI) == NPERR_NO_ERROR) &&
-        supportsAsyncDXGI) {
-      NPN_SetValue(instance, NPPVpluginDrawingModel, (void*)NPDrawingModelAsyncWindowsDXGISurface);
-    } else {
-      instanceData->asyncDrawing = AD_NONE;
-    }
-  }
-#endif
-
   instanceData->lastReportedPrivateModeState = false;
   instanceData->lastMouseX = instanceData->lastMouseY = -1;
   instanceData->widthAtLastPaint = -1;
@@ -1037,16 +966,6 @@ NPP_Destroy(NPP instance, NPSavedData** save)
     currentrange = nextrange;
   }
 
-  if (instanceData->frontBuffer) {
-    NPN_SetCurrentAsyncSurface(instance, NULL, NULL);
-    NPN_FinalizeAsyncSurface(instance, instanceData->frontBuffer);
-    NPN_MemFree(instanceData->frontBuffer);
-  }
-  if (instanceData->backBuffer) {
-    NPN_FinalizeAsyncSurface(instance, instanceData->backBuffer);
-    NPN_MemFree(instanceData->backBuffer);
-  }
-
   pluginInstanceShutdown(instanceData);
   NPN_ReleaseObject(instanceData->scriptableObject);
 
@@ -1077,37 +996,6 @@ NPP_SetWindow(NPP instance, NPWindow* window)
   pluginDoSetWindow(instanceData, window);
   if (instanceData->hasWidget && oldWindow != instanceData->window.window) {
     pluginWidgetInit(instanceData, oldWindow);
-  }
-
-  if (instanceData->asyncDrawing == AD_BITMAP) {
-    if (instanceData->frontBuffer &&
-	instanceData->frontBuffer->size.width >= 0 &&
-       (uint32_t)instanceData->frontBuffer->size.width == window->width &&
-       instanceData ->frontBuffer->size.height >= 0 &&
-       (uint32_t)instanceData->frontBuffer->size.height == window->height) {
-          return NPERR_NO_ERROR;
-    }
-    if (instanceData->frontBuffer) {
-      NPN_FinalizeAsyncSurface(instance, instanceData->frontBuffer);
-      NPN_MemFree(instanceData->frontBuffer);
-    }
-    if (instanceData->backBuffer) {
-      NPN_FinalizeAsyncSurface(instance, instanceData->backBuffer);
-      NPN_MemFree(instanceData->backBuffer);
-    }
-    instanceData->frontBuffer = (NPAsyncSurface*)NPN_MemAlloc(sizeof(NPAsyncSurface));
-    instanceData->backBuffer = (NPAsyncSurface*)NPN_MemAlloc(sizeof(NPAsyncSurface));
-
-    NPSize size;
-    size.width = window->width;
-    size.height = window->height;
-
-    memcpy(instanceData->backBuffer, instanceData->frontBuffer, sizeof(NPAsyncSurface));
-
-    NPN_InitAsyncSurface(instance, &size, NPImageFormatBGRA32, NULL, instanceData->frontBuffer);
-    NPN_InitAsyncSurface(instance, &size, NPImageFormatBGRA32, NULL, instanceData->backBuffer);
-
-    drawAsyncBitmapColor(instanceData);
   }
   return NPERR_NO_ERROR;
 }
@@ -1141,10 +1029,6 @@ NPP_NewStream(NPP instance, NPMIMEType type, NPStream* stream, NPBool seekable, 
       if (instanceData->testFunction == FUNCTION_NPP_POSTURL &&
           instanceData->postMode == POSTMODE_STREAM) {
         instanceData->testFunction = FUNCTION_NPP_GETURL;
-      }
-      else {
-        // We already got a stream and didn't ask for another one.
-        instanceData->err << "Received unexpected multiple NPP_NewStream";
       }
     }
   }
@@ -1860,25 +1744,6 @@ NPN_URLRedirectResponse(NPP instance, void* notifyData, NPBool allow)
   return sBrowserFuncs->urlredirectresponse(instance, notifyData, allow);
 }
 
-NPError
-NPN_InitAsyncSurface(NPP instance, NPSize *size, NPImageFormat format,
-                     void *initData, NPAsyncSurface *surface)
-{
-  return sBrowserFuncs->initasyncsurface(instance, size, format, initData, surface);
-}
-
-NPError
-NPN_FinalizeAsyncSurface(NPP instance, NPAsyncSurface *surface)
-{
-  return sBrowserFuncs->finalizeasyncsurface(instance, surface);
-}
-
-void
-NPN_SetCurrentAsyncSurface(NPP instance, NPAsyncSurface *surface, NPRect *changed)
-{
-  sBrowserFuncs->setcurrentasyncsurface(instance, surface, changed);
-}
-
 //
 // npruntime object functions
 //
@@ -1960,7 +1825,7 @@ scriptableInvokeDefault(NPObject* npobj, const NPVariant* args, uint32_t argCoun
   }
 
   ostringstream value;
-  value << sPluginName;
+  value << PLUGIN_NAME;
   for (uint32_t i = 0; i < argCount; i++) {
     switch(args[i].type) {
       case NPVariantType_Int32:
@@ -2749,16 +2614,7 @@ setColor(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* r
   r.top = 0;
   r.right = id->window.width;
   r.bottom = id->window.height;
-  if (id->asyncDrawing == AD_NONE) {
-    NPN_InvalidateRect(npp, &r);
-  } else if (id->asyncDrawing == AD_BITMAP) {
-    drawAsyncBitmapColor(id);
-  }
-#ifdef XP_WIN
-  else if (id->asyncDrawing == AD_DXGI) {
-    pluginDrawAsyncDxgiColor(id);
-  }
-#endif
+  NPN_InvalidateRect(npp, &r);
 
   VOID_TO_NPVARIANT(*result);
   return true;
@@ -3210,29 +3066,11 @@ hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
 {
   mozilla::NoteIntentionalCrash("plugin");
 
-  bool busyHang = false;
-  if ((argCount == 1) && NPVARIANT_IS_BOOLEAN(args[0])) {
-    busyHang = NPVARIANT_TO_BOOLEAN(args[0]);
-  }
-
-  if (busyHang) {    
-    const time_t start = std::time(NULL);
-    while ((std::time(NULL) - start) < 100000) {
-      volatile int dummy = 0;
-      for (int i=0; i<1000; ++i) {
-        dummy++;
-      }
-    }
-  } else {
 #ifdef XP_WIN
   Sleep(100000000);
-    Sleep(100000000);
 #else
   pause();
-    pause();
 #endif
-  }
-
   // NB: returning true here means that we weren't terminated, and
   // thus the hang detection/handling didn't work correctly.  The
   // test harness will succeed in calling this function, and the
@@ -3240,7 +3078,7 @@ hangPlugin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
   return true;
 }
 
-#if defined(MOZ_WIDGET_GTK)
+#if defined(MOZ_WIDGET_GTK2)
 bool
 getClipboardText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
                  NPVariant* result)
@@ -3594,10 +3432,10 @@ bool setSitesWithData(NPObject* npobj, const NPVariant* args, uint32_t argCount,
 
     // Parse out the three tokens into a siteData struct.
     const char* siteEnd = strchr(iterator, ':');
-    *((char*) siteEnd) = '\0';
+    *((char*) siteEnd) = NULL;
     const char* flagsEnd = strchr(siteEnd + 1, ':');
-    *((char*) flagsEnd) = '\0';
-    *((char*) next) = '\0';
+    *((char*) flagsEnd) = NULL;
+    *((char*) next) = NULL;
     
     siteData data;
     data.site = string(iterator);
@@ -3634,36 +3472,5 @@ bool getLastKeyText(NPObject* npobj, const NPVariant* args, uint32_t argCount,
   NPP npp = static_cast<TestNPObject*>(npobj)->npp;
   InstanceData* id = static_cast<InstanceData*>(npp->pdata);
   STRINGZ_TO_NPVARIANT(NPN_StrDup(id->lastKeyText.c_str()), *result);
-  return true;
-}
-
-bool getNPNVdocumentOrigin(NPObject* npobj, const NPVariant* args, uint32_t argCount,
-                           NPVariant* result)
-{
-  if (argCount != 0) {
-    return false;
-  }
-
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-
-  char *origin = NULL;
-  NPError err = NPN_GetValue(npp, NPNVdocumentOrigin, &origin);
-  if (err != NPERR_NO_ERROR) {
-    return false;
-  }
-
-  STRINGZ_TO_NPVARIANT(origin, *result);
-  return true;
-}
-
-bool getMouseUpEventCount(NPObject* npobj, const NPVariant* args, uint32_t argCount, NPVariant* result)
-{
-  if (argCount != 0) {
-    return false;
-  }
-  
-  NPP npp = static_cast<TestNPObject*>(npobj)->npp;
-  InstanceData* id = static_cast<InstanceData*>(npp->pdata);
-  INT32_TO_NPVARIANT(id->mouseUpEventCount, *result);
   return true;
 }

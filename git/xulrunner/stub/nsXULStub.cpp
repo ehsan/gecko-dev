@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla XULRunner.
+ *
+ * The Initial Developer of the Original Code is
+ * Benjamin Smedberg <benjamin@smedbergs.us>
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Mozilla Foundation <http://www.mozilla.org/>. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsXPCOMGlue.h"
 #include "nsINIParser.h"
@@ -8,7 +41,7 @@
 #include "nsXPCOMPrivate.h" // for XP MAXPATHLEN
 #include "nsMemory.h" // for NS_ARRAY_LENGTH
 #include "nsXULAppAPI.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 
 #include <stdarg.h>
 
@@ -48,7 +81,7 @@
 
 #define VERSION_MAXLEN 128
 
-static void Output(bool isError, const char *fmt, ... )
+static void Output(PRBool isError, const char *fmt, ... )
 {
   va_list ap;
   va_start(ap, fmt);
@@ -83,7 +116,7 @@ static void Output(bool isError, const char *fmt, ... )
 /**
  * Return true if |arg| matches the given argument name.
  */
-static bool IsArg(const char* arg, const char* s)
+static PRBool IsArg(const char* arg, const char* s)
 {
   if (*arg == '-')
   {
@@ -97,13 +130,13 @@ static bool IsArg(const char* arg, const char* s)
     return !strcasecmp(++arg, s);
 #endif
 
-  return false;
+  return PR_FALSE;
 }
 
 /**
  * Return true if |aDir| is a valid file/directory.
  */
-static bool FolderExists(const char* aDir)
+static PRBool FolderExists(const char* aDir)
 {
 #ifdef XP_WIN
   wchar_t wideDir[MAX_PATH];
@@ -137,10 +170,10 @@ static nsresult GetRealPath(const char* appDataFile, char* *aResult)
 class AutoAppData
 {
 public:
-  AutoAppData(nsIFile* aINIFile) : mAppData(nullptr) {
+  AutoAppData(nsILocalFile* aINIFile) : mAppData(nsnull) {
     nsresult rv = XRE_CreateAppData(aINIFile, &mAppData);
     if (NS_FAILED(rv))
-      mAppData = nullptr;
+      mAppData = nsnull;
   }
   ~AutoAppData() {
     if (mAppData)
@@ -167,7 +200,7 @@ main(int argc, char **argv)
   char iniPath[MAXPATHLEN];
   char tmpPath[MAXPATHLEN];
   char greDir[MAXPATHLEN];
-  bool greFound = false;
+  PRBool greFound = PR_FALSE;
 
 #if defined(XP_MACOSX)
   CFBundleRef appBundle = CFBundleGetMainBundle();
@@ -244,12 +277,12 @@ main(int argc, char **argv)
     if (!pathdup)
       return 1;
 
-    bool found = false;
+    PRBool found = PR_FALSE;
     char *token = strtok(pathdup, ":");
     while (token) {
       sprintf(tmpPath, "%s/%s", token, argv[0]);
       if (stat(tmpPath, &fileStat) == 0) {
-        found = true;
+        found = PR_TRUE;
         lastSlash = strrchr(tmpPath, '/');
         *lastSlash = 0;
         realpath(tmpPath, iniPath);
@@ -281,15 +314,6 @@ main(int argc, char **argv)
 
   greFound = FolderExists(greDir);
 
-#ifdef XP_UNIX
-  if (greFound) {
-    char resolved_greDir[MAXPATHLEN] = "";
-    if (realpath(greDir, resolved_greDir) && *resolved_greDir) {
-      strncpy(greDir, resolved_greDir, MAXPATHLEN);
-    }
-  }
-#endif
-
   strncpy(lastSlash, "application.ini", sizeof(iniPath) - (lastSlash - iniPath));
 
 #endif
@@ -301,7 +325,7 @@ main(int argc, char **argv)
   if (!appDataFile || !*appDataFile) 
     if (argc > 1 && IsArg(argv[1], "app")) {
       if (argc == 2) {
-        Output(false, "specify APP-FILE (optional)\n");
+        Output(PR_FALSE, "specify APP-FILE (optional)\n");
         return 1;
       }
       argv[1] = argv[0];
@@ -316,11 +340,11 @@ main(int argc, char **argv)
       char kAppEnv[MAXPATHLEN];
       snprintf(kAppEnv, MAXPATHLEN, "XUL_APP_FILE=%s", appDataFile);
       if (putenv(kAppEnv)) 
-        Output(false, "Couldn't set %s.\n", kAppEnv);
+        Output(PR_FALSE, "Couldn't set %s.\n", kAppEnv);
 
       char *result = (char*) calloc(sizeof(char), MAXPATHLEN);
       if (NS_FAILED(GetRealPath(appDataFile, &result))) {
-        Output(true, "Invalid application.ini path.\n");
+        Output(PR_TRUE, "Invalid application.ini path.\n");
         return 1;
       }
       
@@ -353,7 +377,7 @@ main(int argc, char **argv)
 #ifdef XP_MACOSX
     // Check for <bundle>/Contents/Frameworks/XUL.framework/libxpcom.dylib
     CFURLRef fwurl = CFBundleCopyPrivateFrameworksURL(appBundle);
-    CFURLRef absfwurl = nullptr;
+    CFURLRef absfwurl = nsnull;
     if (fwurl) {
       absfwurl = CFURLCopyAbsoluteURL(fwurl);
       CFRelease(fwurl);
@@ -362,24 +386,24 @@ main(int argc, char **argv)
     if (absfwurl) {
       CFURLRef xulurl =
         CFURLCreateCopyAppendingPathComponent(NULL, absfwurl,
-                                              CFSTR("XUL.framework"),
-                                              true);
+                                              CFSTR("XUL.Framework"),
+                                              PR_TRUE);
 
       if (xulurl) {
         CFURLRef xpcomurl =
           CFURLCreateCopyAppendingPathComponent(NULL, xulurl,
                                                 CFSTR("libxpcom.dylib"),
-                                                false);
+                                                PR_FALSE);
 
         if (xpcomurl) {
           char tbuffer[MAXPATHLEN];
 
-          if (CFURLGetFileSystemRepresentation(xpcomurl, true,
+          if (CFURLGetFileSystemRepresentation(xpcomurl, PR_TRUE,
                                                (UInt8*) tbuffer,
                                                sizeof(tbuffer)) &&
               access(tbuffer, R_OK | X_OK) == 0) {
             if (realpath(tbuffer, greDir)) {
-              greFound = true;
+              greFound = PR_TRUE;
             }
             else {
               greDir[0] = '\0';
@@ -396,7 +420,7 @@ main(int argc, char **argv)
     }
 #endif
     if (!greFound) {
-      Output(false, "Could not find the Mozilla runtime.\n");
+      Output(PR_FALSE, "Could not find the Mozilla runtime.\n");
       return 1;
     }
   }
@@ -416,10 +440,10 @@ main(int argc, char **argv)
     if (rv == NS_ERROR_OUT_OF_MEMORY) {
       char applicationName[2000] = "this application";
       parser.GetString("App", "Name", applicationName, sizeof(applicationName));
-      Output(true, "Not enough memory available to start %s.\n",
+      Output(PR_TRUE, "Not enough memory available to start %s.\n",
              applicationName);
     } else {
-      Output(true, "Couldn't load XPCOM.\n");
+      Output(PR_TRUE, "Couldn't load XPCOM.\n");
     }
     return 1;
   }
@@ -428,12 +452,12 @@ main(int argc, char **argv)
     { "XRE_CreateAppData", (NSFuncPtr*) &XRE_CreateAppData },
     { "XRE_FreeAppData", (NSFuncPtr*) &XRE_FreeAppData },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
-    { nullptr, nullptr }
+    { nsnull, nsnull }
   };
 
   rv = XPCOMGlueLoadXULFunctions(kXULFuncs);
   if (NS_FAILED(rv)) {
-    Output(true, "Couldn't load XRE functions.\n");
+    Output(PR_TRUE, "Couldn't load XRE functions.\n");
     return 1;
   }
 
@@ -442,23 +466,23 @@ main(int argc, char **argv)
   int retval;
 
   { // Scope COMPtr and AutoAppData
-    nsCOMPtr<nsIFile> iniFile;
+    nsCOMPtr<nsILocalFile> iniFile;
 #ifdef XP_WIN
     // On Windows iniPath is UTF-8 encoded so we need to convert it.
-    rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(iniPath), false,
+    rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(iniPath), PR_FALSE,
                          getter_AddRefs(iniFile));
 #else
-    rv = NS_NewNativeLocalFile(nsDependentCString(iniPath), false,
+    rv = NS_NewNativeLocalFile(nsDependentCString(iniPath), PR_FALSE,
                                getter_AddRefs(iniFile));
 #endif
     if (NS_FAILED(rv)) {
-      Output(true, "Couldn't find application.ini file.\n");
+      Output(PR_TRUE, "Couldn't find application.ini file.\n");
       return 1;
     }
 
     AutoAppData appData(iniFile);
     if (!appData) {
-      Output(true, "Error: couldn't parse application.ini.\n");
+      Output(PR_TRUE, "Error: couldn't parse application.ini.\n");
       return 1;
     }
 
@@ -472,15 +496,15 @@ main(int argc, char **argv)
       }
 #ifdef XP_WIN
       // same as iniPath.
-      NS_NewLocalFile(NS_ConvertUTF8toUTF16(greDir), false,
+      NS_NewLocalFile(NS_ConvertUTF8toUTF16(greDir), PR_FALSE,
                       &appData->xreDirectory);
 #else
-      NS_NewNativeLocalFile(nsDependentCString(greDir), false,
+      NS_NewNativeLocalFile(nsDependentCString(greDir), PR_FALSE,
                             &appData->xreDirectory);
 #endif
     }
 
-    retval = XRE_main(argc, argv, appData, 0);
+    retval = XRE_main(argc, argv, appData);
   }
 
   NS_LogTerm();

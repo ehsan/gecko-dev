@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * mozilla.org.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Stuart Parmenter <pavlov@pavlov.net>
+ *   Vladimir Vukicevic <vladimir@pobox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsRenderingContext.h"
 #include "nsBoundingMetrics.h"
@@ -17,13 +51,13 @@
 // size the cluster buffer array in FindSafeLength
 #define MAX_GFX_TEXT_BUF_SIZE 8000
 
-static int32_t FindSafeLength(const PRUnichar *aString, uint32_t aLength,
-                              uint32_t aMaxChunkLength)
+static PRInt32 FindSafeLength(const PRUnichar *aString, PRUint32 aLength,
+                              PRUint32 aMaxChunkLength)
 {
     if (aLength <= aMaxChunkLength)
         return aLength;
 
-    int32_t len = aMaxChunkLength;
+    PRInt32 len = aMaxChunkLength;
 
     // Ensure that we don't break inside a surrogate pair
     while (len > 0 && NS_IS_LOW_SURROGATE(aString[len])) {
@@ -40,8 +74,8 @@ static int32_t FindSafeLength(const PRUnichar *aString, uint32_t aLength,
     return len;
 }
 
-static int32_t FindSafeLength(const char *aString, uint32_t aLength,
-                              uint32_t aMaxChunkLength)
+static PRInt32 FindSafeLength(const char *aString, PRUint32 aLength,
+                              PRUint32 aMaxChunkLength)
 {
     // Since it's ASCII, we don't need to worry about clusters or RTL
     return NS_MIN(aLength, aMaxChunkLength);
@@ -89,11 +123,11 @@ nsRenderingContext::IntersectClip(const nsRect& aRect)
 {
     mThebes->NewPath();
     gfxRect clipRect(GFX_RECT_FROM_TWIPS_RECT(aRect));
-    if (mThebes->UserToDevicePixelSnapped(clipRect, true)) {
+    if (mThebes->UserToDevicePixelSnapped(clipRect, PR_TRUE)) {
         gfxMatrix mat(mThebes->CurrentMatrix());
-        mat.Invert();
-        clipRect = mat.Transform(clipRect);
+        mThebes->IdentityMatrix();
         mThebes->Rectangle(clipRect);
+        mThebes->SetMatrix(mat);
     } else {
         mThebes->Rectangle(clipRect);
     }
@@ -120,7 +154,7 @@ nsRenderingContext::SetClip(const nsIntRegion& aRegion)
     const nsIntRect* rect;
     while ((rect = iter.Next())) {
         mThebes->Rectangle(gfxRect(rect->x, rect->y, rect->width, rect->height),
-                           true);
+                           PR_TRUE);
     }
     mThebes->Clip();
     mThebes->SetMatrix(mat);
@@ -225,7 +259,7 @@ void
 nsRenderingContext::DrawRect(const nsRect& aRect)
 {
     mThebes->NewPath();
-    mThebes->Rectangle(GFX_RECT_FROM_TWIPS_RECT(aRect), true);
+    mThebes->Rectangle(GFX_RECT_FROM_TWIPS_RECT(aRect), PR_TRUE);
     mThebes->Stroke();
 }
 
@@ -240,8 +274,8 @@ nsRenderingContext::DrawRect(nscoord aX, nscoord aY,
 /* Clamp r to (0,0) (2^23,2^23)
  * these are to be device coordinates.
  *
- * Returns false if the rectangle is completely out of bounds,
- * true otherwise.
+ * Returns PR_FALSE if the rectangle is completely out of bounds,
+ * PR_TRUE otherwise.
  *
  * This function assumes that it will be called with a rectangle being
  * drawn into a surface with an identity transformation matrix; that
@@ -249,7 +283,7 @@ nsRenderingContext::DrawRect(nscoord aX, nscoord aY,
  *
  * First it checks if the rectangle is entirely beyond
  * CAIRO_COORD_MAX; if so, it can't ever appear on the screen --
- * false is returned.
+ * PR_FALSE is returned.
  *
  * Then it shifts any rectangles with x/y < 0 so that x and y are = 0,
  * and adjusts the width and height appropriately.  For example, a
@@ -258,25 +292,25 @@ nsRenderingContext::DrawRect(nscoord aX, nscoord aY,
  *
  * If after negative x/y adjustment to 0, either the width or height
  * is negative, then the rectangle is completely offscreen, and
- * nothing is drawn -- false is returned.
+ * nothing is drawn -- PR_FALSE is returned.
  *
  * Finally, if x+width or y+height are greater than CAIRO_COORD_MAX,
  * the width and height are clamped such x+width or y+height are equal
- * to CAIRO_COORD_MAX, and true is returned.
+ * to CAIRO_COORD_MAX, and PR_TRUE is returned.
  */
 #define CAIRO_COORD_MAX (double(0x7fffff))
 
-static bool
+static PRBool
 ConditionRect(gfxRect& r) {
     // if either x or y is way out of bounds;
     // note that we don't handle negative w/h here
     if (r.X() > CAIRO_COORD_MAX || r.Y() > CAIRO_COORD_MAX)
-        return false;
+        return PR_FALSE;
 
     if (r.X() < 0.0) {
         r.width += r.X();
         if (r.width < 0.0)
-            return false;
+            return PR_FALSE;
         r.x = 0.0;
     }
 
@@ -287,7 +321,7 @@ ConditionRect(gfxRect& r) {
     if (r.Y() < 0.0) {
         r.height += r.Y();
         if (r.Height() < 0.0)
-            return false;
+            return PR_FALSE;
 
         r.y = 0.0;
     }
@@ -295,7 +329,7 @@ ConditionRect(gfxRect& r) {
     if (r.YMost() > CAIRO_COORD_MAX) {
         r.height = CAIRO_COORD_MAX - r.Y();
     }
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -322,13 +356,13 @@ nsRenderingContext::FillRect(const nsRect& aRect)
         mThebes->IdentityMatrix();
         mThebes->NewPath();
 
-        mThebes->Rectangle(r, true);
+        mThebes->Rectangle(r, PR_TRUE);
         mThebes->Fill();
         mThebes->SetMatrix(mat);
     }
 
     mThebes->NewPath();
-    mThebes->Rectangle(r, true);
+    mThebes->Rectangle(r, PR_TRUE);
     mThebes->Fill();
 }
 
@@ -347,6 +381,19 @@ nsRenderingContext::InvertRect(const nsRect& aRect)
     mThebes->SetOperator(gfxContext::OPERATOR_XOR);
     FillRect(aRect);
     mThebes->SetOperator(lastOp);
+}
+
+void
+nsRenderingContext::InvertRect(nscoord aX, nscoord aY,
+                               nscoord aWidth, nscoord aHeight)
+{
+    InvertRect(nsRect(aX, aY, aWidth, aHeight));
+}
+
+void
+nsRenderingContext::DrawEllipse(const nsRect& aRect)
+{
+    DrawEllipse(aRect.x, aRect.y, aRect.width, aRect.height);
 }
 
 void
@@ -380,7 +427,7 @@ nsRenderingContext::FillEllipse(nscoord aX, nscoord aY,
 }
 
 void
-nsRenderingContext::FillPolygon(const nsPoint twPoints[], int32_t aNumPoints)
+nsRenderingContext::FillPolygon(const nsPoint twPoints[], PRInt32 aNumPoints)
 {
     if (aNumPoints == 0)
         return;
@@ -402,9 +449,25 @@ nsRenderingContext::FillPolygon(const nsPoint twPoints[], int32_t aNumPoints)
 //
 
 void
-nsRenderingContext::SetTextRunRTL(bool aIsRTL)
+nsRenderingContext::SetTextRunRTL(PRBool aIsRTL)
 {
     mFontMetrics->SetTextRunRTL(aIsRTL);
+}
+
+void
+nsRenderingContext::SetFont(const nsFont& aFont, nsIAtom* aLanguage,
+                            gfxUserFontSet *aUserFontSet)
+{
+    mDeviceContext->GetMetricsFor(aFont, aLanguage, aUserFontSet,
+                                  *getter_AddRefs(mFontMetrics));
+}
+
+void
+nsRenderingContext::SetFont(const nsFont& aFont,
+                            gfxUserFontSet *aUserFontSet)
+{
+    mDeviceContext->GetMetricsFor(aFont, nsnull, aUserFontSet,
+                                  *getter_AddRefs(mFontMetrics));
 }
 
 void
@@ -413,7 +476,7 @@ nsRenderingContext::SetFont(nsFontMetrics *aFontMetrics)
     mFontMetrics = aFontMetrics;
 }
 
-int32_t
+PRInt32
 nsRenderingContext::GetMaxChunkLength()
 {
     if (!mFontMetrics)
@@ -450,12 +513,12 @@ nsRenderingContext::GetWidth(const char* aString)
 }
 
 nscoord
-nsRenderingContext::GetWidth(const char* aString, uint32_t aLength)
+nsRenderingContext::GetWidth(const char* aString, PRUint32 aLength)
 {
-    uint32_t maxChunkLength = GetMaxChunkLength();
+    PRUint32 maxChunkLength = GetMaxChunkLength();
     nscoord width = 0;
     while (aLength > 0) {
-        int32_t len = FindSafeLength(aString, aLength, maxChunkLength);
+        PRInt32 len = FindSafeLength(aString, aLength, maxChunkLength);
         width += mFontMetrics->GetWidth(aString, len, this);
         aLength -= len;
         aString += len;
@@ -464,12 +527,12 @@ nsRenderingContext::GetWidth(const char* aString, uint32_t aLength)
 }
 
 nscoord
-nsRenderingContext::GetWidth(const PRUnichar *aString, uint32_t aLength)
+nsRenderingContext::GetWidth(const PRUnichar *aString, PRUint32 aLength)
 {
-    uint32_t maxChunkLength = GetMaxChunkLength();
+    PRUint32 maxChunkLength = GetMaxChunkLength();
     nscoord width = 0;
     while (aLength > 0) {
-        int32_t len = FindSafeLength(aString, aLength, maxChunkLength);
+        PRInt32 len = FindSafeLength(aString, aLength, maxChunkLength);
         width += mFontMetrics->GetWidth(aString, len, this);
         aLength -= len;
         aString += len;
@@ -479,10 +542,10 @@ nsRenderingContext::GetWidth(const PRUnichar *aString, uint32_t aLength)
 
 nsBoundingMetrics
 nsRenderingContext::GetBoundingMetrics(const PRUnichar* aString,
-                                       uint32_t aLength)
+                                       PRUint32 aLength)
 {
-    uint32_t maxChunkLength = GetMaxChunkLength();
-    int32_t len = FindSafeLength(aString, aLength, maxChunkLength);
+    PRUint32 maxChunkLength = GetMaxChunkLength();
+    PRInt32 len = FindSafeLength(aString, aLength, maxChunkLength);
     // Assign directly in the first iteration. This ensures that
     // negative ascent/descent can be returned and the left bearing
     // is properly initialized.
@@ -503,12 +566,12 @@ nsRenderingContext::GetBoundingMetrics(const PRUnichar* aString,
 }
 
 void
-nsRenderingContext::DrawString(const char *aString, uint32_t aLength,
+nsRenderingContext::DrawString(const char *aString, PRUint32 aLength,
                                nscoord aX, nscoord aY)
 {
-    uint32_t maxChunkLength = GetMaxChunkLength();
+    PRUint32 maxChunkLength = GetMaxChunkLength();
     while (aLength > 0) {
-        int32_t len = FindSafeLength(aString, aLength, maxChunkLength);
+        PRInt32 len = FindSafeLength(aString, aLength, maxChunkLength);
         mFontMetrics->DrawString(aString, len, aX, aY, this);
         aLength -= len;
 
@@ -527,16 +590,16 @@ nsRenderingContext::DrawString(const nsString& aString, nscoord aX, nscoord aY)
 }
 
 void
-nsRenderingContext::DrawString(const PRUnichar *aString, uint32_t aLength,
+nsRenderingContext::DrawString(const PRUnichar *aString, PRUint32 aLength,
                                nscoord aX, nscoord aY)
 {
-    uint32_t maxChunkLength = GetMaxChunkLength();
+    PRUint32 maxChunkLength = GetMaxChunkLength();
     if (aLength <= maxChunkLength) {
         mFontMetrics->DrawString(aString, aLength, aX, aY, this, this);
         return;
     }
 
-    bool isRTL = mFontMetrics->GetTextRunRTL();
+    PRBool isRTL = mFontMetrics->GetTextRunRTL();
 
     // If we're drawing right to left, we must start at the end.
     if (isRTL) {
@@ -544,7 +607,7 @@ nsRenderingContext::DrawString(const PRUnichar *aString, uint32_t aLength,
     }
 
     while (aLength > 0) {
-        int32_t len = FindSafeLength(aString, aLength, maxChunkLength);
+        PRInt32 len = FindSafeLength(aString, aLength, maxChunkLength);
         nscoord width = mFontMetrics->GetWidth(aString, len, this);
         if (isRTL) {
             aX -= width;

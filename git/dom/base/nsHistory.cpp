@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Travis Bogard <travis@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsHistory.h"
 
@@ -10,6 +43,7 @@
 #include "nscore.h"
 #include "nsPIDOMWindow.h"
 #include "nsIScriptGlobalObject.h"
+#include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
@@ -22,8 +56,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
-#include "nsDOMClassInfoID.h"
-#include "nsError.h"
+#include "nsDOMClassInfo.h"
 #include "nsContentUtils.h"
 #include "nsISHistoryInternal.h"
 #include "mozilla/Preferences.h"
@@ -63,7 +96,7 @@ NS_IMPL_RELEASE(nsHistory)
 
 
 NS_IMETHODIMP
-nsHistory::GetLength(int32_t* aLength)
+nsHistory::GetLength(PRInt32* aLength)
 {
   nsCOMPtr<nsISHistory>   sHistory;
 
@@ -79,8 +112,8 @@ nsHistory::GetCurrent(nsAString& aCurrent)
   if (!nsContentUtils::IsCallerTrustedForRead())
     return NS_ERROR_DOM_SECURITY_ERR;
 
-  int32_t curIndex=0;
-  nsAutoCString curURL;
+  PRInt32 curIndex=0;
+  nsCAutoString curURL;
   nsCOMPtr<nsISHistory> sHistory;
 
   // Get SessionHistory from docshell
@@ -93,7 +126,7 @@ nsHistory::GetCurrent(nsAString& aCurrent)
   nsCOMPtr<nsIURI>     uri;
 
   // Get the SH entry for the current index
-  sHistory->GetEntryAtIndex(curIndex, false, getter_AddRefs(curEntry));
+  sHistory->GetEntryAtIndex(curIndex, PR_FALSE, getter_AddRefs(curEntry));
   NS_ENSURE_TRUE(curEntry, NS_ERROR_FAILURE);
 
   // Get the URI for the current entry
@@ -111,8 +144,8 @@ nsHistory::GetPrevious(nsAString& aPrevious)
   if (!nsContentUtils::IsCallerTrustedForRead())
     return NS_ERROR_DOM_SECURITY_ERR;
 
-  int32_t curIndex;
-  nsAutoCString prevURL;
+  PRInt32 curIndex;
+  nsCAutoString prevURL;
   nsCOMPtr<nsISHistory>  sHistory;
 
   // Get session History from docshell
@@ -125,7 +158,7 @@ nsHistory::GetPrevious(nsAString& aPrevious)
   nsCOMPtr<nsIURI>     uri;
 
   // Get the previous SH entry
-  sHistory->GetEntryAtIndex((curIndex-1), false, getter_AddRefs(prevEntry));
+  sHistory->GetEntryAtIndex((curIndex-1), PR_FALSE, getter_AddRefs(prevEntry));
   NS_ENSURE_TRUE(prevEntry, NS_ERROR_FAILURE);
 
   // Get the URI for the previous entry
@@ -140,11 +173,8 @@ nsHistory::GetPrevious(nsAString& aPrevious)
 NS_IMETHODIMP
 nsHistory::GetNext(nsAString& aNext)
 {
-  if (!nsContentUtils::IsCallerTrustedForRead())
-    return NS_ERROR_DOM_SECURITY_ERR;
-
-  int32_t curIndex;
-  nsAutoCString nextURL;
+  PRInt32 curIndex;
+  nsCAutoString nextURL;
   nsCOMPtr<nsISHistory>  sHistory;
 
   // Get session History from docshell
@@ -157,7 +187,7 @@ nsHistory::GetNext(nsAString& aNext)
   nsCOMPtr<nsIURI>     uri;
 
   // Get the next SH entry
-  sHistory->GetEntryAtIndex((curIndex+1), false, getter_AddRefs(nextEntry));
+  sHistory->GetEntryAtIndex((curIndex+1), PR_FALSE, getter_AddRefs(nextEntry));
   NS_ENSURE_TRUE(nextEntry, NS_ERROR_FAILURE);
 
   // Get the URI for the next entry
@@ -202,7 +232,7 @@ nsHistory::Forward()
 }
 
 NS_IMETHODIMP
-nsHistory::Go(int32_t aDelta)
+nsHistory::Go(PRInt32 aDelta)
 {
   if (aDelta == 0) {
     nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(GetDocShell()));
@@ -238,12 +268,12 @@ nsHistory::Go(int32_t aDelta)
   nsCOMPtr<nsIWebNavigation> webnav(do_QueryInterface(session_history));
   NS_ENSURE_TRUE(webnav, NS_ERROR_FAILURE);
 
-  int32_t curIndex=-1;
-  int32_t len = 0;
-  session_history->GetIndex(&curIndex);
-  session_history->GetCount(&len);
+  PRInt32 curIndex=-1;
+  PRInt32 len = 0;
+  nsresult rv = session_history->GetIndex(&curIndex);
+  rv = session_history->GetCount(&len);
 
-  int32_t index = curIndex + aDelta;
+  PRInt32 index = curIndex + aDelta;
   if (index > -1  &&  index < len)
     webnav->GotoIndex(index);
 
@@ -259,7 +289,7 @@ nsHistory::PushState(nsIVariant *aData, const nsAString& aTitle,
                      const nsAString& aURL, JSContext* aCx)
 {
   // Check that PushState hasn't been pref'ed off.
-  if (!Preferences::GetBool(sAllowPushStatePrefStr, false)) {
+  if (!Preferences::GetBool(sAllowPushStatePrefStr, PR_FALSE)) {
     return NS_OK;
   }
 
@@ -276,9 +306,9 @@ nsHistory::PushState(nsIVariant *aData, const nsAString& aTitle,
 
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
-  // false tells the docshell to add a new history entry instead of
+  // PR_FALSE tells the docshell to add a new history entry instead of
   // modifying the current one.
-  nsresult rv = docShell->AddState(aData, aTitle, aURL, false, aCx);
+  nsresult rv = docShell->AddState(aData, aTitle, aURL, PR_FALSE, aCx);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -289,7 +319,7 @@ nsHistory::ReplaceState(nsIVariant *aData, const nsAString& aTitle,
                         const nsAString& aURL, JSContext* aCx)
 {
   // Check that ReplaceState hasn't been pref'ed off
-  if (!Preferences::GetBool(sAllowReplaceStatePrefStr, false)) {
+  if (!Preferences::GetBool(sAllowReplaceStatePrefStr, PR_FALSE)) {
     return NS_OK;
   }
 
@@ -306,15 +336,15 @@ nsHistory::ReplaceState(nsIVariant *aData, const nsAString& aTitle,
 
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
-  // true tells the docshell to modify the current SHEntry, rather than
+  // PR_TRUE tells the docshell to modify the current SHEntry, rather than
   // create a new one.
-  return docShell->AddState(aData, aTitle, aURL, true, aCx);
+  return docShell->AddState(aData, aTitle, aURL, PR_TRUE, aCx);
 }
 
 NS_IMETHODIMP
 nsHistory::GetState(nsIVariant **aState)
 {
-  *aState = nullptr;
+  *aState = nsnull;
 
   nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
   if (!win)
@@ -332,7 +362,7 @@ nsHistory::GetState(nsIVariant **aState)
 }
 
 NS_IMETHODIMP
-nsHistory::Item(uint32_t aIndex, nsAString& aReturn)
+nsHistory::Item(PRUint32 aIndex, nsAString& aReturn)
 {
   aReturn.Truncate();
   if (!nsContentUtils::IsCallerTrustedForRead()) {
@@ -348,7 +378,7 @@ nsHistory::Item(uint32_t aIndex, nsAString& aReturn)
   nsCOMPtr<nsIHistoryEntry> sh_entry;
   nsCOMPtr<nsIURI> uri;
 
-  rv = session_history->GetEntryAtIndex(aIndex, false,
+  rv = session_history->GetEntryAtIndex(aIndex, PR_FALSE,
                                         getter_AddRefs(sh_entry));
 
   if (sh_entry) {
@@ -356,7 +386,7 @@ nsHistory::Item(uint32_t aIndex, nsAString& aReturn)
   }
 
   if (uri) {
-    nsAutoCString urlCString;
+    nsCAutoString urlCString;
     rv = uri->GetSpec(urlCString);
 
     CopyUTF8toUTF16(urlCString, aReturn);

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Kathleen Brade <brade@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsString.h"
 
@@ -14,6 +47,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIScriptSecurityManager.h"
 
+#include "nsIDOMDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowRoot.h"
@@ -26,7 +60,7 @@
 
 
 nsCommandManager::nsCommandManager()
-: mWindow(nullptr)
+: mWindow(nsnull)
 {
   /* member initializers and constructor code */
 }
@@ -38,16 +72,15 @@ nsCommandManager::~nsCommandManager()
 
 
 static PLDHashOperator
-TraverseCommandObservers(const char* aKey,
-                         nsCommandManager::ObserverList* aObservers,
+TraverseCommandObservers(const char* aKey, nsCOMArray<nsIObserver>* aObservers,
                          void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb = 
     static_cast<nsCycleCollectionTraversalCallback*>(aClosure);
 
-  int32_t i, numItems = aObservers->Length();
+  PRInt32 i, numItems = aObservers->Count();
   for (i = 0; i < numItems; ++i) {
-    cb->NoteXPCOMChild(aObservers->ElementAt(i));
+    cb->NoteXPCOMChild(aObservers->ObjectAt(i));
   }
 
   return PL_DHASH_NEXT;
@@ -83,7 +116,7 @@ nsCommandManager::Init(nsIDOMWindow *aWindow)
   
   NS_ASSERTION(aWindow, "Need non-null window here");
   mWindow = aWindow;      // weak ptr
-  mObserversTable.Init();
+  NS_ENSURE_TRUE(mObserversTable.Init(), NS_ERROR_OUT_OF_MEMORY);
   return NS_OK;
 }
 
@@ -91,16 +124,16 @@ nsCommandManager::Init(nsIDOMWindow *aWindow)
 NS_IMETHODIMP
 nsCommandManager::CommandStatusChanged(const char * aCommandName)
 {
-  ObserverList* commandObservers;
+  nsCOMArray<nsIObserver>* commandObservers;
   mObserversTable.Get(aCommandName, &commandObservers);
 
   if (commandObservers)
   {
     // XXX Should we worry about observers removing themselves from Observe()?
-    int32_t i, numItems = commandObservers->Length();
+    PRInt32 i, numItems = commandObservers->Count();
     for (i = 0; i < numItems;  ++i)
     {
-      nsCOMPtr<nsIObserver> observer = commandObservers->ElementAt(i);
+      nsCOMPtr<nsIObserver> observer = commandObservers->ObjectAt(i);
       // should we get the command state to pass here? This might be expensive.
       observer->Observe(NS_ISUPPORTS_CAST(nsICommandManager*, this),
                         aCommandName,
@@ -121,24 +154,29 @@ nsCommandManager::AddCommandObserver(nsIObserver *aCommandObserver, const char *
 {
   NS_ENSURE_ARG(aCommandObserver);
 
+  nsresult rv = NS_OK;
+
   // XXX todo: handle special cases of aCommandToObserve being null, or empty
 
   // for each command in the table, we make a list of observers for that command
-  ObserverList* commandObservers;
+  nsCOMArray<nsIObserver>* commandObservers;
   if (!mObserversTable.Get(aCommandToObserve, &commandObservers))
   {
-    commandObservers = new ObserverList;
-    mObserversTable.Put(aCommandToObserve, commandObservers);
+    nsAutoPtr<nsCOMArray<nsIObserver> > array(new nsCOMArray<nsIObserver>);
+    if (!array || !mObserversTable.Put(aCommandToObserve, array))
+      return NS_ERROR_OUT_OF_MEMORY;
+
+    commandObservers = array.forget();
   }
 
   // need to check that this command observer hasn't already been registered
-  int32_t existingIndex = commandObservers->IndexOf(aCommandObserver);
+  PRInt32 existingIndex = commandObservers->IndexOf(aCommandObserver);
   if (existingIndex == -1)
-    commandObservers->AppendElement(aCommandObserver);
+    rv = commandObservers->AppendObject(aCommandObserver);
   else
     NS_WARNING("Registering command observer twice on the same command");
   
-  return NS_OK;
+  return rv;
 }
 
 /* void removeCommandObserver (in nsIObserver aCommandObserver, in wstring aCommandObserved); */
@@ -149,13 +187,12 @@ nsCommandManager::RemoveCommandObserver(nsIObserver *aCommandObserver, const cha
 
   // XXX todo: handle special cases of aCommandToObserve being null, or empty
 
-  ObserverList* commandObservers;
+  nsCOMArray<nsIObserver>* commandObservers;
   if (!mObserversTable.Get(aCommandObserved, &commandObservers))
     return NS_ERROR_UNEXPECTED;
 
-  commandObservers->RemoveElement(aCommandObserver);
-
-  return NS_OK;
+  return commandObservers->RemoveObject(aCommandObserver) ? NS_OK :
+                                                            NS_ERROR_FAILURE;
 }
 
 /* boolean isCommandSupported(in string aCommandName,
@@ -163,13 +200,13 @@ nsCommandManager::RemoveCommandObserver(nsIObserver *aCommandObserver, const cha
 NS_IMETHODIMP
 nsCommandManager::IsCommandSupported(const char *aCommandName,
                                      nsIDOMWindow *aTargetWindow,
-                                     bool *outCommandSupported)
+                                     PRBool *outCommandSupported)
 {
   NS_ENSURE_ARG_POINTER(outCommandSupported);
 
   nsCOMPtr<nsIController> controller;
   GetControllerForCommand(aCommandName, aTargetWindow, getter_AddRefs(controller)); 
-  *outCommandSupported = (controller.get() != nullptr);
+  *outCommandSupported = (controller.get() != nsnull);
   return NS_OK;
 }
 
@@ -178,11 +215,11 @@ nsCommandManager::IsCommandSupported(const char *aCommandName,
 NS_IMETHODIMP
 nsCommandManager::IsCommandEnabled(const char *aCommandName,
                                    nsIDOMWindow *aTargetWindow,
-                                   bool *outCommandEnabled)
+                                   PRBool *outCommandEnabled)
 {
   NS_ENSURE_ARG_POINTER(outCommandEnabled);
   
-  bool    commandEnabled = false;
+  PRBool  commandEnabled = PR_FALSE;
   
   nsCOMPtr<nsIController> controller;
   GetControllerForCommand(aCommandName, aTargetWindow, getter_AddRefs(controller)); 
@@ -238,9 +275,9 @@ nsCommandManager::DoCommand(const char *aCommandName,
 }
 
 nsresult
-nsCommandManager::IsCallerChrome(bool *is_caller_chrome)
+nsCommandManager::IsCallerChrome(PRBool *is_caller_chrome)
 {
-  *is_caller_chrome = false;
+  *is_caller_chrome = PR_FALSE;
   nsresult rv = NS_OK;
   nsCOMPtr<nsIScriptSecurityManager> secMan = 
       do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
@@ -259,11 +296,11 @@ nsCommandManager::GetControllerForCommand(const char *aCommand,
                                           nsIController** outController)
 {
   nsresult rv = NS_ERROR_FAILURE;
-  *outController = nullptr;
+  *outController = nsnull;
 
   // check if we're in content or chrome
   // if we're not chrome we must have a target window or we bail
-  bool isChrome = false;
+  PRBool isChrome = PR_FALSE;
   rv = IsCallerChrome(&isChrome);
   if (NS_FAILED(rv))
     return rv;

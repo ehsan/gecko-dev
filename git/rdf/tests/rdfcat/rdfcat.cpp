@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *   Chase Tingley <tingley@sundell.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
 
@@ -48,7 +82,7 @@ static NS_DEFINE_CID(kRDFXMLDataSourceCID,  NS_RDFXMLDATASOURCE_CID);
     PR_BEGIN_MACRO \
     if (NS_FAILED(rv)) { \
         printf(">>> %s failed: rv=%x\n", step, rv); \
-        return 1;\
+        return rv;\
     } \
     PR_END_MACRO
 
@@ -63,31 +97,32 @@ public:
     // nsISupports interface
     NS_DECL_ISUPPORTS
 
-    // nsIOutputStream interface
+    // nsIBaseStream interface
     NS_IMETHOD Close(void) {
         return NS_OK;
     }
 
-    NS_IMETHOD Write(const char* aBuf, uint32_t aCount, uint32_t *aWriteCount) {
+    // nsIOutputStream interface
+    NS_IMETHOD Write(const char* aBuf, PRUint32 aCount, PRUint32 *aWriteCount) {
         PR_Write(PR_GetSpecialFD(PR_StandardOutput), aBuf, aCount);
         *aWriteCount = aCount;
         return NS_OK;
     }
 
     NS_IMETHOD
-    WriteFrom(nsIInputStream *inStr, uint32_t count, uint32_t *_retval) {
+    WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_retval) {
         NS_NOTREACHED("WriteFrom");
         return NS_ERROR_NOT_IMPLEMENTED;
     }
 
     NS_IMETHOD
-    WriteSegments(nsReadSegmentFun reader, void * closure, uint32_t count, uint32_t *_retval) {
+    WriteSegments(nsReadSegmentFun reader, void * closure, PRUint32 count, PRUint32 *_retval) {
         NS_NOTREACHED("WriteSegments");
         return NS_ERROR_NOT_IMPLEMENTED;
     }
 
     NS_IMETHOD
-    IsNonBlocking(bool *aNonBlocking) {
+    IsNonBlocking(PRBool *aNonBlocking) {
         NS_NOTREACHED("IsNonBlocking");
         return NS_ERROR_NOT_IMPLEMENTED;
     }
@@ -112,7 +147,7 @@ main(int argc, char** argv)
         return 1;
     }
 
-    NS_InitXPCOM2(nullptr, nullptr, nullptr);
+    NS_InitXPCOM2(nsnull, nsnull, nsnull);
 
     // Create a stream data source and initialize it on argv[1], which
     // is hopefully a "file:" URL.
@@ -127,14 +162,14 @@ main(int argc, char** argv)
     RETURN_IF_FAILED(rv, "datasource initialization");
 
     // Okay, this should load the XML file...
-    rv = remote->Refresh(false);
+    rv = remote->Refresh(PR_FALSE);
     RETURN_IF_FAILED(rv, "datasource refresh");
 
     // Pump events until the load is finished
     nsCOMPtr<nsIThread> thread = do_GetCurrentThread();
-    bool done = false;
+    PRBool done = PR_FALSE;
     while (!done) {
-        NS_ENSURE_TRUE(NS_ProcessNextEvent(thread), 1);
+        NS_ENSURE_STATE(NS_ProcessNextEvent(thread));
         remote->GetLoaded(&done);
     }
 
@@ -150,5 +185,5 @@ main(int argc, char** argv)
     rv = source->Serialize(out);
     RETURN_IF_FAILED(rv, "datasoure serialization");
 
-    return 0;
+    return NS_OK;
 }

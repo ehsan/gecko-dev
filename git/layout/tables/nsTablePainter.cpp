@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TableBackgroundPainter implementation.
+ *
+ * The Initial Developer of the Original Code is
+ * Elika J. Etemad ("fantasai") <fantasai@inkedblade.net>.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsTableFrame.h"
 #include "nsTableRowGroupFrame.h"
@@ -102,10 +134,10 @@
  */
 
 TableBackgroundPainter::TableBackgroundData::TableBackgroundData()
-  : mFrame(nullptr),
-    mVisible(false),
-    mBorder(nullptr),
-    mSynthBorder(nullptr)
+  : mFrame(nsnull),
+    mVisible(PR_FALSE),
+    mBorder(nsnull),
+    mSynthBorder(nsnull)
 {
   MOZ_COUNT_CTOR(TableBackgroundData);
 }
@@ -122,7 +154,7 @@ TableBackgroundPainter::TableBackgroundData::Destroy(nsPresContext* aPresContext
   NS_PRECONDITION(aPresContext, "null prescontext");
   if (mSynthBorder) {
     mSynthBorder->Destroy(aPresContext);
-    mSynthBorder = nullptr;
+    mSynthBorder = nsnull;
   }
 }
 
@@ -130,9 +162,9 @@ void
 TableBackgroundPainter::TableBackgroundData::Clear()
 {
   mRect.SetEmpty();
-  mFrame = nullptr;
-  mBorder = nullptr;
-  mVisible = false;
+  mFrame = nsnull;
+  mBorder = nsnull;
+  mVisible = PR_FALSE;
 }
 
 void
@@ -148,7 +180,7 @@ TableBackgroundPainter::TableBackgroundData::SetData()
 {
   NS_PRECONDITION(mFrame, "null frame");
   if (mFrame->IsVisibleForPainting()) {
-    mVisible = true;
+    mVisible = PR_TRUE;
     mBorder = mFrame->GetStyleBorder();
   }
 }
@@ -161,20 +193,20 @@ TableBackgroundPainter::TableBackgroundData::SetFull(nsIFrame* aFrame)
   SetData();
 }
 
-inline bool
+inline PRBool
 TableBackgroundPainter::TableBackgroundData::ShouldSetBCBorder()
 {
   /* we only need accurate border data when positioning background images*/
   if (!mVisible) {
-    return false;
+    return PR_FALSE;
   }
 
   const nsStyleBackground *bg = mFrame->GetStyleBackground();
   NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
     if (!bg->mLayers[i].mImage.IsEmpty())
-      return true;
+      return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 nsresult
@@ -202,13 +234,13 @@ TableBackgroundPainter::TableBackgroundPainter(nsTableFrame*        aTableFrame,
                                                nsRenderingContext& aRenderingContext,
                                                const nsRect&        aDirtyRect,
                                                const nsPoint&       aRenderPt,
-                                               uint32_t             aBGPaintFlags)
+                                               PRUint32             aBGPaintFlags)
   : mPresContext(aPresContext),
     mRenderingContext(aRenderingContext),
     mRenderPt(aRenderPt),
     mDirtyRect(aDirtyRect),
     mOrigin(aOrigin),
-    mCols(nullptr),
+    mCols(nsnull),
     mZeroBorder(aPresContext),
     mBGPaintFlags(aBGPaintFlags)
 {
@@ -229,8 +261,8 @@ TableBackgroundPainter::TableBackgroundPainter(nsTableFrame*        aTableFrame,
 TableBackgroundPainter::~TableBackgroundPainter()
 {
   if (mCols) {
-    TableBackgroundData* lastColGroup = nullptr;
-    for (uint32_t i = 0; i < mNumCols; i++) {
+    TableBackgroundData* lastColGroup = nsnull;
+    for (PRUint32 i = 0; i < mNumCols; i++) {
       if (mCols[i].mColGroup != lastColGroup) {
         lastColGroup = mCols[i].mColGroup;
         NS_ASSERTION(mCols[i].mColGroup, "colgroup data should not be null - bug 237421");
@@ -239,7 +271,7 @@ TableBackgroundPainter::~TableBackgroundPainter()
           lastColGroup->Destroy(mPresContext);
         delete lastColGroup;
       }
-      mCols[i].mColGroup = nullptr;
+      mCols[i].mColGroup = nsnull;
       mCols[i].mCol.Destroy(mPresContext);
     }
     delete [] mCols;
@@ -307,8 +339,8 @@ TableBackgroundPainter::TranslateContext(nscoord aDX,
 {
   mRenderPt += nsPoint(aDX, aDY);
   if (mCols) {
-    TableBackgroundData* lastColGroup = nullptr;
-    for (uint32_t i = 0; i < mNumCols; i++) {
+    TableBackgroundData* lastColGroup = nsnull;
+    for (PRUint32 i = 0; i < mNumCols; i++) {
       mCols[i].mCol.mRect.MoveBy(-aDX, -aDY);
       if (lastColGroup != mCols[i].mColGroup) {
         NS_ASSERTION(mCols[i].mColGroup, "colgroup data should not be null - bug 237421");
@@ -325,7 +357,7 @@ TableBackgroundPainter::TranslateContext(nscoord aDX,
 nsresult
 TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
                                    const nsMargin& aDeflate,
-                                   bool            aPaintTableBackground)
+                                   PRBool          aPaintTableBackground)
 {
   NS_PRECONDITION(aTableFrame, "null table frame");
 
@@ -334,7 +366,7 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
 
   if (rowGroups.Length() < 1) { //degenerate case
     if (aPaintTableBackground) {
-      PaintTableFrame(aTableFrame, nullptr, nullptr, nsMargin(0,0,0,0));
+      PaintTableFrame(aTableFrame, nsnull, nsnull, nsMargin(0,0,0,0));
     }
     /* No cells; nothing else to paint */
     return NS_OK;
@@ -353,7 +385,7 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
     mCols = new ColData[mNumCols];
     if (!mCols) return NS_ERROR_OUT_OF_MEMORY;
 
-    TableBackgroundData* cgData = nullptr;
+    TableBackgroundData* cgData = nsnull;
     nsMargin border;
     /* BC left borders aren't stored on cols, but the previous column's
        right border is the next one's left border.*/
@@ -383,13 +415,13 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
       }
 
       // Boolean that indicates whether mCols took ownership of cgData
-      bool cgDataOwnershipTaken = false;
+      PRBool cgDataOwnershipTaken = PR_FALSE;
       
       /*Loop over columns in this colgroup*/
       for (nsTableColFrame* col = cgFrame->GetFirstColumn(); col;
            col = static_cast<nsTableColFrame*>(col->GetNextSibling())) {
         /*Create data struct for column*/
-        uint32_t colIndex = col->GetColIndex();
+        PRUint32 colIndex = col->GetColIndex();
         NS_ASSERTION(colIndex < mNumCols, "prevent array boundary violation");
         if (mNumCols <= colIndex)
           break;
@@ -398,7 +430,7 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
         mCols[colIndex].mCol.mRect.MoveBy(cgData->mRect.x, cgData->mRect.y);
         //link to parent colgroup's data
         mCols[colIndex].mColGroup = cgData;
-        cgDataOwnershipTaken = true;
+        cgDataOwnershipTaken = PR_TRUE;
         if (mIsBorderCollapse) {
           border.left = lastLeftBorder;
           lastLeftBorder = col->GetContinuousBCBorderWidth(border);
@@ -416,7 +448,7 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
     }
   }
 
-  for (uint32_t i = 0; i < rowGroups.Length(); i++) {
+  for (PRUint32 i = 0; i < rowGroups.Length(); i++) {
     nsTableRowGroupFrame* rg = rowGroups[i];
     mRowGroup.SetFrame(rg);
     // Need to compute the right rect via GetOffsetTo, since the row
@@ -432,7 +464,7 @@ TableBackgroundPainter::PaintTable(nsTableFrame*   aTableFrame,
 
 nsresult
 TableBackgroundPainter::PaintRowGroup(nsTableRowGroupFrame* aFrame,
-                                      bool                  aPassThrough)
+                                      PRBool                aPassThrough)
 {
   NS_PRECONDITION(aFrame, "null frame");
 
@@ -524,7 +556,7 @@ TableBackgroundPainter::PaintRowGroup(nsTableRowGroupFrame* aFrame,
 
 nsresult
 TableBackgroundPainter::PaintRow(nsTableRowFrame* aFrame,
-                                 bool             aPassThrough)
+                                 PRBool           aPassThrough)
 {
   NS_PRECONDITION(aFrame, "null frame");
 
@@ -579,7 +611,7 @@ TableBackgroundPainter::PaintRow(nsTableRowFrame* aFrame,
 
 nsresult
 TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
-                                  bool aPassSelf)
+                                  PRBool aPassSelf)
 {
   NS_PRECONDITION(aCell, "null frame");
 
@@ -591,10 +623,10 @@ TableBackgroundPainter::PaintCell(nsTableCellFrame* aCell,
     return NS_OK;
   }
 
-  int32_t colIndex;
+  PRInt32 colIndex;
   aCell->GetColIndex(colIndex);
-  NS_ASSERTION(colIndex < int32_t(mNumCols), "prevent array boundary violation");
-  if (int32_t(mNumCols) <= colIndex)
+  NS_ASSERTION(colIndex < PRInt32(mNumCols), "prevent array boundary violation");
+  if (PRInt32(mNumCols) <= colIndex)
     return NS_OK;
 
   //Paint column group background

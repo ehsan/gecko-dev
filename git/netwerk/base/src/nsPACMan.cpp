@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsPACMan.h"
 #include "nsThreadUtils.h"
@@ -24,13 +56,13 @@
 
 // Check to see if the underlying request was not an error page in the case of
 // a HTTP request.  For other types of channels, just return true.
-static bool
+static PRBool
 HttpRequestSucceeded(nsIStreamLoader *loader)
 {
   nsCOMPtr<nsIRequest> request;
   loader->GetRequest(getter_AddRefs(request));
 
-  bool result = true;  // default to assuming success
+  PRBool result = PR_TRUE;  // default to assuming success
 
   nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(request);
   if (httpChannel)
@@ -43,8 +75,7 @@ HttpRequestSucceeded(nsIStreamLoader *loader)
 
 // These objects are stored in nsPACMan::mPendingQ
 
-class PendingPACQuery MOZ_FINAL : public PRCList,
-                                  public nsIDNSListener
+class PendingPACQuery : public PRCList, public nsIDNSListener
 {
 public:
   NS_DECL_ISUPPORTS
@@ -58,7 +89,7 @@ public:
     PR_INIT_CLIST(this);
   }
 
-  nsresult Start(uint32_t flags);
+  nsresult Start(PRUint32 flags);
   void     Complete(nsresult status, const nsCString &pacString);
 
 private:
@@ -72,7 +103,7 @@ private:
 NS_IMPL_THREADSAFE_ISUPPORTS1(PendingPACQuery, nsIDNSListener)
 
 nsresult
-PendingPACQuery::Start(uint32_t flags)
+PendingPACQuery::Start(PRUint32 flags)
 {
   if (mDNSRequest)
     return NS_OK;  // already started
@@ -84,7 +115,7 @@ PendingPACQuery::Start(uint32_t flags)
     return rv;
   }
 
-  nsAutoCString host;
+  nsCAutoString host;
   rv = mURI->GetAsciiHost(host);
   if (NS_FAILED(rv))
     return rv;
@@ -105,11 +136,11 @@ PendingPACQuery::Complete(nsresult status, const nsCString &pacString)
     return;
 
   mCallback->OnQueryComplete(status, pacString);
-  mCallback = nullptr;
+  mCallback = nsnull;
 
   if (mDNSRequest) {
     mDNSRequest->Cancel(NS_ERROR_ABORT);
-    mDNSRequest = nullptr;
+    mDNSRequest = nsnull;
   }
 }
 
@@ -121,7 +152,7 @@ PendingPACQuery::OnLookupComplete(nsICancelable *request,
   // NOTE: we don't care about the results of this DNS query.  We issued
   //       this DNS query just to pre-populate our DNS cache.
  
-  mDNSRequest = nullptr;  // break reference cycle
+  mDNSRequest = nsnull;  // break reference cycle
 
   // If we've already completed this query then do nothing.
   if (!mCallback)
@@ -130,7 +161,7 @@ PendingPACQuery::OnLookupComplete(nsICancelable *request,
   // We're no longer pending, so we can remove ourselves.
   PR_REMOVE_LINK(this);
 
-  nsAutoCString pacString;
+  nsCAutoString pacString;
   status = mPACMan->GetProxyForURI(mURI, pacString);
   Complete(status, pacString);
 
@@ -141,8 +172,8 @@ PendingPACQuery::OnLookupComplete(nsICancelable *request,
 //-----------------------------------------------------------------------------
 
 nsPACMan::nsPACMan()
-  : mLoadPending(false)
-  , mShutdown(false)
+  : mLoadPending(PR_FALSE)
+  , mShutdown(PR_FALSE)
   , mScheduledReload(LL_MAXINT)
   , mLoadFailureCount(0)
 {
@@ -151,8 +182,8 @@ nsPACMan::nsPACMan()
 
 nsPACMan::~nsPACMan()
 {
-  NS_ASSERTION(mLoader == nullptr, "pac man not shutdown properly");
-  NS_ASSERTION(mPAC == nullptr, "pac man not shutdown properly");
+  NS_ASSERTION(mLoader == nsnull, "pac man not shutdown properly");
+  NS_ASSERTION(mPAC == nsnull, "pac man not shutdown properly");
   NS_ASSERTION(PR_CLIST_IS_EMPTY(&mPendingQ), "pac man not shutdown properly");
 }
 
@@ -162,8 +193,8 @@ nsPACMan::Shutdown()
   CancelExistingLoad();
   ProcessPendingQ(NS_ERROR_ABORT);
 
-  mPAC = nullptr;
-  mShutdown = true;
+  mPAC = nsnull;
+  mShutdown = PR_TRUE;
 }
 
 nsresult
@@ -183,7 +214,7 @@ nsPACMan::GetProxyForURI(nsIURI *uri, nsACString &result)
   if (!mPAC)
     return NS_ERROR_NOT_AVAILABLE;
 
-  nsAutoCString spec, host;
+  nsCAutoString spec, host;
   uri->GetAsciiSpec(spec);
   uri->GetAsciiHost(host);
 
@@ -248,7 +279,7 @@ nsPACMan::LoadPACFromURI(nsIURI *pacURI)
     nsresult rv;
     if (NS_FAILED(rv = NS_DispatchToCurrentThread(event)))
       return rv;
-    mLoadPending = true;
+    mLoadPending = PR_TRUE;
   }
 
   CancelExistingLoad();
@@ -259,14 +290,14 @@ nsPACMan::LoadPACFromURI(nsIURI *pacURI)
     mLoadFailureCount = 0;  // reset
   }
   mScheduledReload = LL_MAXINT;
-  mPAC = nullptr;
+  mPAC = nsnull;
   return NS_OK;
 }
 
 void
 nsPACMan::StartLoading()
 {
-  mLoadPending = false;
+  mLoadPending = PR_FALSE;
 
   // CancelExistingLoad was called...
   if (!mLoader) {
@@ -286,7 +317,7 @@ nsPACMan::StartLoading()
       if (channel) {
         channel->SetLoadFlags(nsIRequest::LOAD_BYPASS_CACHE);
         channel->SetNotificationCallbacks(this);
-        if (NS_SUCCEEDED(channel->AsyncOpen(mLoader, nullptr)))
+        if (NS_SUCCEEDED(channel->AsyncOpen(mLoader, nsnull)))
           return;
       }
     }
@@ -303,14 +334,14 @@ nsPACMan::MaybeReloadPAC()
     return;
 
   if (PR_Now() > mScheduledReload)
-    LoadPACFromURI(nullptr);
+    LoadPACFromURI(nsnull);
 }
 
 void
 nsPACMan::OnLoadFailure()
 {
-  int32_t minInterval = 5;    // 5 seconds
-  int32_t maxInterval = 300;  // 5 minutes
+  PRInt32 minInterval = 5;    // 5 seconds
+  PRInt32 maxInterval = 300;  // 5 minutes
 
   nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefs) {
@@ -320,7 +351,7 @@ nsPACMan::OnLoadFailure()
                       &maxInterval);
   }
 
-  int32_t interval = minInterval << mLoadFailureCount++;  // seconds
+  PRInt32 interval = minInterval << mLoadFailureCount++;  // seconds
   if (!interval || interval > maxInterval)
     interval = maxInterval;
 
@@ -328,7 +359,7 @@ nsPACMan::OnLoadFailure()
   printf("PAC load failure: will retry in %d seconds\n", interval);
 #endif
 
-  mScheduledReload = PR_Now() + int64_t(interval) * PR_USEC_PER_SEC;
+  mScheduledReload = PR_Now() + PRInt64(interval) * PR_USEC_PER_SEC;
 }
 
 void
@@ -339,7 +370,7 @@ nsPACMan::CancelExistingLoad()
     mLoader->GetRequest(getter_AddRefs(request));
     if (request)
       request->Cancel(NS_ERROR_ABORT);
-    mLoader = nullptr;
+    mLoader = nsnull;
   }
 }
 
@@ -375,8 +406,8 @@ NS_IMETHODIMP
 nsPACMan::OnStreamComplete(nsIStreamLoader *loader,
                            nsISupports *context,
                            nsresult status,
-                           uint32_t dataLen,
-                           const uint8_t *data)
+                           PRUint32 dataLen,
+                           const PRUint8 *data)
 {
   if (mLoader != loader) {
     // If this happens, then it means that LoadPACFromURI was called more
@@ -387,11 +418,11 @@ nsPACMan::OnStreamComplete(nsIStreamLoader *loader,
       return NS_OK;
   }
 
-  mLoader = nullptr;
+  mLoader = nsnull;
 
   if (NS_SUCCEEDED(status) && HttpRequestSucceeded(loader)) {
     // Get the URI spec used to load this PAC script.
-    nsAutoCString pacURI;
+    nsCAutoString pacURI;
     {
       nsCOMPtr<nsIRequest> request;
       loader->GetRequest(getter_AddRefs(request));
@@ -428,7 +459,7 @@ nsPACMan::OnStreamComplete(nsIStreamLoader *loader,
 
   // Reset mPAC if necessary
   if (mPAC && NS_FAILED(status))
-    mPAC = nullptr;
+    mPAC = nsnull;
 
   ProcessPendingQ(status);
   return NS_OK;
@@ -441,7 +472,7 @@ nsPACMan::GetInterface(const nsIID &iid, void **result)
   if (iid.Equals(NS_GET_IID(nsIAuthPrompt))) {
     nsCOMPtr<nsIPromptFactory> promptFac = do_GetService("@mozilla.org/prompter;1");
     NS_ENSURE_TRUE(promptFac, NS_ERROR_FAILURE);
-    return promptFac->GetPrompt(nullptr, iid, reinterpret_cast<void**>(result));
+    return promptFac->GetPrompt(nsnull, iid, reinterpret_cast<void**>(result));
   }
 
   // In case loading the PAC file results in a redirect.
@@ -456,7 +487,7 @@ nsPACMan::GetInterface(const nsIID &iid, void **result)
 
 NS_IMETHODIMP
 nsPACMan::AsyncOnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel,
-                                 uint32_t flags,
+                                 PRUint32 flags,
                                  nsIAsyncVerifyRedirectCallback *callback)
 {
   nsresult rv = NS_OK;

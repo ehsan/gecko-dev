@@ -1,4 +1,5 @@
 <!DOCTYPE HTML><html><head>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
 </head>
 <body>
@@ -8,7 +9,7 @@
   var t = document.querySelector("textarea");
   t.focus();
   t.selectionStart = t.selectionEnd = t.value.length;
-  sendKey('ENTER');
+  sendKey('ENTER', "target");
   document.body.appendChild(document.createTextNode(t.selectionStart + " - " + t.selectionEnd));
 </script>
 </body>

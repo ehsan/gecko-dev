@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bill Law       law@netscape.com
+ *   Robert Strong  robert.bugzilla@gmail.com
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsNativeAppSupportBase.h"
 #include "nsNativeAppSupportWin.h"
@@ -271,8 +305,8 @@ public:
     NS_DECL_ISUPPORTS_INHERITED
 
     // Overrides of base implementation.
-    NS_IMETHOD Start( bool *aResult );
-    NS_IMETHOD Stop( bool *aResult );
+    NS_IMETHOD Start( PRBool *aResult );
+    NS_IMETHOD Stop( PRBool *aResult );
     NS_IMETHOD Quit();
     NS_IMETHOD Enable();
     // The "old" Start method (renamed).
@@ -283,7 +317,7 @@ public:
     void CheckConsole();
 
 private:
-    static void HandleCommandLine(const char* aCmdLineString, nsIFile* aWorkingDir, uint32_t aState);
+    static void HandleCommandLine(const char* aCmdLineString, nsIFile* aWorkingDir, PRUint32 aState);
     static HDDEDATA CALLBACK HandleDDENotification( UINT     uType,
                                                     UINT     uFmt,
                                                     HCONV    hconv,
@@ -296,7 +330,7 @@ private:
     static void ParseDDEArg( const WCHAR* args, int index, nsString& aString);
     static HDDEDATA CreateDDEData( DWORD value );
     static HDDEDATA CreateDDEData( LPBYTE value, DWORD len );
-    static bool     InitTopicStrings();
+    static PRBool   InitTopicStrings();
     static int      FindTopic( HSZ topic );
     static void ActivateLastWindow();
     static nsresult OpenWindow( const char *urlstr, const char *args );
@@ -318,7 +352,7 @@ private:
     };
     static HSZ   mApplication, mTopics[ topicCount ];
     static DWORD mInstance;
-    static bool mCanHandleRequests;
+    static PRBool mCanHandleRequests;
     static PRUnichar mMutexName[];
     friend struct MessageWindow;
 }; // nsNativeAppSupportWin
@@ -332,22 +366,6 @@ NS_IMPL_RELEASE_INHERITED(nsNativeAppSupportWin, nsNativeAppSupportBase)
 
 void
 nsNativeAppSupportWin::CheckConsole() {
-    // Try to attach console to the parent process.
-    // It will succeed when the parent process is a command line,
-    // so that stdio will be displayed in it.
-    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-        // Change std handles to refer to new console handles. Before doing so,
-        // ensure that stdout/stderr haven't been redirected to a valid file
-        if (_fileno(stdout) == -1 || _get_osfhandle(fileno(stdout)) == -1)
-            freopen("CONOUT$", "w", stdout);
-        // There isn't any `CONERR$`, so that we merge stderr into CONOUT$
-        // http://msdn.microsoft.com/en-us/library/windows/desktop/ms683231%28v=vs.85%29.aspx
-        if (_fileno(stderr) == -1 || _get_osfhandle(fileno(stderr)) == -1)
-            freopen("CONOUT$", "w", stderr);
-        if (_fileno(stdin) == -1 || _get_osfhandle(fileno(stdin)) == -1)
-            freopen("CONIN$", "r", stdin);
-    }
-
     for ( int i = 1; i < gArgc; i++ ) {
         if ( strcmp( "-console", gArgv[i] ) == 0
              ||
@@ -454,7 +472,7 @@ int   nsNativeAppSupportWin::mConversations = 0;
 HSZ   nsNativeAppSupportWin::mApplication   = 0;
 HSZ   nsNativeAppSupportWin::mTopics[nsNativeAppSupportWin::topicCount] = { 0 };
 DWORD nsNativeAppSupportWin::mInstance      = 0;
-bool nsNativeAppSupportWin::mCanHandleRequests   = false;
+PRBool nsNativeAppSupportWin::mCanHandleRequests   = PR_FALSE;
 
 PRUnichar nsNativeAppSupportWin::mMutexName[ 128 ] = { 0 };
 
@@ -577,7 +595,7 @@ struct MessageWindow {
 #if MOZ_DEBUG_DDE
             printf( "Incoming request: %s\n", (const char*)cds->lpData );
 #endif
-            nsCOMPtr<nsIFile> workingDir;
+            nsCOMPtr<nsILocalFile> workingDir;
 
             if (1 >= cds->dwData) {
                 char* wdpath = (char*) cds->lpData;
@@ -593,7 +611,7 @@ struct MessageWindow {
 #endif
 
                 NS_NewLocalFile(NS_ConvertUTF8toUTF16(wdpath),
-                                false,
+                                PR_FALSE,
                                 getter_AddRefs(workingDir));
             }
             (void)nsNativeAppSupportWin::HandleCommandLine((char*)cds->lpData, workingDir, nsICommandLine::STATE_REMOTE_AUTO);
@@ -623,19 +641,19 @@ private:
  *        be protected by use of a mutex semaphore.
  */
 NS_IMETHODIMP
-nsNativeAppSupportWin::Start( bool *aResult ) {
+nsNativeAppSupportWin::Start( PRBool *aResult ) {
     NS_ENSURE_ARG( aResult );
     NS_ENSURE_TRUE( mInstance == 0, NS_ERROR_NOT_INITIALIZED );
     NS_ENSURE_STATE( gAppData );
 
     if (getenv("MOZ_NO_REMOTE"))
     {
-        *aResult = true;
+        *aResult = PR_TRUE;
         return NS_OK;
     }
 
     nsresult rv = NS_ERROR_FAILURE;
-    *aResult = false;
+    *aResult = PR_FALSE;
 
     // Grab mutex first.
 
@@ -660,7 +678,7 @@ nsNativeAppSupportWin::Start( bool *aResult ) {
             // Start up DDE server.
             this->StartDDE();
             // Tell caller to spin message loop.
-            *aResult = true;
+            *aResult = PR_TRUE;
         }
     }
 
@@ -669,14 +687,14 @@ nsNativeAppSupportWin::Start( bool *aResult ) {
     return rv;
 }
 
-bool
+PRBool
 nsNativeAppSupportWin::InitTopicStrings() {
     for ( int i = 0; i < topicCount; i++ ) {
         if ( !( mTopics[ i ] = DdeCreateStringHandleA( mInstance, const_cast<char *>(topicNames[ i ]), CP_WINANSI ) ) ) {
-            return false;
+            return PR_FALSE;
         }
     }
-    return true;
+    return PR_TRUE;
 }
 
 int
@@ -727,12 +745,12 @@ nsNativeAppSupportWin::StartDDE() {
 
 // If no DDE conversations are pending, terminate DDE.
 NS_IMETHODIMP
-nsNativeAppSupportWin::Stop( bool *aResult ) {
+nsNativeAppSupportWin::Stop( PRBool *aResult ) {
     NS_ENSURE_ARG( aResult );
     NS_ENSURE_TRUE( mInstance, NS_ERROR_NOT_INITIALIZED );
 
     nsresult rv = NS_OK;
-    *aResult = true;
+    *aResult = PR_TRUE;
 
     Mutex ddeLock( mMutexName );
 
@@ -740,7 +758,7 @@ nsNativeAppSupportWin::Stop( bool *aResult ) {
         if ( mConversations == 0 ) {
             this->Quit();
         } else {
-            *aResult = false;
+            *aResult = PR_FALSE;
         }
 
         ddeLock.Unlock();
@@ -748,7 +766,7 @@ nsNativeAppSupportWin::Stop( bool *aResult ) {
     else {
         // No DDE application name specified, but that's OK.  Just
         // forge ahead.
-        *aResult = true;
+        *aResult = PR_TRUE;
     }
 
     return rv;
@@ -811,11 +829,11 @@ nsNativeAppSupportWin::Quit() {
 NS_IMETHODIMP
 nsNativeAppSupportWin::Enable()
 {
-    mCanHandleRequests = true;
+    mCanHandleRequests = PR_TRUE;
 
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
-        obs->AddObserver(this, "quit-application", false);
+        obs->AddObserver(this, "quit-application", PR_FALSE);
     } else {
         NS_ERROR("No observer service?");
     }
@@ -878,7 +896,7 @@ static nsCString hszValue( DWORD, HSZ ) {
 
 // Utility function to escape double-quotes within a string.
 static void escapeQuotes( nsAString &aString ) {
-    int32_t offset = -1;
+    PRInt32 offset = -1;
     while( 1 ) {
        // Find next '"'.
        offset = aString.FindChar( '"', ++offset );
@@ -961,7 +979,7 @@ nsNativeAppSupportWin::HandleDDENotification( UINT uType,       // transaction t
                     printf( "Handling dde XTYP_REQUEST request: [%s]...\n", NS_ConvertUTF16toUTF8(url).get() );
 #endif
                     // Now handle it.
-                    HandleCommandLine(NS_ConvertUTF16toUTF8(url).get(), nullptr, nsICommandLine::STATE_REMOTE_EXPLICIT);
+                    HandleCommandLine(NS_ConvertUTF16toUTF8(url).get(), nsnull, nsICommandLine::STATE_REMOTE_EXPLICIT);
 
                     // Return pseudo window ID.
                     result = CreateDDEData( 1 );
@@ -1030,10 +1048,10 @@ nsNativeAppSupportWin::HandleDDENotification( UINT uType,       // transaction t
 
                         // Use a string buffer for the output data, first
                         // save a quote.
-                        nsAutoCString   outpt( NS_LITERAL_CSTRING("\"") );
+                        nsCAutoString   outpt( NS_LITERAL_CSTRING("\"") );
                         // Now copy the URL converting the Unicode string
                         // to a single-byte ASCII string
-                        nsAutoCString tmpNativeStr;
+                        nsCAutoString tmpNativeStr;
                         NS_CopyUnicodeToNative( url, tmpNativeStr );
                         outpt.Append( tmpNativeStr );
                         // Add the "," used to separate the URL and the page
@@ -1054,7 +1072,7 @@ nsNativeAppSupportWin::HandleDDENotification( UINT uType,       // transaction t
 #if MOZ_DEBUG_DDE
                         printf( "WWW_GetWindowInfo->%s\n", outpt.get() );
 #endif
-                    } while ( false );
+                    } while ( PR_FALSE );
                     break;
                 }
                 case topicActivate: {
@@ -1080,12 +1098,12 @@ nsNativeAppSupportWin::HandleDDENotification( UINT uType,       // transaction t
                 }
                 case topicRegisterViewer: {
                     // Register new viewer (not implemented).
-                    result = CreateDDEData( false );
+                    result = CreateDDEData( PR_FALSE );
                     break;
                 }
                 case topicUnRegisterViewer: {
                     // Unregister new viewer (not implemented).
-                    result = CreateDDEData( false );
+                    result = CreateDDEData( PR_FALSE );
                     break;
                 }
                 default:
@@ -1130,7 +1148,7 @@ nsNativeAppSupportWin::HandleDDENotification( UINT uType,       // transaction t
             printf( "Handling dde XTYP_REQUEST request: [%s]...\n", NS_ConvertUTF16toUTF8(url).get() );
 #endif
             // Now handle it.
-            HandleCommandLine(NS_ConvertUTF16toUTF8(url).get(), nullptr, nsICommandLine::STATE_REMOTE_EXPLICIT);
+            HandleCommandLine(NS_ConvertUTF16toUTF8(url).get(), nsnull, nsICommandLine::STATE_REMOTE_EXPLICIT);
 
             // Release the data.
             DdeUnaccessData( hdata );
@@ -1152,7 +1170,7 @@ nsNativeAppSupportWin::HandleDDENotification( UINT uType,       // transaction t
 // if the closing '"' is missing) if the arg is quoted.  If the arg
 // is not quoted, then p+result will point to the first character
 // of the arg.
-static int32_t advanceToEndOfQuotedArg( const WCHAR *p, int32_t offset, int32_t len ) {
+static PRInt32 advanceToEndOfQuotedArg( const WCHAR *p, PRInt32 offset, PRInt32 len ) {
     // Check whether the current arg is quoted.
     if ( p[++offset] == '"' ) {
         // Advance past the closing quote.
@@ -1172,7 +1190,7 @@ void nsNativeAppSupportWin::ParseDDEArg( const WCHAR* args, int index, nsString&
         nsDependentString temp(args);
 
         // offset points to the comma preceding the desired arg.
-        int32_t offset = -1;
+        PRInt32 offset = -1;
         // Skip commas till we get to the arg we want.
         while( index-- ) {
             // If this arg is quoted, then go to closing quote.
@@ -1193,7 +1211,7 @@ void nsNativeAppSupportWin::ParseDDEArg( const WCHAR* args, int index, nsString&
         // deal with that before searching for the terminating comma.
         // We advance offset so it ends up pointing to the start of
         // the argument we want.
-        int32_t end = advanceToEndOfQuotedArg( args, offset++, temp.Length() );
+        PRInt32 end = advanceToEndOfQuotedArg( args, offset++, temp.Length() );
         // Find next comma (or end of string).
         end = temp.FindChar( ',', end );
         if ( end == kNotFound ) {
@@ -1251,7 +1269,7 @@ void nsNativeAppSupportWin::ActivateLastWindow() {
 void
 nsNativeAppSupportWin::HandleCommandLine(const char* aCmdLineString,
                                          nsIFile* aWorkingDir,
-                                         uint32_t aState)
+                                         PRUint32 aState)
 {
     nsresult rv;
 
@@ -1262,7 +1280,7 @@ nsNativeAppSupportWin::HandleCommandLine(const char* aCmdLineString,
     int between, quoted, bSlashCount;
     int argc;
     const char *p;
-    nsAutoCString arg;
+    nsCAutoString arg;
 
     nsCOMPtr<nsICommandLineRunner> cmdLine
         (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
@@ -1465,7 +1483,7 @@ protected:
   JSContext                         *mContext;
 };
 
-SafeJSContext::SafeJSContext() : mContext(nullptr) {
+SafeJSContext::SafeJSContext() : mContext(nsnull) {
 }
 
 SafeJSContext::~SafeJSContext() {
@@ -1483,9 +1501,11 @@ nsresult SafeJSContext::Push() {
     return NS_ERROR_FAILURE;
 
   mService = do_GetService(sJSStackContractID);
-  if (mService) {
-    JSContext* cx = mService->GetSafeJSContext();
-    if (cx && NS_SUCCEEDED(mService->Push(cx))) {
+  if(mService) {
+    JSContext *cx;
+    if (NS_SUCCEEDED(mService->GetSafeJSContext(&cx)) &&
+        cx &&
+        NS_SUCCEEDED(mService->Push(cx))) {
       // Save cx in mContext to indicate need to pop.
       mContext = cx;
     }
@@ -1545,7 +1565,7 @@ nsNativeAppSupportWin::OpenBrowserWindow()
         }
 
         NS_ERROR("failed to hand off external URL to extant window");
-    } while ( false );
+    } while ( PR_FALSE );
 
     // open a new window if caller requested it or if anything above failed
 
@@ -1554,7 +1574,7 @@ nsNativeAppSupportWin::OpenBrowserWindow()
         (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
     NS_ENSURE_TRUE(cmdLine, NS_ERROR_FAILURE);
 
-    rv = cmdLine->Init(0, argv, nullptr, nsICommandLine::STATE_REMOTE_EXPLICIT);
+    rv = cmdLine->Init(0, argv, nsnull, nsICommandLine::STATE_REMOTE_EXPLICIT);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return cmdLine->Run();

@@ -75,5 +75,7 @@ CSRCS = \
 	pkix_pl_socket.c \
 	$(NULL)
 
+REQUIRES = dbm
+
 LIBRARY_NAME = pkixmodule
 

@@ -1,7 +1,44 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert Churchill <rjc@netscape.com>
+ *   David Hyatt <hyatt@netscape.com>
+ *   Chris Waterson <waterson@netscape.com>
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *   Neil Deakin <enndeakin@sympatico.ca>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsXULTemplateBuilder_h__
 #define nsXULTemplateBuilder_h__
@@ -44,8 +81,6 @@ class nsXULTemplateBuilder : public nsIXULTemplateBuilder,
                              public nsIObserver,
                              public nsStubDocumentObserver
 {
-    void CleanUp(bool aIsFinal);
-
 public:
     nsXULTemplateBuilder();
     virtual ~nsXULTemplateBuilder();
@@ -56,7 +91,7 @@ public:
      * Clear the template builder structures. The aIsFinal flag is set to true
      * when the template is going away.
      */
-    virtual void Uninit(bool aIsFinal);
+    virtual void Uninit(PRBool aIsFinal);
 
     // nsISupports interface
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -110,7 +145,7 @@ public:
     nsresult
     ComputeContainmentProperties();
 
-    static bool
+    static PRBool
     IsTemplateElement(nsIContent* aContent);
 
     virtual nsresult
@@ -118,11 +153,11 @@ public:
 
     void RunnableRebuild() { Rebuild(); }
     void RunnableLoadAndRebuild() {
-      Uninit(false);  // Reset results
+      Uninit(PR_FALSE);  // Reset results
 
-      nsCOMPtr<nsIDocument> doc = mRoot ? mRoot->GetDocument() : nullptr;
+      nsCOMPtr<nsIDocument> doc = mRoot ? mRoot->GetDocument() : nsnull;
       if (doc) {
-        bool shouldDelay;
+        PRBool shouldDelay;
         LoadDataSources(doc, &shouldDelay);
         if (!shouldDelay) {
           Rebuild();
@@ -132,8 +167,8 @@ public:
 
     // mRoot should not be cleared until after Uninit is finished so that
     // generated content can be removed during uninitialization.
-    void UninitFalse() { Uninit(false); mRoot = nullptr; }
-    void UninitTrue() { Uninit(true); mRoot = nullptr; }
+    void UninitFalse() { Uninit(PR_FALSE); mRoot = nsnull; }
+    void UninitTrue() { Uninit(PR_TRUE); mRoot = nsnull; }
 
     /**
      * Find the <template> tag that applies for this builder
@@ -166,9 +201,9 @@ public:
     nsresult
     CompileTemplate(nsIContent* aTemplate,
                     nsTemplateQuerySet* aQuerySet,
-                    bool aIsQuerySet,
-                    int32_t* aPriority,
-                    bool* aCanUseTemplate);
+                    PRBool aIsQuerySet,
+                    PRInt32* aPriority,
+                    PRBool* aCanUseTemplate);
 
     /**
      * Compile a query using the extended syntax. For backwards compatible RDF
@@ -208,7 +243,7 @@ public:
     nsresult 
     CompileSimpleQuery(nsIContent* aRuleElement,
                        nsTemplateQuerySet* aQuerySet,
-                       bool* aCanUseTemplate);
+                       PRBool* aCanUseTemplate);
 
     /**
      * Compile the <conditions> tag in a rule
@@ -267,7 +302,7 @@ public:
      * datasource is loaded as needed.
      */
     nsresult
-    LoadDataSources(nsIDocument* aDoc, bool* shouldDelayBuilding);
+    LoadDataSources(nsIDocument* aDoc, PRBool* shouldDelayBuilding);
 
     /**
      * Called by LoadDataSources to load a datasource given a uri list
@@ -279,8 +314,8 @@ public:
     nsresult
     LoadDataSourceUrls(nsIDocument* aDocument,
                        const nsAString& aDataSources,
-                       bool aIsRDFQuery,
-                       bool* aShouldDelayBuilding);
+                       PRBool aIsRDFQuery,
+                       PRBool* aShouldDelayBuilding);
 
     nsresult
     InitHTMLTemplateRoot();
@@ -302,7 +337,7 @@ public:
                          nsIXULTemplateResult* aResult,
                          nsTemplateQuerySet* aQuerySet,
                          nsTemplateRule** aMatchedRule,
-                         int16_t *aRuleIndex);
+                         PRInt16 *aRuleIndex);
 
     // XXX sigh, the string template foo doesn't mix with
     // operator->*() on egcs-1.1.2, so we'll need to explicitly pass
@@ -325,7 +360,7 @@ public:
     SubstituteTextReplaceVariable(nsXULTemplateBuilder* aThis, const nsAString& aVariable, void* aClosure);    
 
     nsresult 
-    IsSystemPrincipal(nsIPrincipal *principal, bool *result);
+    IsSystemPrincipal(nsIPrincipal *principal, PRBool *result);
 
     /**
      * Convenience method which gets a resource for a result. If a result
@@ -364,7 +399,7 @@ protected:
     /**
      * Set to true if the rules have already been compiled
      */
-    bool          mQueriesCompiled;
+    PRBool        mQueriesCompiled;
 
     /**
      * The default reference and member variables.
@@ -406,7 +441,7 @@ protected:
         eLoggingEnabled = (1 << 2)
     };
 
-    int32_t mFlags;
+    PRInt32 mFlags;
 
     /**
      * Stack-based helper class to maintain a list of ``activated''
@@ -436,7 +471,7 @@ protected:
     /**
      * Determine if a resource is currently on the activation stack.
      */
-    bool
+    PRBool
     IsActivated(nsIRDFResource *aResource);
 
     /**
@@ -448,7 +483,7 @@ protected:
      * the builder being used. Note that *aLocations or some items within
      * aLocations may be null.
      */
-    virtual bool
+    virtual PRBool
     GetInsertionLocations(nsIXULTemplateResult* aResult,
                           nsCOMArray<nsIContent>** aLocations) = 0;
 
@@ -485,7 +520,7 @@ protected:
     void
     OutputMatchToLog(nsIRDFResource* aId,
                      nsTemplateMatch* aMatch,
-                     bool aIsNew);
+                     PRBool aIsNew);
 
     virtual void Traverse(nsCycleCollectionTraversalCallback &cb) const
     {

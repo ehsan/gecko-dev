@@ -5,9 +5,7 @@ Cu.import("resource://services-sync/rest.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-common/log4moz.js");
-
-const STORAGE_REQUEST_RESOURCE_URL = TEST_SERVER_URL + "resource";
+Cu.import("resource://services-sync/log4moz.js");
 
 function run_test() {
   Log4Moz.repository.getLogger("Sync.RESTRequest").level = Log4Moz.Level.Trace;
@@ -24,14 +22,13 @@ add_test(function test_user_agent_desktop() {
                    " FxSync/" + WEAVE_VERSION + "." +
                    Services.appinfo.appBuildID + ".desktop";
 
-  let request = new SyncStorageRequest(STORAGE_REQUEST_RESOURCE_URL);
-  request.onComplete = function onComplete(error) {
+  let request = new SyncStorageRequest("http://localhost:8080/resource");
+  request.get(function (error) {
     do_check_eq(error, null);
     do_check_eq(this.response.status, 200);
     do_check_eq(handler.request.getHeader("User-Agent"), expectedUA);
     server.stop(run_next_test);
-  };
-  do_check_eq(request.get(), request);
+  });
 });
 
 add_test(function test_user_agent_mobile() {
@@ -43,7 +40,7 @@ add_test(function test_user_agent_mobile() {
                    " FxSync/" + WEAVE_VERSION + "." +
                    Services.appinfo.appBuildID + ".mobile";
 
-  let request = new SyncStorageRequest(STORAGE_REQUEST_RESOURCE_URL);
+  let request = new SyncStorageRequest("http://localhost:8080/resource");
   request.get(function (error) {
     do_check_eq(error, null);
     do_check_eq(this.response.status, 200);
@@ -57,16 +54,17 @@ add_test(function test_auth() {
   let handler = httpd_handler(200, "OK");
   let server = httpd_setup({"/resource": handler});
 
-  setBasicCredentials("johndoe", "ilovejane", "XXXXXXXXX");
+  let id = new Identity(PWDMGR_PASSWORD_REALM, "johndoe");
+  id.password = "ilovejane";
+  ID.set("WeaveID", id);
 
-  let request = new SyncStorageRequest(STORAGE_REQUEST_RESOURCE_URL);
+  let request = new SyncStorageRequest("http://localhost:8080/resource");
   request.get(function (error) {
     do_check_eq(error, null);
     do_check_eq(this.response.status, 200);
     do_check_true(basic_auth_matches(handler.request, "johndoe", "ilovejane"));
 
-    Svc.Prefs.reset("");
-
+    ID.del("WeaveID");
     server.stop(run_next_test);
   });
 });
@@ -83,12 +81,11 @@ add_test(function test_weave_timestamp() {
   let server = httpd_setup({"/resource": handler});
 
   do_check_eq(SyncStorageRequest.serverTime, undefined);
-  let request = new SyncStorageRequest(STORAGE_REQUEST_RESOURCE_URL);
+  let request = new SyncStorageRequest("http://localhost:8080/resource");
   request.get(function (error) {
     do_check_eq(error, null);
     do_check_eq(this.response.status, 200);
     do_check_eq(SyncStorageRequest.serverTime, TIMESTAMP);
-    delete SyncStorageRequest.serverTime;
     server.stop(run_next_test);
   });
 });
@@ -109,7 +106,7 @@ add_test(function test_weave_backoff() {
     backoffInterval = subject;
   });
 
-  let request = new SyncStorageRequest(STORAGE_REQUEST_RESOURCE_URL);
+  let request = new SyncStorageRequest("http://localhost:8080/resource");
   request.get(function (error) {
     do_check_eq(error, null);
     do_check_eq(this.response.status, 200);
@@ -134,7 +131,7 @@ add_test(function test_weave_quota_notice() {
     quotaValue = subject;
   });
 
-  let request = new SyncStorageRequest(STORAGE_REQUEST_RESOURCE_URL);
+  let request = new SyncStorageRequest("http://localhost:8080/resource");
   request.get(function (error) {
     do_check_eq(error, null);
     do_check_eq(this.response.status, 200);
@@ -159,56 +156,12 @@ add_test(function test_weave_quota_error() {
   }
   Svc.Obs.add("weave:service:quota:remaining", onQuota);
 
-  let request = new SyncStorageRequest(STORAGE_REQUEST_RESOURCE_URL);
+  let request = new SyncStorageRequest("http://localhost:8080/resource");
   request.get(function (error) {
     do_check_eq(error, null);
     do_check_eq(this.response.status, 400);
     do_check_eq(quotaValue, undefined);
     Svc.Obs.remove("weave:service:quota:remaining", onQuota);
-    server.stop(run_next_test);
-  });
-});
-
-add_test(function test_abort() {
-  function handler(request, response) {
-    response.setHeader("X-Weave-Timestamp", "" + TIMESTAMP, false);
-    response.setHeader("X-Weave-Quota-Remaining", '1048576', false);
-    response.setHeader("X-Weave-Backoff", '600', false);
-    response.setStatusLine(request.httpVersion, 200, "OK");
-  }
-  let server = httpd_setup({"/resource": handler});
-
-  let request = new SyncStorageRequest(STORAGE_REQUEST_RESOURCE_URL);
-
-  // Aborting a request that hasn't been sent yet is pointless and will throw.
-  do_check_throws(function () {
-    request.abort();
-  });
-
-  function throwy() {
-    do_throw("Shouldn't have gotten here!");
-  }
-
-  Svc.Obs.add("weave:service:backoff:interval", throwy);
-  Svc.Obs.add("weave:service:quota:remaining", throwy);
-  request.onProgress = request.onComplete = throwy;
-
-  request.get();
-  request.abort();
-  do_check_eq(request.status, request.ABORTED);
-
-  // Aborting an already aborted request is pointless and will throw.
-  do_check_throws(function () {
-    request.abort();
-  });
-
-  Utils.nextTick(function () {
-    // Verify that we didn't try to process any of the values.
-    do_check_eq(SyncStorageRequest.serverTime, undefined);
-
-    Svc.Obs.remove("weave:service:backoff:interval", throwy);
-    Svc.Obs.remove("weave:service:quota:remaining", throwy);
-
     server.stop(run_next_test);
   });
 });

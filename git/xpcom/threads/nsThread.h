@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsThread_h__
 #define nsThread_h__
@@ -14,11 +46,9 @@
 #include "nsThreadUtils.h"
 #include "nsString.h"
 #include "nsTObserverArray.h"
-#include "mozilla/Attributes.h"
 
 // A native thread
-class nsThread MOZ_FINAL : public nsIThreadInternal,
-                           public nsISupportsPriority
+class nsThread : public nsIThreadInternal, public nsISupportsPriority
 {
 public:
   NS_DECL_ISUPPORTS
@@ -27,12 +57,7 @@ public:
   NS_DECL_NSITHREADINTERNAL
   NS_DECL_NSISUPPORTSPRIORITY
 
-  enum MainThreadFlag {
-    MAIN_THREAD,
-    NOT_MAIN_THREAD
-  };
-
-  nsThread(MainThreadFlag aMainThread, uint32_t aStackSize);
+  nsThread();
 
   // Initialize this as a wrapper for a new PRThread.
   nsresult Init();
@@ -45,17 +70,17 @@ public:
 
   // If this flag is true, then the nsThread was created using
   // nsIThreadManager::NewThread.
-  bool ShutdownRequired() { return mShutdownRequired; }
+  PRBool ShutdownRequired() { return mShutdownRequired; }
 
-  // Clear the observer list.
-  void ClearObservers() { mEventObservers.Clear(); }
+  // The global thread observer
+  static nsIThreadObserver* sGlobalObserver;
 
 private:
   friend class nsThreadShutdownEvent;
 
   ~nsThread();
 
-  bool ShuttingDown() { return mShutdownContext != nullptr; }
+  PRBool ShuttingDown() { return mShutdownContext != nsnull; }
 
   static void ThreadFunc(void *arg);
 
@@ -67,10 +92,33 @@ private:
   }
 
   // Wrappers for event queue methods:
-  bool GetEvent(bool mayWait, nsIRunnable **event) {
-    return mEvents.GetEvent(mayWait, event);
+  PRBool GetEvent(PRBool mayWait, nsIRunnable **event) {
+    return mEvents->GetEvent(mayWait, event);
   }
   nsresult PutEvent(nsIRunnable *event);
+
+  // Wrapper for nsEventQueue that supports chaining.
+  class nsChainedEventQueue {
+  public:
+    nsChainedEventQueue(nsIThreadEventFilter *filter = nsnull)
+      : mNext(nsnull), mFilter(filter) {
+    }
+
+    PRBool GetEvent(PRBool mayWait, nsIRunnable **event) {
+      return mQueue.GetEvent(mayWait, event);
+    }
+
+    PRBool PutEvent(nsIRunnable *event);
+    
+    PRBool HasPendingEvent() {
+      return mQueue.HasPendingEvent();
+    }
+
+    class nsChainedEventQueue *mNext;
+  private:
+    nsCOMPtr<nsIThreadEventFilter> mFilter;
+    nsEventQueue mQueue;
+  };
 
   // This lock protects access to mObserver, mEvents and mEventsAreDoomed.
   // All of those fields are only modified on the thread itself (never from
@@ -84,19 +132,19 @@ private:
   // Only accessed on the target thread.
   nsAutoTObserverArray<nsCOMPtr<nsIThreadObserver>, 2> mEventObservers;
 
-  nsEventQueue  mEvents;
+  nsChainedEventQueue *mEvents;   // never null
+  nsChainedEventQueue  mEventsRoot;
 
-  int32_t   mPriority;
+  PRInt32   mPriority;
   PRThread *mThread;
-  uint32_t  mRunningEvent;  // counter
-  uint32_t  mStackSize;
+  PRUint32  mRunningEvent;  // counter
 
   struct nsThreadShutdownContext *mShutdownContext;
 
-  bool mShutdownRequired;
+  PRPackedBool mShutdownRequired;
+  PRPackedBool mShutdownPending;
   // Set to true when events posted to this thread will never run.
-  bool mEventsAreDoomed;
-  MainThreadFlag mIsMainThread;
+  PRPackedBool mEventsAreDoomed;
 };
 
 //-----------------------------------------------------------------------------
@@ -107,8 +155,8 @@ public:
     : mOrigin(origin), mSyncTask(task), mResult(NS_ERROR_NOT_INITIALIZED) {
   }
 
-  bool IsPending() {
-    return mSyncTask != nullptr;
+  PRBool IsPending() {
+    return mSyncTask != nsnull;
   }
 
   nsresult Result() {
@@ -122,17 +170,5 @@ private:
   nsCOMPtr<nsIRunnable> mSyncTask;
   nsresult mResult;
 };
-
-namespace mozilla {
-
-/**
- * This function causes the main thread to fire a memory pressure event at its
- * next available opportunity.
- *
- * You may call this function from any thread.
- */
-void ScheduleMemoryPressureEvent();
-
-} // namespace mozilla
 
 #endif  // nsThread_h__

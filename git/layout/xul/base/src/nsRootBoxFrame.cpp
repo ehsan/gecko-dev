@@ -1,9 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTMLParts.h"
+#include "nsIDocument.h"
 #include "nsGUIEvent.h"
 #include "nsStyleConsts.h"
 #include "nsGkAtoms.h"
@@ -24,15 +57,15 @@ nsIRootBox*
 nsIRootBox::GetRootBox(nsIPresShell* aShell)
 {
   if (!aShell) {
-    return nullptr;
+    return nsnull;
   }
   nsIFrame* rootFrame = aShell->FrameManager()->GetRootFrame();
   if (!rootFrame) {
-    return nullptr;
+    return nsnull;
   }
 
   if (rootFrame) {
-    rootFrame = rootFrame->GetFirstPrincipalChild();
+    rootFrame = rootFrame->GetFirstChild(nsnull);
   }
 
   nsIRootBox* rootBox = do_QueryFrame(rootFrame);
@@ -56,12 +89,12 @@ public:
   virtual nsresult AddTooltipSupport(nsIContent* aNode);
   virtual nsresult RemoveTooltipSupport(nsIContent* aNode);
 
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
@@ -83,11 +116,11 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
     // Override bogus IsFrameOfType in nsBoxFrame.
     if (aFlags & (nsIFrame::eReplacedContainsBlock | nsIFrame::eReplaced))
-      return false;
+      return PR_FALSE;
     return nsBoxFrame::IsFrameOfType(aFlags);
   }
   
@@ -112,9 +145,9 @@ NS_NewRootBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsRootBoxFrame)
 
 nsRootBoxFrame::nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
-  nsBoxFrame(aShell, aContext, true)
+  nsBoxFrame(aShell, aContext, PR_TRUE)
 {
-  mPopupSetFrame = nullptr;
+  mPopupSetFrame = nsnull;
 
   nsCOMPtr<nsBoxLayout> layout;
   NS_NewStackLayout(aShell, layout);
@@ -122,57 +155,60 @@ nsRootBoxFrame::nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
 }
 
 NS_IMETHODIMP
-nsRootBoxFrame::AppendFrames(ChildListID     aListID,
+nsRootBoxFrame::AppendFrames(nsIAtom*        aListName,
                              nsFrameList&    aFrameList)
 {
   nsresult  rv;
 
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list ID");
+  NS_ASSERTION(!aListName, "unexpected child list name");
   NS_PRECONDITION(mFrames.IsEmpty(), "already have a child frame");
-  if (aListID != kPrincipalList) {
-    // We only support the principal child list.
+  if (aListName) {
+    // We only support unnamed principal child list
     rv = NS_ERROR_INVALID_ARG;
+
   } else if (!mFrames.IsEmpty()) {
-    // We only allow a single child frame.
+    // We only allow a single child frame
     rv = NS_ERROR_FAILURE;
+
   } else {
-    rv = nsBoxFrame::AppendFrames(aListID, aFrameList);
+    rv = nsBoxFrame::AppendFrames(aListName, aFrameList);
   }
 
   return rv;
 }
 
 NS_IMETHODIMP
-nsRootBoxFrame::InsertFrames(ChildListID     aListID,
+nsRootBoxFrame::InsertFrames(nsIAtom*        aListName,
                              nsIFrame*       aPrevFrame,
                              nsFrameList&    aFrameList)
 {
   nsresult  rv;
 
   // Because we only support a single child frame inserting is the same
-  // as appending.
+  // as appending
   NS_PRECONDITION(!aPrevFrame, "unexpected previous sibling frame");
   if (aPrevFrame) {
     rv = NS_ERROR_UNEXPECTED;
   } else {
-    rv = AppendFrames(aListID, aFrameList);
+    rv = AppendFrames(aListName, aFrameList);
   }
 
   return rv;
 }
 
 NS_IMETHODIMP
-nsRootBoxFrame::RemoveFrame(ChildListID     aListID,
+nsRootBoxFrame::RemoveFrame(nsIAtom*        aListName,
                             nsIFrame*       aOldFrame)
 {
   nsresult  rv;
 
-  NS_ASSERTION(aListID == kPrincipalList, "unexpected child list ID");
-  if (aListID != kPrincipalList) {
-    // We only support the principal child list.
+  NS_ASSERTION(!aListName, "unexpected child list name");
+  if (aListName) {
+    // We only support the unnamed principal child list
     rv = NS_ERROR_INVALID_ARG;
+  
   } else if (aOldFrame == mFrames.FirstChild()) {
-    rv = nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+     rv = nsBoxFrame::RemoveFrame(aListName, aOldFrame);
   } else {
     rv = NS_ERROR_FAILURE;
   }
@@ -181,11 +217,11 @@ nsRootBoxFrame::RemoveFrame(ChildListID     aListID,
 }
 
 #ifdef DEBUG_REFLOW
-int32_t gReflows = 0;
+PRInt32 gReflows = 0;
 #endif
 
 NS_IMETHODIMP
-nsRootBoxFrame::Reflow(nsPresContext*           aPresContext,
+nsRootBoxFrame::Reflow(nsPresContext*          aPresContext,
                        nsHTMLReflowMetrics&     aDesiredSize,
                        const nsHTMLReflowState& aReflowState,
                        nsReflowStatus&          aStatus)
@@ -207,7 +243,7 @@ nsRootBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // root boxes don't need a debug border/outline or a selection overlay...
   // They *may* have a background propagated to them, so force creation
   // of a background display list element.
-  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists, true);
+  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists, PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return BuildDisplayListForChildren(aBuilder, aDirtyRect, aLists);
@@ -251,7 +287,7 @@ nsRootBoxFrame::SetPopupSetFrame(nsPopupSetFrame* aPopupSet)
   // if something triggers ReconstructDocElementHierarchy, we will
   // destroy this frame's child (the nsDocElementBoxFrame), but not this
   // frame.  This will cause the popupset to remove itself by calling
-  // |SetPopupSetFrame(nullptr)|, and then we'll be able to accept a new
+  // |SetPopupSetFrame(nsnull)|, and then we'll be able to accept a new
   // popupset.  Since the anonymous content is associated with the
   // nsDocElementBoxFrame, we'll get a new popupset when the new doc
   // element box frame is created.

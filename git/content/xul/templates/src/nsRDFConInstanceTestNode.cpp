@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chris Waterson <waterson@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIComponentManager.h"
 #include "nsIRDFContainer.h"
@@ -40,7 +73,7 @@ nsRDFConInstanceTestNode::nsRDFConInstanceTestNode(TestNode* aParent,
 {
 #ifdef PR_LOGGING
     if (PR_LOG_TEST(gXULTemplateLog, PR_LOG_DEBUG)) {
-        nsAutoCString props;
+        nsCAutoString props;
 
         nsResourceSet& containmentProps = aProcessor->ContainmentProperties();
         nsResourceSet::ConstIterator last = containmentProps.Last();
@@ -75,12 +108,12 @@ nsRDFConInstanceTestNode::nsRDFConInstanceTestNode(TestNode* aParent,
 
 nsresult
 nsRDFConInstanceTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
-                                               bool* aCantHandleYet) const
+                                               PRBool* aCantHandleYet) const
 {
     nsresult rv;
 
     if (aCantHandleYet)
-        *aCantHandleYet = false;
+        *aCantHandleYet = PR_FALSE;
 
     nsCOMPtr<nsIRDFContainerUtils> rdfc
         = do_GetService("@mozilla.org/rdf/container-utils;1");
@@ -117,7 +150,7 @@ nsRDFConInstanceTestNode::FilterInstantiations(InstantiationSet& aInstantiations
 
         nsCOMPtr<nsIRDFContainer> rdfcontainer;
 
-        bool isRDFContainer;
+        PRBool isRDFContainer;
         rv = rdfc->IsContainer(ds, valueres, &isRDFContainer);
         if (NS_FAILED(rv)) return rv;
 
@@ -137,7 +170,7 @@ nsRDFConInstanceTestNode::FilterInstantiations(InstantiationSet& aInstantiations
                 rv = rdfcontainer->Init(ds, valueres);
                 if (NS_FAILED(rv)) return rv;
 
-                int32_t count;
+                PRInt32 count;
                 rv = rdfcontainer->GetCount(&count);
                 if (NS_FAILED(rv)) return rv;
 
@@ -154,10 +187,10 @@ nsRDFConInstanceTestNode::FilterInstantiations(InstantiationSet& aInstantiations
                      property != containmentProps.Last();
                      ++property) {
                     nsCOMPtr<nsIRDFNode> target;
-                    rv = ds->GetTarget(valueres, *property, true, getter_AddRefs(target));
+                    rv = ds->GetTarget(valueres, *property, PR_TRUE, getter_AddRefs(target));
                     if (NS_FAILED(rv)) return rv;
 
-                    if (target != nullptr) {
+                    if (target != nsnull) {
                         // bingo. we found one.
                         empty = eFalse;
                         container = eTrue;
@@ -174,7 +207,7 @@ nsRDFConInstanceTestNode::FilterInstantiations(InstantiationSet& aInstantiations
                     if (NS_FAILED(rv)) return rv;
 
                     while (1) {
-                        bool hasmore;
+                        PRBool hasmore;
                         rv = arcsout->HasMoreElements(&hasmore);
                         if (NS_FAILED(rv)) return rv;
 
@@ -186,7 +219,7 @@ nsRDFConInstanceTestNode::FilterInstantiations(InstantiationSet& aInstantiations
                         if (NS_FAILED(rv)) return rv;
 
                         nsCOMPtr<nsIRDFResource> property = do_QueryInterface(isupports);
-                        NS_ASSERTION(property != nullptr, "not a property");
+                        NS_ASSERTION(property != nsnull, "not a property");
                         if (! property)
                             return NS_ERROR_UNEXPECTED;
 
@@ -227,7 +260,7 @@ nsRDFConInstanceTestNode::FilterInstantiations(InstantiationSet& aInstantiations
     return NS_OK;
 }
 
-bool
+PRBool
 nsRDFConInstanceTestNode::CanPropagate(nsIRDFResource* aSource,
                                        nsIRDFResource* aProperty,
                                        nsIRDFNode* aTarget,
@@ -235,17 +268,17 @@ nsRDFConInstanceTestNode::CanPropagate(nsIRDFResource* aSource,
 {
     nsresult rv;
 
-    bool canpropagate = false;
+    PRBool canpropagate = PR_FALSE;
 
     nsCOMPtr<nsIRDFContainerUtils> rdfc
         = do_GetService("@mozilla.org/rdf/container-utils;1");
 
     if (! rdfc)
-        return false;
+        return PR_FALSE;
 
     // We can certainly propagate ordinal properties
     rv = rdfc->IsOrdinalProperty(aProperty, &canpropagate);
-    if (NS_FAILED(rv)) return false;
+    if (NS_FAILED(rv)) return PR_FALSE;
 
     if (! canpropagate) {
         canpropagate = mProcessor->ContainmentProperties().Contains(aProperty);
@@ -271,10 +304,10 @@ nsRDFConInstanceTestNode::CanPropagate(nsIRDFResource* aSource,
 
     if (canpropagate) {
         aInitialBindings.AddAssignment(mContainerVariable, aSource);
-        return true;
+        return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 void

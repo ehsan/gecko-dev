@@ -171,7 +171,7 @@ esOrtho(ESMatrix *result, float left, float right, float bottom, float top, floa
 void ESUTIL_API
 esMatrixMultiply(ESMatrix *result, ESMatrix *srcA, ESMatrix *srcB)
 {
-    ESMatrix    tmp = { 0.0f };
+    ESMatrix    tmp;
     int         i;
 
 	for (i=0; i<4; i++)

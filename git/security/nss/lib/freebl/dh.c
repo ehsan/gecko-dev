@@ -38,7 +38,7 @@
  * Diffie-Hellman parameter generation, key generation, and secret derivation.
  * KEA secret generation and verification.
  *
- * $Id: dh.c,v 1.10 2012/03/28 22:35:14 rrelyea%redhat.com Exp $
+ * $Id: dh.c,v 1.8 2008/11/18 19:48:22 rrelyea%redhat.com Exp $
  */
 #ifdef FREEBL_NO_DEPEND
 #include "stubs.h"
@@ -215,12 +215,11 @@ DH_Derive(SECItem *publicValue,
           SECItem *prime, 
           SECItem *privateValue, 
           SECItem *derivedSecret, 
-          unsigned int outBytes)
+          unsigned int maxOutBytes)
 {
     mp_int p, Xa, Yb, ZZ;
     mp_err err = MP_OKAY;
-    int len = 0;
-    unsigned int nb;
+    unsigned int len = 0, nb;
     unsigned char *secret = NULL;
     if (!publicValue || !prime || !privateValue || !derivedSecret) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -242,33 +241,20 @@ DH_Derive(SECItem *publicValue,
     CHECK_MPI_OK( mp_exptmod(&Yb, &Xa, &p, &ZZ) );
     /* number of bytes in the derived secret */
     len = mp_unsigned_octet_size(&ZZ);
-    if (len <= 0) {
-        err = MP_BADARG;
-        goto cleanup;
-    }
     /* allocate a buffer which can hold the entire derived secret. */
     secret = PORT_Alloc(len);
     /* grab the derived secret */
     err = mp_to_unsigned_octets(&ZZ, secret, len);
     if (err >= 0) err = MP_OKAY;
-    /* 
-    ** if outBytes is 0 take all of the bytes from the derived secret.
-    ** if outBytes is not 0 take exactly outBytes from the derived secret, zero
-    ** pad at the beginning if necessary, and truncate beginning bytes 
-    ** if necessary.
+    /* Take minimum of bytes requested and bytes in derived secret,
+    ** if maxOutBytes is 0 take all of the bytes from the derived secret.
     */
-    if (outBytes > 0)
-	nb = outBytes;
+    if (maxOutBytes > 0)
+	nb = PR_MIN(len, maxOutBytes);
     else
 	nb = len;
     SECITEM_AllocItem(NULL, derivedSecret, nb);
-    if (len < nb) {
-	unsigned int offset = nb - len;
-	memset(derivedSecret->data, 0, offset);
-	memcpy(derivedSecret->data + offset, secret, len);
-    } else {
-	memcpy(derivedSecret->data, secret + len - nb, nb);
-    }
+    memcpy(derivedSecret->data, secret, nb);
 cleanup:
     mp_clear(&p);
     mp_clear(&Xa);

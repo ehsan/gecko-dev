@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=665540
 -->
 <head>
   <title>Test for Bug 665540 Select dropdown position in fullscreen window</title>
+  <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css"/>
@@ -23,7 +24,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=665540
 SimpleTest.waitForExplicitFinish();
 
 var win;
-var select;
 var optiona;
 var eventType = "mouseover";
 var timeoutID;
@@ -43,8 +43,10 @@ function openFullscreenWindow() {
 
 function childFocused() {
     ok(win.fullScreen, "window should be fullscreen");
-    is(win.windowState, win.STATE_FULLSCREEN,
-       "window state should be fullscreen");
+    // bug 670026
+    ((navigator.platform.indexOf("Mac") < 0) ? is : todo_is)
+        (win.windowState, win.STATE_FULLSCREEN,
+         "window state should be fullscreen");
 
     // The select doesn't open if the mouse click is fired too soon
     // (on X11 at least).
@@ -52,7 +54,7 @@ function childFocused() {
 }
 
 function openSelect() {
-    select = win.document.getElementById("select");
+    var select = win.document.getElementById("select");
     synthesizeMouseAtCenter(select, {}, win);
     // A yield was required on X11 tinderbox machines.
     // (Wasn't required on other platforms nor on an X11 system with kwin.)
@@ -88,15 +90,10 @@ function eventReceived(event) {
 }
 
 function finish() {
-    if (select && navigator.platform.indexOf("Win") >= 0) {
-        todo(false,
-             "Should not have to close select before closing its window");
-        // This avoids mochitest "Unable to restore focus" errors (bug 670053).
-        synthesizeMouseAtCenter(select, {}, win);
-    }
-
-    is(win.windowState, win.STATE_FULLSCREEN,
-       "window state should still be fullscreen");
+    // bug 670026
+    ((navigator.platform.indexOf("Mac") < 0) ? is : todo_is)
+        (win.windowState, win.STATE_FULLSCREEN,
+         "window state should still be fullscreen");
 
     win.close();
     SimpleTest.finish();

@@ -40,12 +40,12 @@ var addon2 = {
 
 const profileDir = gProfD.clone();
 profileDir.append("extensions");
-profileDir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
+profileDir.create(AM_Ci.nsILocalFile.DIRECTORY_TYPE, 0755);
 
 const sourceDir = gProfD.clone();
 sourceDir.append("source");
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var testserver;
 
 function writePointer(aId, aName) {
@@ -70,8 +70,9 @@ function writeRelativePointer(aId, aName) {
 
   let absTarget = sourceDir.clone();
   absTarget.append(do_get_expected_addon_name(aId));
-
-  var relTarget = absTarget.getRelativeDescriptor(profileDir);
+  
+  var relTarget = absTarget.QueryInterface(Ci.nsILocalFile)
+                       .getRelativeDescriptor(profileDir);
 
   var fos = AM_Cc["@mozilla.org/network/file-output-stream;1"].
             createInstance(AM_Ci.nsIFileOutputStream);
@@ -91,7 +92,7 @@ function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1");
 
   // Create and configure the HTTP server.
-  testserver = new HttpServer();
+  testserver = new nsHttpServer();
   testserver.registerDirectory("/data/", do_get_file("data"));
   testserver.registerDirectory("/addons/", do_get_file("addons"));
   testserver.start(4444);

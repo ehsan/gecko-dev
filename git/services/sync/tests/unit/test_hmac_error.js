@@ -18,9 +18,11 @@ function shared_setup() {
   hmacErrorCount = 0;
 
   // Do not instantiate SyncTestingInfrastructure; we need real crypto.
-  setBasicCredentials("foo", "foo", "aabcdeabcdeabcdeabcdeabcde");
-  Service.serverURL  = TEST_SERVER_URL;
-  Service.clusterURL = TEST_CLUSTER_URL;
+  Service.serverURL  = "http://localhost:8080/";
+  Service.clusterURL = "http://localhost:8080/";
+  Service.username   = "foo";
+  Service.password   = "foo";
+  Service.passphrase = "aabcdeabcdeabcdeabcdeabcde";
 
   // Make sure RotaryEngine is the only one we sync.
   Engines._engines = {};
@@ -186,8 +188,8 @@ add_test(function hmac_error_during_node_reassignment() {
     _("== Invoking first sync.");
     Service.sync();
     _("We should not simultaneously have data but no keys on the server.");
-    let hasData = rotaryColl.wbo("flying") ||
-                  rotaryColl.wbo("scotsman");
+    let hasData = rotaryColl.wbos["flying"] ||
+                  rotaryColl.wbos["scotsman"];
     let hasKeys = keysWBO.modified;
 
     _("We correctly handle 401s by aborting the sync and starting again.");
@@ -202,8 +204,8 @@ add_test(function hmac_error_during_node_reassignment() {
     _("---------------------------");
     onSyncFinished = function() {
       _("== Second (automatic) sync done.");
-      hasData = rotaryColl.wbo("flying") ||
-                rotaryColl.wbo("scotsman");
+      hasData = rotaryColl.wbos["flying"] ||
+                rotaryColl.wbos["scotsman"];
       hasKeys = keysWBO.modified;
       do_check_true(!hasData == !hasKeys);
 

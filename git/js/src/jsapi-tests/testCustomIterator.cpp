@@ -1,15 +1,11 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #include "tests.h"
 
-#include "jsclass.h"
+#include "jsvalue.h"
 
 int count = 0;
 
 static JSBool
-IterNext(JSContext *cx, unsigned argc, jsval *vp)
+IterNext(JSContext *cx, uintN argc, jsval *vp)
 {
     if (count++ == 100)
         return JS_ThrowStopIteration(cx);
@@ -18,9 +14,9 @@ IterNext(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 static JSObject *
-IterHook(JSContext *cx, JS::HandleObject obj, JSBool keysonly)
+IterHook(JSContext *cx, JSObject *obj, JSBool keysonly)
 {
-    JS::RootedObject iterObj(cx, JS_NewObject(cx, NULL, NULL, NULL));
+    JSObject *iterObj = JS_NewObject(cx, NULL, NULL, NULL);
     if (!iterObj)
         return NULL;
     if (!JS_DefineFunction(cx, iterObj, "next", IterNext, 0, 0))
@@ -31,17 +27,19 @@ IterHook(JSContext *cx, JS::HandleObject obj, JSBool keysonly)
 js::Class HasCustomIterClass = {
     "HasCustomIter",
     0,
-    JS_PropertyStub,
-    JS_PropertyStub,
-    JS_PropertyStub,
-    JS_StrictPropertyStub,
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
+    js::PropertyStub,
+    js::PropertyStub,
+    js::PropertyStub,
+    js::StrictPropertyStub,
+    js::EnumerateStub,
+    js::ResolveStub,
+    js::ConvertStub,
     NULL,
+    NULL, /* reserved0 */
     NULL, /* checkAccess */
     NULL, /* call */
     NULL, /* construct */
+    NULL, /* xdrObject */
     NULL, /* hasInstance */
     NULL, /* mark */
     {
@@ -54,9 +52,9 @@ js::Class HasCustomIterClass = {
 };
 
 JSBool
-IterClassConstructor(JSContext *cx, unsigned argc, jsval *vp)
+IterClassConstructor(JSContext *cx, uintN argc, jsval *vp)
 {
-    JSObject *obj = JS_NewObjectForConstructor(cx, Jsvalify(&HasCustomIterClass), vp);
+    JSObject *obj = JS_NewObjectForConstructor(cx, vp);
     if (!obj)
         return false;
     JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(obj));
@@ -65,7 +63,7 @@ IterClassConstructor(JSContext *cx, unsigned argc, jsval *vp)
 
 BEGIN_TEST(testCustomIterator_bug612523)
 {
-    CHECK(JS_InitClass(cx, global, NULL, Jsvalify(&HasCustomIterClass),
+    CHECK(JS_InitClass(cx, JS_GetGlobalObject(cx), NULL, Jsvalify(&HasCustomIterClass),
                        IterClassConstructor, 0, NULL, NULL, NULL, NULL));
 
     jsval result;

@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org>
+ *   Daniel Glazman <glazman@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* tokenization of CSS style sheets */
 
@@ -13,8 +47,12 @@
 #include "mozilla/css/Loader.h"
 #include "nsCSSStyleSheet.h"
 
+class nsIUnicharInputStream;
+
 // XXX turn this off for minimo builds
 #define CSS_REPORT_PARSE_ERRORS
+
+#define CSS_BUFFER_SIZE 256
 
 // for #ifdef CSS_REPORT_PARSE_ERRORS
 #include "nsXPIDLString.h"
@@ -75,17 +113,17 @@ enum nsCSSTokenType {
 struct nsCSSToken {
   nsAutoString    mIdent NS_OKONHEAP;
   float           mNumber;
-  int32_t         mInteger;
-  int32_t         mInteger2;
+  PRInt32         mInteger;
+  PRInt32         mInteger2;
   nsCSSTokenType  mType;
   PRUnichar       mSymbol;
-  bool            mIntegerValid; // for number, dimension, urange
-  bool            mHasSign; // for number, percentage, and dimension
+  PRPackedBool    mIntegerValid; // for number, dimension, urange
+  PRPackedBool    mHasSign; // for number, percentage, and dimension
 
   nsCSSToken();
 
-  bool IsSymbol(PRUnichar aSymbol) {
-    return bool((eCSSToken_Symbol == mType) && (mSymbol == aSymbol));
+  PRBool IsSymbol(PRUnichar aSymbol) {
+    return PRBool((eCSSToken_Symbol == mType) && (mSymbol == aSymbol));
   }
 
   void AppendToString(nsString& aBuffer);
@@ -103,19 +141,23 @@ class nsCSSScanner {
   // Init the scanner.
   // |aLineNumber == 1| is the beginning of a file, use |aLineNumber == 0|
   // when the line number is unknown.
-  void Init(const nsAString& aBuffer,
-            nsIURI* aURI, uint32_t aLineNumber,
+  // Either aInput or (aBuffer and aCount) must be set.
+  void Init(nsIUnicharInputStream* aInput, 
+            const PRUnichar *aBuffer, PRUint32 aCount,
+            nsIURI* aURI, PRUint32 aLineNumber,
             nsCSSStyleSheet* aSheet, mozilla::css::Loader* aLoader);
   void Close();
 
-  static bool InitGlobals();
+  static PRBool InitGlobals();
   static void ReleaseGlobals();
 
   // Set whether or not we are processing SVG
-  void SetSVGMode(bool aSVGMode) {
+  void SetSVGMode(PRBool aSVGMode) {
+    NS_ASSERTION(aSVGMode == PR_TRUE || aSVGMode == PR_FALSE,
+                 "bad PRBool value");
     mSVGMode = aSVGMode;
   }
-  bool IsSVGMode() const {
+  PRBool IsSVGMode() const {
     return mSVGMode;
   }
 
@@ -126,19 +168,9 @@ class nsCSSScanner {
 
   // aMessage must take no parameters
   void ReportUnexpected(const char* aMessage);
-  
-private:
   void ReportUnexpectedParams(const char* aMessage,
-                              const PRUnichar** aParams,
-                              uint32_t aParamsLength);
-
-public:
-  template<uint32_t N>                           
-  void ReportUnexpectedParams(const char* aMessage,
-                              const PRUnichar* (&aParams)[N])
-    {
-      return ReportUnexpectedParams(aMessage, aParams, N);
-    }
+                              const PRUnichar **aParams,
+                              PRUint32 aParamsLength);
   // aLookingFor is a plain string, not a format string
   void ReportUnexpectedEOF(const char* aLookingFor);
   // aLookingFor is a single character
@@ -150,17 +182,17 @@ public:
   void ReportUnexpectedTokenParams(nsCSSToken& tok,
                                    const char* aMessage,
                                    const PRUnichar **aParams,
-                                   uint32_t aParamsLength);
+                                   PRUint32 aParamsLength);
 #endif
 
-  uint32_t GetLineNumber() { return mLineNumber; }
+  PRUint32 GetLineNumber() { return mLineNumber; }
 
-  // Get the next token. Return false on EOF. aTokenResult
+  // Get the next token. Return PR_FALSE on EOF. aTokenResult
   // is filled in with the data for the token.
-  bool Next(nsCSSToken& aTokenResult);
+  PRBool Next(nsCSSToken& aTokenResult);
 
   // Get the next token that may be a string or unquoted URL
-  bool NextURL(nsCSSToken& aTokenResult);
+  PRBool NextURL(nsCSSToken& aTokenResult);
 
   // It's really ugly that we have to expose this, but it's the easiest
   // way to do :nth-child() parsing sanely.  (In particular, in
@@ -168,56 +200,56 @@ public:
   // "-1" back so we can read it again as a number.)
   void Pushback(PRUnichar aChar);
 
-  // Starts recording the input stream from the current position.
-  void StartRecording();
+  // Reports operating-system level errors, e.g. read failures and
+  // out of memory.
+  nsresult GetLowLevelError();
 
-  // Abandons recording of the input stream.
-  void StopRecording();
-
-  // Stops recording of the input stream and appends the recorded
-  // input to aBuffer.
-  void StopRecording(nsString& aBuffer);
-
+  // sometimes the parser wants to make note of a low-level error
+  void SetLowLevelError(nsresult aErrorCode);
+  
 protected:
-  int32_t Read();
-  int32_t Peek();
-  bool LookAhead(PRUnichar aChar);
-  bool LookAheadOrEOF(PRUnichar aChar); // expect either aChar or EOF
+  PRBool EnsureData();
+  PRInt32 Read();
+  PRInt32 Peek();
+  PRBool LookAhead(PRUnichar aChar);
+  PRBool LookAheadOrEOF(PRUnichar aChar); // expect either aChar or EOF
   void EatWhiteSpace();
 
-  bool ParseAndAppendEscape(nsString& aOutput, bool aInString);
-  bool ParseIdent(int32_t aChar, nsCSSToken& aResult);
-  bool ParseAtKeyword(int32_t aChar, nsCSSToken& aResult);
-  bool ParseNumber(int32_t aChar, nsCSSToken& aResult);
-  bool ParseRef(int32_t aChar, nsCSSToken& aResult);
-  bool ParseString(int32_t aChar, nsCSSToken& aResult);
-  bool ParseURange(int32_t aChar, nsCSSToken& aResult);
-  bool SkipCComment();
+  PRBool ParseAndAppendEscape(nsString& aOutput, PRBool aInString);
+  PRBool ParseIdent(PRInt32 aChar, nsCSSToken& aResult);
+  PRBool ParseAtKeyword(PRInt32 aChar, nsCSSToken& aResult);
+  PRBool ParseNumber(PRInt32 aChar, nsCSSToken& aResult);
+  PRBool ParseRef(PRInt32 aChar, nsCSSToken& aResult);
+  PRBool ParseString(PRInt32 aChar, nsCSSToken& aResult);
+  PRBool ParseURange(PRInt32 aChar, nsCSSToken& aResult);
+  PRBool SkipCComment();
 
-  bool GatherIdent(int32_t aChar, nsString& aIdent);
+  PRBool GatherIdent(PRInt32 aChar, nsString& aIdent);
+
+  // Only used when input is a stream
+  nsCOMPtr<nsIUnicharInputStream> mInputStream;
+  PRUnichar mBuffer[CSS_BUFFER_SIZE];
 
   const PRUnichar *mReadPointer;
-  uint32_t mOffset;
-  uint32_t mCount;
+  PRUint32 mOffset;
+  PRUint32 mCount;
   PRUnichar* mPushback;
-  int32_t mPushbackCount;
-  int32_t mPushbackSize;
+  PRInt32 mPushbackCount;
+  PRInt32 mPushbackSize;
   PRUnichar mLocalPushback[4];
+  nsresult mLowLevelError;
 
-  uint32_t mLineNumber;
+  PRUint32 mLineNumber;
   // True if we are in SVG mode; false in "normal" CSS
-  bool mSVGMode;
-  bool mRecording;
-  uint32_t mRecordStartOffset;
-
+  PRPackedBool mSVGMode;
 #ifdef CSS_REPORT_PARSE_ERRORS
   nsXPIDLCString mFileName;
   nsCOMPtr<nsIURI> mURI;  // Cached so we know to not refetch mFileName
-  uint32_t mErrorLineNumber, mColNumber, mErrorColNumber;
+  PRUint32 mErrorLineNumber, mColNumber, mErrorColNumber;
   nsFixedString mError;
   PRUnichar mErrorBuf[200];
-  uint64_t mInnerWindowID;
-  bool mWindowIDCached;
+  PRUint64 mWindowID;
+  PRBool mWindowIDCached;
   nsCSSStyleSheet* mSheet;
   mozilla::css::Loader* mLoader;
 #endif

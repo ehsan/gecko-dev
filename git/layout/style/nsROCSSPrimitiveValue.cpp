@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* DOM object representing values in DOM computed style */
 
@@ -11,9 +43,6 @@
 #include "nsStyleUtil.h"
 #include "nsDOMCSSRGBColor.h"
 #include "nsIDOMRect.h"
-#include "nsDOMClassInfoID.h" // DOMCI_DATA
-#include "nsIURI.h"
-#include "nsError.h"
 
 nsROCSSPrimitiveValue::nsROCSSPrimitiveValue()
   : mType(CSS_PX)
@@ -75,7 +104,7 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
     case CSS_URI :
       {
         if (mValue.mURI) {
-          nsAutoCString specUTF8;
+          nsCAutoString specUTF8;
           mValue.mURI->GetSpec(specUTF8);
 
           tmpStr.AssignLiteral("url(");
@@ -242,7 +271,7 @@ nsROCSSPrimitiveValue::SetCssText(const nsAString& aCssText)
 
 
 NS_IMETHODIMP
-nsROCSSPrimitiveValue::GetCssValueType(uint16_t* aValueType)
+nsROCSSPrimitiveValue::GetCssValueType(PRUint16* aValueType)
 {
   NS_ENSURE_ARG_POINTER(aValueType);
   *aValueType = nsIDOMCSSValue::CSS_PRIMITIVE_VALUE;
@@ -253,7 +282,7 @@ nsROCSSPrimitiveValue::GetCssValueType(uint16_t* aValueType)
 // nsIDOMCSSPrimitiveValue
 
 NS_IMETHODIMP
-nsROCSSPrimitiveValue::GetPrimitiveType(uint16_t* aPrimitiveType)
+nsROCSSPrimitiveValue::GetPrimitiveType(PRUint16* aPrimitiveType)
 {
   NS_ENSURE_ARG_POINTER(aPrimitiveType);
   *aPrimitiveType = mType;
@@ -263,14 +292,14 @@ nsROCSSPrimitiveValue::GetPrimitiveType(uint16_t* aPrimitiveType)
 
 
 NS_IMETHODIMP
-nsROCSSPrimitiveValue::SetFloatValue(uint16_t aUnitType, float aFloatValue)
+nsROCSSPrimitiveValue::SetFloatValue(PRUint16 aUnitType, float aFloatValue)
 {
   return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
 }
 
 
 NS_IMETHODIMP
-nsROCSSPrimitiveValue::GetFloatValue(uint16_t aUnitType, float* aReturn)
+nsROCSSPrimitiveValue::GetFloatValue(PRUint16 aUnitType, float* aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = 0;
@@ -346,7 +375,7 @@ nsROCSSPrimitiveValue::GetFloatValue(uint16_t aUnitType, float* aReturn)
 
 
 NS_IMETHODIMP
-nsROCSSPrimitiveValue::SetStringValue(uint16_t aStringType,
+nsROCSSPrimitiveValue::SetStringValue(PRUint16 aStringType,
                                       const nsAString& aStringValue)
 {
   return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
@@ -365,7 +394,7 @@ nsROCSSPrimitiveValue::GetStringValue(nsAString& aReturn)
       aReturn.Assign(mValue.mString);
       break;
     case CSS_URI: {
-      nsAutoCString spec;
+      nsCAutoString spec;
       if (mValue.mURI)
         mValue.mURI->GetSpec(spec);
       CopyUTF8toUTF16(spec, aReturn);
@@ -389,7 +418,7 @@ NS_IMETHODIMP
 nsROCSSPrimitiveValue::GetRectValue(nsIDOMRect** aReturn)
 {
   if (mType != CSS_RECT) {
-    *aReturn = nullptr;
+    *aReturn = nsnull;
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
   NS_ASSERTION(mValue.mRect, "mValue.mRect should never be null");
@@ -402,7 +431,7 @@ NS_IMETHODIMP
 nsROCSSPrimitiveValue::GetRGBColorValue(nsIDOMRGBColor** aReturn)
 {
   if (mType != CSS_RGBCOLOR) {
-    *aReturn = nullptr;
+    *aReturn = nsnull;
     return NS_ERROR_DOM_INVALID_ACCESS_ERR;
   }
   NS_ASSERTION(mValue.mColor, "mValue.mColor should never be null");
@@ -419,7 +448,7 @@ nsROCSSPrimitiveValue::SetNumber(float aValue)
 }
 
 void
-nsROCSSPrimitiveValue::SetNumber(int32_t aValue)
+nsROCSSPrimitiveValue::SetNumber(PRInt32 aValue)
 {
   Reset();
   mValue.mFloat = float(aValue);
@@ -427,7 +456,7 @@ nsROCSSPrimitiveValue::SetNumber(int32_t aValue)
 }
 
 void
-nsROCSSPrimitiveValue::SetNumber(uint32_t aValue)
+nsROCSSPrimitiveValue::SetNumber(PRUint32 aValue)
 {
   Reset();
   mValue.mFloat = float(aValue);
@@ -469,7 +498,7 @@ nsROCSSPrimitiveValue::SetIdent(nsCSSKeyword aKeyword)
 
 // FIXME: CSS_STRING should imply a string with "" and a need for escaping.
 void
-nsROCSSPrimitiveValue::SetString(const nsACString& aString, uint16_t aType)
+nsROCSSPrimitiveValue::SetString(const nsACString& aString, PRUint16 aType)
 {
   Reset();
   mValue.mString = ToNewUnicode(aString);
@@ -483,7 +512,7 @@ nsROCSSPrimitiveValue::SetString(const nsACString& aString, uint16_t aType)
 
 // FIXME: CSS_STRING should imply a string with "" and a need for escaping.
 void
-nsROCSSPrimitiveValue::SetString(const nsAString& aString, uint16_t aType)
+nsROCSSPrimitiveValue::SetString(const nsAString& aString, PRUint16 aType)
 {
   Reset();
   mValue.mString = ToNewUnicode(aString);
@@ -553,7 +582,7 @@ nsROCSSPrimitiveValue::Reset()
     case CSS_COUNTER: // FIXME: Counter should use an object
       NS_ASSERTION(mValue.mString, "Null string should never happen");
       nsMemory::Free(mValue.mString);
-      mValue.mString = nullptr;
+      mValue.mString = nsnull;
       break;
     case CSS_URI:
       NS_IF_RELEASE(mValue.mURI);

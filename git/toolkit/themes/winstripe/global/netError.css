@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 /*
  *  This defines the look-and-feel styling of the error pages.
  *  (see: netError.xhtml)
@@ -59,7 +55,7 @@ ul {
   background-image: url("chrome://global/skin/icons/sslWarning.png");
 }
 
-#errorPageContainer:dir(rtl) {
+body[dir="rtl"] #errorPageContainer {
   background-position: right 0;
 }
 
@@ -100,7 +96,7 @@ ul {
   opacity: .4;
 }
 
-#brand:dir(rtl) {
+body[dir="rtl"] #brand {
   right: auto;
   left: 0;
 }

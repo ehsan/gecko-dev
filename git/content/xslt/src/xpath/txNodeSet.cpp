@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * The MITRE Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Keith Visco <kvisco@ziplink.net> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "txNodeSet.h"
 #include "txLog.h"
@@ -30,31 +63,31 @@
 #define LOG_CHUNK_MOVE(_start, _new_start, _count)
 #endif
 
-static const int32_t kTxNodeSetMinSize = 4;
-static const int32_t kTxNodeSetGrowFactor = 2;
+static const PRInt32 kTxNodeSetMinSize = 4;
+static const PRInt32 kTxNodeSetGrowFactor = 2;
 
 #define kForward   1
 #define kReversed -1
 
 txNodeSet::txNodeSet(txResultRecycler* aRecycler)
     : txAExprResult(aRecycler),
-      mStart(nullptr),
-      mEnd(nullptr),
-      mStartBuffer(nullptr),
-      mEndBuffer(nullptr),
+      mStart(nsnull),
+      mEnd(nsnull),
+      mStartBuffer(nsnull),
+      mEndBuffer(nsnull),
       mDirection(kForward),
-      mMarks(nullptr)
+      mMarks(nsnull)
 {
 }
 
 txNodeSet::txNodeSet(const txXPathNode& aNode, txResultRecycler* aRecycler)
     : txAExprResult(aRecycler),
-      mStart(nullptr),
-      mEnd(nullptr),
-      mStartBuffer(nullptr),
-      mEndBuffer(nullptr),
+      mStart(nsnull),
+      mEnd(nsnull),
+      mStartBuffer(nsnull),
+      mEndBuffer(nsnull),
       mDirection(kForward),
-      mMarks(nullptr)
+      mMarks(nsnull)
 {
     if (!ensureGrowSize(1)) {
         return;
@@ -66,12 +99,12 @@ txNodeSet::txNodeSet(const txXPathNode& aNode, txResultRecycler* aRecycler)
 
 txNodeSet::txNodeSet(const txNodeSet& aSource, txResultRecycler* aRecycler)
     : txAExprResult(aRecycler),
-      mStart(nullptr),
-      mEnd(nullptr),
-      mStartBuffer(nullptr),
-      mEndBuffer(nullptr),
+      mStart(nsnull),
+      mEnd(nsnull),
+      mStartBuffer(nsnull),
+      mEndBuffer(nsnull),
       mDirection(kForward),
-      mMarks(nullptr)
+      mMarks(nsnull)
 {
     append(aSource);
 }
@@ -96,7 +129,7 @@ nsresult txNodeSet::add(const txXPathNode& aNode)
         return append(aNode);
     }
 
-    bool dupe;
+    PRBool dupe;
     txXPathNode* pos = findPosition(aNode, mStart, mEnd, dupe);
 
     if (dupe) {
@@ -104,8 +137,8 @@ nsresult txNodeSet::add(const txXPathNode& aNode)
     }
 
     // save pos, ensureGrowSize messes with the pointers
-    int32_t moveSize = mEnd - pos;
-    int32_t offset = pos - mStart;
+    PRInt32 moveSize = mEnd - pos;
+    PRInt32 offset = pos - mStart;
     if (!ensureGrowSize(1)) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -125,7 +158,7 @@ nsresult txNodeSet::add(const txXPathNode& aNode)
 
 nsresult txNodeSet::add(const txNodeSet& aNodes)
 {
-    return add(aNodes, copyElements, nullptr);
+    return add(aNodes, copyElements, nsnull);
 }
 
 nsresult txNodeSet::addAndTransfer(txNodeSet* aNodes)
@@ -137,7 +170,7 @@ nsresult txNodeSet::addAndTransfer(txNodeSet* aNodes)
 #ifdef TX_DONT_RECYCLE_BUFFER
     if (aNodes->mStartBuffer) {
         nsMemory::Free(aNodes->mStartBuffer);
-        aNodes->mStartBuffer = aNodes->mEndBuffer = nullptr;
+        aNodes->mStartBuffer = aNodes->mEndBuffer = nsnull;
     }
 #endif
     aNodes->mStart = aNodes->mEnd = aNodes->mStartBuffer;
@@ -218,9 +251,9 @@ nsresult txNodeSet::add(const txNodeSet& aNodes, transferOp aTransfer,
     // Pointer to the insertion point in this nodeset
     txXPathNode* insertPos = mEndBuffer;
 
-    bool dupe;
+    PRBool dupe;
     txXPathNode* pos;
-    int32_t count;
+    PRInt32 count;
     while (thisPos > mStart || otherPos > aNodes.mStart) {
         // Find where the last remaining node of this nodeset would
         // be inserted in the other nodeset.
@@ -333,7 +366,7 @@ txNodeSet::append(const txNodeSet& aNodes)
         return NS_OK;
     }
 
-    int32_t appended = aNodes.size();
+    PRInt32 appended = aNodes.size();
     if (!ensureGrowSize(appended)) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -345,21 +378,21 @@ txNodeSet::append(const txNodeSet& aNodes)
 }
 
 nsresult
-txNodeSet::mark(int32_t aIndex)
+txNodeSet::mark(PRInt32 aIndex)
 {
     NS_ASSERTION(aIndex >= 0 && mStart && mEnd - mStart > aIndex,
                  "index out of bounds");
     if (!mMarks) {
-        int32_t length = size();
-        mMarks = new bool[length];
+        PRInt32 length = size();
+        mMarks = new PRPackedBool[length];
         NS_ENSURE_TRUE(mMarks, NS_ERROR_OUT_OF_MEMORY);
-        memset(mMarks, 0, length * sizeof(bool));
+        memset(mMarks, 0, length * sizeof(PRPackedBool));
     }
     if (mDirection == kForward) {
-        mMarks[aIndex] = true;
+        mMarks[aIndex] = PR_TRUE;
     }
     else {
-        mMarks[size() - aIndex - 1] = true;
+        mMarks[size() - aIndex - 1] = PR_TRUE;
     }
 
     return NS_OK;
@@ -373,8 +406,8 @@ txNodeSet::sweep()
         clear();
     }
 
-    int32_t chunk, pos = 0;
-    int32_t length = size();
+    PRInt32 chunk, pos = 0;
+    PRInt32 length = size();
     txXPathNode* insertion = mStartBuffer;
 
     while (pos < length) {
@@ -400,7 +433,7 @@ txNodeSet::sweep()
     mStart = mStartBuffer;
     mEnd = insertion;
     delete [] mMarks;
-    mMarks = nullptr;
+    mMarks = nsnull;
 
     return NS_OK;
 }
@@ -412,17 +445,17 @@ txNodeSet::clear()
 #ifdef TX_DONT_RECYCLE_BUFFER
     if (mStartBuffer) {
         nsMemory::Free(mStartBuffer);
-        mStartBuffer = mEndBuffer = nullptr;
+        mStartBuffer = mEndBuffer = nsnull;
     }
 #endif
     mStart = mEnd = mStartBuffer;
     delete [] mMarks;
-    mMarks = nullptr;
+    mMarks = nsnull;
     mDirection = kForward;
 }
 
-int32_t
-txNodeSet::indexOf(const txXPathNode& aNode, uint32_t aStart) const
+PRInt32
+txNodeSet::indexOf(const txXPathNode& aNode, PRUint32 aStart) const
 {
     NS_ASSERTION(mDirection == kForward,
                  "only append(aNode) is supported on reversed nodesets");
@@ -442,7 +475,7 @@ txNodeSet::indexOf(const txXPathNode& aNode, uint32_t aStart) const
 }
 
 const txXPathNode&
-txNodeSet::get(int32_t aIndex) const
+txNodeSet::get(PRInt32 aIndex) const
 {
     if (mDirection == kForward) {
         return mStart[aIndex];
@@ -457,7 +490,7 @@ txNodeSet::getResultType()
     return txAExprResult::NODESET;
 }
 
-bool
+PRBool
 txNodeSet::booleanValue()
 {
     return !isEmpty();
@@ -468,7 +501,7 @@ txNodeSet::numberValue()
     nsAutoString str;
     stringValue(str);
 
-    return txDouble::toDouble(str);
+    return Double::toDouble(str);
 }
 
 void
@@ -485,24 +518,24 @@ txNodeSet::stringValue(nsString& aStr)
 const nsString*
 txNodeSet::stringValuePointer()
 {
-    return nullptr;
+    return nsnull;
 }
 
-bool txNodeSet::ensureGrowSize(int32_t aSize)
+PRBool txNodeSet::ensureGrowSize(PRInt32 aSize)
 {
     // check if there is enough place in the buffer as is
     if (mDirection == kForward && aSize <= mEndBuffer - mEnd) {
-        return true;
+        return PR_TRUE;
     }
 
     if (mDirection == kReversed && aSize <= mStart - mStartBuffer) {
-        return true;
+        return PR_TRUE;
     }
 
     // check if we just have to align mStart to have enough space
-    int32_t oldSize = mEnd - mStart;
-    int32_t oldLength = mEndBuffer - mStartBuffer;
-    int32_t ensureSize = oldSize + aSize;
+    PRInt32 oldSize = mEnd - mStart;
+    PRInt32 oldLength = mEndBuffer - mStartBuffer;
+    PRInt32 ensureSize = oldSize + aSize;
     if (ensureSize <= oldLength) {
         // just move the buffer
         txXPathNode* dest = mStartBuffer;
@@ -514,12 +547,12 @@ bool txNodeSet::ensureGrowSize(int32_t aSize)
         mStart = dest;
         mEnd = dest + oldSize;
             
-        return true;
+        return PR_TRUE;
     }
 
     // This isn't 100% safe. But until someone manages to make a 1gig nodeset
     // it should be ok.
-    int32_t newLength = NS_MAX(oldLength, kTxNodeSetMinSize);
+    PRInt32 newLength = NS_MAX(oldLength, kTxNodeSetMinSize);
 
     while (newLength < ensureSize) {
         newLength *= kTxNodeSetGrowFactor;
@@ -529,7 +562,7 @@ bool txNodeSet::ensureGrowSize(int32_t aSize)
                                      (nsMemory::Alloc(newLength *
                                                          sizeof(txXPathNode)));
     if (!newArr) {
-        return false;
+        return PR_FALSE;
     }
 
     txXPathNode* dest = newArr;
@@ -555,25 +588,25 @@ bool txNodeSet::ensureGrowSize(int32_t aSize)
     mStart = dest;
     mEnd = dest + oldSize;
 
-    return true;
+    return PR_TRUE;
 }
 
 txXPathNode*
 txNodeSet::findPosition(const txXPathNode& aNode, txXPathNode* aFirst,
-                        txXPathNode* aLast, bool& aDupe) const
+                        txXPathNode* aLast, PRBool& aDupe) const
 {
-    aDupe = false;
+    aDupe = PR_FALSE;
     if (aLast - aFirst <= 2) {
         // If we search 2 nodes or less there is no point in further divides
         txXPathNode* pos = aFirst;
         for (; pos < aLast; ++pos) {
-            int cmp = txXPathNodeUtils::comparePosition(aNode, *pos);
+            PRIntn cmp = txXPathNodeUtils::comparePosition(aNode, *pos);
             if (cmp < 0) {
                 return pos;
             }
 
             if (cmp == 0) {
-                aDupe = true;
+                aDupe = PR_TRUE;
 
                 return pos;
             }
@@ -583,9 +616,9 @@ txNodeSet::findPosition(const txXPathNode& aNode, txXPathNode* aFirst,
 
     // (cannot add two pointers)
     txXPathNode* midpos = aFirst + (aLast - aFirst) / 2;
-    int cmp = txXPathNodeUtils::comparePosition(aNode, *midpos);
+    PRIntn cmp = txXPathNodeUtils::comparePosition(aNode, *midpos);
     if (cmp == 0) {
-        aDupe = true;
+        aDupe = PR_TRUE;
 
         return midpos;
     }

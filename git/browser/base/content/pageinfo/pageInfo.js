@@ -1,21 +1,58 @@
 # -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998-2004
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   smorrison@gte.com
+#   Terry Hayes <thayes@netscape.com>
+#   Daniel Brooks <db48x@yahoo.com>
+#   Florian QUEZE <f.qu@queze.net>
+#   Erik Fabert <jerfa@yahoo.com>
+#   Tanner M. Young <mozilla@alyoung.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 //******** define a js object to implement nsITreeView
-function pageInfoTreeView(treeid, copycol)
+function pageInfoTreeView(copycol)
 {
   // copycol is the index number for the column that we want to add to
   // the copy-n-paste buffer when the user hits accel-c
-  this.treeid = treeid;
   this.copycol = copycol;
   this.rows = 0;
   this.tree = null;
   this.data = [ ];
   this.selection = null;
-  this.sortcol = -1;
-  this.sortdir = false;
+  this.sortcol = null;
+  this.sortdir = 0;
 }
 
 pageInfoTreeView.prototype = {
@@ -84,25 +121,6 @@ pageInfoTreeView.prototype = {
     }
   },
 
-  onPageMediaSort : function(columnname)
-  {
-    var tree = document.getElementById(this.treeid);
-    var treecol = tree.columns.getNamedColumn(columnname);
-
-    this.sortdir =
-      gTreeUtils.sort(
-        tree,
-        this,
-        this.data,
-        treecol.index,
-        function textComparator(a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); },
-        this.sortcol,
-        this.sortdir
-      );
-
-    this.sortcol = treecol.index;
-  },
-
   getRowProperties: function(row, prop) { },
   getCellProperties: function(row, column, prop) { },
   getColumnProperties: function(column, prop) { },
@@ -148,8 +166,9 @@ const COPYCOL_META_CONTENT = 1;
 const COPYCOL_IMAGE = COL_IMAGE_ADDRESS;
 
 // one nsITreeView for each tree in the window
-var gMetaView = new pageInfoTreeView('metatree', COPYCOL_META_CONTENT);
-var gImageView = new pageInfoTreeView('imagetree', COPYCOL_IMAGE);
+var gMetaView = new pageInfoTreeView(COPYCOL_META_CONTENT);
+var gImageView = new pageInfoTreeView(COPYCOL_IMAGE);
+
 
 var atomSvc = Components.classes["@mozilla.org/atom-service;1"]
                         .getService(Components.interfaces.nsIAtomService);
@@ -166,44 +185,6 @@ gImageView.getCellProperties = function(row, col, props) {
 
   if (col.element.id == "image-address")
     props.AppendElement(this._ltrAtom);
-};
-
-gImageView.getCellText = function(row, column) {
-  var value = this.data[row][column.index];
-  if (column.index == COL_IMAGE_SIZE) {
-    if (value == -1) {
-      return gStrings.unknown;
-    } else {
-      var kbSize = Number(Math.round(value / 1024 * 100) / 100);
-      return gBundle.getFormattedString("mediaFileSize", [kbSize]);
-    }
-  }
-  return value || "";
-};
-
-gImageView.onPageMediaSort = function(columnname) {
-  var tree = document.getElementById(this.treeid);
-  var treecol = tree.columns.getNamedColumn(columnname);
-
-  var comparator;
-  if (treecol.index == COL_IMAGE_SIZE) {
-    comparator = function numComparator(a, b) { return a - b; };
-  } else {
-    comparator = function textComparator(a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); };
-  }
-
-  this.sortdir =
-    gTreeUtils.sort(
-      tree,
-      this,
-      this.data,
-      treecol.index,
-      comparator,
-      this.sortcol,
-      this.sortdir
-    );
-
-  this.sortcol = treecol.index;
 };
 
 var gImageHash = { };
@@ -303,9 +284,6 @@ function onLoadPageInfo()
   gStrings.notSet = gBundle.getString("notset");
   gStrings.mediaImg = gBundle.getString("mediaImg");
   gStrings.mediaBGImg = gBundle.getString("mediaBGImg");
-  gStrings.mediaBorderImg = gBundle.getString("mediaBorderImg");
-  gStrings.mediaListImg = gBundle.getString("mediaListImg");
-  gStrings.mediaCursor = gBundle.getString("mediaCursor");
   gStrings.mediaObject = gBundle.getString("mediaObject");
   gStrings.mediaEmbed = gBundle.getString("mediaEmbed");
   gStrings.mediaLink = gBundle.getString("mediaLink");
@@ -607,8 +585,15 @@ function addImage(url, type, alt, elem, isBg)
       catch(ex2) { }
     }
 
-    var dataSize = (cacheEntryDescriptor) ? cacheEntryDescriptor.dataSize : -1;
-    gImageView.addRow([url, type, dataSize, alt, 1, elem, isBg]);
+    var sizeText;
+    if (cacheEntryDescriptor) {
+      var pageSize = cacheEntryDescriptor.dataSize;
+      var kbSize = formatNumber(Math.round(pageSize / 1024 * 100) / 100);
+      sizeText = gBundle.getFormattedString("mediaFileSize", [kbSize]);
+    }
+    else
+      sizeText = gStrings.unknown;
+    gImageView.addRow([url, type, sizeText, alt, 1, elem, isBg]);
 
     // Add the observer, only once.
     if (gImageView.data.length == 1) {
@@ -628,34 +613,13 @@ function addImage(url, type, alt, elem, isBg)
 
 function grabAll(elem)
 {
-  // check for images defined in CSS (e.g. background, borders), any node may have multiple
+  // check for background images, any node may have multiple
   var computedStyle = elem.ownerDocument.defaultView.getComputedStyle(elem, "");
-
   if (computedStyle) {
-    var addImgFunc = function (label, val) {
-      if (val.primitiveType == CSSPrimitiveValue.CSS_URI) {
-        addImage(val.getStringValue(), label, gStrings.notSet, elem, true);
-      }
-      else if (val.primitiveType == CSSPrimitiveValue.CSS_STRING) {
-        // This is for -moz-image-rect.
-        // TODO: Reimplement once bug 714757 is fixed
-        var strVal = val.getStringValue();
-        if (strVal.search(/^.*url\(\"?/) > -1) {
-          url = strVal.replace(/^.*url\(\"?/,"").replace(/\"?\).*$/,"");
-          addImage(url, label, gStrings.notSet, elem, true);
-        }
-      }
-      else if (val.cssValueType == CSSValue.CSS_VALUE_LIST) {
-        // recursively resolve multiple nested CSS value lists
-        for (var i = 0; i < val.length; i++)
-          addImgFunc(label, val.item(i));
-      }
-    };
-
-    addImgFunc(gStrings.mediaBGImg, computedStyle.getPropertyCSSValue("background-image"));
-    addImgFunc(gStrings.mediaBorderImg, computedStyle.getPropertyCSSValue("border-image-source"));
-    addImgFunc(gStrings.mediaListImg, computedStyle.getPropertyCSSValue("list-style-image"));
-    addImgFunc(gStrings.mediaCursor, computedStyle.getPropertyCSSValue("cursor"));
+    Array.forEach(computedStyle.getPropertyCSSValue("background-image"), function (url) {
+      if (url.primitiveType == CSSPrimitiveValue.CSS_URI)
+        addImage(url.getStringValue(), gStrings.mediaBGImg, gStrings.notSet, elem, true);
+    });
   }
 
   // one swi^H^H^Hif-else to rule them all
@@ -730,26 +694,15 @@ function onBeginLinkDrag(event,urlField,descField)
 }
 
 //******** Image Stuff
-function getSelectedRows(tree)
+function getSelectedImage(tree)
 {
-  var start = { };
-  var end   = { };
-  var numRanges = tree.view.selection.getRangeCount();
+  if (!gImageView.rowCount)
+    return null;
 
-  var rowArray = [ ];
-  for (var t = 0; t < numRanges; t++) {
-    tree.view.selection.getRangeAt(t, start, end);
-    for (var v = start.value; v <= end.value; v++)
-      rowArray.push(v);
-  }
-
-  return rowArray;
-}
-
-function getSelectedRow(tree)
-{
-  var rows = getSelectedRows(tree);
-  return (rows.length == 1) ? rows[0] : -1;
+  // Only works if only one item is selected
+  var clickedRow = tree.currentIndex;
+  // image-node
+  return gImageView.data[clickedRow][COL_IMAGE_NODE];
 }
 
 function selectSaveFolder()
@@ -763,7 +716,7 @@ function selectSaveFolder()
   fp.init(window, titleText, nsIFilePicker.modeGetFolder);
   try {
     var prefs = Components.classes[PREFERENCES_CONTRACTID]
-                          .getService(Components.interfaces.nsIPrefBranch);
+                          .getService(Components.interfaces.nsIPrefBranch2);
 
     var initialDir = prefs.getComplexValue("browser.download.dir", nsILocalFile);
     if (initialDir)
@@ -782,25 +735,26 @@ function selectSaveFolder()
 function saveMedia()
 {
   var tree = document.getElementById("imagetree");
-  var rowArray = getSelectedRows(tree);
-  if (rowArray.length == 1) {
-    var row = rowArray[0];
-    var item = gImageView.data[row][COL_IMAGE_NODE];
-    var url = gImageView.data[row][COL_IMAGE_ADDRESS];
+  var count = tree.view.selection.count;
+  if (count == 1) {
+    var item = getSelectedImage(tree);
+    var url = gImageView.data[tree.currentIndex][COL_IMAGE_ADDRESS];
 
-    if (url) {
-      var titleKey = "SaveImageTitle";
-
-      if (item instanceof HTMLVideoElement)
-        titleKey = "SaveVideoTitle";
-      else if (item instanceof HTMLAudioElement)
-        titleKey = "SaveAudioTitle";
-
-      saveURL(url, null, titleKey, false, false, makeURI(item.baseURI));
-    }
+    if (url)
+      saveURL(url, null, "SaveImageTitle", false, false, makeURI(item.baseURI));
   }
   else {
     var odir  = selectSaveFolder();
+    var start = { };
+    var end   = { };
+    var numRanges = tree.view.selection.getRangeCount();
+
+    var rowArray = [ ];
+    for (var t = 0; t < numRanges; t++) {
+      tree.view.selection.getRangeAt(t, start, end);
+      for (var v = start.value; v <= end.value; v++)
+        rowArray.push(v);
+    }
 
     var saveAnImage = function(aURIString, aChosenData, aBaseURI) {
       internalSave(aURIString, null, null, null, null, false, "SaveImageTitle",
@@ -869,14 +823,14 @@ function onImageSelect()
     splitter.collapsed     = false;
     previewBox.collapsed   = false;
     tree.flex = 0;
-    makePreview(getSelectedRows(tree)[0]);
+    makePreview(tree.view.selection.currentIndex);
   }
 }
 
 function makePreview(row)
 {
   var imageTree = document.getElementById("imagetree");
-  var item = gImageView.data[row][COL_IMAGE_NODE];
+  var item = getSelectedImage(imageTree);
   var url = gImageView.data[row][COL_IMAGE_ADDRESS];
   var isBG = gImageView.data[row][COL_IMAGE_BG];
   var isAudio = false;
@@ -1038,7 +992,7 @@ function makePreview(row)
   }
 #endif
   else {
-    // fallback image for protocols not allowed (e.g., javascript:)
+    // fallback image for protocols not allowed (e.g., data: or javascript:)
     // or elements not [yet] handled (e.g., object, embed).
     document.getElementById("brokenimagecontainer").collapsed = false;
     document.getElementById("theimagecontainer").collapsed = true;
@@ -1072,7 +1026,7 @@ function makeBlockImage(url)
   var permissionManager = Components.classes[PERMISSION_CONTRACTID]
                                     .getService(nsIPermissionManager);
   var prefs = Components.classes[PREFERENCES_CONTRACTID]
-                        .getService(Components.interfaces.nsIPrefBranch);
+                        .getService(Components.interfaces.nsIPrefBranch2);
 
   var checkbox = document.getElementById("blockImage");
   var imagePref = prefs.getIntPref("permissions.default.image");
@@ -1103,7 +1057,7 @@ var imagePermissionObserver = {
       var permission = aSubject.QueryInterface(Components.interfaces.nsIPermission);
       if (permission.type == "image") {
         var imageTree = document.getElementById("imagetree");
-        var row = getSelectedRow(imageTree);
+        var row = imageTree.currentIndex;
         var item = gImageView.data[row][COL_IMAGE_NODE];
         var url = gImageView.data[row][COL_IMAGE_ADDRESS];
         if (makeURI(url).host == permission.host)
@@ -1242,7 +1196,7 @@ function doCopy()
         elem.removeAttribute("copybuffer");
       }
     }
-    gClipboardHelper.copyString(text.join("\n"), document);
+    gClipboardHelper.copyString(text.join("\n"));
   }
 }
 
@@ -1274,6 +1228,8 @@ function selectImage()
 function checkProtocol(img)
 {
   var url = img[COL_IMAGE_ADDRESS];
-  return /^data:image\//i.test(url) ||
-    /^(https?|ftp|file|about|chrome|resource):/.test(url);
+  if (/^data:/.test(url) && /^image\//.test(img[COL_IMAGE_NODE].type))
+    return true;
+  const regex = /^(https?|ftp|file|about|chrome|resource):/;
+  return regex.test(url);
 }

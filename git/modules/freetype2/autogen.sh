@@ -118,12 +118,9 @@ fi
 
 # On MacOS X, the GNU libtool is named `glibtool'.
 HOSTOS=`uname`
-if test "$LIBTOOLIZE"x != x; then
-  :
-elif test "$HOSTOS"x = Darwinx; then
+LIBTOOLIZE=libtoolize
+if test "$HOSTOS"x = Darwinx; then
   LIBTOOLIZE=glibtoolize
-else
-  LIBTOOLIZE=libtoolize
 fi
 
 if test "$ACLOCAL"x = x; then

@@ -1,7 +1,42 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bill Law       law@netscape.com
+ *   IBM Corp.
+ *   Rich Walsh     dragtext@e-vertise.com
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_OS2_HIGH_MEMORY
 // os2safe.h has to be included before os2.h, needed for high mem
@@ -265,8 +300,8 @@ public:
     NS_DECL_ISUPPORTS_INHERITED
 
     // Overrides of base implementation.
-    NS_IMETHOD Start( bool *aResult );
-    NS_IMETHOD Stop( bool *aResult );
+    NS_IMETHOD Start( PRBool *aResult );
+    NS_IMETHOD Stop( PRBool *aResult );
     NS_IMETHOD Quit();
     NS_IMETHOD Enable();
 
@@ -288,13 +323,13 @@ private:
                                                     HDDEDATA hdata,
                                                     ULONG    dwData1,
                                                     ULONG    dwData2 );
-    static void HandleCommandLine(const char* aCmdLineString, nsIFile* aWorkingDir, uint32_t aState);
+    static void HandleCommandLine(const char* aCmdLineString, nsIFile* aWorkingDir, PRUint32 aState);
     static void ParseDDEArg( HSZ args, int index, nsCString& string);
     static void ParseDDEArg( const char* args, int index, nsCString& aString);
     static void ActivateLastWindow();
     static HDDEDATA CreateDDEData( DWORD value );
     static HDDEDATA CreateDDEData( LPBYTE value, DWORD len );
-    static bool     InitTopicStrings();
+    static PRBool   InitTopicStrings();
     static int      FindTopic( HSZ topic );
     static nsresult OpenWindow( const char *urlstr, const char *args );
     static nsresult OpenBrowserWindow();
@@ -314,9 +349,9 @@ private:
 
     static HSZ   mApplication, mTopics[ topicCount ];
     static DWORD mInstance;
-    static bool mCanHandleRequests;
+    static PRBool mCanHandleRequests;
     static char mMutexName[];
-    static bool mUseDDE;
+    static PRBool mUseDDE;
     friend struct MessageWindow;
 }; // nsNativeAppSupportOS2
 
@@ -369,7 +404,7 @@ int   nsNativeAppSupportOS2::mConversations = 0;
 HSZ   nsNativeAppSupportOS2::mApplication   = 0;
 HSZ   nsNativeAppSupportOS2::mTopics[nsNativeAppSupportOS2::topicCount] = { 0 };
 DWORD nsNativeAppSupportOS2::mInstance      = 0;
-bool nsNativeAppSupportOS2::mCanHandleRequests   = false;
+PRBool nsNativeAppSupportOS2::mCanHandleRequests   = PR_FALSE;
 
 // Added this as pmddeml has no api like this
 int DdeCmpStringHandles( HSZ hsz1, HSZ hsz2 )
@@ -699,14 +734,14 @@ struct MessageWindow {
         COPYDATASTRUCT *cds = (COPYDATASTRUCT*)lp;
         DosGetSharedMem( (PVOID)cds, PAG_READ|PAG_WRITE );
 
-        nsCOMPtr<nsIFile> workingDir;
+        nsCOMPtr<nsILocalFile> workingDir;
 
         // a "1" or greater indicates that the other process's working
         // directory follows the commandline string - locate & convert it
         if (cds->dwData >= 1) {
             char* wdpath = strchr( (char*)cds->lpData, 0) + 1;
             NS_NewNativeLocalFile(nsDependentCString(wdpath),
-                                  false, getter_AddRefs(workingDir));
+                                  PR_FALSE, getter_AddRefs(workingDir));
         }
 
         nsNativeAppSupportOS2::HandleCommandLine((char*)cds->lpData,
@@ -720,7 +755,7 @@ private:
     USHORT   mMsgWindowAtom;
 }; // struct MessageWindow
 
-bool nsNativeAppSupportOS2::mUseDDE = false;
+PRBool nsNativeAppSupportOS2::mUseDDE = PR_FALSE;
 
 /* Start: Tries to find the "message window" to determine if it
  *        exists.  If so, then Mozilla is already running.  In that
@@ -735,12 +770,12 @@ bool nsNativeAppSupportOS2::mUseDDE = false;
  *        be protected by use of a mutex semaphore.
  */
 NS_IMETHODIMP
-nsNativeAppSupportOS2::Start( bool *aResult ) {
+nsNativeAppSupportOS2::Start( PRBool *aResult ) {
     NS_ENSURE_ARG( aResult );
     NS_ENSURE_TRUE( mInstance == 0, NS_ERROR_NOT_INITIALIZED );
 
     nsresult rv = NS_ERROR_FAILURE;
-    *aResult = false;
+    *aResult = PR_FALSE;
 
     // see if DDE should be enabled AND remove OS/2-specific
     // options the app's commandline handler won't recognize
@@ -748,7 +783,7 @@ nsNativeAppSupportOS2::Start( bool *aResult ) {
     for (int i = 1; i < gArgc; i++) {
         if (stricmp("-dde", gArgv[i]) == 0 ||
             stricmp("/dde", gArgv[i]) == 0)
-            mUseDDE = true;
+            mUseDDE = PR_TRUE;
         else
             if (stricmp("-console", gArgv[i]) != 0 &&
                 stricmp("/console", gArgv[i]) != 0)
@@ -763,8 +798,8 @@ nsNativeAppSupportOS2::Start( bool *aResult ) {
     // if this is a standalone instance, turn off DDE regardless of the
     // commandline, then skip out before we look for another instance
     if (getenv("MOZ_NO_REMOTE")) {
-        mUseDDE = false;
-        *aResult = true;
+        mUseDDE = PR_FALSE;
+        *aResult = PR_TRUE;
         return NS_OK;
     }
 
@@ -804,13 +839,13 @@ nsNativeAppSupportOS2::Start( bool *aResult ) {
             if (mUseDDE)
                 this->StartDDE();
             // Tell caller to spin message loop.
-            *aResult = true;
+            *aResult = PR_TRUE;
         }
     }
 
     startupLock.Unlock();
 
-    if( *aResult == false )
+    if( *aResult == PR_FALSE )
     {
         /* This process isn't going to continue much longer.  Make sure that we
          * clean up the message queue
@@ -824,14 +859,14 @@ nsNativeAppSupportOS2::Start( bool *aResult ) {
     return rv;
 }
 
-bool
+PRBool
 nsNativeAppSupportOS2::InitTopicStrings() {
     for ( int i = 0; i < topicCount; i++ ) {
         if ( !( mTopics[ i ] = WinDdeCreateStringHandle( (PSZ)topicNames[ i ], CP_WINANSI ) ) ) {
-            return false;
+            return PR_FALSE;
         }
     }
-    return true;
+    return PR_TRUE;
 }
 
 int
@@ -861,10 +896,10 @@ nsNativeAppSupportOS2::StartDDE() {
     /* Get entrypoints for PMDDEML */
     BOOL bDDEML = SetupOS2ddeml();
 
-    /* If we couldn't initialize DDEML, set mUSEDDE to false */
+    /* If we couldn't initialize DDEML, set mUSEDDE to PR_FALSE */
     /* so we don't do anything else DDE related */
     if (!bDDEML) {
-       mUseDDE = false;
+       mUseDDE = PR_FALSE;
        return NS_OK;
     }
 
@@ -891,12 +926,12 @@ nsNativeAppSupportOS2::StartDDE() {
 
 // If no DDE conversations are pending, terminate DDE.
 NS_IMETHODIMP
-nsNativeAppSupportOS2::Stop( bool *aResult ) {
+nsNativeAppSupportOS2::Stop( PRBool *aResult ) {
     NS_ENSURE_ARG( aResult );
     NS_ENSURE_TRUE( mInstance, NS_ERROR_NOT_INITIALIZED );
 
     nsresult rv = NS_OK;
-    *aResult = true;
+    *aResult = PR_TRUE;
 
     if (!mUseDDE) {
        return rv;
@@ -908,7 +943,7 @@ nsNativeAppSupportOS2::Stop( bool *aResult ) {
         if ( mConversations == 0 ) {
             this->Quit();
         } else {
-            *aResult = false;
+            *aResult = PR_FALSE;
         }
 
         ddeLock.Unlock();
@@ -916,7 +951,7 @@ nsNativeAppSupportOS2::Stop( bool *aResult ) {
     else {
         // No DDE application name specified, but that's OK.  Just
         // forge ahead.
-        *aResult = true;
+        *aResult = PR_TRUE;
     }
 
     return rv;
@@ -976,10 +1011,10 @@ nsNativeAppSupportOS2::Quit() {
 NS_IMETHODIMP
 nsNativeAppSupportOS2::Enable()
 {
-    mCanHandleRequests = true;
+    mCanHandleRequests = PR_TRUE;
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
-        obs->AddObserver(this, "quit-application", false);
+        obs->AddObserver(this, "quit-application", PR_FALSE);
     } else {
         NS_ERROR("No observer service?");
     }
@@ -1033,7 +1068,7 @@ static nsCString hszValue( DWORD instance, HSZ hsz ) {
 
 // Utility function to escape double-quotes within a string.
 static void escapeQuotes( nsAString &aString ) {
-    int32_t offset = -1;
+    PRInt32 offset = -1;
     while( 1 ) {
        // Find next '"'.
        offset = aString.FindChar( '"', ++offset );
@@ -1095,12 +1130,12 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
                     // Open a given URL...
 
                     // Get the URL from the first argument in the command.
-                    nsAutoCString url;
+                    nsCAutoString url;
                     ParseDDEArg(hsz2, 0, url);
 
                     // Read the 3rd argument in the command to determine if a
                     // new window is to be used.
-                    nsAutoCString windowID;
+                    nsCAutoString windowID;
                     ParseDDEArg(hsz2, 2, windowID);
                     // to open the URL in a new window, the old OS/2 code
                     // looks for "0" while the new Win32 code looks for "";
@@ -1114,7 +1149,7 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
                     printf( "Handling dde XTYP_REQUEST request: [%s]...\n", url.get() );
 #endif
                     // Now handle it.
-                    HandleCommandLine(url.get(), nullptr, nsICommandLine::STATE_REMOTE_EXPLICIT);
+                    HandleCommandLine(url.get(), nsnull, nsICommandLine::STATE_REMOTE_EXPLICIT);
                     // Return pseudo window ID.
                     result = CreateDDEData( 1 );
                     break;
@@ -1182,7 +1217,7 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
 
                         // Use a string buffer for the output data, first
                         // save a quote.
-                        nsAutoCString   outpt( NS_LITERAL_CSTRING("\"") );
+                        nsCAutoString   outpt( NS_LITERAL_CSTRING("\"") );
                         // Now copy the URL converting the Unicode string
                         // to a single-byte ASCII string
                         outpt.Append( NS_LossyConvertUTF16toASCII( url ) );
@@ -1203,12 +1238,12 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
 #if MOZ_DEBUG_DDE
                         printf( "WWW_GetWindowInfo->%s\n", outpt.get() );
 #endif
-                    } while ( false );
+                    } while ( PR_FALSE );
                     break;
                 }
                 case topicActivate: {
                     // Activate a Nav window...
-                    nsAutoCString windowID;
+                    nsCAutoString windowID;
                     ParseDDEArg(hsz2, 0, windowID);
                     // 4294967295 is decimal for 0xFFFFFFFF which is also a
                     //   correct value to do that Activate last window stuff
@@ -1229,12 +1264,12 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
                 }
                 case topicRegisterViewer: {
                     // Register new viewer (not implemented).
-                    result = CreateDDEData( false );
+                    result = CreateDDEData( PR_FALSE );
                     break;
                 }
                 case topicUnRegisterViewer: {
                     // Unregister new viewer (not implemented).
-                    result = CreateDDEData( false );
+                    result = CreateDDEData( PR_FALSE );
                     break;
                 }
                 default:
@@ -1259,12 +1294,12 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
 #if MOZ_DEBUG_DDE
             printf( "Handling dde request: [%s]...\n", (char*)request );
 #endif
-            nsAutoCString url;
+            nsCAutoString url;
             ParseDDEArg((const char*) request, 0, url);
 
             // Read the 3rd argument in the command to determine if a
             // new window is to be used.
-            nsAutoCString windowID;
+            nsCAutoString windowID;
             ParseDDEArg((const char*) request, 2, windowID);
 
             // to open the URL in a new window, the old OS/2 code
@@ -1279,7 +1314,7 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
             printf( "Handling dde XTYP_REQUEST request: [%s]...\n", url.get() );
 #endif
             // Now handle it.
-            HandleCommandLine(url.get(), nullptr, nsICommandLine::STATE_REMOTE_EXPLICIT);
+            HandleCommandLine(url.get(), nsnull, nsICommandLine::STATE_REMOTE_EXPLICIT);
 
             // Release the data.
 //            DdeUnaccessData( hdata );
@@ -1302,7 +1337,7 @@ nsNativeAppSupportOS2::HandleDDENotification( ULONG idInst,     // DDEML instanc
 // if the closing '"' is missing) if the arg is quoted.  If the arg
 // is not quoted, then p+result will point to the first character
 // of the arg.
-static int32_t advanceToEndOfQuotedArg( const char *p, int32_t offset, int32_t len ) {
+static PRInt32 advanceToEndOfQuotedArg( const char *p, PRInt32 offset, PRInt32 len ) {
     // Check whether the current arg is quoted.
     if ( p[++offset] == '"' ) {
         // Advance past the closing quote.
@@ -1323,7 +1358,7 @@ void nsNativeAppSupportOS2::ParseDDEArg( const char* args, int index, nsCString&
         nsDependentCString temp(args, argLen);
 
         // offset points to the comma preceding the desired arg.
-        int32_t offset = -1;
+        PRInt32 offset = -1;
         // Skip commas till we get to the arg we want.
         while( index-- ) {
             // If this arg is quoted, then go to closing quote.
@@ -1344,7 +1379,7 @@ void nsNativeAppSupportOS2::ParseDDEArg( const char* args, int index, nsCString&
         // deal with that before searching for the terminating comma.
         // We advance offset so it ends up pointing to the start of
         // the argument we want.
-        int32_t end = advanceToEndOfQuotedArg( args, offset++, argLen );
+        PRInt32 end = advanceToEndOfQuotedArg( args, offset++, argLen );
         // Find next comma (or end of string).
         end = temp.FindChar( ',', end );
         if ( end == kNotFound ) {
@@ -1362,7 +1397,7 @@ void nsNativeAppSupportOS2::ParseDDEArg( HSZ args, int index, nsCString& aString
     DWORD argLen = WinDdeQueryString( args, NULL, NULL, CP_WINANSI );
     // there wasn't any string, so return empty string
     if ( !argLen ) return;
-    nsAutoCString temp;
+    nsCAutoString temp;
     // Ensure result's buffer is sufficiently big.
     temp.SetLength( argLen );
     // Now get the string contents.
@@ -1401,7 +1436,7 @@ HDDEDATA nsNativeAppSupportOS2::CreateDDEData( LPBYTE value, DWORD len ) {
 void
 nsNativeAppSupportOS2::HandleCommandLine(const char* aCmdLineString,
                                          nsIFile* aWorkingDir,
-                                         uint32_t aState)
+                                         PRUint32 aState)
 {
     nsresult rv;
 
@@ -1412,7 +1447,7 @@ nsNativeAppSupportOS2::HandleCommandLine(const char* aCmdLineString,
     int between, quoted, bSlashCount;
     int argc;
     const char *p;
-    nsAutoCString arg;
+    nsCAutoString arg;
 
     nsCOMPtr<nsICommandLineRunner> cmdLine
         (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
@@ -1551,9 +1586,9 @@ nsNativeAppSupportOS2::HandleCommandLine(const char* aCmdLineString,
 
     // if these OS/2-specific flags aren't removed,
     // any URL following them will be ignored
-    bool found;
-    cmdLine->HandleFlag(NS_LITERAL_STRING("console"), false, &found);
-    cmdLine->HandleFlag(NS_LITERAL_STRING("dde"), false, &found);
+    PRBool found;
+    cmdLine->HandleFlag(NS_LITERAL_STRING("console"), PR_FALSE, &found);
+    cmdLine->HandleFlag(NS_LITERAL_STRING("dde"), PR_FALSE, &found);
 
     // Cleanup.
     while ( argc ) {
@@ -1625,7 +1660,7 @@ protected:
   JSContext                         *mContext;
 };
 
-SafeJSContext::SafeJSContext() : mContext(nullptr) {
+SafeJSContext::SafeJSContext() : mContext(nsnull) {
 }
 
 SafeJSContext::~SafeJSContext() {
@@ -1643,9 +1678,11 @@ nsresult SafeJSContext::Push() {
     return NS_ERROR_FAILURE;
 
   mService = do_GetService(sJSStackContractID);
-  if (mService) {
-    JSContext* cx = mService->GetSafeJSContext();
-    if (cx && NS_SUCCEEDED(mService->Push(cx))) {
+  if(mService) {
+    JSContext *cx;
+    if (NS_SUCCEEDED(mService->GetSafeJSContext(&cx)) &&
+        cx &&
+        NS_SUCCEEDED(mService->Push(cx))) {
       // Save cx in mContext to indicate need to pop.
       mContext = cx;
     }
@@ -1712,7 +1749,7 @@ nsNativeAppSupportOS2::OpenBrowserWindow()
         }
 
         NS_ERROR("failed to hand off external URL to extant window");
-    } while ( false );
+    } while ( PR_FALSE );
 
     // open a new window if caller requested it or if anything above failed
 
@@ -1721,7 +1758,7 @@ nsNativeAppSupportOS2::OpenBrowserWindow()
         (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
     NS_ENSURE_TRUE(cmdLine, NS_ERROR_FAILURE);
 
-    rv = cmdLine->Init(0, argv, nullptr, nsICommandLine::STATE_REMOTE_EXPLICIT);
+    rv = cmdLine->Init(0, argv, nsnull, nsICommandLine::STATE_REMOTE_EXPLICIT);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return cmdLine->Run();
@@ -1735,9 +1772,9 @@ nsNativeAppSupportOS2::OpenBrowserWindow()
 // It returns TRUE if the current instance should continue running and
 // FALSE if it should terminate upon this function's return.
 
-bool       StartOS2App(int aArgc, char **aArgv)
+PRBool     StartOS2App(int aArgc, char **aArgv)
 {
-  bool      rv = true;
+  PRBool    rv = PR_TRUE;
   PPIB      ppib;
   PTIB      ptib;
 
@@ -1759,7 +1796,7 @@ bool       StartOS2App(int aArgc, char **aArgv)
         stricmp("help", arg) == 0 ||
         stricmp("version", arg) == 0 ||
         stricmp("console", arg) == 0) {
-        rv = false;
+        rv = PR_FALSE;
         break;
       }
     }
@@ -1807,7 +1844,7 @@ bool       StartOS2App(int aArgc, char **aArgv)
   PID   pid;
   ULONG rc = DosStartSession(&x, &ulSession, &pid);
   if (rc && rc != ERROR_SMG_START_IN_BACKGROUND)
-    rv = true;
+    rv = PR_TRUE;
 
   return rv;
 }

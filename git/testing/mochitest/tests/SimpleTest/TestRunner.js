@@ -1,16 +1,9 @@
 /*
  * e10s event dispatcher from content->chrome
  *
- * type = eventName (QuitApplication)
+ * type = eventName (QuitApplication, LoggerInit, LoggerClose, Logger, GetPref, SetPref)
  * data = json object {"filename":filename} <- for LoggerInit
  */
-function getElement(id) {
-    return ((typeof(id) == "string") ?
-        document.getElementById(id) : id);
-}
-
-this.$ = this.getElement;
-
 function contentDispatchEvent(type, data, sync) {
   if (typeof(data) == "undefined") {
     data = {};
@@ -24,41 +17,12 @@ function contentDispatchEvent(type, data, sync) {
   document.dispatchEvent(element);
 }
 
+function contentSyncEvent(type, data) {
+  contentDispatchEvent(type, data, 1);
+}
+
 function contentAsyncEvent(type, data) {
   contentDispatchEvent(type, data, 0);
-}
-
-/* Helper Function */
-function extend(obj, /* optional */ skip) {
-    // Extend an array with an array-like object starting
-    // from the skip index
-    if (!skip) {
-        skip = 0;
-    }
-    if (obj) {
-        var l = obj.length;
-        var ret = [];
-        for (var i = skip; i < l; i++) {
-            ret.push(obj[i]);
-        }
-    }
-    return ret;
-}
-
-function flattenArguments(lst/* ...*/) {
-    var res = [];
-    var args = extend(arguments);
-    while (args.length) {
-        var o = args.shift();
-        if (o && typeof(o) == "object" && typeof(o.length) == "number") {
-            for (var i = o.length - 1; i >= 0; i--) {
-                args.unshift(o[i]);
-            }
-        } else {
-            res.push(o);
-        }
-    }
-    return res;
 }
 
 /**
@@ -79,6 +43,7 @@ TestRunner._urls = [];
 TestRunner.timeout = 5 * 60 * 1000; // 5 minutes.
 TestRunner.maxTimeouts = 4; // halt testing after too many timeouts
 
+TestRunner.ipcMode = SpecialPowers.hasContentProcesses();
 TestRunner._expectingProcessCrash = false;
 
 /**
@@ -89,28 +54,12 @@ TestRunner._currentTestStartTime = new Date().valueOf();
 TestRunner._timeoutFactor = 1;
 
 TestRunner._checkForHangs = function() {
-  function reportError(win, msg) {
-    if ("SimpleTest" in win) {
-      win.SimpleTest.ok(false, msg);
-    } else if ("W3CTest" in win) {
-      win.W3CTest.logFailure(msg);
-    }
-  }
-
-  function killTest(win) {
-    if ("SimpleTest" in win) {
-      win.SimpleTest.finish();
-    } else if ("W3CTest" in win) {
-      win.W3CTest.timeout();
-    }
-  }
-
   if (TestRunner._currentTest < TestRunner._urls.length) {
     var runtime = new Date().valueOf() - TestRunner._currentTestStartTime;
     if (runtime >= TestRunner.timeout * TestRunner._timeoutFactor) {
       var frameWindow = $('testframe').contentWindow.wrappedJSObject ||
                           $('testframe').contentWindow;
-      reportError(frameWindow, "Test timed out.");
+      frameWindow.SimpleTest.ok(false, "Test timed out.");
 
       // If we have too many timeouts, give up. We don't want to wait hours
       // for results if some bug causes lots of tests to time out.
@@ -118,20 +67,18 @@ TestRunner._checkForHangs = function() {
         TestRunner._haltTests = true;
 
         TestRunner.currentTestURL = "(SimpleTest/TestRunner.js)";
-        reportError(frameWindow, TestRunner.maxTimeouts + " test timeouts, giving up.");
+        frameWindow.SimpleTest.ok(false, TestRunner.maxTimeouts + " test timeouts, giving up.");
         var skippedTests = TestRunner._urls.length - TestRunner._currentTest;
-        reportError(frameWindow, "Skipping " + skippedTests + " remaining tests.");
+        frameWindow.SimpleTest.ok(false, "Skipping " + skippedTests + " remaining tests.");
       }
 
-      // Add a little (1 second) delay to ensure automation.py has time to notice
-      // "Test timed out" log and process it (= take a screenshot).
-      setTimeout(function delayedKillTest() { killTest(frameWindow); }, 1000);
+      frameWindow.SimpleTest.finish();
 
       if (TestRunner._haltTests)
         return;
     }
 
-    setTimeout(TestRunner._checkForHangs, 30000);
+    TestRunner.deferred = callLater(30, TestRunner._checkForHangs);
   }
 }
 
@@ -142,7 +89,7 @@ TestRunner.requestLongerTimeout = function(factor) {
 /**
  * This is used to loop tests
 **/
-TestRunner.repeat = 0;
+TestRunner.loops = 0;
 TestRunner._currentLoop = 0;
 
 /**
@@ -151,33 +98,9 @@ TestRunner._currentLoop = 0;
 TestRunner.onComplete = null;
 
 /**
- * Adds a failed test case to a list so we can rerun only the failed tests
- **/
-TestRunner._failedTests = {};
-TestRunner._failureFile = "";
-
-TestRunner.addFailedTest = function(testName) {
-    if (TestRunner._failedTests[testName] == undefined) {
-        TestRunner._failedTests[testName] = "";
-    }
-};
-
-TestRunner.setFailureFile = function(fileName) {
-    TestRunner._failureFile = fileName;
-}
-
-TestRunner.generateFailureList = function () {
-    if (TestRunner._failureFile) {
-        var failures = new SpecialPowersLogger(TestRunner._failureFile);
-        failures.log(JSON.stringify(TestRunner._failedTests));
-        failures.close();
-    }
-};
-
-/**
  * If logEnabled is true, this is the logger that will be used.
 **/
-TestRunner.logger = LogController;
+TestRunner.logger = MochiKit.Logging.logger;
 
 TestRunner.log = function(msg) {
     if (TestRunner.logEnabled) {
@@ -219,7 +142,9 @@ TestRunner._makeIframe = function (url, retry) {
         // typically calling ourselves from setTimeout is sufficient
         // but we'll try focus() just in case that's needed
 
-        contentAsyncEvent("Focus");
+        if (TestRunner.ipcMode) {
+          contentAsyncEvent("Focus");
+        }
         window.focus();
         iframe.focus();
         if (retry < 3) {
@@ -234,20 +159,6 @@ TestRunner._makeIframe = function (url, retry) {
     iframe.name = url;
     iframe.width = "500";
     return iframe;
-};
-
-/**
- * Returns the current test URL.
- * We use this to tell whether the test has navigated to another test without
- * being finished first.
- */
-TestRunner.getLoadedTestURL = function () {
-    var prefix = "";
-    // handle mochitest-chrome URIs
-    if ($('testframe').contentWindow.location.protocol == "chrome:") {
-      prefix = "chrome://mochitests";
-    }
-    return prefix + $('testframe').contentWindow.location.pathname;
 };
 
 /**
@@ -292,36 +203,27 @@ TestRunner.resetTests = function(listURLs) {
 /*
  * Used to run a single test in a loop and update the UI with the results
  */
-TestRunner.loopTest = function(testPath) {
-  //must set the following line so that TestHarness.updateUI finds the right div to update
-  document.getElementById("current-test-path").innerHTML = testPath;
-  var numLoops = TestRunner.repeat;
-  var completed = 0; // keep track of how many tests have finished
-
-  // function to kick off the test and to check when the test is complete
-  function checkComplete() {
-    var testWindow = window.open(testPath, 'test window'); // kick off the test or find the active window
-    if (testWindow.document.readyState == "complete") {
-      // the test is complete -> mark as complete
-      TestRunner.currentTestURL = testPath;
-      TestRunner.updateUI(testWindow.SimpleTest._tests);
-      testWindow.close();
-      if (TestRunner.repeat == completed  && TestRunner.onComplete) {
-        TestRunner.onComplete();
+TestRunner.loopTest = function(testPath){
+ var numLoops = TestRunner.loops;
+  while(numLoops >= 0){
+    //must set the following line so that TestHarness.updateUI finds the right div to update
+    $("current-test-path").innerHTML = testPath;
+    function checkComplete() {
+      var testWindow = window.open(testPath, 'test window');
+      if (testWindow.document.readyState == "complete") {
+        TestRunner.currentTestURL = testPath;
+        TestRunner.updateUI(testWindow.SimpleTest._tests);
+        testWindow.close();
+      } else {
+        setTimeout(checkComplete, 1000);
       }
-      completed++;
     }
-    else {
-      // wait and check later
-      setTimeout(checkComplete, 1000);
-    }
-  }
-  while (numLoops >= 0) {
     checkComplete();
     numLoops--;
   }
 }
 
+/**
 /**
  * Run the next test. If no test remains, calls onComplete().
  **/
@@ -360,22 +262,19 @@ TestRunner.runNextTest = function() {
           indicator.style.backgroundColor = "red";
         }
 
-        SpecialPowers.unregisterProcessCrashObservers();
-
         TestRunner.log("TEST-START | Shutdown"); // used by automation.py
         TestRunner.log("Passed: " + $("pass-count").innerHTML);
         TestRunner.log("Failed: " + $("fail-count").innerHTML);
         TestRunner.log("Todo:   " + $("todo-count").innerHTML);
         // If we are looping, don't send this cause it closes the log file
-        if (TestRunner.repeat == 0) {
+        if (TestRunner.loops == 0)
           TestRunner.log("SimpleTest FINISHED");
-        }
 
-        if (TestRunner.repeat == 0 && TestRunner.onComplete) {
+        if (TestRunner.loops == 0 && TestRunner.onComplete) {
              TestRunner.onComplete();
          }
-
-        if (TestRunner._currentLoop < TestRunner.repeat) {
+ 
+        if (TestRunner._currentLoop < TestRunner.loops){
           TestRunner._currentLoop++;
           TestRunner.resetTests(TestRunner._urls);
         } else {
@@ -388,7 +287,6 @@ TestRunner.runNextTest = function() {
           if (TestRunner.onComplete)
             TestRunner.onComplete();
        }
-       TestRunner.generateFailureList();
     }
 };
 
@@ -424,17 +322,9 @@ TestRunner.testFinished = function(tests) {
     }
 
     function runNextTest() {
-        if (TestRunner.currentTestURL != TestRunner.getLoadedTestURL()) {
-            TestRunner.error("TEST-UNEXPECTED-FAIL | " +
-                             TestRunner.currentTestURL +
-                             " | finished in a non-clean fashion (in " +
-                             TestRunner.getLoadedTestURL() + ")");
-            tests.push({ result: false });
-        }
-
         var runtime = new Date().valueOf() - TestRunner._currentTestStartTime;
         TestRunner.log("TEST-END | " +
-                       TestRunner.currentTestURL +
+                       TestRunner._urls[TestRunner._currentTest] +
                        " | finished in " + runtime + "ms");
 
         TestRunner.updateUI(tests);
@@ -444,7 +334,7 @@ TestRunner.testFinished = function(tests) {
 
     SpecialPowers.executeAfterFlushingMessageQueue(function() {
         cleanUpCrashDumpFiles();
-        SpecialPowers.flushPrefEnv(runNextTest);
+        runNextTest();
     });
 };
 
@@ -477,7 +367,7 @@ TestRunner.displayLoopErrors = function(tableName, tests) {
     var curtest;
     if (table.rows.length == 0) {
       //if table headers are not yet generated, make them
-      var row = table.insertRow(table.rows.length);
+      var row = table.insertRow(table.rows.length); 
       var cell = row.insertCell(0);
       var textNode = document.createTextNode("Test File Name:");
       cell.appendChild(textNode);
@@ -488,13 +378,13 @@ TestRunner.displayLoopErrors = function(tableName, tests) {
       textNode = document.createTextNode("Error message:");
       cell.appendChild(textNode);
     }
-
+  
     //find the broken test
     for (var testnum in tests){
       curtest = tests[testnum];
       if( !((curtest.todo && !curtest.result) || (curtest.result && !curtest.todo)) ){
         //this is a failed test or the result of todo test. Display the related message
-        row = table.insertRow(table.rows.length);
+        row = table.insertRow(table.rows.length); 
         cell = row.insertCell(0);
         textNode = document.createTextNode(TestRunner.currentTestURL);
         cell.appendChild(textNode);
@@ -543,7 +433,7 @@ TestRunner.updateUI = function(tests) {
   tds[2].innerHTML = parseInt(tds[2].innerHTML) + parseInt(results.todo);
 
   //if we ran in a loop, display any found errors
-  if (TestRunner.repeat > 0) {
+  if(TestRunner.loops > 0){
     TestRunner.displayLoopErrors('fail-table', tests);
   }
 }

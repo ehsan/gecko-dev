@@ -1,18 +1,51 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Util.h"
-
-#include "nsHTMLImageElement.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
+#include "nsIDOMHTMLImageElement.h"
 #include "nsIDOMEventTarget.h"
+#include "nsGenericHTMLElement.h"
+#include "nsImageLoadingContent.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsMappedAttributes.h"
+#include "nsIJSNativeInitializer.h"
 #include "nsSize.h"
 #include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIScriptContext.h"
 #include "nsIURL.h"
 #include "nsIIOService.h"
@@ -40,9 +73,88 @@
 #include "nsEventDispatcher.h"
 
 #include "nsLayoutUtils.h"
+#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+// XXX nav attrs: suppress
+
+class nsHTMLImageElement : public nsGenericHTMLElement,
+                           public nsImageLoadingContent,
+                           public nsIDOMHTMLImageElement,
+                           public nsIJSNativeInitializer
+{
+public:
+  nsHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  virtual ~nsHTMLImageElement();
+
+  // nsISupports
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIDOMNode
+  NS_FORWARD_NSIDOMNODE(nsGenericHTMLElement::)
+
+  // nsIDOMElement
+  NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLElement::)
+
+  // nsIDOMHTMLElement
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLElement::)
+
+  // nsIDOMHTMLImageElement
+  NS_DECL_NSIDOMHTMLIMAGEELEMENT
+
+  // override from nsGenericHTMLElement
+  NS_IMETHOD GetDraggable(PRBool* aDraggable);
+
+  // override from nsImageLoadingContent
+  nsImageLoadingContent::CORSMode GetCORSMode();
+
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
+                        JSObject* aObj, PRUint32 argc, jsval* argv);
+
+  // nsIContent
+  virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
+                                nsIAtom* aAttribute,
+                                const nsAString& aValue,
+                                nsAttrValue& aResult);
+  virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
+                                              PRInt32 aModType) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+  virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
+
+  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
+
+  PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
+
+  // SetAttr override.  C++ is stupid, so have to override both
+  // overloaded methods.
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                   const nsAString& aValue, PRBool aNotify)
+  {
+    return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
+  }
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                           nsIAtom* aPrefix, const nsAString& aValue,
+                           PRBool aNotify);
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                             PRBool aNotify);
+
+  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                              nsIContent* aBindingParent,
+                              PRBool aCompileEventHandlers);
+
+  virtual nsEventStates IntrinsicState() const;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
+
+  void MaybeLoadImage();
+  virtual nsXPCClassInfo* GetClassInfo();
+protected:
+  nsSize GetWidthHeight();
+};
 
 nsGenericHTMLElement*
 NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
@@ -57,12 +169,12 @@ NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
   if (!nodeInfo) {
     nsCOMPtr<nsIDocument> doc =
       do_QueryInterface(nsContentUtils::GetDocumentFromCaller());
-    NS_ENSURE_TRUE(doc, nullptr);
+    NS_ENSURE_TRUE(doc, nsnull);
 
-    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::img, nullptr,
+    nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::img, nsnull,
                                                    kNameSpaceID_XHTML,
                                                    nsIDOMNode::ELEMENT_NODE);
-    NS_ENSURE_TRUE(nodeInfo, nullptr);
+    NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 
   return new nsHTMLImageElement(nodeInfo.forget());
@@ -89,13 +201,12 @@ DOMCI_NODE_DATA(HTMLImageElement, nsHTMLImageElement)
 
 // QueryInterface implementation for nsHTMLImageElement
 NS_INTERFACE_TABLE_HEAD(nsHTMLImageElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE6(nsHTMLImageElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE5(nsHTMLImageElement,
                                    nsIDOMHTMLImageElement,
                                    nsIJSNativeInitializer,
                                    imgIDecoderObserver,
                                    nsIImageLoadingContent,
-                                   imgIContainerObserver,
-                                   imgIOnloadBlocker)
+                                   imgIContainerObserver)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLImageElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLImageElement)
@@ -116,24 +227,19 @@ NS_IMPL_URI_ATTR(nsHTMLImageElement, Src, src)
 NS_IMPL_STRING_ATTR(nsHTMLImageElement, UseMap, usemap)
 NS_IMPL_INT_ATTR(nsHTMLImageElement, Vspace, vspace)
 
-void
-nsHTMLImageElement::GetItemValueText(nsAString& aValue)
-{
-  GetSrc(aValue);
-}
+static const nsAttrValue::EnumTable kCrossOriginTable[] = {
+  { "",                nsImageLoadingContent::CORS_NONE },
+  { "anonymous",       nsImageLoadingContent::CORS_ANONYMOUS },
+  { "use-credentials", nsImageLoadingContent::CORS_USE_CREDENTIALS },
+  { 0 }
+};
+// Default crossOrigin mode is CORS_NONE.
+static const nsAttrValue::EnumTable* kCrossOriginDefault = &kCrossOriginTable[0];
 
-void
-nsHTMLImageElement::SetItemValueText(const nsAString& aValue)
-{
-  SetSrc(aValue);
-}
-
-// crossorigin is not "limited to only known values" per spec, so it's
-// just a string attr purposes of the DOM crossOrigin property.
-NS_IMPL_STRING_ATTR(nsHTMLImageElement, CrossOrigin, crossorigin)
+NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLImageElement, CrossOrigin, crossOrigin, kCrossOriginDefault->tag)
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetDraggable(bool* aDraggable)
+nsHTMLImageElement::GetDraggable(PRBool* aDraggable)
 {
   // images may be dragged unless the draggable attribute is false
   *aDraggable = !AttrValueIs(kNameSpaceID_None, nsGkAtoms::draggable,
@@ -142,16 +248,16 @@ nsHTMLImageElement::GetDraggable(bool* aDraggable)
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetComplete(bool* aComplete)
+nsHTMLImageElement::GetComplete(PRBool* aComplete)
 {
   NS_PRECONDITION(aComplete, "Null out param!");
-  *aComplete = true;
+  *aComplete = PR_TRUE;
 
   if (!mCurrentRequest) {
     return NS_OK;
   }
 
-  uint32_t status;
+  PRUint32 status;
   mCurrentRequest->GetImageStatus(&status);
   *aComplete =
     (status &
@@ -160,72 +266,83 @@ nsHTMLImageElement::GetComplete(bool* aComplete)
   return NS_OK;
 }
 
-nsIntPoint
-nsHTMLImageElement::GetXY()
+nsSize
+nsHTMLImageElement::GetWidthHeight()
 {
-  nsIntPoint point(0, 0);
+  nsSize size(0,0);
 
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
 
-  if (!frame) {
-    return point;
+  if (frame) {
+    size = frame->GetContentRect().Size();
+
+    size.width = nsPresContext::AppUnitsToIntCSSPixels(size.width);
+    size.height = nsPresContext::AppUnitsToIntCSSPixels(size.height);
+  } else {
+    const nsAttrValue* value;
+    nsCOMPtr<imgIContainer> image;
+    if (mCurrentRequest) {
+      mCurrentRequest->GetImage(getter_AddRefs(image));
+    }
+
+    if ((value = GetParsedAttr(nsGkAtoms::width)) &&
+        value->Type() == nsAttrValue::eInteger) {
+      size.width = value->GetIntegerValue();
+    } else if (image) {
+      image->GetWidth(&size.width);
+    }
+
+    if ((value = GetParsedAttr(nsGkAtoms::height)) &&
+        value->Type() == nsAttrValue::eInteger) {
+      size.height = value->GetIntegerValue();
+    } else if (image) {
+      image->GetHeight(&size.height);
+    }
   }
 
-  nsIFrame* layer = nsLayoutUtils::GetClosestLayer(frame->GetParent());
-  nsPoint origin(frame->GetOffsetTo(layer));
-  // Convert to pixels using that scale
-  point.x = nsPresContext::AppUnitsToIntCSSPixels(origin.x);
-  point.y = nsPresContext::AppUnitsToIntCSSPixels(origin.y);
-
-  return point;
+  NS_ASSERTION(size.width >= 0, "negative width");
+  NS_ASSERTION(size.height >= 0, "negative height");
+  return size;
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetX(int32_t* aX)
+nsHTMLImageElement::GetHeight(PRUint32* aHeight)
 {
-  *aX = GetXY().x;
+  *aHeight = GetWidthHeight().height;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetY(int32_t* aY)
+nsHTMLImageElement::SetHeight(PRUint32 aHeight)
 {
-  *aY = GetXY().y;
+  nsAutoString val;
+  val.AppendInt(aHeight);
+
+  return nsGenericHTMLElement::SetAttr(kNameSpaceID_None, nsGkAtoms::height,
+                                       val, PR_TRUE);
+}
+
+NS_IMETHODIMP
+nsHTMLImageElement::GetWidth(PRUint32* aWidth)
+{
+  *aWidth = GetWidthHeight().width;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetHeight(uint32_t* aHeight)
+nsHTMLImageElement::SetWidth(PRUint32 aWidth)
 {
-  *aHeight = GetWidthHeightForImage(mCurrentRequest).height;
+  nsAutoString val;
+  val.AppendInt(aWidth);
 
-  return NS_OK;
+  return nsGenericHTMLElement::SetAttr(kNameSpaceID_None, nsGkAtoms::width,
+                                       val, PR_TRUE);
 }
 
-NS_IMETHODIMP
-nsHTMLImageElement::SetHeight(uint32_t aHeight)
-{
-  return nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::height, aHeight);
-}
-
-NS_IMETHODIMP
-nsHTMLImageElement::GetWidth(uint32_t* aWidth)
-{
-  *aWidth = GetWidthHeightForImage(mCurrentRequest).width;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsHTMLImageElement::SetWidth(uint32_t aWidth)
-{
-  return nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::width, aWidth);
-}
-
-bool
-nsHTMLImageElement::ParseAttribute(int32_t aNamespaceID,
+PRBool
+nsHTMLImageElement::ParseAttribute(PRInt32 aNamespaceID,
                                    nsIAtom* aAttribute,
                                    const nsAString& aValue,
                                    nsAttrValue& aResult)
@@ -234,12 +351,11 @@ nsHTMLImageElement::ParseAttribute(int32_t aNamespaceID,
     if (aAttribute == nsGkAtoms::align) {
       return ParseAlignValue(aValue, aResult);
     }
-    if (aAttribute == nsGkAtoms::crossorigin) {
-      ParseCORSValue(aValue, aResult);
-      return true;
+    if (aAttribute == nsGkAtoms::crossOrigin) {
+      return aResult.ParseEnumValue(aValue, kCrossOriginTable, PR_FALSE);
     }
     if (ParseImageAttribute(aAttribute, aValue, aResult)) {
-      return true;
+      return PR_TRUE;
     }
   }
 
@@ -260,7 +376,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
 
 nsChangeHint
 nsHTMLImageElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                           int32_t aModType) const
+                                           PRInt32 aModType) const
 {
   nsChangeHint retval =
     nsGenericHTMLElement::GetAttributeChangeHint(aAttribute, aModType);
@@ -271,7 +387,7 @@ nsHTMLImageElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
   return retval;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLImageElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   static const MappedAttributeEntry* const map[] = {
@@ -281,7 +397,7 @@ nsHTMLImageElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sImageAlignAttributeMap
   };
 
-  return FindAttributeDependence(aAttribute, map);
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
 
 
@@ -303,7 +419,7 @@ nsHTMLImageElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
       aVisitor.mEvent->message == NS_MOUSE_CLICK &&
       static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
         nsMouseEvent::eLeftButton) {
-    bool isMap = false;
+    PRBool isMap = PR_FALSE;
     GetIsMap(&isMap);
     if (isMap) {
       aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
@@ -312,29 +428,29 @@ nsHTMLImageElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return nsGenericHTMLElement::PreHandleEvent(aVisitor);
 }
 
-bool
-nsHTMLImageElement::IsHTMLFocusable(bool aWithMouse,
-                                    bool *aIsFocusable, int32_t *aTabIndex)
+PRBool
+nsHTMLImageElement::IsHTMLFocusable(PRBool aWithMouse,
+                                    PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
-  int32_t tabIndex;
+  PRInt32 tabIndex;
   GetTabIndex(&tabIndex);
 
   if (IsInDoc()) {
     nsAutoString usemap;
     GetUseMap(usemap);
     // XXXbz which document should this be using?  sXBL/XBL2 issue!  I
-    // think that OwnerDoc() is right, since we don't want to
+    // think that GetOwnerDoc() is right, since we don't want to
     // assume stuff about the document we're bound to.
-    if (OwnerDoc()->FindImageMap(usemap)) {
+    if (GetOwnerDoc() && GetOwnerDoc()->FindImageMap(usemap)) {
       if (aTabIndex) {
         // Use tab index on individual map areas
         *aTabIndex = (sTabFocusModel & eTabFocus_linksMask)? 0 : -1;
       }
       // Image map is not focusable itself, but flag as tabbable
       // so that image map areas get walked into.
-      *aIsFocusable = false;
+      *aIsFocusable = PR_FALSE;
 
-      return false;
+      return PR_FALSE;
     }
   }
 
@@ -349,13 +465,13 @@ nsHTMLImageElement::IsHTMLFocusable(bool aWithMouse,
 #endif
     (tabIndex >= 0 || HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex));
 
-  return false;
+  return PR_FALSE;
 }
 
 nsresult
-nsHTMLImageElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+nsHTMLImageElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                             nsIAtom* aPrefix, const nsAString& aValue,
-                            bool aNotify)
+                            PRBool aNotify)
 {
   // If we plan to call LoadImage, we want to do it first so that the
   // image load kicks off _before_ the reflow triggered by the SetAttr.  But if
@@ -365,22 +481,24 @@ nsHTMLImageElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   if (aNotify &&
       aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::src) {
 
-    // Prevent setting image.src by exiting early
-    if (nsContentUtils::IsImageSrcSetDisabled()) {
+    // If caller is not chrome and dom.disable_image_src_set is true,
+    // prevent setting image.src by exiting early
+    if (Preferences::GetBool("dom.disable_image_src_set") &&
+        !nsContentUtils::IsCallerChrome()) {
       return NS_OK;
     }
 
     // A hack to get animations to reset. See bug 594771.
-    mNewRequestsWillNeedAnimationReset = true;
+    mNewRequestsWillNeedAnimationReset = PR_TRUE;
 
     // Force image loading here, so that we'll try to load the image from
     // network if it's set to be not cacheable...  If we change things so that
     // the state gets in nsGenericElement's attr-setting happen around this
-    // LoadImage call, we could start passing false instead of aNotify
+    // LoadImage call, we could start passing PR_FALSE instead of aNotify
     // here.
-    LoadImage(aValue, true, aNotify);
+    LoadImage(aValue, PR_TRUE, aNotify);
 
-    mNewRequestsWillNeedAnimationReset = false;
+    mNewRequestsWillNeedAnimationReset = PR_FALSE;
   }
     
   return nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
@@ -388,8 +506,8 @@ nsHTMLImageElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLImageElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                              bool aNotify)
+nsHTMLImageElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                              PRBool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::src) {
     CancelImageRequests(aNotify);
@@ -401,15 +519,12 @@ nsHTMLImageElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
 nsresult
 nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                nsIContent* aBindingParent,
-                               bool aCompileEventHandlers)
+                               PRBool aCompileEventHandlers)
 {
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  nsImageLoadingContent::BindToTree(aDocument, aParent, aBindingParent,
-                                    aCompileEventHandlers);
 
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
     // FIXME: Bug 660963 it would be nice if we could just have
@@ -429,13 +544,6 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsHTMLImageElement::UnbindFromTree(bool aDeep, bool aNullParent)
-{
-  nsImageLoadingContent::UnbindFromTree(aDeep, aNullParent);
-  nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
-}
-
-void
 nsHTMLImageElement::MaybeLoadImage()
 {
   // Our base URI may have changed; claim that our URI changed, and the
@@ -443,9 +551,9 @@ nsHTMLImageElement::MaybeLoadImage()
   // Note, check LoadingEnabled() after LoadImage call.
   nsAutoString uri;
   if (GetAttr(kNameSpaceID_None, nsGkAtoms::src, uri) &&
-      (NS_FAILED(LoadImage(uri, false, true)) ||
+      (NS_FAILED(LoadImage(uri, PR_FALSE, PR_TRUE)) ||
        !LoadingEnabled())) {
-    CancelImageRequests(true);
+    CancelImageRequests(PR_TRUE);
   }
 }
 
@@ -458,7 +566,7 @@ nsHTMLImageElement::IntrinsicState() const
 
 NS_IMETHODIMP
 nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
-                               JSObject *aObj, uint32_t argc, jsval *argv)
+                               JSObject *aObj, PRUint32 argc, jsval *argv)
 {
   if (argc <= 0) {
     // Nothing to do here if we don't get any arguments.
@@ -467,26 +575,26 @@ nsHTMLImageElement::Initialize(nsISupports* aOwner, JSContext* aContext,
   }
 
   // The first (optional) argument is the width of the image
-  uint32_t width;
+  uint32 width;
   JSBool ret = JS_ValueToECMAUint32(aContext, argv[0], &width);
   NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
-  nsresult rv = SetIntAttr(nsGkAtoms::width, static_cast<int32_t>(width));
+  nsresult rv = SetIntAttr(nsGkAtoms::width, static_cast<PRInt32>(width));
 
   if (NS_SUCCEEDED(rv) && (argc > 1)) {
     // The second (optional) argument is the height of the image
-    uint32_t height;
+    uint32 height;
     ret = JS_ValueToECMAUint32(aContext, argv[1], &height);
     NS_ENSURE_TRUE(ret, NS_ERROR_INVALID_ARG);
 
-    rv = SetIntAttr(nsGkAtoms::height, static_cast<int32_t>(height));
+    rv = SetIntAttr(nsGkAtoms::height, static_cast<PRInt32>(height));
   }
 
   return rv;
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetNaturalHeight(uint32_t* aNaturalHeight)
+nsHTMLImageElement::GetNaturalHeight(PRUint32* aNaturalHeight)
 {
   NS_ENSURE_ARG_POINTER(aNaturalHeight);
 
@@ -502,7 +610,7 @@ nsHTMLImageElement::GetNaturalHeight(uint32_t* aNaturalHeight)
     return NS_OK;
   }
 
-  int32_t height;
+  PRInt32 height;
   if (NS_SUCCEEDED(image->GetHeight(&height))) {
     *aNaturalHeight = height;
   }
@@ -510,7 +618,7 @@ nsHTMLImageElement::GetNaturalHeight(uint32_t* aNaturalHeight)
 }
 
 NS_IMETHODIMP
-nsHTMLImageElement::GetNaturalWidth(uint32_t* aNaturalWidth)
+nsHTMLImageElement::GetNaturalWidth(PRUint32* aNaturalWidth)
 {
   NS_ENSURE_ARG_POINTER(aNaturalWidth);
 
@@ -526,7 +634,7 @@ nsHTMLImageElement::GetNaturalWidth(uint32_t* aNaturalWidth)
     return NS_OK;
   }
 
-  int32_t width;
+  PRInt32 width;
   if (NS_SUCCEEDED(image->GetWidth(&width))) {
     *aNaturalWidth = width;
   }
@@ -534,16 +642,23 @@ nsHTMLImageElement::GetNaturalWidth(uint32_t* aNaturalWidth)
 }
 
 nsresult
-nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest)
+nsHTMLImageElement::CopyInnerTo(nsGenericElement* aDest) const
 {
-  if (aDest->OwnerDoc()->IsStaticDocument()) {
+  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
     CreateStaticImageClone(static_cast<nsHTMLImageElement*>(aDest));
   }
   return nsGenericHTMLElement::CopyInnerTo(aDest);
 }
 
-CORSMode
+nsImageLoadingContent::CORSMode
 nsHTMLImageElement::GetCORSMode()
 {
-  return AttrValueToCORSMode(GetParsedAttr(nsGkAtoms::crossorigin));
+  nsImageLoadingContent::CORSMode ret = nsImageLoadingContent::CORS_NONE;
+
+  const nsAttrValue* value = GetParsedAttr(nsGkAtoms::crossOrigin);
+  if (value && value->Type() == nsAttrValue::eEnum) {
+    ret = (nsImageLoadingContent::CORSMode) value->GetEnumValue();
+  }
+
+  return ret;
 }

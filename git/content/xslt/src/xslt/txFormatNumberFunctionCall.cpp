@@ -1,12 +1,43 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/FloatingPoint.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * Jonas Sicking.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jonas Sicking <sicking@bigfoot.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "txXSLTFunctions.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txIXPathContext.h"
 #include "txStylesheet.h"
 #include <math.h>
@@ -45,7 +76,7 @@ nsresult
 txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
                                      txAExprResult** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
     if (!requireParams(2, 3, aContext))
         return NS_ERROR_XPATH_BAD_ARGUMENT_COUNT;
 
@@ -65,7 +96,7 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
         rv = mParams[2]->evaluateToString(aContext, formatQName);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = formatName.init(formatQName, mMappings, false);
+        rv = formatName.init(formatQName, mMappings, MB_FALSE);
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -81,16 +112,16 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
     }
 
     // Special cases
-    if (MOZ_DOUBLE_IS_NaN(value)) {
+    if (Double::isNaN(value)) {
         return aContext->recycler()->getStringResult(format->mNaN, aResult);
     }
 
-    if (value == MOZ_DOUBLE_POSITIVE_INFINITY()) {
+    if (value == Double::POSITIVE_INFINITY) {
         return aContext->recycler()->getStringResult(format->mInfinity,
                                                      aResult);
     }
 
-    if (value == MOZ_DOUBLE_NEGATIVE_INFINITY()) {
+    if (value == Double::NEGATIVE_INFINITY) {
         nsAutoString res;
         res.Append(format->mMinusSign);
         res.Append(format->mInfinity);
@@ -106,13 +137,13 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
     int multiplier=1;
     int groupSize=-1;
 
-    uint32_t pos = 0;
-    uint32_t formatLen = formatStr.Length();
-    bool inQuote;
+    PRUint32 pos = 0;
+    PRUint32 formatLen = formatStr.Length();
+    MBool inQuote;
 
     // Get right subexpression
-    inQuote = false;
-    if (MOZ_DOUBLE_IS_NEGATIVE(value)) {
+    inQuote = MB_FALSE;
+    if (Double::isNeg(value)) {
         while (pos < formatLen &&
                (inQuote ||
                 formatStr.CharAt(pos) != format->mPatternSeparator)) {
@@ -131,7 +162,7 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
 
     // Parse the format string
     FormatParseState pState = Prefix;
-    inQuote = false;
+    inQuote = MB_FALSE;
 
     PRUnichar c = 0;
     while (pos < formatLen && pState != Finished) {
@@ -277,7 +308,7 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
     char* buf = new char[bufsize];
     NS_ENSURE_TRUE(buf, NS_ERROR_OUT_OF_MEMORY);
 
-    int bufIntDigits, sign;
+    PRIntn bufIntDigits, sign;
     char* endp;
     PR_dtoa(value, 0, 0, &bufIntDigits, &sign, &endp, buf, bufsize-1);
 
@@ -295,11 +326,11 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
                   maxFractionSize +         // fractions
                   (intDigits-1)/groupSize); // group separators
 
-    int32_t i = bufIntDigits + maxFractionSize - 1;
-    bool carry = (0 <= i+1) && (i+1 < buflen) && (buf[i+1] >= '5');
-    bool hasFraction = false;
+    PRInt32 i = bufIntDigits + maxFractionSize - 1;
+    MBool carry = (i+1 < buflen) && (buf[i+1] >= '5');
+    MBool hasFraction = MB_FALSE;
 
-    uint32_t resPos = res.Length()-1;
+    PRUint32 resPos = res.Length()-1;
 
     // Fractions
     for (; i >= bufIntDigits; --i) {
@@ -317,7 +348,7 @@ txFormatNumberFunctionCall::evaluate(txIEvalContext* aContext,
         }
 
         if (hasFraction || digit != 0 || i < bufIntDigits+minFractionSize) {
-            hasFraction = true;
+            hasFraction = MB_TRUE;
             res.SetCharAt((PRUnichar)(digit + format->mZeroDigit),
                           resPos--);
         }
@@ -383,7 +414,7 @@ txFormatNumberFunctionCall::getReturnType()
     return STRING_RESULT;
 }
 
-bool
+PRBool
 txFormatNumberFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 {
     return argsSensitiveTo(aContext);
@@ -393,7 +424,7 @@ txFormatNumberFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 nsresult
 txFormatNumberFunctionCall::getNameAtom(nsIAtom** aAtom)
 {
-    *aAtom = nsGkAtoms::formatNumber;
+    *aAtom = txXSLTAtoms::formatNumber;
     NS_ADDREF(*aAtom);
     return NS_OK;
 }
@@ -417,7 +448,7 @@ txDecimalFormat::txDecimalFormat() : mInfinity(NS_LITERAL_STRING("Infinity")),
     mPatternSeparator = ';';
 }
 
-bool txDecimalFormat::isEqual(txDecimalFormat* other)
+MBool txDecimalFormat::isEqual(txDecimalFormat* other)
 {
     return mDecimalSeparator == other->mDecimalSeparator &&
            mGroupingSeparator == other->mGroupingSeparator &&

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Travis Bogard <travis@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 // Local Includes
 #include "nsWebBrowser.h"
@@ -13,7 +46,9 @@
 //Interfaces Needed
 #include "nsReadableUtils.h"
 #include "nsIComponentManager.h"
+#include "nsIDocument.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMXULDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMElement.h"
 #include "nsIInterfaceRequestor.h"
@@ -25,6 +60,7 @@
 #include "nsIWebBrowserFocus.h"
 #include "nsIWebBrowserStream.h"
 #include "nsIPresShell.h"
+#include "nsIGlobalHistory.h"
 #include "nsIDocShellHistory.h"
 #include "nsIURIContentListener.h"
 #include "nsGUIEvent.h"
@@ -39,7 +75,8 @@
 #include "gfxContext.h"
 
 // for painting the background window
-#include "mozilla/LookAndFeel.h"
+#include "nsIRegion.h"
+#include "nsILookAndFeel.h"
 
 // Printing Includes
 #ifdef NS_PRINTING
@@ -51,32 +88,32 @@
 #include "nsISecureBrowserUI.h"
 #include "nsXULAppAPI.h"
 
-using namespace mozilla;
 using namespace mozilla::layers;
 
 static NS_DEFINE_IID(kWindowCID, NS_WINDOW_CID);
 static NS_DEFINE_CID(kChildCID, NS_CHILD_CID);
+static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 
 //*****************************************************************************
 //***    nsWebBrowser: Object Management
 //*****************************************************************************
 
-nsWebBrowser::nsWebBrowser() : mDocShellTreeOwner(nullptr), 
-   mInitInfo(nullptr),
+nsWebBrowser::nsWebBrowser() : mDocShellTreeOwner(nsnull), 
+   mInitInfo(nsnull),
    mContentType(typeContentWrapper),
-   mActivating(false),
-   mShouldEnableHistory(true),
-   mIsActive(true),
-   mParentNativeWindow(nullptr),
-   mProgressListener(nullptr),
+   mActivating(PR_FALSE),
+   mShouldEnableHistory(PR_TRUE),
+   mIsActive(PR_TRUE),
+   mParentNativeWindow(nsnull),
+   mProgressListener(nsnull),
    mBackgroundColor(0),
    mPersistCurrentState(nsIWebBrowserPersist::PERSIST_STATE_READY),
    mPersistResult(NS_OK),
    mPersistFlags(nsIWebBrowserPersist::PERSIST_FLAGS_NONE),
-   mStream(nullptr),
-   mParentWidget(nullptr),
-   mListenerArray(nullptr)
+   mStream(nsnull),
+   mParentWidget(nsnull),
+   mListenerArray(nsnull)
 {
     mInitInfo = new nsWebBrowserInitInfo();
     mWWatch = do_GetService(NS_WINDOWWATCHER_CONTRACTID);
@@ -92,31 +129,31 @@ NS_IMETHODIMP nsWebBrowser::InternalDestroy()
 {
 
    if (mInternalWidget) {
-     mInternalWidget->SetWidgetListener(nullptr);
+     mInternalWidget->SetClientData(0);
      mInternalWidget->Destroy();
-     mInternalWidget = nullptr; // Force release here.
+     mInternalWidget = nsnull; // Force release here.
    }
 
-   SetDocShell(nullptr);
+   SetDocShell(nsnull);
 
    if(mDocShellTreeOwner)
       {
-      mDocShellTreeOwner->WebBrowser(nullptr);
+      mDocShellTreeOwner->WebBrowser(nsnull);
       NS_RELEASE(mDocShellTreeOwner);
       }
    if(mInitInfo)
       {
       delete mInitInfo;
-      mInitInfo = nullptr;
+      mInitInfo = nsnull;
       }
 
    if (mListenerArray) {
-      for (uint32_t i = 0, end = mListenerArray->Length(); i < end; i++) {
+      for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
          nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
          delete state;
       }
       delete mListenerArray;
-      mListenerArray = nullptr;
+      mListenerArray = nsnull;
    }
 
    return NS_OK;
@@ -258,7 +295,7 @@ NS_IMETHODIMP nsWebBrowser::RemoveWebBrowserListener(nsIWeakReference *aListener
         if (!mListenerArray) return NS_ERROR_FAILURE;
 
         // iterate the array and remove the queued listener
-        int32_t count = mListenerArray->Length();
+        PRInt32 count = mListenerArray->Length();
         while (count > 0) {
             nsWebBrowserListenerState *state = mListenerArray->ElementAt(count);
             NS_ASSERTION(state, "list construction problem");
@@ -273,12 +310,12 @@ NS_IMETHODIMP nsWebBrowser::RemoveWebBrowserListener(nsIWeakReference *aListener
 
         // if we've emptied the array, get rid of it.
         if (0 >= mListenerArray->Length()) {
-            for (uint32_t i = 0, end = mListenerArray->Length(); i < end; i++) {
+            for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
                nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
                delete state;
             }
             delete mListenerArray;
-            mListenerArray = nullptr;
+            mListenerArray = nsnull;
         }
 
     } else {
@@ -312,7 +349,7 @@ NS_IMETHODIMP nsWebBrowser::UnBindListener(nsISupports *aListener, const nsIID& 
     return rv;
 }
 
-NS_IMETHODIMP nsWebBrowser::EnableGlobalHistory(bool aEnable)
+NS_IMETHODIMP nsWebBrowser::EnableGlobalHistory(PRBool aEnable)
 {
     nsresult rv;
     
@@ -330,7 +367,7 @@ NS_IMETHODIMP nsWebBrowser::GetContainerWindow(nsIWebBrowserChrome** aTopWindow)
    if(mDocShellTreeOwner) {
       *aTopWindow = mDocShellTreeOwner->GetWebBrowserChrome().get();
    } else {
-      *aTopWindow = nullptr;
+      *aTopWindow = nsnull;
    }
 
    return NS_OK;
@@ -346,7 +383,7 @@ NS_IMETHODIMP nsWebBrowser::GetParentURIContentListener(nsIURIContentListener**
    aParentContentListener)
 {
    NS_ENSURE_ARG_POINTER(aParentContentListener);
-   *aParentContentListener = nullptr;
+   *aParentContentListener = nsnull;
 
    // get the interface from the docshell
    nsCOMPtr<nsIURIContentListener> listener(do_GetInterface(mDocShell));
@@ -379,13 +416,13 @@ NS_IMETHODIMP nsWebBrowser::GetContentDOMWindow(nsIDOMWindow **_retval)
     return rv;
 }
 
-NS_IMETHODIMP nsWebBrowser::GetIsActive(bool *rv)
+NS_IMETHODIMP nsWebBrowser::GetIsActive(PRBool *rv)
 {
   *rv = mIsActive;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::SetIsActive(bool aIsActive)
+NS_IMETHODIMP nsWebBrowser::SetIsActive(PRBool aIsActive)
 {
   // Set our copy of the value
   mIsActive = aIsActive;
@@ -427,7 +464,7 @@ NS_IMETHODIMP nsWebBrowser::SetName(const PRUnichar* aName)
    return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::NameEquals(const PRUnichar *aName, bool *_retval)
+NS_IMETHODIMP nsWebBrowser::NameEquals(const PRUnichar *aName, PRBool *_retval)
 {
     NS_ENSURE_ARG_POINTER(aName);
     NS_ENSURE_ARG_POINTER(_retval);
@@ -443,7 +480,7 @@ NS_IMETHODIMP nsWebBrowser::NameEquals(const PRUnichar *aName, bool *_retval)
     return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::GetItemType(int32_t* aItemType)
+NS_IMETHODIMP nsWebBrowser::GetItemType(PRInt32* aItemType)
 {
    NS_ENSURE_ARG_POINTER(aItemType);
 
@@ -451,26 +488,26 @@ NS_IMETHODIMP nsWebBrowser::GetItemType(int32_t* aItemType)
    return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::SetItemType(int32_t aItemType)
+NS_IMETHODIMP nsWebBrowser::SetItemType(PRInt32 aItemType)
 {
     NS_ENSURE_TRUE((aItemType == typeContentWrapper || aItemType == typeChromeWrapper), NS_ERROR_FAILURE);
     mContentType = aItemType;
     if (mDocShellAsItem)
         mDocShellAsItem->SetItemType(mContentType == typeChromeWrapper
-                                         ? static_cast<int32_t>(typeChrome)
-                                         : static_cast<int32_t>(typeContent));
+                                         ? static_cast<PRInt32>(typeChrome)
+                                         : static_cast<PRInt32>(typeContent));
     return NS_OK;
 }
 
 NS_IMETHODIMP nsWebBrowser::GetParent(nsIDocShellTreeItem** aParent)
 {
-   *aParent = nullptr;
+   *aParent = nsnull;
    return NS_OK;
 }
 
 NS_IMETHODIMP nsWebBrowser::GetSameTypeParent(nsIDocShellTreeItem** aParent)
 {
-   *aParent = nullptr;
+   *aParent = nsnull;
 
    return NS_OK;
 }
@@ -523,7 +560,7 @@ NS_IMETHODIMP nsWebBrowser::FindItemWithName(const PRUnichar *aName,
 NS_IMETHODIMP nsWebBrowser::GetTreeOwner(nsIDocShellTreeOwner** aTreeOwner)
 {  
     NS_ENSURE_ARG_POINTER(aTreeOwner);
-    *aTreeOwner = nullptr;
+    *aTreeOwner = nsnull;
     if(mDocShellTreeOwner)
     {
         if (mDocShellTreeOwner->mTreeOwner)
@@ -549,7 +586,7 @@ NS_IMETHODIMP nsWebBrowser::SetTreeOwner(nsIDocShellTreeOwner* aTreeOwner)
 // nsWebBrowser::nsIDocShellTreeItem
 //*****************************************************************************
 
-NS_IMETHODIMP nsWebBrowser::GetChildCount(int32_t * aChildCount)
+NS_IMETHODIMP nsWebBrowser::GetChildCount(PRInt32 * aChildCount)
 {
     NS_ENSURE_ARG_POINTER(aChildCount);
     *aChildCount = 0;
@@ -566,7 +603,7 @@ NS_IMETHODIMP nsWebBrowser::RemoveChild(nsIDocShellTreeItem * aChild)
     return NS_ERROR_UNEXPECTED;
 }
 
-NS_IMETHODIMP nsWebBrowser::GetChildAt(int32_t aIndex,
+NS_IMETHODIMP nsWebBrowser::GetChildAt(PRInt32 aIndex,
                                        nsIDocShellTreeItem ** aChild)
 {
     return NS_ERROR_UNEXPECTED;
@@ -574,14 +611,14 @@ NS_IMETHODIMP nsWebBrowser::GetChildAt(int32_t aIndex,
 
 NS_IMETHODIMP nsWebBrowser::FindChildWithName(
                                        const PRUnichar * aName,
-                                       bool aRecurse, bool aSameType,
+                                       PRBool aRecurse, PRBool aSameType,
                                        nsIDocShellTreeItem * aRequestor,
                                        nsIDocShellTreeItem * aOriginalRequestor,
                                        nsIDocShellTreeItem ** _retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);
 
-    *_retval = nullptr;
+    *_retval = nsnull;
     return NS_OK;
 }
 
@@ -589,14 +626,14 @@ NS_IMETHODIMP nsWebBrowser::FindChildWithName(
 // nsWebBrowser::nsIWebNavigation
 //*****************************************************************************
 
-NS_IMETHODIMP nsWebBrowser::GetCanGoBack(bool* aCanGoBack)
+NS_IMETHODIMP nsWebBrowser::GetCanGoBack(PRBool* aCanGoBack)
 {
    NS_ENSURE_STATE(mDocShell);
 
    return mDocShellAsNav->GetCanGoBack(aCanGoBack);
 }
 
-NS_IMETHODIMP nsWebBrowser::GetCanGoForward(bool* aCanGoForward)
+NS_IMETHODIMP nsWebBrowser::GetCanGoForward(PRBool* aCanGoForward)
 {
    NS_ENSURE_STATE(mDocShell);
 
@@ -618,7 +655,7 @@ NS_IMETHODIMP nsWebBrowser::GoForward()
 }
 
 NS_IMETHODIMP nsWebBrowser::LoadURI(const PRUnichar* aURI,
-                                    uint32_t aLoadFlags,
+                                    PRUint32 aLoadFlags,
                                     nsIURI* aReferringURI,
                                     nsIInputStream* aPostDataStream,
                                     nsIInputStream* aExtraHeaderStream)
@@ -632,21 +669,21 @@ NS_IMETHODIMP nsWebBrowser::LoadURI(const PRUnichar* aURI,
                                   aExtraHeaderStream);
 }
 
-NS_IMETHODIMP nsWebBrowser::Reload(uint32_t aReloadFlags)
+NS_IMETHODIMP nsWebBrowser::Reload(PRUint32 aReloadFlags)
 {
    NS_ENSURE_STATE(mDocShell);
 
    return mDocShellAsNav->Reload(aReloadFlags);
 }
 
-NS_IMETHODIMP nsWebBrowser::GotoIndex(int32_t aIndex)
+NS_IMETHODIMP nsWebBrowser::GotoIndex(PRInt32 aIndex)
 {
    NS_ENSURE_STATE(mDocShell);
 
    return mDocShellAsNav->GotoIndex(aIndex);
 }
 
-NS_IMETHODIMP nsWebBrowser::Stop(uint32_t aStopFlags)
+NS_IMETHODIMP nsWebBrowser::Stop(PRUint32 aStopFlags)
 {
    NS_ENSURE_STATE(mDocShell);
 
@@ -704,7 +741,7 @@ NS_IMETHODIMP nsWebBrowser::GetDocument(nsIDOMDocument** aDocument)
 //*****************************************************************************
 
 /* void setProperty (in unsigned long aId, in unsigned long aValue); */
-NS_IMETHODIMP nsWebBrowser::SetProperty(uint32_t aId, uint32_t aValue)
+NS_IMETHODIMP nsWebBrowser::SetProperty(PRUint32 aId, PRUint32 aValue)
 {
     nsresult rv = NS_OK;
     
@@ -713,49 +750,49 @@ NS_IMETHODIMP nsWebBrowser::SetProperty(uint32_t aId, uint32_t aValue)
     case nsIWebBrowserSetup::SETUP_ALLOW_PLUGINS:
         {
            NS_ENSURE_STATE(mDocShell);
-           NS_ENSURE_TRUE((aValue == true || aValue == false), NS_ERROR_INVALID_ARG);
+           NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
            mDocShell->SetAllowPlugins(!!aValue);
         }
         break;
     case nsIWebBrowserSetup::SETUP_ALLOW_JAVASCRIPT:
         {
            NS_ENSURE_STATE(mDocShell);
-           NS_ENSURE_TRUE((aValue == true || aValue == false), NS_ERROR_INVALID_ARG);
+           NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
            mDocShell->SetAllowJavascript(!!aValue);
         }
         break;
     case nsIWebBrowserSetup::SETUP_ALLOW_META_REDIRECTS:
         {
            NS_ENSURE_STATE(mDocShell);
-           NS_ENSURE_TRUE((aValue == true || aValue == false), NS_ERROR_INVALID_ARG);
+           NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
            mDocShell->SetAllowMetaRedirects(!!aValue);
         }
         break;
     case nsIWebBrowserSetup::SETUP_ALLOW_SUBFRAMES:
         {
            NS_ENSURE_STATE(mDocShell);
-           NS_ENSURE_TRUE((aValue == true || aValue == false), NS_ERROR_INVALID_ARG);
+           NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
            mDocShell->SetAllowSubframes(!!aValue);
         }
         break;
     case nsIWebBrowserSetup::SETUP_ALLOW_IMAGES:
         {
            NS_ENSURE_STATE(mDocShell);
-           NS_ENSURE_TRUE((aValue == true || aValue == false), NS_ERROR_INVALID_ARG);
+           NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
            mDocShell->SetAllowImages(!!aValue);
         }
         break;
     case nsIWebBrowserSetup::SETUP_ALLOW_DNS_PREFETCH:
         {
             NS_ENSURE_STATE(mDocShell);
-            NS_ENSURE_TRUE((aValue == true || aValue == false), NS_ERROR_INVALID_ARG);
+            NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
             mDocShell->SetAllowDNSPrefetch(!!aValue);
         }
         break;
     case nsIWebBrowserSetup::SETUP_USE_GLOBAL_HISTORY:
         {
            NS_ENSURE_STATE(mDocShell);
-           NS_ENSURE_TRUE((aValue == true || aValue == false), NS_ERROR_INVALID_ARG);
+           NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
            rv = EnableGlobalHistory(!!aValue);
            mShouldEnableHistory = aValue;
         }
@@ -767,9 +804,9 @@ NS_IMETHODIMP nsWebBrowser::SetProperty(uint32_t aId, uint32_t aValue)
         break;
     case nsIWebBrowserSetup::SETUP_IS_CHROME_WRAPPER:
         {
-           NS_ENSURE_TRUE((aValue == true || aValue == false), NS_ERROR_INVALID_ARG);
-           SetItemType(aValue ? static_cast<int32_t>(typeChromeWrapper)
-                              : static_cast<int32_t>(typeContentWrapper));
+           NS_ENSURE_TRUE((aValue == PR_TRUE || aValue == PR_FALSE), NS_ERROR_INVALID_ARG);
+           SetItemType(aValue ? static_cast<PRInt32>(typeChromeWrapper)
+                              : static_cast<PRInt32>(typeContentWrapper));
         }
         break;
     default:
@@ -785,7 +822,7 @@ NS_IMETHODIMP nsWebBrowser::SetProperty(uint32_t aId, uint32_t aValue)
 //*****************************************************************************
 
 /* void onStateChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in unsigned long aStateFlags, in nsresult aStatus); */
-NS_IMETHODIMP nsWebBrowser::OnStateChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, uint32_t aStateFlags, nsresult aStatus)
+NS_IMETHODIMP nsWebBrowser::OnStateChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, PRUint32 aStateFlags, nsresult aStatus)
 {
     if (mPersist)
     {
@@ -793,7 +830,7 @@ NS_IMETHODIMP nsWebBrowser::OnStateChange(nsIWebProgress *aWebProgress, nsIReque
     }
     if (aStateFlags & STATE_IS_NETWORK && aStateFlags & STATE_STOP)
     {
-        mPersist = nullptr;
+        mPersist = nsnull;
     }
     if (mProgressListener)
     {
@@ -803,7 +840,7 @@ NS_IMETHODIMP nsWebBrowser::OnStateChange(nsIWebProgress *aWebProgress, nsIReque
 }
 
 /* void onProgressChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in long aCurSelfProgress, in long aMaxSelfProgress, in long aCurTotalProgress, in long aMaxTotalProgress); */
-NS_IMETHODIMP nsWebBrowser::OnProgressChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, int32_t aCurSelfProgress, int32_t aMaxSelfProgress, int32_t aCurTotalProgress, int32_t aMaxTotalProgress)
+NS_IMETHODIMP nsWebBrowser::OnProgressChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, PRInt32 aCurSelfProgress, PRInt32 aMaxSelfProgress, PRInt32 aCurTotalProgress, PRInt32 aMaxTotalProgress)
 {
     if (mPersist)
     {
@@ -816,12 +853,12 @@ NS_IMETHODIMP nsWebBrowser::OnProgressChange(nsIWebProgress *aWebProgress, nsIRe
     return NS_OK;
 }
 
-/* void onLocationChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in nsIURI location, in unsigned long aFlags); */
-NS_IMETHODIMP nsWebBrowser::OnLocationChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, nsIURI *location, uint32_t aFlags)
+/* void onLocationChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in nsIURI location); */
+NS_IMETHODIMP nsWebBrowser::OnLocationChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, nsIURI *location)
 {
     if (mProgressListener)
     {
-        return mProgressListener->OnLocationChange(aWebProgress, aRequest, location, aFlags);
+        return mProgressListener->OnLocationChange(aWebProgress, aRequest, location);
     }
     return NS_OK;
 }
@@ -837,7 +874,7 @@ NS_IMETHODIMP nsWebBrowser::OnStatusChange(nsIWebProgress *aWebProgress, nsIRequ
 }
 
 /* void onSecurityChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in unsigned long state); */
-NS_IMETHODIMP nsWebBrowser::OnSecurityChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, uint32_t state)
+NS_IMETHODIMP nsWebBrowser::OnSecurityChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, PRUint32 state)
 {
     if (mProgressListener)
     {
@@ -851,7 +888,7 @@ NS_IMETHODIMP nsWebBrowser::OnSecurityChange(nsIWebProgress *aWebProgress, nsIRe
 //*****************************************************************************
 
 /* attribute unsigned long persistFlags; */
-NS_IMETHODIMP nsWebBrowser::GetPersistFlags(uint32_t *aPersistFlags)
+NS_IMETHODIMP nsWebBrowser::GetPersistFlags(PRUint32 *aPersistFlags)
 {
     NS_ENSURE_ARG_POINTER(aPersistFlags);
     nsresult rv = NS_OK;
@@ -862,7 +899,7 @@ NS_IMETHODIMP nsWebBrowser::GetPersistFlags(uint32_t *aPersistFlags)
     *aPersistFlags = mPersistFlags;
     return rv;
 }
-NS_IMETHODIMP nsWebBrowser::SetPersistFlags(uint32_t aPersistFlags)
+NS_IMETHODIMP nsWebBrowser::SetPersistFlags(PRUint32 aPersistFlags)
 {
     nsresult rv = NS_OK;
     mPersistFlags = aPersistFlags;
@@ -876,7 +913,7 @@ NS_IMETHODIMP nsWebBrowser::SetPersistFlags(uint32_t aPersistFlags)
 
 
 /* readonly attribute unsigned long currentState; */
-NS_IMETHODIMP nsWebBrowser::GetCurrentState(uint32_t *aCurrentState)
+NS_IMETHODIMP nsWebBrowser::GetCurrentState(PRUint32 *aCurrentState)
 {
     NS_ENSURE_ARG_POINTER(aCurrentState);
     if (mPersist)
@@ -887,8 +924,8 @@ NS_IMETHODIMP nsWebBrowser::GetCurrentState(uint32_t *aCurrentState)
     return NS_OK;
 }
 
-/* readonly attribute nsresult result; */
-NS_IMETHODIMP nsWebBrowser::GetResult(nsresult *aResult)
+/* readonly attribute unsigned long result; */
+NS_IMETHODIMP nsWebBrowser::GetResult(PRUint32 *aResult)
 {
     NS_ENSURE_ARG_POINTER(aResult);
     if (mPersist)
@@ -923,11 +960,11 @@ NS_IMETHODIMP nsWebBrowser::SaveURI(
 {
     if (mPersist)
     {
-        uint32_t currentState;
+        PRUint32 currentState;
         mPersist->GetCurrentState(&currentState);
         if (currentState == PERSIST_STATE_FINISHED)
         {
-            mPersist = nullptr;
+            mPersist = nsnull;
         }
         else
         {
@@ -960,7 +997,7 @@ NS_IMETHODIMP nsWebBrowser::SaveURI(
     rv = mPersist->SaveURI(uri, aCacheKey, aReferrer, aPostData, aExtraHeaders, aFile);
     if (NS_FAILED(rv))
     {
-        mPersist = nullptr;
+        mPersist = nsnull;
     }
     return rv;
 }
@@ -971,11 +1008,11 @@ NS_IMETHODIMP nsWebBrowser::SaveChannel(
 {
     if (mPersist)
     {
-        uint32_t currentState;
+        PRUint32 currentState;
         mPersist->GetCurrentState(&currentState);
         if (currentState == PERSIST_STATE_FINISHED)
         {
-            mPersist = nullptr;
+            mPersist = nsnull;
         }
         else
         {
@@ -994,7 +1031,7 @@ NS_IMETHODIMP nsWebBrowser::SaveChannel(
     rv = mPersist->SaveChannel(aChannel, aFile);
     if (NS_FAILED(rv))
     {
-        mPersist = nullptr;
+        mPersist = nsnull;
     }
     return rv;
 }
@@ -1002,15 +1039,15 @@ NS_IMETHODIMP nsWebBrowser::SaveChannel(
 /* void saveDocument (in nsIDOMDocument document, in nsISupports aFile, in nsISupports aDataPath); */
 NS_IMETHODIMP nsWebBrowser::SaveDocument(
     nsIDOMDocument *aDocument, nsISupports *aFile, nsISupports *aDataPath,
-    const char *aOutputContentType, uint32_t aEncodingFlags, uint32_t aWrapColumn)
+    const char *aOutputContentType, PRUint32 aEncodingFlags, PRUint32 aWrapColumn)
 {
     if (mPersist)
     {
-        uint32_t currentState;
+        PRUint32 currentState;
         mPersist->GetCurrentState(&currentState);
         if (currentState == PERSIST_STATE_FINISHED)
         {
-            mPersist = nullptr;
+            mPersist = nsnull;
         }
         else
         {
@@ -1046,7 +1083,7 @@ NS_IMETHODIMP nsWebBrowser::SaveDocument(
     rv = mPersist->SaveDocument(doc, aFile, aDataPath, aOutputContentType, aEncodingFlags, aWrapColumn);
     if (NS_FAILED(rv))
     {
-        mPersist = nullptr;
+        mPersist = nsnull;
     }
     return rv;
 }
@@ -1079,7 +1116,7 @@ NS_IMETHODIMP nsWebBrowser::Cancel(nsresult aReason)
 //*****************************************************************************
 
 NS_IMETHODIMP nsWebBrowser::InitWindow(nativeWindow aParentNativeWindow,
-   nsIWidget* aParentWidget, int32_t aX, int32_t aY, int32_t aCX, int32_t aCY)   
+   nsIWidget* aParentWidget, PRInt32 aX, PRInt32 aY, PRInt32 aCX, PRInt32 aCY)   
 {
    NS_ENSURE_ARG(aParentNativeWindow || aParentWidget);
    NS_ENSURE_STATE(!mDocShell || mInitInfo);
@@ -1090,7 +1127,7 @@ NS_IMETHODIMP nsWebBrowser::InitWindow(nativeWindow aParentNativeWindow,
       NS_ENSURE_SUCCESS(SetParentNativeWindow(aParentNativeWindow),
          NS_ERROR_FAILURE);
 
-   NS_ENSURE_SUCCESS(SetPositionAndSize(aX, aY, aCX, aCY, false),
+   NS_ENSURE_SUCCESS(SetPositionAndSize(aX, aY, aCX, aCY, PR_FALSE),
       NS_ERROR_FAILURE);
 
    return NS_OK;
@@ -1113,13 +1150,14 @@ NS_IMETHODIMP nsWebBrowser::Create()
       docShellParentWidget = mInternalWidget;
       nsWidgetInitData  widgetInit;
 
-      widgetInit.clipChildren = true;
+      widgetInit.clipChildren = PR_TRUE;
 
       widgetInit.mWindowType = eWindowType_child;
       nsIntRect bounds(mInitInfo->x, mInitInfo->y, mInitInfo->cx, mInitInfo->cy);
       
-      mInternalWidget->SetWidgetListener(this);
-      mInternalWidget->Create(nullptr, mParentNativeWindow, bounds, nullptr, &widgetInit);
+      mInternalWidget->SetClientData(static_cast<nsWebBrowser *>(this));
+      mInternalWidget->Create(nsnull, mParentNativeWindow, bounds, nsWebBrowser::HandleEvent,
+                              nsnull, nsnull, nsnull, &widgetInit);  
       }
 
     nsCOMPtr<nsIDocShell> docShell(do_CreateInstance("@mozilla.org/docshell;1", &rv));
@@ -1127,15 +1165,18 @@ NS_IMETHODIMP nsWebBrowser::Create()
     rv = SetDocShell(docShell);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    // get the system default window background colour
-    LookAndFeel::GetColor(LookAndFeel::eColorID_WindowBackground,
-                          &mBackgroundColor);
+   // get the system default window background colour
+   {
+      nsCOMPtr<nsILookAndFeel> laf = do_GetService(kLookAndFeelCID);
+        if (laf)
+      laf->GetColor(nsILookAndFeel::eColor_WindowBackground, mBackgroundColor);
+   }
 
    // the docshell has been set so we now have our listener registrars.
    if (mListenerArray) {
       // we had queued up some listeners, let's register them now.
-      uint32_t count = mListenerArray->Length();
-      uint32_t i = 0;
+      PRUint32 count = mListenerArray->Length();
+      PRUint32 i = 0;
       NS_ASSERTION(count > 0, "array construction problem");
       while (i < count) {
           nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
@@ -1145,12 +1186,12 @@ NS_IMETHODIMP nsWebBrowser::Create()
           (void)BindListener(listener, state->mID);
           i++;
       }
-      for (uint32_t i = 0, end = mListenerArray->Length(); i < end; i++) {
+      for (PRUint32 i = 0, end = mListenerArray->Length(); i < end; i++) {
          nsWebBrowserListenerState *state = mListenerArray->ElementAt(i);
          delete state;
       }
       delete mListenerArray;
-      mListenerArray = nullptr;
+      mListenerArray = nsnull;
    }
 
    // HACK ALERT - this registration registers the nsDocShellTreeOwner as a 
@@ -1158,12 +1199,12 @@ NS_IMETHODIMP nsWebBrowser::Create()
    // progress callbacks. If we can register the MouseListener another way, this 
    // registration can go away, and nsDocShellTreeOwner can stop implementing
    // nsIWebProgressListener.
-   nsCOMPtr<nsISupports> supports = nullptr;
+   nsCOMPtr<nsISupports> supports = nsnull;
    (void)mDocShellTreeOwner->QueryInterface(NS_GET_IID(nsIWebProgressListener),
                              static_cast<void**>(getter_AddRefs(supports)));
    (void)BindListener(supports, NS_GET_IID(nsIWebProgressListener));
 
-   NS_ENSURE_SUCCESS(mDocShellAsWin->InitWindow(nullptr,
+   NS_ENSURE_SUCCESS(mDocShellAsWin->InitWindow(nsnull,
       docShellParentWidget, mInitInfo->x, mInitInfo->y, mInitInfo->cx,
       mInitInfo->cy), NS_ERROR_FAILURE);
 
@@ -1215,7 +1256,7 @@ NS_IMETHODIMP nsWebBrowser::Create()
    mDocShellTreeOwner->AddChromeListeners();
 
    delete mInitInfo;
-   mInitInfo = nullptr;
+   mInitInfo = nsnull;
 
    return NS_OK; 
 }
@@ -1230,38 +1271,38 @@ NS_IMETHODIMP nsWebBrowser::Destroy()
    return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::SetPosition(int32_t aX, int32_t aY)
+NS_IMETHODIMP nsWebBrowser::SetPosition(PRInt32 aX, PRInt32 aY)
 {
-   int32_t cx = 0;
-   int32_t cy = 0;
+   PRInt32 cx = 0;
+   PRInt32 cy = 0;
 
    GetSize(&cx, &cy);
 
-   return SetPositionAndSize(aX, aY, cx, cy, false);
+   return SetPositionAndSize(aX, aY, cx, cy, PR_FALSE);
 }
 
-NS_IMETHODIMP nsWebBrowser::GetPosition(int32_t* aX, int32_t* aY)
+NS_IMETHODIMP nsWebBrowser::GetPosition(PRInt32* aX, PRInt32* aY)
 {
-   return GetPositionAndSize(aX, aY, nullptr, nullptr);
+   return GetPositionAndSize(aX, aY, nsnull, nsnull);
 }
 
-NS_IMETHODIMP nsWebBrowser::SetSize(int32_t aCX, int32_t aCY, bool aRepaint)
+NS_IMETHODIMP nsWebBrowser::SetSize(PRInt32 aCX, PRInt32 aCY, PRBool aRepaint)
 {
-   int32_t x = 0;
-   int32_t y = 0;
+   PRInt32 x = 0;
+   PRInt32 y = 0;
 
    GetPosition(&x, &y);
 
    return SetPositionAndSize(x, y, aCX, aCY, aRepaint);
 }
 
-NS_IMETHODIMP nsWebBrowser::GetSize(int32_t* aCX, int32_t* aCY)
+NS_IMETHODIMP nsWebBrowser::GetSize(PRInt32* aCX, PRInt32* aCY)
 {
-   return GetPositionAndSize(nullptr, nullptr, aCX, aCY);
+   return GetPositionAndSize(nsnull, nsnull, aCX, aCY);
 }
 
-NS_IMETHODIMP nsWebBrowser::SetPositionAndSize(int32_t aX, int32_t aY,
-   int32_t aCX, int32_t aCY, bool aRepaint)
+NS_IMETHODIMP nsWebBrowser::SetPositionAndSize(PRInt32 aX, PRInt32 aY,
+   PRInt32 aCX, PRInt32 aCY, PRBool aRepaint)
 {
    if(!mDocShell)
       {
@@ -1272,8 +1313,8 @@ NS_IMETHODIMP nsWebBrowser::SetPositionAndSize(int32_t aX, int32_t aY,
       }
    else
       {
-      int32_t doc_x = aX;
-      int32_t doc_y = aY;
+      PRInt32 doc_x = aX;
+      PRInt32 doc_y = aY;
 
       // If there is an internal widget we need to make the docShell coordinates
       // relative to the internal widget rather than the calling app's parent.
@@ -1292,8 +1333,8 @@ NS_IMETHODIMP nsWebBrowser::SetPositionAndSize(int32_t aX, int32_t aY,
    return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::GetPositionAndSize(int32_t* aX, int32_t* aY, 
-   int32_t* aCX, int32_t* aCY)
+NS_IMETHODIMP nsWebBrowser::GetPositionAndSize(PRInt32* aX, PRInt32* aY, 
+   PRInt32* aCX, PRInt32* aCY)
 {
    if(!mDocShell)
       {
@@ -1329,7 +1370,7 @@ NS_IMETHODIMP nsWebBrowser::GetPositionAndSize(int32_t* aX, int32_t* aY,
    return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::Repaint(bool aForce)
+NS_IMETHODIMP nsWebBrowser::Repaint(PRBool aForce)
 {
    NS_ENSURE_STATE(mDocShell);
    return mDocShellAsWin->Repaint(aForce); // Can directly return this as it is the
@@ -1354,7 +1395,7 @@ NS_IMETHODIMP nsWebBrowser::SetParentWidget(nsIWidget* aParentWidget)
    if(mParentWidget)
       mParentNativeWindow = mParentWidget->GetNativeData(NS_NATIVE_WIDGET);
    else
-      mParentNativeWindow = nullptr;
+      mParentNativeWindow = nsnull;
 
    return NS_OK;
 }
@@ -1377,13 +1418,7 @@ NS_IMETHODIMP nsWebBrowser::SetParentNativeWindow(nativeWindow aParentNativeWind
    return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::GetNativeHandle(nsAString& aNativeHandle)
-{
-   // the nativeHandle should be accessed from nsIXULWindow
-   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP nsWebBrowser::GetVisibility(bool* visibility)
+NS_IMETHODIMP nsWebBrowser::GetVisibility(PRBool* visibility)
 {
    NS_ENSURE_ARG_POINTER(visibility);
 
@@ -1395,7 +1430,7 @@ NS_IMETHODIMP nsWebBrowser::GetVisibility(bool* visibility)
    return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::SetVisibility(bool aVisibility)
+NS_IMETHODIMP nsWebBrowser::SetVisibility(PRBool aVisibility)
 {
    if(!mDocShell)
       mInitInfo->visible = aVisibility;
@@ -1409,21 +1444,32 @@ NS_IMETHODIMP nsWebBrowser::SetVisibility(bool aVisibility)
    return NS_OK;
 }
 
-NS_IMETHODIMP nsWebBrowser::GetEnabled(bool* aEnabled)
+NS_IMETHODIMP nsWebBrowser::GetEnabled(PRBool *aEnabled)
 {
-  if (mInternalWidget) {
-    *aEnabled = mInternalWidget->IsEnabled();
-    return NS_OK;
-  }
-
+  if (mInternalWidget)
+    return mInternalWidget->IsEnabled(aEnabled);
   return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP nsWebBrowser::SetEnabled(bool aEnabled)
+NS_IMETHODIMP nsWebBrowser::SetEnabled(PRBool aEnabled)
 {
   if (mInternalWidget)
     return mInternalWidget->Enable(aEnabled);
   return NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP
+nsWebBrowser::GetBlurSuppression(PRBool *aBlurSuppression)
+{
+  NS_ENSURE_ARG_POINTER(aBlurSuppression);
+  *aBlurSuppression = PR_FALSE;
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsWebBrowser::SetBlurSuppression(PRBool aBlurSuppression)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP nsWebBrowser::GetMainWidget(nsIWidget** mainWidget)
@@ -1472,24 +1518,24 @@ NS_IMETHODIMP nsWebBrowser::SetTitle(const PRUnichar* aTitle)
 // nsWebBrowser::nsIScrollable
 //*****************************************************************************
 
-NS_IMETHODIMP nsWebBrowser::GetCurScrollPos(int32_t aScrollOrientation, 
-   int32_t* aCurPos)
+NS_IMETHODIMP nsWebBrowser::GetCurScrollPos(PRInt32 aScrollOrientation, 
+   PRInt32* aCurPos)
 {
    NS_ENSURE_STATE(mDocShell);
 
    return mDocShellAsScrollable->GetCurScrollPos(aScrollOrientation, aCurPos);
 }
 
-NS_IMETHODIMP nsWebBrowser::SetCurScrollPos(int32_t aScrollOrientation, 
-   int32_t aCurPos)
+NS_IMETHODIMP nsWebBrowser::SetCurScrollPos(PRInt32 aScrollOrientation, 
+   PRInt32 aCurPos)
 {
    NS_ENSURE_STATE(mDocShell);
 
    return mDocShellAsScrollable->SetCurScrollPos(aScrollOrientation, aCurPos);
 }
 
-NS_IMETHODIMP nsWebBrowser::SetCurScrollPosEx(int32_t aCurHorizontalPos, 
-   int32_t aCurVerticalPos)
+NS_IMETHODIMP nsWebBrowser::SetCurScrollPosEx(PRInt32 aCurHorizontalPos, 
+   PRInt32 aCurVerticalPos)
 {
    NS_ENSURE_STATE(mDocShell);
 
@@ -1497,8 +1543,8 @@ NS_IMETHODIMP nsWebBrowser::SetCurScrollPosEx(int32_t aCurHorizontalPos,
       aCurVerticalPos);
 }
 
-NS_IMETHODIMP nsWebBrowser::GetScrollRange(int32_t aScrollOrientation,
-   int32_t* aMinPos, int32_t* aMaxPos)
+NS_IMETHODIMP nsWebBrowser::GetScrollRange(PRInt32 aScrollOrientation,
+   PRInt32* aMinPos, PRInt32* aMaxPos)
 {
    NS_ENSURE_STATE(mDocShell);
 
@@ -1506,8 +1552,8 @@ NS_IMETHODIMP nsWebBrowser::GetScrollRange(int32_t aScrollOrientation,
       aMaxPos);
 }
 
-NS_IMETHODIMP nsWebBrowser::SetScrollRange(int32_t aScrollOrientation,
-   int32_t aMinPos, int32_t aMaxPos)
+NS_IMETHODIMP nsWebBrowser::SetScrollRange(PRInt32 aScrollOrientation,
+   PRInt32 aMinPos, PRInt32 aMaxPos)
 {
    NS_ENSURE_STATE(mDocShell);
 
@@ -1515,8 +1561,8 @@ NS_IMETHODIMP nsWebBrowser::SetScrollRange(int32_t aScrollOrientation,
       aMaxPos);
 }
 
-NS_IMETHODIMP nsWebBrowser::SetScrollRangeEx(int32_t aMinHorizontalPos,
-   int32_t aMaxHorizontalPos, int32_t aMinVerticalPos, int32_t aMaxVerticalPos)
+NS_IMETHODIMP nsWebBrowser::SetScrollRangeEx(PRInt32 aMinHorizontalPos,
+   PRInt32 aMaxHorizontalPos, PRInt32 aMinVerticalPos, PRInt32 aMaxVerticalPos)
 {
    NS_ENSURE_STATE(mDocShell);
 
@@ -1524,8 +1570,8 @@ NS_IMETHODIMP nsWebBrowser::SetScrollRangeEx(int32_t aMinHorizontalPos,
       aMaxHorizontalPos, aMinVerticalPos, aMaxVerticalPos);
 }
 
-NS_IMETHODIMP nsWebBrowser::GetDefaultScrollbarPreferences(int32_t aScrollOrientation,
-   int32_t* aScrollbarPref)
+NS_IMETHODIMP nsWebBrowser::GetDefaultScrollbarPreferences(PRInt32 aScrollOrientation,
+   PRInt32* aScrollbarPref)
 {
    NS_ENSURE_STATE(mDocShell);
 
@@ -1533,8 +1579,8 @@ NS_IMETHODIMP nsWebBrowser::GetDefaultScrollbarPreferences(int32_t aScrollOrient
       aScrollbarPref);
 }
 
-NS_IMETHODIMP nsWebBrowser::SetDefaultScrollbarPreferences(int32_t aScrollOrientation,
-   int32_t aScrollbarPref)
+NS_IMETHODIMP nsWebBrowser::SetDefaultScrollbarPreferences(PRInt32 aScrollOrientation,
+   PRInt32 aScrollbarPref)
 {
    NS_ENSURE_STATE(mDocShell);
 
@@ -1542,8 +1588,8 @@ NS_IMETHODIMP nsWebBrowser::SetDefaultScrollbarPreferences(int32_t aScrollOrient
       aScrollbarPref);
 }
 
-NS_IMETHODIMP nsWebBrowser::GetScrollbarVisibility(bool* aVerticalVisible,
-   bool* aHorizontalVisible)
+NS_IMETHODIMP nsWebBrowser::GetScrollbarVisibility(PRBool* aVerticalVisible,
+   PRBool* aHorizontalVisible)
 {
    NS_ENSURE_STATE(mDocShell);
 
@@ -1555,14 +1601,14 @@ NS_IMETHODIMP nsWebBrowser::GetScrollbarVisibility(bool* aVerticalVisible,
 // nsWebBrowser::nsITextScroll
 //*****************************************************************************   
 
-NS_IMETHODIMP nsWebBrowser::ScrollByLines(int32_t aNumLines)
+NS_IMETHODIMP nsWebBrowser::ScrollByLines(PRInt32 aNumLines)
 {
    NS_ENSURE_STATE(mDocShell);
 
    return mDocShellAsTextScroll->ScrollByLines(aNumLines);
 }
 
-NS_IMETHODIMP nsWebBrowser::ScrollByPages(int32_t aNumPages)
+NS_IMETHODIMP nsWebBrowser::ScrollByPages(PRInt32 aNumPages)
 {
    NS_ENSURE_STATE(mDocShell);
 
@@ -1602,7 +1648,7 @@ NS_IMETHODIMP nsWebBrowser::SetDocShell(nsIDocShell* aDocShell)
 
          // By default, do not allow DNS prefetch, so we don't break our frozen
          // API.  Embeddors who decide to enable it should do so manually.
-         mDocShell->SetAllowDNSPrefetch(false);
+         mDocShell->SetAllowDNSPrefetch(PR_FALSE);
 
          // It's possible to call setIsActive() on us before we have a docshell.
          // If we're getting a docshell now, pass along our desired value. The
@@ -1617,14 +1663,14 @@ NS_IMETHODIMP nsWebBrowser::SetDocShell(nsIDocShell* aDocShell)
          if (mDocShellAsWin)
            mDocShellAsWin->Destroy();
 
-         mDocShell = nullptr;
-         mDocShellAsReq = nullptr;
-         mDocShellAsWin = nullptr;
-         mDocShellAsItem = nullptr;
-         mDocShellAsNav = nullptr;
-         mDocShellAsScrollable = nullptr;
-         mDocShellAsTextScroll = nullptr;
-         mWebProgress = nullptr;
+         mDocShell = nsnull;
+         mDocShellAsReq = nsnull;
+         mDocShellAsWin = nsnull;
+         mDocShellAsItem = nsnull;
+         mDocShellAsNav = nsnull;
+         mDocShellAsScrollable = nsnull;
+         mDocShellAsTextScroll = nsnull;
+         mWebProgress = nsnull;
      }
 
      return NS_OK; 
@@ -1658,45 +1704,69 @@ static void DrawThebesLayer(ThebesLayer* aLayer,
   aContext->Fill();  
 }
 
-void nsWebBrowser::WindowRaised(nsIWidget* aWidget)
+/* static */
+nsEventStatus nsWebBrowser::HandleEvent(nsGUIEvent *aEvent)
 {
+  nsWebBrowser  *browser = nsnull;
+  void          *data = nsnull;
+  nsIWidget     *widget = aEvent->widget;
+
+  if (!widget)
+    return nsEventStatus_eIgnore;
+
+  widget->GetClientData(data);
+  if (!data)
+    return nsEventStatus_eIgnore;
+
+  browser = static_cast<nsWebBrowser *>(data);
+
+  switch(aEvent->message) {
+
+  case NS_PAINT: {
+      LayerManager* layerManager = widget->GetLayerManager();
+      NS_ASSERTION(layerManager, "Must be in paint event");
+
+      layerManager->BeginTransaction();
+      nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
+      nsPaintEvent* paintEvent = static_cast<nsPaintEvent*>(aEvent);
+      nsIntRect dirtyRect = paintEvent->region.GetBounds();
+      if (root) {
+          root->SetVisibleRegion(dirtyRect);
+          layerManager->SetRoot(root);
+      }
+      layerManager->EndTransaction(DrawThebesLayer, &browser->mBackgroundColor);
+      return nsEventStatus_eConsumeDoDefault;
+    }
+
+  case NS_ACTIVATE: {
 #if defined(DEBUG_smaug)
-  nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(mDocShell);
-  nsAutoString documentURI;
-  domDocument->GetDocumentURI(documentURI);
-  printf("nsWebBrowser::NS_ACTIVATE %p %s\n", (void*)this,
-         NS_ConvertUTF16toUTF8(documentURI).get());
+    nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(browser->mDocShell);
+    nsAutoString documentURI;
+    domDocument->GetDocumentURI(documentURI);
+    printf("nsWebBrowser::NS_ACTIVATE %p %s\n", (void*)browser,
+           NS_ConvertUTF16toUTF8(documentURI).get());
 #endif
-  Activate();
-}
-
-void nsWebBrowser::WindowLowered(nsIWidget* aWidget)
-{
-#if defined(DEBUG_smaug)
-  nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(mDocShell);
-  nsAutoString documentURI;
-  domDocument->GetDocumentURI(documentURI);
-  printf("nsWebBrowser::NS_DEACTIVATE %p %s\n", (void*)this,
-         NS_ConvertUTF16toUTF8(documentURI).get());
-#endif
-  Deactivate();
-}
-
-bool nsWebBrowser::PaintWindow(nsIWidget* aWidget, bool isRequest, nsIntRegion aRegion, bool aWillSendDidPaint)
-{
-  LayerManager* layerManager = aWidget->GetLayerManager();
-  NS_ASSERTION(layerManager, "Must be in paint event");
-
-  layerManager->BeginTransaction();
-  nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
-  if (root) {
-    nsIntRect dirtyRect = aRegion.GetBounds();
-    root->SetVisibleRegion(dirtyRect);
-    layerManager->SetRoot(root);
+    browser->Activate();
+    break;
   }
 
-  layerManager->EndTransaction(DrawThebesLayer, &mBackgroundColor);
-  return true;
+  case NS_DEACTIVATE: {
+#if defined(DEBUG_smaug)
+    nsCOMPtr<nsIDOMDocument> domDocument = do_GetInterface(browser->mDocShell);
+    nsAutoString documentURI;
+    domDocument->GetDocumentURI(documentURI);
+    printf("nsWebBrowser::NS_DEACTIVATE %p %s\n", (void*)browser,
+           NS_ConvertUTF16toUTF8(documentURI).get());
+#endif
+    browser->Deactivate();
+    break;
+  }
+
+  default:
+    break;
+  }
+
+  return nsEventStatus_eIgnore;
 }
 
 NS_IMETHODIMP nsWebBrowser::GetPrimaryContentWindow(nsIDOMWindow** aDOMWindow)
@@ -1760,14 +1830,14 @@ NS_IMETHODIMP nsWebBrowser::SetFocusAtLastElement(void)
 NS_IMETHODIMP nsWebBrowser::GetFocusedWindow(nsIDOMWindow * *aFocusedWindow)
 {
   NS_ENSURE_ARG_POINTER(aFocusedWindow);
-  *aFocusedWindow = nullptr;
+  *aFocusedWindow = nsnull;
 
   nsCOMPtr<nsIDOMWindow> window = do_GetInterface(mDocShell);
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIDOMElement> focusedElement;
   nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  return fm ? fm->GetFocusedElementForWindow(window, true, aFocusedWindow,
+  return fm ? fm->GetFocusedElementForWindow(window, PR_TRUE, aFocusedWindow,
                                              getter_AddRefs(focusedElement)) : NS_OK;
 }
 
@@ -1786,7 +1856,7 @@ NS_IMETHODIMP nsWebBrowser::GetFocusedElement(nsIDOMElement * *aFocusedElement)
   NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
 
   nsCOMPtr<nsIFocusManager> fm = do_GetService(FOCUSMANAGER_CONTRACTID);
-  return fm ? fm->GetFocusedElementForWindow(window, true, nullptr, aFocusedElement) : NS_OK;
+  return fm ? fm->GetFocusedElementForWindow(window, PR_TRUE, nsnull, aFocusedElement) : NS_OK;
 }
 
 NS_IMETHODIMP nsWebBrowser::SetFocusedElement(nsIDOMElement * aFocusedElement)
@@ -1821,7 +1891,7 @@ NS_IMETHODIMP nsWebBrowser::OpenStream(nsIURI *aBaseURI, const nsACString& aCont
 
 /* void appendToStream([const, array, size_is(aLen)] in octet aData,
  * in unsigned long aLen); */
-NS_IMETHODIMP nsWebBrowser::AppendToStream(const uint8_t *aData, uint32_t aLen)
+NS_IMETHODIMP nsWebBrowser::AppendToStream(const PRUint8 *aData, PRUint32 aLen)
 {
   if (!mStream)
     return NS_ERROR_FAILURE;

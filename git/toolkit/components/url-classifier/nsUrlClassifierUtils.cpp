@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Url Classifier code
+ *
+ * The Initial Developer of the Original Code is
+ * Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsEscape.h"
 #include "nsString.h"
@@ -13,65 +45,65 @@
 #include "prmem.h"
 #include "prprf.h"
 
-static char int_to_hex_digit(int32_t i)
+static char int_to_hex_digit(PRInt32 i)
 {
   NS_ASSERTION((i >= 0) && (i <= 15), "int too big in int_to_hex_digit");
   return static_cast<char>(((i < 10) ? (i + '0') : ((i - 10) + 'A')));
 }
 
-static bool
+static PRBool
 IsDecimal(const nsACString & num)
 {
-  for (uint32_t i = 0; i < num.Length(); i++) {
+  for (PRUint32 i = 0; i < num.Length(); i++) {
     if (!isdigit(num[i])) {
-      return false;
+      return PR_FALSE;
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
-static bool
+static PRBool
 IsHex(const nsACString & num)
 {
   if (num.Length() < 3) {
-    return false;
+    return PR_FALSE;
   }
 
   if (num[0] != '0' || !(num[1] == 'x' || num[1] == 'X')) {
-    return false;
+    return PR_FALSE;
   }
 
-  for (uint32_t i = 2; i < num.Length(); i++) {
+  for (PRUint32 i = 2; i < num.Length(); i++) {
     if (!isxdigit(num[i])) {
-      return false;
+      return PR_FALSE;
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
-static bool
+static PRBool
 IsOctal(const nsACString & num)
 {
   if (num.Length() < 2) {
-    return false;
+    return PR_FALSE;
   }
 
   if (num[0] != '0') {
-    return false;
+    return PR_FALSE;
   }
 
-  for (uint32_t i = 1; i < num.Length(); i++) {
+  for (PRUint32 i = 1; i < num.Length(); i++) {
     if (!isdigit(num[i]) || num[i] == '8' || num[i] == '9') {
-      return false;
+      return PR_FALSE;
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
-nsUrlClassifierUtils::nsUrlClassifierUtils() : mEscapeCharmap(nullptr)
+nsUrlClassifierUtils::nsUrlClassifierUtils() : mEscapeCharmap(nsnull)
 {
 }
 
@@ -98,7 +130,7 @@ nsUrlClassifierUtils::GetKeyForURI(nsIURI * uri, nsACString & _retval)
   if (!innerURI)
     innerURI = uri;
 
-  nsAutoCString host;
+  nsCAutoString host;
   innerURI->GetAsciiHost(host);
 
   if (host.IsEmpty()) {
@@ -108,16 +140,16 @@ nsUrlClassifierUtils::GetKeyForURI(nsIURI * uri, nsACString & _retval)
   nsresult rv = CanonicalizeHostname(host, _retval);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString path;
+  nsCAutoString path;
   rv = innerURI->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // strip out anchors
-  int32_t ref = path.FindChar('#');
+  PRInt32 ref = path.FindChar('#');
   if (ref != kNotFound)
     path.SetLength(ref);
 
-  nsAutoCString temp;
+  nsCAutoString temp;
   rv = CanonicalizePath(path, temp);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -133,24 +165,24 @@ nsresult
 nsUrlClassifierUtils::CanonicalizeHostname(const nsACString & hostname,
                                            nsACString & _retval)
 {
-  nsAutoCString unescaped;
+  nsCAutoString unescaped;
   if (!NS_UnescapeURL(PromiseFlatCString(hostname).get(),
                       PromiseFlatCString(hostname).Length(),
                       0, unescaped)) {
     unescaped.Assign(hostname);
   }
 
-  nsAutoCString cleaned;
+  nsCAutoString cleaned;
   CleanupHostname(unescaped, cleaned);
 
-  nsAutoCString temp;
+  nsCAutoString temp;
   ParseIPAddress(cleaned, temp);
   if (!temp.IsEmpty()) {
     cleaned.Assign(temp);
   }
 
   ToLowerCase(cleaned);
-  SpecialEncode(cleaned, false, _retval);
+  SpecialEncode(cleaned, PR_FALSE, _retval);
 
   return NS_OK;
 }
@@ -162,14 +194,14 @@ nsUrlClassifierUtils::CanonicalizePath(const nsACString & path,
 {
   _retval.Truncate();
 
-  nsAutoCString decodedPath(path);
-  nsAutoCString temp;
+  nsCAutoString decodedPath(path);
+  nsCAutoString temp;
   while (NS_UnescapeURL(decodedPath.get(), decodedPath.Length(), 0, temp)) {
     decodedPath.Assign(temp);
     temp.Truncate();
   }
 
-  SpecialEncode(decodedPath, true, _retval);
+  SpecialEncode(decodedPath, PR_TRUE, _retval);
   // XXX: lowercase the path?
 
   return NS_OK;
@@ -242,18 +274,18 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
   // non-octal digits, no part of the ip can be in octal
   // XXX: this came from the old javascript implementation, is it really
   // supposed to be like this?
-  bool allowOctal = true;
-  uint32_t i;
+  PRBool allowOctal = PR_TRUE;
+  PRUint32 i;
 
   for (i = 0; i < parts.Length(); i++) {
     const nsCString& part = parts[i];
     if (part[0] == '0') {
-      for (uint32_t j = 1; j < part.Length(); j++) {
+      for (PRUint32 j = 1; j < part.Length(); j++) {
         if (part[j] == 'x') {
           break;
         }
         if (part[j] == '8' || part[j] == '9') {
-          allowOctal = false;
+          allowOctal = PR_FALSE;
           break;
         }
       }
@@ -261,7 +293,7 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
   }
 
   for (i = 0; i < parts.Length(); i++) {
-    nsAutoCString canonical;
+    nsCAutoString canonical;
 
     if (i == parts.Length() - 1) {
       CanonicalNum(parts[i], 5 - parts.Length(), allowOctal, canonical);
@@ -286,8 +318,8 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
 
 void
 nsUrlClassifierUtils::CanonicalNum(const nsACString& num,
-                                   uint32_t bytes,
-                                   bool allowOctal,
+                                   PRUint32 bytes,
+                                   PRBool allowOctal,
                                    nsACString& _retval)
 {
   _retval.Truncate();
@@ -296,7 +328,7 @@ nsUrlClassifierUtils::CanonicalNum(const nsACString& num,
     return;
   }
 
-  uint32_t val;
+  PRUint32 val;
   if (allowOctal && IsOctal(num)) {
     if (PR_sscanf(PromiseFlatCString(num).get(), "%o", &val) != 1) {
       return;
@@ -329,12 +361,12 @@ nsUrlClassifierUtils::CanonicalNum(const nsACString& num,
 // This function will encode all "special" characters in typical url
 // encoding, that is %hh where h is a valid hex digit.  It will also fold
 // any duplicated slashes.
-bool
+PRBool
 nsUrlClassifierUtils::SpecialEncode(const nsACString & url,
-                                    bool foldSlashes,
+                                    PRBool foldSlashes,
                                     nsACString & _retval)
 {
-  bool changed = false;
+  PRBool changed = PR_FALSE;
   const char* curChar = url.BeginReading();
   const char* end = url.EndReading();
 
@@ -346,7 +378,7 @@ nsUrlClassifierUtils::SpecialEncode(const nsACString & url,
       _retval.Append(int_to_hex_digit(c / 16));
       _retval.Append(int_to_hex_digit(c % 16));
 
-      changed = true;
+      changed = PR_TRUE;
     } else if (foldSlashes && (c == '/' && lastChar == '/')) {
       // skip
     } else {
@@ -358,7 +390,7 @@ nsUrlClassifierUtils::SpecialEncode(const nsACString & url,
   return changed;
 }
 
-bool
+PRBool
 nsUrlClassifierUtils::ShouldURLEscape(const unsigned char c) const
 {
   return c <= 32 || c == '%' || c >=127;
@@ -387,12 +419,12 @@ nsUrlClassifierUtils::DecodeClientKey(const nsACString &key,
                                       nsACString &_retval)
 {
   // Client key is sent in urlsafe base64, we need to decode it first.
-  nsAutoCString base64(key);
+  nsCAutoString base64(key);
   UnUrlsafeBase64(base64);
 
   // PL_Base64Decode doesn't null-terminate unless we let it allocate,
   // so we need to calculate the length ourselves.
-  uint32_t destLength;
+  PRUint32 destLength;
   destLength = base64.Length();
   if (destLength > 0 && base64[destLength - 1] == '=') {
     if (destLength > 1 && base64[destLength - 2] == '=') {

@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdlib.h>
 #include "nsScannerString.h"
@@ -12,16 +44,10 @@
    * nsScannerBufferList
    */
 
-#define MAX_CAPACITY ((PR_UINT32_MAX / sizeof(PRUnichar)) - \
-                      (sizeof(Buffer) + sizeof(PRUnichar)))
-
 nsScannerBufferList::Buffer*
 nsScannerBufferList::AllocBufferFromString( const nsAString& aString )
   {
-    uint32_t len = aString.Length();
-
-    if (len > MAX_CAPACITY)
-      return nullptr;
+    PRUint32 len = aString.Length();
 
     Buffer* buf = (Buffer*) malloc(sizeof(Buffer) + (len + 1) * sizeof(PRUnichar));
     if (buf)
@@ -43,11 +69,8 @@ nsScannerBufferList::AllocBufferFromString( const nsAString& aString )
   }
 
 nsScannerBufferList::Buffer*
-nsScannerBufferList::AllocBuffer( uint32_t capacity )
+nsScannerBufferList::AllocBuffer( PRUint32 capacity )
   {
-    if (capacity > MAX_CAPACITY)
-      return nullptr;
-
     Buffer* buf = (Buffer*) malloc(sizeof(Buffer) + (capacity + 1) * sizeof(PRUnichar));
     if (buf)
       {
@@ -84,12 +107,12 @@ nsScannerBufferList::SplitBuffer( const Position& pos )
     Buffer* bufferToSplit = pos.mBuffer;
     NS_ASSERTION(bufferToSplit, "null pointer");
 
-    uint32_t splitOffset = pos.mPosition - bufferToSplit->DataStart();
+    PRUint32 splitOffset = pos.mPosition - bufferToSplit->DataStart();
     NS_ASSERTION(pos.mPosition >= bufferToSplit->DataStart() &&
                  splitOffset <= bufferToSplit->DataLength(),
                  "split offset is outside buffer");
     
-    uint32_t len = bufferToSplit->DataLength() - splitOffset;
+    PRUint32 len = bufferToSplit->DataLength() - splitOffset;
     Buffer* new_buffer = AllocBuffer(len);
     if (new_buffer)
       {
@@ -139,17 +162,17 @@ nsScannerBufferList::Position::Distance( const Position& aStart, const Position&
  */
 
 nsScannerSubstring::nsScannerSubstring()
-  : mStart(nullptr, nullptr)
-  , mEnd(nullptr, nullptr)
-  , mBufferList(nullptr)
+  : mStart(nsnull, nsnull)
+  , mEnd(nsnull, nsnull)
+  , mBufferList(nsnull)
   , mLength(0)
-  , mIsDirty(true)
+  , mIsDirty(PR_TRUE)
   {
   }
 
 nsScannerSubstring::nsScannerSubstring( const nsAString& s )
-  : mBufferList(nullptr)
-  , mIsDirty(true)
+  : mBufferList(nsnull)
+  , mIsDirty(PR_TRUE)
   {
     Rebind(s);
   }
@@ -159,7 +182,7 @@ nsScannerSubstring::~nsScannerSubstring()
     release_ownership_of_buffer_list();
   }
 
-int32_t
+PRInt32
 nsScannerSubstring::CountChar( PRUnichar c ) const
   {
       /*
@@ -172,7 +195,7 @@ nsScannerSubstring::CountChar( PRUnichar c ) const
     nsScannerIterator iter;
     for ( BeginReading(iter); ; )
       {
-        int32_t lengthToExamineInThisFragment = iter.size_forward();
+        PRInt32 lengthToExamineInThisFragment = iter.size_forward();
         const PRUnichar* fromBegin = iter.get();
         result += size_type(NS_COUNT(fromBegin, fromBegin+lengthToExamineInThisFragment, c));
         if ( !(lengthToExamine -= lengthToExamineInThisFragment) )
@@ -197,7 +220,7 @@ nsScannerSubstring::Rebind( const nsScannerSubstring& aString,
     mEnd        = aEnd;
     mBufferList = aString.mBufferList;
     mLength     = Distance(aStart, aEnd);
-    mIsDirty    = true;
+    mIsDirty    = PR_TRUE;
   }
 
 void
@@ -206,7 +229,7 @@ nsScannerSubstring::Rebind( const nsAString& aString )
     release_ownership_of_buffer_list();
 
     mBufferList = new nsScannerBufferList(AllocBufferFromString(aString));
-    mIsDirty    = true;
+    mIsDirty    = PR_TRUE;
 
     init_range_from_buffer_list();
     acquire_ownership_of_buffer_list();
@@ -229,7 +252,7 @@ nsScannerSubstring::AsString() const
           CopyUnicodeTo(BeginReading(start), EndReading(end), mutable_this->mFlattenedRep);
         }
 
-        mutable_this->mIsDirty = false;
+        mutable_this->mIsDirty = PR_FALSE;
       }
 
     return mFlattenedRep;
@@ -269,12 +292,12 @@ nsScannerSubstring::EndReading( nsScannerIterator& iter ) const
     return iter;
   }
 
-bool
+PRBool
 nsScannerSubstring::GetNextFragment( nsScannerFragment& frag ) const
   {
     // check to see if we are at the end of the buffer list
     if (frag.mBuffer == mEnd.mBuffer)
-      return false;
+      return PR_FALSE;
 
     frag.mBuffer = static_cast<const Buffer*>(PR_NEXT_LINK(frag.mBuffer));
 
@@ -288,15 +311,15 @@ nsScannerSubstring::GetNextFragment( nsScannerFragment& frag ) const
     else
       frag.mFragmentEnd = frag.mBuffer->DataEnd();
 
-    return true;
+    return PR_TRUE;
   }
 
-bool
+PRBool
 nsScannerSubstring::GetPrevFragment( nsScannerFragment& frag ) const
   {
     // check to see if we are at the beginning of the buffer list
     if (frag.mBuffer == mStart.mBuffer)
-      return false;
+      return PR_FALSE;
 
     frag.mBuffer = static_cast<const Buffer*>(PR_PREV_LINK(frag.mBuffer));
 
@@ -310,7 +333,7 @@ nsScannerSubstring::GetPrevFragment( nsScannerFragment& frag ) const
     else
       frag.mFragmentEnd = frag.mBuffer->DataEnd();
 
-    return true;
+    return PR_TRUE;
   }
 
 
@@ -335,7 +358,7 @@ nsScannerString::AppendBuffer( Buffer* aBuf )
     mEnd.mBuffer = aBuf;
     mEnd.mPosition = aBuf->DataEnd();
 
-    mIsDirty = true;
+    mIsDirty = PR_TRUE;
   }
 
 void
@@ -350,7 +373,7 @@ nsScannerString::DiscardPrefix( const nsScannerIterator& aIter )
 
     mBufferList->DiscardUnreferencedPrefix(old_start.mBuffer);
 
-    mIsDirty = true;
+    mIsDirty = PR_TRUE;
   }
 
 void
@@ -382,7 +405,7 @@ nsScannerString::UngetReadable( const nsAString& aReadable, const nsScannerItera
     mEnd.mBuffer = mBufferList->Tail();
     mEnd.mPosition = mEnd.mBuffer->DataEnd();
 
-    mIsDirty = true;
+    mIsDirty = PR_TRUE;
   }
 
 void
@@ -394,7 +417,7 @@ nsScannerString::ReplaceCharacter(nsScannerIterator& aPosition, PRUnichar aChar)
     PRUnichar* pos = const_cast<PRUnichar*>(aPosition.get());
     *pos = aChar;
 
-    mIsDirty = true;
+    mIsDirty = PR_TRUE;
   }
 
 
@@ -411,7 +434,7 @@ nsScannerSharedSubstring::Rebind(const nsScannerIterator &aStart,
   // onto it.
 
   Buffer *buffer = const_cast<Buffer*>(aStart.buffer());
-  bool sameBuffer = buffer == aEnd.buffer();
+  PRBool sameBuffer = buffer == aEnd.buffer();
 
   nsScannerBufferList *bufferList;
 
@@ -429,8 +452,8 @@ nsScannerSharedSubstring::Rebind(const nsScannerIterator &aStart,
     mBufferList = bufferList;
     mString.Rebind(aStart.mPosition, aEnd.mPosition);
   } else {
-    mBuffer = nullptr;
-    mBufferList = nullptr;
+    mBuffer = nsnull;
+    mBufferList = nsnull;
     CopyUnicodeTo(aStart, aEnd, mString);
   }
 }
@@ -452,8 +475,8 @@ nsScannerSharedSubstring::MakeMutable()
 
   ReleaseBuffer();
 
-  mBuffer = nullptr;
-  mBufferList = nullptr;
+  mBuffer = nsnull;
+  mBufferList = nsnull;
 }
 
   /**
@@ -470,7 +493,7 @@ copy_multifragment_string( nsScannerIterator& first, const nsScannerIterator& la
 
     while ( first != last )
       {
-        uint32_t distance = source_traits::readable_distance(first, last);
+        PRUint32 distance = source_traits::readable_distance(first, last);
         sink_traits::write(result, source_traits::read(first), distance);
         NS_ASSERTION(distance > 0, "|copy_multifragment_string| will never terminate");
         source_traits::advance(first, distance);
@@ -517,7 +540,7 @@ AppendUnicodeTo( const nsScannerIterator& aSrcStart,
                  nsAString& aDest )
   {
     nsAString::iterator writer;
-    uint32_t oldLength = aDest.Length();
+    PRUint32 oldLength = aDest.Length();
     if (!EnsureStringLength(aDest, oldLength + Distance(aSrcStart, aSrcEnd)))
       return; // out of memory
     aDest.BeginWriting(writer).advance(oldLength);
@@ -526,14 +549,14 @@ AppendUnicodeTo( const nsScannerIterator& aSrcStart,
     copy_multifragment_string(fromBegin, aSrcEnd, writer);
   }
 
-bool
+PRBool
 FindCharInReadable( PRUnichar aChar,
                     nsScannerIterator& aSearchStart,
                     const nsScannerIterator& aSearchEnd )
   {
     while ( aSearchStart != aSearchEnd )
       {
-        int32_t fragmentLength;
+        PRInt32 fragmentLength;
         if ( SameFragment(aSearchStart, aSearchEnd) ) 
           fragmentLength = aSearchEnd.get() - aSearchStart.get();
         else
@@ -542,22 +565,22 @@ FindCharInReadable( PRUnichar aChar,
         const PRUnichar* charFoundAt = nsCharTraits<PRUnichar>::find(aSearchStart.get(), fragmentLength, aChar);
         if ( charFoundAt ) {
           aSearchStart.advance( charFoundAt - aSearchStart.get() );
-          return true;
+          return PR_TRUE;
         }
 
         aSearchStart.advance(fragmentLength);
       }
 
-    return false;
+    return PR_FALSE;
   }
 
-bool
+PRBool
 FindInReadable( const nsAString& aPattern,
                 nsScannerIterator& aSearchStart,
                 nsScannerIterator& aSearchEnd,
                 const nsStringComparator& compare )
   {
-    bool found_it = false;
+    PRBool found_it = PR_FALSE;
 
       // only bother searching at all if we're given a non-empty range to search
     if ( aSearchStart != aSearchEnd )
@@ -593,7 +616,7 @@ FindInReadable( const nsAString& aPattern,
                   // if we verified all the way to the end of the pattern, then we found it!
                 if ( testPattern == aPatternEnd )
                   {
-                    found_it = true;
+                    found_it = PR_TRUE;
                     aSearchEnd = testSearch; // return the exact found range through the parameters
                     break;
                   }
@@ -625,13 +648,13 @@ FindInReadable( const nsAString& aPattern,
    * It searches the entire string from left to right, and returns the last match found, if any.
    * This implementation will be replaced when I get |reverse_iterator|s working.
    */
-bool
+PRBool
 RFindInReadable( const nsAString& aPattern,
                  nsScannerIterator& aSearchStart,
                  nsScannerIterator& aSearchEnd,
                  const nsStringComparator& aComparator )
   {
-    bool found_it = false;
+    PRBool found_it = PR_FALSE;
 
     nsScannerIterator savedSearchEnd(aSearchEnd);
     nsScannerIterator searchStart(aSearchStart), searchEnd(aSearchEnd);
@@ -640,7 +663,7 @@ RFindInReadable( const nsAString& aPattern,
       {
         if ( FindInReadable(aPattern, searchStart, searchEnd, aComparator) )
           {
-            found_it = true;
+            found_it = PR_TRUE;
 
               // this is the best match so far, so remember it
             aSearchStart = searchStart;

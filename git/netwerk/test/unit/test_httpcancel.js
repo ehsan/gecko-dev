@@ -1,12 +1,9 @@
 // This file ensures that canceling a channel early does not
 // send the request to the server (bug 350790)
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
+const NS_BINDING_ABORTED = 0x804b0002;
 
 var observer = {
   QueryInterface: function eventsink_qi(iid) {
@@ -18,7 +15,7 @@ var observer = {
 
   observe: function(subject, topic, data) {
     subject = subject.QueryInterface(Components.interfaces.nsIRequest);
-    subject.cancel(Components.results.NS_BINDING_ABORTED);
+    subject.cancel(NS_BINDING_ABORTED);
 
     var obs = Components.classes["@mozilla.org/observer-service;1"].getService();
     obs = obs.QueryInterface(Components.interfaces.nsIObserverService);
@@ -28,7 +25,7 @@ var observer = {
 
 var listener = {
   onStartRequest: function test_onStartR(request, ctx) {
-    do_check_eq(request.status, Components.results.NS_BINDING_ABORTED);
+    do_check_eq(request.status, NS_BINDING_ABORTED);
   },
 
   onDataAvailable: function test_ODA() {
@@ -53,19 +50,19 @@ var httpserv = null;
 
 function execute_test() {
   var chan = makeChan("http://localhost:4444/failtest");
-
+ 
   var obs = Components.classes["@mozilla.org/observer-service;1"].getService();
   obs = obs.QueryInterface(Components.interfaces.nsIObserverService);
-  obs.addObserver(observer, "http-on-modify-request", false);
-
+  obs.addObserver(observer, "http-on-modify-request", false); 
+ 
   chan.asyncOpen(listener, null);
 }
 
 function run_test() {
-  httpserv = new HttpServer();
+  httpserv = new nsHttpServer();
   httpserv.registerPathHandler("/failtest", failtest);
   httpserv.start(4444);
-
+  
   execute_test();
 
   do_test_pending();

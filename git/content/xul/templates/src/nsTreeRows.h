@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chris Waterson <waterson@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsTreeRows_h__
 #define nsTreeRows_h__
@@ -77,18 +110,18 @@ public:
         /**
          * The number of immediate children in this subtree
          */
-        int32_t mCount;
+        PRInt32 mCount;
 
         /**
          * The capacity of the subtree
          */
-        int32_t mCapacity;
+        PRInt32 mCapacity;
 
         /**
          * The total number of rows in this subtree, recursively
          * including child subtrees.
          */
-        int32_t mSubtreeSize;
+        PRInt32 mSubtreeSize;
 
         /**
          * The array of rows in the subtree
@@ -104,32 +137,32 @@ public:
               mCount(0),
               mCapacity(0),
               mSubtreeSize(0),
-              mRows(nullptr) {}
+              mRows(nsnull) {}
 
         ~Subtree();
 
         /**
          * Return the number of immediate child rows in the subtree
          */
-        int32_t Count() const { return mCount; }
+        PRInt32 Count() const { return mCount; }
 
         /**
          * Return the number of rows in this subtree, as well as all
          * the subtrees it contains.
          */
-        int32_t GetSubtreeSize() const { return mSubtreeSize; }
+        PRInt32 GetSubtreeSize() const { return mSubtreeSize; }
 
         /**
          * Retrieve the immediate child row at the specified index.
          */
-        const Row& operator[](int32_t aIndex) const {
+        const Row& operator[](PRInt32 aIndex) const {
             NS_PRECONDITION(aIndex >= 0 && aIndex < mCount, "bad index");
             return mRows[aIndex]; }
 
         /**
          * Retrieve the immediate row at the specified index.
          */
-        Row& operator[](int32_t aIndex) {
+        Row& operator[](PRInt32 aIndex) {
             NS_PRECONDITION(aIndex >= 0 && aIndex < mCount, "bad index");
             return mRows[aIndex]; }
 
@@ -142,12 +175,12 @@ public:
         /**
          * Insert an immediate child row at the specified index.
          */
-        iterator InsertRowAt(nsTemplateMatch* aMatch, int32_t aIndex);
+        iterator InsertRowAt(nsTemplateMatch* aMatch, PRInt32 aIndex);
 
         /**
          * Remove an immediate child row from the specified index.
          */
-        void RemoveRowAt(int32_t aChildIndex);
+        void RemoveRowAt(PRInt32 aChildIndex);
     };
 
     friend class Subtree;
@@ -158,7 +191,7 @@ protected:
      */
     struct Link {
         Subtree* mParent;
-        int32_t  mChildIndex;
+        PRInt32  mChildIndex;
 
         Link&
         operator=(const Link& aLink) {
@@ -166,7 +199,7 @@ protected:
             mChildIndex = aLink.mChildIndex;
             return *this; }
 
-        bool
+        PRBool
         operator==(const Link& aLink) const {
             return (mParent == aLink.mParent)
                 && (mChildIndex == aLink.mChildIndex); }
@@ -174,7 +207,7 @@ protected:
         Subtree* GetParent() { return mParent; }
         const Subtree* GetParent() const { return mParent; }
 
-        int32_t GetChildIndex() const { return mChildIndex; }
+        PRInt32 GetChildIndex() const { return mChildIndex; }
 
         Row& GetRow() { return (*mParent)[mChildIndex]; }
         const Row& GetRow() const { return (*mParent)[mChildIndex]; }
@@ -186,7 +219,7 @@ public:
      */
     class iterator {
     protected:
-        int32_t mRowIndex;
+        PRInt32 mRowIndex;
         nsAutoTArray<Link, 8> mLink;
 
         void Next();
@@ -198,17 +231,17 @@ public:
         /**
          * Used by operator[]() to initialize an iterator.
          */
-        void Append(Subtree* aParent, int32_t aChildIndex);
+        void Append(Subtree* aParent, PRInt32 aChildIndex);
 
         /**
          * Used by InsertRowAt() to initialize an iterator.
          */
-        void Push(Subtree *aParent, int32_t aChildIndex);
+        void Push(Subtree *aParent, PRInt32 aChildIndex);
 
         /**
          * Used by operator[]() and InsertRowAt() to initialize an iterator.
          */
-        void SetRowIndex(int32_t aRowIndex) { mRowIndex = aRowIndex; }
+        void SetRowIndex(PRInt32 aRowIndex) { mRowIndex = aRowIndex; }
 
         /**
          * Handy accessors to the top element.
@@ -222,9 +255,9 @@ public:
         iterator(const iterator& aIterator);
         iterator& operator=(const iterator& aIterator);
 
-        bool operator==(const iterator& aIterator) const;
+        PRBool operator==(const iterator& aIterator) const;
 
-        bool operator!=(const iterator& aIterator) const {
+        PRBool operator!=(const iterator& aIterator) const {
             return !aIterator.operator==(*this); }
 
         const Row& operator*() const { return GetTop().GetRow(); }
@@ -248,18 +281,18 @@ public:
         /**
          * Return the current child index
          */
-        int32_t GetChildIndex() const { return GetTop().GetChildIndex(); }
+        PRInt32 GetChildIndex() const { return GetTop().GetChildIndex(); }
 
         /**
          * Return the depth of the path the iterator is maintaining
          * into the tree.
          */
-        int32_t GetDepth() const { return mLink.Length(); }
+        PRInt32 GetDepth() const { return mLink.Length(); }
 
         /**
          * Return the current row index of the iterator
          */
-        int32_t GetRowIndex() const { return mRowIndex; }
+        PRInt32 GetRowIndex() const { return mRowIndex; }
 
         /**
          * Pop the iterator up a level.
@@ -290,9 +323,9 @@ public:
     /**
      * Retrieve the ith element in the view
      */
-    iterator operator[](int32_t aIndex);
+    iterator operator[](PRInt32 aIndex);
 
-    nsTreeRows() : mRoot(nullptr) {}
+    nsTreeRows() : mRoot(nsnull) {}
     ~nsTreeRows() {}
 
     /**
@@ -301,7 +334,7 @@ public:
      * words, create a subtree if one doesn't already exist.)
      */
     Subtree*
-    EnsureSubtreeFor(Subtree* aParent, int32_t aChildIndex);
+    EnsureSubtreeFor(Subtree* aParent, PRInt32 aChildIndex);
 
     /**
      * Ensure that a child subtree exists at the iterator's position.
@@ -318,25 +351,25 @@ public:
      */
     Subtree*
     GetSubtreeFor(const Subtree* aParent,
-                  int32_t aChildIndex,
-                  int32_t* aSubtreeSize = nullptr);
+                  PRInt32 aChildIndex,
+                  PRInt32* aSubtreeSize = nsnull);
 
     /**
      * Retrieve the size of the subtree within the specified parent.
      */
-    int32_t
+    PRInt32
     GetSubtreeSizeFor(const Subtree* aParent,
-                      int32_t aChildIndex) {
-        int32_t size;
+                      PRInt32 aChildIndex) {
+        PRInt32 size;
         GetSubtreeFor(aParent, aChildIndex, &size);
         return size; }
 
     /**
      * Retrieve the size of the subtree within the specified parent.
      */
-    int32_t
+    PRInt32
     GetSubtreeSizeFor(const iterator& aIterator) {
-        int32_t size;
+        PRInt32 size;
         GetSubtreeFor(aIterator.GetParent(), aIterator.GetChildIndex(), &size);
         return size; }
 
@@ -345,7 +378,7 @@ public:
      * intact.
      */
     void
-    RemoveSubtreeFor(Subtree* aParent, int32_t aChildIndex);
+    RemoveSubtreeFor(Subtree* aParent, PRInt32 aChildIndex);
 
     /**
      * Remove the specified subtree for a row, leaving the row itself
@@ -358,7 +391,7 @@ public:
     /**
      * Remove the specified row from the view
      */
-    int32_t
+    PRInt32
     RemoveRowAt(iterator& aIterator) {
         iterator temp = aIterator--;
         Subtree* parent = temp.GetParent();
@@ -370,7 +403,7 @@ public:
      * Insert a new match into the view
      */
     iterator
-    InsertRowAt(nsTemplateMatch* aMatch, Subtree* aSubtree, int32_t aChildIndex) {
+    InsertRowAt(nsTemplateMatch* aMatch, Subtree* aSubtree, PRInt32 aChildIndex) {
         InvalidateCachedRow();
         return aSubtree->InsertRowAt(aMatch, aChildIndex); }
 
@@ -388,7 +421,7 @@ public:
     /**
      * Return the total number of rows in the tree view.
      */
-    int32_t Count() const { return mRoot.GetSubtreeSize(); }
+    PRInt32 Count() const { return mRoot.GetSubtreeSize(); }
 
     /**
      * Retrieve the root subtree

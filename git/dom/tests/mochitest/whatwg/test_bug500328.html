@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=500328
 -->
 <head>
   <title>Test for Bug 500328</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -116,7 +117,7 @@ function onChildPageShow(e) {
   if(gCallbackOnIframePageShow) {
     statusMsg("Got pageshow for " + getURLFromEvent(e) + ".  About to call gGen.next().");
     gCallbackOnIframePageShow = false;
-    SimpleTest.executeSoon(function() { gGen.next(); });
+    gGen.next();
   }
   else {
     statusMsg("Got pageshow for " + getURLFromEvent(e) + ", but not calling gGen.next() because gCallbackOnIframePageShow was false.");
@@ -153,7 +154,8 @@ function popstateExpected(msg) {
 }
 
 function getColor(elem) {
-  var utils = SpecialPowers.wrap(document).defaultView.
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var utils = document.defaultView.
                 QueryInterface(Components.interfaces.nsIInterfaceRequestor).
                 getInterface(Components.interfaces.nsIDOMWindowUtils);
   return utils.getVisitedDependentComputedStyle(elem, "", "color");
@@ -161,10 +163,12 @@ function getColor(elem) {
 
 function getSHistory(theWindow)
 {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   const Ci = Components.interfaces;
-  var sh = SpecialPowers.wrap(theWindow.QueryInterface(Ci.nsIInterfaceRequestor))
-                        .getInterface(Ci.nsIWebNavigation)
-                        .sessionHistory;
+  var sh = theWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                    .getInterface(Ci.nsIWebNavigation)
+                    .sessionHistory;
   if (!sh || sh == null)
     throw("Couldn't get shistory for window!");
 
@@ -173,6 +177,8 @@ function getSHistory(theWindow)
 
 function getSHTitle(sh, offset)
 {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   if (!offset)
     offset = 0;
 

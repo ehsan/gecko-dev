@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Boris Zbarsky <bzbarsky@mit.edu>.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Content policy implementation that prevents all loads of images,
@@ -19,33 +51,21 @@
 
 NS_IMPL_ISUPPORTS1(nsDataDocumentContentPolicy, nsIContentPolicy)
 
-// Helper method for ShouldLoad()
-// Checks a URI for the given flags.  Returns true if the URI has the flags,
-// and false if not (or if we weren't able to tell).
-static bool
-HasFlags(nsIURI* aURI, uint32_t aURIFlags)
-{
-  bool hasFlags;
-  nsresult rv = NS_URIChainHasFlags(aURI, aURIFlags, &hasFlags);
-  return NS_SUCCEEDED(rv) && hasFlags;
-}
-
 NS_IMETHODIMP
-nsDataDocumentContentPolicy::ShouldLoad(uint32_t aContentType,
+nsDataDocumentContentPolicy::ShouldLoad(PRUint32 aContentType,
                                         nsIURI *aContentLocation,
                                         nsIURI *aRequestingLocation,
                                         nsISupports *aRequestingContext,
                                         const nsACString &aMimeGuess,
                                         nsISupports *aExtra,
-                                        nsIPrincipal *aRequestPrincipal,
-                                        int16_t *aDecision)
+                                        PRInt16 *aDecision)
 {
   *aDecision = nsIContentPolicy::ACCEPT;
   // Look for the document.  In most cases, aRequestingContext is a node.
   nsCOMPtr<nsIDocument> doc;
   nsCOMPtr<nsINode> node = do_QueryInterface(aRequestingContext);
   if (node) {
-    doc = node->OwnerDoc();
+    doc = node->GetOwnerDoc();
   } else {
     nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(aRequestingContext);
     if (window) {
@@ -67,38 +87,33 @@ nsDataDocumentContentPolicy::ShouldLoad(uint32_t aContentType,
   }
 
   if (doc->IsBeingUsedAsImage()) {
-    // We only allow SVG images to load content from URIs that are local and
-    // also satisfy one of the following conditions:
-    //  - URI inherits security context, e.g. data URIs
-    //   OR
-    //  - URI loadable by subsumers, e.g. blob URIs
-    // Any URI that doesn't meet these requirements will be rejected below.
-    if (!HasFlags(aContentLocation,
-                  nsIProtocolHandler::URI_IS_LOCAL_RESOURCE) ||
-        (!HasFlags(aContentLocation,
-                   nsIProtocolHandler::URI_INHERITS_SECURITY_CONTEXT) &&
-         !HasFlags(aContentLocation,
-                   nsIProtocolHandler::URI_LOADABLE_BY_SUBSUMERS))) {
+    // Allow local resources for SVG-as-an-image documents, but disallow
+    // everything else, to prevent data leakage
+    PRBool hasFlags;
+    nsresult rv = NS_URIChainHasFlags(aContentLocation,
+                                      nsIProtocolHandler::URI_IS_LOCAL_RESOURCE,
+                                      &hasFlags);
+    if (NS_FAILED(rv) || !hasFlags) {
+      // resource is not local (or we couldn't tell) - reject!
       *aDecision = nsIContentPolicy::REJECT_TYPE;
 
-      // Report error, if we can.
+      // report error, if we can.
       if (node) {
         nsIPrincipal* requestingPrincipal = node->NodePrincipal();
         nsRefPtr<nsIURI> principalURI;
-        nsresult rv =
-          requestingPrincipal->GetURI(getter_AddRefs(principalURI));
+        rv = requestingPrincipal->GetURI(getter_AddRefs(principalURI));
         if (NS_SUCCEEDED(rv) && principalURI) {
           nsScriptSecurityManager::ReportError(
-            nullptr, NS_LITERAL_STRING("CheckSameOriginError"), principalURI,
+            nsnull, NS_LITERAL_STRING("CheckSameOriginError"), principalURI,
             aContentLocation);
         }
       }
     } else if (aContentType == nsIContentPolicy::TYPE_IMAGE &&
                doc->GetDocumentURI()) {
       // Check for (& disallow) recursive image-loads
-      bool isRecursiveLoad;
-      nsresult rv = aContentLocation->EqualsExceptRef(doc->GetDocumentURI(),
-                                                      &isRecursiveLoad);
+      PRBool isRecursiveLoad;
+      rv = aContentLocation->EqualsExceptRef(doc->GetDocumentURI(),
+                                             &isRecursiveLoad);
       if (NS_FAILED(rv) || isRecursiveLoad) {
         NS_WARNING("Refusing to recursively load image");
         *aDecision = nsIContentPolicy::REJECT_TYPE;
@@ -107,12 +122,12 @@ nsDataDocumentContentPolicy::ShouldLoad(uint32_t aContentType,
     return NS_OK;
   }
 
-  // Allow all loads for non-resource documents
-  if (!doc->IsResourceDoc()) {
+  // Allow all loads for non-external-resource documents
+  if (!doc->GetDisplayDocument()) {
     return NS_OK;
   }
 
-  // For resource documents, blacklist some load types
+  // For external resources, blacklist some load types
   if (aContentType == nsIContentPolicy::TYPE_OBJECT ||
       aContentType == nsIContentPolicy::TYPE_DOCUMENT ||
       aContentType == nsIContentPolicy::TYPE_SUBDOCUMENT ||
@@ -124,16 +139,14 @@ nsDataDocumentContentPolicy::ShouldLoad(uint32_t aContentType,
 }
 
 NS_IMETHODIMP
-nsDataDocumentContentPolicy::ShouldProcess(uint32_t aContentType,
+nsDataDocumentContentPolicy::ShouldProcess(PRUint32 aContentType,
                                            nsIURI *aContentLocation,
                                            nsIURI *aRequestingLocation,
                                            nsISupports *aRequestingContext,
                                            const nsACString &aMimeGuess,
                                            nsISupports *aExtra,
-                                           nsIPrincipal *aRequestPrincipal,
-                                           int16_t *aDecision)
+                                           PRInt16 *aDecision)
 {
   return ShouldLoad(aContentType, aContentLocation, aRequestingLocation,
-                    aRequestingContext, aMimeGuess, aExtra, aRequestPrincipal,
-                    aDecision);
+                    aRequestingContext, aMimeGuess, aExtra, aDecision);
 }

@@ -3,14 +3,9 @@
 // heuristic query freshness as defined in RFC 2616 section 13.9
 //
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
-
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var index = 0;
 var tests = [
     // RFC 2616 section 13.9 2nd paragraph - query-url should be validated
@@ -37,6 +32,12 @@ var tests = [
     {url: "/freshness?b", server: "99", expected: "99"},
 
 ];
+
+function getCacheService()
+{
+    return Components.classes["@mozilla.org/network/cache-service;1"].
+                      getService(Components.interfaces.nsICacheService);
+}
 
 function logit(i, data) {
     dump(tests[i].url + "\t requested [" + tests[i].server + "]" +
@@ -82,8 +83,8 @@ function run_test() {
     httpserver.start(4444);
 
     // clear cache
-    evict_cache_entries();
-
+    getCacheService().
+        evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
     triggerNextTest();
 
     do_test_pending();

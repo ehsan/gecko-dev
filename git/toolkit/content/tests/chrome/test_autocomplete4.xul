@@ -5,6 +5,8 @@
 <window title="Autocomplete Widget Test 4"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
+  <script type="application/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="application/javascript"
@@ -148,6 +150,7 @@ function nextTest() {
   if (!tests.length) {
     // No more tests to run, finish.
     setTimeout(function() {
+      $("autocomplete").controller.stopSearch();
       // Unregister the factory so that we don't get in the way of other tests
       componentManager.unregisterFactory(autoCompleteSimpleID, autoCompleteSimple);
       SimpleTest.finish();

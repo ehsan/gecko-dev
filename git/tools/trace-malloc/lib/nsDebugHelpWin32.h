@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   John Bandhauer <jband@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* Win32 x86/x64 code for stack walking, symbol resolution, and function hooking */
 
@@ -137,7 +170,7 @@ DHW_DECLARE_FUN_TYPE_AND_GLOBAL(SYMGETLINEFROMADDR, SymGetLineFromAddr, \
 
 /***************************************************************************/
 
-extern bool
+extern PRBool
 dhwEnsureImageHlpInitialized();
 
 /***************************************************************************/
@@ -151,15 +184,15 @@ public:
     DHWImportHooker(const char* aModuleName,
                     const char* aFunctionName,
                     PROC aHook,
-                    bool aExcludeOurModule = false);
+                    PRBool aExcludeOurModule = PR_FALSE);
                     
     ~DHWImportHooker();
 
     PROC GetOriginalFunction()  {return mOriginal;}
 
-    bool PatchAllModules();
-    bool PatchOneModule(HMODULE aModule, const char* name);
-    static bool ModuleLoaded(HMODULE aModule, DWORD flags);
+    PRBool PatchAllModules();
+    PRBool PatchOneModule(HMODULE aModule, const char* name);
+    static PRBool ModuleLoaded(HMODULE aModule, DWORD flags);
 
 
     // I think that these should be made not static members, but allocated
@@ -182,7 +215,7 @@ private:
     PROC             mOriginal;
     PROC             mHook;
     HMODULE          mIgnoreModule;
-    bool             mHooking;
+    PRBool           mHooking;
 
 private:
     static PRLock* gLock;
@@ -206,13 +239,13 @@ private:
 class DHWAllocationSizeDebugHook
 {
 public:
-    virtual bool AllocHook(size_t size) = 0;
-    virtual bool ReallocHook(size_t size, size_t sizeOld) = 0;
-    virtual bool FreeHook(size_t size) = 0;
+    virtual PRBool AllocHook(size_t size) = 0;
+    virtual PRBool ReallocHook(size_t size, size_t sizeOld) = 0;
+    virtual PRBool FreeHook(size_t size) = 0;
 };
 
-extern bool dhwSetAllocationSizeDebugHook(DHWAllocationSizeDebugHook* hook);
-extern bool dhwClearAllocationSizeDebugHook();
+extern PRBool dhwSetAllocationSizeDebugHook(DHWAllocationSizeDebugHook* hook);
+extern PRBool dhwClearAllocationSizeDebugHook();
 
 /***************************************************************************/
 #endif //0

@@ -4,6 +4,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=519107
 -->
 <head>
   <title>Test for availability of svgElement::isSupported</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -41,7 +42,7 @@ var features = [
   ["Events", "2.0", true],
   ["UIEvents", "2.0", true],
   ["MouseEvents", "2.0", true],
-  ["MutationEvents", "2.0", false],
+  ["MuationEvents", "2.0", false],
   ["HTMLEvents", "2.0", true],
   ["Range", "2.0", true],
   ["Traversal", "2.0", false],
@@ -96,7 +97,7 @@ var features = [
   ["http://www.w3.org/TR/SVG11/feature#BasicFilter", "1.1", false],
 
   // Animation feature
-  ["http://www.w3.org/TR/SVG11/feature#Animation", "1.1", true],
+  ["http://www.w3.org/TR/SVG11/feature#Animation", "1.1", false],
 
   // Dynamic features
   ["http://www.w3.org/TR/SVG11/feature#DocumentEventsAttribute", "1.1", true],
@@ -118,7 +119,7 @@ var features = [
   ["http://www.w3.org/TR/SVG11/feature#SVG-static", "1.1", false],
   ["http://www.w3.org/TR/SVG11/feature#SVGDOM-static", "1.1", false],
   ["http://www.w3.org/TR/SVG11/feature#SVG-animation", "1.1", false],
-  ["http://www.w3.org/TR/SVG11/feature#SVGDOM-animation", "1.1", true],
+  ["http://www.w3.org/TR/SVG11/feature#SVGDOM-animation", "1.1", false],
   ["http://www.w3.org/TR/SVG11/feature#SVG-dynamic", "1.1", false],
   ["http://www.w3.org/TR/SVG11/feature#SVGDOM-dynamic", "1.1", false],
 
@@ -131,7 +132,7 @@ var features = [
   ["org.w3c.dom.svg", "1.0", false],
   ["org.w3c.dom.svg.all", "1.0", false],
   ["org.w3c.dom.svg.static", "1.0", false],
-  ["org.w3c.dom.svg.animation", "1.0", true],
+  ["org.w3c.dom.svg.animation", "1.0", false],
   ["org.w3c.dom.svg.dynamic", "1.0", false]
 ];
 

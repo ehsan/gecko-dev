@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=461735
 -->
 <head>
   <title>Test for Bug 461735</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -19,9 +20,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=461735
 var errorFired = false;
 window.onerror = function(message, uri, line) {
   is(message, "Script error.", "Should have empty error message");
-  is(uri,
-     "http://mochi.test:8888/tests/content/base/test/bug461735-redirect1.sjs",
-     "Should have pre-redirect error location URI");
+  is(uri, "", "Should have empty error location URI");
   is(line, 0, "Shouldn't have a line here");
   errorFired = true;
 }
@@ -33,10 +32,8 @@ window.onerror = function(message, uri, line) {
 </script>
 <script type="application/javascript">
 window.onerror = function(message, uri, line) {
-  is(message, "ReferenceError: c is not defined", "Should have correct error message");
-  is(uri,
-     "http://mochi.test:8888/tests/content/base/test/bug461735-redirect2.sjs",
-     "Unexpected error location URI");
+  is(message, "c is not defined", "Should have correct error message");
+  is(uri, "http://mochi.test:8888/tests/content/base/test/bug461735-post-redirect.js", "Unexpected error location URI");
   is(line, 3, "Should have a line here");
   errorFired = true;
 }

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Original Author: David W. Hyatt (hyatt@netscape.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsXBLPrototypeHandler_h__
 #define nsXBLPrototypeHandler_h__
@@ -50,37 +83,34 @@ public:
                         const PRUnichar* aPreventDefault,
                         const PRUnichar* aAllowUntrusted,
                         nsXBLPrototypeBinding* aBinding,
-                        uint32_t aLineNumber);
+                        PRUint32 aLineNumber);
 
   // This constructor is used only by XUL key handlers (e.g., <key>)
   nsXBLPrototypeHandler(nsIContent* aKeyElement);
 
-  // This constructor is used for handlers loaded from the cache
-  nsXBLPrototypeHandler(nsXBLPrototypeBinding* aBinding);
-
   ~nsXBLPrototypeHandler();
 
   // if aCharCode is not zero, it is used instead of the charCode of aKeyEvent.
-  bool KeyEventMatched(nsIDOMKeyEvent* aKeyEvent,
-                         uint32_t aCharCode = 0,
-                         bool aIgnoreShiftKey = false);
-  inline bool KeyEventMatched(nsIAtom* aEventType,
+  PRBool KeyEventMatched(nsIDOMKeyEvent* aKeyEvent,
+                         PRUint32 aCharCode = 0,
+                         PRBool aIgnoreShiftKey = PR_FALSE);
+  inline PRBool KeyEventMatched(nsIAtom* aEventType,
                                 nsIDOMKeyEvent* aEvent,
-                                uint32_t aCharCode = 0,
-                                bool aIgnoreShiftKey = false)
+                                PRUint32 aCharCode = 0,
+                                PRBool aIgnoreShiftKey = PR_FALSE)
   {
     if (aEventType != mEventName)
-      return false;
+      return PR_FALSE;
 
     return KeyEventMatched(aEvent, aCharCode, aIgnoreShiftKey);
   }
 
-  bool MouseEventMatched(nsIDOMMouseEvent* aMouseEvent);
-  inline bool MouseEventMatched(nsIAtom* aEventType,
+  PRBool MouseEventMatched(nsIDOMMouseEvent* aMouseEvent);
+  inline PRBool MouseEventMatched(nsIAtom* aEventType,
                                   nsIDOMMouseEvent* aEvent)
   {
     if (aEventType != mEventName)
-      return false;
+      return PR_FALSE;
 
     return MouseEventMatched(aEvent);
   }
@@ -89,8 +119,8 @@ public:
 
   void AppendHandlerText(const nsAString& aText);
 
-  uint8_t GetPhase() { return mPhase; }
-  uint8_t GetType() { return mType; }
+  PRUint8 GetPhase() { return mPhase; }
+  PRUint8 GetType() { return mType; }
 
   nsXBLPrototypeHandler* GetNextHandler() { return mNextHandler; }
   void SetNextHandler(nsXBLPrototypeHandler* aHandler) { mNextHandler = aHandler; }
@@ -115,72 +145,60 @@ public:
     return mHandler;
   }
 
-  bool HasAllowUntrustedAttr()
+  PRBool HasAllowUntrustedAttr()
   {
     return (mType & NS_HANDLER_HAS_ALLOW_UNTRUSTED_ATTR) != 0;
   }
 
   // This returns a valid value only if HasAllowUntrustedEventsAttr returns
-  // true.
-  bool AllowUntrustedEvents()
+  // PR_TRUE.
+  PRBool AllowUntrustedEvents()
   {
     return (mType & NS_HANDLER_ALLOW_UNTRUSTED) != 0;
   }
 
-  nsresult Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream);
-  nsresult Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream);
-
 public:
-  static uint32_t gRefCnt;
+  static PRUint32 gRefCnt;
   
 protected:
-  void Init() {
-    ++gRefCnt;
-    if (gRefCnt == 1)
-      // Get the primary accelerator key.
-      InitAccessKeys();
-  }
-
   already_AddRefed<nsIController> GetController(nsIDOMEventTarget* aTarget);
   
-  inline int32_t GetMatchingKeyCode(const nsAString& aKeyName);
+  inline PRInt32 GetMatchingKeyCode(const nsAString& aKeyName);
   void ConstructPrototype(nsIContent* aKeyElement, 
-                          const PRUnichar* aEvent=nullptr, const PRUnichar* aPhase=nullptr,
-                          const PRUnichar* aAction=nullptr, const PRUnichar* aCommand=nullptr,
-                          const PRUnichar* aKeyCode=nullptr, const PRUnichar* aCharCode=nullptr,
-                          const PRUnichar* aModifiers=nullptr, const PRUnichar* aButton=nullptr,
-                          const PRUnichar* aClickCount=nullptr, const PRUnichar* aGroup=nullptr,
-                          const PRUnichar* aPreventDefault=nullptr,
-                          const PRUnichar* aAllowUntrusted=nullptr);
+                          const PRUnichar* aEvent=nsnull, const PRUnichar* aPhase=nsnull,
+                          const PRUnichar* aAction=nsnull, const PRUnichar* aCommand=nsnull,
+                          const PRUnichar* aKeyCode=nsnull, const PRUnichar* aCharCode=nsnull,
+                          const PRUnichar* aModifiers=nsnull, const PRUnichar* aButton=nsnull,
+                          const PRUnichar* aClickCount=nsnull, const PRUnichar* aGroup=nsnull,
+                          const PRUnichar* aPreventDefault=nsnull,
+                          const PRUnichar* aAllowUntrusted=nsnull);
 
   void ReportKeyConflict(const PRUnichar* aKey, const PRUnichar* aModifiers, nsIContent* aElement, const char *aMessageName);
   void GetEventType(nsAString& type);
-  bool ModifiersMatchMask(nsIDOMUIEvent* aEvent,
-                            bool aIgnoreShiftKey = false);
+  PRBool ModifiersMatchMask(nsIDOMUIEvent* aEvent,
+                            PRBool aIgnoreShiftKey = PR_FALSE);
   nsresult DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEvent* aEvent);
   nsresult DispatchXULKeyCommand(nsIDOMEvent* aEvent);
   nsresult EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
                               nsIScriptContext *aBoundContext, nsIAtom *aName,
-                              nsScriptObjectHolder<JSObject>& aHandler);
-  static int32_t KeyToMask(int32_t key);
+                              nsScriptObjectHolder &aHandler);
+  static PRInt32 KeyToMask(PRInt32 key);
   
-  static int32_t kAccelKey;
-  static int32_t kMenuAccessKey;
+  static PRInt32 kAccelKey;
+  static PRInt32 kMenuAccessKey;
   static void InitAccessKeys();
 
-  static const int32_t cShift;
-  static const int32_t cAlt;
-  static const int32_t cControl;
-  static const int32_t cMeta;
-  static const int32_t cOS;
+  static const PRInt32 cShift;
+  static const PRInt32 cAlt;
+  static const PRInt32 cControl;
+  static const PRInt32 cMeta;
 
-  static const int32_t cShiftMask;
-  static const int32_t cAltMask;
-  static const int32_t cControlMask;
-  static const int32_t cMetaMask;
-  static const int32_t cOSMask;
+  static const PRInt32 cShiftMask;
+  static const PRInt32 cAltMask;
+  static const PRInt32 cControlMask;
+  static const PRInt32 cMetaMask;
 
-  static const int32_t cAllModifiers;
+  static const PRInt32 cAllModifiers;
 
 protected:
   union {
@@ -191,23 +209,22 @@ protected:
                                         // that we should use.
   };
 
-  uint32_t mLineNumber;  // The line number we started at in the XBL file
+  PRUint32 mLineNumber;  // The line number we started at in the XBL file
   
   // The following four values make up 32 bits.
-  uint8_t mPhase;            // The phase (capturing, bubbling)
-  uint8_t mType;             // The type of the handler.  The handler is either a XUL key
+  PRUint8 mPhase;            // The phase (capturing, bubbling)
+  PRUint8 mKeyMask;          // Which modifier keys this event handler expects to have down
+                             // in order to be matched.
+  PRUint8 mType;             // The type of the handler.  The handler is either a XUL key
                              // handler, an XBL "command" event, or a normal XBL event with
                              // accompanying JavaScript.  The high bit is used to indicate
                              // whether this handler should prevent the default action.
-  uint8_t mMisc;             // Miscellaneous extra information.  For key events,
+  PRUint8 mMisc;             // Miscellaneous extra information.  For key events,
                              // stores whether or not we're a key code or char code.
                              // For mouse events, stores the clickCount.
 
-  int32_t mKeyMask;          // Which modifier keys this event handler expects to have down
-                             // in order to be matched.
- 
   // The primary filter information for mouse/key events.
-  int32_t mDetail;           // For key events, contains a charcode or keycode. For
+  PRInt32 mDetail;           // For key events, contains a charcode or keycode. For
                              // mouse events, stores the button info.
 
   // Prototype handlers are chained. We own the next handler in the chain.

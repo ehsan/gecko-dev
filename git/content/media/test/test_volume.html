@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Media test: volume attribute set</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -16,7 +17,7 @@ function test(element, value, shouldThrow) {
   var threw = false;
   try {
     element.volume = value;
-  } catch (err if err.name == "IndexSizeError") {
+  } catch (err if err.name == "NS_ERROR_DOM_INDEX_SIZE_ERR") {
     threw = true;
   }
   is(shouldThrow, threw, "Case: " +element.id+ " setVolume=" + value);

@@ -2,6 +2,7 @@
 <head>
 <title>localStorage and DOM quota test</title>
 
+<script type="text/javascript" src="/MochiKit/packed.js"></script>
 <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
 <script type="text/javascript" src="interOriginTest.js"></script>
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -22,12 +23,8 @@ function addOfflineApp(url)
   var uri = Components.classes["@mozilla.org/network/io-service;1"]
     .getService(Components.interfaces.nsIIOService)
     .newURI(url, null, null);
-  var principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Components.interfaces.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(uri);
-
-  permissionManager.addFromPrincipal(principal, "offline-app",
-                                     Components.interfaces.nsIPermissionManager.ALLOW_ACTION);
+  permissionManager.add(uri, "offline-app",
+                        Components.interfaces.nsIPermissionManager.ALLOW_ACTION);
 }
 
 function removeOfflineApp(url)
@@ -37,11 +34,7 @@ function removeOfflineApp(url)
   var uri = Components.classes["@mozilla.org/network/io-service;1"]
     .getService(Components.interfaces.nsIIOService)
     .newURI(url, null, null);
-  var principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Components.interfaces.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(uri);
-
-  permissionManager.removeFromPrincipal(principal, "offline-app");
+  permissionManager.remove(uri.host, "offline-app");
 }
 
 function doNextTest()

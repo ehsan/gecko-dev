@@ -1,4 +1,5 @@
 <!DOCTYPE HTML><html><head>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
 </head>
 <body>
@@ -15,7 +16,7 @@ noteditable<span id="x" contenteditable="true">navigable|unnavigable</span><br /
   sel.addRange(range);
   x.focus();
 
-  sendKey('RIGHT'); // Try to move the caret one position to the right
+  sendKey('RIGHT', window); // Try to move the caret one position to the right
 </script>
 </body>
 </html>

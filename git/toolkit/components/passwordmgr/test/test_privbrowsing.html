@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=248970
 -->
 <head>
   <title>Test for Bug 248970</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="notification_common.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -230,6 +231,7 @@ function handleLoad(aEvent) {
 var pb = get_PBSvc();
 if (!pb) { // Private Browsing might not be available
   ok(true, "Private browsing service is not available");
+  SimpleTest.finish();
 } else {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 

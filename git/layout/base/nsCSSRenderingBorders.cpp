@@ -1,10 +1,45 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 // vim:cindent:ts=2:et:sw=2:
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *   Mozilla Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com>
+ *   Bas Schouten <bschouten@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsStyleConsts.h"
+#include "nsIFrame.h"
 #include "nsPoint.h"
 #include "nsRect.h"
 #include "nsIViewManager.h"
@@ -14,6 +49,7 @@
 #include "nsCSSAnonBoxes.h"
 #include "nsTransform2D.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsIScrollableFrame.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
@@ -22,10 +58,10 @@
 #include "nsITheme.h"
 #include "nsThemeConstants.h"
 #include "nsIServiceManager.h"
+#include "nsIHTMLDocument.h"
 #include "nsLayoutUtils.h"
 #include "nsINameSpaceManager.h"
 #include "nsBlockFrame.h"
-#include "sampler.h"
 
 #include "gfxContext.h"
 
@@ -47,9 +83,11 @@
  *   -> more than 1 pass?
  *      |- for each corner
  *         |- clip to DoCornerClipSubPath
+ *         |- PushGroup
  *         |- for each side adjacent to corner
  *            |- clip to DoSideClipSubPath
  *            |- DrawBorderSides with one side
+ *         |- PopGroup
  *      |- for each side
  *         |- DoSideClipWithoutCornersSubPath
  *         |- DrawDashedSide || DrawBorderSides with one side
@@ -74,18 +112,18 @@ static gfxRGBA MakeBorderColor(const gfxRGBA& aColor,
 // Given a line index (an index starting from the outside of the
 // border going inwards) and an array of line styles, calculate the
 // color that that stripe of the border should be rendered in.
-static gfxRGBA ComputeColorForLine(uint32_t aLineIndex,
+static gfxRGBA ComputeColorForLine(PRUint32 aLineIndex,
                                    const BorderColorStyle* aBorderColorStyle,
-                                   uint32_t aBorderColorStyleCount,
+                                   PRUint32 aBorderColorStyleCount,
                                    nscolor aBorderColor,
                                    nscolor aBackgroundColor);
 
-static gfxRGBA ComputeCompositeColorForLine(uint32_t aLineIndex,
+static gfxRGBA ComputeCompositeColorForLine(PRUint32 aLineIndex,
                                             const nsBorderColors* aBorderColors);
 
 // little helper function to check if the array of 4 floats given are
 // equal to the given value
-static bool
+static PRBool
 CheckFourFloatsEqual(const gfxFloat *vals, gfxFloat k)
 {
   return (vals[0] == k &&
@@ -122,15 +160,15 @@ typedef enum {
   CORNER_DOT
 } CornerStyle;
 
-nsCSSBorderRenderer::nsCSSBorderRenderer(int32_t aAppUnitsPerPixel,
+nsCSSBorderRenderer::nsCSSBorderRenderer(PRInt32 aAppUnitsPerPixel,
                                          gfxContext* aDestContext,
                                          gfxRect& aOuterRect,
-                                         const uint8_t* aBorderStyles,
+                                         const PRUint8* aBorderStyles,
                                          const gfxFloat* aBorderWidths,
                                          gfxCornerSizes& aBorderRadii,
                                          const nscolor* aBorderColors,
                                          nsBorderColors* const* aCompositeColors,
-                                         int aSkipSides,
+                                         PRIntn aSkipSides,
                                          nscolor aBackgroundColor)
   : mContext(aDestContext),
     mOuterRect(aOuterRect),
@@ -159,7 +197,7 @@ nsCSSBorderRenderer::nsCSSBorderRenderer(int32_t aAppUnitsPerPixel,
 
   mOneUnitBorder = CheckFourFloatsEqual(mBorderWidths, 1.0);
   mNoBorderRadius = AllCornersZeroSize(mBorderRadii);
-  mAvoidStroke = false;
+  mAvoidStroke = PR_FALSE;
 }
 
 /* static */ void
@@ -180,38 +218,6 @@ nsCSSBorderRenderer::ComputeInnerRadii(const gfxCornerSizes& aRadii,
 
   iRadii[C_BL].width = NS_MAX(0.0, aRadii[C_BL].width - aBorderSizes[NS_SIDE_LEFT]);
   iRadii[C_BL].height = NS_MAX(0.0, aRadii[C_BL].height - aBorderSizes[NS_SIDE_BOTTOM]);
-}
-
-/* static */ void
-nsCSSBorderRenderer::ComputeOuterRadii(const gfxCornerSizes& aRadii,
-                                       const gfxFloat *aBorderSizes,
-                                       gfxCornerSizes *aOuterRadiiRet)
-{
-  gfxCornerSizes& oRadii = *aOuterRadiiRet;
-
-  // default all corners to sharp corners
-  oRadii = gfxCornerSizes(0.0);
-
-  // round the edges that have radii > 0.0 to start with
-  if (aRadii[C_TL].width > 0.0 && aRadii[C_TL].height > 0.0) {
-    oRadii[C_TL].width = NS_MAX(0.0, aRadii[C_TL].width + aBorderSizes[NS_SIDE_LEFT]);
-    oRadii[C_TL].height = NS_MAX(0.0, aRadii[C_TL].height + aBorderSizes[NS_SIDE_TOP]);
-  }
-
-  if (aRadii[C_TR].width > 0.0 && aRadii[C_TR].height > 0.0) {
-    oRadii[C_TR].width = NS_MAX(0.0, aRadii[C_TR].width + aBorderSizes[NS_SIDE_RIGHT]);
-    oRadii[C_TR].height = NS_MAX(0.0, aRadii[C_TR].height + aBorderSizes[NS_SIDE_TOP]);
-  }
-
-  if (aRadii[C_BR].width > 0.0 && aRadii[C_BR].height > 0.0) {
-    oRadii[C_BR].width = NS_MAX(0.0, aRadii[C_BR].width + aBorderSizes[NS_SIDE_RIGHT]);
-    oRadii[C_BR].height = NS_MAX(0.0, aRadii[C_BR].height + aBorderSizes[NS_SIDE_BOTTOM]);
-  }
-
-  if (aRadii[C_BL].width > 0.0 && aRadii[C_BL].height > 0.0) {
-    oRadii[C_BL].width = NS_MAX(0.0, aRadii[C_BL].width + aBorderSizes[NS_SIDE_LEFT]);
-    oRadii[C_BL].height = NS_MAX(0.0, aRadii[C_BL].height + aBorderSizes[NS_SIDE_BOTTOM]);
-  }
 }
 
 /*static*/ void
@@ -246,8 +252,8 @@ ComputeBorderCornerDimensions(const gfxRect& aOuterRect,
   }
 }
 
-bool
-nsCSSBorderRenderer::AreBorderSideFinalStylesSame(uint8_t aSides)
+PRBool
+nsCSSBorderRenderer::AreBorderSideFinalStylesSame(PRUint8 aSides)
 {
   NS_ASSERTION(aSides != 0 && (aSides & ~SIDE_BITS_ALL) == 0,
                "AreBorderSidesSame: invalid whichSides!");
@@ -269,7 +275,7 @@ nsCSSBorderRenderer::AreBorderSideFinalStylesSame(uint8_t aSides)
         mBorderColors[firstStyle] != mBorderColors[i] ||
         !nsBorderColors::Equal(mCompositeColors[firstStyle],
                                mCompositeColors[i]))
-      return false;
+      return PR_FALSE;
   }
 
   /* Then if it's one of the two-tone styles and we're not
@@ -283,17 +289,17 @@ nsCSSBorderRenderer::AreBorderSideFinalStylesSame(uint8_t aSides)
               (aSides & ~(SIDE_BIT_BOTTOM | SIDE_BIT_RIGHT)) == 0);
   }
 
-  return true;
+  return PR_TRUE;
 }
 
-bool
-nsCSSBorderRenderer::IsSolidCornerStyle(uint8_t aStyle, mozilla::css::Corner aCorner)
+PRBool
+nsCSSBorderRenderer::IsSolidCornerStyle(PRUint8 aStyle, mozilla::css::Corner aCorner)
 {
   switch (aStyle) {
     case NS_STYLE_BORDER_STYLE_DOTTED:
     case NS_STYLE_BORDER_STYLE_DASHED:
     case NS_STYLE_BORDER_STYLE_SOLID:
-      return true;
+      return PR_TRUE;
 
     case NS_STYLE_BORDER_STYLE_INSET:
     case NS_STYLE_BORDER_STYLE_OUTSET:
@@ -307,12 +313,12 @@ nsCSSBorderRenderer::IsSolidCornerStyle(uint8_t aStyle, mozilla::css::Corner aCo
       return mOneUnitBorder;
 
     default:
-      return false;
+      return PR_FALSE;
   }
 }
 
 BorderColorStyle
-nsCSSBorderRenderer::BorderColorStyleForSolidCorner(uint8_t aStyle, mozilla::css::Corner aCorner)
+nsCSSBorderRenderer::BorderColorStyleForSolidCorner(PRUint8 aStyle, mozilla::css::Corner aCorner)
 {
   // note that this function assumes that the corner is already solid,
   // as per the earlier function
@@ -467,9 +473,9 @@ nsCSSBorderRenderer::DoSideClipSubPath(mozilla::css::Side aSide)
   gfxPoint end[2];
 
 #define IS_DASHED_OR_DOTTED(_s)  ((_s) == NS_STYLE_BORDER_STYLE_DASHED || (_s) == NS_STYLE_BORDER_STYLE_DOTTED)
-  bool isDashed      = IS_DASHED_OR_DOTTED(mBorderStyles[aSide]);
-  bool startIsDashed = IS_DASHED_OR_DOTTED(mBorderStyles[PREV_SIDE(aSide)]);
-  bool endIsDashed   = IS_DASHED_OR_DOTTED(mBorderStyles[NEXT_SIDE(aSide)]);
+  PRBool isDashed      = IS_DASHED_OR_DOTTED(mBorderStyles[aSide]);
+  PRBool startIsDashed = IS_DASHED_OR_DOTTED(mBorderStyles[PREV_SIDE(aSide)]);
+  PRBool endIsDashed   = IS_DASHED_OR_DOTTED(mBorderStyles[NEXT_SIDE(aSide)]);
 #undef IS_DASHED_OR_DOTTED
 
   SideClipType startType = SIDE_CLIP_TRAPEZOID;
@@ -523,7 +529,7 @@ nsCSSBorderRenderer::FillSolidBorder(const gfxRect& aOuterRect,
                                      const gfxRect& aInnerRect,
                                      const gfxCornerSizes& aBorderRadii,
                                      const gfxFloat *aBorderSizes,
-                                     int aSides,
+                                     PRIntn aSides,
                                      const gfxRGBA& aColor)
 {
   mContext->SetColor(aColor);
@@ -539,10 +545,10 @@ nsCSSBorderRenderer::FillSolidBorder(const gfxRect& aOuterRect,
     mContext->NewPath();
 
     // do the outer border
-    mContext->RoundedRectangle(aOuterRect, aBorderRadii, true);
+    mContext->RoundedRectangle(aOuterRect, aBorderRadii, PR_TRUE);
 
     // then do the inner border CCW
-    mContext->RoundedRectangle(aInnerRect, innerRadii, false);
+    mContext->RoundedRectangle(aInnerRect, innerRadii, PR_FALSE);
 
     mContext->Fill();
 
@@ -628,10 +634,10 @@ nsCSSBorderRenderer::FillSolidBorder(const gfxRect& aOuterRect,
   }
 
   // Filling these one by one is faster than filling them all at once.
-  for (uint32_t i = 0; i < 4; i++) {
+  for (PRUint32 i = 0; i < 4; i++) {
     if (aSides & (1 << i)) {
       mContext->NewPath();
-      mContext->Rectangle(r[i], true);
+      mContext->Rectangle(r[i], PR_TRUE);
       mContext->Fill();
     }
   }
@@ -661,9 +667,9 @@ MakeBorderColor(const gfxRGBA& aColor, const gfxRGBA& aBackgroundColor, BorderCo
 }
 
 gfxRGBA
-ComputeColorForLine(uint32_t aLineIndex,
+ComputeColorForLine(PRUint32 aLineIndex,
                     const BorderColorStyle* aBorderColorStyle,
-                    uint32_t aBorderColorStyleCount,
+                    PRUint32 aBorderColorStyleCount,
                     nscolor aBorderColor,
                     nscolor aBackgroundColor)
 {
@@ -673,7 +679,7 @@ ComputeColorForLine(uint32_t aLineIndex,
 }
 
 gfxRGBA
-ComputeCompositeColorForLine(uint32_t aLineIndex,
+ComputeCompositeColorForLine(PRUint32 aLineIndex,
                              const nsBorderColors* aBorderColors)
 {
   while (aLineIndex-- && aBorderColors->mNext)
@@ -683,7 +689,7 @@ ComputeCompositeColorForLine(uint32_t aLineIndex,
 }
 
 void
-nsCSSBorderRenderer::DrawBorderSidesCompositeColors(int aSides, const nsBorderColors *aCompositeColors)
+nsCSSBorderRenderer::DrawBorderSidesCompositeColors(PRIntn aSides, const nsBorderColors *aCompositeColors)
 {
   gfxCornerSizes radii = mBorderRadii;
 
@@ -699,7 +705,7 @@ nsCSSBorderRenderer::DrawBorderSidesCompositeColors(int aSides, const nsBorderCo
   gfxPoint itl = mInnerRect.TopLeft();
   gfxPoint ibr = mInnerRect.BottomRight();
 
-  for (uint32_t i = 0; i < uint32_t(maxBorderWidth); i++) {
+  for (PRUint32 i = 0; i < PRUint32(maxBorderWidth); i++) {
     gfxRGBA lineColor = ComputeCompositeColorForLine(i, aCompositeColors);
 
     gfxRect siRect = soRect;
@@ -731,20 +737,20 @@ nsCSSBorderRenderer::DrawBorderSidesCompositeColors(int aSides, const nsBorderCo
 }
 
 void
-nsCSSBorderRenderer::DrawBorderSides(int aSides)
+nsCSSBorderRenderer::DrawBorderSides(PRIntn aSides)
 {
   if (aSides == 0 || (aSides & ~SIDE_BITS_ALL) != 0) {
     NS_WARNING("DrawBorderSides: invalid sides!");
     return;
   }
 
-  uint8_t borderRenderStyle;
+  PRUint8 borderRenderStyle;
   nscolor borderRenderColor;
-  const nsBorderColors *compositeColors = nullptr;
+  const nsBorderColors *compositeColors = nsnull;
 
-  uint32_t borderColorStyleCount = 0;
+  PRUint32 borderColorStyleCount = 0;
   BorderColorStyle borderColorStyleTopLeft[3], borderColorStyleBottomRight[3];
-  BorderColorStyle *borderColorStyle = nullptr;
+  BorderColorStyle *borderColorStyle = nsnull;
 
   NS_FOR_CSS_SIDES (i) {
     if ((aSides & (1 << i)) == 0)
@@ -867,8 +873,8 @@ nsCSSBorderRenderer::DrawBorderSides(int aSides)
   } else if (borderColorStyleCount == 2) {
     // with 2 color styles, any extra pixel goes to the outside
     NS_FOR_CSS_SIDES (i) {
-      borderWidths[0][i] = int32_t(mBorderWidths[i]) / 2 + int32_t(mBorderWidths[i]) % 2;
-      borderWidths[1][i] = int32_t(mBorderWidths[i]) / 2;
+      borderWidths[0][i] = PRInt32(mBorderWidths[i]) / 2 + PRInt32(mBorderWidths[i]) % 2;
+      borderWidths[1][i] = PRInt32(mBorderWidths[i]) / 2;
     }
   } else if (borderColorStyleCount == 3) {
     // with 3 color styles, any extra pixel (or lack of extra pixel)
@@ -878,8 +884,8 @@ nsCSSBorderRenderer::DrawBorderSides(int aSides)
         borderWidths[0][i] = 1.0;
         borderWidths[1][i] = borderWidths[2][i] = 0.0;
       } else {
-        int32_t rest = int32_t(mBorderWidths[i]) % 3;
-        borderWidths[0][i] = borderWidths[2][i] = borderWidths[1][i] = (int32_t(mBorderWidths[i]) - rest) / 3;
+        PRInt32 rest = PRInt32(mBorderWidths[i]) % 3;
+        borderWidths[0][i] = borderWidths[2][i] = borderWidths[1][i] = (PRInt32(mBorderWidths[i]) - rest) / 3;
 
         if (rest == 1) {
           borderWidths[1][i] += 1.0;
@@ -924,7 +930,7 @@ nsCSSBorderRenderer::DrawDashedSide(mozilla::css::Side aSide)
   gfxFloat dashWidth;
   gfxFloat dash[2];
 
-  uint8_t style = mBorderStyles[aSide];
+  PRUint8 style = mBorderStyles[aSide];
   gfxFloat borderWidth = mBorderWidths[aSide];
   nscolor borderColor = mBorderColors[aSide];
 
@@ -1027,7 +1033,7 @@ nsCSSBorderRenderer::AllBordersSolid(bool *aHasCompositeColors)
 {
   *aHasCompositeColors = false;
   NS_FOR_CSS_SIDES(i) {
-    if (mCompositeColors[i] != nullptr) {
+    if (mCompositeColors[i] != nsnull) {
       *aHasCompositeColors = true;
     }
     if (mBorderStyles[i] == NS_STYLE_BORDER_STYLE_SOLID ||
@@ -1082,16 +1088,15 @@ nsCSSBorderRenderer::CreateCornerGradient(mozilla::css::Corner aCorner,
 
   float gradientOffset;
   
-  if (mContext->IsCairo() &&
-      (mContext->OriginalSurface()->GetType() == gfxASurface::SurfaceTypeD2D ||
-       mContext->OriginalSurface()->GetType() == gfxASurface::SurfaceTypeQuartz))
+  if (mContext->OriginalSurface()->GetType() == gfxASurface::SurfaceTypeD2D ||
+      mContext->OriginalSurface()->GetType() == gfxASurface::SurfaceTypeQuartz)
   {
     // On quarz this doesn't do exactly the right thing, but it does do what
     // most other browsers do and doing the 'right' thing seems to be
     // hard with the quartz cairo backend.
     gradientOffset = 0;
   } else {
-    // When cairo/Azure does the gradient drawing this gives us pretty nice behavior!
+    // When cairo does the gradient drawing this gives us pretty nice behavior!
     gradientOffset = 0.25 / sqrt(pow(mBorderWidths[cornerHeight[aCorner]], 2) +
                                  pow(mBorderWidths[cornerHeight[aCorner]], 2));
   }
@@ -1352,13 +1357,13 @@ nsCSSBorderRenderer::DrawRectangularCompositeColors()
 void
 nsCSSBorderRenderer::DrawBorders()
 {
-  bool forceSeparateCorners = false;
+  PRBool forceSeparateCorners = PR_FALSE;
 
   // Examine the border style to figure out if we can draw it in one
   // go or not.
-  bool tlBordersSame = AreBorderSideFinalStylesSame(SIDE_BIT_TOP | SIDE_BIT_LEFT);
-  bool brBordersSame = AreBorderSideFinalStylesSame(SIDE_BIT_BOTTOM | SIDE_BIT_RIGHT);
-  bool allBordersSame = AreBorderSideFinalStylesSame(SIDE_BITS_ALL);
+  PRBool tlBordersSame = AreBorderSideFinalStylesSame(SIDE_BIT_TOP | SIDE_BIT_LEFT);
+  PRBool brBordersSame = AreBorderSideFinalStylesSame(SIDE_BIT_BOTTOM | SIDE_BIT_RIGHT);
+  PRBool allBordersSame = AreBorderSideFinalStylesSame(SIDE_BITS_ALL);
   if (allBordersSame &&
       ((mCompositeColors[0] == NULL &&
        (mBorderStyles[0] == NS_STYLE_BORDER_STYLE_NONE ||
@@ -1386,7 +1391,7 @@ nsCSSBorderRenderer::DrawBorders()
     if (!mat.HasNonAxisAlignedTransform()) {
       // Scale + transform. Avoid stroke fast-paths so that we have a chance
       // of snapping to pixel boundaries.
-      mAvoidStroke = true;
+      mAvoidStroke = PR_TRUE;
     }
   } else {
     mat.x0 = floor(mat.x0 + 0.5);
@@ -1401,7 +1406,7 @@ nsCSSBorderRenderer::DrawBorders()
     mInnerRect.Round();
   }
 
-  bool allBordersSameWidth = AllBordersSameWidth();
+  PRBool allBordersSameWidth = AllBordersSameWidth();
 
   if (allBordersSameWidth && mBorderWidths[0] == 0.0) {
     // Some of the allBordersSameWidth codepaths depend on the border
@@ -1409,7 +1414,7 @@ nsCSSBorderRenderer::DrawBorders()
     return;
   }
 
-  bool allBordersSolid;
+  PRBool allBordersSolid;
   bool noCornerOutsideCenter = true;
 
   // First there's a couple of 'special cases' that have specifically optimized
@@ -1529,8 +1534,8 @@ nsCSSBorderRenderer::DrawBorders()
   // If we have composite colors -and- border radius,
   // then use separate corners so we get OPERATOR_ADD for the corners.
   // Otherwise, we'll get artifacts as we draw stacked 1px-wide curves.
-  if (allBordersSame && mCompositeColors[0] != nullptr && !mNoBorderRadius)
-    forceSeparateCorners = true;
+  if (allBordersSame && mCompositeColors[0] != nsnull && !mNoBorderRadius)
+    forceSeparateCorners = PR_TRUE;
 
   S(" mOuterRect: "), S(mOuterRect), SN();
   S(" mInnerRect: "), S(mInnerRect), SN();
@@ -1543,16 +1548,16 @@ nsCSSBorderRenderer::DrawBorders()
     return;
 
   mInnerRect.Condition();
-  int dashedSides = 0;
+  PRIntn dashedSides = 0;
 
   NS_FOR_CSS_SIDES(i) {
-    uint8_t style = mBorderStyles[i];
+    PRUint8 style = mBorderStyles[i];
     if (style == NS_STYLE_BORDER_STYLE_DASHED ||
         style == NS_STYLE_BORDER_STYLE_DOTTED)
     {
       // pretend that all borders aren't the same; we need to draw
       // things separately for dashed/dotting
-      allBordersSame = false;
+      allBordersSame = PR_FALSE;
       dashedSides |= (1 << i);
     }
   }
@@ -1564,7 +1569,6 @@ nsCSSBorderRenderer::DrawBorders()
     DrawBorderSides(SIDE_BITS_ALL);
     SN("---------------- (1)");
   } else {
-    SAMPLE_LABEL("nsCSSBorderRenderer", "DrawBorders::multipass");
     /* We have more than one pass to go.  Draw the corners separately from the sides. */
 
     /*
@@ -1596,10 +1600,10 @@ nsCSSBorderRenderer::DrawBorders()
       if (IsZeroSize(mBorderCornerDimensions[corner]))
         continue;
 
-      const int sides[2] = { corner, PREV_SIDE(corner) };
-      int sideBits = (1 << sides[0]) | (1 << sides[1]);
+      const PRIntn sides[2] = { corner, PREV_SIDE(corner) };
+      PRIntn sideBits = (1 << sides[0]) | (1 << sides[1]);
 
-      bool simpleCornerStyle = mCompositeColors[sides[0]] == NULL &&
+      PRBool simpleCornerStyle = mCompositeColors[sides[0]] == NULL &&
                                  mCompositeColors[sides[1]] == NULL &&
                                  AreBorderSideFinalStylesSame(sideBits);
 
@@ -1631,20 +1635,22 @@ nsCSSBorderRenderer::DrawBorders()
         // but we weren't able to render just a solid block for the corner.
         DrawBorderSides(sideBits);
       } else {
-        // Sides are different.  We could draw using OPERATOR_ADD to
-        // get correct color blending behaviour at the seam.  We'd need
+        // Sides are different.  We need to draw using OPERATOR_ADD to
+        // get correct color blending behaviour at the seam.  We need
         // to do it in an offscreen surface to ensure that we're
         // always compositing on transparent black.  If the colors
         // don't have transparency and the current destination surface
         // has an alpha channel, we could just clear the region and
         // avoid the temporary, but that situation doesn't happen all
         // that often in practice (we double buffer to no-alpha
-        // surfaces). We choose just to seam though, as the performance
-        // advantages outway the modest easthetic improvement.
+        // surfaces).
+
+        mContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+        mContext->SetOperator(gfxContext::OPERATOR_ADD);
 
         for (int cornerSide = 0; cornerSide < 2; cornerSide++) {
           mozilla::css::Side side = mozilla::css::Side(sides[cornerSide]);
-          uint8_t style = mBorderStyles[side];
+          PRUint8 style = mBorderStyles[side];
 
           SF("corner: %d cornerSide: %d side: %d style: %d\n", corner, cornerSide, side, style);
 
@@ -1658,6 +1664,10 @@ nsCSSBorderRenderer::DrawBorders()
 
           mContext->Restore();
         }
+
+        mContext->PopGroupToSource();
+        mContext->SetOperator(gfxContext::OPERATOR_OVER);
+        mContext->Paint();
       }
 
       mContext->Restore();
@@ -1672,7 +1682,7 @@ nsCSSBorderRenderer::DrawBorders()
     // We need to check for mNoBorderRadius, because when there is
     // one, FillSolidBorder always draws the full rounded rectangle
     // and expects there to be a clip in place.
-    int alreadyDrawnSides = 0;
+    PRIntn alreadyDrawnSides = 0;
     if (mOneUnitBorder &&
         mNoBorderRadius &&
         (dashedSides & (SIDE_BIT_TOP | SIDE_BIT_LEFT)) == 0)

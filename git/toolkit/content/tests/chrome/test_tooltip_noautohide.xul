@@ -5,6 +5,7 @@
 <window title="Tooltip Noautohide Tests"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
+  <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>      
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>      
 
@@ -40,7 +41,6 @@ function tooltipStillShown()
   document.getElementById("thetooltip").hidePopup();
 }
 
-SimpleTest.waitForExplicitFinish();
 SimpleTest.waitForFocus(runTests);
 
 ]]>

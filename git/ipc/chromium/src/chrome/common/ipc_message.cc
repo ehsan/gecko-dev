@@ -27,21 +27,27 @@ Message::Message()
   InitLoggingVariables();
 }
 
+#if !defined(CHROMIUM_MOZILLA_BUILD)
+Message::Message(int32 routing_id, msgid_t type, PriorityValue priority)
+#else
 Message::Message(int32 routing_id, msgid_t type, PriorityValue priority,
-                 MessageCompression compression, const char* const name)
+                 const char* const name)
+#endif
     : Pickle(sizeof(Header)) {
   header()->routing = routing_id;
   header()->type = type;
   header()->flags = priority;
-  if (compression == COMPRESSION_ENABLED)
-    header()->flags |= COMPRESS_BIT;
 #if defined(OS_POSIX)
   header()->num_fds = 0;
 #endif
+#if defined(CHROMIUM_MOZILLA_BUILD)
   header()->rpc_remote_stack_depth_guess = static_cast<uint32>(-1);
   header()->rpc_local_stack_depth = static_cast<uint32>(-1);
   header()->seqno = 0;
   InitLoggingVariables(name);
+#else
+  InitLoggingVariables();
+#endif
 }
 
 Message::Message(const char* data, int data_len) : Pickle(data, data_len) {
@@ -49,14 +55,22 @@ Message::Message(const char* data, int data_len) : Pickle(data, data_len) {
 }
 
 Message::Message(const Message& other) : Pickle(other) {
+#if !defined(CHROMIUM_MOZILLA_BUILD)
+  InitLoggingVariables();
+#else
   InitLoggingVariables(other.name_);
+#endif
 #if defined(OS_POSIX)
   file_descriptor_set_ = other.file_descriptor_set_;
 #endif
 }
 
+#if !defined(CHROMIUM_MOZILLA_BUILD)
+void Message::InitLoggingVariables() {
+#else
 void Message::InitLoggingVariables(const char* const name) {
   name_ = name;
+#endif
 #ifdef IPC_MESSAGE_LOG_ENABLED
   received_time_ = 0;
   dont_log_ = false;
@@ -66,7 +80,9 @@ void Message::InitLoggingVariables(const char* const name) {
 
 Message& Message::operator=(const Message& other) {
   *static_cast<Pickle*>(this) = other;
+#if defined(CHROMIUM_MOZILLA_BUILD)
   InitLoggingVariables(other.name_);
+#endif
 #if defined(OS_POSIX)
   file_descriptor_set_ = other.file_descriptor_set_;
 #endif

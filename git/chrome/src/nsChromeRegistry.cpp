@@ -1,8 +1,43 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Original Author: David W. Hyatt (hyatt@netscape.com)
+ *   Gagan Saksena <gagan@netscape.com>
+ *   Benjamin Smedberg <benjamin@smedbergs.us>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsChromeRegistry.h"
 #include "nsChromeRegistryChrome.h"
@@ -14,7 +49,7 @@
 #include "prprf.h"
 
 #include "nsCOMPtr.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsEscape.h"
 #include "nsLayoutCID.h"
 #include "nsNetUtil.h"
@@ -62,7 +97,7 @@ nsChromeRegistry::LogMessage(const char* aMsg, ...)
 }
 
 void
-nsChromeRegistry::LogMessageWithContext(nsIURI* aURL, uint32_t aLineNumber, uint32_t flags,
+nsChromeRegistry::LogMessageWithContext(nsIURI* aURL, PRUint32 aLineNumber, PRUint32 flags,
                                         const char* aMsg, ...)
 {
   nsresult rv;
@@ -86,9 +121,9 @@ nsChromeRegistry::LogMessageWithContext(nsIURI* aURL, uint32_t aLineNumber, uint
   if (aURL)
     aURL->GetSpec(spec);
 
-  rv = error->Init(NS_ConvertUTF8toUTF16(formatted),
-                   NS_ConvertUTF8toUTF16(spec),
-                   EmptyString(),
+  rv = error->Init(NS_ConvertUTF8toUTF16(formatted).get(),
+                   NS_ConvertUTF8toUTF16(spec).get(),
+                   nsnull,
                    aLineNumber, 0, flags, "chrome registration");
   PR_smprintf_free(formatted);
 
@@ -100,7 +135,7 @@ nsChromeRegistry::LogMessageWithContext(nsIURI* aURL, uint32_t aLineNumber, uint
 
 nsChromeRegistry::~nsChromeRegistry()
 {
-  gChromeRegistry = nullptr;
+  gChromeRegistry = nsnull;
 }
 
 NS_INTERFACE_MAP_BEGIN(nsChromeRegistry)
@@ -140,7 +175,8 @@ nsChromeRegistry::GetService()
 nsresult
 nsChromeRegistry::Init()
 {
-  mOverrideTable.Init();
+  if (!mOverrideTable.Init())
+    return NS_ERROR_FAILURE;
 
   // This initialization process is fairly complicated and may cause reentrant
   // getservice calls to resolve chrome URIs (especially locale files). We
@@ -148,7 +184,7 @@ nsChromeRegistry::Init()
   // before we are actually fully initialized.
   gChromeRegistry = this;
 
-  mInitialized = true;
+  mInitialized = PR_TRUE;
 
   return NS_OK;
 }
@@ -160,12 +196,12 @@ nsChromeRegistry::GetProviderAndPath(nsIURL* aChromeURL,
   nsresult rv;
 
 #ifdef DEBUG
-  bool isChrome;
+  PRBool isChrome;
   aChromeURL->SchemeIs("chrome", &isChrome);
   NS_ASSERTION(isChrome, "Non-chrome URI?");
 #endif
 
-  nsAutoCString path;
+  nsCAutoString path;
   rv = aChromeURL->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -177,7 +213,7 @@ nsChromeRegistry::GetProviderAndPath(nsIURL* aChromeURL,
   path.SetLength(nsUnescapeCount(path.BeginWriting()));
   NS_ASSERTION(path.First() == '/', "Path should always begin with a slash!");
 
-  int32_t slash = path.FindChar('/', 1);
+  PRInt32 slash = path.FindChar('/', 1);
   if (slash == 1) {
     LogMessage("Invalid chrome URI: %s", path.get());
     return NS_ERROR_FAILURE;
@@ -187,7 +223,7 @@ nsChromeRegistry::GetProviderAndPath(nsIURL* aChromeURL,
     aPath.Truncate();
   }
   else {
-    if (slash == (int32_t) path.Length() - 1)
+    if (slash == (PRInt32) path.Length() - 1)
       aPath.Truncate();
     else
       aPath.Assign(path.get() + slash + 1, path.Length() - slash - 1);
@@ -207,12 +243,12 @@ nsChromeRegistry::Canonify(nsIURL* aChromeURL)
 
   nsresult rv;
 
-  nsAutoCString provider, path;
+  nsCAutoString provider, path;
   rv = GetProviderAndPath(aChromeURL, provider, path);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (path.IsEmpty()) {
-    nsAutoCString package;
+    nsCAutoString package;
     rv = aChromeURL->GetHost(package);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -277,7 +313,7 @@ nsChromeRegistry::ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult)
   nsCOMPtr<nsIURL> chromeURL (do_QueryInterface(aChromeURI));
   NS_ENSURE_TRUE(chromeURL, NS_NOINTERFACE);
 
-  nsAutoCString package, provider, path;
+  nsCAutoString package, provider, path;
   rv = chromeURL->GetHostPort(package);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -286,7 +322,7 @@ nsChromeRegistry::ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult)
 
   nsIURI* baseURI = GetBaseURIFromPackage(package, provider, path);
 
-  uint32_t flags;
+  PRUint32 flags;
   rv = GetFlagsFromPackage(package, &flags);
   if (NS_FAILED(rv))
     return rv;
@@ -307,7 +343,7 @@ nsChromeRegistry::ConvertChromeURL(nsIURI* aChromeURI, nsIURI* *aResult)
     return NS_ERROR_FAILURE;
   }
 
-  return NS_NewURI(aResult, path, nullptr, baseURI);
+  return NS_NewURI(aResult, path, nsnull, baseURI);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -340,8 +376,8 @@ NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
     return NS_OK;
 
   nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
-  windowMediator->GetEnumerator(nullptr, getter_AddRefs(windowEnumerator));
-  bool more;
+  windowMediator->GetEnumerator(nsnull, getter_AddRefs(windowEnumerator));
+  PRBool more;
   windowEnumerator->HasMoreElements(&more);
   while (more) {
     nsCOMPtr<nsISupports> protoWindow;
@@ -356,7 +392,7 @@ NS_IMETHODIMP nsChromeRegistry::RefreshSkins()
 
   FlushSkinCaches();
 
-  windowMediator->GetEnumerator(nullptr, getter_AddRefs(windowEnumerator));
+  windowMediator->GetEnumerator(nsnull, getter_AddRefs(windowEnumerator));
   windowEnumerator->HasMoreElements(&more);
   while (more) {
     nsCOMPtr<nsISupports> protoWindow;
@@ -380,15 +416,15 @@ nsChromeRegistry::FlushSkinCaches()
   NS_ASSERTION(obsSvc, "Couldn't get observer service.");
 
   obsSvc->NotifyObservers(static_cast<nsIChromeRegistry*>(this),
-                          NS_CHROME_FLUSH_SKINS_TOPIC, nullptr);
+                          NS_CHROME_FLUSH_SKINS_TOPIC, nsnull);
 }
 
-static bool IsChromeURI(nsIURI* aURI)
+static PRBool IsChromeURI(nsIURI* aURI)
 {
-    bool isChrome=false;
+    PRBool isChrome=PR_FALSE;
     if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &isChrome)) && isChrome)
-        return true;
-    return false;
+        return PR_TRUE;
+    return PR_FALSE;
 }
 
 // XXXbsmedberg: move this to windowmediator
@@ -397,9 +433,9 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
   // Deal with our subframes first.
   nsCOMPtr<nsIDOMWindowCollection> frames;
   aWindow->GetFrames(getter_AddRefs(frames));
-  uint32_t length;
+  PRUint32 length;
   frames->GetLength(&length);
-  uint32_t j;
+  PRUint32 j;
   for (j = 0; j < length; j++) {
     nsCOMPtr<nsIDOMWindow> childWin;
     frames->Item(j, getter_AddRefs(childWin));
@@ -426,7 +462,7 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMArray<nsIStyleSheet> newAgentSheets;
-    for (int32_t l = 0; l < agentSheets.Count(); ++l) {
+    for (PRInt32 l = 0; l < agentSheets.Count(); ++l) {
       nsIStyleSheet *sheet = agentSheets[l];
 
       nsIURI* uri = sheet->GetSheetURI();
@@ -434,7 +470,7 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
       if (IsChromeURI(uri)) {
         // Reload the sheet.
         nsRefPtr<nsCSSStyleSheet> newSheet;
-        rv = document->LoadChromeSheetSync(uri, true,
+        rv = document->LoadChromeSheetSync(uri, PR_TRUE,
                                            getter_AddRefs(newSheet));
         if (NS_FAILED(rv)) return rv;
         if (newSheet) {
@@ -456,10 +492,10 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
   nsCOMArray<nsIStyleSheet> oldSheets;
   nsCOMArray<nsIStyleSheet> newSheets;
 
-  int32_t count = document->GetNumberOfStyleSheets();
+  PRInt32 count = document->GetNumberOfStyleSheets();
 
   // Iterate over the style sheets.
-  int32_t i;
+  PRInt32 i;
   for (i = 0; i < count; i++) {
     // Get the style sheet
     nsIStyleSheet *styleSheet = document->GetStyleSheetAt(i);
@@ -473,14 +509,14 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindow* aWindow)
   // sheet if and only if it's a chrome URL.
   for (i = 0; i < count; i++) {
     nsRefPtr<nsCSSStyleSheet> sheet = do_QueryObject(oldSheets[i]);
-    nsIURI* uri = sheet ? sheet->GetOriginalURI() : nullptr;
+    nsIURI* uri = sheet ? sheet->GetOriginalURI() : nsnull;
 
     if (uri && IsChromeURI(uri)) {
       // Reload the sheet.
       nsRefPtr<nsCSSStyleSheet> newSheet;
       // XXX what about chrome sheets that have a title or are disabled?  This
       // only works by sheer dumb luck.
-      document->LoadChromeSheetSync(uri, false, getter_AddRefs(newSheet));
+      document->LoadChromeSheetSync(uri, PR_FALSE, getter_AddRefs(newSheet));
       // Even if it's null, we put in in there.
       newSheets.AppendObject(newSheet);
     }
@@ -503,7 +539,7 @@ nsChromeRegistry::FlushAllCaches()
   NS_ASSERTION(obsSvc, "Couldn't get observer service.");
 
   obsSvc->NotifyObservers((nsIChromeRegistry*) this,
-                          NS_CHROME_FLUSH_TOPIC, nullptr);
+                          NS_CHROME_FLUSH_TOPIC, nsnull);
 }  
 
 // xxxbsmedberg Move me to nsIWindowMediator
@@ -521,10 +557,10 @@ nsChromeRegistry::ReloadChrome()
   if (windowMediator) {
     nsCOMPtr<nsISimpleEnumerator> windowEnumerator;
 
-    rv = windowMediator->GetEnumerator(nullptr, getter_AddRefs(windowEnumerator));
+    rv = windowMediator->GetEnumerator(nsnull, getter_AddRefs(windowEnumerator));
     if (NS_SUCCEEDED(rv)) {
       // Get each dom window
-      bool more;
+      PRBool more;
       rv = windowEnumerator->HasMoreElements(&more);
       if (NS_FAILED(rv)) return rv;
       while (more) {
@@ -536,7 +572,7 @@ nsChromeRegistry::ReloadChrome()
             nsCOMPtr<nsIDOMLocation> location;
             domWindow->GetLocation(getter_AddRefs(location));
             if (location) {
-              rv = location->Reload(false);
+              rv = location->Reload(PR_FALSE);
               if (NS_FAILED(rv)) return rv;
             }
           }
@@ -550,13 +586,13 @@ nsChromeRegistry::ReloadChrome()
 }
 
 NS_IMETHODIMP
-nsChromeRegistry::AllowScriptsForPackage(nsIURI* aChromeURI, bool *aResult)
+nsChromeRegistry::AllowScriptsForPackage(nsIURI* aChromeURI, PRBool *aResult)
 {
   nsresult rv;
-  *aResult = false;
+  *aResult = PR_FALSE;
 
 #ifdef DEBUG
-  bool isChrome;
+  PRBool isChrome;
   aChromeURI->SchemeIs("chrome", &isChrome);
   NS_ASSERTION(isChrome, "Non-chrome URI passed to AllowScriptsForPackage!");
 #endif
@@ -564,25 +600,25 @@ nsChromeRegistry::AllowScriptsForPackage(nsIURI* aChromeURI, bool *aResult)
   nsCOMPtr<nsIURL> url (do_QueryInterface(aChromeURI));
   NS_ENSURE_TRUE(url, NS_NOINTERFACE);
 
-  nsAutoCString provider, file;
+  nsCAutoString provider, file;
   rv = GetProviderAndPath(url, provider, file);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!provider.EqualsLiteral("skin"))
-    *aResult = true;
+    *aResult = PR_TRUE;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsChromeRegistry::AllowContentToAccess(nsIURI *aURI, bool *aResult)
+nsChromeRegistry::AllowContentToAccess(nsIURI *aURI, PRBool *aResult)
 {
   nsresult rv;
 
-  *aResult = false;
+  *aResult = PR_FALSE;
 
 #ifdef DEBUG
-  bool isChrome;
+  PRBool isChrome;
   aURI->SchemeIs("chrome", &isChrome);
   NS_ASSERTION(isChrome, "Non-chrome URI passed to AllowContentToAccess!");
 #endif
@@ -593,11 +629,11 @@ nsChromeRegistry::AllowContentToAccess(nsIURI *aURI, bool *aResult)
     return NS_ERROR_UNEXPECTED;
   }
 
-  nsAutoCString package;
+  nsCAutoString package;
   rv = url->GetHostPort(package);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t flags;
+  PRUint32 flags;
   rv = GetFlagsFromPackage(package, &flags);
 
   if (NS_SUCCEEDED(rv)) {
@@ -606,24 +642,24 @@ nsChromeRegistry::AllowContentToAccess(nsIURI *aURI, bool *aResult)
   return NS_OK;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsChromeRegistry::WrappersEnabled(nsIURI *aURI)
 {
   nsCOMPtr<nsIURL> chromeURL (do_QueryInterface(aURI));
   if (!chromeURL)
-    return false;
+    return PR_FALSE;
 
-  bool isChrome = false;
+  PRBool isChrome = PR_FALSE;
   nsresult rv = chromeURL->SchemeIs("chrome", &isChrome);
   if (NS_FAILED(rv) || !isChrome)
-    return false;
+    return PR_FALSE;
 
-  nsAutoCString package;
+  nsCAutoString package;
   rv = chromeURL->GetHostPort(package);
   if (NS_FAILED(rv))
-    return false;
+    return PR_FALSE;
 
-  uint32_t flags;
+  PRUint32 flags;
   rv = GetFlagsFromPackage(package, &flags);
   return NS_SUCCEEDED(rv) && (flags & XPCNATIVEWRAPPERS);
 }

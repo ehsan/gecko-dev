@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: sw=4 ts=4 et :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Plugin App.
+ *
+ * The Initial Developer of the Original Code is
+ *   Josh Aas <josh@mozilla.com>
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef PluginPRLibrary_h
 #define PluginPRLibrary_h 1
@@ -18,23 +50,22 @@ class PluginPRLibrary : public PluginLibrary
 public:
     PluginPRLibrary(const char* aFilePath, PRLibrary* aLibrary) :
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
-        mNP_Initialize(nullptr),
+        mNP_Initialize(nsnull),
 #else
-        mNP_Initialize(nullptr),
+        mNP_Initialize(nsnull),
 #endif
-        mNP_Shutdown(nullptr),
-        mNP_GetMIMEDescription(nullptr),
+        mNP_Shutdown(nsnull),
+        mNP_GetMIMEDescription(nsnull),
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
-        mNP_GetValue(nullptr),
+        mNP_GetValue(nsnull),
 #endif
 #if defined(XP_WIN) || defined(XP_MACOSX) || defined(XP_OS2)
-        mNP_GetEntryPoints(nullptr),
+        mNP_GetEntryPoints(nsnull),
 #endif
-        mNPP_New(nullptr),
-        mNPP_ClearSiteData(nullptr),
-        mNPP_GetSitesWithData(nullptr),
-        mLibrary(aLibrary),
-        mFilePath(aFilePath)
+        mNPP_New(nsnull),
+        mNPP_ClearSiteData(nsnull),
+        mNPP_GetSitesWithData(nsnull),
+        mLibrary(aLibrary)
     {
         NS_ASSERTION(mLibrary, "need non-null lib");
         // addref here??
@@ -81,7 +112,7 @@ public:
         return true;
     }
 
-#if defined(XP_UNIX) && !defined(XP_MACOSX) && !defined(MOZ_WIDGET_GONK)
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
     virtual nsresult NP_Initialize(NPNetscapeFuncs* bFuncs,
                                    NPPluginFuncs* pFuncs, NPError* error);
 #else
@@ -109,23 +140,20 @@ public:
     virtual nsresult NPP_GetSitesWithData(InfallibleTArray<nsCString>& result);
 
     virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window);
-    virtual nsresult GetImageContainer(NPP instance, ImageContainer** aContainer);
+    virtual nsresult GetImage(NPP instance, ImageContainer* aContainer, Image** aImage);
     virtual nsresult GetImageSize(NPP instance, nsIntSize* aSize);
-    virtual bool IsOOP() MOZ_OVERRIDE { return false; }
+    NS_OVERRIDE virtual bool UseAsyncPainting() { return false; }
 #if defined(XP_MACOSX)
-    virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing);
+    virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing);
 #endif
-    virtual nsresult SetBackgroundUnknown(NPP instance) MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual nsresult SetBackgroundUnknown(NPP instance);
+    NS_OVERRIDE
     virtual nsresult BeginUpdateBackground(NPP instance,
-                                           const nsIntRect&, gfxContext** aCtx) MOZ_OVERRIDE;
+                                           const nsIntRect&, gfxContext** aCtx);
+    NS_OVERRIDE
     virtual nsresult EndUpdateBackground(NPP instance,
-                                         gfxContext* aCtx, const nsIntRect&) MOZ_OVERRIDE;
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-    virtual nsresult HandleGUIEvent(NPP instance,
-                                    const nsGUIEvent& anEvent, bool* handled);
-#endif
-
-    virtual void GetLibraryPath(nsACString& aPath) { aPath.Assign(mFilePath); }
+                                         gfxContext* aCtx, const nsIntRect&);
 
 private:
     NP_InitializeFunc mNP_Initialize;
@@ -141,7 +169,6 @@ private:
     NPP_ClearSiteDataPtr mNPP_ClearSiteData;
     NPP_GetSitesWithDataPtr mNPP_GetSitesWithData;
     PRLibrary* mLibrary;
-    nsCString mFilePath;
 };
 
 

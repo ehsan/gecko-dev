@@ -1,22 +1,58 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alexander Surkov <surkov.alexander@gmail.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef NotificationController_h_
 #define NotificationController_h_
 
 #include "AccEvent.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsRefreshDriver.h"
 
-#ifdef DEBUG
-#include "Logging.h"
-#endif
-
-class Accessible;
-class DocAccessible;
+class nsAccessible;
+class nsDocAccessible;
 class nsIContent;
+
+// Uncomment to log notifications processing.
+//#define DEBUG_NOTIFICATIONS
+
+#ifdef DEBUG_NOTIFICATIONS
+#define DEBUG_CONTENTMUTATION
+#define DEBUG_TEXTCHANGE
+#endif
 
 /**
  * Notification interface.
@@ -57,15 +93,15 @@ public:
 
   TNotification(Class* aInstance, Callback aCallback, Arg* aArg) :
     mInstance(aInstance), mCallback(aCallback), mArg(aArg) { }
-  virtual ~TNotification() { mInstance = nullptr; }
+  virtual ~TNotification() { mInstance = nsnull; }
 
   virtual void Process()
   {
     (mInstance->*mCallback)(mArg);
 
-    mInstance = nullptr;
-    mCallback = nullptr;
-    mArg = nullptr;
+    mInstance = nsnull;
+    mCallback = nsnull;
+    mArg = nsnull;
   }
 
 private:
@@ -83,13 +119,21 @@ private:
 class NotificationController : public nsARefreshObserver
 {
 public:
-  NotificationController(DocAccessible* aDocument, nsIPresShell* aPresShell);
+  NotificationController(nsDocAccessible* aDocument, nsIPresShell* aPresShell);
   virtual ~NotificationController();
 
   NS_IMETHOD_(nsrefcnt) AddRef(void);
   NS_IMETHOD_(nsrefcnt) Release(void);
 
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(NotificationController)
+
+  /**
+   * Return true when tree is constructed.
+   */
+  inline bool IsTreeConstructed()
+  {
+    return mTreeConstructedState == eTreeConstructed;
+  }
 
   /**
    * Shutdown the notification controller.
@@ -104,21 +148,24 @@ public:
   /**
    * Schedule binding the child document to the tree of this document.
    */
-  void ScheduleChildDocBinding(DocAccessible* aDocument);
+  void ScheduleChildDocBinding(nsDocAccessible* aDocument);
 
   /**
    * Schedule the accessible tree update because of rendered text changes.
    */
   inline void ScheduleTextUpdate(nsIContent* aTextNode)
   {
-    if (mTextHash.PutEntry(aTextNode))
+    // Ignore the notification if initial tree construction hasn't been done yet.
+    if (mTreeConstructedState != eTreeConstructionPending &&
+        mTextHash.PutEntry(aTextNode)) {
       ScheduleProcessing();
+    }
   }
 
   /**
    * Pend accessible tree update for content insertion.
    */
-  void ScheduleContentInsertion(Accessible* aContainer,
+  void ScheduleContentInsertion(nsAccessible* aContainer,
                                 nsIContent* aStartChildNode,
                                 nsIContent* aEndChildNode);
 
@@ -136,9 +183,8 @@ public:
                                  Arg* aArg)
   {
     if (!IsUpdatePending()) {
-#ifdef DEBUG
-      if (mozilla::a11y::logging::IsEnabled(mozilla::a11y::logging::eNotifications))
-        mozilla::a11y::logging::Text("sync notification processing");
+#ifdef DEBUG_NOTIFICATIONS
+      printf("\nsync notification processing\n");
 #endif
       (aInstance->*aMethod)(aArg);
       return;
@@ -167,13 +213,8 @@ public:
       ScheduleProcessing();
   }
 
-#ifdef DEBUG
-  bool IsUpdating() const
-    { return mObservingState == eRefreshProcessingForUpdate; }
-#endif
-
 protected:
-  nsCycleCollectingAutoRefCnt mRefCnt;
+  nsAutoRefCnt mRefCnt;
   NS_DECL_OWNINGTHREAD
 
   /**
@@ -210,16 +251,16 @@ private:
    * @param aEventRule       the event rule to be applied
    *                         (should be eDoNotEmit or eAllowDupes)
    */
-  void ApplyToSiblings(uint32_t aStart, uint32_t aEnd,
-                       uint32_t aEventType, nsINode* aNode,
+  void ApplyToSiblings(PRUint32 aStart, PRUint32 aEnd,
+                       PRUint32 aEventType, nsINode* aNode,
                        AccEvent::EEventRule aEventRule);
 
   /**
-   * Coalesce two selection change events within the same select control.
+   * Do not emit one of two given reorder events fired for DOM nodes in the case
+   * when one DOM node is in parent chain of second one.
    */
-  void CoalesceSelChangeEvents(AccSelChangeEvent* aTailEvent,
-                               AccSelChangeEvent* aThisEvent,
-                               int32_t aThisIndex);
+  void CoalesceReorderEventsFromSameTree(AccEvent* aAccEvent,
+                                         AccEvent* aDescendantAccEvent);
 
   /**
    * Coalesce text change events caused by sibling hide events.
@@ -251,7 +292,7 @@ private:
   /**
    * The document accessible reference owning this queue.
    */
-  nsRefPtr<DocAccessible> mDocument;
+  nsRefPtr<nsDocAccessible> mDocument;
 
   /**
    * The presshell of the document accessible.
@@ -259,9 +300,20 @@ private:
   nsIPresShell* mPresShell;
 
   /**
+   * Indicate whether initial construction of the document's accessible tree
+   * performed or pending. When the document accessible is created then
+   * we construct its initial accessible tree.
+   */
+  enum eTreeConstructedState {
+    eTreeConstructed,
+    eTreeConstructionPending
+  };
+  eTreeConstructedState mTreeConstructedState;
+
+  /**
    * Child documents that needs to be bound to the tree.
    */
-  nsTArray<nsRefPtr<DocAccessible> > mHangingChildDocuments;
+  nsTArray<nsRefPtr<nsDocAccessible> > mHangingChildDocuments;
 
   /**
    * Storage for content inserted notification information.
@@ -269,10 +321,10 @@ private:
   class ContentInsertion
   {
   public:
-    ContentInsertion(DocAccessible* aDocument, Accessible* aContainer);
-    virtual ~ContentInsertion() { mDocument = nullptr; }
+    ContentInsertion(nsDocAccessible* aDocument, nsAccessible* aContainer);
+    virtual ~ContentInsertion() { mDocument = nsnull; }
 
-    NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(ContentInsertion)
+    NS_INLINE_DECL_REFCOUNTING(ContentInsertion)
     NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(ContentInsertion)
 
     bool InitChildList(nsIContent* aStartChildNode, nsIContent* aEndChildNode);
@@ -286,10 +338,10 @@ private:
     // The document used to process content insertion, matched to document of
     // the notification controller that this notification belongs to, therefore
     // it's ok to keep it as weak ref.
-    DocAccessible* mDocument;
+    nsDocAccessible* mDocument;
 
     // The container accessible that content insertion occurs within.
-    nsRefPtr<Accessible> mContainer;
+    nsRefPtr<nsAccessible> mContainer;
 
     // Array of inserted contents.
     nsTArray<nsCOMPtr<nsIContent> > mInsertedContent;
@@ -313,13 +365,13 @@ private:
     ~nsCOMPtrHashKey() { }
 
     KeyType GetKey() const { return mKey; }
-    bool KeyEquals(KeyTypePointer aKey) const { return aKey == mKey; }
+    PRBool KeyEquals(KeyTypePointer aKey) const { return aKey == mKey; }
 
     static KeyTypePointer KeyToPointer(KeyType aKey) { return aKey; }
     static PLDHashNumber HashKey(KeyTypePointer aKey)
       { return NS_PTR_TO_INT32(aKey) >> 2; }
 
-    enum { ALLOW_MEMMOVE = true };
+    enum { ALLOW_MEMMOVE = PR_TRUE };
 
    protected:
      nsCOMPtr<T> mKey;

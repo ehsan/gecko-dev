@@ -5,26 +5,15 @@
 #include "build/build_config.h"
 #include "base/debug_util.h"
 
-#define MOZ_HAVE_EXECINFO_H (defined(OS_LINUX) && !defined(ANDROID))
-
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <limits.h>
 #include <sys/stat.h>
-#include <sys/param.h>
 #include <sys/types.h>
 #include <unistd.h>
-#if MOZ_HAVE_EXECINFO_H
+#ifndef ANDROID
 #include <execinfo.h>
-#endif
-
-#if defined(OS_MACOSX) || defined(OS_BSD)
 #include <sys/sysctl.h>
-#endif
-
-#if defined(OS_DRAGONFLY) || defined(OS_FREEBSD)
-#include <sys/user.h>
 #endif
 
 #include "base/basictypes.h"
@@ -39,7 +28,7 @@ bool DebugUtil::SpawnDebuggerOnProcess(unsigned /* process_id */) {
   return false;
 }
 
-#if defined(OS_MACOSX) || defined(OS_BSD)
+#if defined(OS_MACOSX)
 
 // Based on Apple's recommended method as described in
 // http://developer.apple.com/qa/qa2004/qa1361.html
@@ -78,15 +67,7 @@ bool DebugUtil::BeingDebugged() {
 
   // This process is being debugged if the P_TRACED flag is set.
   is_set = true;
-#if defined(OS_DRAGONFLY)
-  being_debugged = (info.kp_flags & P_TRACED) != 0;
-#elif defined(OS_FREEBSD)
-  being_debugged = (info.ki_flag & P_TRACED) != 0;
-#elif defined(OS_OPENBSD)
-  being_debugged = (info.p_flag & P_TRACED) != 0;
-#else
   being_debugged = (info.kp_proc.p_flag & P_TRACED) != 0;
-#endif
   return being_debugged;
 }
 
@@ -138,7 +119,7 @@ StackTrace::StackTrace() {
   const int kMaxCallers = 256;
 
   void* callers[kMaxCallers];
-#if MOZ_HAVE_EXECINFO_H
+#ifndef ANDROID
   int count = backtrace(callers, kMaxCallers);
 #else
   int count = 0;
@@ -157,11 +138,31 @@ StackTrace::StackTrace() {
 
 void StackTrace::PrintBacktrace() {
   fflush(stderr);
-#if MOZ_HAVE_EXECINFO_H
+#ifndef ANDROID
   backtrace_symbols_fd(&trace_[0], trace_.size(), STDERR_FILENO);
 #endif
 }
 
 void StackTrace::OutputToStream(std::ostream* os) {
+#ifdef CHROMIUM_MOZILLA_BUILD
   return;
+#else
+  scoped_ptr_malloc<char*> trace_symbols(
+      backtrace_symbols(&trace_[0], trace_.size()));
+
+  // If we can't retrieve the symbols, print an error and just dump the raw
+  // addresses.
+  if (trace_symbols.get() == NULL) {
+    (*os) << "Unable get symbols for backtrace (" << strerror(errno)
+          << "). Dumping raw addresses in trace:\n";
+    for (size_t i = 0; i < trace_.size(); ++i) {
+      (*os) << "\t" << trace_[i] << "\n";
+    }
+  } else {
+    (*os) << "Backtrace:\n";
+    for (size_t i = 0; i < trace_.size(); ++i) {
+      (*os) << "\t" << trace_symbols.get()[i] << "\n";
+    }
+  }
+#endif
 }

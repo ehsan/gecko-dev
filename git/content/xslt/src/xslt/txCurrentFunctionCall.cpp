@@ -1,8 +1,4 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txXSLTFunctions.h"
 #include "txExecutionState.h"
 
@@ -26,7 +22,7 @@ CurrentFunctionCall::CurrentFunctionCall()
 nsresult
 CurrentFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
 
     if (!requireParams(0, 0, aContext))
         return NS_ERROR_XPATH_BAD_ARGUMENT_COUNT;
@@ -48,7 +44,7 @@ CurrentFunctionCall::getReturnType()
     return NODESET_RESULT;
 }
 
-bool
+PRBool
 CurrentFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 {
     return !!(aContext & PRIVATE_CONTEXT);
@@ -58,7 +54,7 @@ CurrentFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 nsresult
 CurrentFunctionCall::getNameAtom(nsIAtom** aAtom)
 {
-    *aAtom = nsGkAtoms::current;
+    *aAtom = txXSLTAtoms::current;
     NS_ADDREF(*aAtom);
     return NS_OK;
 }

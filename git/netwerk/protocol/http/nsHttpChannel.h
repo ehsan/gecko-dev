@@ -1,8 +1,44 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim:set et cin ts=4 sw=4 sts=4: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com> (original author)
+ *   Christian Biesinger <cbiesinger@web.de>
+ *   Daniel Witte <dwitte@mozilla.com>
+ *   Jason Duell <jduell.mcbugs@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsHttpChannel_h__
 #define nsHttpChannel_h__
@@ -26,18 +62,15 @@
 #include "nsIHttpAuthenticableChannel.h"
 #include "nsIHttpChannelAuthProvider.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
+#include "nsICryptoHash.h"
 #include "nsITimedChannel.h"
-#include "nsIFile.h"
 #include "nsDNSPrefetch.h"
 #include "TimingStruct.h"
-#include "AutoClose.h"
-#include "mozilla/Telemetry.h"
 
 class nsAHttpConnection;
+class AutoRedirectVetoNotifier;
 
-namespace mozilla { namespace net {
-
-class HttpCacheQuery;
+using namespace mozilla::net;
 
 //-----------------------------------------------------------------------------
 // nsHttpChannel
@@ -73,16 +106,15 @@ public:
     // nsIHttpAuthenticableChannel. We can't use
     // NS_DECL_NSIHTTPAUTHENTICABLECHANNEL because it duplicates cancel() and
     // others.
-    NS_IMETHOD GetIsSSL(bool *aIsSSL);
-    NS_IMETHOD GetProxyMethodIsConnect(bool *aProxyMethodIsConnect);
+    NS_IMETHOD GetIsSSL(PRBool *aIsSSL);
+    NS_IMETHOD GetProxyMethodIsConnect(PRBool *aProxyMethodIsConnect);
     NS_IMETHOD GetServerResponseHeader(nsACString & aServerResponseHeader);
     NS_IMETHOD GetProxyChallenges(nsACString & aChallenges);
     NS_IMETHOD GetWWWChallenges(nsACString & aChallenges);
     NS_IMETHOD SetProxyCredentials(const nsACString & aCredentials);
     NS_IMETHOD SetWWWCredentials(const nsACString & aCredentials);
     NS_IMETHOD OnAuthAvailable();
-    NS_IMETHOD OnAuthCancelled(bool userCancel);
-    NS_IMETHOD GetAsciiHostForAuth(nsACString &aHost);
+    NS_IMETHOD OnAuthCancelled(PRBool userCancel);
     // Functions we implement from nsIHttpAuthenticableChannel but are
     // declared in HttpBaseChannel must be implemented in this class. We
     // just call the HttpBaseChannel:: impls.
@@ -95,7 +127,7 @@ public:
     nsHttpChannel();
     virtual ~nsHttpChannel();
 
-    virtual nsresult Init(nsIURI *aURI, uint8_t aCaps, nsProxyInfo *aProxyInfo);
+    virtual nsresult Init(nsIURI *aURI, PRUint8 aCaps, nsProxyInfo *aProxyInfo);
 
     // Methods HttpBaseChannel didn't implement for us or that we override.
     //
@@ -109,19 +141,19 @@ public:
     // nsIHttpChannelInternal
     NS_IMETHOD SetupFallbackChannel(const char *aFallbackKey);
     // nsISupportsPriority
-    NS_IMETHOD SetPriority(int32_t value);
+    NS_IMETHOD SetPriority(PRInt32 value);
     // nsIResumableChannel
-    NS_IMETHOD ResumeAt(uint64_t startPos, const nsACString& entityID);
+    NS_IMETHOD ResumeAt(PRUint64 startPos, const nsACString& entityID);
 
 public: /* internal necko use only */ 
 
     void InternalSetUploadStream(nsIInputStream *uploadStream) 
       { mUploadStream = uploadStream; }
-    void SetUploadStreamHasHeaders(bool hasHeaders) 
+    void SetUploadStreamHasHeaders(PRBool hasHeaders) 
       { mUploadStreamHasHeaders = hasHeaders; }
 
     nsresult SetReferrerInternal(nsIURI *referrer) {
-        nsAutoCString spec;
+        nsCAutoString spec;
         nsresult rv = referrer->GetAsciiSpec(spec);
         if (NS_FAILED(rv)) return rv;
         mReferrer = referrer;
@@ -129,30 +161,11 @@ public: /* internal necko use only */
         return NS_OK;
     }
 
-    // This allows cache entry to be marked as foreign even after channel itself
-    // is gone.  Needed for e10s (see HttpChannelParent::RecvDocumentChannelCleanup)
-    class OfflineCacheEntryAsForeignMarker {
-        nsCOMPtr<nsIApplicationCache> mApplicationCache;
-        nsCString mCacheKey;
-    public:
-        OfflineCacheEntryAsForeignMarker(nsIApplicationCache* appCache,
-                                         const nsCSubstring& key)
-             : mApplicationCache(appCache)
-             , mCacheKey(key)
-        {}
-
-        nsresult MarkAsForeign();
-    };
-
-    OfflineCacheEntryAsForeignMarker* GetOfflineCacheEntryAsForeignMarker();
-
 private:
     typedef nsresult (nsHttpChannel::*nsContinueRedirectionFunc)(nsresult result);
 
-    bool     RequestIsConditional();
-    nsresult Connect();
-    nsresult ContinueConnect();
-    void     SpeculativeConnect();
+    PRBool   RequestIsConditional();
+    nsresult Connect(PRBool firstTime = PR_TRUE);
     nsresult SetupTransaction();
     nsresult CallOnStartRequest();
     nsresult ProcessResponse();
@@ -160,14 +173,15 @@ private:
     nsresult ProcessNormal();
     nsresult ContinueProcessNormal(nsresult);
     nsresult ProcessNotModified();
-    nsresult AsyncProcessRedirection(uint32_t httpStatus);
+    nsresult AsyncProcessRedirection(PRUint32 httpStatus);
     nsresult ContinueProcessRedirection(nsresult);
     nsresult ContinueProcessRedirectionAfterFallback(nsresult);
-    nsresult ProcessFailedProxyConnect(uint32_t httpStatus);
-    nsresult ProcessFallback(bool *waitingForRedirectCallback);
+    PRBool   ShouldSSLProxyResponseContinue(PRUint32 httpStatus);
+    nsresult ProcessFailedSSLConnect(PRUint32 httpStatus);
+    nsresult ProcessFallback(PRBool *waitingForRedirectCallback);
     nsresult ContinueProcessFallback(nsresult);
+    PRBool   ResponseWouldVary();
     void     HandleAsyncAbort();
-    nsresult EnsureAssocReq();
 
     nsresult ContinueOnStartRequest1(nsresult);
     nsresult ContinueOnStartRequest2(nsresult);
@@ -180,7 +194,7 @@ private:
     void     HandleAsyncFallback();
     nsresult ContinueHandleAsyncFallback(nsresult);
     nsresult PromptTempRedirect();
-    virtual nsresult SetupReplacementChannel(nsIURI *, nsIChannel *, bool preserveMethod);
+    virtual nsresult SetupReplacementChannel(nsIURI *, nsIChannel *, PRBool preserveMethod);
 
     // proxy specific methods
     nsresult ProxyFailover();
@@ -191,36 +205,30 @@ private:
     nsresult ResolveProxy();
 
     // cache specific methods
-    nsresult OpenCacheEntry(bool usingSSL);
+    nsresult OpenCacheEntry();
     nsresult OnOfflineCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
                                           nsCacheAccessMode aAccess,
-                                          nsresult aResult);
-    nsresult OpenNormalCacheEntry(bool usingSSL);
+                                          nsresult aResult,
+                                          PRBool aSync);
+    nsresult OpenNormalCacheEntry(PRBool aSync);
     nsresult OnNormalCacheEntryAvailable(nsICacheEntryDescriptor *aEntry,
                                          nsCacheAccessMode aAccess,
-                                         nsresult aResult);
+                                         nsresult aResult,
+                                         PRBool aSync);
     nsresult OpenOfflineCacheEntryForWriting();
-    nsresult OnOfflineCacheEntryForWritingAvailable(
-        nsICacheEntryDescriptor *aEntry,
-        nsCacheAccessMode aAccess,
-        nsresult aResult);
-    nsresult OnCacheEntryAvailableInternal(nsICacheEntryDescriptor *entry,
-                                           nsCacheAccessMode access,
-                                           nsresult status);
-    nsresult GenerateCacheKey(uint32_t postID, nsACString &key);
+    nsresult GenerateCacheKey(PRUint32 postID, nsACString &key);
     nsresult UpdateExpirationTime();
     nsresult CheckCache();
-    bool ShouldUpdateOfflineCacheEntry();
-    nsresult ReadFromCache(bool alreadyMarkedValid);
-    void     CloseCacheEntry(bool doomOnFailure);
+    nsresult ShouldUpdateOfflineCacheEntry(PRBool *shouldCacheForOfflineUse);
+    nsresult ReadFromCache();
+    void     CloseCacheEntry(PRBool doomOnFailure);
     void     CloseOfflineCacheEntry();
     nsresult InitCacheEntry();
-    void     UpdateInhibitPersistentCachingFlag();
     nsresult InitOfflineCacheEntry();
     nsresult AddCacheEntryHeaders(nsICacheEntryDescriptor *entry);
     nsresult StoreAuthorizationMetaData(nsICacheEntryDescriptor *entry);
     nsresult FinalizeCacheEntry();
-    nsresult InstallCacheListener(uint32_t offset = 0);
+    nsresult InstallCacheListener(PRUint32 offset = 0);
     nsresult InstallOfflineCacheListener();
     void     MaybeInvalidateCacheEntryForSubsequentGet();
     nsCacheStoragePolicy DetermineStoragePolicy();
@@ -231,10 +239,12 @@ private:
     void ClearBogusContentEncodingIfNeeded();
 
     // byte range request specific methods
+    nsresult SetupByteRangeRequest(PRUint32 partialLen);
     nsresult ProcessPartialContent();
-    nsresult OnDoneReadingPartialCacheEntry(bool *streamDone);
+    nsresult OnDoneReadingPartialCacheEntry(PRBool *streamDone);
 
     nsresult DoAuthRetry(nsAHttpConnection *);
+    PRBool   MustValidateBasedOnQueryUrl();
 
     void     HandleAsyncRedirectChannelToHttps();
     nsresult AsyncRedirectChannelToHttps();
@@ -248,25 +258,24 @@ private:
      */
     nsresult ProcessSTSHeader();
 
+    /**
+     * Computes and returns a 64 bit encoded string holding a hash of the
+     * input buffer. Input buffer must be a null-terminated string.
+     */
+    nsresult Hash(const char *buf, nsACString &hash);
+
     void InvalidateCacheEntryForLocation(const char *location);
-    void AssembleCacheKey(const char *spec, uint32_t postID, nsACString &key);
+    void AssembleCacheKey(const char *spec, PRUint32 postID, nsACString &key);
     nsresult CreateNewURI(const char *loc, nsIURI **newURI);
-    void DoInvalidateCacheEntry(const nsCString &key);
+    void DoInvalidateCacheEntry(nsACString &key);
 
     // Ref RFC2616 13.10: "invalidation... MUST only be performed if
     // the host part is the same as in the Request-URI"
-    inline bool HostPartIsTheSame(nsIURI *uri) {
-        nsAutoCString tmpHost1, tmpHost2;
+    inline PRBool HostPartIsTheSame(nsIURI *uri) {
+        nsCAutoString tmpHost1, tmpHost2;
         return (NS_SUCCEEDED(mURI->GetAsciiHost(tmpHost1)) &&
                 NS_SUCCEEDED(uri->GetAsciiHost(tmpHost2)) &&
                 (tmpHost1 == tmpHost2));
-    }
-
-    inline static bool DoNotRender3xxBody(nsresult rv) {
-        return rv == NS_ERROR_REDIRECT_LOOP         ||
-               rv == NS_ERROR_CORRUPTED_CONTENT     ||
-               rv == NS_ERROR_UNKNOWN_PROTOCOL      ||
-               rv == NS_ERROR_MALFORMED_URI;
     }
 
 private:
@@ -276,29 +285,24 @@ private:
     nsRefPtr<nsInputStreamPump>       mTransactionPump;
     nsRefPtr<nsHttpTransaction>       mTransaction;
 
-    uint64_t                          mLogicalOffset;
+    PRUint64                          mLogicalOffset;
 
     // cache specific data
-    nsRefPtr<HttpCacheQuery>          mCacheQuery;
     nsCOMPtr<nsICacheEntryDescriptor> mCacheEntry;
-    // We must close mCacheInputStream explicitly to avoid leaks.
-    AutoClose<nsIInputStream>         mCacheInputStream;
     nsRefPtr<nsInputStreamPump>       mCachePump;
     nsAutoPtr<nsHttpResponseHead>     mCachedResponseHead;
-    nsCOMPtr<nsISupports>             mCachedSecurityInfo;
     nsCacheAccessMode                 mCacheAccess;
-    mozilla::Telemetry::ID            mCacheEntryDeviceTelemetryID;
-    uint32_t                          mPostID;
-    uint32_t                          mRequestTime;
+    PRUint32                          mPostID;
+    PRUint32                          mRequestTime;
 
     typedef nsresult (nsHttpChannel:: *nsOnCacheEntryAvailableCallback)(
-        nsICacheEntryDescriptor *, nsCacheAccessMode, nsresult);
+        nsICacheEntryDescriptor *, nsCacheAccessMode, nsresult, PRBool);
     nsOnCacheEntryAvailableCallback   mOnCacheEntryAvailableCallback;
+    PRBool                            mAsyncCacheOpen;
 
     nsCOMPtr<nsICacheEntryDescriptor> mOfflineCacheEntry;
     nsCacheAccessMode                 mOfflineCacheAccess;
-    uint32_t                          mOfflineCacheLastModifiedTime;
-    nsCOMPtr<nsIApplicationCache>     mApplicationCacheForWrite;
+    nsCString                         mOfflineCacheClientID;
 
     // auth specific data
     nsCOMPtr<nsIHttpChannelAuthProvider> mAuthProvider;
@@ -313,33 +317,37 @@ private:
 
     friend class AutoRedirectVetoNotifier;
     friend class HttpAsyncAborter<nsHttpChannel>;
-    friend class HttpCacheQuery;
-
     nsCOMPtr<nsIURI>                  mRedirectURI;
     nsCOMPtr<nsIChannel>              mRedirectChannel;
-    uint32_t                          mRedirectType;
+    PRUint32                          mRedirectType;
 
     // state flags
-    uint32_t                          mCachedContentIsValid     : 1;
-    uint32_t                          mCachedContentIsPartial   : 1;
-    uint32_t                          mTransactionReplaced      : 1;
-    uint32_t                          mAuthRetryPending         : 1;
-    uint32_t                          mResuming                 : 1;
-    uint32_t                          mInitedCacheEntry         : 1;
+    PRUint32                          mCachedContentIsValid     : 1;
+    PRUint32                          mCachedContentIsPartial   : 1;
+    PRUint32                          mTransactionReplaced      : 1;
+    PRUint32                          mAuthRetryPending         : 1;
+    PRUint32                          mResuming                 : 1;
+    PRUint32                          mInitedCacheEntry         : 1;
+    PRUint32                          mCacheForOfflineUse       : 1;
+    // True if mCacheForOfflineUse was set because we were caching
+    // opportunistically.
+    PRUint32                          mCachingOpportunistically : 1;
     // True if we are loading a fallback cache entry from the
     // application cache.
-    uint32_t                          mFallbackChannel          : 1;
+    PRUint32                          mFallbackChannel          : 1;
     // True if consumer added its own If-None-Match or If-Modified-Since
     // headers. In such a case we must not override them in the cache code
     // and also we want to pass possible 304 code response through.
-    uint32_t                          mCustomConditionalRequest : 1;
-    uint32_t                          mFallingBack              : 1;
-    uint32_t                          mWaitingForRedirectCallback : 1;
+    PRUint32                          mCustomConditionalRequest : 1;
+    PRUint32                          mFallingBack              : 1;
+    PRUint32                          mWaitingForRedirectCallback : 1;
     // True if mRequestTime has been set. In such a case it is safe to update
     // the cache entry's expiration time. Otherwise, it is not(see bug 567360).
-    uint32_t                          mRequestTimeInitialized : 1;
+    PRUint32                          mRequestTimeInitialized : 1;
 
     nsTArray<nsContinueRedirectionFunc> mRedirectFuncStack;
+
+    nsCOMPtr<nsICryptoHash>        mHasher;
 
     PRTime                            mChannelCreationTime;
     mozilla::TimeStamp                mChannelCreationTimestamp;
@@ -358,11 +366,6 @@ private:
 
 protected:
     virtual void DoNotifyListenerCleanup();
-
-private: // cache telemetry
-    bool mDidReval;
 };
-
-} } // namespace mozilla::net
 
 #endif // nsHttpChannel_h__

@@ -4,15 +4,10 @@
 // specified in RFC 2616 section 14.9.3 by letting max-age
 // take precedence
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 const BUGID = "203271";
 
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var index = 0;
 var tests = [
     // original problem described in bug#203271
@@ -80,6 +75,12 @@ var tests = [
 
 ];
 
+function getCacheService()
+{
+    return Components.classes["@mozilla.org/network/cache-service;1"].
+                      getService(Components.interfaces.nsICacheService);
+}
+
 function logit(i, data, ctx) {
     dump("requested [" + tests[i].server + "] " +
          "got [" + data + "] " +
@@ -134,8 +135,8 @@ function run_test() {
     httpserver.start(4444);
 
     // clear cache
-    evict_cache_entries();
-
+    getCacheService().
+       evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
     triggerNextTest();
     do_test_pending();
 }

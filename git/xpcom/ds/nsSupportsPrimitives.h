@@ -1,19 +1,50 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dan Rosen <dr@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsSupportsPrimitives_h__
 #define nsSupportsPrimitives_h__
-
-#include "mozilla/Attributes.h"
 
 #include "nsISupportsPrimitives.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsDependentString.h"
 
-class nsSupportsIDImpl MOZ_FINAL : public nsISupportsID
+class nsSupportsIDImpl : public nsISupportsID
 {
 public:
     NS_DECL_ISUPPORTS
@@ -30,7 +61,7 @@ private:
 
 /***************************************************************************/
 
-class nsSupportsCStringImpl MOZ_FINAL : public nsISupportsCString
+class nsSupportsCStringImpl : public nsISupportsCString
 {
 public:
     NS_DECL_ISUPPORTS
@@ -47,7 +78,7 @@ private:
 
 /***************************************************************************/
 
-class nsSupportsStringImpl MOZ_FINAL : public nsISupportsString
+class nsSupportsStringImpl : public nsISupportsString
 {
 public:
     NS_DECL_ISUPPORTS
@@ -64,7 +95,7 @@ private:
 
 /***************************************************************************/
 
-class nsSupportsPRBoolImpl MOZ_FINAL : public nsISupportsPRBool
+class nsSupportsPRBoolImpl : public nsISupportsPRBool
 {
 public:
     NS_DECL_ISUPPORTS
@@ -76,12 +107,12 @@ public:
 private:
     ~nsSupportsPRBoolImpl() {}
 
-    bool mData;
+    PRBool mData;
 };
 
 /***************************************************************************/
 
-class nsSupportsPRUint8Impl MOZ_FINAL : public nsISupportsPRUint8
+class nsSupportsPRUint8Impl : public nsISupportsPRUint8
 {
 public:
     NS_DECL_ISUPPORTS
@@ -93,12 +124,12 @@ public:
 private:
     ~nsSupportsPRUint8Impl() {}
 
-    uint8_t mData;
+    PRUint8 mData;
 };
 
 /***************************************************************************/
 
-class nsSupportsPRUint16Impl MOZ_FINAL : public nsISupportsPRUint16
+class nsSupportsPRUint16Impl : public nsISupportsPRUint16
 {
 public:
     NS_DECL_ISUPPORTS
@@ -110,12 +141,12 @@ public:
 private:
     ~nsSupportsPRUint16Impl() {}
 
-    uint16_t mData;
+    PRUint16 mData;
 };
 
 /***************************************************************************/
 
-class nsSupportsPRUint32Impl MOZ_FINAL : public nsISupportsPRUint32
+class nsSupportsPRUint32Impl : public nsISupportsPRUint32
 {
 public:
     NS_DECL_ISUPPORTS
@@ -127,12 +158,12 @@ public:
 private:
     ~nsSupportsPRUint32Impl() {}
 
-    uint32_t mData;
+    PRUint32 mData;
 };
 
 /***************************************************************************/
 
-class nsSupportsPRUint64Impl MOZ_FINAL : public nsISupportsPRUint64
+class nsSupportsPRUint64Impl : public nsISupportsPRUint64
 {
 public:
     NS_DECL_ISUPPORTS
@@ -144,12 +175,12 @@ public:
 private:
     ~nsSupportsPRUint64Impl() {}
 
-    uint64_t mData;
+    PRUint64 mData;
 };
 
 /***************************************************************************/
 
-class nsSupportsPRTimeImpl MOZ_FINAL : public nsISupportsPRTime
+class nsSupportsPRTimeImpl : public nsISupportsPRTime
 {
 public:
     NS_DECL_ISUPPORTS
@@ -166,7 +197,7 @@ private:
 
 /***************************************************************************/
 
-class nsSupportsCharImpl MOZ_FINAL : public nsISupportsChar
+class nsSupportsCharImpl : public nsISupportsChar
 {
 public:
     NS_DECL_ISUPPORTS
@@ -183,7 +214,7 @@ private:
 
 /***************************************************************************/
 
-class nsSupportsPRInt16Impl MOZ_FINAL : public nsISupportsPRInt16
+class nsSupportsPRInt16Impl : public nsISupportsPRInt16
 {
 public:
     NS_DECL_ISUPPORTS
@@ -195,12 +226,12 @@ public:
 private:
     ~nsSupportsPRInt16Impl() {}
 
-    int16_t mData;
+    PRInt16 mData;
 };
 
 /***************************************************************************/
 
-class nsSupportsPRInt32Impl MOZ_FINAL : public nsISupportsPRInt32
+class nsSupportsPRInt32Impl : public nsISupportsPRInt32
 {
 public:
     NS_DECL_ISUPPORTS
@@ -212,12 +243,12 @@ public:
 private:
     ~nsSupportsPRInt32Impl() {}
 
-    int32_t mData;
+    PRInt32 mData;
 };
 
 /***************************************************************************/
 
-class nsSupportsPRInt64Impl MOZ_FINAL : public nsISupportsPRInt64
+class nsSupportsPRInt64Impl : public nsISupportsPRInt64
 {
 public:
     NS_DECL_ISUPPORTS
@@ -229,12 +260,12 @@ public:
 private:
     ~nsSupportsPRInt64Impl() {}
 
-    int64_t mData;
+    PRInt64 mData;
 };
 
 /***************************************************************************/
 
-class nsSupportsFloatImpl MOZ_FINAL : public nsISupportsFloat
+class nsSupportsFloatImpl : public nsISupportsFloat
 {
 public:
     NS_DECL_ISUPPORTS
@@ -251,7 +282,7 @@ private:
 
 /***************************************************************************/
 
-class nsSupportsDoubleImpl MOZ_FINAL : public nsISupportsDouble
+class nsSupportsDoubleImpl : public nsISupportsDouble
 {
 public:
     NS_DECL_ISUPPORTS
@@ -268,7 +299,7 @@ private:
 
 /***************************************************************************/
 
-class nsSupportsVoidImpl MOZ_FINAL : public nsISupportsVoid
+class nsSupportsVoidImpl : public nsISupportsVoid
 {
 public:
     NS_DECL_ISUPPORTS
@@ -285,7 +316,7 @@ private:
 
 /***************************************************************************/
 
-class nsSupportsInterfacePointerImpl MOZ_FINAL : public nsISupportsInterfacePointer
+class nsSupportsInterfacePointerImpl : public nsISupportsInterfacePointer
 {
 public:
     NS_DECL_ISUPPORTS
@@ -309,7 +340,7 @@ private:
  * Only use this class with static buffers, or arena-allocated buffers of
  * permanent lifetime!
  */
-class nsSupportsDependentCString MOZ_FINAL : public nsISupportsCString
+class nsSupportsDependentCString : public nsISupportsCString
 {
 public:
   NS_DECL_ISUPPORTS

@@ -1,13 +1,46 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SVG project.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Daniel Holbert <dholbert@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* implementation of nsISMILType for use by <animateMotion> element */
 
 #include "SVGMotionSMILType.h"
 #include "nsSMILValue.h"
 #include "nsDebug.h"
+#include "nsSVGTransform.h"
 #include "nsSVGAngle.h"
 #include "nsIDOMSVGAngle.h"
 #include "nsSVGPathElement.h"
@@ -105,14 +138,14 @@ struct MotionSegment
   }
 
   // Comparison operators
-  bool operator==(const MotionSegment& aOther) const
+  PRBool operator==(const MotionSegment& aOther) const
   {
     // Compare basic params
     if (mSegmentType != aOther.mSegmentType ||
         mRotateType  != aOther.mRotateType ||
         (mRotateType == eRotateType_Explicit &&  // Technically, angle mismatch
          mRotateAngle != aOther.mRotateAngle)) { // only matters for Explicit.
-      return false;
+      return PR_FALSE;
     }
 
     // Compare translation params, if we're a translation.
@@ -127,7 +160,7 @@ struct MotionSegment
        aOther.mU.mPathPointParams.mDistToPoint);
   }
 
-  bool operator!=(const MotionSegment& aOther) const
+  PRBool operator!=(const MotionSegment& aOther) const
   {
     return !(*this == aOther);
   }
@@ -180,7 +213,7 @@ SVGMotionSMILType::Destroy(nsSMILValue& aValue) const
   MotionSegmentArray* arr = static_cast<MotionSegmentArray*>(aValue.mU.mPtr);
   delete arr;
 
-  aValue.mU.mPtr = nullptr;
+  aValue.mU.mPtr = nsnull;
   aValue.mType = &nsSMILNullType::sSingleton;
 }
 
@@ -202,7 +235,7 @@ SVGMotionSMILType::Assign(nsSMILValue& aDest, const nsSMILValue& aSrc) const
   return NS_OK;
 }
 
-bool
+PRBool
 SVGMotionSMILType::IsEqual(const nsSMILValue& aLeft,
                            const nsSMILValue& aRight) const
 {
@@ -214,18 +247,18 @@ SVGMotionSMILType::IsEqual(const nsSMILValue& aLeft,
 
   // If array-lengths don't match, we're trivially non-equal.
   if (leftArr.Length() != rightArr.Length()) {
-    return false;
+    return PR_FALSE;
   }
 
   // Array-lengths match -- check each array-entry for equality.
-  uint32_t length = leftArr.Length(); // == rightArr->Length(), if we get here
-  for (uint32_t i = 0; i < length; ++i) {
+  PRUint32 length = leftArr.Length(); // == rightArr->Length(), if we get here
+  for (PRUint32 i = 0; i < length; ++i) {
     if (leftArr[i] != rightArr[i]) {
-      return false;
+      return PR_FALSE;
     }
   }
 
-  return true; // If we get here, we found no differences.
+  return PR_TRUE; // If we get here, we found no differences.
 }
 
 // Helper method for Add & CreateMatrix
@@ -255,7 +288,7 @@ GetAngleAndPointAtDistance(gfxFlattenedPath* aPath, float aDistance,
 
 nsresult
 SVGMotionSMILType::Add(nsSMILValue& aDest, const nsSMILValue& aValueToAdd,
-                       uint32_t aCount) const
+                       PRUint32 aCount) const
 {
   NS_ABORT_IF_FALSE(aDest.mType == aValueToAdd.mType,
                     "Incompatible SMIL types");
@@ -450,8 +483,8 @@ SVGMotionSMILType::CreateMatrix(const nsSMILValue& aSMILVal)
   const MotionSegmentArray& arr = ExtractMotionSegmentArray(aSMILVal);
 
   gfxMatrix matrix;
-  uint32_t length = arr.Length();
-  for (uint32_t i = 0; i < length; i++) {
+  PRUint32 length = arr.Length();
+  for (PRUint32 i = 0; i < length; i++) {
     gfxPoint point;  // initialized below
     gfxFloat rotateAngle = arr[i].mRotateAngle; // might get updated below
     if (arr[i].mSegmentType == eSegmentType_Translation) {

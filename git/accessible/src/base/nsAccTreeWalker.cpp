@@ -1,15 +1,49 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Aaron Leventhal <aaronleventhal@moonset.net> (original author)
+ *  Alexander Surkov <surkov.alexander@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsAccTreeWalker.h"
 
-#include "Accessible.h"
+#include "nsAccessible.h"
 #include "nsAccessibilityService.h"
-#include "DocAccessible.h"
 
 #include "nsINodeList.h"
+#include "nsIPresShell.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // WalkState
@@ -18,11 +52,11 @@
 struct WalkState
 {
   WalkState(nsIContent *aContent) :
-    content(aContent), childIdx(0), prevState(nullptr) {}
+    content(aContent), childIdx(0), prevState(nsnull) {}
 
   nsCOMPtr<nsIContent> content;
   nsCOMPtr<nsINodeList> childList;
-  uint32_t childIdx;
+  PRUint32 childIdx;
   WalkState *prevState;
 };
 
@@ -31,9 +65,9 @@ struct WalkState
 ////////////////////////////////////////////////////////////////////////////////
 
 nsAccTreeWalker::
-  nsAccTreeWalker(DocAccessible* aDoc, nsIContent* aContent,
-                  bool aWalkAnonContent, bool aWalkCache) :
-  mDoc(aDoc), mWalkCache(aWalkCache), mState(nullptr)
+  nsAccTreeWalker(nsIWeakReference* aShell, nsIContent* aContent,
+                  PRBool aWalkAnonContent, bool aWalkCache) :
+  mWeakShell(aShell), mWalkCache(aWalkCache), mState(nsnull)
 {
   NS_ASSERTION(aContent, "No node for the accessible tree walker!");
 
@@ -60,16 +94,18 @@ nsAccTreeWalker::~nsAccTreeWalker()
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccTreeWalker: private
 
-Accessible*
+nsAccessible*
 nsAccTreeWalker::NextChildInternal(bool aNoWalkUp)
 {
   if (!mState || !mState->content)
-    return nullptr;
+    return nsnull;
 
   if (!mState->childList)
     mState->childList = mState->content->GetChildren(mChildFilter);
 
-  uint32_t length = 0;
+  nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
+
+  PRUint32 length = 0;
   if (mState->childList)
     mState->childList->GetLength(&length);
 
@@ -78,8 +114,10 @@ nsAccTreeWalker::NextChildInternal(bool aNoWalkUp)
     mState->childIdx++;
 
     bool isSubtreeHidden = false;
-    Accessible* accessible = mWalkCache ? mDoc->GetAccessible(childNode) :
-      GetAccService()->GetOrCreateAccessible(childNode, mDoc, &isSubtreeHidden);
+    nsAccessible* accessible = mWalkCache ?
+      GetAccService()->GetAccessibleInWeakShell(childNode, mWeakShell) :
+      GetAccService()->GetOrCreateAccessible(childNode, presShell, mWeakShell,
+                                             &isSubtreeHidden);
 
     if (accessible)
       return accessible;
@@ -98,7 +136,7 @@ nsAccTreeWalker::NextChildInternal(bool aNoWalkUp)
   // No more children, get back to the parent.
   PopState();
 
-  return aNoWalkUp ? nullptr : NextChildInternal(false);
+  return aNoWalkUp ? nsnull : NextChildInternal(false);
 }
 
 void
@@ -109,15 +147,15 @@ nsAccTreeWalker::PopState()
   mState = prevToLastState;
 }
 
-bool
+PRBool
 nsAccTreeWalker::PushState(nsIContent* aContent)
 {
   WalkState* nextToLastState = new WalkState(aContent);
   if (!nextToLastState)
-    return false;
+    return PR_FALSE;
 
   nextToLastState->prevState = mState;
   mState = nextToLastState;
 
-  return true;
+  return PR_TRUE;
 }

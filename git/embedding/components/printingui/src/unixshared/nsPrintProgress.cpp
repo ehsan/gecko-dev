@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jean-Francois Ducarroz <ducarroz@netscape.com>
+ *   Rod Spears <rods@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsPrintProgress.h"
 
@@ -24,10 +58,10 @@ NS_INTERFACE_MAP_END_THREADSAFE
 
 nsPrintProgress::nsPrintProgress(nsIPrintSettings* aPrintSettings)
 {
-  m_closeProgress = false;
-  m_processCanceled = false;
+  m_closeProgress = PR_FALSE;
+  m_processCanceled = PR_FALSE;
   m_pendingStateFlags = -1;
-  m_pendingStateValue = NS_OK;
+  m_pendingStateValue = 0;
   m_PrintSetting = aPrintSettings;
 }
 
@@ -41,9 +75,9 @@ NS_IMETHODIMP nsPrintProgress::OpenProgressDialog(nsIDOMWindow *parent,
                                                   const char *dialogURL,
                                                   nsISupports *parameters, 
                                                   nsIObserver *openDialogObserver,
-                                                  bool *notifyOnOpen)
+                                                  PRBool *notifyOnOpen)
 {
-  *notifyOnOpen = true;
+  *notifyOnOpen = PR_TRUE;
   m_observer = openDialogObserver;
   nsresult rv = NS_ERROR_FAILURE;
   
@@ -83,19 +117,17 @@ NS_IMETHODIMP nsPrintProgress::OpenProgressDialog(nsIDOMWindow *parent,
 }
 
 /* void closeProgressDialog (in boolean forceClose); */
-NS_IMETHODIMP nsPrintProgress::CloseProgressDialog(bool forceClose)
+NS_IMETHODIMP nsPrintProgress::CloseProgressDialog(PRBool forceClose)
 {
-  m_closeProgress = true;
-  // XXX Invalid cast of bool to nsresult (bug 778106)
-  return OnStateChange(nullptr, nullptr, nsIWebProgressListener::STATE_STOP,
-                       (nsresult)forceClose);
+  m_closeProgress = PR_TRUE;
+  return OnStateChange(nsnull, nsnull, nsIWebProgressListener::STATE_STOP, forceClose);
 }
 
 /* nsIPrompt GetPrompter (); */
 NS_IMETHODIMP nsPrintProgress::GetPrompter(nsIPrompt **_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = nullptr;
+  *_retval = nsnull;
 
   if (! m_closeProgress && m_dialog)
     return m_dialog->GetPrompter(_retval);
@@ -104,18 +136,18 @@ NS_IMETHODIMP nsPrintProgress::GetPrompter(nsIPrompt **_retval)
 }
 
 /* attribute boolean processCanceledByUser; */
-NS_IMETHODIMP nsPrintProgress::GetProcessCanceledByUser(bool *aProcessCanceledByUser)
+NS_IMETHODIMP nsPrintProgress::GetProcessCanceledByUser(PRBool *aProcessCanceledByUser)
 {
   NS_ENSURE_ARG_POINTER(aProcessCanceledByUser);
   *aProcessCanceledByUser = m_processCanceled;
   return NS_OK;
 }
-NS_IMETHODIMP nsPrintProgress::SetProcessCanceledByUser(bool aProcessCanceledByUser)
+NS_IMETHODIMP nsPrintProgress::SetProcessCanceledByUser(PRBool aProcessCanceledByUser)
 {
   if(m_PrintSetting)
-    m_PrintSetting->SetIsCancelled(true);
+    m_PrintSetting->SetIsCancelled(PR_TRUE);
   m_processCanceled = aProcessCanceledByUser;
-  OnStateChange(nullptr, nullptr, nsIWebProgressListener::STATE_STOP, NS_OK);
+  OnStateChange(nsnull, nsnull, nsIWebProgressListener::STATE_STOP, PR_FALSE);
   return NS_OK;
 }
 
@@ -134,12 +166,12 @@ NS_IMETHODIMP nsPrintProgress::RegisterListener(nsIWebProgressListener * listene
   {
     m_listenerList->AppendElement(listener);
     if (m_closeProgress || m_processCanceled)
-      listener->OnStateChange(nullptr, nullptr, nsIWebProgressListener::STATE_STOP, NS_OK);
+      listener->OnStateChange(nsnull, nsnull, nsIWebProgressListener::STATE_STOP, 0);
     else
     {
-      listener->OnStatusChange(nullptr, nullptr, NS_OK, m_pendingStatus.get());
+      listener->OnStatusChange(nsnull, nsnull, 0, m_pendingStatus.get());
       if (m_pendingStateFlags != -1)
-        listener->OnStateChange(nullptr, nullptr, m_pendingStateFlags, m_pendingStateValue);
+        listener->OnStateChange(nsnull, nsnull, m_pendingStateFlags, m_pendingStateValue);
     }
   }
     
@@ -159,13 +191,13 @@ NS_IMETHODIMP nsPrintProgress::UnregisterListener(nsIWebProgressListener *listen
 NS_IMETHODIMP nsPrintProgress::DoneIniting()
 {
   if (m_observer) {
-    m_observer->Observe(nullptr, nullptr, nullptr);
+    m_observer->Observe(nsnull, nsnull, nsnull);
   }
   return NS_OK;
 }
 
 /* void onStateChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in unsigned long aStateFlags, in nsresult aStatus); */
-NS_IMETHODIMP nsPrintProgress::OnStateChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, uint32_t aStateFlags, nsresult aStatus)
+NS_IMETHODIMP nsPrintProgress::OnStateChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, PRUint32 aStateFlags, nsresult aStatus)
 {
   nsresult rv = NS_OK;
 
@@ -174,8 +206,8 @@ NS_IMETHODIMP nsPrintProgress::OnStateChange(nsIWebProgress *aWebProgress, nsIRe
   
   if (m_listenerList)
   {
-    uint32_t count;
-    int32_t i;
+    PRUint32 count;
+    PRInt32 i;
 
     rv = m_listenerList->Count(&count);
     NS_ASSERTION(NS_SUCCEEDED(rv), "m_listenerList->Count() failed");
@@ -197,14 +229,14 @@ NS_IMETHODIMP nsPrintProgress::OnStateChange(nsIWebProgress *aWebProgress, nsIRe
 }
 
 /* void onProgressChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in long aCurSelfProgress, in long aMaxSelfProgress, in long aCurTotalProgress, in long aMaxTotalProgress); */
-NS_IMETHODIMP nsPrintProgress::OnProgressChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, int32_t aCurSelfProgress, int32_t aMaxSelfProgress, int32_t aCurTotalProgress, int32_t aMaxTotalProgress)
+NS_IMETHODIMP nsPrintProgress::OnProgressChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, PRInt32 aCurSelfProgress, PRInt32 aMaxSelfProgress, PRInt32 aCurTotalProgress, PRInt32 aMaxTotalProgress)
 {
   nsresult rv = NS_OK;
 
   if (m_listenerList)
   {
-    uint32_t count;
-    int32_t i;
+    PRUint32 count;
+    PRInt32 i;
 
     rv = m_listenerList->Count(&count);
     NS_ASSERTION(NS_SUCCEEDED(rv), "m_listenerList->Count() failed");
@@ -225,8 +257,8 @@ NS_IMETHODIMP nsPrintProgress::OnProgressChange(nsIWebProgress *aWebProgress, ns
   return rv;
 }
 
-/* void onLocationChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in nsIURI location, in unsigned long aFlags); */
-NS_IMETHODIMP nsPrintProgress::OnLocationChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, nsIURI *location, uint32_t aFlags)
+/* void onLocationChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in nsIURI location); */
+NS_IMETHODIMP nsPrintProgress::OnLocationChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, nsIURI *location)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -240,8 +272,8 @@ NS_IMETHODIMP nsPrintProgress::OnStatusChange(nsIWebProgress *aWebProgress, nsIR
   m_pendingStatus = aMessage;
   if (m_listenerList)
   {
-    uint32_t count;
-    int32_t i;
+    PRUint32 count;
+    PRInt32 i;
 
     rv = m_listenerList->Count(&count);
     NS_ASSERTION(NS_SUCCEEDED(rv), "m_listenerList->Count() failed");
@@ -263,7 +295,7 @@ NS_IMETHODIMP nsPrintProgress::OnStatusChange(nsIWebProgress *aWebProgress, nsIR
 }
 
 /* void onSecurityChange (in nsIWebProgress aWebProgress, in nsIRequest aRequest, in unsigned long state); */
-NS_IMETHODIMP nsPrintProgress::OnSecurityChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, uint32_t state)
+NS_IMETHODIMP nsPrintProgress::OnSecurityChange(nsIWebProgress *aWebProgress, nsIRequest *aRequest, PRUint32 state)
 {
     return NS_OK;
 }
@@ -274,8 +306,8 @@ nsresult nsPrintProgress::ReleaseListeners()
 
   if (m_listenerList)
   {
-    uint32_t count;
-    int32_t i;
+    PRUint32 count;
+    PRInt32 i;
 
     rv = m_listenerList->Count(&count);
     NS_ASSERTION(NS_SUCCEEDED(rv), "m_listenerList->Count() failed");
@@ -289,7 +321,7 @@ nsresult nsPrintProgress::ReleaseListeners()
 
 NS_IMETHODIMP nsPrintProgress::ShowStatusString(const PRUnichar *status)
 {
-  return OnStatusChange(nullptr, nullptr, NS_OK, status);
+  return OnStatusChange(nsnull, nsnull, NS_OK, status);
 }
 
 /* void startMeteors (); */
@@ -305,7 +337,7 @@ NS_IMETHODIMP nsPrintProgress::StopMeteors()
 }
 
 /* void showProgress (in long percent); */
-NS_IMETHODIMP nsPrintProgress::ShowProgress(int32_t percent)
+NS_IMETHODIMP nsPrintProgress::ShowProgress(PRInt32 percent)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

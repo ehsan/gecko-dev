@@ -7,9 +7,10 @@ var gotTimeupdate = false;
 
 function startTest() {
   if (completed)
-    return;
+    return false;
 
   v.currentTime=seekTime;
+  return false;
 }
 
 function timeupdate() {
@@ -19,22 +20,24 @@ function timeupdate() {
 
 function seekStarted() {
   if (completed)
-    return;
+    return false;
 
   ok(v.currentTime >= seekTime - 0.1, "Video currentTime should be around " + seekTime + ": " + v.currentTime);
   v.addEventListener("timeupdate", timeupdate, false);
   startPassed = true;
+  return false;
 }
 
 function seekEnded() {
   if (completed)
-    return;
+    return false;
 
   var t = v.currentTime;
   ok(Math.abs(t - seekTime) <= 0.1, "Video currentTime should be around " + seekTime + ": " + t);
   ok(gotTimeupdate, "Should have got timeupdate between seeking and seekended");
   completed = true;
   finish();
+  return false;
 }
 
 v.addEventListener("loadedmetadata", startTest, false);

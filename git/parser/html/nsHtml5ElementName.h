@@ -34,13 +34,17 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
+#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
 
 class nsHtml5StreamParser;
@@ -61,22 +65,22 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_NULL_ELEMENT_NAME;
     nsIAtom* name;
     nsIAtom* camelCaseName;
-    int32_t flags;
-    inline int32_t getFlags()
+    PRInt32 flags;
+    inline PRInt32 getFlags()
     {
       return flags;
     }
 
-    int32_t getGroup();
-    static nsHtml5ElementName* elementNameByBuffer(PRUnichar* buf, int32_t offset, int32_t length, nsHtml5AtomTable* interner);
+    PRInt32 getGroup();
+    static nsHtml5ElementName* elementNameByBuffer(PRUnichar* buf, PRInt32 offset, PRInt32 length, nsHtml5AtomTable* interner);
   private:
-    static int32_t bufToHash(PRUnichar* buf, int32_t len);
-    nsHtml5ElementName(nsIAtom* name, nsIAtom* camelCaseName, int32_t flags);
+    static PRInt32 bufToHash(PRUnichar* buf, PRInt32 len);
+    nsHtml5ElementName(nsIAtom* name, nsIAtom* camelCaseName, PRInt32 flags);
   protected:
     nsHtml5ElementName(nsIAtom* name);
   public:
     virtual void release();
-    virtual ~nsHtml5ElementName();
+    ~nsHtml5ElementName();
     virtual nsHtml5ElementName* cloneElementName(nsHtml5AtomTable* interner);
     static nsHtml5ElementName* ELT_A;
     static nsHtml5ElementName* ELT_B;
@@ -382,7 +386,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_LOWLIMIT;
     static nsHtml5ElementName* ELT_METADATA;
     static nsHtml5ElementName* ELT_MENCLOSE;
-    static nsHtml5ElementName* ELT_MENUITEM;
     static nsHtml5ElementName* ELT_MPHANTOM;
     static nsHtml5ElementName* ELT_NOFRAMES;
     static nsHtml5ElementName* ELT_NOSCRIPT;
@@ -472,7 +475,7 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_FECOMPONENTTRANSFER;
   private:
     static nsHtml5ElementName** ELEMENT_NAMES;
-    static staticJArray<int32_t,int32_t> ELEMENT_HASHES;
+    static staticJArray<PRInt32,PRInt32> ELEMENT_HASHES;
   public:
     static void initializeStatics();
     static void releaseStatics();

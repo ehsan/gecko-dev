@@ -2,21 +2,18 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 const trimPref = "browser.urlbar.trimURLs";
-const phishyUserPassPref = "network.http.phishy-userpass-length";
 
 function test() {
 
-  let tab = gBrowser.selectedTab = gBrowser.addTab();
+  gBrowser.selectedTab = gBrowser.addTab();
 
   registerCleanupFunction(function () {
-    gBrowser.removeTab(tab);
+    gBrowser.removeCurrentTab();
     Services.prefs.clearUserPref(trimPref);
-    Services.prefs.clearUserPref(phishyUserPassPref);
     URLBarSetURI();
   });
 
   Services.prefs.setBoolPref(trimPref, true);
-  Services.prefs.setIntPref(phishyUserPassPref, 32); // avoid prompting about phishing
 
   waitForExplicitFinish();
 
@@ -35,6 +32,7 @@ var tests = [
     copyExpected: "e"
   },
 
+
   // pageproxystate="valid" from this point on (due to the load)
   {
     loadURL: "http://example.com/",
@@ -43,7 +41,7 @@ var tests = [
   },
   {
     copyVal: "<example.co>m",
-    copyExpected: "example.co"
+    copyExpected: "http://example.co"
   },
   {
     copyVal: "e<x>ample.com",
@@ -51,28 +49,7 @@ var tests = [
   },
   {
     copyVal: "<e>xample.com",
-    copyExpected: "e"
-  },
-
-  {
-    loadURL: "http://example.com/foo",
-    expectedURL: "example.com/foo",
-    copyExpected: "http://example.com/foo"
-  },
-  {
-    copyVal: "<example.com>/foo",
-    copyExpected: "http://example.com"
-  },
-  {
-    copyVal: "<example>.com/foo",
-    copyExpected: "example"
-  },
-
-  // Test that userPass is stripped out
-  {
-    loadURL: "http://user:pass@mochi.test:8888/browser/browser/base/content/test/authenticate.sjs?user=user&pass=pass",
-    expectedURL: "mochi.test:8888/browser/browser/base/content/test/authenticate.sjs?user=user&pass=pass",
-    copyExpected: "http://mochi.test:8888/browser/browser/base/content/test/authenticate.sjs?user=user&pass=pass"
+    copyExpected: "http://e"
   },
 
   // Test escaping
@@ -102,20 +79,6 @@ var tests = [
   {
     copyVal: "<example.com/\xe9>\xe9",
     copyExpected: "http://example.com/\xe9"
-  },
-
-  {
-    loadURL: "http://example.com/?%C3%B7%C3%B7",
-    expectedURL: "example.com/?\xf7\xf7",
-    copyExpected: "http://example.com/?%C3%B7%C3%B7"
-  },
-  {
-    copyVal: "e<xample.com/?\xf7>\xf7",
-    copyExpected: "xample.com/?\xf7"
-  },
-  {
-    copyVal: "<example.com/?\xf7>\xf7",
-    copyExpected: "http://example.com/?\xf7"
   },
 
   // data: and javsacript: URIs shouldn't be encoded
@@ -154,10 +117,8 @@ function nextTest() {
 
 function runTest(test, cb) {
   function doCheck() {
-    if (test.setURL || test.loadURL) {
-      gURLBar.valueIsTyped = !!test.setURL;
+    if (test.setURL || test.loadURL)
       is(gURLBar.value, test.expectedURL, "url bar value set");
-    }
 
     testCopy(test.copyVal, test.copyExpected, cb);
   }

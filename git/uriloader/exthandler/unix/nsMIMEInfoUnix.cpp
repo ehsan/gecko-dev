@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 3; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
+ *   Wolfgang Rosenauer <wr@rosenauer.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
 #include <glib.h>
@@ -38,11 +72,11 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
 
 #if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
   if (NS_FAILED(rv)){
-    HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nullptr);
+    HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nsnull);
     if (action) {
-      nsAutoCString spec;
+      nsCAutoString spec;
       aURI->GetAsciiSpec(spec);
-      if (hildon_uri_open(spec.get(), action, nullptr))
+      if (hildon_uri_open(spec.get(), action, nsnull))
         rv = NS_OK;
       hildon_uri_action_unref(action);
     }
@@ -51,7 +85,7 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
 
 #ifdef MOZ_WIDGET_QT
   if (NS_FAILED(rv)) {
-    nsAutoCString spec;
+    nsCAutoString spec;
     aURI->GetAsciiSpec(spec);
     if (QDesktopServices::openUrl(QUrl(spec.get()))) {
       rv = NS_OK;
@@ -63,27 +97,27 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
 }
 
 NS_IMETHODIMP
-nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
+nsMIMEInfoUnix::GetHasDefaultHandler(PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mSchemeOrType);
   if (!mimeInfo) {
-    nsAutoCString ext;
+    nsCAutoString ext;
     nsresult rv = GetPrimaryExtension(ext);
     if (NS_SUCCEEDED(rv)) {
       mimeInfo = nsGNOMERegistry::GetFromExtension(ext);
     }
   }
   if (mimeInfo)
-    *_retval = true;
+    *_retval = PR_TRUE;
 
   if (*_retval)
     return NS_OK;
 
 #if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
-  HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nullptr);
+  HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nsnull);
   if (action) {
-    *_retval = true;
+    *_retval = PR_TRUE;
     hildon_uri_action_unref(action);
     return NS_OK;
   }
@@ -93,7 +127,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
   ContentAction::Action action = 
     ContentAction::Action::defaultActionForFile(QUrl(), QString(mSchemeOrType.get()));
   if (action.isValid()) {
-    *_retval = true;
+    *_retval = PR_TRUE;
     return NS_OK;
   }
 #endif
@@ -105,7 +139,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
 nsresult
 nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
 {
-  nsAutoCString nativePath;
+  nsCAutoString nativePath;
   aFile->GetNativePath(nativePath);
 
 #if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
@@ -125,7 +159,7 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
 #endif
 
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
-  nsAutoCString uriSpec;
+  nsCAutoString uriSpec;
   if (giovfs) {
     // nsGIOMimeApp->Launch wants a URI string instead of local file
     nsresult rv;
@@ -153,7 +187,7 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
   // extension mapped type
   nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromExtension(nativePath);
   if (mimeInfo) {
-    nsAutoCString type;
+    nsCAutoString type;
     mimeInfo->GetType(type);
     if (giovfs) {
       nsCOMPtr<nsIGIOMimeApp> app;
@@ -182,8 +216,8 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
 nsresult
 nsMIMEInfoUnix::LaunchDefaultWithDBus(const char *aFilePath)
 {
-  const int32_t kHILDON_SUCCESS = 1;
-  int32_t result = 0;
+  const PRInt32 kHILDON_SUCCESS = 1;
+  PRInt32 result = 0;
   DBusError err;
   dbus_error_init(&err);
   
@@ -193,7 +227,7 @@ nsMIMEInfoUnix::LaunchDefaultWithDBus(const char *aFilePath)
     return NS_ERROR_FAILURE;
   }
 
-  if (nullptr == connection)
+  if (nsnull == connection)
     return NS_ERROR_FAILURE;
 
   result = hildon_mime_open_file_with_mime_type(connection,
@@ -206,13 +240,13 @@ nsMIMEInfoUnix::LaunchDefaultWithDBus(const char *aFilePath)
   return NS_OK;
 }
 
-/* static */ bool
+/* static */ PRBool
 nsMIMEInfoUnix::HandlerExists(const char *aProtocolScheme)
 {
-  bool isEnabled = false;
-  HildonURIAction *action = hildon_uri_get_default_action(aProtocolScheme, nullptr);
+  PRBool isEnabled = PR_FALSE;
+  HildonURIAction *action = hildon_uri_get_default_action(aProtocolScheme, nsnull);
   if (action) {
-    isEnabled = true;
+    isEnabled = PR_TRUE;
     hildon_uri_action_unref(action);
   }
   return isEnabled;
@@ -227,7 +261,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
     if (!mPossibleApplications)
       return NS_ERROR_OUT_OF_MEMORY;
 
-    GSList *actions = hildon_uri_get_actions(mSchemeOrType.get(), nullptr);
+    GSList *actions = hildon_uri_get_actions(mSchemeOrType.get(), nsnull);
     GSList *actionsPtr = actions;
     while (actionsPtr) {
       HildonURIAction *action = (HildonURIAction*)actionsPtr->data;
@@ -258,7 +292,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
       app->SetObjectPath(objpath);
       app->SetDBusInterface(interface);
 
-      mPossibleApplications->AppendElement(app, false);
+      mPossibleApplications->AppendElement(app, PR_FALSE);
     }
     hildon_uri_free_actions(actions);
   }
@@ -286,7 +320,7 @@ nsMIMEInfoUnix::GetPossibleApplicationHandlers(nsIMutableArray ** aPossibleAppHa
       nsContentHandlerApp* app =
         new nsContentHandlerApp(nsString((PRUnichar*)actions[i].name().data()), 
                                 mSchemeOrType, actions[i]);
-      mPossibleApplications->AppendElement(app, false);
+      mPossibleApplications->AppendElement(app, PR_FALSE);
     }
   }
 

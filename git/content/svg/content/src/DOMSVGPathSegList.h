@@ -1,22 +1,49 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla SVG Project code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef MOZILLA_DOMSVGPATHSEGLIST_H__
 #define MOZILLA_DOMSVGPATHSEGLIST_H__
 
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsDebug.h"
 #include "nsIDOMSVGPathSegList.h"
-#include "nsSVGElement.h"
-#include "nsTArray.h"
-#include "SVGPathData.h" // IWYU pragma: keep
-#include "mozilla/Attributes.h"
+#include "SVGPathData.h"
+#include "SVGPathSegUtils.h"
+#include "nsCOMArray.h"
+#include "nsAutoPtr.h"
 
-class nsIDOMSVGPathSeg;
+class nsSVGElement;
 
 namespace mozilla {
 
@@ -48,23 +75,14 @@ class SVGAnimatedPathSegList;
  *
  * Our DOM items are created lazily on demand as and when script requests them.
  */
-class DOMSVGPathSegList MOZ_FINAL : public nsIDOMSVGPathSegList,
-                                    public nsWrapperCache
+class DOMSVGPathSegList : public nsIDOMSVGPathSegList
 {
   friend class DOMSVGPathSeg;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGPathSegList)
+  NS_DECL_CYCLE_COLLECTION_CLASS(DOMSVGPathSegList)
   NS_DECL_NSIDOMSVGPATHSEGLIST
-
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
-                               bool *triedToWrap);
-
-  nsISupports* GetParentObject()
-  {
-    return static_cast<nsIContent*>(mElement);
-  }
 
   /**
    * Factory method to create and return a DOMSVGPathSegList wrapper
@@ -86,12 +104,12 @@ public:
   static already_AddRefed<DOMSVGPathSegList>
   GetDOMWrapper(void *aList,
                 nsSVGElement *aElement,
-                bool aIsAnimValList);
+                PRBool aIsAnimValList);
 
   /**
    * This method returns the DOMSVGPathSegList wrapper for an internal
    * SVGPathData object if it currently has a wrapper. If it does
-   * not, then nullptr is returned.
+   * not, then nsnull is returned.
    */
   static DOMSVGPathSegList*
   GetDOMWrapperIfExists(void *aList);
@@ -100,12 +118,15 @@ public:
    * This will normally be the same as InternalList().CountItems(), except if
    * we've hit OOM, in which case our length will be zero.
    */
-  uint32_t Length() const {
+  PRUint32 Length() const {
     NS_ABORT_IF_FALSE(mItems.Length() == 0 ||
-                      mItems.Length() == InternalList().CountItems(),
+                      mItems.Length() ==
+                        const_cast<DOMSVGPathSegList*>(this)->InternalList().CountItems(),
                       "DOM wrapper's list length is out of sync");
     return mItems.Length();
   }
+
+  nsIDOMSVGPathSeg* GetItemWithoutAddRef(PRUint32 aIndex);
 
   /**
    * WATCH OUT! If you add code to call this on a baseVal wrapper, then you
@@ -129,7 +150,7 @@ public:
    * Returns true if our attribute is animating (in which case our animVal is
    * not simply a mirror of our baseVal).
    */
-  bool AttrIsAnimating() const;
+  PRBool AttrIsAnimating() const;
 
 private:
 
@@ -137,12 +158,10 @@ private:
    * Only our static GetDOMWrapper() factory method may create objects of our
    * type.
    */
-  DOMSVGPathSegList(nsSVGElement *aElement, bool aIsAnimValList)
+  DOMSVGPathSegList(nsSVGElement *aElement, PRBool aIsAnimValList)
     : mElement(aElement)
     , mIsAnimValList(aIsAnimValList)
   {
-    SetIsDOMBinding();
-
     InternalListWillChangeTo(InternalList()); // Sync mItems
   }
 
@@ -153,7 +172,7 @@ private:
   }
 
   /// Used to determine if this list is the baseVal or animVal list.
-  bool IsAnimValList() const {
+  PRBool IsAnimValList() const {
     return mIsAnimValList;
   }
 
@@ -165,27 +184,27 @@ private:
    * get const protection, but our setter methods guard against changing
    * anim val lists.
    */
-  SVGPathData& InternalList() const;
+  SVGPathData& InternalList();
 
-  SVGAnimatedPathSegList& InternalAList() const;
+  SVGAnimatedPathSegList& InternalAList();
 
   /// Creates an instance of the appropriate DOMSVGPathSeg sub-class for
   // aIndex, if it doesn't already exist.
-  void EnsureItemAt(uint32_t aIndex);
+  void EnsureItemAt(PRUint32 aIndex);
 
-  void MaybeInsertNullInAnimValListAt(uint32_t aIndex,
-                                      uint32_t aInternalIndex,
-                                      uint32_t aArgCountForItem);
-  void MaybeRemoveItemFromAnimValListAt(uint32_t aIndex,
-                                        uint32_t aArgCountForItem);
+  void MaybeInsertNullInAnimValListAt(PRUint32 aIndex,
+                                      PRUint32 aInternalIndex,
+                                      PRUint32 aArgCountForItem);
+  void MaybeRemoveItemFromAnimValListAt(PRUint32 aIndex,
+                                        PRUint32 aArgCountForItem);
 
   // Calls UpdateListIndex on all elements in |mItems| that satisfy ItemAt(),
   // from |aStartingIndex| to the end of |mItems|.  Also adjusts
   // |mItems.mInternalDataIndex| by the requested amount.
-  void UpdateListIndicesFromIndex(uint32_t aStartingIndex,
-                                  int32_t  aInternalDataIndexDelta);
+  void UpdateListIndicesFromIndex(PRUint32 aStartingIndex,
+                                  PRInt32  aInternalDataIndexDelta);
 
-  DOMSVGPathSeg*& ItemAt(uint32_t aIndex) {
+  DOMSVGPathSeg*& ItemAt(PRUint32 aIndex) {
     return mItems[aIndex].mItem;
   }
 
@@ -200,13 +219,13 @@ private:
    */
   struct ItemProxy {
     ItemProxy(){}
-    ItemProxy(DOMSVGPathSeg *aItem, uint32_t aInternalDataIndex)
+    ItemProxy(DOMSVGPathSeg *aItem, PRUint32 aInternalDataIndex)
       : mItem(aItem)
       , mInternalDataIndex(aInternalDataIndex)
     {}
 
     DOMSVGPathSeg *mItem;
-    uint32_t mInternalDataIndex;
+    PRUint32 mInternalDataIndex;
   };
 
   // Weak refs to our DOMSVGPathSeg items. The items are friends and take care
@@ -217,7 +236,7 @@ private:
   // ourself, but also for our DOMSVGPathSeg items too.
   nsRefPtr<nsSVGElement> mElement;
 
-  bool mIsAnimValList;
+  PRPackedBool mIsAnimValList;
 };
 
 } // namespace mozilla

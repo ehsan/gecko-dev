@@ -1,12 +1,48 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Personal Security Manager Module
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ * Contributor(s):
+ *   Honza Bambas <honzab@firemni.cz>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsNSSCertificateFakeTransport.h"
 #include "nsCOMPtr.h"
+#include "nsIMutableArray.h"
 #include "nsNSSCertificate.h"
 #include "nsIX509Cert.h"
+#include "nsIX509Cert3.h"
+#include "nsISMimeCert.h"
+#include "nsNSSASN1Object.h"
 #include "nsString.h"
 #include "nsXPIDLString.h"
 #include "nsISupportsPrimitives.h"
@@ -20,19 +56,42 @@ extern PRLogModuleInfo* gPIPNSSLog;
 
 /* nsNSSCertificateFakeTransport */
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(nsNSSCertificateFakeTransport, nsIX509Cert,
+NS_IMPL_THREADSAFE_ISUPPORTS5(nsNSSCertificateFakeTransport, nsIX509Cert,
+                                                nsIX509Cert2,
+                                                nsIX509Cert3,
                                                 nsISerializable,
                                                 nsIClassInfo)
 
 nsNSSCertificateFakeTransport::nsNSSCertificateFakeTransport() :
-  mCertSerialization(nullptr)
+  mCertSerialization(nsnull)
 {
 }
 
 nsNSSCertificateFakeTransport::~nsNSSCertificateFakeTransport()
 {
   if (mCertSerialization)
-    SECITEM_FreeItem(mCertSerialization, true);
+    SECITEM_FreeItem(mCertSerialization, PR_TRUE);
+}
+
+NS_IMETHODIMP
+nsNSSCertificateFakeTransport::GetCertType(PRUint32 *aCertType)
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsNSSCertificateFakeTransport::GetIsSelfSigned(PRBool *aIsSelfSigned)
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsNSSCertificateFakeTransport::MarkForPermDeletion()
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* readonly attribute string dbKey; */
@@ -66,14 +125,14 @@ nsNSSCertificateFakeTransport::GetEmailAddress(nsAString &aEmailAddress)
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetEmailAddresses(uint32_t *aLength, PRUnichar*** aAddresses)
+nsNSSCertificateFakeTransport::GetEmailAddresses(PRUint32 *aLength, PRUnichar*** aAddresses)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::ContainsEmailAddress(const nsAString &aEmailAddress, bool *result)
+nsNSSCertificateFakeTransport::ContainsEmailAddress(const nsAString &aEmailAddress, PRBool *result)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -140,6 +199,13 @@ nsNSSCertificateFakeTransport::GetChain(nsIArray **_rvChain)
 }
 
 NS_IMETHODIMP
+nsNSSCertificateFakeTransport::GetAllTokenNames(PRUint32 *aLength, PRUnichar*** aTokenNames)
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 nsNSSCertificateFakeTransport::GetSubjectName(nsAString &_subjectName)
 {
   NS_NOTREACHED("Unimplemented on content process");
@@ -182,10 +248,25 @@ nsNSSCertificateFakeTransport::GetTokenName(nsAString &aTokenName)
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetRawDER(uint32_t *aLength, uint8_t **aArray)
+nsNSSCertificateFakeTransport::GetRawDER(PRUint32 *aLength, PRUint8 **aArray)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsNSSCertificateFakeTransport::ExportAsCMS(PRUint32 chainMode,
+                              PRUint32 *aLength, PRUint8 **aArray)
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+CERTCertificate *
+nsNSSCertificateFakeTransport::GetCert()
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return nsnull;
 }
 
 NS_IMETHODIMP
@@ -196,16 +277,16 @@ nsNSSCertificateFakeTransport::GetValidity(nsIX509CertValidity **aValidity)
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::VerifyForUsage(uint32_t usage, uint32_t *verificationResult)
+nsNSSCertificateFakeTransport::VerifyForUsage(PRUint32 usage, PRUint32 *verificationResult)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetUsagesArray(bool localOnly,
-                                 uint32_t *_verified,
-                                 uint32_t *_count,
+nsNSSCertificateFakeTransport::GetUsagesArray(PRBool localOnly,
+                                 PRUint32 *_verified,
+                                 PRUint32 *_count,
                                  PRUnichar ***_usages)
 {
   NS_NOTREACHED("Unimplemented on content process");
@@ -213,8 +294,15 @@ nsNSSCertificateFakeTransport::GetUsagesArray(bool localOnly,
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetUsagesString(bool localOnly,
-                                  uint32_t   *_verified,
+nsNSSCertificateFakeTransport::RequestUsagesArrayAsync(nsICertVerificationListener *aResultListener)
+{
+  NS_NOTREACHED("Unimplemented on content process");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsNSSCertificateFakeTransport::GetUsagesString(PRBool localOnly,
+                                  PRUint32   *_verified,
                                   nsAString &_usages)
 {
   NS_NOTREACHED("Unimplemented on content process");
@@ -230,7 +318,7 @@ nsNSSCertificateFakeTransport::GetASN1Structure(nsIASN1Object * *aASN1Structure)
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::Equals(nsIX509Cert *other, bool *result)
+nsNSSCertificateFakeTransport::Equals(nsIX509Cert *other, PRBool *result)
 {
   NS_NOTREACHED("Unimplemented on content process");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -254,7 +342,7 @@ nsNSSCertificateFakeTransport::Write(nsIObjectOutputStream* aStream)
 NS_IMETHODIMP
 nsNSSCertificateFakeTransport::Read(nsIObjectInputStream* aStream)
 {
-  uint32_t len;
+  PRUint32 len;
   nsresult rv = aStream->Read32(&len);
   if (NS_FAILED(rv)) {
     return rv;
@@ -270,7 +358,7 @@ nsNSSCertificateFakeTransport::Read(nsIObjectInputStream* aStream)
   // nsNSSComponent.  nsNSSCertificateFakeTransport object is used only to carry the
   // certificate serialization.
 
-  mCertSerialization = SECITEM_AllocItem(nullptr, nullptr, len);
+  mCertSerialization = SECITEM_AllocItem(nsnull, nsnull, len);
   if (!mCertSerialization)
       return NS_ERROR_OUT_OF_MEMORY;
   PORT_Memcpy(mCertSerialization->data, str.Data(), len);
@@ -279,31 +367,31 @@ nsNSSCertificateFakeTransport::Read(nsIObjectInputStream* aStream)
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetInterfaces(uint32_t *count, nsIID * **array)
+nsNSSCertificateFakeTransport::GetInterfaces(PRUint32 *count, nsIID * **array)
 {
   *count = 0;
-  *array = nullptr;
+  *array = nsnull;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetHelperForLanguage(uint32_t language, nsISupports **_retval)
+nsNSSCertificateFakeTransport::GetHelperForLanguage(PRUint32 language, nsISupports **_retval)
 {
-  *_retval = nullptr;
+  *_retval = nsnull;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsNSSCertificateFakeTransport::GetContractID(char * *aContractID)
 {
-  *aContractID = nullptr;
+  *aContractID = nsnull;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsNSSCertificateFakeTransport::GetClassDescription(char * *aClassDescription)
 {
-  *aClassDescription = nullptr;
+  *aClassDescription = nsnull;
   return NS_OK;
 }
 
@@ -317,14 +405,14 @@ nsNSSCertificateFakeTransport::GetClassID(nsCID * *aClassID)
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetImplementationLanguage(uint32_t *aImplementationLanguage)
+nsNSSCertificateFakeTransport::GetImplementationLanguage(PRUint32 *aImplementationLanguage)
 {
   *aImplementationLanguage = nsIProgrammingLanguage::CPLUSPLUS;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsNSSCertificateFakeTransport::GetFlags(uint32_t *aFlags)
+nsNSSCertificateFakeTransport::GetFlags(PRUint32 *aFlags)
 {
   *aFlags = nsIClassInfo::THREADSAFE;
   return NS_OK;

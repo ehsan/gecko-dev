@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * Axel Hecht.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Axel Hecht <axel@pike.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef TX_XSLT_PATTERNS_H
 #define TX_XSLT_PATTERNS_H
@@ -26,7 +59,7 @@ public:
     /*
      * Determines whether this Pattern matches the given node.
      */
-    virtual bool matches(const txXPathNode& aNode,
+    virtual MBool matches(const txXPathNode& aNode,
                           txIMatchContext* aContext) = 0;
 
     /*
@@ -53,24 +86,24 @@ public:
     /**
      * Returns sub-expression at given position
      */
-    virtual Expr* getSubExprAt(uint32_t aPos) = 0;
+    virtual Expr* getSubExprAt(PRUint32 aPos) = 0;
 
     /**
      * Replace sub-expression at given position. Does not delete the old
      * expression, that is the responsibility of the caller.
      */
-    virtual void setSubExprAt(uint32_t aPos, Expr* aExpr) = 0;
+    virtual void setSubExprAt(PRUint32 aPos, Expr* aExpr) = 0;
 
     /**
      * Returns sub-pattern at given position
      */
-    virtual txPattern* getSubPatternAt(uint32_t aPos) = 0;
+    virtual txPattern* getSubPatternAt(PRUint32 aPos) = 0;
 
     /**
      * Replace sub-pattern at given position. Does not delete the old
      * pattern, that is the responsibility of the caller.
      */
-    virtual void setSubPatternAt(uint32_t aPos, txPattern* aPattern) = 0;
+    virtual void setSubPatternAt(PRUint32 aPos, txPattern* aPattern) = 0;
 
 #ifdef TX_TO_STRING
     /*
@@ -86,12 +119,12 @@ public:
 };
 
 #define TX_DECL_PATTERN_BASE \
-    bool matches(const txXPathNode& aNode, txIMatchContext* aContext); \
+    MBool matches(const txXPathNode& aNode, txIMatchContext* aContext); \
     double getDefaultPriority(); \
-    virtual Expr* getSubExprAt(uint32_t aPos); \
-    virtual void setSubExprAt(uint32_t aPos, Expr* aExpr); \
-    virtual txPattern* getSubPatternAt(uint32_t aPos); \
-    virtual void setSubPatternAt(uint32_t aPos, txPattern* aPattern)
+    virtual Expr* getSubExprAt(PRUint32 aPos); \
+    virtual void setSubExprAt(PRUint32 aPos, Expr* aExpr); \
+    virtual txPattern* getSubPatternAt(PRUint32 aPos); \
+    virtual void setSubPatternAt(PRUint32 aPos, txPattern* aPattern)
 
 #ifndef TX_TO_STRING
 #define TX_DECL_PATTERN TX_DECL_PATTERN_BASE
@@ -103,24 +136,24 @@ public:
 
 #define TX_IMPL_PATTERN_STUBS_NO_SUB_EXPR(_class)             \
 Expr*                                                         \
-_class::getSubExprAt(uint32_t aPos)                           \
+_class::getSubExprAt(PRUint32 aPos)                           \
 {                                                             \
-    return nullptr;                                            \
+    return nsnull;                                            \
 }                                                             \
 void                                                          \
-_class::setSubExprAt(uint32_t aPos, Expr* aExpr)              \
+_class::setSubExprAt(PRUint32 aPos, Expr* aExpr)              \
 {                                                             \
     NS_NOTREACHED("setting bad subexpression index");         \
 }
 
 #define TX_IMPL_PATTERN_STUBS_NO_SUB_PATTERN(_class)          \
 txPattern*                                                    \
-_class::getSubPatternAt(uint32_t aPos)                        \
+_class::getSubPatternAt(PRUint32 aPos)                        \
 {                                                             \
-    return nullptr;                                            \
+    return nsnull;                                            \
 }                                                             \
 void                                                          \
-_class::setSubPatternAt(uint32_t aPos, txPattern* aPattern)   \
+_class::setSubPatternAt(PRUint32 aPos, txPattern* aPattern)   \
 {                                                             \
     NS_NOTREACHED("setting bad subexpression index");         \
 }
@@ -144,7 +177,7 @@ private:
 class txLocPathPattern : public txPattern
 {
 public:
-    nsresult addStep(txPattern* aPattern, bool isChild);
+    nsresult addStep(txPattern* aPattern, PRBool isChild);
 
     TX_DECL_PATTERN;
 
@@ -152,7 +185,7 @@ private:
     class Step {
     public:
         nsAutoPtr<txPattern> pattern;
-        bool isChild;
+        PRBool isChild;
     };
 
     nsTArray<Step> mSteps;
@@ -163,7 +196,7 @@ class txRootPattern : public txPattern
 public:
 #ifdef TX_TO_STRING
     txRootPattern()
-        : mSerialize(true)
+        : mSerialize(PR_TRUE)
     {
     }
 #endif
@@ -172,14 +205,14 @@ public:
 
 #ifdef TX_TO_STRING
 public:
-    void setSerialize(bool aSerialize)
+    void setSerialize(PRBool aSerialize)
     {
         mSerialize = aSerialize;
     }
 
 private:
     // Don't serialize txRootPattern if it's used in a txLocPathPattern
-    bool mSerialize;
+    PRBool mSerialize;
 #endif
 };
 
@@ -198,7 +231,7 @@ class txKeyPattern : public txPattern
 {
 public:
     txKeyPattern(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                 int32_t aNSID, const nsAString& aValue)
+                 PRInt32 aNSID, const nsAString& aValue)
         : mName(aNSID, aLocalName),
 #ifdef TX_TO_STRING
           mPrefix(aPrefix),
@@ -221,7 +254,7 @@ class txStepPattern : public txPattern,
                       public PredicateList
 {
 public:
-    txStepPattern(txNodeTest* aNodeTest, bool isAttr)
+    txStepPattern(txNodeTest* aNodeTest, PRBool isAttr)
         : mNodeTest(aNodeTest), mIsAttr(isAttr)
     {
     }
@@ -241,7 +274,7 @@ public:
 
 private:
     nsAutoPtr<txNodeTest> mNodeTest;
-    bool mIsAttr;
+    PRBool mIsAttr;
 };
 
 #endif // TX_XSLT_PATTERNS_H

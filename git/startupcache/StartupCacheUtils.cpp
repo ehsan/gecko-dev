@@ -1,6 +1,41 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Startup Cache.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation <http://www.mozilla.org/>.
+ * Portions created by the Initial Developer are Copyright (C) 2009-2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Benedict Hsieh <bhsieh@mozilla.com>
+ *  Taras Glek <tglek@mozilla.com>
+ *  Mike Hommey <mh@glandium.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCOMPtr.h"
 #include "nsIInputStream.h"
@@ -18,8 +53,8 @@ namespace mozilla {
 namespace scache {
 
 NS_EXPORT nsresult
-NewObjectInputStreamFromBuffer(char* buffer, uint32_t len, 
-                               nsIObjectInputStream** stream)
+NS_NewObjectInputStreamFromBuffer(char* buffer, PRUint32 len, 
+                                  nsIObjectInputStream** stream)
 {
   nsCOMPtr<nsIStringInputStream> stringStream
     = do_CreateInstance("@mozilla.org/io/string-input-stream;1");
@@ -34,9 +69,9 @@ NewObjectInputStreamFromBuffer(char* buffer, uint32_t len,
 }
 
 NS_EXPORT nsresult
-NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
-                                    nsIStorageStream** stream,
-                                    bool wantDebugStream)
+NS_NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
+                                       nsIStorageStream** stream,
+                                       PRBool wantDebugStream)
 {
   nsCOMPtr<nsIStorageStream> storageStream;
 
@@ -71,22 +106,19 @@ NewObjectOutputWrappedStorageStream(nsIObjectOutputStream **wrapperStream,
 }
 
 NS_EXPORT nsresult
-NewBufferFromStorageStream(nsIStorageStream *storageStream, 
-                           char** buffer, uint32_t* len) 
+NS_NewBufferFromStorageStream(nsIStorageStream *storageStream, 
+                              char** buffer, PRUint32* len) 
 {
   nsresult rv;
   nsCOMPtr<nsIInputStream> inputStream;
   rv = storageStream->NewInputStream(0, getter_AddRefs(inputStream));
   NS_ENSURE_SUCCESS(rv, rv);
   
-  uint64_t avail64;
-  rv = inputStream->Available(&avail64);
+  PRUint32 avail, read;
+  rv = inputStream->Available(&avail);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(avail64 <= PR_UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
-
-  uint32_t avail = (uint32_t)avail64;
+  
   nsAutoArrayPtr<char> temp (new char[avail]);
-  uint32_t read;
   rv = inputStream->Read(temp, avail, &read);
   if (NS_SUCCEEDED(rv) && avail != read)
     rv = NS_ERROR_UNEXPECTED;
@@ -102,24 +134,24 @@ NewBufferFromStorageStream(nsIStorageStream *storageStream,
 
 static const char baseName[2][5] = { "gre/", "app/" };
 
-static inline bool
-canonicalizeBase(nsAutoCString &spec,
+static inline PRBool
+canonicalizeBase(nsCAutoString &spec,
                  nsACString &out,
                  mozilla::Omnijar::Type aType)
 {
-    nsAutoCString base;
+    nsCAutoString base;
     nsresult rv = mozilla::Omnijar::GetURIString(aType, base);
 
     if (NS_FAILED(rv) || !base.Length())
-        return false;
+        return PR_FALSE;
 
-    if (base.Compare(spec.get(), false, base.Length()))
-        return false;
+    if (base.Compare(spec.get(), PR_FALSE, base.Length()))
+        return PR_FALSE;
 
     out.Append("/resource/");
     out.Append(baseName[aType]);
     out.Append(Substring(spec, base.Length()));
-    return true;
+    return PR_TRUE;
 }
 
 /**
@@ -148,12 +180,12 @@ canonicalizeBase(nsAutoCString &spec,
  *     jsloader/$PROFILE_DIR/extensions/some.xpi/components/component.js
  */
 NS_EXPORT nsresult
-PathifyURI(nsIURI *in, nsACString &out)
+NS_PathifyURI(nsIURI *in, nsACString &out)
 {
-    bool equals;
+    PRBool equals;
     nsresult rv;
     nsCOMPtr<nsIURI> uri = in;
-    nsAutoCString spec;
+    nsCAutoString spec;
 
     // Resolve resource:// URIs. At the end of this if/else block, we
     // have both spec and uri variables identifying the same URI.
@@ -171,7 +203,7 @@ PathifyURI(nsIURI *in, nsACString &out)
         rv = irph->ResolveURI(in, spec);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        rv = ioService->NewURI(spec, nullptr, nullptr, getter_AddRefs(uri));
+        rv = ioService->NewURI(spec, nsnull, nsnull, getter_AddRefs(uri));
         NS_ENSURE_SUCCESS(rv, rv);
     } else {
         if (NS_SUCCEEDED(in->SchemeIs("chrome", &equals)) && equals) {
@@ -195,7 +227,7 @@ PathifyURI(nsIURI *in, nsACString &out)
             baseFileURL = do_QueryInterface(uri, &rv);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            nsAutoCString path;
+            nsCAutoString path;
             rv = baseFileURL->GetPath(path);
             NS_ENSURE_SUCCESS(rv, rv);
 
@@ -208,16 +240,16 @@ PathifyURI(nsIURI *in, nsACString &out)
             rv = jarURI->GetJARFile(getter_AddRefs(jarFileURI));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            rv = PathifyURI(jarFileURI, out);
+            rv = NS_PathifyURI(jarFileURI, out);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            nsAutoCString path;
+            nsCAutoString path;
             rv = jarURI->GetJAREntry(path);
             NS_ENSURE_SUCCESS(rv, rv);
             out.Append("/");
             out.Append(path);
         } else { // Very unlikely
-            nsAutoCString spec;
+            nsCAutoString spec;
             rv = uri->GetSpec(spec);
             NS_ENSURE_SUCCESS(rv, rv);
 

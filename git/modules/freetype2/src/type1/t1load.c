@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Type 1 font loader (body).                                           */
 /*                                                                         */
-/*  Copyright 1996-2012 by                                                 */
+/*  Copyright 1996-2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009 by */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -302,7 +302,7 @@
                  FT_MM_Var*  *master )
   {
     FT_Memory        memory = face->root.memory;
-    FT_MM_Var       *mmvar = NULL;
+    FT_MM_Var       *mmvar;
     FT_Multi_Master  mmaster;
     FT_Error         error;
     FT_UInt          i;
@@ -896,7 +896,7 @@
   }
 
 
-#endif /* !T1_CONFIG_OPTION_NO_MM_SUPPORT */
+#endif /* T1_CONFIG_OPTION_NO_MM_SUPPORT */
 
 
 
@@ -920,9 +920,6 @@
     FT_UInt   max_objects;
     PS_Blend  blend = face->blend;
 
-
-    if ( blend && blend->num_designs == 0 )
-      blend = NULL;
 
     /* if the keyword has a dedicated callback, call it */
     if ( field->type == T1_FIELD_TYPE_CALLBACK )
@@ -1048,8 +1045,7 @@
 
     if ( cur < limit && ft_isdigit( *cur ) )
     {
-      FT_Long  s = T1_ToInt( parser );
-
+      *size = T1_ToInt( parser );
 
       T1_Skip_PS_Token( parser );   /* `RD' or `-|' or something else */
 
@@ -1057,12 +1053,8 @@
       /* `RD' or `-|' token                          */
       *base = parser->root.cursor + 1;
 
-      if ( s >= 0 && s < limit - *base )
-      {
-        parser->root.cursor += s + 1;
-        *size = s;
-        return !parser->root.error;
-      }
+      parser->root.cursor += *size + 1;
+      return !parser->root.error;
     }
 
     FT_ERROR(( "read_binary_data: invalid size field\n" ));
@@ -1075,8 +1067,8 @@
   /* and `/CharStrings' dictionaries.                                */
 
   static void
-  t1_parse_font_matrix( T1_Face    face,
-                        T1_Loader  loader )
+  parse_font_matrix( T1_Face    face,
+                     T1_Loader  loader )
   {
     T1_Parser   parser = &loader->parser;
     FT_Matrix*  matrix = &face->type1.font_matrix;
@@ -1099,7 +1091,7 @@
 
     if ( temp_scale == 0 )
     {
-      FT_ERROR(( "t1_parse_font_matrix: invalid font matrix\n" ));
+      FT_ERROR(( "parse_font_matrix: invalid font matrix\n" ));
       parser->root.error = T1_Err_Invalid_File_Format;
       return;
     }
@@ -1119,7 +1111,7 @@
       temp[2] = FT_DivFix( temp[2], temp_scale );
       temp[4] = FT_DivFix( temp[4], temp_scale );
       temp[5] = FT_DivFix( temp[5], temp_scale );
-      temp[3] = temp[3] < 0 ? -0x10000L : 0x10000L;
+      temp[3] = 0x10000L;
     }
 
     matrix->xx = temp[0];
@@ -1388,8 +1380,7 @@
 
 
       /* If the next token isn't `dup' we are done. */
-      if ( parser->root.cursor + 4 < parser->root.limit            &&
-           ft_strncmp( (char*)parser->root.cursor, "dup", 3 ) != 0 )
+      if ( ft_strncmp( (char*)parser->root.cursor, "dup", 3 ) != 0 )
         break;
 
       T1_Skip_PS_Token( parser );       /* `dup' */
@@ -1408,8 +1399,7 @@
         return;
       T1_Skip_Spaces  ( parser );
 
-      if ( parser->root.cursor + 4 < parser->root.limit            &&
-           ft_strncmp( (char*)parser->root.cursor, "put", 3 ) == 0 )
+      if ( ft_strncmp( (char*)parser->root.cursor, "put", 3 ) == 0 )
       {
         T1_Skip_PS_Token( parser ); /* skip `put' */
         T1_Skip_Spaces  ( parser );
@@ -1774,7 +1764,7 @@
 #include "t1tokens.h"
 
     /* now add the special functions... */
-    T1_FIELD_CALLBACK( "FontMatrix",           t1_parse_font_matrix,
+    T1_FIELD_CALLBACK( "FontMatrix",           parse_font_matrix,
                        T1_FIELD_DICT_FONTDICT )
     T1_FIELD_CALLBACK( "Encoding",             parse_encoding,
                        T1_FIELD_DICT_FONTDICT )
@@ -2142,10 +2132,8 @@
         }
       }
     }
-    else
-      face->len_buildchar = 0;
 
-#endif /* !T1_CONFIG_OPTION_NO_MM_SUPPORT */
+#endif /* T1_CONFIG_OPTION_NO_MM_SUPPORT */
 
     /* now, propagate the subrs, charstrings, and glyphnames tables */
     /* to the Type1 data                                            */
@@ -2192,7 +2180,7 @@
       /* OK, we do the following: for each element in the encoding  */
       /* table, look up the index of the glyph having the same name */
       /* the index is then stored in type1.encoding.char_index, and */
-      /* the name to type1.encoding.char_name                       */
+      /* a the name to type1.encoding.char_name                     */
 
       min_char = 0;
       max_char = 0;

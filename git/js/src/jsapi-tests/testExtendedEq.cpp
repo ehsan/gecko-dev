@@ -4,16 +4,12 @@
  * This tests user-specified (via JSExtendedClass) equality operations on
  * trace.
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 
 #include "tests.h"
 #include "jsobj.h"
 
 static JSBool
-my_Equality(JSContext *cx, JS::HandleObject obj, JS::HandleValue, JSBool *bp)
+my_Equality(JSContext *cx, JSObject *obj, const jsval *, JSBool *bp)
 {
     *bp = JS_TRUE;
     return JS_TRUE;
@@ -22,25 +18,27 @@ my_Equality(JSContext *cx, JS::HandleObject obj, JS::HandleValue, JSBool *bp)
 js::Class TestExtendedEq_JSClass = {
     "TestExtendedEq",
     0,
-    JS_PropertyStub,       /* addProperty */
-    JS_PropertyStub,       /* delProperty */
-    JS_PropertyStub,       /* getProperty */
-    JS_StrictPropertyStub, /* setProperty */
+    js::PropertyStub,       /* addProperty */
+    js::PropertyStub,       /* delProperty */
+    js::PropertyStub,       /* getProperty */
+    js::StrictPropertyStub, /* setProperty */
     JS_EnumerateStub,
     JS_ResolveStub,
-    NULL,                  /* convert */
-    NULL,                  /* finalize */
-    NULL,                  /* checkAccess */
-    NULL,                  /* call        */
-    NULL,                  /* construct   */
-    NULL,                  /* hasInstance */
-    NULL,                  /* mark        */
+    NULL,           /* convert */
+    NULL,           /* finalize */
+    NULL,           /* reserved0   */
+    NULL,           /* checkAccess */
+    NULL,           /* call        */
+    NULL,           /* construct   */
+    NULL,           /* xdrObject   */
+    NULL,           /* hasInstance */
+    NULL,           /* mark        */
     {
-        my_Equality,
-        NULL,              /* outerObject    */
-        NULL,              /* innerObject    */
-        NULL,              /* iteratorObject */
-        NULL,              /* wrappedObject  */
+        js::Valueify(my_Equality),
+        NULL, /* outerObject    */
+        NULL, /* innerObject    */
+        NULL, /* iteratorObject */
+        NULL, /* wrappedObject  */
     }
 };
 

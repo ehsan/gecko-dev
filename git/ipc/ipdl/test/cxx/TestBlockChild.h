@@ -20,21 +20,23 @@ public:
     { }
     virtual ~TestBlockChildParent() { }
 
-    static bool RunTestInProcesses() { return true; }
-    static bool RunTestInThreads() { return true; }
-
     void Main();
 
 protected:
-    virtual bool AnswerStackFrame() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerStackFrame();
 
-    virtual bool RecvP1() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvP1();
 
-    virtual bool RecvP2() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvP2();
 
-    virtual bool RecvDone() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvDone();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");  
@@ -60,15 +62,20 @@ public:
     virtual ~TestBlockChildChild() { }
 
 protected:
-    virtual bool RecvPoke1() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvPoke1();
 
-    virtual bool AnswerStackFrame() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerStackFrame();
 
-    virtual bool RecvPoke2() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvPoke2();
 
-    virtual bool RecvLastPoke() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvLastPoke();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * A class which represents a fragment of text (eg inside a text
@@ -31,7 +63,7 @@ nsresult
 nsTextFragment::Init()
 {
   // Create whitespace strings
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i <= TEXTFRAG_MAX_NEWLINES; ++i) {
     sSpaceSharedString[i] = new char[1 + i + TEXTFRAG_WHITE_AFTER_NEWLINE];
     sTabSharedString[i] = new char[1 + i + TEXTFRAG_WHITE_AFTER_NEWLINE];
@@ -39,7 +71,7 @@ nsTextFragment::Init()
                    NS_ERROR_OUT_OF_MEMORY);
     sSpaceSharedString[i][0] = ' ';
     sTabSharedString[i][0] = ' ';
-    uint32_t j;
+    PRUint32 j;
     for (j = 1; j < 1 + i; ++j) {
       sSpaceSharedString[i][j] = '\n';
       sTabSharedString[i][j] = '\n';
@@ -62,12 +94,12 @@ nsTextFragment::Init()
 void
 nsTextFragment::Shutdown()
 {
-  uint32_t  i;
+  PRUint32  i;
   for (i = 0; i <= TEXTFRAG_MAX_NEWLINES; ++i) {
     delete [] sSpaceSharedString[i];
     delete [] sTabSharedString[i];
-    sSpaceSharedString[i] = nullptr;
-    sTabSharedString[i] = nullptr;
+    sSpaceSharedString[i] = nsnull;
+    sTabSharedString[i] = nsnull;
   }
 }
 
@@ -84,8 +116,7 @@ nsTextFragment::ReleaseText()
     nsMemory::Free(m2b); // m1b == m2b as far as nsMemory is concerned
   }
 
-  m1b = nullptr;
-  mState.mIsBidi = false;
+  m1b = nsnull;
 
   // Set mState.mIs2b, mState.mInHeap, and mState.mLength = 0 with mAllBits;
   mAllBits = 0;
@@ -114,78 +145,71 @@ nsTextFragment::operator=(const nsTextFragment& aOther)
   return *this;
 }
 
-static inline int32_t
-FirstNon8BitUnvectorized(const PRUnichar *str, const PRUnichar *end)
+static inline PRBool
+Is8BitUnvectorized(const PRUnichar *str, const PRUnichar *end)
 {
 #if PR_BYTES_PER_WORD == 4
   const size_t mask = 0xff00ff00;
-  const uint32_t alignMask = 0x3;
-  const uint32_t numUnicharsPerWord = 2;
+  const PRUint32 alignMask = 0x3;
+  const PRUint32 numUnicharsPerWord = 2;
 #elif PR_BYTES_PER_WORD == 8
   const size_t mask = 0xff00ff00ff00ff00;
-  const uint32_t alignMask = 0x7;
-  const uint32_t numUnicharsPerWord = 4;
+  const PRUint32 alignMask = 0x7;
+  const PRUint32 numUnicharsPerWord = 4;
 #else
 #error Unknown platform!
 #endif
 
-  const int32_t len = end - str;
-  int32_t i = 0;
+  const PRInt32 len = end - str;
+  PRInt32 i = 0;
 
   // Align ourselves to a word boundary.
-  int32_t alignLen =
-    NS_MIN(len, int32_t(((-NS_PTR_TO_INT32(str)) & alignMask) / sizeof(PRUnichar)));
+  PRInt32 alignLen =
+    NS_MIN(len, PRInt32(((-NS_PTR_TO_INT32(str)) & alignMask) / sizeof(PRUnichar)));
   for (; i < alignLen; i++) {
     if (str[i] > 255)
-      return i;
+      return PR_FALSE;
   }
 
   // Check one word at a time.
-  const int32_t wordWalkEnd = ((len - i) / numUnicharsPerWord) * numUnicharsPerWord;
+  const PRInt32 wordWalkEnd = ((len - i) / numUnicharsPerWord) * numUnicharsPerWord;
   for (; i < wordWalkEnd; i += numUnicharsPerWord) {
     const size_t word = *reinterpret_cast<const size_t*>(str + i);
     if (word & mask)
-      return i;
+      return PR_FALSE;
   }
 
   // Take care of the remainder one character at a time.
   for (; i < len; i++) {
     if (str[i] > 255)
-      return i;
+      return PR_FALSE;
   }
 
-  return -1;
+  return PR_TRUE;
 }
 
 #ifdef MOZILLA_MAY_SUPPORT_SSE2
 namespace mozilla {
   namespace SSE2 {
-    int32_t FirstNon8Bit(const PRUnichar *str, const PRUnichar *end);
+    PRBool Is8Bit(const PRUnichar *str, const PRUnichar *end);
   }
 }
 #endif
 
-/*
- * This function returns -1 if all characters in str are 8 bit characters.
- * Otherwise, it returns a value less than or equal to the index of the first
- * non-8bit character in str. For example, if first non-8bit character is at
- * position 25, it may return 25, or for example 24, or 16. But it guarantees
- * there is no non-8bit character before returned value.
- */
-static inline int32_t
-FirstNon8Bit(const PRUnichar *str, const PRUnichar *end)
+static inline PRBool
+Is8Bit(const PRUnichar *str, const PRUnichar *end)
 {
 #ifdef MOZILLA_MAY_SUPPORT_SSE2
   if (mozilla::supports_sse2()) {
-    return mozilla::SSE2::FirstNon8Bit(str, end);
+    return mozilla::SSE2::Is8Bit(str, end);
   }
 #endif
 
-  return FirstNon8BitUnvectorized(str, end);
+  return Is8BitUnvectorized(str, end);
 }
 
 void
-nsTextFragment::SetTo(const PRUnichar* aBuffer, int32_t aLength, bool aUpdateBidi)
+nsTextFragment::SetTo(const PRUnichar* aBuffer, PRInt32 aLength)
 {
   ReleaseText();
 
@@ -196,8 +220,8 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, int32_t aLength, bool aUpdateBid
   PRUnichar firstChar = *aBuffer;
   if (aLength == 1 && firstChar < 256) {
     m1b = sSingleCharSharedString + firstChar;
-    mState.mInHeap = false;
-    mState.mIs2b = false;
+    mState.mInHeap = PR_FALSE;
+    mState.mIs2b = PR_FALSE;
     mState.mLength = 1;
 
     return;
@@ -235,8 +259,8 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, int32_t aLength, bool aUpdateBid
         ++m1b;
       }
 
-      mState.mInHeap = false;
-      mState.mIs2b = false;
+      mState.mInHeap = PR_FALSE;
+      mState.mIs2b = PR_FALSE;
       mState.mLength = aLength;
 
       return;        
@@ -244,21 +268,15 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, int32_t aLength, bool aUpdateBid
   }
 
   // See if we need to store the data in ucs2 or not
-  int32_t first16bit = FirstNon8Bit(ucp, uend);
+  PRBool need2 = !Is8Bit(ucp, uend);
 
-  if (first16bit != -1) { // aBuffer contains no non-8bit character
+  if (need2) {
     // Use ucs2 storage because we have to
     m2b = (PRUnichar *)nsMemory::Clone(aBuffer,
                                        aLength * sizeof(PRUnichar));
     if (!m2b) {
       return;
     }
-
-    mState.mIs2b = true;
-    if (aUpdateBidi) {
-      UpdateBidiFlag(aBuffer + first16bit, aLength - first16bit);
-    }
-
   } else {
     // Use 1 byte storage because we can
     char* buff = (char *)nsMemory::Alloc(aLength * sizeof(char));
@@ -270,16 +288,16 @@ nsTextFragment::SetTo(const PRUnichar* aBuffer, int32_t aLength, bool aUpdateBid
     LossyConvertEncoding16to8 converter(buff);
     copy_string(aBuffer, aBuffer+aLength, converter);
     m1b = buff;
-    mState.mIs2b = false;
   }
 
   // Setup our fields
-  mState.mInHeap = true;
+  mState.mInHeap = PR_TRUE;
+  mState.mIs2b = need2;
   mState.mLength = aLength;
 }
 
 void
-nsTextFragment::CopyTo(PRUnichar *aDest, int32_t aOffset, int32_t aCount)
+nsTextFragment::CopyTo(PRUnichar *aDest, PRInt32 aOffset, PRInt32 aCount)
 {
   NS_ASSERTION(aOffset >= 0, "Bad offset passed to nsTextFragment::CopyTo()!");
   NS_ASSERTION(aCount >= 0, "Bad count passed to nsTextFragment::CopyTo()!");
@@ -288,7 +306,7 @@ nsTextFragment::CopyTo(PRUnichar *aDest, int32_t aOffset, int32_t aCount)
     aOffset = 0;
   }
 
-  if (uint32_t(aOffset + aCount) > GetLength()) {
+  if (PRUint32(aOffset + aCount) > GetLength()) {
     aCount = mState.mLength - aOffset;
   }
 
@@ -305,12 +323,12 @@ nsTextFragment::CopyTo(PRUnichar *aDest, int32_t aOffset, int32_t aCount)
 }
 
 void
-nsTextFragment::Append(const PRUnichar* aBuffer, uint32_t aLength, bool aUpdateBidi)
+nsTextFragment::Append(const PRUnichar* aBuffer, PRUint32 aLength)
 {
   // This is a common case because some callsites create a textnode
   // with a value by creating the node and then calling AppendData.
   if (mState.mLength == 0) {
-    SetTo(aBuffer, aLength, aUpdateBidi);
+    SetTo(aBuffer, aLength);
 
     return;
   }
@@ -323,22 +341,17 @@ nsTextFragment::Append(const PRUnichar* aBuffer, uint32_t aLength, bool aUpdateB
     if (!buff) {
       return;
     }
-
+    
     memcpy(buff + mState.mLength, aBuffer, aLength * sizeof(PRUnichar));
     mState.mLength += aLength;
     m2b = buff;
-
-    if (aUpdateBidi) {
-      UpdateBidiFlag(aBuffer, aLength);
-    }
 
     return;
   }
 
   // Current string is a 1-byte string, check if the new data fits in one byte too.
-  int32_t first16bit = FirstNon8Bit(aBuffer, aBuffer + aLength);
 
-  if (first16bit != -1) { // aBuffer contains no non-8bit character
+  if (!Is8Bit(aBuffer, aBuffer + aLength)) {
     // The old data was 1-byte, but the new is not so we have to expand it
     // all to 2-byte
     PRUnichar* buff = (PRUnichar*)nsMemory::Alloc((mState.mLength + aLength) *
@@ -352,19 +365,16 @@ nsTextFragment::Append(const PRUnichar* aBuffer, uint32_t aLength, bool aUpdateB
     copy_string(m1b, m1b+mState.mLength, converter);
 
     memcpy(buff + mState.mLength, aBuffer, aLength * sizeof(PRUnichar));
+
     mState.mLength += aLength;
-    mState.mIs2b = true;
+    mState.mIs2b = PR_TRUE;
 
     if (mState.mInHeap) {
       nsMemory::Free(m2b);
     }
     m2b = buff;
 
-    mState.mInHeap = true;
-
-    if (aUpdateBidi) {
-      UpdateBidiFlag(aBuffer + first16bit, aLength - first16bit);
-    }
+    mState.mInHeap = PR_TRUE;
 
     return;
   }
@@ -385,7 +395,7 @@ nsTextFragment::Append(const PRUnichar* aBuffer, uint32_t aLength, bool aUpdateB
     }
 
     memcpy(buff, m1b, mState.mLength);
-    mState.mInHeap = true;
+    mState.mInHeap = PR_TRUE;
   }
 
   // Copy aBuffer into buff.
@@ -397,31 +407,17 @@ nsTextFragment::Append(const PRUnichar* aBuffer, uint32_t aLength, bool aUpdateB
 
 }
 
-/* virtual */ size_t
-nsTextFragment::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  if (Is2b()) {
-    return aMallocSizeOf(m2b);
-  }
-
-  if (mState.mInHeap) {
-    return aMallocSizeOf(m1b);
-  }
-
-  return 0;
-}
-
 // To save time we only do this when we really want to know, not during
 // every allocation
 void
-nsTextFragment::UpdateBidiFlag(const PRUnichar* aBuffer, uint32_t aLength)
+nsTextFragment::UpdateBidiFlag(const PRUnichar* aBuffer, PRUint32 aLength)
 {
   if (mState.mIs2b && !mState.mIsBidi) {
     const PRUnichar* cp = aBuffer;
     const PRUnichar* end = cp + aLength;
     while (cp < end) {
       PRUnichar ch1 = *cp++;
-      uint32_t utf32Char = ch1;
+      PRUint32 utf32Char = ch1;
       if (NS_IS_HIGH_SURROGATE(ch1) &&
           cp < end &&
           NS_IS_LOW_SURROGATE(*cp)) {
@@ -429,7 +425,7 @@ nsTextFragment::UpdateBidiFlag(const PRUnichar* aBuffer, uint32_t aLength)
         utf32Char = SURROGATE_TO_UCS4(ch1, ch2);
       }
       if (UTF32_CHAR_IS_BIDI(utf32Char) || IS_BIDI_CONTROL_CHAR(utf32Char)) {
-        mState.mIsBidi = true;
+        mState.mIsBidi = PR_TRUE;
         break;
       }
     }

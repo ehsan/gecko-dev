@@ -12,7 +12,7 @@
 #ifndef VPX_PORTS_X86_H
 #define VPX_PORTS_X86_H
 #include <stdlib.h>
-#include "vpx_config.h"
+#include "config.h"
 
 typedef enum
 {
@@ -94,7 +94,6 @@ void __cpuid(int CPUInfo[4], int info_type);
 #define HAS_SSE2  0x04
 #define HAS_SSE3  0x08
 #define HAS_SSSE3 0x10
-#define HAS_SSE4_1 0x20
 #ifndef BIT
 #define BIT(n) (1<<n)
 #endif
@@ -138,8 +137,6 @@ x86_simd_caps(void)
 
     if (reg_ecx & BIT(9))  flags |= HAS_SSSE3;
 
-    if (reg_ecx & BIT(19)) flags |= HAS_SSE4_1;
-
     return flags & mask;
 }
 
@@ -178,8 +175,8 @@ x86_readtsc(void)
     asm volatile ("pause \n\t")
 #else
 #if ARCH_X86_64
-#define x86_pause_hint()\
-    _mm_pause();
+/* No pause intrinsic for windows x64 */
+#define x86_pause_hint()
 #else
 #define x86_pause_hint()\
     __asm pause

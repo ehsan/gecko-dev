@@ -1,6 +1,43 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Places Browser Integration
+#
+# The Initial Developer of the Original Code is Google Inc.
+# Portions created by the Initial Developer are Copyright (C) 2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <beng@google.com>
+#   Annie Sullivan <annie.sullivan@gmail.com>
+#   Joe Hughes <joe@retrovirus.com>
+#   Asaf Romano <mano@mozilla.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#   Marco Bonardo <mak77@bonardo.net>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 
 var StarUI = {
@@ -64,25 +101,25 @@ var StarUI = {
           this._restoreCommandsState();
           this._itemId = -1;
           if (this._batching) {
-            PlacesUtils.transactionManager.endBatch();
+            PlacesUIUtils.ptm.endBatch();
             this._batching = false;
           }
 
           switch (this._actionOnHide) {
             case "cancel": {
-              PlacesUtils.transactionManager.undoTransaction();
+              PlacesUIUtils.ptm.undoTransaction();
               break;
             }
             case "remove": {
               // Remove all bookmarks for the bookmark's url, this also removes
               // the tags for the url.
-              PlacesUtils.transactionManager.beginBatch();
+              PlacesUIUtils.ptm.beginBatch();
               let itemIds = PlacesUtils.getBookmarksForURI(this._uriForRemoval);
               for (let i = 0; i < itemIds.length; i++) {
-                let txn = new PlacesRemoveItemTransaction(itemIds[i]);
-                PlacesUtils.transactionManager.doTransaction(txn);
+                let txn = PlacesUIUtils.ptm.removeItem(itemIds[i]);
+                PlacesUIUtils.ptm.doTransaction(txn);
               }
-              PlacesUtils.transactionManager.endBatch();
+              PlacesUIUtils.ptm.endBatch();
               break;
             }
           }
@@ -90,7 +127,7 @@ var StarUI = {
         }
         break;
       case "keypress":
-        if (aEvent.defaultPrevented) {
+        if (aEvent.getPreventDefault()) {
           // The event has already been consumed inside of the panel.
           break;
         }
@@ -103,7 +140,7 @@ var StarUI = {
             if (aEvent.target.className == "expander-up" ||
                 aEvent.target.className == "expander-down" ||
                 aEvent.target.id == "editBMPanel_newFolderButton") {
-              //XXX Why is this necessary? The defaultPrevented check should
+              //XXX Why is this necessary? The getPreventDefault() check should
               //    be enough.
               break;
             }
@@ -128,25 +165,24 @@ var StarUI = {
       return;
     }
 
-    this._overlayLoading = true;
-    document.loadOverlay(
-      "chrome://browser/content/places/editBookmarkOverlay.xul",
-      (function (aSubject, aTopic, aData) {
+    var loadObserver = {
+      _self: this,
+      _itemId: aItemId,
+      _anchorElement: aAnchorElement,
+      _position: aPosition,
+      observe: function (aSubject, aTopic, aData) {
         //XXX We just caused localstore.rdf to be re-applied (bug 640158)
         retrieveToolbarIconsizesFromTheme();
 
-        // Move the header (star, title, button) into the grid,
-        // so that it aligns nicely with the other items (bug 484022).
-        let header = this._element("editBookmarkPanelHeader");
-        let rows = this._element("editBookmarkPanelGrid").lastChild;
-        rows.insertBefore(header, rows.firstChild);
-        header.hidden = false;
-
-        this._overlayLoading = false;
-        this._overlayLoaded = true;
-        this._doShowEditBookmarkPanel(aItemId, aAnchorElement, aPosition);
-      }).bind(this)
-    );
+        this._self._overlayLoading = false;
+        this._self._overlayLoaded = true;
+        this._self._doShowEditBookmarkPanel(this._itemId, this._anchorElement,
+                                            this._position);
+      }
+    };
+    this._overlayLoading = true;
+    document.loadOverlay("chrome://browser/content/places/editBookmarkOverlay.xul",
+                         loadObserver);
   },
 
   _doShowEditBookmarkPanel:
@@ -155,6 +191,13 @@ var StarUI = {
       return;
 
     this._blockCommands(); // un-done in the popuphiding handler
+
+    // Move the header (star, title, possibly a button) into the grid,
+    // so that it aligns nicely with the other items (bug 484022).
+    var rows = this._element("editBookmarkPanelGrid").lastChild;
+    var header = this._element("editBookmarkPanelHeader");
+    rows.insertBefore(header, rows.firstChild);
+    header.hidden = false;
 
     // Set panel title:
     // if we are batching, i.e. the bookmark has been added now,
@@ -187,6 +230,9 @@ var StarUI = {
     this._itemId = aItemId !== undefined ? aItemId : this._itemId;
     this.beginBatch();
 
+    // Consume dismiss clicks, see bug 400924
+    this.panel.popupBoxObject
+        .setConsumeRollupEvent(Ci.nsIPopupBoxObject.ROLLUP_CONSUME);
     this.panel.openPopup(aAnchorElement, aPosition);
 
     gEditItemOverlay.initPanel(this._itemId,
@@ -235,7 +281,7 @@ var StarUI = {
 
   beginBatch: function SU_beginBatch() {
     if (!this._batching) {
-      PlacesUtils.transactionManager.beginBatch();
+      PlacesUIUtils.ptm.beginBatch();
       this._batching = true;
     }
   }
@@ -285,10 +331,9 @@ var PlacesCommandHook = {
       var parent = aParent != undefined ?
                    aParent : PlacesUtils.unfiledBookmarksFolderId;
       var descAnno = { name: PlacesUIUtils.DESCRIPTION_ANNO, value: description };
-      var txn = new PlacesCreateBookmarkTransaction(uri, parent, 
-                                                    PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                    title, null, [descAnno]);
-      PlacesUtils.transactionManager.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.createItem(uri, parent, -1,
+                                             title, null, [descAnno]);
+      PlacesUIUtils.ptm.doTransaction(txn);
       // Set the character-set
       if (charset)
         PlacesUtils.history.setCharsetForURI(uri, charset);
@@ -333,22 +378,11 @@ var PlacesCommandHook = {
   bookmarkLink: function PCH_bookmarkLink(aParent, aURL, aTitle) {
     var linkURI = makeURI(aURL);
     var itemId = PlacesUtils.getMostRecentBookmarkForURI(linkURI);
-    if (itemId == -1) {
-      PlacesUIUtils.showBookmarkDialog({ action: "add"
-                                       , type: "bookmark"
-                                       , uri: linkURI
-                                       , title: aTitle
-                                       , hiddenRows: [ "description"
-                                                     , "location"
-                                                     , "loadInSidebar"
-                                                     , "keyword" ]
-                                       }, window);
-    }
+    if (itemId == -1)
+      PlacesUIUtils.showMinimalAddBookmarkUI(linkURI, aTitle);
     else {
-      PlacesUIUtils.showBookmarkDialog({ action: "edit"
-                                       , type: "bookmark"
-                                       , itemId: itemId
-                                       }, window);
+      PlacesUIUtils.showItemProperties(itemId,
+                                       PlacesUtils.bookmarks.TYPE_BOOKMARK);
     }
   },
 
@@ -377,11 +411,7 @@ var PlacesCommandHook = {
   bookmarkCurrentPages: function PCH_bookmarkCurrentPages() {
     let pages = this.uniqueCurrentPages;
     if (pages.length > 1) {
-    PlacesUIUtils.showBookmarkDialog({ action: "add"
-                                     , type: "folder"
-                                     , URIList: pages
-                                     , hiddenRows: [ "description" ]
-                                     }, window);
+      PlacesUIUtils.showMinimalAddMultiBookmarkUI(pages);
     }
   },
 
@@ -421,18 +451,10 @@ var PlacesCommandHook = {
     else
       description = PlacesUIUtils.getDescriptionFromDocument(doc);
 
-    var toolbarIP = new InsertionPoint(PlacesUtils.toolbarFolderId, -1);
-    PlacesUIUtils.showBookmarkDialog({ action: "add"
-                                     , type: "livemark"
-                                     , feedURI: feedURI
-                                     , siteURI: gBrowser.currentURI
-                                     , title: title
-                                     , description: description
-                                     , defaultInsertionPoint: toolbarIP
-                                     , hiddenRows: [ "feedLocation"
-                                                   , "siteLocation"
-                                                   , "description" ]
-                                     }, window);
+    var toolbarIP =
+      new InsertionPoint(PlacesUtils.bookmarks.toolbarFolder, -1);
+    PlacesUIUtils.showMinimalAddLivemarkUI(feedURI, gBrowser.currentURI,
+                                           title, description, toolbarIP, true);
   },
 
   /**
@@ -467,7 +489,7 @@ function HistoryMenu(aPopupShowingEvent) {
                                      "@mozilla.org/browser/sessionstore;1",
                                      "nsISessionStore");
   PlacesMenu.call(this, aPopupShowingEvent,
-                  "place:sort=4&maxResults=15");
+                  "place:redirectsMode=2&sort=4&maxResults=15");
 }
 
 HistoryMenu.prototype = {
@@ -517,7 +539,7 @@ HistoryMenu.prototype = {
     undoMenu.removeAttribute("disabled");
 
     // populate menu
-    var undoItems = JSON.parse(this._ss.getClosedTabData(window));
+    var undoItems = eval("(" + this._ss.getClosedTabData(window) + ")");
     for (var i = 0; i < undoItems.length; i++) {
       var m = document.createElement("menuitem");
       m.setAttribute("label", undoItems[i].title);
@@ -685,7 +707,7 @@ HistoryMenu.prototype = {
     let placesNode = aEvent.target._placesNode;
     if (placesNode) {
       PlacesUIUtils.markPageAsTyped(placesNode.uri);
-      openUILink(placesNode.uri, aEvent, { ignoreAlt: true });
+      openUILink(placesNode.uri, aEvent, false, true);
     }
   }
 };
@@ -821,7 +843,6 @@ var BookmarksEventHandler = {
 var PlacesMenuDNDHandler = {
   _springLoadDelay: 350, // milliseconds
   _loadTimer: null,
-  _closerTimer: null,
 
   /**
    * Called when the user enters the <menu> element during a drag.
@@ -857,9 +878,8 @@ var PlacesMenuDNDHandler = {
       this._loadTimer.cancel();
       this._loadTimer = null;
     }
-    this._closeTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    this._closeTimer.initWithCallback(function() {
-      this._closeTimer = null;
+    let closeTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+    closeTimer.initWithCallback(function() {
       let node = PlacesControllerDragHelper.currentDropTarget;
       let inHierarchy = false;
       while (node && !inHierarchy) {
@@ -925,7 +945,7 @@ var PlacesStarButton = {
   uninit: function PSB_uninit()
   {
     if (this._hasBookmarksObserver) {
-      PlacesUtils.removeLazyBookmarkObserver(this);
+      PlacesUtils.bookmarks.removeObserver(this);
     }
     if (this._pendingStmt) {
       this._pendingStmt.cancel();
@@ -967,7 +987,7 @@ var PlacesStarButton = {
     }
 
     // We can load about:blank before the actual page, but there is no point in handling that page.
-    if (isBlankPageURL(this._uri.spec)) {
+    if (this._uri.spec == "about:blank") {
       return;
     }
 
@@ -989,7 +1009,7 @@ var PlacesStarButton = {
       // Start observing bookmarks if needed.
       if (!this._hasBookmarksObserver) {
         try {
-          PlacesUtils.addLazyBookmarkObserver(this);
+          PlacesUtils.bookmarks.addObserver(this, false);
           this._hasBookmarksObserver = true;
         } catch(ex) {
           Components.utils.reportError("PlacesStarButton failed adding a bookmarks observer: " + ex);
@@ -1106,13 +1126,10 @@ let PlacesToolbarHelper = {
       return;
 
     // If the bookmarks toolbar item is hidden because the parent toolbar is
-    // collapsed or hidden (i.e. in a popup), spare the initialization.  Also,
-    // there is no need to initialize the toolbar if customizing because
-    // init() will be called when the customization is done.
+    // collapsed or hidden (i.e. in a popup), spare the initialization.
     let toolbar = viewElt.parentNode.parentNode;
     if (toolbar.collapsed ||
-        getComputedStyle(toolbar, "").display == "none" ||
-        this._isCustomizing)
+        getComputedStyle(toolbar, "").display == "none")
       return;
 
     new PlacesToolbar(this._place);
@@ -1122,12 +1139,9 @@ let PlacesToolbarHelper = {
     let viewElt = this._viewElt;
     if (viewElt && viewElt._placesView)
       viewElt._placesView.uninit();
-
-    this._isCustomizing = true;
   },
 
   customizeDone: function PTH_customizeDone() {
-    this._isCustomizing = false;
     this.init();
   }
 };

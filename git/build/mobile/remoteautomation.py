@@ -1,20 +1,52 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is Joel Maher.
+#
+# Portions created by the Initial Developer are Copyright (C) 2010
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+# Joel Maher <joel.maher@gmail.com> (Original Developer)
+# Clint Talbert <cmtalbert@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 import time
+import sys
 import os
-import automationutils
-import tempfile
-import shutil
-import subprocess
+import socket
 
 from automation import Automation
-from devicemanager import NetworkTools
+from devicemanager import DeviceManager, NetworkTools
 
 class RemoteAutomation(Automation):
     _devicemanager = None
-
+    
     def __init__(self, deviceManager, appName = '', remoteLog = None):
         self._devicemanager = deviceManager
         self._appName = appName
@@ -27,7 +59,7 @@ class RemoteAutomation(Automation):
 
     def setDeviceManager(self, deviceManager):
         self._devicemanager = deviceManager
-
+        
     def setAppName(self, appName):
         self._appName = appName
 
@@ -36,7 +68,7 @@ class RemoteAutomation(Automation):
 
     def setProduct(self, product):
         self._product = product
-
+        
     def setRemoteLog(self, logfile):
         self._remoteLog = logfile
 
@@ -46,12 +78,6 @@ class RemoteAutomation(Automation):
         # so no copying of os.environ
         if env is None:
             env = {}
-
-        # Except for the mochitest results table hiding option, which isn't
-        # passed to runtestsremote.py as an actual option, but through the
-        # MOZ_CRASHREPORTER_DISABLE environment variable.
-        if 'MOZ_HIDE_RESULTS_TABLE' in os.environ:
-            env['MOZ_HIDE_RESULTS_TABLE'] = os.environ['MOZ_HIDE_RESULTS_TABLE']
 
         if crashreporter:
             env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
@@ -73,24 +99,10 @@ class RemoteAutomation(Automation):
 
         return status
 
-    def checkForCrashes(self, directory, symbolsPath):
-        dumpDir = tempfile.mkdtemp()
-        self._devicemanager.getDirectory(self._remoteProfile + '/minidumps/', dumpDir)
-        automationutils.checkForCrashes(dumpDir, symbolsPath, self.lastTestSeen)
-        try:
-          shutil.rmtree(dumpDir)
-        except:
-          print "WARNING: unable to remove directory: %s" % (dumpDir)
-
     def buildCommandLine(self, app, debuggerInfo, profileDir, testURL, extraArgs):
         # If remote profile is specified, use that instead
         if (self._remoteProfile):
             profileDir = self._remoteProfile
-
-        # Hack for robocop, if app & testURL == None and extraArgs contains the rest of the stuff, lets
-        # assume extraArgs is all we need
-        if app == "am" and extraArgs[0] == "instrument":
-            return app, extraArgs
 
         cmd, args = Automation.buildCommandLine(self, app, debuggerInfo, profileDir, testURL, extraArgs)
         # Remove -foreground if it exists, if it doesn't this just returns
@@ -106,54 +118,29 @@ class RemoteAutomation(Automation):
         nettools = NetworkTools()
         return nettools.getLanIp()
 
-    def Process(self, cmd, stdout = None, stderr = None, env = None, cwd = None):
+    def Process(self, cmd, stdout = None, stderr = None, env = None, cwd = '.'):
         if stdout == None or stdout == -1 or stdout == subprocess.PIPE:
           stdout = self._remoteLog
 
         return self.RProcess(self._devicemanager, cmd, stdout, stderr, env, cwd)
 
-    # be careful here as this inner class doesn't have access to outer class members
+    # be careful here as this inner class doesn't have access to outer class members    
     class RProcess(object):
         # device manager process
         dm = None
-        def __init__(self, dm, cmd, stdout = None, stderr = None, env = None, cwd = None):
+        def __init__(self, dm, cmd, stdout = None, stderr = None, env = None, cwd = '.'):
             self.dm = dm
             self.stdoutlen = 0
             self.proc = dm.launchProcess(cmd, stdout, cwd, env, True)
             if (self.proc is None):
-              if cmd[0] == 'am':
-                self.proc = stdout
-              else:
-                raise Exception("unable to launch process")
+              raise Exception("unable to launch process")
             exepath = cmd[0]
             name = exepath.split('/')[-1]
             self.procName = name
-            # Hack for Robocop: Derive the actual process name from the command line.
-            # We expect something like:
-            #  ['am', 'instrument', '-w', '-e', 'class', 'org.mozilla.fennec.tests.testBookmark', 'org.mozilla.roboexample.test/android.test.InstrumentationTestRunner']
-            # and want to derive 'org.mozilla.fennec'.
-            if cmd[0] == 'am' and cmd[1] == "instrument":
-              try:
-                i = cmd.index("class")
-              except ValueError:
-                # no "class" argument -- maybe this isn't robocop?
-                i = -1
-              if (i > 0):
-                classname = cmd[i+1]
-                parts = classname.split('.')
-                try:
-                  i = parts.index("tests")
-                except ValueError:
-                  # no "tests" component -- maybe this isn't robocop?
-                  i = -1
-                if (i > 0):
-                  self.procName = '.'.join(parts[0:i])
-                  print "Robocop derived process name: "+self.procName
 
             # Setting timeout at 1 hour since on a remote device this takes much longer
             self.timeout = 3600
-            # The benefit of the following sleep is unclear; it was formerly 15 seconds
-            time.sleep(1)
+            time.sleep(15)
 
         @property
         def pid(self):
@@ -161,7 +148,7 @@ class RemoteAutomation(Automation):
             if (hexpid == None):
                 hexpid = "0x0"
             return int(hexpid, 0)
-
+    
         @property
         def stdout(self):
             t = self.dm.getFile(self.proc)
@@ -170,7 +157,7 @@ class RemoteAutomation(Automation):
             retVal = t[self.stdoutlen:]
             self.stdoutlen = tlen
             return retVal.strip('\n').strip()
-
+ 
         def wait(self, timeout = None):
             timer = 0
             interval = 5
@@ -189,6 +176,6 @@ class RemoteAutomation(Automation):
             if (timer >= timeout):
                 return 1
             return 0
-
+ 
         def kill(self):
             self.dm.killProcess(self.procName)

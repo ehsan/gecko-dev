@@ -1,7 +1,42 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Peter Van der Beken.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Peter Van der Beken <peterv@propagandism.org>
+ *   Merle Sterling <msterlin@us.ibm.com>
+ *
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsAutoPtr.h"
 #include "nsComponentManagerUtils.h"
@@ -16,11 +51,10 @@
 #include "txXPathTreeWalker.h"
 #include "xptcall.h"
 #include "txXPathObjectAdaptor.h"
-#include "mozilla/Attributes.h"
 
 NS_IMPL_ISUPPORTS1(txXPathObjectAdaptor, txIXPathObject)
 
-class txFunctionEvaluationContext MOZ_FINAL : public txIFunctionEvaluationContext
+class txFunctionEvaluationContext : public txIFunctionEvaluationContext
 {
 public:
     txFunctionEvaluationContext(txIEvalContext *aContext, nsISupports *aState);
@@ -30,7 +64,7 @@ public:
 
     void ClearContext()
     {
-        mContext = nullptr;
+        mContext = nsnull;
     }
 
 private:
@@ -48,7 +82,7 @@ txFunctionEvaluationContext::txFunctionEvaluationContext(txIEvalContext *aContex
 NS_IMPL_ISUPPORTS1(txFunctionEvaluationContext, txIFunctionEvaluationContext)
 
 NS_IMETHODIMP
-txFunctionEvaluationContext::GetPosition(uint32_t *aPosition)
+txFunctionEvaluationContext::GetPosition(PRUint32 *aPosition)
 {
     NS_ENSURE_TRUE(mContext, NS_ERROR_FAILURE);
 
@@ -58,7 +92,7 @@ txFunctionEvaluationContext::GetPosition(uint32_t *aPosition)
 }
 
 NS_IMETHODIMP
-txFunctionEvaluationContext::GetSize(uint32_t *aSize)
+txFunctionEvaluationContext::GetSize(PRUint32 *aSize)
 {
     NS_ENSURE_TRUE(mContext, NS_ERROR_FAILURE);
 
@@ -97,11 +131,11 @@ class txXPCOMExtensionFunctionCall : public FunctionCall
 {
 public:
     txXPCOMExtensionFunctionCall(nsISupports *aHelper, const nsIID &aIID,
-                                 uint16_t aMethodIndex,
+                                 PRUint16 aMethodIndex,
 #ifdef TX_TO_STRING
-                                 nsIAtom *aName,
+                                 PRInt32 aNamespaceID, nsIAtom *aName,
 #endif
-                                 nsISupports *aState);
+                                  nsISupports *aState);
 
     TX_DECL_FUNCTION
 
@@ -111,8 +145,9 @@ private:
 
     nsCOMPtr<nsISupports> mHelper;
     nsIID mIID;
-    uint16_t mMethodIndex;
+    PRUint16 mMethodIndex;
 #ifdef TX_TO_STRING
+    PRInt32 mNamespaceID;
     nsCOMPtr<nsIAtom> mName;
 #endif
     nsCOMPtr<nsISupports> mState;
@@ -120,8 +155,9 @@ private:
 
 txXPCOMExtensionFunctionCall::txXPCOMExtensionFunctionCall(nsISupports *aHelper,
                                                            const nsIID &aIID,
-                                                           uint16_t aMethodIndex,
+                                                           PRUint16 aMethodIndex,
 #ifdef TX_TO_STRING
+                                                           PRInt32 aNamespaceID,
                                                            nsIAtom *aName,
 #endif
                                                            nsISupports *aState)
@@ -129,6 +165,7 @@ txXPCOMExtensionFunctionCall::txXPCOMExtensionFunctionCall(nsISupports *aHelper,
       mIID(aIID),
       mMethodIndex(aMethodIndex),
 #ifdef TX_TO_STRING
+      mNamespaceID(aNamespaceID),
       mName(aName),
 #endif
       mState(aState)
@@ -138,7 +175,7 @@ txXPCOMExtensionFunctionCall::txXPCOMExtensionFunctionCall(nsISupports *aHelper,
 class txInterfacesArrayHolder
 {
 public:
-    txInterfacesArrayHolder(nsIID **aArray, uint32_t aCount) : mArray(aArray),
+    txInterfacesArrayHolder(nsIID **aArray, PRUint32 aCount) : mArray(aArray),
                                                                mCount(aCount)
     {
     }
@@ -149,12 +186,12 @@ public:
 
 private:
     nsIID **mArray;
-    uint32_t mCount;
+    PRUint32 mCount;
 };
 
 static nsresult
 LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
-               uint16_t &aMethodIndex, nsISupports **aHelper)
+               PRUint16 &aMethodIndex, nsISupports **aHelper)
 {
     nsresult rv;
     nsCOMPtr<nsISupports> helper = do_GetService(aContractID, &rv);
@@ -167,8 +204,8 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
         do_GetService(NS_INTERFACEINFOMANAGER_SERVICE_CONTRACTID);
     NS_ENSURE_TRUE(iim, NS_ERROR_FAILURE);
 
-    nsIID** iidArray = nullptr;
-    uint32_t iidCount = 0;
+    nsIID** iidArray = nsnull;
+    PRUint32 iidCount = 0;
     rv = classInfo->GetInterfaces(&iidCount, &iidArray);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -179,21 +216,21 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
     // have uppercase letters they might cause false matches (both fooBar and
     // foo-bar matching fooBar).
     const PRUnichar *name = aName->GetUTF16String();
-    nsAutoCString methodName;
+    nsCAutoString methodName;
     PRUnichar letter;
-    bool upperNext = false;
+    PRBool upperNext = PR_FALSE;
     while ((letter = *name)) {
         if (letter == '-') {
-            upperNext = true;
+            upperNext = PR_TRUE;
         }
         else {
             methodName.Append(upperNext ? nsCRT::ToUpper(letter) : letter);
-            upperNext = false;
+            upperNext = PR_FALSE;
         }
         ++name;
     }
 
-    uint32_t i;
+    PRUint32 i;
     for (i = 0; i < iidCount; ++i) {
         nsIID *iid = iidArray[i];
 
@@ -201,7 +238,7 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
         rv = iim->GetInfoForIID(iid, getter_AddRefs(info));
         NS_ENSURE_SUCCESS(rv, rv);
 
-        uint16_t methodIndex;
+        PRUint16 methodIndex;
         const nsXPTMethodInfo *methodInfo;
         rv = info->GetMethodInfoForName(methodName.get(), &methodIndex,
                                         &methodInfo);
@@ -209,7 +246,7 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
             // Exclude notxpcom and hidden. Also check that we have at least a
             // return value (the xpidl compiler ensures that that return value
             // is the last argument).
-            uint8_t paramCount = methodInfo->GetParamCount();
+            PRUint8 paramCount = methodInfo->GetParamCount();
             if (methodInfo->IsNotXPCOM() || methodInfo->IsHidden() ||
                 paramCount == 0 ||
                 !methodInfo->GetParam(paramCount - 1).IsRetval()) {
@@ -227,12 +264,12 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
 
 /* static */
 nsresult
-TX_ResolveFunctionCallXPCOM(const nsCString &aContractID, int32_t aNamespaceID,
+TX_ResolveFunctionCallXPCOM(const nsCString &aContractID, PRInt32 aNamespaceID,
                             nsIAtom* aName, nsISupports *aState,
                             FunctionCall **aFunction)
 {
     nsIID iid;
-    uint16_t methodIndex = 0;
+    PRUint16 methodIndex = 0;
     nsCOMPtr<nsISupports> helper;
 
     nsresult rv = LookupFunction(aContractID.get(), aName, iid, methodIndex,
@@ -245,7 +282,7 @@ TX_ResolveFunctionCallXPCOM(const nsCString &aContractID, int32_t aNamespaceID,
 
     *aFunction = new txXPCOMExtensionFunctionCall(helper, iid, methodIndex,
 #ifdef TX_TO_STRING
-                                                  aName,
+                                                  aNamespaceID, aName,
 #endif
                                                   aState);
 
@@ -256,7 +293,7 @@ txArgumentType
 txXPCOMExtensionFunctionCall::GetParamType(const nsXPTParamInfo &aParam,
                                            nsIInterfaceInfo *aInfo)
 {
-    uint8_t tag = aParam.GetType().TagPart();
+    PRUint8 tag = aParam.GetType().TagPart();
     switch (tag) {
         case nsXPTType::T_BOOL:
         case nsXPTType::T_DOUBLE:
@@ -297,7 +334,7 @@ public:
     }
     ~txParamArrayHolder();
 
-    bool Init(uint8_t aCount);
+    PRBool Init(PRUint8 aCount);
     operator nsXPTCVariant*() const
     {
       return mArray;
@@ -305,40 +342,35 @@ public:
 
 private:
     nsAutoArrayPtr<nsXPTCVariant> mArray;
-    uint8_t mCount;
+    PRUint8 mCount;
 };
 
 txParamArrayHolder::~txParamArrayHolder()
 {
-    uint8_t i;
+    PRUint8 i;
     for (i = 0; i < mCount; ++i) {
         nsXPTCVariant &variant = mArray[i];
-        if (variant.DoesValNeedCleanup()) {
-            if (variant.type.TagPart() == nsXPTType::T_DOMSTRING)
-                delete (nsAString*)variant.val.p;
-            else {
-                NS_ABORT_IF_FALSE(variant.type.TagPart() == nsXPTType::T_INTERFACE ||
-                                  variant.type.TagPart() == nsXPTType::T_INTERFACE_IS,
-                                  "We only support cleanup of strings and interfaces "
-                                  "here, and this looks like neither!");
-                static_cast<nsISupports*>(variant.val.p)->Release();
-            }
+        if (variant.IsValInterface()) {
+            static_cast<nsISupports*>(variant.val.p)->Release();
+        }
+        else if (variant.IsValDOMString()) {
+            delete (nsAString*)variant.val.p;
         }
     }
 }
 
-bool
-txParamArrayHolder::Init(uint8_t aCount)
+PRBool
+txParamArrayHolder::Init(PRUint8 aCount)
 {
     mCount = aCount;
     mArray = new nsXPTCVariant[mCount];
     if (!mArray) {
-        return false;
+        return PR_FALSE;
     }
 
     memset(mArray, 0, mCount * sizeof(nsXPTCVariant));
 
-    return true;
+    return PR_TRUE;
 }
 
 nsresult
@@ -357,8 +389,8 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
     rv = info->GetMethodInfo(mMethodIndex, &methodInfo);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    uint8_t paramCount = methodInfo->GetParamCount();
-    uint8_t inArgs = paramCount - 1;
+    PRUint8 paramCount = methodInfo->GetParamCount();
+    PRUint8 inArgs = paramCount - 1;
 
     txParamArrayHolder invokeParams;
     if (!invokeParams.Init(paramCount)) {
@@ -372,7 +404,7 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
     }
 
     txFunctionEvaluationContext *context;
-    uint32_t paramStart = 0;
+    PRUint32 paramStart = 0;
     if (type == eCONTEXT) {
         if (paramInfo.IsOut()) {
             // We don't support out values.
@@ -387,14 +419,14 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
 
         nsXPTCVariant &invokeParam = invokeParams[0];
         invokeParam.type = paramInfo.GetType();
-        invokeParam.SetValNeedsCleanup();
+        invokeParam.SetValIsInterface();
         NS_ADDREF((txIFunctionEvaluationContext*&)invokeParam.val.p = context);
 
         // Skip first argument, since it's the context.
         paramStart = 1;
     }
     else {
-        context = nullptr;
+        context = nsnull;
     }
 
     // XXX varargs
@@ -402,7 +434,7 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
         return NS_ERROR_FAILURE;
     }
 
-    uint32_t i;
+    PRUint32 i;
     for (i = paramStart; i < inArgs; ++i) {
         Expr* expr = mParams[i - paramStart];
 
@@ -435,7 +467,7 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
                 rv = adaptor->Init();
                 NS_ENSURE_SUCCESS(rv, rv);
 
-                invokeParam.SetValNeedsCleanup();
+                invokeParam.SetValIsInterface();
                 nodeSet.swap((txINodeSet*&)invokeParam.val.p);
                 break;
             }
@@ -465,7 +497,7 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
                 rv = expr->evaluateToString(aContext, *value);
                 NS_ENSURE_SUCCESS(rv, rv);
 
-                invokeParam.SetValNeedsCleanup();
+                invokeParam.SetValIsDOMString();
                 invokeParam.val.p = value;
                 break;
             }
@@ -481,7 +513,7 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
                   return NS_ERROR_OUT_OF_MEMORY;
               }
 
-              invokeParam.SetValNeedsCleanup();
+              invokeParam.SetValIsInterface();
               adaptor.swap((txIXPathObject*&)invokeParam.val.p);
               break;
             }
@@ -508,14 +540,15 @@ txXPCOMExtensionFunctionCall::evaluate(txIEvalContext* aContext,
             return NS_ERROR_FAILURE;
         }
 
-        returnParam.SetValNeedsCleanup();
+        returnParam.SetValIsDOMString();
         returnParam.val.p = value;
     }
     else {
-        returnParam.SetIndirect();
+        returnParam.SetPtrIsData();
         if (returnType == eNODESET || returnType == eOBJECT) {
-            returnParam.SetValNeedsCleanup();
+            returnParam.SetValIsInterface();
         }
+        returnParam.ptr = &returnParam.val;
     }
 
     rv = NS_InvokeByIndex(mHelper, mMethodIndex, paramCount, invokeParams);
@@ -581,12 +614,12 @@ txXPCOMExtensionFunctionCall::getReturnType()
     return ANY_RESULT;
 }
 
-bool
+PRBool
 txXPCOMExtensionFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 {
     // It doesn't really matter what we return here, but it might
     // be a good idea to try to keep this as unoptimizable as possible
-    return true;
+    return PR_TRUE;
 }
 
 #ifdef TX_TO_STRING

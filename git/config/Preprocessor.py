@@ -3,9 +3,42 @@ This is a very primitive line based preprocessor, for times when using
 a C preprocessor isn't an option.
 """
 
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Mozilla build system.
+#
+# The Initial Developer of the Original Code is
+# Mozilla Foundation.
+# Portions created by the Initial Developer are Copyright (C) 2007
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#  Axel Hecht <axel@pike.org>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 import sys
 import os
@@ -41,7 +74,6 @@ class Preprocessor:
                 'LINE': 0,
                 'DIRECTORY': os.path.abspath('.')}.iteritems():
       self.context[k] = v
-    self.actionLevel = 0
     self.disableLevel = 0
     # ifStates can be
     #  0: hadTrue
@@ -75,13 +107,6 @@ class Preprocessor:
     self.LE = '\n'
     self.varsubst = re.compile('@(?P<VAR>\w+)@', re.U)
   
-  def warnUnused(self, file):
-    if self.actionLevel == 0:
-      sys.stderr.write('%s: WARNING: no preprocessor directives found\n' % file)
-    elif self.actionLevel == 1:
-      sys.stderr.write('%s: WARNING: no useful preprocessor directives found\n' % file)
-    pass
-
   def setLineEndings(self, aLE):
     """
     Set the line endings to be used for output.
@@ -92,17 +117,10 @@ class Preprocessor:
     """
     Set the marker to be used for processing directives.
     Used for handling CSS files, with pp.setMarker('%'), for example.
-    The given marker may be None, in which case no markers are processed.
     """
     self.marker = aMarker
-    if aMarker:
-      self.instruction = re.compile('%s(?P<cmd>[a-z]+)(?:\s(?P<args>.*))?$'%aMarker, re.U)
-      self.comment = re.compile(aMarker, re.U)
-    else:
-      class NoMatch(object):
-        def match(self, *args):
-          return False
-      self.instruction = self.comment = NoMatch()
+    self.instruction = re.compile('%s(?P<cmd>[a-z]+)(?:\s(?P<args>.*))?$'%aMarker, re.U)
+    self.comment = re.compile(aMarker, re.U)
   
   def clone(self):
     """
@@ -116,11 +134,6 @@ class Preprocessor:
     rv.out = self.out
     return rv
   
-  def applyFilters(self, aLine):
-    for f in self.filters:
-      aLine = f[1](aLine)
-    return aLine
-  
   def write(self, aLine):
     """
     Internal method for handling output.
@@ -133,13 +146,12 @@ class Preprocessor:
                                                             'file': self.context['FILE'],
                                                             'le': self.LE})
         self.writtenLines = ln
-    filteredLine = self.applyFilters(aLine)
-    if filteredLine != aLine:
-      self.actionLevel = 2
+    for f in self.filters:
+      aLine = f[1](aLine)
     # ensure our line ending. Only need to handle \n, as we're reading
     # with universal line ending support, at least for files.
-    filteredLine = re.sub('\n', self.LE, filteredLine)
-    self.out.write(filteredLine)
+    aLine = re.sub('\n', self.LE, aLine)
+    self.out.write(aLine)
   
   def handleCommandLine(self, args, defaultToStdin = False):
     """
@@ -152,10 +164,8 @@ class Preprocessor:
     if defaultToStdin and len(args) == 0:
       args = [sys.stdin]
     includes.extend(args)
-    if includes:
-      for f in includes:
-        self.do_include(f, False)
-      self.warnUnused(f)
+    for f in includes:
+      self.do_include(f)
     pass
 
   def getCommandLineParser(self, unescapeDefines = False):
@@ -205,8 +215,6 @@ class Preprocessor:
     """
     Handle a single line of input (internal).
     """
-    if self.actionLevel == 0 and self.comment.match(aLine):
-      self.actionLevel = 1
     m = self.instruction.match(aLine)
     if m:
       args = None
@@ -220,8 +228,6 @@ class Preprocessor:
       level, cmd = self.cmds[cmd]
       if (level >= self.disableLevel):
         cmd(args)
-      if cmd != 'literal':
-        self.actionLevel = 2
     elif self.disableLevel == 0 and not self.comment.match(aLine):
       self.write(aLine)
     pass
@@ -236,7 +242,7 @@ class Preprocessor:
       raise Preprocessor.Error(self, 'SYNTAX_DEF', args)
     val = 1
     if m.group('value'):
-      val = self.applyFilters(m.group('value'))
+      val = m.group('value')
       try:
         val = int(val)
       except:
@@ -399,12 +405,12 @@ class Preprocessor:
         return str(self.context[varname])
       if fatal:
         raise Preprocessor.Error(self, 'UNDEFINED_VAR', varname)
-      return matchobj.group(0)
+      return ''
     return self.varsubst.sub(repl, aLine)
   def filter_attemptSubstitution(self, aLine):
     return self.filter_substitution(aLine, fatal=False)
   # File ops
-  def do_include(self, args, filters=True):
+  def do_include(self, args):
     """
     Preprocess a given file.
     args can either be a file name, or a file-like object.
@@ -417,16 +423,12 @@ class Preprocessor:
     if isName:
       try:
         args = str(args)
-        if filters:
-          args = self.applyFilters(args)
         if not os.path.isabs(args):
           args = os.path.join(self.context['DIRECTORY'], args)
         args = open(args, 'rU')
-      except Preprocessor.Error:
-        raise
       except:
         raise Preprocessor.Error(self, 'FILE_NOT_FOUND', str(args))
-    self.checkLineNumbers = bool(re.search('\.(js|java)(?:\.in)?$', args.name))
+    self.checkLineNumbers = bool(re.search('\.js(?:\.in)?$', args.name))
     oldFile = self.context['FILE']
     oldLine = self.context['LINE']
     oldDir = self.context['DIRECTORY']
@@ -469,7 +471,7 @@ def preprocess(includes=[sys.stdin], defines={},
   pp.setMarker(marker)
   pp.out = output
   for f in includes:
-    pp.do_include(f, False)
+    pp.do_include(f)
 
 if __name__ == "__main__":
   main()

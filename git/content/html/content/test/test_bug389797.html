@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=389797
 -->
 <head>
   <title>Test for Bug 389797</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -31,11 +32,11 @@ function HTML_TAG(aTagName, aImplClass) {
   allTags.push(aTagName);
   classInfos[aTagName] = aImplClass;
   interfaces[aTagName] =
-    [ "nsIDOMEventTarget",
+    [ "nsIDOMNSElement",
+      "nsIDOMEventTarget",
+      "nsIDOMNSHTMLElement",
       "nsIDOMElementCSSInlineStyle",
-      "nsIDOMNodeSelector",
-      "nsITouchEventReceiver",
-      "nsIInlineEventHandlers" ];
+      "nsIDOMNodeSelector" ];
 
   // Some interfaces don't appear in classinfo because other interfaces that
   // inherit from them do.
@@ -92,6 +93,7 @@ objectIfaces2.push("nsIImageLoadingContent");
    dir
    dl
    embed
+   isindex
    menu
    ol
    param
@@ -143,7 +145,7 @@ HTML_TAG("figure", "")
 HTML_TAG("font", "Font");
 HTML_TAG("footer", "")
 HTML_TAG("form", "Form", [], [ "nsIWebProgressListener" ]);
-HTML_TAG("frame", "Frame", [ "nsIDOMMozBrowserFrame" ], [ "nsIFrameLoaderOwner" ]);
+HTML_TAG("frame", "Frame", [], [ "nsIFrameLoaderOwner" ]);
 HTML_TAG("frameset", "FrameSet");
 HTML_TAG("h1", "Heading");
 HTML_TAG("h2", "Heading");
@@ -157,7 +159,7 @@ HTML_TAG("hgroup", "")
 HTML_TAG("hr", "HR");
 HTML_TAG("html", "Html");
 HTML_TAG("i", "");
-HTML_TAG("iframe", "IFrame", [ "nsIDOMGetSVGDocument", "nsIDOMMozBrowserFrame" ],
+HTML_TAG("iframe", "IFrame", [ "nsIDOMNSHTMLFrameElement", "nsIDOMGetSVGDocument" ],
                              [ "nsIFrameLoaderOwner" ]);
 HTML_TAG("image", "Span");
 HTML_TAG("img", "Image", [], [ "imgIDecoderObserver",
@@ -166,6 +168,7 @@ HTML_TAG("input", "Input", [], [ "imgIDecoderObserver",
                                  "nsIImageLoadingContent",
                                  "nsIDOMNSEditableElement" ]);
 HTML_TAG("ins", "Mod");
+HTML_TAG("isindex", "");
 HTML_TAG("kbd", "");
 HTML_TAG("keygen", "Span");
 HTML_TAG("label", "Label");
@@ -178,7 +181,6 @@ HTML_TAG("mark", "");
 HTML_TAG("marquee", "Div");
 HTML_TAG("menu", "Menu");
 HTML_TAG("meta", "Meta");
-HTML_TAG("meter", "Meter");
 HTML_TAG("multicol", "Span");
 HTML_TAG("nav", "")
 HTML_TAG("nobr", "");

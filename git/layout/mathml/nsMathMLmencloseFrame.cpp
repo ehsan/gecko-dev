@@ -1,7 +1,45 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla MathML Project.
+ *
+ * The Initial Developer of the Original Code is
+ * The University Of Queensland.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Roger B. Sidje <rbs@maths.uq.edu.au>
+ *   David J. Fiddes <D.J.Fiddes@hw.ac.uk>
+ *   Vilya Harvey <vilya@nag.co.uk>
+ *   Shyjan Mahamud <mahamud@cs.cmu.edu>
+ *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
+ *   Frederic Wang <fred.wang@free.fr> - extension of <msqrt/> to <menclose/>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 #include "nsCOMPtr.h"
@@ -56,7 +94,7 @@ nsresult nsMathMLmencloseFrame::AllocateMathMLChar(nsMencloseNotation mask)
   // No need to track the style context given to our MathML chars.
   // The Style System will use Get/SetAdditionalStyleContext() to keep it
   // up-to-date if dynamic changes arise.
-  uint32_t i = mMathMLChar.Length();
+  PRUint32 i = mMathMLChar.Length();
   nsAutoString Char;
 
   if (!mMathMLChar.AppendElement())
@@ -74,7 +112,7 @@ nsresult nsMathMLmencloseFrame::AllocateMathMLChar(nsMencloseNotation mask)
   mMathMLChar[i].SetData(presContext, Char);
   ResolveMathMLCharStyle(presContext, mContent, mStyleContext,
                          &mMathMLChar[i],
-                         true);
+                         PR_TRUE);
 
   return NS_OK;
 }
@@ -198,20 +236,19 @@ nsMathMLmencloseFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   mencloseRect.x = mencloseRect.y = 0;
 
   if (IsToDraw(NOTATION_RADICAL)) {
-    rv = mMathMLChar[mRadicalCharIndex].Display(aBuilder, this, aLists, 0);
+    rv = mMathMLChar[mRadicalCharIndex].Display(aBuilder, this, aLists);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsRect rect;
     mMathMLChar[mRadicalCharIndex].GetRect(rect);
-    rect.MoveBy(NS_MATHML_IS_RTL(mPresentationData.flags) ?
-                -mContentWidth : rect.width, 0);
+    rect.MoveBy(rect.width, 0);
     rect.SizeTo(mContentWidth, mRuleThickness);
     rv = DisplayBar(aBuilder, this, rect, aLists);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (IsToDraw(NOTATION_LONGDIV)) {
-    rv = mMathMLChar[mLongDivCharIndex].Display(aBuilder, this, aLists, 1);
+    rv = mMathMLChar[mLongDivCharIndex].Display(aBuilder, this, aLists);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsRect rect;
@@ -291,32 +328,32 @@ nsMathMLmencloseFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 nsMathMLmencloseFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
                                        nsHTMLReflowMetrics& aDesiredSize)
 {
-  return PlaceInternal(aRenderingContext, false, aDesiredSize, true);
+  return PlaceInternal(aRenderingContext, PR_FALSE, aDesiredSize, PR_TRUE);
 }
 
 /* virtual */ nsresult
 nsMathMLmencloseFrame::Place(nsRenderingContext& aRenderingContext,
-                             bool                 aPlaceOrigin,
+                             PRBool               aPlaceOrigin,
                              nsHTMLReflowMetrics& aDesiredSize)
 {
-  return PlaceInternal(aRenderingContext, aPlaceOrigin, aDesiredSize, false);
+  return PlaceInternal(aRenderingContext, aPlaceOrigin, aDesiredSize, PR_FALSE);
 }
 
 /* virtual */ nsresult
 nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
-                                     bool                 aPlaceOrigin,
+                                     PRBool               aPlaceOrigin,
                                      nsHTMLReflowMetrics& aDesiredSize,
-                                     bool                 aWidthOnly)
+                                     PRBool               aWidthOnly)
 {
   ///////////////
   // Measure the size of our content using the base class to format like an
   // inferred mrow.
   nsHTMLReflowMetrics baseSize;
   nsresult rv =
-    nsMathMLContainerFrame::Place(aRenderingContext, false, baseSize);
+    nsMathMLContainerFrame::Place(aRenderingContext, PR_FALSE, baseSize);
 
   if (NS_MATHML_HAS_ERROR(mPresentationData.flags) || NS_FAILED(rv)) {
-      DidReflowChildren(GetFirstPrincipalChild());
+      DidReflowChildren(GetFirstChild(nsnull));
       return rv;
     }
 
@@ -332,9 +369,9 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
 
   nscoord mEmHeight;
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  aRenderingContext.SetFont(fm);
+  aRenderingContext.SetFont(GetStyleFont()->mFont,
+                            PresContext()->GetUserFontSet());
+  nsFontMetrics* fm = aRenderingContext.FontMetrics();
   GetRuleThickness(aRenderingContext, fm, mRuleThickness);
   GetEmHeight(fm, mEmHeight);
 
@@ -459,7 +496,7 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       mMathMLChar[mLongDivCharIndex].Stretch(PresContext(), aRenderingContext,
                                              NS_STRETCH_DIRECTION_VERTICAL,
                                              contSize, bmLongdivChar,
-                                             NS_STRETCH_LARGER, false);
+                                             NS_STRETCH_LARGER);
       mMathMLChar[mLongDivCharIndex].GetBoundingMetrics(bmLongdivChar);
 
       // Update horizontal parameters
@@ -481,15 +518,12 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   ///////////////
   // radical notation:
   if (IsToDraw(NOTATION_RADICAL)) {
-    nscoord *dx_leading =
-      NS_MATHML_IS_RTL(mPresentationData.flags) ? &dx_right : &dx_left;
-    
     if (aWidthOnly) {
       nscoord radical_width = mMathMLChar[mRadicalCharIndex].
         GetMaxWidth(PresContext(), aRenderingContext);
       
       // Update horizontal parameters
-      *dx_leading = NS_MAX(*dx_leading, radical_width);
+      dx_left = NS_MAX(dx_left, radical_width);
     } else {
       // Stretch the radical symbol to the appropriate height if it is not
       // big enough.
@@ -501,12 +535,11 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       mMathMLChar[mRadicalCharIndex].Stretch(PresContext(), aRenderingContext,
                                              NS_STRETCH_DIRECTION_VERTICAL,
                                              contSize, bmRadicalChar,
-                                             NS_STRETCH_LARGER,
-                                             NS_MATHML_IS_RTL(mPresentationData.flags));
+                                             NS_STRETCH_LARGER);
       mMathMLChar[mRadicalCharIndex].GetBoundingMetrics(bmRadicalChar);
 
       // Update horizontal parameters
-      *dx_leading = NS_MAX(*dx_leading, bmRadicalChar.width);
+      dx_left = NS_MAX(dx_left, bmRadicalChar.width);
 
       // Update vertical parameters
       radicalAscent = bmBase.ascent + psi + mRuleThickness;
@@ -620,17 +653,14 @@ nsMathMLmencloseFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
                                                     bmLongdivChar.ascent +
                                                     bmLongdivChar.descent));
 
-    if (IsToDraw(NOTATION_RADICAL)) {
-      nscoord dx = NS_MATHML_IS_RTL(mPresentationData.flags) ?
-        dx_left + bmBase.width : dx_left - bmRadicalChar.width;
-
-      mMathMLChar[mRadicalCharIndex].SetRect(nsRect(dx,
+    if (IsToDraw(NOTATION_RADICAL))
+      mMathMLChar[mRadicalCharIndex].SetRect(nsRect(dx_left -
+                                                    bmRadicalChar.width,
                                                     aDesiredSize.ascent -
                                                     radicalAscent,
                                                     bmRadicalChar.width,
                                                     bmRadicalChar.ascent +
                                                     bmRadicalChar.descent));
-    }
 
     mContentWidth = bmBase.width;
 
@@ -651,7 +681,7 @@ nsMathMLmencloseFrame::FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize)
 
   // Move the MathML characters
   nsRect rect;
-  for (uint32_t i = 0; i < mMathMLChar.Length(); i++) {
+  for (PRUint32 i = 0; i < mMathMLChar.Length(); i++) {
     mMathMLChar[i].GetRect(rect);
     rect.MoveBy(gap, 0);
     mMathMLChar[i].SetRect(rect);
@@ -661,9 +691,9 @@ nsMathMLmencloseFrame::FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize)
 }
 
 NS_IMETHODIMP
-nsMathMLmencloseFrame::AttributeChanged(int32_t         aNameSpaceID,
+nsMathMLmencloseFrame::AttributeChanged(PRInt32         aNameSpaceID,
                                         nsIAtom*        aAttribute,
-                                        int32_t         aModType)
+                                        PRInt32         aModType)
 {
   if (aAttribute == nsGkAtoms::notation_) {
     InitNotations();
@@ -677,20 +707,20 @@ nsMathMLmencloseFrame::AttributeChanged(int32_t         aNameSpaceID,
 // the Style System will use these to pass the proper style context to our
 // MathMLChar
 nsStyleContext*
-nsMathMLmencloseFrame::GetAdditionalStyleContext(int32_t aIndex) const
+nsMathMLmencloseFrame::GetAdditionalStyleContext(PRInt32 aIndex) const
 {
-  int32_t len = mMathMLChar.Length();
+  PRInt32 len = mMathMLChar.Length();
   if (aIndex >= 0 && aIndex < len)
     return mMathMLChar[aIndex].GetStyleContext();
   else
-    return nullptr;
+    return nsnull;
 }
 
 void
-nsMathMLmencloseFrame::SetAdditionalStyleContext(int32_t          aIndex, 
+nsMathMLmencloseFrame::SetAdditionalStyleContext(PRInt32          aIndex, 
                                                  nsStyleContext*  aStyleContext)
 {
-  int32_t len = mMathMLChar.Length();
+  PRInt32 len = mMathMLChar.Length();
   if (aIndex >= 0 && aIndex < len)
     mMathMLChar[aIndex].SetStyleContext(aStyleContext);
 }
@@ -729,7 +759,7 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
   gfxRect rect = presContext->AppUnitsToGfxUnits(mRect + ToReferenceFrame());
 
   // paint the frame with the current text color
-  aCtx->SetColor(mFrame->GetVisitedDependentColor(eCSSProperty_color));
+  aCtx->SetColor(mFrame->GetStyleColor()->mColor);
 
   // change line width to mThickness
   gfxContext *gfxCtx = aCtx->ThebesContext();
@@ -748,7 +778,7 @@ void nsDisplayNotation::Paint(nsDisplayListBuilder* aBuilder,
       break;
 
     case NOTATION_ROUNDEDBOX:
-      gfxCtx->RoundedRectangle(rect, gfxCornerSizes(3 * e), true);
+      gfxCtx->RoundedRectangle(rect, gfxCornerSizes(3 * e), PR_TRUE);
       break;
 
     case NOTATION_UPDIAGONALSTRIKE:

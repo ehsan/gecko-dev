@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsThreadManager.h"
 #include "nsThread.h"
@@ -32,7 +64,7 @@ ReleaseObject(void *data)
 }
 
 static PLDHashOperator
-AppendAndRemoveThread(PRThread *key, nsRefPtr<nsThread> &thread, void *arg)
+AppendAndRemoveThread(const void *key, nsRefPtr<nsThread> &thread, void *arg)
 {
   nsThreadArray *threads = static_cast<nsThreadArray *>(arg);
   threads->AppendElement(thread);
@@ -57,7 +89,8 @@ NS_IMPL_CI_INTERFACE_GETTER1(nsThreadManager, nsIThreadManager)
 nsresult
 nsThreadManager::Init()
 {
-  mThreadsByPRThread.Init();
+  if (!mThreadsByPRThread.Init())
+    return NS_ERROR_OUT_OF_MEMORY;
 
   if (PR_NewThreadPrivateIndex(&mCurThreadIndex, ReleaseObject) == PR_FAILURE)
     return NS_ERROR_FAILURE;
@@ -65,13 +98,13 @@ nsThreadManager::Init()
   mLock = new Mutex("nsThreadManager.mLock");
 
   // Setup "main" thread
-  mMainThread = new nsThread(nsThread::MAIN_THREAD, 0);
+  mMainThread = new nsThread();
   if (!mMainThread)
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult rv = mMainThread->InitCurrentThread();
   if (NS_FAILED(rv)) {
-    mMainThread = nullptr;
+    mMainThread = nsnull;
     return rv;
   }
 
@@ -85,7 +118,7 @@ nsThreadManager::Init()
   gTLSThreadID = mozilla::threads::Main;
 #endif
 
-  mInitialized = true;
+  mInitialized = PR_TRUE;
   return NS_OK;
 }
 
@@ -99,7 +132,7 @@ nsThreadManager::Shutdown()
   // XXX What happens if shutdown happens before NewThread completes?
   //     Fortunately, NewThread is only called on the main thread for now.
   //
-  mInitialized = false;
+  mInitialized = PR_FALSE;
 
   // Empty the main thread event queue before we begin shutting down threads.
   NS_ProcessPendingEvents(mMainThread);
@@ -122,7 +155,7 @@ nsThreadManager::Shutdown()
   // world until such time as the threads exit.
 
   // Shutdown all threads that require it (join with threads that we created).
-  for (uint32_t i = 0; i < threads.Length(); ++i) {
+  for (PRUint32 i = 0; i < threads.Length(); ++i) {
     nsThread *thread = threads[i];
     if (thread->ShutdownRequired())
       thread->Shutdown();
@@ -142,15 +175,14 @@ nsThreadManager::Shutdown()
   // Normally thread shutdown clears the observer for the thread, but since the
   // main thread is special we do it manually here after we're sure all events
   // have been processed.
-  mMainThread->SetObserver(nullptr);
-  mMainThread->ClearObservers();
+  mMainThread->SetObserver(nsnull);
 
   // Release main thread object.
-  mMainThread = nullptr;
-  mLock = nullptr;
+  mMainThread = nsnull;
+  mLock = nsnull;
 
   // Remove the TLS entry for the main thread.
-  PR_SetThreadPrivate(mCurThreadIndex, nullptr);
+  PR_SetThreadPrivate(mCurThreadIndex, nsnull);
 }
 
 void
@@ -175,7 +207,7 @@ nsThreadManager::UnregisterCurrentThread(nsThread *thread)
 
   mThreadsByPRThread.Remove(thread->GetPRThread());
 
-  PR_SetThreadPrivate(mCurThreadIndex, nullptr);
+  PR_SetThreadPrivate(mCurThreadIndex, nsnull);
   // Ref-count balanced via ReleaseObject
 }
 
@@ -188,26 +220,24 @@ nsThreadManager::GetCurrentThread()
     return static_cast<nsThread *>(data);
 
   if (!mInitialized) {
-    return nullptr;
+    return nsnull;
   }
 
   // OK, that's fine.  We'll dynamically create one :-)
-  nsRefPtr<nsThread> thread = new nsThread(nsThread::NOT_MAIN_THREAD, 0);
+  nsRefPtr<nsThread> thread = new nsThread();
   if (!thread || NS_FAILED(thread->InitCurrentThread()))
-    return nullptr;
+    return nsnull;
 
   return thread.get();  // reference held in TLS
 }
 
 NS_IMETHODIMP
-nsThreadManager::NewThread(uint32_t creationFlags,
-                           uint32_t stackSize,
-                           nsIThread **result)
+nsThreadManager::NewThread(PRUint32 creationFlags, nsIThread **result)
 {
   // No new threads during Shutdown
   NS_ENSURE_TRUE(mInitialized, NS_ERROR_NOT_INITIALIZED);
 
-  nsThread *thr = new nsThread(nsThread::NOT_MAIN_THREAD, stackSize);
+  nsThread *thr = new nsThread();
   if (!thr)
     return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(thr);
@@ -265,7 +295,7 @@ nsThreadManager::GetCurrentThread(nsIThread **result)
 }
 
 NS_IMETHODIMP
-nsThreadManager::GetIsMainThread(bool *result)
+nsThreadManager::GetIsMainThread(PRBool *result)
 {
   // This method may be called post-Shutdown
 
@@ -274,8 +304,8 @@ nsThreadManager::GetIsMainThread(bool *result)
 }
 
 NS_IMETHODIMP
-nsThreadManager::GetIsCycleCollectorThread(bool *result)
+nsThreadManager::GetIsCycleCollectorThread(PRBool *result)
 {
-  *result = bool(NS_IsCycleCollectorThread());
+  *result = PRBool(NS_IsCycleCollectorThread());
   return NS_OK;
 }

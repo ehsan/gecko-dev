@@ -1,44 +1,47 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef _MOZILLA_GFX_DRAWTARGET_CAIRO_H_
 #define _MOZILLA_GFX_DRAWTARGET_CAIRO_H_
 
 #include "2D.h"
 #include "cairo.h"
-#include "PathCairo.h"
-
-#include <vector>
 
 namespace mozilla {
 namespace gfx {
-
-class SourceSurfaceCairo;
-
-class GradientStopsCairo : public GradientStops
-{
-  public:
-    GradientStopsCairo(GradientStop* aStops, uint32_t aNumStops)
-    {
-      for (uint32_t i = 0; i < aNumStops; ++i) {
-        mStops.push_back(aStops[i]);
-      }
-    }
-
-    virtual ~GradientStopsCairo() {}
-
-    const std::vector<GradientStop>& GetStops() const
-    {
-      return mStops;
-    }
-
-    virtual BackendType GetBackendType() const { return BACKEND_CAIRO; }
-
-  private:
-    std::vector<GradientStop> mStops;
-};
 
 class DrawTargetCairo : public DrawTarget
 {
@@ -48,7 +51,7 @@ public:
 
   virtual BackendType GetType() const { return BACKEND_CAIRO; }
   virtual TemporaryRef<SourceSurface> Snapshot();
-  virtual IntSize GetSize();
+  virtual IntSize GetSize() { return IntSize(); }
 
   virtual void Flush();
   virtual void DrawSurface(SourceSurface *aSurface,
@@ -61,13 +64,16 @@ public:
                                      const Color &aColor,
                                      const Point &aOffset,
                                      Float aSigma,
-                                     CompositionOp aOperator);
+                                     CompositionOp aOperator)
+  { }
 
-  virtual void ClearRect(const Rect &aRect);
+  virtual void ClearRect(const Rect &aRect)
+  { }
 
   virtual void CopySurface(SourceSurface *aSurface,
                            const IntRect &aSourceRect,
-                           const IntPoint &aDestination);
+                           const IntPoint &aDestination)
+  { }
 
   virtual void FillRect(const Rect &aRect,
                         const Pattern &aPattern,
@@ -75,36 +81,36 @@ public:
   virtual void StrokeRect(const Rect &aRect,
                           const Pattern &aPattern,
                           const StrokeOptions &aStrokeOptions = StrokeOptions(),
-                          const DrawOptions &aOptions = DrawOptions());
+                          const DrawOptions &aOptions = DrawOptions())
+  { return; }
   virtual void StrokeLine(const Point &aStart,
                           const Point &aEnd,
                           const Pattern &aPattern,
                           const StrokeOptions &aStrokeOptions = StrokeOptions(),
-                          const DrawOptions &aOptions = DrawOptions());
+                          const DrawOptions &aOptions = DrawOptions())
+  { return; }
 
   virtual void Stroke(const Path *aPath,
                       const Pattern &aPattern,
                       const StrokeOptions &aStrokeOptions = StrokeOptions(),
-                      const DrawOptions &aOptions = DrawOptions());
+                      const DrawOptions &aOptions = DrawOptions())
+  { return; }
 
   virtual void Fill(const Path *aPath,
                     const Pattern &aPattern,
-                    const DrawOptions &aOptions = DrawOptions());
+                    const DrawOptions &aOptions = DrawOptions())
+  { return; }
 
   virtual void FillGlyphs(ScaledFont *aFont,
                           const GlyphBuffer &aBuffer,
                           const Pattern &aPattern,
-                          const DrawOptions &aOptions,
-                          const GlyphRenderingOptions *aRenderingOptions = nullptr);
-  virtual void Mask(const Pattern &aSource,
-                    const Pattern &aMask,
-                    const DrawOptions &aOptions = DrawOptions());
+                          const DrawOptions &aOptions)
+  { return; }
 
-  virtual void PushClip(const Path *aPath);
-  virtual void PushClipRect(const Rect &aRect);
-  virtual void PopClip();
+  virtual void PushClip(const Path *aPath) { }
+  virtual void PopClip() { }
 
-  virtual TemporaryRef<PathBuilder> CreatePathBuilder(FillRule aFillRule = FILL_WINDING) const;
+  virtual TemporaryRef<PathBuilder> CreatePathBuilder(FillRule aFillRule = FILL_WINDING) const { return NULL; }
 
   virtual TemporaryRef<SourceSurface> CreateSourceSurfaceFromData(unsigned char *aData,
                                                             const IntSize &aSize,
@@ -114,65 +120,22 @@ public:
   virtual TemporaryRef<SourceSurface>
     CreateSourceSurfaceFromNativeSurface(const NativeSurface &aSurface) const;
   virtual TemporaryRef<DrawTarget>
-    CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFormat) const;
-  virtual TemporaryRef<DrawTarget>
-    CreateShadowDrawTarget(const IntSize &aSize, SurfaceFormat aFormat,
-                           float aSigma) const;
+    CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFormat) const
+  { return NULL; }
 
-  virtual TemporaryRef<GradientStops>
-    CreateGradientStops(GradientStop *aStops,
-                        uint32_t aNumStops,
-                        ExtendMode aExtendMode = EXTEND_CLAMP) const;
+  virtual TemporaryRef<GradientStops> CreateGradientStops(GradientStop *aStops, uint32_t aNumStops) const
+  { return NULL; }
 
-  virtual void *GetNativeSurface(NativeSurfaceType aType);
-
-  bool Init(cairo_surface_t* aSurface, const IntSize& aSize);
-
-  void SetPathObserver(CairoPathContext* aPathObserver);
+  virtual void *GetNativeSurface(NativeSurfaceType aType)
+  { return NULL; }
 
   virtual void SetTransform(const Matrix& aTransform);
 
-  // Call to set up aContext for drawing (with the current transform, etc).
-  // Pass the path you're going to be using if you have one.
-  // Implicitly calls WillChange(aPath).
-  void PrepareForDrawing(cairo_t* aContext, const Path* aPath = nullptr);
+  bool Init(cairo_surface_t* aSurface);
 
-private: // methods
-  // Init cairo surface without doing a cairo_surface_reference() call.
-  bool InitAlreadyReferenced(cairo_surface_t* aSurface, const IntSize& aSize);
+private:
 
-  enum DrawPatternType { DRAW_FILL, DRAW_STROKE };
-  void DrawPattern(const Pattern& aPattern,
-                   const StrokeOptions& aStrokeOptions,
-                   const DrawOptions& aOptions,
-                   DrawPatternType aDrawType);
-
-  // Call before you make any changes to the backing surface with which this
-  // context is associated. Pass the path you're going to be using if you have
-  // one.
-  void WillChange(const Path* aPath = nullptr);
-
-  // Call if there is any reason to disassociate the snapshot from this draw
-  // target; for example, because we're going to be destroyed.
-  void MarkSnapshotIndependent();
-
-  // If the current operator is "source" then clear the destination before we
-  // draw into it, to simulate the effect of an unbounded source operator.
-  void ClearSurfaceForUnboundedSource(const CompositionOp &aOperator);
-private: // data
   cairo_t* mContext;
-  cairo_surface_t* mSurface;
-  IntSize mSize;
-
-  // The latest snapshot of this surface. This needs to be told when this
-  // target is modified. We keep it alive as a cache.
-  RefPtr<SourceSurfaceCairo> mSnapshot;
-
-  // It is safe to use a regular pointer here because the CairoPathContext will
-  // deregister itself on destruction. Using a RefPtr would extend the life-
-  // span of the CairoPathContext. This causes a problem when
-  // PathBuilderCairo.Finish()
-  mutable CairoPathContext* mPathObserver;
 };
 
 }

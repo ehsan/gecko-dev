@@ -1,15 +1,48 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "Link.h"
 
 #include "nsEventStates.h"
 #include "nsIURL.h"
-#include "nsISizeOf.h"
 
+#include "nsContentUtils.h"
 #include "nsEscape.h"
 #include "nsGkAtoms.h"
 #include "nsString.h"
@@ -21,10 +54,10 @@ namespace mozilla {
 namespace dom {
 
 Link::Link(Element *aElement)
-  : mElement(aElement)
-  , mHistory(services::GetHistoryService())
-  , mLinkState(defaultState)
+  : mLinkState(defaultState)
   , mRegistered(false)
+  , mElement(aElement)
+  , mHistory(services::GetHistoryService())
 {
   NS_ABORT_IF_FALSE(mElement, "Must have an element");
 }
@@ -41,7 +74,7 @@ Link::GetLinkState() const
                "Getting the link state of an unregistered Link!");
   NS_ASSERTION(mLinkState != eLinkState_Unknown,
                "Getting the link state with an unknown value!");
-  return nsLinkState(mLinkState);
+  return mLinkState;
 }
 
 void
@@ -188,7 +221,7 @@ Link::SetHost(const nsAString &aHost)
     if (iter != end) {
       nsAutoString portStr(Substring(iter, end));
       nsresult rv;
-      int32_t port = portStr.ToInteger(&rv);
+      PRInt32 port = portStr.ToInteger((PRInt32 *)&rv);
       if (NS_SUCCEEDED(rv)) {
         (void)uri->SetPort(port);
       }
@@ -254,7 +287,7 @@ Link::SetPort(const nsAString &aPort)
 
   nsresult rv;
   nsAutoString portStr(aPort);
-  int32_t port = portStr.ToInteger(&rv);
+  PRInt32 port = portStr.ToInteger((PRInt32 *)&rv);
   if (NS_FAILED(rv)) {
     return NS_OK;
   }
@@ -286,7 +319,7 @@ Link::GetProtocol(nsAString &_protocol)
     _protocol.AssignLiteral("http");
   }
   else {
-    nsAutoCString scheme;
+    nsCAutoString scheme;
     (void)uri->GetScheme(scheme);
     CopyASCIItoUTF16(scheme, _protocol);
   }
@@ -305,7 +338,7 @@ Link::GetHost(nsAString &_host)
     return NS_OK;
   }
 
-  nsAutoCString hostport;
+  nsCAutoString hostport;
   nsresult rv = uri->GetHostPort(hostport);
   if (NS_SUCCEEDED(rv)) {
     CopyUTF8toUTF16(hostport, _host);
@@ -324,7 +357,7 @@ Link::GetHostname(nsAString &_hostname)
     return NS_OK;
   }
 
-  nsAutoCString host;
+  nsCAutoString host;
   nsresult rv = uri->GetHost(host);
   // Note that failure to get the host from the URI is not necessarily a bad
   // thing.  Some URIs do not have a host.
@@ -347,7 +380,7 @@ Link::GetPathname(nsAString &_pathname)
     return NS_OK;
   }
 
-  nsAutoCString file;
+  nsCAutoString file;
   nsresult rv = url->GetFilePath(file);
   NS_ENSURE_SUCCESS(rv, rv);
   CopyUTF8toUTF16(file, _pathname);
@@ -367,7 +400,7 @@ Link::GetSearch(nsAString &_search)
     return NS_OK;
   }
 
-  nsAutoCString search;
+  nsCAutoString search;
   nsresult rv = url->GetQuery(search);
   if (NS_SUCCEEDED(rv) && !search.IsEmpty()) {
     CopyUTF8toUTF16(NS_LITERAL_CSTRING("?") + search, _search);
@@ -386,7 +419,7 @@ Link::GetPort(nsAString &_port)
     return NS_OK;
   }
 
-  int32_t port;
+  PRInt32 port;
   nsresult rv = uri->GetPort(&port);
   // Note that failure to get the port from the URI is not necessarily a bad
   // thing.  Some URIs do not have a port.
@@ -410,7 +443,7 @@ Link::GetHash(nsAString &_hash)
     return NS_OK;
   }
 
-  nsAutoCString ref;
+  nsCAutoString ref;
   nsresult rv = uri->GetRef(ref);
   if (NS_SUCCEEDED(rv) && !ref.IsEmpty()) {
     NS_UnescapeURL(ref); // XXX may result in random non-ASCII bytes!
@@ -442,7 +475,7 @@ Link::ResetLinkState(bool aNotify)
   mLinkState = defaultState;
 
   // Get rid of our cached URI.
-  mCachedURI = nullptr;
+  mCachedURI = nsnull;
 
   // We have to be very careful here: if aNotify is false we do NOT
   // want to call UpdateState, because that will call into LinkState()
@@ -480,7 +513,7 @@ Link::GetURIToMutate()
 {
   nsCOMPtr<nsIURI> uri(GetURI());
   if (!uri) {
-    return nullptr;
+    return nsnull;
   }
   nsCOMPtr<nsIURI> clone;
   (void)uri->Clone(getter_AddRefs(clone));
@@ -492,29 +525,10 @@ Link::SetHrefAttribute(nsIURI *aURI)
 {
   NS_ASSERTION(aURI, "Null URI is illegal!");
 
-  nsAutoCString href;
+  nsCAutoString href;
   (void)aURI->GetSpec(href);
   (void)mElement->SetAttr(kNameSpaceID_None, nsGkAtoms::href,
-                          NS_ConvertUTF8toUTF16(href), true);
-}
-
-size_t
-Link::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-{
-  size_t n = 0;
-
-  if (mCachedURI) {
-    nsCOMPtr<nsISizeOf> iface = do_QueryInterface(mCachedURI);
-    if (iface) {
-      n += iface->SizeOfIncludingThis(aMallocSizeOf);
-    }
-  }
-
-  // The following members don't need to be measured:
-  // - mElement, because it is a pointer-to-self used to avoid QIs
-  // - mHistory, because it is non-owning
-
-  return n;
+                          NS_ConvertUTF8toUTF16(href), PR_TRUE);
 }
 
 } // namespace dom

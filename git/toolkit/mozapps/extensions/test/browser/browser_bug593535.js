@@ -27,7 +27,8 @@ function test() {
 function end_test() {
   close_manager(gManagerWindow, function() {
     AddonManager.getAllInstalls(function(aInstallsList) {
-      for (var install of aInstallsList) {
+      for (var i = 0; i < aInstallsList.length; i++) {
+        var install = aInstallsList[i];
         var sourceURI = install.sourceURI.spec;
         if (sourceURI.match(/^http:\/\/example\.com\/(.+)\.xpi$/) != null)
           install.cancel();
@@ -60,7 +61,8 @@ function get_addon_item(aName) {
   var id = aName + "@tests.mozilla.org";
   var list = gManagerWindow.document.getElementById("search-list");
   var rows = list.getElementsByTagName("richlistitem");
-  for (let row of rows) {
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
     if (row.mAddon && row.mAddon.id == id)
       return row;
   }

@@ -1,11 +1,7 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #include "tests.h"
 
 JSPrincipals system_principals = {
-    1
+    (char *)"", NULL, NULL, 1, NULL, NULL
 };
 
 JSClass global_class = {
@@ -17,24 +13,29 @@ JSClass global_class = {
     JS_StrictPropertyStub,
     JS_EnumerateStub,
     JS_ResolveStub,
-    JS_ConvertStub
+    JS_ConvertStub,
+    JS_FinalizeStub,
+    JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
-JSObject *trusted_glob = NULL;
-JSObject *trusted_fun = NULL;
+JS::Anchor<JSObject *> trusted_glob, trusted_fun;
 
 JSBool
-CallTrusted(JSContext *cx, unsigned argc, jsval *vp)
+CallTrusted(JSContext *cx, uintN argc, jsval *vp)
 {
     if (!JS_SaveFrameChain(cx))
         return JS_FALSE;
 
     JSBool ok = JS_FALSE;
     {
-        JSAutoCompartment ac(cx, trusted_glob);
-        ok = JS_CallFunctionValue(cx, NULL, OBJECT_TO_JSVAL(trusted_fun),
+        JSAutoEnterCompartment ac;
+        ok = ac.enter(cx, trusted_glob.get());
+        if (!ok)
+            goto out;
+        ok = JS_CallFunctionValue(cx, NULL, OBJECT_TO_JSVAL(trusted_fun.get()),
                                   0, NULL, vp);
     }
+  out:
     JS_RestoreFrameChain(cx);
     return ok;
 }
@@ -43,15 +44,11 @@ BEGIN_TEST(testChromeBuffer)
 {
     JS_SetTrustedPrincipals(rt, &system_principals);
 
-    trusted_glob = JS_NewGlobalObject(cx, &global_class, &system_principals);
-    CHECK(trusted_glob);
-
-    if (!JS_AddNamedObjectRoot(cx, &trusted_glob, "trusted-global"))
-        return false;
-    if (!JS_AddNamedObjectRoot(cx, &trusted_fun, "trusted-function"))
-        return false;
-
     JSFunction *fun;
+    JSObject *o;
+
+    CHECK(o = JS_NewCompartmentAndGlobalObject(cx, &global_class, &system_principals));
+    trusted_glob.set(o);
 
     /*
      * Check that, even after untrusted content has exhausted the stack, code
@@ -60,17 +57,17 @@ BEGIN_TEST(testChromeBuffer)
      */
     {
         {
-            JSAutoCompartment ac(cx, trusted_glob);
+            JSAutoEnterCompartment ac;
+            CHECK(ac.enter(cx, trusted_glob.get()));
             const char *paramName = "x";
             const char *bytes = "return x ? 1 + trusted(x-1) : 0";
-            JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&trusted_glob);
-            CHECK(fun = JS_CompileFunctionForPrincipals(cx, global, &system_principals,
+            CHECK(fun = JS_CompileFunctionForPrincipals(cx, trusted_glob.get(), &system_principals,
                                                         "trusted", 1, &paramName, bytes, strlen(bytes),
                                                         "", 0));
-            trusted_fun = JS_GetFunctionObject(fun);
+            trusted_fun.set(JS_GetFunctionObject(fun));
         }
 
-        jsval v = OBJECT_TO_JSVAL(trusted_fun);
+        jsval v = OBJECT_TO_JSVAL(trusted_fun.get());
         CHECK(JS_WrapValue(cx, &v));
 
         const char *paramName = "trusted";
@@ -93,21 +90,21 @@ BEGIN_TEST(testChromeBuffer)
      */
     {
         {
-            JSAutoCompartment ac(cx, trusted_glob);
+            JSAutoEnterCompartment ac;
+            CHECK(ac.enter(cx, trusted_glob.get()));
             const char *paramName = "untrusted";
             const char *bytes = "try {                                  "
                                 "  untrusted();                         "
                                 "} catch (e) {                          "
                                 "  return 'From trusted: ' + e;         "
                                 "}                                      ";
-            JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&trusted_glob);
-            CHECK(fun = JS_CompileFunctionForPrincipals(cx, global, &system_principals,
+            CHECK(fun = JS_CompileFunctionForPrincipals(cx, trusted_glob.get(), &system_principals,
                                                         "trusted", 1, &paramName, bytes, strlen(bytes),
                                                         "", 0));
-            trusted_fun = JS_GetFunctionObject(fun);
+            trusted_fun.set(JS_GetFunctionObject(fun));
         }
 
-        jsval v = OBJECT_TO_JSVAL(trusted_fun);
+        jsval v = OBJECT_TO_JSVAL(trusted_fun.get());
         CHECK(JS_WrapValue(cx, &v));
 
         const char *paramName = "trusted";
@@ -132,13 +129,13 @@ BEGIN_TEST(testChromeBuffer)
      */
     {
         {
-            JSAutoCompartment ac(cx, trusted_glob);
+            JSAutoEnterCompartment ac;
+            CHECK(ac.enter(cx, trusted_glob.get()));
             const char *bytes = "return 42";
-            JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&trusted_glob);
-            CHECK(fun = JS_CompileFunctionForPrincipals(cx, global, &system_principals,
+            CHECK(fun = JS_CompileFunctionForPrincipals(cx, trusted_glob.get(), &system_principals,
                                                         "trusted", 0, NULL, bytes, strlen(bytes),
                                                         "", 0));
-            trusted_fun = JS_GetFunctionObject(fun);
+            trusted_fun.set(JS_GetFunctionObject(fun));
         }
 
         JSFunction *fun = JS_NewFunction(cx, CallTrusted, 0, 0, global, "callTrusted");
@@ -160,10 +157,5 @@ BEGIN_TEST(testChromeBuffer)
     }
 
     return true;
-}
-virtual void uninit() {
-    JS_RemoveObjectRoot(cx, &trusted_glob);
-    JS_RemoveObjectRoot(cx, &trusted_fun);
-    JSAPITest::uninit();
 }
 END_TEST(testChromeBuffer)

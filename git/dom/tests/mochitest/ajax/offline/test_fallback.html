@@ -2,6 +2,7 @@
 <head>
 <title>Fallback entry test</title>
 
+<script type="text/javascript" src="/MochiKit/packed.js"></script>
 <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
 <script type="text/javascript" src="/tests/dom/tests/mochitest/ajax/offline/offlineTests.js"></script>
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -93,24 +94,17 @@ function onFallbackLoad(fallbackIdentification)
   ++gStep;
 }
 
-
-function finishTest()
-{
-  OfflineTest.teardown();
-  OfflineTest.finish();
-}
-
 function finalize()
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
-  var entries = [
-    ["http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/sub-non-existing.html", false],
-    ["http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/sub/non-existing.html", false],
-    ["http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/non-existing.html", false],
-    ["http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace2/non-existing.html", false]
-  ];
-  OfflineTest.checkCacheEntries(entries, finishTest);
+  OfflineTest.checkCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/sub-non-existing.html", false);
+  OfflineTest.checkCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/sub/non-existing.html", false);
+  OfflineTest.checkCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace1/non-existing.html", false);
+  OfflineTest.checkCache("http://mochi.test:8888/tests/dom/tests/mochitest/ajax/offline/namespace2/non-existing.html", false);
+
+  OfflineTest.teardown();
+  OfflineTest.finish();
 }
 
 SimpleTest.waitForExplicitFinish();

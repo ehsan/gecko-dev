@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SMIL module.
+ *
+ * The Initial Developer of the Original Code is Brian Birtles.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Brian Birtles <birtles@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsSMILTimeContainer.h"
 #include "nsSMILTimeValue.h"
@@ -9,13 +41,13 @@
 
 nsSMILTimeContainer::nsSMILTimeContainer()
 :
-  mParent(nullptr),
+  mParent(nsnull),
   mCurrentTime(0L),
   mParentOffset(0L),
   mPauseStart(0L),
-  mNeedsPauseSample(false),
-  mNeedsRewind(false),
-  mIsSeeking(false),
+  mNeedsPauseSample(PR_FALSE),
+  mNeedsRewind(PR_FALSE),
+  mIsSeeking(PR_FALSE),
   mPauseState(PAUSE_BEGIN)
 {
 }
@@ -52,7 +84,7 @@ nsSMILTimeContainer::Begin()
 {
   Resume(PAUSE_BEGIN);
   if (mPauseState) {
-    mNeedsPauseSample = true;
+    mNeedsPauseSample = PR_TRUE;
   }
 
   // This is a little bit complicated here. Ideally we'd just like to call
@@ -66,14 +98,14 @@ nsSMILTimeContainer::Begin()
 }
 
 void
-nsSMILTimeContainer::Pause(uint32_t aType)
+nsSMILTimeContainer::Pause(PRUint32 aType)
 {
-  bool didStartPause = false;
+  PRBool didStartPause = PR_FALSE;
 
   if (!mPauseState && aType) {
     mPauseStart = GetParentTime();
-    mNeedsPauseSample = true;
-    didStartPause = true;
+    mNeedsPauseSample = PR_TRUE;
+    didStartPause = PR_TRUE;
   }
 
   mPauseState |= aType;
@@ -84,7 +116,7 @@ nsSMILTimeContainer::Pause(uint32_t aType)
 }
 
 void
-nsSMILTimeContainer::Resume(uint32_t aType)
+nsSMILTimeContainer::Resume(PRUint32 aType)
 {
   if (!mPauseState)
     return;
@@ -126,16 +158,16 @@ nsSMILTimeContainer::SetCurrentTime(nsSMILTime aSeekTo)
   // has begun we should still adjust the offset.
   nsSMILTime parentTime = GetParentTime();
   mParentOffset = parentTime - aSeekTo;
-  mIsSeeking = true;
+  mIsSeeking = PR_TRUE;
 
   if (IsPaused()) {
-    mNeedsPauseSample = true;
+    mNeedsPauseSample = PR_TRUE;
     mPauseStart = parentTime;
   }
 
   if (aSeekTo < mCurrentTime) {
     // Backwards seek
-    mNeedsRewind = true;
+    mNeedsRewind = PR_TRUE;
     ClearMilestones();
   }
 
@@ -175,7 +207,7 @@ nsSMILTimeContainer::Sample()
   UpdateCurrentTime();
   DoSample();
 
-  mNeedsPauseSample = false;
+  mNeedsPauseSample = PR_FALSE;
 }
 
 nsresult
@@ -203,7 +235,7 @@ nsSMILTimeContainer::SetParent(nsSMILTimeContainer* aParent)
   return rv;
 }
 
-bool
+PRBool
 nsSMILTimeContainer::AddMilestone(const nsSMILMilestone& aMilestone,
                                   nsISMILAnimationElement& aElement)
 {
@@ -220,35 +252,35 @@ nsSMILTimeContainer::ClearMilestones()
   mMilestoneEntries.Clear();
 }
 
-bool
+PRBool
 nsSMILTimeContainer::GetNextMilestoneInParentTime(
     nsSMILMilestone& aNextMilestone) const
 {
   if (mMilestoneEntries.IsEmpty())
-    return false;
+    return PR_FALSE;
 
   nsSMILTimeValue parentTime =
     ContainerToParentTime(mMilestoneEntries.Top().mMilestone.mTime);
-  if (!parentTime.IsDefinite())
-    return false;
+  if (!parentTime.IsResolved())
+    return PR_FALSE;
 
   aNextMilestone = nsSMILMilestone(parentTime.GetMillis(),
                                    mMilestoneEntries.Top().mMilestone.mIsEnd);
 
-  return true;
+  return PR_TRUE;
 }
 
-bool
+PRBool
 nsSMILTimeContainer::PopMilestoneElementsAtMilestone(
       const nsSMILMilestone& aMilestone,
       AnimElemArray& aMatchedElements)
 {
   if (mMilestoneEntries.IsEmpty())
-    return false;
+    return PR_FALSE;
 
   nsSMILTimeValue containerTime = ParentToContainerTime(aMilestone.mTime);
-  if (!containerTime.IsDefinite())
-    return false;
+  if (!containerTime.IsResolved())
+    return PR_FALSE;
 
   nsSMILMilestone containerMilestone(containerTime.GetMillis(),
                                      aMilestone.mIsEnd);
@@ -257,12 +289,12 @@ nsSMILTimeContainer::PopMilestoneElementsAtMilestone(
       "Trying to pop off earliest times but we have earlier ones that were "
       "overlooked");
 
-  bool gotOne = false;
+  PRBool gotOne = PR_FALSE;
   while (!mMilestoneEntries.IsEmpty() &&
       mMilestoneEntries.Top().mMilestone == containerMilestone)
   {
     aMatchedElements.AppendElement(mMilestoneEntries.Pop().mTimebase);
-    gotOne = true;
+    gotOne = PR_TRUE;
   }
 
   return gotOne;
@@ -307,7 +339,7 @@ nsSMILTimeContainer::NotifyTimeChange()
   // registered. Other timed elements don't matter.
   const MilestoneEntry* p = mMilestoneEntries.Elements();
 #if DEBUG
-  uint32_t queueLength = mMilestoneEntries.Length();
+  PRUint32 queueLength = mMilestoneEntries.Length();
 #endif
   while (p < mMilestoneEntries.Elements() + mMilestoneEntries.Length()) {
     nsISMILAnimationElement* elem = p->mTimebase.get();

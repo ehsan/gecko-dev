@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* class that manages rules for positioning floats */
 
@@ -9,12 +42,13 @@
 #include "nsIPresShell.h"
 #include "nsMemory.h"
 #include "nsHTMLReflowState.h"
+#include "nsHashSets.h"
 #include "nsBlockDebugFlags.h"
-#include "nsError.h"
+#include "nsContentErrors.h"
 
 using namespace mozilla;
 
-int32_t nsFloatManager::sCachedFloatManagerCount = 0;
+PRInt32 nsFloatManager::sCachedFloatManagerCount = 0;
 void* nsFloatManager::sCachedFloatManagers[NS_FLOAT_MANAGER_CACHE_SIZE];
 
 /////////////////////////////////////////////////////////////////////////////
@@ -39,10 +73,10 @@ PSArenaFreeCB(size_t aSize, void* aPtr, void* aClosure)
 nsFloatManager::nsFloatManager(nsIPresShell* aPresShell)
   : mX(0), mY(0),
     mFloatDamage(PSArenaAllocCB, PSArenaFreeCB, aPresShell),
-    mPushedLeftFloatPastBreak(false),
-    mPushedRightFloatPastBreak(false),
-    mSplitLeftFloatAcrossBreak(false),
-    mSplitRightFloatAcrossBreak(false)
+    mPushedLeftFloatPastBreak(PR_FALSE),
+    mPushedRightFloatPastBreak(PR_FALSE),
+    mSplitLeftFloatAcrossBreak(PR_FALSE),
+    mSplitRightFloatAcrossBreak(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsFloatManager);
 }
@@ -96,7 +130,7 @@ void nsFloatManager::Shutdown()
   // The layout module is being shut down, clean up the cache and
   // disable further caching.
 
-  int32_t i;
+  PRInt32 i;
 
   for (i = 0; i < sCachedFloatManagerCount; i++) {
     void* floatManager = sCachedFloatManagers[i];
@@ -123,7 +157,7 @@ nsFloatManager::GetFlowArea(nscoord aYOffset, BandInfoType aInfoType,
   }
 
   // Determine the last float that we should consider.
-  uint32_t floatCount;
+  PRUint32 floatCount;
   if (aState) {
     // Use the provided state.
     floatCount = aState->mFloatInfoCount;
@@ -139,7 +173,7 @@ nsFloatManager::GetFlowArea(nscoord aYOffset, BandInfoType aInfoType,
       (mFloats[floatCount-1].mLeftYMost <= top &&
        mFloats[floatCount-1].mRightYMost <= top)) {
     return nsFlowAreaRect(aContentArea.x, aYOffset, aContentArea.width,
-                          aHeight, false);
+                          aHeight, PR_FALSE);
   }
 
   nscoord bottom;
@@ -165,8 +199,8 @@ nsFloatManager::GetFlowArea(nscoord aYOffset, BandInfoType aInfoType,
 
   // Walk backwards through the floats until we either hit the front of
   // the list or we're above |top|.
-  bool haveFloats = false;
-  for (uint32_t i = floatCount; i > 0; --i) {
+  PRBool haveFloats = PR_FALSE;
+  for (PRUint32 i = floatCount; i > 0; --i) {
     const FloatInfo &fi = mFloats[i-1];
     if (fi.mLeftYMost <= top && fi.mRightYMost <= top) {
       // There aren't any more floats that could intersect this band.
@@ -209,7 +243,7 @@ nsFloatManager::GetFlowArea(nscoord aYOffset, BandInfoType aInfoType,
           // containing block.  This matches the spec for what some
           // callers want and disagrees for other callers, so we should
           // probably provide better information at some point.
-          haveFloats = true;
+          haveFloats = PR_TRUE;
         }
       } else {
         // A right float.
@@ -217,7 +251,7 @@ nsFloatManager::GetFlowArea(nscoord aYOffset, BandInfoType aInfoType,
         if (leftEdge < right) {
           right = leftEdge;
           // See above.
-          haveFloats = true;
+          haveFloats = PR_TRUE;
         }
       }
     }
@@ -244,7 +278,7 @@ nsFloatManager::AddFloat(nsIFrame* aFloatFrame, const nsRect& aMarginRect)
     info.mLeftYMost = nscoord_MIN;
     info.mRightYMost = nscoord_MIN;
   }
-  uint8_t floatStyle = aFloatFrame->GetStyleDisplay()->mFloats;
+  PRUint8 floatStyle = aFloatFrame->GetStyleDisplay()->mFloats;
   NS_ASSERTION(floatStyle == NS_STYLE_FLOAT_LEFT ||
                floatStyle == NS_STYLE_FLOAT_RIGHT, "unexpected float");
   nscoord& sideYMost = (floatStyle == NS_STYLE_FLOAT_LEFT) ? info.mLeftYMost
@@ -334,14 +368,14 @@ nsFloatManager::RemoveTrailingRegions(nsIFrame* aFrameList)
   // floats given were at the end of our list, so we could just search
   // for the head of aFrameList.  (But we can't;
   // layout/reftests/bugs/421710-1.html crashes.)
-  nsTHashtable<nsPtrHashKey<nsIFrame> > frameSet;
+  nsVoidHashSet frameSet;
 
   frameSet.Init(1);
   for (nsIFrame* f = aFrameList; f; f = f->GetNextSibling()) {
-    frameSet.PutEntry(f);
+    frameSet.Put(f);
   }
 
-  uint32_t newLength = mFloats.Length();
+  PRUint32 newLength = mFloats.Length();
   while (newLength > 0) {
     if (!frameSet.Contains(mFloats[newLength - 1].mFrame)) {
       break;
@@ -351,7 +385,7 @@ nsFloatManager::RemoveTrailingRegions(nsIFrame* aFrameList)
   mFloats.TruncateLength(newLength);
 
 #ifdef DEBUG
-  for (uint32_t i = 0; i < mFloats.Length(); ++i) {
+  for (PRUint32 i = 0; i < mFloats.Length(); ++i) {
     NS_ASSERTION(!frameSet.Contains(mFloats[i].mFrame),
                  "Frame region deletion was requested but we couldn't delete it");
   }
@@ -433,7 +467,7 @@ nsFloatManager::List(FILE* out) const
   if (!HasAnyFloats())
     return NS_OK;
 
-  for (uint32_t i = 0; i < mFloats.Length(); ++i) {
+  for (PRUint32 i = 0; i < mFloats.Length(); ++i) {
     const FloatInfo &fi = mFloats[i];
     printf("Float %u: frame=%p rect={%d,%d,%d,%d} ymost={l:%d, r:%d}\n",
            i, static_cast<void*>(fi.mFrame),
@@ -445,8 +479,8 @@ nsFloatManager::List(FILE* out) const
 #endif
 
 nscoord
-nsFloatManager::ClearFloats(nscoord aY, uint8_t aBreakType,
-                            uint32_t aFlags) const
+nsFloatManager::ClearFloats(nscoord aY, PRUint8 aBreakType,
+                            PRUint32 aFlags) const
 {
   if (!(aFlags & DONT_CLEAR_PUSHED_FLOATS) && ClearContinues(aBreakType)) {
     return nscoord_MAX;
@@ -479,8 +513,8 @@ nsFloatManager::ClearFloats(nscoord aY, uint8_t aBreakType,
   return bottom;
 }
 
-bool
-nsFloatManager::ClearContinues(uint8_t aBreakType) const
+PRBool
+nsFloatManager::ClearContinues(PRUint8 aBreakType) const
 {
   return ((mPushedLeftFloatPastBreak || mSplitLeftFloatAcrossBreak) &&
           (aBreakType == NS_STYLE_CLEAR_LEFT_AND_RIGHT ||

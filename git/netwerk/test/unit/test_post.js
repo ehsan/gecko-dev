@@ -2,17 +2,12 @@
 // POST test
 //
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
 
-Cu.import("resource://testing-common/httpd.js");
-
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var testpath = "/simple";
 
-var testfile = do_get_file("../unit/data/test_readline6.txt");
+var testfile = getFile("XpcomLib");
 
 const BOUNDARY = "AaB03x";
 var teststring1 = "--" + BOUNDARY + "\r\n"
@@ -93,4 +88,10 @@ function serverHandler(metadata, response) {
 
 function checkRequest(request, data, context) {
   httpserver.stop(do_test_finished);
+}
+
+function getFile(key) {
+  var dirSvc = Components.classes["@mozilla.org/file/directory_service;1"]
+                         .getService(Components.interfaces.nsIProperties);
+  return dirSvc.get(key, Components.interfaces.nsILocalFile);
 }

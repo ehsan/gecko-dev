@@ -1,14 +1,47 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the GNOME helper app implementation.
+ *
+ * The Initial Developer of the Original Code is
+ * IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Brian Ryner <bryner@brianryner.com>  (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsGNOMERegistry.h"
 #include "prlink.h"
 #include "prmem.h"
 #include "nsString.h"
 #include "nsIComponentManager.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsMIMEInfoUnix.h"
 #include "nsAutoPtr.h"
 #include "nsIGConfService.h"
@@ -24,7 +57,7 @@
 #include <libintl.h>
 #endif
 
-/* static */ bool
+/* static */ PRBool
 nsGNOMERegistry::HandlerExists(const char *aProtocolScheme)
 {
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
@@ -33,19 +66,19 @@ nsGNOMERegistry::HandlerExists(const char *aProtocolScheme)
     nsCOMPtr<nsIGIOMimeApp> app;
     if (NS_FAILED(giovfs->GetAppForURIScheme(nsDependentCString(aProtocolScheme),
                                              getter_AddRefs(app))))
-      return false;
+      return PR_FALSE;
     else
-      return true;
+      return PR_TRUE;
   } else if (gconf) {
-    bool isEnabled;
-    nsAutoCString handler;
+    PRBool isEnabled;
+    nsCAutoString handler;
     if (NS_FAILED(gconf->GetAppForProtocol(nsDependentCString(aProtocolScheme), &isEnabled, handler)))
-      return false;
+      return PR_FALSE;
 
     return isEnabled;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 // XXX Check HandlerExists() before calling LoadURL.
@@ -79,7 +112,7 @@ nsGNOMERegistry::GetAppDescForScheme(const nsACString& aScheme,
   if (!gconf && !giovfs)
     return;
 
-  nsAutoCString name;
+  nsCAutoString name;
   if (giovfs) {
     nsCOMPtr<nsIGIOMimeApp> app;
     if (NS_FAILED(giovfs->GetAppForURIScheme(aScheme, getter_AddRefs(app))))
@@ -87,16 +120,16 @@ nsGNOMERegistry::GetAppDescForScheme(const nsACString& aScheme,
 
     app->GetName(name);
   } else {
-    bool isEnabled;
+    PRBool isEnabled;
     if (NS_FAILED(gconf->GetAppForProtocol(aScheme, &isEnabled, name)))
       return;
 
     if (!name.IsEmpty()) {
       // Try to only provide the executable name, as it is much simpler than with the path and arguments
-      int32_t firstSpace = name.FindChar(' ');
+      PRInt32 firstSpace = name.FindChar(' ');
       if (firstSpace != kNotFound) {
         name.Truncate(firstSpace);
-        int32_t lastSlash = name.RFindChar('/');
+        PRInt32 lastSlash = name.RFindChar('/');
         if (lastSlash != kNotFound) {
           name.Cut(0, lastSlash + 1);
         }
@@ -111,7 +144,7 @@ nsGNOMERegistry::GetAppDescForScheme(const nsACString& aScheme,
 /* static */ already_AddRefed<nsMIMEInfoBase>
 nsGNOMERegistry::GetFromExtension(const nsACString& aFileExt)
 {
-  nsAutoCString mimeType;
+  nsCAutoString mimeType;
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
 
   if (giovfs) {
@@ -119,17 +152,17 @@ nsGNOMERegistry::GetFromExtension(const nsACString& aFileExt)
     // fill in the MIMEInfo.
     if (NS_FAILED(giovfs->GetMimeTypeFromExtension(aFileExt, mimeType)) ||
         mimeType.EqualsLiteral("application/octet-stream")) {
-      return nullptr;
+      return nsnull;
     }
   } else {
     /* Fallback to GnomeVFS */
     nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
     if (!gnomevfs)
-      return nullptr;
+      return nsnull;
 
     if (NS_FAILED(gnomevfs->GetMimeTypeFromExtension(aFileExt, mimeType)) ||
         mimeType.EqualsLiteral("application/octet-stream"))
-      return nullptr;
+      return nsnull;
   }
 
   return GetFromType(mimeType);
@@ -139,17 +172,17 @@ nsGNOMERegistry::GetFromExtension(const nsACString& aFileExt)
 nsGNOMERegistry::GetFromType(const nsACString& aMIMEType)
 {
   nsRefPtr<nsMIMEInfoUnix> mimeInfo = new nsMIMEInfoUnix(aMIMEType);
-  NS_ENSURE_TRUE(mimeInfo, nullptr);
+  NS_ENSURE_TRUE(mimeInfo, nsnull);
 
-  nsAutoCString name;
-  nsAutoCString description;
+  nsCAutoString name;
+  nsCAutoString description;
 
   nsCOMPtr<nsIGIOService> giovfs = do_GetService(NS_GIOSERVICE_CONTRACTID);
   if (giovfs) {
     nsCOMPtr<nsIGIOMimeApp> gioHandlerApp;
     if (NS_FAILED(giovfs->GetAppForMimeType(aMIMEType, getter_AddRefs(gioHandlerApp))) ||
         !gioHandlerApp) {
-      return nullptr;
+      return nsnull;
     }
     gioHandlerApp->GetName(name);
     giovfs->GetDescriptionForMimeType(aMIMEType, description);
@@ -157,12 +190,12 @@ nsGNOMERegistry::GetFromType(const nsACString& aMIMEType)
     /* Fallback to GnomeVFS*/
     nsCOMPtr<nsIGnomeVFSService> gnomevfs = do_GetService(NS_GNOMEVFSSERVICE_CONTRACTID);
     if (!gnomevfs)
-      return nullptr;
+      return nsnull;
 
     nsCOMPtr<nsIGnomeVFSMimeApp> gnomeHandlerApp;
     if (NS_FAILED(gnomevfs->GetAppForMimeType(aMIMEType, getter_AddRefs(gnomeHandlerApp))) ||
         !gnomeHandlerApp) {
-      return nullptr;
+      return nsnull;
     }
     gnomeHandlerApp->GetName(name);
     gnomevfs->GetDescriptionForMimeType(aMIMEType, description);
@@ -175,7 +208,7 @@ nsGNOMERegistry::GetFromType(const nsACString& aMIMEType)
   // the default maemo domain-name to try and translate the string into the operating 
   // system's native language.
   const char kDefaultTextDomain [] = "maemo-af-desktop";
-  nsAutoCString realName (dgettext(kDefaultTextDomain, PromiseFlatCString(name).get()));
+  nsCAutoString realName (dgettext(kDefaultTextDomain, PromiseFlatCString(name).get()));
   mimeInfo->SetDefaultDescription(NS_ConvertUTF8toUTF16(realName));
 #else
   mimeInfo->SetDefaultDescription(NS_ConvertUTF8toUTF16(name));

@@ -1,17 +1,47 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SVG project.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
+#include "nsIDocument.h"
 #include "nsSVGMaskFrame.h"
-
-// Keep others in (case-insensitive) order:
+#include "nsSVGContainerFrame.h"
+#include "nsSVGMaskElement.h"
+#include "nsIDOMSVGMatrix.h"
 #include "gfxContext.h"
 #include "gfxImageSurface.h"
-#include "nsRenderingContext.h"
-#include "nsSVGEffects.h"
-#include "nsSVGMaskElement.h"
+#include "nsSVGMatrix.h"
 
 //----------------------------------------------------------------------
 // Implementation
@@ -25,7 +55,7 @@ NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGMaskFrame)
 
 already_AddRefed<gfxPattern>
-nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
+nsSVGMaskFrame::ComputeMaskAlpha(nsSVGRenderState *aContext,
                                  nsIFrame* aParent,
                                  const gfxMatrix &aMatrix,
                                  float aOpacity)
@@ -35,13 +65,13 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
   // has a mask reference loop.
   if (mInUse) {
     NS_WARNING("Mask loop detected!");
-    return nullptr;
+    return nsnull;
   }
   AutoMaskReferencer maskRef(this);
 
   nsSVGMaskElement *mask = static_cast<nsSVGMaskElement*>(mContent);
 
-  uint16_t units =
+  PRUint16 units =
     mask->mEnumAttributes[nsSVGMaskElement::MASKUNITS].GetAnimValue();
   gfxRect bbox;
   if (units == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
@@ -50,18 +80,22 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
 
   gfxRect maskArea = nsSVGUtils::GetRelativeRect(units,
     &mask->mLengthAttributes[nsSVGMaskElement::X], bbox, aParent);
+  maskArea.RoundOut();
 
-  gfxContext *gfx = aContext->ThebesContext();
+  gfxContext *gfx = aContext->GetGfxContext();
 
-  // Get the clip extents in device space:
   gfx->Save();
   nsSVGUtils::SetClipRect(gfx, aMatrix, maskArea);
-  gfx->IdentityMatrix();
   gfxRect clipExtents = gfx->GetClipExtents();
-  clipExtents.RoundOut();
   gfx->Restore();
 
-  bool resultOverflows;
+#ifdef DEBUG_tor
+  fprintf(stderr, "clip extent: %f,%f %fx%f\n",
+          clipExtents.X(), clipExtents.Y(),
+          clipExtents.Width(), clipExtents.Height());
+#endif
+
+  PRBool resultOverflows;
   gfxIntSize surfaceSize =
     nsSVGUtils::ConvertToSurfaceSize(gfxSize(clipExtents.Width(),
                                              clipExtents.Height()),
@@ -69,63 +103,47 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
 
   // 0 disables mask, < 0 is an error
   if (surfaceSize.width <= 0 || surfaceSize.height <= 0)
-    return nullptr;
+    return nsnull;
 
   if (resultOverflows)
-    return nullptr;
+    return nsnull;
 
   nsRefPtr<gfxImageSurface> image =
     new gfxImageSurface(surfaceSize, gfxASurface::ImageFormatARGB32);
   if (!image || image->CairoStatus())
-    return nullptr;
+    return nsnull;
+  image->SetDeviceOffset(-clipExtents.TopLeft());
 
-  // We would like to use gfxImageSurface::SetDeviceOffset() to position
-  // 'image'. However, we need to set the same matrix on the temporary context
-  // and pattern that we create below as is currently set on 'gfx'.
-  // Unfortunately, any device offset set by SetDeviceOffset() is affected by
-  // the transform passed to the SetMatrix() calls, so to avoid that we account
-  // for the device offset in the transform rather than use SetDeviceOffset().
-  gfxMatrix matrix =
-    gfx->CurrentMatrix() * gfxMatrix().Translate(-clipExtents.TopLeft());
-
-  nsRenderingContext tmpCtx;
-  tmpCtx.Init(this->PresContext()->DeviceContext(), image);
-  tmpCtx.ThebesContext()->SetMatrix(matrix);
+  nsSVGRenderState tmpState(image);
 
   mMaskParent = aParent;
-  if (mMaskParentMatrix) {
-    *mMaskParentMatrix = aMatrix;
-  } else {
-    mMaskParentMatrix = new gfxMatrix(aMatrix);
-  }
+  mMaskParentMatrix = NS_NewSVGMatrix(aMatrix);
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
     // The CTM of each frame referencing us can be different
     nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
-      SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
+      SVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                                 nsISVGChildFrame::TRANSFORM_CHANGED);
     }
-    nsSVGUtils::PaintFrameWithEffects(&tmpCtx, nullptr, kid);
+    nsSVGUtils::PaintFrameWithEffects(&tmpState, nsnull, kid);
   }
 
-  uint8_t *data   = image->Data();
-  int32_t  stride = image->Stride();
+  PRUint8 *data   = image->Data();
+  PRInt32  stride = image->Stride();
 
   nsIntRect rect(0, 0, surfaceSize.width, surfaceSize.height);
   nsSVGUtils::UnPremultiplyImageDataAlpha(data, stride, rect);
-  if (GetStyleSVG()->mColorInterpolation ==
-      NS_STYLE_COLOR_INTERPOLATION_LINEARRGB) {
-    nsSVGUtils::ConvertImageDataToLinearRGB(data, stride, rect);
-  }
+  nsSVGUtils::ConvertImageDataToLinearRGB(data, stride, rect);
 
-  for (int32_t y = 0; y < surfaceSize.height; y++)
-    for (int32_t x = 0; x < surfaceSize.width; x++) {
-      uint8_t *pixel = data + stride * y + 4 * x;
+  for (PRInt32 y = 0; y < surfaceSize.height; y++)
+    for (PRInt32 x = 0; x < surfaceSize.width; x++) {
+      PRUint8 *pixel = data + stride * y + 4 * x;
 
       /* linearRGB -> intensity */
-      uint8_t alpha =
-        static_cast<uint8_t>
+      PRUint8 alpha =
+        static_cast<PRUint8>
                    ((pixel[GFX_ARGB32_OFFSET_R] * 0.2125 +
                         pixel[GFX_ARGB32_OFFSET_G] * 0.7154 +
                         pixel[GFX_ARGB32_OFFSET_B] * 0.0721) *
@@ -135,35 +153,8 @@ nsSVGMaskFrame::ComputeMaskAlpha(nsRenderingContext *aContext,
     }
 
   gfxPattern *retval = new gfxPattern(image);
-  retval->SetMatrix(matrix);
   NS_IF_ADDREF(retval);
   return retval;
-}
-
-/* virtual */ void
-nsSVGMaskFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
-{
-  nsSVGEffects::InvalidateDirectRenderingObservers(this);
-  nsSVGMaskFrameBase::DidSetStyleContext(aOldStyleContext);
-}
-
-NS_IMETHODIMP
-nsSVGMaskFrame::AttributeChanged(int32_t  aNameSpaceID,
-                                 nsIAtom* aAttribute,
-                                 int32_t  aModType)
-{
-  if (aNameSpaceID == kNameSpaceID_None &&
-      (aAttribute == nsGkAtoms::x ||
-       aAttribute == nsGkAtoms::y ||
-       aAttribute == nsGkAtoms::width ||
-       aAttribute == nsGkAtoms::height||
-       aAttribute == nsGkAtoms::maskUnits ||
-       aAttribute == nsGkAtoms::maskContentUnits)) {
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
-  }
-
-  return nsSVGMaskFrameBase::AttributeChanged(aNameSpaceID,
-                                              aAttribute, aModType);
 }
 
 #ifdef DEBUG
@@ -186,15 +177,14 @@ nsSVGMaskFrame::GetType() const
 }
 
 gfxMatrix
-nsSVGMaskFrame::GetCanvasTM(uint32_t aFor)
+nsSVGMaskFrame::GetCanvasTM()
 {
   NS_ASSERTION(mMaskParentMatrix, "null parent matrix");
 
   nsSVGMaskElement *mask = static_cast<nsSVGMaskElement*>(mContent);
 
-  return nsSVGUtils::AdjustMatrixForUnits(
-    mMaskParentMatrix ? *mMaskParentMatrix : gfxMatrix(),
-    &mask->mEnumAttributes[nsSVGMaskElement::MASKCONTENTUNITS],
-    mMaskParent);
+  return nsSVGUtils::AdjustMatrixForUnits(nsSVGUtils::ConvertSVGMatrixToThebes(mMaskParentMatrix),
+                                          &mask->mEnumAttributes[nsSVGMaskElement::MASKCONTENTUNITS],
+                                          mMaskParent);
 }
 

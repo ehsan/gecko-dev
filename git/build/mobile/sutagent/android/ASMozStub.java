@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Android SUTAgent code.
+ *
+ * The Initial Developer of the Original Code is
+ * Bob Moss.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Bob Moss <bmoss@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package com.mozilla.SUTAgentAndroid.service;
 
@@ -32,20 +65,15 @@ public class ASMozStub extends android.app.Service {
     Timer timer = null;
 
     @SuppressWarnings("unchecked")
-    private static final Class<?>[] mSetForegroundSignature = new Class[] {
-    boolean.class};
-    @SuppressWarnings("unchecked")
-    private static final Class<?>[] mStartForegroundSignature = new Class[] {
+    private static final Class[] mStartForegroundSignature = new Class[] {
         int.class, Notification.class};
     @SuppressWarnings("unchecked")
-    private static final Class<?>[] mStopForegroundSignature = new Class[] {
+    private static final Class[] mStopForegroundSignature = new Class[] {
         boolean.class};
 
     private NotificationManager mNM;
-    private Method mSetForeground;
     private Method mStartForeground;
     private Method mStopForeground;
-    private Object[] mSetForegroundArgs = new Object[1];
     private Object[] mStartForegroundArgs = new Object[2];
     private Object[] mStopForegroundArgs = new Object[1];
 
@@ -67,13 +95,6 @@ public class ASMozStub extends android.app.Service {
         catch (NoSuchMethodException e) {
             // Running on an older platform.
             mStartForeground = mStopForeground = null;
-            }
-
-        try {
-            mSetForeground = getClass().getMethod("setForeground", mSetForegroundSignature);
-            }
-        catch (NoSuchMethodException e) {
-            mSetForeground = null;
             }
 
         doToast("Listener Service created...");
@@ -162,18 +183,7 @@ public class ASMozStub extends android.app.Service {
         }
 
         // Fall back on the old API.
-        if  (mSetForeground != null) {
-            try {
-                mSetForegroundArgs[0] = Boolean.TRUE;
-                mSetForeground.invoke(this, mSetForegroundArgs);
-            } catch (IllegalArgumentException e) {
-                e.printStackTrace();
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            } catch (InvocationTargetException e) {
-                e.printStackTrace();
-            }
-        }
+        setForeground(true);
         mNM.notify(id, notification);
     }
 
@@ -200,17 +210,6 @@ public class ASMozStub extends android.app.Service {
         // Fall back on the old API.  Note to cancel BEFORE changing the
         // foreground state, since we could be killed at that point.
         mNM.cancel(id);
-        if  (mSetForeground != null) {
-            try {
-                mSetForegroundArgs[0] = Boolean.FALSE;
-                mSetForeground.invoke(this, mSetForegroundArgs);
-            } catch (IllegalArgumentException e) {
-                e.printStackTrace();
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            } catch (InvocationTargetException e) {
-                e.printStackTrace();
-            }
-        }
+        setForeground(false);
     }
 }

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is 
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Base class for the XML and HTML content sinks, which construct a
@@ -14,15 +46,22 @@
 // Base class for contentsink implementations.
 
 #include "nsICSSLoaderObserver.h"
+#include "nsIScriptLoaderObserver.h"
 #include "nsWeakReference.h"
 #include "nsCOMPtr.h"
+#include "nsCOMArray.h"
 #include "nsString.h"
 #include "nsAutoPtr.h"
 #include "nsGkAtoms.h"
+#include "nsTHashtable.h"
+#include "nsHashKeys.h"
+#include "nsTArray.h"
 #include "nsITimer.h"
 #include "nsStubDocumentObserver.h"
+#include "nsIParserService.h"
 #include "nsIContentSink.h"
 #include "prlog.h"
+#include "nsIRequest.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsThreadUtils.h"
 
@@ -45,7 +84,7 @@ class Loader;
 }
 }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 
 extern PRLogModuleInfo* gContentSinkLogModuleInfo;
 
@@ -53,7 +92,7 @@ extern PRLogModuleInfo* gContentSinkLogModuleInfo;
 #define SINK_TRACE_REFLOW             0x2
 #define SINK_ALWAYS_REFLOW            0x4
 
-#define SINK_LOG_TEST(_lm, _bit) (int((_lm)->level) & (_bit))
+#define SINK_LOG_TEST(_lm, _bit) (PRIntn((_lm)->level) & (_bit))
 
 #define SINK_TRACE(_lm, _bit, _args) \
   PR_BEGIN_MACRO                     \
@@ -74,18 +113,21 @@ extern PRLogModuleInfo* gContentSinkLogModuleInfo;
 #define NS_DELAY_FOR_WINDOW_CREATION  500000
 
 class nsContentSink : public nsICSSLoaderObserver,
+                      public nsIScriptLoaderObserver,
                       public nsSupportsWeakReference,
                       public nsStubDocumentObserver,
                       public nsITimerCallback
 {
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsContentSink,
-                                           nsICSSLoaderObserver)
+                                           nsIScriptLoaderObserver)
+  NS_DECL_NSISCRIPTLOADEROBSERVER
+
     // nsITimerCallback
   NS_DECL_NSITIMERCALLBACK
 
   // nsICSSLoaderObserver
-  NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet, bool aWasAlternate,
+  NS_IMETHOD StyleSheetLoaded(nsCSSStyleSheet* aSheet, PRBool aWasAlternate,
                               nsresult aStatus);
 
   virtual nsresult ProcessMETATag(nsIContent* aContent);
@@ -96,11 +138,11 @@ class nsContentSink : public nsICSSLoaderObserver,
   NS_HIDDEN_(nsresult) WillResumeImpl(void);
   NS_HIDDEN_(nsresult) DidProcessATokenImpl(void);
   NS_HIDDEN_(void) WillBuildModelImpl(void);
-  NS_HIDDEN_(void) DidBuildModelImpl(bool aTerminated);
+  NS_HIDDEN_(void) DidBuildModelImpl(PRBool aTerminated);
   NS_HIDDEN_(void) DropParserAndPerfHint(void);
-  bool IsScriptExecutingImpl();
+  PRBool IsScriptExecutingImpl();
 
-  void NotifyAppend(nsIContent* aContent, uint32_t aStartIndex);
+  void NotifyAppend(nsIContent* aContent, PRUint32 aStartIndex);
 
   // nsIDocumentObserver
   NS_DECL_NSIDOCUMENTOBSERVER_BEGINUPDATE
@@ -108,9 +150,8 @@ class nsContentSink : public nsICSSLoaderObserver,
 
   virtual void UpdateChildCounts() = 0;
 
-  bool IsTimeToNotify();
-  bool LinkContextIsOurDocument(const nsSubstring& aAnchor);
-  bool Decode5987Format(nsAString& aEncoded);
+  PRBool IsTimeToNotify();
+  PRBool LinkContextIsOurDocument(const nsSubstring& aAnchor);
 
   static void InitializeStatics();
 
@@ -145,22 +186,23 @@ protected:
 
   nsresult ProcessHTTPHeaders(nsIChannel* aChannel);
   nsresult ProcessHeaderData(nsIAtom* aHeader, const nsAString& aValue,
-                             nsIContent* aContent = nullptr);
-  nsresult ProcessLinkHeader(const nsAString& aLinkData);
-  nsresult ProcessLink(const nsSubstring& aAnchor,
+                             nsIContent* aContent = nsnull);
+  nsresult ProcessLinkHeader(nsIContent* aElement,
+                             const nsAString& aLinkData);
+  nsresult ProcessLink(nsIContent* aElement, const nsSubstring& aAnchor,
                        const nsSubstring& aHref, const nsSubstring& aRel,
                        const nsSubstring& aTitle, const nsSubstring& aType,
                        const nsSubstring& aMedia);
 
   virtual nsresult ProcessStyleLink(nsIContent* aElement,
                                     const nsSubstring& aHref,
-                                    bool aAlternate,
+                                    PRBool aAlternate,
                                     const nsSubstring& aTitle,
                                     const nsSubstring& aType,
                                     const nsSubstring& aMedia);
 
-  void PrefetchHref(const nsAString &aHref, nsINode *aSource,
-                    bool aExplicit);
+  void PrefetchHref(const nsAString &aHref, nsIContent *aSource,
+                    PRBool aExplicit);
 
   // aHref can either be the usual URI format or of the form "//www.hostname.com"
   // without a scheme.
@@ -187,7 +229,7 @@ protected:
   //        by the calling function.
   nsresult SelectDocAppCache(nsIApplicationCache *aLoadApplicationCache,
                              nsIURI *aManifestURI,
-                             bool aFetchedWithHTTPGetOrEquiv,
+                             PRBool aFetchedWithHTTPGetOrEquiv,
                              CacheSelectionAction *aAction);
 
   // There is no offline cache manifest attribute specified.  Process
@@ -231,15 +273,15 @@ protected:
   // we still have stylesheet loads pending.  Otherwise, we'll wait until the
   // stylesheets are all done loading.
 public:
-  void StartLayout(bool aIgnorePendingSheets);
+  void StartLayout(PRBool aIgnorePendingSheets);
 
   static void NotifyDocElementCreated(nsIDocument* aDoc);
 
 protected:
   void
-  FavorPerformanceHint(bool perfOverStarvation, uint32_t starvationDelay);
+  FavorPerformanceHint(PRBool perfOverStarvation, PRUint32 starvationDelay);
 
-  inline int32_t GetNotificationInterval()
+  inline PRInt32 GetNotificationInterval()
   {
     if (mDynamicLowerValue) {
       return 1000;
@@ -248,17 +290,17 @@ protected:
     return sNotificationInterval;
   }
 
+  // Overridable hooks into script evaluation
+  virtual void PreEvaluateScript()                            {return;}
+  virtual void PostEvaluateScript(nsIScriptElement *aElement) {return;}
+
   virtual nsresult FlushTags() = 0;
 
   // Later on we might want to make this more involved somehow
   // (e.g. stop waiting after some timeout or whatnot).
-  bool WaitForPendingSheets() { return mPendingSheetCount > 0; }
+  PRBool WaitForPendingSheets() { return mPendingSheetCount > 0; }
 
   void DoProcessLinkHeader();
-
-  void StopDeflecting() {
-    mDeflectedCount = sPerfDeflectCount;
-  }
 
 private:
   // People shouldn't be allocating this class directly.  All subclasses should
@@ -267,16 +309,21 @@ private:
 
 protected:
 
+  virtual void ContinueInterruptedParsingAsync();
+  void ContinueInterruptedParsingIfEnabled();
+
   nsCOMPtr<nsIDocument>         mDocument;
-  nsRefPtr<nsParserBase>        mParser;
+  nsCOMPtr<nsIParser>           mParser;
   nsCOMPtr<nsIURI>              mDocumentURI;
   nsCOMPtr<nsIDocShell>         mDocShell;
   nsRefPtr<mozilla::css::Loader> mCSSLoader;
   nsRefPtr<nsNodeInfoManager>   mNodeInfoManager;
   nsRefPtr<nsScriptLoader>      mScriptLoader;
 
+  nsCOMArray<nsIScriptElement> mScriptElements;
+
   // back off timer notification after count
-  int32_t mBackoffCount;
+  PRInt32 mBackoffCount;
 
   // Time of last notification
   // Note: mLastNotificationTime is only valid once mLayoutStarted is true.
@@ -286,22 +333,22 @@ protected:
   nsCOMPtr<nsITimer> mNotificationTimer;
 
   // Have we already called BeginUpdate for this set of content changes?
-  uint8_t mBeganUpdate : 1;
-  uint8_t mLayoutStarted : 1;
-  uint8_t mDynamicLowerValue : 1;
-  uint8_t mParsing : 1;
-  uint8_t mDroppedTimer : 1;
+  PRUint8 mBeganUpdate : 1;
+  PRUint8 mLayoutStarted : 1;
+  PRUint8 mCanInterruptParser : 1;
+  PRUint8 mDynamicLowerValue : 1;
+  PRUint8 mParsing : 1;
+  PRUint8 mDroppedTimer : 1;
   // If true, we deferred starting layout until sheets load
-  uint8_t mDeferredLayoutStart : 1;
+  PRUint8 mDeferredLayoutStart : 1;
   // If true, we deferred notifications until sheets load
-  uint8_t mDeferredFlushTags : 1;
+  PRUint8 mDeferredFlushTags : 1;
   // If false, we're not ourselves a document observer; that means we
   // shouldn't be performing any more content model notifications,
   // since we're not longer updating our child counts.
-  uint8_t mIsDocumentObserver : 1;
-  // True if this is parser is a fragment parser or an HTML DOMParser.
-  // XML DOMParser leaves this to false for now!
-  uint8_t mRunsToCompletion : 1;
+  PRUint8 mIsDocumentObserver : 1;
+  // True if this is a fragment parser
+  PRUint8 mFragmentMode : 1;
   
   //
   // -- Can interrupt parsing members --
@@ -309,54 +356,60 @@ protected:
 
   // The number of tokens that have been processed since we measured
   // if it's time to return to the main event loop.
-  uint32_t mDeflectedCount;
+  PRUint32 mDeflectedCount;
 
   // Is there currently a pending event?
-  bool mHasPendingEvent;
+  PRBool mHasPendingEvent;
 
   // When to return to the main event loop
-  uint32_t mCurrentParseEndTime;
+  PRUint32 mCurrentParseEndTime;
 
-  int32_t mBeginLoadTime;
+  PRInt32 mBeginLoadTime;
 
   // Last mouse event or keyboard event time sampled by the content
   // sink
-  uint32_t mLastSampledUserEventTime;
+  PRUint32 mLastSampledUserEventTime;
 
-  int32_t mInMonolithicContainer;
+  PRInt32 mInMonolithicContainer;
 
-  int32_t mInNotification;
-  uint32_t mUpdatesInNotification;
+  PRInt32 mInNotification;
+  PRUint32 mUpdatesInNotification;
 
-  uint32_t mPendingSheetCount;
+  PRUint32 mPendingSheetCount;
 
   nsRevocableEventPtr<nsRunnableMethod<nsContentSink, void, false> >
     mProcessLinkHeaderEvent;
 
   // Do we notify based on time?
-  static bool sNotifyOnTimer;
+  static PRBool sNotifyOnTimer;
   // Back off timer notification after count.
-  static int32_t sBackoffCount;
+  static PRInt32 sBackoffCount;
   // Notification interval in microseconds
-  static int32_t sNotificationInterval;
+  static PRInt32 sNotificationInterval;
   // How many times to deflect in interactive/perf modes
-  static int32_t sInteractiveDeflectCount;
-  static int32_t sPerfDeflectCount;
+  static PRInt32 sInteractiveDeflectCount;
+  static PRInt32 sPerfDeflectCount;
   // 0 = don't check for pending events
   // 1 = don't deflect if there are pending events
   // 2 = bail if there are pending events
-  static int32_t sPendingEventMode;
+  static PRInt32 sPendingEventMode;
   // How often to probe for pending events. 1=every token
-  static int32_t sEventProbeRate;
+  static PRInt32 sEventProbeRate;
   // How long to stay off the event loop in interactive/perf modes
-  static int32_t sInteractiveParseTime;
-  static int32_t sPerfParseTime;
+  static PRInt32 sInteractiveParseTime;
+  static PRInt32 sPerfParseTime;
   // How long to be in interactive mode after an event
-  static int32_t sInteractiveTime;
+  static PRInt32 sInteractiveTime;
   // How long to stay in perf mode after initial loading
-  static int32_t sInitialPerfTime;
+  static PRInt32 sInitialPerfTime;
   // Should we switch between perf-mode and interactive-mode
-  static int32_t sEnablePerfMode;
+  static PRInt32 sEnablePerfMode;
+  static PRBool sCanInterruptParser;
 };
+
+// sanitizing content sink whitelists
+extern PRBool IsAttrURI(nsIAtom *aName);
+extern nsIAtom** const kDefaultAllowedTags [];
+extern nsIAtom** const kDefaultAllowedAttributes [];
 
 #endif // _nsContentSink_h_

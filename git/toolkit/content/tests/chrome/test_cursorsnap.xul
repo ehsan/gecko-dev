@@ -5,6 +5,8 @@
 <window title="Cursor snapping test"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
+  <script type="application/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
   <script type="application/javascript"
@@ -111,7 +113,7 @@ function SetPrefs(aSet)
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var prefSvc = Components.classes["@mozilla.org/preferences-service;1"].
-                           getService(Components.interfaces.nsIPrefBranch);
+                           getService(Components.interfaces.nsIPrefBranch2);
   const kPrefName = "ui.cursor_snapping.always_enabled";
   if (aSet) {
     prefSvc.setBoolPref(kPrefName, true);

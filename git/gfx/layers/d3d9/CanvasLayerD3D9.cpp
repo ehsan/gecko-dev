@@ -1,10 +1,42 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com>
+ *   Bas Schouten <bschouten@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
-#include "ipc/AutoOpenSurface.h"
 #include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
 #include "ShadowBufferD3D9.h"
@@ -28,26 +60,22 @@ CanvasLayerD3D9::~CanvasLayerD3D9()
 void
 CanvasLayerD3D9::Initialize(const Data& aData)
 {
-  NS_ASSERTION(mSurface == nullptr, "BasicCanvasLayer::Initialize called twice!");
+  NS_ASSERTION(mSurface == nsnull, "BasicCanvasLayer::Initialize called twice!");
 
-  if (aData.mDrawTarget) {
-    mDrawTarget = aData.mDrawTarget;
-    mSurface = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
-    mNeedsYFlip = false;
-    mDataIsPremultiplied = true;
-  } else if (aData.mSurface) {
+  if (aData.mSurface) {
     mSurface = aData.mSurface;
-    NS_ASSERTION(aData.mGLContext == nullptr,
+    NS_ASSERTION(aData.mGLContext == nsnull,
                  "CanvasLayer can't have both surface and GLContext");
-    mNeedsYFlip = false;
-    mDataIsPremultiplied = true;
+    mNeedsYFlip = PR_FALSE;
+    mDataIsPremultiplied = PR_TRUE;
   } else if (aData.mGLContext) {
     NS_ASSERTION(aData.mGLContext->IsOffscreen(), "canvas gl context isn't offscreen");
     mGLContext = aData.mGLContext;
+    mCanvasFramebuffer = mGLContext->GetOffscreenFBO();
     mDataIsPremultiplied = aData.mGLBufferIsPremultiplied;
-    mNeedsYFlip = true;
+    mNeedsYFlip = PR_TRUE;
   } else {
-    NS_ERROR("CanvasLayer created without mSurface, mGLContext or mDrawTarget?");
+    NS_ERROR("CanvasLayer created without mSurface or mGLContext?");
   }
 
   mBounds.SetRect(0, 0, aData.mSize.width, aData.mSize.height);
@@ -58,17 +86,14 @@ CanvasLayerD3D9::Initialize(const Data& aData)
 void
 CanvasLayerD3D9::UpdateSurface()
 {
-  if (!mDirty && mTexture)
+  if (!mDirty)
     return;
-  mDirty = false;
+  mDirty = PR_FALSE;
 
   if (!mTexture) {
     CreateTexture();
-
-    if (!mTexture) {
-      NS_WARNING("CanvasLayerD3D9::Updated called but no texture present and creation failed!");
-      return;
-    }
+    NS_WARNING("CanvasLayerD3D9::Updated called but no texture present!");
+    return;
   }
 
   if (mGLContext) {
@@ -81,34 +106,49 @@ CanvasLayerD3D9::UpdateSurface()
 
     D3DLOCKED_RECT r = textureLock.GetLockRect();
 
-    const bool stridesMatch = r.Pitch == mBounds.width * 4;
-
-    uint8_t *destination;
-    if (!stridesMatch) {
-      destination = GetTempBlob(mBounds.width * mBounds.height * 4);
+    PRUint8 *destination;
+    if (r.Pitch != mBounds.width * 4) {
+      destination = new PRUint8[mBounds.width * mBounds.height * 4];
     } else {
-      DiscardTempBlob();
-      destination = (uint8_t*)r.pBits;
+      destination = (PRUint8*)r.pBits;
     }
 
-    mGLContext->MakeCurrent();
+    // We have to flush to ensure that any buffered GL operations are
+    // in the framebuffer before we read.
+    mGLContext->fFlush();
+
+    PRUint32 currentFramebuffer = 0;
+
+    mGLContext->fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, (GLint*)&currentFramebuffer);
+
+    // Make sure that we read pixels from the correct framebuffer, regardless
+    // of what's currently bound.
+    if (currentFramebuffer != mCanvasFramebuffer)
+      mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mCanvasFramebuffer);
 
     nsRefPtr<gfxImageSurface> tmpSurface =
       new gfxImageSurface(destination,
                           gfxIntSize(mBounds.width, mBounds.height),
                           mBounds.width * 4,
                           gfxASurface::ImageFormatARGB32);
-    mGLContext->ReadScreenIntoImageSurface(tmpSurface);
-    tmpSurface = nullptr;
+    mGLContext->ReadPixelsIntoImageSurface(0, 0,
+                                           mBounds.width, mBounds.height,
+                                           tmpSurface);
+    tmpSurface = nsnull;
 
-    if (!stridesMatch) {
+    // Put back the previous framebuffer binding.
+    if (currentFramebuffer != mCanvasFramebuffer)
+      mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, currentFramebuffer);
+
+    if (r.Pitch != mBounds.width * 4) {
       for (int y = 0; y < mBounds.height; y++) {
-        memcpy((uint8_t*)r.pBits + r.Pitch * y,
+        memcpy((PRUint8*)r.pBits + r.Pitch * y,
                destination + mBounds.width * 4 * y,
                mBounds.width * 4);
       }
+      delete [] destination;
     }
-  } else {
+  } else if (mSurface) {
     RECT r;
     r.left = mBounds.x;
     r.top = mBounds.y;
@@ -143,8 +183,8 @@ CanvasLayerD3D9::UpdateSurface()
       ctx->Paint();
     }
 
-    uint8_t *startBits = sourceSurface->Data();
-    uint32_t sourceStride = sourceSurface->Stride();
+    PRUint8 *startBits = sourceSurface->Data();
+    PRUint32 sourceStride = sourceSurface->Stride();
 
     if (sourceSurface->Format() != gfxASurface::ImageFormatARGB32) {
       mHasAlpha = false;
@@ -153,7 +193,7 @@ CanvasLayerD3D9::UpdateSurface()
     }
 
     for (int y = 0; y < mBounds.height; y++) {
-      memcpy((uint8_t*)lockedRect.pBits + lockedRect.Pitch * y,
+      memcpy((PRUint8*)lockedRect.pBits + lockedRect.Pitch * y,
              startBits + sourceStride * y,
              mBounds.width * 4);
     }
@@ -171,9 +211,6 @@ void
 CanvasLayerD3D9::RenderLayer()
 {
   UpdateSurface();
-  if (mD3DManager->CompositingDisabled()) {
-    return;
-  }
   FireDidTransactionCallback();
 
   if (!mTexture)
@@ -195,9 +232,9 @@ CanvasLayerD3D9::RenderLayer()
   SetShaderTransformAndOpacity();
 
   if (mHasAlpha) {
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER, GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBALAYER);
   } else {
-    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER, GetMaskLayer());
+    mD3DManager->SetShaderMode(DeviceManagerD3D9::RGBLAYER);
   }
 
   if (mFilter == gfxPattern::FILTER_NEAREST) {
@@ -225,7 +262,7 @@ CanvasLayerD3D9::CleanResources()
 {
   if (mD3DManager->deviceManager()->HasDynamicTextures()) {
     // In this case we have a texture in POOL_DEFAULT
-    mTexture = nullptr;
+    mTexture = nsnull;
   }
 }
 
@@ -233,35 +270,29 @@ void
 CanvasLayerD3D9::LayerManagerDestroyed()
 {
   mD3DManager->deviceManager()->mLayersWithResources.RemoveElement(this);
-  mD3DManager = nullptr;
+  mD3DManager = nsnull;
 }
 
 void
 CanvasLayerD3D9::CreateTexture()
 {
-  HRESULT hr;
   if (mD3DManager->deviceManager()->HasDynamicTextures()) {
-    hr = device()->CreateTexture(mBounds.width, mBounds.height, 1, D3DUSAGE_DYNAMIC,
-                                 D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT,
-                                 getter_AddRefs(mTexture), NULL);
+    device()->CreateTexture(mBounds.width, mBounds.height, 1, D3DUSAGE_DYNAMIC,
+                            D3DFMT_A8R8G8B8, D3DPOOL_DEFAULT,
+                            getter_AddRefs(mTexture), NULL);    
   } else {
     // D3DPOOL_MANAGED is fine here since we require Dynamic Textures for D3D9Ex
     // devices.
-    hr = device()->CreateTexture(mBounds.width, mBounds.height, 1, 0,
-                                 D3DFMT_A8R8G8B8, D3DPOOL_MANAGED,
-                                 getter_AddRefs(mTexture), NULL);
-  }
-  if (FAILED(hr)) {
-    mD3DManager->ReportFailure(NS_LITERAL_CSTRING("CanvasLayerD3D9::CreateTexture() failed"),
-                                 hr);
-    return;
+    device()->CreateTexture(mBounds.width, mBounds.height, 1, 0,
+                            D3DFMT_A8R8G8B8, D3DPOOL_MANAGED,
+                            getter_AddRefs(mTexture), NULL);
   }
 }
 
 ShadowCanvasLayerD3D9::ShadowCanvasLayerD3D9(LayerManagerD3D9* aManager)
-  : ShadowCanvasLayer(aManager, nullptr)
+  : ShadowCanvasLayer(aManager, nsnull)
   , LayerD3D9(aManager)
-  , mNeedsYFlip(false)
+  , mNeedsYFlip(PR_FALSE)
 {
   mImplData = static_cast<LayerD3D9*>(this);
 }
@@ -276,8 +307,10 @@ ShadowCanvasLayerD3D9::Initialize(const Data& aData)
 }
 
 void
-ShadowCanvasLayerD3D9::Init(bool needYFlip)
+ShadowCanvasLayerD3D9::Init(const SurfaceDescriptor& aNewFront, 
+                            const nsIntSize& aSize, bool needYFlip)
 {
+
   if (!mBuffer) {
     mBuffer = new ShadowBufferD3D9(this);
   }
@@ -286,18 +319,18 @@ ShadowCanvasLayerD3D9::Init(bool needYFlip)
 }
 
 void
-ShadowCanvasLayerD3D9::Swap(const CanvasSurface& aNewFront,
-                            bool needYFlip,
-                            CanvasSurface* aNewBack)
+ShadowCanvasLayerD3D9::Swap(const SurfaceDescriptor& aNewFront,
+                           SurfaceDescriptor* aNewBack)
 {
-  NS_ASSERTION(aNewFront.type() == CanvasSurface::TSurfaceDescriptor, 
-    "ShadowCanvasLayerD3D9::Swap expected CanvasSurface surface");
+  NS_ASSERTION(aNewFront.type() == SharedImage::TSurfaceDescriptor, 
+    "ShadowCanvasLayerD3D9::Swap expected SharedImage surface");
 
-  AutoOpenSurface surf(OPEN_READ_ONLY, aNewFront);
-  if (!mBuffer) {
-    Init(needYFlip);
+  nsRefPtr<gfxASurface> surf = 
+    ShadowLayerForwarder::OpenDescriptor(aNewFront);
+   
+  if (mBuffer) {
+    mBuffer->Upload(surf, GetVisibleRegion().GetBounds());
   }
-  mBuffer->Upload(surf.Get(), GetVisibleRegion().GetBounds());
 
   *aNewBack = aNewFront;
 }
@@ -317,7 +350,7 @@ ShadowCanvasLayerD3D9::Disconnect()
 void
 ShadowCanvasLayerD3D9::Destroy()
 {
-  mBuffer = nullptr;
+  mBuffer = nsnull;
 }
 
 void
@@ -330,7 +363,7 @@ void
 ShadowCanvasLayerD3D9::LayerManagerDestroyed()
 {
   mD3DManager->deviceManager()->mLayersWithResources.RemoveElement(this);
-  mD3DManager = nullptr;
+  mD3DManager = nsnull;
 }
 
 Layer*
@@ -342,7 +375,7 @@ ShadowCanvasLayerD3D9::GetLayer()
 void
 ShadowCanvasLayerD3D9::RenderLayer()
 {
-  if (!mBuffer || mD3DManager->CompositingDisabled()) {
+  if (!mBuffer) {
     return;
   }
 

@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test for X-Frame-Options response header</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -82,41 +83,6 @@ var testFramesLoaded = function() {
   frame = harness.contentDocument.getElementById("sameorigin2");
   var test5 = frame.contentDocument.getElementById("test");
   is(test5, null, "test sameorigin2");
-
-  // iframe from different origin, X-F-O: SAMEORIGIN, SAMEORIGIN - should not load
-  frame = harness.contentDocument.getElementById("sameorigin5");
-  var test6 = frame.contentDocument.getElementById("test");
-  is(test6, null, "test sameorigin5");
-
-  // iframe from same origin, X-F-O: SAMEORIGIN, SAMEORIGIN - should load
-  frame = harness.contentDocument.getElementById("sameorigin6");
-  var test7 = frame.contentDocument.getElementById("test").textContent;
-  is(test7, "sameorigin6", "test sameorigin6");
-
-  // iframe from same origin, X-F-O: SAMEORIGIN,SAMEORIGIN, SAMEORIGIN - should load
-  frame = harness.contentDocument.getElementById("sameorigin7");
-  var test8 = frame.contentDocument.getElementById("test").textContent;
-  is(test8, "sameorigin7", "test sameorigin7");
-
-  // iframe from same origin, X-F-O: SAMEORIGIN,SAMEORIGIN, SAMEORIGIN - should not load
-  frame = harness.contentDocument.getElementById("sameorigin8");
-  var test9 = frame.contentDocument.getElementById("test");
-  is(test9, null, "test sameorigin8");
-
-  // iframe from same origin, X-F-O: DENY,SAMEORIGIN - should not load
-  frame = harness.contentDocument.getElementById("mixedpolicy");
-  var test10 = frame.contentDocument.getElementById("test");
-  is(test10, null, "test mixedpolicy");
-
-  // iframe from different origin, allow-from: this origin - should load
-  frame = harness.contentDocument.getElementById("allow-from-allow");
-  var test11 = frame.contentDocument.getElementById("test").textContent;
-  is(test11, "allow-from-allow", "test allow-from-allow");
-
-  // iframe from different origin, with allow-from: other - should not load
-  frame = harness.contentDocument.getElementById("allow-from-deny");
-  var test12 = frame.contentDocument.getElementById("test");
-  is(test12, null, "test allow-from-deny");
 
   // call tests to check principal comparison, e.g. a document can open a window
   // to a data: or javascript: document which frames an

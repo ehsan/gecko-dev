@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=384003
 -->
 <head>
   <title>Test for Bug 384003</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -35,7 +36,7 @@ function resolverTest(expr, resolver, result, extype) {
       ok(false, "Should have got an exception!");
     }
   } catch(ex) {
-    is(ex.name, extype, "Wrong exception");
+    is(ex.code, extype, "Wrong exception");
   }
 }
 
@@ -56,20 +57,21 @@ resolverTest("*", document.documentElement.firstChild.nextSibling,
 
 // Expression should return foo element, but because of the
 // resolver it may throw an exception.
+var NAMESPACE_ERR = 14;
 var foo = document.getElementById("test").firstChild;
 // Document resolver
-resolverTest("//foo:foo", document, foo, "NamespaceError");
+resolverTest("//foo:foo", document, foo, NAMESPACE_ERR);
 // Element resolver
-resolverTest("//foo:foo", document.documentElement, foo, "NamespaceError");
+resolverTest("//foo:foo", document.documentElement, foo, NAMESPACE_ERR);
 // Attribute resolver
 resolverTest("//foo:foo", document.documentElement.getAttributeNode("attr"),
-             foo, "NamespaceError");
+             foo, NAMESPACE_ERR);
 // Text node resolver
 resolverTest("//foo:foo", document.documentElement.firstChild,
-             foo, "NamespaceError");
+             foo, NAMESPACE_ERR);
 // Comment node resolver
 resolverTest("//foo:foo", document.documentElement.firstChild.nextSibling,
-             foo, "NamespaceError");
+             foo, NAMESPACE_ERR);
 // Function resolver
 resolverTest("//foo:foo",
              function(p) { return (p == "foo") ? "http://www.foo.org" : ""; },

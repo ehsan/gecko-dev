@@ -1,127 +1,134 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Indexed Database.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Turner <bent.mozilla@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_dom_indexeddb_idbobjectstore_h__
 #define mozilla_dom_indexeddb_idbobjectstore_h__
 
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
+#include "mozilla/dom/indexedDB/IDBTransaction.h"
+#include "mozilla/dom/indexedDB/Key.h"
 
 #include "nsIIDBObjectStore.h"
 #include "nsIIDBTransaction.h"
 
 #include "nsCycleCollectionParticipant.h"
 
-#include "mozilla/dom/indexedDB/IDBTransaction.h"
-#include "mozilla/dom/indexedDB/KeyPath.h"
-
-class nsIDOMBlob;
 class nsIScriptContext;
 class nsPIDOMWindow;
-
-namespace mozilla {
-namespace dom {
-class ContentParent;
-class PBlobChild;
-class PBlobParent;
-}
-}
 
 BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
-class FileManager;
-class IDBCursor;
-class IDBKeyRange;
-class IDBRequest;
-class IndexedDBObjectStoreChild;
-class IndexedDBObjectStoreParent;
-class Key;
 
+struct ObjectStoreInfo;
 struct IndexInfo;
 struct IndexUpdateInfo;
-struct ObjectStoreInfo;
 
-class IDBObjectStore MOZ_FINAL : public nsIIDBObjectStore
+class IDBObjectStore : public nsIIDBObjectStore
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIIDBOBJECTSTORE
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBObjectStore)
+  NS_DECL_CYCLE_COLLECTION_CLASS(IDBObjectStore)
 
   static already_AddRefed<IDBObjectStore>
   Create(IDBTransaction* aTransaction,
-         ObjectStoreInfo* aInfo,
-         nsIAtom* aDatabaseId,
-         bool aCreating);
+         const ObjectStoreInfo* aInfo);
 
   static nsresult
-  AppendIndexUpdateInfo(int64_t aIndexID,
-                        const KeyPath& aKeyPath,
-                        bool aUnique,
-                        bool aMultiEntry,
-                        JSContext* aCx,
-                        jsval aObject,
-                        nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
+  GetKeyFromVariant(nsIVariant* aKeyVariant,
+                    Key& aKey);
+
+  static nsresult
+  GetKeyFromJSVal(jsval aKeyVal,
+                  JSContext* aCx,
+                  Key& aKey);
+
+  static nsresult
+  GetJSValFromKey(const Key& aKey,
+                  JSContext* aCx,
+                  jsval* aKeyVal);
+
+  static nsresult
+  GetKeyPathValueFromStructuredData(const PRUint8* aData,
+                                    PRUint32 aDataLength,
+                                    const nsAString& aKeyPath,
+                                    JSContext** aCx,
+                                    Key& aValue);
+
+  static nsresult
+  GetIndexUpdateInfo(ObjectStoreInfo* aObjectStoreInfo,
+                     JSContext* aCx,
+                     jsval aObject,
+                     nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
 
   static nsresult
   UpdateIndexes(IDBTransaction* aTransaction,
-                int64_t aObjectStoreId,
+                PRInt64 aObjectStoreId,
                 const Key& aObjectStoreKey,
+                bool aAutoIncrement,
                 bool aOverwrite,
-                int64_t aObjectDataId,
+                PRInt64 aObjectDataId,
                 const nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
 
   static nsresult
-  GetStructuredCloneReadInfoFromStatement(mozIStorageStatement* aStatement,
-                                          uint32_t aDataIndex,
-                                          uint32_t aFileIdsIndex,
-                                          IDBDatabase* aDatabase,
-                                          StructuredCloneReadInfo& aInfo);
+  GetStructuredCloneDataFromStatement(mozIStorageStatement* aStatement,
+                                      PRUint32 aIndex,
+                                      JSAutoStructuredCloneBuffer& aBuffer);
 
   static void
   ClearStructuredCloneBuffer(JSAutoStructuredCloneBuffer& aBuffer);
 
   static bool
   DeserializeValue(JSContext* aCx,
-                   StructuredCloneReadInfo& aCloneReadInfo,
-                   jsval* aValue);
+                   JSAutoStructuredCloneBuffer& aBuffer,
+                   jsval* aValue,
+                   JSStructuredCloneCallbacks* aCallbacks = nsnull,
+                   void* aClosure = nsnull);
 
   static bool
   SerializeValue(JSContext* aCx,
-                 StructuredCloneWriteInfo& aCloneWriteInfo,
-                 jsval aValue);
-
-  static JSObject*
-  StructuredCloneReadCallback(JSContext* aCx,
-                              JSStructuredCloneReader* aReader,
-                              uint32_t aTag,
-                              uint32_t aData,
-                              void* aClosure);
-  static JSBool
-  StructuredCloneWriteCallback(JSContext* aCx,
-                               JSStructuredCloneWriter* aWriter,
-                               JSObject* aObj,
-                               void* aClosure);
-
-  static nsresult
-  ConvertFileIdsToArray(const nsAString& aFileIds,
-                        nsTArray<int64_t>& aResult);
-
-  // Called only in the main process.
-  static nsresult
-  ConvertBlobsToActors(ContentParent* aContentParent,
-                       FileManager* aFileManager,
-                       const nsTArray<StructuredCloneFile>& aFiles,
-                       InfallibleTArray<PBlobParent*>& aActors);
-
-  // Called only in the child process.
-  static void
-  ConvertActorsToBlobs(const InfallibleTArray<PBlobChild*>& aActors,
-                       nsTArray<StructuredCloneFile>& aFiles);
+                 JSAutoStructuredCloneBuffer& aBuffer,
+                 jsval aValue,
+                 JSStructuredCloneCallbacks* aCallbacks = nsnull,
+                 void* aClosure = nsnull);
 
   const nsString& Name() const
   {
@@ -138,20 +145,15 @@ public:
     return mTransaction->IsWriteAllowed();
   }
 
-  int64_t Id() const
+  PRInt64 Id() const
   {
     NS_ASSERTION(mId != LL_MININT, "Don't ask for this yet!");
     return mId;
   }
 
-  const KeyPath& GetKeyPath() const
+  const nsString& KeyPath() const
   {
     return mKeyPath;
-  }
-
-  const bool HasValidKeyPath() const
-  {
-    return mKeyPath.IsValid();
   }
 
   IDBTransaction* Transaction()
@@ -159,91 +161,9 @@ public:
     return mTransaction;
   }
 
-  ObjectStoreInfo* Info()
-  {
-    return mInfo;
-  }
-
-  void
-  SetActor(IndexedDBObjectStoreChild* aActorChild)
-  {
-    NS_ASSERTION(!aActorChild || !mActorChild, "Shouldn't have more than one!");
-    mActorChild = aActorChild;
-  }
-
-  void
-  SetActor(IndexedDBObjectStoreParent* aActorParent)
-  {
-    NS_ASSERTION(!aActorParent || !mActorParent,
-                 "Shouldn't have more than one!");
-    mActorParent = aActorParent;
-  }
-
-  IndexedDBObjectStoreChild*
-  GetActorChild() const
-  {
-    return mActorChild;
-  }
-
-  IndexedDBObjectStoreParent*
-  GetActorParent() const
-  {
-    return mActorParent;
-  }
-
-  nsresult
-  CreateIndexInternal(const IndexInfo& aInfo,
-                      IDBIndex** _retval);
-
-  nsresult
-  IndexInternal(const nsAString& aName,
-                IDBIndex** _retval);
-
-  nsresult AddOrPutInternal(
-                      const SerializedStructuredCloneWriteInfo& aCloneWriteInfo,
-                      const Key& aKey,
-                      const InfallibleTArray<IndexUpdateInfo>& aUpdateInfoArray,
-                      const nsTArray<nsCOMPtr<nsIDOMBlob> >& aBlobs,
-                      bool aOverwrite,
-                      IDBRequest** _retval);
-
-  nsresult GetInternal(IDBKeyRange* aKeyRange,
-                       JSContext* aCx,
-                       IDBRequest** _retval);
-
-  nsresult GetAllInternal(IDBKeyRange* aKeyRange,
-                          uint32_t aLimit,
-                          JSContext* aCx,
-                          IDBRequest** _retval);
-
-  nsresult DeleteInternal(IDBKeyRange* aKeyRange,
-                          JSContext* aCx,
-                          IDBRequest** _retval);
-
-  nsresult ClearInternal(JSContext* aCx,
-                         IDBRequest** _retval);
-
-  nsresult CountInternal(IDBKeyRange* aKeyRange,
-                         JSContext* aCx,
-                         IDBRequest** _retval);
-
-  nsresult OpenCursorInternal(IDBKeyRange* aKeyRange,
-                              size_t aDirection,
-                              JSContext* aCx,
-                              IDBRequest** _retval);
-
-  nsresult OpenCursorFromChildProcess(
-                            IDBRequest* aRequest,
-                            size_t aDirection,
-                            const Key& aKey,
-                            const SerializedStructuredCloneReadInfo& aCloneInfo,
-                            nsTArray<StructuredCloneFile>& aBlobs,
-                            IDBCursor** _retval);
-
-  void
-  SetInfo(ObjectStoreInfo* aInfo);
-
-  static JSClass sDummyPropJSClass;
+  nsresult ModifyValueForNewKey(JSAutoStructuredCloneBuffer& aBuffer,
+                                Key& aKey,
+                                PRUint64 aOffsetToKeyProp);
 
 protected:
   IDBObjectStore();
@@ -252,33 +172,32 @@ protected:
   nsresult GetAddInfo(JSContext* aCx,
                       jsval aValue,
                       jsval aKeyVal,
-                      StructuredCloneWriteInfo& aCloneWriteInfo,
+                      JSAutoStructuredCloneBuffer& aCloneBuffer,
                       Key& aKey,
-                      nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
+                      nsTArray<IndexUpdateInfo>& aUpdateInfoArray,
+                      PRUint64* aOffsetToKeyProp);
 
   nsresult AddOrPut(const jsval& aValue,
                     const jsval& aKey,
                     JSContext* aCx,
-                    uint8_t aOptionalArgCount,
-                    bool aOverwrite,
-                    IDBRequest** _retval);
+                    PRUint8 aOptionalArgCount,
+                    nsIIDBRequest** _retval,
+                    bool aOverwrite);
 
 private:
   nsRefPtr<IDBTransaction> mTransaction;
 
-  int64_t mId;
+  nsCOMPtr<nsIScriptContext> mScriptContext;
+  nsCOMPtr<nsPIDOMWindow> mOwner;
+
+  PRInt64 mId;
   nsString mName;
-  KeyPath mKeyPath;
-  JS::Value mCachedKeyPath;
-  bool mRooted;
-  bool mAutoIncrement;
-  nsCOMPtr<nsIAtom> mDatabaseId;
-  nsRefPtr<ObjectStoreInfo> mInfo;
+  nsString mKeyPath;
+  PRBool mAutoIncrement;
+  PRUint32 mDatabaseId;
+  PRUint32 mStructuredCloneVersion;
 
   nsTArray<nsRefPtr<IDBIndex> > mCreatedIndexes;
-
-  IndexedDBObjectStoreChild* mActorChild;
-  IndexedDBObjectStoreParent* mActorParent;
 };
 
 END_INDEXEDDB_NAMESPACE

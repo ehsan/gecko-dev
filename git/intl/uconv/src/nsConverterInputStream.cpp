@@ -1,7 +1,39 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsConverterInputStream.h"
 #include "nsIInputStream.h"
@@ -18,7 +50,7 @@ static NS_DEFINE_CID(kCharsetConverterManagerCID, NS_ICHARSETCONVERTERMANAGER_CI
 NS_IMETHODIMP
 nsConverterInputStream::Init(nsIInputStream* aStream,
                              const char *aCharset,
-                             int32_t aBufferSize,
+                             PRInt32 aBufferSize,
                              PRUnichar aReplacementChar)
 {
     if (!aCharset)
@@ -37,10 +69,10 @@ nsConverterInputStream::Init(nsIInputStream* aStream,
     if (NS_FAILED(rv)) return rv;
  
     // set up our buffers
-    rv = NS_NewByteBuffer(getter_AddRefs(mByteData), nullptr, aBufferSize);
+    rv = NS_NewByteBuffer(getter_AddRefs(mByteData), nsnull, aBufferSize);
     if (NS_FAILED(rv)) return rv;
 
-    rv = NS_NewUnicharBuffer(getter_AddRefs(mUnicharData), nullptr, aBufferSize);
+    rv = NS_NewUnicharBuffer(getter_AddRefs(mUnicharData), nsnull, aBufferSize);
     if (NS_FAILED(rv)) return rv;
 
     mInput = aStream;
@@ -54,20 +86,20 @@ nsConverterInputStream::Close()
 {
     nsresult rv = mInput ? mInput->Close() : NS_OK;
     PR_FREEIF(mLineBuffer);
-    mInput = nullptr;
-    mConverter = nullptr;
-    mByteData = nullptr;
-    mUnicharData = nullptr;
+    mInput = nsnull;
+    mConverter = nsnull;
+    mByteData = nsnull;
+    mUnicharData = nsnull;
     return rv;
 }
 
 NS_IMETHODIMP
 nsConverterInputStream::Read(PRUnichar* aBuf,
-                             uint32_t aCount,
-                             uint32_t *aReadCount)
+                             PRUint32 aCount,
+                             PRUint32 *aReadCount)
 {
   NS_ASSERTION(mUnicharDataLength >= mUnicharDataOffset, "unsigned madness");
-  uint32_t readCount = mUnicharDataLength - mUnicharDataOffset;
+  PRUint32 readCount = mUnicharDataLength - mUnicharDataOffset;
   if (0 == readCount) {
     // Fill the unichar buffer
     readCount = Fill(&mLastErrorCode);
@@ -89,10 +121,10 @@ nsConverterInputStream::Read(PRUnichar* aBuf,
 NS_IMETHODIMP
 nsConverterInputStream::ReadSegments(nsWriteUnicharSegmentFun aWriter,
                                      void* aClosure,
-                                     uint32_t aCount, uint32_t *aReadCount)
+                                     PRUint32 aCount, PRUint32 *aReadCount)
 {
   NS_ASSERTION(mUnicharDataLength >= mUnicharDataOffset, "unsigned madness");
-  uint32_t bytesToWrite = mUnicharDataLength - mUnicharDataOffset;
+  PRUint32 bytesToWrite = mUnicharDataLength - mUnicharDataOffset;
   nsresult rv;
   if (0 == bytesToWrite) {
     // Fill the unichar buffer
@@ -106,8 +138,8 @@ nsConverterInputStream::ReadSegments(nsWriteUnicharSegmentFun aWriter,
   if (bytesToWrite > aCount)
     bytesToWrite = aCount;
   
-  uint32_t bytesWritten;
-  uint32_t totalBytesWritten = 0;
+  PRUint32 bytesWritten;
+  PRUint32 totalBytesWritten = 0;
 
   while (bytesToWrite) {
     rv = aWriter(this, aClosure,
@@ -130,11 +162,11 @@ nsConverterInputStream::ReadSegments(nsWriteUnicharSegmentFun aWriter,
 }
 
 NS_IMETHODIMP
-nsConverterInputStream::ReadString(uint32_t aCount, nsAString& aString,
-                                   uint32_t* aReadCount)
+nsConverterInputStream::ReadString(PRUint32 aCount, nsAString& aString,
+                                   PRUint32* aReadCount)
 {
   NS_ASSERTION(mUnicharDataLength >= mUnicharDataOffset, "unsigned madness");
-  uint32_t readCount = mUnicharDataLength - mUnicharDataOffset;
+  PRUint32 readCount = mUnicharDataLength - mUnicharDataOffset;
   if (0 == readCount) {
     // Fill the unichar buffer
     readCount = Fill(&mLastErrorCode);
@@ -154,10 +186,10 @@ nsConverterInputStream::ReadString(uint32_t aCount, nsAString& aString,
   return NS_OK;
 }
 
-uint32_t
+PRUint32
 nsConverterInputStream::Fill(nsresult * aErrorCode)
 {
-  if (nullptr == mInput) {
+  if (nsnull == mInput) {
     // We already closed the stream!
     *aErrorCode = NS_BASE_STREAM_CLOSED;
     return 0;
@@ -176,7 +208,7 @@ nsConverterInputStream::Fill(nsresult * aErrorCode)
   // to n+1 unicode chars.  Thus we need to keep track of the leftover
   // bytes as we convert.
   
-  int32_t nb = mByteData->Fill(aErrorCode, mInput, mLeftOverBytes);
+  PRInt32 nb = mByteData->Fill(aErrorCode, mInput, mLeftOverBytes);
 #if defined(DEBUG_bzbarsky) && 0
   for (unsigned int foo = 0; foo < mByteData->GetLength(); ++foo) {
     fprintf(stderr, "%c", mByteData->GetBuffer()[foo]);
@@ -189,16 +221,16 @@ nsConverterInputStream::Fill(nsresult * aErrorCode)
     return 0;
   }
 
-  NS_ASSERTION(uint32_t(nb) + mLeftOverBytes == mByteData->GetLength(),
+  NS_ASSERTION(PRUint32(nb) + mLeftOverBytes == mByteData->GetLength(),
                "mByteData is lying to us somewhere");
   
   // Now convert as much of the byte buffer to unicode as possible
   mUnicharDataOffset = 0;
   mUnicharDataLength = 0;
-  uint32_t srcConsumed = 0;
+  PRUint32 srcConsumed = 0;
   do {
-    int32_t srcLen = mByteData->GetLength() - srcConsumed;
-    int32_t dstLen = mUnicharData->GetBufferSize() - mUnicharDataLength;
+    PRInt32 srcLen = mByteData->GetLength() - srcConsumed;
+    PRInt32 dstLen = mUnicharData->GetBufferSize() - mUnicharDataLength;
     *aErrorCode = mConverter->Convert(mByteData->GetBuffer()+srcConsumed,
                                       &srcLen,
                                       mUnicharData->GetBuffer()+mUnicharDataLength,
@@ -216,14 +248,14 @@ nsConverterInputStream::Fill(nsresult * aErrorCode)
       ++srcConsumed;
       // XXX this is needed to make sure we don't underrun our buffer;
       // bug 160784 again
-      srcConsumed = NS_MAX<uint32_t>(srcConsumed, 0);
+      srcConsumed = NS_MAX<PRUint32>(srcConsumed, 0);
       mConverter->Reset();
     }
     NS_ASSERTION(srcConsumed <= mByteData->GetLength(),
                  "Whoa.  The converter should have returned NS_OK_UDEC_MOREINPUT before this point!");
   } while (mReplacementChar &&
            NS_FAILED(*aErrorCode) &&
-           uint32_t(mUnicharData->GetBufferSize()) > mUnicharDataLength);
+           mUnicharData->GetBufferSize() > mUnicharDataLength);
 
   mLeftOverBytes = mByteData->GetLength() - srcConsumed;
 
@@ -231,7 +263,7 @@ nsConverterInputStream::Fill(nsresult * aErrorCode)
 }
 
 NS_IMETHODIMP
-nsConverterInputStream::ReadLine(nsAString& aLine, bool* aResult)
+nsConverterInputStream::ReadLine(nsAString& aLine, PRBool* aResult)
 {
   if (!mLineBuffer) {
     nsresult rv = NS_InitLineBuffer(&mLineBuffer);

@@ -1,64 +1,28 @@
-/* -*- Mode: Objective-C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-
-#include "AccessibleWrap.h"
-#include "TextLeafAccessible.h"
-
-#include "nsCocoaUtils.h"
+#include "nsAccessibleWrap.h"
 #include "nsObjCExceptions.h"
 
 #import "mozTextAccessible.h"
 
-using namespace mozilla::a11y;
+extern const NSString *kInstanceDescriptionAttribute; // NSAccessibilityDescriptionAttribute
+extern const NSString *kTopLevelUIElementAttribute;   // NSAccessibilityTopLevelUIElementAttribute
 
-inline bool
-ToNSRange(id aValue, NSRange* aRange)
-{
-  NS_PRECONDITION(aRange, "aRange is nil");
-
-  if ([aValue isKindOfClass:[NSValue class]] && 
-      strcmp([(NSValue*)aValue objCType], @encode(NSRange)) == 0) {
-    *aRange = [aValue rangeValue];
-    return true;
-  }
-
-  return false;
-}
-
-inline NSString*
-ToNSString(id aValue)
-{
-  if ([aValue isKindOfClass:[NSString class]]) {
-    return aValue;
-  }
-
-  return nil;
-}
-
-@interface mozTextAccessible ()
+@interface mozTextAccessible (Private)
 - (NSString*)subrole;
 - (NSString*)selectedText;
 - (NSValue*)selectedTextRange;
-- (NSValue*)visibleCharacterRange;
 - (long)textLength;
 - (BOOL)isReadOnly;
-- (NSNumber*)caretLineNumber;
 - (void)setText:(NSString*)newText;
-- (NSString*)text;
-- (NSString*)stringFromRange:(NSRange*)range;
 @end
 
 @implementation mozTextAccessible
 
-- (id)initWithAccessible:(AccessibleWrap*)accessible
+- (id)initWithAccessible:(nsAccessibleWrap*)accessible
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   if ((self = [super initWithAccessible:accessible])) {
-    mGeckoTextAccessible = accessible->AsHyperText();
+    CallQueryInterface(accessible, &mGeckoTextAccessible);
     CallQueryInterface(accessible, &mGeckoEditableTextAccessible);
   }
   return self;
@@ -68,27 +32,38 @@ ToNSString(id aValue)
 
 - (BOOL)accessibilityIsIgnored
 {
-  return !mGeckoAccessible;
+  return mIsExpired;
 }
 
 - (NSArray*)accessibilityAttributeNames
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  static NSMutableArray* supportedAttributes = nil;
+  static NSArray *supportedAttributes = nil;
   if (!supportedAttributes) {
-    // text-specific attributes to supplement the standard one
-    supportedAttributes = [[NSMutableArray alloc] initWithObjects:
-      NSAccessibilitySelectedTextAttribute, // required
-      NSAccessibilitySelectedTextRangeAttribute, // required
-      NSAccessibilityNumberOfCharactersAttribute, // required
-      NSAccessibilityVisibleCharacterRangeAttribute, // required
-      NSAccessibilityInsertionPointLineNumberAttribute,
-      @"AXRequired",
-      @"AXInvalid",
-      nil
-    ];
-    [supportedAttributes addObjectsFromArray:[super accessibilityAttributeNames]];
+    // standard attributes that are shared and supported by all generic elements.
+    supportedAttributes = [[NSArray alloc] initWithObjects:NSAccessibilityParentAttribute, // required
+                                                           NSAccessibilityRoleAttribute,   // required
+                                                           NSAccessibilityTitleAttribute,
+                                                           NSAccessibilityValueAttribute, // required
+                                                           NSAccessibilitySubroleAttribute,
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_4
+                                                           NSAccessibilityRoleDescriptionAttribute,
+#endif
+                                                           NSAccessibilityPositionAttribute, // required
+                                                           NSAccessibilitySizeAttribute, // required
+                                                           NSAccessibilityWindowAttribute, // required
+                                                           NSAccessibilityFocusedAttribute, // required
+                                                           NSAccessibilityEnabledAttribute, // required
+                                                           kTopLevelUIElementAttribute, // required (on OS X 10.4+)
+                                                           kInstanceDescriptionAttribute, // required (on OS X 10.4+)
+                                                           /* text-specific attributes */
+                                                           NSAccessibilitySelectedTextAttribute, // required
+                                                           NSAccessibilitySelectedTextRangeAttribute, // required
+                                                           NSAccessibilityNumberOfCharactersAttribute, // required
+                                                           // TODO: NSAccessibilityVisibleCharacterRangeAttribute, // required
+                                                           // TODO: NSAccessibilityInsertionPointLineNumberAttribute
+                                                           nil];
   }
   return supportedAttributes;
 
@@ -101,130 +76,15 @@ ToNSString(id aValue)
 
   if ([attribute isEqualToString:NSAccessibilityNumberOfCharactersAttribute])
     return [NSNumber numberWithInt:[self textLength]];
-
-  if ([attribute isEqualToString:NSAccessibilityInsertionPointLineNumberAttribute])
-    return [self caretLineNumber];
-
   if ([attribute isEqualToString:NSAccessibilitySelectedTextRangeAttribute])
     return [self selectedTextRange];
-
   if ([attribute isEqualToString:NSAccessibilitySelectedTextAttribute])
     return [self selectedText];
-
-  if ([attribute isEqualToString:NSAccessibilityTitleAttribute])
-    return @"";
-
-  if ([attribute isEqualToString:NSAccessibilityValueAttribute]) {
-    // Apple's SpeechSynthesisServer expects AXValue to return an AXStaticText
-    // object's AXSelectedText attribute. See bug 674612 for details.
-    // Also if there is no selected text, we return the full text. 
-    // See bug 369710 for details.
-    if ([[self role] isEqualToString:NSAccessibilityStaticTextRole]) {
-      NSString* selectedText = [self selectedText];
-      return (selectedText && [selectedText length]) ? selectedText : [self text];
-    }
-
-    return [self text];
-  }
-
-  if ([attribute isEqualToString:@"AXRequired"])
-    return [NSNumber numberWithBool:!!(mGeckoAccessible->State() & states::REQUIRED)];
-
-  if ([attribute isEqualToString:@"AXInvalid"])
-    return [NSNumber numberWithBool:!!(mGeckoAccessible->State() & states::INVALID)];
-
-  if ([attribute isEqualToString:NSAccessibilityVisibleCharacterRangeAttribute])
-    return [self visibleCharacterRange];
-
+  
   // let mozAccessible handle all other attributes
   return [super accessibilityAttributeValue:attribute];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
-}
-
-- (NSArray*)accessibilityParameterizedAttributeNames
-{
-  static NSArray* supportedParametrizedAttributes = nil;
-  // text specific parametrized attributes
-  if (!supportedParametrizedAttributes) {
-    supportedParametrizedAttributes = [[NSArray alloc] initWithObjects:
-      NSAccessibilityStringForRangeParameterizedAttribute,
-      NSAccessibilityLineForIndexParameterizedAttribute,
-      NSAccessibilityRangeForLineParameterizedAttribute,
-      NSAccessibilityAttributedStringForRangeParameterizedAttribute,
-      NSAccessibilityBoundsForRangeParameterizedAttribute,
-#if DEBUG
-      NSAccessibilityRangeForPositionParameterizedAttribute,
-      NSAccessibilityRangeForIndexParameterizedAttribute,
-      NSAccessibilityRTFForRangeParameterizedAttribute,
-      NSAccessibilityStyleRangeForIndexParameterizedAttribute,
-#endif
-      nil
-    ];
-  }
-  return supportedParametrizedAttributes;
-}
-
-- (id)accessibilityAttributeValue:(NSString*)attribute forParameter:(id)parameter
-{
-  if (!mGeckoTextAccessible)
-    return nil;
-
-  if ([attribute isEqualToString:NSAccessibilityStringForRangeParameterizedAttribute]) {
-    NSRange range;
-    if (!ToNSRange(parameter, &range)) {
-#if DEBUG
-      NSLog(@"%@: range not set", attribute);
-#endif
-      return @"";
-    }
-
-    return [self stringFromRange:&range];
-  }
-
-  if ([attribute isEqualToString:NSAccessibilityRangeForLineParameterizedAttribute]) {
-    // XXX: actually get the integer value for the line #
-    return [NSValue valueWithRange:NSMakeRange(0, [self textLength])];
-  }
-
-  if ([attribute isEqualToString:NSAccessibilityAttributedStringForRangeParameterizedAttribute]) {
-    NSRange range;
-    if (!ToNSRange(parameter, &range)) {
-#if DEBUG
-      NSLog(@"%@: range not set", attribute);
-#endif
-      return @"";
-    }
-
-    return [[[NSAttributedString alloc] initWithString:[self stringFromRange:&range]] autorelease];
-  }
-
-  if ([attribute isEqualToString:NSAccessibilityLineForIndexParameterizedAttribute]) {
-    // XXX: actually return the line #
-    return [NSNumber numberWithInt:0];
-  }
-
-  if ([attribute isEqualToString:NSAccessibilityBoundsForRangeParameterizedAttribute]) {
-    NSRange range;
-    if (!ToNSRange(parameter, &range)) {
-#if DEBUG
-      NSLog(@"%@:no range", attribute);
-#endif
-      return nil;
-    }
-    
-    int32_t start = range.location;
-    int32_t end = start + range.length;
-    nsIntRect bounds = mGeckoTextAccessible->GetTextBounds(start, end);
-
-    return [NSValue valueWithRect:nsCocoaUtils::GeckoRectToCocoaRect(bounds)];
-  }
-
-#if DEBUG
-  NSLog(@"unhandled attribute:%@ forParameter:%@", attribute, parameter);
-#endif
-
-  return nil;
 }
 
 - (BOOL)accessibilityIsAttributeSettable:(NSString*)attribute
@@ -232,13 +92,8 @@ ToNSString(id aValue)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if ([attribute isEqualToString:NSAccessibilityValueAttribute])
-    return ![self isReadOnly];
+    return [self isReadOnly];
   
-  if ([attribute isEqualToString:NSAccessibilitySelectedTextAttribute] ||
-      [attribute isEqualToString:NSAccessibilitySelectedTextRangeAttribute] ||
-      [attribute isEqualToString:NSAccessibilityVisibleCharacterRangeAttribute])
-    return YES;
-
   return [super accessibilityIsAttributeSettable:attribute];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
@@ -248,69 +103,18 @@ ToNSString(id aValue)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  if (!mGeckoTextAccessible)
-    return;
-
   if ([attribute isEqualToString:NSAccessibilityValueAttribute]) {
-    [self setText:ToNSString(value)];
-    
-    return;
-  }
-
-  if ([attribute isEqualToString:NSAccessibilitySelectedTextAttribute]) {
-    NSString* stringValue = ToNSString(value);
-    if (!stringValue)
-      return;
-
-    int32_t start = 0;
-    int32_t end = 0;
-
-    nsresult rv = mGeckoTextAccessible->GetSelectionBounds(0, &start, &end);
-    NS_ENSURE_SUCCESS(rv,);
-    
-    rv = mGeckoTextAccessible->DeleteText(start, end - start);
-    NS_ENSURE_SUCCESS(rv,);
-
-    nsString text;
-    nsCocoaUtils::GetStringForNSString(stringValue, text);
-    rv = mGeckoTextAccessible->InsertText(text, start);
-    NS_ENSURE_SUCCESS(rv,);
-
-    return;
-  }
-
-  if ([attribute isEqualToString:NSAccessibilitySelectedTextRangeAttribute]) {
-    NSRange range;
-    if (!ToNSRange(value, &range))
-      return;
-
-    nsresult rv = mGeckoTextAccessible->SetSelectionBounds(0, range.location, 
-                                                           range.location + range.length);
-    NS_ENSURE_SUCCESS(rv,);
-
-    return;
-  }
-
-  if ([attribute isEqualToString:NSAccessibilityVisibleCharacterRangeAttribute]) {
-    NSRange range;
-    if (!ToNSRange(value, &range))
-      return;
-
-    mGeckoTextAccessible->ScrollSubstringTo(range.location, range.location + range.length,
-                                            nsIAccessibleScrollType::SCROLL_TYPE_TOP_EDGE);
-    return;
-  } 
-
-  [super accessibilitySetValue:value forAttribute:attribute];
+    if ([value isKindOfClass:[NSString class]])
+      [self setText:(NSString*)value];
+  } else
+    [super accessibilitySetValue:value forAttribute:attribute];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 - (NSString*)subrole
 {
-  if(mRole == roles::PASSWORD_TEXT)
-    return NSAccessibilitySecureTextFieldSubrole;
-
+  // TODO: text accessibles have two different subroles in Cocoa: secure textfield (passwords) and search field
   return nil;
 }
 
@@ -318,7 +122,7 @@ ToNSString(id aValue)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  mGeckoTextAccessible = nullptr;
+  NS_IF_RELEASE(mGeckoTextAccessible);
   NS_IF_RELEASE(mGeckoEditableTextAccessible);
   [super expire];
 
@@ -342,50 +146,20 @@ ToNSString(id aValue)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
-- (NSNumber*)caretLineNumber
-{
-  int32_t lineNumber = mGeckoTextAccessible ?
-    mGeckoTextAccessible->CaretLineNumber() - 1 : -1;
-
-  return (lineNumber >= 0) ? [NSNumber numberWithInt:lineNumber] : nil;
-}
-
-- (void)setText:(NSString*)aNewString
+- (void)setText:(NSString*)newString
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   if (mGeckoEditableTextAccessible) {
-    nsString text;
-    nsCocoaUtils::GetStringForNSString(aNewString, text);
-    mGeckoEditableTextAccessible->SetTextContents(text);
+    mGeckoEditableTextAccessible->SetTextContents(NS_ConvertUTF8toUTF16([newString UTF8String]));
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (NSString*)text
-{
-  if (!mGeckoAccessible || !mGeckoTextAccessible)
-    return nil;
-
-  // A password text field returns an empty value
-  if (mRole == roles::PASSWORD_TEXT)
-    return @"";
-
-  nsAutoString text;
-  nsresult rv = mGeckoTextAccessible->
-    GetText(0, nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT, text);
-  NS_ENSURE_SUCCESS(rv, @"");
-
-  return nsCocoaUtils::ToNSString(text);
-}
-
 - (long)textLength
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  if (!mGeckoAccessible || !mGeckoTextAccessible)
-    return 0;
 
   return mGeckoTextAccessible ? mGeckoTextAccessible->CharacterCount() : 0;
 
@@ -397,11 +171,9 @@ ToNSString(id aValue)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   if (mGeckoTextAccessible) {
-    int32_t start, end;
+    PRInt32 start, end;
     start = end = 0;
-    nsresult rv = mGeckoTextAccessible->GetSelectionBounds(0, &start, &end);
-    NS_ENSURE_SUCCESS(rv, 0);
-
+    mGeckoTextAccessible->GetSelectionBounds(0, &start, &end);
     return (end - start);
   }
   return 0;
@@ -414,13 +186,13 @@ ToNSString(id aValue)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   if (mGeckoTextAccessible) {
-    int32_t start, end;
+    PRInt32 start, end;
     start = end = 0;
     mGeckoTextAccessible->GetSelectionBounds(0, &start, &end);
     if (start != end) {
       nsAutoString selText;
       mGeckoTextAccessible->GetText(start, end, selText);
-      return nsCocoaUtils::ToNSString(selText);
+      return selText.IsEmpty() ? nil : [NSString stringWithCharacters:selText.BeginReading() length:selText.Length()];
     }
   }
   return nil;
@@ -433,105 +205,128 @@ ToNSString(id aValue)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   if (mGeckoTextAccessible) {
-    int32_t start = 0;
-    int32_t end = 0;
-    int32_t count = 0;
-
-    nsresult rv = mGeckoTextAccessible->GetSelectionCount(&count);
-    NS_ENSURE_SUCCESS(rv, nil);
-
-    if (count) {
-      rv = mGeckoTextAccessible->GetSelectionBounds(0, &start, &end);
-      NS_ENSURE_SUCCESS(rv, nil);
-
-      return [NSValue valueWithRange:NSMakeRange(start, end - start)];
-    }
-
-    rv = mGeckoTextAccessible->GetCaretOffset(&start);
-    NS_ENSURE_SUCCESS(rv, nil);
-    
-    return [NSValue valueWithRange:NSMakeRange(start != -1 ? start : 0, 0)]; 
+    PRInt32 start, end;
+    start = end = 0;
+    mGeckoTextAccessible->GetSelectionBounds(0, &start, &end);
+    return [NSValue valueWithRange:NSMakeRange(start, start-end)];
   }
-  return [NSValue valueWithRange:NSMakeRange(0, 0)];
+  return nil;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-- (NSValue*)visibleCharacterRange
-{
-  // XXX this won't work with Textarea and such as we actually don't give
-  // the visible character range.
-  return [NSValue valueWithRange:
-    NSMakeRange(0, mGeckoTextAccessible ? 
-                mGeckoTextAccessible->CharacterCount() : 0)];
-}
+#pragma mark -
 
 - (void)valueDidChange
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  NSAccessibilityPostNotification(GetObjectOrRepresentedView(self),
+  NSAccessibilityPostNotification([self hasRepresentedView] ? [self representedView] : self, 
                                   NSAccessibilityValueChangedNotification);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (void)selectedTextDidChange
-{
-  NSAccessibilityPostNotification(GetObjectOrRepresentedView(self),
-                                  NSAccessibilitySelectedTextChangedNotification);
-}
-
-- (NSString*)stringFromRange:(NSRange*)range
-{
-  NS_PRECONDITION(mGeckoTextAccessible && range, "no Gecko text accessible or range");
-
-  nsAutoString text;
-  mGeckoTextAccessible->GetText(range->location, 
-                                range->location + range->length, text);
-  return nsCocoaUtils::ToNSString(text);
-}
-
 @end
 
-@implementation mozTextLeafAccessible
+@implementation mozComboboxAccessible
 
 - (NSArray*)accessibilityAttributeNames
 {
-  static NSMutableArray* supportedAttributes = nil;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
+  static NSArray *supportedAttributes = nil;
   if (!supportedAttributes) {
-    supportedAttributes = [[super accessibilityAttributeNames] mutableCopy];
-    [supportedAttributes removeObject:NSAccessibilityChildrenAttribute];
+    // standard attributes that are shared and supported by all generic elements.
+    supportedAttributes = [[NSArray alloc] initWithObjects:NSAccessibilityParentAttribute, // required
+                                                           NSAccessibilityRoleAttribute,   // required
+                                                           NSAccessibilityTitleAttribute,
+                                                           NSAccessibilityValueAttribute, // required
+                                                           NSAccessibilityHelpAttribute,
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_4
+                                                           NSAccessibilityRoleDescriptionAttribute,
+#endif
+                                                           NSAccessibilityPositionAttribute, // required
+                                                           NSAccessibilitySizeAttribute, // required
+                                                           NSAccessibilityWindowAttribute, // required
+                                                           NSAccessibilityFocusedAttribute, // required
+                                                           NSAccessibilityEnabledAttribute, // required
+                                                           NSAccessibilityChildrenAttribute, // required
+                                                           NSAccessibilityHelpAttribute,
+                                                           // NSAccessibilityExpandedAttribute, // required
+                                                           kTopLevelUIElementAttribute, // required (on OS X 10.4+)
+                                                           kInstanceDescriptionAttribute, // required (on OS X 10.4+)
+                                                           /* text-specific attributes */
+                                                           NSAccessibilitySelectedTextAttribute, // required
+                                                           NSAccessibilitySelectedTextRangeAttribute, // required
+                                                           NSAccessibilityNumberOfCharactersAttribute, // required
+                                                           // TODO: NSAccessibilityVisibleCharacterRangeAttribute, // required
+                                                           // TODO: NSAccessibilityInsertionPointLineNumberAttribute
+                                                           nil];
+  }
+  return supportedAttributes;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
+- (NSArray *)accessibilityActionNames
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
+  if ([self isEnabled]) {
+    return [NSArray arrayWithObjects:NSAccessibilityConfirmAction,
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_4
+                                     NSAccessibilityShowMenuAction,
+#endif
+                                     nil];
+  }
+  return nil;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
+- (NSString *)accessibilityActionDescription:(NSString *)action
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_4
+  if ([action isEqualToString:NSAccessibilityShowMenuAction])
+    return @"show menu";
+#endif
+  if ([action isEqualToString:NSAccessibilityConfirmAction])
+    return @"confirm";
+    
+  return [super accessibilityActionDescription:action];
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
+- (void)accessibilityPerformAction:(NSString *)action
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  // both the ShowMenu and Click action do the same thing.
+  if ([self isEnabled]) {
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_4
+    if ([action isEqualToString:NSAccessibilityShowMenuAction])
+      [self showMenu];
+#endif
+    if ([action isEqualToString:NSAccessibilityConfirmAction])
+      [self confirm];
   }
 
-  return supportedAttributes;
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (id)accessibilityAttributeValue:(NSString*)attribute
+- (void)showMenu
 {
-  if ([attribute isEqualToString:NSAccessibilityTitleAttribute])
-    return @"";
-
-  if ([attribute isEqualToString:NSAccessibilityValueAttribute])
-    return [self text];
-
-  return [super accessibilityAttributeValue:attribute];
+  // currently unimplemented. waiting for support in bug 363697
 }
 
-- (NSString*)text
+- (void)confirm
 {
-  if (!mGeckoAccessible)
-    return nil;
-
-  return nsCocoaUtils::ToNSString(mGeckoAccessible->AsTextLeaf()->Text());
-}
-
-- (long)textLength
-{
-  if (!mGeckoAccessible)
-    return 0;
-
-  return mGeckoAccessible->AsTextLeaf()->Text().Length();
+  // should be the same as pressing enter/return in this textfield.
+  // not yet implemented
 }
 
 @end

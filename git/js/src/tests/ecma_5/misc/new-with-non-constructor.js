@@ -9,9 +9,9 @@ function checkConstruct(thing, buggy) {
         assertEq(0, 1, "not reached " + thing);
     } catch (e) {
         if (buggy)
-            assertEq(String(e.message).indexOf("is not a constructor") === -1, false);
+            assertEq(e.message, "new thing is not a constructor");
         else
-            assertEq(String(e.message).indexOf("thing is not a constructor") === -1, false);
+            assertEq(e.message, "thing is not a constructor");
     }
 }
 

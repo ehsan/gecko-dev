@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test for Form History Autocomplete</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <script type="text/javascript" src="satchel_common.js"></script>
@@ -47,7 +48,7 @@ Form History test: form field autocomplete
 netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
 var input = $_(1, "field1");
-const shiftModifier = Components.interfaces.nsIDOMEvent.SHIFT_MASK;
+const shiftModifier = Components.interfaces.nsIDOMNSEvent.SHIFT_MASK;
 
 // Get the form history service
 var fh = Components.classes["@mozilla.org/satchel/form-history;1"].
@@ -91,7 +92,7 @@ function nextTest(aTestNum) {
 function runTest(testNum) {
     // Seems we need to enable this again, or sendKeyEvent() complaints.
     netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-    info("Starting test #" + testNum);
+    ok(true, "Starting test #" + testNum);
 
     switch(testNum) {
     case 1:
@@ -400,13 +401,13 @@ function runTest(testNum) {
         ok(true, "oninput should have been received");
         ok(event.bubbles, "input event should bubble");
         ok(event.cancelable, "input event should be cancelable");
-        checkForm("Google");
         SimpleTest.finish();
       }, false);
 
       doKey("down");
       checkForm("");
       doKey("return");
+      checkForm("Google");
       return;
 
     default:

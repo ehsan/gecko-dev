@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2011 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -15,7 +15,7 @@
 
 namespace sh
 {
-class UnfoldShortCircuit;
+class UnfoldSelect;
 
 class OutputHLSL : public TIntermTraverser
 {
@@ -31,9 +31,7 @@ class OutputHLSL : public TIntermTraverser
     static TString qualifierString(TQualifier qualifier);
     static TString arrayString(const TType &type);
     static TString initializer(const TType &type);
-    static TString decorate(const TString &string);                      // Prepends an underscore to avoid naming clashes
-    static TString decorateUniform(const TString &string, const TType &type);
-    static TString decorateField(const TString &string, const TType &structure);
+    static TString decorate(const TString &string);   // Prepend an underscore to avoid naming clashes
 
   protected:
     void header();
@@ -48,7 +46,6 @@ class OutputHLSL : public TIntermTraverser
     bool visitLoop(Visit visit, TIntermLoop*);
     bool visitBranch(Visit visit, TIntermBranch*);
 
-    void traverseStatements(TIntermNode *node);
     bool isSingleStatement(TIntermNode *node);
     bool handleExcessiveLoop(TIntermLoop *node);
     void outputTriplet(Visit visit, const TString &preString, const TString &inString, const TString &postString);
@@ -64,7 +61,7 @@ class OutputHLSL : public TIntermTraverser
     TString structLookup(const TString &typeName);
 
     TParseContext &mContext;
-    UnfoldShortCircuit *mUnfoldShortCircuit;
+    UnfoldSelect *mUnfoldSelect;
     bool mInsideFunction;
 
     // Output streams
@@ -86,12 +83,6 @@ class OutputHLSL : public TIntermTraverser
     bool mUsesTextureCube;
     bool mUsesTextureCube_bias;
     bool mUsesTextureCubeLod;
-    bool mUsesTexture2DLod0;
-    bool mUsesTexture2DLod0_bias;
-    bool mUsesTexture2DProjLod0;
-    bool mUsesTexture2DProjLod0_bias;
-    bool mUsesTextureCubeLod0;
-    bool mUsesTextureCubeLod0_bias;
     bool mUsesDepthRange;
     bool mUsesFragCoord;
     bool mUsesPointCoord;
@@ -99,12 +90,9 @@ class OutputHLSL : public TIntermTraverser
     bool mUsesPointSize;
     bool mUsesXor;
     bool mUsesMod1;
-    bool mUsesMod2v;
-    bool mUsesMod2f;
-    bool mUsesMod3v;
-    bool mUsesMod3f;
-    bool mUsesMod4v;
-    bool mUsesMod4f;
+    bool mUsesMod2;
+    bool mUsesMod3;
+    bool mUsesMod4;
     bool mUsesFaceforward1;
     bool mUsesFaceforward2;
     bool mUsesFaceforward3;
@@ -121,10 +109,7 @@ class OutputHLSL : public TIntermTraverser
     bool mUsesEqualBVec2;
     bool mUsesEqualBVec3;
     bool mUsesEqualBVec4;
-    bool mUsesAtan2_1;
-    bool mUsesAtan2_2;
-    bool mUsesAtan2_3;
-    bool mUsesAtan2_4;
+    bool mUsesAtan2;
 
     typedef std::set<TString> Constructors;
     Constructors mConstructors;
@@ -140,12 +125,6 @@ class OutputHLSL : public TIntermTraverser
     unsigned int mScopeDepth;
 
     int mUniqueIndex;   // For creating unique names
-
-    bool mContainsLoopDiscontinuity;
-    bool mOutputLod0Function;
-    bool mInsideDiscontinuousLoop;
-
-    TIntermSymbol *mExcessiveLoopIndex;
 };
 }
 

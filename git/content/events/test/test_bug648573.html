@@ -1,10 +1,11 @@
 <!DOCTYPE HTML>
 <html>
 <!--
-https://bugzilla.mozilla.org/show_bug.cgi?id=648573 
+https://bugzilla.mozilla.org/show_bug.cgi?id=648573
 -->
 <head>
   <title>Test for Bug 648573</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -19,9 +20,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=648573
 
 /** Test for Bug 648573 **/
 
-var utils = SpecialPowers.getDOMWindowUtils(window);
-
-ok(!utils.mayHaveTouchEventListeners,
+ok(!SpecialPowers.DOMWindowUtils.mayHaveTouchEventListeners,
   "There shouldn't be any touch event listeners yet.");
 
 ok("createTouch" in document, "Should have createTouch function");
@@ -103,7 +102,7 @@ for (var i = 0; i < events.length; ++i) {
   runEventTest(events[i]);
 }
 
-ok(utils.mayHaveTouchEventListeners,
+ok(SpecialPowers.DOMWindowUtils.mayHaveTouchEventListeners,
   "There should be touch event listeners.");
 </script>
 </pre>

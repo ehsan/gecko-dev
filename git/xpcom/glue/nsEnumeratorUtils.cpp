@@ -1,9 +1,44 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Attributes.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Benjamin Smedberg <benjamin@smedbergs.us>
+ * 
+ * Code moved from nsEmptyEnumerator.cpp:
+ *   L. David Baron <dbaron@dbaron.org>
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsEnumeratorUtils.h"
 
@@ -51,15 +86,15 @@ NS_IMPL_QUERY_INTERFACE3(EmptyEnumeratorImpl, nsISimpleEnumerator,
                          nsIUTF8StringEnumerator, nsIStringEnumerator)
 
 // nsISimpleEnumerator interface
-NS_IMETHODIMP EmptyEnumeratorImpl::HasMoreElements(bool* aResult)
+NS_IMETHODIMP EmptyEnumeratorImpl::HasMoreElements(PRBool* aResult)
 {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
 }
 
-NS_IMETHODIMP EmptyEnumeratorImpl::HasMore(bool* aResult)
+NS_IMETHODIMP EmptyEnumeratorImpl::HasMore(PRBool* aResult)
 {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
 }
 
@@ -89,13 +124,13 @@ NS_NewEmptyEnumerator(nsISimpleEnumerator** aResult)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsSingletonEnumerator MOZ_FINAL : public nsISimpleEnumerator
+class nsSingletonEnumerator : public nsISimpleEnumerator
 {
 public:
     NS_DECL_ISUPPORTS
 
     // nsISimpleEnumerator methods
-    NS_IMETHOD HasMoreElements(bool* aResult);
+    NS_IMETHOD HasMoreElements(PRBool* aResult);
     NS_IMETHOD GetNext(nsISupports** aResult);
 
     nsSingletonEnumerator(nsISupports* aValue);
@@ -105,14 +140,14 @@ private:
 
 protected:
     nsISupports* mValue;
-    bool mConsumed;
+    PRBool mConsumed;
 };
 
 nsSingletonEnumerator::nsSingletonEnumerator(nsISupports* aValue)
     : mValue(aValue)
 {
     NS_IF_ADDREF(mValue);
-    mConsumed = (mValue ? false : true);
+    mConsumed = (mValue ? PR_FALSE : PR_TRUE);
 }
 
 nsSingletonEnumerator::~nsSingletonEnumerator()
@@ -123,7 +158,7 @@ nsSingletonEnumerator::~nsSingletonEnumerator()
 NS_IMPL_ISUPPORTS1(nsSingletonEnumerator, nsISimpleEnumerator)
 
 NS_IMETHODIMP
-nsSingletonEnumerator::HasMoreElements(bool* aResult)
+nsSingletonEnumerator::HasMoreElements(PRBool* aResult)
 {
     NS_PRECONDITION(aResult != 0, "null ptr");
     if (! aResult)
@@ -144,7 +179,7 @@ nsSingletonEnumerator::GetNext(nsISupports** aResult)
     if (mConsumed)
         return NS_ERROR_UNEXPECTED;
 
-    mConsumed = true;
+    mConsumed = PR_TRUE;
 
     *aResult = mValue;
     NS_ADDREF(*aResult);
@@ -156,7 +191,7 @@ NS_NewSingletonEnumerator(nsISimpleEnumerator* *result,
                           nsISupports* singleton)
 {
     nsSingletonEnumerator* enumer = new nsSingletonEnumerator(singleton);
-    if (enumer == nullptr)
+    if (enumer == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
     *result = enumer; 
     NS_ADDREF(*result);
@@ -165,13 +200,13 @@ NS_NewSingletonEnumerator(nsISimpleEnumerator* *result,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsUnionEnumerator MOZ_FINAL : public nsISimpleEnumerator
+class nsUnionEnumerator : public nsISimpleEnumerator
 {
 public:
     NS_DECL_ISUPPORTS
 
     // nsISimpleEnumerator methods
-    NS_IMETHOD HasMoreElements(bool* aResult);
+    NS_IMETHOD HasMoreElements(PRBool* aResult);
     NS_IMETHOD GetNext(nsISupports** aResult);
 
     nsUnionEnumerator(nsISimpleEnumerator* firstEnumerator,
@@ -182,15 +217,15 @@ private:
 
 protected:
     nsCOMPtr<nsISimpleEnumerator> mFirstEnumerator, mSecondEnumerator;
-    bool mConsumed;
-    bool mAtSecond;
+    PRBool mConsumed;
+    PRBool mAtSecond;
 };
 
 nsUnionEnumerator::nsUnionEnumerator(nsISimpleEnumerator* firstEnumerator,
                                      nsISimpleEnumerator* secondEnumerator)
     : mFirstEnumerator(firstEnumerator),
       mSecondEnumerator(secondEnumerator),
-      mConsumed(false), mAtSecond(false)
+      mConsumed(PR_FALSE), mAtSecond(PR_FALSE)
 {
 }
 
@@ -201,7 +236,7 @@ nsUnionEnumerator::~nsUnionEnumerator()
 NS_IMPL_ISUPPORTS1(nsUnionEnumerator, nsISimpleEnumerator)
 
 NS_IMETHODIMP
-nsUnionEnumerator::HasMoreElements(bool* aResult)
+nsUnionEnumerator::HasMoreElements(PRBool* aResult)
 {
     NS_PRECONDITION(aResult != 0, "null ptr");
     if (! aResult)
@@ -210,7 +245,7 @@ nsUnionEnumerator::HasMoreElements(bool* aResult)
     nsresult rv;
 
     if (mConsumed) {
-        *aResult = false;
+        *aResult = PR_FALSE;
         return NS_OK;
     }
 
@@ -221,7 +256,7 @@ nsUnionEnumerator::HasMoreElements(bool* aResult)
         if (*aResult)
             return NS_OK;
 
-        mAtSecond = true;
+        mAtSecond = PR_TRUE;
     }
 
     rv = mSecondEnumerator->HasMoreElements(aResult);
@@ -230,8 +265,8 @@ nsUnionEnumerator::HasMoreElements(bool* aResult)
     if (*aResult)
         return NS_OK;
 
-    *aResult = false;
-    mConsumed = true;
+    *aResult = PR_FALSE;
+    mConsumed = PR_TRUE;
     return NS_OK;
 }
 
@@ -256,14 +291,14 @@ NS_NewUnionEnumerator(nsISimpleEnumerator* *result,
                       nsISimpleEnumerator* firstEnumerator,
                       nsISimpleEnumerator* secondEnumerator)
 {
-    *result = nullptr;
+    *result = nsnull;
     if (! firstEnumerator) {
         *result = secondEnumerator;
     } else if (! secondEnumerator) {
         *result = firstEnumerator;
     } else {
         nsUnionEnumerator* enumer = new nsUnionEnumerator(firstEnumerator, secondEnumerator);
-        if (enumer == nullptr)
+        if (enumer == nsnull)
             return NS_ERROR_OUT_OF_MEMORY;
         *result = enumer; 
     }

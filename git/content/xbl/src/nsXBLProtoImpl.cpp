@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   David Hyatt <hyatt@netscape.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsXBLProtoImpl.h"
 #include "nsIContent.h"
@@ -14,7 +47,6 @@
 #include "nsIServiceManager.h"
 #include "nsIDOMNode.h"
 #include "nsXBLPrototypeBinding.h"
-#include "nsXBLProtoImplProperty.h"
 
 // Checks that the version is not modified in a given scope.
 class AutoVersionChecker
@@ -49,8 +81,9 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aBinding, nsIConten
 
   // If the way this gets the script context changes, fix
   // nsXBLProtoImplAnonymousMethod::Execute
-  nsIDocument* document = aBoundElement->OwnerDoc();
-                                              
+  nsIDocument* document = aBoundElement->GetOwnerDoc();
+  if (!document) return NS_OK;
+
   nsIScriptGlobalObject *global = document->GetScopeObject();
   if (!global) return NS_OK;
 
@@ -62,7 +95,7 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aBinding, nsIConten
   // This function also has the side effect of building up the prototype implementation if it has
   // not been built already.
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-  JSObject* targetClassObject = nullptr;
+  void * targetClassObject = nsnull;
   nsresult rv = InitTargetObjects(aBinding, context, aBoundElement,
                                   getter_AddRefs(holder), &targetClassObject);
   NS_ENSURE_SUCCESS(rv, rv); // kick out if we were unable to properly intialize our target objects
@@ -70,7 +103,7 @@ nsXBLProtoImpl::InstallImplementation(nsXBLPrototypeBinding* aBinding, nsIConten
   JSObject * targetScriptObject;
   holder->GetJSObject(&targetScriptObject);
 
-  JSContext *cx = context->GetNativeContext();
+  JSContext *cx = (JSContext *)context->GetNativeContext();
 
   AutoVersionChecker avc(cx);
   
@@ -89,10 +122,10 @@ nsXBLProtoImpl::InitTargetObjects(nsXBLPrototypeBinding* aBinding,
                                   nsIScriptContext* aContext, 
                                   nsIContent* aBoundElement, 
                                   nsIXPConnectJSObjectHolder** aScriptObjectHolder, 
-                                  JSObject** aTargetClassObject)
+                                  void** aTargetClassObject)
 {
   nsresult rv = NS_OK;
-  *aScriptObjectHolder = nullptr;
+  *aScriptObjectHolder = nsnull;
   
   if (!mClassObject) {
     rv = CompilePrototypeMembers(aBinding); // This is the first time we've ever installed this binding on an element.
@@ -105,16 +138,16 @@ nsXBLProtoImpl::InitTargetObjects(nsXBLPrototypeBinding* aBinding,
       return NS_OK; // This can be ok, if all we've got are fields (and no methods/properties).
   }
 
-  nsIDocument *ownerDoc = aBoundElement->OwnerDoc();
+  nsIDocument *ownerDoc = aBoundElement->GetOwnerDoc();
   nsIScriptGlobalObject *sgo;
 
-  if (!(sgo = ownerDoc->GetScopeObject())) {
+  if (!ownerDoc || !(sgo = ownerDoc->GetScopeObject())) {
     return NS_ERROR_UNEXPECTED;
   }
 
   // Because our prototype implementation has a class, we need to build up a corresponding
   // class for the concrete implementation in the bound document.
-  JSContext* jscontext = aContext->GetNativeContext();
+  JSContext* jscontext = (JSContext*)aContext->GetNativeContext();
   JSObject* global = sgo->GetGlobalJSObject();
   nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
   jsval v;
@@ -128,9 +161,8 @@ nsXBLProtoImpl::InitTargetObjects(nsXBLPrototypeBinding* aBinding,
   // object's old base class becomes the new class' base class.
   rv = aBinding->InitClass(mClassName, jscontext, global, JSVAL_TO_OBJECT(v),
                            aTargetClassObject);
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv))
     return rv;
-  }
 
   nsContentUtils::PreserveWrapper(aBoundElement, aBoundElement);
 
@@ -153,17 +185,17 @@ nsXBLProtoImpl::CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding)
   nsIScriptContext *context = globalObject->GetContext();
   NS_ENSURE_TRUE(context, NS_ERROR_OUT_OF_MEMORY);
 
-  JSContext *cx = context->GetNativeContext();
+  JSContext *cx = (JSContext *)context->GetNativeContext();
   JSObject *global = globalObject->GetGlobalJSObject();
   
 
-  JSObject* classObject;
+  void* classObject;
   nsresult rv = aBinding->InitClass(mClassName, cx, global, global,
                                     &classObject);
   if (NS_FAILED(rv))
     return rv;
 
-  mClassObject = classObject;
+  mClassObject = (JSObject*) classObject;
   if (!mClassObject)
     return NS_ERROR_FAILURE;
 
@@ -217,10 +249,10 @@ nsXBLProtoImpl::FindField(const nsString& aFieldName) const
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
-bool
+PRBool
 nsXBLProtoImpl::ResolveAllFields(JSContext *cx, JSObject *obj) const
 {
   AutoVersionChecker avc(cx);
@@ -233,11 +265,11 @@ nsXBLProtoImpl::ResolveAllFields(JSContext *cx, JSObject *obj) const
     if (!::JS_LookupUCProperty(cx, obj,
                                reinterpret_cast<const jschar*>(name.get()),
                                name.Length(), &dummy)) {
-      return false;
+      return PR_FALSE;
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -263,162 +295,9 @@ nsXBLProtoImpl::DestroyMembers()
   NS_ASSERTION(mClassObject, "This should never be called when there is no class object");
 
   delete mMembers;
-  mMembers = nullptr;
-  mConstructor = nullptr;
-  mDestructor = nullptr;
-}
-
-nsresult
-nsXBLProtoImpl::Read(nsIScriptContext* aContext,
-                     nsIObjectInputStream* aStream,
-                     nsXBLPrototypeBinding* aBinding,
-                     nsIScriptGlobalObject* aGlobal)
-{
-  // Set up a class object first so that deserialization is possible
-  JSContext *cx = aContext->GetNativeContext();
-  JSObject *global = aGlobal->GetGlobalJSObject();
-
-  JSObject* classObject;
-  nsresult rv = aBinding->InitClass(mClassName, cx, global, global, &classObject);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(classObject, NS_ERROR_FAILURE);
-
-  mClassObject = classObject;
-
-  nsXBLProtoImplField* previousField = nullptr;
-  nsXBLProtoImplMember* previousMember = nullptr;
-
-  do {
-    XBLBindingSerializeDetails type;
-    rv = aStream->Read8(&type);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (type == XBLBinding_Serialize_NoMoreItems)
-      break;
-
-    switch (type & XBLBinding_Serialize_Mask) {
-      case XBLBinding_Serialize_Field:
-      {
-        nsXBLProtoImplField* field =
-          new nsXBLProtoImplField(type & XBLBinding_Serialize_ReadOnly);
-        rv = field->Read(aContext, aStream);
-        if (NS_FAILED(rv)) {
-          delete field;
-          return rv;
-        }
-
-        if (previousField) {
-          previousField->SetNext(field);
-        }
-        else {
-          mFields = field;
-        }
-        previousField = field;
-
-        break;
-      }
-      case XBLBinding_Serialize_GetterProperty:
-      case XBLBinding_Serialize_SetterProperty:
-      case XBLBinding_Serialize_GetterSetterProperty:
-      {
-        nsAutoString name;
-        nsresult rv = aStream->ReadString(name);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        nsXBLProtoImplProperty* prop =
-          new nsXBLProtoImplProperty(name.get(), type & XBLBinding_Serialize_ReadOnly);
-        rv = prop->Read(aContext, aStream, type & XBLBinding_Serialize_Mask);
-        if (NS_FAILED(rv)) {
-          delete prop;
-          return rv;
-        }
-
-        previousMember = AddMember(prop, previousMember);
-        break;
-      }
-      case XBLBinding_Serialize_Method:
-      {
-        nsAutoString name;
-        rv = aStream->ReadString(name);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        nsXBLProtoImplMethod* method = new nsXBLProtoImplMethod(name.get());
-        rv = method->Read(aContext, aStream);
-        if (NS_FAILED(rv)) {
-          delete method;
-          return rv;
-        }
-
-        previousMember = AddMember(method, previousMember);
-        break;
-      }
-      case XBLBinding_Serialize_Constructor:
-      {
-        mConstructor = new nsXBLProtoImplAnonymousMethod();
-        rv = mConstructor->Read(aContext, aStream);
-        if (NS_FAILED(rv)) {
-          delete mConstructor;
-          mConstructor = nullptr;
-          return rv;
-        }
-
-        previousMember = AddMember(mConstructor, previousMember);
-        break;
-      }
-      case XBLBinding_Serialize_Destructor:
-      {
-        mDestructor = new nsXBLProtoImplAnonymousMethod();
-        rv = mDestructor->Read(aContext, aStream);
-        if (NS_FAILED(rv)) {
-          delete mDestructor;
-          mDestructor = nullptr;
-          return rv;
-        }
-
-        previousMember = AddMember(mDestructor, previousMember);
-        break;
-      }
-      default:
-        NS_ERROR("Unexpected binding member type");
-        break;
-    }
-  } while (1);
-
-  return NS_OK;
-}
-
-nsresult
-nsXBLProtoImpl::Write(nsIScriptContext* aContext,
-                      nsIObjectOutputStream* aStream,
-                      nsXBLPrototypeBinding* aBinding)
-{
-  nsresult rv;
-
-  if (!mClassObject) {
-    rv = CompilePrototypeMembers(aBinding);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  rv = aStream->WriteStringZ(mClassName.get());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  for (nsXBLProtoImplField* curr = mFields; curr; curr = curr->GetNext()) {
-    rv = curr->Write(aContext, aStream);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-  for (nsXBLProtoImplMember* curr = mMembers; curr; curr = curr->GetNext()) {
-    if (curr == mConstructor) {
-      rv = mConstructor->Write(aContext, aStream, XBLBinding_Serialize_Constructor);
-    }
-    else if (curr == mDestructor) {
-      rv = mDestructor->Write(aContext, aStream, XBLBinding_Serialize_Destructor);
-    }
-    else {
-      rv = curr->Write(aContext, aStream);
-    }
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return aStream->Write8(XBLBinding_Serialize_NoMoreItems);
+  mMembers = nsnull;
+  mConstructor = nsnull;
+  mDestructor = nsnull;
 }
 
 nsresult

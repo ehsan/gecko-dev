@@ -1,7 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Steve Clark <buster@netscape.com>
+ *   Robert O'Callahan <roc+moz@cs.cmu.edu>
+ *   L. David Baron <dbaron@dbaron.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* state used in reflow of block frames */
 
@@ -37,8 +72,8 @@ public:
                      nsPresContext* aPresContext,
                      nsBlockFrame* aFrame,
                      const nsHTMLReflowMetrics& aMetrics,
-                     bool aTopMarginRoot, bool aBottomMarginRoot,
-                     bool aBlockNeedsFloatManager);
+                     PRBool aTopMarginRoot, PRBool aBottomMarginRoot,
+                     PRBool aBlockNeedsFloatManager);
 
   /**
    * Get the available reflow space (the area not occupied by floats)
@@ -52,7 +87,7 @@ public:
   nsFlowAreaRect GetFloatAvailableSpace() const
     { return GetFloatAvailableSpace(mY); }
   nsFlowAreaRect GetFloatAvailableSpace(nscoord aY) const
-    { return GetFloatAvailableSpaceWithState(aY, nullptr); }
+    { return GetFloatAvailableSpaceWithState(aY, nsnull); }
   nsFlowAreaRect
     GetFloatAvailableSpaceWithState(nscoord aY,
                                     nsFloatManager::SavedState *aState) const;
@@ -61,20 +96,20 @@ public:
                                     nsFloatManager::SavedState *aState) const;
 
   /*
-   * The following functions all return true if they were able to
-   * place the float, false if the float did not fit in available
+   * The following functions all return PR_TRUE if they were able to
+   * place the float, PR_FALSE if the float did not fit in available
    * space.
    * aLineLayout is null when we are reflowing pushed floats (because
    * they are not associated with a line box).
    */
-  bool AddFloat(nsLineLayout*       aLineLayout,
+  PRBool AddFloat(nsLineLayout*       aLineLayout,
                   nsIFrame*           aFloat,
                   nscoord             aAvailableWidth);
 private:
-  bool CanPlaceFloat(nscoord aFloatWidth,
+  PRBool CanPlaceFloat(nscoord aFloatWidth,
                        const nsFlowAreaRect& aFloatAvailableSpace);
 public:
-  bool FlowAndPlaceFloat(nsIFrame* aFloat);
+  PRBool FlowAndPlaceFloat(nsIFrame* aFloat);
 private:
   void PushFloatPastBreak(nsIFrame* aFloat);
 public:
@@ -84,11 +119,11 @@ public:
   // Returns the first coordinate >= aY that clears the
   // floats indicated by aBreakType and has enough width between floats
   // (or no floats remaining) to accomodate aReplacedBlock.
-  nscoord ClearFloats(nscoord aY, uint8_t aBreakType,
-                      nsIFrame *aReplacedBlock = nullptr,
-                      uint32_t aFlags = 0);
+  nscoord ClearFloats(nscoord aY, PRUint8 aBreakType,
+                      nsIFrame *aReplacedBlock = nsnull,
+                      PRUint32 aFlags = 0);
 
-  bool IsAdjacentWithTop() const {
+  PRBool IsAdjacentWithTop() const {
     return mY ==
       ((mFlags & BRS_ISFIRSTINFLOW) ? mReflowState.mComputedBorderPadding.top : 0);
   }
@@ -117,17 +152,20 @@ public:
   void ReconstructMarginAbove(nsLineList::iterator aLine);
 
   // Caller must have called GetAvailableSpace for the correct position
-  // (which need not be the current mY).
+  // (which need not be the current mY).  Callers need only pass
+  // aReplacedWidth for outer table frames.
   void ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
                                             const nsRect& aFloatAvailableSpace,
                                             nscoord& aLeftResult,
-                                            nscoord& aRightResult);
+                                            nscoord& aRightResult,
+                                       nsBlockFrame::ReplacedElementWidthToClear
+                                                      *aReplacedWidth = nsnull);
 
   // Caller must have called GetAvailableSpace for the current mY
   void ComputeBlockAvailSpace(nsIFrame* aFrame,
                               const nsStyleDisplay* aDisplay,
                               const nsFlowAreaRect& aFloatAvailableSpace,
-                              bool aBlockAvoidsFloats,
+                              PRBool aBlockAvoidsFloats,
                               nsRect& aResult);
 
 protected:
@@ -138,11 +176,15 @@ public:
 
   void AdvanceToNextLine() {
     if (GetFlag(BRS_LINE_LAYOUT_EMPTY)) {
-      SetFlag(BRS_LINE_LAYOUT_EMPTY, false);
+      SetFlag(BRS_LINE_LAYOUT_EMPTY, PR_FALSE);
     } else {
       mLineNumber++;
     }
   }
+
+  nsLineBox* NewLineBox(nsIFrame* aFrame, PRInt32 aCount, PRBool aIsBlock);
+
+  void FreeLineBox(nsLineBox* aLine);
 
   //----------------------------------------
 
@@ -258,16 +300,16 @@ public:
 
   nscoord mMinLineHeight;
 
-  int32_t mLineNumber;
+  PRInt32 mLineNumber;
 
-  int16_t mFlags;
+  PRInt16 mFlags;
  
-  uint8_t mFloatBreakType;
+  PRUint8 mFloatBreakType;
 
-  void SetFlag(uint32_t aFlag, bool aValue)
+  void SetFlag(PRUint32 aFlag, PRBool aValue)
   {
     NS_ASSERTION(aFlag<=BRS_LASTFLAG, "bad flag");
-    NS_ASSERTION(aValue==false || aValue==true, "bad value");
+    NS_ASSERTION(aValue==PR_FALSE || aValue==PR_TRUE, "bad value");
     if (aValue) { // set flag
       mFlags |= aFlag;
     }
@@ -276,7 +318,7 @@ public:
     }
   }
 
-  bool GetFlag(uint32_t aFlag) const
+  PRBool GetFlag(PRUint32 aFlag) const
   {
     NS_ASSERTION(aFlag<=BRS_LASTFLAG, "bad flag");
     return !!(mFlags & aFlag);

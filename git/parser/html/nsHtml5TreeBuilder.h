@@ -38,12 +38,14 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
 #include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
 #include "nsHtml5Parser.h"
 #include "nsHtml5Atoms.h"
+#include "nsHtml5ByteReadable.h"
 #include "nsHtml5TreeOperation.h"
 #include "nsHtml5PendingNotification.h"
 #include "nsHtml5StateSnapshot.h"
@@ -51,8 +53,6 @@
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsHtml5StreamParser.h"
 #include "nsAHtml5TreeBuilderState.h"
-#include "nsHtml5Highlighter.h"
-#include "nsHtml5ViewSourceUtils.h"
 
 class nsHtml5StreamParser;
 
@@ -70,42 +70,42 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
 {
   private:
     static PRUnichar REPLACEMENT_CHARACTER[];
-    static staticJArray<const char*,int32_t> QUIRKY_PUBLIC_IDS;
-    int32_t mode;
-    int32_t originalMode;
-    bool framesetOk;
+    static staticJArray<const char*,PRInt32> QUIRKY_PUBLIC_IDS;
+    PRInt32 mode;
+    PRInt32 originalMode;
+    PRBool framesetOk;
   protected:
     nsHtml5Tokenizer* tokenizer;
   private:
-    bool scriptingEnabled;
-    bool needToDropLF;
-    bool fragment;
+    PRBool scriptingEnabled;
+    PRBool needToDropLF;
+    PRBool fragment;
     nsIAtom* contextName;
-    int32_t contextNamespace;
+    PRInt32 contextNamespace;
     nsIContent** contextNode;
-    autoJArray<nsHtml5StackNode*,int32_t> stack;
-    int32_t currentPtr;
-    autoJArray<nsHtml5StackNode*,int32_t> listOfActiveFormattingElements;
-    int32_t listPtr;
+    autoJArray<nsHtml5StackNode*,PRInt32> stack;
+    PRInt32 currentPtr;
+    autoJArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements;
+    PRInt32 listPtr;
     nsIContent** formPointer;
     nsIContent** headPointer;
     nsIContent** deepTreeSurrogateParent;
   protected:
-    autoJArray<PRUnichar,int32_t> charBuffer;
-    int32_t charBufferLen;
+    autoJArray<PRUnichar,PRInt32> charBuffer;
+    PRInt32 charBufferLen;
   private:
-    bool quirks;
+    PRBool quirks;
   public:
     void startTokenization(nsHtml5Tokenizer* self);
-    void doctype(nsIAtom* name, nsString* publicIdentifier, nsString* systemIdentifier, bool forceQuirks);
-    void comment(PRUnichar* buf, int32_t start, int32_t length);
-    void characters(const PRUnichar* buf, int32_t start, int32_t length);
+    void doctype(nsIAtom* name, nsString* publicIdentifier, nsString* systemIdentifier, PRBool forceQuirks);
+    void comment(PRUnichar* buf, PRInt32 start, PRInt32 length);
+    void characters(const PRUnichar* buf, PRInt32 start, PRInt32 length);
     void zeroOriginatingReplacementCharacter();
     void eof();
     void endTokenization();
-    void startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes, bool selfClosing);
+    void startTag(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes, PRBool selfClosing);
   private:
-    bool isSpecialParentInForeign(nsHtml5StackNode* stackNode);
+    PRBool isSpecialParentInForeign(nsHtml5StackNode* stackNode);
   public:
     static nsString* extractCharsetFromContent(nsString* attributeValue);
   private:
@@ -113,57 +113,57 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
   public:
     void endTag(nsHtml5ElementName* elementName);
   private:
-    int32_t findLastInTableScopeOrRootTbodyTheadTfoot();
-    int32_t findLast(nsIAtom* name);
-    int32_t findLastInTableScope(nsIAtom* name);
-    int32_t findLastInButtonScope(nsIAtom* name);
-    int32_t findLastInScope(nsIAtom* name);
-    int32_t findLastInListScope(nsIAtom* name);
-    int32_t findLastInScopeHn();
+    PRInt32 findLastInTableScopeOrRootTbodyTheadTfoot();
+    PRInt32 findLast(nsIAtom* name);
+    PRInt32 findLastInTableScope(nsIAtom* name);
+    PRInt32 findLastInButtonScope(nsIAtom* name);
+    PRInt32 findLastInScope(nsIAtom* name);
+    PRInt32 findLastInListScope(nsIAtom* name);
+    PRInt32 findLastInScopeHn();
     void generateImpliedEndTagsExceptFor(nsIAtom* name);
     void generateImpliedEndTags();
-    bool isSecondOnStackBody();
-    void documentModeInternal(nsHtml5DocumentMode m, nsString* publicIdentifier, nsString* systemIdentifier, bool html4SpecificAdditionalErrorChecks);
-    bool isAlmostStandards(nsString* publicIdentifier, nsString* systemIdentifier);
-    bool isQuirky(nsIAtom* name, nsString* publicIdentifier, nsString* systemIdentifier, bool forceQuirks);
-    void closeTheCell(int32_t eltPos);
-    int32_t findLastInTableScopeTdTh();
-    void clearStackBackTo(int32_t eltPos);
+    PRBool isSecondOnStackBody();
+    void documentModeInternal(nsHtml5DocumentMode m, nsString* publicIdentifier, nsString* systemIdentifier, PRBool html4SpecificAdditionalErrorChecks);
+    PRBool isAlmostStandards(nsString* publicIdentifier, nsString* systemIdentifier);
+    PRBool isQuirky(nsIAtom* name, nsString* publicIdentifier, nsString* systemIdentifier, PRBool forceQuirks);
+    void closeTheCell(PRInt32 eltPos);
+    PRInt32 findLastInTableScopeTdTh();
+    void clearStackBackTo(PRInt32 eltPos);
     void resetTheInsertionMode();
     void implicitlyCloseP();
-    bool clearLastStackSlot();
-    bool clearLastListSlot();
+    PRBool clearLastStackSlot();
+    PRBool clearLastListSlot();
     void push(nsHtml5StackNode* node);
     void silentPush(nsHtml5StackNode* node);
     void append(nsHtml5StackNode* node);
     inline void insertMarker()
     {
-      append(nullptr);
+      append(nsnull);
     }
 
     void clearTheListOfActiveFormattingElementsUpToTheLastMarker();
-    inline bool isCurrent(nsIAtom* name)
+    inline PRBool isCurrent(nsIAtom* name)
     {
       return name == stack[currentPtr]->name;
     }
 
-    void removeFromStack(int32_t pos);
+    void removeFromStack(PRInt32 pos);
     void removeFromStack(nsHtml5StackNode* node);
-    void removeFromListOfActiveFormattingElements(int32_t pos);
-    bool adoptionAgencyEndTag(nsIAtom* name);
-    void insertIntoStack(nsHtml5StackNode* node, int32_t position);
-    void insertIntoListOfActiveFormattingElements(nsHtml5StackNode* formattingClone, int32_t bookmark);
-    int32_t findInListOfActiveFormattingElements(nsHtml5StackNode* node);
-    int32_t findInListOfActiveFormattingElementsContainsBetweenEndAndLastMarker(nsIAtom* name);
+    void removeFromListOfActiveFormattingElements(PRInt32 pos);
+    PRBool adoptionAgencyEndTag(nsIAtom* name);
+    void insertIntoStack(nsHtml5StackNode* node, PRInt32 position);
+    void insertIntoListOfActiveFormattingElements(nsHtml5StackNode* formattingClone, PRInt32 bookmark);
+    PRInt32 findInListOfActiveFormattingElements(nsHtml5StackNode* node);
+    PRInt32 findInListOfActiveFormattingElementsContainsBetweenEndAndLastMarker(nsIAtom* name);
     void maybeForgetEarlierDuplicateFormattingElement(nsIAtom* name, nsHtml5HtmlAttributes* attributes);
-    int32_t findLastOrRoot(nsIAtom* name);
-    int32_t findLastOrRoot(int32_t group);
-    bool addAttributesToBody(nsHtml5HtmlAttributes* attributes);
+    PRInt32 findLastOrRoot(nsIAtom* name);
+    PRInt32 findLastOrRoot(PRInt32 group);
+    PRBool addAttributesToBody(nsHtml5HtmlAttributes* attributes);
     void addAttributesToHtml(nsHtml5HtmlAttributes* attributes);
     void pushHeadPointerOntoStack();
     void reconstructTheActiveFormattingElements();
     void insertIntoFosterParent(nsIContent** child);
-    bool isInStack(nsHtml5StackNode* node);
+    PRBool isInStack(nsHtml5StackNode* node);
     void pop();
     void silentPop();
     void popOnEof();
@@ -177,7 +177,7 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void appendToCurrentNodeAndPushElement(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void appendToCurrentNodeAndPushElementMayFoster(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void appendToCurrentNodeAndPushElementMayFosterMathML(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
-    bool annotationXmlEncodingPermitsHtml(nsHtml5HtmlAttributes* attributes);
+    PRBool annotationXmlEncodingPermitsHtml(nsHtml5HtmlAttributes* attributes);
     void appendToCurrentNodeAndPushElementMayFosterSVG(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes);
     void appendToCurrentNodeAndPushElementMayFoster(nsHtml5ElementName* elementName, nsHtml5HtmlAttributes* attributes, nsIContent** form);
     void appendVoidElementToCurrentMayFoster(nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form);
@@ -187,66 +187,66 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
     void appendVoidElementToCurrent(nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form);
     void appendVoidFormToCurrent(nsHtml5HtmlAttributes* attributes);
   protected:
-    void accumulateCharacters(const PRUnichar* buf, int32_t start, int32_t length);
+    void accumulateCharacters(const PRUnichar* buf, PRInt32 start, PRInt32 length);
     void requestSuspension();
-    nsIContent** createElement(int32_t ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes);
-    nsIContent** createElement(int32_t ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form);
+    nsIContent** createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes);
+    nsIContent** createElement(PRInt32 ns, nsIAtom* name, nsHtml5HtmlAttributes* attributes, nsIContent** form);
     nsIContent** createHtmlElementSetAsRoot(nsHtml5HtmlAttributes* attributes);
     void detachFromParent(nsIContent** element);
-    bool hasChildren(nsIContent** element);
+    PRBool hasChildren(nsIContent** element);
     void appendElement(nsIContent** child, nsIContent** newParent);
     void appendChildrenToNewParent(nsIContent** oldParent, nsIContent** newParent);
     void insertFosterParentedChild(nsIContent** child, nsIContent** table, nsIContent** stackParent);
-    void insertFosterParentedCharacters(PRUnichar* buf, int32_t start, int32_t length, nsIContent** table, nsIContent** stackParent);
-    void appendCharacters(nsIContent** parent, PRUnichar* buf, int32_t start, int32_t length);
+    void insertFosterParentedCharacters(PRUnichar* buf, PRInt32 start, PRInt32 length, nsIContent** table, nsIContent** stackParent);
+    void appendCharacters(nsIContent** parent, PRUnichar* buf, PRInt32 start, PRInt32 length);
     void appendIsindexPrompt(nsIContent** parent);
-    void appendComment(nsIContent** parent, PRUnichar* buf, int32_t start, int32_t length);
-    void appendCommentToDocument(PRUnichar* buf, int32_t start, int32_t length);
+    void appendComment(nsIContent** parent, PRUnichar* buf, PRInt32 start, PRInt32 length);
+    void appendCommentToDocument(PRUnichar* buf, PRInt32 start, PRInt32 length);
     void addAttributesToElement(nsIContent** element, nsHtml5HtmlAttributes* attributes);
     void markMalformedIfScript(nsIContent** elt);
-    void start(bool fragmentMode);
+    void start(PRBool fragmentMode);
     void end();
     void appendDoctypeToDocument(nsIAtom* name, nsString* publicIdentifier, nsString* systemIdentifier);
-    void elementPushed(int32_t ns, nsIAtom* name, nsIContent** node);
-    void elementPopped(int32_t ns, nsIAtom* name, nsIContent** node);
+    void elementPushed(PRInt32 ns, nsIAtom* name, nsIContent** node);
+    void elementPopped(PRInt32 ns, nsIAtom* name, nsIContent** node);
   public:
-    inline bool cdataSectionAllowed()
+    inline PRBool cdataSectionAllowed()
     {
       return isInForeign();
     }
 
   private:
-    bool isInForeign();
-    bool isInForeignButNotHtmlOrMathTextIntegrationPoint();
+    PRBool isInForeign();
+    PRBool isInForeignButNotHtmlIntegrationPoint();
   public:
-    void setFragmentContext(nsIAtom* context, int32_t ns, nsIContent** node, bool quirks);
+    void setFragmentContext(nsIAtom* context, PRInt32 ns, nsIContent** node, PRBool quirks);
   protected:
     nsIContent** currentNode();
   public:
-    bool isScriptingEnabled();
-    void setScriptingEnabled(bool scriptingEnabled);
+    PRBool isScriptingEnabled();
+    void setScriptingEnabled(PRBool scriptingEnabled);
     void flushCharacters();
   private:
-    bool charBufferContainsNonWhitespace();
+    PRBool charBufferContainsNonWhitespace();
   public:
     nsAHtml5TreeBuilderState* newSnapshot();
-    bool snapshotMatches(nsAHtml5TreeBuilderState* snapshot);
+    PRBool snapshotMatches(nsAHtml5TreeBuilderState* snapshot);
     void loadState(nsAHtml5TreeBuilderState* snapshot, nsHtml5AtomTable* interner);
   private:
-    int32_t findInArray(nsHtml5StackNode* node, jArray<nsHtml5StackNode*,int32_t> arr);
+    PRInt32 findInArray(nsHtml5StackNode* node, jArray<nsHtml5StackNode*,PRInt32> arr);
   public:
     nsIContent** getFormPointer();
     nsIContent** getHeadPointer();
     nsIContent** getDeepTreeSurrogateParent();
-    jArray<nsHtml5StackNode*,int32_t> getListOfActiveFormattingElements();
-    jArray<nsHtml5StackNode*,int32_t> getStack();
-    int32_t getMode();
-    int32_t getOriginalMode();
-    bool isFramesetOk();
-    bool isNeedToDropLF();
-    bool isQuirks();
-    int32_t getListOfActiveFormattingElementsLength();
-    int32_t getStackLength();
+    jArray<nsHtml5StackNode*,PRInt32> getListOfActiveFormattingElements();
+    jArray<nsHtml5StackNode*,PRInt32> getStack();
+    PRInt32 getMode();
+    PRInt32 getOriginalMode();
+    PRBool isFramesetOk();
+    PRBool isNeedToDropLF();
+    PRBool isQuirks();
+    PRInt32 getListOfActiveFormattingElementsLength();
+    PRInt32 getStackLength();
     static void initializeStatics();
     static void releaseStatics();
 
@@ -318,7 +318,6 @@ class nsHtml5TreeBuilder : public nsAHtml5TreeBuilderState
 #define NS_HTML5TREE_BUILDER_OBJECT 63
 #define NS_HTML5TREE_BUILDER_FONT 64
 #define NS_HTML5TREE_BUILDER_KEYGEN 65
-#define NS_HTML5TREE_BUILDER_MENUITEM 66
 #define NS_HTML5TREE_BUILDER_INITIAL 0
 #define NS_HTML5TREE_BUILDER_BEFORE_HTML 1
 #define NS_HTML5TREE_BUILDER_BEFORE_HEAD 2

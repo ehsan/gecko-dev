@@ -175,7 +175,7 @@ cleanup:
  *  "trustChain"
  *      Address of List of certificates traversed. Must be non-NULL.
  *  "parentState"
- *      Address of previous ForwardBuilderState
+ *      Address of previous ForwardBuilder state
  *  "pState"
  *      Address where ForwardBuilderState will be stored. Must be non-NULL.
  *  "plContext"
@@ -3024,7 +3024,6 @@ pkix_Build_CheckInCache(
         PKIX_PL_Date *testDate = NULL;
         PKIX_BuildResult *buildResult = NULL;
         PKIX_ValidateResult *valResult = NULL;
-        PKIX_Error *buildError = NULL;
         PKIX_TrustAnchor *matchingAnchor = NULL;
         PKIX_PL_Cert *trustedCert = NULL;
         PKIX_List *certList = NULL;
@@ -3133,20 +3132,16 @@ cleanup:
             /* The anchor of this chain is no longer trusted or
              * chain cert(s) has been revoked.
              * Invalidate this result in the cache */
-            buildError = pkixErrorResult;
             PKIX_CHECK_FATAL(pkix_CacheCertChain_Remove
                        (targetCert,
                         anchors,
                         plContext),
                        PKIX_CACHECERTCHAINREMOVEFAILED);
-            pkixErrorResult = buildError;
-            buildError = NULL;
         }
 
 fatal:
        PKIX_DECREF(buildResult);
        PKIX_DECREF(valResult);
-       PKIX_DECREF(buildError);
        PKIX_DECREF(certList);
        PKIX_DECREF(matchingAnchor);
        PKIX_DECREF(trustedCert);
@@ -3161,7 +3156,7 @@ fatal:
  *
  *  This function initiates the search for a BuildChain, using the parameters
  *  provided in "procParams" and, if continuing a search that was suspended
- *  for I/O, using the ForwardBuilderState pointed to by "pState".
+ *  for I/O, using the ForwardBuilderState pointed to by "state".
  *
  *  If a successful chain is built, this function stores the BuildResult at
  *  "pBuildResult". Alternatively, if an operation using non-blocking I/O
@@ -3236,10 +3231,10 @@ pkix_Build_InitiateBuildChain(
         PKIX_ValidateResult *valResult = NULL;
         PKIX_BuildResult *buildResult = NULL;
         PKIX_List *certList = NULL;
+        PKIX_TrustAnchor *matchingAnchor = NULL;
         PKIX_ForwardBuilderState *state = NULL;
         PKIX_CertStore_CheckTrustCallback trustCallback = NULL;
         PKIX_CertSelector_MatchCallback selectorCallback = NULL;
-        PKIX_Boolean trusted = PKIX_FALSE;
         PKIX_PL_AIAMgr *aiaMgr = NULL;
 
         PKIX_ENTER(BUILD, "pkix_Build_InitiateBuildChain");
@@ -3345,12 +3340,6 @@ pkix_Build_InitiateBuildChain(
                 PKIX_ERROR(PKIX_NOTARGETCERTSUPPLIED);
             }
 
-            PKIX_CHECK(PKIX_PL_Cert_IsLeafCertTrusted
-                    (targetCert,
-                    &trusted, 
-                    plContext),
-                    PKIX_CERTISCERTTRUSTEDFAILED);
-
             PKIX_CHECK(PKIX_PL_Cert_GetAllSubjectNames
                     (targetCert,
                     &targetSubjNames,
@@ -3406,36 +3395,6 @@ pkix_Build_InitiateBuildChain(
                     pkixErrorCode = PKIX_CERTCHECKVALIDITYFAILED;
                     goto cleanup;
                 }
-            }
-
-            /* If the EE cert is trusted, force success. We only want to do
-             * this if we aren't validating against a policy (like EV). */
-            if (trusted && procParams->initialPolicies == NULL) {
-                if (pVerifyNode != NULL) {
-                    PKIX_Error *tempResult =
-                        pkix_VerifyNode_Create(targetCert, 0, NULL,
-                                               pVerifyNode,
-                                               plContext);
-                    if (tempResult) {
-                        pkixErrorResult = tempResult;
-                        pkixErrorCode = PKIX_VERIFYNODECREATEFAILED;
-                        pkixErrorClass = PKIX_FATAL_ERROR;
-                        goto cleanup;
-                    }
-                }
-                PKIX_CHECK(pkix_ValidateResult_Create
-                        (targetPubKey, NULL /* anchor */,
-                         NULL /* policyTree */, &valResult, plContext),
-                        PKIX_VALIDATERESULTCREATEFAILED);
-                PKIX_CHECK(
-                    pkix_BuildResult_Create(valResult, tentativeChain,
-                                            &buildResult, plContext),
-                    PKIX_BUILDRESULTCREATEFAILED);
-                *pBuildResult = buildResult;
-                /* Note that *pState is NULL.   The only side effect is that
-                 * the cert chain won't be cached in PKIX_BuildChain, which
-                 * is fine. */
-                goto cleanup;
             }
     
             PKIX_CHECK(PKIX_ProcessingParams_GetCertStores
@@ -3610,9 +3569,11 @@ pkix_Build_InitiateBuildChain(
 
         state->status = BUILD_INITIAL;
 
-        pkixErrorResult =
-            pkix_BuildForwardDepthFirstSearch(&nbioContext, state,
-                                              &valResult, plContext);
+        if (!matchingAnchor) {
+                pkixErrorResult =
+                    pkix_BuildForwardDepthFirstSearch(&nbioContext, state,
+                                                      &valResult, plContext);
+        }
 
         /* non-null nbioContext means the build would block */
         if (pkixErrorResult == NULL && nbioContext != NULL) {
@@ -3657,6 +3618,7 @@ cleanup:
         PKIX_DECREF(tentativeChain);
         PKIX_DECREF(valResult);
         PKIX_DECREF(certList);
+        PKIX_DECREF(matchingAnchor);
         PKIX_DECREF(trustedCert);
         PKIX_DECREF(state);
         PKIX_DECREF(aiaMgr);

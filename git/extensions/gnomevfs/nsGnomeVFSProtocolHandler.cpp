@@ -1,7 +1,39 @@
 /* vim:set ts=2 sw=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla gnome-vfs extension.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2004
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 // GnomeVFS v2.2.2 is missing G_BEGIN_DECLS in gnome-vfs-module-callback.h
 extern "C" {
@@ -15,7 +47,7 @@ extern "C" {
 #include "mozilla/ModuleUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
+#include "nsIPrefBranch2.h"
 #include "nsIObserver.h"
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
@@ -32,7 +64,6 @@ extern "C" {
 #include "prtime.h"
 #include "prprf.h"
 #include "plstr.h"
-#include "mozilla/Attributes.h"
 
 #define MOZ_GNOMEVFS_SCHEME              "moz-gnomevfs"
 #define MOZ_GNOMEVFS_SUPPORTED_PROTOCOLS "network.gnomevfs.supported-protocols"
@@ -157,7 +188,7 @@ ProxiedAuthCallback(gconstpointer in,
     //     that we originally gave to it.  In spite of the likelihood of
     //     false hits, this check is probably still valuable.
     //
-    nsAutoCString spec;
+    nsCAutoString spec;
     uri->GetSpec(spec);
     int uriLen = strlen(authIn->uri);
     if (!StringHead(spec, uriLen).Equals(nsDependentCString(authIn->uri, uriLen)))
@@ -168,7 +199,7 @@ ProxiedAuthCallback(gconstpointer in,
   }
 #endif
 
-  nsAutoCString scheme, hostPort;
+  nsCAutoString scheme, hostPort;
   uri->GetScheme(scheme);
   uri->GetHostPort(hostPort);
 
@@ -234,10 +265,10 @@ ProxiedAuthCallback(gconstpointer in,
 
   // Prompt the user...
   nsresult rv;
-  bool retval = false;
-  PRUnichar *user = nullptr, *pass = nullptr;
+  PRBool retval = PR_FALSE;
+  PRUnichar *user = nsnull, *pass = nsnull;
 
-  rv = prompt->PromptUsernameAndPassword(nullptr, message.get(),
+  rv = prompt->PromptUsernameAndPassword(nsnull, message.get(),
                                          key.get(),
                                          nsIAuthPrompt::SAVE_PASSWORD_PERMANENTLY,
                                          &user, &pass, &retval);
@@ -309,7 +340,7 @@ FileInfoComparator(gconstpointer a, gconstpointer b)
 
 //-----------------------------------------------------------------------------
 
-class nsGnomeVFSInputStream MOZ_FINAL : public nsIInputStream
+class nsGnomeVFSInputStream : public nsIInputStream
 {
   public:
     NS_DECL_ISUPPORTS
@@ -317,14 +348,14 @@ class nsGnomeVFSInputStream MOZ_FINAL : public nsIInputStream
 
     nsGnomeVFSInputStream(const nsCString &uriSpec)
       : mSpec(uriSpec)
-      , mChannel(nullptr)
-      , mHandle(nullptr)
-      , mBytesRemaining(PR_UINT64_MAX)
+      , mChannel(nsnull)
+      , mHandle(nsnull)
+      , mBytesRemaining(PR_UINT32_MAX)
       , mStatus(NS_OK)
-      , mDirList(nullptr)
-      , mDirListPtr(nullptr)
+      , mDirList(nsnull)
+      , mDirListPtr(nsnull)
       , mDirBufCursor(0)
-      , mDirOpen(false) {}
+      , mDirOpen(PR_FALSE) {}
 
    ~nsGnomeVFSInputStream() { Close(); }
 
@@ -348,20 +379,20 @@ class nsGnomeVFSInputStream MOZ_FINAL : public nsIInputStream
 
   private:
     GnomeVFSResult DoOpen();
-    GnomeVFSResult DoRead(char *aBuf, uint32_t aCount, uint32_t *aCountRead);
+    GnomeVFSResult DoRead(char *aBuf, PRUint32 aCount, PRUint32 *aCountRead);
     nsresult       SetContentTypeOfChannel(const char *contentType);
 
   private:
     nsCString                mSpec;
     nsIChannel              *mChannel; // manually refcounted
     GnomeVFSHandle          *mHandle;
-    uint64_t                 mBytesRemaining;
+    PRUint32                 mBytesRemaining;
     nsresult                 mStatus;
     GList                   *mDirList;
     GList                   *mDirListPtr;
     nsCString                mDirBuf;
-    uint32_t                 mDirBufCursor;
-    bool                     mDirOpen;
+    PRUint32                 mDirBufCursor;
+    PRPackedBool             mDirOpen;
 };
 
 GnomeVFSResult
@@ -369,7 +400,7 @@ nsGnomeVFSInputStream::DoOpen()
 {
   GnomeVFSResult rv;
 
-  NS_ASSERTION(mHandle == nullptr, "already open");
+  NS_ASSERTION(mHandle == nsnull, "already open");
 
   // Push a callback handler on the stack for this thread, so we can intercept
   // authentication requests from GnomeVFS.  We'll use the channel to get a
@@ -429,18 +460,17 @@ nsGnomeVFSInputStream::DoOpen()
       if (info.mime_type && (strcmp(info.mime_type, APPLICATION_OCTET_STREAM) != 0))
         SetContentTypeOfChannel(info.mime_type);
 
-      mBytesRemaining = info.size;
+      // XXX truncates size from 64-bit to 32-bit
+      mBytesRemaining = (PRUint32) info.size;
 
       // Update the content length attribute on the channel.  We do this
       // synchronously without proxying.  This hack is not as bad as it looks!
-      if (mBytesRemaining != PR_UINT64_MAX) {
-        // XXX 64-bit
-        mChannel->SetContentLength(NS_MAX((int32_t)mBytesRemaining, PR_INT32_MAX));
-      }
+      if (mBytesRemaining != PR_UINT32_MAX)
+        mChannel->SetContentLength(mBytesRemaining);
     }
     else
     {
-      mDirOpen = true;
+      mDirOpen = PR_TRUE;
 
       // Sort mDirList
       mDirList = g_list_sort(mDirList, FileInfoComparator);
@@ -469,7 +499,7 @@ nsGnomeVFSInputStream::DoOpen()
 }
 
 GnomeVFSResult
-nsGnomeVFSInputStream::DoRead(char *aBuf, uint32_t aCount, uint32_t *aCountRead)
+nsGnomeVFSInputStream::DoRead(char *aBuf, PRUint32 aCount, PRUint32 *aCountRead)
 {
   GnomeVFSResult rv;
 
@@ -479,8 +509,7 @@ nsGnomeVFSInputStream::DoRead(char *aBuf, uint32_t aCount, uint32_t *aCountRead)
     rv = gnome_vfs_read(mHandle, aBuf, aCount, &bytesRead);
     if (rv == GNOME_VFS_OK)
     {
-      // aCount is 32-bit, so aCountRead is under 32-bit value.
-      *aCountRead = (uint32_t) bytesRead;
+      *aCountRead = (PRUint32) bytesRead;
       mBytesRemaining -= *aCountRead;
     }
   }
@@ -491,10 +520,10 @@ nsGnomeVFSInputStream::DoRead(char *aBuf, uint32_t aCount, uint32_t *aCountRead)
     while (aCount && rv != GNOME_VFS_ERROR_EOF)
     {
       // Copy data out of our buffer
-      uint32_t bufLen = mDirBuf.Length() - mDirBufCursor;
+      PRUint32 bufLen = mDirBuf.Length() - mDirBufCursor;
       if (bufLen)
       {
-        uint32_t n = NS_MIN(bufLen, aCount);
+        PRUint32 n = NS_MIN(bufLen, aCount);
         memcpy(aBuf, mDirBuf.get() + mDirBufCursor, n);
         *aCountRead += n;
         aBuf += n;
@@ -534,7 +563,7 @@ nsGnomeVFSInputStream::DoRead(char *aBuf, uint32_t aCount, uint32_t *aCountRead)
 
         // The "content-length" field
         // XXX truncates size from 64-bit to 32-bit
-        mDirBuf.AppendInt(int32_t(info->size));
+        mDirBuf.AppendInt(PRInt32(info->size));
         mDirBuf.Append(' ');
 
         // The "last-modified" field
@@ -636,16 +665,16 @@ nsGnomeVFSInputStream::Close()
   if (mHandle)
   {
     gnome_vfs_close(mHandle);
-    mHandle = nullptr;
+    mHandle = nsnull;
   }
 
   if (mDirList)
   {
     // Destroy the list of GnomeVFSFileInfo objects...
-    g_list_foreach(mDirList, (GFunc) gnome_vfs_file_info_unref, nullptr);
+    g_list_foreach(mDirList, (GFunc) gnome_vfs_file_info_unref, nsnull);
     g_list_free(mDirList);
-    mDirList = nullptr;
-    mDirListPtr = nullptr;
+    mDirList = nsnull;
+    mDirListPtr = nsnull;
   }
 
   if (mChannel)
@@ -657,7 +686,7 @@ nsGnomeVFSInputStream::Close()
       rv = NS_ProxyRelease(thread, mChannel);
 
     NS_ASSERTION(thread && NS_SUCCEEDED(rv), "leaking channel reference");
-    mChannel = nullptr;
+    mChannel = nsnull;
   }
 
   mSpec.Truncate(); // free memory
@@ -670,7 +699,7 @@ nsGnomeVFSInputStream::Close()
 }
 
 NS_IMETHODIMP
-nsGnomeVFSInputStream::Available(uint64_t *aResult)
+nsGnomeVFSInputStream::Available(PRUint32 *aResult)
 {
   if (NS_FAILED(mStatus))
     return mStatus;
@@ -681,8 +710,8 @@ nsGnomeVFSInputStream::Available(uint64_t *aResult)
 
 NS_IMETHODIMP
 nsGnomeVFSInputStream::Read(char *aBuf,
-                            uint32_t aCount,
-                            uint32_t *aCountRead)
+                            PRUint32 aCount,
+                            PRUint32 *aCountRead)
 {
   *aCountRead = 0;
 
@@ -716,8 +745,8 @@ nsGnomeVFSInputStream::Read(char *aBuf,
 NS_IMETHODIMP
 nsGnomeVFSInputStream::ReadSegments(nsWriteSegmentFun aWriter,
                                     void *aClosure,
-                                    uint32_t aCount,
-                                    uint32_t *aResult)
+                                    PRUint32 aCount,
+                                    PRUint32 *aResult)
 {
   // There is no way to implement this using GnomeVFS, but fortunately
   // that doesn't matter.  Because we are a blocking input stream, Necko
@@ -727,16 +756,16 @@ nsGnomeVFSInputStream::ReadSegments(nsWriteSegmentFun aWriter,
 }
 
 NS_IMETHODIMP
-nsGnomeVFSInputStream::IsNonBlocking(bool *aResult)
+nsGnomeVFSInputStream::IsNonBlocking(PRBool *aResult)
 {
-  *aResult = false;
+  *aResult = PR_FALSE;
   return NS_OK;
 }
 
 //-----------------------------------------------------------------------------
 
-class nsGnomeVFSProtocolHandler MOZ_FINAL : public nsIProtocolHandler
-                                          , public nsIObserver
+class nsGnomeVFSProtocolHandler : public nsIProtocolHandler
+                                , public nsIObserver
 {
   public:
     NS_DECL_ISUPPORTS
@@ -747,7 +776,7 @@ class nsGnomeVFSProtocolHandler MOZ_FINAL : public nsIProtocolHandler
 
   private:
     void   InitSupportedProtocolsPref(nsIPrefBranch *prefs);
-    bool IsSupportedProtocol(const nsCString &spec);
+    PRBool IsSupportedProtocol(const nsCString &spec);
 
     nsCString mSupportedProtocols;
 };
@@ -770,11 +799,11 @@ nsGnomeVFSProtocolHandler::Init()
     }
   }
 
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+  nsCOMPtr<nsIPrefBranch2> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
   if (prefs)
   {
     InitSupportedProtocolsPref(prefs);
-    prefs->AddObserver(MOZ_GNOMEVFS_SUPPORTED_PROTOCOLS, this, false);
+    prefs->AddObserver(MOZ_GNOMEVFS_SUPPORTED_PROTOCOLS, this, PR_FALSE);
   }
 
   return NS_OK;
@@ -796,27 +825,27 @@ nsGnomeVFSProtocolHandler::InitSupportedProtocolsPref(nsIPrefBranch *prefs)
   LOG(("gnomevfs: supported protocols \"%s\"\n", mSupportedProtocols.get()));
 }
 
-bool
+PRBool
 nsGnomeVFSProtocolHandler::IsSupportedProtocol(const nsCString &aSpec)
 {
   const char *specString = aSpec.get();
   const char *colon = strchr(specString, ':');
   if (!colon)
-    return false;
+    return PR_FALSE;
 
-  uint32_t length = colon - specString + 1;
+  PRUint32 length = colon - specString + 1;
 
   // <scheme> + ':'
   nsCString scheme(specString, length);
 
   char *found = PL_strcasestr(mSupportedProtocols.get(), scheme.get());
   if (!found)
-    return false;
+    return PR_FALSE;
 
   if (found[length] != ',' && found[length] != '\0')
-    return false;
+    return PR_FALSE;
 
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -827,14 +856,14 @@ nsGnomeVFSProtocolHandler::GetScheme(nsACString &aScheme)
 }
 
 NS_IMETHODIMP
-nsGnomeVFSProtocolHandler::GetDefaultPort(int32_t *aDefaultPort)
+nsGnomeVFSProtocolHandler::GetDefaultPort(PRInt32 *aDefaultPort)
 {
   *aDefaultPort = -1;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsGnomeVFSProtocolHandler::GetProtocolFlags(uint32_t *aProtocolFlags)
+nsGnomeVFSProtocolHandler::GetProtocolFlags(PRUint32 *aProtocolFlags)
 {
   // Is URI_STD true of all GnomeVFS URI types?
   *aProtocolFlags = URI_STD | URI_DANGEROUS_TO_LOAD;
@@ -901,7 +930,7 @@ nsGnomeVFSProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
   NS_ENSURE_ARG_POINTER(aURI);
   nsresult rv;
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   rv = aURI->GetSpec(spec);
   if (NS_FAILED(rv))
     return rv;
@@ -924,12 +953,12 @@ nsGnomeVFSProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **aResult)
 }
 
 NS_IMETHODIMP
-nsGnomeVFSProtocolHandler::AllowPort(int32_t aPort,
+nsGnomeVFSProtocolHandler::AllowPort(PRInt32 aPort,
                                      const char *aScheme,
-                                     bool *aResult)
+                                     PRBool *aResult)
 {
   // Don't override anything.
-  *aResult = false; 
+  *aResult = PR_FALSE; 
   return NS_OK;
 }
 

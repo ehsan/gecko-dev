@@ -5,10 +5,7 @@
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <title>http://www.w3.org/2001/DOM-Test-Suite/level2/core/importNode16</title>
 <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css">
-<script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
-<script type="text/javascript" src="DOMTestCase.js"></script>
-<script type="text/javascript" src="exclusions.js"></script>
-<script type="text/javascript">
+<script type="text/javascript" src="/MochiKit/packed.js"></script><script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script><script type="text/javascript" src="DOMTestCase.js"></script><script type="text/javascript" src="exclusions.js"></script><script type="text/javascript">
 // expose test function names
 function exposeTestFunctionNames()
 {
@@ -82,8 +79,6 @@ var docName = 'importNode16';
     The "importNode(importedNode,deep)" method for a 
    Document should raise NOT_SUPPORTED_ERR DOMException if
    the type of node being imported is DocumentType.
-
-   The specification has changed! No exception should be thrown.
    
    Retrieve document staff.xml and get its type.
    Invoke method importNode(importedNode,deep) where importedNode
@@ -122,12 +117,11 @@ function importNode16() {
 		success = false;
 		try {
             node = doc.importNode(docType,false);
-            success = true;
         }
 		catch(ex) {
-      success = false;
+      success = (typeof(ex.code) != 'undefined' && ex.code == 9);
 		}
-		assertTrue("no_throw_NOT_SUPPORTED_ERR",success);
+		assertTrue("throw_NOT_SUPPORTED_ERR",success);
 	}
 
 }

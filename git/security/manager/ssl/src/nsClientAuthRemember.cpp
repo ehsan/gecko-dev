@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Red Hat, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Kai Engert <kengert@redhat.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsClientAuthRemember.h"
 
@@ -13,12 +46,13 @@
 #include "nsNetUtil.h"
 #include "nsISupportsPrimitives.h"
 #include "nsPromiseFlatString.h"
-#include "nsThreadUtils.h"
+#include "nsProxiedService.h"
 #include "nsStringBuffer.h"
 #include "nspr.h"
 #include "pk11pub.h"
 #include "certdb.h"
 #include "sechash.h"
+#include "ssl.h" // For SSL_ClearSessionCache
 
 #include "nsNSSCleaner.h"
 
@@ -43,17 +77,24 @@ nsClientAuthRememberService::~nsClientAuthRememberService()
 nsresult
 nsClientAuthRememberService::Init()
 {
-  if (!NS_IsMainThread()) {
-    NS_ERROR("nsClientAuthRememberService::Init called off the main thread");
-    return NS_ERROR_NOT_SAME_THREAD;
-  }
+  if (!mSettingsTable.Init())
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  mSettingsTable.Init();
+  nsCOMPtr<nsIProxyObjectManager> proxyman(do_GetService(NS_XPCOMPROXY_CONTRACTID));
+  if (!proxyman)
+    return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIObserverService> observerService =
-      mozilla::services::GetObserverService();
-  if (observerService) {
-    observerService->AddObserver(this, "profile-before-change", true);
+  nsCOMPtr<nsIObserverService> observerService(do_GetService("@mozilla.org/observer-service;1"));
+  nsCOMPtr<nsIObserverService> proxiedObserver;
+
+  NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                       NS_GET_IID(nsIObserverService),
+                       observerService,
+                       NS_PROXY_SYNC,
+                       getter_AddRefs(proxiedObserver));
+
+  if (proxiedObserver) {
+    proxiedObserver->AddObserver(this, "profile-before-change", PR_TRUE);
   }
 
   return NS_OK;
@@ -118,7 +159,7 @@ nsClientAuthRememberService::RememberDecision(const nsACString & aHostName,
   if (aHostName.IsEmpty())
     return NS_ERROR_INVALID_ARG;
 
-  nsAutoCString fpStr;
+  nsCAutoString fpStr;
   nsresult rv = GetCertFingerprintByOidTag(aServerCert, SEC_OID_SHA256, fpStr);
   if (NS_FAILED(rv))
     return rv;
@@ -150,22 +191,22 @@ nsresult
 nsClientAuthRememberService::HasRememberedDecision(const nsACString & aHostName, 
                                                    CERTCertificate *aCert, 
                                                    nsACString & aCertDBKey,
-                                                   bool *_retval)
+                                                   PRBool *_retval)
 {
   if (aHostName.IsEmpty())
     return NS_ERROR_INVALID_ARG;
 
   NS_ENSURE_ARG_POINTER(aCert);
   NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = false;
+  *_retval = PR_FALSE;
 
   nsresult rv;
-  nsAutoCString fpStr;
+  nsCAutoString fpStr;
   rv = GetCertFingerprintByOidTag(aCert, SEC_OID_SHA256, fpStr);
   if (NS_FAILED(rv))
     return rv;
 
-  nsAutoCString hostCert;
+  nsCAutoString hostCert;
   GetHostWithCert(aHostName, fpStr, hostCert);
   nsClientAuthRemember settings;
 
@@ -178,7 +219,7 @@ nsClientAuthRememberService::HasRememberedDecision(const nsACString & aHostName,
   }
 
   aCertDBKey = settings.mDBKey;
-  *_retval = true;
+  *_retval = PR_TRUE;
   return NS_OK;
 }
 
@@ -188,7 +229,7 @@ nsClientAuthRememberService::AddEntryToList(const nsACString &aHostName,
                                       const nsACString &db_key)
 
 {
-  nsAutoCString hostCert;
+  nsCAutoString hostCert;
   GetHostWithCert(aHostName, fingerprint, hostCert);
 
   {
@@ -216,7 +257,7 @@ nsClientAuthRememberService::GetHostWithCert(const nsACString & aHostName,
                                              const nsACString & fingerprint, 
                                              nsACString& _retval)
 {
-  nsAutoCString hostCert(aHostName);
+  nsCAutoString hostCert(aHostName);
   hostCert.AppendLiteral(":");
   hostCert.Append(fingerprint);
   

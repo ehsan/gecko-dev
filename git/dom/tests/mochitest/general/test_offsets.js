@@ -32,6 +32,11 @@ function toNearestAppunit(v)
   return Math.round(v*60)/60;
 }
 
+function floorToNearestAppunit(v)
+{
+  return Math.floor(toNearestAppunit(v));
+}
+
 function isEqualAppunits(a, b, msg)
 {
   is(toNearestAppunit(a), toNearestAppunit(b), msg);
@@ -62,17 +67,18 @@ function testElement(element)
   var scrollWidth, scrollHeight, clientWidth, clientHeight;
   if (element.id == "scrollbox") {
     var lastchild = $("lastline");
-    scrollWidth = lastchild.getBoundingClientRect().width + paddingLeft + paddingRight;
+    scrollWidth = floorToNearestAppunit(lastchild.getBoundingClientRect().width + paddingLeft + paddingRight);
     var top = element.firstChild.getBoundingClientRect().top;
     var bottom = element.lastChild.getBoundingClientRect().bottom;
     var contentsHeight = bottom - top;
-    scrollHeight = contentsHeight + paddingTop + paddingBottom;
+    scrollHeight = floorToNearestAppunit(contentsHeight + paddingTop + paddingBottom);
     clientWidth = paddingLeft + width + paddingRight - scrollbarWidth;
     clientHeight = paddingTop + height + paddingBottom - scrollbarHeight;
   }
   else {
-    scrollWidth = paddingLeft + width + paddingRight;
-    scrollHeight = paddingTop + height + paddingBottom;
+    // XXXndeakin note that Mozilla adds borders here, although the spec does not
+    scrollWidth = paddingLeft + width + paddingRight + borderLeft + borderRight;
+    scrollHeight = paddingTop + height + paddingBottom + borderTop + borderBottom;
     clientWidth = paddingLeft + width + paddingRight;
     clientHeight = paddingTop + height + paddingBottom;
   }
@@ -119,15 +125,11 @@ function checkScrolledElement(element, child)
   element.scrollTop = 20;
   is(element.scrollLeft, 0, element.id + " scrollLeft after vertical scroll");
   is(element.scrollTop, 20, element.id + " scrollTop after vertical scroll");
-  // If the viewport has been transformed, then we might have scrolled to a subpixel value
-  // that's slightly different from what we requested. After rounding, however, it should
-  // be the same.
-  is(Math.round(childrect.top - child.getBoundingClientRect().top), 20, "child position after vertical scroll");
+  is(child.getBoundingClientRect().top, childrect.top - 20, "child position after vertical scroll");
 
   element.scrollTop = 0;
   is(element.scrollLeft, 0, element.id + " scrollLeft after vertical scroll reset");
   is(element.scrollTop, 0, element.id + " scrollTop after vertical scroll reset");
-  // Scrolling back to the top should work precisely.
   is(child.getBoundingClientRect().top, childrect.top, "child position after vertical scroll reset");
 
   element.scrollTop = 10;
@@ -139,7 +141,7 @@ function checkScrolledElement(element, child)
   element.scrollLeft = 18;
   is(element.scrollLeft, 18, element.id + " scrollLeft after horizontal scroll");
   is(element.scrollTop, 0, element.id + " scrollTop after horizontal scroll");
-  is(Math.round(childrect.left - child.getBoundingClientRect().left), 18, "child position after horizontal scroll");
+  is(child.getBoundingClientRect().left, childrect.left - 18, "child position after horizontal scroll");
 
   element.scrollLeft = -30;
   is(element.scrollLeft, 0, element.id + " scrollLeft after horizontal scroll reset");

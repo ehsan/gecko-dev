@@ -1,25 +1,54 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation <http://www.mozilla.org/>.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Daniel Witte <dwitte@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/net/CookieServiceChild.h"
-
-#include "mozilla/ipc/URIUtils.h"
 #include "mozilla/net/NeckoChild.h"
 #include "nsIURI.h"
 #include "nsIPrefService.h"
-#include "nsIPrefBranch.h"
-
-using namespace mozilla::ipc;
+#include "nsIPrefBranch2.h"
 
 namespace mozilla {
 namespace net {
 
 // Behavior pref constants
-static const int32_t BEHAVIOR_ACCEPT = 0;
-static const int32_t BEHAVIOR_REJECTFOREIGN = 1;
-static const int32_t BEHAVIOR_REJECT = 2;
+static const PRInt32 BEHAVIOR_ACCEPT = 0;
+static const PRInt32 BEHAVIOR_REJECTFOREIGN = 1;
+static const PRInt32 BEHAVIOR_REJECT = 2;
 
 // Pref string constants
 static const char kPrefCookieBehavior[] = "network.cookie.cookieBehavior";
@@ -57,30 +86,30 @@ CookieServiceChild::CookieServiceChild()
   gNeckoChild->SendPCookieServiceConstructor(this);
 
   // Init our prefs and observer.
-  nsCOMPtr<nsIPrefBranch> prefBranch =
+  nsCOMPtr<nsIPrefBranch2> prefBranch =
     do_GetService(NS_PREFSERVICE_CONTRACTID);
   NS_WARN_IF_FALSE(prefBranch, "no prefservice");
   if (prefBranch) {
-    prefBranch->AddObserver(kPrefCookieBehavior, this, true);
-    prefBranch->AddObserver(kPrefThirdPartySession, this, true);
+    prefBranch->AddObserver(kPrefCookieBehavior, this, PR_TRUE);
+    prefBranch->AddObserver(kPrefThirdPartySession, this, PR_TRUE);
     PrefChanged(prefBranch);
   }
 }
 
 CookieServiceChild::~CookieServiceChild()
 {
-  gCookieService = nullptr;
+  gCookieService = nsnull;
 }
 
 void
 CookieServiceChild::PrefChanged(nsIPrefBranch *aPrefBranch)
 {
-  int32_t val;
+  PRInt32 val;
   if (NS_SUCCEEDED(aPrefBranch->GetIntPref(kPrefCookieBehavior, &val)))
     mCookieBehavior =
       val >= BEHAVIOR_ACCEPT && val <= BEHAVIOR_REJECT ? val : BEHAVIOR_ACCEPT;
 
-  bool boolval;
+  PRBool boolval;
   if (NS_SUCCEEDED(aPrefBranch->GetBoolPref(kPrefThirdPartySession, &boolval)))
     mThirdPartySession = !!boolval;
 
@@ -108,16 +137,13 @@ CookieServiceChild::GetCookieStringInternal(nsIURI *aHostURI,
   *aCookieString = NULL;
 
   // Determine whether the request is foreign. Failure is acceptable.
-  bool isForeign = true;
+  PRBool isForeign = true;
   if (RequireThirdPartyCheck())
     mThirdPartyUtil->IsThirdPartyChannel(aChannel, aHostURI, &isForeign);
 
-  URIParams uriParams;
-  SerializeURI(aHostURI, uriParams);
-
   // Synchronously call the parent.
-  nsAutoCString result;
-  SendGetCookieString(uriParams, !!isForeign, aFromHttp, &result);
+  nsCAutoString result;
+  SendGetCookieString(IPC::URI(aHostURI), !!isForeign, aFromHttp, &result);
   if (!result.IsEmpty())
     *aCookieString = ToNewCString(result);
 
@@ -135,7 +161,7 @@ CookieServiceChild::SetCookieStringInternal(nsIURI *aHostURI,
   NS_ENSURE_ARG_POINTER(aCookieString);
 
   // Determine whether the request is foreign. Failure is acceptable.
-  bool isForeign = true;
+  PRBool isForeign = true;
   if (RequireThirdPartyCheck())
     mThirdPartyUtil->IsThirdPartyChannel(aChannel, aHostURI, &isForeign);
 
@@ -144,12 +170,9 @@ CookieServiceChild::SetCookieStringInternal(nsIURI *aHostURI,
   if (aServerTime)
     serverTime.Rebind(aServerTime);
 
-  URIParams uriParams;
-  SerializeURI(aHostURI, uriParams);
-
   // Synchronously call the parent.
-  SendSetCookieString(uriParams, !!isForeign, cookieString, serverTime,
-                      aFromHttp);
+  SendSetCookieString(IPC::URI(aHostURI), !!isForeign,
+                      cookieString, serverTime, aFromHttp);
   return NS_OK;
 }
 
@@ -191,7 +214,7 @@ CookieServiceChild::SetCookieString(nsIURI *aHostURI,
                                     nsIChannel *aChannel)
 {
   return SetCookieStringInternal(aHostURI, aChannel, aCookieString,
-                                 nullptr, false);
+                                 nsnull, false);
 }
 
 NS_IMETHODIMP

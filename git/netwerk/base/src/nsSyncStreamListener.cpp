@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   IBM Corp.
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIOService.h"
 #include "nsSyncStreamListener.h"
@@ -13,14 +45,14 @@ nsSyncStreamListener::Init()
                       getter_AddRefs(mPipeOut),
                       nsIOService::gDefaultSegmentSize,
                       PR_UINT32_MAX, // no size limit
-                      false,
-                      false);
+                      PR_FALSE,
+                      PR_FALSE);
 }
 
 nsresult
 nsSyncStreamListener::WaitForData()
 {
-    mKeepWaiting = true;
+    mKeepWaiting = PR_TRUE;
 
     while (mKeepWaiting)
         NS_ENSURE_STATE(NS_ProcessNextEvent(NS_GetCurrentThread()));
@@ -64,10 +96,10 @@ NS_IMETHODIMP
 nsSyncStreamListener::OnDataAvailable(nsIRequest     *request,
                                       nsISupports    *context,
                                       nsIInputStream *stream,
-                                      uint64_t        offset,
-                                      uint32_t        count)
+                                      PRUint32        offset,
+                                      PRUint32        count)
 {
-    uint32_t bytesWritten;
+    PRUint32 bytesWritten;
 
     nsresult rv = mPipeOut->WriteFrom(stream, count, &bytesWritten);
 
@@ -82,7 +114,7 @@ nsSyncStreamListener::OnDataAvailable(nsIRequest     *request,
     // the pipe was created to have "infinite" room.
     NS_ASSERTION(bytesWritten == count, "did not write all data"); 
 
-    mKeepWaiting = false; // unblock Read
+    mKeepWaiting = PR_FALSE; // unblock Read
     return NS_OK;
 }
 
@@ -92,8 +124,8 @@ nsSyncStreamListener::OnStopRequest(nsIRequest  *request,
                                     nsresult     status)
 {
     mStatus = status;
-    mKeepWaiting = false; // unblock Read
-    mDone = true;
+    mKeepWaiting = PR_FALSE; // unblock Read
+    mDone = PR_TRUE;
     return NS_OK;
 }
 
@@ -105,20 +137,20 @@ NS_IMETHODIMP
 nsSyncStreamListener::Close()
 {
     mStatus = NS_BASE_STREAM_CLOSED;
-    mDone = true;
+    mDone = PR_TRUE;
 
     // It'd be nice if we could explicitly cancel the request at this point,
     // but we don't have a reference to it, so the best we can do is close the
     // pipe so that the next OnDataAvailable event will fail.
     if (mPipeIn) {
         mPipeIn->Close();
-        mPipeIn = nullptr;
+        mPipeIn = nsnull;
     }
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSyncStreamListener::Available(uint64_t *result)
+nsSyncStreamListener::Available(PRUint32 *result)
 {
     if (NS_FAILED(mStatus))
         return mStatus;
@@ -134,19 +166,19 @@ nsSyncStreamListener::Available(uint64_t *result)
 
 NS_IMETHODIMP
 nsSyncStreamListener::Read(char     *buf,
-                           uint32_t  bufLen,
-                           uint32_t *result)
+                           PRUint32  bufLen,
+                           PRUint32 *result)
 {
     if (mStatus == NS_BASE_STREAM_CLOSED) {
         *result = 0;
         return NS_OK;
     }
 
-    uint64_t avail64;
-    if (NS_FAILED(Available(&avail64)))
+    PRUint32 avail;
+    if (NS_FAILED(Available(&avail)))
         return mStatus;
 
-    uint32_t avail = (uint32_t)NS_MIN(avail64, (uint64_t)bufLen);
+    avail = NS_MIN(avail, bufLen);
     mStatus = mPipeIn->Read(buf, avail, result);
     return mStatus;
 }
@@ -154,26 +186,26 @@ nsSyncStreamListener::Read(char     *buf,
 NS_IMETHODIMP
 nsSyncStreamListener::ReadSegments(nsWriteSegmentFun  writer,
                                    void              *closure,
-                                   uint32_t           count,
-                                   uint32_t          *result)
+                                   PRUint32           count,
+                                   PRUint32          *result)
 {
     if (mStatus == NS_BASE_STREAM_CLOSED) {
         *result = 0;
         return NS_OK;
     }
 
-    uint64_t avail64;
-    if (NS_FAILED(Available(&avail64)))
+    PRUint32 avail;
+    if (NS_FAILED(Available(&avail)))
         return mStatus;
 
-    uint32_t avail = (uint32_t)NS_MIN(avail64, (uint64_t)count);
+    avail = NS_MIN(avail, count);
     mStatus = mPipeIn->ReadSegments(writer, closure, avail, result);
     return mStatus;
 }
 
 NS_IMETHODIMP
-nsSyncStreamListener::IsNonBlocking(bool *result)
+nsSyncStreamListener::IsNonBlocking(PRBool *result)
 {
-    *result = false;
+    *result = PR_FALSE;
     return NS_OK;
 }

@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=641466
 -->
 <head>
   <title>Test for Bug 641466</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -26,10 +27,10 @@ SimpleTest.waitForFocus(function() {
     element.focus();
     element.selectionStart = 4;
     element.selectionEnd = 4;
-    synthesizeKey("VK_BACK_SPACE", {});
-    synthesizeKey("VK_BACK_SPACE", {});
-    synthesizeKey("VK_BACK_SPACE", {});
-    synthesizeKey("VK_BACK_SPACE", {});
+    synthesizeKey("VK_BACKSPACE", {});
+    synthesizeKey("VK_BACKSPACE", {});
+    synthesizeKey("VK_BACKSPACE", {});
+    synthesizeKey("VK_BACKSPACE", {});
 
     ok(element.value, "", "4 backspaces should delete all of the characters in the " + element.localName);
   }

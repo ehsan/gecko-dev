@@ -933,13 +933,7 @@ typedef struct _cairo_traps {
 #endif
 
 #define CAIRO_GSTATE_OPERATOR_DEFAULT	CAIRO_OPERATOR_OVER
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-// Skia uses a tolerance of 0.5 we'll use something more
-// tolerant for now
-#define CAIRO_GSTATE_TOLERANCE_DEFAULT	0.3
-#else
 #define CAIRO_GSTATE_TOLERANCE_DEFAULT	0.1
-#endif
 #define CAIRO_GSTATE_FILL_RULE_DEFAULT	CAIRO_FILL_RULE_WINDING
 #define CAIRO_GSTATE_LINE_WIDTH_DEFAULT	2.0
 #define CAIRO_GSTATE_LINE_CAP_DEFAULT	CAIRO_LINE_CAP_BUTT
@@ -980,7 +974,7 @@ _cairo_round (double r)
     return floor (r + .5);
 }
 
-#if DISABLE_SOME_FLOATING_POINT || __STDC_VERSION__ < 199901L
+#if DISABLE_SOME_FLOATING_POINT
 cairo_private int
 _cairo_lround (double d) cairo_const;
 #else
@@ -1781,9 +1775,17 @@ _cairo_surface_clone_similar (cairo_surface_t  *surface,
 cairo_private cairo_surface_t *
 _cairo_surface_snapshot (cairo_surface_t *surface);
 
+cairo_private void
+_cairo_surface_attach_snapshot (cairo_surface_t *surface,
+				cairo_surface_t *snapshot,
+				cairo_surface_func_t detach_func);
+
 cairo_private cairo_surface_t *
 _cairo_surface_has_snapshot (cairo_surface_t *surface,
-		 	     const cairo_surface_backend_t *backend);
+			     const cairo_surface_backend_t *backend);
+
+cairo_private void
+_cairo_surface_detach_snapshot (cairo_surface_t *snapshot);
 
 cairo_private cairo_bool_t
 _cairo_surface_is_similar (cairo_surface_t *surface_a,
@@ -1905,12 +1907,6 @@ _cairo_surface_release_device_reference (cairo_surface_t *surface);
 						      CAIRO_CONTENT_ALPHA |      \
 						      CAIRO_CONTENT_COLOR_ALPHA))\
 				       == 0))
-
-static inline cairo_bool_t
-_cairo_valid_stride_alignment(int stride)
-{
-    return !(stride & (CAIRO_STRIDE_ALIGNMENT-1));
-}
 
 cairo_private int
 _cairo_format_bits_per_pixel (cairo_format_t format) cairo_const;

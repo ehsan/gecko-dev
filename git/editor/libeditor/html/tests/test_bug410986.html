@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=410986
 -->
 <head>
   <title>Test for Bug 410986</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -20,11 +21,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=410986
 <script type="application/javascript">
 
 /** Test for Bug 410986 **/
-
-var gPasteEvents = 0;
-document.getElementById("editor").addEventListener("paste", function() {
-  ++gPasteEvents;
-}, false);
 
 SimpleTest.waitForExplicitFinish();
 SimpleTest.waitForFocus(function() {
@@ -42,7 +38,6 @@ SimpleTest.waitForFocus(function() {
         synthesizeKey("V", {accelKey: true, shiftKey: true});
       }
       is(ed.innerHTML, "green text", "Content should be pasted in plaintext format");
-      is(gPasteEvents, 1, "One paste event must be fired");
 
       ed.innerHTML = "";
       ed.blur();
@@ -57,7 +52,6 @@ SimpleTest.waitForFocus(function() {
           synthesizeKey("V", {accelKey: true});
           isnot(ed.innerHTML.indexOf("<span style=\"color: green;\">green text</span>"), -1,
                 "Content should be pasted in HTML format");
-          is(gPasteEvents, 2, "Two paste events must be fired");
 
           SimpleTest.finish();
         },

@@ -1,7 +1,38 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Neil Deakin
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsXULTemplateResultRDF.h"
 #include "nsXULContentUtils.h"
@@ -20,7 +51,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULTemplateResultRDF)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULTemplateResultRDF)
 
 nsXULTemplateResultRDF::nsXULTemplateResultRDF(nsIRDFResource* aNode)
-    : mQuery(nullptr),
+    : mQuery(nsnull),
       mNode(aNode)
 {
 }
@@ -39,9 +70,9 @@ nsXULTemplateResultRDF::~nsXULTemplateResultRDF()
 }
 
 NS_IMETHODIMP
-nsXULTemplateResultRDF::GetIsContainer(bool* aIsContainer)
+nsXULTemplateResultRDF::GetIsContainer(PRBool* aIsContainer)
 {
-    *aIsContainer = false;
+    *aIsContainer = PR_FALSE;
 
     if (mNode) {
         nsXULTemplateQueryProcessorRDF* processor = GetProcessor();
@@ -53,9 +84,9 @@ nsXULTemplateResultRDF::GetIsContainer(bool* aIsContainer)
 }
 
 NS_IMETHODIMP
-nsXULTemplateResultRDF::GetIsEmpty(bool* aIsEmpty)
+nsXULTemplateResultRDF::GetIsEmpty(PRBool* aIsEmpty)
 {
-    *aIsEmpty = true;
+    *aIsEmpty = PR_TRUE;
 
     if (mNode) {
         nsXULTemplateQueryProcessorRDF* processor = GetProcessor();
@@ -67,10 +98,10 @@ nsXULTemplateResultRDF::GetIsEmpty(bool* aIsEmpty)
 }
 
 NS_IMETHODIMP
-nsXULTemplateResultRDF::GetMayProcessChildren(bool* aMayProcessChildren)
+nsXULTemplateResultRDF::GetMayProcessChildren(PRBool* aMayProcessChildren)
 {
     // RDF always allows recursion
-    *aMayProcessChildren = true;
+    *aMayProcessChildren = PR_TRUE;
     return NS_OK;
 }
 
@@ -105,7 +136,7 @@ nsXULTemplateResultRDF::GetType(nsAString& aType)
 
     nsXULTemplateQueryProcessorRDF* processor = GetProcessor();
     if (processor) {
-        bool found;
+        PRBool found;
         rv = processor->CheckIsSeparator(mNode, &found);
         if (NS_SUCCEEDED(rv) && found)
             aType.AssignLiteral("separator");
@@ -169,7 +200,7 @@ void
 nsXULTemplateResultRDF::GetAssignment(nsIAtom* aVar, nsIRDFNode** aValue)
 {
     // look up a variable in the assignments map
-    *aValue = nullptr;
+    *aValue = nsnull;
     mInst.mAssignments.GetAssignmentFor(aVar, aValue);
 
     // if not found, look up the variable in the bindings
@@ -178,7 +209,7 @@ nsXULTemplateResultRDF::GetAssignment(nsIAtom* aVar, nsIRDFNode** aValue)
 }
 
 
-bool
+PRBool
 nsXULTemplateResultRDF::SyncAssignments(nsIRDFResource* aSubject,
                                         nsIRDFResource* aPredicate,
                                         nsIRDFNode* aTarget)
@@ -187,22 +218,22 @@ nsXULTemplateResultRDF::SyncAssignments(nsIRDFResource* aSubject,
     RDFBindingSet* bindingset = mBindingValues.GetBindingSet();
     if (bindingset) {
         return bindingset->SyncAssignments(aSubject, aPredicate, aTarget,
-            (aSubject == mNode) ? mQuery->GetMemberVariable() : nullptr,
+            (aSubject == mNode) ? mQuery->GetMemberVariable() : nsnull,
             this, mBindingValues);
     }
 
-    return false;
+    return PR_FALSE;
 }
 
-bool
+PRBool
 nsXULTemplateResultRDF::HasMemoryElement(const MemoryElement& aMemoryElement)
 {
     MemoryElementSet::ConstIterator last = mInst.mSupport.Last();
     for (MemoryElementSet::ConstIterator element = mInst.mSupport.First();
                                          element != last; ++element) {
         if ((*element).Equals(aMemoryElement))
-            return true;
+            return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
 }

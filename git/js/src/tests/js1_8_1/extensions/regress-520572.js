@@ -24,7 +24,7 @@ function test()
 
   if ("evalcx" in this) {
       // shell
-      let s = evalcx("lazy");
+      let s = evalcx("split");
       s.n = 0;
       evalcx('this.watch("x", function(){ n++; }); this.x = 4; x = 6', s);
       actual = s.n;

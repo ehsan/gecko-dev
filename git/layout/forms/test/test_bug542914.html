@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=542914
 -->
 <head>
   <title>Test for Bug 542914</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -59,14 +60,13 @@ function runTests(callback, type) {
 
   // Make sure that the control accepts input events without explicit initialization
   is(c.value, "", "Control is empty initially");
-  c.focus();
-  sendChar("a");
+  sendChar("a", c);
   is(c.value, "a", "Control accepts input without explicit initialization");
   // Make sure that the control retains its caret position
   c.focus();
   c.blur();
   c.focus();
-  sendChar("b");
+  sendChar("b", c);
   is(c.value, "ab", "Control retains caret position after being re-focused");
 
   var d = document.createElement("input");
@@ -77,9 +77,8 @@ function runTests(callback, type) {
   // Make sure dynamically injected inputs work as expected
   is(d.value, "", "Dynamic control's initial value should be empty");
   d.value = "new";
-  d.focus();
   is(d.value, "new", "Dynamic control's value can be set before initialization");
-  sendChar("x");
+  sendChar("x", d);
   is(d.value, "xnew", "Dynamic control accepts keyboard input without explicit initialization");
   $("display").removeChild(d);
   is(d.value, "xnew", "Dynamic control retains value after being removed from the document");

@@ -9,7 +9,7 @@ Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 
 const PREF_GETADDONS_GETSEARCHRESULTS = "extensions.getAddons.search.url";
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var server;
 
 var TESTS = [
@@ -69,7 +69,7 @@ function run_test()
 
   startupManager();
 
-  server = new HttpServer();
+  server = new nsHttpServer();
   server.registerDirectory("/", do_get_file("data"));
   server.start(4444);
 

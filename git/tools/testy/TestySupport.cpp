@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #include "nspr.h"
 #include "TestySupport.h"
 
@@ -35,7 +31,7 @@ void Testy_LogComment(const char* name, const char* comment)
   fflush(gLogFile);
 }
 
-void Testy_LogEnd(const char* name, bool passed)
+void Testy_LogEnd(const char* name, PRBool passed)
 {
   PR_ASSERT(gLogFile);
   fprintf(gLogFile, "Test Case: %s (%s)", name, passed ? "Passed" : "Failed");

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mitesh Shah <mitesh@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifdef MOZ_LOGGING
 // sorry, this has to be before the pre-compiled header
@@ -27,9 +60,9 @@ PRLogModuleInfo *MCD;
 
 extern nsresult EvaluateAdminConfigScript(const char *js_buffer, size_t length,
                                           const char *filename, 
-                                          bool bGlobalContext, 
-                                          bool bCallbacks, 
-                                          bool skipFirstLine);
+                                          PRBool bGlobalContext, 
+                                          PRBool bCallbacks, 
+                                          PRBool skipFirstLine);
 
 // nsISupports Implementation
 
@@ -44,7 +77,7 @@ nsresult nsAutoConfig::Init()
     // member initializers and constructor code
 
     nsresult rv;
-    mLoaded = false;
+    mLoaded = PR_FALSE;
     
     // Registering the object as an observer to the profile-after-change topic
     nsCOMPtr<nsIObserverService> observerService =
@@ -52,7 +85,7 @@ nsresult nsAutoConfig::Init()
     if (NS_FAILED(rv)) 
         return rv;
 
-    rv = observerService->AddObserver(this,"profile-after-change", true);
+    rv = observerService->AddObserver(this,"profile-after-change", PR_TRUE);
     
     return rv;
 }
@@ -68,7 +101,7 @@ NS_IMETHODIMP nsAutoConfig::GetConfigURL(char **aConfigURL)
         return NS_ERROR_NULL_POINTER;
 
     if (mConfigURL.IsEmpty()) {
-        *aConfigURL = nullptr;
+        *aConfigURL = nsnull;
         return NS_OK;
     }
     
@@ -96,10 +129,10 @@ NS_IMETHODIMP
 nsAutoConfig::OnDataAvailable(nsIRequest *request, 
                               nsISupports *context,
                               nsIInputStream *aIStream, 
-                              uint64_t aSourceOffset,
-                              uint32_t aLength)
+                              PRUint32 aSourceOffset,
+                              PRUint32 aLength)
 {    
-    uint32_t amt, size;
+    PRUint32 amt, size;
     nsresult rv;
     char buf[1024];
     
@@ -130,7 +163,7 @@ nsAutoConfig::OnStopRequest(nsIRequest *request, nsISupports *context,
     // Checking for the http response, if failure go read the failover file.
     nsCOMPtr<nsIHttpChannel> pHTTPCon(do_QueryInterface(request));
     if (pHTTPCon) {
-        uint32_t httpStatus;
+        PRUint32 httpStatus;
         pHTTPCon->GetResponseStatus(&httpStatus);
         if (httpStatus != 200) 
         {
@@ -142,7 +175,7 @@ nsAutoConfig::OnStopRequest(nsIRequest *request, nsISupports *context,
     // Send the autoconfig.jsc to javascript engine.
     
     rv = EvaluateAdminConfigScript(mBuf.get(), mBuf.Length(),
-                              nullptr, false,true, false);
+                              nsnull, PR_FALSE,PR_TRUE, PR_FALSE);
     if (NS_SUCCEEDED(rv)) {
 
         // Write the autoconfig.jsc to failover.jsc (cached copy) 
@@ -152,7 +185,7 @@ nsAutoConfig::OnStopRequest(nsIRequest *request, nsISupports *context,
             NS_WARNING("Error writing failover.jsc file");
 
         // Releasing the lock to allow the main thread to start execution
-        mLoaded = true;  
+        mLoaded = PR_TRUE;  
 
         return NS_OK;
     }
@@ -209,9 +242,9 @@ NS_IMETHODIMP nsAutoConfig::Observe(nsISupports *aSubject,
 nsresult nsAutoConfig::downloadAutoConfig()
 {
     nsresult rv;
-    nsAutoCString emailAddr;
+    nsCAutoString emailAddr;
     nsXPIDLCString urlName;
-    static bool firstTime = true;
+    static PRBool firstTime = PR_TRUE;
     
     if (mConfigURL.IsEmpty()) {
         PR_LOG(MCD, PR_LOG_DEBUG, ("global config url is empty - did you set autoadmin.global_config_url?\n"));
@@ -223,7 +256,7 @@ nsresult nsAutoConfig::downloadAutoConfig()
     // in the previous read, we need to remove it when timer kicks in and 
     // downloads the autoconfig file again. 
     // If necessary, the email address will be added again as an argument.
-    int32_t index = mConfigURL.RFindChar((PRUnichar)'?');
+    PRInt32 index = mConfigURL.RFindChar((PRUnichar)'?');
     if (index != -1)
         mConfigURL.Truncate(index);
 
@@ -238,7 +271,7 @@ nsresult nsAutoConfig::downloadAutoConfig()
         if (NS_FAILED(rv)) 
             return rv;
     
-        rv = prefs->GetBranch(nullptr,getter_AddRefs(mPrefBranch));
+        rv = prefs->GetBranch(nsnull,getter_AddRefs(mPrefBranch));
         if (NS_FAILED(rv))
             return rv;
     }
@@ -248,13 +281,13 @@ nsresult nsAutoConfig::downloadAutoConfig()
     if (NS_FAILED(rv)) 
         return rv;
     
-    bool offline;
+    PRBool offline;
     rv = ios->GetOffline(&offline);
     if (NS_FAILED(rv)) 
         return rv;
     
     if (offline) {
-        bool offlineFailover;
+        PRBool offlineFailover;
         rv = mPrefBranch->GetBoolPref("autoadmin.offline_failover", 
                                       &offlineFailover);
         // Read the failover.jsc if the network is offline and the pref says so
@@ -267,7 +300,7 @@ nsresult nsAutoConfig::downloadAutoConfig()
        available in the case where the client is used without messenger, user's
        profile name will be used as an unique identifier
     */
-    bool appendMail;
+    PRBool appendMail;
     rv = mPrefBranch->GetBoolPref("autoadmin.append_emailaddr", &appendMail);
     if (NS_SUCCEEDED(rv) && appendMail) {
         rv = getEmailAddr(emailAddr);
@@ -285,7 +318,7 @@ nsresult nsAutoConfig::downloadAutoConfig()
     nsCOMPtr<nsIURI> url;
     nsCOMPtr<nsIChannel> channel;
     
-    rv = NS_NewURI(getter_AddRefs(url), mConfigURL.get(), nullptr, nullptr);
+    rv = NS_NewURI(getter_AddRefs(url), mConfigURL.get(), nsnull, nsnull);
     if (NS_FAILED(rv))
     {
         PR_LOG(MCD, PR_LOG_DEBUG, ("failed to create URL - is autoadmin.global_config_url valid? - %s\n", mConfigURL.get()));
@@ -294,11 +327,11 @@ nsresult nsAutoConfig::downloadAutoConfig()
 
     PR_LOG(MCD, PR_LOG_DEBUG, ("running MCD url %s\n", mConfigURL.get()));
     // open a channel for the url
-    rv = NS_NewChannel(getter_AddRefs(channel),url, nullptr, nullptr, nullptr, nsIRequest::INHIBIT_PERSISTENT_CACHING | nsIRequest::LOAD_BYPASS_CACHE);
+    rv = NS_NewChannel(getter_AddRefs(channel),url, nsnull, nsnull, nsnull, nsIRequest::INHIBIT_PERSISTENT_CACHING | nsIRequest::LOAD_BYPASS_CACHE);
     if (NS_FAILED(rv)) 
         return rv;
 
-    rv = channel->AsyncOpen(this, nullptr); 
+    rv = channel->AsyncOpen(this, nsnull); 
     if (NS_FAILED(rv)) {
         readOfflineFile();
         return rv;
@@ -309,7 +342,7 @@ nsresult nsAutoConfig::downloadAutoConfig()
     // Also We are having the event queue processing only for the startup
     // It is not needed with the repeating timer.
     if (firstTime) {
-        firstTime = false;
+        firstTime = PR_FALSE;
     
         // Getting the current thread. If we start an AsyncOpen, the thread
         // needs to wait before the reading of autoconfig is done
@@ -328,7 +361,7 @@ nsresult nsAutoConfig::downloadAutoConfig()
         while (!mLoaded)
             NS_ENSURE_STATE(NS_ProcessNextEvent(thread));
         
-        int32_t minutes;
+        PRInt32 minutes;
         rv = mPrefBranch->GetIntPref("autoadmin.refresh_interval", 
                                      &minutes);
         if (NS_SUCCEEDED(rv) && minutes > 0) {
@@ -357,9 +390,9 @@ nsresult nsAutoConfig::readOfflineFile()
        execution. At this point we do not need to stall 
        the thread since all network activities are done.
     */
-    mLoaded = true; 
+    mLoaded = PR_TRUE; 
 
-    bool failCache;
+    PRBool failCache;
     rv = mPrefBranch->GetBoolPref("autoadmin.failover_to_cached", &failCache);
     if (NS_SUCCEEDED(rv) && !failCache) {
         // disable network connections and return.
@@ -369,20 +402,20 @@ nsresult nsAutoConfig::readOfflineFile()
         if (NS_FAILED(rv)) 
             return rv;
         
-        bool offline;
+        PRBool offline;
         rv = ios->GetOffline(&offline);
         if (NS_FAILED(rv)) 
             return rv;
 
         if (!offline) {
-            rv = ios->SetOffline(true);
+            rv = ios->SetOffline(PR_TRUE);
             if (NS_FAILED(rv)) 
                 return rv;
         }
         
         // lock the "network.online" prference so user cannot toggle back to
         // online mode.
-        rv = mPrefBranch->SetBoolPref("network.online", false);
+        rv = mPrefBranch->SetBoolPref("network.online", PR_FALSE);
         if (NS_FAILED(rv)) 
             return rv;
 
@@ -417,8 +450,8 @@ nsresult nsAutoConfig::evaluateLocalFile(nsIFile *file)
     if (NS_FAILED(rv)) 
         return rv;
         
-    int64_t fileSize;
-    uint32_t fs, amt=0;
+    PRInt64 fileSize;
+    PRUint32 fs, amt=0;
     file->GetFileSize(&fileSize);
     LL_L2UI(fs, fileSize); // Converting 64 bit structure to unsigned int
     char *buf = (char *)PR_Malloc(fs * sizeof(char));
@@ -427,8 +460,8 @@ nsresult nsAutoConfig::evaluateLocalFile(nsIFile *file)
     
     rv = inStr->Read(buf, fs, &amt);
     if (NS_SUCCEEDED(rv)) {
-      EvaluateAdminConfigScript(buf, fs, nullptr, false, 
-                                true, false);
+      EvaluateAdminConfigScript(buf, fs, nsnull, PR_FALSE, 
+                                PR_TRUE, PR_FALSE);
     }
     inStr->Close();
     PR_Free(buf);
@@ -440,7 +473,7 @@ nsresult nsAutoConfig::writeFailoverFile()
     nsresult rv;
     nsCOMPtr<nsIFile> failoverFile; 
     nsCOMPtr<nsIOutputStream> outStr;
-    uint32_t amt;
+    PRUint32 amt;
     
     rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
                                 getter_AddRefs(failoverFile));
@@ -479,7 +512,7 @@ nsresult nsAutoConfig::getEmailAddr(nsACString & emailAddr)
                                       getter_Copies(prefValue));
         if (NS_FAILED(rv) || prefValue.IsEmpty())
             return PromptForEMailAddress(emailAddr);
-        int32_t commandIndex = prefValue.FindChar(',');
+        PRInt32 commandIndex = prefValue.FindChar(',');
         if (commandIndex != kNotFound)
           prefValue.Truncate(commandIndex);
         emailAddr = NS_LITERAL_CSTRING("mail.identity.") +
@@ -523,10 +556,10 @@ nsresult nsAutoConfig::PromptForEMailAddress(nsACString &emailAddress)
     nsXPIDLString err;
     rv = bundle->GetStringFromName(NS_LITERAL_STRING("emailPromptMsg").get(), getter_Copies(err));
     NS_ENSURE_SUCCESS(rv, rv);
-    bool check = false;
+    PRBool check = PR_FALSE;
     nsXPIDLString emailResult;
-    bool success;
-    rv = promptService->Prompt(nullptr, title.get(), err.get(), getter_Copies(emailResult), nullptr, &check, &success);
+    PRBool success;
+    rv = promptService->Prompt(nsnull, title.get(), err.get(), getter_Copies(emailResult), nsnull, &check, &success);
     if (!success)
       return NS_ERROR_FAILURE;
     NS_ENSURE_SUCCESS(rv, rv);

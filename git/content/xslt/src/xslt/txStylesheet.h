@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * Jonas Sicking.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jonas Sicking <jonas@sicking.cc>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef TX_TXSTYLESHEET_H
 #define TX_TXSTYLESHEET_H
@@ -10,6 +43,7 @@
 #include "txExpandedNameMap.h"
 #include "txList.h"
 #include "txXSLTPatterns.h"
+#include "nsTPtrArray.h"
 #include "nsISupportsImpl.h"
 
 class txInstruction;
@@ -48,7 +82,7 @@ public:
     txOutputFormat* getOutputFormat();
     GlobalVariable* getGlobalVariable(const txExpandedName& aName);
     const txOwningExpandedNameMap<txXSLKey>& getKeyMap();
-    bool isStripSpaceAllowed(const txXPathNode& aNode,
+    PRBool isStripSpaceAllowed(const txXPathNode& aNode,
                                txIMatchContext* aContext);
 
     /**
@@ -80,7 +114,7 @@ public:
     class ImportFrame {
     public:
         ImportFrame()
-            : mFirstNotImported(nullptr)
+            : mFirstNotImported(nsnull)
         {
         }
         ~ImportFrame();
@@ -95,15 +129,15 @@ public:
         ImportFrame* mFirstNotImported;
     };
 
-    class GlobalVariable : public txObject {
+    class GlobalVariable : public TxObject {
     public:
         GlobalVariable(nsAutoPtr<Expr> aExpr,
                        nsAutoPtr<txInstruction> aFirstInstruction,
-                       bool aIsParam);
+                       PRBool aIsParam);
 
         nsAutoPtr<Expr> mExpr;
         nsAutoPtr<txInstruction> mFirstInstruction;
-        bool mIsParam;
+        PRBool mIsParam;
     };
 
 private:
@@ -111,7 +145,7 @@ private:
     nsresult addGlobalVariable(txVariableItem* aVariable);
     nsresult addFrames(txListIterator& aInsertIter);
     nsresult addStripSpace(txStripSpaceItem* aStripSpaceItem,
-                           nsTArray<txStripSpaceTest*>& aFrameStripSpaceTests);
+                           nsTPtrArray<txStripSpaceTest>& aFrameStripSpaceTests);
     nsresult addAttributeSet(txAttributeSetItem* aAttributeSetItem);
 
     // List of ImportFrames
@@ -158,18 +192,18 @@ private:
  */
 class txStripSpaceTest {
 public:
-    txStripSpaceTest(nsIAtom* aPrefix, nsIAtom* aLocalName, int32_t aNSID,
-                     bool stripSpace)
+    txStripSpaceTest(nsIAtom* aPrefix, nsIAtom* aLocalName, PRInt32 aNSID,
+                     MBool stripSpace)
         : mNameTest(aPrefix, aLocalName, aNSID, txXPathNodeType::ELEMENT_NODE),
           mStrips(stripSpace)
     {
     }
 
-    bool matches(const txXPathNode& aNode, txIMatchContext* aContext) {
+    MBool matches(const txXPathNode& aNode, txIMatchContext* aContext) {
         return mNameTest.matches(aNode, aContext);
     }
 
-    bool stripsSpace() {
+    MBool stripsSpace() {
         return mStrips;
     }
 
@@ -179,7 +213,7 @@ public:
 
 protected:
     txNameTest mNameTest;
-    bool mStrips;
+    MBool mStrips;
 };
 
 /**

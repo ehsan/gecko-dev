@@ -134,8 +134,6 @@ x1 m { position:absolute; right:0; font-size:16px; }
 #test9b  { top:320px; left:100px; position:absolute; border:1px solid black; }
 #test9c  { top:320px; left:200px; position:absolute; border:1px solid black; }
 #test9d  { top:320px; left:300px; position:absolute; border:1px solid black; }
-#test10a { top:360px; left:0;     position:absolute; }
-#test10b { top:360px; left:100px; position:absolute; }
 
     </style>
 </head>
@@ -209,17 +207,51 @@ x1 m { position:absolute; right:0; font-size:16px; }
 </div></div>
 </div>
 
-<!-- start marker, marker partly overlaps image, nothing to align with -->
-<div id="test4a"><div class="s a"><div class="p o ltr"><span class="cl a"><img class="overlap1" src="../image/big.png"></span></div></div></div>
-<div id="test4b"><div class="s a"><div class="p o rtl l"><span class="cl a"><img class="overlap1" src="../image/big.png"></span></div></div></div>
-<div id="test4c"><div class="s a"><div class="p o ltr r"><span class="cr a"><img class="overlap1" src="../image/big.png"></span></div></div></div>
-<div id="test4d"><div class="s a"><div class="p o rtl"><span class="cr a"><img class="overlap1" src="../image/big.png"></span></div></div></div>
+<div id="test4a">
+<div class="s a"><div class="p rel">
+<div class="abs0" style="text-align:left"><m>&#x2026;</m><span class="cl a">&nbsp;</span></div>
+</div></div>
+</div>
+<div id="test4b">
+<div class="s a"><div class="p rel">
+<div class="abs0" style="text-align:left"><m>&#x2026;</m><span class="cl a">&nbsp;</span></div>
+</div></div>
+</div>
+<div id="test4c">
+<div class="s a"><div class="p rel">
+<div class="abs0" style="text-align:right; left:auto; right:0;"><span class="cr a">&nbsp;&nbsp;&nbsp;</span><m>&#x2026;</m></div>
+</div></div>
+</div>
+<div id="test4d">
+<div class="s a"><div class="p rel">
+<div class="abs0" style="text-align:right; left:auto; right:0;"><span class="cr a">&nbsp;&nbsp;&nbsp;</span><m>&#x2026;</m></div>
+</div></div>
+</div>
 
-<!-- start marker + end, marker partly overlaps image, nothing to align with -->
-<div id="test5a"><div class="s a"><div class="p o ltr"><span class="cl a"><img class="overlap2" src="../image/big.png"></span></div></div></div>
-<div id="test5b"><div class="s a"><div class="p o rtl l"><span class="cl a"><img class="overlap2" src="../image/big.png"></span></div></div></div>
-<div id="test5c"><div class="s a"><div class="p o ltr r"><span class="cr a"><img class="overlap2" src="../image/big.png"></span></div></div></div>
-<div id="test5d"><div class="s a"><div class="p o rtl"><span class="cr a"><img class="overlap2" src="../image/big.png"></span></div></div></div>
+<div id="test5a">
+<div class="s a"><div class="p rel">
+<div class="abs0" style="text-align:right; left:auto; right:0;"><span class="cr a">&nbsp;</span><m>&#x2026;</m></div>
+<div class="abs0" style="text-align:left"><m>&#x2026;</m><span class="cl a">&nbsp;</span></div>
+</div></div>
+</div>
+<div id="test5b">
+<div class="s a"><div class="p rel">
+<div class="abs0" style="text-align:right; left:auto; right:0;"><span class="cr a">&nbsp;</span><m>&#x2026;</m></div>
+<div class="abs0" style="text-align:left"><m>&#x2026;</m><span class="cl a">&nbsp;</span></div>
+</div></div>
+</div>
+<div id="test5c">
+<div class="s a"><div class="p rel">
+<div class="abs0" style="text-align:right; left:auto; right:0;"><span class="cr a">&nbsp;</span><m>&#x2026;</m></div>
+<div class="abs0" style="text-align:left"><m>&#x2026;</m><span class="cl a">&nbsp;</span></div>
+</div></div>
+</div>
+<div id="test5d">
+<div class="s a"><div class="p rel">
+<div class="abs0" style="text-align:right; left:auto; right:0;"><span class="cr a">&nbsp;</span><m>&#x2026;</m></div>
+<div class="abs0" style="text-align:left"><m>&#x2026;</m><span class="cl a">&nbsp;</span></div>
+</div></div>
+</div>
 
 <div id="test6a">
 <div class="s a"><div class="p rel">
@@ -267,9 +299,6 @@ x1 m { position:absolute; right:0; font-size:16px; }
 <div id="test9c"><div class="s a"><div class="p ltr"><span class="e"></span><i>&nbsp;&nbsp;&nbsp;&nbsp;</i><m>&#x2026;</m><span class="e a"></span></div></div></div>
 <div id="test9d"><div class="s a"><div class="p rtl"><span class="e"></span><i>&nbsp;&nbsp;&nbsp;&nbsp;</i><m>&#x2026;</m><span class="e a"></span></div></div></div>
 
-<!-- no marker for overflow:auto that doesn't trigger scrollbar -->
-<div id="test10a"><div class="s a"><div class="p o ltr"><span style="margin-left:-5px" >||||||</span></div></div></div>
-<div id="test10b"><div class="s a"><div class="p o rtl"><span style="margin-right:-5px">||||||</span></div></div></div>
 
 </div>
 </body>

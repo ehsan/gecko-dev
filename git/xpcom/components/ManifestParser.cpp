@@ -1,9 +1,39 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Util.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Firefox
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation <http://www.mozilla.org/>.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "ManifestParser.h"
 
@@ -13,19 +43,18 @@
 #include "prprf.h"
 #if defined(XP_WIN)
 #include <windows.h>
-#elif defined(MOZ_WIDGET_COCOA)
+#elif defined(XP_MACOSX)
 #include <CoreServices/CoreServices.h>
-#elif defined(MOZ_WIDGET_GTK)
+#elif defined(MOZ_WIDGET_GTK2)
 #include <gtk/gtk.h>
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "AndroidBridge.h"
 #endif
 
 #include "mozilla/Services.h"
 
-#include "nsCRT.h"
 #include "nsConsoleMessage.h"
 #include "nsTextFormatter.h"
 #include "nsVersionComparator.h"
@@ -35,8 +64,6 @@
 #include "nsIScriptError.h"
 #include "nsIXULAppInfo.h"
 #include "nsIXULRuntime.h"
-
-using namespace mozilla;
 
 struct ManifestDirective
 {
@@ -48,8 +75,6 @@ struct ManifestDirective
   bool componentonly;
 
   bool ischrome;
-
-  bool allowbootstrap;
 
   // The platform/contentaccessible flags only apply to content directives.
   bool contentflags;
@@ -67,31 +92,31 @@ struct ManifestDirective
   bool isContract;
 };
 static const ManifestDirective kParsingTable[] = {
-  { "manifest",         1, false, true, true, false,
+  { "manifest", 1, false, true, false,
     &nsComponentManagerImpl::ManifestManifest, NULL },
-  { "binary-component", 1, true, false, false, false,
+  { "binary-component", 1, true, false, false,
     &nsComponentManagerImpl::ManifestBinaryComponent, NULL },
-  { "interfaces",       1, true, false, false, false,
+  { "interfaces",       1, true, false, false,
     &nsComponentManagerImpl::ManifestXPT, NULL },
-  { "component",        2, true, false, false, false,
+  { "component",        2, true, false, false,
     &nsComponentManagerImpl::ManifestComponent, NULL },
-  { "contract",         2, true, false, false, false,
+  { "contract",         2, true, false, false,
     &nsComponentManagerImpl::ManifestContract, NULL, true},
-  { "category",         3, true, false, false, false,
+  { "category",         3, true, false, false,
     &nsComponentManagerImpl::ManifestCategory, NULL },
-  { "content",          2, true, true, true,  true,
+  { "content",          2, true, true,  true,
     NULL, &nsChromeRegistry::ManifestContent },
-  { "locale",           3, true, true, true,  false,
+  { "locale",           3, true, true,  false,
     NULL, &nsChromeRegistry::ManifestLocale },
-  { "skin",             3, false, true, true,  false,
+  { "skin",             3, false, true,  false,
     NULL, &nsChromeRegistry::ManifestSkin },
-  { "overlay",          2, true, true, false,  false,
+  { "overlay",          2, true, true,  false,
     NULL, &nsChromeRegistry::ManifestOverlay },
-  { "style",            2, false, true, false,  false,
+  { "style",            2, false, true,  false,
     NULL, &nsChromeRegistry::ManifestStyle },
-  { "override",         2, true, true, true,  false,
+  { "override",         2, true, true,  false,
     NULL, &nsChromeRegistry::ManifestOverride },
-  { "resource",         2, true, true, false,  false,
+  { "resource",         2, true, true,  false,
     NULL, &nsChromeRegistry::ManifestResource }
 };
 
@@ -142,8 +167,8 @@ void LogMessage(const char* aMsg, ...)
   console->LogMessage(error);
 }
 
-void LogMessageWithContext(FileLocation &aFile,
-                           uint32_t aLineNumber, const char* aMsg, ...)
+void LogMessageWithContext(nsILocalFile* aFile, const char* aPath,
+                           PRUint32 aLineNumber, const char* aMsg, ...)
 {
   va_list args;
   va_start(args, aMsg);
@@ -152,15 +177,20 @@ void LogMessageWithContext(FileLocation &aFile,
   if (!formatted)
     return;
 
-  nsCString file;
-  aFile.GetURIString(file);
+  nsString file;
+  aFile->GetPath(file);
+  if (aPath) {
+    file.Append(':');
+    file.Append(NS_ConvertUTF8toUTF16(aPath));
+  }
 
   nsCOMPtr<nsIScriptError> error =
     do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
   if (!error) {
     // This can happen early in component registration. Fall back to a
     // generic console message.
-    LogMessage("Warning: in '%s', line %i: %s", file.get(),
+    LogMessage("Warning: in file '%s', line %i: %s",
+               NS_ConvertUTF16toUTF8(file).get(),
                aLineNumber, (char*) formatted);
     return;
   }
@@ -170,8 +200,8 @@ void LogMessageWithContext(FileLocation &aFile,
   if (!console)
     return;
 
-  nsresult rv = error->Init(NS_ConvertUTF8toUTF16(formatted),
-			    NS_ConvertUTF8toUTF16(file), EmptyString(),
+  nsresult rv = error->Init(NS_ConvertUTF8toUTF16(formatted).get(),
+			    file.get(), NULL,
 			    aLineNumber, 0, nsIScriptError::warningFlag,
 			    "chrome registration");
   if (NS_FAILED(rv))
@@ -316,7 +346,7 @@ CheckVersionFlag(const nsString& aFlag, const nsString& aData,
     return true;
   }
 
-  uint32_t comparison;
+  PRUint32 comparison;
   nsAutoString testdata;
 
   switch (aData[aFlag.Length()]) {
@@ -355,8 +385,8 @@ CheckVersionFlag(const nsString& aFlag, const nsString& aData,
     return false;
 
   if (aResult != eOK) {
-    int32_t c = mozilla::CompareVersions(NS_ConvertUTF16toUTF8(aValue).get(),
-                                         NS_ConvertUTF16toUTF8(testdata).get());
+    PRInt32 c = NS_CompareVersions(NS_ConvertUTF16toUTF8(aValue).get(),
+                                   NS_ConvertUTF16toUTF8(testdata).get());
     if ((c == 0 && comparison & COMPARE_EQ) ||
 	(c < 0 && comparison & COMPARE_LT) ||
 	(c > 0 && comparison & COMPARE_GT))
@@ -386,38 +416,33 @@ struct CachedDirective
 
 } // anonymous namespace
 
-
-void
-ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOnly)
+static void
+ParseManifestCommon(NSLocationType aType, nsILocalFile* aFile,
+                    nsComponentManagerImpl::ManifestProcessingContext& mgrcx,
+                    nsChromeRegistry::ManifestProcessingContext& chromecx,
+                    const char* aPath, char* buf, bool aChromeOnly)
 {
-  nsComponentManagerImpl::ManifestProcessingContext mgrcx(type, file, aChromeOnly);
-  nsChromeRegistry::ManifestProcessingContext chromecx(type, file);
   nsresult rv;
 
   NS_NAMED_LITERAL_STRING(kPlatform, "platform");
   NS_NAMED_LITERAL_STRING(kContentAccessible, "contentaccessible");
   NS_NAMED_LITERAL_STRING(kApplication, "application");
   NS_NAMED_LITERAL_STRING(kAppVersion, "appversion");
-  NS_NAMED_LITERAL_STRING(kGeckoVersion, "platformversion");
   NS_NAMED_LITERAL_STRING(kOs, "os");
   NS_NAMED_LITERAL_STRING(kOsVersion, "osversion");
   NS_NAMED_LITERAL_STRING(kABI, "abi");
-#if defined(MOZ_WIDGET_ANDROID)
-  NS_NAMED_LITERAL_STRING(kTablet, "tablet");
-#endif
 
   // Obsolete
   NS_NAMED_LITERAL_STRING(kXPCNativeWrappers, "xpcnativewrappers");
 
   nsAutoString appID;
   nsAutoString appVersion;
-  nsAutoString geckoVersion;
   nsAutoString osTarget;
   nsAutoString abi;
 
   nsCOMPtr<nsIXULAppInfo> xapp (do_GetService(XULAPPINFO_SERVICE_CONTRACTID));
   if (xapp) {
-    nsAutoCString s;
+    nsCAutoString s;
     rv = xapp->GetID(s);
     if (NS_SUCCEEDED(rv))
       CopyUTF8toUTF16(s, appID);
@@ -425,11 +450,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
     rv = xapp->GetVersion(s);
     if (NS_SUCCEEDED(rv))
       CopyUTF8toUTF16(s, appVersion);
-
-    rv = xapp->GetPlatformVersion(s);
-    if (NS_SUCCEEDED(rv))
-      CopyUTF8toUTF16(s, geckoVersion);
-
+    
     nsCOMPtr<nsIXULRuntime> xruntime (do_QueryInterface(xapp));
     if (xruntime) {
       rv = xruntime->GetOS(s);
@@ -456,7 +477,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
                                          info.dwMajorVersion,
                                          info.dwMinorVersion);
   }
-#elif defined(MOZ_WIDGET_COCOA)
+#elif defined(XP_MACOSX)
   SInt32 majorVersion, minorVersion;
   if ((Gestalt(gestaltSystemVersionMajor, &majorVersion) == noErr) &&
       (Gestalt(gestaltSystemVersionMinor, &minorVersion) == noErr)) {
@@ -468,11 +489,9 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
   nsTextFormatter::ssprintf(osVersion, NS_LITERAL_STRING("%ld.%ld").get(),
                                        gtk_major_version,
                                        gtk_minor_version);
-#elif defined(MOZ_WIDGET_ANDROID)
-  bool isTablet = false;
+#elif defined(ANDROID)
   if (mozilla::AndroidBridge::Bridge()) {
     mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build$VERSION", "RELEASE", osVersion);
-    isTablet = mozilla::AndroidBridge::Bridge()->IsTablet();
   }
 #endif
 
@@ -482,7 +501,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
 
   char *token;
   char *newline = buf;
-  uint32_t line = 0;
+  PRUint32 line = 0;
 
   // outer loop tokenizes by newline
   while (*newline) {
@@ -512,30 +531,21 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
 
     const ManifestDirective* directive = NULL;
     for (const ManifestDirective* d = kParsingTable;
-	 d < ArrayEnd(kParsingTable);
+	 d < kParsingTable + NS_ARRAY_LENGTH(kParsingTable);
 	 ++d) {
       if (!strcmp(d->directive, token)) {
 	directive = d;
 	break;
       }
     }
-
     if (!directive) {
-      LogMessageWithContext(file, line,
+      LogMessageWithContext(aFile, aPath, line,
                             "Ignoring unrecognized chrome manifest directive '%s'.",
                             token);
       continue;
     }
-
-    if (!directive->allowbootstrap && NS_BOOTSTRAPPED_LOCATION == type) {
-      LogMessageWithContext(file, line,
-                            "Bootstrapped manifest not allowed to use '%s' directive.",
-                            token);
-      continue;
-    }
-
-    if (directive->componentonly && NS_SKIN_LOCATION == type) {
-      LogMessageWithContext(file, line,
+    if (directive->componentonly && NS_COMPONENT_LOCATION != aType) {
+      LogMessageWithContext(aFile, aPath, line,
                             "Skin manifest not allowed to use '%s' directive.",
                             token);
       continue;
@@ -547,7 +557,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
       argv[i] = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
 
     if (!argv[directive->argc - 1]) {
-      LogMessageWithContext(file, line,
+      LogMessageWithContext(aFile, aPath, line,
                             "Not enough arguments for chrome manifest directive '%s', expected %i.",
                             token, directive->argc);
       continue;
@@ -555,14 +565,10 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
 
     bool ok = true;
     TriState stAppVersion = eUnspecified;
-    TriState stGeckoVersion = eUnspecified;
     TriState stApp = eUnspecified;
     TriState stOsVersion = eUnspecified;
     TriState stOs = eUnspecified;
     TriState stABI = eUnspecified;
-#if defined(MOZ_WIDGET_ANDROID)
-    TriState stTablet = eUnspecified;
-#endif
     bool platform = false;
     bool contentAccessible = false;
 
@@ -574,17 +580,8 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
           CheckStringFlag(kOs, wtoken, osTarget, stOs) ||
           CheckStringFlag(kABI, wtoken, abi, stABI) ||
           CheckVersionFlag(kOsVersion, wtoken, osVersion, stOsVersion) ||
-          CheckVersionFlag(kAppVersion, wtoken, appVersion, stAppVersion) ||
-          CheckVersionFlag(kGeckoVersion, wtoken, geckoVersion, stGeckoVersion))
+          CheckVersionFlag(kAppVersion, wtoken, appVersion, stAppVersion))
         continue;
-
-#if defined(MOZ_WIDGET_ANDROID)
-      bool tablet = false;
-      if (CheckFlag(kTablet, wtoken, tablet)) {
-        stTablet = (tablet == isTablet) ? eOK : eBad;
-        continue;
-      }
-#endif
 
       if (directive->contentflags &&
           (CheckFlag(kPlatform, wtoken, platform) ||
@@ -593,13 +590,13 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
 
       bool xpcNativeWrappers = true; // Dummy for CheckFlag.
       if (CheckFlag(kXPCNativeWrappers, wtoken, xpcNativeWrappers)) {
-        LogMessageWithContext(file, line,
-                              "Ignoring obsolete chrome registration modifier '%s'.",
+        LogMessageWithContext(aFile, aPath, line,
+                              "Warning: Ignoring obsolete chrome registration modifier '%s'.",
                               token);
         continue;
       }
 
-      LogMessageWithContext(file, line,
+      LogMessageWithContext(aFile, aPath, line,
                             "Unrecognized chrome manifest modifier '%s'.",
                             token);
       ok = false;
@@ -608,12 +605,8 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
     if (!ok ||
         stApp == eBad ||
         stAppVersion == eBad ||
-        stGeckoVersion == eBad ||
         stOs == eBad ||
         stOsVersion == eBad ||
-#ifdef MOZ_WIDGET_ANDROID
-        stTablet == eBad ||
-#endif
         stABI == eBad)
       continue;
 
@@ -625,7 +618,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
         nsCOMPtr<nsIChromeRegistry> cr =
           mozilla::services::GetChromeRegistryService();
         if (!nsChromeRegistry::gChromeRegistry) {
-          LogMessageWithContext(file, line,
+          LogMessageWithContext(aFile, aPath, line,
                                 "Chrome registry isn't available yet.");
           continue;
         }
@@ -647,9 +640,28 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
     }
   }
 
-  for (uint32_t i = 0; i < contracts.Length(); ++i) {
+  for (PRUint32 i = 0; i < contracts.Length(); ++i) {
     CachedDirective& d = contracts[i];
     nsComponentManagerImpl::gComponentManager->ManifestContract
       (mgrcx, d.lineno, d.argv);
   }
+}
+
+void
+ParseManifest(NSLocationType type, nsILocalFile* file,
+              char* buf, bool aChromeOnly)
+{
+  nsComponentManagerImpl::ManifestProcessingContext mgrcx(type, file, aChromeOnly);
+  nsChromeRegistry::ManifestProcessingContext chromecx(type, file);
+  ParseManifestCommon(type, file, mgrcx, chromecx, NULL, buf, aChromeOnly);
+}
+
+void
+ParseManifest(NSLocationType type, nsIZipReader* reader, const char* jarPath,
+              char* buf, bool aChromeOnly)
+{
+  nsComponentManagerImpl::ManifestProcessingContext mgrcx(type, reader, jarPath, aChromeOnly);
+  nsChromeRegistry::ManifestProcessingContext chromecx(type, mgrcx.mFile, jarPath);
+  ParseManifestCommon(type, mgrcx.mFile, mgrcx, chromecx, jarPath,
+                      buf, aChromeOnly);
 }

@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Justin Dolske <dolske@mozilla.com> (original author)
+ *  Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 const Cc = Components.classes;
@@ -8,7 +41,6 @@ const Ci = Components.interfaces;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 function LoginManager() {
     this.init();
@@ -72,6 +104,31 @@ LoginManager.prototype = {
         return this.__storage;
     },
 
+
+    // Private Browsing Service
+    // If the service is not available, null will be returned.
+    __privateBrowsingService : undefined,
+    get _privateBrowsingService() {
+        if (this.__privateBrowsingService == undefined) {
+            if ("@mozilla.org/privatebrowsing;1" in Cc)
+                this.__privateBrowsingService = Cc["@mozilla.org/privatebrowsing;1"].
+                                                getService(Ci.nsIPrivateBrowsingService);
+            else
+                this.__privateBrowsingService = null;
+        }
+        return this.__privateBrowsingService;
+    },
+
+
+    // Whether we are in private browsing mode
+    get _inPrivateBrowsing() {
+        var pbSvc = this._privateBrowsingService;
+        if (pbSvc)
+            return pbSvc.privateBrowsingEnabled;
+        else
+            return false;
+    },
+
     _prefBranch  : null, // Preferences service
     _nsLoginInfo : null, // Constructor for nsILoginInfo implementation
 
@@ -98,6 +155,7 @@ LoginManager.prototype = {
 
         // Preferences. Add observer so we get notified of changes.
         this._prefBranch = Services.prefs.getBranch("signon.");
+        this._prefBranch.QueryInterface(Ci.nsIPrefBranch2);
         this._prefBranch.addObserver("", this._observer, false);
 
         // Get current preference values.
@@ -148,7 +206,7 @@ LoginManager.prototype = {
     _observer : {
         _pwmgr : null,
 
-        QueryInterface : XPCOMUtils.generateQI([Ci.nsIObserver,
+        QueryInterface : XPCOMUtils.generateQI([Ci.nsIObserver, 
                                                 Ci.nsIFormSubmitObserver,
                                                 Ci.nsISupportsWeakReference]),
 
@@ -177,7 +235,7 @@ LoginManager.prototype = {
                 this._pwmgr.log("got change to " + prefName + " preference");
 
                 if (prefName == "debug") {
-                    this._pwmgr._debug =
+                    this._pwmgr._debug = 
                         this._pwmgr._prefBranch.getBoolPref("debug");
                 } else if (prefName == "rememberSignons") {
                     this._pwmgr._remember =
@@ -230,18 +288,10 @@ LoginManager.prototype = {
             // Only process things which might have HTML forms.
             if (!(domDoc instanceof Ci.nsIDOMHTMLDocument))
                 return;
-            if (this._pwmgr._debug) {
-                let requestName = "(null)";
-                if (aRequest) {
-                    try {
-                        requestName = aRequest.name;
-                    } catch (ex if ex.result == Components.results.NS_ERROR_NOT_IMPLEMENTED) {
-                        // do nothing - leave requestName = "(null)"
-                    }
-                }
-                this._pwmgr.log("onStateChange accepted: req = " + requestName +
-                                ", flags = 0x" + aStateFlags.toString(16));
-            }
+
+            this._pwmgr.log("onStateChange accepted: req = " +
+                            (aRequest ?  aRequest.name : "(null)") +
+                            ", flags = 0x" + aStateFlags.toString(16));
 
             // Fastback doesn't fire DOMContentLoaded, so process forms now.
             if (aStateFlags & Ci.nsIWebProgressListener.STATE_RESTORING) {
@@ -668,7 +718,7 @@ LoginManager.prototype = {
         // Locate the username field in the form by searching backwards
         // from the first passwordfield, assume the first text field is the
         // username. We might not find a username field if the user is
-        // already logged in to the site.
+        // already logged in to the site. 
         for (var i = pwFields[0].index - 1; i >= 0; i--) {
             var element = form.elements[i];
             var fieldType = (element.hasAttribute("type") ?
@@ -771,26 +821,21 @@ LoginManager.prototype = {
             return prompterSvc;
         }
 
-        var doc = form.ownerDocument;
-        var win = doc.defaultView;
-
-        if (PrivateBrowsingUtils.isWindowPrivate(win)) {
+        if (this._inPrivateBrowsing) {
             // We won't do anything in private browsing mode anyway,
             // so there's no need to perform further checks.
             this.log("(form submission ignored in private browsing mode)");
             return;
         }
 
+        var doc = form.ownerDocument;
+        var win = doc.defaultView;
+
         // If password saving is disabled (globally or for host), bail out now.
         if (!this._remember)
             return;
 
-        var hostname = this._getPasswordOrigin(doc.documentURI);
-        if (!hostname) {
-            this.log("(form submission ignored -- invalid hostname)");
-            return;
-        }
-
+        var hostname      = this._getPasswordOrigin(doc.documentURI);
         var formSubmitURL = this._getActionOrigin(form)
         if (!this.getLoginSavingEnabled(hostname)) {
             this.log("(form submission ignored -- saving is " +
@@ -871,7 +916,7 @@ LoginManager.prototype = {
             // if the passwords differ.
             if (!login.username && formLogin.username) {
                 var restoreMe = formLogin.username;
-                formLogin.username = "";
+                formLogin.username = ""; 
                 same = formLogin.matches(login, false);
                 formLogin.username = restoreMe;
             } else if (!formLogin.username && login.username) {
@@ -1011,27 +1056,12 @@ LoginManager.prototype = {
         this.log("fillDocument processing " + forms.length +
                  " forms on " + doc.documentURI);
 
-        var autofillForm = !PrivateBrowsingUtils.isWindowPrivate(doc.defaultView) &&
+        var autofillForm = !this._inPrivateBrowsing &&
                            this._prefBranch.getBoolPref("autofillForms");
         var previousActionOrigin = null;
         var foundLogins = null;
 
-        // Limit the number of forms we try to fill. If there are too many
-        // forms, just fill some at the beginning and end of the page.
-        const MAX_FORMS = 40; // assumed to be an even number
-        var skip_from = -1, skip_to = -1;
-        if (forms.length > MAX_FORMS) {
-            this.log("fillDocument limiting number of forms filled to " + MAX_FORMS);
-            let chunk_size = MAX_FORMS / 2;
-            skip_from = chunk_size;
-            skip_to   = forms.length - chunk_size;
-        }
-
         for (var i = 0; i < forms.length; i++) {
-            // Skip some in the middle of the document if there were too many.
-            if (i == skip_from)
-              i = skip_to;
-
             var form = forms[i];
 
             // Only the actionOrigin might be changing, so if it's the same
@@ -1082,7 +1112,7 @@ LoginManager.prototype = {
 
         // Need to get a list of logins if we weren't given them
         if (foundLogins == null) {
-            var formOrigin =
+            var formOrigin = 
                 this._getPasswordOrigin(form.ownerDocument.documentURI);
             var actionOrigin = this._getActionOrigin(form);
             foundLogins = this.findLogins({}, formOrigin, actionOrigin, null);

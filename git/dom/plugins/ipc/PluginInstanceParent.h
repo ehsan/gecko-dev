@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: sw=4 ts=4 et :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Plugin App.
+ *
+ * The Initial Developer of the Original Code is
+ *   Chris Jones <jones.chris.g@gmail.com>
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef dom_plugins_PluginInstanceParent_h
 #define dom_plugins_PluginInstanceParent_h 1
@@ -11,10 +43,8 @@
 #include "mozilla/plugins/PluginScriptableObjectParent.h"
 #if defined(OS_WIN)
 #include "mozilla/gfx/SharedDIBWin.h"
-#include <d3d10_1.h>
-#include "nsRefPtrHashtable.h"
 #elif defined(MOZ_WIDGET_COCOA)
-#include "mozilla/gfx/QuartzSupport.h"
+#include "nsCoreAnimationSupport.h"
 #endif
 
 #include "npfunctions.h"
@@ -23,18 +53,12 @@
 #include "nsHashKeys.h"
 #include "nsRect.h"
 #include "gfxASurface.h"
-
+#include "ImageLayers.h"
 #ifdef MOZ_X11
 class gfxXlibSurface;
 #endif
-#include "nsGUIEvent.h"
-#include "mozilla/unused.h"
 
 namespace mozilla {
-namespace layers {
-class ImageContainer;
-class CompositionNotifySink;
-}
 namespace plugins {
 
 class PBrowserStreamParent;
@@ -58,13 +82,13 @@ public:
     bool Init();
     NPError Destroy();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+    NS_OVERRIDE virtual void ActorDestroy(ActorDestroyReason why);
 
     virtual PPluginScriptableObjectParent*
     AllocPPluginScriptableObject();
 
-    virtual bool
-    RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectParent* aActor) MOZ_OVERRIDE;
+    NS_OVERRIDE virtual bool
+    RecvPPluginScriptableObjectConstructor(PPluginScriptableObjectParent* aActor);
 
     virtual bool
     DeallocPPluginScriptableObject(PPluginScriptableObjectParent* aObject);
@@ -107,12 +131,6 @@ public:
     AnswerNPN_GetValue_NPNVprivateModeBool(bool* value, NPError* result);
 
     virtual bool
-    AnswerNPN_GetValue_DrawingModelSupport(const NPNVariable& model, bool* value);
-  
-    virtual bool
-    AnswerNPN_GetValue_NPNVdocumentOrigin(nsCString* value, NPError* result);
-
-    virtual bool
     AnswerNPN_SetValue_NPPVpluginWindow(const bool& windowed, NPError* result);
     virtual bool
     AnswerNPN_SetValue_NPPVpluginTransparent(const bool& transparent,
@@ -122,9 +140,7 @@ public:
                                                   NPError* result);
     virtual bool
     AnswerNPN_SetValue_NPPVpluginDrawingModel(const int& drawingModel,
-                                              OptionalShmem *remoteImageData,
-                                              CrossProcessMutexHandle *mutex,
-                                              NPError* result);
+                                             NPError* result);
     virtual bool
     AnswerNPN_SetValue_NPPVpluginEventModel(const int& eventModel,
                                              NPError* result);
@@ -144,13 +160,13 @@ public:
                        const bool& file,
                        NPError* result);
 
-    virtual bool
+    NS_OVERRIDE virtual bool
     AnswerPStreamNotifyConstructor(PStreamNotifyParent* actor,
                                    const nsCString& url,
                                    const nsCString& target,
                                    const bool& post, const nsCString& buffer,
                                    const bool& file,
-                                   NPError* result) MOZ_OVERRIDE;
+                                   NPError* result);
 
     virtual bool
     DeallocPStreamNotify(PStreamNotifyParent* notifyData);
@@ -178,17 +194,17 @@ public:
     virtual bool
     AnswerNPN_PopPopupsEnabledState();
 
-    virtual bool
+    NS_OVERRIDE virtual bool
     AnswerNPN_GetValueForURL(const NPNURLVariable& variable,
                              const nsCString& url,
-                             nsCString* value, NPError* result) MOZ_OVERRIDE;
+                             nsCString* value, NPError* result);
 
-    virtual bool
+    NS_OVERRIDE virtual bool
     AnswerNPN_SetValueForURL(const NPNURLVariable& variable,
                              const nsCString& url,
-                             const nsCString& value, NPError* result) MOZ_OVERRIDE;
+                             const nsCString& value, NPError* result);
 
-    virtual bool
+    NS_OVERRIDE virtual bool
     AnswerNPN_GetAuthenticationInfo(const nsCString& protocol,
                                     const nsCString& host,
                                     const int32_t& port,
@@ -196,9 +212,9 @@ public:
                                     const nsCString& realm,
                                     nsCString* username,
                                     nsCString* password,
-                                    NPError* result) MOZ_OVERRIDE;
+                                    NPError* result);
 
-    virtual bool
+    NS_OVERRIDE virtual bool
     AnswerNPN_ConvertPoint(const double& sourceX,
                            const bool&   ignoreDestX,
                            const double& sourceY,
@@ -207,21 +223,10 @@ public:
                            const NPCoordinateSpace& destSpace,
                            double *destX,
                            double *destY,
-                           bool *result) MOZ_OVERRIDE;
+                           bool *result);
 
-    virtual bool
-    AnswerNPN_InitAsyncSurface(const gfxIntSize& size,
-                               const NPImageFormat& format,
-                               NPRemoteAsyncSurface* surfData,
-                               bool* result);
-
-    virtual bool
-    RecvRedrawPlugin();
-
-    virtual bool
-    RecvNegotiatedCarbon() MOZ_OVERRIDE;
-
-    virtual bool RecvReleaseDXGISharedSurface(const DXGISharedSurfaceHandle &aHandle);
+    NS_OVERRIDE virtual bool
+    RecvNegotiatedCarbon();
 
     NPError NPP_SetWindow(const NPWindow* aWindow);
 
@@ -270,22 +275,21 @@ public:
     virtual bool
     AnswerPluginFocusChange(const bool& gotFocus);
 
+#ifdef MOZ_WIDGET_COCOA
+    void Invalidate();
+#endif // definied(MOZ_WIDGET_COCOA)
+
     nsresult AsyncSetWindow(NPWindow* window);
-    nsresult GetImageContainer(mozilla::layers::ImageContainer** aContainer);
+    nsresult GetImage(mozilla::layers::ImageContainer* aContainer, mozilla::layers::Image** aImage);
     nsresult GetImageSize(nsIntSize* aSize);
 #ifdef XP_MACOSX
-    nsresult IsRemoteDrawingCoreAnimation(bool *aDrawing);
+    nsresult IsRemoteDrawingCoreAnimation(PRBool *aDrawing);
 #endif
     nsresult SetBackgroundUnknown();
     nsresult BeginUpdateBackground(const nsIntRect& aRect,
                                    gfxContext** aCtx);
     nsresult EndUpdateBackground(gfxContext* aCtx,
                                  const nsIntRect& aRect);
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-    nsresult HandleGUIEvent(const nsGUIEvent& anEvent, bool* handled);
-#endif
-
-    void DidComposite() { unused << SendNPP_DidComposite(); }
 
 private:
     // Create an appropriate platform surface for a background of size
@@ -294,32 +298,36 @@ private:
     void DestroyBackground();
     SurfaceDescriptor BackgroundDescriptor() /*const*/;
 
-    typedef mozilla::layers::ImageContainer ImageContainer;
-    ImageContainer *GetImageContainer();
-
+    NS_OVERRIDE
     virtual PPluginBackgroundDestroyerParent*
-    AllocPPluginBackgroundDestroyer() MOZ_OVERRIDE;
+    AllocPPluginBackgroundDestroyer();
 
+    NS_OVERRIDE
     virtual bool
-    DeallocPPluginBackgroundDestroyer(PPluginBackgroundDestroyerParent* aActor) MOZ_OVERRIDE;
+    DeallocPPluginBackgroundDestroyer(PPluginBackgroundDestroyerParent* aActor);
+
+    // Quirks mode support for various plugin mime types
+    enum PluginQuirks {
+        // OSX: Don't use the refresh timer for plug-ins
+        // using this quirk. These plug-in most have another
+        // way to refresh the window.
+        COREANIMATION_REFRESH_TIMER = 1,
+    };
+
+    void InitQuirksModes(const nsCString& aMimeType);
 
     bool InternalGetValueForNPObject(NPNVariable aVariable,
                                      PPluginScriptableObjectParent** aValue,
                                      NPError* aResult);
-
-    bool IsAsyncDrawing();
 
 private:
     PluginModuleParent* mParent;
     NPP mNPP;
     const NPNetscapeFuncs* mNPNIface;
     NPWindowType mWindowType;
-    Shmem mRemoteImageDataShmem;
-    nsAutoPtr<CrossProcessMutex> mRemoteImageDataMutex;
-    int16_t            mDrawingModel;
-    nsAutoPtr<mozilla::layers::CompositionNotifySink> mNotifySink;
+    int mQuirks;
 
-    nsDataHashtable<nsPtrHashKey<NPObject>, PluginScriptableObjectParent*> mScriptableObjects;
+    nsDataHashtable<nsVoidPtrHashKey, PluginScriptableObjectParent*> mScriptableObjects;
 
 #if defined(OS_WIN)
 private:
@@ -341,18 +349,16 @@ private:
     HWND               mPluginHWND;
     WNDPROC            mPluginWndProc;
     bool               mNestedEventState;
-
-    // This will automatically release the textures when this object goes away.
-    nsRefPtrHashtable<nsPtrHashKey<void>, ID3D10Texture2D> mTextureMap;
 #endif // defined(XP_WIN)
 #if defined(MOZ_WIDGET_COCOA)
 private:
     Shmem                  mShSurface; 
-    uint16_t               mShWidth;
-    uint16_t               mShHeight;
+    size_t                 mShWidth;
+    size_t                 mShHeight;
     CGColorSpaceRef        mShColorSpace;
-    RefPtr<MacIOSurface> mIOSurface;
-    RefPtr<MacIOSurface> mFrontIOSurface;
+    int16_t                mDrawingModel;
+    nsRefPtr<nsIOSurface> mIOSurface;
+    nsRefPtr<nsIOSurface> mFrontIOSurface;
 #endif // definied(MOZ_WIDGET_COCOA)
 
     // ObjectFrame layer wrapper
@@ -367,8 +373,6 @@ private:
     // the consistency of the pixels in |mBackground|.  A plugin may
     // be able to observe partial updates to the background.
     nsRefPtr<gfxASurface>    mBackground;
-
-    nsRefPtr<ImageContainer> mImageContainer;
 };
 
 

@@ -860,11 +860,12 @@ public:
                     resetMatches(term, context);
                     freeParenthesesDisjunctionContext(context);
 
-                    if (result != JSRegExpNoMatch)
+                    if (result == JSRegExpNoMatch) {
+                        JSRegExpResult backtrackResult = parenthesesDoBacktrack(term, backTrack);
+                        if (backtrackResult != JSRegExpMatch)
+                            return backtrackResult;
+                    } else
                         return result;
-                    JSRegExpResult backtrackResult = parenthesesDoBacktrack(term, backTrack);
-                    if (backtrackResult != JSRegExpMatch)
-                        return backtrackResult;
                 }
             }
 
@@ -946,11 +947,12 @@ public:
                     resetMatches(term, context);
                     freeParenthesesDisjunctionContext(context);
 
-                    if (result != JSRegExpNoMatch)
+                    if (result == JSRegExpNoMatch) {
+                        JSRegExpResult backtrackResult = parenthesesDoBacktrack(term, backTrack);
+                        if (backtrackResult != JSRegExpMatch)
+                            return backtrackResult;
+                    } else
                         return result;
-                    JSRegExpResult backtrackResult = parenthesesDoBacktrack(term, backTrack);
-                    if (backtrackResult != JSRegExpMatch)
-                        return backtrackResult;
                 }
             }
 
@@ -1034,8 +1036,7 @@ public:
                 popParenthesesDisjunctionContext(backTrack);
                 freeParenthesesDisjunctionContext(context);
 
-                if (result != JSRegExpNoMatch)
-                    return result;
+                return result;
             }
 
             return JSRegExpNoMatch;
@@ -1046,16 +1047,48 @@ public:
         return JSRegExpErrorNoMatch;
     }
 
+    void lookupForBeginChars()
+    {
+        int character;
+        bool firstSingleCharFound;
+
+        while (true) {
+            if (input.isNotAvailableInput(2))
+                return;
+
+            firstSingleCharFound = false;
+
+            character = input.readPair();
+
+            for (unsigned i = 0; i < pattern->m_beginChars.size(); ++i) {
+                BeginChar bc = pattern->m_beginChars[i];
+
+                if (!firstSingleCharFound && bc.value <= 0xFFFF) {
+                    firstSingleCharFound = true;
+                    character &= 0xFFFF;
+                }
+
+                if ((character | bc.mask) == bc.value)
+                    return;
+            }
+
+            input.next();
+        }
+    }
+
 #define MATCH_NEXT() { ++context->term; goto matchAgain; }
 #define BACKTRACK() { --context->term; goto backtrack; }
 #define currentTerm() (disjunction->terms[context->term])
-    JSRegExpResult matchDisjunction(ByteDisjunction* disjunction, DisjunctionContext* context, bool btrack = false)
+    JSRegExpResult matchDisjunction(ByteDisjunction* disjunction, DisjunctionContext* context, bool btrack = false, bool isBody = false)
     {
         if (!--remainingMatchCount)
             return JSRegExpErrorHitLimit;
 
         if (btrack)
             BACKTRACK();
+
+        if (pattern->m_containsBeginChars && isBody)
+            lookupForBeginChars();
 
         context->matchBegin = input.getPos();
         context->term = 0;
@@ -1234,6 +1267,9 @@ public:
 
             input.next();
 
+            if (pattern->m_containsBeginChars && isBody)
+                lookupForBeginChars();
+
             context->matchBegin = input.getPos();
 
             if (currentTerm().alternative.onceThrough)
@@ -1362,7 +1398,7 @@ public:
 
         DisjunctionContext* context = allocDisjunctionContext(pattern->m_body.get());
 
-        JSRegExpResult result = matchDisjunction(pattern->m_body.get(), context, false);
+        JSRegExpResult result = matchDisjunction(pattern->m_body.get(), context, false, true);
         if (result == JSRegExpMatch) {
             output[0] = context->matchBegin;
             output[1] = context->matchEnd;
@@ -1422,7 +1458,7 @@ public:
         emitDisjunction(m_pattern.m_body);
         regexEnd();
 
-        return adoptPtr(js_new<BytecodePattern>(m_bodyDisjunction.release(), m_allParenthesesInfo, Ref<YarrPattern>(m_pattern), allocator));
+        return adoptPtr(js::OffTheBooks::new_<BytecodePattern>(m_bodyDisjunction.release(), m_allParenthesesInfo, Ref<YarrPattern>(m_pattern), allocator));
     }
 
     void checkInput(unsigned count)
@@ -1648,7 +1684,7 @@ public:
         unsigned subpatternId = parenthesesBegin.atom.subpatternId;
 
         unsigned numSubpatterns = lastSubpatternId - subpatternId + 1;
-        ByteDisjunction* parenthesesDisjunction = js_new<ByteDisjunction>(numSubpatterns, callFrameSize);
+        ByteDisjunction* parenthesesDisjunction = js::OffTheBooks::new_<ByteDisjunction>(numSubpatterns, callFrameSize);
 
         parenthesesDisjunction->terms.append(ByteTerm::SubpatternBegin());
         for (unsigned termInParentheses = beginTerm + 1; termInParentheses < endTerm; ++termInParentheses)
@@ -1711,7 +1747,7 @@ public:
 
     void regexBegin(unsigned numSubpatterns, unsigned callFrameSize, bool onceThrough)
     {
-        m_bodyDisjunction = adoptPtr(js_new<ByteDisjunction>(numSubpatterns, callFrameSize));
+        m_bodyDisjunction = adoptPtr(js::OffTheBooks::new_<ByteDisjunction>(numSubpatterns, callFrameSize));
         m_bodyDisjunction->terms.append(ByteTerm::BodyAlternativeBegin(onceThrough));
         m_bodyDisjunction->terms[0].frameLocation = 0;
         m_currentAlternativeIndex = 0;

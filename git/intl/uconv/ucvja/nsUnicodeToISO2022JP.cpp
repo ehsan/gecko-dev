@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsUnicodeToISO2022JP.h"
 #include "nsIComponentManager.h"
@@ -46,12 +78,12 @@ static const PRUnichar gBasicMapping[0x40] =
 #define NIGORI_MODIFIER 1
 #define MARU_MODIFIER   2
 
-static const uint16_t g_ufAsciiMapping [] = {
+static const PRUint16 g_ufAsciiMapping [] = {
   0x0001, 0x0004, 0x0005, 0x0008, 0x0000, 0x0000, 0x007F, 0x0000
 };
 
 #define SIZE_OF_TABLES 5
-static const uint16_t * g_ufMappingTables[SIZE_OF_TABLES] = {
+static const PRUint16 * g_ufMappingTables[SIZE_OF_TABLES] = {
   g_ufAsciiMapping,             // ASCII           ISOREG 6
   g_uf0201GLMapping,            // JIS X 0201-1976 ISOREG 14
   g_uf0208Mapping,              // JIS X 0208-1983 ISOREG 87
@@ -84,9 +116,9 @@ nsUnicodeToISO2022JP::~nsUnicodeToISO2022JP()
 {
 }
 
-nsresult nsUnicodeToISO2022JP::ChangeCharset(int32_t aCharset,
+nsresult nsUnicodeToISO2022JP::ChangeCharset(PRInt32 aCharset,
                                              char * aDest, 
-                                             int32_t * aDestLength)
+                                             PRInt32 * aDestLength)
 {
   // both 2 and 3 generate the same escape sequence. 2 is for
   // the standard JISx0208 table, and 3 is for theCP932 extensions
@@ -140,9 +172,9 @@ nsresult nsUnicodeToISO2022JP::ChangeCharset(int32_t aCharset,
 }
 
 nsresult nsUnicodeToISO2022JP::ConvertHankaku(const PRUnichar * aSrc,
-                                              int32_t * aSrcLength,
+                                              PRInt32 * aSrcLength,
                                               char * aDest,
-                                              int32_t * aDestLength)
+                                              PRInt32 * aDestLength)
 {
   nsresult res = NS_OK;
 
@@ -151,7 +183,7 @@ nsresult nsUnicodeToISO2022JP::ConvertHankaku(const PRUnichar * aSrc,
   char * dest = aDest;
   char * destEnd = aDest + *aDestLength;
   PRUnichar srcChar, tempChar;
-  int32_t bcr, bcw;
+  PRInt32 bcr, bcw;
 
   bcw = destEnd - dest;
   res = ChangeCharset(JIS_X_208_INDEX, dest, &bcw);
@@ -183,7 +215,7 @@ nsresult nsUnicodeToISO2022JP::ConvertHankaku(const PRUnichar * aSrc,
     bcw = destEnd - dest;
     res = nsUnicodeEncodeHelper::ConvertByTable(
              &tempChar, &bcr, dest, &bcw, g_ufScanClassIDs[JIS_X_208_INDEX],
-             nullptr, (uMappingTable *) g_ufMappingTables[JIS_X_208_INDEX]);
+             nsnull, (uMappingTable *) g_ufMappingTables[JIS_X_208_INDEX]);
     dest += bcw;
     if (res != NS_OK)
       break;
@@ -198,9 +230,9 @@ nsresult nsUnicodeToISO2022JP::ConvertHankaku(const PRUnichar * aSrc,
 
 NS_IMETHODIMP nsUnicodeToISO2022JP::ConvertNoBuffNoErr(
                                     const PRUnichar * aSrc, 
-                                    int32_t * aSrcLength, 
+                                    PRInt32 * aSrcLength, 
                                     char * aDest, 
-                                    int32_t * aDestLength)
+                                    PRInt32 * aDestLength)
 {
   nsresult res = NS_OK;
 
@@ -208,15 +240,15 @@ NS_IMETHODIMP nsUnicodeToISO2022JP::ConvertNoBuffNoErr(
   const PRUnichar * srcEnd = aSrc + *aSrcLength;
   char * dest = aDest;
   char * destEnd = aDest + *aDestLength;
-  int32_t bcr, bcw;
-  int32_t i;
+  PRInt32 bcr, bcw;
+  PRInt32 i;
 
   while (src < srcEnd) {
     for (i=0; i< SIZE_OF_TABLES ; i++) {
       bcr = 1;
       bcw = destEnd - dest;
       res = nsUnicodeEncodeHelper::ConvertByTable(src, &bcr, dest, &bcw, 
-                                      g_ufScanClassIDs[i], nullptr,
+                                      g_ufScanClassIDs[i], nsnull,
                                       (uMappingTable *) g_ufMappingTables[i]);
       if (res != NS_ERROR_UENC_NOMAPPING) break;
     }
@@ -244,7 +276,7 @@ NS_IMETHODIMP nsUnicodeToISO2022JP::ConvertNoBuffNoErr(
     bcr = srcEnd - src;
     bcw = destEnd - dest;
     res = nsUnicodeEncodeHelper::ConvertByTable(src, &bcr, dest, &bcw, 
-                                      g_ufScanClassIDs[i], nullptr,
+                                      g_ufScanClassIDs[i], nsnull,
                                       (uMappingTable *) g_ufMappingTables[i]);
     src += bcr;
     dest += bcw;
@@ -259,7 +291,7 @@ NS_IMETHODIMP nsUnicodeToISO2022JP::ConvertNoBuffNoErr(
 }
 
 NS_IMETHODIMP nsUnicodeToISO2022JP::FinishNoBuff(char * aDest, 
-                                                 int32_t * aDestLength)
+                                                 PRInt32 * aDestLength)
 {
   ChangeCharset(0, aDest, aDestLength);
   return NS_OK;

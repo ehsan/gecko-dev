@@ -1,8 +1,48 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 // vim:set ts=2 sts=2 sw=2 et cin:
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *   Jacek Piskozub <piskozub@iopan.gda.pl>
+ *   Leon Sha <leon.sha@sun.com>
+ *   Roland Mainz <roland.mainz@informatik.med.uni-giessen.de>
+ *   Robert O'Callahan <roc+moz@cs.cmu.edu>
+ *   Christian Biesinger <cbiesinger@web.de>
+ *   Josh Aas <josh@mozilla.com>
+ *   Mats Palmgren <matspal@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsPluginInstanceOwner_h_
 #define nsPluginInstanceOwner_h_
@@ -12,56 +52,45 @@
 #include "nsCOMPtr.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsIPluginTagInfo.h"
-#include "nsIPrivacyTransitionObserver.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMMouseListener.h"
+#include "nsIDOMMouseMotionListener.h"
+#include "nsIDOMKeyListener.h"
+#include "nsIDOMFocusListener.h"
 #include "nsIScrollPositionListener.h"
 #include "nsPluginHost.h"
 #include "nsPluginNativeWindow.h"
-#include "nsWeakReference.h"
 #include "gfxRect.h"
 
-// X.h defines KeyPress
-#ifdef KeyPress
-#undef KeyPress
-#endif
-
 #ifdef XP_MACOSX
-#include "mozilla/gfx/QuartzSupport.h"
+#include "nsCoreAnimationSupport.h"
 #include <ApplicationServices/ApplicationServices.h>
 #endif
 
 class nsIInputStream;
-struct nsIntRect;
+class nsIntRect;
 class nsPluginDOMContextMenuListener;
 class nsObjectFrame;
 class nsDisplayListBuilder;
 
 #ifdef MOZ_X11
 class gfxXlibSurface;
-#ifdef MOZ_WIDGET_QT
-#include "gfxQtNativeRenderer.h"
-#else
+#endif
+
+#ifdef MOZ_WIDGET_GTK2
 #include "gfxXlibNativeRenderer.h"
 #endif
-#endif
 
-#ifdef XP_OS2
-#define INCL_PM
-#define INCL_GPI
-#include <os2.h>
-#endif
-
-// X.h defines KeyPress
-#ifdef KeyPress
-#undef KeyPress
+#ifdef MOZ_WIDGET_QT
+#include "gfxQtNativeRenderer.h"
 #endif
 
 class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
                               public nsIPluginTagInfo,
-                              public nsIDOMEventListener,
-                              public nsIScrollPositionListener,
-                              public nsIPrivacyTransitionObserver,
-                              public nsSupportsWeakReference
+                              public nsIDOMMouseListener,
+                              public nsIDOMMouseMotionListener,
+                              public nsIDOMKeyListener,
+                              public nsIDOMFocusListener,
+                              public nsIScrollPositionListener
 {
 public:
   nsPluginInstanceOwner();
@@ -69,11 +98,10 @@ public:
   
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGININSTANCEOWNER
-  NS_DECL_NSIPRIVACYTRANSITIONOBSERVER
   
   NS_IMETHOD GetURL(const char *aURL, const char *aTarget,
                     nsIInputStream *aPostStream, 
-                    void *aHeadersData, uint32_t aHeadersDataLen);
+                    void *aHeadersData, PRUint32 aHeadersDataLen);
   
   NS_IMETHOD ShowStatus(const PRUnichar *aStatusMsg);
   
@@ -82,32 +110,42 @@ public:
   NPBool     ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
                           double *destX, double *destY, NPCoordinateSpace destSpace);
   
-  virtual NPError InitAsyncSurface(NPSize *size, NPImageFormat format,
-                                   void *initData, NPAsyncSurface *surface);
-  virtual NPError FinalizeAsyncSurface(NPAsyncSurface *surface);
-  virtual void SetCurrentAsyncSurface(NPAsyncSurface *surface, NPRect *changed);
-
   //nsIPluginTagInfo interface
   NS_DECL_NSIPLUGINTAGINFO
   
-  // nsIDOMEventListener interfaces 
-  NS_DECL_NSIDOMEVENTLISTENER
+  // nsIDOMMouseListener interfaces 
+  NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseUp(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseClick(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseDblClick(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseOver(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD MouseOut(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);     
   
-  nsresult MouseDown(nsIDOMEvent* aKeyEvent);
-  nsresult KeyPress(nsIDOMEvent* aKeyEvent);
-#if defined(MOZ_WIDGET_QT) && (MOZ_PLATFORM_MAEMO == 6)
-  nsresult Text(nsIDOMEvent* aTextEvent);
-#endif
-
+  // nsIDOMMouseMotionListener interfaces
+  NS_IMETHOD MouseMove(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragMove(nsIDOMEvent* aMouseEvent) { return NS_OK; }
+  
+  // nsIDOMKeyListener interfaces
+  NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent);
+  NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent);
+  
+  // nsIDOMFocusListener interfaces
+  NS_IMETHOD Focus(nsIDOMEvent * aFocusEvent);
+  NS_IMETHOD Blur(nsIDOMEvent * aFocusEvent);
+  
   nsresult Destroy();  
-
+  
+  void PrepareToStop(PRBool aDelayedStop);
+  
 #ifdef XP_WIN
   void Paint(const RECT& aDirty, HDC aDC);
 #elif defined(XP_MACOSX)
   void Paint(const gfxRect& aDirtyRect, CGContextRef cgContext);  
   void RenderCoreAnimation(CGContextRef aCGContext, int aWidth, int aHeight);
   void DoCocoaEventDrawRect(const gfxRect& aDrawRect, CGContextRef cgContext);
-#elif defined(MOZ_X11) || defined(ANDROID)
+#elif defined(MOZ_X11)
   void Paint(gfxContext* aContext,
              const gfxRect& aFrameRect,
              const gfxRect& aDirtyRect);
@@ -117,7 +155,7 @@ public:
   
 #ifdef MAC_CARBON_PLUGINS
   void CancelTimer();
-  void StartTimer(bool isVisible);
+  void StartTimer(PRBool isVisible);
 #endif
   void SendIdleEvent();
   
@@ -127,28 +165,31 @@ public:
   
   //locals
   
-  nsresult Init(nsIContent* aContent);
+  nsresult Init(nsPresContext* aPresContext, nsObjectFrame* aFrame,
+                nsIContent* aContent);
   
   void* GetPluginPortFromWidget();
   void ReleasePluginPort(void* pluginPort);
-
+  
+  void SetPluginHost(nsIPluginHost* aHost);
+  
   nsEventStatus ProcessEvent(const nsGUIEvent & anEvent);
   
 #ifdef XP_MACOSX
   enum { ePluginPaintEnable, ePluginPaintDisable };
   
   NPDrawingModel GetDrawingModel();
-  bool IsRemoteDrawingCoreAnimation();
+  PRBool IsRemoteDrawingCoreAnimation();
   NPEventModel GetEventModel();
   static void CARefresh(nsITimer *aTimer, void *aClosure);
-  void AddToCARefreshTimer();
-  void RemoveFromCARefreshTimer();
-  // This calls into the plugin (NPP_SetWindow) and can run script.
-  void* FixUpPluginWindow(int32_t inPaintState);
+  static void AddToCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
+  static void RemoveFromCARefreshTimer(nsPluginInstanceOwner *aPluginInstance);
+  void SetupCARefresh();
+  void* FixUpPluginWindow(PRInt32 inPaintState);
   void HidePluginWindow();
   // Set a flag that (if true) indicates the plugin port info has changed and
   // SetWindow() needs to be called.
-  void SetPluginPortChanged(bool aState) { mPluginPortChanged = aState; }
+  void SetPluginPortChanged(PRBool aState) { mPluginPortChanged = aState; }
   // Return a pointer to the internal nsPluginPort structure that's used to
   // store a copy of plugin port info and to detect when it's been changed.
   void* GetPluginPortCopy();
@@ -165,22 +206,27 @@ public:
   void BeginCGPaint();
   void EndCGPaint();
 #else // XP_MACOSX
-  void UpdateWindowPositionAndClipRect(bool aSetWindow);
-  void UpdateWindowVisibility(bool aVisible);
-  void UpdateDocumentActiveState(bool aIsActive);
+  void UpdateWindowPositionAndClipRect(PRBool aSetWindow);
+  void UpdateWindowVisibility(PRBool aVisible);
 #endif // XP_MACOSX
-
-  void SetFrame(nsObjectFrame *aFrame);
-  nsObjectFrame* GetFrame();
-
-  uint32_t GetLastEventloopNestingLevel() const {
+  void CallSetWindow();
+  
+  void SetOwner(nsObjectFrame *aOwner)
+  {
+    mObjectFrame = aOwner;
+  }
+  nsObjectFrame* GetOwner() {
+    return mObjectFrame;
+  }
+  
+  PRUint32 GetLastEventloopNestingLevel() const {
     return mLastEventloopNestingLevel; 
   }
   
-  static uint32_t GetEventloopNestingLevel();
+  static PRUint32 GetEventloopNestingLevel();
   
   void ConsiderNewEventloopNestingLevel() {
-    uint32_t currentLevel = GetEventloopNestingLevel();
+    PRUint32 currentLevel = GetEventloopNestingLevel();
     
     if (currentLevel < mLastEventloopNestingLevel) {
       mLastEventloopNestingLevel = currentLevel;
@@ -213,7 +259,7 @@ public:
   }
 #endif
   
-  bool SendNativeEvents()
+  PRBool SendNativeEvents()
   {
 #ifdef XP_WIN
     // XXX we should remove the plugin name check
@@ -221,22 +267,20 @@ public:
     (MatchPluginName("Shockwave Flash") ||
      MatchPluginName("Test Plug-in"));
 #elif defined(MOZ_X11) || defined(XP_MACOSX)
-    return true;
+    return PR_TRUE;
 #else
-    return false;
+    return PR_FALSE;
 #endif
   }
   
-  bool MatchPluginName(const char *aPluginName)
+  PRBool MatchPluginName(const char *aPluginName)
   {
     return strncmp(GetPluginName(), aPluginName, strlen(aPluginName)) == 0;
   }
   
   void NotifyPaintWaiter(nsDisplayListBuilder* aBuilder);
-
-  // Returns the image container that has our currently displayed image.
-  already_AddRefed<ImageContainer> GetImageContainer();
-
+  // Return true if we set image with valid surface
+  PRBool SetCurrentImage(ImageContainer* aContainer);
   /**
    * Returns the bounds of the current async-rendered surface. This can only
    * change in response to messages received by the event loop (i.e. not during
@@ -251,28 +295,12 @@ public:
   already_AddRefed<gfxContext> BeginUpdateBackground(const nsIntRect& aRect);
   void EndUpdateBackground(gfxContext* aContext, const nsIntRect& aRect);
   
-  bool UseAsyncRendering();
-
-#ifdef MOZ_WIDGET_ANDROID
-  // Returns the image container for the specified VideoInfo
-  void GetVideos(nsTArray<nsNPAPIPluginInstance::VideoInfo*>& aVideos);
-  already_AddRefed<ImageContainer> GetImageContainerForVideo(nsNPAPIPluginInstance::VideoInfo* aVideoInfo);
-
-  nsIntRect GetVisibleRect();
-
-  void Invalidate();
-
-  void RequestFullScreen();
-  void ExitFullScreen();
-
-  // Called from AndroidJNI when we removed the fullscreen view.
-  static void ExitFullScreen(jobject view);
-#endif
+  PRBool UseAsyncRendering();
   
 private:
   
   // return FALSE if LayerSurface dirty (newly created and don't have valid plugin content yet)
-  bool IsUpToDate()
+  PRBool IsUpToDate()
   {
     nsIntSize size;
     return NS_SUCCEEDED(mInstance->GetImageSize(&size)) &&
@@ -280,64 +308,58 @@ private:
   }
   
   void FixUpURLS(const nsString &name, nsAString &value);
-#ifdef MOZ_WIDGET_ANDROID
-  gfxRect GetPluginRect();
-  bool AddPluginView(const gfxRect& aRect = gfxRect(0, 0, 0, 0));
-  void RemovePluginView();
-
-  bool mFullScreen;
-  void* mJavaView;
-#endif 
- 
+  
   nsPluginNativeWindow       *mPluginWindow;
   nsRefPtr<nsNPAPIPluginInstance> mInstance;
-  nsObjectFrame              *mObjectFrame;
-  nsIContent                 *mContent; // WEAK, content owns us
+  nsObjectFrame              *mObjectFrame; // owns nsPluginInstanceOwner
+  nsCOMPtr<nsIContent>        mContent;
   nsCString                   mDocumentBase;
   char                       *mTagText;
-  bool                        mWidgetCreationComplete;
   nsCOMPtr<nsIWidget>         mWidget;
   nsRefPtr<nsPluginHost>      mPluginHost;
   
 #ifdef XP_MACOSX
   NP_CGContext                              mCGPluginPortCopy;
-  int32_t                                   mInCGPaintLevel;
-  mozilla::RefPtr<MacIOSurface>             mIOSurface;
-  mozilla::RefPtr<nsCARenderer>             mCARenderer;
+#ifndef NP_NO_QUICKDRAW
+  NP_Port                                   mQDPluginPortCopy;
+#endif
+  PRInt32                                   mInCGPaintLevel;
+  nsRefPtr<nsIOSurface>                     mIOSurface;
+  nsCARenderer                              mCARenderer;
   CGColorSpaceRef                           mColorProfile;
   static nsCOMPtr<nsITimer>                *sCATimer;
   static nsTArray<nsPluginInstanceOwner*>  *sCARefreshListeners;
-  bool                                      mSentInitialTopLevelWindowEvent;
+  PRBool                                    mSentInitialTopLevelWindowEvent;
 #endif
-
+  // We need to know if async hide window is required since we
+  // can not check UseAsyncRendering when executing StopPlugin
+  PRBool                                    mAsyncHidePluginWindow;
+  
   // Initially, the event loop nesting level we were created on, it's updated
   // if we detect the appshell is on a lower level as long as we're not stopped.
   // We delay DoStopPlugin() until the appshell reaches this level or lower.
-  uint32_t                    mLastEventloopNestingLevel;
-  bool                        mContentFocused;
-  bool                        mWidgetVisible;    // used on Mac to store our widget's visible state
+  PRUint32                    mLastEventloopNestingLevel;
+  PRPackedBool                mContentFocused;
+  PRPackedBool                mWidgetVisible;    // used on Mac to store our widget's visible state
 #ifdef XP_MACOSX
-  bool                        mPluginPortChanged;
+  PRPackedBool                mPluginPortChanged;
 #endif
 #ifdef MOZ_X11
   // Used with windowless plugins only, initialized in CreateWidget().
-  bool                        mFlash10Quirks;
+  PRPackedBool                mFlash10Quirks;
 #endif
-  bool                        mPluginWindowVisible;
-  bool                        mPluginDocumentActiveState;
-
-  uint16_t          mNumCachedAttrs;
-  uint16_t          mNumCachedParams;
+  PRPackedBool                mPluginWindowVisible;
+  
+  // If true, destroy the widget on destruction. Used when plugin stop
+  // is being delayed to a safer point in time.
+  PRPackedBool                mDestroyWidget;
+  PRUint16          mNumCachedAttrs;
+  PRUint16          mNumCachedParams;
   char              **mCachedAttrParamNames;
   char              **mCachedAttrParamValues;
   
 #ifdef XP_MACOSX
   NPEventModel mEventModel;
-  // This is a hack! UseAsyncRendering() can incorrectly return false
-  // when we don't have an object frame (possible as of bug 90268).
-  // We hack around this by always returning true if we've ever
-  // returned true.
-  bool mUseAsyncRendering;
 #endif
   
   // pointer to wrapper for nsIDOMContextMenuListener
@@ -351,10 +373,10 @@ private:
   
 #ifdef MOZ_X11
   class Renderer
-#if defined(MOZ_WIDGET_QT)
-  : public gfxQtNativeRenderer
-#else
+#if defined(MOZ_WIDGET_GTK2)
   : public gfxXlibNativeRenderer
+#elif defined(MOZ_WIDGET_QT)
+  : public gfxQtNativeRenderer
 #endif
   {
   public:
@@ -364,7 +386,7 @@ private:
     mPluginSize(aPluginSize), mDirtyRect(aDirtyRect)
     {}
     virtual nsresult DrawWithXlib(gfxXlibSurface* surface, nsIntPoint offset, 
-                                  nsIntRect* clipRects, uint32_t numClipRects);
+                                  nsIntRect* clipRects, PRUint32 numClipRects);
   private:
     NPWindow* mWindow;
     nsPluginInstanceOwner* mInstanceOwner;
@@ -373,7 +395,7 @@ private:
   };
 #endif
 
-  bool mWaitingForPaint;
+  PRPackedBool mWaitingForPaint;
 };
 
 #endif // nsPluginInstanceOwner_h_

@@ -1,37 +1,68 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Implementation of DOM Core's nsIDOMDocumentFragment.
  */
 
+#include "nsISupports.h"
+#include "nsIContent.h"
 #include "nsIDOMDocumentFragment.h"
-#include "mozilla/dom/FragmentOrElement.h"
-#include "nsGenericElement.h" // for DOMCI_NODE_DATA
+#include "nsGenericElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsINodeInfo.h"
 #include "nsNodeInfoManager.h"
-#include "nsError.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocument.h"
+#include "nsIDOMAttr.h"
+#include "nsDOMError.h"
 #include "nsGkAtoms.h"
 #include "nsDOMString.h"
-#include "nsContentUtils.h"
+#include "nsIDOMUserDataHandler.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
-
-class nsDocumentFragment : public FragmentOrElement,
+class nsDocumentFragment : public nsGenericElement,
                            public nsIDOMDocumentFragment
 {
 public:
-  using FragmentOrElement::GetFirstChild;
-
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
   // interface nsIDOMNode
-  NS_FORWARD_NSIDOMNODE(FragmentOrElement::)
+  NS_FORWARD_NSIDOMNODE(nsGenericElement::)
 
   // interface nsIDOMDocumentFragment
   // NS_DECL_NSIDOCUMENTFRAGMENT  Empty
@@ -42,78 +73,38 @@ public:
   }
 
   // nsIContent
-  virtual already_AddRefed<nsINodeInfo>
-    GetExistingAttrNameFromQName(const nsAString& aStr) const
+  nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                   const nsAString& aValue, PRBool aNotify)
   {
-    return nullptr;
+    return SetAttr(aNameSpaceID, aName, nsnull, aValue, aNotify);
   }
-
-  nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                   const nsAString& aValue, bool aNotify)
-  {
-    return SetAttr(aNameSpaceID, aName, nullptr, aValue, aNotify);
-  }
-  virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+  virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify)
+                           PRBool aNotify)
   {
     return NS_OK;
   }
-  virtual bool GetAttr(int32_t aNameSpaceID, nsIAtom* aName, 
+  virtual PRBool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, 
                          nsAString& aResult) const
   {
-    return false;
+    return PR_FALSE;
   }
-  virtual bool HasAttr(int32_t aNameSpaceID, nsIAtom* aName) const
-  {
-    return false;
-  }
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute, 
-                             bool aNotify)
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute, 
+                             PRBool aNotify)
   {
     return NS_OK;
   }
-  virtual const nsAttrName* GetAttrNameAt(uint32_t aIndex) const
+  virtual const nsAttrName* GetAttrNameAt(PRUint32 aIndex) const
   {
-    return nullptr;
-  }
-  virtual uint32_t GetAttrCount() const
-  {
-    return 0;
+    return nsnull;
   }
 
-  virtual bool IsNodeOfType(uint32_t aFlags) const;
+  virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
 
   virtual nsXPCClassInfo* GetClassInfo();
 
-  virtual nsIDOMNode* AsDOMNode() { return this; }
-
   virtual nsIAtom* DoGetID() const;
   virtual nsIAtom *GetIDAttributeName() const;
-
-  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                              nsIContent* aBindingParent,
-                              bool aCompileEventHandlers)
-  {
-    NS_ASSERTION(false, "Trying to bind a fragment to a tree");
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
-
-  virtual void UnbindFromTree(bool aDeep, bool aNullParent)
-  {
-    NS_ASSERTION(false, "Trying to unbind a fragment from a tree");
-    return;
-  }
-
-  virtual Element* GetNameSpaceElement()
-  {
-    return nullptr;
-  }
-
-#ifdef DEBUG
-  virtual void List(FILE* out, int32_t aIndent) const;
-  virtual void DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const;
-#endif
 
 protected:
   nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
@@ -127,7 +118,7 @@ NS_NewDocumentFragment(nsIDOMDocumentFragment** aInstancePtrResult,
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = aNodeInfoManager->GetNodeInfo(nsGkAtoms::documentFragmentNodeName,
-                                           nullptr, kNameSpaceID_None,
+                                           nsnull, kNameSpaceID_None,
                                            nsIDOMNode::DOCUMENT_FRAGMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
@@ -142,17 +133,13 @@ NS_NewDocumentFragment(nsIDOMDocumentFragment** aInstancePtrResult,
 }
 
 nsDocumentFragment::nsDocumentFragment(already_AddRefed<nsINodeInfo> aNodeInfo)
-  : FragmentOrElement(aNodeInfo)
+  : nsGenericElement(aNodeInfo)
 {
-  NS_ABORT_IF_FALSE(mNodeInfo->NodeType() ==
-                    nsIDOMNode::DOCUMENT_FRAGMENT_NODE &&
-                    mNodeInfo->Equals(nsGkAtoms::documentFragmentNodeName,
-                                      kNameSpaceID_None),
-                    "Bad NodeType in aNodeInfo");
+  ClearIsElement();
 }
 
-bool
-nsDocumentFragment::IsNodeOfType(uint32_t aFlags) const
+PRBool
+nsDocumentFragment::IsNodeOfType(PRUint32 aFlags) const
 {
   return !(aFlags & ~(eCONTENT | eDOCUMENT_FRAGMENT));
 }
@@ -160,102 +147,26 @@ nsDocumentFragment::IsNodeOfType(uint32_t aFlags) const
 nsIAtom*
 nsDocumentFragment::DoGetID() const
 {
-  return nullptr;  
+  return nsnull;  
 }
 
 nsIAtom*
 nsDocumentFragment::GetIDAttributeName() const
 {
-  return nullptr;
+  return nsnull;
 }
-
-#ifdef DEBUG
-void
-nsDocumentFragment::List(FILE* out, int32_t aIndent) const
-{
-  int32_t indent;
-  for (indent = aIndent; --indent >= 0; ) {
-    fputs("  ", out);
-  }
-
-  fprintf(out, "DocumentFragment@%p", (void *)this);
-
-  fprintf(out, " flags=[%08x]", static_cast<unsigned int>(GetFlags()));
-  fprintf(out, " refcount=%d<", mRefCnt.get());
-
-  nsIContent* child = GetFirstChild();
-  if (child) {
-    fputs("\n", out);
-
-    for (; child; child = child->GetNextSibling()) {
-      child->List(out, aIndent + 1);
-    }
-
-    for (indent = aIndent; --indent >= 0; ) {
-      fputs("  ", out);
-    }
-  }
-
-  fputs(">\n", out);
-}
-
-void
-nsDocumentFragment::DumpContent(FILE* out, int32_t aIndent,
-                                bool aDumpAll) const
-{
-  int32_t indent;
-  for (indent = aIndent; --indent >= 0; ) {
-    fputs("  ", out);
-  }
-
-  fputs("<DocumentFragment>", out);
-
-  if(aIndent) {
-    fputs("\n", out);
-  }
-
-  for (nsIContent* child = GetFirstChild();
-       child;
-       child = child->GetNextSibling()) {
-    int32_t indent = aIndent ? aIndent + 1 : 0;
-    child->DumpContent(out, indent, aDumpAll);
-  }
-  for (indent = aIndent; --indent >= 0; ) {
-    fputs("  ", out);
-  }
-  fputs("</DocumentFragment>", out);
-
-  if(aIndent) {
-    fputs("\n", out);
-  }
-}
-#endif
-
 
 DOMCI_NODE_DATA(DocumentFragment, nsDocumentFragment)
 
 // QueryInterface implementation for nsDocumentFragment
-NS_INTERFACE_MAP_BEGIN(nsDocumentFragment)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDocumentFragment)
-  NS_INTERFACE_MAP_ENTRY(nsIContent)
-  NS_INTERFACE_MAP_ENTRY(nsINode)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMDocumentFragment)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
-                                 new nsNodeSupportsWeakRefTearoff(this))
-  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMNodeSelector,
-                                 new nsNodeSelectorTearoff(this))
-  // nsNodeSH::PreCreate() depends on the identity pointer being the
-  // same as nsINode (which nsIContent inherits), so if you change the
-  // below line, make sure nsNodeSH::PreCreate() still does the right
-  // thing!
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIContent)
+NS_INTERFACE_TABLE_HEAD(nsDocumentFragment)
+  NS_NODE_INTERFACE_TABLE2(nsDocumentFragment, nsIDOMNode,
+                           nsIDOMDocumentFragment)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DocumentFragment)
-NS_INTERFACE_MAP_END
+NS_INTERFACE_MAP_END_INHERITING(nsGenericElement)
 
-NS_IMPL_ADDREF_INHERITED(nsDocumentFragment, FragmentOrElement)
-NS_IMPL_RELEASE_INHERITED(nsDocumentFragment, FragmentOrElement)
+
+NS_IMPL_ADDREF_INHERITED(nsDocumentFragment, nsGenericElement)
+NS_IMPL_RELEASE_INHERITED(nsDocumentFragment, nsGenericElement)
 
 NS_IMPL_ELEMENT_CLONE(nsDocumentFragment)

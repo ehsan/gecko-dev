@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdio.h>
 #include "nsHTMLEditorLog.h"
@@ -53,7 +86,7 @@ NS_IMPL_RELEASE(nsEditorTxnLog)
 NS_IMPL_QUERY_INTERFACE1(nsEditorTxnLog, nsITransactionListener)
 
 NS_IMETHODIMP
-nsEditorTxnLog::WillDo(nsITransactionManager *aTxMgr, nsITransaction *aTransaction, bool *aInterrupt)
+nsEditorTxnLog::WillDo(nsITransactionManager *aTxMgr, nsITransaction *aTransaction, PRBool *aInterrupt)
 {
   LOCK_LOG(this);
 
@@ -87,7 +120,7 @@ nsEditorTxnLog::DidDo(nsITransactionManager *aTxMgr, nsITransaction *aTransactio
 }
 
 NS_IMETHODIMP
-nsEditorTxnLog::WillUndo(nsITransactionManager *aTxMgr, nsITransaction *aTransaction, bool *aInterrupt)
+nsEditorTxnLog::WillUndo(nsITransactionManager *aTxMgr, nsITransaction *aTransaction, PRBool *aInterrupt)
 {
   LOCK_LOG(this);
 
@@ -139,7 +172,7 @@ nsEditorTxnLog::DidUndo(nsITransactionManager *aTxMgr, nsITransaction *aTransact
 }
 
 NS_IMETHODIMP
-nsEditorTxnLog::WillRedo(nsITransactionManager *aTxMgr, nsITransaction *aTransaction, bool *aInterrupt)
+nsEditorTxnLog::WillRedo(nsITransactionManager *aTxMgr, nsITransaction *aTransaction, PRBool *aInterrupt)
 {
   LOCK_LOG(this);
 
@@ -191,7 +224,7 @@ nsEditorTxnLog::DidRedo(nsITransactionManager *aTxMgr, nsITransaction *aTransact
 }
 
 NS_IMETHODIMP
-nsEditorTxnLog::WillBeginBatch(nsITransactionManager *aTxMgr, bool *aInterrupt)
+nsEditorTxnLog::WillBeginBatch(nsITransactionManager *aTxMgr, PRBool *aInterrupt)
 {
   LOCK_LOG(this);
 
@@ -225,7 +258,7 @@ nsEditorTxnLog::DidBeginBatch(nsITransactionManager *aTxMgr, nsresult aResult)
 }
 
 NS_IMETHODIMP
-nsEditorTxnLog::WillEndBatch(nsITransactionManager *aTxMgr, bool *aInterrupt)
+nsEditorTxnLog::WillEndBatch(nsITransactionManager *aTxMgr, PRBool *aInterrupt)
 {
   LOCK_LOG(this);
 
@@ -259,7 +292,7 @@ nsEditorTxnLog::DidEndBatch(nsITransactionManager *aTxMgr, nsresult aResult)
 }
 
 NS_IMETHODIMP
-nsEditorTxnLog::WillMerge(nsITransactionManager *aTxMgr, nsITransaction *aTopTransaction, nsITransaction *aTransaction, bool *aInterrupt)
+nsEditorTxnLog::WillMerge(nsITransactionManager *aTxMgr, nsITransaction *aTopTransaction, nsITransaction *aTransaction, PRBool *aInterrupt)
 {
   LOCK_LOG(this);
 
@@ -277,7 +310,7 @@ nsEditorTxnLog::WillMerge(nsITransactionManager *aTxMgr, nsITransaction *aTopTra
 }
 
 NS_IMETHODIMP
-nsEditorTxnLog::DidMerge(nsITransactionManager *aTxMgr, nsITransaction *aTopTransaction, nsITransaction *aTransaction, bool aDidMerge, nsresult aMergeResult)
+nsEditorTxnLog::DidMerge(nsITransactionManager *aTxMgr, nsITransaction *aTopTransaction, nsITransaction *aTransaction, PRBool aDidMerge, nsresult aMergeResult)
 {
   LOCK_LOG(this);
 
@@ -314,9 +347,9 @@ nsEditorTxnLog::WriteTransaction(nsITransaction *aTransaction)
 }
 
 nsresult
-nsEditorTxnLog::PrintIndent(int32_t aIndentLevel)
+nsEditorTxnLog::PrintIndent(PRInt32 aIndentLevel)
 {
-  int32_t i;
+  PRInt32 i;
 
   Write("    // ");
 
@@ -335,7 +368,7 @@ nsEditorTxnLog::Write(const char *aBuffer)
     mEditorLog->Write(aBuffer);
   else
   {
-    int32_t len = strlen(aBuffer);
+    PRInt32 len = strlen(aBuffer);
     if (len > 0)
       fwrite(aBuffer, 1, len, stdout);
   }
@@ -344,7 +377,7 @@ nsEditorTxnLog::Write(const char *aBuffer)
 }
 
 nsresult
-nsEditorTxnLog::WriteInt(int32_t aInt)
+nsEditorTxnLog::WriteInt(PRInt32 aInt)
 {
   if (mEditorLog)
     mEditorLog->WriteInt(aInt);

@@ -1,10 +1,43 @@
-# -*- Makefile -*-
 #
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Robert Ginda <rginda@netscape.com>
+#   John Taylor <jtaylor@netscape.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either of the GNU General Public License Version 2 or later (the "GPL"),
+# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
-DEPTH		= @DEPTH@
+DEPTH		= ..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
@@ -15,18 +48,23 @@ include $(DEPTH)/config/autoconf.mk
 # headers, so that we can use it to set up the wrapped system headers.
 VISIBILITY_FLAGS =
 
-# STDCXX_COMPAT is not needed here, and will actually fail because
-# libstdc++-compat is not built yet.
-STDCXX_COMPAT =
+HOST_PROGRAM	= nsinstall$(HOST_BIN_SUFFIX)
 
-ifneq (WINNT,$(HOST_OS_ARCH))
-HOST_PROGRAM	= nsinstall_real$(HOST_BIN_SUFFIX)
+ifeq (WINNT,$(HOST_OS_ARCH))
+HOST_CSRCS	= nsinstall_win.c
+else
 HOST_CSRCS	= nsinstall.c pathsub.c
 endif
 
+PLSRCS		= nfspwd.pl
+
+TARGETS		= $(HOST_PROGRAM) $(PLSRCS:.pl=) $(SIMPLE_PROGRAMS)
+
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
-export:: elf-dynstr-gc
+TARGETS		+= elf-dynstr-gc
+# Compiling the above will create dependency files.
+NEED_MDDEPDIR	= 1
 endif
 endif
 
@@ -40,30 +78,16 @@ ifdef GNU_CC
 MODULE_OPTIMIZE_FLAGS = -O3
 endif
 
+ifndef COMPILER_DEPEND
+ifndef MOZ_NATIVE_MAKEDEPEND
+DIRS		+= mkdepend
+endif
+endif
+
 include $(topsrcdir)/config/config.mk
 
 # Do not install util programs
 NO_INSTALL=1
-
-ifneq (WINNT,$(HOST_OS_ARCH))
-# Ensure nsinstall is atomically created
-nsinstall$(HOST_BIN_SUFFIX): $(HOST_PROGRAM)
-	cp $^ $@.tmp
-	mv $@.tmp $@
-
-NSINSTALL_FILES := nsinstall$(HOST_BIN_SUFFIX)
-NSINSTALL_DEST := $(DIST)/bin
-NSINSTALL_TARGET := export
-INSTALL_TARGETS += NSINSTALL
-endif
-
-HEADERS_FILES = \
-	$(DEPTH)/mozilla-config.h \
-	$(srcdir)/nsStaticComponents.h \
-	$(NULL)
-HEADERS_DEST := $(DIST)/include
-HEADERS_TARGET := export
-INSTALL_TARGETS += HEADERS
 
 include $(topsrcdir)/config/rules.mk
 
@@ -73,8 +97,17 @@ ifeq ($(OS_CONFIG),SunOS4.1)
 NSPR_CFLAGS	+= -I$(srcdir)/../nsprpub/pr/include/md
 endif
 
-export::
+HEADERS = \
+	$(DEPTH)/mozilla-config.h \
+	$(srcdir)/nsStaticComponents.h \
+	$(NULL)
+
+export:: $(TARGETS) $(HEADERS)
+	$(INSTALL) $(IFLAGS1) $(HEADERS) $(DIST)/include
 	-$(RM) $(FINAL_LINK_COMPS) $(FINAL_LINK_LIBS) $(FINAL_LINK_COMP_NAMES)
+ifdef HOST_PROGRAM
+	$(INSTALL) $(HOST_PROGRAM) $(DIST)/bin
+endif
 
 # Generate a new buildid every time we "export" in config... that's only
 # supposed to be once per-build!
@@ -86,11 +119,8 @@ else
 endif
 
 ifdef WRAP_SYSTEM_INCLUDES
-export-preqs = \
-  $(call mkdir_deps,system_wrappers) \
-  $(NULL)
-
-export:: $(export-preqs)
+export::
+	if test ! -d system_wrappers; then mkdir system_wrappers; fi
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) \
 		-DMOZ_TREE_CAIRO=$(MOZ_TREE_CAIRO) \
 		-DMOZ_TREE_PIXMAN=$(MOZ_TREE_PIXMAN) \
@@ -139,12 +169,17 @@ GARBAGE += \
 
 ifndef CROSS_COMPILE
 ifdef USE_ELF_DYNSTR_GC
-elf-dynstr-gc: elf-dynstr-gc.c $(GLOBAL_DEPS) $(call mkdir_deps,$(MDDEPDIR))
-	$(CC) $(COMPILE_CFLAGS) $(GLIB_CFLAGS) -o $@ $< $(LDFLAGS) $(GLIB_LIBS)
+elf-dynstr-gc: elf-dynstr-gc.c $(GLOBAL_DEPS)
+	$(CC) $(COMPILE_CFLAGS) $(GLIB_CFLAGS) -o $@ $< $(LDFLAGS) $(GLIB_LIBS) 
 endif
 endif
 
 FORCE:
+
+ifdef MKDEPEND_DIR
+clean clobber realclean clobber_all::
+	cd $(MKDEPEND_DIR); $(MAKE) $@
+endif
 
 PYUNITS := \
   unit-Expression.py \
@@ -155,16 +190,9 @@ PYUNITS := \
   unit-buildlist.py \
   unit-expandlibs.py \
   unit-writemozinfo.py \
-  unit-mozunit.py \
   $(NULL)
 
-check-preqs = \
-  check-python-modules \
-  check-jar-mn \
-  check-makefiles \
-  $(NULL)
-
-check:: $(check-preqs)
+check:: check-python-modules check-jar-mn
 
 check-python-modules::
 	@$(EXIT_ON_ERROR) \
@@ -179,6 +207,3 @@ check-jar-mn::
 ifneq (,$(filter-out WINNT OS2,$(OS_ARCH)))
 	$(MAKE) -C tests/src-simple check-symlink
 endif
-
-check-makefiles:
-	$(MAKE) -C tests/makefiles/autodeps check

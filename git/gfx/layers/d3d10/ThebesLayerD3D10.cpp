@@ -1,13 +1,41 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bas Schouten <bschouten@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/layers/PLayers.h"
-
-/* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
 #include "ThebesLayerD3D10.h"
 #include "gfxPlatform.h"
 
@@ -21,11 +49,6 @@
 #include "gfxUtils.h"
 #include "ReadbackLayer.h"
 #include "ReadbackProcessor.h"
-
-#include "mozilla/Preferences.h"
-#include "mozilla/gfx/2D.h"
-
-using namespace mozilla::gfx;
 
 namespace mozilla {
 namespace layers {
@@ -102,13 +125,13 @@ ThebesLayerD3D10::RenderLayer()
   ID3D10EffectTechnique *technique;
   switch (mCurrentSurfaceMode) {
   case SURFACE_COMPONENT_ALPHA:
-    technique = SelectShader(SHADER_COMPONENT_ALPHA | LoadMaskTexture());
+    technique = effect()->GetTechniqueByName("RenderComponentAlphaLayer");
     break;
   case SURFACE_OPAQUE:
-    technique = SelectShader(SHADER_RGB | SHADER_PREMUL | LoadMaskTexture());
+    technique = effect()->GetTechniqueByName("RenderRGBLayerPremul");
     break;
   case SURFACE_SINGLE_CHANNEL_ALPHA:
-    technique = SelectShader(SHADER_RGBA | SHADER_PREMUL | LoadMaskTexture());
+    technique = effect()->GetTechniqueByName("RenderRGBALayerPremul");
     break;
   default:
     NS_ERROR("Unknown mode");
@@ -198,9 +221,9 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
   if (mTexture) {
     if (!mTextureRect.IsEqualInterior(newTextureRect)) {
       nsRefPtr<ID3D10Texture2D> oldTexture = mTexture;
-      mTexture = nullptr;
+      mTexture = nsnull;
       nsRefPtr<ID3D10Texture2D> oldTextureOnWhite = mTextureOnWhite;
-      mTextureOnWhite = nullptr;
+      mTextureOnWhite = nsnull;
 
       nsIntRegion retainRegion = mTextureRect;
       // Old visible region will become the region that is covered by both the
@@ -260,16 +283,10 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
                                  D3D10_CPU_ACCESS_READ);
 
       nsRefPtr<ID3D10Texture2D> readbackTexture;
-      HRESULT hr = device()->CreateTexture2D(&desc, NULL, getter_AddRefs(readbackTexture));
-      if (FAILED(hr)) {
-        LayerManagerD3D10::ReportFailure(NS_LITERAL_CSTRING("ThebesLayerD3D10::Validate(): Failed to create texture"),
-                                         hr);
-        return;
-      }
-
+      device()->CreateTexture2D(&desc, NULL, getter_AddRefs(readbackTexture));
       device()->CopyResource(readbackTexture, mTexture);
 
-      for (uint32_t i = 0; i < readbackUpdates.Length(); i++) {
+      for (PRUint32 i = 0; i < readbackUpdates.Length(); i++) {
         mD3DManager->readbackManager()->PostTask(readbackTexture,
                                                  &readbackUpdates[i],
                                                  gfxPoint(newTextureRect.x, newTextureRect.y));
@@ -283,7 +300,7 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
 void
 ThebesLayerD3D10::LayerManagerDestroyed()
 {
-  mD3DManager = nullptr;
+  mD3DManager = nsnull;
 }
 
 Layer*
@@ -304,99 +321,32 @@ ThebesLayerD3D10::VerifyContentType(SurfaceMode aMode)
 
       if (!mD2DSurface || mD2DSurface->CairoStatus()) {
         NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
-        mD2DSurface = nullptr;
+        mD2DSurface = nsnull;
         return;
       }
 
       mValidRegion.SetEmpty();
     }
-  } else if (mDrawTarget) {
-    SurfaceFormat format = aMode != SURFACE_SINGLE_CHANNEL_ALPHA ?
-      FORMAT_B8G8R8X8 : FORMAT_B8G8R8A8;
-
-    if (format != mDrawTarget->GetFormat()) {
-      mDrawTarget = Factory::CreateDrawTargetForD3D10Texture(mTexture, format);
-
-      if (!mDrawTarget) {
-        NS_WARNING("Failed to create drawtarget for ThebesLayerD3D10.");
-        return;
-      }
-
+        
+    if (aMode != SURFACE_COMPONENT_ALPHA && mTextureOnWhite) {
+      // If we've transitioned away from component alpha, we can delete those resources.
+      mD2DSurfaceOnWhite = nsnull;
+      mSRViewOnWhite = nsnull;
+      mTextureOnWhite = nsnull;
       mValidRegion.SetEmpty();
     }
-  }    
-
-  if (aMode != SURFACE_COMPONENT_ALPHA && mTextureOnWhite) {
-    // If we've transitioned away from component alpha, we can delete those resources.
-    mD2DSurfaceOnWhite = nullptr;
-    mSRViewOnWhite = nullptr;
-    mTextureOnWhite = nullptr;
-    mValidRegion.SetEmpty();
   }
 }
 
-void
-ThebesLayerD3D10::FillTexturesBlackWhite(const nsIntRegion& aRegion, const nsIntPoint& aOffset)
+static void
+FillSurface(gfxASurface* aSurface, const nsIntRegion& aRegion,
+            const nsIntPoint& aOffset, const gfxRGBA& aColor)
 {
-  if (mTexture && mTextureOnWhite) {
-    // It would be more optimal to draw the actual geometry, but more code
-    // and probably not worth the win here as this will often be a single
-    // rect.
-    nsRefPtr<ID3D10RenderTargetView> oldRT;
-    device()->OMGetRenderTargets(1, getter_AddRefs(oldRT), NULL);
-
-    nsRefPtr<ID3D10RenderTargetView> viewBlack;
-    nsRefPtr<ID3D10RenderTargetView> viewWhite;
-    device()->CreateRenderTargetView(mTexture, NULL, getter_AddRefs(viewBlack));
-    device()->CreateRenderTargetView(mTextureOnWhite, NULL, getter_AddRefs(viewWhite));
-
-    D3D10_RECT oldScissor;
-    UINT numRects = 1;
-    device()->RSGetScissorRects(&numRects, &oldScissor);
-
-    D3D10_TEXTURE2D_DESC desc;
-    mTexture->GetDesc(&desc);
-
-    D3D10_RECT scissor = { 0, 0, desc.Width, desc.Height };
-    device()->RSSetScissorRects(1, &scissor);
-
-    mD3DManager->SetupInputAssembler();
-    nsIntSize oldVP = mD3DManager->GetViewport();
-
-    mD3DManager->SetViewport(nsIntSize(desc.Width, desc.Height));
-
-    ID3D10RenderTargetView *views[2] = { viewBlack, viewWhite };
-    device()->OMSetRenderTargets(2, views, NULL);
-
-    gfx3DMatrix transform;
-    transform.Translate(gfxPoint3D(-aOffset.x, -aOffset.y, 0));
-    void* raw = &const_cast<gfx3DMatrix&>(transform)._11;
-    effect()->GetVariableByName("mLayerTransform")->SetRawValue(raw, 0, 64);
-
-    ID3D10EffectTechnique *technique =
-      effect()->GetTechniqueByName("PrepareAlphaExtractionTextures");
-
-    nsIntRegionRectIterator iter(aRegion);
-
-    const nsIntRect *iterRect;
-    while ((iterRect = iter.Next())) {
-      effect()->GetVariableByName("vLayerQuad")->AsVector()->SetFloatVector(
-        ShaderConstantRectD3D10(
-          (float)iterRect->x,
-          (float)iterRect->y,
-          (float)iterRect->width,
-          (float)iterRect->height)
-        );
-
-      technique->GetPassByIndex(0)->Apply(0);
-      device()->Draw(4, 0);
-    }
-
-    views[0] = oldRT;
-    device()->OMSetRenderTargets(1, views, NULL);
-    mD3DManager->SetViewport(oldVP);
-    device()->RSSetScissorRects(1, &oldScissor);
-  }
+  nsRefPtr<gfxContext> ctx = new gfxContext(aSurface);
+  ctx->Translate(-gfxPoint(aOffset.x, aOffset.y));
+  gfxUtils::PathFromRegion(ctx, aRegion);
+  ctx->SetColor(aColor);
+  ctx->Fill();
 }
 
 void
@@ -404,33 +354,26 @@ ThebesLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
 {
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
-  if (!mD2DSurface && !mDrawTarget) {
+  if (!mD2DSurface) {
     return;
   }
 
   nsRefPtr<gfxASurface> destinationSurface;
   
   if (aMode == SURFACE_COMPONENT_ALPHA) {
-    FillTexturesBlackWhite(aRegion, visibleRect.TopLeft());
-    if (!gfxPlatform::UseAzureContentDrawing()) {
-      gfxASurface* surfaces[2] = { mD2DSurface.get(), mD2DSurfaceOnWhite.get() };
-      destinationSurface = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
-      // Using this surface as a source will likely go horribly wrong, since
-      // only the onBlack surface will really be used, so alpha information will
-      // be incorrect.
-      destinationSurface->SetAllowUseAsSource(false);
-    }
+    FillSurface(mD2DSurface, aRegion, visibleRect.TopLeft(), gfxRGBA(0.0, 0.0, 0.0, 1.0));
+    FillSurface(mD2DSurfaceOnWhite, aRegion, visibleRect.TopLeft(), gfxRGBA(1.0, 1.0, 1.0, 1.0));
+    gfxASurface* surfaces[2] = { mD2DSurface.get(), mD2DSurfaceOnWhite.get() };
+    destinationSurface = new gfxTeeSurface(surfaces, NS_ARRAY_LENGTH(surfaces));
+    // Using this surface as a source will likely go horribly wrong, since
+    // only the onBlack surface will really be used, so alpha information will
+    // be incorrect.
+    destinationSurface->SetAllowUseAsSource(PR_FALSE);
   } else {
     destinationSurface = mD2DSurface;
   }
 
-  nsRefPtr<gfxContext> context;
-
-  if (mDrawTarget) {
-    context = new gfxContext(mDrawTarget);
-  } else {
-    context = new gfxContext(destinationSurface);
-  }
+  nsRefPtr<gfxContext> context = new gfxContext(destinationSurface);
 
   nsIntRegionRectIterator iter(aRegion);
   context->Translate(gfxPoint(-visibleRect.x, -visibleRect.y));
@@ -438,23 +381,16 @@ ThebesLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
   const nsIntRect *iterRect;
   while ((iterRect = iter.Next())) {
     context->Rectangle(gfxRect(iterRect->x, iterRect->y, iterRect->width, iterRect->height));      
-    if (mDrawTarget && aMode == SURFACE_SINGLE_CHANNEL_ALPHA) {
-      mDrawTarget->ClearRect(Rect(iterRect->x, iterRect->y, iterRect->width, iterRect->height));
-    }
   }
   context->Clip();
 
-  if (!mDrawTarget && aMode == SURFACE_SINGLE_CHANNEL_ALPHA) {
+  if (aMode == SURFACE_SINGLE_CHANNEL_ALPHA) {
     context->SetOperator(gfxContext::OPERATOR_CLEAR);
     context->Paint();
     context->SetOperator(gfxContext::OPERATOR_OVER);
   }
 
-  if (mD2DSurface) {
-    mD2DSurface->SetSubpixelAntialiasingEnabled(!(mContentFlags & CONTENT_COMPONENT_ALPHA));
-  } else if (mDrawTarget) {
-    mDrawTarget->SetPermitSubpixelAA(!(mContentFlags & CONTENT_COMPONENT_ALPHA));
-  }
+  mD2DSurface->SetSubpixelAntialiasingEnabled(!(mContentFlags & CONTENT_COMPONENT_ALPHA));
 
   LayerManagerD3D10::CallbackInfo cbInfo = mD3DManager->GetCallbackInfo();
   cbInfo.Callback(this, context, aRegion, nsIntRegion(), cbInfo.CallbackData);
@@ -470,6 +406,7 @@ ThebesLayerD3D10::CreateNewTextures(const gfxIntSize &aSize, SurfaceMode aMode)
 
   CD3D10_TEXTURE2D_DESC desc(DXGI_FORMAT_B8G8R8A8_UNORM, aSize.width, aSize.height, 1, 1);
   desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
+  desc.MiscFlags = D3D10_RESOURCE_MISC_GDI_COMPATIBLE;
   HRESULT hr;
 
   if (!mTexture) {
@@ -486,18 +423,15 @@ ThebesLayerD3D10::CreateNewTextures(const gfxIntSize &aSize, SurfaceMode aMode)
       NS_WARNING("Failed to create shader resource view for ThebesLayerD3D10.");
     }
 
-    if (!gfxPlatform::UseAzureContentDrawing()) {
-      mD2DSurface = new gfxD2DSurface(mTexture, aMode != SURFACE_SINGLE_CHANNEL_ALPHA ?
-                                                gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA);
+    mD2DSurface = new gfxD2DSurface(mTexture, aMode != SURFACE_SINGLE_CHANNEL_ALPHA ?
+      gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA);
 
-      if (!mD2DSurface || mD2DSurface->CairoStatus()) {
-        NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
-        mD2DSurface = NULL;
-        return;
-      }
-    } else {
-      mDrawTarget = nullptr;
+    if (!mD2DSurface || mD2DSurface->CairoStatus()) {
+      NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
+      mD2DSurface = nsnull;
+      return;
     }
+
   }
 
   if (aMode == SURFACE_COMPONENT_ALPHA && !mTextureOnWhite) {
@@ -514,30 +448,11 @@ ThebesLayerD3D10::CreateNewTextures(const gfxIntSize &aSize, SurfaceMode aMode)
       NS_WARNING("Failed to create shader resource view for ThebesLayerD3D10.");
     }
 
-    if (!gfxPlatform::UseAzureContentDrawing()) {
-      mD2DSurfaceOnWhite = new gfxD2DSurface(mTextureOnWhite, gfxASurface::CONTENT_COLOR);
+    mD2DSurfaceOnWhite = new gfxD2DSurface(mTextureOnWhite, gfxASurface::CONTENT_COLOR);
 
-      if (!mD2DSurfaceOnWhite || mD2DSurfaceOnWhite->CairoStatus()) {
-        NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
-        mD2DSurfaceOnWhite = nullptr;
-        return;
-      }
-    } else {
-      mDrawTarget = nullptr;
-    }
-  }
-
-  if (gfxPlatform::UseAzureContentDrawing() && !mDrawTarget) {
-    if (aMode == SURFACE_COMPONENT_ALPHA) {
-      mDrawTarget = Factory::CreateDualDrawTargetForD3D10Textures(mTexture, mTextureOnWhite, FORMAT_B8G8R8X8);
-    } else {
-      mDrawTarget = Factory::CreateDrawTargetForD3D10Texture(mTexture, aMode != SURFACE_SINGLE_CHANNEL_ALPHA ?
-        FORMAT_B8G8R8X8 : FORMAT_B8G8R8A8);
-    }
-
-    if (!mDrawTarget) {
-      NS_WARNING("Failed to create DrawTarget for ThebesLayerD3D10.");
-      mDrawTarget = nullptr;
+    if (!mD2DSurfaceOnWhite || mD2DSurfaceOnWhite->CairoStatus()) {
+      NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
+      mD2DSurfaceOnWhite = nsnull;
       return;
     }
   }
@@ -555,9 +470,17 @@ ShadowThebesLayerD3D10::~ShadowThebesLayerD3D10()
 }
 
 void
+ShadowThebesLayerD3D10::SetFrontBuffer(const OptionalThebesBuffer& aNewFront,
+                                       const nsIntRegion& aValidRegion)
+{
+  NS_ABORT_IF_FALSE(OptionalThebesBuffer::Tnull_t == aNewFront.type(),
+                    "Expected dummy front buffer initially");
+}
+
+void
 ShadowThebesLayerD3D10::Swap(
   const ThebesBuffer& aNewFront, const nsIntRegion& aUpdatedRegion,
-  OptionalThebesBuffer* aNewBack, nsIntRegion* aNewBackValidRegion,
+  ThebesBuffer* aNewBack, nsIntRegion* aNewBackValidRegion,
   OptionalThebesBuffer* aReadOnlyFront, nsIntRegion* aFrontUpdatedRegion)
 {
   nsRefPtr<ID3D10Texture2D> newBackBuffer = mTexture;
@@ -567,7 +490,7 @@ ShadowThebesLayerD3D10::Swap(
 
   // The content process tracks back/front buffers on its own, so
   // the newBack is in essence unused.
-  *aNewBack = aNewFront;
+  aNewBack->buffer() = aNewFront.buffer();
 
   // The content process doesn't need to read back from the front
   // buffer (yet).
@@ -604,7 +527,8 @@ ShadowThebesLayerD3D10::RenderLayer()
 
   SetEffectTransformAndOpacity();
 
-  ID3D10EffectTechnique *technique = SelectShader(SHADER_RGB | SHADER_PREMUL | LoadMaskTexture());
+  ID3D10EffectTechnique *technique =
+      effect()->GetTechniqueByName("RenderRGBLayerPremul");
 
   effect()->GetVariableByName("tRGB")->AsShaderResource()->SetResource(srView);
 

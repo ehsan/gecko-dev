@@ -7,6 +7,7 @@
 <window title="Radio Buttons" width="500" height="600"
         onload="setTimeout(test_radio, 0);"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>  
   <script type="application/javascript" src="xul_selectcontrol.js"/>
@@ -41,8 +42,7 @@ function test_radio()
   window.blur();
 
   var accessKeyDetails = (navigator.platform.indexOf("Mac") >= 0) ?
-                         { altKey : true, ctrlKey : true } :
-                         { altKey : true, shiftKey: true };
+                         { ctrlKey : true } : { altKey : true, shiftKey: true };
   synthesizeKey("t", accessKeyDetails);  
 
   var radiogroup = $("radiogroup-initwithselected");

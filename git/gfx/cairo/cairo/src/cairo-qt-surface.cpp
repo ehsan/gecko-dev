@@ -56,7 +56,8 @@
 #include <QtGui/QPixmap>
 #include <QtGui/QBrush>
 #include <QtGui/QPen>
-#include <QWidget>
+#include <QtGui/QWidget>
+#include <QtGui/QX11Info>
 #include <QtCore/QVarLengthArray>
 
 #include <sys/time.h>

@@ -1,36 +1,68 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla XPCOM.
+ *
+ * The Initial Developer of the Original Code is
+ * Benjamin Smedberg <benjamin@smedbergs.us>.
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsVersionComparator.h"
 
 #include <stdlib.h>
 #include <string.h>
-#include <mozilla/StandardInteger.h>
-#if defined(XP_WIN) && !defined(UPDATER_NO_STRING_GLUE_STL)
+#ifdef XP_WIN
 #include <wchar.h>
 #include "nsStringGlue.h"
 #endif
 
 struct VersionPart {
-  int32_t     numA;
+  PRInt32     numA;
 
   const char *strB;    // NOT null-terminated, can be a null pointer
-  uint32_t    strBlen;
+  PRUint32    strBlen;
 
-  int32_t     numC;
+  PRInt32     numC;
 
   char       *extraD;  // null-terminated
 };
 
 #ifdef XP_WIN
 struct VersionPartW {
-  int32_t     numA;
+  PRInt32     numA;
 
   const PRUnichar *strB;    // NOT null-terminated, can be a null pointer
-  uint32_t    strBlen;
+  PRUint32    strBlen;
 
-  int32_t     numC;
+  PRInt32     numC;
 
   PRUnichar       *extraD;  // null-terminated
 
@@ -48,10 +80,10 @@ ParseVP(char *part, VersionPart &result)
   char *dot;
 
   result.numA = 0;
-  result.strB = nullptr;
+  result.strB = nsnull;
   result.strBlen = 0;
   result.numC = 0;
-  result.extraD = nullptr;
+  result.extraD = nsnull;
 
   if (!part)
     return part;
@@ -61,7 +93,7 @@ ParseVP(char *part, VersionPart &result)
     *dot = '\0';
 
   if (part[0] == '*' && part[1] == '\0') {
-    result.numA = INT32_MAX;
+    result.numA = PR_INT32_MAX;
     result.strB = "";
   }
   else {
@@ -69,7 +101,7 @@ ParseVP(char *part, VersionPart &result)
   }
 
   if (!*result.strB) {
-    result.strB = nullptr;
+    result.strB = nsnull;
     result.strBlen = 0;
   }
   else {
@@ -90,7 +122,7 @@ ParseVP(char *part, VersionPart &result)
 
 	result.numC = strtol(numstart, &result.extraD, 10);
 	if (!*result.extraD)
-	  result.extraD = nullptr;
+	  result.extraD = nsnull;
       }
     }
   }
@@ -99,7 +131,7 @@ ParseVP(char *part, VersionPart &result)
     ++dot;
 
     if (!*dot)
-      dot = nullptr;
+      dot = nsnull;
   }
 
   return dot;
@@ -119,10 +151,10 @@ ParseVP(PRUnichar *part, VersionPartW &result)
   PRUnichar *dot;
 
   result.numA = 0;
-  result.strB = nullptr;
+  result.strB = nsnull;
   result.strBlen = 0;
   result.numC = 0;
-  result.extraD = nullptr;
+  result.extraD = nsnull;
 
   if (!part)
     return part;
@@ -140,7 +172,7 @@ ParseVP(PRUnichar *part, VersionPartW &result)
   }
 
   if (!*result.strB) {
-    result.strB = nullptr;
+    result.strB = nsnull;
     result.strBlen = 0;
   }
   else {
@@ -161,7 +193,7 @@ ParseVP(PRUnichar *part, VersionPartW &result)
 
 	result.numC = wcstol(numstart, &result.extraD, 10);
 	if (!*result.extraD)
-	  result.extraD = nullptr;
+	  result.extraD = nsnull;
       }
     }
   }
@@ -170,7 +202,7 @@ ParseVP(PRUnichar *part, VersionPartW &result)
     ++dot;
 
     if (!*dot)
-      dot = nullptr;
+      dot = nsnull;
   }
 
   return dot;
@@ -178,7 +210,7 @@ ParseVP(PRUnichar *part, VersionPartW &result)
 #endif
 
 // compare two null-terminated strings, which may be null pointers
-static int32_t
+static PRInt32
 ns_strcmp(const char *str1, const char *str2)
 {
   // any string is *before* no string
@@ -192,8 +224,8 @@ ns_strcmp(const char *str1, const char *str2)
 }
 
 // compare two length-specified string, which may be null pointers
-static int32_t
-ns_strnncmp(const char *str1, uint32_t len1, const char *str2, uint32_t len2)
+static PRInt32
+ns_strnncmp(const char *str1, PRUint32 len1, const char *str2, PRUint32 len2)
 {
   // any string is *before* no string
   if (!str1)
@@ -216,9 +248,9 @@ ns_strnncmp(const char *str1, uint32_t len1, const char *str2, uint32_t len2)
   return 1;
 }
 
-// compare two int32_t
-static int32_t
-ns_cmp(int32_t n1, int32_t n2)
+// compare two PRInt32
+static PRInt32
+ns_cmp(PRInt32 n1, PRInt32 n2)
 {
   if (n1 < n2)
     return -1;
@@ -229,10 +261,10 @@ ns_cmp(int32_t n1, int32_t n2)
 /**
  * Compares two VersionParts
  */
-static int32_t
+static PRInt32
 CompareVP(VersionPart &v1, VersionPart &v2)
 {
-  int32_t r = ns_cmp(v1.numA, v2.numA);
+  PRInt32 r = ns_cmp(v1.numA, v2.numA);
   if (r)
     return r;
 
@@ -251,10 +283,10 @@ CompareVP(VersionPart &v1, VersionPart &v2)
  * Compares two VersionParts
  */
 #ifdef XP_WIN
-static int32_t
+static PRInt32
 CompareVP(VersionPartW &v1, VersionPartW &v2)
 {
-  int32_t r = ns_cmp(v1.numA, v2.numA);
+  PRInt32 r = ns_cmp(v1.numA, v2.numA);
   if (r)
     return r;
 
@@ -274,13 +306,10 @@ CompareVP(VersionPartW &v1, VersionPartW &v2)
 
   return wcscmp(v1.extraD, v2.extraD);
 }
-#endif
 
-namespace mozilla {
 
-#ifdef XP_WIN
-int32_t
-CompareVersions(const PRUnichar *A, const PRUnichar *B)
+PRInt32
+NS_CompareVersions(const PRUnichar *A, const PRUnichar *B)
 {
   PRUnichar *A2 = wcsdup(A);
   if (!A2)
@@ -292,7 +321,7 @@ CompareVersions(const PRUnichar *A, const PRUnichar *B)
     return 1;
   }
 
-  int32_t result;
+  PRInt32 result;
   PRUnichar *a = A2, *b = B2;
 
   do {
@@ -314,8 +343,8 @@ CompareVersions(const PRUnichar *A, const PRUnichar *B)
 }
 #endif
 
-int32_t
-CompareVersions(const char *A, const char *B)
+PRInt32
+NS_CompareVersions(const char *A, const char *B)
 {
   char *A2 = strdup(A);
   if (!A2)
@@ -327,7 +356,7 @@ CompareVersions(const char *A, const char *B)
     return 1;
   }
 
-  int32_t result;
+  PRInt32 result;
   char *a = A2, *b = B2;
 
   do {
@@ -347,6 +376,4 @@ CompareVersions(const char *A, const char *B)
 
   return result;
 }
-
-} // namespace mozilla
 

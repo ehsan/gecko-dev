@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsBaseChannel_h__
 #define nsBaseChannel_h__
@@ -79,7 +111,7 @@ private:
   // That case will be treated as a redirect to the new channel.  By default
   // *channel will be set to null by the caller, so callees who don't want to
   // return one an just not touch it.
-  virtual nsresult OpenContentStream(bool async, nsIInputStream **stream,
+  virtual nsresult OpenContentStream(PRBool async, nsIInputStream **stream,
                                      nsIChannel** channel) = 0;
 
   // The basechannel calls this method from its OnTransportStatus method to
@@ -90,8 +122,8 @@ private:
   // to pass to the OnStatus method.  By default, OnStatus messages are
   // suppressed.  The status parameter passed to this method is the status value
   // from the OnTransportStatus method.
-  virtual bool GetStatusArg(nsresult status, nsString &statusArg) {
-    return false;
+  virtual PRBool GetStatusArg(nsresult status, nsString &statusArg) {
+    return PR_FALSE;
   }
 
   // Called when the callbacks available to this channel may have changed.
@@ -109,14 +141,14 @@ public:
   // redirect could not be performed (no channel was opened; this channel
   // wasn't canceled.)  The redirectFlags parameter consists of the flag values
   // defined on nsIChannelEventSink.
-  nsresult Redirect(nsIChannel *newChannel, uint32_t redirectFlags,
-                    bool openNewChannel);
+  nsresult Redirect(nsIChannel *newChannel, PRUint32 redirectFlags,
+                    PRBool openNewChannel);
 
   // Tests whether a type hint was set. Subclasses can use this to decide
   // whether to call SetContentType.
   // NOTE: This is only reliable if the subclass didn't itself call
   // SetContentType, and should also not be called after OpenContentStream.
-  bool HasContentTypeHint() const;
+  PRBool HasContentTypeHint() const;
 
   // The URI member should be initialized before the channel is used, and then
   // it should never be changed again until the channel is destroyed.
@@ -144,19 +176,19 @@ public:
   }
 
   // Test the load flags
-  bool HasLoadFlag(uint32_t flag) {
+  PRBool HasLoadFlag(PRUint32 flag) {
     return (mLoadFlags & flag) != 0;
   }
 
   // This is a short-cut to calling nsIRequest::IsPending()
-  bool IsPending() const {
+  PRBool IsPending() const {
     return mPump || mWaitingOnAsyncRedirect;
   }
 
   // Set the content length that should be reported for this channel.  Pass -1
   // to indicate an unspecified content length.
-  void SetContentLength64(int64_t len);
-  int64_t ContentLength64();
+  void SetContentLength64(PRInt64 len);
+  PRInt64 ContentLength64();
 
   // Helper function for querying the channel's notification callbacks.
   template <class T> void GetCallback(nsCOMPtr<T> &result) {
@@ -176,7 +208,7 @@ public:
   // base channel via nsITransportEventSink, then it may set this flag to cause
   // the base channel to synthesize progress events when it receives data from
   // the content stream.  By default, progress events are not synthesized.
-  void EnableSynthesizedProgressEvents(bool enable) {
+  void EnableSynthesizedProgressEvents(PRBool enable) {
     mSynthProgressEvents = enable;
   }
 
@@ -197,8 +229,8 @@ public:
   // stream, which is almost always the case for a "stream converter" ;-)
   // This function optionally returns a reference to the new converter.
   nsresult PushStreamConverter(const char *fromType, const char *toType,
-                               bool invalidatesContentLength = true,
-                               nsIStreamListener **converter = nullptr);
+                               PRBool invalidatesContentLength = PR_TRUE,
+                               nsIStreamListener **converter = nsnull);
 
 private:
   NS_DECL_NSISTREAMLISTENER
@@ -209,8 +241,8 @@ private:
 
   // Called when the callbacks available to this channel may have changed.
   void CallbacksChanged() {
-    mProgressSink = nullptr;
-    mQueriedProgressSink = false;
+    mProgressSink = nsnull;
+    mQueriedProgressSink = PR_FALSE;
     OnCallbacksChanged();
   }
 
@@ -245,25 +277,25 @@ private:
   friend class RedirectRunnable;
 
   nsRefPtr<nsInputStreamPump>         mPump;
+  nsCOMPtr<nsIInterfaceRequestor>     mCallbacks;
   nsCOMPtr<nsIProgressEventSink>      mProgressSink;
   nsCOMPtr<nsIURI>                    mOriginalURI;
+  nsCOMPtr<nsIURI>                    mURI;
   nsCOMPtr<nsISupports>               mOwner;
   nsCOMPtr<nsISupports>               mSecurityInfo;
   nsCOMPtr<nsIChannel>                mRedirectChannel;
   nsCString                           mContentType;
   nsCString                           mContentCharset;
-  uint32_t                            mLoadFlags;
-  bool                                mQueriedProgressSink;
-  bool                                mSynthProgressEvents;
-  bool                                mWasOpened;
-  bool                                mWaitingOnAsyncRedirect;
-  bool                                mOpenRedirectChannel;
-  uint32_t                            mRedirectFlags;
+  PRUint32                            mLoadFlags;
+  PRPackedBool                        mQueriedProgressSink;
+  PRPackedBool                        mSynthProgressEvents;
+  PRPackedBool                        mWasOpened;
+  PRPackedBool                        mWaitingOnAsyncRedirect;
+  PRPackedBool                        mOpenRedirectChannel;
+  PRUint32                            mRedirectFlags;
 
 protected:
-  nsCOMPtr<nsIURI>                    mURI;
   nsCOMPtr<nsILoadGroup>              mLoadGroup;
-  nsCOMPtr<nsIInterfaceRequestor>     mCallbacks;
   nsCOMPtr<nsIStreamListener>         mListener;
   nsCOMPtr<nsISupports>               mListenerContext;
   nsresult                            mStatus;

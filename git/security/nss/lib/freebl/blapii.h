@@ -42,11 +42,11 @@
 
 SEC_BEGIN_PROTOS
 
-#if defined(XP_UNIX) && !defined(NO_FORK_CHECK)
+#if defined(XP_UNIX) && !defined(NO_CHECK_FORK)
 
-extern PRBool bl_parentForkedAfterC_Initialize;
+extern PRBool parentForkedAfterC_Initialize;
 
-#define SKIP_AFTER_FORK(x) if (!bl_parentForkedAfterC_Initialize) x
+#define SKIP_AFTER_FORK(x) if (!parentForkedAfterC_Initialize) x
 
 #else
 

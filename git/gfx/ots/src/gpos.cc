@@ -15,8 +15,6 @@
 // GPOS - The Glyph Positioning Table
 // http://www.microsoft.com/typography/otspec/gpos.htm
 
-#define TABLE_NAME "GPOS"
-
 namespace {
 
 enum GPOS_TYPE {
@@ -71,10 +69,8 @@ const ots::LookupSubtableParser::TypeParser kGposTypeParsers[] = {
   {GPOS_TYPE_EXTENSION_POSITIONING, ParseExtensionPositioning}
 };
 
-// TODO(bashi): Port Chromium's arraysize macro and use it instead of sizeof().
 const ots::LookupSubtableParser kGposLookupSubtableParser = {
-  sizeof(kGposTypeParsers) / sizeof(kGposTypeParsers[0]),
-  GPOS_TYPE_EXTENSION_POSITIONING, kGposTypeParsers
+  GPOS_TYPE_RESERVED, GPOS_TYPE_EXTENSION_POSITIONING, kGposTypeParsers
 };
 
 // Shared Tables: ValueRecord, Anchor Table, and MarkArray
@@ -175,7 +171,7 @@ bool ParseMarkArrayTable(const uint8_t *data, const size_t length,
   }
 
   // MarkRecord consists of 4-bytes.
-  const unsigned mark_records_end = 4 * static_cast<unsigned>(mark_count) + 2;
+  const unsigned mark_records_end = static_cast<unsigned>(2) + mark_count * 4;
   if (mark_records_end > std::numeric_limits<uint16_t>::max()) {
     return OTS_FAILURE();
   }
@@ -293,7 +289,8 @@ bool ParsePairPosFormat1(const uint8_t *data, const size_t length,
     return OTS_FAILURE();
   }
 
-  const unsigned pair_pos_end = 2 * static_cast<unsigned>(pair_set_count) + 10;
+  const unsigned pair_pos_end = static_cast<unsigned>(10) +
+      pair_set_count * 2;
   if (pair_pos_end > std::numeric_limits<uint16_t>::max()) {
     return OTS_FAILURE();
   }
@@ -435,8 +432,8 @@ bool ParseCursiveAttachment(const ots::OpenTypeFile *file, const uint8_t *data,
   }
 
   // Check entry exit records.
-  const unsigned entry_exit_records_end =
-      2 * static_cast<unsigned>(entry_exit_count) + 6;
+  const unsigned entry_exit_records_end = static_cast<unsigned>(6) +
+      entry_exit_count * 2;
   if (entry_exit_records_end > std::numeric_limits<uint16_t>::max()) {
     return OTS_FAILURE();
   }
@@ -491,8 +488,8 @@ bool ParseAnchorArrayTable(const uint8_t *data, const size_t length,
     return OTS_FAILURE();
   }
 
-  const unsigned anchor_array_end = 2 * static_cast<unsigned>(record_count) *
-      static_cast<unsigned>(class_count) + 2;
+  const unsigned anchor_array_end = static_cast<unsigned>(2) +
+      record_count * class_count * 2;
   if (anchor_array_end > std::numeric_limits<uint16_t>::max()) {
     return OTS_FAILURE();
   }
@@ -671,11 +668,7 @@ bool ParseExtensionPositioning(const ots::OpenTypeFile *file,
 }  // namespace
 
 #define DROP_THIS_TABLE \
-  do { \
-    file->gpos->data = 0; \
-    file->gpos->length = 0; \
-    OTS_FAILURE_MSG("OpenType layout data discarded"); \
-  } while (0)
+  do { file->gpos->data = 0; file->gpos->length = 0; } while (0)
 
 namespace ots {
 
@@ -744,9 +737,7 @@ bool ots_gpos_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
       !table.ReadU16(&offset_script_list) ||
       !table.ReadU16(&offset_feature_list) ||
       !table.ReadU16(&offset_lookup_list)) {
-    OTS_WARNING("incomplete GPOS table");
-    DROP_THIS_TABLE;
-    return true;
+    return OTS_FAILURE();
   }
 
   if (version != 0x00010000) {
@@ -769,7 +760,7 @@ bool ots_gpos_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
                             length - offset_lookup_list,
                             &kGposLookupSubtableParser,
                             &gpos->num_lookups)) {
-    OTS_WARNING("failed to parse lookup list table");
+    OTS_WARNING("faild to parse lookup list table");
     DROP_THIS_TABLE;
     return true;
   }
@@ -778,14 +769,14 @@ bool ots_gpos_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   if (!ParseFeatureListTable(data + offset_feature_list,
                              length - offset_feature_list, gpos->num_lookups,
                              &num_features)) {
-    OTS_WARNING("failed to parse feature list table");
+    OTS_WARNING("faild to parse feature list table");
     DROP_THIS_TABLE;
     return true;
   }
 
   if (!ParseScriptListTable(data + offset_script_list,
                             length - offset_script_list, num_features)) {
-    OTS_WARNING("failed to parse script list table");
+    OTS_WARNING("faild to parse script list table");
     DROP_THIS_TABLE;
     return true;
   }

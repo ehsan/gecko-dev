@@ -5,6 +5,7 @@
 https://bugzilla.mozilla.org/show_bug.cgi?id=403852
 -->
   <title>Test for Bug 403852</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -33,11 +34,6 @@ fileList.value = testFile.path;
 var domFile = fileList.files[0];
 
 is(domFile.name, "prefs.js", "fileName should be prefs.js");
-
-ok("lastModifiedDate" in domFile, "lastModifiedDate must be present");
-
-var d = new Date(testFile.lastModifiedTime);
-ok(d.getTime() == domFile.lastModifiedDate.getTime(), "lastModifiedDate should be the same.");
 
 </script>
 </pre>

@@ -1037,11 +1037,13 @@ pk11_mergeTrustEntry(CK_ATTRIBUTE *target, CK_ATTRIBUTE *source)
      * actual trust of the cert (CKT_MUST_VERIFY, CKT_NSS_VALID,
      * CKT_NSS_VALID_DELEGATOR).
      */
-    if ((sourceTrust == CKT_NSS_MUST_VERIFY_TRUST) 
+    if ((sourceTrust == CKT_NSS_MUST_VERIFY) 
+	|| (sourceTrust == CKT_NSS_VALID)
 	|| (sourceTrust == CKT_NSS_VALID_DELEGATOR)) {
 	return USE_TARGET;
     }
-    if ((targetTrust == CKT_NSS_MUST_VERIFY_TRUST) 
+    if ((targetTrust == CKT_NSS_MUST_VERIFY) 
+	|| (targetTrust == CKT_NSS_VALID)
 	|| (targetTrust == CKT_NSS_VALID_DELEGATOR)) {
 	/* source overrites the target */
 	return USE_SOURCE;
@@ -1109,7 +1111,7 @@ pk11_mergeTrust(PK11SlotInfo *targetSlot, PK11SlotInfo *sourceSlot,
 	CK_ULONG trustAttrsCount = 
 		sizeof(trustAttrs)/sizeof(trustAttrs[0]);
 
-	CK_ULONG i;
+	int i;
 	CK_ATTRIBUTE targetTemplate, sourceTemplate;
 
 	/* existing trust record, merge the two together */

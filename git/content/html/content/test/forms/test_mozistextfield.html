@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=565538
 -->
 <head>
   <title>Test for Bug 565538</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -44,10 +45,12 @@ var gInputTestData = [
   ['image',    false],
   ['radio',    false],
   ['submit',   false],
+  // TODO: the next states are not yet implemented but we can't use a todo for
+  // them as the check will success so the test will fail (todo _has_ to fail).
+  // The tests are not failing because the unvalid states fallback to 'text'.
   ['search',   true],
   ['email',    true],
   ['url',      true],
-  ['number',   false],
 ];
 
 /**
@@ -56,6 +59,7 @@ var gInputTestData = [
  */
 var gInputTodoData = [
 /* type        expected result */
+  ['number',   false],
   ['range',    false],
   ['color',    false],
   ['date',     false],
@@ -102,8 +106,6 @@ function checkMozIsTextFieldValueTodo(aInput, aResult)
           "mozIsTextField(true) should return " + aResult);
 }
 
-SimpleTest.waitForExplicitFinish();
-SpecialPowers.pushPrefEnv({'set': [["dom.experimental_forms", true]]}, function() {
 // Check if the method is defined for the correct elements.
 for each (data in gElementTestData) {
   checkMozIsTextFieldDefined(data[0], data[1]);
@@ -121,9 +123,6 @@ for each (data in gInputTodoData) {
   input.type = data[0];
   checkMozIsTextFieldValueTodo(input, data[1]);
 }
-
-SimpleTest.finish();
-});
 
 </script>
 </pre>

@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
 #define ENABLE_STRING_STATS
@@ -63,12 +95,12 @@ class nsStringStats
             printf("\n");
         }
 
-      int32_t mAllocCount;
-      int32_t mReallocCount;
-      int32_t mFreeCount;
-      int32_t mShareCount;
-      int32_t mAdoptCount;
-      int32_t mAdoptFreeCount;
+      PRInt32 mAllocCount;
+      PRInt32 mReallocCount;
+      PRInt32 mFreeCount;
+      PRInt32 mShareCount;
+      PRInt32 mAdoptCount;
+      PRInt32 mAdoptFreeCount;
   };
 static nsStringStats gStringStats;
 #define STRING_STAT_INCREMENT(_s) PR_ATOMIC_INCREMENT(&gStringStats.m ## _s ## Count)
@@ -79,7 +111,7 @@ static nsStringStats gStringStats;
 // ---------------------------------------------------------------------------
 
 inline void
-ReleaseData( void* data, uint32_t flags )
+ReleaseData( void* data, PRUint32 flags )
   {
     if (flags & nsSubstring::F_SHARED)
       {
@@ -110,9 +142,9 @@ class nsAStringAccessor : public nsAString
     public:
       char_type  *data() const   { return mData; }
       size_type   length() const { return mLength; }
-      uint32_t    flags() const  { return mFlags; }
+      PRUint32    flags() const  { return mFlags; }
 
-      void set(char_type *data, size_type len, uint32_t flags)
+      void set(char_type *data, size_type len, PRUint32 flags)
         {
           ReleaseData(mData, mFlags);
           mData = data;
@@ -129,9 +161,9 @@ class nsACStringAccessor : public nsACString
     public:
       char_type  *data() const   { return mData; }
       size_type   length() const { return mLength; }
-      uint32_t    flags() const  { return mFlags; }
+      PRUint32    flags() const  { return mFlags; }
 
-      void set(char_type *data, size_type len, uint32_t flags)
+      void set(char_type *data, size_type len, PRUint32 flags)
         {
           ReleaseData(mData, mFlags);
           mData = data;
@@ -153,7 +185,7 @@ nsStringBuffer::AddRef()
 void
 nsStringBuffer::Release()
   {
-    int32_t count = PR_ATOMIC_DECREMENT(&mRefCount);
+    PRInt32 count = PR_ATOMIC_DECREMENT(&mRefCount);
     NS_LOG_RELEASE(this, count, "nsStringBuffer");
     if (count == 0)
       {
@@ -169,7 +201,7 @@ nsStringBuffer*
 nsStringBuffer::Alloc(size_t size)
   {
     NS_ASSERTION(size != 0, "zero capacity allocation not allowed");
-    NS_ASSERTION(sizeof(nsStringBuffer) + size <= size_t(uint32_t(-1)) &&
+    NS_ASSERTION(sizeof(nsStringBuffer) + size <= size_t(PRUint32(-1)) &&
                  sizeof(nsStringBuffer) + size > size,
                  "mStorageSize will truncate");
 
@@ -192,7 +224,7 @@ nsStringBuffer::Realloc(nsStringBuffer* hdr, size_t size)
     STRING_STAT_INCREMENT(Realloc);
 
     NS_ASSERTION(size != 0, "zero capacity allocation not allowed");
-    NS_ASSERTION(sizeof(nsStringBuffer) + size <= size_t(uint32_t(-1)) &&
+    NS_ASSERTION(sizeof(nsStringBuffer) + size <= size_t(PRUint32(-1)) &&
                  sizeof(nsStringBuffer) + size > size,
                  "mStorageSize will truncate");
 
@@ -220,7 +252,7 @@ nsStringBuffer::FromString(const nsAString& str)
         static_cast<const nsAStringAccessor*>(&str);
 
     if (!(accessor->flags() & nsSubstring::F_SHARED))
-      return nullptr;
+      return nsnull;
 
     return FromData(accessor->data());
   }
@@ -232,14 +264,14 @@ nsStringBuffer::FromString(const nsACString& str)
         static_cast<const nsACStringAccessor*>(&str);
 
     if (!(accessor->flags() & nsCSubstring::F_SHARED))
-      return nullptr;
+      return nsnull;
 
     return FromData(accessor->data());
   }
 
 void
-nsStringBuffer::ToString(uint32_t len, nsAString &str,
-                         bool aMoveOwnership)
+nsStringBuffer::ToString(PRUint32 len, nsAString &str,
+                         PRBool aMoveOwnership)
   {
     PRUnichar* data = static_cast<PRUnichar*>(Data());
 
@@ -247,7 +279,7 @@ nsStringBuffer::ToString(uint32_t len, nsAString &str,
     NS_ASSERTION(data[len] == PRUnichar(0), "data should be null terminated");
 
     // preserve class flags
-    uint32_t flags = accessor->flags();
+    PRUint32 flags = accessor->flags();
     flags = (flags & 0xFFFF0000) | nsSubstring::F_SHARED | nsSubstring::F_TERMINATED;
 
     if (!aMoveOwnership) {
@@ -257,8 +289,8 @@ nsStringBuffer::ToString(uint32_t len, nsAString &str,
   }
 
 void
-nsStringBuffer::ToString(uint32_t len, nsACString &str,
-                         bool aMoveOwnership)
+nsStringBuffer::ToString(PRUint32 len, nsACString &str,
+                         PRBool aMoveOwnership)
   {
     char* data = static_cast<char*>(Data());
 
@@ -266,31 +298,13 @@ nsStringBuffer::ToString(uint32_t len, nsACString &str,
     NS_ASSERTION(data[len] == char(0), "data should be null terminated");
 
     // preserve class flags
-    uint32_t flags = accessor->flags();
+    PRUint32 flags = accessor->flags();
     flags = (flags & 0xFFFF0000) | nsCSubstring::F_SHARED | nsCSubstring::F_TERMINATED;
 
     if (!aMoveOwnership) {
       AddRef();
     }
     accessor->set(data, len, flags);
-  }
-
-size_t
-nsStringBuffer::SizeOfIncludingThisMustBeUnshared(nsMallocSizeOfFun aMallocSizeOf) const
-  {
-    NS_ASSERTION(!IsReadonly(),
-                 "shared StringBuffer in SizeOfIncludingThisMustBeUnshared");
-    return aMallocSizeOf(this);
-  }
-
-size_t
-nsStringBuffer::SizeOfIncludingThisIfUnshared(nsMallocSizeOfFun aMallocSizeOf) const
-  {
-    if (!IsReadonly())
-      {
-        return SizeOfIncludingThisMustBeUnshared(aMallocSizeOf);
-      }
-    return 0;
   }
 
 // ---------------------------------------------------------------------------
@@ -312,5 +326,4 @@ nsStringBuffer::SizeOfIncludingThisIfUnshared(nsMallocSizeOfFun aMallocSizeOf) c
 #include "prlog.h"
 #include "nsXPCOMStrings.h"
 
-MOZ_STATIC_ASSERT(sizeof(nsStringContainer_base) == sizeof(nsSubstring),
-                  "internal and external strings must have the same size");
+PR_STATIC_ASSERT(sizeof(nsStringContainer_base) == sizeof(nsSubstring));

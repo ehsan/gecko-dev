@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert O'Callahan <robert@ocallahan.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "CanvasImageCache.h"
 #include "nsIImageLoadingContent.h"
@@ -9,19 +41,16 @@
 #include "imgIRequest.h"
 #include "gfxASurface.h"
 #include "gfxPoint.h"
-#include "mozilla/dom/Element.h"
+#include "nsIDOMElement.h"
 #include "nsTHashtable.h"
 #include "nsHTMLCanvasElement.h"
-#include "nsContentUtils.h"
 
 namespace mozilla {
 
-using namespace dom;
-
 struct ImageCacheKey {
-  ImageCacheKey(Element* aImage, nsHTMLCanvasElement* aCanvas)
+  ImageCacheKey(nsIDOMElement* aImage, nsHTMLCanvasElement* aCanvas)
     : mImage(aImage), mCanvas(aCanvas) {}
-  Element* mImage;
+  nsIDOMElement* mImage;
   nsHTMLCanvasElement* mCanvas;
 };
 
@@ -36,14 +65,14 @@ struct ImageCacheEntryData {
   {}
   ImageCacheEntryData(const ImageCacheKey& aKey)
     : mImage(aKey.mImage)
-    , mILC(nullptr)
+    , mILC(nsnull)
     , mCanvas(aKey.mCanvas)
   {}
 
   nsExpirationState* GetExpirationState() { return &mState; }
 
   // Key
-  nsRefPtr<Element> mImage;
+  nsCOMPtr<nsIDOMElement> mImage;
   nsIImageLoadingContent* mILC;
   nsRefPtr<nsHTMLCanvasElement> mCanvas;
   // Value
@@ -64,7 +93,7 @@ public:
       mData(new ImageCacheEntryData(*toCopy.mData)) {}
   ~ImageCacheEntry() {}
 
-  bool KeyEquals(KeyTypePointer key) const
+  PRBool KeyEquals(KeyTypePointer key) const
   {
     return mData->mImage == key->mImage && mData->mCanvas == key->mCanvas;
   }
@@ -72,14 +101,14 @@ public:
   static KeyTypePointer KeyToPointer(KeyType& key) { return &key; }
   static PLDHashNumber HashKey(KeyTypePointer key)
   {
-    return HashGeneric(key->mImage, key->mCanvas);
+    return (NS_PTR_TO_INT32(key->mImage) ^ NS_PTR_TO_INT32(key->mCanvas)) >> 2;
   }
-  enum { ALLOW_MEMMOVE = true };
+  enum { ALLOW_MEMMOVE = PR_TRUE };
 
   nsAutoPtr<ImageCacheEntryData> mData;
 };
 
-class ImageCache MOZ_FINAL : public nsExpirationTracker<ImageCacheEntryData,4> {
+class ImageCache : public nsExpirationTracker<ImageCacheEntryData,4> {
 public:
   // We use 3 generations of 1 second each to get a 2-3 seconds timeout.
   enum { GENERATION_MS = 1000 };
@@ -102,9 +131,9 @@ public:
   nsTHashtable<ImageCacheEntry> mCache;
 };
 
-static ImageCache* gImageCache = nullptr;
+static ImageCache* gImageCache = nsnull;
 
-class CanvasImageCacheShutdownObserver MOZ_FINAL : public nsIObserver
+class CanvasImageCacheShutdownObserver : public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
@@ -112,7 +141,7 @@ public:
 };
 
 void
-CanvasImageCache::NotifyDrawImage(Element* aImage,
+CanvasImageCache::NotifyDrawImage(nsIDOMElement* aImage,
                                   nsHTMLCanvasElement* aCanvas,
                                   imgIRequest* aRequest,
                                   gfxASurface* aSurface,
@@ -143,21 +172,21 @@ CanvasImageCache::NotifyDrawImage(Element* aImage,
 }
 
 gfxASurface*
-CanvasImageCache::Lookup(Element* aImage,
+CanvasImageCache::Lookup(nsIDOMElement* aImage,
                          nsHTMLCanvasElement* aCanvas,
                          gfxIntSize* aSize)
 {
   if (!gImageCache)
-    return nullptr;
+    return nsnull;
 
   ImageCacheEntry* entry = gImageCache->mCache.GetEntry(ImageCacheKey(aImage, aCanvas));
   if (!entry || !entry->mData->mILC)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<imgIRequest> request;
   entry->mData->mILC->GetRequest(nsIImageLoadingContent::CURRENT_REQUEST, getter_AddRefs(request));
   if (request != entry->mData->mRequest)
-    return nullptr;
+    return nsnull;
 
   gImageCache->MarkUsed(entry->mData);
 
@@ -174,7 +203,7 @@ CanvasImageCacheShutdownObserver::Observe(nsISupports *aSubject,
 {
   if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
     delete gImageCache;
-    gImageCache = nullptr;
+    gImageCache = nsnull;
 
     nsContentUtils::UnregisterShutdownObserver(this);
   }
@@ -182,4 +211,4 @@ CanvasImageCacheShutdownObserver::Observe(nsISupports *aSubject,
   return NS_OK;
 }
 
-} // namespace mozilla
+}

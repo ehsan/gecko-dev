@@ -4,9 +4,6 @@ var gExpectedCharset;
 var gOldPref;
 var gDetectorList;
 var gTestIndex;
-var gLocalDir;
-const Cc = Components.classes;
-const Ci = Components.interfaces;
 
 function CharsetDetectionTests(aTestFile, aExpectedCharset, aDetectorList)
 {
@@ -15,28 +12,22 @@ function CharsetDetectionTests(aTestFile, aExpectedCharset, aDetectorList)
 
     InitDetectorTests();
 
-    var fileURI = gLocalDir + aTestFile;
-    $("testframe").src = fileURI;
+    $("testframe").src = aTestFile;
 
     SimpleTest.waitForExplicitFinish();
 }
 
 function InitDetectorTests()
 {
-    var prefService = Cc["@mozilla.org/preferences-service;1"]
-        .getService(Ci.nsIPrefBranch);
-    var str = Cc["@mozilla.org/supports-string;1"]
-        .createInstance(Ci.nsISupportsString);
-    var loader = Cc["@mozilla.org/moz/jssubscript-loader;1"]
-        .getService(Ci.mozIJSSubScriptLoader);
-    var ioService = Cc['@mozilla.org/network/io-service;1']
-        .getService(Ci.nsIIOService);
-    loader.loadSubScript("chrome://mochikit/content/chrome-harness.js");
+    var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+        .getService(Components.interfaces.nsIPrefBranch);
+    var str = Components.classes["@mozilla.org/supports-string;1"]
+        .createInstance(Components.interfaces.nsISupportsString);
 
     try {
         gOldPref = prefService
             .getComplexValue("intl.charset.detector",
-                             Ci.nsIPrefLocalizedString).data;
+                             Components.interfaces.nsIPrefLocalizedString).data;
     } catch (e) {
         gOldPref = "";
     }
@@ -48,32 +39,23 @@ function InitDetectorTests()
         try {
             gExpectedCharset = prefService
                 .getComplexValue("intl.charset.default",
-                                 Ci.nsIPrefLocalizedString)
+                                 Components.interfaces.nsIPrefLocalizedString)
                 .data;
         } catch (e) {
             gExpectedCharset = "ISO-8859-8";
         }
     }
-
-    // Get the local directory. This needs to be a file: URI because chrome:
-    // URIs are always UTF-8 (bug 617339) and we are testing decoding from other
-    // charsets.
-    var jar = getJar(getRootDirectory(window.location.href));
-    var dir = jar ?
-                extractJarToTmp(jar) :
-                getChromeDir(getResolvedURI(window.location.href));
-    gLocalDir = ioService.newFileURI(dir).spec;
 }
 
 function SetDetectorPref(aPrefValue)
 {
-    var prefService = Cc["@mozilla.org/preferences-service;1"]
-                      .getService(Ci.nsIPrefBranch);
-    var str = Cc["@mozilla.org/supports-string;1"]
-              .createInstance(Ci.nsISupportsString);
+    var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+                      .getService(Components.interfaces.nsIPrefBranch);
+    var str = Components.classes["@mozilla.org/supports-string;1"]
+              .createInstance(Components.interfaces.nsISupportsString);
     str.data = aPrefValue;
     prefService.setComplexValue("intl.charset.detector",
-                                Ci.nsISupportsString, str);
+                                Components.interfaces.nsISupportsString, str);
     gCurrentDetector = aPrefValue;
 }
 

@@ -19,19 +19,37 @@ function parseQueryString(str)
 
 function getPosition(action)
 {  
-  var response = {
-    status: "OK",
-    location: {
-      lat: 37.41857,
-      lng: -122.08769,
-    },
+    // this isn't the w3c data structure, it is the network location provider structure.
+
+  var address = {
+      street_number: "street_number",
+      street: "street",
+      premises: "premises",
+      city: "city",
+      county: "county",
+      region: "region",
+      country: "country",
+      country_code: "country_code",
+      postal_code: "postal_code",
+  };
+
+
+  var coords = {
+    latitude: 37.41857,
+    longitude: -122.08769,
+
+    altitude: 42,
     accuracy: (action == "worse-accuracy") ? 100 : 42,
+    altitude_accuracy: 42,
   };
   
-  return JSON.stringify(response);
+  var geoposition = {
+    location: coords,
+  };
+
+  return JSON.stringify(geoposition);
 }
 
-var timer;
 function handleRequest(request, response)
 {
   var params = parseQueryString(request.queryString);
@@ -55,19 +73,9 @@ function handleRequest(request, response)
   }
 
   var response;
-  response.processAsync();
   response.setStatusLine("1.0", 200, "OK");
   response.setHeader("Cache-Control", "no-cache", false);
   response.setHeader("Content-Type", "aplication/x-javascript", false);
-
-  var delay = 0;
-  if ('delay' in params) {
-    delay = params.delay;
-  }
-  timer = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);
-  timer.initWithCallback(function() {
-    response.write(position);
-    response.finish();
-  }, delay, timer.TYPE_ONE_SHOT);
+  response.write(position);
 }
 

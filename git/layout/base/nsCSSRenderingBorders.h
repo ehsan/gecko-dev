@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 // vim:cindent:ts=2:et:sw=2:
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *   Mozilla Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef NS_CSS_RENDERING_BORDERS_H
 #define NS_CSS_RENDERING_BORDERS_H
@@ -52,7 +85,7 @@
  * backgroundColor -- the background color of the element.
  *    Used in calculating colors for 2-tone borders, such as inset and outset
  * gapRect - a rectangle that should be clipped out to leave a gap in a border,
- *    or nullptr if none.
+ *    or nsnull if none.
  */
 
 typedef enum {
@@ -63,15 +96,15 @@ typedef enum {
 } BorderColorStyle;
 
 struct nsCSSBorderRenderer {
-  nsCSSBorderRenderer(int32_t aAppUnitsPerPixel,
+  nsCSSBorderRenderer(PRInt32 aAppUnitsPerPixel,
                       gfxContext* aDestContext,
                       gfxRect& aOuterRect,
-                      const uint8_t* aBorderStyles,
+                      const PRUint8* aBorderStyles,
                       const gfxFloat* aBorderWidths,
                       gfxCornerSizes& aBorderRadii,
                       const nscolor* aBorderColors,
                       nsBorderColors* const* aCompositeColors,
-                      int aSkipSides,
+                      PRIntn aSkipSides,
                       nscolor aBackgroundColor);
 
   gfxCornerSizes mBorderCornerDimensions;
@@ -84,9 +117,9 @@ struct nsCSSBorderRenderer {
   gfxRect mInnerRect;
 
   // the style and size of the border
-  const uint8_t* mBorderStyles;
+  const PRUint8* mBorderStyles;
   const gfxFloat* mBorderWidths;
-  uint8_t* mSanitizedStyles;
+  PRUint8* mSanitizedStyles;
   gfxFloat* mSanitizedWidths;
   gfxCornerSizes mBorderRadii;
 
@@ -95,26 +128,26 @@ struct nsCSSBorderRenderer {
   nsBorderColors* const* mCompositeColors;
 
   // core app units per pixel
-  int32_t mAUPP;
+  PRInt32 mAUPP;
 
   // misc -- which sides to skip, the background color
-  int mSkipSides;
+  PRIntn mSkipSides;
   nscolor mBackgroundColor;
 
   // calculated values
-  bool mOneUnitBorder;
-  bool mNoBorderRadius;
-  bool mAvoidStroke;
+  PRPackedBool mOneUnitBorder;
+  PRPackedBool mNoBorderRadius;
+  PRPackedBool mAvoidStroke;
 
   // For all the sides in the bitmask, would they be rendered
   // in an identical color and style?
-  bool AreBorderSideFinalStylesSame(uint8_t aSides);
+  PRBool AreBorderSideFinalStylesSame(PRUint8 aSides);
 
   // For the given style, is the given corner a solid color?
-  bool IsSolidCornerStyle(uint8_t aStyle, mozilla::css::Corner aCorner);
+  PRBool IsSolidCornerStyle(PRUint8 aStyle, mozilla::css::Corner aCorner);
 
   // For the given solid corner, what color style should be used?
-  BorderColorStyle BorderColorStyleForSolidCorner(uint8_t aStyle, mozilla::css::Corner aCorner);
+  BorderColorStyle BorderColorStyleForSolidCorner(PRUint8 aStyle, mozilla::css::Corner aCorner);
 
   //
   // Path generation functions
@@ -151,7 +184,7 @@ struct nsCSSBorderRenderer {
                        const gfxRect& aInnerRect,
                        const gfxCornerSizes& aBorderRadii,
                        const gfxFloat *aBorderSizes,
-                       int aSides,
+                       PRIntn aSides,
                        const gfxRGBA& aColor);
 
   //
@@ -160,10 +193,10 @@ struct nsCSSBorderRenderer {
 
   // draw the border for the given sides, using the style of the first side
   // present in the bitmask
-  void DrawBorderSides (int aSides);
+  void DrawBorderSides (PRIntn aSides);
 
   // function used by the above to handle -moz-border-colors
-  void DrawBorderSidesCompositeColors(int aSides, const nsBorderColors *compositeColors);
+  void DrawBorderSidesCompositeColors(PRIntn aSides, const nsBorderColors *compositeColors);
 
   // draw the given dashed side
   void DrawDashedSide (mozilla::css::Side aSide);
@@ -203,14 +236,6 @@ struct nsCSSBorderRenderer {
   static void ComputeInnerRadii(const gfxCornerSizes& aRadii,
                                 const gfxFloat *aBorderSizes,
                                 gfxCornerSizes *aInnerRadiiRet);
-
-  // Given aRadii as the border radii for a rectangle, compute the
-  // appropriate radii for another rectangle *outside* that rectangle
-  // by increasing the radii, except keeping sharp corners sharp.
-  // Used for spread box-shadows
-  static void ComputeOuterRadii(const gfxCornerSizes& aRadii,
-                                const gfxFloat *aBorderSizes,
-                                gfxCornerSizes *aOuterRadiiRet);
 };
 
 #ifdef DEBUG_NEW_BORDERS
@@ -236,7 +261,7 @@ static inline void S(const char *s) {
   fprintf (stderr, "%s", s);
 }
 
-static inline void SN(const char *s = nullptr) {
+static inline void SN(const char *s = nsnull) {
   if (s)
     fprintf (stderr, "%s", s);
   fprintf (stderr, "\n");
@@ -266,7 +291,7 @@ static inline void S(const gfxSize& s) {}
 static inline void S(const gfxRect& r) {}
 static inline void S(const gfxFloat f) {}
 static inline void S(const char *s) {}
-static inline void SN(const char *s = nullptr) {}
+static inline void SN(const char *s = nsnull) {}
 static inline void SF(const char *fmt, ...) {}
 static inline void SX(gfxContext *ctx) {}
 #endif

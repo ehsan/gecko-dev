@@ -1,6 +1,36 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Initial Developer of the Original Code is
+ * CSIRO
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s): Michael Martin
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** *
  */
 
 #include <pthread.h>
@@ -52,15 +82,15 @@ struct sa_stream {
   sa_buf          * bl_head;
   sa_buf          * bl_tail;
   int               n_bufs;
-
-  size_t            buffer_size;
 };
 
 
 /*
- * Allow up to a second of audio to be buffered.
+ * Use a default buffer size with enough room for one second of audio,
+ * assuming stereo data at 44.1kHz with 32 bits per channel, and impose
+ * a generous limit on the number of buffers.
  */
-#define BUF_SIZE_MS 200
+#define BUF_SIZE    (2 * 44100 * 4)
 #define BUF_LIMIT   5
 
 #if BUF_LIMIT < 2
@@ -71,7 +101,7 @@ struct sa_stream {
 static OSStatus audio_callback(void *arg, AudioUnitRenderActionFlags *action_flags,
   const AudioTimeStamp *time_stamp, UInt32 bus_num, UInt32 n_frames, AudioBufferList *data);
 
-static sa_buf *new_buffer(size_t bufsz);
+static sa_buf *new_buffer(void);
 
 
 /*
@@ -89,8 +119,6 @@ sa_stream_create_pcm(
   unsigned  int       rate,
   unsigned  int       n_channels
 ) {
-
-  sa_stream_t   * s;
 
   /*
    * Make sure we return a NULL stream pointer on failure.
@@ -110,8 +138,18 @@ sa_stream_create_pcm(
   /*
    * Allocate the instance and required resources.
    */
+  sa_stream_t   * s;
   if ((s = malloc(sizeof(sa_stream_t))) == NULL) {
     return SA_ERROR_OOM;
+  }
+  if ((s->bl_head = new_buffer()) == NULL) {
+    free(s);
+    return SA_ERROR_OOM;
+  }
+  if (pthread_mutex_init(&s->mutex, NULL) != 0) {
+    free(s->bl_head);
+    free(s);
+    return SA_ERROR_SYSTEM;
   }
 
   s->output_unit  = NULL;
@@ -121,28 +159,8 @@ sa_stream_create_pcm(
   s->rate         = rate;
   s->n_channels   = n_channels;
   s->bytes_per_ch = 2;
-  s->buffer_size  = s->bytes_per_ch *
-                    ((rate * n_channels * BUF_SIZE_MS) / 1000);
-
-  /* round buffer_size up to ensure it's divisible by the number of bytes per frame. */
-  if (s->buffer_size % (s->bytes_per_ch * n_channels) != 0) {
-    s->buffer_size += (s->bytes_per_ch * n_channels) - (s->buffer_size % (s->bytes_per_ch * n_channels));
-  }
-
-  if ((s->bl_head = new_buffer(s->buffer_size)) == NULL) {
-    free(s);
-    return SA_ERROR_OOM;
-
-  }
-
   s->bl_tail      = s->bl_head;
   s->n_bufs       = 1;
-
-  if (pthread_mutex_init(&s->mutex, NULL) != 0) {
-    free(s->bl_head);
-    free(s);
-    return SA_ERROR_SYSTEM;
-  }
 
   *_s = s;
   return SA_SUCCESS;
@@ -151,11 +169,6 @@ sa_stream_create_pcm(
 
 int
 sa_stream_open(sa_stream_t *s) {
-
-  ComponentDescription desc;
-  Component comp;
-  AURenderCallbackStruct input;
-  AudioStreamBasicDescription fmt;
 
   if (s == NULL) {
     return SA_ERROR_NO_INIT;
@@ -167,13 +180,14 @@ sa_stream_open(sa_stream_t *s) {
   /*
    * Open the default audio output unit.
    */
+  ComponentDescription desc;
   desc.componentType         = kAudioUnitType_Output;
   desc.componentSubType      = kAudioUnitSubType_DefaultOutput;
   desc.componentManufacturer = kAudioUnitManufacturer_Apple;
   desc.componentFlags        = 0;
   desc.componentFlagsMask    = 0;
 
-  comp = FindNextComponent(NULL, &desc);
+  Component comp = FindNextComponent(NULL, &desc);
   if (comp == NULL) {
     return SA_ERROR_NO_DEVICE;
   }
@@ -185,6 +199,7 @@ sa_stream_open(sa_stream_t *s) {
   /*
    * Set up the render callback used to feed audio data into the output unit.
    */
+  AURenderCallbackStruct input;
   input.inputProc       = audio_callback;
   input.inputProcRefCon = s;
   if (AudioUnitSetProperty(s->output_unit, kAudioUnitProperty_SetRenderCallback,
@@ -207,6 +222,7 @@ sa_stream_open(sa_stream_t *s) {
    *
    * http://developer.apple.com/documentation/MusicAudio/Reference/CoreAudioDataTypesRef/Reference/reference.html#//apple_ref/c/tdef/AudioStreamBasicDescription
    */
+  AudioStreamBasicDescription fmt;
   fmt.mFormatID         = kAudioFormatLinearPCM;
   fmt.mFormatFlags      = kLinearPCMFormatFlagIsSignedInteger |
 #ifdef __BIG_ENDIAN__
@@ -243,8 +259,6 @@ sa_stream_open(sa_stream_t *s) {
 int
 sa_stream_destroy(sa_stream_t *s) {
 
-  int result = SA_SUCCESS;
-
   if (s == NULL) {
     return SA_SUCCESS;
   }
@@ -259,6 +273,7 @@ sa_stream_destroy(sa_stream_t *s) {
    * until in-flight callbacks complete and the HAL shuts down.  See:
    * http://lists.apple.com/archives/coreaudio-api/2005/Dec/msg00055.html
    */
+  int result = SA_SUCCESS;
   if (s->output_unit != NULL) {
     if (s->playing && AudioOutputUnitStop(s->output_unit) != 0) {
       result = SA_ERROR_SYSTEM;
@@ -298,8 +313,6 @@ sa_stream_destroy(sa_stream_t *s) {
 int
 sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
 
-  int result = SA_SUCCESS;
-
   if (s == NULL || s->output_unit == NULL) {
     return SA_ERROR_NO_INIT;
   }
@@ -312,6 +325,7 @@ sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
   /*
    * Append the new data to the end of our buffer list.
    */
+  int result = SA_SUCCESS;
   while (1) {
     unsigned int avail = s->bl_tail->size - s->bl_tail->end;
 
@@ -348,7 +362,7 @@ sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
         if (!s->playing) {
           /*
            * We haven't even started playing yet! That means the
-           * BUF_SIZE_MS/BUF_LIMIT values are too low... Not much we can
+           * BUF_SIZE/BUF_LIMIT values are too low... Not much we can
            * do here; spinning won't help because the audio callback
            * hasn't been enabled yet. Oh well, error time.
            */
@@ -357,9 +371,8 @@ sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
           break;
         }
         while (s->n_bufs == BUF_LIMIT) {
-          struct timespec ts = {0, 1000000};
-
           pthread_mutex_unlock(&s->mutex);
+          struct timespec ts = {0, 1000000};
           nanosleep(&ts, NULL);
           pthread_mutex_lock(&s->mutex);
         }
@@ -368,7 +381,7 @@ sa_stream_write(sa_stream_t *s, const void *data, size_t nbytes) {
       /* 
        * Allocate a new tail buffer, and go 'round again to fill it up.
        */
-      if ((s->bl_tail->next = new_buffer(s->buffer_size)) == NULL) {
+      if ((s->bl_tail->next = new_buffer()) == NULL) {
         result = SA_ERROR_OOM;
         break;
       }
@@ -407,11 +420,6 @@ audio_callback(
   AudioBufferList             * data
 ) {
 
-  sa_stream_t     * s = arg;
-  unsigned char   * dst;
-  unsigned int      bytes_per_frame;
-  unsigned int      bytes_to_copy;
-
 #ifdef TIMING_TRACE
   printf(".");  /* audio read 'tick' */
 #endif
@@ -422,11 +430,13 @@ audio_callback(
    */
   assert(data->mNumberBuffers == 1);
 
+  sa_stream_t     * s = arg;
+
   pthread_mutex_lock(&s->mutex);
 
-  dst             = data->mBuffers[0].mData;
-  bytes_per_frame = s->n_channels * s->bytes_per_ch;
-  bytes_to_copy   = n_frames * bytes_per_frame;
+  unsigned char   * dst             = data->mBuffers[0].mData;
+  unsigned int      bytes_per_frame = s->n_channels * s->bytes_per_ch;
+  unsigned int      bytes_to_copy   = n_frames * bytes_per_frame;
 
   s->bytes_played += s->bytes_played_last;
   s->bytes_played_last = 0;
@@ -435,9 +445,8 @@ audio_callback(
    * Consume data from the start of the buffer list.
    */
   while (1) {
-    unsigned int avail = s->bl_head->end - s->bl_head->start;
-
     assert(s->bl_head->start <= s->bl_head->end);
+    unsigned int avail = s->bl_head->end - s->bl_head->start;
 
     if (avail >= bytes_to_copy) {
 
@@ -450,8 +459,6 @@ audio_callback(
       break;
 
     } else {
-
-      sa_buf  * next;
 
       /*
        * Copy what we can from the head and move on to the next buffer.
@@ -467,7 +474,7 @@ audio_callback(
        * current tail. If it is the tail, we don't have enough data to fill
        * the destination buffer, so we'll just zero it out and give up.
        */
-      next = s->bl_head->next;
+      sa_buf  * next = s->bl_head->next;
       if (next == NULL) {
 #ifdef TIMING_TRACE
         printf("!");  /* not enough audio data */
@@ -498,8 +505,6 @@ audio_callback(
 int
 sa_stream_get_write_size(sa_stream_t *s, size_t *size) {
 
-  unsigned int avail;
-
   if (s == NULL || s->output_unit == NULL) {
     return SA_ERROR_NO_INIT;
   }
@@ -510,8 +515,8 @@ sa_stream_get_write_size(sa_stream_t *s, size_t *size) {
    * The sum of the free space in the tail buffer plus the size of any new
    * buffers represents the write space available before blocking.
    */
-  avail = s->bl_tail->size - s->bl_tail->end;
-  avail += (BUF_LIMIT - s->n_bufs) * s->buffer_size;
+  unsigned int avail = s->bl_tail->size - s->bl_tail->end;
+  avail += (BUF_LIMIT - s->n_bufs) * BUF_SIZE;
   *size = avail;
 
   pthread_mutex_unlock(&s->mutex);
@@ -583,10 +588,10 @@ sa_stream_resume(sa_stream_t *s) {
 
 
 static sa_buf *
-new_buffer(size_t bufsz) {
-  sa_buf  * b = malloc(sizeof(sa_buf) + bufsz);
+new_buffer(void) {
+  sa_buf  * b = malloc(sizeof(sa_buf) + BUF_SIZE);
   if (b != NULL) {
-    b->size  = bufsz;
+    b->size  = BUF_SIZE;
     b->start = 0;
     b->end   = 0;
     b->next  = NULL;
@@ -607,11 +612,9 @@ sa_stream_drain(sa_stream_t *s)
   }
 
   while (1) {
+    pthread_mutex_lock(&s->mutex);
     sa_buf  * b;
     size_t    used = 0;
-    struct timespec ts = {0, 1000000};
-
-    pthread_mutex_lock(&s->mutex);
     for (b = s->bl_head; b != NULL; b = b->next) {
       used += b->end - b->start;
     }
@@ -621,6 +624,7 @@ sa_stream_drain(sa_stream_t *s)
       break;
     }
 
+    struct timespec ts = {0, 1000000};
     nanosleep(&ts, NULL);
   }
   return SA_SUCCESS;
@@ -652,13 +656,12 @@ sa_stream_set_volume_abs(sa_stream_t *s, float vol) {
 int
 sa_stream_get_volume_abs(sa_stream_t *s, float *vol) {
 
-  Float32 local_vol = 0;
-
   if (s == NULL || s->output_unit == NULL) {
     return SA_ERROR_NO_INIT;
   }
 
   pthread_mutex_lock(&s->mutex);
+  Float32 local_vol = 0;
   AudioUnitGetParameter(s->output_unit, kHALOutputParam_Volume,
       kAudioUnitParameterFlag_Output, 0, &local_vol);
   *vol = local_vol;
@@ -729,7 +732,7 @@ UNSUPPORTED(int sa_stream_write_ni(sa_stream_t *s, unsigned int channel, const v
 UNSUPPORTED(int sa_stream_pwrite(sa_stream_t *s, const void *data, size_t nbytes, int64_t offset, sa_seek_t whence))
 UNSUPPORTED(int sa_stream_pwrite_ni(sa_stream_t *s, unsigned int channel, const void *data, size_t nbytes, int64_t offset, sa_seek_t whence))
 UNSUPPORTED(int sa_stream_get_read_size(sa_stream_t *s, size_t *size))
-UNSUPPORTED(int sa_stream_get_min_write(sa_stream_t *s, size_t *size))
+UNSUPPORTED(int sa_stream_get_min_write(sa_stream_t *s, size_t *samples))
 
 const char *sa_strerror(int code) { return NULL; }
 

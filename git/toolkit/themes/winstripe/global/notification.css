@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
 notification {
@@ -16,7 +12,7 @@ notification[type="info"] {
 }
 
 notification[type="critical"] {
-  background-image: -moz-linear-gradient(rgb(212,0,0), rgb(152,0,0));
+  background-color: red;
   color: white;
 }
 
@@ -29,15 +25,15 @@ notification[type="critical"] {
 
 /* Default icons for notifications */
 
-.messageImage[type="info"] {
+notification[type="info"] .messageImage {
   list-style-image: url("chrome://global/skin/icons/information-16.png");
 }
 
-.messageImage[type="warning"] {
+notification[type="warning"] .messageImage {
   list-style-image: url("chrome://global/skin/icons/warning-16.png");
 }
 
-.messageImage[type="critical"] {
+notification[type="critical"] .messageImage {
   list-style-image: url("chrome://global/skin/icons/error-16.png");
 }
 
@@ -74,7 +70,7 @@ notification[type="critical"] {
 %ifdef XP_WIN
 /*
 XXX: apply styles to all themes until bug 509642 is fixed
-@media (-moz-windows-default-theme) {
+@media all and (-moz-windows-default-theme) {
 */
   .popup-notification-menubutton[type="menu-button"] {
     -moz-appearance: none;

@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is nsCacheEntryDescriptor.h, released
+ * February 22, 2001.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Gordon Sheridan, 22-February-2001
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 #ifndef _nsCacheEntryDescriptor_h_
@@ -14,7 +48,6 @@
 #include "nsIOutputStream.h"
 #include "nsCacheService.h"
 #include "nsIDiskCacheStreamInternal.h"
-#include "zlib.h"
 
 /******************************************************************************
 * nsCacheEntryDescriptor
@@ -34,32 +67,30 @@ public:
     /**
      * utility method to attempt changing data size of associated entry
      */
-    nsresult  RequestDataSizeChange(int32_t deltaSize);
+    nsresult  RequestDataSizeChange(PRInt32 deltaSize);
     
     /**
      * methods callbacks for nsCacheService
      */
     nsCacheEntry * CacheEntry(void)      { return mCacheEntry; }
-    void           ClearCacheEntry(void) { mCacheEntry = nullptr; }
+    void           ClearCacheEntry(void) { mCacheEntry = nsnull; }
 
-    nsresult       CloseOutput(void)
+    void           CloseOutput(void)
     {
-      nsresult rv = InternalCleanup(mOutput);
-      mOutput = nullptr;
-      return rv;
+      InternalCleanup(mOutput);
+      mOutput = nsnull;
     }
 
 private:
-    nsresult       InternalCleanup(nsIOutputStream *stream)
+    void           InternalCleanup(nsIOutputStream *stream)
     {
       if (stream) {
         nsCOMPtr<nsIDiskCacheStreamInternal> tmp (do_QueryInterface(stream));
         if (tmp)
-          return tmp->CloseInternal();
+          tmp->CloseInternal();
         else
-          return stream->Close();
+          stream->Close();
       }
-      return NS_OK;
     }
 
 
@@ -73,16 +104,16 @@ private:
      private:
          nsCacheEntryDescriptor    * mDescriptor;
          nsCOMPtr<nsIInputStream>    mInput;
-         uint32_t                    mStartOffset;
-         bool                        mInitialized;
+         PRUint32                    mStartOffset;
+         PRBool                      mInitialized;
      public:
          NS_DECL_ISUPPORTS
          NS_DECL_NSIINPUTSTREAM
 
-         nsInputStreamWrapper(nsCacheEntryDescriptor * desc, uint32_t off)
+         nsInputStreamWrapper(nsCacheEntryDescriptor * desc, PRUint32 off)
              : mDescriptor(desc)
              , mStartOffset(off)
-             , mInitialized(false)
+             , mInitialized(PR_FALSE)
          {
              NS_ADDREF(mDescriptor);
          }
@@ -98,37 +129,6 @@ private:
      friend class nsInputStreamWrapper;
 
 
-     class nsDecompressInputStreamWrapper : public nsInputStreamWrapper {
-     private:
-         unsigned char* mReadBuffer;
-         uint32_t mReadBufferLen;
-         z_stream mZstream;
-         bool mStreamInitialized;
-         bool mStreamEnded;
-     public:
-         NS_DECL_ISUPPORTS
-
-         nsDecompressInputStreamWrapper(nsCacheEntryDescriptor * desc,
-                                      uint32_t off)
-          : nsInputStreamWrapper(desc, off)
-          , mReadBuffer(0)
-          , mReadBufferLen(0)
-          , mStreamInitialized(false)
-          , mStreamEnded(false)
-         {
-         }
-         virtual ~nsDecompressInputStreamWrapper()
-         {
-             Close();
-         }
-         NS_IMETHOD Read(char* buf, uint32_t count, uint32_t * result);
-         NS_IMETHOD Close();
-     private:
-         nsresult InitZstream();
-         nsresult EndZstream();
-     };
-
-
      /*************************************************************************
       * output stream wrapper class -
       *
@@ -136,19 +136,19 @@ private:
       * doesn't need any references to the stream wrapper.
       *************************************************************************/
      class nsOutputStreamWrapper : public nsIOutputStream {
-     protected:
+     private:
          nsCacheEntryDescriptor *    mDescriptor;
          nsCOMPtr<nsIOutputStream>   mOutput;
-         uint32_t                    mStartOffset;
-         bool                        mInitialized;
+         PRUint32                    mStartOffset;
+         PRBool                      mInitialized;
      public:
          NS_DECL_ISUPPORTS
          NS_DECL_NSIOUTPUTSTREAM
 
-         nsOutputStreamWrapper(nsCacheEntryDescriptor * desc, uint32_t off)
+         nsOutputStreamWrapper(nsCacheEntryDescriptor * desc, PRUint32 off)
              : mDescriptor(desc)
              , mStartOffset(off)
-             , mInitialized(false)
+             , mInitialized(PR_FALSE)
          {
              NS_ADDREF(mDescriptor); // owning ref
          }
@@ -157,9 +157,8 @@ private:
              // XXX _HACK_ the storage stream needs this!
              Close();
              {
-             nsCacheServiceAutoLock lock(LOCK_TELEM(NSOUTPUTSTREAMWRAPPER_CLOSE));
-             mDescriptor->mOutput = nullptr;
-             mOutput = nullptr;
+             nsCacheServiceAutoLock lock;
+             mDescriptor->mOutput = nsnull;
              }
              NS_RELEASE(mDescriptor);
          }
@@ -167,39 +166,9 @@ private:
      private:
          nsresult LazyInit();
          nsresult EnsureInit() { return mInitialized ? NS_OK : LazyInit(); }
-         nsresult OnWrite(uint32_t count);
+         nsresult OnWrite(PRUint32 count);
      };
      friend class nsOutputStreamWrapper;
-
-     class nsCompressOutputStreamWrapper : public nsOutputStreamWrapper {
-     private:
-         unsigned char* mWriteBuffer;
-         uint32_t mWriteBufferLen;
-         z_stream mZstream;
-         bool mStreamInitialized;
-         uint32_t mUncompressedCount;
-     public:
-         NS_DECL_ISUPPORTS
-
-         nsCompressOutputStreamWrapper(nsCacheEntryDescriptor * desc, 
-                                       uint32_t off)
-          : nsOutputStreamWrapper(desc, off)
-          , mWriteBuffer(0)
-          , mWriteBufferLen(0)
-          , mStreamInitialized(false)
-          , mUncompressedCount(0)
-         {
-         }
-         virtual ~nsCompressOutputStreamWrapper()
-         { 
-             Close();
-         }
-         NS_IMETHOD Write(const char* buf, uint32_t count, uint32_t * result);
-         NS_IMETHOD Close();
-     private:
-         nsresult InitZstream();
-         nsresult WriteBuffer();
-     };
 
  private:
      /**

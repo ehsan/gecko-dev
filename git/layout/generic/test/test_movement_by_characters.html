@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test Character Movement (including nsTextFrame::PeekOffsetCharacter)</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -16,13 +17,8 @@
 
 SimpleTest.waitForExplicitFinish();
 
-setTimeout(focusing, 0);
-
-function focusing() {
-  document.getElementById("editor").focus();
-  // This seems to be necessary because the selection is not set up properly otherwise
-  setTimeout(test, 0);
-}
+// This seems to be necessary because the selection is not set up properly otherwise
+setTimeout(test, 0);
 
 function test() {
   var sel = window.getSelection();

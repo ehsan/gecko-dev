@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test for DOMException constants</title>
+  <script src="/MochiKit/packed.js"></script>
   <script src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -30,13 +31,13 @@ var constants = [
   "INVALID_ACCESS_ERR",
   "VALIDATION_ERR",
   "TYPE_MISMATCH_ERR",
-  "SECURITY_ERR",
-  "NETWORK_ERR",
-  "ABORT_ERR",
-  "URL_MISMATCH_ERR",
-  "QUOTA_EXCEEDED_ERR",
-  "TIMEOUT_ERR",
-  "INVALID_NODE_TYPE_ERR",
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
+  null,
   "DATA_CLONE_ERR"
 ];
 for (var i = 0; i < constants.length; ++i) {

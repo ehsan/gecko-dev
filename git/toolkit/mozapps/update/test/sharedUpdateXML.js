@@ -11,7 +11,7 @@
  * features greater than JavaScript 1.7.
  */
 
-const FILE_SIMPLE_MAR = "simple_no_pib.mar";
+const FILE_SIMPLE_MAR = "simple.mar";
 
 const SIZE_SIMPLE_MAR = "351";
 
@@ -29,10 +29,7 @@ const SHA512_HASH_SIMPLE_MAR = "55d3e2a86acaeb0abb7a444c13bba748846fcbac7ff05" +
 const STATE_NONE            = "null";
 const STATE_DOWNLOADING     = "downloading";
 const STATE_PENDING         = "pending";
-const STATE_PENDING_SVC     = "pending-service";
 const STATE_APPLYING        = "applying";
-const STATE_APPLIED         = "applied";
-const STATE_APPLIED_SVC     = "applied-service";
 const STATE_SUCCEEDED       = "succeeded";
 const STATE_DOWNLOAD_FAILED = "download-failed";
 const STATE_FAILED          = "failed";
@@ -195,16 +192,13 @@ function getLocalPatchString(aType, aURL, aHashFunction, aHashValue, aSize,
  *         If not specified it will default to 'App Update Test'.
  * @param  aDisplayVersion (optional)
  *         The update's display version.
- *         If not specified it will default to 'version #' where # is the value
- *         of DEFAULT_UPDATE_VERSION.
+ *         If not specified it will default to 'version 99.0'.
  * @param  aAppVersion (optional)
  *         The update's application version.
- *         If not specified it will default to the value of
- *         DEFAULT_UPDATE_VERSION.
+ *         If not specified it will default to '99.0'.
  * @param  aPlatformVersion (optional)
  *         The update's platform version.
- *         If not specified it will default to the value of
- *         DEFAULT_UPDATE_VERSION.
+ *         If not specified it will default to '99.0'.
  * @param  aBuildID (optional)
  *         The update's build id.
  *         If not specified it will default to '20080811053724'.
@@ -258,17 +252,14 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
   if (aDisplayVersion || !aVersion) {
     displayVersion = "displayVersion=\"" +
                      (aDisplayVersion ? aDisplayVersion
-                                      : "version " + DEFAULT_UPDATE_VERSION) +
-                     "\" ";
+                                      : "version 99.0") + "\" ";
   }
   // version has been deprecated in favor of displayVersion but it still needs
   // to be tested for forward compatibility.
   let version = aVersion ? "version=\"" + aVersion + "\" " : "";
   let appVersion = "";
   if (aAppVersion || !aExtensionVersion) {
-    appVersion = "appVersion=\"" +
-                 (aAppVersion ? aAppVersion : DEFAULT_UPDATE_VERSION) +
-                 "\" ";
+    appVersion = "appVersion=\"" + (aAppVersion ? aAppVersion : "99.0") + "\" ";
   }
   // extensionVersion has been deprecated in favor of appVersion but it still
   // needs to be tested for forward compatibility.
@@ -278,8 +269,7 @@ function getUpdateString(aType, aName, aDisplayVersion, aAppVersion,
   let platformVersion = "";
   if (aPlatformVersion) {
     platformVersion = "platformVersion=\"" +
-                      (aPlatformVersion ? aPlatformVersion
-                                        : DEFAULT_UPDATE_VERSION) + "\" ";
+                      (aPlatformVersion ? aPlatformVersion : "99.0") + "\" ";
   }
   let buildID = aBuildID ? aBuildID : "20080811053724";
   // XXXrstrong - not specifying a detailsURL will cause a leak due to bug 470244

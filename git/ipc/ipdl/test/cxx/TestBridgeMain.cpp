@@ -31,12 +31,12 @@ TestBridgeMainParent::AllocPTestBridgeMainSub(Transport* transport,
 {
     ProcessHandle h;
     if (!base::OpenProcessHandle(otherProcess, &h)) {
-        return nullptr;
+        return nsnull;
     }
 
     nsAutoPtr<TestBridgeMainSubParent> a(new TestBridgeMainSubParent(transport));
     if (!a->Open(transport, h, XRE_GetIOMessageLoop(), AsyncChannel::Parent)) {
-        return nullptr;
+        return nsnull;
     }
     return a.forget();
 }
@@ -90,7 +90,7 @@ TestBridgeMainSubParent::ActorDestroy(ActorDestroyReason why)
 TestBridgeMainChild* gBridgeMainChild;
 
 TestBridgeMainChild::TestBridgeMainChild()
-    : mSubprocess(nullptr)
+    : mSubprocess(nsnull)
 {
     gBridgeMainChild = this;
 }
@@ -182,12 +182,12 @@ TestBridgeSubChild::AllocPTestBridgeMainSub(Transport* transport,
 {
     ProcessHandle h;
     if (!base::OpenProcessHandle(otherProcess, &h)) {
-        return nullptr;
+        return nsnull;
     }
 
     nsAutoPtr<TestBridgeMainSubChild> a(new TestBridgeMainSubChild(transport));
     if (!a->Open(transport, h, XRE_GetIOMessageLoop(), AsyncChannel::Child)) {
-        return nullptr;
+        return nsnull;
     }
 
     if (!a->SendHello())

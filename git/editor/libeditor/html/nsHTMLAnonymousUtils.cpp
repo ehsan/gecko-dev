@@ -1,61 +1,71 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.org.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corp.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Daniel Glazman (glazman@netscape.com) (Original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/mozalloc.h"
-#include "nsAString.h"
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsComputedDOMStyle.h"
-#include "nsContentUtils.h"
-#include "nsDebug.h"
-#include "nsEditProperty.h"
-#include "nsError.h"
-#include "nsHTMLCSSUtils.h"
 #include "nsHTMLEditor.h"
-#include "nsIAtom.h"
+
 #include "nsIContent.h"
-#include "nsID.h"
+#include "nsIDocument.h"
+#include "nsIEditor.h"
+#include "nsIPresShell.h"
+#include "nsPresContext.h"
+
+#include "nsISelection.h"
+
+#include "nsTextEditUtils.h"
+#include "nsEditorUtils.h"
+#include "nsHTMLEditUtils.h"
+#include "nsTextEditRules.h"
+
+#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
+#include "nsIDOMEventTarget.h"
+
+#include "nsIDOMCSSValue.h"
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMCSSStyleDeclaration.h"
-#include "nsIDOMCSSValue.h"
-#include "nsIDOMElement.h"
-#include "nsIDOMEventTarget.h"
-#include "nsIDOMHTMLElement.h"
-#include "nsIDOMNode.h"
-#include "nsIDOMWindow.h"
-#include "nsIDocument.h"
-#include "nsIDocumentObserver.h"
-#include "nsIHTMLAbsPosEditor.h"
-#include "nsIHTMLEditor.h"
-#include "nsIHTMLInlineTableEditor.h"
-#include "nsIHTMLObjectResizer.h"
 #include "nsIMutationObserver.h"
-#include "nsINode.h"
-#include "nsIPresShell.h"
-#include "nsISupportsImpl.h"
-#include "nsISupportsUtils.h"
-#include "nsLiteralString.h"
-#include "nsPresContext.h"
-#include "nsReadableUtils.h"
-#include "nsString.h"
-#include "nsStringFwd.h"
 #include "nsUnicharUtils.h"
-#include "nscore.h"
-#include "prtypes.h"
-
-class nsIDOMEventListener;
-class nsISelection;
-
-using namespace mozilla;
+#include "nsContentUtils.h"
 
 // retrieve an integer stored into a CSS computed float value
-static int32_t GetCSSFloatValue(nsIDOMCSSStyleDeclaration * aDecl,
+static PRInt32 GetCSSFloatValue(nsIDOMCSSStyleDeclaration * aDecl,
                                 const nsAString & aProperty)
 {
-  MOZ_ASSERT(aDecl);
+  NS_ENSURE_ARG_POINTER(aDecl);
 
   nsCOMPtr<nsIDOMCSSValue> value;
   // get the computed CSSValue of the property
@@ -65,7 +75,7 @@ static int32_t GetCSSFloatValue(nsIDOMCSSStyleDeclaration * aDecl,
   // check the type of the returned CSSValue; we handle here only
   // pixel and enum types
   nsCOMPtr<nsIDOMCSSPrimitiveValue> val = do_QueryInterface(value);
-  uint16_t type;
+  PRUint16 type;
   val->GetPrimitiveType(&type);
 
   float f = 0;
@@ -90,10 +100,10 @@ static int32_t GetCSSFloatValue(nsIDOMCSSStyleDeclaration * aDecl,
     }
   }
 
-  return (int32_t) f;
+  return (PRInt32) f;
 }
 
-class nsElementDeletionObserver MOZ_FINAL : public nsIMutationObserver
+class nsElementDeletionObserver : public nsIMutationObserver
 {
 public:
   nsElementDeletionObserver(nsINode* aNativeAnonNode, nsINode* aObservedNode)
@@ -129,17 +139,20 @@ nsElementDeletionObserver::NodeWillBeDestroyed(const nsINode* aNode)
 // the empty string, it becomes the value of the attribute "_moz_anonclass"
 nsresult
 nsHTMLEditor::CreateAnonymousElement(const nsAString & aTag, nsIDOMNode *  aParentNode,
-                                     const nsAString & aAnonClass, bool aIsCreatedHidden,
+                                     const nsAString & aAnonClass, PRBool aIsCreatedHidden,
                                      nsIDOMElement ** aReturn)
 {
   NS_ENSURE_ARG_POINTER(aParentNode);
   NS_ENSURE_ARG_POINTER(aReturn);
-  *aReturn = nullptr;
+  *aReturn = nsnull;
 
   nsCOMPtr<nsIContent> parentContent( do_QueryInterface(aParentNode) );
   NS_ENSURE_TRUE(parentContent, NS_OK);
 
-  nsCOMPtr<nsIDocument> doc = GetDocument();
+  // Get the document
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  GetDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
   NS_ENSURE_TRUE(doc, NS_ERROR_NULL_POINTER);
 
   // Get the pres shell
@@ -147,7 +160,7 @@ nsHTMLEditor::CreateAnonymousElement(const nsAString & aTag, nsIDOMNode *  aPare
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
 
   // Create a new node through the element factory
-  nsCOMPtr<dom::Element> newContent;
+  nsCOMPtr<nsIContent> newContent;
   nsresult res = CreateHTMLContent(aTag, getter_AddRefs(newContent));
   NS_ENSURE_SUCCESS(res, res);
 
@@ -173,7 +186,7 @@ nsHTMLEditor::CreateAnonymousElement(const nsAString & aTag, nsIDOMNode *  aPare
 
     // establish parenthood of the element
     newContent->SetNativeAnonymous();
-    res = newContent->BindToTree(doc, parentContent, parentContent, true);
+    res = newContent->BindToTree(doc, parentContent, parentContent, PR_TRUE);
     if (NS_FAILED(res)) {
       newContent->UnbindFromTree();
       return res;
@@ -182,6 +195,10 @@ nsHTMLEditor::CreateAnonymousElement(const nsAString & aTag, nsIDOMNode *  aPare
 
   nsElementDeletionObserver* observer =
     new nsElementDeletionObserver(newContent, parentContent);
+  if (!observer) {
+    newContent->UnbindFromTree();
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   NS_ADDREF(observer); // NodeWillBeDestroyed releases.
   parentContent->AddMutationObserver(observer);
   newContent->AddMutationObserver(observer);
@@ -189,7 +206,8 @@ nsHTMLEditor::CreateAnonymousElement(const nsAString & aTag, nsIDOMNode *  aPare
   // display the element
   ps->RecreateFramesFor(newContent);
 
-  newElement.forget(aReturn);
+  *aReturn = newElement;
+  NS_IF_ADDREF(*aReturn);
   return NS_OK;
 }
 
@@ -197,7 +215,7 @@ nsHTMLEditor::CreateAnonymousElement(const nsAString & aTag, nsIDOMNode *  aPare
 void
 nsHTMLEditor::RemoveListenerAndDeleteRef(const nsAString& aEvent,
                                          nsIDOMEventListener* aListener,
-                                         bool aUseCapture,
+                                         PRBool aUseCapture,
                                          nsIDOMElement* aElement,
                                          nsIContent * aParentContent,
                                          nsIPresShell* aShell)
@@ -224,7 +242,7 @@ nsHTMLEditor::DeleteRefToAnonymousNode(nsIDOMElement* aElement,
     if (content) {
       nsAutoScriptBlocker scriptBlocker;
       // Need to check whether aShell has been destroyed (but not yet deleted).
-      // In that case presContext->GetPresShell() returns nullptr.
+      // In that case presContext->GetPresShell() returns nsnull.
       // See bug 338129.
       if (aShell && aShell->GetPresContext() &&
           aShell->GetPresContext()->GetPresShell() == aShell) {
@@ -232,13 +250,12 @@ nsHTMLEditor::DeleteRefToAnonymousNode(nsIDOMElement* aElement,
         if (docObserver) {
           // Call BeginUpdate() so that the nsCSSFrameConstructor/PresShell
           // knows we're messing with the frame tree.
-          nsCOMPtr<nsIDocument> document = GetDocument();
+          nsCOMPtr<nsIDOMDocument> domDocument;
+          GetDocument(getter_AddRefs(domDocument));
+          nsCOMPtr<nsIDocument> document = do_QueryInterface(domDocument);
           if (document)
             docObserver->BeginUpdate(document, UPDATE_CONTENT_MODEL);
 
-          // XXX This is wrong (bug 439258).  Once it's fixed, the NS_WARNING
-          // in nsCSSFrameConstructor::RestyleForRemove should be changed back
-          // to an assertion.
           docObserver->ContentRemoved(content->GetCurrentDoc(),
                                       aParentContent, content, -1,
                                       content->GetPreviousSibling());
@@ -276,13 +293,6 @@ nsHTMLEditor::CheckSelectionStateForAnonymousButtons(nsISelection * aSelection)
   NS_ENSURE_TRUE(focusElement, NS_OK);
   NS_ENSURE_SUCCESS(res, res);
 
-  // If we're not in a document, don't try to add resizers
-  nsCOMPtr<dom::Element> focusElementNode = do_QueryInterface(focusElement);
-  NS_ENSURE_STATE(focusElementNode);
-  if (!focusElementNode->IsInDoc()) {
-    return NS_OK;
-  }
-
   // what's its tag?
   nsAutoString focusTagName;
   res = focusElement->GetTagName(focusTagName);
@@ -303,7 +313,7 @@ nsHTMLEditor::CheckSelectionStateForAnonymousButtons(nsISelection * aSelection)
     // Resizing or Inline Table Editing is enabled, we need to check if the
     // selection is contained in a table cell
     res = GetElementOrParentByTagName(NS_LITERAL_STRING("td"),
-                                      nullptr,
+                                      nsnull,
                                       getter_AddRefs(cellElement));
     NS_ENSURE_SUCCESS(res, res);
   }
@@ -358,13 +368,11 @@ nsHTMLEditor::CheckSelectionStateForAnonymousButtons(nsISelection * aSelection)
   }
 
   // now, let's display all contextual UI for good
-  nsIContent* hostContent = GetActiveEditingHost();
-  nsCOMPtr<nsIDOMNode> hostNode = do_QueryInterface(hostContent);
 
   if (mIsObjectResizingEnabled && focusElement &&
-      IsModifiableNode(focusElement) && focusElement != hostNode) {
+      IsModifiableNode(focusElement)) {
     if (nsEditProperty::img == focusTagAtom)
-      mResizedObjectIsAnImage = true;
+      mResizedObjectIsAnImage = PR_TRUE;
     if (mResizedObject)
       res = RefreshResizers();
     else
@@ -373,7 +381,7 @@ nsHTMLEditor::CheckSelectionStateForAnonymousButtons(nsISelection * aSelection)
   }
 
   if (mIsAbsolutelyPositioningEnabled && absPosElement &&
-      IsModifiableNode(absPosElement) && absPosElement != hostNode) {
+      IsModifiableNode(absPosElement)) {
     if (mAbsolutelyPositionedObject)
       res = RefreshGrabber();
     else
@@ -382,7 +390,7 @@ nsHTMLEditor::CheckSelectionStateForAnonymousButtons(nsISelection * aSelection)
   }
 
   if (mIsInlineTableEditingEnabled && cellElement &&
-      IsModifiableNode(cellElement) && cellElement != hostNode) {
+      IsModifiableNode(cellElement)) {
     if (mInlineEditedCell)
       res = RefreshInlineTableEditingUI();
     else
@@ -396,17 +404,17 @@ nsHTMLEditor::CheckSelectionStateForAnonymousButtons(nsISelection * aSelection)
 // containing box of the element: position, size, margins, borders
 nsresult
 nsHTMLEditor::GetPositionAndDimensions(nsIDOMElement * aElement,
-                                       int32_t & aX, int32_t & aY,
-                                       int32_t & aW, int32_t & aH,
-                                       int32_t & aBorderLeft,
-                                       int32_t & aBorderTop,
-                                       int32_t & aMarginLeft,
-                                       int32_t & aMarginTop)
+                                       PRInt32 & aX, PRInt32 & aY,
+                                       PRInt32 & aW, PRInt32 & aH,
+                                       PRInt32 & aBorderLeft,
+                                       PRInt32 & aBorderTop,
+                                       PRInt32 & aMarginLeft,
+                                       PRInt32 & aMarginTop)
 {
   NS_ENSURE_ARG_POINTER(aElement);
 
   // Is the element positioned ? let's check the cheap way first...
-  bool isPositioned = false;
+  PRBool isPositioned = PR_FALSE;
   nsresult res = aElement->HasAttribute(NS_LITERAL_STRING("_moz_abspos"), &isPositioned);
   NS_ENSURE_SUCCESS(res, res);
   if (!isPositioned) {
@@ -419,12 +427,16 @@ nsHTMLEditor::GetPositionAndDimensions(nsIDOMElement * aElement,
 
   if (isPositioned) {
     // Yes, it is absolutely positioned
-    mResizedObjectIsAbsolutelyPositioned = true;
+    mResizedObjectIsAbsolutelyPositioned = PR_TRUE;
 
+    nsCOMPtr<nsIDOMWindow> window;
+    res = mHTMLCSSUtils->GetDefaultViewCSS(aElement, getter_AddRefs(window));
+    NS_ENSURE_TRUE(window, NS_ERROR_FAILURE);
+
+    nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
     // Get the all the computed css styles attached to the element node
-    nsRefPtr<nsComputedDOMStyle> cssDecl =
-      mHTMLCSSUtils->GetComputedStyle(aElement);
-    NS_ENSURE_STATE(cssDecl);
+    res = window->GetComputedStyle(aElement, EmptyString(), getter_AddRefs(cssDecl));
+    NS_ENSURE_SUCCESS(res, res);
 
     aBorderLeft = GetCSSFloatValue(cssDecl, NS_LITERAL_STRING("border-left-width"));
     aBorderTop  = GetCSSFloatValue(cssDecl, NS_LITERAL_STRING("border-top-width"));
@@ -439,16 +451,15 @@ nsHTMLEditor::GetPositionAndDimensions(nsIDOMElement * aElement,
     aH = GetCSSFloatValue(cssDecl, NS_LITERAL_STRING("height"));
   }
   else {
-    mResizedObjectIsAbsolutelyPositioned = false;
-    nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(aElement);
-    if (!htmlElement) {
-      return NS_ERROR_NULL_POINTER;
-    }
+    mResizedObjectIsAbsolutelyPositioned = PR_FALSE;
+    nsCOMPtr<nsIDOMNSHTMLElement> nsElement = do_QueryInterface(aElement);
+    if (!nsElement) {return NS_ERROR_NULL_POINTER; }
+
     GetElementOrigin(aElement, aX, aY);
 
-    res = htmlElement->GetOffsetWidth(&aW);
+    res = nsElement->GetOffsetWidth(&aW);
     NS_ENSURE_SUCCESS(res, res);
-    res = htmlElement->GetOffsetHeight(&aH);
+    res = nsElement->GetOffsetHeight(&aH);
 
     aBorderLeft = 0;
     aBorderTop  = 0;
@@ -460,7 +471,7 @@ nsHTMLEditor::GetPositionAndDimensions(nsIDOMElement * aElement,
 
 // self-explanatory
 void
-nsHTMLEditor::SetAnonymousElementPosition(int32_t aX, int32_t aY, nsIDOMElement *aElement)
+nsHTMLEditor::SetAnonymousElementPosition(PRInt32 aX, PRInt32 aY, nsIDOMElement *aElement)
 {
   mHTMLCSSUtils->SetCSSPropertyPixels(aElement, NS_LITERAL_STRING("left"), aX);
   mHTMLCSSUtils->SetCSSPropertyPixels(aElement, NS_LITERAL_STRING("top"), aY);

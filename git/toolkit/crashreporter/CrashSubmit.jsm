@@ -1,9 +1,41 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *    Ted Mielczarek <ted.mielczarek@gmail.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/KeyValueParser.jsm");
 
 let EXPORTED_SYMBOLS = [
   "CrashSubmit"
@@ -21,6 +53,42 @@ const SUBMITTING = "submitting";
 let reportURL = null;
 let strings = null;
 let myListener = null;
+
+function parseKeyValuePairs(text) {
+  var lines = text.split('\n');
+  var data = {};
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i] == '')
+      continue;
+
+    // can't just .split() because the value might contain = characters
+    let eq = lines[i].indexOf('=');
+    if (eq != -1) {
+      let [key, value] = [lines[i].substring(0, eq),
+                          lines[i].substring(eq + 1)];
+      if (key && value)
+        data[key] = value.replace("\\n", "\n", "g").replace("\\\\", "\\", "g");
+    }
+  }
+  return data;
+}
+
+function parseKeyValuePairsFromFile(file) {
+  var fstream = Cc["@mozilla.org/network/file-input-stream;1"].
+                createInstance(Ci.nsIFileInputStream);
+  fstream.init(file, -1, 0, 0);
+  var is = Cc["@mozilla.org/intl/converter-input-stream;1"].
+           createInstance(Ci.nsIConverterInputStream);
+  is.init(fstream, "UTF-8", 1024, Ci.nsIConverterInputStream.DEFAULT_REPLACEMENT_CHARACTER);
+  var str = {};
+  var contents = '';
+  while (is.readString(4096, str) != 0) {
+    contents += str.value;
+  }
+  is.close();
+  fstream.close();
+  return parseKeyValuePairs(contents);
+}
 
 function parseINIStrings(file) {
   var factory = Cc["@mozilla.org/xpcom/ini-parser-factory;1"].
@@ -119,12 +187,13 @@ function writeSubmittedReport(crashID, viewURL) {
 }
 
 // the Submitter class represents an individual submission.
-function Submitter(id, submitSuccess, submitError, noThrottle) {
+function Submitter(id, element, submitSuccess, submitError, noThrottle) {
   this.id = id;
+  this.element = element;
+  this.document = element.ownerDocument;
   this.successCallback = submitSuccess;
   this.errorCallback = submitError;
   this.noThrottle = noThrottle;
-  this.additionalDumps = [];
 }
 
 Submitter.prototype = {
@@ -143,9 +212,6 @@ Submitter.prototype = {
     try {
       this.dump.remove(false);
       this.extra.remove(false);
-      for (let i of this.additionalDumps) {
-        i.dump.remove(false);
-      }
     }
     catch (ex) {
       // report an error? not much the user can do here.
@@ -157,12 +223,13 @@ Submitter.prototype = {
 
   cleanup: function Submitter_cleanup() {
     // drop some references just to be nice
+    this.element = null;
+    this.document = null;
     this.successCallback = null;
     this.errorCallback = null;
     this.iframe = null;
     this.dump = null;
     this.extra = null;
-    this.additionalDumps = null;
     // remove this object from the list of active submissions
     let idx = CrashSubmit._activeSubmissions.indexOf(this);
     if (idx != -1)
@@ -172,54 +239,74 @@ Submitter.prototype = {
   submitForm: function Submitter_submitForm()
   {
     let reportData = parseKeyValuePairsFromFile(this.extra);
-    if (!('ServerURL' in reportData)) {
+    let form = this.iframe.contentDocument.forms[0];
+    if ('ServerURL' in reportData) {
+      form.action = reportData.ServerURL;
+      delete reportData.ServerURL;
+    }
+    else {
       return false;
     }
-
-    let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
-              .createInstance(Ci.nsIXMLHttpRequest);
-    xhr.open("POST", reportData.ServerURL, true);
-    delete reportData.ServerURL;
-
-    let formData = Cc["@mozilla.org/files/formdata;1"]
-                   .createInstance(Ci.nsIDOMFormData);
     // add the other data
     for (let [name, value] in Iterator(reportData)) {
-      formData.append(name, value);
+      addFormEntry(this.iframe.contentDocument, form, name, value);
     }
     if (this.noThrottle) {
       // tell the server not to throttle this, since it was manually submitted
-      formData.append("Throttleable", "0");
+      addFormEntry(this.iframe.contentDocument, form, "Throttleable", "0");
     }
-    // add the minidumps
-    formData.append("upload_file_minidump", File(this.dump.path));
-    if (this.additionalDumps.length > 0) {
-      let names = [];
-      for (let i of this.additionalDumps) {
-        names.push(i.name);
-        formData.append("upload_file_minidump_"+i.name,
-                        File(i.dump.path));
-      }
-
-      formData.append("additional_minidumps", names.join(","));
-    }
-
-    let self = this;
-    xhr.addEventListener("readystatechange", function (aEvt) {
-      if (xhr.readyState == 4) {
-        if (xhr.status != 200) {
-          self.notifyStatus(FAILED);
-          self.cleanup();
-        } else {
-          let ret = parseKeyValuePairs(xhr.responseText);
-          self.submitSuccess(ret);
-        }
-      }
-    }, false);
-
-    xhr.send(formData);
+    // add the minidump
+    this.iframe.contentDocument.getElementById('minidump').value
+      = this.dump.path;
+    this.iframe.docShell.QueryInterface(Ci.nsIWebProgress);
+    this.iframe.docShell.addProgressListener(this, Ci.nsIWebProgress.NOTIFY_STATE_DOCUMENT);
+    form.submit();
     return true;
   },
+
+  // web progress listener
+  QueryInterface: function(aIID)
+  {
+    if (aIID.equals(Ci.nsIWebProgressListener) ||
+        aIID.equals(Ci.nsISupportsWeakReference) ||
+        aIID.equals(Ci.nsISupports))
+      return this;
+    throw Components.results.NS_NOINTERFACE;
+  },
+
+  onStateChange: function(aWebProgress, aRequest, aFlag, aStatus)
+  {
+    if(aFlag & STATE_STOP) {
+      this.iframe.docShell.QueryInterface(Ci.nsIWebProgress);
+      this.iframe.docShell.removeProgressListener(this);
+
+      // check general request status first
+      if (!Components.isSuccessCode(aStatus)) {
+        this.element.removeChild(this.iframe);
+        this.notifyStatus(FAILED);
+        this.cleanup();
+        return 0;
+      }
+      // check HTTP status
+      if (aRequest instanceof Ci.nsIHttpChannel &&
+          aRequest.responseStatus != 200) {
+        this.element.removeChild(this.iframe);
+        this.notifyStatus(FAILED);
+        this.cleanup();
+        return 0;
+      }
+
+      var ret = parseKeyValuePairs(this.iframe.contentDocument.documentElement.textContent);
+      this.element.removeChild(this.iframe);
+      this.submitSuccess(ret);
+    }
+    return 0;
+  },
+
+  onLocationChange: function(aProgress, aRequest, aURI) {return 0;},
+  onProgressChange: function() {return 0;},
+  onStatusChange: function() {return 0;},
+  onSecurityChange: function() {return 0;},
 
   notifyStatus: function Submitter_notify(status, ret)
   {
@@ -255,32 +342,30 @@ Submitter.prototype = {
       return false;
     }
 
-    let reportData = parseKeyValuePairsFromFile(extra);
-    let additionalDumps = [];
-    if ("additional_minidumps" in reportData) {
-      let names = extraData.additional_minidumps.split(',');
-      for (let name in names) {
-        let [dump, extra] = getPendingMiniDump(this.id + "-" + name);
-        if (!dump.exists()) {
-          this.notifyStatus(FAILED);
-          this.cleanup();
-          return false;
-        }
-        additionalDumps.push({'name': name, 'dump': dump});
-      }
-    }
-
     this.notifyStatus(SUBMITTING);
 
     this.dump = dump;
     this.extra = extra;
-    this.additionalDumps = additionalDumps;
+    let iframe = this.document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul", "iframe");
+    iframe.setAttribute("type", "content");
+    iframe.style.width = 0;
+    iframe.style.minWidth = 0;
 
-    if (!this.submitForm()) {
-       this.notifyStatus(FAILED);
-       this.cleanup();
-       return false;
+    let self = this;
+    function loadHandler() {
+      if (iframe.contentWindow.location == "about:blank")
+        return;
+      iframe.removeEventListener("load", loadHandler, true);
+      if (!self.submitForm()) {
+        self.notifyStatus(FAILED);
+        self.cleanup();
+      }
     }
+
+    iframe.addEventListener("load", loadHandler, true);
+    this.element.appendChild(iframe);
+    this.iframe = iframe;
+    iframe.webNavigation.loadURI("chrome://global/content/crash-submit-form.xhtml", 0, null, null, null);
     return true;
   }
 };
@@ -293,43 +378,34 @@ let CrashSubmit = {
    *
    * @param id
    *        Filename (minus .dmp extension) of the minidump to submit.
-   * @param params
-   *        An object containing any of the following optional parameters:
-   *        - submitSuccess
-   *          A function that will be called if the report is submitted
-   *          successfully with two parameters: the id that was passed
-   *          to this function, and an object containing the key/value
-   *          data returned from the server in its properties.
-   *        - submitError
-   *          A function that will be called with one parameter if the
-   *          report fails to submit: the id that was passed to this
-   *          function.
-   *        - noThrottle
-   *          If true, this crash report should be submitted with
-   *          an extra parameter of "Throttleable=0" indicating that
-   *          it should be processed right away. This should be set
-   *          when the report is being submitted and the user expects
-   *          to see the results immediately. Defaults to false.
+   * @param element
+   *        A DOM element to which an iframe can be appended as a child,
+   *        used for form submission.
+   * @param submitSuccess
+   *        A function that will be called if the report is submitted
+   *        successfully with two parameters: the id that was passed
+   *        to this function, and an object containing the key/value
+   *        data returned from the server in its properties.
+   * @param submitError
+   *        A function that will be called with one parameter if the
+   *        report fails to submit: the id that was passed to this
+   *        function.
+   * @param noThrottle
+   *        If true, this crash report should be submitted with
+   *        an extra parameter of "Throttleable=0" indicating that
+   *        it should be processed right away. This should be set
+   *        when the report is being submitted and the user expects
+   *        to see the results immediately.
    *
    * @return true if the submission began successfully, or false if
    *         it failed for some reason. (If the dump file does not
    *         exist, for example.)
    */
-  submit: function CrashSubmit_submit(id, params)
+  submit: function CrashSubmit_submit(id, element, submitSuccess, submitError,
+                                      noThrottle)
   {
-    params = params || {};
-    let submitSuccess = null;
-    let submitError = null;
-    let noThrottle = false;
-
-    if ('submitSuccess' in params)
-      submitSuccess = params.submitSuccess;
-    if ('submitError' in params)
-      submitError = params.submitError;
-    if ('noThrottle' in params)
-      noThrottle = params.noThrottle;
-
     let submitter = new Submitter(id,
+                                  element,
                                   submitSuccess,
                                   submitError,
                                   noThrottle);

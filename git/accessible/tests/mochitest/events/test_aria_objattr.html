@@ -7,6 +7,8 @@
         href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
@@ -21,7 +23,7 @@
      */
     var gQueue = null;
 
-    function updateAttribute(aID, aAttr, aValue)
+    function hideNode(aID, bHide)
     {
       this.node = getNode(aID);
       this.accessible = getAccessible(this.node);
@@ -30,14 +32,34 @@
         new invokerChecker(EVENT_OBJECT_ATTRIBUTE_CHANGED, this.accessible),
       ];
 
-      this.invoke = function updateAttribute_invoke()
+      this.invoke = function hideNode_invoke()
       {
-        this.node.setAttribute(aAttr, aValue);
+        this.node.setAttribute("aria-hidden", bHide);
       }
 
-      this.getID = function updateAttribute_getID()
+      this.getID = function hideNode_getID()
       {
-        return aAttr + " for " + aID + " " + aValue;
+        return "aria-hidden for " + aID + " " + bHide;
+      }
+    }
+
+    function updateSort(aID, aSort)
+    {
+      this.node = getNode(aID);
+      this.accessible = getAccessible(this.node);
+
+      this.eventSeq = [
+        new invokerChecker(EVENT_OBJECT_ATTRIBUTE_CHANGED, this.accessible),
+      ];
+
+      this.invoke = function updateSort_invoke()
+      {
+        this.node.setAttribute("aria-sort", aSort);
+      }
+
+      this.getID = function updateSort_getID()
+      {
+        return "aria-sort for " + aID + " " + aSort;
       }
     }
 
@@ -49,12 +71,9 @@
     {
       gQueue = new eventQueue();
 
-      gQueue.push(new updateAttribute("hideable", "aria-hidden", "true"));
+      gQueue.push(new hideNode("hideable", "true"));
 
-      gQueue.push(new updateAttribute("sortable", "aria-sort", "ascending"));
-
-      // For experimental ARIA extensions
-      gQueue.push(new updateAttribute("custom", "aria-blah", "true"));
+      gQueue.push(new updateSort("sortable", "ascending"));
 
       gQueue.invoke(); // Will call SimpleTest.finish();
     }
@@ -78,12 +97,6 @@
     Mozilla Bug 640707
   </a>
 
-  <a target="_blank"
-     href="https://bugzilla.mozilla.org/show_bug.cgi?id=640707"
-     title="Expand support for aria attribute change events">
-    Mozilla Bug 563862
-  </a>
-
   <p id="display"></p>
   <div id="content" style="display: none"></div>
   <pre id="test">
@@ -92,8 +105,6 @@
 
   <div id="hideable"><div>Hi</div><div>there</div></div>
 
-  <div id="sortable" role="columnheader" aria-sort="none">aria-sort</div>
-
-  <div id="custom" role="custom" aria-blah="false">Fat free cheese</div>
+  <div id="sortable" role="columnheader" aria-sort"none">aria-sort</div>
 </body>
 </html>

@@ -1,10 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=2 et tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Util.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsITextControlElement.h"
@@ -31,13 +62,18 @@
 #include "nsLinebreakConverter.h"
 #include "nsIDocument.h"
 #include "nsIFrame.h"
+#include "nsIFormControlFrame.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsGUIEvent.h"
+#include "nsLinebreakConverter.h"
 #include "nsPresState.h"
+#include "nsIDOMText.h"
 #include "nsReadableUtils.h"
 #include "nsEventDispatcher.h"
 #include "nsLayoutUtils.h"
-#include "nsError.h"
+#include "nsLayoutErrors.h"
 #include "nsStubMutationObserver.h"
+#include "nsDOMError.h"
 #include "mozAutoDocUpdate.h"
 #include "nsISupportsPrimitives.h"
 #include "nsContentCreatorFunctions.h"
@@ -46,7 +82,6 @@
 
 #include "nsTextEditorState.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 static NS_DEFINE_CID(kXULControllersCID,  NS_XULCONTROLLERS_CID);
@@ -76,24 +111,7 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLFormElement::)
-  NS_IMETHOD Click() {
-    return nsGenericHTMLFormElement::Click();
-  }
-  NS_IMETHOD GetTabIndex(int32_t* aTabIndex);
-  NS_IMETHOD SetTabIndex(int32_t aTabIndex);
-  NS_IMETHOD Focus() {
-    return nsGenericHTMLFormElement::Focus();
-  }
-  NS_IMETHOD GetDraggable(bool* aDraggable) {
-    return nsGenericHTMLFormElement::GetDraggable(aDraggable);
-  }
-  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) {
-    return nsGenericHTMLFormElement::GetInnerHTML(aInnerHTML);
-  }
-  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) {
-    return nsGenericHTMLFormElement::SetInnerHTML(aInnerHTML);
-  }
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLTextAreaElement
   NS_DECL_NSIDOMHTMLTEXTAREAELEMENT
@@ -106,28 +124,29 @@ public:
   NS_IMETHOD SetUserInput(const nsAString& aInput);
 
   // nsIFormControl
-  NS_IMETHOD_(uint32_t) GetType() const { return NS_FORM_TEXTAREA; }
+  NS_IMETHOD_(PRUint32) GetType() const { return NS_FORM_TEXTAREA; }
   NS_IMETHOD Reset();
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
   NS_IMETHOD SaveState();
-  virtual bool RestoreState(nsPresState* aState);
+  virtual PRBool RestoreState(nsPresState* aState);
 
-  virtual void FieldSetDisabledChanged(bool aNotify);
+  virtual void FieldSetDisabledChanged(PRBool aNotify);
 
   virtual nsEventStates IntrinsicState() const;
 
   // nsITextControlElemet
-  NS_IMETHOD SetValueChanged(bool aValueChanged);
-  NS_IMETHOD_(bool) IsSingleLineTextControl() const;
-  NS_IMETHOD_(bool) IsTextArea() const;
-  NS_IMETHOD_(bool) IsPlainTextControl() const;
-  NS_IMETHOD_(bool) IsPasswordTextControl() const;
-  NS_IMETHOD_(int32_t) GetCols();
-  NS_IMETHOD_(int32_t) GetWrapCols();
-  NS_IMETHOD_(int32_t) GetRows();
+  NS_IMETHOD SetValueChanged(PRBool aValueChanged);
+  NS_IMETHOD_(PRBool) IsSingleLineTextControl() const;
+  NS_IMETHOD_(PRBool) IsTextArea() const;
+  NS_IMETHOD_(PRBool) IsPlainTextControl() const;
+  NS_IMETHOD_(PRBool) IsPasswordTextControl() const;
+  NS_IMETHOD_(PRInt32) GetCols();
+  NS_IMETHOD_(PRInt32) GetWrapCols();
+  NS_IMETHOD_(PRInt32) GetRows();
   NS_IMETHOD_(void) GetDefaultValueFromContent(nsAString& aValue);
-  NS_IMETHOD_(bool) ValueChanged() const;
-  NS_IMETHOD_(void) GetTextEditorValue(nsAString& aValue, bool aIgnoreWrap) const;
+  NS_IMETHOD_(PRBool) ValueChanged() const;
+  NS_IMETHOD_(void) GetTextEditorValue(nsAString& aValue, PRBool aIgnoreWrap) const;
+  NS_IMETHOD_(void) SetTextEditorValue(const nsAString& aValue, PRBool aUserInput);
   NS_IMETHOD_(nsIEditor*) GetTextEditor();
   NS_IMETHOD_(nsISelectionController*) GetSelectionController();
   NS_IMETHOD_(nsFrameSelection*) GetConstFrameSelection();
@@ -137,44 +156,43 @@ public:
   NS_IMETHOD_(nsIContent*) GetRootEditorNode();
   NS_IMETHOD_(nsIContent*) CreatePlaceholderNode();
   NS_IMETHOD_(nsIContent*) GetPlaceholderNode();
-  NS_IMETHOD_(void) SetPlaceholderClass(bool aVisible, bool aNotify);
+  NS_IMETHOD_(void) UpdatePlaceholderText(PRBool aNotify);
+  NS_IMETHOD_(void) SetPlaceholderClass(PRBool aVisible, PRBool aNotify);
   NS_IMETHOD_(void) InitializeKeyboardEventListeners();
-  NS_IMETHOD_(void) OnValueChanged(bool aNotify);
-  NS_IMETHOD_(bool) HasCachedSelection();
+  NS_IMETHOD_(void) OnValueChanged(PRBool aNotify);
 
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                nsIContent* aBindingParent,
-                               bool aCompileEventHandlers);
-  virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true);
-  virtual bool ParseAttribute(int32_t aNamespaceID,
+                               PRBool aCompileEventHandlers);
+  virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
+                              PRBool aNullParent = PR_TRUE);
+  virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
   virtual nsMapRuleToAttributesFunc GetAttributeMappingFunction() const;
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                              int32_t aModType) const;
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
+                                              PRInt32 aModType) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
-  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, int32_t *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
 
-  virtual void DoneAddingChildren(bool aHaveNotified);
-  virtual bool IsDoneAddingChildren();
+  virtual nsresult DoneAddingChildren(PRBool aHaveNotified);
+  virtual PRBool IsDoneAddingChildren();
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  nsresult CopyInnerTo(nsGenericElement* aDest);
+  nsresult CopyInnerTo(nsGenericElement* aDest) const;
 
   /**
    * Called when an attribute is about to be changed
    */
-  virtual nsresult BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                 const nsAttrValueOrString* aValue,
-                                 bool aNotify);
+  virtual nsresult BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                 const nsAString* aValue, PRBool aNotify);
 
   // nsIMutationObserver
   NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
@@ -182,16 +200,19 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
+  virtual void UpdateEditableState(PRBool aNotify)
+  {
+    return UpdateEditableFormControlState(aNotify);
+  }
+
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLTextAreaElement,
                                            nsGenericHTMLFormElement)
 
   virtual nsXPCClassInfo* GetClassInfo();
 
-  virtual nsIDOMNode* AsDOMNode() { return this; }
-
   // nsIConstraintValidation
-  bool     IsTooLong();
-  bool     IsValueMissing() const;
+  PRBool   IsTooLong();
+  PRBool   IsValueMissing() const;
   void     UpdateTooLongValidityState();
   void     UpdateValueMissingValidityState();
   void     UpdateBarredFromConstraintValidation();
@@ -203,27 +224,23 @@ protected:
 
   nsCOMPtr<nsIControllers> mControllers;
   /** Whether or not the value has changed since its default value was given. */
-  bool                     mValueChanged;
+  PRPackedBool             mValueChanged;
   /** Whether or not we are already handling select event. */
-  bool                     mHandlingSelect;
-  /** Whether or not we are done adding children (always true if not
+  PRPackedBool             mHandlingSelect;
+  /** Whether or not we are done adding children (always PR_TRUE if not
       created by a parser */
-  bool                     mDoneAddingChildren;
+  PRPackedBool             mDoneAddingChildren;
   /** Whether state restoration should be inhibited in DoneAddingChildren. */
-  bool                     mInhibitStateRestoration;
+  PRPackedBool             mInhibitStateRestoration;
   /** Whether our disabled state has changed from the default **/
-  bool                     mDisabledChanged;
+  PRPackedBool             mDisabledChanged;
   /** Whether we should make :-moz-ui-invalid apply on the element. **/
-  bool                     mCanShowInvalidUI;
+  PRPackedBool             mCanShowInvalidUI;
   /** Whether we should make :-moz-ui-valid apply on the element. **/
-  bool                     mCanShowValidUI;
-  
-  void FireChangeEventIfNeeded();
-  
-  nsString mFocusedValue;
+  PRPackedBool             mCanShowValidUI;
 
   /** The state of the text editor (selection controller and the editor) **/
-  nsTextEditorState mState;
+  nsRefPtr<nsTextEditorState> mState;
 
   NS_IMETHOD SelectAll(nsPresContext* aPresContext);
   /**
@@ -233,11 +250,11 @@ protected:
    *        value.  If this is true, linebreaks will not be inserted even if
    *        wrap=hard.
    */
-  void GetValueInternal(nsAString& aValue, bool aIgnoreWrap) const;
+  void GetValueInternal(nsAString& aValue, PRBool aIgnoreWrap) const;
 
   nsresult SetValueInternal(const nsAString& aValue,
-                            bool aUserInput);
-  nsresult GetSelectionRange(int32_t* aSelectionStart, int32_t* aSelectionEnd);
+                            PRBool aUserInput);
+  nsresult GetSelectionRange(PRInt32* aSelectionStart, PRInt32* aSelectionEnd);
 
   /**
    * Common method to call from the various mutation observer methods.
@@ -246,8 +263,8 @@ protected:
    */
   void ContentChanged(nsIContent* aContent);
 
-  virtual nsresult AfterSetAttr(int32_t aNamespaceID, nsIAtom *aName,
-                                const nsAttrValue* aValue, bool aNotify);
+  virtual nsresult AfterSetAttr(PRInt32 aNamespaceID, nsIAtom *aName,
+                                const nsAString* aValue, PRBool aNotify);
 
   /**
    * Return if an element should have a specific validity UI
@@ -273,7 +290,7 @@ protected:
   /**
    * Get the mutable state of the element.
    */
-  bool IsMutable() const;
+  PRBool IsMutable() const;
 
   /**
    * Returns whether the current value is the empty string.
@@ -290,14 +307,14 @@ NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(TextArea)
 nsHTMLTextAreaElement::nsHTMLTextAreaElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                                              FromParser aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo),
-    mValueChanged(false),
-    mHandlingSelect(false),
+    mValueChanged(PR_FALSE),
+    mHandlingSelect(PR_FALSE),
     mDoneAddingChildren(!aFromParser),
     mInhibitStateRestoration(!!(aFromParser & FROM_PARSER_FRAGMENT)),
-    mDisabledChanged(false),
-    mCanShowInvalidUI(true),
-    mCanShowValidUI(true),
-    mState(this)
+    mDisabledChanged(PR_FALSE),
+    mCanShowInvalidUI(PR_TRUE),
+    mCanShowValidUI(PR_TRUE),
+    mState(new nsTextEditorState(this))
 {
   AddMutationObserver(this);
 
@@ -316,12 +333,11 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLTextAreaElement)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLTextAreaElement,
                                                 nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mControllers)
-  tmp->mState.Unlink();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLTextAreaElement,
                                                   nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mControllers)
-  tmp->mState.Traverse(cb);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mState, nsTextEditorState)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLTextAreaElement, nsGenericElement) 
@@ -383,10 +399,10 @@ nsHTMLTextAreaElement::Select()
   }
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsGUIEvent event(true, NS_FORM_SELECTED, nullptr);
+  nsGUIEvent event(PR_TRUE, NS_FORM_SELECTED, nsnull);
   // XXXbz nsHTMLInputElement guards against this reentering; shouldn't we?
   nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), presContext,
-                              &event, nullptr, &status);
+                              &event, nsnull, &status);
 
   // If the DOM event was not canceled (e.g. by a JS event handler
   // returning false)
@@ -410,7 +426,7 @@ nsHTMLTextAreaElement::Select()
 NS_IMETHODIMP
 nsHTMLTextAreaElement::SelectAll(nsPresContext* aPresContext)
 {
-  nsIFormControlFrame* formControlFrame = GetFormControlFrame(true);
+  nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
     formControlFrame->SetFormProperty(nsGkAtoms::select, EmptyString());
@@ -419,17 +435,17 @@ nsHTMLTextAreaElement::SelectAll(nsPresContext* aPresContext)
   return NS_OK;
 }
 
-bool
-nsHTMLTextAreaElement::IsHTMLFocusable(bool aWithMouse,
-                                       bool *aIsFocusable, int32_t *aTabIndex)
+PRBool
+nsHTMLTextAreaElement::IsHTMLFocusable(PRBool aWithMouse,
+                                       PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
   if (nsGenericHTMLFormElement::IsHTMLFocusable(aWithMouse, aIsFocusable, aTabIndex)) {
-    return true;
+    return PR_TRUE;
   }
 
   // disabled textareas are not focusable
   *aIsFocusable = !IsDisabled();
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMPL_BOOL_ATTR(nsHTMLTextAreaElement, Autofocus, autofocus)
@@ -456,88 +472,94 @@ nsHTMLTextAreaElement::GetType(nsAString& aType)
 NS_IMETHODIMP 
 nsHTMLTextAreaElement::GetValue(nsAString& aValue)
 {
-  GetValueInternal(aValue, true);
+  GetValueInternal(aValue, PR_TRUE);
   return NS_OK;
 }
 
 void
-nsHTMLTextAreaElement::GetValueInternal(nsAString& aValue, bool aIgnoreWrap) const
+nsHTMLTextAreaElement::GetValueInternal(nsAString& aValue, PRBool aIgnoreWrap) const
 {
-  mState.GetValue(aValue, aIgnoreWrap);
+  mState->GetValue(aValue, aIgnoreWrap);
 }
 
 NS_IMETHODIMP_(nsIEditor*)
 nsHTMLTextAreaElement::GetTextEditor()
 {
-  return mState.GetEditor();
+  return mState->GetEditor();
 }
 
 NS_IMETHODIMP_(nsISelectionController*)
 nsHTMLTextAreaElement::GetSelectionController()
 {
-  return mState.GetSelectionController();
+  return mState->GetSelectionController();
 }
 
 NS_IMETHODIMP_(nsFrameSelection*)
 nsHTMLTextAreaElement::GetConstFrameSelection()
 {
-  return mState.GetConstFrameSelection();
+  return mState->GetConstFrameSelection();
 }
 
 NS_IMETHODIMP
 nsHTMLTextAreaElement::BindToFrame(nsTextControlFrame* aFrame)
 {
-  return mState.BindToFrame(aFrame);
+  return mState->BindToFrame(aFrame);
 }
 
 NS_IMETHODIMP_(void)
 nsHTMLTextAreaElement::UnbindFromFrame(nsTextControlFrame* aFrame)
 {
   if (aFrame) {
-    mState.UnbindFromFrame(aFrame);
+    mState->UnbindFromFrame(aFrame);
   }
 }
 
 NS_IMETHODIMP
 nsHTMLTextAreaElement::CreateEditor()
 {
-  return mState.PrepareEditor();
+  return mState->PrepareEditor();
 }
 
 NS_IMETHODIMP_(nsIContent*)
 nsHTMLTextAreaElement::GetRootEditorNode()
 {
-  return mState.GetRootNode();
+  return mState->GetRootNode();
 }
 
 NS_IMETHODIMP_(nsIContent*)
 nsHTMLTextAreaElement::CreatePlaceholderNode()
 {
-  NS_ENSURE_SUCCESS(mState.CreatePlaceholderNode(), nullptr);
-  return mState.GetPlaceholderNode();
+  NS_ENSURE_SUCCESS(mState->CreatePlaceholderNode(), nsnull);
+  return mState->GetPlaceholderNode();
 }
 
 NS_IMETHODIMP_(nsIContent*)
 nsHTMLTextAreaElement::GetPlaceholderNode()
 {
-  return mState.GetPlaceholderNode();
+  return mState->GetPlaceholderNode();
 }
 
 NS_IMETHODIMP_(void)
-nsHTMLTextAreaElement::SetPlaceholderClass(bool aVisible, bool aNotify)
+nsHTMLTextAreaElement::UpdatePlaceholderText(PRBool aNotify)
 {
-  mState.SetPlaceholderClass(aVisible, aNotify);
+  mState->UpdatePlaceholderText(aNotify);
+}
+
+NS_IMETHODIMP_(void)
+nsHTMLTextAreaElement::SetPlaceholderClass(PRBool aVisible, PRBool aNotify)
+{
+  mState->SetPlaceholderClass(aVisible, aNotify);
 }
 
 nsresult
 nsHTMLTextAreaElement::SetValueInternal(const nsAString& aValue,
-                                        bool aUserInput)
+                                        PRBool aUserInput)
 {
   // Need to set the value changed flag here, so that
   // nsTextControlFrame::UpdateValueDisplay retrieves the correct value
   // if needed.
-  SetValueChanged(true);
-  mState.SetValue(aValue, aUserInput, true);
+  SetValueChanged(PR_TRUE);
+  mState->SetValue(aValue, aUserInput);
 
   return NS_OK;
 }
@@ -545,23 +567,7 @@ nsHTMLTextAreaElement::SetValueInternal(const nsAString& aValue,
 NS_IMETHODIMP 
 nsHTMLTextAreaElement::SetValue(const nsAString& aValue)
 {
-  // If the value has been set by a script, we basically want to keep the
-  // current change event state. If the element is ready to fire a change
-  // event, we should keep it that way. Otherwise, we should make sure the
-  // element will not fire any event because of the script interaction.
-  //
-  // NOTE: this is currently quite expensive work (too much string
-  // manipulation). We should probably optimize that.
-  nsAutoString currentValue;
-  GetValueInternal(currentValue, true);
-
-  SetValueInternal(aValue, false);
-
-  if (mFocusedValue.Equals(currentValue)) {
-    GetValueInternal(mFocusedValue, true);
-  }
-
-  return NS_OK;
+  return SetValueInternal(aValue, PR_FALSE);
 }
 
 NS_IMETHODIMP 
@@ -570,18 +576,18 @@ nsHTMLTextAreaElement::SetUserInput(const nsAString& aValue)
   if (!nsContentUtils::IsCallerTrustedForWrite()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
-  SetValueInternal(aValue, true);
+  SetValueInternal(aValue, PR_TRUE);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsHTMLTextAreaElement::SetValueChanged(bool aValueChanged)
+nsHTMLTextAreaElement::SetValueChanged(PRBool aValueChanged)
 {
-  bool previousValue = mValueChanged;
+  PRBool previousValue = mValueChanged;
 
   mValueChanged = aValueChanged;
-  if (!aValueChanged && !mState.IsEmpty()) {
-    mState.EmptyValue();
+  if (!aValueChanged && !mState->IsEmpty()) {
+    mState->EmptyValue();
   }
 
   if (mValueChanged != previousValue) {
@@ -594,22 +600,22 @@ nsHTMLTextAreaElement::SetValueChanged(bool aValueChanged)
 NS_IMETHODIMP
 nsHTMLTextAreaElement::GetDefaultValue(nsAString& aDefaultValue)
 {
-  nsContentUtils::GetNodeTextContent(this, false, aDefaultValue);
+  nsContentUtils::GetNodeTextContent(this, PR_FALSE, aDefaultValue);
   return NS_OK;
 }  
 
 NS_IMETHODIMP
 nsHTMLTextAreaElement::SetDefaultValue(const nsAString& aDefaultValue)
 {
-  nsresult rv = nsContentUtils::SetNodeTextContent(this, aDefaultValue, true);
+  nsresult rv = nsContentUtils::SetNodeTextContent(this, aDefaultValue, PR_TRUE);
   if (NS_SUCCEEDED(rv) && !mValueChanged) {
     Reset();
   }
   return rv;
 }
 
-bool
-nsHTMLTextAreaElement::ParseAttribute(int32_t aNamespaceID,
+PRBool
+nsHTMLTextAreaElement::ParseAttribute(PRInt32 aNamespaceID,
                                       nsIAtom* aAttribute,
                                       const nsAString& aValue,
                                       nsAttrValue& aResult)
@@ -636,7 +642,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
 
 nsChangeHint
 nsHTMLTextAreaElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                              int32_t aModType) const
+                                              PRInt32 aModType) const
 {
   nsChangeHint retval =
       nsGenericHTMLFormElement::GetAttributeChangeHint(aAttribute, aModType);
@@ -651,7 +657,7 @@ nsHTMLTextAreaElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
   return retval;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLTextAreaElement::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   static const MappedAttributeEntry* const map[] = {
@@ -659,7 +665,7 @@ nsHTMLTextAreaElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sCommonAttributeMap,
   };
 
-  return FindAttributeDependence(aAttribute, map);
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
 
 nsMapRuleToAttributesFunc
@@ -671,15 +677,23 @@ nsHTMLTextAreaElement::GetAttributeMappingFunction() const
 nsresult
 nsHTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  nsIFormControlFrame* formControlFrame = GetFormControlFrame(false);
-  nsIFrame* formFrame = NULL;
-  if (formControlFrame) {
-    formFrame = do_QueryFrame(formControlFrame);
+  // Do not process any DOM events if the element is disabled
+  aVisitor.mCanHandle = PR_FALSE;
+  if (IsDisabled()) {
+    return NS_OK;
   }
 
-  aVisitor.mCanHandle = false;
-  if (IsElementDisabledForEvents(aVisitor.mEvent->message, formFrame)) {
-    return NS_OK;
+  nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
+  nsIFrame* formFrame = nsnull;
+
+  if (formControlFrame &&
+      (formFrame = do_QueryFrame(formControlFrame))) {
+    const nsStyleUserInterface* uiStyle = formFrame->GetStyleUserInterface();
+
+    if (uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE ||
+        uiStyle->mUserInput == NS_STYLE_USER_INPUT_DISABLED) {
+      return NS_OK;
+    }
   }
 
   // Don't dispatch a second select event if we are already handling
@@ -688,7 +702,7 @@ nsHTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
     if (mHandlingSelect) {
       return NS_OK;
     }
-    mHandlingSelect = true;
+    mHandlingSelect = PR_TRUE;
   }
 
   // If NS_EVENT_FLAG_NO_CONTENT_DISPATCH is set we will not allow content to handle
@@ -705,35 +719,23 @@ nsHTMLTextAreaElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 
   // Fire onchange (if necessary), before we do the blur, bug 370521.
   if (aVisitor.mEvent->message == NS_BLUR_CONTENT) {
-    FireChangeEventIfNeeded();
+    nsIFrame* primaryFrame = GetPrimaryFrame();
+    if (primaryFrame) {
+      nsITextControlFrame* textFrame = do_QueryFrame(primaryFrame);
+      if (textFrame) {
+        textFrame->CheckFireOnChange();
+      }
+    }
   }
 
   return nsGenericHTMLFormElement::PreHandleEvent(aVisitor);
-}
-
-void
-nsHTMLTextAreaElement::FireChangeEventIfNeeded()
-{
-  nsString value;
-  GetValueInternal(value, true);
-
-  if (mFocusedValue.Equals(value)) {
-    return;
-  }
-
-  // Dispatch the change event.
-  mFocusedValue = value;
-  nsContentUtils::DispatchTrustedEvent(OwnerDoc(),
-                                       static_cast<nsIContent*>(this),
-                                       NS_LITERAL_STRING("change"), true,
-                                       false);
 }
 
 nsresult
 nsHTMLTextAreaElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   if (aVisitor.mEvent->message == NS_FORM_SELECTED) {
-    mHandlingSelect = false;
+    mHandlingSelect = PR_FALSE;
   }
 
   if (aVisitor.mEvent->message == NS_FOCUS_CONTENT ||
@@ -741,15 +743,14 @@ nsHTMLTextAreaElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     if (aVisitor.mEvent->message == NS_FOCUS_CONTENT) {
       // If the invalid UI is shown, we should show it while focusing (and
       // update). Otherwise, we should not.
-      GetValueInternal(mFocusedValue, true);
       mCanShowInvalidUI = !IsValid() && ShouldShowValidityUI();
 
       // If neither invalid UI nor valid UI is shown, we shouldn't show the valid
       // UI while typing.
       mCanShowValidUI = ShouldShowValidityUI();
     } else { // NS_BLUR_CONTENT
-      mCanShowInvalidUI = true;
-      mCanShowValidUI = true;
+      mCanShowInvalidUI = PR_TRUE;
+      mCanShowValidUI = PR_TRUE;
     }
 
     UpdateState(true);
@@ -762,8 +763,8 @@ nsHTMLTextAreaElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   return NS_OK;
 }
 
-void
-nsHTMLTextAreaElement::DoneAddingChildren(bool aHaveNotified)
+nsresult
+nsHTMLTextAreaElement::DoneAddingChildren(PRBool aHaveNotified)
 {
   if (!mValueChanged) {
     if (!mDoneAddingChildren) {
@@ -776,10 +777,12 @@ nsHTMLTextAreaElement::DoneAddingChildren(bool aHaveNotified)
     }
   }
 
-  mDoneAddingChildren = true;
+  mDoneAddingChildren = PR_TRUE;
+
+  return NS_OK;
 }
 
-bool
+PRBool
 nsHTMLTextAreaElement::IsDoneAddingChildren()
 {
   return mDoneAddingChildren;
@@ -803,12 +806,6 @@ nsHTMLTextAreaElement::GetControllers(nsIControllers** aResult)
       return rv;
 
     mControllers->AppendController(controller);
-
-    controller = do_CreateInstance("@mozilla.org/editor/editingcontroller;1", &rv);
-    if (NS_FAILED(rv))
-      return rv;
-
-    mControllers->AppendController(controller);
   }
 
   *aResult = mControllers;
@@ -818,7 +815,7 @@ nsHTMLTextAreaElement::GetControllers(nsIControllers** aResult)
 }
 
 NS_IMETHODIMP
-nsHTMLTextAreaElement::GetTextLength(int32_t *aTextLength)
+nsHTMLTextAreaElement::GetTextLength(PRInt32 *aTextLength)
 {
   NS_ENSURE_ARG_POINTER(aTextLength);
   nsAutoString val;
@@ -829,83 +826,67 @@ nsHTMLTextAreaElement::GetTextLength(int32_t *aTextLength)
 }
 
 NS_IMETHODIMP
-nsHTMLTextAreaElement::GetSelectionStart(int32_t *aSelectionStart)
+nsHTMLTextAreaElement::GetSelectionStart(PRInt32 *aSelectionStart)
 {
   NS_ENSURE_ARG_POINTER(aSelectionStart);
+  
+  PRInt32 selEnd;
+  return GetSelectionRange(aSelectionStart, &selEnd);
+}
 
-  int32_t selEnd;
-  nsresult rv = GetSelectionRange(aSelectionStart, &selEnd);
+NS_IMETHODIMP
+nsHTMLTextAreaElement::SetSelectionStart(PRInt32 aSelectionStart)
+{
+  nsresult rv = NS_ERROR_FAILURE;
+  nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
-  if (NS_FAILED(rv) && mState.IsSelectionCached()) {
-    *aSelectionStart = mState.GetSelectionProperties().mStart;
-    return NS_OK;
+  if (formControlFrame){
+    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    if (textControlFrame) {
+      rv = textControlFrame->SetSelectionStart(aSelectionStart);
+      if (NS_SUCCEEDED(rv)) {
+        rv = textControlFrame->ScrollSelectionIntoView();
+      }
+    }
   }
+
   return rv;
 }
 
 NS_IMETHODIMP
-nsHTMLTextAreaElement::SetSelectionStart(int32_t aSelectionStart)
-{
-  if (mState.IsSelectionCached()) {
-    mState.GetSelectionProperties().mStart = aSelectionStart;
-    return NS_OK;
-  }
-
-  nsAutoString direction;
-  nsresult rv = GetSelectionDirection(direction);
-  NS_ENSURE_SUCCESS(rv, rv);
-  int32_t start, end;
-  rv = GetSelectionRange(&start, &end);
-  NS_ENSURE_SUCCESS(rv, rv);
-  start = aSelectionStart;
-  if (end < start) {
-    end = start;
-  }
-  return SetSelectionRange(start, end, direction);
-}
-
-NS_IMETHODIMP
-nsHTMLTextAreaElement::GetSelectionEnd(int32_t *aSelectionEnd)
+nsHTMLTextAreaElement::GetSelectionEnd(PRInt32 *aSelectionEnd)
 {
   NS_ENSURE_ARG_POINTER(aSelectionEnd);
-
-  int32_t selStart;
-  nsresult rv = GetSelectionRange(&selStart, aSelectionEnd);
-
-  if (NS_FAILED(rv) && mState.IsSelectionCached()) {
-    *aSelectionEnd = mState.GetSelectionProperties().mEnd;
-    return NS_OK;
-  }
-  return rv;
+  
+  PRInt32 selStart;
+  return GetSelectionRange(&selStart, aSelectionEnd);
 }
 
 NS_IMETHODIMP
-nsHTMLTextAreaElement::SetSelectionEnd(int32_t aSelectionEnd)
+nsHTMLTextAreaElement::SetSelectionEnd(PRInt32 aSelectionEnd)
 {
-  if (mState.IsSelectionCached()) {
-    mState.GetSelectionProperties().mEnd = aSelectionEnd;
-    return NS_OK;
+  nsresult rv = NS_ERROR_FAILURE;
+  nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
+
+  if (formControlFrame) {
+    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
+    if (textControlFrame) {
+      rv = textControlFrame->SetSelectionEnd(aSelectionEnd);
+      if (NS_SUCCEEDED(rv)) {
+        rv = textControlFrame->ScrollSelectionIntoView();
+      }
+    }
   }
 
-  nsAutoString direction;
-  nsresult rv = GetSelectionDirection(direction);
-  NS_ENSURE_SUCCESS(rv, rv);
-  int32_t start, end;
-  rv = GetSelectionRange(&start, &end);
-  NS_ENSURE_SUCCESS(rv, rv);
-  end = aSelectionEnd;
-  if (start > end) {
-    start = end;
-  }
-  return SetSelectionRange(start, end, direction);
+  return rv;
 }
 
 nsresult
-nsHTMLTextAreaElement::GetSelectionRange(int32_t* aSelectionStart,
-                                      int32_t* aSelectionEnd)
+nsHTMLTextAreaElement::GetSelectionRange(PRInt32* aSelectionStart,
+                                      PRInt32* aSelectionEnd)
 {
   nsresult rv = NS_ERROR_FAILURE;
-  nsIFormControlFrame* formControlFrame = GetFormControlFrame(true);
+  nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
     nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
@@ -916,89 +897,16 @@ nsHTMLTextAreaElement::GetSelectionRange(int32_t* aSelectionStart,
   return rv;
 }
 
-static void
-DirectionToName(nsITextControlFrame::SelectionDirection dir, nsAString& aDirection)
-{
-  if (dir == nsITextControlFrame::eNone) {
-    aDirection.AssignLiteral("none");
-  } else if (dir == nsITextControlFrame::eForward) {
-    aDirection.AssignLiteral("forward");
-  } else if (dir == nsITextControlFrame::eBackward) {
-    aDirection.AssignLiteral("backward");
-  } else {
-    NS_NOTREACHED("Invalid SelectionDirection value");
-  }
-}
-
-nsresult
-nsHTMLTextAreaElement::GetSelectionDirection(nsAString& aDirection)
-{
-  nsresult rv = NS_ERROR_FAILURE;
-  nsIFormControlFrame* formControlFrame = GetFormControlFrame(true);
-
-  if (formControlFrame) {
-    nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
-    if (textControlFrame) {
-      nsITextControlFrame::SelectionDirection dir;
-      rv = textControlFrame->GetSelectionRange(nullptr, nullptr, &dir);
-      if (NS_SUCCEEDED(rv)) {
-        DirectionToName(dir, aDirection);
-      }
-    }
-  }
-
-  if (NS_FAILED(rv)) {
-    if (mState.IsSelectionCached()) {
-      DirectionToName(mState.GetSelectionProperties().mDirection, aDirection);
-      return NS_OK;
-    }
-  }
-
-  return rv;
-}
-
 NS_IMETHODIMP
-nsHTMLTextAreaElement::SetSelectionDirection(const nsAString& aDirection) {
-  if (mState.IsSelectionCached()) {
-    nsITextControlFrame::SelectionDirection dir = nsITextControlFrame::eNone;
-    if (aDirection.EqualsLiteral("forward")) {
-      dir = nsITextControlFrame::eForward;
-    } else if (aDirection.EqualsLiteral("backward")) {
-      dir = nsITextControlFrame::eBackward;
-    }
-    mState.GetSelectionProperties().mDirection = dir;
-    return NS_OK;
-  }
-
-  int32_t start, end;
-  nsresult rv = GetSelectionRange(&start, &end);
-  if (NS_SUCCEEDED(rv)) {
-    rv = SetSelectionRange(start, end, aDirection);
-  }
-
-  return rv;
-}
-
-NS_IMETHODIMP
-nsHTMLTextAreaElement::SetSelectionRange(int32_t aSelectionStart,
-                                         int32_t aSelectionEnd,
-                                         const nsAString& aDirection)
+nsHTMLTextAreaElement::SetSelectionRange(PRInt32 aSelectionStart, PRInt32 aSelectionEnd)
 { 
   nsresult rv = NS_ERROR_FAILURE;
-  nsIFormControlFrame* formControlFrame = GetFormControlFrame(true);
+  nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_TRUE);
 
   if (formControlFrame) {
     nsITextControlFrame* textControlFrame = do_QueryFrame(formControlFrame);
     if (textControlFrame) {
-      // Default to forward, even if not specified.
-      // Note that we don't currently support directionless selections, so
-      // "none" is treated like "forward".
-      nsITextControlFrame::SelectionDirection dir = nsITextControlFrame::eForward;
-      if (aDirection.EqualsLiteral("backward")) {
-        dir = nsITextControlFrame::eBackward;
-      }
-
-      rv = textControlFrame->SetSelectionRange(aSelectionStart, aSelectionEnd, dir);
+      rv = textControlFrame->SetSelectionRange(aSelectionStart, aSelectionEnd);
       if (NS_SUCCEEDED(rv)) {
         rv = textControlFrame->ScrollSelectionIntoView();
       }
@@ -1021,13 +929,15 @@ nsHTMLTextAreaElement::Reset()
   rv = SetValue(resetVal);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  SetValueChanged(false);
+  SetValueChanged(PR_FALSE);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 {
+  nsresult rv = NS_OK;
+
   // Disabled elements don't submit
   if (IsDisabled()) {
     return NS_OK;
@@ -1046,12 +956,14 @@ nsHTMLTextAreaElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
   // Get the value
   //
   nsAutoString value;
-  GetValueInternal(value, false);
+  GetValueInternal(value, PR_FALSE);
 
   //
   // Submit
   //
-  return aFormSubmission->AddNameValuePair(name, value);
+  rv = aFormSubmission->AddNameValuePair(name, value);
+
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -1060,12 +972,12 @@ nsHTMLTextAreaElement::SaveState()
   nsresult rv = NS_OK;
 
   // Only save if value != defaultValue (bug 62713)
-  nsPresState *state = nullptr;
+  nsPresState *state = nsnull;
   if (mValueChanged) {
     rv = GetPrimaryPresState(this, &state);
     if (state) {
       nsAutoString value;
-      GetValueInternal(value, true);
+      GetValueInternal(value, PR_TRUE);
 
       rv = nsLinebreakConverter::ConvertStringLineBreaks(
                value,
@@ -1073,8 +985,8 @@ nsHTMLTextAreaElement::SaveState()
                nsLinebreakConverter::eLinebreakContent);
       NS_ASSERTION(NS_SUCCEEDED(rv), "Converting linebreaks failed!");
 
-      nsCOMPtr<nsISupportsString> pState =
-        do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID);
+      nsCOMPtr<nsISupportsString> pState
+        (do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID));
       if (!pState) {
         return NS_ERROR_OUT_OF_MEMORY;
       }
@@ -1096,7 +1008,7 @@ nsHTMLTextAreaElement::SaveState()
   return rv;
 }
 
-bool
+PRBool
 nsHTMLTextAreaElement::RestoreState(nsPresState* aState)
 {
   nsCOMPtr<nsISupportsString> state
@@ -1112,7 +1024,7 @@ nsHTMLTextAreaElement::RestoreState(nsPresState* aState)
     SetDisabled(aState->GetDisabled());
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 nsEventStates
@@ -1135,7 +1047,7 @@ nsHTMLTextAreaElement::IntrinsicState() const
       // error and never applies if novalidate is set on the form owner.
       if ((!mForm || !mForm->HasAttr(kNameSpaceID_None, nsGkAtoms::novalidate)) &&
           (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR) ||
-           (mCanShowInvalidUI && ShouldShowValidityUI()))) {
+           mCanShowInvalidUI && ShouldShowValidityUI())) {
         state |= NS_EVENT_STATE_MOZ_UI_INVALID;
       }
     }
@@ -1158,6 +1070,7 @@ nsHTMLTextAreaElement::IntrinsicState() const
   }
 
   if (HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder) &&
+      !nsContentUtils::IsFocusedContent((nsIContent*)(this)) &&
       IsValueEmpty()) {
     state |= NS_EVENT_STATE_MOZ_PLACEHOLDER;
   }
@@ -1168,7 +1081,7 @@ nsHTMLTextAreaElement::IntrinsicState() const
 nsresult
 nsHTMLTextAreaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                   nsIContent* aBindingParent,
-                                  bool aCompileEventHandlers)
+                                  PRBool aCompileEventHandlers)
 {
   nsresult rv = nsGenericHTMLFormElement::BindToTree(aDocument, aParent,
                                                      aBindingParent,
@@ -1187,7 +1100,7 @@ nsHTMLTextAreaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsHTMLTextAreaElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsHTMLTextAreaElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
 
@@ -1200,13 +1113,12 @@ nsHTMLTextAreaElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsresult
-nsHTMLTextAreaElement::BeforeSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                     const nsAttrValueOrString* aValue,
-                                     bool aNotify)
+nsHTMLTextAreaElement::BeforeSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                     const nsAString* aValue, PRBool aNotify)
 {
   if (aNotify && aName == nsGkAtoms::disabled &&
       aNameSpaceID == kNameSpaceID_None) {
-    mDisabledChanged = true;
+    mDisabledChanged = PR_TRUE;
   }
 
   return nsGenericHTMLFormElement::BeforeSetAttr(aNameSpaceID, aName,
@@ -1225,7 +1137,7 @@ void
 nsHTMLTextAreaElement::ContentAppended(nsIDocument* aDocument,
                                        nsIContent* aContainer,
                                        nsIContent* aFirstNewContent,
-                                       int32_t /* unused */)
+                                       PRInt32 /* unused */)
 {
   ContentChanged(aFirstNewContent);
 }
@@ -1234,7 +1146,7 @@ void
 nsHTMLTextAreaElement::ContentInserted(nsIDocument* aDocument,
                                        nsIContent* aContainer,
                                        nsIContent* aChild,
-                                       int32_t /* unused */)
+                                       PRInt32 /* unused */)
 {
   ContentChanged(aChild);
 }
@@ -1243,7 +1155,7 @@ void
 nsHTMLTextAreaElement::ContentRemoved(nsIDocument* aDocument,
                                       nsIContent* aContainer,
                                       nsIContent* aChild,
-                                      int32_t aIndexInContainer,
+                                      PRInt32 aIndexInContainer,
                                       nsIContent* aPreviousSibling)
 {
   ContentChanged(aChild);
@@ -1262,8 +1174,8 @@ nsHTMLTextAreaElement::ContentChanged(nsIContent* aContent)
 }
 
 nsresult
-nsHTMLTextAreaElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                    const nsAttrValue* aValue, bool aNotify)
+nsHTMLTextAreaElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                                    const nsAString* aValue, PRBool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::required || aName == nsGkAtoms::disabled ||
@@ -1278,6 +1190,9 @@ nsHTMLTextAreaElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
       UpdateTooLongValidityState();
     }
 
+    if (aName == nsGkAtoms::readonly) {
+      UpdateEditableState(aNotify);
+    }
     UpdateState(aNotify);
   }
 
@@ -1286,20 +1201,20 @@ nsHTMLTextAreaElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-nsHTMLTextAreaElement::CopyInnerTo(nsGenericElement* aDest)
+nsHTMLTextAreaElement::CopyInnerTo(nsGenericElement* aDest) const
 {
   nsresult rv = nsGenericHTMLFormElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (aDest->OwnerDoc()->IsStaticDocument()) {
+  if (aDest->GetOwnerDoc()->IsStaticDocument()) {
     nsAutoString value;
-    GetValueInternal(value, true);
+    const_cast<nsHTMLTextAreaElement*>(this)->GetValue(value);
     static_cast<nsHTMLTextAreaElement*>(aDest)->SetValue(value);
   }
   return NS_OK;
 }
 
-bool
+PRBool
 nsHTMLTextAreaElement::IsMutable() const
 {
   return (!HasAttr(kNameSpaceID_None, nsGkAtoms::readonly) && !IsDisabled());
@@ -1309,7 +1224,7 @@ bool
 nsHTMLTextAreaElement::IsValueEmpty() const
 {
   nsAutoString value;
-  GetValueInternal(value, true);
+  GetValueInternal(value, PR_TRUE);
 
   return value.IsEmpty();
 }
@@ -1326,32 +1241,32 @@ nsHTMLTextAreaElement::SetCustomValidity(const nsAString& aError)
   return NS_OK;
 }
 
-bool
+PRBool
 nsHTMLTextAreaElement::IsTooLong()
 {
   if (!HasAttr(kNameSpaceID_None, nsGkAtoms::maxlength) || !mValueChanged) {
-    return false;
+    return PR_FALSE;
   }
 
-  int32_t maxLength = -1;
+  PRInt32 maxLength = -1;
   GetMaxLength(&maxLength);
 
   // Maxlength of -1 means parsing error.
   if (maxLength == -1) {
-    return false;
+    return PR_FALSE;
   }
 
-  int32_t textLength = -1;
+  PRInt32 textLength = -1;
   GetTextLength(&textLength);
 
   return textLength > maxLength;
 }
 
-bool
+PRBool
 nsHTMLTextAreaElement::IsValueMissing() const
 {
   if (!HasAttr(kNameSpaceID_None, nsGkAtoms::required) || !IsMutable()) {
-    return false;
+    return PR_FALSE;
   }
 
   return IsValueEmpty();
@@ -1391,8 +1306,8 @@ nsHTMLTextAreaElement::GetValidationMessage(nsAString& aValidationMessage,
     case VALIDITY_STATE_TOO_LONG:
       {
         nsXPIDLString message;
-        int32_t maxLength = -1;
-        int32_t textLength = -1;
+        PRInt32 maxLength = -1;
+        PRInt32 textLength = -1;
         nsAutoString strMaxLength;
         nsAutoString strTextLength;
 
@@ -1405,7 +1320,7 @@ nsHTMLTextAreaElement::GetValidationMessage(nsAString& aValidationMessage,
         const PRUnichar* params[] = { strMaxLength.get(), strTextLength.get() };
         rv = nsContentUtils::FormatLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                    "FormValidationTextTooLong",
-                                                   params, message);
+                                                   params, 2, message);
         aValidationMessage = message;
       }
       break;
@@ -1425,37 +1340,37 @@ nsHTMLTextAreaElement::GetValidationMessage(nsAString& aValidationMessage,
   return rv;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLTextAreaElement::IsSingleLineTextControl() const
 {
-  return false;
+  return PR_FALSE;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLTextAreaElement::IsTextArea() const
 {
-  return true;
+  return PR_TRUE;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLTextAreaElement::IsPlainTextControl() const
 {
   // need to check our HTML attribute and/or CSS.
-  return true;
+  return PR_TRUE;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLTextAreaElement::IsPasswordTextControl() const
 {
-  return false;
+  return PR_FALSE;
 }
 
-NS_IMETHODIMP_(int32_t)
+NS_IMETHODIMP_(PRInt32)
 nsHTMLTextAreaElement::GetCols()
 {
   const nsAttrValue* attr = GetParsedAttr(nsGkAtoms::cols);
   if (attr) {
-    int32_t cols = attr->Type() == nsAttrValue::eInteger ?
+    PRInt32 cols = attr->Type() == nsAttrValue::eInteger ?
                    attr->GetIntegerValue() : 0;
     // XXX why a default of 1 char, why hide it
     return (cols <= 0) ? 1 : cols;
@@ -1464,7 +1379,7 @@ nsHTMLTextAreaElement::GetCols()
   return DEFAULT_COLS;
 }
 
-NS_IMETHODIMP_(int32_t)
+NS_IMETHODIMP_(PRInt32)
 nsHTMLTextAreaElement::GetWrapCols()
 {
   // wrap=off means -1 for wrap width no matter what cols is
@@ -1480,12 +1395,12 @@ nsHTMLTextAreaElement::GetWrapCols()
 }
 
 
-NS_IMETHODIMP_(int32_t)
+NS_IMETHODIMP_(PRInt32)
 nsHTMLTextAreaElement::GetRows()
 {
   const nsAttrValue* attr = GetParsedAttr(nsGkAtoms::rows);
   if (attr && attr->Type() == nsAttrValue::eInteger) {
-    int32_t rows = attr->GetIntegerValue();
+    PRInt32 rows = attr->GetIntegerValue();
     return (rows <= 0) ? DEFAULT_ROWS_TEXTAREA : rows;
   }
 
@@ -1498,7 +1413,7 @@ nsHTMLTextAreaElement::GetDefaultValueFromContent(nsAString& aValue)
   GetDefaultValue(aValue);
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsHTMLTextAreaElement::ValueChanged() const
 {
   return mValueChanged;
@@ -1506,42 +1421,45 @@ nsHTMLTextAreaElement::ValueChanged() const
 
 NS_IMETHODIMP_(void)
 nsHTMLTextAreaElement::GetTextEditorValue(nsAString& aValue,
-                                          bool aIgnoreWrap) const
+                                          PRBool aIgnoreWrap) const
 {
-  mState.GetValue(aValue, aIgnoreWrap);
+  mState->GetValue(aValue, aIgnoreWrap);
+}
+
+NS_IMETHODIMP_(void)
+nsHTMLTextAreaElement::SetTextEditorValue(const nsAString& aValue,
+                                          PRBool aUserInput)
+{
+  mState->SetValue(aValue, aUserInput);
 }
 
 NS_IMETHODIMP_(void)
 nsHTMLTextAreaElement::InitializeKeyboardEventListeners()
 {
-  mState.InitializeKeyboardEventListeners();
+  mState->InitializeKeyboardEventListeners();
 }
 
 NS_IMETHODIMP_(void)
-nsHTMLTextAreaElement::OnValueChanged(bool aNotify)
+nsHTMLTextAreaElement::OnValueChanged(PRBool aNotify)
 {
   // Update the validity state
-  bool validBefore = IsValid();
+  PRBool validBefore = IsValid();
   UpdateTooLongValidityState();
   UpdateValueMissingValidityState();
 
   if (validBefore != IsValid() ||
-      HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder)) {
+      (HasAttr(kNameSpaceID_None, nsGkAtoms::placeholder)
+       && !nsContentUtils::IsFocusedContent((nsIContent*)(this)))) {
     UpdateState(aNotify);
   }
 }
 
-NS_IMETHODIMP_(bool)
-nsHTMLTextAreaElement::HasCachedSelection()
-{
-  return mState.IsSelectionCached();
-}
-
 void
-nsHTMLTextAreaElement::FieldSetDisabledChanged(bool aNotify)
+nsHTMLTextAreaElement::FieldSetDisabledChanged(PRBool aNotify)
 {
   UpdateValueMissingValidityState();
   UpdateBarredFromConstraintValidation();
 
   nsGenericHTMLFormElement::FieldSetDisabledChanged(aNotify);
 }
+

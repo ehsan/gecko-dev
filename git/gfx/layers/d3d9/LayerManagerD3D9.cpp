@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bas Schouten <bschouten@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "LayerManagerD3D9.h"
 
@@ -22,7 +54,7 @@
 namespace mozilla {
 namespace layers {
 
-DeviceManagerD3D9 *LayerManagerD3D9::mDefaultDeviceManager = nullptr;
+DeviceManagerD3D9 *LayerManagerD3D9::mDefaultDeviceManager = nsnull;
 
 LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
   : mWidget(aWidget)
@@ -37,23 +69,23 @@ LayerManagerD3D9::~LayerManagerD3D9()
   Destroy();
 }
 
-bool
-LayerManagerD3D9::Initialize(bool force)
+PRBool
+LayerManagerD3D9::Initialize()
 {
-  ScopedGfxFeatureReporter reporter("D3D9 Layers", force);
+  ScopedGfxFeatureReporter reporter("D3D9 Layers");
 
   /* XXX: this preference and blacklist code should move out of the layer manager */
-  bool forceAccelerate =
-    Preferences::GetBool("layers.acceleration.force-enabled", false);
+  PRBool forceAccelerate =
+    Preferences::GetBool("layers.acceleration.force-enabled", PR_FALSE);
 
   nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
   if (gfxInfo) {
-    int32_t status;
+    PRInt32 status;
     if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DIRECT3D_9_LAYERS, &status))) {
       if (status != nsIGfxInfo::FEATURE_NO_INFO && !forceAccelerate)
       {
         NS_WARNING("Direct3D 9-accelerated layers are not supported on this system.");
-        return false;
+        return PR_FALSE;
       }
     }
   }
@@ -62,8 +94,8 @@ LayerManagerD3D9::Initialize(bool force)
     mDeviceManager = new DeviceManagerD3D9;
 
     if (!mDeviceManager->Init()) {
-      mDeviceManager = nullptr;
-      return false;
+      mDeviceManager = nsnull;
+      return PR_FALSE;
     }
 
     mDefaultDeviceManager = mDeviceManager;
@@ -75,11 +107,11 @@ LayerManagerD3D9::Initialize(bool force)
     CreateSwapChain((HWND)mWidget->GetNativeData(NS_NATIVE_WINDOW));
 
   if (!mSwapChain) {
-    return false;
+    return PR_FALSE;
   }
 
   reporter.SetSuccessful();
-  return true;
+  return PR_TRUE;
 }
 
 void
@@ -98,8 +130,8 @@ LayerManagerD3D9::Destroy()
     /* Important to release this first since it also holds a reference to the
      * device manager
      */
-    mSwapChain = nullptr;
-    mDeviceManager = nullptr;
+    mSwapChain = nsnull;
+    mDeviceManager = nsnull;
   }
   LayerManager::Destroy();
 }
@@ -107,13 +139,11 @@ LayerManagerD3D9::Destroy()
 void
 LayerManagerD3D9::BeginTransaction()
 {
-  mInTransaction = true;
 }
 
 void
 LayerManagerD3D9::BeginTransactionWithTarget(gfxContext *aTarget)
 {
-  mInTransaction = true;
   mTarget = aTarget;
 }
 
@@ -123,10 +153,8 @@ LayerManagerD3D9::EndConstruction()
 }
 
 bool
-LayerManagerD3D9::EndEmptyTransaction(EndTransactionFlags aFlags)
+LayerManagerD3D9::EndEmptyTransaction()
 {
-  mInTransaction = false;
-
   // If the device reset count from our last EndTransaction doesn't match
   // the current device reset count, the device must have been reset one or
   // more times since our last transaction. In that case, an empty transaction
@@ -134,20 +162,17 @@ LayerManagerD3D9::EndEmptyTransaction(EndTransactionFlags aFlags)
   if (!mRoot || mDeviceResetCount != mDeviceManager->GetDeviceResetCount())
     return false;
 
-  EndTransaction(nullptr, nullptr, aFlags);
+  EndTransaction(nsnull, nsnull);
   return true;
 }
 
 void
 LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
-                                 void* aCallbackData,
-                                 EndTransactionFlags aFlags)
+                                 void* aCallbackData)
 {
-  mInTransaction = false;
-
   mDeviceResetCount = mDeviceManager->GetDeviceResetCount();
 
-  if (mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {
+  if (mRoot) {
     mCurrentCallbackInfo.Callback = aCallback;
     mCurrentCallbackInfo.CallbackData = aCallbackData;
 
@@ -155,7 +180,6 @@ LayerManagerD3D9::EndTransaction(DrawThebesLayerCallback aCallback,
     // so we don't need to pass any global transform here.
     mRoot->ComputeEffectiveTransforms(gfx3DMatrix());
 
-    SetCompositingDisabled(aFlags & END_NO_COMPOSITE);
     Render();
     /* Clean this out for sanity */
     mCurrentCallbackInfo.Callback = NULL;
@@ -214,12 +238,19 @@ LayerManagerD3D9::CreateReadbackLayer()
   return layer.forget();
 }
 
+already_AddRefed<ImageContainer>
+LayerManagerD3D9::CreateImageContainer()
+{
+  nsRefPtr<ImageContainer> container = new ImageContainerD3D9(device());
+  return container.forget();
+}
+
 already_AddRefed<ShadowThebesLayer>
 LayerManagerD3D9::CreateShadowThebesLayer()
 {
   if (LayerManagerD3D9::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
   return nsRefPtr<ShadowThebesLayerD3D9>(new ShadowThebesLayerD3D9(this)).forget();
 }
@@ -229,7 +260,7 @@ LayerManagerD3D9::CreateShadowContainerLayer()
 {
   if (LayerManagerD3D9::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
   return nsRefPtr<ShadowContainerLayerD3D9>(new ShadowContainerLayerD3D9(this)).forget();
 }
@@ -239,7 +270,7 @@ LayerManagerD3D9::CreateShadowImageLayer()
 {
   if (LayerManagerD3D9::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
   return nsRefPtr<ShadowImageLayerD3D9>(new ShadowImageLayerD3D9(this)).forget();
 }
@@ -249,7 +280,7 @@ LayerManagerD3D9::CreateShadowColorLayer()
 {
   if (LayerManagerD3D9::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
   return nsRefPtr<ShadowColorLayerD3D9>(new ShadowColorLayerD3D9(this)).forget();
 }
@@ -259,7 +290,7 @@ LayerManagerD3D9::CreateShadowCanvasLayer()
 {
   if (LayerManagerD3D9::mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
-    return nullptr;
+    return nsnull;
   }
   return nsRefPtr<ShadowCanvasLayerD3D9>(new ShadowCanvasLayerD3D9(this)).forget();
 }
@@ -276,7 +307,7 @@ LayerManagerD3D9::ReportFailure(const nsACString &aMsg, HRESULT aCode)
   nsCString msg;
   msg.Append(aMsg);
   msg.AppendLiteral(" Error code: ");
-  msg.AppendInt(uint32_t(aCode));
+  msg.AppendInt(PRUint32(aCode));
   NS_WARNING(msg.BeginReading());
 
   gfx::LogFailure(msg);
@@ -291,12 +322,6 @@ LayerManagerD3D9::Render()
   deviceManager()->SetupRenderState();
 
   SetupPipeline();
-
-  if (CompositingDisabled()) {
-    static_cast<LayerD3D9*>(mRoot->ImplData())->RenderLayer();
-    return;
-  }
-
   nsIntRect rect;
   mWidget->GetClientBounds(rect);
 
@@ -325,10 +350,9 @@ LayerManagerD3D9::Render()
   if (!mTarget) {
     const nsIntRect *r;
     for (nsIntRegionRectIterator iter(mClippingRegion);
-         (r = iter.Next()) != nullptr;) {
+         (r = iter.Next()) != nsnull;) {
       mSwapChain->Present(*r);
     }
-    LayerManager::PostPresent();
   } else {
     PaintToTarget();
   }
@@ -347,7 +371,6 @@ LayerManagerD3D9::SetupPipeline()
    */
   viewMatrix._11 = 2.0f / rect.width;
   viewMatrix._22 = -2.0f / rect.height;
-  viewMatrix._33 = 0.0f;
   viewMatrix._41 = -1.0f;
   viewMatrix._42 = 1.0f;
 

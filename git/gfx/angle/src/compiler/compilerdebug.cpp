@@ -4,14 +4,13 @@
 // found in the LICENSE file.
 //
 
-// debug.cpp: Debugging utilities.
+// compilerdebug.cpp: Debugging utilities.
 
 #include "compiler/compilerdebug.h"
 
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "compiler/InitializeParseContext.h"
 #include "compiler/ParseHelper.h"
 
 static const int kTraceBufferLen = 1024;
@@ -29,7 +28,7 @@ void Trace(const char *format, ...) {
         vsnprintf(buf, kTraceBufferLen, format, args);
         va_end(args);
 
-        parseContext->trace(buf);
+        parseContext->infoSink.debug << buf;
     }
 }
 }  // extern "C"

@@ -12,19 +12,17 @@ struct RunnableMethodTraits<mozilla::_ipdltest::TestOpensChild>
 };
 
 template<>
-struct RunnableMethodTraits<mozilla::_ipdltest2::TestOpensOpenedChild>
+struct RunnableMethodTraits<mozilla::_ipdltest::TestOpensOpenedChild>
 {
-    static void RetainCallee(mozilla::_ipdltest2::TestOpensOpenedChild* obj) { }
-    static void ReleaseCallee(mozilla::_ipdltest2::TestOpensOpenedChild* obj) { }
+    static void RetainCallee(mozilla::_ipdltest::TestOpensOpenedChild* obj) { }
+    static void ReleaseCallee(mozilla::_ipdltest::TestOpensOpenedChild* obj) { }
 };
 
 using namespace base;
 using namespace mozilla::ipc;
 
 namespace mozilla {
-// NB: this is generally bad style, but I am lazy.
-using namespace _ipdltest;
-using namespace _ipdltest2;
+namespace _ipdltest {
 
 static MessageLoop* gMainThread;
 
@@ -72,7 +70,7 @@ TestOpensParent::AllocPTestOpensOpened(Transport* transport,
 
     ProcessHandle h;
     if (!base::OpenProcessHandle(otherProcess, &h)) {
-        return nullptr;
+        return nsnull;
     }
 
     gParentThread = new Thread("ParentThread");
@@ -185,7 +183,7 @@ TestOpensChild::AllocPTestOpensOpened(Transport* transport,
 
     ProcessHandle h;
     if (!base::OpenProcessHandle(otherProcess, &h)) {
-        return nullptr;
+        return nsnull;
     }
 
     gChildThread = new Thread("ChildThread");
@@ -240,24 +238,6 @@ TestOpensOpenedChild::AnswerHiRpc()
     return true;
 }
 
-static void
-ShutdownTestOpensOpenedChild(TestOpensOpenedChild* child,
-                             Transport* transport)
-{
-    delete child;
-
-    // Now delete the transport, which has to happen after the
-    // top-level actor is deleted.
-    XRE_GetIOMessageLoop()->PostTask(
-        FROM_HERE,
-        new DeleteTask<Transport>(transport));
-
-    // Kick off main-thread shutdown.
-    gMainThread->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(gOpensChild, &TestOpensChild::Close));
-}
-
 void
 TestOpensOpenedChild::ActorDestroy(ActorDestroyReason why)
 {
@@ -268,12 +248,19 @@ TestOpensOpenedChild::ActorDestroy(ActorDestroyReason why)
 
     // ActorDestroy() is just a callback from IPDL-generated code,
     // which needs the top-level actor (this) to stay alive a little
-    // longer so other things can be cleaned up.  Defer shutdown to
-    // let cleanup finish.
+    // longer so other things can be cleaned up.
     MessageLoop::current()->PostTask(
         FROM_HERE,
-        NewRunnableFunction(ShutdownTestOpensOpenedChild,
-                            this, mTransport));
+        new DeleteTask<TestOpensOpenedChild>(this));
+    XRE_GetIOMessageLoop()->PostTask(
+        FROM_HERE,
+        new DeleteTask<Transport>(mTransport));
+
+    // Kick off main-thread shutdown.
+    gMainThread->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(gOpensChild, &TestOpensChild::Close));
 }
 
+} // namespace _ipdltest
 } // namespace mozilla

@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 
@@ -13,20 +45,20 @@
    * aCount specifies number of string compares (iterations)
    */
 
-int32_t
-nsTString_CharT::Find( const nsCString& aString, bool aIgnoreCase, int32_t aOffset, int32_t aCount) const
+PRInt32
+nsTString_CharT::Find( const nsCString& aString, PRBool aIgnoreCase, PRInt32 aOffset, PRInt32 aCount) const
   {
     // this method changes the meaning of aOffset and aCount:
     Find_ComputeSearchRange(mLength, aString.Length(), aOffset, aCount);
 
-    int32_t result = FindSubstring(mData + aOffset, aCount, aString.get(), aString.Length(), aIgnoreCase);
+    PRInt32 result = FindSubstring(mData + aOffset, aCount, aString.get(), aString.Length(), aIgnoreCase);
     if (result != kNotFound)
       result += aOffset;
     return result;
   }
 
-int32_t
-nsTString_CharT::Find( const char* aString, bool aIgnoreCase, int32_t aOffset, int32_t aCount) const
+PRInt32
+nsTString_CharT::Find( const char* aString, PRBool aIgnoreCase, PRInt32 aOffset, PRInt32 aCount) const
   {
     return Find(nsDependentCString(aString), aIgnoreCase, aOffset, aCount);
   }
@@ -39,20 +71,20 @@ nsTString_CharT::Find( const char* aString, bool aIgnoreCase, int32_t aOffset, i
    * aCount specifies number of string compares (iterations)
    */
 
-int32_t
-nsTString_CharT::RFind( const nsCString& aString, bool aIgnoreCase, int32_t aOffset, int32_t aCount) const
+PRInt32
+nsTString_CharT::RFind( const nsCString& aString, PRBool aIgnoreCase, PRInt32 aOffset, PRInt32 aCount) const
   {
     // this method changes the meaning of aOffset and aCount:
     RFind_ComputeSearchRange(mLength, aString.Length(), aOffset, aCount);
 
-    int32_t result = RFindSubstring(mData + aOffset, aCount, aString.get(), aString.Length(), aIgnoreCase);
+    PRInt32 result = RFindSubstring(mData + aOffset, aCount, aString.get(), aString.Length(), aIgnoreCase);
     if (result != kNotFound)
       result += aOffset;
     return result;
   }
 
-int32_t
-nsTString_CharT::RFind( const char* aString, bool aIgnoreCase, int32_t aOffset, int32_t aCount) const
+PRInt32
+nsTString_CharT::RFind( const char* aString, PRBool aIgnoreCase, PRInt32 aOffset, PRInt32 aCount) const
   {
     return RFind(nsDependentCString(aString), aIgnoreCase, aOffset, aCount);
   }
@@ -62,8 +94,8 @@ nsTString_CharT::RFind( const char* aString, bool aIgnoreCase, int32_t aOffset, 
    * nsTString::RFindChar
    */
 
-int32_t
-nsTString_CharT::RFindChar( PRUnichar aChar, int32_t aOffset, int32_t aCount) const
+PRInt32
+nsTString_CharT::RFindChar( PRUnichar aChar, PRInt32 aOffset, PRInt32 aCount) const
   {
     return nsBufferRoutines<CharT>::rfind_char(mData, mLength, aOffset, aChar, aCount);
   }
@@ -73,15 +105,15 @@ nsTString_CharT::RFindChar( PRUnichar aChar, int32_t aOffset, int32_t aCount) co
    * nsTString::FindCharInSet
    */
 
-int32_t
-nsTString_CharT::FindCharInSet( const char* aSet, int32_t aOffset ) const
+PRInt32
+nsTString_CharT::FindCharInSet( const char* aSet, PRInt32 aOffset ) const
   {
     if (aOffset < 0)
       aOffset = 0;
-    else if (aOffset >= int32_t(mLength))
+    else if (aOffset >= PRInt32(mLength))
       return kNotFound;
     
-    int32_t result = ::FindCharInSet(mData + aOffset, mLength - aOffset, aSet);
+    PRInt32 result = ::FindCharInSet(mData + aOffset, mLength - aOffset, aSet);
     if (result != kNotFound)
       result += aOffset;
     return result;
@@ -92,11 +124,11 @@ nsTString_CharT::FindCharInSet( const char* aSet, int32_t aOffset ) const
    * nsTString::RFindCharInSet
    */
 
-int32_t
-nsTString_CharT::RFindCharInSet( const CharT* aSet, int32_t aOffset ) const
+PRInt32
+nsTString_CharT::RFindCharInSet( const CharT* aSet, PRInt32 aOffset ) const
   {
     // We want to pass a "data length" to ::RFindCharInSet
-    if (aOffset < 0 || aOffset > int32_t(mLength))
+    if (aOffset < 0 || aOffset > PRInt32(mLength))
       aOffset = mLength;
     else
       ++aOffset;
@@ -108,13 +140,13 @@ nsTString_CharT::RFindCharInSet( const CharT* aSet, int32_t aOffset ) const
   // it's a shame to replicate this code.  it was done this way in the past
   // to help performance.  this function also gets to keep the rickg style
   // indentation :-/
-int32_t
-nsTString_CharT::ToInteger( nsresult* aErrorCode, uint32_t aRadix ) const
+PRInt32
+nsTString_CharT::ToInteger( PRInt32* aErrorCode, PRUint32 aRadix ) const
 {
   CharT*  cp=mData;
-  int32_t theRadix=10; // base 10 unless base 16 detected, or overriden (aRadix != kAutoDetect)
-  int32_t result=0;
-  bool    negate=false;
+  PRInt32 theRadix=10; // base 10 unless base 16 detected, or overriden (aRadix != kAutoDetect)
+  PRInt32 result=0;
+  PRBool  negate=PR_FALSE;
   CharT   theChar=0;
 
     //initial value, override if we find an integer
@@ -125,21 +157,21 @@ nsTString_CharT::ToInteger( nsresult* aErrorCode, uint32_t aRadix ) const
     //begin by skipping over leading chars that shouldn't be part of the number...
     
     CharT*  endcp=cp+mLength;
-    bool    done=false;
+    PRBool  done=PR_FALSE;
     
     while((cp<endcp) && (!done)){
       switch(*cp++) {
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
         case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
           theRadix=16;
-          done=true;
+          done=PR_TRUE;
           break;
         case '0': case '1': case '2': case '3': case '4': 
         case '5': case '6': case '7': case '8': case '9':
-          done=true;
+          done=PR_TRUE;
           break;
         case '-': 
-          negate=true; //fall through...
+          negate=PR_TRUE; //fall through...
           break;
         case 'X': case 'x': 
           theRadix=16;
@@ -158,15 +190,15 @@ nsTString_CharT::ToInteger( nsresult* aErrorCode, uint32_t aRadix ) const
 
         //now iterate the numeric chars and build our result
       CharT* first=--cp;  //in case we have to back up.
-      bool haveValue = false;
+      PRBool haveValue = PR_FALSE;
 
       while(cp<endcp){
-        int32_t oldresult = result;
+        PRInt32 oldresult = result;
 
         theChar=*cp++;
         if(('0'<=theChar) && (theChar<='9')){
           result = (theRadix * result) + (theChar-'0');
-          haveValue = true;
+          haveValue = PR_TRUE;
         }
         else if((theChar>='A') && (theChar<='F')) {
           if(10==theRadix) {
@@ -174,7 +206,7 @@ nsTString_CharT::ToInteger( nsresult* aErrorCode, uint32_t aRadix ) const
               theRadix=16;
               cp=first; //backup
               result=0;
-              haveValue = false;
+              haveValue = PR_FALSE;
             }
             else {
               *aErrorCode=NS_ERROR_ILLEGAL_VALUE;
@@ -184,7 +216,7 @@ nsTString_CharT::ToInteger( nsresult* aErrorCode, uint32_t aRadix ) const
           }
           else {
             result = (theRadix * result) + ((theChar-'A')+10);
-            haveValue = true;
+            haveValue = PR_TRUE;
           }
         }
         else if((theChar>='a') && (theChar<='f')) {
@@ -193,7 +225,7 @@ nsTString_CharT::ToInteger( nsresult* aErrorCode, uint32_t aRadix ) const
               theRadix=16;
               cp=first; //backup
               result=0;
-              haveValue = false;
+              haveValue = PR_FALSE;
             }
             else {
               *aErrorCode=NS_ERROR_ILLEGAL_VALUE;
@@ -203,7 +235,7 @@ nsTString_CharT::ToInteger( nsresult* aErrorCode, uint32_t aRadix ) const
           }
           else {
             result = (theRadix * result) + ((theChar-'a')+10);
-            haveValue = true;
+            haveValue = PR_TRUE;
           }
         }
         else if((('X'==theChar) || ('x'==theChar)) && (!haveValue || result == 0)) {
@@ -236,7 +268,7 @@ nsTString_CharT::ToInteger( nsresult* aErrorCode, uint32_t aRadix ) const
    * nsTString::Mid
    */
 
-uint32_t
+PRUint32
 nsTString_CharT::Mid( self_type& aResult, index_type aStartPos, size_type aLengthToCopy ) const
   {
     if (aStartPos == 0 && aLengthToCopy >= mLength)
@@ -252,17 +284,16 @@ nsTString_CharT::Mid( self_type& aResult, index_type aStartPos, size_type aLengt
    * nsTString::SetCharAt
    */
 
-bool
-nsTString_CharT::SetCharAt( PRUnichar aChar, uint32_t aIndex )
+PRBool
+nsTString_CharT::SetCharAt( PRUnichar aChar, PRUint32 aIndex )
   {
     if (aIndex >= mLength)
-      return false;
+      return PR_FALSE;
 
-    if (!EnsureMutable())
-      NS_RUNTIMEABORT("OOM");
+    EnsureMutable();
 
     mData[aIndex] = CharT(aChar);
-    return true;
+    return PR_TRUE;
   }
 
  
@@ -273,9 +304,7 @@ nsTString_CharT::SetCharAt( PRUnichar aChar, uint32_t aIndex )
 void
 nsTString_CharT::StripChars( const char* aSet )
   {
-    if (!EnsureMutable())
-      NS_RUNTIMEABORT("OOM");
-
+    EnsureMutable();
     mLength = nsBufferRoutines<CharT>::strip_chars(mData, mLength, aSet);
   }
 
@@ -293,10 +322,9 @@ nsTString_CharT::StripWhitespace()
 void
 nsTString_CharT::ReplaceChar( char_type aOldChar, char_type aNewChar )
   {
-    if (!EnsureMutable()) // XXX do this lazily?
-      NS_RUNTIMEABORT("OOM");
+    EnsureMutable(); // XXX do this lazily?
 
-    for (uint32_t i=0; i<mLength; ++i)
+    for (PRUint32 i=0; i<mLength; ++i)
       {
         if (mData[i] == aOldChar)
           mData[i] = aNewChar;
@@ -306,15 +334,14 @@ nsTString_CharT::ReplaceChar( char_type aOldChar, char_type aNewChar )
 void
 nsTString_CharT::ReplaceChar( const char* aSet, char_type aNewChar )
   {
-    if (!EnsureMutable()) // XXX do this lazily?
-      NS_RUNTIMEABORT("OOM");
+    EnsureMutable(); // XXX do this lazily?
 
     char_type* data = mData;
-    uint32_t lenRemaining = mLength;
+    PRUint32 lenRemaining = mLength;
 
     while (lenRemaining)
       {
-        int32_t i = ::FindCharInSet(data, lenRemaining, aSet);
+        PRInt32 i = ::FindCharInSet(data, lenRemaining, aSet);
         if (i == kNotFound)
           break;
 
@@ -337,10 +364,10 @@ nsTString_CharT::ReplaceSubstring( const self_type& aTarget, const self_type& aN
     if (aTarget.Length() == 0)
       return;
 
-    uint32_t i = 0;
+    PRUint32 i = 0;
     while (i < mLength)
       {
-        int32_t r = FindSubstring(mData + i, mLength - i, aTarget.Data(), aTarget.Length(), false);
+        PRInt32 r = FindSubstring(mData + i, mLength - i, aTarget.Data(), aTarget.Length(), PR_FALSE);
         if (r == kNotFound)
           break;
 
@@ -355,7 +382,7 @@ nsTString_CharT::ReplaceSubstring( const self_type& aTarget, const self_type& aN
    */
 
 void
-nsTString_CharT::Trim( const char* aSet, bool aTrimLeading, bool aTrimTrailing, bool aIgnoreQuotes )
+nsTString_CharT::Trim( const char* aSet, PRBool aTrimLeading, PRBool aTrimTrailing, PRBool aIgnoreQuotes )
   {
       // the old implementation worried about aSet being null :-/
     if (!aSet)
@@ -372,17 +399,17 @@ nsTString_CharT::Trim( const char* aSet, bool aTrimLeading, bool aTrimTrailing, 
         --end;
       }
 
-    uint32_t setLen = nsCharTraits<char>::length(aSet);
+    PRUint32 setLen = nsCharTraits<char>::length(aSet);
 
     if (aTrimLeading)
       {
-        uint32_t cutStart = start - mData;
-        uint32_t cutLength = 0;
+        PRUint32 cutStart = start - mData;
+        PRUint32 cutLength = 0;
 
           // walk forward from start to end
         for (; start != end; ++start, ++cutLength)
           {
-            int32_t pos = FindChar1(aSet, setLen, 0, *start, setLen);
+            PRInt32 pos = FindChar1(aSet, setLen, 0, *start, setLen);
             if (pos == kNotFound)
               break;
           }
@@ -399,14 +426,14 @@ nsTString_CharT::Trim( const char* aSet, bool aTrimLeading, bool aTrimTrailing, 
 
     if (aTrimTrailing)
       {
-        uint32_t cutEnd = end - mData;
-        uint32_t cutLength = 0;
+        PRUint32 cutEnd = end - mData;
+        PRUint32 cutLength = 0;
 
           // walk backward from end to start
         --end;
         for (; end >= start; --end, ++cutLength)
           {
-            int32_t pos = FindChar1(aSet, setLen, 0, *end, setLen);
+            PRInt32 pos = FindChar1(aSet, setLen, 0, *end, setLen);
             if (pos == kNotFound)
               break;
           }
@@ -422,7 +449,7 @@ nsTString_CharT::Trim( const char* aSet, bool aTrimLeading, bool aTrimTrailing, 
    */
 
 void
-nsTString_CharT::CompressWhitespace( bool aTrimLeading, bool aTrimTrailing )
+nsTString_CharT::CompressWhitespace( PRBool aTrimLeading, PRBool aTrimTrailing )
   {
     const char* set = kWhitespace;
 
@@ -439,7 +466,7 @@ nsTString_CharT::CompressWhitespace( bool aTrimLeading, bool aTrimTrailing )
    */
 
 void
-nsTString_CharT::AssignWithConversion( const incompatible_char_type* aData, int32_t aLength )
+nsTString_CharT::AssignWithConversion( const incompatible_char_type* aData, PRInt32 aLength )
   {
       // for compatibility with the old string implementation, we need to allow
       // for a NULL input buffer :-(
@@ -452,6 +479,25 @@ nsTString_CharT::AssignWithConversion( const incompatible_char_type* aData, int3
         if (aLength < 0)
           aLength = nsCharTraits<incompatible_char_type>::length(aData);
 
-        AssignWithConversion(Substring(aData, aLength));
+        AssignWithConversion(Substring(aData, aData + aLength));
+      }
+  }
+
+
+  /**
+   * nsTString::AppendWithConversion
+   */
+
+void
+nsTString_CharT::AppendWithConversion( const incompatible_char_type* aData, PRInt32 aLength )
+  {
+      // for compatibility with the old string implementation, we need to allow
+      // for a NULL input buffer :-(
+    if (aData)
+      {
+        if (aLength < 0)
+          aLength = nsCharTraits<incompatible_char_type>::length(aData);
+
+        AppendWithConversion(Substring(aData, aData + aLength));
       }
   }

@@ -1,9 +1,4 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 var httpServer = null;
 // Need to randomize, because apparently no one clears our cache
@@ -58,7 +53,7 @@ function finish_test(request, buffer)
 
 function run_test()
 {
-  httpServer = new HttpServer();
+  httpServer = new nsHttpServer();
   httpServer.registerPathHandler("/masterEntry", masterEntryHandler);
   httpServer.registerPathHandler("/manifest", manifestHandler);
   httpServer.registerPathHandler("/content", contentHandler);
@@ -67,14 +62,10 @@ function run_test()
   var pm = Cc["@mozilla.org/permissionmanager;1"]
     .getService(Ci.nsIPermissionManager);
   var uri = make_uri("http://localhost:4444");
-  var principal = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
-                    .getService(Ci.nsIScriptSecurityManager)
-                    .getNoAppCodebasePrincipal(uri);
-
-  if (pm.testPermissionFromPrincipal(principal, "offline-app") != 0) {
+  if (pm.testPermission(uri, "offline-app") != 0) {
     dump("Previous test failed to clear offline-app permission!  Expect failures.\n");
   }
-  pm.addFromPrincipal(principal, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
+  pm.add(uri, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
 
   var ps = Cc["@mozilla.org/preferences-service;1"]
     .getService(Ci.nsIPrefBranch);

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Laurent Jouanneau <laurent.jouanneau@disruptive-innovations.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * nsIContentSerializer implementation that can be used with an
@@ -25,13 +58,13 @@ class nsXHTMLContentSerializer : public nsXMLContentSerializer {
   nsXHTMLContentSerializer();
   virtual ~nsXHTMLContentSerializer();
 
-  NS_IMETHOD Init(uint32_t flags, uint32_t aWrapColumn,
-                  const char* aCharSet, bool aIsCopying,
-                  bool aRewriteEncodingDeclaration);
+  NS_IMETHOD Init(PRUint32 flags, PRUint32 aWrapColumn,
+                  const char* aCharSet, PRBool aIsCopying,
+                  PRBool aRewriteEncodingDeclaration);
 
   NS_IMETHOD AppendText(nsIContent* aText,
-                        int32_t aStartOffset,
-                        int32_t aEndOffset,
+                        PRInt32 aStartOffset,
+                        PRInt32 aEndOffset,
                         nsAString& aStr);
 
   NS_IMETHOD AppendDocumentStart(nsIDocument *aDocument,
@@ -40,32 +73,32 @@ class nsXHTMLContentSerializer : public nsXMLContentSerializer {
  protected:
 
 
-  virtual bool CheckElementStart(nsIContent * aContent,
-                          bool & aForceFormat,
+  virtual PRBool CheckElementStart(nsIContent * aContent,
+                          PRBool & aForceFormat,
                           nsAString& aStr);
 
   virtual void AppendEndOfElementStart(nsIContent *aOriginalElement,
                                nsIAtom * aName,
-                               int32_t aNamespaceID,
+                               PRInt32 aNamespaceID,
                                nsAString& aStr);
 
   virtual void AfterElementStart(nsIContent * aContent,
                          nsIContent *aOriginalElement,
                          nsAString& aStr);
 
-  virtual bool CheckElementEnd(nsIContent * aContent,
-                          bool & aForceFormat,
+  virtual PRBool CheckElementEnd(nsIContent * aContent,
+                          PRBool & aForceFormat,
                           nsAString& aStr);
 
   virtual void AfterElementEnd(nsIContent * aContent,
                                nsAString& aStr);
 
-  virtual bool LineBreakBeforeOpen(int32_t aNamespaceID, nsIAtom* aName);
-  virtual bool LineBreakAfterOpen(int32_t aNamespaceID, nsIAtom* aName);
-  virtual bool LineBreakBeforeClose(int32_t aNamespaceID, nsIAtom* aName);
-  virtual bool LineBreakAfterClose(int32_t aNamespaceID, nsIAtom* aName);
+  virtual PRBool LineBreakBeforeOpen(PRInt32 aNamespaceID, nsIAtom* aName);
+  virtual PRBool LineBreakAfterOpen(PRInt32 aNamespaceID, nsIAtom* aName);
+  virtual PRBool LineBreakBeforeClose(PRInt32 aNamespaceID, nsIAtom* aName);
+  virtual PRBool LineBreakAfterClose(PRInt32 aNamespaceID, nsIAtom* aName);
 
-  bool HasLongLines(const nsString& text, int32_t& aLastNewlineOffset);
+  PRBool HasLongLines(const nsString& text, PRInt32& aLastNewlineOffset);
 
   // functions to check if we enter in or leave from a preformated content
   virtual void MaybeEnterInPreContent(nsIContent* aNode);
@@ -77,14 +110,14 @@ class nsXHTMLContentSerializer : public nsXMLContentSerializer {
                            const nsAString& aTagNamespaceURI,
                            nsIAtom* aTagName,
                            nsAString& aStr,
-                           uint32_t aSkipAttr,
-                           bool aAddNSAttr);
+                           PRUint32 aSkipAttr,
+                           PRBool aAddNSAttr);
 
-  bool IsFirstChildOfOL(nsIContent* aElement);
+  PRBool IsFirstChildOfOL(nsIContent* aElement);
 
   void SerializeLIValueAttribute(nsIContent* aElement,
                                  nsAString& aStr);
-  bool IsShorthandAttr(const nsIAtom* aAttrName,
+  PRBool IsShorthandAttr(const nsIAtom* aAttrName,
                          const nsIAtom* aElementName);
   virtual void AppendAndTranslateEntities(const nsAString& aStr,
                                           nsAString& aOutputStr);
@@ -98,10 +131,10 @@ class nsXHTMLContentSerializer : public nsXMLContentSerializer {
    * isHTMLParser should be set to true by the HTML parser which inherits from
    * this class. It avoids to redefine methods just for few changes.
    */
-  bool          mIsHTMLSerializer;
+  PRPackedBool  mIsHTMLSerializer;
 
-  bool          mDoHeader;
-  bool          mIsCopying; // Set to true only while copying
+  PRPackedBool  mDoHeader;
+  PRPackedBool  mIsCopying; // Set to PR_TRUE only while copying
 
   /*
    * mDisableEntityEncoding is higher than 0 while the serializer is serializing
@@ -112,18 +145,18 @@ class nsXHTMLContentSerializer : public nsXMLContentSerializer {
    * output the content of the element without doing any entity encoding
    * what so ever.
    */
-  int32_t mDisableEntityEncoding;
+  PRInt32 mDisableEntityEncoding;
 
   // This is to ensure that we only do meta tag fixups when dealing with
   // whole documents.
-  bool          mRewriteEncodingDeclaration;
+  PRPackedBool  mRewriteEncodingDeclaration;
 
   // To keep track of First LI child of OL in selected range 
-  bool          mIsFirstChildOfOL;
+  PRPackedBool  mIsFirstChildOfOL;
 
   // To keep track of startvalue of OL and first list item for nested lists
   struct olState {
-    olState(int32_t aStart, bool aIsFirst)
+    olState(PRInt32 aStart, PRBool aIsFirst)
       : startVal(aStart),
         isFirstListItem(aIsFirst)
     {
@@ -136,17 +169,17 @@ class nsXHTMLContentSerializer : public nsXMLContentSerializer {
     }
 
     // the value of the start attribute in the OL
-    int32_t startVal;
+    PRInt32 startVal;
 
     // is true only before the serialization of the first li of an ol
     // should be false for other li in the list
-    bool isFirstListItem;
+    PRBool isFirstListItem;
   };
 
   // Stack to store one olState struct per <OL>.
   nsAutoTArray<olState, 8> mOLStateStack;
 
-  bool HasNoChildren(nsIContent* aContent);
+  PRBool HasNoChildren(nsIContent* aContent);
 };
 
 nsresult

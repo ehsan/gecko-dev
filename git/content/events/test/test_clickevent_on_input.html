@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test click event on input</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -45,7 +46,7 @@ function isEnabledMiddleClickPaste()
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
   var prefs = Components.classes["@mozilla.org/preferences-service;1"].
-                         getService(Components.interfaces.nsIPrefBranch);
+                         getService(Components.interfaces.nsIPrefBranch2);
   try {
     return prefs.getBoolPref("middlemouse.paste");
   } catch (e) {

@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Unicode case conversion helpers.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corp..
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alec Flett <alecf@netscape.com>
+ *   Benjamin Smedberg <benjamin@smedbergs.us>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsUnicharUtils_h__
 #define nsUnicharUtils_h__
@@ -22,18 +56,18 @@ void ToUpperCase(nsAString&);
 void ToLowerCase(const nsAString& aSource, nsAString& aDest);
 void ToUpperCase(const nsAString& aSource, nsAString& aDest);
 
-uint32_t ToLowerCase(uint32_t);
-uint32_t ToUpperCase(uint32_t);
-uint32_t ToTitleCase(uint32_t);
+PRUnichar ToLowerCase(PRUnichar);
+PRUnichar ToUpperCase(PRUnichar);
+PRUnichar ToTitleCase(PRUnichar);
 
-void ToLowerCase(const PRUnichar*, PRUnichar*, uint32_t);
-void ToUpperCase(const PRUnichar*, PRUnichar*, uint32_t);
+void ToLowerCase(const PRUnichar*, PRUnichar*, PRUint32);
+void ToUpperCase(const PRUnichar*, PRUnichar*, PRUint32);
 
-inline bool IsUpperCase(uint32_t c) {
+inline PRBool IsUpperCase(PRUnichar c) {
   return ToLowerCase(c) != c;
 }
 
-inline bool IsLowerCase(uint32_t c) {
+inline PRBool IsLowerCase(PRUnichar c) {
   return ToUpperCase(c) != c;
 }
 
@@ -42,26 +76,26 @@ inline bool IsLowerCase(uint32_t c) {
 class nsCaseInsensitiveStringComparator : public nsStringComparator
 {
 public:
-  virtual int32_t operator() (const PRUnichar*,
+  virtual PRInt32 operator() (const PRUnichar*,
                               const PRUnichar*,
-                              uint32_t,
-                              uint32_t) const;
+                              PRUint32,
+                              PRUint32) const;
 };
 
 class nsCaseInsensitiveUTF8StringComparator : public nsCStringComparator
 {
 public:
-  virtual int32_t operator() (const char*,
+  virtual PRInt32 operator() (const char*,
                               const char*,
-                              uint32_t,
-                              uint32_t) const;
+                              PRUint32,
+                              PRUint32) const;
 };
 
 class nsCaseInsensitiveStringArrayComparator
 {
 public:
   template<class A, class B>
-  bool Equals(const A& a, const B& b) const {
+  PRBool Equals(const A& a, const B& b) const {
     return a.Equals(b, nsCaseInsensitiveStringComparator());
   }
 };
@@ -72,11 +106,11 @@ public:
   nsASCIICaseInsensitiveStringComparator() {}
   virtual int operator() (const PRUnichar*,
                           const PRUnichar*,
-                          uint32_t,
-                          uint32_t) const;
+                          PRUint32,
+                          PRUint32) const;
 };
 
-inline bool
+inline PRBool
 CaseInsensitiveFindInReadable(const nsAString& aPattern,
                               nsAString::const_iterator& aSearchStart,
                               nsAString::const_iterator& aSearchEnd)
@@ -85,7 +119,7 @@ CaseInsensitiveFindInReadable(const nsAString& aPattern,
                         nsCaseInsensitiveStringComparator());
 }
 
-inline bool
+inline PRBool
 CaseInsensitiveFindInReadable(const nsAString& aPattern,
                               const nsAString& aHay)
 {
@@ -97,12 +131,12 @@ CaseInsensitiveFindInReadable(const nsAString& aPattern,
 
 #endif // MOZILLA_INTERNAL_API
 
-int32_t
-CaseInsensitiveCompare(const PRUnichar *a, const PRUnichar *b, uint32_t len);
+PRInt32
+CaseInsensitiveCompare(const PRUnichar *a, const PRUnichar *b, PRUint32 len);
 
-int32_t
+PRInt32
 CaseInsensitiveCompare(const char* aLeft, const char* aRight,
-                       uint32_t aLeftBytes, uint32_t aRightBytes);
+                       PRUint32 aLeftBytes, PRUint32 aRightBytes);
 
 /**
  * This function determines whether the UTF-8 sequence pointed to by aLeft is
@@ -123,25 +157,10 @@ CaseInsensitiveCompare(const char* aLeft, const char* aRight,
  * function returns true, aErr is guaranteed to be false and both aLeftNext and
  * aRightNext are guaranteed to be initialized.
  */
-bool
+PRBool
 CaseInsensitiveUTF8CharsEqual(const char* aLeft, const char* aRight,
                               const char* aLeftEnd, const char* aRightEnd,
                               const char** aLeftNext, const char** aRightNext,
-                              bool* aErr);
-
-namespace mozilla {
-
-/**
- * Hash a UTF8 string as though it were a UTF16 string.
- *
- * The value returned is the same as if we converted the string to UTF16 and
- * then ran HashString() on the result.
- *
- * The given |length| is in bytes.
- */
-uint32_t
-HashUTF8AsUTF16(const char* aUTF8, uint32_t aLength, bool* aErr);
-
-} // namespace mozilla
+                              PRBool* aErr);
 
 #endif  /* nsUnicharUtils_h__ */

@@ -3,7 +3,9 @@ Cu.import("resource://services-sync/util.js");
 
 add_test(function test_processIncoming_abort() {
   _("An abort exception, raised in applyIncoming, will abort _processIncoming.");
-  new SyncTestingInfrastructure();
+  let syncTesting = new SyncTestingInfrastructure();
+  Svc.Prefs.set("clusterURL", "http://localhost:8080/");
+  Svc.Prefs.set("username", "foo");
   generateNewKeys();
 
   let engine = new RotaryEngine();
@@ -16,7 +18,7 @@ add_test(function test_processIncoming_abort() {
   let collection = new ServerCollection();
   let id = Utils.makeGUID();
   let payload = encryptPayload({id: id, denomination: "Record No. " + id});
-  collection.insert(id, payload);
+  collection.wbos[id] = new ServerWBO(id, payload);
 
   let server = sync_httpd_setup({
       "/1.1/foo/storage/rotary": collection.handler()

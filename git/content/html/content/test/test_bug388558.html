@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=388558
 -->
 <head>
   <title>Test for Bug 388558</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -23,7 +24,7 @@ var inputChange = 0;
 var textareaChange = 0;
 
 function testUserInput() {
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalBrowserWrite');
   var input = document.getElementById("input");
   var textarea = document.getElementById("textarea");
 

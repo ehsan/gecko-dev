@@ -1,7 +1,38 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla SVG Project code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "DOMSVGNumber.h"
 #include "DOMSVGNumberList.h"
@@ -9,8 +40,7 @@
 #include "SVGAnimatedNumberList.h"
 #include "nsSVGElement.h"
 #include "nsIDOMSVGNumber.h"
-#include "nsError.h"
-#include "nsContentUtils.h"
+#include "nsDOMError.h"
 
 // See the architecture comment in DOMSVGAnimatedNumberList.h.
 
@@ -24,7 +54,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(DOMSVGNumber)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGNumber)
   // We may not belong to a list, so we must null check tmp->mList.
   if (tmp->mList) {
-    tmp->mList->mItems[tmp->mListIndex] = nullptr;
+    tmp->mList->mItems[tmp->mListIndex] = nsnull;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -45,9 +75,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGNumber)
 NS_INTERFACE_MAP_END
 
 DOMSVGNumber::DOMSVGNumber(DOMSVGNumberList *aList,
-                           uint8_t aAttrEnum,
-                           uint32_t aListIndex,
-                           uint8_t aIsAnimValItem)
+                           PRUint8 aAttrEnum,
+                           PRUint32 aListIndex,
+                           PRUint8 aIsAnimValItem)
   : mList(aList)
   , mListIndex(aListIndex)
   , mAttrEnum(aAttrEnum)
@@ -64,10 +94,10 @@ DOMSVGNumber::DOMSVGNumber(DOMSVGNumberList *aList,
 }
 
 DOMSVGNumber::DOMSVGNumber()
-  : mList(nullptr)
+  : mList(nsnull)
   , mListIndex(0)
   , mAttrEnum(0)
-  , mIsAnimValItem(false)
+  , mIsAnimValItem(PR_FALSE)
   , mValue(0.0f)
 {
 }
@@ -75,9 +105,11 @@ DOMSVGNumber::DOMSVGNumber()
 NS_IMETHODIMP
 DOMSVGNumber::GetValue(float* aValue)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
-    Element()->FlushAnimations(); // May make HasOwner() == false
+    Element()->FlushAnimations(); // May make HasOwner() == PR_FALSE
   }
+#endif
   *aValue = HasOwner() ? InternalItem() : mValue;
   return NS_OK;
 }
@@ -92,15 +124,13 @@ DOMSVGNumber::SetValue(float aValue)
   NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
 
   if (HasOwner()) {
-    if (InternalItem() == aValue) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeNumberList(mAttrEnum);
     InternalItem() = aValue;
-    Element()->DidChangeNumberList(mAttrEnum, emptyOrOldValue);
+    Element()->DidChangeNumberList(mAttrEnum, PR_TRUE);
+#ifdef MOZ_SMIL
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif
     return NS_OK;
   }
   mValue = aValue;
@@ -109,9 +139,9 @@ DOMSVGNumber::SetValue(float aValue)
 
 void
 DOMSVGNumber::InsertingIntoList(DOMSVGNumberList *aList,
-                                uint8_t aAttrEnum,
-                                uint32_t aListIndex,
-                                uint8_t aIsAnimValItem)
+                                PRUint8 aAttrEnum,
+                                PRUint32 aListIndex,
+                                PRUint8 aIsAnimValItem)
 {
   NS_ASSERTION(!HasOwner(), "Inserting item that is already in a list");
 
@@ -127,8 +157,8 @@ void
 DOMSVGNumber::RemovingFromList()
 {
   mValue = InternalItem();
-  mList = nullptr;
-  mIsAnimValItem = false;
+  mList = nsnull;
+  mIsAnimValItem = PR_FALSE;
 }
 
 float
@@ -147,7 +177,7 @@ DOMSVGNumber::InternalItem()
 }
 
 #ifdef DEBUG
-bool
+PRBool
 DOMSVGNumber::IndexIsValid()
 {
   SVGAnimatedNumberList *alist = Element()->GetAnimatedNumberList(mAttrEnum);

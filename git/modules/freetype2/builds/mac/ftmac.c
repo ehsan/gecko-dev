@@ -171,7 +171,6 @@ typedef short ResourceIndex;
 #define PREFER_LWFN  1
 #endif
 
-#ifdef FT_MACINTOSH
 
 #if !HAVE_QUICKDRAW_CARBON  /* QuickDraw is deprecated since Mac OS X 10.4 */
 
@@ -1527,8 +1526,6 @@ typedef short ResourceIndex;
 #endif /* HAVE_FSREF, HAVE_FSSPEC */
 
   }
-
-#endif /* FT_MACINTOSH */
 
 
 /* END */

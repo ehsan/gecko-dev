@@ -1,13 +1,45 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdlib.h>
 #include "prlog.h"
 
 #include "mozilla/Mutex.h"
-#include "mozilla/Attributes.h"
 #include "nsIInputStreamTee.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
@@ -25,7 +57,7 @@ static PRLogModuleInfo* gInputStreamTeeLog = PR_NewLogModule("nsInputStreamTee")
 #define LOG(args)
 #endif
 
-class nsInputStreamTee MOZ_FINAL : public nsIInputStreamTee
+class nsInputStreamTee : public nsIInputStreamTee
 {
 public:
     NS_DECL_ISUPPORTS
@@ -39,10 +71,10 @@ public:
 private:
     ~nsInputStreamTee() {}
 
-    nsresult TeeSegment(const char *buf, uint32_t count);
+    nsresult TeeSegment(const char *buf, PRUint32 count);
     
     static NS_METHOD WriteSegmentFun(nsIInputStream *, void *, const char *,
-                                     uint32_t, uint32_t, uint32_t *);
+                                     PRUint32, PRUint32, PRUint32 *);
 
 private:
     nsCOMPtr<nsIInputStream>  mSource;
@@ -57,7 +89,7 @@ private:
 class nsInputStreamTeeWriteEvent : public nsRunnable {
 public:
     // aTee's lock is held across construction of this object
-    nsInputStreamTeeWriteEvent(const char *aBuf, uint32_t aCount,
+    nsInputStreamTeeWriteEvent(const char *aBuf, PRUint32 aCount,
                                nsIOutputStream  *aSink, 
                                nsInputStreamTee *aTee)
     {
@@ -66,9 +98,9 @@ public:
         if (mBuf) memcpy(mBuf, (char *)aBuf, aCount);
         mCount = aCount;
         mSink = aSink;
-        bool isNonBlocking;
+        PRBool isNonBlocking;
         mSink->IsNonBlocking(&isNonBlocking);
-        NS_ASSERTION(isNonBlocking == false, "mSink is nonblocking");
+        NS_ASSERTION(isNonBlocking == PR_FALSE, "mSink is nonblocking");
         mTee = aTee;
     }
 
@@ -91,10 +123,10 @@ public:
              "will write %u bytes to %p\n",
               this, mCount, mSink.get()));
 
-        uint32_t totalBytesWritten = 0;
+        PRUint32 totalBytesWritten = 0;
         while (mCount) {
             nsresult rv;
-            uint32_t bytesWritten = 0;
+            PRUint32 bytesWritten = 0;
             rv = mSink->Write(mBuf + totalBytesWritten, mCount, &bytesWritten);
             if (NS_FAILED(rv)) {
                 LOG(("nsInputStreamTeeWriteEvent::Run[%p] error %x in writing",
@@ -113,18 +145,18 @@ protected:
     virtual ~nsInputStreamTeeWriteEvent()
     {
         if (mBuf) free(mBuf);
-        mBuf = nullptr;
+        mBuf = nsnull;
     }
     
 private:
     char *mBuf;
-    uint32_t mCount;
+    PRUint32 mCount;
     nsCOMPtr<nsIOutputStream> mSink;
     // back pointer to the tee that created this runnable
     nsRefPtr<nsInputStreamTee> mTee;
 };
 
-nsInputStreamTee::nsInputStreamTee(): mLock(nullptr)
+nsInputStreamTee::nsInputStreamTee(): mLock(nsnull)
                                     , mSinkIsValid(true)
 {
 }
@@ -144,7 +176,7 @@ nsInputStreamTee::InvalidateSink()
 }
 
 nsresult
-nsInputStreamTee::TeeSegment(const char *buf, uint32_t count)
+nsInputStreamTee::TeeSegment(const char *buf, PRUint32 count)
 {
     if (!mSink) return NS_OK; // nothing to do
     if (mLock) { // asynchronous case
@@ -161,9 +193,9 @@ nsInputStreamTee::TeeSegment(const char *buf, uint32_t count)
     } else { // synchronous case
         NS_ASSERTION(!mEventTarget, "mEventTarget is not null, mLock is null.");
         nsresult rv;
-        uint32_t totalBytesWritten = 0;
+        PRUint32 totalBytesWritten = 0;
         while (count) {
-            uint32_t bytesWritten = 0;
+            PRUint32 bytesWritten = 0;
             rv = mSink->Write(buf + totalBytesWritten, count, &bytesWritten);
             if (NS_FAILED(rv)) {
                 // ok, this is not a fatal error... just drop our reference to mSink
@@ -184,13 +216,13 @@ nsInputStreamTee::TeeSegment(const char *buf, uint32_t count)
 
 NS_METHOD
 nsInputStreamTee::WriteSegmentFun(nsIInputStream *in, void *closure, const char *fromSegment,
-                                  uint32_t offset, uint32_t count, uint32_t *writeCount)
+                                  PRUint32 offset, PRUint32 count, PRUint32 *writeCount)
 {
     nsInputStreamTee *tee = reinterpret_cast<nsInputStreamTee *>(closure);
 
     nsresult rv = tee->mWriter(in, tee->mClosure, fromSegment, offset, count, writeCount);
     if (NS_FAILED(rv) || (*writeCount == 0)) {
-        NS_ASSERTION((NS_FAILED(rv) ? (*writeCount == 0) : true),
+        NS_ASSERTION((NS_FAILED(rv) ? (*writeCount == 0) : PR_TRUE),
                 "writer returned an error with non-zero writeCount");
         return rv;
     }
@@ -212,14 +244,14 @@ nsInputStreamTee::Close()
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::Available(uint64_t *avail)
+nsInputStreamTee::Available(PRUint32 *avail)
 {
     NS_ENSURE_TRUE(mSource, NS_ERROR_NOT_INITIALIZED);
     return mSource->Available(avail);
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::Read(char *buf, uint32_t count, uint32_t *bytesRead)
+nsInputStreamTee::Read(char *buf, PRUint32 count, PRUint32 *bytesRead)
 {
     NS_ENSURE_TRUE(mSource, NS_ERROR_NOT_INITIALIZED);
 
@@ -233,8 +265,8 @@ nsInputStreamTee::Read(char *buf, uint32_t count, uint32_t *bytesRead)
 NS_IMETHODIMP
 nsInputStreamTee::ReadSegments(nsWriteSegmentFun writer, 
                                void *closure,
-                               uint32_t count,
-                               uint32_t *bytesRead)
+                               PRUint32 count,
+                               PRUint32 *bytesRead)
 {
     NS_ENSURE_TRUE(mSource, NS_ERROR_NOT_INITIALIZED);
 
@@ -245,7 +277,7 @@ nsInputStreamTee::ReadSegments(nsWriteSegmentFun writer,
 }
 
 NS_IMETHODIMP
-nsInputStreamTee::IsNonBlocking(bool *result)
+nsInputStreamTee::IsNonBlocking(PRBool *result)
 {
     NS_ENSURE_TRUE(mSource, NS_ERROR_NOT_INITIALIZED);
     return mSource->IsNonBlocking(result);
@@ -270,7 +302,7 @@ nsInputStreamTee::SetSink(nsIOutputStream *sink)
 {
 #ifdef DEBUG
     if (sink) {
-        bool nonBlocking;
+        PRBool nonBlocking;
         nsresult rv = sink->IsNonBlocking(&nonBlocking);
         if (NS_FAILED(rv) || nonBlocking)
             NS_ERROR("sink should be a blocking stream");
@@ -306,7 +338,7 @@ nsInputStreamTee::GetEventTarget(nsIEventTarget **anEventTarget)
 }
 
 
-nsresult
+NS_COM nsresult
 NS_NewInputStreamTeeAsync(nsIInputStream **result,
                           nsIInputStream *source,
                           nsIOutputStream *sink,
@@ -331,10 +363,10 @@ NS_NewInputStreamTeeAsync(nsIInputStream **result,
     return rv;
 }
 
-nsresult
+NS_COM nsresult
 NS_NewInputStreamTee(nsIInputStream **result,
                      nsIInputStream *source,
                      nsIOutputStream *sink)
 {
-    return NS_NewInputStreamTeeAsync(result, source, sink, nullptr);
+    return NS_NewInputStreamTeeAsync(result, source, sink, nsnull);
 }

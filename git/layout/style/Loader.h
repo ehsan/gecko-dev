@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* loading of CSS style sheets using the network APIs */
 
@@ -18,8 +50,6 @@
 #include "nsTArray.h"
 #include "nsTObserverArray.h"
 #include "nsURIHashKey.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/CORSMode.h"
 
 class nsIAtom;
 class nsICSSLoaderObserver;
@@ -28,75 +58,65 @@ class nsIContent;
 class nsIDocument;
 class nsCSSParser;
 class nsMediaList;
-class nsIStyleSheetLinkingElement;
 
 namespace mozilla {
 
-class URIPrincipalAndCORSModeHashKey : public nsURIHashKey
+class URIAndPrincipalHashKey : public nsURIHashKey
 {
 public:
-  typedef URIPrincipalAndCORSModeHashKey* KeyType;
-  typedef const URIPrincipalAndCORSModeHashKey* KeyTypePointer;
+  typedef URIAndPrincipalHashKey* KeyType;
+  typedef const URIAndPrincipalHashKey* KeyTypePointer;
 
-  URIPrincipalAndCORSModeHashKey(const URIPrincipalAndCORSModeHashKey* aKey)
-    : nsURIHashKey(aKey->mKey), mPrincipal(aKey->mPrincipal),
-      mCORSMode(aKey->mCORSMode)
+  URIAndPrincipalHashKey(const URIAndPrincipalHashKey* aKey)
+    : nsURIHashKey(aKey->mKey), mPrincipal(aKey->mPrincipal)
   {
-    MOZ_COUNT_CTOR(URIPrincipalAndCORSModeHashKey);
+    MOZ_COUNT_CTOR(URIAndPrincipalHashKey);
   }
-  URIPrincipalAndCORSModeHashKey(nsIURI* aURI, nsIPrincipal* aPrincipal,
-                                 CORSMode aCORSMode)
-    : nsURIHashKey(aURI), mPrincipal(aPrincipal), mCORSMode(aCORSMode)
+  URIAndPrincipalHashKey(nsIURI* aURI, nsIPrincipal* aPrincipal)
+    : nsURIHashKey(aURI), mPrincipal(aPrincipal)
   {
-    MOZ_COUNT_CTOR(URIPrincipalAndCORSModeHashKey);
+    MOZ_COUNT_CTOR(URIAndPrincipalHashKey);
   }
-  URIPrincipalAndCORSModeHashKey(const URIPrincipalAndCORSModeHashKey& toCopy)
-    : nsURIHashKey(toCopy), mPrincipal(toCopy.mPrincipal),
-      mCORSMode(toCopy.mCORSMode)
+  URIAndPrincipalHashKey(const URIAndPrincipalHashKey& toCopy)
+    : nsURIHashKey(toCopy), mPrincipal(toCopy.mPrincipal)
   {
-    MOZ_COUNT_CTOR(URIPrincipalAndCORSModeHashKey);
+    MOZ_COUNT_CTOR(URIAndPrincipalHashKey);
   }
-  ~URIPrincipalAndCORSModeHashKey()
+  ~URIAndPrincipalHashKey()
   {
-    MOZ_COUNT_DTOR(URIPrincipalAndCORSModeHashKey);
+    MOZ_COUNT_DTOR(URIAndPrincipalHashKey);
   }
 
-  URIPrincipalAndCORSModeHashKey* GetKey() const {
-    return const_cast<URIPrincipalAndCORSModeHashKey*>(this);
+  URIAndPrincipalHashKey* GetKey() const {
+    return const_cast<URIAndPrincipalHashKey*>(this);
   }
-  const URIPrincipalAndCORSModeHashKey* GetKeyPointer() const { return this; }
+  const URIAndPrincipalHashKey* GetKeyPointer() const { return this; }
 
-  bool KeyEquals(const URIPrincipalAndCORSModeHashKey* aKey) const {
+  PRBool KeyEquals(const URIAndPrincipalHashKey* aKey) const {
     if (!nsURIHashKey::KeyEquals(aKey->mKey)) {
-      return false;
+      return PR_FALSE;
     }
 
     if (!mPrincipal != !aKey->mPrincipal) {
       // One or the other has a principal, but not both... not equal
-      return false;
+      return PR_FALSE;
     }
 
-    if (mCORSMode != aKey->mCORSMode) {
-      // Different CORS modes; we don't match
-      return false;
-    }
-
-    bool eq;
+    PRBool eq;
     return !mPrincipal ||
       (NS_SUCCEEDED(mPrincipal->Equals(aKey->mPrincipal, &eq)) && eq);
   }
 
-  static const URIPrincipalAndCORSModeHashKey*
-  KeyToPointer(URIPrincipalAndCORSModeHashKey* aKey) { return aKey; }
-  static PLDHashNumber HashKey(const URIPrincipalAndCORSModeHashKey* aKey) {
+  static const URIAndPrincipalHashKey*
+  KeyToPointer(URIAndPrincipalHashKey* aKey) { return aKey; }
+  static PLDHashNumber HashKey(const URIAndPrincipalHashKey* aKey) {
     return nsURIHashKey::HashKey(aKey->mKey);
   }
 
-  enum { ALLOW_MEMMOVE = true };
+  enum { ALLOW_MEMMOVE = PR_TRUE };
 
 protected:
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  CORSMode mCORSMode;
 };
 
 
@@ -117,7 +137,7 @@ enum StyleSheetState {
   eSheetComplete
 };
 
-class Loader MOZ_FINAL {
+class Loader {
 public:
   Loader();
   Loader(nsIDocument*);
@@ -158,12 +178,12 @@ public:
    */
   nsresult LoadInlineStyle(nsIContent* aElement,
                            const nsAString& aBuffer,
-                           uint32_t aLineNumber,
+                           PRUint32 aLineNumber,
                            const nsAString& aTitle,
                            const nsAString& aMedia,
                            nsICSSLoaderObserver* aObserver,
-                           bool* aCompleted,
-                           bool* aIsAlternate);
+                           PRBool* aCompleted,
+                           PRBool* aIsAlternate);
 
   /**
    * Load a linked (document) stylesheet.  If a successful result is returned,
@@ -178,7 +198,6 @@ public:
    * @param aMedia the media string for the sheet.
    * @param aHasAlternateRel whether the rel for this link included
    *        "alternate".
-   * @param aCORSMode the CORS mode for this load.
    * @param aObserver the observer to notify when the load completes.
    *                  May be null.
    * @param [out] aIsAlternate whether the stylesheet actually ended up beinga
@@ -189,10 +208,9 @@ public:
                          nsIURI* aURL,
                          const nsAString& aTitle,
                          const nsAString& aMedia,
-                         bool aHasAlternateRel,
-                         CORSMode aCORSMode,
+                         PRBool aHasAlternateRel,
                          nsICSSLoaderObserver* aObserver,
-                         bool* aIsAlternate);
+                         PRBool* aIsAlternate);
 
   /**
    * Load a child (@import-ed) style sheet.  In addition to loading the sheet,
@@ -242,15 +260,15 @@ public:
    * whether the data could be parsed as CSS and doesn't indicate anything
    * about the status of child sheets of the returned sheet.
    */
-  nsresult LoadSheetSync(nsIURI* aURL, bool aEnableUnsafeRules,
-                         bool aUseSystemPrincipal,
+  nsresult LoadSheetSync(nsIURI* aURL, PRBool aEnableUnsafeRules,
+                         PRBool aUseSystemPrincipal,
                          nsCSSStyleSheet** aSheet);
 
   /**
    * As above, but aUseSystemPrincipal and aEnableUnsafeRules are assumed false.
    */
   nsresult LoadSheetSync(nsIURI* aURL, nsCSSStyleSheet** aSheet) {
-    return LoadSheetSync(aURL, false, false, aSheet);
+    return LoadSheetSync(aURL, PR_FALSE, PR_FALSE, aSheet);
   }
 
   /**
@@ -286,8 +304,7 @@ public:
   nsresult LoadSheet(nsIURI* aURL,
                      nsIPrincipal* aOriginPrincipal,
                      const nsCString& aCharset,
-                     nsICSSLoaderObserver* aObserver,
-                     CORSMode aCORSMode = CORS_NONE);
+                     nsICSSLoaderObserver* aObserver);
 
   /**
    * Stop loading all sheets.  All nsICSSLoaderObservers involved will be
@@ -308,8 +325,8 @@ public:
    * NS_ERROR_NOT_AVAILABLE. Note that this DOES NOT disable
    * currently loading styles or already processed styles.
    */
-  bool GetEnabled() { return mEnabled; }
-  void SetEnabled(bool aEnabled) { mEnabled = aEnabled; }
+  PRBool GetEnabled() { return mEnabled; }
+  void SetEnabled(PRBool aEnabled) { mEnabled = aEnabled; }
 
   /**
    * Get the document we live for. May return null.
@@ -320,13 +337,13 @@ public:
    * Return true if this loader has pending loads (ones that would send
    * notifications to an nsICSSLoaderObserver attached to this loader).
    * If called from inside nsICSSLoaderObserver::StyleSheetLoaded, this will
-   * return false if and only if that is the last StyleSheetLoaded
+   * return PR_FALSE if and only if that is the last StyleSheetLoaded
    * notification the CSSLoader knows it's going to send.  In other words, if
    * two sheets load at once (via load coalescing, e.g.), HasPendingLoads()
-   * will return true during notification for the first one, and false
+   * will return PR_TRUE during notification for the first one, and PR_FALSE
    * during notification for the second one.
    */
-  bool HasPendingLoads();
+  PRBool HasPendingLoads();
 
   /**
    * Add an observer to this loader.  The observer will be notified
@@ -349,7 +366,7 @@ public:
 
   // IsAlternate can change our currently selected style set if none
   // is selected and aHasAlternateRel is false.
-  bool IsAlternate(const nsAString& aTitle, bool aHasAlternateRel);
+  PRBool IsAlternate(const nsAString& aTitle, PRBool aHasAlternateRel);
 
   typedef nsTArray<nsRefPtr<SheetLoadData> > LoadDataArray;
 
@@ -366,26 +383,23 @@ private:
   // For inline style, the aURI param is null, but the aLinkingContent
   // must be non-null then.  The loader principal must never be null
   // if aURI is not null.
-  // *aIsAlternate is set based on aTitle and aHasAlternateRel.
   nsresult CreateSheet(nsIURI* aURI,
                        nsIContent* aLinkingContent,
                        nsIPrincipal* aLoaderPrincipal,
-                       CORSMode aCORSMode,
-                       bool aSyncLoad,
-                       bool aHasAlternateRel,
-                       const nsAString& aTitle,
+                       PRBool aSyncLoad,
                        StyleSheetState& aSheetState,
-                       bool *aIsAlternate,
                        nsCSSStyleSheet** aSheet);
 
   // Pass in either a media string or the nsMediaList from the
   // CSSParser.  Don't pass both.
-  // This method will set the sheet's enabled state based on isAlternate
+  // If aIsAlternate is non-null, this method will set *aIsAlternate to
+  // correspond to the sheet's enabled state (which it will set no matter what)
   nsresult PrepareSheet(nsCSSStyleSheet* aSheet,
                         const nsAString& aTitle,
                         const nsAString& aMediaString,
                         nsMediaList* aMediaList,
-                        bool isAlternate);
+                        PRBool aHasAlternateRel = PR_FALSE,
+                        PRBool *aIsAlternate = nsnull);
 
   nsresult InsertSheetInDoc(nsCSSStyleSheet* aSheet,
                             nsIContent* aLinkingContent,
@@ -396,26 +410,23 @@ private:
                             ImportRule* aParentRule);
 
   nsresult InternalLoadNonDocumentSheet(nsIURI* aURL,
-                                        bool aAllowUnsafeRules,
-                                        bool aUseSystemPrincipal,
+                                        PRBool aAllowUnsafeRules,
+                                        PRBool aUseSystemPrincipal,
                                         nsIPrincipal* aOriginPrincipal,
                                         const nsCString& aCharset,
                                         nsCSSStyleSheet** aSheet,
-                                        nsICSSLoaderObserver* aObserver,
-                                        CORSMode aCORSMode = CORS_NONE);
+                                        nsICSSLoaderObserver* aObserver);
 
   // Post a load event for aObserver to be notified about aSheet.  The
   // notification will be sent with status NS_OK unless the load event is
   // canceled at some point (in which case it will be sent with
   // NS_BINDING_ABORTED).  aWasAlternate indicates the state when the load was
   // initiated, not the state at some later time.  aURI should be the URI the
-  // sheet was loaded from (may be null for inline sheets).  aElement is the
-  // owning element for this sheet.
+  // sheet was loaded from (may be null for inline sheets).
   nsresult PostLoadEvent(nsIURI* aURI,
                          nsCSSStyleSheet* aSheet,
                          nsICSSLoaderObserver* aObserver,
-                         bool aWasAlternate,
-                         nsIStyleSheetLinkingElement* aElement);
+                         PRBool aWasAlternate);
 
   // Start the loads of all the sheets in mPendingDatas
   void StartAlternateLoads();
@@ -433,7 +444,7 @@ private:
   // ParseSheet also called SheetComplete on aLoadData.
   nsresult ParseSheet(const nsAString& aInput,
                       SheetLoadData* aLoadData,
-                      bool& aCompleted);
+                      PRBool& aCompleted);
 
   // The load of the sheet in aLoadData is done, one way or another.  Do final
   // cleanup, including releasing aLoadData.
@@ -445,11 +456,11 @@ private:
   void DoSheetComplete(SheetLoadData* aLoadData, nsresult aStatus,
                        LoadDataArray& aDatasToNotify);
 
-  nsRefPtrHashtable<URIPrincipalAndCORSModeHashKey, nsCSSStyleSheet>
+  nsRefPtrHashtable<URIAndPrincipalHashKey, nsCSSStyleSheet>
                     mCompleteSheets;
-  nsDataHashtable<URIPrincipalAndCORSModeHashKey, SheetLoadData*>
+  nsDataHashtable<URIAndPrincipalHashKey, SheetLoadData*>
                     mLoadingDatas; // weak refs
-  nsDataHashtable<URIPrincipalAndCORSModeHashKey, SheetLoadData*>
+  nsDataHashtable<URIAndPrincipalHashKey, SheetLoadData*>
                     mPendingDatas; // weak refs
 
   // We're not likely to have many levels of @import...  But likely to have
@@ -461,7 +472,6 @@ private:
   LoadDataArray     mPostedEvents;
 
   // Our array of "global" observers
-  // XXXbz these are strong refs; should we be cycle collecting CSS loaders?
   nsTObserverArray<nsCOMPtr<nsICSSLoaderObserver> > mObservers;
 
   // the load data needs access to the document...
@@ -475,15 +485,15 @@ private:
   // whole bunch at once (e.g. in one of the stop methods).  This is used to
   // make sure that HasPendingLoads() won't return false until we're notifying
   // on the last data we're working with.
-  uint32_t          mDatasToNotifyOn;
+  PRUint32          mDatasToNotifyOn;
 
   nsCompatibility   mCompatMode;
   nsString          mPreferredSheet;  // title of preferred sheet
 
-  bool              mEnabled; // is enabled to load new styles
+  PRPackedBool      mEnabled; // is enabled to load new styles
 
 #ifdef DEBUG
-  bool              mSyncCallback;
+  PRPackedBool      mSyncCallback;
 #endif
 };
 

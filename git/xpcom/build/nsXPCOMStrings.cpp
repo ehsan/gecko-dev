@@ -1,7 +1,39 @@
 /* vim:set ts=2 sw=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by IBM Corporation are Copyright (C) 2003
+ * IBM Corporation.  All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsString.h"
 #include "nsCharTraits.h"
@@ -26,8 +58,8 @@ NS_StringContainerInit(nsStringContainer &aContainer)
 XPCOM_API(nsresult)
 NS_StringContainerInit2(nsStringContainer &aContainer,
                         const PRUnichar   *aData,
-                        uint32_t           aDataLength,
-                        uint32_t           aFlags)
+                        PRUint32           aDataLength,
+                        PRUint32           aFlags)
 {
   NS_ASSERTION(sizeof(nsStringContainer_base) >= sizeof(nsString),
       "nsStringContainer is not large enough");
@@ -47,7 +79,7 @@ NS_StringContainerInit2(nsStringContainer &aContainer,
     if (aFlags & (NS_STRING_CONTAINER_INIT_DEPEND |
                   NS_STRING_CONTAINER_INIT_ADOPT))
     {
-      uint32_t flags;
+      PRUint32 flags;
       if (aFlags & NS_STRING_CONTAINER_INIT_SUBSTRING)
         flags = nsSubstring::F_NONE;
       else
@@ -77,9 +109,9 @@ NS_StringContainerFinish(nsStringContainer &aContainer)
 
 /* ------------------------------------------------------------------------- */
 
-XPCOM_API(uint32_t)
+XPCOM_API(PRUint32)
 NS_StringGetData(const nsAString &aStr, const PRUnichar **aData,
-                 bool *aTerminated)
+                 PRBool *aTerminated)
 {
   if (aTerminated)
     *aTerminated = aStr.IsTerminated();
@@ -90,14 +122,14 @@ NS_StringGetData(const nsAString &aStr, const PRUnichar **aData,
   return begin.size_forward();
 }
 
-XPCOM_API(uint32_t)
-NS_StringGetMutableData(nsAString &aStr, uint32_t aDataLength,
+XPCOM_API(PRUint32)
+NS_StringGetMutableData(nsAString &aStr, PRUint32 aDataLength,
                         PRUnichar **aData)
 {
   if (aDataLength != PR_UINT32_MAX) {
     aStr.SetLength(aDataLength);
     if (aStr.Length() != aDataLength) {
-      *aData = nullptr;
+      *aData = nsnull;
       return 0;
     }
   }
@@ -115,7 +147,7 @@ NS_StringCloneData(const nsAString &aStr)
 }
 
 XPCOM_API(nsresult)
-NS_StringSetData(nsAString &aStr, const PRUnichar *aData, uint32_t aDataLength)
+NS_StringSetData(nsAString &aStr, const PRUnichar *aData, PRUint32 aDataLength)
 {
   aStr.Assign(aData, aDataLength);
   return NS_OK; // XXX report errors
@@ -123,8 +155,8 @@ NS_StringSetData(nsAString &aStr, const PRUnichar *aData, uint32_t aDataLength)
 
 XPCOM_API(nsresult)
 NS_StringSetDataRange(nsAString &aStr,
-                      uint32_t aCutOffset, uint32_t aCutLength,
-                      const PRUnichar *aData, uint32_t aDataLength)
+                      PRUint32 aCutOffset, PRUint32 aCutLength,
+                      const PRUnichar *aData, PRUint32 aDataLength)
 {
   if (aCutOffset == PR_UINT32_MAX)
   {
@@ -142,7 +174,7 @@ NS_StringSetDataRange(nsAString &aStr,
     if (aDataLength == PR_UINT32_MAX)
       aStr.Replace(aCutOffset, aCutLength, nsDependentString(aData));
     else
-      aStr.Replace(aCutOffset, aCutLength, Substring(aData, aDataLength));
+      aStr.Replace(aCutOffset, aCutLength, Substring(aData, aData + aDataLength));
   }
   else
     aStr.Cut(aCutOffset, aCutLength);
@@ -158,12 +190,12 @@ NS_StringCopy(nsAString &aDest, const nsAString &aSrc)
 }
 
 XPCOM_API(void)
-NS_StringSetIsVoid(nsAString &aStr, const bool aIsVoid)
+NS_StringSetIsVoid(nsAString &aStr, const PRBool aIsVoid)
 {
   aStr.SetIsVoid(aIsVoid);
 }
 
-XPCOM_API(bool)
+XPCOM_API(PRBool)
 NS_StringGetIsVoid(const nsAString &aStr)
 {
   return aStr.IsVoid();
@@ -186,8 +218,8 @@ NS_CStringContainerInit(nsCStringContainer &aContainer)
 XPCOM_API(nsresult)
 NS_CStringContainerInit2(nsCStringContainer &aContainer,
                          const char         *aData,
-                         uint32_t            aDataLength,
-                         uint32_t            aFlags)
+                         PRUint32            aDataLength,
+                         PRUint32            aFlags)
 {
   NS_ASSERTION(sizeof(nsStringContainer_base) >= sizeof(nsCString),
       "nsStringContainer is not large enough");
@@ -207,7 +239,7 @@ NS_CStringContainerInit2(nsCStringContainer &aContainer,
     if (aFlags & (NS_CSTRING_CONTAINER_INIT_DEPEND |
                   NS_CSTRING_CONTAINER_INIT_ADOPT))
     {
-      uint32_t flags;
+      PRUint32 flags;
       if (aFlags & NS_CSTRING_CONTAINER_INIT_SUBSTRING)
         flags = nsCSubstring::F_NONE;
       else
@@ -237,9 +269,9 @@ NS_CStringContainerFinish(nsCStringContainer &aContainer)
 
 /* ------------------------------------------------------------------------- */
 
-XPCOM_API(uint32_t)
+XPCOM_API(PRUint32)
 NS_CStringGetData(const nsACString &aStr, const char **aData,
-                  bool *aTerminated)
+                  PRBool *aTerminated)
 {
   if (aTerminated)
     *aTerminated = aStr.IsTerminated();
@@ -250,13 +282,13 @@ NS_CStringGetData(const nsACString &aStr, const char **aData,
   return begin.size_forward();
 }
 
-XPCOM_API(uint32_t)
-NS_CStringGetMutableData(nsACString &aStr, uint32_t aDataLength, char **aData)
+XPCOM_API(PRUint32)
+NS_CStringGetMutableData(nsACString &aStr, PRUint32 aDataLength, char **aData)
 {
   if (aDataLength != PR_UINT32_MAX) {
     aStr.SetLength(aDataLength);
     if (aStr.Length() != aDataLength) {
-      *aData = nullptr;
+      *aData = nsnull;
       return 0;
     }
   }
@@ -274,7 +306,7 @@ NS_CStringCloneData(const nsACString &aStr)
 }
 
 XPCOM_API(nsresult)
-NS_CStringSetData(nsACString &aStr, const char *aData, uint32_t aDataLength)
+NS_CStringSetData(nsACString &aStr, const char *aData, PRUint32 aDataLength)
 {
   aStr.Assign(aData, aDataLength);
   return NS_OK; // XXX report errors
@@ -282,8 +314,8 @@ NS_CStringSetData(nsACString &aStr, const char *aData, uint32_t aDataLength)
 
 XPCOM_API(nsresult)
 NS_CStringSetDataRange(nsACString &aStr,
-                       uint32_t aCutOffset, uint32_t aCutLength,
-                       const char *aData, uint32_t aDataLength)
+                       PRUint32 aCutOffset, PRUint32 aCutLength,
+                       const char *aData, PRUint32 aDataLength)
 {
   if (aCutOffset == PR_UINT32_MAX)
   {
@@ -301,7 +333,7 @@ NS_CStringSetDataRange(nsACString &aStr,
     if (aDataLength == PR_UINT32_MAX)
       aStr.Replace(aCutOffset, aCutLength, nsDependentCString(aData));
     else
-      aStr.Replace(aCutOffset, aCutLength, Substring(aData, aDataLength));
+      aStr.Replace(aCutOffset, aCutLength, Substring(aData, aData + aDataLength));
   }
   else
     aStr.Cut(aCutOffset, aCutLength);
@@ -317,12 +349,12 @@ NS_CStringCopy(nsACString &aDest, const nsACString &aSrc)
 }
 
 XPCOM_API(void)
-NS_CStringSetIsVoid(nsACString &aStr, const bool aIsVoid)
+NS_CStringSetIsVoid(nsACString &aStr, const PRBool aIsVoid)
 {
   aStr.SetIsVoid(aIsVoid);
 }
 
-XPCOM_API(bool)
+XPCOM_API(PRBool)
 NS_CStringGetIsVoid(const nsACString &aStr)
 {
   return aStr.IsVoid();

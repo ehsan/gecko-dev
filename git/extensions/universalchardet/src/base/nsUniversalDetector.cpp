@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Universal charset detector code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *          Shy Shalom <shooshX@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nscore.h"
 
@@ -12,28 +45,28 @@
 #include "nsEscCharsetProber.h"
 #include "nsLatin1Prober.h"
 
-nsUniversalDetector::nsUniversalDetector(uint32_t aLanguageFilter)
+nsUniversalDetector::nsUniversalDetector(PRUint32 aLanguageFilter)
 {
-  mDone = false;
+  mDone = PR_FALSE;
   mBestGuess = -1;   //illegal value as signal
-  mInTag = false;
-  mEscCharSetProber = nullptr;
+  mInTag = PR_FALSE;
+  mEscCharSetProber = nsnull;
 
-  mStart = true;
-  mDetectedCharset = nullptr;
-  mGotData = false;
+  mStart = PR_TRUE;
+  mDetectedCharset = nsnull;
+  mGotData = PR_FALSE;
   mInputState = ePureAscii;
   mLastChar = '\0';
   mLanguageFilter = aLanguageFilter;
 
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
-    mCharSetProbers[i] = nullptr;
+    mCharSetProbers[i] = nsnull;
 }
 
 nsUniversalDetector::~nsUniversalDetector() 
 {
-  for (int32_t i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
+  for (PRInt32 i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
     delete mCharSetProbers[i];
 
   delete mEscCharSetProber;
@@ -42,20 +75,20 @@ nsUniversalDetector::~nsUniversalDetector()
 void 
 nsUniversalDetector::Reset()
 {
-  mDone = false;
+  mDone = PR_FALSE;
   mBestGuess = -1;   //illegal value as signal
-  mInTag = false;
+  mInTag = PR_FALSE;
 
-  mStart = true;
-  mDetectedCharset = nullptr;
-  mGotData = false;
+  mStart = PR_TRUE;
+  mDetectedCharset = nsnull;
+  mGotData = PR_FALSE;
   mInputState = ePureAscii;
   mLastChar = '\0';
 
   if (mEscCharSetProber)
     mEscCharSetProber->Reset();
 
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
     if (mCharSetProbers[i])
       mCharSetProbers[i]->Reset();
@@ -65,18 +98,18 @@ nsUniversalDetector::Reset()
 #define SHORTCUT_THRESHOLD      (float)0.95
 #define MINIMUM_THRESHOLD      (float)0.20
 
-nsresult nsUniversalDetector::HandleData(const char* aBuf, uint32_t aLen)
+nsresult nsUniversalDetector::HandleData(const char* aBuf, PRUint32 aLen)
 {
   if(mDone) 
     return NS_OK;
 
   if (aLen > 0)
-    mGotData = true;
+    mGotData = PR_TRUE;
 
   //If the data starts with BOM, we know it is UTF
   if (mStart)
   {
-    mStart = false;
+    mStart = PR_FALSE;
     if (aLen > 2)
       switch (aBuf[0])
         {
@@ -99,12 +132,12 @@ nsresult nsUniversalDetector::HandleData(const char* aBuf, uint32_t aLen)
 
       if (mDetectedCharset)
       {
-        mDone = true;
+        mDone = PR_TRUE;
         return NS_OK;
       }
   }
   
-  uint32_t i;
+  PRUint32 i;
   for (i = 0; i < aLen; i++)
   {
     //other than 0xa0, if every othe character is ascii, the page is ascii
@@ -119,27 +152,27 @@ nsresult nsUniversalDetector::HandleData(const char* aBuf, uint32_t aLen)
         //kill mEscCharSetProber if it is active
         if (mEscCharSetProber) {
           delete mEscCharSetProber;
-          mEscCharSetProber = nullptr;
+          mEscCharSetProber = nsnull;
         }
 
         //start multibyte and singlebyte charset prober
-        if (nullptr == mCharSetProbers[0])
+        if (nsnull == mCharSetProbers[0])
         {
           mCharSetProbers[0] = new nsMBCSGroupProber(mLanguageFilter);
-          if (nullptr == mCharSetProbers[0])
+          if (nsnull == mCharSetProbers[0])
             return NS_ERROR_OUT_OF_MEMORY;
         }
-        if (nullptr == mCharSetProbers[1] &&
+        if (nsnull == mCharSetProbers[1] &&
             (mLanguageFilter & NS_FILTER_NON_CJK))
         {
           mCharSetProbers[1] = new nsSBCSGroupProber;
-          if (nullptr == mCharSetProbers[1])
+          if (nsnull == mCharSetProbers[1])
             return NS_ERROR_OUT_OF_MEMORY;
         }
-        if (nullptr == mCharSetProbers[2])
+        if (nsnull == mCharSetProbers[2])
         {
           mCharSetProbers[2] = new nsLatin1Prober; 
-          if (nullptr == mCharSetProbers[2])
+          if (nsnull == mCharSetProbers[2])
             return NS_ERROR_OUT_OF_MEMORY;
         }
       }
@@ -161,15 +194,15 @@ nsresult nsUniversalDetector::HandleData(const char* aBuf, uint32_t aLen)
   switch (mInputState)
   {
   case eEscAscii:
-    if (nullptr == mEscCharSetProber) {
+    if (nsnull == mEscCharSetProber) {
       mEscCharSetProber = new nsEscCharSetProber(mLanguageFilter);
-      if (nullptr == mEscCharSetProber)
+      if (nsnull == mEscCharSetProber)
         return NS_ERROR_OUT_OF_MEMORY;
     }
     st = mEscCharSetProber->HandleData(aBuf, aLen);
     if (st == eFoundIt)
     {
-      mDone = true;
+      mDone = PR_TRUE;
       mDetectedCharset = mEscCharSetProber->GetCharSetName();
     }
     break;
@@ -181,7 +214,7 @@ nsresult nsUniversalDetector::HandleData(const char* aBuf, uint32_t aLen)
         st = mCharSetProbers[i]->HandleData(aBuf, aLen);
         if (st == eFoundIt) 
         {
-          mDone = true;
+          mDone = PR_TRUE;
           mDetectedCharset = mCharSetProbers[i]->GetCharSetName();
           return NS_OK;
         }
@@ -208,7 +241,7 @@ void nsUniversalDetector::DataEnd()
 
   if (mDetectedCharset)
   {
-    mDone = true;
+    mDone = PR_TRUE;
     Report(mDetectedCharset);
     return;
   }
@@ -219,9 +252,9 @@ void nsUniversalDetector::DataEnd()
     {
       float proberConfidence;
       float maxProberConfidence = (float)0.0;
-      int32_t maxProber = 0;
+      PRInt32 maxProber = 0;
 
-      for (int32_t i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
+      for (PRInt32 i = 0; i < NUM_OF_CHARSET_PROBERS; i++)
       {
         if (mCharSetProbers[i])
         {

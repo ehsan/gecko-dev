@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Strict-Transport-Security.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Sid Stamm <sid@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "plstr.h"
 #include "prlog.h"
@@ -15,21 +48,6 @@
 #include "nsNetUtil.h"
 #include "nsThreadUtils.h"
 #include "nsStringGlue.h"
-#include "nsIScriptSecurityManager.h"
-
-// A note about the preload list:
-// When a site specifically disables sts by sending a header with
-// 'max-age: 0', we keep a "knockout" value that means "we have no information
-// regarding the sts state of this host" (any ancestor of "this host" can still
-// influence its sts status via include subdomains, however).
-// This prevents the preload list from overriding the site's current
-// desired sts status. Knockout values are indicated by permission values of
-// STS_KNOCKOUT.
-#include "nsSTSPreloadList.inc"
-
-#define STS_SET (nsIPermissionManager::ALLOW_ACTION)
-#define STS_UNSET (nsIPermissionManager::UNKNOWN_ACTION)
-#define STS_KNOCKOUT (nsIPermissionManager::DENY_ACTION)
 
 #if defined(PR_LOGGING)
 PRLogModuleInfo *gSTSLog = PR_NewLogModule("nsSTSService");
@@ -43,22 +61,21 @@ PRLogModuleInfo *gSTSLog = PR_NewLogModule("nsSTSService");
     return NS_ERROR_FAILURE; \
   }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 nsSTSHostEntry::nsSTSHostEntry(const char* aHost)
   : mHost(aHost)
   , mExpireTime(0)
-  , mExpired(false)
-  , mStsPermission(STS_UNSET)
-  , mIncludeSubdomains(false)
+  , mDeleted(PR_FALSE)
+  , mIncludeSubdomains(PR_FALSE)
 {
 }
 
 nsSTSHostEntry::nsSTSHostEntry(const nsSTSHostEntry& toCopy)
   : mHost(toCopy.mHost)
   , mExpireTime(toCopy.mExpireTime)
-  , mExpired(toCopy.mExpired)
-  , mStsPermission(toCopy.mStsPermission)
+  , mDeleted(toCopy.mDeleted)
   , mIncludeSubdomains(toCopy.mIncludeSubdomains)
 {
 }
@@ -67,7 +84,7 @@ nsSTSHostEntry::nsSTSHostEntry(const nsSTSHostEntry& toCopy)
 
 
 nsStrictTransportSecurityService::nsStrictTransportSecurityService()
-  : mInPrivateMode(false)
+  : mInPrivateMode(PR_FALSE)
 {
 }
 
@@ -95,10 +112,10 @@ nsStrictTransportSecurityService::Init()
 
    mObserverService = mozilla::services::GetObserverService();
    if (mObserverService)
-     mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, false);
+     mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, PR_FALSE);
 
-   if (mInPrivateMode)
-     mPrivateModeHostTable.Init();
+   if (mInPrivateMode && !mPrivateModeHostTable.Init())
+     return NS_ERROR_OUT_OF_MEMORY;
 
    return NS_OK;
 }
@@ -118,32 +135,9 @@ nsStrictTransportSecurityService::GetHost(nsIURI *aURI, nsACString &aResult)
 }
 
 nsresult
-nsStrictTransportSecurityService::GetPrincipalForURI(nsIURI* aURI,
-                                                     nsIPrincipal** aPrincipal)
-{
-  nsresult rv;
-  nsCOMPtr<nsIScriptSecurityManager> securityManager =
-     do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // We have to normalize the scheme of the URIs we're using, so just use https.
-  // HSTS information is shared across all ports for a given host.
-  nsAutoCString host;
-  rv = GetHost(aURI, host);
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIURI> uri;
-  rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("https://") + host);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // We want all apps to share HSTS state, so this is one of the few places
-  // where we do not silo persistent state by extended origin.
-  return securityManager->GetNoAppCodebasePrincipal(uri, aPrincipal);
-}
-
-nsresult
 nsStrictTransportSecurityService::SetStsState(nsIURI* aSourceURI,
-                                              int64_t maxage,
-                                              bool includeSubdomains)
+                                              PRInt64 maxage,
+                                              PRBool includeSubdomains)
 {
   // If max-age is zero, that's an indication to immediately remove the
   // permissions, so here's a shortcut.
@@ -152,15 +146,14 @@ nsStrictTransportSecurityService::SetStsState(nsIURI* aSourceURI,
 
   // Expire time is millis from now.  Since STS max-age is in seconds, and
   // PR_Now() is in micros, must equalize the units at milliseconds.
-  int64_t expiretime = (PR_Now() / PR_USEC_PER_MSEC) +
-                       (maxage * PR_MSEC_PER_SEC);
+  PRInt64 expiretime = (PR_Now() / 1000) + (maxage * 1000);
 
   // record entry for this host with max-age in the permissions manager
   STSLOG(("STS: maxage permission SET, adding permission\n"));
   nsresult rv = AddPermission(aSourceURI,
                               STS_PERMISSION,
-                              (uint32_t) STS_SET,
-                              (uint32_t) nsIPermissionManager::EXPIRE_TIME,
+                              (PRUint32) nsIPermissionManager::ALLOW_ACTION,
+                              (PRUint32) nsIPermissionManager::EXPIRE_TIME,
                               expiretime);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -169,12 +162,12 @@ nsStrictTransportSecurityService::SetStsState(nsIURI* aSourceURI,
     STSLOG(("STS: subdomains permission SET, adding permission\n"));
     rv = AddPermission(aSourceURI,
                        STS_SUBDOMAIN_PERMISSION,
-                       (uint32_t) STS_SET,
-                       (uint32_t) nsIPermissionManager::EXPIRE_TIME,
+                       (PRUint32) nsIPermissionManager::ALLOW_ACTION,
+                       (PRUint32) nsIPermissionManager::EXPIRE_TIME,
                        expiretime);
     NS_ENSURE_SUCCESS(rv, rv);
   } else { // !includeSubdomains
-    nsAutoCString hostname;
+    nsCAutoString hostname;
     rv = GetHost(aSourceURI, hostname);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -192,7 +185,7 @@ nsStrictTransportSecurityService::RemoveStsState(nsIURI* aURI)
   // manager is used and it's not threadsafe.
   NS_ENSURE_TRUE(NS_IsMainThread(), NS_ERROR_UNEXPECTED);
 
-  nsAutoCString hostname;
+  nsCAutoString hostname;
   nsresult rv = GetHost(aURI, hostname);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -240,10 +233,10 @@ nsStrictTransportSecurityService::ProcessStsHeaderMutating(nsIURI* aSourceURI,
 
   const char* directive;
 
-  bool foundMaxAge = false;
-  bool foundUnrecognizedTokens = false;
-  bool includeSubdomains = false;
-  int64_t maxAge = 0;
+  PRBool foundMaxAge = PR_FALSE;
+  PRBool foundUnrecognizedTokens = PR_FALSE;
+  PRBool includeSubdomains = PR_FALSE;
+  PRInt64 maxAge = 0;
 
   NS_NAMED_LITERAL_CSTRING(max_age_var, "max-age");
   NS_NAMED_LITERAL_CSTRING(include_subd_var, "includesubdomains");
@@ -269,14 +262,14 @@ nsStrictTransportSecurityService::ProcessStsHeaderMutating(nsIURI* aSourceURI,
       STS_PARSER_FAIL_IF(PR_sscanf(directive, "%lld", &maxAge) != 1,
                   ("Could not convert delta-seconds\n"));
       STSLOG(("STS: ProcessStrictTransportHeader() STS found maxage %lld\n", maxAge));
-      foundMaxAge = true;
+      foundMaxAge = PR_TRUE;
 
       // skip max-age value and trailing whitespace
       directive = NS_strspnp("0123456789 \t", directive);
 
       // log unknown tokens, but don't fail (for forwards compatibility)
       if (*directive != '\0') {
-        foundUnrecognizedTokens = true;
+        foundUnrecognizedTokens = PR_TRUE;
         STSLOG(("Extra stuff in max-age after delta-seconds: %s \n", directive));
       }
     }
@@ -284,27 +277,27 @@ nsStrictTransportSecurityService::ProcessStsHeaderMutating(nsIURI* aSourceURI,
       directive += include_subd_var.Length();
 
       // only record "includesubdomains" if it is a token by itself... for
-      // example, don't set includeSubdomains = true if the directive is
+      // example, don't set includeSubdomains = PR_TRUE if the directive is
       // "includesubdomainsFooBar".
       if (*directive == '\0' || *directive =='\t' || *directive == ' ') {
-        includeSubdomains = true;
+        includeSubdomains = PR_TRUE;
         STSLOG(("STS: ProcessStrictTransportHeader: obtained subdomains status\n"));
 
         // skip trailing whitespace
         directive = NS_strspnp(" \t", directive);
 
         if (*directive != '\0') {
-          foundUnrecognizedTokens = true;
+          foundUnrecognizedTokens = PR_TRUE;
           STSLOG(("Extra stuff after includesubdomains: %s\n", directive));
         }
       } else {
-        foundUnrecognizedTokens = true;
+        foundUnrecognizedTokens = PR_TRUE;
         STSLOG(("Unrecognized directive in header: %s\n", directive));
       }
     }
     else {
       // log unknown directives, but don't fail (for backwards compatibility)
-      foundUnrecognizedTokens = true;
+      foundUnrecognizedTokens = PR_TRUE;
       STSLOG(("Unrecognized directive in header: %s\n", directive));
     }
   }
@@ -323,7 +316,7 @@ nsStrictTransportSecurityService::ProcessStsHeaderMutating(nsIURI* aSourceURI,
 }
 
 NS_IMETHODIMP
-nsStrictTransportSecurityService::IsStsHost(const char* aHost, bool* aResult)
+nsStrictTransportSecurityService::IsStsHost(const char* aHost, PRBool* aResult)
 {
   // Should be called on the main thread (or via proxy) since the permission
   // manager is used and it's not threadsafe.
@@ -337,161 +330,26 @@ nsStrictTransportSecurityService::IsStsHost(const char* aHost, bool* aResult)
   return IsStsURI(uri, aResult);
 }
 
-int STSPreloadCompare(const void *key, const void *entry)
-{
-  const char *keyStr = (const char *)key;
-  const nsSTSPreload *preloadEntry = (const nsSTSPreload *)entry;
-  return strcmp(keyStr, preloadEntry->mHost);
-}
-
-// Returns the preload list entry for the given host, if it exists.
-// Only does exact host matching - the user must decide how to use the returned
-// data. May return null.
-const nsSTSPreload *
-nsStrictTransportSecurityService::GetPreloadListEntry(const char *aHost)
-{
-  return (const nsSTSPreload *) bsearch(aHost,
-                                        kSTSPreloadList,
-                                        PR_ARRAY_SIZE(kSTSPreloadList),
-                                        sizeof(nsSTSPreload),
-                                        STSPreloadCompare);
-}
-
 NS_IMETHODIMP
-nsStrictTransportSecurityService::IsStsURI(nsIURI* aURI, bool* aResult)
+nsStrictTransportSecurityService::IsStsURI(nsIURI* aURI, PRBool* aResult)
 {
   // Should be called on the main thread (or via proxy) since the permission
   // manager is used and it's not threadsafe.
   NS_ENSURE_TRUE(NS_IsMainThread(), NS_ERROR_UNEXPECTED);
 
-  // set default in case if we can't find any STS information
-  *aResult = false;
-
-  nsAutoCString host;
-  nsresult rv = GetHost(aURI, host);
+  nsresult rv;
+  PRUint32 permExact, permGeneral;
+  // If this domain has the forcehttps permission, this is an STS host.
+  rv = TestPermission(aURI, STS_PERMISSION, &permExact, PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  const nsSTSPreload *preload = nullptr;
-  nsSTSHostEntry *pbEntry = nullptr;
-
-  if (mInPrivateMode) {
-    pbEntry = mPrivateModeHostTable.GetEntry(host.get());
-  }
-
-  nsCOMPtr<nsIPrincipal> principal;
-  rv = GetPrincipalForURI(aURI, getter_AddRefs(principal));
+  // If any super-domain has the includeSubdomains permission, this is an
+  // STS host.
+  rv = TestPermission(aURI, STS_SUBDOMAIN_PERMISSION, &permGeneral, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t permMgrPermission;
-  rv = mPermMgr->TestExactPermissionFromPrincipal(principal, STS_PERMISSION,
-                                                  &permMgrPermission);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // First check the exact host. This involves first checking for an entry in
-  // the private browsing table. If that entry exists, we don't want to check
-  // in either the permission manager or the preload list. We only want to use
-  // the stored permission if it is not a knockout entry, however.
-  // Additionally, if it is a knockout entry, we want to stop looking for data
-  // on the host, because the knockout entry indicates "we have no information
-  // regarding the sts status of this host".
-  if (pbEntry && pbEntry->mStsPermission != STS_UNSET) {
-    STSLOG(("Found private browsing table entry for %s", host.get()));
-    if (!pbEntry->IsExpired() && pbEntry->mStsPermission == STS_SET) {
-      *aResult = true;
-      return NS_OK;
-    }
-  }
-  // Next we look in the permission manager. Same story here regarding
-  // knockout entries.
-  else if (permMgrPermission != STS_UNSET) {
-    STSLOG(("Found permission manager entry for %s", host.get()));
-    if (permMgrPermission == STS_SET) {
-      *aResult = true;
-      return NS_OK;
-    }
-  }
-  // Finally look in the preloaded list. This is the exact host,
-  // so if an entry exists at all, this host is sts.
-  else if (GetPreloadListEntry(host.get())) {
-    STSLOG(("%s is a preloaded STS host", host.get()));
-    *aResult = true;
-    return NS_OK;
-  }
-
-  // Used for testing permissions as we walk up the domain tree.
-  nsCOMPtr<nsIURI> domainWalkURI;
-  nsCOMPtr<nsIPrincipal> domainWalkPrincipal;
-  const char *subdomain;
-
-  STSLOG(("no HSTS data for %s found, walking up domain", host.get()));
-  uint32_t offset = 0;
-  for (offset = host.FindChar('.', offset) + 1;
-       offset > 0;
-       offset = host.FindChar('.', offset) + 1) {
-
-    subdomain = host.get() + offset;
-
-    // If we get an empty string, don't continue.
-    if (strlen(subdomain) < 1) {
-      break;
-    }
-
-    if (mInPrivateMode) {
-      pbEntry = mPrivateModeHostTable.GetEntry(subdomain);
-    }
-
-    // normalize all URIs with https://
-    rv = NS_NewURI(getter_AddRefs(domainWalkURI),
-                   NS_LITERAL_CSTRING("https://") + Substring(host, offset));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = GetPrincipalForURI(domainWalkURI, getter_AddRefs(domainWalkPrincipal));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = mPermMgr->TestExactPermissionFromPrincipal(domainWalkPrincipal,
-                                                    STS_PERMISSION,
-                                                    &permMgrPermission);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Do the same thing as with the exact host, except now we're looking at
-    // ancestor domains of the original host. So, we have to look at the
-    // include subdomains permissions (although we still have to check for the
-    // STS_PERMISSION first to check that this is an sts host and not a
-    // knockout entry - and again, if it is a knockout entry, we stop looking
-    // for data on it and skip to the next higher up ancestor domain).
-    if (pbEntry && pbEntry->mStsPermission != STS_UNSET) {
-      STSLOG(("Found private browsing table entry for %s", subdomain));
-      if (!pbEntry->IsExpired() && pbEntry->mStsPermission == STS_SET) {
-        *aResult = pbEntry->mIncludeSubdomains;
-        break;
-      }
-    }
-    else if (permMgrPermission != STS_UNSET) {
-      STSLOG(("Found permission manager entry for %s", subdomain));
-      if (permMgrPermission == STS_SET) {
-        uint32_t subdomainPermission;
-        rv = mPermMgr->TestExactPermissionFromPrincipal(domainWalkPrincipal,
-                                                        STS_SUBDOMAIN_PERMISSION,
-                                                        &subdomainPermission);
-        NS_ENSURE_SUCCESS(rv, rv);
-        *aResult = (subdomainPermission == STS_SET);
-        break;
-      }
-    }
-    // This is an ancestor, so if we get a match, we have to check if the
-    // preloaded entry includes subdomains.
-    else if ((preload = GetPreloadListEntry(subdomain)) != nullptr) {
-      if (preload->mIncludeSubdomains) {
-        STSLOG(("%s is a preloaded STS host", subdomain));
-        *aResult = true;
-        break;
-      }
-    }
-
-    STSLOG(("no HSTS data for %s found, walking up domain", subdomain));
-  }
-
-  // Use whatever we ended up with, which defaults to false.
+  *aResult = ((permExact   == nsIPermissionManager::ALLOW_ACTION) ||
+              (permGeneral == nsIPermissionManager::ALLOW_ACTION));
   return NS_OK;
 }
 
@@ -499,19 +357,21 @@ nsStrictTransportSecurityService::IsStsURI(nsIURI* aURI, bool* aResult)
 // Verify the trustworthiness of the security info (are there any cert errors?)
 NS_IMETHODIMP
 nsStrictTransportSecurityService::ShouldIgnoreStsHeader(nsISupports* aSecurityInfo,
-                                                        bool* aResult)
+                                                        PRBool* aResult)
 {
   nsresult rv;
-  bool tlsIsBroken = false;
+  PRBool tlsIsBroken = PR_FALSE;
   nsCOMPtr<nsISSLStatusProvider> sslprov = do_QueryInterface(aSecurityInfo);
   NS_ENSURE_TRUE(sslprov, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsISSLStatus> sslstat;
-  rv = sslprov->GetSSLStatus(getter_AddRefs(sslstat));
+  nsCOMPtr<nsISupports> isupstat;
+  rv = sslprov->GetSSLStatus(getter_AddRefs(isupstat));
   NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsISSLStatus> sslstat = do_QueryInterface(isupstat);
   NS_ENSURE_TRUE(sslstat, NS_ERROR_FAILURE);
 
-  bool trustcheck;
+  PRBool trustcheck;
   rv = sslstat->GetIsDomainMismatch(&trustcheck);
   NS_ENSURE_SUCCESS(rv, rv);
   tlsIsBroken = tlsIsBroken || trustcheck;
@@ -542,14 +402,15 @@ nsStrictTransportSecurityService::Observe(nsISupports *subject,
       // Indication to start recording stuff locally and not writing changes
       // out to the permission manager.
 
-      if (!mPrivateModeHostTable.IsInitialized()) {
-        mPrivateModeHostTable.Init();
+      if (!mPrivateModeHostTable.IsInitialized()
+          && !mPrivateModeHostTable.Init()) {
+        return NS_ERROR_OUT_OF_MEMORY;
       }
-      mInPrivateMode = true;
+      mInPrivateMode = PR_TRUE;
     }
     else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(data)) {
       mPrivateModeHostTable.Clear();
-      mInPrivateMode = false;
+      mInPrivateMode = PR_FALSE;
     }
   }
 
@@ -563,26 +424,21 @@ nsStrictTransportSecurityService::Observe(nsISupports *subject,
 nsresult
 nsStrictTransportSecurityService::AddPermission(nsIURI     *aURI,
                                                 const char *aType,
-                                                uint32_t   aPermission,
-                                                uint32_t   aExpireType,
-                                                int64_t    aExpireTime)
+                                                PRUint32   aPermission,
+                                                PRUint32   aExpireType,
+                                                PRInt64    aExpireTime)
 {
     // Private mode doesn't address user-set (EXPIRE_NEVER) permissions: let
     // those be stored persistently.
     if (!mInPrivateMode || aExpireType == nsIPermissionManager::EXPIRE_NEVER) {
       // Not in private mode, or manually-set permission
-      nsCOMPtr<nsIPrincipal> principal;
-      nsresult rv = GetPrincipalForURI(aURI, getter_AddRefs(principal));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      return mPermMgr->AddFromPrincipal(principal, aType, aPermission,
-                                        aExpireType, aExpireTime);
+      return mPermMgr->Add(aURI, aType, aPermission, aExpireType, aExpireTime);
     }
 
-    nsAutoCString host;
+    nsCAutoString host;
     nsresult rv = GetHost(aURI, host);
     NS_ENSURE_SUCCESS(rv, rv);
-    STSLOG(("AddPermission for entry for %s", host.get()));
+    STSLOG(("AddPermission for entry for for %s", host.get()));
 
     // Update in mPrivateModeHostTable only, so any changes will be rolled
     // back when exiting private mode.
@@ -597,10 +453,7 @@ nsStrictTransportSecurityService::AddPermission(nsIURI     *aURI,
     // PutEntry returns an existing entry if there already is one, or it
     // creates a new one if there isn't.
     nsSTSHostEntry* entry = mPrivateModeHostTable.PutEntry(host.get());
-    if (!entry) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-    STSLOG(("Created private mode entry for %s", host.get()));
+    STSLOG(("Created private mode entry for for %s", host.get()));
 
     // AddPermission() will be called twice if the STS header encountered has
     // includeSubdomains (first for the main permission and second for the
@@ -608,59 +461,165 @@ nsStrictTransportSecurityService::AddPermission(nsIURI     *aURI,
     // with the STS_SUBDOMAIN_PERMISSION, we just have to flip that bit in
     // the nsSTSHostEntry.
     if (strcmp(aType, STS_SUBDOMAIN_PERMISSION) == 0) {
-      entry->mIncludeSubdomains = true;
+      entry->mIncludeSubdomains = PR_TRUE;
     }
-    else if (strcmp(aType, STS_PERMISSION) == 0) {
-      entry->mStsPermission = aPermission;
-    }
+    // for the case where PutEntry() returned an existing host entry, make
+    // sure it's not set as deleted (which might have happened in the past).
+    entry->mDeleted = PR_FALSE;
 
     // Also refresh the expiration time.
-    entry->SetExpireTime(aExpireTime);
+    entry->mExpireTime = aExpireTime;
     return NS_OK;
+
 }
 
 nsresult
 nsStrictTransportSecurityService::RemovePermission(const nsCString  &aHost,
                                                    const char       *aType)
 {
-    // Build up a principal for use with the permission manager.
-    // normalize all URIs with https://
-    nsCOMPtr<nsIURI> uri;
-    nsresult rv = NS_NewURI(getter_AddRefs(uri),
-                            NS_LITERAL_CSTRING("https://") + aHost);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsIPrincipal> principal;
-    rv = GetPrincipalForURI(uri, getter_AddRefs(principal));
-    NS_ENSURE_SUCCESS(rv, rv);
-
     if (!mInPrivateMode) {
       // Not in private mode: remove permissions persistently.
-      // This means setting the permission to STS_KNOCKOUT in case
-      // this host is on the preload list (so we can override it).
-      return mPermMgr->AddFromPrincipal(principal, aType,
-                                        STS_KNOCKOUT,
-                                        nsIPermissionManager::EXPIRE_NEVER, 0);
+      return mPermMgr->Remove(aHost, aType);
     }
 
     // Make changes in mPrivateModeHostTable only, so any changes will be
     // rolled back when exiting private mode.
     nsSTSHostEntry* entry = mPrivateModeHostTable.GetEntry(aHost.get());
 
-    if (!entry) {
-      entry = mPrivateModeHostTable.PutEntry(aHost.get());
+    // Build up an nsIURI for use with the permission manager.
+    nsCOMPtr<nsIURI> uri;
+    nsresult rv = NS_NewURI(getter_AddRefs(uri),
+                            NS_LITERAL_CSTRING("http://") + aHost);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // Check to see if there's STS data stored for this host in the
+    // permission manager (probably set outside private mode).
+    PRUint32 permmgrValue;
+    rv = mPermMgr->TestExactPermission(uri, aType, &permmgrValue);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // If there is STS data in the permission manager, store a "deleted" mask
+    // for the permission in mPrivateModeHostTable (either update
+    // mPrivateModeHostTable to have the deleted mask, or add one).
+    // This is because we don't want removals that happen in private mode to
+    // be reflected when private mode is exited -- but while in private mode
+    // we still want the effect of the removal.
+    if (permmgrValue != nsIPermissionManager::UNKNOWN_ACTION) {
+      // if there's no entry in mPrivateModeHostTable, we have to make one.
       if (!entry) {
-        return NS_ERROR_OUT_OF_MEMORY;
+        entry = mPrivateModeHostTable.PutEntry(aHost.get());
+        STSLOG(("Created private mode deleted mask for for %s", aHost.get()));
       }
-      STSLOG(("Created private mode deleted mask for %s", aHost.get()));
+      entry->mDeleted = PR_TRUE;
+      entry->mIncludeSubdomains = PR_FALSE;
+      return NS_OK;
     }
 
-    if (strcmp(aType, STS_PERMISSION) == 0) {
-      entry->mStsPermission = STS_KNOCKOUT;
-    }
-    else if (strcmp(aType, STS_SUBDOMAIN_PERMISSION) == 0) {
-      entry->mIncludeSubdomains = false;
+    // Otherwise, permission doesn't exist in the real permission manager, so
+    // there's nothing to "pretend" to delete.  I'ts ok to delete any copy in
+    // mPrivateModeHostTable.
+    if (entry) mPrivateModeHostTable.RawRemoveEntry(entry);
+    return NS_OK;
+}
+
+nsresult
+nsStrictTransportSecurityService::TestPermission(nsIURI     *aURI,
+                                                 const char *aType,
+                                                 PRUint32   *aPermission,
+                                                 PRBool     testExact)
+{
+    // set default for if we can't find any STS information
+    *aPermission = nsIPermissionManager::UNKNOWN_ACTION;
+
+    if (!mInPrivateMode) {
+      // if not in private mode, just delegate to the permission manager.
+      if (testExact)
+        return mPermMgr->TestExactPermission(aURI, aType, aPermission);
+      else
+        return mPermMgr->TestPermission(aURI, aType, aPermission);
     }
 
+    nsCAutoString host;
+    nsresult rv = GetHost(aURI, host);
+    if (NS_FAILED(rv)) return NS_OK;
+
+    nsSTSHostEntry *entry;
+    PRUint32 actualExactPermission;
+    PRUint32 offset = 0;
+    PRInt64 now = PR_Now() / 1000;
+
+    // Used for testing permissions as we walk up the domain tree.
+    nsCOMPtr<nsIURI> domainWalkURI;
+
+    // In parallel, loop over private mode cache and also the real permission
+    // manager--ignoring any masked as "deleted" in the local cache. We have
+    // to do this here since the most specific permission in *either* the
+    // permission manager or mPrivateModeHostTable should be used.
+    do {
+      entry = mPrivateModeHostTable.GetEntry(host.get() + offset);
+      STSLOG(("Checking PM Table entry and permmgr for %s", host.get()+offset));
+
+      // flag as deleted any entries encountered that have expired.  We only
+      // flag the nsSTSHostEntry because there could be some data in the
+      // permission manager that -- if not in private mode -- would have been
+      // overwritten by newly encountered STS data.
+      if (entry && (now > entry->mExpireTime)) {
+        STSLOG(("Deleting expired PM Table entry for %s", host.get()+offset));
+        entry->mDeleted = PR_TRUE;
+        entry->mIncludeSubdomains = PR_FALSE;
+      }
+
+      rv = NS_NewURI(getter_AddRefs(domainWalkURI),
+                      NS_LITERAL_CSTRING("http://") + Substring(host, offset));
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      rv = mPermMgr->TestExactPermission(domainWalkURI,
+                                          aType,
+                                          &actualExactPermission);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      // There are three cases as we walk up the hostname testing
+      // permissions:
+      // 1. There's no entry in mPrivateModeHostTable for this host; rely
+      // on data in the permission manager
+      if (!entry) {
+        if (actualExactPermission != nsIPermissionManager::UNKNOWN_ACTION) {
+          // no cached data but a permission in the permission manager so use
+          // it and stop looking.
+          *aPermission = actualExactPermission;
+          STSLOG(("no PM Table entry for %s, using permmgr", host.get()+offset));
+          break;
+        }
+      }
+      // 2. There's a "deleted" mask in mPrivateModeHostTable for this host
+      // or we're looking for includeSubdomain information and it's not set:
+      // any data in the permission manager must be ignored, since the
+      // permission would have been deleted if not in private mode.
+      else if (entry->mDeleted || (strcmp(aType, STS_SUBDOMAIN_PERMISSION) == 0
+                                  && !entry->mIncludeSubdomains)) {
+        STSLOG(("no entry at all for %s, walking up", host.get()+offset));
+        // keep looking
+      }
+      // 3. There's a non-deleted entry in mPrivateModeHostTable for this
+      // host, so it should be used.
+      else {
+        // All STS permissions' values are ALLOW_ACTION or they are not
+        // known (as in, not set or turned off).
+        *aPermission = nsIPermissionManager::ALLOW_ACTION;
+        STSLOG(("PM Table entry for %s: forcing", host.get()+offset));
+        break;
+      }
+
+      // Don't continue walking up the host segments if the test was for an
+      // exact match only.
+      if (testExact) break;
+
+      STSLOG(("no PM Table entry or permmgr data for %s, walking up domain",
+              host.get()+offset));
+      // walk up the host segments
+      offset = host.FindChar('.', offset) + 1;
+    } while (offset > 0);
+
+    // Use whatever we ended up with, which defaults to UNKNOWN_ACTION.
     return NS_OK;
 }

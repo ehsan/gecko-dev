@@ -1,15 +1,52 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* -*- Mode: C++; tab-width: 3; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla browser.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   David W. Hyatt <hyatt@netscape.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCOMPtr.h"
 #include "nsWindowRoot.h"
 #include "nsPIDOMWindow.h"
+#include "nsIDOMDocument.h"
+#include "nsIDocument.h"
 #include "nsEventListenerManager.h"
 #include "nsPresContext.h"
 #include "nsLayoutCID.h"
 #include "nsContentCID.h"
+#include "nsIPrivateDOMEvent.h"
 #include "nsString.h"
 #include "nsEventDispatcher.h"
 #include "nsGUIEvent.h"
@@ -66,23 +103,21 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsWindowRoot)
 NS_IMPL_DOMTARGET_DEFAULTS(nsWindowRoot)
 
 NS_IMETHODIMP
-nsWindowRoot::RemoveEventListener(const nsAString& aType, nsIDOMEventListener* aListener, bool aUseCapture)
+nsWindowRoot::RemoveEventListener(const nsAString& aType, nsIDOMEventListener* aListener, PRBool aUseCapture)
 {
-  nsRefPtr<nsEventListenerManager> elm = GetListenerManager(false);
+  nsRefPtr<nsEventListenerManager> elm = GetListenerManager(PR_FALSE);
   if (elm) {
     elm->RemoveEventListener(aType, aListener, aUseCapture);
   }
   return NS_OK;
 }
 
-NS_IMPL_REMOVE_SYSTEM_EVENT_LISTENER(nsWindowRoot)
-
 NS_IMETHODIMP
-nsWindowRoot::DispatchEvent(nsIDOMEvent* aEvt, bool *aRetVal)
+nsWindowRoot::DispatchEvent(nsIDOMEvent* aEvt, PRBool *aRetVal)
 {
   nsEventStatus status = nsEventStatus_eIgnore;
   nsresult rv =  nsEventDispatcher::DispatchDOMEvent(
-    static_cast<nsIDOMEventTarget*>(this), nullptr, aEvt, nullptr, &status);
+    static_cast<nsIDOMEventTarget*>(this), nsnull, aEvt, nsnull, &status);
   *aRetVal = (status != nsEventStatus_eConsumeNoDefault);
   return rv;
 }
@@ -101,38 +136,39 @@ nsWindowRoot::DispatchDOMEvent(nsEvent* aEvent,
 NS_IMETHODIMP
 nsWindowRoot::AddEventListener(const nsAString& aType,
                                nsIDOMEventListener *aListener,
-                               bool aUseCapture, bool aWantsUntrusted,
-                               uint8_t aOptionalArgc)
+                               PRBool aUseCapture, PRBool aWantsUntrusted,
+                               PRUint8 aOptionalArgc)
 {
   NS_ASSERTION(!aWantsUntrusted || aOptionalArgc > 1,
                "Won't check if this is chrome, you want to set "
-               "aWantsUntrusted to false or make the aWantsUntrusted "
+               "aWantsUntrusted to PR_FALSE or make the aWantsUntrusted "
                "explicit by making optional_argc non-zero.");
 
-  nsEventListenerManager* elm = GetListenerManager(true);
+  nsEventListenerManager* elm = GetListenerManager(PR_TRUE);
   NS_ENSURE_STATE(elm);
-  elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
+  return elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
+}
+
+nsresult
+nsWindowRoot::AddEventListenerByIID(nsIDOMEventListener *aListener, const nsIID& aIID)
+{
+  nsEventListenerManager* manager = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(manager);
+  return manager->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+}
+  
+nsresult
+nsWindowRoot::RemoveEventListenerByIID(nsIDOMEventListener *aListener, const nsIID& aIID)
+{
+  nsEventListenerManager* manager = GetListenerManager(PR_TRUE);
+  if (manager) {
+    manager->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
+  }
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsWindowRoot::AddSystemEventListener(const nsAString& aType,
-                                     nsIDOMEventListener *aListener,
-                                     bool aUseCapture,
-                                     bool aWantsUntrusted,
-                                     uint8_t aOptionalArgc)
-{
-  NS_ASSERTION(!aWantsUntrusted || aOptionalArgc > 1,
-               "Won't check if this is chrome, you want to set "
-               "aWantsUntrusted to false or make the aWantsUntrusted "
-               "explicit by making optional_argc non-zero.");
-
-  return NS_AddSystemEventListener(this, aType, aListener, aUseCapture,
-                                   aWantsUntrusted);
-}
-
 nsEventListenerManager*
-nsWindowRoot::GetListenerManager(bool aCreateIfNotFound)
+nsWindowRoot::GetListenerManager(PRBool aCreateIfNotFound)
 {
   if (!mListenerManager && aCreateIfNotFound) {
     mListenerManager =
@@ -146,14 +182,14 @@ nsIScriptContext*
 nsWindowRoot::GetContextForEventHandlers(nsresult* aRv)
 {
   *aRv = NS_OK;
-  return nullptr;
+  return nsnull;
 }
 
 nsresult
 nsWindowRoot::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
-  aVisitor.mCanHandle = true;
-  aVisitor.mForceContentDispatch = true; //FIXME! Bug 329119
+  aVisitor.mCanHandle = PR_TRUE;
+  aVisitor.mForceContentDispatch = PR_TRUE; //FIXME! Bug 329119
   // To keep mWindow alive
   aVisitor.mItemData = static_cast<nsISupports *>(mWindow);
   aVisitor.mParentTarget = mParent;
@@ -175,7 +211,7 @@ nsWindowRoot::GetWindow()
 nsresult
 nsWindowRoot::GetControllers(nsIControllers** aResult)
 {
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   // XXX: we should fix this so there's a generic interface that
   // describes controllers, so this code would have no special
@@ -183,7 +219,7 @@ nsWindowRoot::GetControllers(nsIControllers** aResult)
 
   nsCOMPtr<nsPIDOMWindow> focusedWindow;
   nsIContent* focusedContent =
-    nsFocusManager::GetFocusedDescendant(mWindow, true, getter_AddRefs(focusedWindow));
+    nsFocusManager::GetFocusedDescendant(mWindow, PR_TRUE, getter_AddRefs(focusedWindow));
   if (focusedContent) {
 #ifdef MOZ_XUL
     nsCOMPtr<nsIDOMXULElement> xulElement(do_QueryInterface(focusedContent));
@@ -218,38 +254,41 @@ nsWindowRoot::GetControllerForCommand(const char * aCommand,
                                       nsIController** _retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = nullptr;
+  *_retval = nsnull;
 
-  {
-    nsCOMPtr<nsIControllers> controllers;
-    GetControllers(getter_AddRefs(controllers));
-    if (controllers) {
-      nsCOMPtr<nsIController> controller;
-      controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
-      if (controller) {
-        controller.forget(_retval);
-        return NS_OK;
-      }
+  nsCOMPtr<nsIControllers> controllers;
+  nsCOMPtr<nsIController> controller;
+
+  GetControllers(getter_AddRefs(controllers));
+  if (controllers) {
+    controllers->GetControllerForCommand(aCommand, getter_AddRefs(controller));
+    if (controller) {
+      controller.swap(*_retval);
+      return NS_OK;
     }
   }
 
   nsCOMPtr<nsPIDOMWindow> focusedWindow;
-  nsFocusManager::GetFocusedDescendant(mWindow, true, getter_AddRefs(focusedWindow));
+  nsFocusManager::GetFocusedDescendant(mWindow, PR_TRUE, getter_AddRefs(focusedWindow));
   while (focusedWindow) {
-    nsCOMPtr<nsIControllers> controllers;
-    focusedWindow->GetControllers(getter_AddRefs(controllers));
-    if (controllers) {
-      nsCOMPtr<nsIController> controller;
-      controllers->GetControllerForCommand(aCommand,
-                                           getter_AddRefs(controller));
+    nsCOMPtr<nsIDOMWindow> domWindow(do_QueryInterface(focusedWindow));
+
+    nsCOMPtr<nsIControllers> controllers2;
+    domWindow->GetControllers(getter_AddRefs(controllers2));
+    if (controllers2) {
+      controllers2->GetControllerForCommand(aCommand,
+                                            getter_AddRefs(controller));
       if (controller) {
-        controller.forget(_retval);
+        controller.swap(*_retval);
         return NS_OK;
       }
     }
 
     // XXXndeakin P3 is this casting safe?
-    nsGlobalWindow *win = static_cast<nsGlobalWindow*>(focusedWindow.get());
+    nsCOMPtr<nsPIDOMWindow> piWindow = do_QueryInterface(focusedWindow); 
+    nsGlobalWindow *win =
+      static_cast<nsGlobalWindow *>
+                 (static_cast<nsIDOMWindow*>(piWindow));
     focusedWindow = win->GetPrivateParent();
   }
   
@@ -274,6 +313,8 @@ nsresult
 NS_NewWindowRoot(nsPIDOMWindow* aWindow, nsIDOMEventTarget** aResult)
 {
   *aResult = new nsWindowRoot(aWindow);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(*aResult);
   return NS_OK;
 }

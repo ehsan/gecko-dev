@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   David Hyatt <hyatt@netscape.com>
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* the interface (to internal code) for retrieving computed style data */
 
@@ -91,35 +125,35 @@ public:
   already_AddRefed<nsStyleContext>
   FindChildWithRules(const nsIAtom* aPseudoTag, nsRuleNode* aRules,
                      nsRuleNode* aRulesIfVisited,
-                     bool aRelevantLinkVisited);
+                     PRBool aRelevantLinkVisited);
 
   // Does this style context or any of its ancestors have text
   // decoration lines?
-  bool HasTextDecorationLines() const
+  PRBool HasTextDecorationLines() const
     { return !!(mBits & NS_STYLE_HAS_TEXT_DECORATION_LINES); }
 
   // Does this style context represent the style for a pseudo-element or
   // inherit data from such a style context?  Whether this returns true
   // is equivalent to whether it or any of its ancestors returns
   // non-null for GetPseudo.
-  bool HasPseudoElementData() const
+  PRBool HasPseudoElementData() const
     { return !!(mBits & NS_STYLE_HAS_PSEUDO_ELEMENT_DATA); }
 
   // Is the only link whose visitedness is allowed to influence the
   // style of the node this style context is for (which is that element
   // or its nearest ancestor that is a link) visited?
-  bool RelevantLinkVisited() const
+  PRBool RelevantLinkVisited() const
     { return !!(mBits & NS_STYLE_RELEVANT_LINK_VISITED); }
 
   // Is this a style context for a link?
-  bool IsLinkContext() const {
+  PRBool IsLinkContext() const {
     return
       GetStyleIfVisited() && GetStyleIfVisited()->GetParent() == GetParent();
   }
 
   // Is this style context the GetStyleIfVisited() for some other style
   // context?
-  bool IsStyleIfVisited() const
+  PRBool IsStyleIfVisited() const
     { return !!(mBits & NS_STYLE_IS_STYLE_IF_VISITED); }
 
   // Tells this style context that it should return true from
@@ -188,7 +222,7 @@ public:
   #undef STYLE_STRUCT_INHERITED
 
   nsRuleNode* GetRuleNode() { return mRuleNode; }
-  void AddStyleBit(const uint32_t& aBit) { mBits |= aBit; }
+  void AddStyleBit(const PRUint32& aBit) { mBits |= aBit; }
 
   /*
    * Mark this style context's rule node (and its ancestors) to prevent
@@ -223,7 +257,7 @@ public:
    */
   #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)  \
     const nsStyle##name_ * GetStyle##name_() {            \
-      return DoGetStyle##name_(true);                  \
+      return DoGetStyle##name_(PR_TRUE);                  \
     }
   #include "nsStyleStructList.h"
   #undef STYLE_STRUCT
@@ -237,31 +271,14 @@ public:
    */
   #define STYLE_STRUCT(name_, checkdata_cb_, ctor_args_)  \
     const nsStyle##name_ * PeekStyle##name_() {           \
-      return DoGetStyle##name_(false);                 \
+      return DoGetStyle##name_(PR_FALSE);                 \
     }
   #include "nsStyleStructList.h"
   #undef STYLE_STRUCT
 
   void* GetUniqueStyleData(const nsStyleStructID& aSID);
 
-  /**
-   * Compute the style changes needed during restyling when this style
-   * context is being replaced by aOther.  (This is nonsymmetric since
-   * we optimize by skipping comparison for styles that have never been
-   * requested.)
-   *
-   * This method returns a change hint (see nsChangeHint.h).  All change
-   * hints apply to the frame and its later continuations or special
-   * siblings.  Most (all of those except the "NotHandledForDescendants"
-   * hints) also apply to all descendants.  The caller must pass in any
-   * non-inherited hints that resulted from the parent style context's
-   * style change.  The caller *may* pass more hints than needed, but
-   * must not pass less than needed; therefore if the caller doesn't
-   * know, the caller should pass
-   * nsChangeHint_Hints_NotHandledForDescendants.
-   */
-  nsChangeHint CalcStyleDifference(nsStyleContext* aOther,
-                                   nsChangeHint aParentHintsNotHandledForDescendants);
+  nsChangeHint CalcStyleDifference(nsStyleContext* aOther);
 
   /**
    * Get a color that depends on link-visitedness using this and
@@ -284,7 +301,7 @@ public:
    * be used based on aLinkIsVisited with the A component of aColors[0].
    */
   static nscolor CombineVisitedColors(nscolor *aColors,
-                                      bool aLinkIsVisited);
+                                      PRBool aLinkIsVisited);
 
   /**
    * Allocate a chunk of memory that is scoped to the lifetime of this
@@ -316,7 +333,7 @@ public:
   }
 
 #ifdef DEBUG
-  void List(FILE* out, int32_t aIndent);
+  void List(FILE* out, PRInt32 aIndent);
 #endif
 
 protected:
@@ -333,7 +350,7 @@ protected:
 
   // Helper functions for GetStyle* and PeekStyle*
   #define STYLE_STRUCT_INHERITED(name_, checkdata_cb_, ctor_args_)      \
-    const nsStyle##name_ * DoGetStyle##name_(bool aComputeData) {     \
+    const nsStyle##name_ * DoGetStyle##name_(PRBool aComputeData) {     \
       const nsStyle##name_ * cachedData =                               \
         static_cast<nsStyle##name_*>(                                   \
           mCachedInheritedData.mStyleStructs[eStyleStruct_##name_]);    \
@@ -343,11 +360,11 @@ protected:
       return mRuleNode->GetStyle##name_(this, aComputeData);            \
     }
   #define STYLE_STRUCT_RESET(name_, checkdata_cb_, ctor_args_)          \
-    const nsStyle##name_ * DoGetStyle##name_(bool aComputeData) {     \
+    const nsStyle##name_ * DoGetStyle##name_(PRBool aComputeData) {     \
       const nsStyle##name_ * cachedData = mCachedResetData              \
         ? static_cast<nsStyle##name_*>(                                 \
             mCachedResetData->mStyleStructs[eStyleStruct_##name_])      \
-        : nullptr;                                                       \
+        : nsnull;                                                       \
       if (cachedData) /* Have it cached already, yay */                 \
         return cachedData;                                              \
       /* Have the rulenode deal */                                      \
@@ -407,9 +424,9 @@ protected:
   // sometimes allocate the mCachedResetData.
   nsResetStyleData*       mCachedResetData; // Cached reset style data.
   nsInheritedStyleData    mCachedInheritedData; // Cached inherited style data
-  uint32_t                mBits; // Which structs are inherited from the
+  PRUint32                mBits; // Which structs are inherited from the
                                  // parent context or owned by mRuleNode.
-  uint32_t                mRefCnt;
+  PRUint32                mRefCnt;
 };
 
 already_AddRefed<nsStyleContext>

@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Blake Kaplan <mrbkap@gmail.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 #include "nsIAtom.h"
@@ -724,6 +758,15 @@ const nsHTMLElement gHTMLElements[] = {
     /*special parents,kids*/            0,0,
   },
   {
+    /*tag*/                             eHTMLTag_isindex,
+    /*requiredAncestor*/                eHTMLTag_unknown,eHTMLTag_unknown,
+    /*rootnodes,endrootnodes*/          &gRootTags,&gRootTags,
+    /*autoclose starttags and endtags*/ 0,0,0,0,
+    /*parent,incl,exclgroups*/          kBlock, kFlowEntity, kNone,
+    /*special props, prop-range*/       kNonContainer|kRequiresBody,kDefaultPropRange,
+    /*special parents,kids*/            &gInBody,0,
+  },
+  {
     /*tag*/                             eHTMLTag_kbd,
     /*req-parent excl-parent*/          eHTMLTag_unknown,eHTMLTag_unknown,
     /*rootnodes,endrootnodes*/          &gRootTags,&gRootTags,
@@ -823,15 +866,6 @@ const nsHTMLElement gHTMLElements[] = {
     /*special parents,kids*/            0,&gULKids,
   },
   {
-    /*tag*/                             eHTMLTag_menuitem,
-    /*req-parent excl-parent*/          eHTMLTag_unknown,eHTMLTag_unknown,
-    /*rootnodes,endrootnodes*/          &gRootTags,&gRootTags,
-    /*autoclose starttags and endtags*/ 0,0,0,0,
-    /*parent,incl,exclgroups*/          kFlowEntity, kNone, kNone,
-    /*special props, prop-range*/       0,kDefaultPropRange,
-    /*special parents,kids*/            0,0,
-  },
-  {
     /*tag*/                             eHTMLTag_meta,
     /*req-parent excl-parent*/          eHTMLTag_unknown,eHTMLTag_unknown,
     /*rootnodes,endrootnodes*/          &gInHead,&gInHead,
@@ -839,15 +873,6 @@ const nsHTMLElement gHTMLElements[] = {
     /*parent,incl,exclgroups*/          kHeadContent, kNone, kNone,
     /*special props, prop-range*/       kNoStyleLeaksIn|kNonContainer, kDefaultPropRange,
     /*special parents,kids*/            &gInHead,0,
-  },
-  {
-    /*tag*/                             eHTMLTag_meter,
-    /*req-parent excl-parent*/          eHTMLTag_unknown,eHTMLTag_unknown,
-    /*rootnodes,endrootnodes*/          &gRootTags,&gRootTags,
-    /*autoclose starttags and endtags*/ 0,0,0,0,
-    /*parent,incl,exclgroups*/          kFormControl, kFlowEntity, kNone,
-    /*special props, prop-range*/       0,kDefaultPropRange,
-    /*special parents,kids*/            0,0,
   },
   {
     /*tag*/                             eHTMLTag_multicol,
@@ -1374,7 +1399,7 @@ const nsHTMLElement gHTMLElements[] = {
   }
 };
 
-#ifdef DEBUG  
+#ifdef NS_DEBUG  
 void CheckElementTable() {
   for (eHTMLTags t = eHTMLTag_unknown; t <= eHTMLTag_userdefined; t = eHTMLTags(t + 1)) {
     NS_ASSERTION(gHTMLElements[t].mTagID == t, "gHTMLElements entries does match tag list.");
@@ -1391,8 +1416,8 @@ void CheckElementTable() {
  *  @param   aTag -- tag to test for containership
  *  @return  index of kNotFound
  */
-int32_t nsHTMLElement::GetIndexOfChildOrSynonym(nsDTDContext& aContext,eHTMLTags aChildTag) {
-  int32_t theChildIndex=aContext.LastOf(aChildTag);
+PRInt32 nsHTMLElement::GetIndexOfChildOrSynonym(nsDTDContext& aContext,eHTMLTags aChildTag) {
+  PRInt32 theChildIndex=aContext.LastOf(aChildTag);
   if(kNotFound==theChildIndex) {
     const TagList* theSynTags=gHTMLElements[aChildTag].GetSynonymousTags(); //get the list of tags that THIS tag can close
     if(theSynTags) {
@@ -1408,8 +1433,8 @@ int32_t nsHTMLElement::GetIndexOfChildOrSynonym(nsDTDContext& aContext,eHTMLTags
  * @param 
  * @return
  */
-bool nsHTMLElement::HasSpecialProperty(int32_t aProperty) const{
-  bool result=TestBits(mSpecialProperties,aProperty);
+PRBool nsHTMLElement::HasSpecialProperty(PRInt32 aProperty) const{
+  PRBool result=TestBits(mSpecialProperties,aProperty);
   return result;
 }
 
@@ -1419,8 +1444,8 @@ bool nsHTMLElement::HasSpecialProperty(int32_t aProperty) const{
  * @param 
  * @return
  */ 
-bool nsHTMLElement::IsContainer(eHTMLTags aChild) {
-  bool result=(eHTMLTag_unknown==aChild);
+PRBool nsHTMLElement::IsContainer(eHTMLTags aChild) {
+  PRBool result=(eHTMLTag_unknown==aChild);
 
   if(!result){
     result=!TestBits(gHTMLElements[aChild].mSpecialProperties,kNonContainer);
@@ -1437,7 +1462,7 @@ bool nsHTMLElement::IsContainer(eHTMLTags aChild) {
  * @param 
  * @return
  */
-bool nsHTMLElement::IsMemberOf(int32_t aSet) const{
+PRBool nsHTMLElement::IsMemberOf(PRInt32 aSet) const{
   return TestBits(aSet,mParentBits);
 }
 
@@ -1450,7 +1475,7 @@ bool nsHTMLElement::IsMemberOf(int32_t aSet) const{
  * @param 
  * @return
  */
-bool nsHTMLElement::ContainsSet(int32_t aSet) const{
+PRBool nsHTMLElement::ContainsSet(PRInt32 aSet) const{
   return TestBits(mParentBits,aSet);
 }
 
@@ -1461,8 +1486,8 @@ bool nsHTMLElement::ContainsSet(int32_t aSet) const{
  * @param 
  * @return
  */
-bool nsHTMLElement::IsBlockCloser(eHTMLTags aTag){
-  bool result=false;
+PRBool nsHTMLElement::IsBlockCloser(eHTMLTags aTag){
+  PRBool result=PR_FALSE;
     
   if((aTag>=eHTMLTag_unknown) & (aTag<=eHTMLTag_xmp)){
 
@@ -1497,8 +1522,8 @@ bool nsHTMLElement::IsBlockCloser(eHTMLTags aTag){
  * @param 
  * @return
  */
-bool nsHTMLElement::IsInlineEntity(eHTMLTags aTag){
-  bool result=false;
+PRBool nsHTMLElement::IsInlineEntity(eHTMLTags aTag){
+  PRBool result=PR_FALSE;
   if((aTag>=eHTMLTag_unknown) & (aTag<=eHTMLTag_xmp)){
     result=TestBits(gHTMLElements[aTag].mParentBits,kInlineEntity);
   } 
@@ -1511,8 +1536,8 @@ bool nsHTMLElement::IsInlineEntity(eHTMLTags aTag){
  * @param 
  * @return
  */
-bool nsHTMLElement::IsFlowEntity(eHTMLTags aTag){
-  bool result=false;
+PRBool nsHTMLElement::IsFlowEntity(eHTMLTags aTag){
+  PRBool result=PR_FALSE;
 
   if((aTag>=eHTMLTag_unknown) & (aTag<=eHTMLTag_xmp)){
     result=TestBits(gHTMLElements[aTag].mParentBits,kFlowEntity);
@@ -1526,8 +1551,8 @@ bool nsHTMLElement::IsFlowEntity(eHTMLTags aTag){
  * @param 
  * @return
  */
-bool nsHTMLElement::IsBlockParent(eHTMLTags aTag){
-  bool result=false;
+PRBool nsHTMLElement::IsBlockParent(eHTMLTags aTag){
+  PRBool result=PR_FALSE;
   if((aTag>=eHTMLTag_unknown) & (aTag<=eHTMLTag_xmp)){
     result=TestBits(gHTMLElements[aTag].mInclusionBits,kBlockEntity);
   } 
@@ -1540,8 +1565,8 @@ bool nsHTMLElement::IsBlockParent(eHTMLTags aTag){
  * @param 
  * @return
  */
-bool nsHTMLElement::IsInlineParent(eHTMLTags aTag){
-  bool result=false;
+PRBool nsHTMLElement::IsInlineParent(eHTMLTags aTag){
+  PRBool result=PR_FALSE;
   if((aTag>=eHTMLTag_unknown) & (aTag<=eHTMLTag_xmp)){
     result=TestBits(gHTMLElements[aTag].mInclusionBits,kInlineEntity);
   } 
@@ -1555,8 +1580,8 @@ bool nsHTMLElement::IsInlineParent(eHTMLTags aTag){
  * @param 
  * @return
  */
-bool nsHTMLElement::IsFlowParent(eHTMLTags aTag){
-  bool result=false;
+PRBool nsHTMLElement::IsFlowParent(eHTMLTags aTag){
+  PRBool result=PR_FALSE;
   if((aTag>=eHTMLTag_unknown) & (aTag<=eHTMLTag_xmp)){
     result=TestBits(gHTMLElements[aTag].mInclusionBits,kFlowEntity);
   } 
@@ -1569,11 +1594,11 @@ bool nsHTMLElement::IsFlowParent(eHTMLTags aTag){
  * @param 
  * @return
  */
-bool nsHTMLElement::IsSpecialParent(eHTMLTags aTag) const{
-  bool result=false;
+PRBool nsHTMLElement::IsSpecialParent(eHTMLTags aTag) const{
+  PRBool result=PR_FALSE;
   if(mSpecialParents) {
     if(FindTagInSet(aTag,mSpecialParents->mTags,mSpecialParents->mCount))
-        result=true;
+        result=PR_TRUE;
   }
   return result;
 }
@@ -1584,17 +1609,17 @@ bool nsHTMLElement::IsSpecialParent(eHTMLTags aTag) const{
  * @param   id of tag
  * @return  TRUE if opens section
  */
-bool nsHTMLElement::IsSectionTag(eHTMLTags aTag){
-  bool result=false;
+PRBool nsHTMLElement::IsSectionTag(eHTMLTags aTag){
+  PRBool result=PR_FALSE;
   switch(aTag){
     case eHTMLTag_html:
     case eHTMLTag_frameset:
     case eHTMLTag_body:
     case eHTMLTag_head:
-      result=true;
+      result=PR_TRUE;
       break;
     default:
-      result=false;
+      result=PR_FALSE;
   }
   return result;
 }
@@ -1606,8 +1631,8 @@ bool nsHTMLElement::IsSectionTag(eHTMLTags aTag){
  * @param 
  * @return
  */
-bool nsHTMLElement::CanContain(eHTMLTags aParent,eHTMLTags aChild,nsDTDMode aMode){
-  bool result=false;
+PRBool nsHTMLElement::CanContain(eHTMLTags aParent,eHTMLTags aChild,nsDTDMode aMode){
+  PRBool result=PR_FALSE;
   if((aParent>=eHTMLTag_unknown) && (aParent<=eHTMLTag_userdefined)){
     result=gHTMLElements[aParent].CanContain(aChild,aMode);
   } 
@@ -1620,24 +1645,24 @@ bool nsHTMLElement::CanContain(eHTMLTags aParent,eHTMLTags aChild,nsDTDMode aMod
  * @param 
  * @return
  */
-bool nsHTMLElement::CanExclude(eHTMLTags aChild) const{
-  bool result=false;
+PRBool nsHTMLElement::CanExclude(eHTMLTags aChild) const{
+  PRBool result=PR_FALSE;
 
   if(gHTMLElements[aChild].HasSpecialProperty(kLegalOpen)) {
     // Some tags could be opened anywhere, in the document, as they please.
-    return false;
+    return PR_FALSE;
   }
 
   //Note that special kids takes precedence over exclusions...
   if(mSpecialKids) {
     if(FindTagInSet(aChild,mSpecialKids->mTags,mSpecialKids->mCount)) {
-      return false;
+      return PR_FALSE;
     }
   }
 
   if(mExclusionBits){
     if(gHTMLElements[aChild].IsMemberOf(mExclusionBits)) {
-      result=true;
+      result=PR_TRUE;
     }
   }
   return result;
@@ -1649,14 +1674,14 @@ bool nsHTMLElement::CanExclude(eHTMLTags aChild) const{
  * @param 
  * @return
  */
-bool nsHTMLElement::IsExcludableParent(eHTMLTags aParent) const{
-  bool result=false;
+PRBool nsHTMLElement::IsExcludableParent(eHTMLTags aParent) const{
+  PRBool result=PR_FALSE;
 
   if(!IsTextTag(mTagID)) {
     if(mExcludableParents) {
       const TagList* theParents=mExcludableParents;
       if(FindTagInSet(aParent,theParents->mTags,theParents->mCount))
-        result=true;
+        result=PR_TRUE;
     }
     if(!result) {
       // If you're a block parent make sure that you're not the
@@ -1672,7 +1697,7 @@ bool nsHTMLElement::IsExcludableParent(eHTMLTags aParent) const{
           case eHTMLTag_td:
           case eHTMLTag_th:
           case eHTMLTag_tr:
-            result=true;
+            result=PR_TRUE;
           default:
             break;
         }
@@ -1688,8 +1713,8 @@ bool nsHTMLElement::IsExcludableParent(eHTMLTags aParent) const{
  * @param 
  * @return
  */
-bool nsHTMLElement::CanOmitEndTag(void) const{
-  bool result=!IsContainer(mTagID);
+PRBool nsHTMLElement::CanOmitEndTag(void) const{
+  PRBool result=!IsContainer(mTagID);
   if(!result)
     result=TestBits(mSpecialProperties,kOmitEndTag);
   return result;
@@ -1705,22 +1730,22 @@ bool nsHTMLElement::CanOmitEndTag(void) const{
                        either in the body or the head).
  * @return Whether this tag can appear in the head.
  */
-bool nsHTMLElement::IsChildOfHead(eHTMLTags aChild,bool& aExclusively) {
-  aExclusively = true;
+PRBool nsHTMLElement::IsChildOfHead(eHTMLTags aChild,PRBool& aExclusively) {
+  aExclusively = PR_TRUE;
 
   // Is this a head-only tag?
   if (gHTMLElements[aChild].mParentBits & kHeadContent) {
-    return true;
+    return PR_TRUE;
   }
 
 
   // If not, check if it can appear in the head.
   if (gHTMLElements[aChild].mParentBits & kHeadMisc) {
-    aExclusively = false;
-    return true;
+    aExclusively = PR_FALSE;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 
@@ -1731,8 +1756,8 @@ bool nsHTMLElement::IsChildOfHead(eHTMLTags aChild,bool& aExclusively) {
  * @param 
  * @return
  */
-bool nsHTMLElement::SectionContains(eHTMLTags aChild,bool allowDepthSearch) const {
-  bool result=false;
+PRBool nsHTMLElement::SectionContains(eHTMLTags aChild,PRBool allowDepthSearch) const {
+  PRBool result=PR_FALSE;
   const TagList* theRootTags=gHTMLElements[aChild].GetRootTags();
 
   if(theRootTags){
@@ -1741,7 +1766,7 @@ bool nsHTMLElement::SectionContains(eHTMLTags aChild,bool allowDepthSearch) cons
       if((eHTMLTag_unknown!=theRootBase) && (allowDepthSearch))
         result=SectionContains(theRootBase,allowDepthSearch);
     }
-    else result=true;
+    else result=PR_TRUE;
   }
   return result;
 }
@@ -1755,8 +1780,8 @@ bool nsHTMLElement::SectionContains(eHTMLTags aChild,bool allowDepthSearch) cons
  * @return
  */
 
-bool nsHTMLElement::ShouldVerifyHierarchy() const {
-  bool result=false;
+PRBool nsHTMLElement::ShouldVerifyHierarchy() const {
+  PRBool result=PR_FALSE;
   
   // If the tag cannot contain itself then we need to make sure that
   // anywhere in the hierarchy we don't nest accidently.
@@ -1775,8 +1800,8 @@ bool nsHTMLElement::ShouldVerifyHierarchy() const {
  * @param 
  * @return
  */
-bool nsHTMLElement::IsResidualStyleTag(eHTMLTags aChild) {
-  bool result=false;
+PRBool nsHTMLElement::IsResidualStyleTag(eHTMLTags aChild) {
+  PRBool result=PR_FALSE;
   switch(aChild) {
     case eHTMLTag_a:       
     case eHTMLTag_b:
@@ -1797,7 +1822,7 @@ bool nsHTMLElement::IsResidualStyleTag(eHTMLTags aChild) {
     case eHTMLTag_sup:       
     case eHTMLTag_tt:
     case eHTMLTag_u:       
-      result=true;
+      result=PR_TRUE;
       break;
 
     case eHTMLTag_abbr:
@@ -1810,7 +1835,7 @@ bool nsHTMLElement::IsResidualStyleTag(eHTMLTags aChild) {
     case eHTMLTag_samp:      
     case eHTMLTag_span:    
     case eHTMLTag_var:
-      result=false;
+      result=PR_FALSE;
     default:
       break;
   };
@@ -1823,9 +1848,9 @@ bool nsHTMLElement::IsResidualStyleTag(eHTMLTags aChild) {
  * @param 
  * @return
  */
-bool nsHTMLElement::CanContainType(int32_t aType) const{
-  int32_t answer=mInclusionBits & aType;
-  bool    result=bool(0!=answer);
+PRBool nsHTMLElement::CanContainType(PRInt32 aType) const{
+  PRInt32 answer=mInclusionBits & aType;
+  PRBool  result=PRBool(0!=answer);
   return result;
 }
 
@@ -1835,13 +1860,13 @@ bool nsHTMLElement::CanContainType(int32_t aType) const{
  * @param 
  * @return
  */
-bool nsHTMLElement::IsWhitespaceTag(eHTMLTags aChild) {
-  bool result=false;
+PRBool nsHTMLElement::IsWhitespaceTag(eHTMLTags aChild) {
+  PRBool result=PR_FALSE;
 
   switch(aChild) {
     case eHTMLTag_newline:
     case eHTMLTag_whitespace:
-      result=true;
+      result=PR_TRUE;
       break;
     default:
       break;
@@ -1855,15 +1880,15 @@ bool nsHTMLElement::IsWhitespaceTag(eHTMLTags aChild) {
  * @param 
  * @return
  */
-bool nsHTMLElement::IsTextTag(eHTMLTags aChild) {
-  bool result=false;
+PRBool nsHTMLElement::IsTextTag(eHTMLTags aChild) {
+  PRBool result=PR_FALSE;
 
   switch(aChild) {
     case eHTMLTag_text:
     case eHTMLTag_entity:
     case eHTMLTag_newline:
     case eHTMLTag_whitespace:
-      result=true;
+      result=PR_TRUE;
       break;
     default:
       break;
@@ -1877,8 +1902,8 @@ bool nsHTMLElement::IsTextTag(eHTMLTags aChild) {
  * @param 
  * @return
  */
-bool nsHTMLElement::CanContainSelf(void) const {
-  bool result=bool(TestBits(mInclusionBits,kSelf)!=0);
+PRBool nsHTMLElement::CanContainSelf(void) const {
+  PRBool result=PRBool(TestBits(mInclusionBits,kSelf)!=0);
   return result;
 }
 
@@ -1893,11 +1918,11 @@ bool nsHTMLElement::CanContainSelf(void) const {
  * @param   aChildTag is the child we're trying to close
  * @return  TRUE if we can autoclose the start tag; FALSE otherwise
  */
-bool nsHTMLElement::CanAutoCloseTag(nsDTDContext& aContext,int32_t aIndex,
+PRBool nsHTMLElement::CanAutoCloseTag(nsDTDContext& aContext,PRInt32 aIndex,
                                       eHTMLTags aChildTag) const{
 
-  int32_t thePos;
-  bool    result = true;
+  PRInt32 thePos;
+  PRBool  result = PR_TRUE;
   eHTMLTags thePrevTag;
 
   for(thePos = aContext.GetCount() - 1; thePos >= aIndex; thePos--) {
@@ -1905,7 +1930,7 @@ bool nsHTMLElement::CanAutoCloseTag(nsDTDContext& aContext,int32_t aIndex,
 
     if (thePrevTag == eHTMLTag_applet ||
         thePrevTag == eHTMLTag_td) {
-          result = false;
+          result = PR_FALSE;
           break;
     }
   }
@@ -1919,7 +1944,7 @@ bool nsHTMLElement::CanAutoCloseTag(nsDTDContext& aContext,int32_t aIndex,
  * @param 
  * @return  
  */
-eHTMLTags nsHTMLElement::GetCloseTargetForEndTag(nsDTDContext& aContext,int32_t anIndex,nsDTDMode aMode) const{
+eHTMLTags nsHTMLElement::GetCloseTargetForEndTag(nsDTDContext& aContext,PRInt32 anIndex,nsDTDMode aMode) const{
   eHTMLTags result=eHTMLTag_unknown;
 
   int theCount=aContext.GetCount();
@@ -2039,7 +2064,7 @@ eHTMLTags nsHTMLElement::GetCloseTargetForEndTag(nsDTDContext& aContext,int32_t 
     // The first pass tries to exactly match, the 2nd pass matches the group.
 
     const TagList* theRootTags=gHTMLElements[mTagID].GetEndRootTags();
-    int32_t theIndexCopy=theIndex;
+    PRInt32 theIndexCopy=theIndex;
     while(--theIndex>=anIndex){
       eHTMLTags theTag=aContext.TagAt(theIndex);
       if(theTag == mTagID) {
@@ -2072,8 +2097,8 @@ eHTMLTags nsHTMLElement::GetCloseTargetForEndTag(nsDTDContext& aContext,int32_t 
       //This fixes 57378...
       //example: <TABLE><THEAD><TR><TH></THEAD> which didn't close the <THEAD>
 
-    int32_t theLastTable=aContext.LastOf(eHTMLTag_table);
-    int32_t theLastOfMe=aContext.LastOf(mTagID);
+    PRInt32 theLastTable=aContext.LastOf(eHTMLTag_table);
+    PRInt32 theLastOfMe=aContext.LastOf(mTagID);
     if(theLastTable<theLastOfMe) {
       return mTagID;
     }
@@ -2120,14 +2145,14 @@ eHTMLTags nsHTMLElement::GetCloseTargetForEndTag(nsDTDContext& aContext,int32_t 
  * @param 
  * @return
  */
-bool nsHTMLElement::CanContain(eHTMLTags aChild,nsDTDMode aMode) const{
+PRBool nsHTMLElement::CanContain(eHTMLTags aChild,nsDTDMode aMode) const{
 
 
   if(IsContainer(mTagID)){
 
     if(gHTMLElements[aChild].HasSpecialProperty(kLegalOpen)) {
       // Some tags could be opened anywhere, in the document, as they please.
-      return true;
+      return PR_TRUE;
     }
 
     if(mTagID==aChild) {
@@ -2137,60 +2162,60 @@ bool nsHTMLElement::CanContain(eHTMLTags aChild,nsDTDMode aMode) const{
     const TagList* theCloseTags=gHTMLElements[aChild].GetAutoCloseStartTags();
     if(theCloseTags){
       if(FindTagInSet(mTagID,theCloseTags->mTags,theCloseTags->mCount))
-        return false;
+        return PR_FALSE;
     }
 
     if(gHTMLElements[aChild].mExcludableParents) {
       const TagList* theParents=gHTMLElements[aChild].mExcludableParents;
       if(FindTagInSet(mTagID,theParents->mTags,theParents->mCount))
-        return false;
+        return PR_FALSE;
     }
     
     if(gHTMLElements[aChild].IsExcludableParent(mTagID))
-      return false;
+      return PR_FALSE;
 
     if(gHTMLElements[aChild].IsBlockCloser(aChild)){
       if(nsHTMLElement::IsBlockParent(mTagID)){
-        return true;
+        return PR_TRUE;
       }
     }
 
     if(nsHTMLElement::IsInlineEntity(aChild)){
       if(nsHTMLElement::IsInlineParent(mTagID)){
-        return true;
+        return PR_TRUE;
       }
     }
 
     if(nsHTMLElement::IsFlowEntity(aChild)) {
       if(nsHTMLElement::IsFlowParent(mTagID)){
-        return true;
+        return PR_TRUE;
       }
     }
 
     if(nsHTMLElement::IsTextTag(aChild)) {
       // Allow <xmp> to contain text.
       if(nsHTMLElement::IsInlineParent(mTagID) || CanContainType(kCDATA)){
-        return true;
+        return PR_TRUE;
       }
     }
 
     if(CanContainType(gHTMLElements[aChild].mParentBits)) {
-      return true;
+      return PR_TRUE;
     }
  
     if(mSpecialKids) {
       if(FindTagInSet(aChild,mSpecialKids->mTags,mSpecialKids->mCount)) {
-        return true;
+        return PR_TRUE;
       }
     }
 
     // Allow <p> to contain <table> only in Quirks mode, bug 43678 and bug 91927
     if (aChild == eHTMLTag_table && mTagID == eHTMLTag_p && aMode == eDTDMode_quirks) {
-      return true;
+      return PR_TRUE;
     }
   }
   
-  return false;
+  return PR_FALSE;
 }
 
 #ifdef DEBUG

@@ -1,15 +1,46 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:expandtab:shiftwidth=2:tabstop=2:
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alexander Surkov <surkov.alexander@gmail.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef _nsTextEquivUtils_H_
 #define _nsTextEquivUtils_H_
 
-#include "Accessible.h"
-#include "Role.h"
+#include "nsAccessible.h"
 
 #include "nsIContent.h"
 #include "nsIStringBundle.h"
@@ -49,7 +80,7 @@ public:
    * @param aAccessible [in] the given accessible
    * @param aName       [out] accessible name
    */
-  static nsresult GetNameFromSubtree(Accessible* aAccessible,
+  static nsresult GetNameFromSubtree(nsAccessible *aAccessible,
                                      nsAString& aName);
 
   /**
@@ -60,7 +91,7 @@ public:
    * @param aIDRefsAttr  [in] IDRefs attribute on DOM node of the accessible
    * @param aTextEquiv   [out] result text equivalent
    */
-  static nsresult GetTextEquivFromIDRefs(Accessible* aAccessible,
+  static nsresult GetTextEquivFromIDRefs(nsAccessible *aAccessible,
                                          nsIAtom *aIDRefsAttr,
                                          nsAString& aTextEquiv);
 
@@ -75,7 +106,7 @@ public:
    *                       computed from
    * @param aString        [in, out] the string
    */
-  static nsresult AppendTextEquivFromContent(Accessible* aInitiatorAcc,
+  static nsresult AppendTextEquivFromContent(nsAccessible *aInitiatorAcc,
                                              nsIContent *aContent,
                                              nsAString *aString);
 
@@ -94,20 +125,20 @@ private:
    * Iterates accessible children and calculates text equivalent from each
    * child.
    */
-  static nsresult AppendFromAccessibleChildren(Accessible* aAccessible,
+  static nsresult AppendFromAccessibleChildren(nsAccessible *aAccessible,
                                                nsAString *aString);
   
   /**
    * Calculates text equivalent from the given accessible and its subtree if
    * allowed.
    */
-  static nsresult AppendFromAccessible(Accessible* aAccessible,
+  static nsresult AppendFromAccessible(nsAccessible *aAccessible,
                                        nsAString *aString);
 
   /**
    * Calculates text equivalent from the value of given accessible.
    */
-  static nsresult AppendFromValue(Accessible* aAccessible,
+  static nsresult AppendFromValue(nsAccessible *aAccessible,
                                   nsAString *aString);
   /**
    * Iterates DOM children and calculates text equivalent from each child node.
@@ -125,7 +156,7 @@ private:
    * Concatenates strings and appends space between them. Returns true if
    * text equivalent string was appended.
    */
-  static bool AppendString(nsAString *aString,
+  static PRBool AppendString(nsAString *aString,
                              const nsAString& aTextEquivalent);
 
   /**
@@ -133,24 +164,24 @@ private:
    * only. In contrast to nsWhitespaceTokenizer class it takes into account
    * non-breaking space (0xa0).
    */
-  static bool IsWhitespaceString(const nsSubstring& aString);
+  static PRBool IsWhitespaceString(const nsSubstring& aString);
 
   /**
    * Returns true if the given character is whitespace symbol.
    */
-  static bool IsWhitespace(PRUnichar aChar);
+  static PRBool IsWhitespace(PRUnichar aChar);
 
   /**
-   * Returns the rule (constant of ETextEquivRule) for a given role.
+   * Map array from roles to name rules (constants of ETextEquivRule).
    */
-  static uint32_t GetRoleRule(mozilla::a11y::roles::Role aRole);
+  static PRUint32 gRoleToNameRulesMap[];
 
   /**
    * The accessible for which we are computing a text equivalent. It is useful
    * for bailing out during recursive text computation, or for special cases
    * like step f. of the ARIA implementation guide.
    */
-  static nsRefPtr<Accessible> gInitiatorAcc;
+  static nsRefPtr<nsAccessible> gInitiatorAcc;
 };
 
 #endif

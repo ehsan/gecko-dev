@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=558788
 -->
 <head>
   <title>Test for Bug 558788</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -121,7 +122,7 @@ function checkInputEmail()
   synthesizeKey("a", {});
   checkInvalidApplies(element);
 
-  sendString("@b.c");
+  sendString("@b.c", element);
   checkValidApplies(element);
 
   synthesizeKey("VK_BACK_SPACE", {});
@@ -151,7 +152,7 @@ function checkInputURL()
   synthesizeKey("h", {});
   checkInvalidApplies(element);
 
-  sendString("ttp://mozilla.org");
+  sendString("ttp://mozilla.org", element);
   checkValidApplies(element);
 
   for (var i=0; i<13; ++i) {

@@ -1,86 +1,61 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Indexed Database.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Turner <bent.mozilla@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_dom_indexeddb_asyncconnectionhelper_h__
 #define mozilla_dom_indexeddb_asyncconnectionhelper_h__
 
 // Only meant to be included in IndexedDB source files, not exported.
-#include "DatabaseInfo.h"
 #include "IndexedDatabase.h"
 #include "IDBDatabase.h"
 #include "IDBRequest.h"
 
 #include "mozIStorageProgressHandler.h"
-#include "nsIEventTarget.h"
 #include "nsIRunnable.h"
+#include "nsIThread.h"
 
-#include "nsDOMEvent.h"
+#include "mozilla/TimeStamp.h"
 
 class mozIStorageConnection;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-class AutoSetCurrentTransaction;
 class IDBTransaction;
-
-namespace ipc {
-class ResponseValue;
-}
-
-// A common base class for AsyncConnectionHelper and OpenDatabaseHelper that
-// IDBRequest can use.
-class HelperBase : public nsIRunnable
-{
-  friend class IDBRequest;
-
-public:
-  enum ChildProcessSendResult
-  {
-    Success_Sent = 0,
-    Success_NotSent,
-    Error
-  };
-
-  virtual ChildProcessSendResult
-  MaybeSendResponseToChildProcess(nsresult aResultCode) = 0;
-
-  virtual nsresult GetResultCode() = 0;
-
-  virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    jsval* aVal) = 0;
-
-  IDBRequest* GetRequest() const
-  {
-    return mRequest;
-  }
-
-protected:
-  HelperBase(IDBRequest* aRequest)
-    : mRequest(aRequest)
-  { }
-
-  virtual ~HelperBase();
-
-  /**
-   * Helper to wrap a native into a jsval. Uses the global object of the request
-   * to parent the native.
-   */
-  nsresult WrapNative(JSContext* aCx,
-                      nsISupports* aNative,
-                      jsval* aResult);
-
-  /**
-   * Gives the subclass a chance to release any objects that must be released
-   * on the main thread, regardless of success or failure. Subclasses that
-   * implement this method *MUST* call the base class implementation as well.
-   */
-  virtual void ReleaseMainThreadObjects();
-
-  nsRefPtr<IDBRequest> mRequest;
-};
 
 /**
  * Must be subclassed. The subclass must implement DoDatabaseWork. It may then
@@ -91,19 +66,17 @@ protected:
  * and Dispatched from the main thread only. Target thread may not be the main
  * thread.
  */
-class AsyncConnectionHelper : public HelperBase,
+class AsyncConnectionHelper : public nsIRunnable,
                               public mozIStorageProgressHandler
 {
-  friend class AutoSetCurrentTransaction;
+  friend class IDBRequest;
 
 public:
-  typedef ipc::ResponseValue ResponseValue;
-
   NS_DECL_ISUPPORTS
   NS_DECL_NSIRUNNABLE
   NS_DECL_MOZISTORAGEPROGRESSHANDLER
 
-  virtual nsresult Dispatch(nsIEventTarget* aDatabaseThread);
+  nsresult Dispatch(nsIEventTarget* aDatabaseThread);
 
   // Only for transactions!
   nsresult DispatchToTransactionPool();
@@ -116,26 +89,15 @@ public:
 
   static IDBTransaction* GetCurrentTransaction();
 
-  bool HasTransaction()
-  {
-    return mTransaction;
-  }
-
   nsISupports* GetSource()
   {
-    return mRequest ? mRequest->Source() : nullptr;
+    return mRequest ? mRequest->Source() : nsnull;
   }
 
-  virtual nsresult GetResultCode() MOZ_OVERRIDE
+  nsresult GetResultCode()
   {
     return mResultCode;
   }
-
-  virtual nsresult OnParentProcessRequestComplete(
-                                           const ResponseValue& aResponseValue);
-
-  virtual nsresult
-  UnpackResponseFromParentProcess(const ResponseValue& aResponseValue) = 0;
 
 protected:
   AsyncConnectionHelper(IDBDatabase* aDatabase,
@@ -145,6 +107,14 @@ protected:
                         IDBRequest* aRequest);
 
   virtual ~AsyncConnectionHelper();
+
+  /**
+   * Set the timeout duration in milliseconds.
+   */
+  void SetTimeoutMS(PRUint32 aTimeoutMS)
+  {
+    mTimeoutDuration = TimeDuration::FromMilliseconds(aTimeoutMS);
+  }
 
   /**
    * This is called on the main thread after Dispatch is called but before the
@@ -157,13 +127,6 @@ protected:
    * This callback is run on the database thread.
    */
   virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection) = 0;
-
-  /**
-   * This function returns the event to be dispatched at the request when
-   * OnSuccess is called.  A subclass can override this to fire an event other
-   * than "success" at the request.
-   */
-  virtual already_AddRefed<nsDOMEvent> CreateSuccessEvent();
 
   /**
    * This callback is run on the main thread if DoDatabaseWork returned NS_OK.
@@ -185,55 +148,44 @@ protected:
    * accesses the result property of the request.
    */
   virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    jsval* aVal) MOZ_OVERRIDE;
+                                    jsval* aVal);
 
   /**
    * Gives the subclass a chance to release any objects that must be released
    * on the main thread, regardless of success or failure. Subclasses that
    * implement this method *MUST* call the base class implementation as well.
    */
-  virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
+  virtual void ReleaseMainThreadObjects();
+
+  /**
+   * Helper to wrap a native into a jsval. Uses the global object of the request
+   * to parent the native.
+   */
+  nsresult WrapNative(JSContext* aCx,
+                      nsISupports* aNative,
+                      jsval* aResult);
 
   /**
    * Helper to make a JS array object out of an array of clone buffers.
    */
-  static nsresult ConvertCloneReadInfosToArray(
+  static nsresult ConvertCloneBuffersToArray(
                                 JSContext* aCx,
-                                nsTArray<StructuredCloneReadInfo>& aReadInfos,
+                                nsTArray<JSAutoStructuredCloneBuffer>& aBuffers,
                                 jsval* aResult);
-
-  /**
-   * This should only be called by AutoSetCurrentTransaction.
-   */
-  static void SetCurrentTransaction(IDBTransaction* aTransaction);
 
 protected:
   nsRefPtr<IDBDatabase> mDatabase;
   nsRefPtr<IDBTransaction> mTransaction;
+  nsRefPtr<IDBRequest> mRequest;
 
 private:
   nsCOMPtr<mozIStorageProgressHandler> mOldProgressHandler;
+
+  mozilla::TimeStamp mStartTime;
+  mozilla::TimeDuration mTimeoutDuration;
+
   nsresult mResultCode;
-  bool mDispatched;
-};
-
-NS_STACK_CLASS
-class StackBasedEventTarget : public nsIEventTarget
-{
-public:
-  NS_DECL_ISUPPORTS_INHERITED
-};
-
-class MainThreadEventTarget : public StackBasedEventTarget
-{
-public:
-  NS_DECL_NSIEVENTTARGET
-};
-
-class NoDispatchEventTarget : public StackBasedEventTarget
-{
-public:
-  NS_DECL_NSIEVENTTARGET
+  PRPackedBool mDispatched;
 };
 
 END_INDEXEDDB_NAMESPACE

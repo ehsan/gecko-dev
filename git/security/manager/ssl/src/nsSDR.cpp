@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Terry Hayes <thayes@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "stdlib.h"
 #include "plstr.h"
@@ -15,6 +48,9 @@
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIServiceManager.h"
+#include "nsIWindowWatcher.h"
+#include "nsIPrompt.h"
+#include "nsProxiedService.h"
 #include "nsITokenPasswordDialogs.h"
 
 #include "nsISecretDecoderRing.h"
@@ -29,6 +65,60 @@
 
 #include "nsNSSCleaner.h"
 NSSCleanupAutoPtrClass(PK11SlotInfo, PK11_FreeSlot)
+
+//
+// Implementation of an nsIInterfaceRequestor for use
+// as context for NSS calls
+//
+class nsSDRContext : public nsIInterfaceRequestor
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIINTERFACEREQUESTOR
+
+  nsSDRContext();
+  virtual ~nsSDRContext();
+};
+
+NS_IMPL_ISUPPORTS1(nsSDRContext, nsIInterfaceRequestor)
+
+nsSDRContext::nsSDRContext()
+{
+}
+
+nsSDRContext::~nsSDRContext()
+{
+}
+
+/* void getInterface (in nsIIDRef uuid, [iid_is (uuid), retval] out nsQIResult result); */
+NS_IMETHODIMP nsSDRContext::GetInterface(const nsIID & uuid, void * *result)
+{
+  if (!uuid.Equals(NS_GET_IID(nsIPrompt)))
+    return NS_ERROR_NO_INTERFACE;
+
+  nsCOMPtr<nsIPrompt> prompter;
+  nsresult rv;
+  nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID, &rv));
+  if (NS_FAILED(rv))
+    return rv;
+
+  rv = wwatch->GetNewPrompter(0, getter_AddRefs(prompter));
+  if (!prompter)
+    return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIPrompt> proxyPrompt;
+  rv = NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                            NS_GET_IID(nsIPrompt),
+                            prompter,
+                            NS_PROXY_SYNC,
+                            getter_AddRefs(proxyPrompt));
+  if (!proxyPrompt)
+    return NS_ERROR_FAILURE;
+  *result = proxyPrompt;
+  NS_ADDREF((nsIPrompt*)*result);
+
+  return NS_OK;
+}
 
 // Standard ISupports implementation
 // NOTE: Should these be the thread-safe versions?
@@ -47,7 +137,7 @@ nsSecretDecoderRing::~nsSecretDecoderRing()
 
 /* [noscript] long encrypt (in buffer data, in long dataLen, out buffer result); */
 NS_IMETHODIMP nsSecretDecoderRing::
-Encrypt(unsigned char * data, int32_t dataLen, unsigned char * *result, int32_t *_retval)
+Encrypt(unsigned char * data, PRInt32 dataLen, unsigned char * *result, PRInt32 *_retval)
 {
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
@@ -57,7 +147,7 @@ Encrypt(unsigned char * data, int32_t dataLen, unsigned char * *result, int32_t 
   SECItem request;
   SECItem reply;
   SECStatus s;
-  nsCOMPtr<nsIInterfaceRequestor> ctx = new PipUIContext();
+  nsCOMPtr<nsIInterfaceRequestor> ctx = new nsSDRContext();
   if (!ctx) { rv = NS_ERROR_OUT_OF_MEMORY; goto loser; }
 
   slot = PK11_GetInternalKeySlot();
@@ -69,7 +159,7 @@ Encrypt(unsigned char * data, int32_t dataLen, unsigned char * *result, int32_t 
     goto loser;
 
   /* Force authentication */
-  s = PK11_Authenticate(slot, true, ctx);
+  s = PK11_Authenticate(slot, PR_TRUE, ctx);
   if (s != SECSuccess) { rv = NS_ERROR_FAILURE; goto loser; }
 
   /* Use default key id */
@@ -91,7 +181,7 @@ loser:
 
 /* [noscript] long decrypt (in buffer data, in long dataLen, out buffer result); */
 NS_IMETHODIMP nsSecretDecoderRing::
-Decrypt(unsigned char * data, int32_t dataLen, unsigned char * *result, int32_t *_retval)
+Decrypt(unsigned char * data, PRInt32 dataLen, unsigned char * *result, PRInt32 *_retval)
 {
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
@@ -100,7 +190,7 @@ Decrypt(unsigned char * data, int32_t dataLen, unsigned char * *result, int32_t 
   SECStatus s;
   SECItem request;
   SECItem reply;
-  nsCOMPtr<nsIInterfaceRequestor> ctx = new PipUIContext();
+  nsCOMPtr<nsIInterfaceRequestor> ctx = new nsSDRContext();
   if (!ctx) { rv = NS_ERROR_OUT_OF_MEMORY; goto loser; }
 
   *result = 0;
@@ -111,7 +201,7 @@ Decrypt(unsigned char * data, int32_t dataLen, unsigned char * *result, int32_t 
   if (!slot) { rv = NS_ERROR_NOT_AVAILABLE; goto loser; }
 
   /* Force authentication */
-  if (PK11_Authenticate(slot, true, ctx) != SECSuccess)
+  if (PK11_Authenticate(slot, PR_TRUE, ctx) != SECSuccess)
   {
     rv = NS_ERROR_NOT_AVAILABLE;
     goto loser;
@@ -138,9 +228,9 @@ EncryptString(const char *text, char **_retval)
   nsNSSShutDownPreventionLock locker;
   nsresult rv = NS_OK;
   unsigned char *encrypted = 0;
-  int32_t eLen;
+  PRInt32 eLen;
 
-  if (text == nullptr || _retval == nullptr) {
+  if (text == nsnull || _retval == nsnull) {
     rv = NS_ERROR_INVALID_POINTER;
     goto loser;
   }
@@ -164,11 +254,11 @@ DecryptString(const char *crypt, char **_retval)
   nsresult rv = NS_OK;
   char *r = 0;
   unsigned char *decoded = 0;
-  int32_t decodedLen;
+  PRInt32 decodedLen;
   unsigned char *decrypted = 0;
-  int32_t decryptedLen;
+  PRInt32 decryptedLen;
 
-  if (crypt == nullptr || _retval == nullptr) {
+  if (crypt == nsnull || _retval == nsnull) {
     rv = NS_ERROR_INVALID_POINTER;
     goto loser;
   }
@@ -220,8 +310,8 @@ ChangePassword()
                      NS_TOKENPASSWORDSDIALOG_CONTRACTID);
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsIInterfaceRequestor> ctx = new PipUIContext();
-  bool canceled;
+  nsCOMPtr<nsIInterfaceRequestor> ctx = new nsSDRContext();
+  PRBool canceled;
 
   {
     nsPSMUITracker tracker;
@@ -278,7 +368,7 @@ LogoutAndTeardown()
   // bug 517584.
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
   if (os)
-    os->NotifyObservers(nullptr, "net:prune-dead-connections", nullptr);
+    os->NotifyObservers(nsnull, "net:prune-dead-connections", nsnull);
 
   return rv;
 }
@@ -293,7 +383,7 @@ SetWindow(nsISupports *w)
 // Support routines
 
 nsresult nsSecretDecoderRing::
-encode(const unsigned char *data, int32_t dataLen, char **_retval)
+encode(const unsigned char *data, PRInt32 dataLen, char **_retval)
 {
   nsresult rv = NS_OK;
 
@@ -309,10 +399,10 @@ loser:
 }
 
 nsresult nsSecretDecoderRing::
-decode(const char *data, unsigned char **result, int32_t * _retval)
+decode(const char *data, unsigned char **result, PRInt32 * _retval)
 {
   nsresult rv = NS_OK;
-  uint32_t len = PL_strlen(data);
+  PRUint32 len = PL_strlen(data);
   int adjust = 0;
 
   /* Compute length adjustment */

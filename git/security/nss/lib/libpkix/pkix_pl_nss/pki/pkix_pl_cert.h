@@ -51,10 +51,7 @@ extern "C" {
 #endif
 
 struct PKIX_PL_CertStruct {
-        CERTCertificate *nssCert;  /* Must be the first field.  The
-                                    * cert_NSSCertFromPKIXCert function in
-                                    * lib/certhigh/certvfypkix.c depends on
-                                    * this. */
+        CERTCertificate *nssCert;
         CERTGeneralName *nssSubjAltNames;
         PLArenaPool *arenaNameConstraints;
         PKIX_PL_X500Name *issuer;

@@ -1,12 +1,54 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <assert.h>
 #include <stdio.h>
 #include "nsCOMPtr.h"
 #include "nsISupports.h"
+
+#ifdef HAVE_CPP_NEW_CASTS
+  #define STATIC_CAST(T,x)  static_cast<T>(x)
+  #define REINTERPRET_CAST(T,x) reinterpret_cast<T>(x)
+#else
+  #define STATIC_CAST(T,x)  ((T)(x))
+  #define REINTERPRET_CAST(T,x) ((T)(x))
+#endif
+
 
 #define NS_IFOO_IID \
 { 0x6f7652e0,  0xee43, 0x11d1, \
@@ -91,14 +133,14 @@ IFoo::IFoo()
   {
     ++total_constructions_;
     printf("  new IFoo@%p [#%d]\n",
-           static_cast<void*>(this), total_constructions_);
+           STATIC_CAST(void*, this), total_constructions_);
   }
 
 IFoo::~IFoo()
   {
     ++total_destructions_;
     printf("IFoo@%p::~IFoo() [#%d]\n",
-           static_cast<void*>(this), total_destructions_);
+           STATIC_CAST(void*, this), total_destructions_);
   }
 
 nsrefcnt
@@ -106,7 +148,7 @@ IFoo::AddRef()
   {
     ++refcount_;
     printf("IFoo@%p::AddRef(), refcount --> %d\n", 
-           static_cast<void*>(this), refcount_);
+           STATIC_CAST(void*, this), refcount_);
     return refcount_;
   }
 
@@ -118,12 +160,12 @@ IFoo::Release()
       printf(">>");
 
     printf("IFoo@%p::Release(), refcount --> %d\n",
-           static_cast<void*>(this), refcount_);
+           STATIC_CAST(void*, this), refcount_);
 
     if ( newcount == 0 )
       {
-        printf("  delete IFoo@%p\n", static_cast<void*>(this));
-        printf("<<IFoo@%p::Release()\n", static_cast<void*>(this));
+        printf("  delete IFoo@%p\n", STATIC_CAST(void*, this));
+        printf("<<IFoo@%p::Release()\n", STATIC_CAST(void*, this));
         delete this;
       }
 
@@ -133,7 +175,7 @@ IFoo::Release()
 nsresult
 IFoo::QueryInterface( const nsIID& aIID, void** aResult )
 	{
-    printf("IFoo@%p::QueryInterface()\n", static_cast<void*>(this));
+    printf("IFoo@%p::QueryInterface()\n", STATIC_CAST(void*, this));
 		nsISupports* rawPtr = 0;
 		nsresult status = NS_OK;
 
@@ -143,7 +185,7 @@ IFoo::QueryInterface( const nsIID& aIID, void** aResult )
 			{
 				nsID iid_of_ISupports = NS_ISUPPORTS_IID;
 				if ( aIID.Equals(iid_of_ISupports) )
-					rawPtr = static_cast<nsISupports*>(this);
+					rawPtr = STATIC_CAST(nsISupports*, this);
 				else
 					status = NS_ERROR_NO_INTERFACE;
 			}
@@ -160,13 +202,13 @@ CreateIFoo( void** result )
   {
     printf(">>CreateIFoo() --> ");
     IFoo* foop = new IFoo;
-    printf("IFoo@%p\n", static_cast<void*>(foop));
+    printf("IFoo@%p\n", STATIC_CAST(void*, foop));
 
     foop->AddRef();
     *result = foop;
 
     printf("<<CreateIFoo()\n");
-    return NS_OK;
+    return 0;
   }
 
 void
@@ -212,30 +254,30 @@ NS_DEFINE_STATIC_IID_ACCESSOR(IBar, NS_IBAR_IID)
 
 IBar::IBar()
   {
-    printf("  new IBar@%p\n", static_cast<void*>(this));
+    printf("  new IBar@%p\n", STATIC_CAST(void*, this));
   }
 
 IBar::~IBar()
   {
-    printf("IBar@%p::~IBar()\n", static_cast<void*>(this));
+    printf("IBar@%p::~IBar()\n", STATIC_CAST(void*, this));
   }
 
 nsresult
 IBar::QueryInterface( const nsID& aIID, void** aResult )
 	{
-    printf("IBar@%p::QueryInterface()\n", static_cast<void*>(this));
+    printf("IBar@%p::QueryInterface()\n", STATIC_CAST(void*, this));
 		nsISupports* rawPtr = 0;
 		nsresult status = NS_OK;
 
 		if ( aIID.Equals(GetIID()) )
 			rawPtr = this;
 		else if ( aIID.Equals(NS_GET_IID(IFoo)) )
-			rawPtr = static_cast<IFoo*>(this);
+			rawPtr = STATIC_CAST(IFoo*, this);
 		else
 			{
 				nsID iid_of_ISupports = NS_ISUPPORTS_IID;
 				if ( aIID.Equals(iid_of_ISupports) )
-					rawPtr = static_cast<nsISupports*>(this);
+					rawPtr = STATIC_CAST(nsISupports*, this);
 				else
 					status = NS_ERROR_NO_INTERFACE;
 			}
@@ -254,13 +296,13 @@ CreateIBar( void** result )
   {
     printf(">>CreateIBar() --> ");
     IBar* barp = new IBar;
-    printf("IBar@%p\n", static_cast<void*>(barp));
+    printf("IBar@%p\n", STATIC_CAST(void*, barp));
 
     barp->AddRef();
     *result = barp;
 
     printf("<<CreateIBar()\n");
-    return NS_OK;
+    return 0;
   }
 
 void
@@ -283,12 +325,12 @@ nsresult
 TestBloat_Raw_Unsafe()
 	{
 		IBar* barP = 0;
-		nsresult result = CreateIBar(reinterpret_cast<void**>(&barP));
+		nsresult result = CreateIBar(REINTERPRET_CAST(void**, &barP));
 
 		if ( barP )
 			{
 				IFoo* fooP = 0;
-				if ( NS_SUCCEEDED( result = barP->QueryInterface(NS_GET_IID(IFoo), reinterpret_cast<void**>(&fooP)) ) )
+				if ( NS_SUCCEEDED( result = barP->QueryInterface(NS_GET_IID(IFoo), REINTERPRET_CAST(void**, &fooP)) ) )
 					{
 						fooP->print_totals();
 						NS_RELEASE(fooP);
@@ -349,10 +391,10 @@ main()
 			//delete foop;
 
       printf("\n### Test  3: can you |AddRef| if you must?\n");
-      static_cast<IFoo*>(foop)->AddRef();
+      STATIC_CAST(IFoo*, foop)->AddRef();
 
       printf("\n### Test  4: can you |Release| if you must?\n");
-      static_cast<IFoo*>(foop)->Release();
+      STATIC_CAST(IFoo*, foop)->Release();
 
       printf("\n### Test  5: will a |nsCOMPtr| |Release| when it goes out of scope?\n");
     }
@@ -380,7 +422,7 @@ main()
       else
         printf("foo1p == foo2p\n");
 
-      printf("\n### Test  7.5: can you compare a |nsCOMPtr| with NULL, 0, nullptr [!=]?\n");
+      printf("\n### Test  7.5: can you compare a |nsCOMPtr| with NULL, 0, nsnull [!=]?\n");
       if ( foo1p != 0 )
       	printf("foo1p != 0\n");
       if ( 0 != foo1p )

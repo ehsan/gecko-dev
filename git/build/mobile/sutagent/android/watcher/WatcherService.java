@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Android SUTAgent code.
+ *
+ * The Initial Developer of the Original Code is
+ * Bob Moss.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Bob Moss <bmoss@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 package com.mozilla.watcher;
 
 import java.io.BufferedReader;
@@ -25,7 +58,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.ActivityNotFoundException;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.Intent;
@@ -33,12 +65,9 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
-import android.os.BatteryManager;
-import android.os.Debug;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.RemoteException;
-import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
 import android.widget.Toast;
@@ -48,11 +77,9 @@ public class WatcherService extends Service
     String sErrorPrefix = "##Installer Error## ";
     String currentDir = "/";
     String sPingTarget = "";
-    long lDelay = 60000;
-    long lPeriod = 300000;
-    int nMaxStrikes = 0; // maximum number of tries before we consider network unreachable (0 means don't check)
-    boolean bStartSUTAgent = true;
-
+    long    lDelay = 60000;
+    long    lPeriod = 300000;
+    int        nMaxStrikes = 3;
     Process    pProc;
     Context myContext = null;
     Timer myTimer = null;
@@ -61,9 +88,6 @@ public class WatcherService extends Service
     boolean bInstalling = false;
 
     @SuppressWarnings("unchecked")
-    private static final Class<?>[] mSetForegroundSignature = new Class[] {
-    boolean.class};
-    @SuppressWarnings("unchecked")
     private static final Class[] mStartForegroundSignature = new Class[] {
         int.class, Notification.class};
     @SuppressWarnings("unchecked")
@@ -71,10 +95,8 @@ public class WatcherService extends Service
         boolean.class};
 
     private NotificationManager mNM;
-    private Method mSetForeground;
     private Method mStartForeground;
     private Method mStopForeground;
-    private Object[] mSetForegroundArgs = new Object[1];
     private Object[] mStartForegroundArgs = new Object[2];
     private Object[] mStopForegroundArgs = new Object[1];
 
@@ -105,34 +127,13 @@ public class WatcherService extends Service
         String sIniFile = iniFile.getAbsolutePath();
         String sHold = "";
 
-        Log.i("Watcher", String.format("Loading settings from %s", sIniFile));
         this.sPingTarget = GetIniData("watcher", "PingTarget", sIniFile, "www.mozilla.org");
         sHold = GetIniData("watcher", "delay", sIniFile, "60000");
-        this.lDelay = Long.parseLong(sHold.trim());
+           this.lDelay = Long.parseLong(sHold.trim());
         sHold = GetIniData("watcher", "period", sIniFile,"300000");
-        this.lPeriod = Long.parseLong(sHold.trim());
-        sHold = GetIniData("watcher", "strikes", sIniFile,"0");
-        this.nMaxStrikes = Integer.parseInt(sHold.trim());
-        Log.i("Watcher", String.format("Pinging %s after a delay of %s sec, period of %s sec, max number of failed attempts is %s (if max # of failed attempts is 0, then no checking)",
-                                       this.sPingTarget, this.lDelay / 1000.0, this.lPeriod / 1000.0, nMaxStrikes));
-
-        sHold = GetIniData("watcher", "StartSUTAgent", sIniFile, "true");
-        this.bStartSUTAgent = Boolean.parseBoolean(sHold.trim());
-
-        sHold = GetIniData("watcher", "stayon", sIniFile,"0");
-        int nStayOn = Integer.parseInt(sHold.trim());
-        
-        try {
-            if (nStayOn != 0) {
-                if (!Settings.System.putInt(getContentResolver(), Settings.System.STAY_ON_WHILE_PLUGGED_IN, BatteryManager.BATTERY_PLUGGED_AC | BatteryManager.BATTERY_PLUGGED_USB)) {
-                    doToast("Screen couldn't be set to Always On [stay on while plugged in]");
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            String sExcept = e.getMessage();
-            doToast("Screen couldn't be set to Always On [exception " + sExcept + "]");
-        }
+           this.lPeriod = Long.parseLong(sHold.trim());
+        sHold = GetIniData("watcher", "strikes", sIniFile,"3");
+           this.nMaxStrikes = Integer.parseInt(sHold.trim());
 
         doToast("WatcherService created");
         }
@@ -191,15 +192,9 @@ public class WatcherService extends Service
 
     private void handleCommand(Intent intent)
         {
-        // Note: intent can be null "if the service is being restarted after its process
-        // has gone away". In this case, we will consider that to be equivalent to a start
-        // http://developer.android.com/reference/android/app/Service.html#onStartCommand%28android.content.Intent,%20int,%20int%29
+        String sCmd = intent.getStringExtra("command");
 
-        String sCmd = "start";
-        if (intent != null)
-            {
-            sCmd = intent.getStringExtra("command");
-            }
+//        Debug.waitForDebugger();
 
         if (sCmd != null)
             {
@@ -284,12 +279,6 @@ public class WatcherService extends Service
                     // Running on an older platform.
                     mStartForeground = mStopForeground = null;
                     }
-                try {
-                    mSetForeground = getClass().getMethod("setForeground", mSetForegroundSignature);
-                    }
-                catch (NoSuchMethodException e) {
-                    mSetForeground = null;
-                    }
                 Notification notification = new Notification();
                 startForegroundCompat(R.string.foreground_service_started, notification);
                 }
@@ -319,18 +308,7 @@ public class WatcherService extends Service
         }
 
         // Fall back on the old API.
-        if  (mSetForeground != null) {
-            try {
-                mSetForegroundArgs[0] = Boolean.TRUE;
-                mSetForeground.invoke(this, mSetForegroundArgs);
-            } catch (IllegalArgumentException e) {
-                e.printStackTrace();
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            } catch (InvocationTargetException e) {
-                e.printStackTrace();
-            }
-        }
+        setForeground(true);
         mNM.notify(id, notification);
     }
 
@@ -357,18 +335,7 @@ public class WatcherService extends Service
         // Fall back on the old API.  Note to cancel BEFORE changing the
         // foreground state, since we could be killed at that point.
         mNM.cancel(id);
-        if  (mSetForeground != null) {
-            try {
-                mSetForegroundArgs[0] = Boolean.FALSE;
-                mSetForeground.invoke(this, mSetForegroundArgs);
-            } catch (IllegalArgumentException e) {
-                e.printStackTrace();
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            } catch (InvocationTargetException e) {
-                e.printStackTrace();
-            }
-        }
+        setForeground(false);
     }
 
     public void doToast(String sMsg)
@@ -476,12 +443,9 @@ public class WatcherService extends Service
         boolean bRet = false;
         ActivityManager aMgr = (ActivityManager) getApplicationContext().getSystemService(Activity.ACTIVITY_SERVICE);
         List <ActivityManager.RunningAppProcessInfo> lProcesses = aMgr.getRunningAppProcesses();
-        int    nProcs = 0;
+        int    nProcs = lProcesses.size();
         int lcv = 0;
         String strProcName = "";
-
-        if (lProcesses != null)
-            nProcs = lProcesses.size();
 
         for (lcv = 0; lcv < nProcs; lcv++)
             {
@@ -503,7 +467,6 @@ public class WatcherService extends Service
         theArgs[0] = "su";
         theArgs[1] = "-c";
         theArgs[2] = "reboot";
-        Log.i("Watcher", "Running reboot!");
 
         try
             {
@@ -539,12 +502,8 @@ public class WatcherService extends Service
         int lcv = 0;
         String strProcName = "";
         int    nPID = 0;
-        int nProcs = 0;
 
-        if (lProcesses != null)
-            nProcs = lProcesses.size();
-
-        for (lcv = 0; lcv < nProcs; lcv++)
+        for (lcv = 0; lcv < lProcesses.size(); lcv++)
             {
             if (lProcesses.get(lcv).processName.contains(sProcName))
                 {
@@ -587,10 +546,7 @@ public class WatcherService extends Service
             {
             sRet = "Successfully killed " + nPID + " " + strProcName + "\n";
             lProcesses = aMgr.getRunningAppProcesses();
-            nProcs = 0;
-            if (lProcesses != null)
-                nProcs = lProcesses.size();
-            for (lcv = 0; lcv < nProcs; lcv++)
+            for (lcv = 0; lcv < lProcesses.size(); lcv++)
                 {
                 if (lProcesses.get(lcv).processName.contains(sProcName))
                     {
@@ -724,7 +680,7 @@ public class WatcherService extends Service
 
         theArgs[0] = "su";
         theArgs[1] = "-c";
-        theArgs[2] = "pm install -r " + sApp + ";exit";
+        theArgs[2] = "pm install " + sApp + ";exit";
 
         try
             {
@@ -766,11 +722,11 @@ public class WatcherService extends Service
         theArgs[1] = "-c";
         theArgs[2] = "3";
         theArgs[3] = sIPAddr;
-        Log.i("Watcher", "Pinging " + sIPAddr);
 
         try
             {
             pProc = Runtime.getRuntime().exec(theArgs);
+
             InputStream sutOut = pProc.getInputStream();
             InputStream sutErr = pProc.getErrorStream();
 
@@ -843,7 +799,6 @@ public class WatcherService extends Service
             e.printStackTrace();
             }
 
-        Log.i("Watcher", String.format("Ping result was: '%s'", sRet.trim()));
         return (sRet);
         }
 
@@ -906,39 +861,34 @@ public class WatcherService extends Service
             if (bInstalling)
                 return;
 
-            // See if the network is up, if not reboot after a configurable
-            // number of tries
-            if (nMaxStrikes > 0)
+            // See if the network is up, if not after three failures reboot
+            String sRet = SendPing(sPingTarget);
+            if (!sRet.contains("3 received"))
                 {
-                    String sRet = SendPing(sPingTarget);
-                    if (!sRet.contains("3 received"))
-                        {
-                            Log.i("Watcher", String.format("Failed ping attempt (remaining: %s)!",
-                                                           nMaxStrikes - nStrikes));
-                            if (++nStrikes >= nMaxStrikes)
-                                {
-                                    Log.e("Watcher", String.format("Number of failed ping attempts to %s (%s) exceeded maximum (%s), running reboot!", sPingTarget, nStrikes, nMaxStrikes));
-                                    RunReboot(null);
-                                }
-                        }
-                    else
-                        {
-                            nStrikes = 0;
-                        }
+                if (nMaxStrikes > 0)
+                    {
+                    if (++nStrikes >= nMaxStrikes)
+                        RunReboot(null);
+                    }
                 }
+            else
+                {
+                nStrikes = 0;
+                }
+            sRet = null;
 
             String sProgramName = "com.mozilla.SUTAgentAndroid";
+            PackageManager pm = myContext.getPackageManager();
 
 //            Debug.waitForDebugger();
 
-            if (bStartSUTAgent && !GetProcessInfo(sProgramName))
+            if (!GetProcessInfo(sProgramName))
                 {
                 Intent agentIntent = new Intent();
                 agentIntent.setPackage(sProgramName);
                 agentIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 agentIntent.setAction(Intent.ACTION_MAIN);
                 try {
-                    PackageManager pm = myContext.getPackageManager();
                     PackageInfo pi = pm.getPackageInfo(sProgramName, PackageManager.GET_ACTIVITIES | PackageManager.GET_INTENT_FILTERS);
                     ActivityInfo [] ai = pi.activities;
                     for (int i = 0; i < ai.length; i++)

@@ -11,7 +11,6 @@
 #endif
 #include <stdio.h>
 
-#include "common/angleutils.h"
 #include "compiler/InitializeGlobals.h"
 #include "compiler/osinclude.h"
 
@@ -158,13 +157,8 @@ void TAllocation::checkGuardBlock(unsigned char* blockMem, unsigned char val, co
             char assertMsg[80];
 
             // We don't print the assert message.  It's here just to be helpful.
-#if defined(_MSC_VER)
-            snprintf(assertMsg, sizeof(assertMsg), "PoolAlloc: Damage %s %Iu byte allocation at 0x%p\n",
+            sprintf(assertMsg, "PoolAlloc: Damage %s %lu byte allocation at 0x%p\n",
                     locText, size, data());
-#else
-            snprintf(assertMsg, sizeof(assertMsg), "PoolAlloc: Damage %s %zu byte allocation at 0x%p\n",
-                    locText, size, data());
-#endif
             assert(0 && "PoolAlloc: Damage in guard block");
         }
     }

@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <windows.h>
 #include <shlwapi.h>
@@ -74,7 +106,7 @@ nsWindowsRegKey::Close()
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::Open(uint32_t rootKey, const nsAString &path, uint32_t mode)
+nsWindowsRegKey::Open(PRUint32 rootKey, const nsAString &path, PRUint32 mode)
 {
   Close();
 
@@ -85,7 +117,7 @@ nsWindowsRegKey::Open(uint32_t rootKey, const nsAString &path, uint32_t mode)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::Create(uint32_t rootKey, const nsAString &path, uint32_t mode)
+nsWindowsRegKey::Create(PRUint32 rootKey, const nsAString &path, PRUint32 mode)
 {
   Close();
 
@@ -98,7 +130,7 @@ nsWindowsRegKey::Create(uint32_t rootKey, const nsAString &path, uint32_t mode)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::OpenChild(const nsAString &path, uint32_t mode,
+nsWindowsRegKey::OpenChild(const nsAString &path, PRUint32 mode,
                            nsIWindowsRegKey **result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
@@ -116,7 +148,7 @@ nsWindowsRegKey::OpenChild(const nsAString &path, uint32_t mode,
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::CreateChild(const nsAString &path, uint32_t mode,
+nsWindowsRegKey::CreateChild(const nsAString &path, PRUint32 mode,
                              nsIWindowsRegKey **result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
@@ -134,7 +166,7 @@ nsWindowsRegKey::CreateChild(const nsAString &path, uint32_t mode,
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::GetChildCount(uint32_t *result)
+nsWindowsRegKey::GetChildCount(PRUint32 *result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -148,7 +180,7 @@ nsWindowsRegKey::GetChildCount(uint32_t *result)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::GetChildName(uint32_t index, nsAString &result)
+nsWindowsRegKey::GetChildName(PRUint32 index, nsAString &result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -168,7 +200,7 @@ nsWindowsRegKey::GetChildName(uint32_t index, nsAString &result)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::HasChild(const nsAString &name, bool *result)
+nsWindowsRegKey::HasChild(const nsAString &name, PRBool *result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -186,7 +218,7 @@ nsWindowsRegKey::HasChild(const nsAString &name, bool *result)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::GetValueCount(uint32_t *result)
+nsWindowsRegKey::GetValueCount(PRUint32 *result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -200,7 +232,7 @@ nsWindowsRegKey::GetValueCount(uint32_t *result)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::GetValueName(uint32_t index, nsAString &result)
+nsWindowsRegKey::GetValueName(PRUint32 index, nsAString &result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -218,7 +250,7 @@ nsWindowsRegKey::GetValueName(uint32_t index, nsAString &result)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::HasValue(const nsAString &name, bool *result)
+nsWindowsRegKey::HasValue(const nsAString &name, PRBool *result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -250,7 +282,7 @@ nsWindowsRegKey::RemoveValue(const nsAString &name)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::GetValueType(const nsAString &name, uint32_t *result)
+nsWindowsRegKey::GetValueType(const nsAString &name, PRUint32 *result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -330,7 +362,7 @@ nsWindowsRegKey::ReadStringValue(const nsAString &name, nsAString &result)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::ReadIntValue(const nsAString &name, uint32_t *result)
+nsWindowsRegKey::ReadIntValue(const nsAString &name, PRUint32 *result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -342,7 +374,7 @@ nsWindowsRegKey::ReadIntValue(const nsAString &name, uint32_t *result)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::ReadInt64Value(const nsAString &name, uint64_t *result)
+nsWindowsRegKey::ReadInt64Value(const nsAString &name, PRUint64 *result)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -393,7 +425,7 @@ nsWindowsRegKey::WriteStringValue(const nsAString &name, const nsAString &value)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::WriteIntValue(const nsAString &name, uint32_t value)
+nsWindowsRegKey::WriteIntValue(const nsAString &name, PRUint32 value)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -404,7 +436,7 @@ nsWindowsRegKey::WriteIntValue(const nsAString &name, uint32_t value)
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::WriteInt64Value(const nsAString &name, uint64_t value)
+nsWindowsRegKey::WriteInt64Value(const nsAString &name, PRUint64 value)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -427,7 +459,7 @@ nsWindowsRegKey::WriteBinaryValue(const nsAString &name, const nsACString &value
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::StartWatching(bool recurse)
+nsWindowsRegKey::StartWatching(PRBool recurse)
 {
   NS_ENSURE_TRUE(mKey, NS_ERROR_NOT_INITIALIZED);
 
@@ -466,22 +498,22 @@ nsWindowsRegKey::StopWatching()
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::HasChanged(bool *result)
+nsWindowsRegKey::HasChanged(PRBool *result)
 {
   if (mWatchEvent && WaitForSingleObject(mWatchEvent, 0) == WAIT_OBJECT_0) {
     // An event only gets signaled once, then it's done, so we have to set up
     // another event to watch.
     StopWatching();
     StartWatching(mWatchRecursive);
-    *result = true;
+    *result = PR_TRUE;
   } else {
-    *result = false;
+    *result = PR_FALSE;
   }
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWindowsRegKey::IsWatching(bool *result)
+nsWindowsRegKey::IsWatching(PRBool *result)
 {
   *result = (mWatchEvent != NULL);
   return NS_OK;

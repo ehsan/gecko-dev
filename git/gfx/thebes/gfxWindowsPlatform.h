@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Foundation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Stuart Parmenter <pavlov@pavlov.net>
+ *   Masayuki Nakano <masayuki@d-toybox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef GFX_WINDOWS_PLATFORM_H
 #define GFX_WINDOWS_PLATFORM_H
@@ -28,8 +61,6 @@
 #include <windows.h>
 #include <objbase.h>
 
-class nsIMemoryMultiReporter;
-
 // Utility to get a Windows HDC from a thebes context,
 // used by both GDI and Uniscribe font shapers
 struct DCFromContext {
@@ -42,7 +73,7 @@ struct DCFromContext {
              aSurface->GetType() == gfxASurface::SurfaceTypeWin32Printing))
         {
             dc = static_cast<gfxWindowsSurface*>(aSurface.get())->GetDC();
-            needsRelease = false;
+            needsRelease = PR_FALSE;
             SaveDC(dc);
             cairo_scaled_font_t* scaled =
                 cairo_get_scaled_font(aContext->GetCairo());
@@ -51,7 +82,7 @@ struct DCFromContext {
         if (!dc) {
             dc = GetDC(NULL);
             SetGraphicsMode(dc, GM_ADVANCED);
-            needsRelease = true;
+            needsRelease = PR_TRUE;
         }
     }
 
@@ -68,7 +99,7 @@ struct DCFromContext {
     }
 
     HDC dc;
-    bool needsRelease;
+    PRBool needsRelease;
 };
 
 // ClearType parameters set by running ClearType tuner
@@ -78,21 +109,14 @@ struct ClearTypeParameterInfo {
     { }
 
     nsString    displayName;  // typically just 'DISPLAY1'
-    int32_t     gamma;
-    int32_t     pixelStructure;
-    int32_t     clearTypeLevel;
-    int32_t     enhancedContrast;
+    PRInt32     gamma;
+    PRInt32     pixelStructure;
+    PRInt32     clearTypeLevel;
+    PRInt32     enhancedContrast;
 };
 
 class THEBES_API gfxWindowsPlatform : public gfxPlatform {
 public:
-    enum TextRenderingMode {
-        TEXT_RENDERING_NO_CLEARTYPE,
-        TEXT_RENDERING_NORMAL,
-        TEXT_RENDERING_GDI_CLASSIC,
-        TEXT_RENDERING_COUNT
-    };
-
     gfxWindowsPlatform();
     virtual ~gfxWindowsPlatform();
     static gfxWindowsPlatform *GetPlatform() {
@@ -103,12 +127,8 @@ public:
 
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
                                                          gfxASurface::gfxContentType contentType);
-    virtual already_AddRefed<gfxASurface>
-      CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                  gfxASurface::gfxContentType aContentType);
-
     virtual mozilla::RefPtr<mozilla::gfx::ScaledFont>
-      GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
+      GetScaledFontForFont(gfxFont *aFont);
     virtual already_AddRefed<gfxASurface>
       GetThebesSurfaceForDrawTarget(mozilla::gfx::DrawTarget *aTarget);
 
@@ -145,7 +165,7 @@ public:
      * \param aAttemptForce Attempt to force D2D cairo device creation by using
      * cairo device creation routines.
      */
-    void VerifyD2DDevice(bool aAttemptForce);
+    void VerifyD2DDevice(PRBool aAttemptForce);
 
     HDC GetScreenDC() { return mScreenDC; }
 
@@ -155,13 +175,9 @@ public:
 
     nsresult UpdateFontList();
 
-    virtual void GetCommonFallbackFonts(const uint32_t aCh,
-                                        int32_t aRunScript,
-                                        nsTArray<const char*>& aFontList);
-
     nsresult ResolveFontName(const nsAString& aFontName,
                              FontResolverCallback aCallback,
-                             void *aClosure, bool& aAborted);
+                             void *aClosure, PRBool& aAborted);
 
     nsresult GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
 
@@ -179,40 +195,40 @@ public:
      * Activate a platform font (needed to support @font-face src url() )
      */
     virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           const uint8_t *aFontData,
-                                           uint32_t aLength);
+                                           const PRUint8 *aFontData,
+                                           PRUint32 aLength);
 
     /**
      * Check whether format is supported on a platform or not (if unclear, returns true)
      */
-    virtual bool IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags);
+    virtual PRBool IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags);
 
     /* Find a FontFamily/FontEntry object that represents a font on your system given a name */
     gfxFontFamily *FindFontFamily(const nsAString& aName);
     gfxFontEntry *FindFontEntry(const nsAString& aName, const gfxFontStyle& aFontStyle);
 
-    bool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> > *array);
+    PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> > *array);
     void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<gfxFontEntry> >& array);
 
     void ClearPrefFonts() { mPrefFonts.Clear(); }
 
     // ClearType is not always enabled even when available (e.g. Windows XP)
     // if either of these prefs are enabled and apply, use ClearType rendering
-    bool UseClearTypeForDownloadableFonts();
-    bool UseClearTypeAlways();
+    PRBool UseClearTypeForDownloadableFonts();
+    PRBool UseClearTypeAlways();
 
     // OS version in 16.16 major/minor form
     // based on http://msdn.microsoft.com/en-us/library/ms724834(VS.85).aspx
     enum {
         kWindowsUnknown = 0,
+        kWindows2000 = 0x50000,
         kWindowsXP = 0x50001,
         kWindowsServer2003 = 0x50002,
         kWindowsVista = 0x60000,
-        kWindows7 = 0x60001,
-        kWindows8 = 0x60002
+        kWindows7 = 0x60001
     };
 
-    static int32_t WindowsOSVersion(int32_t *aBuildNum = nullptr);
+    static PRInt32 WindowsOSVersion(PRInt32 *aBuildNum = nsnull);
 
     static void GetDLLVersion(const PRUnichar *aDLLPath, nsAString& aVersion);
 
@@ -225,47 +241,33 @@ public:
 
 #ifdef CAIRO_HAS_DWRITE_FONT
     IDWriteFactory *GetDWriteFactory() { return mDWriteFactory; }
-    inline bool DWriteEnabled() { return mUseDirectWrite; }
+    inline PRBool DWriteEnabled() { return mUseDirectWrite; }
     inline DWRITE_MEASURING_MODE DWriteMeasuringMode() { return mMeasuringMode; }
-    IDWriteTextAnalyzer *GetDWriteAnalyzer() { return mDWriteAnalyzer; }
-
-    IDWriteRenderingParams *GetRenderingParams(TextRenderingMode aRenderMode)
-    { return mRenderingParams[aRenderMode]; }
 #else
-    inline bool DWriteEnabled() { return false; }
+    inline PRBool DWriteEnabled() { return PR_FALSE; }
 #endif
 #ifdef CAIRO_HAS_D2D_SURFACE
     cairo_device_t *GetD2DDevice() { return mD2DDevice; }
-    ID3D10Device1 *GetD3D10Device() { return mD2DDevice ? cairo_d2d_device_get_device(mD2DDevice) : nullptr; }
+    ID3D10Device1 *GetD3D10Device() { return mD2DDevice ? cairo_d2d_device_get_device(mD2DDevice) : nsnull; }
 #endif
 
     static bool IsOptimus();
-    static bool IsRunningInWindows8Metro();
 
 protected:
-    virtual mozilla::gfx::BackendType GetContentBackend()
-    {
-      return UseAzureContentDrawing() && mRenderMode == RENDER_DIRECT2D ?
-               mozilla::gfx::BACKEND_DIRECT2D :
-               mozilla::gfx::BACKEND_NONE;
-    }
-
     RenderMode mRenderMode;
 
-    int8_t mUseClearTypeForDownloadableFonts;
-    int8_t mUseClearTypeAlways;
+    PRBool mUseClearTypeForDownloadableFonts;
+    PRBool mUseClearTypeAlways;
     HDC mScreenDC;
 
 private:
     void Init();
 
-    bool mUseDirectWrite;
-    bool mUsingGDIFonts;
+    PRBool mUseDirectWrite;
+    PRBool mUsingGDIFonts;
 
 #ifdef CAIRO_HAS_DWRITE_FONT
     nsRefPtr<IDWriteFactory> mDWriteFactory;
-    nsRefPtr<IDWriteTextAnalyzer> mDWriteAnalyzer;
-    nsRefPtr<IDWriteRenderingParams> mRenderingParams[TEXT_RENDERING_COUNT];
     DWRITE_MEASURING_MODE mMeasuringMode;
 #endif
 #ifdef CAIRO_HAS_D2D_SURFACE
@@ -276,8 +278,6 @@ private:
 
     // TODO: unify this with mPrefFonts (NB: holds families, not fonts) in gfxPlatformFontList
     nsDataHashtable<nsCStringHashKey, nsTArray<nsRefPtr<gfxFontEntry> > > mPrefFonts;
-
-    nsIMemoryMultiReporter* mGPUAdapterMultiReporter;
 };
 
 #endif /* GFX_WINDOWS_PLATFORM_H */

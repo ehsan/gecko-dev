@@ -7,9 +7,6 @@ var gIoService = Components.classes["@mozilla.org/network/io-service;1"]
                            .getService(Components.interfaces.nsIIOService);
 
 
-// Run by: cd objdir;  make -C netwerk/test/ xpcshell-tests    
-// or: cd objdir; make SOLO_FILE="test_URIs.js" -C netwerk/test/ check-one
-
 // Relevant RFCs: 1738, 1808, 2396, 3986 (newer than the code)
 // http://greenbytes.de/tech/webdav/rfc3986.html#rfc.section.5.4
 // http://greenbytes.de/tech/tc/uris/
@@ -119,24 +116,6 @@ var gTests = [
     path:    "/pub/mozilla.org/README",
     ref:     "",
     nsIURL:  true, nsINestedURI: false },
-  { spec:    "ftp://foo:@ftp.mozilla.org:100/pub/mozilla.org/README",
-    scheme:  "ftp",
-    prePath: "ftp://foo:@ftp.mozilla.org:100",
-    port:    100,
-    username: "foo",
-    password: "",
-    path:    "/pub/mozilla.org/README",
-    ref:     "",
-    nsIURL:  true, nsINestedURI: false },
-  //Bug 706249
-  { spec:    "http:x:@",
-    scheme:  "http",
-    prePath: "http://x:@",
-    username: "x",
-    password: "",
-    path:    "",
-    ref:     "",
-    nsIURL:  true, nsINestedURI: false },
   { spec:    "gopher://mozilla.org/",
     scheme:  "gopher",
     prePath: "gopher:",
@@ -223,16 +202,16 @@ var gTests = [
     path:    "new%20Date()",
     ref:     "",
     nsIURL:  false, nsINestedURI: false },
-  { spec:    "blob:123456",
-    scheme:  "blob",
-    prePath: "blob:",
+  { spec:    "moz-filedata:123456",
+    scheme:  "moz-filedata",
+    prePath: "moz-filedata:",
     path:    "123456",
     ref:     "",
     nsIURL:  false, nsINestedURI: false, immutable: true },
-  { spec:    "place:sort=8&maxResults=10",
+  { spec:    "place:redirectsMode=2&sort=8&maxResults=10",
     scheme:  "place",
     prePath: "place:",
-    path:    "sort=8&maxResults=10",
+    path:    "redirectsMode=2&sort=8&maxResults=10",
     ref:     "",
     nsIURL:  false, nsINestedURI: false },
   { spec:    "resource://gre/",
@@ -327,8 +306,6 @@ var gTests = [
     prePath: "http://a",
     path:    "/b/c/g?y",
     ref:     "",// fix
-    specIgnoringRef: "http://a/b/c/g?y",
-    hasRef:  false,
     nsIURL:  true, nsINestedURI: false },
   { spec:    "http://a/b/c/d;p?q",
     relativeURI: "#s",
@@ -336,8 +313,6 @@ var gTests = [
     prePath: "http://a",
     path:    "/b/c/d;p?q#s",
     ref:     "s",// fix
-    specIgnoringRef: "http://a/b/c/d;p?q",
-    hasRef:  true,
     nsIURL:  true, nsINestedURI: false },
   { spec:    "http://a/b/c/d;p?q",
     relativeURI: "g#s",
@@ -552,21 +527,7 @@ var gTests = [
     path:    "/b/c/y",
     ref:     "",
     nsIURL:  true, nsINestedURI: false },
-  // protocol-relative http://tools.ietf.org/html/rfc3986#section-4.2
-  { spec:    "http://www2.example.com/",
-    relativeURI: "//www3.example2.com/bar",
-    scheme:  "http",
-    prePath: "http://www3.example2.com",
-    path:    "/bar",
-    ref:     "",
-    nsIURL:  true, nsINestedURI: false },
-  { spec:    "https://www2.example.com/",
-    relativeURI: "//www3.example2.com/bar",
-    scheme:  "https",
-    prePath: "https://www3.example2.com",
-    path:    "/bar",
-    ref:     "",
-    nsIURL:  true, nsINestedURI: false },
+
 ];
 
 var gHashSuffixes = [
@@ -713,11 +674,6 @@ function do_test_uri_basic(aTest) {
   do_check_property(aTest, URI, "username");
   do_check_property(aTest, URI, "password");
   do_check_property(aTest, URI, "host");
-  do_check_property(aTest, URI, "specIgnoringRef");
-  if ("hasRef" in aTest) {
-    do_info("testing hasref: " + aTest.hasRef + " vs " + URI.hasRef);
-    do_check_eq(aTest.hasRef, URI.hasRef);
-  }
 }
 
 // Test that a given URI parses correctly when we add a given ref to the end
@@ -757,8 +713,6 @@ function do_test_uri_with_hash_suffix(aTest, aSuffix) {
   do_info("testing " + aTest.spec +
           " is equalExceptRef to self with '" + aSuffix + "' appended");
   do_check_uri_eqExceptRef(origURI, testURI);
-
-  do_check_eq(testURI.hasRef, true);
 
   if (!origURI.ref) {
     // These tests fail if origURI has a ref

@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>nsIDOMWindowUtils::elementFromPoint test</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css">
   <style>
@@ -25,7 +26,10 @@
 
 <script type="application/javascript;version=1.8">
 
-var domWindowUtils = SpecialPowers.getDOMWindowUtils(window);
+// Enable privileges so we can use nsIDOMWindowUtils interface
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+var domWindowUtils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                           .getInterface(Components.interfaces.nsIDOMWindowUtils);
 
 /*
   nsIDOMElement elementFromPoint(in long aX,

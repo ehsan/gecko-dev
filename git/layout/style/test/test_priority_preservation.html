@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test for property priority preservation</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -88,8 +89,7 @@ is(s.getPropertyPriority("z-index"), "",
    "z-index priority still stored");
 
   // and overriding one element of that shorthand with some longhand
-  // test omitting the third argument to setProperty too (bug 655478)
-s.setProperty("font-style", "normal");
+s.setProperty("font-style", "normal", "");
 
 is(s.getPropertyValue("font-style"), "normal", "font-style overridden");
 is(s.getPropertyPriority("font-style"), "", "font-style priority overridden");

@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsSocketTransport2_h__
 #define nsSocketTransport2_h__
@@ -42,9 +75,9 @@ public:
     nsSocketInputStream(nsSocketTransport *);
     virtual ~nsSocketInputStream();
 
-    bool     IsReferenced() { return mReaderRefCnt > 0; }
+    PRBool   IsReferenced() { return mReaderRefCnt > 0; }
     nsresult Condition()    { return mCondition; }
-    uint64_t ByteCount()    { return mByteCount; }
+    PRUint64 ByteCount()    { return mByteCount; }
 
     // called by the socket transport on the socket thread...
     void OnSocketReady(nsresult condition);
@@ -56,8 +89,8 @@ private:
     // access to these is protected by mTransport->mLock
     nsresult                         mCondition;
     nsCOMPtr<nsIInputStreamCallback> mCallback;
-    uint32_t                         mCallbackFlags;
-    uint64_t                         mByteCount;
+    PRUint32                         mCallbackFlags;
+    PRUint64                         mByteCount;
 };
 
 //-----------------------------------------------------------------------------
@@ -72,17 +105,17 @@ public:
     nsSocketOutputStream(nsSocketTransport *);
     virtual ~nsSocketOutputStream();
 
-    bool     IsReferenced() { return mWriterRefCnt > 0; }
+    PRBool   IsReferenced() { return mWriterRefCnt > 0; }
     nsresult Condition()    { return mCondition; }
-    uint64_t ByteCount()    { return mByteCount; }
+    PRUint64 ByteCount()    { return mByteCount; }
 
     // called by the socket transport on the socket thread...
     void OnSocketReady(nsresult condition); 
 
 private:
     static NS_METHOD WriteFromSegments(nsIInputStream *, void *,
-                                       const char *, uint32_t offset,
-                                       uint32_t count, uint32_t *countRead);
+                                       const char *, PRUint32 offset,
+                                       PRUint32 count, PRUint32 *countRead);
 
     nsSocketTransport                *mTransport;
     nsrefcnt                          mWriterRefCnt;
@@ -90,8 +123,8 @@ private:
     // access to these is protected by mTransport->mLock
     nsresult                          mCondition;
     nsCOMPtr<nsIOutputStreamCallback> mCallback;
-    uint32_t                          mCallbackFlags;
-    uint64_t                          mByteCount;
+    PRUint32                          mCallbackFlags;
+    PRUint64                          mByteCount;
 };
 
 //-----------------------------------------------------------------------------
@@ -114,8 +147,8 @@ public:
 
     // this method instructs the socket transport to open a socket of the
     // given type(s) to the given host or proxy.
-    nsresult Init(const char **socketTypes, uint32_t typeCount,
-                  const nsACString &host, uint16_t port,
+    nsresult Init(const char **socketTypes, PRUint32 typeCount,
+                  const nsACString &host, PRUint16 port,
                   nsIProxyInfo *proxyInfo);
 
     // this method instructs the socket transport to use an already connected
@@ -124,11 +157,11 @@ public:
                                      const PRNetAddr *addr);
 
     // nsASocketHandler methods:
-    void OnSocketReady(PRFileDesc *, int16_t outFlags); 
+    void OnSocketReady(PRFileDesc *, PRInt16 outFlags); 
     void OnSocketDetached(PRFileDesc *);
 
     // called when a socket event is handled
-    void OnSocketEvent(uint32_t type, nsresult status, nsISupports *param);
+    void OnSocketEvent(PRUint32 type, nsresult status, nsISupports *param);
 
 protected:
 
@@ -147,7 +180,7 @@ private:
         MSG_OUTPUT_CLOSED,
         MSG_OUTPUT_PENDING
     };
-    nsresult PostEvent(uint32_t type, nsresult status = NS_OK, nsISupports *param = nullptr);
+    nsresult PostEvent(PRUint32 type, nsresult status = NS_OK, nsISupports *param = nsnull);
 
     enum {
         STATE_CLOSED,
@@ -164,16 +197,16 @@ private:
 
     // socket type info:
     char       **mTypes;
-    uint32_t     mTypeCount;
+    PRUint32     mTypeCount;
     nsCString    mHost;
     nsCString    mProxyHost;
-    uint16_t     mPort;
-    uint16_t     mProxyPort;
-    bool mProxyTransparent;
-    bool mProxyTransparentResolvesHost;
-    uint32_t     mConnectionFlags;
+    PRUint16     mPort;
+    PRUint16     mProxyPort;
+    PRPackedBool mProxyTransparent;
+    PRPackedBool mProxyTransparentResolvesHost;
+    PRUint32     mConnectionFlags;
     
-    uint16_t         SocketPort() { return (!mProxyHost.IsEmpty() && !mProxyTransparent) ? mProxyPort : mPort; }
+    PRUint16         SocketPort() { return (!mProxyHost.IsEmpty() && !mProxyTransparent) ? mProxyPort : mPort; }
     const nsCString &SocketHost() { return (!mProxyHost.IsEmpty() && !mProxyTransparent) ? mProxyHost : mHost; }
 
     //-------------------------------------------------------------------------
@@ -182,30 +215,26 @@ private:
     //-------------------------------------------------------------------------
 
     // socket state vars:
-    uint32_t     mState;     // STATE_??? flags
-    bool mAttached;
-    bool mInputClosed;
-    bool mOutputClosed;
+    PRUint32     mState;     // STATE_??? flags
+    PRPackedBool mAttached;
+    PRPackedBool mInputClosed;
+    PRPackedBool mOutputClosed;
 
     // this flag is used to determine if the results of a host lookup arrive
     // recursively or not.  this flag is not protected by any lock.
-    bool mResolving;
+    PRPackedBool mResolving;
 
     nsCOMPtr<nsICancelable> mDNSRequest;
     nsCOMPtr<nsIDNSRecord>  mDNSRecord;
-
-    // mNetAddr is valid from GetPeerAddr() once we have
-    // reached STATE_TRANSFERRING. It must not change after that.
     PRNetAddr               mNetAddr;
-    bool                    mNetAddrIsSet;
 
     // socket methods (these can only be called on the socket thread):
 
     void     SendStatus(nsresult status);
     nsresult ResolveHost();
-    nsresult BuildSocket(PRFileDesc *&, bool &, bool &); 
+    nsresult BuildSocket(PRFileDesc *&, PRBool &, PRBool &); 
     nsresult InitiateSocket();
-    bool     RecoverFromError();
+    PRBool   RecoverFromError();
 
     void OnMsgInputPending()
     {
@@ -230,7 +259,7 @@ private:
     Mutex       mLock;  // protects members in this section
     PRFileDesc *mFD;
     nsrefcnt    mFDref;       // mFD is closed when mFDref goes to zero.
-    bool        mFDconnected; // mFD is available to consumer when TRUE.
+    PRBool      mFDconnected; // mFD is available to consumer when TRUE.
 
     nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
     nsCOMPtr<nsITransportEventSink> mEventSink;
@@ -243,10 +272,10 @@ private:
     friend class nsSocketOutputStream;
 
     // socket timeouts are not protected by any lock.
-    uint16_t mTimeouts[2];
+    PRUint16 mTimeouts[2];
 
     // QoS setting for socket
-    uint8_t mQoSBits;
+    PRUint8 mQoSBits;
 
     //
     // mFD access methods: called with mLock held.
@@ -291,8 +320,8 @@ private:
     }
 
 #ifdef ENABLE_SOCKET_TRACING
-    void TraceInBuf(const char *buf, int32_t n);
-    void TraceOutBuf(const char *buf, int32_t n);
+    void TraceInBuf(const char *buf, PRInt32 n);
+    void TraceOutBuf(const char *buf, PRInt32 n);
 #endif
 };
 

@@ -1,4 +1,3 @@
-//* -*- Mode: Javascript; tab-width: 8; indent-tabs-mode: nil; js-indent-level: 2 -*- *
 function dumpn(s) {
   dump(s + "\n");
 }
@@ -6,21 +5,14 @@ function dumpn(s) {
 const NS_APP_USER_PROFILE_50_DIR = "ProfD";
 const NS_APP_USER_PROFILE_LOCAL_50_DIR = "ProfLD";
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
-Cu.import("resource://testing-common/httpd.js");
+// This loads Ci, Cc, Cr and Cu.
+do_load_httpd_js();
 
 do_get_profile();
 
 var dirSvc = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties);
 
 var iosvc = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-
-var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"]
-               .getService(Ci.nsIScriptSecurityManager);
 
 // Disable hashcompleter noise for tests
 var prefBranch = Cc["@mozilla.org/preferences-service;1"].
@@ -31,26 +23,14 @@ prefBranch.setIntPref("urlclassifier.gethashnoise", 0);
 prefBranch.setBoolPref("browser.safebrowsing.malware.enabled", true);
 prefBranch.setBoolPref("browser.safebrowsing.enabled", true);
 
-function delFile(name) {
+function cleanUp() {
   try {
     // Delete a previously created sqlite file
     var file = dirSvc.get('ProfLD', Ci.nsIFile);
-    file.append(name);
+    file.append("urlclassifier3.sqlite");
     if (file.exists())
       file.remove(false);
-  } catch(e) {
-  }
-}
-
-function cleanUp() {
-  delFile("urlclassifier3.sqlite");
-  delFile("safebrowsing/classifier.hashkey");
-  delFile("safebrowsing/test-phish-simple.sbstore");
-  delFile("safebrowsing/test-malware-simple.sbstore");
-  delFile("safebrowsing/test-phish-simple.cache");
-  delFile("safebrowsing/test-malware-simple.cache");
-  delFile("safebrowsing/test-phish-simple.pset");
-  delFile("safebrowsing/test-malware-simple.pset");
+  } catch (e) {}
 }
 
 var dbservice = Cc["@mozilla.org/url-classifier/dbservice;1"].getService(Ci.nsIUrlClassifierDBService);
@@ -200,8 +180,7 @@ checkUrls: function(urls, expected, cb)
   var doLookup = function() {
     if (urls.length > 0) {
       var fragment = urls.shift();
-      var principal = secMan.getNoAppCodebasePrincipal(iosvc.newURI("http://" + fragment, null, null));
-      dbservice.lookup(principal,
+      dbservice.lookup("http://" + fragment,
                        function(arg) {
                          do_check_eq(expected, arg);
                          doLookup();
@@ -296,10 +275,9 @@ function runNextTest()
 
   dbservice.resetDatabase();
   dbservice.setHashCompleter('test-phish-simple', null);
+  dumpn("running " + gTests[gNextTest]);
 
-  let test = gTests[gNextTest++];
-  dump("running " + test.name + "\n");
-  test();
+  gTests[gNextTest++]();
 }
 
 function runTests(tests)
@@ -308,13 +286,10 @@ function runTests(tests)
   runNextTest();
 }
 
-var timerArray = [];
-
 function Timer(delay, cb) {
   this.cb = cb;
   var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
   timer.initWithCallback(this, delay, timer.TYPE_ONE_SHOT);
-  timerArray.push(timer);
 }
 
 Timer.prototype = {

@@ -1,33 +1,68 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* 
+# ***** BEGIN LICENSE BLOCK *****
+# * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+# *
+# * The contents of this file are subject to the Mozilla Public License Version
+# * 1.1 (the "License"); you may not use this file except in compliance with
+# * the License. You may obtain a copy of the License at
+# * http://www.mozilla.org/MPL/
+# *
+# * Software distributed under the License is distributed on an "AS IS" basis,
+# * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# * for the specific language governing rights and limitations under the
+# * License.
+# *
+# * The Original Code is the nsSessionStore component.
+# *
+# * The Initial Developer of the Original Code is
+# * Simon Bünzli <zeniko@gmail.com>
+# * Portions created by the Initial Developer are Copyright (C) 2006
+# * the Initial Developer. All Rights Reserved.
+# *
+# * Contributor(s):
+# *   Dietrich Ayala <autonome@gmail.com>
+# *
+# * Alternatively, the contents of this file may be used under the terms of
+# * either the GNU General Public License Version 2 or later (the "GPL"), or
+# * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# * in which case the provisions of the GPL or the LGPL are applicable instead
+# * of those above. If you wish to allow use of your version of this file only
+# * under the terms of either the GPL or the LGPL, and not to allow others to
+# * use your version of this file under the terms of the MPL, indicate your
+# * decision by deleting the provisions above and replace them with the notice
+# * and other provisions required by the GPL or the LGPL. If you do not delete
+# * the provisions above, a recipient may use your version of this file under
+# * the terms of any one of the MPL, the GPL or the LGPL.
+# *
+# * ***** END LICENSE BLOCK ***** 
+*/
 
 /**
- * Session Storage and Restoration
- *
- * Overview
- * This service reads user's session file at startup, and makes a determination
- * as to whether the session should be restored. It will restore the session
- * under the circumstances described below.  If the auto-start Private Browsing
- * mode is active, however, the session is never restored.
- *
- * Crash Detection
- * The session file stores a session.state property, that
- * indicates whether the browser is currently running. When the browser shuts
- * down, the field is changed to "stopped". At startup, this field is read, and
- * if its value is "running", then it's assumed that the browser had previously
- * crashed, or at the very least that something bad happened, and that we should
- * restore the session.
- *
- * Forced Restarts
- * In the event that a restart is required due to application update or extension
- * installation, set the browser.sessionstore.resume_session_once pref to true,
- * and the session will be restored the next time the browser starts.
- *
- * Always Resume
- * This service will always resume the session if the integer pref
- * browser.startup.page is set to 3.
- */
+# * Session Storage and Restoration
+# * 
+# * Overview
+# * This service reads user's session file at startup, and makes a determination 
+# * as to whether the session should be restored. It will restore the session 
+# * under the circumstances described below.  If the auto-start Private Browsing
+# * mode is active, however, the session is never restored.
+# * 
+# * Crash Detection
+# * The session file stores a session.state property, that 
+# * indicates whether the browser is currently running. When the browser shuts 
+# * down, the field is changed to "stopped". At startup, this field is read, and
+# * if its value is "running", then it's assumed that the browser had previously
+# * crashed, or at the very least that something bad happened, and that we should
+# * restore the session.
+# * 
+# * Forced Restarts
+# * In the event that a restart is required due to application update or extension
+# * installation, set the browser.sessionstore.resume_session_once pref to true,
+# * and the session will be restored the next time the browser starts.
+# * 
+# * Always Resume
+# * This service will always resume the session if the integer pref 
+# * browser.startup.page is set to 3.
+*/
 
 /* :::::::: Constants and Helpers ::::::::::::::: */
 
@@ -37,7 +72,6 @@ const Cr = Components.results;
 const Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/TelemetryStopwatch.jsm");
 
 const STATE_RUNNING_STR = "running";
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 megabytes
@@ -55,7 +89,7 @@ function SessionStartup() {
 SessionStartup.prototype = {
 
   // the state to restore at startup
-  _initialState: null,
+  _iniString: null,
   _sessionType: Ci.nsISessionStartup.NO_SESSION,
 
 /* ........ Global Event Handlers .............. */
@@ -78,9 +112,8 @@ SessionStartup.prototype = {
                      getService(Ci.nsIProperties);
     let sessionFile = dirService.get("ProfD", Ci.nsILocalFile);
     sessionFile.append("sessionstore.js");
-
-    let doResumeSessionOnce = prefBranch.getBoolPref("sessionstore.resume_session_once");
-    let doResumeSession = doResumeSessionOnce ||
+    
+    let doResumeSession = prefBranch.getBoolPref("sessionstore.resume_session_once") ||
                           prefBranch.getIntPref("startup.page") == 3;
 
     // only continue if the session file exists
@@ -88,70 +121,58 @@ SessionStartup.prototype = {
       return;
 
     // get string containing session state
-    let iniString = this._readStateFile(sessionFile);
-    if (!iniString)
+    this._iniString = this._readStateFile(sessionFile);
+    if (!this._iniString)
       return;
 
     // parse the session state into a JS object
-    // remove unneeded braces (added for compatibility with Firefox 2.0 and 3.0)
-    if (iniString.charAt(0) == '(')
-      iniString = iniString.slice(1, -1);
-    let corruptFile = false;
+    let initialState;
     try {
-      this._initialState = JSON.parse(iniString);
-    }
-    catch (ex) {
-      debug("The session file contained un-parse-able JSON: " + ex);
-      // Try to eval.
-      // evalInSandbox will throw if iniString is not parse-able.
+      // remove unneeded braces (added for compatibility with Firefox 2.0 and 3.0)
+      if (this._iniString.charAt(0) == '(')
+        this._iniString = this._iniString.slice(1, -1);
       try {
-        var s = new Cu.Sandbox("about:blank", {sandboxName: 'nsSessionStartup'});
-        this._initialState = Cu.evalInSandbox("(" + iniString + ")", s);
-      } catch(ex) {
-        debug("The session file contained un-eval-able JSON: " + ex);
-        corruptFile = true;
+        initialState = JSON.parse(this._iniString);
+      }
+      catch (exJSON) {
+        var s = new Cu.Sandbox("about:blank");
+        initialState = Cu.evalInSandbox("(" + this._iniString + ")", s);
+        this._iniString = JSON.stringify(initialState);
       }
     }
-    Services.telemetry.getHistogramById("FX_SESSION_RESTORE_CORRUPT_FILE").add(corruptFile);
-
-    // If this is a normal restore then throw away any previous session
-    if (!doResumeSessionOnce)
-      delete this._initialState.lastSessionState;
+    catch (ex) { debug("The session file is invalid: " + ex); }
 
     let resumeFromCrash = prefBranch.getBoolPref("sessionstore.resume_from_crash");
     let lastSessionCrashed =
-      this._initialState && this._initialState.session &&
-      this._initialState.session.state &&
-      this._initialState.session.state == STATE_RUNNING_STR;
+      initialState && initialState.session && initialState.session.state &&
+      initialState.session.state == STATE_RUNNING_STR;
 
     // Report shutdown success via telemetry. Shortcoming here are
     // being-killed-by-OS-shutdown-logic, shutdown freezing after
     // session restore was written, etc.
-    Services.telemetry.getHistogramById("SHUTDOWN_OK").add(!lastSessionCrashed);
+    let Telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
+    Telemetry.getHistogramById("SHUTDOWN_OK").add(!lastSessionCrashed);
 
     // set the startup type
     if (lastSessionCrashed && resumeFromCrash)
       this._sessionType = Ci.nsISessionStartup.RECOVER_SESSION;
     else if (!lastSessionCrashed && doResumeSession)
       this._sessionType = Ci.nsISessionStartup.RESUME_SESSION;
-    else if (this._initialState)
+    else if (initialState)
       this._sessionType = Ci.nsISessionStartup.DEFER_SESSION;
     else
-      this._initialState = null; // reset the state
+      this._iniString = null; // reset the state string
 
     // wait for the first browser window to open
     // Don't reset the initial window's default args (i.e. the home page(s))
     // if all stored tabs are pinned.
     if (this.doRestore() &&
-        (!this._initialState.windows ||
-        !this._initialState.windows.every(function (win)
+        (!initialState.windows ||
+        !initialState.windows.every(function (win)
            win.tabs.every(function (tab) tab.pinned))))
       Services.obs.addObserver(this, "domwindowopened", true);
 
     Services.obs.addObserver(this, "sessionstore-windows-restored", true);
-
-    if (this._sessionType != Ci.nsISessionStartup.NO_SESSION)
-      Services.obs.addObserver(this, "browser:purge-session-history", true);
   },
 
   /**
@@ -159,11 +180,11 @@ SessionStartup.prototype = {
    */
   observe: function sss_observe(aSubject, aTopic, aData) {
     switch (aTopic) {
-    case "app-startup":
+    case "app-startup": 
       Services.obs.addObserver(this, "final-ui-startup", true);
       Services.obs.addObserver(this, "quit-application", true);
       break;
-    case "final-ui-startup":
+    case "final-ui-startup": 
       Services.obs.removeObserver(this, "final-ui-startup");
       Services.obs.removeObserver(this, "quit-application");
       this.init();
@@ -172,8 +193,6 @@ SessionStartup.prototype = {
       // no reason for initializing at this point (cf. bug 409115)
       Services.obs.removeObserver(this, "final-ui-startup");
       Services.obs.removeObserver(this, "quit-application");
-      if (this._sessionType != Ci.nsISessionStartup.NO_SESSION)
-        Services.obs.removeObserver(this, "browser:purge-session-history");
       break;
     case "domwindowopened":
       var window = aSubject;
@@ -185,12 +204,8 @@ SessionStartup.prototype = {
       break;
     case "sessionstore-windows-restored":
       Services.obs.removeObserver(this, "sessionstore-windows-restored");
-      // free _initialState after nsSessionStore is done with it
-      this._initialState = null;
-      break;
-    case "browser:purge-session-history":
-      Services.obs.removeObserver(this, "browser:purge-session-history");
-      // reset all state on sanitization
+      // free _iniString after nsSessionStore is done with it
+      this._iniString = null;
       this._sessionType = Ci.nsISessionStartup.NO_SESSION;
       break;
     }
@@ -204,7 +219,7 @@ SessionStartup.prototype = {
     var wType = aWindow.document.documentElement.getAttribute("windowtype");
     if (wType != "navigator:browser")
       return;
-
+    
     /**
      * Note: this relies on the fact that nsBrowserContentHandler will return
      * a different value the first time its getter is called after an update,
@@ -236,10 +251,10 @@ SessionStartup.prototype = {
 /* ........ Public API ................*/
 
   /**
-   * Get the session state as a jsval
+   * Get the session state as a string
    */
   get state() {
-    return this._initialState;
+    return this._iniString;
   },
 
   /**
@@ -268,11 +283,9 @@ SessionStartup.prototype = {
    * @returns a session state string
    */
   _readStateFile: function sss_readStateFile(aFile) {
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_READ_FILE_MS");
     var stateString = Cc["@mozilla.org/supports-string;1"].
                         createInstance(Ci.nsISupportsString);
     stateString.data = this._readFile(aFile) || "";
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_READ_FILE_MS");
 
     Services.obs.notifyObservers(stateString, "sessionstore-state-read", "");
 

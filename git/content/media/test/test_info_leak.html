@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=478957
 -->
 <head>
   <title>Test for Bug 478957</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <script type="text/javascript" src="manifest.js"></script>
@@ -35,7 +36,7 @@ function createTestArray() {
   var tests = [];
   var tmpVid = document.createElement("video");
 
-  for (var testNum=0; testNum<gInfoLeakTests.length; testNum++) {
+  for (var testNum=0; testNum<gSeekTests.length; testNum++) {
     var test = gInfoLeakTests[testNum];
     if (!tmpVid.canPlayType(test.type)) {
       continue;

@@ -13,56 +13,16 @@
 #include <string.h>
 #include "vpx/vpx_image.h"
 
-#define ADDRESS_STORAGE_SIZE      sizeof(size_t)
-/*returns an addr aligned to the byte boundary specified by align*/
-#define align_addr(addr,align) (void*)(((size_t)(addr) + ((align) - 1)) & (size_t)-(align))
-
-/* Memalign code is copied from vpx_mem.c */
-static void *img_buf_memalign(size_t align, size_t size)
-{
-    void *addr,
-         * x = NULL;
-
-    addr = malloc(size + align - 1 + ADDRESS_STORAGE_SIZE);
-
-    if (addr)
-    {
-        x = align_addr((unsigned char *)addr + ADDRESS_STORAGE_SIZE, (int)align);
-        /* save the actual malloc address */
-        ((size_t *)x)[-1] = (size_t)addr;
-    }
-
-    return x;
-}
-
-static void img_buf_free(void *memblk)
-{
-    if (memblk)
-    {
-        void *addr = (void *)(((size_t *)memblk)[-1]);
-        free(addr);
-    }
-}
-
 static vpx_image_t *img_alloc_helper(vpx_image_t  *img,
                                      vpx_img_fmt_t fmt,
                                      unsigned int  d_w,
                                      unsigned int  d_h,
-                                     unsigned int  buf_align,
                                      unsigned int  stride_align,
                                      unsigned char      *img_data)
 {
 
     unsigned int  h, w, s, xcs, ycs, bps;
     int           align;
-
-    /* Treat align==0 like align==1 */
-    if (!buf_align)
-        buf_align = 1;
-
-    /* Validate alignment (must be power of 2) */
-    if (buf_align & (buf_align - 1))
-        goto fail;
 
     /* Treat align==0 like align==1 */
     if (!stride_align)
@@ -159,8 +119,7 @@ static vpx_image_t *img_alloc_helper(vpx_image_t  *img,
 
     if (!img_data)
     {
-        img->img_data = img_buf_memalign(buf_align, ((fmt & VPX_IMG_FMT_PLANAR)?
-                                         h * s * bps / 8 : h * s));
+        img->img_data = malloc((fmt & VPX_IMG_FMT_PLANAR) ? h * w * bps / 8 : h * s);
         img->img_data_owner = 1;
     }
 
@@ -191,9 +150,9 @@ vpx_image_t *vpx_img_alloc(vpx_image_t  *img,
                            vpx_img_fmt_t fmt,
                            unsigned int  d_w,
                            unsigned int  d_h,
-                           unsigned int  align)
+                           unsigned int  stride_align)
 {
-    return img_alloc_helper(img, fmt, d_w, d_h, align, align, NULL);
+    return img_alloc_helper(img, fmt, d_w, d_h, stride_align, NULL);
 }
 
 vpx_image_t *vpx_img_wrap(vpx_image_t  *img,
@@ -203,9 +162,7 @@ vpx_image_t *vpx_img_wrap(vpx_image_t  *img,
                           unsigned int  stride_align,
                           unsigned char       *img_data)
 {
-    /* By setting buf_align = 1, we don't change buffer alignment in this
-     * function. */
-    return img_alloc_helper(img, fmt, d_w, d_h, 1, stride_align, img_data);
+    return img_alloc_helper(img, fmt, d_w, d_h, stride_align, img_data);
 }
 
 int vpx_img_set_rect(vpx_image_t  *img,
@@ -297,7 +254,7 @@ void vpx_img_free(vpx_image_t *img)
     if (img)
     {
         if (img->img_data && img->img_data_owner)
-            img_buf_free(img->img_data);
+            free(img->img_data);
 
         if (img->self_allocd)
             free(img);

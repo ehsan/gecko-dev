@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsDebug_h___
 #define nsDebug_h___
@@ -17,10 +49,9 @@
 #include "nsXPCOM.h"
 
 #ifdef DEBUG
+#define NS_DEBUG
 #include "prprf.h"
 #endif
-
-#include "prtypes.h"
 
 #ifdef DEBUG
 
@@ -41,11 +72,11 @@
  * evaluate the message argument.
  */
 #define NS_ABORT_IF_FALSE(_expr, _msg)                        \
-  do {                                                        \
+  PR_BEGIN_MACRO                                              \
     if (!(_expr)) {                                           \
       NS_DebugBreak(NS_DEBUG_ABORT, _msg, #_expr, __FILE__, __LINE__); \
     }                                                         \
-  } while(0)
+  PR_END_MACRO
 
 /**
  * Warn if a given condition is false.
@@ -56,44 +87,44 @@
  * evaluate the message argument.
  */
 #define NS_WARN_IF_FALSE(_expr,_msg)                          \
-  do {                                                        \
+  PR_BEGIN_MACRO                                              \
     if (!(_expr)) {                                           \
       NS_DebugBreak(NS_DEBUG_WARNING, _msg, #_expr, __FILE__, __LINE__); \
     }                                                         \
-  } while(0)
+  PR_END_MACRO
 
 /**
  * Test a precondition for truth. If the expression is not true then
  * trigger a program failure.
  */
 #define NS_PRECONDITION(expr, str)                            \
-  do {                                                        \
+  PR_BEGIN_MACRO                                              \
     if (!(expr)) {                                            \
       NS_DebugBreak(NS_DEBUG_ASSERTION, str, #expr, __FILE__, __LINE__); \
     }                                                         \
-  } while(0)
+  PR_END_MACRO
 
 /**
  * Test an assertion for truth. If the expression is not true then
  * trigger a program failure.
  */
 #define NS_ASSERTION(expr, str)                               \
-  do {                                                        \
+  PR_BEGIN_MACRO                                              \
     if (!(expr)) {                                            \
       NS_DebugBreak(NS_DEBUG_ASSERTION, str, #expr, __FILE__, __LINE__); \
     }                                                         \
-  } while(0)
+  PR_END_MACRO
 
 /**
  * Test a post-condition for truth. If the expression is not true then
  * trigger a program failure.
  */
 #define NS_POSTCONDITION(expr, str)                           \
-  do {                                                        \
+  PR_BEGIN_MACRO                                              \
     if (!(expr)) {                                            \
       NS_DebugBreak(NS_DEBUG_ASSERTION, str, #expr, __FILE__, __LINE__); \
     }                                                         \
-  } while(0)
+  PR_END_MACRO
 
 /**
  * This macros triggers a program failure if executed. It indicates that
@@ -119,39 +150,39 @@
  * Log a warning message.
  */
 #define NS_WARNING(str)                                       \
-  NS_DebugBreak(NS_DEBUG_WARNING, str, nullptr, __FILE__, __LINE__)
+  NS_DebugBreak(NS_DEBUG_WARNING, str, nsnull, __FILE__, __LINE__)
 
 /**
  * Trigger an abort
  */
 #define NS_ABORT()                                            \
-  NS_DebugBreak(NS_DEBUG_ABORT, nullptr, nullptr, __FILE__, __LINE__)
+  NS_DebugBreak(NS_DEBUG_ABORT, nsnull, nsnull, __FILE__, __LINE__)
 
 /**
  * Cause a break
  */
 #define NS_BREAK()                                            \
-  NS_DebugBreak(NS_DEBUG_BREAK, nullptr, nullptr, __FILE__, __LINE__)
+  NS_DebugBreak(NS_DEBUG_BREAK, nsnull, nsnull, __FILE__, __LINE__)
 
-#else /* DEBUG */
+#else /* NS_DEBUG */
 
 /**
  * The non-debug version of these macros do not evaluate the
  * expression or the message arguments to the macro.
  */
-#define NS_ABORT_IF_FALSE(_expr, _msg) do { /* nothing */ } while(0)
-#define NS_WARN_IF_FALSE(_expr, _msg)  do { /* nothing */ } while(0)
-#define NS_PRECONDITION(expr, str)     do { /* nothing */ } while(0)
-#define NS_ASSERTION(expr, str)        do { /* nothing */ } while(0)
-#define NS_POSTCONDITION(expr, str)    do { /* nothing */ } while(0)
-#define NS_NOTYETIMPLEMENTED(str)      do { /* nothing */ } while(0)
-#define NS_NOTREACHED(str)             do { /* nothing */ } while(0)
-#define NS_ERROR(str)                  do { /* nothing */ } while(0)
-#define NS_WARNING(str)                do { /* nothing */ } while(0)
-#define NS_ABORT()                     do { /* nothing */ } while(0)
-#define NS_BREAK()                     do { /* nothing */ } while(0)
+#define NS_ABORT_IF_FALSE(_expr, _msg) PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define NS_WARN_IF_FALSE(_expr, _msg)  PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define NS_PRECONDITION(expr, str)     PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define NS_ASSERTION(expr, str)        PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define NS_POSTCONDITION(expr, str)    PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define NS_NOTYETIMPLEMENTED(str)      PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define NS_NOTREACHED(str)             PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define NS_ERROR(str)                  PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define NS_WARNING(str)                PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define NS_ABORT()                     PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define NS_BREAK()                     PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
 
-#endif /* ! DEBUG */
+#endif /* ! NS_DEBUG */
 
 /******************************************************************************
 ** Macros for static assertions.  These are used by the sixgill tool.
@@ -176,22 +207,22 @@
 #define STATIC_PASTE1(X,Y) STATIC_PASTE2(X,Y)
 
 #define STATIC_ASSERT(COND)                          \
-  do {                                               \
+  PR_BEGIN_MACRO                                     \
     __attribute__((assert_static(#COND), unused))    \
     int STATIC_PASTE1(assert_static_, __COUNTER__);  \
-  } while(0)
+  PR_END_MACRO
 
 #define STATIC_ASSUME(COND)                          \
-  do {                                               \
+  PR_BEGIN_MACRO                                     \
     __attribute__((assume_static(#COND), unused))    \
     int STATIC_PASTE1(assume_static_, __COUNTER__);  \
-  } while(0)
+  PR_END_MACRO
 
 #define STATIC_ASSERT_RUNTIME(COND)                         \
-  do {                                                      \
+  PR_BEGIN_MACRO                                            \
     __attribute__((assert_static_runtime(#COND), unused))   \
     int STATIC_PASTE1(assert_static_runtime_, __COUNTER__); \
-  } while(0)
+  PR_END_MACRO
 
 #else /* XGILL_PLUGIN */
 
@@ -202,9 +233,9 @@
 #define STATIC_INVARIANT(COND)             /* nothing */
 #define STATIC_INVARIANT_ASSUME(COND)      /* nothing */
 
-#define STATIC_ASSERT(COND)          do { /* nothing */ } while(0)
-#define STATIC_ASSUME(COND)          do { /* nothing */ } while(0)
-#define STATIC_ASSERT_RUNTIME(COND)  do { /* nothing */ } while(0)
+#define STATIC_ASSERT(COND)          PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define STATIC_ASSUME(COND)          PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
+#define STATIC_ASSERT_RUNTIME(COND)  PR_BEGIN_MACRO /* nothing */ PR_END_MACRO
 
 #endif /* XGILL_PLUGIN */
 
@@ -230,7 +261,7 @@
 
 /******************************************************************************
 ** Macros for terminating execution when an unrecoverable condition is
-** reached.  These need to be compiled regardless of the DEBUG flag. 
+** reached.  These need to be compiled regardless of the NS_DEBUG flag. 
 ******************************************************************************/
 
 /**
@@ -239,21 +270,21 @@
  * code (e.g., by intercepting a signal).
  */
 #define NS_RUNTIMEABORT(msg)                                    \
-  NS_DebugBreak(NS_DEBUG_ABORT, msg, nullptr, __FILE__, __LINE__)
+  NS_DebugBreak(NS_DEBUG_ABORT, msg, nsnull, __FILE__, __LINE__)
 
 
 /* Macros for checking the trueness of an expression passed in within an 
  * interface implementation.  These need to be compiled regardless of the */
-/* DEBUG flag
+/* NS_DEBUG flag
 ******************************************************************************/
 
 #define NS_ENSURE_TRUE(x, ret)                                \
-  do {                                                        \
+  PR_BEGIN_MACRO                                              \
     if (NS_UNLIKELY(!(x))) {                                  \
        NS_WARNING("NS_ENSURE_TRUE(" #x ") failed");           \
        return ret;                                            \
     }                                                         \
-  } while(0)
+  PR_END_MACRO
 
 #define NS_ENSURE_FALSE(x, ret)                               \
   NS_ENSURE_TRUE(!(x), ret)
@@ -278,13 +309,13 @@
 #endif
 
 #define NS_ENSURE_SUCCESS(res, ret)                                       \
-  do {                                                                    \
+  PR_BEGIN_MACRO                                                          \
     nsresult __rv = res; /* Don't evaluate |res| more than once */        \
     if (NS_FAILED(__rv)) {                                                \
       NS_ENSURE_SUCCESS_BODY(res, ret)                                    \
       return ret;                                                         \
     }                                                                     \
-  } while(0)
+  PR_END_MACRO
 
 /******************************************************************************
 ** Macros for checking state and arguments upon entering interface boundaries
@@ -317,13 +348,10 @@
 /*****************************************************************************/
 
 #ifdef XPCOM_GLUE
-  #define NS_CheckThreadSafe(owningThread, msg)
-#elif defined MOZ_FATAL_ASSERTIONS_FOR_THREAD_SAFETY
-  #define NS_CheckThreadSafe(owningThread, msg)                 \
-    NS_ABORT_IF_FALSE(owningThread == PR_GetCurrentThread(), msg)
+#define NS_CheckThreadSafe
 #else
-  #define NS_CheckThreadSafe(owningThread, msg)                 \
-    NS_ASSERTION(owningThread == PR_GetCurrentThread(), msg)
+#define NS_CheckThreadSafe(owningThread, msg)                 \
+  NS_ASSERTION(owningThread == PR_GetCurrentThread(), msg)
 #endif
 
 /* When compiling the XPCOM Glue on Windows, we pretend that it's going to
@@ -331,15 +359,11 @@
  * cannot link to data exports from the CRT, only function exports. So,
  * instead of referencing "stderr" directly, use fdopen.
  */
-#ifdef __cplusplus
-extern "C" {
-#endif
+PR_BEGIN_EXTERN_C
 
 NS_COM_GLUE void
 printf_stderr(const char *fmt, ...);
 
-#ifdef __cplusplus
-}
-#endif
+PR_END_EXTERN_C
 
 #endif /* nsDebug_h___ */

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "necko-config.h"
 
@@ -28,7 +60,6 @@
 #include "nsCacheService.h"
 #include "nsDiskCacheDeviceSQL.h"
 #include "nsApplicationCache.h"
-#include "nsApplicationCacheService.h"
 #include "nsMimeTypes.h"
 #include "nsNetStrings.h"
 #include "nsDNSPrefetch.h"
@@ -86,8 +117,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsDownloader)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsSyncStreamListener, Init)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSafeFileOutputStream)
-
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsFileStream)
 
 NS_GENERIC_AGGREGATED_CONSTRUCTOR_INIT(nsLoadGroup, Init)
 
@@ -186,9 +215,11 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsNestedAboutURI)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAboutCacheEntry)
 #endif
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsApplicationCacheService)
+#ifdef NECKO_OFFLINE_CACHE
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsOfflineCacheDevice, nsOfflineCacheDevice::GetInstance)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsApplicationCacheNamespace)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsApplicationCache)
+#endif
 
 #ifdef NECKO_PROTOCOL_file
 // file
@@ -235,10 +266,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsResURL)
 #ifdef NECKO_PROTOCOL_device
 #include "nsDeviceProtocolHandler.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDeviceProtocolHandler)
-#ifdef MOZ_WIDGET_GONK
-#include "nsB2GProtocolHandler.h"
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsB2GProtocolHandler)
-#endif
 #endif
 
 #ifdef NECKO_PROTOCOL_viewsource
@@ -339,7 +366,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsMaemoNetworkLinkService, Init)
 #elif defined(MOZ_ENABLE_QTNETWORK)
 #include "nsQtNetworkLinkService.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsQtNetworkLinkService, Init)
-#elif defined(MOZ_WIDGET_ANDROID)
+#elif defined(ANDROID)
 #include "nsAndroidNetworkLinkService.h"
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAndroidNetworkLinkService)
 #endif
@@ -415,18 +442,18 @@ CreateNewStreamConvServiceFactory(nsISupports* aOuter, REFNSIID aIID, void **aRe
         return NS_ERROR_INVALID_POINTER;                             
     }
     if (aOuter) {                                                    
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
         return NS_ERROR_NO_AGGREGATION;                              
     }   
-    nsStreamConverterService* inst = nullptr;
+    nsStreamConverterService* inst = nsnull;
     nsresult rv = NS_NewStreamConv(&inst);
     if (NS_FAILED(rv)) {                                             
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
         return rv;                                                   
     } 
     rv = inst->QueryInterface(aIID, aResult);
     if (NS_FAILED(rv)) {                                             
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
     }                                                                
     NS_RELEASE(inst);             /* get rid of extra refcnt */      
     return rv;              
@@ -440,18 +467,18 @@ CreateNewFTPDirListingConv(nsISupports* aOuter, REFNSIID aIID, void **aResult)
         return NS_ERROR_INVALID_POINTER;                             
     }
     if (aOuter) {                                                    
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
         return NS_ERROR_NO_AGGREGATION;                              
     }   
-    nsFTPDirListingConv* inst = nullptr;
+    nsFTPDirListingConv* inst = nsnull;
     nsresult rv = NS_NewFTPDirListingConv(&inst);
     if (NS_FAILED(rv)) {                                             
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
         return rv;                                                   
     } 
     rv = inst->QueryInterface(aIID, aResult);
     if (NS_FAILED(rv)) {                                             
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
     }                                                                
     NS_RELEASE(inst);             /* get rid of extra refcnt */      
     return rv;              
@@ -465,18 +492,18 @@ CreateNewMultiMixedConvFactory(nsISupports* aOuter, REFNSIID aIID, void **aResul
         return NS_ERROR_INVALID_POINTER;                             
     }
     if (aOuter) {                                                    
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
         return NS_ERROR_NO_AGGREGATION;                              
     }   
-    nsMultiMixedConv* inst = nullptr;
+    nsMultiMixedConv* inst = nsnull;
     nsresult rv = NS_NewMultiMixedConv(&inst);
     if (NS_FAILED(rv)) {                                             
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
         return rv;                                                   
     } 
     rv = inst->QueryInterface(aIID, aResult);
     if (NS_FAILED(rv)) {                                             
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
     }                                                                
     NS_RELEASE(inst);             /* get rid of extra refcnt */      
     return rv;              
@@ -489,18 +516,18 @@ CreateNewTXTToHTMLConvFactory(nsISupports* aOuter, REFNSIID aIID, void **aResult
         return NS_ERROR_INVALID_POINTER;                             
     }
     if (aOuter) {                                                    
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
         return NS_ERROR_NO_AGGREGATION;                              
     }   
-    mozTXTToHTMLConv* inst = nullptr;
+    mozTXTToHTMLConv* inst = nsnull;
     nsresult rv = MOZ_NewTXTToHTMLConv(&inst);
     if (NS_FAILED(rv)) {                                             
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
         return rv;                                                   
     } 
     rv = inst->QueryInterface(aIID, aResult);
     if (NS_FAILED(rv)) {                                             
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
     }                                                                
     NS_RELEASE(inst);             /* get rid of extra refcnt */      
     return rv;              
@@ -513,18 +540,18 @@ CreateNewHTTPCompressConvFactory (nsISupports* aOuter, REFNSIID aIID, void **aRe
         return NS_ERROR_INVALID_POINTER;                             
     }
     if (aOuter) {                                                    
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
         return NS_ERROR_NO_AGGREGATION;                              
     }   
-    nsHTTPCompressConv* inst = nullptr;
+    nsHTTPCompressConv* inst = nsnull;
     nsresult rv = NS_NewHTTPCompressConv (&inst);
     if (NS_FAILED(rv)) {                                             
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
         return rv;                                                   
     } 
     rv = inst->QueryInterface(aIID, aResult);
     if (NS_FAILED(rv)) {                                             
-        *aResult = nullptr;                                           
+        *aResult = nsnull;                                           
     }                                                                
     NS_RELEASE(inst);             /* get rid of extra refcnt */      
     return rv;              
@@ -538,7 +565,7 @@ CreateNewUnknownDecoderFactory(nsISupports *aOuter, REFNSIID aIID, void **aResul
   if (!aResult) {
     return NS_ERROR_NULL_POINTER;
   }
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   if (aOuter) {
     return NS_ERROR_NO_AGGREGATION;
@@ -565,7 +592,7 @@ CreateNewBinaryDetectorFactory(nsISupports *aOuter, REFNSIID aIID, void **aResul
   if (!aResult) {
     return NS_ERROR_NULL_POINTER;
   }
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   if (aOuter) {
     return NS_ERROR_NO_AGGREGATION;
@@ -590,7 +617,7 @@ CreateNewNSTXTToHTMLConvFactory(nsISupports *aOuter, REFNSIID aIID, void **aResu
   if (!aResult) {
     return NS_ERROR_NULL_POINTER;
   }
-  *aResult = nullptr;
+  *aResult = nsnull;
 
   if (aOuter) {
     return NS_ERROR_NO_AGGREGATION;
@@ -630,6 +657,9 @@ static void nsNetShutdown()
     // Release the url parser that the stdurl is holding.
     nsStandardURL::ShutdownGlobalObjects();
 
+    // Release buffer cache
+    NS_IF_RELEASE(nsIOService::gBufferCache);
+
     // Release global state used by the URL helper module.
     net_ShutdownURLHelper();
 #ifdef XP_MACOSX
@@ -638,7 +668,7 @@ static void nsNetShutdown()
     
     // Release necko strings
     delete gNetStrings;
-    gNetStrings = nullptr;
+    gNetStrings = nsnull;
     
     // Release DNS service reference.
     nsDNSPrefetch::Shutdown();
@@ -674,7 +704,6 @@ NS_DEFINE_NAMED_CID(NS_LOCALFILEINPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_LOCALFILEOUTPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_PARTIALLOCALFILEINPUTSTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_SAFELOCALFILEOUTPUTSTREAM_CID);
-NS_DEFINE_NAMED_CID(NS_LOCALFILESTREAM_CID);
 NS_DEFINE_NAMED_CID(NS_URICHECKER_CID);
 NS_DEFINE_NAMED_CID(NS_INCREMENTALDOWNLOAD_CID);
 NS_DEFINE_NAMED_CID(NS_STDURLPARSER_CID);
@@ -740,9 +769,11 @@ NS_DEFINE_NAMED_CID(NS_SOCKSSOCKETPROVIDER_CID);
 NS_DEFINE_NAMED_CID(NS_SOCKS4SOCKETPROVIDER_CID);
 NS_DEFINE_NAMED_CID(NS_UDPSOCKETPROVIDER_CID);
 NS_DEFINE_NAMED_CID(NS_CACHESERVICE_CID);
+#ifdef NECKO_OFFLINE_CACHE
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHESERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHENAMESPACE_CID);
 NS_DEFINE_NAMED_CID(NS_APPLICATIONCACHE_CID);
+#endif
 #ifdef NECKO_COOKIES
 NS_DEFINE_NAMED_CID(NS_COOKIEMANAGER_CID);
 NS_DEFINE_NAMED_CID(NS_COOKIESERVICE_CID);
@@ -755,9 +786,6 @@ NS_DEFINE_NAMED_CID(NS_DATAPROTOCOLHANDLER_CID);
 #endif
 #ifdef NECKO_PROTOCOL_device
 NS_DEFINE_NAMED_CID(NS_DEVICEPROTOCOLHANDLER_CID);
-#ifdef MOZ_WIDGET_GONK
-NS_DEFINE_NAMED_CID(NS_B2GPROTOCOLHANDLER_CID);
-#endif
 #endif
 #ifdef NECKO_PROTOCOL_viewsource
 NS_DEFINE_NAMED_CID(NS_VIEWSOURCEHANDLER_CID);
@@ -777,7 +805,7 @@ NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 #elif defined(MOZ_ENABLE_QTNETWORK)
 NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
-#elif defined(MOZ_WIDGET_ANDROID)
+#elif defined(ANDROID)
 NS_DEFINE_NAMED_CID(NS_NETWORK_LINK_SERVICE_CID);
 #endif
 NS_DEFINE_NAMED_CID(NS_SERIALIZATION_HELPER_CID);
@@ -809,7 +837,6 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_LOCALFILEOUTPUTSTREAM_CID, false, NULL, nsFileOutputStream::Create },
     { &kNS_PARTIALLOCALFILEINPUTSTREAM_CID, false, NULL, nsPartialFileInputStream::Create },
     { &kNS_SAFELOCALFILEOUTPUTSTREAM_CID, false, NULL, nsSafeFileOutputStreamConstructor },
-    { &kNS_LOCALFILESTREAM_CID, false, NULL, nsFileStreamConstructor },
     { &kNS_URICHECKER_CID, false, NULL, nsURICheckerConstructor },
     { &kNS_INCREMENTALDOWNLOAD_CID, false, NULL, net_NewIncrementalDownload },
     { &kNS_STDURLPARSER_CID, false, NULL, nsStdURLParserConstructor },
@@ -875,9 +902,11 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_SOCKS4SOCKETPROVIDER_CID, false, NULL, nsSOCKSSocketProvider::CreateV4 },
     { &kNS_UDPSOCKETPROVIDER_CID, false, NULL, nsUDPSocketProviderConstructor },
     { &kNS_CACHESERVICE_CID, false, NULL, nsCacheService::Create },
-    { &kNS_APPLICATIONCACHESERVICE_CID, false, NULL, nsApplicationCacheServiceConstructor },
+#ifdef NECKO_OFFLINE_CACHE
+    { &kNS_APPLICATIONCACHESERVICE_CID, false, NULL, nsOfflineCacheDeviceConstructor },
     { &kNS_APPLICATIONCACHENAMESPACE_CID, false, NULL, nsApplicationCacheNamespaceConstructor },
     { &kNS_APPLICATIONCACHE_CID, false, NULL, nsApplicationCacheConstructor },
+#endif
 #ifdef NECKO_COOKIES
     { &kNS_COOKIEMANAGER_CID, false, NULL, nsICookieServiceConstructor },
     { &kNS_COOKIESERVICE_CID, false, NULL, nsICookieServiceConstructor },
@@ -890,9 +919,6 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
 #endif
 #ifdef NECKO_PROTOCOL_device
     { &kNS_DEVICEPROTOCOLHANDLER_CID, false, NULL, nsDeviceProtocolHandlerConstructor},
-#ifdef MOZ_WIDGET_GONK
-    { &kNS_B2GPROTOCOLHANDLER_CID, false, NULL, nsB2GProtocolHandlerConstructor},
-#endif
 #endif
 #ifdef NECKO_PROTOCOL_viewsource
     { &kNS_VIEWSOURCEHANDLER_CID, false, NULL, nsViewSourceHandlerConstructor },
@@ -914,7 +940,7 @@ static const mozilla::Module::CIDEntry kNeckoCIDs[] = {
     { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsMaemoNetworkLinkServiceConstructor },
 #elif defined(MOZ_ENABLE_QTNETWORK)
     { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsQtNetworkLinkServiceConstructor },
-#elif defined(MOZ_WIDGET_ANDROID)
+#elif defined(ANDROID)
     { &kNS_NETWORK_LINK_SERVICE_CID, false, NULL, nsAndroidNetworkLinkServiceConstructor },
 #endif
     { &kNS_SERIALIZATION_HELPER_CID, false, NULL, nsSerializationHelperConstructor },
@@ -948,7 +974,6 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_LOCALFILEOUTPUTSTREAM_CONTRACTID, &kNS_LOCALFILEOUTPUTSTREAM_CID },
     { NS_PARTIALLOCALFILEINPUTSTREAM_CONTRACTID, &kNS_PARTIALLOCALFILEINPUTSTREAM_CID },
     { NS_SAFELOCALFILEOUTPUTSTREAM_CONTRACTID, &kNS_SAFELOCALFILEOUTPUTSTREAM_CID },
-    { NS_LOCALFILESTREAM_CONTRACTID, &kNS_LOCALFILESTREAM_CID },
     { NS_URICHECKER_CONTRACT_ID, &kNS_URICHECKER_CID },
     { NS_INCREMENTALDOWNLOAD_CONTRACTID, &kNS_INCREMENTALDOWNLOAD_CID },
     { NS_STDURLPARSER_CONTRACTID, &kNS_STDURLPARSER_CID },
@@ -1019,9 +1044,11 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_NETWORK_SOCKET_CONTRACTID_PREFIX "socks4", &kNS_SOCKS4SOCKETPROVIDER_CID },
     { NS_NETWORK_SOCKET_CONTRACTID_PREFIX "udp", &kNS_UDPSOCKETPROVIDER_CID },
     { NS_CACHESERVICE_CONTRACTID, &kNS_CACHESERVICE_CID },
+#ifdef NECKO_OFFLINE_CACHE
     { NS_APPLICATIONCACHESERVICE_CONTRACTID, &kNS_APPLICATIONCACHESERVICE_CID },
     { NS_APPLICATIONCACHENAMESPACE_CONTRACTID, &kNS_APPLICATIONCACHENAMESPACE_CID },
     { NS_APPLICATIONCACHE_CONTRACTID, &kNS_APPLICATIONCACHE_CID },
+#endif
 #ifdef NECKO_COOKIES
     { NS_COOKIEMANAGER_CONTRACTID, &kNS_COOKIEMANAGER_CID },
     { NS_COOKIESERVICE_CONTRACTID, &kNS_COOKIESERVICE_CID },
@@ -1034,9 +1061,6 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
 #endif
 #ifdef NECKO_PROTOCOL_device
     { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "moz-device", &kNS_DEVICEPROTOCOLHANDLER_CID },
-#ifdef MOZ_WIDGET_GONK
-    { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "b2g-camera", &kNS_B2GPROTOCOLHANDLER_CID },
-#endif
 #endif
 #ifdef NECKO_PROTOCOL_viewsource
     { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "view-source", &kNS_VIEWSOURCEHANDLER_CID },
@@ -1056,7 +1080,7 @@ static const mozilla::Module::ContractIDEntry kNeckoContracts[] = {
     { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
 #elif defined(MOZ_ENABLE_QTNETWORK)
     { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
-#elif defined(MOZ_WIDGET_ANDROID)
+#elif defined(ANDROID)
     { NS_NETWORK_LINK_SERVICE_CONTRACTID, &kNS_NETWORK_LINK_SERVICE_CID },
 #endif
     { NS_SERIALIZATION_HELPER_CONTRACTID, &kNS_SERIALIZATION_HELPER_CID },

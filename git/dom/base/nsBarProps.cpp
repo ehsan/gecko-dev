@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Travis Bogard <travis@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsBarProps.h"
 
@@ -14,7 +47,7 @@
 #include "nsIScrollable.h"
 #include "nsIWebBrowserChrome.h"
 #include "nsIDOMWindow.h"
-#include "nsDOMClassInfoID.h"
+#include "nsDOMClassInfo.h"
 
 //
 //  Basic (virtual) BarProp class implementation
@@ -45,39 +78,39 @@ NS_IMPL_ADDREF(nsBarProp)
 NS_IMPL_RELEASE(nsBarProp)
 
 NS_IMETHODIMP
-nsBarProp::GetVisibleByFlag(bool *aVisible, uint32_t aChromeFlag)
+nsBarProp::GetVisibleByFlag(PRBool *aVisible, PRUint32 aChromeFlag)
 {
-  *aVisible = false;
+  *aVisible = PR_FALSE;
 
   nsCOMPtr<nsIWebBrowserChrome> browserChrome = GetBrowserChrome();
   NS_ENSURE_TRUE(browserChrome, NS_OK);
 
-  uint32_t chromeFlags;
+  PRUint32 chromeFlags;
 
   NS_ENSURE_SUCCESS(browserChrome->GetChromeFlags(&chromeFlags),
                     NS_ERROR_FAILURE);
   if (chromeFlags & aChromeFlag)
-    *aVisible = true;
+    *aVisible = PR_TRUE;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsBarProp::SetVisibleByFlag(bool aVisible, uint32_t aChromeFlag)
+nsBarProp::SetVisibleByFlag(PRBool aVisible, PRUint32 aChromeFlag)
 {
   nsCOMPtr<nsIWebBrowserChrome> browserChrome = GetBrowserChrome();
   NS_ENSURE_TRUE(browserChrome, NS_OK);
 
-  bool enabled = false;
+  PRBool enabled = PR_FALSE;
 
   nsCOMPtr<nsIScriptSecurityManager>
            securityManager(do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID));
   if (securityManager)
-    securityManager->IsCapabilityEnabled("UniversalXPConnect", &enabled);
+    securityManager->IsCapabilityEnabled("UniversalBrowserWrite", &enabled);
   if (!enabled)
     return NS_OK;
 
-  uint32_t chromeFlags;
+  PRUint32 chromeFlags;
 
   NS_ENSURE_SUCCESS(browserChrome->GetChromeFlags(&chromeFlags),
                     NS_ERROR_FAILURE);
@@ -97,9 +130,9 @@ nsBarProp::GetBrowserChrome()
   // Check that the window is still alive.
   nsCOMPtr<nsIDOMWindow> domwin(do_QueryReferent(mDOMWindowWeakref));
   if (!domwin)
-    return nullptr;
+    return nsnull;
 
-  nsIWebBrowserChrome *browserChrome = nullptr;
+  nsIWebBrowserChrome *browserChrome = nsnull;
   mDOMWindow->GetWebBrowserChrome(&browserChrome);
   return browserChrome;
 }
@@ -118,14 +151,14 @@ nsMenubarProp::~nsMenubarProp()
 }
 
 NS_IMETHODIMP
-nsMenubarProp::GetVisible(bool *aVisible)
+nsMenubarProp::GetVisible(PRBool *aVisible)
 {
   return nsBarProp::GetVisibleByFlag(aVisible,
                                      nsIWebBrowserChrome::CHROME_MENUBAR);
 }
 
 NS_IMETHODIMP
-nsMenubarProp::SetVisible(bool aVisible)
+nsMenubarProp::SetVisible(PRBool aVisible)
 {
   return nsBarProp::SetVisibleByFlag(aVisible,
                                      nsIWebBrowserChrome::CHROME_MENUBAR);
@@ -145,14 +178,14 @@ nsToolbarProp::~nsToolbarProp()
 }
 
 NS_IMETHODIMP
-nsToolbarProp::GetVisible(bool *aVisible)
+nsToolbarProp::GetVisible(PRBool *aVisible)
 {
   return nsBarProp::GetVisibleByFlag(aVisible,
                                      nsIWebBrowserChrome::CHROME_TOOLBAR);
 }
 
 NS_IMETHODIMP
-nsToolbarProp::SetVisible(bool aVisible)
+nsToolbarProp::SetVisible(PRBool aVisible)
 {
   return nsBarProp::SetVisibleByFlag(aVisible,
                                      nsIWebBrowserChrome::CHROME_TOOLBAR);
@@ -172,7 +205,7 @@ nsLocationbarProp::~nsLocationbarProp()
 }
 
 NS_IMETHODIMP
-nsLocationbarProp::GetVisible(bool *aVisible)
+nsLocationbarProp::GetVisible(PRBool *aVisible)
 {
   return
     nsBarProp::GetVisibleByFlag(aVisible,
@@ -180,7 +213,7 @@ nsLocationbarProp::GetVisible(bool *aVisible)
 }
 
 NS_IMETHODIMP
-nsLocationbarProp::SetVisible(bool aVisible)
+nsLocationbarProp::SetVisible(PRBool aVisible)
 {
   return
     nsBarProp::SetVisibleByFlag(aVisible,
@@ -201,7 +234,7 @@ nsPersonalbarProp::~nsPersonalbarProp()
 }
 
 NS_IMETHODIMP
-nsPersonalbarProp::GetVisible(bool *aVisible)
+nsPersonalbarProp::GetVisible(PRBool *aVisible)
 {
   return
     nsBarProp::GetVisibleByFlag(aVisible,
@@ -209,7 +242,7 @@ nsPersonalbarProp::GetVisible(bool *aVisible)
 }
 
 NS_IMETHODIMP
-nsPersonalbarProp::SetVisible(bool aVisible)
+nsPersonalbarProp::SetVisible(PRBool aVisible)
 {
   return
     nsBarProp::SetVisibleByFlag(aVisible,
@@ -230,14 +263,14 @@ nsStatusbarProp::~nsStatusbarProp()
 }
 
 NS_IMETHODIMP
-nsStatusbarProp::GetVisible(bool *aVisible)
+nsStatusbarProp::GetVisible(PRBool *aVisible)
 {
   return nsBarProp::GetVisibleByFlag(aVisible,
                                      nsIWebBrowserChrome::CHROME_STATUSBAR);
 }
 
 NS_IMETHODIMP
-nsStatusbarProp::SetVisible(bool aVisible)
+nsStatusbarProp::SetVisible(PRBool aVisible)
 {
   return nsBarProp::SetVisibleByFlag(aVisible,
                                      nsIWebBrowserChrome::CHROME_STATUSBAR);
@@ -257,9 +290,9 @@ nsScrollbarsProp::~nsScrollbarsProp()
 }
 
 NS_IMETHODIMP
-nsScrollbarsProp::GetVisible(bool *aVisible)
+nsScrollbarsProp::GetVisible(PRBool *aVisible)
 {
-  *aVisible = true; // one assumes
+  *aVisible = PR_TRUE; // one assumes
 
   nsCOMPtr<nsIDOMWindow> domwin(do_QueryReferent(mDOMWindowWeakref));
   if (domwin) { // dom window not deleted
@@ -267,7 +300,7 @@ nsScrollbarsProp::GetVisible(bool *aVisible)
       do_QueryInterface(mDOMWindow->GetDocShell());
 
     if (scroller) {
-      int32_t prefValue;
+      PRInt32 prefValue;
       scroller->GetDefaultScrollbarPreferences(
                   nsIScrollable::ScrollOrientation_Y, &prefValue);
       if (prefValue == nsIScrollable::Scrollbar_Never) // try the other way
@@ -275,7 +308,7 @@ nsScrollbarsProp::GetVisible(bool *aVisible)
                     nsIScrollable::ScrollOrientation_X, &prefValue);
 
       if (prefValue == nsIScrollable::Scrollbar_Never)
-        *aVisible = false;
+        *aVisible = PR_FALSE;
     }
   }
 
@@ -283,14 +316,14 @@ nsScrollbarsProp::GetVisible(bool *aVisible)
 }
 
 NS_IMETHODIMP
-nsScrollbarsProp::SetVisible(bool aVisible)
+nsScrollbarsProp::SetVisible(PRBool aVisible)
 {
-  bool     enabled = false;
+  PRBool   enabled = PR_FALSE;
 
   nsCOMPtr<nsIScriptSecurityManager>
            securityManager(do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID));
   if (securityManager)
-    securityManager->IsCapabilityEnabled("UniversalXPConnect", &enabled);
+    securityManager->IsCapabilityEnabled("UniversalBrowserWrite", &enabled);
   if (!enabled)
     return NS_OK;
 
@@ -307,7 +340,7 @@ nsScrollbarsProp::SetVisible(bool aVisible)
       do_QueryInterface(mDOMWindow->GetDocShell());
 
     if (scroller) {
-      int32_t prefValue;
+      PRInt32 prefValue;
 
       if (aVisible) {
         prefValue = nsIScrollable::Scrollbar_Auto;

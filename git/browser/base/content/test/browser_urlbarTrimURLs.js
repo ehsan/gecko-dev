@@ -4,7 +4,6 @@
 
 function testVal(originalValue, targetValue) {
   gURLBar.value = originalValue;
-  gURLBar.valueIsTyped = false;
   is(gURLBar.value, targetValue || originalValue, "url bar value set");
 }
 
@@ -32,13 +31,7 @@ function test() {
   testVal("http://mozilla.org/sub/", "mozilla.org/sub/");
 
   testVal("http://ftp.mozilla.org/", "http://ftp.mozilla.org");
-  testVal("http://ftp1.mozilla.org/", "http://ftp1.mozilla.org");
-  testVal("http://ftp42.mozilla.org/", "http://ftp42.mozilla.org");
-  testVal("http://ftpx.mozilla.org/", "ftpx.mozilla.org");
   testVal("ftp://ftp.mozilla.org/", "ftp://ftp.mozilla.org");
-  testVal("ftp://ftp1.mozilla.org/", "ftp://ftp1.mozilla.org");
-  testVal("ftp://ftp42.mozilla.org/", "ftp://ftp42.mozilla.org");
-  testVal("ftp://ftpx.mozilla.org/", "ftp://ftpx.mozilla.org");
 
   testVal("https://user:pass@mozilla.org/", "https://user:pass@mozilla.org");
   testVal("http://user:pass@mozilla.org/", "http://user:pass@mozilla.org");
@@ -70,7 +63,6 @@ function test() {
 
     testCopy("example.com", "http://example.com/", function () {
       SetPageProxyState("invalid");
-      gURLBar.valueIsTyped = true;
       testCopy("example.com", "example.com", finish);
     });
   }, true);

@@ -12,8 +12,6 @@
 #ifndef SUBPIXEL_X86_H
 #define SUBPIXEL_X86_H
 
-#include "filter_x86.h"
-
 /* Note:
  *
  * This platform is commonly built for runtime CPU detection. If you modify

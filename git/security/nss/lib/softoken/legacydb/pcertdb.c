@@ -37,7 +37,7 @@
 /*
  * Permanent Certificate database handling code 
  *
- * $Id: pcertdb.c,v 1.12 2010/07/20 01:26:04 wtc%google.com Exp $
+ * $Id: pcertdb.c,v 1.11 2009/04/13 17:23:15 nelson%bolyard.com Exp $
  */
 #include "lowkeyti.h"
 #include "pcert.h"
@@ -1032,8 +1032,9 @@ DeleteDBCertEntry(NSSLOWCERTCertDBHandle *handle, SECItem *certKey)
 	goto loser;
     }
 
-    PORT_Free(dbkey.data);
-
+    if (dbkey.data) {
+	PORT_Free(dbkey.data);
+    }
     return(SECSuccess);
 
 loser:

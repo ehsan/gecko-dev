@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=79: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Joe Hewitt <hewitt@netscape.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "inDeepTreeWalker.h"
 #include "inLayoutUtils.h"
@@ -25,8 +58,8 @@
 ////////////////////////////////////////////////////
 
 inDeepTreeWalker::inDeepTreeWalker() 
-  : mShowAnonymousContent(false),
-    mShowSubDocuments(false),
+  : mShowAnonymousContent(PR_FALSE),
+    mShowSubDocuments(PR_FALSE),
     mWhatToShow(nsIDOMNodeFilter::SHOW_ALL)
 {
 }
@@ -43,35 +76,35 @@ NS_IMPL_ISUPPORTS2(inDeepTreeWalker,
 // inIDeepTreeWalker
 
 NS_IMETHODIMP
-inDeepTreeWalker::GetShowAnonymousContent(bool *aShowAnonymousContent)
+inDeepTreeWalker::GetShowAnonymousContent(PRBool *aShowAnonymousContent)
 {
   *aShowAnonymousContent = mShowAnonymousContent;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-inDeepTreeWalker::SetShowAnonymousContent(bool aShowAnonymousContent)
+inDeepTreeWalker::SetShowAnonymousContent(PRBool aShowAnonymousContent)
 {
   mShowAnonymousContent = aShowAnonymousContent;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-inDeepTreeWalker::GetShowSubDocuments(bool *aShowSubDocuments)
+inDeepTreeWalker::GetShowSubDocuments(PRBool *aShowSubDocuments)
 {
   *aShowSubDocuments = mShowSubDocuments;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-inDeepTreeWalker::SetShowSubDocuments(bool aShowSubDocuments)
+inDeepTreeWalker::SetShowSubDocuments(PRBool aShowSubDocuments)
 {
   mShowSubDocuments = aShowSubDocuments;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-inDeepTreeWalker::Init(nsIDOMNode* aRoot, uint32_t aWhatToShow)
+inDeepTreeWalker::Init(nsIDOMNode* aRoot, PRUint32 aWhatToShow)
 {
   mRoot = aRoot;
   mWhatToShow = aWhatToShow;
@@ -94,7 +127,7 @@ inDeepTreeWalker::GetRoot(nsIDOMNode** aRoot)
 }
 
 NS_IMETHODIMP 
-inDeepTreeWalker::GetWhatToShow(uint32_t* aWhatToShow)
+inDeepTreeWalker::GetWhatToShow(PRUint32* aWhatToShow)
 {
   *aWhatToShow = mWhatToShow;
   return NS_OK;
@@ -107,7 +140,7 @@ inDeepTreeWalker::GetFilter(nsIDOMNodeFilter** aFilter)
 }
 
 NS_IMETHODIMP
-inDeepTreeWalker::GetExpandEntityReferences(bool* aExpandEntityReferences)
+inDeepTreeWalker::GetExpandEntityReferences(PRBool* aExpandEntityReferences)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -130,7 +163,7 @@ inDeepTreeWalker::SetCurrentNode(nsIDOMNode* aCurrentNode)
 NS_IMETHODIMP
 inDeepTreeWalker::ParentNode(nsIDOMNode** _retval)
 {
-  *_retval = nullptr;
+  *_retval = nsnull;
   if (!mCurrentNode) return NS_OK;
 
   if (mStack.Length() == 1) {
@@ -150,7 +183,7 @@ inDeepTreeWalker::ParentNode(nsIDOMNode** _retval)
 NS_IMETHODIMP
 inDeepTreeWalker::FirstChild(nsIDOMNode **_retval)
 {
-  *_retval = nullptr;
+  *_retval = nsnull;
   if (!mCurrentNode) {
     return NS_OK;
   }
@@ -170,14 +203,14 @@ inDeepTreeWalker::FirstChild(nsIDOMNode **_retval)
 NS_IMETHODIMP
 inDeepTreeWalker::LastChild(nsIDOMNode **_retval)
 {
-  *_retval = nullptr;
+  *_retval = nsnull;
   if (!mCurrentNode) {
     return NS_OK;
   }
 
   DeepTreeStackItem& top = mStack.ElementAt(mStack.Length() - 1);
   nsCOMPtr<nsIDOMNode> kid;
-  uint32_t length;
+  PRUint32 length;
   top.kids->GetLength(&length);
   top.kids->Item(length - 1, getter_AddRefs(kid));
   if (!kid) {
@@ -192,7 +225,7 @@ inDeepTreeWalker::LastChild(nsIDOMNode **_retval)
 NS_IMETHODIMP
 inDeepTreeWalker::PreviousSibling(nsIDOMNode **_retval)
 {
-  *_retval = nullptr;
+  *_retval = nsnull;
   if (!mCurrentNode) {
     return NS_OK;
   }
@@ -224,7 +257,7 @@ inDeepTreeWalker::PreviousSibling(nsIDOMNode **_retval)
 NS_IMETHODIMP
 inDeepTreeWalker::NextSibling(nsIDOMNode **_retval)
 {
-  *_retval = nullptr;
+  *_retval = nsnull;
   if (!mCurrentNode) {
     return NS_OK;
   }
@@ -258,7 +291,7 @@ inDeepTreeWalker::PreviousNode(nsIDOMNode **_retval)
 {
   if (!mCurrentNode || mStack.Length() == 1) {
     // Nowhere to go from here
-    *_retval = nullptr;
+    *_retval = nsnull;
     return NS_OK;
   }
 
@@ -297,7 +330,7 @@ inDeepTreeWalker::NextNode(nsIDOMNode **_retval)
 #ifdef DEBUG
   nsIDOMNode* origCurrentNode = mCurrentNode;
 #endif
-  uint32_t lastChildCallsToMake = 0;
+  PRUint32 lastChildCallsToMake = 0;
   while (1) {
     NextSibling(_retval);
 
@@ -315,7 +348,7 @@ inDeepTreeWalker::NextNode(nsIDOMNode **_retval)
       }
       NS_ASSERTION(mCurrentNode == origCurrentNode,
                    "Didn't go back to the right node?");
-      *_retval = nullptr;
+      *_retval = nsnull;
       return NS_OK;
     }
     ++lastChildCallsToMake;

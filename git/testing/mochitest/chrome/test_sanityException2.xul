@@ -7,6 +7,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=670817
 <window title="Mozilla Bug 670817"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
+  <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"/>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
 
 <body xmlns="http://www.w3.org/1999/xhtml">
@@ -17,7 +18,7 @@ SimpleTest.waitForExplicitFinish();
 ok(true, "a call to ok");
 SimpleTest.executeSoon(function() {
   SimpleTest.expectUncaughtException();
-  throw "this is a deliberately thrown exception";
+  throw "an uncaught exception";
 });
 SimpleTest.executeSoon(function() {
   SimpleTest.finish();

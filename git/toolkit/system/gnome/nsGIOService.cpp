@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla GNOME integration code.
+ *
+ * The Initial Developer of the Original Code is
+ * Red Hat, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Jan Horak <jhorak@redhat.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsGIOService.h"
 #include "nsStringAPI.h"
@@ -27,7 +60,7 @@ get_content_type_from_mime_type(const char *mimeType)
   while (ct_ptr) {
     char *mimeTypeFromContentType =  g_content_type_get_mime_type((char*)ct_ptr->data);
     if (strcmp(mimeTypeFromContentType, mimeType) == 0) {
-      foundContentType = g_strdup((char*)ct_ptr->data);
+      foundContentType = strdup((char*)ct_ptr->data);
       g_free(mimeTypeFromContentType);
       break;
     }
@@ -93,7 +126,7 @@ nsGIOMimeApp::GetCommand(nsACString& aCommand)
 }
 
 NS_IMETHODIMP
-nsGIOMimeApp::GetExpectsURIs(int32_t* aExpects)
+nsGIOMimeApp::GetExpectsURIs(PRInt32* aExpects)
 {
   *aExpects = g_app_info_supports_uris(mApp);
   return NS_OK;
@@ -128,13 +161,13 @@ public:
   NS_DECL_NSIUTF8STRINGENUMERATOR
 
   nsTArray<nsCString> mStrings;
-  uint32_t            mIndex;
+  PRUint32            mIndex;
 };
 
 NS_IMPL_ISUPPORTS1(GIOUTF8StringEnumerator, nsIUTF8StringEnumerator)
 
 NS_IMETHODIMP
-GIOUTF8StringEnumerator::HasMore(bool* aResult)
+GIOUTF8StringEnumerator::HasMore(PRBool* aResult)
 {
   *aResult = mIndex < mStrings.Length();
   return NS_OK;
@@ -154,7 +187,7 @@ GIOUTF8StringEnumerator::GetNext(nsACString& aResult)
 NS_IMETHODIMP
 nsGIOMimeApp::GetSupportedURISchemes(nsIUTF8StringEnumerator** aSchemes)
 {
-  *aSchemes = nullptr;
+  *aSchemes = nsnull;
 
   nsRefPtr<GIOUTF8StringEnumerator> array = new GIOUTF8StringEnumerator();
   NS_ENSURE_TRUE(array, NS_ERROR_OUT_OF_MEMORY);
@@ -212,7 +245,7 @@ NS_IMETHODIMP
 nsGIOMimeApp::SetAsDefaultForFileExtensions(nsACString const& fileExts)
 {
   GError *error = NULL;
-  char *extensions = g_strdup(PromiseFlatCString(fileExts).get());
+  char *extensions = strdup(PromiseFlatCString(fileExts).get());
   char *ext_pos = extensions;
   char *space_pos;
 
@@ -249,7 +282,7 @@ NS_IMETHODIMP
 nsGIOMimeApp::SetAsDefaultForURIScheme(nsACString const& aURIScheme)
 {
   GError *error = NULL;
-  nsAutoCString contentType("x-scheme-handler/");
+  nsCAutoString contentType("x-scheme-handler/");
   contentType.Append(aURIScheme);
 
   g_app_info_set_as_default_for_type(mApp,
@@ -272,7 +305,7 @@ NS_IMETHODIMP
 nsGIOService::GetMimeTypeFromExtension(const nsACString& aExtension,
                                              nsACString& aMimeType)
 {
-  nsAutoCString fileExtToUse("file.");
+  nsCAutoString fileExtToUse("file.");
   fileExtToUse.Append(aExtension);
 
   gboolean result_uncertain;
@@ -302,7 +335,7 @@ NS_IMETHODIMP
 nsGIOService::GetAppForURIScheme(const nsACString& aURIScheme,
                                  nsIGIOMimeApp** aApp)
 {
-  *aApp = nullptr;
+  *aApp = nsnull;
 
   GAppInfo *app_info = g_app_info_get_default_for_uri_scheme(
                           PromiseFlatCString(aURIScheme).get());
@@ -319,7 +352,7 @@ NS_IMETHODIMP
 nsGIOService::GetAppForMimeType(const nsACString& aMimeType,
                                 nsIGIOMimeApp**   aApp)
 {
-  *aApp = nullptr;
+  *aApp = nsnull;
   char *content_type =
     get_content_type_from_mime_type(PromiseFlatCString(aMimeType).get());
   if (!content_type)
@@ -362,7 +395,7 @@ nsGIOService::GetDescriptionForMimeType(const nsACString& aMimeType,
 NS_IMETHODIMP
 nsGIOService::ShowURI(nsIURI* aURI)
 {
-  nsAutoCString spec;
+  nsCAutoString spec;
   aURI->GetSpec(spec);
   GError *error = NULL;
   if (!g_app_info_launch_default_for_uri(spec.get(), NULL, &error)) {
@@ -408,7 +441,7 @@ nsGIOService::CreateAppFromCommand(nsACString const& cmd,
                                    nsIGIOMimeApp**   appInfo)
 {
   GError *error = NULL;
-  *appInfo = nullptr;
+  *appInfo = nsnull;
 
   GAppInfo *app_info = NULL, *app_info_from_list = NULL;
   GList *apps = g_app_info_get_all();

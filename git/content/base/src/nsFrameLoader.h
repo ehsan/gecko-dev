@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Johnny Stenback <jst@netscape.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Class for managing loading of a subframe (creation of the docshell,
@@ -19,20 +52,14 @@
 #include "nsIURI.h"
 #include "nsAutoPtr.h"
 #include "nsFrameMessageManager.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/Attributes.h"
-#include "FrameMetrics.h"
-#include "nsStubMutationObserver.h"
+#include "Layers.h"
 
+class nsIContent;
 class nsIURI;
 class nsSubDocumentFrame;
 class nsIView;
 class nsIInProcessContentFrameMessageManager;
 class AutoResetInShow;
-class nsITabParent;
-class nsIDocShellTreeItem;
-class nsIDocShellTreeOwner;
-class nsIDocShellTreeNode;
 
 namespace mozilla {
 namespace dom {
@@ -61,7 +88,7 @@ class QX11EmbedContainer;
  * Used to support asynchronous re-paints of content pixels; see
  * nsIContentView.
  */
-class nsContentView MOZ_FINAL : public nsIContentView
+class nsContentView : public nsIContentView
 {
 public:
   typedef mozilla::layers::FrameMetrics::ViewID ViewID;
@@ -77,7 +104,7 @@ public:
 
     // Default copy ctor and operator= are fine
 
-    bool operator==(const ViewConfig& aOther) const
+    PRBool operator==(const ViewConfig& aOther) const
     {
       return (mScrollOffset == aOther.mScrollOffset &&
               mXScale == aOther.mXScale &&
@@ -100,13 +127,11 @@ public:
     float mYScale;
   };
 
-  nsContentView(nsFrameLoader* aFrameLoader, ViewID aScrollId,
+  nsContentView(nsIContent* aOwnerContent, ViewID aScrollId,
                 ViewConfig aConfig = ViewConfig())
     : mViewportSize(0, 0)
     , mContentSize(0, 0)
-    , mParentScaleX(1.0)
-    , mParentScaleY(1.0)
-    , mFrameLoader(aFrameLoader)
+    , mOwnerContent(aOwnerContent)
     , mScrollId(aScrollId)
     , mConfig(aConfig)
   {}
@@ -125,10 +150,8 @@ public:
 
   nsSize mViewportSize;
   nsSize mContentSize;
-  float mParentScaleX;
-  float mParentScaleY;
 
-  nsFrameLoader* mFrameLoader;  // WEAK
+  nsIContent *mOwnerContent; // WEAK
 
 private:
   nsresult Update(const ViewConfig& aConfig);
@@ -138,9 +161,8 @@ private:
 };
 
 
-class nsFrameLoader MOZ_FINAL : public nsIFrameLoader,
-                                public nsIContentViewManager,
-                                public nsStubMutationObserver
+class nsFrameLoader : public nsIFrameLoader,
+                      public nsIContentViewManager
 {
   friend class AutoResetInShow;
   typedef mozilla::dom::PBrowserParent PBrowserParent;
@@ -148,30 +170,28 @@ class nsFrameLoader MOZ_FINAL : public nsIFrameLoader,
   typedef mozilla::layout::RenderFrameParent RenderFrameParent;
 
 protected:
-  nsFrameLoader(mozilla::dom::Element* aOwner, bool aNetworkCreated);
+  nsFrameLoader(nsIContent *aOwner, PRBool aNetworkCreated);
 
 public:
   ~nsFrameLoader() {
-    mNeedsAsyncDestroy = true;
+    mNeedsAsyncDestroy = PR_TRUE;
     if (mMessageManager) {
       mMessageManager->Disconnect();
     }
     nsFrameLoader::Destroy();
   }
 
-  bool AsyncScrollEnabled() const
+  PRBool AsyncScrollEnabled() const
   {
     return !!(mRenderMode & RENDER_MODE_ASYNC_SCROLL);
   }
 
-  static nsFrameLoader* Create(mozilla::dom::Element* aOwner,
-                               bool aNetworkCreated);
+  static nsFrameLoader* Create(nsIContent* aOwner, PRBool aNetworkCreated);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsFrameLoader, nsIFrameLoader)
   NS_DECL_NSIFRAMELOADER
   NS_DECL_NSICONTENTVIEWMANAGER
-  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
   NS_HIDDEN_(nsresult) CheckForRecursiveLoad(nsIURI* aURI);
   nsresult ReallyStartLoading();
   void Finalize();
@@ -183,14 +203,14 @@ public:
    * Called from the layout frame associated with this frame loader;
    * this notifies us to hook up with the widget and view.
    */
-  bool Show(int32_t marginWidth, int32_t marginHeight,
-              int32_t scrollbarPrefX, int32_t scrollbarPrefY,
+  PRBool Show(PRInt32 marginWidth, PRInt32 marginHeight,
+              PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
               nsSubDocumentFrame* frame);
 
   /**
    * Called when the margin properties of the containing frame are changed.
    */
-  void MarginsChanged(uint32_t aMarginWidth, uint32_t aMarginHeight);
+  void MarginsChanged(PRUint32 aMarginWidth, PRUint32 aMarginHeight);
 
   /**
    * Called from the layout frame associated with this frame loader, when
@@ -217,7 +237,7 @@ public:
    */
   nsIFrame* GetPrimaryFrameOfOwningContent() const
   {
-    return mOwnerContent ? mOwnerContent->GetPrimaryFrame() : nullptr;
+    return mOwnerContent ? mOwnerContent->GetPrimaryFrame() : nsnull;
   }
 
   /** 
@@ -225,7 +245,7 @@ public:
    * an owner.
    */
   nsIDocument* GetOwnerDoc() const
-  { return mOwnerContent ? mOwnerContent->OwnerDoc() : nullptr; }
+  { return mOwnerContent ? mOwnerContent->GetOwnerDoc() : nsnull; }
 
   PBrowserParent* GetRemoteBrowser();
 
@@ -259,64 +279,12 @@ public:
   }
   nsFrameMessageManager* GetFrameMessageManager() { return mMessageManager; }
 
-  mozilla::dom::Element* GetOwnerContent() { return mOwnerContent; }
-  bool ShouldClipSubdocument() { return mClipSubdocument; }
-
-  bool ShouldClampScrollPosition() { return mClampScrollPosition; }
-
-  /**
-   * Tell this FrameLoader to use a particular remote browser.
-   *
-   * This will assert if mRemoteBrowser or mCurrentRemoteFrame is non-null.  In
-   * practice, this means you can't have successfully run TryRemoteBrowser() on
-   * this object, which means you can't have called ShowRemoteFrame() or
-   * ReallyStartLoading().
-   */
-  void SetRemoteBrowser(nsITabParent* aTabParent);
-
-  /**
-   * Stashes a detached view on the frame loader. We do this when we're
-   * destroying the nsSubDocumentFrame. If the nsSubdocumentFrame is
-   * being reframed we'll restore the detached view when it's recreated,
-   * otherwise we'll discard the old presentation and set the detached
-   * subdoc view to null. aContainerDoc is the document containing the
-   * the subdoc frame. This enables us to detect when the containing
-   * document has changed during reframe, so we can discard the presentation 
-   * in that case.
-   */
-  void SetDetachedSubdocView(nsIView* aDetachedView,
-                             nsIDocument* aContainerDoc);
-
-  /**
-   * Retrieves the detached view and the document containing the view,
-   * as set by SetDetachedSubdocView().
-   */
-  nsIView* GetDetachedSubdocView(nsIDocument** aContainerDoc) const;
+  nsIContent* GetOwnerContent() { return mOwnerContent; }
+  void SetOwnerContent(nsIContent* aContent);
 
 private:
 
-  void SetOwnerContent(mozilla::dom::Element* aContent);
-
   bool ShouldUseRemoteProcess();
-
-  /**
-   * Is this a frameloader for a bona fide <iframe mozbrowser> or
-   * <iframe mozapp>?  (I.e., does the frame return true for
-   * nsIMozBrowserFrame::GetReallyIsBrowser()?)
-   */
-  bool OwnerIsBrowserFrame();
-
-  /**
-   * Is this a frameloader for a bona fide <iframe mozapp>?  (I.e., does the
-   * frame return true for nsIMozBrowserFrame::GetReallyIsApp()?)
-   */
-  bool OwnerIsAppFrame();
-
-  /**
-   * Get our owning element's app manifest URL, or return the empty string if
-   * our owning element doesn't have an app manifest URL.
-   */
-  void GetOwnerAppManifestURL(nsAString& aOut);
 
   /**
    * If we are an IPC frame, set mRemoteFrame. Otherwise, create and
@@ -328,7 +296,6 @@ private:
 
   // Properly retrieves documentSize of any subdocument type.
   NS_HIDDEN_(nsIntSize) GetSubDocumentSize(const nsIFrame *aIFrame);
-  nsresult GetWindowDimensions(nsRect& aRect);
 
   // Updates the subdocument position and size. This gets called only
   // when we have our own in-process DocShell.
@@ -343,54 +310,29 @@ private:
   // Tell the remote browser that it's now "virtually visible"
   bool ShowRemoteFrame(const nsIntSize& size);
 
-  bool AddTreeItemToTreeOwner(nsIDocShellTreeItem* aItem,
-                              nsIDocShellTreeOwner* aOwner,
-                              int32_t aParentType,
-                              nsIDocShellTreeNode* aParentNode);
-
-  nsIAtom* TypeAttrName() const {
-    return mOwnerContent->IsXUL() ? nsGkAtoms::type : nsGkAtoms::mozframetype;
-  }
-
   nsCOMPtr<nsIDocShell> mDocShell;
   nsCOMPtr<nsIURI> mURIToLoad;
-  mozilla::dom::Element* mOwnerContent; // WEAK
-
+  nsIContent *mOwnerContent; // WEAK
 public:
   // public because a callback needs these.
   nsRefPtr<nsFrameMessageManager> mMessageManager;
   nsCOMPtr<nsIInProcessContentFrameMessageManager> mChildMessageManager;
 private:
-  // Stores the root view of the subdocument while the subdocument is being
-  // reframed. Used to restore the presentation after reframing.
-  nsIView* mDetachedSubdocViews;
-  // Stores the containing document of the frame corresponding to this
-  // frame loader. This is reference is kept valid while the subframe's
-  // presentation is detached and stored in mDetachedSubdocViews. This
-  // enables us to detect whether the frame has moved documents during
-  // a reframe, so that we know not to restore the presentation.
-  nsCOMPtr<nsIDocument> mContainerDocWhileDetached;
-
-  bool mDepthTooGreat : 1;
-  bool mIsTopLevelContent : 1;
-  bool mDestroyCalled : 1;
-  bool mNeedsAsyncDestroy : 1;
-  bool mInSwap : 1;
-  bool mInShow : 1;
-  bool mHideCalled : 1;
+  PRPackedBool mDepthTooGreat : 1;
+  PRPackedBool mIsTopLevelContent : 1;
+  PRPackedBool mDestroyCalled : 1;
+  PRPackedBool mNeedsAsyncDestroy : 1;
+  PRPackedBool mInSwap : 1;
+  PRPackedBool mInShow : 1;
+  PRPackedBool mHideCalled : 1;
   // True when the object is created for an element which the parser has
   // created using NS_FROM_PARSER_NETWORK flag. If the element is modified,
   // it may lose the flag.
-  bool mNetworkCreated : 1;
+  PRPackedBool mNetworkCreated : 1;
 
-  bool mDelayRemoteDialogs : 1;
-  bool mRemoteBrowserShown : 1;
-  bool mRemoteFrame : 1;
-  bool mClipSubdocument : 1;
-  bool mClampScrollPosition : 1;
-  bool mRemoteBrowserInitialized : 1;
-  bool mObservingOwnerContent : 1;
-
+  PRPackedBool mDelayRemoteDialogs : 1;
+  PRPackedBool mRemoteBrowserShown : 1;
+  bool mRemoteFrame;
   // XXX leaking
   nsCOMPtr<nsIObserver> mChildHost;
   RenderFrameParent* mCurrentRemoteFrame;
@@ -399,11 +341,11 @@ private:
   // See nsIFrameLoader.idl.  Short story, if !(mRenderMode &
   // RENDER_MODE_ASYNC_SCROLL), all the fields below are ignored in
   // favor of what content tells.
-  uint32_t mRenderMode;
+  PRUint32 mRenderMode;
 
   // See nsIFrameLoader.idl. EVENT_MODE_NORMAL_DISPATCH automatically
   // forwards some input events to out-of-process content.
-  uint32_t mEventMode;
+  PRUint32 mEventMode;
 };
 
 #endif

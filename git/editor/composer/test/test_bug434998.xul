@@ -9,6 +9,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=434998
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         title="Mozilla Bug 434998" onload="runTest();">
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"/>
+  <script type="application/javascript"
     src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"/>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
@@ -65,7 +67,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=434998
             threw = true;
           }
           ok(!threw, "The execCommand API should work on <xul:editor>");
-          progress.removeProgressListener(progressListener, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
           SimpleTest.finish();
         }
       }
@@ -78,7 +79,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=434998
     {
     },
 
-    onLocationChange : function(aWebProgress, aRequest, aLocation, aFlags)
+    onLocationChange : function(aWebProgress, aRequest, aLocation)
     {
     },
 

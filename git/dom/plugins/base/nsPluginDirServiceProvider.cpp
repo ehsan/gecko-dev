@@ -1,21 +1,55 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Conrad Carlen <ccarlen@netscape.com>
+ *  Ere Maijala <emaijala@kolumbus.fi>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsPluginDirServiceProvider.h"
 
 #include "nsCRT.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
+#include "nsIPrefBranch.h"
+#include "nsIPrefService.h"
 #include "nsDependentString.h"
+#include "nsXPIDLString.h"
 #include "prmem.h"
 #include "nsArrayEnumerator.h"
-#include "mozilla/Preferences.h"
 
 #include <windows.h>
 #include "nsIWindowsRegKey.h"
-
-using namespace mozilla;
 
 typedef struct structVer
 {
@@ -100,7 +134,7 @@ TranslateVersionStr(const WCHAR* szVersion, verBlock *vbVersion)
   WCHAR* szNum4 = NULL;
   WCHAR* szJavaBuild = NULL;
 
-  WCHAR *strVer = nullptr;
+  WCHAR *strVer = nsnull;
   if (szVersion) {
     strVer = wcsdup(szVersion);
   }
@@ -186,26 +220,29 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(nsPluginDirServiceProvider,
 //*****************************************************************************
 
 NS_IMETHODIMP
-nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
+nsPluginDirServiceProvider::GetFile(const char *charProp, PRBool *persistant,
                                     nsIFile **_retval)
 {
-  nsCOMPtr<nsIFile>  localFile;
+  nsCOMPtr<nsILocalFile>  localFile;
   nsresult rv = NS_ERROR_FAILURE;
 
   NS_ENSURE_ARG(charProp);
 
-  *_retval = nullptr;
-  *persistant = false;
+  *_retval = nsnull;
+  *persistant = PR_FALSE;
+
+  nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+  if (!prefs)
+    return NS_ERROR_FAILURE;
 
   nsCOMPtr<nsIWindowsRegKey> regKey =
     do_CreateInstance("@mozilla.org/windows-registry-key;1");
   NS_ENSURE_TRUE(regKey, NS_ERROR_FAILURE);
 
   if (nsCRT::strcmp(charProp, NS_WIN_JRE_SCAN_KEY) == 0) {
-    nsAdoptingCString strVer = Preferences::GetCString(charProp);
-    if (!strVer) {
+    nsXPIDLCString strVer;
+    if (NS_FAILED(prefs->GetCharPref(charProp, getter_Copies(strVer))))
       return NS_ERROR_FAILURE;
-    }
     verBlock minVer;
     TranslateVersionStr(NS_ConvertASCIItoUTF16(strVer).get(), &minVer);
 
@@ -222,18 +259,18 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
     regKey->ReadStringValue(NS_LITERAL_STRING("BrowserJavaVersion"),
                             browserJavaVersion);
 
-    uint32_t childCount = 0;
+    PRUint32 childCount = 0;
     regKey->GetChildCount(&childCount);
 
     // We must enumerate through the keys because what if there is
     // more than one version?
-    for (uint32_t index = 0; index < childCount; ++index) {
+    for (PRUint32 index = 0; index < childCount; ++index) {
       nsAutoString childName;
       rv = regKey->GetChildName(index, childName);
       if (NS_SUCCEEDED(rv)) {
         // Skip major.minor as it always points to latest in its family
-        uint32_t numChars = 0;
-        int32_t offset = 0;
+        PRUint32 numChars = 0;
+        PRInt32 offset = 0;
         while ((offset = childName.FindChar(L'.', offset + 1)) >= 0) {
           ++numChars;
         }
@@ -273,7 +310,7 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
     newestPath += NS_LITERAL_STRING("\\bin\\new_plugin");
 
     rv = NS_NewLocalFile(newestPath,
-                         true, getter_AddRefs(localFile));
+                         PR_TRUE, getter_AddRefs(localFile));
 
     if (NS_SUCCEEDED(rv)) {
       nsCOMPtr<nsIWindowsRegKey> newKey =
@@ -285,7 +322,7 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
                           nsIWindowsRegKey::ACCESS_QUERY_VALUE |
                           nsIWindowsRegKey::ACCESS_SET_VALUE);
       if (NS_SUCCEEDED(rv)) {
-        bool currentVersionExists = false;
+        PRBool currentVersionExists = PR_FALSE;
         newKey->HasValue(NS_LITERAL_STRING("CurrentVersion"),
                          &currentVersionExists);
         if (!currentVersionExists) {
@@ -295,10 +332,9 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
       }
     }
   } else if (nsCRT::strcmp(charProp, NS_WIN_QUICKTIME_SCAN_KEY) == 0) {
-    nsAdoptingCString strVer = Preferences::GetCString(charProp);
-    if (!strVer) {
+    nsXPIDLCString strVer;
+    if (NS_FAILED(prefs->GetCharPref(charProp, getter_Copies(strVer))))
       return NS_ERROR_FAILURE;
-    }
     verBlock minVer;
     TranslateVersionStr(NS_ConvertASCIItoUTF16(strVer).get(), &minVer);
 
@@ -330,15 +366,14 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
       rv = regKey->ReadStringValue(NS_LITERAL_STRING("InstallDir"), path);
       if (NS_SUCCEEDED(rv)) {
         path += NS_LITERAL_STRING("\\Plugins");
-        rv = NS_NewLocalFile(path, true,
+        rv = NS_NewLocalFile(path, PR_TRUE,
                              getter_AddRefs(localFile));
       }
     }
   } else if (nsCRT::strcmp(charProp, NS_WIN_WMP_SCAN_KEY) == 0) {
-    nsAdoptingCString strVer = Preferences::GetCString(charProp);
-    if (!strVer) {
+    nsXPIDLCString strVer;
+    if (NS_FAILED(prefs->GetCharPref(charProp, getter_Copies(strVer))))
       return NS_ERROR_FAILURE;
-    }
     verBlock minVer;
     TranslateVersionStr(NS_ConvertASCIItoUTF16(strVer).get(), &minVer);
 
@@ -369,13 +404,13 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
       rv = regKey->ReadStringValue(NS_LITERAL_STRING("Installation Directory"),
                                    path);
       if (NS_SUCCEEDED(rv)) {
-        rv = NS_NewLocalFile(path, true,
+        rv = NS_NewLocalFile(path, PR_TRUE,
                              getter_AddRefs(localFile));
       }
     }
   } else if (nsCRT::strcmp(charProp, NS_WIN_ACROBAT_SCAN_KEY) == 0) {
-    nsAdoptingCString strVer = Preferences::GetCString(charProp);
-    if (!strVer) {
+    nsXPIDLCString strVer;
+    if (NS_FAILED(prefs->GetCharPref(charProp, getter_Copies(strVer)))) {
       return NS_ERROR_FAILURE;
     }
 
@@ -402,10 +437,10 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
 
     // We must enumerate through the keys because what if there is
     // more than one version?
-    uint32_t childCount = 0;
+    PRUint32 childCount = 0;
     regKey->GetChildCount(&childCount);
 
-    for (uint32_t index = 0; index < childCount; ++index) {
+    for (PRUint32 index = 0; index < childCount; ++index) {
       nsAutoString childName;
       rv = regKey->GetChildName(index, childName);
       if (NS_SUCCEEDED(rv)) {
@@ -434,7 +469,7 @@ nsPluginDirServiceProvider::GetFile(const char *charProp, bool *persistant,
 
     if (!newestPath.IsEmpty()) {
       newestPath += NS_LITERAL_STRING("\\browser");
-      rv = NS_NewLocalFile(newestPath, true,
+      rv = NS_NewLocalFile(newestPath, PR_TRUE,
                            getter_AddRefs(localFile));
     }
   }
@@ -449,9 +484,9 @@ nsresult
 nsPluginDirServiceProvider::GetPLIDDirectories(nsISimpleEnumerator **aEnumerator)
 {
   NS_ENSURE_ARG_POINTER(aEnumerator);
-  *aEnumerator = nullptr;
+  *aEnumerator = nsnull;
 
-  nsCOMArray<nsIFile> dirs;
+  nsCOMArray<nsILocalFile> dirs;
 
   GetPLIDDirectoriesWithRootKey(nsIWindowsRegKey::ROOT_KEY_CURRENT_USER, dirs);
   GetPLIDDirectoriesWithRootKey(nsIWindowsRegKey::ROOT_KEY_LOCAL_MACHINE, dirs);
@@ -460,7 +495,7 @@ nsPluginDirServiceProvider::GetPLIDDirectories(nsISimpleEnumerator **aEnumerator
 }
 
 nsresult
-nsPluginDirServiceProvider::GetPLIDDirectoriesWithRootKey(uint32_t aKey, nsCOMArray<nsIFile> &aDirs)
+nsPluginDirServiceProvider::GetPLIDDirectoriesWithRootKey(PRUint32 aKey, nsCOMArray<nsILocalFile> &aDirs)
 {
   nsCOMPtr<nsIWindowsRegKey> regKey =
     do_CreateInstance("@mozilla.org/windows-registry-key;1");
@@ -471,10 +506,10 @@ nsPluginDirServiceProvider::GetPLIDDirectoriesWithRootKey(uint32_t aKey, nsCOMAr
                              nsIWindowsRegKey::ACCESS_READ);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t childCount = 0;
+  PRUint32 childCount = 0;
   regKey->GetChildCount(&childCount);
 
-  for (uint32_t index = 0; index < childCount; ++index) {
+  for (PRUint32 index = 0; index < childCount; ++index) {
     nsAutoString childName;
     rv = regKey->GetChildName(index, childName);
     if (NS_SUCCEEDED(rv)) {
@@ -485,27 +520,27 @@ nsPluginDirServiceProvider::GetPLIDDirectoriesWithRootKey(uint32_t aKey, nsCOMAr
         nsAutoString path;
         rv = childKey->ReadStringValue(NS_LITERAL_STRING("Path"), path);
         if (NS_SUCCEEDED(rv)) {
-          nsCOMPtr<nsIFile> localFile;
-          if (NS_SUCCEEDED(NS_NewLocalFile(path, true,
+          nsCOMPtr<nsILocalFile> localFile;
+          if (NS_SUCCEEDED(NS_NewLocalFile(path, PR_TRUE,
                                            getter_AddRefs(localFile))) &&
               localFile) {
             // Some vendors use a path directly to the DLL so chop off
             // the filename
-            bool isDir = false;
+            PRBool isDir = PR_FALSE;
             if (NS_SUCCEEDED(localFile->IsDirectory(&isDir)) && !isDir) {
               nsCOMPtr<nsIFile> temp;
               localFile->GetParent(getter_AddRefs(temp));
               if (temp)
-                localFile = temp;
+                localFile = do_QueryInterface(temp);
             }
 
             // Now we check to make sure it's actually on disk and
             // To see if we already have this directory in the array
-            bool isFileThere = false;
-            bool isDupEntry = false;
+            PRBool isFileThere = PR_FALSE;
+            PRBool isDupEntry = PR_FALSE;
             if (NS_SUCCEEDED(localFile->Exists(&isFileThere)) && isFileThere) {
-              int32_t c = aDirs.Count();
-              for (int32_t i = 0; i < c; i++) {
+              PRInt32 c = aDirs.Count();
+              for (PRInt32 i = 0; i < c; i++) {
                 nsIFile *dup = static_cast<nsIFile*>(aDirs[i]);
                 if (dup &&
                     NS_SUCCEEDED(dup->Equals(localFile, &isDupEntry)) &&

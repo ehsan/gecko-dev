@@ -1,10 +1,11 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+do_load_httpd_js();
+var httpserver = new nsHttpServer();
 
-Cu.import("resource://testing-common/httpd.js");
-var httpserver = new HttpServer();
+function getCacheService()
+{
+    return Components.classes["@mozilla.org/network/cache-service;1"]
+           .getService(Components.interfaces.nsICacheService);
+}
 
 function setupChannel(suffix)
 {
@@ -28,7 +29,8 @@ function run_test()
     httpserver.start(4444);
 
     // clear cache
-    evict_cache_entries();
+    getCacheService().
+        evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
 
     // load first time
     var channel = setupChannel("/redirect1");

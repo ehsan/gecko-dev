@@ -6,7 +6,6 @@
 
 #include "compiler/ValidateLimitations.h"
 #include "compiler/InfoSink.h"
-#include "compiler/InitializeParseContext.h"
 #include "compiler/ParseHelper.h"
 
 namespace {
@@ -54,6 +53,13 @@ public:
                      IsLoopIndex(symbol, mLoopStack);
         }
     }
+    virtual void visitConstantUnion(TIntermConstantUnion*) {}
+    virtual bool visitBinary(Visit, TIntermBinary*) { return true; }
+    virtual bool visitUnary(Visit, TIntermUnary*) { return true; }
+    virtual bool visitSelection(Visit, TIntermSelection*) { return true; }
+    virtual bool visitAggregate(Visit, TIntermAggregate*) { return true; }
+    virtual bool visitLoop(Visit, TIntermLoop*) { return true; }
+    virtual bool visitBranch(Visit, TIntermBranch*) { return true; }
 
 private:
     bool mValid;
@@ -88,6 +94,13 @@ public:
             }
         }
     }
+    virtual void visitConstantUnion(TIntermConstantUnion*) {}
+    virtual bool visitBinary(Visit, TIntermBinary*) { return true; }
+    virtual bool visitUnary(Visit, TIntermUnary*) { return true; }
+    virtual bool visitSelection(Visit, TIntermSelection*) { return true; }
+    virtual bool visitAggregate(Visit, TIntermAggregate*) { return true; }
+    virtual bool visitLoop(Visit, TIntermLoop*) { return true; }
+    virtual bool visitBranch(Visit, TIntermBranch*) { return true; }
 
 private:
     bool mUsesFloatLoopIndex;
@@ -101,6 +114,14 @@ ValidateLimitations::ValidateLimitations(ShShaderType shaderType,
     : mShaderType(shaderType),
       mSink(sink),
       mNumErrors(0)
+{
+}
+
+void ValidateLimitations::visitSymbol(TIntermSymbol*)
+{
+}
+
+void ValidateLimitations::visitConstantUnion(TIntermConstantUnion*)
 {
 }
 
@@ -149,6 +170,11 @@ bool ValidateLimitations::visitUnary(Visit, TIntermUnary* node)
     return true;
 }
 
+bool ValidateLimitations::visitSelection(Visit, TIntermSelection*)
+{
+    return true;
+}
+
 bool ValidateLimitations::visitAggregate(Visit, TIntermAggregate* node)
 {
     switch (node->getOp()) {
@@ -181,6 +207,11 @@ bool ValidateLimitations::visitLoop(Visit, TIntermLoop* node)
 
     // The loop is fully processed - no need to visit children.
     return false;
+}
+
+bool ValidateLimitations::visitBranch(Visit, TIntermBranch*)
+{
+    return true;
 }
 
 void ValidateLimitations::error(TSourceLoc loc,

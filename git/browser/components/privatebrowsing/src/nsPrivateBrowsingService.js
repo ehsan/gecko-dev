@@ -1,9 +1,42 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Private Browsing.
+#
+# The Initial Developer of the Original Code is
+# Ehsan Akhgari.
+# Portions created by the Initial Developer are Copyright (C) 2008
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#  Ehsan Akhgari <ehsan.akhgari@gmail.com> (Original Author)
+#  Simon Bünzli <zeniko@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
 
 #ifndef XP_WIN
 #define BROKEN_WM_Z_ORDER
@@ -61,7 +94,6 @@ function PrivateBrowsingService() {
   this._obs.addObserver(this, "private-browsing", true);
   this._obs.addObserver(this, "command-line-startup", true);
   this._obs.addObserver(this, "sessionstore-browser-state-restored", true);
-  this._obs.addObserver(this, "domwindowopened", true);
 
   // List of nsIXULWindows we are going to be closing during the transition
   this._windowsToClose = [];
@@ -100,10 +132,6 @@ PrivateBrowsingService.prototype = {
   // Whether private browsing has been turned on from the command line
   _lastChangedByCommandLine: false,
 
-  // Telemetry measurements
-  _enterTimestamps: {},
-  _exitTimestamps: {},
-
   // XPCOM registration
   classID: Components.ID("{c31f4883-839b-45f6-82ad-a6a9bc5ad599}"),
 
@@ -117,17 +145,6 @@ PrivateBrowsingService.prototype = {
     this._quitting = true;
     if (this._inPrivateBrowsing)
       this.privateBrowsingEnabled = false;
-  },
-
-  _setPerWindowPBFlag: function PBS__setPerWindowPBFlag(aWindow, aFlag) {
-    aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-           .getInterface(Ci.nsIWebNavigation)
-           .QueryInterface(Ci.nsIDocShellTreeItem)
-           .treeOwner
-           .QueryInterface(Ci.nsIInterfaceRequestor)
-           .getInterface(Ci.nsIXULWindow)
-           .docShell.QueryInterface(Ci.nsILoadContext)
-           .usePrivateBrowsing = aFlag;
   },
 
   _onBeforePrivateBrowsingModeChange: function PBS__onBeforePrivateBrowsingModeChange() {
@@ -159,7 +176,9 @@ PrivateBrowsingService.prototype = {
       this._closePageInfoWindows();
 
       // save view-source windows URIs and close them
-      let viewSrcWindowsEnum = Services.wm.getEnumerator("navigator:view-source");
+      let viewSrcWindowsEnum = Cc["@mozilla.org/appshell/window-mediator;1"].
+                               getService(Ci.nsIWindowMediator).
+                               getEnumerator("navigator:view-source");
       while (viewSrcWindowsEnum.hasMoreElements()) {
         let win = viewSrcWindowsEnum.getNext();
         if (this._inPrivateBrowsing) {
@@ -203,12 +222,6 @@ PrivateBrowsingService.prototype = {
     }
     else
       this._saveSession = false;
-
-    var windowsEnum = Services.wm.getEnumerator("navigator:browser");
-    while (windowsEnum.hasMoreElements()) {
-      var window = windowsEnum.getNext();
-      this._setPerWindowPBFlag(window, this._inPrivateBrowsing);
-    }
   },
 
   _onAfterPrivateBrowsingModeChange: function PBS__onAfterPrivateBrowsingModeChange() {
@@ -282,7 +295,6 @@ PrivateBrowsingService.prototype = {
         // restore has been completed
         this._currentStatus = STATE_IDLE;
         this._obs.notifyObservers(null, "private-browsing-transition-complete", "");
-        this._recordTransitionTime("completed");
         break;
       case STATE_WAITING_FOR_RESTORE:
         // too soon to notify...
@@ -296,51 +308,6 @@ PrivateBrowsingService.prototype = {
                        this._currentStatus);
         break;
     }
-  },
-
-  _recordTransitionTime: function PBS__recordTransitionTime(aPhase) {
-    // To record the time spent in private browsing transitions, note that we
-    // cannot use the TelemetryStopwatch module, because it reports its results
-    // immediately when the timer is stopped.  In this case, we need to delay
-    // the actual histogram update after we are out of private browsing mode.
-    if (this._inPrivateBrowsing) {
-      this._enterTimestamps[aPhase] = Date.now();
-    } else {
-      if (this._quitting) {
-        // If we are quitting the browser, we don't care collecting the data,
-        // because we wouldn't be able to record it with telemetry.
-        return;
-      }
-      this._exitTimestamps[aPhase] = Date.now();
-      if (aPhase == "completed") {
-        // After we finished exiting the private browsing mode, we can finally
-        // record the telemetry data, for the enter and the exit processes.
-        this._reportTelemetry();
-      }
-    }
-  },
-
-  _reportTelemetry: function PBS__reportTelemetry() {
-    function reportTelemetryEntry(aHistogramId, aValue) {
-      try {
-        Services.telemetry.getHistogramById(aHistogramId).add(aValue);
-      } catch (ex) {
-        Cu.reportError(ex);
-      }
-    }
-
-    reportTelemetryEntry(
-          "PRIVATE_BROWSING_TRANSITION_ENTER_PREPARATION_MS",
-          this._enterTimestamps.prepared - this._enterTimestamps.started);
-    reportTelemetryEntry(
-          "PRIVATE_BROWSING_TRANSITION_ENTER_TOTAL_MS",
-          this._enterTimestamps.completed - this._enterTimestamps.started);
-    reportTelemetryEntry(
-          "PRIVATE_BROWSING_TRANSITION_EXIT_PREPARATION_MS",
-          this._exitTimestamps.prepared - this._exitTimestamps.started);
-    reportTelemetryEntry(
-          "PRIVATE_BROWSING_TRANSITION_EXIT_TOTAL_MS",
-          this._exitTimestamps.completed - this._exitTimestamps.started);
   },
 
   _canEnterPrivateBrowsingMode: function PBS__canEnterPrivateBrowsingMode() {
@@ -479,10 +446,6 @@ PrivateBrowsingService.prototype = {
         this._obs.removeObserver(this, "command-line-startup");
         aSubject.QueryInterface(Ci.nsICommandLine);
         if (aSubject.findFlag("private", false) >= 0) {
-          // Don't need to go into PB mode if it's already set to autostart
-          if (this._autoStarted)
-            aSubject.handleFlag("private", false);
-
           this.privateBrowsingEnabled = true;
           this._autoStarted = true;
           this._lastChangedByCommandLine = true;
@@ -496,18 +459,6 @@ PrivateBrowsingService.prototype = {
           this._currentStatus = STATE_RESTORE_FINISHED;
           this._notifyIfTransitionComplete();
         }
-        break;
-      case "domwindowopened":
-        let aWindow = aSubject;
-        let self = this;
-        aWindow.addEventListener("load", function PBS__onWindowLoad(aEvent) {
-          aWindow.removeEventListener("load", arguments.callee);
-          if (aWindow.document
-                     .documentElement
-                     .getAttribute("windowtype") == "navigator:browser") {
-            self._setPerWindowPBFlag(aWindow, self._inPrivateBrowsing);
-          }
-        }, false);
         break;
     }
   },
@@ -552,47 +503,41 @@ PrivateBrowsingService.prototype = {
     if (this._currentStatus != STATE_IDLE)
       throw Cr.NS_ERROR_FAILURE;
 
-    if (val == this._inPrivateBrowsing)
-      return;
-
     try {
-      if (val) {
-        if (!this._canEnterPrivateBrowsingMode())
-          return;
-      }
-      else {
-        if (!this._canLeavePrivateBrowsingMode())
-          return;
-      }
-
-      this._ensureCanCloseWindows();
-
-      // start the transition now that we know that we can
       this._currentStatus = STATE_TRANSITION_STARTED;
 
-      this._autoStarted = this._prefs.getBoolPref("browser.privatebrowsing.autostart");
-      this._inPrivateBrowsing = val != false;
+      if (val != this._inPrivateBrowsing) {
+        if (val) {
+          if (!this._canEnterPrivateBrowsingMode())
+            return;
+        }
+        else {
+          if (!this._canLeavePrivateBrowsingMode())
+            return;
+        }
 
-      this._recordTransitionTime("started");
+        this._ensureCanCloseWindows();
 
-      let data = val ? "enter" : "exit";
+        this._autoStarted = this._prefs.getBoolPref("browser.privatebrowsing.autostart");
+        this._inPrivateBrowsing = val != false;
 
-      let quitting = Cc["@mozilla.org/supports-PRBool;1"].
-                     createInstance(Ci.nsISupportsPRBool);
-      quitting.data = this._quitting;
+        let data = val ? "enter" : "exit";
 
-      // notify observers of the pending private browsing mode change
-      this._obs.notifyObservers(quitting, "private-browsing-change-granted", data);
+        let quitting = Cc["@mozilla.org/supports-PRBool;1"].
+                       createInstance(Ci.nsISupportsPRBool);
+        quitting.data = this._quitting;
 
-      // destroy the current session and start initial cleanup
-      this._onBeforePrivateBrowsingModeChange();
+        // notify observers of the pending private browsing mode change
+        this._obs.notifyObservers(quitting, "private-browsing-change-granted", data);
 
-      this._obs.notifyObservers(quitting, "private-browsing", data);
+        // destroy the current session and start initial cleanup
+        this._onBeforePrivateBrowsingModeChange();
 
-      this._recordTransitionTime("prepared");
+        this._obs.notifyObservers(quitting, "private-browsing", data);
 
-      // load the appropriate session
-      this._onAfterPrivateBrowsingModeChange();
+        // load the appropriate session
+        this._onAfterPrivateBrowsingModeChange();
+      }
     } catch (ex) {
       // We aborted the transition to/from private browsing, we must restore the
       // beforeunload handling on all the windows for which we switched it off.
@@ -672,9 +617,11 @@ PrivateBrowsingService.prototype = {
     }
 
     // Plugin data
-    const phInterface = Ci.nsIPluginHost;
-    const FLAG_CLEAR_ALL = phInterface.FLAG_CLEAR_ALL;
-    let (ph = Cc["@mozilla.org/plugin/host;1"].getService(phInterface)) {
+    let (ph = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost)) {
+      const phInterface = Ci.nsIPluginHost;
+      const FLAG_CLEAR_ALL = phInterface.FLAG_CLEAR_ALL;
+      ph.QueryInterface(phInterface);
+
       let tags = ph.getPluginTags();
       for (let i = 0; i < tags.length; i++) {
         try {

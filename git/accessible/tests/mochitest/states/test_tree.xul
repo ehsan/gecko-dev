@@ -8,6 +8,8 @@
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         title="Accessible XUL tree states tests">
 
+  <script type="application/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js" />
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
@@ -16,8 +18,6 @@
 
   <script type="application/javascript"
           src="../common.js" />
-  <script type="application/javascript"
-          src="../role.js" />
   <script type="application/javascript"
           src="../states.js" />
   <script type="application/javascript"

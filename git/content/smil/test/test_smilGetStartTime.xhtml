@@ -1,6 +1,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <title>Test for getStartTime Behavior </title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -34,8 +35,6 @@ function main() {
     anim.getStartTime();
   } catch(e) {
     exceptionCaught = true;
-    is(e.name, "InvalidStateError",
-       "Unexpected exception from getStartTime.");
     is(e.code, DOMException.INVALID_STATE_ERR,
        "Unexpected exception code from getStartTime.");
   }
@@ -85,8 +84,6 @@ function main() {
     anim.getStartTime();
   } catch(e) {
     exceptionCaught = true;
-    is(e.name, "InvalidStateError",
-       "Unexpected exception from getStartTime.");
     is(e.code, DOMException.INVALID_STATE_ERR,
        "Unexpected exception code from getStartTime.");
   }

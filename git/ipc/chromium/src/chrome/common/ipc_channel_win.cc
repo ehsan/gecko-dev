@@ -45,6 +45,7 @@ Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id, Mode mode,
   }
 }
 
+#if defined(CHROMIUM_MOZILLA_BUILD)
 Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id,
                                   HANDLE server_pipe,
                                   Mode mode, Listener* listener)
@@ -73,6 +74,7 @@ void Channel::ChannelImpl::Init(Mode mode, Listener* listener) {
 HANDLE Channel::ChannelImpl::GetServerPipeHandle() const {
   return pipe_;
 }
+#endif
 
 void Channel::ChannelImpl::Close() {
   if (thread_check_.get()) {
@@ -92,10 +94,19 @@ void Channel::ChannelImpl::Close() {
     pipe_ = INVALID_HANDLE_VALUE;
   }
 
+#ifndef CHROMIUM_MOZILLA_BUILD
+  // Make sure all IO has completed.
+  base::Time start = base::Time::Now();
+#endif
   while (input_state_.is_pending || output_state_.is_pending) {
     MessageLoopForIO::current()->WaitForIOCompletion(INFINITE, this);
   }
-
+#ifndef CHROMIUM_MOZILLA_BUILD
+  if (waited) {
+    // We want to see if we block the message loop for too long.
+    UMA_HISTOGRAM_TIMES("AsyncIO.IPCChannelClose", base::Time::Now() - start);
+  }
+#endif
   while (!output_queue_.empty()) {
     Message* m = output_queue_.front();
     output_queue_.pop();
@@ -200,6 +211,10 @@ bool Channel::ChannelImpl::EnqueueHelloMessage() {
 }
 
 bool Channel::ChannelImpl::Connect() {
+#ifndef CHROMIUM_MOZILLA_BUILD
+  DLOG(WARNING) << "Connect called twice";
+#endif
+
   if (!thread_check_.get())
     thread_check_.reset(new NonThreadSafe());
 
@@ -444,10 +459,12 @@ Channel::Channel(const std::wstring& channel_id, Mode mode,
     : channel_impl_(new ChannelImpl(channel_id, mode, listener)) {
 }
 
+#ifdef CHROMIUM_MOZILLA_BUILD
 Channel::Channel(const std::wstring& channel_id, void* server_pipe,
                  Mode mode, Listener* listener)
    : channel_impl_(new ChannelImpl(channel_id, server_pipe, mode, listener)) {
 }
+#endif
 
 Channel::~Channel() {
   delete channel_impl_;
@@ -461,6 +478,7 @@ void Channel::Close() {
   channel_impl_->Close();
 }
 
+#ifdef CHROMIUM_MOZILLA_BUILD
 void* Channel::GetServerPipeHandle() const {
   return channel_impl_->GetServerPipeHandle();
 }
@@ -468,6 +486,11 @@ void* Channel::GetServerPipeHandle() const {
 Channel::Listener* Channel::set_listener(Listener* listener) {
   return channel_impl_->set_listener(listener);
 }
+#else
+void Channel::set_listener(Listener* listener) {
+  channel_impl_->set_listener(listener);
+}
+#endif
 
 bool Channel::Send(Message* message) {
   return channel_impl_->Send(message);

@@ -1,7 +1,42 @@
 /* vim:set ts=4 sw=4 sts=4 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Negotiateauth
+ *
+ * The Initial Developer of the Original Code is Daniel Kouril.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Daniel Kouril <kouril@ics.muni.cz> (original author)
+ *   Wyllys Ingersoll <wyllys.ingersoll@sun.com>
+ *   Christopher Nebergall <cneberg@sandia.gov>
+ *   Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 //
 // HTTP Negotiate Authentication Support Module
@@ -35,7 +70,6 @@
 #include "prprf.h"
 #include "prlog.h"
 #include "prmem.h"
-#include "prnetdb.h"
 
 //-----------------------------------------------------------------------------
 
@@ -43,7 +77,6 @@ static const char kNegotiate[] = "Negotiate";
 static const char kNegotiateAuthTrustedURIs[] = "network.negotiate-auth.trusted-uris";
 static const char kNegotiateAuthDelegationURIs[] = "network.negotiate-auth.delegation-uris";
 static const char kNegotiateAuthAllowProxies[] = "network.negotiate-auth.allow-proxies";
-static const char kNegotiateAuthAllowNonFqdn[] = "network.negotiate-auth.allow-non-fqdn";
 static const char kNegotiateAuthSSPI[] = "network.auth.use-sspi";
 
 #define kNegotiateLen  (sizeof(kNegotiate)-1)
@@ -51,7 +84,7 @@ static const char kNegotiateAuthSSPI[] = "network.auth.use-sspi";
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsHttpNegotiateAuth::GetAuthFlags(uint32_t *flags)
+nsHttpNegotiateAuth::GetAuthFlags(PRUint32 *flags)
 {
     //
     // Negotiate Auth creds should not be reused across multiple requests.
@@ -76,14 +109,14 @@ nsHttpNegotiateAuth::GetAuthFlags(uint32_t *flags)
 NS_IMETHODIMP
 nsHttpNegotiateAuth::ChallengeReceived(nsIHttpAuthenticableChannel *authChannel,
                                        const char *challenge,
-                                       bool isProxyAuth,
+                                       PRBool isProxyAuth,
                                        nsISupports **sessionState,
                                        nsISupports **continuationState,
-                                       bool *identityInvalid)
+                                       PRBool *identityInvalid)
 {
     nsIAuthModule *module = (nsIAuthModule *) *continuationState;
 
-    *identityInvalid = false;
+    *identityInvalid = PR_FALSE;
     if (module)
         return NS_OK;
 
@@ -94,8 +127,8 @@ nsHttpNegotiateAuth::ChallengeReceived(nsIHttpAuthenticableChannel *authChannel,
     if (NS_FAILED(rv))
         return rv;
 
-    uint32_t req_flags = nsIAuthModule::REQ_DEFAULT;
-    nsAutoCString service;
+    PRUint32 req_flags = nsIAuthModule::REQ_DEFAULT;
+    nsCAutoString service;
 
     if (isProxyAuth) {
         if (!TestBoolPref(kNegotiateAuthAllowProxies)) {
@@ -110,14 +143,13 @@ nsHttpNegotiateAuth::ChallengeReceived(nsIHttpAuthenticableChannel *authChannel,
         proxyInfo->GetHost(service);
     }
     else {
-        bool allowed = TestNonFqdn(uri) ||
-                       TestPref(uri, kNegotiateAuthTrustedURIs);
+        PRBool allowed = TestPref(uri, kNegotiateAuthTrustedURIs);
         if (!allowed) {
             LOG(("nsHttpNegotiateAuth::ChallengeReceived URI blocked\n"));
             return NS_ERROR_ABORT;
         }
 
-        bool delegation = TestPref(uri, kNegotiateAuthDelegationURIs);
+        PRBool delegation = TestPref(uri, kNegotiateAuthDelegationURIs);
         if (delegation) {
             LOG(("  using REQ_DELEGATE\n"));
             req_flags |= nsIAuthModule::REQ_DELEGATE;
@@ -157,7 +189,7 @@ nsHttpNegotiateAuth::ChallengeReceived(nsIHttpAuthenticableChannel *authChannel,
         return rv;
     }
 
-    rv = module->Init(service.get(), req_flags, nullptr, nullptr, nullptr);
+    rv = module->Init(service.get(), req_flags, nsnull, nsnull, nsnull);
 
     if (NS_FAILED(rv)) {
         NS_RELEASE(module);
@@ -179,13 +211,13 @@ NS_IMPL_ISUPPORTS1(nsHttpNegotiateAuth, nsIHttpAuthenticator)
 NS_IMETHODIMP
 nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
                                          const char *challenge,
-                                         bool isProxyAuth,
+                                         PRBool isProxyAuth,
                                          const PRUnichar *domain,
                                          const PRUnichar *username,
                                          const PRUnichar *password,
                                          nsISupports **sessionState,
                                          nsISupports **continuationState,
-                                         uint32_t *flags,
+                                         PRUint32 *flags,
                                          char **creds)
 {
     // ChallengeReceived must have been called previously.
@@ -199,7 +231,7 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
     NS_ASSERTION(creds, "null param");
 
 #ifdef DEBUG
-    bool isGssapiAuth =
+    PRBool isGssapiAuth =
         !PL_strncasecmp(challenge, kNegotiate, kNegotiateLen);
     NS_ASSERTION(isGssapiAuth, "Unexpected challenge");
 #endif
@@ -216,7 +248,7 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
     unsigned int len = strlen(challenge);
 
     void *inToken, *outToken;
-    uint32_t inTokenLen, outTokenLen;
+    PRUint32 inTokenLen, outTokenLen;
 
     if (len > kNegotiateLen) {
         challenge += kNegotiateLen;
@@ -245,7 +277,7 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
         //
         // Initializing, don't use an input token.
         //
-        inToken = nullptr;
+        inToken = nsnull;
         inTokenLen = 0;
     }
 
@@ -264,7 +296,7 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
     //
     // base64 encode the output token.
     //
-    char *encoded_token = PL_Base64Encode((char *)outToken, outTokenLen, nullptr);
+    char *encoded_token = PL_Base64Encode((char *)outToken, outTokenLen, nsnull);
 
     nsMemory::Free(outToken);
 
@@ -284,58 +316,41 @@ nsHttpNegotiateAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChanne
     return rv;
 }
 
-bool
+PRBool
 nsHttpNegotiateAuth::TestBoolPref(const char *pref)
 {
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
-        return false;
+        return PR_FALSE;
 
-    bool val;
+    PRBool val;
     nsresult rv = prefs->GetBoolPref(pref, &val);
     if (NS_FAILED(rv))
-        return false;
+        return PR_FALSE;
 
     return val;
 }
 
-bool
-nsHttpNegotiateAuth::TestNonFqdn(nsIURI *uri)
-{
-    nsAutoCString host;
-    PRNetAddr addr;
-
-    if (!TestBoolPref(kNegotiateAuthAllowNonFqdn))
-        return false;
-
-    if (NS_FAILED(uri->GetAsciiHost(host)))
-        return false;
-
-    // return true if host does not contain a dot and is not an ip address
-    return !host.IsEmpty() && host.FindChar('.') == kNotFound &&
-           PR_StringToNetAddr(host.BeginReading(), &addr) != PR_SUCCESS;
-}
-
-bool
+PRBool
 nsHttpNegotiateAuth::TestPref(nsIURI *uri, const char *pref)
 {
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
-        return false;
+        return PR_FALSE;
 
-    nsAutoCString scheme, host;
-    int32_t port;
+    nsCAutoString scheme, host;
+    PRInt32 port;
 
     if (NS_FAILED(uri->GetScheme(scheme)))
-        return false;
+        return PR_FALSE;
     if (NS_FAILED(uri->GetAsciiHost(host)))
-        return false;
+        return PR_FALSE;
     if (NS_FAILED(uri->GetPort(&port)))
-        return false;
+        return PR_FALSE;
 
     char *hostList;
     if (NS_FAILED(prefs->GetCharPref(pref, &hostList)) || !hostList)
-        return false;
+        return PR_FALSE;
 
     // pseudo-BNF
     // ----------
@@ -360,20 +375,20 @@ nsHttpNegotiateAuth::TestPref(nsIURI *uri, const char *pref)
         if (start == end)
             break;
         if (MatchesBaseURI(scheme, host, port, start, end))
-            return true;
+            return PR_TRUE;
         if (*end == '\0')
             break;
         start = end + 1;
     }
     
     nsMemory::Free(hostList);
-    return false;
+    return PR_FALSE;
 }
 
-bool
+PRBool
 nsHttpNegotiateAuth::MatchesBaseURI(const nsCSubstring &matchScheme,
                                     const nsCSubstring &matchHost,
-                                    int32_t             matchPort,
+                                    PRInt32             matchPort,
                                     const char         *baseStart,
                                     const char         *baseEnd)
 {
@@ -384,7 +399,7 @@ nsHttpNegotiateAuth::MatchesBaseURI(const nsCSubstring &matchScheme,
     if (schemeEnd) {
         // the given scheme must match the parsed scheme exactly
         if (!matchScheme.Equals(Substring(baseStart, schemeEnd)))
-            return false;
+            return PR_FALSE;
         hostStart = schemeEnd + 3;
     }
     else
@@ -395,8 +410,8 @@ nsHttpNegotiateAuth::MatchesBaseURI(const nsCSubstring &matchScheme,
     if (hostEnd && hostEnd < baseEnd) {
         // the given port must match the parsed port exactly
         int port = atoi(hostEnd + 1);
-        if (matchPort != (int32_t) port)
-            return false;
+        if (matchPort != (PRInt32) port)
+            return PR_FALSE;
     }
     else
         hostEnd = baseEnd;
@@ -404,13 +419,13 @@ nsHttpNegotiateAuth::MatchesBaseURI(const nsCSubstring &matchScheme,
 
     // if we didn't parse out a host, then assume we got a match.
     if (hostStart == hostEnd)
-        return true;
+        return PR_TRUE;
 
-    uint32_t hostLen = hostEnd - hostStart;
+    PRUint32 hostLen = hostEnd - hostStart;
 
     // matchHost must either equal host or be a subdomain of host
     if (matchHost.Length() < hostLen)
-        return false;
+        return PR_FALSE;
 
     const char *end = matchHost.EndReading();
     if (PL_strncasecmp(end - hostLen, hostStart, hostLen) == 0) {
@@ -420,8 +435,8 @@ nsHttpNegotiateAuth::MatchesBaseURI(const nsCSubstring &matchScheme,
         if (matchHost.Length() == hostLen ||
             *(end - hostLen) == '.' ||
             *(end - hostLen - 1) == '.')
-            return true;
+            return PR_TRUE;
     }
 
-    return false;
+    return PR_FALSE;
 }

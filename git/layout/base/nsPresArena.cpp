@@ -1,8 +1,45 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: set ts=2 sw=2 et tw=78:
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Steve Clark <buster@netscape.com>
+ *   Håkan Waara <hwaara@chello.se>
+ *   Dan Rosen <dr@netscape.com>
+ *   Daniel Glazman <glazman@netscape.com>
+ *   Mats Palmgren <mats.palmgren@bredband.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
  */
 
 /* arena allocation for the frame tree and closely-related objects */
@@ -15,23 +52,20 @@
 #include "prmem.h"
 #include "prinit.h"
 #include "prlog.h"
-#include "nsArenaMemoryStats.h"
-#include "nsCOMPtr.h"
-#include "nsServiceManagerUtils.h"
-#include "nsPrintfCString.h"
 
 #ifdef MOZ_CRASHREPORTER
 #include "nsICrashReporter.h"
+#include "nsCOMPtr.h"
+#include "nsServiceManagerUtils.h"
+#include "nsPrintfCString.h"
 #endif
 
-#include "mozilla/StandardInteger.h"
-
 // Even on 32-bit systems, we allocate objects from the frame arena
-// that require 8-byte alignment.  The cast to uintptr_t is needed
+// that require 8-byte alignment.  The cast to PRUword is needed
 // because plarena isn't as careful about mask construction as it
 // ought to be.
 #define ALIGN_SHIFT 3
-#define PL_ARENA_CONST_ALIGN_MASK ((uintptr_t(1) << ALIGN_SHIFT) - 1)
+#define PL_ARENA_CONST_ALIGN_MASK ((PRUword(1) << ALIGN_SHIFT) - 1)
 #include "plarena.h"
 
 #ifdef _WIN32
@@ -49,7 +83,7 @@
 #endif
 
 // Size to use for PLArena block allocations.
-static const size_t ARENA_PAGE_SIZE = 8192;
+static const size_t ARENA_PAGE_SIZE = 4096;
 
 // Freed memory is filled with a poison value, which we arrange to
 // form a pointer either to an always-unmapped region of the address
@@ -61,31 +95,31 @@ static const size_t ARENA_PAGE_SIZE = 8192;
 
 #ifdef _WIN32
 static void *
-ReserveRegion(uintptr_t region, uintptr_t size)
+ReserveRegion(PRUword region, PRUword size)
 {
   return VirtualAlloc((void *)region, size, MEM_RESERVE, PAGE_NOACCESS);
 }
 
 static void
-ReleaseRegion(void *region, uintptr_t size)
+ReleaseRegion(void *region, PRUword size)
 {
   VirtualFree(region, size, MEM_RELEASE);
 }
 
 static bool
-ProbeRegion(uintptr_t region, uintptr_t size)
+ProbeRegion(PRUword region, PRUword size)
 {
   SYSTEM_INFO sinfo;
   GetSystemInfo(&sinfo);
-  if (region >= (uintptr_t)sinfo.lpMaximumApplicationAddress &&
-      region + size >= (uintptr_t)sinfo.lpMaximumApplicationAddress) {
+  if (region >= (PRUword)sinfo.lpMaximumApplicationAddress &&
+      region + size >= (PRUword)sinfo.lpMaximumApplicationAddress) {
     return true;
   } else {
     return false;
   }
 }
 
-static uintptr_t
+static PRUword
 GetDesiredRegionSize()
 {
   SYSTEM_INFO sinfo;
@@ -97,7 +131,7 @@ GetDesiredRegionSize()
 
 #elif defined(__OS2__)
 static void *
-ReserveRegion(uintptr_t region, uintptr_t size)
+ReserveRegion(PRUword region, PRUword size)
 {
   // OS/2 doesn't support allocation at an arbitrary address,
   // so return an address that is known to be invalid.
@@ -105,20 +139,20 @@ ReserveRegion(uintptr_t region, uintptr_t size)
 }
 
 static void
-ReleaseRegion(void *region, uintptr_t size)
+ReleaseRegion(void *region, PRUword size)
 {
   return;
 }
 
 static bool
-ProbeRegion(uintptr_t region, uintptr_t size)
+ProbeRegion(PRUword region, PRUword size)
 {
   // There's no reliable way to probe an address in the system
   // arena other than by touching it and seeing if a trap occurs.
   return false;
 }
 
-static uintptr_t
+static PRUword
 GetDesiredRegionSize()
 {
   // Page size is fixed at 4k.
@@ -130,19 +164,19 @@ GetDesiredRegionSize()
 #else // Unix
 
 static void *
-ReserveRegion(uintptr_t region, uintptr_t size)
+ReserveRegion(PRUword region, PRUword size)
 {
   return mmap((caddr_t)region, size, PROT_NONE, MAP_PRIVATE|MAP_ANON, -1, 0);
 }
 
 static void
-ReleaseRegion(void *region, uintptr_t size)
+ReleaseRegion(void *region, PRUword size)
 {
   munmap((caddr_t)region, size);
 }
 
 static bool
-ProbeRegion(uintptr_t region, uintptr_t size)
+ProbeRegion(PRUword region, PRUword size)
 {
   if (madvise((caddr_t)region, size, MADV_NORMAL)) {
     return true;
@@ -151,7 +185,7 @@ ProbeRegion(uintptr_t region, uintptr_t size)
   }
 }
 
-static uintptr_t
+static PRUword
 GetDesiredRegionSize()
 {
   return sysconf(_SC_PAGESIZE);
@@ -161,23 +195,23 @@ GetDesiredRegionSize()
 
 #endif // system dependencies
 
-PR_STATIC_ASSERT(sizeof(uintptr_t) == 4 || sizeof(uintptr_t) == 8);
-PR_STATIC_ASSERT(sizeof(uintptr_t) == sizeof(void *));
+PR_STATIC_ASSERT(sizeof(PRUword) == 4 || sizeof(PRUword) == 8);
+PR_STATIC_ASSERT(sizeof(PRUword) == sizeof(void *));
 
-static uintptr_t
-ReservePoisonArea(uintptr_t rgnsize)
+static PRUword
+ReservePoisonArea(PRUword rgnsize)
 {
-  if (sizeof(uintptr_t) == 8) {
+  if (sizeof(PRUword) == 8) {
     // Use the hardware-inaccessible region.
     // We have to avoid 64-bit constants and shifts by 32 bits, since this
     // code is compiled in 32-bit mode, although it is never executed there.
     return
-      (((uintptr_t(0x7FFFFFFFu) << 31) << 1 | uintptr_t(0xF0DEAFFFu))
+      (((PRUword(0x7FFFFFFFu) << 31) << 1 | PRUword(0xF0DEAFFFu))
        & ~(rgnsize-1));
 
   } else {
     // First see if we can allocate the preferred poison address from the OS.
-    uintptr_t candidate = (0xF0DEAFFF & ~(rgnsize-1));
+    PRUword candidate = (0xF0DEAFFF & ~(rgnsize-1));
     void *result = ReserveRegion(candidate, rgnsize);
     if (result == (void *)candidate) {
       // success - inaccessible page allocated
@@ -196,14 +230,14 @@ ReservePoisonArea(uintptr_t rgnsize)
     // The preferred address is already in use.  Did the OS give us a
     // consolation prize?
     if (result != RESERVE_FAILED) {
-      return uintptr_t(result);
+      return PRUword(result);
     }
 
     // It didn't, so try to allocate again, without any constraint on
     // the address.
     result = ReserveRegion(0, rgnsize);
     if (result != RESERVE_FAILED) {
-      return uintptr_t(result);
+      return PRUword(result);
     }
 
     NS_RUNTIMEABORT("no usable poison region identified");
@@ -211,14 +245,14 @@ ReservePoisonArea(uintptr_t rgnsize)
   }
 }
 
-static uintptr_t ARENA_POISON;
+static PRUword ARENA_POISON;
 static PRCallOnceType ARENA_POISON_guard;
 
 static PRStatus
 ARENA_POISON_init()
 {
-  uintptr_t rgnsize = GetDesiredRegionSize();
-  uintptr_t rgnbase = ReservePoisonArea(rgnsize);
+  PRUword rgnsize = GetDesiredRegionSize();
+  PRUword rgnbase = ReservePoisonArea(rgnsize);
 
   if (rgnsize == 0) // can't happen
     return PR_FAILURE;
@@ -228,12 +262,12 @@ ARENA_POISON_init()
 #ifdef MOZ_CRASHREPORTER
   nsCOMPtr<nsICrashReporter> cr =
     do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-  bool enabled;
+  PRBool enabled;
   if (cr && NS_SUCCEEDED(cr->GetEnabled(&enabled)) && enabled) {
     cr->AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonBase"),
-                            nsPrintfCString("%.16llx", uint64_t(rgnbase)));
+                            nsPrintfCString(17, "%.16llx", PRUint64(rgnbase)));
     cr->AnnotateCrashReport(NS_LITERAL_CSTRING("FramePoisonSize"),
-                            nsPrintfCString("%lu", uint32_t(rgnsize)));
+                            nsPrintfCString("%lu", PRUint32(rgnsize)));
   }
 #endif
   return PR_SUCCESS;
@@ -249,19 +283,18 @@ namespace {
 class FreeList : public PLDHashEntryHdr
 {
 public:
-  typedef uint32_t KeyType;
+  typedef PRUint32 KeyType;
   nsTArray<void *> mEntries;
   size_t mEntrySize;
-  size_t mEntriesEverAllocated;
 
+protected:
   typedef const void* KeyTypePointer;
   KeyTypePointer mKey;
 
-  FreeList(KeyTypePointer aKey)
-  : mEntrySize(0), mEntriesEverAllocated(0), mKey(aKey) {}
+  FreeList(KeyTypePointer aKey) : mEntrySize(0), mKey(aKey) {}
   // Default copy constructor and destructor are ok.
 
-  bool KeyEquals(KeyTypePointer const aKey) const
+  PRBool KeyEquals(KeyTypePointer const aKey) const
   { return mKey == aKey; }
 
   static KeyTypePointer KeyToPointer(KeyType aKey)
@@ -270,7 +303,8 @@ public:
   static PLDHashNumber HashKey(KeyTypePointer aKey)
   { return NS_PTR_TO_INT32(aKey); }
 
-  enum { ALLOW_MEMMOVE = false };
+  enum { ALLOW_MEMMOVE = PR_FALSE };
+  friend class nsTHashtable<FreeList>;
 };
 
 }
@@ -291,7 +325,7 @@ struct nsPresArena::State {
     PL_FinishArenaPool(&mPool);
   }
 
-  void* Allocate(uint32_t aCode, size_t aSize)
+  void* Allocate(PRUint32 aCode, size_t aSize)
   {
     NS_ABORT_IF_FALSE(aSize > 0, "PresArena cannot allocate zero bytes");
 
@@ -301,6 +335,9 @@ struct nsPresArena::State {
     // If there is no free-list entry for this type already, we have
     // to create one now, to record its size.
     FreeList* list = mFreeLists.PutEntry(aCode);
+    if (!list) {
+      return nsnull;
+    }
 
     nsTArray<void*>::index_type len = list->mEntries.Length();
     if (list->mEntrySize == 0) {
@@ -320,17 +357,9 @@ struct nsPresArena::State {
       {
         char* p = reinterpret_cast<char*>(result);
         char* limit = p + list->mEntrySize;
-        for (; p < limit; p += sizeof(uintptr_t)) {
-          uintptr_t val = *reinterpret_cast<uintptr_t*>(p);
-          NS_ABORT_IF_FALSE(val == ARENA_POISON,
-                            nsPrintfCString("PresArena: poison overwritten; "
-                                            "wanted %.16llx "
-                                            "found %.16llx "
-                                            "errors in bits %.16llx",
-                                            uint64_t(ARENA_POISON),
-                                            uint64_t(val),
-                                            uint64_t(ARENA_POISON ^ val)
-                                            ).get());
+        for (; p < limit; p += sizeof(PRUword)) {
+          NS_ABORT_IF_FALSE(*reinterpret_cast<PRUword*>(p) == ARENA_POISON,
+                            "PresArena: poison overwritten");
         }
       }
 #endif
@@ -338,12 +367,11 @@ struct nsPresArena::State {
     }
 
     // Allocate a new chunk from the arena
-    list->mEntriesEverAllocated++;
     PL_ARENA_ALLOCATE(result, &mPool, aSize);
     return result;
   }
 
-  void Free(uint32_t aCode, void* aPtr)
+  void Free(PRUint32 aCode, void* aPtr)
   {
     // Try to recycle this entry.
     FreeList* list = mFreeLists.GetEntry(aCode);
@@ -352,105 +380,26 @@ struct nsPresArena::State {
 
     char* p = reinterpret_cast<char*>(aPtr);
     char* limit = p + list->mEntrySize;
-    for (; p < limit; p += sizeof(uintptr_t)) {
-      *reinterpret_cast<uintptr_t*>(p) = ARENA_POISON;
+    for (; p < limit; p += sizeof(PRUword)) {
+      *reinterpret_cast<PRUword*>(p) = ARENA_POISON;
     }
 
     list->mEntries.AppendElement(aPtr);
   }
-
-  static size_t SizeOfFreeListEntryExcludingThis(FreeList* aEntry,
-                                                 nsMallocSizeOfFun aMallocSizeOf,
-                                                 void *)
-  {
-    return aEntry->mEntries.SizeOfExcludingThis(aMallocSizeOf);
-  }
-
-  size_t SizeOfIncludingThisFromMalloc(nsMallocSizeOfFun aMallocSizeOf) const
-  {
-    size_t n = aMallocSizeOf(this);
-
-    // The first PLArena is within the PLArenaPool, i.e. within |this|, so we
-    // don't measure it.  Subsequent PLArenas are by themselves and must be
-    // measured.
-    const PLArena *arena = mPool.first.next;
-    while (arena) {
-      n += aMallocSizeOf(arena);
-      arena = arena->next;
-    }
-    n += mFreeLists.SizeOfExcludingThis(SizeOfFreeListEntryExcludingThis,
-                                        aMallocSizeOf);
-    return n;
-  }
-
-  struct EnumerateData {
-    nsArenaMemoryStats* stats;
-    size_t total;
-  };
-
-  static PLDHashOperator FreeListEnumerator(FreeList* aEntry, void* aData)
-  {
-    EnumerateData* data = static_cast<EnumerateData*>(aData);
-    // Note that we're not measuring the size of the entries on the free
-    // list here.  The free list knows how many objects we've allocated
-    // ever (which includes any objects that may be on the FreeList's
-    // |mEntries| at this point) and we're using that to determine the
-    // total size of objects allocated with a given ID.
-    size_t totalSize = aEntry->mEntrySize * aEntry->mEntriesEverAllocated;
-    size_t* p;
-
-    switch (NS_PTR_TO_INT32(aEntry->mKey)) {
-#define FRAME_ID(classname)                                        \
-      case nsQueryFrame::classname##_id:                           \
-        p = &data->stats->FRAME_ID_STAT_FIELD(classname);          \
-        break;
-#include "nsFrameIdList.h"
-#undef FRAME_ID
-    case nsLineBox_id:
-      p = &data->stats->mLineBoxes;
-      break;
-    case nsRuleNode_id:
-      p = &data->stats->mRuleNodes;
-      break;
-    case nsStyleContext_id:
-      p = &data->stats->mStyleContexts;
-      break;
-    default:
-      return PL_DHASH_NEXT;
-    }
-
-    *p += totalSize;
-    data->total += totalSize;
-
-    return PL_DHASH_NEXT;
-  }
-
-  void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                           nsArenaMemoryStats* aArenaStats)
-  {
-    // We do a complicated dance here because we want to measure the
-    // space taken up by the different kinds of objects in the arena,
-    // but we don't have pointers to those objects.  And even if we did,
-    // we wouldn't be able to use aMallocSizeOf on them, since they were
-    // allocated out of malloc'd chunks of memory.  So we compute the
-    // size of the arena as known by malloc and we add up the sizes of
-    // all the objects that we care about.  Subtracting these two
-    // quantities gives us a catch-all "other" number, which includes
-    // slop in the arena itself as well as the size of objects that
-    // we've not measured explicitly.
-
-    size_t mallocSize = SizeOfIncludingThisFromMalloc(aMallocSizeOf);
-    EnumerateData data = { aArenaStats, 0 };
-    mFreeLists.EnumerateEntries(FreeListEnumerator, &data);
-    aArenaStats->mOther = mallocSize - data.total;
-  }
 };
 
-void
-nsPresArena::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                 nsArenaMemoryStats* aArenaStats)
+PRUint32
+nsPresArena::Size()
 {
-  mState->SizeOfIncludingThis(aMallocSizeOf, aArenaStats);
+  PLArena *arena = &mState->mPool.first;
+  PRUint32 result = 0;
+
+  while (arena) {
+    result += arena->limit - arena->base;
+    arena = arena->next;
+  }
+
+  return result;
 }
 
 #else
@@ -466,20 +415,22 @@ struct nsPresArena::State
     PR_CallOnce(&ARENA_POISON_guard, ARENA_POISON_init);
   }
 
-  void* Allocate(uint32_t /* unused */, size_t aSize)
+  void* Allocate(PRUint32 /* unused */, size_t aSize)
   {
     return PR_Malloc(aSize);
   }
 
-  void Free(uint32_t /* unused */, void* aPtr)
+  void Free(PRUint32 /* unused */, void* aPtr)
   {
     PR_Free(aPtr);
   }
 };
 
-void
-nsPresArena::SizeOfExcludingThis(nsMallocSizeOfFun, nsArenaMemoryStats*)
-{}
+PRUint32
+nsPresArena::Size()
+{
+  return 0;
+}
 
 #endif // DEBUG_TRACEMALLOC_PRESARENA
 
@@ -496,41 +447,31 @@ nsPresArena::~nsPresArena()
 void*
 nsPresArena::AllocateBySize(size_t aSize)
 {
-  return mState->Allocate(uint32_t(aSize) | uint32_t(NON_OBJECT_MARKER),
+  return mState->Allocate(PRUint32(aSize) |
+                          PRUint32(nsQueryFrame::NON_FRAME_MARKER),
                           aSize);
 }
 
 void
 nsPresArena::FreeBySize(size_t aSize, void* aPtr)
 {
-  mState->Free(uint32_t(aSize) | uint32_t(NON_OBJECT_MARKER), aPtr);
+  mState->Free(PRUint32(aSize) |
+               PRUint32(nsQueryFrame::NON_FRAME_MARKER), aPtr);
 }
 
 void*
-nsPresArena::AllocateByFrameID(nsQueryFrame::FrameIID aID, size_t aSize)
+nsPresArena::AllocateByCode(nsQueryFrame::FrameIID aCode, size_t aSize)
 {
-  return mState->Allocate(aID, aSize);
+  return mState->Allocate(aCode, aSize);
 }
 
 void
-nsPresArena::FreeByFrameID(nsQueryFrame::FrameIID aID, void* aPtr)
+nsPresArena::FreeByCode(nsQueryFrame::FrameIID aCode, void* aPtr)
 {
-  mState->Free(aID, aPtr);
+  mState->Free(aCode, aPtr);
 }
 
-void*
-nsPresArena::AllocateByObjectID(ObjectID aID, size_t aSize)
-{
-  return mState->Allocate(aID, aSize);
-}
-
-void
-nsPresArena::FreeByObjectID(ObjectID aID, void* aPtr)
-{
-  mState->Free(aID, aPtr);
-}
-
-/* static */ uintptr_t
+/* static */ PRUword
 nsPresArena::GetPoisonValue()
 {
   return ARENA_POISON;

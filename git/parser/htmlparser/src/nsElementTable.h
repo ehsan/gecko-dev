@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 /**
@@ -60,7 +92,7 @@ static const int kAllTags       = 0xffffff;
 //*********************************************************************************************
 
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
 extern void CheckElementTable();
 #endif
 
@@ -72,12 +104,12 @@ extern void CheckElementTable();
  * @param 
  * @return TRUE or FALSE
  */
-inline bool TestBits(int aBitset,int aTest) {
+inline PRBool TestBits(int aBitset,int aTest) {
   if(aTest) {
-    int32_t result=(aBitset & aTest);
-    return bool(result==aTest);
+    PRInt32 result=(aBitset & aTest);
+    return PRBool(result==aTest);
   }
-  return false;
+  return PR_FALSE;
 }
 
 
@@ -95,47 +127,47 @@ struct nsHTMLElement {
   static  void    DebugDumpContainType(const char* aFilename);
 #endif
 
-  static  bool    IsInlineEntity(eHTMLTags aTag);
-  static  bool    IsFlowEntity(eHTMLTags aTag);
-  static  bool    IsBlockCloser(eHTMLTags aTag);
+  static  PRBool  IsInlineEntity(eHTMLTags aTag);
+  static  PRBool  IsFlowEntity(eHTMLTags aTag);
+  static  PRBool  IsBlockCloser(eHTMLTags aTag);
 
-  inline  bool    IsBlock(void) const { 
+  inline  PRBool  IsBlock(void) const { 
                     if((mTagID>=eHTMLTag_unknown) & (mTagID<=eHTMLTag_xmp)){
                       return TestBits(mParentBits,kBlock);
                     } 
-                    return false;
+                    return PR_FALSE;
                   }
 
-  inline  bool    IsBlockEntity(void) const { 
+  inline  PRBool  IsBlockEntity(void) const { 
                     if((mTagID>=eHTMLTag_unknown) & (mTagID<=eHTMLTag_xmp)){
                       return TestBits(mParentBits,kBlockEntity);
                     } 
-                    return false;
+                    return PR_FALSE;
                   }
 
-  inline  bool    IsSpecialEntity(void) const { 
+  inline  PRBool  IsSpecialEntity(void) const { 
                     if((mTagID>=eHTMLTag_unknown) & (mTagID<=eHTMLTag_xmp)){
                       return TestBits(mParentBits,kSpecial);
                     } 
-                    return false;
+                    return PR_FALSE;
                   }
 
-  inline  bool    IsPhraseEntity(void) const { 
+  inline  PRBool  IsPhraseEntity(void) const { 
                     if((mTagID>=eHTMLTag_unknown) & (mTagID<=eHTMLTag_xmp)){
                       return TestBits(mParentBits,kPhrase);
                     } 
-                    return false;
+                    return PR_FALSE;
                   }
 
-  inline  bool    IsFontStyleEntity(void) const { 
+  inline  PRBool  IsFontStyleEntity(void) const { 
                     if((mTagID>=eHTMLTag_unknown) & (mTagID<=eHTMLTag_xmp)){
                       return TestBits(mParentBits,kFontStyle);
                     } 
-                    return false;
+                    return PR_FALSE;
                   }
   
-  inline  bool    IsTableElement(void) const {  //return yes if it's a table or child of a table...
-                    bool result=false;
+  inline  PRBool  IsTableElement(void) const {  //return yes if it's a table or child of a table...
+                    PRBool result=PR_FALSE;
 
                     switch(mTagID) {
                       case eHTMLTag_table:
@@ -148,53 +180,53 @@ struct nsHTMLElement {
                       case eHTMLTag_th:
                       case eHTMLTag_col:
                       case eHTMLTag_colgroup:
-                        result=true;
+                        result=PR_TRUE;
                         break;
                       default:
-                        result=false;
+                        result=PR_FALSE;
                     }
                     return result;
                   }
 
 
-  static  int32_t GetIndexOfChildOrSynonym(nsDTDContext& aContext,eHTMLTags aChildTag);
+  static  PRInt32 GetIndexOfChildOrSynonym(nsDTDContext& aContext,eHTMLTags aChildTag);
 
   const TagList*  GetSynonymousTags(void) const {return mSynonymousTags;}
   const TagList*  GetRootTags(void) const {return mRootNodes;}
   const TagList*  GetEndRootTags(void) const {return mEndRootNodes;}
   const TagList*  GetAutoCloseStartTags(void) const {return mAutocloseStart;}
   const TagList*  GetAutoCloseEndTags(void) const {return mAutocloseEnd;}
-  eHTMLTags       GetCloseTargetForEndTag(nsDTDContext& aContext,int32_t anIndex,nsDTDMode aMode) const;
+  eHTMLTags       GetCloseTargetForEndTag(nsDTDContext& aContext,PRInt32 anIndex,nsDTDMode aMode) const;
 
   const TagList*        GetSpecialChildren(void) const {return mSpecialKids;}
   const TagList*        GetSpecialParents(void) const {return mSpecialParents;}
 
-  bool            IsMemberOf(int32_t aType) const;
-  bool            ContainsSet(int32_t aType) const;
-  bool            CanContainType(int32_t aType) const;
+  PRBool          IsMemberOf(PRInt32 aType) const;
+  PRBool          ContainsSet(PRInt32 aType) const;
+  PRBool          CanContainType(PRInt32 aType) const;
 
-  bool            CanContain(eHTMLTags aChild,nsDTDMode aMode) const;
-  bool            CanExclude(eHTMLTags aChild) const;
-  bool            CanOmitEndTag(void) const;
-  bool            CanContainSelf(void) const;
-  bool            CanAutoCloseTag(nsDTDContext& aContext,int32_t aIndex,eHTMLTags aTag) const;
-  bool            HasSpecialProperty(int32_t aProperty) const;
-  bool            IsSpecialParent(eHTMLTags aTag) const;
-  bool            IsExcludableParent(eHTMLTags aParent) const;
-  bool            SectionContains(eHTMLTags aTag,bool allowDepthSearch) const;
-  bool            ShouldVerifyHierarchy() const;
+  PRBool          CanContain(eHTMLTags aChild,nsDTDMode aMode) const;
+  PRBool          CanExclude(eHTMLTags aChild) const;
+  PRBool          CanOmitEndTag(void) const;
+  PRBool          CanContainSelf(void) const;
+  PRBool          CanAutoCloseTag(nsDTDContext& aContext,PRInt32 aIndex,eHTMLTags aTag) const;
+  PRBool          HasSpecialProperty(PRInt32 aProperty) const;
+  PRBool          IsSpecialParent(eHTMLTags aTag) const;
+  PRBool          IsExcludableParent(eHTMLTags aParent) const;
+  PRBool          SectionContains(eHTMLTags aTag,PRBool allowDepthSearch) const;
+  PRBool          ShouldVerifyHierarchy() const;
 
-  static  bool    CanContain(eHTMLTags aParent,eHTMLTags aChild,nsDTDMode aMode);
-  static  bool    IsContainer(eHTMLTags aTag) ;
-  static  bool    IsResidualStyleTag(eHTMLTags aTag) ;
-  static  bool    IsTextTag(eHTMLTags aTag);
-  static  bool    IsWhitespaceTag(eHTMLTags aTag);
+  static  PRBool  CanContain(eHTMLTags aParent,eHTMLTags aChild,nsDTDMode aMode);
+  static  PRBool  IsContainer(eHTMLTags aTag) ;
+  static  PRBool  IsResidualStyleTag(eHTMLTags aTag) ;
+  static  PRBool  IsTextTag(eHTMLTags aTag);
+  static  PRBool  IsWhitespaceTag(eHTMLTags aTag);
 
-  static  bool    IsBlockParent(eHTMLTags aTag);
-  static  bool    IsInlineParent(eHTMLTags aTag); 
-  static  bool    IsFlowParent(eHTMLTags aTag);
-  static  bool    IsSectionTag(eHTMLTags aTag);
-  static  bool    IsChildOfHead(eHTMLTags aTag,bool& aExclusively) ;
+  static  PRBool  IsBlockParent(eHTMLTags aTag);
+  static  PRBool  IsInlineParent(eHTMLTags aTag); 
+  static  PRBool  IsFlowParent(eHTMLTags aTag);
+  static  PRBool  IsSectionTag(eHTMLTags aTag);
+  static  PRBool  IsChildOfHead(eHTMLTags aTag,PRBool& aExclusively) ;
 
   eHTMLTags       mTagID;
   eHTMLTags       mRequiredAncestor;
@@ -209,7 +241,7 @@ struct nsHTMLElement {
   int             mInclusionBits;     //defines parental and containment rules
   int             mExclusionBits;     //defines things you CANNOT contain
   int             mSpecialProperties; //used for various special purposes...
-  uint32_t        mPropagateRange;    //tells us how far a parent is willing to prop. badly formed children
+  PRUint32        mPropagateRange;    //tells us how far a parent is willing to prop. badly formed children
   const TagList*  mSpecialParents;    //These are the special tags that contain this tag (directly)
   const TagList*  mSpecialKids;       //These are the extra things you can contain
 }; 

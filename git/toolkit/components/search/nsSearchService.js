@@ -1,16 +1,48 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Browser Search Service.
+#
+# The Initial Developer of the Original Code is
+# Google Inc.
+# Portions created by the Initial Developer are Copyright (C) 2005-2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <beng@google.com> (Original author)
+#   Gavin Sharp <gavin@gavinsharp.com>
+#   Joe Hughes  <joe@retrovirus.com>
+#   Pamela Greene <pamg.bugs@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
 const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "DeferredTask",
-  "resource://gre/modules/DeferredTask.jsm");
 
 const PERMS_FILE      = 0644;
 const PERMS_DIRECTORY = 0755;
@@ -43,19 +75,6 @@ const SEARCH_ENGINE_ADDED        = "engine-added";
 const SEARCH_ENGINE_CHANGED      = "engine-changed";
 const SEARCH_ENGINE_LOADED       = "engine-loaded";
 const SEARCH_ENGINE_CURRENT      = "engine-current";
-
-// The following constants are left undocumented in nsIBrowserSearchService.idl
-// For the moment, they are meant for testing/debugging purposes only.
-
-/**
- * Topic used for events involving the service itself.
- */
-const SEARCH_SERVICE_TOPIC       = "browser-search-service";
-
-/**
- * Sent whenever metadata is fully written to disk.
- */
-const SEARCH_SERVICE_METADATA_WRITTEN  = "write-metadata-to-disk-complete";
 
 const SEARCH_TYPE_MOZSEARCH      = Ci.nsISearchEngine.TYPE_MOZSEARCH;
 const SEARCH_TYPE_OPENSEARCH     = Ci.nsISearchEngine.TYPE_OPENSEARCH;
@@ -187,10 +206,16 @@ function isUsefulLine(aLine) {
   return !(/^\s*($|#)/i.test(aLine));
 }
 
-__defineGetter__("FileUtils", function() {
-  delete this.FileUtils;
-  Components.utils.import("resource://gre/modules/FileUtils.jsm");
-  return FileUtils;
+__defineGetter__("gObsSvc", function() {
+  delete this.gObsSvc;
+  return this.gObsSvc = Cc["@mozilla.org/observer-service;1"].
+                        getService(Ci.nsIObserverService);
+});
+
+__defineGetter__("gPrefSvc", function() {
+  delete this.gPrefSvc;
+  return this.gPrefSvc = Cc["@mozilla.org/preferences-service;1"].
+                         getService(Ci.nsIPrefBranch);
 });
 
 __defineGetter__("NetUtil", function() {
@@ -215,7 +240,9 @@ const SEARCH_LOG_PREFIX = "*** Search: ";
  */
 function DO_LOG(aText) {
   dump(SEARCH_LOG_PREFIX + aText + "\n");
-  Services.console.logStringMessage(aText);
+  var consoleService = Cc["@mozilla.org/consoleservice;1"].
+                       getService(Ci.nsIConsoleService);
+  consoleService.logStringMessage(aText);
 }
 
 #ifdef DEBUG
@@ -434,11 +461,15 @@ function makeURI(aURLSpec, aCharset) {
  * @param aKey
  *        The directory service key indicating the directory to get.
  */
+let _dirSvc = null;
 function getDir(aKey, aIFace) {
   if (!aKey)
     FAIL("getDir requires a directory key!");
 
-  return Services.dirsvc.get(aKey, aIFace || Ci.nsIFile);
+  if (!_dirSvc)
+    _dirSvc = Cc["@mozilla.org/file/directory_service;1"].
+               getService(Ci.nsIProperties);
+  return _dirSvc.get(aKey, aIFace || Ci.nsIFile);
 }
 
 /**
@@ -576,7 +607,7 @@ function getLocale() {
     return locale;
 
   // Not localized
-  return Services.prefs.getCharPref(localePref);
+  return gPrefSvc.getCharPref(localePref);
 }
 
 /**
@@ -588,7 +619,7 @@ function getLocale() {
 function getLocalizedPref(aPrefName, aDefault) {
   const nsIPLS = Ci.nsIPrefLocalizedString;
   try {
-    return Services.prefs.getComplexValue(aPrefName, nsIPLS).data;
+    return gPrefSvc.getComplexValue(aPrefName, nsIPLS).data;
   } catch (ex) {}
 
   return aDefault;
@@ -605,7 +636,7 @@ function setLocalizedPref(aPrefName, aValue) {
     var pls = Components.classes["@mozilla.org/pref-localizedstring;1"]
                         .createInstance(Ci.nsIPrefLocalizedString);
     pls.data = aValue;
-    Services.prefs.setComplexValue(aPrefName, nsIPLS, pls);
+    gPrefSvc.setComplexValue(aPrefName, nsIPLS, pls);
   } catch (ex) {}
 }
 
@@ -617,7 +648,7 @@ function setLocalizedPref(aPrefName, aValue) {
  */
 function getBoolPref(aName, aDefault) {
   try {
-    return Services.prefs.getBoolPref(aName);
+    return gPrefSvc.getBoolPref(aName);
   } catch (ex) {
     return aDefault;
   }
@@ -666,7 +697,7 @@ function sanitizeName(aName) {
  *        The name of the pref.
  **/
 function getMozParamPref(prefName)
-  Services.prefs.getCharPref(BROWSER_SEARCH_PREF + "param." + prefName);
+  gPrefSvc.getCharPref(BROWSER_SEARCH_PREF + "param." + prefName);
 
 /**
  * Notifies watchers of SEARCH_ENGINE_TOPIC about changes to an engine or to
@@ -679,18 +710,12 @@ function getMozParamPref(prefName)
  *
  * @see nsIBrowserSearchService.idl
  */
-let gInitialized = false;
+let gEnginesLoaded = false;
 function notifyAction(aEngine, aVerb) {
-  if (gInitialized) {
+  if (gEnginesLoaded) {
     LOG("NOTIFY: Engine: \"" + aEngine.name + "\"; Verb: \"" + aVerb + "\"");
-    Services.obs.notifyObservers(aEngine, SEARCH_ENGINE_TOPIC, aVerb);
+    gObsSvc.notifyObservers(aEngine, SEARCH_ENGINE_TOPIC, aVerb);
   }
-}
-
-function  parseJsonFromStream(aInputStream) {
-  const json = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
-  const data = json.decodeFromStream(aInputStream, aInputStream.available());
-  return data;
 }
 
 /**
@@ -724,7 +749,7 @@ function ParamSubstitution(aParamValue, aSearchTerms, aEngine) {
 
   var distributionID = MOZ_DISTRIBUTION_ID;
   try {
-    distributionID = Services.prefs.getCharPref(BROWSER_SEARCH_PREF + "distributionID");
+    distributionID = gPrefSvc.getCharPref(BROWSER_SEARCH_PREF + "distributionID");
   }
   catch (ex) { }
 
@@ -980,9 +1005,8 @@ function Engine(aLocation, aSourceDataType, aIsReadOnly) {
 }
 
 Engine.prototype = {
-  // The engine's alias (can be null). Initialized to |undefined| to indicate
-  // not-initialized-from-engineMetadataService.
-  _alias: undefined,
+  // The engine's alias.
+  _alias: null,
   // The data describing the engine. Is either an array of bytes, for Sherlock
   // files, or an XML document element, for XML plugins.
   _data: null,
@@ -1061,6 +1085,17 @@ Engine.prototype = {
   _iconUpdateURL: null,
   // A reference to the timer used for lazily serializing the engine to file
   _serializeTimer: null,
+  // Whether this engine has been used since the cache was last recreated.
+  __used: null,
+  get _used() {
+    if (!this.__used)
+      this.__used = !!engineMetadataService.getAttr(this, "used");
+    return this.__used;
+  },
+  set _used(aValue) {
+    this.__used = aValue
+    engineMetadataService.setAttr(this, "used", aValue);
+  },
 
   /**
    * Retrieves the data from the engine's file. If the engine's dataType is
@@ -1171,7 +1206,9 @@ Engine.prototype = {
   },
 
   _confirmAddEngine: function SRCH_SVC_confirmAddEngine() {
-    var stringBundle = Services.strings.createBundle(SEARCH_BUNDLE);
+    var sbs = Cc["@mozilla.org/intl/stringbundle;1"].
+              getService(Ci.nsIStringBundleService);
+    var stringBundle = sbs.createBundle(SEARCH_BUNDLE);
     var titleMessage = stringBundle.GetStringFromName("addEngineConfirmTitle");
 
     // Display only the hostname portion of the URL.
@@ -1185,7 +1222,8 @@ Engine.prototype = {
     var addButtonLabel =
         stringBundle.GetStringFromName("addEngineAddButtonLabel");
 
-    var ps = Services.prompt;
+    var ps = Cc["@mozilla.org/embedcomp/prompt-service;1"].
+             getService(Ci.nsIPromptService);
     var buttonFlags = (ps.BUTTON_TITLE_IS_STRING * ps.BUTTON_POS_0) +
                       (ps.BUTTON_TITLE_CANCEL    * ps.BUTTON_POS_1) +
                        ps.BUTTON_POS_0_DEFAULT;
@@ -1221,10 +1259,13 @@ Engine.prototype = {
         LOG("updating " + aEngine._engineToUpdate.name + " failed");
         return;
       }
-      var brandBundle = Services.strings.createBundle(BRAND_BUNDLE);
+      var sbs = Cc["@mozilla.org/intl/stringbundle;1"].
+                getService(Ci.nsIStringBundleService);
+
+      var brandBundle = sbs.createBundle(BRAND_BUNDLE);
       var brandName = brandBundle.GetStringFromName("brandShortName");
 
-      var searchBundle = Services.strings.createBundle(SEARCH_BUNDLE);
+      var searchBundle = sbs.createBundle(SEARCH_BUNDLE);
       var msgStringName = aErrorString || "error_loading_engine_msg2";
       var titleStringName = aTitleString || "error_loading_engine_title";
       var title = searchBundle.GetStringFromName(titleStringName);
@@ -1232,7 +1273,9 @@ Engine.prototype = {
                                                    [brandName, aEngine._location],
                                                    2);
 
-      Services.ww.getNewPrompter(null).alert(title, text);
+      var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
+               getService(Ci.nsIWindowWatcher);
+      ww.getNewPrompter(null).alert(title, text);
     }
 
     if (!aBytes) {
@@ -1278,7 +1321,9 @@ Engine.prototype = {
     // engine load, then we display a "this is a duplicate engine" prompt,
     // otherwise we fail silently.
     if (!engineToUpdate) {
-      if (Services.search.getEngineByName(aEngine.name)) {
+      var ss = Cc["@mozilla.org/browser/search-service;1"].
+               getService(Ci.nsIBrowserSearchService);
+      if (ss.getEngineByName(aEngine.name)) {
         if (aEngine._confirm)
           onError("error_duplicate_engine_msg", "error_invalid_engine_title");
 
@@ -1568,7 +1613,8 @@ Engine.prototype = {
   },
 
   _isDefaultEngine: function SRCH_ENG__isDefaultEngine() {
-    let defaultPrefB = Services.prefs.getDefaultBranch(BROWSER_SEARCH_PREF);
+    let defaultPrefB = gPrefSvc.QueryInterface(Ci.nsIPrefService)
+                               .getDefaultBranch(BROWSER_SEARCH_PREF);
     let nsIPLS = Ci.nsIPrefLocalizedString;
     let defaultEngine;
     try {
@@ -1586,10 +1632,6 @@ Engine.prototype = {
     if (aElement.getAttribute("width")  == "16" &&
         aElement.getAttribute("height") == "16") {
       this._setIcon(aElement.textContent, true);
-    }
-    else {
-      LOG("OpenSearch image must have explicit width=16 height=16: " +
-          aElement.textContent);
     }
   },
 
@@ -2159,7 +2201,7 @@ Engine.prototype = {
 
   // nsISearchEngine
   get alias() {
-    if (this._alias === undefined)
+    if (this._alias === null)
       this._alias = engineMetadataService.getAttr(this, "alias");
 
     return this._alias;
@@ -2189,9 +2231,7 @@ Engine.prototype = {
   },
 
   get iconURI() {
-    if (this._iconURI)
-      return this._iconURI;
-    return null;
+    return this._iconURI;
   },
 
   get _iconURL() {
@@ -2348,6 +2388,12 @@ Engine.prototype = {
     if (!aResponseType)
       aResponseType = URLTYPE_SEARCH_HTML;
 
+    // Check for updates on the first use of an app-shipped engine
+    if (this._isInAppDir && aResponseType == URLTYPE_SEARCH_HTML && !this._used) {
+      this._used = true;
+      engineUpdateService.update(this);
+    }
+
     var url = this._getURLOfType(aResponseType);
 
     if (!url)
@@ -2411,90 +2457,22 @@ Submission.prototype = {
   }
 }
 
-function executeSoon(func) {
-  Services.tm.mainThread.dispatch(func, Ci.nsIThread.DISPATCH_NORMAL);
-}
-
 // nsIBrowserSearchService
 function SearchService() {
   // Replace empty LOG function with the useful one if the log pref is set.
   if (getBoolPref(BROWSER_SEARCH_PREF + "log", false))
     LOG = DO_LOG;
 
-  /**
-   * If initialization is not complete yet, an array of
-   * |nsIBrowserSearchInitObserver| expecting the result of the end of
-   * initialization.
-   * Once initialization is complete, |null|.
-   */
-  this._initObservers = [];
+  try {
+    this._loadEngines();
+  } catch (ex) {
+    LOG("_init: failure loading engines: " + ex);
+  }
+  gEnginesLoaded = true;
+  this._addObservers();
 }
-
 SearchService.prototype = {
   classID: Components.ID("{7319788a-fe93-4db3-9f39-818cf08f4256}"),
-
-  // The current status of initialization. Note that it does not determine if
-  // initialization is complete, only if an error has been encountered so far.
-  _initRV: Cr.NS_OK,
-
-  // If initialization has not been completed yet, perform synchronous
-  // initialization.
-  // Throws in case of initialization error.
-  _ensureInitialized: function  SRCH_SVC__ensureInitialized() {
-    if (gInitialized) {
-      if (!Components.isSuccessCode(this._initRV)) {
-        throw this._initRV;
-      }
-
-      // Ensure that the following calls to |_ensureInitialized| can be inlined
-      // to a noop. Note that we could do this at the end of both |_init| and
-      // |_syncInit|, to save one call to a non-empty |_ensureInitialized|, but
-      // this would complicate code.
-      delete this._ensureInitialized;
-      this._ensureInitialized = function SRCH_SVC__ensureInitializedDone() { };
-      return;
-    }
-
-    let warning =
-      "Search service falling back to synchronous initialization at " +
-      new Error().stack +
-      "\n" +
-      "This is generally the consequence of an add-on using a deprecated " +
-      "search service API.";
-    // Bug 785487 - Disable reportError until our own callers are fixed.
-    //Components.utils.reportError(warning);
-    LOG(warning);
-
-    this._syncInit();
-    if (!Components.isSuccessCode(this._initRV)) {
-      throw this._initRV;
-    }
-  },
-
-  // Synchronous implementation of the initializer.
-  // Used as by |_ensureInitialized| as a fallback if initialization is not
-  // complete. In this implementation, it is also used by |init|.
-  _syncInit: function SRCH_SVC__syncInit() {
-    try {
-      this._loadEngines();
-    } catch (ex) {
-      this._initRV = Cr.NS_ERROR_FAILURE;
-      LOG("_syncInit: failure loading engines: " + ex);
-    }
-    this._addObservers();
-
-    gInitialized = true;
-
-    // Notify all of the init observers
-    this._initObservers.forEach(function (observer) {
-      try {
-        observer.onInitComplete(this._initRV);
-      } catch (x) {
-        LOG("nsIBrowserInitObserver failed with error " + x);
-      }
-    }, this);
-    this._initObservers = null;
-  },
 
   _engines: { },
   __sortedEngines: null,
@@ -2514,7 +2492,8 @@ SearchService.prototype = {
 
     let cache = {};
     let locale = getLocale();
-    let buildID = Services.appinfo.platformBuildID;
+    let buildID = Cc["@mozilla.org/xre/app-info;1"].
+                  getService(Ci.nsIXULAppInfo).platformBuildID;
 
     // Allows us to force a cache refresh should the cache format change.
     cache.version = CACHE_VERSION;
@@ -2596,7 +2575,6 @@ SearchService.prototype = {
   },
 
   _loadEngines: function SRCH_SVC__loadEngines() {
-    LOG("_loadEngines: start");
     // See if we have a cache file so we don't have to parse a bunch of XML.
     let cache = {};
     let cacheEnabled = getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true);
@@ -2624,14 +2602,15 @@ SearchService.prototype = {
     let toLoad = chromeFiles.concat(loadDirs);
 
     function modifiedDir(aDir) {
-      return (!cache.directories || !cache.directories[aDir.path] ||
+      return (!cache.directories[aDir.path] ||
               cache.directories[aDir.path].lastModifiedTime != aDir.lastModifiedTime);
     }
 
     function notInToLoad(aCachePath, aIndex)
       aCachePath != toLoad[aIndex].path;
 
-    let buildID = Services.appinfo.platformBuildID;
+    let buildID = Cc["@mozilla.org/xre/app-info;1"].
+                  getService(Ci.nsIXULAppInfo).platformBuildID;
     let cachePaths = [path for (path in cache.directories)];
 
     let rebuildCache = !cache.directories ||
@@ -2653,11 +2632,8 @@ SearchService.prototype = {
       return;
     }
 
-    LOG("_loadEngines: loading from cache directories");
     for each (let dir in cache.directories)
       this._loadEnginesFromCache(dir);
-
-    LOG("_loadEngines: done");
   },
 
   _readCacheFile: function SRCH_SVC__readCacheFile(aFile) {
@@ -2821,6 +2797,8 @@ SearchService.prototype = {
       try {
         addedEngine = new Engine(file, dataType, !isWritable);
         addedEngine._initFromFile();
+        if (addedEngine._used)
+          addedEngine._used = false;
       } catch (ex) {
         LOG("_loadEnginesFromDir: Failed to load " + file.path + "!\n" + ex);
         continue;
@@ -2831,7 +2809,7 @@ SearchService.prototype = {
           try {
             this._convertSherlockFile(addedEngine, fileURL.fileBaseName);
           } catch (ex) {
-            LOG("_loadEnginesFromDir: Failed to convert: " + fileURL.path + "\n" + ex + "\n" + ex.stack);
+            LOG("_loadEnginesFromDir: Failed to convert: " + fileURL.path + "\n" + ex);
             // The engine couldn't be converted, mark it as read-only
             addedEngine._readOnly = true;
           }
@@ -2870,7 +2848,7 @@ SearchService.prototype = {
 
     let rootURIPref = ""
     try {
-      rootURIPref = Services.prefs.getCharPref(BROWSER_SEARCH_PREF + "jarURIs");
+      rootURIPref = gPrefSvc.getCharPref(BROWSER_SEARCH_PREF + "jarURIs");
     } catch (ex) {}
 
     if (!rootURIPref) {
@@ -2928,29 +2906,23 @@ SearchService.prototype = {
 
   _saveSortedEngineList: function SRCH_SVC_saveSortedEngineList() {
     // We only need to write the prefs. if something has changed.
-    LOG("SRCH_SVC_saveSortedEngineList: starting");
     if (!this._needToSetOrderPrefs)
       return;
 
-    LOG("SRCH_SVC_saveSortedEngineList: something to do");
-
     // Set the useDB pref to indicate that from now on we should use the order
     // information stored in the database.
-    Services.prefs.setBoolPref(BROWSER_SEARCH_PREF + "useDBForOrder", true);
+    gPrefSvc.setBoolPref(BROWSER_SEARCH_PREF + "useDBForOrder", true);
 
     var engines = this._getSortedEngines(true);
+    var values = [];
+    var names = [];
 
-    let instructions = [];
     for (var i = 0; i < engines.length; ++i) {
-      instructions.push(
-        {key: "order",
-         value: i+1,
-         engine: engines[i]
-        });
+      names[i] = "order";
+      values[i] = i + 1;
     }
 
-    engineMetadataService.setAttrs(instructions);
-    LOG("SRCH_SVC_saveSortedEngineList: done");
+    engineMetadataService.setAttrs(engines, names, values);
   },
 
   _buildSortedEngineList: function SRCH_SVC_buildSortedEngineList() {
@@ -2963,7 +2935,6 @@ SearchService.prototype = {
     // information from the engineMetadataService instead of the default
     // prefs.
     if (getBoolPref(BROWSER_SEARCH_PREF + "useDBForOrder", false)) {
-      LOG("_buildSortedEngineList: using db for order");
       for each (engine in this._engines) {
         var orderNumber = engineMetadataService.getAttr(engine, "order");
 
@@ -2995,10 +2966,10 @@ SearchService.prototype = {
 
       try {
         var extras =
-          Services.prefs.getChildList(BROWSER_SEARCH_PREF + "order.extra.");
+          gPrefSvc.getChildList(BROWSER_SEARCH_PREF + "order.extra.");
 
         for each (prefName in extras) {
-          engineName = Services.prefs.getCharPref(prefName);
+          engineName = gPrefSvc.getCharPref(prefName);
 
           engine = this._engines[engineName];
           if (!engine || engine.name in addedEngines)
@@ -3164,36 +3135,7 @@ SearchService.prototype = {
   },
 
   // nsIBrowserSearchService
-  init: function SRCH_SVC_init(observer) {
-    if (gInitialized) {
-      if (observer) {
-        executeSoon(function () {
-          observer.onInitComplete(this._initRV);
-        });
-      }
-      return;
-    }
-
-    if (observer)
-      this._initObservers.push(observer);
-
-    if (!this._initStarted) {
-      executeSoon((function () {
-        // Someone may have since called syncInit via ensureInitialized - if so,
-        // nothing to do here.
-        if (!gInitialized)
-          this._syncInit();
-      }).bind(this));
-      this._initStarted = true;
-    }
-  },
-
-  get isInitialized() {
-    return gInitialized;
-  },
-
   getEngines: function SRCH_SVC_getEngines(aCount) {
-    this._ensureInitialized();
     LOG("getEngines: getting all engines");
     var engines = this._getSortedEngines(true);
     aCount.value = engines.length;
@@ -3201,7 +3143,6 @@ SearchService.prototype = {
   },
 
   getVisibleEngines: function SRCH_SVC_getVisible(aCount) {
-    this._ensureInitialized();
     LOG("getVisibleEngines: getting all visible engines");
     var engines = this._getSortedEngines(false);
     aCount.value = engines.length;
@@ -3209,7 +3150,6 @@ SearchService.prototype = {
   },
 
   getDefaultEngines: function SRCH_SVC_getDefault(aCount) {
-    this._ensureInitialized();
     function isDefault(engine) {
       return engine._isDefault;
     };
@@ -3224,10 +3164,10 @@ SearchService.prototype = {
 
     // First, look at the "browser.search.order.extra" branch.
     try {
-      var extras = Services.prefs.getChildList(BROWSER_SEARCH_PREF + "order.extra.");
+      var extras = gPrefSvc.getChildList(BROWSER_SEARCH_PREF + "order.extra.");
 
       for each (var prefName in extras) {
-        engineName = Services.prefs.getCharPref(prefName);
+        engineName = gPrefSvc.getCharPref(prefName);
 
         if (!(engineName in engineOrder))
           engineOrder[engineName] = i++;
@@ -3268,12 +3208,10 @@ SearchService.prototype = {
   },
 
   getEngineByName: function SRCH_SVC_getEngineByName(aEngineName) {
-    this._ensureInitialized();
     return this._engines[aEngineName] || null;
   },
 
   getEngineByAlias: function SRCH_SVC_getEngineByAlias(aAlias) {
-    this._ensureInitialized();
     for (var engineName in this._engines) {
       var engine = this._engines[engineName];
       if (engine && engine.alias == aAlias)
@@ -3285,7 +3223,6 @@ SearchService.prototype = {
   addEngineWithDetails: function SRCH_SVC_addEWD(aName, aIconURL, aAlias,
                                                  aDescription, aMethod,
                                                  aTemplate) {
-    this._ensureInitialized();
     if (!aName)
       FAIL("Invalid name passed to addEngineWithDetails!");
     if (!aMethod)
@@ -3305,7 +3242,6 @@ SearchService.prototype = {
   addEngine: function SRCH_SVC_addEngine(aEngineURL, aDataType, aIconURL,
                                          aConfirm) {
     LOG("addEngine: Adding \"" + aEngineURL + "\".");
-    this._ensureInitialized();
     try {
       var uri = makeURI(aEngineURL);
       var engine = new Engine(uri, aDataType, false);
@@ -3318,7 +3254,6 @@ SearchService.prototype = {
   },
 
   removeEngine: function SRCH_SVC_removeEngine(aEngine) {
-    this._ensureInitialized();
     if (!aEngine)
       FAIL("no engine passed to removeEngine!");
 
@@ -3366,7 +3301,6 @@ SearchService.prototype = {
   },
 
   moveEngine: function SRCH_SVC_moveEngine(aEngine, aNewIndex) {
-    this._ensureInitialized();
     if ((aNewIndex > this._sortedEngines.length) || (aNewIndex < 0))
       FAIL("SRCH_SVC_moveEngine: Index out of bounds!");
     if (!(aEngine instanceof Ci.nsISearchEngine))
@@ -3416,7 +3350,6 @@ SearchService.prototype = {
   },
 
   restoreDefaultEngines: function SRCH_SVC_resetDefaultEngines() {
-    this._ensureInitialized();
     for each (var e in this._engines) {
       // Unhide all default engines
       if (e.hidden && e._isDefault)
@@ -3425,13 +3358,11 @@ SearchService.prototype = {
   },
 
   get originalDefaultEngine() {
-    this._ensureInitialized();
     const defPref = BROWSER_SEARCH_PREF + "defaultenginename";
     return this.getEngineByName(getLocalizedPref(defPref, ""));
   },
 
   get defaultEngine() {
-    this._ensureInitialized();
     let defaultEngine = this.originalDefaultEngine;
     if (!defaultEngine || defaultEngine.hidden)
       defaultEngine = this._getSortedEngines(false)[0] || null;
@@ -3439,7 +3370,6 @@ SearchService.prototype = {
   },
 
   get currentEngine() {
-    this._ensureInitialized();
     if (!this._currentEngine) {
       let selectedEngine = getLocalizedPref(BROWSER_SEARCH_PREF +
                                             "selectedEngine");
@@ -3451,7 +3381,6 @@ SearchService.prototype = {
     return this._currentEngine;
   },
   set currentEngine(val) {
-    this._ensureInitialized();
     if (!(val instanceof Ci.nsISearchEngine))
       FAIL("Invalid argument passed to currentEngine setter");
 
@@ -3464,7 +3393,7 @@ SearchService.prototype = {
     var currentEnginePref = BROWSER_SEARCH_PREF + "selectedEngine";
 
     if (this._currentEngine == this.defaultEngine) {
-      Services.prefs.clearUserPref(currentEnginePref);
+      gPrefSvc.clearUserPref(currentEnginePref);
     }
     else {
       setLocalizedPref(currentEnginePref, this._currentEngine.name);
@@ -3504,7 +3433,6 @@ SearchService.prototype = {
           this._batchTimer.cancel();
           this._buildCache();
         }
-        engineMetadataService.flush();
         break;
     }
   },
@@ -3549,13 +3477,13 @@ SearchService.prototype = {
   },
 
   _addObservers: function SRCH_SVC_addObservers() {
-    Services.obs.addObserver(this, SEARCH_ENGINE_TOPIC, false);
-    Services.obs.addObserver(this, QUIT_APPLICATION_TOPIC, false);
+    gObsSvc.addObserver(this, SEARCH_ENGINE_TOPIC, false);
+    gObsSvc.addObserver(this, QUIT_APPLICATION_TOPIC, false);
   },
 
   _removeObservers: function SRCH_SVC_removeObservers() {
-    Services.obs.removeObserver(this, SEARCH_ENGINE_TOPIC);
-    Services.obs.removeObserver(this, QUIT_APPLICATION_TOPIC);
+    gObsSvc.removeObserver(this, SEARCH_ENGINE_TOPIC);
+    gObsSvc.removeObserver(this, QUIT_APPLICATION_TOPIC);
   },
 
   QueryInterface: function SRCH_SVC_QI(aIID) {
@@ -3569,220 +3497,126 @@ SearchService.prototype = {
 };
 
 var engineMetadataService = {
-  /**
-   * @type {nsIFile|null} The file holding the metadata.
-   */
-  get _jsonFile() {
-    delete this._jsonFile;
-    return this._jsonFile = FileUtils.getFile(NS_APP_USER_PROFILE_50_DIR,
-                                              ["search-metadata.json"]);
-  },
-
-  /**
-   * Lazy getter for the file containing json data.
-   */
-  get _store() {
-    delete this._store;
-    return this._store = this._loadStore();
-  },
-
-  // Perform loading the first time |_store| is accessed.
-  _loadStore: function() {
-    let jsonFile = this._jsonFile;
-    if (!jsonFile.exists()) {
-      LOG("loadStore: search-metadata.json does not exist");
-
-      // First check to see whether there's an existing SQLite DB to migrate
-      let store = this._migrateOldDB();
-      if (store) {
-        // Commit the migrated store to disk immediately
-        LOG("Committing the migrated store to disk");
-        this._commit(store);
-        return store;
-      }
-
-       // Migration failed, or this is a first-run - just use an empty store
-      return {};
-    }
-
-    LOG("loadStore: attempting to load store from JSON file");
+  get mDB() {
+    var engineDataTable = "id INTEGER PRIMARY KEY, engineid STRING, name STRING, value STRING";
+    var file = getDir(NS_APP_USER_PROFILE_50_DIR);
+    file.append("search.sqlite");
+    var dbService = Cc["@mozilla.org/storage/service;1"].
+                    getService(Ci.mozIStorageService);
+    var db;
     try {
-      return parseJsonFromStream(NetUtil.newChannel(jsonFile).open());
-    } catch (x) {
-      LOG("loadStore failed to load file: "+x);
-      return {};
+      db = dbService.openDatabase(file);
+    } catch (ex) {
+      if (ex.result == 0x8052000b) { /* NS_ERROR_FILE_CORRUPTED */
+        // delete and try again
+        file.remove(false);
+        db = dbService.openDatabase(file);
+      } else {
+        throw ex;
+      }
     }
+
+    try {
+      db.createTable("engine_data", engineDataTable);
+    } catch (ex) {
+      // Fails if the table already exists, which is fine
+    }
+
+    delete this.mDB;
+    return this.mDB = db;
+  },
+
+  get mGetData() {
+    delete this.mGetData;
+    return this.mGetData = this.mDB.createStatement(
+      "SELECT value FROM engine_data WHERE engineid = :engineid AND name = :name");
+  },
+  get mDeleteData() {
+    delete this.mDeleteData;
+    return this.mDeleteData = this.mDB.createStatement(
+      "DELETE FROM engine_data WHERE engineid = :engineid AND name = :name");
+  },
+  get mInsertData() {
+    delete this.mInsertData;
+    return this.mInsertData = this.mDB.createStatement(
+      "INSERT INTO engine_data (engineid, name, value) " +
+      "VALUES (:engineid, :name, :value)");
   },
 
   getAttr: function epsGetAttr(engine, name) {
-    let record = this._store[engine._id];
-    if (!record) {
-      return null;
-    }
-
-    // attr names must be lower case
-    let aName = name.toLowerCase();
-    if (!record[aName])
-      return null;
-    return record[aName];
-  },
-
-  _setAttr: function epsSetAttr(engine, name, value) {
     // attr names must be lower case
     name = name.toLowerCase();
-    let db = this._store;
-    let record = db[engine._id];
-    if (!record) {
-      record = db[engine._id] = {};
-    }
-    if (!record[name] || (record[name] != value)) {
-      record[name] = value;
-      return true;
-    }
-    return false;
+
+    var stmt = this.mGetData;
+    stmt.reset();
+    var pp = stmt.params;
+    pp.engineid = engine._id;
+    pp.name = name;
+
+    var value = null;
+    if (stmt.executeStep())
+      value = stmt.row.value;
+    stmt.reset();
+    return value;
   },
 
-  /**
-   * Set one metadata attribute for an engine.
-   *
-   * If an actual change has taken place, the attribute is committed
-   * automatically (and lazily), using this._commit.
-   *
-   * @param {nsISearchEngine} engine The engine to update.
-   * @param {string} key The name of the attribute. Case-insensitive. In
-   * the current implementation, this _must not_ conflict with properties
-   * of |Object|.
-   * @param {*} value A value to store.
-   */
-  setAttr: function epsSetAttr(engine, key, value) {
-    if (this._setAttr(engine, key, value)) {
-      this._commit();
-    }
+  setAttr: function epsSetAttr(engine, name, value) {
+    // attr names must be lower case
+    name = name.toLowerCase();
+
+    this.mDB.beginTransaction();
+
+    var pp = this.mDeleteData.params;
+    pp.engineid = engine._id;
+    pp.name = name;
+    this.mDeleteData.executeStep();
+    this.mDeleteData.reset();
+
+    pp = this.mInsertData.params;
+    pp.engineid = engine._id;
+    pp.name = name;
+    pp.value = value;
+    this.mInsertData.executeStep();
+    this.mInsertData.reset();
+
+    this.mDB.commitTransaction();
   },
 
-  /**
-   * Bulk set metadata attributes for a number of engines.
-   *
-   * If actual changes have taken place, the store is committed
-   * automatically (and lazily), using this._commit.
-   *
-   * @param {Array.<{engine: nsISearchEngine, key: string, value: *}>} changes
-   * The list of changes to effect. See |setAttr| for the documentation of
-   * |engine|, |key|, |value|.
-   */
-  setAttrs: function epsSetAttrs(changes) {
-    let self = this;
-    let changed = false;
-    changes.forEach(function(change) {
-      changed |= self._setAttr(change.engine, change.key, change.value);
-    });
-    if (changed) {
-      this._commit();
+  setAttrs: function epsSetAttrs(engines, names, values) {
+    this.mDB.beginTransaction();
+
+    for (var i = 0; i < engines.length; i++) {
+      // attr names must be lower case
+      var name = names[i].toLowerCase();
+
+      var pp = this.mDeleteData.params;
+      pp.engineid = engines[i]._id;
+      pp.name = names[i];
+      this.mDeleteData.executeStep();
+      this.mDeleteData.reset();
+
+      pp = this.mInsertData.params;
+      pp.engineid = engines[i]._id;
+      pp.name = names[i];
+      pp.value = values[i];
+      this.mInsertData.executeStep();
+      this.mInsertData.reset();
     }
+
+    this.mDB.commitTransaction();
   },
 
-  /**
-   * Flush any waiting write.
-   */
-  flush: function epsFlush() {
-    if (this._lazyWriter) {
-      this._lazyWriter.flush();
-    }
-  },
+  deleteEngineData: function epsDelData(engine, name) {
+    // attr names must be lower case
+    name = name.toLowerCase();
 
-  /**
-   * Migrate search.sqlite
-   *
-   * Notes:
-   * - we do not remove search.sqlite after migration, so as to allow
-   * downgrading and forensics;
-   */
-  _migrateOldDB: function SRCH_SVC_EMS_migrate() {
-    LOG("SRCH_SVC_EMS_migrate start");
-    let sqliteFile = FileUtils.getFile(NS_APP_USER_PROFILE_50_DIR,
-                                       ["search.sqlite"]);
-    if (!sqliteFile.exists()) {
-      LOG("SRCH_SVC_EMS_migrate search.sqlite does not exist");
-      return null;
-    }
-    let store = {};
-    try {
-      LOG("SRCH_SVC_EMS_migrate Migrating data from SQL");
-      const sqliteDb = Services.storage.openDatabase(sqliteFile);
-      const statement = sqliteDb.createStatement("SELECT * from engine_data");
-      while (statement.executeStep()) {
-        let row = statement.row;
-        let engine = row.engineid;
-        let name   = row.name;
-        let value  = row.value;
-        if (!store[engine]) {
-          store[engine] = {};
-        }
-        store[engine][name] = value;
-      }
-      statement.finalize();
-      sqliteDb.close();
-    } catch (ex) {
-      LOG("SRCH_SVC_EMS_migrate failed: " + ex);
-      return null;
-    }
-    return store;
-  },
-
-  /**
-   * Commit changes to disk, asynchronously.
-   *
-   * Calls to this function are actually delayed by LAZY_SERIALIZE_DELAY
-   * (= 100ms). If the function is called again before the expiration of
-   * the delay, commits are merged and the function is again delayed by
-   * the same amount of time.
-   *
-   * @param aStore is an optional parameter specifying the object to serialize.
-   *               If not specified, this._store is used.
-   */
-  _commit: function epsCommit(aStore) {
-    LOG("epsCommit: start");
-
-    let store = aStore || this._store;
-    if (!store) {
-      LOG("epsCommit: nothing to do");
-      return;
-    }
-
-    if (!this._lazyWriter) {
-      LOG("epsCommit: initializing lazy writer");
-      let jsonFile = this._jsonFile;
-      function writeCommit() {
-        LOG("epsWriteCommit: start");
-        let ostream = FileUtils.
-          openSafeFileOutputStream(jsonFile,
-                                   MODE_WRONLY | MODE_CREATE | MODE_TRUNCATE);
-
-        // Obtain a converter to convert our data to a UTF-8 encoded input stream.
-        let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
-          createInstance(Ci.nsIScriptableUnicodeConverter);
-        converter.charset = "UTF-8";
-
-        let callback = function(result) {
-          if (Components.isSuccessCode(result)) {
-            ostream.close();
-            Services.obs.notifyObservers(null,
-                                         SEARCH_SERVICE_TOPIC,
-                                         SEARCH_SERVICE_METADATA_WRITTEN);
-          }
-          LOG("epsWriteCommit: done " + result);
-        };
-        // Asynchronously copy the data to the file.
-        let istream = converter.convertToInputStream(JSON.stringify(store));
-        NetUtil.asyncCopy(istream, ostream, callback);
-      }
-      this._lazyWriter = new DeferredTask(writeCommit, LAZY_SERIALIZE_DELAY);
-    }
-    LOG("epsCommit: (re)setting timer");
-    this._lazyWriter.start();
-  },
-  _lazyWriter: null,
-};
+    var pp = this.mDeleteData.params;
+    pp.engineid = engine._id;
+    pp.name = name;
+    this.mDeleteData.executeStep();
+    this.mDeleteData.reset();
+  }
+}
 
 const SEARCH_UPDATE_LOG_PREFIX = "*** Search update: ";
 
@@ -3793,7 +3627,9 @@ const SEARCH_UPDATE_LOG_PREFIX = "*** Search update: ";
 function ULOG(aText) {
   if (getBoolPref(BROWSER_SEARCH_PREF + "update.log", false)) {
     dump(SEARCH_UPDATE_LOG_PREFIX + aText + "\n");
-    Services.console.logStringMessage(aText);
+    var consoleService = Cc["@mozilla.org/consoleservice;1"].
+                         getService(Ci.nsIConsoleService);
+    consoleService.logStringMessage(aText);
   }
 }
 

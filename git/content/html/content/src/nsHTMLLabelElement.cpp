@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /**
  * Implementation of HTML <label> elements.
@@ -15,6 +47,7 @@
 #include "nsPresContext.h"
 #include "nsIFormControl.h"
 #include "nsIForm.h"
+#include "nsIDOMDocument.h"
 #include "nsIDocument.h"
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
@@ -30,7 +63,7 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Label)
 
 nsHTMLLabelElement::nsHTMLLabelElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLFormElement(aNodeInfo)
-  , mHandlingEvent(false)
+  , mHandlingEvent(PR_FALSE)
 {
 }
 
@@ -71,8 +104,11 @@ nsHTMLLabelElement::GetForm(nsIDOMHTMLFormElement** aForm)
 NS_IMETHODIMP
 nsHTMLLabelElement::GetControl(nsIDOMHTMLElement** aElement)
 {
+  *aElement = nsnull;
+
   nsCOMPtr<nsIDOMHTMLElement> element = do_QueryInterface(GetLabeledElement());
-  element.forget(aElement);
+
+  element.swap(*aElement);
   return NS_OK;
 }
 
@@ -96,7 +132,7 @@ nsHTMLLabelElement::Focus()
 nsresult
 nsHTMLLabelElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                nsIContent* aBindingParent,
-                               bool aCompileEventHandlers)
+                               PRBool aCompileEventHandlers)
 {
   return nsGenericHTMLFormElement::BindToTree(aDocument, aParent,
                                               aBindingParent,
@@ -104,19 +140,19 @@ nsHTMLLabelElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsHTMLLabelElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsHTMLLabelElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
 }
 
-static bool
+static PRBool
 EventTargetIn(nsEvent *aEvent, nsIContent *aChild, nsIContent *aStop)
 {
   nsCOMPtr<nsIContent> c = do_QueryInterface(aEvent->target);
   nsIContent *content = c;
   while (content) {
     if (content == aChild) {
-      return true;
+      return PR_TRUE;
     }
 
     if (content == aStop) {
@@ -125,7 +161,7 @@ EventTargetIn(nsEvent *aEvent, nsIContent *aChild, nsIContent *aStop)
 
     content = content->GetParent();
   }
-  return false;
+  return PR_FALSE;
 }
 
 static void
@@ -134,7 +170,7 @@ DestroyMouseDownPoint(void *    /*aObject*/,
                       void *    aPropertyValue,
                       void *    /*aData*/)
 {
-  nsIntPoint* pt = static_cast<nsIntPoint*>(aPropertyValue);
+  nsIntPoint *pt = (nsIntPoint *)aPropertyValue;
   delete pt;
 }
 
@@ -145,9 +181,7 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
       (!NS_IS_MOUSE_LEFT_CLICK(aVisitor.mEvent) &&
        aVisitor.mEvent->message != NS_MOUSE_BUTTON_DOWN) ||
       aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault ||
-      !aVisitor.mPresContext ||
-      // Don't handle the event if it's already been handled by another label
-      (aVisitor.mEvent->flags & NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS)) {
+      !aVisitor.mPresContext) {
     return NS_OK;
   }
 
@@ -155,7 +189,7 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   nsRefPtr<Element> content = GetLabeledElement();
 
   if (content && !EventTargetIn(aVisitor.mEvent, content, this)) {
-    mHandlingEvent = true;
+    mHandlingEvent = PR_TRUE;
     switch (aVisitor.mEvent->message) {
       case NS_MOUSE_BUTTON_DOWN:
         NS_ASSERTION(aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT,
@@ -178,7 +212,7 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           nsIntPoint *mouseDownPoint = static_cast<nsIntPoint *>
             (GetProperty(nsGkAtoms::labelMouseDownPtProperty));
 
-          bool dragSelect = false;
+          PRBool dragSelect = PR_FALSE;
           if (mouseDownPoint) {
             nsIntPoint dragDistance = *mouseDownPoint;
             DeleteProperty(nsGkAtoms::labelMouseDownPtProperty);
@@ -195,8 +229,8 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           // have a kbd modifier (which adjusts a selection), or if it's a
           // double click (we already forwarded the first click event).
           if (dragSelect || event->clickCount > 1 ||
-              event->IsShift() || event->IsControl() || event->IsAlt() ||
-              event->IsMeta()) {
+              event->isShift || event->isControl || event->isAlt ||
+              event->isMeta) {
             break;
           }
 
@@ -222,15 +256,12 @@ nsHTMLLabelElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
           // will actually create a new event.
           DispatchClickEvent(aVisitor.mPresContext,
                              static_cast<nsInputEvent*>(aVisitor.mEvent),
-                             content, false,
-                             NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS, &status);
+                             content, PR_FALSE, &status);
           // Do we care about the status this returned?  I don't think we do...
-          // Don't run another <label> off of this click
-          aVisitor.mEvent->flags |= NS_EVENT_FLAG_PREVENT_MULTIPLE_ACTIONS;
         }
         break;
     }
-    mHandlingEvent = false;
+    mHandlingEvent = PR_FALSE;
   }
   return NS_OK;
 }
@@ -248,23 +279,23 @@ nsHTMLLabelElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 }
 
 nsresult
-nsHTMLLabelElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName, nsIAtom* aPrefix,
-                            const nsAString& aValue, bool aNotify)
+nsHTMLLabelElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, nsIAtom* aPrefix,
+                            const nsAString& aValue, PRBool aNotify)
 {
   return nsGenericHTMLFormElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
                                            aNotify);
 }
 
 nsresult
-nsHTMLLabelElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                              bool aNotify)
+nsHTMLLabelElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                              PRBool aNotify)
 {
   return nsGenericHTMLFormElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
 void
-nsHTMLLabelElement::PerformAccesskey(bool aKeyCausesActivation,
-                                     bool aIsTrustedEvent)
+nsHTMLLabelElement::PerformAccesskey(PRBool aKeyCausesActivation,
+                                     PRBool aIsTrustedEvent)
 {
   if (!aKeyCausesActivation) {
     nsRefPtr<Element> element = GetLabeledElement();
@@ -277,8 +308,8 @@ nsHTMLLabelElement::PerformAccesskey(bool aKeyCausesActivation,
 
     // Click on it if the users prefs indicate to do so.
     nsMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK,
-                       nullptr, nsMouseEvent::eReal);
-    event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
+                       nsnull, nsMouseEvent::eReal);
+    event.inputSource = nsIDOMNSMouseEvent::MOZ_SOURCE_KEYBOARD;
 
     nsAutoPopupStatePusher popupStatePusher(aIsTrustedEvent ?
                                             openAllowed : openAbused);
@@ -296,35 +327,44 @@ nsHTMLLabelElement::GetLabeledElement()
   if (!GetAttr(kNameSpaceID_None, nsGkAtoms::_for, elementId)) {
     // No @for, so we are a label for our first form control element.
     // Do a depth-first traversal to look for the first form control element.
-    return GetFirstLabelableDescendant();
+    return GetFirstDescendantFormControl();
   }
 
   // We have a @for. The id has to be linked to an element in the same document
   // and this element should be a labelable form control.
   nsIDocument* doc = GetCurrentDoc();
   if (!doc) {
-    return nullptr;
+    return nsnull;
   }
 
   Element* element = doc->GetElementById(elementId);
-  if (element && element->IsLabelable()) {
+  if (!element) {
+    return nsnull;
+  }
+
+  nsCOMPtr<nsIFormControl> controlElement = do_QueryInterface(element);
+  if (controlElement && controlElement->IsLabelableControl()) {
+    // Transfer the reference count of element to the returned value.
     return element;
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 Element*
-nsHTMLLabelElement::GetFirstLabelableDescendant()
+nsHTMLLabelElement::GetFirstDescendantFormControl()
 {
-  for (nsIContent* cur = nsINode::GetFirstChild(); cur;
+  // Have to cast do disambiguate GetFirstChild from the DOM method of that name
+  for (nsINode* cur = static_cast<nsINode*>(this)->GetFirstChild();
+       cur;
        cur = cur->GetNextNode(this)) {
-    Element* element = cur->IsElement() ? cur->AsElement() : nullptr;
-    if (element && element->IsLabelable()) {
-      return element;
+    nsCOMPtr<nsIFormControl> element = do_QueryInterface(cur);
+    if (element && element->IsLabelableControl()) {
+      NS_ASSERTION(cur->IsElement(), "How did that happen?");
+      return cur->AsElement();
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 

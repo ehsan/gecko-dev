@@ -1,17 +1,45 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et tw=80 : */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Josh Matthews <josh@joshmatthews.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "WebSocketLog.h"
 #include "WebSocketChannelParent.h"
 #include "nsIAuthPromptProvider.h"
-#include "mozilla/LoadContext.h"
-#include "mozilla/ipc/InputStreamUtils.h"
-#include "mozilla/ipc/URIUtils.h"
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
@@ -30,31 +58,23 @@ WebSocketChannelParent::WebSocketChannelParent(nsIAuthPromptProvider* aAuthProvi
 #endif
 }
 
-//-----------------------------------------------------------------------------
-// WebSocketChannelParent::PWebSocketChannelParent
-//-----------------------------------------------------------------------------
-
 bool
 WebSocketChannelParent::RecvDeleteSelf()
 {
   LOG(("WebSocketChannelParent::RecvDeleteSelf() %p\n", this));
-  mChannel = nullptr;
-  mAuthProvider = nullptr;
+  mChannel = nsnull;
+  mAuthProvider = nsnull;
   return mIPCOpen ? Send__delete__(this) : true;
 }
 
 bool
-WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
+WebSocketChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
                                       const nsCString& aOrigin,
                                       const nsCString& aProtocol,
-                                      const bool& aSecure,
-                                      const IPC::SerializedLoadContext& loadContext)
+                                      const bool& aSecure)
 {
   LOG(("WebSocketChannelParent::RecvAsyncOpen() %p\n", this));
-
   nsresult rv;
-  nsCOMPtr<nsIURI> uri;
-
   if (aSecure) {
     mChannel =
       do_CreateInstance("@mozilla.org/network/protocol;1?name=wss", &rv);
@@ -63,42 +83,29 @@ WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
       do_CreateInstance("@mozilla.org/network/protocol;1?name=ws", &rv);
   }
   if (NS_FAILED(rv))
-    goto fail;
-
-  if (loadContext.IsNotNull())
-    mLoadContext = new LoadContext(loadContext);
+    return CancelEarly();
 
   rv = mChannel->SetNotificationCallbacks(this);
   if (NS_FAILED(rv))
-    goto fail;
+    return CancelEarly();
 
   rv = mChannel->SetProtocol(aProtocol);
   if (NS_FAILED(rv))
-    goto fail;
+    return CancelEarly();
 
-  uri = DeserializeURI(aURI);
-  if (!uri) {
-    rv = NS_ERROR_FAILURE;
-    goto fail;
-  }
-
-  rv = mChannel->AsyncOpen(uri, aOrigin, this, nullptr);
+  rv = mChannel->AsyncOpen(aURI, aOrigin, this, nsnull);
   if (NS_FAILED(rv))
-    goto fail;
+    return CancelEarly();
 
   return true;
-
-fail:
-  mChannel = nullptr;
-  return SendOnStop(rv);
 }
 
 bool
-WebSocketChannelParent::RecvClose(const uint16_t& code, const nsCString& reason)
+WebSocketChannelParent::RecvClose()
 {
   LOG(("WebSocketChannelParent::RecvClose() %p\n", this));
   if (mChannel) {
-    nsresult rv = mChannel->Close(code, reason);
+    nsresult rv = mChannel->Close();
     NS_ENSURE_SUCCESS(rv, true);
   }
   return true;
@@ -127,35 +134,32 @@ WebSocketChannelParent::RecvSendBinaryMsg(const nsCString& aMsg)
 }
 
 bool
-WebSocketChannelParent::RecvSendBinaryStream(const InputStreamParams& aStream,
-                                             const uint32_t& aLength)
+WebSocketChannelParent::CancelEarly()
 {
-  LOG(("WebSocketChannelParent::RecvSendBinaryStream() %p\n", this));
-  if (mChannel) {
-    nsCOMPtr<nsIInputStream> stream = DeserializeInputStream(aStream);
-    if (!stream) {
-      return false;
-    }
-    nsresult rv = mChannel->SendBinaryStream(stream, aLength);
-    NS_ENSURE_SUCCESS(rv, true);
-  }
-  return true;
+  LOG(("WebSocketChannelParent::CancelEarly() %p\n", this));
+  return mIPCOpen ? SendAsyncOpenFailed() : true;
 }
 
-//-----------------------------------------------------------------------------
-// WebSocketChannelParent::nsIRequestObserver
-//-----------------------------------------------------------------------------
+NS_IMETHODIMP
+WebSocketChannelParent::GetInterface(const nsIID & iid, void **result NS_OUTPARAM)
+{
+  LOG(("WebSocketChannelParent::GetInterface() %p\n", this));
+  if (mAuthProvider && iid.Equals(NS_GET_IID(nsIAuthPromptProvider)))
+    return mAuthProvider->GetAuthPrompt(nsIAuthPromptProvider::PROMPT_NORMAL,
+                                        iid, result);
+
+  return NS_ERROR_FAILURE;
+}
 
 NS_IMETHODIMP
 WebSocketChannelParent::OnStart(nsISupports *aContext)
 {
   LOG(("WebSocketChannelParent::OnStart() %p\n", this));
-  nsAutoCString protocol, extensions;
+  nsCAutoString protocol;
   if (mChannel) {
     mChannel->GetProtocol(protocol);
-    mChannel->GetExtensions(extensions);
   }
-  if (!mIPCOpen || !SendOnStart(protocol, extensions)) {
+  if (!mIPCOpen || !SendOnStart(protocol)) {
     return NS_ERROR_FAILURE;
   }
   return NS_OK;
@@ -192,7 +196,7 @@ WebSocketChannelParent::OnBinaryMessageAvailable(nsISupports *aContext, const ns
 }
 
 NS_IMETHODIMP
-WebSocketChannelParent::OnAcknowledge(nsISupports *aContext, uint32_t aSize)
+WebSocketChannelParent::OnAcknowledge(nsISupports *aContext, PRUint32 aSize)
 {
   LOG(("WebSocketChannelParent::OnAcknowledge() %p\n", this));
   if (!mIPCOpen || !SendOnAcknowledge(aSize)) {
@@ -202,11 +206,10 @@ WebSocketChannelParent::OnAcknowledge(nsISupports *aContext, uint32_t aSize)
 }
 
 NS_IMETHODIMP
-WebSocketChannelParent::OnServerClose(nsISupports *aContext,
-                                      uint16_t code, const nsACString & reason)
+WebSocketChannelParent::OnServerClose(nsISupports *aContext)
 {
   LOG(("WebSocketChannelParent::OnServerClose() %p\n", this));
-  if (!mIPCOpen || !SendOnServerClose(code, nsCString(reason))) {
+  if (!mIPCOpen || !SendOnServerClose()) {
     return NS_ERROR_FAILURE;
   }
   return NS_OK;
@@ -218,29 +221,6 @@ WebSocketChannelParent::ActorDestroy(ActorDestroyReason why)
   LOG(("WebSocketChannelParent::ActorDestroy() %p\n", this));
   mIPCOpen = false;
 }
-
-//-----------------------------------------------------------------------------
-// WebSocketChannelParent::nsIInterfaceRequestor
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-WebSocketChannelParent::GetInterface(const nsIID & iid, void **result)
-{
-  LOG(("WebSocketChannelParent::GetInterface() %p\n", this));
-  if (mAuthProvider && iid.Equals(NS_GET_IID(nsIAuthPromptProvider)))
-    return mAuthProvider->GetAuthPrompt(nsIAuthPromptProvider::PROMPT_NORMAL,
-                                        iid, result);
-
-  // Only support nsILoadContext if child channel's callbacks did too
-  if (iid.Equals(NS_GET_IID(nsILoadContext)) && mLoadContext) {
-    NS_ADDREF(mLoadContext);
-    *result = static_cast<nsILoadContext*>(mLoadContext);
-    return NS_OK;
-  }
-
-  return QueryInterface(iid, result);
-}
-
 
 } // namespace net
 } // namespace mozilla

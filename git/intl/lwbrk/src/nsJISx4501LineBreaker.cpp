@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 
@@ -221,7 +253,7 @@
 
 #define MAX_CLASSES 12
 
-static const uint16_t gPair[MAX_CLASSES] = {
+static const PRUint16 gPair[MAX_CLASSES] = {
   0x0FFF,
   0x0C02,
   0x0806,
@@ -279,7 +311,7 @@ static const uint16_t gPair[MAX_CLASSES] = {
       [e] 0000 1111 1111 1111  = 0x0FFF
 */
 
-static const uint16_t gPairConservative[MAX_CLASSES] = {
+static const PRUint16 gPairConservative[MAX_CLASSES] = {
   0x0FFF,
   0x0EC2,
   0x0EC6,
@@ -369,7 +401,7 @@ static const uint16_t gPairConservative[MAX_CLASSES] = {
 #define IS_ASCII_DIGIT(u) (0x0030 <= (u) && (u) <= 0x0039)
 
 static inline int
-GETCLASSFROMTABLE(const uint32_t* t, uint16_t l)
+GETCLASSFROMTABLE(const PRUint32* t, PRUint16 l)
 {
   return ((((t)[(l>>3)]) >> ((l & 0x0007)<<2)) & 0x000f);
 }
@@ -389,13 +421,13 @@ IS_CJK_CHAR(PRUnichar u)
           (0xff00 <= (u) && (u) <= 0xffef) );
 }
 
-static inline bool
+static inline PRBool
 IS_NONBREAKABLE_SPACE(PRUnichar u)
 {
   return u == 0x00A0 || u == 0x2007; // NO-BREAK SPACE, FIGURE SPACE
 }
 
-static inline bool
+static inline PRBool
 IS_HYPHEN(PRUnichar u)
 {
   return (u == U_HYPHEN ||
@@ -405,12 +437,12 @@ IS_HYPHEN(PRUnichar u)
           u == 0x2013);  // EN DASH
 }
 
-static int8_t
+static PRInt8
 GetClass(PRUnichar u)
 {
-   uint16_t h = u & 0xFF00;
-   uint16_t l = u & 0x00ff;
-   int8_t c;
+   PRUint16 h = u & 0xFF00;
+   PRUint16 l = u & 0x00ff;
+   PRInt8 c;
 
    // Handle 3 range table first
    if (0x0000 == h) {
@@ -428,7 +460,7 @@ GetClass(PRUnichar u)
    } else if (((0x3200 <= u) && (u <= 0xA4CF)) || // CJK and Yi
               ((0xAC00 <= h) && (h <= 0xD7FF)) || // Hangul
               ((0xf900 <= h) && (h <= 0xfaff))) {
-     c = CLASS_BREAKABLE; // CJK character, Han, and Han Compatibility
+     c = CLASS_BREAKABLE; // CJK character, Han, and Han Compatability
    } else if (0xff00 == h) {
      if (l < 0x0060) { // Fullwidth ASCII variant
        c = GETCLASSFROMTABLE(gLBClass00, (l+0x20));
@@ -478,7 +510,7 @@ GetClass(PRUnichar u)
    } else if (0x0500 == h) {
      // ARMENIAN HYPHEN (for "Breaking Hyphens" of UAX#14)
      if (l == 0x8A)
-       c = GETCLASSFROMTABLE(gLBClass00, uint16_t(U_HYPHEN));
+       c = GETCLASSFROMTABLE(gLBClass00, PRUint16(U_HYPHEN));
      else
        c = CLASS_CHARACTER;
    } else if (0x0F00 == h) {
@@ -497,8 +529,8 @@ GetClass(PRUnichar u)
    return c;
 }
 
-static bool
-GetPair(int8_t c1, int8_t c2)
+static PRBool
+GetPair(PRInt8 c1, PRInt8 c2)
 {
   NS_ASSERTION(c1 < MAX_CLASSES ,"illegal classes 1");
   NS_ASSERTION(c2 < MAX_CLASSES ,"illegal classes 2");
@@ -506,8 +538,8 @@ GetPair(int8_t c1, int8_t c2)
   return (0 == ((gPair[c1] >> c2) & 0x0001));
 }
 
-static bool
-GetPairConservative(int8_t c1, int8_t c2)
+static PRBool
+GetPairConservative(PRInt8 c1, PRInt8 c2)
 {
   NS_ASSERTION(c1 < MAX_CLASSES ,"illegal classes 1");
   NS_ASSERTION(c2 < MAX_CLASSES ,"illegal classes 2");
@@ -527,24 +559,24 @@ NS_IMPL_ISUPPORTS1(nsJISx4051LineBreaker, nsILineBreaker)
 
 class ContextState {
 public:
-  ContextState(const PRUnichar* aText, uint32_t aLength) {
+  ContextState(const PRUnichar* aText, PRUint32 aLength) {
     mUniText = aText;
-    mText = nullptr;
+    mText = nsnull;
     mLength = aLength;
     Init();
   }
 
-  ContextState(const uint8_t* aText, uint32_t aLength) {
-    mUniText = nullptr;
+  ContextState(const PRUint8* aText, PRUint32 aLength) {
+    mUniText = nsnull;
     mText = aText;
     mLength = aLength;
     Init();
   }
 
-  uint32_t Length() { return mLength; }
-  uint32_t Index() { return mIndex; }
+  PRUint32 Length() { return mLength; }
+  PRUint32 Index() { return mIndex; }
 
-  PRUnichar GetCharAt(uint32_t aIndex) {
+  PRUnichar GetCharAt(PRUint32 aIndex) {
     NS_ASSERTION(0 <= aIndex && aIndex < mLength, "Out of range!");
     return mUniText ? mUniText[aIndex] : PRUnichar(mText[aIndex]);
   }
@@ -565,11 +597,11 @@ public:
 // CONSERVATIVE_BREAK_RANGE define the 'near' in characters.
 #define CONSERVATIVE_BREAK_RANGE 6
 
-  bool UseConservativeBreaking(uint32_t aOffset = 0) {
+  PRBool UseConservativeBreaking(PRUint32 aOffset = 0) {
     if (mHasCJKChar)
-      return false;
-    uint32_t index = mIndex + aOffset;
-    bool result = (index < CONSERVATIVE_BREAK_RANGE ||
+      return PR_FALSE;
+    PRUint32 index = mIndex + aOffset;
+    PRBool result = (index < CONSERVATIVE_BREAK_RANGE ||
                      mLength - index < CONSERVATIVE_BREAK_RANGE ||
                      index - mLastBreakIndex < CONSERVATIVE_BREAK_RANGE);
     if (result || !mHasNonbreakableSpace)
@@ -579,37 +611,37 @@ public:
     // is near it.
 
     // Note that index is always larger than CONSERVATIVE_BREAK_RANGE here.
-    for (uint32_t i = index; index - CONSERVATIVE_BREAK_RANGE < i; --i) {
+    for (PRUint32 i = index; index - CONSERVATIVE_BREAK_RANGE < i; --i) {
       if (IS_NONBREAKABLE_SPACE(GetCharAt(i - 1)))
-        return true;
+        return PR_TRUE;
     }
     // Note that index is always less than mLength - CONSERVATIVE_BREAK_RANGE.
-    for (uint32_t i = index + 1; i < index + CONSERVATIVE_BREAK_RANGE; ++i) {
+    for (PRUint32 i = index + 1; i < index + CONSERVATIVE_BREAK_RANGE; ++i) {
       if (IS_NONBREAKABLE_SPACE(GetCharAt(i)))
-        return true;
+        return PR_TRUE;
     }
-    return false;
+    return PR_FALSE;
   }
 
-  bool HasPreviousEqualsSign() const {
+  PRBool HasPreviousEqualsSign() const {
     return mHasPreviousEqualsSign;
   }
   void NotifySeenEqualsSign() {
-    mHasPreviousEqualsSign = true;
+    mHasPreviousEqualsSign = PR_TRUE;
   }
 
-  bool HasPreviousSlash() const {
+  PRBool HasPreviousSlash() const {
     return mHasPreviousSlash;
   }
   void NotifySeenSlash() {
-    mHasPreviousSlash = true;
+    mHasPreviousSlash = PR_TRUE;
   }
 
-  bool HasPreviousBackslash() const {
+  PRBool HasPreviousBackslash() const {
     return mHasPreviousBackslash;
   }
   void NotifySeenBackslash() {
-    mHasPreviousBackslash = true;
+    mHasPreviousBackslash = PR_TRUE;
   }
 
   PRUnichar GetPreviousNonHyphenCharacter() const {
@@ -626,11 +658,11 @@ private:
     mPreviousNonHyphenCharacter = U_NULL;
     mHasCJKChar = 0;
     mHasNonbreakableSpace = 0;
-    mHasPreviousEqualsSign = false;
-    mHasPreviousSlash = false;
-    mHasPreviousBackslash = false;
+    mHasPreviousEqualsSign = PR_FALSE;
+    mHasPreviousSlash = PR_FALSE;
+    mHasPreviousBackslash = PR_FALSE;
 
-    for (uint32_t i = 0; i < mLength; ++i) {
+    for (PRUint32 i = 0; i < mLength; ++i) {
       PRUnichar u = GetCharAt(i);
       if (!mHasNonbreakableSpace && IS_NONBREAKABLE_SPACE(u))
         mHasNonbreakableSpace = 1;
@@ -640,22 +672,22 @@ private:
   }
 
   const PRUnichar* mUniText;
-  const uint8_t* mText;
+  const PRUint8* mText;
 
-  uint32_t mIndex;
-  uint32_t mLength;         // length of text
-  uint32_t mLastBreakIndex;
+  PRUint32 mIndex;
+  PRUint32 mLength;         // length of text
+  PRUint32 mLastBreakIndex;
   PRUnichar mPreviousNonHyphenCharacter; // The last character we have seen
                                          // which is not U_HYPHEN
-  bool mHasCJKChar; // if the text has CJK character, this is true.
-  bool mHasNonbreakableSpace; // if the text has no-breakable space,
+  PRPackedBool mHasCJKChar; // if the text has CJK character, this is true.
+  PRPackedBool mHasNonbreakableSpace; // if the text has no-breakable space,
                                      // this is true.
-  bool mHasPreviousEqualsSign; // True if we have seen a U_EQUAL
-  bool mHasPreviousSlash;      // True if we have seen a U_SLASH
-  bool mHasPreviousBackslash;  // True if we have seen a U_BACKSLASH
+  PRPackedBool mHasPreviousEqualsSign; // True if we have seen a U_EQUAL
+  PRPackedBool mHasPreviousSlash;      // True if we have seen a U_SLASH
+  PRPackedBool mHasPreviousBackslash;  // True if we have seen a U_BACKSLASH
 };
 
-static int8_t
+static PRInt8
 ContextualAnalysis(PRUnichar prev, PRUnichar cur, PRUnichar next,
                    ContextState &aState)
 {
@@ -667,8 +699,8 @@ ContextualAnalysis(PRUnichar prev, PRUnichar cur, PRUnichar next,
       return CLASS_CHARACTER;
     // If prev and next characters are numeric, it may be in Math context.
     // So, we should not break here.
-    bool prevIsNum = IS_ASCII_DIGIT(prev);
-    bool nextIsNum = IS_ASCII_DIGIT(next);
+    PRBool prevIsNum = IS_ASCII_DIGIT(prev);
+    PRBool nextIsNum = IS_ASCII_DIGIT(next);
     if (prevIsNum && nextIsNum)
       return CLASS_NUMERIC;
     // If one side is numeric and the other is a character, or if both sides are
@@ -676,9 +708,9 @@ ContextualAnalysis(PRUnichar prev, PRUnichar cur, PRUnichar next,
     if (!aState.UseConservativeBreaking(1)) {
       PRUnichar prevOfHyphen = aState.GetPreviousNonHyphenCharacter();
       if (prevOfHyphen && next) {
-        bool prevIsChar = !NEED_CONTEXTUAL_ANALYSIS(prevOfHyphen) &&
+        PRBool prevIsChar = !NEED_CONTEXTUAL_ANALYSIS(prevOfHyphen) &&
                             GetClass(prevOfHyphen) == CLASS_CHARACTER;
-        bool nextIsChar = !NEED_CONTEXTUAL_ANALYSIS(next) &&
+        PRBool nextIsChar = !NEED_CONTEXTUAL_ANALYSIS(next) &&
                             GetClass(next) == CLASS_CHARACTER;
         if ((prevIsNum || prevIsChar) && (nextIsNum || nextIsChar))
           return CLASS_CLOSE;
@@ -692,7 +724,7 @@ ContextualAnalysis(PRUnichar prev, PRUnichar cur, PRUnichar next,
         return CLASS_CHARACTER;
       // If this text has two or more (BACK)SLASHs, this may be file path or URL.
       // Make sure to compute shouldReturn before we notify on this slash.
-      bool shouldReturn = !aState.UseConservativeBreaking() &&
+      PRBool shouldReturn = !aState.UseConservativeBreaking() &&
         (cur == U_SLASH ?
          aState.HasPreviousSlash() : aState.HasPreviousBackslash());
 
@@ -735,38 +767,37 @@ ContextualAnalysis(PRUnichar prev, PRUnichar cur, PRUnichar next,
 }
 
 
-int32_t
-nsJISx4051LineBreaker::WordMove(const PRUnichar* aText, uint32_t aLen,
-                                uint32_t aPos, int8_t aDirection)
+PRInt32
+nsJISx4051LineBreaker::WordMove(const PRUnichar* aText, PRUint32 aLen,
+                                PRUint32 aPos, PRInt8 aDirection)
 {
-  bool    textNeedsJISx4051 = false;
-  int32_t begin, end;
+  PRBool  textNeedsJISx4051 = PR_FALSE;
+  PRInt32 begin, end;
 
   for (begin = aPos; begin > 0 && !NS_IsSpace(aText[begin - 1]); --begin) {
     if (IS_CJK_CHAR(aText[begin]) || NS_NeedsPlatformNativeHandling(aText[begin])) {
-      textNeedsJISx4051 = true;
+      textNeedsJISx4051 = PR_TRUE;
     }
   }
-  for (end = aPos + 1; end < int32_t(aLen) && !NS_IsSpace(aText[end]); ++end) {
+  for (end = aPos + 1; end < PRInt32(aLen) && !NS_IsSpace(aText[end]); ++end) {
     if (IS_CJK_CHAR(aText[end]) || NS_NeedsPlatformNativeHandling(aText[end])) {
-      textNeedsJISx4051 = true;
+      textNeedsJISx4051 = PR_TRUE;
     }
   }
 
-  int32_t ret;
-  nsAutoTArray<uint8_t, 2000> breakState;
+  PRInt32 ret;
+  nsAutoTArray<PRPackedBool, 2000> breakState;
   if (!textNeedsJISx4051 || !breakState.AppendElements(end - begin)) {
     // No complex text character, do not try to do complex line break.
     // (This is required for serializers. See Bug #344816.)
     // Also fall back to this when out of memory.
     if (aDirection < 0) {
-      ret = (begin == int32_t(aPos)) ? begin - 1 : begin;
+      ret = (begin == PRInt32(aPos)) ? begin - 1 : begin;
     } else {
       ret = end;
     }
   } else {
-    GetJISx4051Breaks(aText + begin, end - begin, nsILineBreaker::kWordBreak_Normal,
-                      breakState.Elements());
+    GetJISx4051Breaks(aText + begin, end - begin, breakState.Elements());
 
     ret = aPos;
     do {
@@ -777,41 +808,40 @@ nsJISx4051LineBreaker::WordMove(const PRUnichar* aText, uint32_t aLen,
   return ret;
 }
 
-int32_t
-nsJISx4051LineBreaker::Next(const PRUnichar* aText, uint32_t aLen,
-                            uint32_t aPos) 
+PRInt32
+nsJISx4051LineBreaker::Next(const PRUnichar* aText, PRUint32 aLen,
+                            PRUint32 aPos) 
 {
   NS_ASSERTION(aText, "aText shouldn't be null");
   NS_ASSERTION(aLen > aPos, "Bad position passed to nsJISx4051LineBreaker::Next");
 
-  int32_t nextPos = WordMove(aText, aLen, aPos, 1);
-  return nextPos < int32_t(aLen) ? nextPos : NS_LINEBREAKER_NEED_MORE_TEXT;
+  PRInt32 nextPos = WordMove(aText, aLen, aPos, 1);
+  return nextPos < PRInt32(aLen) ? nextPos : NS_LINEBREAKER_NEED_MORE_TEXT;
 }
 
-int32_t
-nsJISx4051LineBreaker::Prev(const PRUnichar* aText, uint32_t aLen,
-                            uint32_t aPos) 
+PRInt32
+nsJISx4051LineBreaker::Prev(const PRUnichar* aText, PRUint32 aLen,
+                            PRUint32 aPos) 
 {
   NS_ASSERTION(aText, "aText shouldn't be null");
   NS_ASSERTION(aLen >= aPos && aPos > 0,
                "Bad position passed to nsJISx4051LineBreaker::Prev");
 
-  int32_t prevPos = WordMove(aText, aLen, aPos, -1);
+  PRInt32 prevPos = WordMove(aText, aLen, aPos, -1);
   return prevPos > 0 ? prevPos : NS_LINEBREAKER_NEED_MORE_TEXT;
 }
 
 void
-nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, uint32_t aLength,
-                                         uint8_t aWordBreak,
-                                         uint8_t* aBreakBefore)
+nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, PRUint32 aLength,
+                                         PRPackedBool* aBreakBefore)
 {
-  uint32_t cur;
-  int8_t lastClass = CLASS_NONE;
+  PRUint32 cur;
+  PRInt8 lastClass = CLASS_NONE;
   ContextState state(aChars, aLength);
 
   for (cur = 0; cur < aLength; ++cur, state.AdvanceIndex()) {
     PRUnichar ch = aChars[cur];
-    int8_t cl;
+    PRInt8 cl;
 
     if (NEED_CONTEXTUAL_ANALYSIS(ch)) {
       cl = ContextualAnalysis(cur > 0 ? aChars[cur - 1] : U_NULL,
@@ -825,36 +855,29 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, uint32_t aLeng
       cl = GetClass(ch);
     }
 
-    bool allowBreak = false;
+    PRBool allowBreak;
     if (cur > 0) {
       NS_ASSERTION(CLASS_COMPLEX != lastClass || CLASS_COMPLEX != cl,
                    "Loop should have prevented adjacent complex chars here");
-      if (aWordBreak == nsILineBreaker::kWordBreak_Normal) {
-        allowBreak = (state.UseConservativeBreaking()) ?
-          GetPairConservative(lastClass, cl) : GetPair(lastClass, cl);
-      } else if (aWordBreak == nsILineBreaker::kWordBreak_BreakAll) {
-        allowBreak = true;
-      }
+      if (state.UseConservativeBreaking())
+        allowBreak = GetPairConservative(lastClass, cl);
+      else
+        allowBreak = GetPair(lastClass, cl);
+    } else {
+      allowBreak = PR_FALSE;
     }
     aBreakBefore[cur] = allowBreak;
     if (allowBreak)
       state.NotifyBreakBefore();
     lastClass = cl;
     if (CLASS_COMPLEX == cl) {
-      uint32_t end = cur + 1;
+      PRUint32 end = cur + 1;
 
       while (end < aLength && CLASS_COMPLEX == GetClass(aChars[end])) {
         ++end;
       }
 
       NS_GetComplexLineBreaks(aChars + cur, end - cur, aBreakBefore + cur);
-
-      // We have to consider word-break value again for complex characters
-      if (aWordBreak != nsILineBreaker::kWordBreak_Normal) {
-        // Respect word-break property 
-        for (uint32_t i = cur; i < end; i++)
-          aBreakBefore[i] = (aWordBreak == nsILineBreaker::kWordBreak_BreakAll);
-      }
 
       // restore breakability at chunk begin, which was always set to false
       // by the complex line breaker
@@ -866,17 +889,16 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUnichar* aChars, uint32_t aLeng
 }
 
 void
-nsJISx4051LineBreaker::GetJISx4051Breaks(const uint8_t* aChars, uint32_t aLength,
-                                         uint8_t aWordBreak,
-                                         uint8_t* aBreakBefore)
+nsJISx4051LineBreaker::GetJISx4051Breaks(const PRUint8* aChars, PRUint32 aLength,
+                                         PRPackedBool* aBreakBefore)
 {
-  uint32_t cur;
-  int8_t lastClass = CLASS_NONE;
+  PRUint32 cur;
+  PRInt8 lastClass = CLASS_NONE;
   ContextState state(aChars, aLength);
 
   for (cur = 0; cur < aLength; ++cur, state.AdvanceIndex()) {
     PRUnichar ch = aChars[cur];
-    int8_t cl;
+    PRInt8 cl;
 
     if (NEED_CONTEXTUAL_ANALYSIS(ch)) {
       cl = ContextualAnalysis(cur > 0 ? aChars[cur - 1] : U_NULL,
@@ -890,14 +912,14 @@ nsJISx4051LineBreaker::GetJISx4051Breaks(const uint8_t* aChars, uint32_t aLength
       cl = GetClass(ch);
     }
 
-    bool allowBreak = false;
+    PRBool allowBreak;
     if (cur > 0) {
-      if (aWordBreak == nsILineBreaker::kWordBreak_Normal) {
-        allowBreak = (state.UseConservativeBreaking()) ?
-          GetPairConservative(lastClass, cl) : GetPair(lastClass, cl);
-      } else if (aWordBreak == nsILineBreaker::kWordBreak_BreakAll) {
-        allowBreak = true;
-      }
+      if (state.UseConservativeBreaking())
+        allowBreak = GetPairConservative(lastClass, cl);
+      else
+        allowBreak = GetPair(lastClass, cl);
+    } else {
+      allowBreak = PR_FALSE;
     }
     aBreakBefore[cur] = allowBreak;
     if (allowBreak)

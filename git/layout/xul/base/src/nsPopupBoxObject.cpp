@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   David W. Hyatt <hyatt@netscape.com>
+ *   Ben Goodger <ben@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "nsCOMPtr.h"
 #include "nsIPopupBoxObject.h"
 #include "nsIRootBox.h"
@@ -9,7 +43,10 @@
 #include "nsIPresShell.h"
 #include "nsFrameManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsMenuPopupFrame.h"
@@ -27,6 +64,13 @@ protected:
   virtual ~nsPopupBoxObject() {}
 
   nsPopupSetFrame* GetPopupSetFrame();
+  nsMenuPopupFrame* GetMenuPopupFrame()
+  {
+    nsIFrame* frame = GetFrame(PR_FALSE);
+    if (frame && frame->GetType() == nsGkAtoms::menuPopupFrame)
+      return static_cast<nsMenuPopupFrame*>(frame);
+    return nsnull;
+  }
 };
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsPopupBoxObject, nsBoxObject, nsIPopupBoxObject)
@@ -34,9 +78,9 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsPopupBoxObject, nsBoxObject, nsIPopupBoxObject)
 nsPopupSetFrame*
 nsPopupBoxObject::GetPopupSetFrame()
 {
-  nsIRootBox* rootBox = nsIRootBox::GetRootBox(GetPresShell(false));
+  nsIRootBox* rootBox = nsIRootBox::GetRootBox(GetPresShell(PR_FALSE));
   if (!rootBox)
-    return nullptr;
+    return nsnull;
 
   return rootBox->GetPopupSetFrame();
 }
@@ -46,7 +90,7 @@ nsPopupBoxObject::HidePopup()
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && mContent)
-    pm->HidePopup(mContent, false, true, false);
+    pm->HidePopup(mContent, PR_FALSE, PR_TRUE, PR_FALSE);
 
   return NS_OK;
 }
@@ -54,7 +98,7 @@ nsPopupBoxObject::HidePopup()
 NS_IMETHODIMP
 nsPopupBoxObject::ShowPopup(nsIDOMElement* aAnchorElement,
                             nsIDOMElement* aPopupElement,
-                            int32_t aXPos, int32_t aYPos,
+                            PRInt32 aXPos, PRInt32 aYPos,
                             const PRUnichar *aPopupType,
                             const PRUnichar *aAnchorAlignment,
                             const PRUnichar *aPopupAlignment)
@@ -78,24 +122,24 @@ nsPopupBoxObject::ShowPopup(nsIDOMElement* aAnchorElement,
 NS_IMETHODIMP
 nsPopupBoxObject::OpenPopup(nsIDOMElement* aAnchorElement,
                             const nsAString& aPosition,
-                            int32_t aXPos, int32_t aYPos,
-                            bool aIsContextMenu,
-                            bool aAttributesOverride,
+                            PRInt32 aXPos, PRInt32 aYPos,
+                            PRBool aIsContextMenu,
+                            PRBool aAttributesOverride,
                             nsIDOMEvent* aTriggerEvent)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm && mContent) {
     nsCOMPtr<nsIContent> anchorContent(do_QueryInterface(aAnchorElement));
     pm->ShowPopup(mContent, anchorContent, aPosition, aXPos, aYPos,
-                  aIsContextMenu, aAttributesOverride, false, aTriggerEvent);
+                  aIsContextMenu, aAttributesOverride, PR_FALSE, aTriggerEvent);
   }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::OpenPopupAtScreen(int32_t aXPos, int32_t aYPos,
-                                    bool aIsContextMenu,
+nsPopupBoxObject::OpenPopupAtScreen(PRInt32 aXPos, PRInt32 aYPos,
+                                    PRBool aIsContextMenu,
                                     nsIDOMEvent* aTriggerEvent)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
@@ -105,18 +149,18 @@ nsPopupBoxObject::OpenPopupAtScreen(int32_t aXPos, int32_t aYPos,
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::MoveTo(int32_t aLeft, int32_t aTop)
+nsPopupBoxObject::MoveTo(PRInt32 aLeft, PRInt32 aTop)
 {
-  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
+  nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
-    menuPopupFrame->MoveTo(aLeft, aTop, true);
+    menuPopupFrame->MoveTo(aLeft, aTop, PR_TRUE);
   }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::SizeTo(int32_t aWidth, int32_t aHeight)
+nsPopupBoxObject::SizeTo(PRInt32 aWidth, PRInt32 aHeight)
 {
   if (!mContent)
     return NS_OK;
@@ -126,16 +170,16 @@ nsPopupBoxObject::SizeTo(int32_t aWidth, int32_t aHeight)
   height.AppendInt(aHeight);
 
   nsCOMPtr<nsIContent> content = mContent;
-  content->SetAttr(kNameSpaceID_None, nsGkAtoms::width, width, false);
-  content->SetAttr(kNameSpaceID_None, nsGkAtoms::height, height, true);
+  content->SetAttr(kNameSpaceID_None, nsGkAtoms::width, width, PR_FALSE);
+  content->SetAttr(kNameSpaceID_None, nsGkAtoms::height, height, PR_TRUE);
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::GetAutoPosition(bool* aShouldAutoPosition)
+nsPopupBoxObject::GetAutoPosition(PRBool* aShouldAutoPosition)
 {
-  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
+  nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
     *aShouldAutoPosition = menuPopupFrame->GetAutoPosition();
   }
@@ -144,9 +188,9 @@ nsPopupBoxObject::GetAutoPosition(bool* aShouldAutoPosition)
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::SetAutoPosition(bool aShouldAutoPosition)
+nsPopupBoxObject::SetAutoPosition(PRBool aShouldAutoPosition)
 {
-  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
+  nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
     menuPopupFrame->SetAutoPosition(aShouldAutoPosition);
   }
@@ -155,16 +199,16 @@ nsPopupBoxObject::SetAutoPosition(bool aShouldAutoPosition)
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::EnableRollup(bool aShouldRollup)
+nsPopupBoxObject::EnableRollup(PRBool aShouldRollup)
 {
   // this does nothing now
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::SetConsumeRollupEvent(uint32_t aConsume)
+nsPopupBoxObject::SetConsumeRollupEvent(PRUint32 aConsume)
 {
-  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
+  nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
     menuPopupFrame->SetConsumeRollupEvent(aConsume);
   }
@@ -173,17 +217,17 @@ nsPopupBoxObject::SetConsumeRollupEvent(uint32_t aConsume)
 }
 
 NS_IMETHODIMP
-nsPopupBoxObject::EnableKeyboardNavigator(bool aEnableKeyboardNavigator)
+nsPopupBoxObject::EnableKeyboardNavigator(PRBool aEnableKeyboardNavigator)
 {
   if (!mContent)
     return NS_OK;
 
   // Use ignorekeys="true" on the popup instead of using this function.
   if (aEnableKeyboardNavigator)
-    mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::ignorekeys, true);
+    mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::ignorekeys, PR_TRUE);
   else
     mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::ignorekeys,
-                      NS_LITERAL_STRING("true"), true);
+                      NS_LITERAL_STRING("true"), PR_TRUE);
 
   return NS_OK;
 }
@@ -194,7 +238,7 @@ nsPopupBoxObject::GetPopupState(nsAString& aState)
   // set this here in case there's no frame for the popup
   aState.AssignLiteral("closed");
 
-  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
+  nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
     switch (menuPopupFrame->PopupState()) {
       case ePopupShowing:
@@ -222,10 +266,9 @@ nsPopupBoxObject::GetPopupState(nsAString& aState)
 NS_IMETHODIMP
 nsPopupBoxObject::GetTriggerNode(nsIDOMNode** aTriggerNode)
 {
-  *aTriggerNode = nullptr;
+  *aTriggerNode = nsnull;
 
-  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
-  nsIContent* triggerContent = nsMenuPopupFrame::GetTriggerContent(menuPopupFrame);
+  nsIContent* triggerContent = nsMenuPopupFrame::GetTriggerContent(GetMenuPopupFrame());
   if (triggerContent)
     CallQueryInterface(triggerContent, aTriggerNode);
 
@@ -235,9 +278,9 @@ nsPopupBoxObject::GetTriggerNode(nsIDOMNode** aTriggerNode)
 NS_IMETHODIMP
 nsPopupBoxObject::GetAnchorNode(nsIDOMElement** aAnchor)
 {
-  *aAnchor = nullptr;
+  *aAnchor = nsnull;
 
-  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
+  nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (!menuPopupFrame)
     return NS_OK;
 
@@ -257,7 +300,7 @@ nsPopupBoxObject::GetOuterScreenRect(nsIDOMClientRect** aRect)
 
   NS_ADDREF(*aRect = rect);
 
-  nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(GetFrame(false));
+  nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (!menuPopupFrame)
     return NS_OK;
 
@@ -273,7 +316,7 @@ nsPopupBoxObject::GetOuterScreenRect(nsIDOMClientRect** aRect)
       nsIntRect screenRect;
       widget->GetScreenBounds(screenRect);
 
-      int32_t pp = menuPopupFrame->PresContext()->AppUnitsPerDevPixel();
+      PRInt32 pp = menuPopupFrame->PresContext()->AppUnitsPerDevPixel();
       rect->SetLayoutRect(screenRect.ToAppUnits(pp));
     }
   }

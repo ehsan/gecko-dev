@@ -1,34 +1,63 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/FloatingPoint.h"
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is JavaScript structured data serialization.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jason Orendorff <jorendorff@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "jsclone.h"
 #include "jsdate.h"
+#include "jsregexp.h"
 #include "jstypedarray.h"
 
+#include "jsregexpinlines.h"
 #include "jstypedarrayinlines.h"
-
-#include "vm/BooleanObject-inl.h"
-#include "vm/NumberObject-inl.h"
-#include "vm/RegExpObject-inl.h"
-#include "vm/StringObject-inl.h"
 
 using namespace js;
 
 JS_FRIEND_API(uint64_t)
 js_GetSCOffset(JSStructuredCloneWriter* writer)
 {
-    JS_ASSERT(writer);
-    return writer->output().count() * sizeof(uint64_t);
+  JS_ASSERT(writer);
+  return writer->output().count() * sizeof(uint64_t);
 }
 
-namespace js {
+namespace js
+{
 
 bool
-WriteStructuredClone(JSContext *cx, const Value &v, uint64_t **bufp, size_t *nbytesp,
+WriteStructuredClone(JSContext *cx, const Value &v, uint64 **bufp, size_t *nbytesp,
                      const JSStructuredCloneCallbacks *cb, void *cbClosure)
 {
     SCOutput out(cx);
@@ -41,15 +70,11 @@ ReadStructuredClone(JSContext *cx, const uint64_t *data, size_t nbytes, Value *v
                     const JSStructuredCloneCallbacks *cb, void *cbClosure)
 {
     SCInput in(cx, data, nbytes);
-
-    /* XXX disallow callers from using internal pointers to GC things. */
-    SkipRoot skip(cx, &in);
-
     JSStructuredCloneReader r(in, cb, cbClosure);
     return r.read(vp);
 }
 
-} /* namespace js */
+}
 
 enum StructuredDataType {
     /* Structured data types provided by the engine */
@@ -69,29 +94,12 @@ enum StructuredDataType {
     SCTAG_NUMBER_OBJECT,
     SCTAG_BACK_REFERENCE_OBJECT,
     SCTAG_TYPED_ARRAY_MIN = 0xFFFF0100,
-    SCTAG_TYPED_ARRAY_INT8 = SCTAG_TYPED_ARRAY_MIN + TypedArray::TYPE_INT8,
-    SCTAG_TYPED_ARRAY_UINT8 = SCTAG_TYPED_ARRAY_MIN + TypedArray::TYPE_UINT8,
-    SCTAG_TYPED_ARRAY_INT16 = SCTAG_TYPED_ARRAY_MIN + TypedArray::TYPE_INT16,
-    SCTAG_TYPED_ARRAY_UINT16 = SCTAG_TYPED_ARRAY_MIN + TypedArray::TYPE_UINT16,
-    SCTAG_TYPED_ARRAY_INT32 = SCTAG_TYPED_ARRAY_MIN + TypedArray::TYPE_INT32,
-    SCTAG_TYPED_ARRAY_UINT32 = SCTAG_TYPED_ARRAY_MIN + TypedArray::TYPE_UINT32,
-    SCTAG_TYPED_ARRAY_FLOAT32 = SCTAG_TYPED_ARRAY_MIN + TypedArray::TYPE_FLOAT32,
-    SCTAG_TYPED_ARRAY_FLOAT64 = SCTAG_TYPED_ARRAY_MIN + TypedArray::TYPE_FLOAT64,
-    SCTAG_TYPED_ARRAY_UINT8_CLAMPED = SCTAG_TYPED_ARRAY_MIN + TypedArray::TYPE_UINT8_CLAMPED,
     SCTAG_TYPED_ARRAY_MAX = SCTAG_TYPED_ARRAY_MIN + TypedArray::TYPE_MAX - 1,
     SCTAG_END_OF_BUILTIN_TYPES
 };
 
-static StructuredDataType
-ArrayTypeToTag(uint32_t type)
-{
-    JS_ASSERT(type < TypedArray::TYPE_MAX);
-    return static_cast<StructuredDataType>(uint32_t(SCTAG_TYPED_ARRAY_MIN) + type);
-}
-
 JS_STATIC_ASSERT(SCTAG_END_OF_BUILTIN_TYPES <= JS_SCTAG_USER_MIN);
 JS_STATIC_ASSERT(JS_SCTAG_USER_MIN <= JS_SCTAG_USER_MAX);
-JS_STATIC_ASSERT(TypedArray::TYPE_INT8 == 0);
 
 static uint8_t
 SwapBytes(uint8_t u)
@@ -185,11 +193,11 @@ CanonicalizeNan(double d)
 }
 
 bool
-SCInput::readDouble(double *p)
+SCInput::readDouble(jsdouble *p)
 {
     union {
         uint64_t u;
-        double d;
+        jsdouble d;
     } pun;
     if (!read(&pun.u))
         return false;
@@ -212,7 +220,7 @@ SCInput::readArray(T *p, size_t nelems)
         return eof();
 
     if (sizeof(T) == 1) {
-        js_memcpy(p, point, nelems);
+        memcpy(p, point, nelems);
     } else {
         const T *q = (const T *) point;
         const T *qend = q + nelems;
@@ -255,7 +263,7 @@ SCOutput::writePair(uint32_t tag, uint32_t data)
 {
     /*
      * As it happens, the tag word appears after the data word in the output.
-     * This is because exponents occupy the last 2 bytes of doubles on the
+     * This is because exponents occupy the last 2 bytes of jsdoubles on the
      * little-endian platforms we care most about.
      *
      * For example, JSVAL_TRUE is written using writePair(SCTAG_BOOLEAN, 1).
@@ -266,35 +274,35 @@ SCOutput::writePair(uint32_t tag, uint32_t data)
 }
 
 static inline uint64_t
-ReinterpretDoubleAsUInt64(double d)
+ReinterpretDoubleAsUInt64(jsdouble d)
 {
     union {
-        double d;
+        jsdouble d;
         uint64_t u;
     } pun;
     pun.d = d;
     return pun.u;
 }
 
-static inline double
+static inline jsdouble
 ReinterpretUInt64AsDouble(uint64_t u)
 {
     union {
         uint64_t u;
-        double d;
+        jsdouble d;
     } pun;
     pun.u = u;
     return pun.d;
 }
 
-static inline double
+static inline jsdouble
 ReinterpretPairAsDouble(uint32_t tag, uint32_t data)
 {
     return ReinterpretUInt64AsDouble(PairToUInt64(tag, data));
 }
 
 bool
-SCOutput::writeDouble(double d)
+SCOutput::writeDouble(jsdouble d)
 {
     return write(ReinterpretDoubleAsUInt64(CanonicalizeNan(d)));
 }
@@ -322,7 +330,7 @@ SCOutput::writeArray(const T *p, size_t nelems)
 
     T *q = (T *) &buf[start];
     if (sizeof(T) == 1) {
-        js_memcpy(q, p, nelems);
+        memcpy(q, p, nelems);
     } else {
         const T *pend = p + nelems;
         while (p != pend)
@@ -379,7 +387,7 @@ JSStructuredCloneWriter::checkStack()
     /* To avoid making serialization O(n^2), limit stack-checking at 10. */
     const size_t MAX = 10;
 
-    size_t limit = Min(counts.length(), MAX);
+    size_t limit = JS_MIN(counts.length(), MAX);
     JS_ASSERT(objs.length() == counts.length());
     size_t total = 0;
     for (size_t i = 0; i < limit; i++) {
@@ -397,43 +405,57 @@ JSStructuredCloneWriter::checkStack()
 #endif
 }
 
-JS_PUBLIC_API(JSBool)
-JS_WriteTypedArray(JSStructuredCloneWriter *w, jsval v)
+static inline uint32_t
+ArrayTypeToTag(uint32_t type)
 {
-    JS_ASSERT(v.isObject());
-    RootedObject obj(w->context(), &v.toObject());
+    /*
+     * As long as these are all true, we can just add.  Note that for backward
+     * compatibility, the tags cannot change.  So if the ArrayType type codes
+     * change, this function and TagToArrayType will have to do more work.
+     */
+    JS_STATIC_ASSERT(TypedArray::TYPE_INT8 == 0);
+    JS_STATIC_ASSERT(TypedArray::TYPE_UINT8 == 1);
+    JS_STATIC_ASSERT(TypedArray::TYPE_INT16 == 2);
+    JS_STATIC_ASSERT(TypedArray::TYPE_UINT16 == 3);
+    JS_STATIC_ASSERT(TypedArray::TYPE_INT32 == 4);
+    JS_STATIC_ASSERT(TypedArray::TYPE_UINT32 == 5);
+    JS_STATIC_ASSERT(TypedArray::TYPE_FLOAT32 == 6);
+    JS_STATIC_ASSERT(TypedArray::TYPE_FLOAT64 == 7);
+    JS_STATIC_ASSERT(TypedArray::TYPE_UINT8_CLAMPED == 8);
+    JS_STATIC_ASSERT(TypedArray::TYPE_MAX == TypedArray::TYPE_UINT8_CLAMPED + 1);
 
-    // If the object is a security wrapper, try puncturing it. This may throw
-    // if the access is not allowed.
-    if (obj->isWrapper()) {
-        JSObject *unwrapped = UnwrapObjectChecked(w->context(), obj);
-        if (!unwrapped)
-            return false;
-        obj = unwrapped;
-    }
-    return w->writeTypedArray(obj);
+    JS_ASSERT(type < TypedArray::TYPE_MAX);
+    return SCTAG_TYPED_ARRAY_MIN + type;
+}
+
+static inline uint32_t
+TagToArrayType(uint32_t tag)
+{
+    JS_ASSERT(SCTAG_TYPED_ARRAY_MIN <= tag && tag <= SCTAG_TYPED_ARRAY_MAX);
+    return tag - SCTAG_TYPED_ARRAY_MIN;
 }
 
 bool
-JSStructuredCloneWriter::writeTypedArray(HandleObject arr)
+JSStructuredCloneWriter::writeTypedArray(JSObject *obj)
 {
-    if (!out.writePair(ArrayTypeToTag(TypedArray::type(arr)), TypedArray::length(arr)))
+    TypedArray *arr = TypedArray::fromJSObject(obj);
+    if (!out.writePair(ArrayTypeToTag(arr->type), arr->length))
         return false;
 
-    switch (TypedArray::type(arr)) {
+    switch (arr->type) {
     case TypedArray::TYPE_INT8:
     case TypedArray::TYPE_UINT8:
     case TypedArray::TYPE_UINT8_CLAMPED:
-        return out.writeArray((const uint8_t *) TypedArray::viewData(arr), TypedArray::length(arr));
+        return out.writeArray((const uint8_t *) arr->data, arr->length);
     case TypedArray::TYPE_INT16:
     case TypedArray::TYPE_UINT16:
-        return out.writeArray((const uint16_t *) TypedArray::viewData(arr), TypedArray::length(arr));
+        return out.writeArray((const uint16_t *) arr->data, arr->length);
     case TypedArray::TYPE_INT32:
     case TypedArray::TYPE_UINT32:
     case TypedArray::TYPE_FLOAT32:
-        return out.writeArray((const uint32_t *) TypedArray::viewData(arr), TypedArray::length(arr));
+        return out.writeArray((const uint32_t *) arr->data, arr->length);
     case TypedArray::TYPE_FLOAT64:
-        return out.writeArray((const uint64_t *) TypedArray::viewData(arr), TypedArray::length(arr));
+        return out.writeArray((const uint64_t *) arr->data, arr->length);
     default:
         JS_NOT_REACHED("unknown TypedArray type");
         return false;
@@ -441,15 +463,15 @@ JSStructuredCloneWriter::writeTypedArray(HandleObject arr)
 }
 
 bool
-JSStructuredCloneWriter::writeArrayBuffer(JSHandleObject obj)
+JSStructuredCloneWriter::writeArrayBuffer(JSObject *obj)
 {
-    ArrayBufferObject &buffer = obj->asArrayBuffer();
-    return out.writePair(SCTAG_ARRAY_BUFFER_OBJECT, buffer.byteLength()) &&
-           out.writeBytes(buffer.dataPointer(), buffer.byteLength());
+    obj = ArrayBuffer::getArrayBuffer(obj);
+    return out.writePair(SCTAG_ARRAY_BUFFER_OBJECT, ArrayBuffer::getByteLength(obj)) &&
+           out.writeBytes(ArrayBuffer::getDataOffset(obj), ArrayBuffer::getByteLength(obj));
 }
 
 bool
-JSStructuredCloneWriter::startObject(JSHandleObject obj)
+JSStructuredCloneWriter::startObject(JSObject *obj)
 {
     JS_ASSERT(obj->isArray() || obj->isObject());
 
@@ -487,10 +509,8 @@ JSStructuredCloneWriter::startObject(JSHandleObject obj)
 }
 
 bool
-JSStructuredCloneWriter::startWrite(const Value &v)
+JSStructuredCloneWriter::startWrite(const js::Value &v)
 {
-    assertSameCompartment(context(), v);
-
     if (v.isString()) {
         return writeString(SCTAG_STRING, v.toString());
     } else if (v.isNumber()) {
@@ -502,35 +522,27 @@ JSStructuredCloneWriter::startWrite(const Value &v)
     } else if (v.isUndefined()) {
         return out.writePair(SCTAG_UNDEFINED, 0);
     } else if (v.isObject()) {
-        RootedObject obj(context(), &v.toObject());
-
-        // The object might be a security wrapper. See if we can clone what's
-        // behind it. If we can, unwrap the object.
-        obj = UnwrapObjectChecked(context(), obj);
-        if (!obj)
-            return false;
-
-        AutoCompartment ac(context(), obj);
+        JSObject *obj = &v.toObject();
         if (obj->isRegExp()) {
-            RegExpObject &reobj = obj->asRegExp();
-            return out.writePair(SCTAG_REGEXP_OBJECT, reobj.getFlags()) &&
-                   writeString(SCTAG_STRING, reobj.getSource());
+            RegExp *re = RegExp::extractFrom(obj);
+            return out.writePair(SCTAG_REGEXP_OBJECT, re->getFlags()) &&
+                   writeString(SCTAG_STRING, re->getSource());
         } else if (obj->isDate()) {
-            double d = js_DateGetMsecSinceEpoch(context(), obj);
+            jsdouble d = js_DateGetMsecSinceEpoch(context(), obj);
             return out.writePair(SCTAG_DATE_OBJECT, 0) && out.writeDouble(d);
         } else if (obj->isObject() || obj->isArray()) {
             return startObject(obj);
-        } else if (obj->isTypedArray()) {
+        } else if (js_IsTypedArray(obj)) {
             return writeTypedArray(obj);
-        } else if (obj->isArrayBuffer() && obj->asArrayBuffer().hasData()) {
+        } else if (js_IsArrayBuffer(obj)) {
             return writeArrayBuffer(obj);
         } else if (obj->isBoolean()) {
-            return out.writePair(SCTAG_BOOLEAN_OBJECT, obj->asBoolean().unbox());
+            return out.writePair(SCTAG_BOOLEAN_OBJECT, obj->getPrimitiveThis().toBoolean());
         } else if (obj->isNumber()) {
             return out.writePair(SCTAG_NUMBER_OBJECT, 0) &&
-                   out.writeDouble(obj->asNumber().unbox());
+                   out.writeDouble(obj->getPrimitiveThis().toNumber());
         } else if (obj->isString()) {
-            return writeString(SCTAG_STRING_OBJECT, obj->asString().unbox());
+            return writeString(SCTAG_STRING_OBJECT, obj->getPrimitiveThis().toString());
         }
 
         if (callbacks && callbacks->write)
@@ -549,11 +561,10 @@ JSStructuredCloneWriter::write(const Value &v)
         return false;
 
     while (!counts.empty()) {
-        RootedObject obj(context(), &objs.back().toObject());
-        AutoCompartment ac(context(), obj);
+        JSObject *obj = &objs.back().toObject();
         if (counts.back()) {
             counts.back()--;
-            RootedId id(context(), ids.back());
+            jsid id = ids.back();
             ids.popBack();
             checkStack();
             if (JSID_IS_STRING(id) || JSID_IS_INT(id)) {
@@ -562,17 +573,17 @@ JSStructuredCloneWriter::write(const Value &v)
                  * The cost of re-checking could be avoided by using
                  * NativeIterators.
                  */
-                RootedObject obj2(context());
-                RootedShape prop(context());
-                if (!js_HasOwnProperty(context(), obj->getOps()->lookupGeneric, obj, id,
+                JSObject *obj2;
+                JSProperty *prop;
+                if (!js_HasOwnProperty(context(), obj->getOps()->lookupProperty, obj, id,
                                        &obj2, &prop)) {
                     return false;
                 }
 
                 if (prop) {
-                    RootedValue val(context());
+                    Value val;
                     if (!writeId(id) ||
-                        !JSObject::getGeneric(context(), obj, obj, id, &val) ||
+                        !obj->getProperty(context(), id, &val) ||
                         !startWrite(val))
                         return false;
                 }
@@ -590,11 +601,11 @@ JSStructuredCloneWriter::write(const Value &v)
 }
 
 bool
-JSStructuredCloneReader::checkDouble(double d)
+JSStructuredCloneReader::checkDouble(jsdouble d)
 {
     jsval_layout l;
     l.asDouble = d;
-    if (!JSVAL_IS_DOUBLE_IMPL(l)) {
+    if (!JSVAL_IS_DOUBLE(JSVAL_FROM_LAYOUT(l))) {
         JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL,
                              JSMSG_SC_BAD_SERIALIZED_DATA, "unrecognized NaN");
         return false;
@@ -606,13 +617,14 @@ class Chars {
     JSContext *cx;
     jschar *p;
   public:
-    Chars(JSContext *cx) : cx(cx), p(NULL) {}
-    ~Chars() { if (p) js_free(p); }
+    Chars() : p(NULL) {}
+    ~Chars() { if (p) cx->free_(p); }
 
-    bool allocate(size_t len) {
+    bool allocate(JSContext *cx, size_t len) {
         JS_ASSERT(!p);
         // We're going to null-terminate!
-        p = cx->pod_malloc<jschar>(len + 1);
+        p = (jschar *) cx->malloc_((len + 1) * sizeof(jschar));
+        this->cx = cx;
         if (p) {
             p[len] = jschar(0);
             return true;
@@ -631,8 +643,8 @@ JSStructuredCloneReader::readString(uint32_t nchars)
                              "string length");
         return NULL;
     }
-    Chars chars(context());
-    if (!chars.allocate(nchars) || !in.readChars(chars.get(), nchars))
+    Chars chars;
+    if (!chars.allocate(context(), nchars) || !in.readChars(chars.get(), nchars))
         return NULL;
     JSString *str = js_NewString(context(), chars.get(), nchars);
     if (str)
@@ -640,78 +652,32 @@ JSStructuredCloneReader::readString(uint32_t nchars)
     return str;
 }
 
-JS_PUBLIC_API(JSBool)
-JS_ReadTypedArray(JSStructuredCloneReader *r, jsval *vp)
-{
-    uint32_t tag, nelems;
-    if (!r->input().readPair(&tag, &nelems))
-        return false;
-    JS_ASSERT(tag >= SCTAG_TYPED_ARRAY_MIN && tag <= SCTAG_TYPED_ARRAY_MAX);
-    return r->readTypedArray(tag, nelems, vp);
-}
-
 bool
 JSStructuredCloneReader::readTypedArray(uint32_t tag, uint32_t nelems, Value *vp)
 {
-    RootedObject obj(context(), NULL);
-
-    switch (tag) {
-      case SCTAG_TYPED_ARRAY_INT8:
-        obj = JS_NewInt8Array(context(), nelems);
-        break;
-      case SCTAG_TYPED_ARRAY_UINT8:
-        obj = JS_NewUint8Array(context(), nelems);
-        break;
-      case SCTAG_TYPED_ARRAY_INT16:
-        obj = JS_NewInt16Array(context(), nelems);
-        break;
-      case SCTAG_TYPED_ARRAY_UINT16:
-        obj = JS_NewUint16Array(context(), nelems);
-        break;
-      case SCTAG_TYPED_ARRAY_INT32:
-        obj = JS_NewInt32Array(context(), nelems);
-        break;
-      case SCTAG_TYPED_ARRAY_UINT32:
-        obj = JS_NewUint32Array(context(), nelems);
-        break;
-      case SCTAG_TYPED_ARRAY_FLOAT32:
-        obj = JS_NewFloat32Array(context(), nelems);
-        break;
-      case SCTAG_TYPED_ARRAY_FLOAT64:
-        obj = JS_NewFloat64Array(context(), nelems);
-        break;
-      case SCTAG_TYPED_ARRAY_UINT8_CLAMPED:
-        obj = JS_NewUint8ClampedArray(context(), nelems);
-        break;
-      default:
-        JS_NOT_REACHED("unknown TypedArray type");
-        return false;
-    }
-
+    uint32_t atype = TagToArrayType(tag);
+    JSObject *obj = js_CreateTypedArray(context(), atype, nelems);
     if (!obj)
         return false;
     vp->setObject(*obj);
 
-    JS_ASSERT(TypedArray::length(obj) == nelems);
-    switch (tag) {
-      case SCTAG_TYPED_ARRAY_INT8:
-        return in.readArray((uint8_t*) JS_GetInt8ArrayData(obj, context()), nelems);
-      case SCTAG_TYPED_ARRAY_UINT8:
-        return in.readArray(JS_GetUint8ArrayData(obj, context()), nelems);
-      case SCTAG_TYPED_ARRAY_INT16:
-        return in.readArray((uint16_t*) JS_GetInt16ArrayData(obj, context()), nelems);
-      case SCTAG_TYPED_ARRAY_UINT16:
-        return in.readArray(JS_GetUint16ArrayData(obj, context()), nelems);
-      case SCTAG_TYPED_ARRAY_INT32:
-        return in.readArray((uint32_t*) JS_GetInt32ArrayData(obj, context()), nelems);
-      case SCTAG_TYPED_ARRAY_UINT32:
-        return in.readArray(JS_GetUint32ArrayData(obj, context()), nelems);
-      case SCTAG_TYPED_ARRAY_FLOAT32:
-        return in.readArray((uint32_t*) JS_GetFloat32ArrayData(obj, context()), nelems);
-      case SCTAG_TYPED_ARRAY_FLOAT64:
-        return in.readArray((uint64_t*) JS_GetFloat64ArrayData(obj, context()), nelems);
-      case SCTAG_TYPED_ARRAY_UINT8_CLAMPED:
-        return in.readArray(JS_GetUint8ClampedArrayData(obj, context()), nelems);
+    TypedArray *arr = TypedArray::fromJSObject(obj);
+    JS_ASSERT(arr->length == nelems);
+    JS_ASSERT(arr->type == atype);
+    switch (atype) {
+      case TypedArray::TYPE_INT8:
+      case TypedArray::TYPE_UINT8:
+      case TypedArray::TYPE_UINT8_CLAMPED:
+        return in.readArray((uint8_t *) arr->data, nelems);
+      case TypedArray::TYPE_INT16:
+      case TypedArray::TYPE_UINT16:
+        return in.readArray((uint16_t *) arr->data, nelems);
+      case TypedArray::TYPE_INT32:
+      case TypedArray::TYPE_UINT32:
+      case TypedArray::TYPE_FLOAT32:
+        return in.readArray((uint32_t *) arr->data, nelems);
+      case TypedArray::TYPE_FLOAT64:
+        return in.readArray((uint64_t *) arr->data, nelems);
       default:
         JS_NOT_REACHED("unknown TypedArray type");
         return false;
@@ -721,13 +687,12 @@ JSStructuredCloneReader::readTypedArray(uint32_t tag, uint32_t nelems, Value *vp
 bool
 JSStructuredCloneReader::readArrayBuffer(uint32_t nbytes, Value *vp)
 {
-    JSObject *obj = ArrayBufferObject::create(context(), nbytes);
+    JSObject *obj = js_CreateArrayBuffer(context(), nbytes);
     if (!obj)
         return false;
     vp->setObject(*obj);
-    ArrayBufferObject &buffer = obj->asArrayBuffer();
-    JS_ASSERT(buffer.byteLength() == nbytes);
-    return in.readArray(buffer.dataPointer(), nbytes);
+    JS_ASSERT(ArrayBuffer::getByteLength(obj) == nbytes);
+    return in.readArray(ArrayBuffer::getDataOffset(obj), nbytes);
 }
 
 bool
@@ -765,7 +730,7 @@ JSStructuredCloneReader::startRead(Value *vp)
       }
 
       case SCTAG_NUMBER_OBJECT: {
-        double d;
+        jsdouble d;
         if (!in.readDouble(&d) || !checkDouble(d))
             return false;
         vp->setDouble(d);
@@ -775,10 +740,10 @@ JSStructuredCloneReader::startRead(Value *vp)
       }
 
       case SCTAG_DATE_OBJECT: {
-        double d;
+        jsdouble d;
         if (!in.readDouble(&d) || !checkDouble(d))
             return false;
-        if (!MOZ_DOUBLE_IS_NaN(d) && d != TimeClip(d)) {
+        if (d == d && d != TIMECLIP(d)) {
             JS_ReportErrorNumber(context(), js_GetErrorMessage, NULL, JSMSG_SC_BAD_SERIALIZED_DATA,
                                  "date");
             return false;
@@ -791,7 +756,6 @@ JSStructuredCloneReader::startRead(Value *vp)
       }
 
       case SCTAG_REGEXP_OBJECT: {
-        RegExpFlag flags = RegExpFlag(data);
         uint32_t tag2, nchars;
         if (!in.readPair(&tag2, &nchars))
             return false;
@@ -807,11 +771,10 @@ JSStructuredCloneReader::startRead(Value *vp)
         const jschar *chars = str->getChars(context());
         if (!chars)
             return false;
-
-        RegExpObject *reobj = RegExpObject::createNoStatics(context(), chars, length, flags, NULL);
-        if (!reobj)
+        JSObject *obj = RegExp::createObjectNoStatics(context(), chars, length, data, NULL);
+        if (!obj)
             return false;
-        vp->setObject(*reobj);
+        vp->setObject(*obj);
         break;
       }
 
@@ -819,7 +782,7 @@ JSStructuredCloneReader::startRead(Value *vp)
       case SCTAG_OBJECT_OBJECT: {
         JSObject *obj = (tag == SCTAG_ARRAY_OBJECT)
                         ? NewDenseEmptyArray(context())
-                        : NewBuiltinClassInstance(context(), &ObjectClass);
+                        : NewBuiltinClassInstance(context(), &js_ObjectClass);
         if (!obj || !objs.append(ObjectValue(*obj)) ||
             !allObjs.append(ObjectValue(*obj)))
             return false;
@@ -842,7 +805,7 @@ JSStructuredCloneReader::startRead(Value *vp)
 
       default: {
         if (tag <= SCTAG_FLOAT_MAX) {
-            double d = ReinterpretPairAsDouble(tag, data);
+            jsdouble d = ReinterpretPairAsDouble(tag, data);
             if (!checkDouble(d))
                 return false;
             vp->setNumber(d);
@@ -881,10 +844,10 @@ JSStructuredCloneReader::readId(jsid *idp)
         JSString *str = readString(data);
         if (!str)
             return false;
-        JSAtom *atom = AtomizeString(context(), str);
+        JSAtom *atom = js_AtomizeString(context(), str);
         if (!atom)
             return false;
-        *idp = NON_INTEGER_ATOM_TO_JSID(atom);
+        *idp = ATOM_TO_JSID(atom);
         return true;
     }
     if (tag == SCTAG_NULL) {
@@ -902,17 +865,17 @@ JSStructuredCloneReader::read(Value *vp)
         return false;
 
     while (objs.length() != 0) {
-        RootedObject obj(context(), &objs.back().toObject());
+        JSObject *obj = &objs.back().toObject();
 
-        RootedId id(context());
-        if (!readId(id.address()))
+        jsid id;
+        if (!readId(&id))
             return false;
 
         if (JSID_IS_VOID(id)) {
             objs.popBack();
         } else {
-            RootedValue v(context());
-            if (!startRead(v.address()) || !JSObject::defineGeneric(context(), obj, id, v))
+            Value v;
+            if (!startRead(&v) || !obj->defineProperty(context(), id, v))
                 return false;
         }
     }

@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=607529
 -->
 <head>
   <title>Test for Bug 607529</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -24,6 +25,16 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=607529
 
   var doneOneLoad = false;
 
+  var eventsHappening = false;
+  var callbacksHappening = false;
+
+  function tryFinishTest() {
+    if (eventsHappening && callbacksHappening) {
+      w.close();
+      SimpleTest.finish();
+    }
+  }
+
   /** Test for Bug 607529 **/
   window.onmessage = function(e) {
     isnot(e.data, "notcached", "Should never end up not being cached");
@@ -38,9 +49,13 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=607529
     else if (e.data == "revived") {
       w.postMessage("report", "*");
     }
+    else if (e.data == "eventHappened") {
+      eventsHappening = true;
+      tryFinishTest();
+    }
     else if (e.data == "callbackHappened") {
-      w.close();
-      SimpleTest.finish();
+      callbacksHappening = true;
+      tryFinishTest();
     } else {
       var msg = JSON.parse(e.data);
       if (msg.error) {

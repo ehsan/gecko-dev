@@ -1,9 +1,43 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "base/basictypes.h"
+#include "IPCMessageUtils.h"
+#include "mozilla/net/NeckoMessageUtils.h"
 
 #include "nsAboutProtocolHandler.h"
 #include "nsIURI.h"
@@ -16,7 +50,7 @@
 #include "nsReadableUtils.h"
 #include "nsNetCID.h"
 #include "nsAboutProtocolUtils.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsNetUtil.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
@@ -41,14 +75,14 @@ nsAboutProtocolHandler::GetScheme(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsAboutProtocolHandler::GetDefaultPort(int32_t *result)
+nsAboutProtocolHandler::GetDefaultPort(PRInt32 *result)
 {
     *result = -1;        // no port for about: URLs
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsAboutProtocolHandler::GetProtocolFlags(uint32_t *result)
+nsAboutProtocolHandler::GetProtocolFlags(PRUint32 *result)
 {
     *result = URI_NORELATIVE | URI_NOAUTH | URI_DANGEROUS_TO_LOAD;
     return NS_OK;
@@ -60,7 +94,7 @@ nsAboutProtocolHandler::NewURI(const nsACString &aSpec,
                                nsIURI *aBaseURI,
                                nsIURI **result)
 {
-    *result = nullptr;
+    *result = nsnull;
     nsresult rv;
 
     // Use a simple URI to parse out some stuff first
@@ -75,13 +109,13 @@ nsAboutProtocolHandler::NewURI(const nsACString &aSpec,
     // Unfortunately, people create random about: URIs that don't correspond to
     // about: modules...  Since those URIs will never open a channel, might as
     // well consider them unsafe for better perf, and just in case.
-    bool isSafe = false;
+    PRBool isSafe = PR_FALSE;
     
     nsCOMPtr<nsIAboutModule> aboutMod;
     rv = NS_GetAboutModule(url, getter_AddRefs(aboutMod));
     if (NS_SUCCEEDED(rv)) {
         // The standard return case
-        uint32_t flags;
+        PRUint32 flags;
         rv = aboutMod->GetURIFlags(url, &flags);
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -94,7 +128,7 @@ nsAboutProtocolHandler::NewURI(const nsACString &aSpec,
         // no one but the security manager will see.  Make sure to preserve our
         // path, in case someone decides to hardcode checks for particular
         // about: URIs somewhere.
-        nsAutoCString spec;
+        nsCAutoString spec;
         rv = url->GetPath(spec);
         NS_ENSURE_SUCCESS(rv, rv);
         
@@ -161,10 +195,10 @@ nsAboutProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 }
 
 NS_IMETHODIMP 
-nsAboutProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
+nsAboutProtocolHandler::AllowPort(PRInt32 port, const char *scheme, PRBool *_retval)
 {
     // don't override anything.  
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }
 
@@ -183,14 +217,14 @@ nsSafeAboutProtocolHandler::GetScheme(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsSafeAboutProtocolHandler::GetDefaultPort(int32_t *result)
+nsSafeAboutProtocolHandler::GetDefaultPort(PRInt32 *result)
 {
     *result = -1;        // no port for moz-safe-about: URLs
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSafeAboutProtocolHandler::GetProtocolFlags(uint32_t *result)
+nsSafeAboutProtocolHandler::GetProtocolFlags(PRUint32 *result)
 {
     *result = URI_NORELATIVE | URI_NOAUTH | URI_LOADABLE_BY_ANYONE;
     return NS_OK;
@@ -214,7 +248,7 @@ nsSafeAboutProtocolHandler::NewURI(const nsACString &aSpec,
 
     NS_TryToSetImmutable(url);
     
-    *result = nullptr;
+    *result = nsnull;
     url.swap(*result);
     return rv;
 }
@@ -222,15 +256,15 @@ nsSafeAboutProtocolHandler::NewURI(const nsACString &aSpec,
 NS_IMETHODIMP
 nsSafeAboutProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
 {
-    *result = nullptr;
+    *result = nsnull;
     return NS_ERROR_NOT_AVAILABLE;
 }
 
 NS_IMETHODIMP 
-nsSafeAboutProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
+nsSafeAboutProtocolHandler::AllowPort(PRInt32 port, const char *scheme, PRBool *_retval)
 {
     // don't override anything.  
-    *_retval = false;
+    *_retval = PR_FALSE;
     return NS_OK;
 }
 
@@ -249,13 +283,13 @@ nsNestedAboutURI::Read(nsIObjectInputStream* aStream)
     nsresult rv = nsSimpleNestedURI::Read(aStream);
     if (NS_FAILED(rv)) return rv;
 
-    bool haveBase;
+    PRBool haveBase;
     rv = aStream->ReadBoolean(&haveBase);
     if (NS_FAILED(rv)) return rv;
 
     if (haveBase) {
         nsCOMPtr<nsISupports> supports;
-        rv = aStream->ReadObject(true, getter_AddRefs(supports));
+        rv = aStream->ReadObject(PR_TRUE, getter_AddRefs(supports));
         if (NS_FAILED(rv)) return rv;
 
         mBaseURI = do_QueryInterface(supports, &rv);
@@ -271,7 +305,7 @@ nsNestedAboutURI::Write(nsIObjectOutputStream* aStream)
     nsresult rv = nsSimpleNestedURI::Write(aStream);
     if (NS_FAILED(rv)) return rv;
 
-    rv = aStream->WriteBoolean(mBaseURI != nullptr);
+    rv = aStream->WriteBoolean(mBaseURI != nsnull);
     if (NS_FAILED(rv)) return rv;
 
     if (mBaseURI) {
@@ -284,11 +318,36 @@ nsNestedAboutURI::Write(nsIObjectOutputStream* aStream)
         // switch to reading it as nsISupports, with a post-read QI to get to
         // nsIURI.
         rv = aStream->WriteCompoundObject(mBaseURI, NS_GET_IID(nsISupports),
-                                          true);
+                                          PR_TRUE);
         if (NS_FAILED(rv)) return rv;
     }
 
     return NS_OK;
+}
+
+// nsIIPCSerializable
+PRBool
+nsNestedAboutURI::Read(const IPC::Message *aMsg, void **aIter)
+{
+    if (!nsSimpleNestedURI::Read(aMsg, aIter))
+        return PR_FALSE;
+
+    IPC::URI uri;
+    if (!ReadParam(aMsg, aIter, &uri))
+        return PR_FALSE;
+
+    mBaseURI = uri;
+
+    return PR_TRUE;
+}
+
+void
+nsNestedAboutURI::Write(IPC::Message *aMsg)
+{
+    nsSimpleNestedURI::Write(aMsg);
+
+    IPC::URI uri(mBaseURI);
+    WriteParam(aMsg, uri);
 }
 
 // nsSimpleURI
@@ -298,7 +357,7 @@ nsNestedAboutURI::StartClone(nsSimpleURI::RefHandlingEnum aRefHandlingMode)
     // Sadly, we can't make use of nsSimpleNestedURI::StartClone here.
     // However, this function is expected to exactly match that function,
     // aside from the "new ns***URI()" call.
-    NS_ENSURE_TRUE(mInnerURI, nullptr);
+    NS_ENSURE_TRUE(mInnerURI, nsnull);
 
     nsCOMPtr<nsIURI> innerClone;
     nsresult rv = aRefHandlingMode == eHonorRef ?
@@ -306,11 +365,11 @@ nsNestedAboutURI::StartClone(nsSimpleURI::RefHandlingEnum aRefHandlingMode)
         mInnerURI->CloneIgnoringRef(getter_AddRefs(innerClone));
 
     if (NS_FAILED(rv)) {
-        return nullptr;
+        return nsnull;
     }
 
     nsNestedAboutURI* url = new nsNestedAboutURI(innerClone, mBaseURI);
-    url->SetMutable(false);
+    url->SetMutable(PR_FALSE);
 
     return url;
 }

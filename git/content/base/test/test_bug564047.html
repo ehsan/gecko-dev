@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=564047
 -->
 <head>
   <title>Test for Bug 564047</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -21,7 +22,6 @@ try {
   document.doctype.appendChild(document.createTextNode("test"));
   ok(false, "Should have thrown an exception");
 } catch (e) {
-  is(e.name, "HierarchyRequestError");
   ok(e instanceof DOMException, "Should be a DOMException");
   is(e.code, DOMException.HIERARCHY_REQUEST_ERR);
 }

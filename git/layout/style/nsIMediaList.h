@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Boris Zbarsky <bzbarsky@mit.edu>.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * representation of media lists used when linking to style sheets or by
@@ -16,7 +49,6 @@
 #include "nsTArray.h"
 #include "nsIAtom.h"
 #include "nsCSSValue.h"
-#include "mozilla/Attributes.h"
 
 class nsPresContext;
 class nsCSSStyleSheet;
@@ -31,7 +63,7 @@ struct nsMediaExpression {
   nsCSSValue mValue;
 
   // aActualValue must be obtained from mFeature->mGetter
-  bool Matches(nsPresContext* aPresContext,
+  PRBool Matches(nsPresContext* aPresContext,
                  const nsCSSValue& aActualValue) const;
 };
 
@@ -66,19 +98,19 @@ public:
    * it matched.
    */
   void AddExpression(const nsMediaExpression* aExpression,
-                     bool aExpressionMatches);
-  bool Matches(nsPresContext* aPresContext) const;
+                     PRBool aExpressionMatches);
+  PRBool Matches(nsPresContext* aPresContext) const;
 private:
   struct ExpressionEntry {
     // FIXME: if we were better at maintaining invariants about clearing
     // rule cascades when media lists change, this could be a |const
     // nsMediaExpression*| instead.
     nsMediaExpression mExpression;
-    bool mExpressionMatches;
+    PRBool mExpressionMatches;
   };
   struct FeatureEntry {
     const nsMediaFeature *mFeature;
-    InfallibleTArray<ExpressionEntry> mExpressions;
+    nsTArray<ExpressionEntry> mExpressions;
   };
   nsCOMPtr<nsIAtom> mMedium;
   nsTArray<FeatureEntry> mFeatureCache;
@@ -87,10 +119,10 @@ private:
 class nsMediaQuery {
 public:
   nsMediaQuery()
-    : mNegated(false)
-    , mHasOnly(false)
-    , mTypeOmitted(false)
-    , mHadUnknownExpression(false)
+    : mNegated(PR_FALSE)
+    , mHasOnly(PR_FALSE)
+    , mTypeOmitted(PR_FALSE)
+    , mHadUnknownExpression(PR_FALSE)
   {
   }
 
@@ -109,10 +141,10 @@ private:
 
 public:
 
-  void SetNegated()                     { mNegated = true; }
-  void SetHasOnly()                     { mHasOnly = true; }
-  void SetTypeOmitted()                 { mTypeOmitted = true; }
-  void SetHadUnknownExpression()        { mHadUnknownExpression = true; }
+  void SetNegated()                     { mNegated = PR_TRUE; }
+  void SetHasOnly()                     { mHasOnly = PR_TRUE; }
+  void SetTypeOmitted()                 { mTypeOmitted = PR_TRUE; }
+  void SetHadUnknownExpression()        { mHadUnknownExpression = PR_TRUE; }
   void SetType(nsIAtom* aMediaType)     { 
                                           NS_ASSERTION(aMediaType,
                                                        "expected non-null");
@@ -131,19 +163,19 @@ public:
 
   // Does this query apply to the presentation?
   // If |aKey| is non-null, add cache information to it.
-  bool Matches(nsPresContext* aPresContext,
+  PRBool Matches(nsPresContext* aPresContext,
                  nsMediaQueryResultCacheKey* aKey) const;
 
 private:
-  bool mNegated;
-  bool mHasOnly; // only needed for serialization
-  bool mTypeOmitted; // only needed for serialization
-  bool mHadUnknownExpression;
+  PRPackedBool mNegated;
+  PRPackedBool mHasOnly; // only needed for serialization
+  PRPackedBool mTypeOmitted; // only needed for serialization
+  PRPackedBool mHadUnknownExpression;
   nsCOMPtr<nsIAtom> mMediaType;
   nsTArray<nsMediaExpression> mExpressions;
 };
 
-class nsMediaList MOZ_FINAL : public nsIDOMMediaList {
+class nsMediaList : public nsIDOMMediaList {
 public:
   nsMediaList();
 
@@ -156,20 +188,28 @@ public:
 
   // Does this query apply to the presentation?
   // If |aKey| is non-null, add cache information to it.
-  bool Matches(nsPresContext* aPresContext,
+  PRBool Matches(nsPresContext* aPresContext,
                  nsMediaQueryResultCacheKey* aKey);
 
   nsresult SetStyleSheet(nsCSSStyleSheet* aSheet);
-  void AppendQuery(nsAutoPtr<nsMediaQuery>& aQuery) {
-    // Takes ownership of aQuery
-    mArray.AppendElement(aQuery.forget());
+  nsresult AppendQuery(nsAutoPtr<nsMediaQuery>& aQuery) {
+    // Takes ownership of aQuery (if it succeeds)
+    if (!mArray.AppendElement(aQuery.get())) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    aQuery.forget();
+    return NS_OK;
   }
 
   nsresult Clone(nsMediaList** aResult);
 
-  int32_t Count() { return mArray.Length(); }
-  nsMediaQuery* MediumAt(int32_t aIndex) { return mArray[aIndex]; }
-  void Clear() { mArray.Clear(); }
+  PRInt32 Count() { return mArray.Length(); }
+  nsMediaQuery* MediumAt(PRInt32 aIndex) { return mArray[aIndex]; }
+  void Clear() { mArray.Clear(); mIsEmpty = PR_TRUE; }
+  // a media list with no items may not represent the lack of a media
+  // list; it could represent the empty string or something with parser
+  // errors, which means that the media list should never match
+  void SetNonEmpty() { mIsEmpty = PR_FALSE; }
 
 protected:
   ~nsMediaList();
@@ -177,7 +217,8 @@ protected:
   nsresult Delete(const nsAString & aOldMedium);
   nsresult Append(const nsAString & aOldMedium);
 
-  InfallibleTArray<nsAutoPtr<nsMediaQuery> > mArray;
+  nsTArray<nsAutoPtr<nsMediaQuery> > mArray;
+  PRBool mIsEmpty;
   // not refcounted; sheet will let us know when it goes away
   // mStyleSheet is the sheet that needs to be dirtied when this medialist
   // changes

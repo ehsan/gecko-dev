@@ -1,21 +1,22 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #import "mozAccessible.h"
 
-#import "HyperTextAccessible.h"
+#import "nsHyperTextAccessible.h"
 
 @interface mozTextAccessible : mozAccessible
 {
   // both of these are the same old mGeckoAccessible, but already
   // QI'd for us, to the right type, for convenience.
-  HyperTextAccessible *mGeckoTextAccessible; // strong
+  nsHyperTextAccessible     *mGeckoTextAccessible;         // strong
   nsIAccessibleEditableText *mGeckoEditableTextAccessible; // strong
 }
 @end
 
-@interface mozTextLeafAccessible : mozAccessible
-{
-}
+/* A combobox (in the mac world) is a textfield with an associated menu, for example
+   the location bar. */
+@interface mozComboboxAccessible : mozTextAccessible
+// equivalent to pressing return key in this textfield.
+- (void)confirm;
+
+// shows the menu for this combobox.
+- (void)showMenu;
 @end

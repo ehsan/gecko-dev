@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * Jonas Sicking.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jonas Sicking <jonas@sicking.cc>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "txExecutionState.h"
 #include "txSingleNodeContext.h"
@@ -14,11 +47,12 @@
 #include "txURIUtils.h"
 #include "txXMLParser.h"
 
-const int32_t txExecutionState::kMaxRecursionDepth = 20000;
+const PRInt32 txExecutionState::kMaxRecursionDepth = 20000;
 
 nsresult txLoadedDocumentsHash::init(txXPathNode* aSourceDocument)
 {
-    Init(8);
+    nsresult rv = Init(8);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     mSourceDocument = aSourceDocument;
     
@@ -51,16 +85,14 @@ txLoadedDocumentsHash::~txLoadedDocumentsHash()
 }
 
 txExecutionState::txExecutionState(txStylesheet* aStylesheet,
-                                   bool aDisableLoads)
-    : mOutputHandler(nullptr),
-      mResultHandler(nullptr),
-      mStylesheet(aStylesheet),
-      mNextInstruction(nullptr),
-      mLocalVariables(nullptr),
+                                   PRBool aDisableLoads)
+    : mStylesheet(aStylesheet),
+      mNextInstruction(nsnull),
+      mLocalVariables(nsnull),
       mRecursionDepth(0),
-      mEvalContext(nullptr),
-      mInitialEvalContext(nullptr),
-      mGlobalParams(nullptr),
+      mEvalContext(nsnull),
+      mInitialEvalContext(nsnull),
+      mGlobalParams(nsnull),
       mKeyHash(aStylesheet->getKeyMap()),
       mDisableLoads(aDisableLoads)
 {
@@ -145,7 +177,7 @@ txExecutionState::init(const txXPathNode& aNode,
     
     // The actual value here doesn't really matter since noone should use this
     // value. But lets put something errorlike in just in case
-    mGlobalVarPlaceholderValue = new StringResult(NS_LITERAL_STRING("Error"), nullptr);
+    mGlobalVarPlaceholderValue = new StringResult(NS_LITERAL_STRING("Error"), nsnull);
     NS_ENSURE_TRUE(mGlobalVarPlaceholderValue, NS_ERROR_OUT_OF_MEMORY);
 
     // Initiate first instruction. This has to be done last since findTemplate
@@ -153,8 +185,8 @@ txExecutionState::init(const txXPathNode& aNode,
     txStylesheet::ImportFrame* frame = 0;
     txExpandedName nullName;
     txInstruction* templ = mStylesheet->findTemplate(aNode, nullName,
-                                                     this, nullptr, &frame);
-    pushTemplateRule(frame, nullName, nullptr);
+                                                     this, nsnull, &frame);
+    pushTemplateRule(frame, nullName, nsnull);
 
     return runTemplate(templ);
 }
@@ -167,16 +199,13 @@ txExecutionState::end(nsresult aResult)
     if (NS_SUCCEEDED(aResult)) {
         popTemplateRule();
     }
-    else if (!mOutputHandler) {
-        return NS_OK;
-    }
     return mOutputHandler->endDocument(aResult);
 }
 
 
 
 nsresult
-txExecutionState::getVariable(int32_t aNamespace, nsIAtom* aLName,
+txExecutionState::getVariable(PRInt32 aNamespace, nsIAtom* aLName,
                               txAExprResult*& aResult)
 {
     nsresult rv = NS_OK;
@@ -237,7 +266,7 @@ txExecutionState::getVariable(int32_t aNamespace, nsIAtom* aLName,
     pushEvalContext(mInitialEvalContext);
     if (var->mExpr) {
         txVariableMap* oldVars = mLocalVariables;
-        mLocalVariables = nullptr;
+        mLocalVariables = nsnull;
         rv = var->mExpr->evaluate(getEvalContext(), &aResult);
         mLocalVariables = oldVars;
 
@@ -253,12 +282,12 @@ txExecutionState::getVariable(int32_t aNamespace, nsIAtom* aLName,
         rtfHandler.forget();
 
         txInstruction* prevInstr = mNextInstruction;
-        // set return to nullptr to stop execution
-        mNextInstruction = nullptr;
+        // set return to nsnull to stop execution
+        mNextInstruction = nsnull;
         rv = runTemplate(var->mFirstInstruction);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        pushTemplateRule(nullptr, txExpandedName(), nullptr);
+        pushTemplateRule(nsnull, txExpandedName(), nsnull);
         rv = txXSLTProcessor::execute(*this);
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -283,7 +312,7 @@ txExecutionState::getVariable(int32_t aNamespace, nsIAtom* aLName,
     return NS_OK;
 }
 
-bool
+PRBool
 txExecutionState::isStripSpaceAllowed(const txXPathNode& aNode)
 {
     return mStylesheet->isStripSpaceAllowed(aNode, this);
@@ -328,19 +357,19 @@ txExecutionState::popEvalContext()
 }
 
 nsresult
-txExecutionState::pushBool(bool aBool)
+txExecutionState::pushBool(PRBool aBool)
 {
     return mBoolStack.AppendElement(aBool) ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
-bool
+PRBool
 txExecutionState::popBool()
 {
     NS_ASSERTION(mBoolStack.Length(), "popping from empty stack");
-    uint32_t last = mBoolStack.Length() - 1;
-    NS_ENSURE_TRUE(last != (uint32_t)-1, false);
+    PRUint32 last = mBoolStack.Length() - 1;
+    NS_ENSURE_TRUE(last != (PRUint32)-1, PR_FALSE);
 
-    bool res = mBoolStack.ElementAt(last);
+    PRBool res = mBoolStack.ElementAt(last);
     mBoolStack.RemoveElementAt(last);
 
     return res;
@@ -398,7 +427,7 @@ txExecutionState::retrieveDocument(const nsAString& aUri)
                  "Remove the fragment.");
 
     if (mDisableLoads) {
-        return nullptr;
+        return nsnull;
     }
 
     PR_LOG(txLog::xslt, PR_LOG_DEBUG,
@@ -407,7 +436,7 @@ txExecutionState::retrieveDocument(const nsAString& aUri)
     // try to get already loaded document
     txLoadedDocumentEntry *entry = mLoadedDocuments.PutEntry(aUri);
     if (!entry) {
-        return nullptr;
+        return nsnull;
     }
 
     if (!entry->mDocument && !entry->LoadingFailed()) {
@@ -433,7 +462,7 @@ nsresult
 txExecutionState::getKeyNodes(const txExpandedName& aKeyName,
                               const txXPathNode& aRoot,
                               const nsAString& aKeyValue,
-                              bool aIndexIfNotFound,
+                              PRBool aIndexIfNotFound,
                               txNodeSet** aResult)
 {
     return mKeyHash.getKeyNodes(aKeyName, aRoot, aKeyValue,
@@ -470,7 +499,7 @@ txExecutionState::runTemplate(txInstruction* aTemplate)
     rv = mReturnStack.push(mNextInstruction);
     NS_ENSURE_SUCCESS(rv, rv);
     
-    mLocalVariables = nullptr;
+    mLocalVariables = nsnull;
     mNextInstruction = aTemplate;
     
     return NS_OK;

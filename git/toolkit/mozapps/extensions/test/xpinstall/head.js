@@ -36,9 +36,6 @@ var Harness = {
   // If set then the callback is called when an install is attempted and
   // software installation is disabled.
   installDisabledCallback: null,
-  // If set then the callback is called when an install is attempted and
-  // then canceled.
-  installCancelledCallback: null,
   // If set then the callback will be called when an install is blocked by the
   // whitelist. The callback should return true to continue with the install
   // anyway.
@@ -154,8 +151,7 @@ var Harness = {
       self.installsCompletedCallback = null;
       self.runningInstalls = null;
 
-      if (callback)
-        callback(count);
+      callback(count);
     });
   },
 
@@ -170,6 +166,7 @@ var Harness = {
       // to install the items or not. If not the test is over.
       if (this.installConfirmCallback && !this.installConfirmCallback(window)) {
         window.document.documentElement.cancelDialog();
+        this.endTest();
       }
       else {
         // Initially the accept button is disabled on a countdown timer
@@ -219,21 +216,9 @@ var Harness = {
     ok(!!this.installDisabledCallback, "Installation shouldn't have been disabled");
     if (this.installDisabledCallback)
       this.installDisabledCallback(installInfo);
-    this.expectingCancelled = true;
     installInfo.installs.forEach(function(install) {
       install.cancel();
     });
-    this.expectingCancelled = false;
-    this.endTest();
-  },
-
-  installCancelled: function(installInfo) {
-    if (this.expectingCancelled)
-      return;
-
-    ok(!!this.installCancelledCallback, "Installation shouldn't have been cancelled");
-    if (this.installCancelledCallback)
-      this.installCancelledCallback(installInfo);
     this.endTest();
   },
 
@@ -244,11 +229,9 @@ var Harness = {
       installInfo.install();
     }
     else {
-      this.expectingCancelled = true;
       installInfo.installs.forEach(function(install) {
         install.cancel();
       });
-      this.expectingCancelled = false;
       this.endTest();
     }
   },
@@ -342,9 +325,6 @@ var Harness = {
       break;
     case "addon-install-disabled":
       this.installDisabled(installInfo);
-      break;
-    case "addon-install-cancelled":
-      this.installCancelled(installInfo);
       break;
     case "addon-install-blocked":
       this.installBlocked(installInfo);

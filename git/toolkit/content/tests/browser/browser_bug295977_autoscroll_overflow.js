@@ -29,12 +29,12 @@ function test()
     }
 
     var elem = doc.getElementById(test.elem);
-    // Skip the first callback as it's the same callback that the browser
+    // Skip the first BeforePaint event as it's the same event that the browser
     // uses to kick off the scrolling.
     var skipFrames = 1;
     var checkScroll = function () {
       if (skipFrames--) {
-        window.mozRequestAnimationFrame(checkScroll);
+        window.mozRequestAnimationFrame();
         return;
       }
       EventUtils.synthesizeKey("VK_ESCAPE", {}, gBrowser.contentWindow);
@@ -46,6 +46,7 @@ function test()
       ok((scrollHori && elem.scrollLeft > 0) ||
          (!scrollHori && elem.scrollLeft == 0),
          test.elem+' should'+(scrollHori ? '' : ' not')+' have scrolled horizontally');
+      window.removeEventListener("MozBeforePaint", checkScroll, false);
       nextTest();
     };
     EventUtils.synthesizeMouse(elem, 50, 50, { button: 1 },
@@ -60,12 +61,13 @@ function test()
     EventUtils.synthesizeMouse(elem, 100, 100,
                                { type: "mousemove", clickCount: "0" },
                                gBrowser.contentWindow);
+    window.addEventListener("MozBeforePaint", checkScroll, false);
     /*
      * if scrolling didn’t work, we wouldn’t do any redraws and thus time out.
      * so request and force redraws to get the chance to check for scrolling at
      * all.
      */
-    window.mozRequestAnimationFrame(checkScroll);
+    window.mozRequestAnimationFrame();
   }
 
   waitForExplicitFinish();
@@ -80,7 +82,7 @@ function test()
     <select id="f" style="width: 100px; height: 100px;"><option>a</option><option>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</option><option>a</option>\
     <option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option>\
     <option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option><option>a</option></select>\
-    <div id="g" style="width: 99px; height: 99px; padding: 10px; border: 10px solid black; margin: 10px; overflow: auto;"><div style="width: 100px; height: 100px; margin: 10px;"></div></div>\
+    <div id="g" style="width: 99px; height: 99px; padding: 10px; border: 10px solid black; margin: 10px; overflow: auto;"><div style="width: 100px; height: 100px;"></div></div>\
     <div id="h" style="width: 100px; height: 100px; overflow: -moz-hidden-unscrollable;"><div style="width: 200px; height: 200px;"></div></div>\
     <iframe id="iframe" style="display: none;"></iframe>\
     </body>';

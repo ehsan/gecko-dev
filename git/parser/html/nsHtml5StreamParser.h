@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Henri Sivonen <hsivonen@iki.fi>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsHtml5StreamParser_h__
 #define nsHtml5StreamParser_h__
@@ -13,8 +46,9 @@
 #include "nsHtml5MetaScanner.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsHtml5TreeOpExecutor.h"
-#include "nsHtml5OwningUTF16Buffer.h"
+#include "nsHtml5UTF16Buffer.h"
 #include "nsIInputStream.h"
+#include "nsICharsetAlias.h"
 #include "mozilla/Mutex.h"
 #include "nsHtml5AtomTable.h"
 #include "nsHtml5Speculation.h"
@@ -25,38 +59,6 @@ class nsHtml5Parser;
 
 #define NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE 1024
 #define NS_HTML5_STREAM_PARSER_SNIFFING_BUFFER_SIZE 1024
-
-enum eParserMode {
-  /**
-   * Parse a document normally as HTML.
-   */
-  NORMAL,
-
-  /**
-   * View document as HTML source.
-   */
-  VIEW_SOURCE_HTML,
-
-  /**
-   * View document as XML source
-   */
-  VIEW_SOURCE_XML,
-
-  /**
-   * View document as plain text source
-   */
-  VIEW_SOURCE_PLAIN,
-
-  /**
-   * View document as plain text
-   */
-  PLAIN_TEXT,
-
-  /**
-   * Load as data (XHR)
-   */
-  LOAD_AS_DATA
-};
 
 enum eBomState {
   /**
@@ -116,8 +118,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     static void InitializeStatics();
 
     nsHtml5StreamParser(nsHtml5TreeOpExecutor* aExecutor,
-                        nsHtml5Parser* aOwner,
-                        eParserMode aMode);
+                        nsHtml5Parser* aOwner);
                         
     virtual ~nsHtml5StreamParser();
 
@@ -137,7 +138,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * Tree builder uses this to report a late <meta charset>
      */
-    bool internalEncodingDeclaration(nsString* aEncoding);
+    PRBool internalEncodingDeclaration(nsString* aEncoding);
 
     // Not from an external interface
 
@@ -148,7 +149,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
      *  @param   aCharset the charset of a document
      *  @param   aCharsetSource the source of the charset
      */
-    inline void SetDocumentCharset(const nsACString& aCharset, int32_t aSource) {
+    inline void SetDocumentCharset(const nsACString& aCharset, PRInt32 aSource) {
       NS_PRECONDITION(mStreamState == STREAM_NOT_STARTED,
                       "SetDocumentCharset called too late.");
       NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
@@ -170,7 +171,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
      */
     void ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer, 
                               nsHtml5TreeBuilder* aTreeBuilder,
-                              bool aLastWasCR);
+                              PRBool aLastWasCR);
 
     /**
      * Continues the stream parser if the charset switch failed.
@@ -179,36 +180,20 @@ class nsHtml5StreamParser : public nsIStreamListener,
 
     void Terminate() {
       mozilla::MutexAutoLock autoLock(mTerminatedMutex);
-      mTerminated = true;
+      mTerminated = PR_TRUE;
     }
     
     void DropTimer();
 
-    /**
-     * Sets mCharset and mCharsetSource appropriately for the XML View Source
-     * case if aEncoding names a supported rough ASCII superset and sets
-     * the mCharset and mCharsetSource to the UTF-8 default otherwise.
-     */
-    void SetEncodingFromExpat(const PRUnichar* aEncoding);
-
-    /**
-     * Sets the URL for View Source title in case this parser ends up being
-     * used for View Source. If aURL is a view-source: URL, takes the inner
-     * URL. data: URLs are shown with an ellipsis instead of the actual data.
-     */
-    void SetViewSourceTitle(nsIURI* aURL);
-
   private:
 
 #ifdef DEBUG
-    bool IsParserThread() {
-      bool ret;
+    PRBool IsParserThread() {
+      PRBool ret;
       mThread->IsOnCurrentThread(&ret);
       return ret;
     }
 #endif
-
-    void MarkAsBroken();
 
     /**
      * Marks the stream parser as interrupted. If you ever add calls to this
@@ -218,7 +203,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
      */
     void Interrupt() {
       mozilla::MutexAutoLock autoLock(mTerminatedMutex);
-      mInterrupted = true;
+      mInterrupted = PR_TRUE;
     }
 
     void Uninterrupt() {
@@ -226,7 +211,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
       mTokenizerMutex.AssertCurrentThreadOwns();
       // Not acquiring mTerminatedMutex because mTokenizerMutex is already
       // held at this point and is already stronger.
-      mInterrupted = false;      
+      mInterrupted = PR_FALSE;      
     }
 
     /**
@@ -239,14 +224,14 @@ class nsHtml5StreamParser : public nsIStreamListener,
     
     void DoStopRequest();
     
-    void DoDataAvailable(uint8_t* aBuffer, uint32_t aLength);
+    void DoDataAvailable(PRUint8* aBuffer, PRUint32 aLength);
 
-    bool IsTerminatedOrInterrupted() {
+    PRBool IsTerminatedOrInterrupted() {
       mozilla::MutexAutoLock autoLock(mTerminatedMutex);
       return mTerminated || mInterrupted;
     }
 
-    bool IsTerminated() {
+    PRBool IsTerminated() {
       mozilla::MutexAutoLock autoLock(mTerminatedMutex);
       return mTerminated;
     }
@@ -254,29 +239,29 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * True when there is a Unicode decoder already
      */
-    inline bool HasDecoder() {
+    inline PRBool HasDecoder() {
       return !!mUnicodeDecoder;
     }
 
     /**
      * Push bytes from network when there is no Unicode decoder yet
      */
-    nsresult SniffStreamBytes(const uint8_t* aFromSegment,
-                              uint32_t aCount,
-                              uint32_t* aWriteCount);
+    nsresult SniffStreamBytes(const PRUint8* aFromSegment,
+                              PRUint32 aCount,
+                              PRUint32* aWriteCount);
 
     /**
      * Push bytes from network when there is a Unicode decoder already
      */
-    nsresult WriteStreamBytes(const uint8_t* aFromSegment,
-                              uint32_t aCount,
-                              uint32_t* aWriteCount);
+    nsresult WriteStreamBytes(const PRUint8* aFromSegment,
+                              PRUint32 aCount,
+                              PRUint32* aWriteCount);
 
     /**
      * Check whether every other byte in the sniffing buffer is zero.
      */
-    void SniffBOMlessUTF16BasicLatin(const uint8_t* aFromSegment,
-                                     uint32_t aCountToSniffingLimit);
+    void SniffBOMlessUTF16BasicLatin(const PRUint8* aFromSegment,
+                                     PRUint32 aCountToSniffingLimit);
 
     /**
      * <meta charset> scan failed. Try chardet if applicable. After this, the
@@ -291,10 +276,10 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * @param aCountToSniffingLimit The number of unfilled slots in
      *                              mSniffingBuffer
      */
-    nsresult FinalizeSniffing(const uint8_t* aFromSegment,
-                              uint32_t aCount,
-                              uint32_t* aWriteCount,
-                              uint32_t aCountToSniffingLimit);
+    nsresult FinalizeSniffing(const PRUint8* aFromSegment,
+                              PRUint32 aCount,
+                              PRUint32* aWriteCount,
+                              PRUint32 aCountToSniffingLimit);
 
     /**
      * Set up the Unicode decoder and write the sniffing buffer into it
@@ -307,9 +292,9 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * @param aWriteCount  Return value for how many bytes got read from the
      *                     buffer.
      */
-    nsresult SetupDecodingAndWriteSniffingBufferAndCurrentSegment(const uint8_t* aFromSegment,
-                                                                  uint32_t aCount,
-                                                                  uint32_t* aWriteCount);
+    nsresult SetupDecodingAndWriteSniffingBufferAndCurrentSegment(const PRUint8* aFromSegment,
+                                                                  PRUint32 aCount,
+                                                                  PRUint32* aWriteCount);
 
     /**
      * Write the sniffing buffer into the Unicode decoder followed by the
@@ -322,9 +307,9 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * @param aWriteCount  Return value for how many bytes got read from the
      *                     buffer.
      */
-    nsresult WriteSniffingBufferAndCurrentSegment(const uint8_t* aFromSegment,
-                                                  uint32_t aCount,
-                                                  uint32_t* aWriteCount);
+    nsresult WriteSniffingBufferAndCurrentSegment(const PRUint8* aFromSegment,
+                                                  PRUint32 aCount,
+                                                  PRUint32* aWriteCount);
 
     /**
      * Initialize the Unicode decoder, mark the BOM as the source and
@@ -338,16 +323,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
      */
     nsresult SetupDecodingFromBom(const char* aCharsetName,
                                   const char* aDecoderCharsetName);
-
-    /**
-     * Become confident or resolve and encoding name to its preferred form.
-     * @param aEncoding the value of an internal encoding decl. Acts as an
-     *                  out param, too, when the method returns true.
-     * @return true if the parser needs to start using the new value of
-     *         aEncoding and false if the parser became confident or if
-     *         the encoding name did not specify a usable encoding
-     */
-    bool PreferredForInternalEncodingDecl(nsACString& aEncoding);
 
     /**
      * Callback for mFlushTimer.
@@ -364,11 +339,6 @@ class nsHtml5StreamParser : public nsIStreamListener,
     nsCOMPtr<nsIRequestObserver>  mObserver;
 
     /**
-     * The document title to use if this turns out to be a View Source parser.
-     */
-    nsCString                     mViewSourceTitle;
-
-    /**
      * The Unicode decoder
      */
     nsCOMPtr<nsIUnicodeDecoder>   mUnicodeDecoder;
@@ -376,12 +346,12 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * The buffer for sniffing the character encoding
      */
-    nsAutoArrayPtr<uint8_t>       mSniffingBuffer;
+    nsAutoArrayPtr<PRUint8>       mSniffingBuffer;
 
     /**
      * The number of meaningful bytes in mSniffingBuffer
      */
-    uint32_t                      mSniffingLength;
+    PRUint32                      mSniffingLength;
 
     /**
      * BOM sniffing state
@@ -397,7 +367,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * The source (confidence) of the character encoding in use
      */
-    int32_t                       mCharsetSource;
+    PRInt32                       mCharsetSource;
 
     /**
      * The character encoding in use
@@ -407,18 +377,18 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * Whether reparse is forbidden
      */
-    bool                          mReparseForbidden;
+    PRBool                        mReparseForbidden;
 
     // Portable parser objects
     /**
      * The first buffer in the pending UTF-16 buffer queue
      */
-    nsRefPtr<nsHtml5OwningUTF16Buffer> mFirstBuffer;
+    nsRefPtr<nsHtml5UTF16Buffer>  mFirstBuffer;
 
     /**
      * The last buffer in the pending UTF-16 buffer queue
      */
-    nsHtml5OwningUTF16Buffer*     mLastBuffer; // weak ref; always points to
+    nsHtml5UTF16Buffer*           mLastBuffer; // weak ref; always points to
                       // a buffer of the size NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE
 
     /**
@@ -455,7 +425,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * Whether the last character tokenized was a carriage return (for CRLF)
      */
-    bool                          mLastWasCR;
+    PRBool                        mLastWasCR;
 
     /**
      * For tracking stream life cycle
@@ -465,12 +435,12 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * Whether we are speculating.
      */
-    bool                          mSpeculating;
+    PRBool                        mSpeculating;
 
     /**
      * Whether the tokenizer has reached EOF. (Reset when stream rewinded.)
      */
-    bool                          mAtEOF;
+    PRBool                        mAtEOF;
 
     /**
      * The speculations. The mutex protects the nsTArray itself.
@@ -484,8 +454,8 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * True to terminate early; protected by mTerminatedMutex
      */
-    bool                          mTerminated;
-    bool                          mInterrupted;
+    PRBool                        mTerminated;
+    PRBool                        mInterrupted;
     mozilla::Mutex                mTerminatedMutex;
     
     /**
@@ -505,12 +475,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     /**
      * If false, don't push data to chardet.
      */
-    bool                          mFeedChardet;
-
-    /**
-     * Whether the initial charset source was kCharsetFromParentFrame
-     */
-    bool                          mInitialEncodingWasFromParentFrame;
+    PRBool                        mFeedChardet;
 
     /**
      * Timer for flushing tree ops once in a while when not speculating.
@@ -521,31 +486,26 @@ class nsHtml5StreamParser : public nsIStreamListener,
      * Keeps track whether mFlushTimer has been armed. Unfortunately,
      * nsITimer doesn't enable querying this from the timer itself.
      */
-    bool                          mFlushTimerArmed;
+    PRBool                        mFlushTimerArmed;
 
     /**
      * False initially and true after the timer has fired at least once.
      */
-    bool                          mFlushTimerEverFired;
-
-    /**
-     * Whether the parser is doing a normal parse, view source or plain text.
-     */
-    eParserMode                   mMode;
+    PRBool                        mFlushTimerEverFired;
 
     /**
      * The pref html5.flushtimer.initialdelay: Time in milliseconds between
      * the time a network buffer is seen and the timer firing when the
      * timer hasn't fired previously in this parse.
      */
-    static int32_t                sTimerInitialDelay;
+    static PRInt32                sTimerInitialDelay;
 
     /**
      * The pref html5.flushtimer.subsequentdelay: Time in milliseconds between
      * the time a network buffer is seen and the timer firing when the
      * timer has already fired previously in this parse.
      */
-    static int32_t                sTimerSubsequentDelay;
+    static PRInt32                sTimerSubsequentDelay;
 };
 
 #endif // nsHtml5StreamParser_h__

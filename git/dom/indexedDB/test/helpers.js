@@ -5,73 +5,20 @@
 
 var testGenerator = testSteps();
 
-function executeSoon(aFun)
+function runTest()
 {
-  let comp = SpecialPowers.wrap(Components);
+  allowIndexedDB();
 
-  let thread = comp.classes["@mozilla.org/thread-manager;1"]
-                   .getService(comp.interfaces.nsIThreadManager)
-                   .mainThread;
-
-  thread.dispatch({
-    run: function() {
-      aFun();
-    }
-  }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
-}
-
-function clearAllDatabases(callback) {
-  function runCallback() {
-    SimpleTest.executeSoon(function () { callback(); });
-  }
-
-  if (!SpecialPowers.isMainProcess()) {
-    runCallback();
-    return;
-  }
-
-  let comp = SpecialPowers.wrap(Components);
-
-  let idbManager =
-    comp.classes["@mozilla.org/dom/indexeddb/manager;1"]
-        .getService(comp.interfaces.nsIIndexedDatabaseManager);
-
-  let uri = SpecialPowers.getDocumentURIObject(document);
-
-  idbManager.clearDatabasesForURI(uri);
-  idbManager.getUsageForURI(uri, function(uri, usage, fileUsage) {
-    if (usage) {
-      ok(false,
-         "getUsageForURI returned non-zero usage after clearing all " +
-         "databases!");
-    }
-    runCallback();
-  });
-}
-
-if (!window.runTest) {
-  window.runTest = function(limitedQuota)
-  {
-    SimpleTest.waitForExplicitFinish();
-
-    if (limitedQuota) {
-      denyUnlimitedQuota();
-    }
-    else {
-      allowUnlimitedQuota();
-    }
-
-    clearAllDatabases(function () { testGenerator.next(); });
-  }
+  SimpleTest.waitForExplicitFinish();
+  testGenerator.next();
 }
 
 function finishTest()
 {
-  resetUnlimitedQuota();
+  disallowIndexedDB();
 
   SimpleTest.executeSoon(function() {
     testGenerator.close();
-    //clearAllDatabases(function() { SimpleTest.finish(); });
     SimpleTest.finish();
   });
 }
@@ -98,14 +45,9 @@ function continueToNextStep()
   });
 }
 
-function continueToNextStepSync()
-{
-  testGenerator.next();
-}
-
 function errorHandler(event)
 {
-  ok(false, "indexedDB error, '" + event.target.error.name + "'");
+  ok(false, "indexedDB error, code " + event.target.errorCode);
   finishTest();
 }
 
@@ -121,91 +63,85 @@ function unexpectedSuccessHandler()
   finishTest();
 }
 
-function ExpectError(name, preventDefault)
+function ExpectError(code)
 {
-  this._name = name;
-  this._preventDefault = preventDefault;
+  this._code = code;
 }
 ExpectError.prototype = {
   handleEvent: function(event)
   {
     is(event.type, "error", "Got an error event");
-    is(event.target.error.name, this._name, "Expected error was thrown.");
-    if (this._preventDefault) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
+    is(this._code, event.target.errorCode, "Expected error was thrown.");
+    event.preventDefault();
     grabEventAndContinueHandler(event);
   }
 };
 
-function compareKeys(k1, k2) {
-  let t = typeof k1;
-  if (t != typeof k2)
-    return false;
+function addPermission(permission, url)
+{
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
-  if (t !== "object")
-    return k1 === k2;
-
-  if (k1 instanceof Date) {
-    return (k2 instanceof Date) &&
-      k1.getTime() === k2.getTime();
+  let uri;
+  if (url) {
+    uri = Components.classes["@mozilla.org/network/io-service;1"]
+                    .getService(Components.interfaces.nsIIOService)
+                    .newURI(url, null, null);
+  }
+  else {
+    uri = window.document.documentURIObject;
   }
 
-  if (k1 instanceof Array) {
-    if (!(k2 instanceof Array) ||
-        k1.length != k2.length)
-      return false;
-    
-    for (let i = 0; i < k1.length; ++i) {
-      if (!compareKeys(k1[i], k2[i]))
-        return false;
-    }
-    
-    return true;
-  }
-
-  return false;
+  Components.classes["@mozilla.org/permissionmanager;1"]
+            .getService(Components.interfaces.nsIPermissionManager)
+            .add(uri, permission,
+                 Components.interfaces.nsIPermissionManager.ALLOW_ACTION);
 }
 
-function addPermission(type, allow, url)
+function removePermission(permission, url)
 {
-  if (!url) {
-    url = window.document;
-  }
-  SpecialPowers.addPermission(type, allow, url);
-}
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
-function removePermission(type, url)
-{
-  if (!url) {
-    url = window.document;
+  let uri;
+  if (url) {
+    uri = Components.classes["@mozilla.org/network/io-service;1"]
+                    .getService(Components.interfaces.nsIIOService)
+                    .newURI(url, null, null);
   }
-  SpecialPowers.removePermission(type, url);
+  else {
+    uri = window.document.documentURIObject;
+  }
+
+  Components.classes["@mozilla.org/permissionmanager;1"]
+            .getService(Components.interfaces.nsIPermissionManager)
+            .remove(uri.host, permission);
 }
 
 function setQuota(quota)
 {
-  SpecialPowers.setIntPref("dom.indexedDB.warningQuota", quota);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  let prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                        .getService(Components.interfaces.nsIPrefBranch);
+
+  prefs.setIntPref("dom.indexedDB.warningQuota", quota);
+}
+
+function allowIndexedDB(url)
+{
+  addPermission("indexedDB", url);
+}
+
+function disallowIndexedDB(url)
+{
+  removePermission("indexedDB", url);
 }
 
 function allowUnlimitedQuota(url)
 {
-  addPermission("indexedDB-unlimited", true, url);
+  addPermission("indexedDB-unlimited", url);
 }
 
-function denyUnlimitedQuota(url)
-{
-  addPermission("indexedDB-unlimited", false, url);
-}
-
-function resetUnlimitedQuota(url)
+function disallowUnlimitedQuota(url)
 {
   removePermission("indexedDB-unlimited", url);
-}
-
-function gc()
-{
-  SpecialPowers.forceGC();
-  SpecialPowers.forceCC();
 }

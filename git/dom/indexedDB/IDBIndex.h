@@ -1,14 +1,46 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Indexed Database.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Shawn Wilsher <me@shawnwilsher.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_dom_indexeddb_idbindex_h__
 #define mozilla_dom_indexeddb_idbindex_h__
 
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
-#include "mozilla/dom/indexedDB/KeyPath.h"
 
 #include "nsIIDBIndex.h"
 
@@ -20,35 +52,27 @@ class nsPIDOMWindow;
 BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
-class IDBCursor;
-class IDBKeyRange;
 class IDBObjectStore;
-class IDBRequest;
-class IndexedDBIndexChild;
-class IndexedDBIndexParent;
-class Key;
-
 struct IndexInfo;
 
-class IDBIndex MOZ_FINAL : public nsIIDBIndex
+class IDBIndex : public nsIIDBIndex
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIIDBINDEX
 
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBIndex)
+  NS_DECL_CYCLE_COLLECTION_CLASS(IDBIndex)
 
   static already_AddRefed<IDBIndex>
   Create(IDBObjectStore* aObjectStore,
-         const IndexInfo* aIndexInfo,
-         bool aCreating);
+         const IndexInfo* aIndexInfo);
 
   IDBObjectStore* ObjectStore()
   {
     return mObjectStore;
   }
 
-  const int64_t Id() const
+  const PRInt64 Id() const
   {
     return mId;
   }
@@ -63,90 +87,15 @@ public:
     return mUnique;
   }
 
-  bool IsMultiEntry() const
+  bool IsAutoIncrement() const
   {
-    return mMultiEntry;
+    return mAutoIncrement;
   }
 
-  const KeyPath& GetKeyPath() const
+  const nsString& KeyPath() const
   {
     return mKeyPath;
   }
-
-  void
-  SetActor(IndexedDBIndexChild* aActorChild)
-  {
-    NS_ASSERTION(!aActorChild || !mActorChild, "Shouldn't have more than one!");
-    mActorChild = aActorChild;
-  }
-
-  void
-  SetActor(IndexedDBIndexParent* aActorParent)
-  {
-    NS_ASSERTION(!aActorParent || !mActorParent,
-                 "Shouldn't have more than one!");
-    mActorParent = aActorParent;
-  }
-
-  IndexedDBIndexChild*
-  GetActorChild() const
-  {
-    return mActorChild;
-  }
-
-  IndexedDBIndexParent*
-  GetActorParent() const
-  {
-    return mActorParent;
-  }
-
-  nsresult GetInternal(IDBKeyRange* aKeyRange,
-                       JSContext* aCx,
-                       IDBRequest** _retval);
-
-  nsresult GetKeyInternal(IDBKeyRange* aKeyRange,
-                          JSContext* aCx,
-                          IDBRequest** _retval);
-
-  nsresult GetAllInternal(IDBKeyRange* aKeyRange,
-                          uint32_t aLimit,
-                          JSContext* aCx,
-                          IDBRequest** _retval);
-
-  nsresult GetAllKeysInternal(IDBKeyRange* aKeyRange,
-                              uint32_t aLimit,
-                              JSContext* aCx,
-                              IDBRequest** _retval);
-
-  nsresult CountInternal(IDBKeyRange* aKeyRange,
-                         JSContext* aCx,
-                         IDBRequest** _retval);
-
-  nsresult OpenCursorFromChildProcess(
-                            IDBRequest* aRequest,
-                            size_t aDirection,
-                            const Key& aKey,
-                            const Key& aObjectKey,
-                            IDBCursor** _retval);
-
-  nsresult OpenKeyCursorInternal(IDBKeyRange* aKeyRange,
-                                 size_t aDirection,
-                                 JSContext* aCx,
-                                 IDBRequest** _retval);
-
-  nsresult OpenCursorInternal(IDBKeyRange* aKeyRange,
-                              size_t aDirection,
-                              JSContext* aCx,
-                              IDBRequest** _retval);
-
-  nsresult OpenCursorFromChildProcess(
-                            IDBRequest* aRequest,
-                            size_t aDirection,
-                            const Key& aKey,
-                            const Key& aObjectKey,
-                            const SerializedStructuredCloneReadInfo& aCloneInfo,
-                            nsTArray<StructuredCloneFile>& aBlobs,
-                            IDBCursor** _retval);
 
 private:
   IDBIndex();
@@ -154,17 +103,14 @@ private:
 
   nsRefPtr<IDBObjectStore> mObjectStore;
 
-  int64_t mId;
+  nsCOMPtr<nsIScriptContext> mScriptContext;
+  nsCOMPtr<nsPIDOMWindow> mOwner;
+
+  PRInt64 mId;
   nsString mName;
-  KeyPath mKeyPath;
-  JS::Value mCachedKeyPath;
-
-  IndexedDBIndexChild* mActorChild;
-  IndexedDBIndexParent* mActorParent;
-
+  nsString mKeyPath;
   bool mUnique;
-  bool mMultiEntry;
-  bool mRooted;
+  bool mAutoIncrement;
 };
 
 END_INDEXEDDB_NAMESPACE

@@ -1106,8 +1106,8 @@ static void luCommonDetailsAE()
         "   -t trustargs");
     FPS "%-25s trustargs is of the form x,y,z where x is for SSL, y is for S/MIME,\n", "");
     FPS "%-25s and z is for code signing. Use ,, for no explicit trust.\n", "");
-    FPS "%-25s p \t prohibited (explicitly distrusted)\n", "");
-    FPS "%-25s P \t trusted peer\n", "");
+    FPS "%-25s p \t valid peer\n", "");
+    FPS "%-25s P \t trusted peer (implies p)\n", "");
     FPS "%-25s c \t valid CA\n", "");
     FPS "%-25s T \t trusted CA to issue client certs (implies c)\n", "");
     FPS "%-25s C \t trusted CA to issue server certs (implies c)\n", "");
@@ -1171,7 +1171,7 @@ static void luC(enum usage_level ul, const char *command)
               "%-20s Create netscape cert type extension. Possible keywords:\n"
               "%-20s \"sslClient\", \"sslServer\", \"smime\", \"objectSigning\",\n"
               "%-20s \"sslCA\", \"smimeCA\", \"objectSigningCA\", \"critical\".\n",
-        "   -5 | --nsCertType keyword,keyword,... ", "", "", "");
+        "   -5 | -nsCertType keyword,keyword,... ", "", "", "");
     FPS "%-20s \n"
               "%-20s Create extended key usage extension. Possible keywords:\n"
               "%-20s \"serverAuth\", \"clientAuth\",\"codeSigning\",\n"

@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 // vim:cindent:ai:sw=4:ts=4:et:
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is nsCounterManager.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* implementation of CSS counters (for numbering things) */
 
@@ -11,7 +43,7 @@
 #include "nsContentUtils.h"
 #include "nsTArray.h"
 
-bool
+PRBool
 nsCounterUseNode::InitTextFrame(nsGenConList* aList,
         nsIFrame* aPseudoFrame, nsIFrame* aTextFrame)
 {
@@ -19,23 +51,23 @@ nsCounterUseNode::InitTextFrame(nsGenConList* aList,
 
   nsCounterList *counterList = static_cast<nsCounterList*>(aList);
   counterList->Insert(this);
-  bool dirty = counterList->IsDirty();
+  PRBool dirty = counterList->IsDirty();
   if (!dirty) {
     if (counterList->IsLast(this)) {
       Calc(counterList);
       nsAutoString contentString;
       GetText(contentString);
-      aTextFrame->GetContent()->SetText(contentString, false);
+      aTextFrame->GetContent()->SetText(contentString, PR_FALSE);
     } else {
       // In all other cases (list already dirty or node not at the end),
       // just start with an empty string for now and when we recalculate
       // the list we'll change the value to the right one.
       counterList->SetDirty();
-      return true;
+      return PR_TRUE;
     }
   }
   
-  return false;
+  return PR_FALSE;
 }
 
 // assign the correct |mValueAfter| value to a node that has been inserted
@@ -75,12 +107,12 @@ nsCounterUseNode::GetText(nsString& aResult)
             stack.AppendElement(n->mScopePrev);
 
     const nsCSSValue& styleItem = mCounterStyle->Item(mAllCounters ? 2 : 1);
-    int32_t style = styleItem.GetIntValue();
+    PRInt32 style = styleItem.GetIntValue();
     const PRUnichar* separator;
     if (mAllCounters)
         separator = mCounterStyle->Item(1).GetStringBufferValue();
 
-    for (uint32_t i = stack.Length() - 1;; --i) {
+    for (PRUint32 i = stack.Length() - 1;; --i) {
         nsCounterNode *n = stack[i];
         nsBulletFrame::AppendCounterText(style, n->mValueAfter, aResult);
         if (i == 0)
@@ -104,8 +136,8 @@ nsCounterList::SetScope(nsCounterNode *aNode)
     // appropriate.
 
     if (aNode == First()) {
-        aNode->mScopeStart = nullptr;
-        aNode->mScopePrev = nullptr;
+        aNode->mScopeStart = nsnull;
+        aNode->mScopePrev = nsnull;
         return;
     }
 
@@ -146,14 +178,14 @@ nsCounterList::SetScope(nsCounterNode *aNode)
         }
     }
 
-    aNode->mScopeStart = nullptr;
-    aNode->mScopePrev  = nullptr;
+    aNode->mScopeStart = nsnull;
+    aNode->mScopePrev  = nsnull;
 }
 
 void
 nsCounterList::RecalcAll()
 {
-    mDirty = false;
+    mDirty = PR_FALSE;
 
     nsCounterNode *node = First();
     if (!node)
@@ -182,18 +214,18 @@ nsCounterManager::nsCounterManager()
     mNames.Init(16);
 }
 
-bool
+PRBool
 nsCounterManager::AddCounterResetsAndIncrements(nsIFrame *aFrame)
 {
     const nsStyleContent *styleContent = aFrame->GetStyleContent();
     if (!styleContent->CounterIncrementCount() &&
         !styleContent->CounterResetCount())
-        return false;
+        return PR_FALSE;
 
     // Add in order, resets first, so all the comparisons will be optimized
     // for addition at the end of the list.
-    int32_t i, i_end;
-    bool dirty = false;
+    PRInt32 i, i_end;
+    PRBool dirty = PR_FALSE;
     for (i = 0, i_end = styleContent->CounterResetCount(); i != i_end; ++i)
         dirty |= AddResetOrIncrement(aFrame, i,
                                      styleContent->GetCounterResetAt(i),
@@ -205,8 +237,8 @@ nsCounterManager::AddCounterResetsAndIncrements(nsIFrame *aFrame)
     return dirty;
 }
 
-bool
-nsCounterManager::AddResetOrIncrement(nsIFrame *aFrame, int32_t aIndex,
+PRBool
+nsCounterManager::AddResetOrIncrement(nsIFrame *aFrame, PRInt32 aIndex,
                                       const nsStyleCounterData *aCounterData,
                                       nsCounterNode::Type aType)
 {
@@ -216,7 +248,7 @@ nsCounterManager::AddResetOrIncrement(nsIFrame *aFrame, int32_t aIndex,
     nsCounterList *counterList = CounterListFor(aCounterData->mCounter);
     if (!counterList) {
         NS_NOTREACHED("CounterListFor failed (should only happen on OOM)");
-        return false;
+        return PR_FALSE;
     }
 
     counterList->Insert(node);
@@ -224,7 +256,7 @@ nsCounterManager::AddResetOrIncrement(nsIFrame *aFrame, int32_t aIndex,
         // Tell the caller it's responsible for recalculating the entire
         // list.
         counterList->SetDirty();
-        return true;
+        return PR_TRUE;
     }
 
     // Don't call Calc() if the list is already dirty -- it'll be recalculated
@@ -232,7 +264,7 @@ nsCounterManager::AddResetOrIncrement(nsIFrame *aFrame, int32_t aIndex,
     if (NS_LIKELY(!counterList->IsDirty())) {
         node->Calc(counterList);
     }
-    return false;
+    return PR_FALSE;
 }
 
 nsCounterList*
@@ -243,7 +275,10 @@ nsCounterManager::CounterListFor(const nsSubstring& aCounterName)
     nsCounterList *counterList;
     if (!mNames.Get(aCounterName, &counterList)) {
         counterList = new nsCounterList();
-        mNames.Put(aCounterName, counterList);
+        if (!mNames.Put(aCounterName, counterList)) {
+            delete counterList;
+            return nsnull;
+        }
     }
     return counterList;
 }
@@ -259,18 +294,18 @@ RecalcDirtyLists(const nsAString& aKey, nsCounterList* aList, void* aClosure)
 void
 nsCounterManager::RecalcAll()
 {
-    mNames.EnumerateRead(RecalcDirtyLists, nullptr);
+    mNames.EnumerateRead(RecalcDirtyLists, nsnull);
 }
 
 struct DestroyNodesData {
     DestroyNodesData(nsIFrame *aFrame)
         : mFrame(aFrame)
-        , mDestroyedAny(false)
+        , mDestroyedAny(PR_FALSE)
     {
     }
 
     nsIFrame *mFrame;
-    bool mDestroyedAny;
+    PRBool mDestroyedAny;
 };
 
 static PLDHashOperator
@@ -278,13 +313,13 @@ DestroyNodesInList(const nsAString& aKey, nsCounterList* aList, void* aClosure)
 {
     DestroyNodesData *data = static_cast<DestroyNodesData*>(aClosure);
     if (aList->DestroyNodesFor(data->mFrame)) {
-        data->mDestroyedAny = true;
+        data->mDestroyedAny = PR_TRUE;
         aList->SetDirty();
     }
     return PL_DHASH_NEXT;
 }
 
-bool
+PRBool
 nsCounterManager::DestroyNodesFor(nsIFrame *aFrame)
 {
     DestroyNodesData data(aFrame);
@@ -300,7 +335,7 @@ DumpList(const nsAString& aKey, nsCounterList* aList, void* aClosure)
     nsCounterNode *node = aList->First();
 
     if (node) {
-        int32_t i = 0;
+        PRInt32 i = 0;
         do {
             const char *types[] = { "RESET", "INCREMENT", "USE" };
             printf("  Node #%d @%p frame=%p index=%d type=%s valAfter=%d\n"
@@ -323,7 +358,7 @@ void
 nsCounterManager::Dump()
 {
     printf("\n\nCounter Manager Lists:\n");
-    mNames.EnumerateRead(DumpList, nullptr);
+    mNames.EnumerateRead(DumpList, nsnull);
     printf("\n\n");
 }
 #endif

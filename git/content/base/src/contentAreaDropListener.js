@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const Cc = Components.classes;
@@ -54,7 +50,7 @@ ContentAreaDropListener.prototype =
     return [ ];
   },
 
-  _validateURI: function(dataTransfer, uriString, disallowInherit)
+  _validateURI: function(dataTransfer, uriString)
   {
     if (!uriString)
       return "";
@@ -66,12 +62,12 @@ ContentAreaDropListener.prototype =
     uriString = uriString.replace(/^\s*|\s*$/g, '');
 
     let uri;
-    let ioService = Cc["@mozilla.org/network/io-service;1"]
-                      .getService(Components.interfaces.nsIIOService);
     try {
       // Check that the uri is valid first and return an empty string if not.
       // It may just be plain text and should be ignored here
-      uri = ioService.newURI(uriString, null, null);
+      uri = Cc["@mozilla.org/network/io-service;1"].
+              getService(Components.interfaces.nsIIOService).
+              newURI(uriString, null, null);
     } catch (ex) { }
     if (!uri)
       return uriString;
@@ -80,15 +76,11 @@ ContentAreaDropListener.prototype =
     let secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].
                    getService(Ci.nsIScriptSecurityManager);
     let sourceNode = dataTransfer.mozSourceNode;
-    let flags = secMan.STANDARD;
-    if (disallowInherit)
-      flags |= secMan.DISALLOW_INHERIT_PRINCIPAL;
-
     // Use file:/// as the default uri so that drops of file URIs are always allowed
-    let principal = sourceNode ? sourceNode.nodePrincipal
-                               : secMan.getSimpleCodebasePrincipal(ioService.newURI("file:///", null, null));
-
-    secMan.checkLoadURIStrWithPrincipal(principal, uriString, flags);
+    if (sourceNode)
+      secMan.checkLoadURIStrWithPrincipal(sourceNode.nodePrincipal, uriString, secMan.STANDARD);
+    else
+      secMan.checkLoadURIStr("file:///", uriString, secMan.STANDARD);
 
     return uriString;
   },
@@ -128,7 +120,7 @@ ContentAreaDropListener.prototype =
     return true;
   },
 
-  dropLink: function(aEvent, aName, aDisallowInherit)
+  dropLink: function(aEvent, aName)
   {
     aName.value = "";
 
@@ -136,7 +128,7 @@ ContentAreaDropListener.prototype =
     let [url, name] = this._getDropURL(dataTransfer);
 
     try {
-      url = this._validateURI(dataTransfer, url, aDisallowInherit);
+      url = this._validateURI(dataTransfer, url);
     } catch (ex) {
       aEvent.stopPropagation();
       aEvent.preventDefault();

@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test for Login Manager</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <script type="text/javascript" src="pwmgr_common.js"></script>
@@ -81,22 +82,21 @@ Login Manager test: multiple login autocomplete
 /** Test for Login Manager: multiple login autocomplete. **/
 
 commonInit();
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
 var uname = $_(1, "uname");
 var pword = $_(1, "pword");
-const shiftModifier = Components.interfaces.nsIDOMEvent.SHIFT_MASK;
+const shiftModifier = Components.interfaces.nsIDOMNSEvent.SHIFT_MASK;
 
 // Get the pwmgr service
-var pwmgr = SpecialPowers.wrap(Components)
-                         .classes["@mozilla.org/login-manager;1"]
-                         .getService(Components.interfaces.nsILoginManager);
+var pwmgr = Components.classes["@mozilla.org/login-manager;1"]
+            .getService(Components.interfaces.nsILoginManager);
 ok(pwmgr != null, "nsLoginManager service");
 
 // Create some logins just for this form, since we'll be deleting them.
 var nsLoginInfo =
-SpecialPowers.wrap(Components)
-             .Constructor("@mozilla.org/login-manager/loginInfo;1",
-                          Components.interfaces.nsILoginInfo, "init");
+Components.Constructor("@mozilla.org/login-manager/loginInfo;1",
+                       Components.interfaces.nsILoginInfo, "init");
 ok(nsLoginInfo != null, "nsLoginInfo constructor");
 
 
@@ -201,10 +201,12 @@ var gNextTestWillOpenPopup = true;
 var gLastTest = 704;
 
 function addPopupListener(eventName, func, capture) {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   autocompletePopup.addEventListener(eventName, func, capture);
 }
 
 function removePopupListener(eventName, func, capture) {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   autocompletePopup.removeEventListener(eventName, func, capture);
 }
 
@@ -217,6 +219,12 @@ function removePopupListener(eventName, func, capture) {
  * timeout.
  */
 function runTest(testNum) {
+  // Seems we need to enable this again, or sendKeyEvent() complaints.
+  // But don't for test 14, or else dispatchEvent will send it as a trusted
+  // event (we're testing to see if we ignore untrusted events, so don't want
+  // that).
+  if (testNum != 14)
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   ok(true, "Starting test #" + testNum);
 
   if (gNextTestWillOpenPopup) {
@@ -408,25 +416,17 @@ function runTest(testNum) {
         gNextTestWillOpenPopup = false;
         break;
 
-    /* The previous comments said that test 14 was special and needed to not
-     * have enablePrivilege, or else dispatchEvent will send a trusted event
-     * (we're testing to see if we ignore untrusted events, so don't want
-     * that).
-     * We should file a bug to look into this.
-     */
     case 14:
-    /*
         // Send a fake (untrusted) event.
         checkACForm("", "");
         uname.value = "zzzuser4";
         sendFakeAutocompleteEvent(uname);
         checkACForm("zzzuser4", "");
-    */
         gNextTestWillOpenPopup = true;
         break;
 
     case 15:
-        //checkACForm("zzzuser4", "");
+        checkACForm("zzzuser4", "");
 
         // Trigger autocomplete popup
         restoreForm();
@@ -644,7 +644,7 @@ function runTest(testNum) {
         // the username.
         uname.focus();
         doKey("right");
-        sendChar("X");
+        sendChar("X", uname);
         // Trigger the 'blur' event on uname
         pword.focus();
         checkACForm("sXingleuser5", "singlepass5");
@@ -723,15 +723,14 @@ function runTest(testNum) {
         pwmgr.removeLogin(login7);
 
         testNum = 699;
-        gNextTestWillOpenPopup = true;
+        gNextTestWillOpenPopup = false;
         break;
 
     case 700:
         // Turn our attention to form9 to test the dropdown - bug 497541
         uname = $_(9, "uname");
         pword = $_(9, "pword");
-        uname.focus();
-        sendString("form9userAB");
+        sendString("form9userAB", uname);
         gNextTestWillOpenPopup = true;
         break;
 
@@ -739,7 +738,7 @@ function runTest(testNum) {
         checkACForm("form9userAB", "");
         uname.focus();
         doKey("left");
-        sendChar("A");
+        sendChar("A", uname);
         gNextTestWillOpenPopup = false;
         break;
 
@@ -755,8 +754,7 @@ function runTest(testNum) {
 
     case 703:
         pwmgr.addLogin(login8C);
-        uname.focus();
-        sendChar("z");
+        sendChar("z", uname);
         gNextTestWillOpenPopup = false;
         break;
 
@@ -797,8 +795,9 @@ function getMenuEntries() {
 }
 
 function startTest() {
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     var Ci = Components.interfaces;
-    chromeWin = SpecialPowers.wrap(window)
+    chromeWin = window
                     .QueryInterface(Ci.nsIInterfaceRequestor)
                     .getInterface(Ci.nsIWebNavigation)
                     .QueryInterface(Ci.nsIDocShellTreeItem)

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
  
 /**
  * MODULE NOTES:
@@ -52,13 +84,16 @@
 #include "nsDTDUtils.h"
 #include "nsThreadUtils.h"
 #include "nsIContentSink.h"
+#include "nsIParserFilter.h"
 #include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsWeakReference.h"
 
 class nsICharsetConverterManager;
+class nsICharsetAlias;
 class nsIDTD;
 class nsScanner;
+class nsSpeculativeScriptThread;
 class nsIThreadPool;
 
 #ifdef _MSC_VER
@@ -134,13 +169,16 @@ class nsParser : public nsIParser,
      *  @param   aCharsetSource- the source of the charset
      *  @return	 nada
      */
-    NS_IMETHOD_(void) SetDocumentCharset(const nsACString& aCharset, int32_t aSource);
+    NS_IMETHOD_(void) SetDocumentCharset(const nsACString& aCharset, PRInt32 aSource);
 
-    NS_IMETHOD_(void) GetDocumentCharset(nsACString& aCharset, int32_t& aSource)
+    NS_IMETHOD_(void) GetDocumentCharset(nsACString& aCharset, PRInt32& aSource)
     {
          aCharset = mCharset;
          aSource = mCharsetSource;
     }
+
+
+    NS_IMETHOD_(void) SetParserFilter(nsIParserFilter* aFilter);
 
     /**
      * Cause parser to parse input from given URL 
@@ -150,15 +188,39 @@ class nsParser : public nsIParser,
      * @return  TRUE if all went well -- FALSE otherwise
      */
     NS_IMETHOD Parse(nsIURI* aURL,
-                     nsIRequestObserver* aListener = nullptr,
+                     nsIRequestObserver* aListener = nsnull,
                      void* aKey = 0,
                      nsDTDMode aMode = eDTDMode_autodetect);
+
+    /**
+     * @update	gess5/11/98
+     * @param   anHTMLString contains a string-full of real HTML
+     * @param   appendTokens tells us whether we should insert tokens inline, or append them.
+     * @return  TRUE if all went well -- FALSE otherwise
+     */
+    NS_IMETHOD Parse(const nsAString& aSourceBuffer,
+                     void* aKey,
+                     const nsACString& aContentType,
+                     PRBool aLastCall,
+                     nsDTDMode aMode = eDTDMode_autodetect);
+
+    NS_IMETHOD_(void *) GetRootContextKey();
 
     /**
      * This method needs documentation
      */
     NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
-                             nsTArray<nsString>& aTagStack);
+                             void* aKey,
+                             nsTArray<nsString>& aTagStack,
+                             PRBool aXMLMode,
+                             const nsACString& aContentType,
+                             nsDTDMode aMode = eDTDMode_autodetect);
+
+    NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
+                             nsIContent* aTargetNode,
+                             nsIAtom* aContextLocalName,
+                             PRInt32 aContextNamespace,
+                             PRBool aQuirks);
                              
     /**
      * This method gets called when the tokens have been consumed, and it's time
@@ -171,7 +233,6 @@ class nsParser : public nsIParser,
     NS_IMETHOD        ContinueInterruptedParsing();
     NS_IMETHOD_(void) BlockParser();
     NS_IMETHOD_(void) UnblockParser();
-    NS_IMETHOD_(void) ContinueInterruptedParsingAsync();
     NS_IMETHOD        Terminate(void);
 
     /**
@@ -180,7 +241,7 @@ class nsParser : public nsIParser,
      *  @update  vidur 4/12/99
      *  @return  current state
      */
-    NS_IMETHOD_(bool) IsParserEnabled();
+    NS_IMETHOD_(PRBool) IsParserEnabled();
 
     /**
      * Call this to query whether the parser thinks it's done with parsing.
@@ -188,7 +249,7 @@ class nsParser : public nsIParser,
      *  @update  rickg 5/12/01
      *  @return  complete state
      */
-    NS_IMETHOD_(bool) IsComplete();
+    NS_IMETHOD_(PRBool) IsComplete();
 
     /**
      *  This rather arcane method (hack) is used as a signal between the
@@ -207,9 +268,9 @@ class nsParser : public nsIParser,
      * @update	gess5/11/98
      * @return  TRUE if all went well, otherwise FALSE
      */
-    virtual nsresult ResumeParse(bool allowIteration = true, 
-                                 bool aIsFinalChunk = false,
-                                 bool aCanInterrupt = true);
+    virtual nsresult ResumeParse(PRBool allowIteration = PR_TRUE, 
+                                 PRBool aIsFinalChunk = PR_FALSE,
+                                 PRBool aCanInterrupt = PR_TRUE);
 
      //*********************************************
       // These methods are callback methods used by
@@ -243,17 +304,19 @@ class nsParser : public nsIParser,
   
     /**
      * Get the nsIStreamListener for this parser
+     * @param aDTD out param that will contain the result
+     * @return NS_OK if successful
      */
-    virtual nsIStreamListener* GetStreamListener();
+    NS_IMETHOD GetStreamListener(nsIStreamListener** aListener);
 
     /** 
      * Detects the existence of a META tag with charset information in 
      * the given buffer.
      */
-    bool DetectMetaTag(const char* aBytes, 
-                         int32_t aLen, 
+    PRBool DetectMetaTag(const char* aBytes, 
+                         PRInt32 aLen, 
                          nsCString& oCharset, 
-                         int32_t& oCharsetSource);
+                         PRInt32& oCharsetSource);
 
     void SetSinkCharset(nsACString& aCharset);
 
@@ -264,10 +327,18 @@ class nsParser : public nsIParser,
 
     NS_IMETHODIMP CancelParsingEvents();
 
+    /**  
+     *  Indicates whether the parser is in a state where it
+     *  can be interrupted.
+     *  @return PR_TRUE if parser can be interrupted, PR_FALSE if it can not be interrupted.
+     *  @update  kmcclusk 5/18/98
+     */
+    virtual PRBool CanInterrupt();
+
     /**
      * Return true.
      */
-    virtual bool IsInsertionPointDefined();
+    virtual PRBool IsInsertionPointDefined();
 
     /**
      * No-op.
@@ -282,19 +353,19 @@ class nsParser : public nsIParser,
     /**
      * No-op.
      */
-    virtual void MarkAsNotScriptCreated(const char* aCommand);
+    virtual void MarkAsNotScriptCreated();
 
     /**
      * Always false.
      */
-    virtual bool IsScriptCreated();
+    virtual PRBool IsScriptCreated();
 
     /**  
      *  Set to parser state to indicate whether parsing tokens can be interrupted
-     *  @param aCanInterrupt true if parser can be interrupted, false if it can not be interrupted.
+     *  @param aCanInterrupt PR_TRUE if parser can be interrupted, PR_FALSE if it can not be interrupted.
      *  @update  kmcclusk 5/18/98
      */
-    void SetCanInterrupt(bool aCanInterrupt);
+    void SetCanInterrupt(PRBool aCanInterrupt);
 
     /**
      * This is called when the final chunk has been
@@ -312,6 +383,10 @@ class nsParser : public nsIParser,
      */
     void HandleParserContinueEvent(class nsParserContinueEvent *);
 
+    static nsICharsetAlias* GetCharsetAliasService() {
+      return sCharsetAliasService;
+    }
+
     static nsICharsetConverterManager* GetCharsetConverterManager() {
       return sCharsetConverterManager;
     }
@@ -321,17 +396,21 @@ class nsParser : public nsIParser,
       Initialize();
     }
 
-    bool IsScriptExecuting() {
+    nsIThreadPool* ThreadPool() {
+      return sSpeculativeThreadPool;
+    }
+
+    PRBool IsScriptExecuting() {
       return mSink && mSink->IsScriptExecuting();
     }
 
-    bool IsOkToProcessNetworkData() {
+    PRBool IsOkToProcessNetworkData() {
       return !IsScriptExecuting() && !mProcessingNetworkData;
     }
 
  protected:
 
-    void Initialize(bool aConstructor = false);
+    void Initialize(PRBool aConstructor = PR_FALSE);
     void Cleanup();
 
     /**
@@ -350,6 +429,8 @@ class nsParser : public nsIParser,
      */
     nsresult DidBuildModel(nsresult anErrorCode);
 
+    void SpeculativelyParse();
+
 private:
 
     /*******************************************
@@ -365,7 +446,7 @@ private:
      *  @param   
      *  @return  TRUE if it's ok to proceed
      */
-    bool WillTokenize(bool aIsFinalChunk = false);
+    PRBool WillTokenize(PRBool aIsFinalChunk = PR_FALSE);
 
    
     /**
@@ -376,7 +457,7 @@ private:
      *  @update  gess 3/25/98
      *  @return  error code 
      */
-    nsresult Tokenize(bool aIsFinalChunk = false);
+    nsresult Tokenize(PRBool aIsFinalChunk = PR_FALSE);
 
     /**
      *  This is the tail-end of the code sandwich for the
@@ -387,14 +468,7 @@ private:
      *  @param   
      *  @return  TRUE if all went well
      */
-    bool DidTokenize(bool aIsFinalChunk = false);
-
-    /**
-     * Pushes XML fragment parsing data to expat without an input stream.
-     */
-    nsresult Parse(const nsAString& aSourceBuffer,
-                   void* aKey,
-                   bool aLastCall);
+    PRBool DidTokenize(PRBool aIsFinalChunk = PR_FALSE);
 
 protected:
     //*********************************************
@@ -407,24 +481,33 @@ protected:
     nsCOMPtr<nsIRequestObserver> mObserver;
     nsCOMPtr<nsIContentSink>     mSink;
     nsIRunnable*                 mContinueEvent;  // weak ref
+    nsRefPtr<nsSpeculativeScriptThread> mSpeculativeScriptThread;
    
+    nsCOMPtr<nsIParserFilter> mParserFilter;
     nsTokenAllocator          mTokenAllocator;
     
     eParserCommands     mCommand;
     nsresult            mInternalState;
-    nsresult            mStreamStatus;
-    int32_t             mCharsetSource;
+    PRInt32             mStreamStatus;
+    PRInt32             mCharsetSource;
     
-    uint16_t            mFlags;
+    PRUint16            mFlags;
 
     nsString            mUnusedInput;
     nsCString           mCharset;
     nsCString           mCommandStr;
 
-    bool                mProcessingNetworkData;
-    bool                mIsAboutBlank;
+    PRBool              mProcessingNetworkData;
 
+    static nsICharsetAlias*            sCharsetAliasService;
     static nsICharsetConverterManager* sCharsetConverterManager;
+    static nsIThreadPool*              sSpeculativeThreadPool;
+
+    enum {
+      kSpeculativeThreadLimit = 15,
+      kIdleThreadLimit = 0,
+      kIdleThreadTimeout = 50
+    };
 };
 
 #endif 

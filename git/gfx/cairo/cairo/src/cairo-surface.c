@@ -310,17 +310,17 @@ _cairo_surface_detach_mime_data (cairo_surface_t *surface)
 }
 
 static void
-cairo_surface_detach_snapshots (cairo_surface_t *surface)
+_cairo_surface_detach_snapshots (cairo_surface_t *surface)
 {
     while (_cairo_surface_has_snapshots (surface)) {
-	cairo_surface_detach_snapshot (cairo_list_first_entry (&surface->snapshots,
+	_cairo_surface_detach_snapshot (cairo_list_first_entry (&surface->snapshots,
 								cairo_surface_t,
 								snapshot));
     }
 }
 
 void
-cairo_surface_detach_snapshot (cairo_surface_t *snapshot)
+_cairo_surface_detach_snapshot (cairo_surface_t *snapshot)
 {
     assert (snapshot->snapshot_of != NULL);
 
@@ -334,7 +334,7 @@ cairo_surface_detach_snapshot (cairo_surface_t *snapshot)
 }
 
 void
-cairo_surface_attach_snapshot (cairo_surface_t *surface,
+_cairo_surface_attach_snapshot (cairo_surface_t *surface,
 				 cairo_surface_t *snapshot,
 				 cairo_surface_func_t detach_func)
 {
@@ -344,7 +344,7 @@ cairo_surface_attach_snapshot (cairo_surface_t *surface,
     cairo_surface_reference (snapshot);
 
     if (snapshot->snapshot_of != NULL)
-	cairo_surface_detach_snapshot (snapshot);
+	_cairo_surface_detach_snapshot (snapshot);
 
     snapshot->snapshot_of = surface;
     snapshot->snapshot_detach = detach_func;
@@ -387,7 +387,7 @@ _cairo_surface_begin_modification (cairo_surface_t *surface)
     assert (! surface->finished);
     assert (surface->snapshot_of == NULL);
 
-    cairo_surface_detach_snapshots (surface);
+    _cairo_surface_detach_snapshots (surface);
     _cairo_surface_detach_mime_data (surface);
 }
 
@@ -716,9 +716,9 @@ cairo_surface_finish (cairo_surface_t *surface)
 	return;
 
     /* update the snapshots *before* we declare the surface as finished */
-    cairo_surface_detach_snapshots (surface);
+    _cairo_surface_detach_snapshots (surface);
     if (surface->snapshot_of != NULL)
-	cairo_surface_detach_snapshot (surface);
+	_cairo_surface_detach_snapshot (surface);
 
     cairo_surface_flush (surface);
     surface->finished = TRUE;
@@ -1111,7 +1111,7 @@ cairo_surface_flush (cairo_surface_t *surface)
 	return;
 
     /* update the current snapshots *before* the user updates the surface */
-    cairo_surface_detach_snapshots (surface);
+    _cairo_surface_detach_snapshots (surface);
 
     if (surface->backend->flush) {
 	status = surface->backend->flush (surface);
@@ -1454,16 +1454,6 @@ _cairo_surface_acquire_source_image (cairo_surface_t         *surface,
     if (unlikely (status))
 	return _cairo_surface_set_error (surface, status);
 
-    if (PIXMAN_FORMAT_BPP((*image_out)->pixman_format) == 0) {
-	volatile char* acquire_source_image_ptr[10];
-	volatile char* crasher;
-	int i;
-        for (i = 0; i < 10; i++) {
-	    acquire_source_image_ptr[i] = (char*)surface->backend->acquire_source_image;
-	}
-	crasher = NULL;
-	*crasher = acquire_source_image_ptr[5];
-    }
     _cairo_debug_check_image_surface_is_defined (&(*image_out)->base);
 
     return CAIRO_STATUS_SUCCESS;
@@ -1633,7 +1623,7 @@ _cairo_recording_surface_clone_similar (cairo_surface_t  *surface,
 	    return status;
 	}
 
-	cairo_surface_attach_snapshot (src, similar, NULL);
+	_cairo_surface_attach_snapshot (src, similar, NULL);
 
 	src_x = src_y = 0;
     }

@@ -9,6 +9,8 @@
   </style>
 
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
@@ -37,6 +39,25 @@
     function doTest()
     {
       //////////////////////////////////////////////////////////////////////////
+      // role="list"
+
+      var id = "list1";
+      ok(isAccessible(id, [nsIAccessibleSelectable]),
+         "No selectable accessible for " + id);
+
+      testSelectableSelection(id, [ ]);
+
+      var select = getAccessible(id, [nsIAccessibleSelectable]);
+      select.addChildToSelection(0);
+      testSelectableSelection(id, [ ]);
+      select.removeChildFromSelection(0);
+      testSelectableSelection(id, [ ]);
+      select.selectAllSelection();
+      testSelectableSelection(id, [ ]);
+      select.clearSelection();
+      testSelectableSelection(id, [ ]);
+
+      //////////////////////////////////////////////////////////////////////////
       // role="listbox"
 
       id = "listbox1";
@@ -63,7 +84,7 @@
       testSelectableSelection(id, [ "listbox2_item1", "listbox2_item2" ]);
       select.clearSelection();
       testSelectableSelection(id, [ ]);
-      
+
       //////////////////////////////////////////////////////////////////////////
       // role="grid"
 
@@ -133,14 +154,19 @@
   <pre id="test">
   </pre>
 
+  <div role="list" id="list1">
+    <div role="listitem">item1</div>
+    <div role="listitem">item2</div>
+  </div>
+
   <div role="listbox" id="listbox1">
-    <div role="option">item1</div>
-    <div role="option">item2</div>
+    <div role="listitem">item1</div>
+    <div role="listitem">item2</div>
   </div>
 
   <div role="listbox" id="listbox2" aria-multiselectable="true">
-    <div role="option" id="listbox2_item1">item1</div>
-    <div role="option" id="listbox2_item2">item2</div>
+    <div role="listitem" id="listbox2_item1">item1</div>
+    <div role="listitem" id="listbox2_item2">item2</div>
   </div>
 
   <div role="grid" id="grid1">

@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert Strong <robert.bugzilla@gmail.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* Shared code for xpcshell and mochitests-chrome */
 
@@ -12,7 +45,6 @@ const AUS_Cr = Components.results;
 const AUS_Cu = Components.utils;
 
 const PREF_APP_UPDATE_AUTO                = "app.update.auto";
-const PREF_APP_UPDATE_STAGE_ENABLED       = "app.update.stage.enabled";
 const PREF_APP_UPDATE_BACKGROUNDERRORS    = "app.update.backgroundErrors";
 const PREF_APP_UPDATE_BACKGROUNDMAXERRORS = "app.update.backgroundMaxErrors";
 const PREF_APP_UPDATE_CERTS_BRANCH        = "app.update.certs.";
@@ -21,6 +53,7 @@ const PREF_APP_UPDATE_CERT_ERRORS         = "app.update.cert.errors";
 const PREF_APP_UPDATE_CERT_MAXERRORS      = "app.update.cert.maxErrors";
 const PREF_APP_UPDATE_CERT_REQUIREBUILTIN = "app.update.cert.requireBuiltIn";
 const PREF_APP_UPDATE_CHANNEL             = "app.update.channel";
+const PREF_APP_UPDATE_DESIREDCHANNEL      = "app.update.desiredChannel";
 const PREF_APP_UPDATE_ENABLED             = "app.update.enabled";
 const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
 const PREF_APP_UPDATE_LOG                 = "app.update.log";
@@ -40,7 +73,6 @@ const PREF_DISTRIBUTION_ID                = "distribution.id";
 const PREF_DISTRIBUTION_VERSION           = "distribution.version";
 
 const PREF_EXTENSIONS_UPDATE_URL          = "extensions.update.url";
-const PREF_EXTENSIONS_STRICT_COMPAT       = "extensions.strictCompatibility";
 
 const NS_APP_PROFILE_DIR_STARTUP   = "ProfDS";
 const NS_APP_USER_PROFILE_50_DIR   = "ProfD";
@@ -76,8 +108,6 @@ const PR_EXCL        = 0x80;
 
 const PERMS_FILE      = 0644;
 const PERMS_DIRECTORY = 0755;
-
-const DEFAULT_UPDATE_VERSION = "999999.0";
 
 #include sharedUpdateXML.js
 
@@ -155,19 +185,6 @@ function setUpdateURLOverride(aURL) {
 }
 
 /**
- * Returns either the active or regular update database XML file.
- *
- * @param  isActiveUpdate
- *         If true this will return the active-update.xml otherwise it will
- *         return the updates.xml file.
- */
-function getUpdatesXMLFile(aIsActiveUpdate) {
-  var file = getUpdatesRootDir();
-  file.append(aIsActiveUpdate ? FILE_UPDATE_ACTIVE : FILE_UPDATES_DB);
-  return file;
-}
-
-/**
  * Writes the updates specified to either the active-update.xml or the
  * updates.xml.
  *
@@ -178,7 +195,9 @@ function getUpdatesXMLFile(aIsActiveUpdate) {
  *         write to the updates.xml file.
  */
 function writeUpdatesToXMLFile(aContent, aIsActiveUpdate) {
-  writeFile(getUpdatesXMLFile(aIsActiveUpdate), aContent);
+  var file = getCurrentProcessDir();
+  file.append(aIsActiveUpdate ? FILE_UPDATE_ACTIVE : FILE_UPDATES_DB);
+  writeFile(file, aContent);
 }
 
 /**
@@ -213,26 +232,12 @@ function writeVersionFile(aVersion) {
 }
 
 /**
- * Gets the updates root directory.
- *
- * @return nsIFile for the updates root directory.
- */
-function getUpdatesRootDir() {
-  try {
-    return Services.dirsvc.get(XRE_UPDATE_ROOT_DIR, AUS_Ci.nsIFile);
-  } catch (e) {
-    // Fall back on the current process directory
-    return getCurrentProcessDir();
-  }
-}
-
-/**
  * Gets the updates directory.
  *
  * @return nsIFile for the updates directory.
  */
 function getUpdatesDir() {
-  var dir = getUpdatesRootDir();
+  var dir = getCurrentProcessDir();
   dir.append("updates");
   return dir;
 }
@@ -363,7 +368,9 @@ function getFileExtension(aFile) {
  * tests are interrupted.
  */
 function removeUpdateDirsAndFiles() {
-  var file = getUpdatesXMLFile(true);
+  var appDir = getCurrentProcessDir();
+  var file = appDir.clone();
+  file.append(FILE_UPDATE_ACTIVE);
   try {
     if (file.exists())
       file.remove(false);
@@ -373,7 +380,8 @@ function removeUpdateDirsAndFiles() {
          "\nException: " + e + "\n");
   }
 
-  file = getUpdatesXMLFile(false);
+  file = appDir.clone();
+  file.append(FILE_UPDATES_DB);
   try {
     if (file.exists())
       file.remove(false);
@@ -384,7 +392,8 @@ function removeUpdateDirsAndFiles() {
   }
 
   // This fails sporadically on Mac OS X so wrap it in a try catch
-  var updatesDir = getUpdatesDir();
+  var updatesDir = appDir.clone();
+  updatesDir.append("updates");
   try {
     cleanUpdatesDir(updatesDir);
   }

@@ -1,14 +1,46 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* rendering object to wrap rendering objects that should be scrollable */
 
 #ifndef nsGfxScrollFrame_h___
 #define nsGfxScrollFrame_h___
 
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsIAnonymousContentCreator.h"
 #include "nsBoxFrame.h"
 #include "nsDisplayList.h"
@@ -32,21 +64,11 @@ class nsIScrollFrameInternal;
 class nsPresState;
 struct ScrollReflowState;
 
-namespace mozilla {
-class ScrollbarActivity;
-}
-
-// When set, the next scroll operation on the scrollframe will invalidate its
-// entire contents. Useful for text-overflow.
-// This bit is cleared after each time the scrollframe is scrolled. Whoever
-// needs to set it should set it again on each paint.
-#define NS_SCROLLFRAME_INVALIDATE_CONTENTS_ON_SCROLL NS_FRAME_STATE_BIT(20)
-
 class nsGfxScrollFrameInner : public nsIReflowCallback {
 public:
   class AsyncScroll;
 
-  nsGfxScrollFrameInner(nsContainerFrame* aOuter, bool aIsRoot);
+  nsGfxScrollFrameInner(nsContainerFrame* aOuter, PRBool aIsRoot);
   ~nsGfxScrollFrameInner();
 
   typedef nsIScrollableFrame::ScrollbarStyles ScrollbarStyles;
@@ -59,27 +81,27 @@ public:
 
   nsresult CreateAnonymousContent(
     nsTArray<nsIAnonymousContentCreator::ContentInfo>& aElements);
-  void AppendAnonymousContentTo(nsBaseContentList& aElements, uint32_t aFilter);
+  void AppendAnonymousContentTo(nsBaseContentList& aElements, PRUint32 aFilter);
   nsresult FireScrollPortEvent();
   void PostOverflowEvent();
   void Destroy();
 
-  bool ShouldBuildLayer() const;
+  PRBool ShouldBuildLayer() const;
 
   nsresult BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                             const nsRect&           aDirtyRect,
                             const nsDisplayListSet& aLists);
 
-  void AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
-                           const nsRect&           aDirtyRect,
-                           const nsDisplayListSet& aLists,
-                           bool&                   aCreateLayer,
-                           bool                    aPositioned);
+  nsresult AppendScrollPartsTo(nsDisplayListBuilder*          aBuilder,
+                               const nsRect&                  aDirtyRect,
+                               const nsDisplayListSet&        aLists,
+                               const nsDisplayListCollection& aDest,
+                               PRBool&                        aCreateLayer);
 
-  bool GetBorderRadii(nscoord aRadii[8]) const;
+  PRBool GetBorderRadii(nscoord aRadii[8]) const;
 
   // nsIReflowCallback
-  virtual bool ReflowFinished();
+  virtual PRBool ReflowFinished();
   virtual void ReflowCallbackCanceled();
 
   // This gets called when the 'curpos' attribute on one of the scrollbars changes
@@ -93,7 +115,7 @@ public:
   public:
     NS_DECL_NSIRUNNABLE
     ScrollEvent(nsGfxScrollFrameInner *inner) : mInner(inner) {}
-    void Revoke() { mInner = nullptr; }
+    void Revoke() { mInner = nsnull; }
   private:
     nsGfxScrollFrameInner *mInner;
   };
@@ -102,7 +124,7 @@ public:
   public:
     NS_DECL_NSIRUNNABLE
     AsyncScrollPortEvent(nsGfxScrollFrameInner *inner) : mInner(inner) {}
-    void Revoke() { mInner = nullptr; }
+    void Revoke() { mInner = nsnull; }
   private:
     nsGfxScrollFrameInner *mInner;
   };
@@ -111,19 +133,19 @@ public:
   public:
     NS_DECL_NSIRUNNABLE
     ScrolledAreaEvent(nsGfxScrollFrameInner *inner) : mInner(inner) {}
-    void Revoke() { mInner = nullptr; }
+    void Revoke() { mInner = nsnull; }
   private:
     nsGfxScrollFrameInner *mInner;
   };
 
-  void FinishReflowForScrollbar(nsIContent* aContent, nscoord aMinXY,
-                                nscoord aMaxXY, nscoord aCurPosXY,
-                                nscoord aPageIncrement,
-                                nscoord aIncrement);
+  static void FinishReflowForScrollbar(nsIContent* aContent, nscoord aMinXY,
+                                       nscoord aMaxXY, nscoord aCurPosXY,
+                                       nscoord aPageIncrement,
+                                       nscoord aIncrement);
   static void SetScrollbarEnabled(nsIContent* aContent, nscoord aMaxPos);
-  void SetCoordAttribute(nsIContent* aContent, nsIAtom* aAtom, nscoord aSize);
-  nscoord GetCoordAttribute(nsIFrame* aFrame, nsIAtom* aAtom, nscoord aDefaultValue,
-                            nscoord* aRangeStart, nscoord* aRangeLength);
+  static void SetCoordAttribute(nsIContent* aContent, nsIAtom* aAtom,
+                                nscoord aSize);
+  nscoord GetCoordAttribute(nsIBox* aFrame, nsIAtom* atom, nscoord defaultValue);
 
   // Update scrollbar curpos attributes to reflect current scroll position
   void UpdateScrollbarPosition();
@@ -148,29 +170,15 @@ public:
     return pt;
   }
   nsRect GetScrollRange() const;
-  // Get the scroll range assuming the scrollport has size (aWidth, aHeight).
-  nsRect GetScrollRange(nscoord aWidth, nscoord aHeight) const;
-  nsSize GetScrollPositionClampingScrollPortSize() const;
-protected:
-  nsRect GetScrollRangeForClamping() const;
 
-public:
-  static void AsyncScrollCallback(void* anInstance, mozilla::TimeStamp aTime);
-  /**
-   * aRange is the range of allowable scroll positions around the desired
-   * aScrollPosition. Null means only aScrollPosition is allowed.
-   * This is a closed-ended range --- aRange.XMost()/aRange.YMost() are allowed.
-   */
-  void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode,
-                const nsRect* aRange = nullptr) {
-    ScrollToWithOrigin(aScrollPosition, aMode, nsGkAtoms::other, aRange);
-  }
-  void ScrollToCSSPixels(nsIntPoint aScrollPosition);
-  nsIntPoint GetScrollPositionCSSPixels();
-  void ScrollToImpl(nsPoint aScrollPosition, const nsRect& aRange);
-  void ScrollVisual(nsPoint aOldScrolledFramePosition);
+  nsPoint ClampAndRestrictToDevPixels(const nsPoint& aPt, nsIntPoint* aPtDevPx) const;
+  nsPoint ClampScrollPosition(const nsPoint& aPt) const;
+  static void AsyncScrollCallback(nsITimer *aTimer, void* anInstance);
+  void ScrollTo(nsPoint aScrollPosition, nsIScrollableFrame::ScrollMode aMode);
+  void ScrollToImpl(nsPoint aScrollPosition);
+  void ScrollVisual();
   void ScrollBy(nsIntPoint aDelta, nsIScrollableFrame::ScrollUnit aUnit,
-                nsIScrollableFrame::ScrollMode aMode, nsIntPoint* aOverflow, nsIAtom *aOrigin = nullptr);
+                nsIScrollableFrame::ScrollMode aMode, nsIntPoint* aOverflow);
   void ScrollToRestoredPosition();
   nsSize GetLineScrollAmount() const;
   nsSize GetPageScrollAmount() const;
@@ -179,7 +187,7 @@ public:
   void RestoreState(nsPresState* aState);
 
   nsIFrame* GetScrolledFrame() const { return mScrolledFrame; }
-  nsIFrame* GetScrollbarBox(bool aVertical) const {
+  nsIBox* GetScrollbarBox(PRBool aVertical) const {
     return aVertical ? mVScrollbarBox : mHScrollbarBox;
   }
 
@@ -190,7 +198,7 @@ public:
     mListeners.RemoveElement(aListener);
   }
 
-  static void SetScrollbarVisibility(nsIFrame* aScrollbar, bool aVisible);
+  static void SetScrollbarVisibility(nsIBox* aScrollbar, PRBool aVisible);
 
   /**
    * GetScrolledRect is designed to encapsulate deciding which
@@ -222,40 +230,30 @@ public:
   nsRect GetScrolledRectInternal(const nsRect& aScrolledOverflowArea,
                                  const nsSize& aScrollPortSize) const;
 
-  uint32_t GetScrollbarVisibility() const {
+  PRUint32 GetScrollbarVisibility() const {
     return (mHasVerticalScrollbar ? nsIScrollableFrame::VERTICAL : 0) |
            (mHasHorizontalScrollbar ? nsIScrollableFrame::HORIZONTAL : 0);
   }
   nsMargin GetActualScrollbarSizes() const;
   nsMargin GetDesiredScrollbarSizes(nsBoxLayoutState* aState);
-  bool IsLTR() const;
-  bool IsScrollbarOnRight() const;
-  bool IsScrollingActive() const { return mScrollingActive || ShouldBuildLayer(); }
-
-  bool UpdateOverflow();
-
+  PRBool IsLTR() const;
+  PRBool IsScrollbarOnRight() const;
+  PRBool IsScrollingActive() const { return mScrollingActive || ShouldBuildLayer(); }
   // adjust the scrollbar rectangle aRect to account for any visible resizer.
   // aHasResizer specifies if there is a content resizer, however this method
   // will also check if a widget resizer is present as well.
   void AdjustScrollbarRectForResizer(nsIFrame* aFrame, nsPresContext* aPresContext,
-                                     nsRect& aRect, bool aHasResizer, bool aVertical);
+                                     nsRect& aRect, PRBool aHasResizer, PRBool aVertical);
   // returns true if a resizer should be visible
-  bool HasResizer() { return mResizerBox && !mCollapsedResizer; }
+  PRBool HasResizer() { return mResizerBox && !mCollapsedResizer; }
   void LayoutScrollbars(nsBoxLayoutState& aState,
                         const nsRect& aContentArea,
                         const nsRect& aOldScrollArea);
 
-  bool IsIgnoringViewportClipping() const;
-
-  bool ShouldClampScrollPosition() const;
-
-  bool IsAlwaysActive() const;
+  PRBool IsAlwaysActive() const;
   void MarkActive();
   void MarkInactive();
   nsExpirationState* GetExpirationState() { return &mActivityExpirationState; }
-
-  void ScheduleSyntheticMouseMove();
-  static void ScrollActivityCallback(nsITimer *aTimer, void* anInstance);
 
   // owning references to the nsIAnonymousContentCreator-built content
   nsCOMPtr<nsIContent> mHScrollbarContent;
@@ -266,14 +264,13 @@ public:
   nsRevocableEventPtr<ScrollEvent> mScrollEvent;
   nsRevocableEventPtr<AsyncScrollPortEvent> mAsyncScrollPortEvent;
   nsRevocableEventPtr<ScrolledAreaEvent> mScrolledAreaEvent;
-  nsIFrame* mHScrollbarBox;
-  nsIFrame* mVScrollbarBox;
+  nsIBox* mHScrollbarBox;
+  nsIBox* mVScrollbarBox;
   nsIFrame* mScrolledFrame;
-  nsIFrame* mScrollCornerBox;
-  nsIFrame* mResizerBox;
+  nsIBox* mScrollCornerBox;
+  nsIBox* mResizerBox;
   nsContainerFrame* mOuter;
-  nsRefPtr<AsyncScroll> mAsyncScroll;
-  nsAutoPtr<mozilla::ScrollbarActivity> mScrollbarActivity;
+  AsyncScroll* mAsyncScroll;
   nsTArray<nsIScrollPositionListener*> mListeners;
   nsRect mScrollPort;
   // Where we're currently scrolling to, if we're scrolling asynchronously.
@@ -288,51 +285,46 @@ public:
 
   nsExpirationState mActivityExpirationState;
 
-  nsCOMPtr<nsITimer> mScrollActivityTimer;
-
-  bool mNeverHasVerticalScrollbar:1;
-  bool mNeverHasHorizontalScrollbar:1;
-  bool mHasVerticalScrollbar:1;
-  bool mHasHorizontalScrollbar:1;
-  bool mFrameIsUpdatingScrollbar:1;
-  bool mDidHistoryRestore:1;
+  PRPackedBool mNeverHasVerticalScrollbar:1;
+  PRPackedBool mNeverHasHorizontalScrollbar:1;
+  PRPackedBool mHasVerticalScrollbar:1;
+  PRPackedBool mHasHorizontalScrollbar:1;
+  PRPackedBool mFrameIsUpdatingScrollbar:1;
+  PRPackedBool mDidHistoryRestore:1;
   // Is this the scrollframe for the document's viewport?
-  bool mIsRoot:1;
+  PRPackedBool mIsRoot:1;
   // If true, don't try to layout the scrollbars in Reflow().  This can be
   // useful if multiple passes are involved, because we don't want to place the
   // scrollbars at the wrong size.
-  bool mSupppressScrollbarUpdate:1;
+  PRPackedBool mSupppressScrollbarUpdate:1;
   // If true, we skipped a scrollbar layout due to mSupppressScrollbarUpdate
   // being set at some point.  That means we should lay out scrollbars even if
   // it might not strictly be needed next time mSupppressScrollbarUpdate is
   // false.
-  bool mSkippedScrollbarLayout:1;
+  PRPackedBool mSkippedScrollbarLayout:1;
 
-  bool mHadNonInitialReflow:1;
+  PRPackedBool mHadNonInitialReflow:1;
   // State used only by PostScrollEvents so we know
   // which overflow states have changed.
-  bool mHorizontalOverflow:1;
-  bool mVerticalOverflow:1;
-  bool mPostedReflowCallback:1;
-  bool mMayHaveDirtyFixedChildren:1;
+  PRPackedBool mHorizontalOverflow:1;
+  PRPackedBool mVerticalOverflow:1;
+  PRPackedBool mPostedReflowCallback:1;
+  PRPackedBool mMayHaveDirtyFixedChildren:1;
   // If true, need to actually update our scrollbar attributes in the
   // reflow callback.
-  bool mUpdateScrollbarAttributes:1;
+  PRPackedBool mUpdateScrollbarAttributes:1;
   // If true, we should be prepared to scroll using this scrollframe
   // by placing descendant content into its own layer(s)
-  bool mScrollingActive:1;
+  PRPackedBool mScrollingActive:1;
+  // If true, scrollbars are stacked on the top of the display list and can
+  // float above the content as a result
+  PRPackedBool mScrollbarsCanOverlapContent:1;
   // If true, the resizer is collapsed and not displayed
-  bool mCollapsedResizer:1;
+  PRPackedBool mCollapsedResizer:1;
 
   // If true, the layer should always be active because we always build a layer.
   // Used for asynchronous scrolling.
-  bool mShouldBuildLayer:1;
-
-protected:
-  void ScrollToWithOrigin(nsPoint aScrollPosition,
-                          nsIScrollableFrame::ScrollMode aMode,
-                          nsIAtom *aOrigin, // nullptr indicates "other" origin
-                          const nsRect* aRange);
+  PRPackedBool mShouldBuildLayer:1;
 };
 
 /**
@@ -344,19 +336,19 @@ protected:
  * Scroll frames don't support incremental changes, i.e. you can't replace
  * or remove the scrolled frame
  */
-class nsHTMLScrollFrame : public nsContainerFrame,
+class nsHTMLScrollFrame : public nsHTMLContainerFrame,
                           public nsIScrollableFrame,
                           public nsIAnonymousContentCreator,
                           public nsIStatefulFrame {
 public:
-  friend nsIFrame* NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, bool aIsRoot);
+  friend nsIFrame* NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot);
 
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -365,30 +357,30 @@ public:
     return mInner.BuildDisplayList(aBuilder, aDirtyRect, aLists);
   }
 
-  bool TryLayout(ScrollReflowState* aState,
+  PRBool TryLayout(ScrollReflowState* aState,
                    nsHTMLReflowMetrics* aKidMetrics,
-                   bool aAssumeVScroll, bool aAssumeHScroll,
-                   bool aForce, nsresult* aResult);
-  bool ScrolledContentDependsOnHeight(ScrollReflowState* aState);
+                   PRBool aAssumeVScroll, PRBool aAssumeHScroll,
+                   PRBool aForce, nsresult* aResult);
+  PRBool ScrolledContentDependsOnHeight(ScrollReflowState* aState);
   nsresult ReflowScrolledFrame(ScrollReflowState* aState,
-                               bool aAssumeHScroll,
-                               bool aAssumeVScroll,
+                               PRBool aAssumeHScroll,
+                               PRBool aAssumeVScroll,
                                nsHTMLReflowMetrics* aMetrics,
-                               bool aFirstPass);
+                               PRBool aFirstPass);
   nsresult ReflowContents(ScrollReflowState* aState,
                           const nsHTMLReflowMetrics& aDesiredSize);
   void PlaceScrollArea(const ScrollReflowState& aState,
                        const nsPoint& aScrollPosition);
   nscoord GetIntrinsicVScrollbarWidth(nsRenderingContext *aRenderingContext);
 
-  virtual bool GetBorderRadii(nscoord aRadii[8]) const {
+  virtual PRBool GetBorderRadii(nscoord aRadii[8]) const {
     return mInner.GetBorderRadii(aRadii);
   }
 
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
   NS_IMETHOD GetPadding(nsMargin& aPadding);
-  virtual bool IsCollapsed();
+  virtual PRBool IsCollapsed(nsBoxLayoutState& aBoxLayoutState);
   
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -397,16 +389,16 @@ public:
 
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
 
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
   virtual nsIScrollableFrame* GetScrollTargetFrame() {
@@ -419,9 +411,9 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  uint32_t aFlags);
+                                  PRUint32 aFlags);
 
-  virtual bool DoesClipChildren() { return true; }
+  virtual PRBool DoesClipChildren() { return PR_TRUE; }
   virtual nsSplittableType GetSplittableType() const;
 
   virtual nsPoint GetPositionOfChildIgnoringScrolling(nsIFrame* aChild)
@@ -433,7 +425,7 @@ public:
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter);
+                                        PRUint32 aFilter);
 
   // nsIScrollableFrame
   virtual nsIFrame* GetScrolledFrame() const {
@@ -442,7 +434,7 @@ public:
   virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const {
     return mInner.GetScrollbarStylesFromFrame();
   }
-  virtual uint32_t GetScrollbarVisibility() const {
+  virtual PRUint32 GetScrollbarVisibility() const {
     return mInner.GetScrollbarVisibility();
   }
   virtual nsMargin GetActualScrollbarSizes() const {
@@ -465,28 +457,18 @@ public:
   virtual nsRect GetScrollRange() const {
     return mInner.GetScrollRange();
   }
-  virtual nsSize GetScrollPositionClampingScrollPortSize() const {
-    return mInner.GetScrollPositionClampingScrollPortSize();
-  }
   virtual nsSize GetLineScrollAmount() const {
     return mInner.GetLineScrollAmount();
   }
   virtual nsSize GetPageScrollAmount() const {
     return mInner.GetPageScrollAmount();
   }
-  virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode,
-                        const nsRect* aRange = nullptr) {
-    mInner.ScrollTo(aScrollPosition, aMode, aRange);
-  }
-  virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) {
-    mInner.ScrollToCSSPixels(aScrollPosition);
-  }
-  virtual nsIntPoint GetScrollPositionCSSPixels() {
-    return mInner.GetScrollPositionCSSPixels();
+  virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode) {
+    mInner.ScrollTo(aScrollPosition, aMode);
   }
   virtual void ScrollBy(nsIntPoint aDelta, ScrollUnit aUnit, ScrollMode aMode,
-                        nsIntPoint* aOverflow, nsIAtom *aOrigin = nullptr) {
-    mInner.ScrollBy(aDelta, aUnit, aMode, aOverflow, aOrigin);
+                        nsIntPoint* aOverflow) {
+    mInner.ScrollBy(aDelta, aUnit, aMode, aOverflow);
   }
   virtual void ScrollToRestoredPosition() {
     mInner.ScrollToRestoredPosition();
@@ -497,7 +479,7 @@ public:
   virtual void RemoveScrollPositionListener(nsIScrollPositionListener* aListener) {
     mInner.RemoveScrollPositionListener(aListener);
   }
-  virtual nsIFrame* GetScrollbarBox(bool aVertical) {
+  virtual nsIBox* GetScrollbarBox(PRBool aVertical) {
     return mInner.GetScrollbarBox(aVertical);
   }
   virtual void CurPosAttributeChanged(nsIContent* aChild) {
@@ -507,11 +489,8 @@ public:
     mInner.PostScrolledAreaEvent();
     return NS_OK;
   }
-  virtual bool IsScrollingActive() {
+  virtual PRBool IsScrollingActive() {
     return mInner.IsScrollingActive();
-  }
-  virtual bool UpdateOverflow() {
-    return mInner.UpdateOverflow();
   }
 
   // nsIStatefulFrame
@@ -533,40 +512,40 @@ public:
    */
   virtual nsIAtom* GetType() const;
   
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
-  bool DidHistoryRestore() { return mInner.mDidHistoryRestore; }
+  PRBool DidHistoryRestore() { return mInner.mDidHistoryRestore; }
 
 #ifdef ACCESSIBILITY
-  virtual already_AddRefed<Accessible> CreateAccessible();
+  virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
 protected:
-  nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, bool aIsRoot);
-  virtual int GetSkipSides() const;
+  nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRBool aIsRoot);
+  virtual PRIntn GetSkipSides() const;
   
-  void SetSuppressScrollbarUpdate(bool aSuppress) {
+  void SetSuppressScrollbarUpdate(PRBool aSuppress) {
     mInner.mSupppressScrollbarUpdate = aSuppress;
   }
-  bool GuessHScrollbarNeeded(const ScrollReflowState& aState);
-  bool GuessVScrollbarNeeded(const ScrollReflowState& aState);
+  PRBool GuessHScrollbarNeeded(const ScrollReflowState& aState);
+  PRBool GuessVScrollbarNeeded(const ScrollReflowState& aState);
 
-  bool IsScrollbarUpdateSuppressed() const {
+  PRBool IsScrollbarUpdateSuppressed() const {
     return mInner.mSupppressScrollbarUpdate;
   }
 
   // Return whether we're in an "initial" reflow.  Some reflows with
   // NS_FRAME_FIRST_REFLOW set are NOT "initial" as far as we're concerned.
-  bool InInitialReflow() const;
+  PRBool InInitialReflow() const;
   
   /**
    * Override this to return false if computed height/min-height/max-height
    * should NOT be propagated to child content.
    * nsListControlFrame uses this.
    */
-  virtual bool ShouldPropagateComputedHeightToScrolledContent() const { return true; }
+  virtual PRBool ShouldPropagateComputedHeightToScrolledContent() const { return PR_TRUE; }
 
 private:
   friend class nsGfxScrollFrameInner;
@@ -590,11 +569,11 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  friend nsIFrame* NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, bool aIsRoot);
+  friend nsIFrame* NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot);
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -610,15 +589,15 @@ public:
 
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
   virtual nsIScrollableFrame* GetScrollTargetFrame() {
@@ -631,9 +610,9 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  uint32_t aFlags);
+                                  PRUint32 aFlags);
 
-  virtual bool DoesClipChildren() { return true; }
+  virtual PRBool DoesClipChildren() { return PR_TRUE; }
   virtual nsSplittableType GetSplittableType() const;
 
   virtual nsPoint GetPositionOfChildIgnoringScrolling(nsIFrame* aChild)
@@ -646,7 +625,7 @@ public:
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements);
   virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter);
+                                        PRUint32 aFilter);
 
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
@@ -656,32 +635,32 @@ public:
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
   NS_IMETHOD GetPadding(nsMargin& aPadding);
 
-  virtual bool GetBorderRadii(nscoord aRadii[8]) const {
+  virtual PRBool GetBorderRadii(nscoord aRadii[8]) const {
     return mInner.GetBorderRadii(aRadii);
   }
 
   nsresult Layout(nsBoxLayoutState& aState);
   void LayoutScrollArea(nsBoxLayoutState& aState, const nsPoint& aScrollPosition);
 
-  static bool AddRemoveScrollbar(bool& aHasScrollbar, 
+  static PRBool AddRemoveScrollbar(PRBool& aHasScrollbar, 
                                    nscoord& aXY, 
                                    nscoord& aSize, 
                                    nscoord aSbSize, 
-                                   bool aOnRightOrBottom, 
-                                   bool aAdd);
+                                   PRBool aOnRightOrBottom, 
+                                   PRBool aAdd);
   
-  bool AddRemoveScrollbar(nsBoxLayoutState& aState, 
-                            bool aOnRightOrBottom, 
-                            bool aHorizontal, 
-                            bool aAdd);
+  PRBool AddRemoveScrollbar(nsBoxLayoutState& aState, 
+                            PRBool aOnRightOrBottom, 
+                            PRBool aHorizontal, 
+                            PRBool aAdd);
   
-  bool AddHorizontalScrollbar (nsBoxLayoutState& aState, bool aOnBottom);
-  bool AddVerticalScrollbar   (nsBoxLayoutState& aState, bool aOnRight);
-  void RemoveHorizontalScrollbar(nsBoxLayoutState& aState, bool aOnBottom);
-  void RemoveVerticalScrollbar  (nsBoxLayoutState& aState, bool aOnRight);
+  PRBool AddHorizontalScrollbar (nsBoxLayoutState& aState, PRBool aOnBottom);
+  PRBool AddVerticalScrollbar   (nsBoxLayoutState& aState, PRBool aOnRight);
+  void RemoveHorizontalScrollbar(nsBoxLayoutState& aState, PRBool aOnBottom);
+  void RemoveVerticalScrollbar  (nsBoxLayoutState& aState, PRBool aOnRight);
 
-  static void AdjustReflowStateForPrintPreview(nsBoxLayoutState& aState, bool& aSetBack);
-  static void AdjustReflowStateBack(nsBoxLayoutState& aState, bool aSetBack);
+  static void AdjustReflowStateForPrintPreview(nsBoxLayoutState& aState, PRBool& aSetBack);
+  static void AdjustReflowStateBack(nsBoxLayoutState& aState, PRBool aSetBack);
 
   // nsIScrollableFrame
   virtual nsIFrame* GetScrolledFrame() const {
@@ -690,7 +669,7 @@ public:
   virtual nsGfxScrollFrameInner::ScrollbarStyles GetScrollbarStyles() const {
     return mInner.GetScrollbarStylesFromFrame();
   }
-  virtual uint32_t GetScrollbarVisibility() const {
+  virtual PRUint32 GetScrollbarVisibility() const {
     return mInner.GetScrollbarVisibility();
   }
   virtual nsMargin GetActualScrollbarSizes() const {
@@ -713,28 +692,18 @@ public:
   virtual nsRect GetScrollRange() const {
     return mInner.GetScrollRange();
   }
-  virtual nsSize GetScrollPositionClampingScrollPortSize() const {
-    return mInner.GetScrollPositionClampingScrollPortSize();
-  }
   virtual nsSize GetLineScrollAmount() const {
     return mInner.GetLineScrollAmount();
   }
   virtual nsSize GetPageScrollAmount() const {
     return mInner.GetPageScrollAmount();
   }
-  virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode,
-                        const nsRect* aRange = nullptr) {
-    mInner.ScrollTo(aScrollPosition, aMode, aRange);
-  }
-  virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) {
-    mInner.ScrollToCSSPixels(aScrollPosition);
-  }
-  virtual nsIntPoint GetScrollPositionCSSPixels() {
-    return mInner.GetScrollPositionCSSPixels();
+  virtual void ScrollTo(nsPoint aScrollPosition, ScrollMode aMode) {
+    mInner.ScrollTo(aScrollPosition, aMode);
   }
   virtual void ScrollBy(nsIntPoint aDelta, ScrollUnit aUnit, ScrollMode aMode,
-                        nsIntPoint* aOverflow, nsIAtom *aOrigin = nullptr) {
-    mInner.ScrollBy(aDelta, aUnit, aMode, aOverflow, aOrigin);
+                        nsIntPoint* aOverflow) {
+    mInner.ScrollBy(aDelta, aUnit, aMode, aOverflow);
   }
   virtual void ScrollToRestoredPosition() {
     mInner.ScrollToRestoredPosition();
@@ -745,7 +714,7 @@ public:
   virtual void RemoveScrollPositionListener(nsIScrollPositionListener* aListener) {
     mInner.RemoveScrollPositionListener(aListener);
   }
-  virtual nsIFrame* GetScrollbarBox(bool aVertical) {
+  virtual nsIBox* GetScrollbarBox(PRBool aVertical) {
     return mInner.GetScrollbarBox(aVertical);
   }
   virtual void CurPosAttributeChanged(nsIContent* aChild) {
@@ -755,11 +724,8 @@ public:
     mInner.PostScrolledAreaEvent();
     return NS_OK;
   }
-  virtual bool IsScrollingActive() {
+  virtual PRBool IsScrollingActive() {
     return mInner.IsScrollingActive();
-  }
-  virtual bool UpdateOverflow() {
-    return mInner.UpdateOverflow();
   }
 
   // nsIStatefulFrame
@@ -781,32 +747,35 @@ public:
    */
   virtual nsIAtom* GetType() const;
   
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
     // Override bogus IsFrameOfType in nsBoxFrame.
     if (aFlags & (nsIFrame::eReplacedContainsBlock | nsIFrame::eReplaced))
-      return false;
+      return PR_FALSE;
     return nsBoxFrame::IsFrameOfType(aFlags);
   }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
 protected:
-  nsXULScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, bool aIsRoot);
-  virtual int GetSkipSides() const;
+  nsXULScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRBool aIsRoot);
+  virtual PRIntn GetSkipSides() const;
 
   void ClampAndSetBounds(nsBoxLayoutState& aState, 
                          nsRect& aRect,
                          nsPoint aScrollPosition,
-                         bool aRemoveOverflowAreas = false) {
+                         PRBool aRemoveOverflowAreas = PR_FALSE) {
     /* 
      * For RTL frames, restore the original scrolled position of the right
      * edge, then subtract the current width to find the physical position.
+     * This can break the invariant that the scroll position is a multiple of
+     * device pixels, so round off the result to the nearest device pixel.
      */
     if (!mInner.IsLTR()) {
-      aRect.x = mInner.mScrollPort.XMost() - aScrollPosition.x - aRect.width;
+      aRect.x = PresContext()->RoundAppUnitsToNearestDevPixels(
+         mInner.mScrollPort.XMost() - aScrollPosition.x - aRect.width);
     }
     mInner.mScrolledFrame->SetBounds(aState, aRect, aRemoveOverflowAreas);
   }

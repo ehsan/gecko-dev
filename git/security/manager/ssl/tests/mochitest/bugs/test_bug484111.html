@@ -1,6 +1,7 @@
 <html>
 <head>
   <title>Test bug 484111</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -49,7 +50,8 @@ function onWindowLoad()
   try
   {
     req.open("GET", "https://www.bank2.com/", false);
-    SpecialPowers.wrap(req).channel.notificationCallbacks = certListener;
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    req.channel.notificationCallbacks = certListener;
     req.send(null);
   }
   catch(ex)

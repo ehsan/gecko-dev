@@ -1,21 +1,53 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
-#include "nsAString.h"
-#include "nsCOMPtr.h"
-#include "nsCRT.h"
-#include "nsDebug.h"
-#include "nsDependentSubstring.h"
-#include "nsError.h"
-#include "nsILineBreaker.h"
-#include "nsInternetCiter.h"
-#include "nsLWBrkCIID.h"
-#include "nsServiceManagerUtils.h"
 #include "nsString.h"
-#include "nsStringIterator.h"
+#include "nsReadableUtils.h"
+#include "nsInternetCiter.h"
+#include "nsCRT.h"
+
+#include "nsCOMPtr.h"
+
+// Line breaker stuff
+#include "nsIServiceManager.h"
+#include "nsLWBrkCIID.h"
+#include "nsILineBreaker.h"
 
 const PRUnichar gt ('>');
 const PRUnichar space (' ');
@@ -51,7 +83,7 @@ nsInternetCiter::GetCiteString(const nsAString& aInString, nsAString& aOutString
     {
       aOutString.Append(gt);
       // No space between >: this is ">>> " style quoting, for
-      // compatibility with RFC 2646 and format=flowed.
+      // compatability with RFC 2646 and format=flowed.
       if (*beginIter != gt)
         aOutString.Append(space);
     }
@@ -71,8 +103,8 @@ nsInternetCiter::GetCiteString(const nsAString& aInString, nsAString& aOutString
 nsresult
 nsInternetCiter::StripCitesAndLinebreaks(const nsAString& aInString,
                                          nsAString& aOutString,
-                                         bool aLinebreaksToo,
-                                         int32_t* aCiteLevel)
+                                         PRBool aLinebreaksToo,
+                                         PRInt32* aCiteLevel)
 {
   if (aCiteLevel)
     *aCiteLevel = 0;
@@ -84,7 +116,7 @@ nsInternetCiter::StripCitesAndLinebreaks(const nsAString& aInString,
   while (beginIter!= endIter)  // loop over lines
   {
     // Clear out cites first, at the beginning of the line:
-    int32_t thisLineCiteLevel = 0;
+    PRInt32 thisLineCiteLevel = 0;
     while (beginIter!= endIter && (*beginIter == gt || nsCRT::IsAsciiSpace(*beginIter)))
     {
       if (*beginIter == gt) ++thisLineCiteLevel;
@@ -115,20 +147,20 @@ nsInternetCiter::StripCitesAndLinebreaks(const nsAString& aInString,
 nsresult
 nsInternetCiter::StripCites(const nsAString& aInString, nsAString& aOutString)
 {
-  return StripCitesAndLinebreaks(aInString, aOutString, false, 0);
+  return StripCitesAndLinebreaks(aInString, aOutString, PR_FALSE, 0);
 }
 
-static void AddCite(nsAString& aOutString, int32_t citeLevel)
+static void AddCite(nsAString& aOutString, PRInt32 citeLevel)
 {
-  for (int32_t i = 0; i < citeLevel; ++i)
+  for (PRInt32 i = 0; i < citeLevel; ++i)
     aOutString.Append(gt);
   if (citeLevel > 0)
     aOutString.Append(space);
 }
 
 static inline void
-BreakLine(nsAString& aOutString, uint32_t& outStringCol,
-          uint32_t citeLevel)
+BreakLine(nsAString& aOutString, PRUint32& outStringCol,
+          PRUint32 citeLevel)
 {
   aOutString.Append(nl);
   if (citeLevel > 0)
@@ -140,21 +172,21 @@ BreakLine(nsAString& aOutString, uint32_t& outStringCol,
     outStringCol = 0;
 }
 
-static inline bool IsSpace(PRUnichar c)
+static inline PRBool IsSpace(PRUnichar c)
 {
   return (nsCRT::IsAsciiSpace(c) || (c == nl) || (c == cr) || (c == nbsp));
 }
 
 nsresult
 nsInternetCiter::Rewrap(const nsAString& aInString,
-                        uint32_t aWrapCol, uint32_t aFirstLineOffset,
-                        bool aRespectNewlines,
+                        PRUint32 aWrapCol, PRUint32 aFirstLineOffset,
+                        PRBool aRespectNewlines,
                         nsAString& aOutString)
 {
   // There shouldn't be returns in this string, only dom newlines.
   // Check to make sure:
 #ifdef DEBUG
-  int32_t cr = aInString.FindChar(PRUnichar('\r'));
+  PRInt32 cr = aInString.FindChar(PRUnichar('\r'));
   NS_ASSERTION((cr < 0), "Rewrap: CR in string gotten from DOM!\n");
 #endif /* DEBUG */
 
@@ -165,10 +197,10 @@ nsInternetCiter::Rewrap(const nsAString& aInString,
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Loop over lines in the input string, rewrapping each one.
-  uint32_t length;
-  uint32_t posInString = 0;
-  uint32_t outStringCol = 0;
-  uint32_t citeLevel = 0;
+  PRUint32 length;
+  PRUint32 posInString = 0;
+  PRUint32 outStringCol = 0;
+  PRUint32 citeLevel = 0;
   const nsPromiseFlatString &tString = PromiseFlatString(aInString);
   length = tString.Length();
 #ifdef DEBUG_wrapping
@@ -186,7 +218,7 @@ nsInternetCiter::Rewrap(const nsAString& aInString,
 #endif
 
     // Get the new cite level here since we're at the beginning of a line
-    uint32_t newCiteLevel = 0;
+    PRUint32 newCiteLevel = 0;
     while (posInString < length && tString[posInString] == gt)
     {
       ++newCiteLevel;
@@ -237,7 +269,7 @@ nsInternetCiter::Rewrap(const nsAString& aInString,
     }
 
     // find the next newline -- don't want to go farther than that
-    int32_t nextNewline = tString.FindChar(nl, posInString);
+    PRInt32 nextNewline = tString.FindChar(nl, posInString);
     if (nextNewline < 0) nextNewline = length;
 
     // For now, don't wrap unquoted lines at all.
@@ -252,7 +284,7 @@ nsInternetCiter::Rewrap(const nsAString& aInString,
       aOutString.Append(Substring(tString, posInString,
                                   nextNewline-posInString));
       outStringCol += nextNewline - posInString;
-      if (nextNewline != (int32_t)length)
+      if (nextNewline != (PRInt32)length)
       {
         aOutString.Append(nl);
         outStringCol = 0;
@@ -263,11 +295,11 @@ nsInternetCiter::Rewrap(const nsAString& aInString,
 
     // Otherwise we have to use the line breaker and loop
     // over this line of the input string to get all of it:
-    while ((int32_t)posInString < nextNewline)
+    while ((PRInt32)posInString < nextNewline)
     {
 #ifdef DEBUG_wrapping
       if (++loopcount > 1000)
-        NS_ASSERTION(false, "possible infinite loop in nsInternetCiter\n");
+        NS_ASSERTION(PR_FALSE, "possible infinite loop in nsInternetCiter\n");
 
       printf("Inner loop: '%s'\n",
              NS_LossyConvertUTF16toASCII(Substring(tString, posInString,
@@ -275,7 +307,7 @@ nsInternetCiter::Rewrap(const nsAString& aInString,
 #endif
 
       // Skip over initial spaces:
-      while ((int32_t)posInString < nextNewline
+      while ((PRInt32)posInString < nextNewline
              && nsCRT::IsAsciiSpace(tString[posInString]))
         ++posInString;
 
@@ -284,12 +316,12 @@ nsInternetCiter::Rewrap(const nsAString& aInString,
       {
         // If this short line is the final one in the in string,
         // then we need to include the final newline, if any:
-        if (nextNewline+1 == (int32_t)length && tString[nextNewline-1] == nl)
+        if (nextNewline+1 == (PRInt32)length && tString[nextNewline-1] == nl)
           ++nextNewline;
 
         // Trim trailing spaces:
-        int32_t lastRealChar = nextNewline;
-        while ((uint32_t)lastRealChar > posInString
+        PRInt32 lastRealChar = nextNewline;
+        while ((PRUint32)lastRealChar > posInString
                && nsCRT::IsAsciiSpace(tString[lastRealChar-1]))
           --lastRealChar;
 
@@ -300,18 +332,18 @@ nsInternetCiter::Rewrap(const nsAString& aInString,
         continue;
       }
 
-      int32_t eol = posInString + aWrapCol - citeLevel - outStringCol;
+      PRInt32 eol = posInString + aWrapCol - citeLevel - outStringCol;
       // eol is the prospective end of line.
       // We'll first look backwards from there for a place to break.
       // If it's already less than our current position,
       // then our line is already too long, so break now.
-      if (eol <= (int32_t)posInString)
+      if (eol <= (PRInt32)posInString)
       {
         BreakLine(aOutString, outStringCol, citeLevel);
         continue;    // continue inner loop, with outStringCol now at bol
       }
 
-      int32_t breakPt = 0;
+      PRInt32 breakPt = 0;
       rv = NS_ERROR_BASE;
       if (lineBreaker)
       {
@@ -364,7 +396,7 @@ nsInternetCiter::Rewrap(const nsAString& aInString,
 
       nsAutoString sub (Substring(tString, posInString, breakPt));
       // skip newlines or whitespace at the end of the string
-      int32_t subend = sub.Length();
+      PRInt32 subend = sub.Length();
       while (subend > 0 && IsSpace(sub[subend-1]))
         --subend;
       sub.Left(sub, subend);

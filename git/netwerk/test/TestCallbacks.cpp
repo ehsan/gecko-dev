@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "TestCommon.h"
 #include <stdio.h>
@@ -20,7 +52,6 @@
 #include "nsIInterfaceRequestor.h" 
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIDNSService.h" 
-#include "mozilla/Attributes.h"
 
 #include "nsISimpleEnumerator.h"
 #include "nsNetUtil.h"
@@ -28,8 +59,8 @@
 
 static NS_DEFINE_CID(kIOServiceCID,              NS_IOSERVICE_CID);
 
-static bool gError = false;
-static int32_t gKeepRunning = 0;
+static PRBool gError = PR_FALSE;
+static PRInt32 gKeepRunning = 0;
 
 #define NS_IEQUALS_IID \
     { 0x11c5c8ee, 0x1dd2, 0x11b2, \
@@ -38,20 +69,20 @@ static int32_t gKeepRunning = 0;
 class nsIEquals : public nsISupports {
 public:
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IEQUALS_IID)
-    NS_IMETHOD Equals(void *aPtr, bool *_retval) = 0;
+    NS_IMETHOD Equals(void *aPtr, PRBool *_retval) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIEquals, NS_IEQUALS_IID)
 
-class ConsumerContext MOZ_FINAL : public nsIEquals {
+class ConsumerContext : public nsIEquals {
 public:
     NS_DECL_ISUPPORTS
 
     ConsumerContext() { }
 
-    NS_IMETHOD Equals(void *aPtr, bool *_retval) {
-        *_retval = true;
-        if (aPtr != this) *_retval = false;
+    NS_IMETHOD Equals(void *aPtr, PRBool *_retval) {
+        *_retval = PR_TRUE;
+        if (aPtr != this) *_retval = PR_FALSE;
         return NS_OK;
     };
 };
@@ -70,9 +101,9 @@ public:
     nsresult Validate(nsIRequest *request, nsISupports *aContext);
 
     // member data
-    bool    mOnStart; // have we received an OnStart?
-    bool    mOnStop;  // have we received an onStop?
-    int32_t mOnDataCount; // number of times OnData was called.
+    PRBool  mOnStart; // have we received an OnStart?
+    PRBool  mOnStop;  // have we received an onStop?
+    PRInt32 mOnDataCount; // number of times OnData was called.
     nsCOMPtr<nsIURI>     mURI;
     nsCOMPtr<nsIChannel> mChannel;
     nsCOMPtr<nsIEquals>  mContext;
@@ -90,7 +121,7 @@ Consumer::OnStartRequest(nsIRequest *request, nsISupports* aContext) {
     if (mOnStart) {
         fprintf(stderr, "INFO: multiple OnStarts received\n");
     }
-    mOnStart = true;
+    mOnStart = PR_TRUE;
 
     nsresult rv = Validate(request, aContext);
     if (NS_FAILED(rv)) return rv;
@@ -105,7 +136,7 @@ Consumer::OnStopRequest(nsIRequest *request, nsISupports *aContext,
     fprintf(stderr, "Consumer::OnStop() -> in\n\n");
 
     if (!mOnStart) {
-        gError = true;
+        gError = PR_TRUE;
         fprintf(stderr, "ERROR: No OnStart received\n");
     }
 
@@ -115,7 +146,7 @@ Consumer::OnStopRequest(nsIRequest *request, nsISupports *aContext,
 
     fprintf(stderr, "INFO: received %d OnData()s\n", mOnDataCount);
 
-    mOnStop = true;
+    mOnStop = PR_TRUE;
 
     nsresult rv = Validate(request, aContext);
     if (NS_FAILED(rv)) return rv;
@@ -129,11 +160,11 @@ Consumer::OnStopRequest(nsIRequest *request, nsISupports *aContext,
 NS_IMETHODIMP
 Consumer::OnDataAvailable(nsIRequest *request, nsISupports *aContext,
                           nsIInputStream *aIStream,
-                          uint64_t aOffset, uint32_t aLength) {
+                          PRUint32 aOffset, PRUint32 aLength) {
     fprintf(stderr, "Consumer::OnData() -> in\n\n");
 
     if (!mOnStart) {
-        gError = true;
+        gError = PR_TRUE;
         fprintf(stderr, "ERROR: No OnStart received\n");
     }
 
@@ -148,7 +179,7 @@ Consumer::OnDataAvailable(nsIRequest *request, nsISupports *aContext,
 
 // Consumer implementation
 Consumer::Consumer() {
-    mOnStart = mOnStop = false;
+    mOnStart = mOnStop = PR_FALSE;
     mOnDataCount = 0;
     gKeepRunning++;
 }
@@ -157,12 +188,12 @@ Consumer::~Consumer() {
     fprintf(stderr, "Consumer::~Consumer -> in\n\n");
 
     if (!mOnStart) {
-        gError = true;
+        gError = PR_TRUE;
         fprintf(stderr, "ERROR: Never got an OnStart\n");
     }
 
     if (!mOnStop) {
-        gError = true;
+        gError = PR_TRUE;
         fprintf(stderr, "ERROR: Never got an OnStop \n");
     }
 
@@ -188,7 +219,7 @@ Consumer::Validate(nsIRequest* request, nsISupports *aContext) {
     rv = aChannel->GetURI(getter_AddRefs(uri));
     if (NS_FAILED(rv)) return rv;
 
-    bool same = false;
+    PRBool same = PR_FALSE;
 
     rv = mURI->Equals(uri, &same);
     if (NS_FAILED(rv)) return rv;
@@ -200,7 +231,7 @@ Consumer::Validate(nsIRequest* request, nsISupports *aContext) {
     if (NS_FAILED(rv)) return rv;
 
     if (!same) {
-        gError = true;
+        gError = PR_TRUE;
         fprintf(stderr, "ERROR: Contexts do not match\n");
     }
     return rv;
@@ -213,31 +244,31 @@ int main(int argc, char *argv[]) {
         return -1;
 
     nsresult rv = NS_OK;
-    bool cmdLineURL = false;
+    PRBool cmdLineURL = PR_FALSE;
 
     if (argc > 1) {
         // run in signle url mode
-        cmdLineURL = true;
+        cmdLineURL = PR_TRUE;
     }
 
-    rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
-    if (NS_FAILED(rv)) return -1;
+    rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
+    if (NS_FAILED(rv)) return rv;
 
     if (cmdLineURL) {
         rv = StartLoad(argv[1]);
     } else {
         rv = StartLoad("http://badhostnamexyz/test.txt");
     }
-    if (NS_FAILED(rv)) return -1;
+    if (NS_FAILED(rv)) return rv;
 
     // Enter the message pump to allow the URL load to proceed.
     PumpEvents();
 
-    NS_ShutdownXPCOM(nullptr);
+    NS_ShutdownXPCOM(nsnull);
     if (gError) {
         fprintf(stderr, "\n\n-------ERROR-------\n\n");
     }
-    return 0;
+    return rv;
 }
 
 nsresult StartLoad(const char *aURISpec) {

@@ -8,6 +8,8 @@
 <window id="outer-document" title="Focus Test" width="600" height="550"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
@@ -491,9 +493,7 @@ function startTest()
   ok(gEvents === "", "focusing element that is already focused");
 
   $("t2").blur();
-  $("t7").blur();
   ok(gEvents === "", "blurring element that is not focused");
-  is(document.activeElement, $("t1"), "old element still focused after blur() on another element");
 
   // focus() method on elements that are not tabbable 
   for (idx = 1; idx <= kFocusSteps; idx++) {
@@ -539,13 +539,8 @@ function startTest()
     gLastFocusMethod = (key == "D" || key == "G") ? fm.FLAG_BYMOVEFOCUS : fm.FLAG_BYKEY;
 
     // on Windows and Linux, the shift key must be pressed for content area access keys
-    // and on Mac, the alt key must be pressed for content area access keys
-    var isContent = (getById(keys[k]).ownerDocument.defaultView == gChildWindow);
-    if (navigator.platform.indexOf("Mac") == -1) {
-      accessKeyDetails.shiftKey = isContent;
-    } else {
-      accessKeyDetails.altKey = isContent;
-    }
+    if (navigator.platform.indexOf("Mac") == -1)
+      accessKeyDetails.shiftKey = (getById(keys[k]).ownerDocument.defaultView == gChildWindow);
 
     expectFocusShift(function () synthesizeKey(key, accessKeyDetails),
                      null, getById(keys[k]), true, "accesskey " + key);
@@ -1550,6 +1545,7 @@ function doFrameHistoryTests()
   var t20 = getById("t20");
   t20.focus();
 
+  addEventListener("message", function() { $("childframe").goBack(); }, true);
   gChildWindow.addEventListener("focus",
     function(event) {
       if (event.target == t20) {
@@ -1558,7 +1554,11 @@ function doFrameHistoryTests()
   }, true);
 
   // make sure that loading a new page and then going back maintains the focus
-  gChildWindow.location = "data:text/html,<script>window.onload=function() {setTimeout(function () {window.back();}, 0);}</script>";
+  gChildWindow.location = "data:text/html,<html><body onload='window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)." +
+                          "getInterface(Components.interfaces.nsIWebNavigation)." +
+                          "QueryInterface(Components.interfaces.nsIDocShellTreeItem).rootTreeItem." +
+                          "QueryInterface(Components.interfaces.nsIInterfaceRequestor)." +
+                          "getInterface(Components.interfaces.nsIDOMWindow).postMessage(\"content loaded\", \"*\");'>Next</body></html>";
 }
 
 function addFrameSwitchingListeners(frame)

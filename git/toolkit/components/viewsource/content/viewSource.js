@@ -1,21 +1,53 @@
-// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
-
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-Components.utils.import("resource://gre/modules/Services.jsm");
+# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 2001
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Doron Rosenberg (doronr@naboonline.com)
+#   Neil Rashbrook (neil@parkwaycc.co.uk)
+#   Dão Gottwald (dao@design-noir.de)
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
+var gPrefs = null;
 
 var gLastLineFound = '';
 var gGoToLine = 0;
 
 [
   ["gBrowser",          "content"],
-  ["gViewSourceBundle", "viewSourceBundle"],
-  ["gContextMenu",      "viewSourceContextMenu"]
+  ["gViewSourceBundle", "viewSourceBundle"]
 ].forEach(function ([name, id]) {
   window.__defineGetter__(name, function () {
     var element = document.getElementById(id);
@@ -38,6 +70,13 @@ __defineGetter__("gPageLoader", function () {
   delete this.gPageLoader;
   return this.gPageLoader = webnav.QueryInterface(Ci.nsIWebPageDescriptor);
 });
+
+try {
+  var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+                              .getService(Components.interfaces.nsIPrefService);
+  gPrefs = prefService.getBranch(null);
+} catch (ex) {
+}
 
 var gSelectionListener = {
   timeout: 0,
@@ -125,7 +164,8 @@ function viewSource(url)
 
       try {
         if (arg === true) {
-          gBrowser.docShell.charset = charset;
+          var docCharset = gBrowser.docShell.QueryInterface(Ci.nsIDocCharset);
+          docCharset.charset = charset;
         }
       } catch (ex) {
         // Ignore the failure and keep processing arguments...
@@ -179,14 +219,22 @@ function viewSource(url)
 
   // Check the view_source.wrap_long_lines pref and set the menuitem's checked
   // attribute accordingly.
-  var wraplonglinesPrefValue = Services.prefs.getBoolPref("view_source.wrap_long_lines");
+  if (gPrefs) {
+    try {
+      var wraplonglinesPrefValue = gPrefs.getBoolPref("view_source.wrap_long_lines");
 
-  if (wraplonglinesPrefValue)
-    document.getElementById("menu_wrapLongLines").setAttribute("checked", "true");
-
-  document.getElementById("menu_highlightSyntax")
-          .setAttribute("checked",
-                        Services.prefs.getBoolPref("view_source.syntax_highlight"));
+      if (wraplonglinesPrefValue)
+        document.getElementById("menu_wrapLongLines").setAttribute("checked", "true");
+    } catch (ex) {
+    }
+    try {
+      document.getElementById("menu_highlightSyntax").setAttribute("checked",
+        gPrefs.getBoolPref("view_source.syntax_highlight"));
+    } catch (ex) {
+    }
+  } else {
+    document.getElementById("menu_highlightSyntax").setAttribute("hidden", "true");
+  }
 
   window.addEventListener("AppCommand", HandleAppCommandEvent, true);
   window.addEventListener("MozSwipeGesture", HandleSwipeGesture, true);
@@ -238,13 +286,16 @@ function onClickContent(event) {
 
   var target = event.originalTarget;
   var errorDoc = target.ownerDocument;
+  
+  var formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"]
+                    .getService(Ci.nsIURLFormatter);
 
   if (/^about:blocked/.test(errorDoc.documentURI)) {
     // The event came from a button on a malware/phishing block page
     // First check whether it's malware or phishing, so that we can
     // use the right strings/links
     var isMalware = /e=malwareBlocked/.test(errorDoc.documentURI);
-
+    
     if (target == errorDoc.getElementById('getMeOutButton')) {
       // Instead of loading some safe page, just close the window
       window.close();
@@ -257,7 +308,7 @@ function onClickContent(event) {
         // Get the stop badware "why is this blocked" report url,
         // append the current url, and go there.
         try {
-          let reportURL = Services.urlFormatter.formatURLPref("browser.safebrowsing.malware.reportURL", true);
+          let reportURL = formatter.formatURLPref("browser.safebrowsing.malware.reportURL", true);
           reportURL += errorDoc.location.href.slice(12);
           openURL(reportURL);
         } catch (e) {
@@ -265,7 +316,7 @@ function onClickContent(event) {
         }
       } else { // It's a phishing site, not malware
         try {
-          var infoURL = Services.urlFormatter.formatURLPref("browser.safebrowsing.warning.infoURL", true);
+          var infoURL = formatter.formatURLPref("browser.safebrowsing.warning.infoURL", true);
           openURL(infoURL);
         } catch (e) {
           Components.utils.reportError("Couldn't get phishing info URL: " + e);
@@ -322,12 +373,10 @@ function ViewSourceReload()
                            Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE);
 }
 
-// Strips the |view-source:| for internalSave()
+// Strips the |view-source:| for saveURL()
 function ViewSourceSavePage()
 {
-  internalSave(window.content.location.href.substring(12), 
-               null, null, null, null, null,
-               "SaveLinkTitle", null, null, null, gPageLoader);
+  saveURL(window.content.location.href.substring(12), null, "SaveLinkTitle");
 }
 
 var PrintPreviewListener = {
@@ -371,9 +420,12 @@ function getWebNavigation()
 
 function ViewSourceGoToLine()
 {
+  var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"]
+                        .getService(Ci.nsIPromptService);
+
   var input = {value:gLastLineFound};
   for (;;) {
-    var ok = Services.prompt.prompt(
+    var ok = promptService.prompt(
         window,
         gViewSourceBundle.getString("goToLineTitle"),
         gViewSourceBundle.getString("goToLineText"),
@@ -387,9 +439,9 @@ function ViewSourceGoToLine()
     var line = parseInt(input.value, 10);
 
     if (!(line > 0)) {
-      Services.prompt.alert(window,
-                            gViewSourceBundle.getString("invalidInputTitle"),
-                            gViewSourceBundle.getString("invalidInputText"));
+      promptService.alert(window,
+                          gViewSourceBundle.getString("invalidInputTitle"),
+                          gViewSourceBundle.getString("invalidInputText"));
 
       continue;
     }
@@ -399,9 +451,9 @@ function ViewSourceGoToLine()
     if (found)
       break;
 
-    Services.prompt.alert(window,
-                          gViewSourceBundle.getString("outOfRangeTitle"),
-                          gViewSourceBundle.getString("outOfRangeText"));
+    promptService.alert(window,
+                        gViewSourceBundle.getString("outOfRangeTitle"),
+                        gViewSourceBundle.getString("outOfRangeText"));
   }
 }
 
@@ -413,15 +465,13 @@ function goToLine(line)
   // id attributes in the format <pre id="line123">, meaning that
   // the first line in the pre element is number 123.
   // Do binary search to find the pre element containing the line.
-  // However, in the plain text case, we have only one pre without an
-  // attribute, so assume it begins on line 1.
 
   var pre;
   for (var lbound = 0, ubound = viewsource.childNodes.length; ; ) {
     var middle = (lbound + ubound) >> 1;
     pre = viewsource.childNodes[middle];
 
-    var firstLine = pre.id ? parseInt(pre.id.substring(4)) : 1;
+    var firstLine = parseInt(pre.id.substring(4));
 
     if (lbound == ubound - 1) {
       break;
@@ -540,9 +590,7 @@ function findLocation(pre, line, node, offset, interlinePosition, result)
   // The source document is made up of a number of pre elements with
   // id attributes in the format <pre id="line123">, meaning that
   // the first line in the pre element is number 123.
-  // However, in the plain text case, there is only one <pre> without an id,
-  // so assume line 1.
-  var curLine = pre.id ? parseInt(pre.id.substring(4)) : 1;
+  var curLine = parseInt(pre.id.substring(4));
 
   // Walk through each of the text nodes and count newlines.
   var treewalker = window.content.document
@@ -629,13 +677,22 @@ function wrapLongLines()
 
   if (myWrap.className == '')
     myWrap.className = 'wrap';
-  else
-    myWrap.className = '';
+  else myWrap.className = '';
 
   // Since multiple viewsource windows are possible, another window could have
   // affected the pref, so instead of determining the new pref value via the current
   // pref value, we use myWrap.className.
-  Services.prefs.setBoolPref("view_source.wrap_long_lines", myWrap.className != '');
+  if (gPrefs) {
+    try {
+      if (myWrap.className == '') {
+        gPrefs.setBoolPref("view_source.wrap_long_lines", false);
+      }
+      else {
+        gPrefs.setBoolPref("view_source.wrap_long_lines", true);
+      }
+    } catch (ex) {
+    }
+  }
 }
 
 // Toggles syntax highlighting and sets the view_source.syntax_highlight
@@ -644,17 +701,17 @@ function highlightSyntax()
 {
   var highlightSyntaxMenu = document.getElementById("menu_highlightSyntax");
   var highlightSyntax = (highlightSyntaxMenu.getAttribute("checked") == "true");
-  Services.prefs.setBoolPref("view_source.syntax_highlight", highlightSyntax);
+  gPrefs.setBoolPref("view_source.syntax_highlight", highlightSyntax);
 
   gPageLoader.loadPage(gPageLoader.currentDescriptor, gPageLoader.DISPLAY_NORMAL);
 }
 
-// Reload after change to character encoding or autodetection
-//
 // Fix for bug 136322: this function overrides the function in
 // browser.js to call PageLoader.loadPage() instead of BrowserReloadWithFlags()
-function BrowserCharsetReload()
+function BrowserSetForcedCharacterSet(aCharset)
 {
+  var docCharset = gBrowser.docShell.QueryInterface(Ci.nsIDocCharset);
+  docCharset.charset = aCharset;
   if (isHistoryEnabled()) {
     gPageLoader.loadPage(gPageLoader.currentDescriptor,
                          gPageLoader.DISPLAY_NORMAL);
@@ -663,10 +720,23 @@ function BrowserCharsetReload()
   }
 }
 
-function BrowserSetForcedCharacterSet(aCharset)
+// fix for bug #229503
+// we need to define BrowserSetForcedDetector() so that we can
+// change auto-detect options in the "View | Character Encoding" menu.
+// As with BrowserSetForcedCharacterSet(), call PageLoader.loadPage() 
+// instead of BrowserReloadWithFlags()
+function BrowserSetForcedDetector(doReload)
 {
-  gBrowser.docShell.charset = aCharset;
-  BrowserCharsetReload();
+  gBrowser.documentCharsetInfo.forcedDetector = true; 
+  if (doReload)
+  {
+    if (isHistoryEnabled()) {
+      gPageLoader.loadPage(gPageLoader.currentDescriptor,
+                           gPageLoader.DISPLAY_NORMAL);
+    } else {
+      gBrowser.reloadWithFlags(Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
+    }
+  }
 }
 
 function BrowserForward(aEvent) {
@@ -698,62 +768,4 @@ function UpdateBackForwardCommands() {
     forwardBroadcaster.removeAttribute("disabled");
   else
     forwardBroadcaster.setAttribute("disabled", "true");
-}
-
-// FIXME copied and modified from browser.js.
-// Deduplication is part of bug 480356.
-function FillInHTMLTooltip(tipElement)
-{
-  var retVal = false;
-  var titleText = null;
-  var direction = tipElement.ownerDocument.dir;
-
-  while (!titleText && tipElement) {
-    if (tipElement.nodeType == Node.ELEMENT_NODE) {
-      titleText = tipElement.getAttribute("title");
-      var defView = tipElement.ownerDocument.defaultView;
-      // XXX Work around bug 350679:
-      // "Tooltips can be fired in documents with no view".
-      if (!defView)
-        return retVal;
-      direction = defView.getComputedStyle(tipElement, "")
-        .getPropertyValue("direction");
-    }
-    tipElement = tipElement.parentNode;
-  }
-
-  var tipNode = document.getElementById("aHTMLTooltip");
-  tipNode.style.direction = direction;
-
-  if (titleText && /\S/.test(titleText)) {
-    // Make CRLF and CR render one line break each.  
-    titleText = titleText.replace(/\r\n/g, '\n');
-    titleText = titleText.replace(/\r/g, '\n');
-    tipNode.setAttribute("label", titleText);
-    retVal = true;
-  }
-  return retVal;
-}
-
-function contextMenuShowing() {
-  var isLink = false;
-  var isEmail = false;
-  if (gContextMenu.triggerNode && gContextMenu.triggerNode.localName == 'a') {
-    if (gContextMenu.triggerNode.href.indexOf('view-source:') == 0)
-      isLink = true;
-    if (gContextMenu.triggerNode.href.indexOf('mailto:') == 0)
-      isEmail = true;
-  }
-  document.getElementById('context-copyLink').hidden = !isLink;
-  document.getElementById('context-copyEmail').hidden = !isEmail;
-}
-
-function contextMenuCopyLinkOrEmail() {
-  if (!gContextMenu.triggerNode)
-    return;
-
-  var href = gContextMenu.triggerNode.href;
-  var clipboard = Cc['@mozilla.org/widget/clipboardhelper;1'].
-                  getService(Ci.nsIClipboardHelper);
-  clipboard.copyString(href.substring(href.indexOf(':') + 1), document);
 }

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdio.h>
 #include <string.h>
@@ -42,7 +75,7 @@ static NS_DEFINE_CID(kPlatformCharsetCID, NS_PLATFORMCHARSET_CID);
 #define ARRAY_SIZE(_array)                                      \
      (sizeof(_array) / sizeof(_array[0]))
 
-nsICharsetConverterManager * ccMan = nullptr;
+nsICharsetConverterManager * ccMan = NULL;
 
 /**
  * Test data for Latin1 charset.
@@ -56,8 +89,8 @@ PRUnichar cLatin1_d0[] = {
   0x0000,0x000d,0x007f,0x20ac,0x00ff
 };
 
-int32_t bLatin1_s0 = ARRAY_SIZE(bLatin1_d0)-1;
-int32_t cLatin1_s0 = ARRAY_SIZE(cLatin1_d0);
+PRInt32 bLatin1_s0 = ARRAY_SIZE(bLatin1_d0)-1;
+PRInt32 cLatin1_s0 = ARRAY_SIZE(cLatin1_d0);
 
 //----------------------------------------------------------------------
 // Converter Manager test code
@@ -74,7 +107,7 @@ nsresult testCharsetConverterManager()
 
 #define CREATE_DECODER(_charset)                                \
     nsIUnicodeDecoder * dec;                                    \
-    nsAutoString str;str.AssignASCII(_charset);                 \
+    nsAutoString str;str.AssignWithConversion(_charset);        \
     nsresult res = ccMan->GetUnicodeDecoder(&str,&dec);         \
     if (NS_FAILED(res)) {                                       \
       printf("ERROR at GetUnicodeDecoder() code=0x%x.\n",res);  \
@@ -83,7 +116,7 @@ nsresult testCharsetConverterManager()
 
 #define CREATE_ENCODER(_charset)                                \
     nsIUnicodeEncoder * enc;                                    \
-    nsAutoString str; str.AssignASCII(_charset);                \
+    nsAutoString str; str.AssignWithConversion(_charset);       \
     nsresult res = ccMan->GetUnicodeEncoder(&str,&enc);         \
     if (NS_FAILED(res)) {                                       \
       printf("ERROR at GetUnicodeEncoder() code=0x%x.\n",res);  \
@@ -96,16 +129,16 @@ nsresult testCharsetConverterManager()
  * This method will test the conversion only.
  */
 nsresult testDecoder(nsIUnicodeDecoder * aDec, 
-                     const char * aSrc, int32_t aSrcLength, 
-                     const PRUnichar * aRes, int32_t aResLength,
+                     const char * aSrc, PRInt32 aSrcLength, 
+                     const PRUnichar * aRes, PRInt32 aResLength,
                      const char * aTestName)
 {
   nsresult res;
 
   // prepare for conversion
-  int32_t srcLen = aSrcLength;
+  PRInt32 srcLen = aSrcLength;
   PRUnichar dest[GENERAL_BUFFER/2];
-  int32_t destLen = GENERAL_BUFFER/2;
+  PRInt32 destLen = GENERAL_BUFFER/2;
 
   // conversion
   res = aDec->Convert(aSrc, &srcLen, dest, &destLen);
@@ -121,7 +154,7 @@ nsresult testDecoder(nsIUnicodeDecoder * aDec,
           aTestName, aResLength, destLen);
       return NS_ERROR_UNEXPECTED;
   }
-  for (int32_t i=0; i<aResLength; i++) if (aRes[i] != dest[i]) {
+  for (PRInt32 i=0; i<aResLength; i++) if (aRes[i] != dest[i]) {
       printf("ERROR at %s.easy.DecResChar[%d] expected=0x%x result=0x%x.\n", 
           aTestName, i, aRes[i], dest[i]);
       return NS_ERROR_UNEXPECTED;
@@ -136,17 +169,17 @@ nsresult testDecoder(nsIUnicodeDecoder * aDec,
  * This method will test the conversion only.
  */
 nsresult testEncoder(nsIUnicodeEncoder * aEnc, 
-                     const PRUnichar * aSrc, int32_t aSrcLength, 
-                     const char * aRes, int32_t aResLength,
+                     const PRUnichar * aSrc, PRInt32 aSrcLength, 
+                     const char * aRes, PRInt32 aResLength,
                      const char * aTestName)
 {
   nsresult res;
 
   // prepare for conversion
-  int32_t srcLen = 0;
+  PRInt32 srcLen = 0;
   char dest[GENERAL_BUFFER];
-  int32_t destLen = 0;
-  int32_t bcr, bcw;
+  PRInt32 destLen = 0;
+  PRInt32 bcr, bcw;
 
   // conversion
   bcr = aSrcLength;
@@ -176,7 +209,7 @@ nsresult testEncoder(nsIUnicodeEncoder * aEnc,
           aTestName, aResLength, destLen);
       return NS_ERROR_UNEXPECTED;
   }
-  for (int32_t i=0; i<aResLength; i++) if (aRes[i] != dest[i]) {
+  for (PRInt32 i=0; i<aResLength; i++) if (aRes[i] != dest[i]) {
       printf("ERROR at %s.easy.EncResChar[%d] expected=0x%x result=0x%x.\n", 
           aTestName, i, aRes[i], dest[i]);
       return NS_ERROR_UNEXPECTED;
@@ -192,27 +225,27 @@ nsresult testEncoder(nsIUnicodeEncoder * aEnc,
  * very stressful conditions.
  */
 nsresult testStressDecoder(nsIUnicodeDecoder * aDec, 
-                           const char * aSrc, int32_t aSrcLength, 
-                           const PRUnichar * aRes, int32_t aResLength,
+                           const char * aSrc, PRInt32 aSrcLength, 
+                           const PRUnichar * aRes, PRInt32 aResLength,
                            const char * aTestName)
 {
   nsresult res;
 
   // get estimated length
-  int32_t estimatedLength;
+  PRInt32 estimatedLength;
   res = aDec->GetMaxLength(aSrc, aSrcLength, &estimatedLength);
   if (NS_FAILED(res)) {
     printf("ERROR at %s.stress.Length() code=0x%x.\n",aTestName,res);
     return res;
   }
-  bool exactLength = (res == NS_EXACT_LENGTH);
+  PRBool exactLength = (res == NS_EXACT_LENGTH);
 
   // prepare for conversion
-  int32_t srcLen = 0;
-  int32_t srcOff = 0;
+  PRInt32 srcLen = 0;
+  PRInt32 srcOff = 0;
   PRUnichar dest[1024];
-  int32_t destLen = 0;
-  int32_t destOff = 0;
+  PRInt32 destLen = 0;
+  PRInt32 destOff = 0;
 
   // controlled conversion
   for (;srcOff < aSrcLength;) {
@@ -262,7 +295,7 @@ nsresult testStressDecoder(nsIUnicodeDecoder * aDec,
           aTestName, aResLength, destOff);
       return NS_ERROR_UNEXPECTED;
   }
-  for (int32_t i=0; i<aResLength; i++) if (aRes[i] != dest[i]) {
+  for (PRInt32 i=0; i<aResLength; i++) if (aRes[i] != dest[i]) {
       printf("ERROR at %s.stress.ConvResChar[%d] expected=0x%x result=0x%x.\n", 
           aTestName, i, aRes[i], dest[i]);
       return NS_ERROR_UNEXPECTED;
@@ -278,27 +311,27 @@ nsresult testStressDecoder(nsIUnicodeDecoder * aDec,
  * very stressful conditions.
  */
 nsresult testStressEncoder(nsIUnicodeEncoder * aEnc, 
-                           const PRUnichar * aSrc, int32_t aSrcLength,
-                           const char * aRes, int32_t aResLength, 
+                           const PRUnichar * aSrc, PRInt32 aSrcLength,
+                           const char * aRes, PRInt32 aResLength, 
                            const char * aTestName)
 {
   nsresult res;
 
   // get estimated length
-  int32_t estimatedLength;
+  PRInt32 estimatedLength;
   res = aEnc->GetMaxLength(aSrc, aSrcLength, &estimatedLength);
   if (NS_FAILED(res)) {
     printf("ERROR at %s.stress.Length() code=0x%x.\n",aTestName,res);
     return res;
   }
-  bool exactLength = (res == NS_OK_UENC_EXACTLENGTH);
+  PRBool exactLength = (res == NS_OK_UENC_EXACTLENGTH);
 
   // prepare for conversion
-  int32_t srcLen = 0;
-  int32_t srcOff = 0;
+  PRInt32 srcLen = 0;
+  PRInt32 srcOff = 0;
   char dest[GENERAL_BUFFER];
-  int32_t destLen = 0;
-  int32_t destOff = 0;
+  PRInt32 destLen = 0;
+  PRInt32 destOff = 0;
 
   // controlled conversion
   for (;srcOff < aSrcLength;) {
@@ -362,7 +395,7 @@ nsresult testStressEncoder(nsIUnicodeEncoder * aEnc,
           aTestName, aResLength, destOff);
       return NS_ERROR_UNEXPECTED;
   }
-  for (int32_t i=0; i<aResLength; i++) if (aRes[i] != dest[i]) {
+  for (PRInt32 i=0; i<aResLength; i++) if (aRes[i] != dest[i]) {
       printf("ERROR at %s.stress.ConvResChar[%d] expected=0x%x result=0x%x.\n", 
           aTestName, i, aRes[i], dest[i]);
       return NS_ERROR_UNEXPECTED;
@@ -405,7 +438,7 @@ nsresult resetEncoder(nsIUnicodeEncoder * aEnc, const char * aTestName)
  * A standard decoder test.
  */
 nsresult standardDecoderTest(char * aTestName, char * aCharset, char * aSrc, 
-  int32_t aSrcLen, PRUnichar * aRes, int32_t aResLen)
+  PRInt32 aSrcLen, PRUnichar * aRes, PRInt32 aResLen)
 {
   printf("\n[%s] Unicode <- %s\n", aTestName, aCharset);
 
@@ -433,15 +466,15 @@ nsresult standardDecoderTest(char * aTestName, char * aCharset, char * aSrc,
   }
 }
 
-nsresult loadBinaryFile(char * aFile, char * aBuff, int32_t * aBuffLen)
+nsresult loadBinaryFile(char * aFile, char * aBuff, PRInt32 * aBuffLen)
 {
   FILE * f = fopen(aFile, "rb");
-  if (!f) {
+  if (f == NULL) {
     printf("ERROR at opening file: \"%s\".\n", aFile);
     return NS_ERROR_UNEXPECTED;
   }
 
-  int32_t n = fread(aBuff, 1, *aBuffLen, f);
+  PRInt32 n = fread(aBuff, 1, *aBuffLen, f);
   if (n >= *aBuffLen) {
     printf("ERROR at reading from file \"%s\": too much input data.\n", aFile);
     return NS_ERROR_UNEXPECTED;
@@ -452,9 +485,9 @@ nsresult loadBinaryFile(char * aFile, char * aBuff, int32_t * aBuffLen)
   return NS_OK;
 }
 
-nsresult loadUnicodeFile(char * aFile, PRUnichar * aBuff, int32_t * aBuffLen)
+nsresult loadUnicodeFile(char * aFile, PRUnichar * aBuff, PRInt32 * aBuffLen)
 {
-  int32_t buffLen = 2*(*aBuffLen);
+  PRInt32 buffLen = 2*(*aBuffLen);
 
   nsresult res = loadBinaryFile(aFile, (char *)aBuff, &buffLen);
   if (NS_FAILED(res)) return res;
@@ -468,9 +501,9 @@ nsresult testDecoderFromFiles(char * aCharset, char * aSrcFile, char * aResultFi
   // create converter
   CREATE_DECODER(aCharset);
 
-  int32_t srcLen = GENERAL_BUFFER;
+  PRInt32 srcLen = GENERAL_BUFFER;
   char src[GENERAL_BUFFER];
-  int32_t expLen = GENERAL_BUFFER/2;
+  PRInt32 expLen = GENERAL_BUFFER/2;
   PRUnichar exp[GENERAL_BUFFER/2];
 
   res = loadBinaryFile(aSrcFile, src, &srcLen);
@@ -793,7 +826,7 @@ nsresult testLatin1Encoder()
 
   // create converter
   CREATE_ENCODER("iso-8859-1");
-  enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
+  enc->SetOutputErrorBehavior(enc->kOnError_Replace, NULL, 0x00cc);
 
   // test data
   PRUnichar src[] = {0x0001,0x0002,0xffff,0x00e3};
@@ -830,7 +863,7 @@ nsresult testSJISEncoder()
 
   // create converter
   CREATE_ENCODER("Shift_JIS");
-  enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
+  enc->SetOutputErrorBehavior(enc->kOnError_Replace, NULL, 0x00cc);
 
   // test data
   PRUnichar src[] = {
@@ -879,7 +912,7 @@ nsresult testEUCJPEncoder()
 
   // create converter
   CREATE_ENCODER("euc-jp");
-  enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
+  enc->SetOutputErrorBehavior(enc->kOnError_Replace, NULL, 0x00cc);
 
   // test data
   PRUnichar src[] = {0x0045, 0x0054};
@@ -916,7 +949,7 @@ nsresult testISO2022JPEncoder()
 
   // create converter
   CREATE_ENCODER("iso-2022-jp");
-  enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
+  enc->SetOutputErrorBehavior(enc->kOnError_Replace, NULL, 0x00cc);
 
   // test data
   PRUnichar src[] = {0x000d,0x007f, 0xff6a,0xFF9C, 0x3000, 0x5378};
@@ -953,7 +986,7 @@ nsresult testMUTF7Encoder()
 
   // create converter
   CREATE_ENCODER("x-imap4-modified-utf7");
-  enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
+  enc->SetOutputErrorBehavior(enc->kOnError_Replace, NULL, 0x00cc);
 
   // test data
   PRUnichar src[] = {0x0050,0x0051,0x0052,0x0053,0x0000,0x0000,0x0000,'&',0x0000};
@@ -990,7 +1023,7 @@ nsresult testUTF7Encoder()
 
   // create converter
   CREATE_ENCODER("utf-7");
-  enc->SetOutputErrorBehavior(enc->kOnError_Replace, nullptr, 0x00cc);
+  enc->SetOutputErrorBehavior(enc->kOnError_Replace, NULL, 0x00cc);
 
   // test data
   PRUnichar src[] = {'e','t','i','r','a',0x0a};
@@ -1098,7 +1131,7 @@ nsresult testFromArgs(int argc, char **argv)
 
 nsresult init()
 {
-  nsresult rv = NS_InitXPCOM2(nullptr, nullptr, nullptr);
+  nsresult rv = NS_InitXPCOM2(nsnull, nsnull, nsnull);
   if (NS_FAILED(rv))
     return rv;
   return CallGetService(kCharsetConverterManagerCID, &ccMan);

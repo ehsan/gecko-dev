@@ -7,6 +7,7 @@
 <window title="datepicker" width="500" height="600"
         onload="setTimeout(testtag_datepickers, 0);"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+  <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>  
 
@@ -14,7 +15,7 @@
       onpopuphidden="testtag_finish()">
 <datepicker id="datepicker"/>
 <datepicker id="datepicker-popup" type="popup"/>
-<hbox onDOMMouseScroll="mouseScrolled = event.defaultPrevented;">
+<hbox onDOMMouseScroll="mouseScrolled = event.getPreventDefault();">
   <datepicker id="datepicker-grid" type="grid"/>
 </hbox>
 </hbox>
@@ -55,8 +56,7 @@ function testtag_finish()
   ok(!document.getElementById("datepicker-popup").open, "datepicker popup open false again");
 
   var dpgrid = document.getElementById("datepicker-grid");
-  synthesizeWheel(dpgrid, 5, 5, { deltaY: 10.0,
-                                  deltaMode: WheelEvent.DOM_DELTA_LINE });
+  synthesizeMouseScroll(dpgrid, 5, 5, { delta: 10 });
   is(mouseScrolled, true, "mouse scrolled");
   is(dpgrid.displayedMonth, 2, "mouse scroll changed month");
 

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIOService.h"
 #include "nsFTPChannel.h"
@@ -34,15 +66,15 @@ nsFtpControlConnection::OnInputStreamReady(nsIAsyncInputStream *stream)
     char data[4096];
 
     // Consume data whether we have a listener or not.
-    uint64_t avail64;
-    uint32_t avail;
-    nsresult rv = stream->Available(&avail64);
+    PRUint32 avail;
+    nsresult rv = stream->Available(&avail);
     if (NS_SUCCEEDED(rv)) {
-        avail = (uint32_t)NS_MIN(avail64, (uint64_t)sizeof(data));
+        if (avail > sizeof(data))
+            avail = sizeof(data);
 
-        uint32_t n;
+        PRUint32 n;
         rv = stream->Read(data, avail, &n);
-        if (NS_SUCCEEDED(rv))
+        if (NS_SUCCEEDED(rv) && n != avail)
             avail = n;
     }
 
@@ -65,7 +97,7 @@ nsFtpControlConnection::OnInputStreamReady(nsIAsyncInputStream *stream)
 }
 
 nsFtpControlConnection::nsFtpControlConnection(const nsCSubstring& host,
-                                               uint32_t port)
+                                               PRUint32 port)
     : mServerType(0), mSessionId(gFtpHandler->GetSessionId()), mHost(host)
     , mPort(port)
 {
@@ -77,13 +109,13 @@ nsFtpControlConnection::~nsFtpControlConnection()
     LOG_ALWAYS(("FTP:CC destroyed @%p", this));
 }
 
-bool
+PRBool
 nsFtpControlConnection::IsAlive()
 {
     if (!mSocket) 
-        return false;
+        return PR_FALSE;
 
-    bool isAlive = false;
+    PRBool isAlive = PR_FALSE;
     mSocket->IsAlive(&isAlive);
     return isAlive;
 }
@@ -101,7 +133,7 @@ nsFtpControlConnection::Connect(nsIProxyInfo* proxyInfo,
     if (NS_FAILED(rv))
         return rv;
 
-    rv = sts->CreateTransport(nullptr, 0, mHost, mPort, proxyInfo,
+    rv = sts->CreateTransport(nsnull, 0, mHost, mPort, proxyInfo,
                               getter_AddRefs(mSocket)); // the command transport
     if (NS_FAILED(rv))
         return rv;
@@ -140,7 +172,7 @@ nsFtpControlConnection::WaitData(nsFtpControlConnectionListener *listener)
     // If listener is null, then simply disconnect the listener.  Otherwise,
     // ensure that we are listening.
     if (!listener) {
-        mListener = nullptr;
+        mListener = nsnull;
         return NS_OK;
     }
 
@@ -162,9 +194,9 @@ nsFtpControlConnection::Disconnect(nsresult status)
         // break cyclic reference!
         mSocket->Close(status);
         mSocket = 0;
-        mSocketInput->AsyncWait(nullptr, 0, 0, nullptr);  // clear any observer
-        mSocketInput = nullptr;
-        mSocketOutput = nullptr;
+        mSocketInput->AsyncWait(nsnull, 0, 0, nsnull);  // clear any observer
+        mSocketInput = nsnull;
+        mSocketOutput = nsnull;
     }
 
     return NS_OK;
@@ -175,8 +207,8 @@ nsFtpControlConnection::Write(const nsCSubstring& command)
 {
     NS_ENSURE_STATE(mSocketOutput);
 
-    uint32_t len = command.Length();
-    uint32_t cnt;
+    PRUint32 len = command.Length();
+    PRUint32 cnt;
     nsresult rv = mSocketOutput->Write(command.Data(), len, &cnt);
 
     if (NS_FAILED(rv))

@@ -1,27 +1,60 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alexander Surkov <surkov.alexander@gmail.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsCoreUtils_h_
 #define nsCoreUtils_h_
 
+#include "nsAccessibilityAtoms.h"
 
+#include "nsIDOMDocumentXBL.h"
+#include "nsIDOMNode.h"
 #include "nsIContent.h"
 #include "nsIBoxObject.h"
-#include "nsIPresShell.h"
+#include "nsITreeBoxObject.h"
+#include "nsITreeColumns.h"
 
+#include "nsIFrame.h"
+#include "nsIDocShellTreeItem.h"
+#include "nsIDOMCSSStyleDeclaration.h"
 #include "nsIDOMDOMStringList.h"
+#include "nsIMutableArray.h"
 #include "nsPoint.h"
 #include "nsTArray.h"
-
-class nsRange;
-class nsIDOMNode;
-class nsIFrame;
-class nsIDocShellTreeItem;
-class nsITreeColumn;
-class nsITreeBoxObject;
-class nsIWidget;
 
 /**
  * Core utils.
@@ -33,7 +66,7 @@ public:
    * Return true if the given node has registered click, mousedown or mouseup
    * event listeners.
    */
-  static bool HasClickListener(nsIContent *aContent);
+  static PRBool HasClickListener(nsIContent *aContent);
 
   /**
    * Dispatch click event to XUL tree cell.
@@ -45,7 +78,7 @@ public:
    *                       nsITreeBoxObject for available values
    */
   static void DispatchClickEvent(nsITreeBoxObject *aTreeBoxObj,
-                                 int32_t aRowIndex, nsITreeColumn *aColumn,
+                                 PRInt32 aRowIndex, nsITreeColumn *aColumn,
                                  const nsCString& aPseudoElt = EmptyCString());
 
   /**
@@ -55,7 +88,7 @@ public:
    * @param  aPresShell  [in] the presshell for the given element
    * @param  aContent    [in] the element
    */
-  static bool DispatchMouseEvent(uint32_t aEventType,
+  static PRBool DispatchMouseEvent(PRUint32 aEventType,
                                    nsIPresShell *aPresShell,
                                    nsIContent *aContent);
 
@@ -70,7 +103,7 @@ public:
    * @param aPresShell   [in] the presshell for the element
    * @param aRootWidget  [in] the root widget of the element
    */
-  static void DispatchMouseEvent(uint32_t aEventType, int32_t aX, int32_t aY,
+  static void DispatchMouseEvent(PRUint32 aEventType, PRInt32 aX, PRInt32 aY,
                                  nsIContent *aContent, nsIFrame *aFrame,
                                  nsIPresShell *aPresShell,
                                  nsIWidget *aRootWidget);
@@ -81,13 +114,13 @@ public:
    *
    * @param aContent - the given element.
    */
-  static uint32_t GetAccessKeyFor(nsIContent *aContent);
+  static PRUint32 GetAccessKeyFor(nsIContent *aContent);
 
   /**
    * Return DOM element related with the given node, i.e.
    * a) itself if it is DOM element
    * b) parent element if it is text node
-   * c) otherwise nullptr
+   * c) otherwise nsnull
    *
    * @param aNode  [in] the given DOM node
    */
@@ -96,7 +129,7 @@ public:
   /**
    * Return DOM node for the given DOM point.
    */
-  static nsINode *GetDOMNodeFromDOMPoint(nsINode *aNode, uint32_t aOffset);
+  static nsINode *GetDOMNodeFromDOMPoint(nsINode *aNode, PRUint32 aOffset);
 
   /**
    * Return the nsIContent* to check for ARIA attributes on -- this may not
@@ -119,39 +152,48 @@ public:
    *                                   aPossibleAncestorNode
    * @param  aRootNode               [in, optional] the root node that search
    *                                   search should be performed within
-   * @return true                     if aPossibleAncestorNode is an ancestor of
+   * @return PR_TRUE                  if aPossibleAncestorNode is an ancestor of
    *                                   aPossibleDescendantNode
    */
-   static bool IsAncestorOf(nsINode *aPossibleAncestorNode,
+   static PRBool IsAncestorOf(nsINode *aPossibleAncestorNode,
                               nsINode *aPossibleDescendantNode,
-                              nsINode *aRootNode = nullptr);
+                              nsINode *aRootNode = nsnull);
 
   /**
    * Helper method to scroll range into view, used for implementation of
    * nsIAccessibleText::scrollSubstringTo().
    *
    * @param aFrame        the frame for accessible the range belongs to.
-   * @param aRange    the range to scroll to
+   * @param aStartNode    start node of a range
+   * @param aStartOffset  an offset inside the start node
+   * @param aEndNode      end node of a range
+   * @param aEndOffset    an offset inside the end node
    * @param aScrollType   the place a range should be scrolled to
    */
-  static nsresult ScrollSubstringTo(nsIFrame* aFrame, nsRange* aRange,
-                                    uint32_t aScrollType);
+  static nsresult ScrollSubstringTo(nsIFrame *aFrame,
+                                    nsIDOMNode *aStartNode, PRInt32 aStartIndex,
+                                    nsIDOMNode *aEndNode, PRInt32 aEndIndex,
+                                    PRUint32 aScrollType);
 
   /** Helper method to scroll range into view, used for implementation of
    * nsIAccessibleText::scrollSubstringTo[Point]().
    *
    * @param aFrame        the frame for accessible the range belongs to.
-   * @param aRange    the range to scroll to
-   * @param aVertical     how to align vertically, specified in percents, and when.
-   * @param aHorizontal     how to align horizontally, specified in percents, and when.
+   * @param aStartNode    start node of a range
+   * @param aStartOffset  an offset inside the start node
+   * @param aEndNode      end node of a range
+   * @param aEndOffset    an offset inside the end node
+   * @param aVPercent     how to align vertically, specified in percents
+   * @param aHPercent     how to align horizontally, specified in percents
    */
-  static nsresult ScrollSubstringTo(nsIFrame* aFrame, nsRange* aRange,
-                                    nsIPresShell::ScrollAxis aVertical,
-                                    nsIPresShell::ScrollAxis aHorizontal);
+  static nsresult ScrollSubstringTo(nsIFrame *aFrame,
+                                    nsIDOMNode *aStartNode, PRInt32 aStartIndex,
+                                    nsIDOMNode *aEndNode, PRInt32 aEndIndex,
+                                    PRInt16 aVPercent, PRInt16 aHPercent);
 
   /**
    * Scrolls the given frame to the point, used for implememntation of
-   * nsIAccessible::scrollToPoint and nsIAccessibleText::scrollSubstringToPoint.
+   * nsIAccessNode::scrollToPoint and nsIAccessibleText::scrollSubstringToPoint.
    *
    * @param aScrollableFrame  the scrollable frame
    * @param aFrame            the frame to scroll
@@ -162,11 +204,11 @@ public:
 
   /**
    * Converts scroll type constant defined in nsIAccessibleScrollType to
-   * vertical and horizontal parameters.
+   * vertical and horizontal percents.
    */
-  static void ConvertScrollTypeToPercents(uint32_t aScrollType,
-                                          nsIPresShell::ScrollAxis *aVertical,
-                                          nsIPresShell::ScrollAxis *aHorizontal);
+  static void ConvertScrollTypeToPercents(PRUint32 aScrollType,
+                                          PRInt16 *aVPercent,
+                                          PRInt16 *aHPercent);
 
   /**
    * Returns coordinates relative screen for the top level window.
@@ -184,29 +226,39 @@ public:
   /**
    * Return true if the given document is root document.
    */
-  static bool IsRootDocument(nsIDocument *aDocument);
+  static PRBool IsRootDocument(nsIDocument *aDocument);
 
   /**
    * Return true if the given document is content document (not chrome).
    */
-  static bool IsContentDocument(nsIDocument *aDocument);
-
-  /**
-   * Return true if the given document node is for tab document accessible.
-   */
-  static bool IsTabDocument(nsIDocument* aDocumentNode);
+  static PRBool IsContentDocument(nsIDocument *aDocument);
 
   /**
    * Return true if the given document is an error page.
    */
-  static bool IsErrorPage(nsIDocument *aDocument);
+  static PRBool IsErrorPage(nsIDocument *aDocument);
+
+  /**
+   * Retrun true if the type of given frame equals to the given frame type.
+   *
+   * @param aFrame  the frame
+   * @param aAtom   the frame type
+   */
+  static PRBool IsCorrectFrameType(nsIFrame* aFrame, nsIAtom* aAtom);
 
   /**
    * Return presShell for the document containing the given DOM node.
    */
   static nsIPresShell *GetPresShellFor(nsINode *aNode)
   {
-    return aNode->OwnerDoc()->GetShell();
+    nsIDocument *document = aNode->GetOwnerDoc();
+    return document ? document->GetShell() : nsnull;
+  }
+  static already_AddRefed<nsIWeakReference> GetWeakShellFor(nsINode *aNode)
+  {
+    nsCOMPtr<nsIWeakReference> weakShell =
+      do_GetWeakReference(GetPresShellFor(aNode));
+    return weakShell.forget();
   }
 
   /**
@@ -219,24 +271,24 @@ public:
    * Get the ID for an element, in some types of XML this may not be the ID attribute
    * @param aContent  Node to get the ID for
    * @param aID       Where to put ID string
-   * @return          true if there is an ID set for this node
+   * @return          PR_TRUE if there is an ID set for this node
    */
-  static bool GetID(nsIContent *aContent, nsAString& aID);
+  static PRBool GetID(nsIContent *aContent, nsAString& aID);
 
   /**
    * Convert attribute value of the given node to positive integer. If no
    * attribute or wrong value then false is returned.
    */
-  static bool GetUIntAttr(nsIContent *aContent, nsIAtom *aAttr,
-                            int32_t *aUInt);
+  static PRBool GetUIntAttr(nsIContent *aContent, nsIAtom *aAttr,
+                            PRInt32 *aUInt);
 
   /**
    * Check if the given element is XLink.
    *
    * @param aContent  the given element
-   * @return          true if the given element is XLink
+   * @return          PR_TRUE if the given element is XLink
    */
-  static bool IsXLink(nsIContent *aContent);
+  static PRBool IsXLink(nsIContent *aContent);
 
   /**
    * Returns language for the given node.
@@ -247,6 +299,13 @@ public:
    */
   static void GetLanguageFor(nsIContent *aContent, nsIContent *aRootContent,
                              nsAString& aLanguage);
+
+  /**
+   * Return computed styles declaration for the given node.
+   */
+  static already_AddRefed<nsIDOMCSSStyleDeclaration>
+    GetComputedStyleDeclaration(const nsAString& aPseudoElt,
+                                nsIContent *aContent);
 
   /**
    * Return box object for XUL treechildren element by tree box object.
@@ -267,15 +326,21 @@ public:
     GetFirstSensibleColumn(nsITreeBoxObject *aTree);
 
   /**
+   * Return last sensible column for the given tree box object.
+   */
+  static already_AddRefed<nsITreeColumn>
+    GetLastSensibleColumn(nsITreeBoxObject *aTree);
+
+  /**
    * Return sensible columns count for the given tree box object.
    */
-  static uint32_t GetSensibleColumnCount(nsITreeBoxObject *aTree);
+  static PRUint32 GetSensibleColumnCount(nsITreeBoxObject *aTree);
 
   /**
    * Return sensible column at the given index for the given tree box object.
    */
   static already_AddRefed<nsITreeColumn>
-    GetSensibleColumnAt(nsITreeBoxObject *aTree, uint32_t aIndex);
+    GetSensibleColumnAt(nsITreeBoxObject *aTree, PRUint32 aIndex);
 
   /**
    * Return next sensible column for the given column.
@@ -292,22 +357,21 @@ public:
   /**
    * Return true if the given column is hidden (i.e. not sensible).
    */
-  static bool IsColumnHidden(nsITreeColumn *aColumn);
-
-  /**
-   * Scroll content into view.
-   */
-  static void ScrollTo(nsIPresShell* aPresShell, nsIContent* aContent,
-                       uint32_t aScrollType);
+  static PRBool IsColumnHidden(nsITreeColumn *aColumn);
 
   /**
    * Return true if the given node is table header element.
    */
-  static bool IsHTMLTableHeader(nsIContent *aContent)
+  static PRBool IsHTMLTableHeader(nsIContent *aContent)
   {
-    return aContent->NodeInfo()->Equals(nsGkAtoms::th) ||
-      aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::scope);
+    return aContent->NodeInfo()->Equals(nsAccessibilityAtoms::th) ||
+      aContent->HasAttr(kNameSpaceID_None, nsAccessibilityAtoms::scope);
   }
+
+  /**
+   * Check the visibility across both parent content and chrome.
+   */
+  static bool CheckVisibilityInParentChain(nsIFrame* aFrame);
 
 };
 
@@ -324,12 +388,46 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMDOMSTRINGLIST
 
-  bool Add(const nsAString& aName) {
-    return mNames.AppendElement(aName) != nullptr;
+  PRBool Add(const nsAString& aName) {
+    return mNames.AppendElement(aName) != nsnull;
   }
 
 private:
   nsTArray<nsString> mNames;
+};
+
+/**
+ * Used to iterate through IDs or elements pointed by IDRefs attribute. Note,
+ * any method used to iterate through IDs or elements moves iterator to next
+ * position.
+ */
+class IDRefsIterator
+{
+public:
+  IDRefsIterator(nsIContent* aContent, nsIAtom* aIDRefsAttr);
+
+  /**
+   * Return next ID.
+   */
+  const nsDependentSubstring NextID();
+
+  /**
+   * Return next element.
+   */
+  nsIContent* NextElem();
+
+  /**
+   * Return the element with the given ID.
+   */
+  nsIContent* GetElem(const nsDependentSubstring& aID);
+
+private:
+  nsString mIDs;
+  nsAString::index_type mCurrIdx;
+
+  nsIDocument* mDocument;
+  nsCOMPtr<nsIDOMDocumentXBL> mXBLDocument;
+  nsCOMPtr<nsIDOMElement> mBindingParent;
 };
 
 #endif

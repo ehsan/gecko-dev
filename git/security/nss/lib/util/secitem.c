@@ -37,7 +37,7 @@
 /*
  * Support routines for SECItem data structure.
  *
- * $Id: secitem.c,v 1.17 2012/03/23 03:12:16 wtc%google.com Exp $
+ * $Id: secitem.c,v 1.15 2008/11/19 16:04:38 nelson%bolyard.com Exp $
  */
 
 #include "seccomon.h"
@@ -153,7 +153,7 @@ SECComparison
 SECITEM_CompareItem(const SECItem *a, const SECItem *b)
 {
     unsigned m;
-    int rv;
+    SECComparison rv;
 
     if (a == b)
     	return SECEqual;
@@ -164,9 +164,9 @@ SECITEM_CompareItem(const SECItem *a, const SECItem *b)
 
     m = ( ( a->len < b->len ) ? a->len : b->len );
     
-    rv = PORT_Memcmp(a->data, b->data, m);
+    rv = (SECComparison) PORT_Memcmp(a->data, b->data, m);
     if (rv) {
-	return rv < 0 ? SECLessThan : SECGreaterThan;
+	return rv;
     }
     if (a->len < b->len) {
 	return SECLessThan;
@@ -251,10 +251,6 @@ SECITEM_CopyItem(PRArenaPool *arena, SECItem *to, const SECItem *from)
 	PORT_Memcpy(to->data, from->data, from->len);
 	to->len = from->len;
     } else {
-	/*
-	 * If from->data is NULL but from->len is nonzero, this function
-	 * will succeed.  Is this right?
-	 */
 	to->data = 0;
 	to->len = 0;
     }

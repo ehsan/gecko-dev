@@ -1,13 +1,45 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nscore.h"
 #include "JpCntx.h"
 
 //This is hiragana 2-char sequence table, the number in each cell represents its frequency category
-const uint8_t jp2CharContext[83][83] = 
+const PRUint8 jp2CharContext[83][83] = 
 { 
 { 0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,},
 { 2,4,0,4,0,3,0,4,0,3,4,4,4,2,4,3,3,4,3,2,3,3,4,2,3,3,3,2,4,1,4,3,3,1,5,4,3,4,3,4,3,5,3,0,3,5,4,2,0,3,1,0,3,3,0,3,3,0,1,1,0,4,3,0,3,3,0,4,0,2,0,3,5,5,5,5,4,0,4,1,0,3,4,},
@@ -96,11 +128,11 @@ const uint8_t jp2CharContext[83][83] =
 
 #define MINIMUM_DATA_THRESHOLD  4
 
-void JapaneseContextAnalysis::HandleData(const char* aBuf, uint32_t aLen)
+void JapaneseContextAnalysis::HandleData(const char* aBuf, PRUint32 aLen)
 {
-  uint32_t charLen;
-  int32_t order;
-  uint32_t i;
+  PRUint32 charLen;
+  PRInt32 order;
+  PRUint32 i;
   
   if (mDone)
     return;
@@ -126,7 +158,7 @@ void JapaneseContextAnalysis::HandleData(const char* aBuf, uint32_t aLen)
         mTotalRel ++;
         if (mTotalRel > MAX_REL_THRESHOLD)
         {
-          mDone = true;
+          mDone = PR_TRUE;
           break;
         }
         mRelSample[jp2CharContext[mLastCharOrder][order]]++;
@@ -138,14 +170,14 @@ void JapaneseContextAnalysis::HandleData(const char* aBuf, uint32_t aLen)
   return;
 }
 
-void JapaneseContextAnalysis::Reset(bool aIsPreferredLanguage)
+void JapaneseContextAnalysis::Reset(PRBool aIsPreferredLanguage)
 {
   mTotalRel = 0;
-  for (uint32_t i = 0; i < NUM_OF_CATEGORY; i++)
+  for (PRUint32 i = 0; i < NUM_OF_CATEGORY; i++)
     mRelSample[i] = 0;
   mNeedToSkipCharNum = 0;
   mLastCharOrder = -1;
-  mDone = false;
+  mDone = PR_FALSE;
   mDataThreshold = aIsPreferredLanguage ? 0 : MINIMUM_DATA_THRESHOLD;
 }
 #define DONT_KNOW (float)-1
@@ -160,11 +192,11 @@ float  JapaneseContextAnalysis::GetConfidence(void)
 }
 
 
-int32_t SJISContextAnalysis::GetOrder(const char* str, uint32_t *charLen)
+PRInt32 SJISContextAnalysis::GetOrder(const char* str, PRUint32 *charLen)
 {
   //find out current char's byte length
-  if (((unsigned char)*str >= (unsigned char)0x81 && (unsigned char)*str <= (unsigned char)0x9f) ||
-      ((unsigned char)*str >= (unsigned char)0xe0 && (unsigned char)*str <= (unsigned char)0xfc) )
+  if ((unsigned char)*str >= (unsigned char)0x81 && (unsigned char)*str <= (unsigned char)0x9f || 
+      (unsigned char)*str >= (unsigned char)0xe0 && (unsigned char)*str <= (unsigned char)0xfc )
       *charLen = 2;
   else 
       *charLen = 1;
@@ -177,7 +209,7 @@ int32_t SJISContextAnalysis::GetOrder(const char* str, uint32_t *charLen)
   return -1;
 }
 
-int32_t EUCJPContextAnalysis::GetOrder(const char* str, uint32_t *charLen)
+PRInt32 EUCJPContextAnalysis::GetOrder(const char* str, PRUint32 *charLen)
 {
   //find out current char's byte length
   if ((unsigned char)*str == (unsigned char)0x8e ||

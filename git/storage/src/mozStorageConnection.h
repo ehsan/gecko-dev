@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Oracle Corporation code.
+ *
+ * The Initial Developer of the Original Code is
+ *  Oracle Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir.vukicevic@oracle.com>
+ *   Lev Serebryakov <lev@serebryakov.spb.ru>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef mozilla_storage_Connection_h
 #define mozilla_storage_Connection_h
@@ -19,7 +53,6 @@
 #include "mozStorageService.h"
 
 #include "nsIMutableArray.h"
-#include "mozilla/Attributes.h"
 
 #include "sqlite3.h"
 
@@ -27,12 +60,13 @@ struct PRLock;
 class nsIFile;
 class nsIEventTarget;
 class nsIThread;
+class nsIMemoryReporter;
 
 namespace mozilla {
 namespace storage {
 
-class Connection MOZ_FINAL : public mozIStorageConnection
-                           , public nsIInterfaceRequestor
+class Connection : public mozIStorageConnection
+                 , public nsIInterfaceRequestor
 {
 public:
   NS_DECL_ISUPPORTS
@@ -50,7 +84,7 @@ public:
 
     nsCOMPtr<nsISupports> function;
     FunctionType type;
-    int32_t numArgs;
+    PRInt32 numArgs;
   };
 
   /**
@@ -67,7 +101,7 @@ public:
    *
    * @param aDatabaseFile
    *        The nsIFile of the location of the database to open, or create if it
-   *        does not exist.  Passing in nullptr here creates an in-memory
+   *        does not exist.  Passing in nsnull here creates an in-memory
    *        database.
    * @param aVFSName
    *        The VFS that SQLite will use when opening this database. NULL means
@@ -121,37 +155,6 @@ public:
    */
   nsCString getFilename();
 
-  /**
-   * Creates an sqlite3 prepared statement object from an SQL string.
-   *
-   * @param aSQL
-   *        The SQL statement string to compile.
-   * @param _stmt
-   *        New sqlite3_stmt object.
-   * @return the result from sqlite3_prepare_v2.
-   */
-  int prepareStatement(const nsCString &aSQL, sqlite3_stmt **_stmt);
-
-  /**
-   * Performs a sqlite3_step on aStatement, while properly handling SQLITE_LOCKED
-   * when not on the main thread by waiting until we are notified.
-   *
-   * @param aStatement
-   *        A pointer to a sqlite3_stmt object.
-   * @return the result from sqlite3_step.
-   */
-  int stepStatement(sqlite3_stmt* aStatement);
-
-  bool ConnectionReady() {
-    return mDBConn != nullptr;
-  }
-
-  /**
-   * True if this is an async connection, it is shutting down and it is not
-   * closed yet.
-   */
-  bool isAsyncClosing();
-
 private:
   ~Connection();
 
@@ -162,15 +165,6 @@ private:
    * @note mDBConn is set to NULL in this method.
    */
   nsresult setClosedState();
-
-  /**
-   * Helper for calls to sqlite3_exec. Reports long delays to Telemetry.
-   *
-   * @param aSqlString
-   *        SQL string to execute
-   * @return the result from sqlite3_exec.
-   */
-  int executeSql(const char *aSqlString);
 
   /**
    * Describes a certain primitive type in the database.
@@ -195,7 +189,7 @@ private:
    */
   nsresult databaseElementExists(enum DatabaseElementType aElementType,
                                  const nsACString& aElementName,
-                                 bool *_exists);
+                                 PRBool *_exists);
 
   bool findFunctionByInstance(nsISupports *aInstance);
 
@@ -207,6 +201,8 @@ private:
 
   sqlite3 *mDBConn;
   nsCOMPtr<nsIFile> mDatabaseFile;
+
+  nsTArray<nsCOMPtr<nsIMemoryReporter> > mMemoryReporters;
 
   /**
    * Lazily created thread for asynchronous statement execution.  Consumers
@@ -226,7 +222,7 @@ private:
    * Tracks if we have a transaction in progress or not.  Access protected by
    * mDBMutex.
    */
-  bool mTransactionInProgress;
+  PRBool mTransactionInProgress;
 
   /**
    * Stores the mapping of a given function by name to its instance.  Access is

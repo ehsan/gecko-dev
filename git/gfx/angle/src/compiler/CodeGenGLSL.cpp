@@ -5,24 +5,15 @@
 //
 
 #include "compiler/TranslatorGLSL.h"
-#include "compiler/TranslatorESSL.h"
 
 //
 // This function must be provided to create the actual
 // compile object used by higher level code.  It returns
 // a subclass of TCompiler.
 //
-TCompiler* ConstructCompiler(
-    ShShaderType type, ShShaderSpec spec, ShShaderOutput output)
+TCompiler* ConstructCompiler(ShShaderType type, ShShaderSpec spec)
 {
-    switch (output) {
-      case SH_GLSL_OUTPUT:
-        return new TranslatorGLSL(type, spec);
-      case SH_ESSL_OUTPUT:
-        return new TranslatorESSL(type, spec);
-      default:
-        return NULL;
-    }
+    return new TranslatorGLSL(type, spec);
 }
 
 //

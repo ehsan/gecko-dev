@@ -1,14 +1,48 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Places Command Controller.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Goodger <beng@google.com>
+ *   Myk Melez <myk@mozilla.org>
+ *   Asaf Romano <mano@mozilla.com>
+ *   Marco Bonardo <mak77@bonardo.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
-                                  "resource://gre/modules/NetUtil.jsm");
 
 // XXXmano: we should move most/all of these constants to PlacesUtils
 const ORGANIZER_ROOT_BOOKMARKS = "place:folder=BOOKMARKS_MENU&excludeItems=1&queryType=1";
+const ORGANIZER_SUBSCRIPTIONS_QUERY = "place:annotation=livemark%2FfeedURI";
 
 // No change to the view, preserve current selection
 const RELOAD_ACTION_NOTHING = 0;
@@ -20,9 +54,16 @@ const RELOAD_ACTION_REMOVE = 2;
 // rows.
 const RELOAD_ACTION_MOVE = 3;
 
-// When removing a bunch of pages we split them in chunks to give some breath
-// to the main-thread.
+// when removing a bunch of pages we split them in chunks to avoid passing
+// a too big array to RemovePages
+// 300 is the best choice with an history of about 150000 visits
+// smaller chunks could cause a Slow Script warning with a huge history
 const REMOVE_PAGES_CHUNKLEN = 300;
+// if we are removing less than this pages we will remove them one by one
+// since it will be reflected faster on the UI
+// 10 is a good compromise, since allows the user to delete a little amount of
+// urls for privacy reasons, but does not cause heavy disk access
+const REMOVE_PAGES_MAX_SINGLEREMOVES = 10;
 
 /**
  * Represents an insertion point within a container where we can insert
@@ -79,8 +120,6 @@ function PlacesController(aView) {
   XPCOMUtils.defineLazyGetter(this, "profileName", function () {
     return Services.dirsvc.get("ProfD", Ci.nsIFile).leafName;
   });
-
-  this._cachedLivemarkInfoObjects = new Map();
 }
 
 PlacesController.prototype = {
@@ -99,10 +138,12 @@ PlacesController.prototype = {
   },
 
   terminate: function PC_terminate() {
-    this._releaseClipboardOwnership();
+    if (this._cutNodes.length > 0)
+      this._clearClipboard();
   },
 
   supportsCommand: function PC_supportsCommand(aCommand) {
+    //LOG("supportsCommand: " + command);
     // Non-Places specific commands that we also support
     switch (aCommand) {
     case "cmd_undo":
@@ -124,9 +165,9 @@ PlacesController.prototype = {
   isCommandEnabled: function PC_isCommandEnabled(aCommand) {
     switch (aCommand) {
     case "cmd_undo":
-      return PlacesUtils.transactionManager.numberOfUndoItems > 0;
+      return PlacesUIUtils.ptm.numberOfUndoItems > 0;
     case "cmd_redo":
-      return PlacesUtils.transactionManager.numberOfRedoItems > 0;
+      return PlacesUIUtils.ptm.numberOfRedoItems > 0;
     case "cmd_cut":
     case "placesCmd_cut":
       var nodes = this._view.selectedNodes;
@@ -174,11 +215,15 @@ PlacesController.prototype = {
                  Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
     case "placesCmd_show:info":
       var selectedNode = this._view.selectedNode;
-      return selectedNode && PlacesUtils.getConcreteItemId(selectedNode) != -1
+      if (selectedNode &&
+          PlacesUtils.getConcreteItemId(selectedNode) != -1  &&
+          !PlacesUtils.nodeIsLivemarkItem(selectedNode))
+        return true;
+      return false;
     case "placesCmd_reload":
       // Livemark containers
       var selectedNode = this._view.selectedNode;
-      return selectedNode && this.hasCachedLivemarkInfo(selectedNode);
+      return selectedNode && PlacesUtils.nodeIsLivemarkContainer(selectedNode);
     case "placesCmd_sortBy:name":
       var selectedNode = this._view.selectedNode;
       return selectedNode &&
@@ -197,10 +242,10 @@ PlacesController.prototype = {
   doCommand: function PC_doCommand(aCommand) {
     switch (aCommand) {
     case "cmd_undo":
-      PlacesUtils.transactionManager.undoTransaction();
+      PlacesUIUtils.ptm.undoTransaction();
       break;
     case "cmd_redo":
-      PlacesUtils.transactionManager.redoTransaction();
+      PlacesUIUtils.ptm.redoTransaction();
       break;
     case "cmd_cut":
     case "placesCmd_cut":
@@ -225,7 +270,7 @@ PlacesController.prototype = {
         host = queries[0].domain;
       }
       else
-        host = NetUtil.newURI(this._view.selectedNode.uri).host;
+        host = PlacesUtils._uri(this._view.selectedNode.uri).host;
       PlacesUIUtils.privateBrowsing.removeDataFromDomain(host);
       break;
     case "cmd_selectAll":
@@ -272,9 +317,9 @@ PlacesController.prototype = {
                                                      , "keyword"
                                                      , "location"
                                                      , "loadInSidebar" ]
-                                       , uri: NetUtil.newURI(node.uri)
+                                       , uri: PlacesUtils._uri(node.uri)
                                        , title: node.title
-                                       }, window.top);
+                                       }, window.top, true);
       break;
     }
   },
@@ -376,7 +421,6 @@ PlacesController.prototype = {
     // pasting of valid "text/unicode" and "text/x-moz-url" data
     var xferable = Cc["@mozilla.org/widget/transferable;1"].
                    createInstance(Ci.nsITransferable);
-    xferable.init(null);
 
     xferable.addDataFlavor(PlacesUtils.TYPE_X_MOZ_URL);
     xferable.addDataFlavor(PlacesUtils.TYPE_UNICODE);
@@ -410,6 +454,7 @@ PlacesController.prototype = {
    *    "tagChild"          node is a child of a tag
    *    "folder"            node is a folder
    *    "query"             node is a query
+   *    "dynamiccontainer"  node is a dynamic container
    *    "separator"         node is a separator line
    *    "host"              node is a host
    *
@@ -452,6 +497,9 @@ PlacesController.prototype = {
             }
           }
           break;
+        case Ci.nsINavHistoryResultNode.RESULT_TYPE_DYNAMIC_CONTAINER:
+          nodeData["dynamiccontainer"] = true;
+          break;
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER:
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT:
           nodeData["folder"] = true;
@@ -463,7 +511,7 @@ PlacesController.prototype = {
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_VISIT:
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_FULL_VISIT:
           nodeData["link"] = true;
-          uri = NetUtil.newURI(node.uri);
+          uri = PlacesUtils._uri(node.uri);
           if (PlacesUtils.nodeIsBookmark(node)) {
             nodeData["bookmark"] = true;
             PlacesUtils.nodeIsTagQuery(node.parent)
@@ -472,7 +520,7 @@ PlacesController.prototype = {
             if (parentNode) {
               if (PlacesUtils.nodeIsTagQuery(parentNode))
                 nodeData["tagChild"] = true;
-              else if (this.hasCachedLivemarkInfo(parentNode))
+              else if (PlacesUtils.nodeIsLivemarkContainer(parentNode))
                 nodeData["livemarkChild"] = true;
             }
           }
@@ -679,7 +727,6 @@ PlacesController.prototype = {
                                      , type: itemType
                                      , itemId: itemId
                                      , readOnly: isRootItem
-                                     , hiddenRows: [ "folderPicker" ]
                                      }, window.top);
   },
 
@@ -697,17 +744,8 @@ PlacesController.prototype = {
    */
   reloadSelectedLivemark: function PC_reloadSelectedLivemark() {
     var selectedNode = this._view.selectedNode;
-    if (selectedNode) {
-      let itemId = selectedNode.itemId;
-      PlacesUtils.livemarks.getLivemark(
-        { id: itemId },
-        (function(aStatus, aLivemark) {
-          if (Components.isSuccessCode(aStatus)) {
-            aLivemark.reload(true);
-          }
-        }).bind(this)
-      );
-    }
+    if (selectedNode && PlacesUtils.nodeIsLivemarkContainer(selectedNode))
+      PlacesUtils.livemarks.reloadLivemarkFolder(selectedNode.itemId);
   },
 
   /**
@@ -737,13 +775,24 @@ PlacesController.prototype = {
                                        , type: aType
                                        , defaultInsertionPoint: ip
                                        , hiddenRows: [ "folderPicker" ]
-                                       }, window.top);
+                                       }, window);
     if (performed) {
       // Select the new item.
       let insertedNodeId = PlacesUtils.bookmarks
                                       .getIdForItemAt(ip.itemId, ip.index);
       this._view.selectItems([insertedNodeId], false);
     }
+  },
+
+
+  /**
+   * Create a new Bookmark folder somewhere. Prompts the user for the name
+   * of the folder.
+   */
+  newFolder: function PC_newFolder() {
+    Cu.reportError("PlacesController.newFolder is deprecated and will be \
+                   removed in a future release.  Use newItem instead.");
+    this.newItem("folder");
   },
 
   /**
@@ -753,8 +802,8 @@ PlacesController.prototype = {
     var ip = this._view.insertionPoint;
     if (!ip)
       throw Cr.NS_ERROR_NOT_AVAILABLE;
-    var txn = new PlacesCreateSeparatorTransaction(ip.itemId, ip.index);
-    PlacesUtils.transactionManager.doTransaction(txn);
+    var txn = PlacesUIUtils.ptm.createSeparator(ip.itemId, ip.index);
+    PlacesUIUtils.ptm.doTransaction(txn);
     // select the new item
     var insertedNodeId = PlacesUtils.bookmarks
                                     .getIdForItemAt(ip.itemId, ip.index);
@@ -775,8 +824,8 @@ PlacesController.prototype = {
    */
   sortFolderByName: function PC_sortFolderByName() {
     var itemId = PlacesUtils.getConcreteItemId(this._view.selectedNode);
-    var txn = new PlacesSortFolderByNameTransaction(itemId);
-    PlacesUtils.transactionManager.doTransaction(txn);
+    var txn = PlacesUIUtils.ptm.sortFolderByName(itemId);
+    PlacesUIUtils.ptm.doTransaction(txn);
   },
 
   /**
@@ -839,9 +888,8 @@ PlacesController.prototype = {
         // This is a uri node inside a tag container.  It needs a special
         // untag transaction.
         var tagItemId = PlacesUtils.getConcreteItemId(node.parent);
-        var uri = NetUtil.newURI(node.uri);
-        let txn = new PlacesUntagURITransaction(uri, [tagItemId]);
-        transactions.push(txn);
+        var uri = PlacesUtils._uri(node.uri);
+        transactions.push(PlacesUIUtils.ptm.untagURI(uri, [tagItemId]));
       }
       else if (PlacesUtils.nodeIsTagQuery(node) && node.parent &&
                PlacesUtils.nodeIsQuery(node.parent) &&
@@ -853,17 +901,16 @@ PlacesController.prototype = {
         // must only remove the query node.
         var tag = node.title;
         var URIs = PlacesUtils.tagging.getURIsForTag(tag);
-        for (var j = 0; j < URIs.length; j++) {
-          let txn = new PlacesUntagURITransaction(URIs[j], [tag]);
-          transactions.push(txn);
-        }
+        for (var j = 0; j < URIs.length; j++)
+          transactions.push(PlacesUIUtils.ptm.untagURI(URIs[j], [tag]));
       }
       else if (PlacesUtils.nodeIsURI(node) &&
                PlacesUtils.nodeIsQuery(node.parent) &&
                PlacesUtils.asQuery(node.parent).queryOptions.queryType ==
                  Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY) {
         // This is a uri node inside an history query.
-        PlacesUtils.bhistory.removePage(NetUtil.newURI(node.uri));
+        var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
+        bhist.removePage(PlacesUtils._uri(node.uri));
         // History deletes are not undoable, so we don't have a transaction.
       }
       else if (node.itemId == -1 &&
@@ -883,8 +930,7 @@ PlacesController.prototype = {
           // to skip nodes that are children of an already removed folder.
           removedFolders.push(node);
         }
-        let txn = new PlacesRemoveItemTransaction(node.itemId);
-        transactions.push(txn);
+        transactions.push(PlacesUIUtils.ptm.removeItem(node.itemId));
       }
     }
   },
@@ -903,76 +949,80 @@ PlacesController.prototype = {
       this._removeRange(ranges[i], transactions, removedFolders);
 
     if (transactions.length > 0) {
-      var txn = new PlacesAggregatedTransaction(txnName, transactions);
-      PlacesUtils.transactionManager.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.aggregateTransactions(txnName, transactions);
+      PlacesUIUtils.ptm.doTransaction(txn);
     }
   },
 
   /**
    * Removes the set of selected ranges from history.
-   *
-   * @note history deletes are not undoable.
    */
   _removeRowsFromHistory: function PC__removeRowsFromHistory() {
-    let nodes = this._view.selectedNodes;
-    let URIs = [];
-    for (let i = 0; i < nodes.length; ++i) {
-      let node = nodes[i];
+    // Other containers are history queries, just delete from history
+    // history deletes are not undoable.
+    var nodes = this._view.selectedNodes;
+    var URIs = [];
+    var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
+    var root = this._view.result.root;
+
+    for (var i = 0; i < nodes.length; ++i) {
+      var node = nodes[i];
       if (PlacesUtils.nodeIsURI(node)) {
-        let uri = NetUtil.newURI(node.uri);
-        // Avoid duplicates.
+        var uri = PlacesUtils._uri(node.uri);
+        // avoid trying to delete the same url twice
         if (URIs.indexOf(uri) < 0) {
           URIs.push(uri);
         }
       }
       else if (PlacesUtils.nodeIsQuery(node) &&
                PlacesUtils.asQuery(node).queryOptions.queryType ==
-                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY) {
+                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY)
         this._removeHistoryContainer(node);
-      }
     }
 
-    // Do removal in chunks to give some breath to main-thread.
-    function pagesChunkGenerator(aURIs) {
-      while (aURIs.length) {
-        let URIslice = aURIs.splice(0, REMOVE_PAGES_CHUNKLEN);
-        PlacesUtils.bhistory.removePages(URIslice, URIslice.length);
-        Services.tm.mainThread.dispatch(function() {
-          try {
-            gen.next();
-          } catch (ex if ex instanceof StopIteration) {}
-        }, Ci.nsIThread.DISPATCH_NORMAL); 
-        yield;
+    // if we have to delete a lot of urls RemovePage will be slow, it's better
+    // to delete them in bunch and rebuild the full treeView
+    if (URIs.length > REMOVE_PAGES_MAX_SINGLEREMOVES) {
+      // do removal in chunks to avoid passing a too big array to removePages
+      for (var i = 0; i < URIs.length; i += REMOVE_PAGES_CHUNKLEN) {
+        var URIslice = URIs.slice(i, i + REMOVE_PAGES_CHUNKLEN);
+        // set DoBatchNotify (third param) only on the last chunk, so we update
+        // the treeView when we are done.
+        bhist.removePages(URIslice, URIslice.length,
+                          (i + REMOVE_PAGES_CHUNKLEN) >= URIs.length);
       }
     }
-    let gen = pagesChunkGenerator(URIs);
-    gen.next();
+    else {
+      // if we have to delete fewer urls, removepage will allow us to avoid
+      // rebuilding the full treeView
+      for (var i = 0; i < URIs.length; ++i)
+        bhist.removePage(URIs[i]);
+    }
   },
 
   /**
    * Removes history visits for an history container node.
    * @param   [in] aContainerNode
    *          The container node to remove.
-   *
-   * @note history deletes are not undoable.
    */
-  _removeHistoryContainer: function PC__removeHistoryContainer(aContainerNode) {
+  _removeHistoryContainer: function PC_removeHistoryContainer(aContainerNode) {
+    var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
     if (PlacesUtils.nodeIsHost(aContainerNode)) {
       // Site container.
-      PlacesUtils.bhistory.removePagesFromHost(aContainerNode.title, true);
+      bhist.removePagesFromHost(aContainerNode.title, true);
     }
     else if (PlacesUtils.nodeIsDay(aContainerNode)) {
       // Day container.
-      let query = aContainerNode.getQueries()[0];
-      let beginTime = query.beginTime;
-      let endTime = query.endTime;
+      var query = aContainerNode.getQueries()[0];
+      var beginTime = query.beginTime;
+      var endTime = query.endTime;
       NS_ASSERT(query && beginTime && endTime,
                 "A valid date container query should exist!");
       // We want to exclude beginTime from the removal because
       // removePagesByTimeframe includes both extremes, while date containers
       // exclude the lower extreme.  So, if we would not exclude it, we would
       // end up removing more history than requested.
-      PlacesUtils.bhistory.removePagesByTimeframe(beginTime + 1, endTime);
+      bhist.removePagesByTimeframe(beginTime+1, endTime);
     }
   },
 
@@ -1041,13 +1091,10 @@ PlacesController.prototype = {
         addData(PlacesUtils.TYPE_X_MOZ_PLACE, i);
 
         // Drop the feed uri for livemark containers
-        let livemarkInfo = this.getCachedLivemarkInfo(node);
-        if (livemarkInfo) {
-          addURIData(i, livemarkInfo.feedURI.spec);
-        }
-        else if (node.uri) {
+        if (PlacesUtils.nodeIsLivemarkContainer(node))
+          addURIData(i, PlacesUtils.livemarks.getFeedURI(node.itemId).spec);
+        else if (node.uri)
           addURIData(i);
-        }
       }
     }
     finally {
@@ -1062,7 +1109,6 @@ PlacesController.prototype = {
     try {
       let xferable = Cc["@mozilla.org/widget/transferable;1"].
                      createInstance(Ci.nsITransferable);
-      xferable.init(null);
       xferable.addDataFlavor(PlacesUtils.TYPE_X_MOZ_PLACE_ACTION)
       this.clipboard.getData(xferable, Ci.nsIClipboard.kGlobalClipboard);
       xferable.getTransferData(PlacesUtils.TYPE_X_MOZ_PLACE_ACTION, action, {});
@@ -1082,21 +1128,14 @@ PlacesController.prototype = {
     return action;
   },
 
-  _releaseClipboardOwnership: function PC__releaseClipboardOwnership() {
-    if (this.cutNodes.length > 0) {
-      // This clears the logical clipboard, doesn't remove data.
-      this.clipboard.emptyClipboard(Ci.nsIClipboard.kGlobalClipboard);
-    }
-  },
-
   _clearClipboard: function PC__clearClipboard() {
+    this.clipboard.emptyClipboard(Ci.nsIClipboard.kGlobalClipboard);
+    // Unfortunately just invoking emptyClipboard is not enough, since it
+    // does not act on the native clipboard.
     let xferable = Cc["@mozilla.org/widget/transferable;1"].
                    createInstance(Ci.nsITransferable);
-    xferable.init(null);
-    // Empty transferables may cause crashes, so just add an unknown type.
-    const TYPE = "text/x-moz-place-empty";
-    xferable.addDataFlavor(TYPE);
-    xferable.setTransferData(TYPE, PlacesUtils.toISupportsString(""), 0);
+    // GTK doesn't like empty transferables, so just add an unknown type.
+    xferable.addDataFlavor("text/x-moz-place-empty");
     this.clipboard.setData(xferable, null, Ci.nsIClipboard.kGlobalClipboard);
   },
 
@@ -1119,8 +1158,8 @@ PlacesController.prototype = {
       if (PlacesUtils.nodeIsFolder(node))
         copiedFolders.push(node);
 
-      let livemarkInfo = this.getCachedLivemarkInfo(node);
-      let overrideURI = livemarkInfo ? livemarkInfo.feedURI.spec : null;
+      let overrideURI = PlacesUtils.nodeIsLivemarkContainer(node) ?
+        PlacesUtils.livemarks.getFeedURI(node.itemId).spec : null;
       let resolveShortcuts = !PlacesControllerDragHelper.canMoveNode(node);
 
       contents.forEach(function (content) {
@@ -1138,7 +1177,6 @@ PlacesController.prototype = {
 
     let xferable = Cc["@mozilla.org/widget/transferable;1"].
                    createInstance(Ci.nsITransferable);
-    xferable.init(null);
     let hasData = false;
     // This order matters here!  It controls how this and other applications
     // select data to be inserted based on type.
@@ -1157,15 +1195,11 @@ PlacesController.prototype = {
     // concurrent instances of the application.
     addData(PlacesUtils.TYPE_X_MOZ_PLACE_ACTION, aAction + "," + this.profileName);
 
-    if (hasData) {
-      this.clipboard.setData(xferable,
-                             this.cutNodes.length > 0 ? this : null,
-                             Ci.nsIClipboard.kGlobalClipboard);
-    }
+    if (hasData)
+      this.clipboard.setData(xferable, this, Ci.nsIClipboard.kGlobalClipboard);
   },
 
   _cutNodes: [],
-  get cutNodes() this._cutNodes,
   set cutNodes(aNodes) {
     let self = this;
     function updateCutNodes(aValue) {
@@ -1228,7 +1262,6 @@ PlacesController.prototype = {
 
     let xferable = Cc["@mozilla.org/widget/transferable;1"].
                    createInstance(Ci.nsITransferable);
-    xferable.init(null);
     // This order matters here!  It controls the preferred flavors for this
     // paste operation.
     [ PlacesUtils.TYPE_X_MOZ_PLACE,
@@ -1256,9 +1289,10 @@ PlacesController.prototype = {
       if (ip.isTag) {
         // Pasting into a tag container means tagging the item, regardless of
         // the requested action.
-        let tagTxn = new PlacesTagURITransaction(NetUtil.newURI(items[i].uri),
-                                                 [ip.itemId]);
-        transactions.push(tagTxn);
+        transactions.push(
+          new PlacesTagURITransaction(PlacesUtils._uri(items[i].uri),
+                                      [ip.itemId])
+        );
         continue;
       }
 
@@ -1273,8 +1307,9 @@ PlacesController.prototype = {
       );
     }
  
-    let aggregatedTxn = new PlacesAggregatedTransaction("Paste", transactions);
-    PlacesUtils.transactionManager.doTransaction(aggregatedTxn);
+    PlacesUtils.transactionManager.doTransaction(
+      new PlacesAggregatedTransaction("Paste", transactions)
+    );
 
     // Cut/past operations are not repeatable, so clear the clipboard.
     if (action == "cut") {
@@ -1290,39 +1325,7 @@ PlacesController.prototype = {
     }
     if (insertedNodeIds.length > 0)
       this._view.selectItems(insertedNodeIds, false);
-  },
-
-  /**
-   * Cache the livemark info for a node.  This allows the controller and the
-   * views to treat the given node as a livemark.
-   * @param aNode
-   *        a places result node.
-   * @param aLivemarkInfo
-   *        a mozILivemarkInfo object.
-   */
-  cacheLivemarkInfo: function PC_cacheLivemarkInfo(aNode, aLivemarkInfo) {
-    this._cachedLivemarkInfoObjects.set(aNode, aLivemarkInfo);
-  },
-
-  /**
-   * Returns whether or not there's cached mozILivemarkInfo object for a node.
-   * @param aNode
-   *        a places result node.
-   * @return true if there's a cached mozILivemarkInfo object for
-   * aNode, false otherwise.
-   */
-  hasCachedLivemarkInfo: function PC_hasCachedLivemarkInfo(aNode)
-    this._cachedLivemarkInfoObjects.has(aNode),
-
-  /**
-   * Returns the cached livemark info for a node, if set by cacheLivemarkInfo,
-   * null otherwise.
-   * @param aNode
-   *        a places result node.
-   * @return the mozILivemarkInfo object for aNode, if set, null otherwise.
-   */
-  getCachedLivemarkInfo: function PC_getCachedLivemarkInfo(aNode)
-    this._cachedLivemarkInfoObjects.get(aNode, null)
+  }
 };
 
 /**
@@ -1364,23 +1367,15 @@ let PlacesControllerDragHelper = {
   },
 
   /**
-   * Extract the first accepted flavor from a list of flavors.
+   * Extract the first accepted flavor from a flavors array.
    * @param aFlavors
-   *        The flavors list of type nsIDOMDOMStringList.
+   *        The flavors array.
    */
   getFirstValidFlavor: function PCDH_getFirstValidFlavor(aFlavors) {
     for (let i = 0; i < aFlavors.length; i++) {
       if (this.GENERIC_VIEW_DROP_TYPES.indexOf(aFlavors[i]) != -1)
         return aFlavors[i];
     }
-
-    // If no supported flavor is found, check if data includes text/plain 
-    // contents.  If so, request them as text/unicode, a conversion will happen 
-    // automatically.
-    if (aFlavors.contains("text/plain")) {
-        return PlacesUtils.TYPE_UNICODE;
-    }
-
     return null;
   },
 
@@ -1521,7 +1516,7 @@ let PlacesControllerDragHelper = {
     for (let i = 0; i < dropCount; ++i) {
       let flavor = this.getFirstValidFlavor(dt.mozTypesAt(i));
       if (!flavor)
-        return;
+        return false;
 
       let data = dt.mozGetDataAt(flavor, i);
       let unwrapped;
@@ -1554,10 +1549,9 @@ let PlacesControllerDragHelper = {
       // If dragging over a tag container we should tag the item.
       if (insertionPoint.isTag &&
           insertionPoint.orientation == Ci.nsITreeView.DROP_ON) {
-        let uri = NetUtil.newURI(unwrapped.uri);
+        let uri = PlacesUtils._uri(unwrapped.uri);
         let tagItemId = insertionPoint.itemId;
-        let tagTxn = new PlacesTagURITransaction(uri, [tagItemId]);
-        transactions.push(tagTxn);
+        transactions.push(PlacesUIUtils.ptm.tagURI(uri,[tagItemId]));
       }
       else {
         transactions.push(PlacesUIUtils.makeTransaction(unwrapped,
@@ -1566,8 +1560,8 @@ let PlacesControllerDragHelper = {
       }
     }
 
-    let txn = new PlacesAggregatedTransaction("DropItems", transactions);
-    PlacesUtils.transactionManager.doTransaction(txn);
+    let txn = PlacesUIUtils.ptm.aggregateTransactions("DropItems", transactions);
+    PlacesUIUtils.ptm.doTransaction(txn);
   },
 
   /**

@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=375363
 -->
 <head>
   <title>Test for cloning of CSS property values (including 'inherit' and '-moz-initial')</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="property_database.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -155,17 +156,9 @@ function iframe_loaded(event)
 
     if (!("backend_only" in info)) {
       var end_compute = get_computed_value(test_cs[idx], current_item.prop);
-      // Output computed values only when the test failed.
-      // Computed values may be very long.
-      if (end_compute == start_compute[idx]) {
-        ok(true,
-           "computed values should match when cloning " +
-           current_item.prop + ": " + current_item.value);
-      } else {
-        is(end_compute, start_compute[idx],
-           "computed values should match when cloning " +
-           current_item.prop + ": " + current_item.value);
-      }
+      is(end_compute, start_compute[idx],
+	 "computed values should match when cloning " +
+	 current_item.prop + ": " + current_item.value);
     }
   }
 

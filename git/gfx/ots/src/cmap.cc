@@ -4,7 +4,6 @@
 
 #include "cmap.h"
 
-#include <algorithm>
 #include <set>
 #include <utility>
 #include <vector>
@@ -489,7 +488,7 @@ bool Parse0514(ots::OpenTypeFile *file,
           return OTS_FAILURE();
         }
         const uint32_t check_value =
-            ranges[j].unicode_value + ranges[j].additional_count;
+            ranges[j].unicode_value + ranges[i].additional_count;
         if (ranges[j].unicode_value == 0 ||
             ranges[j].unicode_value > kUnicodeUpperLimit ||
             check_value > kUVSUpperLimit ||
@@ -695,10 +694,9 @@ bool ots_cmap_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
       continue;
     }
     overlap_checker.push_back(
-        std::make_pair(subtable_headers[i].offset,
-                       static_cast<uint8_t>(1) /* start */));
+        std::make_pair(subtable_headers[i].offset, 1 /* start */));
     overlap_checker.push_back(
-        std::make_pair(end_byte, static_cast<uint8_t>(0) /* end */));
+        std::make_pair(end_byte, 0 /* end */));
   }
   std::sort(overlap_checker.begin(), overlap_checker.end());
   int overlap_count = 0;

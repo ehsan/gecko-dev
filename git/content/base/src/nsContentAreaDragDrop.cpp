@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Mike Pinkerton <pinkerton@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsReadableUtils.h"
 
@@ -13,12 +46,13 @@
 
 // Interfaces needed to be included
 #include "nsCopySupport.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIDOMUIEvent.h"
 #include "nsISelection.h"
-#include "nsISelectionController.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMEvent.h"
+#include "nsIDOMNSEvent.h"
 #include "nsIDOMDragEvent.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDOMDocument.h"
@@ -37,7 +71,6 @@
 #include "nsIDocShell.h"
 #include "nsIContent.h"
 #include "nsIImageLoadingContent.h"
-#include "nsITextControlElement.h"
 #include "nsUnicharUtils.h"
 #include "nsIURL.h"
 #include "nsIDocument.h"
@@ -51,18 +84,48 @@
 #include "imgIContainer.h"
 #include "imgIRequest.h"
 #include "nsDOMDataTransfer.h"
-#include "mozilla/dom/Element.h"
+
+// private clipboard data flavors for html copy, used by editor when pasting
+#define kHTMLContext   "text/_moz_htmlcontext"
+#define kHTMLInfo      "text/_moz_htmlinfo"
+
+// if aNode is null, use the selection from the window
+static nsresult
+GetTransferableForNodeOrSelection(nsIDOMWindow*     aWindow,
+                                  nsIContent*       aNode,
+                                  nsITransferable** aTransferable)
+{
+  NS_ENSURE_ARG_POINTER(aWindow);
+
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  aWindow->GetDocument(getter_AddRefs(domDoc));
+  NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+
+  nsresult rv;
+  if (aNode) {
+    rv = nsCopySupport::GetTransferableForNode(aNode, doc, aTransferable);
+  } else {
+    nsCOMPtr<nsISelection> selection;
+    aWindow->GetSelection(getter_AddRefs(selection));
+    rv = nsCopySupport::GetTransferableForSelection(selection, doc,
+                                                    aTransferable);
+  }
+
+  NS_ENSURE_SUCCESS(rv, rv);
+  return rv;
+}
 
 class NS_STACK_CLASS DragDataProducer
 {
 public:
-  DragDataProducer(nsPIDOMWindow* aWindow,
+  DragDataProducer(nsIDOMWindow* aWindow,
                    nsIContent* aTarget,
                    nsIContent* aSelectionTargetNode,
-                   bool aIsAltKeyPressed);
+                   PRBool aIsAltKeyPressed);
   nsresult Produce(nsDOMDataTransfer* aDataTransfer,
-                   bool* aCanDrag,
-                   nsISelection** aSelection,
+                   PRBool* aCanDrag,
+                   PRBool* aDragSelection,
                    nsIContent** aDragNode);
 
 private:
@@ -75,7 +138,7 @@ private:
   static nsresult GetDraggableSelectionData(nsISelection* inSelection,
                                             nsIContent* inRealTargetNode,
                                             nsIContent **outImageOrLinkNode,
-                                            bool* outDragSelectedText);
+                                            PRBool* outDragSelectedText);
   static already_AddRefed<nsIContent> FindParentLinkNode(nsIContent* inNode);
   static void GetAnchorURL(nsIContent* inNode, nsAString& outURL);
   static void GetNodeString(nsIContent* inNode, nsAString & outNodeString);
@@ -84,10 +147,10 @@ private:
   static void GetSelectedLink(nsISelection* inSelection,
                               nsIContent **outLinkNode);
 
-  nsCOMPtr<nsPIDOMWindow> mWindow;
+  nsCOMPtr<nsIDOMWindow> mWindow;
   nsCOMPtr<nsIContent> mTarget;
   nsCOMPtr<nsIContent> mSelectionTargetNode;
-  bool mIsAltKeyPressed;
+  PRPackedBool mIsAltKeyPressed;
 
   nsString mUrlString;
   nsString mImageSourceString;
@@ -98,28 +161,28 @@ private:
   nsString mContextString;
   nsString mInfoString;
 
-  bool mIsAnchor;
+  PRBool mIsAnchor;
   nsCOMPtr<imgIContainer> mImage;
 };
 
 
 nsresult
-nsContentAreaDragDrop::GetDragData(nsPIDOMWindow* aWindow,
+nsContentAreaDragDrop::GetDragData(nsIDOMWindow* aWindow,
                                    nsIContent* aTarget,
                                    nsIContent* aSelectionTargetNode,
-                                   bool aIsAltKeyPressed,
+                                   PRBool aIsAltKeyPressed,
                                    nsDOMDataTransfer* aDataTransfer,
-                                   bool* aCanDrag,
-                                   nsISelection** aSelection,
+                                   PRBool* aCanDrag,
+                                   PRBool* aDragSelection,
                                    nsIContent** aDragNode)
 {
   NS_ENSURE_TRUE(aSelectionTargetNode, NS_ERROR_INVALID_ARG);
 
-  *aCanDrag = true;
+  *aCanDrag = PR_TRUE;
 
   DragDataProducer
     provider(aWindow, aTarget, aSelectionTargetNode, aIsAltKeyPressed);
-  return provider.Produce(aDataTransfer, aCanDrag, aSelection, aDragNode);
+  return provider.Produce(aDataTransfer, aCanDrag, aDragSelection, aDragNode);
 }
 
 
@@ -153,9 +216,7 @@ nsContentAreaDragDropDataProvider::SaveURIToFile(nsAString& inSourceURIString,
                       &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  persist->SetPersistFlags(nsIWebBrowserPersist::PERSIST_FLAGS_AUTODETECT_APPLY_CONVERSION);
-
-  return persist->SaveURI(sourceURI, nullptr, nullptr, nullptr, nullptr, inDestFile);
+  return persist->SaveURI(sourceURI, nsnull, nsnull, nsnull, nsnull, inDestFile);
 }
 
 // This is our nsIFlavorDataProvider callback. There are several
@@ -166,7 +227,7 @@ nsContentAreaDragDropDataProvider::SaveURIToFile(nsAString& inSourceURIString,
 //    that in AddStringsToDataTransfer.
 //
 // 2. Someone put a kFilePromiseDirectoryMime flavor into the
-//    transferable with an nsIFile for the directory we are to
+//    transferable with an nsILocalFile for the directory we are to
 //    save in. That has to be done by platform-specific code (in
 //    widget), which gets the destination directory from
 //    OS-specific drag information.
@@ -175,10 +236,10 @@ NS_IMETHODIMP
 nsContentAreaDragDropDataProvider::GetFlavorData(nsITransferable *aTransferable,
                                                  const char *aFlavor,
                                                  nsISupports **aData,
-                                                 uint32_t *aDataLen)
+                                                 PRUint32 *aDataLen)
 {
   NS_ENSURE_ARG_POINTER(aData && aDataLen);
-  *aData = nullptr;
+  *aData = nsnull;
   *aDataLen = 0;
 
   nsresult rv = NS_ERROR_NOT_IMPLEMENTED;
@@ -187,7 +248,7 @@ nsContentAreaDragDropDataProvider::GetFlavorData(nsITransferable *aTransferable,
     // get the URI from the kFilePromiseURLMime flavor
     NS_ENSURE_ARG(aTransferable);
     nsCOMPtr<nsISupports> tmp;
-    uint32_t dataSize = 0;
+    PRUint32 dataSize = 0;
     aTransferable->GetTransferData(kFilePromiseURLMime,
                                    getter_AddRefs(tmp), &dataSize);
     nsCOMPtr<nsISupportsString> supportsString =
@@ -217,7 +278,7 @@ nsContentAreaDragDropDataProvider::GetFlavorData(nsITransferable *aTransferable,
     dataSize = 0;
     aTransferable->GetTransferData(kFilePromiseDirectoryMime,
                                    getter_AddRefs(dirPrimitive), &dataSize);
-    nsCOMPtr<nsIFile> destDirectory = do_QueryInterface(dirPrimitive);
+    nsCOMPtr<nsILocalFile> destDirectory = do_QueryInterface(dirPrimitive);
     if (!destDirectory)
       return NS_ERROR_FAILURE;
 
@@ -228,7 +289,7 @@ nsContentAreaDragDropDataProvider::GetFlavorData(nsITransferable *aTransferable,
     file->Append(targetFilename);
 
     rv = SaveURIToFile(sourceURLString, file);
-    // send back an nsIFile
+    // send back an nsILocalFile
     if (NS_SUCCEEDED(rv)) {
       CallQueryInterface(file, aData);
       *aDataLen = sizeof(nsIFile*);
@@ -238,15 +299,15 @@ nsContentAreaDragDropDataProvider::GetFlavorData(nsITransferable *aTransferable,
   return rv;
 }
 
-DragDataProducer::DragDataProducer(nsPIDOMWindow* aWindow,
+DragDataProducer::DragDataProducer(nsIDOMWindow* aWindow,
                                    nsIContent* aTarget,
                                    nsIContent* aSelectionTargetNode,
-                                   bool aIsAltKeyPressed)
+                                   PRBool aIsAltKeyPressed)
   : mWindow(aWindow),
     mTarget(aTarget),
     mSelectionTargetNode(aSelectionTargetNode),
     mIsAltKeyPressed(aIsAltKeyPressed),
-    mIsAnchor(false)
+    mIsAnchor(PR_FALSE)
 {
 }
 
@@ -264,7 +325,7 @@ DragDataProducer::FindParentLinkNode(nsIContent* inNode)
   nsIContent* content = inNode;
   if (!content) {
     // That must have been the document node; nothing else to do here;
-    return nullptr;
+    return nsnull;
   }
 
   for (; content; content = content->GetParent()) {
@@ -274,7 +335,7 @@ DragDataProducer::FindParentLinkNode(nsIContent* inNode)
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 
@@ -291,7 +352,7 @@ DragDataProducer::GetAnchorURL(nsIContent* inNode, nsAString& outURL)
     return;
   }
 
-  nsAutoCString spec;
+  nsCAutoString spec;
   linkURI->GetSpec(spec);
   CopyUTF8toUTF16(spec, outURL);
 }
@@ -349,91 +410,47 @@ DragDataProducer::GetNodeString(nsIContent* inNode,
 
 nsresult
 DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
-                          bool* aCanDrag,
-                          nsISelection** aSelection,
+                          PRBool* aCanDrag,
+                          PRBool* aDragSelection,
                           nsIContent** aDragNode)
 {
-  NS_PRECONDITION(aCanDrag && aSelection && aDataTransfer && aDragNode,
+  NS_PRECONDITION(aCanDrag && aDragSelection && aDataTransfer && aDragNode,
                   "null pointer passed to Produce");
   NS_ASSERTION(mWindow, "window not set");
   NS_ASSERTION(mSelectionTargetNode, "selection target node should have been set");
 
-  *aDragNode = nullptr;
+  *aDragNode = nsnull;
 
   nsresult rv;
-  nsIContent* dragNode = nullptr;
-  *aSelection = nullptr;
+  nsIContent* dragNode = nsnull;
 
-  // Find the selection to see what we could be dragging and if what we're
-  // dragging is in what is selected. If this is an editable textbox, use
-  // the textbox's selection, otherwise use the window's selection.
+  // find the selection to see what we could be dragging and if
+  // what we're dragging is in what is selected.
   nsCOMPtr<nsISelection> selection;
-  nsIContent* editingElement = mSelectionTargetNode->IsEditable() ?
-                               mSelectionTargetNode->GetEditingHost() : nullptr;
-  nsCOMPtr<nsITextControlElement> textControl =
-    nsITextControlElement::GetTextControlElementFromEditingHost(editingElement);
-  if (textControl) {
-    nsISelectionController* selcon = textControl->GetSelectionController();
-    if (selcon) {
-      selcon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));
-    }
-
-    if (!selection)
-      return NS_OK;
+  mWindow->GetSelection(getter_AddRefs(selection));
+  if (!selection) {
+    return NS_OK;
   }
-  else {
-    mWindow->GetSelection(getter_AddRefs(selection));
-    if (!selection)
-      return NS_OK;
 
-    // Check if the node is inside a form control. Don't set aCanDrag to false
-    //however, as we still want to allow the drag.
-    nsCOMPtr<nsIContent> findFormNode = mSelectionTargetNode;
-    nsIContent* findFormParent = findFormNode->GetParent();
-    while (findFormParent) {
-      nsCOMPtr<nsIFormControl> form(do_QueryInterface(findFormParent));
-      if (form && !form->AllowDraggableChildren()) {
-        return NS_OK;
-      }
-      findFormParent = findFormParent->GetParent();
+  // check if the node is inside a form control. If so, dragging will be
+  // handled in editor code (nsPlaintextDataTransfer::DoDrag). Don't set
+  // aCanDrag to false however, as we still want to allow the drag.
+  nsCOMPtr<nsIContent> findFormNode = mSelectionTargetNode;
+  nsIContent* findFormParent = findFormNode->GetParent();
+  while (findFormParent) {
+    nsCOMPtr<nsIFormControl> form(do_QueryInterface(findFormParent));
+    if (form && !form->AllowDraggableChildren()) {
+      return NS_OK;
     }
+    findFormParent = findFormParent->GetParent();
   }
     
   // if set, serialize the content under this node
   nsCOMPtr<nsIContent> nodeToSerialize;
+  *aDragSelection = PR_FALSE;
 
-  bool isChromeShell = false;
-  nsCOMPtr<nsIWebNavigation> webnav = do_GetInterface(mWindow);
-  nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(webnav);
-  if (dsti) {
-    int32_t type = -1;
-    if (NS_SUCCEEDED(dsti->GetItemType(&type)) &&
-        type == nsIDocShellTreeItem::typeChrome) {
-      isChromeShell = true;
-    }
-  }
-
-  // In chrome shells, only allow dragging inside editable areas.
-  if (isChromeShell && !editingElement)
-    return NS_OK;
-
-  if (isChromeShell && textControl) {
-    // Only use the selection if the target node is in the selection.
-    bool selectionContainsTarget = false;
-    nsCOMPtr<nsIDOMNode> targetNode = do_QueryInterface(mSelectionTargetNode);
-    selection->ContainsNode(targetNode, false, &selectionContainsTarget);
-    if (!selectionContainsTarget)
-      return NS_OK;
-
-    selection.swap(*aSelection);
-  }
-  else {
-    // In content shells, a number of checks are made below to determine
-    // whether an image or a link is being dragged. If so, add additional
-    // data to the data transfer. This is also done for chrome shells, but
-    // only when in a non-textbox editor.
-
-    bool haveSelectedContent = false;
+  {
+    PRBool haveSelectedContent = PR_FALSE;
 
     // possible parent link node
     nsCOMPtr<nsIContent> parentLink;
@@ -447,7 +464,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
       // really allow dragging them if they happen to be images.
       nsCOMPtr<nsIFormControl> form(do_QueryInterface(mTarget));
       if (form && !mIsAltKeyPressed && form->GetType() != NS_FORM_OBJECT) {
-        *aCanDrag = false;
+        *aCanDrag = PR_FALSE;
         return NS_OK;
       }
 
@@ -468,11 +485,11 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
       link = do_QueryInterface(selectedImageOrLinkNode);
       if (link && mIsAltKeyPressed) {
         // if alt is pressed, select the link text instead of drag the link
-        *aCanDrag = false;
+        *aCanDrag = PR_FALSE;
         return NS_OK;
       }
 
-      selection.swap(*aSelection);
+      *aDragSelection = PR_TRUE;
     } else if (selectedImageOrLinkNode) {
       // an image is selected
       image = do_QueryInterface(selectedImageOrLinkNode);
@@ -485,7 +502,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
       // anchor because we want to do selection.
       parentLink = FindParentLinkNode(draggedNode);
       if (parentLink && mIsAltKeyPressed) {
-        *aCanDrag = false;
+        *aCanDrag = PR_FALSE;
         return NS_OK;
       }
 
@@ -507,7 +524,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
         }
 
         // we'll generate HTML like <a href="absurl">alt text</a>
-        mIsAnchor = true;
+        mIsAnchor = PR_TRUE;
 
         // gives an absolute link
         GetAnchorURL(draggedNode, mUrlString);
@@ -520,14 +537,14 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
 
         dragNode = draggedNode;
       } else if (image) {
-        mIsAnchor = true;
+        mIsAnchor = PR_TRUE;
         // grab the href as the url, use alt text as the title of the
         // area if it's there.  the drag data is the image tag and src
         // attribute.
         nsCOMPtr<nsIURI> imageURI;
         image->GetCurrentURI(getter_AddRefs(imageURI));
         if (imageURI) {
-          nsAutoCString spec;
+          nsCAutoString spec;
           imageURI->GetSpec(spec);
           CopyUTF8toUTF16(spec, mUrlString);
         }
@@ -561,7 +578,7 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
           nsCOMPtr<nsIURL> imgUrl(do_QueryInterface(imgUri));
 
           if (imgUrl) {
-            nsAutoCString extension;
+            nsCAutoString extension;
             imgUrl->GetFileExtension(extension);
 
             nsXPIDLCString mimeType;
@@ -572,13 +589,13 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
                                                  getter_AddRefs(mimeInfo));
 
             if (mimeInfo) {
-              nsAutoCString spec;
+              nsCAutoString spec;
               imgUrl->GetSpec(spec);
 
               // pass out the image source string
               CopyUTF8toUTF16(spec, mImageSourceString);
 
-              bool validExtension;
+              PRBool validExtension;
               if (extension.IsEmpty() || 
                   NS_FAILED(mimeInfo->ExtensionExists(extension,
                                                       &validExtension)) ||
@@ -589,13 +606,13 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
 
                 imgUrl = do_QueryInterface(imgUri);
 
-                nsAutoCString primaryExtension;
+                nsCAutoString primaryExtension;
                 mimeInfo->GetPrimaryExtension(primaryExtension);
 
                 imgUrl->SetFileExtension(primaryExtension);
               }
 
-              nsAutoCString fileName;
+              nsCAutoString fileName;
               imgUrl->GetFileName(fileName);
 
               NS_UnescapeURL(fileName);
@@ -635,36 +652,29 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
       }
 
       if (linkNode) {
-        mIsAnchor = true;
+        mIsAnchor = PR_TRUE;
         GetAnchorURL(linkNode, mUrlString);
         dragNode = linkNode;
       }
     }
   }
 
-  if (nodeToSerialize || *aSelection) {
+  if (nodeToSerialize || *aDragSelection) {
+    // if we have selected text, use it in preference to the node
+    if (*aDragSelection) {
+      nodeToSerialize = nsnull;
+    }
+
     mHtmlString.Truncate();
     mContextString.Truncate();
     mInfoString.Truncate();
     mTitleString.Truncate();
-
-    nsCOMPtr<nsIDocument> doc = mWindow->GetDoc();
-    NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
-
-    // if we have selected text, use it in preference to the node
     nsCOMPtr<nsITransferable> transferable;
-    if (*aSelection) {
-      rv = nsCopySupport::GetTransferableForSelection(*aSelection, doc,
-                                                      getter_AddRefs(transferable));
-    }
-    else {
-      rv = nsCopySupport::GetTransferableForNode(nodeToSerialize, doc,
-                                                 getter_AddRefs(transferable));
-    }
+    rv = ::GetTransferableForNodeOrSelection(mWindow, nodeToSerialize,
+                                             getter_AddRefs(transferable));
     NS_ENSURE_SUCCESS(rv, rv);
-
     nsCOMPtr<nsISupportsString> data;
-    uint32_t dataSize;
+    PRUint32 dataSize;
     rv = transferable->GetTransferData(kHTMLMime, getter_AddRefs(data), &dataSize);
     if (NS_SUCCEEDED(rv)) {
       data->GetData(mHtmlString);
@@ -736,17 +746,15 @@ DragDataProducer::AddStringsToDataTransfer(nsIContent* aDragNode,
     AddString(aDataTransfer, NS_LITERAL_STRING("text/uri-list"), mUrlString, principal);
   }
 
-  // add a special flavor for the html context data
-  if (!mContextString.IsEmpty())
-    AddString(aDataTransfer, NS_LITERAL_STRING(kHTMLContext), mContextString, principal);
+  // add a special flavor, even if we don't have html context data
+  AddString(aDataTransfer, NS_LITERAL_STRING(kHTMLContext), mContextString, principal);
 
   // add a special flavor if we have html info data
   if (!mInfoString.IsEmpty())
     AddString(aDataTransfer, NS_LITERAL_STRING(kHTMLInfo), mInfoString, principal);
 
   // add the full html
-  if (!mHtmlString.IsEmpty())
-    AddString(aDataTransfer, NS_LITERAL_STRING(kHTMLMime), mHtmlString, principal);
+  AddString(aDataTransfer, NS_LITERAL_STRING(kHTMLMime), mHtmlString, principal);
 
   // add the plain text. we use the url for text/plain data if an anchor is
   // being dragged, rather than the title text of the link or the alt text for
@@ -802,22 +810,22 @@ nsresult
 DragDataProducer::GetDraggableSelectionData(nsISelection* inSelection,
                                             nsIContent* inRealTargetNode,
                                             nsIContent **outImageOrLinkNode,
-                                            bool* outDragSelectedText)
+                                            PRBool* outDragSelectedText)
 {
   NS_ENSURE_ARG(inSelection);
   NS_ENSURE_ARG(inRealTargetNode);
   NS_ENSURE_ARG_POINTER(outImageOrLinkNode);
 
-  *outImageOrLinkNode = nullptr;
-  *outDragSelectedText = false;
+  *outImageOrLinkNode = nsnull;
+  *outDragSelectedText = PR_FALSE;
 
-  bool selectionContainsTarget = false;
+  PRBool selectionContainsTarget = PR_FALSE;
 
-  bool isCollapsed = false;
+  PRBool isCollapsed = PR_FALSE;
   inSelection->GetIsCollapsed(&isCollapsed);
   if (!isCollapsed) {
     nsCOMPtr<nsIDOMNode> realTargetNode = do_QueryInterface(inRealTargetNode);
-    inSelection->ContainsNode(realTargetNode, false,
+    inSelection->ContainsNode(realTargetNode, PR_FALSE,
                               &selectionContainsTarget);
 
     if (selectionContainsTarget) {
@@ -832,11 +840,11 @@ DragDataProducer::GetDraggableSelectionData(nsISelection* inSelection,
       // in this case, drag the image, rather than a serialization of the HTML
       // XXX generalize this to other draggable element types?
       if (selectionStart == selectionEnd) {
-        bool hasChildren;
+        PRBool hasChildren;
         selectionStart->HasChildNodes(&hasChildren);
         if (hasChildren) {
           // see if just one node is selected
-          int32_t anchorOffset, focusOffset;
+          PRInt32 anchorOffset, focusOffset;
           inSelection->GetAnchorOffset(&anchorOffset);
           inSelection->GetFocusOffset(&focusOffset);
           if (abs(anchorOffset - focusOffset) == 1) {
@@ -844,7 +852,7 @@ DragDataProducer::GetDraggableSelectionData(nsISelection* inSelection,
               do_QueryInterface(selectionStart);
 
             if (selStartContent) {
-              int32_t childOffset =
+              PRInt32 childOffset =
                 (anchorOffset < focusOffset) ? anchorOffset : focusOffset;
               nsIContent *childContent =
                 selStartContent->GetChildAt(childOffset);
@@ -863,7 +871,7 @@ DragDataProducer::GetDraggableSelectionData(nsISelection* inSelection,
       GetSelectedLink(inSelection, outImageOrLinkNode);
 
       // indicate that a link or text is selected
-      *outDragSelectedText = true;
+      *outDragSelectedText = PR_TRUE;
     }
   }
 
@@ -875,7 +883,7 @@ void
 DragDataProducer::GetSelectedLink(nsISelection* inSelection,
                                   nsIContent **outLinkNode)
 {
-  *outLinkNode = nullptr;
+  *outLinkNode = nsnull;
 
   nsCOMPtr<nsIDOMNode> selectionStartNode;
   inSelection->GetAnchorNode(getter_AddRefs(selectionStartNode));
@@ -905,7 +913,7 @@ DragDataProducer::GetSelectedLink(nsISelection* inSelection,
   // first, use a range determine if the selection was marked LTR or RTL;
   // if the latter, swap endpoints so we trim in the right direction
 
-  int32_t startOffset, endOffset;
+  PRInt32 startOffset, endOffset;
   {
     nsCOMPtr<nsIDOMRange> range;
     inSelection->GetRangeAt(0, getter_AddRefs(range));
@@ -932,7 +940,7 @@ DragDataProducer::GetSelectedLink(nsISelection* inSelection,
   nsAutoString nodeStr;
   selectionStartNode->GetNodeValue(nodeStr);
   if (nodeStr.IsEmpty() ||
-      startOffset+1 >= static_cast<int32_t>(nodeStr.Length())) {
+      startOffset+1 >= static_cast<PRInt32>(nodeStr.Length())) {
     nsCOMPtr<nsIDOMNode> curr = selectionStartNode;
     nsIDOMNode* next;
 

@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et cindent: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Chris Jones <jones.chris.g@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 //
 // Implement TimeStamp::Now() with POSIX clocks.
@@ -18,23 +50,23 @@
 #include "mozilla/TimeStamp.h"
 
 // Estimate of the smallest duration of time we can measure.
-static uint64_t sResolution;
-static uint64_t sResolutionSigDigs;
+static PRUint64 sResolution;
+static PRUint64 sResolutionSigDigs;
 
-static const uint16_t kNsPerUs   =       1000;
-static const uint64_t kNsPerMs   =    1000000;
-static const uint64_t kNsPerSec  = 1000000000; 
+static const PRUint16 kNsPerUs   =       1000;
+static const PRUint64 kNsPerMs   =    1000000;
+static const PRUint64 kNsPerSec  = 1000000000; 
 static const double kNsPerMsd    =    1000000.0;
 static const double kNsPerSecd   = 1000000000.0;
 
-static uint64_t
+static PRUint64
 TimespecToNs(const struct timespec& ts)
 {
-  uint64_t baseNs = uint64_t(ts.tv_sec) * kNsPerSec;
-  return baseNs + uint64_t(ts.tv_nsec);
+  PRUint64 baseNs = PRUint64(ts.tv_sec) * kNsPerSec;
+  return baseNs + PRUint64(ts.tv_nsec);
 }
 
-static uint64_t
+static PRUint64
 ClockTimeNs()
 {
   struct timespec ts;
@@ -51,7 +83,7 @@ ClockTimeNs()
   return TimespecToNs(ts);
 }
 
-static uint64_t
+static PRUint64
 ClockResolutionNs()
 {
   // NB: why not rely on clock_getres()?  Two reasons: (i) it might
@@ -61,9 +93,9 @@ ClockResolutionNs()
   // the "actual" timing resolution shouldn't be lower than syscall
   // overhead.
 
-  uint64_t start = ClockTimeNs();
-  uint64_t end = ClockTimeNs();
-  uint64_t minres = (end - start);
+  PRUint64 start = ClockTimeNs();
+  PRUint64 end = ClockTimeNs();
+  PRUint64 minres = (end - start);
 
   // 10 total trials is arbitrary: what we're trying to avoid by
   // looping is getting unlucky and being interrupted by a context
@@ -72,7 +104,7 @@ ClockResolutionNs()
     start = ClockTimeNs();
     end = ClockTimeNs();
 
-    uint64_t candidate = (start - end);
+    PRUint64 candidate = (start - end);
     if (candidate < minres)
       minres = candidate;
   }
@@ -108,7 +140,7 @@ double
 TimeDuration::ToSecondsSigDigits() const
 {
   // don't report a value < mResolution ...
-  int64_t valueSigDigs = sResolution * (mValue / sResolution);
+  PRInt64 valueSigDigs = sResolution * (mValue / sResolution);
   // and chop off insignificant digits
   valueSigDigs = sResolutionSigDigs * (valueSigDigs / sResolutionSigDigs);
   return double(valueSigDigs) / kNsPerSecd;
@@ -123,7 +155,7 @@ TimeDuration::FromMilliseconds(double aMilliseconds)
 TimeDuration
 TimeDuration::Resolution()
 {
-  return TimeDuration::FromTicks(int64_t(sResolution));
+  return TimeDuration::FromTicks(PRInt64(sResolution));
 }
 
 struct TimeStampInitialization
@@ -137,7 +169,7 @@ struct TimeStampInitialization
 };
 
 static TimeStampInitialization initOnce;
-static bool gInitialized = false;
+static PRBool gInitialized = PR_FALSE;
 
 nsresult
 TimeStamp::Startup()
@@ -158,7 +190,7 @@ TimeStamp::Startup()
          || 10*sResolutionSigDigs > sResolution);
        sResolutionSigDigs *= 10);
 
-  gInitialized = true;
+  gInitialized = PR_TRUE;
   return NS_OK;
 }
 

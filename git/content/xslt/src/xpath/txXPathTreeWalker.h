@@ -1,38 +1,75 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Peter Van der Beken <peterv@propagandism.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef txXPathTreeWalker_h__
 #define txXPathTreeWalker_h__
 
 #include "txCore.h"
 #include "txXPathNode.h"
+
+class nsIAtom;
+
+#ifndef TX_EXE
 #include "nsINodeInfo.h"
 #include "nsTArray.h"
 
-class nsIAtom;
-class nsIDOMDocument;
-
-class txUint32Array : public nsTArray<uint32_t>
+class txUint32Array : public nsTArray<PRUint32>
 {
 public:
-    bool AppendValue(uint32_t aValue)
+    PRBool AppendValue(PRUint32 aValue)
     {
-        return AppendElement(aValue) != nullptr;
+        return AppendElement(aValue) != nsnull;
     }
-    bool RemoveValueAt(uint32_t aIndex)
+    PRBool RemoveValueAt(PRUint32 aIndex)
     {
         if (aIndex < Length()) {
             RemoveElementAt(aIndex);
         }
-        return true;
+        return PR_TRUE;
     }
-    uint32_t ValueAt(uint32_t aIndex) const
+    PRUint32 ValueAt(PRUint32 aIndex) const
     {
         return (aIndex < Length()) ? ElementAt(aIndex) : 0;
     }
 };
+
+class nsIDOMDocument;
+#endif
 
 class txXPathTreeWalker
 {
@@ -40,87 +77,104 @@ public:
     txXPathTreeWalker(const txXPathTreeWalker& aOther);
     explicit txXPathTreeWalker(const txXPathNode& aNode);
 
-    bool getAttr(nsIAtom* aLocalName, int32_t aNSID, nsAString& aValue) const;
-    int32_t getNamespaceID() const;
-    uint16_t getNodeType() const;
+    PRBool getAttr(nsIAtom* aLocalName, PRInt32 aNSID, nsAString& aValue) const;
+    PRInt32 getNamespaceID() const;
+    PRUint16 getNodeType() const;
     void appendNodeValue(nsAString& aResult) const;
     void getNodeName(nsAString& aName) const;
 
     void moveTo(const txXPathTreeWalker& aWalker);
 
     void moveToRoot();
-    bool moveToParent();
-    bool moveToElementById(const nsAString& aID);
-    bool moveToFirstAttribute();
-    bool moveToNextAttribute();
-    bool moveToNamedAttribute(nsIAtom* aLocalName, int32_t aNSID);
-    bool moveToFirstChild();
-    bool moveToLastChild();
-    bool moveToNextSibling();
-    bool moveToPreviousSibling();
+    PRBool moveToParent();
+    PRBool moveToElementById(const nsAString& aID);
+    PRBool moveToFirstAttribute();
+    PRBool moveToNextAttribute();
+    PRBool moveToNamedAttribute(nsIAtom* aLocalName, PRInt32 aNSID);
+    PRBool moveToFirstChild();
+    PRBool moveToLastChild();
+    PRBool moveToNextSibling();
+    PRBool moveToPreviousSibling();
 
-    bool isOnNode(const txXPathNode& aNode) const;
+    PRBool isOnNode(const txXPathNode& aNode) const;
 
     const txXPathNode& getCurrentPosition() const;
 
 private:
     txXPathNode mPosition;
 
-    bool moveToValidAttribute(uint32_t aStartIndex);
-    bool moveToSibling(int32_t aDir);
+#ifndef TX_EXE
+    PRBool moveToValidAttribute(PRUint32 aStartIndex);
+    PRBool moveToSibling(PRInt32 aDir);
 
-    uint32_t mCurrentIndex;
+    PRUint32 mCurrentIndex;
     txUint32Array mDescendants;
+#endif
 };
 
 class txXPathNodeUtils
 {
 public:
-    static bool getAttr(const txXPathNode& aNode, nsIAtom* aLocalName,
-                          int32_t aNSID, nsAString& aValue);
+    static PRBool getAttr(const txXPathNode& aNode, nsIAtom* aLocalName,
+                          PRInt32 aNSID, nsAString& aValue);
     static already_AddRefed<nsIAtom> getLocalName(const txXPathNode& aNode);
     static nsIAtom* getPrefix(const txXPathNode& aNode);
     static void getLocalName(const txXPathNode& aNode, nsAString& aLocalName);
     static void getNodeName(const txXPathNode& aNode,
                             nsAString& aName);
-    static int32_t getNamespaceID(const txXPathNode& aNode);
+    static PRInt32 getNamespaceID(const txXPathNode& aNode);
     static void getNamespaceURI(const txXPathNode& aNode, nsAString& aURI);
-    static uint16_t getNodeType(const txXPathNode& aNode);
+    static PRUint16 getNodeType(const txXPathNode& aNode);
     static void appendNodeValue(const txXPathNode& aNode, nsAString& aResult);
-    static bool isWhitespace(const txXPathNode& aNode);
+    static PRBool isWhitespace(const txXPathNode& aNode);
+    static txXPathNode* getDocument(const txXPathNode& aNode);
     static txXPathNode* getOwnerDocument(const txXPathNode& aNode);
-    static int32_t getUniqueIdentifier(const txXPathNode& aNode);
+    static PRInt32 getUniqueIdentifier(const txXPathNode& aNode);
     static nsresult getXSLTId(const txXPathNode& aNode,
                               const txXPathNode& aBase, nsAString& aResult);
     static void release(txXPathNode* aNode);
     static void getBaseURI(const txXPathNode& aNode, nsAString& aURI);
-    static int comparePosition(const txXPathNode& aNode,
-                               const txXPathNode& aOtherNode);
-    static bool localNameEquals(const txXPathNode& aNode,
+    static PRIntn comparePosition(const txXPathNode& aNode,
+                                  const txXPathNode& aOtherNode);
+    static PRBool localNameEquals(const txXPathNode& aNode,
                                   nsIAtom* aLocalName);
-    static bool isRoot(const txXPathNode& aNode);
-    static bool isElement(const txXPathNode& aNode);
-    static bool isAttribute(const txXPathNode& aNode);
-    static bool isProcessingInstruction(const txXPathNode& aNode);
-    static bool isComment(const txXPathNode& aNode);
-    static bool isText(const txXPathNode& aNode);
-    static inline bool isHTMLElementInHTMLDocument(const txXPathNode& aNode)
+    static PRBool isRoot(const txXPathNode& aNode);
+    static PRBool isElement(const txXPathNode& aNode);
+    static PRBool isAttribute(const txXPathNode& aNode);
+    static PRBool isProcessingInstruction(const txXPathNode& aNode);
+    static PRBool isComment(const txXPathNode& aNode);
+    static PRBool isText(const txXPathNode& aNode);
+#ifndef TX_EXE
+    static inline PRBool isHTMLElementInHTMLDocument(const txXPathNode& aNode)
     {
       if (!aNode.isContent()) {
-        return false;
+        return PR_FALSE;
       }
       nsIContent* content = aNode.Content();
       return content->IsHTML() && content->IsInHTMLDocument();
     }
+#else
+private:
+    static void appendNodeValueHelper(NodeDefinition* aNode, nsAString& aResult);
+#endif
 };
 
+#ifdef TX_EXE
+class txXPathNativeNode
+{
+public:
+    static txXPathNode* createXPathNode(Node* aNode);
+    static nsresult getElement(const txXPathNode& aNode, Element** aResult);
+    static nsresult getDocument(const txXPathNode& aNode, Document** aResult);
+};
+#else
 class txXPathNativeNode
 {
 public:
     static txXPathNode* createXPathNode(nsIDOMNode* aNode,
-                                        bool aKeepRootAlive = false);
+                                        PRBool aKeepRootAlive = PR_FALSE);
     static txXPathNode* createXPathNode(nsIContent* aContent,
-                                        bool aKeepRootAlive = false);
+                                        PRBool aKeepRootAlive = PR_FALSE);
     static txXPathNode* createXPathNode(nsIDOMDocument* aDocument);
     static nsresult getNode(const txXPathNode& aNode, nsIDOMNode** aResult);
     static nsIContent* getContent(const txXPathNode& aNode);
@@ -136,20 +190,22 @@ public:
     }
 };
 
+#endif
+
 inline const txXPathNode&
 txXPathTreeWalker::getCurrentPosition() const
 {
     return mPosition;
 }
 
-inline bool
-txXPathTreeWalker::getAttr(nsIAtom* aLocalName, int32_t aNSID,
+inline PRBool
+txXPathTreeWalker::getAttr(nsIAtom* aLocalName, PRInt32 aNSID,
                            nsAString& aValue) const
 {
     return txXPathNodeUtils::getAttr(mPosition, aLocalName, aNSID, aValue);
 }
 
-inline int32_t
+inline PRInt32
 txXPathTreeWalker::getNamespaceID() const
 {
     return txXPathNodeUtils::getNamespaceID(mPosition);
@@ -170,14 +226,17 @@ txXPathTreeWalker::getNodeName(nsAString& aName) const
 inline void
 txXPathTreeWalker::moveTo(const txXPathTreeWalker& aWalker)
 {
-    nsINode *root = nullptr;
+#ifdef TX_EXE
+    mPosition.mInner = aWalker.mPosition.mInner;
+#else
+    nsINode *root = nsnull;
     if (mPosition.mRefCountRoot) {
         root = mPosition.Root();
     }
     mPosition.mIndex = aWalker.mPosition.mIndex;
     mPosition.mRefCountRoot = aWalker.mPosition.mRefCountRoot;
     mPosition.mNode = aWalker.mPosition.mNode;
-    nsINode *newRoot = nullptr;
+    nsINode *newRoot = nsnull;
     if (mPosition.mRefCountRoot) {
         newRoot = mPosition.Root();
     }
@@ -188,35 +247,50 @@ txXPathTreeWalker::moveTo(const txXPathTreeWalker& aWalker)
 
     mCurrentIndex = aWalker.mCurrentIndex;
     mDescendants.Clear();
+#endif
 }
 
-inline bool
+inline PRBool
 txXPathTreeWalker::isOnNode(const txXPathNode& aNode) const
 {
     return (mPosition == aNode);
 }
 
 /* static */
-inline int32_t
+inline PRInt32
 txXPathNodeUtils::getUniqueIdentifier(const txXPathNode& aNode)
 {
+#ifdef TX_EXE
+    return NS_PTR_TO_INT32(aNode.mInner);
+#else
     NS_PRECONDITION(!aNode.isAttribute(),
                     "Not implemented for attributes.");
     return NS_PTR_TO_INT32(aNode.mNode);
+#endif
 }
 
 /* static */
 inline void
 txXPathNodeUtils::release(txXPathNode* aNode)
 {
+#ifdef TX_EXE
+    delete aNode->mInner;
+#else
     NS_RELEASE(aNode->mNode);
+#endif
 }
 
 /* static */
-inline bool
+inline PRBool
 txXPathNodeUtils::localNameEquals(const txXPathNode& aNode,
                                   nsIAtom* aLocalName)
 {
+#ifdef TX_EXE
+    nsCOMPtr<nsIAtom> localName;
+    aNode.mInner->getLocalName(getter_AddRefs(localName));
+
+    return localName == aLocalName;
+#else
     if (aNode.isContent() &&
         aNode.Content()->IsElement()) {
         return aNode.Content()->NodeInfo()->Equals(aLocalName);
@@ -225,53 +299,78 @@ txXPathNodeUtils::localNameEquals(const txXPathNode& aNode,
     nsCOMPtr<nsIAtom> localName = txXPathNodeUtils::getLocalName(aNode);
 
     return localName == aLocalName;
+#endif
 }
 
 /* static */
-inline bool
+inline PRBool
 txXPathNodeUtils::isRoot(const txXPathNode& aNode)
 {
+#ifdef TX_EXE
+    return aNode.mInner->getNodeType() == Node::DOCUMENT_NODE;
+#else
     return !aNode.isAttribute() && !aNode.mNode->GetNodeParent();
+#endif
 }
 
 /* static */
-inline bool
+inline PRBool
 txXPathNodeUtils::isElement(const txXPathNode& aNode)
 {
+#ifdef TX_EXE
+    return aNode.mInner->getNodeType() == Node::ELEMENT_NODE;
+#else
     return aNode.isContent() &&
            aNode.Content()->IsElement();
+#endif
 }
 
 
 /* static */
-inline bool
+inline PRBool
 txXPathNodeUtils::isAttribute(const txXPathNode& aNode)
 {
+#ifdef TX_EXE
+    return aNode.mInner->getNodeType() == Node::ATTRIBUTE_NODE;
+#else
     return aNode.isAttribute();
+#endif
 }
 
 /* static */
-inline bool
+inline PRBool
 txXPathNodeUtils::isProcessingInstruction(const txXPathNode& aNode)
 {
+#ifdef TX_EXE
+    return aNode.mInner->getNodeType() == Node::PROCESSING_INSTRUCTION_NODE;
+#else
     return aNode.isContent() &&
            aNode.Content()->IsNodeOfType(nsINode::ePROCESSING_INSTRUCTION);
+#endif
 }
 
 /* static */
-inline bool
+inline PRBool
 txXPathNodeUtils::isComment(const txXPathNode& aNode)
 {
+#ifdef TX_EXE
+    return aNode.mInner->getNodeType() == Node::COMMENT_NODE;
+#else
     return aNode.isContent() &&
            aNode.Content()->IsNodeOfType(nsINode::eCOMMENT);
+#endif
 }
 
 /* static */
-inline bool
+inline PRBool
 txXPathNodeUtils::isText(const txXPathNode& aNode)
 {
+#ifdef TX_EXE
+    return aNode.mInner->getNodeType() == Node::TEXT_NODE;
+#else
     return aNode.isContent() &&
            aNode.Content()->IsNodeOfType(nsINode::eTEXT);
+#endif
 }
 
 #endif /* txXPathTreeWalker_h__ */

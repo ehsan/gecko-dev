@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 /**
@@ -36,7 +68,7 @@ class nsCParserNode :  public nsIParserNode {
 
   protected:
 
-    int32_t mRefCnt;
+    PRInt32 mRefCnt;
 
   public:
 
@@ -76,7 +108,7 @@ class nsCParserNode :  public nsIParserNode {
 #else
       nsFixedSizeAllocator& pool = aNodeAllocator->GetArenaPool();
       void* place = pool.Alloc(sizeof(nsCParserNode));
-      NS_ENSURE_TRUE(place, nullptr);
+      NS_ENSURE_TRUE(place, nsnull);
       return ::new (place)
 #endif
         nsCParserNode(aToken, aTokenAllocator, aNodeAllocator);
@@ -139,14 +171,14 @@ class nsCParserNode :  public nsIParserNode {
      * @update	gess5/11/98
      * @return  node type.
      */
-    virtual int32_t GetNodeType()  const;
+    virtual PRInt32 GetNodeType()  const;
 
     /**
      * Retrieve token type of parser node
      * @update	gess5/11/98
      * @return  token type
      */
-    virtual int32_t GetTokenType()  const;
+    virtual PRInt32 GetTokenType()  const;
 
 
     //***************************************
@@ -158,7 +190,7 @@ class nsCParserNode :  public nsIParserNode {
      * @update	gess5/11/98
      * @return  count of attributes (may be 0)
      */
-    virtual int32_t GetAttributeCount(bool askToken=false) const;
+    virtual PRInt32 GetAttributeCount(PRBool askToken=PR_FALSE) const;
 
     /**
      * Retrieve the key (of key/value pair) at given index
@@ -166,7 +198,7 @@ class nsCParserNode :  public nsIParserNode {
      * @param   anIndex is the index of the key you want
      * @return  string containing key.
      */
-    virtual const nsAString& GetKeyAt(uint32_t anIndex) const;
+    virtual const nsAString& GetKeyAt(PRUint32 anIndex) const;
 
     /**
      * Retrieve the value (of key/value pair) at given index
@@ -174,7 +206,7 @@ class nsCParserNode :  public nsIParserNode {
      * @param   anIndex is the index of the value you want
      * @return  string containing value.
      */
-    virtual const nsAString& GetValueAt(uint32_t anIndex) const;
+    virtual const nsAString& GetValueAt(PRUint32 anIndex) const;
 
     /**
      * NOTE: When the node is an entity, this will translate the entity
@@ -183,7 +215,7 @@ class nsCParserNode :  public nsIParserNode {
      * @param   aString will contain the resulting unicode string value
      * @return  int (unicode char or unicode index from table)
      */
-    virtual int32_t TranslateToUnicodeStr(nsString& aString) const;
+    virtual PRInt32 TranslateToUnicodeStr(nsString& aString) const;
 
     /**
      * 
@@ -199,7 +231,7 @@ class nsCParserNode :  public nsIParserNode {
      * @update	gess7/24/98
      * @return  int containing the line number the token was found on
      */
-    virtual int32_t GetSourceLineNumber(void) const;
+    virtual PRInt32 GetSourceLineNumber(void) const;
 
     /** This method pop the attribute token from the given index
      * @update	harishd 03/25/99
@@ -221,8 +253,8 @@ class nsCParserNode :  public nsIParserNode {
      * on each node stored in the context.
      * @update	gess 11May2000
      */
-    virtual bool    GetGenericState(void) const {return mGenericState;}
-    virtual void    SetGenericState(bool aState) {mGenericState=aState;}
+    virtual PRBool  GetGenericState(void) const {return mGenericState;}
+    virtual void    SetGenericState(PRBool aState) {mGenericState=aState;}
 
     /** Release all the objects you're holding
      * @update	harishd 08/02/00
@@ -230,8 +262,8 @@ class nsCParserNode :  public nsIParserNode {
      */
     virtual nsresult ReleaseAll();
 
-    bool mGenericState;  
-    int32_t      mUseCount;
+    PRPackedBool mGenericState;  
+    PRInt32      mUseCount;
     CToken*      mToken;
    
     nsTokenAllocator* mTokenAllocator;
@@ -253,7 +285,7 @@ public:
 #else
       nsFixedSizeAllocator& pool = aNodeAllocator->GetArenaPool();
       void* place = pool.Alloc(sizeof(nsCParserStartNode));
-      NS_ENSURE_TRUE(place, nullptr);
+      NS_ENSURE_TRUE(place, nsnull);
       return ::new (place)
 #endif
         nsCParserStartNode(aToken, aTokenAllocator, aNodeAllocator);
@@ -281,9 +313,9 @@ public:
                           nsTokenAllocator* aTokenAllocator,
                           nsNodeAllocator* aNodeAllocator = 0);
     virtual void     AddAttribute(CToken* aToken);
-    virtual int32_t  GetAttributeCount(bool askToken = false) const;
-    virtual const    nsAString& GetKeyAt(uint32_t anIndex) const;
-    virtual const    nsAString& GetValueAt(uint32_t anIndex) const;
+    virtual PRInt32  GetAttributeCount(PRBool askToken = PR_FALSE) const;
+    virtual const    nsAString& GetKeyAt(PRUint32 anIndex) const;
+    virtual const    nsAString& GetValueAt(PRUint32 anIndex) const;
     virtual CToken*  PopAttributeToken();
     virtual CToken*  PopAttributeTokenFront();
     virtual void     GetSource(nsString& aString) const;

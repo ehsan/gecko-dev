@@ -28,17 +28,23 @@ class Channel::ChannelImpl : public MessageLoopForIO::Watcher {
   ~ChannelImpl() { Close(); }
   bool Connect();
   void Close();
+#ifdef CHROMIUM_MOZILLA_BUILD
   Listener* set_listener(Listener* listener) {
     Listener* old = listener_;
     listener_ = listener;
     return old;
   }
+#else
+  void set_listener(Listener* listener) { listener_ = listener; }
+#endif
   bool Send(Message* message);
   void GetClientFileDescriptorMapping(int *src_fd, int *dest_fd) const;
+#ifdef CHROMIUM_MOZILLA_BUILD
   int GetServerFileDescriptor() const {
     DCHECK(mode_ == MODE_SERVER);
     return pipe_;
   }
+#endif
 
  private:
   void Init(Mode mode, Listener* listener);
@@ -91,11 +97,11 @@ class Channel::ChannelImpl : public MessageLoopForIO::Watcher {
     // We assume a worst case: kReadBufferSize bytes of messages, where each
     // message has no payload and a full complement of descriptors.
     MAX_READ_FDS = (Channel::kReadBufferSize / sizeof(IPC::Message::Header)) *
-                   FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE
+                   FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE,
   };
 
   // This is a control message buffer large enough to hold kMaxReadFDs
-#if defined(OS_MACOSX) || defined(OS_NETBSD)
+#if defined(OS_MACOSX)
   // TODO(agl): OSX appears to have non-constant CMSG macros!
   char input_cmsg_buf_[1024];
 #else

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef NSCOORD_H
 #define NSCOORD_H
@@ -24,16 +56,17 @@
  */
 
 // This controls whether we're using integers or floats for coordinates. We
-// want to eventually use floats.
+// want to eventually use floats. If you change this, you need to manually
+// change the definition of nscoord in gfx/src/gfxidltypes.idl.
 //#define NS_COORD_IS_FLOAT
 
 inline float NS_IEEEPositiveInfinity() {
-  union { uint32_t mPRUint32; float mFloat; } pun;
+  union { PRUint32 mPRUint32; float mFloat; } pun;
   pun.mPRUint32 = 0x7F800000;
   return pun.mFloat;
 }
-inline bool NS_IEEEIsNan(float aF) {
-  union { uint32_t mBits; float mFloat; } pun;
+inline PRBool NS_IEEEIsNan(float aF) {
+  union { PRUint32 mBits; float mFloat; } pun;
   pun.mFloat = aF;
   return (pun.mBits & 0x7F800000) == 0x7F800000 &&
     (pun.mBits & 0x007FFFFF) != 0;
@@ -43,7 +76,7 @@ inline bool NS_IEEEIsNan(float aF) {
 typedef float nscoord;
 #define nscoord_MAX NS_IEEEPositiveInfinity()
 #else
-typedef int32_t nscoord;
+typedef PRInt32 nscoord;
 #define nscoord_MAX nscoord(1 << 30)
 #endif
 
@@ -61,7 +94,7 @@ inline nscoord NSToCoordRound(float aValue)
 #if defined(XP_WIN32) && defined(_M_IX86) && !defined(__GNUC__)
   return NS_lroundup30(aValue);
 #else
-  return nscoord(floorf(aValue + 0.5f));
+  return nscoord(NS_floorf(aValue + 0.5f));
 #endif /* XP_WIN32 && _M_IX86 && !__GNUC__ */
 }
 
@@ -70,7 +103,7 @@ inline nscoord NSToCoordRound(double aValue)
 #if defined(XP_WIN32) && defined(_M_IX86) && !defined(__GNUC__)
   return NS_lroundup30((float)aValue);
 #else
-  return nscoord(floor(aValue + 0.5f));
+  return nscoord(NS_floor(aValue + 0.5f));
 #endif /* XP_WIN32 && _M_IX86 && !__GNUC__ */
 }
 
@@ -99,7 +132,7 @@ inline nscoord NSToCoordRoundWithClamp(float aValue)
  * parametrization to get a check of that fact in debug builds.
  */
 inline nscoord _nscoordSaturatingMultiply(nscoord aCoord, float aScale,
-                                          bool requireNotNegative) {
+                                          PRBool requireNotNegative) {
   VERIFY_COORD(aCoord);
   if (requireNotNegative) {
     NS_ABORT_IF_FALSE(aScale >= 0.0f,
@@ -131,7 +164,7 @@ inline nscoord _nscoordSaturatingMultiply(nscoord aCoord, float aScale,
  * negative to get a sanity check of that invariant in debug builds.
  */
 inline nscoord NSCoordSaturatingNonnegativeMultiply(nscoord aCoord, float aScale) {
-  return _nscoordSaturatingMultiply(aCoord, aScale, true);
+  return _nscoordSaturatingMultiply(aCoord, aScale, PR_TRUE);
 }
 
 /**
@@ -139,10 +172,10 @@ inline nscoord NSCoordSaturatingNonnegativeMultiply(nscoord aCoord, float aScale
  * appropriate for the signs of aCoord and aScale.
  */
 inline nscoord NSCoordSaturatingMultiply(nscoord aCoord, float aScale) {
-  return _nscoordSaturatingMultiply(aCoord, aScale, false);
+  return _nscoordSaturatingMultiply(aCoord, aScale, PR_FALSE);
 }
 
-inline nscoord NSCoordMultiply(nscoord aCoord, int32_t aScale) {
+inline nscoord NSCoordMultiply(nscoord aCoord, PRInt32 aScale) {
   VERIFY_COORD(aCoord);
   return aCoord * aScale;
 }
@@ -152,11 +185,11 @@ inline nscoord NSCoordDivide(nscoord aCoord, float aVal) {
 #ifdef NS_COORD_IS_FLOAT
   return floorf(aCoord/aVal);
 #else
-  return (int32_t)(aCoord/aVal);
+  return (PRInt32)(aCoord/aVal);
 #endif
 }
 
-inline nscoord NSCoordDivide(nscoord aCoord, int32_t aVal) {
+inline nscoord NSCoordDivide(nscoord aCoord, PRInt32 aVal) {
   VERIFY_COORD(aCoord);
 #ifdef NS_COORD_IS_FLOAT
   return floorf(aCoord/aVal);
@@ -193,11 +226,11 @@ NSCoordSaturatingAdd(nscoord a, nscoord b)
     // a + b = a + b
     NS_ASSERTION(a < nscoord_MAX && b < nscoord_MAX,
                  "Doing nscoord addition with values > nscoord_MAX");
-    NS_ASSERTION((int64_t)a + (int64_t)b > (int64_t)nscoord_MIN,
+    NS_ASSERTION((PRInt64)a + (PRInt64)b > (PRInt64)nscoord_MIN,
                  "nscoord addition will reach or pass nscoord_MIN");
     // This one's only a warning because the NS_MIN below means that
     // we'll handle this case correctly.
-    NS_WARN_IF_FALSE((int64_t)a + (int64_t)b < (int64_t)nscoord_MAX,
+    NS_WARN_IF_FALSE((PRInt64)a + (PRInt64)b < (PRInt64)nscoord_MAX,
                      "nscoord addition capped to nscoord_MAX");
 
     // Cap the result, just in case we're dealing with numbers near nscoord_MAX
@@ -252,11 +285,11 @@ NSCoordSaturatingSubtract(nscoord a, nscoord b,
       // case (d) for integers
       NS_ASSERTION(a < nscoord_MAX && b < nscoord_MAX,
                    "Doing nscoord subtraction with values > nscoord_MAX");
-      NS_ASSERTION((int64_t)a - (int64_t)b > (int64_t)nscoord_MIN,
+      NS_ASSERTION((PRInt64)a - (PRInt64)b > (PRInt64)nscoord_MIN,
                    "nscoord subtraction will reach or pass nscoord_MIN");
       // This one's only a warning because the NS_MIN below means that
       // we'll handle this case correctly.
-      NS_WARN_IF_FALSE((int64_t)a - (int64_t)b < (int64_t)nscoord_MAX,
+      NS_WARN_IF_FALSE((PRInt64)a - (PRInt64)b < (PRInt64)nscoord_MAX,
                        "nscoord subtraction capped to nscoord_MAX");
 
       // Cap the result, in case we're dealing with numbers near nscoord_MAX
@@ -269,7 +302,7 @@ NSCoordSaturatingSubtract(nscoord a, nscoord b,
   * "a" must not be unconstrained.
   * Every number is smaller than a unconstrained one
   */
-inline bool
+inline PRBool
 NSCoordLessThan(nscoord a,nscoord b)
 {
   NS_ASSERTION(a != nscoord_MAX, 
@@ -281,7 +314,7 @@ NSCoordLessThan(nscoord a,nscoord b)
   * "a" must not be unconstrained
   * No number is larger than a unconstrained one.
   */
-inline bool
+inline PRBool
 NSCoordGreaterThan(nscoord a,nscoord b)
 {
   NS_ASSERTION(a != nscoord_MAX, 
@@ -290,11 +323,11 @@ NSCoordGreaterThan(nscoord a,nscoord b)
 }
 
 /**
- * Convert an nscoord to a int32_t. This *does not* do rounding because
+ * Convert an nscoord to a PRInt32. This *does not* do rounding because
  * coords are never fractional. They can be out of range, so this does
  * clamp out of bounds coord values to PR_INT32_MIN and PR_INT32_MAX.
  */
-inline int32_t NSCoordToInt(nscoord aCoord) {
+inline PRInt32 NSCoordToInt(nscoord aCoord) {
   VERIFY_COORD(aCoord);
 #ifdef NS_COORD_IS_FLOAT
   NS_ASSERTION(!NS_IEEEIsNan(aCoord), "NaN encountered in int conversion");
@@ -307,7 +340,7 @@ inline int32_t NSCoordToInt(nscoord aCoord) {
     // exactly represented as an IEEE float
     return PR_INT32_MAX;
   } else {
-    return (int32_t)aCoord;
+    return (PRInt32)aCoord;
   }
 #else
   return aCoord;
@@ -327,12 +360,12 @@ inline float NSCoordToFloat(nscoord aCoord) {
  */
 inline nscoord NSToCoordFloor(float aValue)
 {
-  return nscoord(floorf(aValue));
+  return nscoord(NS_floorf(aValue));
 }
 
 inline nscoord NSToCoordFloor(double aValue)
 {
-  return nscoord(floor(aValue));
+  return nscoord(NS_floor(aValue));
 }
 
 inline nscoord NSToCoordFloorClamped(float aValue)
@@ -355,12 +388,12 @@ inline nscoord NSToCoordFloorClamped(float aValue)
 
 inline nscoord NSToCoordCeil(float aValue)
 {
-  return nscoord(ceilf(aValue));
+  return nscoord(NS_ceilf(aValue));
 }
 
 inline nscoord NSToCoordCeil(double aValue)
 {
-  return nscoord(ceil(aValue));
+  return nscoord(NS_ceil(aValue));
 }
 
 inline nscoord NSToCoordCeilClamped(float aValue)
@@ -402,34 +435,34 @@ inline nscoord NSToCoordCeilClamped(double aValue)
 /*
  * Int Rounding Functions
  */
-inline int32_t NSToIntFloor(float aValue)
+inline PRInt32 NSToIntFloor(float aValue)
 {
-  return int32_t(floorf(aValue));
+  return PRInt32(NS_floorf(aValue));
 }
 
-inline int32_t NSToIntCeil(float aValue)
+inline PRInt32 NSToIntCeil(float aValue)
 {
-  return int32_t(ceilf(aValue));
+  return PRInt32(NS_ceilf(aValue));
 }
 
-inline int32_t NSToIntRound(float aValue)
+inline PRInt32 NSToIntRound(float aValue)
 {
   return NS_lroundf(aValue);
 }
 
-inline int32_t NSToIntRound(double aValue)
+inline PRInt32 NSToIntRound(double aValue)
 {
   return NS_lround(aValue);
 }
 
-inline int32_t NSToIntRoundUp(float aValue)
+inline PRInt32 NSToIntRoundUp(float aValue)
 {
-  return int32_t(floorf(aValue + 0.5f));
+  return PRInt32(NS_floorf(aValue + 0.5f));
 }
 
-inline int32_t NSToIntRoundUp(double aValue)
+inline PRInt32 NSToIntRoundUp(double aValue)
 {
-  return int32_t(floor(aValue + 0.5));
+  return PRInt32(NS_floor(aValue + 0.5));
 }
 
 /* 
@@ -440,7 +473,7 @@ inline nscoord NSFloatPixelsToAppUnits(float aPixels, float aAppUnitsPerPixel)
   return NSToCoordRoundWithClamp(aPixels * aAppUnitsPerPixel);
 }
 
-inline nscoord NSIntPixelsToAppUnits(int32_t aPixels, int32_t aAppUnitsPerPixel)
+inline nscoord NSIntPixelsToAppUnits(PRInt32 aPixels, PRInt32 aAppUnitsPerPixel)
 {
   // The cast to nscoord makes sure we don't overflow if we ever change
   // nscoord to float
@@ -464,12 +497,12 @@ inline double NSAppUnitsToDoublePixels(nscoord aAppUnits, double aAppUnitsPerPix
   return (double(aAppUnits) / aAppUnitsPerPixel);
 }
 
-inline int32_t NSAppUnitsToIntPixels(nscoord aAppUnits, float aAppUnitsPerPixel)
+inline PRInt32 NSAppUnitsToIntPixels(nscoord aAppUnits, float aAppUnitsPerPixel)
 {
   return NSToIntRound(float(aAppUnits) / aAppUnitsPerPixel);
 }
 
-inline float NSCoordScale(nscoord aCoord, int32_t aFromAPP, int32_t aToAPP)
+inline float NSCoordScale(nscoord aCoord, PRInt32 aFromAPP, PRInt32 aToAPP)
 {
   return (NSCoordToFloat(aCoord) * aToAPP) / aFromAPP;
 }

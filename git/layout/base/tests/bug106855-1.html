@@ -1,4 +1,5 @@
 <!DOCTYPE HTML><html><head>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
 </head>
 <body>
@@ -17,9 +18,9 @@ y
   var area = document.getElementById('t');
   area.focus();
 
-  sendKey('DOWN');  // now after "A"
-  sendKey('DOWN');  // 
-  sendKey('DOWN');  // now at the last line
+  sendKey('DOWN', window);  // now after "A"
+  sendKey('DOWN', window);  // 
+  sendKey('DOWN', window);  // now at the last line
 </script>
 </body>
 </html>

@@ -1,56 +1,42 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 """
 Run a python script, adding extra directories to the python path.
 """
 
+import sys, os
 
-def main(args):
-    def usage():
-        print >>sys.stderr, "pythonpath.py -I directory script.py [args...]"
-        sys.exit(150)
+def usage():
+    print >>sys.stderr, "pythonpath.py -I directory script.py [args...]"
+    sys.exit(150)
 
-    paths = []
+paths = []
 
-    while True:
+while True:
+    try:
+        arg = sys.argv[1]
+    except IndexError:
+        usage()
+
+    if arg == '-I':
+        del sys.argv[1]
         try:
-            arg = args[0]
+            path = sys.argv.pop(1)
         except IndexError:
             usage()
 
-        if arg == '-I':
-            args.pop(0)
-            try:
-                path = args.pop(0)
-            except IndexError:
-                usage()
+        paths.append(path)
+        continue
 
-            paths.append(os.path.abspath(path))
-            continue
+    if arg.startswith('-I'):
+        path = sys.argv.pop(1)[2:]
+        paths.append(path)
+        continue
 
-        if arg.startswith('-I'):
-            paths.append(os.path.abspath(args.pop(0)[2:]))
-            continue
+    break
 
-        break
+sys.argv.pop(0)
+script = sys.argv[0]
 
-    script = args[0]
-
-    sys.path[0:0] = [os.path.abspath(os.path.dirname(script))] + paths
-    sys.argv = args
-    sys.argc = len(args)
-
-    frozenglobals['__name__'] = '__main__'
-    frozenglobals['__file__'] = script
-
-    execfile(script, frozenglobals)
-
-# Freeze scope here ... why this makes things work I have no idea ...
-frozenglobals = globals()
-
-import sys, os
-
-if __name__ == '__main__':
-    main(sys.argv[1:])
+sys.path[0:0] = [os.path.dirname(script)] + paths
+__name__ = '__main__'
+__file__ = script
+execfile(script)

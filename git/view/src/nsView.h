@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsView_h___
 #define nsView_h___
@@ -12,7 +44,6 @@
 #include "nsCRT.h"
 #include "nsIFactory.h"
 #include "nsEvent.h"
-#include "nsIWidgetListener.h"
 #include <stdio.h>
 
 //mmptemp
@@ -20,11 +51,10 @@
 class nsIViewManager;
 class nsViewManager;
 
-class nsView : public nsIView,
-               public nsIWidgetListener
+class nsView : public nsIView
 {
 public:
-  nsView(nsViewManager* aViewManager = nullptr,
+  nsView(nsViewManager* aViewManager = nsnull,
          nsViewVisibility aVisibility = nsViewVisibility_kShow);
 
   NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -44,8 +74,9 @@ public:
    * or to the left of its origin position. The term 'dimensions' indicates it
    * is relative to this view.
    */
-  virtual void SetDimensions(const nsRect &aRect, bool aPaint = true,
-                             bool aResizeWidget = true);
+  virtual void SetDimensions(const nsRect &aRect, PRBool aPaint = PR_TRUE,
+                             PRBool aResizeWidget = PR_TRUE);
+  void SetInvalidationDimensions(const nsRect* aRect);
 
   /**
    * Called to indicate that the visibility of a view has been
@@ -63,7 +94,7 @@ public:
    * relative to the view's siblings.
    * @param zindex new z depth
    */
-  void SetZIndex(bool aAuto, int32_t aZIndex, bool aTopMost);
+  void SetZIndex(PRBool aAuto, PRInt32 aZIndex, PRBool aTopMost);
 
   /**
    * Set/Get whether the view "floats" above all other views,
@@ -71,9 +102,9 @@ public:
    * the view hierarchy that would geometrically intersect with
    * this view. This is a hack, but it fixes some problems with
    * views that need to be drawn in front of all other views.
-   * @result true if the view floats, false otherwise.
+   * @result PR_TRUE if the view floats, PR_FALSE otherwise.
    */
-  NS_IMETHOD  SetFloating(bool aFloatingView);
+  NS_IMETHOD  SetFloating(PRBool aFloatingView);
 
   // Helper function to get the view that's associated with a widget
   static nsView* GetViewFor(nsIWidget* aWidget) {
@@ -87,20 +118,20 @@ public:
 public:
   // See nsIView::CreateWidget.
   nsresult CreateWidget(nsWidgetInitData *aWidgetInitData,
-                        bool aEnableDragDrop,
-                        bool aResetVisibility);
+                        PRBool aEnableDragDrop,
+                        PRBool aResetVisibility);
 
   // See nsIView::CreateWidgetForParent.
   nsresult CreateWidgetForParent(nsIWidget* aParentWidget,
                                  nsWidgetInitData *aWidgetInitData,
-                                 bool aEnableDragDrop,
-                                 bool aResetVisibility);
+                                 PRBool aEnableDragDrop,
+                                 PRBool aResetVisibility);
 
   // See nsIView::CreateWidgetForPopup.
   nsresult CreateWidgetForPopup(nsWidgetInitData *aWidgetInitData,
                                 nsIWidget* aParentWidget,
-                                bool aEnableDragDrop,
-                                bool aResetVisibility);
+                                PRBool aEnableDragDrop,
+                                PRBool aResetVisibility);
 
   // See nsIView::DestroyWidget
   void DestroyWidget();
@@ -113,15 +144,19 @@ public:
   nsView* GetParent() const { return mParent; }
   nsViewManager* GetViewManager() const { return mViewManager; }
   // These are superseded by a better interface in nsIView
-  int32_t GetZIndex() const { return mZIndex; }
-  bool GetZIndexIsAuto() const { return (mVFlags & NS_VIEW_FLAG_AUTO_ZINDEX) != 0; }
+  PRInt32 GetZIndex() const { return mZIndex; }
+  PRBool GetZIndexIsAuto() const { return (mVFlags & NS_VIEW_FLAG_AUTO_ZINDEX) != 0; }
   // Same as GetBounds but converts to parent appunits if they are different.
   nsRect GetBoundsInParentUnits() const;
+
+  nsRect GetInvalidationDimensions() const {
+    return mHaveInvalidationDimensions ? mInvalidationDimensions : GetDimensions();
+  }
 
   // These are defined exactly the same in nsIView, but for now they have to be redeclared
   // here because of stupid C++ method hiding rules
 
-  bool HasNonEmptyDirtyRegion() {
+  PRBool HasNonEmptyDirtyRegion() {
     return mDirtyRegion && !mDirtyRegion->IsEmpty();
   }
   nsRegion* GetDirtyRegion() {
@@ -140,16 +175,17 @@ public:
   void SetParent(nsView *aParent) { mParent = aParent; }
   void SetNextSibling(nsView *aSibling) { mNextSibling = aSibling; }
 
-  uint32_t GetViewFlags() const { return mVFlags; }
-  void SetViewFlags(uint32_t aFlags) { mVFlags = aFlags; }
+  PRUint32 GetViewFlags() const { return mVFlags; }
+  void SetViewFlags(PRUint32 aFlags) { mVFlags = aFlags; }
 
-  void SetTopMost(bool aTopMost) { aTopMost ? mVFlags |= NS_VIEW_FLAG_TOPMOST : mVFlags &= ~NS_VIEW_FLAG_TOPMOST; }
-  bool IsTopMost() { return((mVFlags & NS_VIEW_FLAG_TOPMOST) != 0); }
+  void SetTopMost(PRBool aTopMost) { aTopMost ? mVFlags |= NS_VIEW_FLAG_TOPMOST : mVFlags &= ~NS_VIEW_FLAG_TOPMOST; }
+  PRBool IsTopMost() { return((mVFlags & NS_VIEW_FLAG_TOPMOST) != 0); }
 
-  void ResetWidgetBounds(bool aRecurse, bool aForceSync);
+  void ResetWidgetBounds(PRBool aRecurse, PRBool aMoveOnly, PRBool aInvalidateChangedSize);
+  void SetPositionIgnoringChildWidgets(nscoord aX, nscoord aY);
   void AssertNoWindow();
 
-  void NotifyEffectiveVisibilityChanged(bool aEffectivelyVisible);
+  void NotifyEffectiveVisibilityChanged(PRBool aEffectivelyVisible);
 
   // Update the cached RootViewManager for all view manager descendents,
   // If the hierarchy is being removed, aViewManagerParent points to the view
@@ -157,37 +193,29 @@ public:
   // released if it points to any view in this view hierarchy.
   void InvalidateHierarchy(nsViewManager *aViewManagerParent);
 
-  // nsIWidgetListener
-  virtual nsIPresShell* GetPresShell();
-  virtual nsIView* GetView() { return this; }
-  bool WindowMoved(nsIWidget* aWidget, int32_t x, int32_t y);
-  bool WindowResized(nsIWidget* aWidget, int32_t aWidth, int32_t aHeight);
-  bool RequestWindowClose(nsIWidget* aWidget);
-  void WillPaintWindow(nsIWidget* aWidget, bool aWillSendDidPaint);
-  bool PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion, bool aSentDidPaint, bool aWillSendDidPaint);
-  void DidPaintWindow();
-  nsEventStatus HandleEvent(nsGUIEvent* aEvent, bool aUseAttachedEvents);
-
   virtual ~nsView();
 
   nsPoint GetOffsetTo(const nsView* aOther) const;
   nsIWidget* GetNearestWidget(nsPoint* aOffset) const;
-  nsPoint GetOffsetTo(const nsView* aOther, const int32_t aAPD) const;
-  nsIWidget* GetNearestWidget(nsPoint* aOffset, const int32_t aAPD) const;
-
-  void SetForcedRepaint(bool aForceRepaint) { mForcedRepaint = aForceRepaint; }
-  bool ForcedRepaint() { return mForcedRepaint; }
+  nsPoint GetOffsetTo(const nsView* aOther, const PRInt32 aAPD) const;
+  nsIWidget* GetNearestWidget(nsPoint* aOffset, const PRInt32 aAPD) const;
 
 protected:
   // Do the actual work of ResetWidgetBounds, unconditionally.  Don't
   // call this method if we have no widget.
-  void DoResetWidgetBounds(bool aMoveOnly, bool aInvalidateChangedSize);
+  void DoResetWidgetBounds(PRBool aMoveOnly, PRBool aInvalidateChangedSize);
 
   nsRegion*    mDirtyRegion;
-  bool mForcedRepaint;
+  // invalidations are clipped to mInvalidationDimensions, not
+  // GetDimensions(), when mHaveInvalidationDimensions is true.  This
+  // is used to support persistent "displayport" rendering; see
+  // nsPresShell.cpp.  The coordinates of mInvalidationDimensions are
+  // relative to |this|.
+  nsRect       mInvalidationDimensions;
+  PRPackedBool mHaveInvalidationDimensions;
 
 private:
-  void InitializeWindow(bool aEnableDragDrop, bool aResetVisibility);
+  void InitializeWindow(PRBool aEnableDragDrop, PRBool aResetVisibility);
 };
 
 #endif

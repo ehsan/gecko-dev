@@ -1,7 +1,3 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #include "nscore.h"
 #include "nsAlgorithm.h"
 #include <emmintrin.h>
@@ -9,14 +5,14 @@
 
 void
 LossyConvertEncoding16to8::write_sse2(const PRUnichar* aSource,
-                                      uint32_t aSourceLength)
+                                      PRUint32 aSourceLength)
 {
   char* dest = mDestination;
 
   // Align source to a 16-byte boundary.
-  uint32_t i = 0;
-  uint32_t alignLen =
-    NS_MIN<uint32_t>(aSourceLength, uint32_t(-NS_PTR_TO_INT32(aSource) & 0xf) / sizeof(PRUnichar));
+  PRUint32 i = 0;
+  PRUint32 alignLen =
+    NS_MIN<PRUint32>(aSourceLength, PRUint32(-NS_PTR_TO_INT32(aSource) & 0xf) / sizeof(PRUnichar));
   for (; i < alignLen; i++) {
     dest[i] = static_cast<unsigned char>(aSource[i]);
   }
@@ -60,7 +56,7 @@ LossyConvertEncoding16to8::write_sse2(const PRUnichar* aSource,
 
 void
 LossyConvertEncoding8to16::write_sse2(const char* aSource,
-                                      uint32_t aSourceLength)
+                                      PRUint32 aSourceLength)
 {
   PRUnichar *dest = mDestination;
 
@@ -68,8 +64,8 @@ LossyConvertEncoding8to16::write_sse2(const char* aSource,
   // dest because we'd rather have our loads than our stores be fast. You have
   // to wait for a load to complete, but you can keep on moving after issuing a
   // store.
-  uint32_t i = 0;
-  uint32_t alignLen = NS_MIN(aSourceLength, uint32_t(-NS_PTR_TO_INT32(aSource) & 0xf));
+  PRUint32 i = 0;
+  PRUint32 alignLen = NS_MIN(aSourceLength, PRUint32(-NS_PTR_TO_INT32(aSource) & 0xf));
   for (; i < alignLen; i++) {
     dest[i] = static_cast<unsigned char>(aSource[i]);
   }

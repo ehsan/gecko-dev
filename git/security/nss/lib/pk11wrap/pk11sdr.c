@@ -111,7 +111,7 @@ unpadBlock(SECItem *data, int blockSize, SECItem *result)
 {
   SECStatus rv = SECSuccess;
   int padLength;
-  unsigned int i;
+  int i;
 
   result->data = 0;
   result->len = 0;

@@ -1,10 +1,43 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * Jonas Sicking.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jonas Sicking <jonas@sicking.cc>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "txInstructions.h"
-#include "nsError.h"
+#include "txError.h"
 #include "txExpr.h"
 #include "txStylesheet.h"
 #include "txNodeSetContext.h"
@@ -12,7 +45,7 @@
 #include "nsIConsoleService.h"
 #include "nsServiceManagerUtils.h"
 #include "txStringUtils.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txRtfHandler.h"
 #include "txNodeSorter.h"
 #include "txXSLTNumber.h"
@@ -26,7 +59,7 @@ txApplyDefaultElementTemplate::execute(txExecutionState& aEs)
     txStylesheet::ImportFrame* frame = 0;
     txInstruction* templ =
         aEs.mStylesheet->findTemplate(aEs.getEvalContext()->getContextNode(),
-                                      mode, &aEs, nullptr, &frame);
+                                      mode, &aEs, nsnull, &frame);
 
     aEs.pushTemplateRule(frame, mode, aEs.mTemplateParams);
 
@@ -79,7 +112,7 @@ txApplyTemplates::execute(txExecutionState& aEs)
     txStylesheet::ImportFrame* frame = 0;
     txInstruction* templ =
         aEs.mStylesheet->findTemplate(aEs.getEvalContext()->getContextNode(),
-                                      mMode, &aEs, nullptr, &frame);
+                                      mMode, &aEs, nsnull, &frame);
 
     aEs.pushTemplateRule(frame, mMode, aEs.mTemplateParams);
 
@@ -103,18 +136,18 @@ txAttribute::execute(txExecutionState& aEs)
 
     const PRUnichar* colon;
     if (!XMLUtils::isValidQName(name, &colon) ||
-        TX_StringEqualsAtom(name, nsGkAtoms::xmlns)) {
+        TX_StringEqualsAtom(name, txXMLAtoms::xmlns)) {
         return NS_OK;
     }
 
     nsCOMPtr<nsIAtom> prefix;
-    uint32_t lnameStart = 0;
+    PRUint32 lnameStart = 0;
     if (colon) {
         prefix = do_GetAtom(Substring(name.get(), colon));
         lnameStart = colon - name.get() + 1;
     }
 
-    int32_t nsId = kNameSpaceID_None;
+    PRInt32 nsId = kNameSpaceID_None;
     if (mNamespace) {
         nsAutoString nspace;
         rv = mNamespace->evaluateToString(aEs.getEvalContext(),
@@ -157,7 +190,7 @@ txCallTemplate::execute(txExecutionState& aEs)
 }
 
 txCheckParam::txCheckParam(const txExpandedName& aName)
-    : mName(aName), mBailTarget(nullptr)
+    : mName(aName), mBailTarget(nsnull)
 {
 }
 
@@ -189,7 +222,7 @@ txConditionalGoto::txConditionalGoto(nsAutoPtr<Expr> aCondition,
 nsresult
 txConditionalGoto::execute(txExecutionState& aEs)
 {
-    bool exprRes;
+    PRBool exprRes;
     nsresult rv = mCondition->evaluateToBool(aEs.getEvalContext(), exprRes);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -205,11 +238,11 @@ txComment::execute(txExecutionState& aEs)
 {
     nsAutoPtr<txTextHandler> handler(
         static_cast<txTextHandler*>(aEs.popResultHandler()));
-    uint32_t length = handler->mValue.Length();
-    int32_t pos = 0;
-    while ((pos = handler->mValue.FindChar('-', (uint32_t)pos)) != kNotFound) {
+    PRUint32 length = handler->mValue.Length();
+    PRInt32 pos = 0;
+    while ((pos = handler->mValue.FindChar('-', (PRUint32)pos)) != kNotFound) {
         ++pos;
-        if ((uint32_t)pos == length || handler->mValue.CharAt(pos) == '-') {
+        if ((PRUint32)pos == length || handler->mValue.CharAt(pos) == '-') {
             handler->mValue.Insert(PRUnichar(' '), pos++);
             ++length;
         }
@@ -231,7 +264,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
                 txXPathNodeUtils::getLocalName(aNode);
             return aEs.mResultHandler->
                 attribute(txXPathNodeUtils::getPrefix(aNode),
-                          localName, nullptr,
+                          localName, nsnull,
                           txXPathNodeUtils::getNamespaceID(aNode),
                           nodeValue);
         }
@@ -246,7 +279,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
         {
             // Copy children
             txXPathTreeWalker walker(aNode);
-            bool hasChild = walker.moveToFirstChild();
+            PRBool hasChild = walker.moveToFirstChild();
             while (hasChild) {
                 copyNode(walker.getCurrentPosition(), aEs);
                 hasChild = walker.moveToNextSibling();
@@ -259,7 +292,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
                 txXPathNodeUtils::getLocalName(aNode);
             nsresult rv = aEs.mResultHandler->
                 startElement(txXPathNodeUtils::getPrefix(aNode),
-                             localName, nullptr,
+                             localName, nsnull,
                              txXPathNodeUtils::getNamespaceID(aNode));
             NS_ENSURE_SUCCESS(rv, rv);
 
@@ -274,7 +307,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
                     localName = txXPathNodeUtils::getLocalName(attr);
                     rv = aEs.mResultHandler->
                         attribute(txXPathNodeUtils::getPrefix(attr),
-                                  localName, nullptr,
+                                  localName, nsnull,
                                   txXPathNodeUtils::getNamespaceID(attr),
                                   nodeValue);
                     NS_ENSURE_SUCCESS(rv, rv);
@@ -283,7 +316,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
             }
 
             // Copy children
-            bool hasChild = walker.moveToFirstChild();
+            PRBool hasChild = walker.moveToFirstChild();
             while (hasChild) {
                 copyNode(walker.getCurrentPosition(), aEs);
                 hasChild = walker.moveToNextSibling();
@@ -303,7 +336,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
         {
             nsAutoString nodeValue;
             txXPathNodeUtils::appendNodeValue(aNode, nodeValue);
-            return aEs.mResultHandler->characters(nodeValue, false);
+            return aEs.mResultHandler->characters(nodeValue, PR_FALSE);
         }
     }
     
@@ -311,7 +344,7 @@ txCopyBase::copyNode(const txXPathNode& aNode, txExecutionState& aEs)
 }
 
 txCopy::txCopy()
-    : mBailTarget(nullptr)
+    : mBailTarget(nsnull)
 {
 }
 
@@ -328,10 +361,10 @@ txCopy::execute(txExecutionState& aEs)
             const nsAFlatString& empty = EmptyString();
 
             // "close" current element to ensure that no attributes are added
-            rv = aEs.mResultHandler->characters(empty, false);
+            rv = aEs.mResultHandler->characters(empty, PR_FALSE);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            rv = aEs.pushBool(false);
+            rv = aEs.pushBool(PR_FALSE);
             NS_ENSURE_SUCCESS(rv, rv);
 
             break;
@@ -342,13 +375,13 @@ txCopy::execute(txExecutionState& aEs)
                 txXPathNodeUtils::getLocalName(node);
             rv = aEs.mResultHandler->
                 startElement(txXPathNodeUtils::getPrefix(node),
-                             localName, nullptr,
+                             localName, nsnull,
                              txXPathNodeUtils::getNamespaceID(node));
             NS_ENSURE_SUCCESS(rv, rv);
 
             // XXX copy namespace nodes once we have them
 
-            rv = aEs.pushBool(true);
+            rv = aEs.pushBool(PR_TRUE);
             NS_ENSURE_SUCCESS(rv, rv);
 
             break;
@@ -384,7 +417,7 @@ txCopyOf::execute(txExecutionState& aEs)
             txNodeSet* nodes = static_cast<txNodeSet*>
                                           (static_cast<txAExprResult*>
                                                       (exprRes));
-            int32_t i;
+            PRInt32 i;
             for (i = 0; i < nodes->size(); ++i) {
                 rv = copyNode(nodes->get(i), aEs);
                 NS_ENSURE_SUCCESS(rv, rv);
@@ -403,7 +436,7 @@ txCopyOf::execute(txExecutionState& aEs)
             nsAutoString value;
             exprRes->stringValue(value);
             if (!value.IsEmpty()) {
-                return aEs.mResultHandler->characters(value, false);
+                return aEs.mResultHandler->characters(value, PR_FALSE);
             }
             break;
         }
@@ -485,7 +518,7 @@ txLoopNodeSet::execute(txExecutionState& aEs)
     return NS_OK;
 }
 
-txLREAttribute::txLREAttribute(int32_t aNamespaceID, nsIAtom* aLocalName,
+txLREAttribute::txLREAttribute(PRInt32 aNamespaceID, nsIAtom* aLocalName,
                                nsIAtom* aPrefix, nsAutoPtr<Expr> aValue)
     : mNamespaceID(aNamespaceID),
       mLocalName(aLocalName),
@@ -519,7 +552,7 @@ txLREAttribute::execute(txExecutionState& aEs)
                                          mNamespaceID, valueStr);
 }
 
-txMessage::txMessage(bool aTerminate)
+txMessage::txMessage(PRBool aTerminate)
     : mTerminate(aTerminate)
 {
 }
@@ -561,7 +594,7 @@ txNumber::execute(txExecutionState& aEs)
                                    aEs.getEvalContext(), res);
     NS_ENSURE_SUCCESS(rv, rv);
     
-    return aEs.mResultHandler->characters(res, false);
+    return aEs.mResultHandler->characters(res, PR_FALSE);
 }
 
 nsresult
@@ -600,7 +633,7 @@ txProcessingInstruction::execute(txExecutionState& aEs)
 }
 
 txPushNewContext::txPushNewContext(nsAutoPtr<Expr> aSelect)
-    : mSelect(aSelect), mBailTarget(nullptr)
+    : mSelect(aSelect), mBailTarget(nsnull)
 {
 }
 
@@ -632,7 +665,7 @@ txPushNewContext::execute(txExecutionState& aEs)
     }
 
     txNodeSorter sorter;
-    uint32_t i, count = mSortKeys.Length();
+    PRUint32 i, count = mSortKeys.Length();
     for (i = 0; i < count; ++i) {
         SortKey& sort = mSortKeys[i];
         rv = sorter.addSortElement(sort.mSelectExpr, sort.mLangExpr,
@@ -681,14 +714,14 @@ txPushNewContext::addSort(nsAutoPtr<Expr> aSelectExpr,
 nsresult
 txPushNullTemplateRule::execute(txExecutionState& aEs)
 {
-    aEs.pushTemplateRule(nullptr, txExpandedName(), nullptr);
+    aEs.pushTemplateRule(nsnull, txExpandedName(), nsnull);
     return NS_OK;
 }
 
 nsresult
 txPushParams::execute(txExecutionState& aEs)
 {
-    return aEs.pushParamMap(nullptr);
+    return aEs.pushParamMap(nsnull);
 }
 
 nsresult
@@ -706,7 +739,7 @@ txPushRTFHandler::execute(txExecutionState& aEs)
     return NS_OK;
 }
 
-txPushStringHandler::txPushStringHandler(bool aOnlyText)
+txPushStringHandler::txPushStringHandler(PRBool aOnlyText)
     : mOnlyText(aOnlyText)
 {
 }
@@ -823,9 +856,9 @@ txStartElement::execute(txExecutionState& aEs)
     NS_ENSURE_SUCCESS(rv, rv);
 
 
-    int32_t nsId = kNameSpaceID_None;
+    PRInt32 nsId = kNameSpaceID_None;
     nsCOMPtr<nsIAtom> prefix;
-    uint32_t lnameStart = 0;
+    PRUint32 lnameStart = 0;
 
     const PRUnichar* colon;
     if (XMLUtils::isValidQName(name, &colon)) {
@@ -852,7 +885,7 @@ txStartElement::execute(txExecutionState& aEs)
        nsId = kNameSpaceID_Unknown;
     }
 
-    bool success = true;
+    PRBool success = PR_TRUE;
 
     if (nsId != kNameSpaceID_Unknown) {
         rv = aEs.mResultHandler->startElement(prefix,
@@ -864,10 +897,10 @@ txStartElement::execute(txExecutionState& aEs)
     }
 
     if (rv == NS_ERROR_XSLT_BAD_NODE_NAME) {
-        success = false;
+        success = PR_FALSE;
         // we call characters with an empty string to "close" any element to
         // make sure that no attributes are added
-        rv = aEs.mResultHandler->characters(EmptyString(), false);
+        rv = aEs.mResultHandler->characters(EmptyString(), PR_FALSE);
     }
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -878,7 +911,7 @@ txStartElement::execute(txExecutionState& aEs)
 }
 
 
-txStartLREElement::txStartLREElement(int32_t aNamespaceID,
+txStartLREElement::txStartLREElement(PRInt32 aNamespaceID,
                                      nsIAtom* aLocalName,
                                      nsIAtom* aPrefix)
     : mNamespaceID(aNamespaceID),
@@ -898,13 +931,13 @@ txStartLREElement::execute(txExecutionState& aEs)
                                                    mNamespaceID);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = aEs.pushBool(true);
+    rv = aEs.pushBool(PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     return NS_OK;
 }
 
-txText::txText(const nsAString& aStr, bool aDOE)
+txText::txText(const nsAString& aStr, PRBool aDOE)
     : mStr(aStr),
       mDOE(aDOE)
 {
@@ -916,7 +949,7 @@ txText::execute(txExecutionState& aEs)
     return aEs.mResultHandler->characters(mStr, mDOE);
 }
 
-txValueOf::txValueOf(nsAutoPtr<Expr> aExpr, bool aDOE)
+txValueOf::txValueOf(nsAutoPtr<Expr> aExpr, PRBool aDOE)
     : mExpr(aExpr),
       mDOE(aDOE)
 {

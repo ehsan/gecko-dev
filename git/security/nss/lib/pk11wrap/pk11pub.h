@@ -571,11 +571,6 @@ SECStatus PK11_ImportEncryptedPrivateKeyInfo(PK11SlotInfo *slot,
 		SECItem *nickname, SECItem *publicValue, PRBool isPerm,
 		PRBool isPrivate, KeyType type, 
 		unsigned int usage, void *wincx);
-SECStatus PK11_ImportEncryptedPrivateKeyInfoAndReturnKey(PK11SlotInfo *slot, 
-		SECKEYEncryptedPrivateKeyInfo *epki, SECItem *pwitem, 
-		SECItem *nickname, SECItem *publicValue, PRBool isPerm,
-		PRBool isPrivate, KeyType type, 
-		unsigned int usage, SECKEYPrivateKey** privk, void *wincx);
 SECKEYPrivateKeyInfo *PK11_ExportPrivateKeyInfo(
 		CERTCertificate *cert, void *wincx);
 SECKEYEncryptedPrivateKeyInfo *PK11_ExportEncryptedPrivKeyInfo(
@@ -657,7 +652,7 @@ SECStatus PK11_TraverseCertsForSubjectInSlot(CERTCertificate *cert,
 CERTCertificate *PK11_FindCertFromDERCert(PK11SlotInfo *slot, 
 					  CERTCertificate *cert, void *wincx);
 CERTCertificate *PK11_FindCertFromDERCertItem(PK11SlotInfo *slot,
-                                          const SECItem *derCert, void *wincx);
+                                          SECItem *derCert, void *wincx);
 SECStatus PK11_ImportCertForKeyToSlot(PK11SlotInfo *slot, CERTCertificate *cert,
 					char *nickname, PRBool addUsage,
 					void *wincx);

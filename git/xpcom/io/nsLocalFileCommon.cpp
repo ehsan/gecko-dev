@@ -1,10 +1,44 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Doug Turner <dougt@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "nsIServiceManager.h"
 
 #include "nsLocalFile.h" // includes platform-specific headers
+#include "nsLocalFileUnicode.h"
 
 #include "nsString.h"
 #include "nsCOMPtr.h"
@@ -29,13 +63,13 @@ void NS_ShutdownLocalFile()
     nsLocalFile::GlobalShutdown();
 }
 
-#if !defined(MOZ_WIDGET_COCOA) && !defined(XP_WIN)
+#if !defined(XP_MACOSX) && !defined(XP_WIN)
 NS_IMETHODIMP
-nsLocalFile::InitWithFile(nsIFile *aFile)
+nsLocalFile::InitWithFile(nsILocalFile *aFile)
 {
     NS_ENSURE_ARG(aFile);
     
-    nsAutoCString path;
+    nsCAutoString path;
     aFile->GetNativePath(path);
     if (path.IsEmpty())
         return NS_ERROR_INVALID_ARG;
@@ -49,16 +83,16 @@ nsLocalFile::InitWithFile(nsIFile *aFile)
 // requirement: kMaxExtensionLength < kMaxFilenameLength - kMaxSequenceNumberLength
 
 NS_IMETHODIMP
-nsLocalFile::CreateUnique(uint32_t type, uint32_t attributes)
+nsLocalFile::CreateUnique(PRUint32 type, PRUint32 attributes)
 {
     nsresult rv;
-    bool longName;
+    PRBool longName;
 
 #ifdef XP_WIN
     nsAutoString pathName, leafName, rootName, suffix;
     rv = GetPath(pathName);
 #else
-    nsAutoCString pathName, leafName, rootName, suffix; 
+    nsCAutoString pathName, leafName, rootName, suffix; 
     rv = GetNativePath(pathName);
 #endif
     if (NS_FAILED(rv))
@@ -78,13 +112,13 @@ nsLocalFile::CreateUnique(uint32_t type, uint32_t attributes)
     if (NS_FAILED(rv))
         return rv;
 
-    const int32_t lastDot = leafName.RFindChar(PRUnichar('.'));
+    const PRInt32 lastDot = leafName.RFindChar(PRUnichar('.'));
 #else
     rv = GetNativeLeafName(leafName);
     if (NS_FAILED(rv))
         return rv;
 
-    const int32_t lastDot = leafName.RFindChar('.');
+    const PRInt32 lastDot = leafName.RFindChar('.');
 #endif
 
     if (lastDot == kNotFound)
@@ -99,7 +133,7 @@ nsLocalFile::CreateUnique(uint32_t type, uint32_t attributes)
 
     if (longName)
     {
-        int32_t maxRootLength = (kMaxFilenameLength -
+        PRInt32 maxRootLength = (kMaxFilenameLength -
                                  (pathName.Length() - leafName.Length()) -
                                  suffix.Length() - kMaxSequenceNumberLength);
 
@@ -162,7 +196,7 @@ static const PRUnichar kPathSeparatorChar       = '/';
 #error Need to define file path separator for your platform
 #endif
 
-static int32_t SplitPath(PRUnichar *path, PRUnichar **nodeArray, int32_t arrayLen)
+static PRInt32 SplitPath(PRUnichar *path, PRUnichar **nodeArray, PRInt32 arrayLen)
 {
     if (*path == 0)
       return 0;
@@ -187,10 +221,10 @@ static int32_t SplitPath(PRUnichar *path, PRUnichar **nodeArray, int32_t arrayLe
 
  
 NS_IMETHODIMP
-nsLocalFile::GetRelativeDescriptor(nsIFile *fromFile, nsACString& _retval)
+nsLocalFile::GetRelativeDescriptor(nsILocalFile *fromFile, nsACString& _retval)
 {
     NS_ENSURE_ARG_POINTER(fromFile);
-    const int32_t kMaxNodesInPath = 32;
+    const PRInt32 kMaxNodesInPath = 32;
 
     //
     // _retval will be UTF-8 encoded
@@ -201,7 +235,7 @@ nsLocalFile::GetRelativeDescriptor(nsIFile *fromFile, nsACString& _retval)
 
     nsAutoString thisPath, fromPath;
     PRUnichar *thisNodes[kMaxNodesInPath], *fromNodes[kMaxNodesInPath];
-    int32_t  thisNodeCnt, fromNodeCnt, nodeIndex;
+    PRInt32  thisNodeCnt, fromNodeCnt, nodeIndex;
     
     rv = GetPath(thisPath);
     if (NS_FAILED(rv))
@@ -229,7 +263,7 @@ nsLocalFile::GetRelativeDescriptor(nsIFile *fromFile, nsACString& _retval)
 #endif
     }
     
-    int32_t branchIndex = nodeIndex;
+    PRInt32 branchIndex = nodeIndex;
     for (nodeIndex = branchIndex; nodeIndex < fromNodeCnt; nodeIndex++) 
       _retval.AppendLiteral("../");
     for (nodeIndex = branchIndex; nodeIndex < thisNodeCnt; nodeIndex++) {
@@ -243,7 +277,7 @@ nsLocalFile::GetRelativeDescriptor(nsIFile *fromFile, nsACString& _retval)
 }
 
 NS_IMETHODIMP
-nsLocalFile::SetRelativeDescriptor(nsIFile *fromFile, const nsACString& relativeDesc)
+nsLocalFile::SetRelativeDescriptor(nsILocalFile *fromFile, const nsACString& relativeDesc)
 {
     NS_NAMED_LITERAL_CSTRING(kParentDirStr, "../");
  
@@ -286,5 +320,6 @@ nsLocalFile::SetRelativeDescriptor(nsIFile *fromFile, const nsACString& relative
       nodeBegin = nodeEnd;
     }
 
-    return InitWithFile(targetFile);
+    nsCOMPtr<nsILocalFile> targetLocalFile(do_QueryInterface(targetFile));
+    return InitWithFile(targetLocalFile);
 }

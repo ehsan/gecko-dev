@@ -8,11 +8,6 @@ const AM_Ci = Components.interfaces;
 const XULAPPINFO_CONTRACTID = "@mozilla.org/xre/app-info;1";
 const XULAPPINFO_CID = Components.ID("{c763b610-9d49-455a-bbd2-ede71682a1ac}");
 
-const PREF_EM_CHECK_UPDATE_SECURITY   = "extensions.checkUpdateSecurity";
-const PREF_EM_STRICT_COMPATIBILITY    = "extensions.strictCompatibility";
-const PREF_EM_MIN_COMPAT_APP_VERSION      = "extensions.minCompatibleAppVersion";
-const PREF_EM_MIN_COMPAT_PLATFORM_VERSION = "extensions.minCompatiblePlatformVersion";
-
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -25,16 +20,6 @@ var gAppInfo = null;
 var gAddonsList;
 
 var TEST_UNPACKED = false;
-
-function isNightlyChannel() {
-  var channel = "default";
-  try {
-    channel = Services.prefs.getCharPref("app.update.channel");
-  }
-  catch (e) { }
-
-  return channel != "aurora" && channel != "beta" && channel != "release" && channel != "esr";
-}
 
 function createAppInfo(id, name, version, platformVersion) {
   gAppInfo = {
@@ -100,8 +85,7 @@ function do_check_in_crash_annotation(aId, aVersion) {
   }
 
   let addons = gAppInfo.annotations["Add-ons"].split(",");
-  do_check_false(addons.indexOf(encodeURIComponent(aId) + ":" +
-                                encodeURIComponent(aVersion)) < 0);
+  do_check_false(addons.indexOf(aId + ":" + aVersion) < 0);
 }
 
 /**
@@ -123,8 +107,7 @@ function do_check_not_in_crash_annotation(aId, aVersion) {
   }
 
   let addons = gAppInfo.annotations["Add-ons"].split(",");
-  do_check_true(addons.indexOf(encodeURIComponent(aId) + ":" +
-                               encodeURIComponent(aVersion)) < 0);
+  do_check_true(addons.indexOf(aId + ":" + aVersion) < 0);
 }
 
 /**
@@ -132,7 +115,7 @@ function do_check_not_in_crash_annotation(aId, aVersion) {
  *
  * @param  aName
  *         The name of the testcase (without extension)
- * @return an nsIFile pointing to the testcase xpi
+ * @return an nsILocalFile pointing to the testcase xpi
  */
 function do_get_addon(aName) {
   return do_get_file("addons/" + aName + ".xpi");
@@ -256,16 +239,6 @@ function do_check_addon(aActualAddon, aExpectedAddon, aProperties) {
         do_check_eq(actualValue.getTime(), expectedValue.getTime());
         break;
 
-      case "compatibilityOverrides":
-        do_check_eq(actualValue.length, expectedValue.length);
-        for (let i = 0; i < actualValue.length; i++)
-          do_check_compatibilityoverride(actualValue[i], expectedValue[i]);
-        break;
-
-      case "icons":
-        do_check_icons(actualValue, expectedValue);
-        break;
-
       default:
         if (actualValue !== expectedValue)
           do_throw("Failed for " + aProperty + " for add-on " + aExpectedAddon.id +
@@ -299,36 +272,8 @@ function do_check_author(aActual, aExpected) {
 function do_check_screenshot(aActual, aExpected) {
   do_check_eq(aActual.toString(), aExpected.url);
   do_check_eq(aActual.url, aExpected.url);
-  do_check_eq(aActual.width, aExpected.width);
-  do_check_eq(aActual.height, aExpected.height);
   do_check_eq(aActual.thumbnailURL, aExpected.thumbnailURL);
-  do_check_eq(aActual.thumbnailWidth, aExpected.thumbnailWidth);
-  do_check_eq(aActual.thumbnailHeight, aExpected.thumbnailHeight);
   do_check_eq(aActual.caption, aExpected.caption);
-}
-
-/**
- * Check that the actual compatibility override is the same as the expected
- * compatibility override.
- *
- * @param  aAction
- *         The actual compatibility override to check.
- * @param  aExpected
- *         The expected compatibility override to check against.
- */
-function do_check_compatibilityoverride(aActual, aExpected) {
-  do_check_eq(aActual.type, aExpected.type);
-  do_check_eq(aActual.minVersion, aExpected.minVersion);
-  do_check_eq(aActual.maxVersion, aExpected.maxVersion);
-  do_check_eq(aActual.appID, aExpected.appID);
-  do_check_eq(aActual.appMinVersion, aExpected.appMinVersion);
-  do_check_eq(aActual.appMaxVersion, aExpected.appMaxVersion);
-}
-
-function do_check_icons(aActual, aExpected) {
-  for (var size in aExpected) {
-    do_check_eq(aActual[size], aExpected[size]);
-  }
 }
 
 /**
@@ -403,8 +348,7 @@ function shutdownManager() {
   }, "addon-repository-shutdown", false);
 
   obs.notifyObservers(null, "quit-application-granted", null);
-  let scope = Components.utils.import("resource://gre/modules/AddonManager.jsm");
-  scope.AddonManagerInternal.shutdown();
+  gInternalManager.observe(null, "xpcom-shutdown", null);
   gInternalManager = null;
 
   AddonRepository.shutdown();
@@ -424,12 +368,6 @@ function shutdownManager() {
     if (thr.hasPendingEvents())
       thr.processNextEvent(false);
   }
-
-  // Force the XPIProvider provider to reload to better
-  // simulate real-world usage.
-  scope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
-  AddonManagerPrivate.unregisterProvider(scope.XPIProvider);
-  Components.utils.unload("resource://gre/modules/XPIProvider.jsm");
 }
 
 function loadAddonsList() {
@@ -440,7 +378,7 @@ function loadAddonsList() {
       let descriptor = parser.getString(aSection, keys.getNext());
       try {
         let file = AM_Cc["@mozilla.org/file/local;1"].
-                   createInstance(AM_Ci.nsIFile);
+                   createInstance(AM_Ci.nsILocalFile);
         file.persistentDescriptor = descriptor;
         dirs.push(file);
       }
@@ -476,8 +414,6 @@ function isItemInAddonsList(aType, aDir, aId) {
   xpiPath.append(aId + ".xpi");
   for (var i = 0; i < gAddonsList[aType].length; i++) {
     let file = gAddonsList[aType][i];
-    if (!file.exists())
-      do_throw("Non-existant path found in extensions.ini: " + file.path)
     if (file.isDirectory() && file.equals(path))
       return true;
     if (file.isFile() && file.equals(xpiPath))
@@ -498,8 +434,12 @@ function check_startup_changes(aType, aIds) {
   var ids = aIds.slice(0);
   ids.sort();
   var changes = AddonManager.getStartupChanges(aType);
-  changes = changes.filter(function(aEl) /@tests.mozilla.org$/.test(aEl));
   changes.sort();
+
+  // Remove the default theme if it is in the list
+  var pos = changes.indexOf("{972ce4c6-7e08-4474-a285-3208198ce6fd}");
+  if (pos != -1)
+    changes.splice(pos, 1);
 
   do_check_eq(JSON.stringify(ids), JSON.stringify(changes));
 }
@@ -544,7 +484,7 @@ function createInstallRDF(aData) {
 
   ["id", "version", "type", "internalName", "updateURL", "updateKey",
    "optionsURL", "optionsType", "aboutURL", "iconURL", "icon64URL",
-   "skinnable", "bootstrap", "strictCompatibility"].forEach(function(aProp) {
+   "skinnable", "bootstrap"].forEach(function(aProp) {
     if (aProp in aData)
       rdf += "<em:" + aProp + ">" + escapeXML(aData[aProp]) + "</em:" + aProp + ">\n";
   });
@@ -687,67 +627,6 @@ function setExtensionModifiedTime(aExt, aTime) {
       setExtensionModifiedTime(entries.nextFile, aTime);
     entries.close();
   }
-}
-
-/**
- * Manually installs an XPI file into an install location by either copying the
- * XPI there or extracting it depending on whether unpacking is being tested
- * or not.
- *
- * @param aXPIFile
- *        The XPI file to install.
- * @param aInstallLocation
- *        The install location (an nsIFile) to install into.
- * @param aID
- *        The ID to install as.
- */
-function manuallyInstall(aXPIFile, aInstallLocation, aID) {
-  if (TEST_UNPACKED) {
-    let dir = aInstallLocation.clone();
-    dir.append(aID);
-    dir.create(AM_Ci.nsIFile.DIRECTORY_TYPE, 0755);
-    let zip = AM_Cc["@mozilla.org/libjar/zip-reader;1"].
-              createInstance(AM_Ci.nsIZipReader);
-    zip.open(aXPIFile);
-    let entries = zip.findEntries(null);
-    while (entries.hasMore()) {
-      let entry = entries.getNext();
-      let target = dir.clone();
-      entry.split("/").forEach(function(aPart) {
-        target.append(aPart);
-      });
-      zip.extract(entry, target);
-    }
-    zip.close();
-
-    return dir;
-  }
-  else {
-    let target = aInstallLocation.clone();
-    target.append(aID + ".xpi");
-    aXPIFile.copyTo(target.parent, target.leafName);
-    return target;
-  }
-}
-
-/**
- * Manually uninstalls an add-on by removing its files from the install
- * location.
- *
- * @param aInstallLocation
- *        The nsIFile of the install location to remove from.
- * @param aID
- *        The ID of the add-on to remove.
- */
-function manuallyUninstall(aInstallLocation, aID) {
-  let file = getFileForAddon(aInstallLocation, aID);
-
-  // In reality because the app is restarted a flush isn't necessary for XPIs
-  // removed outside the app, but for testing we must flush manually.
-  if (file.isFile())
-    Services.obs.notifyObservers(file, "flush-cache-entry", null);
-
-  file.remove(true);
 }
 
 /**
@@ -952,11 +831,7 @@ const InstallListener = {
   },
 
   onInstallCancelled: function(install) {
-    // If the install was cancelled by a listener returning false from
-    // onInstallStarted, then the state will revert to STATE_DOWNLOADED.
-    let possibleStates = [AddonManager.STATE_CANCELLED,
-                          AddonManager.STATE_DOWNLOADED];
-    do_check_true(possibleStates.indexOf(install.state) != -1);
+    do_check_eq(install.state, AddonManager.STATE_CANCELLED);
     do_check_eq(install.error, 0);
     do_check_eq("onInstallCancelled", getExpectedInstall(install.addon));
     return check_test_completed(arguments);
@@ -1170,9 +1045,9 @@ if ("nsIWindowsRegKey" in AM_Ci) {
     },
 
     readStringValue: function(aName) {
-      for (let value of this.values) {
-        if (value.name == aName)
-          return value.value;
+      for (let i = 0; i < this.values.length; i++) {
+        if (this.values[i].name == aName)
+          return this.values[i].value;
       }
     }
   };
@@ -1194,7 +1069,7 @@ if ("nsIWindowsRegKey" in AM_Ci) {
 }
 
 // Get the profile directory for tests to use.
-const gProfD = do_get_profile();
+const gProfD = do_get_profile().QueryInterface(AM_Ci.nsILocalFile);
 
 // Enable more extensive EM logging
 Services.prefs.setBoolPref("extensions.logging.enabled", true);
@@ -1213,21 +1088,10 @@ Services.prefs.setBoolPref("extensions.showMismatchUI", false);
 
 // Point update checks to the local machine for fast failures
 Services.prefs.setCharPref("extensions.update.url", "http://127.0.0.1/updateURL");
-Services.prefs.setCharPref("extensions.update.background.url", "http://127.0.0.1/updateBackgroundURL");
 Services.prefs.setCharPref("extensions.blocklist.url", "http://127.0.0.1/blocklistURL");
 
 // By default ignore bundled add-ons
 Services.prefs.setBoolPref("extensions.installDistroAddons", false);
-
-// By default use strict compatibility
-Services.prefs.setBoolPref("extensions.strictCompatibility", true);
-
-// By default don't check for hotfixes
-Services.prefs.setCharPref("extensions.hotfix.id", "");
-
-// By default, set min compatible versions to 0
-Services.prefs.setCharPref(PREF_EM_MIN_COMPAT_APP_VERSION, "0");
-Services.prefs.setCharPref(PREF_EM_MIN_COMPAT_PLATFORM_VERSION, "0");
 
 // Register a temporary directory for the tests.
 const gTmpD = gProfD.clone();
@@ -1272,12 +1136,4 @@ do_register_cleanup(function() {
   do_check_false(testDir.exists());
 
   shutdownManager();
-
-  // Clear commonly set prefs.
-  try {
-    Services.prefs.clearUserPref(PREF_EM_CHECK_UPDATE_SECURITY);
-  } catch (e) {}
-  try {
-    Services.prefs.clearUserPref(PREF_EM_STRICT_COMPATIBILITY);
-  } catch (e) {}
 });

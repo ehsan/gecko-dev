@@ -45,10 +45,10 @@
 #include <float.h>
 
 typedef HRESULT (WINAPI*D2D1CreateFactoryFunc)(
-    D2D1_FACTORY_TYPE factoryType,
-    REFIID iid,
-    CONST D2D1_FACTORY_OPTIONS *pFactoryOptions,
-    void **factory
+    __in D2D1_FACTORY_TYPE factoryType,
+    __in REFIID iid,
+    __in_opt CONST D2D1_FACTORY_OPTIONS *pFactoryOptions,
+    __out void **factory
 );
 
 #define CAIRO_INT_STATUS_SUCCESS (cairo_int_status_t)CAIRO_STATUS_SUCCESS
@@ -156,7 +156,7 @@ const cairo_font_face_backend_t _cairo_dwrite_font_face_backend = {
 
 void _cairo_dwrite_scaled_font_fini(void *scaled_font);
 
-static cairo_warn cairo_int_status_t
+cairo_warn cairo_int_status_t
 _cairo_dwrite_scaled_glyph_init(void			     *scaled_font,
 				cairo_scaled_glyph_t	     *scaled_glyph,
 				cairo_scaled_glyph_info_t    info);
@@ -336,14 +336,12 @@ void
 _cairo_dwrite_glyph_run_from_glyphs(cairo_glyph_t *glyphs,
 				    int num_glyphs,
 				    cairo_dwrite_scaled_font_t *scaled_font,
-				    AutoDWriteGlyphRun *run,
+				    DWRITE_GLYPH_RUN *run,
 				    cairo_bool_t *transformed)
 {
-    run->allocate(num_glyphs);
-
-    UINT16 *indices = const_cast<UINT16*>(run->glyphIndices);
-    FLOAT *advances = const_cast<FLOAT*>(run->glyphAdvances);
-    DWRITE_GLYPH_OFFSET *offsets = const_cast<DWRITE_GLYPH_OFFSET*>(run->glyphOffsets);
+    UINT16 *indices = new UINT16[num_glyphs];
+    FLOAT *advances = new FLOAT[num_glyphs];
+    DWRITE_GLYPH_OFFSET *offsets = new DWRITE_GLYPH_OFFSET[num_glyphs];
 
     cairo_dwrite_font_face_t *dwriteff = reinterpret_cast<cairo_dwrite_font_face_t*>(scaled_font->base.font_face);
 
@@ -351,6 +349,9 @@ _cairo_dwrite_glyph_run_from_glyphs(cairo_glyph_t *glyphs,
     run->fontFace = dwriteff->dwriteface;
     run->glyphCount = num_glyphs;
     run->isSideways = FALSE;
+    run->glyphIndices = indices;
+    run->glyphOffsets = offsets;
+    run->glyphAdvances = advances;
 
     if (scaled_font->mat.xy == 0 && scaled_font->mat.yx == 0 &&
 	scaled_font->mat.xx == scaled_font->base.font_matrix.xx && 
@@ -370,21 +371,10 @@ _cairo_dwrite_glyph_run_from_glyphs(cairo_glyph_t *glyphs,
 	}
     } else {
 	*transformed = 1;
-        // Transforming positions by the inverse matrix, then by the original
-        // matrix later may introduce small errors, especially because the
-        // D2D matrix is single-precision whereas the cairo one is double.
-        // This is a problem when glyph positions were originally at exactly
-        // half-pixel locations, which eventually round to whole pixels for
-        // GDI rendering - the errors introduced here cause them to round in
-        // unpredictable directions, instead of all rounding in a consistent
-        // way, leading to poor glyph spacing (bug 675383).
-        // To mitigate this, nudge the positions by a tiny amount to try and
-        // ensure that after the two transforms, they'll still round in a
-        // consistent direction.
-        const double EPSILON = 0.0001;
+
 	for (int i = 0; i < num_glyphs; i++) {
 	    indices[i] = (WORD) glyphs[i].index;
-	    double x = glyphs[i].x + EPSILON;
+	    double x = glyphs[i].x;
 	    double y = glyphs[i].y;
 	    cairo_matrix_transform_point(&scaled_font->mat_inverse, &x, &y);
 	    // Since we will multiply by our ctm matrix later for rotation effects
@@ -597,17 +587,19 @@ _cairo_dwrite_scaled_show_glyphs(void			*scaled_font,
     } else {
 	cairo_dwrite_scaled_font_t *dwritesf =
 	    static_cast<cairo_dwrite_scaled_font_t*>(scaled_font);
+	UINT16 *indices = new UINT16[num_glyphs];
+	DWRITE_GLYPH_OFFSET *offsets = new DWRITE_GLYPH_OFFSET[num_glyphs];
+	FLOAT *advances = new FLOAT[num_glyphs];
 	BOOL transform = FALSE;
 
-	AutoDWriteGlyphRun run;
-	run.allocate(num_glyphs);
-        UINT16 *indices = const_cast<UINT16*>(run.glyphIndices);
-        FLOAT *advances = const_cast<FLOAT*>(run.glyphAdvances);
-        DWRITE_GLYPH_OFFSET *offsets = const_cast<DWRITE_GLYPH_OFFSET*>(run.glyphOffsets);
-
+	DWRITE_GLYPH_RUN run;
 	run.bidiLevel = 0;
 	run.fontFace = ((cairo_dwrite_font_face_t*)dwritesf->base.font_face)->dwriteface;
+	run.glyphIndices = indices;
+	run.glyphCount = num_glyphs;
 	run.isSideways = FALSE;
+	run.glyphOffsets = offsets;
+	run.glyphAdvances = advances;
     	IDWriteGlyphRunAnalysis *analysis;
 
 	if (dwritesf->mat.xy == 0 && dwritesf->mat.yx == 0 &&
@@ -704,6 +696,9 @@ _cairo_dwrite_scaled_show_glyphs(void			*scaled_font,
 
 	analysis->Release();
 	delete [] surface;
+	delete [] indices;
+	delete [] offsets;
+	delete [] advances;
 
 	cairo_surface_destroy (&mask_surface->base);
 	*remaining_glyphs = 0;
@@ -956,15 +951,6 @@ _cairo_dwrite_scaled_font_init_glyph_surface(cairo_dwrite_scaled_font_t *scaled_
     glyph.x = -x1;
     glyph.y = -y1;
 
-    DWRITE_GLYPH_RUN run;
-    FLOAT advance = 0;
-    UINT16 index = (UINT16)glyph.index;
-    DWRITE_GLYPH_OFFSET offset;
-    double x = glyph.x;
-    double y = glyph.y;
-    RECT area;
-    DWRITE_MATRIX matrix;
-
     surface = (cairo_win32_surface_t *)
 	cairo_win32_surface_create_with_dib (CAIRO_FORMAT_RGB24, width, height);
 
@@ -976,6 +962,12 @@ _cairo_dwrite_scaled_font_init_glyph_surface(cairo_dwrite_scaled_font_t *scaled_
     if (status)
 	goto FAIL;
 
+    DWRITE_GLYPH_RUN run;
+    FLOAT advance = 0;
+    UINT16 index = (UINT16)glyph.index;
+    DWRITE_GLYPH_OFFSET offset;
+    double x = glyph.x;
+    double y = glyph.y;
     /**
      * We transform by the inverse transformation here. This will put our glyph
      * locations in the space in which we draw. Which is later transformed by
@@ -988,6 +980,7 @@ _cairo_dwrite_scaled_font_init_glyph_surface(cairo_dwrite_scaled_font_t *scaled_
     /** Y-axis is inverted */
     offset.ascenderOffset = -(FLOAT)y;
 
+    RECT area;
     area.top = 0;
     area.bottom = height;
     area.left = 0;
@@ -1002,7 +995,7 @@ _cairo_dwrite_scaled_font_init_glyph_surface(cairo_dwrite_scaled_font_t *scaled_
     run.isSideways = FALSE;
     run.glyphOffsets = &offset;
 
-    matrix = _cairo_dwrite_matrix_from_matrix(&scaled_font->mat);
+    DWRITE_MATRIX matrix = _cairo_dwrite_matrix_from_matrix(&scaled_font->mat);
 
     status = _dwrite_draw_glyphs_to_gdi_surface_gdi (surface, &matrix, &run,
             RGB(0,0,0), scaled_font, area);
@@ -1157,17 +1150,7 @@ _dwrite_draw_glyphs_to_gdi_surface_gdi(cairo_win32_surface_t *surface,
 	   surface->dc,
 	   area.left, area.top, 
 	   SRCCOPY | NOMIRRORBITMAP);
-    DWRITE_MEASURING_MODE measureMode; 
-    switch (scaled_font->rendering_mode) {
-    case cairo_d2d_surface_t::TEXT_RENDERING_GDI_CLASSIC:
-    case cairo_d2d_surface_t::TEXT_RENDERING_NO_CLEARTYPE:
-        measureMode = DWRITE_MEASURING_MODE_GDI_CLASSIC;
-        break;
-    default:
-        measureMode = DWRITE_MEASURING_MODE_NATURAL;
-        break;
-    }
-    HRESULT hr = rt->DrawGlyphRun(0, 0, measureMode, run, params, color);
+    HRESULT hr = rt->DrawGlyphRun(0, 0, DWRITE_MEASURING_MODE_NATURAL, run, params, color);
     BitBlt(surface->dc,
 	   area.left, area.top,
 	   area.right - area.left, area.bottom - area.top,
@@ -1289,13 +1272,9 @@ _cairo_dwrite_show_glyphs_on_surface(void			*surface,
      * coordinate due to accumulated rounding error. As a result strings could
      * be painted shorter or longer than expected. */
 
-    AutoDWriteGlyphRun run;
-    run.allocate(num_glyphs);
-
-    UINT16 *indices = const_cast<UINT16*>(run.glyphIndices);
-    FLOAT *advances = const_cast<FLOAT*>(run.glyphAdvances);
-    DWRITE_GLYPH_OFFSET *offsets = const_cast<DWRITE_GLYPH_OFFSET*>(run.glyphOffsets);
-
+    UINT16 *indices = new UINT16[num_glyphs];
+    DWRITE_GLYPH_OFFSET *offsets = new DWRITE_GLYPH_OFFSET[num_glyphs];
+    FLOAT *advances = new FLOAT[num_glyphs];
     BOOL transform = FALSE;
     /* Needed to calculate bounding box for efficient blitting */
     INT32 smallestX = INT_MAX;
@@ -1351,9 +1330,14 @@ _cairo_dwrite_show_glyphs_on_surface(void			*surface,
 	fontArea.bottom = dst->extents.height;
     }
 
+    DWRITE_GLYPH_RUN run;
     run.bidiLevel = 0;
     run.fontFace = dwriteff->dwriteface;
+    run.glyphIndices = indices;
+    run.glyphCount = num_glyphs;
     run.isSideways = FALSE;
+    run.glyphOffsets = offsets;
+    run.glyphAdvances = advances;
     if (dwritesf->mat.xy == 0 && dwritesf->mat.yx == 0 &&
 	dwritesf->mat.xx == scaled_font->font_matrix.xx && 
 	dwritesf->mat.yy == scaled_font->font_matrix.yy) {
@@ -1369,11 +1353,10 @@ _cairo_dwrite_show_glyphs_on_surface(void			*surface,
 	run.fontEmSize = (FLOAT)scaled_font->font_matrix.yy;
     } else {
 	transform = TRUE;
-        // See comment about EPSILON in _cairo_dwrite_glyph_run_from_glyphs
-        const double EPSILON = 0.0001;
+
 	for (int i = 0; i < num_glyphs; i++) {
 	    indices[i] = (WORD) glyphs[i].index;
-	    double x = glyphs[i].x - fontArea.left + EPSILON;
+	    double x = glyphs[i].x - fontArea.left;
 	    double y = glyphs[i].y - fontArea.top;
 	    cairo_matrix_transform_point(&dwritesf->mat_inverse, &x, &y);
 	    /**
@@ -1426,6 +1409,10 @@ _cairo_dwrite_show_glyphs_on_surface(void			*surface,
 #ifdef CAIRO_TRY_D2D_TO_GDI
     }
 #endif
+
+    delete [] indices;
+    delete [] offsets;
+    delete [] advances;
 
     return CAIRO_INT_STATUS_SUCCESS;
 }

@@ -1,18 +1,48 @@
 /* -*-  Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2; -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is js-ctypes.
+ *
+ * The Initial Developer of the Original Code is
+ * The Mozilla Foundation <http://www.mozilla.org/>.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Fredrik Larsson <nossralf@gmail.com>
+ *  Mark Finkle <mark.finkle@gmail.com>, <mfinkle@mozilla.com>
+ *  Dan Witte <dwitte@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "jsctypes-test.h"
-#include "jsapi.h"
 #include "nsCRTGlue.h"
+#include <string.h>
 #include <math.h>
 #include <stdarg.h>
-#include <stdio.h>
-
-#if defined(XP_WIN)
-#define snprintf _snprintf
-#endif // defined(XP_WIN)
 
 template <typename T> struct ValueTraits {
   static T literal() { return static_cast<T>(109.25); }
@@ -90,7 +120,7 @@ sum_many_##name##_##suffix(                                                    \
 #include "typedefs.h"
 #undef ABI
 
-#if defined(_WIN32)
+#if defined(_WIN32) && !defined(_WIN64)
 
 void NS_STDCALL
 test_void_t_stdcall()
@@ -104,7 +134,7 @@ test_void_t_stdcall()
 #include "typedefs.h"
 #undef ABI
 
-#endif /* defined(_WIN32) */
+#endif /* defined(_WIN32) && !defined(_WIN64) */
 
 #define DEFINE_TYPE(name, type, ffiType)                                       \
 struct align_##name {                                                          \
@@ -131,24 +161,16 @@ get_##name##_stats(size_t* align, size_t* size, size_t* nalign, size_t* nsize, \
 }
 #include "typedefs.h"
 
-template <typename T>
-int32_t StrLen(const T* string)
-{
-  const T *end;
-  for (end = string; *end; ++end);
-  return end - string;
-}
-
-int32_t
+PRInt32
 test_ansi_len(const char* string)
 {
-  return StrLen(string);
+  return PRInt32(strlen(string));
 }
 
-int32_t
+PRInt32
 test_wide_len(const PRUnichar* string)
 {
-  return StrLen(string);
+  return PRInt32(NS_strlen(string));
 }
 
 const char *
@@ -170,7 +192,7 @@ test_ansi_echo(const char* string)
   return (char*)string;
 }
 
-int32_t
+PRInt32
 test_pt_in_rect(RECT rc, POINT pt)
 {
   if (pt.x < rc.left || pt.x > rc.right)
@@ -181,16 +203,16 @@ test_pt_in_rect(RECT rc, POINT pt)
 }
 
 void
-test_init_pt(POINT* pt, int32_t x, int32_t y)
+test_init_pt(POINT* pt, PRInt32 x, PRInt32 y)
 {
   pt->x = x;
   pt->y = y;
 }
 
-int32_t
+PRInt32
 test_nested_struct(NESTED n)
 {
-  return int32_t(n.n1 + n.n2 + n.inner.i1 + n.inner.i2 + n.inner.i3 + n.n3 + n.n4);
+  return PRInt32(n.n1 + n.n2 + n.inner.i1 + n.inner.i2 + n.inner.i3 + n.n3 + n.n4);
 }
 
 POINT
@@ -293,19 +315,19 @@ test_fnptr()
   return (void*)(uintptr_t)test_ansi_len;
 }
 
-int32_t
-test_closure_cdecl(int8_t i, test_func_ptr f)
+PRInt32
+test_closure_cdecl(PRInt8 i, test_func_ptr f)
 {
   return f(i);
 }
 
-#if defined(_WIN32)
-int32_t
-test_closure_stdcall(int8_t i, test_func_ptr_stdcall f)
+#if defined(_WIN32) && !defined(_WIN64)
+PRInt32
+test_closure_stdcall(PRInt8 i, test_func_ptr_stdcall f)
 {
   return f(i);
 }
-#endif /* defined(_WIN32) */
+#endif /* defined(_WIN32) && !defined(_WIN64) */
 
 template <typename T> struct PromotedTraits {
   typedef T type;
@@ -318,25 +340,25 @@ DECL_PROMOTED(bool, int);
 DECL_PROMOTED(char, int);
 DECL_PROMOTED(short, int);
 
-int32_t
-test_sum_va_cdecl(uint8_t n, ...)
+PRInt32
+test_sum_va_cdecl(PRUint8 n, ...)
 {
   va_list list;
-  int32_t sum = 0;
+  PRInt32 sum = 0;
   va_start(list, n);
-  for (uint8_t i = 0; i < n; ++i)
-    sum += va_arg(list, PromotedTraits<int32_t>::type);
+  for (PRUint8 i = 0; i < n; ++i)
+    sum += va_arg(list, PromotedTraits<PRInt32>::type);
   va_end(list);
   return sum;
 }
 
-uint8_t
-test_count_true_va_cdecl(uint8_t n, ...)
+PRUint8
+test_count_true_va_cdecl(PRUint8 n, ...)
 {
   va_list list;
-  uint8_t count = 0;
+  PRUint8 count = 0;
   va_start(list, n);
-  for (uint8_t i = 0; i < n; ++i)
+  for (PRUint8 i = 0; i < n; ++i)
     if (va_arg(list, PromotedTraits<bool>::type))
       count += 1;
   va_end(list);
@@ -344,7 +366,7 @@ test_count_true_va_cdecl(uint8_t n, ...)
 }
 
 void
-test_add_char_short_int_va_cdecl(uint32_t* result, ...)
+test_add_char_short_int_va_cdecl(PRUint32* result, ...)
 {
   va_list list;
   va_start(list, result);
@@ -354,19 +376,19 @@ test_add_char_short_int_va_cdecl(uint32_t* result, ...)
   va_end(list);
 }
 
-int32_t*
-test_vector_add_va_cdecl(uint8_t num_vecs,
-                         uint8_t vec_len,
-                         int32_t* result, ...)
+PRInt32*
+test_vector_add_va_cdecl(PRUint8 num_vecs,
+                         PRUint8 vec_len,
+                         PRInt32* result, ...)
 {
   va_list list;
   va_start(list, result);
-  uint8_t i;
+  PRUint8 i;
   for (i = 0; i < vec_len; ++i)
     result[i] = 0;
   for (i = 0; i < num_vecs; ++i) {
-    int32_t* vec = va_arg(list, int32_t*);
-    for (uint8_t j = 0; j < vec_len; ++j)
+    PRInt32* vec = va_arg(list, PRInt32*);
+    for (PRUint8 j = 0; j < vec_len; ++j)
       result[j] += vec[j];
   }
   va_end(list);
@@ -374,3 +396,4 @@ test_vector_add_va_cdecl(uint8_t num_vecs,
 }
 
 RECT data_rect = { -1, -2, 3, 4 };
+

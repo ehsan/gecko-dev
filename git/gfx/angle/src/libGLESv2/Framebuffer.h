@@ -15,7 +15,7 @@
 #include <d3d9.h>
 
 #include "common/angleutils.h"
-#include "common/RefCountObject.h"
+#include "libGLESv2/RefCountObject.h"
 
 namespace gl
 {
@@ -46,10 +46,9 @@ class Framebuffer
     unsigned int getDepthbufferSerial();
     unsigned int getStencilbufferSerial();
 
-    Renderbuffer *getColorbuffer();
-    Renderbuffer *getDepthbuffer();
-    Renderbuffer *getStencilbuffer();
-    Renderbuffer *getNullColorbuffer();
+    Colorbuffer *getColorbuffer();
+    DepthStencilbuffer *getDepthbuffer();
+    DepthStencilbuffer *getStencilbuffer();
 
     GLenum getColorbufferType();
     GLenum getDepthbufferType();
@@ -74,8 +73,6 @@ class Framebuffer
     GLenum mStencilbufferType;
     BindingPointer<Renderbuffer> mStencilbufferPointer;
 
-    BindingPointer<Renderbuffer> mNullColorbufferPointer;
-
   private:
     DISALLOW_COPY_AND_ASSIGN(Framebuffer);
 
@@ -85,7 +82,7 @@ class Framebuffer
 class DefaultFramebuffer : public Framebuffer
 {
   public:
-    DefaultFramebuffer(Colorbuffer *colorbuffer, DepthStencilbuffer *depthStencil);
+    DefaultFramebuffer(Colorbuffer *color, DepthStencilbuffer *depthStencil);
 
     virtual GLenum completeness();
 

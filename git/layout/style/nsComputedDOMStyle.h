@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Christopher A. Aillon <christopher@aillon.com>
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Christopher A. Aillon <christopher@aillon.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* DOM object returned from element.getComputedStyle() */
 
@@ -16,30 +49,31 @@
 #include "nsCSSProps.h"
 
 #include "nsIContent.h"
+#include "nsIFrame.h"
 #include "nsCOMPtr.h"
 #include "nsWeakReference.h"
 #include "nsAutoPtr.h"
 #include "nsStyleStruct.h"
-#include "nsStyleContext.h"
 
-class nsIFrame;
 class nsIPresShell;
 
-class nsComputedDOMStyle MOZ_FINAL : public nsDOMCSSDeclaration
+class nsComputedDOMStyle : public nsDOMCSSDeclaration,
+                           public nsWrapperCache
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsComputedDOMStyle,
-                                                                   nsICSSDeclaration)
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsComputedDOMStyle,
+                                           nsICSSDeclaration)
+
+  NS_IMETHOD Init(nsIDOMElement *aElement,
+                  const nsAString& aPseudoElt,
+                  nsIPresShell *aPresShell);
 
   NS_DECL_NSICSSDECLARATION
 
   NS_DECL_NSIDOMCSSSTYLEDECLARATION
-  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName);
 
-  nsComputedDOMStyle(mozilla::dom::Element* aElement,
-                     const nsAString& aPseudoElt,
-                     nsIPresShell* aPresShell);
+  nsComputedDOMStyle();
   virtual ~nsComputedDOMStyle();
 
   static void Shutdown();
@@ -62,7 +96,7 @@ public:
   GetPresShellForContent(nsIContent* aContent);
 
   // Helper for nsDOMWindowUtils::GetVisitedDependentComputedStyle
-  void SetExposeVisitedStyle(bool aExpose) {
+  void SetExposeVisitedStyle(PRBool aExpose) {
     NS_ASSERTION(aExpose != mExposeVisitedStyle, "should always be changing");
     mExposeVisitedStyle = aExpose;
   }
@@ -70,7 +104,7 @@ public:
   // nsDOMCSSDeclaration abstract methods which should never be called
   // on a nsComputedDOMStyle object, but must be defined to avoid
   // compile errors.
-  virtual mozilla::css::Declaration* GetCSSDeclaration(bool);
+  virtual mozilla::css::Declaration* GetCSSDeclaration(PRBool);
   virtual nsresult SetCSSDeclaration(mozilla::css::Declaration*);
   virtual nsIDocument* DocToUpdate();
   virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv);
@@ -93,8 +127,8 @@ private:
   // ownership.
 
   nsIDOMCSSValue* GetEllipseRadii(const nsStyleCorners& aRadius,
-                                  uint8_t aFullCorner,
-                                  bool aIsBorder); // else outline
+                                  PRUint8 aFullCorner,
+                                  PRBool aIsBorder); // else outline
 
   nsIDOMCSSValue* GetOffsetWidthFor(mozilla::css::Side aSide);
 
@@ -116,17 +150,17 @@ private:
 
   nsIDOMCSSValue* GetMarginWidthFor(mozilla::css::Side aSide);
 
-  nsIDOMCSSValue* GetSVGPaintFor(bool aFill);
+  nsIDOMCSSValue* GetSVGPaintFor(PRBool aFill);
 
-  bool GetLineHeightCoord(nscoord& aCoord);
+  PRBool GetLineHeightCoord(nscoord& aCoord);
 
   nsIDOMCSSValue* GetCSSShadowArray(nsCSSShadowArray* aArray,
                                     const nscolor& aDefaultColor,
-                                    bool aIsBoxShadow);
+                                    PRBool aIsBoxShadow);
 
-  nsIDOMCSSValue* GetBackgroundList(uint8_t nsStyleBackground::Layer::* aMember,
-                                    uint32_t nsStyleBackground::* aCount,
-                                    const int32_t aTable[]);
+  nsIDOMCSSValue* GetBackgroundList(PRUint8 nsStyleBackground::Layer::* aMember,
+                                    PRUint32 nsStyleBackground::* aCount,
+                                    const PRInt32 aTable[]);
 
   void GetCSSGradientString(const nsStyleGradient* aGradient,
                             nsAString& aString);
@@ -167,8 +201,8 @@ private:
   /* Font properties */
   nsIDOMCSSValue* DoGetColor();
   nsIDOMCSSValue* DoGetFontFamily();
-  nsIDOMCSSValue* DoGetFontFeatureSettings();
-  nsIDOMCSSValue* DoGetFontLanguageOverride();
+  nsIDOMCSSValue* DoGetMozFontFeatureSettings();
+  nsIDOMCSSValue* DoGetMozFontLanguageOverride();
   nsIDOMCSSValue* DoGetFontSize();
   nsIDOMCSSValue* DoGetFontSizeAdjust();
   nsIDOMCSSValue* DoGetFontStretch();
@@ -185,9 +219,10 @@ private:
   nsIDOMCSSValue* DoGetBackgroundClip();
   nsIDOMCSSValue* DoGetBackgroundInlinePolicy();
   nsIDOMCSSValue* DoGetBackgroundOrigin();
-  nsIDOMCSSValue* DoGetBackgroundSize();
+  nsIDOMCSSValue* DoGetMozBackgroundSize();
 
   /* Padding properties */
+  nsIDOMCSSValue* DoGetPadding();
   nsIDOMCSSValue* DoGetPaddingTop();
   nsIDOMCSSValue* DoGetPaddingBottom();
   nsIDOMCSSValue* DoGetPaddingLeft();
@@ -202,6 +237,8 @@ private:
   nsIDOMCSSValue* DoGetVerticalAlign();
 
   /* Border Properties */
+  nsIDOMCSSValue* DoGetBorderStyle();
+  nsIDOMCSSValue* DoGetBorderWidth();
   nsIDOMCSSValue* DoGetBorderTopStyle();
   nsIDOMCSSValue* DoGetBorderBottomStyle();
   nsIDOMCSSValue* DoGetBorderLeftStyle();
@@ -223,13 +260,7 @@ private:
   nsIDOMCSSValue* DoGetBorderTopLeftRadius();
   nsIDOMCSSValue* DoGetBorderTopRightRadius();
   nsIDOMCSSValue* DoGetFloatEdge();
-
-  /* Border Image */
-  nsIDOMCSSValue* DoGetBorderImageSource();
-  nsIDOMCSSValue* DoGetBorderImageSlice();
-  nsIDOMCSSValue* DoGetBorderImageWidth();
-  nsIDOMCSSValue* DoGetBorderImageOutset();
-  nsIDOMCSSValue* DoGetBorderImageRepeat();
+  nsIDOMCSSValue* DoGetBorderImage();
 
   /* Box Shadow */
   nsIDOMCSSValue* DoGetBoxShadow();
@@ -238,12 +269,14 @@ private:
   nsIDOMCSSValue* DoGetWindowShadow();
 
   /* Margin Properties */
+  nsIDOMCSSValue* DoGetMarginWidth();
   nsIDOMCSSValue* DoGetMarginTopWidth();
   nsIDOMCSSValue* DoGetMarginBottomWidth();
   nsIDOMCSSValue* DoGetMarginLeftWidth();
   nsIDOMCSSValue* DoGetMarginRightWidth();
 
   /* Outline Properties */
+  nsIDOMCSSValue* DoGetOutline();
   nsIDOMCSSValue* DoGetOutlineWidth();
   nsIDOMCSSValue* DoGetOutlineStyle();
   nsIDOMCSSValue* DoGetOutlineColor();
@@ -274,12 +307,11 @@ private:
   /* Text Properties */
   nsIDOMCSSValue* DoGetLineHeight();
   nsIDOMCSSValue* DoGetTextAlign();
-  nsIDOMCSSValue* DoGetTextAlignLast();
   nsIDOMCSSValue* DoGetMozTextBlink();
   nsIDOMCSSValue* DoGetTextDecoration();
-  nsIDOMCSSValue* DoGetTextDecorationColor();
-  nsIDOMCSSValue* DoGetTextDecorationLine();
-  nsIDOMCSSValue* DoGetTextDecorationStyle();
+  nsIDOMCSSValue* DoGetMozTextDecorationColor();
+  nsIDOMCSSValue* DoGetMozTextDecorationLine();
+  nsIDOMCSSValue* DoGetMozTextDecorationStyle();
   nsIDOMCSSValue* DoGetTextIndent();
   nsIDOMCSSValue* DoGetTextOverflow();
   nsIDOMCSSValue* DoGetTextTransform();
@@ -287,11 +319,9 @@ private:
   nsIDOMCSSValue* DoGetLetterSpacing();
   nsIDOMCSSValue* DoGetWordSpacing();
   nsIDOMCSSValue* DoGetWhiteSpace();
-  nsIDOMCSSValue* DoGetWordBreak();
   nsIDOMCSSValue* DoGetWordWrap();
   nsIDOMCSSValue* DoGetHyphens();
-  nsIDOMCSSValue* DoGetTabSize();
-  nsIDOMCSSValue* DoGetTextSizeAdjust();
+  nsIDOMCSSValue* DoGetMozTabSize();
 
   /* Visibility properties */
   nsIDOMCSSValue* DoGetOpacity();
@@ -315,12 +345,8 @@ private:
   nsIDOMCSSValue* DoGetResize();
   nsIDOMCSSValue* DoGetPageBreakAfter();
   nsIDOMCSSValue* DoGetPageBreakBefore();
-  nsIDOMCSSValue* DoGetTransform();
-  nsIDOMCSSValue* DoGetTransformOrigin();
-  nsIDOMCSSValue* DoGetPerspective();
-  nsIDOMCSSValue* DoGetBackfaceVisibility();
-  nsIDOMCSSValue* DoGetPerspectiveOrigin();
-  nsIDOMCSSValue* DoGetTransformStyle();
+  nsIDOMCSSValue* DoGetMozTransform();
+  nsIDOMCSSValue* DoGetMozTransformOrigin();
   nsIDOMCSSValue* DoGetOrient();
 
   /* User interface properties */
@@ -334,7 +360,6 @@ private:
 
   /* Column properties */
   nsIDOMCSSValue* DoGetColumnCount();
-  nsIDOMCSSValue* DoGetColumnFill();
   nsIDOMCSSValue* DoGetColumnWidth();
   nsIDOMCSSValue* DoGetColumnGap();
   nsIDOMCSSValue* DoGetColumnRuleWidth();
@@ -357,18 +382,6 @@ private:
   nsIDOMCSSValue* DoGetAnimationIterationCount();
   nsIDOMCSSValue* DoGetAnimationPlayState();
 
-#ifdef MOZ_FLEXBOX
-  /* CSS Flexbox properties */
-  nsIDOMCSSValue* DoGetAlignItems();
-  nsIDOMCSSValue* DoGetAlignSelf();
-  nsIDOMCSSValue* DoGetFlexBasis();
-  nsIDOMCSSValue* DoGetFlexDirection();
-  nsIDOMCSSValue* DoGetFlexGrow();
-  nsIDOMCSSValue* DoGetFlexShrink();
-  nsIDOMCSSValue* DoGetOrder();
-  nsIDOMCSSValue* DoGetJustifyContent();
-#endif // MOZ_FLEXBOX
-
   /* SVG properties */
   nsIDOMCSSValue* DoGetFill();
   nsIDOMCSSValue* DoGetStroke();
@@ -379,7 +392,6 @@ private:
 
   nsIDOMCSSValue* DoGetStrokeDashoffset();
   nsIDOMCSSValue* DoGetStrokeWidth();
-  nsIDOMCSSValue* DoGetVectorEffect();
 
   nsIDOMCSSValue* DoGetFillOpacity();
   nsIDOMCSSValue* DoGetFloodOpacity();
@@ -409,36 +421,36 @@ private:
   nsIDOMCSSValue* DoGetMask();
 
   nsROCSSPrimitiveValue* GetROCSSPrimitiveValue();
-  nsDOMCSSValueList* GetROCSSValueList(bool aCommaDelimited);
+  nsDOMCSSValueList* GetROCSSValueList(PRBool aCommaDelimited);
   void SetToRGBAColor(nsROCSSPrimitiveValue* aValue, nscolor aColor);
   void SetValueToStyleImage(const nsStyleImage& aStyleImage,
                             nsROCSSPrimitiveValue* aValue);
 
   /**
-   * A method to get a percentage base for a percentage value.  Returns true
-   * if a percentage base value was determined, false otherwise.
+   * A method to get a percentage base for a percentage value.  Returns PR_TRUE
+   * if a percentage base value was determined, PR_FALSE otherwise.
    */
-  typedef bool (nsComputedDOMStyle::*PercentageBaseGetter)(nscoord&);
+  typedef PRBool (nsComputedDOMStyle::*PercentageBaseGetter)(nscoord&);
 
   /**
    * Method to set aValue to aCoord.  If aCoord is a percentage value and
    * aPercentageBaseGetter is not null, aPercentageBaseGetter is called.  If it
-   * returns true, the percentage base it outputs in its out param is used
-   * to compute an nscoord value.  If the getter is null or returns false,
+   * returns PR_TRUE, the percentage base it outputs in its out param is used
+   * to compute an nscoord value.  If the getter is null or returns PR_FALSE,
    * the percent value of aCoord is set as a percent value on aValue.  aTable,
    * if not null, is the keyword table to handle eStyleUnit_Enumerated.  When
    * calling SetAppUnits on aValue (for coord or percent values), the value
-   * passed in will be clamped to be no less than aMinAppUnits and no more than
-   * aMaxAppUnits.
+   * passed in will be NS_MAX of the value in aMinAppUnits and the NS_MIN of
+   * the actual value in aCoord and the value in aMaxAppUnits.
    *
    * XXXbz should caller pass in some sort of bitfield indicating which units
    * can be expected or something?
    */
   void SetValueToCoord(nsROCSSPrimitiveValue* aValue,
                        const nsStyleCoord& aCoord,
-                       bool aClampNegativeCalc,
-                       PercentageBaseGetter aPercentageBaseGetter = nullptr,
-                       const int32_t aTable[] = nullptr,
+                       PRBool aClampNegativeCalc,
+                       PercentageBaseGetter aPercentageBaseGetter = nsnull,
+                       const PRInt32 aTable[] = nsnull,
                        nscoord aMinAppUnits = nscoord_MIN,
                        nscoord aMaxAppUnits = nscoord_MAX);
 
@@ -451,14 +463,14 @@ private:
   nscoord StyleCoordToNSCoord(const nsStyleCoord& aCoord,
                               PercentageBaseGetter aPercentageBaseGetter,
                               nscoord aDefaultValue,
-                              bool aClampNegativeCalc);
+                              PRBool aClampNegativeCalc);
 
-  bool GetCBContentWidth(nscoord& aWidth);
-  bool GetCBContentHeight(nscoord& aWidth);
-  bool GetFrameBoundsWidthForTransform(nscoord &aWidth);
-  bool GetFrameBoundsHeightForTransform(nscoord &aHeight);
-  bool GetFrameBorderRectWidth(nscoord& aWidth);
-  bool GetFrameBorderRectHeight(nscoord& aHeight);
+  PRBool GetCBContentWidth(nscoord& aWidth);
+  PRBool GetCBContentHeight(nscoord& aWidth);
+  PRBool GetFrameBoundsWidthForTransform(nscoord &aWidth);
+  PRBool GetFrameBoundsHeightForTransform(nscoord &aHeight);
+  PRBool GetFrameBorderRectWidth(nscoord& aWidth);
+  PRBool GetFrameBorderRectHeight(nscoord& aHeight);
 
   struct ComputedStyleMapEntry
   {
@@ -467,10 +479,10 @@ private:
 
     nsCSSProperty mProperty;
     ComputeMethod mGetter;
-    bool mNeedsLayoutFlush;
+    PRBool mNeedsLayoutFlush;
   };
 
-  static const ComputedStyleMapEntry* GetQueryablePropertyMap(uint32_t* aLength);
+  static const ComputedStyleMapEntry* GetQueryablePropertyMap(PRUint32* aLength);
 
   // We don't really have a good immutable representation of "presentation".
   // Given the way GetComputedStyle is currently used, we should just grab the
@@ -504,17 +516,17 @@ private:
    */
   nsIPresShell* mPresShell;
 
-  bool mExposeVisitedStyle;
+  PRPackedBool mExposeVisitedStyle;
 
 #ifdef DEBUG
-  bool mFlushedPendingReflows;
+  PRBool mFlushedPendingReflows;
 #endif
 };
 
-already_AddRefed<nsComputedDOMStyle>
-NS_NewComputedDOMStyle(mozilla::dom::Element* aElement,
-                       const nsAString& aPseudoElt,
-                       nsIPresShell* aPresShell);
+nsresult
+NS_NewComputedDOMStyle(nsIDOMElement *aElement, const nsAString &aPseudoElt,
+                       nsIPresShell *aPresShell,
+                       nsComputedDOMStyle **aComputedStyle);
 
 #endif /* nsComputedDOMStyle_h__ */
 

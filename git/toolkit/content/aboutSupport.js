@@ -1,11 +1,43 @@
 # -*- Mode: js2; indent-tabs-mode: nil; js2-basic-offset: 2; -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is aboutSupport.xhtml.
+#
+# The Initial Developer of the Original Code is
+# Mozilla Foundation
+# Portions created by the Initial Developer are Copyright (C) 2009
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Curtis Bartley <cbartley@mozilla.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
-let Cc = Components.classes;
-let Ci = Components.interfaces;
-let Cu = Components.utils;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
@@ -19,22 +51,11 @@ const ELLIPSIS = Services.prefs.getComplexValue("intl.ellipsis",
 // under the "accessibility.*" branch.
 const PREFS_WHITELIST = [
   "accessibility.",
-  "browser.cache.",
-  "browser.display.",
   "browser.fixup.",
   "browser.history_expire_",
   "browser.link.open_newwindow",
+  "browser.mousewheel.",
   "browser.places.",
-  "browser.privatebrowsing.",
-  "browser.search.context.loadInBackground",
-  "browser.search.log",
-  "browser.search.openintab",
-  "browser.search.param",
-  "browser.search.searchEnginesURL",
-  "browser.search.suggest.enabled",
-  "browser.search.update",
-  "browser.search.useDBForOrder",
-  "browser.sessionstore.",
   "browser.startup.homepage",
   "browser.tabs.",
   "browser.zoom.",
@@ -42,27 +63,21 @@ const PREFS_WHITELIST = [
   "extensions.checkCompatibility",
   "extensions.lastAppVersion",
   "font.",
-  "general.autoScroll",
   "general.useragent.",
   "gfx.",
   "html5.",
-  "image.mem.",
+  "mozilla.widget.render-mode",
+  "layers.",
   "javascript.",
   "keyword.",
-  "layers.",
   "layout.css.dpi",
-  "media.",
-  "mousewheel.",
   "network.",
-  "permissions.default.image",
   "places.",
   "plugin.",
   "plugins.",
   "print.",
   "privacy.",
   "security.",
-  "svg.",
-  "toolkit.startup.recent_crashes",
   "webgl."
 ];
 
@@ -90,13 +105,9 @@ window.onload = function () {
   document.getElementById("version-box").textContent = version;
 
   // Update the other sections.
-  populateResetBox();
   populatePreferencesSection();
   populateExtensionsSection();
   populateGraphicsSection();
-  populateJavaScriptSection();
-  populateAccessibilitySection();
-  populateLibVersionsSection();
 }
 
 function populateExtensionsSection() {
@@ -150,41 +161,6 @@ function populatePreferencesSection() {
   appendChildren(document.getElementById("prefs-tbody"), trPrefs);
 }
 
-function populateLibVersionsSection() {
-  function pushInfoRow(table, name, value, value2)
-  {
-    table.push(createParentElement("tr", [
-      createElement("td", name),
-      createElement("td", value),
-      createElement("td", value2),
-    ]));
-  }
-    
-  var v = null;
-  try { // just to be safe
-    v = Cc["@mozilla.org/security/nssversion;1"].getService(Ci.nsINSSVersion);
-  } catch(e) {}
-  if (!v)
-    return;
-    
-  let bundle = Services.strings.createBundle("chrome://global/locale/aboutSupport.properties");
-  let libversions_tbody = document.getElementById("libversions-tbody");
-
-  let trLibs = [];
-  trLibs.push(createParentElement("tr", [
-    createElement("th", ""),
-    createElement("th", bundle.GetStringFromName("minLibVersions")),
-    createElement("th", bundle.GetStringFromName("loadedLibVersions")),
-  ]));
-  pushInfoRow(trLibs, "NSPR", v.NSPR_MinVersion, v.NSPR_Version);
-  pushInfoRow(trLibs, "NSS", v.NSS_MinVersion, v.NSS_Version);
-  pushInfoRow(trLibs, "NSS Util", v.NSSUTIL_MinVersion, v.NSSUTIL_Version);
-  pushInfoRow(trLibs, "NSS SSL", v.NSSSSL_MinVersion, v.NSSSSL_Version);
-  pushInfoRow(trLibs, "NSS S/MIME", v.NSSSMIME_MinVersion, v.NSSSMIME_Version);
-
-  appendChildren(libversions_tbody, trLibs);
-}
-
 function populateGraphicsSection() {
   function createHeader(name)
   {
@@ -201,14 +177,6 @@ function populateGraphicsSection() {
         createElement("td", value),
       ]));
     }
-  }
-  
-  function pushLiteralInfoRow(table, name, value)
-  {
-    table.push(createParentElement("tr", [
-      createHeader(name),
-      createElement("td", value),
-    ]));
   }
 
   function errorMessageForFeature(feature) {
@@ -271,23 +239,14 @@ function populateGraphicsSection() {
   if (gfxInfo) {
     let trGraphics = [];
     pushInfoRow(trGraphics, "adapterDescription", gfxInfo.adapterDescription);
-    pushInfoRow(trGraphics, "adapterVendorID", gfxInfo.adapterVendorID);
-    pushInfoRow(trGraphics, "adapterDeviceID", gfxInfo.adapterDeviceID);
+    pushInfoRow(trGraphics, "adapterVendorID", hexValueToString(gfxInfo.adapterVendorID));
+    pushInfoRow(trGraphics, "adapterDeviceID", hexValueToString(gfxInfo.adapterDeviceID));
     pushInfoRow(trGraphics, "adapterRAM", gfxInfo.adapterRAM);
     pushInfoRow(trGraphics, "adapterDrivers", gfxInfo.adapterDriver);
     pushInfoRow(trGraphics, "driverVersion", gfxInfo.adapterDriverVersion);
     pushInfoRow(trGraphics, "driverDate", gfxInfo.adapterDriverDate);
 
 #ifdef XP_WIN
-    pushInfoRow(trGraphics, "adapterDescription2", gfxInfo.adapterDescription2);
-    pushInfoRow(trGraphics, "adapterVendorID2", gfxInfo.adapterVendorID2);
-    pushInfoRow(trGraphics, "adapterDeviceID2", gfxInfo.adapterDeviceID2);
-    pushInfoRow(trGraphics, "adapterRAM2", gfxInfo.adapterRAM2);
-    pushInfoRow(trGraphics, "adapterDrivers2", gfxInfo.adapterDriver2);
-    pushInfoRow(trGraphics, "driverVersion2", gfxInfo.adapterDriverVersion2);
-    pushInfoRow(trGraphics, "driverDate2", gfxInfo.adapterDriverDate2);
-    pushInfoRow(trGraphics, "isGPU2Active", gfxInfo.isGPU2Active);
-
     var version = Cc["@mozilla.org/system-info;1"]
                   .getService(Ci.nsIPropertyBag2)
                   .getProperty("version");
@@ -338,15 +297,6 @@ function populateGraphicsSection() {
     pushFeatureInfoRow(trGraphics, "webglRenderer", webglfeature, webglenabled, webglrenderer);
 
     appendChildren(graphics_tbody, trGraphics);
-    
-    // display registered graphics properties
-    let graphics_info_properties = document.getElementById("graphics-info-properties");
-    var info = gfxInfo.getInfo();
-    let trGraphicsProperties = [];
-    for (var property in info) {
-      pushLiteralInfoRow(trGraphicsProperties, property, info[property]);
-    }
-    appendChildren(graphics_info_properties, trGraphicsProperties);
    
     // display any failures that have occurred
     let graphics_failures_tbody = document.getElementById("graphics-failures-tbody");
@@ -356,8 +306,6 @@ function populateGraphicsSection() {
         ])
     );
     appendChildren(graphics_failures_tbody, trGraphicsFailures);
-
-
 
   } // end if (gfxInfo)
 
@@ -376,9 +324,9 @@ function populateGraphicsSection() {
     }
   }
 
-  let msg = acceleratedWindows;
+  let msg = acceleratedWindows + "/" + totalWindows;
   if (acceleratedWindows) {
-    msg += "/" + totalWindows + " " + mgrType;
+    msg += " " + mgrType;
   } else {
 #ifdef XP_WIN
     var feature = gfxInfo.FEATURE_DIRECT3D_9_LAYERS;
@@ -398,45 +346,17 @@ function populateGraphicsSection() {
   ]);
 }
 
-function populateJavaScriptSection() {
-  let enabled = window.QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIDOMWindowUtils)
-        .isIncrementalGCEnabled();
-  document.getElementById("javascript-incremental-gc").textContent = enabled ? "1" : "0";
-}
-
-function populateAccessibilitySection() {
-  var active;
-  try {
-    active = Components.manager.QueryInterface(Ci.nsIServiceManager)
-      .isServiceInstantiatedByContractID(
-        "@mozilla.org/accessibilityService;1",
-        Ci.nsISupports);
-  } catch (ex) {
-    active = false;
-  }
-
-  document.getElementById("a11y-activated").textContent = active ? "1" : "0";
-
-  var forceDisabled = 0;
-  forceDisabled = getPrefValue("accessibility.force_disabled").value;
-
-  document.getElementById("a11y-force-disabled").textContent
-    = (forceDisabled == -1) ? "never" :
-	((forceDisabled == 1) ? "1" : "0");
-}
-
 function getPrefValue(aName) {
   let value = "";
   let type = Services.prefs.getPrefType(aName);
   switch (type) {
-    case Ci.nsIPrefBranch.PREF_STRING:
+    case Ci.nsIPrefBranch2.PREF_STRING:
       value = Services.prefs.getComplexValue(aName, Ci.nsISupportsString).data;
       break;
-    case Ci.nsIPrefBranch.PREF_BOOL:
+    case Ci.nsIPrefBranch2.PREF_BOOL:
       value = Services.prefs.getBoolPref(aName);
       break;
-    case Ci.nsIPrefBranch.PREF_INT:
+    case Ci.nsIPrefBranch2.PREF_INT:
       value = Services.prefs.getIntPref(aName);
       break;
   }
@@ -500,12 +420,6 @@ function appendChildren(parentElem, childNodes) {
     parentElem.appendChild(childNodes[i]);
 }
 
-function getLoadContext() {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsILoadContext);
-}
-
 function copyContentsToClipboard() {
   // Get the HTML and text representations for the important part of the page.
   let contentsDiv = document.getElementById("contents");
@@ -519,7 +433,6 @@ function copyContentsToClipboard() {
 
   let transferable = Cc["@mozilla.org/widget/transferable;1"]
                        .createInstance(Ci.nsITransferable);
-  transferable.init(getLoadContext());
 
   // Add the HTML flavor.
   transferable.addDataFlavor("text/html");
@@ -603,37 +516,4 @@ function openProfileDirectory() {
   let nsLocalFile = Components.Constructor("@mozilla.org/file/local;1",
                                            "nsILocalFile", "initWithPath");
   new nsLocalFile(profileDir).reveal();
-}
-
-/**
- * Profile reset is only supported for the default profile if the appropriate migrator exists.
- */
-function populateResetBox() {
-  if (resetSupported())
-    document.getElementById("reset-box").style.visibility = "visible";
-}
-
-/**
- * Restart the application to reset the profile.
- */
-function resetProfileAndRestart() {
-  let branding = Services.strings.createBundle("chrome://branding/locale/brand.properties");
-  let brandShortName = branding.GetStringFromName("brandShortName");
-
-  // Prompt the user to confirm.
-  let retVals = {
-    reset: false,
-  };
-  window.openDialog("chrome://global/content/resetProfile.xul", null,
-                    "chrome,modal,centerscreen,titlebar,dialog=yes", retVals);
-  if (!retVals.reset)
-    return;
-
-  // Set the reset profile environment variable.
-  let env = Cc["@mozilla.org/process/environment;1"]
-              .getService(Ci.nsIEnvironment);
-  env.set("MOZ_RESET_PROFILE_RESTART", "1");
-
-  let appStartup = Cc["@mozilla.org/toolkit/app-startup;1"].getService(Ci.nsIAppStartup);
-  appStartup.quit(Ci.nsIAppStartup.eForceQuit | Ci.nsIAppStartup.eRestart);
 }

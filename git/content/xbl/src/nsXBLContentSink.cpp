@@ -1,14 +1,46 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Util.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   David Hyatt <hyatt@netscape.com> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsXBLContentSink.h"
 #include "nsIDocument.h"
 #include "nsBindingManager.h"
 #include "nsIDOMNode.h"
+#include "nsIParser.h"
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"
 #include "nsHTMLTokens.h"
@@ -29,7 +61,6 @@
 #include "nsIPrincipal.h"
 #include "mozilla/dom/Element.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 nsresult
@@ -53,19 +84,19 @@ NS_NewXBLContentSink(nsIXMLContentSink** aResult,
 nsXBLContentSink::nsXBLContentSink()
   : mState(eXBL_InDocument),
     mSecondaryState(eXBL_None),
-    mDocInfo(nullptr),
-    mIsChromeOrResource(false),
-    mFoundFirstBinding(false),    
-    mBinding(nullptr),
-    mHandler(nullptr),
-    mImplementation(nullptr),
-    mImplMember(nullptr),
-    mImplField(nullptr),
-    mProperty(nullptr),
-    mMethod(nullptr),
-    mField(nullptr)
+    mDocInfo(nsnull),
+    mIsChromeOrResource(PR_FALSE),
+    mFoundFirstBinding(PR_FALSE),    
+    mBinding(nsnull),
+    mHandler(nsnull),
+    mImplementation(nsnull),
+    mImplMember(nsnull),
+    mImplField(nsnull),
+    mProperty(nsnull),
+    mMethod(nsnull),
+    mField(nsnull)
 {
-  mPrettyPrintXML = false;
+  mPrettyPrintXML = PR_FALSE;
 }
 
 nsXBLContentSink::~nsXBLContentSink()
@@ -78,18 +109,18 @@ nsXBLContentSink::Init(nsIDocument* aDoc,
                        nsISupports* aContainer)
 {
   nsresult rv;
-  rv = nsXMLContentSink::Init(aDoc, aURI, aContainer, nullptr);
+  rv = nsXMLContentSink::Init(aDoc, aURI, aContainer, nsnull);
   return rv;
 }
 
 void
-nsXBLContentSink::MaybeStartLayout(bool aIgnorePendingSheets)
+nsXBLContentSink::MaybeStartLayout(PRBool aIgnorePendingSheets)
 {
   return;
 }
 
 nsresult
-nsXBLContentSink::FlushText(bool aReleaseTextNode)
+nsXBLContentSink::FlushText(PRBool aReleaseTextNode)
 {
   if (mTextLength != 0) {
     const nsASingleFragmentString& text = Substring(mText, mText+mTextLength);
@@ -144,14 +175,14 @@ nsXBLContentSink::FlushText(bool aReleaseTextNode)
           content->Tag() != nsGkAtoms::label &&
           content->Tag() != nsGkAtoms::description))) {
 
-      bool isWS = true;
+      PRBool isWS = PR_TRUE;
       if (mTextLength > 0) {
         const PRUnichar* cp = mText;
         const PRUnichar* end = mText + mTextLength;
         while (cp < end) {
           PRUnichar ch = *cp++;
           if (!XP_IS_SPACE(ch)) {
-            isWS = false;
+            isWS = PR_FALSE;
             break;
           }
         }
@@ -172,7 +203,7 @@ NS_IMETHODIMP
 nsXBLContentSink::ReportError(const PRUnichar* aErrorText, 
                               const PRUnichar* aSourceText,
                               nsIScriptError *aError,
-                              bool *_retval)
+                              PRBool *_retval)
 {
   NS_PRECONDITION(aError && aSourceText && aErrorText, "Check arguments!!!");
 
@@ -202,7 +233,7 @@ nsXBLContentSink::ReportError(const PRUnichar* aErrorText,
 
 nsresult
 nsXBLContentSink::ReportUnexpectedElement(nsIAtom* aElementName,
-                                          uint32_t aLineNumber)
+                                          PRUint32 aLineNumber)
 {
   // XXX we should really somehow stop the parse and drop the binding
   // instead of just letting the XML sink build the content model like
@@ -213,15 +244,15 @@ nsXBLContentSink::ReportUnexpectedElement(nsIAtom* aElementName,
 
   const PRUnichar* params[] = { elementName.get() };
 
-  return nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                         "XBL Content Sink",
-                                         mDocument,
-                                         nsContentUtils::eXBL_PROPERTIES,
+  return nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                          "UnexpectedElement",
-                                         params, ArrayLength(params),
-                                         nullptr,
+                                         params, NS_ARRAY_LENGTH(params),
+                                         nsnull,
                                          EmptyString() /* source line */,
-                                         aLineNumber);
+                                         aLineNumber, 0 /* column number */,
+                                         nsIScriptError::errorFlag,
+                                         "XBL Content Sink",
+                                         mDocument);
 }
 
 void
@@ -251,9 +282,9 @@ nsXBLContentSink::AddField(nsXBLProtoImplField* aField)
 NS_IMETHODIMP 
 nsXBLContentSink::HandleStartElement(const PRUnichar *aName, 
                                      const PRUnichar **aAtts, 
-                                     uint32_t aAttsCount, 
-                                     int32_t aIndex, 
-                                     uint32_t aLineNumber)
+                                     PRUint32 aAttsCount, 
+                                     PRInt32 aIndex, 
+                                     PRUint32 aLineNumber)
 {
   nsresult rv = nsXMLContentSink::HandleStartElement(aName,aAtts,aAttsCount,aIndex,aLineNumber);
   if (NS_FAILED(rv))
@@ -277,7 +308,7 @@ nsXBLContentSink::HandleEndElement(const PRUnichar *aName)
   FlushText();
 
   if (mState != eXBL_InDocument) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsCOMPtr<nsIAtom> prefix, localName;
     nsContentUtils::SplitExpatName(aName, getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
@@ -296,7 +327,7 @@ nsXBLContentSink::HandleEndElement(const PRUnichar *aName)
       else if (mState == eXBL_InHandlers) {
         if (localName == nsGkAtoms::handlers) {
           mState = eXBL_InBinding;
-          mHandler = nullptr;
+          mHandler = nsnull;
         }
         else if (localName == nsGkAtoms::handler)
           mSecondaryState = eXBL_None;
@@ -312,15 +343,15 @@ nsXBLContentSink::HandleEndElement(const PRUnichar *aName)
           mState = eXBL_InBinding;
         else if (localName == nsGkAtoms::property) {
           mSecondaryState = eXBL_None;
-          mProperty = nullptr;
+          mProperty = nsnull;
         }
         else if (localName == nsGkAtoms::method) {
           mSecondaryState = eXBL_None;
-          mMethod = nullptr;
+          mMethod = nsnull;
         }
         else if (localName == nsGkAtoms::field) {
           mSecondaryState = eXBL_None;
-          mField = nullptr;
+          mField = nsnull;
         }
         else if (localName == nsGkAtoms::constructor ||
                  localName == nsGkAtoms::destructor)
@@ -346,7 +377,7 @@ nsXBLContentSink::HandleEndElement(const PRUnichar *aName)
         mState = eXBL_InBindings;
         if (mBinding) {  // See comment in HandleStartElement()
           mBinding->Initialize();
-          mBinding = nullptr; // Clear our current binding ref.
+          mBinding = nsnull; // Clear our current binding ref.
         }
       }
 
@@ -359,7 +390,7 @@ nsXBLContentSink::HandleEndElement(const PRUnichar *aName)
 
 NS_IMETHODIMP 
 nsXBLContentSink::HandleCDataSection(const PRUnichar *aData, 
-                                     uint32_t aLength)
+                                     PRUint32 aLength)
 {
   if (mState == eXBL_InHandlers || mState == eXBL_InImplementation)
     return AddText(aData, aLength);
@@ -368,51 +399,48 @@ nsXBLContentSink::HandleCDataSection(const PRUnichar *aData,
 
 #define ENSURE_XBL_STATE(_cond)                                                       \
   PR_BEGIN_MACRO                                                                      \
-    if (!(_cond)) { ReportUnexpectedElement(aTagName, aLineNumber); return true; } \
+    if (!(_cond)) { ReportUnexpectedElement(aTagName, aLineNumber); return PR_TRUE; } \
   PR_END_MACRO
 
-bool 
+PRBool 
 nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts, 
-                                  uint32_t aAttsCount, 
-                                  int32_t aNameSpaceID, 
+                                  PRUint32 aAttsCount, 
+                                  PRInt32 aNameSpaceID, 
                                   nsIAtom* aTagName,
-                                  uint32_t aLineNumber)
+                                  PRUint32 aLineNumber)
 {
   if (mState == eXBL_Error) {
-    return true;
+    return PR_TRUE;
   }
   
   if (aNameSpaceID != kNameSpaceID_XBL) {
     // Construct non-XBL nodes
-    return true;
+    return PR_TRUE;
   }
 
-  bool ret = true;
+  PRBool ret = PR_TRUE;
   if (aTagName == nsGkAtoms::bindings) {
     ENSURE_XBL_STATE(mState == eXBL_InDocument);
-
-    NS_ASSERTION(mDocument, "Must have a document!");
-    nsRefPtr<nsXBLDocumentInfo> info = new nsXBLDocumentInfo(mDocument);
-
-    // We keep a weak ref. We're creating a cycle between doc/binding manager/doc info.
-    mDocInfo = info;
-
+      
+    mDocInfo = NS_NewXBLDocumentInfo(mDocument);
     if (!mDocInfo) {
       mState = eXBL_Error;
-      return true;
+      return PR_TRUE;
     }
 
     mDocument->BindingManager()->PutXBLDocumentInfo(mDocInfo);
 
     nsIURI *uri = mDocument->GetDocumentURI();
-
-    bool isChrome = false;
-    bool isRes = false;
+      
+    PRBool isChrome = PR_FALSE;
+    PRBool isRes = PR_FALSE;
 
     uri->SchemeIs("chrome", &isChrome);
     uri->SchemeIs("resource", &isRes);
     mIsChromeOrResource = isChrome || isRes;
-
+      
+    nsXBLDocumentInfo* info = mDocInfo;
+    NS_RELEASE(info); // We keep a weak ref. We've created a cycle between doc/binding manager/doc info.
     mState = eXBL_InBindings;
   }
   else if (aTagName == nsGkAtoms::binding) {
@@ -422,13 +450,13 @@ nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts,
   else if (aTagName == nsGkAtoms::handlers) {
     ENSURE_XBL_STATE(mState == eXBL_InBinding && mBinding);
     mState = eXBL_InHandlers;
-    ret = false;
+    ret = PR_FALSE;
   }
   else if (aTagName == nsGkAtoms::handler) {
     ENSURE_XBL_STATE(mState == eXBL_InHandlers);
     mSecondaryState = eXBL_InHandler;
     ConstructHandler(aAtts, aLineNumber);
-    ret = false;
+    ret = PR_FALSE;
   }
   else if (aTagName == nsGkAtoms::resources) {
     ENSURE_XBL_STATE(mState == eXBL_InBinding && mBinding);
@@ -527,7 +555,7 @@ nsXBLContentSink::OnOpenContainer(const PRUnichar **aAtts,
 #undef ENSURE_XBL_STATE
 
 nsresult
-nsXBLContentSink::ConstructBinding(uint32_t aLineNumber)
+nsXBLContentSink::ConstructBinding(PRUint32 aLineNumber)
 {
   nsCOMPtr<nsIContent> binding = GetCurrentContent();
   nsAutoString id;
@@ -535,9 +563,7 @@ nsXBLContentSink::ConstructBinding(uint32_t aLineNumber)
   NS_ConvertUTF16toUTF8 cid(id);
 
   nsresult rv = NS_OK;
-
-  // Don't create a binding with no id. nsXBLPrototypeBinding::Read also
-  // performs this check.
+  
   if (!cid.IsEmpty()) {
     mBinding = new nsXBLPrototypeBinding();
     if (!mBinding)
@@ -547,33 +573,33 @@ nsXBLContentSink::ConstructBinding(uint32_t aLineNumber)
     if (NS_SUCCEEDED(rv) &&
         NS_SUCCEEDED(mDocInfo->SetPrototypeBinding(cid, mBinding))) {
       if (!mFoundFirstBinding) {
-        mFoundFirstBinding = true;
+        mFoundFirstBinding = PR_TRUE;
         mDocInfo->SetFirstPrototypeBinding(mBinding);
       }
-      binding->UnsetAttr(kNameSpaceID_None, nsGkAtoms::id, false);
+      binding->UnsetAttr(kNameSpaceID_None, nsGkAtoms::id, PR_FALSE);
     } else {
       delete mBinding;
-      mBinding = nullptr;
+      mBinding = nsnull;
     }
   } else {
-    nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                    "XBL Content Sink", nullptr,
-                                    nsContentUtils::eXBL_PROPERTIES,
-                                    "MissingIdAttr", nullptr, 0,
+    nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
+                                    "MissingIdAttr", nsnull, 0,
                                     mDocumentURI,
                                     EmptyString(),
-                                    aLineNumber);
+                                    aLineNumber, 0,
+                                    nsIScriptError::errorFlag,
+                                    "XBL Content Sink");
   }
 
   return rv;
 }
 
-static bool
+static PRBool
 FindValue(const PRUnichar **aAtts, nsIAtom *aAtom, const PRUnichar **aResult)
 {
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -581,32 +607,32 @@ FindValue(const PRUnichar **aAtts, nsIAtom *aAtom, const PRUnichar **aResult)
     if (nameSpaceID == kNameSpaceID_None && localName == aAtom) {
       *aResult = aAtts[1];
 
-      return true;
+      return PR_TRUE;
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 void
-nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, uint32_t aLineNumber)
+nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, PRUint32 aLineNumber)
 {
-  const PRUnichar* event          = nullptr;
-  const PRUnichar* modifiers      = nullptr;
-  const PRUnichar* button         = nullptr;
-  const PRUnichar* clickcount     = nullptr;
-  const PRUnichar* keycode        = nullptr;
-  const PRUnichar* charcode       = nullptr;
-  const PRUnichar* phase          = nullptr;
-  const PRUnichar* command        = nullptr;
-  const PRUnichar* action         = nullptr;
-  const PRUnichar* group          = nullptr;
-  const PRUnichar* preventdefault = nullptr;
-  const PRUnichar* allowuntrusted = nullptr;
+  const PRUnichar* event          = nsnull;
+  const PRUnichar* modifiers      = nsnull;
+  const PRUnichar* button         = nsnull;
+  const PRUnichar* clickcount     = nsnull;
+  const PRUnichar* keycode        = nsnull;
+  const PRUnichar* charcode       = nsnull;
+  const PRUnichar* phase          = nsnull;
+  const PRUnichar* command        = nsnull;
+  const PRUnichar* action         = nsnull;
+  const PRUnichar* group          = nsnull;
+  const PRUnichar* preventdefault = nsnull;
+  const PRUnichar* allowuntrusted = nsnull;
 
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -645,14 +671,14 @@ nsXBLContentSink::ConstructHandler(const PRUnichar **aAtts, uint32_t aLineNumber
     // Make sure the XBL doc is chrome or resource if we have a command
     // shorthand syntax.
     mState = eXBL_Error;
-    nsContentUtils::ReportToConsole(nsIScriptError::errorFlag,
-                                    "XBL Content Sink",
-                                    mDocument,
-                                    nsContentUtils::eXBL_PROPERTIES,
-                                    "CommandNotInChrome", nullptr, 0,
-                                    nullptr,
+    nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
+                                    "CommandNotInChrome", nsnull, 0,
+                                    nsnull,
                                     EmptyString() /* source line */,
-                                    aLineNumber);
+                                    aLineNumber, 0 /* column number */,
+                                    nsIScriptError::errorFlag,
+                                    "XBL Content Sink",
+                                    mDocument);
     return; // Don't even make this handler.
   }
 
@@ -689,7 +715,7 @@ nsXBLContentSink::ConstructResource(const PRUnichar **aAtts,
   if (!mBinding)
     return;
 
-  const PRUnichar* src = nullptr;
+  const PRUnichar* src = nsnull;
   if (FindValue(aAtts, nsGkAtoms::src, &src)) {
     mBinding->AddResource(aResourceType, nsDependentString(src));
   }
@@ -698,18 +724,18 @@ nsXBLContentSink::ConstructResource(const PRUnichar **aAtts,
 void
 nsXBLContentSink::ConstructImplementation(const PRUnichar **aAtts)
 {
-  mImplementation = nullptr;
-  mImplMember = nullptr;
-  mImplField = nullptr;
+  mImplementation = nsnull;
+  mImplMember = nsnull;
+  mImplField = nsnull;
   
   if (!mBinding)
     return;
 
-  const PRUnichar* name = nullptr;
+  const PRUnichar* name = nsnull;
 
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -731,9 +757,9 @@ nsXBLContentSink::ConstructImplementation(const PRUnichar **aAtts)
       // but only on a per-principal-and-JS-stackframe basis!  So for now
       // this is basically equivalent to testing that we have the system
       // principal, since there is no JS stackframe in sight here...
-      bool hasUniversalXPConnect;
+      PRBool hasUniversalXPConnect;
       nsresult rv = mDocument->NodePrincipal()->
-        IsCapabilityEnabled("UniversalXPConnect", nullptr,
+        IsCapabilityEnabled("UniversalXPConnect", nsnull,
                             &hasUniversalXPConnect);
       if (NS_SUCCEEDED(rv) && hasUniversalXPConnect) {
         mBinding->ConstructInterfaceTable(nsDependentString(aAtts[1]));
@@ -745,14 +771,14 @@ nsXBLContentSink::ConstructImplementation(const PRUnichar **aAtts)
 }
 
 void
-nsXBLContentSink::ConstructField(const PRUnichar **aAtts, uint32_t aLineNumber)
+nsXBLContentSink::ConstructField(const PRUnichar **aAtts, PRUint32 aLineNumber)
 {
-  const PRUnichar* name     = nullptr;
-  const PRUnichar* readonly = nullptr;
+  const PRUnichar* name     = nsnull;
+  const PRUnichar* readonly = nsnull;
 
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -783,14 +809,14 @@ nsXBLContentSink::ConstructField(const PRUnichar **aAtts, uint32_t aLineNumber)
 void
 nsXBLContentSink::ConstructProperty(const PRUnichar **aAtts)
 {
-  const PRUnichar* name     = nullptr;
-  const PRUnichar* readonly = nullptr;
-  const PRUnichar* onget    = nullptr;
-  const PRUnichar* onset    = nullptr;
+  const PRUnichar* name     = nsnull;
+  const PRUnichar* readonly = nsnull;
+  const PRUnichar* onget    = nsnull;
+  const PRUnichar* onset    = nsnull;
 
   nsCOMPtr<nsIAtom> prefix, localName;
   for (; *aAtts; aAtts += 2) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[0], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 
@@ -826,9 +852,9 @@ nsXBLContentSink::ConstructProperty(const PRUnichar **aAtts)
 void
 nsXBLContentSink::ConstructMethod(const PRUnichar **aAtts)
 {
-  mMethod = nullptr;
+  mMethod = nsnull;
 
-  const PRUnichar* name = nullptr;
+  const PRUnichar* name = nsnull;
   if (FindValue(aAtts, nsGkAtoms::name, &name)) {
     mMethod = new nsXBLProtoImplMethod(name);
   }
@@ -844,16 +870,16 @@ nsXBLContentSink::ConstructParameter(const PRUnichar **aAtts)
   if (!mMethod)
     return;
 
-  const PRUnichar* name = nullptr;
+  const PRUnichar* name = nsnull;
   if (FindValue(aAtts, nsGkAtoms::name, &name)) {
     mMethod->AddParameter(nsDependentString(name));
   }
 }
 
 nsresult
-nsXBLContentSink::CreateElement(const PRUnichar** aAtts, uint32_t aAttsCount,
-                                nsINodeInfo* aNodeInfo, uint32_t aLineNumber,
-                                nsIContent** aResult, bool* aAppendContent,
+nsXBLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
+                                nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
+                                nsIContent** aResult, PRBool* aAppendContent,
                                 FromParser aFromParser)
 {
 #ifdef MOZ_XUL
@@ -865,19 +891,20 @@ nsXBLContentSink::CreateElement(const PRUnichar** aAtts, uint32_t aAttsCount,
 #ifdef MOZ_XUL
   }
 
-  // Note that this needs to match the code in nsXBLPrototypeBinding::ReadContentNode.
-
-  *aAppendContent = true;
+  *aAppendContent = PR_TRUE;
   nsRefPtr<nsXULPrototypeElement> prototype = new nsXULPrototypeElement();
   if (!prototype)
     return NS_ERROR_OUT_OF_MEMORY;
 
   prototype->mNodeInfo = aNodeInfo;
+  // XXX - we need to do exactly what the XUL content-sink does (eg,
+  // look for 'type', 'version' etc attributes)
+  prototype->mScriptTypeID = nsIProgrammingLanguage::JAVASCRIPT;
 
   AddAttributesToXULPrototype(aAtts, aAttsCount, prototype);
 
   Element* result;
-  nsresult rv = nsXULElement::Create(prototype, mDocument, false, &result);
+  nsresult rv = nsXULElement::Create(prototype, mDocument, PR_FALSE, &result);
   *aResult = result;
   return rv;
 #endif
@@ -896,14 +923,14 @@ nsXBLContentSink::AddAttributes(const PRUnichar** aAtts,
 #ifdef MOZ_XUL
 nsresult
 nsXBLContentSink::AddAttributesToXULPrototype(const PRUnichar **aAtts, 
-                                              uint32_t aAttsCount, 
+                                              PRUint32 aAttsCount, 
                                               nsXULPrototypeElement* aElement)
 {
   // Add tag attributes to the element
   nsresult rv;
 
   // Create storage for the attributes
-  nsXULPrototypeAttribute* attrs = nullptr;
+  nsXULPrototypeAttribute* attrs = nsnull;
   if (aAttsCount > 0) {
     attrs = new nsXULPrototypeAttribute[aAttsCount];
     if (!attrs)
@@ -916,9 +943,9 @@ nsXBLContentSink::AddAttributesToXULPrototype(const PRUnichar **aAtts,
   // Copy the attributes into the prototype
   nsCOMPtr<nsIAtom> prefix, localName;
 
-  uint32_t i;  
+  PRUint32 i;  
   for (i = 0; i < aAttsCount; ++i) {
-    int32_t nameSpaceID;
+    PRInt32 nameSpaceID;
     nsContentUtils::SplitExpatName(aAtts[i * 2], getter_AddRefs(prefix),
                                    getter_AddRefs(localName), &nameSpaceID);
 

@@ -61,7 +61,6 @@ var focusableElements = [
     "<div tabindex=\"0\"></div>",
     "<div tabindex=\"1\"></div>",
     "<div contenteditable=\"true\"></div>",
-    "<div tabindex=\"0\" disabled></div>",
 
     "<embed>",
     "<embed tabindex=\"-1\">",
@@ -166,17 +165,7 @@ var focusableElements = [
     "<select tabindex=\"-1\"></select>",
     "<select tabindex=\"0\"></select>",
     "<select tabindex=\"1\"></select>",
-    "<select contenteditable=\"true\"></select>",
-
-    "<option tabindex='-1'></option>",
-    "<option tabindex='0'></option>",
-    "<option tabindex='1'></option>",
-    "<option contenteditable></option>",
-
-    "<optgroup tabindex='-1'></optgroup>",
-    "<optgroup tabindex='0'></optgroup>",
-    "<optgroup tabindex='1'></optgroup>",
-    "<optgroup contenteditable></optgroup>"
+    "<select contenteditable=\"true\"></select>"
 ];
 
 var nonFocusableElements = [
@@ -193,6 +182,7 @@ var nonFocusableElements = [
     "<button type=\"submit\" disabled></button>",
 
     "<div></div>",
+    "<div tabindex=\"0\" disabled></div>",
     "<div disabled></div>",
 
     "<img>",
@@ -216,8 +206,13 @@ var nonFocusableElements = [
     "<input type=\"checkbox\" tabindex=\"0\" disabled>",
     "<input type=\"checkbox\" disabled>",
 
+    "<input type=\"file\">",
+    "<input type=\"file\" tabindex=\"-1\">",
+    "<input type=\"file\" tabindex=\"0\">",
     "<input type=\"file\" tabindex=\"0\" disabled>",
+    "<input type=\"file\" tabindex=\"1\">",
     "<input type=\"file\" disabled>",
+    "<input type=\"file\" contenteditable=\"true\">",
 
     "<input type=\"hidden\">",
     "<input type=\"hidden\" tabindex=\"-1\">",
@@ -248,13 +243,7 @@ var nonFocusableElements = [
     "<object></object>",
 
     "<select tabindex=\"0\" disabled></select>",
-    "<select disabled></select>",
-
-    "<option></option>",
-    "<option tabindex='1' disabled></option>",
-
-    "<optgroup></optgroup>",
-    "<optgroup tabindex='1' disabled></optgroup>"
+    "<select disabled></select>"
 ];
 
 var focusableInContentEditable = [
@@ -279,7 +268,6 @@ var focusableInContentEditable = [
     "<div tabindex=\"-1\"></div>",
     "<div tabindex=\"0\"></div>",
     "<div tabindex=\"1\"></div>",
-    "<div tabindex=\"0\" disabled></div>",
 
     "<embed>",
     "<embed tabindex=\"-1\">",
@@ -320,12 +308,6 @@ var focusableInContentEditable = [
     "<input type=\"button\" tabindex=\"0\">",
     "<input type=\"button\" tabindex=\"1\">",
     "<input type=\"button\" contenteditable=\"true\">",
-
-    "<input type=\"file\">",
-    "<input type=\"file\" tabindex=\"-1\">",
-    "<input type=\"file\" tabindex=\"0\">",
-    "<input type=\"file\" tabindex=\"1\">",
-    "<input type=\"file\" contenteditable=\"true\">",
 
     "<input type=\"checkbox\">",
     "<input type=\"checkbox\" tabindex=\"-1\">",
@@ -383,15 +365,7 @@ var focusableInContentEditable = [
     "<select tabindex=\"-1\"></select>",
     "<select tabindex=\"0\"></select>",
     "<select tabindex=\"1\"></select>",
-    "<select contenteditable=\"true\"></select>",
-
-    "<option tabindex='-1'></option>",
-    "<option tabindex='0'></option>",
-    "<option tabindex='1'></option>",
-
-    "<optgroup tabindex='-1'></optgroup>",
-    "<optgroup tabindex='0'></optgroup>",
-    "<optgroup tabindex='1'></optgroup>"
+    "<select contenteditable=\"true\"></select>"
 ];
 
 var focusableInDesignMode = [
@@ -457,13 +431,6 @@ function testElements(parent, tags, shouldBeFocusable)
         var errorPrefix = serializer.serializeToString(element) + " in " +
                           serializer.serializeToString(parent);
 
-        try {
-          // Make sure activeElement doesn't point to a
-          // native anonymous element.
-          parent.ownerDocument.activeElement.localName;
-        } catch (ex) {
-          ok(false, ex + errorPrefix + errorSuffix);
-        }
         if (focusable ? focusable.indexOf(tag) > -1 : shouldBeFocusable) {
             is(parent.ownerDocument.activeElement, element,
                errorPrefix + " should be focusable" + errorSuffix);

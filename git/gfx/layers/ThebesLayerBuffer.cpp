@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robert O'Callahan <robert@ocallahan.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "ThebesLayerBuffer.h"
 #include "Layers.h"
@@ -9,7 +41,6 @@
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "nsDeviceContext.h"
-#include "sampler.h"
 
 namespace mozilla {
 namespace layers {
@@ -38,9 +69,7 @@ ThebesLayerBuffer::GetQuadrantRectangle(XSide aXSide, YSide aYSide)
 void
 ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
                                       XSide aXSide, YSide aYSide,
-                                      float aOpacity,
-                                      gfxASurface* aMask,
-                                      const gfxMatrix* aMaskTransform)
+                                      float aOpacity)
 {
   // The rectangle that we're going to fill. Basically we're going to
   // render the buffer at mBufferRect + quadrantTranslation to get the
@@ -54,7 +83,7 @@ ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
   aTarget->NewPath();
   aTarget->Rectangle(gfxRect(fillRect.x, fillRect.y,
                              fillRect.width, fillRect.height),
-                     true);
+                     PR_TRUE);
 
   gfxPoint quadrantTranslation(quadrantRect.x, quadrantRect.y);
   nsRefPtr<gfxPattern> pattern = new gfxPattern(mBuffer);
@@ -73,41 +102,25 @@ ThebesLayerBuffer::DrawBufferQuadrant(gfxContext* aTarget,
   pattern->SetMatrix(transform);
   aTarget->SetPattern(pattern);
 
-  if (aMask) {
-    if (aOpacity == 1.0) {
-      aTarget->SetMatrix(*aMaskTransform);
-      aTarget->Mask(aMask);
-    } else {
-      aTarget->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
-      aTarget->Paint(aOpacity);
-      aTarget->PopGroupToSource();
-      aTarget->SetMatrix(*aMaskTransform);
-      aTarget->Mask(aMask);
-    }
+  if (aOpacity != 1.0) {
+    aTarget->Save();
+    aTarget->Clip();
+    aTarget->Paint(aOpacity);
+    aTarget->Restore();
   } else {
-    if (aOpacity == 1.0) {
-      aTarget->Fill();
-    } else {
-      aTarget->Save();
-      aTarget->Clip();
-      aTarget->Paint(aOpacity);
-      aTarget->Restore();
-    }
+    aTarget->Fill();
   }
 }
 
 void
-ThebesLayerBuffer::DrawBufferWithRotation(gfxContext* aTarget, float aOpacity,
-                                          gfxASurface* aMask,
-                                          const gfxMatrix* aMaskTransform)
+ThebesLayerBuffer::DrawBufferWithRotation(gfxContext* aTarget, float aOpacity)
 {
-  SAMPLE_LABEL("ThebesLayerBuffer", "DrawBufferWithRotation");
   // Draw four quadrants. We could use REPEAT_, but it's probably better
   // not to, to be performance-safe.
-  DrawBufferQuadrant(aTarget, LEFT, TOP, aOpacity, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, RIGHT, TOP, aOpacity, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, LEFT, BOTTOM, aOpacity, aMask, aMaskTransform);
-  DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aOpacity, aMask, aMaskTransform);
+  DrawBufferQuadrant(aTarget, LEFT, TOP, aOpacity);
+  DrawBufferQuadrant(aTarget, RIGHT, TOP, aOpacity);
+  DrawBufferQuadrant(aTarget, LEFT, BOTTOM, aOpacity);
+  DrawBufferQuadrant(aTarget, RIGHT, BOTTOM, aOpacity);
 }
 
 already_AddRefed<gfxContext>
@@ -116,8 +129,8 @@ ThebesLayerBuffer::GetContextForQuadrantUpdate(const nsIntRect& aBounds)
   nsRefPtr<gfxContext> ctx = new gfxContext(mBuffer);
 
   // Figure out which quadrant to draw in
-  int32_t xBoundary = mBufferRect.XMost() - mBufferRotation.x;
-  int32_t yBoundary = mBufferRect.YMost() - mBufferRotation.y;
+  PRInt32 xBoundary = mBufferRect.XMost() - mBufferRotation.x;
+  PRInt32 yBoundary = mBufferRect.YMost() - mBufferRotation.y;
   XSide sideX = aBounds.XMost() <= xBoundary ? RIGHT : LEFT;
   YSide sideY = aBounds.YMost() <= yBoundary ? BOTTOM : TOP;
   nsIntRect quadrantRect = GetQuadrantRectangle(sideX, sideY);
@@ -128,7 +141,7 @@ ThebesLayerBuffer::GetContextForQuadrantUpdate(const nsIntRect& aBounds)
 }
 
 static void
-WrapRotationAxis(int32_t* aRotationPoint, int32_t aSize)
+WrapRotationAxis(PRInt32* aRotationPoint, PRInt32 aSize)
 {
   if (*aRotationPoint < 0) {
     *aRotationPoint += aSize;
@@ -139,21 +152,21 @@ WrapRotationAxis(int32_t* aRotationPoint, int32_t aSize)
 
 ThebesLayerBuffer::PaintState
 ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
-                              uint32_t aFlags)
+                              PRUint32 aFlags)
 {
   PaintState result;
   // We need to disable rotation if we're going to be resampled when
   // drawing, because we might sample across the rotation boundary.
-  bool canHaveRotation = !(aFlags & (PAINT_WILL_RESAMPLE | PAINT_NO_ROTATION));
+  PRBool canHaveRotation = !(aFlags & PAINT_WILL_RESAMPLE);
 
   nsIntRegion validRegion = aLayer->GetValidRegion();
 
   ContentType contentType;
   nsIntRegion neededRegion;
-  bool canReuseBuffer;
+  PRBool canReuseBuffer;
   nsIntRect destBufferRect;
 
-  while (true) {
+  while (PR_TRUE) {
     contentType = aContentType;
     neededRegion = aLayer->GetVisibleRegion();
     canReuseBuffer = mBuffer && BufferSizeOkFor(neededRegion.GetBounds().Size());
@@ -207,7 +220,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
 
   nsIntRect drawBounds = result.mRegionToDraw.GetBounds();
   nsRefPtr<gfxASurface> destBuffer;
-  uint32_t bufferFlags = canHaveRotation ? ALLOW_REPEAT : 0;
+  PRUint32 bufferFlags = canHaveRotation ? ALLOW_REPEAT : 0;
   if (canReuseBuffer) {
     nsIntRect keepArea;
     if (keepArea.IntersectRect(destBufferRect, mBufferRect)) {
@@ -220,8 +233,8 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
       WrapRotationAxis(&newRotation.y, mBufferRect.height);
       NS_ASSERTION(nsIntRect(nsIntPoint(0,0), mBufferRect.Size()).Contains(newRotation),
                    "newRotation out of bounds");
-      int32_t xBoundary = destBufferRect.XMost() - newRotation.x;
-      int32_t yBoundary = destBufferRect.YMost() - newRotation.y;
+      PRInt32 xBoundary = destBufferRect.XMost() - newRotation.x;
+      PRInt32 yBoundary = destBufferRect.YMost() - newRotation.y;
       if ((drawBounds.x < xBoundary && xBoundary < drawBounds.XMost()) ||
           (drawBounds.y < yBoundary && yBoundary < drawBounds.YMost()) ||
           (newRotation != nsIntPoint(0,0) && !canHaveRotation)) {
@@ -232,7 +245,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
           nsIntRect srcRect(nsIntPoint(0, 0), mBufferRect.Size());
           nsIntPoint dest = mBufferRect.TopLeft() - destBufferRect.TopLeft();
           mBuffer->MovePixels(srcRect, dest);
-          result.mDidSelfCopy = true;
+          result.mDidSelfCopy = PR_TRUE;
           // Don't set destBuffer; we special-case self-copies, and
           // just did the necessary work above.
           mBufferRect = destBufferRect;
@@ -266,7 +279,7 @@ ThebesLayerBuffer::BeginPaint(ThebesLayer* aLayer, ContentType aContentType,
 
   // If we have no buffered data already, then destBuffer will be a fresh buffer
   // and we do not need to clear it below.
-  bool isClear = mBuffer == nullptr;
+  PRBool isClear = mBuffer == nsnull;
 
   if (destBuffer) {
     if (mBuffer) {

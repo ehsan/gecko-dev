@@ -1,28 +1,14 @@
 //
-// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
 
-#include "compiler/BuiltInFunctionEmulator.h"
-#include "compiler/DetectRecursion.h"
-#include "compiler/ForLoopUnroll.h"
 #include "compiler/Initialize.h"
-#include "compiler/InitializeParseContext.h"
-#include "compiler/MapLongVariableNames.h"
 #include "compiler/ParseHelper.h"
-#include "compiler/RenameFunction.h"
 #include "compiler/ShHandle.h"
 #include "compiler/ValidateLimitations.h"
-#include "compiler/depgraph/DependencyGraph.h"
-#include "compiler/depgraph/DependencyGraphOutput.h"
-#include "compiler/timing/RestrictFragmentShaderTiming.h"
-#include "compiler/timing/RestrictVertexShaderTiming.h"
-
-bool isWebGLBasedSpec(ShShaderSpec spec)
-{
-     return spec == SH_WEBGL_SPEC || spec == SH_CSS_SHADERS_SPEC;
-}
+#include "compiler/MapLongVariableNames.h"
 
 namespace {
 bool InitializeSymbolTable(
@@ -32,10 +18,7 @@ bool InitializeSymbolTable(
 {
     TIntermediate intermediate(infoSink);
     TExtensionBehavior extBehavior;
-    InitExtensionBehavior(resources, extBehavior);
-    // The builtins deliberately don't specify precisions for the function
-    // arguments and return types. For that reason we don't try to check them.
-    TParseContext parseContext(symbolTable, extBehavior, intermediate, type, spec, 0, false, NULL, infoSink);
+    TParseContext parseContext(symbolTable, extBehavior, intermediate, type, spec, 0, NULL, infoSink);
 
     GlobalParseContext = &parseContext;
 
@@ -99,16 +82,12 @@ TShHandleBase::~TShHandleBase() {
 
 TCompiler::TCompiler(ShShaderType type, ShShaderSpec spec)
     : shaderType(type),
-      shaderSpec(spec),
-      builtInFunctionEmulator(type)
+      shaderSpec(spec) 
 {
-    longNameMap = LongNameMap::GetInstance();
 }
 
 TCompiler::~TCompiler()
 {
-    ASSERT(longNameMap);
-    longNameMap->Release();
 }
 
 bool TCompiler::Init(const ShBuiltInResources& resources)
@@ -134,7 +113,7 @@ bool TCompiler::compile(const char* const shaderStrings[],
         return true;
 
     // If compiling for WebGL, validate loop and indexing as well.
-    if (isWebGLBasedSpec(shaderSpec))
+    if (shaderSpec == SH_WEBGL_SPEC)
         compileOptions |= SH_VALIDATE_LOOP_INDEXING;
 
     // First string is path of source file if flag is set. The actual source follows.
@@ -148,7 +127,7 @@ bool TCompiler::compile(const char* const shaderStrings[],
 
     TIntermediate intermediate(infoSink);
     TParseContext parseContext(symbolTable, extensionBehavior, intermediate,
-                               shaderType, shaderSpec, compileOptions, true,
+                               shaderType, shaderSpec, compileOptions,
                                sourcePath, infoSink);
     GlobalParseContext = &parseContext;
 
@@ -166,30 +145,13 @@ bool TCompiler::compile(const char* const shaderStrings[],
         TIntermNode* root = parseContext.treeRoot;
         success = intermediate.postProcess(root);
 
-        if (success)
-            success = detectRecursion(root);
-
         if (success && (compileOptions & SH_VALIDATE_LOOP_INDEXING))
             success = validateLimitations(root);
-
-        if (success && (compileOptions & SH_TIMING_RESTRICTIONS))
-            success = enforceTimingRestrictions(root, (compileOptions & SH_DEPENDENCY_GRAPH) != 0);
-
-        if (success && shaderSpec == SH_CSS_SHADERS_SPEC)
-            rewriteCSSShader(root);
-
-        // Unroll for-loop markup needs to happen after validateLimitations pass.
-        if (success && (compileOptions & SH_UNROLL_FOR_LOOP_WITH_INTEGER_INDEX))
-            ForLoopUnroll::MarkForLoopsWithIntegerIndicesForUnrolling(root);
-
-        // Built-in function emulation needs to happen after validateLimitations pass.
-        if (success && (compileOptions & SH_EMULATE_BUILT_IN_FUNCTIONS))
-            builtInFunctionEmulator.MarkBuiltInFunctionsForEmulation(root);
 
         // Call mapLongVariableNames() before collectAttribsUniforms() so in
         // collectAttribsUniforms() we already have the mapped symbol names and
         // we could composite mapped and original variable names.
-        if (success && (compileOptions & SH_MAP_LONG_VARIABLE_NAMES))
+        if (compileOptions & SH_MAP_LONG_VARIABLE_NAMES)
             mapLongVariableNames(root);
 
         if (success && (compileOptions & SH_ATTRIBUTES_UNIFORMS))
@@ -229,79 +191,12 @@ void TCompiler::clearResults()
 
     attribs.clear();
     uniforms.clear();
-
-    builtInFunctionEmulator.Cleanup();
-}
-
-bool TCompiler::detectRecursion(TIntermNode* root)
-{
-    DetectRecursion detect;
-    root->traverse(&detect);
-    switch (detect.detectRecursion()) {
-        case DetectRecursion::kErrorNone:
-            return true;
-        case DetectRecursion::kErrorMissingMain:
-            infoSink.info.message(EPrefixError, "Missing main()");
-            return false;
-        case DetectRecursion::kErrorRecursion:
-            infoSink.info.message(EPrefixError, "Function recursion detected");
-            return false;
-        default:
-            UNREACHABLE();
-            return false;
-    }
-}
-
-void TCompiler::rewriteCSSShader(TIntermNode* root)
-{
-    RenameFunction renamer("main(", "css_main(");
-    root->traverse(&renamer);
 }
 
 bool TCompiler::validateLimitations(TIntermNode* root) {
     ValidateLimitations validate(shaderType, infoSink.info);
     root->traverse(&validate);
     return validate.numErrors() == 0;
-}
-
-bool TCompiler::enforceTimingRestrictions(TIntermNode* root, bool outputGraph)
-{
-    if (shaderSpec != SH_WEBGL_SPEC) {
-        infoSink.info << "Timing restrictions must be enforced under the WebGL spec.";
-        return false;
-    }
-
-    if (shaderType == SH_FRAGMENT_SHADER) {
-        TDependencyGraph graph(root);
-
-        // Output any errors first.
-        bool success = enforceFragmentShaderTimingRestrictions(graph);
-        
-        // Then, output the dependency graph.
-        if (outputGraph) {
-            TDependencyGraphOutput output(infoSink.info);
-            output.outputAllSpanningTrees(graph);
-        }
-        
-        return success;
-    }
-    else {
-        return enforceVertexShaderTimingRestrictions(root);
-    }
-}
-
-bool TCompiler::enforceFragmentShaderTimingRestrictions(const TDependencyGraph& graph)
-{
-    RestrictFragmentShaderTiming restrictor(infoSink.info);
-    restrictor.enforceRestrictions(graph);
-    return restrictor.numErrors() == 0;
-}
-
-bool TCompiler::enforceVertexShaderTimingRestrictions(TIntermNode* root)
-{
-    RestrictVertexShaderTiming restrictor(infoSink.info);
-    restrictor.enforceRestrictions(root);
-    return restrictor.numErrors() == 0;
 }
 
 void TCompiler::collectAttribsUniforms(TIntermNode* root)
@@ -312,22 +207,11 @@ void TCompiler::collectAttribsUniforms(TIntermNode* root)
 
 void TCompiler::mapLongVariableNames(TIntermNode* root)
 {
-    ASSERT(longNameMap);
-    MapLongVariableNames map(longNameMap);
+    MapLongVariableNames map(varyingLongNameMap);
     root->traverse(&map);
 }
 
 int TCompiler::getMappedNameMaxLength() const
 {
-    return MAX_SHORTENED_IDENTIFIER_SIZE + 1;
-}
-
-const TExtensionBehavior& TCompiler::getExtensionBehavior() const
-{
-    return extensionBehavior;
-}
-
-const BuiltInFunctionEmulator& TCompiler::getBuiltInFunctionEmulator() const
-{
-    return builtInFunctionEmulator;
+    return MAX_IDENTIFIER_NAME_SIZE + 1;
 }

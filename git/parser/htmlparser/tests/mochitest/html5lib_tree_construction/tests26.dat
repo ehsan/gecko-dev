@@ -272,8 +272,7 @@
 |       <math mtext>
 |         <p>
 |           <i>
-|         <i>
-|           "a"
+|         "a"
 
 #data
 <!DOCTYPE html><table><tr><td><math><mtext><p><i></p>a
@@ -294,8 +293,7 @@
 |               <math mtext>
 |                 <p>
 |                   <i>
-|                 <i>
-|                   "a"
+|                 "a"
 
 #data
 <!DOCTYPE html><body><div><!/div>a

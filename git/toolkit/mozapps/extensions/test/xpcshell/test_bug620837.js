@@ -2,7 +2,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-Components.utils.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
 const PREF_BLOCKLIST_LASTUPDATETIME   = "app.update.lastUpdateTime.blocklist-background-update-timer";
 const PREF_BLOCKLIST_PINGCOUNTTOTAL   = "extensions.blocklist.pingCountTotal";
@@ -28,7 +28,7 @@ function pathHandler(metadata, response) {
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "1");
 
-  gTestserver = new HttpServer();
+  gTestserver = new nsHttpServer();
   gTestserver.registerPathHandler("/", pathHandler);
   gTestserver.start(4444);
 

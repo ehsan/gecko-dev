@@ -1,9 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Util.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Original Author: David W. Hyatt (hyatt@netscape.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCOMPtr.h"
 #include "nsXBLPrototypeHandler.h"
@@ -16,17 +47,22 @@
 #include "nsINameSpaceManager.h"
 #include "nsIScriptContext.h"
 #include "nsIDocument.h"
+#include "nsIDOMDocument.h"
 #include "nsIJSEventListener.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
 #include "nsIDOMXULElement.h"
+#include "nsIDOMNSUIEvent.h"
 #include "nsIURI.h"
 #include "nsIDOMHTMLTextAreaElement.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMText.h"
 #include "nsFocusManager.h"
 #include "nsEventListenerManager.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMEventListener.h"
+#include "nsIPrivateDOMEvent.h"
+#include "nsIDOMNSEvent.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIWindowRoot.h"
 #include "nsIDOMWindow.h"
@@ -40,9 +76,9 @@
 #include "nsIDOMScriptObjectFactory.h"
 #include "nsDOMCID.h"
 #include "nsUnicharUtils.h"
+#include "nsReadableUtils.h"
 #include "nsCRT.h"
 #include "nsXBLEventHandler.h"
-#include "nsXBLSerialize.h"
 #include "nsEventDispatcher.h"
 #include "mozilla/Preferences.h"
 
@@ -51,25 +87,22 @@ using namespace mozilla;
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 
-uint32_t nsXBLPrototypeHandler::gRefCnt = 0;
+PRUint32 nsXBLPrototypeHandler::gRefCnt = 0;
 
-int32_t nsXBLPrototypeHandler::kMenuAccessKey = -1;
-int32_t nsXBLPrototypeHandler::kAccelKey = -1;
+PRInt32 nsXBLPrototypeHandler::kMenuAccessKey = -1;
+PRInt32 nsXBLPrototypeHandler::kAccelKey = -1;
 
-const int32_t nsXBLPrototypeHandler::cShift = (1<<0);
-const int32_t nsXBLPrototypeHandler::cAlt = (1<<1);
-const int32_t nsXBLPrototypeHandler::cControl = (1<<2);
-const int32_t nsXBLPrototypeHandler::cMeta = (1<<3);
-const int32_t nsXBLPrototypeHandler::cOS = (1<<4);
+const PRInt32 nsXBLPrototypeHandler::cShift = (1<<0);
+const PRInt32 nsXBLPrototypeHandler::cAlt = (1<<1);
+const PRInt32 nsXBLPrototypeHandler::cControl = (1<<2);
+const PRInt32 nsXBLPrototypeHandler::cMeta = (1<<3);
 
-const int32_t nsXBLPrototypeHandler::cShiftMask = (1<<5);
-const int32_t nsXBLPrototypeHandler::cAltMask = (1<<6);
-const int32_t nsXBLPrototypeHandler::cControlMask = (1<<7);
-const int32_t nsXBLPrototypeHandler::cMetaMask = (1<<8);
-const int32_t nsXBLPrototypeHandler::cOSMask = (1<<9);
+const PRInt32 nsXBLPrototypeHandler::cShiftMask = (1<<4);
+const PRInt32 nsXBLPrototypeHandler::cAltMask = (1<<5);
+const PRInt32 nsXBLPrototypeHandler::cControlMask = (1<<6);
+const PRInt32 nsXBLPrototypeHandler::cMetaMask = (1<<7);
 
-const int32_t nsXBLPrototypeHandler::cAllModifiers =
-  cShiftMask | cAltMask | cControlMask | cMetaMask | cOSMask;
+const PRInt32 nsXBLPrototypeHandler::cAllModifiers = cShiftMask | cAltMask | cControlMask | cMetaMask;
 
 nsXBLPrototypeHandler::nsXBLPrototypeHandler(const PRUnichar* aEvent,
                                              const PRUnichar* aPhase,
@@ -84,38 +117,35 @@ nsXBLPrototypeHandler::nsXBLPrototypeHandler(const PRUnichar* aEvent,
                                              const PRUnichar* aPreventDefault,
                                              const PRUnichar* aAllowUntrusted,
                                              nsXBLPrototypeBinding* aBinding,
-                                             uint32_t aLineNumber)
-  : mHandlerText(nullptr),
+                                             PRUint32 aLineNumber)
+  : mHandlerText(nsnull),
     mLineNumber(aLineNumber),
-    mNextHandler(nullptr),
+    mNextHandler(nsnull),
     mPrototypeBinding(aBinding)
 {
-  Init();
+  ++gRefCnt;
+  if (gRefCnt == 1)
+    // Get the primary accelerator key.
+    InitAccessKeys();
 
-  ConstructPrototype(nullptr, aEvent, aPhase, aAction, aCommand, aKeyCode,
+  ConstructPrototype(nsnull, aEvent, aPhase, aAction, aCommand, aKeyCode,
                      aCharCode, aModifiers, aButton, aClickCount,
                      aGroup, aPreventDefault, aAllowUntrusted);
 }
 
 nsXBLPrototypeHandler::nsXBLPrototypeHandler(nsIContent* aHandlerElement)
-  : mHandlerElement(nullptr),
+  : mHandlerElement(nsnull),
     mLineNumber(0),
-    mNextHandler(nullptr),
-    mPrototypeBinding(nullptr)
+    mNextHandler(nsnull),
+    mPrototypeBinding(nsnull)
 {
-  Init();
+  ++gRefCnt;
+  if (gRefCnt == 1)
+    // Get the primary accelerator key.
+    InitAccessKeys();
 
   // Make sure our prototype is initialized.
   ConstructPrototype(aHandlerElement);
-}
-
-nsXBLPrototypeHandler::nsXBLPrototypeHandler(nsXBLPrototypeBinding* aBinding)
-  : mHandlerText(nullptr),
-    mLineNumber(0),
-    mNextHandler(nullptr),
-    mPrototypeBinding(aBinding)
-{
-  Init();
 }
 
 nsXBLPrototypeHandler::~nsXBLPrototypeHandler()
@@ -136,12 +166,12 @@ nsXBLPrototypeHandler::GetHandlerElement()
 {
   if (mType & NS_HANDLER_TYPE_XUL) {
     nsCOMPtr<nsIContent> element = do_QueryReferent(mHandlerElement);
-    nsIContent* el = nullptr;
+    nsIContent* el = nsnull;
     element.swap(el);
     return el;
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 void
@@ -201,16 +231,19 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
     return rv;
 
   // See if our event receiver is a content node (and not us).
-  bool isXULKey = !!(mType & NS_HANDLER_TYPE_XUL);
-  bool isXBLCommand = !!(mType & NS_HANDLER_TYPE_XBL_COMMAND);
+  PRBool isXULKey = !!(mType & NS_HANDLER_TYPE_XUL);
+  PRBool isXBLCommand = !!(mType & NS_HANDLER_TYPE_XBL_COMMAND);
   NS_ASSERTION(!(isXULKey && isXBLCommand),
                "can't be both a key and xbl command handler");
 
   // XUL handlers and commands shouldn't be triggered by non-trusted
   // events.
   if (isXULKey || isXBLCommand) {
-    bool trustedEvent = false;
-    aEvent->GetIsTrusted(&trustedEvent);
+    nsCOMPtr<nsIDOMNSEvent> domNSEvent = do_QueryInterface(aEvent);
+    PRBool trustedEvent = PR_FALSE;
+    if (domNSEvent) {
+      domNSEvent->GetIsTrusted(&trustedEvent);
+    }
 
     if (!trustedEvent)
       return NS_OK;
@@ -231,6 +264,9 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   // Should be compiled and bound with "on" in front of the name.
   nsCOMPtr<nsIAtom> onEventAtom = do_GetAtom(NS_LITERAL_STRING("onxbl") +
                                              nsDependentAtomString(mEventName));
+
+  // Compile the event handler.
+  PRUint32 stID = nsIProgrammingLanguage::JAVASCRIPT;
 
   // Compile the handler and bind it to the element.
   nsCOMPtr<nsIScriptGlobalObject> boundGlobal;
@@ -256,7 +292,9 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
       nsCOMPtr<nsIContent> content(do_QueryInterface(aTarget));
       if (!content)
         return NS_OK;
-      boundDocument = content->OwnerDoc();
+      boundDocument = content->GetOwnerDoc();
+      if (!boundDocument)
+        return NS_OK;
     }
 
     boundGlobal = boundDocument->GetScopeObject();
@@ -265,11 +303,11 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
   if (!boundGlobal)
     return NS_OK;
 
-  nsIScriptContext *boundContext = boundGlobal->GetScriptContext();
+  nsIScriptContext *boundContext = boundGlobal->GetScriptContext(stID);
   if (!boundContext)
     return NS_OK;
 
-  nsScriptObjectHolder<JSObject> handler(boundContext);
+  nsScriptObjectHolder handler(boundContext);
   nsISupports *scriptTarget;
 
   if (winRoot) {
@@ -278,33 +316,23 @@ nsXBLPrototypeHandler::ExecuteHandler(nsIDOMEventTarget* aTarget,
     scriptTarget = aTarget;
   }
 
-  // We're about to create a new nsJSEventListener, which means that we're
-  // responsible for pushing the context of the event target. See the similar
-  // comment in nsEventManagerListener.cpp.
-  nsCxPusher pusher;
-  NS_ENSURE_STATE(pusher.Push(aTarget));
-
   rv = EnsureEventHandler(boundGlobal, boundContext, onEventAtom, handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Bind it to the bound element
-  JSObject* scope = boundGlobal->GetGlobalJSObject();
-  nsScriptObjectHolder<JSObject> boundHandler(boundContext);
+  // Temporarily bind it to the bound element
+  void *scope = boundGlobal->GetScriptGlobal(stID);
   rv = boundContext->BindCompiledEventHandler(scriptTarget, scope,
-                                              handler.get(), boundHandler);
+                                              onEventAtom, handler);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Execute it.
-  nsCOMPtr<nsIJSEventListener> eventListener;
-  rv = NS_NewJSEventListener(boundContext, scope,
-                             scriptTarget, onEventAtom,
-                             boundHandler.get(),
-                             getter_AddRefs(eventListener));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDOMEventListener> eventListener;
+  NS_NewJSEventListener(boundContext, scope,
+                        scriptTarget, onEventAtom,
+                        getter_AddRefs(eventListener));
 
   // Handle the event.
   eventListener->HandleEvent(aEvent);
-  eventListener->Disconnect();
   return NS_OK;
 }
 
@@ -312,12 +340,12 @@ nsresult
 nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
                                           nsIScriptContext *aBoundContext,
                                           nsIAtom *aName,
-                                          nsScriptObjectHolder<JSObject>& aHandler)
+                                          nsScriptObjectHolder &aHandler)
 {
   // Check to see if we've already compiled this
   nsCOMPtr<nsPIDOMWindow> pWindow = do_QueryInterface(aGlobal);
   if (pWindow) {
-    JSObject* cachedHandler = pWindow->GetCachedXBLPrototypeHandler(this);
+    void* cachedHandler = pWindow->GetCachedXBLPrototypeHandler(this);
     if (cachedHandler) {
       aHandler.set(cachedHandler);
       return aHandler ? NS_OK : NS_ERROR_FAILURE;
@@ -329,10 +357,10 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
   if (handlerText.IsEmpty())
     return NS_ERROR_FAILURE;
 
-  nsAutoCString bindingURI;
+  nsCAutoString bindingURI;
   mPrototypeBinding->DocURI()->GetSpec(bindingURI);
 
-  uint32_t argCount;
+  PRUint32 argCount;
   const char **argNames;
   nsContentUtils::GetEventArgNames(kNameSpaceID_XBL, aName, &argCount,
                                    &argNames);
@@ -356,17 +384,20 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEven
   // This is a special-case optimization to make command handling fast.
   // It isn't really a part of XBL, but it helps speed things up.
 
-  if (aEvent) {
-    // See if preventDefault has been set.  If so, don't execute.
-    bool preventDefault = false;
-    aEvent->GetPreventDefault(&preventDefault);
-    if (preventDefault) {
+  // See if preventDefault has been set.  If so, don't execute.
+  PRBool preventDefault = PR_FALSE;
+  nsCOMPtr<nsIDOMNSUIEvent> nsUIEvent(do_QueryInterface(aEvent));
+  if (nsUIEvent)
+    nsUIEvent->GetPreventDefault(&preventDefault);
+
+  if (preventDefault)
+    return NS_OK;
+
+  nsCOMPtr<nsIPrivateDOMEvent> privateEvent = do_QueryInterface(aEvent);
+  if (privateEvent) {
+    PRBool dispatchStopped = privateEvent->IsDispatchStopped();
+    if (dispatchStopped)
       return NS_OK;
-    }
-    bool dispatchStopped = aEvent->IsDispatchStopped();
-    if (dispatchStopped) {
-      return NS_OK;
-    }
   }
 
   // Instead of executing JS, let's get the controller for the bound
@@ -388,7 +419,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEven
       // normally.  It's not clear that the owner doc is the right
       // thing.
       if (elt)
-        doc = elt->OwnerDoc();
+        doc = elt->GetOwnerDoc();
 
       if (!doc)
         doc = do_QueryInterface(aTarget);
@@ -426,10 +457,10 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEven
     if (windowToCheck) {
       nsCOMPtr<nsPIDOMWindow> focusedWindow;
       focusedContent =
-        nsFocusManager::GetFocusedDescendant(windowToCheck, true, getter_AddRefs(focusedWindow));
+        nsFocusManager::GetFocusedDescendant(windowToCheck, PR_TRUE, getter_AddRefs(focusedWindow));
     }
 
-    bool isLink = false;
+    PRBool isLink = PR_FALSE;
     nsIContent *content = focusedContent;
 
     // if the focused element is a link then we do want space to 
@@ -439,7 +470,7 @@ nsXBLPrototypeHandler::DispatchXBLCommand(nsIDOMEventTarget* aTarget, nsIDOMEven
     if (focusedContent && focusedContent->GetParent()) {
       while (content) {
         if (content->Tag() == nsGkAtoms::a && content->IsHTML()) {
-          isLink = true;
+          isLink = PR_TRUE;
           break;
         }
 
@@ -492,19 +523,17 @@ nsXBLPrototypeHandler::DispatchXULKeyCommand(nsIDOMEvent* aEvent)
     return NS_ERROR_FAILURE;
   }
 
-  // XXX We should use widget::Modifiers for supporting all modifiers.
-
-  bool isAlt = false;
-  bool isControl = false;
-  bool isShift = false;
-  bool isMeta = false;
+  PRBool isAlt = PR_FALSE;
+  PRBool isControl = PR_FALSE;
+  PRBool isShift = PR_FALSE;
+  PRBool isMeta = PR_FALSE;
   keyEvent->GetAltKey(&isAlt);
   keyEvent->GetCtrlKey(&isControl);
   keyEvent->GetShiftKey(&isShift);
   keyEvent->GetMetaKey(&isMeta);
 
-  nsContentUtils::DispatchXULCommand(handlerElement, true,
-                                     nullptr, nullptr,
+  nsContentUtils::DispatchXULCommand(handlerElement, PR_TRUE,
+                                     nsnull, nsnull,
                                      isControl, isAlt, isShift, isMeta);
   return NS_OK;
 }
@@ -553,19 +582,19 @@ nsXBLPrototypeHandler::GetController(nsIDOMEventTarget* aTarget)
   if (controllers) {
     controllers->GetControllerAt(0, &controller);  // return reference
   }
-  else controller = nullptr;
+  else controller = nsnull;
 
   return controller;
 }
 
-bool
+PRBool
 nsXBLPrototypeHandler::KeyEventMatched(nsIDOMKeyEvent* aKeyEvent,
-                                       uint32_t aCharCode,
-                                       bool aIgnoreShiftKey)
+                                       PRUint32 aCharCode,
+                                       PRBool aIgnoreShiftKey)
 {
   if (mDetail != -1) {
     // Get the keycode or charcode of the key event.
-    uint32_t code;
+    PRUint32 code;
 
     if (mMisc) {
       if (aCharCode)
@@ -578,28 +607,28 @@ nsXBLPrototypeHandler::KeyEventMatched(nsIDOMKeyEvent* aKeyEvent,
     else
       aKeyEvent->GetKeyCode(&code);
 
-    if (code != uint32_t(mDetail))
-      return false;
+    if (code != PRUint32(mDetail))
+      return PR_FALSE;
   }
 
   return ModifiersMatchMask(aKeyEvent, aIgnoreShiftKey);
 }
 
-bool
+PRBool
 nsXBLPrototypeHandler::MouseEventMatched(nsIDOMMouseEvent* aMouseEvent)
 {
   if (mDetail == -1 && mMisc == 0 && (mKeyMask & cAllModifiers) == 0)
-    return true; // No filters set up. It's generic.
+    return PR_TRUE; // No filters set up. It's generic.
 
-  uint16_t button;
+  PRUint16 button;
   aMouseEvent->GetButton(&button);
   if (mDetail != -1 && (button != mDetail))
-    return false;
+    return PR_FALSE;
 
-  int32_t clickcount;
+  PRInt32 clickcount;
   aMouseEvent->GetDetail(&clickcount);
   if (mMisc != 0 && (clickcount != mMisc))
-    return false;
+    return PR_FALSE;
 
   return ModifiersMatchMask(aMouseEvent);
 }
@@ -607,7 +636,7 @@ nsXBLPrototypeHandler::MouseEventMatched(nsIDOMMouseEvent* aMouseEvent)
 struct keyCodeData {
   const char* str;
   size_t strlength;
-  uint32_t keycode;
+  PRUint32 keycode;
 };
 
 // All of these must be uppercase, since the function below does
@@ -615,22 +644,138 @@ struct keyCodeData {
 // XXX: be sure to check this periodically for new symbol additions!
 static const keyCodeData gKeyCodes[] = {
 
-#define NS_DEFINE_VK(aDOMKeyName, aDOMKeyCode) \
-  { #aDOMKeyName, sizeof(#aDOMKeyName) - 1, aDOMKeyCode }
-#include "nsVKList.h"
-#undef NS_DEFINE_VK
+#define KEYCODE_ENTRY(str) {#str, sizeof(#str) - 1, nsIDOMKeyEvent::DOM_##str}
+#define KEYCODE_ENTRY2(str, code) {str, sizeof(str) - 1, code}
+
+  KEYCODE_ENTRY(VK_CANCEL),
+  KEYCODE_ENTRY2("VK_BACK", nsIDOMKeyEvent::DOM_VK_BACK_SPACE),
+  KEYCODE_ENTRY(VK_TAB),
+  KEYCODE_ENTRY(VK_CLEAR),
+  KEYCODE_ENTRY(VK_RETURN),
+  KEYCODE_ENTRY(VK_ENTER),
+  KEYCODE_ENTRY(VK_SHIFT),
+  KEYCODE_ENTRY(VK_CONTROL),
+  KEYCODE_ENTRY(VK_ALT),
+  KEYCODE_ENTRY(VK_PAUSE),
+  KEYCODE_ENTRY(VK_CAPS_LOCK),
+  KEYCODE_ENTRY(VK_ESCAPE),
+  KEYCODE_ENTRY(VK_SPACE),
+  KEYCODE_ENTRY(VK_PAGE_UP),
+  KEYCODE_ENTRY(VK_PAGE_DOWN),
+  KEYCODE_ENTRY(VK_END),
+  KEYCODE_ENTRY(VK_HOME),
+  KEYCODE_ENTRY(VK_LEFT),
+  KEYCODE_ENTRY(VK_UP),
+  KEYCODE_ENTRY(VK_RIGHT),
+  KEYCODE_ENTRY(VK_DOWN),
+  KEYCODE_ENTRY(VK_PRINTSCREEN),
+  KEYCODE_ENTRY(VK_INSERT),
+  KEYCODE_ENTRY(VK_HELP),
+  KEYCODE_ENTRY(VK_DELETE),
+  KEYCODE_ENTRY(VK_0),
+  KEYCODE_ENTRY(VK_1),
+  KEYCODE_ENTRY(VK_2),
+  KEYCODE_ENTRY(VK_3),
+  KEYCODE_ENTRY(VK_4),
+  KEYCODE_ENTRY(VK_5),
+  KEYCODE_ENTRY(VK_6),
+  KEYCODE_ENTRY(VK_7),
+  KEYCODE_ENTRY(VK_8),
+  KEYCODE_ENTRY(VK_9),
+  KEYCODE_ENTRY(VK_SEMICOLON),
+  KEYCODE_ENTRY(VK_EQUALS),
+  KEYCODE_ENTRY(VK_A),
+  KEYCODE_ENTRY(VK_B),
+  KEYCODE_ENTRY(VK_C),
+  KEYCODE_ENTRY(VK_D),
+  KEYCODE_ENTRY(VK_E),
+  KEYCODE_ENTRY(VK_F),
+  KEYCODE_ENTRY(VK_G),
+  KEYCODE_ENTRY(VK_H),
+  KEYCODE_ENTRY(VK_I),
+  KEYCODE_ENTRY(VK_J),
+  KEYCODE_ENTRY(VK_K),
+  KEYCODE_ENTRY(VK_L),
+  KEYCODE_ENTRY(VK_M),
+  KEYCODE_ENTRY(VK_N),
+  KEYCODE_ENTRY(VK_O),
+  KEYCODE_ENTRY(VK_P),
+  KEYCODE_ENTRY(VK_Q),
+  KEYCODE_ENTRY(VK_R),
+  KEYCODE_ENTRY(VK_S),
+  KEYCODE_ENTRY(VK_T),
+  KEYCODE_ENTRY(VK_U),
+  KEYCODE_ENTRY(VK_V),
+  KEYCODE_ENTRY(VK_W),
+  KEYCODE_ENTRY(VK_X),
+  KEYCODE_ENTRY(VK_Y),
+  KEYCODE_ENTRY(VK_Z),
+  KEYCODE_ENTRY(VK_NUMPAD0),
+  KEYCODE_ENTRY(VK_NUMPAD1),
+  KEYCODE_ENTRY(VK_NUMPAD2),
+  KEYCODE_ENTRY(VK_NUMPAD3),
+  KEYCODE_ENTRY(VK_NUMPAD4),
+  KEYCODE_ENTRY(VK_NUMPAD5),
+  KEYCODE_ENTRY(VK_NUMPAD6),
+  KEYCODE_ENTRY(VK_NUMPAD7),
+  KEYCODE_ENTRY(VK_NUMPAD8),
+  KEYCODE_ENTRY(VK_NUMPAD9),
+  KEYCODE_ENTRY(VK_MULTIPLY),
+  KEYCODE_ENTRY(VK_ADD),
+  KEYCODE_ENTRY(VK_SEPARATOR),
+  KEYCODE_ENTRY(VK_SUBTRACT),
+  KEYCODE_ENTRY(VK_DECIMAL),
+  KEYCODE_ENTRY(VK_DIVIDE),
+  KEYCODE_ENTRY(VK_F1),
+  KEYCODE_ENTRY(VK_F2),
+  KEYCODE_ENTRY(VK_F3),
+  KEYCODE_ENTRY(VK_F4),
+  KEYCODE_ENTRY(VK_F5),
+  KEYCODE_ENTRY(VK_F6),
+  KEYCODE_ENTRY(VK_F7),
+  KEYCODE_ENTRY(VK_F8),
+  KEYCODE_ENTRY(VK_F9),
+  KEYCODE_ENTRY(VK_F10),
+  KEYCODE_ENTRY(VK_F11),
+  KEYCODE_ENTRY(VK_F12),
+  KEYCODE_ENTRY(VK_F13),
+  KEYCODE_ENTRY(VK_F14),
+  KEYCODE_ENTRY(VK_F15),
+  KEYCODE_ENTRY(VK_F16),
+  KEYCODE_ENTRY(VK_F17),
+  KEYCODE_ENTRY(VK_F18),
+  KEYCODE_ENTRY(VK_F19),
+  KEYCODE_ENTRY(VK_F20),
+  KEYCODE_ENTRY(VK_F21),
+  KEYCODE_ENTRY(VK_F22),
+  KEYCODE_ENTRY(VK_F23),
+  KEYCODE_ENTRY(VK_F24),
+  KEYCODE_ENTRY(VK_NUM_LOCK),
+  KEYCODE_ENTRY(VK_SCROLL_LOCK),
+  KEYCODE_ENTRY(VK_COMMA),
+  KEYCODE_ENTRY(VK_PERIOD),
+  KEYCODE_ENTRY(VK_SLASH),
+  KEYCODE_ENTRY(VK_BACK_QUOTE),
+  KEYCODE_ENTRY(VK_OPEN_BRACKET),
+  KEYCODE_ENTRY(VK_BACK_SLASH),
+  KEYCODE_ENTRY(VK_CLOSE_BRACKET),
+  KEYCODE_ENTRY(VK_QUOTE)
+
+#undef KEYCODE_ENTRY
+#undef KEYCODE_ENTRY2
+
 };
 
-int32_t nsXBLPrototypeHandler::GetMatchingKeyCode(const nsAString& aKeyName)
+PRInt32 nsXBLPrototypeHandler::GetMatchingKeyCode(const nsAString& aKeyName)
 {
-  nsAutoCString keyName;
+  nsCAutoString keyName;
   keyName.AssignWithConversion(aKeyName);
   ToUpperCase(keyName); // We want case-insensitive comparison with data
                         // stored as uppercase.
 
-  uint32_t keyNameLength = keyName.Length();
+  PRUint32 keyNameLength = keyName.Length();
   const char* keyNameStr = keyName.get();
-  for (uint16_t i = 0; i < (sizeof(gKeyCodes) / sizeof(gKeyCodes[0])); ++i)
+  for (PRUint16 i = 0; i < (sizeof(gKeyCodes) / sizeof(gKeyCodes[0])); ++i)
     if (keyNameLength == gKeyCodes[i].strlength &&
         !nsCRT::strcmp(gKeyCodes[i].str, keyNameStr))
       return gKeyCodes[i].keycode;
@@ -638,18 +783,17 @@ int32_t nsXBLPrototypeHandler::GetMatchingKeyCode(const nsAString& aKeyName)
   return 0;
 }
 
-int32_t nsXBLPrototypeHandler::KeyToMask(int32_t key)
+PRInt32 nsXBLPrototypeHandler::KeyToMask(PRInt32 key)
 {
   switch (key)
   {
     case nsIDOMKeyEvent::DOM_VK_META:
       return cMeta | cMetaMask;
-
-    case nsIDOMKeyEvent::DOM_VK_WIN:
-      return cOS | cOSMask;
+      break;
 
     case nsIDOMKeyEvent::DOM_VK_ALT:
       return cAlt | cAltMask;
+      break;
 
     case nsIDOMKeyEvent::DOM_VK_CONTROL:
     default:
@@ -700,7 +844,7 @@ nsXBLPrototypeHandler::ConstructPrototype(nsIContent* aKeyElement,
   }
   else {
     mType |= aCommand ? NS_HANDLER_TYPE_XBL_COMMAND : NS_HANDLER_TYPE_XBL_JS;
-    mHandlerText = nullptr;
+    mHandlerText = nsnull;
   }
 
   mDetail = -1;
@@ -756,8 +900,6 @@ nsXBLPrototypeHandler::ConstructPrototype(nsIContent* aKeyElement,
         mKeyMask |= cAlt | cAltMask;
       else if (PL_strcmp(token, "meta") == 0)
         mKeyMask |= cMeta | cMetaMask;
-      else if (PL_strcmp(token, "os") == 0)
-        mKeyMask |= cOS | cOSMask;
       else if (PL_strcmp(token, "control") == 0)
         mKeyMask |= cControl | cControlMask;
       else if (PL_strcmp(token, "accel") == 0)
@@ -765,7 +907,7 @@ nsXBLPrototypeHandler::ConstructPrototype(nsIContent* aKeyElement,
       else if (PL_strcmp(token, "access") == 0)
         mKeyMask |= KeyToMask(kMenuAccessKey);
       else if (PL_strcmp(token, "any") == 0)
-        mKeyMask &= ~(mKeyMask << 5);
+        mKeyMask &= ~(mKeyMask << 4);
     
       token = nsCRT::strtok( newStr, ", \t", &newStr );
     }
@@ -790,12 +932,12 @@ nsXBLPrototypeHandler::ConstructPrototype(nsIContent* aKeyElement,
     // We have a charcode.
     mMisc = 1;
     mDetail = key[0];
-    const uint8_t GTK2Modifiers = cShift | cControl | cShiftMask | cControlMask;
+    const PRUint8 GTK2Modifiers = cShift | cControl | cShiftMask | cControlMask;
     if ((mKeyMask & GTK2Modifiers) == GTK2Modifiers &&
         modifiers.First() != PRUnichar(',') &&
         (mDetail == 'u' || mDetail == 'U'))
       ReportKeyConflict(key.get(), modifiers.get(), aKeyElement, "GTK2Conflict");
-    const uint8_t WinModifiers = cControl | cAlt | cControlMask | cAltMask;
+    const PRUint8 WinModifiers = cControl | cAlt | cControlMask | cAltMask;
     if ((mKeyMask & WinModifiers) == WinModifiers &&
         modifiers.First() != PRUnichar(',') &&
         (('A' <= mDetail && mDetail <= 'Z') ||
@@ -841,119 +983,49 @@ nsXBLPrototypeHandler::ReportKeyConflict(const PRUnichar* aKey, const PRUnichar*
       doc = docInfo->GetDocument();
     }
   } else if (aKeyElement) {
-    doc = aKeyElement->OwnerDoc();
+    doc = aKeyElement->GetOwnerDoc();
   }
 
   const PRUnichar* params[] = { aKey, aModifiers };
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  "XBL Prototype Handler", doc,
-                                  nsContentUtils::eXBL_PROPERTIES,
+  nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                   aMessageName,
-                                  params, ArrayLength(params),
-                                  nullptr, EmptyString(), mLineNumber);
+                                  params, NS_ARRAY_LENGTH(params),
+                                  nsnull, EmptyString(), mLineNumber, 0,
+                                  nsIScriptError::warningFlag,
+                                  "XBL Prototype Handler", doc);
 }
 
-bool
+PRBool
 nsXBLPrototypeHandler::ModifiersMatchMask(nsIDOMUIEvent* aEvent,
-                                          bool aIgnoreShiftKey)
+                                          PRBool aIgnoreShiftKey)
 {
-  nsEvent* event = aEvent->GetInternalNSEvent();
-  NS_ENSURE_TRUE(event && NS_IS_INPUT_EVENT(event), false);
-  nsInputEvent* inputEvent = static_cast<nsInputEvent*>(event);
+  nsCOMPtr<nsIDOMKeyEvent> key(do_QueryInterface(aEvent));
+  nsCOMPtr<nsIDOMMouseEvent> mouse(do_QueryInterface(aEvent));
 
+  PRBool keyPresent;
   if (mKeyMask & cMetaMask) {
-    if (inputEvent->IsMeta() != ((mKeyMask & cMeta) != 0)) {
-      return false;
-    }
-  }
-
-  if (mKeyMask & cOSMask) {
-    if (inputEvent->IsOS() != ((mKeyMask & cOS) != 0)) {
-      return false;
-    }
+    key ? key->GetMetaKey(&keyPresent) : mouse->GetMetaKey(&keyPresent);
+    if (keyPresent != ((mKeyMask & cMeta) != 0))
+      return PR_FALSE;
   }
 
   if (mKeyMask & cShiftMask && !aIgnoreShiftKey) {
-    if (inputEvent->IsShift() != ((mKeyMask & cShift) != 0)) {
-      return false;
-    }
+    key ? key->GetShiftKey(&keyPresent) : mouse->GetShiftKey(&keyPresent);
+    if (keyPresent != ((mKeyMask & cShift) != 0))
+      return PR_FALSE;
   }
 
   if (mKeyMask & cAltMask) {
-    if (inputEvent->IsAlt() != ((mKeyMask & cAlt) != 0)) {
-      return false;
-    }
+    key ? key->GetAltKey(&keyPresent) : mouse->GetAltKey(&keyPresent);
+    if (keyPresent != ((mKeyMask & cAlt) != 0))
+      return PR_FALSE;
   }
 
   if (mKeyMask & cControlMask) {
-    if (inputEvent->IsControl() != ((mKeyMask & cControl) != 0)) {
-      return false;
-    }
+    key ? key->GetCtrlKey(&keyPresent) : mouse->GetCtrlKey(&keyPresent);
+    if (keyPresent != ((mKeyMask & cControl) != 0))
+      return PR_FALSE;
   }
 
-  return true;
-}
-
-nsresult
-nsXBLPrototypeHandler::Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream)
-{
-  nsresult rv = aStream->Read8(&mPhase);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Read8(&mType);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Read8(&mMisc);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = aStream->Read32(reinterpret_cast<uint32_t*>(&mKeyMask));
-  NS_ENSURE_SUCCESS(rv, rv);
-  uint32_t detail; 
-  rv = aStream->Read32(&detail);
-  NS_ENSURE_SUCCESS(rv, rv);
-  mDetail = detail;
-
-  nsAutoString name;
-  rv = aStream->ReadString(name);
-  NS_ENSURE_SUCCESS(rv, rv);
-  mEventName = do_GetAtom(name);
-
-  rv = aStream->Read32(&mLineNumber);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoString handlerText;
-  rv = aStream->ReadString(handlerText);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!handlerText.IsEmpty())
-    mHandlerText = ToNewUnicode(handlerText);
-
-  return NS_OK;
-}
-
-nsresult
-nsXBLPrototypeHandler::Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream)
-{
-  // Make sure we don't write out NS_HANDLER_TYPE_XUL types, as they are used
-  // for <keyset> elements.
-  if ((mType & NS_HANDLER_TYPE_XUL) || !mEventName)
-    return NS_OK;
-
-  XBLBindingSerializeDetails type = XBLBinding_Serialize_Handler;
-
-  nsresult rv = aStream->Write8(type);
-  rv = aStream->Write8(mPhase);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Write8(mType);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Write8(mMisc);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Write32(static_cast<uint32_t>(mKeyMask));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aStream->Write32(mDetail);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = aStream->WriteWStringZ(nsDependentAtomString(mEventName).get());
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = aStream->Write32(mLineNumber);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return aStream->WriteWStringZ(mHandlerText ? mHandlerText : EmptyString().get());
+  return PR_TRUE;
 }

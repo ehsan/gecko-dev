@@ -1,10 +1,11 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 function windowUtils() {
     return content.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
                .getInterface(Components.interfaces.nsIDOMWindowUtils);
+}
+
+function windowUtils20() {
+    return windowUtils()
+               .QueryInterface(Components.interfaces.nsIDOMWindowUtils_MOZILLA_2_0_BRANCH);
 }
 
 function recvSetViewport(w, h) {
@@ -18,7 +19,7 @@ function recvSetDisplayPort(x, y, w, h) {
 
     dump("setting displayPort to <"+ x +", "+ y +", "+ w +", "+ h +">\n");
 
-    windowUtils().setDisplayPortForElement(x, y, w, h, content.document.documentElement);
+    windowUtils20().setDisplayPortForElement(x, y, w, h, content.document.documentElement);
 }
 
 function recvSetResolution(xres, yres) {

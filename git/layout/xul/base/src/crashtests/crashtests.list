@@ -53,14 +53,14 @@ asserts(4) load 415394-1.xhtml # Bug 163838
 load 420424-1.xul
 load 430356-1.xhtml
 load 431738.xhtml
-load 432058-1.xul
+asserts(1) load 432058-1.xul # Bug 576174
 load 432068-1.xul
 load 432068-2.xul
 load 433296-1.xul
 load 434458-1.xul
 load 460900-1.xul
 load 464149-1.xul
-asserts-if(winWidget,1) load 464407-1.xhtml # Bug 450974
+load 464407-1.xhtml
 load 467481-1.xul
 load 470063-1.html
 load 472189.xul

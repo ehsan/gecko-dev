@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is implementation of Web Timing draft specification
+ * http://dev.w3.org/2006/webapi/WebTiming/
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Sergey Novikov <sergeyn@google.com> (original author)
+ *   Igor Bazarny <igor.bazarny@gmail.com> (lots of improvements)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsDOMNavigationTiming.h"
 #include "nsCOMPtr.h"
@@ -10,6 +44,7 @@
 #include "nsContentUtils.h"
 
 #include "nsIDOMEventTarget.h"
+#include "nsIDocument.h"
 #include "nsIScriptSecurityManager.h"
 
 nsDOMNavigationTiming::nsDOMNavigationTiming()
@@ -24,7 +59,7 @@ nsDOMNavigationTiming::~nsDOMNavigationTiming()
 void
 nsDOMNavigationTiming::Clear()
 {
-  mNavigationType = mozilla::dom::PerformanceNavigation::TYPE_RESERVED;
+  mNavigationType = nsIDOMPerformanceNavigation::TYPE_RESERVED;
   mNavigationStart = 0;
   mFetchStart = 0;
   mRedirectStart = 0;
@@ -41,38 +76,25 @@ nsDOMNavigationTiming::Clear()
   mDOMContentLoadedEventEnd = 0;
   mDOMComplete = 0;
   mRedirectCheck = NOT_CHECKED;
-
-  mLoadEventStartSet = false;
-  mLoadEventEndSet = false;
-  mDOMLoadingSet = false;
-  mDOMInteractiveSet = false;
-  mDOMContentLoadedEventStartSet = false;
-  mDOMContentLoadedEventEndSet = false;
-  mDOMCompleteSet = false;
 }
 
-DOMTimeMilliSec
-nsDOMNavigationTiming::TimeStampToDOM(mozilla::TimeStamp aStamp) const
+nsresult 
+nsDOMNavigationTiming::TimeStampToDOM(mozilla::TimeStamp aStamp, 
+                                      DOMTimeMilliSec* aResult)
 {
   if (aStamp.IsNull()) {
-    return 0;
+    *aResult = 0;
+    return NS_OK;
   }
   mozilla::TimeDuration duration = aStamp - mNavigationStartTimeStamp;
-  return mNavigationStart + static_cast<int32_t>(duration.ToMilliseconds());
-}
-
-DOMTimeMilliSec
-nsDOMNavigationTiming::TimeStampToDOMOrFetchStart(mozilla::TimeStamp aStamp) const
-{
-  if (!aStamp.IsNull()) {
-    return TimeStampToDOM(aStamp);
-  } else {
-    return GetFetchStart();
-  }
+  *aResult = mNavigationStart + static_cast<PRInt32>(duration.ToMilliseconds());
+  return NS_OK;
 }
 
 DOMTimeMilliSec nsDOMNavigationTiming::DurationFromStart(){
-  return TimeStampToDOM(mozilla::TimeStamp::Now());
+  DOMTimeMilliSec result; 
+  TimeStampToDOM(mozilla::TimeStamp::Now(), &result);
+  return result;
 }
 
 void
@@ -136,22 +158,16 @@ nsDOMNavigationTiming::NotifyUnloadEventEnd()
 void
 nsDOMNavigationTiming::NotifyLoadEventStart()
 {
-  if (!mLoadEventStartSet) {
-    mLoadEventStart = DurationFromStart();
-    mLoadEventStartSet = true;
-  }
+  mLoadEventStart = DurationFromStart();
 }
 
 void
 nsDOMNavigationTiming::NotifyLoadEventEnd()
 {
-  if (!mLoadEventEndSet) {
-    mLoadEventEnd = DurationFromStart();
-    mLoadEventEndSet = true;
-  }
+  mLoadEventEnd = DurationFromStart();
 }
 
-bool
+PRBool
 nsDOMNavigationTiming::ReportRedirects()
 {
   if (mRedirectCheck == NOT_CHECKED) {
@@ -163,7 +179,7 @@ nsDOMNavigationTiming::ReportRedirects()
       nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
       for (int i = mRedirects.Count() - 1; i >= 0; --i) {
         nsIURI * curr = mRedirects[i];
-        nsresult rv = ssm->CheckSameOriginURI(curr, mLoadedURI, false);
+        nsresult rv = ssm->CheckSameOriginURI(curr, mLoadedURI, PR_FALSE);
         if (!NS_SUCCEEDED(rv)) {
           mRedirectCheck = CHECK_FAILED;
           mRedirectCount = 0;
@@ -180,109 +196,166 @@ nsDOMNavigationTiming::ReportRedirects()
 void
 nsDOMNavigationTiming::SetDOMLoadingTimeStamp(nsIURI* aURI, mozilla::TimeStamp aValue)
 {
-  if (!mDOMLoadingSet) {
-    mLoadedURI = aURI;
-    mDOMLoading = TimeStampToDOM(aValue);
-    mDOMLoadingSet = true;
-  }
+  mLoadedURI = aURI;
+  TimeStampToDOM(aValue, &mDOMLoading);
 }
 
 void
 nsDOMNavigationTiming::NotifyDOMLoading(nsIURI* aURI)
 {
-  if (!mDOMLoadingSet) {
-    mLoadedURI = aURI;
-    mDOMLoading = DurationFromStart();
-    mDOMLoadingSet = true;
-  }
+  mLoadedURI = aURI;
+  mDOMLoading = DurationFromStart();
 }
 
 void
 nsDOMNavigationTiming::NotifyDOMInteractive(nsIURI* aURI)
 {
-  if (!mDOMInteractiveSet) {
-    mLoadedURI = aURI;
-    mDOMInteractive = DurationFromStart();
-    mDOMInteractiveSet = true;
-  }
+  mLoadedURI = aURI;
+  mDOMInteractive = DurationFromStart();
 }
 
 void
 nsDOMNavigationTiming::NotifyDOMComplete(nsIURI* aURI)
 {
-  if (!mDOMCompleteSet) {
-    mLoadedURI = aURI;
-    mDOMComplete = DurationFromStart();
-    mDOMCompleteSet = true;
-  }
+  mLoadedURI = aURI;
+  mDOMComplete = DurationFromStart();
 }
 
 void
 nsDOMNavigationTiming::NotifyDOMContentLoadedStart(nsIURI* aURI)
 {
-  if (!mDOMContentLoadedEventStartSet) {
-    mLoadedURI = aURI;
-    mDOMContentLoadedEventStart = DurationFromStart();
-    mDOMContentLoadedEventStartSet = true;
-  }
+  mLoadedURI = aURI;
+  mDOMContentLoadedEventStart = DurationFromStart();
 }
 
 void
 nsDOMNavigationTiming::NotifyDOMContentLoadedEnd(nsIURI* aURI)
 {
-  if (!mDOMContentLoadedEventEndSet) {
-    mLoadedURI = aURI;
-    mDOMContentLoadedEventEnd = DurationFromStart();
-    mDOMContentLoadedEventEndSet = true;
-  }
+  mLoadedURI = aURI;
+  mDOMContentLoadedEventEnd = DurationFromStart();
 }
 
-uint16_t
-nsDOMNavigationTiming::GetRedirectCount()
+nsresult
+nsDOMNavigationTiming::GetType(
+    nsDOMPerformanceNavigationType* aNavigationType)
 {
+  *aNavigationType = mNavigationType;
+  return NS_OK;
+}
+
+nsresult
+nsDOMNavigationTiming::GetRedirectCount(PRUint16* aRedirectCount)
+{
+  *aRedirectCount = 0;
   if (ReportRedirects()) {
-    return mRedirectCount;
+    *aRedirectCount = mRedirectCount;
   }
-  return 0;
+  return NS_OK;
 }
 
-DOMTimeMilliSec
-nsDOMNavigationTiming::GetRedirectStart()
+nsresult
+nsDOMNavigationTiming::GetRedirectStart(DOMTimeMilliSec* aRedirectStart)
 {
+  *aRedirectStart = 0;
   if (ReportRedirects()) {
-    return mRedirectStart;
+    *aRedirectStart = mRedirectStart;
   }
-  return 0;
+  return NS_OK;
 }
 
-DOMTimeMilliSec
-nsDOMNavigationTiming::GetRedirectEnd()
+nsresult
+nsDOMNavigationTiming::GetRedirectEnd(DOMTimeMilliSec* aEnd)
 {
+  *aEnd = 0;
   if (ReportRedirects()) {
-    return mRedirectEnd;
+    *aEnd = mRedirectEnd;
   }
-  return 0;
+  return NS_OK;
 }
 
-DOMTimeMilliSec
-nsDOMNavigationTiming::GetUnloadEventStart()
+nsresult
+nsDOMNavigationTiming::GetNavigationStart(DOMTimeMilliSec* aNavigationStart)
 {
+  *aNavigationStart = mNavigationStart;
+  return NS_OK;
+}
+
+nsresult
+nsDOMNavigationTiming::GetUnloadEventStart(DOMTimeMilliSec* aStart)
+{
+  *aStart = 0;
   nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
-  nsresult rv = ssm->CheckSameOriginURI(mLoadedURI, mUnloadedURI, false);
+  nsresult rv = ssm->CheckSameOriginURI(mLoadedURI, mUnloadedURI, PR_FALSE);
   if (NS_SUCCEEDED(rv)) {
-    return mUnloadStart;
+    *aStart = mUnloadStart;
   }
-  return 0;
+  return NS_OK;
 }
 
-DOMTimeMilliSec
-nsDOMNavigationTiming::GetUnloadEventEnd()
+nsresult
+nsDOMNavigationTiming::GetUnloadEventEnd(DOMTimeMilliSec* aEnd)
 {
+  *aEnd = 0;
   nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
-  nsresult rv = ssm->CheckSameOriginURI(mLoadedURI, mUnloadedURI, false);
+  nsresult rv = ssm->CheckSameOriginURI(mLoadedURI, mUnloadedURI, PR_FALSE);
   if (NS_SUCCEEDED(rv)) {
-    return mUnloadEnd;
+    *aEnd = mUnloadEnd;
   }
-  return 0;
+  return NS_OK;
 }
 
+nsresult
+nsDOMNavigationTiming::GetFetchStart(DOMTimeMilliSec* aStart)
+{
+  *aStart = mFetchStart;
+  return NS_OK;
+}
+
+nsresult
+nsDOMNavigationTiming::GetDomLoading(DOMTimeMilliSec* aTime)
+{
+  *aTime = mDOMLoading;
+  return NS_OK;
+}
+
+nsresult
+nsDOMNavigationTiming::GetDomInteractive(DOMTimeMilliSec* aTime)
+{
+  *aTime = mDOMInteractive;
+  return NS_OK;
+}
+
+nsresult
+nsDOMNavigationTiming::GetDomContentLoadedEventStart(DOMTimeMilliSec* aStart)
+{
+  *aStart = mDOMContentLoadedEventStart;
+  return NS_OK;
+}
+
+nsresult
+nsDOMNavigationTiming::GetDomContentLoadedEventEnd(DOMTimeMilliSec* aEnd)
+{
+  *aEnd = mDOMContentLoadedEventEnd;
+  return NS_OK;
+}
+
+nsresult
+nsDOMNavigationTiming::GetDomComplete(DOMTimeMilliSec* aTime)
+{
+  *aTime = mDOMComplete;
+  return NS_OK;
+}
+
+nsresult
+nsDOMNavigationTiming::GetLoadEventStart(DOMTimeMilliSec* aStart)
+{
+  *aStart = mLoadEventStart;
+  return NS_OK;
+}
+
+nsresult
+nsDOMNavigationTiming::GetLoadEventEnd(DOMTimeMilliSec* aEnd)
+{
+  *aEnd = mLoadEventEnd;
+  return NS_OK;
+}

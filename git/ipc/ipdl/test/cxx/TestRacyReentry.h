@@ -17,15 +17,14 @@ public:
     TestRacyReentryParent();
     virtual ~TestRacyReentryParent();
 
-    static bool RunTestInProcesses() { return true; }
-    static bool RunTestInThreads() { return true; }
-
     void Main();
 
 protected:
-    virtual bool AnswerE() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerE();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");  
@@ -45,13 +44,17 @@ public:
     virtual ~TestRacyReentryChild();
 
 protected:
-    virtual bool RecvStart() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvStart();
 
-    virtual bool RecvN() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool RecvN();
 
-    virtual bool AnswerH() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerH();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (NormalShutdown != why)
             fail("unexpected destruction!");

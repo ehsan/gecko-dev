@@ -1,28 +1,58 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alexander Surkov <surkov.alexander@gmail.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "TextUpdater.h"
 
-#include "Accessible-inl.h"
-#include "DocAccessible-inl.h"
-#include "TextLeafAccessible.h"
-
-using namespace mozilla::a11y;
+#include "nsDocAccessible.h"
+#include "nsTextAccessible.h"
 
 void
-TextUpdater::Run(DocAccessible* aDocument, TextLeafAccessible* aTextLeaf,
+TextUpdater::Run(nsDocAccessible* aDocument, nsTextAccessible* aTextLeaf,
                  const nsAString& aNewText)
 {
   NS_ASSERTION(aTextLeaf, "No text leaf accessible?");
 
   const nsString& oldText = aTextLeaf->Text();
-  uint32_t oldLen = oldText.Length(), newLen = aNewText.Length();
-  uint32_t minLen = NS_MIN(oldLen, newLen);
+  PRUint32 oldLen = oldText.Length(), newLen = aNewText.Length();
+  PRUint32 minLen = NS_MIN(oldLen, newLen);
 
   // Skip coinciding begin substrings.
-  uint32_t skipStart = 0;
+  PRUint32 skipStart = 0;
   for (; skipStart < minLen; skipStart++) {
     if (aNewText[skipStart] != oldText[skipStart])
       break;
@@ -37,11 +67,13 @@ TextUpdater::Run(DocAccessible* aDocument, TextLeafAccessible* aTextLeaf,
 
 void
 TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
-                      uint32_t aSkipStart)
+                      PRUint32 aSkipStart)
 {
-  Accessible* parent = mTextLeaf->Parent();
-  if (!parent)
+  nsAccessible* parent = mTextLeaf->GetParent();
+  if (!parent) {
+    NS_ERROR("No parent for text leaf!");
     return;
+  }
 
   mHyperText = parent->AsHyperText();
   if (!mHyperText) {
@@ -50,22 +82,56 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
   }
 
   // Get the text leaf accessible offset and invalidate cached offsets after it.
-  mTextOffset = mHyperText->GetChildOffset(mTextLeaf, true);
+  mTextOffset = mHyperText->GetChildOffset(mTextLeaf, PR_TRUE);
   NS_ASSERTION(mTextOffset != -1,
                "Text leaf hasn't offset within hyper text!");
 
-  uint32_t oldLen = aOldText.Length(), newLen = aNewText.Length();
-  uint32_t minLen = NS_MIN(oldLen, newLen);
+  PRUint32 oldLen = aOldText.Length(), newLen = aNewText.Length();
+  PRUint32 minLen = NS_MIN(oldLen, newLen);
+
+  // Text was appended or removed to/from the end.
+  if (aSkipStart == minLen) {
+    // If text has been appended to the end, fire text inserted event.
+    if (oldLen < newLen) {
+      UpdateTextNFireEvent(aNewText, Substring(aNewText, oldLen),
+                           oldLen, PR_TRUE);
+      return;
+    }
+
+    // Text has been removed from the end, fire text removed event.
+    UpdateTextNFireEvent(aNewText, Substring(aOldText, newLen),
+                         newLen, PR_FALSE);
+    return;
+  }
 
   // Trim coinciding substrings from the end.
-  uint32_t skipEnd = 0;
+  PRUint32 skipEnd = 0;
   while (minLen - skipEnd > aSkipStart &&
          aNewText[newLen - skipEnd - 1] == aOldText[oldLen - skipEnd - 1]) {
     skipEnd++;
   }
 
-  uint32_t strLen1 = oldLen - aSkipStart - skipEnd;
-  uint32_t strLen2 = newLen - aSkipStart - skipEnd;
+  // Text was appended or removed to/from the start.
+  if (skipEnd == minLen) {
+    // If text has been appended to the start, fire text inserted event.
+    if (oldLen < newLen) {
+      UpdateTextNFireEvent(aNewText, Substring(aNewText, 0, newLen - skipEnd),
+                           0, PR_TRUE);
+      return;
+    }
+
+    // Text has been removed from the start, fire text removed event.
+    UpdateTextNFireEvent(aNewText, Substring(aOldText, 0, oldLen - skipEnd),
+                         0, PR_FALSE);
+    return;
+  }
+
+  // Find the difference between strings and fire events.
+  // Note: we can skip initial and final coinciding characters since they don't
+  // affect the Levenshtein distance.
+
+  PRInt32 strLen1 = oldLen - aSkipStart - skipEnd;
+  PRInt32 strLen2 = newLen - aSkipStart - skipEnd;
 
   const nsAString& str1 = Substring(aOldText, aSkipStart, strLen1);
   const nsAString& str2 = Substring(aNewText, aSkipStart, strLen2);
@@ -73,53 +139,23 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
   // Increase offset of the text leaf on skipped characters amount.
   mTextOffset += aSkipStart;
 
-  // It could be single insertion or removal or the case of long strings. Do not
-  // calculate the difference between long strings and prefer to fire pair of
-  // insert/remove events as the old string was replaced on the new one.
-  if (strLen1 == 0 || strLen2 == 0 ||
-      strLen1 > kMaxStrLen || strLen2 > kMaxStrLen) {
-    if (strLen1 > 0) {
-      // Fire text change event for removal.
-      nsRefPtr<AccEvent> textRemoveEvent =
-        new AccTextChangeEvent(mHyperText, mTextOffset, str1, false);
-      mDocument->FireDelayedAccessibleEvent(textRemoveEvent);
-    }
-
-    if (strLen2 > 0) {
-      // Fire text change event for insertion.
-      nsRefPtr<AccEvent> textInsertEvent =
-        new AccTextChangeEvent(mHyperText, mTextOffset, str2, true);
-      mDocument->FireDelayedAccessibleEvent(textInsertEvent);
-    }
-
-    mDocument->MaybeNotifyOfValueChange(mHyperText);
-
-    // Update the text.
-    mTextLeaf->SetText(aNewText);
-    return;
-  }
-
-  // Otherwise find the difference between strings and fire events.
-  // Note: we can skip initial and final coinciding characters since they don't
-  // affect the Levenshtein distance.
-
   // Compute the flat structured matrix need to compute the difference.
-  uint32_t len1 = strLen1 + 1, len2 = strLen2 + 1;
-  uint32_t* entries = new uint32_t[len1 * len2];
+  PRUint32 len1 = strLen1 + 1, len2 = strLen2 + 1;
+  PRUint32* entries = new PRUint32[len1 * len2];
 
-  for (uint32_t colIdx = 0; colIdx < len1; colIdx++)
+  for (PRUint32 colIdx = 0; colIdx < len1; colIdx++)
     entries[colIdx] = colIdx;
 
-  uint32_t* row = entries;
-  for (uint32_t rowIdx = 1; rowIdx < len2; rowIdx++) {
-    uint32_t* prevRow = row;
+  PRUint32* row = entries;
+  for (PRUint32 rowIdx = 1; rowIdx < len2; rowIdx++) {
+    PRUint32* prevRow = row;
     row += len1;
     row[0] = rowIdx;
-    for (uint32_t colIdx = 1; colIdx < len1; colIdx++) {
+    for (PRUint32 colIdx = 1; colIdx < len1; colIdx++) {
       if (str1[colIdx - 1] != str2[rowIdx - 1]) {
-        uint32_t left = row[colIdx - 1];
-        uint32_t up = prevRow[colIdx];
-        uint32_t upleft = prevRow[colIdx - 1];
+        PRUint32 left = row[colIdx - 1];
+        PRUint32 up = prevRow[colIdx];
+        PRUint32 upleft = prevRow[colIdx - 1];
         row[colIdx] = NS_MIN(upleft, NS_MIN(left, up)) + 1;
       } else {
         row[colIdx] = prevRow[colIdx - 1];
@@ -134,10 +170,15 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
   delete [] entries;
 
   // Fire events.
-  for (int32_t idx = events.Length() - 1; idx >= 0; idx--)
+  for (PRInt32 idx = events.Length() - 1; idx >= 0; idx--)
     mDocument->FireDelayedAccessibleEvent(events[idx]);
 
-  mDocument->MaybeNotifyOfValueChange(mHyperText);
+  if (mHyperText->Role() == nsIAccessibleRole::ROLE_ENTRY) {
+    nsRefPtr<AccEvent> valueChangeEvent =
+      new AccEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, mHyperText,
+                   eAutoDetect, AccEvent::eRemoveDupes);
+    mDocument->FireDelayedAccessibleEvent(valueChangeEvent);
+  }
 
   // Update the text.
   mTextLeaf->SetText(aNewText);
@@ -146,18 +187,18 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
 void
 TextUpdater::ComputeTextChangeEvents(const nsAString& aStr1,
                                      const nsAString& aStr2,
-                                     uint32_t* aEntries,
+                                     PRUint32* aEntries,
                                      nsTArray<nsRefPtr<AccEvent> >& aEvents)
 {
-  int32_t colIdx = aStr1.Length(), rowIdx = aStr2.Length();
+  PRInt32 colIdx = aStr1.Length(), rowIdx = aStr2.Length();
 
   // Point at which strings last matched.
-  int32_t colEnd = colIdx;
-  int32_t rowEnd = rowIdx;
+  PRInt32 colEnd = colIdx;
+  PRInt32 rowEnd = rowIdx;
 
-  int32_t colLen = colEnd + 1;
-  uint32_t* row = aEntries + rowIdx * colLen;
-  uint32_t dist = row[colIdx]; // current Levenshtein distance
+  PRInt32 colLen = colEnd + 1;
+  PRUint32* row = aEntries + rowIdx * colLen;
+  PRInt32 dist = row[colIdx]; // current Levenshtein distance
   while (rowIdx && colIdx) { // stop when we can't move diagonally
     if (aStr1[colIdx - 1] == aStr2[rowIdx - 1]) { // match
       if (rowIdx < rowEnd) { // deal with any pending insertion
@@ -198,4 +239,28 @@ TextUpdater::ComputeTextChangeEvents(const nsAString& aStr1,
     FireInsertEvent(Substring(aStr2, 0, rowEnd), 0, aEvents);
   if (colEnd)
     FireDeleteEvent(Substring(aStr1, 0, colEnd), 0, aEvents);
+}
+
+void
+TextUpdater::UpdateTextNFireEvent(const nsAString& aNewText,
+                                  const nsAString& aChangeText,
+                                  PRUint32 aAddlOffset,
+                                  PRBool aIsInserted)
+{
+  // Fire text change event.
+  nsRefPtr<AccEvent> textChangeEvent =
+    new AccTextChangeEvent(mHyperText, mTextOffset + aAddlOffset, aChangeText,
+                           aIsInserted);
+  mDocument->FireDelayedAccessibleEvent(textChangeEvent);
+
+  // Fire value change event.
+  if (mHyperText->Role() == nsIAccessibleRole::ROLE_ENTRY) {
+    nsRefPtr<AccEvent> valueChangeEvent =
+      new AccEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE, mHyperText,
+                   eAutoDetect, AccEvent::eRemoveDupes);
+    mDocument->FireDelayedAccessibleEvent(valueChangeEvent);
+  }
+
+  // Update the text.
+  mTextLeaf->SetText(aNewText);
 }

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Original Author: David W. Hyatt (hyatt@netscape.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsXBLPrototypeBinding_h__
 #define nsXBLPrototypeBinding_h__
@@ -14,7 +47,6 @@
 #include "nsWeakReference.h"
 #include "nsIContent.h"
 #include "nsHashtable.h"
-#include "nsClassHashtable.h"
 #include "nsXBLDocumentInfo.h"
 #include "nsCOMArray.h"
 #include "nsXBLProtoImpl.h"
@@ -23,38 +55,11 @@ class nsIAtom;
 class nsIDocument;
 class nsIScriptContext;
 class nsSupportsHashtable;
+class nsIXBLService;
 class nsFixedSizeAllocator;
 class nsXBLProtoImplField;
 class nsXBLBinding;
 class nsCSSStyleSheet;
-
-// This structure represents an insertion point, and is used when writing out
-// insertion points. It contains comparison operators so that it can be stored
-// in an array sorted by index.
-struct InsertionItem {
-  uint32_t insertionIndex;
-  nsIAtom* tag;
-  nsIContent* defaultContent;
-
-  InsertionItem(uint32_t aInsertionIndex, nsIAtom* aTag, nsIContent* aDefaultContent)
-    : insertionIndex(aInsertionIndex), tag(aTag), defaultContent(aDefaultContent) { }
-
-  bool operator<(const InsertionItem& item) const
-  {
-    NS_ASSERTION(insertionIndex != item.insertionIndex || defaultContent == item.defaultContent,
-                 "default content is different for same index");
-    return insertionIndex < item.insertionIndex;
-  }
-
-  bool operator==(const InsertionItem& item) const
-  {
-    NS_ASSERTION(insertionIndex != item.insertionIndex || defaultContent == item.defaultContent,
-                 "default content is different for same index");
-    return insertionIndex == item.insertionIndex;
-  }
-};
-
-typedef nsClassHashtable<nsISupportsHashKey, nsAutoTArray<InsertionItem, 1> > ArrayOfInsertionPointsByContent;
 
 // *********************************************************************/
 // The XBLPrototypeBinding class
@@ -71,21 +76,20 @@ public:
   nsIURI* BindingURI() const { return mBindingURI; }
   nsIURI* AlternateBindingURI() const { return mAlternateBindingURI; }
   nsIURI* DocURI() const { return mXBLDocInfoWeak->DocumentURI(); }
-  nsIURI* GetBaseBindingURI() const { return mBaseBindingURI; }
 
   // Checks if aURI refers to this binding by comparing to both possible
   // binding URIs.
-  bool CompareBindingURI(nsIURI* aURI) const;
+  PRBool CompareBindingURI(nsIURI* aURI) const;
 
-  bool GetAllowScripts();
+  PRBool GetAllowScripts();
 
   nsresult BindingAttached(nsIContent* aBoundElement);
   nsresult BindingDetached(nsIContent* aBoundElement);
 
-  bool LoadResources();
+  PRBool LoadResources();
   nsresult AddResource(nsIAtom* aResourceType, const nsAString& aSrc);
 
-  bool InheritsStyle() const { return mInheritStyle; }
+  PRBool InheritsStyle() const { return mInheritStyle; }
 
   nsXBLPrototypeHandler* GetPrototypeHandlers() { return mPrototypeHandler; }
   void SetPrototypeHandlers(nsXBLPrototypeHandler* aHandler) { mPrototypeHandler = aHandler; }
@@ -97,12 +101,12 @@ public:
 
   nsXBLProtoImplField* FindField(const nsString& aFieldName) const
   {
-    return mImplementation ? mImplementation->FindField(aFieldName) : nullptr;
+    return mImplementation ? mImplementation->FindField(aFieldName) : nsnull;
   }
 
   // Resolve all the fields for this binding on the object |obj|.
   // False return means a JS exception was set.
-  bool ResolveAllFields(JSContext* cx, JSObject* obj) const
+  PRBool ResolveAllFields(JSContext* cx, JSObject* obj) const
   {
     return !mImplementation || mImplementation->ResolveAllFields(cx, obj);
   }
@@ -121,32 +125,35 @@ public:
 
   nsresult InitClass(const nsCString& aClassName, JSContext * aContext,
                      JSObject * aGlobal, JSObject * aScriptObject,
-                     JSObject** aClassObject);
+                     void ** aClassObject);
 
   nsresult ConstructInterfaceTable(const nsAString& aImpls);
   
   void SetImplementation(nsXBLProtoImpl* aImpl) { mImplementation = aImpl; }
   nsresult InstallImplementation(nsIContent* aBoundElement);
-  bool HasImplementation() const { return mImplementation != nullptr; }
+  PRBool HasImplementation() const { return mImplementation != nsnull; }
 
-  void AttributeChanged(nsIAtom* aAttribute, int32_t aNameSpaceID,
-                        bool aRemoveFlag, nsIContent* aChangedElement,
-                        nsIContent* aAnonymousContent, bool aNotify);
+  void AttributeChanged(nsIAtom* aAttribute, PRInt32 aNameSpaceID,
+                        PRBool aRemoveFlag, nsIContent* aChangedElement,
+                        nsIContent* aAnonymousContent, PRBool aNotify);
 
   void SetBasePrototype(nsXBLPrototypeBinding* aBinding);
   nsXBLPrototypeBinding* GetBasePrototype() { return mBaseBinding; }
 
   nsXBLDocumentInfo* XBLDocumentInfo() const { return mXBLDocInfoWeak; }
-  bool IsChrome() { return mXBLDocInfoWeak->IsChrome(); }
+  PRBool IsChrome() { return mXBLDocInfoWeak->IsChrome(); }
   
+  PRBool HasBasePrototype() { return mHasBaseProto; }
+  void SetHasBasePrototype(PRBool aHasBase) { mHasBaseProto = aHasBase; }
+
   void SetInitialAttributes(nsIContent* aBoundElement, nsIContent* aAnonymousContent);
 
   nsIStyleRuleProcessor* GetRuleProcessor();
   nsXBLPrototypeResources::sheet_array_type* GetStyleSheets();
 
-  bool HasInsertionPoints() { return mInsertionPointTable != nullptr; }
+  PRBool HasInsertionPoints() { return mInsertionPointTable != nsnull; }
   
-  bool HasStyleSheets() {
+  PRBool HasStyleSheets() {
     return mResources && mResources->mStyleSheetList.Length() > 0;
   }
 
@@ -159,110 +166,30 @@ public:
   nsIContent* GetInsertionPoint(nsIContent* aBoundElement,
                                 nsIContent* aCopyRoot,
                                 const nsIContent *aChild,
-                                uint32_t* aIndex);
+                                PRUint32* aIndex);
 
   nsIContent* GetSingleInsertionPoint(nsIContent* aBoundElement,
                                       nsIContent* aCopyRoot,
-                                      uint32_t* aIndex, bool* aMultiple);
+                                      PRUint32* aIndex, PRBool* aMultiple);
 
-  nsIAtom* GetBaseTag(int32_t* aNamespaceID);
-  void SetBaseTag(int32_t aNamespaceID, nsIAtom* aTag);
+  nsIAtom* GetBaseTag(PRInt32* aNamespaceID);
+  void SetBaseTag(PRInt32 aNamespaceID, nsIAtom* aTag);
 
-  bool ImplementsInterface(REFNSIID aIID) const;
+  PRBool ImplementsInterface(REFNSIID aIID) const;
 
   nsresult AddResourceListener(nsIContent* aBoundElement);
 
   void Initialize();
 
-  nsresult ResolveBaseBinding();
-
   const nsCOMArray<nsXBLKeyEventHandler>* GetKeyEventHandlers()
   {
     if (!mKeyHandlersRegistered) {
       CreateKeyHandlers();
-      mKeyHandlersRegistered = true;
+      mKeyHandlersRegistered = PR_TRUE;
     }
 
     return &mKeyHandlers;
   }
-
-  /**
-   * Read this binding from the stream aStream into the xbl document aDocument.
-   * aDocInfo should be the xbl document info for the binding document.
-   * aFlags can contain XBLBinding_Serialize_InheritStyle to indicate that
-   * mInheritStyle flag should be set, and XBLBinding_Serialize_IsFirstBinding
-   * to indicate the first binding in a document.
-   */
-  nsresult Read(nsIObjectInputStream* aStream,
-                nsXBLDocumentInfo* aDocInfo,
-                nsIDocument* aDocument,
-                uint8_t aFlags);
-
-  /**
-   * Write this binding to the stream.
-   */
-  nsresult Write(nsIObjectOutputStream* aStream);
-
-  /**
-   * Read a content node from aStream and return it in aChild.
-   * aDocument and aNim are the document and node info manager for the document
-   * the child will be inserted into.
-   */
-  nsresult ReadContentNode(nsIObjectInputStream* aStream,
-                           nsIDocument* aDocument,
-                           nsNodeInfoManager* aNim,
-                           nsIContent** aChild);
-
-  /**
-   * Write the content node aNode to aStream.
-   * aInsertionPointsByContent is a hash of the insertion points in the binding,
-   * keyed by where there are in the content hierarchy.
-   *
-   * This method is called recursively for each child descendant. For the topmost
-   * call, aNode must be an element.
-   *
-   * Text, CDATA and comment nodes are serialized as:
-   *   the constant XBLBinding_Serialize_TextNode, XBLBinding_Serialize_CDATANode
-   *     or XBLBinding_Serialize_CommentNode
-   *   the text for the node
-   * Elements are serialized in the following format:
-   *   node's namespace, written with WriteNamespace
-   *   node's namespace prefix
-   *   node's tag
-   *   32-bit attribute count
-   *   table of attributes:
-   *     attribute's namespace, written with WriteNamespace
-   *     attribute's namespace prefix
-   *     attribute's tag
-   *     attribute's value
-   *   attribute forwarding table:
-   *     source namespace
-   *     source attribute
-   *     destination namespace
-   *     destination attribute
-   *   the constant XBLBinding_Serialize_NoMoreAttributes
-   *   insertion points within this node:
-   *     child index to insert within node
-   *     default content serialized in the same manner or XBLBinding_Serialize_NoContent
-   *     count of insertion points at that index
-   *       that number of string tags (those in the <children>'s includes attribute)
-   *   the constant XBLBinding_Serialize_NoMoreInsertionPoints
-   *   32-bit count of the number of child nodes
-   *     each child node is serialized in the same manner in sequence
-   *   the constant XBLBinding_Serialize_NoContent
-   */
-  nsresult WriteContentNode(nsIObjectOutputStream* aStream,
-                            nsIContent* aNode,
-                            ArrayOfInsertionPointsByContent& aInsertionPointsByContent);
-
-  /**
-   * Read or write a namespace id from or to aStream. If the namespace matches
-   * one of the built-in ones defined in nsINameSpaceManager.h, it will be written as
-   * a single byte with that value. Otherwise, XBLBinding_Serialize_CustomNamespace is
-   * written out, followed by a string written with writeWStringZ.
-   */
-  nsresult ReadNamespace(nsIObjectInputStream* aStream, int32_t& aNameSpaceID);
-  nsresult WriteNamespace(nsIObjectOutputStream* aStream, int32_t aNameSpaceID);
 
 public:
   nsXBLPrototypeBinding();
@@ -275,14 +202,14 @@ public:
   nsresult Init(const nsACString& aRef,
                 nsXBLDocumentInfo* aInfo,
                 nsIContent* aElement,
-                bool aFirstBinding = false);
+                PRBool aFirstBinding = PR_FALSE);
 
   void Traverse(nsCycleCollectionTraversalCallback &cb) const;
   void UnlinkJSObjects();
   void Trace(TraceCallback aCallback, void *aClosure) const;
 
 // Static members
-  static uint32_t gRefCnt;
+  static PRUint32 gRefCnt;
  
   static nsFixedSizeAllocator* kAttrPool;
 
@@ -301,19 +228,37 @@ public:
                              nsIContent* aCopyRoot,
                              nsIContent* aTemplChild);
 
-protected:
-  // Ensure that mAttributeTable has been created.
-  void EnsureAttributeTable();
-  // Ad an entry to the attribute table
-  void AddToAttributeTable(int32_t aSourceNamespaceID, nsIAtom* aSourceTag,
-                           int32_t aDestNamespaceID, nsIAtom* aDestTag,
-                           nsIContent* aContent);
+protected:  
   void ConstructAttributeTable(nsIContent* aElement);
   void ConstructInsertionTable(nsIContent* aElement);
-  void GetNestedChildren(nsIAtom* aTag, int32_t aNamespace,
+  void GetNestedChildren(nsIAtom* aTag, PRInt32 aNamespace,
                          nsIContent* aContent,
                          nsCOMArray<nsIContent> & aList);
   void CreateKeyHandlers();
+
+protected:
+  // Internal helper class for managing our IID table.
+  class nsIIDKey : public nsHashKey {
+    protected:
+      nsIID mKey;
+  
+    public:
+      nsIIDKey(REFNSIID key) : mKey(key) {}
+      ~nsIIDKey(void) {}
+
+      PRUint32 HashCode(void) const {
+        // Just use the 32-bit m0 field.
+        return mKey.m0;
+      }
+
+      PRBool Equals(const nsHashKey *aKey) const {
+        return mKey.Equals( ((nsIIDKey*) aKey)->mKey);
+      }
+
+      nsHashKey *Clone(void) const {
+        return new nsIIDKey(mKey);
+      }
+  };
 
 // MEMBER VARIABLES
 protected:
@@ -321,17 +266,14 @@ protected:
   nsCOMPtr<nsIURI> mAlternateBindingURI; // Alternate id-less URI that is only non-null on the first binding.
   nsCOMPtr<nsIContent> mBinding; // Strong. We own a ref to our content element in the binding doc.
   nsAutoPtr<nsXBLPrototypeHandler> mPrototypeHandler; // Strong. DocInfo owns us, and we own the handlers.
-
-  // the url of the base binding
-  nsCOMPtr<nsIURI> mBaseBindingURI;
-
+  
   nsXBLProtoImpl* mImplementation; // Our prototype implementation (includes methods, properties, fields,
                                    // the constructor, and the destructor).
 
   nsXBLPrototypeBinding* mBaseBinding; // Weak.  The docinfo will own our base binding.
-  bool mInheritStyle;
-  bool mCheckedBaseProto;
-  bool mKeyHandlersRegistered;
+  PRPackedBool mInheritStyle;
+  PRPackedBool mHasBaseProto;
+  PRPackedBool mKeyHandlersRegistered;
  
   nsXBLPrototypeResources* mResources; // If we have any resources, this will be non-null.
                                       
@@ -346,10 +288,11 @@ protected:
 
   nsSupportsHashtable* mInterfaceTable; // A table of cached interfaces that we support.
 
-  int32_t mBaseNameSpaceID;    // If we extend a tagname/namespace, then that information will
+  PRInt32 mBaseNameSpaceID;    // If we extend a tagname/namespace, then that information will
   nsCOMPtr<nsIAtom> mBaseTag;  // be stored in here.
 
   nsCOMArray<nsXBLKeyEventHandler> mKeyHandlers;
 };
 
 #endif
+

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 /**
@@ -52,7 +84,7 @@ class nsScanner {
        *  @param   aMode represents the parser mode (nav, other)
        *  @return  
        */
-      nsScanner(const nsAString& anHTMLString, const nsACString& aCharset, int32_t aSource);
+      nsScanner(const nsAString& anHTMLString, const nsACString& aCharset, PRInt32 aSource);
 
       /**
        *  Use this constructor if you want i/o to be based on 
@@ -64,7 +96,7 @@ class nsScanner {
        *  @param   aMode represents the parser mode (nav, other)
        *  @return  
        */
-      nsScanner(nsString& aFilename,bool aCreateStream, const nsACString& aCharset, int32_t aSource);
+      nsScanner(nsString& aFilename,PRBool aCreateStream, const nsACString& aCharset, PRInt32 aSource);
 
       ~nsScanner();
 
@@ -85,9 +117,9 @@ class nsScanner {
        *  @param   ch is the char to accept new value
        *  @return  error code reflecting read status
        */
-      nsresult Peek(PRUnichar& ch, uint32_t aOffset=0);
+      nsresult Peek(PRUnichar& ch, PRUint32 aOffset=0);
 
-      nsresult Peek(nsAString& aStr, int32_t aNumChars, int32_t aOffset = 0);
+      nsresult Peek(nsAString& aStr, PRInt32 aNumChars, PRInt32 aOffset = 0);
 
       /**
        *  Skip over chars as long as they equal given char
@@ -104,7 +136,7 @@ class nsScanner {
        *  @update  gess 3/25/98
        *  @return  error status
        */
-      nsresult SkipWhitespace(int32_t& aNewlinesSkipped);
+      nsresult SkipWhitespace(PRInt32& aNewlinesSkipped);
 
       /**
        *  Consume characters until you run into space, a '<', a '>', or a '/'.
@@ -122,13 +154,13 @@ class nsScanner {
        *  @return  error code
        */
       nsresult ReadEntityIdentifier(nsString& aString);
-      nsresult ReadNumber(nsString& aString,int32_t aBase);
+      nsresult ReadNumber(nsString& aString,PRInt32 aBase);
       nsresult ReadWhitespace(nsScannerSharedSubstring& aString, 
-                              int32_t& aNewlinesSkipped,
-                              bool& aHaveCR);
+                              PRInt32& aNewlinesSkipped,
+                              PRBool& aHaveCR);
       nsresult ReadWhitespace(nsScannerIterator& aStart, 
                               nsScannerIterator& aEnd,
-                              int32_t& aNewlinesSkipped);
+                              PRInt32& aNewlinesSkipped);
 
       /**
        *  Consume characters until you find the terminal char
@@ -141,7 +173,7 @@ class nsScanner {
        */
       nsresult ReadUntil(nsAString& aString,
                          PRUnichar aTerminal,
-                         bool addTerminal);
+                         PRBool addTerminal);
 
       /**
        *  Consume characters until you find one contained in given
@@ -155,16 +187,16 @@ class nsScanner {
        */
       nsresult ReadUntil(nsAString& aString,
                          const nsReadEndCondition& aEndCondition, 
-                         bool addTerminal);
+                         PRBool addTerminal);
 
       nsresult ReadUntil(nsScannerSharedSubstring& aString,
                          const nsReadEndCondition& aEndCondition,
-                         bool addTerminal);
+                         PRBool addTerminal);
 
       nsresult ReadUntil(nsScannerIterator& aStart,
                          nsScannerIterator& aEnd,
                          const nsReadEndCondition& aEndCondition, 
-                         bool addTerminal);
+                         PRBool addTerminal);
 
       /**
        *  Records current offset position in input stream. This allows us
@@ -175,7 +207,7 @@ class nsScanner {
        *  @param   
        *  @return  
        */
-      int32_t Mark(void);
+      PRInt32 Mark(void);
 
       /**
        *  Resets current offset position of input stream to marked position. 
@@ -197,7 +229,7 @@ class nsScanner {
        *  @param   
        *  @return  
        */
-      bool UngetReadable(const nsAString& aBuffer);
+      PRBool UngetReadable(const nsAString& aBuffer);
 
       /**
        *  
@@ -215,7 +247,7 @@ class nsScanner {
        *  @param   
        *  @return  
        */
-      nsresult Append(const char* aBuffer, uint32_t aLen,
+      nsresult Append(const char* aBuffer, PRUint32 aLen,
                       nsIRequest *aRequest);
 
       /**
@@ -248,14 +280,14 @@ class nsScanner {
        *  @param   aCharsetSource- where the charset info came from
        *  @return  
        */
-      nsresult SetDocumentCharset(const nsACString& aCharset, int32_t aSource);
+      nsresult SetDocumentCharset(const nsACString& aCharset, PRInt32 aSource);
 
       void BindSubstring(nsScannerSubstring& aSubstring, const nsScannerIterator& aStart, const nsScannerIterator& aEnd);
       void CurrentPosition(nsScannerIterator& aPosition);
       void EndReading(nsScannerIterator& aPosition);
       void SetPosition(nsScannerIterator& aPosition,
-                       bool aTruncate = false,
-                       bool aReverse = false);
+                       PRBool aTruncate = PR_FALSE,
+                       PRBool aReverse = PR_FALSE);
       void ReplaceCharacter(nsScannerIterator& aPosition,
                             PRUnichar aChar);
 
@@ -265,15 +297,15 @@ class nsScanner {
        *
        * @update  gess4/3/98
        */
-      bool      IsIncremental(void) {return mIncremental;}
-      void      SetIncremental(bool anIncrValue) {mIncremental=anIncrValue;}
+      PRBool    IsIncremental(void) {return mIncremental;}
+      void      SetIncremental(PRBool anIncrValue) {mIncremental=anIncrValue;}
 
       /**
        * Return the position of the first non-whitespace
        * character. This is only reliable before consumers start
        * reading from this scanner.
        */
-      int32_t FirstNonWhitespacePosition()
+      PRInt32 FirstNonWhitespacePosition()
       {
         return mFirstNonWhitespacePosition;
       }
@@ -289,14 +321,14 @@ class nsScanner {
 
   protected:
 
-      bool AppendToBuffer(nsScannerString::Buffer *, nsIRequest *aRequest, int32_t aErrorPos = -1);
-      bool AppendToBuffer(const nsAString& aStr)
+      PRBool AppendToBuffer(nsScannerString::Buffer *, nsIRequest *aRequest, PRInt32 aErrorPos = -1);
+      PRBool AppendToBuffer(const nsAString& aStr)
       {
         nsScannerString::Buffer* buf = nsScannerString::AllocBufferFromString(aStr);
         if (!buf)
-          return false;
-        AppendToBuffer(buf, nullptr);
-        return true;
+          return PR_FALSE;
+        AppendToBuffer(buf, nsnull);
+        return PR_TRUE;
       }
 
       nsScannerString*             mSlidingBuffer;
@@ -305,13 +337,13 @@ class nsScanner {
       nsScannerIterator            mEndPosition;     // The current end of the scanner buffer
       nsScannerIterator            mFirstInvalidPosition; // The position of the first invalid character that was detected
       nsString        mFilename;
-      uint32_t        mCountRemaining; // The number of bytes still to be read
+      PRUint32        mCountRemaining; // The number of bytes still to be read
                                        // from the scanner buffer
-      bool            mIncremental;
-      bool            mHasInvalidCharacter;
+      PRPackedBool    mIncremental;
+      PRPackedBool    mHasInvalidCharacter;
       PRUnichar       mReplacementCharacter;
-      int32_t         mFirstNonWhitespacePosition;
-      int32_t         mCharsetSource;
+      PRInt32         mFirstNonWhitespacePosition;
+      PRInt32         mCharsetSource;
       nsCString       mCharset;
       nsCOMPtr<nsIUnicodeDecoder> mUnicodeDecoder;
 

@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Wave Media test: ended and replaying</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -16,22 +17,23 @@ var endCount = 0;
 
 function startTest() {
   if (completed)
-    return;
+    return false;
 
   var v = document.getElementById('v');
   v.play();
+  return false;
 }
 
 function playbackStarted() {
   if (completed)
-    return;
+    return false;
 
   playingCount++;
 }
 
 function playbackEnded() {
   if (completed)
-    return;
+    return false
 
   endCount++;
   var v = document.getElementById('v');
@@ -47,6 +49,7 @@ function playbackEnded() {
     completed = true;
     SimpleTest.finish();
   }
+  return false;
 }
 
 SimpleTest.waitForExplicitFinish();

@@ -1,55 +1,49 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 #include "tests.h"
 #include "jsutil.h"
 
-static const jschar arr[] = {
-    'h', 'i', ',', 'd', 'o', 'n', '\'', 't', ' ', 'd', 'e', 'l', 'e', 't', 'e', ' ', 'm', 'e', '\0'
-};
-static const size_t arrlen = sizeof(arr) / sizeof(arr[0]) - 1;
+const jschar arr[] = { 'h', 'i', ',', 'd', 'o', 'n', '\'', 't', ' ', 'd', 'e', 'l', 'e', 't', 'e', ' ', 'm', 'e', '\0' };
+size_t arrlen = sizeof(arr) / sizeof(arr[0]) - 1;
+void *magic = (void *)0x42;
 
-static int finalized1 = 0;
-static int finalized2 = 0;
+int finalized_noclosure = 0;
+int finalized_closure = 0;
 
-static void
-finalize_str(const JSStringFinalizer *fin, jschar *chars);
-
-static const JSStringFinalizer finalizer1 = { finalize_str };
-static const JSStringFinalizer finalizer2 = { finalize_str };
-
-static void
-finalize_str(const JSStringFinalizer *fin, jschar *chars)
+void finalize_str(JSContext *cx, JSString *str)
 {
-    if (chars && js::PodEqual(const_cast<const jschar *>(chars), arr, arrlen)) {
-        if (fin == &finalizer1) {
-            ++finalized1;
-        } else if (fin == &finalizer2) {
-            ++finalized2;
+    size_t len;
+    const jschar *chars = JS_GetStringCharsAndLength(cx, str, &len);
+    if (chars && len == arrlen && js::PodEqual(chars, arr, len)) {
+        void *closure = JS_GetExternalStringClosure(cx, str);
+        if (closure) {
+            if (closure == magic)
+                ++finalized_closure;
+        } else {
+            ++finalized_noclosure;
         }
     }
 }
 
 BEGIN_TEST(testExternalStrings)
 {
+    intN op = JS_AddExternalStringFinalizer(finalize_str);
+
     const unsigned N = 1000;
 
     for (unsigned i = 0; i < N; ++i) {
-        CHECK(JS_NewExternalString(cx, arr, arrlen, &finalizer1));
-        CHECK(JS_NewExternalString(cx, arr, arrlen, &finalizer2));
+        CHECK(JS_NewExternalString(cx, arr, arrlen, op));
+        CHECK(JS_NewExternalStringWithClosure(cx, arr, arrlen, op, magic));
     }
 
     // clear that newborn root
     JS_NewUCStringCopyN(cx, arr, arrlen);
 
-    JS_GC(rt);
+    JS_GC(cx);
 
     // a generous fudge factor to account for strings rooted by conservative gc
     const unsigned epsilon = 10;
 
-    CHECK((N - finalized1) < epsilon);
-    CHECK((N - finalized2) < epsilon);
+    CHECK((N - finalized_noclosure) < epsilon);
+    CHECK((N - finalized_closure) < epsilon);
 
     return true;
 }

@@ -61,7 +61,6 @@ _cairo_array_init (cairo_array_t *array, int element_size)
     array->elements = NULL;
 
     array->is_snapshot = FALSE;
-
 }
 
 /**
@@ -83,9 +82,6 @@ _cairo_array_init_snapshot (cairo_array_t	*array,
     array->elements = other->elements;
 
     array->is_snapshot = TRUE;
-
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
 }
 
 /**
@@ -101,9 +97,6 @@ _cairo_array_fini (cairo_array_t *array)
 {
     if (array->is_snapshot)
 	return;
-
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
 
     if (array->elements) {
 	free (* array->elements);
@@ -166,9 +159,6 @@ _cairo_array_grow_by (cairo_array_t *array, unsigned int additional)
 
     *array->elements = new_elements;
 
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
-
     return CAIRO_STATUS_SUCCESS;
 }
 
@@ -187,9 +177,6 @@ _cairo_array_truncate (cairo_array_t *array, unsigned int num_elements)
 
     if (num_elements < array->num_elements)
 	array->num_elements = num_elements;
-
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
 }
 
 /**
@@ -232,9 +219,6 @@ _cairo_array_index (cairo_array_t *array, unsigned int index)
 	return NULL;
 
     assert (index < array->num_elements);
-
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
 
     return (void *) &(*array->elements)[index * array->element_size];
 }
@@ -304,9 +288,6 @@ _cairo_array_append_multiple (cairo_array_t	*array,
 
     memcpy (dest, elements, num_elements * array->element_size);
 
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
-
     return CAIRO_STATUS_SUCCESS;
 }
 
@@ -341,9 +322,6 @@ _cairo_array_allocate (cairo_array_t	 *array,
     *elements = &(*array->elements)[array->num_elements * array->element_size];
 
     array->num_elements += num_elements;
-
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -402,9 +380,6 @@ _cairo_user_data_array_fini (cairo_user_data_array_t *array)
 {
     unsigned int num_slots;
 
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
-
     num_slots = array->num_elements;
     if (num_slots) {
 	cairo_user_data_slot_t *slots;
@@ -416,9 +391,6 @@ _cairo_user_data_array_fini (cairo_user_data_array_t *array)
 	    slots++;
 	} while (--num_slots);
     }
-
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
 
     _cairo_array_fini (array);
 }
@@ -445,9 +417,6 @@ _cairo_user_data_array_get_data (cairo_user_data_array_t     *array,
     /* We allow this to support degenerate objects such as cairo_surface_nil. */
     if (array == NULL)
 	return NULL;
-
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
 
     num_slots = array->num_elements;
     slots = _cairo_array_index (array, 0);
@@ -509,9 +478,6 @@ _cairo_user_data_array_set_data (cairo_user_data_array_t     *array,
 	    slot = &slots[i];	/* Have to keep searching for an exact match */
 	}
     }
-
-    if (array->num_elements != 0 && *array->elements == NULL)
-        abort();
 
     if (slot) {
 	*slot = new_slot;

@@ -1,8 +1,42 @@
 /*
 #ifdef 0
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Content Preferences (cpref).
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Myk Melez <myk@mozilla.org>
+ *   Dão Gottwald <dao@mozilla.com>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
 #endif
  */
 
@@ -34,8 +68,11 @@ var FullZoom = {
   // browser.zoom.updateBackgroundTabs preference cache
   updateBackgroundTabs: undefined,
 
+  // whether we are in private browsing mode
+  _inPrivateBrowsing: false,
+
   get siteSpecific() {
-    return this._siteSpecificPref;
+    return !this._inPrivateBrowsing && this._siteSpecificPref;
   },
 
   //**************************************************************************//
@@ -57,6 +94,15 @@ var FullZoom = {
     // Register ourselves with the service so we know when our pref changes.
     Services.contentPrefs.addObserver(this.name, this);
 
+    // We disable site-specific preferences in Private Browsing mode, because the
+    // content preferences module is disabled
+    Services.obs.addObserver(this, "private-browsing", true);
+
+    // Retrieve the initial status of the Private Browsing mode.
+    this._inPrivateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
+                              getService(Ci.nsIPrivateBrowsingService).
+                              privateBrowsingEnabled;
+
     this._siteSpecificPref =
       gPrefService.getBoolPref("browser.zoom.siteSpecific");
     this.updateBackgroundTabs =
@@ -67,6 +113,7 @@ var FullZoom = {
   },
 
   destroy: function FullZoom_destroy() {
+    Services.obs.removeObserver(this, "private-browsing");
     gPrefService.removeObserver("browser.zoom.", this);
     Services.contentPrefs.removeObserver(this.name, this);
     window.removeEventListener("DOMMouseScroll", this, false);
@@ -88,26 +135,23 @@ var FullZoom = {
 
   _handleMouseScrolled: function FullZoom__handleMouseScrolled(event) {
     // Construct the "mousewheel action" pref key corresponding to this event.
-    // Based on nsEventStateManager::WheelPrefs::GetBasePrefName().
-    var pref = "mousewheel.";
+    // Based on nsEventStateManager::GetBasePrefKeyForMouseWheel.
+    var pref = "mousewheel";
+    if (event.axis == event.HORIZONTAL_AXIS)
+      pref += ".horizscroll";
 
-    var pressedModifierCount = event.shiftKey + event.ctrlKey + event.altKey +
-                                 event.metaKey + event.getModifierState("OS");
-    if (pressedModifierCount != 1) {
-      pref += "default.";
-    } else if (event.shiftKey) {
-      pref += "with_shift.";
-    } else if (event.ctrlKey) {
-      pref += "with_control.";
-    } else if (event.altKey) {
-      pref += "with_alt.";
-    } else if (event.metaKey) {
-      pref += "with_meta.";
-    } else {
-      pref += "with_win.";
-    }
+    if (event.shiftKey)
+      pref += ".withshiftkey";
+    else if (event.ctrlKey)
+      pref += ".withcontrolkey";
+    else if (event.altKey)
+      pref += ".withaltkey";
+    else if (event.metaKey)
+      pref += ".withmetakey";
+    else
+      pref += ".withnokey";
 
-    pref += "action";
+    pref += ".action";
 
     // Don't do anything if this isn't a "zoom" scroll event.
     var isZoomEvent = false;
@@ -140,6 +184,16 @@ var FullZoom = {
           case "browser.zoom.updateBackgroundTabs":
             this.updateBackgroundTabs =
               gPrefService.getBoolPref("browser.zoom.updateBackgroundTabs");
+            break;
+        }
+        break;
+      case "private-browsing":
+        switch (aData) {
+          case "enter":
+            this._inPrivateBrowsing = true;
+            break;
+          case "exit":
+            this._inPrivateBrowsing = false;
             break;
         }
         break;
@@ -201,12 +255,6 @@ var FullZoom = {
 
     let browser = aBrowser || gBrowser.selectedBrowser;
 
-    // Media documents should always start at 1, and are not affected by prefs.
-    if (!aIsTabSwitch && browser.contentDocument.mozSyntheticDocument) {
-      ZoomManager.setZoomForBrowser(browser, 1);
-      return;
-    }
-
     if (Services.contentPrefs.hasCachedPref(aURI, this.name)) {
       let zoomValue = Services.contentPrefs.getPref(aURI, this.name);
       this._applyPrefToSetting(zoomValue, browser);
@@ -214,9 +262,7 @@ var FullZoom = {
       var self = this;
       Services.contentPrefs.getPref(aURI, this.name, function (aResult) {
         // Check that we're still where we expect to be in case this took a while.
-        // Null check currentURI, since the window may have been destroyed before
-        // we were called.
-        if (browser.currentURI && aURI.equals(browser.currentURI)) {
+        if (aURI.equals(browser.currentURI)) {
           self._applyPrefToSetting(aResult, browser);
         }
       });
@@ -273,15 +319,16 @@ var FullZoom = {
    * one.
    **/
   _applyPrefToSetting: function FullZoom__applyPrefToSetting(aValue, aBrowser) {
-    if ((!this.siteSpecific) || gInPrintPreviewMode)
+    if ((!this.siteSpecific && !this._inPrivateBrowsing) ||
+        gInPrintPreviewMode)
       return;
 
     var browser = aBrowser || (gBrowser && gBrowser.selectedBrowser);
     try {
-      if (browser.contentDocument.mozSyntheticDocument)
-        return;
-
-      if (typeof aValue != "undefined")
+      if (browser.contentDocument instanceof Ci.nsIImageDocument ||
+          this._inPrivateBrowsing)
+        ZoomManager.setZoomForBrowser(browser, 1);
+      else if (typeof aValue != "undefined")
         ZoomManager.setZoomForBrowser(browser, this._ensureValid(aValue));
       else if (typeof this.globalValue != "undefined")
         ZoomManager.setZoomForBrowser(browser, this.globalValue);
@@ -293,7 +340,7 @@ var FullZoom = {
 
   _applySettingToPref: function FullZoom__applySettingToPref() {
     if (!this.siteSpecific || gInPrintPreviewMode ||
-        content.document.mozSyntheticDocument)
+        content.document instanceof Ci.nsIImageDocument)
       return;
 
     var zoomLevel = ZoomManager.zoom;
@@ -301,7 +348,7 @@ var FullZoom = {
   },
 
   _removePref: function FullZoom__removePref() {
-    if (!(content.document.mozSyntheticDocument))
+    if (!(content.document instanceof Ci.nsIImageDocument))
       Services.contentPrefs.removePref(gBrowser.currentURI, this.name);
   },
 

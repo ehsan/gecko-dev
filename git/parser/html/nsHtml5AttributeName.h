@@ -34,13 +34,17 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
+#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
 
 class nsHtml5StreamParser;
@@ -58,11 +62,11 @@ class nsHtml5Portability;
 class nsHtml5AttributeName
 {
   public:
-    static int32_t* ALL_NO_NS;
+    static PRInt32* ALL_NO_NS;
   private:
-    static int32_t* XMLNS_NS;
-    static int32_t* XML_NS;
-    static int32_t* XLINK_NS;
+    static PRInt32* XMLNS_NS;
+    static PRInt32* XML_NS;
+    static PRInt32* XLINK_NS;
   public:
     static nsIAtom** ALL_NO_PREFIX;
   private:
@@ -74,24 +78,24 @@ class nsHtml5AttributeName
     static nsIAtom** COLONIFIED_LOCAL(nsIAtom* name, nsIAtom* suffix);
   public:
     static nsIAtom** SAME_LOCAL(nsIAtom* name);
-    static nsHtml5AttributeName* nameByBuffer(PRUnichar* buf, int32_t offset, int32_t length, nsHtml5AtomTable* interner);
+    static nsHtml5AttributeName* nameByBuffer(PRUnichar* buf, PRInt32 offset, PRInt32 length, nsHtml5AtomTable* interner);
   private:
-    static int32_t bufToHash(PRUnichar* buf, int32_t len);
-    int32_t* uri;
+    static PRInt32 bufToHash(PRUnichar* buf, PRInt32 len);
+    PRInt32* uri;
     nsIAtom** local;
     nsIAtom** prefix;
   protected:
-    nsHtml5AttributeName(int32_t* uri, nsIAtom** local, nsIAtom** prefix);
+    nsHtml5AttributeName(PRInt32* uri, nsIAtom** local, nsIAtom** prefix);
   private:
     static nsHtml5AttributeName* createAttributeName(nsIAtom* name);
   public:
     virtual void release();
-    virtual ~nsHtml5AttributeName();
+    ~nsHtml5AttributeName();
     virtual nsHtml5AttributeName* cloneAttributeName(nsHtml5AtomTable* interner);
-    int32_t getUri(int32_t mode);
-    nsIAtom* getLocal(int32_t mode);
-    nsIAtom* getPrefix(int32_t mode);
-    bool equalsAnother(nsHtml5AttributeName* another);
+    PRInt32 getUri(PRInt32 mode);
+    nsIAtom* getLocal(PRInt32 mode);
+    nsIAtom* getPrefix(PRInt32 mode);
+    PRBool equalsAnother(nsHtml5AttributeName* another);
     static nsHtml5AttributeName* ATTR_D;
     static nsHtml5AttributeName* ATTR_K;
     static nsHtml5AttributeName* ATTR_R;
@@ -160,7 +164,6 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_MASK;
     static nsHtml5AttributeName* ATTR_LINK;
     static nsHtml5AttributeName* ATTR_LANG;
-    static nsHtml5AttributeName* ATTR_LOOP;
     static nsHtml5AttributeName* ATTR_LIST;
     static nsHtml5AttributeName* ATTR_TYPE;
     static nsHtml5AttributeName* ATTR_WHEN;
@@ -305,6 +308,7 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_NOSHADE;
     static nsHtml5AttributeName* ATTR_MINSIZE;
     static nsHtml5AttributeName* ATTR_MAXSIZE;
+    static nsHtml5AttributeName* ATTR_LOOPEND;
     static nsHtml5AttributeName* ATTR_LARGEOP;
     static nsHtml5AttributeName* ATTR_UNICODE;
     static nsHtml5AttributeName* ATTR_TARGETX;
@@ -402,12 +406,14 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_MASKUNITS;
     static nsHtml5AttributeName* ATTR_MAXLENGTH;
     static nsHtml5AttributeName* ATTR_LINEBREAK;
+    static nsHtml5AttributeName* ATTR_LOOPSTART;
     static nsHtml5AttributeName* ATTR_TRANSFORM;
     static nsHtml5AttributeName* ATTR_V_HANGING;
     static nsHtml5AttributeName* ATTR_VALUETYPE;
     static nsHtml5AttributeName* ATTR_POINTSATZ;
     static nsHtml5AttributeName* ATTR_POINTSATX;
     static nsHtml5AttributeName* ATTR_POINTSATY;
+    static nsHtml5AttributeName* ATTR_PLAYCOUNT;
     static nsHtml5AttributeName* ATTR_SYMMETRIC;
     static nsHtml5AttributeName* ATTR_SCROLLING;
     static nsHtml5AttributeName* ATTR_REPEATDUR;
@@ -467,7 +473,6 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_CELLPADDING;
     static nsHtml5AttributeName* ATTR_CELLSPACING;
     static nsHtml5AttributeName* ATTR_COLUMNWIDTH;
-    static nsHtml5AttributeName* ATTR_CROSSORIGIN;
     static nsHtml5AttributeName* ATTR_COLUMNALIGN;
     static nsHtml5AttributeName* ATTR_COLUMNLINES;
     static nsHtml5AttributeName* ATTR_CONTEXTMENU;
@@ -674,7 +679,7 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_GLYPH_ORIENTATION_HORIZONTAL;
   private:
     static nsHtml5AttributeName** ATTRIBUTE_NAMES;
-    static staticJArray<int32_t,int32_t> ATTRIBUTE_HASHES;
+    static staticJArray<PRInt32,PRInt32> ATTRIBUTE_HASHES;
   public:
     static void initializeStatics();
     static void releaseStatics();

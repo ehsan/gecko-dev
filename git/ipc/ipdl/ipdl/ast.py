@@ -1,6 +1,34 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# Contributor(s):
+#   Chris Jones <jones.chris.g@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either of the GNU General Public License Version 2 or later (the "GPL"),
+# or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 import sys
 
@@ -12,22 +40,18 @@ class Visitor:
     def visitTranslationUnit(self, tu):
         for cxxInc in tu.cxxIncludes:
             cxxInc.accept(self)
-        for inc in tu.includes:
-            inc.accept(self)
+        for protoInc in tu.protocolIncludes:
+            protoInc.accept(self)
         for su in tu.structsAndUnions:
             su.accept(self)
-        for using in tu.builtinUsing:
-            using.accept(self)
         for using in tu.using:
             using.accept(self)
-        if tu.protocol:
-            tu.protocol.accept(self)
-
+        tu.protocol.accept(self)
 
     def visitCxxInclude(self, inc):
         pass
 
-    def visitInclude(self, inc):
+    def visitProtocolInclude(self, inc):
         # Note: we don't visit the child AST here, because that needs delicate
         # and pass-specific handling
         pass
@@ -37,7 +61,7 @@ class Visitor:
             f.accept(self)
 
     def visitStructField(self, field):
-        field.typespec.accept(self)
+        field.type.accept(self)
 
     def visitUnionDecl(self, union):
         for t in union.components:
@@ -152,20 +176,18 @@ class NamespacedNode(Node):
         return QualifiedId(self.loc, self.name,
                            [ ns.name for ns in self.namespaces ])
 
-class TranslationUnit(NamespacedNode):
-    def __init__(self, type, name):
-        NamespacedNode.__init__(self, name=name)
-        self.filetype = type
+class TranslationUnit(Node):
+    def __init__(self):
+        Node.__init__(self)
         self.filename = None
         self.cxxIncludes = [ ]
-        self.includes = [ ]
-        self.builtinUsing = [ ]
+        self.protocolIncludes = [ ]
         self.using = [ ]
         self.structsAndUnions = [ ]
         self.protocol = None
 
     def addCxxInclude(self, cxxInclude): self.cxxIncludes.append(cxxInclude)
-    def addInclude(self, inc): self.includes.append(inc)
+    def addProtocolInclude(self, pInc): self.protocolIncludes.append(pInc)
     def addStructDecl(self, struct): self.structsAndUnions.append(struct)
     def addUnionDecl(self, union): self.structsAndUnions.append(union)
     def addUsingStmt(self, using): self.using.append(using)
@@ -177,13 +199,10 @@ class CxxInclude(Node):
         Node.__init__(self, loc)
         self.file = cxxFile
 
-class Include(Node):
-    def __init__(self, loc, type, name):
+class ProtocolInclude(Node):
+    def __init__(self, loc, protocolName):
         Node.__init__(self, loc)
-        suffix = 'ipdl'
-        if type == 'header':
-            suffix += 'h'
-        self.file = "%s.%s" % (name, suffix)
+        self.file = "%s.ipdl" % protocolName
 
 class UsingStmt(Node):
     def __init__(self, loc, cxxTypeSpec):
@@ -265,7 +284,7 @@ class Protocol(NamespacedNode):
 class StructField(Node):
     def __init__(self, loc, type, name):
         Node.__init__(self, loc)
-        self.typespec = type
+        self.type = type
         self.name = name
 
 class StructDecl(NamespacedNode):
@@ -315,7 +334,6 @@ class MessageDecl(Node):
         self.direction = None
         self.inParams = [ ]
         self.outParams = [ ]
-        self.compress = ''
 
     def addInParams(self, inParamsList):
         self.inParams += inParamsList
@@ -401,7 +419,6 @@ class State(Node):
 
 State.ANY = State(Loc.NONE, '[any]', start=True)
 State.DEAD = State(Loc.NONE, '[dead]', start=False)
-State.DYING = State(Loc.NONE, '[dying]', start=False)
 
 class Param(Node):
     def __init__(self, loc, typespec, name):

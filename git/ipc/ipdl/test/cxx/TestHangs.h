@@ -17,24 +17,22 @@ public:
     TestHangsParent();
     virtual ~TestHangsParent();
 
-    static bool RunTestInProcesses() { return true; }
-
-    // FIXME/bug 703320 Disabled because parent kills child proc, not
-    //                  clear how that should work in threads.
-    static bool RunTestInThreads() { return false; }
-
     void Main();
 
 protected:
-    virtual bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool ShouldContinueFromReplyTimeout();
 
+    NS_OVERRIDE
     virtual bool RecvNonce() {
         return true;
     }
 
-    virtual bool AnswerStackFrame() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerStackFrame();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (AbnormalShutdown != why)
             fail("unexpected destruction!");  
@@ -56,22 +54,26 @@ public:
     virtual ~TestHangsChild();
 
 protected:
-    virtual bool RecvStart() MOZ_OVERRIDE {
+    NS_OVERRIDE
+    virtual bool RecvStart() {
         if (!SendNonce())
             fail("sending Nonce");
         return true;
     }
 
-    virtual bool AnswerStackFrame() MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual bool AnswerStackFrame()
     {
         if (CallStackFrame())
             fail("should have failed");
         return true;
     }
 
-    virtual bool AnswerHang() MOZ_OVERRIDE;
+    NS_OVERRIDE
+    virtual bool AnswerHang();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    NS_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why)
     {
         if (AbnormalShutdown != why)
             fail("unexpected destruction!");

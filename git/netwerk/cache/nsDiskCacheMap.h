@@ -1,8 +1,43 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim:set ts=4 sw=4 sts=4 cin et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is nsDiskCacheMap.h, released
+ * March 23, 2001.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Patrick C. Beard <beard@netscape.com>
+ *   Gordon Sheridan  <gordon@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef _nsDiskCacheMap_h_
 #define _nsDiskCacheMap_h_
@@ -13,8 +48,7 @@
 #include "prnetdb.h"
 #include "nsDebug.h"
 #include "nsError.h"
-#include "nsIFile.h"
-#include "nsITimer.h"
+#include "nsILocalFile.h"
 
 #include "nsDiskCache.h"
 #include "nsDiskCacheBlockFile.h"
@@ -79,19 +113,13 @@ struct nsDiskCacheEntry;
 // preallocate up to 1MB of separate cache file
 #define kPreallocateLimit  1 * 1024 * 1024
 
-// The minimum amount of milliseconds to wait before re-attempting to
-// revalidate the cache.
-#define kRevalidateCacheTimeout 3000
-#define kRevalidateCacheTimeoutTolerance 10
-#define kRevalidateCacheErrorTimeout 1000
-
 class nsDiskCacheRecord {
 
 private:
-    uint32_t    mHashNumber;
-    uint32_t    mEvictionRank;
-    uint32_t    mDataLocation;
-    uint32_t    mMetaLocation;
+    PRUint32    mHashNumber;
+    PRUint32    mEvictionRank;
+    PRUint32    mDataLocation;
+    PRUint32    mMetaLocation;
  
     enum {
         eLocationInitializedMask = 0x80000000,
@@ -119,31 +147,31 @@ public:
     {
     }
     
-    bool    ValidRecord()
+    PRBool  ValidRecord()
     {
         if ((mDataLocation & eReservedMask) || (mMetaLocation & eReservedMask))
-            return false;
-        return true;
+            return PR_FALSE;
+        return PR_TRUE;
     }
     
     // HashNumber accessors
-    uint32_t  HashNumber() const                  { return mHashNumber; }
-    void      SetHashNumber( uint32_t hashNumber) { mHashNumber = hashNumber; }
+    PRUint32  HashNumber() const                  { return mHashNumber; }
+    void      SetHashNumber( PRUint32 hashNumber) { mHashNumber = hashNumber; }
 
     // EvictionRank accessors
-    uint32_t  EvictionRank() const              { return mEvictionRank; }
-    void      SetEvictionRank( uint32_t rank)   { mEvictionRank = rank ? rank : 1; }
+    PRUint32  EvictionRank() const              { return mEvictionRank; }
+    void      SetEvictionRank( PRUint32 rank)   { mEvictionRank = rank ? rank : 1; }
 
     // DataLocation accessors
-    bool      DataLocationInitialized() const { return 0 != (mDataLocation & eLocationInitializedMask); }
+    PRBool    DataLocationInitialized() const { return 0 != (mDataLocation & eLocationInitializedMask); }
     void      ClearDataLocation()       { mDataLocation = 0; }
     
-    uint32_t  DataFile() const
+    PRUint32  DataFile() const
     {
-        return (uint32_t)(mDataLocation & eLocationSelectorMask) >> eLocationSelectorOffset;
+        return (PRUint32)(mDataLocation & eLocationSelectorMask) >> eLocationSelectorOffset;
     }
 
-    void      SetDataBlocks( uint32_t index, uint32_t startBlock, uint32_t blockCount)
+    void      SetDataBlocks( PRUint32 index, PRUint32 startBlock, PRUint32 blockCount)
     {
         // clear everything
         mDataLocation = 0;
@@ -165,35 +193,35 @@ public:
         mDataLocation |= eLocationInitializedMask;
     }
 
-    uint32_t   DataBlockCount() const
+    PRUint32   DataBlockCount() const
     {
-        return (uint32_t)((mDataLocation & eExtraBlocksMask) >> eExtraBlocksOffset) + 1;
+        return (PRUint32)((mDataLocation & eExtraBlocksMask) >> eExtraBlocksOffset) + 1;
     }
 
-    uint32_t   DataStartBlock() const
+    PRUint32   DataStartBlock() const
     {
         return (mDataLocation & eBlockNumberMask);
     }
     
-    uint32_t   DataBlockSize() const
+    PRUint32   DataBlockSize() const
     {
         return BLOCK_SIZE_FOR_INDEX(DataFile());
     }
     
-    uint32_t   DataFileSize() const  { return (mDataLocation & eFileSizeMask) >> eFileSizeOffset; }
-    void       SetDataFileSize(uint32_t  size)
+    PRUint32   DataFileSize() const  { return (mDataLocation & eFileSizeMask) >> eFileSizeOffset; }
+    void       SetDataFileSize(PRUint32  size)
     {
         NS_ASSERTION((mDataLocation & eFileReservedMask) == 0, "bad location");
         mDataLocation &= ~eFileSizeMask;    // clear eFileSizeMask
         mDataLocation |= (size << eFileSizeOffset) & eFileSizeMask;
     }
 
-    uint8_t   DataFileGeneration() const
+    PRUint8   DataFileGeneration() const
     {
         return (mDataLocation & eFileGenerationMask);
     }
 
-    void       SetDataFileGeneration( uint8_t generation)
+    void       SetDataFileGeneration( PRUint8 generation)
     {
         // clear everything, (separate file index = 0)
         mDataLocation = 0;
@@ -202,16 +230,16 @@ public:
     }
 
     // MetaLocation accessors
-    bool      MetaLocationInitialized() const { return 0 != (mMetaLocation & eLocationInitializedMask); }
+    PRBool    MetaLocationInitialized() const { return 0 != (mMetaLocation & eLocationInitializedMask); }
     void      ClearMetaLocation()             { mMetaLocation = 0; }   
-    uint32_t  MetaLocation() const            { return mMetaLocation; }
+    PRUint32  MetaLocation() const            { return mMetaLocation; }
     
-    uint32_t  MetaFile() const
+    PRUint32  MetaFile() const
     {
-        return (uint32_t)(mMetaLocation & eLocationSelectorMask) >> eLocationSelectorOffset;
+        return (PRUint32)(mMetaLocation & eLocationSelectorMask) >> eLocationSelectorOffset;
     }
 
-    void      SetMetaBlocks( uint32_t index, uint32_t startBlock, uint32_t blockCount)
+    void      SetMetaBlocks( PRUint32 index, PRUint32 startBlock, PRUint32 blockCount)
     {
         // clear everything
         mMetaLocation = 0;
@@ -233,34 +261,34 @@ public:
         mMetaLocation |= eLocationInitializedMask;
     }
 
-    uint32_t   MetaBlockCount() const
+    PRUint32   MetaBlockCount() const
     {
-        return (uint32_t)((mMetaLocation & eExtraBlocksMask) >> eExtraBlocksOffset) + 1;
+        return (PRUint32)((mMetaLocation & eExtraBlocksMask) >> eExtraBlocksOffset) + 1;
     }
 
-    uint32_t   MetaStartBlock() const
+    PRUint32   MetaStartBlock() const
     {
         return (mMetaLocation & eBlockNumberMask);
     }
 
-    uint32_t   MetaBlockSize() const
+    PRUint32   MetaBlockSize() const
     {
         return BLOCK_SIZE_FOR_INDEX(MetaFile());
     }
     
-    uint32_t   MetaFileSize() const  { return (mMetaLocation & eFileSizeMask) >> eFileSizeOffset; }
-    void       SetMetaFileSize(uint32_t  size)
+    PRUint32   MetaFileSize() const  { return (mMetaLocation & eFileSizeMask) >> eFileSizeOffset; }
+    void       SetMetaFileSize(PRUint32  size)
     {
         mMetaLocation &= ~eFileSizeMask;    // clear eFileSizeMask
         mMetaLocation |= (size << eFileSizeOffset) & eFileSizeMask;
     }
 
-    uint8_t   MetaFileGeneration() const
+    PRUint8   MetaFileGeneration() const
     {
         return (mMetaLocation & eFileGenerationMask);
     }
 
-    void       SetMetaFileGeneration( uint8_t generation)
+    void       SetMetaFileGeneration( PRUint8 generation)
     {
         // clear everything, (separate file index = 0)
         mMetaLocation = 0;
@@ -268,7 +296,7 @@ public:
         mMetaLocation |= eLocationInitializedMask;
     }
 
-    uint8_t   Generation() const
+    PRUint8   Generation() const
     {
         if ((mDataLocation & eLocationInitializedMask)  &&
             (DataFile() == 0))
@@ -316,7 +344,7 @@ enum {  kDeleteRecordAndContinue = -1,
 class nsDiskCacheRecordVisitor {
     public:
 
-    virtual int32_t  VisitRecord( nsDiskCacheRecord *  mapRecord) = 0;
+    virtual PRInt32  VisitRecord( nsDiskCacheRecord *  mapRecord) = 0;
 };
 
 
@@ -325,19 +353,19 @@ class nsDiskCacheRecordVisitor {
  *****************************************************************************/
 
 struct nsDiskCacheHeader {
-    uint32_t    mVersion;                           // cache version.
-    uint32_t    mDataSize;                          // size of cache in units of 1024bytes.
-    int32_t     mEntryCount;                        // number of entries stored in cache.
-    uint32_t    mIsDirty;                           // dirty flag.
-    int32_t     mRecordCount;                       // Number of records
-    uint32_t    mEvictionRank[kBuckets];            // Highest EvictionRank of the bucket
-    uint32_t    mBucketUsage[kBuckets];             // Number of used entries in the bucket
+    PRUint32    mVersion;                           // cache version.
+    PRUint32    mDataSize;                          // size of cache in units of 1024bytes.
+    PRInt32     mEntryCount;                        // number of entries stored in cache.
+    PRUint32    mIsDirty;                           // dirty flag.
+    PRInt32     mRecordCount;                       // Number of records
+    PRUint32    mEvictionRank[kBuckets];            // Highest EvictionRank of the bucket
+    PRUint32    mBucketUsage[kBuckets];             // Number of used entries in the bucket
   
     nsDiskCacheHeader()
         : mVersion(nsDiskCache::kCurrentVersion)
         , mDataSize(0)
         , mEntryCount(0)
-        , mIsDirty(true)
+        , mIsDirty(PR_TRUE)
         , mRecordCount(0)
     {}
 
@@ -350,7 +378,7 @@ struct nsDiskCacheHeader {
         mIsDirty     = htonl(mIsDirty);
         mRecordCount = htonl(mRecordCount);
 
-        for (uint32_t i = 0; i < kBuckets ; i++) {
+        for (PRUint32 i = 0; i < kBuckets ; i++) {
             mEvictionRank[i] = htonl(mEvictionRank[i]);
             mBucketUsage[i]  = htonl(mBucketUsage[i]);
         }
@@ -366,7 +394,7 @@ struct nsDiskCacheHeader {
         mIsDirty     = ntohl(mIsDirty);
         mRecordCount = ntohl(mRecordCount);
 
-        for (uint32_t i = 0; i < kBuckets ; i++) {
+        for (PRUint32 i = 0; i < kBuckets ; i++) {
             mEvictionRank[i] = ntohl(mEvictionRank[i]);
             mBucketUsage[i]  = ntohl(mBucketUsage[i]);
         }
@@ -383,20 +411,16 @@ class nsDiskCacheMap {
 public:
 
      nsDiskCacheMap() : 
-        mCacheDirectory(nullptr),
-        mMapFD(nullptr),
-        mCleanFD(nullptr),
-        mRecordArray(nullptr),
+        mCacheDirectory(nsnull),
+        mMapFD(nsnull),
+        mRecordArray(nsnull),
         mBufferSize(0),
-        mBuffer(nullptr),
-        mMaxRecordCount(16384), // this default value won't matter
-        mIsDirtyCacheFlushed(false),
-        mLastInvalidateTime(0)
+        mBuffer(nsnull),
+        mMaxRecordCount(16384) // this default value won't matter
     { }
 
-    ~nsDiskCacheMap()
-    {
-        (void) Close(true);
+    ~nsDiskCacheMap() {
+        (void) Close(PR_TRUE);
     }
 
 /**
@@ -407,23 +431,21 @@ public:
  *  Creates a new cache map file if one doesn't exist.
  *  Returns error if it detects change in format or cache wasn't closed.
  */
-    nsresult  Open( nsIFile *  cacheDirectory,
-                    nsDiskCache::CorruptCacheInfo *  corruptInfo,
-                    bool reportCacheCleanTelemetryData);
-    nsresult  Close(bool flush);
+    nsresult  Open( nsILocalFile *  cacheDirectory);
+    nsresult  Close(PRBool flush);
     nsresult  Trim();
 
     nsresult  FlushHeader();
-    nsresult  FlushRecords( bool unswap);
+    nsresult  FlushRecords( PRBool unswap);
 
-    void      NotifyCapacityChange(uint32_t capacity);
+    void      NotifyCapacityChange(PRUint32 capacity);
 
 /**
  *  Record operations
  */
     nsresult AddRecord( nsDiskCacheRecord *  mapRecord, nsDiskCacheRecord * oldRecord);
     nsresult UpdateRecord( nsDiskCacheRecord *  mapRecord);
-    nsresult FindRecord( uint32_t  hashNumber, nsDiskCacheRecord *  mapRecord);
+    nsresult FindRecord( PRUint32  hashNumber, nsDiskCacheRecord *  mapRecord);
     nsresult DeleteRecord( nsDiskCacheRecord *  mapRecord);
     nsresult VisitRecords( nsDiskCacheRecordVisitor * visitor);
     nsresult EvictRecords( nsDiskCacheRecordVisitor * visitor);
@@ -434,14 +456,14 @@ public:
     nsresult    DeleteStorage( nsDiskCacheRecord *  record);
 
     nsresult    GetFileForDiskCacheRecord( nsDiskCacheRecord * record,
-                                           bool                meta,
-                                           bool                createPath,
+                                           PRBool              meta,
+                                           PRBool              createPath,
                                            nsIFile **          result);
                                           
     nsresult    GetLocalFileForDiskCacheRecord( nsDiskCacheRecord *  record,
-                                                bool                 meta,
-                                                bool                 createPath,
-                                                nsIFile **           result);
+                                                PRBool               meta,
+                                                PRBool               createPath,
+                                                nsILocalFile **      result);
 
     // On success, this returns the buffer owned by nsDiskCacheMap,
     // so it must not be deleted by the caller.
@@ -449,41 +471,41 @@ public:
 
     nsresult    WriteDiskCacheEntry( nsDiskCacheBinding *  binding);
     
-    nsresult    ReadDataCacheBlocks(nsDiskCacheBinding * binding, char * buffer, uint32_t size);
-    nsresult    WriteDataCacheBlocks(nsDiskCacheBinding * binding, char * buffer, uint32_t size);
-    nsresult    DeleteStorage( nsDiskCacheRecord * record, bool metaData);
+    nsresult    ReadDataCacheBlocks(nsDiskCacheBinding * binding, char * buffer, PRUint32 size);
+    nsresult    WriteDataCacheBlocks(nsDiskCacheBinding * binding, char * buffer, PRUint32 size);
+    nsresult    DeleteStorage( nsDiskCacheRecord * record, PRBool metaData);
     
     /**
      *  Statistical Operations
      */
-    void     IncrementTotalSize( uint32_t  delta)
+    void     IncrementTotalSize( PRUint32  delta)
              {
                 mHeader.mDataSize += delta;
-                mHeader.mIsDirty   = true;
+                mHeader.mIsDirty   = PR_TRUE;
              }
              
-    void     DecrementTotalSize( uint32_t  delta)
+    void     DecrementTotalSize( PRUint32  delta)
              {
                 NS_ASSERTION(mHeader.mDataSize >= delta, "disk cache size negative?");
                 mHeader.mDataSize  = mHeader.mDataSize > delta ? mHeader.mDataSize - delta : 0;               
-                mHeader.mIsDirty   = true;
+                mHeader.mIsDirty   = PR_TRUE;
              }
     
-    inline void IncrementTotalSize( uint32_t  blocks, uint32_t blockSize)
+    inline void IncrementTotalSize( PRUint32  blocks, PRUint32 blockSize)
              {
                 // Round up to nearest K
                 IncrementTotalSize(((blocks*blockSize) + 0x03FF) >> 10);
              }
 
-    inline void DecrementTotalSize( uint32_t  blocks, uint32_t blockSize)
+    inline void DecrementTotalSize( PRUint32  blocks, PRUint32 blockSize)
              {
                 // Round up to nearest K
                 DecrementTotalSize(((blocks*blockSize) + 0x03FF) >> 10);
              }
                  
-    uint32_t TotalSize()   { return mHeader.mDataSize; }
+    PRUint32 TotalSize()   { return mHeader.mDataSize; }
     
-    int32_t  EntryCount()  { return mHeader.mEntryCount; }
+    PRInt32  EntryCount()  { return mHeader.mEntryCount; }
 
 
 private:
@@ -491,87 +513,65 @@ private:
     /**
      *  Private methods
      */
-    nsresult    OpenBlockFiles(nsDiskCache::CorruptCacheInfo *  corruptInfo);
-    nsresult    CloseBlockFiles(bool flush);
-    bool        CacheFilesExist();
+    nsresult    OpenBlockFiles();
+    nsresult    CloseBlockFiles(PRBool flush);
+    PRBool      CacheFilesExist();
 
     nsresult    CreateCacheSubDirectories();
 
-    uint32_t    CalculateFileIndex(uint32_t size);
+    PRUint32    CalculateFileIndex(PRUint32 size);
 
-    nsresult    GetBlockFileForIndex( uint32_t index, nsIFile ** result);
-    uint32_t    GetBlockSizeForIndex( uint32_t index) const {
+    nsresult    GetBlockFileForIndex( PRUint32 index, nsILocalFile ** result);
+    PRUint32    GetBlockSizeForIndex( PRUint32 index) const {
         return BLOCK_SIZE_FOR_INDEX(index);
     }
-    uint32_t    GetBitMapSizeForIndex( uint32_t index) const {
+    PRUint32    GetBitMapSizeForIndex( PRUint32 index) const {
         return BITMAP_SIZE_FOR_INDEX(index);
     }
     
     // returns the bucket number    
-    uint32_t GetBucketIndex( uint32_t hashNumber) const {
+    PRUint32 GetBucketIndex( PRUint32 hashNumber) const {
         return (hashNumber & (kBuckets - 1));
     }
     
     // Gets the size of the bucket (in number of records)
-    uint32_t GetRecordsPerBucket() const {
+    PRUint32 GetRecordsPerBucket() const {
         return mHeader.mRecordCount / kBuckets;
     }
 
     // Gets the first record in the bucket
-    nsDiskCacheRecord *GetFirstRecordInBucket(uint32_t bucket) const {
+    nsDiskCacheRecord *GetFirstRecordInBucket(PRUint32 bucket) const {
         return mRecordArray + bucket * GetRecordsPerBucket();
     }
 
-    uint32_t GetBucketRank(uint32_t bucketIndex, uint32_t targetRank);
+    PRUint32 GetBucketRank(PRUint32 bucketIndex, PRUint32 targetRank);
 
-    int32_t  VisitEachRecord(uint32_t                    bucketIndex,
+    PRInt32  VisitEachRecord(PRUint32                    bucketIndex,
                              nsDiskCacheRecordVisitor *  visitor,
-                             uint32_t                    evictionRank);
+                             PRUint32                    evictionRank);
 
     nsresult GrowRecords();
     nsresult ShrinkRecords();
 
-    nsresult EnsureBuffer(uint32_t bufSize);
+    nsresult EnsureBuffer(PRUint32 bufSize);
 
     // The returned structure will point to the buffer owned by nsDiskCacheMap, 
     // so it must not be deleted by the caller.
     nsDiskCacheEntry *  CreateDiskCacheEntry(nsDiskCacheBinding *  binding,
-                                             uint32_t * size);
+                                             PRUint32 * size);
 
-    // Initializes the _CACHE_CLEAN_ related functionality
-    nsresult InitCacheClean(nsIFile *  cacheDirectory,
-                            nsDiskCache::CorruptCacheInfo *  corruptInfo,
-                            bool reportCacheCleanTelemetryData);
-    // Writes out a value of '0' or '1' in the _CACHE_CLEAN_ file
-    nsresult WriteCacheClean(bool clean);
-    // Resets the timout for revalidating the cache
-    nsresult ResetCacheTimer(int32_t timeout = kRevalidateCacheTimeout);
-    // Invalidates the cache, calls WriteCacheClean and ResetCacheTimer
-    nsresult InvalidateCache();
-    // Determines if the cache is in a safe state
-    bool IsCacheInSafeState();
-    // Revalidates the cache by writting out the header, records, and finally
-    // by calling WriteCacheClean(true).
-    nsresult RevalidateCache();
-    // Timer which revalidates the cache
-    static void RevalidateTimerCallback(nsITimer *aTimer, void *arg);
-
-/** 
+/**
  *  data members
  */
 private:
-    nsCOMPtr<nsITimer>      mCleanCacheTimer;
-    nsCOMPtr<nsIFile>       mCacheDirectory;
+    nsCOMPtr<nsILocalFile>  mCacheDirectory;
     PRFileDesc *            mMapFD;
-    PRFileDesc *            mCleanFD;
     nsDiskCacheRecord *     mRecordArray;
     nsDiskCacheBlockFile    mBlockFile[kNumBlockFiles];
-    uint32_t                mBufferSize;
+    PRUint32                mBufferSize;
     char *                  mBuffer;
     nsDiskCacheHeader       mHeader;
-    int32_t                 mMaxRecordCount;
-    bool                    mIsDirtyCacheFlushed;
-    PRIntervalTime          mLastInvalidateTime;
+    PRInt32                 mMaxRecordCount;
 };
 
 #endif // _nsDiskCacheMap_h_

@@ -20,7 +20,7 @@ function isPixel(ctx, x,y, r,g,b,a, pos, colour, d) {
 }
 
 SimpleTest.waitForExplicitFinish();
-addLoadEvent(function () {
+MochiKit.DOM.addLoadEvent(function () {
 
 var canvas = document.getElementById('c');
 var ctx = canvas.getContext('2d');
@@ -33,19 +33,19 @@ canvas2.width = 0;
 canvas2.height = 10;
 var _thrown = undefined; try {
   ctx.drawImage(canvas2, 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "InvalidStateError" && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw InvalidStateError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw INVALID_STATE_ERR");
 
 canvas2.width = 10;
 canvas2.height = 0;
 var _thrown = undefined; try {
   ctx.drawImage(canvas2, 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "InvalidStateError" && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw InvalidStateError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw INVALID_STATE_ERR");
 
 canvas2.width = 0;
 canvas2.height = 0;
 var _thrown = undefined; try {
   ctx.drawImage(canvas2, 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "InvalidStateError" && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw InvalidStateError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw INVALID_STATE_ERR");
 
 isPixel(ctx, 50,25, 0,255,0,255, "50,25", "0,255,0,255", 2);
 

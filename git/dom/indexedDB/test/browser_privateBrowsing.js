@@ -10,6 +10,8 @@ const notificationID = "indexedDB-permissions-prompt";
 function test()
 {
   waitForExplicitFinish();
+  // Avoids the actual prompt
+  setPermission(testPageURL, "indexedDB");
   executeSoon(test1);
 }
 
@@ -48,7 +50,8 @@ function test3()
 
     setFinishedCallback(function(result, exception) {
       ok(!result, "No database");
-      is(exception, "InvalidStateError", "Correct exception");
+      is(exception, IDBDatabaseException.NOT_ALLOWED_ERR.toString(),
+         "Correct exception");
       gBrowser.removeCurrentTab();
 
       executeSoon(test4);

@@ -1,28 +1,60 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Honza Bambas <honzab@firemni.cz>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsDOMStorageMemoryDB_h___
 #define nsDOMStorageMemoryDB_h___
 
 #include "nscore.h"
-#include "nsDOMStorageBaseDB.h"
 #include "nsClassHashtable.h"
 #include "nsDataHashtable.h"
 
 class nsDOMStoragePersistentDB;
 
-class nsDOMStorageMemoryDB : public nsDOMStorageBaseDB
+class nsDOMStorageMemoryDB
 {
 public:
-  nsDOMStorageMemoryDB() : mPreloading(false) {}
+  nsDOMStorageMemoryDB() : mPreloading(PR_FALSE) {}
   ~nsDOMStorageMemoryDB() {}
 
   class nsInMemoryItem
   {
   public:
-    bool mSecure;
+    PRBool mSecure;
     nsString mValue;
   };
 
@@ -32,7 +64,7 @@ public:
   {
   public:
     nsStorageItemsTable mTable;
-    int32_t mUsageDelta;
+    PRInt32 mUsageDelta;
 
     nsInMemoryStorage() : mUsageDelta(0) {}
   };
@@ -44,7 +76,7 @@ public:
    *    provide existing data from the persistent database.
    */
   nsresult
-  Init(nsDOMStoragePersistentDB* aPreloadDB = nullptr);
+  Init(nsDOMStoragePersistentDB* aPreloadDB = nsnull);
 
   /**
    *
@@ -69,7 +101,7 @@ public:
   GetKeyValue(DOMStorageImpl* aStorage,
               const nsAString& aKey,
               nsAString& aValue,
-              bool* aSecure);
+              PRBool* aSecure);
 
   /**
    * Set the value and secure flag for a key in storage.
@@ -78,10 +110,10 @@ public:
   SetKey(DOMStorageImpl* aStorage,
          const nsAString& aKey,
          const nsAString& aValue,
-         bool aSecure,
-         int32_t aQuota,
-         bool aExcludeOfflineFromUsage,
-         int32_t* aNewUsage);
+         PRBool aSecure,
+         PRInt32 aQuota,
+         PRBool aExcludeOfflineFromUsage,
+         PRInt32* aNewUsage);
 
   /**
    * Set the secure flag for a key in storage. Does nothing if the key was
@@ -90,7 +122,7 @@ public:
   nsresult
   SetSecure(DOMStorageImpl* aStorage,
             const nsAString& aKey,
-            const bool aSecure);
+            const PRBool aSecure);
 
   /**
    * Removes a key from storage.
@@ -98,8 +130,8 @@ public:
   nsresult
   RemoveKey(DOMStorageImpl* aStorage,
             const nsAString& aKey,
-            bool aExcludeOfflineFromUsage,
-            int32_t aKeyUsage);
+            PRBool aExcludeOfflineFromUsage,
+            PRInt32 aKeyUsage);
 
   /**
     * Remove all keys belonging to this storage.
@@ -117,7 +149,7 @@ public:
    * Removes all keys added by a given domain.
    */
   nsresult
-  RemoveOwner(const nsACString& aOwner, bool aIncludeSubDomains);
+  RemoveOwner(const nsACString& aOwner, PRBool aIncludeSubDomains);
 
   /**
    * Removes keys owned by domains that either match or don't match the
@@ -125,7 +157,7 @@ public:
    */
   nsresult
   RemoveOwners(const nsTArray<nsString>& aOwners,
-               bool aIncludeSubDomains, bool aMatch);
+               PRBool aIncludeSubDomains, PRBool aMatch);
 
   /**
    * Removes all keys from storage. Used when clearing storage.
@@ -137,22 +169,22 @@ public:
     * Returns usage for a storage using its GetQuotaDomainDBKey() as a key.
     */
   nsresult
-  GetUsage(DOMStorageImpl* aStorage, bool aExcludeOfflineFromUsage, int32_t *aUsage);
+  GetUsage(DOMStorageImpl* aStorage, PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 
   /**
     * Returns usage of the domain and optionaly by any subdomain.
     */
   nsresult
-  GetUsage(const nsACString& aDomain, bool aIncludeSubDomains, int32_t *aUsage);
+  GetUsage(const nsACString& aDomain, PRBool aIncludeSubDomains, PRInt32 *aUsage);
 
 protected:
 
   nsClassHashtable<nsCStringHashKey, nsInMemoryStorage> mData;
   nsDOMStoragePersistentDB* mPreloadDB;
-  bool mPreloading;
+  PRBool mPreloading;
 
   nsresult
-  GetUsageInternal(const nsACString& aQuotaDomainDBKey, bool aExcludeOfflineFromUsage, int32_t *aUsage);
+  GetUsageInternal(const nsACString& aQuotaDomainDBKey, PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage);
 };
 
 #endif

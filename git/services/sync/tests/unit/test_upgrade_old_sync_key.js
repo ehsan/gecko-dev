@@ -1,8 +1,4 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
-
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/identity.js");
 Cu.import("resource://services-sync/main.js");
 var btoa = Cu.import("resource://services-sync/util.js").btoa;
 
@@ -25,12 +21,11 @@ function run_test() {
   do_check_eq(normalized, "abcdeabcdeabcdeabcde");
 
   // Now run through the upgrade.
-  Identity.account = "johndoe";
   Weave.Service.syncID = "1234567890";
-  Identity.syncKey = normalized; // UI normalizes.
-  do_check_false(Utils.isPassphrase(Identity.syncKey));
+  Weave.Service.passphrase = normalized;     // UI normalizes.
+  do_check_false(Utils.isPassphrase(Weave.Service.passphrase));
   Weave.Service.upgradeSyncKey(Weave.Service.syncID);
-  let upgraded = Identity.syncKey;
+  let upgraded = Weave.Service.passphrase;
   _("Upgraded: " + upgraded);
   do_check_true(Utils.isPassphrase(upgraded));
 

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Wellington Fernando de Macedo.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *    Wellington Fernando de Macedo <wfernandom2004@gmail.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * This implementation has support only for http requests. It is because the
@@ -15,7 +48,7 @@
 
 #include "nsIEventSource.h"
 #include "nsIJSNativeInitializer.h"
-#include "nsDOMEventTargetHelper.h"
+#include "nsDOMEventTargetWrapperCache.h"
 #include "nsIObserver.h"
 #include "nsIStreamListener.h"
 #include "nsIChannelEventSink.h"
@@ -36,7 +69,7 @@
 class AsyncVerifyRedirectCallbackFwr;
 class nsAutoClearFields;
 
-class nsEventSource: public nsDOMEventTargetHelper,
+class nsEventSource: public nsDOMEventTargetWrapperCache,
                      public nsIEventSource,
                      public nsIJSNativeInitializer,
                      public nsIObserver,
@@ -51,14 +84,14 @@ public:
   nsEventSource();
   virtual ~nsEventSource();
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_INHERITED(nsEventSource,
-                                                                   nsDOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsEventSource,
+                                           nsDOMEventTargetWrapperCache)
 
   NS_DECL_NSIEVENTSOURCE
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
-                        uint32_t argc, jsval* argv);
+                        PRUint32 argc, jsval* argv);
 
   NS_DECL_NSIOBSERVER
   NS_DECL_NSISTREAMLISTENER
@@ -67,9 +100,8 @@ public:
   NS_DECL_NSIINTERFACEREQUESTOR
 
   // Determine if preferences allow EventSource
-  static bool PrefEnabled();
+  static PRBool PrefEnabled();
 
-  virtual void DisconnectFromOwner();
 protected:
   nsresult GetBaseURI(nsIURI **aBaseURI);
 
@@ -92,28 +124,28 @@ protected:
   nsresult PrintErrorOnConsole(const char       *aBundleURI,
                                const PRUnichar  *aError,
                                const PRUnichar **aFormatStrings,
-                               uint32_t          aFormatStringsLen);
+                               PRUint32          aFormatStringsLen);
   nsresult ConsoleError();
 
   static NS_METHOD StreamReaderFunc(nsIInputStream *aInputStream,
                                     void           *aClosure,
                                     const char     *aFromRawSegment,
-                                    uint32_t        aToOffset,
-                                    uint32_t        aCount,
-                                    uint32_t       *aWriteCount);
+                                    PRUint32        aToOffset,
+                                    PRUint32        aCount,
+                                    PRUint32       *aWriteCount);
   nsresult SetFieldAndClear();
   nsresult ClearFields();
   nsresult ResetEvent();
   nsresult DispatchCurrentMessageEvent();
   nsresult ParseCharacter(PRUnichar aChr);
-  bool CheckCanRequestSrc(nsIURI* aSrc = nullptr);  // if null, it tests mSrc
+  PRBool CheckCanRequestSrc(nsIURI* aSrc = nsnull);  // if null, it tests mSrc
   nsresult CheckHealthOfRequestCallback(nsIRequest *aRequestCallback);
   nsresult OnRedirectVerifyCallback(nsresult result);
 
   nsCOMPtr<nsIURI> mSrc;
 
   nsString mLastEventID;
-  uint32_t mReconnectionTime;  // in ms
+  PRUint32 mReconnectionTime;  // in ms
 
   struct Message {
     nsString mEventName;
@@ -180,17 +212,19 @@ protected:
   };
   ParserStatus mStatus;
 
-  bool mFrozen;
-  bool mErrorLoadOnRedirect;
-  bool mGoingToDispatchAllMessages;
-  bool mWithCredentials;
-  bool mWaitingForOnStopRequest;
+  PRPackedBool mFrozen;
+  PRPackedBool mErrorLoadOnRedirect;
+  PRPackedBool mGoingToDispatchAllMessages;
 
   // used while reading the input streams
   nsCOMPtr<nsIUnicodeDecoder> mUnicodeDecoder;
   nsresult mLastConvertionResult;
   nsString mLastFieldName;
   nsString mLastFieldValue;
+
+  nsRefPtr<nsDOMEventListenerWrapper> mOnOpenListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;
+  nsRefPtr<nsDOMEventListenerWrapper> mOnMessageListener;
 
   nsCOMPtr<nsILoadGroup> mLoadGroup;
 
@@ -205,25 +239,25 @@ protected:
 
   nsCOMPtr<nsITimer> mTimer;
 
-  int32_t mReadyState;
+  PRInt32 mReadyState;
   nsString mOriginalURL;
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  nsString mOrigin;
+  nsCString mOrigin;
 
-  uint32_t mRedirectFlags;
+  PRUint32 mRedirectFlags;
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
 
   // Event Source owner information:
   // - the script file name
   // - source code line number where the Event Source object was constructed.
-  // - the ID of the inner window where the script lives. Note that this may not
-  //   be the same as the Event Source owner window.
+  // - the window ID of the outer window where the script lives. Note that this
+  // may not be the same as the Event Source owner window.
   // These attributes are used for error reporting.
   nsString mScriptFile;
-  uint32_t mScriptLine;
-  uint64_t mInnerWindowID;
+  PRUint32 mScriptLine;
+  PRUint64 mWindowID;
 
 private:
   nsEventSource(const nsEventSource& x);   // prevent bad usage

@@ -1,7 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla MathML Project.
+ *
+ * The Initial Developer of the Original Code is
+ * The University Of Queensland.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Roger B. Sidje <rbs@maths.uq.edu.au>
+ *   Karl Tomlinson <karlt+@karlt.net>, Mozilla Corporation
+ *   Frederic Wang <fred.wang@free.fr>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -19,24 +54,24 @@
 struct OperatorData {
   OperatorData(void)
     : mFlags(0),
-      mLeadingSpace(0.0f),
-      mTrailingSpace(0.0f)
+      mLeftSpace(0.0f),
+      mRightSpace(0.0f)
   {
   }
 
   // member data
   nsString        mStr;
   nsOperatorFlags mFlags;
-  float           mLeadingSpace;   // unit is em
-  float           mTrailingSpace;  // unit is em
+  float           mLeftSpace;   // unit is em
+  float           mRightSpace;  // unit is em
 };
 
-static int32_t         gTableRefCount = 0;
-static uint32_t        gOperatorCount = 0;
-static OperatorData*   gOperatorArray = nullptr;
-static nsHashtable*    gOperatorTable = nullptr;
-static bool            gInitialized   = false;
-static nsTArray<nsString>*      gInvariantCharArray    = nullptr;
+static PRInt32         gTableRefCount = 0;
+static PRUint32        gOperatorCount = 0;
+static OperatorData*   gOperatorArray = nsnull;
+static nsHashtable*    gOperatorTable = nsnull;
+static PRBool          gInitialized   = PR_FALSE;
+static nsTArray<nsString>*      gInvariantCharArray    = nsnull;
 
 static const PRUnichar kNullCh  = PRUnichar('\0');
 static const PRUnichar kDashCh  = PRUnichar('#');
@@ -82,8 +117,6 @@ SetBooleanProperty(OperatorData* aOperatorData,
     aOperatorData->mFlags |= NS_MATHML_OPERATOR_SYMMETRIC;
   else if (aName.EqualsLiteral("integral"))
     aOperatorData->mFlags |= NS_MATHML_OPERATOR_INTEGRAL;
-  else if (aName.EqualsLiteral("mirrorable"))
-    aOperatorData->mFlags |= NS_MATHML_OPERATOR_MIRRORABLE;
 }
 
 static void
@@ -106,26 +139,26 @@ SetProperty(OperatorData* aOperatorData,
       aOperatorData->mFlags |= NS_MATHML_OPERATOR_DIRECTION_HORIZONTAL;
     else return; // invalid value
   } else {
-    bool isLeadingSpace;
+    PRBool isLeftSpace;
     if (aName.EqualsLiteral("lspace"))
-      isLeadingSpace = true;
+      isLeftSpace = PR_TRUE;
     else if (aName.EqualsLiteral("rspace"))
-      isLeadingSpace = false;
+      isLeftSpace = PR_FALSE;
     else return;  // input is not applicable
 
     // aValue is assumed to be a digit from 0 to 7
-    nsresult error = NS_OK;
+    PRInt32 error = 0;
     float space = aValue.ToFloat(&error) / 18.0;
-    if (NS_FAILED(error)) return;
+    if (error) return;
 
-    if (isLeadingSpace)
-      aOperatorData->mLeadingSpace = space;
+    if (isLeftSpace)
+      aOperatorData->mLeftSpace = space;
     else
-      aOperatorData->mTrailingSpace = space;
+      aOperatorData->mRightSpace = space;
   }
 }
 
-static bool
+static PRBool
 SetOperator(OperatorData*   aOperatorData,
             nsOperatorFlags aForm,
             const nsCString& aOperator,
@@ -134,21 +167,21 @@ SetOperator(OperatorData*   aOperatorData,
 {
   // aOperator is in the expanded format \uNNNN\uNNNN ...
   // First compress these Unicode points to the internal nsString format
-  int32_t i = 0;
+  PRInt32 i = 0;
   nsAutoString name, value;
-  int32_t len = aOperator.Length();
+  PRInt32 len = aOperator.Length();
   PRUnichar c = aOperator[i++];
-  uint32_t state  = 0;
+  PRUint32 state  = 0;
   PRUnichar uchar = 0;
   while (i <= len) {
     if (0 == state) {
       if (c != '\\')
-        return false;
+        return PR_FALSE;
       if (i < len)
         c = aOperator[i];
       i++;
       if (('u' != c) && ('U' != c))
-        return false;
+        return PR_FALSE;
       if (i < len)
         c = aOperator[i];
       i++;
@@ -161,7 +194,7 @@ SetOperator(OperatorData*   aOperatorData,
          uchar = (uchar << 4) | (c - 'a' + 0x0a);
       else if (('A' <= c) && (c <= 'F'))
          uchar = (uchar << 4) | (c - 'A' + 0x0a);
-      else return false;
+      else return PR_FALSE;
       if (i < len)
         c = aOperator[i];
       i++;
@@ -173,12 +206,12 @@ SetOperator(OperatorData*   aOperatorData,
       }
     }
   }
-  if (0 != state) return false;
+  if (0 != state) return PR_FALSE;
 
   // Quick return when the caller doesn't care about the attributes and just wants
   // to know if this is a valid operator (this is the case at the first pass of the
   // parsing of the dictionary in InitOperators())
-  if (!aForm) return true;
+  if (!aForm) return PR_TRUE;
 
   // Add operator to hash table
   aOperatorData->mFlags |= aForm;
@@ -187,7 +220,7 @@ SetOperator(OperatorData*   aOperatorData,
   nsStringKey key(value);
   gOperatorTable->Put(&key, aOperatorData);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   NS_LossyConvertUTF16toASCII str(aAttributes);
 #endif
   // Loop over the space-delimited list of attributes to get the name:value pairs
@@ -208,7 +241,7 @@ SetOperator(OperatorData*   aOperatorData,
       ++end;
     }
     // If ':' is not found, then it's a boolean property
-    bool IsBooleanProperty = (kColonCh != *end);
+    PRBool IsBooleanProperty = (kColonCh != *end);
     *end = kNullCh; // end segment here
     // this segment is the name
     if (start < end) {
@@ -232,7 +265,7 @@ SetOperator(OperatorData*   aOperatorData,
     }
     start = ++end;
   }
-  return true;
+  return PR_TRUE;
 }
 
 static nsresult
@@ -246,8 +279,8 @@ InitOperators(void)
   if (NS_FAILED(rv)) return rv;
 
   // Get the list of invariant chars
-  for (int32_t i = 0; i < eMATHVARIANT_COUNT; ++i) {
-    nsAutoCString key(NS_LITERAL_CSTRING("mathvariant."));
+  for (PRInt32 i = 0; i < eMATHVARIANT_COUNT; ++i) {
+    nsCAutoString key(NS_LITERAL_CSTRING("mathvariant."));
     key.Append(kMathVariant_name[i]);
     nsAutoString value;
     mathfontProp->GetStringProperty(key, value);
@@ -257,14 +290,14 @@ InitOperators(void)
   // Parse the Operator Dictionary in two passes.
   // The first pass is to count the number of operators; the second pass is to
   // allocate the necessary space for them and to add them in the hash table.
-  for (int32_t pass = 1; pass <= 2; pass++) {
+  for (PRInt32 pass = 1; pass <= 2; pass++) {
     OperatorData dummyData;
     OperatorData* operatorData = &dummyData;
     nsCOMPtr<nsISimpleEnumerator> iterator;
     if (NS_SUCCEEDED(mathfontProp->Enumerate(getter_AddRefs(iterator)))) {
-      bool more;
-      uint32_t index = 0;
-      nsAutoCString name;
+      PRBool more;
+      PRUint32 index = 0;
+      nsCAutoString name;
       nsAutoString attributes;
       while ((NS_SUCCEEDED(iterator->HasMoreElements(&more))) && more) {
         nsCOMPtr<nsIPropertyElement> element;
@@ -274,7 +307,7 @@ InitOperators(void)
             // expected key: operator.\uNNNN.{infix,postfix,prefix}
             if ((21 <= name.Length()) && (0 == name.Find("operator.\\u"))) {
               name.Cut(0, 9); // 9 is the length of "operator.";
-              int32_t len = name.Length();
+              PRInt32 len = name.Length();
               nsOperatorFlags form = 0;
               if (kNotFound != name.RFind(".infix")) {
                 form = NS_MATHML_OPERATOR_FORM_INFIX;
@@ -318,7 +351,7 @@ InitOperators(void)
 static nsresult
 InitGlobals()
 {
-  gInitialized = true;
+  gInitialized = PR_TRUE;
   nsresult rv = NS_ERROR_OUT_OF_MEMORY;
   gInvariantCharArray = new nsTArray<nsString>();
   if (gInvariantCharArray) {
@@ -337,15 +370,15 @@ nsMathMLOperators::CleanUp()
 {
   if (gInvariantCharArray) {
     delete gInvariantCharArray;
-    gInvariantCharArray = nullptr;
+    gInvariantCharArray = nsnull;
   }
   if (gOperatorArray) {
     delete[] gOperatorArray;
-    gOperatorArray = nullptr;
+    gOperatorArray = nsnull;
   }
   if (gOperatorTable) {
     delete gOperatorTable;
-    gOperatorTable = nullptr;
+    gOperatorTable = nsnull;
   }
 }
 
@@ -372,18 +405,18 @@ GetOperatorData(const nsString& aOperator, nsOperatorFlags aForm)
   return (OperatorData*)gOperatorTable->Get(&hkey);
 }
 
-bool
+PRBool
 nsMathMLOperators::LookupOperator(const nsString&       aOperator,
                                   const nsOperatorFlags aForm,
                                   nsOperatorFlags*      aFlags,
-                                  float*                aLeadingSpace,
-                                  float*                aTrailingSpace)
+                                  float*                aLeftSpace,
+                                  float*                aRightSpace)
 {
   if (!gInitialized) {
     InitGlobals();
   }
   if (gOperatorTable) {
-    NS_ASSERTION(aFlags && aLeadingSpace && aTrailingSpace, "bad usage");
+    NS_ASSERTION(aFlags && aLeftSpace && aRightSpace, "bad usage");
     NS_ASSERTION(aForm > 0 && aForm < 4, "*** invalid call ***");
 
     // The MathML REC says:
@@ -392,7 +425,7 @@ nsMathMLOperators::LookupOperator(const nsString&       aOperator,
     // order of preference: infix, postfix, prefix.
 
     OperatorData* found;
-    int32_t form = NS_MATHML_OPERATOR_GET_FORM(aForm);
+    PRInt32 form = NS_MATHML_OPERATOR_GET_FORM(aForm);
     if (!(found = GetOperatorData(aOperator, form))) {
       if (form == NS_MATHML_OPERATOR_FORM_INFIX ||
           !(found =
@@ -408,62 +441,62 @@ nsMathMLOperators::LookupOperator(const nsString&       aOperator,
     }
     if (found) {
       NS_ASSERTION(found->mStr.Equals(aOperator), "bad setup");
-      *aLeadingSpace = found->mLeadingSpace;
-      *aTrailingSpace = found->mTrailingSpace;
+      *aLeftSpace = found->mLeftSpace;
+      *aRightSpace = found->mRightSpace;
       *aFlags &= ~NS_MATHML_OPERATOR_FORM; // clear the form bits
       *aFlags |= found->mFlags; // just add bits without overwriting
-      return true;
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 void
 nsMathMLOperators::LookupOperators(const nsString&       aOperator,
                                    nsOperatorFlags*      aFlags,
-                                   float*                aLeadingSpace,
-                                   float*                aTrailingSpace)
+                                   float*                aLeftSpace,
+                                   float*                aRightSpace)
 {
   if (!gInitialized) {
     InitGlobals();
   }
 
   aFlags[NS_MATHML_OPERATOR_FORM_INFIX] = 0;
-  aLeadingSpace[NS_MATHML_OPERATOR_FORM_INFIX] = 0.0f;
-  aTrailingSpace[NS_MATHML_OPERATOR_FORM_INFIX] = 0.0f;
+  aLeftSpace[NS_MATHML_OPERATOR_FORM_INFIX] = 0.0f;
+  aRightSpace[NS_MATHML_OPERATOR_FORM_INFIX] = 0.0f;
 
   aFlags[NS_MATHML_OPERATOR_FORM_POSTFIX] = 0;
-  aLeadingSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = 0.0f;
-  aTrailingSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = 0.0f;
+  aLeftSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = 0.0f;
+  aRightSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = 0.0f;
 
   aFlags[NS_MATHML_OPERATOR_FORM_PREFIX] = 0;
-  aLeadingSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = 0.0f;
-  aTrailingSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = 0.0f;
+  aLeftSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = 0.0f;
+  aRightSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = 0.0f;
 
   if (gOperatorTable) {
     OperatorData* found;
     found = GetOperatorData(aOperator, NS_MATHML_OPERATOR_FORM_INFIX);
     if (found) {
       aFlags[NS_MATHML_OPERATOR_FORM_INFIX] = found->mFlags;
-      aLeadingSpace[NS_MATHML_OPERATOR_FORM_INFIX] = found->mLeadingSpace;
-      aTrailingSpace[NS_MATHML_OPERATOR_FORM_INFIX] = found->mTrailingSpace;
+      aLeftSpace[NS_MATHML_OPERATOR_FORM_INFIX] = found->mLeftSpace;
+      aRightSpace[NS_MATHML_OPERATOR_FORM_INFIX] = found->mRightSpace;
     }
     found = GetOperatorData(aOperator, NS_MATHML_OPERATOR_FORM_POSTFIX);
     if (found) {
       aFlags[NS_MATHML_OPERATOR_FORM_POSTFIX] = found->mFlags;
-      aLeadingSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = found->mLeadingSpace;
-      aTrailingSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = found->mTrailingSpace;
+      aLeftSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = found->mLeftSpace;
+      aRightSpace[NS_MATHML_OPERATOR_FORM_POSTFIX] = found->mRightSpace;
     }
     found = GetOperatorData(aOperator, NS_MATHML_OPERATOR_FORM_PREFIX);
     if (found) {
       aFlags[NS_MATHML_OPERATOR_FORM_PREFIX] = found->mFlags;
-      aLeadingSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = found->mLeadingSpace;
-      aTrailingSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = found->mTrailingSpace;
+      aLeftSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = found->mLeftSpace;
+      aRightSpace[NS_MATHML_OPERATOR_FORM_PREFIX] = found->mRightSpace;
     }
   }
 }
 
-bool
+PRBool
 nsMathMLOperators::IsMutableOperator(const nsString& aOperator)
 {
   if (!gInitialized) {
@@ -480,20 +513,6 @@ nsMathMLOperators::IsMutableOperator(const nsString& aOperator)
     flags[NS_MATHML_OPERATOR_FORM_PREFIX];
   return NS_MATHML_OPERATOR_IS_STRETCHY(allFlags) ||
          NS_MATHML_OPERATOR_IS_LARGEOP(allFlags);
-}
-
-/* static */ bool
-nsMathMLOperators::IsMirrorableOperator(const nsString& aOperator)
-{
-  // LookupOperator will search infix, postfix and prefix forms of aOperator and
-  // return the first form found. It is assumed that all these forms have same
-  // mirrorability.
-  nsOperatorFlags flags = 0;
-  float dummy;
-  nsMathMLOperators::LookupOperator(aOperator,
-                                    NS_MATHML_OPERATOR_FORM_INFIX,
-                                    &flags, &dummy, &dummy);
-  return NS_MATHML_OPERATOR_IS_MIRRORABLE(flags);
 }
 
 /* static */ nsStretchDirection
@@ -524,7 +543,7 @@ nsMathMLOperators::LookupInvariantChar(const nsAString& aChar)
     InitGlobals();
   }
   if (gInvariantCharArray) {
-    for (int32_t i = gInvariantCharArray->Length()-1; i >= 0; --i) {
+    for (PRInt32 i = gInvariantCharArray->Length()-1; i >= 0; --i) {
       const nsString& list = gInvariantCharArray->ElementAt(i);
       nsString::const_iterator start, end;
       list.BeginReading(start);
@@ -548,13 +567,13 @@ nsMathMLOperators::TransformVariantChar(const PRUnichar& aChar,
   }
   if (gInvariantCharArray) {
     nsString list = gInvariantCharArray->ElementAt(aVariant);
-    int32_t index = list.FindChar(aChar);
+    PRInt32 index = list.FindChar(aChar);
     // BMP characters are at offset 3*j
     if (index != kNotFound && index % 3 == 0 && list.Length() - index >= 2 ) {
       // The style-invariant character is the next character
       // (and list should contain padding if the next character is in the BMP).
       ++index;
-      uint32_t len = NS_IS_HIGH_SURROGATE(list.CharAt(index)) ? 2 : 1;
+      PRUint32 len = NS_IS_HIGH_SURROGATE(list.CharAt(index)) ? 2 : 1;
       return nsDependentSubstring(list, index, len);
     }
   }

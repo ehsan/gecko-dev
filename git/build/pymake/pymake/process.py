@@ -4,8 +4,8 @@ parsing command lines into argv and making sure that no shell magic is being use
 """
 
 #TODO: ship pyprocessing?
-import multiprocessing
-import subprocess, shlex, re, logging, sys, traceback, os, imp, glob
+import multiprocessing, multiprocessing.dummy
+import subprocess, shlex, re, logging, sys, traceback, os, imp
 # XXXkhuey Work around http://bugs.python.org/issue1731717
 subprocess._cleanup = lambda: None
 import command, util
@@ -14,50 +14,23 @@ if sys.platform=='win32':
 
 _log = logging.getLogger('pymake.process')
 
-_escapednewlines = re.compile(r'\\\n')
-# Characters that most likely indicate a shell script and that native commands
-# should reject
-_blacklist = re.compile(r'[$><;\[~`|&]' +
-    r'|\${|(?:^|\s){(?:$|\s)')  # Blacklist ${foo} and { commands }
-# Characters that probably indicate a shell script, but that native commands
-# shouldn't just reject
-_graylist = re.compile(r'[()]')
-# Characters that indicate we need to glob
-_needsglob = re.compile(r'[\*\?]')
-
-def clinetoargv(cline, blacklist_gray):
+_blacklist = re.compile(r'[$><;*?[{~`|&]|\\\n')
+def clinetoargv(cline):
     """
     If this command line can safely skip the shell, return an argv array.
     @returns argv, badchar
     """
-    str = _escapednewlines.sub('', cline)
-    m = _blacklist.search(str)
+
+    m = _blacklist.search(cline)
     if m is not None:
         return None, m.group(0)
-    if blacklist_gray:
-        m = _graylist.search(str)
-        if m is not None:
-            return None, m.group(0)
 
-    args = shlex.split(str, comments=True)
+    args = shlex.split(cline, comments=True)
 
     if len(args) and args[0].find('=') != -1:
         return None, '='
 
     return args, None
-
-def doglobbing(args, cwd):
-    """
-    Perform any needed globbing on the argument list passed in
-    """
-    globbedargs = []
-    for arg in args:
-        if _needsglob.search(arg):
-            globbedargs.extend(glob.glob(os.path.join(cwd, arg)))
-        else:
-            globbedargs.append(arg)
-
-    return globbedargs
 
 shellwords = (':', '.', 'break', 'cd', 'continue', 'exec', 'exit', 'export',
               'getopts', 'hash', 'pwd', 'readonly', 'return', 'shift', 
@@ -67,7 +40,7 @@ shellwords = (':', '.', 'break', 'cd', 'continue', 'exec', 'exit', 'export',
               'printf', 'read', 'shopt', 'source', 'type', 'typeset',
               'ulimit', 'unalias', 'set')
 
-def call(cline, env, cwd, loc, cb, context, echo, justprint=False):
+def call(cline, env, cwd, loc, cb, context, echo):
     #TODO: call this once up-front somewhere and save the result?
     shell, msys = util.checkmsyscompat()
 
@@ -75,22 +48,19 @@ def call(cline, env, cwd, loc, cb, context, echo, justprint=False):
     if msys and cline.startswith('/'):
         shellreason = "command starts with /"
     else:
-        argv, badchar = clinetoargv(cline, blacklist_gray=True)
+        argv, badchar = clinetoargv(cline)
         if argv is None:
             shellreason = "command contains shell-special character '%s'" % (badchar,)
         elif len(argv) and argv[0] in shellwords:
             shellreason = "command starts with shell primitive '%s'" % (argv[0],)
-        else:
-            argv = doglobbing(argv, cwd)
 
     if shellreason is not None:
         _log.debug("%s: using shell: %s: '%s'", loc, shellreason, cline)
         if msys:
             if len(cline) > 3 and cline[1] == ':' and cline[2] == '/':
                 cline = '/' + cline[0] + cline[2:]
-        cline = [shell, "-c", cline]
-        context.call(cline, shell=False, env=env, cwd=cwd, cb=cb, echo=echo,
-                     justprint=justprint)
+            cline = [shell, "-c", cline]
+        context.call(cline, shell=not msys, env=env, cwd=cwd, cb=cb, echo=echo)
         return
 
     if not len(argv):
@@ -111,14 +81,12 @@ def call(cline, env, cwd, loc, cb, context, echo, justprint=False):
     else:
         executable = None
 
-    context.call(argv, executable=executable, shell=False, env=env, cwd=cwd, cb=cb,
-                 echo=echo, justprint=justprint)
+    context.call(argv, executable=executable, shell=False, env=env, cwd=cwd, cb=cb, echo=echo)
 
-def call_native(module, method, argv, env, cwd, loc, cb, context, echo, justprint=False,
+def call_native(module, method, argv, env, cwd, loc, cb, context, echo,
                 pycommandpath=None):
-    argv = doglobbing(argv, cwd)
     context.call_native(module, method, argv, env=env, cwd=cwd, cb=cb,
-                        echo=echo, justprint=justprint, pycommandpath=pycommandpath)
+                        echo=echo, pycommandpath=pycommandpath)
 
 def statustoresult(status):
     """
@@ -160,27 +128,14 @@ class PopenJob(Job):
         self.shell = shell
         self.env = env
         self.cwd = cwd
-        self.parentpid = os.getpid()
 
     def run(self):
-        assert os.getpid() != self.parentpid
-        # subprocess.Popen doesn't use the PATH set in the env argument for
-        # finding the executable on some platforms (but strangely it does on
-        # others!), so set os.environ['PATH'] explicitly. This is parallel-
-        # safe because pymake uses separate processes for parallelism, and
-        # each process is serial. See http://bugs.python.org/issue8557 for a
-        # general overview of "subprocess PATH semantics and portability".
-        oldpath = os.environ['PATH']
         try:
-            if self.env is not None and self.env.has_key('PATH'):
-                os.environ['PATH'] = self.env['PATH']
             p = subprocess.Popen(self.argv, executable=self.executable, shell=self.shell, env=self.env, cwd=self.cwd)
             return p.wait()
         except OSError, e:
             print >>sys.stderr, e
             return -127
-        finally:
-            os.environ['PATH'] = oldpath
 
 class PythonException(Exception):
     def __init__(self, message, exitcode):
@@ -197,24 +152,15 @@ def load_module_recursive(module, path):
     passing a custom path to search for modules.
     """
     bits = module.split('.')
-    oldsyspath = sys.path
     for i, bit in enumerate(bits):
         dotname = '.'.join(bits[:i+1])
         try:
           f, path, desc = imp.find_module(bit, path)
-          # Add the directory the module was found in to sys.path
-          if path != '':
-              abspath = os.path.abspath(path)
-              if not os.path.isdir(abspath):
-                  abspath = os.path.dirname(path)
-              sys.path = [abspath] + sys.path
           m = imp.load_module(dotname, f, path, desc)
           if f is None:
               path = m.__path__
         except ImportError:
             return
-        finally:
-            sys.path = oldsyspath
 
 class PythonJob(Job):
     """
@@ -227,17 +173,12 @@ class PythonJob(Job):
         self.env = env
         self.cwd = cwd
         self.pycommandpath = pycommandpath or []
-        self.parentpid = os.getpid()
 
     def run(self):
-        assert os.getpid() != self.parentpid
-        # os.environ is a magic dictionary. Setting it to something else
-        # doesn't affect the environment of subprocesses, so use clear/update
-        oldenv = dict(os.environ)
+        oldenv = os.environ
         try:
             os.chdir(self.cwd)
-            os.environ.clear()
-            os.environ.update(self.env)
+            os.environ = self.env
             if self.module not in sys.modules:
                 load_module_recursive(self.module,
                                       sys.path + self.pycommandpath)
@@ -246,29 +187,17 @@ class PythonJob(Job):
                 return -127                
             m = sys.modules[self.module]
             if self.method not in m.__dict__:
-                print >>sys.stderr, "No method named '%s' in module %s" % (self.method, self.module)
+                print >>sys.stderr, "No method named '%s' in module %s" % (method, module)
                 return -127
-            rv = m.__dict__[self.method](self.argv)
-            if rv != 0 and rv is not None:
-                print >>sys.stderr, (
-                    "Native command '%s %s' returned value '%s'" %
-                    (self.module, self.method, rv))
-                return (rv if isinstance(rv, int) else 1)
-
+            m.__dict__[self.method](self.argv)
         except PythonException, e:
             print >>sys.stderr, e
             return e.exitcode
         except:
-            e = sys.exc_info()[1]
-            if isinstance(e, SystemExit) and (e.code == 0 or e.code is None):
-                pass # sys.exit(0) is not a failure
-            else:
-                print >>sys.stderr, e
-                traceback.print_exc()
-                return -127
+            print >>sys.stderr, sys.exc_info()[1]
+            return -127
         finally:
-            os.environ.clear()
-            os.environ.update(oldenv)
+            os.environ = oldenv
         return 0
 
 def job_runner(job):
@@ -290,6 +219,7 @@ class ParallelContext(object):
         self.exit = False
 
         self.processpool = multiprocessing.Pool(processes=jcount)
+        self.threadpool = multiprocessing.dummy.Pool(processes=jcount)
         self.pending = [] # list of (cb, args, kwargs)
         self.running = [] # list of (subprocess, cb)
 
@@ -298,7 +228,9 @@ class ParallelContext(object):
     def finish(self):
         assert len(self.pending) == 0 and len(self.running) == 0, "pending: %i running: %i" % (len(self.pending), len(self.running))
         self.processpool.close()
+        self.threadpool.close()
         self.processpool.join()
+        self.threadpool.join()
         self._allcontexts.remove(self)
 
     def run(self):
@@ -310,32 +242,36 @@ class ParallelContext(object):
         assert self.jcount > 1 or not len(self.pending), "Serial execution error defering %r %r %r: currently pending %r" % (cb, args, kwargs, self.pending)
         self.pending.append((cb, args, kwargs))
 
-    def _docall_generic(self, pool, job, cb, echo, justprint):
+    def _docall(self, argv, executable, shell, env, cwd, cb, echo):
         if echo is not None:
             print echo
-        processcb = job.get_callback(ParallelContext._condition)
-        if justprint:
-            processcb(0)
-        else:
-            pool.apply_async(job_runner, args=(job,), callback=processcb)
+        job = PopenJob(argv, executable=executable, shell=shell, env=env, cwd=cwd)
+        self.threadpool.apply_async(job_runner, args=(job,), callback=job.get_callback(ParallelContext._condition))
         self.running.append((job, cb))
 
-    def call(self, argv, shell, env, cwd, cb, echo, justprint=False, executable=None):
+    def _docallnative(self, module, method, argv, env, cwd, cb, echo,
+                      pycommandpath=None):
+        if echo is not None:
+            print echo
+        job = PythonJob(module, method, argv, env, cwd, pycommandpath)
+        self.processpool.apply_async(job_runner, args=(job,), callback=job.get_callback(ParallelContext._condition))
+        self.running.append((job, cb))
+
+    def call(self, argv, shell, env, cwd, cb, echo, executable=None):
         """
         Asynchronously call the process
         """
 
-        job = PopenJob(argv, executable=executable, shell=shell, env=env, cwd=cwd)
-        self.defer(self._docall_generic, self.processpool, job, cb, echo, justprint)
+        self.defer(self._docall, argv, executable, shell, env, cwd, cb, echo)
 
     def call_native(self, module, method, argv, env, cwd, cb,
-                    echo, justprint=False, pycommandpath=None):
+                    echo, pycommandpath=None):
         """
         Asynchronously call the native function
         """
 
-        job = PythonJob(module, method, argv, env, cwd, pycommandpath)
-        self.defer(self._docall_generic, self.processpool, job, cb, echo, justprint)
+        self.defer(self._docallnative, module, method, argv, env, cwd, cb,
+                   echo, pycommandpath)
 
     @staticmethod
     def _waitany(condition):

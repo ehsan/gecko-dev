@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Patrick McManus <mcmanus@ducksong.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "base/basictypes.h"
 #include "mozilla/net/NeckoCommon.h"
@@ -35,11 +68,11 @@ using namespace mozilla::dom;
 using namespace mozilla::net;
 
 static NS_DEFINE_CID(kDNSServiceCID, NS_DNSSERVICE_CID);
-bool sDisablePrefetchHTTPSPref;
-static bool sInitialized = false;
-static nsIDNSService *sDNSService = nullptr;
-static nsHTMLDNSPrefetch::nsDeferrals *sPrefetches = nullptr;
-static nsHTMLDNSPrefetch::nsListener *sDNSListener = nullptr;
+PRBool sDisablePrefetchHTTPSPref;
+static PRBool sInitialized = PR_FALSE;
+static nsIDNSService *sDNSService = nsnull;
+static nsHTMLDNSPrefetch::nsDeferrals *sPrefetches = nsnull;
+static nsHTMLDNSPrefetch::nsListener *sDNSListener = nsnull;
 
 nsresult
 nsHTMLDNSPrefetch::Initialize()
@@ -68,7 +101,7 @@ nsHTMLDNSPrefetch::Initialize()
   
   // Default is false, so we need an explicit call to prime the cache.
   sDisablePrefetchHTTPSPref = 
-    Preferences::GetBool("network.dns.disablePrefetchFromHTTPS", true);
+    Preferences::GetBool("network.dns.disablePrefetchFromHTTPS", PR_TRUE);
   
   NS_IF_RELEASE(sDNSService);
   nsresult rv;
@@ -78,7 +111,7 @@ nsHTMLDNSPrefetch::Initialize()
   if (IsNeckoChild())
     NeckoChild::InitNeckoChild();
 
-  sInitialized = true;
+  sInitialized = PR_TRUE;
   return NS_OK;
 }
 
@@ -89,7 +122,7 @@ nsHTMLDNSPrefetch::Shutdown()
     NS_WARNING("Not Initialized");
     return NS_OK;
   }
-  sInitialized = false;
+  sInitialized = PR_FALSE;
   NS_IF_RELEASE(sDNSService);
   NS_IF_RELEASE(sPrefetches);
   NS_IF_RELEASE(sDNSListener);
@@ -97,7 +130,7 @@ nsHTMLDNSPrefetch::Shutdown()
   return NS_OK;
 }
 
-bool
+PRBool
 nsHTMLDNSPrefetch::IsAllowed (nsIDocument *aDocument)
 {
   // There is no need to do prefetch on non UI scenarios such as XMLHttpRequest.
@@ -105,8 +138,19 @@ nsHTMLDNSPrefetch::IsAllowed (nsIDocument *aDocument)
 }
 
 nsresult
-nsHTMLDNSPrefetch::Prefetch(Link *aElement, uint16_t flags)
+nsHTMLDNSPrefetch::Prefetch(Link *aElement, PRUint16 flags)
 {
+  if (IsNeckoChild()) {
+    // Instead of transporting the Link object to the other process
+    // we are using the hostname based function here, too. Compared to the 
+    // IPC the performance hit should be negligible.
+    nsAutoString hostname;
+    nsresult rv = aElement->GetHostname(hostname);
+    NS_ENSURE_SUCCESS(rv,rv);
+
+    return Prefetch(hostname, flags);
+  }
+
   if (!(sInitialized && sPrefetches && sDNSService && sDNSListener))
     return NS_ERROR_NOT_AVAILABLE;
 
@@ -132,7 +176,7 @@ nsHTMLDNSPrefetch::PrefetchHigh(Link *aElement)
 }
 
 nsresult
-nsHTMLDNSPrefetch::Prefetch(const nsAString &hostname, uint16_t flags)
+nsHTMLDNSPrefetch::Prefetch(nsAString &hostname, PRUint16 flags)
 {
   if (IsNeckoChild()) {
     // We need to check IsEmpty() because net_IsValidHostName()
@@ -148,85 +192,27 @@ nsHTMLDNSPrefetch::Prefetch(const nsAString &hostname, uint16_t flags)
     return NS_ERROR_NOT_AVAILABLE;
 
   nsCOMPtr<nsICancelable> tmpOutstanding;
-  return sDNSService->AsyncResolve(NS_ConvertUTF16toUTF8(hostname),
-                                   flags | nsIDNSService::RESOLVE_SPECULATE,
-                                   sDNSListener, nullptr, 
-                                   getter_AddRefs(tmpOutstanding));
+  return sDNSService->AsyncResolve(NS_ConvertUTF16toUTF8(hostname), flags | nsIDNSService::RESOLVE_SPECULATE,
+                                   sDNSListener, nsnull, getter_AddRefs(tmpOutstanding));
 }
 
 nsresult
-nsHTMLDNSPrefetch::PrefetchLow(const nsAString &hostname)
+nsHTMLDNSPrefetch::PrefetchLow(nsAString &hostname)
 {
   return Prefetch(hostname, nsIDNSService::RESOLVE_PRIORITY_LOW);
 }
 
 nsresult
-nsHTMLDNSPrefetch::PrefetchMedium(const nsAString &hostname)
+nsHTMLDNSPrefetch::PrefetchMedium(nsAString &hostname)
 {
   return Prefetch(hostname, nsIDNSService::RESOLVE_PRIORITY_MEDIUM);
 }
 
 nsresult
-nsHTMLDNSPrefetch::PrefetchHigh(const nsAString &hostname)
+nsHTMLDNSPrefetch::PrefetchHigh(nsAString &hostname)
 {
   return Prefetch(hostname, 0);
 }
-
-nsresult
-nsHTMLDNSPrefetch::CancelPrefetch(Link *aElement,
-                                  uint16_t flags,
-                                  nsresult aReason)
-{
-  if (!(sInitialized && sPrefetches && sDNSService && sDNSListener))
-    return NS_ERROR_NOT_AVAILABLE;
-
-  nsAutoString hostname;
-  nsresult rv = aElement->GetHostname(hostname);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return CancelPrefetch(hostname, flags, aReason);
-}
-
-nsresult
-nsHTMLDNSPrefetch::CancelPrefetch(const nsAString &hostname,
-                                  uint16_t flags,
-                                  nsresult aReason)
-{
-  // Forward this request to Necko Parent if we're a child process
-  if (IsNeckoChild()) {
-    // We need to check IsEmpty() because net_IsValidHostName()
-    // considers empty strings to be valid hostnames
-    if (!hostname.IsEmpty() &&
-        net_IsValidHostName(NS_ConvertUTF16toUTF8(hostname))) {
-      gNeckoChild->SendCancelHTMLDNSPrefetch(nsString(hostname), flags,
-                                             aReason);
-    }
-    return NS_OK;
-  }
-
-  if (!(sInitialized && sDNSService && sPrefetches && sDNSListener))
-    return NS_ERROR_NOT_AVAILABLE;
-
-  // Forward cancellation to DNS service
-  return sDNSService->CancelAsyncResolve(NS_ConvertUTF16toUTF8(hostname),
-                                         flags
-                                         | nsIDNSService::RESOLVE_SPECULATE,
-                                         sDNSListener, aReason);
-}
-
-nsresult
-nsHTMLDNSPrefetch::CancelPrefetchLow(Link *aElement, nsresult aReason)
-{
-  return CancelPrefetch(aElement, nsIDNSService::RESOLVE_PRIORITY_LOW,
-                        aReason);
-}
-
-nsresult
-nsHTMLDNSPrefetch::CancelPrefetchLow(const nsAString &hostname, nsresult aReason)
-{
-  return CancelPrefetch(hostname, nsIDNSService::RESOLVE_PRIORITY_LOW,
-                        aReason);
-}
-
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -247,7 +233,7 @@ nsHTMLDNSPrefetch::nsDeferrals::nsDeferrals()
   : mHead(0),
     mTail(0),
     mActiveLoaderCount(0),
-    mTimerArmed(false)
+    mTimerArmed(PR_FALSE)
 {
   mTimer = do_CreateInstance("@mozilla.org/timer;1");
 }
@@ -255,7 +241,7 @@ nsHTMLDNSPrefetch::nsDeferrals::nsDeferrals()
 nsHTMLDNSPrefetch::nsDeferrals::~nsDeferrals()
 {
   if (mTimerArmed) {
-    mTimerArmed = false;
+    mTimerArmed = PR_FALSE;
     mTimer->Cancel();
   }
 
@@ -271,18 +257,16 @@ void
 nsHTMLDNSPrefetch::nsDeferrals::Flush()
 {
   while (mHead != mTail) {
-    mEntries[mTail].mElement = nullptr;
+    mEntries[mTail].mElement = nsnull;
     mTail = (mTail + 1) & sMaxDeferredMask;
   }
 }
 
 nsresult
-nsHTMLDNSPrefetch::nsDeferrals::Add(uint16_t flags, Link *aElement)
+nsHTMLDNSPrefetch::nsDeferrals::Add(PRUint16 flags, Link *aElement)
 {
   // The FIFO has no lock, so it can only be accessed on main thread
   NS_ASSERTION(NS_IsMainThread(), "nsDeferrals::Add must be on main thread");
-
-  aElement->OnDNSPrefetchDeferred();
 
   if (((mHead + 1) & sMaxDeferredMask) == mTail)
     return NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
@@ -292,7 +276,7 @@ nsHTMLDNSPrefetch::nsDeferrals::Add(uint16_t flags, Link *aElement)
   mHead = (mHead + 1) & sMaxDeferredMask;
 
   if (!mActiveLoaderCount && !mTimerArmed && mTimer) {
-    mTimerArmed = true;
+    mTimerArmed = PR_TRUE;
     mTimer->InitWithFuncCallback(Tick, this, 2000, nsITimer::TYPE_ONE_SHOT);
   }
   
@@ -308,40 +292,27 @@ nsHTMLDNSPrefetch::nsDeferrals::SubmitQueue()
 
   while (mHead != mTail) {
     nsCOMPtr<nsIContent> content = do_QueryReferent(mEntries[mTail].mElement);
-    if (content) {
+    if (content && content->GetOwnerDoc()) {
       nsCOMPtr<Link> link = do_QueryInterface(content);
-      // Only prefetch here if request was deferred and deferral not cancelled
-      if (link && link->HasDeferredDNSPrefetchRequest()) {
-        nsCOMPtr<nsIURI> hrefURI(link ? link->GetURI() : nullptr);
-        if (hrefURI)
-          hrefURI->GetAsciiHost(hostName);
+      nsCOMPtr<nsIURI> hrefURI(link ? link->GetURI() : nsnull);
+      if (hrefURI)
+        hrefURI->GetAsciiHost(hostName);
 
-        if (!hostName.IsEmpty()) {
-          if (IsNeckoChild()) {
-            gNeckoChild->SendHTMLDNSPrefetch(NS_ConvertUTF8toUTF16(hostName),
-                                           mEntries[mTail].mFlags);
-          } else {
-            nsCOMPtr<nsICancelable> tmpOutstanding;
+      if (!hostName.IsEmpty()) {
+        nsCOMPtr<nsICancelable> tmpOutstanding;
 
-            nsresult rv = sDNSService->AsyncResolve(hostName, 
-                                    mEntries[mTail].mFlags
-                                    | nsIDNSService::RESOLVE_SPECULATE,
-                                    sDNSListener, nullptr,
-                                    getter_AddRefs(tmpOutstanding));
-            // Tell link that deferred prefetch was requested
-            if (NS_SUCCEEDED(rv))
-              link->OnDNSPrefetchRequested();
-          }
-        }
+        sDNSService->AsyncResolve(hostName, 
+                                  mEntries[mTail].mFlags | nsIDNSService::RESOLVE_SPECULATE,
+                                  sDNSListener, nsnull, getter_AddRefs(tmpOutstanding));
       }
     }
     
-    mEntries[mTail].mElement = nullptr;
+    mEntries[mTail].mElement = nsnull;
     mTail = (mTail + 1) & sMaxDeferredMask;
   }
   
   if (mTimerArmed) {
-    mTimerArmed = false;
+    mTimerArmed = PR_FALSE;
     mTimer->Cancel();
   }
 }
@@ -359,7 +330,7 @@ nsHTMLDNSPrefetch::nsDeferrals::Activate()
   nsCOMPtr<nsIObserverService> observerService =
     mozilla::services::GetObserverService();
   if (observerService)
-    observerService->AddObserver(this, "xpcom-shutdown", true);
+    observerService->AddObserver(this, "xpcom-shutdown", PR_TRUE);
 }
 
 // nsITimer related method
@@ -372,7 +343,7 @@ nsHTMLDNSPrefetch::nsDeferrals::Tick(nsITimer *aTimer, void *aClosure)
   NS_ASSERTION(NS_IsMainThread(), "nsDeferrals::Tick must be on main thread");
   NS_ASSERTION(self->mTimerArmed, "Timer is not armed");
   
-  self->mTimerArmed = false;
+  self->mTimerArmed = PR_FALSE;
 
   // If the queue is not submitted here because there are outstanding pages being loaded,
   // there is no need to rearm the timer as the queue will be submtited when those 
@@ -386,7 +357,7 @@ nsHTMLDNSPrefetch::nsDeferrals::Tick(nsITimer *aTimer, void *aClosure)
 NS_IMETHODIMP 
 nsHTMLDNSPrefetch::nsDeferrals::OnStateChange(nsIWebProgress* aWebProgress, 
                                               nsIRequest *aRequest, 
-                                              uint32_t progressStateFlags, 
+                                              PRUint32 progressStateFlags, 
                                               nsresult aStatus)
 {
   // The FIFO has no lock, so it can only be accessed on main thread
@@ -413,10 +384,10 @@ nsHTMLDNSPrefetch::nsDeferrals::OnStateChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsHTMLDNSPrefetch::nsDeferrals::OnProgressChange(nsIWebProgress *aProgress,
                                                  nsIRequest *aRequest, 
-                                                 int32_t curSelfProgress, 
-                                                 int32_t maxSelfProgress, 
-                                                 int32_t curTotalProgress, 
-                                                 int32_t maxTotalProgress)
+                                                 PRInt32 curSelfProgress, 
+                                                 PRInt32 maxSelfProgress, 
+                                                 PRInt32 curTotalProgress, 
+                                                 PRInt32 maxTotalProgress)
 {
   return NS_OK;
 }
@@ -424,8 +395,7 @@ nsHTMLDNSPrefetch::nsDeferrals::OnProgressChange(nsIWebProgress *aProgress,
 NS_IMETHODIMP
 nsHTMLDNSPrefetch::nsDeferrals::OnLocationChange(nsIWebProgress* aWebProgress,
                                                  nsIRequest* aRequest,
-                                                 nsIURI *location,
-                                                 uint32_t aFlags)
+                                                 nsIURI *location)
 {
   return NS_OK;
 }
@@ -442,7 +412,7 @@ nsHTMLDNSPrefetch::nsDeferrals::OnStatusChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP 
 nsHTMLDNSPrefetch::nsDeferrals::OnSecurityChange(nsIWebProgress *aWebProgress, 
                                                  nsIRequest *aRequest, 
-                                                 uint32_t state)
+                                                 PRUint32 state)
 {
   return NS_OK;
 }

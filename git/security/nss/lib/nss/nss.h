@@ -36,7 +36,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: nss.h,v 1.92.2.6 2012/08/11 01:10:37 wtc%google.com Exp $ */
+/* $Id: nss.h,v 1.81.2.6 2011/05/06 17:04:37 christophe.ravel.bugs%sun.com Exp $ */
 
 #ifndef __nss_h_
 #define __nss_h_
@@ -66,10 +66,10 @@
  * The format of the version string should be
  *     "<major version>.<minor version>[.<patch level>[.<build number>]][ <ECC>][ <Beta>]"
  */
-#define NSS_VERSION  "3.13.6.0" _NSS_ECC_STRING _NSS_CUSTOMIZED
+#define NSS_VERSION  "3.12.10.0" _NSS_ECC_STRING _NSS_CUSTOMIZED
 #define NSS_VMAJOR   3
-#define NSS_VMINOR   13
-#define NSS_VPATCH   6
+#define NSS_VMINOR   12
+#define NSS_VPATCH   10
 #define NSS_VBUILD   0
 #define NSS_BETA     PR_FALSE
 
@@ -157,18 +157,13 @@ SEC_BEGIN_PROTOS
  * Return a boolean that indicates whether the underlying library
  * will perform as the caller expects.
  *
- * The only argument is a string, which should be the version
+ * The only argument is a string, which should be the verson
  * identifier of the NSS library. That string will be compared
  * against a string that represents the actual build version of
  * the NSS library.  It also invokes the version checking functions
  * of the dependent libraries such as NSPR.
  */
 extern PRBool NSS_VersionCheck(const char *importedVersion);
-
-/*
- * Returns a const string of the NSS library version.
- */
-extern const char *NSS_GetVersion(void);
 
 /*
  * Open the Cert, Key, and Security Module databases, read only.

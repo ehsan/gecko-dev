@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   IBM Corporation
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * A unique per-element set of attributes that is used as an
@@ -14,39 +47,37 @@
 #include "nsAttrAndChildArray.h"
 #include "nsMappedAttributeElement.h"
 #include "nsIStyleRule.h"
-#include "mozilla/Attributes.h"
 
 class nsIAtom;
 class nsHTMLStyleSheet;
 class nsRuleWalker;
 
-class nsMappedAttributes MOZ_FINAL : public nsIStyleRule
+class nsMappedAttributes : public nsIStyleRule
 {
 public:
   nsMappedAttributes(nsHTMLStyleSheet* aSheet,
                      nsMapRuleToAttributesFunc aMapRuleFunc);
 
-  // Do not return null.
-  void* operator new(size_t size, uint32_t aAttrCount = 1) CPP_THROW_NEW;
-  nsMappedAttributes* Clone(bool aWillAddAttr);
+  void* operator new(size_t size, PRUint32 aAttrCount = 1) CPP_THROW_NEW;
+
+  nsMappedAttributes* Clone(PRBool aWillAddAttr);
 
   NS_DECL_ISUPPORTS
 
-  void SetAndTakeAttr(nsIAtom* aAttrName, nsAttrValue& aValue);
+  nsresult SetAndTakeAttr(nsIAtom* aAttrName, nsAttrValue& aValue);
   const nsAttrValue* GetAttr(nsIAtom* aAttrName) const;
-  const nsAttrValue* GetAttr(const nsAString& aAttrName) const;
 
-  uint32_t Count() const
+  PRUint32 Count() const
   {
     return mAttrCount;
   }
 
-  bool Equals(const nsMappedAttributes* aAttributes) const;
-  uint32_t HashValue() const;
+  PRBool Equals(const nsMappedAttributes* aAttributes) const;
+  PRUint32 HashValue() const;
 
   void DropStyleSheetReference()
   {
-    mSheet = nullptr;
+    mSheet = nsnull;
   }
   void SetStyleSheet(nsHTMLStyleSheet* aSheet);
   nsHTMLStyleSheet* GetStyleSheet()
@@ -54,30 +85,28 @@ public:
     return mSheet;
   }
 
-  const nsAttrName* NameAt(uint32_t aPos) const
+  const nsAttrName* NameAt(PRUint32 aPos) const
   {
     NS_ASSERTION(aPos < mAttrCount, "out-of-bounds");
     return &Attrs()[aPos].mName;
   }
-  const nsAttrValue* AttrAt(uint32_t aPos) const
+  const nsAttrValue* AttrAt(PRUint32 aPos) const
   {
     NS_ASSERTION(aPos < mAttrCount, "out-of-bounds");
     return &Attrs()[aPos].mValue;
   }
   // Remove the attr at position aPos.  The value of the attr is placed in
   // aValue; any value that was already in aValue is destroyed.
-  void RemoveAttrAt(uint32_t aPos, nsAttrValue& aValue);
+  void RemoveAttrAt(PRUint32 aPos, nsAttrValue& aValue);
   const nsAttrName* GetExistingAttrNameFromQName(const nsAString& aName) const;
-  int32_t IndexOfAttr(nsIAtom* aLocalName) const;
+  PRInt32 IndexOfAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID) const;
   
 
   // nsIStyleRule 
   virtual void MapRuleInfoInto(nsRuleData* aRuleData);
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const;
+  virtual void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
-
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 private:
   nsMappedAttributes(const nsMappedAttributes& aCopy);
@@ -105,9 +134,9 @@ private:
     return reinterpret_cast<InternalAttr*>(&(mAttrs[0]));
   }
 
-  uint16_t mAttrCount;
+  PRUint16 mAttrCount;
 #ifdef DEBUG
-  uint16_t mBufferSize;
+  PRUint16 mBufferSize;
 #endif
   nsHTMLStyleSheet* mSheet; //weak
   nsMapRuleToAttributesFunc mRuleMapper;

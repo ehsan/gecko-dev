@@ -9,13 +9,13 @@
     <script type="text/javascript;version=1.7">
       function testSteps()
       {
-        let request = indexedDB.open("browser_forgetThisSite.js");
+        let request = mozIndexedDB.open("browser_forgetThisSite.js");
         request.onerror = grabEventAndContinueHandler;
         request.onsuccess = grabEventAndContinueHandler;
         let event = yield;
 
         if (event.type == "error") {
-          testException = event.target.error.name;
+          testException = event.target.errorCode;
         }
         else {
           let db = event.target.result;

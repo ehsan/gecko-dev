@@ -102,7 +102,7 @@ static unsigned char* definite_length_decoder(const unsigned char *buf,
 
 static SECStatus GetItem(SECItem* src, SECItem* dest, PRBool includeTag)
 {
-    if ( (!src) || (!dest) || (!src->data && src->len) )
+    if ( (!src) || (!dest) || (!src->data) )
     {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
@@ -136,13 +136,13 @@ static SECStatus MatchComponentType(const SEC_ASN1Template* templateEntry,
     unsigned long kind = 0;
     unsigned char tag = 0;
 
-    if ( (!item) || (!item->data && item->len) || (!templateEntry) || (!match) )
+    if ( (!item) || (!templateEntry) || (!match) )
     {
         PORT_SetError(SEC_ERROR_INVALID_ARGS);
         return SECFailure;
     }
 
-    if (!item->len)
+    if (!item->len || !item->data)
     {
         *match = PR_FALSE;
         return SECSuccess;
@@ -815,57 +815,40 @@ static SECStatus DecodeItem(void* dest,
             SECItem newtemp = temp;
             rv = GetItem(&newtemp, &temp, PR_FALSE);
             save = PR_TRUE;
-            if ((SECSuccess == rv) &&
-                SEC_ASN1_UNIVERSAL == (kind & SEC_ASN1_CLASS_MASK))
+            if ((SECSuccess == rv) && SEC_ASN1_UNIVERSAL == (kind & SEC_ASN1_CLASS_MASK))
+            switch (kind & SEC_ASN1_TAGNUM_MASK)
             {
-                unsigned long tagnum = kind & SEC_ASN1_TAGNUM_MASK;
-                if ( temp.len == 0 && (tagnum == SEC_ASN1_BOOLEAN ||
-                                       tagnum == SEC_ASN1_INTEGER ||
-                                       tagnum == SEC_ASN1_BIT_STRING ||
-                                       tagnum == SEC_ASN1_OBJECT_ID ||
-                                       tagnum == SEC_ASN1_ENUMERATED ||
-                                       tagnum == SEC_ASN1_UTC_TIME ||
-                                       tagnum == SEC_ASN1_GENERALIZED_TIME) )
+            /* special cases of primitive types */
+            case SEC_ASN1_INTEGER:
                 {
-                    /* these types MUST have at least one content octet */
-                    PORT_SetError(SEC_ERROR_BAD_DER);
-                    rv = SECFailure;
-                }
-                else
-                switch (tagnum)
-                {
-                /* special cases of primitive types */
-                case SEC_ASN1_INTEGER:
+                    /* remove leading zeroes if the caller requested siUnsignedInteger
+                       This is to allow RSA key operations to work */
+                    SECItem* destItem = (SECItem*) ((char*)dest + templateEntry->offset);
+                    if (destItem && (siUnsignedInteger == destItem->type))
                     {
-                        /* remove leading zeroes if the caller requested
-                           siUnsignedInteger
-                           This is to allow RSA key operations to work */
-                        SECItem* destItem = (SECItem*) ((char*)dest +
-                                            templateEntry->offset);
-                        if (destItem && (siUnsignedInteger == destItem->type))
-                        {
-                            while (temp.len > 1 && temp.data[0] == 0)
-                            {              /* leading 0 */
-                                temp.data++;
-                                temp.len--;
-                            }
+                        while (temp.len > 1 && temp.data[0] == 0)
+                        {              /* leading 0 */
+                            temp.data++;
+                            temp.len--;
                         }
-                        break;
                     }
+                    break;
+                }
 
-                case SEC_ASN1_BIT_STRING:
+            case SEC_ASN1_BIT_STRING:
+                {
+                    /* change the length in the SECItem to be the number of bits */
+                    if (temp.len && temp.data)
                     {
-                        /* change the length in the SECItem to be the number
-                           of bits */
-                        temp.len = (temp.len-1)*8 - (temp.data[0] & 0x7);
-                        temp.data++;
-                        break;
+                        temp.len = (temp.len-1)*8 - ((*(unsigned char*)temp.data) & 0x7);
+                        temp.data = (unsigned char*)(temp.data+1);
                     }
+                    break;
+                }
 
-                default:
-                    {
-                        break;
-                    }
+            default:
+                {
+                    break;
                 }
             }
         }
@@ -880,7 +863,7 @@ static SECStatus DecodeItem(void* dest,
                If part of the destination was allocated by the decoder, in
                cases of POINTER, SET OF and SEQUENCE OF, then type is set to
                siBuffer due to the use of PORT_ArenaZAlloc*/
-            destItem->data = temp.len ? temp.data : NULL;
+            destItem->data = temp.data;
             destItem->len = temp.len;
         }
         else

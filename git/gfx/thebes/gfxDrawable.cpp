@@ -1,7 +1,38 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Markus Stange.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "gfxDrawable.h"
 #include "gfxASurface.h"
@@ -41,13 +72,6 @@ PreparePatternForUntiledDrawing(gfxPattern* aPattern,
                                 gfxASurface *currentTarget,
                                 const gfxPattern::GraphicsFilter aDefaultFilter)
 {
-    if (!currentTarget) {
-        // This happens if we're dealing with an Azure target.
-        aPattern->SetExtend(gfxPattern::EXTEND_PAD);
-        aPattern->SetFilter(aDefaultFilter);
-        return;
-    }
-
     // In theory we can handle this using cairo's EXTEND_PAD,
     // but implementation limitations mean we have to consult
     // the surface type.
@@ -73,8 +97,16 @@ PreparePatternForUntiledDrawing(gfxPattern* aPattern,
             // Cairo, and hence Gecko, can use RepeatPad on Xorg 1.7. We
             // enable EXTEND_PAD provided that we're running on a recent
             // enough X server.
-            if (static_cast<gfxXlibSurface*>(currentTarget)->IsPadSlow()) {
-                bool isDownscale =
+
+            gfxXlibSurface *xlibSurface =
+                static_cast<gfxXlibSurface *>(currentTarget);
+            Display *dpy = xlibSurface->XDisplay();
+            // This is the exact condition for cairo to avoid XRender for
+            // EXTEND_PAD
+            if (VendorRelease(dpy) >= 60700000 ||
+                VendorRelease(dpy) < 10699000) {
+
+                PRBool isDownscale =
                     aDeviceToImage.xx >= 1.0 && aDeviceToImage.yy >= 1.0 &&
                     aDeviceToImage.xy == 0.0 && aDeviceToImage.yx == 0.0;
 
@@ -99,10 +131,10 @@ PreparePatternForUntiledDrawing(gfxPattern* aPattern,
     }
 }
 
-bool
+PRBool
 gfxSurfaceDrawable::Draw(gfxContext* aContext,
                          const gfxRect& aFillRect,
-                         bool aRepeat,
+                         PRBool aRepeat,
                          const gfxPattern::GraphicsFilter& aFilter,
                          const gfxMatrix& aTransform)
 {
@@ -126,12 +158,17 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
         PreparePatternForUntiledDrawing(pattern, deviceSpaceToImageSpace,
                                         currentTarget, filter);
     }
+#ifdef MOZ_GFX_OPTIMIZE_MOBILE
+    if (!mozilla::supports_neon()) {
+        pattern->SetFilter(gfxPattern::FILTER_FAST);
+    }
+#endif
     pattern->SetMatrix(gfxMatrix(aTransform).Multiply(mTransform));
     aContext->NewPath();
     aContext->SetPattern(pattern);
     aContext->Rectangle(aFillRect);
     aContext->Fill();
-    return true;
+    return PR_TRUE;
 }
 
 gfxCallbackDrawable::gfxCallbackDrawable(gfxDrawingCallback* aCallback,
@@ -147,18 +184,18 @@ gfxCallbackDrawable::MakeSurfaceDrawable(const gfxPattern::GraphicsFilter aFilte
     nsRefPtr<gfxASurface> surface =
         gfxPlatform::GetPlatform()->CreateOffscreenSurface(mSize, gfxASurface::CONTENT_COLOR_ALPHA);
     if (!surface || surface->CairoStatus() != 0)
-        return nullptr;
+        return nsnull;
 
     nsRefPtr<gfxContext> ctx = new gfxContext(surface);
-    Draw(ctx, gfxRect(0, 0, mSize.width, mSize.height), false, aFilter);
+    Draw(ctx, gfxRect(0, 0, mSize.width, mSize.height), PR_FALSE, aFilter);
     nsRefPtr<gfxSurfaceDrawable> drawable = new gfxSurfaceDrawable(surface, mSize);
     return drawable.forget();
 }
 
-bool
+PRBool
 gfxCallbackDrawable::Draw(gfxContext* aContext,
                           const gfxRect& aFillRect,
-                          bool aRepeat,
+                          PRBool aRepeat,
                           const gfxPattern::GraphicsFilter& aFilter,
                           const gfxMatrix& aTransform)
 {
@@ -173,7 +210,7 @@ gfxCallbackDrawable::Draw(gfxContext* aContext,
     if (mCallback)
         return (*mCallback)(aContext, aFillRect, aFilter, aTransform);
 
-    return false;
+    return PR_FALSE;
 }
 
 gfxPatternDrawable::gfxPatternDrawable(gfxPattern* aPattern,
@@ -192,12 +229,12 @@ public:
 
     virtual ~DrawingCallbackFromDrawable() {}
 
-    virtual bool operator()(gfxContext* aContext,
+    virtual PRBool operator()(gfxContext* aContext,
                               const gfxRect& aFillRect,
                               const gfxPattern::GraphicsFilter& aFilter,
                               const gfxMatrix& aTransform = gfxMatrix())
     {
-        return mDrawable->Draw(aContext, aFillRect, false, aFilter,
+        return mDrawable->Draw(aContext, aFillRect, PR_FALSE, aFilter,
                                aTransform);
     }
 private:
@@ -214,15 +251,15 @@ gfxPatternDrawable::MakeCallbackDrawable()
     return callbackDrawable.forget();
 }
 
-bool
+PRBool
 gfxPatternDrawable::Draw(gfxContext* aContext,
                          const gfxRect& aFillRect,
-                         bool aRepeat,
+                         PRBool aRepeat,
                          const gfxPattern::GraphicsFilter& aFilter,
                          const gfxMatrix& aTransform)
 {
     if (!mPattern)
-        return false;
+        return PR_FALSE;
 
     if (aRepeat) {
         // We can't use mPattern directly: We want our repeated tiles to have
@@ -231,9 +268,9 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
         // a pattern from the surface and draw that pattern.
         // gfxCallbackDrawable and gfxSurfaceDrawable already know how to do
         // those things, so we use them here. Drawing mPattern into the surface
-        // will happen through this Draw() method with aRepeat = false.
+        // will happen through this Draw() method with aRepeat = PR_FALSE.
         nsRefPtr<gfxCallbackDrawable> callbackDrawable = MakeCallbackDrawable();
-        return callbackDrawable->Draw(aContext, aFillRect, true, aFilter,
+        return callbackDrawable->Draw(aContext, aFillRect, PR_TRUE, aFilter,
                                       aTransform);
     }
 
@@ -244,5 +281,5 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
     aContext->Rectangle(aFillRect);
     aContext->Fill();
     mPattern->SetMatrix(oldMatrix);
-    return true;
+    return PR_TRUE;
 }

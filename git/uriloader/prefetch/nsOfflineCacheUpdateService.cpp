@@ -1,7 +1,40 @@
 /* -*- mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Dave Camp <dcamp@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "OfflineCacheUpdateChild.h"
 #include "OfflineCacheUpdateParent.h"
@@ -40,11 +73,10 @@
 #include "prlog.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
-static nsOfflineCacheUpdateService *gOfflineCacheUpdateService = nullptr;
+static nsOfflineCacheUpdateService *gOfflineCacheUpdateService = nsnull;
 
 typedef mozilla::docshell::OfflineCacheUpdateParent OfflineCacheUpdateParent;
 typedef mozilla::docshell::OfflineCacheUpdateChild OfflineCacheUpdateChild;
@@ -67,11 +99,11 @@ PRLogModuleInfo *gOfflineCacheUpdateLog;
 
 class AutoFreeArray {
 public:
-    AutoFreeArray(uint32_t count, char **values)
+    AutoFreeArray(PRUint32 count, char **values)
         : mCount(count), mValues(values) {};
     ~AutoFreeArray() { NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(mCount, mValues); }
 private:
-    uint32_t mCount;
+    PRUint32 mCount;
     char **mValues;
 };
 
@@ -79,8 +111,8 @@ private:
 // nsOfflineCachePendingUpdate
 //-----------------------------------------------------------------------------
 
-class nsOfflineCachePendingUpdate MOZ_FINAL : public nsIWebProgressListener
-                                            , public nsSupportsWeakReference
+class nsOfflineCachePendingUpdate : public nsIWebProgressListener
+                                  , public nsSupportsWeakReference
 {
 public:
     NS_DECL_ISUPPORTS
@@ -115,10 +147,10 @@ NS_IMPL_ISUPPORTS2(nsOfflineCachePendingUpdate,
 NS_IMETHODIMP
 nsOfflineCachePendingUpdate::OnProgressChange(nsIWebProgress *aProgress,
                                               nsIRequest *aRequest,
-                                              int32_t curSelfProgress,
-                                              int32_t maxSelfProgress,
-                                              int32_t curTotalProgress,
-                                              int32_t maxTotalProgress)
+                                              PRInt32 curSelfProgress,
+                                              PRInt32 maxSelfProgress,
+                                              PRInt32 curTotalProgress,
+                                              PRInt32 maxTotalProgress)
 {
     NS_NOTREACHED("notification excluded in AddProgressListener(...)");
     return NS_OK;
@@ -127,7 +159,7 @@ nsOfflineCachePendingUpdate::OnProgressChange(nsIWebProgress *aProgress,
 NS_IMETHODIMP
 nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
                                            nsIRequest *aRequest,
-                                           uint32_t progressStateFlags,
+                                           PRUint32 progressStateFlags,
                                            nsresult aStatus)
 {
     nsCOMPtr<nsIDOMDocument> updateDoc = do_QueryReferent(mDocument);
@@ -162,7 +194,7 @@ nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
     if (NS_SUCCEEDED(aStatus)) {
         nsCOMPtr<nsIOfflineCacheUpdate> update;
         mService->Schedule(mManifestURI, mDocumentURI,
-                           updateDoc, window, nullptr, getter_AddRefs(update));
+                           updateDoc, window, getter_AddRefs(update));
     }
 
     aWebProgress->RemoveProgressListener(this);
@@ -174,8 +206,7 @@ nsOfflineCachePendingUpdate::OnStateChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsOfflineCachePendingUpdate::OnLocationChange(nsIWebProgress* aWebProgress,
                                               nsIRequest* aRequest,
-                                              nsIURI *location,
-                                              uint32_t aFlags)
+                                              nsIURI *location)
 {
     NS_NOTREACHED("notification excluded in AddProgressListener(...)");
     return NS_OK;
@@ -194,7 +225,7 @@ nsOfflineCachePendingUpdate::OnStatusChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsOfflineCachePendingUpdate::OnSecurityChange(nsIWebProgress *aWebProgress,
                                               nsIRequest *aRequest,
-                                              uint32_t state)
+                                              PRUint32 state)
 {
     NS_NOTREACHED("notification excluded in AddProgressListener(...)");
     return NS_OK;
@@ -214,14 +245,14 @@ NS_IMPL_ISUPPORTS3(nsOfflineCacheUpdateService,
 //-----------------------------------------------------------------------------
 
 nsOfflineCacheUpdateService::nsOfflineCacheUpdateService()
-    : mDisabled(false)
-    , mUpdateRunning(false)
+    : mDisabled(PR_FALSE)
+    , mUpdateRunning(PR_FALSE)
 {
 }
 
 nsOfflineCacheUpdateService::~nsOfflineCacheUpdateService()
 {
-    gOfflineCacheUpdateService = nullptr;
+    gOfflineCacheUpdateService = nsnull;
 }
 
 nsresult
@@ -240,7 +271,7 @@ nsOfflineCacheUpdateService::Init()
 
     nsresult rv = observerService->AddObserver(this,
                                                NS_XPCOM_SHUTDOWN_OBSERVER_ID,
-                                               true);
+                                               PR_TRUE);
     NS_ENSURE_SUCCESS(rv, rv);
 
     gOfflineCacheUpdateService = this;
@@ -255,12 +286,12 @@ nsOfflineCacheUpdateService::GetInstance()
     if (!gOfflineCacheUpdateService) {
         gOfflineCacheUpdateService = new nsOfflineCacheUpdateService();
         if (!gOfflineCacheUpdateService)
-            return nullptr;
+            return nsnull;
         NS_ADDREF(gOfflineCacheUpdateService);
         nsresult rv = gOfflineCacheUpdateService->Init();
         if (NS_FAILED(rv)) {
             NS_RELEASE(gOfflineCacheUpdateService);
-            return nullptr;
+            return nsnull;
         }
         return gOfflineCacheUpdateService;
     }
@@ -338,7 +369,7 @@ nsOfflineCacheUpdateService::UpdateFinished(nsOfflineCacheUpdate *aUpdate)
     // keep this item alive until we're done notifying observers
     nsRefPtr<nsOfflineCacheUpdate> update = mUpdates[0];
     mUpdates.RemoveElementAt(0);
-    mUpdateRunning = false;
+    mUpdateRunning = PR_FALSE;
 
     ProcessNextUpdate();
 
@@ -362,7 +393,7 @@ nsOfflineCacheUpdateService::ProcessNextUpdate()
         return NS_OK;
 
     if (mUpdates.Length() > 0) {
-        mUpdateRunning = true;
+        mUpdateRunning = PR_TRUE;
         return mUpdates[0]->Begin();
     }
 
@@ -374,7 +405,7 @@ nsOfflineCacheUpdateService::ProcessNextUpdate()
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsOfflineCacheUpdateService::GetNumUpdates(uint32_t *aNumUpdates)
+nsOfflineCacheUpdateService::GetNumUpdates(PRUint32 *aNumUpdates)
 {
     LOG(("nsOfflineCacheUpdateService::GetNumUpdates [%p]", this));
 
@@ -383,7 +414,7 @@ nsOfflineCacheUpdateService::GetNumUpdates(uint32_t *aNumUpdates)
 }
 
 NS_IMETHODIMP
-nsOfflineCacheUpdateService::GetUpdate(uint32_t aIndex,
+nsOfflineCacheUpdateService::GetUpdate(PRUint32 aIndex,
                                        nsIOfflineCacheUpdate **aUpdate)
 {
     LOG(("nsOfflineCacheUpdateService::GetUpdate [%p, %d]", this, aIndex));
@@ -391,7 +422,7 @@ nsOfflineCacheUpdateService::GetUpdate(uint32_t aIndex,
     if (aIndex < mUpdates.Length()) {
         NS_ADDREF(*aUpdate = mUpdates[aIndex]);
     } else {
-        *aUpdate = nullptr;
+        *aUpdate = nsnull;
     }
 
     return NS_OK;
@@ -405,10 +436,10 @@ nsOfflineCacheUpdateService::FindUpdate(nsIURI *aManifestURI,
     nsresult rv;
 
     nsRefPtr<nsOfflineCacheUpdate> update;
-    for (uint32_t i = 0; i < mUpdates.Length(); i++) {
+    for (PRUint32 i = 0; i < mUpdates.Length(); i++) {
         update = mUpdates[i];
 
-        bool partial;
+        PRBool partial;
         rv = update->GetPartial(&partial);
         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -420,7 +451,7 @@ nsOfflineCacheUpdateService::FindUpdate(nsIURI *aManifestURI,
         nsCOMPtr<nsIURI> manifestURI;
         update->GetManifestURI(getter_AddRefs(manifestURI));
         if (manifestURI) {
-            bool equals;
+            PRBool equals;
             rv = manifestURI->Equals(aManifestURI, &equals);
             if (equals) {
                 update.swap(*aUpdate);
@@ -437,7 +468,6 @@ nsOfflineCacheUpdateService::Schedule(nsIURI *aManifestURI,
                                       nsIURI *aDocumentURI,
                                       nsIDOMDocument *aDocument,
                                       nsIDOMWindow* aWindow,
-                                      nsIFile* aCustomProfileDir,
                                       nsIOfflineCacheUpdate **aUpdate)
 {
     nsCOMPtr<nsIOfflineCacheUpdate> update;
@@ -450,7 +480,7 @@ nsOfflineCacheUpdateService::Schedule(nsIURI *aManifestURI,
 
     nsresult rv;
 
-    rv = update->Init(aManifestURI, aDocumentURI, aDocument, aCustomProfileDir);
+    rv = update->Init(aManifestURI, aDocumentURI, aDocument);
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = update->Schedule();
@@ -467,19 +497,7 @@ nsOfflineCacheUpdateService::ScheduleUpdate(nsIURI *aManifestURI,
                                             nsIDOMWindow *aWindow,
                                             nsIOfflineCacheUpdate **aUpdate)
 {
-    return Schedule(aManifestURI, aDocumentURI, nullptr, aWindow, nullptr, aUpdate);
-}
-
-NS_IMETHODIMP
-nsOfflineCacheUpdateService::ScheduleCustomProfileUpdate(nsIURI *aManifestURI,
-                                                         nsIURI *aDocumentURI,
-                                                         nsIFile *aProfileDir,
-                                                         nsIOfflineCacheUpdate **aUpdate)
-{
-    // The profile directory is mandatory
-    NS_ENSURE_ARG(aProfileDir);
-
-    return Schedule(aManifestURI, aDocumentURI, nullptr, nullptr, aProfileDir, aUpdate);
+    return Schedule(aManifestURI, aDocumentURI, nsnull, aWindow, aUpdate);
 }
 
 //-----------------------------------------------------------------------------
@@ -494,7 +512,7 @@ nsOfflineCacheUpdateService::Observe(nsISupports     *aSubject,
     if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
         if (mUpdates.Length() > 0)
             mUpdates[0]->Cancel();
-        mDisabled = true;
+        mDisabled = PR_TRUE;
     }
 
     return NS_OK;
@@ -507,7 +525,7 @@ nsOfflineCacheUpdateService::Observe(nsISupports     *aSubject,
 NS_IMETHODIMP
 nsOfflineCacheUpdateService::OfflineAppAllowed(nsIPrincipal *aPrincipal,
                                                nsIPrefBranch *aPrefBranch,
-                                               bool *aAllowed)
+                                               PRBool *aAllowed)
 {
     nsCOMPtr<nsIURI> codebaseURI;
     nsresult rv = aPrincipal->GetURI(getter_AddRefs(codebaseURI));
@@ -516,13 +534,12 @@ nsOfflineCacheUpdateService::OfflineAppAllowed(nsIPrincipal *aPrincipal,
     return OfflineAppAllowedForURI(codebaseURI, aPrefBranch, aAllowed);
 }
 
-static nsresult
-OfflineAppPermForURI(nsIURI *aURI,
-                     nsIPrefBranch *aPrefBranch,
-                     bool pinned,
-                     bool *aAllowed)
+NS_IMETHODIMP
+nsOfflineCacheUpdateService::OfflineAppAllowedForURI(nsIURI *aURI,
+                                                     nsIPrefBranch *aPrefBranch,
+                                                     PRBool *aAllowed)
 {
-    *aAllowed = false;
+    *aAllowed = PR_FALSE;
     if (!aURI)
         return NS_OK;
 
@@ -531,7 +548,7 @@ OfflineAppPermForURI(nsIURI *aURI,
         return NS_OK;
 
     // only http and https applications can use offline APIs.
-    bool match;
+    PRBool match;
     nsresult rv = innerURI->SchemeIs("http", &match);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -549,40 +566,25 @@ OfflineAppPermForURI(nsIURI *aURI,
         return NS_OK;
     }
 
-    uint32_t perm;
-    const char *permName = pinned ? "pin-app" : "offline-app";
-    permissionManager->TestExactPermission(innerURI, permName, &perm);
+    PRUint32 perm;
+    permissionManager->TestExactPermission(innerURI, "offline-app", &perm);
 
-    if (perm == nsIPermissionManager::UNKNOWN_ACTION && !pinned) {
+    if (perm == nsIPermissionManager::UNKNOWN_ACTION) {
         static const char kPrefName[] = "offline-apps.allow_by_default";
         if (aPrefBranch) {
             aPrefBranch->GetBoolPref(kPrefName, aAllowed);
         } else {
-            *aAllowed = Preferences::GetBool(kPrefName, false);
+            *aAllowed = Preferences::GetBool(kPrefName, PR_FALSE);
         }
 
         return NS_OK;
     }
 
-    if (perm == nsIPermissionManager::ALLOW_ACTION) {
-        *aAllowed = true;
+    if (perm == nsIPermissionManager::DENY_ACTION) {
+        return NS_OK;
     }
 
+    *aAllowed = PR_TRUE;
+
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsOfflineCacheUpdateService::OfflineAppAllowedForURI(nsIURI *aURI,
-                                                     nsIPrefBranch *aPrefBranch,
-                                                     bool *aAllowed)
-{
-    return OfflineAppPermForURI(aURI, aPrefBranch, false, aAllowed);
-}
-
-nsresult
-nsOfflineCacheUpdateService::OfflineAppPinnedForURI(nsIURI *aDocumentURI,
-                                                    nsIPrefBranch *aPrefBranch,
-                                                    bool *aPinned)
-{
-    return OfflineAppPermForURI(aDocumentURI, aPrefBranch, true, aPinned);
 }

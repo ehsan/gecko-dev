@@ -9,18 +9,14 @@
          xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
 <window>
-  <script type="text/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/LogController.js"/>
-  <script type="text/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/specialpowersAPI.js"/>
-  <script type="text/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/SpecialPowersObserverAPI.js"/>
-  <script type="text/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/ChromePowers.js"/>
+  <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js" />
   <script type="text/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/TestRunner.js"/>
   <script type="text/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/MozillaLogger.js"/>
+          src="chrome://mochikit/content/tests/SimpleTest/MozillaFileLogger.js"/>
+  <script type="text/javascript"
+          src="chrome://mochikit/content/tests/SimpleTest/quit.js" />
   <script type="application/javascript"
           src="chrome://mochikit/content/chrome-harness.js" />
   <script type="text/javascript"
@@ -49,12 +45,17 @@ function loadTests()
   var tableContent = srvScope.linksToTableRows(links, 0);
 
   function populate() {
-    document.getElementById("test-table").innerHTML += tableContent;
+    $("test-table").innerHTML += tableContent;
   }
   gTestList = eval(srvScope.jsonArrayOfTestFiles(links));
   populate();
 
-  hookup();
+  if (singleTestPath) {
+    TestRunner.loopTest(singleTestPath);
+  } else {
+    hookup();
+  }
+
 }
 
     window.addEventListener("load", loadTests, false);

@@ -1,32 +1,52 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SVG project.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   rocallahan@mozilla.com
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef NSSVGEFFECTS_H_
 #define NSSVGEFFECTS_H_
 
-#include "FramePropertyTable.h"
-#include "mozilla/dom/Element.h"
-#include "nsHashKeys.h"
-#include "nsID.h"
+#include "nsIContent.h"
 #include "nsIFrame.h"
-#include "nsIMutationObserver.h"
-#include "nsInterfaceHashtable.h"
-#include "nsISupportsBase.h"
-#include "nsISupportsImpl.h"
 #include "nsReferencedElement.h"
 #include "nsStubMutationObserver.h"
 #include "nsSVGUtils.h"
-#include "nsTHashtable.h"
-#include "nsTraceRefcnt.h"
+#include "nsInterfaceHashtable.h"
 #include "nsURIHashKey.h"
 
-class nsIAtom;
-class nsIPresShell;
-class nsIURI;
 class nsSVGClipPathFrame;
-class nsSVGPaintServerFrame;
 class nsSVGFilterFrame;
 class nsSVGMaskFrame;
 
@@ -45,7 +65,7 @@ class nsSVGRenderingObserver : public nsStubMutationObserver {
 public:
   typedef mozilla::dom::Element Element;
   nsSVGRenderingObserver()
-    : mInObserverList(false)
+    : mInObserverList(PR_FALSE)
     {}
   virtual ~nsSVGRenderingObserver()
     {}
@@ -66,14 +86,14 @@ public:
   // react.
   void NotifyEvictedFromRenderingObserverList();
 
-  bool IsInObserverList() const { return mInObserverList; }
+  PRBool IsInObserverList() const { return mInObserverList; }
 
   nsIFrame* GetReferencedFrame();
   /**
    * @param aOK this is only for the convenience of callers. We set *aOK to false
    * if the frame is the wrong type
    */
-  nsIFrame* GetReferencedFrame(nsIAtom* aFrameType, bool* aOK);
+  nsIFrame* GetReferencedFrame(nsIAtom* aFrameType, PRBool* aOK);
 
   Element* GetReferencedElement();
 
@@ -90,7 +110,7 @@ protected:
   virtual Element* GetTarget() = 0;
 
   // Whether we're in our referenced element's observer list at this time.
-  bool mInObserverList;
+  PRPackedBool mInObserverList;
 };
 
 
@@ -108,7 +128,7 @@ class nsSVGIDRenderingObserver : public nsSVGRenderingObserver {
 public:
   typedef mozilla::dom::Element Element;
   nsSVGIDRenderingObserver(nsIURI* aURI, nsIFrame *aFrame,
-                         bool aReferenceImage);
+                         PRBool aReferenceImage);
   virtual ~nsSVGIDRenderingObserver();
 
 protected:
@@ -131,7 +151,7 @@ protected:
      * Override IsPersistent because we want to keep tracking the element
      * for the ID even when it changes.
      */
-    virtual bool IsPersistent() { return true; }
+    virtual PRBool IsPersistent() { return PR_TRUE; }
   private:
     nsSVGIDRenderingObserver* mContainer;
   };
@@ -151,7 +171,7 @@ class nsSVGFilterProperty :
   public nsSVGIDRenderingObserver, public nsISVGFilterProperty {
 public:
   nsSVGFilterProperty(nsIURI *aURI, nsIFrame *aFilteredFrame,
-                      bool aReferenceImage)
+                      PRBool aReferenceImage)
     : nsSVGIDRenderingObserver(aURI, aFilteredFrame, aReferenceImage) {}
 
   /**
@@ -172,7 +192,7 @@ private:
 
 class nsSVGMarkerProperty : public nsSVGIDRenderingObserver {
 public:
-  nsSVGMarkerProperty(nsIURI *aURI, nsIFrame *aFrame, bool aReferenceImage)
+  nsSVGMarkerProperty(nsIURI *aURI, nsIFrame *aFrame, PRBool aReferenceImage)
     : nsSVGIDRenderingObserver(aURI, aFrame, aReferenceImage) {}
 
 protected:
@@ -181,7 +201,7 @@ protected:
 
 class nsSVGTextPathProperty : public nsSVGIDRenderingObserver {
 public:
-  nsSVGTextPathProperty(nsIURI *aURI, nsIFrame *aFrame, bool aReferenceImage)
+  nsSVGTextPathProperty(nsIURI *aURI, nsIFrame *aFrame, PRBool aReferenceImage)
     : nsSVGIDRenderingObserver(aURI, aFrame, aReferenceImage) {}
 
 protected:
@@ -190,7 +210,7 @@ protected:
  
 class nsSVGPaintingProperty : public nsSVGIDRenderingObserver {
 public:
-  nsSVGPaintingProperty(nsIURI *aURI, nsIFrame *aFrame, bool aReferenceImage)
+  nsSVGPaintingProperty(nsIURI *aURI, nsIFrame *aFrame, PRBool aReferenceImage)
     : nsSVGIDRenderingObserver(aURI, aFrame, aReferenceImage) {}
 
 protected:
@@ -230,10 +250,10 @@ public:
   void Remove(nsSVGRenderingObserver* aObserver)
   { mObservers.RemoveEntry(aObserver); }
 #ifdef DEBUG
-  bool Contains(nsSVGRenderingObserver* aObserver)
-  { return (mObservers.GetEntry(aObserver) != nullptr); }
+  PRBool Contains(nsSVGRenderingObserver* aObserver)
+  { return (mObservers.GetEntry(aObserver) != nsnull); }
 #endif
-  bool IsEmpty()
+  PRBool IsEmpty()
   { return mObservers.Count() == 0; }
 
   /**
@@ -249,7 +269,7 @@ public:
   void RemoveAll();
 
 private:
-  nsTHashtable<nsPtrHashKey<nsSVGRenderingObserver> > mObservers;
+  nsTHashtable<nsVoidPtrHashKey> mObservers;
 };
 
 class nsSVGEffects {
@@ -280,13 +300,6 @@ public:
   NS_DECLARE_FRAME_PROPERTY(HrefProperty, DestroySupports)
   NS_DECLARE_FRAME_PROPERTY(BackgroundImageProperty, DestroyHashtable)
 
-  /**
-   * Get the paint server for a aTargetFrame.
-   */
-  static nsSVGPaintServerFrame *GetPaintServer(nsIFrame *aTargetFrame,
-                                               const nsStyleSVGPaint *aPaint,
-                                               const FramePropertyDescriptor *aProperty);
-
   struct EffectProperties {
     nsSVGFilterProperty*   mFilter;
     nsSVGPaintingProperty* mMask;
@@ -298,26 +311,26 @@ public:
      * exists but is an element of the wrong type, *aOK is set to false.
      * Otherwise *aOK is untouched.
      */
-    nsSVGClipPathFrame *GetClipPathFrame(bool *aOK);
+    nsSVGClipPathFrame *GetClipPathFrame(PRBool *aOK);
     /**
      * @return the mask frame, or null if there is no mask frame
      * @param aOK if a mask was specified and the designated element
      * exists but is an element of the wrong type, *aOK is set to false.
      * Otherwise *aOK is untouched.
      */
-    nsSVGMaskFrame *GetMaskFrame(bool *aOK);
+    nsSVGMaskFrame *GetMaskFrame(PRBool *aOK);
     /**
      * @return the filter frame, or null if there is no filter frame
      * @param aOK if a filter was specified but the designated element
      * does not exist or is an element of the wrong type, *aOK is set
      * to false. Otherwise *aOK is untouched.
      */
-    nsSVGFilterFrame *GetFilterFrame(bool *aOK) {
+    nsSVGFilterFrame *GetFilterFrame(PRBool *aOK) {
       if (!mFilter)
-        return nullptr;
+        return nsnull;
       nsSVGFilterFrame *filter = mFilter->GetFilterFrame();
       if (!filter) {
-        *aOK = false;
+        *aOK = PR_FALSE;
       }
       return filter;
     }
@@ -338,7 +351,7 @@ public:
   static nsSVGFilterProperty *GetFilterProperty(nsIFrame *aFrame);
   static nsSVGFilterFrame *GetFilterFrame(nsIFrame *aFrame) {
     nsSVGFilterProperty *prop = GetFilterProperty(aFrame);
-    return prop ? prop->GetFilterFrame() : nullptr;
+    return prop ? prop->GetFilterFrame() : nsnull;
   }
 
   /**

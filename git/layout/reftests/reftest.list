@@ -9,11 +9,7 @@
 include reftest-sanity/reftest.list
 
 # images (if libpr0n is busted, could result in weird failures in other tests)
-include ../../image/test/reftest/reftest.list
-
-# CSSWG tests
-include w3c-css/submitted/reftest.list
-include w3c-css/received/reftest.list
+include ../../modules/libpr0n/test/reftest/reftest.list
 
 # relative and absolute positioning
 include abs-pos/reftest.list
@@ -25,13 +21,10 @@ include backgrounds/reftest.list
 include bidi/reftest.list
 
 # border-image
-skip-if(Android||B2G) include border-image/reftest.list
+skip-if(Android) include border-image/reftest.list
 
 # border-radius/
 include border-radius/reftest.list
-
-# -moz-box tests
-include box/reftest.list
 
 # box-ordinal/
 include box-ordinal/reftest.list
@@ -40,10 +33,10 @@ include box-ordinal/reftest.list
 include box-properties/reftest.list
 
 # box-shadow/
-skip-if(Android||B2G) include box-shadow/reftest.list
+skip-if(Android) include box-shadow/reftest.list
 
 # bugs/
-skip-if(Android||B2G) include bugs/reftest.list
+skip-if(Android) include bugs/reftest.list
 
 # canvas 2D
 include canvas/reftest.list
@@ -58,10 +51,10 @@ include css-charset/reftest.list
 include css-default/reftest.list
 
 # css :disable tests
-skip-if(Android||B2G) include css-disabled/reftest.list
+skip-if(Android) include css-disabled/reftest.list
 
 # css :enable tests
-skip-if(Android||B2G) include css-enabled/reftest.list
+skip-if(Android) include css-enabled/reftest.list
 
 # css @import tests
 include css-import/reftest.list
@@ -71,6 +64,9 @@ include css-gradients/reftest.list
 
 # css media queries (tests for print mode)
 include css-mediaqueries/reftest.list
+
+# css namespaces
+include css-namespace/reftest.list
 
 # css parsing
 include css-parsing/reftest.list
@@ -85,10 +81,10 @@ include css-required/reftest.list
 include css-optional/reftest.list
 
 # css valid
-skip-if(Android||B2G) include css-valid/reftest.list
+skip-if(Android) include css-valid/reftest.list
 
 # css invalid
-skip-if(Android||B2G) include css-invalid/reftest.list
+skip-if(Android) include css-invalid/reftest.list
 
 # css-submit-invalid
 include css-submit-invalid/reftest.list
@@ -96,17 +92,14 @@ include css-submit-invalid/reftest.list
 # css text-overflow
 include text-overflow/reftest.list
 
-# css selectors
-include css-selectors/reftest.list
-
 # css transitions
 include css-transitions/reftest.list
 
 # css :-moz-ui-invalid
-skip-if(Android||B2G) include css-ui-invalid/reftest.list
+skip-if(Android) include css-ui-invalid/reftest.list
 
 # css :-moz-ui-valid
-skip-if(Android||B2G) include css-ui-valid/reftest.list
+skip-if(Android) include css-ui-valid/reftest.list
 
 # css values and units
 include css-valuesandunits/reftest.list
@@ -132,14 +125,20 @@ include datalist/reftest.list
 # dom/
 include dom/reftest.list
 
+# editor/
+include editor/reftest.list
+
 # generated-content/
 include generated-content/reftest.list
 
 # first-letter/
-skip-if(Android||B2G) include first-letter/reftest.list
+skip-if(Android) include first-letter/reftest.list
 
 # first-line/
 include first-line/reftest.list
+
+# flexbox/
+include flexbox/reftest.list
 
 # floats/
 include floats/reftest.list
@@ -150,14 +149,11 @@ include font-face/reftest.list
 # font features (opentype)
 include font-features/reftest.list
 
-# mobile font size inflation
-include font-inflation/reftest.list
-
 # font matching
 include font-matching/reftest.list
 
 # forms
-skip-if(Android||B2G) include forms/reftest.list
+skip-if(Android) include forms/reftest.list
 
 # gfx
 include ../../gfx/tests/reftest/reftest.list
@@ -176,9 +172,6 @@ include image-rect/reftest.list
 
 # image-region/
 include image-region/reftest.list
-
-# indic shaping with harfbuzz
-include indic-shaping/reftest.list
 
 # inline borders and padding
 include inline-borderpadding/reftest.list
@@ -202,7 +195,7 @@ include margin-collapsing/reftest.list
 include marquee/reftest.list
 
 # native-theme/
-skip-if(Android||B2G) include native-theme/reftest.list
+skip-if(Android) include native-theme/reftest.list
 
 # netwerk/
 include ../../netwerk/test/reftest/reftest.list
@@ -212,9 +205,6 @@ include object/reftest.list
 
 # ogg-video/
 include ogg-video/reftest.list
-
-# webm-video/
-include webm-video/reftest.list
 
 # parser/
 include ../../parser/htmlparser/tests/reftest/reftest.list
@@ -227,10 +217,6 @@ include pixel-rounding/reftest.list
 
 # plugin/
 include ../../dom/plugins/test/reftest/reftest.list
-
-# position-dynamic-changes/
-# Disabled on Native Fennec for now, because running them takes too long
-skip-if((Android||B2G)&&!browserIsRemote) include position-dynamic-changes/reftest.list # Bug 762181
 
 # printing
 include printing/reftest.list
@@ -260,8 +246,6 @@ include table-bordercollapse/reftest.list
 # table-dom/
 include table-dom/reftest.list
 
-include table-overflow/reftest.list
-
 # table-width/
 include table-width/reftest.list
 
@@ -275,7 +259,7 @@ include text-decoration/reftest.list
 include text-indent/reftest.list
 
 # text-shadow/
-skip-if(Android||B2G) include text-shadow/reftest.list
+skip-if(Android) include text-shadow/reftest.list
 
 # theme (pinstripe)
 include ../../toolkit/themes/pinstripe/reftests/reftest.list
@@ -285,9 +269,6 @@ include text-transform/reftest.list
 
 # -moz-transform/
 include transform/reftest.list
-
-# 3d transforms
-include transform-3d/reftest.list
 
 # unicode/ (verify that we don't do expend effort doing unicode-aware case checks)
 include unicode/reftest.list
@@ -304,9 +285,6 @@ include xul-document-load/reftest.list
 # xul/
 include xul/reftest.list
 
-# xul
-include ../xul/base/reftest/reftest.list
-
 # xul grid
 include ../xul/base/src/grid/reftests/reftest.list
 
@@ -316,6 +294,3 @@ include z-index/reftest.list
 # reftest(s) to verify content bugfixes
 include ../../content/html/document/reftests/reftests.list
 include ../../content/html/content/reftests/reftest.list
-
-# editor/
-include ../../editor/reftests/reftest.list

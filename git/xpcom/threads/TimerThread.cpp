@@ -1,7 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Stuart Parmenter <pavlov@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsTimerImpl.h"
 #include "TimerThread.h"
@@ -11,6 +46,7 @@
 
 #include "nsIObserverService.h"
 #include "nsIServiceManager.h"
+#include "nsIProxyObjectManager.h"
 #include "mozilla/Services.h"
 
 #include <math.h>
@@ -21,11 +57,11 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(TimerThread, nsIRunnable, nsIObserver)
 
 TimerThread::TimerThread() :
   mInitInProgress(0),
-  mInitialized(false),
+  mInitialized(PR_FALSE),
   mMonitor("TimerThread.mMonitor"),
-  mShutdown(false),
-  mWaiting(false),
-  mSleeping(false),
+  mShutdown(PR_FALSE),
+  mWaiting(PR_FALSE),
+  mSleeping(PR_FALSE),
   mDelayLineCounter(0),
   mMinTimerPeriod(0)
 {
@@ -33,7 +69,7 @@ TimerThread::TimerThread() :
 
 TimerThread::~TimerThread()
 {
-  mThread = nullptr;
+  mThread = nsnull;
 
   NS_ASSERTION(mTimers.IsEmpty(), "Timers remain in TimerThread::~TimerThread");
 }
@@ -43,35 +79,6 @@ TimerThread::InitLocks()
 {
   return NS_OK;
 }
-
-namespace {
-
-class TimerObserverRunnable : public nsRunnable
-{
-public:
-  TimerObserverRunnable(nsIObserver* observer)
-    : mObserver(observer)
-  { }
-
-  NS_DECL_NSIRUNNABLE
-
-private:
-  nsCOMPtr<nsIObserver> mObserver;
-};
-
-NS_IMETHODIMP
-TimerObserverRunnable::Run()
-{
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (observerService) {
-    observerService->AddObserver(mObserver, "sleep_notification", false);
-    observerService->AddObserver(mObserver, "wake_notification", false);
-  }
-  return NS_OK;
-}
-
-} // anonymous namespace
 
 nsresult TimerThread::Init()
 {
@@ -88,21 +95,30 @@ nsresult TimerThread::Init()
     // We hold on to mThread to keep the thread alive.
     nsresult rv = NS_NewThread(getter_AddRefs(mThread), this);
     if (NS_FAILED(rv)) {
-      mThread = nullptr;
+      mThread = nsnull;
     }
     else {
-      nsRefPtr<TimerObserverRunnable> r = new TimerObserverRunnable(this);
-      if (NS_IsMainThread()) {
-        r->Run();
+      nsCOMPtr<nsIObserverService> observerService =
+          mozilla::services::GetObserverService();
+      // We must not use the observer service from a background thread!
+      if (observerService && !NS_IsMainThread()) {
+        nsCOMPtr<nsIObserverService> result = nsnull;
+        NS_GetProxyForObject(NS_PROXY_TO_MAIN_THREAD,
+                             NS_GET_IID(nsIObserverService),
+                             observerService, NS_PROXY_ASYNC,
+                             getter_AddRefs(result));
+        observerService.swap(result);
       }
-      else {
-        NS_DispatchToMainThread(r);
+      // We'll be released at xpcom shutdown
+      if (observerService) {
+        observerService->AddObserver(this, "sleep_notification", PR_FALSE);
+        observerService->AddObserver(this, "wake_notification", PR_FALSE);
       }
     }
 
     {
       MonitorAutoLock lock(mMonitor);
-      mInitialized = true;
+      mInitialized = PR_TRUE;
       mMonitor.NotifyAll();
     }
   }
@@ -130,7 +146,7 @@ nsresult TimerThread::Shutdown()
   {   // lock scope
     MonitorAutoLock lock(mMonitor);
 
-    mShutdown = true;
+    mShutdown = PR_TRUE;
 
     // notify the cond var so that Run() can return
     if (mWaiting)
@@ -146,8 +162,8 @@ nsresult TimerThread::Shutdown()
     mTimers.Clear();
   }
 
-  uint32_t timersCount = timers.Length();
-  for (uint32_t i = 0; i < timersCount; i++) {
+  PRUint32 timersCount = timers.Length();
+  for (PRUint32 i = 0; i < timersCount; i++) {
     nsTimerImpl *timer = timers[i];
     timer->ReleaseCallback();
     ReleaseTimerInternal(timer);
@@ -162,12 +178,12 @@ nsresult TimerThread::Shutdown()
 // Keep track of how early (positive slack) or late (negative slack) timers
 // are running, and use the filtered slack number to adaptively estimate how
 // early timers should fire to be "on time".
-void TimerThread::UpdateFilter(uint32_t aDelay, TimeStamp aTimeout,
+void TimerThread::UpdateFilter(PRUint32 aDelay, TimeStamp aTimeout,
                                TimeStamp aNow)
 {
   TimeDuration slack = aTimeout - aNow;
   double smoothSlack = 0;
-  uint32_t i, filterLength;
+  PRUint32 i, filterLength;
   static TimeDuration kFilterFeedbackMaxTicks =
     TimeDuration::FromMilliseconds(FILTER_FEEDBACK_MAX);
   static TimeDuration kFilterFeedbackMinTicks =
@@ -192,7 +208,7 @@ void TimerThread::UpdateFilter(uint32_t aDelay, TimeStamp aTimeout,
       mMinTimerPeriod = aDelay;
     }
 
-    filterLength = (uint32_t) (FILTER_DURATION / mMinTimerPeriod);
+    filterLength = (PRUint32) (FILTER_DURATION / mMinTimerPeriod);
     if (filterLength > DELAY_LINE_LENGTH)
       filterLength = DELAY_LINE_LENGTH;
     else if (filterLength < 4)
@@ -216,14 +232,12 @@ void TimerThread::UpdateFilter(uint32_t aDelay, TimeStamp aTimeout,
 /* void Run(); */
 NS_IMETHODIMP TimerThread::Run()
 {
-  PR_SetCurrentThreadName("Timer");
-
   MonitorAutoLock lock(mMonitor);
 
   // We need to know how many microseconds give a positive PRIntervalTime. This
   // is platform-dependent, we calculate it at runtime now.
   // First we find a value such that PR_MicrosecondsToInterval(high) = 1
-  int32_t low = 0, high = 1;
+  PRInt32 low = 0, high = 1;
   while (PR_MicrosecondsToInterval(high) == 0)
     high <<= 1;
   // We now have
@@ -231,7 +245,7 @@ NS_IMETHODIMP TimerThread::Run()
   //    PR_MicrosecondsToInterval(high) = 1
   // and we can proceed to find the critical value using binary search
   while (high-low > 1) {
-    int32_t mid = (high+low) >> 1;
+    PRInt32 mid = (high+low) >> 1;
     if (PR_MicrosecondsToInterval(mid) == 0)
       low = mid;
     else
@@ -240,7 +254,7 @@ NS_IMETHODIMP TimerThread::Run()
 
   // Half of the amount of microseconds needed to get positive PRIntervalTime.
   // We use this to decide how to round our wait times later
-  int32_t halfMicrosecondsIntervalResolution = high >> 1;
+  PRInt32 halfMicrosecondsIntervalResolution = high >> 1;
 
   while (!mShutdown) {
     // Have to use PRIntervalTime here, since PR_WaitCondVar takes it
@@ -252,7 +266,7 @@ NS_IMETHODIMP TimerThread::Run()
     } else {
       waitFor = PR_INTERVAL_NO_TIMEOUT;
       TimeStamp now = TimeStamp::Now();
-      nsTimerImpl *timer = nullptr;
+      nsTimerImpl *timer = nsnull;
 
       if (!mTimers.IsEmpty()) {
         timer = mTimers[0];
@@ -300,7 +314,7 @@ NS_IMETHODIMP TimerThread::Run()
               // preventing this situation from occurring.
               NS_ASSERTION(rc != 0, "destroyed timer off its target thread!");
             }
-            timer = nullptr;
+            timer = nsnull;
           }
 
           if (mShutdown)
@@ -344,9 +358,9 @@ NS_IMETHODIMP TimerThread::Run()
 #endif
     }
 
-    mWaiting = true;
+    mWaiting = PR_TRUE;
     mMonitor.Wait(waitFor);
-    mWaiting = false;
+    mWaiting = PR_FALSE;
   }
 
   return NS_OK;
@@ -357,7 +371,7 @@ nsresult TimerThread::AddTimer(nsTimerImpl *aTimer)
   MonitorAutoLock lock(mMonitor);
 
   // Add the timer to our list.
-  int32_t i = AddTimerInternal(aTimer);
+  PRInt32 i = AddTimerInternal(aTimer);
   if (i < 0)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -376,7 +390,7 @@ nsresult TimerThread::TimerDelayChanged(nsTimerImpl *aTimer)
   // ReleaseTimerInternal.
   RemoveTimerInternal(aTimer);
 
-  int32_t i = AddTimerInternal(aTimer);
+  PRInt32 i = AddTimerInternal(aTimer);
   if (i < 0)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -409,14 +423,14 @@ nsresult TimerThread::RemoveTimer(nsTimerImpl *aTimer)
 }
 
 // This function must be called from within a lock
-int32_t TimerThread::AddTimerInternal(nsTimerImpl *aTimer)
+PRInt32 TimerThread::AddTimerInternal(nsTimerImpl *aTimer)
 {
   if (mShutdown)
     return -1;
 
   TimeStamp now = TimeStamp::Now();
-  uint32_t count = mTimers.Length();
-  uint32_t i = 0;
+  PRUint32 count = mTimers.Length();
+  PRUint32 i = 0;
   for (; i < count; i++) {
     nsTimerImpl *timer = mTimers[i];
 
@@ -437,39 +451,39 @@ int32_t TimerThread::AddTimerInternal(nsTimerImpl *aTimer)
   if (!mTimers.InsertElementAt(i, aTimer))
     return -1;
 
-  aTimer->mArmed = true;
+  aTimer->mArmed = PR_TRUE;
   NS_ADDREF(aTimer);
   return i;
 }
 
-bool TimerThread::RemoveTimerInternal(nsTimerImpl *aTimer)
+PRBool TimerThread::RemoveTimerInternal(nsTimerImpl *aTimer)
 {
   if (!mTimers.RemoveElement(aTimer))
-    return false;
+    return PR_FALSE;
 
   ReleaseTimerInternal(aTimer);
-  return true;
+  return PR_TRUE;
 }
 
 void TimerThread::ReleaseTimerInternal(nsTimerImpl *aTimer)
 {
   // Order is crucial here -- see nsTimerImpl::Release.
-  aTimer->mArmed = false;
+  aTimer->mArmed = PR_FALSE;
   NS_RELEASE(aTimer);
 }
 
 void TimerThread::DoBeforeSleep()
 {
-  mSleeping = true;
+  mSleeping = PR_TRUE;
 }
 
 void TimerThread::DoAfterSleep()
 {
-  mSleeping = true; // wake may be notified without preceding sleep notification
-  for (uint32_t i = 0; i < mTimers.Length(); i ++) {
+  mSleeping = PR_TRUE; // wake may be notified without preceding sleep notification
+  for (PRUint32 i = 0; i < mTimers.Length(); i ++) {
     nsTimerImpl *timer = mTimers[i];
     // get and set the delay to cause its timeout to be recomputed
-    uint32_t delay;
+    PRUint32 delay;
     timer->GetDelay(&delay);
     timer->SetDelay(delay);
   }
@@ -477,7 +491,7 @@ void TimerThread::DoAfterSleep()
   // nuke the stored adjustments, so they get recalibrated
   mTimeoutAdjustment = TimeDuration(0);
   mDelayLineCounter = 0;
-  mSleeping = false;
+  mSleeping = PR_FALSE;
 }
 
 

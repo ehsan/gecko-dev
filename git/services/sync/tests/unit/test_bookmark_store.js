@@ -377,7 +377,4 @@ function run_test() {
   test_move_order();
   test_orphan();
   test_reparentOrphans();
-  if (engine._tracker._lazySave) {
-    engine._tracker._lazySave.clear();
-  }
 }

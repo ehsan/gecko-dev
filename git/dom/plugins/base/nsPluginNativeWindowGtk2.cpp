@@ -1,9 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:expandtab:shiftwidth=2:tabstop=2:
 */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Sun Microsystems, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Robin Lu <robin.lu@sun.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /**
  *  This file is the Gtk2 implementation of plugin native window.
@@ -11,15 +44,12 @@
 
 #include "nsDebug.h"
 #include "nsPluginNativeWindow.h"
-#include "nsNPAPIPlugin.h"
 #include "npapi.h"
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>
 #include <gdk/gdk.h>
 
-#include "gtk2compat.h"
 #include "gtk2xtbin.h"
-#include "mozilla/X11Util.h"
 
 class nsPluginNativeWindowGtk2 : public nsPluginNativeWindow {
 public: 
@@ -28,22 +58,13 @@ public:
 
   virtual nsresult CallSetWindow(nsRefPtr<nsNPAPIPluginInstance> &aPluginInstance);
 private:
-  void SetWindow(XID aWindow)
-  {
-    window = reinterpret_cast<void*>(static_cast<uintptr_t>(aWindow));
-  }
-  XID GetWindow() const
-  {
-    return static_cast<XID>(reinterpret_cast<uintptr_t>(window));
-  }
-
   NPSetWindowCallbackStruct mWsInfo;
   /**
    * Either a GtkSocket or a special GtkXtBin widget (derived from GtkSocket)
    * that encapsulates the Xt toolkit within a Gtk Application.
    */
   GtkWidget* mSocketWidget;
-  nsresult  CreateXEmbedWindow(bool aEnableXtFocus);
+  nsresult  CreateXEmbedWindow();
   nsresult  CreateXtWindow();
   void      SetAllocation();
 };
@@ -54,7 +75,7 @@ static void socket_unrealize_cb   (GtkWidget *widget, gpointer data);
 nsPluginNativeWindowGtk2::nsPluginNativeWindowGtk2() : nsPluginNativeWindow()
 {
   // initialize the struct fields
-  window = nullptr; 
+  window = nsnull; 
   x = 0; 
   y = 0; 
   width = 0; 
@@ -64,8 +85,8 @@ nsPluginNativeWindowGtk2::nsPluginNativeWindowGtk2() : nsPluginNativeWindow()
   type = NPWindowTypeWindow;
   mSocketWidget = 0;
   mWsInfo.type = 0;
-  mWsInfo.display = nullptr;
-  mWsInfo.visual = nullptr;
+  mWsInfo.display = nsnull;
+  mWsInfo.visual = nsnull;
   mWsInfo.colormap = 0;
   mWsInfo.depth = 0;
 }
@@ -99,27 +120,18 @@ nsresult nsPluginNativeWindowGtk2::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance>
       if (!mSocketWidget) {
         nsresult rv;
 
-        // The documentation on the types for many variables in NP(N|P)_GetValue
-        // is vague.  Often boolean values are NPBool (1 byte), but
-        // https://developer.mozilla.org/en/XEmbed_Extension_for_Mozilla_Plugins
-        // treats NPPVpluginNeedsXEmbed as PRBool (int), and
-        // on x86/32-bit, flash stores to this using |movl 0x1,&needsXEmbed|.
-        // thus we can't use NPBool for needsXEmbed, or the three bytes above
-        // it on the stack would get clobbered. so protect with the larger bool.
-        int needsXEmbed = 0;
-        rv = aPluginInstance->GetValueFromPlugin(NPPVpluginNeedsXEmbed, &needsXEmbed);
+        PRBool needXEmbed = PR_FALSE;
+        rv = aPluginInstance->GetValueFromPlugin(NPPVpluginNeedsXEmbed, &needXEmbed);
         // If the call returned an error code make sure we still use our default value.
         if (NS_FAILED(rv)) {
-          needsXEmbed = 0;
+          needXEmbed = PR_FALSE;
         }
 #ifdef DEBUG
-        printf("nsPluginNativeWindowGtk2: NPPVpluginNeedsXEmbed=%d\n", needsXEmbed);
+        printf("nsPluginNativeWindowGtk2: NPPVpluginNeedsXEmbed=%d\n", needXEmbed);
 #endif
 
-        bool isOOPPlugin = aPluginInstance->GetPlugin()->GetLibrary()->IsOOP();
-        if (needsXEmbed || isOOPPlugin) {        
-          bool enableXtFocus = !needsXEmbed;
-          rv = CreateXEmbedWindow(enableXtFocus);
+        if (needXEmbed) {
+          rv = CreateXEmbedWindow();
         }
         else {
           rv = CreateXtWindow();
@@ -140,11 +152,11 @@ nsresult nsPluginNativeWindowGtk2::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance>
       if (GTK_IS_XTBIN(mSocketWidget)) {
         gtk_xtbin_resize(mSocketWidget, width, height);
         // Point the NPWindow structures window to the actual X window
-        SetWindow(GTK_XTBIN(mSocketWidget)->xtwindow);
+        window = (void*)GTK_XTBIN(mSocketWidget)->xtwindow;
       }
-      else { // XEmbed or OOP&Xt
+      else { // XEmbed
         SetAllocation();
-        SetWindow(gtk_socket_get_id(GTK_SOCKET(mSocketWidget)));
+        window = (void*)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
       }
 #ifdef DEBUG
       printf("nsPluginNativeWindowGtk2: call SetWindow with xid=%p\n", (void *)window);
@@ -153,24 +165,20 @@ nsresult nsPluginNativeWindowGtk2::CallSetWindow(nsRefPtr<nsNPAPIPluginInstance>
     aPluginInstance->SetWindow(this);
   }
   else if (mPluginInstance)
-    mPluginInstance->SetWindow(nullptr);
+    mPluginInstance->SetWindow(nsnull);
 
   SetPluginInstance(aPluginInstance);
   return NS_OK;
 }
 
-nsresult nsPluginNativeWindowGtk2::CreateXEmbedWindow(bool aEnableXtFocus) {
+nsresult nsPluginNativeWindowGtk2::CreateXEmbedWindow() {
   NS_ASSERTION(!mSocketWidget,"Already created a socket widget!");
-  GdkDisplay *display = gdk_display_get_default();
-  GdkWindow *parent_win = gdk_x11_window_lookup_for_display(display, GetWindow());
+
+  GdkWindow *parent_win = gdk_window_lookup((XID)window);
   mSocketWidget = gtk_socket_new();
 
   //attach the socket to the container widget
   gtk_widget_set_parent_window(mSocketWidget, parent_win);
-
-  // enable/disable focus event handlers,
-  // see plugin_window_filter_func() for details
-  g_object_set_data(G_OBJECT(mSocketWidget), "enable-xt-focus", (void *)aEnableXtFocus);
 
   // Make sure to handle the plug_removed signal.  If we don't the
   // socket will automatically be destroyed when the plug is
@@ -197,10 +205,7 @@ nsresult nsPluginNativeWindowGtk2::CreateXEmbedWindow(bool aEnableXtFocus) {
   // background and this would happen immediately (before the plug is
   // created).  Setting the background to None prevents the server from
   // painting this window, avoiding flicker.
-  // TODO GTK3
-#if (MOZ_WIDGET_GTK == 2)
-  gdk_window_set_back_pixmap(gtk_widget_get_window(mSocketWidget), NULL, FALSE);
-#endif
+  gdk_window_set_back_pixmap(mSocketWidget->window, NULL, FALSE);
 
   // Resize before we show
   SetAllocation();
@@ -208,26 +213,20 @@ nsresult nsPluginNativeWindowGtk2::CreateXEmbedWindow(bool aEnableXtFocus) {
   gtk_widget_show(mSocketWidget);
 
   gdk_flush();
-  SetWindow(gtk_socket_get_id(GTK_SOCKET(mSocketWidget)));
+  window = (void*)gtk_socket_get_id(GTK_SOCKET(mSocketWidget));
 
   // Fill out the ws_info structure.
   // (The windowless case is done in nsObjectFrame.cpp.)
-  GdkWindow *gdkWindow = gdk_window_lookup(GetWindow());
+  GdkWindow *gdkWindow = gdk_window_lookup((XID)window);
   if(!gdkWindow)
     return NS_ERROR_FAILURE;
 
   mWsInfo.display = GDK_WINDOW_XDISPLAY(gdkWindow);
-#if (MOZ_WIDGET_GTK == 2)
   mWsInfo.colormap = GDK_COLORMAP_XCOLORMAP(gdk_drawable_get_colormap(gdkWindow));
   GdkVisual* gdkVisual = gdk_drawable_get_visual(gdkWindow);
-  mWsInfo.depth = gdkVisual->depth;
-#else
-  mWsInfo.colormap = None;
-  GdkVisual* gdkVisual = gdk_window_get_visual(gdkWindow);
-  mWsInfo.depth = gdk_visual_get_depth(gdkVisual);
-#endif
   mWsInfo.visual = GDK_VISUAL_XVISUAL(gdkVisual);
-    
+  mWsInfo.depth = gdkVisual->depth;
+
   return NS_OK;
 }
 
@@ -246,12 +245,11 @@ void nsPluginNativeWindowGtk2::SetAllocation() {
 nsresult nsPluginNativeWindowGtk2::CreateXtWindow() {
   NS_ASSERTION(!mSocketWidget,"Already created a socket widget!");
 
-#ifdef DEBUG      
+#ifdef NS_DEBUG      
   printf("About to create new xtbin of %i X %i from %p...\n",
          width, height, (void*)window);
 #endif
-  GdkDisplay *display = gdk_display_get_default();
-  GdkWindow *gdkWindow = gdk_x11_window_lookup_for_display(display, GetWindow());
+  GdkWindow *gdkWindow = gdk_window_lookup((XID)window);
   mSocketWidget = gtk_xtbin_new(gdkWindow, 0);
   // Check to see if creating the xtbin failed for some reason.
   // if it did, we can't go any further.
@@ -263,11 +261,11 @@ nsresult nsPluginNativeWindowGtk2::CreateXtWindow() {
 
   gtk_widget_set_size_request(mSocketWidget, width, height);
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
   printf("About to show xtbin(%p)...\n", (void*)mSocketWidget); fflush(NULL);
 #endif
   gtk_widget_show(mSocketWidget);
-#ifdef DEBUG
+#ifdef NS_DEBUG
   printf("completed gtk_widget_show(%p)\n", (void*)mSocketWidget); fflush(NULL);
 #endif
 
@@ -298,9 +296,8 @@ socket_unrealize_cb(GtkWidget *widget, gpointer data)
 {
   // Unmap and reparent any child windows that GDK does not yet know about.
   // (See bug 540114 comment 10.)
-  GdkWindow* socket_window =  gtk_widget_get_window(widget);
-  GdkDisplay* gdkDisplay = gdk_display_get_default();
-  Display* display = GDK_DISPLAY_XDISPLAY(gdkDisplay);
+  GdkWindow* socket_window = widget->window;
+  Display* display = GDK_DISPLAY();
 
   // Ignore X errors that may happen if windows get destroyed (possibly
   // requested by the plugin) between XQueryTree and when we operate on them.
@@ -309,13 +306,13 @@ socket_unrealize_cb(GtkWidget *widget, gpointer data)
   Window root, parent;
   Window* children;
   unsigned int nchildren;
-  if (!XQueryTree(display, gdk_x11_window_get_xid(socket_window),
+  if (!XQueryTree(display, gdk_x11_drawable_get_xid(socket_window),
                   &root, &parent, &children, &nchildren))
     return;
 
   for (unsigned int i = 0; i < nchildren; ++i) {
     Window child = children[i];
-    if (!gdk_x11_window_lookup_for_display(gdkDisplay, child)) {
+    if (!gdk_window_lookup(child)) {
       // This window is not known to GDK.
       XUnmapWindow(display, child);
       XReparentWindow(display, child, DefaultRootWindow(display), 0, 0);
@@ -324,6 +321,6 @@ socket_unrealize_cb(GtkWidget *widget, gpointer data)
 
   if (children) XFree(children);
 
-  mozilla::FinishX(display);
+  XSync(display, False);
   gdk_error_trap_pop();
 }

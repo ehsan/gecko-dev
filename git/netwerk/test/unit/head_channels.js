@@ -25,8 +25,6 @@ const CL_EXPECT_FAILURE = 0x1;
 const CL_EXPECT_GZIP = 0x2;
 const CL_EXPECT_3S_DELAY = 0x4;
 const CL_SUSPEND = 0x8;
-const CL_ALLOW_UNKNOWN_CL = 0x10;
-const CL_EXPECT_LATE_FAILURE = 0x20;
 
 const SUSPEND_DELAY = 3000;
 
@@ -39,8 +37,7 @@ const SUSPEND_DELAY = 3000;
  *
  * This listener makes sure that various parts of the channel API are
  * implemented correctly and that the channel's status is a success code
- * (you can pass CL_EXPECT_FAILURE or CL_EXPECT_LATE_FAILURE as flags
- * to allow a failure code)
+ * (you can pass CL_EXPECT_FAILURE as flags to allow a failure code)
  *
  * Note that it also requires a valid content length on the channel and
  * is thus not fully generic.
@@ -79,10 +76,10 @@ ChannelListener.prototype = {
         this._contentLen = request.contentLength;
       }
       catch (ex) {
-        if (!(this._flags & (CL_EXPECT_FAILURE | CL_ALLOW_UNKNOWN_CL)))
+        if (!(this._flags & CL_EXPECT_FAILURE))
           do_throw("Could not get contentLength");
       }
-      if (this._contentLen == -1 && !(this._flags & (CL_EXPECT_FAILURE | CL_ALLOW_UNKNOWN_CL)))
+      if (this._contentLen == -1 && !(this._flags & CL_EXPECT_FAILURE))
         do_throw("Content length is unknown in onStartRequest!");
 
       if (this._flags & CL_SUSPEND) {
@@ -127,21 +124,21 @@ ChannelListener.prototype = {
 
   onStopRequest: function(request, context, status) {
     try {
-      var success = Components.isSuccessCode(status);
       if (!this._got_onstartrequest)
         do_throw("onStopRequest without onStartRequest event!");
       if (this._got_onstoprequest)
         do_throw("Got second onStopRequest event!");
       this._got_onstoprequest = true;
-      if ((this._flags & (CL_EXPECT_FAILURE | CL_EXPECT_LATE_FAILURE)) && success)
+      var success = Components.isSuccessCode(status);
+      if ((this._flags & CL_EXPECT_FAILURE) && success)
         do_throw("Should have failed to load URL (status is " + status.toString(16) + ")");
-      else if (!(this._flags & (CL_EXPECT_FAILURE | CL_EXPECT_LATE_FAILURE)) && !success)
+      else if (!(this._flags & CL_EXPECT_FAILURE) && !success)
         do_throw("Failed to load URL: " + status.toString(16));
       if (status != request.status)
         do_throw("request.status does not match status arg to onStopRequest!");
       if (request.isPending())
         do_throw("request reports itself as pending from onStopRequest!");
-      if (!(this._flags & (CL_EXPECT_FAILURE | CL_EXPECT_LATE_FAILURE)) &&
+      if (!(this._flags & CL_EXPECT_FAILURE) &&
           !(this._flags & CL_EXPECT_GZIP) &&
           this._contentLen != -1)
           do_check_eq(this._buffer.length, this._contentLen)

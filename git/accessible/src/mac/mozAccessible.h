@@ -1,9 +1,42 @@
 /* -*- Mode: Objective-C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Original Author: Håkan Waara <hwaara@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-#include "AccessibleWrap.h"
+#include "nsAccessibleWrap.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -11,51 +44,23 @@
 
 @class mozRootAccessible;
 
-/**
- * All mozAccessibles are either abstract objects (that correspond to XUL
- * widgets, HTML frames, etc) or are attached to a certain view; for example
- * a document view. When we hand an object off to an AT, we always want
- * to give it the represented view, in the latter case.
- */
-inline id <mozAccessible>
-GetObjectOrRepresentedView(id <mozAccessible> aObject)
-{
-  return [aObject hasRepresentedView] ? [aObject representedView] : aObject;
-}
-
-inline mozAccessible*
-GetNativeFromGeckoAccessible(nsIAccessible* aAccessible)
-{
-  mozAccessible* native = nil;
-  aAccessible->GetNativeInterface((void**)&native);
-  return native;
-}
-
 @interface mozAccessible : NSObject <mozAccessible>
 {
-  /**
-   * Weak reference; it owns us.
-   */
-  AccessibleWrap* mGeckoAccessible;
+  nsAccessibleWrap *mGeckoAccessible;  // weak reference; it owns us.
+  NSMutableArray   *mChildren;         // strong ref to array of children
   
-  /**
-   * Strong ref to array of children
-   */
-  NSMutableArray* mChildren;
+  // we can be marked as 'expired' if Shutdown() is called on our geckoAccessible.
+  // since we might still be retained by some third-party, we need to do cleanup
+  // in |expire|, and prevent any potential harm that could come from someone using us
+  // after this point.
+  BOOL mIsExpired;
   
-  /** 
-   * Weak reference to the parent
-   */
-  mozAccessible* mParent;
-
-  /**
-   * The nsIAccessible role of our gecko accessible.
-   */
-  mozilla::a11y::role        mRole;
+  // the nsIAccessible role of our gecko accessible.
+  PRUint32        mRole;
 }
 
 // inits with the gecko owner.
-- (id)initWithAccessible:(AccessibleWrap*)geckoParent;
+- (id)initWithAccessible:(nsAccessibleWrap*)geckoParent;
 
 // our accessible parent (AXParent)
 - (id <mozAccessible>)parent;
@@ -75,9 +80,6 @@ GetNativeFromGeckoAccessible(nsIAccessible* aAccessible)
 // a subrole is a more specialized variant of the role. for example,
 // the role might be "textfield", while the subrole is "password textfield".
 - (NSString*)subrole;
-
-// Return the role description, as there are a few exceptions.
-- (NSString*)roleDescription;
 
 // returns the native window we're inside.
 - (NSWindow*)window;
@@ -106,17 +108,11 @@ GetNativeFromGeckoAccessible(nsIAccessible* aAccessible)
 // notifications sent out to listening accessible providers.
 - (void)didReceiveFocus;
 - (void)valueDidChange;
-- (void)selectedTextDidChange;
 
 #pragma mark -
 
 // invalidates and removes all our children from our cached array.
 - (void)invalidateChildren;
-
-/** 
- * Append a child if they are already cached.
- */
-- (void)appendChild:(Accessible*)aAccessible;
 
 // makes ourselves "expired". after this point, we might be around if someone
 // has retained us (e.g., a third-party), but we really contain no information.
@@ -128,7 +124,7 @@ GetNativeFromGeckoAccessible(nsIAccessible* aAccessible)
 - (void)printHierarchyWithLevel:(unsigned)numSpaces;
 
 - (void)sanityCheckChildren;
-- (void)sanityCheckChildren:(NSArray*)theChildren;
+- (void)sanityCheckChildren:(NSArray *)theChildren;
 #endif
 
 // ---- NSAccessibility methods ---- //

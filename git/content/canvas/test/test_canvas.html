@@ -1,73 +1,30 @@
 <!DOCTYPE HTML>
 <title>Canvas Tests</title>
+<script src="/MochiKit/packed.js"></script>
 <script src="/tests/SimpleTest/SimpleTest.js"></script>
 <link rel="stylesheet" href="/tests/SimpleTest/test.css">
 <body>
 <script>
 
 SimpleTest.waitForExplicitFinish();
-const Cc = SpecialPowers.wrap(Components).classes;
-const Cr = SpecialPowers.wrap(Components).results;
 
 function IsD2DEnabled() {
     var enabled = false;
 
     try {
-        enabled = Cc["@mozilla.org/gfx/info;1"].getService(Components.interfaces.nsIGfxInfo).D2DEnabled;
+        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+        enabled = Components.classes["@mozilla.org/gfx/info;1"].getService(Components.interfaces.nsIGfxInfo).D2DEnabled;
     } catch(e) {}
     
     return enabled;
 }
 
-function IsLinux() {
-    return navigator.platform.indexOf("Linux") == 0 &&
-           navigator.appVersion.indexOf("Android") == -1;
-}
-
-function IsMacOSX10_5orOlder() {
-    var is105orOlder = false;
-
-    if (navigator.platform.indexOf("Mac") == 0) {
-        var version = Cc["@mozilla.org/system-info;1"]
-                        .getService(Components.interfaces.nsIPropertyBag2)
-                        .getProperty("version");
-        // the next line is correct: Mac OS 10.6 corresponds to Darwin version 10 !
-        // Mac OS 10.5 would be Darwin version 9. the |version| string we've got here
-        // is the Darwin version.
-        is105orOlder = (parseFloat(version) < 10.0);
-    }
-    return is105orOlder;
-}
-
-
 function IsAzureEnabled() {
   var enabled = false;
 
   try {
-    var backend = Cc["@mozilla.org/gfx/info;1"].getService(Components.interfaces.nsIGfxInfo).getInfo().AzureCanvasBackend;
-    enabled = (backend != "none");
-  } catch (e) { }
-
-  return enabled;
-}
-
-function IsAzureSkia() {
-  var enabled = false;
-  
-  try {
-    var backend = Cc["@mozilla.org/gfx/info;1"].getService(Components.interfaces.nsIGfxInfo).getInfo().AzureCanvasBackend;
-    enabled = (backend == "skia");
-  } catch (e) { }
-
-  return enabled;
-}
-
-function IsAzureCairo() {
-  var enabled = false;
-  
-  try {
-    var backend = Cc["@mozilla.org/gfx/info;1"].getService(Components.interfaces.nsIGfxInfo).getInfo().AzureCanvasBackend;
-    enabled = (backend == "cairo");
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    enabled = Components.classes["@mozilla.org/gfx/info;1"].getService(Components.interfaces.nsIGfxInfo).AzureEnabled;
   } catch (e) { }
 
   return enabled;
@@ -2959,7 +2916,7 @@ var img = document.getElementById('broken_1.png');
 todo(img.complete === false, "img.complete === false");
 var _thrown = undefined; try {
   ctx.drawImage(img, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "InvalidStateError" && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw InvalidStateError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw INVALID_STATE_ERR");
 
 
 }
@@ -3079,11 +3036,43 @@ var img = new Image();
 todo(img.complete === false, "img.complete === false");
 var _thrown = undefined; try {
   ctx.drawImage(img, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "InvalidStateError" && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw InvalidStateError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw INVALID_STATE_ERR");
 
 
 }
 </script>
+
+<!-- [[[ test_2d.drawImage.negativedir.html ]]] -->
+
+<p>Canvas test: 2d.drawImage.negativedir</p>
+<canvas id="c117a" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
+<script>
+
+
+function test_2d_drawImage_negativedir() {
+
+var canvas = document.getElementById('c117a');
+var ctx = canvas.getContext('2d');
+
+ctx.fillStyle = '#f00';
+ctx.fillRect(0, 0, 100, 50);
+ctx.drawImage(document.getElementById('ggrr-256x256_0.png'), 0, 178, 50, -100, 0, 0, 50, 100);
+ctx.drawImage(document.getElementById('ggrr-256x256_0.png'), 0, 78, 50, 100, 50, 100, 50, -100);
+isPixel(ctx, 1,1, 0,255,0,255, 2);
+isPixel(ctx, 1,48, 0,255,0,255, 2);
+isPixel(ctx, 98,1, 0,255,0,255, 2);
+isPixel(ctx, 98,48, 0,255,0,255, 2);
+isPixel(ctx, 48,1, 0,255,0,255, 2);
+isPixel(ctx, 48,48, 0,255,0,255, 2);
+isPixel(ctx, 51,1, 0,255,0,255, 2);
+isPixel(ctx, 51,48, 0,255,0,255, 2);
+isPixel(ctx, 25,25, 0,255,0,255, 2);
+isPixel(ctx, 75,25, 0,255,0,255, 2);
+
+
+}
+</script>
+<img src="image_ggrr-256x256.png" id="ggrr-256x256_0.png" class="resource">
 
 <!-- [[[ test_2d.drawImage.negativedest.html ]]] -->
 
@@ -3096,9 +3085,6 @@ function test_2d_drawImage_negativedest() {
 
 var canvas = document.getElementById('c117');
 var ctx = canvas.getContext('2d');
-
-var _thrown_outer = false;
-try {
 
 ctx.fillStyle = '#f00';
 ctx.fillRect(0, 0, 100, 50);
@@ -3114,11 +3100,6 @@ isPixel(ctx, 51,1, 0,255,0,255, 2);
 isPixel(ctx, 51,48, 0,255,0,255, 2);
 isPixel(ctx, 25,25, 0,255,0,255, 2);
 isPixel(ctx, 75,25, 0,255,0,255, 2);
-
-} catch (e) {
-    _thrown_outer = true;
-}
-todo(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -3137,9 +3118,6 @@ function test_2d_drawImage_negativesource() {
 var canvas = document.getElementById('c118');
 var ctx = canvas.getContext('2d');
 
-var _thrown_outer = false;
-try {
-
 ctx.fillStyle = '#f00';
 ctx.fillRect(0, 0, 100, 50);
 ctx.drawImage(document.getElementById('ggrr-256x256_2.png'), 100, 78, -100, 50, 0, 0, 50, 50);
@@ -3154,11 +3132,6 @@ isPixel(ctx, 51,1, 0,255,0,255, 2);
 isPixel(ctx, 51,48, 0,255,0,255, 2);
 isPixel(ctx, 25,25, 0,255,0,255, 2);
 isPixel(ctx, 75,25, 0,255,0,255, 2);
-
-} catch (e) {
-    _thrown_outer = true;
-}
-todo(!_thrown_outer, 'should not throw exception');
 
 
 }
@@ -3536,13 +3509,8 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.drawImage(null, 0, 0);
-} catch (e) { _thrown = e };
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
 
 }
 </script>
@@ -3560,42 +3528,35 @@ function test_2d_drawImage_outsidesource() {
 var canvas = document.getElementById('c122');
 var ctx = canvas.getContext('2d');
 
-var _thrown_outer = false;
-try {
-
 ctx.drawImage(document.getElementById('green_7.png'), 10.5, 10.5, 89.5, 39.5, 0, 0, 100, 50);
 ctx.drawImage(document.getElementById('green_7.png'), 5.5, 5.5, -5.5, -5.5, 0, 0, 100, 50);
 ctx.drawImage(document.getElementById('green_7.png'), 100, 50, -5, -5, 0, 0, 100, 50);
+
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_11.png'), -0.001, 0, 100, 50, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_11.png'), 0, -0.001, 100, 50, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_11.png'), 0, 0, 100.001, 50, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_11.png'), 0, 0, 100, 50.001, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_11.png'), 50, 0, 50.001, 50, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_11.png'), 0, 0, -5, 5, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_11.png'), 0, 0, 5, -5, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_11.png'), 110, 60, -20, -20, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
-todo_isPixel(ctx, 50,25, 0,255,0,255, 2);
-
-} catch (e) {
-    _thrown_outer = true;
-}
-todo(!_thrown_outer, 'should not throw exception');
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
+isPixel(ctx, 50,25, 0,255,0,255, 2);
 
 
 }
@@ -3713,44 +3674,24 @@ isPixel(ctx, 50,25, 0,255,0,255, 2);
 
 function test_2d_drawImage_wrongtype() {
 
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
 var canvas = document.getElementById('c127');
 var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.drawImage(undefined, 0, 0);
-} catch (e) { _thrown = e }; 
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
-
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(0, 0, 0);
-} catch (e) { _thrown = e };
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
-
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.result == Components.results.NS_ERROR_XPC_BAD_CONVERT_JS_ZERO_ISNOT_NULL, "should throw NS_ERROR_XPC_BAD_CONVERT_JS_ZERO_ISNOT_NULL");
 var _thrown = undefined; try {
   ctx.drawImage("", 0, 0);
-} catch (e) { _thrown = e };
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
-
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.result == Components.results.NS_ERROR_XPC_BAD_CONVERT_JS, "should throw NS_ERROR_XPC_BAD_CONVERT_JS");
 var _thrown = undefined; try {
   ctx.drawImage(document.createElement('p'), 0, 0);
-} catch (e) { _thrown = e };
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
+
 
 }
 </script>
@@ -3772,13 +3713,13 @@ ctx.fillStyle = '#0f0';
 ctx.fillRect(0, 0, 100, 50);
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_14.png'), 10, 10, 0, 1, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_14.png'), 10, 10, 1, 0, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(document.getElementById('red_14.png'), 10, 10, 0, 0, 0, 0, 100, 50);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 isPixel(ctx, 50,25, 0,255,0,255, 2);
 
 
@@ -4160,7 +4101,7 @@ canvas.setAttribute('style', 'color: #0f0');
 ctx.fillStyle = '#f00';
 ctx.fillStyle = 'currentColor';
 ctx.fillRect(0, 0, 100, 50);
-isPixel(ctx, 50,25, 0,255,0,255, 0);
+todo_isPixel(ctx, 50,25, 0,255,0,255, 0);
 
 
 }
@@ -4185,7 +4126,7 @@ ctx.fillStyle = '#f00';
 ctx.fillStyle = 'currentColor';
 canvas.setAttribute('style', 'color: #f00');
 ctx.fillRect(0, 0, 100, 50);
-isPixel(ctx, 50,25, 0,255,0,255, 0);
+todo_isPixel(ctx, 50,25, 0,255,0,255, 0);
 
 
 }
@@ -4221,7 +4162,7 @@ ctx.drawImage(canvas2, 0, 0);
 document.body.parentNode.removeAttribute('style');
 document.body.removeAttribute('style');
 
-isPixel(ctx, 50,25, 0,0,0,255, 0);
+todo_isPixel(ctx, 50,25, 0,0,0,255, 0);
 
 
 }
@@ -5835,12 +5776,10 @@ function test_2d_gradient_interpolate_overlap() {
 var canvas = document.getElementById('c215');
 var ctx = canvas.getContext('2d');
 
-if (!IsD2DEnabled() && !IsMacOSX10_5orOlder()) {
-    // On D2D the different nature of how gradients
+if (!IsD2DEnabled()) {
+    // Only run this on non-D2D. On D2D the different nature of how gradients
     // are drawn makes it so we cannot guarantee these stops are completely
     // hard.
-
-    // On OS X 10.5 quartz is confused by the overlapping stops: Bug #715235
     canvas.width = 200;
     var g = ctx.createLinearGradient(0, 0, 200, 0);
     g.addColorStop(0, '#f00');
@@ -5894,15 +5833,12 @@ for (var p = 0; p < ps.length; ++p)
 }
 ctx.fillStyle = g;
 ctx.fillRect(0, 0, 100, 50);
+isPixel(ctx, 1,25, 0,255,0,255, 0);
+isPixel(ctx, 30,25, 0,255,0,255, 0);
+isPixel(ctx, 40,25, 0,255,0,255, 0);
+isPixel(ctx, 60,25, 0,255,0,255, 0);
+isPixel(ctx, 80,25, 0,255,0,255, 0);
 
-if (!IsMacOSX10_5orOlder()) {
-    // On OS X 10.5 quartz is confused by the overlapping stops: Bug #715235
-    isPixel(ctx, 1,25, 0,255,0,255, 0);
-    isPixel(ctx, 30,25, 0,255,0,255, 0);
-    isPixel(ctx, 40,25, 0,255,0,255, 0);
-    isPixel(ctx, 60,25, 0,255,0,255, 0);
-    isPixel(ctx, 80,25, 0,255,0,255, 0);
-}
 
 }
 </script>
@@ -5976,12 +5912,7 @@ g.addColorStop(0, '#f00');
 g.addColorStop(1, '#f00');
 ctx.fillStyle = g;
 ctx.fillRect(0, 0, 100, 50);
-
-if (IsAzureEnabled() && IsAzureSkia()) {
-  isPixel(ctx, 40,20, 0,255,0,255, 2);
-} else {
-  todo_isPixel(ctx, 40,20, 0,255,0,255, 2);
-}
+todo_isPixel(ctx, 40,20, 0,255,0,255, 2);
 
 
 }
@@ -6001,73 +5932,73 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createLinearGradient(Infinity, 0, 1, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(-Infinity, 0, 1, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(NaN, 0, 1, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, Infinity, 1, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, -Infinity, 1, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, NaN, 1, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, 0, Infinity, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, 0, -Infinity, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, 0, NaN, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, 0, 1, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, 0, 1, -Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, 0, 1, NaN);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(Infinity, Infinity, 1, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(Infinity, Infinity, Infinity, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(Infinity, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(Infinity, Infinity, 1, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(Infinity, 0, Infinity, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(Infinity, 0, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(Infinity, 0, 1, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, Infinity, Infinity, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, Infinity, 1, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, 0, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 
 
 }
@@ -6229,10 +6160,10 @@ var ctx = canvas.getContext('2d');
 var g = ctx.createLinearGradient(0, 0, 100, 0);
 var _thrown = undefined; try {
   g.addColorStop(0, "");
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "SyntaxError" && _thrown.code == DOMException.SYNTAX_ERR, "should throw SyntaxError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.SYNTAX_ERR, "should throw SYNTAX_ERR");
 var _thrown = undefined; try {
   g.addColorStop(0, 'undefined');
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "SyntaxError" && _thrown.code == DOMException.SYNTAX_ERR, "should throw SyntaxError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.SYNTAX_ERR, "should throw SYNTAX_ERR");
 
 
 }
@@ -6252,19 +6183,19 @@ var ctx = canvas.getContext('2d');
 var g = ctx.createLinearGradient(0, 0, 100, 0);
 var _thrown = undefined; try {
   g.addColorStop(-1, '#000');
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   g.addColorStop(2, '#000');
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   g.addColorStop(Infinity, '#000');
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   g.addColorStop(-Infinity, '#000');
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   g.addColorStop(NaN, '#000');
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 
 
 }
@@ -6795,13 +6726,13 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, -0.1, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, 0, 0, -0.1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, -0.1, 0, 0, -0.1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 
 
 }
@@ -6821,229 +6752,229 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, 1, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(-Infinity, 0, 1, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(NaN, 0, 1, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, 1, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, -Infinity, 1, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, NaN, 1, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, Infinity, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, -Infinity, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, NaN, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, Infinity, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, -Infinity, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, NaN, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, 0, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, 0, -Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, 0, NaN, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, 0, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, 0, 0, -Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, 0, 0, NaN);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, 1, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, Infinity, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, Infinity, Infinity, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, Infinity, Infinity, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, Infinity, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, Infinity, Infinity, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, Infinity, 0, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, Infinity, 0, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, Infinity, 0, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, 1, Infinity, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, 1, Infinity, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, 1, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, 1, Infinity, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, 1, 0, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, 1, 0, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, Infinity, 1, 0, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, Infinity, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, Infinity, Infinity, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, Infinity, Infinity, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, Infinity, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, Infinity, Infinity, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, Infinity, 0, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, Infinity, 0, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, Infinity, 0, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, 1, Infinity, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, 1, Infinity, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, 1, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, 1, Infinity, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, 1, 0, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, 1, 0, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(Infinity, 0, 1, 0, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, Infinity, 0, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, Infinity, Infinity, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, Infinity, Infinity, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, Infinity, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, Infinity, Infinity, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, Infinity, 0, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, Infinity, 0, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, Infinity, 0, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, 1, Infinity, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, 1, Infinity, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, 1, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, 1, Infinity, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, 1, 0, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, 1, 0, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, Infinity, 1, 0, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, Infinity, Infinity, 0, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, Infinity, Infinity, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, Infinity, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, Infinity, Infinity, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, Infinity, 0, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, Infinity, 0, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, Infinity, 0, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, Infinity, Infinity, 1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, Infinity, 0, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, 0, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 
 
 }
@@ -7531,46 +7462,46 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createImageData(Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(-Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(NaN, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(10, -Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(10, NaN);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData({valueOf:function() Infinity}, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData({valueOf:function() -Infinity}, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData({valueOf:function() NaN}, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(10, {valueOf:function() Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(10, {valueOf:function() -Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(10, {valueOf:function() NaN});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createImageData({valueOf:function() Infinity}, {valueOf:function() Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 
 
 }
@@ -7636,7 +7567,7 @@ ok(!_thrown_outer, ctx.canvas.id + ' should not throw exception');
 <!-- [[[ test_2d.imageData.create.type.html ]]] -->
 
 <p>Canvas test: 2d.imageData.create.type - bug 433004</p>
-<!-- Testing: createImageData() returns an ImageData object containing a Uint8ClampedArray object -->
+<!-- Testing: createImageData() returns an ImageData object containing a CanvasPixelArray object -->
 <canvas id="c261" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
 <script>
 
@@ -7645,13 +7576,21 @@ function test_2d_imageData_create_type() {
 var canvas = document.getElementById('c261');
 var ctx = canvas.getContext('2d');
 
-ok(window.ImageData !== undefined, "window.ImageData !== undefined");
-ok(window.Uint8ClampedArray !== undefined, "window.Uint8ClampedArray !== undefined");
+var _thrown_outer = false;
+try {
+
+todo(window.ImageData !== undefined, "window.ImageData !== undefined");
+todo(window.CanvasPixelArray !== undefined, "window.CanvasPixelArray !== undefined");
 window.ImageData.prototype.thisImplementsImageData = true;
-window.Uint8ClampedArray.prototype.thisImplementsUint8ClampedArray = true;
+window.CanvasPixelArray.prototype.thisImplementsCanvasPixelArray = true;
 var imgdata = ctx.createImageData(1, 1);
 ok(imgdata.thisImplementsImageData, "imgdata.thisImplementsImageData");
-ok(imgdata.data.thisImplementsUint8ClampedArray, "imgdata.data.thisImplementsUint8ClampedArray");
+ok(imgdata.data.thisImplementsCanvasPixelArray, "imgdata.data.thisImplementsCanvasPixelArray");
+
+} catch (e) {
+    _thrown_outer = true;
+}
+todo(!_thrown_outer, ctx.canvas.id + ' should not throw exception');
 
 
 }
@@ -7660,7 +7599,7 @@ ok(imgdata.data.thisImplementsUint8ClampedArray, "imgdata.data.thisImplementsUin
 <!-- [[[ test_2d.imageData.create1.type.html ]]] -->
 
 <p>Canvas test: 2d.imageData.create1.type - bug 630040</p>
-<!-- Testing: createImageData(imgdata) returns an ImageData object containing a Uint8ClampedArray object -->
+<!-- Testing: createImageData(imgdata) returns an ImageData object containing a CanvasPixelArray object -->
 <canvas id="c261a" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
 <script>
 
@@ -7669,13 +7608,21 @@ function test_2d_imageData_create1_type() {
 var canvas = document.getElementById('c261a');
 var ctx = canvas.getContext('2d');
 
-ok(window.ImageData !== undefined, "window.ImageData !== undefined");
-ok(window.Uint8ClampedArray !== undefined, "window.Uint8ClampedArray !== undefined");
+var _thrown_outer = false;
+try {
+
+todo(window.ImageData !== undefined, "window.ImageData !== undefined");
+todo(window.CanvasPixelArray !== undefined, "window.CanvasPixelArray !== undefined");
 window.ImageData.prototype.thisImplementsImageData = true;
-window.Uint8ClampedArray.prototype.thisImplementsUint8ClampedArray = true;
+window.CanvasPixelArray.prototype.thisImplementsCanvasPixelArray = true;
 var imgdata = ctx.createImageData(ctx.createImageData(1, 1));
-ok(imgdata.thisImplementsImageData, "imgdata.thisImplementsImageData");
-ok(imgdata.data.thisImplementsUint8ClampedArray, "imgdata.data.thisImplementsUint8ClampedArray");
+todo(imgdata.thisImplementsImageData, "imgdata.thisImplementsImageData");
+todo(imgdata.data.thisImplementsCanvasPixelArray, "imgdata.data.thisImplementsCanvasPixelArray");
+
+} catch (e) {
+    _thrown_outer = true;
+}
+todo(!_thrown_outer, ctx.canvas.id + ' should not throw exception');
 
 
 }
@@ -7695,13 +7642,13 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createImageData(10, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(0, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.createImageData(0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 
 
 }
@@ -7710,7 +7657,7 @@ var _thrown = undefined; try {
 <!-- [[[ test_2d.imageData.create1.zero.html ]]] -->
 
 <p>Canvas test: 2d.imageData.create1.zero - bug 630040</p>
-<!-- Testing: createImageData(null) throws TypeError -->
+<!-- Testing: createImageData(null) throws NOT_SUPPORTED_ERR -->
 <canvas id="c262a" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
 <script>
 
@@ -7721,12 +7668,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createImageData(null);
-} catch (e) { _thrown = e };
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 
 
 }
@@ -7793,142 +7735,142 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.getImageData(Infinity, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(-Infinity, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(NaN, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, -Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, NaN, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, -Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, NaN, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, 10, -Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, 10, NaN);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(Infinity, Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(Infinity, Infinity, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(Infinity, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(Infinity, Infinity, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(Infinity, 10, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(Infinity, 10, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(Infinity, 10, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, Infinity, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, Infinity, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData({valueOf:function() Infinity}, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData({valueOf:function() -Infinity}, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData({valueOf:function() NaN}, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, {valueOf:function() Infinity}, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, {valueOf:function() -Infinity}, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, {valueOf:function() NaN}, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, {valueOf:function() Infinity}, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, {valueOf:function() -Infinity}, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, {valueOf:function() NaN}, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, 10, {valueOf:function() Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, 10, {valueOf:function() -Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, 10, {valueOf:function() NaN});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData({valueOf:function() Infinity}, {valueOf:function() Infinity}, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData({valueOf:function() Infinity}, {valueOf:function() Infinity}, {valueOf:function() Infinity}, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData({valueOf:function() Infinity}, {valueOf:function() Infinity}, {valueOf:function() Infinity}, {valueOf:function() Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData({valueOf:function() Infinity}, {valueOf:function() Infinity}, 10, {valueOf:function() Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData({valueOf:function() Infinity}, 10, {valueOf:function() Infinity}, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData({valueOf:function() Infinity}, 10, {valueOf:function() Infinity}, {valueOf:function() Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData({valueOf:function() Infinity}, 10, 10, {valueOf:function() Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, {valueOf:function() Infinity}, {valueOf:function() Infinity}, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, {valueOf:function() Infinity}, {valueOf:function() Infinity}, {valueOf:function() Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, {valueOf:function() Infinity}, 10, {valueOf:function() Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(10, 10, {valueOf:function() Infinity}, {valueOf:function() Infinity});
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 
 
 }
@@ -8092,6 +8034,9 @@ function test_2d_imageData_get_source_negative() {
 var canvas = document.getElementById('c272');
 var ctx = canvas.getContext('2d');
 
+var _thrown_outer = false;
+try {
+
 ctx.fillStyle = '#000';
 ctx.fillRect(0, 0, 100, 50);
 ctx.fillStyle = '#fff';
@@ -8112,6 +8057,11 @@ ok(imgdata2.data[0] === 0, "imgdata2.data[\""+(0)+"\"] === 0");
 ok(imgdata2.data[1] === 0, "imgdata2.data[\""+(1)+"\"] === 0");
 ok(imgdata2.data[2] === 0, "imgdata2.data[\""+(2)+"\"] === 0");
 ok(imgdata2.data[3] === 0, "imgdata2.data[\""+(3)+"\"] === 0");
+
+} catch (e) {
+    _thrown_outer = true;
+}
+ok(!_thrown_outer, ctx.canvas.id + ' should not throw exception');
 
 
 }
@@ -8255,7 +8205,7 @@ ok(!_thrown_outer, ctx.canvas.id + ' should not throw exception');
 <!-- [[[ test_2d.imageData.get.type.html ]]] -->
 
 <p>Canvas test: 2d.imageData.get.type</p>
-<!-- Testing: getImageData() returns an ImageData object containing a Uint8ClampedArray object -->
+<!-- Testing: getImageData() returns an ImageData object containing a CanvasPixelArray object -->
 <canvas id="c276" width="100" height="50"><p class="fallback">FAIL (fallback content)</p></canvas>
 <script>
 
@@ -8264,13 +8214,21 @@ function test_2d_imageData_get_type() {
 var canvas = document.getElementById('c276');
 var ctx = canvas.getContext('2d');
 
-ok(window.ImageData !== undefined, "window.ImageData !== undefined");
-ok(window.Uint8ClampedArray !== undefined, "window.Uint8ClampedArray !== undefined");
+var _thrown_outer = false;
+try {
+
+todo(window.ImageData !== undefined, "window.ImageData !== undefined");
+todo(window.CanvasPixelArray !== undefined, "window.CanvasPixelArray !== undefined");
 window.ImageData.prototype.thisImplementsImageData = true;
-window.Uint8ClampedArray.prototype.thisImplementsUint8ClampedArray = true;
+window.CanvasPixelArray.prototype.thisImplementsCanvasPixelArray = true;
 var imgdata = ctx.getImageData(0, 0, 1, 1);
 ok(imgdata.thisImplementsImageData, "imgdata.thisImplementsImageData");
-ok(imgdata.data.thisImplementsUint8ClampedArray, "imgdata.data.thisImplementsUint8ClampedArray");
+ok(imgdata.data.thisImplementsCanvasPixelArray, "imgdata.data.thisImplementsCanvasPixelArray");
+
+} catch (e) {
+    _thrown_outer = true;
+}
+todo(!_thrown_outer, ctx.canvas.id + ' should not throw exception');
 
 
 }
@@ -8324,13 +8282,13 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.getImageData(1, 1, 10, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(1, 1, 0, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 var _thrown = undefined; try {
   ctx.getImageData(1, 1, 0, 0);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 
 
 }
@@ -8394,7 +8352,7 @@ function test_2d_imageData_object_ctor() {
 var canvas = document.getElementById('c280');
 var ctx = canvas.getContext('2d');
 
-ok(window.ImageData !== undefined, "window.ImageData !== undefined");
+todo(window.ImageData !== undefined, "window.ImageData !== undefined");
 try { var _thrown = false;
   new window.ImageData(1,1);
 } catch (e) { _thrown = true; } finally { ok(_thrown, "should throw exception"); }
@@ -8974,250 +8932,250 @@ var ctx = canvas.getContext('2d');
 var imgdata = ctx.getImageData(0, 0, 10, 10);
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, -Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, NaN, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, -Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, NaN);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, 10, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, -Infinity, 10, 10, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, NaN, 10, 10, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, 10, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, -Infinity, 10, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, NaN, 10, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, Infinity, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, -Infinity, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, NaN, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, -Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, NaN, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, 10, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, 10, -Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, 10, NaN, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, 10, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, 10, 10, -Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, 10, 10, NaN);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, 10, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, Infinity, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, Infinity, Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, Infinity, Infinity, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, Infinity, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, Infinity, Infinity, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, Infinity, 10, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, Infinity, 10, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, Infinity, 10, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, 10, Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, 10, Infinity, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, 10, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, 10, Infinity, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, 10, 10, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, 10, 10, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, Infinity, 10, 10, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, Infinity, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, Infinity, Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, Infinity, Infinity, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, Infinity, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, Infinity, Infinity, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, Infinity, 10, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, Infinity, 10, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, Infinity, 10, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, 10, Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, 10, Infinity, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, 10, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, 10, Infinity, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, 10, 10, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, 10, 10, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, Infinity, 10, 10, 10, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, Infinity, 10, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, Infinity, Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, Infinity, Infinity, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, Infinity, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, Infinity, Infinity, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, Infinity, 10, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, Infinity, 10, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, Infinity, 10, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, 10, Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, 10, Infinity, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, 10, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, 10, Infinity, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, 10, 10, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, 10, 10, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, Infinity, 10, 10, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, Infinity, Infinity, 10, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, Infinity, Infinity, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, Infinity, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, Infinity, Infinity, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, Infinity, 10, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, Infinity, 10, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, Infinity, 10, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, Infinity, Infinity, 10);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, Infinity, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, Infinity, 10, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 10, 10, 10, 10, Infinity, Infinity);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 
 
 }
@@ -9237,12 +9195,8 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.putImageData(null, 0, 0);
-} catch (e) { _thrown = e };
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
+
 
 }
 </script>
@@ -9353,31 +9307,13 @@ var ctx = canvas.getContext('2d');
 var imgdata = { width: 1, height: 1, data: [255, 0, 0, 255] };
 var _thrown = undefined; try {
   ctx.putImageData(imgdata, 0, 0);
-} catch (e) { _thrown = e }; 
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
-
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 var _thrown = undefined; try {
   ctx.putImageData("cheese", 0, 0);
-} catch (e) { _thrown = e };
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
-
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 var _thrown = undefined; try {
   ctx.putImageData(42, 0, 0);
-} catch (e) { _thrown = e };
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
-
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 
 
 }
@@ -10595,276 +10531,276 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.scale();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.scale(1);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.rotate();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.translate();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.translate(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 if (ctx.transform) { // (avoid spurious failures, since the aim here is not to test that all features are supported)
     var _thrown = undefined; try {
   ctx.transform();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.transform(1);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.transform(1, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.transform(1, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.transform(1, 0, 0, 1);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.transform(1, 0, 0, 1, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 }
 if (ctx.setTransform) {
     var _thrown = undefined; try {
   ctx.setTransform();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.setTransform(1);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.setTransform(1, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.setTransform(1, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.setTransform(1, 0, 0, 1);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.setTransform(1, 0, 0, 1, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 }
 var _thrown = undefined; try {
   ctx.createLinearGradient();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createLinearGradient(0, 0, 1);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createRadialGradient(0, 0, 1, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.createPattern(canvas);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.clearRect();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.clearRect(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.clearRect(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.clearRect(0, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.fillRect();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.fillRect(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.fillRect(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.fillRect(0, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.strokeRect();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.strokeRect(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.strokeRect(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.strokeRect(0, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.moveTo();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.moveTo(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.lineTo();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.lineTo(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.quadraticCurveTo();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.quadraticCurveTo(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.quadraticCurveTo(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.quadraticCurveTo(0, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.bezierCurveTo();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.bezierCurveTo(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.bezierCurveTo(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.bezierCurveTo(0, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.bezierCurveTo(0, 0, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.bezierCurveTo(0, 0, 0, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arcTo();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arcTo(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arcTo(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arcTo(0, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arcTo(0, 0, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.rect();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.rect(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.rect(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.rect(0, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arc();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arc(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arc(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arc(0, 0, 1);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arc(0, 0, 1, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.arc(0, 0, 1, 0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 if (ctx.isPointInPath) {
     var _thrown = undefined; try {
   ctx.isPointInPath();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.isPointInPath(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 }
 var _thrown = undefined; try {
   ctx.drawImage();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(canvas);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   ctx.drawImage(canvas, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 // TODO: n >= 3 args on drawImage could be either a valid overload,
 // or too few for another overload, or too many for another
 // overload - what should happen?
 if (ctx.createImageData) {
     var _thrown = undefined; try {
   ctx.createImageData();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.createImageData(1);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 }
 if (ctx.getImageData) {
     var _thrown = undefined; try {
   ctx.getImageData();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.getImageData(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.getImageData(0, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.getImageData(0, 0, 1);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 }
 if (ctx.putImageData) {
     var imgdata = ctx.getImageData(0, 0, 1, 1);
     var _thrown = undefined; try {
   ctx.putImageData();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.putImageData(imgdata);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
     var _thrown = undefined; try {
   ctx.putImageData(imgdata, 0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 }
 var g = ctx.createLinearGradient(0, 0, 0, 0);
 var _thrown = undefined; try {
   g.addColorStop();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 var _thrown = undefined; try {
   g.addColorStop(0);
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 
 
 }
@@ -11100,7 +11036,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.arc(0, 0, -1, 0, 0, true);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 
 
 }
@@ -11210,10 +11146,7 @@ ctx.fillRect(0, 0, 100, 50);
 ctx.scale(2, 0.5);
 ctx.fillStyle = '#0f0';
 ctx.beginPath();
-var hypothenuse = Math.sqrt(50 * 50 + 25 * 25);
-var tolerance = 0.5;
-var radius = hypothenuse + tolerance;
-ctx.arc(25, 50, radius, 0, 2*Math.PI, false);
+ctx.arc(25, 50, 56, 0, 2*Math.PI, false);
 ctx.fill();
 ctx.fillStyle = '#f00';
 ctx.beginPath();
@@ -11364,23 +11297,9 @@ isPixel(ctx, 50,25, 0,255,0,255, 0);
 isPixel(ctx, 1,1, 0,255,0,255, 0);
 isPixel(ctx, 98,1, 0,255,0,255, 0);
 isPixel(ctx, 1,48, 0,255,0,255, 0);
-// Fails on Linux with Azure/Cairo only
-// The arc is drawn badly due to Cairo limitations, the error only becomes
-// apparent on Linux because of anti-aliasing, probably due to X.
-// The limitation is that Cairo draws arcs by stroking perpendicular to the arc,
-// and at very large stroke thicknesses, this becomes a fan. Where exactly the
-// 'blades' of the fan appear seems to depend on exactly how the arc is defined
-// and the platform. So if the blades of the fan are where pixels are tested it
-// passes the test, if the testing pixels fall in between the blades, then we fail.
-// With Thebes/Cairo, we were rendering wrong, but got lucky with the test, now
-// we are not so lucky.
-// Bug 764125
-if (IsAzureCairo() && IsLinux()) {
-    todo_isPixel(ctx, 20,48, 0,255,0,255, 0);
-} else {
-    isPixel(ctx, 20,48, 0,255,0,255, 0);
-}
+isPixel(ctx, 20,48, 0,255,0,255, 0);
 isPixel(ctx, 98,48, 0,255,0,255, 0);
+
 
 }
 </script>
@@ -11913,7 +11832,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.arcTo(0, 0, 0, 0, -1);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "IndexSizeError" && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw IndexSizeError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.INDEX_SIZE_ERR, "should throw INDEX_SIZE_ERR");
 
 
 }
@@ -12076,7 +11995,7 @@ isPixel(ctx, 65,21, 0,255,0,255, 0);
 isPixel(ctx, 72,28, 0,255,0,255, 0);
 isPixel(ctx, 73,27, 0,255,0,255, 0);
 isPixel(ctx, 78,36, 0,255,0,255, 0);
-isPixel(ctx, 79,35, 0,255,0,255, IsAzureSkia() ? 1 : 0);
+isPixel(ctx, 79,35, 0,255,0,255, 0);
 isPixel(ctx, 80,44, 0,255,0,255, 0);
 isPixel(ctx, 80,45, 0,255,0,255, 0);
 isPixel(ctx, 80,46, 0,255,0,255, 0);
@@ -12123,11 +12042,11 @@ isPixel(ctx, 50,25, 0,255,0,255, 0);
 isPixel(ctx, 55,19, 0,255,0,255, 0);
 isPixel(ctx, 55,20, 0,255,0,255, 0);
 isPixel(ctx, 55,21, 0,255,0,255, 0);
-isPixel(ctx, 64,22, 0,255,0,255, IsAzureSkia() ? 1 : 0);
+isPixel(ctx, 64,22, 0,255,0,255, 0);
 isPixel(ctx, 65,21, 0,255,0,255, 0);
 isPixel(ctx, 72,28, 0,255,0,255, 0);
-isPixel(ctx, 73,27, 0,255,0,255, IsAzureSkia() ? 1 : 0);
-isPixel(ctx, 78,36, 0,255,0,255, IsAzureSkia() ? 1 : 0);
+isPixel(ctx, 73,27, 0,255,0,255, 0);
+isPixel(ctx, 78,36, 0,255,0,255, 0);
 isPixel(ctx, 79,35, 0,255,0,255, 0);
 isPixel(ctx, 80,44, 0,255,0,255, 0);
 isPixel(ctx, 80,45, 0,255,0,255, 0);
@@ -14430,11 +14349,8 @@ ctx.lineTo(50, 25);
 ctx.closePath();
 ctx.stroke();
 
-if (IsAzureEnabled() && IsAzureSkia()) {
-  isPixel(ctx, 50,25, 0,255,0,255, 0);
-} else {
-  todo_isPixel(ctx, 50,25, 0,255,0,255, 0);
-}
+todo_isPixel(ctx, 50,25, 0,255,0,255, 0);
+
 
 }
 </script>
@@ -14506,11 +14422,7 @@ ctx.moveTo(50, 25);
 ctx.bezierCurveTo(50, 25, 50, 25, 50, 25);
 ctx.stroke();
 
-if (IsAzureEnabled() && IsAzureSkia()) {
-  isPixel(ctx, 50,25, 0,255,0,255, 0);
-} else {
-  todo_isPixel(ctx, 50,25, 0,255,0,255, 0);
-}
+todo_isPixel(ctx, 50,25, 0,255,0,255, 0);
 
 
 }
@@ -14543,11 +14455,8 @@ ctx.moveTo(50, 25);
 ctx.lineTo(50, 25);
 ctx.stroke();
 
-if (IsAzureEnabled() && IsAzureSkia()) {
-  isPixel(ctx, 50,25, 0,255,0,255, 0);
-} else {
-  todo_isPixel(ctx, 50,25, 0,255,0,255, 0);
-}
+todo_isPixel(ctx, 50,25, 0,255,0,255, 0);
+
 
 }
 </script>
@@ -14580,11 +14489,8 @@ ctx.stroke();
 
 ctx.strokeRect(50, 25, 0, 0);
 
-if (IsAzureEnabled() && IsAzureSkia()) {
-  isPixel(ctx, 50,25, 0,255,0,255, 0);
-} else {
-  todo_isPixel(ctx, 50,25, 0,255,0,255, 0);
-}
+todo_isPixel(ctx, 50,25, 0,255,0,255, 0);
+
 
 }
 </script>
@@ -14742,6 +14648,7 @@ isPixel(ctx, 99,25, 0,255,0,255, 0);
 isPixel(ctx, 0,49, 0,255,0,255, 0);
 isPixel(ctx, 50,49, 0,255,0,255, 0);
 isPixel(ctx, 99,49, 0,255,0,255, 0);
+
 
 }
 </script>
@@ -15063,33 +14970,41 @@ ok(pattern.thisImplementsCanvasPattern, "pattern.thisImplementsCanvasPattern");
 
 function test_2d_pattern_basic_zerocanvas() {
 
-var canvas = document.getElementById('c463');
-var ctx = canvas.getContext('2d');
+var _thrown_outer = false;
 
-canvas.width = 0;
-canvas.height = 10;
-ok(canvas.width === 0, "canvas.width === 0");
-ok(canvas.height === 10, "canvas.height === 10");
-var _thrown = undefined; try {
-  ctx.createPattern(canvas, 'repeat');
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "InvalidStateError" && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw InvalidStateError");
+try {
+  var canvas = document.getElementById('c463');
+  var ctx = canvas.getContext('2d');
 
-canvas.width = 10;
-canvas.height = 0;
-ok(canvas.width === 10, "canvas.width === 10");
-ok(canvas.height === 0, "canvas.height === 0");
-var _thrown = undefined; try {
-  ctx.createPattern(canvas, 'repeat');
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "InvalidStateError" && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw InvalidStateError");
+  var canvas2 = document.createElement('canvas');
+  canvas2.width = 0;
+  canvas2.height = 0;
+  ok(canvas2.width === 0, "canvas2.width === 0");
+  ok(canvas2.height === 0, "canvas2.height === 0");
+  var ctx2 = canvas2.getContext('2d');
+  ctx2.fillStyle = '#f00';
+  ctx2.fillRect(0, 0, 100, 50);
+  var pattern = ctx.createPattern(canvas2, 'repeat');
 
-canvas.width = 0;
-canvas.height = 0;
-ok(canvas.width === 0, "canvas.width === 0");
-ok(canvas.height === 0, "canvas.height === 0");
-var _thrown = undefined; try {
-  ctx.createPattern(canvas, 'repeat');
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "InvalidStateError" && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw InvalidStateError");
+  ctx.fillStyle = '#0f0';
+  ctx.fillRect(0, 0, 100, 50);
+  ctx.fillStyle = '#f00';
+  ctx.fillStyle = pattern;
+  ctx.fillRect(0, 0, 100, 50);
 
+  isPixel(ctx, 1,1, 0,255,0,255, 0);
+  isPixel(ctx, 98,1, 0,255,0,255, 0);
+  isPixel(ctx, 1,48, 0,255,0,255, 0);
+  isPixel(ctx, 98,48, 0,255,0,255, 0);
+} catch(e) {
+  _thrown_outer = true;
+}
+
+if (IsAzureEnabled()) {
+  ok(_thrown_outer);
+} else {
+  todo(_thrown_outer, ctx.canvas.is + ' should throw exception INVALID_STATE_ERR');
+}
 
 }
 </script>
@@ -15136,7 +15051,7 @@ var img = document.getElementById('broken_2.png');
 todo(img.complete === false, "img.complete === false");
 var _thrown = undefined; try {
   ctx.createPattern(img, 'repeat');
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "InvalidStateError" && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw InvalidStateError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw INVALID_STATE_ERR");
 
 
 }
@@ -15158,7 +15073,7 @@ var img = new Image();
 todo(img.complete === false, "img.complete === false");
 var _thrown = undefined; try {
   ctx.createPattern(img, 'repeat');
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "InvalidStateError" && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw InvalidStateError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.INVALID_STATE_ERR, "should throw INVALID_STATE_ERR");
 
 
 }
@@ -15177,12 +15092,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createPattern(null, 'repeat');
-} catch (e) { _thrown = e };
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 
 
 }
@@ -15201,12 +15111,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createPattern('image_red.png', 'repeat');
-} catch (e) { _thrown = e };
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 
 
 }
@@ -15225,12 +15130,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createPattern(undefined, 'repeat');
-} catch (e) { _thrown = e };
-if (IsAzureEnabled()) {
-  ok(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-} else {
-  todo(_thrown && _thrown.name == "TypeError", "should throw TypeError");
-}
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.TYPE_MISMATCH_ERR, "should throw TYPE_MISMATCH_ERR");
 
 
 }
@@ -16025,7 +15925,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createPattern(canvas, "Repeat");
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "SyntaxError" && _thrown.code == DOMException.SYNTAX_ERR, "should throw SyntaxError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.SYNTAX_ERR, "should throw SYNTAX_ERR");
 
 
 }
@@ -16102,7 +16002,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createPattern(canvas, "repeat\0");
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "SyntaxError" && _thrown.code == DOMException.SYNTAX_ERR, "should throw SyntaxError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.SYNTAX_ERR, "should throw SYNTAX_ERR");
 
 
 }
@@ -16121,7 +16021,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createPattern(canvas, undefined);
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "SyntaxError" && _thrown.code == DOMException.SYNTAX_ERR, "should throw SyntaxError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.SYNTAX_ERR, "should throw SYNTAX_ERR");
 
 
 }
@@ -16140,7 +16040,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   ctx.createPattern(canvas, "invalid");
-} catch (e) { _thrown = e }; ok(_thrown && _thrown.name == "SyntaxError" && _thrown.code == DOMException.SYNTAX_ERR, "should throw SyntaxError");
+} catch (e) { _thrown = e }; ok(_thrown && _thrown.code == DOMException.SYNTAX_ERR, "should throw SYNTAX_ERR");
 
 
 }
@@ -18652,102 +18552,6 @@ ok(ctx.strokeStyle == '#000000', "ctx.strokeStyle == '#000000'");
 }
 </script>
 
-<!-- [[[ test_2d.text.align.default.html ]]] -->
-
-<p>Canvas test: 2d.text.align.default</p>
-<canvas height="50" id="c569a" width="100"><p class="fallback">FAIL (fallback content)</p></canvas>
-<script>
-
-function test_2d_text_align_default() {
-
-var canvas = document.getElementById('c569a');
-var ctx = canvas.getContext('2d');
-
-ok(ctx.textAlign === 'start', "ctx.textAlign === 'start'");
-
-
-}
-</script>
-
-<!-- [[[ test_2d.text.align.invalid.html ]]] -->
-
-<p>Canvas test: 2d.text.align.invalid</p>
-<canvas height="50" id="c570a" width="100"><p class="fallback">FAIL (fallback content)</p></canvas>
-<script>
-
-function test_2d_text_align_invalid() {
-
-var canvas = document.getElementById('c570a');
-var ctx = canvas.getContext('2d');
-
-ctx.textAlign = 'start';
-ctx.textAlign = 'bogus';
-ok(ctx.textAlign === 'start', "ctx.textAlign === 'start'");
-
-ctx.textAlign = 'start';
-ctx.textAlign = 'END';
-ok(ctx.textAlign === 'start', "ctx.textAlign === 'start'");
-
-ctx.textAlign = 'start';
-ctx.textAlign = 'end ';
-ok(ctx.textAlign === 'start', "ctx.textAlign === 'start'");
-
-ctx.textAlign = 'start';
-ctx.textAlign = 'end\0';
-ok(ctx.textAlign === 'start', "ctx.textAlign === 'start'");
-
-
-}
-</script>
-
-<!-- [[[ test_2d.text.baseline.default.html ]]] -->
-
-<p>Canvas test: 2d.text.baseline.default</p>
-<canvas height="50" id="c572a" width="100"><p class="fallback">FAIL (fallback content)</p></canvas>
-<script>
-
-function test_2d_text_baseline_default() {
-
-var canvas = document.getElementById('c572a');
-var ctx = canvas.getContext('2d');
-
-ok(ctx.textBaseline === 'alphabetic', "ctx.textBaseline === 'alphabetic'");
-
-
-}
-</script>
-
-<!-- [[[ test_2d.text.baseline.invalid.html ]]] -->
-
-<p>Canvas test: 2d.text.baseline.invalid</p>
-<canvas height="50" id="c573a" width="100"><p class="fallback">FAIL (fallback content)</p></canvas>
-<script>
-
-function test_2d_text_baseline_invalid() {
-
-var canvas = document.getElementById('c573a');
-var ctx = canvas.getContext('2d');
-
-ctx.textBaseline = 'top';
-ctx.textBaseline = 'bogus';
-ok(ctx.textBaseline === 'top', "ctx.textBaseline === 'top'");
-
-ctx.textBaseline = 'top';
-ctx.textBaseline = 'MIDDLE';
-ok(ctx.textBaseline === 'top', "ctx.textBaseline === 'top'");
-
-ctx.textBaseline = 'top';
-ctx.textBaseline = 'middle ';
-ok(ctx.textBaseline === 'top', "ctx.textBaseline === 'top'");
-
-ctx.textBaseline = 'top';
-ctx.textBaseline = 'middle\0';
-ok(ctx.textBaseline === 'top', "ctx.textBaseline === 'top'");
-
-
-}
-</script>
-
 <!-- [[[ test_2d.transformation.order.html ]]] -->
 
 <p>Canvas test: 2d.transformation.order</p>
@@ -19303,7 +19107,7 @@ isPixel(ctx, 21,11, 0,255,0,255, 0);
 isPixel(ctx, 79,11, 0,255,0,255, 0);
 isPixel(ctx, 21,39, 0,255,0,255, 0);
 isPixel(ctx, 79,39, 0,255,0,255, 0);
-isPixel(ctx, 39,19, 0,255,0,255, IsAzureSkia() ? 1 : 0);
+isPixel(ctx, 39,19, 0,255,0,255, 0);
 isPixel(ctx, 61,19, 0,255,0,255, 0);
 isPixel(ctx, 39,31, 0,255,0,255, 0);
 isPixel(ctx, 61,31, 0,255,0,255, 0);
@@ -19511,7 +19315,7 @@ isPixel(ctx, 21,11, 0,255,0,255, 0);
 isPixel(ctx, 79,11, 0,255,0,255, 0);
 isPixel(ctx, 21,39, 0,255,0,255, 0);
 isPixel(ctx, 79,39, 0,255,0,255, 0);
-isPixel(ctx, 39,19, 0,255,0,255, IsAzureSkia() ? 1 : 0);
+isPixel(ctx, 39,19, 0,255,0,255, 0);
 isPixel(ctx, 61,19, 0,255,0,255, 0);
 isPixel(ctx, 39,31, 0,255,0,255, 0);
 isPixel(ctx, 61,31, 0,255,0,255, 0);
@@ -19643,7 +19447,6 @@ function test_2d_type_prototype() {
 var canvas = document.getElementById('c611');
 var ctx = canvas.getContext('2d');
 
-var fill = window.CanvasRenderingContext2D.prototype.fill;
 ok(window.CanvasRenderingContext2D.prototype, "window.CanvasRenderingContext2D.prototype");
 ok(window.CanvasRenderingContext2D.prototype.fill, "window.CanvasRenderingContext2D.prototype.fill");
 window.CanvasRenderingContext2D.prototype = null;
@@ -19653,14 +19456,9 @@ ok(window.CanvasRenderingContext2D.prototype, "window.CanvasRenderingContext2D.p
 window.CanvasRenderingContext2D.prototype.fill = 1;
 ok(window.CanvasRenderingContext2D.prototype.fill === 1, "window.CanvasRenderingContext2D.prototype.fill === 1");
 delete window.CanvasRenderingContext2D.prototype.fill;
-if (IsAzureEnabled()) {
-  ok(window.CanvasRenderingContext2D.prototype.fill === undefined, "window.CanvasRenderingContext2D.prototype.fill === undefined");
-} else {
-  todo(window.CanvasRenderingContext2D.prototype.fill === undefined, "window.CanvasRenderingContext2D.prototype.fill === undefined");
-}
+todo(window.CanvasRenderingContext2D.prototype.fill === undefined, "window.CanvasRenderingContext2D.prototype.fill === undefined");
 
-//restore the original method to ensure that other tests can run successfully
-window.CanvasRenderingContext2D.prototype.fill = fill;
+
 }
 </script>
 
@@ -19733,8 +19531,8 @@ ok(ctx.clip() === undefined, "ctx.clip() === undefined");
 if (ctx.putImageData) {
     ok(ctx.putImageData(ctx.getImageData(0, 0, 1, 1), 0, 0) === undefined, "ctx.putImageData(ctx.getImageData(0, 0, 1, 1), 0, 0) === undefined");
 }
-ok(ctx.drawImage(document.getElementById('yellow_11.png'), 0, 0, 0, 0, 0, 0, 0, 0) === undefined, "ctx.drawImage(document.getElementById('yellow_11.png'), 0, 0, 0, 0, 0, 0, 0, 0) === undefined");
-ok(ctx.drawImage(canvas, 0, 0, 0, 0, 0, 0, 0, 0) === undefined, "ctx.drawImage(canvas, 0, 0, 0, 0, 0, 0, 0, 0) === undefined");
+ok(ctx.drawImage(document.getElementById('yellow_11.png'), 0, 0, 1, 1, 0, 0, 0, 0) === undefined, "ctx.drawImage(document.getElementById('yellow_11.png'), 0, 0, 1, 1, 0, 0, 0, 0) === undefined");
+ok(ctx.drawImage(canvas, 0, 0, 1, 1, 0, 0, 0, 0) === undefined, "ctx.drawImage(canvas, 0, 0, 1, 1, 0, 0, 0, 0) === undefined");
 ok(ctx.createLinearGradient(0, 0, 0, 0).addColorStop(0, 'white') === undefined, "ctx.createLinearGradient(0, 0, 0, 0).addColorStop(0, 'white') === undefined");
 
 
@@ -19779,7 +19577,7 @@ function test_bug397524() {
   try {
     $("canvas2").toDataURL("image/png");
     gotData = true;
-  } catch (ex if (ex.code == 18 && ex.name == "SecurityError")) {
+  } catch (ex if (ex.code == 1000 && ex.name == "NS_ERROR_DOM_SECURITY_ERR")) {
   }
   is(gotData, false, "Shouldn't be able to read images cross-site!");
 
@@ -19788,7 +19586,7 @@ function test_bug397524() {
   try {
     $("canvas3").toDataURL("image/png");
     gotData = true;
-  } catch (ex if (ex.code == 18 && ex.name == "SecurityError")) {
+  } catch (ex if (ex.code == 1000 && ex.name == "NS_ERROR_DOM_SECURITY_ERR")) {
   }
   is(gotData, false, "Shouldn't be able to read images redirected cross-site!");
 
@@ -19804,8 +19602,9 @@ function test_bug397524() {
 <script>
 function test_bug405982() {
 
-var canvas = SpecialPowers.wrap(document.getElementById('c614'));
+var canvas = document.getElementById('c614');
 var ctx = canvas.getContext('2d');
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
 var _threw = false;
 try {
@@ -19857,7 +19656,7 @@ var ctx = canvas.getContext('2d');
 
 var _thrown = undefined; try {
   canvas.getContext();
-} catch (e) { _thrown = e }; todo(_thrown && _thrown.name == "NotSupportedError" && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NotSupportedError");
+} catch (e) { _thrown = e }; todo(_thrown && _thrown.code == DOMException.NOT_SUPPORTED_ERR, "should throw NOT_SUPPORTED_ERR");
 
 
 }
@@ -20401,7 +20200,7 @@ function test_size_attributes_parse_badsuffix() {
 var canvas = document.getElementById('c637');
 var ctx = canvas.getContext('2d');
 
-is(canvas.width, 100, "canvas.width == 100");
+todo(canvas.width == 100, "canvas.width == 100");
 
 
 }
@@ -20611,7 +20410,7 @@ var canvas = document.getElementById('c648');
 var ctx = canvas.getContext('2d');
 
 canvas.setAttribute('width', '100foo');
-is(canvas.width, 100, "canvas.width == 100");
+todo(canvas.width == 100, "canvas.width == 100");
 
 
 }
@@ -21122,6 +20921,7 @@ img.onload = wrapFunction(function ()
     ctx667.drawImage(img, 0, 25);
     // (The alpha values do not really survive float->int conversion, so just
     // do approximate comparisons)
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalBrowserRead');
     isPixel(ctx667, 12,40, 1,3,254,255, 0);
     isPixel(ctx667, 37,40, 8,252,248,191, 2);
     isPixel(ctx667, 62,40, 6,10,250,127, 4);
@@ -21248,6 +21048,7 @@ deferTest();
 img.onload = wrapFunction(function ()
 {
     ctx672.drawImage(img, 0, 0);
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalBrowserRead');
     isPixel(ctx672, 12,20, 255,255,0,255, 0);
     isPixel(ctx672, 50,20, 0,255,255,255, 0);
     isPixel(ctx672, 87,20, 0,0,255,255, 0);
@@ -22120,6 +21921,11 @@ function runTests() {
   test_2d_drawImage_incomplete();
  } catch (e) {
   ok(false, "unexpected exception thrown in: test_2d_drawImage_incomplete");
+ }
+ try {
+  test_2d_drawImage_negativedir();
+ } catch (e) {
+  ok(false, "unexpected exception thrown in: test_2d_drawImage_negativedir");
  }
  try {
   test_2d_drawImage_negativedest();
@@ -24392,26 +24198,6 @@ function runTests() {
   ok(false, "unexpected exception thrown in: test_2d_strokeStyle_default");
  }
  try {
-  test_2d_text_align_default();
- } catch (e) {
-  ok(false, "unexpected exception thrown in: test_2d_text_align_default");
- }
- try {
-  test_2d_text_align_invalid();
- } catch (e) {
-  ok(false, "unexpected exception thrown in: test_2d_text_align_invalid");
- }
- try {
-  test_2d_text_baseline_default();
- } catch (e) {
-  ok(false, "unexpected exception thrown in: test_2d_text_baseline_default");
- }
- try {
-  test_2d_text_baseline_invalid();
- } catch (e) {
-  ok(false, "unexpected exception thrown in: test_2d_text_baseline_invalid");
- }
- try {
   test_2d_transformation_order();
  } catch (e) {
   ok(false, "unexpected exception thrown in: test_2d_transformation_order");
@@ -24924,6 +24710,6 @@ function runTests() {
  setTimeout(asyncTestsDone, 500);
 }
 
-addLoadEvent(runTests);
+MochiKit.DOM.addLoadEvent(runTests);
 
 </script>

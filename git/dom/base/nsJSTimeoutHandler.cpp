@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *    Mark Hammond <mhammond@skippinet.com.au>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCOMPtr.h"
 #include "nsIScriptContext.h"
@@ -15,17 +48,15 @@
 #include "nsContentUtils.h"
 #include "nsJSEnvironment.h"
 #include "nsServiceManagerUtils.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsGlobalWindow.h"
 #include "nsIContentSecurityPolicy.h"
-#include "nsAlgorithm.h"
-#include "mozilla/Attributes.h"
 
 static const char kSetIntervalStr[] = "setInterval";
 static const char kSetTimeoutStr[] = "setTimeout";
 
 // Our JS nsIScriptTimeoutHandler implementation.
-class nsJSScriptTimeoutHandler MOZ_FINAL : public nsIScriptTimeoutHandler
+class nsJSScriptTimeoutHandler: public nsIScriptTimeoutHandler
 {
 public:
   // nsISupports
@@ -36,20 +67,30 @@ public:
   ~nsJSScriptTimeoutHandler();
 
   virtual const PRUnichar *GetHandlerText();
-  virtual JSObject *GetScriptObject() {
+  virtual void *GetScriptObject() {
     return mFunObj;
   }
-  virtual void GetLocation(const char **aFileName, uint32_t *aLineNo) {
+  virtual void GetLocation(const char **aFileName, PRUint32 *aLineNo) {
     *aFileName = mFileName.get();
     *aLineNo = mLineNo;
+  }
+
+  virtual PRUint32 GetScriptTypeID() {
+        return nsIProgrammingLanguage::JAVASCRIPT;
+  }
+  virtual PRUint32 GetScriptVersion() {
+        return mVersion;
   }
 
   virtual nsIArray *GetArgv() {
     return mArgv;
   }
+  // Called by the timeout mechanism so the secret 'lateness' arg can be
+  // added.
+  virtual void SetLateness(PRIntervalTime aHowLate);
 
-  nsresult Init(nsGlobalWindow *aWindow, bool *aIsInterval,
-                int32_t *aInterval);
+  nsresult Init(nsGlobalWindow *aWindow, PRBool *aIsInterval,
+                PRInt32 *aInterval);
 
   void ReleaseJSObjects();
 
@@ -60,8 +101,9 @@ private:
   // filename, line number and JS language version string of the
   // caller of setTimeout()
   nsCString mFileName;
-  uint32_t mLineNo;
-  nsCOMPtr<nsIJSArgArray> mArgv;
+  PRUint32 mLineNo;
+  PRUint32 mVersion;
+  nsCOMPtr<nsIArray> mArgv;
 
   // The JS expression to evaluate or function to call, if !mExpr
   JSFlatString *mExpr;
@@ -77,30 +119,31 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSScriptTimeoutHandler)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
   if (NS_UNLIKELY(cb.WantDebugInfo())) {
-    nsAutoCString name("nsJSScriptTimeoutHandler");
+    nsCAutoString foo("nsJSScriptTimeoutHandler");
     if (tmp->mExpr) {
-      name.AppendLiteral(" [");
-      name.Append(tmp->mFileName);
-      name.AppendLiteral(":");
-      name.AppendInt(tmp->mLineNo);
-      name.AppendLiteral("]");
+      foo.AppendLiteral(" [");
+      foo.Append(tmp->mFileName);
+      foo.AppendLiteral(":");
+      foo.AppendInt(tmp->mLineNo);
+      foo.AppendLiteral("]");
     }
     else if (tmp->mFunObj) {
-      JSFunction* fun = JS_GetObjectFunction(tmp->mFunObj);
-      if (fun && JS_GetFunctionId(fun)) {
+      JSFunction* fun = (JSFunction*)tmp->mFunObj->getPrivate();
+      if (fun->atom) {
         JSFlatString *funId = JS_ASSERT_STRING_IS_FLAT(JS_GetFunctionId(fun));
         size_t size = 1 + JS_PutEscapedFlatString(NULL, 0, funId, 0);
-        char *funIdName = new char[size];
-        if (funIdName) {
-          JS_PutEscapedFlatString(funIdName, size, funId, 0);
-          name.AppendLiteral(" [");
-          name.Append(funIdName);
-          delete[] funIdName;
-          name.AppendLiteral("]");
+        char *name = new char[size];
+        if (name) {
+          JS_PutEscapedFlatString(name, size, funId, 0);
+          foo.AppendLiteral(" [");
+          foo.Append(name);
+          delete[] name;
+          foo.AppendLiteral("]");
         }
       }
     }
-    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), name.get());
+    cb.DescribeRefCountedNode(tmp->mRefCnt.get(),
+                              sizeof(nsJSScriptTimeoutHandler), foo.get());
   }
   else {
     NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsJSScriptTimeoutHandler,
@@ -127,8 +170,9 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsJSScriptTimeoutHandler)
 
 nsJSScriptTimeoutHandler::nsJSScriptTimeoutHandler() :
   mLineNo(0),
-  mExpr(nullptr),
-  mFunObj(nullptr)
+  mVersion(nsnull),
+  mExpr(nsnull),
+  mFunObj(nsnull)
 {
 }
 
@@ -143,10 +187,10 @@ nsJSScriptTimeoutHandler::ReleaseJSObjects()
   if (mExpr || mFunObj) {
     if (mExpr) {
       NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
-      mExpr = nullptr;
+      mExpr = nsnull;
     } else if (mFunObj) {
       NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
-      mFunObj = nullptr;
+      mFunObj = nsnull;
     } else {
       NS_WARNING("No func and no expr - roots may not have been removed");
     }
@@ -154,8 +198,8 @@ nsJSScriptTimeoutHandler::ReleaseJSObjects()
 }
 
 nsresult
-nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
-                               int32_t *aInterval)
+nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, PRBool *aIsInterval,
+                               PRInt32 *aInterval)
 {
   mContext = aWindow->GetContextInternal();
   if (!mContext) {
@@ -165,7 +209,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  nsAXPCNativeCallContext *ncc = nullptr;
+  nsAXPCNativeCallContext *ncc = nsnull;
   nsresult rv = nsContentUtils::XPConnect()->
     GetCurrentNativeCallContext(&ncc);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -173,19 +217,20 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   if (!ncc)
     return NS_ERROR_NOT_AVAILABLE;
 
-  JSContext *cx = nullptr;
+  JSContext *cx = nsnull;
 
   rv = ncc->GetJSContext(&cx);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t argc;
-  jsval *argv = nullptr;
+  PRUint32 argc;
+  jsval *argv = nsnull;
 
   ncc->GetArgc(&argc);
   ncc->GetArgvPtr(&argv);
 
-  JSFlatString *expr = nullptr;
-  JSObject *funobj = nullptr;
+  JSFlatString *expr = nsnull;
+  JSObject *funobj = nsnull;
+  int32 interval = 0;
 
   JSAutoRequest ar(cx);
 
@@ -195,7 +240,6 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
     return NS_ERROR_DOM_TYPE_ERR;
   }
 
-  int32_t interval = 0;
   if (argc > 1 && !::JS_ValueToECMAInt32(cx, argv[1], &interval)) {
     ::JS_ReportError(cx,
                      "Second argument to %s must be a millisecond interval",
@@ -206,7 +250,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   if (argc == 1) {
     // If no interval was specified, treat this like a timeout, to avoid
     // setting an interval of 0 milliseconds.
-    *aIsInterval = false;
+    *aIsInterval = PR_FALSE;
   }
 
   switch (::JS_TypeOfValue(cx, argv[0])) {
@@ -248,7 +292,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
       NS_ENSURE_SUCCESS(rv, rv);
 
       if (csp) {
-        bool allowsEval;
+        PRBool allowsEval;
         // this call will send violation reports as warranted (and return true if
         // reportOnly is set).
         rv = csp->GetAllowsEval(&allowsEval);
@@ -280,36 +324,47 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
 
     mFunObj = funobj;
 
-    // Create our arg array.  argc is the number of arguments passed
-    // to setTimeout or setInterval; the first two are our callback
-    // and the delay, so only arguments after that need to go in our
-    // array.
-    nsCOMPtr<nsIJSArgArray> array;
-    // NS_MAX(argc - 2, 0) wouldn't work right because argc is unsigned.
-    rv = NS_CreateJSArgv(cx, NS_MAX(argc, 2u) - 2, nullptr,
+    // Create our arg array - leave an extra slot for a secret final argument
+    // that indicates to the called function how "late" the timeout is.  We
+    // will fill that in when SetLateness is called.
+    nsCOMPtr<nsIArray> array;
+    rv = NS_CreateJSArgv(cx, (argc > 1) ? argc - 1 : argc, nsnull,
                          getter_AddRefs(array));
     if (NS_FAILED(rv)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    uint32_t dummy;
-    jsval *jsargv = nullptr;
-    array->GetArgs(&dummy, reinterpret_cast<void **>(&jsargv));
+    PRUint32 dummy;
+    jsval *jsargv = nsnull;
+    nsCOMPtr<nsIJSArgArray> jsarray(do_QueryInterface(array));
+    jsarray->GetArgs(&dummy, reinterpret_cast<void **>(&jsargv));
 
-    // jsargv might be null if we have argc <= 2
-    if (jsargv) {
-      for (int32_t i = 2; (uint32_t)i < argc; ++i) {
-        jsargv[i - 2] = argv[i];
-      }
-    } else {
-      NS_ASSERTION(argc <= 2, "Why do we have no jsargv when we have arguments?");
+    // must have worked - we own the impl! :)
+    NS_ASSERTION(jsargv, "No argv!");
+    for (PRInt32 i = 2; (PRUint32)i < argc; ++i) {
+      jsargv[i - 2] = argv[i];
     }
+    // final arg slot remains null, array has rooted vals.
     mArgv = array;
   } else {
     NS_WARNING("No func and no expr - why are we here?");
   }
   *aInterval = interval;
   return NS_OK;
+}
+
+void nsJSScriptTimeoutHandler::SetLateness(PRIntervalTime aHowLate)
+{
+  nsCOMPtr<nsIJSArgArray> jsarray(do_QueryInterface(mArgv));
+  if (jsarray) {
+    PRUint32 argc;
+    jsval *jsargv;
+    nsresult rv = jsarray->GetArgs(&argc, reinterpret_cast<void **>(&jsargv));
+    if (NS_SUCCEEDED(rv) && jsargv && argc)
+      jsargv[argc-1] = INT_TO_JSVAL((jsint) aHowLate);
+  } else {
+    NS_ERROR("How can our argv not handle this?");
+  }
 }
 
 const PRUnichar *
@@ -320,11 +375,11 @@ nsJSScriptTimeoutHandler::GetHandlerText()
 }
 
 nsresult NS_CreateJSTimeoutHandler(nsGlobalWindow *aWindow,
-                                   bool *aIsInterval,
-                                   int32_t *aInterval,
+                                   PRBool *aIsInterval,
+                                   PRInt32 *aInterval,
                                    nsIScriptTimeoutHandler **aRet)
 {
-  *aRet = nullptr;
+  *aRet = nsnull;
   nsJSScriptTimeoutHandler *handler = new nsJSScriptTimeoutHandler();
   if (!handler)
     return NS_ERROR_OUT_OF_MEMORY;

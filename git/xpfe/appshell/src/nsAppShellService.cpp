@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *   Robert O'Callahan <roc+moz@cs.cmu.edu>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 #include "nsIAppShellService.h"
@@ -19,11 +53,11 @@
 #include "nsIWindowWatcher.h"
 #include "nsPIWindowWatcher.h"
 #include "nsIDOMWindow.h"
-#include "nsPIDOMWindow.h"
 #include "nsWebShellWindow.h"
 
 #include "nsIEnumerator.h"
 #include "nsCRT.h"
+#include "nsITimelineService.h"
 #include "prprf.h"    
 
 #include "nsWidgetsCID.h"
@@ -42,7 +76,6 @@
 #include "nsIChromeRegistry.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/StartupTimeline.h"
 
 using namespace mozilla;
 
@@ -52,17 +85,17 @@ using namespace mozilla;
 class nsIAppShell;
 
 nsAppShellService::nsAppShellService() : 
-  mXPCOMWillShutDown(false),
-  mXPCOMShuttingDown(false),
+  mXPCOMWillShutDown(PR_FALSE),
+  mXPCOMShuttingDown(PR_FALSE),
   mModalWindowCount(0),
-  mApplicationProvidedHiddenWindow(false)
+  mApplicationProvidedHiddenWindow(PR_FALSE)
 {
   nsCOMPtr<nsIObserverService> obs
     (do_GetService("@mozilla.org/observer-service;1"));
 
   if (obs) {
-    obs->AddObserver(this, "xpcom-will-shutdown", false);
-    obs->AddObserver(this, "xpcom-shutdown", false);
+    obs->AddObserver(this, "xpcom-will-shutdown", PR_FALSE);
+    obs->AddObserver(this, "xpcom-shutdown", PR_FALSE);
   }
 }
 
@@ -78,21 +111,64 @@ NS_IMPL_ISUPPORTS2(nsAppShellService,
                    nsIAppShellService,
                    nsIObserver)
 
-NS_IMETHODIMP
-nsAppShellService::CreateHiddenWindow()
+nsresult 
+nsAppShellService::SetXPConnectSafeContext()
 {
   nsresult rv;
-  int32_t initialHeight = 100, initialWidth = 100;
+
+  nsCOMPtr<nsIThreadJSContextStack> cxstack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIDOMWindow> junk;
+  JSContext *cx;
+  rv = GetHiddenWindowAndJSContext(getter_AddRefs(junk), &cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return cxstack->SetSafeJSContext(cx);
+}  
+
+nsresult nsAppShellService::ClearXPConnectSafeContext()
+{
+  nsresult rv;
+
+  nsCOMPtr<nsIThreadJSContextStack> cxstack =
+    do_GetService("@mozilla.org/js/xpc/ContextStack;1", &rv);
+  if (NS_FAILED(rv)) {
+    NS_ERROR("XPConnect ContextStack gone before XPCOM shutdown?");
+    return rv;
+  }
+
+  nsCOMPtr<nsIDOMWindow> junk;
+  JSContext *cx;
+  rv = GetHiddenWindowAndJSContext(getter_AddRefs(junk), &cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSContext *safe_cx;
+  rv = cxstack->GetSafeJSContext(&safe_cx);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (cx == safe_cx)
+    rv = cxstack->SetSafeJSContext(nsnull);
+
+  return rv;
+}
+
+NS_IMETHODIMP
+nsAppShellService::CreateHiddenWindow(nsIAppShell* aAppShell)
+{
+  nsresult rv;
+  PRInt32 initialHeight = 100, initialWidth = 100;
     
 #ifdef XP_MACOSX
-  uint32_t    chromeMask = 0;
+  PRUint32    chromeMask = 0;
   nsAdoptingCString prefVal =
       Preferences::GetCString("browser.hiddenWindowChromeURL");
   const char* hiddenWindowURL = prefVal.get() ? prefVal.get() : DEFAULT_HIDDENWINDOW_URL;
-  mApplicationProvidedHiddenWindow = prefVal.get() ? true : false;
+  mApplicationProvidedHiddenWindow = prefVal.get() ? PR_TRUE : PR_FALSE;
 #else
   static const char hiddenWindowURL[] = DEFAULT_HIDDENWINDOW_URL;
-  uint32_t    chromeMask =  nsIWebBrowserChrome::CHROME_ALL;
+  PRUint32    chromeMask =  nsIWebBrowserChrome::CHROME_ALL;
 #endif
 
   nsCOMPtr<nsIURI> url;
@@ -100,12 +176,18 @@ nsAppShellService::CreateHiddenWindow()
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsRefPtr<nsWebShellWindow> newWindow;
-  rv = JustCreateTopWindow(nullptr, url,
+  rv = JustCreateTopWindow(nsnull, url,
                            chromeMask, initialWidth, initialHeight,
-                           true, getter_AddRefs(newWindow));
+                           PR_TRUE, aAppShell, getter_AddRefs(newWindow));
   NS_ENSURE_SUCCESS(rv, rv);
 
   mHiddenWindow.swap(newWindow);
+
+  // Set XPConnect's fallback JSContext (used for JS Components)
+  // to the DOM JSContext for this thread, so that DOM-to-XPConnect
+  // conversions get the JSContext private magic they need to
+  // succeed.
+  SetXPConnectSafeContext();
 
   // RegisterTopLevelWindow(newWindow); -- Mac only
 
@@ -116,9 +198,10 @@ NS_IMETHODIMP
 nsAppShellService::DestroyHiddenWindow()
 {
   if (mHiddenWindow) {
+    ClearXPConnectSafeContext();
     mHiddenWindow->Destroy();
 
-    mHiddenWindow = nullptr;
+    mHiddenWindow = nsnull;
   }
 
   return NS_OK;
@@ -130,20 +213,19 @@ nsAppShellService::DestroyHiddenWindow()
 NS_IMETHODIMP
 nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
                                         nsIURI *aUrl, 
-                                        uint32_t aChromeMask,
-                                        int32_t aInitialWidth,
-                                        int32_t aInitialHeight,
+                                        PRUint32 aChromeMask,
+                                        PRInt32 aInitialWidth,
+                                        PRInt32 aInitialHeight,
+                                        nsIAppShell* aAppShell,
                                         nsIXULWindow **aResult)
 
 {
   nsresult rv;
 
-  StartupTimeline::RecordOnce(StartupTimeline::CREATE_TOP_LEVEL_WINDOW);
-
-  nsWebShellWindow *newWindow = nullptr;
+  nsWebShellWindow *newWindow = nsnull;
   rv = JustCreateTopWindow(aParent, aUrl,
                            aChromeMask, aInitialWidth, aInitialHeight,
-                           false, &newWindow);  // addrefs
+                           PR_FALSE, aAppShell, &newWindow);  // addrefs
 
   *aResult = newWindow; // transfer ref
 
@@ -159,11 +241,11 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
   return rv;
 }
 
-uint32_t
+PRUint32
 nsAppShellService::CalculateWindowZLevel(nsIXULWindow *aParent,
-                                         uint32_t      aChromeMask)
+                                         PRUint32      aChromeMask)
 {
-  uint32_t zLevel;
+  PRUint32 zLevel;
 
   zLevel = nsIXULWindow::normalZ;
   if (aChromeMask & nsIWebBrowserChrome::CHROME_WINDOW_RAISED)
@@ -178,7 +260,7 @@ nsAppShellService::CalculateWindowZLevel(nsIXULWindow *aParent,
 
      On Mac OS X, bind modality to parent window instead of app (ala Mac OS 9)
   */
-  uint32_t modalDepMask = nsIWebBrowserChrome::CHROME_MODAL |
+  PRUint32 modalDepMask = nsIWebBrowserChrome::CHROME_MODAL |
                           nsIWebBrowserChrome::CHROME_DEPENDENT;
   if (aParent && (aChromeMask & modalDepMask)) {
     aParent->GetZLevel(&zLevel);
@@ -199,38 +281,38 @@ nsAppShellService::CalculateWindowZLevel(nsIXULWindow *aParent,
 /*
  * Checks to see if any existing window is currently in fullscreen mode.
  */
-static bool
+static PRBool
 CheckForFullscreenWindow()
 {
   nsCOMPtr<nsIWindowMediator> wm(do_GetService(NS_WINDOWMEDIATOR_CONTRACTID));
   if (!wm)
-    return false;
+    return PR_FALSE;
 
   nsCOMPtr<nsISimpleEnumerator> windowList;
-  wm->GetXULWindowEnumerator(nullptr, getter_AddRefs(windowList));
+  wm->GetXULWindowEnumerator(nsnull, getter_AddRefs(windowList));
   if (!windowList)
-    return false;
+    return PR_FALSE;
 
   for (;;) {
-    bool more = false;
+    PRBool more = PR_FALSE;
     windowList->HasMoreElements(&more);
     if (!more)
-      return false;
+      return PR_FALSE;
 
     nsCOMPtr<nsISupports> supportsWindow;
     windowList->GetNext(getter_AddRefs(supportsWindow));
     nsCOMPtr<nsIBaseWindow> baseWin(do_QueryInterface(supportsWindow));
     if (baseWin) {
-      int32_t sizeMode;
+      PRInt32 sizeMode;
       nsCOMPtr<nsIWidget> widget;
       baseWin->GetMainWidget(getter_AddRefs(widget));
       if (widget && NS_SUCCEEDED(widget->GetSizeMode(&sizeMode)) && 
           sizeMode == nsSizeMode_Fullscreen) {
-        return true;
+        return PR_TRUE;
       }
     }
   }
-  return false;
+  return PR_FALSE;
 }
 #endif
 
@@ -240,13 +322,14 @@ CheckForFullscreenWindow()
 nsresult
 nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
                                        nsIURI *aUrl, 
-                                       uint32_t aChromeMask,
-                                       int32_t aInitialWidth,
-                                       int32_t aInitialHeight,
-                                       bool aIsHiddenWindow,
+                                       PRUint32 aChromeMask,
+                                       PRInt32 aInitialWidth,
+                                       PRInt32 aInitialHeight,
+                                       PRBool aIsHiddenWindow,
+                                       nsIAppShell* aAppShell,
                                        nsWebShellWindow **aResult)
 {
-  *aResult = nullptr;
+  *aResult = nsnull;
   NS_ENSURE_STATE(!mXPCOMWillShutDown);
 
   nsCOMPtr<nsIXULWindow> parent;
@@ -261,7 +344,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   // full screen states. This way new browser windows open on top of fullscreen
   // windows normally.
   if (window && CheckForFullscreenWindow())
-    window->IgnoreXULSizeMode(true);
+    window->IgnoreXULSizeMode(PR_TRUE);
 #endif
 
   nsWidgetInitData widgetInitData;
@@ -275,9 +358,6 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   if (aChromeMask & nsIWebBrowserChrome::CHROME_WINDOW_POPUP)
     widgetInitData.mWindowType = eWindowType_popup;
 
-  if (aChromeMask & nsIWebBrowserChrome::CHROME_MAC_SUPPRESS_ANIMATION)
-    widgetInitData.mIsAnimationSuppressed = true;
-
 #ifdef XP_MACOSX
   // Mac OS X sheet support
   // Adding CHROME_OPENAS_CHROME to sheetMask makes modal windows opened from
@@ -285,7 +365,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   // windows opened from nsPromptService::DoDialog() still are sheets.  This
   // fixes bmo bug 395465 (see nsCocoaWindow::StandardCreate() and
   // nsCocoaWindow::SetModal()).
-  uint32_t sheetMask = nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
+  PRUint32 sheetMask = nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
                        nsIWebBrowserChrome::CHROME_MODAL |
                        nsIWebBrowserChrome::CHROME_OPENAS_CHROME;
   if (parent && ((aChromeMask & sheetMask) == sheetMask))
@@ -295,7 +375,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
 #if defined(XP_WIN)
   if (widgetInitData.mWindowType == eWindowType_toplevel ||
       widgetInitData.mWindowType == eWindowType_dialog)
-    widgetInitData.clipChildren = true;
+    widgetInitData.clipChildren = PR_TRUE;
 #endif
 
   // note default chrome overrides other OS chrome settings, but
@@ -331,23 +411,24 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
       aInitialHeight == nsIAppShellService::SIZE_TO_CONTENT) {
     aInitialWidth = 1;
     aInitialHeight = 1;
-    window->SetIntrinsicallySized(true);
+    window->SetIntrinsicallySized(PR_TRUE);
   }
 
-  bool center = aChromeMask & nsIWebBrowserChrome::CHROME_CENTER_SCREEN;
+  PRBool center = aChromeMask & nsIWebBrowserChrome::CHROME_CENTER_SCREEN;
 
   nsCOMPtr<nsIXULChromeRegistry> reg =
     mozilla::services::GetXULChromeRegistryService();
   if (reg) {
-    nsAutoCString package;
+    nsCAutoString package;
     package.AssignLiteral("global");
-    bool isRTL = false;
+    PRBool isRTL = PR_FALSE;
     reg->IsLocaleRTL(package, &isRTL);
     widgetInitData.mRTL = isRTL;
   }
 
-  nsresult rv = window->Initialize(parent, center ? aParent : nullptr,
-                                   aUrl, aInitialWidth, aInitialHeight,
+  nsresult rv = window->Initialize(parent, center ? aParent : nsnull,
+                                   aAppShell, aUrl,
+                                   aInitialWidth, aInitialHeight,
                                    aIsHiddenWindow, widgetInitData);
       
   NS_ENSURE_SUCCESS(rv, rv);
@@ -357,7 +438,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     parent->AddChildWindow(*aResult);
 
   if (center)
-    rv = (*aResult)->Center(parent, parent ? false : true, false);
+    rv = (*aResult)->Center(parent, parent ? PR_FALSE : PR_TRUE, PR_FALSE);
 
   return rv;
 }
@@ -396,8 +477,8 @@ nsAppShellService::GetHiddenWindowAndJSContext(nsIDOMWindow **aWindow,
 {
     nsresult rv = NS_OK;
     if ( aWindow && aJSContext ) {
-        *aWindow    = nullptr;
-        *aJSContext = nullptr;
+        *aWindow    = nsnull;
+        *aJSContext = nsnull;
 
         if ( mHiddenWindow ) {
             // Convert hidden window to nsIDOMWindow and extract its JSContext.
@@ -421,7 +502,7 @@ nsAppShellService::GetHiddenWindowAndJSContext(nsIDOMWindow **aWindow,
                 if (!scriptContext) { rv = NS_ERROR_FAILURE; break; }
 
                 // 5. Get JSContext from the script context.
-                JSContext *jsContext = scriptContext->GetNativeContext();
+                JSContext *jsContext = (JSContext*)scriptContext->GetNativeContext();
                 if (!jsContext) { rv = NS_ERROR_FAILURE; break; }
 
                 // Now, give results to caller.
@@ -439,7 +520,7 @@ nsAppShellService::GetHiddenWindowAndJSContext(nsIDOMWindow **aWindow,
 }
 
 NS_IMETHODIMP
-nsAppShellService::GetApplicationProvidedHiddenWindow(bool* aAPHW)
+nsAppShellService::GetApplicationProvidedHiddenWindow(PRBool* aAPHW)
 {
     *aAPHW = mApplicationProvidedHiddenWindow;
     return NS_OK;
@@ -451,11 +532,6 @@ nsAppShellService::GetApplicationProvidedHiddenWindow(bool* aAPHW)
 NS_IMETHODIMP
 nsAppShellService::RegisterTopLevelWindow(nsIXULWindow* aWindow)
 {
-  nsCOMPtr<nsIDocShell> docShell;
-  aWindow->GetDocShell(getter_AddRefs(docShell));
-  nsCOMPtr<nsPIDOMWindow> domWindow(do_GetInterface(docShell));
-  domWindow->SetInitialPrincipalToSubject();
-
   // tell the window mediator about the new window
   nsCOMPtr<nsIWindowMediator> mediator
     ( do_GetService(NS_WINDOWMEDIATOR_CONTRACTID) );
@@ -467,8 +543,16 @@ nsAppShellService::RegisterTopLevelWindow(nsIXULWindow* aWindow)
   // tell the window watcher about the new window
   nsCOMPtr<nsPIWindowWatcher> wwatcher ( do_GetService(NS_WINDOWWATCHER_CONTRACTID) );
   NS_ASSERTION(wwatcher, "No windowwatcher?");
-  if (wwatcher && domWindow) {
-    wwatcher->AddWindow(domWindow, 0);
+  if (wwatcher) {
+    nsCOMPtr<nsIDocShell> docShell;
+    aWindow->GetDocShell(getter_AddRefs(docShell));
+    NS_ASSERTION(docShell, "Window has no docshell");
+    if (docShell) {
+      nsCOMPtr<nsIDOMWindow> domWindow(do_GetInterface(docShell));
+      NS_ASSERTION(domWindow, "Couldn't get DOM window.");
+      if (domWindow)
+        wwatcher->AddWindow(domWindow, 0);
+    }
   }
 
   // an ongoing attempt to quit is stopped by a newly opened window
@@ -477,7 +561,7 @@ nsAppShellService::RegisterTopLevelWindow(nsIXULWindow* aWindow)
   NS_ASSERTION(obssvc, "Couldn't get observer service.");
 
   if (obssvc)
-    obssvc->NotifyObservers(aWindow, "xul-window-registered", nullptr);
+    obssvc->NotifyObservers(aWindow, "xul-window-registered", nsnull);
 
   return NS_OK;
 }
@@ -535,10 +619,11 @@ nsAppShellService::Observe(nsISupports* aSubject, const char *aTopic,
                            const PRUnichar *aData)
 {
   if (!strcmp(aTopic, "xpcom-will-shutdown")) {
-    mXPCOMWillShutDown = true;
+    mXPCOMWillShutDown = PR_TRUE;
   } else if (!strcmp(aTopic, "xpcom-shutdown")) {
-    mXPCOMShuttingDown = true;
+    mXPCOMShuttingDown = PR_TRUE;
     if (mHiddenWindow) {
+      ClearXPConnectSafeContext();
       mHiddenWindow->Destroy();
     }
   } else {

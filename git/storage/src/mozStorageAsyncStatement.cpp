@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozStorage.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir.vukicevic@oracle.com>
+ *   Shawn Wilsher <me@shawnwilsher.com>
+ *   John Zhang <jzhang@aptana.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <limits.h>
 #include <stdio.h>
@@ -51,13 +85,13 @@ public:
   NS_DECL_ISUPPORTS
 
   NS_IMETHODIMP
-  GetInterfaces(uint32_t *_count, nsIID ***_array)
+  GetInterfaces(PRUint32 *_count, nsIID ***_array)
   {
     return NS_CI_INTERFACE_GETTER_NAME(AsyncStatement)(_count, _array);
   }
 
   NS_IMETHODIMP
-  GetHelperForLanguage(uint32_t aLanguage, nsISupports **_helper)
+  GetHelperForLanguage(PRUint32 aLanguage, nsISupports **_helper)
   {
     if (aLanguage == nsIProgrammingLanguage::JAVASCRIPT) {
       static AsyncStatementJSHelper sJSHelper;
@@ -65,42 +99,42 @@ public:
       return NS_OK;
     }
 
-    *_helper = nullptr;
+    *_helper = nsnull;
     return NS_OK;
   }
 
   NS_IMETHODIMP
   GetContractID(char **_contractID)
   {
-    *_contractID = nullptr;
+    *_contractID = nsnull;
     return NS_OK;
   }
 
   NS_IMETHODIMP
   GetClassDescription(char **_desc)
   {
-    *_desc = nullptr;
+    *_desc = nsnull;
     return NS_OK;
   }
 
   NS_IMETHODIMP
   GetClassID(nsCID **_id)
   {
-    *_id = nullptr;
+    *_id = nsnull;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetImplementationLanguage(uint32_t *_language)
+  GetImplementationLanguage(PRUint32 *_language)
   {
     *_language = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetFlags(uint32_t *_flags)
+  GetFlags(PRUint32 *_flags)
   {
-    *_flags = 0;
+    *_flags = nsnull;
     return NS_OK;
   }
 
@@ -189,7 +223,7 @@ AsyncStatement::getParams()
   if (!mParamsArray) {
     nsCOMPtr<mozIStorageBindingParamsArray> array;
     rv = NewBindingParamsArray(getter_AddRefs(array));
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     mParamsArray = static_cast<BindingParamsArray *>(array.get());
   }
@@ -197,14 +231,14 @@ AsyncStatement::getParams()
   // If there isn't already any rows added, we'll have to add one to use.
   if (mParamsArray->length() == 0) {
     nsRefPtr<AsyncBindingParams> params(new AsyncBindingParams(mParamsArray));
-    NS_ENSURE_TRUE(params, nullptr);
+    NS_ENSURE_TRUE(params, nsnull);
 
     rv = mParamsArray->AddParams(params);
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    NS_ENSURE_SUCCESS(rv, nsnull);
 
     // We have to unlock our params because AddParams locks them.  This is safe
     // because no reference to the params object was, or ever will be given out.
-    params->unlock(nullptr);
+    params->unlock(nsnull);
 
     // We also want to lock our array at this point - we don't want anything to
     // be added to it.
@@ -230,12 +264,12 @@ AsyncStatement::~AsyncStatement()
 
   // If we are getting destroyed on the wrong thread, proxy the connection
   // release to the right thread.  I'm not sure why we do this.
-  bool onCallingThread = false;
+  PRBool onCallingThread = PR_FALSE;
   (void)mDBConnection->threadOpenedOn->IsOnCurrentThread(&onCallingThread);
   if (!onCallingThread) {
     // NS_ProxyRelase only magic forgets for us if mDBConnection is an
     // nsCOMPtr.  Which it is not; it's an nsRefPtr.
-    Connection *forgottenConn = nullptr;
+    Connection *forgottenConn = nsnull;
     mDBConnection.swap(forgottenConn);
     (void)::NS_ProxyRelease(forgottenConn->threadOpenedOn,
                             static_cast<mozIStorageConnection *>(forgottenConn));
@@ -254,8 +288,8 @@ AsyncStatement::cleanupJSHelpers()
       do_QueryWrappedNative(wrapper);
     AsyncStatementParams *params =
       static_cast<AsyncStatementParams *>(iParams.get());
-    params->mStatement = nullptr;
-    mStatementParamsHolder = nullptr;
+    params->mStatement = nsnull;
+    mStatementParamsHolder = nsnull;
   }
 }
 
@@ -292,14 +326,15 @@ AsyncStatement::getAsyncStatement(sqlite3_stmt **_stmt)
 {
 #ifdef DEBUG
   // Make sure we are never called on the connection's owning thread.
-  bool onOpenedThread = false;
+  PRBool onOpenedThread = PR_FALSE;
   (void)mDBConnection->threadOpenedOn->IsOnCurrentThread(&onOpenedThread);
   NS_ASSERTION(!onOpenedThread,
                "We should only be called on the async thread!");
 #endif
 
   if (!mAsyncStatement) {
-    int rc = mDBConnection->prepareStatement(mSQLString, &mAsyncStatement);
+    int rc = prepareStmt(mDBConnection->GetNativeConnection(), mSQLString,
+                         &mAsyncStatement);
     if (rc != SQLITE_OK) {
 #ifdef PR_LOGGING
       PR_LOG(gStorageLog, PR_LOG_ERROR,
@@ -308,7 +343,7 @@ AsyncStatement::getAsyncStatement(sqlite3_stmt **_stmt)
       PR_LOG(gStorageLog, PR_LOG_ERROR,
              ("Statement was: '%s'", mSQLString.get()));
 #endif
-      *_stmt = nullptr;
+      *_stmt = nsnull;
       return rc;
     }
 
@@ -331,7 +366,7 @@ AsyncStatement::getAsynchronousStatementData(StatementData &_data)
 
   // Pass null for the sqlite3_stmt; it will be requested on demand from the
   // async thread.
-  _data = StatementData(nullptr, bindingParamsArray(), this);
+  _data = StatementData(nsnull, bindingParamsArray(), this);
 
   return NS_OK;
 }
@@ -340,7 +375,7 @@ already_AddRefed<mozIStorageBindingParams>
 AsyncStatement::newBindingParams(mozIStorageBindingParamsArray *aOwner)
 {
   if (mFinalized)
-    return nullptr;
+    return nsnull;
 
   nsCOMPtr<mozIStorageBindingParams> params(new AsyncBindingParams(aOwner));
   return params.forget();
@@ -399,7 +434,7 @@ AsyncStatement::BindParameters(mozIStorageBindingParamsArray *aParameters)
 }
 
 NS_IMETHODIMP
-AsyncStatement::GetState(int32_t *_state)
+AsyncStatement::GetState(PRInt32 *_state)
 {
   if (mFinalized)
     *_state = MOZ_STORAGE_STATEMENT_INVALID;

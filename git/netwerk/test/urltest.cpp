@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Pierre Phaneuf <pp@ludusdesign.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
     A test file to check default URL parsing.
@@ -35,7 +68,7 @@ enum {
     URL_FACTORY_STDURL
 };
 
-nsresult writeoutto(const char* i_pURL, char** o_Result, int32_t urlFactory = URL_FACTORY_DEFAULT)
+nsresult writeoutto(const char* i_pURL, char** o_Result, PRInt32 urlFactory = URL_FACTORY_DEFAULT)
 {
     if (!o_Result || !i_pURL)
         return NS_ERROR_FAILURE;
@@ -64,7 +97,7 @@ nsresult writeoutto(const char* i_pURL, char** o_Result, int32_t urlFactory = UR
                 printf("Service failed!\n");
                 return NS_ERROR_FAILURE;
             }   
-            result = pService->NewURI(nsDependentCString(i_pURL), nullptr, nullptr, getter_AddRefs(pURL));
+            result = pService->NewURI(nsDependentCString(i_pURL), nsnull, nsnull, getter_AddRefs(pURL));
         }
     }
 
@@ -72,8 +105,8 @@ nsresult writeoutto(const char* i_pURL, char** o_Result, int32_t urlFactory = UR
     if (NS_SUCCEEDED(result))
     {
         nsCOMPtr<nsIURL> tURL = do_QueryInterface(pURL);
-        nsAutoCString temp;
-        int32_t port;
+        nsCAutoString temp;
+        PRInt32 port;
         nsresult rv;
 
 #define RESULT() NS_SUCCEEDED(rv) ? temp.get() : ""
@@ -104,9 +137,8 @@ nsresult writeoutto(const char* i_pURL, char** o_Result, int32_t urlFactory = UR
         rv = tURL->GetFileExtension(temp);
         output += RESULT();
         output += ',';
-        // removed with https://bugzilla.mozilla.org/show_bug.cgi?id=665706
-        // rv = tURL->GetParam(temp); 
-        // output += RESULT();
+        rv = tURL->GetParam(temp);
+        output += RESULT();
         output += ',';
         rv = tURL->GetQuery(temp);
         output += RESULT();
@@ -124,18 +156,18 @@ nsresult writeoutto(const char* i_pURL, char** o_Result, int32_t urlFactory = UR
     return NS_OK;
 }
 
-nsresult writeout(const char* i_pURL, int32_t urlFactory = URL_FACTORY_DEFAULT)
+nsresult writeout(const char* i_pURL, PRInt32 urlFactory = URL_FACTORY_DEFAULT)
 {
     if (!i_pURL) return NS_ERROR_FAILURE;
     nsCString temp;
-    nsresult rv = writeoutto(i_pURL, getter_Copies(temp), urlFactory);
+    int rv = writeoutto(i_pURL, getter_Copies(temp), urlFactory);
     printf("%s\n%s\n", i_pURL, temp.get());
     return rv;
 }
 
 /* construct a url and print out its elements separated by commas and
    the whole spec */
-nsresult testURL(const char* i_pURL, int32_t urlFactory = URL_FACTORY_DEFAULT)
+nsresult testURL(const char* i_pURL, PRInt32 urlFactory = URL_FACTORY_DEFAULT)
 {
 
     if (i_pURL)
@@ -174,7 +206,7 @@ nsresult testURL(const char* i_pURL, int32_t urlFactory = URL_FACTORY_DEFAULT)
                 printf("no results to compare to!\n");
             else 
             {
-                int32_t res;
+                PRInt32 res;
                 printf("Result:   %s\n", prevResult.get());
                 if (urlFactory != URL_FACTORY_DEFAULT) {
                     printf("Expected: %s\n", tempurl.get());
@@ -223,11 +255,11 @@ nsresult makeAbsTest(const char* i_BaseURI, const char* relativePortion,
 
 
     // get the new spec
-    nsAutoCString newURL;
+    nsCAutoString newURL;
     status = baseURL->Resolve(nsDependentCString(relativePortion), newURL);
     if (NS_FAILED(status)) return status;
 
-    nsAutoCString temp;
+    nsCAutoString temp;
     baseURL->GetSpec(temp);
 
     printf("Analyzing %s\n", temp.get());
@@ -248,11 +280,11 @@ nsresult makeAbsTest(const char* i_BaseURI, const char* relativePortion,
     return NS_OK;
 }
 
-nsresult doMakeAbsTest(const char* i_URL = 0, const char* i_relativePortion=0)
+int doMakeAbsTest(const char* i_URL = 0, const char* i_relativePortion=0)
 {
     if (i_URL && i_relativePortion)
     {
-        return makeAbsTest(i_URL, i_relativePortion, nullptr);
+        return makeAbsTest(i_URL, i_relativePortion, nsnull);
     }
 
     // Run standard tests. These tests are based on the ones described in 
@@ -380,19 +412,21 @@ int main(int argc, char **argv)
     if (test_common_init(&argc, &argv) != 0)
         return -1;
 
+    int rv = -1;
+
     if (argc < 2) {
         printusage();
-        return 0;
+        return NS_OK;
     }
     {
         nsCOMPtr<nsIServiceManager> servMan;
-        NS_InitXPCOM2(getter_AddRefs(servMan), nullptr, nullptr);
+        NS_InitXPCOM2(getter_AddRefs(servMan), nsnull, nsnull);
 
         // end of all messages from register components...
         printf("------------------\n\n");
 
-        int32_t urlFactory = URL_FACTORY_DEFAULT;
-        bool bMakeAbs= false;
+        PRInt32 urlFactory = URL_FACTORY_DEFAULT;
+        PRBool bMakeAbs= PR_FALSE;
         char* relativePath = 0;
         char* url = 0;
         for (int i=1; i<argc; i++) {
@@ -402,7 +436,7 @@ int main(int argc, char **argv)
                 if (i+1 >= argc)
                 {
                     printusage();
-                    return 0;
+                    return NS_OK;
                 }
             }
             else if (PL_strcasecmp(argv[i], "-abs") == 0)
@@ -412,14 +446,14 @@ int main(int argc, char **argv)
                     relativePath = argv[i+1];
                     i++;
                 }
-                bMakeAbs = true;
+                bMakeAbs = PR_TRUE;
             }
             else if (PL_strcasecmp(argv[i], "-file") == 0)
             {
                 if (i+1 >= argc)
                 {
                     printusage();
-                    return 0;
+                    return NS_OK;
                 }
                 gFileIO = argv[i+1];
                 i++;
@@ -432,27 +466,22 @@ int main(int argc, char **argv)
         PRTime startTime = PR_Now();
         if (bMakeAbs)
         {
-            if (url && relativePath) {
-              doMakeAbsTest(url, relativePath);
-            } else {
-              doMakeAbsTest();
-            }
+            rv = (url && relativePath)
+               ? doMakeAbsTest(url, relativePath)
+               : doMakeAbsTest();
         }
         else
         {
-            if (gFileIO) {
-              testURL(0, urlFactory);
-            } else {
-              testURL(url, urlFactory);
-            }
+            rv = gFileIO ? testURL(0, urlFactory) : testURL(url, urlFactory);
         }
         if (gFileIO)
         {
             PRTime endTime = PR_Now();
-            printf("Elapsed time: %d micros.\n", (int32_t)
+            printf("Elapsed time: %d micros.\n", (PRInt32)
                 (endTime - startTime));
         }
     } // this scopes the nsCOMPtrs
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
-    return NS_FAILED(NS_ShutdownXPCOM(nullptr)) ? 1 : 0;
+    rv = NS_ShutdownXPCOM(nsnull);
+    return rv;
 }

@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Plugin App.
+ *
+ * The Initial Developer of the Original Code is
+ *   Ben Turner <bent.mozilla@gmail.com>
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "PluginScriptableObjectChild.h"
 #include "PluginScriptableObjectUtils.h"
@@ -335,7 +367,7 @@ PluginScriptableObjectChild::ScriptableEnumerate(NPObject* aObject,
 
   *aCount = identifiers.Length();
   if (!*aCount) {
-    *aIdentifiers = nullptr;
+    *aIdentifiers = nsnull;
     return true;
   }
 
@@ -346,7 +378,7 @@ PluginScriptableObjectChild::ScriptableEnumerate(NPObject* aObject,
     return false;
   }
 
-  for (uint32_t index = 0; index < *aCount; index++) {
+  for (PRUint32 index = 0; index < *aCount; index++) {
     (*aIdentifiers)[index] =
       static_cast<PPluginIdentifierChild*>(identifiers[index]);
   }
@@ -412,8 +444,8 @@ const NPClass PluginScriptableObjectChild::sNPClass = {
 
 PluginScriptableObjectChild::PluginScriptableObjectChild(
                                                      ScriptableObjectType aType)
-: mInstance(nullptr),
-  mObject(nullptr),
+: mInstance(nsnull),
+  mObject(nsnull),
   mInvalidated(false),
   mProtectCount(0),
   mType(aType)
@@ -430,7 +462,7 @@ PluginScriptableObjectChild::~PluginScriptableObjectChild()
 
     if (mObject->_class == GetClass()) {
       NS_ASSERTION(mType == Proxy, "Wrong type!");
-      static_cast<ChildNPObject*>(mObject)->parent = nullptr;
+      static_cast<ChildNPObject*>(mObject)->parent = nsnull;
     }
     else {
       NS_ASSERTION(mType == LocalObject, "Wrong type!");
@@ -536,7 +568,7 @@ PluginScriptableObjectChild::GetObject(bool aCanResurrect)
 {
   if (!mObject && aCanResurrect && !ResurrectProxyObject()) {
     NS_ERROR("Null object!");
-    return nullptr;
+    return nsnull;
   }
   return mObject;
 }
@@ -575,7 +607,7 @@ PluginScriptableObjectChild::DropNPObject()
   // We think we're about to be deleted, but we could be racing with the other
   // process.
   PluginModuleChild::current()->UnregisterActorForNPObject(mObject);
-  mObject = nullptr;
+  mObject = nsnull;
 
   SendUnprotect();
 }
@@ -662,7 +694,7 @@ PluginScriptableObjectChild::AnswerInvoke(PPluginIdentifierChild* aId,
   }
 
   nsAutoTArray<NPVariant, 10> convertedArgs;
-  uint32_t argCount = aArgs.Length();
+  PRUint32 argCount = aArgs.Length();
 
   if (!convertedArgs.SetLength(argCount)) {
     *aResult = void_t();
@@ -670,7 +702,7 @@ PluginScriptableObjectChild::AnswerInvoke(PPluginIdentifierChild* aId,
     return true;
   }
 
-  for (uint32_t index = 0; index < argCount; index++) {
+  for (PRUint32 index = 0; index < argCount; index++) {
     ConvertToVariant(aArgs[index], convertedArgs[index]);
   }
 
@@ -681,7 +713,7 @@ PluginScriptableObjectChild::AnswerInvoke(PPluginIdentifierChild* aId,
                                          convertedArgs.Elements(), argCount,
                                          &result);
 
-  for (uint32_t index = 0; index < argCount; index++) {
+  for (PRUint32 index = 0; index < argCount; index++) {
     PluginModuleChild::sBrowserFuncs.releasevariantvalue(&convertedArgs[index]);
   }
 
@@ -732,7 +764,7 @@ PluginScriptableObjectChild::AnswerInvokeDefault(const InfallibleTArray<Variant>
   }
 
   nsAutoTArray<NPVariant, 10> convertedArgs;
-  uint32_t argCount = aArgs.Length();
+  PRUint32 argCount = aArgs.Length();
 
   if (!convertedArgs.SetLength(argCount)) {
     *aResult = void_t();
@@ -740,7 +772,7 @@ PluginScriptableObjectChild::AnswerInvokeDefault(const InfallibleTArray<Variant>
     return true;
   }
 
-  for (uint32_t index = 0; index < argCount; index++) {
+  for (PRUint32 index = 0; index < argCount; index++) {
     ConvertToVariant(aArgs[index], convertedArgs[index]);
   }
 
@@ -750,7 +782,7 @@ PluginScriptableObjectChild::AnswerInvokeDefault(const InfallibleTArray<Variant>
                                                 convertedArgs.Elements(),
                                                 argCount, &result);
 
-  for (uint32_t index = 0; index < argCount; index++) {
+  for (PRUint32 index = 0; index < argCount; index++) {
     PluginModuleChild::sBrowserFuncs.releasevariantvalue(&convertedArgs[index]);
   }
 
@@ -988,7 +1020,7 @@ PluginScriptableObjectChild::AnswerConstruct(const InfallibleTArray<Variant>& aA
   }
 
   nsAutoTArray<NPVariant, 10> convertedArgs;
-  uint32_t argCount = aArgs.Length();
+  PRUint32 argCount = aArgs.Length();
 
   if (!convertedArgs.SetLength(argCount)) {
     *aResult = void_t();
@@ -996,7 +1028,7 @@ PluginScriptableObjectChild::AnswerConstruct(const InfallibleTArray<Variant>& aA
     return true;
   }
 
-  for (uint32_t index = 0; index < argCount; index++) {
+  for (PRUint32 index = 0; index < argCount; index++) {
     ConvertToVariant(aArgs[index], convertedArgs[index]);
   }
 
@@ -1005,7 +1037,7 @@ PluginScriptableObjectChild::AnswerConstruct(const InfallibleTArray<Variant>& aA
   bool success = mObject->_class->construct(mObject, convertedArgs.Elements(),
                                             argCount, &result);
 
-  for (uint32_t index = 0; index < argCount; index++) {
+  for (PRUint32 index = 0; index < argCount; index++) {
     PluginModuleChild::sBrowserFuncs.releasevariantvalue(&convertedArgs[index]);
   }
 

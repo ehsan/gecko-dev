@@ -1,12 +1,44 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 // YY need to pass isMultiple before create called
 
 //#include "nsFormControlFrame.h"
-#include "nsContainerFrame.h"
+#include "nsHTMLContainerFrame.h"
 #include "nsLegendFrame.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMHTMLFieldSetElement.h"
@@ -31,18 +63,15 @@
 #include "nsDisplayList.h"
 #include "nsRenderingContext.h"
 
-using namespace mozilla;
-using namespace mozilla::layout;
-
 class nsLegendFrame;
 
-class nsFieldSetFrame : public nsContainerFrame {
+class nsFieldSetFrame : public nsHTMLContainerFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
   nsFieldSetFrame(nsStyleContext* aContext);
 
-  NS_IMETHOD SetInitialChildList(ChildListID    aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*       aListName,
                                  nsFrameList&   aChildList);
 
   NS_HIDDEN_(nscoord)
@@ -53,9 +82,8 @@ public:
   virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             uint32_t aFlags) MOZ_OVERRIDE;
+                             PRBool aShrinkWrap);
   virtual nscoord GetBaseline() const;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -67,20 +95,21 @@ public:
                               const nsDisplayListSet& aLists);
 
   void PaintBorderBackground(nsRenderingContext& aRenderingContext,
-    nsPoint aPt, const nsRect& aDirtyRect, uint32_t aBGFlags);
+    nsPoint aPt, const nsRect& aDirtyRect, PRUint32 aBGFlags);
 
-  NS_IMETHOD AppendFrames(ChildListID    aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*       aListName,
                           nsFrameList&   aFrameList);
-  NS_IMETHOD InsertFrames(ChildListID    aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*       aListName,
                           nsIFrame*      aPrevFrame,
                           nsFrameList&   aFrameList);
-  NS_IMETHOD RemoveFrame(ChildListID    aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*       aListName,
                          nsIFrame*      aOldFrame);
 
   virtual nsIAtom* GetType() const;
+  virtual PRBool IsContainingBlock() const;
 
 #ifdef ACCESSIBILITY  
-  virtual already_AddRefed<Accessible> CreateAccessible();
+  virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
 #ifdef DEBUG
@@ -91,11 +120,9 @@ public:
 
 protected:
 
-  virtual int GetSkipSides() const;
+  virtual PRIntn GetSkipSides() const;
   void ReparentFrameList(const nsFrameList& aFrameList);
 
-  // mLegendFrame is a nsLegendFrame or a nsHTMLScrollFrame with the
-  // nsLegendFrame as the scrolled frame (aka content insertion frame).
   nsIFrame* mLegendFrame;
   nsIFrame* mContentFrame;
   nsRect    mLegendRect;
@@ -111,18 +138,11 @@ NS_NewFieldSetFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsFieldSetFrame)
 
 nsFieldSetFrame::nsFieldSetFrame(nsStyleContext* aContext)
-  : nsContainerFrame(aContext)
+  : nsHTMLContainerFrame(aContext)
 {
-  mContentFrame = nullptr;
-  mLegendFrame  = nullptr;
+  mContentFrame = nsnull;
+  mLegendFrame  = nsnull;
   mLegendSpace  = 0;
-}
-
-void
-nsFieldSetFrame::DestroyFrom(nsIFrame* aDestructRoot)
-{
-  DestroyAbsoluteFrames(aDestructRoot);
-  nsContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 nsIAtom*
@@ -131,8 +151,14 @@ nsFieldSetFrame::GetType() const
   return nsGkAtoms::fieldSetFrame;
 }
 
+PRBool
+nsFieldSetFrame::IsContainingBlock() const
+{
+  return PR_TRUE;
+}
+
 NS_IMETHODIMP
-nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
+nsFieldSetFrame::SetInitialChildList(nsIAtom*       aListName,
                                      nsFrameList&   aChildList)
 {
   // Get the content and legend frames.
@@ -142,11 +168,11 @@ nsFieldSetFrame::SetInitialChildList(ChildListID    aListID,
     mLegendFrame  = aChildList.FirstChild();
   } else {
     mContentFrame = aChildList.FirstChild();
-    mLegendFrame  = nullptr;
+    mLegendFrame  = nsnull;
   }
 
   // Queue up the frames for the content frame
-  return nsContainerFrame::SetInitialChildList(kPrincipalList, aChildList);
+  return nsHTMLContainerFrame::SetInitialChildList(nsnull, aChildList);
 }
 
 class nsDisplayFieldSetBorderBackground : public nsDisplayItem {
@@ -243,12 +269,12 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 void
 nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
-    nsPoint aPt, const nsRect& aDirtyRect, uint32_t aBGFlags)
+    nsPoint aPt, const nsRect& aDirtyRect, PRUint32 aBGFlags)
 {
-  int skipSides = GetSkipSides();
+  PRIntn skipSides = GetSkipSides();
   const nsStyleBorder* borderStyle = GetStyleBorder();
        
-  nscoord topBorder = borderStyle->GetComputedBorderWidth(NS_SIDE_TOP);
+  nscoord topBorder = borderStyle->GetActualBorderWidth(NS_SIDE_TOP);
   nscoord yoff = 0;
   nsPresContext* presContext = PresContext();
      
@@ -369,18 +395,14 @@ nsFieldSetFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
 nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                             uint32_t aFlags)
+                             PRBool aShrinkWrap)
 {
   nsSize result =
-    nsContainerFrame::ComputeSize(aRenderingContext, aCBSize, aAvailableWidth,
-                                  aMargin, aBorder, aPadding, aFlags);
+    nsHTMLContainerFrame::ComputeSize(aRenderingContext, aCBSize,
+                                      aAvailableWidth,
+                                      aMargin, aBorder, aPadding, aShrinkWrap);
 
   // Fieldsets never shrink below their min width.
-
-  // If we're a container for font size inflation, then shrink
-  // wrapping inside of us should not apply font size inflation.
-  AutoMaybeDisableFontInflation an(this);
-
   nscoord minWidth = GetMinWidth(aRenderingContext);
   if (minWidth > result.width)
     result.width = minWidth;
@@ -404,12 +426,12 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   aStatus = NS_FRAME_COMPLETE;
 
   //------------ Handle Incremental Reflow -----------------
-  bool reflowContent;
-  bool reflowLegend;
+  PRBool reflowContent;
+  PRBool reflowLegend;
 
   if (aReflowState.ShouldReflowAllKids()) {
-    reflowContent = mContentFrame != nullptr;
-    reflowLegend = mLegendFrame != nullptr;
+    reflowContent = mContentFrame != nsnull;
+    reflowLegend = mLegendFrame != nsnull;
   } else {
     reflowContent = mContentFrame && NS_SUBTREE_DIRTY(mContentFrame);
     reflowLegend = mLegendFrame && NS_SUBTREE_DIRTY(mLegendFrame);
@@ -469,7 +491,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     // if the legend space changes then we need to reflow the 
     // content area as well.
     if (mLegendSpace != oldSpace && mContentFrame) {
-      reflowContent = true;
+      reflowContent = PR_TRUE;
     }
 
     FinishReflowChild(mLegendFrame, aPresContext, &legendReflowState, 
@@ -530,8 +552,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   if (mLegendFrame) {
     // if the content rect is larger then the  legend we can align the legend
     if (contentRect.width > mLegendRect.width) {
-      int32_t align = static_cast<nsLegendFrame*>
-        (mLegendFrame->GetContentInsertionFrame())->GetAlign();
+      PRInt32 align = static_cast<nsLegendFrame*>(mLegendFrame)->GetAlign();
 
       switch(align) {
         case NS_STYLE_TEXT_ALIGN_RIGHT:
@@ -582,7 +603,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     ConsiderChildOverflow(aDesiredSize.mOverflowAreas, mLegendFrame);
   if (mContentFrame)
     ConsiderChildOverflow(aDesiredSize.mOverflowAreas, mContentFrame);
-  FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
+  FinishAndStoreOverflow(&aDesiredSize);
 
   Invalidate(aDesiredSize.VisualOverflow());
 
@@ -590,23 +611,23 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   return NS_OK;
 }
 
-int
+PRIntn
 nsFieldSetFrame::GetSkipSides() const
 {
   return 0;
 }
 
 NS_IMETHODIMP
-nsFieldSetFrame::AppendFrames(ChildListID    aListID,
+nsFieldSetFrame::AppendFrames(nsIAtom*       aListName,
                               nsFrameList&   aFrameList)
 {
   // aFrameList is not allowed to contain "the legend" for this fieldset
   ReparentFrameList(aFrameList);
-  return mContentFrame->AppendFrames(aListID, aFrameList);
+  return mContentFrame->AppendFrames(aListName, aFrameList);
 }
 
 NS_IMETHODIMP
-nsFieldSetFrame::InsertFrames(ChildListID    aListID,
+nsFieldSetFrame::InsertFrames(nsIAtom*       aListName,
                               nsIFrame*      aPrevFrame,
                               nsFrameList&   aFrameList)
 {
@@ -617,22 +638,22 @@ nsFieldSetFrame::InsertFrames(ChildListID    aListID,
   // aFrameList is not allowed to contain "the legend" for this fieldset
   ReparentFrameList(aFrameList);
   if (NS_UNLIKELY(aPrevFrame == mLegendFrame)) {
-    aPrevFrame = nullptr;
+    aPrevFrame = nsnull;
   }
-  return mContentFrame->InsertFrames(aListID, aPrevFrame, aFrameList);
+  return mContentFrame->InsertFrames(aListName, aPrevFrame, aFrameList);
 }
 
 NS_IMETHODIMP
-nsFieldSetFrame::RemoveFrame(ChildListID    aListID,
+nsFieldSetFrame::RemoveFrame(nsIAtom*       aListName,
                              nsIFrame*      aOldFrame)
 {
   // For reference, see bug 70648, bug 276104 and bug 236071.
   NS_ASSERTION(aOldFrame != mLegendFrame, "Cannot remove mLegendFrame here");
-  return mContentFrame->RemoveFrame(aListID, aOldFrame);
+  return mContentFrame->RemoveFrame(aListName, aOldFrame);
 }
 
 #ifdef ACCESSIBILITY
-already_AddRefed<Accessible>
+already_AddRefed<nsAccessible>
 nsFieldSetFrame::CreateAccessible()
 {
   nsAccessibilityService* accService = nsIPresShell::AccService();
@@ -641,7 +662,7 @@ nsFieldSetFrame::CreateAccessible()
                                                     PresContext()->PresShell());
   }
 
-  return nullptr;
+  return nsnull;
 }
 #endif
 

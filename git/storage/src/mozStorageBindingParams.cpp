@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
+ *   Andrew Sutherland <asutherland@asutherland.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <limits.h>
 
@@ -116,7 +150,7 @@ BindingParams::BindingParams(mozIStorageBindingParamsArray *aOwningArray,
 BindingParams::BindingParams(mozIStorageBindingParamsArray *aOwningArray)
 : mLocked(false)
 , mOwningArray(aOwningArray)
-, mOwningStatement(nullptr)
+, mOwningStatement(nsnull)
 , mParamCount(0)
 {
 }
@@ -138,8 +172,8 @@ BindingParams::lock()
   // We no longer need to hold a reference to our statement or our owning array.
   // The array owns us at this point, and it will own a reference to the
   // statement.
-  mOwningStatement = nullptr;
-  mOwningArray = nullptr;
+  mOwningStatement = nsnull;
+  mOwningArray = nsnull;
 }
 
 void
@@ -166,13 +200,13 @@ AsyncBindingParams::iterateOverNamedParameters(const nsACString &aName,
 
   // We do not accept any forms of names other than ":name", but we need to add
   // the colon for SQLite.
-  nsAutoCString name(":");
+  nsCAutoString name(":");
   name.Append(aName);
   int oneIdx = ::sqlite3_bind_parameter_index(closureThunk->statement,
                                               name.get());
 
   if (oneIdx == 0) {
-    nsAutoCString errMsg(aName);
+    nsCAutoString errMsg(aName);
     errMsg.Append(NS_LITERAL_CSTRING(" is not a valid named parameter."));
     closureThunk->err = new Error(SQLITE_RANGE, errMsg.get());
     return PL_DHASH_STOP;
@@ -216,7 +250,7 @@ already_AddRefed<mozIStorageError>
 BindingParams::bind(sqlite3_stmt *aStatement)
 {
   // Iterate through all of our stored data, and bind it.
-  for (int32_t i = 0; i < mParameters.Count(); i++) {
+  for (PRInt32 i = 0; i < mParameters.Count(); i++) {
     int rc = variantToSQLiteT(BindingColumnData(aStatement, i), mParameters[i]);
     if (rc != SQLITE_OK) {
       // We had an error while trying to bind.  Now we need to create an error
@@ -231,7 +265,7 @@ BindingParams::bind(sqlite3_stmt *aStatement)
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 
 already_AddRefed<mozIStorageError>
@@ -244,7 +278,7 @@ AsyncBindingParams::bind(sqlite3_stmt * aStatement)
 
   // Enumerate over everyone in the map, propagating them into mParameters if
   // we can and creating an error immediately when we cannot.
-  NamedParameterIterationClosureThunk closureThunk = {this, aStatement, nullptr};
+  NamedParameterIterationClosureThunk closureThunk = {this, aStatement, nsnull};
   (void)mNamedParameters.EnumerateRead(iterateOverNamedParameters,
                                        (void *)&closureThunk);
 
@@ -262,7 +296,7 @@ BindingParams::BindByName(const nsACString &aName,
   NS_ENSURE_FALSE(mLocked, NS_ERROR_UNEXPECTED);
 
   // Get the column index that we need to store this at.
-  uint32_t index;
+  PRUint32 index;
   nsresult rv = mOwningStatement->GetParameterIndex(aName, &index);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -275,7 +309,8 @@ AsyncBindingParams::BindByName(const nsACString &aName,
 {
   NS_ENSURE_FALSE(mLocked, NS_ERROR_UNEXPECTED);
 
-  mNamedParameters.Put(aName, aValue);
+  if (!mNamedParameters.Put(aName, aValue))
+    return NS_ERROR_OUT_OF_MEMORY;
   return NS_OK;
 }
 
@@ -312,7 +347,7 @@ BindingParams::BindDoubleByName(const nsACString &aName,
 
 NS_IMETHODIMP
 BindingParams::BindInt32ByName(const nsACString &aName,
-                               int32_t aValue)
+                               PRInt32 aValue)
 {
   nsCOMPtr<nsIVariant> value(new IntegerVariant(aValue));
   NS_ENSURE_TRUE(value, NS_ERROR_OUT_OF_MEMORY);
@@ -322,7 +357,7 @@ BindingParams::BindInt32ByName(const nsACString &aName,
 
 NS_IMETHODIMP
 BindingParams::BindInt64ByName(const nsACString &aName,
-                               int64_t aValue)
+                               PRInt64 aValue)
 {
   nsCOMPtr<nsIVariant> value(new IntegerVariant(aValue));
   NS_ENSURE_TRUE(value, NS_ERROR_OUT_OF_MEMORY);
@@ -341,8 +376,8 @@ BindingParams::BindNullByName(const nsACString &aName)
 
 NS_IMETHODIMP
 BindingParams::BindBlobByName(const nsACString &aName,
-                              const uint8_t *aValue,
-                              uint32_t aValueSize)
+                              const PRUint8 *aValue,
+                              PRUint32 aValueSize)
 {
   NS_ENSURE_ARG_MAX(aValueSize, INT_MAX);
   std::pair<const void *, int> data(
@@ -356,7 +391,7 @@ BindingParams::BindBlobByName(const nsACString &aName,
 }
 
 NS_IMETHODIMP
-BindingParams::BindByIndex(uint32_t aIndex,
+BindingParams::BindByIndex(PRUint32 aIndex,
                            nsIVariant *aValue)
 {
   NS_ENSURE_FALSE(mLocked, NS_ERROR_UNEXPECTED);
@@ -369,7 +404,7 @@ BindingParams::BindByIndex(uint32_t aIndex,
 }
 
 NS_IMETHODIMP
-AsyncBindingParams::BindByIndex(uint32_t aIndex,
+AsyncBindingParams::BindByIndex(PRUint32 aIndex,
                                 nsIVariant *aValue)
 {
   NS_ENSURE_FALSE(mLocked, NS_ERROR_UNEXPECTED);
@@ -383,7 +418,7 @@ AsyncBindingParams::BindByIndex(uint32_t aIndex,
 }
 
 NS_IMETHODIMP
-BindingParams::BindUTF8StringByIndex(uint32_t aIndex,
+BindingParams::BindUTF8StringByIndex(PRUint32 aIndex,
                                      const nsACString &aValue)
 {
   nsCOMPtr<nsIVariant> value(new UTF8TextVariant(aValue));
@@ -393,7 +428,7 @@ BindingParams::BindUTF8StringByIndex(uint32_t aIndex,
 }
 
 NS_IMETHODIMP
-BindingParams::BindStringByIndex(uint32_t aIndex,
+BindingParams::BindStringByIndex(PRUint32 aIndex,
                                  const nsAString &aValue)
 {
   nsCOMPtr<nsIVariant> value(new TextVariant(aValue));
@@ -403,7 +438,7 @@ BindingParams::BindStringByIndex(uint32_t aIndex,
 }
 
 NS_IMETHODIMP
-BindingParams::BindDoubleByIndex(uint32_t aIndex,
+BindingParams::BindDoubleByIndex(PRUint32 aIndex,
                                  double aValue)
 {
   nsCOMPtr<nsIVariant> value(new FloatVariant(aValue));
@@ -413,8 +448,8 @@ BindingParams::BindDoubleByIndex(uint32_t aIndex,
 }
 
 NS_IMETHODIMP
-BindingParams::BindInt32ByIndex(uint32_t aIndex,
-                                int32_t aValue)
+BindingParams::BindInt32ByIndex(PRUint32 aIndex,
+                                PRInt32 aValue)
 {
   nsCOMPtr<nsIVariant> value(new IntegerVariant(aValue));
   NS_ENSURE_TRUE(value, NS_ERROR_OUT_OF_MEMORY);
@@ -423,8 +458,8 @@ BindingParams::BindInt32ByIndex(uint32_t aIndex,
 }
 
 NS_IMETHODIMP
-BindingParams::BindInt64ByIndex(uint32_t aIndex,
-                                int64_t aValue)
+BindingParams::BindInt64ByIndex(PRUint32 aIndex,
+                                PRInt64 aValue)
 {
   nsCOMPtr<nsIVariant> value(new IntegerVariant(aValue));
   NS_ENSURE_TRUE(value, NS_ERROR_OUT_OF_MEMORY);
@@ -433,7 +468,7 @@ BindingParams::BindInt64ByIndex(uint32_t aIndex,
 }
 
 NS_IMETHODIMP
-BindingParams::BindNullByIndex(uint32_t aIndex)
+BindingParams::BindNullByIndex(PRUint32 aIndex)
 {
   nsCOMPtr<nsIVariant> value(new NullVariant());
   NS_ENSURE_TRUE(value, NS_ERROR_OUT_OF_MEMORY);
@@ -442,9 +477,9 @@ BindingParams::BindNullByIndex(uint32_t aIndex)
 }
 
 NS_IMETHODIMP
-BindingParams::BindBlobByIndex(uint32_t aIndex,
-                               const uint8_t *aValue,
-                               uint32_t aValueSize)
+BindingParams::BindBlobByIndex(PRUint32 aIndex,
+                               const PRUint8 *aValue,
+                               PRUint32 aValueSize)
 {
   NS_ENSURE_ARG_MAX(aValueSize, INT_MAX);
   std::pair<const void *, int> data(

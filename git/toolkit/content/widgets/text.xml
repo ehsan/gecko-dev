@@ -1,8 +1,4 @@
 <?xml version="1.0"?>
-<!-- This Source Code Form is subject to the terms of the Mozilla Public
-   - License, v. 2.0. If a copy of the MPL was not distributed with this
-   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
-
 
 <bindings id="textBindings"
    xmlns="http://www.mozilla.org/xbl"
@@ -61,7 +57,7 @@
 
   <binding id="label-control" extends="chrome://global/content/bindings/text.xml#text-label">
     <content>
-      <children/><html:span anonid="accessKeyParens"></html:span>
+      <html:span anonid="accessKeyParens"><children/></html:span>
     </content>
     <implementation implements="nsIDOMXULLabelElement">
       <constructor>
@@ -110,7 +106,7 @@
             }
 
             var afterLabel = document.getAnonymousElementByAttribute(this, "anonid", "accessKeyParens");
-            afterLabel.textContent = "";
+            afterLabel.textContent = ""; // This does not clear real nodes!
 
             var oldAccessKey = this.getElementsByAttribute('class', 'accesskey').item(0);
             if (oldAccessKey) { // Clear old accesskey
@@ -303,7 +299,7 @@
         <body>
         <![CDATA[
           var href = this.href;
-          if (!href || this.disabled || aEvent.defaultPrevented)
+          if (!href || this.disabled || aEvent.getPreventDefault())
             return;
 
           var uri = null;

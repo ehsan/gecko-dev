@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=448602
 -->
 <head>
   <title>Test for Bug 448602</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -21,13 +22,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=448602
 
 
 function runTests() {
-/*
-  Disabled due to lack of present support for JSD in JM
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var jsdIDebuggerService = Components.interfaces.jsdIDebuggerService;
   var jsd = Components.classes['@mozilla.org/js/jsd/debugger-service;1']
                       .getService(jsdIDebuggerService);
-*/
-  var els = SpecialPowers.wrap(Components).classes["@mozilla.org/eventlistenerservice;1"]
+  var els = Components.classes["@mozilla.org/eventlistenerservice;1"]
                       .getService(Components.interfaces.nsIEventListenerService);
 
   // Event listener info tests
@@ -39,13 +38,12 @@ function runTests() {
   root.setAttribute("onclick", listenerSource);
   infos = els.getListenerInfoFor(root, {});
   is(infos.length, 1, "Element should have listeners (1)");
-  is(infos[0].toSource(), 'function onclick(event) {\n' + listenerSource + '\n}',
+  is(infos[0].toSource(), 'function onclick(event) {' + listenerSource + '}',
      "Unexpected serialization (1)");
   is(infos[0].type, "click", "Wrong type (1)");
   is(infos[0].capturing, false, "Wrong phase (1)");
   is(infos[0].allowsUntrusted, true, "Should allow untrusted events (1)");
 
-/*
   var jsdOn = jsd.isOn;
   if (!jsdOn) {
     is(infos[0].getDebugObject(), null,
@@ -55,7 +53,6 @@ function runTests() {
   }
   var jsdvalue = infos[0].getDebugObject().QueryInterface(Components.interfaces.jsdIValue);
   is(jsdvalue.jsType, 3, "Event listener should be a function! (1)");
-*/
 
   root.removeAttribute("onclick");
   infos = els.getListenerInfoFor(root, {});
@@ -66,28 +63,24 @@ function runTests() {
   root.addEventListener("foo", l, false, false);
   infos = els.getListenerInfoFor(root, {});
   is(infos.length, 2, "Element should have listeners (2)");
-  is(infos[0].toSource(), "(function (e) { alert(e); })",
+  is(infos[0].toSource(), "(function (e) {alert(e);})",
      "Unexpected serialization (2)");
   is(infos[0].type, "foo", "Wrong type (2)");
   is(infos[0].capturing, true, "Wrong phase (2)");
   is(infos[0].allowsUntrusted, true, "Should allow untrusted events (2)");
-/*
   jsdvalue = infos[0].getDebugObject().QueryInterface(Components.interfaces.jsdIValue);
   is(jsdvalue.jsType, 3, "Event listener should be a function!(2)");
   is(jsdvalue.getWrappedValue(), l, "Wrong JS value! (1)");
-*/
 
-  is(infos[1].toSource(), "(function (e) { alert(e); })",
+  is(infos[1].toSource(), "(function (e) {alert(e);})",
      "Unexpected serialization (3)");
   is(infos[1].type, "foo", "Wrong type (3)");
   is(infos[1].capturing, false, "Wrong phase (3)");
   is(infos[1].allowsUntrusted, false, "Shouldn't allow untrusted events (1)");
 
-/*
   jsdvalue2 = infos[1].getDebugObject().QueryInterface(Components.interfaces.jsdIValue);
   is(jsdvalue2.jsType, 3, "Event listener should be a function! (3)");
   is(jsdvalue2.getWrappedValue(), l, "Wrong JS value! (2)");
-*/
   root.removeEventListener("foo", l, true);
   root.removeEventListener("foo", l, false);
   infos = els.getListenerInfoFor(root, {});
@@ -96,7 +89,7 @@ function runTests() {
   root.onclick = l;
   infos = els.getListenerInfoFor(root, {});
   is(infos.length, 1, "Element should have listeners (3)");
-  is(infos[0].toSource(), '(function (e) { alert(e); })',
+  is(infos[0].toSource(), '(function (e) {alert(e);})',
      "Unexpected serialization (4)");
   is(infos[0].type, "click", "Wrong type (4)");
   is(infos[0].capturing, false, "Wrong phase (4)");
@@ -106,7 +99,7 @@ function runTests() {
   var l2 = document.getElementById("testlevel2");
   var l3 = document.getElementById("testlevel3");
   var textnode = l3.firstChild;
-  var chain = SpecialPowers.unwrap(els.getEventTargetChainFor(textnode, {}));
+  var chain = els.getEventTargetChainFor(textnode, {});
   ok(chain.length > 3, "Too short event target chain.");
   is(chain[0], textnode, "Wrong chain item (1)");
   is(chain[1], l3, "Wrong chain item (2)");
@@ -125,19 +118,12 @@ function runTests() {
 
   ok(hasDocumentInChain, "Should have document in event target chain!");
   ok(hasWindowInChain, "Should have window in event target chain!");
-/*
+
   if (!jsdOn) {
     jsd.off();
     ok(!jsd.isOn, "JSD shouldn't be running anymore.");
   }
-*/	
 
-  try {
-    els.getListenerInfoFor(null, {});
-    ok(false, "Should have thrown an exception.");
-  } catch (ex) {
-    ok(true, "We should be still running.");
-  }
   
   SimpleTest.finish();
 }

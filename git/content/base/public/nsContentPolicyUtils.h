@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla code.
+ *
+ * The Initial Developer of the Original Code is
+ * Zero-Knowledge Systems, Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Timothy Watt <riceman+moz@mail.rit.edu>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Utility routines for checking content load/process policy settings,
@@ -65,7 +98,7 @@ class nsACString;
  * @return the name of the given response code
  */
 inline const char *
-NS_CP_ResponseName(int16_t response)
+NS_CP_ResponseName(PRInt16 response)
 {
   switch (response) {
     CASE_RETURN( REJECT_REQUEST );
@@ -88,7 +121,7 @@ NS_CP_ResponseName(int16_t response)
  * @return the name of the given content type code
  */
 inline const char *
-NS_CP_ContentTypeName(uint32_t contentType)
+NS_CP_ContentTypeName(PRUint32 contentType)
 {
   switch (contentType) {
     CASE_RETURN( TYPE_OTHER             );
@@ -106,7 +139,6 @@ NS_CP_ContentTypeName(uint32_t contentType)
     CASE_RETURN( TYPE_DTD               );
     CASE_RETURN( TYPE_FONT              );
     CASE_RETURN( TYPE_MEDIA             );
-    CASE_RETURN( TYPE_WEBSOCKET         );
    default:
     return "<Unknown Type>";
   }
@@ -125,16 +157,14 @@ NS_CP_ContentTypeName(uint32_t contentType)
         return NS_ERROR_FAILURE;                                              \
                                                                               \
     return policy-> action (contentType, contentLocation, requestOrigin,      \
-                            context, mimeType, extra, originPrincipal,        \
-                            decision);                                        \
+                            context, mimeType, extra, decision);              \
   PR_END_MACRO
 
 /* Passes on parameters from its "caller"'s context. */
 #define CHECK_CONTENT_POLICY_WITH_SERVICE(action, _policy)                    \
   PR_BEGIN_MACRO                                                              \
     return _policy-> action (contentType, contentLocation, requestOrigin,     \
-                             context, mimeType, extra, originPrincipal,       \
-                             decision);                                       \
+                             context, mimeType, extra, decision);             \
   PR_END_MACRO
 
 /**
@@ -152,7 +182,7 @@ NS_CP_ContentTypeName(uint32_t contentType)
           secMan = do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);        \
       }                                                                       \
       if (secMan) {                                                           \
-          bool isSystem;                                                    \
+          PRBool isSystem;                                                    \
           nsresult rv = secMan->IsSystemPrincipal(originPrincipal,            \
                                                   &isSystem);                 \
           NS_ENSURE_SUCCESS(rv, rv);                                          \
@@ -176,15 +206,15 @@ NS_CP_ContentTypeName(uint32_t contentType)
  * null origin URI will be passed).
  */
 inline nsresult
-NS_CheckContentLoadPolicy(uint32_t          contentType,
+NS_CheckContentLoadPolicy(PRUint32          contentType,
                           nsIURI           *contentLocation,
                           nsIPrincipal     *originPrincipal,
                           nsISupports      *context,
                           const nsACString &mimeType,
                           nsISupports      *extra,
-                          int16_t          *decision,
-                          nsIContentPolicy *policyService = nullptr,
-                          nsIScriptSecurityManager* aSecMan = nullptr)
+                          PRInt16          *decision,
+                          nsIContentPolicy *policyService = nsnull,
+                          nsIScriptSecurityManager* aSecMan = nsnull)
 {
     CHECK_PRINCIPAL;
     if (policyService) {
@@ -203,15 +233,15 @@ NS_CheckContentLoadPolicy(uint32_t          contentType,
  * null origin URI will be passed).
  */
 inline nsresult
-NS_CheckContentProcessPolicy(uint32_t          contentType,
+NS_CheckContentProcessPolicy(PRUint32          contentType,
                              nsIURI           *contentLocation,
                              nsIPrincipal     *originPrincipal,
                              nsISupports      *context,
                              const nsACString &mimeType,
                              nsISupports      *extra,
-                             int16_t          *decision,
-                             nsIContentPolicy *policyService = nullptr,
-                             nsIScriptSecurityManager* aSecMan = nullptr)
+                             PRInt16          *decision,
+                             nsIContentPolicy *policyService = nsnull,
+                             nsIScriptSecurityManager* aSecMan = nsnull)
 {
     CHECK_PRINCIPAL;
     if (policyService) {
@@ -232,7 +262,7 @@ NS_CheckContentProcessPolicy(uint32_t          contentType,
  *
  * @param aContext the context to find a docshell for (can be null)
  *
- * @return a WEAK pointer to the docshell, or nullptr if it could
+ * @return a WEAK pointer to the docshell, or nsnull if it could
  *     not be obtained
  *     
  * @note  As of this writing, calls to nsIContentPolicy::Should{Load,Process}
@@ -250,7 +280,7 @@ inline nsIDocShell*
 NS_CP_GetDocShellFromContext(nsISupports *aContext)
 {
     if (!aContext) {
-        return nullptr;
+        return nsnull;
     }
 
     nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(aContext);
@@ -264,7 +294,7 @@ NS_CP_GetDocShellFromContext(nsISupports *aContext)
             // hopefully
             nsCOMPtr<nsIContent> content = do_QueryInterface(aContext);
             if (content) {
-                doc = content->OwnerDoc();
+                doc = content->GetOwnerDoc();
             }
         }
 
@@ -278,7 +308,7 @@ NS_CP_GetDocShellFromContext(nsISupports *aContext)
     }
 
     if (!window) {
-        return nullptr;
+        return nsnull;
     }
 
     return window->GetDocShell();

@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Wave Media test: ended</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -14,7 +15,7 @@ var completed = false;
 
 function audioavailable(e) {
   if (completed)
-    return;
+    return false;
 
   completed = true;
   var samples = e.frameBuffer;
@@ -29,14 +30,16 @@ function audioavailable(e) {
 
   // Only care about the first few samples
   SimpleTest.finish();
+  return false;
 }
 
 function startTest() {
   if (completed)
-    return;
+    return false;
   var v = document.getElementById('v');
   v.addEventListener('MozAudioAvailable', audioavailable, false);
   v.play();
+  return false;
 }
 
 SimpleTest.waitForExplicitFinish();

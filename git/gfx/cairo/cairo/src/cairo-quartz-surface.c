@@ -135,8 +135,6 @@ static bool (*CGContextGetAllowsFontSmoothingPtr) (CGContextRef) = NULL;
 static CGPathRef (*CGContextCopyPathPtr) (CGContextRef) = NULL;
 static CGFloat (*CGContextGetAlphaPtr) (CGContextRef) = NULL;
 
-static SInt32 _cairo_quartz_osx_version = 0x0;
-
 static cairo_bool_t _cairo_quartz_symbol_lookup_done = FALSE;
 
 /*
@@ -171,11 +169,6 @@ static void quartz_ensure_symbols(void)
     CGContextGetAllowsFontSmoothingPtr = dlsym(RTLD_DEFAULT, "CGContextGetAllowsFontSmoothing");
     CGContextSetAllowsFontSmoothingPtr = dlsym(RTLD_DEFAULT, "CGContextSetAllowsFontSmoothing");
     CGContextGetAlphaPtr = dlsym(RTLD_DEFAULT, "CGContextGetAlpha");
-
-    if (Gestalt(gestaltSystemVersion, &_cairo_quartz_osx_version) != noErr) {
-        // assume 10.5
-        _cairo_quartz_osx_version = 0x1050;
-    }
 
     _cairo_quartz_symbol_lookup_done = TRUE;
 }
@@ -441,7 +434,6 @@ _cairo_quartz_cairo_operator_to_quartz_composite (cairo_operator_t op)
 	case CAIRO_OPERATOR_HSL_LUMINOSITY:
         default:
 	    assert (0);
-	    return kPrivateCGCompositeClear;
     }
 }
 
@@ -1114,7 +1106,6 @@ DataProviderReleaseCallback (void *info, const void *data, size_t size)
 {
     quartz_source_image_t *source_img = info;
     _cairo_surface_release_source_image (source_img->surface, source_img->image_out, source_img->image_extra);
-    cairo_surface_destroy (source_img->surface);
     free (source_img);
 }
 
@@ -1154,11 +1145,10 @@ _cairo_surface_to_cgimage (cairo_surface_t *source,
     if (source_img == NULL)
 	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
 
-    source_img->surface = cairo_surface_reference(source);
+    source_img->surface = source;
 
     status = _cairo_surface_acquire_source_image (source_img->surface, &source_img->image_out, &source_img->image_extra);
     if (status) {
-	cairo_surface_destroy (source_img->surface);
 	free (source_img);
 	return status;
     }
@@ -1922,8 +1912,9 @@ _cairo_quartz_get_image (cairo_quartz_surface_t *surface,
 	return CAIRO_STATUS_SUCCESS;
     }
 
+    CGContextFlush(surface->cgContext);
+
     if (surface->imageSurfaceEquiv) {
-	CGContextFlush(surface->cgContext);
 	*image_out = (cairo_image_surface_t*) cairo_surface_reference(surface->imageSurfaceEquiv);
 	return CAIRO_STATUS_SUCCESS;
     }
@@ -1935,7 +1926,6 @@ _cairo_quartz_get_image (cairo_quartz_surface_t *surface,
 	CGColorSpaceRef colorspace;
 	unsigned int color_comps;
 
-	CGContextFlush(surface->cgContext);
 	imageData = (unsigned char *) CGBitmapContextGetData(surface->cgContext);
 
 #ifdef USE_10_3_WORKAROUNDS
@@ -3043,11 +3033,8 @@ _cairo_quartz_surface_mask_cg (void *abstract_surface,
     /* If we have CGContextClipToMask, we can do more complex masks */
     if (CGContextClipToMaskPtr) {
 	/* For these, we can skip creating a temporary surface, since we already have one */
-	/* For some reason this doesn't work reliably on OS X 10.5.  See bug 721663. */
-	if (_cairo_quartz_osx_version >= 0x1060 && mask->type == CAIRO_PATTERN_TYPE_SURFACE &&
-	    mask->extend == CAIRO_EXTEND_NONE) {
+	if (mask->type == CAIRO_PATTERN_TYPE_SURFACE && mask->extend == CAIRO_EXTEND_NONE)
 	    return _cairo_quartz_surface_mask_with_surface (surface, op, source, (cairo_surface_pattern_t *) mask, clip);
-	}
 
 	return _cairo_quartz_surface_mask_with_generic (surface, op, source, mask, clip);
     }
@@ -3132,17 +3119,6 @@ _cairo_quartz_surface_clipper_intersect_clip_path (cairo_surface_clipper_t *clip
     return CAIRO_STATUS_SUCCESS;
 }
 
-static cairo_status_t
-_cairo_quartz_surface_mark_dirty_rectangle (void *abstract_surface,
-					    int x, int y,
-					    int width, int height)
-{
-    cairo_quartz_surface_t *surface = (cairo_quartz_surface_t *) abstract_surface;
-    _cairo_quartz_surface_will_change (surface);
-    return CAIRO_STATUS_SUCCESS;
-}
-
-
 // XXXtodo implement show_page; need to figure out how to handle begin/end
 
 static const struct _cairo_surface_backend cairo_quartz_surface_backend = {
@@ -3165,7 +3141,7 @@ static const struct _cairo_surface_backend cairo_quartz_surface_backend = {
     NULL, /* old_show_glyphs */
     NULL, /* get_font_options */
     NULL, /* flush */
-    _cairo_quartz_surface_mark_dirty_rectangle,
+    NULL, /* mark_dirty_rectangle */
     NULL, /* scaled_font_fini */
     NULL, /* scaled_glyph_fini */
 

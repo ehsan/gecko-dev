@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Android SUTAgent code.
+ *
+ * The Initial Developer of the Original Code is
+ * Bob Moss.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Bob Moss <bmoss@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 package com.mozilla.SUTAgentAndroid.service;
 
@@ -18,7 +51,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.io.RandomAccessFile;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -35,7 +67,6 @@ import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.StringTokenizer;
 import java.util.TimeZone;
 import java.util.zip.Adler32;
 import java.util.zip.CheckedInputStream;
@@ -56,6 +87,7 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
 
+import com.mozilla.SUTAgentAndroid.NtpMessage;
 import com.mozilla.SUTAgentAndroid.R;
 import com.mozilla.SUTAgentAndroid.SUTAgentAndroid;
 
@@ -84,10 +116,8 @@ import android.os.Debug;
 import android.os.Environment;
 import android.os.StatFs;
 import android.os.SystemClock;
-import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
-import android.view.Surface;
 import android.view.WindowManager;
 
 public class DoCommand {
@@ -107,15 +137,12 @@ public class DoCommand {
     String ffxProvider = "org.mozilla.ffxcp";
     String fenProvider = "org.mozilla.fencp";
 
-    private final String prgVersion = "SUTAgentAndroid Version 1.13";
+    private final String prgVersion = "SUTAgentAndroid Version 1.01";
 
     public enum Command
         {
         RUN ("run"),
         EXEC ("exec"),
-        EXECSU ("execsu"),
-        EXECCWD ("execcwd"),
-        EXECCWDSU ("execcwdsu"),
         ENVRUN ("envrun"),
         KILL ("kill"),
         PS ("ps"),
@@ -123,11 +150,9 @@ public class DoCommand {
         OS ("os"),
         ID ("id"),
         UPTIME ("uptime"),
-        UPTIMEMILLIS ("uptimemillis"),
         SETTIME ("settime"),
         SYSTIME ("systime"),
         SCREEN ("screen"),
-        ROTATION ("rotation"),
         MEMORY ("memory"),
         POWER ("power"),
         PROCESS ("process"),
@@ -167,7 +192,6 @@ public class DoCommand {
         INST ("inst"),
         UPDT ("updt"),
         UNINST ("uninst"),
-        UNINSTALL ("uninstall"),
         TEST ("test"),
         DBG ("dbg"),
         TRACE ("trace"),
@@ -175,7 +199,6 @@ public class DoCommand {
         TZGET ("tzget"),
         TZSET ("tzset"),
         ADB ("adb"),
-        CHMOD ("chmod"),
         UNKNOWN ("unknown");
 
         private final String theCmd;
@@ -315,6 +338,7 @@ public class DoCommand {
                     if (Argc > 2) {
                         try {
                             lOff = Long.parseLong(Argv[2].trim());
+                            System.out.println("offset = " + lOff);
                         } catch (NumberFormatException nfe) {
                             lOff = 0;
                             System.out.println("NumberFormatException: " + nfe.getMessage());
@@ -323,6 +347,7 @@ public class DoCommand {
                     if (Argc == 4) {
                         try {
                             lLen = Long.parseLong(Argv[3].trim());
+                            System.out.println("length = " + lLen);
                         } catch (NumberFormatException nfe) {
                             lLen = -1;
                             System.out.println("NumberFormatException: " + nfe.getMessage());
@@ -341,6 +366,7 @@ public class DoCommand {
                     try
                         {
                         lArg = Long.parseLong(Argv[2].trim());
+                        System.out.println("long l = " + lArg);
                         }
                     catch (NumberFormatException nfe)
                         {
@@ -362,16 +388,9 @@ public class DoCommand {
 
             case UNINST:
                 if (Argc >= 2)
-                    strReturn = UnInstallApp(Argv[1], cmdOut, true);
+                    strReturn = UnInstallApp(Argv[1], cmdOut);
                 else
-                    strReturn = sErrorPrefix + "Wrong number of arguments for uninst command!";
-                break;
-
-            case UNINSTALL:
-                if (Argc >= 2)
-                    strReturn = UnInstallApp(Argv[1], cmdOut, false);
-                else
-                    strReturn = sErrorPrefix + "Wrong number of arguments for uninstall command!";
+                    strReturn = sErrorPrefix + "Wrong number of arguments for inst command!";
                 break;
 
             case ALRT:
@@ -424,11 +443,7 @@ public class DoCommand {
                     strReturn += "\n";
                     strReturn += GetUptime();
                     strReturn += "\n";
-                    strReturn += GetUptimeMillis();
-                    strReturn += "\n";
                     strReturn += GetScreenInfo();
-                    strReturn += "\n";
-                    strReturn += GetRotationInfo();
                     strReturn += "\n";
                     strReturn += GetMemoryInfo();
                     strReturn += "\n";
@@ -449,10 +464,6 @@ public class DoCommand {
                             strReturn = GetScreenInfo();
                             break;
 
-                        case ROTATION:
-                            strReturn = GetRotationInfo();
-                            break;
-
                         case PROCESS:
                             strReturn = GetProcessInfo();
                             break;
@@ -467,10 +478,6 @@ public class DoCommand {
 
                         case UPTIME:
                             strReturn = GetUptime();
-                            break;
-
-                        case UPTIMEMILLIS:
-                            strReturn = GetUptimeMillis();
                             break;
 
                         case MEMORY:
@@ -686,61 +693,7 @@ public class DoCommand {
                         theArgs[lcv - 1] = Argv[lcv];
                         }
 
-                    strReturn = StartPrg2(theArgs, cmdOut, null, false);
-                    }
-                else
-                    {
-                    strReturn = sErrorPrefix + "Wrong number of arguments for " + Argv[0] + " command!";
-                    }
-                break;
-
-            case EXECSU:
-                if (Argc >= 2)
-                    {
-                    String [] theArgs = new String [Argc - 1];
-
-                    for (int lcv = 1; lcv < Argc; lcv++)
-                        {
-                        theArgs[lcv - 1] = Argv[lcv];
-                        }
-
-                    strReturn = StartPrg2(theArgs, cmdOut, null, true);
-                    }
-                else
-                    {
-                    strReturn = sErrorPrefix + "Wrong number of arguments for " + Argv[0] + " command!";
-                    }
-                break;
-
-            case EXECCWD:
-                if (Argc >= 3)
-                    {
-                    String [] theArgs = new String [Argc - 2];
-
-                    for (int lcv = 2; lcv < Argc; lcv++)
-                        {
-                        theArgs[lcv - 2] = Argv[lcv];
-                        }
-
-                    strReturn = StartPrg2(theArgs, cmdOut, Argv[1], false);
-                    }
-                else
-                    {
-                    strReturn = sErrorPrefix + "Wrong number of arguments for " + Argv[0] + " command!";
-                    }
-                break;
-
-            case EXECCWDSU:
-                if (Argc >= 3)
-                    {
-                    String [] theArgs = new String [Argc - 2];
-
-                    for (int lcv = 2; lcv < Argc; lcv++)
-                        {
-                        theArgs[lcv - 2] = Argv[lcv];
-                        }
-
-                    strReturn = StartPrg2(theArgs, cmdOut, Argv[1], true);
+                    strReturn = StartPrg2(theArgs, cmdOut);
                     }
                 else
                     {
@@ -759,7 +712,7 @@ public class DoCommand {
                         }
 
                     if (Argv[1].contains("/") || Argv[1].contains("\\") || !Argv[1].contains("."))
-                        strReturn = StartPrg(theArgs, cmdOut, false);
+                        strReturn = StartPrg(theArgs, cmdOut);
                     else
                         strReturn = StartJavaPrg(theArgs, null);
                     }
@@ -786,13 +739,6 @@ public class DoCommand {
 
             case ZIP:
                 strReturn = Zip(Argv[1], (Argc == 3 ? Argv[2] : ""));
-                break;
-
-            case CHMOD:
-                if (Argc == 2)
-                    strReturn = ChmodDir(Argv[1]);
-                else
-                    strReturn = sErrorPrefix + "Wrong number of arguments for chmod command!";
                 break;
 
             case HELP:
@@ -899,16 +845,12 @@ private void CancelNotification()
             int    nStart = 0;
 
             // if we have a quote
-            if (workingString.startsWith("\"") || workingString.startsWith("'"))
+            if (workingString.startsWith("\""))
                 {
-                char quoteChar = '"';
-                if (workingString.startsWith("\'"))
-                    quoteChar = '\'';
-
                 // point to the first non quote char
                 nStart = 1;
                 // find the matching quote
-                nEnd = workingString.indexOf(quoteChar, nStart);
+                nEnd = workingString.indexOf('"', nStart);
 
                 char prevChar;
 
@@ -921,7 +863,7 @@ private void CancelNotification()
                         // if escaped, point past this quotation mark and find the next
                         nEnd++;
                         if (nEnd < nLength)
-                            nEnd = workingString.indexOf(quoteChar, nEnd);
+                            nEnd = workingString.indexOf('"', nEnd);
                         else
                             nEnd = -1;
                         }
@@ -952,11 +894,16 @@ private void CancelNotification()
             // get the substring
             workingString2 = workingString.substring(nStart, nEnd);
 
-            // if we have escaped quotes, convert them into standard ones
-            while (workingString2.contains("\\\"") || workingString2.contains("\\'"))
+            // if we have escaped quotes
+            if (workingString2.contains("\\\""))
                 {
-                    workingString2 = workingString2.replace("\\\"", "\"");
-                    workingString2 = workingString2.replace("\\'", "'");
+                do
+                    {
+                    // replace escaped quote with embedded quote
+                    workingString3 = workingString2.replace("\\\"", "\"");
+                    workingString2 = workingString3;
+                    }
+                while(workingString2.contains("\\\""));
                 }
 
             // add it to the list
@@ -1316,11 +1263,6 @@ private void CancelNotification()
         {
         String    sRet = null;
 
-        File tmpFile = new java.io.File("/data/local/tests");
-        if (tmpFile.exists() && tmpFile.isDirectory()) 
-            {
-            return("/data/local");
-            }
         if (Environment.getExternalStorageState().equalsIgnoreCase(Environment.MEDIA_MOUNTED))
             {
             sRet = Environment.getExternalStorageDirectory().getAbsolutePath();
@@ -1343,7 +1285,7 @@ private void CancelNotification()
             try {
                 Context appCtx = ctx.createPackageContext(AppName, 0);
                 ContextWrapper appCtxW = new ContextWrapper(appCtx);
-                sRet = appCtxW.getApplicationInfo().dataDir;
+                sRet = appCtxW.getPackageResourcePath();
                 appCtxW = null;
                 appCtx = null;
                 ctx = null;
@@ -1361,6 +1303,7 @@ private void CancelNotification()
         {
         String    sRet = sErrorPrefix + sDir + " does not exist";
         String    tmpDir    = fixFileName(sDir);
+        String [] theArgs = new String [3];
         int    nFiles = 0;
 
         if (tmpDir.contains("org.mozilla.fennec") || tmpDir.contains("org.mozilla.firefox")) {
@@ -1398,7 +1341,11 @@ private void CancelNotification()
             }
             else {
                 try {
-                    pProc = Runtime.getRuntime().exec(this.getSuArgs("ls -l " + sDir));
+                    theArgs[0] = "su";
+                    theArgs[1] = "-c";
+                    theArgs[2] = "ls -l " + sDir;
+
+                    pProc = Runtime.getRuntime().exec(theArgs);
                     RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
                     outThrd.start();
                     outThrd.join(5000);
@@ -1560,6 +1507,7 @@ private void CancelNotification()
             }
             catch (FileNotFoundException e) {
                 sRet += " file not found";
+                e.printStackTrace();
             }
             catch (IOException e) {
                 sRet += " io exception";
@@ -2311,9 +2259,8 @@ private void CancelNotification()
         else {
             File dir = new File(sTmpDir);
 
-            if (dir.mkdirs()) {
+            if (dir.mkdirs())
                 sRet = sDir + " successfully created";
-            }
         }
 
         return (sRet);
@@ -2340,52 +2287,38 @@ private void CancelNotification()
             return(nRetXY);
         }
 
-    public String GetRotationInfo()
-        {
-            WindowManager wMgr = (WindowManager) contextWrapper.getSystemService(Context.WINDOW_SERVICE);
-            int nRotationDegrees = 0; // default
-            switch(wMgr.getDefaultDisplay().getRotation())
-                {
-                case Surface.ROTATION_90:
-                    nRotationDegrees = 90;
-                    break;
-                case Surface.ROTATION_180:
-                    nRotationDegrees = 180;
-                    break;
-                case Surface.ROTATION_270:
-                    nRotationDegrees = 270;
-                    break;
-                }
-            return "ROTATION:" + nRotationDegrees;
-        }
-
     public String SetADB(String sWhat) {
         String sRet = "";
         String sTmp = "";
-        String sCmd;
+        String [] theArgs = new String [3];
+
+        theArgs[0] = "su";
+        theArgs[1] = "-c";
 
         if (sWhat.contains("ip")) {
-            sCmd = "setprop service.adb.tcp.port 5555";
+            theArgs[2] = "setprop service.adb.tcp.port 5555";
         } else {
-            sCmd = "setprop service.adb.tcp.port -1";
+            theArgs[2] = "setprop service.adb.tcp.port -1";
         }
 
         try {
-            pProc = Runtime.getRuntime().exec(this.getSuArgs(sCmd));
+            pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
             outThrd.start();
             outThrd.join(5000);
             sTmp = outThrd.strOutput;
             Log.e("ADB", sTmp);
             if (outThrd.nExitCode == 0) {
-                pProc = Runtime.getRuntime().exec(this.getSuArgs("stop adbd"));
+                theArgs[2] = "stop adbd";
+                pProc = Runtime.getRuntime().exec(theArgs);
                 outThrd = new RedirOutputThread(pProc, null);
                 outThrd.start();
                 outThrd.join(5000);
                 sTmp = outThrd.strOutput;
                 Log.e("ADB", sTmp);
                 if (outThrd.nExitCode == 0) {
-                    pProc = Runtime.getRuntime().exec(this.getSuArgs("start adbd"));
+                    theArgs[2] = "start adbd";
+                    pProc = Runtime.getRuntime().exec(theArgs);
                     outThrd = new RedirOutputThread(pProc, null);
                     outThrd.start();
                     outThrd.join(5000);
@@ -2418,32 +2351,45 @@ private void CancelNotification()
 
     public String KillProcess(String sProcName, OutputStream out)
         {
+        String sTmp = "";
+        String [] theArgs = new String [3];
+
+        theArgs[0] = "su";
+        theArgs[1] = "-c";
+        theArgs[2] = "kill";
+
         String sRet = sErrorPrefix + "Unable to kill " + sProcName + "\n";
         ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
         List <ActivityManager.RunningAppProcessInfo> lProcesses = aMgr.getRunningAppProcesses();
         int lcv = 0;
-        String sFoundProcName = "";
-        int nProcs = 0;
-        boolean bFoundAppProcess = false;
+        String strProcName = "";
+        int    nPID = 0;
 
-        if (lProcesses != null)
-            nProcs = lProcesses.size();
-
-        for (lcv = 0; lcv < nProcs; lcv++)
+        for (lcv = 0; lcv < lProcesses.size(); lcv++)
             {
             if (lProcesses.get(lcv).processName.contains(sProcName))
                 {
-                sFoundProcName = lProcesses.get(lcv).processName;
-                bFoundAppProcess = true;
+                strProcName = lProcesses.get(lcv).processName;
+                nPID = lProcesses.get(lcv).pid;
+                sRet = sErrorPrefix + "Failed to kill " + nPID + " " + strProcName + "\n";
+
+                theArgs[2] += " " + nPID;
 
                 try
                     {
-                    pProc = Runtime.getRuntime().exec(this.getSuArgs("kill " + lProcesses.get(lcv).pid));
+                    pProc = Runtime.getRuntime().exec(theArgs);
                     RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
                     outThrd.start();
                     outThrd.join(15000);
-                    String sTmp = outThrd.strOutput;
+                    sTmp = outThrd.strOutput;
                     Log.e("KILLPROCESS", sTmp);
+                    if (outThrd.nExitCode == 0) {
+                        sRet = "Successfully killed " + nPID + " " + strProcName + "\n";
+                        nPID = 0;
+                        break;
+                    } else {
+                        sRet = sErrorPrefix + "Failed to kill " + nPID + " " + strProcName + "\n";
+                    }
                     }
                 catch (IOException e)
                     {
@@ -2454,74 +2400,30 @@ private void CancelNotification()
                     {
                     e.printStackTrace();
                     }
+
+                // Give the messages a chance to be processed
+                try {
+                    Thread.sleep(2000);
+                    }
+                catch (InterruptedException e)
+                    {
+                    e.printStackTrace();
+                    }
+                break;
                 }
             }
 
-        if (bFoundAppProcess)
+        if (nPID > 0)
             {
-            // Give the messages a chance to be processed
-            try {
-                Thread.sleep(2000);
-                }
-            catch (InterruptedException e)
-                {
-                e.printStackTrace();
-                }
-
-            sRet = "Successfully killed " + sProcName + "\n";
+            sRet = "Successfully killed " + nPID + " " + strProcName + "\n";
             lProcesses = aMgr.getRunningAppProcesses();
-            nProcs = 0;
-            if (lProcesses != null)
-                nProcs = lProcesses.size();
-            for (lcv = 0; lcv < nProcs; lcv++)
+            for (lcv = 0; lcv < lProcesses.size(); lcv++)
                 {
                 if (lProcesses.get(lcv).processName.contains(sProcName))
                     {
-                    sRet = sErrorPrefix + "Unable to kill " + sProcName + " (couldn't kill " + sFoundProcName +")\n";
+                    sRet = sErrorPrefix + "Unable to kill " + nPID + " " + strProcName + "\n";
                     break;
                     }
-                }
-            }
-        else
-            {
-            // To kill processes other than Java applications - processes
-            // like xpcshell - a different strategy is necessary: use ps
-            // to find the process' PID.
-            try
-                {
-                pProc = Runtime.getRuntime().exec("ps");
-                RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
-                outThrd.start();
-                outThrd.join(10000);
-                String sTmp = outThrd.strOutput;
-                StringTokenizer stokLines = new StringTokenizer(sTmp, "\n");
-                while(stokLines.hasMoreTokens())
-                    {
-                    String sLine = stokLines.nextToken();
-                    StringTokenizer stokColumns = new StringTokenizer(sLine, " \t\n");
-                    stokColumns.nextToken();
-                    String sPid = stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    stokColumns.nextToken();
-                    String sName = null;
-                    if (stokColumns.hasMoreTokens())
-                        {
-                        sName = stokColumns.nextToken();
-                        if (sName.contains(sProcName))
-                            {
-                            NewKillProc(sPid, out);
-                            sRet = "Successfully killed " + sName + "\n";
-                            }
-                        }
-                    }
-                }
-            catch (Exception e)
-                {
-                e.printStackTrace();
                 }
             }
 
@@ -2556,14 +2458,11 @@ private void CancelNotification()
         String sRet = "";
         ActivityManager aMgr = (ActivityManager) contextWrapper.getSystemService(Activity.ACTIVITY_SERVICE);
         List <ActivityManager.RunningAppProcessInfo> lProcesses = aMgr.getRunningAppProcesses();
-        int    nProcs = 0;
+        int    nProcs = lProcesses.size();
         int lcv = 0;
         String strProcName = "";
         int    nPID = 0;
         int nUser = 0;
-
-        if (lProcesses != null) 
-            nProcs = lProcesses.size();
 
         for (lcv = 0; lcv < nProcs; lcv++)
             {
@@ -2616,7 +2515,7 @@ private void CancelNotification()
 
     public String GetMemoryInfo()
         {
-        String sRet = "PA:" + GetMemoryConfig() + ", FREE: " + GetMemoryUsage();
+        String sRet = "PA:" + GetMemoryConfig();
         return (sRet);
         }
 
@@ -2628,33 +2527,6 @@ private void CancelNotification()
         long lMem = outInfo.availMem;
 
         return (lMem);
-        }
-
-    public long GetMemoryUsage()
-        {
-
-        String load = "";
-        try {
-            RandomAccessFile reader = new RandomAccessFile("/proc/meminfo", "r");
-            load = reader.readLine(); // Read in the MemTotal
-            load = reader.readLine(); // Read in the MemFree
-        } catch (IOException ex) {
-            return (0);
-        }
-
-        String[] toks = load.split(" ");
-        int i = 1;
-        for (i=1; i < toks.length; i++) {
-            String val = toks[i].trim();
-            if (!val.equals("")) {
-                break;
-            }
-        }
-        if (i <= toks.length) {
-            long lMem = Long.parseLong(toks[i].trim());
-            return (lMem * 1024);
-        }
-        return (0);
         }
 
     public String UpdateCallBack(String sFileName)
@@ -2888,6 +2760,10 @@ private void CancelNotification()
         String sRet = "";
         String sM = "";
         String sMillis = "";
+        String [] theArgs = new String [3];
+
+        theArgs[0] = "su";
+        theArgs[1] = "-c";
 
         if (((sDate != null) && (sTime != null)) &&
             (sDate.contains("/") || sDate.contains(".")) &&
@@ -2907,14 +2783,78 @@ private void CancelNotification()
             sM = Long.toString(lMillisecs);
             sMillis = sM.substring(0, sM.length() - 3) + "." + sM.substring(sM.length() - 3);
 
+        } else if ((sDate != null) && (sTime == null) && sDate.contains(".")) {
+            String serverName = sDate;
+//            String serverName = "us.pool.ntp.org";
+            sRet = "NTP Server: " + serverName + lineSep;
+            // Send request
+            DatagramSocket socket;
+
+            try {
+                socket = new DatagramSocket();
+                InetAddress address = InetAddress.getByName(serverName);
+                byte[] buf = new NtpMessage().toByteArray();
+                DatagramPacket packet = new DatagramPacket(buf, buf.length, address, 123);
+
+                // Set the transmit timestamp *just* before sending the packet
+                // ToDo: Does this actually improve performance or not?
+                NtpMessage.encodeTimestamp(packet.getData(), 40, (System.currentTimeMillis()/1000.0) + 2208988800.0);
+
+                socket.send(packet);
+
+                // Get response
+                System.out.println("NTP request sent, waiting for response...\n");
+                packet = new DatagramPacket(buf, buf.length);
+                socket.receive(packet);
+
+                // Immediately record the incoming timestamp since 00:00 1-JAN-1900 in secs.
+                double destinationTimestamp = (System.currentTimeMillis()/1000.0) + 2208988800.0;
+
+                // Process response
+                NtpMessage msg = new NtpMessage(packet.getData());
+
+                // Corrected, according to RFC2030 errata
+                double roundTripDelay = (destinationTimestamp-msg.originateTimestamp) - (msg.transmitTimestamp-msg.receiveTimestamp);
+
+                double localClockOffset = ((msg.receiveTimestamp - msg.originateTimestamp) + (msg.transmitTimestamp - destinationTimestamp)) / 2;
+
+                // convert base of timestamp from 00:00 1900/01/01 to 00:00:00 1970/01/01
+                double utc = msg.transmitTimestamp - (2208988800.0);
+
+                // convert from secs to ms
+                long lNewMillisecs = (long)(utc * 1000.0);
+
+                // create a date object using the timestamp this will take into account the timezone and daylight savings settings
+                Date dt = new Date(lNewMillisecs);
+
+                sRet += "  Time: " + new SimpleDateFormat("yyyy/MM/dd hh:mm:ss:SSS").format(dt) + lineSep;
+
+                // get the timestamp
+                long lMillisecs = dt.getTime();
+
+                // format the timestamp as required for the date command
+                sM = Long.toString(lMillisecs);
+                sMillis = sM.substring(0, sM.length() - 3) + "." + sM.substring(sM.length() - 3);
+
+                socket.close();
+            } catch (SocketException e) {
+                e.printStackTrace();
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+                sRet = sErrorPrefix + "Unknown host";
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         } else {
             sRet += "Invalid argument(s)";
         }
 
         // if we have an argument
         if (sMillis.length() > 0) {
+            theArgs[2] = "date -u " + sMillis;
+
             try {
-                pProc = Runtime.getRuntime().exec(this.getSuArgs("date -u " + sMillis));
+                pProc = Runtime.getRuntime().exec(theArgs);
                 RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
                 outThrd.start();
                 outThrd.join(10000);
@@ -2968,18 +2908,18 @@ private void CancelNotification()
         return (sRet);
         }
 
-    public String GetUptimeMillis()
-        {
-        return Long.toString(SystemClock.uptimeMillis());
-        }
- 
     public String NewKillProc(String sProcId, OutputStream out)
         {
         String sRet = "";
+        String [] theArgs = new String [3];
+
+        theArgs[0] = "su";
+        theArgs[1] = "-c";
+        theArgs[2] = "kill " + sProcId;
 
         try
             {
-            pProc = Runtime.getRuntime().exec("kill "+sProcId);
+            pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
             outThrd.join(5000);
@@ -3153,7 +3093,11 @@ private void CancelNotification()
         {
         String sRet = "";
         Context ctx = contextWrapper.getApplicationContext();
+        String [] theArgs = new String [3];
 
+        theArgs[0] = "su";
+        theArgs[1] = "-c";
+        theArgs[2] = "reboot";
         try {
             if ((sCallBackIP != null) && (sCallBackPort != null) &&
                 (sCallBackIP.length() > 0) && (sCallBackPort.length() > 0))    {
@@ -3176,7 +3120,7 @@ private void CancelNotification()
             // Tell all of the data channels we are rebooting
             ((ASMozStub)this.contextWrapper).SendToDataChannel("Rebooting ...");
 
-            pProc = Runtime.getRuntime().exec(this.getSuArgs("reboot"));
+            pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
             outThrd.join(10000);
@@ -3190,40 +3134,24 @@ private void CancelNotification()
         return (sRet);
         }
 
-    private String [] getSuArgs(String cmdString)
-        {
-        String [] theArgs = new String [3];
-        theArgs[0] = "su";
-        theArgs[1] = "-c";
-        // as a security measure, ICS and later resets LD_LIBRARY_PATH. reset
-        // it here when executing the command
-        theArgs[2] = "LD_LIBRARY_PATH=/vendor/lib:/system/lib " + cmdString;
-        return theArgs;
-        }
-
-    public String UnInstallApp(String sApp, OutputStream out, boolean reboot)
+    public String UnInstallApp(String sApp, OutputStream out)
         {
         String sRet = "";
+        String [] theArgs = new String [3];
+
+        theArgs[0] = "su";
+        theArgs[1] = "-c";
+        theArgs[2] = "pm uninstall " + sApp + ";reboot;exit";
 
         try
             {
-            if (reboot == true) {
-                pProc = Runtime.getRuntime().exec(this.getSuArgs("pm uninstall " + sApp + ";reboot;exit"));
-            } else {
-                pProc = Runtime.getRuntime().exec(this.getSuArgs("pm uninstall " + sApp + ";exit"));
-            }
+            pProc = Runtime.getRuntime().exec(theArgs);
 
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
-            try {
-                outThrd.join(60000);
-                int nRet = pProc.exitValue();
-                sRet = "\nuninst complete [" + nRet + "]";
-                }
-            catch (IllegalThreadStateException itse) {
-                itse.printStackTrace();
-                sRet = "\nuninst command timed out";
-                }
+            outThrd.join(60000);
+            int nRet = pProc.exitValue();
+            sRet = "\nuninst complete [" + nRet + "]";
             }
         catch (IOException e)
             {
@@ -3241,7 +3169,12 @@ private void CancelNotification()
     public String InstallApp(String sApp, OutputStream out)
         {
         String sRet = "";
+        String [] theArgs = new String [3];
         File    srcFile = new File(sApp);
+
+        theArgs[0] = "su";
+        theArgs[1] = "-c";
+        theArgs[2] = "mv " + GetTmpDir() + "/" + srcFile.getName() + " /data/local/tmp/" + srcFile.getName() + ";exit";
 
         sRet = CopyFile(sApp, GetTmpDir() + "/" + srcFile.getName());
         try {
@@ -3255,22 +3188,13 @@ private void CancelNotification()
 
         try
             {
-            pProc = Runtime.getRuntime().exec(this.getSuArgs("mv " + GetTmpDir() + "/" +
-                                                             srcFile.getName() +
-                                                             " /data/local/tmp/" +
-                                                             srcFile.getName() + ";exit"));
+            pProc = Runtime.getRuntime().exec(theArgs);
 
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
-            try {
-                outThrd.join(90000);
-                int nRet = pProc.exitValue();
-                sRet = "\nmove complete [" + nRet + "]";
-                }
-            catch (IllegalThreadStateException itse) {
-                itse.printStackTrace();
-                sRet = "\nmove command timed out";
-            }
+            outThrd.join(90000);
+            int nRet = pProc.exitValue();
+            sRet = "\nmove complete [" + nRet + "]";
             try
                 {
                 out.write(sRet.getBytes());
@@ -3281,19 +3205,13 @@ private void CancelNotification()
                 e1.printStackTrace();
                 }
 
-            pProc = Runtime.getRuntime().exec(this.getSuArgs("chmod 666 /data/local/tmp/" +
-                                                             srcFile.getName() + ";exit"));
+            theArgs[2] = "chmod 666 /data/local/tmp/" + srcFile.getName() + ";exit";
+            pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd2 = new RedirOutputThread(pProc, out);
             outThrd2.start();
-            try {
-                outThrd2.join(10000);
-                int nRet2 = pProc.exitValue();
-                sRet = "\npermission change complete [" + nRet2 + "]\n";
-                }
-            catch (IllegalThreadStateException itse) {
-                itse.printStackTrace();
-                sRet = "\npermission change timed out";
-            }
+            outThrd2.join(10000);
+            int nRet2 = pProc.exitValue();
+            sRet = "\npermission change complete [" + nRet2 + "]\n";
             try {
                 out.write(sRet.getBytes());
                 out.flush();
@@ -3303,20 +3221,13 @@ private void CancelNotification()
                 e1.printStackTrace();
                 }
 
-            pProc = Runtime.getRuntime().exec(this.getSuArgs("pm install -r /data/local/tmp/" +
-                                                             srcFile.getName() + " Cleanup" +
-                                                             ";exit"));
+            theArgs[2] = "pm install -r /data/local/tmp/" + srcFile.getName() + " Cleanup" + ";exit";
+            pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd3 = new RedirOutputThread(pProc, out);
             outThrd3.start();
-            try {
-                outThrd3.join(60000);
-                int nRet3 = pProc.exitValue();
-                sRet = "\ninstallation complete [" + nRet3 + "]";
-                }
-            catch (IllegalThreadStateException itse) {
-                itse.printStackTrace();
-                sRet = "\npm install command timed out";
-            }
+            outThrd3.join(60000);
+            int nRet3 = pProc.exitValue();
+            sRet = "\ninstallation complete [" + nRet3 + "]";
             try {
                 out.write(sRet.getBytes());
                 out.flush();
@@ -3326,19 +3237,13 @@ private void CancelNotification()
                 e1.printStackTrace();
                 }
 
-            pProc = Runtime.getRuntime().exec(this.getSuArgs("rm /data/local/tmp/" +
-                                                             srcFile.getName() + ";exit"));
+            theArgs[2] = "rm /data/local/tmp/" + srcFile.getName() + ";exit";
+            pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd4 = new RedirOutputThread(pProc, out);
             outThrd4.start();
-            try {
-                outThrd4.join(60000);
-                int nRet4 = pProc.exitValue();
-                sRet = "\ntmp file removed [" + nRet4 + "]";
-                }
-            catch (IllegalThreadStateException itse) {
-                itse.printStackTrace();
-                sRet = "\nrm command timed out";
-            }
+            outThrd4.join(60000);
+            int nRet4 = pProc.exitValue();
+            sRet = "\ntmp file removed [" + nRet4 + "]";
             try {
                 out.write(sRet.getBytes());
                 out.flush();
@@ -3536,67 +3441,28 @@ private void CancelNotification()
         try
             {
             contextWrapper.startActivity(prgIntent);
-            FindProcThread findProcThrd = new FindProcThread(contextWrapper, sArgs[0]);
-            findProcThrd.start();
-            findProcThrd.join(7000);
-            if (!findProcThrd.bFoundIt && !findProcThrd.bStillRunning) {
-                sRet = "Unable to start " + sArgs[0] + "";
-                }
             }
         catch(ActivityNotFoundException anf)
             {
             anf.printStackTrace();
             }
-        catch (InterruptedException e) {
-            e.printStackTrace();
-        }
 
         ctx = null;
         return (sRet);
         }
 
-    public String StartPrg(String [] progArray, OutputStream out, boolean startAsRoot)
+    public String StartPrg(String [] progArray, OutputStream out)
         {
         String sRet = "";
-        int    lcv = 0;
 
-        try {
-            if (startAsRoot)
-                {
-                    // we need to requote the program string here, in case
-                    // there's spaces or other characters which need quoting
-                    // before being passed to su
-                    List<String> quotedProgList = new ArrayList<String>();
-                    for (String arg : progArray)
-                        {
-                            String quotedArg = arg;
-                            quotedArg = quotedArg.replace("\"", "\\\"");
-                            quotedArg = quotedArg.replace("\'", "\\\'");
-                            if (quotedArg.contains(" "))
-                                {
-                                    quotedArg = "\"" + quotedArg + "\"";
-                                }
-                            quotedProgList.add(quotedArg);
-                        }
-                    pProc = Runtime.getRuntime().exec(this.getSuArgs(TextUtils.join(" ", quotedProgList)));
-                }
-            else
-                {
-                    pProc = Runtime.getRuntime().exec(progArray);
-                }
+        try
+            {
+            pProc = Runtime.getRuntime().exec(progArray);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
-            while (lcv < 30) {
-                try {
-                    outThrd.join(10000);
-                    int nRetCode = pProc.exitValue();
-                    sRet = "return code [" + nRetCode + "]";
-                    break;
-                    }
-                catch (IllegalThreadStateException itse) {
-                    lcv++;
-                    }
-                }
+            outThrd.join(10000);
+            int nRetCode = pProc.exitValue();
+            sRet = "return code [" + nRetCode + "]";
             }
         catch (IOException e)
             {
@@ -3611,7 +3477,7 @@ private void CancelNotification()
         return (sRet);
         }
 
-    public String StartPrg2(String [] progArray, OutputStream out, String cwd, boolean startAsRoot)
+    public String StartPrg2(String [] progArray, OutputStream out)
         {
         String sRet = "";
 
@@ -3625,7 +3491,7 @@ private void CancelNotification()
         if (!sEnvString.contains("=") && (sEnvString.length() > 0))
             {
             if (sEnvString.contains("/") || sEnvString.contains("\\") || !sEnvString.contains("."))
-                sRet = StartPrg(progArray, out, startAsRoot);
+                sRet = StartPrg(progArray, out);
             else
                 sRet = StartJavaPrg(progArray, null);
             return(sRet);
@@ -3701,32 +3567,13 @@ private void CancelNotification()
 
             if (theArgs[0].contains("/") || theArgs[0].contains("\\") || !theArgs[0].contains("."))
                 {
-                if (cwd != null)
-                    {
-                    File f = new File(cwd);
-                    pProc = Runtime.getRuntime().exec(theArgs, envArray, f);
-                    }
-                else
-                    {
-                    pProc = Runtime.getRuntime().exec(theArgs, envArray);
-                    }
+                pProc = Runtime.getRuntime().exec(theArgs, envArray);
 
                 RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
                 outThrd.start();
-
-                lcv = 0;
-
-                while (lcv < 30) {
-                    try {
-                        outThrd.join(10000);
-                        int nRetCode = pProc.exitValue();
-                        sRet = "return code [" + nRetCode + "]";
-                        lcv = 30;
-                        }
-                    catch (IllegalThreadStateException itse) {
-                        lcv++;
-                        }
-                    }
+                outThrd.join(10000);
+                int nRetCode = pProc.exitValue();
+                sRet = "return code [" + nRetCode + "]";
                 }
             else
                 {
@@ -3771,128 +3618,64 @@ private void CancelNotification()
         return (sRet);
         }
 
-    public String ChmodDir(String sDir)
-        {
-        String sRet = "";
-        int nFiles = 0;
-        String sSubDir = null;
-        String sTmpDir = fixFileName(sDir);
-
-        File dir = new File(sTmpDir);
-
-        if (dir.isDirectory()) {
-            sRet = "Changing permissions for " + sTmpDir;
-
-            File [] files = dir.listFiles();
-            if (files != null) {
-                if ((nFiles = files.length) > 0) {
-                    for (int lcv = 0; lcv < nFiles; lcv++) {
-                        if (files[lcv].isDirectory()) {
-                            sSubDir = files[lcv].getAbsolutePath();
-                            sRet += "\n" + ChmodDir(sSubDir);
-                        }
-                        else {
-                            // set the new file's permissions to rwxrwxrwx, if possible
-                            try {
-                                Process pProc = Runtime.getRuntime().exec("chmod 777 "+files[lcv]);
-                                RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
-                                outThrd.start();
-                                outThrd.join(5000);
-                                sRet += "\n\tchmod " + files[lcv].getName() + " ok";
-                            } catch (InterruptedException e) {
-                                sRet += "\n\ttimeout waiting for chmod " + files[lcv].getName();
-                            } catch (IOException e) {
-                                sRet += "\n\tunable to chmod " + files[lcv].getName();
-                            }
-                        }
-                    }
-                }
-                else
-                    sRet += "\n\t<empty>";
-                }
-            }
-
-        // set the new directory's (or file's) permissions to rwxrwxrwx, if possible
-        try {
-            Process pProc = Runtime.getRuntime().exec("chmod 777 "+sTmpDir);
-            RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
-            outThrd.start();
-            outThrd.join(5000);
-            sRet += "\n\tchmod " + sTmpDir + " ok";
-        } catch (InterruptedException e) {
-            sRet += "\n\ttimeout waiting for chmod " + sTmpDir;
-        } catch (IOException e) {
-            sRet += "\n\tunable to chmod " + sTmpDir;
-        }
-
-        return(sRet);
-        }
-
     private String PrintUsage()
         {
         String sRet =
-            "run [cmdline]                   - start program no wait\n" +
-            "exec [env pairs] [cmdline]      - start program no wait optionally pass env\n" +
-            "                                  key=value pairs (comma separated)\n" +
-            "execcwd [env pairs] [cmdline]   - start program from specified directory\n" +
-            "execsu [env pairs] [cmdline]    - start program as privileged user\n" +
-            "execcwdsu [env pairs] [cmdline] - start program from specified directory as privileged user\n" +
-            "kill [program name]             - kill program no path\n" +
-            "killall                         - kill all processes started\n" +
-            "ps                              - list of running processes\n" +
-            "info                            - list of device info\n" +
-            "        [os]                    - os version for device\n" +
-            "        [id]                    - unique identifier for device\n" +
-            "        [uptime]                - uptime for device\n" +
-            "        [uptimemillis]          - uptime for device in milliseconds\n" +
-            "        [systime]               - current system time\n" +
-            "        [screen]                - width, height and bits per pixel for device\n" +
-            "        [memory]                - physical, free, available, storage memory\n" +
-            "                                  for device\n" +
-            "        [processes]             - list of running processes see 'ps'\n" +
-            "deadman timeout                 - set the duration for the deadman timer\n" +
-            "alrt [on/off]                   - start or stop sysalert behavior\n" +
-            "disk [arg]                      - prints disk space info\n" +
-            "cp file1 file2                  - copy file1 to file2\n" +
-            "time file                       - timestamp for file\n" +
-            "hash file                       - generate hash for file\n" +
-            "cd directory                    - change cwd\n" +
-            "cat file                        - cat file\n" +
-            "cwd                             - display cwd\n" +
-            "mv file1 file2                  - move file1 to file2\n" +
-            "push filename                   - push file to device\n" +
-            "rm file                         - delete file\n" +
-            "rmdr directory                  - delete directory even if not empty\n" +
-            "mkdr directory                  - create directory\n" +
-            "dirw directory                  - tests whether the directory is writable\n" +
-            "isdir directory                 - test whether the directory exists\n" +
-            "chmod directory|file            - change permissions of directory and contents (or file) to 777\n" +
-            "stat processid                  - stat process\n" +
-            "dead processid                  - print whether the process is alive or hung\n" +
-            "mems                            - dump memory stats\n" +
-            "ls                              - print directory\n" +
-            "tmpd                            - print temp directory\n" +
-            "ping [hostname/ipaddr]          - ping a network device\n" +
-            "unzp zipfile destdir            - unzip the zipfile into the destination dir\n" +
-            "zip zipfile src                 - zip the source file/dir into zipfile\n" +
-            "rebt                            - reboot device\n" +
-            "inst /path/filename.apk         - install the referenced apk file\n" +
-            "uninst packagename              - uninstall the referenced package and reboot\n" +
-            "uninstall packagename           - uninstall the referenced package without a reboot\n" +
-            "updt pkgname pkgfile            - unpdate the referenced package\n" +
-            "clok                            - the current device time expressed as the" +
-            "                                  number of millisecs since epoch\n" +
-            "settime date time               - sets the device date and time\n" +
-            "                                  (YYYY/MM/DD HH:MM:SS)\n" +
-            "tzset timezone                  - sets the device timezone format is\n" +
-            "                                  GMTxhh:mm x = +/- or a recognized Olsen string\n" +
-            "tzget                           - returns the current timezone set on the device\n" +
-            "rebt                            - reboot device\n" +
-            "adb ip|usb                      - set adb to use tcp/ip on port 5555 or usb\n" +
-            "quit                            - disconnect SUTAgent\n" +
-            "exit                            - close SUTAgent\n" +
-            "ver                             - SUTAgent version\n" +
-            "help                            - you're reading it";
+            "run [cmdline]                - start program no wait\n" +
+            "exec [env pairs] [cmdline]   - start program no wait optionally pass env\n" +
+            "                               key=value pairs (comma separated)\n" +
+            "kill [program name]          - kill program no path\n" +
+            "killall                      - kill all processes started\n" +
+            "ps                           - list of running processes\n" +
+            "info                         - list of device info\n" +
+            "        [os]                 - os version for device\n" +
+            "        [id]                 - unique identifier for device\n" +
+            "        [uptime]             - uptime for device\n" +
+            "        [systime]            - current system time\n" +
+            "        [screen]             - width, height and bits per pixel for device\n" +
+            "        [memory]             - physical, free, available, storage memory\n" +
+            "                               for device\n" +
+            "        [processes]          - list of running processes see 'ps'\n" +
+            "deadman timeout              - set the duration for the deadman timer\n" +
+            "alrt [on/off]                - start or stop sysalert behavior\n" +
+            "disk [arg]                   - prints disk space info\n" +
+            "cp file1 file2               - copy file1 to file2\n" +
+            "time file                    - timestamp for file\n" +
+            "hash file                    - generate hash for file\n" +
+            "cd directory                 - change cwd\n" +
+            "cat file                     - cat file\n" +
+            "cwd                          - display cwd\n" +
+            "mv file1 file2               - move file1 to file2\n" +
+            "push filename                - push file to device\n" +
+            "rm file                      - delete file\n" +
+            "rmdr directory               - delete directory even if not empty\n" +
+            "mkdr directory               - create directory\n" +
+            "dirw directory               - tests whether the directory is writable\n" +
+            "isdir directory              - test whether the directory exists\n" +
+            "stat processid               - stat process\n" +
+            "dead processid               - print whether the process is alive or hung\n" +
+            "mems                         - dump memory stats\n" +
+            "ls                           - print directory\n" +
+            "tmpd                         - print temp directory\n" +
+            "ping [hostname/ipaddr]       - ping a network device\n" +
+            "unzp zipfile destdir         - unzip the zipfile into the destination dir\n" +
+            "zip zipfile src              - zip the source file/dir into zipfile\n" +
+            "rebt                         - reboot device\n" +
+            "inst /path/filename.apk      - install the referenced apk file\n" +
+            "uninst packagename           - uninstall the referenced package\n" +
+            "updt pkgname pkgfile         - unpdate the referenced package\n" +
+            "clok                         - the current device time expressed as the" +
+            "                               number of millisecs since epoch\n" +
+            "settime date time            - sets the device date and time\n" +
+            "                               (YYYY/MM/DD HH:MM:SS)\n" +
+            "tzset timezone               - sets the device timezone format is\n" +
+            "                               GMTxhh:mm x = +/- or a recognized Olsen string\n" +
+            "tzget                        - returns the current timezone set on the device\n" +
+            "rebt                         - reboot device\n" +
+            "quit                         - disconnect SUTAgent\n" +
+            "exit                         - close SUTAgent\n" +
+            "ver                          - SUTAgent version\n" +
+            "help                         - you're reading it";
         return (sRet);
         }
 }

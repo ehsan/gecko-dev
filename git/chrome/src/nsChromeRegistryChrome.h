@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Josh Matthews <josh@joshmatthews.net> (Initial Developer)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsChromeRegistryChrome_h
 #define nsChromeRegistryChrome_h
@@ -22,24 +55,24 @@ class nsChromeRegistryChrome : public nsChromeRegistry
   nsChromeRegistryChrome();
   ~nsChromeRegistryChrome();
 
-  nsresult Init() MOZ_OVERRIDE;
+  NS_OVERRIDE nsresult Init();
 
-  NS_IMETHOD CheckForNewChrome() MOZ_OVERRIDE;
-  NS_IMETHOD CheckForOSAccessibility() MOZ_OVERRIDE;
-  NS_IMETHOD GetLocalesForPackage(const nsACString& aPackage,
-                                  nsIUTF8StringEnumerator* *aResult) MOZ_OVERRIDE;
-  NS_IMETHOD IsLocaleRTL(const nsACString& package,
-                         bool *aResult) MOZ_OVERRIDE;
-  NS_IMETHOD GetSelectedLocale(const nsACString& aPackage,
-                               nsACString& aLocale) MOZ_OVERRIDE;
-  NS_IMETHOD Observe(nsISupports *aSubject, const char *aTopic,
-                     const PRUnichar *someData) MOZ_OVERRIDE;
+  NS_OVERRIDE NS_IMETHOD CheckForNewChrome();
+  NS_OVERRIDE NS_IMETHOD CheckForOSAccessibility();
+  NS_OVERRIDE NS_IMETHOD GetLocalesForPackage(const nsACString& aPackage,
+                                              nsIUTF8StringEnumerator* *aResult);
+  NS_OVERRIDE NS_IMETHOD IsLocaleRTL(const nsACString& package,
+                                     PRBool *aResult);
+  NS_OVERRIDE NS_IMETHOD GetSelectedLocale(const nsACString& aPackage,
+                                           nsACString& aLocale);
+  NS_OVERRIDE NS_IMETHOD Observe(nsISupports *aSubject, const char *aTopic,
+                                 const PRUnichar *someData);
 
 #ifdef MOZ_XUL
-  NS_IMETHOD GetXULOverlays(nsIURI *aURI,
-                            nsISimpleEnumerator **_retval) MOZ_OVERRIDE;
-  NS_IMETHOD GetStyleOverlays(nsIURI *aURI,
-                              nsISimpleEnumerator **_retval) MOZ_OVERRIDE;
+  NS_OVERRIDE NS_IMETHOD GetXULOverlays(nsIURI *aURI,
+                                        nsISimpleEnumerator **_retval);
+  NS_OVERRIDE NS_IMETHOD GetStyleOverlays(nsIURI *aURI,
+                                          nsISimpleEnumerator **_retval);
 #endif
   
   void SendRegisteredChrome(mozilla::dom::PContentParent* aChild);
@@ -47,22 +80,22 @@ class nsChromeRegistryChrome : public nsChromeRegistry
  private:
   static PLDHashOperator CollectPackages(PLDHashTable *table,
                                          PLDHashEntryHdr *entry,
-                                         uint32_t number, void *arg);
+                                         PRUint32 number, void *arg);
 
   nsresult SelectLocaleFromPref(nsIPrefBranch* prefs);
-  nsresult UpdateSelectedLocale() MOZ_OVERRIDE;
-  nsIURI* GetBaseURIFromPackage(const nsCString& aPackage,
-                                 const nsCString& aProvider,
-                                 const nsCString& aPath) MOZ_OVERRIDE;
-  nsresult GetFlagsFromPackage(const nsCString& aPackage,
-                               uint32_t* aFlags) MOZ_OVERRIDE;
+  NS_OVERRIDE nsresult UpdateSelectedLocale();
+  NS_OVERRIDE nsIURI* GetBaseURIFromPackage(const nsCString& aPackage,
+                                             const nsCString& aProvider,
+                                             const nsCString& aPath);
+  NS_OVERRIDE nsresult GetFlagsFromPackage(const nsCString& aPackage,
+                                           PRUint32* aFlags);
 
   static const PLDHashTableOps kTableOps;
   static PLDHashNumber HashKey(PLDHashTable *table, const void *key);
-  static bool          MatchKey(PLDHashTable *table, const PLDHashEntryHdr *entry,
+  static PRBool        MatchKey(PLDHashTable *table, const PLDHashEntryHdr *entry,
                                 const void *key);
   static void          ClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry);
-  static bool          InitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
+  static PRBool        InitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
                                  const void *key);
 
   struct ProviderEntry
@@ -111,7 +144,7 @@ class nsChromeRegistryChrome : public nsChromeRegistry
 
     nsCString        package;
     nsCOMPtr<nsIURI> baseURI;
-    uint32_t         flags;
+    PRUint32         flags;
     nsProviderArray  locales;
     nsProviderArray  skins;
   };
@@ -138,7 +171,7 @@ class nsChromeRegistryChrome : public nsChromeRegistry
     OverlayListHash() { }
     ~OverlayListHash() { }
 
-    void Init() { mTable.Init(); }
+    PRBool Init() { return mTable.Init(); }
     void Add(nsIURI* aBase, nsIURI* aOverlay);
     void Clear() { mTable.Clear(); }
     const nsCOMArray<nsIURI>* GetArray(nsIURI* aBase);
@@ -152,7 +185,7 @@ class nsChromeRegistryChrome : public nsChromeRegistry
   OverlayListHash mOverlayHash;
   OverlayListHash mStyleHash;
 
-  bool mProfileLoaded;
+  PRBool mProfileLoaded;
   
   nsCString mSelectedLocale;
   nsCString mSelectedSkin;

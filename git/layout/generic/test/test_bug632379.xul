@@ -8,6 +8,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=632379
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
   <title>Test for Bug 632379</title>
+  <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js" />
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
   <script type="text/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
 
@@ -76,7 +77,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=632379
           </menupopup>
         </menu>
         <menu label="menu5" accesskey="5" id="menu5">
-          <menupopup onpopupshown="snapshot(this)">
+	  <menupopup onpopupshown="snapshot(this)">
             <menuitem label="item"/>
             <menuitem label="item"/>
             <menuitem label="item"/>
@@ -176,16 +177,13 @@ function snapshot(elem)
     pos[count] = elem.getBoundingClientRect().top;
     ++count;
     if (count <= 1) {
-        // close the submenu and open the bottom submenu
-        synthesizeKey("VK_LEFT", {});
-        synthesizeKey("9", {});
+	// close the submenu and open the bottom submenu
+	synthesizeKey("VK_LEFT", {});
+	synthesizeKey("9", {});
     } else {
-        if (navigator.platform.indexOf("Mac") == -1) {
-            is(pos[1], pos[0], "Popup should open in the same place when the menu is scrolled");
-        } else {
-            todo(false, "This test fails on Mac since it was ported to chrome: Bug 668716.");
-        }
-        SimpleTest.finish();
+	is(pos[1], pos[0], "Popup should open in the same place when the menu is scrolled");
+
+	SimpleTest.finish();
     }
 }
 
@@ -201,7 +199,7 @@ function openSubmenu()
 }
 
 SimpleTest.waitForExplicitFinish();
-SimpleTest.waitForFocus(doTest);
+addLoadEvent(doTest);
 
 ]]></script>
 </window>

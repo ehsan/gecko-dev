@@ -13,13 +13,13 @@ function g(x) {
 function f2(x, y) {
     arguments;
     x(f2);
-    assertEq(y, "hello");
+    assertEq(y, "bye");
 }
 
 function g2(x) {
     assertEq(x.arguments[1], "hello");
     x.arguments[1] = "bye";
-    assertEq(x.arguments[1], "hello");
+    assertEq(x.arguments[1], "bye");
 }
 
 f(g, "hello");

@@ -1,13 +1,50 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is Mozilla Communicator client code, released
+# March 31, 1998.
+#
+# The Initial Developer of the Original Code is
+# David Hyatt.
+# Portions created by the Initial Developer are Copyright (C) 2002
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   David Hyatt (hyatt@apple.com)
+#   Blake Ross (blaker@netscape.com)
+#   Joe Hewitt (hewitt@netscape.com)
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
+
+const kRowMax = 4;
 
 var gToolboxDocument = null;
 var gToolbox = null;
 var gCurrentDragOverItem = null;
 var gToolboxChanged = false;
 var gToolboxSheet = false;
-var gPaletteBox = null;
 
 function onLoad()
 {
@@ -32,7 +69,6 @@ function InitWithToolbox(aToolbox)
   forEachCustomizableToolbar(function (toolbar) {
     toolbar.setAttribute("customizing", "true");
   });
-  gPaletteBox = document.getElementById("palette-box");
 
   var elts = getRootElements();
   for (let i=0; i < elts.length; i++) {
@@ -74,10 +110,6 @@ function finishToolbarCustomization()
 
 function initDialog()
 {
-  if (!gToolbox.toolbarset) {
-    document.getElementById("newtoolbar").hidden = true;
-  }
-
   var mode = gToolbox.getAttribute("mode");
   document.getElementById("modelist").value = mode;
   var smallIconsCheckbox = document.getElementById("smallicons");
@@ -169,7 +201,7 @@ function persistCurrentSets()
       if (!toolbar.hasChildNodes()) {
         // Remove custom toolbars whose contents have been removed.
         gToolbox.removeChild(toolbar);
-      } else if (gToolbox.toolbarset) {
+      } else {
         // Persist custom toolbar info on the <toolbarset/>
         gToolbox.toolbarset.setAttribute("toolbar"+(++customCount),
                                          toolbar.toolbarName + ":" + currentSet);
@@ -184,7 +216,7 @@ function persistCurrentSets()
   });
 
   // Remove toolbarX attributes for removed toolbars.
-  while (gToolbox.toolbarset && gToolbox.toolbarset.hasAttribute("toolbar"+(++customCount))) {
+  while (gToolbox.toolbarset.hasAttribute("toolbar"+(++customCount))) {
     gToolbox.toolbarset.removeAttribute("toolbar"+customCount);
     gToolboxDocument.persist(gToolbox.toolbarset.id, "toolbar"+customCount);
   }
@@ -246,11 +278,17 @@ function createWrapper(aId, aDocument)
 
 /**
  * Wraps an item that has been cloned from a template and adds
- * it to the end of the palette.
+ * it to the end of a row in the palette.
  */
-function wrapPaletteItem(aPaletteItem)
+function wrapPaletteItem(aPaletteItem, aCurrentRow, aSpacer)
 {
   var wrapper = createWrapper(aPaletteItem.id, document);
+
+  wrapper.setAttribute("flex", 1);
+  wrapper.setAttribute("align", "center");
+  wrapper.setAttribute("pack", "center");
+  wrapper.setAttribute("minheight", "0");
+  wrapper.setAttribute("minwidth", "0");
 
   wrapper.appendChild(aPaletteItem);
 
@@ -259,7 +297,11 @@ function wrapPaletteItem(aPaletteItem)
   // palette due to removal of the command and disabled attributes - JRH
   cleanUpItemForPalette(aPaletteItem, wrapper);
 
-  gPaletteBox.appendChild(wrapper);
+  if (aSpacer)
+    aCurrentRow.insertBefore(wrapper, aSpacer);
+  else
+    aCurrentRow.appendChild(wrapper);
+
 }
 
 /**
@@ -303,28 +345,35 @@ function getCurrentItemIds()
 function buildPalette()
 {
   // Empty the palette first.
-  while (gPaletteBox.lastChild)
-    gPaletteBox.removeChild(gPaletteBox.lastChild);
+  var paletteBox = document.getElementById("palette-box");
+  while (paletteBox.lastChild)
+    paletteBox.removeChild(paletteBox.lastChild);
+
+  var currentRow = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
+                                            "hbox");
+  currentRow.setAttribute("class", "paletteRow");
 
   // Add the toolbar separator item.
   var templateNode = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
                                               "toolbarseparator");
   templateNode.id = "separator";
-  wrapPaletteItem(templateNode);
+  wrapPaletteItem(templateNode, currentRow, null);
 
   // Add the toolbar spring item.
   templateNode = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
                                               "toolbarspring");
   templateNode.id = "spring";
   templateNode.flex = 1;
-  wrapPaletteItem(templateNode);
+  wrapPaletteItem(templateNode, currentRow, null);
 
   // Add the toolbar spacer item.
   templateNode = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
                                               "toolbarspacer");
   templateNode.id = "spacer";
   templateNode.flex = 1;
-  wrapPaletteItem(templateNode);
+  wrapPaletteItem(templateNode, currentRow, null);
+
+  var rowSlot = 3;
 
   var currentItems = getCurrentItemIds();
   templateNode = gToolbox.palette.firstChild;
@@ -332,10 +381,73 @@ function buildPalette()
     // Check if the item is already in a toolbar before adding it to the palette.
     if (!(templateNode.id in currentItems)) {
       var paletteItem = document.importNode(templateNode, true);
-      wrapPaletteItem(paletteItem);
+
+      if (rowSlot == kRowMax) {
+        // Append the old row.
+        paletteBox.appendChild(currentRow);
+
+        // Make a new row.
+        currentRow = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
+                                              "hbox");
+        currentRow.setAttribute("class", "paletteRow");
+        rowSlot = 0;
+      }
+
+      ++rowSlot;
+      wrapPaletteItem(paletteItem, currentRow, null);
     }
 
     templateNode = templateNode.nextSibling;
+  }
+
+  if (currentRow) {
+    fillRowWithFlex(currentRow);
+    paletteBox.appendChild(currentRow);
+  }
+}
+
+/**
+ * Creates a new palette item for a cloned template node and
+ * adds it to the last slot in the palette.
+ */
+function appendPaletteItem(aItem)
+{
+  var paletteBox = document.getElementById("palette-box");
+  var lastRow = paletteBox.lastChild;
+  var lastSpacer = lastRow.lastChild;
+
+  if (lastSpacer.localName != "spacer") {
+    // The current row is full, so we have to create a new row.
+    lastRow = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
+                                        "hbox");
+    lastRow.setAttribute("class", "paletteRow");
+    paletteBox.appendChild(lastRow);
+
+    wrapPaletteItem(aItem, lastRow, null);
+
+    fillRowWithFlex(lastRow);
+  } else {
+    // Decrement the flex of the last spacer or remove it entirely.
+    var flex = lastSpacer.getAttribute("flex");
+    if (flex == 1) {
+      lastRow.removeChild(lastSpacer);
+      lastSpacer = null;
+    } else
+      lastSpacer.setAttribute("flex", --flex);
+
+    // Insert the wrapper where the last spacer was.
+    wrapPaletteItem(aItem, lastRow, lastSpacer);
+  }
+}
+
+function fillRowWithFlex(aRow)
+{
+  var remainingFlex = kRowMax - aRow.childNodes.length;
+  if (remainingFlex > 0) {
+    var spacer = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
+                                          "spacer");
+    spacer.setAttribute("flex", remainingFlex);
+    aRow.appendChild(spacer);
   }
 }
 
@@ -359,7 +471,6 @@ function cleanUpItemForPalette(aItem, aWrapper)
     var title = stringBundle.getString(aItem.localName.slice(7) + "Title");
     aWrapper.setAttribute("title", title);
   }
-  aWrapper.setAttribute("tooltiptext", aWrapper.getAttribute("title"));
 
   // Remove attributes that screw up our appearance.
   aItem.removeAttribute("command");
@@ -646,7 +757,7 @@ function onToolbarDragStart(aEvent)
 function onToolbarDragOver(aEvent)
 {
   var documentId = gToolboxDocument.documentElement.id;
-  if (!aEvent.dataTransfer.types.contains("text/toolbarwrapper-id/" + documentId.toLowerCase()))
+  if (!aEvent.dataTransfer.types.contains("text/toolbarwrapper-id/" + documentId))
     return;
 
   var toolbar = aEvent.target;
@@ -754,10 +865,48 @@ function onToolbarDrop(aEvent)
     wrapper.flex = newItem.flex;
 
     // Remove the wrapper from the palette.
+    var currentRow = draggedPaletteWrapper.parentNode;
     if (draggedItemId != "separator" &&
         draggedItemId != "spring" &&
         draggedItemId != "spacer")
-      gPaletteBox.removeChild(draggedPaletteWrapper);
+    {
+      currentRow.removeChild(draggedPaletteWrapper);
+
+      while (currentRow) {
+        // Pull the first child of the next row up
+        // into this row.
+        var nextRow = currentRow.nextSibling;
+
+        if (!nextRow) {
+          var last = currentRow.lastChild;
+          var first = currentRow.firstChild;
+          if (first == last) {
+            // Kill the row.
+            currentRow.parentNode.removeChild(currentRow);
+             break;
+           }
+
+          if (last.localName == "spacer") {
+            var flex = last.getAttribute("flex");
+            last.setAttribute("flex", ++flex);
+            // Reflow doesn't happen for some reason.  Trigger it with a hide/show. ICK! -dwh
+            last.hidden = true;
+            last.hidden = false;
+            break;
+          } else {
+            // Make a spacer and give it a flex of 1.
+            var spacer = document.createElementNS("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul",
+                                                  "spacer");
+            spacer.setAttribute("flex", "1");
+            currentRow.appendChild(spacer);
+          }
+          break;
+        }
+
+        currentRow.appendChild(nextRow.firstChild);
+        currentRow = currentRow.nextSibling;
+      }
+    }
   }
 
   gCurrentDragOverItem = null;
@@ -768,7 +917,7 @@ function onToolbarDrop(aEvent)
 function onPaletteDragOver(aEvent)
 {
   var documentId = gToolboxDocument.documentElement.id;
-  if (aEvent.dataTransfer.types.contains("text/toolbarwrapper-id/" + documentId.toLowerCase()))
+  if (aEvent.dataTransfer.types.contains("text/toolbarwrapper-id/" + documentId))
     aEvent.preventDefault();
 }
 
@@ -788,7 +937,7 @@ function onPaletteDrop(aEvent)
         wrapperType != "spacer" &&
         wrapperType != "spring") {
       restoreItemForToolbar(wrapper.firstChild, wrapper);
-      wrapPaletteItem(document.importNode(wrapper.firstChild, true));
+      appendPaletteItem(document.importNode(wrapper.firstChild, true));
       gToolbox.palette.appendChild(wrapper.firstChild);
     }
 

@@ -2,10 +2,10 @@
 <html>
 <head>
   <title>Test the URI Classifier</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
-
 <body onload="doUpdate(testUpdate);">
 <p id="display"></p>
 <div id="content" style="display: none">
@@ -28,6 +28,8 @@ var testUpdate =
 var dbService = Cc["@mozilla.org/url-classifier/dbservice;1"]
                 .getService(Ci.nsIUrlClassifierDBService);
 
+var numTries = 10;
+
 function doUpdate(update) {
   var listener = {
     QueryInterface: function(iid)
@@ -35,24 +37,17 @@ function doUpdate(update) {
       if (iid.equals(Ci.nsISupports) ||
           iid.equals(Ci.nsIUrlClassifierUpdateObserver))
         return this;
-
       throw Cr.NS_ERROR_NO_INTERFACE;
     },
+
     updateUrlRequested: function(url) { },
     streamFinished: function(status) { },
     updateError: function(errorCode) {
       ok(false, "Couldn't update classifier.");
-      // Abort test.
       SimpleTest.finish();
     },
     updateSuccess: function(requestedTimeout) {
-      SpecialPowers.pushPrefEnv(
-        {"set" : [["browser.safebrowsing.malware.enabled", true]]},
-        function loadTestFrame() {
-          document.getElementById("testFrame").src =
-            "http://example.com/tests/toolkit/components/url-classifier/tests/mochitest/workerFrame.html";
-        }
-      );
+      document.getElementById("testFrame").src = "http://example.com/tests/toolkit/components/url-classifier/tests/mochitest/workerFrame.html";
     }
   };
 
@@ -81,7 +76,6 @@ window.addEventListener("message", onmessage, false);
 SimpleTest.waitForExplicitFinish();
 
 </script>
-
 </pre>
 <iframe id="testFrame" onload=""></iframe>
 </body>

@@ -1,8 +1,46 @@
 /*
 # -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Download Actions Manager.
+#
+# The Initial Developer of the Original Code is
+# Ben Goodger.
+# Portions created by the Initial Developer are Copyright (C) 2000
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <ben@mozilla.org>
+#   Jeff Walden <jwalden+code@mit.edu>
+#   Asaf Romano <mozilla.mano@sent.com>
+#   Myk Melez <myk@mozilla.org>
+#   Florian Queze <florian@queze.net>
+#   Will Guaraldi <will.guaraldi@pculture.org>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
  */
 
 //****************************************************************************//
@@ -17,15 +55,10 @@ var Cr = Components.results;
 /*
 #endif
 */
-Components.utils.import('resource://gre/modules/Services.jsm');
 
 const TYPE_MAYBE_FEED = "application/vnd.mozilla.maybe.feed";
 const TYPE_MAYBE_VIDEO_FEED = "application/vnd.mozilla.maybe.video.feed";
 const TYPE_MAYBE_AUDIO_FEED = "application/vnd.mozilla.maybe.audio.feed";
-const TYPE_PDF = "application/pdf";
-
-const PREF_PDFJS_DISABLED = "pdfjs.disabled";
-const TOPIC_PDFJS_HANDLER_CHANGED = "pdfjs:handlerChanged";
 
 const PREF_DISABLED_PLUGIN_TYPES = "plugin.disable_full_page_plugin_for_types";
 
@@ -188,8 +221,11 @@ HandlerInfoWrapper.prototype = {
   _handlerSvc: Cc["@mozilla.org/uriloader/handler-service;1"].
                getService(Ci.nsIHandlerService),
 
+  // Retrieve this as nsIPrefBranch and then immediately QI to nsIPrefBranch2
+  // so both interfaces are available to callers.
   _prefSvc: Cc["@mozilla.org/preferences-service;1"].
-            getService(Ci.nsIPrefBranch),
+            getService(Ci.nsIPrefBranch).
+            QueryInterface(Ci.nsIPrefBranch2),
 
   _categoryMgr: Cc["@mozilla.org/categorymanager;1"].
                 getService(Ci.nsICategoryManager),
@@ -441,6 +477,10 @@ HandlerInfoWrapper.prototype = {
 
   get smallIcon() {
     return this._getIcon(16);
+  },
+
+  get largeIcon() {
+    return this._getIcon(32);
   },
 
   _getIcon: function(aSize) {
@@ -781,6 +821,10 @@ FeedHandlerInfo.prototype = {
 
   get smallIcon() {
     return this._smallIcon;
+  },
+
+  get largeIcon() {
+    return this._largeIcon;
   }
 
 };
@@ -792,6 +836,7 @@ var feedHandlerInfo = {
   _prefSelectedAction: PREF_FEED_SELECTED_ACTION, 
   _prefSelectedReader: PREF_FEED_SELECTED_READER,
   _smallIcon: "chrome://browser/skin/feeds/feedIcon16.png",
+  _largeIcon: "chrome://browser/skin/feeds/feedIcon.png",
   _appPrefLabel: "webFeed"
 }
 
@@ -802,6 +847,7 @@ var videoFeedHandlerInfo = {
   _prefSelectedAction: PREF_VIDEO_FEED_SELECTED_ACTION, 
   _prefSelectedReader: PREF_VIDEO_FEED_SELECTED_READER,
   _smallIcon: "chrome://browser/skin/feeds/videoFeedIcon16.png",
+  _largeIcon: "chrome://browser/skin/feeds/videoFeedIcon.png",
   _appPrefLabel: "videoPodcastFeed"
 }
 
@@ -812,48 +858,9 @@ var audioFeedHandlerInfo = {
   _prefSelectedAction: PREF_AUDIO_FEED_SELECTED_ACTION, 
   _prefSelectedReader: PREF_AUDIO_FEED_SELECTED_READER,
   _smallIcon: "chrome://browser/skin/feeds/audioFeedIcon16.png",
+  _largeIcon: "chrome://browser/skin/feeds/audioFeedIcon.png",
   _appPrefLabel: "audioPodcastFeed"
 }
-
-/**
- * InternalHandlerInfoWrapper provides a basic mechanism to create an internal
- * mime type handler that can be enabled/disabled in the applications preference
- * menu.
- */
-function InternalHandlerInfoWrapper(aMIMEType) {
-  var mimeSvc = Cc["@mozilla.org/mime;1"].getService(Ci.nsIMIMEService);
-  var handlerInfo = mimeSvc.getFromTypeAndExtension(aMIMEType, null);
-
-  HandlerInfoWrapper.call(this, aMIMEType, handlerInfo);
-}
-
-InternalHandlerInfoWrapper.prototype = {
-  __proto__: HandlerInfoWrapper.prototype,
-
-  // Override store so we so we can notify any code listening for registration
-  // or unregistration of this handler.
-  store: function() {
-    HandlerInfoWrapper.prototype.store.call(this);
-    Services.obs.notifyObservers(null, this._handlerChanged, null);
-  },
-
-  get enabled() {
-    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
-  },
-
-  get description() {
-    return this.element("bundlePreferences").getString(this._appPrefLabel);
-  }
-};
-
-var pdfHandlerInfo = {
-  __proto__: new InternalHandlerInfoWrapper(TYPE_PDF),
-  _handlerChanged: TOPIC_PDFJS_HANDLER_CHANGED,
-  _appPrefLabel: "portableDocumentFormat",
-  get enabled() {
-    return !Services.prefs.getBoolPref(PREF_PDFJS_DISABLED);
-  },
-};
 
 
 //****************************************************************************//
@@ -889,8 +896,11 @@ var gApplicationsPane = {
   _list           : null,
   _filter         : null,
 
+  // Retrieve this as nsIPrefBranch and then immediately QI to nsIPrefBranch2
+  // so both interfaces are available to callers.
   _prefSvc      : Cc["@mozilla.org/preferences-service;1"].
-                  getService(Ci.nsIPrefBranch),
+                  getService(Ci.nsIPrefBranch).
+                  QueryInterface(Ci.nsIPrefBranch2),
 
   _mimeSvc      : Cc["@mozilla.org/mime;1"].
                   getService(Ci.nsIMIMEService),
@@ -1044,7 +1054,6 @@ var gApplicationsPane = {
 
   _loadData: function() {
     this._loadFeedHandler();
-    this._loadInternalHandlers();
     this._loadPluginHandlers();
     this._loadApplicationHandlers();
   },
@@ -1061,19 +1070,6 @@ var gApplicationsPane = {
   },
 
   /**
-   * Load higher level internal handlers so they can be turned on/off in the
-   * applications menu.
-   */
-  _loadInternalHandlers: function() {
-    var internalHandlers = [pdfHandlerInfo];
-    for (let internalHandler of internalHandlers) {
-      if (internalHandler.enabled) {
-        this._handledTypes[internalHandler.type] = internalHandler;
-      }
-    }
-  },
-
-  /**
    * Load the set of handlers defined by plugins.
    *
    * Note: if there's more than one plugin for a given MIME type, we assume
@@ -1085,11 +1081,13 @@ var gApplicationsPane = {
    * enabledPlugin property.  But if there's a plugin for a type, we need
    * to know about it even if it isn't enabled, since we're going to give
    * the user an option to enable it.
-   *
-   * Also note that enabledPlugin does not get updated when
-   * plugin.disable_full_page_plugin_for_types changes, so even if we could use
-   * enabledPlugin to get the plugin that would be used, we'd still need to
-   * check the pref ourselves to find out if it's enabled.
+   * 
+   * I'll also note that my reading of nsPluginTag::RegisterWithCategoryManager
+   * suggests that enabledPlugin is only determined during registration
+   * and does not get updated when plugin.disable_full_page_plugin_for_types
+   * changes (unless modification of that preference spawns reregistration).
+   * So even if we could use enabledPlugin to get the plugin that would be used,
+   * we'd still need to check the pref ourselves to find out if it's enabled.
    */
   _loadPluginHandlers: function() {
     for (let i = 0; i < navigator.plugins.length; ++i) {
@@ -1273,15 +1271,9 @@ var gApplicationsPane = {
 
       case Ci.nsIHandlerInfo.handleInternally:
         // For the feed type, handleInternally means live bookmarks.
-        if (isFeedType(aHandlerInfo.type)) {
+        if (isFeedType(aHandlerInfo.type)) 
           return this._prefsBundle.getFormattedString("addLiveBookmarksInApp",
                                                       [this._brandShortName]);
-        }
-
-        if (aHandlerInfo instanceof InternalHandlerInfoWrapper) {
-          return this._prefsBundle.getFormattedString("previewInApp",
-                                                      [this._brandShortName]);
-        }
 
         // For other types, handleInternally looks like either useHelperApp
         // or useSystemDefault depending on whether or not there's a preferred
@@ -1360,7 +1352,7 @@ var gApplicationsPane = {
 #expand    aExecutable.leafName != "__MOZ_APP_NAME__.exe";
 #else
 #ifdef XP_MACOSX
-#expand    aExecutable.leafName != "__MOZ_MACBUNDLE_NAME__";
+#expand    aExecutable.leafName != "__MOZ_APP_DISPLAYNAME__.app";
 #else
 #expand    aExecutable.leafName != "__MOZ_APP_NAME__-bin";
 #endif
@@ -1381,18 +1373,6 @@ var gApplicationsPane = {
     // Clear out existing items.
     while (menuPopup.hasChildNodes())
       menuPopup.removeChild(menuPopup.lastChild);
-
-    // Add the "Preview in Firefox" option for optional internal handlers.
-    if (handlerInfo instanceof InternalHandlerInfoWrapper) {
-      var internalMenuItem = document.createElement("menuitem");
-      internalMenuItem.setAttribute("action", Ci.nsIHandlerInfo.handleInternally);
-      let label = this._prefsBundle.getFormattedString("previewInApp",
-                                                       [this._brandShortName]);
-      internalMenuItem.setAttribute("label", label);
-      internalMenuItem.setAttribute("tooltiptext", label);
-      internalMenuItem.setAttribute(APP_ICON_ATTR_NAME, "ask");
-      menuPopup.appendChild(internalMenuItem);
-    }
 
     {
       var askMenuItem = document.createElement("menuitem");
@@ -1814,9 +1794,6 @@ var gApplicationsPane = {
         if (isFeedType(aHandlerInfo.type)) {
           aElement.setAttribute(APP_ICON_ATTR_NAME, "feed");
           return true;
-        } else if (aHandlerInfo instanceof InternalHandlerInfoWrapper) {
-          aElement.setAttribute(APP_ICON_ATTR_NAME, "ask");
-          return true;
         }
         break;
 
@@ -1873,11 +1850,11 @@ var gApplicationsPane = {
     var uri = this._ioSvc.newURI(aWebAppURITemplate, null, null);
 
     // Unfortunately we can't use the favicon service to get the favicon,
-    // because the service looks for a record with the exact URL we give it, and
-    // users won't have such records for URLs they don't visit, and users won't
-    // visit the handler's URL template, they'll only visit URLs derived from
-    // that template (i.e. with %s in the template replaced by the URL of the
-    // content being handled).
+    // because the service looks in the annotations table for a record with
+    // the exact URL we give it, and users won't have such records for URLs
+    // they don't visit, and users won't visit the web app's URL template,
+    // they'll only visit URLs derived from that template (i.e. with %s
+    // in the template replaced by the URL of the content being handled).
 
     if (/^https?/.test(uri.scheme) && this._prefSvc.getBoolPref("browser.chrome.favicons"))
       return uri.prePath + "/favicon.ico";

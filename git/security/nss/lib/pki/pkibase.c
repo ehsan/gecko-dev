@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: pkibase.c,v $ $Revision: 1.33.6.2 $ $Date: 2012/07/27 21:48:13 $";
+static const char CVS_ID[] = "@(#) $RCSfile: pkibase.c,v $ $Revision: 1.33 $ $Date: 2010/04/03 18:27:32 $";
 #endif /* DEBUG */
 
 #ifndef DEV_H
@@ -364,8 +364,8 @@ nssPKIObject_GetNicknameForToken (
 	if ((!tokenOpt && object->instances[i]->label) ||
 	    (object->instances[i]->token == tokenOpt)) 
 	{
-            /* Must copy, see bug 745548 */
-	    nickname = nssUTF8_Duplicate(object->instances[i]->label, NULL);
+            /* XXX should be copy? safe as long as caller has reference */
+	    nickname = object->instances[i]->label; 
 	    break;
 	}
     }
@@ -466,12 +466,9 @@ nssCertificateArray_FindBestCertificate (
 )
 {
     NSSCertificate *bestCert = NULL;
-    nssDecodedCert *bestdc = NULL;
     NSSTime *time, sTime;
-    PRBool bestCertMatches = PR_FALSE;
+    PRBool haveUsageMatch = PR_FALSE;
     PRBool thisCertMatches;
-    PRBool bestCertIsValidAtTime = PR_FALSE;
-    PRBool bestCertIsTrusted = PR_FALSE;
 
     if (timeOpt) {
 	time = timeOpt;
@@ -483,7 +480,7 @@ nssCertificateArray_FindBestCertificate (
 	return (NSSCertificate *)NULL;
     }
     for (; *certs; certs++) {
-	nssDecodedCert *dc;
+	nssDecodedCert *dc, *bestdc;
 	NSSCertificate *c = *certs;
 	dc = nssCertificate_GetDecoding(c);
 	if (!dc) continue;
@@ -493,31 +490,34 @@ nssCertificateArray_FindBestCertificate (
 	     * the usage matched 
 	     */
 	    bestCert = nssCertificate_AddRef(c);
-	    bestCertMatches = thisCertMatches;
-	    bestdc = dc;
+	    haveUsageMatch = thisCertMatches;
 	    continue;
 	} else {
-	    if (bestCertMatches && !thisCertMatches) {
+	    if (haveUsageMatch && !thisCertMatches) {
 		/* if already have a cert for this usage, and if this cert 
 		 * doesn't have the correct usage, continue
 		 */
 		continue;
-	    } else if (!bestCertMatches && thisCertMatches) {
+	    } else if (!haveUsageMatch && thisCertMatches) {
 		/* this one does match usage, replace the other */
 		nssCertificate_Destroy(bestCert);
 		bestCert = nssCertificate_AddRef(c);
-		bestCertMatches = thisCertMatches;
-		bestdc = dc;
+		haveUsageMatch = PR_TRUE;
 		continue;
 	    }
 	    /* this cert match as well as any cert we've found so far, 
 	     * defer to time/policies 
 	     * */
 	}
+	bestdc = nssCertificate_GetDecoding(bestCert);
+	if (!bestdc) {
+	    nssCertificate_Destroy(bestCert);
+	    bestCert = nssCertificate_AddRef(c);
+	    continue;
+	}
 	/* time */
-	if (bestCertIsValidAtTime || bestdc->isValidAtTime(bestdc, time)) {
+	if (bestdc->isValidAtTime(bestdc, time)) {
 	    /* The current best cert is valid at time */
-	    bestCertIsValidAtTime = PR_TRUE;
 	    if (!dc->isValidAtTime(dc, time)) {
 		/* If the new cert isn't valid at time, it's not better */
 		continue;
@@ -528,36 +528,14 @@ nssCertificateArray_FindBestCertificate (
 		/* If the new cert is valid at time, it's better */
 		nssCertificate_Destroy(bestCert);
 		bestCert = nssCertificate_AddRef(c);
-		bestdc = dc;
-		bestCertIsValidAtTime = PR_TRUE;
-		continue;
 	    }
 	}
-	/* Either they are both valid at time, or neither valid.
-	 * If only one is trusted for this usage, take it.
+	/* either they are both valid at time, or neither valid; 
+	 * take the newer one
 	 */
-	if (bestCertIsTrusted || bestdc->isTrustedForUsage(bestdc, usage)) {
-	    bestCertIsTrusted = PR_TRUE;
-	    if (!dc->isTrustedForUsage(dc, usage)) {
-	        continue;
-	    }
-	} else {
-	    /* The current best cert is not trusted */
-	    if (dc->isTrustedForUsage(dc, usage)) {
-		/* If the new cert is trusted, it's better */
-		nssCertificate_Destroy(bestCert);
-		bestCert = nssCertificate_AddRef(c);
-		bestdc = dc;
-		bestCertIsTrusted = PR_TRUE;
-	        continue;
-	    }
-	}
-	/* Otherwise, take the newer one. */
 	if (!bestdc->isNewerThan(bestdc, dc)) {
 	    nssCertificate_Destroy(bestCert);
 	    bestCert = nssCertificate_AddRef(c);
-	    bestdc = dc;
-	    continue;
 	}
 	/* policies */
 	/* XXX later -- defer to policies */

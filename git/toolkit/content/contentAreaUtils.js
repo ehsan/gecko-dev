@@ -1,7 +1,45 @@
 # -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- 
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is mozilla.org code.
+#
+# The Initial Developer of the Original Code is
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#   Ben Goodger <ben@netscape.com> (Save File)
+#   Fredrik Holmqvist <thesuckiestemail@yahoo.se>
+#   Asaf Romano <mozilla.mano@sent.com>
+#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#   Kathleen Brade <brade@pearlcrescent.com>
+#   Mark Smith <mcs@pearlcrescent.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 var ContentAreaUtils = {
   get ioService() {
@@ -525,9 +563,8 @@ function initFileInfo(aFI, aURL, aURLCharset, aDocument,
  */
 function getTargetFile(aFpP, /* optional */ aSkipPrompt, /* optional */ aRelatedURI)
 {
-  if (!getTargetFile.gDownloadLastDir)
-    Components.utils.import("resource://gre/modules/DownloadLastDir.jsm", getTargetFile);
-  var gDownloadLastDir = getTargetFile.gDownloadLastDir;
+  if (typeof gDownloadLastDir != "object")
+    Components.utils.import("resource://gre/modules/DownloadLastDir.jsm");
 
   var prefs = getPrefsBrowserDownload("browser.download.");
   var useDownloadDir = prefs.getBoolPref("useDownloadDir");
@@ -846,27 +883,10 @@ function getDefaultFileName(aDefaultFileName, aURI, aDocument,
       return fileName;
   }
 
-  let docTitle;
-  if (aDocument) {
-    // If the document looks like HTML or XML, try to use its original title.
-    docTitle = validateFileName(aDocument.title).trim();
-    if (docTitle) {
-      let contentType = aDocument.contentType;
-      if (contentType == "application/xhtml+xml" ||
-          contentType == "application/xml" ||
-          contentType == "image/svg+xml" ||
-          contentType == "text/html" ||
-          contentType == "text/xml") {
-        // 2) Use the document title
-        return docTitle;
-      }
-    }
-  }
-
   try {
     var url = aURI.QueryInterface(Components.interfaces.nsIURL);
     if (url.fileName != "") {
-      // 3) Use the actual file name, if present
+      // 2) Use the actual file name, if present
       var textToSubURI = Components.classes["@mozilla.org/intl/texttosuburi;1"]
                                    .getService(Components.interfaces.nsITextToSubURI);
       return validateFileName(textToSubURI.unEscapeURIForUI(url.originCharset || "UTF-8", url.fileName));
@@ -875,33 +895,37 @@ function getDefaultFileName(aDefaultFileName, aURI, aDocument,
     // This is something like a data: and so forth URI... no filename here.
   }
 
-  if (docTitle)
-    // 4) Use the document title
-    return docTitle;
+  if (aDocument) {
+    var docTitle = validateFileName(aDocument.title).replace(/^\s+|\s+$/g, "");
+    if (docTitle) {
+      // 3) Use the document title
+      return docTitle;
+    }
+  }
 
   if (aDefaultFileName)
-    // 5) Use the caller-provided name, if any
+    // 4) Use the caller-provided name, if any
     return validateFileName(aDefaultFileName);
 
-  // 6) If this is a directory, use the last directory name
+  // 5) If this is a directory, use the last directory name
   var path = aURI.path.match(/\/([^\/]+)\/$/);
   if (path && path.length > 1)
     return validateFileName(path[1]);
 
   try {
     if (aURI.host)
-      // 7) Use the host.
+      // 6) Use the host.
       return aURI.host;
   } catch (e) {
     // Some files have no information at all, like Javascript generated pages
   }
   try {
-    // 8) Use the default file name
+    // 7) Use the default file name
     return ContentAreaUtils.stringBundle.GetStringFromName("DefaultSaveFileName");
   } catch (e) {
     //in case localized string cannot be found
   }
-  // 9) If all else fails, use "index"
+  // 8) If all else fails, use "index"
   return "index";
 }
 
@@ -1072,17 +1096,6 @@ function openURL(aURL)
     protocolSvc.loadUrl(uri);
   }
   else {
-    var wmSvc = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-                          .getService(Components.interfaces.nsIWindowMediator);
-    var recentWindow = wmSvc.getMostRecentWindow("navigator:browser");
-    if (recentWindow) {
-      var win = recentWindow.browserDOMWindow.openURI(uri, null,
-                                                      recentWindow.browserDOMWindow.OPEN_DEFAULTWINDOW,
-                                                      recentWindow.browserDOMWindow.OPEN_NEW);
-      win.focus();
-      return;
-    }
-
     var loadgroup = Components.classes["@mozilla.org/network/load-group;1"]
                               .createInstance(Components.interfaces.nsILoadGroup);
     var appstartup = Components.classes["@mozilla.org/toolkit/app-startup;1"]

@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=593959
 -->
 <head>
   <title>Test for Bug 593959</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -26,7 +27,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=593959
 /** Test for Bug 593959 **/
 
   function doTest() {
-    var utils = SpecialPowers.getDOMWindowUtils(window);
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+    var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                       .getInterface(Components.interfaces.nsIDOMWindowUtils);
     var e = document.createEvent("MouseEvent");
     e.initEvent("mousedown", false, false, window, 0, 1, 1, 1, 1,
                 false, false, false, false, 0, null);
@@ -36,7 +39,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=593959
     
     var ifrwindow = document.getElementById("ifr").contentWindow;
     
-    var utils2 = SpecialPowers.getDOMWindowUtils(ifrwindow);
+    var utils2 = ifrwindow.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                          .getInterface(Components.interfaces.nsIDOMWindowUtils);
    
     var e2 = ifrwindow.document.createEvent("MouseEvent");
     e2.initEvent("mouseup", false, false, ifrwindow, 0, 1, 1, 1, 1,

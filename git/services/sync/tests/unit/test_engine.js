@@ -1,5 +1,5 @@
 Cu.import("resource://services-sync/engines.js");
-Cu.import("resource://services-common/observers.js");
+Cu.import("resource://services-sync/ext/Observers.js");
 Cu.import("resource://services-sync/util.js");
 
 
@@ -45,7 +45,7 @@ let engineObserver = {
   topics: [],
 
   observe: function(subject, topic, data) {
-    do_check_eq(data, "steam");
+    do_check_eq(subject, "steam");
     this.topics.push(topic);
   },
 

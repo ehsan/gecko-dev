@@ -931,7 +931,7 @@ sec_pkcs12_decode_start_asafes_cinfo(SEC_PKCS12DecoderContext *p12dcx)
 	goto loser;
     }
   
-    /* open the temp file for writing, if the digest functions were set */ 
+    /* open the temp file for writing, if the filter functions were set */ 
     if(p12dcx->dOpen && (*p12dcx->dOpen)(p12dcx->dArg, PR_FALSE) 
 				!= SECSuccess) {
 	p12dcx->errorValue = PORT_GetError();
@@ -1907,7 +1907,8 @@ sec_pkcs12_get_key_info(sec_PKCS12SafeBag *key)
  */
 static SECItem *
 sec_pkcs12_get_nickname_for_cert(sec_PKCS12SafeBag *cert,
-				 sec_PKCS12SafeBag *key)
+				 sec_PKCS12SafeBag *key, 
+				 void *wincx)
 {
     SECItem *nickname;
 
@@ -1938,7 +1939,8 @@ sec_pkcs12_get_nickname_for_cert(sec_PKCS12SafeBag *cert,
 static SECStatus
 sec_pkcs12_set_nickname_for_cert(sec_PKCS12SafeBag *cert, 
 				 sec_PKCS12SafeBag *key, 
-				 SECItem *nickname)
+				 SECItem *nickname, 
+				 void *wincx)
 {
     if(!nickname || !cert) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
@@ -2070,7 +2072,7 @@ gatherNicknames(CERTCertificate *cert, void *arg)
  * If so, return it. 
  */
 static SECItem *
-sec_pkcs12_get_existing_nick_for_dn(sec_PKCS12SafeBag *cert)
+sec_pkcs12_get_existing_nick_for_dn(sec_PKCS12SafeBag *cert, void *wincx)
 {
     struct certNickInfo *nickArg = NULL;
     SECItem *derCert, *returnDn = NULL;
@@ -2189,7 +2191,7 @@ static void
 sec_pkcs12_validate_cert_nickname(sec_PKCS12SafeBag *cert,
 				sec_PKCS12SafeBag *key,
 				SEC_PKCS12NicknameCollisionCallback nicknameCb,
-				CERTCertificate *leafCert)
+				void *wincx)
 {
     SECItem *certNickname, *existingDNNick;
     PRBool setNickname = PR_FALSE, cancel = PR_FALSE;
@@ -2214,8 +2216,8 @@ sec_pkcs12_validate_cert_nickname(sec_PKCS12SafeBag *cert,
 	return;
     }
 
-    certNickname = sec_pkcs12_get_nickname_for_cert(cert, key);
-    existingDNNick = sec_pkcs12_get_existing_nick_for_dn(cert);
+    certNickname = sec_pkcs12_get_nickname_for_cert(cert, key, wincx);
+    existingDNNick = sec_pkcs12_get_existing_nick_for_dn(cert, wincx);
 
     /* nickname is already used w/ this dn, so it is safe to return */
     if(certNickname && existingDNNick &&
@@ -2227,7 +2229,7 @@ sec_pkcs12_validate_cert_nickname(sec_PKCS12SafeBag *cert,
      * this dn.  set the nicks in the p12 bags and finish.
      */
     if(existingDNNick) {
-	sec_pkcs12_set_nickname_for_cert(cert, key, existingDNNick);
+	sec_pkcs12_set_nickname_for_cert(cert, key, existingDNNick, wincx);
 	goto loser;
     }
 
@@ -2255,13 +2257,14 @@ sec_pkcs12_validate_cert_nickname(sec_PKCS12SafeBag *cert,
 	if (certNickname && certNickname->data &&
 	    !sec_pkcs12_certs_for_nickname_exist(certNickname, cert->slot)) {
 	    if (setNickname) {
-		sec_pkcs12_set_nickname_for_cert(cert, key, certNickname);
+		sec_pkcs12_set_nickname_for_cert(cert, key, certNickname,
+				    wincx);
 	    }
 	    break;
 	}
 
 	setNickname = PR_FALSE;
-	newNickname = (*nicknameCb)(certNickname, &cancel, leafCert);
+	newNickname = (*nicknameCb)(certNickname, &cancel, wincx);
 	if(cancel) {
 	    cert->problem = PR_TRUE;
 	    cert->error = SEC_ERROR_USER_CANCELLED;
@@ -2301,7 +2304,8 @@ loser:
 static void 
 sec_pkcs12_validate_cert(sec_PKCS12SafeBag *cert,
 			 sec_PKCS12SafeBag *key,
-			 SEC_PKCS12NicknameCollisionCallback nicknameCb)
+			 SEC_PKCS12NicknameCollisionCallback nicknameCb,
+			 void *wincx)
 {
     CERTCertificate *leafCert;
 
@@ -2341,7 +2345,7 @@ sec_pkcs12_validate_cert(sec_PKCS12SafeBag *cert,
 	return;
     }
 
-    sec_pkcs12_validate_cert_nickname(cert, key, nicknameCb, leafCert);
+    sec_pkcs12_validate_cert_nickname(cert, key, nicknameCb, (void *)leafCert);
 
     CERT_DestroyCertificate(leafCert);
 }
@@ -2744,7 +2748,7 @@ sec_pkcs12_validate_bags(sec_PKCS12SafeBag **safeBags,
 			cert->error   = key->error;
 			continue;
 		    } 
-		    sec_pkcs12_validate_cert(cert, key, nicknameCb);
+		    sec_pkcs12_validate_cert(cert, key, nicknameCb, wincx);
 		    if(cert->problem) {
 			key->problem = cert->problem;
 			key->error   = cert->error;
@@ -2765,7 +2769,7 @@ sec_pkcs12_validate_bags(sec_PKCS12SafeBag **safeBags,
 
 	    switch(bagType) {
 	    case SEC_OID_PKCS12_V1_CERT_BAG_ID:
-		sec_pkcs12_validate_cert(bag, NULL, nicknameCb);
+		sec_pkcs12_validate_cert(bag, NULL, nicknameCb, wincx);
 		break;
 	    case SEC_OID_PKCS12_V1_KEY_BAG_ID:
 	    case SEC_OID_PKCS12_V1_PKCS8_SHROUDED_KEY_BAG_ID:
@@ -2932,7 +2936,8 @@ sec_pkcs12_install_bags(sec_PKCS12SafeBag **safeBags, void *wincx)
 		/* use the cert's nickname, if it has one, else use the 
 		 * key's nickname, else fail.
 		 */
-		nickName = sec_pkcs12_get_nickname_for_cert(certList[0], key);
+		nickName = sec_pkcs12_get_nickname_for_cert(certList[0], 
+		                                            key, wincx);
 	    } else {
 		nickName = sec_pkcs12_get_nickname(key);
 	    }

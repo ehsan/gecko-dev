@@ -1,24 +1,56 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SVG project.
+ *
+ * The Initial Developer of the Original Code is
+ * Scooter Morris.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Scooter Morris <scootermorris@comcast.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef __NS_SVGPATTERNFRAME_H__
 #define __NS_SVGPATTERNFRAME_H__
 
-#include "gfxMatrix.h"
+#include "nsIDOMSVGMatrix.h"
 #include "nsSVGPaintServerFrame.h"
+#include "gfxMatrix.h"
 
-class gfxASurface;
-class gfxContext;
 class nsIFrame;
-class nsSVGElement;
 class nsSVGLength2;
-class nsSVGViewBox;
+class nsSVGElement;
+class gfxContext;
+class gfxASurface;
 
 namespace mozilla {
 class SVGAnimatedPreserveAspectRatio;
-class SVGAnimatedTransformList;
 } // namespace mozilla
 
 typedef nsSVGPaintServerFrame  nsSVGPatternFrameBase;
@@ -40,8 +72,6 @@ public:
   // nsSVGPaintServerFrame methods:
   virtual already_AddRefed<gfxPattern>
     GetPaintServerPattern(nsIFrame *aSource,
-                          const gfxMatrix& aContextMatrix,
-                          nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                           float aOpacity,
                           const gfxRect *aOverrideBounds);
 
@@ -49,14 +79,14 @@ public:
   typedef mozilla::SVGAnimatedPreserveAspectRatio SVGAnimatedPreserveAspectRatio;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor);
+  virtual gfxMatrix GetCanvasTM();
 
   // nsIFrame interface:
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
-  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
+  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
-                              int32_t         aModType);
+                              PRInt32         aModType);
 
 #ifdef DEBUG
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -85,13 +115,12 @@ protected:
   nsSVGPatternFrame* GetReferencedPatternIfNotInUse();
 
   // Accessors to lookup pattern attributes
-  uint16_t GetEnumValue(uint32_t aIndex, nsIContent *aDefault);
-  uint16_t GetEnumValue(uint32_t aIndex)
+  PRUint16 GetEnumValue(PRUint32 aIndex, nsIContent *aDefault);
+  PRUint16 GetEnumValue(PRUint32 aIndex)
   {
     return GetEnumValue(aIndex, mContent);
   }
-  mozilla::SVGAnimatedTransformList* GetPatternTransformList(
-      nsIContent* aDefault);
+  nsIDOMSVGAnimatedTransformList* GetPatternTransformList(nsIContent* aDefault);
   gfxMatrix GetPatternTransform();
   const nsSVGViewBox &GetViewBox(nsIContent *aDefault);
   const nsSVGViewBox &GetViewBox() { return GetViewBox(mContent); }
@@ -101,42 +130,43 @@ protected:
   {
     return GetPreserveAspectRatio(mContent);
   }
-  const nsSVGLength2 *GetLengthValue(uint32_t aIndex, nsIContent *aDefault);
-  const nsSVGLength2 *GetLengthValue(uint32_t aIndex)
+  const nsSVGLength2 *GetLengthValue(PRUint32 aIndex, nsIContent *aDefault);
+  const nsSVGLength2 *GetLengthValue(PRUint32 aIndex)
   {
     return GetLengthValue(aIndex, mContent);
   }
 
   nsresult PaintPattern(gfxASurface **surface,
                         gfxMatrix *patternMatrix,
-                        const gfxMatrix &aContextMatrix,
                         nsIFrame *aSource,
-                        nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                         float aGraphicOpacity,
                         const gfxRect *aOverrideBounds);
-  nsIFrame*  GetPatternFirstChild();
-  gfxRect    GetPatternRect(uint16_t aPatternUnits,
-                            const gfxRect &bbox,
+  NS_IMETHOD GetPatternFirstChild(nsIFrame **kid);
+  gfxRect    GetPatternRect(const gfxRect &bbox,
                             const gfxMatrix &callerCTM,
                             nsIFrame *aTarget);
-  gfxMatrix  ConstructCTM(const nsSVGViewBox& aViewBox,
-                          uint16_t aPatternContentUnits,
-                          uint16_t aPatternUnits,
-                          const gfxRect &callerBBox,
+  gfxMatrix  GetPatternMatrix(const gfxRect &bbox,
+                              const gfxRect &callerBBox,
+                              const gfxMatrix &callerCTM);
+  gfxMatrix  ConstructCTM(const gfxRect &callerBBox,
                           const gfxMatrix &callerCTM,
                           nsIFrame *aTarget);
+  nsresult   GetTargetGeometry(gfxMatrix *aCTM,
+                               gfxRect *aBBox,
+                               nsIFrame *aTarget,
+                               const gfxRect *aOverrideBounds);
 
 private:
   // this is a *temporary* reference to the frame of the element currently
   // referencing our pattern.  This must be temporary because different
   // referencing frames will all reference this one frame
   nsSVGGeometryFrame               *mSource;
-  nsAutoPtr<gfxMatrix>              mCTM;
+  nsCOMPtr<nsIDOMSVGMatrix>         mCTM;
 
 protected:
   // This flag is used to detect loops in xlink:href processing
-  bool                              mLoopFlag;
-  bool                              mNoHRefURI;
+  PRPackedBool                      mLoopFlag;
+  PRPackedBool                      mNoHRefURI;
 };
 
 #endif

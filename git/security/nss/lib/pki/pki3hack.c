@@ -35,7 +35,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: pki3hack.c,v $ $Revision: 1.106.2.2 $ $Date: 2012/07/27 21:48:13 $";
+static const char CVS_ID[] = "@(#) $RCSfile: pki3hack.c,v $ $Revision: 1.100.2.1 $ $Date: 2011/03/26 16:55:01 $";
 #endif /* DEBUG */
 
 /*
@@ -444,50 +444,6 @@ nss3certificate_matchUsage(nssDecodedCert *dc, const NSSUsage *usage)
     return match;
 }
 
-static PRBool
-nss3certificate_isTrustedForUsage(nssDecodedCert *dc, const NSSUsage *usage)
-{
-    CERTCertificate *cc;
-    PRBool ca;
-    SECStatus secrv;
-    unsigned int requiredFlags;
-    unsigned int trustFlags;
-    SECTrustType trustType;
-    CERTCertTrust trust;
-
-    /* This is for NSS 3.3 functions that do not specify a usage */
-    if (usage->anyUsage) {
-	return PR_FALSE;  /* XXX is this right? */
-    }
-    cc = (CERTCertificate *)dc->data;
-    ca = usage->nss3lookingForCA;
-    if (!ca) {
-	PRBool trusted;
-	unsigned int failedFlags;
-	secrv = cert_CheckLeafTrust(cc, usage->nss3usage,
-				    &failedFlags, &trusted);
-	return secrv == SECSuccess && trusted;
-    }
-    secrv = CERT_TrustFlagsForCACertUsage(usage->nss3usage, &requiredFlags,
-					  &trustType);
-    if (secrv != SECSuccess) {
-	return PR_FALSE;
-    }
-    secrv = CERT_GetCertTrust(cc, &trust);
-    if (secrv != SECSuccess) {
-	return PR_FALSE;
-    }
-    if (trustType == trustTypeNone) {
-	/* normally trustTypeNone usages accept any of the given trust bits
-	 * being on as acceptable. */
-	trustFlags = trust.sslFlags | trust.emailFlags |
-		     trust.objectSigningFlags;
-    } else {
-	trustFlags = SEC_GET_TRUST_FLAGS(&trust, trustType);
-    }
-    return (trustFlags & requiredFlags) == requiredFlags;
-}
-
 static NSSASCII7 *
 nss3certificate_getEmailAddress(nssDecodedCert *dc)
 {
@@ -538,7 +494,6 @@ nssDecodedPKIXCertificate_Create (
 	    rvDC->isValidAtTime       = nss3certificate_isValidAtTime;
 	    rvDC->isNewerThan         = nss3certificate_isNewerThan;
 	    rvDC->matchUsage          = nss3certificate_matchUsage;
-	    rvDC->isTrustedForUsage   = nss3certificate_isTrustedForUsage;
 	    rvDC->getEmailAddress     = nss3certificate_getEmailAddress;
 	    rvDC->getDERSerialNumber  = nss3certificate_getDERSerialNumber;
 	} else {
@@ -566,9 +521,7 @@ create_decoded_pkix_cert_from_nss3cert (
 	rvDC->isValidAtTime       = nss3certificate_isValidAtTime;
 	rvDC->isNewerThan         = nss3certificate_isNewerThan;
 	rvDC->matchUsage          = nss3certificate_matchUsage;
-	rvDC->isTrustedForUsage   = nss3certificate_isTrustedForUsage;
 	rvDC->getEmailAddress     = nss3certificate_getEmailAddress;
-	rvDC->getDERSerialNumber  = nss3certificate_getDERSerialNumber;
     }
     return rvDC;
 }
@@ -602,17 +555,17 @@ nssDecodedPKIXCertificate_Destroy (
 
 /* see pk11cert.c:pk11_HandleTrustObject */
 static unsigned int
-get_nss3trust_from_nss4trust(nssTrustLevel t)
+get_nss3trust_from_nss4trust(CK_TRUST t)
 {
     unsigned int rt = 0;
     if (t == nssTrustLevel_Trusted) {
-	rt |= CERTDB_TERMINAL_RECORD | CERTDB_TRUSTED;
+	rt |= CERTDB_VALID_PEER | CERTDB_TRUSTED;
     }
     if (t == nssTrustLevel_TrustedDelegator) {
-	rt |= CERTDB_VALID_CA | CERTDB_TRUSTED_CA;
+	rt |= CERTDB_VALID_CA | CERTDB_TRUSTED_CA /*| CERTDB_NS_TRUSTED_CA*/;
     }
-    if (t == nssTrustLevel_NotTrusted) {
-	rt |= CERTDB_TERMINAL_RECORD;
+    if (t == nssTrustLevel_Valid) {
+	rt |= CERTDB_VALID_PEER;
     }
     if (t == nssTrustLevel_ValidDelegator) {
 	rt |= CERTDB_VALID_CA;
@@ -639,6 +592,10 @@ cert_trust_from_stan_trust(NSSTrust *t, PRArenaPool *arena)
     rvTrust->sslFlags |= client;
     rvTrust->emailFlags = get_nss3trust_from_nss4trust(t->emailProtection);
     rvTrust->objectSigningFlags = get_nss3trust_from_nss4trust(t->codeSigning);
+    /* The cert is a valid step-up cert (in addition to/lieu of trust above */
+    if (t->stepUpApproved) {
+	rvTrust->sslFlags |= CERTDB_GOVT_APPROVED_CA;
+    }
     return rvTrust;
 }
 
@@ -815,22 +772,6 @@ fill_CERTCertificateFields(NSSCertificate *c, CERTCertificate *cc, PRBool forced
     if (context) {
 	/* trust */
 	nssTrust = nssCryptoContext_FindTrustForCertificate(context, c);
-	if (!nssTrust) {
-	    /* chicken and egg issue:
-	     *
-	     * c->issuer and c->serial are empty at this point, but
-	     * nssTrustDomain_FindTrustForCertificate use them to look up
-	     * up the trust object, so we point them to cc->derIssuer and
-	     * cc->serialNumber.
-	     *
-	     * Our caller will fill these in with proper arena copies when we
-	     * return. */
-	    c->issuer.data = cc->derIssuer.data;
-	    c->issuer.size = cc->derIssuer.len;
-	    c->serial.data = cc->serialNumber.data;
-	    c->serial.size = cc->serialNumber.len;
-	    nssTrust = nssTrustDomain_FindTrustForCertificate(context->td, c);
-	}
 	if (nssTrust) {
             trust = cert_trust_from_stan_trust(nssTrust, cc->arena);
             if (trust) {
@@ -981,13 +922,13 @@ get_stan_trust(unsigned int t, PRBool isClientAuth)
     if (t & CERTDB_TRUSTED) {
 	return nssTrustLevel_Trusted;
     }
-    if (t & CERTDB_TERMINAL_RECORD) {
-	return nssTrustLevel_NotTrusted;
-    }
     if (t & CERTDB_VALID_CA) {
 	return nssTrustLevel_ValidDelegator;
     }
-    return nssTrustLevel_MustVerify;
+    if (t & CERTDB_VALID_PEER) {
+	return nssTrustLevel_Valid;
+    }
+    return nssTrustLevel_NotTrusted;
 }
 
 NSS_EXTERN NSSCertificate *
@@ -1215,8 +1156,6 @@ STAN_ChangeCertTrust(CERTCertificate *cc, CERTCertTrust *trust)
 	                                             &c->serial,
 						     email,
 	                                             PR_TRUE);
-            nss_ZFreeIf(nickname);
-            nickname = NULL;
 	    if (!newInstance) {
 		nssrv = PR_FAILURE;
 		goto done;
@@ -1249,8 +1188,6 @@ STAN_ChangeCertTrust(CERTCertificate *cc, CERTCertTrust *trust)
 	                                             &c->serial,
 						     email,
 	                                             PR_TRUE);
-            nss_ZFreeIf(nickname);
-            nickname = NULL;
 	    if (!newInstance) {
 		nssrv = PR_FAILURE;
 		goto done;

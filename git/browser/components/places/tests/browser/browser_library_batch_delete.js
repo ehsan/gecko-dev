@@ -80,7 +80,7 @@ gTests.push({
     PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
                                          makeURI(TEST_URL),
                                          PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                         "bm");
+                                         "bm" + i);
     is(PO._content.result.root.childCount, 2,
        "Right pane was correctly updated");
     nextTest();

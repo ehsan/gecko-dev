@@ -1,9 +1,44 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-Components.utils.import("resource:///modules/MigrationUtils.jsm");
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Places Organizer.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005-2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Goodger <beng@google.com>
+ *   Annie Sullivan <annie.sullivan@gmail.com>
+ *   Asaf Romano <mano@mozilla.com>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *   Drew Willcoxon <adw@mozilla.com>
+ *   Steffen Wilberg <steffen.wilberg@web.de>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 var PlacesOrganizer = {
   _places: null,
@@ -37,12 +72,12 @@ var PlacesOrganizer = {
     this._initFolderTree();
 
     var leftPaneSelection = "AllBookmarks"; // default to all-bookmarks
-    if (window.arguments && window.arguments[0])
+    if ("arguments" in window && window.arguments.length > 0)
       leftPaneSelection = window.arguments[0];
 
     this.selectLeftPaneQuery(leftPaneSelection);
     // clear the back-stack
-    this._backHistory.splice(0, this._backHistory.length);
+    this._backHistory.splice(0);
     document.getElementById("OrganizerCommand:Back").setAttribute("disabled", true);
 
     var view = this._content.treeBoxObject.view;
@@ -127,7 +162,7 @@ var PlacesOrganizer = {
 
     if (this.location) {
       this._backHistory.unshift(this.location);
-      this._forwardHistory.splice(0, this._forwardHistory.length);
+      this._forwardHistory.splice(0);
     }
 
     this._location = aLocation;
@@ -204,13 +239,16 @@ var PlacesOrganizer = {
     }
 
     // Update the selected folder title where it appears in the UI: the folder
-    // scope button, and the search box emptytext.
-    // They must be updated even if the selection hasn't changed --
+    // scope button, "Find in <current collection>" command, and the search box
+    // emptytext.  They must be updated even if the selection hasn't changed --
     // specifically when node's title changes.  In that case a selection event
     // is generated, this method is called, but the selection does not change.
     var folderButton = document.getElementById("scopeBarFolder");
     var folderTitle = node.title || folderButton.getAttribute("emptytitle");
     folderButton.setAttribute("label", folderTitle);
+    var cmd = document.getElementById("OrganizerCommand_find:current");
+    var label = PlacesUIUtils.getFormattedString("findInPrefix", [folderTitle]);
+    cmd.setAttribute("label", label);
     if (PlacesSearchBox.filterCollection == "collection")
       PlacesSearchBox.updateCollectionTitle(folderTitle);
 
@@ -239,30 +277,17 @@ var PlacesOrganizer = {
    *          the node to set up scope from
    */
   _setSearchScopeForNode: function PO__setScopeForNode(aNode) {
-    let itemId = aNode.itemId;
-
-    // Set default buttons status.
-    let bookmarksButton = document.getElementById("scopeBarAll");
-    bookmarksButton.hidden = false;
-    let downloadsButton = document.getElementById("scopeBarDownloads");
-    downloadsButton.hidden = true;
-
+    var itemId = aNode.itemId;
     if (PlacesUtils.nodeIsHistoryContainer(aNode) ||
         itemId == PlacesUIUtils.leftPaneQueries["History"]) {
       PlacesQueryBuilder.setScope("history");
     }
-    else if (itemId == PlacesUIUtils.leftPaneQueries["Downloads"]) {
-      downloadsButton.hidden = false;
-      bookmarksButton.hidden = true;
-      PlacesQueryBuilder.setScope("downloads");
-    }
-    else {
-      // Default to All Bookmarks for all other nodes, per bug 469437.
+    // Default to All Bookmarks for all other nodes, per bug 469437.
+    else
       PlacesQueryBuilder.setScope("bookmarks");
-    }
 
     // Enable or disable the folder scope button.
-    let folderButton = document.getElementById("scopeBarFolder");
+    var folderButton = document.getElementById("scopeBarFolder");
     folderButton.hidden = !PlacesUtils.nodeIsFolder(aNode) ||
                           itemId == PlacesUIUtils.allBookmarksFolderId;
   },
@@ -296,7 +321,7 @@ var PlacesOrganizer = {
         // The command execution function will take care of seeing if the
         // selection is a folder or a different container type, and will
         // load its contents in tabs.
-        PlacesUIUtils.openContainerNodeInTabs(selectedNode, aEvent, currentView);
+        PlacesUIUtils.openContainerNodeInTabs(selectedNode, aEvent);
       }
     }
   },
@@ -323,7 +348,7 @@ var PlacesOrganizer = {
 
   openSelectedNode: function PO_openSelectedNode(aEvent) {
     PlacesUIUtils.openNodeWithEvent(this._content.selectedNode, aEvent,
-                                    this._content);
+                                    this._content.treeBoxObject.view);
   },
 
   /**
@@ -347,7 +372,20 @@ var PlacesOrganizer = {
    * cookies, history, preferences, and bookmarks.
    */
   importFromBrowser: function PO_importFromBrowser() {
-    MigrationUtils.showMigrationWizard(window);
+#ifdef XP_MACOSX
+    // On Mac, the window is not modal
+    let win = Services.wm.getMostRecentWindow("Browser:MigrationWizard");
+    if (win) {
+      win.focus();
+      return;
+    }
+
+    let features = "centerscreen,chrome,resizable=no";
+#else
+    let features = "modal,centerscreen,chrome,resizable=no";
+#endif
+    window.openDialog("chrome://browser/content/migration/migration.xul",
+                      "migration", features);
   },
 
   /**
@@ -360,9 +398,10 @@ var PlacesOrganizer = {
             Ci.nsIFilePicker.modeOpen);
     fp.appendFilters(Ci.nsIFilePicker.filterHTML);
     if (fp.show() != Ci.nsIFilePicker.returnCancel) {
-      if (fp.fileURL) {
-        Components.utils.import("resource://gre/modules/BookmarkHTMLUtils.jsm");
-        BookmarkHTMLUtils.importFromURL(fp.fileURL.spec, false);
+      if (fp.file) {
+        var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].
+                       getService(Ci.nsIPlacesImportExportService);
+        importer.importHTMLFromFile(fp.file, false);
       }
     }
   },
@@ -548,7 +587,9 @@ var PlacesOrganizer = {
       return;
     }
     if (aNode.itemId != -1 &&
-        PlacesUtils.nodeIsFolder(aNode) && !aNode._feedURI) {
+        ((PlacesUtils.nodeIsFolder(aNode) &&
+          !PlacesUtils.nodeIsLivemarkContainer(aNode)) ||
+         PlacesUtils.nodeIsLivemarkItem(aNode))) {
       if (infoBox.getAttribute("minimal") == "true")
         infoBox.setAttribute("wasminimal", "true");
       infoBox.removeAttribute("minimal");
@@ -634,10 +675,8 @@ var PlacesOrganizer = {
       else
         itemId = PlacesUtils._uri(aSelectedNode.uri);
 
-      gEditItemOverlay.initPanel(itemId, { hiddenRows: ["folderPicker"]
-                                         , forceReadOnly: readOnly
-                                         , titleOverride: aSelectedNode.title
-                                         });
+      gEditItemOverlay.initPanel(itemId, { hiddenRows: ["folderPicker"],
+                                           forceReadOnly: readOnly });
 
       // Dynamically generated queries, like history date containers, have
       // itemId !=0 and do not exist in history.  For them the panel is
@@ -661,8 +700,8 @@ var PlacesOrganizer = {
           var itemsCountLabel = document.getElementById("itemsCountText");
           selectItemDesc.hidden = false;
           itemsCountLabel.value =
-            PlacesUIUtils.getPluralString("detailsPane.itemsCountLabel",
-                                          aNodeList.length, [aNodeList.length]);
+            PlacesUIUtils.getFormattedString("detailsPane.multipleItems",
+                                             [aNodeList.length]);
           infoBox.hidden = true;
           return;
         }
@@ -691,9 +730,13 @@ var PlacesOrganizer = {
       }
       else {
         selectItemDesc.hidden = false;
-        itemsCountLabel.value =
-          PlacesUIUtils.getPluralString("detailsPane.itemsCountLabel",
-                                        rowCount, [rowCount]);
+        if (rowCount == 1)
+          itemsCountLabel.value = PlacesUIUtils.getString("detailsPane.oneItem");
+        else {
+          itemsCountLabel.value =
+            PlacesUIUtils.getFormattedString("detailsPane.multipleItems",
+                                             [rowCount]);
+        }
       }
     }
   },
@@ -776,11 +819,11 @@ var PlacesOrganizer = {
      return;
 
     // Add the place: uri as a bookmark under the bookmarks root.
-    var txn = new PlacesCreateBookmarkTransaction(placeURI,
-                                                  PlacesUtils.bookmarksMenuFolderId,
-                                                  PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                                  input.value);
-    PlacesUtils.transactionManager.doTransaction(txn);
+    var txn = PlacesUIUtils.ptm.createItem(placeURI,
+                                           PlacesUtils.bookmarksMenuFolderId,
+                                           PlacesUtils.bookmarks.DEFAULT_INDEX,
+                                           input.value);
+    PlacesUIUtils.ptm.doTransaction(txn);
 
     // select and load the new query
     this._places.selectPlaceURI(placeSpec);
@@ -858,21 +901,9 @@ var PlacesSearchBox = {
         options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
         content.load([query], options);
       }
-      else {
+      else
         content.applyFilter(filterString);
-      }
       break;
-    case "downloads": {
-        let query = PlacesUtils.history.getNewQuery();
-        query.searchTerms = filterString;
-        query.setTransitions([Ci.nsINavHistoryService.TRANSITION_DOWNLOAD], 1);
-        let options = currentOptions.clone();
-        // Make sure we're getting uri results.
-        options.resultType = currentOptions.RESULT_TYPE_URI;
-        options.queryType = Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY;
-        content.load([query], options);
-      break;
-    }
     default:
       throw "Invalid filterCollection on search";
       break;
@@ -885,50 +916,34 @@ var PlacesSearchBox = {
   },
 
   /**
-   * Finds across all history, downloads or all bookmarks.
+   * Finds across all bookmarks
    */
   findAll: function PSB_findAll() {
-    switch (this.filterCollection) {
-      case "history":
-        PlacesQueryBuilder.setScope("history");
-        break;
-      case "downloads":
-        PlacesQueryBuilder.setScope("downloads");
-        break;
-      default:
-        PlacesQueryBuilder.setScope("bookmarks");
-        break;
-    }
+    PlacesQueryBuilder.setScope("bookmarks");
+    this.focus();
+  },
+
+  /**
+   * Finds in the currently selected Place.
+   */
+  findCurrent: function PSB_findCurrent() {
+    PlacesQueryBuilder.setScope("collection");
     this.focus();
   },
 
   /**
    * Updates the display with the title of the current collection.
-   * @param   aTitle
+   * @param   title
    *          The title of the current collection.
    */
-  updateCollectionTitle: function PSB_updateCollectionTitle(aTitle) {
-    let title = "";
-    // This is needed when a user performs a folder-specific search
-    // using the scope bar, removes the search-string, and unfocuses
-    // the search box, at least until the removal of the scope bar.
-    if (aTitle) {
-      title = PlacesUIUtils.getFormattedString("searchCurrentDefault",
-                                               [aTitle]);
-    }
-    else {
-      switch (this.filterCollection) {
-        case "history":
-          title = PlacesUIUtils.getString("searchHistory");
-          break;
-        case "downloads":
-          title = PlacesUIUtils.getString("searchDownloads");
-          break;
-        default:
-          title = PlacesUIUtils.getString("searchBookmarks");                                    
-      }
-    }
-    this.searchFilter.placeholder = title;
+  updateCollectionTitle: function PSB_updateCollectionTitle(title) {
+    if (title)
+      this.searchFilter.placeholder =
+        PlacesUIUtils.getFormattedString("searchCurrentDefault", [title]);
+    else
+      this.searchFilter.placeholder = this.filterCollection == "history" ?
+                                      PlacesUIUtils.getString("searchHistory") :
+                                      PlacesUIUtils.getString("searchBookmarks");
   },
 
   /**
@@ -1010,9 +1025,6 @@ var PlacesQueryBuilder = {
     case "scopeBarFolder":
       this.setScope("collection");
       break;
-    case "scopeBarDownloads":
-      this.setScope("downloads");
-      break;
     case "scopeBarAll":
       this.setScope("bookmarks");
       break;
@@ -1028,8 +1040,7 @@ var PlacesQueryBuilder = {
    * PSB_search()).  If there is an active search, it's performed again to
    * update the content tree.
    * @param   aScope
-   *          The search scope: "bookmarks", "collection", "downloads" or
-   *          "history".
+   *          the search scope, "bookmarks", "collection", or "history"
    */
   setScope: function PQB_setScope(aScope) {
     // Determine filterCollection, folders, and scopeButtonId based on aScope.
@@ -1060,10 +1071,6 @@ var PlacesQueryBuilder = {
       folders.push(PlacesUtils.bookmarksMenuFolderId,
                    PlacesUtils.toolbarFolderId,
                    PlacesUtils.unfiledBookmarksFolderId);
-      break;
-    case "downloads":
-      filterCollection = "downloads";
-      scopeButtonId = "scopeBarDownloads";
       break;
     default:
       throw "Invalid search scope";

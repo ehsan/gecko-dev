@@ -2,22 +2,16 @@
 <html><head>
 <title>Test for bug 525389</title>
 <style src="/tests/SimpleTest/test.css" type="text/css"></style>
+<script type="application/javascript" src="/MochiKit/packed.js"></script>
 <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
 <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
 
 <script class="testbody" type="application/javascript">
 
-  var utils = SpecialPowers.wrap(window)
-                .QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowUtils);
-  var Cc = SpecialPowers.wrap(Components).classes;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIDOMWindowUtils);
+  var Cc = Components.classes;
   var Ci = Components.interfaces;
-
-function getLoadContext() {
-  return SpecialPowers.wrap(window)
-               .QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsILoadContext);
-}
 
 function runTest() {
   var pasteCount = 0;
@@ -30,6 +24,7 @@ function runTest() {
   }
 
   function pasteInto(trans, html, target_id) {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     var e = document.getElementById('i1');
     var doc = e.contentDocument;
     doc.designMode = "on";
@@ -53,8 +48,8 @@ function runTest() {
   }
 
   function getTransferableFromClipboard(asHTML) {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     var trans = Cc["@mozilla.org/widget/transferable;1"].createInstance(Ci.nsITransferable);
-    trans.init(getLoadContext());
     if (asHTML) {
       trans.addDataFlavor("text/html");
     } else {
@@ -66,6 +61,8 @@ function runTest() {
   }
 
   function makeTransferable(s,asHTML,target_id) {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
     var e = document.getElementById('i2');
     var doc = e.contentDocument;
     if (asHTML) {
@@ -92,7 +89,6 @@ function runTest() {
 
     // Create the transferable.
     var trans = Cc["@mozilla.org/widget/transferable;1"].createInstance(Ci.nsITransferable);  
-    trans.init(getLoadContext());
 
     // Add the data to the transferable.
     if (asHTML) {
@@ -109,6 +105,7 @@ function runTest() {
   }
 
   function copyToClipBoard(s,asHTML,target_id) {
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
     var e = document.getElementById('i2');
     var doc = e.contentDocument;
     if (asHTML) {
@@ -128,7 +125,7 @@ function runTest() {
       range.selectNode(doc.getElementById(target_id));
       selection.addRange(range);
     }
-    SpecialPowers.wrap(doc).execCommand("copy", false, null);
+    doc.execCommand("copy", false, null);
     return e;
   }
 

@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim:set ts=4 sw=4 sts=4 cindent et: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   David Dick <ddick@cpan.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTTPCompressConv.h"
 #include "nsMemory.h"
@@ -11,7 +44,7 @@
 #include "nsIChannel.h"
 #include "nsCOMPtr.h"
 #include "nsReadableUtils.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
 #include "nsComponentManagerUtils.h"
@@ -24,15 +57,15 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsHTTPCompressConv,
 
 // nsFTPDirListingConv methods
 nsHTTPCompressConv::nsHTTPCompressConv()
-    : mListener(nullptr)
+    : mListener(nsnull)
     , mMode(HTTP_COMPRESS_IDENTITY)
     , mOutBuffer(NULL)
     , mInpBuffer(NULL)
     , mOutBufferLen(0)
     , mInpBufferLen(0)
-    , mCheckHeaderDone(false)
-    , mStreamEnded(false)
-    , mStreamInitialized(false)
+    , mCheckHeaderDone(PR_FALSE)
+    , mStreamEnded(PR_FALSE)
+    , mStreamInitialized(PR_FALSE)
     , mLen(0)
     , hMode(0)
     , mSkipCount(0)
@@ -98,11 +131,11 @@ NS_IMETHODIMP
 nsHTTPCompressConv::OnDataAvailable(nsIRequest* request, 
                                     nsISupports *aContext, 
                                     nsIInputStream *iStr, 
-                                    uint64_t aSourceOffset, 
-                                    uint32_t aCount)
+                                    PRUint32 aSourceOffset, 
+                                    PRUint32 aCount)
 {
     nsresult rv = NS_ERROR_INVALID_CONTENT_ENCODING;
-    uint32_t streamLen = aCount;
+    PRUint32 streamLen = aCount;
 
     if (streamLen == 0)
     {
@@ -115,8 +148,8 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
         // Hmm... this may just indicate that the data stream is done and that
         // what's left is either metadata or padding of some sort.... throwing
         // it out is probably the safe thing to do.
-        uint32_t n;
-        return iStr->ReadSegments(NS_DiscardSegment, nullptr, streamLen, &n);
+        PRUint32 n;
+        return iStr->ReadSegments(NS_DiscardSegment, nsnull, streamLen, &n);
     }
 
     switch (mMode)
@@ -154,8 +187,10 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
             if (mInpBuffer == NULL || mOutBuffer == NULL)
                 return NS_ERROR_OUT_OF_MEMORY;
 
-            uint32_t unused;
-            iStr->Read((char *)mInpBuffer, streamLen, &unused);
+            iStr->Read((char *)mInpBuffer, streamLen, &rv);
+
+            if (NS_FAILED(rv))
+                return rv;
 
             if (mMode == HTTP_COMPRESS_DEFLATE)
             {
@@ -166,12 +201,12 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
                     if (inflateInit(&d_stream) != Z_OK)
                         return NS_ERROR_FAILURE;
 
-                    mStreamInitialized = true;
+                    mStreamInitialized = PR_TRUE;
                 }
                 d_stream.next_in = mInpBuffer;
                 d_stream.avail_in = (uInt)streamLen;
 
-                mDummyStreamInitialised = false;
+                mDummyStreamInitialised = PR_FALSE;
                 for (;;)
                 {
                     d_stream.next_out = mOutBuffer;
@@ -190,7 +225,7 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
                         }
                         
                         inflateEnd(&d_stream);
-                        mStreamEnded = true;
+                        mStreamEnded = PR_TRUE;
                         break;
                     }
                     else if (code == Z_OK)
@@ -235,7 +270,7 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
                                        " - invalid deflate");
                             return NS_ERROR_INVALID_CONTENT_ENCODING;
                         }
-                        mDummyStreamInitialised = true;
+                        mDummyStreamInitialised = PR_TRUE;
                         // reset stream pointers to our original data
                         d_stream.next_in = mInpBuffer;
                         d_stream.avail_in = (uInt)streamLen;
@@ -253,7 +288,7 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
                     if (inflateInit2(&d_stream, -MAX_WBITS) != Z_OK)
                         return NS_ERROR_FAILURE;
 
-                    mStreamInitialized = true;
+                    mStreamInitialized = PR_TRUE;
                 }
 
                 d_stream.next_in  = mInpBuffer;
@@ -277,7 +312,7 @@ nsHTTPCompressConv::OnDataAvailable(nsIRequest* request,
                         }
                         
                         inflateEnd(&d_stream);
-                        mStreamEnded = true;
+                        mStreamEnded = PR_TRUE;
                         break;
                     }
                     else if (code == Z_OK)
@@ -329,8 +364,8 @@ nsHTTPCompressConv::Convert(nsIInputStream *aFromStream,
 
 nsresult
 nsHTTPCompressConv::do_OnDataAvailable(nsIRequest* request,
-                                       nsISupports *context, uint64_t offset,
-                                       const char *buffer, uint32_t count)
+                                       nsISupports *context, PRUint32 offset,
+                                       const char *buffer, PRUint32 count)
 {
     if (!mStream) {
         mStream = do_CreateInstance(NS_STRINGINPUTSTREAM_CONTRACTID);
@@ -358,9 +393,10 @@ nsHTTPCompressConv::do_OnDataAvailable(nsIRequest* request,
 
 static unsigned gz_magic[2] = {0x1f, 0x8b}; /* gzip magic header */
 
-uint32_t
-nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsresult *rs)
+PRUint32
+nsHTTPCompressConv::check_header(nsIInputStream *iStr, PRUint32 streamLen, nsresult *rs)
 {
+    nsresult rv;
     enum  { GZIP_INIT = 0, GZIP_OS, GZIP_EXTRA0, GZIP_EXTRA1, GZIP_EXTRA2, GZIP_ORIG, GZIP_COMMENT, GZIP_CRC };
     char c;
 
@@ -374,8 +410,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsres
         switch (hMode)
         {
             case GZIP_INIT:
-                uint32_t unused;
-                iStr->Read(&c, 1, &unused);
+                iStr->Read (&c, 1, &rv);
                 streamLen--;
                 
                 if (mSkipCount == 0 && ((unsigned)c & 0377) != gz_magic[0])
@@ -411,7 +446,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsres
                 break;
 
             case GZIP_OS:
-                iStr->Read(&c, 1, &unused);
+                iStr->Read(&c, 1, &rv);
                 streamLen--;
                 mSkipCount++;
 
@@ -422,7 +457,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsres
             case GZIP_EXTRA0:
                 if (mFlags & EXTRA_FIELD)
                 {
-                    iStr->Read(&c, 1, &unused);
+                    iStr->Read(&c, 1, &rv);
                     streamLen--;
                     mLen = (uInt) c & 0377;
                     hMode = GZIP_EXTRA1;
@@ -432,7 +467,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsres
                 break;
 
             case GZIP_EXTRA1:
-                iStr->Read(&c, 1, &unused);
+                iStr->Read(&c, 1, &rv);
                 streamLen--;
                 mLen = ((uInt) c & 0377) << 8;
                 mSkipCount = 0;
@@ -444,7 +479,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsres
                     hMode = GZIP_ORIG;
                 else
                 {
-                    iStr->Read(&c, 1, &unused);
+                    iStr->Read(&c, 1, &rv);
                     streamLen--;
                     mSkipCount++;
                 }
@@ -453,7 +488,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsres
             case GZIP_ORIG:
                 if (mFlags & ORIG_NAME)
                 {
-                    iStr->Read(&c, 1, &unused);
+                    iStr->Read(&c, 1, &rv);
                     streamLen--;
                     if (c == 0)
                         hMode = GZIP_COMMENT;
@@ -465,7 +500,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsres
             case GZIP_COMMENT:
                 if (mFlags & COMMENT)
                 {
-                    iStr->Read(&c, 1, &unused);
+                    iStr->Read(&c, 1, &rv);
                     streamLen--;
                     if (c == 0)
                     {
@@ -483,18 +518,18 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsres
             case GZIP_CRC:
                 if (mFlags & HEAD_CRC)
                 {
-                    iStr->Read(&c, 1, &unused);
+                    iStr->Read(&c, 1, &rv);
                     streamLen--;
                     mSkipCount++;
                     if (mSkipCount == 2)
                     {
-                        mCheckHeaderDone = true;
+                        mCheckHeaderDone = PR_TRUE;
                         return streamLen;
                     }
                 }
                 else
                 {
-                    mCheckHeaderDone = true;
+                    mCheckHeaderDone = PR_TRUE;
                     return streamLen;
                 }
             break;
@@ -506,7 +541,7 @@ nsHTTPCompressConv::check_header(nsIInputStream *iStr, uint32_t streamLen, nsres
 nsresult
 NS_NewHTTPCompressConv(nsHTTPCompressConv **aHTTPCompressConv)
 {
-    NS_PRECONDITION(aHTTPCompressConv != nullptr, "null ptr");
+    NS_PRECONDITION(aHTTPCompressConv != nsnull, "null ptr");
 
     if (!aHTTPCompressConv)
         return NS_ERROR_NULL_POINTER;

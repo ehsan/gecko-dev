@@ -6,6 +6,8 @@
   xmlns:html="http://www.w3.org/1999/xhtml"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <title>Plugin Crash Notification Test</title>
+  <script type="application/javascript" 
+   src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 <body xmlns="http://www.w3.org/1999/xhtml" onload="runTests()">
@@ -15,13 +17,6 @@
 <![CDATA[
 SimpleTest.waitForExplicitFinish();
 
-const isOSXLion = navigator.userAgent.indexOf("Mac OS X 10.7") != -1;
-const isOSXMtnLion = navigator.userAgent.indexOf("Mac OS X 10.8") != -1;
-if (isOSXLion || isOSXMtnLion) {
-  todo(false, "Can't test plugin crash notification on OS X 10.7 or 10.8, see bug 705047");
-  SimpleTest.finish();
-}
-
 var success = false;
 
 var observerFired = false;
@@ -30,6 +25,7 @@ var testObserver = {
   observe: function(subject, topic, data) {
     observerFired = true;
     ok(true, "Observer fired");
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     is(topic, "plugin-crashed", "Checking correct topic");
     is(data,  null, "Checking null data");
     ok((subject instanceof Components.interfaces.nsIPropertyBag2), "got Propbag");
@@ -54,6 +50,7 @@ var testObserver = {
   },
 
   QueryInterface: function(iid) {
+    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
     if (iid.equals(Components.interfaces.nsIObserver) ||
         iid.equals(Components.interfaces.nsISupportsWeakReference) ||
         iid.equals(Components.interfaces.nsISupports))
@@ -71,6 +68,8 @@ function onPluginCrashed(aEvent) {
   var pluginElement = document.getElementById("plugin1");
   is (pluginElement, aEvent.target, "Plugin crashed event target is plugin element");
 
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+  
   ok(aEvent instanceof Components.interfaces.nsIDOMDataContainerEvent,
      "plugin crashed event has the right interface");
 

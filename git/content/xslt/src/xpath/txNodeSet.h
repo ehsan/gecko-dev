@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * The MITRE Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Keith Visco <kvisco@ziplink.net> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /**
  * Implementation of an XPath NodeSet
@@ -11,7 +44,7 @@
 #define txNodeSet_h__
 
 #include "txExprResult.h"
-#include "nsError.h"
+#include "txError.h"
 #include "txXPathNode.h"
 
 class txNodeSet : public txAExprResult
@@ -108,7 +141,7 @@ public:
      * sweep() clears all members of the nodeset that haven't been
      * marked before and clear the mMarks array.
      */
-    nsresult mark(int32_t aIndex);
+    nsresult mark(PRInt32 aIndex);
     nsresult sweep();
 
     /**
@@ -123,14 +156,14 @@ public:
      * @param  aStart index to start searching at
      * @return index of specified node or -1 if the node does not exist
      */
-    int32_t indexOf(const txXPathNode& aNode, uint32_t aStart = 0) const;
+    PRInt32 indexOf(const txXPathNode& aNode, PRUint32 aStart = 0) const;
 
     /**
      * Returns true if the specified Node is contained in the set.
      * @param  aNode the Node to search for
      * @return true if specified Node is contained in the NodeSet
      */
-    bool contains(const txXPathNode& aNode) const
+    PRBool contains(const txXPathNode& aNode) const
     {
         return indexOf(aNode) >= 0;
     }
@@ -140,22 +173,22 @@ public:
      * @param  aIndex the node of the Node to return
      * @return Node at specified node
      */
-    const txXPathNode& get(int32_t aIndex) const;
+    const txXPathNode& get(PRInt32 aIndex) const;
 
     /**
      * Returns true if there are no Nodes in the NodeSet.
      * @return true if there are no Nodes in the NodeSet.
      */
-    bool isEmpty() const
+    PRBool isEmpty() const
     {
-        return mStart ? mStart == mEnd : true;
+        return mStart ? mStart == mEnd : PR_TRUE;
     }
 
     /**
      * Returns the number of elements in the NodeSet
      * @return the number of elements in the NodeSet
      */
-    int32_t size() const
+    PRInt32 size() const
     {
         return mStart ? mEnd - mStart : 0;
     }
@@ -168,7 +201,7 @@ private:
      *
      * Changes mStart and mEnd as well as mBufferStart and mBufferEnd.
      */
-    bool ensureGrowSize(int32_t aSize);
+    PRBool ensureGrowSize(PRInt32 aSize);
 
     /**
      * Finds position in the buffer where a node should be inserted
@@ -186,7 +219,7 @@ private:
      */
     txXPathNode* findPosition(const txXPathNode& aNode, 
                               txXPathNode* aFirst,
-                              txXPathNode* aLast, bool& aDupe) const;
+                              txXPathNode* aLast, PRBool& aDupe) const;
 
     static void copyElements(txXPathNode* aDest, const txXPathNode* aStart,
                              const txXPathNode* aEnd);
@@ -209,9 +242,9 @@ private:
                  destroyOp aDestroy);
 
     txXPathNode *mStart, *mEnd, *mStartBuffer, *mEndBuffer;
-    int32_t mDirection;
+    PRInt32 mDirection;
     // used for mark() and sweep() in predicates
-    bool* mMarks;
+    PRPackedBool* mMarks;
 };
 
 #endif

@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mitesh Shah <mitesh@netscape.com>
+ *   Dan Mosedale <dmose@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #if defined(MOZ_LDAP_XPCOM)
 
@@ -21,7 +55,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsLDAPSyncQuery, nsILDAPSyncQuery, nsILDAPMessageL
 // Constructor
 //
 nsLDAPSyncQuery::nsLDAPSyncQuery() :
-    mFinished(false), // This is a control variable for event loop
+    mFinished(PR_FALSE), // This is a control variable for event loop
     mAttrCount(0), mAttrs(0), mProtocolVersion(nsILDAPConnection::VERSION3)
 {
 }
@@ -39,7 +73,7 @@ nsLDAPSyncQuery::~nsLDAPSyncQuery()
 NS_IMETHODIMP 
 nsLDAPSyncQuery::OnLDAPMessage(nsILDAPMessage *aMessage)
 {
-    int32_t messageType;
+    PRInt32 messageType;
 
     // just in case.
     //
@@ -122,7 +156,7 @@ nsLDAPSyncQuery::OnLDAPInit(nsILDAPConnection *aConn, nsresult aStatus)
 
     // our OnLDAPMessage accepts all result callbacks
     //
-    rv = mOperation->Init(mConnection, selfProxy, nullptr);
+    rv = mOperation->Init(mConnection, selfProxy, nsnull);
     if (NS_FAILED(rv)) {
         FinishLDAPQuery();
         return NS_ERROR_UNEXPECTED; // this should never happen
@@ -143,7 +177,7 @@ nsresult
 nsLDAPSyncQuery::OnLDAPBind(nsILDAPMessage *aMessage)
 {
 
-    int32_t errCode;
+    PRInt32 errCode;
 
     mOperation = 0;  // done with bind op; make nsCOMPtr release it
 
@@ -179,10 +213,10 @@ nsLDAPSyncQuery::OnLDAPSearchEntry(nsILDAPMessage *aMessage)
     // Attributes are retrieved in StartLDAPSearch
     // iterate through them
     //
-    for (uint32_t i = 0; i < mAttrCount; i++) {
+    for (PRUint32 i = 0; i < mAttrCount; i++) {
 
         PRUnichar **vals;
-        uint32_t valueCount;
+        PRUint32 valueCount;
 
         // get the values of this attribute
         // XXX better failure handling
@@ -197,7 +231,7 @@ nsLDAPSyncQuery::OnLDAPSearchEntry(nsILDAPMessage *aMessage)
 
         // store  all values of this attribute in the mResults.
         //
-        for (uint32_t j = 0; j < valueCount; j++) {
+        for (PRUint32 j = 0; j < valueCount; j++) {
             mResults.Append(PRUnichar('\n'));
             mResults.AppendASCII(mAttrs[i]);
             mResults.Append(PRUnichar('='));
@@ -263,7 +297,7 @@ nsLDAPSyncQuery::StartLDAPSearch()
 
     // initialize the LDAP operation object
     //
-    rv = mOperation->Init(mConnection, selfProxy, nullptr);
+    rv = mOperation->Init(mConnection, selfProxy, nsnull);
     if (NS_FAILED(rv)) {
         NS_ERROR("nsLDAPSyncQuery::StartLDAPSearch(): couldn't "
                  "initialize LDAP operation");
@@ -273,7 +307,7 @@ nsLDAPSyncQuery::StartLDAPSearch()
 
     // get the search filter associated with the directory server url; 
     //
-    nsAutoCString urlFilter;
+    nsCAutoString urlFilter;
     rv = mServerURL->GetFilter(urlFilter);
     if (NS_FAILED(rv)) {
         FinishLDAPQuery();
@@ -282,7 +316,7 @@ nsLDAPSyncQuery::StartLDAPSearch()
 
     // get the base dn to search
     //
-    nsAutoCString dn;
+    nsCAutoString dn;
     rv = mServerURL->GetDn(dn);
     if (NS_FAILED(rv)) {
         FinishLDAPQuery();
@@ -291,7 +325,7 @@ nsLDAPSyncQuery::StartLDAPSearch()
 
     // and the scope
     //
-    int32_t scope;
+    PRInt32 scope;
     rv = mServerURL->GetScope(&scope);
     if (NS_FAILED(rv)) {
         FinishLDAPQuery();
@@ -361,7 +395,7 @@ nsresult nsLDAPSyncQuery::InitConnection()
     }
 
     rv = mConnection->Init(mServerURL, EmptyCString(), selfProxy,
-                           nullptr, mProtocolVersion);
+                           nsnull, mProtocolVersion);
     if (NS_FAILED(rv)) {
         FinishLDAPQuery();
         return NS_ERROR_UNEXPECTED; // this should never happen
@@ -376,7 +410,7 @@ nsLDAPSyncQuery::FinishLDAPQuery()
     // We are done with the LDAP operation. 
     // Release the Control variable for the eventloop
     //
-    mFinished = true;
+    mFinished = PR_TRUE;
     
     // Release member variables
     //
@@ -388,7 +422,7 @@ nsLDAPSyncQuery::FinishLDAPQuery()
 
 /* wstring getQueryResults (in nsILDAPURL aServerURL, in unsigned long aVersion); */
 NS_IMETHODIMP nsLDAPSyncQuery::GetQueryResults(nsILDAPURL *aServerURL,
-                                               uint32_t aProtocolVersion,
+                                               PRUint32 aProtocolVersion,
                                                PRUnichar **_retval)
 {
     nsresult rv;

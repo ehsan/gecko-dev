@@ -1,9 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  * vim:cindent:ts=2:et:sw=2:
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
  *
  * This Original Code has been modified by IBM Corporation. Modifications made by IBM 
  * described herein are Copyright (c) International Business Machines Corporation, 2000.
@@ -24,7 +56,6 @@
 #define nsPropertyTable_h_
 
 #include "nscore.h"
-#include "prtypes.h"
 
 class nsIAtom;
 typedef PRUptrdiff PtrBits;
@@ -72,9 +103,9 @@ class nsPropertyTable
    **/
   void* GetProperty(nsPropertyOwner aObject,
                     nsIAtom    *aPropertyName,
-                    nsresult   *aResult = nullptr)
+                    nsresult   *aResult = nsnull)
   {
-    return GetPropertyInternal(aObject, aPropertyName, false, aResult);
+    return GetPropertyInternal(aObject, aPropertyName, PR_FALSE, aResult);
   }
 
   /**
@@ -87,11 +118,11 @@ class nsPropertyTable
    * error to set a given property with a different destructor than was used
    * before (this will return NS_ERROR_INVALID_ARG). If aOldValue is non-null
    * it will contain the old value after the function returns (the destructor
-   * for the old value will not be run in that case). If |aTransfer| is true
+   * for the old value will not be run in that case). If |aTransfer| is PR_TRUE
    * the property will be transfered to the new table when the property table
    * for |aObject| changes (currently the tables for nodes are owned by their
    * ownerDocument, so if the ownerDocument for a node changes, its property
-   * table changes too). If |aTransfer| is false the property will just be
+   * table changes too). If |aTransfer| is PR_FALSE the property will just be
    * deleted instead.
    */
   NS_HIDDEN_(nsresult) SetProperty(nsPropertyOwner     aObject,
@@ -99,8 +130,8 @@ class nsPropertyTable
                                    void               *aPropertyValue,
                                    NSPropertyDtorFunc  aDtor,
                                    void               *aDtorData,
-                                   bool                aTransfer = false,
-                                   void              **aOldValue = nullptr)
+                                   PRBool              aTransfer = PR_FALSE,
+                                   void              **aOldValue = nsnull)
   {
     return SetPropertyInternal(aObject, aPropertyName, aPropertyValue,
                                aDtor, aDtorData, aTransfer, aOldValue);
@@ -120,9 +151,9 @@ class nsPropertyTable
    */
   void* UnsetProperty(nsPropertyOwner aObject,
                       nsIAtom    *aPropertyName,
-                      nsresult   *aStatus = nullptr)
+                      nsresult   *aStatus = nsnull)
   {
-    return GetPropertyInternal(aObject, aPropertyName, true, aStatus);
+    return GetPropertyInternal(aObject, aPropertyName, PR_TRUE, aStatus);
   }
 
   /**
@@ -133,7 +164,7 @@ class nsPropertyTable
 
   /**
    * Transfers all properties for object |aObject| that were set with the
-   * |aTransfer| argument as true to |aTable|. Deletes the other properties
+   * |aTransfer| argument as PR_TRUE to |aTable|. Deletes the other properties
    * for object |aObject|, calling the destructor function for each property.
    * If transfering a property fails, this deletes all the properties for
    * object |aObject|.
@@ -151,19 +182,12 @@ class nsPropertyTable
                              NSPropertyFunc aCallback, void *aData);
 
   /**
-   * Enumerate all the properties.
-   * For every property |aCallback| will be called with arguments the owner,
-   * the property name, the property value and |aData|.
-   */
-  NS_HIDDEN_(void) EnumerateAll(NSPropertyFunc aCallback, void *aData);
-
-  /**
    * Deletes all of the properties for all objects in the property
    * table, calling the destructor function for each property.
    */
   NS_HIDDEN_(void) DeleteAllProperties();
 
-  nsPropertyTable() : mPropertyList(nullptr) {}  
+  nsPropertyTable() : mPropertyList(nsnull) {}  
   ~nsPropertyTable() {
     DeleteAllProperties();
   }
@@ -178,21 +202,19 @@ class nsPropertyTable
 
   class PropertyList;
 
-  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-
  private:
   NS_HIDDEN_(void) DestroyPropertyList();
   NS_HIDDEN_(PropertyList*) GetPropertyListFor(nsIAtom *aPropertyName) const;
   NS_HIDDEN_(void*) GetPropertyInternal(nsPropertyOwner aObject,
                                         nsIAtom    *aPropertyName,
-                                        bool        aRemove,
+                                        PRBool      aRemove,
                                         nsresult   *aStatus);
   NS_HIDDEN_(nsresult) SetPropertyInternal(nsPropertyOwner     aObject,
                                            nsIAtom            *aPropertyName,
                                            void               *aPropertyValue,
                                            NSPropertyDtorFunc  aDtor,
                                            void               *aDtorData,
-                                           bool                aTransfer,
+                                           PRBool              aTransfer,
                                            void              **aOldValue);
 
   PropertyList *mPropertyList;

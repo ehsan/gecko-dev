@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* representation of length values in computed style data */
 
@@ -25,7 +57,6 @@ enum nsStyleUnit {
   eStyleUnit_Degree       = 12,     // (float) angle in degrees
   eStyleUnit_Grad         = 13,     // (float) angle in grads
   eStyleUnit_Radian       = 14,     // (float) angle in radians
-  eStyleUnit_Turn         = 15,     // (float) angle in turns
   eStyleUnit_Coord        = 20,     // (nscoord) value is twips
   eStyleUnit_Integer      = 30,     // (int) value is simple integer
   eStyleUnit_Enumerated   = 32,     // (int) value has enumerated meaning
@@ -37,7 +68,7 @@ enum nsStyleUnit {
 };
 
 typedef union {
-  int32_t     mInt;   // nscoord is a int32_t for now
+  PRInt32     mInt;   // nscoord is a PRInt32 for now
   float       mFloat;
   // An mPointer is a weak pointer to a value that is guaranteed to
   // outlive the nsStyleCoord.  In the case of nsStyleCoord::Calc*, it
@@ -61,7 +92,7 @@ public:
     // Every calc() expression evaluates to a length plus a percentage.
     nscoord mLength;
     float mPercent;
-    bool mHasPercent; // whether there was any % syntax, even if 0
+    PRPackedBool mHasPercent; // whether there was any % syntax, even if 0
 
     bool operator==(const Calc& aOther) const {
       return mLength == aOther.mLength &&
@@ -74,38 +105,33 @@ public:
   nsStyleCoord(nsStyleUnit aUnit = eStyleUnit_Null);
   enum CoordConstructorType { CoordConstructor };
   inline nsStyleCoord(nscoord aValue, CoordConstructorType);
-  nsStyleCoord(int32_t aValue, nsStyleUnit aUnit);
+  nsStyleCoord(PRInt32 aValue, nsStyleUnit aUnit);
   nsStyleCoord(float aValue, nsStyleUnit aUnit);
   inline nsStyleCoord(const nsStyleCoord& aCopy);
   inline nsStyleCoord(const nsStyleUnion& aValue, nsStyleUnit aUnit);
 
-  nsStyleCoord&  operator=(const nsStyleCoord& aOther)
-  {
-    mUnit = aOther.mUnit;
-    mValue = aOther.mValue;
-    return *this;
-  }
-  bool           operator==(const nsStyleCoord& aOther) const;
-  bool           operator!=(const nsStyleCoord& aOther) const;
+  nsStyleCoord&  operator=(const nsStyleCoord& aCopy);
+  PRBool         operator==(const nsStyleCoord& aOther) const;
+  PRBool         operator!=(const nsStyleCoord& aOther) const;
 
   nsStyleUnit GetUnit() const {
     NS_ASSERTION(mUnit != eStyleUnit_Null, "reading uninitialized value");
     return mUnit;
   }
 
-  bool IsAngleValue() const {
-    return eStyleUnit_Degree <= mUnit && mUnit <= eStyleUnit_Turn;
+  PRBool IsAngleValue() const {
+    return eStyleUnit_Degree <= mUnit && mUnit <= eStyleUnit_Radian;
   }
 
-  bool IsCalcUnit() const {
+  PRBool IsCalcUnit() const {
     return eStyleUnit_Calc == mUnit;
   }
 
-  bool IsPointerValue() const {
+  PRBool IsPointerValue() const {
     return IsCalcUnit();
   }
 
-  bool IsCoordPercentCalcUnit() const {
+  PRBool IsCoordPercentCalcUnit() const {
     return mUnit == eStyleUnit_Coord ||
            mUnit == eStyleUnit_Percent ||
            IsCalcUnit();
@@ -113,33 +139,32 @@ public:
 
   // Does this calc() expression have any percentages inside it?  Can be
   // called only when IsCalcUnit() is true.
-  bool CalcHasPercent() const {
+  PRBool CalcHasPercent() const {
     return GetCalcValue()->mHasPercent;
   }
 
-  bool HasPercent() const {
+  PRBool HasPercent() const {
     return mUnit == eStyleUnit_Percent ||
            (IsCalcUnit() && CalcHasPercent());
   }
 
-  bool ConvertsToLength() const {
+  PRBool ConvertsToLength() const {
     return mUnit == eStyleUnit_Coord ||
            (IsCalcUnit() && !CalcHasPercent());
   }
 
   nscoord     GetCoordValue() const;
-  int32_t     GetIntValue() const;
+  PRInt32     GetIntValue() const;
   float       GetPercentValue() const;
   float       GetFactorValue() const;
   float       GetAngleValue() const;
   double      GetAngleValueInRadians() const;
   Calc*       GetCalcValue() const;
   void        GetUnionValue(nsStyleUnion& aValue) const;
-  uint32_t    HashValue(uint32_t aHash) const;
 
   void  Reset();  // sets to null
   void  SetCoordValue(nscoord aValue);
-  void  SetIntValue(int32_t aValue, nsStyleUnit aUnit);
+  void  SetIntValue(PRInt32 aValue, nsStyleUnit aUnit);
   void  SetPercentValue(float aValue);
   void  SetFactorValue(float aValue);
   void  SetAngleValue(float aValue, nsStyleUnit aUnit);
@@ -148,7 +173,7 @@ public:
   void  SetNoneValue();
   void  SetCalcValue(Calc* aValue);
 
-private:
+public: // FIXME: private!
   nsStyleUnit   mUnit;
   nsStyleUnion  mValue;
 };
@@ -163,8 +188,8 @@ public:
   nsStyleSides();
 
 //  nsStyleSides&  operator=(const nsStyleSides& aCopy);  // use compiler's version
-  bool           operator==(const nsStyleSides& aOther) const;
-  bool           operator!=(const nsStyleSides& aOther) const;
+  PRBool         operator==(const nsStyleSides& aOther) const;
+  PRBool         operator!=(const nsStyleSides& aOther) const;
 
   inline nsStyleUnit GetUnit(mozilla::css::Side aSide) const;
   inline nsStyleUnit GetLeftUnit() const;
@@ -187,7 +212,7 @@ public:
   inline void SetBottom(const nsStyleCoord& aCoord);
 
 protected:
-  uint8_t       mUnits[4];
+  PRUint8       mUnits[4];
   nsStyleUnion  mValues[4];
 };
 
@@ -202,20 +227,20 @@ public:
 
   // use compiler's version
   //nsStyleCorners&  operator=(const nsStyleCorners& aCopy);
-  bool           operator==(const nsStyleCorners& aOther) const;
-  bool           operator!=(const nsStyleCorners& aOther) const;
+  PRBool         operator==(const nsStyleCorners& aOther) const;
+  PRBool         operator!=(const nsStyleCorners& aOther) const;
 
   // aCorner is always one of NS_CORNER_* defined in nsStyleConsts.h
-  inline nsStyleUnit GetUnit(uint8_t aHalfCorner) const;
+  inline nsStyleUnit GetUnit(PRUint8 aHalfCorner) const;
 
-  inline nsStyleCoord Get(uint8_t aHalfCorner) const;
+  inline nsStyleCoord Get(PRUint8 aHalfCorner) const;
 
   void  Reset();
 
-  inline void Set(uint8_t aHalfCorner, const nsStyleCoord& aCoord);
+  inline void Set(PRUint8 aHalfCorner, const nsStyleCoord& aCoord);
 
 protected:
-  uint8_t       mUnits[8];
+  PRUint8       mUnits[8];
   nsStyleUnion  mValues[8];
 };
 
@@ -247,16 +272,17 @@ inline nsStyleCoord::nsStyleCoord(const nsStyleCoord& aCopy)
 }
 
 inline nsStyleCoord::nsStyleCoord(const nsStyleUnion& aValue, nsStyleUnit aUnit)
-  : mUnit(aUnit), mValue(aValue)
+  : mUnit(aUnit)
 {
+  memcpy(&mValue, &aValue, sizeof(nsStyleUnion));
 }
 
-inline bool nsStyleCoord::operator!=(const nsStyleCoord& aOther) const
+inline PRBool nsStyleCoord::operator!=(const nsStyleCoord& aOther) const
 {
   return !((*this) == aOther);
 }
 
-inline nscoord nsStyleCoord::GetCoordValue() const
+inline PRInt32 nsStyleCoord::GetCoordValue() const
 {
   NS_ASSERTION((mUnit == eStyleUnit_Coord), "not a coord value");
   if (mUnit == eStyleUnit_Coord) {
@@ -265,7 +291,7 @@ inline nscoord nsStyleCoord::GetCoordValue() const
   return 0;
 }
 
-inline int32_t nsStyleCoord::GetIntValue() const
+inline PRInt32 nsStyleCoord::GetIntValue() const
 {
   NS_ASSERTION((mUnit == eStyleUnit_Enumerated) ||
                (mUnit == eStyleUnit_Integer), "not an int value");
@@ -297,8 +323,8 @@ inline float nsStyleCoord::GetFactorValue() const
 inline float nsStyleCoord::GetAngleValue() const
 {
   NS_ASSERTION(mUnit >= eStyleUnit_Degree &&
-               mUnit <= eStyleUnit_Turn, "not an angle value");
-  if (mUnit >= eStyleUnit_Degree && mUnit <= eStyleUnit_Turn) {
+               mUnit <= eStyleUnit_Radian, "not an angle value");
+  if (mUnit >= eStyleUnit_Degree && mUnit <= eStyleUnit_Radian) {
     return mValue.mFloat;
   }
   return 0.0f;
@@ -310,19 +336,19 @@ inline nsStyleCoord::Calc* nsStyleCoord::GetCalcValue() const
   if (IsCalcUnit()) {
     return static_cast<Calc*>(mValue.mPointer);
   }
-  return nullptr;
+  return nsnull;
 }
 
 
 inline void nsStyleCoord::GetUnionValue(nsStyleUnion& aValue) const
 {
-  aValue = mValue;
+  memcpy(&aValue, &mValue, sizeof(nsStyleUnion));
 }
 
 // -------------------------
 // nsStyleSides inlines
 //
-inline bool nsStyleSides::operator!=(const nsStyleSides& aOther) const
+inline PRBool nsStyleSides::operator!=(const nsStyleSides& aOther) const
 {
   return !((*this) == aOther);
 }
@@ -406,22 +432,22 @@ inline void nsStyleSides::SetBottom(const nsStyleCoord& aCoord)
 // -------------------------
 // nsStyleCorners inlines
 //
-inline bool nsStyleCorners::operator!=(const nsStyleCorners& aOther) const
+inline PRBool nsStyleCorners::operator!=(const nsStyleCorners& aOther) const
 {
   return !((*this) == aOther);
 }
 
-inline nsStyleUnit nsStyleCorners::GetUnit(uint8_t aCorner) const
+inline nsStyleUnit nsStyleCorners::GetUnit(PRUint8 aCorner) const
 {
   return (nsStyleUnit)mUnits[aCorner];
 }
 
-inline nsStyleCoord nsStyleCorners::Get(uint8_t aCorner) const
+inline nsStyleCoord nsStyleCorners::Get(PRUint8 aCorner) const
 {
   return nsStyleCoord(mValues[aCorner], nsStyleUnit(mUnits[aCorner]));
 }
 
-inline void nsStyleCorners::Set(uint8_t aCorner, const nsStyleCoord& aCoord)
+inline void nsStyleCorners::Set(PRUint8 aCorner, const nsStyleCoord& aCoord)
 {
   mUnits[aCorner] = aCoord.GetUnit();
   aCoord.GetUnionValue(mValues[aCorner]);

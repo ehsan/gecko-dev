@@ -1,15 +1,46 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 // vim:cindent:ts=2:et:sw=2:
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* class that manages rules for positioning floats */
 
 #ifndef nsFloatManager_h_
 #define nsFloatManager_h_
-
-#include "mozilla/Attributes.h"
 
 #include "nsIntervalSet.h"
 #include "nsCoord.h"
@@ -30,10 +61,10 @@ class nsPresContext;
  */
 struct nsFlowAreaRect {
   nsRect mRect;
-  bool mHasFloats;
+  PRPackedBool mHasFloats;
 
   nsFlowAreaRect(nscoord aX, nscoord aY, nscoord aWidth, nscoord aHeight,
-                 bool aHasFloats)
+                 PRBool aHasFloats)
     : mRect(aX, aY, aWidth, aHeight), mHasFloats(aHasFloats) {}
 };
 
@@ -77,12 +108,12 @@ public:
   friend struct SavedState;
   struct SavedState {
   private:
-    uint32_t mFloatInfoCount;
+    PRUint32 mFloatInfoCount;
     nscoord mX, mY;
-    bool mPushedLeftFloatPastBreak;
-    bool mPushedRightFloatPastBreak;
-    bool mSplitLeftFloatAcrossBreak;
-    bool mSplitRightFloatAcrossBreak;
+    PRPackedBool mPushedLeftFloatPastBreak;
+    PRPackedBool mPushedRightFloatPastBreak;
+    PRPackedBool mSplitLeftFloatAcrossBreak;
+    PRPackedBool mSplitRightFloatAcrossBreak;
 
     friend class nsFloatManager;
   };
@@ -160,9 +191,9 @@ public:
    * also means that any clear needs to continue to the next column.)
    */
   void SetPushedLeftFloatPastBreak()
-    { mPushedLeftFloatPastBreak = true; }
+    { mPushedLeftFloatPastBreak = PR_TRUE; }
   void SetPushedRightFloatPastBreak()
-    { mPushedRightFloatPastBreak = true; }
+    { mPushedRightFloatPastBreak = PR_TRUE; }
 
   /**
    * Notify that we split a float, with part of it needing to be pushed
@@ -170,9 +201,9 @@ public:
    * continue to the next page/column.)
    */
   void SetSplitLeftFloatAcrossBreak()
-    { mSplitLeftFloatAcrossBreak = true; }
+    { mSplitLeftFloatAcrossBreak = PR_TRUE; }
   void SetSplitRightFloatAcrossBreak()
-    { mSplitRightFloatAcrossBreak = true; }
+    { mSplitRightFloatAcrossBreak = PR_TRUE; }
 
   /**
    * Remove the regions associated with this floating frame and its
@@ -188,13 +219,13 @@ private:
   struct FloatInfo;
 public:
 
-  bool HasAnyFloats() const { return !mFloats.IsEmpty(); }
+  PRBool HasAnyFloats() const { return !mFloats.IsEmpty(); }
 
   /**
    * Methods for dealing with the propagation of float damage during
    * reflow.
    */
-  bool HasFloatDamage() const
+  PRBool HasFloatDamage() const
   {
     return !mFloatDamage.IsEmpty();
   }
@@ -204,7 +235,7 @@ public:
     mFloatDamage.IncludeInterval(aIntervalBegin + mY, aIntervalEnd + mY);
   }
 
-  bool IntersectsDamage(nscoord aIntervalBegin, nscoord aIntervalEnd) const
+  PRBool IntersectsDamage(nscoord aIntervalBegin, nscoord aIntervalEnd) const
   {
     return mFloatDamage.Intersects(aIntervalBegin + mY, aIntervalEnd + mY);
   }
@@ -246,13 +277,13 @@ public:
     // pushed to the next page/column.
     DONT_CLEAR_PUSHED_FLOATS = (1<<0)
   };
-  nscoord ClearFloats(nscoord aY, uint8_t aBreakType, uint32_t aFlags = 0) const;
+  nscoord ClearFloats(nscoord aY, PRUint8 aBreakType, PRUint32 aFlags = 0) const;
 
   /**
    * Checks if clear would pass into the floats' BFC's next-in-flow,
    * i.e. whether floats affecting this clear have continuations.
    */
-  bool ClearContinues(uint8_t aBreakType) const;
+  PRBool ClearContinues(PRUint8 aBreakType) const;
 
   void AssertStateMatches(SavedState *aState) const
   {
@@ -301,20 +332,20 @@ private:
   // float cannot be above the top of an earlier float.  And we also
   // need to apply this information to 'clear', and thus need to
   // separate left and right floats.
-  bool mPushedLeftFloatPastBreak;
-  bool mPushedRightFloatPastBreak;
+  PRPackedBool mPushedLeftFloatPastBreak;
+  PRPackedBool mPushedRightFloatPastBreak;
 
   // Did we split a float, with part of it needing to be pushed to the
   // next page/column.  This means that any 'clear' needs to continue to
   // the next page/column.
-  bool mSplitLeftFloatAcrossBreak;
-  bool mSplitRightFloatAcrossBreak;
+  PRPackedBool mSplitLeftFloatAcrossBreak;
+  PRPackedBool mSplitRightFloatAcrossBreak;
 
-  static int32_t sCachedFloatManagerCount;
+  static PRInt32 sCachedFloatManagerCount;
   static void* sCachedFloatManagers[NS_FLOAT_MANAGER_CACHE_SIZE];
 
-  nsFloatManager(const nsFloatManager&) MOZ_DELETE;
-  void operator=(const nsFloatManager&) MOZ_DELETE;
+  nsFloatManager(const nsFloatManager&);  // no implementation
+  void operator=(const nsFloatManager&);  // no implementation
 };
 
 /**
@@ -326,8 +357,8 @@ class nsAutoFloatManager {
 public:
   nsAutoFloatManager(nsHTMLReflowState& aReflowState)
     : mReflowState(aReflowState),
-      mNew(nullptr),
-      mOld(nullptr) {}
+      mNew(nsnull),
+      mOld(nsnull) {}
 
   ~nsAutoFloatManager();
 

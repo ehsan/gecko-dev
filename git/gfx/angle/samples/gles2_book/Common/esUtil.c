@@ -22,32 +22,11 @@
 #include <stdlib.h>
 #include <GLES2/gl2.h>
 #include <EGL/egl.h>
-#include <EGL/eglext.h>
 #include "esUtil.h"
 #include "esUtil_win.h"
 
-#if defined(_MSC_VER)
-#pragma warning(disable: 4204) // nonstandard extension used : non-constant aggregate initializer
-#endif
 
-///
-//  Extensions
-//
 
-PFNEGLCREATEIMAGEKHRPROC eglCreateImageKHR;
-PFNEGLDESTROYIMAGEKHRPROC eglDestroyImageKHR;
-
-PFNEGLPOSTSUBBUFFERNVPROC eglPostSubBufferNV;
-
-PFNGLEGLIMAGETARGETTEXTURE2DOESPROC glEGLImageTargetTexture2DOES;
-
-PFNGLDELETEFENCESNVPROC glDeleteFencesNV;
-PFNGLGENFENCESNVPROC glGenFencesNV;
-PFNGLGETFENCEIVNVPROC glGetFenceivNV;
-PFNGLISFENCENVPROC glIsFenceNV;
-PFNGLFINISHFENCENVPROC glFinishFenceNV;
-PFNGLSETFENCENVPROC glSetFenceNV;
-PFNGLTESTFENCENVPROC glTestFenceNV;
 
 ///
 // CreateEGLContext()
@@ -56,7 +35,7 @@ PFNGLTESTFENCENVPROC glTestFenceNV;
 //
 EGLBoolean CreateEGLContext ( EGLNativeWindowType hWnd, EGLDisplay* eglDisplay,
                               EGLContext* eglContext, EGLSurface* eglSurface,
-                              EGLint* configAttribList, EGLint* surfaceAttribList)
+                              EGLint attribList[])
 {
    EGLint numConfigs;
    EGLint majorVersion;
@@ -66,7 +45,7 @@ EGLBoolean CreateEGLContext ( EGLNativeWindowType hWnd, EGLDisplay* eglDisplay,
    EGLSurface surface;
    EGLConfig config;
    EGLint contextAttribs[] = { EGL_CONTEXT_CLIENT_VERSION, 2, EGL_NONE, EGL_NONE };
-   
+
    // Get Display
    display = eglGetDisplay(GetDC(hWnd));
    if ( display == EGL_NO_DISPLAY )
@@ -80,22 +59,6 @@ EGLBoolean CreateEGLContext ( EGLNativeWindowType hWnd, EGLDisplay* eglDisplay,
       return EGL_FALSE;
    }
 
-   // Bind to extensions
-   eglCreateImageKHR = (PFNEGLCREATEIMAGEKHRPROC) eglGetProcAddress("eglCreateImageKHR");
-   eglDestroyImageKHR = (PFNEGLDESTROYIMAGEKHRPROC) eglGetProcAddress("eglDestroyImageKHR");
-   
-   eglPostSubBufferNV = (PFNEGLPOSTSUBBUFFERNVPROC) eglGetProcAddress("eglPostSubBufferNV");
-
-   glEGLImageTargetTexture2DOES = (PFNGLEGLIMAGETARGETTEXTURE2DOESPROC) eglGetProcAddress("glEGLImageTargetTexture2DOES");
-   
-   glDeleteFencesNV = (PFNGLDELETEFENCESNVPROC) eglGetProcAddress("glDeleteFencesNV");
-   glGenFencesNV = (PFNGLGENFENCESNVPROC) eglGetProcAddress("glGenFencesNV");
-   glGetFenceivNV = (PFNGLGETFENCEIVNVPROC) eglGetProcAddress("glGetFenceivNV");
-   glIsFenceNV = (PFNGLISFENCENVPROC) eglGetProcAddress("glIsFenceNV");
-   glFinishFenceNV = (PFNGLFINISHFENCENVPROC) eglGetProcAddress("glFinishFenceNV");
-   glSetFenceNV = (PFNGLSETFENCENVPROC) eglGetProcAddress("glSetFenceNV");
-   glTestFenceNV = (PFNGLTESTFENCENVPROC) eglGetProcAddress("glTestFenceNV");
-
    // Get configs
    if ( !eglGetConfigs(display, NULL, 0, &numConfigs) )
    {
@@ -103,13 +66,13 @@ EGLBoolean CreateEGLContext ( EGLNativeWindowType hWnd, EGLDisplay* eglDisplay,
    }
 
    // Choose config
-   if ( !eglChooseConfig(display, configAttribList, &config, 1, &numConfigs) )
+   if ( !eglChooseConfig(display, attribList, &config, 1, &numConfigs) )
    {
       return EGL_FALSE;
    }
 
    // Create a surface
-   surface = eglCreateWindowSurface(display, config, (EGLNativeWindowType)hWnd, surfaceAttribList);
+   surface = eglCreateWindowSurface(display, config, (EGLNativeWindowType)hWnd, NULL);
    if ( surface == EGL_NO_SURFACE )
    {
       return EGL_FALSE;
@@ -165,11 +128,10 @@ void ESUTIL_API esInitContext ( ESContext *esContext )
 //          ES_WINDOW_DEPTH       - specifies that a depth buffer should be created
 //          ES_WINDOW_STENCIL     - specifies that a stencil buffer should be created
 //          ES_WINDOW_MULTISAMPLE - specifies that a multi-sample buffer should be created
-//          ES_WINDOW_POST_SUB_BUFFER_SUPPORTED - specifies that EGL_POST_SUB_BUFFER_NV is supported.
 //
 GLboolean ESUTIL_API esCreateWindow ( ESContext *esContext, LPCTSTR title, GLint width, GLint height, GLuint flags )
 {
-   EGLint configAttribList[] =
+   EGLint attribList[] =
    {
        EGL_RED_SIZE,       5,
        EGL_GREEN_SIZE,     6,
@@ -179,11 +141,6 @@ GLboolean ESUTIL_API esCreateWindow ( ESContext *esContext, LPCTSTR title, GLint
        EGL_STENCIL_SIZE,   (flags & ES_WINDOW_STENCIL) ? 8 : EGL_DONT_CARE,
        EGL_SAMPLE_BUFFERS, (flags & ES_WINDOW_MULTISAMPLE) ? 1 : 0,
        EGL_NONE
-   };
-   EGLint surfaceAttribList[] =
-   {
-       EGL_POST_SUB_BUFFER_SUPPORTED_NV, flags & (ES_WINDOW_POST_SUB_BUFFER_SUPPORTED) ? EGL_TRUE : EGL_FALSE,
-       EGL_NONE, EGL_NONE
    };
    
    if ( esContext == NULL )
@@ -204,8 +161,7 @@ GLboolean ESUTIL_API esCreateWindow ( ESContext *esContext, LPCTSTR title, GLint
                             &esContext->eglDisplay,
                             &esContext->eglContext,
                             &esContext->eglSurface,
-                            configAttribList,
-                            surfaceAttribList ) )
+                            attribList) )
    {
       return GL_FALSE;
    }

@@ -1,14 +1,46 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SMIL module.
+ *
+ * The Initial Developer of the Original Code is Brian Birtles.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Brian Birtles <birtles@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsSMILInterval.h"
 
 nsSMILInterval::nsSMILInterval()
 :
-  mBeginFixed(false),
-  mEndFixed(false)
+  mBeginFixed(PR_FALSE),
+  mEndFixed(PR_FALSE)
 {
 }
 
@@ -16,8 +48,8 @@ nsSMILInterval::nsSMILInterval(const nsSMILInterval& aOther)
 :
   mBegin(aOther.mBegin),
   mEnd(aOther.mEnd),
-  mBeginFixed(false),
-  mEndFixed(false)
+  mBeginFixed(PR_FALSE),
+  mEndFixed(PR_FALSE)
 {
   NS_ABORT_IF_FALSE(aOther.mDependentTimes.IsEmpty(),
       "Attempting to copy-construct an interval with dependent times, "
@@ -39,9 +71,9 @@ nsSMILInterval::~nsSMILInterval()
 }
 
 void
-nsSMILInterval::Unlink(bool aFiltered)
+nsSMILInterval::Unlink(PRBool aFiltered)
 {
-  for (int32_t i = mDependentTimes.Length() - 1; i >= 0; --i) {
+  for (PRInt32 i = mDependentTimes.Length() - 1; i >= 0; --i) {
     if (aFiltered) {
       mDependentTimes[i]->HandleFilteredInterval();
     } else {
@@ -52,11 +84,11 @@ nsSMILInterval::Unlink(bool aFiltered)
   if (mBegin && mBeginFixed) {
     mBegin->ReleaseFixedEndpoint();
   }
-  mBegin = nullptr;
+  mBegin = nsnull;
   if (mEnd && mEndFixed) {
     mEnd->ReleaseFixedEndpoint();
   }
-  mEnd = nullptr;
+  mEnd = nsnull;
 }
 
 nsSMILInstanceTime*
@@ -78,8 +110,8 @@ nsSMILInterval::End()
 void
 nsSMILInterval::SetBegin(nsSMILInstanceTime& aBegin)
 {
-  NS_ABORT_IF_FALSE(aBegin.Time().IsDefinite(),
-      "Attempting to set unresolved or indefinite begin time on interval");
+  NS_ABORT_IF_FALSE(aBegin.Time().IsResolved(),
+      "Attempting to set unresolved begin time on interval");
   NS_ABORT_IF_FALSE(!mBeginFixed,
       "Attempting to set begin time but the begin point is fixed");
   // Check that we're not making an instance time dependent on itself. Such an
@@ -110,7 +142,7 @@ nsSMILInterval::FixBegin()
   NS_ABORT_IF_FALSE(mBegin && mEnd,
       "Fixing begin point on un-initialized interval");
   NS_ABORT_IF_FALSE(!mBeginFixed, "Duplicate calls to FixBegin()");
-  mBeginFixed = true;
+  mBeginFixed = PR_TRUE;
   mBegin->AddRefFixedEndpoint();
 }
 
@@ -122,7 +154,7 @@ nsSMILInterval::FixEnd()
   NS_ABORT_IF_FALSE(mBeginFixed,
       "Fixing the end of an interval without a fixed begin");
   NS_ABORT_IF_FALSE(!mEndFixed, "Duplicate calls to FixEnd()");
-  mEndFixed = true;
+  mEndFixed = PR_TRUE;
   mEnd->AddRefFixedEndpoint();
 }
 
@@ -140,7 +172,7 @@ void
 nsSMILInterval::RemoveDependentTime(const nsSMILInstanceTime& aTime)
 {
 #ifdef DEBUG
-  bool found =
+  PRBool found =
 #endif
     mDependentTimes.RemoveElementSorted(&aTime);
   NS_ABORT_IF_FALSE(found, "Couldn't find instance time to delete.");
@@ -152,14 +184,14 @@ nsSMILInterval::GetDependentTimes(InstanceTimeList& aTimes)
   aTimes = mDependentTimes;
 }
 
-bool
+PRBool
 nsSMILInterval::IsDependencyChainLink() const
 {
   if (!mBegin || !mEnd)
-    return false; // Not yet initialised so it can't be part of a chain
+    return PR_FALSE; // Not yet initialised so it can't be part of a chain
 
   if (mDependentTimes.IsEmpty())
-    return false; // No dependents, chain end
+    return PR_FALSE; // No dependents, chain end
 
   // So we have dependents, but we're still only a link in the chain (as opposed
   // to the end of the chain) if one of our endpoints is dependent on an

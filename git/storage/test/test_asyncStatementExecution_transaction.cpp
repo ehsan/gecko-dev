@@ -8,7 +8,6 @@
 
 #include "sqlite3.h"
 
-using namespace mozilla;
 using namespace mozilla::storage;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,7 +42,7 @@ int commit_hook(void *aArg)
 void
 check_transaction(mozIStorageConnection *aDB,
                   mozIStorageBaseStatement **aStmts,
-                  uint32_t aStmtsLen,
+                  PRUint32 aStmtsLen,
                   bool aTransactionExpected)
 {
   // -- install a transaction commit hook.
@@ -71,7 +70,7 @@ check_transaction(mozIStorageConnection *aDB,
   }
 
   // -- cleanup
-  for (uint32_t i = 0; i < aStmtsLen; ++i) {
+  for (PRUint32 i = 0; i < aStmtsLen; ++i) {
     aStmts[i]->Finalize();
   }
   blocking_async_close(aDB);
@@ -105,7 +104,7 @@ test_MultipleAsyncReadStatements()
     stmt2,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), false);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), false);
 }
 
 /**
@@ -133,7 +132,7 @@ test_MultipleReadStatements()
     stmt2,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), false);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), false);
 }
 
 /**
@@ -161,7 +160,7 @@ test_MultipleAsyncReadWriteStatements()
     stmt2,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), true);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), true);
 }
 
 /**
@@ -188,7 +187,7 @@ test_MultipleReadWriteStatements()
     stmt2,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), true);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), true);
 }
 
 /**
@@ -216,7 +215,7 @@ test_MultipleAsyncWriteStatements()
     stmt2,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), true);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), true);
 }
 
 /**
@@ -244,7 +243,7 @@ test_MultipleWriteStatements()
     stmt2,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), true);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), true);
 }
 
 /**
@@ -266,7 +265,7 @@ test_SingleAsyncReadStatement()
     stmt,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), false);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), false);
 }
 
 /**
@@ -288,7 +287,7 @@ test_SingleReadStatement()
     stmt,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), false);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), false);
 }
 
 /**
@@ -310,7 +309,7 @@ test_SingleAsyncWriteStatement()
     stmt,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), true);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), true);
 }
 
 /**
@@ -331,7 +330,7 @@ test_SingleWriteStatement()
     stmt,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), true);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), true);
 }
 
 /**
@@ -352,20 +351,20 @@ test_MultipleParamsAsyncReadStatement()
   // -- bind multiple BindingParams
   nsCOMPtr<mozIStorageBindingParamsArray> paramsArray;
   stmt->NewBindingParamsArray(getter_AddRefs(paramsArray));
-  for (int32_t i = 0; i < 2; i++) {
+  for (PRInt32 i = 0; i < 2; i++) {
     nsCOMPtr<mozIStorageBindingParams> params;
     paramsArray->NewBindingParams(getter_AddRefs(params));
     params->BindInt32ByName(NS_LITERAL_CSTRING("param"), 1);
     paramsArray->AddParams(params);
   }
   stmt->BindParameters(paramsArray);
-  paramsArray = nullptr;
+  paramsArray = nsnull;
 
   mozIStorageBaseStatement *stmts[] = {
     stmt,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), false);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), false);
 }
 
 /**
@@ -386,20 +385,20 @@ test_MultipleParamsReadStatement()
   // -- bind multiple BindingParams
   nsCOMPtr<mozIStorageBindingParamsArray> paramsArray;
   stmt->NewBindingParamsArray(getter_AddRefs(paramsArray));
-  for (int32_t i = 0; i < 2; i++) {
+  for (PRInt32 i = 0; i < 2; i++) {
     nsCOMPtr<mozIStorageBindingParams> params;
     paramsArray->NewBindingParams(getter_AddRefs(params));
     params->BindInt32ByName(NS_LITERAL_CSTRING("param"), 1);
     paramsArray->AddParams(params);
   }
   stmt->BindParameters(paramsArray);
-  paramsArray = nullptr;
+  paramsArray = nsnull;
 
   mozIStorageBaseStatement *stmts[] = {
     stmt,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), false);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), false);
 }
 
 /**
@@ -428,20 +427,20 @@ test_MultipleParamsAsyncWriteStatement()
   // -- bind multiple BindingParams
   nsCOMPtr<mozIStorageBindingParamsArray> paramsArray;
   stmt->NewBindingParamsArray(getter_AddRefs(paramsArray));
-  for (int32_t i = 0; i < 2; i++) {
+  for (PRInt32 i = 0; i < 2; i++) {
     nsCOMPtr<mozIStorageBindingParams> params;
     paramsArray->NewBindingParams(getter_AddRefs(params));
     params->BindInt32ByName(NS_LITERAL_CSTRING("param"), 1);
     paramsArray->AddParams(params);
   }
   stmt->BindParameters(paramsArray);
-  paramsArray = nullptr;
+  paramsArray = nsnull;
 
   mozIStorageBaseStatement *stmts[] = {
     stmt,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), true);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), true);
 }
 
 /**
@@ -470,20 +469,20 @@ test_MultipleParamsWriteStatement()
   // -- bind multiple BindingParams
   nsCOMPtr<mozIStorageBindingParamsArray> paramsArray;
   stmt->NewBindingParamsArray(getter_AddRefs(paramsArray));
-  for (int32_t i = 0; i < 2; i++) {
+  for (PRInt32 i = 0; i < 2; i++) {
     nsCOMPtr<mozIStorageBindingParams> params;
     paramsArray->NewBindingParams(getter_AddRefs(params));
     params->BindInt32ByName(NS_LITERAL_CSTRING("param"), 1);
     paramsArray->AddParams(params);
   }
   stmt->BindParameters(paramsArray);
-  paramsArray = nullptr;
+  paramsArray = nsnull;
 
   mozIStorageBaseStatement *stmts[] = {
     stmt,
   };
 
-  check_transaction(db, stmts, ArrayLength(stmts), true);
+  check_transaction(db, stmts, NS_ARRAY_LENGTH(stmts), true);
 }
 
 void (*gTests[])(void) = {

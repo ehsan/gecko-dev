@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jungshik Shin <jshin@mailaps.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "MediaDocument.h"
 #include "nsGkAtoms.h"
@@ -12,12 +45,13 @@
 #include "nsIViewManager.h"
 #include "nsITextToSubURI.h"
 #include "nsIURL.h"
+#include "nsPrintfCString.h"
 #include "nsIContentViewer.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIDocShell.h"
-#include "nsCharsetSource.h" // kCharsetFrom* macro definition
+#include "nsIParser.h" // kCharsetFrom* macro definition
+#include "nsIDocumentCharsetInfo.h" 
 #include "nsNodeInfoManager.h"
-#include "nsContentUtils.h"
 
 namespace mozilla {
 namespace dom {
@@ -68,7 +102,7 @@ MediaDocumentStreamListener::OnStopRequest(nsIRequest* request,
   }
 
   // No more need for our document so clear our reference and prevent leaks
-  mDocument = nullptr;
+  mDocument = nsnull;
 
   return rv;
 }
@@ -77,8 +111,8 @@ NS_IMETHODIMP
 MediaDocumentStreamListener::OnDataAvailable(nsIRequest* request,
                                              nsISupports *ctxt,
                                              nsIInputStream *inStr,
-                                             uint64_t sourceOffset,
-                                             uint32_t count)
+                                             PRUint32 sourceOffset,
+                                             PRUint32 count)
 {
   if (mNextStream) {
     return mNextStream->OnDataAvailable(request, ctxt, inStr, sourceOffset, count);
@@ -97,7 +131,6 @@ const char* const MediaDocument::sFormatNames[4] =
 };
 
 MediaDocument::MediaDocument()
-    : mDocumentElementInserted(false)
 {
 }
 MediaDocument::~MediaDocument()
@@ -118,8 +151,6 @@ MediaDocument::Init()
                                 getter_AddRefs(mStringBundle));
   }
 
-  mIsSyntheticDocument = true;
-
   return NS_OK;
 }
 
@@ -129,7 +160,7 @@ MediaDocument::StartDocumentLoad(const char*         aCommand,
                                  nsILoadGroup*       aLoadGroup,
                                  nsISupports*        aContainer,
                                  nsIStreamListener** aDocListener,
-                                 bool                aReset,
+                                 PRBool              aReset,
                                  nsIContentSink*     aSink)
 {
   nsresult rv = nsDocument::StartDocumentLoad(aCommand, aChannel, aLoadGroup,
@@ -151,7 +182,7 @@ MediaDocument::StartDocumentLoad(const char*         aCommand,
   // the charset of the referring document. On the other hand, if the
   // document is opened in a new window, it is |defaultCharacterSet| of |muCV| 
   // where the charset of our interest is stored. In case of openining 
-  // in a new tab, we get the charset from the docShell. Note that we 
+  // in a new tab, we get the charset from |documentCharsetInfo|. Note that we 
   // exclude UTF-8 as 'invalid' because UTF-8 is likely to be the charset 
   // of a chrome document that has nothing to do with the actual content 
   // whose charset we want to know. Even if "the actual content" is indeed 
@@ -163,12 +194,16 @@ MediaDocument::StartDocumentLoad(const char*         aCommand,
   // not being able to set the charset is not critical.
   NS_ENSURE_TRUE(docShell, NS_OK); 
 
-  nsAutoCString charset;
+  nsCOMPtr<nsIDocumentCharsetInfo> dcInfo;
+  nsCAutoString charset;
 
-  nsCOMPtr<nsIAtom> csAtom;
-  docShell->GetParentCharset(getter_AddRefs(csAtom));
-  if (csAtom) {   // opening in a new tab
-    csAtom->ToUTF8String(charset);
+  docShell->GetDocumentCharsetInfo(getter_AddRefs(dcInfo));
+  if (dcInfo) {
+    nsCOMPtr<nsIAtom> csAtom;
+    dcInfo->GetParentCharset(getter_AddRefs(csAtom));
+    if (csAtom) {   // opening in a new tab
+      csAtom->ToUTF8String(charset);
+    }
   }
 
   if (charset.IsEmpty() || charset.Equals("UTF-8")) {
@@ -194,26 +229,6 @@ MediaDocument::StartDocumentLoad(const char*         aCommand,
   return NS_OK;
 }
 
-void
-MediaDocument::BecomeInteractive()
-{
-  // In principle, if we knew the readyState code to work, we could infer
-  // restoration from GetReadyStateEnum() == nsIDocument::READYSTATE_COMPLETE.
-  bool restoring = false;
-  nsPIDOMWindow* window = GetWindow();
-  if (window) {
-    nsIDocShell* docShell = window->GetDocShell();
-    if (docShell) {
-      docShell->GetRestoringDocument(&restoring);
-    }
-  }
-  if (!restoring) {
-    MOZ_ASSERT(GetReadyStateEnum() == nsIDocument::READYSTATE_LOADING,
-               "Bad readyState");
-    SetReadyStateInternal(nsIDocument::READYSTATE_INTERACTIVE);
-  }
-}
-
 nsresult
 MediaDocument::CreateSyntheticDocument()
 {
@@ -221,54 +236,44 @@ MediaDocument::CreateSyntheticDocument()
   nsresult rv;
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::html, nullptr,
+  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::html, nsnull,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   nsRefPtr<nsGenericHTMLElement> root = NS_NewHTMLHtmlElement(nodeInfo.forget());
-  NS_ENSURE_TRUE(root, NS_ERROR_OUT_OF_MEMORY);
+  if (!root) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
   NS_ASSERTION(GetChildCount() == 0, "Shouldn't have any kids");
-  rv = AppendChildTo(root, false);
+  rv = AppendChildTo(root, PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::head, nullptr,
+  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::head, nsnull,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   // Create a <head> so our title has somewhere to live
   nsRefPtr<nsGenericHTMLElement> head = NS_NewHTMLHeadElement(nodeInfo.forget());
-  NS_ENSURE_TRUE(head, NS_ERROR_OUT_OF_MEMORY);
+  if (!head) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
-  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::meta, nullptr,
-                                           kNameSpaceID_XHTML,
-                                           nsIDOMNode::ELEMENT_NODE);
-  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+  root->AppendChildTo(head, PR_FALSE);
 
-  nsRefPtr<nsGenericHTMLElement> metaContent = NS_NewHTMLMetaElement(nodeInfo.forget());
-  NS_ENSURE_TRUE(metaContent, NS_ERROR_OUT_OF_MEMORY);
-  metaContent->SetAttr(kNameSpaceID_None, nsGkAtoms::name,
-                       NS_LITERAL_STRING("viewport"),
-                       true);
-
-  metaContent->SetAttr(kNameSpaceID_None, nsGkAtoms::content,
-                       NS_LITERAL_STRING("width=device-width; height=device-height;"),
-                       true);
-  head->AppendChildTo(metaContent, false);
-
-  root->AppendChildTo(head, false);
-
-  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::body, nullptr,
+  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::body, nsnull,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   nsRefPtr<nsGenericHTMLElement> body = NS_NewHTMLBodyElement(nodeInfo.forget());
-  NS_ENSURE_TRUE(body, NS_ERROR_OUT_OF_MEMORY);
+  if (!body) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
 
-  root->AppendChildTo(body, false);
+  root->AppendChildTo(body, PR_FALSE);
 
   return NS_OK;
 }
@@ -276,13 +281,13 @@ MediaDocument::CreateSyntheticDocument()
 nsresult
 MediaDocument::StartLayout()
 {
-  mMayStartLayout = true;
+  mMayStartLayout = PR_TRUE;
   nsCOMPtr<nsIPresShell> shell = GetShell();
   // Don't mess with the presshell if someone has already handled
   // its initial reflow.
-  if (shell && !shell->DidInitialize()) {
+  if (shell && !shell->DidInitialReflow()) {
     nsRect visibleArea = shell->GetPresContext()->GetVisibleArea();
-    nsresult rv = shell->Initialize(visibleArea.width, visibleArea.height);
+    nsresult rv = shell->InitialReflow(visibleArea.width, visibleArea.height);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -298,12 +303,12 @@ MediaDocument::GetFileName(nsAString& aResult)
   if (!url)
     return;
 
-  nsAutoCString fileName;
+  nsCAutoString fileName;
   url->GetFileName(fileName);
   if (fileName.IsEmpty())
     return;
 
-  nsAutoCString docCharset;
+  nsCAutoString docCharset;
   // Now that the charset is set in |StartDocumentLoad| to the charset of
   // the document viewer instead of a bogus value ("ISO-8859-1" set in
   // |nsDocument|'s ctor), the priority is given to the current charset. 
@@ -329,31 +334,10 @@ MediaDocument::GetFileName(nsAString& aResult)
   }
 }
 
-nsresult
-MediaDocument::LinkStylesheet(const nsAString& aStylesheet)
-{
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::link, nullptr,
-                                           kNameSpaceID_XHTML,
-                                           nsIDOMNode::ELEMENT_NODE);
-  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
-
-  nsRefPtr<nsGenericHTMLElement> link = NS_NewHTMLLinkElement(nodeInfo.forget());
-  NS_ENSURE_TRUE(link, NS_ERROR_OUT_OF_MEMORY);
-
-  link->SetAttr(kNameSpaceID_None, nsGkAtoms::rel, 
-                NS_LITERAL_STRING("stylesheet"), true);
-
-  link->SetAttr(kNameSpaceID_None, nsGkAtoms::href, aStylesheet, true);
-
-  Element* head = GetHeadElement();
-  return head->AppendChildTo(link, false);
-}
-
 void 
 MediaDocument::UpdateTitleAndCharset(const nsACString& aTypeStr,
                                      const char* const* aFormatNames,
-                                     int32_t aWidth, int32_t aHeight,
+                                     PRInt32 aWidth, PRInt32 aHeight,
                                      const nsAString& aStatus)
 {
   nsXPIDLString fileStr;
@@ -415,17 +399,6 @@ MediaDocument::UpdateTitleAndCharset(const nsACString& aTypeStr,
                                         getter_Copies(titleWithStatus));
     SetTitle(titleWithStatus);
   }
-}
-
-void 
-MediaDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aGlobalObject)
-{
-    nsHTMLDocument::SetScriptGlobalObject(aGlobalObject);
-    if (!mDocumentElementInserted && aGlobalObject) {
-        mDocumentElementInserted = true;
-        nsContentUtils::AddScriptRunner(
-            new nsDocElementCreatedNotificationRunner(this));        
-    }
 }
 
 } // namespace dom

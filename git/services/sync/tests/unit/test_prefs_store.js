@@ -1,14 +1,10 @@
 Cu.import("resource://services-sync/engines/prefs.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-common/utils.js");
-Cu.import("resource://services-common/preferences.js");
+Cu.import("resource://services-sync/ext/Preferences.js");
 Cu.import("resource://gre/modules/LightweightThemeManager.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-const PREFS_GUID = CommonUtils.encodeBase64URL(Services.appinfo.ID);
-
-loadAddonTestFunctions();
-startupManager();
+const PREFS_GUID = Utils.encodeBase64url(Services.appinfo.ID);
 
 function makePersona(id) {
   return {
@@ -40,7 +36,7 @@ function run_test() {
 
     _("The GUID corresponds to XUL App ID.");
     let allIDs = store.getAllIDs();
-    let ids = Object.keys(allIDs);
+    let ids = [id for (id in allIDs)];
     do_check_eq(ids.length, 1);
     do_check_eq(ids[0], PREFS_GUID);
     do_check_true(allIDs[PREFS_GUID], true);

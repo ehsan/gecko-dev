@@ -1,7 +1,43 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Chris Waterson <waterson@netscape.com>
+ *   L. David Baron <dbaron@dbaron.org>
+ *   Ben Goodger <ben@netscape.com>
+ *   Mark Hammond <mhammond@skippinet.com.au>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 #include "nsXULPrototypeDocument.h"
@@ -30,9 +66,6 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 #include "xpcpublic.h"
-#include "mozilla/dom/BindingUtils.h"
-
-using mozilla::dom::DestroyProtoOrIfaceCache;
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -49,12 +82,13 @@ public:
 
     // nsIScriptGlobalObject methods
     virtual void OnFinalize(JSObject* aObject);
-    virtual void SetScriptsEnabled(bool aEnabled, bool aFireTimeouts);
+    virtual void SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts);
 
-    virtual JSObject* GetGlobalJSObject();
-    virtual nsresult EnsureScriptEnvironment();
+    virtual void *GetScriptGlobal(PRUint32 lang);
+    virtual nsresult EnsureScriptEnvironment(PRUint32 aLangID);
 
-    virtual nsIScriptContext *GetScriptContext();
+    virtual nsIScriptContext *GetScriptContext(PRUint32 lang);
+    virtual nsresult SetScriptContext(PRUint32 language, nsIScriptContext *ctx);
 
     // nsIScriptObjectPrincipal methods
     virtual nsIPrincipal* GetPrincipal();
@@ -79,13 +113,13 @@ protected:
 
 nsIPrincipal* nsXULPrototypeDocument::gSystemPrincipal;
 nsXULPDGlobalObject* nsXULPrototypeDocument::gSystemGlobal;
-uint32_t nsXULPrototypeDocument::gRefCnt;
+PRUint32 nsXULPrototypeDocument::gRefCnt;
 
 
 void
-nsXULPDGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
+nsXULPDGlobalObject_finalize(JSContext *cx, JSObject *obj)
 {
-    nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(obj);
+    nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(cx, obj);
 
     nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(nativeThis));
 
@@ -95,13 +129,11 @@ nsXULPDGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
 
     // The addref was part of JSObject construction
     NS_RELEASE(nativeThis);
-
-    DestroyProtoOrIfaceCache(obj);
 }
 
 
 JSBool
-nsXULPDGlobalObject_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
+nsXULPDGlobalObject_resolve(JSContext *cx, JSObject *obj, jsid id)
 {
     JSBool did_resolve = JS_FALSE;
 
@@ -111,11 +143,10 @@ nsXULPDGlobalObject_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 
 JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
     "nsXULPrototypeScript compilation scope",
-    XPCONNECT_GLOBAL_FLAGS,
+    JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS | JSCLASS_GLOBAL_FLAGS,
     JS_PropertyStub,  JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, nsXULPDGlobalObject_resolve,  JS_ConvertStub,
-    nsXULPDGlobalObject_finalize, NULL, NULL, NULL, NULL,
-    TraceXPCGlobal
+    nsXULPDGlobalObject_finalize
 };
 
 
@@ -126,9 +157,8 @@ JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
 //
 
 nsXULPrototypeDocument::nsXULPrototypeDocument()
-    : mRoot(nullptr),
-      mLoaded(false),
-      mCCGeneration(0)
+    : mRoot(nsnull),
+      mLoaded(PR_FALSE)
 {
     ++gRefCnt;
 }
@@ -140,7 +170,7 @@ nsXULPrototypeDocument::Init()
     mNodeInfoManager = new nsNodeInfoManager();
     NS_ENSURE_TRUE(mNodeInfoManager, NS_ERROR_OUT_OF_MEMORY);
 
-    return mNodeInfoManager->Init(nullptr);
+    return mNodeInfoManager->Init(nsnull);
 }
 
 nsXULPrototypeDocument::~nsXULPrototypeDocument()
@@ -164,16 +194,13 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeDocument)
     tmp->mPrototypeWaiters.Clear();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeDocument)
-    if (nsCCUncollectableMarker::InGeneration(cb, tmp->mCCGeneration)) {
-        return NS_SUCCESS_INTERRUPTED_TRAVERSE;
-    }
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mRoot,
                                                     nsXULPrototypeElement)
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mGlobalObject");
     cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObject*>(tmp->mGlobalObject));
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNodeInfoManager,
                                                     nsNodeInfoManager)
-    for (uint32_t i = 0; i < tmp->mPrototypeWaiters.Length(); ++i) {
+    for (PRUint32 i = 0; i < tmp->mPrototypeWaiters.Length(); ++i) {
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mPrototypeWaiters[i]");
         cb.NoteXPCOMChild(static_cast<nsINode*>(tmp->mPrototypeWaiters[i].get()));
     }
@@ -199,7 +226,7 @@ NS_NewXULPrototypeDocument(nsXULPrototypeDocument** aResult)
     rv = (*aResult)->Init();
     if (NS_FAILED(rv)) {
         delete *aResult;
-        *aResult = nullptr;
+        *aResult = nsnull;
         return rv;
     }
 
@@ -223,16 +250,16 @@ nsXULPrototypeDocument::NewXULPDGlobalObject()
     nsXULPDGlobalObject *global;
     if (DocumentPrincipal() == gSystemPrincipal) {
         if (!gSystemGlobal) {
-            gSystemGlobal = new nsXULPDGlobalObject(nullptr);
+            gSystemGlobal = new nsXULPDGlobalObject(nsnull);
             if (! gSystemGlobal)
-                return nullptr;
+                return nsnull;
             NS_ADDREF(gSystemGlobal);
         }
         global = gSystemGlobal;
     } else {
         global = new nsXULPDGlobalObject(this); // does not refcount
         if (! global)
-            return nullptr;
+            return nsnull;
     }
     return global;
 }
@@ -248,34 +275,23 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
     NS_TIME_FUNCTION;
     nsresult rv;
 
-    rv = aStream->ReadObject(true, getter_AddRefs(mURI));
+    rv = aStream->ReadObject(PR_TRUE, getter_AddRefs(mURI));
 
-    uint32_t count, i;
+    PRUint32 count, i;
     nsCOMPtr<nsIURI> styleOverlayURI;
 
-    nsresult tmp = aStream->Read32(&count);
-    if (NS_FAILED(tmp)) {
-      return tmp;
-    }
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
+    rv |= aStream->Read32(&count);
+    if (NS_FAILED(rv)) return rv;
 
     for (i = 0; i < count; ++i) {
-        tmp = aStream->ReadObject(true, getter_AddRefs(styleOverlayURI));
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
+        rv |= aStream->ReadObject(PR_TRUE, getter_AddRefs(styleOverlayURI));
         mStyleSheetReferences.AppendObject(styleOverlayURI);
     }
 
 
     // nsIPrincipal mNodeInfoManager->mPrincipal
     nsCOMPtr<nsIPrincipal> principal;
-    tmp = aStream->ReadObject(true, getter_AddRefs(principal));
-    if (NS_FAILED(tmp)) {
-      rv = tmp;
-    }
+    rv |= aStream->ReadObject(PR_TRUE, getter_AddRefs(principal));
     // Better safe than sorry....
     mNodeInfoManager->SetDocumentPrincipal(principal);
 
@@ -292,89 +308,56 @@ nsXULPrototypeDocument::Read(nsIObjectInputStream* aStream)
     // nsINodeInfo table
     nsCOMArray<nsINodeInfo> nodeInfos;
 
-    tmp = aStream->Read32(&count);
-    if (NS_FAILED(tmp)) {
-      rv = tmp;
-    }
+    rv |= aStream->Read32(&count);
     nsAutoString namespaceURI, prefixStr, localName;
-    bool prefixIsNull;
+    PRBool prefixIsNull;
     nsCOMPtr<nsIAtom> prefix;
     for (i = 0; i < count; ++i) {
-        tmp = aStream->ReadString(namespaceURI);
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
-        tmp = aStream->ReadBoolean(&prefixIsNull);
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
+        rv |= aStream->ReadString(namespaceURI);
+        rv |= aStream->ReadBoolean(&prefixIsNull);
         if (prefixIsNull) {
-            prefix = nullptr;
+            prefix = nsnull;
         } else {
-            tmp = aStream->ReadString(prefixStr);
-            if (NS_FAILED(tmp)) {
-              rv = tmp;
-            }
+            rv |= aStream->ReadString(prefixStr);
             prefix = do_GetAtom(prefixStr);
         }
-        tmp = aStream->ReadString(localName);
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
+        rv |= aStream->ReadString(localName);
 
         nsCOMPtr<nsINodeInfo> nodeInfo;
         // Using PR_UINT16_MAX here as we don't know which nodeinfos will be
         // used for attributes and which for elements. And that doesn't really
         // matter.
-        tmp = mNodeInfoManager->GetNodeInfo(localName, prefix, namespaceURI,
+        rv |= mNodeInfoManager->GetNodeInfo(localName, prefix, namespaceURI,
                                             PR_UINT16_MAX,
                                             getter_AddRefs(nodeInfo));
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
         if (!nodeInfos.AppendObject(nodeInfo))
-          rv = NS_ERROR_OUT_OF_MEMORY;
+            rv |= NS_ERROR_OUT_OF_MEMORY;
     }
 
     // Document contents
-    uint32_t type;
+    PRUint32 type;
     while (NS_SUCCEEDED(rv)) {
-        tmp = aStream->Read32(&type);
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
+        rv |= aStream->Read32(&type);
 
         if ((nsXULPrototypeNode::Type)type == nsXULPrototypeNode::eType_PI) {
             nsRefPtr<nsXULPrototypePI> pi = new nsXULPrototypePI();
             if (! pi) {
-               rv = NS_ERROR_OUT_OF_MEMORY;
+               rv |= NS_ERROR_OUT_OF_MEMORY;
                break;
             }
 
-            tmp = pi->Deserialize(aStream, mGlobalObject, mURI, &nodeInfos);
-            if (NS_FAILED(tmp)) {
-              rv = tmp;
-            }
-            tmp = AddProcessingInstruction(pi);
-            if (NS_FAILED(tmp)) {
-              rv = tmp;
-            }
+            rv |= pi->Deserialize(aStream, mGlobalObject, mURI, &nodeInfos);
+            rv |= AddProcessingInstruction(pi);
         } else if ((nsXULPrototypeNode::Type)type == nsXULPrototypeNode::eType_Element) {
-            tmp = mRoot->Deserialize(aStream, mGlobalObject, mURI, &nodeInfos);
-            if (NS_FAILED(tmp)) {
-              rv = tmp;
-            }
+            rv |= mRoot->Deserialize(aStream, mGlobalObject, mURI, &nodeInfos);
             break;
         } else {
             NS_NOTREACHED("Unexpected prototype node type");
-            rv = NS_ERROR_FAILURE;
+            rv |= NS_ERROR_FAILURE;
             break;
         }
     }
-    tmp = NotifyLoadDone();
-    if (NS_FAILED(tmp)) {
-      rv = tmp;
-    }
+    rv |= NotifyLoadDone();
 
     return rv;
 }
@@ -391,13 +374,13 @@ GetNodeInfos(nsXULPrototypeElement* aPrototype,
     }
 
     // Search attributes
-    uint32_t i;
+    PRUint32 i;
     for (i = 0; i < aPrototype->mNumAttributes; ++i) {
         nsCOMPtr<nsINodeInfo> ni;
         nsAttrName* name = &aPrototype->mAttributes[i].mName;
         if (name->IsAtom()) {
             ni = aPrototype->mNodeInfo->NodeInfoManager()->
-                GetNodeInfo(name->Atom(), nullptr, kNameSpaceID_None,
+                GetNodeInfo(name->Atom(), nsnull, kNameSpaceID_None,
                             nsIDOMNode::ATTRIBUTE_NODE);
             NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
         }
@@ -430,31 +413,22 @@ nsXULPrototypeDocument::Write(nsIObjectOutputStream* aStream)
 {
     nsresult rv;
 
-    rv = aStream->WriteCompoundObject(mURI, NS_GET_IID(nsIURI), true);
+    rv = aStream->WriteCompoundObject(mURI, NS_GET_IID(nsIURI), PR_TRUE);
     
-    uint32_t count;
+    PRUint32 count;
 
     count = mStyleSheetReferences.Count();
-    nsresult tmp = aStream->Write32(count);
-    if (NS_FAILED(tmp)) {
-      rv = tmp;
-    }
+    rv |= aStream->Write32(count);
 
-    uint32_t i;
+    PRUint32 i;
     for (i = 0; i < count; ++i) {
-        tmp = aStream->WriteCompoundObject(mStyleSheetReferences[i],
-                                           NS_GET_IID(nsIURI), true);
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
+        rv |= aStream->WriteCompoundObject(mStyleSheetReferences[i],
+                                           NS_GET_IID(nsIURI), PR_TRUE);
     }
 
     // nsIPrincipal mNodeInfoManager->mPrincipal
-    tmp = aStream->WriteObject(mNodeInfoManager->DocumentPrincipal(),
-                               true);
-    if (NS_FAILED(tmp)) {
-      rv = tmp;
-    }
+    rv |= aStream->WriteObject(mNodeInfoManager->DocumentPrincipal(),
+                               PR_TRUE);
     
 #ifdef DEBUG
     // XXX Worrisome if we're caching things without system principal.
@@ -465,52 +439,30 @@ nsXULPrototypeDocument::Write(nsIObjectOutputStream* aStream)
 
     // nsINodeInfo table
     nsCOMArray<nsINodeInfo> nodeInfos;
-    if (mRoot) {
-      tmp = GetNodeInfos(mRoot, nodeInfos);
-      if (NS_FAILED(tmp)) {
-        rv = tmp;
-      }
-    }
+    if (mRoot)
+        rv |= GetNodeInfos(mRoot, nodeInfos);
 
-    uint32_t nodeInfoCount = nodeInfos.Count();
-    tmp = aStream->Write32(nodeInfoCount);
-    if (NS_FAILED(tmp)) {
-      rv = tmp;
-    }
+    PRUint32 nodeInfoCount = nodeInfos.Count();
+    rv |= aStream->Write32(nodeInfoCount);
     for (i = 0; i < nodeInfoCount; ++i) {
         nsINodeInfo *nodeInfo = nodeInfos[i];
         NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
 
         nsAutoString namespaceURI;
-        tmp = nodeInfo->GetNamespaceURI(namespaceURI);
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
-        tmp = aStream->WriteWStringZ(namespaceURI.get());
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
+        rv |= nodeInfo->GetNamespaceURI(namespaceURI);
+        rv |= aStream->WriteWStringZ(namespaceURI.get());
 
         nsAutoString prefix;
         nodeInfo->GetPrefix(prefix);
-        bool nullPrefix = DOMStringIsNull(prefix);
-        tmp = aStream->WriteBoolean(nullPrefix);
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
+        PRBool nullPrefix = DOMStringIsNull(prefix);
+        rv |= aStream->WriteBoolean(nullPrefix);
         if (!nullPrefix) {
-            tmp = aStream->WriteWStringZ(prefix.get());
-            if (NS_FAILED(tmp)) {
-              rv = tmp;
-            }
+            rv |= aStream->WriteWStringZ(prefix.get());
         }
 
         nsAutoString localName;
         nodeInfo->GetName(localName);
-        tmp = aStream->WriteWStringZ(localName.get());
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
+        rv |= aStream->WriteWStringZ(localName.get());
     }
 
     // Now serialize the document contents
@@ -520,18 +472,11 @@ nsXULPrototypeDocument::Write(nsIObjectOutputStream* aStream)
     count = mProcessingInstructions.Length();
     for (i = 0; i < count; ++i) {
         nsXULPrototypePI* pi = mProcessingInstructions[i];
-        tmp = pi->Serialize(aStream, globalObject, &nodeInfos);
-        if (NS_FAILED(tmp)) {
-          rv = tmp;
-        }
+        rv |= pi->Serialize(aStream, globalObject, &nodeInfos);
     }
 
-    if (mRoot) {
-      tmp = mRoot->Serialize(aStream, globalObject, &nodeInfos);
-      if (NS_FAILED(tmp)) {
-        rv = tmp;
-      }
-    }
+    if (mRoot)
+        rv |= mRoot->Serialize(aStream, globalObject, &nodeInfos);
  
     return rv;
 }
@@ -643,7 +588,7 @@ nsXULPrototypeDocument::GetNodeInfoManager()
 
 
 nsresult
-nsXULPrototypeDocument::AwaitLoadDone(nsXULDocument* aDocument, bool* aResult)
+nsXULPrototypeDocument::AwaitLoadDone(nsXULDocument* aDocument, PRBool* aResult)
 {
     nsresult rv = NS_OK;
 
@@ -668,13 +613,13 @@ nsXULPrototypeDocument::NotifyLoadDone()
 
     nsresult rv = NS_OK;
 
-    mLoaded = true;
+    mLoaded = PR_TRUE;
 
-    for (uint32_t i = mPrototypeWaiters.Length(); i > 0; ) {
+    for (PRUint32 i = mPrototypeWaiters.Length(); i > 0; ) {
         --i;
-        // true means that OnPrototypeLoadDone will also
+        // PR_TRUE means that OnPrototypeLoadDone will also
         // call ResumeWalk().
-        rv = mPrototypeWaiters[i]->OnPrototypeLoadDone(true);
+        rv = mPrototypeWaiters[i]->OnPrototypeLoadDone(PR_TRUE);
         if (NS_FAILED(rv)) break;
     }
     mPrototypeWaiters.Clear();
@@ -733,32 +678,64 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULPDGlobalObject)
 //
 
 nsresult
-nsXULPDGlobalObject::EnsureScriptEnvironment()
+nsXULPDGlobalObject::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScriptContext)
 {
+  NS_ABORT_IF_FALSE(lang_id == nsIProgrammingLanguage::JAVASCRIPT,
+                    "We don't support this language ID");
+  // almost a clone of nsGlobalWindow
+  if (!aScriptContext) {
+    NS_WARNING("Possibly early removal of script object, see bug #41608");
+  } else {
+    // should probably assert the context is clean???
+    aScriptContext->WillInitializeContext();
+    nsresult rv = aScriptContext->InitContext();
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  NS_ASSERTION(!aScriptContext || !mContext, "Bad call to SetContext()!");
+
+  void* script_glob = NULL;
+
+  if (aScriptContext) {
+    aScriptContext->SetGCOnDestruction(PR_FALSE);
+    aScriptContext->DidInitializeContext();
+    script_glob = aScriptContext->GetNativeGlobal();
+    NS_ASSERTION(script_glob, "GetNativeGlobal returned NULL!");
+  }
+  mContext = aScriptContext;
+  mJSObject = static_cast<JSObject*>(script_glob);
+  return NS_OK;
+}
+
+nsresult
+nsXULPDGlobalObject::EnsureScriptEnvironment(PRUint32 lang_id)
+{
+  NS_ABORT_IF_FALSE(lang_id == nsIProgrammingLanguage::JAVASCRIPT,
+                    "We don't support this language ID");
   if (mContext) {
     return NS_OK;
   }
   NS_ASSERTION(!mJSObject, "Have global without context?");
 
   nsCOMPtr<nsIScriptRuntime> languageRuntime;
-  nsresult rv = NS_GetJSRuntime(getter_AddRefs(languageRuntime));
+  nsresult rv = NS_GetScriptRuntimeByID(nsIProgrammingLanguage::JAVASCRIPT,
+                                        getter_AddRefs(languageRuntime));
   NS_ENSURE_SUCCESS(rv, NS_OK);
 
-  nsCOMPtr<nsIScriptContext> ctxNew = languageRuntime->CreateContext();
-  MOZ_ASSERT(ctxNew);
-
+  nsCOMPtr<nsIScriptContext> ctxNew;
+  rv = languageRuntime->CreateContext(getter_AddRefs(ctxNew));
   // We have to setup a special global object.  We do this then
-  // attach it as the global for this context.  Then, we
+  // attach it as the global for this context.  Then, ::SetScriptContext
   // will re-fetch the global and set it up in our language globals array.
   {
-    JSContext *cx = ctxNew->GetNativeContext();
+    JSContext *cx = (JSContext *)ctxNew->GetNativeContext();
     JSAutoRequest ar(cx);
 
     nsIPrincipal *principal = GetPrincipal();
     JSObject *newGlob;
     JSCompartment *compartment;
 
-    rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nullptr,
+    rv = xpc_CreateGlobalObject(cx, &gSharedGlobalClass, principal, nsnull,
                                 false, &newGlob, &compartment);
     NS_ENSURE_SUCCESS(rv, NS_OK);
 
@@ -766,49 +743,37 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
 
     // Add an owning reference from JS back to us. This'll be
     // released when the JSObject is finalized.
-    ::JS_SetPrivate(newGlob, this);
+    ::JS_SetPrivate(cx, newGlob, this);
     NS_ADDREF(this);
   }
 
-  // should probably assert the context is clean???
-  ctxNew->WillInitializeContext();
-  rv = ctxNew->InitContext();
   NS_ENSURE_SUCCESS(rv, NS_OK);
-
-  ctxNew->SetGCOnDestruction(false);
-  ctxNew->DidInitializeContext();
-
-  JSObject* global = ctxNew->GetNativeGlobal();
-  NS_ASSERTION(global, "GetNativeGlobal returned NULL!");
-
-  mContext = ctxNew;
-  mJSObject = global;
-
-  // Set the location information for the new global, so that tools like
-  // about:memory may use that information
-  nsIURI *ownerURI = mGlobalObjectOwner->GetURI();
-  xpc::SetLocationForGlobal(mJSObject, ownerURI);
-
+  rv = SetScriptContext(lang_id, ctxNew);
+  NS_ENSURE_SUCCESS(rv, NS_OK);
   return NS_OK;
 }
 
 nsIScriptContext*
-nsXULPDGlobalObject::GetScriptContext()
+nsXULPDGlobalObject::GetScriptContext(PRUint32 lang_id)
 {
+  NS_ABORT_IF_FALSE(lang_id == nsIProgrammingLanguage::JAVASCRIPT,
+                    "We don't support this language ID");
   // This global object creates a context on demand - do that now.
-  nsresult rv = EnsureScriptEnvironment();
+  nsresult rv = EnsureScriptEnvironment(nsIProgrammingLanguage::JAVASCRIPT);
   if (NS_FAILED(rv)) {
     NS_ERROR("Failed to setup script language");
     return NULL;
   }
-
+  // Note that EnsureScriptEnvironment has validated lang_id
   return mContext;
 }
 
-JSObject*
-nsXULPDGlobalObject::GetGlobalJSObject()
+void*
+nsXULPDGlobalObject::GetScriptGlobal(PRUint32 lang_id)
 {
-  return xpc_UnmarkGrayObject(mJSObject);
+  NS_ABORT_IF_FALSE(lang_id == nsIProgrammingLanguage::JAVASCRIPT,
+                    "We don't support this language ID");
+  return mJSObject;
 }
 
 
@@ -821,7 +786,11 @@ nsXULPDGlobalObject::ClearGlobalObjectOwner()
   if (this != nsXULPrototypeDocument::gSystemGlobal)
     mCachedPrincipal = mGlobalObjectOwner->DocumentPrincipal();
 
-  mContext = NULL;
+  if (mContext) {
+    mContext->FinalizeContext();
+    mContext = NULL;
+  }
+
   mGlobalObjectOwner = NULL;
 }
 
@@ -833,7 +802,7 @@ nsXULPDGlobalObject::OnFinalize(JSObject* aObject)
 }
 
 void
-nsXULPDGlobalObject::SetScriptsEnabled(bool aEnabled, bool aFireTimeouts)
+nsXULPDGlobalObject::SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts)
 {
   // We don't care...
 }

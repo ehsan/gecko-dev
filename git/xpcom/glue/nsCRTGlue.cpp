@@ -1,13 +1,46 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Application Update.
+ * This file is based on code originally located at
+ * mozilla/toolkit/mozapps/update/updater/updater.cpp
+ *
+ * The Initial Developer of the Original Code is
+ * Benjamin Smedberg <benjamin@smedbergs.us>
+ *
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsCRTGlue.h"
 #include "nsXPCOM.h"
 #include "nsDebug.h"
-#include "prtime.h"
-
-#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -65,7 +98,7 @@ NS_strtok(const char *delims, char **str)
   return ret;
 }
 
-uint32_t
+PRUint32
 NS_strlen(const PRUnichar *aString)
 {
   const PRUnichar *end;
@@ -95,12 +128,12 @@ NS_strcmp(const PRUnichar *a, const PRUnichar *b)
 PRUnichar*
 NS_strdup(const PRUnichar *aString)
 {
-  uint32_t len = NS_strlen(aString);
+  PRUint32 len = NS_strlen(aString);
   return NS_strndup(aString, len);
 }
 
 PRUnichar*
-NS_strndup(const PRUnichar *aString, uint32_t aLen)
+NS_strndup(const PRUnichar *aString, PRUint32 aLen)
 {
   PRUnichar *newBuf = (PRUnichar*) NS_Alloc((aLen + 1) * sizeof(PRUnichar));
   if (newBuf) {
@@ -113,7 +146,7 @@ NS_strndup(const PRUnichar *aString, uint32_t aLen)
 char*
 NS_strdup(const char *aString)
 {
-  uint32_t len = strlen(aString);
+  PRUint32 len = strlen(aString);
   char *str = (char*) NS_Alloc(len + 1);
   if (str) {
     memcpy(str, aString, len);
@@ -172,59 +205,59 @@ const unsigned char nsLowerUpperUtils::kLower2Upper[256] = {
   240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
 };
 
-bool NS_IsUpper(char aChar)
+PRBool NS_IsUpper(char aChar)
 {
   return aChar != (char)nsLowerUpperUtils::kUpper2Lower[(unsigned char)aChar];
 }
 
-bool NS_IsLower(char aChar)
+PRBool NS_IsLower(char aChar)
 {
   return aChar != (char)nsLowerUpperUtils::kLower2Upper[(unsigned char)aChar];
 }
 
-bool NS_IsAscii(PRUnichar aChar)
+PRBool NS_IsAscii(PRUnichar aChar)
 {
   return (0x0080 > aChar);
 }
 
-bool NS_IsAscii(const PRUnichar *aString)
+PRBool NS_IsAscii(const PRUnichar *aString)
 {
   while(*aString) {
     if( 0x0080 <= *aString)
-      return false;
+      return PR_FALSE;
     aString++;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool NS_IsAscii(const char *aString)
+PRBool NS_IsAscii(const char *aString)
 {
   while(*aString) {
     if( 0x80 & *aString)
-      return false;
+      return PR_FALSE;
     aString++;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool NS_IsAscii(const char* aString, uint32_t aLength)
+PRBool NS_IsAscii(const char* aString, PRUint32 aLength)
 {
   const char* end = aString + aLength;
   while (aString < end) {
     if (0x80 & *aString)
-      return false;
+      return PR_FALSE;
     ++aString;
   }
-  return true;
+  return PR_TRUE;
 }
 
-bool NS_IsAsciiAlpha(PRUnichar aChar)
+PRBool NS_IsAsciiAlpha(PRUnichar aChar)
 {
   return ((aChar >= 'A') && (aChar <= 'Z')) ||
          ((aChar >= 'a') && (aChar <= 'z'));
 }
 
-bool NS_IsAsciiWhitespace(PRUnichar aChar)
+PRBool NS_IsAsciiWhitespace(PRUnichar aChar)
 {
   return aChar == ' ' ||
          aChar == '\r' ||
@@ -232,37 +265,11 @@ bool NS_IsAsciiWhitespace(PRUnichar aChar)
          aChar == '\t';
 }
 
-bool NS_IsAsciiDigit(PRUnichar aChar)
+PRBool NS_IsAsciiDigit(PRUnichar aChar)
 {
   return aChar >= '0' && aChar <= '9';
 }
 
-
-#ifndef XPCOM_GLUE_AVOID_NSPR
-#define TABLE_SIZE 36
-static const char table[] = {
-  'a','b','c','d','e','f','g','h','i','j',
-  'k','l','m','n','o','p','q','r','s','t',
-  'u','v','w','x','y','z','0','1','2','3',
-  '4','5','6','7','8','9'
-};
-
-void NS_MakeRandomString(char *aBuf, int32_t aBufLen)
-{
-  // turn PR_Now() into milliseconds since epoch
-  // and salt rand with that.
-  double fpTime;
-  LL_L2D(fpTime, PR_Now());
-  srand((uint)(fpTime * 1e-6 + 0.5));   // use 1e-6, granularity of PR_Now() on the mac is seconds
-
-  int32_t i;
-  for (i=0;i<aBufLen;i++) {
-    *aBuf++ = table[rand()%TABLE_SIZE];
-  }
-  *aBuf = 0;
-}
-
-#endif
 #if defined(XP_WIN)
 void
 printf_stderr(const char *fmt, ...)

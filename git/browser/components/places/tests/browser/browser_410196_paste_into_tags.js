@@ -44,8 +44,7 @@ function onLibraryReady() {
 }
 
 function onClipboardReady() {
-  tests.focusTag();
-  PlacesOrganizer._places.controller.paste();
+  tests.pasteToTag();
   tests.historyNode();
   tests.checkForBookmarkInUI();
 
@@ -57,7 +56,7 @@ function onClipboardReady() {
   let tags = PlacesUtils.tagging.getTagsForURI(NetUtil.newURI(TEST_URL));
   is(tags.length, 0, "tags are gone");
   PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
-
+  
   waitForClearHistory(finish);
 }
 
@@ -81,18 +80,24 @@ let tests = {
     is(tags[0], 'foo', "tag is foo");
   },
 
-  focusTag: function (){
+  focusTag: function (paste){
     // focus the new tag
     PlacesOrganizer.selectLeftPaneQuery("Tags");
     let tags = PlacesOrganizer._places.selectedNode;
     tags.containerOpen = true;
     let fooTag = tags.getChild(0);
-    let tagNode = fooTag;
+    this.tagNode = fooTag;
     PlacesOrganizer._places.selectNode(fooTag);
-    is(tagNode.title, 'foo', "tagNode title is foo");
+    is(this.tagNode.title, 'foo', "tagNode title is foo");
     let ip = PlacesOrganizer._places.insertionPoint;
     ok(ip.isTag, "IP is a tag");
+    if (paste) {
+      ok(true, "About to paste");
+      PlacesOrganizer._places.controller.paste();
+    }
   },
+
+  histNode: null,
 
   copyHistNode: function (){
     // focus the history object
@@ -101,12 +106,17 @@ let tests = {
     PlacesUtils.asContainer(histContainer);
     histContainer.containerOpen = true;
     PlacesOrganizer._places.selectNode(histContainer.getChild(0));
-    let histNode = PlacesOrganizer._content.view.nodeForTreeIndex(0);
-    PlacesOrganizer._content.selectNode(histNode);
-    is(histNode.uri, MOZURISPEC,
-       "historyNode exists: " + histNode.uri);
+    this.histNode = PlacesOrganizer._content.view.nodeForTreeIndex(0);
+    PlacesOrganizer._content.selectNode(this.histNode);
+    is(this.histNode.uri, MOZURISPEC,
+       "historyNode exists: " + this.histNode.uri);
     // copy the history node
     PlacesOrganizer._content.controller.copy();
+  },
+
+  pasteToTag: function (){
+    // paste history node into tag
+    this.focusTag(true);
   },
 
   historyNode: function (){
@@ -138,4 +148,21 @@ let tests = {
     ok(unsortedNode, "unsortedNode is not null: " + unsortedNode.uri);
     is(unsortedNode.uri, MOZURISPEC, "node uri's are the same");
   },
+
+  tagNode: null,
 };
+
+/**
+ * Clears history invoking callback when done.
+ */
+function waitForClearHistory(aCallback) {
+  const TOPIC_EXPIRATION_FINISHED = "places-expiration-finished";
+  let observer = {
+    observe: function(aSubject, aTopic, aData) {
+      Services.obs.removeObserver(this, TOPIC_EXPIRATION_FINISHED);
+      aCallback();
+    }
+  };
+  Services.obs.addObserver(observer, TOPIC_EXPIRATION_FINISHED, false);
+  PlacesUtils.bhistory.removeAllPages();
+}

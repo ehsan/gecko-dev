@@ -6,6 +6,7 @@
         onload="setTimeout(runTests, 0);"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
+  <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>      
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>      
 
@@ -58,8 +59,7 @@ function runTests()
   $("scale").focus();
 
   var accessKeyDetails = (navigator.platform.indexOf("Mac") >= 0) ?
-                         { altKey: true, ctrlKey : true } :
-                         { altKey : true, shiftKey: true };
+                         { ctrlKey : true } : { altKey : true, shiftKey: true };
 
   gExpectedBlur = document.getAnonymousNodes($("scale"))[0];
   gExpectedFocus = $("menulist").inputField;
@@ -97,9 +97,6 @@ function runTests()
     is(gBlurs, 5, "correct number of blurs");
     is(gFocuses, 6, "correct number of focuses");
   }
-
-  removeEventListener("focus", focusOccurred, true);
-  removeEventListener("blur", blurOccurred, true);
 
   SimpleTest.finish();
 }

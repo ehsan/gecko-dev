@@ -1,10 +1,6 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=99:
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 
 #include "tests.h"
 
@@ -26,7 +22,7 @@ BEGIN_TEST(testGetPropertyDefault_bug594060)
     {
         // Check JS_GetPropertyDefault
 
-        JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
+        JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
         CHECK(obj);
 
         jsval v0 = JSVAL_TRUE;
@@ -44,7 +40,7 @@ BEGIN_TEST(testGetPropertyDefault_bug594060)
     {
         // Check JS_GetPropertyByIdDefault
 
-        JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
+        JSObject *obj = JS_NewObject(cx, NULL, NULL, NULL);
         CHECK(obj);
 
         jsid hereid;

@@ -17,7 +17,7 @@ var gFrontProgressListener = {
     gFrontNotificationsPos++;
   },
 
-  onLocationChange: function (aWebProgress, aRequest, aLocationURI, aFlags) {
+  onLocationChange: function (aWebProgress, aRequest, aLocationURI) {
     var state = "onLocationChange";
     info("FrontProgress: " + state + " " + aLocationURI.spec);
     ok(gFrontNotificationsPos < gFrontNotifications.length, "Got an expected notification for the front notifications listener");
@@ -53,8 +53,7 @@ var gAllProgressListener = {
     }
   },
 
-  onLocationChange: function (aBrowser, aWebProgress, aRequest, aLocationURI,
-                              aFlags) {
+  onLocationChange: function (aBrowser, aWebProgress, aRequest, aLocationURI) {
     var state = "onLocationChange";
     info("AllProgress: " + state + " " + aLocationURI.spec);
     ok(aBrowser == gTestBrowser, state + " notification came from the correct browser");

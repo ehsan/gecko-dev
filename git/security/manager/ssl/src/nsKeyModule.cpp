@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Tony Chang <tc@google.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsComponentManagerUtils.h"
 #include "nsCOMPtr.h"
@@ -10,8 +42,8 @@
 NS_IMPL_ISUPPORTS1(nsKeyObject, nsIKeyObject)
 
 nsKeyObject::nsKeyObject()
-  : mKeyType(0), mSymKey(nullptr), mPrivateKey(nullptr),
-    mPublicKey(nullptr)
+  : mKeyType(0), mSymKey(nsnull), mPrivateKey(nsnull),
+    mPublicKey(nsnull)
 {
 }
 
@@ -29,7 +61,7 @@ nsKeyObject::CleanUp()
       break;
     
     case nsIKeyObject::PRIVATE_KEY:
-      PK11_DeleteTokenPrivateKey(mPrivateKey, true /* force */);
+      PK11_DeleteTokenPrivateKey(mPrivateKey, PR_TRUE /* force */);
       break;
 
     case nsIKeyObject::PUBLIC_KEY:
@@ -48,7 +80,7 @@ nsKeyObject::CleanUp()
 
 /* [noscript] void initKey (in short aKeyType, in voidPtr aKey); */
 NS_IMETHODIMP
-nsKeyObject::InitKey(int16_t aAlgorithm, void * aKey)
+nsKeyObject::InitKey(PRInt16 aAlgorithm, void * aKey)
 {
   // Clear previous key data if it exists
   CleanUp();
@@ -108,7 +140,7 @@ nsKeyObject::GetKeyObj(void * *_retval)
 
 /* short getType (); */
 NS_IMETHODIMP
-nsKeyObject::GetType(int16_t *_retval)
+nsKeyObject::GetType(PRInt16 *_retval)
 {
   if (mKeyType == 0)
     return NS_ERROR_NOT_INITIALIZED;
@@ -135,14 +167,14 @@ nsKeyObjectFactory::LookupKeyByName(const nsACString & aName,
 }
  
 NS_IMETHODIMP
-nsKeyObjectFactory::UnwrapKey(int16_t aAlgorithm, const uint8_t *aWrappedKey,
-                              uint32_t aWrappedKeyLen, nsIKeyObject **_retval)
+nsKeyObjectFactory::UnwrapKey(PRInt16 aAlgorithm, const PRUint8 *aWrappedKey,
+                              PRUint32 aWrappedKeyLen, nsIKeyObject **_retval)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
-nsKeyObjectFactory::KeyFromString(int16_t aAlgorithm, const nsACString & aKey,
+nsKeyObjectFactory::KeyFromString(PRInt16 aAlgorithm, const nsACString & aKey,
                                   nsIKeyObject **_retval)
 {
   CK_MECHANISM_TYPE cipherMech;
@@ -174,15 +206,15 @@ nsKeyObjectFactory::KeyFromString(int16_t aAlgorithm, const nsACString & aKey,
   keyItem.data = (unsigned char*)flatKey.get();
   keyItem.len = flatKey.Length();
 
-  PK11SlotInfo *slot = nullptr;
-  slot = PK11_GetBestSlot(cipherMech, nullptr);
+  PK11SlotInfo *slot = nsnull;
+  slot = PK11_GetBestSlot(cipherMech, nsnull);
   if (!slot) {
     NS_ERROR("no slot");
     return NS_ERROR_FAILURE;
   }
 
   PK11SymKey* symKey = PK11_ImportSymKey(slot, cipherMech, PK11_OriginUnwrap,
-                                         cipherOperation, &keyItem, nullptr);
+                                         cipherOperation, &keyItem, nsnull);
   // cleanup code
   if (slot)
     PK11_FreeSlot(slot);

@@ -1,7 +1,38 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Neil Deakin
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /**
  * The XUL Popup Manager keeps track of all open popups.
@@ -14,6 +45,7 @@
 #include "nsGUIEvent.h"
 #include "nsIContent.h"
 #include "nsIRollupListener.h"
+#include "nsIMenuRollup.h"
 #include "nsIDOMEventListener.h"
 #include "nsPoint.h"
 #include "nsCOMPtr.h"
@@ -22,7 +54,6 @@
 #include "nsIReflowCallback.h"
 #include "nsThreadUtils.h"
 #include "nsStyleConsts.h"
-#include "mozilla/Attributes.h"
 
 // X.h defines KeyPress
 #ifdef KeyPress
@@ -51,6 +82,7 @@ class nsMenuBarFrame;
 class nsMenuParent;
 class nsIDOMKeyEvent;
 class nsIDocShellTreeItem;
+class nsIView;
 
 // when a menu command is executed, the closemenu attribute may be used
 // to define how the menu should be closed up
@@ -128,22 +160,22 @@ class nsMenuChainItem
 private:
   nsMenuPopupFrame* mFrame; // the popup frame
   nsPopupType mPopupType; // the popup type of the frame
-  bool mIsContext; // true for context menus
-  bool mOnMenuBar; // true if the menu is on a menu bar
-  bool mIgnoreKeys; // true if keyboard listeners should not be used
+  PRPackedBool mIsContext; // true for context menus
+  PRPackedBool mOnMenuBar; // true if the menu is on a menu bar
+  PRPackedBool mIgnoreKeys; // true if keyboard listeners should not be used
 
   nsMenuChainItem* mParent;
   nsMenuChainItem* mChild;
 
 public:
-  nsMenuChainItem(nsMenuPopupFrame* aFrame, bool aIsContext, nsPopupType aPopupType)
+  nsMenuChainItem(nsMenuPopupFrame* aFrame, PRBool aIsContext, nsPopupType aPopupType)
     : mFrame(aFrame),
       mPopupType(aPopupType),
       mIsContext(aIsContext),
-      mOnMenuBar(false),
-      mIgnoreKeys(false),
-      mParent(nullptr),
-      mChild(nullptr)
+      mOnMenuBar(PR_FALSE),
+      mIgnoreKeys(PR_FALSE),
+      mParent(nsnull),
+      mChild(nsnull)
   {
     NS_ASSERTION(aFrame, "null frame passed to nsMenuChainItem constructor");
     MOZ_COUNT_CTOR(nsMenuChainItem);
@@ -157,12 +189,12 @@ public:
   nsIContent* Content();
   nsMenuPopupFrame* Frame() { return mFrame; }
   nsPopupType PopupType() { return mPopupType; }
-  bool IsMenu() { return mPopupType == ePopupTypeMenu; }
-  bool IsContextMenu() { return mIsContext; }
-  bool IgnoreKeys() { return mIgnoreKeys; }
-  bool IsOnMenuBar() { return mOnMenuBar; }
-  void SetIgnoreKeys(bool aIgnoreKeys) { mIgnoreKeys = aIgnoreKeys; }
-  void SetOnMenuBar(bool aOnMenuBar) { mOnMenuBar = aOnMenuBar; }
+  PRBool IsMenu() { return mPopupType == ePopupTypeMenu; }
+  PRBool IsContextMenu() { return mIsContext; }
+  PRBool IgnoreKeys() { return mIgnoreKeys; }
+  PRBool IsOnMenuBar() { return mOnMenuBar; }
+  void SetIgnoreKeys(PRBool aIgnoreKeys) { mIgnoreKeys = aIgnoreKeys; }
+  void SetOnMenuBar(PRBool aOnMenuBar) { mOnMenuBar = aOnMenuBar; }
   nsMenuChainItem* GetParent() { return mParent; }
   nsMenuChainItem* GetChild() { return mChild; }
 
@@ -182,8 +214,8 @@ class nsXULPopupShowingEvent : public nsRunnable
 {
 public:
   nsXULPopupShowingEvent(nsIContent *aPopup,
-                         bool aIsContextMenu,
-                         bool aSelectFirstItem)
+                         PRBool aIsContextMenu,
+                         PRBool aSelectFirstItem)
     : mPopup(aPopup),
       mIsContextMenu(aIsContextMenu),
       mSelectFirstItem(aSelectFirstItem)
@@ -195,8 +227,8 @@ public:
 
 private:
   nsCOMPtr<nsIContent> mPopup;
-  bool mIsContextMenu;
-  bool mSelectFirstItem;
+  PRBool mIsContextMenu;
+  PRBool mSelectFirstItem;
 };
 
 // this class is used for dispatching popuphiding events asynchronously.
@@ -207,7 +239,7 @@ public:
                         nsIContent* aNextPopup,
                         nsIContent* aLastPopup,
                         nsPopupType aPopupType,
-                        bool aDeselectMenu)
+                        PRBool aDeselectMenu)
     : mPopup(aPopup),
       mNextPopup(aNextPopup),
       mLastPopup(aLastPopup),
@@ -225,7 +257,7 @@ private:
   nsCOMPtr<nsIContent> mNextPopup;
   nsCOMPtr<nsIContent> mLastPopup;
   nsPopupType mPopupType;
-  bool mDeselectMenu;
+  PRBool mDeselectMenu;
 };
 
 // this class is used for dispatching menu command events asynchronously.
@@ -233,13 +265,13 @@ class nsXULMenuCommandEvent : public nsRunnable
 {
 public:
   nsXULMenuCommandEvent(nsIContent *aMenu,
-                        bool aIsTrusted,
-                        bool aShift,
-                        bool aControl,
-                        bool aAlt,
-                        bool aMeta,
-                        bool aUserInput,
-                        bool aFlipChecked)
+                        PRBool aIsTrusted,
+                        PRBool aShift,
+                        PRBool aControl,
+                        PRBool aAlt,
+                        PRBool aMeta,
+                        PRBool aUserInput,
+                        PRBool aFlipChecked)
     : mMenu(aMenu),
       mIsTrusted(aIsTrusted),
       mShift(aShift),
@@ -259,20 +291,21 @@ public:
 
 private:
   nsCOMPtr<nsIContent> mMenu;
-  bool mIsTrusted;
-  bool mShift;
-  bool mControl;
-  bool mAlt;
-  bool mMeta;
-  bool mUserInput;
-  bool mFlipChecked;
+  PRBool mIsTrusted;
+  PRBool mShift;
+  PRBool mControl;
+  PRBool mAlt;
+  PRBool mMeta;
+  PRBool mUserInput;
+  PRBool mFlipChecked;
   CloseMenuMode mCloseMenuMode;
 };
 
-class nsXULPopupManager MOZ_FINAL : public nsIDOMEventListener,
-                                    public nsIRollupListener,
-                                    public nsITimerCallback,
-                                    public nsIObserver
+class nsXULPopupManager : public nsIDOMEventListener,
+                          public nsIMenuRollup,
+                          public nsIRollupListener,
+                          public nsITimerCallback,
+                          public nsIObserver
 {
 
 public:
@@ -286,11 +319,12 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   // nsIRollupListener
-  virtual nsIContent* Rollup(uint32_t aCount, bool aGetLastRolledUp = false);
-  virtual bool ShouldRollupOnMouseWheelEvent();
-  virtual bool ShouldRollupOnMouseActivate();
-  virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain);
-  virtual void NotifyGeometryChange() {}
+  NS_IMETHOD Rollup(PRUint32 aCount, nsIContent **aContent);
+  NS_IMETHOD ShouldRollupOnMouseWheelEvent(PRBool *aShould);
+  NS_IMETHOD ShouldRollupOnMouseActivate(PRBool *aShould);
+
+  virtual PRUint32 GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain);
+  virtual void AdjustPopupsOnWindowChange(nsPIDOMWindow* aWindow);
 
   static nsXULPopupManager* sInstance;
 
@@ -302,7 +336,12 @@ public:
   // if a popup manager could not be allocated
   static nsXULPopupManager* GetInstance();
 
-  void AdjustPopupsOnWindowChange(nsPIDOMWindow* aWindow);
+  // get the frame for a content node aContent if the frame's type
+  // matches aFrameType. Otherwise, return null. If aShouldFlush is true,
+  // then the frames are flushed before retrieving the frame.
+  nsIFrame* GetFrameOfTypeForContent(nsIContent* aContent,
+                                     nsIAtom* aFrameType,
+                                     PRBool aShouldFlush);
 
   // given a menu frame, find the prevous or next menu frame. If aPopup is
   // true then navigate a menupopup, from one item on the menu to the previous
@@ -325,17 +364,17 @@ public:
   // aIsPopup - true for menupopups, false for menubars
   static nsMenuFrame* GetPreviousMenuItem(nsIFrame* aParent,
                                           nsMenuFrame* aStart,
-                                          bool aIsPopup);
+                                          PRBool aIsPopup);
   static nsMenuFrame* GetNextMenuItem(nsIFrame* aParent,
                                       nsMenuFrame* aStart,
-                                      bool aIsPopup);
+                                      PRBool aIsPopup);
 
   // returns true if the menu item aContent is a valid menuitem which may
   // be navigated to. aIsPopup should be true for items on a popup, or false
   // for items on a menubar.
-  static bool IsValidMenuItem(nsPresContext* aPresContext,
+  static PRBool IsValidMenuItem(nsPresContext* aPresContext,
                                 nsIContent* aContent,
-                                bool aOnPopup);
+                                PRBool aOnPopup);
 
   // inform the popup manager that a menu bar has been activated or deactivated,
   // either because one of its menus has opened or closed, or that the menubar
@@ -344,14 +383,14 @@ public:
   // when the active menu bar should be defocused. In the latter case, if
   // aMenuBar isn't currently active, yet another menu bar is, that menu bar
   // will remain active.
-  void SetActiveMenuBar(nsMenuBarFrame* aMenuBar, bool aActivate);
+  void SetActiveMenuBar(nsMenuBarFrame* aMenuBar, PRBool aActivate);
 
   // retrieve the node and offset of the last mouse event used to open a
   // context menu. This information is determined from the rangeParent and
   // the rangeOffset of the event supplied to ShowPopup or ShowPopupAtScreen.
   // This is used by the implementation of nsIDOMXULDocument::GetPopupRangeParent
   // and nsIDOMXULDocument::GetPopupRangeOffset.
-  void GetMouseLocation(nsIDOMNode** aNode, int32_t* aOffset);
+  void GetMouseLocation(nsIDOMNode** aNode, PRInt32* aOffset);
 
   /**
    * Open a <menu> given its content node. If aSelectFirstItem is
@@ -359,7 +398,7 @@ public:
    * selected. If aAsynchronous is true, the event will be dispatched
    * asynchronously. This should be true when called from frame code.
    */
-  void ShowMenu(nsIContent *aMenu, bool aSelectFirstItem, bool aAsynchronous);
+  void ShowMenu(nsIContent *aMenu, PRBool aSelectFirstItem, PRBool aAsynchronous);
 
   /**
    * Open a popup, either anchored or unanchored. If aSelectFirstItem is
@@ -375,10 +414,10 @@ public:
   void ShowPopup(nsIContent* aPopup,
                  nsIContent* aAnchorContent,
                  const nsAString& aPosition,
-                 int32_t aXPos, int32_t aYPos,
-                 bool aIsContextMenu,
-                 bool aAttributesOverride,
-                 bool aSelectFirstItem,
+                 PRInt32 aXPos, PRInt32 aYPos,
+                 PRBool aIsContextMenu,
+                 PRBool aAttributesOverride,
+                 PRBool aSelectFirstItem,
                  nsIDOMEvent* aTriggerEvent);
 
   /**
@@ -392,8 +431,8 @@ public:
    * cursor.
    */
   void ShowPopupAtScreen(nsIContent* aPopup,
-                         int32_t aXPos, int32_t aYPos,
-                         bool aIsContextMenu,
+                         PRInt32 aXPos, PRInt32 aYPos,
+                         PRBool aIsContextMenu,
                          nsIDOMEvent* aTriggerEvent);
 
   /**
@@ -404,7 +443,7 @@ public:
    */
   void ShowTooltipAtScreen(nsIContent* aPopup,
                            nsIContent* aTriggerContent,
-                           int32_t aXPos, int32_t aYPos);
+                           PRInt32 aXPos, PRInt32 aYPos);
 
   /**
    * This method is provided only for compatibility with an older popup API.
@@ -416,8 +455,8 @@ public:
                                 nsIContent* aAnchorContent,
                                 nsAString& aAnchor,
                                 nsAString& aAlign,
-                                int32_t aXPos, int32_t aYPos,
-                                bool aIsContextMenu);
+                                PRInt32 aXPos, PRInt32 aYPos,
+                                PRBool aIsContextMenu);
 
   /*
    * Hide a popup aPopup. If the popup is in a <menu>, then also inform the
@@ -435,16 +474,15 @@ public:
    *              If null, then all popups will be closed.
    */
   void HidePopup(nsIContent* aPopup,
-                 bool aHideChain,
-                 bool aDeselectMenu,
-                 bool aAsynchronous,
-                 nsIContent* aLastPopup = nullptr);
+                 PRBool aHideChain,
+                 PRBool aDeselectMenu,
+                 PRBool aAsynchronous,
+                 nsIContent* aLastPopup = nsnull);
 
   /**
-   * Hide the popup aFrame. This method is called by the view manager when the
-   * close button is pressed.
+   * Hide the popup associated the view aView
    */
-  void HidePopup(nsIFrame* aFrame);
+  void HidePopup(nsIView* aView);
 
   /**
    * Hide a popup after a short delay. This is used when rolling over menu items.
@@ -471,12 +509,12 @@ public:
   /**
    * Return true if the popup for the supplied content node is open.
    */
-  bool IsPopupOpen(nsIContent* aPopup);
+  PRBool IsPopupOpen(nsIContent* aPopup);
 
   /**
    * Return true if the popup for the supplied menu parent is open.
    */
-  bool IsPopupOpenForMenuParent(nsMenuParent* aMenuParent);
+  PRBool IsPopupOpenForMenuParent(nsMenuParent* aMenuParent);
 
   /**
    * Return the frame for the topmost open popup of a given type, or null if
@@ -498,12 +536,12 @@ public:
    */
   already_AddRefed<nsIDOMNode> GetLastTriggerPopupNode(nsIDocument* aDocument)
   {
-    return GetLastTriggerNode(aDocument, false);
+    return GetLastTriggerNode(aDocument, PR_FALSE);
   }
 
   already_AddRefed<nsIDOMNode> GetLastTriggerTooltipNode(nsIDocument* aDocument)
   {
-    return GetLastTriggerNode(aDocument, true);
+    return GetLastTriggerNode(aDocument, PR_TRUE);
   }
 
   /**
@@ -511,19 +549,19 @@ public:
    * popup is already open, if the popup is in a content shell that is not
    * focused, or if it is a submenu of another menu that isn't open.
    */
-  bool MayShowPopup(nsMenuPopupFrame* aFrame);
+  PRBool MayShowPopup(nsMenuPopupFrame* aFrame);
 
   /**
    * Indicate that the popup associated with aView has been moved to the
    * specified screen coordiates.
    */
-  void PopupMoved(nsIFrame* aFrame, nsIntPoint aPoint);
+  void PopupMoved(nsIView* aView, nsIntPoint aPoint);
 
   /**
    * Indicate that the popup associated with aView has been resized to the
    * specified screen width and height.
    */
-  void PopupResized(nsIFrame* aFrame, nsIntSize ASize);
+  void PopupResized(nsIView* aView, nsIntSize ASize);
 
   /**
    * Called when a popup frame is destroyed. In this case, just remove the
@@ -537,7 +575,7 @@ public:
    * then the context menu must be later in the chain than aPopup. If aPopup
    * is null, returns true if any context menu at all is open.
    */
-  bool HasContextMenu(nsMenuPopupFrame* aPopup);
+  PRBool HasContextMenu(nsMenuPopupFrame* aPopup);
 
   /**
    * Update the commands for the menus within the menu popup for a given
@@ -570,24 +608,24 @@ public:
    * popup, otherwise if aFrame is null, the key is handled by the active
    * popup or menubar.
    */
-  bool HandleShortcutNavigation(nsIDOMKeyEvent* aKeyEvent,
+  PRBool HandleShortcutNavigation(nsIDOMKeyEvent* aKeyEvent,
                                   nsMenuPopupFrame* aFrame);
 
   /**
    * Handles cursor navigation within a menu. Returns true if the key has
    * been handled.
    */
-  bool HandleKeyboardNavigation(uint32_t aKeyCode);
+  PRBool HandleKeyboardNavigation(PRUint32 aKeyCode);
 
   /**
    * Handle keyboard navigation within a menu popup specified by aFrame.
    * Returns true if the key was handled and other default handling
    * should not occur.
    */
-  bool HandleKeyboardNavigationInPopup(nsMenuPopupFrame* aFrame,
+  PRBool HandleKeyboardNavigationInPopup(nsMenuPopupFrame* aFrame,
                                          nsNavigationDirection aDir)
   {
-    return HandleKeyboardNavigationInPopup(nullptr, aFrame, aDir);
+    return HandleKeyboardNavigationInPopup(nsnull, aFrame, aDir);
   }
 
   nsresult KeyUp(nsIDOMKeyEvent* aKeyEvent);
@@ -598,8 +636,11 @@ protected:
   nsXULPopupManager();
   ~nsXULPopupManager();
 
+  // get the nsMenuFrame, if any, for the given content node
+  nsMenuFrame* GetMenuFrameForContent(nsIContent* aContent);
+
   // get the nsMenuPopupFrame, if any, for the given content node
-  nsMenuPopupFrame* GetPopupFrameForContent(nsIContent* aContent, bool aShouldFlush);
+  nsMenuPopupFrame* GetPopupFrameForContent(nsIContent* aContent, PRBool aShouldFlush);
 
   // return the topmost menu, skipping over invisible popups
   nsMenuChainItem* GetTopVisibleMenu();
@@ -609,7 +650,7 @@ protected:
   // flag is passed as the first argument to HidePopup. This function
   // can cause style changes and frame destruction.
   void HidePopupsInList(const nsTArray<nsMenuPopupFrame *> &aFrames,
-                        bool aDeselectMenu);
+                        PRBool aDeselectMenu);
 
   // set the event that was used to trigger the popup, or null to clear the
   // event details. aTriggerContent will be set to the target of the event.
@@ -618,14 +659,14 @@ protected:
   // callbacks for ShowPopup and HidePopup as events may be done asynchronously
   void ShowPopupCallback(nsIContent* aPopup,
                          nsMenuPopupFrame* aPopupFrame,
-                         bool aIsContextMenu,
-                         bool aSelectFirstItem);
+                         PRBool aIsContextMenu,
+                         PRBool aSelectFirstItem);
   void HidePopupCallback(nsIContent* aPopup,
                          nsMenuPopupFrame* aPopupFrame,
                          nsIContent* aNextPopup,
                          nsIContent* aLastPopup,
                          nsPopupType aPopupType,
-                         bool aDeselectMenu);
+                         PRBool aDeselectMenu);
 
   /**
    * Fire a popupshowing event on the popup and then open the popup.
@@ -635,8 +676,8 @@ protected:
    * aSelectFirstItem - true to select the first item in the menu
    */
   void FirePopupShowingEvent(nsIContent* aPopup,
-                             bool aIsContextMenu,
-                             bool aSelectFirstItem);
+                             PRBool aIsContextMenu,
+                             PRBool aSelectFirstItem);
 
   /**
    * Fire a popuphiding event and then hide the popup. This will be called
@@ -661,12 +702,12 @@ protected:
                             nsIContent* aLastPopup,
                             nsPresContext *aPresContext,
                             nsPopupType aPopupType,
-                            bool aDeselectMenu);
+                            PRBool aDeselectMenu);
 
   /**
    * Handle keyboard navigation within a menu popup specified by aItem.
    */
-  bool HandleKeyboardNavigationInPopup(nsMenuChainItem* aItem,
+  PRBool HandleKeyboardNavigationInPopup(nsMenuChainItem* aItem,
                                          nsNavigationDirection aDir)
   {
     return HandleKeyboardNavigationInPopup(aItem, aItem->Frame(), aDir);
@@ -680,13 +721,13 @@ private:
    * an open submenu if one exists. Returns true if the key was
    * handled and other default handling should not occur.
    */
-  bool HandleKeyboardNavigationInPopup(nsMenuChainItem* aItem,
+  PRBool HandleKeyboardNavigationInPopup(nsMenuChainItem* aItem,
                                          nsMenuPopupFrame* aFrame,
                                          nsNavigationDirection aDir);
 
 protected:
 
-  already_AddRefed<nsIDOMNode> GetLastTriggerNode(nsIDocument* aDocument, bool aIsTooltip);
+  already_AddRefed<nsIDOMNode> GetLastTriggerNode(nsIDocument* aDocument, PRBool aIsTooltip);
 
   /**
    * Set mouse capturing for the current popup. This traps mouse clicks that
@@ -711,7 +752,7 @@ protected:
   /*
    * Returns true if the docshell for aDoc is aExpected or a child of aExpected.
    */
-  bool IsChildOfDocShell(nsIDocument* aDoc, nsIDocShellTreeItem* aExpected);
+  PRBool IsChildOfDocShell(nsIDocument* aDoc, nsIDocShellTreeItem* aExpected);
 
   // the document the key event listener is attached to
   nsCOMPtr<nsIDOMEventTarget> mKeyListener;
@@ -721,13 +762,13 @@ protected:
 
   // range parent and offset set in SetTriggerEvent
   nsCOMPtr<nsIDOMNode> mRangeParent;
-  int32_t mRangeOffset;
+  PRInt32 mRangeOffset;
   // Device pixels relative to the showing popup's presshell's
   // root prescontext's root frame.
   nsIntPoint mCachedMousePoint;
 
   // cached modifiers
-  mozilla::widget::Modifiers mCachedModifiers;
+  PRInt8 mCachedModifiers;
 
   // set to the currently active menu bar, if any
   nsMenuBarFrame* mActiveMenuBar;
@@ -748,5 +789,8 @@ protected:
   // popupshowing event
   nsCOMPtr<nsIContent> mOpeningPopup;
 };
+
+nsresult
+NS_NewXULPopupManager(nsISupports** aResult);
 
 #endif

@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Darin Fisher <darin@meer.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsBaseChannel.h"
 #include "nsChannelProperties.h"
@@ -34,7 +66,7 @@ public:
     : mRequest(request) {
     if (mRequest && NS_FAILED(mRequest->Suspend())) {
       NS_WARNING("Couldn't suspend pump");
-      mRequest = nullptr;
+      mRequest = nsnull;
     }
   }
   ~ScopedRequestSuspender() {
@@ -55,18 +87,18 @@ private:
 
 nsBaseChannel::nsBaseChannel()
   : mLoadFlags(LOAD_NORMAL)
-  , mQueriedProgressSink(true)
-  , mSynthProgressEvents(false)
-  , mWasOpened(false)
-  , mWaitingOnAsyncRedirect(false)
+  , mQueriedProgressSink(PR_TRUE)
+  , mSynthProgressEvents(PR_FALSE)
+  , mWasOpened(PR_FALSE)
+  , mWaitingOnAsyncRedirect(PR_FALSE)
   , mStatus(NS_OK)
 {
   mContentType.AssignLiteral(UNKNOWN_CONTENT_TYPE);
 }
 
 nsresult
-nsBaseChannel::Redirect(nsIChannel *newChannel, uint32_t redirectFlags,
-                        bool openNewChannel)
+nsBaseChannel::Redirect(nsIChannel *newChannel, PRUint32 redirectFlags,
+                        PRBool openNewChannel)
 {
   SUSPEND_PUMP_FOR_SCOPE();
 
@@ -87,7 +119,7 @@ nsBaseChannel::Redirect(nsIChannel *newChannel, uint32_t redirectFlags,
   nsRefPtr<nsAsyncRedirectVerifyHelper> redirectCallbackHelper =
       new nsAsyncRedirectVerifyHelper();
 
-  bool checkRedirectSynchronously = !openNewChannel;
+  PRBool checkRedirectSynchronously = !openNewChannel;
 
   mRedirectChannel = newChannel;
   mRedirectFlags = redirectFlags;
@@ -136,17 +168,17 @@ nsBaseChannel::ContinueRedirect()
       return rv;
   }
 
-  mRedirectChannel = nullptr;
+  mRedirectChannel = nsnull;
 
   // close down this channel
   Cancel(NS_BINDING_REDIRECTED);
-  mListener = nullptr;
-  mListenerContext = nullptr;
+  mListener = nsnull;
+  mListenerContext = nsnull;
 
   return NS_OK;
 }
 
-bool
+PRBool
 nsBaseChannel::HasContentTypeHint() const
 {
   NS_ASSERTION(!IsPending(), "HasContentTypeHint called too late");
@@ -154,7 +186,7 @@ nsBaseChannel::HasContentTypeHint() const
 }
 
 void
-nsBaseChannel::SetContentLength64(int64_t len)
+nsBaseChannel::SetContentLength64(PRInt64 len)
 {
   // XXX: Storing the content-length as a property may not be what we want.
   //      It has the drawback of being copied if we redirect this channel.
@@ -162,10 +194,10 @@ nsBaseChannel::SetContentLength64(int64_t len)
   SetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH, len);
 }
 
-int64_t
+PRInt64
 nsBaseChannel::ContentLength64()
 {
-  int64_t len;
+  PRInt64 len;
   nsresult rv = GetPropertyAsInt64(NS_CHANNEL_PROP_CONTENT_LENGTH, &len);
   return NS_SUCCEEDED(rv) ? len : -1;
 }
@@ -173,7 +205,7 @@ nsBaseChannel::ContentLength64()
 nsresult
 nsBaseChannel::PushStreamConverter(const char *fromType,
                                    const char *toType,
-                                   bool invalidatesContentLength,
+                                   PRBool invalidatesContentLength,
                                    nsIStreamListener **result)
 {
   NS_ASSERTION(mListener, "no listener");
@@ -192,7 +224,7 @@ nsBaseChannel::PushStreamConverter(const char *fromType,
     if (invalidatesContentLength)
       SetContentLength64(-1);
     if (result) {
-      *result = nullptr;
+      *result = nsnull;
       converter.swap(*result);
     }
   }
@@ -204,7 +236,7 @@ nsBaseChannel::BeginPumpingData()
 {
   nsCOMPtr<nsIInputStream> stream;
   nsCOMPtr<nsIChannel> channel;
-  nsresult rv = OpenContentStream(true, getter_AddRefs(stream),
+  nsresult rv = OpenContentStream(PR_TRUE, getter_AddRefs(stream),
                                   getter_AddRefs(channel));
   if (NS_FAILED(rv))
     return rv;
@@ -214,7 +246,7 @@ nsBaseChannel::BeginPumpingData()
   if (channel) {
       rv = NS_DispatchToCurrentThread(new RedirectRunnable(this, channel));
       if (NS_SUCCEEDED(rv))
-          mWaitingOnAsyncRedirect = true;
+          mWaitingOnAsyncRedirect = PR_TRUE;
       return rv;
   }
 
@@ -225,9 +257,9 @@ nsBaseChannel::BeginPumpingData()
   // release mPump if we return an error.
  
   rv = nsInputStreamPump::Create(getter_AddRefs(mPump), stream, -1, -1, 0, 0,
-                                 true);
+                                 PR_TRUE);
   if (NS_SUCCEEDED(rv))
-    rv = mPump->AsyncRead(this, nullptr);
+    rv = mPump->AsyncRead(this, nsnull);
 
   return rv;
 }
@@ -241,7 +273,7 @@ nsBaseChannel::HandleAsyncRedirect(nsIChannel* newChannel)
   if (NS_SUCCEEDED(mStatus)) {
     rv = Redirect(newChannel,
                   nsIChannelEventSink::REDIRECT_TEMPORARY,
-                  true);
+                  PR_TRUE);
     if (NS_SUCCEEDED(rv)) {
       // OnRedirectVerifyCallback will be called asynchronously
       return;
@@ -254,7 +286,7 @@ nsBaseChannel::HandleAsyncRedirect(nsIChannel* newChannel)
 void
 nsBaseChannel::ContinueHandleAsyncRedirect(nsresult result)
 {
-  mWaitingOnAsyncRedirect = false;
+  mWaitingOnAsyncRedirect = PR_FALSE;
 
   if (NS_FAILED(result))
     Cancel(result);
@@ -263,15 +295,15 @@ nsBaseChannel::ContinueHandleAsyncRedirect(nsresult result)
     // Notify our consumer ourselves
     mListener->OnStartRequest(this, mListenerContext);
     mListener->OnStopRequest(this, mListenerContext, mStatus);
-    mListener = nullptr;
-    mListenerContext = nullptr;
+    mListener = nsnull;
+    mListenerContext = nsnull;
   }
 
   if (mLoadGroup)
-    mLoadGroup->RemoveRequest(this, nullptr, mStatus);
+    mLoadGroup->RemoveRequest(this, nsnull, mStatus);
 
   // Drop notification callbacks to prevent cycles.
-  mCallbacks = nullptr;
+  mCallbacks = nsnull;
   CallbacksChanged();
 }
 
@@ -320,7 +352,7 @@ nsBaseChannel::GetName(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsBaseChannel::IsPending(bool *result)
+nsBaseChannel::IsPending(PRBool *result)
 {
   *result = IsPending();
   return NS_OK;
@@ -468,7 +500,7 @@ NS_IMETHODIMP
 nsBaseChannel::SetContentType(const nsACString &aContentType)
 {
   // mContentCharset is unchanged if not parsed
-  bool dummy;
+  PRBool dummy;
   net_ParseContentType(aContentType, mContentType, mContentCharset, &dummy);
   return NS_OK;
 }
@@ -488,36 +520,18 @@ nsBaseChannel::SetContentCharset(const nsACString &aContentCharset)
 }
 
 NS_IMETHODIMP
-nsBaseChannel::GetContentDisposition(uint32_t *aContentDisposition)
+nsBaseChannel::GetContentLength(PRInt32 *aContentLength)
 {
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsBaseChannel::GetContentDispositionFilename(nsAString &aContentDispositionFilename)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsBaseChannel::GetContentDispositionHeader(nsACString &aContentDispositionHeader)
-{
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
-NS_IMETHODIMP
-nsBaseChannel::GetContentLength(int32_t *aContentLength)
-{
-  int64_t len = ContentLength64();
+  PRInt64 len = ContentLength64();
   if (len > PR_INT32_MAX || len < 0)
     *aContentLength = -1;
   else
-    *aContentLength = (int32_t) len;
+    *aContentLength = (PRInt32) len;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsBaseChannel::SetContentLength(int32_t aContentLength)
+nsBaseChannel::SetContentLength(PRInt32 aContentLength)
 {
   SetContentLength64(aContentLength);
   return NS_OK;
@@ -531,10 +545,10 @@ nsBaseChannel::Open(nsIInputStream **result)
   NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_IN_PROGRESS);
 
   nsCOMPtr<nsIChannel> chan;
-  nsresult rv = OpenContentStream(false, result, getter_AddRefs(chan));
+  nsresult rv = OpenContentStream(PR_FALSE, result, getter_AddRefs(chan));
   NS_ASSERTION(!chan || !*result, "Got both a channel and a stream?");
   if (NS_SUCCEEDED(rv) && chan) {
-      rv = Redirect(chan, nsIChannelEventSink::REDIRECT_INTERNAL, false);
+      rv = Redirect(chan, nsIChannelEventSink::REDIRECT_INTERNAL, PR_FALSE);
       if (NS_FAILED(rv))
           return rv;
       rv = chan->Open(result);
@@ -542,7 +556,7 @@ nsBaseChannel::Open(nsIInputStream **result)
     return NS_ImplementChannelOpen(this, result);
 
   if (NS_SUCCEEDED(rv)) {
-    mWasOpened = true;
+    mWasOpened = PR_TRUE;
     ClassifyURI();
   }
 
@@ -560,7 +574,7 @@ nsBaseChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctxt)
   // Ensure that this is an allowed port before proceeding.
   nsresult rv = NS_CheckPortSafety(mURI);
   if (NS_FAILED(rv)) {
-    mCallbacks = nullptr;
+    mCallbacks = nsnull;
     return rv;
   }
 
@@ -576,21 +590,21 @@ nsBaseChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctxt)
   // this method fails.
   rv = BeginPumpingData();
   if (NS_FAILED(rv)) {
-    mPump = nullptr;
-    mListener = nullptr;
-    mListenerContext = nullptr;
-    mCallbacks = nullptr;
+    mPump = nsnull;
+    mListener = nsnull;
+    mListenerContext = nsnull;
+    mCallbacks = nsnull;
     return rv;
   }
 
   // At this point, we are going to return success no matter what.
 
-  mWasOpened = true;
+  mWasOpened = PR_TRUE;
 
   SUSPEND_PUMP_FOR_SCOPE();
 
   if (mLoadGroup)
-    mLoadGroup->AddRequest(this, nullptr);
+    mLoadGroup->AddRequest(this, nsnull);
 
   ClassifyURI();
 
@@ -602,7 +616,7 @@ nsBaseChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctxt)
 
 NS_IMETHODIMP
 nsBaseChannel::OnTransportStatus(nsITransport *transport, nsresult status,
-                                 uint64_t progress, uint64_t progressMax)
+                                 PRUint64 progress, PRUint64 progressMax)
 {
   // In some cases, we may wish to suppress transport-layer status events.
 
@@ -616,7 +630,7 @@ nsBaseChannel::OnTransportStatus(nsITransport *transport, nsresult status,
     if (mQueriedProgressSink)
       return NS_OK;
     GetCallback(mProgressSink);
-    mQueriedProgressSink = true;
+    mQueriedProgressSink = PR_TRUE;
     if (!mProgressSink)
       return NS_OK;
   }
@@ -645,15 +659,15 @@ nsBaseChannel::GetInterface(const nsIID &iid, void **result)
 // nsBaseChannel::nsIRequestObserver
 
 static void
-CallTypeSniffers(void *aClosure, const uint8_t *aData, uint32_t aCount)
+CallTypeSniffers(void *aClosure, const PRUint8 *aData, PRUint32 aCount)
 {
   nsIChannel *chan = static_cast<nsIChannel*>(aClosure);
 
   const nsCOMArray<nsIContentSniffer>& sniffers =
     gIOService->GetContentSniffers();
-  uint32_t length = sniffers.Count();
-  for (uint32_t i = 0; i < length; ++i) {
-    nsAutoCString newType;
+  PRUint32 length = sniffers.Count();
+  for (PRUint32 i = 0; i < length; ++i) {
+    nsCAutoString newType;
     nsresult rv =
       sniffers[i]->GetMIMETypeFromContent(chan, aData, aCount, newType);
     if (NS_SUCCEEDED(rv) && !newType.IsEmpty()) {
@@ -664,7 +678,7 @@ CallTypeSniffers(void *aClosure, const uint8_t *aData, uint32_t aCount)
 }
 
 static void
-CallUnknownTypeSniffer(void *aClosure, const uint8_t *aData, uint32_t aCount)
+CallUnknownTypeSniffer(void *aClosure, const PRUint8 *aData, PRUint32 aCount)
 {
   nsIChannel *chan = static_cast<nsIChannel*>(aClosure);
 
@@ -673,7 +687,7 @@ CallUnknownTypeSniffer(void *aClosure, const uint8_t *aData, uint32_t aCount)
   if (!sniffer)
     return;
 
-  nsAutoCString detected;
+  nsCAutoString detected;
   nsresult rv = sniffer->GetMIMETypeFromContent(chan, aData, aCount, detected);
   if (NS_SUCCEEDED(rv))
     chan->SetContentType(detected);
@@ -682,15 +696,9 @@ CallUnknownTypeSniffer(void *aClosure, const uint8_t *aData, uint32_t aCount)
 NS_IMETHODIMP
 nsBaseChannel::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
 {
-  // If our content type is unknown or if the content type is
-  // application/octet-stream and the caller requested it, use the content type
-  // sniffer. If the sniffer is not available for some reason, then we just keep
-  // going as-is.
-  bool shouldSniff = mContentType.EqualsLiteral(UNKNOWN_CONTENT_TYPE) ||
-            ((mLoadFlags & LOAD_TREAT_APPLICATION_OCTET_STREAM_AS_UNKNOWN) &&
-            mContentType.EqualsLiteral(APPLICATION_OCTET_STREAM));
-
-  if (NS_SUCCEEDED(mStatus) && shouldSniff) {
+  // If our content type is unknown, then use the content type sniffer.  If the
+  // sniffer is not available for some reason, then we just keep going as-is.
+  if (NS_SUCCEEDED(mStatus) && mContentType.EqualsLiteral(UNKNOWN_CONTENT_TYPE)) {
     mPump->PeekStream(CallUnknownTypeSniffer, static_cast<nsIChannel*>(this));
   }
 
@@ -714,20 +722,20 @@ nsBaseChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
     mStatus = status;
 
   // Cause IsPending to return false.
-  mPump = nullptr;
+  mPump = nsnull;
 
   mListener->OnStopRequest(this, mListenerContext, mStatus);
-  mListener = nullptr;
-  mListenerContext = nullptr;
+  mListener = nsnull;
+  mListenerContext = nsnull;
 
   // No need to suspend pump in this scope since we will not be receiving
   // any more events from it.
 
   if (mLoadGroup)
-    mLoadGroup->RemoveRequest(this, nullptr, mStatus);
+    mLoadGroup->RemoveRequest(this, nsnull, mStatus);
 
   // Drop notification callbacks to prevent cycles.
-  mCallbacks = nullptr;
+  mCallbacks = nsnull;
   CallbacksChanged();
 
   return NS_OK;
@@ -738,17 +746,17 @@ nsBaseChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt,
 
 NS_IMETHODIMP
 nsBaseChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctxt,
-                               nsIInputStream *stream, uint64_t offset,
-                               uint32_t count)
+                               nsIInputStream *stream, PRUint32 offset,
+                               PRUint32 count)
 {
   SUSPEND_PUMP_FOR_SCOPE();
 
   nsresult rv = mListener->OnDataAvailable(this, mListenerContext, stream,
                                            offset, count);
   if (mSynthProgressEvents && NS_SUCCEEDED(rv)) {
-    uint64_t prog = offset + count;
-    uint64_t progMax = ContentLength64();
-    OnTransportStatus(nullptr, NS_NET_STATUS_READING, prog, progMax);
+    PRUint64 prog = PRUint64(offset) + count;
+    PRUint64 progMax = ContentLength64();
+    OnTransportStatus(nsnull, nsITransport::STATUS_READING, prog, progMax);
   }
 
   return rv;

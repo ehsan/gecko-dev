@@ -1,11 +1,7 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
 
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 
-var httpserver = new HttpServer();
+var httpserver = new nsHttpServer();
 var testpath = "/simple";
 var httpbody = "<?xml version='1.0' ?><root>0123456789</root>";
 
@@ -42,10 +38,10 @@ function run_test()
 
   // Test async XHR sending
   let async = createXHR(true);
-  async.addEventListener("readystatechange", function(event) {
+  async.onreadystatechange = function(event) {
     if (checkResults(async))
       httpserver.stop(do_test_finished);
-  }, false);
+  };
   async.send(null);
   do_test_pending();
 }

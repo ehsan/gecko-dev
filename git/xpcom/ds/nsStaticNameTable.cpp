@@ -1,8 +1,41 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* Class to manage lookup of static names in a table. */
 
@@ -12,28 +45,25 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "prbit.h"
-#include "mozilla/HashFunctions.h"
 
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "nsStaticNameTable.h"
 
-using namespace mozilla;
-
 struct NameTableKey
 {
     NameTableKey(const nsAFlatCString* aKeyStr)
-        : mIsUnichar(false)
+        : mIsUnichar(PR_FALSE)
     {
         mKeyStr.m1b = aKeyStr;
     }
         
     NameTableKey(const nsAFlatString* aKeyStr)
-        : mIsUnichar(true)
+        : mIsUnichar(PR_TRUE)
     {
         mKeyStr.m2b = aKeyStr;
     }
 
-    bool mIsUnichar;
+    PRBool mIsUnichar;
     union {
         const nsAFlatCString* m1b;
         const nsAFlatString* m2b;
@@ -44,10 +74,10 @@ struct NameTableEntry : public PLDHashEntryHdr
 {
     // no ownership here!
     const nsAFlatCString* mString;
-    int32_t mIndex;
+    PRInt32 mIndex;
 };
 
-static bool
+static PRBool
 matchNameKeysCaseInsensitive(PLDHashTable*, const PLDHashEntryHdr* aHdr,
                              const void* key)
 {
@@ -83,14 +113,14 @@ caseInsensitiveStringHashKey(PLDHashTable *table, const void *key)
         for (const PRUnichar* s = tableKey->mKeyStr.m2b->get();
              *s != '\0';
              s++)
-            h = AddToHash(h, *s & ~0x20);
+            h = PR_ROTATE_LEFT32(h, 4) ^ (*s & ~0x20);
     } else {
         for (const unsigned char* s =
                  reinterpret_cast<const unsigned char*>
                                  (tableKey->mKeyStr.m1b->get());
              *s != '\0';
              s++)
-            h = AddToHash(h, *s & ~0x20);
+            h = PR_ROTATE_LEFT32(h, 4) ^ (*s & ~0x20);
     }
     return h;
 }
@@ -103,21 +133,21 @@ static const struct PLDHashTableOps nametable_CaseInsensitiveHashTableOps = {
     PL_DHashMoveEntryStub,
     PL_DHashClearEntryStub,
     PL_DHashFinalizeStub,
-    nullptr,
+    nsnull,
 };
 
 nsStaticCaseInsensitiveNameTable::nsStaticCaseInsensitiveNameTable()
-  : mNameArray(nullptr), mNullStr("")
+  : mNameArray(nsnull), mNullStr("")
 {
     MOZ_COUNT_CTOR(nsStaticCaseInsensitiveNameTable);
-    mNameTable.ops = nullptr;
+    mNameTable.ops = nsnull;
 }
 
 nsStaticCaseInsensitiveNameTable::~nsStaticCaseInsensitiveNameTable()
 {
     if (mNameArray) {
         // manually call the destructor on placement-new'ed objects
-        for (uint32_t index = 0; index < mNameTable.entryCount; index++) {
+        for (PRUint32 index = 0; index < mNameTable.entryCount; index++) {
             mNameArray[index].~nsDependentCString();
         }
         nsMemory::Free((void*)mNameArray);
@@ -127,8 +157,8 @@ nsStaticCaseInsensitiveNameTable::~nsStaticCaseInsensitiveNameTable()
     MOZ_COUNT_DTOR(nsStaticCaseInsensitiveNameTable);
 }
 
-bool 
-nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], int32_t Count)
+PRBool 
+nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], PRInt32 Count)
 {
     NS_ASSERTION(!mNameArray, "double Init");
     NS_ASSERTION(!mNameTable.ops, "double Init");
@@ -138,21 +168,21 @@ nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], int32_t Count
     mNameArray = (nsDependentCString*)
                    nsMemory::Alloc(Count * sizeof(nsDependentCString));
     if (!mNameArray)
-        return false;
+        return PR_FALSE;
 
     if (!PL_DHashTableInit(&mNameTable,
                            &nametable_CaseInsensitiveHashTableOps,
-                           nullptr, sizeof(NameTableEntry), Count)) {
-        mNameTable.ops = nullptr;
-        return false;
+                           nsnull, sizeof(NameTableEntry), Count)) {
+        mNameTable.ops = nsnull;
+        return PR_FALSE;
     }
 
-    for (int32_t index = 0; index < Count; ++index) {
+    for (PRInt32 index = 0; index < Count; ++index) {
         const char* raw = aNames[index];
 #ifdef DEBUG
         {
             // verify invariants of contents
-            nsAutoCString temp1(raw);
+            nsCAutoString temp1(raw);
             nsDependentCString temp2(raw);
             ToLowerCase(temp1);
             NS_ASSERTION(temp1.Equals(temp2), "upper case char in table");
@@ -179,10 +209,10 @@ nsStaticCaseInsensitiveNameTable::Init(const char* const aNames[], int32_t Count
         entry->mString = strPtr;      // not owned!
         entry->mIndex = index;
     }
-    return true;
+    return PR_TRUE;
 }
 
-int32_t
+PRInt32
 nsStaticCaseInsensitiveNameTable::Lookup(const nsACString& aName)
 {
     NS_ASSERTION(mNameArray, "not inited");
@@ -202,7 +232,7 @@ nsStaticCaseInsensitiveNameTable::Lookup(const nsACString& aName)
     return entry->mIndex;
 }
 
-int32_t
+PRInt32
 nsStaticCaseInsensitiveNameTable::Lookup(const nsAString& aName)
 {
     NS_ASSERTION(mNameArray, "not inited");
@@ -223,12 +253,12 @@ nsStaticCaseInsensitiveNameTable::Lookup(const nsAString& aName)
 }
 
 const nsAFlatCString& 
-nsStaticCaseInsensitiveNameTable::GetStringValue(int32_t index)
+nsStaticCaseInsensitiveNameTable::GetStringValue(PRInt32 index)
 {
     NS_ASSERTION(mNameArray, "not inited");
     NS_ASSERTION(mNameTable.ops, "not inited");
 
-    if ((NOT_FOUND < index) && ((uint32_t)index < mNameTable.entryCount)) {
+    if ((NOT_FOUND < index) && ((PRUint32)index < mNameTable.entryCount)) {
         return mNameArray[index];
     }
     return mNullStr;

@@ -38,7 +38,7 @@
 /*
  * Certificate handling code
  *
- * $Id: lowcert.c,v 1.6 2010/07/20 01:26:04 wtc%google.com Exp $
+ * $Id: lowcert.c,v 1.5 2009/04/12 01:31:45 nelson%bolyard.com Exp $
  */
 
 #include "seccomon.h"
@@ -120,11 +120,6 @@ nsslowcert_dataStart(unsigned char *buf, unsigned int length,
     unsigned char tag;
     unsigned int used_length= 0;
 
-    /* need at least a tag and a 1 byte length */
-    if (length < 2) {
-	return NULL;
-    }
-
     tag = buf[used_length++];
 
     if (rettag) {
@@ -140,10 +135,6 @@ nsslowcert_dataStart(unsigned char *buf, unsigned int length,
 
     if (*data_length&0x80) {
 	int  len_count = *data_length & 0x7f;
-
-	if (len_count+used_length > length) {
-	   return NULL;
-	}
 
 	*data_length = 0;
 
@@ -222,9 +213,6 @@ nsslowcert_GetCertFields(unsigned char *cert,int cert_length,
     /* serial number */
     if (derSN) {
 	derSN->data=nsslowcert_dataStart(buf,buf_length,&derSN->len,PR_TRUE, NULL);
-	/* derSN->data  doesn't need to be checked because if it fails so will
-	 * serial->data below. The only difference between the two calls is
-	 * whether or not the tags are included in the returned buffer */
     }
     serial->data = nsslowcert_dataStart(buf,buf_length,&serial->len,PR_FALSE, NULL);
     if (serial->data == NULL) return SECFailure;
@@ -268,21 +256,7 @@ nsslowcert_GetCertFields(unsigned char *cert,int cert_length,
 	if (buf[0] == 0xa3) {
 	    extensions->data = nsslowcert_dataStart(buf,buf_length, 
 					&extensions->len, PR_FALSE, NULL);
-	    /* if the DER is bad, we should fail. Previously we accepted
-	     * bad DER here and treated the extension as missin */
-	    if (extensions->data == NULL ||
-	       (extensions->data - buf) + extensions->len != buf_length) 
-                return SECFailure;
-            buf = extensions->data;
-            buf_length = extensions->len; 
-            /* now parse the SEQUENCE holding the extensions. */
-            dummy = nsslowcert_dataStart(buf,buf_length,&dummylen,PR_FALSE,NULL);
-            if (dummy == NULL ||
-               (dummy - buf) + dummylen != buf_length)
-                return SECFailure;
-            buf_length -= (dummy - buf);
-            buf = dummy;
-            /* Now parse the extensions inside this sequence */
+	    break;
 	}
 	dummy = nsslowcert_dataStart(buf,buf_length,&dummylen,PR_FALSE,NULL);
 	if (dummy == NULL) return SECFailure;
@@ -654,10 +628,6 @@ nsslowcert_DecodeDERCertificate(SECItem *derSignedCert, char *nickname)
 	&cert->derIssuer, &cert->serialNumber, &cert->derSN, &cert->derSubject,
 	&cert->validity, &cert->derSubjKeyInfo, &cert->extensions);
 
-    if (rv != SECSuccess) {
-	goto loser;
-    }
-
     /* cert->subjectKeyID;	 x509v3 subject key identifier */
     cert->subjectKeyID.data = NULL;
     cert->subjectKeyID.len = 0;
@@ -855,7 +825,7 @@ nsslowcert_ExtractPublicKey(NSSLOWCERTCertificate *cert)
         break;
     }
 
-    lg_nsslowkey_DestroyPublicKey (pubk);
+    nsslowkey_DestroyPublicKey (pubk);
     return NULL;
 }
 

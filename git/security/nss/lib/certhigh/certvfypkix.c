@@ -225,6 +225,9 @@ typedef struct {
 const SECCertUsageToEku certUsageEkuStringMap[] = {
     {certUsageSSLClient,             ekuIndexSSLClient},
     {certUsageSSLServer,             ekuIndexSSLServer},
+    {certUsageSSLServerWithStepUp,   ekuIndexSSLServer}, /* need to add oids to
+                                                          * the list of eku.
+                                                          * see 390381*/
     {certUsageSSLCA,                 ekuIndexSSLServer},
     {certUsageEmailSigner,           ekuIndexEmail},
     {certUsageEmailRecipient,        ekuIndexEmail},
@@ -235,6 +238,8 @@ const SECCertUsageToEku certUsageEkuStringMap[] = {
     {certUsageStatusResponder,       ekuIndexStatusResponder},
     {certUsageAnyCA,                 ekuIndexUnknown},
 };
+
+#define CERT_USAGE_EKU_STRING_MAPS_TOTAL       12
 
 /*
  * FUNCTION: cert_NssCertificateUsageToPkixKUAndEKU
@@ -287,7 +292,7 @@ cert_NssCertificateUsageToPkixKUAndEKU(
         PKIX_List_Create(&ekuOidsList, plContext),
         PKIX_LISTCREATEFAILED);
 
-    for (;i < PR_ARRAY_SIZE(certUsageEkuStringMap);i++) {
+    for (;i < CERT_USAGE_EKU_STRING_MAPS_TOTAL;i++) {
         const SECCertUsageToEku *usageToEkuElem =
             &certUsageEkuStringMap[i];
         if (usageToEkuElem->certUsage == requiredCertUsage) {
@@ -859,7 +864,7 @@ cert_PkixErrorToNssCode(
     void *plContext)
 {
     int errLevel = 0;
-    PKIX_Int32 nssErr = 0;
+    PKIX_UInt32 nssErr = 0;
     PKIX_Error *errPtr = error;
 
     PKIX_ENTER(CERTVFYPKIX, "cert_PkixErrorToNssCode");
@@ -1426,8 +1431,8 @@ struct fake_PKIX_PL_CertStruct {
 /* This needs to be part of the PKIX_PL_* */
 /* This definitely needs to go away, and be replaced with
    a real accessor function in PKIX */
-static CERTCertificate *
-cert_NSSCertFromPKIXCert(const PKIX_PL_Cert *pkix_cert)
+CERTCertificate *
+cert_NSSCertFromPKIXCert(const PKIX_PL_Cert *pkix_cert, void *plContext)
 {
     struct fake_PKIX_PL_CertStruct *fcert = NULL;
 
@@ -1457,10 +1462,9 @@ PKIX_List *cert_PKIXMakeOIDList(const SECOidTag *oids, int oidCount, void *plCon
         error = PKIX_List_AppendItem(policyList, 
                 (PKIX_PL_Object *)policyOID, plContext);
         if (error != NULL) {
+            PKIX_PL_Object_DecRef((PKIX_PL_Object *)policyOID, plContext);
             goto cleanup;
         }
-        PKIX_PL_Object_DecRef((PKIX_PL_Object *)policyOID, plContext);
-        policyOID = NULL;
     }
 
     error = PKIX_List_SetImmutable(policyList, plContext);
@@ -2218,12 +2222,10 @@ do {
         goto cleanup;
     }
 
-    if (trustAnchor != NULL) {
-        error = PKIX_TrustAnchor_GetTrustedCert( trustAnchor, &trustAnchorCert,
-                                                 plContext);
-        if (error != NULL) {
-            goto cleanup;
-        }
+    error = PKIX_TrustAnchor_GetTrustedCert( trustAnchor, &trustAnchorCert,
+                                                plContext);
+    if (error != NULL) {
+        goto cleanup;
     }
 
 #ifdef PKIX_OBJECT_LEAK_TEST
@@ -2234,12 +2236,8 @@ do {
 
     oparam = cert_pkix_FindOutputParam(paramsOut, cert_po_trustAnchor);
     if (oparam != NULL) {
-        if (trustAnchorCert != NULL) {
-            oparam->value.pointer.cert =
-                    cert_NSSCertFromPKIXCert(trustAnchorCert);
-        } else {
-            oparam->value.pointer.cert = NULL;
-        }
+        oparam->value.pointer.cert = 
+                cert_NSSCertFromPKIXCert(trustAnchorCert,plContext);
     }
 
     error = PKIX_BuildResult_GetCertChain( buildResult, &builtCertList,

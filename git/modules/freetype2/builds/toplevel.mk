@@ -122,7 +122,6 @@ ifdef check_platform
   #
   is_unix := $(strip $(wildcard /sbin/init) \
                      $(wildcard /usr/sbin/init) \
-                     $(wildcard /dev/null) \
                      $(wildcard /hurd/auth))
   ifneq ($(is_unix),)
 
@@ -200,7 +199,7 @@ dist:
 
 	currdir=`pwd` ; \
 	for f in `find . -wholename '*/.git' -prune \
-	                 -o -name .gitignore \
+	                 -o -name .cvsignore \
 	                 -o -type d \
 	                 -o -print` ; do \
 	  ln -s $$currdir/$$f tmp/$$f ; \

@@ -1,26 +1,55 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/Util.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SVG project.
+ *
+ * The Initial Developer of the Original Code is
+ * Crocodile Clips Ltd..
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alex Fritze <alex.fritze@crocodile-clips.com> (original author)
+ *   Jonathan Watt <jonathan.watt@strath.ac.uk>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsSVGGraphicElement.h"
 #include "nsSVGSVGElement.h"
-#include "DOMSVGAnimatedTransformList.h"
-#include "DOMSVGMatrix.h"
+#include "nsSVGTransformList.h"
+#include "nsSVGAnimatedTransformList.h"
 #include "nsGkAtoms.h"
+#include "nsSVGMatrix.h"
 #include "nsIDOMEventTarget.h"
-#include "nsIDOMMutationEvent.h"
 #include "nsIFrame.h"
 #include "nsISVGChildFrame.h"
 #include "nsIDOMSVGPoint.h"
 #include "nsSVGUtils.h"
-#include "nsError.h"
+#include "nsDOMError.h"
 #include "nsSVGRect.h"
-#include "nsContentUtils.h"
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -61,7 +90,7 @@ NS_IMETHODIMP nsSVGGraphicElement::GetFarthestViewportElement(nsIDOMSVGElement *
 /* nsIDOMSVGRect getBBox (); */
 NS_IMETHODIMP nsSVGGraphicElement::GetBBox(nsIDOMSVGRect **_retval)
 {
-  *_retval = nullptr;
+  *_retval = nsnull;
 
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
 
@@ -78,18 +107,16 @@ NS_IMETHODIMP nsSVGGraphicElement::GetBBox(nsIDOMSVGRect **_retval)
 /* nsIDOMSVGMatrix getCTM (); */
 NS_IMETHODIMP nsSVGGraphicElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, false);
-  *aCTM = m.IsSingular() ? nullptr : new DOMSVGMatrix(m);
-  NS_IF_ADDREF(*aCTM);
+  gfxMatrix m = nsSVGUtils::GetCTM(this, PR_FALSE);
+  *aCTM = m.IsSingular() ? nsnull : NS_NewSVGMatrix(m).get();
   return NS_OK;
 }
 
 /* nsIDOMSVGMatrix getScreenCTM (); */
 NS_IMETHODIMP nsSVGGraphicElement::GetScreenCTM(nsIDOMSVGMatrix * *aCTM)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, true);
-  *aCTM = m.IsSingular() ? nullptr : new DOMSVGMatrix(m);
-  NS_IF_ADDREF(*aCTM);
+  gfxMatrix m = nsSVGUtils::GetCTM(this, PR_TRUE);
+  *aCTM = m.IsSingular() ? nsnull : NS_NewSVGMatrix(m).get();
   return NS_OK;
 }
 
@@ -100,7 +127,7 @@ NS_IMETHODIMP nsSVGGraphicElement::GetTransformToElement(nsIDOMSVGElement *eleme
     return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
 
   nsresult rv;
-  *_retval = nullptr;
+  *_retval = nsnull;
   nsCOMPtr<nsIDOMSVGMatrix> ourScreenCTM;
   nsCOMPtr<nsIDOMSVGMatrix> targetScreenCTM;
   nsCOMPtr<nsIDOMSVGMatrix> tmp;
@@ -121,20 +148,20 @@ NS_IMETHODIMP nsSVGGraphicElement::GetTransformToElement(nsIDOMSVGElement *eleme
 // nsIDOMSVGTransformable methods
 /* readonly attribute nsIDOMSVGAnimatedTransformList transform; */
 
-NS_IMETHODIMP nsSVGGraphicElement::GetTransform(
-    nsIDOMSVGAnimatedTransformList **aTransform)
+NS_IMETHODIMP nsSVGGraphicElement::GetTransform(nsIDOMSVGAnimatedTransformList * *aTransform)
 {
-  // We're creating a DOM wrapper, so we must tell GetAnimatedTransformList
-  // to allocate the SVGAnimatedTransformList if it hasn't already done so:
-  *aTransform = DOMSVGAnimatedTransformList::GetDOMWrapper(
-                  GetAnimatedTransformList(DO_ALLOCATE), this).get();
+  if (!mTransforms && NS_FAILED(CreateTransformList()))
+    return NS_ERROR_OUT_OF_MEMORY;
+      
+  *aTransform = mTransforms;
+  NS_ADDREF(*aTransform);
   return NS_OK;
 }
 
 //----------------------------------------------------------------------
 // nsIContent methods
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsSVGGraphicElement::IsAttributeMapped(const nsIAtom* name) const
 {
   static const MappedAttributeEntry* const map[] = {
@@ -143,68 +170,23 @@ nsSVGGraphicElement::IsAttributeMapped(const nsIAtom* name) const
     sGraphicsMap
   };
   
-  return FindAttributeDependence(name, map) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGGraphicElementBase::IsAttributeMapped(name);
-}
-
-nsChangeHint
-nsSVGGraphicElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                            int32_t aModType) const
-{
-  nsChangeHint retval =
-    nsSVGGraphicElementBase::GetAttributeChangeHint(aAttribute, aModType);
-  if (aAttribute == nsGkAtoms::transform ||
-      aAttribute == nsGkAtoms::mozAnimateMotionDummyAttr) {
-    // We add nsChangeHint_UpdateOverflow so that nsFrame::UpdateOverflow()
-    // will be called on us and our ancestors.
-    nsIFrame* frame =
-      const_cast<nsSVGGraphicElement*>(this)->GetPrimaryFrame();
-    if (!frame || (frame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-      return retval; // no change
-    }
-    if (aModType == nsIDOMMutationEvent::ADDITION ||
-        aModType == nsIDOMMutationEvent::REMOVAL) {
-      // Reconstruct the frame tree to handle stacking context changes:
-      NS_UpdateHint(retval, nsChangeHint_ReconstructFrame);
-    } else {
-      NS_ABORT_IF_FALSE(aModType == nsIDOMMutationEvent::MODIFICATION,
-                        "Unknown modification type.");
-      // We just assume the old and new transforms are different.
-      NS_UpdateHint(retval, NS_CombineHint(nsChangeHint_UpdateOverflow,
-                                           nsChangeHint_UpdateTransformLayer));
-    }
-  }
-  return retval;
 }
 
 //----------------------------------------------------------------------
 // nsSVGElement overrides
 
-bool
+PRBool
 nsSVGGraphicElement::IsEventName(nsIAtom* aName)
 {
   return nsContentUtils::IsEventAttributeName(aName, EventNameType_SVGGraphic);
 }
 
 gfxMatrix
-nsSVGGraphicElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
-                                              TransformTypes aWhich) const
+nsSVGGraphicElement::PrependLocalTransformTo(const gfxMatrix &aMatrix) const
 {
-  NS_ABORT_IF_FALSE(aWhich != eChildToUserSpace || aMatrix.IsIdentity(),
-                    "Skipping eUserSpaceToParent transforms makes no sense");
-
   gfxMatrix result(aMatrix);
-
-  if (aWhich == eChildToUserSpace) {
-    // We don't have anything to prepend.
-    // eChildToUserSpace is not the common case, which is why we return
-    // 'result' to benefit from NRVO rather than returning aMatrix before
-    // creating 'result'.
-    return result;
-  }
-
-  NS_ABORT_IF_FALSE(aWhich == eAllTransforms || aWhich == eUserSpaceToParent,
-                    "Unknown TransformTypes");
 
   // animateMotion's resulting transform is supposed to apply *on top of*
   // any transformations from the |transform| attribute. So since we're
@@ -214,34 +196,60 @@ nsSVGGraphicElement::PrependLocalTransformsTo(const gfxMatrix &aMatrix,
   }
 
   if (mTransforms) {
-    result.PreMultiply(mTransforms->GetAnimValue().GetConsolidationMatrix());
+    nsresult rv;
+    nsCOMPtr<nsIDOMSVGTransformList> transforms;
+    rv = mTransforms->GetAnimVal(getter_AddRefs(transforms));
+    NS_ENSURE_SUCCESS(rv, aMatrix);
+    PRUint32 count;
+    transforms->GetNumberOfItems(&count);
+    if (count > 0) {
+      nsCOMPtr<nsIDOMSVGMatrix> matrix =
+        nsSVGTransformList::GetConsolidationMatrix(transforms);
+      result.PreMultiply(nsSVGUtils::ConvertSVGMatrixToThebes(matrix));
+    }
   }
 
   return result;
 }
 
-const gfxMatrix*
-nsSVGGraphicElement::GetAnimateMotionTransform() const
-{
-  return mAnimateMotionTransform.get();
-}
-
 void
 nsSVGGraphicElement::SetAnimateMotionTransform(const gfxMatrix* aMatrix)
 {
-  if ((!aMatrix && !mAnimateMotionTransform) ||
-      (aMatrix && mAnimateMotionTransform && *aMatrix == *mAnimateMotionTransform)) {
-    return;
-  }
-  mAnimateMotionTransform = aMatrix ? new gfxMatrix(*aMatrix) : nullptr;
-  DidAnimateTransformList();
+  mAnimateMotionTransform = aMatrix ? new gfxMatrix(*aMatrix) : nsnull;
+  DidAnimateTransform();
 }
 
-SVGAnimatedTransformList*
-nsSVGGraphicElement::GetAnimatedTransformList(uint32_t aFlags)
+nsresult
+nsSVGGraphicElement::BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                                   const nsAString* aValue, PRBool aNotify)
 {
-  if (!mTransforms && (aFlags & DO_ALLOCATE)) {
-    mTransforms = new SVGAnimatedTransformList();
+  if (aNamespaceID == kNameSpaceID_None &&
+      aName == nsGkAtoms::transform &&
+      !mTransforms &&
+      NS_FAILED(CreateTransformList()))
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  return nsSVGGraphicElementBase::BeforeSetAttr(aNamespaceID, aName,
+                                                aValue, aNotify);
+}
+
+nsresult
+nsSVGGraphicElement::CreateTransformList()
+{
+  nsresult rv;
+
+  // DOM property: transform, #IMPLIED attrib: transform
+  nsCOMPtr<nsIDOMSVGTransformList> transformList;
+  rv = nsSVGTransformList::Create(getter_AddRefs(transformList));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = NS_NewSVGAnimatedTransformList(getter_AddRefs(mTransforms),
+                                      transformList);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = AddMappedSVGValue(nsGkAtoms::transform, mTransforms);
+  if (NS_FAILED(rv)) {
+    mTransforms = nsnull;
+    return rv;
   }
-  return mTransforms;
+
+  return NS_OK;
 }

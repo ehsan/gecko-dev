@@ -182,16 +182,6 @@ public:
         and32(imm, srcDest);
     }
 
-    void andPtr(ImmPtr ptr, RegisterID srcDest)
-    {
-        and32(Imm32(ptr), srcDest);
-    }
-
-    void negPtr(RegisterID srcDest)
-    {
-        neg32(srcDest);
-    }
-
     void notPtr(RegisterID srcDest)
     {
         not32(srcDest);
@@ -334,7 +324,7 @@ public:
         return branch32(cond, left, Imm32(right));
     }
 
-    Jump branchPtr(Condition cond, AbsoluteAddress left, ImmPtr right, RegisterID scratch)
+    Jump branchPtr(Condition cond, AbsoluteAddress left, ImmPtr right)
     {
         return branch32(cond, left, Imm32(right));
     }

@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test for HTMLInputElement attributes reflection</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="../reflect.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -17,8 +18,6 @@
 
 // TODO: maybe make those reflections be tested against all input types.
 
-SimpleTest.waitForExplicitFinish();
-SpecialPowers.pushPrefEnv({'set': [["dom.experimental_forms", true]]}, function() {
 // .accept
 reflectString({
   element: document.createElement("input"),
@@ -41,30 +40,11 @@ reflectLimitedEnumerated({
   invalidValues: [ "", "default", "foo", "tulip" ],
 });
 
-// .autofocus
-reflectBoolean({
-  element: document.createElement("input"),
-  attribute: "autofocus",
-});
-
-// .defaultChecked
-reflectBoolean({
-  element: document.createElement("input"),
-  attribute: { idl: "defaultChecked", content: "checked" },
-});
-
-// .checked doesn't reflect a content attribute.
-
-// .dirName
-todo("dirName" in document.createElement("input"),
-     "dirName isn't implemented yet");
-
-// .disabled
-reflectBoolean({
-  element: document.createElement("input"),
-  attribute: "disabled",
-});
-
+// TODO: autofocus (boolean)
+// TODO: defaultChecked (boolean)
+// TODO: checked (boolean)
+// TODO: dirName (not implemented)
+// TODO: disabled (boolean)
 // TODO: form (HTMLFormElement)
 // TODO: files (FileList)
 // TODO: formAction (URL)
@@ -88,11 +68,7 @@ reflectLimitedEnumerated({
   defaultValue: "get"
 });
 
-// .formNoValidate
-reflectBoolean({
-  element: document.createElement("input"),
-  attribute: "formNoValidate",
-});
+// TODO: formNoValidate (boolean)
 
 // .formTarget
 reflectString({
@@ -101,50 +77,13 @@ reflectString({
   otherValues: [ "_blank", "_self", "_parent", "_top" ],
 });
 
-// .height
-reflectUnsignedInt({
-  element: document.createElement("input"),
-  attribute: "height",
-  nonZero: false
-});
-
-// .indeterminate doesn't reflect a content attribute.
-
-// .inputmode
-reflectLimitedEnumerated({
-  element: document.createElement("input"),
-  attribute: "inputmode",
-  validValues: [ "numeric", "digit", "uppercase", "lowercase", "titlecase", "autocapitalized", "auto" ],
-  invalidValues: [ "", "foo", "tulip" ],
-  defaultValue: "auto"
-});
-
+// TODO: height (non-negative integer)
+// TODO: indeterminate (boolean)
 // TODO: list (HTMLElement)
-
-// .max
-reflectString({
-  element: document.createElement('input'),
-  attribute: 'max',
-});
-
-// .maxLength
-reflectInt({
-  element: document.createElement("input"),
-  attribute: "maxLength",
-  nonNegative: true,
-});
-
-// .min
-reflectString({
-  element: document.createElement('input'),
-  attribute: 'min',
-});
-
-// .multiple
-reflectBoolean({
-  element: document.createElement("input"),
-  attribute: "multiple",
-});
+// TODO: max (not implemented)
+// TODO: maxLength (long)
+// TODO: min (not implemented)
+// TODO: multiple (boolean)
 
 // .name
 reflectString({
@@ -167,17 +106,8 @@ reflectString({
   otherValues: [ "foo\nbar", "foo\rbar", "foo\r\nbar" ],
 });
 
-// .readOnly
-reflectBoolean({
-  element: document.createElement("input"),
-  attribute: "readOnly",
-});
-
-// .required
-reflectBoolean({
-  element: document.createElement("input"),
-  attribute: "required",
-});
+// TODO: readOnly (boolean)
+// TODO: required (boolean)
 
 // .size
 reflectUnsignedInt({
@@ -188,12 +118,7 @@ reflectUnsignedInt({
 });
 
 // TODO: src (URL)
-
-// .step
-reflectString({
-  element: document.createElement('input'),
-  attribute: 'step',
-});
+// TODO: step (not implemented)
 
 // .type
 reflectLimitedEnumerated({
@@ -201,11 +126,11 @@ reflectLimitedEnumerated({
   attribute: "type",
   validValues: [ "hidden", "text", "search", "tel", "url", "email", "password",
                  "checkbox", "radio", "file", "submit", "image", "reset",
-                 "button", "number" ],
+                 "button" ],
   invalidValues: [ "this-is-probably-a-wrong-type", "", "tulip" ],
   defaultValue: "text",
   unsupportedValues: [ "datetime", "date", "month", "week", "time",
-                       "datetime-local", "range", "color" ]
+                       "datetime-local", "number", "range", "color" ]
 });
 
 // .defaultValue
@@ -216,33 +141,14 @@ reflectString({
 });
 
 // .value doesn't reflect a content attribute.
-
-// .valueAsDate
-todo("valueAsDate" in document.createElement("input"),
-     "valueAsDate isn't implemented yet");
-
-// Deeper check will be done with bug 763305.
-is('valueAsNumber' in document.createElement("input"), true,
-   "valueAsNumber should be available");
-
-// .selectedOption
-todo("selectedOption" in document.createElement("input"),
-     "selectedOption isn't implemented yet");
-
-// .width
-reflectUnsignedInt({
-  element: document.createElement("input"),
-  attribute: "width",
-  nonZero: false
-});
-
+// TODO: valueAsDate (not implemented)
+// TODO: valueAsNumber (not implemented)
+// TODO: selectedOption (not implemented)
+// TODO: width (non-negative integer)
 // .willValidate doesn't reflect a content attribute.
 // .validity doesn't reflect a content attribute.
 // .validationMessage doesn't reflect a content attribute.
 // .labels doesn't reflect a content attribute.
-
-SimpleTest.finish();
-});
 
 </script>
 </pre>

@@ -1,24 +1,55 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set sw=2 ts=8 et tw=80 ft=cpp : */
 
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *  The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jason Duell <jduell.mcbugs@gmail.com>
+ *   Honza Bambas <honzab@firemni.cz>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 include protocol PNecko;
-include InputStreamParams;
-include URIParams;
 
 include "mozilla/net/PHttpChannelParams.h";
 include "mozilla/net/NeckoMessageUtils.h";
 include "prio.h";
-include "SerializedLoadContext.h";
 
 using RequestHeaderTuples;
-using nsHttpHeaderArray;
 using nsHttpResponseHead;
 using nsHttpAtom;
-using IPC::SerializedLoadContext;
+using IPC::URI;
+using IPC::InputStream;
 using PRNetAddr;
 
 namespace mozilla {
@@ -30,42 +61,40 @@ protocol PHttpChannel
   manager PNecko;
 
 parent:
-  AsyncOpen(URIParams           uri,
+  AsyncOpen(URI                 uri,
             // - TODO: bug 571161: unclear if any HTTP channel clients ever
             // set originalURI != uri (about:credits?); also not clear if
             // chrome channel would ever need to know.  Get rid of next arg?
-            OptionalURIParams   original,
-            OptionalURIParams   doc,
-            OptionalURIParams   referrer,
-            uint32_t            loadFlags,
+            URI                 original,
+            URI                 doc,
+            URI                 referrer,
+            PRUint32            loadFlags,
             RequestHeaderTuples requestHeaders,
             nsHttpAtom          requestMethod,
-            OptionalInputStreamParams uploadStream,
-            bool                uploadStreamHasHeaders,
-            uint16_t            priority,
-            uint8_t             redirectionLimit,
-            bool                allowPipelining,
-            bool                forceAllowThirdPartyCookie,
+            InputStream         uploadStream,
+            PRBool              uploadStreamHasHeaders,
+            PRUint16            priority,
+            PRUint8             redirectionLimit,
+            PRBool              allowPipelining,
+            PRBool              forceAllowThirdPartyCookie,
             bool                resumeAt,
-            uint64_t            startPos,
+            PRUint64            startPos,
             nsCString           entityID,
             bool                chooseApplicationCache,
-            nsCString           appCacheClientID,
-            bool                allowSpdy,
-            SerializedLoadContext loadContext);
+            nsCString           appCacheClientID);
 
   // Used to connect redirected-to channel on the parent with redirected-to
   // channel on the child.
-  ConnectChannel(uint32_t channelId);
+  ConnectChannel(PRUint32 channelId);
 
-  SetPriority(uint16_t priority);
+  SetPriority(PRUint16 priority);
 
   SetCacheTokenCachedCharset(nsCString charset);
 
-  UpdateAssociatedContentSecurity(int32_t high,
-                                  int32_t low,
-                                  int32_t broken,
-                                  int32_t no);
+  UpdateAssociatedContentSecurity(PRInt32 high,
+                                  PRInt32 low,
+                                  PRInt32 broken,
+                                  PRInt32 no);
   Suspend();
   Resume();
 
@@ -98,11 +127,11 @@ parent:
 
 child:
   OnStartRequest(nsHttpResponseHead  responseHead,
-                 bool                useResponseHead,
-                 nsHttpHeaderArray   requestHeaders,
-                 bool                isFromCache,
-                 bool                cacheEntryAvailable,
-                 uint32_t            cacheExpirationTime,
+                 PRBool              useResponseHead,
+                 RequestHeaderTuples requestHeaders,
+                 PRBool              isFromCache,
+                 PRBool              cacheEntryAvailable,
+                 PRUint32            cacheExpirationTime,
                  nsCString           cachedCharset,
                  nsCString           securityInfoSerialization,
                  PRNetAddr           selfAddr,
@@ -111,15 +140,15 @@ child:
   // Combines a single OnDataAvailable and its associated OnProgress &
   // OnStatus calls into one IPDL message
   OnTransportAndData(nsresult  status,
-                     uint64_t  progress,
-                     uint64_t  progressMax,
+                     PRUint64  progress,
+                     PRUint64  progressMax,
                      nsCString data,
-                     uint64_t  offset,
-                     uint32_t  count);
+                     PRUint32  offset,
+                     PRUint32  count);
 
   OnStopRequest(nsresult statusCode);
 
-  OnProgress(uint64_t progress, uint64_t progressMax);
+  OnProgress(PRUint64 progress, PRUint64 progressMax);
 
   OnStatus(nsresult status);
 
@@ -129,9 +158,9 @@ child:
 
   // Called to initiate content channel redirect, starts talking to sinks
   // on the content process and reports result via Redirect2Verify above
-  Redirect1Begin(uint32_t           newChannelId,
-                 URIParams          newUri,
-                 uint32_t           redirectFlags,
+  Redirect1Begin(PRUint32           newChannelId,
+                 URI                newUri,
+                 PRUint32           redirectFlags,
                  nsHttpResponseHead responseHead);
 
   // Called if redirect successful so that child can complete setup.

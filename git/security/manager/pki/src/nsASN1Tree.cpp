@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1994-2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Javier Delgadillo <javi@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "nsASN1Tree.h"
 #include "nsIComponentManager.h"
 #include "nsString.h"
@@ -12,7 +45,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsNSSASN1Tree, nsIASN1Tree,
                                                  nsITreeView)
 
 nsNSSASN1Tree::nsNSSASN1Tree() 
-:mTopNode(nullptr)
+:mTopNode(nsnull)
 {
 }
 
@@ -39,7 +72,7 @@ void nsNSSASN1Tree::ClearNodesRecursively(myNode *n)
 void nsNSSASN1Tree::ClearNodes()
 {
   ClearNodesRecursively(mTopNode);
-  mTopNode = nullptr;
+  mTopNode = nsnull;
 }
 
 void nsNSSASN1Tree::InitChildsRecursively(myNode *n)
@@ -59,27 +92,27 @@ void nsNSSASN1Tree::InitChildsRecursively(myNode *n)
   // we forget that it is a sequence by erasing n->seq.
   // That way, n->seq and n->child will be either both set or both null.
 
-  bool isContainer;
+  PRBool isContainer;
   n->seq->GetIsValidContainer(&isContainer);
   if (!isContainer) {
-    n->seq = nullptr;
+    n->seq = nsnull;
     return;
   }
 
   nsCOMPtr<nsIMutableArray> asn1Objects;
   n->seq->GetASN1Objects(getter_AddRefs(asn1Objects));
-  uint32_t numObjects;
+  PRUint32 numObjects;
   asn1Objects->GetLength(&numObjects);
   
   if (!numObjects) {
-    n->seq = nullptr;
+    n->seq = nsnull;
     return;
   }
   
-  myNode *walk = nullptr;
-  myNode *prev = nullptr;
+  myNode *walk = nsnull;
+  myNode *prev = nsnull;
   
-  uint32_t i;
+  PRUint32 i;
   nsCOMPtr<nsISupports> isupports;
   for (i=0; i<numObjects; i++) {
     if (0 == i) {
@@ -122,8 +155,8 @@ nsNSSASN1Tree::LoadASN1Structure(nsIASN1Object *asn1Object)
   // me know if I should forced the tree to redraw itself
   // by calling RowCountChanged on it.
   //
-  bool redraw = (mASN1Object && mTree);
-  int32_t rowsToDelete = 0;
+  PRBool redraw = (mASN1Object && mTree);
+  PRInt32 rowsToDelete = 0;
 
   if (redraw) {
     // This is the number of rows we will be deleting after
@@ -136,7 +169,7 @@ nsNSSASN1Tree::LoadASN1Structure(nsIASN1Object *asn1Object)
 
   if (redraw) {
     // The number of rows in the new content.
-    int32_t newRows = CountVisibleNodes(mTopNode);
+    PRInt32 newRows = CountVisibleNodes(mTopNode);
     mTree->BeginUpdateBatch();
     // Erase all of the old rows.
     mTree->RowCountChanged(0, rowsToDelete);
@@ -150,7 +183,7 @@ nsNSSASN1Tree::LoadASN1Structure(nsIASN1Object *asn1Object)
 
 /* readonly attribute long rowCount; */
 NS_IMETHODIMP 
-nsNSSASN1Tree::GetRowCount(int32_t *aRowCount)
+nsNSSASN1Tree::GetRowCount(PRInt32 *aRowCount)
 {
   if (mASN1Object) {
     *aRowCount = CountVisibleNodes(mTopNode);
@@ -178,7 +211,7 @@ nsNSSASN1Tree::SetSelection(nsITreeSelection * aSelection)
 
 /* void getRowProperties (in long index, in nsISupportsArray properties); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::GetRowProperties(int32_t index, nsISupportsArray *properties)
+nsNSSASN1Tree::GetRowProperties(PRInt32 index, nsISupportsArray *properties)
 {
   return NS_OK;
 }
@@ -186,7 +219,7 @@ nsNSSASN1Tree::GetRowProperties(int32_t index, nsISupportsArray *properties)
 /* void getCellProperties (in long row, in nsITreeColumn col,
                            in nsISupportsArray properties); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::GetCellProperties(int32_t row, nsITreeColumn* col, 
+nsNSSASN1Tree::GetCellProperties(PRInt32 row, nsITreeColumn* col, 
                                  nsISupportsArray *properties)
 {
   return NS_OK;
@@ -203,19 +236,19 @@ nsNSSASN1Tree::GetColumnProperties(nsITreeColumn* col,
 
 /* boolean isContainer (in long index); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::IsContainer(int32_t index, bool *_retval)
+nsNSSASN1Tree::IsContainer(PRInt32 index, PRBool *_retval)
 {
   myNode *n = FindNodeFromIndex(index);
   if (!n)
     return NS_ERROR_FAILURE;
 
-  *_retval = (n->seq != nullptr);
+  *_retval = (n->seq != nsnull);
   return NS_OK; 
 }
 
 /* boolean isContainerOpen (in long index); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::IsContainerOpen(int32_t index, bool *_retval)
+nsNSSASN1Tree::IsContainerOpen(PRInt32 index, PRBool *_retval)
 {
   myNode *n = FindNodeFromIndex(index);
   if (!n || !n->seq)
@@ -227,26 +260,26 @@ nsNSSASN1Tree::IsContainerOpen(int32_t index, bool *_retval)
 
 /* boolean isContainerEmpty (in long index); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::IsContainerEmpty(int32_t index, bool *_retval)
+nsNSSASN1Tree::IsContainerEmpty(PRInt32 index, PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 
 /* boolean isSeparator (in long index); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::IsSeparator(int32_t index, bool *_retval)
+nsNSSASN1Tree::IsSeparator(PRInt32 index, PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK; 
 }
 
 /* long getLevel (in long index); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::GetLevel(int32_t index, int32_t *_retval)
+nsNSSASN1Tree::GetLevel(PRInt32 index, PRInt32 *_retval)
 {
-  int32_t parentIndex;
-  int32_t nodeLevel;
+  PRInt32 parentIndex;
+  PRInt32 nodeLevel;
 
   myNode *n = FindNodeFromIndex(index, &parentIndex, &nodeLevel);
   if (!n)
@@ -258,7 +291,7 @@ nsNSSASN1Tree::GetLevel(int32_t index, int32_t *_retval)
 
 /* Astring getImageSrc (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::GetImageSrc(int32_t row, nsITreeColumn* col, 
+nsNSSASN1Tree::GetImageSrc(PRInt32 row, nsITreeColumn* col, 
                            nsAString& _retval)
 {
   return NS_OK;
@@ -266,14 +299,14 @@ nsNSSASN1Tree::GetImageSrc(int32_t row, nsITreeColumn* col,
 
 /* long getProgressMode (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::GetProgressMode(int32_t row, nsITreeColumn* col, int32_t* _retval)
+nsNSSASN1Tree::GetProgressMode(PRInt32 row, nsITreeColumn* col, PRInt32* _retval)
 {
   return NS_OK;
 }
 
 /* Astring getCellValue (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::GetCellValue(int32_t row, nsITreeColumn* col, 
+nsNSSASN1Tree::GetCellValue(PRInt32 row, nsITreeColumn* col, 
                             nsAString& _retval)
 {
   return NS_OK;
@@ -281,7 +314,7 @@ nsNSSASN1Tree::GetCellValue(int32_t row, nsITreeColumn* col,
 
 /* Astring getCellText (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::GetCellText(int32_t row, nsITreeColumn* col, 
+nsNSSASN1Tree::GetCellText(PRInt32 row, nsITreeColumn* col, 
                            nsAString& _retval)
 {
   _retval.Truncate();
@@ -296,7 +329,7 @@ nsNSSASN1Tree::GetCellText(int32_t row, nsITreeColumn* col,
 
 /* wstring getDisplayData (in unsigned long index); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::GetDisplayData(uint32_t index, nsAString &_retval)
+nsNSSASN1Tree::GetDisplayData(PRUint32 index, nsAString &_retval)
 {
   myNode *n = FindNodeFromIndex(index);
   if (!n)
@@ -316,7 +349,7 @@ nsNSSASN1Tree::SetTree(nsITreeBoxObject *tree)
 
 /* void toggleOpenState (in long index); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::ToggleOpenState(int32_t index)
+nsNSSASN1Tree::ToggleOpenState(PRInt32 index)
 {
   myNode *n = FindNodeFromIndex(index);
   if (!n)
@@ -325,14 +358,14 @@ nsNSSASN1Tree::ToggleOpenState(int32_t index)
   if (!n->seq)
     return NS_ERROR_FAILURE;
 
-  bool IsExpanded;
+  PRBool IsExpanded;
   n->seq->GetIsExpanded(&IsExpanded);
-  int32_t rowCountChange;
+  PRInt32 rowCountChange;
   if (IsExpanded) {
     rowCountChange = -CountVisibleNodes(n->child);
-    n->seq->SetIsExpanded(false);
+    n->seq->SetIsExpanded(PR_FALSE);
   } else {
-    n->seq->SetIsExpanded(true);
+    n->seq->SetIsExpanded(PR_TRUE);
     rowCountChange = CountVisibleNodes(n->child);
   }
   if (mTree)
@@ -356,32 +389,32 @@ nsNSSASN1Tree::SelectionChanged()
 
 /* void cycleCell (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::CycleCell(int32_t row, nsITreeColumn* col)
+nsNSSASN1Tree::CycleCell(PRInt32 row, nsITreeColumn* col)
 {
   return NS_OK;
 }
 
 /* boolean isEditable (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::IsEditable(int32_t row, nsITreeColumn* col, 
-                          bool *_retval)
+nsNSSASN1Tree::IsEditable(PRInt32 row, nsITreeColumn* col, 
+                          PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 
 /* boolean isSelectable (in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::IsSelectable(int32_t row, nsITreeColumn* col, 
-                            bool *_retval)
+nsNSSASN1Tree::IsSelectable(PRInt32 row, nsITreeColumn* col, 
+                            PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 
 /* void setCellValue (in long row, in nsITreeColumn col, in AString value); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::SetCellValue(int32_t row, nsITreeColumn* col, 
+nsNSSASN1Tree::SetCellValue(PRInt32 row, nsITreeColumn* col, 
                             const nsAString& value)
 {
   return NS_OK;
@@ -389,7 +422,7 @@ nsNSSASN1Tree::SetCellValue(int32_t row, nsITreeColumn* col,
 
 /* void setCellText (in long row, in nsITreeColumn col, in AString value); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::SetCellText(int32_t row, nsITreeColumn* col, 
+nsNSSASN1Tree::SetCellText(PRInt32 row, nsITreeColumn* col, 
                            const nsAString& value)
 {
   return NS_OK;
@@ -404,14 +437,14 @@ nsNSSASN1Tree::PerformAction(const PRUnichar *action)
 
 /* void performActionOnRow (in wstring action, in long row); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::PerformActionOnRow(const PRUnichar *action, int32_t row)
+nsNSSASN1Tree::PerformActionOnRow(const PRUnichar *action, PRInt32 row)
 {
   return NS_OK;
 }
 
 /* void performActionOnCell (in wstring action, in long row, in nsITreeColumn col); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::PerformActionOnCell(const PRUnichar *action, int32_t row, 
+nsNSSASN1Tree::PerformActionOnCell(const PRUnichar *action, PRInt32 row, 
                                    nsITreeColumn* col)
 {
   return NS_OK;
@@ -420,11 +453,11 @@ nsNSSASN1Tree::PerformActionOnCell(const PRUnichar *action, int32_t row,
 //
 // CanDrop
 //
-NS_IMETHODIMP nsNSSASN1Tree::CanDrop(int32_t index, int32_t orientation,
-                                     nsIDOMDataTransfer* aDataTransfer, bool *_retval)
+NS_IMETHODIMP nsNSSASN1Tree::CanDrop(PRInt32 index, PRInt32 orientation,
+                                     nsIDOMDataTransfer* aDataTransfer, PRBool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
-  *_retval = false;
+  *_retval = PR_FALSE;
   
   return NS_OK;
 }
@@ -433,7 +466,7 @@ NS_IMETHODIMP nsNSSASN1Tree::CanDrop(int32_t index, int32_t orientation,
 //
 // Drop
 //
-NS_IMETHODIMP nsNSSASN1Tree::Drop(int32_t row, int32_t orient, nsIDOMDataTransfer* aDataTransfer)
+NS_IMETHODIMP nsNSSASN1Tree::Drop(PRInt32 row, PRInt32 orient, nsIDOMDataTransfer* aDataTransfer)
 {
   return NS_OK;
 }
@@ -444,18 +477,18 @@ NS_IMETHODIMP nsNSSASN1Tree::Drop(int32_t row, int32_t orient, nsIDOMDataTransfe
 //
 // ...
 //
-NS_IMETHODIMP nsNSSASN1Tree::IsSorted(bool *_retval)
+NS_IMETHODIMP nsNSSASN1Tree::IsSorted(PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 
 
 /* long getParentIndex (in long rowIndex); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::GetParentIndex(int32_t rowIndex, int32_t *_retval)
+nsNSSASN1Tree::GetParentIndex(PRInt32 rowIndex, PRInt32 *_retval)
 {
-  int32_t parentIndex = -1;
+  PRInt32 parentIndex = -1;
 
   myNode *n = FindNodeFromIndex(rowIndex, &parentIndex);
   if (!n)
@@ -467,39 +500,39 @@ nsNSSASN1Tree::GetParentIndex(int32_t rowIndex, int32_t *_retval)
 
 /* boolean hasNextSibling (in long rowIndex, in long afterIndex); */
 NS_IMETHODIMP 
-nsNSSASN1Tree::HasNextSibling(int32_t rowIndex, int32_t afterIndex, 
-                              bool *_retval)
+nsNSSASN1Tree::HasNextSibling(PRInt32 rowIndex, PRInt32 afterIndex, 
+                              PRBool *_retval)
 {
   myNode *n = FindNodeFromIndex(rowIndex);
   if (!n)
     return NS_ERROR_FAILURE;
 
   if (!n->next) {
-    *_retval = false;
+    *_retval = PR_FALSE;
   }
   else {
-    int32_t nTotalSize = CountVisibleNodes(n);
-    int32_t nLastChildPos = rowIndex + nTotalSize -1;
-    int32_t nextSiblingPos = nLastChildPos +1;
+    PRInt32 nTotalSize = CountVisibleNodes(n);
+    PRInt32 nLastChildPos = rowIndex + nTotalSize -1;
+    PRInt32 nextSiblingPos = nLastChildPos +1;
     *_retval = (nextSiblingPos > afterIndex);
   }
 
   return NS_OK; 
 }
 
-int32_t nsNSSASN1Tree::CountVisibleNodes(myNode *n)
+PRInt32 nsNSSASN1Tree::CountVisibleNodes(myNode *n)
 {
   if (!n)
     return 0;
 
   myNode *walk = n;
-  int32_t count = 0;
+  PRInt32 count = 0;
   
   while (walk) {
     ++count;
 
     if (walk->seq) {
-      bool IsExpanded;
+      PRBool IsExpanded;
       walk->seq->GetIsExpanded(&IsExpanded);
       if (IsExpanded) {
         count += CountVisibleNodes(walk->child);
@@ -514,8 +547,8 @@ int32_t nsNSSASN1Tree::CountVisibleNodes(myNode *n)
 
 // Entry point for find
 nsNSSASN1Tree::myNode *
-nsNSSASN1Tree::FindNodeFromIndex(int32_t wantedIndex, 
-                                 int32_t *optionalOutParentIndex, int32_t *optionalOutLevel)
+nsNSSASN1Tree::FindNodeFromIndex(PRInt32 wantedIndex, 
+                                 PRInt32 *optionalOutParentIndex, PRInt32 *optionalOutLevel)
 {
   if (0 == wantedIndex) {
     if (optionalOutLevel) {
@@ -527,8 +560,8 @@ nsNSSASN1Tree::FindNodeFromIndex(int32_t wantedIndex,
     return mTopNode;
   }
   else {
-    int32_t index = 0;
-    int32_t level = 0;
+    PRInt32 index = 0;
+    PRInt32 level = 0;
     return FindNodeFromIndex(mTopNode, wantedIndex, index, level, 
                              optionalOutParentIndex, optionalOutLevel);
   }
@@ -536,15 +569,15 @@ nsNSSASN1Tree::FindNodeFromIndex(int32_t wantedIndex,
 
 // Internal recursive helper function
 nsNSSASN1Tree::myNode *
-nsNSSASN1Tree::FindNodeFromIndex(myNode *n, int32_t wantedIndex,
-                                 int32_t &index_counter, int32_t &level_counter,
-                                 int32_t *optionalOutParentIndex, int32_t *optionalOutLevel)
+nsNSSASN1Tree::FindNodeFromIndex(myNode *n, PRInt32 wantedIndex,
+                                 PRInt32 &index_counter, PRInt32 &level_counter,
+                                 PRInt32 *optionalOutParentIndex, PRInt32 *optionalOutLevel)
 {
   if (!n)
-    return nullptr;
+    return nsnull;
 
   myNode *walk = n;
-  int32_t parentIndex = index_counter-1;
+  PRInt32 parentIndex = index_counter-1;
   
   while (walk) {
     if (index_counter == wantedIndex) {
@@ -558,7 +591,7 @@ nsNSSASN1Tree::FindNodeFromIndex(myNode *n, int32_t wantedIndex,
     }
 
     if (walk->seq) {
-      bool IsExpanded;
+      PRBool IsExpanded;
       walk->seq->GetIsExpanded(&IsExpanded);
       if (IsExpanded) {
         ++index_counter; // set to walk->child
@@ -579,6 +612,6 @@ nsNSSASN1Tree::FindNodeFromIndex(myNode *n, int32_t wantedIndex,
     }
   }
 
-  return nullptr;
+  return nsnull;
 }
 

@@ -48,7 +48,10 @@ NVIDIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if !defined(__SCANNER_H)
 #define __SCANNER_H 1
 
-#include "compiler/preprocessor/length_limits.h"
+// These lengths do not include the NULL terminator.
+#define MAX_SYMBOL_NAME_LEN 256
+#define MAX_STRING_LEN 511
+
 #include "compiler/preprocessor/parser.h"
 
 // Not really atom table stuff but needed first...
@@ -69,9 +72,9 @@ typedef struct InputSrc {
 } InputSrc;
 
 int InitScanner(CPPStruct *cpp);   // Intialise the cpp scanner. 
-int InitScannerInput(CPPStruct *cpp, int count, const char* const string[], const int length[]);
+int ScanFromString(const char *);      // Start scanning the input from the string mentioned.
 int check_EOF(int);              // check if we hit a EOF abruptly 
-void CPPErrorToInfoLog(const char *);   // sticking the msg,line into the Shader's.Info.log
+void CPPErrorToInfoLog(char *);   // sticking the msg,line into the Shader's.Info.log
 void SetLineNumber(int);
 void SetStringNumber(int);
 void IncLineNumber(void);

@@ -1,18 +1,48 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Mozilla SVG project.
+ *
+ * The Initial Developer of the Original Code is IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-// Main header first:
+#include "nsIDOMSVGAnimatedRect.h"
+#include "nsIDOMSVGRect.h"
+#include "nsIDocument.h"
 #include "nsSVGMarkerFrame.h"
-
-// Keep others in (case-insensitive) order:
-#include "gfxContext.h"
-#include "nsRenderingContext.h"
+#include "nsSVGPathGeometryFrame.h"
 #include "nsSVGEffects.h"
 #include "nsSVGMarkerElement.h"
 #include "nsSVGPathGeometryElement.h"
-#include "nsSVGPathGeometryFrame.h"
+#include "gfxContext.h"
 
 nsIFrame*
 NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -26,9 +56,9 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGMarkerFrame)
 // nsIFrame methods:
 
 NS_IMETHODIMP
-nsSVGMarkerFrame::AttributeChanged(int32_t  aNameSpaceID,
+nsSVGMarkerFrame::AttributeChanged(PRInt32  aNameSpaceID,
                                    nsIAtom* aAttribute,
-                                   int32_t  aModType)
+                                   PRInt32  aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       (aAttribute == nsGkAtoms::markerUnits ||
@@ -39,7 +69,7 @@ nsSVGMarkerFrame::AttributeChanged(int32_t  aNameSpaceID,
        aAttribute == nsGkAtoms::orient ||
        aAttribute == nsGkAtoms::preserveAspectRatio ||
        aAttribute == nsGkAtoms::viewBox)) {
-    nsSVGEffects::InvalidateDirectRenderingObservers(this);
+    nsSVGEffects::InvalidateRenderingObservers(this);
   }
 
   return nsSVGMarkerFrameBase::AttributeChanged(aNameSpaceID,
@@ -69,7 +99,7 @@ nsSVGMarkerFrame::GetType() const
 // nsSVGContainerFrame methods:
 
 gfxMatrix
-nsSVGMarkerFrame::GetCanvasTM(uint32_t aFor)
+nsSVGMarkerFrame::GetCanvasTM()
 {
   NS_ASSERTION(mMarkedFrame, "null nsSVGPathGeometry frame");
 
@@ -80,9 +110,9 @@ nsSVGMarkerFrame::GetCanvasTM(uint32_t aFor)
 
   nsSVGMarkerElement *content = static_cast<nsSVGMarkerElement*>(mContent);
   
-  mInUse2 = true;
-  gfxMatrix markedTM = mMarkedFrame->GetCanvasTM(aFor);
-  mInUse2 = false;
+  mInUse2 = PR_TRUE;
+  gfxMatrix markedTM = mMarkedFrame->GetCanvasTM();
+  mInUse2 = PR_FALSE;
 
   gfxMatrix markerTM = content->GetMarkerTransform(mStrokeWidth, mX, mY, mAutoAngle);
   gfxMatrix viewBoxTM = content->GetViewBoxTransform();
@@ -92,7 +122,7 @@ nsSVGMarkerFrame::GetCanvasTM(uint32_t aFor)
 
 
 nsresult
-nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
+nsSVGMarkerFrame::PaintMark(nsSVGRenderState *aContext,
                             nsSVGPathGeometryFrame *aMarkedFrame,
                             nsSVGMark *aMark, float aStrokeWidth)
 {
@@ -102,31 +132,41 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
   if (mInUse)
     return NS_OK;
 
-  AutoMarkerReferencer markerRef(this, aMarkedFrame);
-
   nsSVGMarkerElement *marker = static_cast<nsSVGMarkerElement*>(mContent);
 
-  const nsSVGViewBoxRect viewBox = marker->GetViewBoxRect();
+  nsCOMPtr<nsIDOMSVGAnimatedRect> arect;
+  nsresult rv = marker->GetViewBox(getter_AddRefs(arect));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (viewBox.width <= 0.0f || viewBox.height <= 0.0f) {
+  nsCOMPtr<nsIDOMSVGRect> rect;
+  rv = arect->GetAnimVal(getter_AddRefs(rect));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  float x, y, width, height;
+  rect->GetX(&x);
+  rect->GetY(&y);
+  rect->GetWidth(&width);
+  rect->GetHeight(&height);
+
+  if (width <= 0.0f || height <= 0.0f) {
     // We must disable rendering if the viewBox width or height are zero.
     return NS_OK;
   }
+
+  AutoMarkerReferencer markerRef(this, aMarkedFrame);
 
   mStrokeWidth = aStrokeWidth;
   mX = aMark->x;
   mY = aMark->y;
   mAutoAngle = aMark->angle;
 
-  gfxContext *gfx = aContext->ThebesContext();
+  gfxContext *gfx = aContext->GetGfxContext();
 
   if (GetStyleDisplay()->IsScrollableOverflow()) {
     gfx->Save();
     gfxRect clipRect =
-      nsSVGUtils::GetClipRectForFrame(this, viewBox.x, viewBox.y,
-                                      viewBox.width, viewBox.height);
-    nsSVGUtils::SetClipRect(gfx, GetCanvasTM(nsISVGChildFrame::FOR_PAINTING),
-                            clipRect);
+      nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
+    nsSVGUtils::SetClipRect(gfx, GetCanvasTM(), clipRect);
   }
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
@@ -134,8 +174,9 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
     nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       // The CTM of each frame referencing us may be different.
-      SVGFrame->NotifySVGChanged(nsISVGChildFrame::TRANSFORM_CHANGED);
-      nsSVGUtils::PaintFrameWithEffects(aContext, nullptr, kid);
+      SVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                                 nsISVGChildFrame::TRANSFORM_CHANGED);
+      nsSVGUtils::PaintFrameWithEffects(aContext, nsnull, kid);
     }
   }
 
@@ -145,58 +186,35 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
   return NS_OK;
 }
 
-SVGBBox
-nsSVGMarkerFrame::GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
-                                          uint32_t aFlags,
-                                          nsSVGPathGeometryFrame *aMarkedFrame,
-                                          const nsSVGMark *aMark,
-                                          float aStrokeWidth)
-{
-  SVGBBox bbox;
 
+nsRect
+nsSVGMarkerFrame::RegionMark(nsSVGPathGeometryFrame *aMarkedFrame,
+                             const nsSVGMark *aMark, float aStrokeWidth)
+{
   // If the flag is set when we get here, it means this marker frame
-  // has already been used in calculating the current mark bbox, and
+  // has already been used in calculating the current mark region, and
   // the document has a marker reference loop.
   if (mInUse)
-    return bbox;
+    return nsRect(0,0,0,0);
 
   AutoMarkerReferencer markerRef(this, aMarkedFrame);
-
-  nsSVGMarkerElement *content = static_cast<nsSVGMarkerElement*>(mContent);
-
-  const nsSVGViewBoxRect viewBox = content->GetViewBoxRect();
-
-  if (viewBox.width <= 0.0f || viewBox.height <= 0.0f) {
-    return bbox;
-  }
 
   mStrokeWidth = aStrokeWidth;
   mX = aMark->x;
   mY = aMark->y;
   mAutoAngle = aMark->angle;
 
-  gfxMatrix markerTM =
-    content->GetMarkerTransform(mStrokeWidth, mX, mY, mAutoAngle);
-  gfxMatrix viewBoxTM = content->GetViewBoxTransform();
-
-  gfxMatrix tm = viewBoxTM * markerTM * aToBBoxUserspace;
-
+  // Force children to update their covered region
   for (nsIFrame* kid = mFrames.FirstChild();
        kid;
        kid = kid->GetNextSibling()) {
     nsISVGChildFrame* child = do_QueryFrame(kid);
-    if (child) {
-      // When we're being called to obtain the invalidation area, we need to
-      // pass down all the flags so that stroke is included. However, once DOM
-      // getBBox() accepts flags, maybe we should strip some of those here?
-
-      // We need to include zero width/height vertical/horizontal lines, so we have
-      // to use UnionEdges.
-      bbox.UnionEdges(child->GetBBoxContribution(tm, aFlags));
-    }
+    if (child)
+      child->UpdateCoveredRegion();
   }
 
-  return bbox;
+  // Now get the combined covered region
+  return nsSVGUtils::GetCoveredRegion(mFrames);
 }
 
 void
@@ -214,7 +232,7 @@ nsSVGMarkerFrame::AutoMarkerReferencer::AutoMarkerReferencer(
     nsSVGPathGeometryFrame *aMarkedFrame)
       : mFrame(aFrame)
 {
-  mFrame->mInUse = true;
+  mFrame->mInUse = PR_TRUE;
   mFrame->mMarkedFrame = aMarkedFrame;
 
   nsSVGSVGElement *ctx =
@@ -224,8 +242,8 @@ nsSVGMarkerFrame::AutoMarkerReferencer::AutoMarkerReferencer(
 
 nsSVGMarkerFrame::AutoMarkerReferencer::~AutoMarkerReferencer()
 {
-  mFrame->SetParentCoordCtxProvider(nullptr);
+  mFrame->SetParentCoordCtxProvider(nsnull);
 
-  mFrame->mMarkedFrame = nullptr;
-  mFrame->mInUse = false;
+  mFrame->mMarkedFrame = nsnull;
+  mFrame->mInUse = PR_FALSE;
 }

@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is elfhack.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mike Hommey <mh@glandium.org>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include <stdexcept>
 #include <list>
@@ -8,7 +41,6 @@
 #include <cstring>
 #include <iostream>
 #include <fstream>
-#include <algorithm>
 #include <elf.h>
 #include <asm/byteorder.h>
 
@@ -135,7 +167,6 @@ public:
     ElfLocation(unsigned int location, Elf *elf);
     unsigned int getValue();
     ElfSection *getSection() { return section; }
-    const char *getBuffer();
 };
 
 class ElfSize: public ElfValue {
@@ -165,27 +196,13 @@ private:
     void init(const char *buf, size_t len, char ei_data)
     {
         R e;
-        assert(len >= sizeof(e));
+        assert(len <= sizeof(e));
         memcpy(&e, buf, sizeof(e));
         if (ei_data == ELFDATA2LSB) {
             T::template swap<little_endian>(e, *this);
             return;
         } else if (ei_data == ELFDATA2MSB) {
             T::template swap<big_endian>(e, *this);
-            return;
-        }
-        throw std::runtime_error("Unsupported ELF data encoding");
-    }
-
-    template <typename R>
-    void serialize(const char *buf, size_t len, char ei_data)
-    {
-        assert(len >= sizeof(R));
-        if (ei_data == ELFDATA2LSB) {
-            T::template swap<little_endian>(*this, *(R *)buf);
-            return;
-        } else if (ei_data == ELFDATA2MSB) {
-            T::template swap<big_endian>(*this, *(R *)buf);
             return;
         }
         throw std::runtime_error("Unsupported ELF data encoding");
@@ -209,13 +226,23 @@ public:
         if (ei_class == ELFCLASS32) {
             typename T::Type32 e;
             file.read((char *)&e, sizeof(e));
-            init<typename T::Type32>((char *)&e, sizeof(e), ei_data);
-            return;
+            if (ei_data == ELFDATA2LSB) {
+                T::template swap<little_endian>(e, *this);
+                return;
+            } else if (ei_data == ELFDATA2MSB) {
+                T::template swap<big_endian>(e, *this);
+                return;
+            }
         } else if (ei_class == ELFCLASS64) {
             typename T::Type64 e;
             file.read((char *)&e, sizeof(e));
-            init<typename T::Type64>((char *)&e, sizeof(e), ei_data);
-            return;
+            if (ei_data == ELFDATA2LSB) {
+                T::template swap<little_endian>(e, *this);
+                return;
+            } else if (ei_data == ELFDATA2MSB) {
+                T::template swap<big_endian>(e, *this);
+                return;
+            }
         }
         throw std::runtime_error("Unsupported ELF class or data encoding");
     }
@@ -224,31 +251,31 @@ public:
     {
         if (ei_class == ELFCLASS32) {
             typename T::Type32 e;
-            serialize<typename T::Type32>((char *)&e, sizeof(e), ei_data);
-            file.write((char *)&e, sizeof(e));
-            return;
+            if (ei_data == ELFDATA2LSB) {
+                T::template swap<little_endian>(*this, e);
+                file.write((char *)&e, sizeof(e));
+                return;
+            } else if (ei_data == ELFDATA2MSB) {
+                T::template swap<big_endian>(*this, e);
+                file.write((char *)&e, sizeof(e));
+                return;
+            }
         } else if (ei_class == ELFCLASS64) {
             typename T::Type64 e;
-            serialize<typename T::Type64>((char *)&e, sizeof(e), ei_data);
-            file.write((char *)&e, sizeof(e));
-            return;
+            if (ei_data == ELFDATA2LSB) {
+                T::template swap<little_endian>(*this, e);
+                file.write((char *)&e, sizeof(e));
+                return;
+            } else if (ei_data == ELFDATA2MSB) {
+                T::template swap<big_endian>(*this, e);
+                file.write((char *)&e, sizeof(e));
+                return;
+            }
         }
         throw std::runtime_error("Unsupported ELF class or data encoding");
     }
 
-    void serialize(char *buf, size_t len, char ei_class, char ei_data)
-    {
-        if (ei_class == ELFCLASS32) {
-            serialize<typename T::Type32>(buf, len, ei_data);
-            return;
-        } else if (ei_class == ELFCLASS64) {
-            serialize<typename T::Type64>(buf, len, ei_data);
-            return;
-        }
-        throw std::runtime_error("Unsupported ELF class");
-    }
-
-    static inline unsigned int size(char ei_class)
+    static inline int size(char ei_class)
     {
         if (ei_class == ELFCLASS32)
             return sizeof(typename T::Type32);
@@ -274,7 +301,6 @@ public:
 
     ElfDynamic_Section *getDynSection();
 
-    void normalize();
     void write(std::ofstream &file);
 
     char getClass();
@@ -344,8 +370,7 @@ public:
                 (getType() == SHT_GNU_HASH) ||
                 (getType() == SHT_GNU_verdef) ||
                 (getType() == SHT_GNU_verneed) ||
-                (getType() == SHT_GNU_versym) ||
-                isInSegmentType(PT_INTERP)) &&
+                (getType() == SHT_GNU_versym)) &&
                 (getFlags() & SHF_ALLOC);
     }
 
@@ -362,23 +387,6 @@ public:
             next = NULL;
         if (next != NULL)
             next->previous = this;
-        if (dirty)
-            markDirty();
-    }
-
-    void insertBefore(ElfSection *section, bool dirty = true) {
-        if (previous != NULL)
-            previous->next = next;
-        if (next != NULL)
-            next->previous = previous;
-        next = section;
-        if (section != NULL) {
-            previous = section->previous;
-            section->previous = this;
-        } else
-            previous = NULL;
-        if (previous != NULL)
-            previous->next = this;
         if (dirty)
             markDirty();
     }
@@ -402,20 +410,6 @@ public:
         file.seekp(getOffset());
         file.write(data, getSize());
     }
-
-private:
-    friend class ElfSegment;
-
-    void addToSegment(ElfSegment *segment) {
-        segments.push_back(segment);
-    }
-
-    void removeFromSegment(ElfSegment *segment) {
-        std::vector<ElfSegment *>::iterator i = std::find(segments.begin(), segments.end(), segment);
-        segments.erase(i, i + 1);
-    }
-
-    bool isInSegmentType(unsigned int type);
 protected:
     Elf_Shdr shdr;
     char *data;
@@ -425,7 +419,6 @@ private:
     SectionInfo info;
     ElfSection *next, *previous;
     int index;
-    std::vector<ElfSegment *> segments;
 };
 
 class ElfSegment {
@@ -434,7 +427,7 @@ public:
 
     unsigned int getType() { return type; }
     unsigned int getFlags() { return flags; }
-    unsigned int getAlign() { return align; }
+    unsigned int getAlign() { return type == PT_LOAD ? 0x1000 : align; /* TODO: remove this gross hack */ }
 
     ElfSection *getFirstSection() { return sections.empty() ? NULL : sections.front(); }
     int getVPDiff() { return v_p_diff; }
@@ -511,7 +504,7 @@ public:
 
     ElfValue *getValueForType(unsigned int tag);
     ElfSection *getSectionForType(unsigned int tag);
-    bool setValueForType(unsigned int tag, ElfValue *val);
+    void setValueForType(unsigned int tag, ElfValue *val);
 private:
     std::vector<Elf_DynValue> dyns;
 };
@@ -643,13 +636,6 @@ inline unsigned int Elf::getSize() {
     return section->getOffset() + section->getSize();
 }
 
-inline bool ElfSection::isInSegmentType(unsigned int type) {
-    for (std::vector<ElfSegment *>::iterator seg = segments.begin(); seg != segments.end(); seg++)
-        if ((*seg)->getType() == type)
-            return true;
-    return false;
-}
-
 inline ElfLocation::ElfLocation(ElfSection *section, unsigned int off, enum position pos)
 : section(section) {
     if ((pos == ABSOLUTE) && section)
@@ -665,10 +651,6 @@ inline ElfLocation::ElfLocation(unsigned int location, Elf *elf) {
 
 inline unsigned int ElfLocation::getValue() {
     return (section ? section->getAddr() : 0) + offset;
-}
-
-inline const char *ElfLocation::getBuffer() {
-    return section ? section->getData() + offset : NULL;
 }
 
 inline unsigned int ElfSize::getValue() {

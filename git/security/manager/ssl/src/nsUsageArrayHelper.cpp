@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is the Netscape security libraries.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2000
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  John Gardiner Myers <jgmyers@speakeasy.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsUsageArrayHelper.h"
 
@@ -31,11 +64,11 @@ nsUsageArrayHelper::nsUsageArrayHelper(CERTCertificate *aCert)
 void
 nsUsageArrayHelper::check(const char *suffix,
                         SECCertificateUsage aCertUsage,
-                        uint32_t &aCounter,
+                        PRUint32 &aCounter,
                         PRUnichar **outUsages)
 {
   if (!aCertUsage) return;
-  nsAutoCString typestr;
+  nsCAutoString typestr;
   switch (aCertUsage) {
   case certificateUsageSSLClient:
     typestr = "VerifySSLClient";
@@ -87,7 +120,7 @@ nsUsageArrayHelper::check(const char *suffix,
 }
 
 void
-nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
+nsUsageArrayHelper::verifyFailed(PRUint32 *_verified, int err)
 {
   switch (err) {
   /* For these cases, verify only failed for the particular usage */
@@ -108,8 +141,6 @@ nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
   case SEC_ERROR_EXPIRED_ISSUER_CERTIFICATE:
     // XXX are there other error for this?
     *_verified = nsNSSCertificate::INVALID_CA; break;
-  case SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED:
-    *_verified = nsNSSCertificate::SIGNATURE_ALGORITHM_DISABLED; break;
   case SEC_ERROR_CERT_USAGES_INVALID: // XXX what is this?
   // there are some OCSP errors from PSM 1.x to add here
   case SECSuccess:
@@ -121,10 +152,10 @@ nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
 
 nsresult
 nsUsageArrayHelper::GetUsagesArray(const char *suffix,
-                      bool localOnly,
-                      uint32_t outArraySize,
-                      uint32_t *_verified,
-                      uint32_t *_count,
+                      PRBool localOnly,
+                      PRUint32 outArraySize,
+                      PRUint32 *_verified,
+                      PRUint32 *_count,
                       PRUnichar **outUsages)
 {
   nsNSSShutDownPreventionLock locker;
@@ -147,17 +178,14 @@ nsUsageArrayHelper::GetUsagesArray(const char *suffix,
     }
   }
   
-  uint32_t &count = *_count;
+  PRUint32 &count = *_count;
   count = 0;
   SECCertificateUsage usages = 0;
-  int err = 0;
-  
+  SECStatus verifyResult;
+
 if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
-  // CERT_VerifyCertificateNow returns SECFailure unless the certificate is
-  // valid for all the given usages. Hoewver, we are only looking for the list
-  // of usages for which the cert *is* valid.
-  (void)
-  CERT_VerifyCertificateNow(defaultcertdb, mCert, true,
+  verifyResult =
+  CERT_VerifyCertificateNow(defaultcertdb, mCert, PR_TRUE,
 			    certificateUsageSSLClient |
 			    certificateUsageSSLServer |
 			    certificateUsageSSLServerWithStepUp |
@@ -167,7 +195,6 @@ if (!nsNSSComponent::globalConstFlagUsePKIXVerification) {
 			    certificateUsageSSLCA |
 			    certificateUsageStatusResponder,
 			    NULL, &usages);
-  err = PR_GetError();
 }
 else {
   nsresult nsrv;
@@ -188,12 +215,19 @@ else {
   cvout[0].value.scalar.usages = 0;
   cvout[1].type = cert_po_end;
   
+  verifyResult =
   CERT_PKIXVerifyCert(mCert, certificateUsageCheckAllUsages,
                       survivingParams->GetRawPointerForNSS(),
                       cvout, NULL);
-  err = PR_GetError();
+
   usages = cvout[0].value.scalar.usages;
 }
+
+  if (verifyResult != SECSuccess) {
+    int err = PR_GetError();
+    verifyFailed(_verified, err);
+    return NS_OK;
+  }
 
   // The following list of checks must be < max_returned_out_array_size
   
@@ -220,10 +254,6 @@ else {
     nssComponent->SkipOcspOff();
   }
 
-  if (count == 0) {
-    verifyFailed(_verified, err);
-  } else {
-    *_verified = nsNSSCertificate::VERIFIED_OK;
-  }
+  *_verified = nsNSSCertificate::VERIFIED_OK;
   return NS_OK;
 }

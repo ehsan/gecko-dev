@@ -1,8 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK *****
  *
  *
  * This Original Code has been modified by IBM Corporation.
@@ -25,10 +57,10 @@
 
  */
 
-#include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
 #include "nsIContent.h"
+#include "nsINodeInfo.h"
 #include "nsIDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMXULCommandDispatcher.h"
@@ -39,6 +71,7 @@
 #include "nsIServiceManager.h"
 #include "nsIURL.h"
 #include "nsXULContentUtils.h"
+#include "nsIXULPrototypeCache.h"
 #include "nsLayoutCID.h"
 #include "nsNetUtil.h"
 #include "nsRDFCID.h"
@@ -58,8 +91,6 @@
 #include "nsILocaleService.h"
 #include "nsIConsoleService.h"
 #include "nsEscape.h"
-
-using namespace mozilla;
 
 static NS_DEFINE_CID(kRDFServiceCID,        NS_RDFSERVICE_CID);
 
@@ -167,22 +198,23 @@ nsXULContentUtils::GetCollation()
 
 nsresult
 nsXULContentUtils::FindChildByTag(nsIContent* aElement,
-                                  int32_t aNameSpaceID,
+                                  PRInt32 aNameSpaceID,
                                   nsIAtom* aTag,
                                   nsIContent** aResult)
 {
-    for (nsIContent* child = aElement->GetFirstChild();
-         child;
-         child = child->GetNextSibling()) {
+    PRUint32 count = aElement->GetChildCount();
 
-        if (child->NodeInfo()->Equals(aTag, aNameSpaceID)) {
-            NS_ADDREF(*aResult = child);
+    for (PRUint32 i = 0; i < count; ++i) {
+        nsIContent *kid = aElement->GetChildAt(i);
+
+        if (kid->NodeInfo()->Equals(aTag, aNameSpaceID)) {
+            NS_ADDREF(*aResult = kid);
 
             return NS_OK;
         }
     }
 
-    *aResult = nullptr;
+    *aResult = nsnull;
     return NS_RDF_NO_VALUE; // not found
 }
 
@@ -195,7 +227,7 @@ nsXULContentUtils::GetElementResource(nsIContent* aElement, nsIRDFResource** aRe
     nsresult rv;
 
     PRUnichar buf[128];
-    nsFixedString id(buf, ArrayLength(buf), 0);
+    nsFixedString id(buf, NS_ARRAY_LENGTH(buf), 0);
 
     // Whoa.  Why the "id" attribute?  What if it's not even a XUL
     // element?  This is totally bogus!
@@ -244,15 +276,15 @@ nsXULContentUtils::GetTextForNode(nsIRDFNode* aNode, nsAString& aResult)
 
     nsCOMPtr<nsIRDFDate> dateLiteral = do_QueryInterface(aNode);
     if (dateLiteral) {
-        PRTime value;
+        PRInt64	value;
         rv = dateLiteral->GetValue(&value);
         if (NS_FAILED(rv)) return rv;
 
         nsAutoString str;
-        rv = gFormat->FormatPRTime(nullptr /* nsILocale* locale */,
+        rv = gFormat->FormatPRTime(nsnull /* nsILocale* locale */,
                                   kDateFormatShort,
                                   kTimeFormatSeconds,
-                                  value,
+                                  PRTime(value),
                                   str);
         aResult.Assign(str);
 
@@ -263,7 +295,7 @@ nsXULContentUtils::GetTextForNode(nsIRDFNode* aNode, nsAString& aResult)
 
     nsCOMPtr<nsIRDFInt> intLiteral = do_QueryInterface(aNode);
     if (intLiteral) {
-        int32_t	value;
+        PRInt32	value;
         rv = intLiteral->GetValue(&value);
         if (NS_FAILED(rv)) return rv;
 
@@ -312,7 +344,7 @@ nsXULContentUtils::MakeElementURI(nsIDocument* aDocument,
     rv = docURI->GetSpec(aURI);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString ref;
+    nsCAutoString ref;
     NS_EscapeURL(NS_ConvertUTF16toUTF8(aElementID), esc_FilePath | esc_AlwaysCopy, ref);
 
     aURI.Append('#');
@@ -353,7 +385,7 @@ nsXULContentUtils::MakeElementID(nsIDocument* aDocument,
                             aDocument->GetDocumentCharacterSet().get());
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsAutoCString ref;
+    nsCAutoString ref;
     uri->GetRef(ref);
     CopyUTF8toUTF16(ref, aElementID);
 
@@ -361,10 +393,10 @@ nsXULContentUtils::MakeElementID(nsIDocument* aDocument,
 }
 
 nsresult
-nsXULContentUtils::GetResource(int32_t aNameSpaceID, nsIAtom* aAttribute, nsIRDFResource** aResult)
+nsXULContentUtils::GetResource(PRInt32 aNameSpaceID, nsIAtom* aAttribute, nsIRDFResource** aResult)
 {
     // construct a fully-qualified URI from the namespace/tag pair.
-    NS_PRECONDITION(aAttribute != nullptr, "null ptr");
+    NS_PRECONDITION(aAttribute != nsnull, "null ptr");
     if (! aAttribute)
         return NS_ERROR_NULL_POINTER;
 
@@ -374,7 +406,7 @@ nsXULContentUtils::GetResource(int32_t aNameSpaceID, nsIAtom* aAttribute, nsIRDF
 
 
 nsresult
-nsXULContentUtils::GetResource(int32_t aNameSpaceID, const nsAString& aAttribute, nsIRDFResource** aResult)
+nsXULContentUtils::GetResource(PRInt32 aNameSpaceID, const nsAString& aAttribute, nsIRDFResource** aResult)
 {
     // construct a fully-qualified URI from the namespace/tag pair.
 
@@ -386,7 +418,7 @@ nsXULContentUtils::GetResource(int32_t aNameSpaceID, const nsAString& aAttribute
     nsresult rv;
 
     PRUnichar buf[256];
-    nsFixedString uri(buf, ArrayLength(buf), 0);
+    nsFixedString uri(buf, NS_ARRAY_LENGTH(buf), 0);
     if (aNameSpaceID != kNameSpaceID_Unknown && aNameSpaceID != kNameSpaceID_None) {
         rv = nsContentUtils::NameSpaceManager()->GetNameSpaceURI(aNameSpaceID, uri);
         // XXX ignore failure; treat as "no namespace"
@@ -412,18 +444,18 @@ nsXULContentUtils::SetCommandUpdater(nsIDocument* aDocument, nsIContent* aElemen
     // Deal with setting up a 'commandupdater'. Pulls the 'events' and
     // 'targets' attributes off of aElement, and adds it to the
     // document's command dispatcher.
-    NS_PRECONDITION(aDocument != nullptr, "null ptr");
+    NS_PRECONDITION(aDocument != nsnull, "null ptr");
     if (! aDocument)
         return NS_ERROR_NULL_POINTER;
 
-    NS_PRECONDITION(aElement != nullptr, "null ptr");
+    NS_PRECONDITION(aElement != nsnull, "null ptr");
     if (! aElement)
         return NS_ERROR_NULL_POINTER;
 
     nsresult rv;
 
     nsCOMPtr<nsIDOMXULDocument> xuldoc = do_QueryInterface(aDocument);
-    NS_ASSERTION(xuldoc != nullptr, "not a xul document");
+    NS_ASSERTION(xuldoc != nsnull, "not a xul document");
     if (! xuldoc)
         return NS_ERROR_UNEXPECTED;
 
@@ -432,7 +464,7 @@ nsXULContentUtils::SetCommandUpdater(nsIDocument* aDocument, nsIContent* aElemen
     NS_ASSERTION(NS_SUCCEEDED(rv), "unable to get dispatcher");
     if (NS_FAILED(rv)) return rv;
 
-    NS_ASSERTION(dispatcher != nullptr, "no dispatcher");
+    NS_ASSERTION(dispatcher != nsnull, "no dispatcher");
     if (! dispatcher)
         return NS_ERROR_UNEXPECTED;
 
@@ -448,7 +480,7 @@ nsXULContentUtils::SetCommandUpdater(nsIDocument* aDocument, nsIContent* aElemen
         targets.AssignLiteral("*");
 
     nsCOMPtr<nsIDOMElement> domelement = do_QueryInterface(aElement);
-    NS_ASSERTION(domelement != nullptr, "not a DOM element");
+    NS_ASSERTION(domelement != nsnull, "not a DOM element");
     if (! domelement)
         return NS_ERROR_UNEXPECTED;
 

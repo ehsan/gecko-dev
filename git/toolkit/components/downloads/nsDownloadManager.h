@@ -1,35 +1,71 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Blake Ross <blaker@netscape.com>
+ *   Ben Goodger <ben@netscape.com>
+ *   Shawn Wilsher <me@shawnwilsher.com>
+ *   Srirang G Doddihal <brahmana@doddihal.com>
+ *   Edward Lee <edward.lee@engineering.uiuc.edu>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef downloadmanager___h___
 #define downloadmanager___h___
 
-#if defined(XP_WIN)
+#if defined(XP_WIN) && (MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN)
 #define DOWNLOAD_SCANNER
 #endif
 
 #include "nsIDownload.h"
 #include "nsIDownloadManager.h"
 #include "nsIDownloadProgressListener.h"
-#include "nsIFile.h"
+#include "nsILocalFile.h"
 #include "nsIMIMEInfo.h"
 #include "nsINavHistoryService.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIStringBundle.h"
 #include "nsISupportsPrimitives.h"
-#include "nsWeakReference.h"
 #include "nsITimer.h"
-#include "nsString.h"
 
 #include "mozStorageHelper.h"
 #include "nsAutoPtr.h"
 #include "nsCOMArray.h"
 
-typedef int16_t DownloadState;
-typedef int16_t DownloadType;
+typedef PRInt16 DownloadState;
+typedef PRInt16 DownloadType;
 
 class nsDownload;
 
@@ -39,8 +75,7 @@ class nsDownload;
 
 class nsDownloadManager : public nsIDownloadManager,
                           public nsINavHistoryObserver,
-                          public nsIObserver,
-                          public nsSupportsWeakReference
+                          public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
@@ -55,9 +90,9 @@ public:
   virtual ~nsDownloadManager();
   nsDownloadManager() :
       mDBType(DATABASE_DISK)
-    , mInPrivateBrowsing(false)
+    , mInPrivateBrowsing(PR_FALSE)
 #ifdef DOWNLOAD_SCANNER
-    , mScanner(nullptr)
+    , mScanner(nsnull)
 #endif
   {
   }
@@ -71,7 +106,6 @@ protected:
 
   nsresult InitDB();
   nsresult InitFileDB();
-  void CloseDB();
   nsresult InitMemoryDB();
   already_AddRefed<mozIStorageConnection> GetFileDBConnection(nsIFile *dbFile) const;
   already_AddRefed<mozIStorageConnection> GetMemoryDBConnection() const;
@@ -91,7 +125,7 @@ protected:
    */
   nsresult RestoreActiveDownloads();
 
-  nsresult GetDownloadFromDB(uint32_t aID, nsDownload **retVal);
+  nsresult GetDownloadFromDB(PRUint32 aID, nsDownload **retVal);
 
   /**
    * Specially track the active downloads so that we don't need to check
@@ -106,32 +140,32 @@ protected:
    *
    * @return The id of the download, or 0 if there was an error.
    */
-  int64_t AddDownloadToDB(const nsAString &aName,
+  PRInt64 AddDownloadToDB(const nsAString &aName,
                           const nsACString &aSource,
                           const nsACString &aTarget,
                           const nsAString &aTempPath,
-                          int64_t aStartTime,
-                          int64_t aEndTime,
+                          PRInt64 aStartTime,
+                          PRInt64 aEndTime,
                           const nsACString &aMimeType,
                           const nsACString &aPreferredApp,
                           nsHandlerInfoAction aPreferredAction);
 
-  void NotifyListenersOnDownloadStateChange(int16_t aOldState,
+  void NotifyListenersOnDownloadStateChange(PRInt16 aOldState,
                                             nsIDownload *aDownload);
   void NotifyListenersOnProgressChange(nsIWebProgress *aProgress,
                                        nsIRequest *aRequest,
-                                       int64_t aCurSelfProgress,
-                                       int64_t aMaxSelfProgress,
-                                       int64_t aCurTotalProgress,
-                                       int64_t aMaxTotalProgress,
+                                       PRInt64 aCurSelfProgress,
+                                       PRInt64 aMaxSelfProgress,
+                                       PRInt64 aCurTotalProgress,
+                                       PRInt64 aMaxTotalProgress,
                                        nsIDownload *aDownload);
   void NotifyListenersOnStateChange(nsIWebProgress *aProgress,
                                     nsIRequest *aRequest,
-                                    uint32_t aStateFlags,
+                                    PRUint32 aStateFlags,
                                     nsresult aStatus,
                                     nsIDownload *aDownload);
 
-  nsDownload *FindDownload(uint32_t aID);
+  nsDownload *FindDownload(PRUint32 aID);
 
   /**
    * First try to resume the download, and if that fails, retry it.
@@ -147,7 +181,7 @@ protected:
    * @param aSetResume Indicate if the downloads that get paused should be set
    *                   as auto-resume.
    */
-  nsresult PauseAllDownloads(bool aSetResume);
+  nsresult PauseAllDownloads(PRBool aSetResume);
 
   /**
    * Resume all paused downloads unless we're only supposed to do the automatic
@@ -156,7 +190,7 @@ protected:
    * @param aResumeAll If true, all downloads will be resumed; otherwise, only
    *                   those that are marked as auto-resume will resume.
    */
-  nsresult ResumeAllDownloads(bool aResumeAll);
+  nsresult ResumeAllDownloads(PRBool aResumeAll);
 
   /**
    * Stop tracking the active downloads. Only use this when we're about to quit
@@ -185,14 +219,14 @@ protected:
   static void ResumeOnWakeCallback(nsITimer *aTimer, void *aClosure);
   nsCOMPtr<nsITimer> mResumeOnWakeTimer;
 
-  void ConfirmCancelDownloads(int32_t aCount,
+  void ConfirmCancelDownloads(PRInt32 aCount,
                               nsISupportsPRBool *aCancelDownloads,
                               const PRUnichar *aTitle,
                               const PRUnichar *aCancelMessageMultiple,
                               const PRUnichar *aCancelMessageSingle,
                               const PRUnichar *aDontCancelButton);
 
-  int32_t GetRetentionBehavior();
+  PRInt32 GetRetentionBehavior();
 
   /**
    * Type to indicate possible behaviors for active downloads across sessions.
@@ -235,7 +269,7 @@ private:
   nsAutoPtr<mozStorageTransaction> mHistoryTransaction;
 
   enum DatabaseType mDBType;
-  bool mInPrivateBrowsing;
+  PRBool mInPrivateBrowsing;
 
   static nsDownloadManager *gDownloadManagerService;
 
@@ -287,13 +321,13 @@ protected:
   /**
    * Update the start time which also implies the last update time is the same.
    */
-  void SetStartTime(int64_t aStartTime);
+  void SetStartTime(PRInt64 aStartTime);
 
   /**
    * Update the amount of bytes transferred and max bytes; and recalculate the
    * download percent.
    */
-  void SetProgressBytes(int64_t aCurrBytes, int64_t aMaxBytes);
+  void SetProgressBytes(PRInt64 aCurrBytes, PRInt64 aMaxBytes);
 
   /**
    * Pause the download, but in certain cases it might get fake-paused instead
@@ -315,32 +349,32 @@ protected:
   /**
    * Download is not transferring?
    */
-  bool IsPaused();
+  PRBool IsPaused();
 
   /**
    * Download can continue from the middle of a transfer?
    */
-  bool IsResumable();
+  PRBool IsResumable();
 
   /**
    * Download was resumed?
    */
-  bool WasResumed();
+  PRBool WasResumed();
 
   /**
    * Indicates if the download should try to automatically resume or not.
    */
-  bool ShouldAutoResume();
+  PRBool ShouldAutoResume();
 
   /**
    * Download is in a state to stop and complete the download?
    */
-  bool IsFinishable();
+  PRBool IsFinishable();
 
   /**
    * Download is totally done transferring and all?
    */
-  bool IsFinished();
+  PRBool IsFinished();
 
   /**
    * Update the DB with the current state of the download including time,
@@ -351,7 +385,7 @@ protected:
 
   /**
    * Fail a download because of a failure status and prompt the provided
-   * message or use a generic download failure message if nullptr.
+   * message or use a generic download failure message if nsnull.
    */
   nsresult FailDownload(nsresult aStatus, const PRUnichar *aMessage);
 
@@ -378,29 +412,29 @@ private:
   nsCOMPtr<nsIURI> mReferrer;
   nsCOMPtr<nsICancelable> mCancelable;
   nsCOMPtr<nsIRequest> mRequest;
-  nsCOMPtr<nsIFile> mTempFile;
+  nsCOMPtr<nsILocalFile> mTempFile;
   nsCOMPtr<nsIMIMEInfo> mMIMEInfo;
 
   DownloadState mDownloadState;
   DownloadType mDownloadType;
 
-  uint32_t mID;
-  int32_t mPercentComplete;
+  PRUint32 mID;
+  PRInt32 mPercentComplete;
 
   /**
    * These bytes are based on the position of where the request started, so 0
    * doesn't necessarily mean we have nothing. Use GetAmountTransferred and
    * GetSize for the real transferred amount and size.
    */
-  int64_t mCurrBytes;
-  int64_t mMaxBytes;
+  PRInt64 mCurrBytes;
+  PRInt64 mMaxBytes;
 
   PRTime mStartTime;
   PRTime mLastUpdate;
-  int64_t mResumedAt;
+  PRInt64 mResumedAt;
   double mSpeed;
 
-  bool mHasMultipleFiles;
+  PRBool mHasMultipleFiles;
 
   /**
    * Track various states of the download trying to auto-resume when starting

@@ -2,6 +2,8 @@
 <head>
   <title>Test for key event handler of HTML editor</title>
   <script type="text/javascript"
+          src="/MochiKit/packed.js"></script>
+  <script type="text/javascript"
           src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript"
           src="/tests/SimpleTest/EventUtils.js"></script>
@@ -31,7 +33,6 @@ const kIsLinux = navigator.platform.indexOf("Linux") == 0 || navigator.platform.
 
 function runTests()
 {
-  document.execCommand("stylewithcss", false, "true");
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 
   var fm = Components.classes["@mozilla.org/focus-manager;1"].
@@ -47,11 +48,11 @@ function runTests()
       switch (aEvent.eventPhase) {
       case aEvent.CAPTURING_PHASE:
         capturingPhase.fired = true;
-        capturingPhase.prevented = aEvent.defaultPrevented;
+        capturingPhase.prevented = aEvent.getPreventDefault();
         break;
       case aEvent.BUBBLING_PHASE:
         bubblingPhase.fired = true;
-        bubblingPhase.prevented = aEvent.defaultPrevented;
+        bubblingPhase.prevented = aEvent.getPreventDefault();
         aEvent.preventDefault(); // prevent the browser default behavior
         break;
       default:
@@ -129,30 +130,24 @@ function runTests()
     is(fm.focusedElement, aElement, aDescription + "failed to move focus");
 
     // Modifier keys:
-    //   Basically, modifier keys shouldn't cause keypress event.  However,
-    //   even if it were dispatched by widget's bug, editor should consume
-    //   it when editor is editable.
+    //   Only when editor is editable, it consumes.
     reset("");
-    synthesizeKey("VK_META", { type: "keypress" });
+    synthesizeKey("VK_META", { });
     check(aDescription + "Meta", true, true, !aIsReadonly);
 
     reset("");
-    synthesizeKey("VK_WIN", { type: "keypress" });
-    check(aDescription + "OS", true, true, !aIsReadonly);
-
-    reset("");
-    synthesizeKey("VK_SHIFT", { type: "keypress" });
+    synthesizeKey("VK_SHIFT", { });
     check(aDescription + "Shift", true, true, !aIsReadonly);
 
     reset("");
-    synthesizeKey("VK_CONTROL", { type: "keypress" });
+    synthesizeKey("VK_CONTROL", { });
     check(aDescription + "Control", true, true, !aIsReadonly);
 
     // Alt key press event installs menubar key event listener, so,
     // we should pass Alt key testing on Windows and Linux.
     if (!kIsWin && !kIsLinux) {
       reset("");
-      synthesizeKey("VK_ALT", { type: "keypress" });
+      synthesizeKey("VK_ALT", { });
       check(aDescription + "Alt", true, true, !aIsReadonly);
     }
 
@@ -180,10 +175,6 @@ function runTests()
     synthesizeKey("VK_BACK_SPACE", { metaKey: true });
     check(aDescription + "Meta+Backspace", true, true, aIsReadonly);
 
-    reset("");
-    synthesizeKey("VK_BACK_SPACE", { osKey: true });
-    check(aDescription + "OS+Backspace", true, true, aIsReadonly);
-
     // Delete key:
     //   If editor is readonly, it doesn't consume.
     //   If editor is editable, delete is consumed.
@@ -207,10 +198,6 @@ function runTests()
     reset("");
     synthesizeKey("VK_DELETE", { metaKey: true });
     check(aDescription + "Meta+Delete", true, true, false);
-
-    reset("");
-    synthesizeKey("VK_DELETE", { osKey: true });
-    check(aDescription + "OS+Delete", true, true, false);
 
     // Return key:
     //   If editor is readonly, it doesn't consume.
@@ -246,11 +233,6 @@ function runTests()
     check(aDescription + "Meta+Return", true, true, false);
     is(aElement.innerHTML, "a", aDescription + "Meta+Return");
 
-    reset("a");
-    synthesizeKey("VK_RETURN", { osKey: true });
-    check(aDescription + "OS+Return", true, true, false);
-    is(aElement.innerHTML, "a", aDescription + "OS+Return");
-
     // Enter key (same as Return key):
     //   If editor is readonly, it doesn't consume.
     //   If editor is editable and not single line editor, it consumes Return
@@ -284,11 +266,6 @@ function runTests()
     synthesizeKey("VK_ENTER", { metaKey: true });
     check(aDescription + "Meta+Enter", true, true, false);
     is(aElement.innerHTML, "a", aDescription + "Meta+Enter");
-
-    reset("a");
-    synthesizeKey("VK_ENTER", { osKey: true });
-    check(aDescription + "OS+Enter", true, true, false);
-    is(aElement.innerHTML, "a", aDescription + "OS+Enter");
 
     // Tab key:
     //   If editor is tabbable, editor doesn't consume all tab key events.
@@ -333,13 +310,6 @@ function runTests()
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Meta+Tab)");
 
-    reset("a");
-    synthesizeKey("VK_TAB", { osKey: true });
-    check(aDescription + "OS+Tab", true, true, false);
-    is(aElement.innerHTML, "a", aDescription + "OS+Tab");
-    is(fm.focusedElement, aElement,
-       aDescription + "focus moved unexpectedly (OS+Tab)");
-
     // Indent/Outdent tests:
     // UL
     resetForIndent("<ul><li id=\"target\">ul list item</li></ul>");
@@ -357,10 +327,12 @@ function runTests()
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab after Tab on UL",
           true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
+    // XXX why do we fail to outdent on non-tabbable HTML editor?
     is(aElement.innerHTML,
-       aIsReadonly || aIsTabbable || (!aIsPlaintext) ?
+       aIsReadonly || aIsTabbable ?
          "<ul><li id=\"target\">ul list item</li></ul>" :
-         "<ul><li id=\"target\">ul list item\t</li></ul>",
+         aIsPlaintext ? "<ul><li id=\"target\">ul list item\t</li></ul>" :
+           "<ul><ul><li id=\"target\">ul list item</li></ul></ul>",
        aDescription + "Shift+Tab after Tab on UL");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab after Tab on UL)");
@@ -370,8 +342,10 @@ function runTests()
     check(aDescription + "Shift+Tab on UL",
           true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
     is(aElement.innerHTML,
-       aIsReadonly || aIsTabbable || aIsPlaintext ?
-         "<ul><li id=\"target\">ul list item</li></ul>" : "ul list item",
+       aIsReadonly || aIsTabbable ?
+         "<ul><li id=\"target\">ul list item</li></ul>" :
+         aIsPlaintext ? "<ul><li id=\"target\">ul list item</li></ul>" :
+           "<ul><li id=\"target\">ul list item</li></ul>",
        aDescription + "Shift+Tab on UL");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab on UL)");
@@ -401,14 +375,6 @@ function runTests()
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Meta+Tab on UL)");
 
-    resetForIndent("<ul><li id=\"target\">ul list item</li></ul>");
-    synthesizeKey("VK_TAB", { osKey: true });
-    check(aDescription + "OS+Tab on UL", true, true, false);
-    is(aElement.innerHTML, "<ul><li id=\"target\">ul list item</li></ul>",
-       aDescription + "OS+Tab on UL");
-    is(fm.focusedElement, aElement,
-       aDescription + "focus moved unexpectedly (OS+Tab on UL)");
-
     // OL
     resetForIndent("<ol><li id=\"target\">ol list item</li></ol>");
     synthesizeKey("VK_TAB", { });
@@ -425,10 +391,12 @@ function runTests()
     synthesizeKey("VK_TAB", { shiftKey: true });
     check(aDescription + "Shift+Tab after Tab on OL",
           true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
+    // XXX why do we fail to outdent on non-tabbable HTML editor?
     is(aElement.innerHTML,
-       aIsReadonly || aIsTabbable || (!aIsPlaintext) ?
+       aIsReadonly || aIsTabbable ?
          "<ol><li id=\"target\">ol list item</li></ol>" :
-         "<ol><li id=\"target\">ol list item\t</li></ol>",
+         aIsPlaintext ? "<ol><li id=\"target\">ol list item\t</li></ol>" :
+           "<ol><ol><li id=\"target\">ol list item</li></ol></ol>",
        aDescription + "Shift+Tab after Tab on OL");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab after Tab on OL)");
@@ -438,8 +406,10 @@ function runTests()
     check(aDescription + "Shift+Tab on OL",
           true, true, !aIsTabbable && !aIsReadonly && !aIsPlaintext);
     is(aElement.innerHTML,
-       aIsReadonly || aIsTabbable || aIsPlaintext ?
-         "<ol><li id=\"target\">ol list item</li></ol>" : "ol list item",
+       aIsReadonly || aIsTabbable ?
+         "<ol><li id=\"target\">ol list item</li></ol>" :
+         aIsPlaintext ? "<ol><li id=\"target\">ol list item</li></ol>" :
+           "<ol><li id=\"target\">ol list item</li></ol>",
        aDescription + "Shfit+Tab on OL");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Shift+Tab on OL)");
@@ -468,14 +438,6 @@ function runTests()
        aDescription + "Meta+Tab on OL");
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Meta+Tab on OL)");
-
-    resetForIndent("<ol><li id=\"target\">ol list item</li></ol>");
-    synthesizeKey("VK_TAB", { osKey: true });
-    check(aDescription + "OS+Tab on OL", true, true, false);
-    is(aElement.innerHTML, "<ol><li id=\"target\">ol list item</li></ol>",
-       aDescription + "OS+Tab on OL");
-    is(fm.focusedElement, aElement,
-       aDescription + "focus moved unexpectedly (OS+Tab on OL)");
 
     // TD
     resetForIndent("<table><tr><td id=\"target\">td</td></tr></table>");
@@ -539,15 +501,6 @@ function runTests()
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Meta+Tab on TD)");
 
-    resetForIndent("<table><tr><td id=\"target\">td</td></tr></table>");
-    synthesizeKey("VK_TAB", { osKey: true });
-    check(aDescription + "OS+Tab on TD", true, true, false);
-    is(aElement.innerHTML,
-       "<table><tbody><tr><td id=\"target\">td</td></tr></tbody></table>",
-       aDescription + "OS+Tab on TD");
-    is(fm.focusedElement, aElement,
-       aDescription + "focus moved unexpectedly (OS+Tab on TD)");
-
     // TH
     resetForIndent("<table><tr><th id=\"target\">th</th></tr></table>");
     synthesizeKey("VK_TAB", { });
@@ -610,15 +563,6 @@ function runTests()
     is(fm.focusedElement, aElement,
        aDescription + "focus moved unexpectedly (Meta+Tab on TH)");
 
-    resetForIndent("<table><tr><th id=\"target\">th</th></tr></table>");
-    synthesizeKey("VK_TAB", { osKey: true });
-    check(aDescription + "OS+Tab on TH", true, true, false);
-    is(aElement.innerHTML,
-       "<table><tbody><tr><th id=\"target\">th</th></tr></tbody></table>",
-       aDescription + "OS+Tab on TH");
-    is(fm.focusedElement, aElement,
-       aDescription + "focus moved unexpectedly (OS+Tab on TH)");
-
     // Esc key:
     //   In all cases, esc key events are not consumed
     reset("abc");
@@ -640,10 +584,6 @@ function runTests()
     reset("abc");
     synthesizeKey("VK_ESCAPE", { metaKey: true });
     check(aDescription + "Meta+Esc", true, true, false);
-
-    reset("abc");
-    synthesizeKey("VK_ESCAPE", { osKey: true });
-    check(aDescription + "OS+Esc", true, true, false);
 
     // typical typing tests:
     reset("");

@@ -30,7 +30,7 @@
 #define SegmentedVector_h
 
 #include "jsprvtd.h"
-#include "js/Vector.h"
+#include "jsvector.h"
 
 namespace WTF {
 

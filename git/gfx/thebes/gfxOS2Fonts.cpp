@@ -1,7 +1,43 @@
 /* vim: set sw=4 sts=4 et cin: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is OS/2 code in Thebes.
+ *
+ * The Initial Developer of the Original Code is
+ * Peter Weilbacher <mozilla@Weilbacher.org>.
+ * Portions created by the Initial Developer are Copyright (C) 2006-2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   authors of code taken from gfxPangoFonts:
+ *     Mozilla Foundation
+ *     Vladimir Vukicevic <vladimir@mozilla.com>
+ *     Masayuki Nakano <masayuki@d-toybox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "gfxContext.h"
 
@@ -9,7 +45,7 @@
 #include "gfxOS2Surface.h"
 #include "gfxOS2Fonts.h"
 #include "nsTArray.h"
-#include "nsGkAtoms.h"
+#include "gfxAtoms.h"
 
 #include "nsIPlatformCharset.h"
 
@@ -23,8 +59,8 @@ using namespace mozilla;
 
 gfxOS2Font::gfxOS2Font(gfxOS2FontEntry *aFontEntry, const gfxFontStyle *aFontStyle)
     : gfxFont(aFontEntry, aFontStyle),
-      mFontFace(nullptr),
-      mMetrics(nullptr), mAdjustedSize(0),
+      mFontFace(nsnull), mScaledFont(nsnull),
+      mMetrics(nsnull), mAdjustedSize(0),
       mHinting(FC_HINT_MEDIUM), mAntialias(FcTrue)
 {
 #ifdef DEBUG_thebes_2
@@ -33,7 +69,7 @@ gfxOS2Font::gfxOS2Font(gfxOS2FontEntry *aFontEntry, const gfxFontStyle *aFontSty
            NS_LossyConvertUTF16toASCII(aFontEntry->Name()).get());
 #endif
     // try to get the preferences for hinting, antialias, and embolden options
-    int32_t value;
+    PRInt32 value;
     nsresult rv = Preferences::GetInt("gfx.os2.font.hinting", &value);
     if (NS_SUCCEEDED(rv) && value >= FC_HINT_NONE && value <= FC_HINT_FULL) {
         mHinting = value;
@@ -59,9 +95,9 @@ gfxOS2Font::~gfxOS2Font()
         cairo_scaled_font_destroy(mScaledFont);
     }
     delete mMetrics;
-    mFontFace = nullptr;
-    mScaledFont = nullptr;
-    mMetrics = nullptr;
+    mFontFace = nsnull;
+    mScaledFont = nsnull;
+    mMetrics = nsnull;
 }
 
 // fill font metrics structure with default values in case of error
@@ -91,11 +127,11 @@ static void FillMetricsDefaults(gfxFont::Metrics *aMetrics)
 // line as close to the original position as possible.
 static void SnapLineToPixels(gfxFloat& aOffset, gfxFloat& aSize)
 {
-    gfxFloat snappedSize = NS_MAX(floor(aSize + 0.5), 1.0);
+    gfxFloat snappedSize = NS_MAX(NS_floor(aSize + 0.5), 1.0);
     // Correct offset for change in size
     gfxFloat offset = aOffset - 0.5 * (aSize - snappedSize);
     // Snap offset
-    aOffset = floor(offset + 0.5);
+    aOffset = NS_floor(offset + 0.5);
     aSize = snappedSize;
 }
 
@@ -119,7 +155,7 @@ const gfxFont::Metrics& gfxOS2Font::GetMetrics()
 
     // round size to integer pixels, this is to get full pixels for layout
     // together with internal/external leading (see below)
-    mMetrics->emHeight = floor(GetStyle()->size + 0.5);
+    mMetrics->emHeight = NS_floor(GetStyle()->size + 0.5);
 
     cairo_scaled_font_t* scaledFont = CairoScaledFont();
     if (!scaledFont) {
@@ -238,13 +274,13 @@ const gfxFont::Metrics& gfxOS2Font::GetMetrics()
     // leadings are not available directly (only for WinFNTs);
     // better compute them on our own, to get integer values and make
     // layout happy (see // LockedFTFace::GetMetrics in gfxPangoFonts.cpp)
-    mMetrics->internalLeading = floor(mMetrics->maxHeight
+    mMetrics->internalLeading = NS_floor(mMetrics->maxHeight
                                          - mMetrics->emHeight + 0.5);
-    gfxFloat lineHeight = floor(mMetrics->maxHeight + 0.5);
+    gfxFloat lineHeight = NS_floor(mMetrics->maxHeight + 0.5);
     mMetrics->externalLeading = lineHeight
                               - mMetrics->internalLeading - mMetrics->emHeight;
 
-    SanitizeMetrics(mMetrics, false);
+    SanitizeMetrics(mMetrics, PR_FALSE);
 
 #ifdef DEBUG_thebes_1
     printf("gfxOS2Font[%#x]::GetMetrics():\n"
@@ -276,7 +312,7 @@ const gfxFont::Metrics& gfxOS2Font::GetMetrics()
 
 // weight list copied from fontconfig.h
 // unfortunately, the OS/2 version so far only supports regular and bold
-static const int8_t nFcWeight = 2; // 10; // length of weight list
+static const PRInt8 nFcWeight = 2; // 10; // length of weight list
 static const int fcWeight[] = {
     //FC_WEIGHT_THIN,
     //FC_WEIGHT_EXTRALIGHT, // == FC_WEIGHT_ULTRALIGHT
@@ -314,13 +350,13 @@ cairo_font_face_t *gfxOS2Font::CairoFontFace()
         // The requirements outlined in gfxFont.h are difficult to meet without
         // having a table of available font weights, so we map the gfxFont
         // weight to possible FontConfig weights.
-        int8_t weight = GetStyle()->ComputeWeight();
+        PRInt8 weight = GetStyle()->ComputeWeight();
         // gfxFont weight   FC weight
         //    400              80
         //    700             200
-        int16_t fcW = 40 * weight - 80; // match gfxFont weight to base FC weight
+        PRInt16 fcW = 40 * weight - 80; // match gfxFont weight to base FC weight
         // find the correct weight in the list
-        int8_t i = 0;
+        PRInt8 i = 0;
         while (i < nFcWeight && fcWeight[i] < fcW) {
             i++;
         }
@@ -334,16 +370,16 @@ cairo_font_face_t *gfxOS2Font::CairoFontFace()
         // add weight to pattern
         FcPatternAddInteger(fcPattern, FC_WEIGHT, fcW);
 
-        uint8_t fcProperty;
+        PRUint8 fcProperty;
         // add style to pattern
         switch (GetStyle()->style) {
-        case NS_FONT_STYLE_ITALIC:
+        case FONT_STYLE_ITALIC:
             fcProperty = FC_SLANT_ITALIC;
             break;
-        case NS_FONT_STYLE_OBLIQUE:
+        case FONT_STYLE_OBLIQUE:
             fcProperty = FC_SLANT_OBLIQUE;
             break;
-        case NS_FONT_STYLE_NORMAL:
+        case FONT_STYLE_NORMAL:
         default:
             fcProperty = FC_SLANT_ROMAN;
         }
@@ -418,7 +454,7 @@ cairo_scaled_font_t *gfxOS2Font::CairoScaledFont()
     cairo_matrix_t fontMatrix;
     // synthetic oblique by skewing via the font matrix
     if (!mFontEntry->mItalic &&
-        (mStyle.style & (NS_FONT_STYLE_ITALIC | NS_FONT_STYLE_OBLIQUE)))
+        (mStyle.style & (FONT_STYLE_ITALIC | FONT_STYLE_OBLIQUE)))
     {
         const double kSkewFactor = 0.2126; // 12 deg skew as used in e.g. ftview
         cairo_matrix_init(&fontMatrix, size, 0, -kSkewFactor*size, size, 0, 0);
@@ -428,7 +464,7 @@ cairo_scaled_font_t *gfxOS2Font::CairoScaledFont()
 
     cairo_font_face_t * face = CairoFontFace();
     if (!face)
-        return nullptr;
+        return nsnull;
 
     cairo_font_options_t *fontOptions = cairo_font_options_create();
     mScaledFont = cairo_scaled_font_create(face, &fontMatrix,
@@ -440,7 +476,7 @@ cairo_scaled_font_t *gfxOS2Font::CairoScaledFont()
     return mScaledFont;
 }
 
-bool gfxOS2Font::SetupCairoFont(gfxContext *aContext)
+PRBool gfxOS2Font::SetupCairoFont(gfxContext *aContext)
 {
 #ifdef DEBUG_thebes_2
     printf("gfxOS2Font[%#x]::SetupCairoFont(%#x)\n",
@@ -453,10 +489,10 @@ bool gfxOS2Font::SetupCairoFont(gfxContext *aContext)
     if (!scaledFont || cairo_scaled_font_status(scaledFont) != CAIRO_STATUS_SUCCESS) {
         // Don't cairo_set_scaled_font as that would propagate the error to
         // the cairo_t, precluding any further drawing.
-        return false;
+        return PR_FALSE;
     }
     cairo_set_scaled_font(aContext->GetCairo(), scaledFont);
-    return true;
+    return PR_TRUE;
 }
 
 /**
@@ -473,10 +509,10 @@ already_AddRefed<gfxOS2Font> gfxOS2Font::GetOrMakeFont(const nsAString& aName,
     if (!font) {
         font = new gfxOS2Font(fe, aStyle);
         if (!font)
-            return nullptr;
+            return nsnull;
         gfxFontCache::GetCache()->AddNew(font);
     }
-    gfxFont *f = nullptr;
+    gfxFont *f = nsnull;
     font.swap(f);
     return static_cast<gfxOS2Font *>(f);
 }
@@ -499,7 +535,7 @@ gfxOS2FontGroup::gfxOS2FontGroup(const nsAString& aFamilies,
     // check for WarpSans and as we cannot display that (yet), replace
     // it with Workplace Sans
     int pos = 0;
-    if ((pos = mFamilies.Find("WarpSans", false, 0, -1)) > -1) {
+    if ((pos = mFamilies.Find("WarpSans", PR_FALSE, 0, -1)) > -1) {
         mFamilies.Replace(pos, 8, NS_LITERAL_STRING("Workplace Sans"));
     }
 
@@ -511,10 +547,10 @@ gfxOS2FontGroup::gfxOS2FontGroup(const nsAString& aFamilies,
     // are set up, and if the user was so clever to set up the User Defined fonts,
     // then these are probable candidates, too.
     nsString fontString;
-    gfxPlatform::GetPlatform()->GetPrefFonts(nsGkAtoms::Unicode, fontString, false);
-    ForEachFont(fontString, nsGkAtoms::Unicode, FontCallback, &familyArray);
-    gfxPlatform::GetPlatform()->GetPrefFonts(nsGkAtoms::x_user_def, fontString, false);
-    ForEachFont(fontString, nsGkAtoms::x_user_def, FontCallback, &familyArray);
+    gfxPlatform::GetPlatform()->GetPrefFonts(gfxAtoms::x_unicode, fontString, PR_FALSE);
+    ForEachFont(fontString, gfxAtoms::x_unicode, FontCallback, &familyArray);
+    gfxPlatform::GetPlatform()->GetPrefFonts(gfxAtoms::x_user_def, fontString, PR_FALSE);
+    ForEachFont(fontString, gfxAtoms::x_user_def, FontCallback, &familyArray);
 
     // Should append some default font if there are no available fonts.
     // Let's use Helv which should be available on any OS/2 system; if
@@ -523,7 +559,7 @@ gfxOS2FontGroup::gfxOS2FontGroup(const nsAString& aFamilies,
         familyArray.AppendElement(NS_LITERAL_STRING("Helv"));
     }
 
-    for (uint32_t i = 0; i < familyArray.Length(); i++) {
+    for (PRUint32 i = 0; i < familyArray.Length(); i++) {
         nsRefPtr<gfxOS2Font> font = gfxOS2Font::GetOrMakeFont(familyArray[i], &mStyle);
         if (font) {
             mFonts.AppendElement(font);
@@ -548,25 +584,25 @@ gfxFontGroup *gfxOS2FontGroup::Copy(const gfxFontStyle *aStyle)
  * string. This forces Pango to honour our direction even if there are neutral
  * characters in the string.
  */
-static int32_t AppendDirectionalIndicatorUTF8(bool aIsRTL, nsACString& aString)
+static PRInt32 AppendDirectionalIndicatorUTF8(PRBool aIsRTL, nsACString& aString)
 {
     static const PRUnichar overrides[2][2] = { { 0x202d, 0 }, { 0x202e, 0 }}; // LRO, RLO
     AppendUTF16toUTF8(overrides[aIsRTL], aString);
     return 3; // both overrides map to 3 bytes in UTF8
 }
 
-gfxTextRun *gfxOS2FontGroup::MakeTextRun(const PRUnichar* aString, uint32_t aLength,
-                                         const Parameters* aParams, uint32_t aFlags)
+gfxTextRun *gfxOS2FontGroup::MakeTextRun(const PRUnichar* aString, PRUint32 aLength,
+                                         const Parameters* aParams, PRUint32 aFlags)
 {
     NS_ASSERTION(aLength > 0, "should use MakeEmptyTextRun for zero-length text");
-    gfxTextRun *textRun = gfxTextRun::Create(aParams, aLength, this, aFlags);
+    gfxTextRun *textRun = gfxTextRun::Create(aParams, aString, aLength, this, aFlags);
     if (!textRun)
-        return nullptr;
+        return nsnull;
 
     mEnableKerning = !(aFlags & gfxTextRunFactory::TEXT_OPTIMIZE_SPEED);
 
-    nsAutoCString utf8;
-    int32_t headerLen = AppendDirectionalIndicatorUTF8(textRun->IsRightToLeft(), utf8);
+    nsCAutoString utf8;
+    PRInt32 headerLen = AppendDirectionalIndicatorUTF8(textRun->IsRightToLeft(), utf8);
     AppendUTF16toUTF8(Substring(aString, aString + aLength), utf8);
 
 #ifdef DEBUG_thebes_2
@@ -575,45 +611,45 @@ gfxTextRun *gfxOS2FontGroup::MakeTextRun(const PRUnichar* aString, uint32_t aLen
            (unsigned)this, NS_LossyConvertUTF16toASCII(u16).get(), aLength, (unsigned)aParams, aFlags);
 #endif
 
-    InitTextRun(textRun, (uint8_t *)utf8.get(), utf8.Length(), headerLen);
+    InitTextRun(textRun, (PRUint8 *)utf8.get(), utf8.Length(), headerLen);
 
     textRun->FetchGlyphExtents(aParams->mContext);
 
     return textRun;
 }
 
-gfxTextRun *gfxOS2FontGroup::MakeTextRun(const uint8_t* aString, uint32_t aLength,
-                                         const Parameters* aParams, uint32_t aFlags)
+gfxTextRun *gfxOS2FontGroup::MakeTextRun(const PRUint8* aString, PRUint32 aLength,
+                                         const Parameters* aParams, PRUint32 aFlags)
 {
 #ifdef DEBUG_thebes_2
     const char *cStr = reinterpret_cast<const char *>(aString);
     NS_ConvertASCIItoUTF16 us(cStr, aLength);
-    printf("gfxOS2FontGroup[%#x]::MakeTextRun(uint8_t %s, %d, %#x, %d)\n",
+    printf("gfxOS2FontGroup[%#x]::MakeTextRun(PRUint8 %s, %d, %#x, %d)\n",
            (unsigned)this, NS_LossyConvertUTF16toASCII(us).get(), aLength, (unsigned)aParams, aFlags);
 #endif
     NS_ASSERTION(aLength > 0, "should use MakeEmptyTextRun for zero-length text");
     NS_ASSERTION(aFlags & TEXT_IS_8BIT, "8bit should have been set");
-    gfxTextRun *textRun = gfxTextRun::Create(aParams, aLength, this, aFlags);
+    gfxTextRun *textRun = gfxTextRun::Create(aParams, aString, aLength, this, aFlags);
     if (!textRun)
-        return nullptr;
+        return nsnull;
 
     mEnableKerning = !(aFlags & gfxTextRunFactory::TEXT_OPTIMIZE_SPEED);
 
     const char *chars = reinterpret_cast<const char *>(aString);
-    bool isRTL = textRun->IsRightToLeft();
+    PRBool isRTL = textRun->IsRightToLeft();
     if ((aFlags & TEXT_IS_ASCII) && !isRTL) {
         // We don't need to send an override character here, the characters must be all
         // LTR
-        InitTextRun(textRun, (uint8_t *)chars, aLength, 0);
+        InitTextRun(textRun, (PRUint8 *)chars, aLength, 0);
     } else {
         // Although chars in not necessarily ASCII (as it may point to the low
         // bytes of any UCS-2 characters < 256), NS_ConvertASCIItoUTF16 seems
         // to DTRT.
         NS_ConvertASCIItoUTF16 unicodeString(chars, aLength);
-        nsAutoCString utf8;
-        int32_t headerLen = AppendDirectionalIndicatorUTF8(isRTL, utf8);
+        nsCAutoString utf8;
+        PRInt32 headerLen = AppendDirectionalIndicatorUTF8(isRTL, utf8);
         AppendUTF16toUTF8(unicodeString, utf8);
-        InitTextRun(textRun, (uint8_t *)utf8.get(), utf8.Length(), headerLen);
+        InitTextRun(textRun, (PRUint8 *)utf8.get(), utf8.Length(), headerLen);
     }
 
     textRun->FetchGlyphExtents(aParams->mContext);
@@ -621,9 +657,9 @@ gfxTextRun *gfxOS2FontGroup::MakeTextRun(const uint8_t* aString, uint32_t aLengt
     return textRun;
 }
 
-void gfxOS2FontGroup::InitTextRun(gfxTextRun *aTextRun, const uint8_t *aUTF8Text,
-                                  uint32_t aUTF8Length,
-                                  uint32_t aUTF8HeaderLength)
+void gfxOS2FontGroup::InitTextRun(gfxTextRun *aTextRun, const PRUint8 *aUTF8Text,
+                                  PRUint32 aUTF8Length,
+                                  PRUint32 aUTF8HeaderLength)
 {
     CreateGlyphRunsFT(aTextRun, aUTF8Text + aUTF8HeaderLength,
                       aUTF8Length - aUTF8HeaderLength);
@@ -632,7 +668,7 @@ void gfxOS2FontGroup::InitTextRun(gfxTextRun *aTextRun, const uint8_t *aUTF8Text
 // Helper function to return the leading UTF-8 character in a char pointer
 // as 32bit number. Also sets the length of the current character (i.e. the
 // offset to the next one) in the second argument
-uint32_t getUTF8CharAndNext(const uint8_t *aString, uint8_t *aLength)
+PRUint32 getUTF8CharAndNext(const PRUint8 *aString, PRUint8 *aLength)
 {
     *aLength = 1;
     if (aString[0] < 0x80) { // normal 7bit ASCII char
@@ -655,35 +691,35 @@ uint32_t getUTF8CharAndNext(const uint8_t *aString, uint8_t *aLength)
     return aString[0];
 }
 
-void gfxOS2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun, const uint8_t *aUTF8,
-                                        uint32_t aUTF8Length)
+void gfxOS2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun, const PRUint8 *aUTF8,
+                                        PRUint32 aUTF8Length)
 {
 #ifdef DEBUG_thebes_2
     printf("gfxOS2FontGroup::CreateGlyphRunsFT(%#x, _aUTF8_, %d)\n",
            (unsigned)aTextRun, /*aUTF8,*/ aUTF8Length);
-    for (uint32_t i = 0; i < FontListLength(); i++) {
+    for (PRUint32 i = 0; i < FontListLength(); i++) {
         gfxOS2Font *font = GetFontAt(i);
         printf("  i=%d, name=%s, size=%f\n", i, NS_LossyConvertUTF16toASCII(font->GetName()).get(),
                font->GetStyle()->size);
     }
 #endif
-    uint32_t lastFont = FontListLength()-1;
+    PRUint32 lastFont = FontListLength()-1;
     gfxOS2Font *font0 = GetFontAt(0);
-    const uint8_t *p = aUTF8;
-    uint32_t utf16Offset = 0;
+    const PRUint8 *p = aUTF8;
+    PRUint32 utf16Offset = 0;
     gfxTextRun::CompressedGlyph g;
-    const uint32_t appUnitsPerDevUnit = aTextRun->GetAppUnitsPerDevUnit();
+    const PRUint32 appUnitsPerDevUnit = aTextRun->GetAppUnitsPerDevUnit();
     gfxOS2Platform *platform = gfxOS2Platform::GetPlatform();
 
-    aTextRun->AddGlyphRun(font0, gfxTextRange::kFontGroup, 0, false);
+    aTextRun->AddGlyphRun(font0, 0);
     // a textRun likely has the same font for most of the characters, so we can
     // lock it before the loop for efficiency
     FT_Face face0 = cairo_ft_scaled_font_lock_face(font0->CairoScaledFont());
     while (p < aUTF8 + aUTF8Length) {
-        bool glyphFound = false;
+        PRBool glyphFound = PR_FALSE;
         // convert UTF-8 character and step to the next one in line
-        uint8_t chLen;
-        uint32_t ch = getUTF8CharAndNext(p, &chLen);
+        PRUint8 chLen;
+        PRUint32 ch = getUTF8CharAndNext(p, &chLen);
         p += chLen; // move to next char
 #ifdef DEBUG_thebes_2
         printf("\'%c\' (%d, %#x, %s) [%#x %#x]:", (char)ch, ch, ch, ch >=0x10000 ? "non-BMP!" : "BMP", ch >=0x10000 ? H_SURROGATE(ch) : 0, ch >=0x10000 ? L_SURROGATE(ch) : 0);
@@ -698,7 +734,7 @@ void gfxOS2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun, const uint8_t *aUT
             // If we don't find the glyph even in the last font, we will fall
             // back to searching all fonts on the system and finally set the
             // missing glyph symbol after trying the last font.
-            for (uint32_t i = 0; i <= lastFont; i++) {
+            for (PRUint32 i = 0; i <= lastFont; i++) {
                 gfxOS2Font *font = font0;
                 FT_Face face = face0;
                 if (i > 0) {
@@ -736,9 +772,9 @@ void gfxOS2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun, const uint8_t *aUT
                 }
 
                 // select the current font into the text run
-                aTextRun->AddGlyphRun(font, gfxTextRange::kFontGroup, utf16Offset, false);
+                aTextRun->AddGlyphRun(font, utf16Offset);
 
-                int32_t advance = 0;
+                PRInt32 advance = 0;
                 if (gid == font->GetSpaceGlyph()) {
                     advance = (int)(font->GetMetrics().spaceWidth * appUnitsPerDevUnit);
                 } else if (gid == 0) {
@@ -746,7 +782,7 @@ void gfxOS2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun, const uint8_t *aUT
                 } else {
                     // find next character and its glyph -- in case they exist
                     // and exist in the current font face -- to compute kerning
-                    uint32_t chNext = 0;
+                    PRUint32 chNext = 0;
                     FT_UInt gidNext = 0;
                     FT_Pos lsbDeltaNext = 0;
 #ifdef DEBUG_thebes_2
@@ -793,7 +829,7 @@ void gfxOS2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun, const uint8_t *aUT
                 {
                     aTextRun->SetSimpleGlyph(utf16Offset,
                                              g.SetSimpleGlyph(advance, gid));
-                    glyphFound = true;
+                    glyphFound = PR_TRUE;
                 } else if (gid == 0) {
                     // gid = 0 only happens when the glyph is missing from the font
                     if (i == lastFont) {
@@ -801,7 +837,7 @@ void gfxOS2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun, const uint8_t *aUT
                         // last font
                         aTextRun->SetMissingGlyph(utf16Offset, ch);
                     }
-                    glyphFound = false;
+                    glyphFound = PR_FALSE;
                 } else {
                     gfxTextRun::DetailedGlyph details;
                     details.mGlyphID = gid;
@@ -809,9 +845,9 @@ void gfxOS2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun, const uint8_t *aUT
                     details.mAdvance = advance;
                     details.mXOffset = 0;
                     details.mYOffset = 0;
-                    g.SetComplex(aTextRun->IsClusterStart(utf16Offset), true, 1);
+                    g.SetComplex(aTextRun->IsClusterStart(utf16Offset), PR_TRUE, 1);
                     aTextRun->SetGlyphs(utf16Offset, g, &details);
-                    glyphFound = true;
+                    glyphFound = PR_TRUE;
                 }
 
                 if (i > 0) {
@@ -836,14 +872,13 @@ void gfxOS2FontGroup::CreateGlyphRunsFT(gfxTextRun *aTextRun, const uint8_t *aUT
 }
 
 // append aFontName to aClosure string array, if not already present
-bool gfxOS2FontGroup::FontCallback(const nsAString& aFontName,
+PRBool gfxOS2FontGroup::FontCallback(const nsAString& aFontName,
                                      const nsACString& aGenericName,
-                                     bool aUseFontSet,
                                      void *aClosure)
 {
     nsTArray<nsString> *sa = static_cast<nsTArray<nsString>*>(aClosure);
     if (!aFontName.IsEmpty() && !sa->Contains(aFontName)) {
         sa->AppendElement(aFontName);
     }
-    return true;
+    return PR_TRUE;
 }

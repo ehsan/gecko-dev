@@ -41,11 +41,9 @@
 #include "nsInterfaceHashtable.h"
 #include "nsRefPtrHashtable.h"
 #include "nsHashKeys.h"
-#include "mozilla/Omnijar.h"
 
 class nsHyphenator;
 class nsIAtom;
-class nsIURI;
 
 class nsHyphenationManager
 {
@@ -63,12 +61,11 @@ private:
 
 protected:
   void LoadPatternList();
-  void LoadPatternListFromOmnijar(mozilla::Omnijar::Type aType);
   void LoadPatternListFromDir(nsIFile *aDir);
   void LoadAliases();
 
   nsInterfaceHashtable<nsISupportsHashKey,nsIAtom> mHyphAliases;
-  nsInterfaceHashtable<nsISupportsHashKey,nsIURI> mPatternFiles;
+  nsInterfaceHashtable<nsISupportsHashKey,nsIFile> mPatternFiles;
   nsRefPtrHashtable<nsISupportsHashKey,nsHyphenator> mHyphenators;
 
   static nsHyphenationManager *sInstance;

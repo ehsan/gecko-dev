@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=551846
 -->
 <head>
   <title>Test for Bug 551846</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
 </head>
@@ -103,17 +104,13 @@ function checkSetSizeException(element)
   }
   ok(!caught, "Setting a size to 0 from the IDL shouldn't throw an exception");
 
-  element.size = 1;
-
   caught = false;
   try {
     element.size = -1;
   } catch(e) {
     caught = true;
   }
-  ok(!caught, "Setting a negative size from the IDL shouldn't throw an exception");
-
-  is(element.size, 0, "The size should now be equal to the minimum non-negative value");
+  ok(caught, "Setting an invalid size from the IDL should throw an exception");
 
   caught = false;
   try {

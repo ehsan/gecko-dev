@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2012 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -373,7 +373,7 @@ TIntermTyped* TIntermediate::addUnaryMath(TOperator op, TIntermNode* childNode, 
 // their operator to EOpSequence.
 //
 // Returns an aggregate node, which could be the one passed in if
-// it was already an aggregate but no operator was set.
+// it was already an aggregate.
 //
 TIntermAggregate* TIntermediate::setAggregateOperator(TIntermNode* node, TOperator op, TSourceLoc line)
 {
@@ -592,10 +592,10 @@ TIntermNode* TIntermediate::addSelection(TIntermTyped* cond, TIntermNodePair nod
     //
 
     if (cond->getAsTyped() && cond->getAsTyped()->getAsConstantUnion()) {
-        if (cond->getAsTyped()->getAsConstantUnion()->getUnionArrayPointer()->getBConst() == true)
-            return nodePair.node1 ? setAggregateOperator(nodePair.node1, EOpSequence, nodePair.node1->getLine()) : NULL;
+        if (cond->getAsTyped()->getAsConstantUnion()->getUnionArrayPointer()->getBConst())
+            return nodePair.node1;
         else
-            return nodePair.node2 ? setAggregateOperator(nodePair.node2, EOpSequence, nodePair.node2->getLine()) : NULL;
+            return nodePair.node2;
     }
 
     TIntermSelection* node = new TIntermSelection(cond, nodePair.node1, nodePair.node2);
@@ -656,7 +656,6 @@ TIntermTyped* TIntermediate::addSelection(TIntermTyped* cond, TIntermTyped* true
     // Make a selection node.
     //
     TIntermSelection* node = new TIntermSelection(cond, trueBlock, falseBlock, trueBlock->getType());
-    node->getTypePointer()->setQualifier(EvqTemporary);
     node->setLine(line);
 
     return node;
@@ -1372,6 +1371,8 @@ TIntermTyped* TIntermConstantUnion::fold(TOperator op, TIntermTyped* constantNod
         newNode->setLine(getLine());
         return newNode;
     }
+
+    return this;
 }
 
 TIntermTyped* TIntermediate::promoteConstantUnion(TBasicType promoteTo, TIntermConstantUnion* node)
@@ -1445,3 +1446,9 @@ TIntermTyped* TIntermediate::promoteConstantUnion(TBasicType promoteTo, TIntermC
     return addConstantUnion(leftUnionArray, TType(promoteTo, t.getPrecision(), t.getQualifier(), t.getNominalSize(), t.isMatrix(), t.isArray()), node->getLine());
 }
 
+void TIntermAggregate::addToPragmaTable(const TPragmaTable& pTable)
+{
+    assert(!pragmaTable);
+    pragmaTable = new TPragmaTable();
+    *pragmaTable = pTable;
+}

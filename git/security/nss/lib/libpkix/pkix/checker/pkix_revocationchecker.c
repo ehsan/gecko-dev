@@ -381,10 +381,13 @@ PKIX_RevocationChecker_Check(
             PKIX_UInt32 methodFlags = 0;
 
             PKIX_DECREF(method);
-            PKIX_CHECK(
-                PKIX_List_GetItem(revList, methodNum,
-                                  (PKIX_PL_Object**)&method, plContext),
-                PKIX_LISTGETITEMFAILED);
+            pkixErrorResult = PKIX_List_GetItem(revList, methodNum,
+                                                (PKIX_PL_Object**)&method,
+                                                plContext);
+            if (pkixErrorResult) {
+                /* Return error. Should not shappen in normal conditions. */
+                goto cleanup;
+            }
             methodFlags = method->flags;
             if (!(methodFlags & PKIX_REV_M_TEST_USING_THIS_METHOD)) {
                 /* Will not check with this method. Skipping... */
@@ -393,14 +396,14 @@ PKIX_RevocationChecker_Check(
             if (!onlyUseRemoteMethods &&
                 methodStatus[methodNum] == PKIX_RevStatus_NoInfo) {
                 PKIX_RevocationStatus revStatus = PKIX_RevStatus_NoInfo;
-                PKIX_CHECK_NO_GOTO(
+
+                pkixErrorResult =
                     (*method->localRevChecker)(cert, issuer, date,
                                                method, procParams,
                                                methodFlags, 
                                                chainVerificationState,
                                                &revStatus,
-                                               pReasonCode, plContext),
-                    PKIX_REVCHECKERCHECKFAILED);
+                                               pReasonCode, plContext);
                 methodStatus[methodNum] = revStatus;
                 if (revStatus == PKIX_RevStatus_Revoked) {
                     /* if error was generated use it as final error. */
@@ -420,13 +423,12 @@ PKIX_RevocationChecker_Check(
                 methodStatus[methodNum] == PKIX_RevStatus_NoInfo) {
                 if (!(methodFlags & PKIX_REV_M_FORBID_NETWORK_FETCHING)) {
                     PKIX_RevocationStatus revStatus = PKIX_RevStatus_NoInfo;
-                    PKIX_CHECK_NO_GOTO(
+                    pkixErrorResult =
                         (*method->externalRevChecker)(cert, issuer, date,
                                                       method,
                                                       procParams, methodFlags,
                                                       &revStatus, pReasonCode,
-                                                      &nbioContext, plContext),
-                        PKIX_REVCHECKERCHECKFAILED);
+                                                      &nbioContext, plContext);
                     methodStatus[methodNum] = revStatus;
                     if (revStatus == PKIX_RevStatus_Revoked) {
                         /* if error was generated use it as final error. */

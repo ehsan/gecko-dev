@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * IBM Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2003
+ * IBM Corporation. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   IBM Corporation
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
  * Class that represents the name (nodeinfo or atom) of an attribute;
@@ -79,7 +112,7 @@ public:
     NS_ADDREF(aAtom);
   }
 
-  bool IsAtom() const
+  PRBool IsAtom() const
   {
     return !(mBits & NS_ATTRNAME_NODEINFO_BIT);
   }
@@ -96,18 +129,18 @@ public:
     return reinterpret_cast<nsIAtom*>(mBits);
   }
 
-  bool Equals(const nsAttrName& aOther) const
+  PRBool Equals(const nsAttrName& aOther) const
   {
     return mBits == aOther.mBits;
   }
 
   // Faster comparison in the case we know the namespace is null
-  bool Equals(nsIAtom* aAtom) const
+  PRBool Equals(nsIAtom* aAtom) const
   {
     return reinterpret_cast<PtrBits>(aAtom) == mBits;
   }
 
-  bool Equals(nsIAtom* aLocalName, int32_t aNamespaceID) const
+  PRBool Equals(nsIAtom* aLocalName, PRInt32 aNamespaceID) const
   {
     if (aNamespaceID == kNameSpaceID_None) {
       return Equals(aLocalName);
@@ -115,17 +148,17 @@ public:
     return !IsAtom() && NodeInfo()->Equals(aLocalName, aNamespaceID);
   }
 
-  bool Equals(nsINodeInfo* aNodeInfo) const
+  PRBool Equals(nsINodeInfo* aNodeInfo) const
   {
     return Equals(aNodeInfo->NameAtom(), aNodeInfo->NamespaceID());
   }
 
-  int32_t NamespaceID() const
+  PRInt32 NamespaceID() const
   {
     return IsAtom() ? kNameSpaceID_None : NodeInfo()->NamespaceID();
   }
 
-  int32_t NamespaceEquals(int32_t aNamespaceID) const
+  PRInt32 NamespaceEquals(PRInt32 aNamespaceID) const
   {
     return aNamespaceID == kNameSpaceID_None ?
            IsAtom() :
@@ -139,10 +172,10 @@ public:
 
   nsIAtom* GetPrefix() const
   {
-    return IsAtom() ? nullptr : NodeInfo()->GetPrefixAtom();
+    return IsAtom() ? nsnull : NodeInfo()->GetPrefixAtom();
   }
 
-  bool QualifiedNameEquals(const nsAString& aName) const
+  PRBool QualifiedNameEquals(const nsAString& aName) const
   {
     return IsAtom() ? Atom()->Equals(aName) :
                       NodeInfo()->QualifiedNameEquals(aName);
@@ -158,7 +191,6 @@ public:
     }
   }
 
-#ifdef MOZILLA_INTERNAL_API
   void GetPrefix(nsAString& aStr) const
   {
     if (IsAtom()) {
@@ -168,17 +200,16 @@ public:
       NodeInfo()->GetPrefix(aStr);
     }
   }
-#endif
 
-  uint32_t HashValue() const
+  PRUint32 HashValue() const
   {
-    // mBits and uint32_t might have different size. This should silence
+    // mBits and PRUint32 might have different size. This should silence
     // any warnings or compile-errors. This is what the implementation of
     // NS_PTR_TO_INT32 does to take care of the same problem.
     return mBits - 0;
   }
 
-  bool IsSmaller(nsIAtom* aOther) const
+  PRBool IsSmaller(nsIAtom* aOther) const
   {
     return mBits < reinterpret_cast<PtrBits>(aOther);
   }

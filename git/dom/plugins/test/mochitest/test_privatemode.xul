@@ -6,6 +6,8 @@
   xmlns:html="http://www.w3.org/1999/xhtml"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
   <title>NPAPI Private Mode Tests</title>
+  <script type="application/javascript" 
+   src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 <body xmlns="http://www.w3.org/1999/xhtml" onload="runTests()">
@@ -64,17 +66,6 @@ function runTests() {
   is(exceptionThrown, false, "Exception thrown getting private mode state.");
   is(state1, true, "Private mode state reported incorrectly.");
   is(state2, true, "Private mode state reported incorrectly.");
-
-  var officialState1, officialState2;
-  try {
-    officialState1 = pluginElement1.queryPrivateModeState();
-    officialState2 = pluginElement2.queryPrivateModeState();
-  } catch (e) {
-    exceptionThrown = true;
-  }
-  is(exceptionThrown, false, "Exception thrown getting private mode state.");
-  is(officialState1, state1, "Private mode reported and queried is inconsistent.");
-  is(officialState2, state2, "Private mode reported and queried is inconsistent.");
 
   // reset preference states
   privateBrowsing.privateBrowsingEnabled = false;

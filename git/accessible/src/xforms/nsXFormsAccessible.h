@@ -1,12 +1,45 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alexander Surkov <surkov.alexander@gmail.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef _nsXFormsAccessible_H_
 #define _nsXFormsAccessible_H_
 
-#include "HyperTextAccessibleWrap.h"
+#include "nsHyperTextAccessibleWrap.h"
 #include "nsIXFormsUtilityService.h"
 
 #define NS_NAMESPACE_XFORMS "http://www.w3.org/2002/xforms"
@@ -33,30 +66,31 @@ protected:
  * XForms hint and XForms label elements should have accessible object. This
  * class is base class for accessible objects for these XForms elements.
  */
-class nsXFormsAccessible : public HyperTextAccessibleWrap,
+class nsXFormsAccessible : public nsHyperTextAccessibleWrap,
                            public nsXFormsAccessibleBase
 {
 public:
-  nsXFormsAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsXFormsAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
-  // Accessible
-  // Returns value of child xforms 'hint' element.
-  virtual void Description(nsString& aDescription);
+  // nsIAccessible
 
   // Returns value of instance node that xforms element is bound to.
-  virtual void Value(nsString& aValue);
+  NS_IMETHOD GetValue(nsAString& aValue);
+
+  // nsAccessible
+  // Returns value of child xforms 'hint' element.
+  virtual void Description(nsString& aDescription);
 
   // Returns value of child xforms 'label' element.
   virtual nsresult GetNameInternal(nsAString& aName);
 
   // Returns state of xforms element taking into account state of instance node
   // that it is bound to.
-  virtual uint64_t NativeState();
-  virtual bool NativelyUnavailable() const;
+  virtual PRUint64 NativeState();
 
   // Denies accessible nodes in anonymous content of xforms element by
-  // always returning false value.
-  virtual bool CanHaveAnonChildren();
+  // always returning PR_FALSE value.
+  virtual PRBool GetAllowsAnonChildAccessibles();
 
 protected:
   // Returns value of first child xforms element by tagname that is bound to
@@ -71,7 +105,7 @@ protected:
   // are hidden and therefore aren't accessible.
   //
   // @param aContainerNode - node that contains item elements
-  void CacheSelectChildren(nsIDOMNode *aContainerNode = nullptr);
+  void CacheSelectChildren(nsIDOMNode *aContainerNode = nsnull);
 };
 
 
@@ -90,14 +124,14 @@ protected:
 class nsXFormsContainerAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsContainerAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsXFormsContainerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
-  // Accessible
-  virtual mozilla::a11y::role NativeRole();
+  // nsAccessible
+  virtual PRUint32 NativeRole();
 
   // Allows accessible nodes in anonymous content of xforms element by
-  // always returning true value.
-  virtual bool CanHaveAnonChildren();
+  // always returning PR_TRUE value.
+  virtual PRBool GetAllowsAnonChildAccessibles();
 };
 
 
@@ -108,13 +142,13 @@ public:
 class nsXFormsEditableAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsEditableAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsXFormsEditableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
-  // HyperTextAccessible
-  virtual already_AddRefed<nsIEditor> GetEditor() const;
+  // nsIAccessibleEditableText
+  NS_IMETHOD GetAssociatedEditor(nsIEditor **aEditor);
 
-  // Accessible
-  virtual uint64_t NativeState();
+  // nsAccessible
+  virtual PRUint64 NativeState();
 };
 
 
@@ -125,24 +159,24 @@ public:
 class nsXFormsSelectableAccessible : public nsXFormsEditableAccessible
 {
 public:
-  nsXFormsSelectableAccessible(nsIContent* aContent, DocAccessible* aDoc);
+  nsXFormsSelectableAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // SelectAccessible
   virtual bool IsSelect();
   virtual already_AddRefed<nsIArray> SelectedItems();
-  virtual uint32_t SelectedItemCount();
-  virtual Accessible* GetSelectedItem(uint32_t aIndex);
-  virtual bool IsItemSelected(uint32_t aIndex);
-  virtual bool AddItemToSelection(uint32_t aIndex);
-  virtual bool RemoveItemFromSelection(uint32_t aIndex);
+  virtual PRUint32 SelectedItemCount();
+  virtual nsAccessible* GetSelectedItem(PRUint32 aIndex);
+  virtual bool IsItemSelected(PRUint32 aIndex);
+  virtual bool AddItemToSelection(PRUint32 aIndex);
+  virtual bool RemoveItemFromSelection(PRUint32 aIndex);
   virtual bool SelectAll();
   virtual bool UnselectAll();
 
 protected:
-  nsIContent* GetItemByIndex(uint32_t* aIndex,
-                             Accessible* aAccessible = nullptr);
+  nsIContent* GetItemByIndex(PRUint32* aIndex,
+                             nsAccessible* aAccessible = nsnull);
 
-  bool mIsSelect1Element;
+  PRBool mIsSelect1Element;
 };
 
 
@@ -152,16 +186,12 @@ protected:
 class nsXFormsSelectableItemAccessible : public nsXFormsAccessible
 {
 public:
-  nsXFormsSelectableItemAccessible(nsIContent* aContent,
-                                   DocAccessible* aDoc);
+  nsXFormsSelectableItemAccessible(nsIContent *aContent,
+                                   nsIWeakReference *aShell);
 
-  NS_IMETHOD DoAction(uint8_t aIndex);
-
-  // Accessible
-  virtual void Value(nsString& aValue);
-
-  // ActionAccessible
-  virtual uint8_t ActionCount();
+  NS_IMETHOD GetValue(nsAString& aValue);
+  NS_IMETHOD GetNumActions(PRUint8 *aCount);
+  NS_IMETHOD DoAction(PRUint8 aIndex);
 
 protected:
   bool IsSelected();

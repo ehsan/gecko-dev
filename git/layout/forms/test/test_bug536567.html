@@ -5,9 +5,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=536567
 -->
 <head>
   <title>Test for Bug 536567</title>
+  <script type="application/javascript" src="chrome://mochikit/content/MochiKit/packed.js"></script>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="application/javascript" src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
-  <link rel="stylesheet" type="text/css" href="chrome://mochikit/content/tests/SimpleTest/test.css"/>
 </head>
 <body>
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=536567">Mozilla Bug 536567</a>
@@ -18,13 +18,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=536567
 
 /** Test for Bug 536567 **/
 
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 const Cm = Components.manager;
-
-var MockFilePicker = SpecialPowers.MockFilePicker;
-MockFilePicker.init();
 
 var ioSvc = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
 var dirSvc = Cc["@mozilla.org/file/directory_service;1"].getService(Ci.nsIProperties);
@@ -39,6 +37,8 @@ var homeDir = dirSvc.get("Desk", Ci.nsILocalFile);
 prefSvc.setBoolPref("browser.privatebrowsing.keep_current_session", true);
 
 function newDir() {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var dir = tmpDir.clone();
   dir.append("testdir" + Math.floor(Math.random() * 10000));
   dir.QueryInterface(Ci.nsILocalFile);
@@ -96,6 +96,7 @@ var tests = [
   "pb off"
 ];
 
+var index;
 var testIndex = 0;
 var content = document.getElementById('content');
 
@@ -121,10 +122,8 @@ function runTest() {
     testIndex++;
     runTest();
   } else {
-    var file = dirs[test[2]].clone();
-    file.append("file.file");
-    MockFilePicker.returnFiles = [file];
-    content.setAttribute ('src', domains[test[0]] + '/chrome/layout/forms/test/bug536567_subframe.html');
+    index = test[2];
+    content.setAttribute ('src', domains[test[0]] + '/tests/layout/forms/test/bug536567_subframe.html');
   }
 }
 
@@ -134,15 +133,16 @@ function endTest() {
       dirs[i].remove(true);
     }
 
-    MockFilePicker.cleanup();
     SimpleTest.finish();
 }
 
-MockFilePicker.showCallback = function(filepicker) {
+window.addEventListener("message", function(event) {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var test = tests[testIndex];
   var returned = -1;
   for (var i = 0; i < dirs.length; i++) {
-    if (dirs[i].path == MockFilePicker.displayDirectory.path) {
+    if (dirs[i].path == event.data) {
       returned = i;
       break;
     }
@@ -152,12 +152,10 @@ MockFilePicker.showCallback = function(filepicker) {
   } else {
     is(returned, test[1], 'test ' + testIndex);
   }
-
-  SimpleTest.executeSoon(function() {
-    testIndex++;
-    runTest();
-  });
-};
+  
+  testIndex++;
+  runTest();
+}, false);
 
 window.onload = function() {
   SimpleTest.waitForExplicitFinish();

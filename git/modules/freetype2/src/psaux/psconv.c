@@ -4,7 +4,7 @@
 /*                                                                         */
 /*    Some convenience conversions (body).                                 */
 /*                                                                         */
-/*  Copyright 2006, 2008, 2009, 2012 by                                    */
+/*  Copyright 2006, 2008, 2009 by                                          */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -79,7 +79,7 @@
     FT_Bool   sign = 0;
 
 
-    if ( p >= limit || base < 2 || base > 36 )
+    if ( p == limit || base < 2 || base > 36 )
       return 0;
 
     if ( *p == '-' || *p == '+' )
@@ -150,7 +150,7 @@
     FT_Bool   sign = 0;
 
 
-    if ( p >= limit )
+    if ( p == limit )
       return 0;
 
     if ( *p == '-' || *p == '+' )
@@ -346,11 +346,7 @@
 
 #if 1
 
-    p = *cursor;
-
-    if ( p >= limit )
-      return 0;
-
+    p  = *cursor;
     if ( n > (FT_UInt)( limit - p ) )
       n = (FT_UInt)( limit - p );
 
@@ -438,10 +434,6 @@
 #if 1
 
     p = *cursor;
-
-    if ( p >= limit )
-      return 0;
-
     if ( n > (FT_UInt)(limit - p) )
       n = (FT_UInt)(limit - p);
 

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla MathML Project.
+ *
+ * The Initial Developer of the Original Code is
+ * The University Of Queensland.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Roger B. Sidje <rbs@maths.uq.edu.au>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsMathMLFrame_h___
 #define nsMathMLFrame_h___
@@ -16,7 +49,6 @@
 #include "nsFrame.h"
 #include "nsCSSValue.h"
 #include "nsMathMLElement.h"
-#include "nsLayoutUtils.h"
 
 class nsMathMLChar;
 
@@ -26,7 +58,7 @@ public:
 
   // nsIMathMLFrame ---
 
-  virtual bool
+  virtual PRBool
   IsSpaceLike() {
     return NS_MATHML_IS_SPACE_LIKE(mPresentationData.flags);
   }
@@ -82,14 +114,14 @@ public:
   }
 
   NS_IMETHOD
-  UpdatePresentationData(uint32_t        aFlagsValues,
-                         uint32_t        aFlagsToUpdate);
+  UpdatePresentationData(PRUint32        aFlagsValues,
+                         PRUint32        aFlagsToUpdate);
 
   NS_IMETHOD
-  UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
-                                    int32_t         aLastIndex,
-                                    uint32_t        aFlagsValues,
-                                    uint32_t        aFlagsToUpdate)
+  UpdatePresentationDataFromChildAt(PRInt32         aFirstIndex,
+                                    PRInt32         aLastIndex,
+                                    PRUint32        aFlagsValues,
+                                    PRUint32        aFlagsToUpdate)
   {
     return NS_OK;
   }
@@ -102,7 +134,7 @@ public:
                          nsIContent*      aContent,
                          nsStyleContext*  aParenStyleContext,
                          nsMathMLChar*    aMathMLChar,
-                         bool             aIsMutableChar);
+                         PRBool           aIsMutableChar);
 
   // helper to get the mEmbellishData of a frame
   // The MathML REC precisely defines an "embellished operator" as:
@@ -128,23 +160,18 @@ public:
   static void
   GetPresentationDataFrom(nsIFrame*           aFrame,
                           nsPresentationData& aPresentationData,
-                          bool                aClimbTree = true);
+                          PRBool              aClimbTree = PR_TRUE);
 
   // helper used by <mstyle> and <mtable> to see if they have a displaystyle attribute 
   static void
   FindAttrDisplaystyle(nsIContent*         aContent,
                        nsPresentationData& aPresentationData);
 
-  // helper used to see if an element has a dir attribute 
-  static void
-  FindAttrDirectionality(nsIContent*         aContent,
-                         nsPresentationData& aPresentationData);
-
-  // helper to check if a content has an attribute. If content is nullptr or if
+  // helper to check if a content has an attribute. If content is nsnull or if
   // the attribute is not there, check if the attribute is on the mstyle hierarchy
-  // @return true     --if attribute exists
-  //         false --if attribute doesn't exist
-  static bool
+  // @return PR_TRUE  --if attribute exists
+  //         PR_FALSE --if attribute doesn't exist
+  static PRBool
   GetAttribute(nsIContent* aContent,
                nsIFrame*   aMathMLmstyleFrame,          
                nsIAtom*    aAttributeAtom,
@@ -152,18 +179,23 @@ public:
 
   // utilities to parse and retrieve numeric values in CSS units
   // All values are stored in twips.
-  // @pre  aLengthValue is the default length value of the attribute.
-  // @post aLengthValue is the length value computed from the attribute.
-  static void ParseNumericValue(const nsString&   aString,
-                                nscoord*          aLengthValue,
-                                uint32_t          aFlags,
-                                nsPresContext*    aPresContext,
-                                nsStyleContext*   aStyleContext);
+  static PRBool
+  ParseNumericValue(const nsString& aString,
+                    nsCSSValue&     aCSSValue) {
+    return nsMathMLElement::ParseNumericValue(aString, aCSSValue,
+            nsMathMLElement::PARSE_ALLOW_NEGATIVE |
+            nsMathMLElement::PARSE_ALLOW_UNITLESS);
+  }
 
   static nscoord 
   CalcLength(nsPresContext*   aPresContext,
              nsStyleContext*   aStyleContext,
              const nsCSSValue& aCSSValue);
+
+  static PRBool
+  ParseNamedSpaceValue(nsIFrame*   aMathMLmstyleFrame,
+                       nsString&   aString,
+                       nsCSSValue& aCSSValue);
 
   static eMathMLFrameType
   GetMathMLFrameTypeFor(nsIFrame* aFrame)
@@ -207,8 +239,9 @@ public:
   GetSubDropFromChild(nsIFrame*       aChild,
                       nscoord&        aSubDrop) 
   {
-    nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm));
+    const nsStyleFont* font = aChild->GetStyleFont();
+    nsRefPtr<nsFontMetrics> fm = aChild->PresContext()->GetMetricsFor(
+                                                              font->mFont);
     GetSubDrop(fm, aSubDrop);
   }
 
@@ -216,8 +249,9 @@ public:
   GetSupDropFromChild(nsIFrame*       aChild,
                       nscoord&        aSupDrop) 
   {
-    nsRefPtr<nsFontMetrics> fm;
-    nsLayoutUtils::GetFontMetricsForFrame(aChild, getter_AddRefs(fm));
+    const nsStyleFont* font = aChild->GetStyleFont();
+    nsRefPtr<nsFontMetrics> fm = aChild->PresContext()->GetMetricsFor(
+                                                              font->mFont);
     GetSupDrop(fm, aSupDrop);
   }
 
@@ -351,7 +385,7 @@ public:
                 nscoord&             aAxisHeight);
 
 protected:
-#if defined(DEBUG) && defined(SHOW_BOUNDING_BOX)
+#if defined(NS_DEBUG) && defined(SHOW_BOUNDING_BOX)
   nsresult DisplayBoundingMetrics(nsDisplayListBuilder* aBuilder,
                                   nsIFrame* aFrame, const nsPoint& aPt,
                                   const nsBoundingMetrics& aMetrics,

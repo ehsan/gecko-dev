@@ -1,14 +1,49 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode:nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Scott MacGregor <mscott@netscape.com>
+ *   Jens Bannmann <jens.b@web.de>
+ *   Alex Pakhotin <alexp@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/dom/ContentChild.h"
 #include "nsXULAppAPI.h"
 
 #include "nsAlertsService.h"
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
 #include "AndroidBridge.h"
 #else
 
@@ -18,15 +53,16 @@
 #include "nsIServiceManager.h"
 #include "nsIDOMWindow.h"
 #include "nsIWindowWatcher.h"
-#include "nsPromiseFlatString.h"
+#include "nsDependentString.h"
+#include "nsWidgetsCID.h"
+#include "nsILookAndFeel.h"
 #include "nsToolkitCompsCID.h"
-#include "mozilla/LookAndFeel.h"
+
+static NS_DEFINE_CID(kLookAndFeelCID, NS_LOOKANDFEEL_CID);
 
 #define ALERT_CHROME_URL "chrome://global/content/alerts/alert.xul"
 
-#endif // !MOZ_WIDGET_ANDROID
-
-using namespace mozilla;
+#endif // !ANDROID
 
 using mozilla::dom::ContentChild;
 
@@ -39,35 +75,8 @@ nsAlertsService::nsAlertsService()
 nsAlertsService::~nsAlertsService()
 {}
 
-bool nsAlertsService::ShouldShowAlert()
-{
-  bool result = true;
-
-#ifdef XP_WIN
-  HMODULE shellDLL = ::LoadLibraryW(L"shell32.dll");
-  if (!shellDLL)
-    return result;
-
-  SHQueryUserNotificationStatePtr pSHQueryUserNotificationState =
-    (SHQueryUserNotificationStatePtr) ::GetProcAddress(shellDLL, "SHQueryUserNotificationState");
-
-  if (pSHQueryUserNotificationState) {
-    MOZ_QUERY_USER_NOTIFICATION_STATE qstate;
-    if (SUCCEEDED(pSHQueryUserNotificationState(&qstate))) {
-      if (qstate != QUNS_ACCEPTS_NOTIFICATIONS) {
-         result = false;
-      }
-    }
-  }
-
-  ::FreeLibrary(shellDLL);
-#endif
-
-  return result;
-}
-
 NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl, const nsAString & aAlertTitle, 
-                                                     const nsAString & aAlertText, bool aAlertTextClickable,
+                                                     const nsAString & aAlertText, PRBool aAlertTextClickable,
                                                      const nsAString & aAlertCookie,
                                                      nsIObserver * aAlertListener,
                                                      const nsAString & aAlertName)
@@ -76,7 +85,7 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
     ContentChild* cpc = ContentChild::GetSingleton();
 
     if (aAlertListener)
-      cpc->AddRemoteAlertObserver(PromiseFlatString(aAlertCookie), aAlertListener);
+      cpc->AddRemoteAlertObserver(nsDependentString(aAlertCookie), aAlertListener);
 
     cpc->SendShowAlertNotification(nsAutoString(aImageUrl),
                                    nsAutoString(aAlertTitle),
@@ -87,7 +96,7 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
     return NS_OK;
   }
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   mozilla::AndroidBridge::Bridge()->ShowAlertNotification(aImageUrl, aAlertTitle, aAlertText, aAlertCookie,
                                                           aAlertListener, aAlertName);
   return NS_OK;
@@ -101,17 +110,6 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
     if (NS_SUCCEEDED(rv))
       return rv;
   }
-
-  if (!ShouldShowAlert()) {
-    // Do not display the alert. Instead call alertfinished and get out.
-    if (aAlertListener)
-      aAlertListener->Observe(NULL, "alertfinished", PromiseFlatString(aAlertCookie).get());
-    return NS_OK;
-  }
-
-#ifdef XP_MACOSX
-  return NS_ERROR_NOT_IMPLEMENTED;
-#endif
 
   nsCOMPtr<nsIWindowWatcher> wwatch(do_GetService(NS_WINDOWWATCHER_CONTRACTID));
   nsCOMPtr<nsIDOMWindow> newWindow;
@@ -158,11 +156,14 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
 
   nsCOMPtr<nsISupportsPRInt32> scriptableOrigin (do_CreateInstance(NS_SUPPORTS_PRINT32_CONTRACTID));
   NS_ENSURE_TRUE(scriptableOrigin, NS_ERROR_FAILURE);
-
-  int32_t origin =
-    LookAndFeel::GetInt(LookAndFeel::eIntID_AlertNotificationOrigin);
-  scriptableOrigin->SetData(origin);
-
+  nsCOMPtr<nsILookAndFeel> lookAndFeel = do_GetService("@mozilla.org/widget/lookandfeel;1");
+  if (lookAndFeel)
+  {
+    PRInt32 origin;
+    lookAndFeel->GetMetric(nsILookAndFeel::eMetric_AlertNotificationOrigin,
+                           origin);
+    scriptableOrigin->SetData(origin);
+  }
   rv = argsArray->AppendElement(scriptableOrigin);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -182,28 +183,28 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
                  "chrome,dialog=yes,titlebar=no,popup=yes", argsArray,
                  getter_AddRefs(newWindow));
   return rv;
-#endif // !MOZ_WIDGET_ANDROID
+#endif // !ANDROID
 }
 
 NS_IMETHODIMP nsAlertsService::OnProgress(const nsAString & aAlertName,
-                                          int64_t aProgress,
-                                          int64_t aProgressMax,
+                                          PRInt64 aProgress,
+                                          PRInt64 aProgressMax,
                                           const nsAString & aAlertText)
 {
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   mozilla::AndroidBridge::Bridge()->AlertsProgressListener_OnProgress(aAlertName, aProgress, aProgressMax, aAlertText);
   return NS_OK;
 #else
   return NS_ERROR_NOT_IMPLEMENTED;
-#endif // !MOZ_WIDGET_ANDROID
+#endif // !ANDROID
 }
 
 NS_IMETHODIMP nsAlertsService::OnCancel(const nsAString & aAlertName)
 {
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef ANDROID
   mozilla::AndroidBridge::Bridge()->AlertsProgressListener_OnCancel(aAlertName);
   return NS_OK;
 #else
   return NS_ERROR_NOT_IMPLEMENTED;
-#endif // !MOZ_WIDGET_ANDROID
+#endif // !ANDROID
 }

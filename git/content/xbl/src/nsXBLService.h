@@ -1,11 +1,46 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Original Author: David W. Hyatt (hyatt@netscape.com)
+ *   - Brendan Eich (brendan@mozilla.org)
+ *   - Mike Pinkerton (pinkerton@netscape.com)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-#include "nsString.h"
+#include "nsIXBLService.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
 #include "jsapi.h"              // nsXBLJSClass derives from JSClass
@@ -17,56 +52,47 @@ class nsXBLBinding;
 class nsXBLDocumentInfo;
 class nsIContent;
 class nsIDocument;
+class nsIAtom;
 class nsString;
 class nsIURI;
-class nsIPrincipal;
 class nsSupportsHashtable;
 class nsHashtable;
-class nsIDOMEventTarget;
 
-class nsXBLService : public nsIObserver,
+class nsXBLService : public nsIXBLService,
+                     public nsIObserver,
                      public nsSupportsWeakReference
 {
   NS_DECL_ISUPPORTS
 
-  static nsXBLService* gInstance;
-
-  static void Init();
-
-  static void Shutdown() {
-    NS_IF_RELEASE(gInstance);
-  }
-
-  static nsXBLService* GetInstance() { return gInstance; }
-
-  static bool IsChromeOrResourceURI(nsIURI* aURI);
-
   // This function loads a particular XBL file and installs all of the bindings
   // onto the element.  aOriginPrincipal must not be null here.
-  nsresult LoadBindings(nsIContent* aContent, nsIURI* aURL,
-                        nsIPrincipal* aOriginPrincipal, bool aAugmentFlag,
-                        nsXBLBinding** aBinding, bool* aResolveStyle);
+  NS_IMETHOD LoadBindings(nsIContent* aContent, nsIURI* aURL,
+                          nsIPrincipal* aOriginPrincipal, PRBool aAugmentFlag,
+                          nsXBLBinding** aBinding, PRBool* aResolveStyle);
 
   // Indicates whether or not a binding is fully loaded.
-  nsresult BindingReady(nsIContent* aBoundElement, nsIURI* aURI, bool* aIsReady);
+  NS_IMETHOD BindingReady(nsIContent* aBoundElement, nsIURI* aURI, PRBool* aIsReady);
+
+  // Gets the object's base class type.
+  NS_IMETHOD ResolveTag(nsIContent* aContent, PRInt32* aNameSpaceID, nsIAtom** aResult);
 
   // This method checks the hashtable and then calls FetchBindingDocument on a
   // miss.  aOriginPrincipal or aBoundDocument may be null to bypass security
   // checks.
-  nsresult LoadBindingDocumentInfo(nsIContent* aBoundElement,
-                                   nsIDocument* aBoundDocument,
-                                   nsIURI* aBindingURI,
-                                   nsIPrincipal* aOriginPrincipal,
-                                   bool aForceSyncLoad,
-                                   nsXBLDocumentInfo** aResult);
+  NS_IMETHOD LoadBindingDocumentInfo(nsIContent* aBoundElement,
+                                     nsIDocument* aBoundDocument,
+                                     nsIURI* aBindingURI,
+                                     nsIPrincipal* aOriginPrincipal,
+                                     PRBool aForceSyncLoad,
+                                     nsXBLDocumentInfo** aResult);
 
   // Used by XUL key bindings and for window XBL.
-  static nsresult AttachGlobalKeyHandler(nsIDOMEventTarget* aTarget);
-  static nsresult DetachGlobalKeyHandler(nsIDOMEventTarget* aTarget);
+  NS_IMETHOD AttachGlobalKeyHandler(nsIDOMEventTarget* aTarget);
+  NS_IMETHOD DetachGlobalKeyHandler(nsIDOMEventTarget* aTarget);
 
   NS_DECL_NSIOBSERVER
 
-private:
+public:
   nsXBLService();
   virtual ~nsXBLService();
 
@@ -80,14 +106,14 @@ protected:
   // This method synchronously loads and parses an XBL file.
   nsresult FetchBindingDocument(nsIContent* aBoundElement, nsIDocument* aBoundDocument,
                                 nsIURI* aDocumentURI, nsIURI* aBindingURI, 
-                                bool aForceSyncLoad, nsIDocument** aResult);
+                                PRBool aForceSyncLoad, nsIDocument** aResult);
 
   /**
    * This method calls the one below with an empty |aDontExtendURIs| array.
    */
   nsresult GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
-                      bool aPeekFlag, nsIPrincipal* aOriginPrincipal,
-                      bool* aIsReady, nsXBLBinding** aResult);
+                      PRBool aPeekFlag, nsIPrincipal* aOriginPrincipal,
+                      PRBool* aIsReady, nsXBLBinding** aResult);
 
   /**
    * This method loads a binding doc and then builds the specific binding
@@ -107,20 +133,22 @@ protected:
    *       enough to funnel all security checks through that function.
    */
   nsresult GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
-                      bool aPeekFlag, nsIPrincipal* aOriginPrincipal,
-                      bool* aIsReady, nsXBLBinding** aResult,
+                      PRBool aPeekFlag, nsIPrincipal* aOriginPrincipal,
+                      PRBool* aIsReady, nsXBLBinding** aResult,
                       nsTArray<nsIURI*>& aDontExtendURIs);
 
 // MEMBER VARIABLES
 public:
-  static bool gDisableChromeCache;
+  static PRUint32 gRefCnt;                   // A count of XBLservice instances.
+
+  static PRBool gDisableChromeCache;
 
   static nsHashtable* gClassTable;           // A table of nsXBLJSClass objects.
 
   static JSCList  gClassLRUList;             // LRU list of cached classes.
-  static uint32_t gClassLRUListLength;       // Number of classes on LRU list.
-  static uint32_t gClassLRUListQuota;        // Quota on class LRU list.
-  static bool     gAllowDataURIs;            // Whether we should allow data
+  static PRUint32 gClassLRUListLength;       // Number of classes on LRU list.
+  static PRUint32 gClassLRUListQuota;        // Quota on class LRU list.
+  static PRBool   gAllowDataURIs;            // Whether we should allow data
                                              // urls in -moz-binding. Needed for
                                              // testing.
 

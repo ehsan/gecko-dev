@@ -1,7 +1,41 @@
 //* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Annotation Service
+ *
+ * The Initial Developer of the Original Code is
+ * Google Inc.
+ * Portions created by the Initial Developer are Copyright (C) 2005
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Brett Wilson <brettw@gmail.com> (original author)
+ *   Shawn Wilsher <me@shawnwilsher.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /**
  * Implementation of moz-anno: URLs for accessing annotation values. This just
@@ -24,11 +58,12 @@
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
 #include "nsStringStream.h"
-#include "mozilla/storage.h"
+#include "mozIStorageStatementCallback.h"
+#include "mozIStorageResultSet.h"
+#include "mozIStorageRow.h"
+#include "mozIStorageError.h"
 #include "nsIPipe.h"
 #include "Helpers.h"
-
-using namespace mozilla;
 using namespace mozilla::places;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +128,7 @@ public:
 
     // We do not allow favicons without a MIME type, so we'll return the default
     // icon.
-    nsAutoCString mimeType;
+    nsCAutoString mimeType;
     (void)row->GetUTF8String(1, mimeType);
     NS_ENSURE_FALSE(mimeType.IsEmpty(), NS_OK);
 
@@ -102,14 +137,14 @@ public:
     NS_ENSURE_SUCCESS(rv, rv);
 
     // Obtain the binary blob that contains our favicon data.
-    uint8_t *favicon;
-    uint32_t size = 0;
+    PRUint8 *favicon;
+    PRUint32 size = 0;
     rv = row->GetBlob(0, &size, &favicon);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    uint32_t totalWritten = 0;
+    PRUint32 totalWritten = 0;
     do {
-      uint32_t bytesWritten;
+      PRUint32 bytesWritten;
       rv = mOutputStream->Write(
         &(reinterpret_cast<const char *>(favicon)[totalWritten]),
         size - totalWritten,
@@ -135,7 +170,7 @@ public:
     return NS_OK;
   }
 
-  NS_IMETHOD HandleCompletion(uint16_t aReason)
+  NS_IMETHOD HandleCompletion(PRUint16 aReason)
   {
     if (!mReturnDefaultIcon)
       return mOutputStream->Close();
@@ -152,7 +187,7 @@ public:
     rv = GetDefaultIcon(getter_AddRefs(newChannel));
     NS_ENSURE_SUCCESS(rv, mOutputStream->Close());
 
-    rv = newChannel->AsyncOpen(listener, nullptr);
+    rv = newChannel->AsyncOpen(listener, nsnull);
     NS_ENSURE_SUCCESS(rv, mOutputStream->Close());
 
     return NS_OK;
@@ -212,7 +247,7 @@ nsAnnoProtocolHandler::GetScheme(nsACString& aScheme)
 //    There is no default port for annotation URLs
 
 NS_IMETHODIMP
-nsAnnoProtocolHandler::GetDefaultPort(int32_t *aDefaultPort)
+nsAnnoProtocolHandler::GetDefaultPort(PRInt32 *aDefaultPort)
 {
   *aDefaultPort = -1;
   return NS_OK;
@@ -222,7 +257,7 @@ nsAnnoProtocolHandler::GetDefaultPort(int32_t *aDefaultPort)
 // nsAnnoProtocolHandler::GetProtocolFlags
 
 NS_IMETHODIMP
-nsAnnoProtocolHandler::GetProtocolFlags(uint32_t *aProtocolFlags)
+nsAnnoProtocolHandler::GetProtocolFlags(PRUint32 *aProtocolFlags)
 {
   *aProtocolFlags = (URI_NORELATIVE | URI_NOAUTH | URI_DANGEROUS_TO_LOAD |
                      URI_IS_LOCAL_RESOURCE);
@@ -243,7 +278,7 @@ nsAnnoProtocolHandler::NewURI(const nsACString& aSpec,
   nsresult rv = uri->SetSpec(aSpec);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  *_retval = nullptr;
+  *_retval = nsnull;
   uri.swap(*_retval);
   return NS_OK;
 }
@@ -258,7 +293,7 @@ nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
   NS_ENSURE_ARG_POINTER(aURI);
   nsresult rv;
 
-  nsAutoCString path;
+  nsCAutoString path;
   rv = aURI->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -268,7 +303,7 @@ nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 
   // annotation info
   nsCOMPtr<nsIURI> annoURI;
-  nsAutoCString annoName;
+  nsCAutoString annoName;
   rv = ParseAnnoURI(aURI, getter_AddRefs(annoURI), annoName);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -278,9 +313,9 @@ nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
     return NewFaviconChannel(aURI, annoURI, _retval);
 
   // normal handling for annotations
-  uint8_t* data;
-  uint32_t dataLen;
-  nsAutoCString mimeType;
+  PRUint8* data;
+  PRUint32 dataLen;
+  nsCAutoString mimeType;
 
   // get the data from the annotation service and hand it off to the stream
   rv = annotationService->GetPageAnnotationBinary(annoURI, annoName, &data,
@@ -320,10 +355,10 @@ nsAnnoProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
 //    Don't override any bans on bad ports.
 
 NS_IMETHODIMP
-nsAnnoProtocolHandler::AllowPort(int32_t port, const char *scheme,
-                                 bool *_retval)
+nsAnnoProtocolHandler::AllowPort(PRInt32 port, const char *scheme,
+                                 PRBool *_retval)
 {
-  *_retval = false;
+  *_retval = PR_FALSE;
   return NS_OK;
 }
 
@@ -337,11 +372,11 @@ nsAnnoProtocolHandler::ParseAnnoURI(nsIURI* aURI,
                                     nsIURI** aResultURI, nsCString& aName)
 {
   nsresult rv;
-  nsAutoCString path;
+  nsCAutoString path;
   rv = aURI->GetPath(path);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  int32_t firstColon = path.FindChar(':');
+  PRInt32 firstColon = path.FindChar(':');
   if (firstColon <= 0)
     return NS_ERROR_MALFORMED_URI;
 
@@ -362,8 +397,8 @@ nsAnnoProtocolHandler::NewFaviconChannel(nsIURI *aURI, nsIURI *aAnnotationURI,
   nsCOMPtr<nsIOutputStream> outputStream;
   nsresult rv = NS_NewPipe(getter_AddRefs(inputStream),
                            getter_AddRefs(outputStream),
-                           MAX_FAVICON_SIZE, MAX_FAVICON_SIZE, true,
-                           true);
+                           MAX_FAVICON_SIZE, MAX_FAVICON_SIZE, PR_TRUE,
+                           PR_TRUE);
   NS_ENSURE_SUCCESS(rv, GetDefaultIcon(_channel));
 
   // Create our channel.  We'll call SetContentType with the right type when

@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Darin Fisher <darin@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef nsStreamUtils_h__
 #define nsStreamUtils_h__
@@ -23,7 +56,7 @@ class nsIEventTarget;
  * This function is designed to be used to implement AsyncWait when the
  * aTarget parameter is non-null.
  */
-extern nsresult
+extern NS_COM nsresult
 NS_NewInputStreamReadyEvent(nsIInputStreamCallback **aEvent,
                             nsIInputStreamCallback  *aNotify,
                             nsIEventTarget          *aTarget);
@@ -38,7 +71,7 @@ NS_NewInputStreamReadyEvent(nsIInputStreamCallback **aEvent,
  * This function is designed to be used to implement AsyncWait when the
  * aTarget parameter is non-null.
  */
-extern nsresult
+extern NS_COM nsresult
 NS_NewOutputStreamReadyEvent(nsIOutputStreamCallback **aEvent,
                              nsIOutputStreamCallback  *aNotify,
                              nsIEventTarget           *aTarget);
@@ -68,21 +101,21 @@ typedef void (* nsAsyncCopyCallbackFun)(void *closure, nsresult status);
  *
  * Source and sink are closed by default when copying finishes or when error
  * occurs. Caller can prevent closing source or sink by setting aCloseSource
- * or aCloseSink to false.
+ * or aCloseSink to PR_FALSE.
  *
  * Caller can obtain aCopierCtx to be able to cancel copying.
  */
-extern nsresult
+extern NS_COM nsresult
 NS_AsyncCopy(nsIInputStream         *aSource,
              nsIOutputStream        *aSink,
              nsIEventTarget         *aTarget,
              nsAsyncCopyMode         aMode = NS_ASYNCCOPY_VIA_READSEGMENTS,
-             uint32_t                aChunkSize = 4096,
-             nsAsyncCopyCallbackFun  aCallbackFun = nullptr,
-             void                   *aCallbackClosure = nullptr,
-             bool                    aCloseSource = true,
-             bool                    aCloseSink = true,
-             nsISupports           **aCopierCtx = nullptr);
+             PRUint32                aChunkSize = 4096,
+             nsAsyncCopyCallbackFun  aCallbackFun = nsnull,
+             void                   *aCallbackClosure = nsnull,
+             PRBool                  aCloseSource = PR_TRUE,
+             PRBool                  aCloseSink = PR_TRUE,
+             nsISupports           **aCopierCtx = nsnull);
 
 /**
  * This function cancels copying started by function NS_AsyncCopy.
@@ -93,7 +126,7 @@ NS_AsyncCopy(nsIInputStream         *aSource,
  *        A failure code indicating why the operation is being canceled.
  *        It is an error to pass a success code.
  */
-extern nsresult
+extern NS_COM nsresult
 NS_CancelAsyncCopy(nsISupports *aCopierCtx, nsresult aReason);
 
 /**
@@ -119,8 +152,8 @@ NS_CancelAsyncCopy(nsISupports *aCopierCtx, nsresult aReason);
  *        Note: The data copied to the string may contain null bytes and may
  *        contain non-ASCII values.
  */
-extern nsresult
-NS_ConsumeStream(nsIInputStream *aSource, uint32_t aMaxCount,
+extern NS_COM nsresult
+NS_ConsumeStream(nsIInputStream *aSource, PRUint32 aMaxCount,
                  nsACString &aBuffer);
 
 /**
@@ -136,7 +169,7 @@ NS_ConsumeStream(nsIInputStream *aSource, uint32_t aMaxCount,
  * @param aInputStream
  *        The input stream to test.
  */
-extern bool
+extern NS_COM PRBool
 NS_InputStreamIsBuffered(nsIInputStream *aInputStream);
 
 /**
@@ -152,7 +185,7 @@ NS_InputStreamIsBuffered(nsIInputStream *aInputStream);
  * @param aOutputStream
  *        The output stream to test.
  */
-extern bool
+extern NS_COM PRBool
 NS_OutputStreamIsBuffered(nsIOutputStream *aOutputStream);
 
 /**
@@ -162,10 +195,10 @@ NS_OutputStreamIsBuffered(nsIOutputStream *aOutputStream);
  *
  * @see nsIInputStream.idl for a description of this function's parameters.
  */
-extern NS_METHOD
+extern NS_COM NS_METHOD
 NS_CopySegmentToStream(nsIInputStream *aInputStream, void *aClosure,
-                       const char *aFromSegment, uint32_t aToOffset,
-                       uint32_t aCount, uint32_t *aWriteCount);
+                       const char *aFromSegment, PRUint32 aToOffset,
+                       PRUint32 aCount, PRUint32 *aWriteCount);
 
 /**
  * This function is intended to be passed to nsIInputStream::ReadSegments to
@@ -175,22 +208,10 @@ NS_CopySegmentToStream(nsIInputStream *aInputStream, void *aClosure,
  *
  * @see nsIInputStream.idl for a description of this function's parameters.
  */
-extern NS_METHOD
+extern NS_COM NS_METHOD
 NS_CopySegmentToBuffer(nsIInputStream *aInputStream, void *aClosure,
-                       const char *aFromSegment, uint32_t aToOffset,
-                       uint32_t aCount, uint32_t *aWriteCount);
-
-/**
- * This function is intended to be passed to nsIOutputStream::WriteSegments to
- * copy data into the nsIOutputStream from a character buffer passed as the
- * aClosure parameter to the WriteSegments function.
- *
- * @see nsIOutputStream.idl for a description of this function's parameters.
- */
-extern NS_METHOD
-NS_CopySegmentToBuffer(nsIOutputStream *aOutputStream, void *aClosure,
-                       char *aToSegment, uint32_t aFromOffset,
-                       uint32_t aCount, uint32_t *aReadCount);
+                       const char *aFromSegment, PRUint32 aToOffset,
+                       PRUint32 aCount, PRUint32 *aWriteCount);
 
 /**
  * This function is intended to be passed to nsIInputStream::ReadSegments to
@@ -199,10 +220,10 @@ NS_CopySegmentToBuffer(nsIOutputStream *aOutputStream, void *aClosure,
  *
  * @see nsIInputStream.idl for a description of this function's parameters.
  */
-extern NS_METHOD
+extern NS_COM NS_METHOD
 NS_DiscardSegment(nsIInputStream *aInputStream, void *aClosure,
-                  const char *aFromSegment, uint32_t aToOffset,
-                  uint32_t aCount, uint32_t *aWriteCount);
+                  const char *aFromSegment, PRUint32 aToOffset,
+                  PRUint32 aCount, PRUint32 *aWriteCount);
 
 /**
  * This function is intended to be passed to nsIInputStream::ReadSegments to
@@ -215,10 +236,10 @@ NS_DiscardSegment(nsIInputStream *aInputStream, void *aClosure,
  * This function comes in handy when implementing ReadSegments in terms of an
  * inner stream's ReadSegments.
  */
-extern NS_METHOD
+extern NS_COM NS_METHOD
 NS_WriteSegmentThunk(nsIInputStream *aInputStream, void *aClosure,
-                     const char *aFromSegment, uint32_t aToOffset,
-                     uint32_t aCount, uint32_t *aWriteCount);
+                     const char *aFromSegment, PRUint32 aToOffset,
+                     PRUint32 aCount, PRUint32 *aWriteCount);
 
 struct nsWriteSegmentThunk {
   nsIInputStream    *mStream;

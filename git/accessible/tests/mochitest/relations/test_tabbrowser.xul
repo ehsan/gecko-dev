@@ -3,13 +3,20 @@
 <?xml-stylesheet href="chrome://mochikit/content/tests/SimpleTest/test.css"
                  type="text/css"?>
 
+<!-- Firefox tabbrowser -->
+<?xml-stylesheet href="chrome://browser/content/browser.css"
+                 type="text/css"?>
+<!-- SeaMonkey tabbrowser -->
+<?xml-stylesheet href="chrome://navigator/content/navigator.css"
+                 type="text/css"?>
+
 <window xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
         title="Accessible XUL tabbrowser relation tests">
 
+  <script type="application/javascript" 
+          src="chrome://mochikit/content/MochiKit/packed.js" />
   <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
-  <script type="application/javascript"
-          src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
 
   <script type="application/javascript"
           src="../common.js" />
@@ -17,66 +24,66 @@
           src="../role.js" />
   <script type="application/javascript"
           src="../relations.js" />
-  <script type="application/javascript"
-          src="../events.js" />
-  <script type="application/javascript"
-          src="../browser.js"></script>
 
+  <script type="application/javascript" src="chrome://global/content/globalOverlay.js"/>
   <script type="application/javascript">
   <![CDATA[
     ////////////////////////////////////////////////////////////////////////////
-    // Invoker
-    function testTabRelations()
-    {
-      this.eventSeq = [
-        new invokerChecker(EVENT_DOCUMENT_LOAD_COMPLETE, tabDocumentAt, 0),
-        new invokerChecker(EVENT_DOCUMENT_LOAD_COMPLETE, tabDocumentAt, 1)
-     ];
-
-      this.invoke = function testTabRelations_invoke()
-      {
-        var docURIs = ["about:", "about:mozilla"];
-        tabBrowser().loadTabs(docURIs, false, true);
-      }
-
-      this.finalCheck = function testTabRelations_finalCheck(aEvent)
-      {
-        ////////////////////////////////////////////////////////////////////////
-        // 'labelled by'/'label for' relations for xul:tab and xul:tabpanel
-
-        var tabs = tabBrowser().tabContainer.childNodes;
-        var panels = tabBrowser().mTabBox.tabpanels.childNodes;
-
-        testRelation(panels[0], RELATION_LABELLED_BY, tabs[0]);
-        testRelation(tabs[0], RELATION_LABEL_FOR, panels[0]);
-        testRelation(panels[1], RELATION_LABELLED_BY, tabs[1]);
-        testRelation(tabs[1], RELATION_LABEL_FOR, panels[1]);
-      }
-
-      this.getID = function testTabRelations_getID()
-      {
-        return "relations of tabs";
-      }
-    }
-    
-    ////////////////////////////////////////////////////////////////////////////
     // Test
-    var gQueue = null;
-    gA11yEventDumpToConsole = true;
+
+    const Ci = Components.interfaces;
+
+    // Hack to make xul:tabbrowser work.
+    var handleDroppedLink  = null;
+    Components.utils.import("resource://gre/modules/Services.jsm");
+    var XULBrowserWindow = {
+      isBusy: false,
+      setOverLink: function (link, b) {
+      }
+    };
+    var gFindBar = {
+      hidden: true
+    };
+
     function doTest()
     {
-      // Load documents into tabs and wait for DocLoadComplete events caused by
-      // these documents load before we start the test.
+      var tabBrowser = document.getElementById("tabbrowser");
 
-      gQueue = new eventQueue();
+      var progressListener =
+      {
+        onStateChange: function onStateChange(aWebProgress,
+                                              aRequest,
+                                              aStateFlags,
+                                              aStatus)
+       {
+        if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP)
+          testRelations();
+       }
+      };
 
-      gQueue.push(new testTabRelations());
-      gQueue.onFinish = function() { closeBrowserWindow(); }
-      gQueue.invoke(); // Will call SimpleTest.finish();
+      tabBrowser.addProgressListener(progressListener);
+
+      tabBrowser.loadTabs(["about:", "about:mozilla"], false, true);
+    }
+
+    function testRelations()
+    {
+      //////////////////////////////////////////////////////////////////////////
+      // 'labelled by'/'label for' relations for xul:tab and xul:tabpanel
+
+      var tabs = getNode("tabbrowser").tabContainer.childNodes;
+      var panels = getNode("tabbrowser").mTabBox.tabpanels.childNodes;
+
+      testRelation(panels[0], RELATION_LABELLED_BY, tabs[0]);
+      testRelation(tabs[0], RELATION_LABEL_FOR, panels[0]);
+      testRelation(panels[1], RELATION_LABELLED_BY, tabs[1]);
+      testRelation(tabs[1], RELATION_LABEL_FOR, panels[1]);
+
+      SimpleTest.finish();
     }
 
     SimpleTest.waitForExplicitFinish();
-    openBrowserWindow(doTest);
+    addA11yLoadEvent(doTest);
   ]]>
   </script>
 
@@ -94,7 +101,26 @@
       </pre>
     </body>
 
-    <vbox id="eventdump"></vbox>
+    <!-- Hack to make xul:tabbrowser work -->
+    <menubar>
+      <menu label="menu">
+        <menupopup>
+          <menuitem label="close window hook" id="menu_closeWindow"/>
+          <menuitem label="close hook" id="menu_close"/>
+        </menupopup>
+      </menu>
+    </menubar>
+
+    <tabs id="tabbrowser-tabs" class="tabbrowser-tabs"
+          tabbrowser="tabbrowser"
+          setfocus="false">
+      <tab class="tabbrowser-tab" selected="true"/>
+    </tabs>
+    <tabbrowser id="tabbrowser"
+                type="content-primary"
+                tabcontainer="tabbrowser-tabs"
+                flex="1"/>
+    <toolbar id="addon-bar"/>
   </vbox>
 
 </window>

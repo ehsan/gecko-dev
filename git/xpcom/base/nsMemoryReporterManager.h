@@ -1,17 +1,11 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 
 #include "nsIMemoryReporter.h"
 #include "nsCOMArray.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Attributes.h"
-#include "nsString.h"
 
 using mozilla::Mutex;
 
-class nsMemoryReporter MOZ_FINAL : public nsIMemoryReporter
+class nsMemoryReporter : public nsIMemoryReporter
 {
 public:
   NS_DECL_ISUPPORTS
@@ -19,9 +13,9 @@ public:
 
   nsMemoryReporter(nsACString& process,
                    nsACString& path, 
-                   int32_t kind,
-                   int32_t units,
-                   int64_t amount,
+                   PRInt32 kind,
+                   PRInt32 units,
+                   PRInt64 amount,
                    nsACString& desc);
 
   ~nsMemoryReporter();
@@ -29,9 +23,9 @@ public:
 protected:
   nsCString mProcess;
   nsCString mPath;
-  int32_t   mKind;
-  int32_t   mUnits;
-  int64_t   mAmount;
+  PRInt32   mKind;
+  PRInt32   mUnits;
+  PRInt64   mAmount;
   nsCString mDesc;
 };
 

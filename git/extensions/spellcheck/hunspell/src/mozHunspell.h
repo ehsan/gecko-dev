@@ -41,7 +41,6 @@
  *                 Harri Pitkanen
  *                 Andras Timar
  *                 Tor Lillqvist
- *                 Jesper Kristensen (mail@jesperkristensen.dk)
  * 
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -65,7 +64,6 @@
 #include "mozIPersonalDictionary.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
-#include "nsCOMArray.h"
 #include "nsIObserver.h"
 #include "nsIUnicodeEncoder.h"
 #include "nsIUnicodeDecoder.h"
@@ -79,8 +77,6 @@
 { 0x56c778e4, 0x1bee, 0x45f3, \
   { 0xa6, 0x89, 0x88, 0x66, 0x92, 0xa9, 0x7f, 0xe7 } }
 
-class nsIMemoryReporter;
-
 class mozHunspell : public mozISpellCheckingEngine,
                    public nsIObserver,
                    public nsSupportsWeakReference
@@ -91,7 +87,7 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(mozHunspell, mozISpellCheckingEngine)
 
-  mozHunspell() : mHunspell(nullptr), mHunspellReporter(nullptr) { }
+  mozHunspell() : mHunspell(nsnull) { }
   virtual ~mozHunspell();
 
   nsresult Init();
@@ -111,14 +107,8 @@ protected:
   nsInterfaceHashtable<nsStringHashKey, nsIFile> mDictionaries;
   nsString  mDictionary;
   nsString  mLanguage;
-  nsCString mAffixFileName;
-
-  // dynamic dirs used to search for dictionaries
-  nsCOMArray<nsIFile> mDynamicDirectories;
 
   Hunspell  *mHunspell;
-
-  nsIMemoryReporter* mHunspellReporter;
 };
 
 #endif

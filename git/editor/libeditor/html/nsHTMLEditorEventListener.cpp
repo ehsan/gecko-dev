@@ -1,41 +1,79 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-#include "nsAutoPtr.h"
-#include "nsCOMPtr.h"
-#include "nsDebug.h"
-#include "nsEditor.h"
-#include "nsError.h"
-#include "nsHTMLEditUtils.h"
-#include "nsHTMLEditor.h"
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Charles Manske (cmanske@netscape.com)
+ *   Daniel Glazman (glazman@netscape.com)
+ *   Masayuki Nakano <masayuki@d-toybox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #include "nsHTMLEditorEventListener.h"
-#include "nsIDOMElement.h"
+#include "nsHTMLEditor.h"
+#include "nsString.h"
+
 #include "nsIDOMEvent.h"
-#include "nsIDOMEventTarget.h"
+#include "nsIDOMNSEvent.h"
+#include "nsIDOMElement.h"
 #include "nsIDOMMouseEvent.h"
-#include "nsIDOMNode.h"
-#include "nsIDOMRange.h"
-#include "nsIEditor.h"
-#include "nsIHTMLEditor.h"
-#include "nsIHTMLInlineTableEditor.h"
-#include "nsIHTMLObjectResizer.h"
 #include "nsISelection.h"
-#include "nsISupportsImpl.h"
-#include "nsLiteralString.h"
-#include "prtypes.h"
+#include "nsIDOMRange.h"
+#include "nsIDOMNSRange.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIDOMNSUIEvent.h"
+#include "nsIDOMHTMLTableElement.h"
+#include "nsIDOMHTMLTableCellElement.h"
+#include "nsIContent.h"
+
+#include "nsIHTMLObjectResizer.h"
+#include "nsEditProperty.h"
+#include "nsTextEditUtils.h"
+#include "nsHTMLEditUtils.h"
 
 /*
  * nsHTMLEditorEventListener implementation
  *
+ * The only reason we need this is so a context mouse-click
+ *  moves the caret or selects an element as it does for normal click
  */
 
 #ifdef DEBUG
 nsresult
 nsHTMLEditorEventListener::Connect(nsEditor* aEditor)
 {
-  nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryObject(aEditor);
-  nsCOMPtr<nsIHTMLInlineTableEditor> htmlInlineTableEditor = do_QueryObject(aEditor);
+  nsCOMPtr<nsIHTMLEditor> htmlEditor =
+    do_QueryInterface(static_cast<nsIEditor*>(aEditor));
+  nsCOMPtr<nsIHTMLInlineTableEditor> htmlInlineTableEditor =
+    do_QueryInterface(static_cast<nsIEditor*>(aEditor));
   NS_PRECONDITION(htmlEditor && htmlInlineTableEditor,
                   "Set nsHTMLEditor or its sub class");
   return nsEditorEventListener::Connect(aEditor);
@@ -68,7 +106,7 @@ nsHTMLEditorEventListener::MouseUp(nsIDOMEvent* aMouseEvent)
   NS_ENSURE_TRUE(target, NS_ERROR_NULL_POINTER);
   nsCOMPtr<nsIDOMElement> element = do_QueryInterface(target);
 
-  int32_t clientX, clientY;
+  PRInt32 clientX, clientY;
   mouseEvent->GetClientX(&clientX);
   mouseEvent->GetClientY(&clientY);
   htmlEditor->MouseUp(clientX, clientY, element);
@@ -92,26 +130,31 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
   // Detect only "context menu" click
   //XXX This should be easier to do!
   // But eDOMEvents_contextmenu and NS_CONTEXTMENU is not exposed in any event interface :-(
-  uint16_t buttonNumber;
+  PRUint16 buttonNumber;
   nsresult res = mouseEvent->GetButton(&buttonNumber);
   NS_ENSURE_SUCCESS(res, res);
 
-  bool isContextClick = buttonNumber == 2;
+  PRBool isContextClick;
 
-  int32_t clickCount;
+#if defined(XP_MACOSX)
+  // Ctrl+Click for context menu
+  res = mouseEvent->GetCtrlKey(&isContextClick);
+  NS_ENSURE_SUCCESS(res, res);
+#else
+  // Right mouse button for Windows, UNIX
+  isContextClick = buttonNumber == 2;
+#endif
+  
+  PRInt32 clickCount;
   res = mouseEvent->GetDetail(&clickCount);
   NS_ENSURE_SUCCESS(res, res);
 
   nsCOMPtr<nsIDOMEventTarget> target;
-  res = aMouseEvent->GetExplicitOriginalTarget(getter_AddRefs(target));
+  nsCOMPtr<nsIDOMNSEvent> internalEvent = do_QueryInterface(aMouseEvent);
+  res = internalEvent->GetExplicitOriginalTarget(getter_AddRefs(target));
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(target, NS_ERROR_NULL_POINTER);
   nsCOMPtr<nsIDOMElement> element = do_QueryInterface(target);
-
-  // Contenteditable should disregard mousedowns outside it
-  if (element && !htmlEditor->IsDescendantOfEditorRoot(element)) {
-    return NS_OK;
-  }
 
   if (isContextClick || (buttonNumber == 0 && clickCount == 2))
   {
@@ -120,34 +163,49 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
     NS_ENSURE_TRUE(selection, NS_OK);
 
     // Get location of mouse within target node
+    nsCOMPtr<nsIDOMNSUIEvent> uiEvent = do_QueryInterface(aMouseEvent);
+    NS_ENSURE_TRUE(uiEvent, NS_ERROR_FAILURE);
+
     nsCOMPtr<nsIDOMNode> parent;
-    res = mouseEvent->GetRangeParent(getter_AddRefs(parent));
+    PRInt32 offset = 0;
+
+    res = uiEvent->GetRangeParent(getter_AddRefs(parent));
     NS_ENSURE_SUCCESS(res, res);
     NS_ENSURE_TRUE(parent, NS_ERROR_FAILURE);
 
-    int32_t offset = 0;
-    res = mouseEvent->GetRangeOffset(&offset);
+    res = uiEvent->GetRangeOffset(&offset);
     NS_ENSURE_SUCCESS(res, res);
 
     // Detect if mouse point is within current selection for context click
-    bool nodeIsInSelection = false;
-    if (isContextClick && !selection->Collapsed()) {
-      int32_t rangeCount;
-      res = selection->GetRangeCount(&rangeCount);
-      NS_ENSURE_SUCCESS(res, res);
+    PRBool nodeIsInSelection = PR_FALSE;
+    if (isContextClick)
+    {
+      PRBool isCollapsed;
+      selection->GetIsCollapsed(&isCollapsed);
+      if (!isCollapsed)
+      {
+        PRInt32 rangeCount;
+        res = selection->GetRangeCount(&rangeCount);
+        NS_ENSURE_SUCCESS(res, res);
 
-      for (int32_t i = 0; i < rangeCount; i++) {
-        nsCOMPtr<nsIDOMRange> range;
+        for (PRInt32 i = 0; i < rangeCount; i++)
+        {
+          nsCOMPtr<nsIDOMRange> range;
 
-        res = selection->GetRangeAt(i, getter_AddRefs(range));
-        if (NS_FAILED(res) || !range)
-          continue;//don't bail yet, iterate through them all
+          res = selection->GetRangeAt(i, getter_AddRefs(range));
+          if (NS_FAILED(res) || !range) 
+            continue;//don't bail yet, iterate through them all
 
-        res = range->IsPointInRange(parent, offset, &nodeIsInSelection);
+          nsCOMPtr<nsIDOMNSRange> nsrange(do_QueryInterface(range));
+          if (NS_FAILED(res) || !nsrange) 
+            continue;//don't bail yet, iterate through them all
 
-        // Done when we find a range that we are in
-        if (nodeIsInSelection)
-          break;
+          res = nsrange->IsPointInRange(parent, offset, &nodeIsInSelection);
+
+          // Done when we find a range that we are in
+          if (nodeIsInSelection)
+            break;
+        }
       }
     }
     nsCOMPtr<nsIDOMNode> node = do_QueryInterface(target);
@@ -187,8 +245,14 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
           }
         }
 
-        if (isContextClick && !nsHTMLEditUtils::IsImage(node))
+// XXX: should we call nsHTMLEditUtils::IsTableElement here?
+// that also checks for thead, tbody, tfoot
+        if (nsTextEditUtils::IsBody(node) ||
+            nsHTMLEditUtils::IsTableCellOrCaption(node) ||
+            nsHTMLEditUtils::IsTableRow(node) ||
+            nsHTMLEditUtils::IsTable(node))
         {
+          // This will place caret just inside table cell or at start of body
           selection->Collapse(parent, offset);
         }
         else
@@ -214,7 +278,7 @@ nsHTMLEditorEventListener::MouseDown(nsIDOMEvent* aMouseEvent)
   else if (!isContextClick && buttonNumber == 0 && clickCount == 1)
   {
     // if the target element is an image, we have to display resizers
-    int32_t clientX, clientY;
+    PRInt32 clientX, clientY;
     mouseEvent->GetClientX(&clientX);
     mouseEvent->GetClientY(&clientY);
     htmlEditor->MouseDown(clientX, clientY, element, aMouseEvent);

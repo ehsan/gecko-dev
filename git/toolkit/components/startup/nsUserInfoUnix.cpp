@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Seth Spitzer <sspitzer@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsUserInfo.h"
 #include "nsCRT.h"
@@ -36,7 +69,7 @@ NS_IMPL_ISUPPORTS1(nsUserInfo,nsIUserInfo)
 NS_IMETHODIMP
 nsUserInfo::GetFullname(PRUnichar **aFullname)
 {
-    struct passwd *pw = nullptr;
+    struct passwd *pw = nsnull;
 
     pw = getpwuid (geteuid());
 
@@ -46,7 +79,7 @@ nsUserInfo::GetFullname(PRUnichar **aFullname)
     printf("fullname = %s\n", pw->PW_GECOS);
 #endif
 
-    nsAutoCString fullname(pw->PW_GECOS);
+    nsCAutoString fullname(pw->PW_GECOS);
 
     // now try to parse the GECOS information, which will be in the form
     // Full Name, <other stuff> - eliminate the ", <other stuff>
@@ -54,13 +87,13 @@ nsUserInfo::GetFullname(PRUnichar **aFullname)
     // the appropriate substitution
     
     // truncate at first comma (field delimiter)
-    int32_t index;
+    PRInt32 index;
     if ((index = fullname.Find(",")) != kNotFound)
         fullname.Truncate(index);
 
     // replace ampersand with username
     if (pw->pw_name) {
-        nsAutoCString username(pw->pw_name);
+        nsCAutoString username(pw->pw_name);
         if (!username.IsEmpty() && nsCRT::IsLower(username.CharAt(0)))
             username.SetCharAt(nsCRT::ToUpper(username.CharAt(0)), 0);
             
@@ -81,7 +114,7 @@ nsUserInfo::GetFullname(PRUnichar **aFullname)
 NS_IMETHODIMP 
 nsUserInfo::GetUsername(char * *aUsername)
 {
-    struct passwd *pw = nullptr;
+    struct passwd *pw = nsnull;
 
     // is this portable?  those are POSIX compliant calls, but I need to check
     pw = getpwuid(geteuid());
@@ -103,7 +136,7 @@ nsUserInfo::GetDomain(char * *aDomain)
     nsresult rv = NS_ERROR_FAILURE;
 
     struct utsname buf;
-    char *domainname = nullptr;
+    char *domainname = nsnull;
 
     // is this portable?  that is a POSIX compliant call, but I need to check
     if (uname(&buf)) { 
@@ -144,7 +177,7 @@ nsUserInfo::GetEmailAddress(char * *aEmailAddress)
 
     nsresult rv;
 
-    nsAutoCString emailAddress;
+    nsCAutoString emailAddress;
     nsXPIDLCString username;
     nsXPIDLCString domain;
 

@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=574663
 -->
 <head>
   <title>Test for Bug 574663</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
@@ -20,20 +21,26 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=574663
 
 /** Test for Bug 574663 **/
 
+// This test depends on general.smoothScroll being off.
+
 function sendTouchpadScrollMotion(scrollbox, direction, ctrl, momentum) {
   var win = scrollbox.ownerDocument.defaultView;
   let event = {
-    deltaMode: WheelEvent.DOM_DELTA_PIXEL,
-    deltaY: direction * 3,
-    lineOrPageDeltaY: direction,
-    ctrlKey: ctrl,
-    isMomentum: momentum
+    'type': "DOMMouseScroll",
+    'axis': "vertical",
+    'delta': direction,
+    'hasPixels': true,
+    'ctrlKey': ctrl,
+    'isMomentum': momentum,
   };
-  synthesizeWheel(scrollbox, 10, 10, event, win);
-  // then 5 additional pixel scrolls
-  event.lineOrPageDeltaY = 0;
+  // first a line scroll
+  synthesizeMouseScroll(scrollbox, 10, 10, event, win);
+  // then 5 pixel scrolls
+  event.delta *= 3;
+  event.type = "MozMousePixelScroll";
+  event.hasPixels = false;
   for (let i = 0; i < 5; ++i) {
-    synthesizeWheel(scrollbox, 10, 10, event, win);
+    synthesizeMouseScroll(scrollbox, 10, 10, event, win);
   }
 }
 
@@ -44,7 +51,9 @@ function runTest() {
     '</div>', '_blank', 'width=300,height=300');
   SimpleTest.waitForFocus(function () {
     var scrollbox = win.document.getElementById("scrollbox");
-    let winUtils = SpecialPowers.getDOMWindowUtils(win);
+    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+    let winUtils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                      .getInterface(Components.interfaces.nsIDOMWindowUtils);
     let outstandingTests = [
       [false, false],
       [false, true],
@@ -83,8 +92,8 @@ function runTest() {
         }
         // Revert the effect.
         sendTouchpadScrollMotion(scrollbox, -1, ctrlKey, isMomentum);
-        setTimeout(nextTest, 20);
-      }, 20);
+        setTimeout(nextTest, 0);
+      }, 0);
     }
     nextTest();
   }, win);
@@ -94,25 +103,26 @@ function initPrefs()
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var prefSvc = Components.classes["@mozilla.org/preferences-service;1"].
-                  getService(Components.interfaces.nsIPrefBranch);
-  prefSvc.setBoolPref("general.smoothScroll", false);
+                  getService(Components.interfaces.nsIPrefBranch2);
   // Disables the app level scroll acceleration
   prefSvc.setIntPref("mousewheel.acceleration.start", -1);
   prefSvc.setBoolPref("mousewheel.system_scroll_override_on_root_content.enabled", false);
   // Enable zooming for ctrl-scrolling
-  prefSvc.setIntPref("mousewheel.with_control.action", 3);
+  prefSvc.setIntPref("mousewheel.withcontrolkey.action", 3);
 }
 
 function clearPrefs()
 {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var prefSvc = Components.classes["@mozilla.org/preferences-service;1"].
-                  getService(Components.interfaces.nsIPrefBranch);
+                  getService(Components.interfaces.nsIPrefBranch2);
 
-  prefSvc.clearUserPref("general.smoothScroll");
-  prefSvc.clearUserPref("mousewheel.acceleration.start");
-  prefSvc.clearUserPref("mousewheel.system_scroll_override_on_root_content.enabled");
-  prefSvc.clearUserPref("mousewheel.with_control.action");
+  if (prefSvc.prefHasUserValue("mousewheel.acceleration.start"))
+    prefSvc.clearUserPref("mousewheel.acceleration.start");
+  if (prefSvc.prefHasUserValue("mousewheel.system_scroll_override_on_root_content.enabled"))
+    prefSvc.clearUserPref("mousewheel.system_scroll_override_on_root_content.enabled");
+  if (prefSvc.prefHasUserValue("mousewheel.withcontrolkey.action"))
+    prefSvc.clearUserPref("mousewheel.withcontrolkey.action");
 }
 
 window.onload = function () {

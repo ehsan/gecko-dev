@@ -17,16 +17,6 @@ const TOPICDATA_FORCE_PLACES_INIT = "force-places-init";
 let bg = Cc["@mozilla.org/browser/browserglue;1"].
          getService(Ci.nsIBrowserGlue);
 
-function waitForImportAndSmartBookmarks(aCallback) {
-  Services.obs.addObserver(function waitImport() {
-    Services.obs.removeObserver(waitImport, "bookmarks-restore-success");
-    // Delay to test eventual smart bookmarks creation.
-    do_execute_soon(function () {
-      waitForAsyncUpdates(aCallback);
-    });
-  }, "bookmarks-restore-success", false);
-}
-
 let gTests = [
 
   // This test must be the first one.
@@ -74,22 +64,21 @@ let gTests = [
     // Set preferences.
     Services.prefs.setBoolPref(PREF_IMPORT_BOOKMARKS_HTML, true);
 
-    waitForImportAndSmartBookmarks(function () {
-      // Check bookmarks.html has been imported, and a smart bookmark has been
-      // created.
-      itemId = PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId,
-                                                    SMART_BOOKMARKS_ON_TOOLBAR);
-      do_check_eq(PlacesUtils.bookmarks.getItemTitle(itemId), "example");
-      // Check preferences have been reverted.
-      do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
-
-      run_next_test();
-    });
     // Force nsBrowserGlue::_initPlaces().
-    do_log_info("Simulate Places init");
+    print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
                                               TOPIC_BROWSERGLUE_TEST,
                                               TOPICDATA_FORCE_PLACES_INIT);
+
+    // Check bookmarks.html has been imported, and a smart bookmark has been
+    // created.
+    itemId = PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId,
+                                                  SMART_BOOKMARKS_ON_TOOLBAR);
+    do_check_eq(PlacesUtils.bookmarks.getItemTitle(itemId), "example");
+    // Check preferences have been reverted.
+    do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
+
+    run_next_test();
   },
 
   function test_import_noSmartBookmarks()
@@ -107,22 +96,21 @@ let gTests = [
     Services.prefs.setIntPref(PREF_SMART_BOOKMARKS_VERSION, -1);
     Services.prefs.setBoolPref(PREF_IMPORT_BOOKMARKS_HTML, true);
 
-    waitForImportAndSmartBookmarks(function () {
-      // Check bookmarks.html has been imported, but smart bookmarks have not
-      // been created.
-      itemId =
-        PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId, 0);
-      do_check_eq(PlacesUtils.bookmarks.getItemTitle(itemId), "example");
-      // Check preferences have been reverted.
-      do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
-
-      run_next_test();
-    });
     // Force nsBrowserGlue::_initPlaces().
-    do_log_info("Simulate Places init");
+    print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
                                               TOPIC_BROWSERGLUE_TEST,
                                               TOPICDATA_FORCE_PLACES_INIT);
+
+    // Check bookmarks.html has been imported, but smart bookmarks have not
+    // been created.
+    itemId =
+      PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId, 0);
+    do_check_eq(PlacesUtils.bookmarks.getItemTitle(itemId), "example");
+    // Check preferences have been reverted.
+    do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
+
+    run_next_test();
   },
 
   function test_import_autoExport_updatedSmartBookmarks()
@@ -141,23 +129,22 @@ let gTests = [
     Services.prefs.setBoolPref(PREF_AUTO_EXPORT_HTML, true);
     Services.prefs.setBoolPref(PREF_IMPORT_BOOKMARKS_HTML, true);
 
-    waitForImportAndSmartBookmarks(function () {
-      // Check bookmarks.html has been imported, but smart bookmarks have not
-      // been created.
-      itemId =
-        PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId, 0);
-      do_check_eq(PlacesUtils.bookmarks.getItemTitle(itemId), "example");
-      do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
-      // Check preferences have been reverted.
-      Services.prefs.setBoolPref(PREF_AUTO_EXPORT_HTML, false);
-
-      run_next_test();
-    });
     // Force nsBrowserGlue::_initPlaces()
-    do_log_info("Simulate Places init");
+    print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
                                               TOPIC_BROWSERGLUE_TEST,
                                               TOPICDATA_FORCE_PLACES_INIT);
+
+    // Check bookmarks.html has been imported, but smart bookmarks have not
+    // been created.
+    itemId =
+      PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId, 0);
+    do_check_eq(PlacesUtils.bookmarks.getItemTitle(itemId), "example");
+    do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
+    // Check preferences have been reverted.
+    Services.prefs.setBoolPref(PREF_AUTO_EXPORT_HTML, false);
+
+    run_next_test();
   },
 
   function test_import_autoExport_oldSmartBookmarks()
@@ -176,24 +163,23 @@ let gTests = [
     Services.prefs.setBoolPref(PREF_AUTO_EXPORT_HTML, true);
     Services.prefs.setBoolPref(PREF_IMPORT_BOOKMARKS_HTML, true);
 
-    waitForImportAndSmartBookmarks(function () {
-      // Check bookmarks.html has been imported, but smart bookmarks have not
-      // been created.
-      itemId =
-        PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId,
-                                             SMART_BOOKMARKS_ON_TOOLBAR);
-      do_check_eq(PlacesUtils.bookmarks.getItemTitle(itemId), "example");
-      do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
-      // Check preferences have been reverted.
-      Services.prefs.setBoolPref(PREF_AUTO_EXPORT_HTML, false);
-
-      run_next_test();
-    });
     // Force nsBrowserGlue::_initPlaces()
-    do_log_info("Simulate Places init");
+    print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
                                               TOPIC_BROWSERGLUE_TEST,
                                               TOPICDATA_FORCE_PLACES_INIT);
+
+    // Check bookmarks.html has been imported, but smart bookmarks have not
+    // been created.
+    itemId =
+      PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId,
+                                           SMART_BOOKMARKS_ON_TOOLBAR);
+    do_check_eq(PlacesUtils.bookmarks.getItemTitle(itemId), "example");
+    do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
+    // Check preferences have been reverted.
+    Services.prefs.setBoolPref(PREF_AUTO_EXPORT_HTML, false);
+
+    run_next_test();
   },
 
   function test_restore()
@@ -210,23 +196,21 @@ let gTests = [
     // Set preferences.
     Services.prefs.setBoolPref(PREF_RESTORE_DEFAULT_BOOKMARKS, true);
 
-    waitForImportAndSmartBookmarks(function () {
-      // Check bookmarks.html has been restored.
-      itemId =
-        PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId,
-                                             SMART_BOOKMARKS_ON_TOOLBAR);
-      do_check_true(itemId > 0);
-      // Check preferences have been reverted.
-      do_check_false(Services.prefs.getBoolPref(PREF_RESTORE_DEFAULT_BOOKMARKS));
-
-      run_next_test();
-    });
     // Force nsBrowserGlue::_initPlaces()
-    do_log_info("Simulate Places init");
+    print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
                                               TOPIC_BROWSERGLUE_TEST,
                                               TOPICDATA_FORCE_PLACES_INIT);
 
+    // Check bookmarks.html has been restored.
+    itemId =
+      PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId,
+                                           SMART_BOOKMARKS_ON_TOOLBAR + 1);
+    do_check_true(itemId > 0);
+    // Check preferences have been reverted.
+    do_check_false(Services.prefs.getBoolPref(PREF_RESTORE_DEFAULT_BOOKMARKS));
+
+    run_next_test();
   },
 
   function test_restore_import()
@@ -244,23 +228,22 @@ let gTests = [
     Services.prefs.setBoolPref(PREF_IMPORT_BOOKMARKS_HTML, true);
     Services.prefs.setBoolPref(PREF_RESTORE_DEFAULT_BOOKMARKS, true);
 
-    waitForImportAndSmartBookmarks(function () {
-      // Check bookmarks.html has been restored.
-      itemId =
-        PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId,
-                                             SMART_BOOKMARKS_ON_TOOLBAR);
-      do_check_true(itemId > 0);
-      // Check preferences have been reverted.
-      do_check_false(Services.prefs.getBoolPref(PREF_RESTORE_DEFAULT_BOOKMARKS));
-      do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
-
-      run_next_test();
-    });
     // Force nsBrowserGlue::_initPlaces()
-    do_log_info("Simulate Places init");
+    print("Simulate Places init");
     bg.QueryInterface(Ci.nsIObserver).observe(null,
                                               TOPIC_BROWSERGLUE_TEST,
                                               TOPICDATA_FORCE_PLACES_INIT);
+
+    // Check bookmarks.html has been restored.
+    itemId =
+      PlacesUtils.bookmarks.getIdForItemAt(PlacesUtils.toolbarFolderId,
+                                           SMART_BOOKMARKS_ON_TOOLBAR + 1);
+    do_check_true(itemId > 0);
+    // Check preferences have been reverted.
+    do_check_false(Services.prefs.getBoolPref(PREF_RESTORE_DEFAULT_BOOKMARKS));
+    do_check_false(Services.prefs.getBoolPref(PREF_IMPORT_BOOKMARKS_HTML));
+
+    run_next_test();
   }
 
 ];

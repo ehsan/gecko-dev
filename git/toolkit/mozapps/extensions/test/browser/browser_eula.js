@@ -26,7 +26,11 @@ function test() {
 }
 
 function end_test() {
-  close_manager(gManagerWindow, finish);
+  close_manager(gManagerWindow, function() {
+    Services.prefs.clearUserPref("extensions.getAddons.search.url");
+
+    finish();
+  });
 }
 
 function get_node(parent, anonid) {

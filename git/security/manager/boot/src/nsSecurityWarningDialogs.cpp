@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Terry Hayes <thayes@netscape.com>
+ *   Javier Delgadillo <javi@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsSecurityWarningDialogs.h"
 #include "nsIComponentManager.h"
@@ -16,9 +50,6 @@
 #include "nsIPrefBranch.h"
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
-
-#include "mozilla/Telemetry.h"
-#include "nsISecurityUITelemetry.h"
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsSecurityWarningDialogs, nsISecurityWarningDialogs)
 
@@ -56,63 +87,59 @@ nsSecurityWarningDialogs::Init()
 }
 
 NS_IMETHODIMP 
-nsSecurityWarningDialogs::ConfirmEnteringSecure(nsIInterfaceRequestor *ctx, bool *_retval)
+nsSecurityWarningDialogs::ConfirmEnteringSecure(nsIInterfaceRequestor *ctx, PRBool *_retval)
 {
   nsresult rv;
 
   rv = AlertDialog(ctx, ENTER_SITE_PREF, 
                    NS_LITERAL_STRING("EnterSecureMessage").get(),
                    NS_LITERAL_STRING("EnterSecureShowAgain").get(),
-                   false,
-                   nsISecurityUITelemetry::WARNING_ENTERING_SECURE_SITE);
+                   PR_FALSE);
 
-  *_retval = true;
+  *_retval = PR_TRUE;
   return rv;
 }
 
 NS_IMETHODIMP 
-nsSecurityWarningDialogs::ConfirmEnteringWeak(nsIInterfaceRequestor *ctx, bool *_retval)
+nsSecurityWarningDialogs::ConfirmEnteringWeak(nsIInterfaceRequestor *ctx, PRBool *_retval)
 {
   nsresult rv;
 
   rv = AlertDialog(ctx, WEAK_SITE_PREF,
                    NS_LITERAL_STRING("WeakSecureMessage").get(),
                    NS_LITERAL_STRING("WeakSecureShowAgain").get(),
-                   false,
-                   nsISecurityUITelemetry::WARNING_ENTERING_WEAK_SITE);
+                   PR_FALSE);
 
-  *_retval = true;
+  *_retval = PR_TRUE;
   return rv;
 }
 
 NS_IMETHODIMP 
-nsSecurityWarningDialogs::ConfirmLeavingSecure(nsIInterfaceRequestor *ctx, bool *_retval)
+nsSecurityWarningDialogs::ConfirmLeavingSecure(nsIInterfaceRequestor *ctx, PRBool *_retval)
 {
   nsresult rv;
 
   rv = AlertDialog(ctx, LEAVE_SITE_PREF, 
                    NS_LITERAL_STRING("LeaveSecureMessage").get(),
                    NS_LITERAL_STRING("LeaveSecureShowAgain").get(),
-                   false,
-                   nsISecurityUITelemetry::WARNING_LEAVING_SECURE_SITE);
+                   PR_FALSE);
 
-  *_retval = true;
+  *_retval = PR_TRUE;
   return rv;
 }
 
 
 NS_IMETHODIMP 
-nsSecurityWarningDialogs::ConfirmMixedMode(nsIInterfaceRequestor *ctx, bool *_retval)
+nsSecurityWarningDialogs::ConfirmMixedMode(nsIInterfaceRequestor *ctx, PRBool *_retval)
 {
   nsresult rv;
 
   rv = AlertDialog(ctx, MIXEDCONTENT_PREF, 
                    NS_LITERAL_STRING("MixedContentMessage").get(),
                    NS_LITERAL_STRING("MixedContentShowAgain").get(),
-                   true,
-                   nsISecurityUITelemetry::WARNING_MIXED_CONTENT);
+                   PR_TRUE);
 
-  *_retval = true;
+  *_retval = PR_TRUE;
   return rv;
 }
 
@@ -124,13 +151,11 @@ public:
                const PRUnichar* aDialogMessageName,
                const PRUnichar* aShowAgainName,
                nsIPrefBranch*   aPrefBranch,
-               nsIStringBundle* aStringBundle,
-               uint32_t         aBucket)
+               nsIStringBundle* aStringBundle)
   : mPrompt(aPrompt), mPrefName(aPrefName),
     mDialogMessageName(aDialogMessageName),
     mShowAgainName(aShowAgainName), mPrefBranch(aPrefBranch),
-    mStringBundle(aStringBundle),
-    mBucket(aBucket) {}
+    mStringBundle(aStringBundle) {}
   NS_IMETHOD Run();
 
 protected:
@@ -140,7 +165,6 @@ protected:
   nsString                  mShowAgainName;
   nsCOMPtr<nsIPrefBranch>   mPrefBranch;
   nsCOMPtr<nsIStringBundle> mStringBundle;
-  uint32_t                  mBucket;
 };
 
 NS_IMETHODIMP
@@ -149,27 +173,26 @@ nsAsyncAlert::Run()
   nsresult rv;
 
   // Get user's preference for this alert
-  bool prefValue;
+  PRBool prefValue;
   rv = mPrefBranch->GetBoolPref(mPrefName.get(), &prefValue);
-  if (NS_FAILED(rv)) prefValue = true;
+  if (NS_FAILED(rv)) prefValue = PR_TRUE;
 
   // Stop if alert is not requested
   if (!prefValue) return NS_OK;
 
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, mBucket);
   // Check for a show-once pref for this dialog.
   // If the show-once pref is set to true:
   //   - The default value of the "show every time" checkbox is unchecked
   //   - If the user checks the checkbox, we clear the show-once pref.
 
-  nsAutoCString showOncePref(mPrefName);
+  nsCAutoString showOncePref(mPrefName);
   showOncePref += ".show_once";
 
-  bool showOnce = false;
+  PRBool showOnce = PR_FALSE;
   mPrefBranch->GetBoolPref(showOncePref.get(), &showOnce);
 
   if (showOnce)
-    prefValue = false;
+    prefValue = PR_FALSE;
 
   // Get messages strings from localization file
   nsXPIDLString windowTitle, message, dontShowAgain;
@@ -186,9 +209,9 @@ nsAsyncAlert::Run()
   if (NS_FAILED(rv)) return rv;
       
   if (!prefValue) {
-    mPrefBranch->SetBoolPref(mPrefName.get(), false);
+    mPrefBranch->SetBoolPref(mPrefName.get(), PR_FALSE);
   } else if (showOnce) {
-    mPrefBranch->SetBoolPref(showOncePref.get(), false);
+    mPrefBranch->SetBoolPref(showOncePref.get(), PR_FALSE);
   }
 
   return rv;
@@ -200,8 +223,7 @@ nsSecurityWarningDialogs::AlertDialog(nsIInterfaceRequestor* aCtx,
                                       const char* aPrefName,
                                       const PRUnichar* aDialogMessageName,
                                       const PRUnichar* aShowAgainName,
-                                      bool aAsync,
-                                      const uint32_t aBucket)
+                                      PRBool aAsync)
 {
   // Get Prompt to use
   nsCOMPtr<nsIPrompt> prompt = do_GetInterface(aCtx);
@@ -212,9 +234,7 @@ nsSecurityWarningDialogs::AlertDialog(nsIInterfaceRequestor* aCtx,
                                                   aDialogMessageName,
                                                   aShowAgainName,
                                                   mPrefBranch,
-                                                  mStringBundle,
-                                                  aBucket);
-
+                                                  mStringBundle);
   NS_ENSURE_TRUE(alert, NS_ERROR_OUT_OF_MEMORY);
   return aAsync ? NS_DispatchToCurrentThread(alert) : alert->Run();
 }
@@ -222,30 +242,26 @@ nsSecurityWarningDialogs::AlertDialog(nsIInterfaceRequestor* aCtx,
 
 
 NS_IMETHODIMP 
-nsSecurityWarningDialogs::ConfirmPostToInsecure(nsIInterfaceRequestor *ctx, bool* _result)
+nsSecurityWarningDialogs::ConfirmPostToInsecure(nsIInterfaceRequestor *ctx, PRBool* _result)
 {
   nsresult rv;
 
-  // The Telemetry clickthrough constant is 1 more than the constant for the dialog.
   rv = ConfirmDialog(ctx, INSECURE_SUBMIT_PREF,
                      NS_LITERAL_STRING("PostToInsecureFromInsecureMessage").get(),
                      NS_LITERAL_STRING("PostToInsecureFromInsecureShowAgain").get(),
-                     nsISecurityUITelemetry::WARNING_CONFIRM_POST_TO_INSECURE_FROM_INSECURE,
                      _result);
 
   return rv;
 }
 
 NS_IMETHODIMP 
-nsSecurityWarningDialogs::ConfirmPostToInsecureFromSecure(nsIInterfaceRequestor *ctx, bool* _result)
+nsSecurityWarningDialogs::ConfirmPostToInsecureFromSecure(nsIInterfaceRequestor *ctx, PRBool* _result)
 {
   nsresult rv;
 
-  // The Telemetry clickthrough constant is 1 more than the constant for the dialog.
-  rv = ConfirmDialog(ctx, nullptr, // No preference for this one - it's too important
+  rv = ConfirmDialog(ctx, nsnull, // No preference for this one - it's too important
                      NS_LITERAL_STRING("PostToInsecureFromSecureMessage").get(),
-                     nullptr,
-                     nsISecurityUITelemetry::WARNING_CONFIRM_POST_TO_INSECURE_FROM_SECURE,
+                     nsnull, 
                      _result);
 
   return rv;
@@ -255,37 +271,34 @@ nsresult
 nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *prefName,
                             const PRUnichar *messageName, 
                             const PRUnichar *showAgainName, 
-                            const uint32_t aBucket,
-                            bool* _result)
+                            PRBool* _result)
 {
   nsresult rv;
 
   // Get user's preference for this alert
   // prefName, showAgainName are null if there is no preference for this dialog
-  bool prefValue = true;
+  PRBool prefValue = PR_TRUE;
   
-  if (prefName != nullptr) {
+  if (prefName != nsnull) {
     rv = mPrefBranch->GetBoolPref(prefName, &prefValue);
-    if (NS_FAILED(rv)) prefValue = true;
+    if (NS_FAILED(rv)) prefValue = PR_TRUE;
   }
   
   // Stop if confirm is not requested
   if (!prefValue) {
-    *_result = true;
+    *_result = PR_TRUE;
     return NS_OK;
   }
   
-  MOZ_ASSERT(NS_IsMainThread());
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, aBucket);
   // See AlertDialog() for a description of how showOnce works.
-  nsAutoCString showOncePref(prefName);
+  nsCAutoString showOncePref(prefName);
   showOncePref += ".show_once";
 
-  bool showOnce = false;
+  PRBool showOnce = PR_FALSE;
   mPrefBranch->GetBoolPref(showOncePref.get(), &showOnce);
 
   if (showOnce)
-    prefValue = false;
+    prefValue = PR_FALSE;
 
   // Get Prompt to use
   nsCOMPtr<nsIPrompt> prompt = do_GetInterface(ctx);
@@ -298,7 +311,7 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
                                    getter_Copies(windowTitle));
   mStringBundle->GetStringFromName(messageName,
                                    getter_Copies(message));
-  if (showAgainName != nullptr) {
+  if (showAgainName != nsnull) {
     mStringBundle->GetStringFromName(showAgainName,
                                      getter_Copies(alertMe));
   }
@@ -310,22 +323,22 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   // Replace # characters with newlines to lay out the dialog.
   PRUnichar* msgchars = message.BeginWriting();
   
-  uint32_t i = 0;
+  PRUint32 i = 0;
   for (i = 0; msgchars[i] != '\0'; i++) {
     if (msgchars[i] == '#') {
       msgchars[i] = '\n';
     }
   }  
 
-  int32_t buttonPressed;
+  PRInt32 buttonPressed;
 
   rv  = prompt->ConfirmEx(windowTitle, 
                           message, 
                           (nsIPrompt::BUTTON_TITLE_IS_STRING * nsIPrompt::BUTTON_POS_0) +
                           (nsIPrompt::BUTTON_TITLE_CANCEL * nsIPrompt::BUTTON_POS_1),
                           cont,
-                          nullptr,
-                          nullptr,
+                          nsnull,
+                          nsnull,
                           alertMe, 
                           &prefValue, 
                           &buttonPressed);
@@ -333,16 +346,11 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   if (NS_FAILED(rv)) return rv;
 
   *_result = (buttonPressed != 1);
-  if (*_result) {
-  // For confirmation dialogs, the clickthrough constant is 1 more
-  // than the constant for the dialog.
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, aBucket + 1);
-  }
 
-  if (!prefValue && prefName != nullptr) {
-    mPrefBranch->SetBoolPref(prefName, false);
+  if (!prefValue && prefName != nsnull) {
+    mPrefBranch->SetBoolPref(prefName, PR_FALSE);
   } else if (prefValue && showOnce) {
-    mPrefBranch->SetBoolPref(showOncePref.get(), false);
+    mPrefBranch->SetBoolPref(showOncePref.get(), PR_FALSE);
   }
 
   return rv;

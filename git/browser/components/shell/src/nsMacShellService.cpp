@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Shell Service.
+ *
+ * The Initial Developer of the Original Code is Ben Goodger.
+ * Portions created by the Initial Developer are Copyright (C) 2004
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Ben Goodger <ben@mozilla.org> (Original Author)
+ *   Asaf Romano <mozilla.mano@sent.com>
+ *   Benjamin Smedberg <benjamin@smedbergs.us>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsDirectoryServiceDefs.h"
 #include "nsIDOMElement.h"
@@ -32,9 +66,9 @@
 NS_IMPL_ISUPPORTS3(nsMacShellService, nsIMacShellService, nsIShellService, nsIWebProgressListener)
 
 NS_IMETHODIMP
-nsMacShellService::IsDefaultBrowser(bool aStartupCheck, bool* aIsDefaultBrowser)
+nsMacShellService::IsDefaultBrowser(PRBool aStartupCheck, PRBool* aIsDefaultBrowser)
 {
-  *aIsDefaultBrowser = false;
+  *aIsDefaultBrowser = PR_FALSE;
 
   CFStringRef firefoxID = ::CFBundleGetIdentifier(::CFBundleGetMainBundle());
   if (!firefoxID) {
@@ -55,13 +89,13 @@ nsMacShellService::IsDefaultBrowser(bool aStartupCheck, bool* aIsDefaultBrowser)
   // checked this session (so that subsequent window opens don't show the 
   // default browser dialog).
   if (aStartupCheck)
-    mCheckedThisSession = true;
+    mCheckedThisSession = PR_TRUE;
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsMacShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
+nsMacShellService::SetDefaultBrowser(PRBool aClaimAllTypes, PRBool aForAllUsers)
 {
   // Note: We don't support aForAllUsers on Mac OS X.
 
@@ -90,12 +124,12 @@ nsMacShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
 }
 
 NS_IMETHODIMP
-nsMacShellService::GetShouldCheckDefaultBrowser(bool* aResult)
+nsMacShellService::GetShouldCheckDefaultBrowser(PRBool* aResult)
 {
   // If we've already checked, the browser has been started and this is a 
   // new window open, and we don't want to check again.
   if (mCheckedThisSession) {
-    *aResult = false;
+    *aResult = PR_FALSE;
     return NS_OK;
   }
 
@@ -110,7 +144,7 @@ nsMacShellService::GetShouldCheckDefaultBrowser(bool* aResult)
 }
 
 NS_IMETHODIMP
-nsMacShellService::SetShouldCheckDefaultBrowser(bool aShouldCheck)
+nsMacShellService::SetShouldCheckDefaultBrowser(PRBool aShouldCheck)
 {
   nsCOMPtr<nsIPrefBranch> prefs;
   nsCOMPtr<nsIPrefService> pserve(do_GetService(NS_PREFSERVICE_CONTRACTID));
@@ -123,15 +157,8 @@ nsMacShellService::SetShouldCheckDefaultBrowser(bool aShouldCheck)
 }
 
 NS_IMETHODIMP
-nsMacShellService::GetCanSetDesktopBackground(bool* aResult)
-{
-  *aResult = true;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsMacShellService::SetDesktopBackground(nsIDOMElement* aElement, 
-                                        int32_t aPosition)
+                                        PRInt32 aPosition)
 {
   // Note: We don't support aPosition on OS X.
 
@@ -147,8 +174,12 @@ nsMacShellService::SetDesktopBackground(nsIDOMElement* aElement,
   // We need the referer URI for nsIWebBrowserPersist::saveURI
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIDocument> doc;
+  doc = content->GetOwnerDoc();
+  if (!doc)
+    return NS_ERROR_FAILURE;
 
-  nsIURI *docURI = content->OwnerDoc()->GetDocumentURI();
+  nsIURI *docURI = doc->GetDocumentURI();
   if (!docURI)
     return NS_ERROR_FAILURE;
 
@@ -160,14 +191,14 @@ nsMacShellService::SetDesktopBackground(nsIDOMElement* aElement,
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 
-  nsAutoCString fileName;
+  nsCAutoString fileName;
   imageURL->GetFileName(fileName);
   nsCOMPtr<nsIProperties> fileLocator
     (do_GetService("@mozilla.org/file/directory_service;1", &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Get the current user's "Pictures" folder (That's ~/Pictures):
-  fileLocator->Get(NS_OSX_PICTURE_DOCUMENTS_DIR, NS_GET_IID(nsIFile),
+  fileLocator->Get(NS_OSX_PICTURE_DOCUMENTS_DIR, NS_GET_IID(nsILocalFile),
                    getter_AddRefs(mBackgroundFile));
   if (!mBackgroundFile)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -183,24 +214,24 @@ nsMacShellService::SetDesktopBackground(nsIDOMElement* aElement,
     (do_CreateInstance("@mozilla.org/embedding/browser/nsWebBrowserPersist;1", &rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  uint32_t flags = nsIWebBrowserPersist::PERSIST_FLAGS_NO_CONVERSION | 
+  PRUint32 flags = nsIWebBrowserPersist::PERSIST_FLAGS_NO_CONVERSION | 
                    nsIWebBrowserPersist::PERSIST_FLAGS_REPLACE_EXISTING_FILES |
                    nsIWebBrowserPersist::PERSIST_FLAGS_FROM_CACHE;
 
   wbp->SetPersistFlags(flags);
   wbp->SetProgressListener(this);
 
-  return wbp->SaveURI(imageURI, nullptr, docURI, nullptr, nullptr,
+  return wbp->SaveURI(imageURI, nsnull, docURI, nsnull, nsnull,
                       mBackgroundFile);
 }
 
 NS_IMETHODIMP
 nsMacShellService::OnProgressChange(nsIWebProgress* aWebProgress,
                                     nsIRequest* aRequest,
-                                    int32_t aCurSelfProgress,
-                                    int32_t aMaxSelfProgress,
-                                    int32_t aCurTotalProgress,
-                                    int32_t aMaxTotalProgress)
+                                    PRInt32 aCurSelfProgress,
+                                    PRInt32 aMaxSelfProgress,
+                                    PRInt32 aCurTotalProgress,
+                                    PRInt32 aMaxTotalProgress)
 {
   return NS_OK;
 }
@@ -208,8 +239,7 @@ nsMacShellService::OnProgressChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsMacShellService::OnLocationChange(nsIWebProgress* aWebProgress,
                                     nsIRequest* aRequest,
-                                    nsIURI* aLocation,
-                                    uint32_t aFlags)
+                                    nsIURI* aLocation)
 {
   return NS_OK;
 }
@@ -226,7 +256,7 @@ nsMacShellService::OnStatusChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsMacShellService::OnSecurityChange(nsIWebProgress* aWebProgress,
                                     nsIRequest* aRequest,
-                                    uint32_t aState)
+                                    PRUint32 aState)
 {
   return NS_OK;
 }
@@ -234,20 +264,20 @@ nsMacShellService::OnSecurityChange(nsIWebProgress* aWebProgress,
 NS_IMETHODIMP
 nsMacShellService::OnStateChange(nsIWebProgress* aWebProgress,
                                  nsIRequest* aRequest,
-                                 uint32_t aStateFlags,
+                                 PRUint32 aStateFlags,
                                  nsresult aStatus)
 {
   if (aStateFlags & STATE_STOP) {
     nsCOMPtr<nsIObserverService> os(do_GetService("@mozilla.org/observer-service;1"));
     if (os)
-      os->NotifyObservers(nullptr, "shell:desktop-background-changed", nullptr);
+      os->NotifyObservers(nsnull, "shell:desktop-background-changed", nsnull);
 
-    bool exists = false;
+    PRBool exists = PR_FALSE;
     mBackgroundFile->Exists(&exists);
     if (!exists)
       return NS_OK;
 
-    nsAutoCString nativePath;
+    nsCAutoString nativePath;
     mBackgroundFile->GetNativePath(nativePath);
 
     AEDesc tAEDesc = { typeNull, nil };
@@ -300,7 +330,7 @@ nsMacShellService::OnStateChange(nsIWebProgress* aWebProgress,
 }
 
 NS_IMETHODIMP
-nsMacShellService::OpenApplication(int32_t aApplication)
+nsMacShellService::OpenApplication(PRInt32 aApplication)
 {
   nsresult rv = NS_OK;
   CFURLRef appURL = nil;
@@ -329,10 +359,10 @@ nsMacShellService::OpenApplication(int32_t aApplication)
     break;
   case nsIMacShellService::APPLICATION_NETWORK:
     {
-      nsCOMPtr<nsIFile> lf;
-      rv = NS_NewNativeLocalFile(NETWORK_PREFPANE, true, getter_AddRefs(lf));
+      nsCOMPtr<nsILocalFile> lf;
+      rv = NS_NewNativeLocalFile(NETWORK_PREFPANE, PR_TRUE, getter_AddRefs(lf));
       NS_ENSURE_SUCCESS(rv, rv);
-      bool exists;
+      PRBool exists;
       lf->Exists(&exists);
       if (!exists)
         return NS_ERROR_FILE_NOT_FOUND;
@@ -341,10 +371,10 @@ nsMacShellService::OpenApplication(int32_t aApplication)
     break;
   case nsIMacShellService::APPLICATION_DESKTOP:
     {
-      nsCOMPtr<nsIFile> lf;
-      rv = NS_NewNativeLocalFile(DESKTOP_PREFPANE, true, getter_AddRefs(lf));
+      nsCOMPtr<nsILocalFile> lf;
+      rv = NS_NewNativeLocalFile(DESKTOP_PREFPANE, PR_TRUE, getter_AddRefs(lf));
       NS_ENSURE_SUCCESS(rv, rv);
-      bool exists;
+      PRBool exists;
       lf->Exists(&exists);
       if (!exists)
         return NS_ERROR_FILE_NOT_FOUND;
@@ -364,7 +394,7 @@ nsMacShellService::OpenApplication(int32_t aApplication)
 }
 
 NS_IMETHODIMP
-nsMacShellService::GetDesktopBackgroundColor(uint32_t *aColor)
+nsMacShellService::GetDesktopBackgroundColor(PRUint32 *aColor)
 {
   // This method and |SetDesktopBackgroundColor| has no meaning on Mac OS X.
   // The mac desktop preferences UI uses pictures for the few solid colors it
@@ -373,7 +403,7 @@ nsMacShellService::GetDesktopBackgroundColor(uint32_t *aColor)
 }
 
 NS_IMETHODIMP
-nsMacShellService::SetDesktopBackgroundColor(uint32_t aColor)
+nsMacShellService::SetDesktopBackgroundColor(PRUint32 aColor)
 {
   // This method and |GetDesktopBackgroundColor| has no meaning on Mac OS X.
   // The mac desktop preferences UI uses pictures for the few solid colors it
@@ -382,7 +412,7 @@ nsMacShellService::SetDesktopBackgroundColor(uint32_t aColor)
 }
 
 NS_IMETHODIMP
-nsMacShellService::OpenApplicationWithURI(nsIFile* aApplication, const nsACString& aURI)
+nsMacShellService::OpenApplicationWithURI(nsILocalFile* aApplication, const nsACString& aURI)
 {
   nsCOMPtr<nsILocalFileMac> lfm(do_QueryInterface(aApplication));
   CFURLRef appURL;
@@ -419,10 +449,10 @@ nsMacShellService::OpenApplicationWithURI(nsIFile* aApplication, const nsACStrin
 }
 
 NS_IMETHODIMP
-nsMacShellService::GetDefaultFeedReader(nsIFile** _retval)
+nsMacShellService::GetDefaultFeedReader(nsILocalFile** _retval)
 {
   nsresult rv = NS_ERROR_FAILURE;
-  *_retval = nullptr;
+  *_retval = nsnull;
 
   CFStringRef defaultHandlerID = ::LSCopyDefaultHandlerForURLScheme(CFSTR("feed"));
   if (!defaultHandlerID) {

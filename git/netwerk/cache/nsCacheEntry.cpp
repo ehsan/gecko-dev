@@ -1,8 +1,42 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is nsCacheEntry.cpp, released
+ * February 22, 2001.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2001
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Gordon Sheridan <gordon@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 
 #include "nspr.h"
@@ -16,12 +50,11 @@
 #include "nsCache.h"
 #include "nsCacheService.h"
 #include "nsCacheDevice.h"
-#include "nsHashKeys.h"
+#include "nsCRT.h"
 
-using namespace mozilla;
 
-nsCacheEntry::nsCacheEntry(const nsACString &   key,
-                           bool                 streamBased,
+nsCacheEntry::nsCacheEntry(nsCString *          key,
+                           PRBool               streamBased,
                            nsCacheStoragePolicy storagePolicy)
     : mKey(key),
       mFetchCount(0),
@@ -31,9 +64,8 @@ nsCacheEntry::nsCacheEntry(const nsACString &   key,
       mFlags(0),
       mPredictedDataSize(-1),
       mDataSize(0),
-      mCacheDevice(nullptr),
-      mCustomDevice(nullptr),
-      mData(nullptr)
+      mCacheDevice(nsnull),
+      mData(nsnull)
 {
     MOZ_COUNT_CTOR(nsCacheEntry);
     PR_INIT_CLIST(this);
@@ -42,14 +74,13 @@ nsCacheEntry::nsCacheEntry(const nsACString &   key,
 
     if (streamBased) MarkStreamBased();
     SetStoragePolicy(storagePolicy);
-
-    MarkPublic();
 }
 
 
 nsCacheEntry::~nsCacheEntry()
 {
     MOZ_COUNT_DTOR(nsCacheEntry);
+    delete mKey;
     
     if (mData)
         nsCacheService::ReleaseObject_Locked(mData, mThread);
@@ -58,15 +89,19 @@ nsCacheEntry::~nsCacheEntry()
 
 nsresult
 nsCacheEntry::Create( const char *          key,
-                      bool                  streamBased,
+                      PRBool                streamBased,
                       nsCacheStoragePolicy  storagePolicy,
                       nsCacheDevice *       device,
                       nsCacheEntry **       result)
 {
-    nsCacheEntry* entry = new nsCacheEntry(nsCString(key),
-                                           streamBased,
-                                           storagePolicy);
+    nsCString* newKey = new nsCString(key);
+    if (!newKey) return NS_ERROR_OUT_OF_MEMORY;
+    
+    nsCacheEntry* entry = new nsCacheEntry(newKey, streamBased, storagePolicy);
+    if (!entry) { delete newKey; return NS_ERROR_OUT_OF_MEMORY; }
+    
     entry->SetCacheDevice(device);
+    
     *result = entry;
     return NS_OK;
 }
@@ -85,7 +120,7 @@ const char *
 nsCacheEntry::GetDeviceID()
 {
     if (mCacheDevice)  return mCacheDevice->GetDeviceID();
-    return nullptr;
+    return nsnull;
 }
 
 
@@ -102,7 +137,7 @@ nsCacheEntry::SetData(nsISupports * data)
 {
     if (mData) {
         nsCacheService::ReleaseObject_Locked(mData, mThread);
-        mData = nullptr;
+        mData = nsnull;
     }
 
     if (data) {
@@ -137,6 +172,7 @@ nsCacheEntry::RequestAccess(nsCacheRequest * request, nsCacheAccessMode *accessG
 
     if (!IsInitialized()) {
         // brand new, unbound entry
+        request->mKey = nsnull;  // steal ownership of the key string
         if (request->IsStreamBased())  MarkStreamBased();
         MarkInitialized();
 
@@ -185,7 +221,7 @@ nsCacheEntry::CreateDescriptor(nsCacheRequest *           request,
     // XXX check request is on q
     PR_REMOVE_AND_INIT_LINK(request); // remove request regardless of success
 
-    if (descriptor == nullptr)
+    if (descriptor == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
 
     PR_APPEND_LINK(descriptor, &mDescriptorQ);
@@ -198,7 +234,7 @@ nsCacheEntry::CreateDescriptor(nsCacheRequest *           request,
 }
 
 
-bool
+PRBool
 nsCacheEntry::RemoveRequest(nsCacheRequest * request)
 {
     // XXX if debug: verify this request belongs to this entry
@@ -210,28 +246,21 @@ nsCacheEntry::RemoveRequest(nsCacheRequest * request)
 }
 
 
-bool
+PRBool
 nsCacheEntry::RemoveDescriptor(nsCacheEntryDescriptor * descriptor)
 {
     NS_ASSERTION(descriptor->CacheEntry() == this, "### Wrong cache entry!!");
-    nsresult rv = descriptor->CloseOutput();
-    if (rv == NS_BASE_STREAM_WOULD_BLOCK)
-        return true;
-
+    descriptor->CloseOutput();
     descriptor->ClearCacheEntry();
     PR_REMOVE_AND_INIT_LINK(descriptor);
 
-    // Doom entry if something bad happens while closing. See bug #673543
-    if (NS_FAILED(rv))
-        nsCacheService::DoomEntry(this);
-
     if (!PR_CLIST_IS_EMPTY(&mDescriptorQ))
-        return true;  // stay active if we still have open descriptors
+        return PR_TRUE;  // stay active if we still have open descriptors
 
     if (PR_CLIST_IS_EMPTY(&mRequestQ))
-        return false; // no descriptors or requests, we can deactivate
+        return PR_FALSE; // no descriptors or requests, we can deactivate
 
-    return true;     // find next best request to give a descriptor to
+    return PR_TRUE;     // find next best request to give a descriptor to
 }
 
 
@@ -244,15 +273,8 @@ nsCacheEntry::DetachDescriptors(void)
     while (descriptor != &mDescriptorQ) {
         nsCacheEntryDescriptor * nextDescriptor =
             (nsCacheEntryDescriptor *)PR_NEXT_LINK(descriptor);
-
-        // Doom entry if something bad happens while closing. See bug #673543
-        // Errors are handled different from RemoveDescriptor because this
-        // method is only called from ClearDoomList (in which case the entry is
-        // doomed anyway) and ClearActiveEntries (in which case we are shutting
-        // down and really want to get rid of the entry immediately)
-        if (NS_FAILED(descriptor->CloseOutput()))
-            nsCacheService::DoomEntry(this);
-
+        
+        descriptor->CloseOutput();
         descriptor->ClearCacheEntry();
         PR_REMOVE_AND_INIT_LINK(descriptor);
         descriptor = nextDescriptor;
@@ -298,7 +320,7 @@ nsCacheEntryInfo::GetKey(nsACString &key)
 
 
 NS_IMETHODIMP
-nsCacheEntryInfo::GetFetchCount(int32_t * fetchCount)
+nsCacheEntryInfo::GetFetchCount(PRInt32 * fetchCount)
 {
     NS_ENSURE_ARG_POINTER(fetchCount);
     if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
@@ -309,7 +331,7 @@ nsCacheEntryInfo::GetFetchCount(int32_t * fetchCount)
 
 
 NS_IMETHODIMP
-nsCacheEntryInfo::GetLastFetched(uint32_t * lastFetched)
+nsCacheEntryInfo::GetLastFetched(PRUint32 * lastFetched)
 {
     NS_ENSURE_ARG_POINTER(lastFetched);
     if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
@@ -320,7 +342,7 @@ nsCacheEntryInfo::GetLastFetched(uint32_t * lastFetched)
 
 
 NS_IMETHODIMP
-nsCacheEntryInfo::GetLastModified(uint32_t * lastModified)
+nsCacheEntryInfo::GetLastModified(PRUint32 * lastModified)
 {
     NS_ENSURE_ARG_POINTER(lastModified);
     if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
@@ -331,7 +353,7 @@ nsCacheEntryInfo::GetLastModified(uint32_t * lastModified)
 
 
 NS_IMETHODIMP
-nsCacheEntryInfo::GetExpirationTime(uint32_t * expirationTime)
+nsCacheEntryInfo::GetExpirationTime(PRUint32 * expirationTime)
 {
     NS_ENSURE_ARG_POINTER(expirationTime);
     if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
@@ -342,7 +364,7 @@ nsCacheEntryInfo::GetExpirationTime(uint32_t * expirationTime)
 
 
 NS_IMETHODIMP
-nsCacheEntryInfo::GetDataSize(uint32_t * dataSize)
+nsCacheEntryInfo::GetDataSize(PRUint32 * dataSize)
 {
     NS_ENSURE_ARG_POINTER(dataSize);
     if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
@@ -353,7 +375,7 @@ nsCacheEntryInfo::GetDataSize(uint32_t * dataSize)
 
 
 NS_IMETHODIMP
-nsCacheEntryInfo::IsStreamBased(bool * result)
+nsCacheEntryInfo::IsStreamBased(PRBool * result)
 {
     NS_ENSURE_ARG_POINTER(result);
     if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
@@ -381,7 +403,7 @@ nsCacheEntryHashTable::ops =
 
 
 nsCacheEntryHashTable::nsCacheEntryHashTable()
-    : initialized(false)
+    : initialized(PR_FALSE)
 {
     MOZ_COUNT_CTOR(nsCacheEntryHashTable);
 }
@@ -399,7 +421,7 @@ nsresult
 nsCacheEntryHashTable::Init()
 {
     nsresult rv = NS_OK;
-    initialized = PL_DHashTableInit(&table, &ops, nullptr,
+    initialized = PL_DHashTableInit(&table, &ops, nsnull,
                                            sizeof(nsCacheEntryHashTableEntry), 512);
 
     if (!initialized) rv = NS_ERROR_OUT_OF_MEMORY;
@@ -412,7 +434,7 @@ nsCacheEntryHashTable::Shutdown()
 {
     if (initialized) {
         PL_DHashTableFinish(&table);
-        initialized = false;
+        initialized = PR_FALSE;
     }
 }
 
@@ -421,10 +443,10 @@ nsCacheEntry *
 nsCacheEntryHashTable::GetEntry( const nsCString * key)
 {
     PLDHashEntryHdr *hashEntry;
-    nsCacheEntry    *result = nullptr;
+    nsCacheEntry    *result = nsnull;
 
     NS_ASSERTION(initialized, "nsCacheEntryHashTable not initialized");
-    if (!initialized)  return nullptr;
+    if (!initialized)  return nsnull;
     
     hashEntry = PL_DHashTableOperate(&table, key, PL_DHASH_LOOKUP);
     if (PL_DHASH_ENTRY_IS_BUSY(hashEntry)) {
@@ -443,7 +465,7 @@ nsCacheEntryHashTable::AddEntry( nsCacheEntry *cacheEntry)
     if (!initialized)  return NS_ERROR_NOT_INITIALIZED;
     if (!cacheEntry)   return NS_ERROR_NULL_POINTER;
 
-    hashEntry = PL_DHashTableOperate(&table, &(cacheEntry->mKey), PL_DHASH_ADD);
+    hashEntry = PL_DHashTableOperate(&table, cacheEntry->mKey, PL_DHASH_ADD);
 #ifndef DEBUG_dougt
     NS_ASSERTION(((nsCacheEntryHashTableEntry *)hashEntry)->cacheEntry == 0,
                  "### nsCacheEntryHashTable::AddEntry - entry already used");
@@ -458,16 +480,16 @@ void
 nsCacheEntryHashTable::RemoveEntry( nsCacheEntry *cacheEntry)
 {
     NS_ASSERTION(initialized, "nsCacheEntryHashTable not initialized");
-    NS_ASSERTION(cacheEntry, "### cacheEntry == nullptr");
+    NS_ASSERTION(cacheEntry, "### cacheEntry == nsnull");
 
     if (!initialized)  return; // NS_ERROR_NOT_INITIALIZED
 
 #if DEBUG
     // XXX debug code to make sure we have the entry we're trying to remove
-    nsCacheEntry *check = GetEntry(&(cacheEntry->mKey));
+    nsCacheEntry *check = GetEntry(cacheEntry->mKey);
     NS_ASSERTION(check == cacheEntry, "### Attempting to remove unknown cache entry!!!");
 #endif
-    (void) PL_DHashTableOperate(&table, &(cacheEntry->mKey), PL_DHASH_REMOVE);
+    (void) PL_DHashTableOperate(&table, cacheEntry->mKey, PL_DHASH_REMOVE);
 }
 
 
@@ -487,18 +509,18 @@ nsCacheEntryHashTable::VisitEntries( PLDHashEnumerator etor, void *arg)
 PLDHashNumber
 nsCacheEntryHashTable::HashKey( PLDHashTable *table, const void *key)
 {
-    return HashString(*static_cast<const nsCString *>(key));
+    return PL_DHashStringKey(table,((nsCString *)key)->get());
 }
 
-bool
+PRBool
 nsCacheEntryHashTable::MatchEntry(PLDHashTable *       /* table */,
                                   const PLDHashEntryHdr * hashEntry,
                                   const void *            key)
 {
-    NS_ASSERTION(key !=  nullptr, "### nsCacheEntryHashTable::MatchEntry : null key");
+    NS_ASSERTION(key !=  nsnull, "### nsCacheEntryHashTable::MatchEntry : null key");
     nsCacheEntry *cacheEntry = ((nsCacheEntryHashTableEntry *)hashEntry)->cacheEntry;
 
-    return cacheEntry->mKey.Equals(*(nsCString *)key);
+    return cacheEntry->mKey->Equals(*(nsCString *)key);
 }
 
 

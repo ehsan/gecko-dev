@@ -27,13 +27,13 @@ SimpleTest.waitForExplicitFinish();
 
 var selectionTest = false;
 var testNum = 0;
-var utils = SpecialPowers.DOMWindowUtils;
+var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+              getInterface(Components.interfaces.nsIDOMWindowUtils);
 
 function hasTabModalPrompts() {
   var prefName = "prompts.tab_modal.enabled";
-  var Services = SpecialPowers.wrap(Components).utils
-                              .import("resource://gre/modules/Services.jsm")
-                              .Services;
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  Components.utils.import("resource://gre/modules/Services.jsm");
   return Services.prefs.getPrefType(prefName) == Services.prefs.PREF_BOOL &&
          Services.prefs.getBoolPref(prefName);
 }
@@ -48,6 +48,7 @@ function runtest()
 {
   // The <button> in this test's HTML opens a prompt when clicked.
   // Here we send the events to simulate clicking it.
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   ok(true, "starting test");
   isTabModal = hasTabModalPrompts();
   if (!isTabModal)

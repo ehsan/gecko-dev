@@ -1,7 +1,9 @@
 This is HarfBuzz, a text shaping library.
 
-For bug reports, mailing list, and other information please visit:
-
-  http://harfbuzz.org/
+Bug reports on these files should be sent to the HarfBuzz mailing list as
+listed on http://freedesktop.org/wiki/Software/harfbuzz
 
 For license information, see the file COPYING.
+
+Behdad Esfahbod
+May 24, 2009

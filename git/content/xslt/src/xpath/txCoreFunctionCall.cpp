@@ -1,15 +1,45 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/FloatingPoint.h"
-#include "mozilla/Util.h"
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * The MITRE Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Keith Visco <kvisco@ziplink.net> (Original Author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "txExpr.h"
 #include "nsAutoPtr.h"
 #include "txNodeSet.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txIXPathContext.h"
 #include "nsWhitespaceTokenizer.h"
 #include "txXPathTreeWalker.h"
@@ -17,12 +47,10 @@
 #include "txStringUtils.h"
 #include "txXMLUtils.h"
 
-using namespace mozilla;
-
 struct txCoreFunctionDescriptor
 {
-    int8_t mMinParams;
-    int8_t mMaxParams;
+    PRInt8 mMinParams;
+    PRInt8 mMaxParams;
     Expr::ResultType mReturnType;
     nsIAtom** mName;
 };
@@ -31,36 +59,36 @@ struct txCoreFunctionDescriptor
 // If you change one, change the other.
 static const txCoreFunctionDescriptor descriptTable[] =
 {
-    { 1, 1, Expr::NUMBER_RESULT,  &nsGkAtoms::count }, // COUNT
-    { 1, 1, Expr::NODESET_RESULT, &nsGkAtoms::id }, // ID
-    { 0, 0, Expr::NUMBER_RESULT,  &nsGkAtoms::last }, // LAST
-    { 0, 1, Expr::STRING_RESULT,  &nsGkAtoms::localName }, // LOCAL_NAME
-    { 0, 1, Expr::STRING_RESULT,  &nsGkAtoms::namespaceUri }, // NAMESPACE_URI
-    { 0, 1, Expr::STRING_RESULT,  &nsGkAtoms::name }, // NAME
-    { 0, 0, Expr::NUMBER_RESULT,  &nsGkAtoms::position }, // POSITION
+    { 1, 1, Expr::NUMBER_RESULT,  &txXPathAtoms::count }, // COUNT
+    { 1, 1, Expr::NODESET_RESULT, &txXPathAtoms::id }, // ID
+    { 0, 0, Expr::NUMBER_RESULT,  &txXPathAtoms::last }, // LAST
+    { 0, 1, Expr::STRING_RESULT,  &txXPathAtoms::localName }, // LOCAL_NAME
+    { 0, 1, Expr::STRING_RESULT,  &txXPathAtoms::namespaceUri }, // NAMESPACE_URI
+    { 0, 1, Expr::STRING_RESULT,  &txXPathAtoms::name }, // NAME
+    { 0, 0, Expr::NUMBER_RESULT,  &txXPathAtoms::position }, // POSITION
 
-    { 2, -1, Expr::STRING_RESULT, &nsGkAtoms::concat }, // CONCAT
-    { 2, 2, Expr::BOOLEAN_RESULT, &nsGkAtoms::contains }, // CONTAINS
-    { 0, 1, Expr::STRING_RESULT,  &nsGkAtoms::normalizeSpace }, // NORMALIZE_SPACE
-    { 2, 2, Expr::BOOLEAN_RESULT, &nsGkAtoms::startsWith }, // STARTS_WITH
-    { 0, 1, Expr::STRING_RESULT,  &nsGkAtoms::string }, // STRING
-    { 0, 1, Expr::NUMBER_RESULT,  &nsGkAtoms::stringLength }, // STRING_LENGTH
-    { 2, 3, Expr::STRING_RESULT,  &nsGkAtoms::substring }, // SUBSTRING
-    { 2, 2, Expr::STRING_RESULT,  &nsGkAtoms::substringAfter }, // SUBSTRING_AFTER
-    { 2, 2, Expr::STRING_RESULT,  &nsGkAtoms::substringBefore }, // SUBSTRING_BEFORE
-    { 3, 3, Expr::STRING_RESULT,  &nsGkAtoms::translate }, // TRANSLATE
+    { 2, -1, Expr::STRING_RESULT, &txXPathAtoms::concat }, // CONCAT
+    { 2, 2, Expr::BOOLEAN_RESULT, &txXPathAtoms::contains }, // CONTAINS
+    { 0, 1, Expr::STRING_RESULT,  &txXPathAtoms::normalizeSpace }, // NORMALIZE_SPACE
+    { 2, 2, Expr::BOOLEAN_RESULT, &txXPathAtoms::startsWith }, // STARTS_WITH
+    { 0, 1, Expr::STRING_RESULT,  &txXPathAtoms::string }, // STRING
+    { 0, 1, Expr::NUMBER_RESULT,  &txXPathAtoms::stringLength }, // STRING_LENGTH
+    { 2, 3, Expr::STRING_RESULT,  &txXPathAtoms::substring }, // SUBSTRING
+    { 2, 2, Expr::STRING_RESULT,  &txXPathAtoms::substringAfter }, // SUBSTRING_AFTER
+    { 2, 2, Expr::STRING_RESULT,  &txXPathAtoms::substringBefore }, // SUBSTRING_BEFORE
+    { 3, 3, Expr::STRING_RESULT,  &txXPathAtoms::translate }, // TRANSLATE
 
-    { 0, 1, Expr::NUMBER_RESULT,  &nsGkAtoms::number }, // NUMBER
-    { 1, 1, Expr::NUMBER_RESULT,  &nsGkAtoms::round }, // ROUND
-    { 1, 1, Expr::NUMBER_RESULT,  &nsGkAtoms::floor }, // FLOOR
-    { 1, 1, Expr::NUMBER_RESULT,  &nsGkAtoms::ceiling }, // CEILING
-    { 1, 1, Expr::NUMBER_RESULT,  &nsGkAtoms::sum }, // SUM
+    { 0, 1, Expr::NUMBER_RESULT,  &txXPathAtoms::number }, // NUMBER
+    { 1, 1, Expr::NUMBER_RESULT,  &txXPathAtoms::round }, // ROUND
+    { 1, 1, Expr::NUMBER_RESULT,  &txXPathAtoms::floor }, // FLOOR
+    { 1, 1, Expr::NUMBER_RESULT,  &txXPathAtoms::ceiling }, // CEILING
+    { 1, 1, Expr::NUMBER_RESULT,  &txXPathAtoms::sum }, // SUM
 
-    { 1, 1, Expr::BOOLEAN_RESULT, &nsGkAtoms::boolean }, // BOOLEAN
-    { 0, 0, Expr::BOOLEAN_RESULT, &nsGkAtoms::_false }, // _FALSE
-    { 1, 1, Expr::BOOLEAN_RESULT, &nsGkAtoms::lang }, // LANG
-    { 1, 1, Expr::BOOLEAN_RESULT, &nsGkAtoms::_not }, // _NOT
-    { 0, 0, Expr::BOOLEAN_RESULT, &nsGkAtoms::_true } // _TRUE
+    { 1, 1, Expr::BOOLEAN_RESULT, &txXPathAtoms::boolean }, // BOOLEAN
+    { 0, 0, Expr::BOOLEAN_RESULT, &txXPathAtoms::_false }, // _FALSE
+    { 1, 1, Expr::BOOLEAN_RESULT, &txXPathAtoms::lang }, // LANG
+    { 1, 1, Expr::BOOLEAN_RESULT, &txXPathAtoms::_not }, // _NOT
+    { 0, 0, Expr::BOOLEAN_RESULT, &txXPathAtoms::_true } // _TRUE
 };
 
 
@@ -74,7 +102,7 @@ static const txCoreFunctionDescriptor descriptTable[] =
 nsresult
 txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
 {
-    *aResult = nullptr;
+    *aResult = nsnull;
 
     if (!requireParams(descriptTable[mType].mMinParams,
                        descriptTable[mType].mMaxParams,
@@ -110,7 +138,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
                 txNodeSet* nodes = static_cast<txNodeSet*>
                                               (static_cast<txAExprResult*>
                                                           (exprResult));
-                int32_t i;
+                PRInt32 i;
                 for (i = 0; i < nodes->size(); ++i) {
                     nsAutoString idList;
                     txXPathNodeUtils::appendNodeValue(nodes->get(i), idList);
@@ -166,7 +194,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             switch (mType) {
                 case LOCAL_NAME:
                 {
-                    StringResult* strRes = nullptr;
+                    StringResult* strRes = nsnull;
                     rv = aContext->recycler()->getStringResult(&strRes);
                     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -177,7 +205,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
                 }
                 case NAMESPACE_URI:
                 {
-                    StringResult* strRes = nullptr;
+                    StringResult* strRes = nsnull;
                     rv = aContext->recycler()->getStringResult(&strRes);
                     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -192,7 +220,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
                     if (txXPathNodeUtils::isAttribute(node) ||
                         txXPathNodeUtils::isElement(node) ||
                         txXPathNodeUtils::isProcessingInstruction(node)) {
-                        StringResult* strRes = nullptr;
+                        StringResult* strRes = nsnull;
                         rv = aContext->recycler()->getStringResult(&strRes);
                         NS_ENSURE_SUCCESS(rv, rv);
 
@@ -225,7 +253,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = aContext->recycler()->getStringResult(getter_AddRefs(strRes));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            uint32_t i, len = mParams.Length();
+            PRUint32 i, len = mParams.Length();
             for (i = 0; i < len; ++i) {
                 rv = mParams[i]->evaluateToString(aContext, strRes->mValue);
                 NS_ENSURE_SUCCESS(rv, rv);
@@ -242,7 +270,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             NS_ENSURE_SUCCESS(rv, rv);
 
             if (arg2.IsEmpty()) {
-                aContext->recycler()->getBoolResult(true, aResult);
+                aContext->recycler()->getBoolResult(PR_TRUE, aResult);
             }
             else {
                 nsAutoString arg1;
@@ -271,23 +299,23 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = aContext->recycler()->getStringResult(getter_AddRefs(strRes));
             NS_ENSURE_SUCCESS(rv, rv);
 
-            bool addSpace = false;
-            bool first = true;
+            MBool addSpace = MB_FALSE;
+            MBool first = MB_TRUE;
             strRes->mValue.SetCapacity(resultStr.Length());
             PRUnichar c;
-            uint32_t src;
+            PRUint32 src;
             for (src = 0; src < resultStr.Length(); src++) {
                 c = resultStr.CharAt(src);
                 if (XMLUtils::isWhitespace(c)) {
-                    addSpace = true;
+                    addSpace = MB_TRUE;
                 }
                 else {
                     if (addSpace && !first)
                         strRes->mValue.Append(PRUnichar(' '));
 
                     strRes->mValue.Append(c);
-                    addSpace = false;
-                    first = false;
+                    addSpace = MB_FALSE;
+                    first = MB_FALSE;
                 }
             }
             *aResult = strRes;
@@ -301,9 +329,9 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = mParams[1]->evaluateToString(aContext, arg2);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            bool result = false;
+            PRBool result = PR_FALSE;
             if (arg2.IsEmpty()) {
-                result = true;
+                result = PR_TRUE;
             }
             else {
                 nsAutoString arg1;
@@ -364,8 +392,8 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             NS_ENSURE_SUCCESS(rv, rv);
 
             // check for NaN or +/-Inf
-            if (MOZ_DOUBLE_IS_NaN(start) ||
-                MOZ_DOUBLE_IS_INFINITE(start) ||
+            if (Double::isNaN(start) ||
+                Double::isInfinite(start) ||
                 start >= src.Length() + 0.5) {
                 aContext->recycler()->getEmptyStringResult(aResult);
 
@@ -380,7 +408,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
                 NS_ENSURE_SUCCESS(rv, rv);
 
                 end += start;
-                if (MOZ_DOUBLE_IS_NaN(end) || end < 0) {
+                if (Double::isNaN(end) || end < 0) {
                     aContext->recycler()->getEmptyStringResult(aResult);
 
                     return NS_OK;
@@ -405,7 +433,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             }
 
             return aContext->recycler()->getStringResult(
-                  Substring(src, (uint32_t)start, (uint32_t)(end - start)),
+                  Substring(src, (PRUint32)start, (PRUint32)(end - start)),
                   aResult);
         }
         case SUBSTRING_AFTER:
@@ -422,7 +450,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
                 return aContext->recycler()->getStringResult(arg1, aResult);
             }
 
-            int32_t idx = arg1.Find(arg2);
+            PRInt32 idx = arg1.Find(arg2);
             if (idx == kNotFound) {
                 aContext->recycler()->getEmptyStringResult(aResult);
                 
@@ -448,7 +476,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = mParams[0]->evaluateToString(aContext, arg1);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            int32_t idx = arg1.Find(arg2);
+            PRInt32 idx = arg1.Find(arg2);
             if (idx == kNotFound) {
                 aContext->recycler()->getEmptyStringResult(aResult);
                 
@@ -483,13 +511,13 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = mParams[2]->evaluateToString(aContext, newChars);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            uint32_t i;
-            int32_t newCharsLength = (int32_t)newChars.Length();
+            PRUint32 i;
+            PRInt32 newCharsLength = (PRInt32)newChars.Length();
             for (i = 0; i < src.Length(); i++) {
-                int32_t idx = oldChars.FindChar(src.CharAt(i));
+                PRInt32 idx = oldChars.FindChar(src.CharAt(i));
                 if (idx != kNotFound) {
                     if (idx < newCharsLength)
-                        strRes->mValue.Append(newChars.CharAt((uint32_t)idx));
+                        strRes->mValue.Append(newChars.CharAt((PRUint32)idx));
                 }
                 else {
                     strRes->mValue.Append(src.CharAt(i));
@@ -514,7 +542,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
                 nsAutoString resultStr;
                 txXPathNodeUtils::appendNodeValue(aContext->getContextNode(),
                                                   resultStr);
-                res = txDouble::toDouble(resultStr);
+                res = Double::toDouble(resultStr);
             }
             return aContext->recycler()->getNumberResult(res, aResult);
         }
@@ -524,8 +552,8 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = evaluateToNumber(mParams[0], aContext, &dbl);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (!MOZ_DOUBLE_IS_NaN(dbl) && !MOZ_DOUBLE_IS_INFINITE(dbl)) {
-                if (MOZ_DOUBLE_IS_NEGATIVE(dbl) && dbl >= -0.5) {
+            if (!Double::isNaN(dbl) && !Double::isInfinite(dbl)) {
+                if (Double::isNeg(dbl) && dbl >= -0.5) {
                     dbl *= 0;
                 }
                 else {
@@ -541,9 +569,9 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = evaluateToNumber(mParams[0], aContext, &dbl);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (!MOZ_DOUBLE_IS_NaN(dbl) &&
-                !MOZ_DOUBLE_IS_INFINITE(dbl) &&
-                !(dbl == 0 && MOZ_DOUBLE_IS_NEGATIVE(dbl))) {
+            if (!Double::isNaN(dbl) &&
+                !Double::isInfinite(dbl) &&
+                !(dbl == 0 && Double::isNeg(dbl))) {
                 dbl = floor(dbl);
             }
 
@@ -555,8 +583,8 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = evaluateToNumber(mParams[0], aContext, &dbl);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            if (!MOZ_DOUBLE_IS_NaN(dbl) && !MOZ_DOUBLE_IS_INFINITE(dbl)) {
-                if (MOZ_DOUBLE_IS_NEGATIVE(dbl) && dbl > -1) {
+            if (!Double::isNaN(dbl) && !Double::isInfinite(dbl)) {
+                if (Double::isNeg(dbl) && dbl > -1) {
                     dbl *= 0;
                 }
                 else {
@@ -574,11 +602,11 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             NS_ENSURE_SUCCESS(rv, rv);
 
             double res = 0;
-            int32_t i;
+            PRInt32 i;
             for (i = 0; i < nodes->size(); ++i) {
                 nsAutoString resultStr;
                 txXPathNodeUtils::appendNodeValue(nodes->get(i), resultStr);
-                res += txDouble::toDouble(resultStr);
+                res += Double::toDouble(resultStr);
             }
             return aContext->recycler()->getNumberResult(res, aResult);
         }
@@ -587,7 +615,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
         
         case BOOLEAN:
         {
-            bool result;
+            PRBool result;
             nsresult rv = mParams[0]->evaluateToBool(aContext, result);
             NS_ENSURE_SUCCESS(rv, rv);
 
@@ -597,7 +625,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
         }
         case _FALSE:
         {
-            aContext->recycler()->getBoolResult(false, aResult);
+            aContext->recycler()->getBoolResult(PR_FALSE, aResult);
 
             return NS_OK;
         }
@@ -606,14 +634,14 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             txXPathTreeWalker walker(aContext->getContextNode());
 
             nsAutoString lang;
-            bool found;
+            PRBool found;
             do {
-                found = walker.getAttr(nsGkAtoms::lang, kNameSpaceID_XML,
+                found = walker.getAttr(txXMLAtoms::lang, kNameSpaceID_XML,
                                        lang);
             } while (!found && walker.moveToParent());
 
             if (!found) {
-                aContext->recycler()->getBoolResult(false, aResult);
+                aContext->recycler()->getBoolResult(PR_FALSE, aResult);
 
                 return NS_OK;
             }
@@ -622,7 +650,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
             rv = mParams[0]->evaluateToString(aContext, arg);
             NS_ENSURE_SUCCESS(rv, rv);
 
-            bool result =
+            PRBool result =
                 StringBeginsWith(lang, arg,
                                  txCaseInsensitiveStringComparator()) &&
                 (lang.Length() == arg.Length() ||
@@ -634,7 +662,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
         }
         case _NOT:
         {
-            bool result;
+            PRBool result;
             rv = mParams[0]->evaluateToBool(aContext, result);
             NS_ENSURE_SUCCESS(rv, rv);
 
@@ -644,7 +672,7 @@ txCoreFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
         }
         case _TRUE:
         {
-            aContext->recycler()->getBoolResult(true, aResult);
+            aContext->recycler()->getBoolResult(PR_TRUE, aResult);
 
             return NS_OK;
         }
@@ -661,7 +689,7 @@ txCoreFunctionCall::getReturnType()
     return descriptTable[mType].mReturnType;
 }
 
-bool
+PRBool
 txCoreFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 {
     switch (mType) {
@@ -718,23 +746,23 @@ txCoreFunctionCall::isSensitiveTo(ContextSensitivity aContext)
     }
 
     NS_NOTREACHED("how'd we get here?");
-    return true;
+    return PR_TRUE;
 }
 
 // static
-bool
+PRBool
 txCoreFunctionCall::getTypeFromAtom(nsIAtom* aName, eType& aType)
 {
-    uint32_t i;
-    for (i = 0; i < ArrayLength(descriptTable); ++i) {
+    PRUint32 i;
+    for (i = 0; i < NS_ARRAY_LENGTH(descriptTable); ++i) {
         if (aName == *descriptTable[i].mName) {
             aType = static_cast<eType>(i);
 
-            return true;
+            return PR_TRUE;
         }
     }
 
-    return false;
+    return PR_FALSE;
 }
 
 #ifdef TX_TO_STRING

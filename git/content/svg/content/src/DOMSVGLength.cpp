@@ -1,7 +1,38 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla SVG Project code.
+ *
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "DOMSVGLength.h"
 #include "DOMSVGLengthList.h"
@@ -10,8 +41,7 @@
 #include "SVGAnimatedLengthList.h"
 #include "nsSVGElement.h"
 #include "nsIDOMSVGLength.h"
-#include "nsError.h"
-#include "nsMathUtils.h"
+#include "nsDOMError.h"
 
 // See the architecture comment in DOMSVGAnimatedLengthList.h.
 
@@ -25,7 +55,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(DOMSVGLength)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGLength)
   // We may not belong to a list, so we must null check tmp->mList.
   if (tmp->mList) {
-    tmp->mList->mItems[tmp->mListIndex] = nullptr;
+    tmp->mList->mItems[tmp->mListIndex] = nsnull;
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -48,9 +78,9 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGLength)
 NS_INTERFACE_MAP_END
 
 DOMSVGLength::DOMSVGLength(DOMSVGLengthList *aList,
-                           uint8_t aAttrEnum,
-                           uint32_t aListIndex,
-                           uint8_t aIsAnimValItem)
+                           PRUint8 aAttrEnum,
+                           PRUint32 aListIndex,
+                           PRUint8 aIsAnimValItem)
   : mList(aList)
   , mListIndex(aListIndex)
   , mAttrEnum(aAttrEnum)
@@ -68,21 +98,23 @@ DOMSVGLength::DOMSVGLength(DOMSVGLengthList *aList,
 }
 
 DOMSVGLength::DOMSVGLength()
-  : mList(nullptr)
+  : mList(nsnull)
   , mListIndex(0)
   , mAttrEnum(0)
-  , mIsAnimValItem(false)
+  , mIsAnimValItem(PR_FALSE)
   , mUnit(nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER)
   , mValue(0.0f)
 {
 }
 
 NS_IMETHODIMP
-DOMSVGLength::GetUnitType(uint16_t* aUnit)
+DOMSVGLength::GetUnitType(PRUint16* aUnit)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
-    Element()->FlushAnimations(); // May make HasOwner() == false
+    Element()->FlushAnimations(); // May make HasOwner() == PR_FALSE
   }
+#endif
   *aUnit = HasOwner() ? InternalItem().GetUnit() : mUnit;
   return NS_OK;
 }
@@ -90,12 +122,14 @@ DOMSVGLength::GetUnitType(uint16_t* aUnit)
 NS_IMETHODIMP
 DOMSVGLength::GetValue(float* aValue)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
-    Element()->FlushAnimations(); // May make HasOwner() == false
+    Element()->FlushAnimations(); // May make HasOwner() == PR_FALSE
   }
+#endif
   if (HasOwner()) {
     *aValue = InternalItem().GetValueInUserUnits(Element(), Axis());
-    if (NS_finite(*aValue)) {
+    if (NS_FloatIsFinite(*aValue)) {
       return NS_OK;
     }
   } else if (mUnit == nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER ||
@@ -115,9 +149,7 @@ DOMSVGLength::SetValue(float aUserUnitValue)
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
-  if (!NS_finite(aUserUnitValue)) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
+  NS_ENSURE_FINITE(aUserUnitValue, NS_ERROR_ILLEGAL_VALUE);
 
   // Although the value passed in is in user units, this method does not turn
   // this length into a user unit length. Instead it converts the user unit
@@ -125,17 +157,13 @@ DOMSVGLength::SetValue(float aUserUnitValue)
   // unit as it is.
 
   if (HasOwner()) {
-    if (InternalItem().GetValueInUserUnits(Element(), Axis()) ==
-        aUserUnitValue) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
-    if (InternalItem().SetFromUserUnitValue(aUserUnitValue, Element(), Axis()))
-    {
-      Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    if (InternalItem().SetFromUserUnitValue(aUserUnitValue, Element(), Axis())) {
+      Element()->DidChangeLengthList(mAttrEnum, PR_TRUE);
+#ifdef MOZ_SMIL
       if (mList->mAList->IsAnimating()) {
         Element()->AnimationNeedsResample();
       }
+#endif
       return NS_OK;
     }
   } else if (mUnit == nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER ||
@@ -151,9 +179,11 @@ DOMSVGLength::SetValue(float aUserUnitValue)
 NS_IMETHODIMP
 DOMSVGLength::GetValueInSpecifiedUnits(float* aValue)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
-    Element()->FlushAnimations(); // May make HasOwner() == false
+    Element()->FlushAnimations(); // May make HasOwner() == PR_FALSE
   }
+#endif
   *aValue = HasOwner() ? InternalItem().GetValueInCurrentUnits() : mValue;
   return NS_OK;
 }
@@ -165,20 +195,16 @@ DOMSVGLength::SetValueInSpecifiedUnits(float aValue)
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
-  if (!NS_finite(aValue)) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
+  NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
 
   if (HasOwner()) {
-    if (InternalItem().GetValueInCurrentUnits() == aValue) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
     InternalItem().SetValueInCurrentUnits(aValue);
-    Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    Element()->DidChangeLengthList(mAttrEnum, PR_TRUE);
+#ifdef MOZ_SMIL
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif
     return NS_OK;
   }
   mValue = aValue;
@@ -197,15 +223,13 @@ DOMSVGLength::SetValueAsString(const nsAString& aValue)
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
   if (HasOwner()) {
-    if (InternalItem() == value) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
     InternalItem() = value;
-    Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    Element()->DidChangeLengthList(mAttrEnum, PR_TRUE);
+#ifdef MOZ_SMIL
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif
     return NS_OK;
   }
   mValue = value.GetValueInCurrentUnits();
@@ -216,9 +240,11 @@ DOMSVGLength::SetValueAsString(const nsAString& aValue)
 NS_IMETHODIMP
 DOMSVGLength::GetValueAsString(nsAString& aValue)
 {
+#ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
-    Element()->FlushAnimations(); // May make HasOwner() == false
+    Element()->FlushAnimations(); // May make HasOwner() == PR_FALSE
   }
+#endif
   if (HasOwner()) {
     InternalItem().GetValueAsString(aValue);
     return NS_OK;
@@ -228,39 +254,34 @@ DOMSVGLength::GetValueAsString(nsAString& aValue)
 }
 
 NS_IMETHODIMP
-DOMSVGLength::NewValueSpecifiedUnits(uint16_t aUnit, float aValue)
+DOMSVGLength::NewValueSpecifiedUnits(PRUint16 aUnit, float aValue)
 {
   if (mIsAnimValItem) {
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
   }
 
-  if (!NS_finite(aValue)) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
+  NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
 
   if (!SVGLength::IsValidUnitType(aUnit)) {
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
   if (HasOwner()) {
-    if (InternalItem().GetUnit() == aUnit &&
-        InternalItem().GetValueInCurrentUnits() == aValue) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
-    InternalItem().SetValueAndUnit(aValue, uint8_t(aUnit));
-    Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    InternalItem().SetValueAndUnit(aValue, PRUint8(aUnit));
+    Element()->DidChangeLengthList(mAttrEnum, PR_TRUE);
+#ifdef MOZ_SMIL
     if (mList->mAList->IsAnimating()) {
       Element()->AnimationNeedsResample();
     }
+#endif
     return NS_OK;
   }
-  mUnit = uint8_t(aUnit);
+  mUnit = PRUint8(aUnit);
   mValue = aValue;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit)
+DOMSVGLength::ConvertToSpecifiedUnits(PRUint16 aUnit)
 {
   if (mIsAnimValItem) {
     return NS_ERROR_DOM_NO_MODIFICATION_ALLOWED_ERR;
@@ -270,17 +291,12 @@ DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit)
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
   if (HasOwner()) {
-    if (InternalItem().GetUnit() == aUnit) {
-      return NS_OK;
-    }
-    nsAttrValue emptyOrOldValue = Element()->WillChangeLengthList(mAttrEnum);
-    if (InternalItem().ConvertToUnit(uint8_t(aUnit), Element(), Axis())) {
-      Element()->DidChangeLengthList(mAttrEnum, emptyOrOldValue);
+    if (InternalItem().ConvertToUnit(PRUint8(aUnit), Element(), Axis())) {
       return NS_OK;
     }
   } else {
     SVGLength len(mValue, mUnit);
-    if (len.ConvertToUnit(uint8_t(aUnit), nullptr, 0)) {
+    if (len.ConvertToUnit(PRUint8(aUnit), nsnull, 0)) {
       mValue = len.GetValueInCurrentUnits();
       mUnit = aUnit;
       return NS_OK;
@@ -293,9 +309,9 @@ DOMSVGLength::ConvertToSpecifiedUnits(uint16_t aUnit)
 
 void
 DOMSVGLength::InsertingIntoList(DOMSVGLengthList *aList,
-                                uint8_t aAttrEnum,
-                                uint32_t aListIndex,
-                                uint8_t aIsAnimValItem)
+                                PRUint8 aAttrEnum,
+                                PRUint32 aListIndex,
+                                PRUint8 aIsAnimValItem)
 {
   NS_ASSERTION(!HasOwner(), "Inserting item that is already in a list");
 
@@ -312,8 +328,8 @@ DOMSVGLength::RemovingFromList()
 {
   mValue = InternalItem().GetValueInCurrentUnits();
   mUnit  = InternalItem().GetUnit();
-  mList = nullptr;
-  mIsAnimValItem = false;
+  mList = nsnull;
+  mIsAnimValItem = PR_FALSE;
 }
 
 SVGLength
@@ -336,7 +352,7 @@ DOMSVGLength::InternalItem()
 }
 
 #ifdef DEBUG
-bool
+PRBool
 DOMSVGLength::IndexIsValid()
 {
   SVGAnimatedLengthList *alist = Element()->GetAnimatedLengthList(mAttrEnum);

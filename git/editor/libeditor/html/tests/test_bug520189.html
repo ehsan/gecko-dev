@@ -5,6 +5,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=520182
 -->
 <head>
   <title>Test for Bug 520182</title>
+  <script type="application/javascript" src="/MochiKit/packed.js"></script>
   <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>  
@@ -61,20 +62,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=520182
   <div id="tt" contenteditable="true"></div>
   <iframe id="uu" src="about:blank"></iframe>
   <div id="vv" contenteditable="true"></div>
-  <div id="sss" contenteditable="true"></div>
-  <iframe id="ssss" src="about:blank"></iframe>
-  <div id="ttt" contenteditable="true"></div>
-  <iframe id="tttt" src="about:blank"></iframe>
-  <div id="uuu" contenteditable="true"></div>
-  <iframe id="uuuu" src="about:blank"></iframe>
-  <div id="vvv" contenteditable="true"></div>
-  <iframe id="vvvv" src="about:blank"></iframe>
-  <div id="www" contenteditable="true"></div>
-  <iframe id="wwww" src="about:blank"></iframe>
-  <div id="xxx" contenteditable="true"></div>
-  <iframe id="xxxx" src="about:blank"></iframe>
-  <div id="yyy" contenteditable="true"></div>
-  <iframe id="yyyy" src="about:blank"></iframe>
 </div>
 <pre id="test">
 <script type="application/javascript">
@@ -105,13 +92,6 @@ const validImgSrc2Payload = "foo<img src=\"javascript:void('bar');\">baz";
 const validImgSrc3Payload = "foo<img src=\"file:///bar.png\">baz";
 const validDataFooPayload = "foo<span data-bar=\"value\">baz</span>";
 const validDataFoo2Payload = "foo<span _bar=\"value\">baz</span>";
-const svgPayload = "foo<svg><title>svgtitle</title></svg>bar";
-const svg2Payload = "foo<svg><bogussvg/></svg>bar";
-const mathPayload = "foo<math><bogusmath/></math>bar";
-const math2Payload = "foo<math><style>@import \"yyy.css\";</style</math>bar";
-const math3Payload = "foo<math><mi></mi></math>bar";
-const videoPayload = "foo<video></video>bar";
-const microdataPayload = "<head><meta name=foo content=bar><link rel=stylesheet href=url></head><body><meta itemprop=foo content=bar><link itemprop=bar href=url></body>";
 
 var tests = [
   {
@@ -441,97 +421,6 @@ var tests = [
     payload: invalidStyle9Payload,
     rootElement: function() document.getElementById("vv"),
     checkResult: function(html) is(html.indexOf("@-moz-keyframes"), -1, "Should not have retained the @-moz-keyframes rule")
-  },
-  {
-    id: "sss",
-    payload: svgPayload,
-    rootElement: function() document.getElementById("sss"),
-    checkResult: function(html) isnot(html.indexOf("svgtitle"), -1, "Should have retained SVG title")
-  },
-  {
-    id: "ssss",
-    isIFrame: true,
-    payload: svgPayload,
-    rootElement: function() document.getElementById("ssss").contentDocument.documentElement,
-    checkResult: function(html) isnot(html.indexOf("svgtitle"), -1, "Should have retained SVG title")
-  },
-  {
-    id: "ttt",
-    payload: svg2Payload,
-    rootElement: function() document.getElementById("ttt"),
-    checkResult: function(html) is(html.indexOf("bogussvg"), -1, "Should have dropped bogussvg element")
-  },
-  {
-    id: "tttt",
-    isIFrame: true,
-    payload: svg2Payload,
-    rootElement: function() document.getElementById("tttt").contentDocument.documentElement,
-    checkResult: function(html) is(html.indexOf("bogussvg"), -1, "Should have dropped bogussvg element")
-  },
-  {
-    id: "uuu",
-    payload: mathPayload,
-    rootElement: function() document.getElementById("uuu"),
-    checkResult: function(html) is(html.indexOf("bogusmath"), -1, "Should have dropped bogusmath element")
-  },
-  {
-    id: "uuuu",
-    isIFrame: true,
-    payload: mathPayload,
-    rootElement: function() document.getElementById("uuuu").contentDocument.documentElement,
-    checkResult: function(html) is(html.indexOf("bogusmath"), -1, "Should have dropped bogusmath element")
-  },
-  {
-    id: "vvv",
-    payload: math2Payload,
-    rootElement: function() document.getElementById("vvv"),
-    checkResult: function(html) is(html.indexOf("yyy.css"), -1, "Should have dropped MathML style element")
-  },
-  {
-    id: "vvvv",
-    isIFrame: true,
-    payload: math2Payload,
-    rootElement: function() document.getElementById("vvvv").contentDocument.documentElement,
-    checkResult: function(html) is(html.indexOf("yyy.css"), -1, "Should have dropped MathML style element")
-  },
-  {
-    id: "www",
-    payload: math3Payload,
-    rootElement: function() document.getElementById("www"),
-    checkResult: function(html) isnot(html.indexOf("<mi"), -1, "Should not have dropped MathML mi element")
-  },
-  {
-    id: "wwww",
-    isIFrame: true,
-    payload: math3Payload,
-    rootElement: function() document.getElementById("wwww").contentDocument.documentElement,
-    checkResult: function(html) isnot(html.indexOf("<mi"), -1, "Should not have dropped MathML mi element")
-  },
-  {
-    id: "xxx",
-    payload: videoPayload,
-    rootElement: function() document.getElementById("xxx"),
-    checkResult: function(html) isnot(html.indexOf("controls="), -1, "Should have added the controls attribute")
-  },
-  {
-    id: "xxxx",
-    isIFrame: true,
-    payload: videoPayload,
-    rootElement: function() document.getElementById("xxxx").contentDocument.documentElement,
-    checkResult: function(html) isnot(html.indexOf("controls="), -1, "Should have added the controls attribute")
-  },
-  {
-    id: "yyy",
-    payload: microdataPayload,
-    rootElement: function() document.getElementById("yyy"),
-    checkResult: function(html) { is(html.indexOf("name"), -1, "Should have dropped name."); is(html.indexOf("rel"), -1, "Should have dropped rel."); isnot(html.indexOf("itemprop"), -1, "Should not have dropped itemprop."); }
-  },
-  {
-    id: "yyyy",
-    isIFrame: true,
-    payload: microdataPayload,
-    rootElement: function() document.getElementById("yyyy").contentDocument.documentElement,
-    checkResult: function(html) { is(html.indexOf("name"), -1, "Should have dropped name."); is(html.indexOf("rel"), -1, "Should have dropped rel."); isnot(html.indexOf("itemprop"), -1, "Should not have dropped itemprop."); }
   }
 ];
 
@@ -548,14 +437,6 @@ function doNextTest() {
   doNextTest();
 }
 
-function getLoadContext() {
-  const Ci = Components.interfaces;
-  return SpecialPowers.wrap(window)
-               .QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsILoadContext);
-}
-
 function runTest(test) {
   var elem = document.getElementById(test.id);
   if ("isIFrame" in test) {
@@ -564,11 +445,12 @@ function runTest(test) {
   } else
     elem.focus();
 
-  var trans = SpecialPowers.wrap(Components).classes["@mozilla.org/widget/transferable;1"]
-                           .createInstance(Components.interfaces.nsITransferable);
-  trans.init(getLoadContext());
-  var data = SpecialPowers.wrap(Components).classes["@mozilla.org/supports-string;1"]
-                          .createInstance(Components.interfaces.nsISupportsString);
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
+  var trans = Components.classes["@mozilla.org/widget/transferable;1"]
+                        .createInstance(Components.interfaces.nsITransferable);
+  var data = Components.classes["@mozilla.org/supports-string;1"]
+                       .createInstance(Components.interfaces.nsISupportsString);
   data.data = test.payload;
   trans.addDataFlavor("text/html");
   trans.setTransferData("text/html", data, data.data.length * 2);
@@ -581,14 +463,14 @@ function runTest(test) {
       getSelection().collapse(elem, 0);
       win = window;
     }
-    editor = SpecialPowers.wrap(win).QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                          .getInterface(Components.interfaces.nsIWebNavigation)
-                          .QueryInterface(Components.interfaces.nsIEditorDocShell)
-                          .editor;
+    editor = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+                .getInterface(Components.interfaces.nsIWebNavigation)
+                .QueryInterface(Components.interfaces.nsIEditorDocShell)
+                .editor;
     editor.pasteTransferable(trans);
   } else {
-    var clipboard = SpecialPowers.wrap(Components).classes["@mozilla.org/widget/clipboard;1"]
-                                 .getService(Components.interfaces.nsIClipboard);
+    var clipboard = Components.classes["@mozilla.org/widget/clipboard;1"]
+                              .getService(Components.interfaces.nsIClipboard);
 
     clipboard.setData(trans, null, Components.interfaces.nsIClipboard.kGlobalClipboard);
 

@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Test bug 466080</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>        
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -86,36 +87,29 @@ function onWindowLoad() {
     ok(document.iframeWasLoaded, "Loading resource via src-attribute");
 
 
-    function runTest(test) {
+    for each (test in alltests) {
 
         var xhr =  new XMLHttpRequest();
-
+        
         var method = "GET";
         if (test.method != null) { method = test.method; }
-        xhr.open(method, test.url);
-
+        xhr.open(method, test.url, false);
+        
         xhr.withCredentials = test.withCredentials;
 
-        SpecialPowers.wrap(xhr).setRequestHeader("Connection", "Keep-Alive", false);
+        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+        xhr.setRequestHeader("Connection", "Keep-Alive", false);
+        netscape.security.PrivilegeManager.disablePrivilege("UniversalXPConnect");
 
         try {
             xhr.send();
         } catch(e) {
         }
-
-        xhr.onloadend = function() {
-            var success = eval(xhr.status + test.status_check);
-            ok(success, test.error);
-
-            if (alltests.length == 0) {
-                SimpleTest.finish();
-            } else {
-                runTest(alltests.shift());
-            }
-        };
+        var success = eval(xhr.status + test.status_check);
+        ok(success, test.error);
     }
-
-    runTest(alltests.shift());
+    
+    SimpleTest.finish();
 }
 
 SimpleTest.waitForExplicitFinish();

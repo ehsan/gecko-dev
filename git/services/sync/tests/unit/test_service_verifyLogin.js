@@ -1,5 +1,5 @@
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/service.js");
 Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/util.js");
@@ -44,7 +44,7 @@ function run_test() {
   });
 
   try {
-    Service.serverURL = TEST_SERVER_URL;
+    Service.serverURL = "http://localhost:8080/";
 
     _("Force the initial state.");
     Status.service = STATUS_OK;
@@ -58,7 +58,8 @@ function run_test() {
 
     _("Try again with username and password set.");
     Status.resetSync();
-    setBasicCredentials("johndoe", "ilovejane", null);
+    Service.username = "johndoe";
+    Service.password = "ilovejane";
     do_check_false(Service.verifyLogin());
     do_check_eq(Status.service, CLIENT_NOT_CONFIGURED);
     do_check_eq(Status.login, LOGIN_FAILED_NO_PASSPHRASE);
@@ -68,26 +69,24 @@ function run_test() {
 
     _("Success if passphrase is set.");
     Status.resetSync();
-    Identity.syncKey = "foo";
+    Service.passphrase = "foo";
     do_check_true(Service.verifyLogin());
     do_check_eq(Status.service, STATUS_OK);
     do_check_eq(Status.login, LOGIN_SUCCEEDED);
 
     _("If verifyLogin() encounters a server error, it flips on the backoff flag and notifies observers on a 503 with Retry-After.");
     Status.resetSync();
-    Identity.account = "janedoe";
-    Service._updateCachedURLs();
+    Service.username = "janedoe";
     do_check_false(Status.enforceBackoff);
     let backoffInterval;    
-    Svc.Obs.add("weave:service:backoff:interval", function observe(subject, data) {
-      Svc.Obs.remove("weave:service:backoff:interval", observe);
+    Svc.Obs.add("weave:service:backoff:interval", function(subject, data) {
       backoffInterval = subject;
     });
     do_check_false(Service.verifyLogin());
     do_check_true(Status.enforceBackoff);
     do_check_eq(backoffInterval, 42);
     do_check_eq(Status.service, LOGIN_FAILED);
-    do_check_eq(Status.login, SERVER_MAINTENANCE);
+    do_check_eq(Status.login, LOGIN_FAILED_SERVER_ERROR);
 
     _("Ensure a network error when finding the cluster sets the right Status bits.");
     Status.resetSync();

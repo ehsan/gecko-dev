@@ -1,7 +1,39 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsIServiceManager.h"
 #include "nsICharsetConverterManager.h"
@@ -40,7 +72,7 @@ private:
 
   static const char * kTraceDelimiter;
 
-  nsAutoCString mTrace;
+  nsCAutoString mTrace;
 
 public:
 
@@ -186,10 +218,10 @@ nsresult nsTestUConv::TestEncoders()
   res = ccMan->GetEncoderList(getter_AddRefs(encoders));
   if (NS_FAILED(res)) return res;
 
-  bool hasMore;
+  PRBool hasMore;
   encoders->HasMore(&hasMore);
   
-  nsAutoCString charset;
+  nsCAutoString charset;
   while (hasMore) {
     encoders->GetNext(charset);
 
@@ -255,10 +287,10 @@ nsresult nsTestUConv::DisplayDetectors()
 
   printf("***** Character Set Detectors *****\n");
 
-  bool hasMore;
+  PRBool hasMore;
   detectors->HasMore(&hasMore);
   while (hasMore) {
-    nsAutoCString detectorName;
+    nsCAutoString detectorName;
     res = detectors->GetNext(detectorName);
     if (NS_FAILED(res)) {
       mLog.PrintError("GetNext()", res);
@@ -311,13 +343,13 @@ nsresult nsTestUConv::DisplayCharsets()
 
   printf("***** Character Sets *****\n");
 
-  uint32_t encCount = 0, decCount = 0;
-  uint32_t basicEncCount = 0, basicDecCount = 0;
+  PRUint32 encCount = 0, decCount = 0;
+  PRUint32 basicEncCount = 0, basicDecCount = 0;
 
   nsTArray<nsCString> allCharsets;
   
-  nsAutoCString charset;
-  bool hasMore;
+  nsCAutoString charset;
+  PRBool hasMore;
   encoders->HasMore(&hasMore);
   while (hasMore) {
     res = encoders->GetNext(charset);
@@ -328,22 +360,22 @@ nsresult nsTestUConv::DisplayCharsets()
   }
 
   nsAutoString prop, str;
-  uint32_t count = allCharsets.Length();
-  for (uint32_t i = 0; i < count; i++) {
+  PRUint32 count = allCharsets.Length();
+  for (PRUint32 i = 0; i < count; i++) {
 
     const nsCString& charset = allCharsets[i];
     printf("%s", charset.get());
     PrintSpaces(24 - charset.Length());  // align to hard coded column number
 
 
-    nsCOMPtr<nsIUnicodeDecoder> dec;
+    nsCOMPtr<nsIUnicodeDecoder> dec = NULL;
     res = ccMan->GetUnicodeDecoder(charset.get(), getter_AddRefs(dec));
     if (NS_FAILED(res)) printf (" "); 
     else {
       printf("D");
       decCount++;
     }
-#ifdef DEBUG
+#ifdef NS_DEBUG
     // show the "basic" decoder classes
     if (dec) {
       nsCOMPtr<nsIBasicDecoder> isBasic = do_QueryInterface(dec);
@@ -356,7 +388,7 @@ nsresult nsTestUConv::DisplayCharsets()
     else printf(" ");
 #endif
 
-    nsCOMPtr<nsIUnicodeEncoder> enc;
+    nsCOMPtr<nsIUnicodeEncoder> enc = NULL;
     res = ccMan->GetUnicodeEncoder(charset.get(), getter_AddRefs(enc));
     if (NS_FAILED(res)) printf (" "); 
     else {
@@ -364,7 +396,7 @@ nsresult nsTestUConv::DisplayCharsets()
       encCount++;
     }
 
-#ifdef DEBUG
+#ifdef NS_DEBUG
     if (enc) {
       nsCOMPtr<nsIBasicEncoder> isBasic = do_QueryInterface(enc);
       if (isBasic) {
@@ -380,22 +412,22 @@ nsresult nsTestUConv::DisplayCharsets()
 
     prop.AssignLiteral(".notForBrowser");
     res = ccMan->GetCharsetData(charset.get(), prop.get(), str);
-    if (dec && (NS_FAILED(res))) printf ("B"); 
+    if ((dec != NULL) && (NS_FAILED(res))) printf ("B"); 
     else printf("X");
 
     prop.AssignLiteral(".notForComposer");
     res = ccMan->GetCharsetData(charset.get(), prop.get(), str);
-    if (enc && (NS_FAILED(res))) printf ("C"); 
+    if ((enc != NULL) && (NS_FAILED(res))) printf ("C"); 
     else printf("X");
 
     prop.AssignLiteral(".notForMailView");
     res = ccMan->GetCharsetData(charset.get(), prop.get(), str);
-    if (dec && (NS_FAILED(res))) printf ("V"); 
+    if ((dec != NULL) && (NS_FAILED(res))) printf ("V"); 
     else printf("X");
 
     prop.AssignLiteral(".notForMailEdit");
     res = ccMan->GetCharsetData(charset.get(), prop.get(), str);
-    if (enc && (NS_FAILED(res))) printf ("E"); 
+    if ((enc != NULL) && (NS_FAILED(res))) printf ("E"); 
     else printf("X");
 
     printf("(%3d, %3d) ", encCount, decCount);
@@ -479,8 +511,8 @@ nsresult nsTestUConv::ConvertEncode(PRUnichar ** aSrc, PRUnichar * aSrcEnd,
 {
   PRUnichar * src = (*aSrc);
   char * dest = (*aDest);
-  int32_t srcLen = aSrcEnd - src;
-  int32_t destLen = aDestEnd - dest;
+  PRInt32 srcLen = aSrcEnd - src;
+  PRInt32 destLen = aDestEnd - dest;
 
   nsresult res = aEncoder->Convert(src, &srcLen, dest, &destLen);
 
@@ -493,7 +525,7 @@ nsresult nsTestUConv::FinishEncode(char ** aDest, char * aDestEnd,
                                    nsIUnicodeEncoder * aEncoder)
 {
   char * dest = (*aDest);
-  int32_t destLen = aDestEnd - dest;
+  PRInt32 destLen = aDestEnd - dest;
 
   nsresult res = aEncoder->Finish(dest, &destLen);
 

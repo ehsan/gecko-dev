@@ -27,19 +27,14 @@
 // softblocked and have to be manually re-enabled if they become completely
 // unblocked (bug 657520)
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 const URI_EXTENSION_BLOCKLIST_DIALOG = "chrome://mozapps/content/extensions/blocklist.xul";
 
-Cu.import("resource://gre/modules/NetUtil.jsm");
+Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
 // Allow insecure updates
 Services.prefs.setBoolPref("extensions.checkUpdateSecurity", false)
 
-Cu.import("resource://testing-common/httpd.js");
+do_load_httpd_js();
 var testserver;
 
 var default_theme = {
@@ -517,7 +512,7 @@ function check_addon(aAddon, aExpectedVersion, aExpectedUserDisabled,
 
 function run_test() {
   // Create and configure the HTTP server.
-  testserver = new HttpServer();
+  testserver = new nsHttpServer();
   testserver.registerDirectory("/data/", do_get_file("data/blocklistchange"));
   testserver.registerDirectory("/addons/", do_get_file("addons"));
   testserver.start(4444);

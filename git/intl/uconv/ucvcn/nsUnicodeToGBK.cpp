@@ -1,7 +1,39 @@
 /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
  /**
  * A character set converter from Unicode to GBK.
  * 
@@ -27,7 +59,7 @@
 //  Private class used by nsUnicodeToGB18030 and nsUnicodeToGB18030Font0
 //    nsUnicodeToGB18030Uniq2Bytes
 //-----------------------------------------------------------------------
-static const uint16_t g_uf_gb18030_2bytes[] = {
+static const PRUint16 g_uf_gb18030_2bytes[] = {
 #include "gb18030uniq2b.uf"
 };
 class nsUnicodeToGB18030Uniq2Bytes : public nsTableEncoderSupport
@@ -42,7 +74,7 @@ protected:
 //  Private class used by nsUnicodeToGB18030
 //    nsUnicodeTo4BytesGB18030
 //-----------------------------------------------------------------------
-static const uint16_t g_uf_gb18030_4bytes[] = {
+static const PRUint16 g_uf_gb18030_4bytes[] = {
 #include "gb180304bytes.uf"
 };
 class nsUnicodeTo4BytesGB18030 : public nsTableEncoderSupport
@@ -57,7 +89,7 @@ protected:
 //  Private class used by nsUnicodeToGBK
 //    nsUnicodeToGBKUniq2Bytes
 //-----------------------------------------------------------------------
-static const uint16_t g_uf_gbk_2bytes[] = {
+static const PRUint16 g_uf_gbk_2bytes[] = {
 #include "gbkuniq2b.uf"
 };
 class nsUnicodeToGBKUniq2Bytes : public nsTableEncoderSupport
@@ -80,7 +112,7 @@ void nsUnicodeToGB18030::Create4BytesEncoder()
   m4BytesEncoder = new nsUnicodeTo4BytesGB18030();
 }
 
-bool nsUnicodeToGB18030::EncodeSurrogate(
+PRBool nsUnicodeToGB18030::EncodeSurrogate(
   PRUnichar aSurrogateHigh,
   PRUnichar aSurrogateLow,
   char* aOut)
@@ -89,7 +121,7 @@ bool nsUnicodeToGB18030::EncodeSurrogate(
       NS_IS_LOW_SURROGATE(aSurrogateLow) )
   {
     // notice that idx does not include the 0x10000 
-    uint32_t idx = ((aSurrogateHigh - (PRUnichar)0xD800) << 10 ) |
+    PRUint32 idx = ((aSurrogateHigh - (PRUnichar)0xD800) << 10 ) |
                    (aSurrogateLow - (PRUnichar) 0xDC00);
 
     unsigned char *out = (unsigned char*) aOut;
@@ -100,19 +132,19 @@ bool nsUnicodeToGB18030::EncodeSurrogate(
     idx %= (10*126);
     out[2] = (idx / (10)) + 0x81;
     out[3] = (idx % 10) + 0x30;
-    return true;
+    return PR_TRUE;
   } 
-  return false; 
+  return PR_FALSE; 
 } 
 
 //----------------------------------------------------------------------
 // Class nsUnicodeToGBK [implementation]
 
-nsUnicodeToGBK::nsUnicodeToGBK(uint32_t aMaxLength) :
+nsUnicodeToGBK::nsUnicodeToGBK(PRUint32 aMaxLength) :
   nsEncoderSupport(aMaxLength)
 {
-  mExtensionEncoder = nullptr;
-  m4BytesEncoder = nullptr;
+  mExtensionEncoder = nsnull;
+  m4BytesEncoder = nsnull;
   mUtil.InitToGBKTable();
   mSurrogateHigh = 0;
 }
@@ -122,75 +154,75 @@ void nsUnicodeToGBK::CreateExtensionEncoder()
 }
 void nsUnicodeToGBK::Create4BytesEncoder()
 {
-  m4BytesEncoder = nullptr;
+  m4BytesEncoder = nsnull;
 }
-bool nsUnicodeToGBK::TryExtensionEncoder(
+PRBool nsUnicodeToGBK::TryExtensionEncoder(
   PRUnichar aChar,
   char* aOut,
-  int32_t *aOutLen
+  PRInt32 *aOutLen
 )
 {
   if( NS_IS_HIGH_SURROGATE(aChar) || 
       NS_IS_LOW_SURROGATE(aChar) )
   {
     // performance tune for surrogate characters
-    return false;
+    return PR_FALSE;
   }
   if(! mExtensionEncoder )
     CreateExtensionEncoder();
   if(mExtensionEncoder) 
   {
-    int32_t len = 1;
+    PRInt32 len = 1;
     nsresult res = NS_OK;
     res = mExtensionEncoder->Convert(&aChar, &len, aOut, aOutLen);
     if(NS_SUCCEEDED(res) && (*aOutLen > 0))
-      return true;
+      return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
-bool nsUnicodeToGBK::Try4BytesEncoder(
+PRBool nsUnicodeToGBK::Try4BytesEncoder(
   PRUnichar aChar,
   char* aOut,
-  int32_t *aOutLen
+  PRInt32 *aOutLen
 )
 {
   if( NS_IS_HIGH_SURROGATE(aChar) || 
       NS_IS_LOW_SURROGATE(aChar) )
   {
     // performance tune for surrogate characters
-    return false;
+    return PR_FALSE;
   }
   if(! m4BytesEncoder )
     Create4BytesEncoder();
   if(m4BytesEncoder) 
   {
-    int32_t len = 1;
+    PRInt32 len = 1;
     nsresult res = NS_OK;
     res = m4BytesEncoder->Convert(&aChar, &len, aOut, aOutLen);
     NS_ASSERTION(NS_FAILED(res) || ((1 == len) && (4 == *aOutLen)),
       "unexpect conversion length");
     if(NS_SUCCEEDED(res) && (*aOutLen > 0))
-      return true;
+      return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
-bool nsUnicodeToGBK::EncodeSurrogate(
+PRBool nsUnicodeToGBK::EncodeSurrogate(
   PRUnichar aSurrogateHigh,
   PRUnichar aSurrogateLow,
   char* aOut)
 {
-  return false; // GBK cannot encode Surrogate, let the subclass encode it.
+  return PR_FALSE; // GBK cannot encode Surrogate, let the subclass encode it.
 } 
 
 NS_IMETHODIMP nsUnicodeToGBK::ConvertNoBuff(
   const PRUnichar * aSrc, 
-  int32_t * aSrcLength, 
+  PRInt32 * aSrcLength, 
   char * aDest, 
-  int32_t * aDestLength)
+  PRInt32 * aDestLength)
 {
-  int32_t iSrcLength = 0;
-  int32_t iDestLength = 0;
+  PRInt32 iSrcLength = 0;
+  PRInt32 iDestLength = 0;
   PRUnichar unicode;
   nsresult res = NS_OK;
   while (iSrcLength < *aSrcLength )
@@ -205,7 +237,7 @@ NS_IMETHODIMP nsUnicodeToGBK::ConvertNoBuff(
       iDestLength +=1;
     } else {
       char byte1, byte2;
-      if(mUtil.UnicodeToGBKChar( unicode, false, &byte1, &byte2))
+      if(mUtil.UnicodeToGBKChar( unicode, PR_FALSE, &byte1, &byte2))
       {
         // make sure we still have 2 bytes for output first
         if(iDestLength+2 > *aDestLength)
@@ -218,7 +250,7 @@ NS_IMETHODIMP nsUnicodeToGBK::ConvertNoBuff(
         aDest += 2;	// increment 2 bytes
         iDestLength +=2;
       } else {
-        int32_t aOutLen = 2;
+        PRInt32 aOutLen = 2;
         // make sure we still have 2 bytes for output first
         if(iDestLength+2 > *aDestLength)
         {

@@ -1,9 +1,42 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim:expandtab:shiftwidth=2:tabstop=2:
  */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Alexander Surkov <surkov.alexander@gmail.com> (original author)
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "CAccessibleTable.h"
 
@@ -16,12 +49,9 @@
 #include "nsIWinAccessNode.h"
 #include "nsAccessNodeWrap.h"
 #include "nsWinUtils.h"
-#include "Statistics.h"
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
-
-using namespace mozilla::a11y;
 
 #define CANT_QUERY_ASSERTION_MSG \
 "Subclass of CAccessibleTable doesn't implement nsIAccessibleTable"\
@@ -34,7 +64,6 @@ CAccessibleTable::QueryInterface(REFIID iid, void** ppv)
   *ppv = NULL;
 
   if (IID_IAccessibleTable == iid) {
-    statistics::IAccessibleTableUsed();
     *ppv = static_cast<IAccessibleTable*>(this);
     (reinterpret_cast<IUnknown*>(*ppv))->AddRef();
     return S_OK;
@@ -132,7 +161,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  int32_t childIndex = 0;
+  PRInt32 childIndex = 0;
   nsresult rv = tableAcc->GetCellIndexAt(aRowIndex, aColumnIndex, &childIndex);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -183,7 +212,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  int32_t columnsSpanned = 0;
+  PRInt32 columnsSpanned = 0;
   nsresult rv = tableAcc->GetColumnExtentAt(aRow, aColumn, &columnsSpanned);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -219,7 +248,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  int32_t columnIndex = 0;
+  PRInt32 columnIndex = 0;
   nsresult rv = tableAcc->GetColumnIndexAt(aChildIndex, &columnIndex);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -243,7 +272,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  int32_t columnCount = 0;
+  PRInt32 columnCount = 0;
   nsresult rv = tableAcc->GetColumnCount(&columnCount);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -267,7 +296,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  int32_t rowCount = 0;
+  PRInt32 rowCount = 0;
   nsresult rv = tableAcc->GetRowCount(&rowCount);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -291,7 +320,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  uint32_t count = 0;
+  PRUint32 count = 0;
   nsresult rv = tableAcc->GetSelectedCellCount(&count);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -314,7 +343,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  uint32_t count = 0;
+  PRUint32 count = 0;
   nsresult rv = tableAcc->GetSelectedColumnCount(&count);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -337,7 +366,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  uint32_t count = 0;
+  PRUint32 count = 0;
   nsresult rv = tableAcc->GetSelectedRowCount(&count);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -386,7 +415,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  int32_t rowsSpanned = 0;
+  PRInt32 rowsSpanned = 0;
   nsresult rv = tableAcc->GetRowExtentAt(aRow, aColumn, &rowsSpanned);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -422,7 +451,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  int32_t rowIndex = 0;
+  PRInt32 rowIndex = 0;
   nsresult rv = tableAcc->GetRowIndexAt(aChildIndex, &rowIndex);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -496,7 +525,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  bool isSelected = false;
+  PRBool isSelected = PR_FALSE;
   nsresult rv = tableAcc->IsColumnSelected(aColumn, &isSelected);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -519,7 +548,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  bool isSelected = false;
+  PRBool isSelected = PR_FALSE;
   nsresult rv = tableAcc->IsRowSelected(aRow, &isSelected);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -542,7 +571,7 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  bool isSelected = false;
+  PRBool isSelected = PR_FALSE;
   nsresult rv = tableAcc->IsCellSelected(aRow, aColumn, &isSelected);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -637,22 +666,22 @@ __try {
   if (!tableAcc)
     return E_FAIL;
 
-  int32_t rowIdx = -1, columnIdx = -1;
+  PRInt32 rowIdx = -1, columnIdx = -1;
   nsresult rv = tableAcc->GetRowAndColumnIndicesAt(aIndex, &rowIdx, &columnIdx);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
-  int32_t rowExtents = 0;
+  PRInt32 rowExtents = 0;
   rv = tableAcc->GetRowExtentAt(rowIdx, columnIdx, &rowExtents);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
-  int32_t columnExtents = 0;
+  PRInt32 columnExtents = 0;
   rv = tableAcc->GetColumnExtentAt(rowIdx, columnIdx, &columnExtents);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 
-  bool isSelected = false;
+  PRBool isSelected = PR_FALSE;
   rv = tableAcc->IsCellSelected(rowIdx, columnIdx, &isSelected);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
@@ -750,8 +779,8 @@ CAccessibleTable::GetSelectedItems(long **aItems, long *aItemsCount,
   if (!tableAcc)
     return E_FAIL;
 
-  uint32_t size = 0;
-  int32_t *items = nullptr;
+  PRUint32 size = 0;
+  PRInt32 *items = nsnull;
 
   nsresult rv = NS_OK;
   switch (aType) {
@@ -779,7 +808,7 @@ CAccessibleTable::GetSelectedItems(long **aItems, long *aItemsCount,
     return E_OUTOFMEMORY;
 
   *aItemsCount = size;
-  for (uint32_t index = 0; index < size; ++index)
+  for (PRUint32 index = 0; index < size; ++index)
     (*aItems)[index] = items[index];
 
   nsMemory::Free(items);

@@ -64,9 +64,8 @@ class LinkBuffer {
 public:
     // 'ok' should be checked after this constructor is called;  it's false if OOM occurred.
     LinkBuffer(MacroAssembler* masm, ExecutableAllocator* executableAllocator,
-               ExecutablePool** poolp, bool* ok, CodeKind codeKind)
+               ExecutablePool** poolp, bool* ok)
     {
-        m_codeKind = codeKind;
         m_code = executableAllocAndCopy(*masm, executableAllocator, poolp);
         m_executablePool = *poolp;
         m_size = masm->m_assembler.size();  // must come after call to executableAllocAndCopy()!
@@ -76,22 +75,20 @@ public:
         *ok = !!m_code;
     }
 
-    LinkBuffer(CodeKind kind)
+    LinkBuffer()
         : m_executablePool(NULL)
         , m_code(NULL)
         , m_size(0)
-        , m_codeKind(kind)
 #ifndef NDEBUG
         , m_completed(false)
 #endif
     {
     }
 
-    LinkBuffer(uint8_t* ncode, size_t size, CodeKind kind)
+    LinkBuffer(uint8* ncode, size_t size)
         : m_executablePool(NULL)
         , m_code(ncode)
         , m_size(size)
-        , m_codeKind(kind)
 #ifndef NDEBUG
         , m_completed(false)
 #endif
@@ -203,7 +200,7 @@ protected:
     void *executableAllocAndCopy(MacroAssembler &masm, ExecutableAllocator *allocator,
                                  ExecutablePool **poolp)
     {
-        return masm.m_assembler.executableAllocAndCopy(allocator, poolp, m_codeKind);
+        return masm.m_assembler.executableAllocAndCopy(allocator, poolp);
     }
 
     void performFinalization()
@@ -220,7 +217,6 @@ protected:
     ExecutablePool* m_executablePool;
     void* m_code;
     size_t m_size;
-    CodeKind m_codeKind;
 #ifndef NDEBUG
     bool m_completed;
 #endif

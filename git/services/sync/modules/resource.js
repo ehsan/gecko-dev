@@ -1,24 +1,116 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Bookmarks Sync.
+ *
+ * The Initial Developer of the Original Code is Mozilla.
+ * Portions created by the Initial Developer are Copyright (C) 2007
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *  Dan Mills <thunder@mozilla.com>
+ *  Anant Narayanan <anant@kix.in>
+ *  Philipp von Weitershausen <philipp@weitershausen.de>
+ *  Richard Newman <rnewman@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = [
-  "AsyncResource",
-  "Resource"
-];
+const EXPORTED_SYMBOLS = ["Resource", "AsyncResource",
+                          "Auth", "BrokenBasicAuthenticator",
+                          "BasicAuthenticator", "NoOpAuthenticator"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-Cu.import("resource://services-common/async.js");
+Cu.import("resource://services-sync/async.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-common/observers.js");
-Cu.import("resource://services-common/preferences.js");
-Cu.import("resource://services-sync/identity.js");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://services-sync/ext/Observers.js");
+Cu.import("resource://services-sync/ext/Preferences.js");
+Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/util.js");
+
+XPCOMUtils.defineLazyGetter(this, "Auth", function () {
+  return new AuthMgr();
+});
+
+// XXX: the authenticator api will probably need to be changed to support
+// other methods (digest, oauth, etc)
+
+function NoOpAuthenticator() {}
+NoOpAuthenticator.prototype = {
+  onRequest: function NoOpAuth_onRequest(headers) {
+    return headers;
+  }
+};
+
+// Warning: This will drop the high unicode bytes from passwords.
+// Use BasicAuthenticator to send non-ASCII passwords UTF8-encoded.
+function BrokenBasicAuthenticator(identity) {
+  this._id = identity;
+}
+BrokenBasicAuthenticator.prototype = {
+  onRequest: function BasicAuth_onRequest(headers) {
+    headers['authorization'] = 'Basic ' +
+      btoa(this._id.username + ':' + this._id.password);
+    return headers;
+  }
+};
+
+function BasicAuthenticator(identity) {
+  this._id = identity;
+}
+BasicAuthenticator.prototype = {
+  onRequest: function onRequest(headers) {
+    headers['authorization'] = 'Basic ' +
+      btoa(this._id.username + ':' + this._id.passwordUTF8);
+    return headers;
+  }
+};
+
+function AuthMgr() {
+  this._authenticators = {};
+  this.defaultAuthenticator = new NoOpAuthenticator();
+}
+AuthMgr.prototype = {
+  defaultAuthenticator: null,
+
+  registerAuthenticator: function AuthMgr_register(match, authenticator) {
+    this._authenticators[match] = authenticator;
+  },
+
+  lookupAuthenticator: function AuthMgr_lookup(uri) {
+    for (let match in this._authenticators) {
+      if (uri.match(match))
+        return this._authenticators[match];
+    }
+    return this.defaultAuthenticator;
+  }
+};
+
 
 /*
  * AsyncResource represents a remote network resource, identified by a URI.
@@ -58,14 +150,6 @@ AsyncResource.prototype = {
   // Caches the latest server timestamp (X-Weave-Timestamp header).
   serverTime: null,
 
-  /**
-   * Callback to be invoked at request time to add authentication details.
-   *
-   * By default, a global authenticator is provided. If this is set, it will
-   * be used instead of the global one.
-   */
-  authenticator: null,
-
   // The string to use as the base User-Agent in Sync requests.
   // These strings will look something like
   // 
@@ -83,13 +167,29 @@ AsyncResource.prototype = {
   // Wait 5 minutes before killing a request.
   ABORT_TIMEOUT: 300000,
 
+  // ** {{{ AsyncResource.authenticator }}} **
+  //
+  // Getter and setter for the authenticator module
+  // responsible for this particular resource. The authenticator
+  // module may modify the headers to perform authentication
+  // while performing a request for the resource, for example.
+  get authenticator() {
+    if (this._authenticator)
+      return this._authenticator;
+    else
+      return Auth.lookupAuthenticator(this.spec);
+  },
+  set authenticator(value) {
+    this._authenticator = value;
+  },
+
   // ** {{{ AsyncResource.headers }}} **
   //
   // Headers to be included when making a request for the resource.
   // Note: Header names should be all lower case, there's no explicit
   // check for duplicates due to case!
   get headers() {
-    return this._headers;
+    return this.authenticator.onRequest(this._headers);
   },
   set headers(value) {
     this._headers = value;
@@ -135,7 +235,7 @@ AsyncResource.prototype = {
   // through. It is never called directly, only {{{_doRequest}}} uses it
   // to obtain a request channel.
   //
-  _createRequest: function Res__createRequest(method) {
+  _createRequest: function Res__createRequest() {
     let channel = Services.io.newChannel(this.spec, null, null)
                           .QueryInterface(Ci.nsIRequest)
                           .QueryInterface(Ci.nsIHttpChannel);
@@ -144,33 +244,18 @@ AsyncResource.prototype = {
     channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
     channel.loadFlags |= Ci.nsIRequest.INHIBIT_CACHING;
 
-    // Setup a callback to handle channel notifications.
-    channel.notificationCallbacks = new ChannelNotificationListener();
+    // Setup a callback to handle bad HTTPS certificates.
+    channel.notificationCallbacks = new BadCertListener();
 
     // Compose a UA string fragment from the various available identifiers.
     if (Svc.Prefs.get("sendVersionInfo", true)) {
       let ua = this._userAgent + Svc.Prefs.get("client.type", "desktop");
       channel.setRequestHeader("user-agent", ua, false);
     }
-
+    
+    // Avoid calling the authorizer more than once.
     let headers = this.headers;
-
-    let authenticator = this.authenticator;
-    if (!authenticator) {
-      authenticator = Identity.getResourceAuthenticator();
-    }
-    if (authenticator) {
-      let result = authenticator(this, method);
-      if (result && result.headers) {
-        for (let [k, v] in Iterator(result.headers)) {
-          headers[k.toLowerCase()] = v;
-        }
-      }
-    } else {
-      this._log.debug("No authenticator found.");
-    }
-
-    for (let [key, value] in Iterator(headers)) {
+    for (let key in headers) {
       if (key == 'authorization')
         this._log.trace("HTTP Header " + key + ": ***** (suppressed)");
       else
@@ -185,7 +270,7 @@ AsyncResource.prototype = {
   _doRequest: function _doRequest(action, data, callback) {
     this._log.trace("In _doRequest.");
     this._callback = callback;
-    let channel = this._createRequest(action);
+    let channel = this._channel = this._createRequest();
 
     if ("undefined" != typeof(data))
       this._data = data;
@@ -218,7 +303,7 @@ AsyncResource.prototype = {
     channel.asyncOpen(listener, null);
   },
 
-  _onComplete: function _onComplete(error, data, channel) {
+  _onComplete: function _onComplete(error, data) {
     this._log.trace("In _onComplete. Error is " + error + ".");
 
     if (error) {
@@ -227,6 +312,7 @@ AsyncResource.prototype = {
     }
 
     this._data = data;
+    let channel = this._channel;
     let action = channel.requestMethod;
 
     this._log.trace("Channel: " + channel);
@@ -301,18 +387,7 @@ AsyncResource.prototype = {
     // Make a lazy getter to convert the json response into an object.
     // Note that this can cause a parse error to be thrown far away from the
     // actual fetch, so be warned!
-    XPCOMUtils.defineLazyGetter(ret, "obj", function() {
-      try {
-        return JSON.parse(ret);
-      } catch (ex) {
-        this._log.warn("Got exception parsing response body: \"" + Utils.exceptionStr(ex));
-        // Stringify to avoid possibly printing non-printable characters.
-        this._log.debug("Parse fail: Response body starts: \"" +
-                        JSON.stringify((ret + "").slice(0, 100)) +
-                        "\".");
-        throw ex;
-      }
-    }.bind(this));
+    XPCOMUtils.defineLazyGetter(ret, "obj", function() JSON.parse(ret));
 
     this._callback(null, ret);
   },
@@ -333,7 +408,7 @@ AsyncResource.prototype = {
     this._doRequest("POST", data, callback);
   },
 
-  delete: function delete_(callback) {
+  delete: function delete(callback) {
     this._doRequest("DELETE", undefined, callback);
   }
 };
@@ -435,14 +510,7 @@ ChannelListener.prototype = {
 
   onStartRequest: function Channel_onStartRequest(channel) {
     this._log.trace("onStartRequest called for channel " + channel + ".");
-
-    try {
-      channel.QueryInterface(Ci.nsIHttpChannel);
-    } catch (ex) {
-      this._log.error("Unexpected error: channel is not a nsIHttpChannel!");
-      channel.cancel(Cr.NS_BINDING_ABORTED);
-      return;
-    }
+    channel.QueryInterface(Ci.nsIHttpChannel);
 
     // Save the latest server timestamp when possible.
     try {
@@ -460,48 +528,29 @@ ChannelListener.prototype = {
     // Clear the abort timer now that the channel is done.
     this.abortTimer.clear();
 
-    if (!this._onComplete) {
-      this._log.error("Unexpected error: _onComplete not defined in onStopRequest.");
-      this._onProgress = null;
-      return;
-    }
-
-    try {
-      channel.QueryInterface(Ci.nsIHttpChannel);
-    } catch (ex) {
-      this._log.error("Unexpected error: channel is not a nsIHttpChannel!");
-
-      this._onComplete(ex, this._data, channel);
-      this._onComplete = this._onProgress = null;
-      return;
-    }
-
-    let statusSuccess = Components.isSuccessCode(status);
+    let success = Components.isSuccessCode(status);
     let uri = channel && channel.URI && channel.URI.spec || "<unknown>";
-    this._log.trace("Channel for " + channel.requestMethod + " " + uri + ": " +
-                    "isSuccessCode(" + status + ")? " + statusSuccess);
+    this._log.trace("Channel for " + channel.requestMethod + " " +
+                    uri + ": isSuccessCode(" + status + ")? " +
+                    success);
 
-    if (this._data == '') {
+    if (this._data == '')
       this._data = null;
-    }
 
-    // Pass back the failure code and stop execution. Use Components.Exception()
+    // Throw the failure code and stop execution.  Use Components.Exception()
     // instead of Error() so the exception is QI-able and can be passed across
     // XPCOM borders while preserving the status code.
-    if (!statusSuccess) {
+    if (!success) {
       let message = Components.Exception("", status).name;
-      let error   = Components.Exception(message, status);
-
-      this._onComplete(error, undefined, channel);
-      this._onComplete = this._onProgress = null;
+      let error = Components.Exception(message, status);
+      this._onComplete(error);
       return;
     }
 
     this._log.trace("Channel: flags = " + channel.loadFlags +
                     ", URI = " + uri +
                     ", HTTP success? " + channel.requestSucceeded);
-    this._onComplete(null, this._data, channel);
-    this._onComplete = this._onProgress = null;
+    this._onComplete(null, this._data);
   },
 
   onDataAvailable: function Channel_onDataAvail(req, cb, stream, off, count) {
@@ -541,49 +590,40 @@ ChannelListener.prototype = {
     this.onStopRequest = function() {};
     let error = Components.Exception("Aborting due to channel inactivity.",
                                      Cr.NS_ERROR_NET_TIMEOUT);
-    if (!this._onComplete) {
-      this._log.error("Unexpected error: _onComplete not defined in " +
-                      "abortRequest.");
-      return;
-    }
     this._onComplete(error);
   }
 };
 
-/**
- * This class handles channel notification events.
- *
- * An instance of this class is bound to each created channel.
- */
-function ChannelNotificationListener() {
+// = BadCertListener =
+//
+// We use this listener to ignore bad HTTPS
+// certificates and continue a request on a network
+// channel. Probably not a very smart thing to do,
+// but greatly simplifies debugging and is just very
+// convenient.
+function BadCertListener() {
 }
-ChannelNotificationListener.prototype = {
+BadCertListener.prototype = {
   getInterface: function(aIID) {
     return this.QueryInterface(aIID);
   },
 
   QueryInterface: function(aIID) {
-    if (aIID.equals(Ci.nsIBadCertListener2) ||
-        aIID.equals(Ci.nsIInterfaceRequestor) ||
-        aIID.equals(Ci.nsISupports) ||
-        aIID.equals(Ci.nsIChannelEventSink))
+    if (aIID.equals(Components.interfaces.nsIBadCertListener2) ||
+        aIID.equals(Components.interfaces.nsIInterfaceRequestor) ||
+        aIID.equals(Components.interfaces.nsISupports))
       return this;
 
-    throw Cr.NS_ERROR_NO_INTERFACE;
+    throw Components.results.NS_ERROR_NO_INTERFACE;
   },
 
   notifyCertProblem: function certProblem(socketInfo, sslStatus, targetHost) {
+    // Silently ignore?
     let log = Log4Moz.repository.getLogger("Sync.CertListener");
-    log.warn("Invalid HTTPS certificate encountered!");
+    log.level =
+      Log4Moz.Level[Svc.Prefs.get("log.logger.network.resources")];
+    log.debug("Invalid HTTPS certificate encountered, ignoring!");
 
-    // This suppresses the UI warning only. The request is still cancelled.
     return true;
-  },
-
-  asyncOnChannelRedirect:
-    function asyncOnChannelRedirect(oldChannel, newChannel, flags, callback) {
-
-    // We let all redirects proceed.
-    callback.onRedirectVerifyCallback(Cr.NS_OK);
   }
 };

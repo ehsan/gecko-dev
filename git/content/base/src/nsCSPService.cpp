@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Brandon Sterne <bsterne@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "prlog.h"
 #include "nsString.h"
@@ -9,6 +42,7 @@
 #include "nsIURI.h"
 #include "nsIPrincipal.h"
 #include "nsIObserver.h"
+#include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsCSPService.h"
 #include "nsIContentSecurityPolicy.h"
@@ -16,18 +50,16 @@
 #include "nsIChannelEventSink.h"
 #include "nsIPropertyBag2.h"
 #include "nsIWritablePropertyBag2.h"
-#include "nsError.h"
+#include "nsNetError.h"
 #include "nsChannelProperties.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsAsyncRedirectVerifyHelper.h"
 #include "mozilla/Preferences.h"
-#include "nsIScriptError.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 
 /* Keeps track of whether or not CSP is enabled */
-bool CSPService::sCSPEnabled = true;
+PRBool CSPService::sCSPEnabled = PR_TRUE;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gCspPRLog;
@@ -51,21 +83,20 @@ NS_IMPL_ISUPPORTS2(CSPService, nsIContentPolicy, nsIChannelEventSink)
 
 /* nsIContentPolicy implementation */
 NS_IMETHODIMP
-CSPService::ShouldLoad(uint32_t aContentType,
+CSPService::ShouldLoad(PRUint32 aContentType,
                        nsIURI *aContentLocation,
                        nsIURI *aRequestOrigin,
                        nsISupports *aRequestContext,
                        const nsACString &aMimeTypeGuess,
                        nsISupports *aExtra,
-                       nsIPrincipal *aRequestPrincipal,
-                       int16_t *aDecision)
+                       PRInt16 *aDecision)
 {
     if (!aContentLocation)
         return NS_ERROR_FAILURE;
 
 #ifdef PR_LOGGING
     {
-        nsAutoCString location;
+        nsCAutoString location;
         aContentLocation->GetSpec(location);
         PR_LOG(gCspPRLog, PR_LOG_DEBUG,
             ("CSPService::ShouldLoad called for %s", location.get()));
@@ -96,19 +127,18 @@ CSPService::ShouldLoad(uint32_t aContentType,
                      NS_ConvertUTF16toUTF8(policy).get()));
 #endif
             // obtain the enforcement decision
-            // (don't pass aExtra, we use that slot for redirects)
             csp->ShouldLoad(aContentType,
                             aContentLocation,
                             aRequestOrigin,
                             aRequestContext,
                             aMimeTypeGuess,
-                            nullptr,
+                            aExtra,
                             aDecision);
         }
     }
 #ifdef PR_LOGGING
     else {
-        nsAutoCString uriSpec;
+        nsCAutoString uriSpec;
         aContentLocation->GetSpec(uriSpec);
         PR_LOG(gCspPRLog, PR_LOG_DEBUG,
             ("COULD NOT get nsINode for location: %s", uriSpec.get()));
@@ -119,14 +149,13 @@ CSPService::ShouldLoad(uint32_t aContentType,
 }
 
 NS_IMETHODIMP
-CSPService::ShouldProcess(uint32_t         aContentType,
+CSPService::ShouldProcess(PRUint32         aContentType,
                           nsIURI           *aContentLocation,
                           nsIURI           *aRequestOrigin,
                           nsISupports      *aRequestContext,
                           const nsACString &aMimeTypeGuess,
                           nsISupports      *aExtra,
-                          nsIPrincipal     *aRequestPrincipal,
-                          int16_t          *aDecision)
+                          PRInt16          *aDecision)
 {
     if (!aContentLocation)
         return NS_ERROR_FAILURE;
@@ -167,7 +196,7 @@ CSPService::ShouldProcess(uint32_t         aContentType,
     }
 #ifdef PR_LOGGING
     else {
-        nsAutoCString uriSpec;
+        nsCAutoString uriSpec;
         aContentLocation->GetSpec(uriSpec);
         PR_LOG(gCspPRLog, PR_LOG_DEBUG,
             ("COULD NOT get nsINode for location: %s", uriSpec.get()));
@@ -180,7 +209,7 @@ CSPService::ShouldProcess(uint32_t         aContentType,
 NS_IMETHODIMP
 CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
                                    nsIChannel *newChannel,
-                                   uint32_t flags,
+                                   PRUint32 flags,
                                    nsIAsyncVerifyRedirectCallback *callback)
 {
   nsAsyncRedirectAutoCallback autoCallback(callback);
@@ -202,7 +231,7 @@ CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
 
   nsCOMPtr<nsIContentSecurityPolicy> csp;
   channelPolicy->GetContentSecurityPolicy(getter_AddRefs(csp));
-  uint32_t loadType;
+  PRUint32 loadType;
   channelPolicy->GetLoadType(&loadType);
 
   // if no CSP in the channelPolicy, nothing for us to add to the channel
@@ -221,20 +250,18 @@ CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
   // If not, cancel the load now.
   nsCOMPtr<nsIURI> newUri;
   newChannel->GetURI(getter_AddRefs(newUri));
-  nsCOMPtr<nsIURI> originalUri;
-  oldChannel->GetOriginalURI(getter_AddRefs(originalUri));
-  int16_t aDecision = nsIContentPolicy::ACCEPT;
-  csp->ShouldLoad(loadType,        // load type per nsIContentPolicy (uint32_t)
+  PRInt16 aDecision = nsIContentPolicy::ACCEPT;
+  csp->ShouldLoad(loadType,        // load type per nsIContentPolicy (PRUint32)
                   newUri,          // nsIURI
-                  nullptr,          // nsIURI
-                  nullptr,          // nsISupports
+                  nsnull,          // nsIURI
+                  nsnull,          // nsISupports
                   EmptyCString(),  // ACString - MIME guess
-                  originalUri,     // nsISupports - extra
+                  nsnull,          // nsISupports - extra
                   &aDecision);
 
 #ifdef PR_LOGGING
   if (newUri) {
-    nsAutoCString newUriSpec("None");
+    nsCAutoString newUriSpec("None");
     newUri->GetSpec(newUriSpec);
     PR_LOG(gCspPRLog, PR_LOG_DEBUG,
            ("CSPService::AsyncOnChannelRedirect called for %s",
@@ -257,27 +284,10 @@ CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
   // the redirect is permitted, so propagate the Content Security Policy
   // and load type to the redirecting channel
   nsresult rv;
-  nsCOMPtr<nsIWritablePropertyBag2> props2 = do_QueryInterface(newChannel);
-  if (props2) {
-    rv = props2->SetPropertyAsInterface(NS_CHANNEL_PROP_CHANNEL_POLICY,
-                                        channelPolicy);
-    if (NS_SUCCEEDED(rv)) {
-      return NS_OK;
-    }
-  }
+  nsCOMPtr<nsIWritablePropertyBag2> props2 = do_QueryInterface(newChannel, &rv);
+  if (props2)
+    props2->SetPropertyAsInterface(NS_CHANNEL_PROP_CHANNEL_POLICY,
+                                   channelPolicy);
 
-  // The redirecting channel isn't a writable property bag, we won't be able
-  // to enforce the load policy if it redirects again, so we stop it now.
-  nsAutoCString newUriSpec;
-  rv = newUri->GetSpec(newUriSpec);
-  const PRUnichar *formatParams[] = { NS_ConvertUTF8toUTF16(newUriSpec).get() };
-  if (NS_SUCCEEDED(rv)) {
-    nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                    "Redirect Error", nullptr,
-                                    nsContentUtils::eDOM_PROPERTIES,
-                                    "InvalidRedirectChannelWarning",
-                                    formatParams, 1);
-  }
-
-  return NS_BINDING_FAILED;
+  return NS_OK;
 }

@@ -19,9 +19,7 @@ function startCallbackTimer() {
     const dialogDelay = 10;
 
     // Use a timer to invoke a callback to twiddle the authentication dialog
-    timer = SpecialPowers.wrap(Components)
-                         .classes["@mozilla.org/timer;1"]
-                         .createInstance(Ci.nsITimer);
+    timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
     timer.init(observer, dialogDelay, Ci.nsITimer.TYPE_ONE_SHOT);
 }
 
@@ -65,11 +63,11 @@ function getTabModalPromptBox(domWin) {
 
     // Given a content DOM window, returns the chrome window it's in.
     function getChromeWindow(aWindow) {
-        var chromeWin = SpecialPowers.wrap(aWindow).QueryInterface(Ci.nsIInterfaceRequestor)
+        var chromeWin = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                                .getInterface(Ci.nsIWebNavigation)
                                .QueryInterface(Ci.nsIDocShell)
                                .chromeEventHandler.ownerDocument.defaultView;
-        return chromeWin;
+        return XPCNativeWrapper.unwrap(chromeWin);
     }
 
     try {
@@ -77,6 +75,7 @@ function getTabModalPromptBox(domWin) {
         var promptWin = domWin.top;
 
         // Get the chrome window for the content window we're using.
+        // (Unwrap because we need a non-IDL property below.)
         var chromeWin = getChromeWindow(promptWin);
 
         if (chromeWin.getTabModalPromptBox)
@@ -85,8 +84,7 @@ function getTabModalPromptBox(domWin) {
         // If any errors happen, just assume no tabmodal prompter.
     }
 
-    // Callers get confused by a wrapped promptBox here.
-    return SpecialPowers.unwrap(promptBox);
+    return promptBox;
 }
 
 function getDialogDoc() {

@@ -1,7 +1,41 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Mike McCabe <mccabe@netscape.com>
+ *   John Bandhauer <jband@netscape.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /* Implementation of xptiInterfaceEntry and xptiInterfaceInfo. */
 
@@ -67,29 +101,29 @@ xptiInterfaceEntry::xptiInterfaceEntry(const char* name,
     SetResolvedState(PARTIALLY_RESOLVED);
 }
 
-bool 
+PRBool 
 xptiInterfaceEntry::Resolve()
 {
     MutexAutoLock lock(xptiInterfaceInfoManager::GetResolveLock());
     return ResolveLocked();
 }
 
-bool 
+PRBool 
 xptiInterfaceEntry::ResolveLocked()
 {
     int resolvedState = GetResolveState();
 
     if(resolvedState == FULLY_RESOLVED)
-        return true;
+        return PR_TRUE;
     if(resolvedState == RESOLVE_FAILED)
-        return false;
+        return PR_FALSE;
 
     NS_ASSERTION(GetResolveState() == PARTIALLY_RESOLVED, "bad state!");    
 
     // Finish out resolution by finding parent and Resolving it so
     // we can set the info we get from it.
 
-    uint16_t parent_index = mDescriptor->parent_interface;
+    PRUint16 parent_index = mDescriptor->parent_interface;
 
     if(parent_index)
     {
@@ -99,7 +133,7 @@ xptiInterfaceEntry::ResolveLocked()
         if(!parent || !parent->EnsureResolvedLocked())
         {
             SetResolvedState(RESOLVE_FAILED);
-            return false;
+            return PR_FALSE;
         }
 
         mParent = parent;
@@ -116,7 +150,7 @@ xptiInterfaceEntry::ResolveLocked()
     LOG_RESOLVE(("+ complete resolve of %s\n", mName));
 
     SetResolvedState(FULLY_RESOLVED);
-    return true;
+    return PR_TRUE;
 }        
 
 /**************************************************/
@@ -139,7 +173,7 @@ xptiInterfaceEntry::GetIID(nsIID **iid)
 }
 
 nsresult
-xptiInterfaceEntry::IsScriptable(bool* result)
+xptiInterfaceEntry::IsScriptable(PRBool* result)
 {
     // It is not necessary to Resolve because this info is read from manifest.
     *result = GetScriptableFlag();
@@ -147,7 +181,7 @@ xptiInterfaceEntry::IsScriptable(bool* result)
 }
 
 nsresult
-xptiInterfaceEntry::IsFunction(bool* result)
+xptiInterfaceEntry::IsFunction(PRBool* result)
 {
     if(!EnsureResolved())
         return NS_ERROR_UNEXPECTED;
@@ -261,7 +295,7 @@ xptiInterfaceEntry::GetConstant(uint16 index, const nsXPTConstant** constant)
 // this is a private helper
 
 nsresult 
-xptiInterfaceEntry::GetEntryForParam(uint16_t methodIndex, 
+xptiInterfaceEntry::GetEntryForParam(PRUint16 methodIndex, 
                                      const nsXPTParamInfo * param,
                                      xptiInterfaceEntry** entry)
 {
@@ -296,7 +330,7 @@ xptiInterfaceEntry::GetEntryForParam(uint16_t methodIndex,
     if(!theEntry)
     {
         NS_WARNING("Declared InterfaceInfo not found");
-        *entry = nullptr;
+        *entry = nsnull;
         return NS_ERROR_FAILURE;
     }
 
@@ -335,7 +369,7 @@ xptiInterfaceEntry::GetIIDForParam(uint16 methodIndex,
 }
 
 nsresult
-xptiInterfaceEntry::GetIIDForParamNoAlloc(uint16_t methodIndex, 
+xptiInterfaceEntry::GetIIDForParamNoAlloc(PRUint16 methodIndex, 
                                           const nsXPTParamInfo * param, 
                                           nsIID *iid)
 {
@@ -451,6 +485,52 @@ xptiInterfaceEntry::GetSizeIsArgNumberForParam(uint16 methodIndex,
 }
 
 nsresult
+xptiInterfaceEntry::GetLengthIsArgNumberForParam(uint16 methodIndex,
+                                                 const nsXPTParamInfo* param,
+                                                 uint16 dimension,
+                                                 uint8* argnum)
+{
+    if(!EnsureResolved())
+        return NS_ERROR_UNEXPECTED;
+
+    if(methodIndex < mMethodBaseIndex)
+        return mParent->
+            GetLengthIsArgNumberForParam(methodIndex, param, dimension, argnum);
+
+    if(methodIndex >= mMethodBaseIndex + 
+                      mDescriptor->num_methods)
+    {
+        NS_ERROR("bad index");
+        return NS_ERROR_INVALID_ARG;
+    }
+
+    const XPTTypeDescriptor *td;
+
+    if(dimension) {
+        nsresult rv = GetTypeInArray(param, dimension, &td);
+        if(NS_FAILED(rv)) {
+            return rv;
+        }
+    }
+    else
+        td = &param->type;
+
+    // verify that this is a type that has length_is
+    switch (XPT_TDP_TAG(td->prefix)) {
+      case TD_ARRAY:
+      case TD_PSTRING_SIZE_IS:
+      case TD_PWSTRING_SIZE_IS:
+        break;
+      default:
+        NS_ERROR("not a length_is");
+        return NS_ERROR_INVALID_ARG;
+    }
+
+    *argnum = td->argnum2;
+    return NS_OK;
+}
+
+nsresult
 xptiInterfaceEntry::GetInterfaceIsArgNumberForParam(uint16 methodIndex,
                                                     const nsXPTParamInfo* param,
                                                     uint8* argnum)
@@ -485,9 +565,9 @@ xptiInterfaceEntry::GetInterfaceIsArgNumberForParam(uint16 methodIndex,
     return NS_OK;
 }
 
-/* bool isIID (in nsIIDPtr IID); */
+/* PRBool isIID (in nsIIDPtr IID); */
 nsresult 
-xptiInterfaceEntry::IsIID(const nsIID * IID, bool *_retval)
+xptiInterfaceEntry::IsIID(const nsIID * IID, PRBool *_retval)
 {
     // It is not necessary to Resolve because this info is read from manifest.
     *_retval = mIID.Equals(*IID);
@@ -512,11 +592,11 @@ xptiInterfaceEntry::GetIIDShared(const nsIID * *iid)
     return NS_OK;
 }
 
-/* bool hasAncestor (in nsIIDPtr iid); */
+/* PRBool hasAncestor (in nsIIDPtr iid); */
 nsresult 
-xptiInterfaceEntry::HasAncestor(const nsIID * iid, bool *_retval)
+xptiInterfaceEntry::HasAncestor(const nsIID * iid, PRBool *_retval)
 {
-    *_retval = false;
+    *_retval = PR_FALSE;
 
     for(xptiInterfaceEntry* current = this; 
         current;
@@ -524,7 +604,7 @@ xptiInterfaceEntry::HasAncestor(const nsIID * iid, bool *_retval)
     {
         if(current->mIID.Equals(*iid))
         {
-            *_retval = true;
+            *_retval = PR_TRUE;
             break;
         }
         if(!current->EnsureResolved())
@@ -550,7 +630,7 @@ xptiInterfaceEntry::GetInterfaceInfo(xptiInterfaceInfo** info)
         mInfo = new xptiInterfaceInfo(this);
         if(!mInfo)
         {
-            *info = nullptr;    
+            *info = nsnull;    
             return NS_ERROR_OUT_OF_MEMORY;
         }
     }
@@ -565,11 +645,11 @@ xptiInterfaceEntry::LockedInvalidateInterfaceInfo()
     if(mInfo)
     {
         mInfo->Invalidate(); 
-        mInfo = nullptr;
+        mInfo = nsnull;
     }
 }
 
-bool
+PRBool
 xptiInterfaceInfo::BuildParent()
 {
     mozilla::ReentrantMonitorAutoEnter monitor(xptiInterfaceInfoManager::GetSingleton()->
@@ -587,7 +667,7 @@ xptiInterfaceInfo::BuildParent()
 NS_IMPL_QUERY_INTERFACE1(xptiInterfaceInfo, nsIInterfaceInfo)
 
 xptiInterfaceInfo::xptiInterfaceInfo(xptiInterfaceEntry* entry)
-    : mEntry(entry), mParent(nullptr)
+    : mEntry(entry), mParent(nsnull)
 {
     LOG_INFO_CREATE(this);
 }
@@ -637,7 +717,7 @@ xptiInterfaceInfo::Release(void)
         if(mEntry)
         {
             mEntry->LockedInterfaceInfoDeathNotification();
-            mEntry = nullptr;
+            mEntry = nsnull;
         }
 
         delete this;

@@ -1,38 +1,59 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Corporation code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2011
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Bas Schouten <bschouten@mozilla.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "SourceSurfaceD2DTarget.h"
 #include "Logging.h"
 #include "DrawTargetD2D.h"
-#include "Tools.h"
 
 #include <algorithm>
 
 namespace mozilla {
 namespace gfx {
 
-SourceSurfaceD2DTarget::SourceSurfaceD2DTarget(DrawTargetD2D* aDrawTarget,
-                                               ID3D10Texture2D* aTexture,
-                                               SurfaceFormat aFormat)
-  : mDrawTarget(aDrawTarget)
-  , mTexture(aTexture)
-  , mFormat(aFormat)
-  , mOwnsCopy(false)
+SourceSurfaceD2DTarget::SourceSurfaceD2DTarget()
+  : mFormat(FORMAT_B8G8R8A8)
+  , mIsCopy(false)
 {
 }
 
 SourceSurfaceD2DTarget::~SourceSurfaceD2DTarget()
 {
-  // We don't need to do anything special here to notify our mDrawTarget. It must
-  // already have cleared its mSnapshot field, otherwise this object would
-  // be kept alive.
-  if (mOwnsCopy) {
-    IntSize size = GetSize();
-
-    DrawTargetD2D::mVRAMUsageSS -= size.width * size.height * BytesPerPixel(mFormat);
-  }
+  // Our drawtarget no longer needs to worry about us.
+  MarkIndependent();
 }
 
 IntSize
@@ -64,11 +85,11 @@ SourceSurfaceD2DTarget::GetDataSurface()
   desc.BindFlags = 0;
   desc.MiscFlags = 0;
 
-  HRESULT hr = Factory::GetDirect3D10Device()->CreateTexture2D(&desc, nullptr, byRef(dataSurf->mTexture));
+  HRESULT hr = Factory::GetDirect3D10Device()->CreateTexture2D(&desc, NULL, byRef(dataSurf->mTexture));
 
   if (FAILED(hr)) {
     gfxDebug() << "Failed to create staging texture for SourceSurface. Code: " << hr;
-    return nullptr;
+    return NULL;
   }
   Factory::GetDirect3D10Device()->CopyResource(dataSurf->mTexture, mTexture);
 
@@ -82,7 +103,7 @@ SourceSurfaceD2DTarget::GetSRView()
     return mSRView;
   }
 
-  HRESULT hr = Factory::GetDirect3D10Device()->CreateShaderResourceView(mTexture, nullptr, byRef(mSRView));
+  HRESULT hr = Factory::GetDirect3D10Device()->CreateShaderResourceView(mTexture, NULL, byRef(mSRView));
 
   if (FAILED(hr)) {
     gfxWarning() << "Failed to create ShaderResourceView. Code: " << hr;
@@ -94,19 +115,21 @@ SourceSurfaceD2DTarget::GetSRView()
 void
 SourceSurfaceD2DTarget::DrawTargetWillChange()
 {
+  // assert(!mIsCopy)
   RefPtr<ID3D10Texture2D> oldTexture = mTexture;
+
+  // It's important we set this here, that way DrawTargets that we are calling
+  // flush on will not try to remove themselves from our dependent surfaces.
+  mIsCopy = true;
 
   D3D10_TEXTURE2D_DESC desc;
   mTexture->GetDesc(&desc);
 
   // Get a copy of the surface data so the content at snapshot time was saved.
-  Factory::GetDirect3D10Device()->CreateTexture2D(&desc, nullptr, byRef(mTexture));
+  Factory::GetDirect3D10Device()->CreateTexture2D(&desc, NULL, byRef(mTexture));
   Factory::GetDirect3D10Device()->CopyResource(mTexture, oldTexture);
 
-  mBitmap = nullptr;
-
-  DrawTargetD2D::mVRAMUsageSS += desc.Width * desc.Height * BytesPerPixel(mFormat);
-  mOwnsCopy = true;
+  mBitmap = NULL;
 
   // We now no longer depend on the source surface content remaining the same.
   MarkIndependent();
@@ -130,7 +153,7 @@ SourceSurfaceD2DTarget::GetBitmap(ID2D1RenderTarget *aRT)
 
   if (FAILED(hr)) {
     gfxWarning() << "Failed to query interface texture to DXGISurface. Code: " << hr;
-    return nullptr;
+    return NULL;
   }
 
   D2D1_BITMAP_PROPERTIES props =
@@ -138,43 +161,8 @@ SourceSurfaceD2DTarget::GetBitmap(ID2D1RenderTarget *aRT)
   hr = aRT->CreateSharedBitmap(IID_IDXGISurface, surf, &props, byRef(mBitmap));
 
   if (FAILED(hr)) {
-    // This seems to happen for FORMAT_A8 sometimes...
-    aRT->CreateBitmap(D2D1::SizeU(desc.Width, desc.Height),
-                      D2D1::BitmapProperties(D2D1::PixelFormat(DXGIFormat(mFormat),
-                                             AlphaMode(mFormat))),
-                      byRef(mBitmap));
-
-    RefPtr<ID2D1RenderTarget> rt;
-
-    if (mDrawTarget) {
-      rt = mDrawTarget->mRT;
-    }
-
-    if (!rt) {
-      // Okay, we already separated from our drawtarget. And we're an A8
-      // surface the only way we can get to a bitmap is by creating a
-      // a rendertarget and from there copying to a bitmap! Terrible!
-      RefPtr<IDXGISurface> surface;
-
-      hr = mTexture->QueryInterface((IDXGISurface**)byRef(surface));
-
-      if (FAILED(hr)) {
-        gfxWarning() << "Failed to QI texture to surface.";
-        return nullptr;
-      }
-
-      D2D1_RENDER_TARGET_PROPERTIES props =
-        D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, D2D1::PixelFormat(DXGIFormat(mFormat), AlphaMode(mFormat)));
-      hr = DrawTargetD2D::factory()->CreateDxgiSurfaceRenderTarget(surface, props, byRef(rt));
-
-      if (FAILED(hr)) {
-        gfxWarning() << "Failed to create D2D render target for texture.";
-        return nullptr;
-      }
-    }
-
-    mBitmap->CopyFromRenderTarget(nullptr, rt, nullptr);
-    return mBitmap;
+    gfxWarning() << "Failed to create shared bitmap for DrawTarget snapshot. Code: " << hr;
+    return NULL;
   }
 
   return mBitmap;
@@ -183,10 +171,9 @@ SourceSurfaceD2DTarget::GetBitmap(ID2D1RenderTarget *aRT)
 void
 SourceSurfaceD2DTarget::MarkIndependent()
 {
-  if (mDrawTarget) {
-    MOZ_ASSERT(mDrawTarget->mSnapshot == this);
-    mDrawTarget->mSnapshot = nullptr;
-    mDrawTarget = nullptr;
+  if (!mIsCopy) {
+    std::vector<SourceSurfaceD2DTarget*> *snapshots = &mDrawTarget->mSnapshots;
+    snapshots->erase(std::find(snapshots->begin(), snapshots->end(), this));
   }
 }
 
@@ -218,7 +205,7 @@ DataSourceSurfaceD2DTarget::GetFormat() const
   return mFormat;
 }
 
-uint8_t*
+unsigned char*
 DataSourceSurfaceD2DTarget::GetData()
 {
   EnsureMapped();

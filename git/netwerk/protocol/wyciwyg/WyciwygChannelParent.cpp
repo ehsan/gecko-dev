@@ -1,6 +1,39 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ *  The Mozilla Foundation
+ * Portions created by the Initial Developer are Copyright (C) 2010
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Michal Novotny <michal.novotny@gmail.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "nsWyciwyg.h"
 
@@ -8,13 +41,9 @@
 #include "nsWyciwygChannel.h"
 #include "nsNetUtil.h"
 #include "nsISupportsPriority.h"
-#include "nsCharsetSource.h"
+#include "nsIParser.h"
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
-#include "mozilla/LoadContext.h"
-#include "mozilla/ipc/URIUtils.h"
-
-using namespace mozilla::ipc;
 
 namespace mozilla {
 namespace net {
@@ -44,23 +73,20 @@ WyciwygChannelParent::ActorDestroy(ActorDestroyReason why)
 // WyciwygChannelParent::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS3(WyciwygChannelParent,
+NS_IMPL_ISUPPORTS2(WyciwygChannelParent,
                    nsIStreamListener,
-                   nsIInterfaceRequestor,
-                   nsIRequestObserver)
+                   nsIRequestObserver);
 
 //-----------------------------------------------------------------------------
 // WyciwygChannelParent::PWyciwygChannelParent
 //-----------------------------------------------------------------------------
 
 bool
-WyciwygChannelParent::RecvInit(const URIParams& aURI)
+WyciwygChannelParent::RecvInit(const IPC::URI& aURI)
 {
   nsresult rv;
 
-  nsCOMPtr<nsIURI> uri = DeserializeURI(aURI);
-  if (!uri)
-    return false;
+  nsCOMPtr<nsIURI> uri(aURI);
 
   nsCString uriSpec;
   uri->GetSpec(uriSpec);
@@ -84,18 +110,12 @@ WyciwygChannelParent::RecvInit(const URIParams& aURI)
 }
 
 bool
-WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
-                                    const uint32_t& aLoadFlags,
-                                    const IPC::SerializedLoadContext& loadContext)
+WyciwygChannelParent::RecvAsyncOpen(const IPC::URI& aOriginal,
+                                    const PRUint32& aLoadFlags)
 {
-  nsCOMPtr<nsIURI> original = DeserializeURI(aOriginal);
-  if (!original)
-    return false;
+  nsCOMPtr<nsIURI> original(aOriginal);
 
   LOG(("WyciwygChannelParent RecvAsyncOpen [this=%x]\n", this));
-
-  if (!mChannel)
-    return true;
 
   nsresult rv;
 
@@ -107,10 +127,7 @@ WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
 
-  if (loadContext.IsNotNull())
-    mLoadContext = new LoadContext(loadContext);
-
-  rv = mChannel->AsyncOpen(this, nullptr);
+  rv = mChannel->AsyncOpen(this, nsnull);
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
 
@@ -120,40 +137,31 @@ WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
 bool
 WyciwygChannelParent::RecvWriteToCacheEntry(const nsString& data)
 {
-  if (mChannel)
-    mChannel->WriteToCacheEntry(data);
-
+  mChannel->WriteToCacheEntry(data);
   return true;
 }
 
 bool
 WyciwygChannelParent::RecvCloseCacheEntry(const nsresult& reason)
 {
-  if (mChannel)
-    mChannel->CloseCacheEntry(reason);
-
+  mChannel->CloseCacheEntry(reason);
   return true;
 }
 
 bool
-WyciwygChannelParent::RecvSetCharsetAndSource(const int32_t& aCharsetSource,
+WyciwygChannelParent::RecvSetCharsetAndSource(const PRInt32& aCharsetSource,
                                               const nsCString& aCharset)
 {
-  if (mChannel)
-    mChannel->SetCharsetAndSource(aCharsetSource, aCharset);
-
+  mChannel->SetCharsetAndSource(aCharsetSource, aCharset);
   return true;
 }
 
 bool
 WyciwygChannelParent::RecvSetSecurityInfo(const nsCString& aSecurityInfo)
 {
-  if (mChannel) {
-    nsCOMPtr<nsISupports> securityInfo;
-    NS_DeserializeObject(aSecurityInfo, getter_AddRefs(securityInfo));
-    mChannel->SetSecurityInfo(securityInfo);
-  }
-
+  nsCOMPtr<nsISupports> securityInfo;
+  NS_DeserializeObject(aSecurityInfo, getter_AddRefs(securityInfo));
+  mChannel->SetSecurityInfo(securityInfo);
   return true;
 }
 
@@ -182,11 +190,11 @@ WyciwygChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext
   nsresult status;
   chan->GetStatus(&status);
 
-  int32_t contentLength = -1;
+  PRInt32 contentLength = -1;
   chan->GetContentLength(&contentLength);
 
-  int32_t charsetSource = kCharsetUninitialized;
-  nsAutoCString charset;
+  PRInt32 charsetSource = kCharsetUninitialized;
+  nsCAutoString charset;
   chan->GetCharsetAndSource(&charsetSource, charset);
 
   nsCOMPtr<nsISupports> securityInfo;
@@ -196,10 +204,8 @@ WyciwygChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext
     nsCOMPtr<nsISerializable> serializable = do_QueryInterface(securityInfo);
     if (serializable)
       NS_SerializeToString(serializable, secInfoStr);
-    else {
-      NS_ERROR("Can't serialize security info");
-      return NS_ERROR_UNEXPECTED;
-    }
+    else
+      NS_WARNING("Can't serialize security info");
   }
 
   if (mIPCClosed ||
@@ -233,8 +239,8 @@ NS_IMETHODIMP
 WyciwygChannelParent::OnDataAvailable(nsIRequest *aRequest,
                                       nsISupports *aContext,
                                       nsIInputStream *aInputStream,
-                                      uint64_t aOffset,
-                                      uint32_t aCount)
+                                      PRUint32 aOffset,
+                                      PRUint32 aCount)
 {
   LOG(("WyciwygChannelParent::OnDataAvailable [this=%x]\n", this));
 
@@ -249,23 +255,5 @@ WyciwygChannelParent::OnDataAvailable(nsIRequest *aRequest,
 
   return NS_OK;
 }
-
-//-----------------------------------------------------------------------------
-// WyciwygChannelParent::nsIInterfaceRequestor
-//-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-WyciwygChannelParent::GetInterface(const nsIID& uuid, void** result)
-{
-  // Only support nsILoadContext if child channel's callbacks did too
-  if (uuid.Equals(NS_GET_IID(nsILoadContext)) && mLoadContext) {
-    NS_ADDREF(mLoadContext);
-    *result = static_cast<nsILoadContext*>(mLoadContext);
-    return NS_OK;
-  }
-
-  return QueryInterface(uuid, result);
-}
-
 
 }} // mozilla::net

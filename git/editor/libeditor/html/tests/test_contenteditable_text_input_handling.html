@@ -2,10 +2,11 @@
 <head>
   <title>Test for text input event handling on contenteditable editor</title>
   <script type="text/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="text/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"></script>
-  <script type="text/javascript" src="chrome://mochikit/content/tests/SimpleTest/ChromeUtils.js"></script>
   <link rel="stylesheet" type="text/css"
           href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 </head>
@@ -221,9 +222,8 @@ function runTests()
     // IME
     const nsIDOMWindowUtils = Components.interfaces.nsIDOMWindowUtils;
     // start composition
-    synthesizeComposition({ type: "compositionstart" });
+    synthesizeComposition(true);
     // input first character
-    synthesizeComposition({ type: "compositionupdate", data: "\u3089" });
     synthesizeText(
       { "composition":
         { "string": "\u3089",
@@ -297,7 +297,7 @@ function runTests()
        "query selected text event returns wrong selected text after commit" +
          when);
     // end composition
-    synthesizeComposition({ type: "compositionend", data: "\u3089" });
+    synthesizeComposition(false);
 
     checkValue(staticContent, "\u3089");
     checkValue(inputInStatic, "\u3089");

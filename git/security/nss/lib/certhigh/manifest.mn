@@ -60,6 +60,8 @@ CSRCS = \
  	xcrldist.c \
 	$(NULL)
 
+REQUIRES = dbm
+
 LIBRARY_NAME = certhi
 
 # This part of the code, including all sub-dirs, can be optimized for size

@@ -1,10 +1,43 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * Jonas Sicking.
+ * Portions created by the Initial Developer are Copyright (C) 2002
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Jonas Sicking <jonas@sicking.cc>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "txNamespaceMap.h"
-#include "nsGkAtoms.h"
+#include "txAtoms.h"
 #include "txXPathNode.h"
 
 txNamespaceMap::txNamespaceMap()
@@ -20,12 +53,12 @@ txNamespaceMap::txNamespaceMap(const txNamespaceMap& aOther)
 nsresult
 txNamespaceMap::mapNamespace(nsIAtom* aPrefix, const nsAString& aNamespaceURI)
 {
-    nsIAtom* prefix = aPrefix == nsGkAtoms::_empty ? nullptr : aPrefix;
+    nsIAtom* prefix = aPrefix == txXMLAtoms::_empty ? nsnull : aPrefix;
 
-    int32_t nsId;
+    PRInt32 nsId;
     if (prefix && aNamespaceURI.IsEmpty()) {
         // Remove the mapping
-        int32_t index = mPrefixes.IndexOf(prefix);
+        PRInt32 index = mPrefixes.IndexOf(prefix);
         if (index >= 0) {
             mPrefixes.RemoveObjectAt(index);
             mNamespaces.RemoveElementAt(index);
@@ -44,7 +77,7 @@ txNamespaceMap::mapNamespace(nsIAtom* aPrefix, const nsAString& aNamespaceURI)
     }
 
     // Check if the mapping already exists
-    int32_t index = mPrefixes.IndexOf(prefix);
+    PRInt32 index = mPrefixes.IndexOf(prefix);
     if (index >= 0) {
         mNamespaces.ElementAt(index) = nsId;
 
@@ -56,7 +89,7 @@ txNamespaceMap::mapNamespace(nsIAtom* aPrefix, const nsAString& aNamespaceURI)
         return NS_ERROR_OUT_OF_MEMORY;
     }
     
-    if (mNamespaces.AppendElement(nsId) == nullptr) {
+    if (mNamespaces.AppendElement(nsId) == nsnull) {
         mPrefixes.RemoveObjectAt(mPrefixes.Count() - 1);
 
         return NS_ERROR_OUT_OF_MEMORY;
@@ -65,16 +98,16 @@ txNamespaceMap::mapNamespace(nsIAtom* aPrefix, const nsAString& aNamespaceURI)
     return NS_OK;
 }
 
-int32_t
+PRInt32
 txNamespaceMap::lookupNamespace(nsIAtom* aPrefix)
 {
-    if (aPrefix == nsGkAtoms::xml) {
+    if (aPrefix == txXMLAtoms::xml) {
         return kNameSpaceID_XML;
     }
 
-    nsIAtom* prefix = aPrefix == nsGkAtoms::_empty ? 0 : aPrefix;
+    nsIAtom* prefix = aPrefix == txXMLAtoms::_empty ? 0 : aPrefix;
 
-    int32_t index = mPrefixes.IndexOf(prefix);
+    PRInt32 index = mPrefixes.IndexOf(prefix);
     if (index >= 0) {
         return mNamespaces.SafeElementAt(index, kNameSpaceID_Unknown);
     }
@@ -86,13 +119,21 @@ txNamespaceMap::lookupNamespace(nsIAtom* aPrefix)
     return kNameSpaceID_Unknown;
 }
 
-int32_t
+PRInt32
+txNamespaceMap::lookupNamespace(const nsAString& aPrefix)
+{
+    nsCOMPtr<nsIAtom> prefix = do_GetAtom(aPrefix);
+
+    return lookupNamespace(prefix);
+}
+
+PRInt32
 txNamespaceMap::lookupNamespaceWithDefault(const nsAString& aPrefix)
 {
     nsCOMPtr<nsIAtom> prefix = do_GetAtom(aPrefix);
-    if (prefix != nsGkAtoms::_poundDefault) {
+    if (prefix != txXSLTAtoms::_poundDefault) {
         return lookupNamespace(prefix);
     }
 
-    return lookupNamespace(nullptr);
+    return lookupNamespace(nsnull);
 }

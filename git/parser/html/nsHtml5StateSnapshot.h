@@ -34,13 +34,17 @@
 #include "nsString.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
+#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
+#include "nsHtml5DocumentMode.h"
 #include "nsHtml5ArrayCopy.h"
-#include "nsAHtml5TreeBuilderState.h"
+#include "nsHtml5NamedCharacters.h"
+#include "nsHtml5NamedCharactersAccel.h"
 #include "nsHtml5Atoms.h"
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
+#include "nsAHtml5TreeBuilderState.h"
 #include "nsHtml5Macros.h"
 
 class nsHtml5StreamParser;
@@ -58,30 +62,30 @@ class nsHtml5Portability;
 class nsHtml5StateSnapshot : public nsAHtml5TreeBuilderState
 {
   private:
-    autoJArray<nsHtml5StackNode*,int32_t> stack;
-    autoJArray<nsHtml5StackNode*,int32_t> listOfActiveFormattingElements;
+    autoJArray<nsHtml5StackNode*,PRInt32> stack;
+    autoJArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements;
     nsIContent** formPointer;
     nsIContent** headPointer;
     nsIContent** deepTreeSurrogateParent;
-    int32_t mode;
-    int32_t originalMode;
-    bool framesetOk;
-    bool needToDropLF;
-    bool quirks;
+    PRInt32 mode;
+    PRInt32 originalMode;
+    PRBool framesetOk;
+    PRBool needToDropLF;
+    PRBool quirks;
   public:
-    nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,int32_t> stack, jArray<nsHtml5StackNode*,int32_t> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, nsIContent** deepTreeSurrogateParent, int32_t mode, int32_t originalMode, bool framesetOk, bool needToDropLF, bool quirks);
-    jArray<nsHtml5StackNode*,int32_t> getStack();
-    jArray<nsHtml5StackNode*,int32_t> getListOfActiveFormattingElements();
+    nsHtml5StateSnapshot(jArray<nsHtml5StackNode*,PRInt32> stack, jArray<nsHtml5StackNode*,PRInt32> listOfActiveFormattingElements, nsIContent** formPointer, nsIContent** headPointer, nsIContent** deepTreeSurrogateParent, PRInt32 mode, PRInt32 originalMode, PRBool framesetOk, PRBool needToDropLF, PRBool quirks);
+    jArray<nsHtml5StackNode*,PRInt32> getStack();
+    jArray<nsHtml5StackNode*,PRInt32> getListOfActiveFormattingElements();
     nsIContent** getFormPointer();
     nsIContent** getHeadPointer();
     nsIContent** getDeepTreeSurrogateParent();
-    int32_t getMode();
-    int32_t getOriginalMode();
-    bool isFramesetOk();
-    bool isNeedToDropLF();
-    bool isQuirks();
-    int32_t getListOfActiveFormattingElementsLength();
-    int32_t getStackLength();
+    PRInt32 getMode();
+    PRInt32 getOriginalMode();
+    PRBool isFramesetOk();
+    PRBool isNeedToDropLF();
+    PRBool isQuirks();
+    PRInt32 getListOfActiveFormattingElementsLength();
+    PRInt32 getStackLength();
     ~nsHtml5StateSnapshot();
     static void initializeStatics();
     static void releaseStatics();

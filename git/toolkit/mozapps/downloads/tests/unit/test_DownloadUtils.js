@@ -1,6 +1,38 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is DownloadUtils Test Code.
+ *
+ * The Initial Developer of the Original Code is
+ * Edward Lee <edward.lee@engineering.uiuc.edu>.
+ * Portions created by the Initial Developer are Copyright (C) 2008
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 let Cu = Components.utils;
 Cu.import("resource://gre/modules/DownloadUtils.jsm");
@@ -62,47 +94,6 @@ function testURI(aURI, aDisp, aHost)
   // Make sure we have the right display host and full host
   do_check_eq(disp, aDisp);
   do_check_eq(host, aHost);
-}
-
-
-function testGetReadableDates(aDate, aCompactValue)
-{
-  const now = new Date(2000, 11, 31, 11, 59, 59);
-
-  let [dateCompact] = DownloadUtils.getReadableDates(aDate, now);
-  do_check_eq(dateCompact, aCompactValue);
-}
-
-function testAllGetReadableDates()
-{
-  // This test cannot depend on the current date and time, or the date format.
-  // It depends on being run with the English localization, however.
-  const today_11_30     = new Date(2000, 11, 31, 11, 30, 15);
-  const today_12_30     = new Date(2000, 11, 31, 12, 30, 15);
-  const yesterday_11_30 = new Date(2000, 11, 30, 11, 30, 15);
-  const yesterday_12_30 = new Date(2000, 11, 30, 12, 30, 15);
-  const twodaysago      = new Date(2000, 11, 29, 11, 30, 15);
-  const sixdaysago      = new Date(2000, 11, 25, 11, 30, 15);
-  const sevendaysago    = new Date(2000, 11, 24, 11, 30, 15);
-
-  let dts = Components.classes["@mozilla.org/intl/scriptabledateformat;1"].
-            getService(Components.interfaces.nsIScriptableDateFormat);
-
-  testGetReadableDates(today_11_30, dts.FormatTime("", dts.timeFormatNoSeconds,
-                                                   11, 30, 0));
-  testGetReadableDates(today_12_30, dts.FormatTime("", dts.timeFormatNoSeconds,
-                                                   12, 30, 0));
-  testGetReadableDates(yesterday_11_30, "Yesterday");
-  testGetReadableDates(yesterday_12_30, "Yesterday");
-  testGetReadableDates(twodaysago, twodaysago.toLocaleFormat("%A"));
-  testGetReadableDates(sixdaysago, sixdaysago.toLocaleFormat("%A"));
-  testGetReadableDates(sevendaysago, sevendaysago.toLocaleFormat("%B") + " " +
-                                     sevendaysago.toLocaleFormat("%d"));
-
-  let [, dateTimeFull] = DownloadUtils.getReadableDates(today_11_30);
-  do_check_eq(dateTimeFull, dts.FormatDateTime("", dts.dateFormatLong,
-                                                   dts.timeFormatNoSeconds,
-                                                   2000, 12, 31, 11, 30, 0));
 }
 
 function run_test()
@@ -172,6 +163,4 @@ function run_test()
   testURI("file:///C:/Cool/Stuff/", "local file", "local file");
   testURI("moz-icon:file:///test.extension", "moz-icon resource", "moz-icon resource");
   testURI("about:config", "about resource", "about resource");
-
-  testAllGetReadableDates();
 }

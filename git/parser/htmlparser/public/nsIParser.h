@@ -1,22 +1,51 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is mozilla.org code.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 #ifndef NS_IPARSER___
 #define NS_IPARSER___
 
 
- /**
- * This GECKO-INTERNAL interface is on track to being REMOVED (or refactored
- * to the point of being near-unrecognizable).
+/**
+ * MODULE NOTES:
+ *  
+ *  This class defines the iparser interface. This XPCOM
+ *  inteface is all that parser clients ever need to see.
  *
- * Please DO NOT #include this file in comm-central code, in your XULRunner
- * app or binary extensions.
- *
- * Please DO NOT #include this into new files even inside Gecko. It is more
- * likely than not that #including this header is the wrong thing to do.
- */
+ **/
 
 #include "nsISupports.h"
 #include "nsIStreamListener.h"
@@ -24,11 +53,10 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "nsIAtom.h"
-#include "nsParserBase.h"
 
 #define NS_IPARSER_IID \
-{ 0x2c4ad90a, 0x740e, 0x4212, \
-  { 0xba, 0x3f, 0xfe, 0xac, 0xda, 0x4b, 0x92, 0x9e } }
+{ 0xcbc0cbd8, 0xbbb7, 0x46d6, \
+  { 0xa5, 0x51, 0x37, 0x8a, 0x69, 0x53, 0xa7, 0x14 } }
 
 // {41421C60-310A-11d4-816F-000064657374}
 #define NS_IDEBUG_DUMP_CONTENT_IID \
@@ -37,6 +65,7 @@
 
 class nsIContentSink;
 class nsIRequestObserver;
+class nsIParserFilter;
 class nsString;
 class nsIURI;
 class nsIChannel;
@@ -55,6 +84,28 @@ enum eParserDocType {
   eHTML_Quirks,
   eHTML_Strict
 };
+
+
+// define Charset source constants
+// note: the value order defines the priority; higher numbers take priority
+#define kCharsetUninitialized           0
+#define kCharsetFromWeakDocTypeDefault  1
+#define kCharsetFromUserDefault         2
+#define kCharsetFromDocTypeDefault      3
+#define kCharsetFromCache               4
+#define kCharsetFromParentFrame         5
+#define kCharsetFromAutoDetection       6
+#define kCharsetFromHintPrevDoc         7
+#define kCharsetFromMetaPrescan         8 // this one and smaller: HTML5 Tentative
+#define kCharsetFromMetaTag             9 // this one and greater: HTML5 Confident
+#define kCharsetFromIrreversibleAutoDetection 10
+#define kCharsetFromByteOrderMark      11
+#define kCharsetFromChannel            12
+#define kCharsetFromOtherComponent     13
+// Levels below here will be forced onto childframes too
+#define kCharsetFromParentForced       14
+#define kCharsetFromUserForced         15
+#define kCharsetFromPreviousLoading    16
 
 enum eStreamState {eNone,eOnStart,eOnDataAvail,eOnStop};
 
@@ -76,16 +127,10 @@ public:
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDebugDumpContent, NS_IDEBUG_DUMP_CONTENT_IID)
 
 /**
- * This GECKO-INTERNAL interface is on track to being REMOVED (or refactored
- * to the point of being near-unrecognizable).
- *
- * Please DO NOT #include this file in comm-central code, in your XULRunner
- * app or binary extensions.
- *
- * Please DO NOT #include this into new files even inside Gecko. It is more
- * likely than not that #including this header is the wrong thing to do.
+ *  This class defines the iparser interface. This XPCOM
+ *  inteface is all that parser clients ever need to see.
  */
-class nsIParser : public nsParserBase {
+class nsIParser : public nsISupports {
   public:
 
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IPARSER_IID)
@@ -128,8 +173,10 @@ class nsIParser : public nsParserBase {
      *  @param   aCharsetSource- the soure of the chares
      *  @return	 nada
      */
-    NS_IMETHOD_(void) SetDocumentCharset(const nsACString& aCharset, int32_t aSource)=0;
-    NS_IMETHOD_(void) GetDocumentCharset(nsACString& oCharset, int32_t& oSource)=0;
+    NS_IMETHOD_(void) SetDocumentCharset(const nsACString& aCharset, PRInt32 aSource)=0;
+    NS_IMETHOD_(void) GetDocumentCharset(nsACString& oCharset, PRInt32& oSource)=0;
+
+    NS_IMETHOD_(void) SetParserFilter(nsIParserFilter* aFilter) = 0;
 
     /** 
      * Get the channel associated with this parser
@@ -149,8 +196,10 @@ class nsIParser : public nsParserBase {
     
     /**
      * Get the nsIStreamListener for this parser
+     * @param aDTD out param that will contain the result
+     * @return NS_OK if successful
      */
-    virtual nsIStreamListener* GetStreamListener() = 0;
+    NS_IMETHOD GetStreamListener(nsIStreamListener** aListener) = 0;
 
     /**************************************************************************
      *  Parse methods always begin with an input source, and perform
@@ -175,19 +224,23 @@ class nsIParser : public nsParserBase {
     // the parsing engine.
     NS_IMETHOD_(void) UnblockParser() = 0;
 
-    /**
-     * Asynchronously continues parsing.
-     */
-    NS_IMETHOD_(void) ContinueInterruptedParsingAsync() = 0;
-
-    NS_IMETHOD_(bool) IsParserEnabled() = 0;
-    NS_IMETHOD_(bool) IsComplete() = 0;
+    NS_IMETHOD_(PRBool) IsParserEnabled() = 0;
+    NS_IMETHOD_(PRBool) IsComplete() = 0;
     
     NS_IMETHOD Parse(nsIURI* aURL,
-                     nsIRequestObserver* aListener = nullptr,
+                     nsIRequestObserver* aListener = nsnull,
                      void* aKey = 0,
                      nsDTDMode aMode = eDTDMode_autodetect) = 0;
+    NS_IMETHOD Parse(const nsAString& aSourceBuffer,
+                     void* aKey,
+                     const nsACString& aMimeType,
+                     PRBool aLastCall,
+                     nsDTDMode aMode = eDTDMode_autodetect) = 0;
 
+    // Return a key, suitable for passing into one of the Parse methods above,
+    // that will cause this parser to use the root context.
+    NS_IMETHOD_(void *) GetRootContextKey() = 0;
+    
     NS_IMETHOD Terminate(void) = 0;
 
     /**
@@ -196,11 +249,25 @@ class nsIParser : public nsParserBase {
      * been given a fragment content sink.
      *
      * @param aSourceBuffer The XML or HTML that hasn't been parsed yet.
+     * @param aKey The key used by the parser.
      * @param aTagStack The context of the source buffer.
+     * @param aXMLMode Whether this is XML or HTML
+     * @param aContentType The content-type of this document.
+     * @param aMode The DTDMode that the parser should parse this fragment in.
      * @return Success or failure.
      */
     NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
-                             nsTArray<nsString>& aTagStack) = 0;
+                             void* aKey,
+                             nsTArray<nsString>& aTagStack,
+                             PRBool aXMLMode,
+                             const nsACString& aContentType,
+                             nsDTDMode aMode = eDTDMode_autodetect) = 0;
+
+    NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
+                             nsIContent* aTargetNode,
+                             nsIAtom* aContextLocalName,
+                             PRInt32 aContextNamespace,
+                             PRBool aQuirks) = 0;
 
     /**
      * This method gets called when the tokens have been consumed, and it's time
@@ -225,9 +292,15 @@ class nsIParser : public nsParserBase {
     virtual void Reset() = 0;
 
     /**
+     * True if the parser can currently be interrupted. Returns false when
+     * parsing for example document.write or innerHTML.
+     */
+    virtual PRBool CanInterrupt() = 0;
+
+    /**
      * True if the insertion point (per HTML5) is defined.
      */
-    virtual bool IsInsertionPointDefined() = 0;
+    virtual PRBool IsInsertionPointDefined() = 0;
 
     /**
      * Call immediately before starting to evaluate a parser-inserted script.
@@ -242,12 +315,12 @@ class nsIParser : public nsParserBase {
     /**
      * Marks the HTML5 parser as not a script-created parser.
      */
-    virtual void MarkAsNotScriptCreated(const char* aCommand) = 0;
+    virtual void MarkAsNotScriptCreated() = 0;
 
     /**
      * True if this is a script-created HTML5 parser.
      */
-    virtual bool IsScriptCreated() = 0;
+    virtual PRBool IsScriptCreated() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIParser, NS_IPARSER_IID)
@@ -259,18 +332,72 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIParser, NS_IPARSER_IID)
 #include "prtypes.h"
 #include "nsError.h"
 
-const nsresult  kEOF              = NS_ERROR_HTMLPARSER_EOF;
-const nsresult  kUnknownError     = NS_ERROR_HTMLPARSER_UNKNOWN;
-const nsresult  kCantPropagate    = NS_ERROR_HTMLPARSER_CANTPROPAGATE;
-const nsresult  kContextMismatch  = NS_ERROR_HTMLPARSER_CONTEXTMISMATCH;
-const nsresult  kBadFilename      = NS_ERROR_HTMLPARSER_BADFILENAME;
-const nsresult  kBadURL           = NS_ERROR_HTMLPARSER_BADURL;
-const nsresult  kInvalidParserContext = NS_ERROR_HTMLPARSER_INVALIDPARSERCONTEXT;
-const nsresult  kBlocked          = NS_ERROR_HTMLPARSER_BLOCK;
-const nsresult  kBadStringLiteral = NS_ERROR_HTMLPARSER_UNTERMINATEDSTRINGLITERAL;
-const nsresult  kHierarchyTooDeep = NS_ERROR_HTMLPARSER_HIERARCHYTOODEEP;
-const nsresult  kFakeEndTag       = NS_ERROR_HTMLPARSER_FAKE_ENDTAG;
-const nsresult  kNotAComment      = NS_ERROR_HTMLPARSER_INVALID_COMMENT;
+#define NS_ERROR_HTMLPARSER_EOF                            NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1000)
+#define NS_ERROR_HTMLPARSER_UNKNOWN                        NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1001)
+#define NS_ERROR_HTMLPARSER_CANTPROPAGATE                  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1002)
+#define NS_ERROR_HTMLPARSER_CONTEXTMISMATCH                NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1003)
+#define NS_ERROR_HTMLPARSER_BADFILENAME                    NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1004)
+#define NS_ERROR_HTMLPARSER_BADURL                         NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1005)
+#define NS_ERROR_HTMLPARSER_INVALIDPARSERCONTEXT           NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1006)
+#define NS_ERROR_HTMLPARSER_INTERRUPTED                    NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1007)
+#define NS_ERROR_HTMLPARSER_BLOCK                          NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1008)
+#define NS_ERROR_HTMLPARSER_BADTOKENIZER                   NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1009)
+#define NS_ERROR_HTMLPARSER_BADATTRIBUTE                   NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1010)
+#define NS_ERROR_HTMLPARSER_UNRESOLVEDDTD                  NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1011)
+#define NS_ERROR_HTMLPARSER_MISPLACEDTABLECONTENT          NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1012)
+#define NS_ERROR_HTMLPARSER_BADDTD                         NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1013)
+#define NS_ERROR_HTMLPARSER_BADCONTEXT                     NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1014)
+#define NS_ERROR_HTMLPARSER_STOPPARSING                    NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1015)
+#define NS_ERROR_HTMLPARSER_UNTERMINATEDSTRINGLITERAL      NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1016)
+#define NS_ERROR_HTMLPARSER_HIERARCHYTOODEEP               NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1017)
+#define NS_ERROR_HTMLPARSER_FAKE_ENDTAG                    NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1018)
+#define NS_ERROR_HTMLPARSER_INVALID_COMMENT                NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_HTMLPARSER,1019)
+
+#define NS_ERROR_HTMLPARSER_CONTINUE              NS_OK
+
+
+const PRUint32  kEOF              = NS_ERROR_HTMLPARSER_EOF;
+const PRUint32  kUnknownError     = NS_ERROR_HTMLPARSER_UNKNOWN;
+const PRUint32  kCantPropagate    = NS_ERROR_HTMLPARSER_CANTPROPAGATE;
+const PRUint32  kContextMismatch  = NS_ERROR_HTMLPARSER_CONTEXTMISMATCH;
+const PRUint32  kBadFilename      = NS_ERROR_HTMLPARSER_BADFILENAME;
+const PRUint32  kBadURL           = NS_ERROR_HTMLPARSER_BADURL;
+const PRUint32  kInvalidParserContext = NS_ERROR_HTMLPARSER_INVALIDPARSERCONTEXT;
+const PRUint32  kBlocked          = NS_ERROR_HTMLPARSER_BLOCK;
+const PRUint32  kBadStringLiteral = NS_ERROR_HTMLPARSER_UNTERMINATEDSTRINGLITERAL;
+const PRUint32  kHierarchyTooDeep = NS_ERROR_HTMLPARSER_HIERARCHYTOODEEP;
+const PRUint32  kFakeEndTag       = NS_ERROR_HTMLPARSER_FAKE_ENDTAG;
+const PRUint32  kNotAComment      = NS_ERROR_HTMLPARSER_INVALID_COMMENT;
+
+const PRUnichar  kNewLine          = '\n';
+const PRUnichar  kCR               = '\r';
+const PRUnichar  kLF               = '\n';
+const PRUnichar  kTab              = '\t';
+const PRUnichar  kSpace            = ' ';
+const PRUnichar  kQuote            = '"';
+const PRUnichar  kApostrophe       = '\'';
+const PRUnichar  kLessThan         = '<';
+const PRUnichar  kGreaterThan      = '>';
+const PRUnichar  kAmpersand        = '&';
+const PRUnichar  kForwardSlash     = '/';
+const PRUnichar  kBackSlash        = '\\';
+const PRUnichar  kEqual            = '=';
+const PRUnichar  kMinus            = '-';
+const PRUnichar  kPlus             = '+';
+const PRUnichar  kExclamation      = '!';
+const PRUnichar  kSemicolon        = ';';
+const PRUnichar  kHashsign         = '#';
+const PRUnichar  kAsterisk         = '*';
+const PRUnichar  kUnderbar         = '_';
+const PRUnichar  kComma            = ',';
+const PRUnichar  kLeftParen        = '(';
+const PRUnichar  kRightParen       = ')';
+const PRUnichar  kLeftBrace        = '{';
+const PRUnichar  kRightBrace       = '}';
+const PRUnichar  kQuestionMark     = '?';
+const PRUnichar  kLeftSquareBracket  = '[';
+const PRUnichar  kRightSquareBracket = ']';
+const PRUnichar kNullCh           = '\0';
 
 #define NS_IPARSER_FLAG_UNKNOWN_MODE         0x00000000
 #define NS_IPARSER_FLAG_QUIRKS_MODE          0x00000002

@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is TransforMiiX XSLT processor code.
+ *
+ * The Initial Developer of the Original Code is
+ * Keith Visco.
+ * Portions created by the Initial Developer are Copyright (C) 1999
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Keith Visco <kvisco@ziplink.net>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #ifndef TRANSFRMX_XML_EVENT_HANDLER_H
 #define TRANSFRMX_XML_EVENT_HANDLER_H
@@ -9,11 +42,16 @@
 #include "txCore.h"
 #include "nsIAtom.h"
 
+class txOutputFormat;
+
+#ifdef TX_EXE
+#include <iostream.h>
+#else
 #define kTXNameSpaceURI "http://www.mozilla.org/TransforMiix"
 #define kTXWrapper "transformiix:result"
 
-class txOutputFormat;
 class nsIDOMDocument;
+#endif
 
 /**
  * An interface for handling XML documents, loosely modeled
@@ -35,7 +73,7 @@ public:
      * @param aValue the value of the attribute
      */
     virtual nsresult attribute(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                               nsIAtom* aLowercaseLocalName, int32_t aNsID,
+                               nsIAtom* aLowercaseLocalName, PRInt32 aNsID,
                                const nsString& aValue) = 0;
 
     /**
@@ -48,7 +86,7 @@ public:
      */
     virtual nsresult attribute(nsIAtom* aPrefix,
                                const nsSubstring& aLocalName,
-                               const int32_t aNsID,
+                               const PRInt32 aNsID,
                                const nsString& aValue) = 0;
 
     /**
@@ -57,7 +95,7 @@ public:
      * @param aData the characters to receive
      * @param aDOE disable output escaping for these characters
      */
-    virtual nsresult characters(const nsSubstring& aData, bool aDOE) = 0;
+    virtual nsresult characters(const nsSubstring& aData, PRBool aDOE) = 0;
 
     /**
      * Signals to receive data that should be treated as a comment.
@@ -102,7 +140,7 @@ public:
     virtual nsresult startElement(nsIAtom* aPrefix,
                                   nsIAtom* aLocalName,
                                   nsIAtom* aLowercaseLocalName,
-                                  int32_t aNsID) = 0;
+                                  PRInt32 aNsID) = 0;
 
     /**
      * Signals to receive the start of an element. Can throw
@@ -114,18 +152,18 @@ public:
      */
     virtual nsresult startElement(nsIAtom* aPrefix,
                                   const nsSubstring& aLocalName,
-                                  const int32_t aNsID) = 0;
+                                  const PRInt32 aNsID) = 0;
 };
 
 #define TX_DECL_TXAXMLEVENTHANDLER                                           \
     virtual nsresult attribute(nsIAtom* aPrefix, nsIAtom* aLocalName,        \
-                               nsIAtom* aLowercaseLocalName, int32_t aNsID,  \
+                               nsIAtom* aLowercaseLocalName, PRInt32 aNsID,  \
                                const nsString& aValue);                      \
     virtual nsresult attribute(nsIAtom* aPrefix,                             \
                                const nsSubstring& aLocalName,                \
-                               const int32_t aNsID,                          \
+                               const PRInt32 aNsID,                          \
                                const nsString& aValue);                      \
-    virtual nsresult characters(const nsSubstring& aData, bool aDOE);      \
+    virtual nsresult characters(const nsSubstring& aData, PRBool aDOE);      \
     virtual nsresult comment(const nsString& aData);                         \
     virtual nsresult endDocument(nsresult aResult = NS_OK);                  \
     virtual nsresult endElement();                                           \
@@ -135,12 +173,16 @@ public:
     virtual nsresult startElement(nsIAtom* aPrefix,                          \
                                   nsIAtom* aLocalName,                       \
                                   nsIAtom* aLowercaseLocalName,              \
-                                  int32_t aNsID);                            \
+                                  PRInt32 aNsID);                            \
     virtual nsresult startElement(nsIAtom* aPrefix,                          \
                                   const nsSubstring& aName,                  \
-                                  const int32_t aNsID);
+                                  const PRInt32 aNsID);
 
 
+#ifdef TX_EXE
+typedef txAXMLEventHandler txAOutputXMLEventHandler;
+#define TX_DECL_TXAOUTPUTXMLEVENTHANDLER
+#else
 class txAOutputXMLEventHandler : public txAXMLEventHandler
 {
 public:
@@ -154,6 +196,7 @@ public:
 
 #define TX_DECL_TXAOUTPUTXMLEVENTHANDLER                        \
     virtual void getOutputDocument(nsIDOMDocument** aDocument);
+#endif
 
 /**
  * Interface used to create the appropriate outputhandler
@@ -183,7 +226,7 @@ public:
     virtual nsresult
     createHandlerWith(txOutputFormat* aFormat,
                       const nsSubstring& aName,
-                      int32_t aNsID,
+                      PRInt32 aNsID,
                       txAXMLEventHandler** aHandler) = 0;
 };
 
@@ -192,7 +235,7 @@ public:
                                txAXMLEventHandler** aHandler); \
     nsresult createHandlerWith(txOutputFormat* aFormat,        \
                                const nsSubstring& aName,       \
-                               int32_t aNsID,                  \
+                               PRInt32 aNsID,                  \
                                txAXMLEventHandler** aHandler);
 
 #endif

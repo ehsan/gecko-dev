@@ -7,6 +7,8 @@
         href="chrome://mochikit/content/tests/SimpleTest/test.css" />
 
   <script type="application/javascript"
+          src="chrome://mochikit/content/MochiKit/packed.js"></script>
+  <script type="application/javascript"
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
@@ -64,7 +66,8 @@
       this.preinvoke = function rootContentRemoved_preinvoke()
       {
         // Set up target for hide event before we invoke.
-        var text = getAccessible(getAccessible(getDocNode(aID)).firstChild);
+        var text = getAccessible(getAccessible(getDocNode(aID)).firstChild,
+                                               [nsIAccessNode]).DOMNode;
         this.eventSeq[0].target = text;
       }
 
@@ -303,21 +306,16 @@
 
     function insertElmUnderDocElmWhileBodyMissed(aID)
     {
-      this.docNode = null;
-      this.inputNode = null;
-
-      function getInputNode()
-        { return this.inputNode; }
+      this.docNode = getDocNode(aID);
+      this.inputNode = getDocNode(aID).createElement("input");
 
       this.eventSeq = [
-        new invokerChecker(EVENT_SHOW, getInputNode.bind(this)),
-        new invokerChecker(EVENT_REORDER, getDocNode, aID)
+        new invokerChecker(EVENT_SHOW, this.inputNode),
+        new invokerChecker(EVENT_REORDER, this.docNode)
       ];
 
       this.invoke = function invoke()
       {
-        this.docNode = getDocNode(aID);
-        this.inputNode = this.docNode.createElement("input");
         this.docNode.documentElement.appendChild(this.inputNode);
       }
 
@@ -359,41 +357,10 @@
       }
     }
 
-    function changeSrc(aID)
-    {
-      this.containerNode = getNode(aID);
-
-      this.eventSeq = [
-        new invokerChecker(EVENT_REORDER, this.containerNode)
-      ];
-
-      this.invoke = function changeSrc_invoke()
-      {
-        this.containerNode.src = "data:text/html,<html><input></html>";
-      }
-
-      this.finalCheck = function changeSrc_finalCheck()
-      {
-        var tree =
-          { INTERNAL_FRAME: [
-            { DOCUMENT: [
-              { ENTRY: [ ] }
-            ] }
-          ] };
-        testAccessibleTree(this.containerNode, tree);
-      }
-
-      this.getID = function changeSrc_getID()
-      {
-        return "change src on iframe";
-      }
-    }
-
     ////////////////////////////////////////////////////////////////////////////
     // Test
 
     //gA11yEventDumpID = "eventdump"; // debug stuff
-    //gA11yEventDumpToConsole = true;
 
     var gQueue = null;
 
@@ -411,7 +378,6 @@
       gQueue.push(new removeBodyFromIFrameDoc("iframe"));
       gQueue.push(new insertElmUnderDocElmWhileBodyMissed("iframe"));
       gQueue.push(new insertBodyToIFrameDoc("iframe"));
-      gQueue.push(new changeSrc("iframe"));
 
       gQueue.invoke(); // SimpleTest.finish() will be called in the end
     }
@@ -428,9 +394,6 @@
   <a target="_blank"
      title="Elements inserted outside the body aren't accessible"
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=608887">Mozilla Bug 608887</a>
-  <a target="_blank"
-     title="Reorder event for document must be fired after document initial tree creation"
-     href="https://bugzilla.mozilla.org/show_bug.cgi?id=669263">Mozilla Bug 669263</a>
 
   <p id="display"></p>
   <div id="content" style="display: none"></div>

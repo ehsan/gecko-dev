@@ -12,7 +12,8 @@ const MAR_IN_USE_WIN_FILE = "data/partial.mar";
 // operations located in the precomplete file performed first.
 const TEST_FILES = [
 {
-  description      : "Should never change",
+  description      : "Only added by update.manifest for complete updates " +
+                     "when there is a channel change (add-cc)",
   fileName         : "channel-prefs.js",
   relPathDir       : "a/b/defaults/pref/",
   originalContents : "ShouldNotBeReplaced\n",
@@ -233,6 +234,11 @@ ADDITIONAL_TEST_DIRS = [
 }];
 
 function run_test() {
+  if (!IS_WIN) {
+    logTestInfo("this test is only applicable to Windows... returning early");
+    return;
+  }
+
   do_test_pending();
   do_register_cleanup(cleanupUpdaterTest);
 

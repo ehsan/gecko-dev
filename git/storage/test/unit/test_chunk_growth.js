@@ -26,12 +26,7 @@ function run_test()
   const filename = "chunked.sqlite";
   const CHUNK_SIZE = 512 * 1024;
   var d = getDatabase(new_file(filename));
-  try {
-    d.setGrowthIncrement(CHUNK_SIZE, "");
-  } catch (e if e.result == Cr.NS_ERROR_FILE_TOO_BIG) {
-    print("Too little free space to set CHUNK_SIZE!");
-    return;
-  }
+  d.setGrowthIncrement(CHUNK_SIZE, "");
   run_sql(d, "CREATE TABLE bloat(data varchar)");
 
   var orig_size = get_size(filename);

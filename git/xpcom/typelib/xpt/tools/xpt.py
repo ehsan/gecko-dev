@@ -43,8 +43,8 @@ a typelib in a high-level manner, as well as methods for reading
 and writing them from files.
 
 The usable public interfaces are currently:
-Typelib.read(input_file) - read a typelib from a file on disk or file-like
-                           object, return a Typelib object.
+Typelib.read(filename) - read a typelib from a file on disk, return
+                         a Typelib object.
 
 xpt_dump(filename)     - read a typelib from a file on disk, dump
                          the contents to stdout in a human-readable
@@ -68,7 +68,6 @@ InterfaceType()        - construct a new object representing a type that
 from __future__ import with_statement
 import os, sys
 import struct
-import operator
 
 # header magic
 XPT_MAGIC = "XPCOM\nTypeLib\r\n\x1a"
@@ -142,11 +141,10 @@ class Type(object):
         'jsval',
         )
 
-    def __init__(self, pointer=False, reference=False):
+    def __init__(self, pointer=False, unique_pointer=False, reference=False):
         self.pointer = pointer
+        self.unique_pointer = unique_pointer
         self.reference = reference
-        if reference and not pointer:
-            raise Exception("If reference is True pointer must be True too")
 
     @staticmethod
     def decodeflags(byte):
@@ -159,6 +157,7 @@ class Type(object):
         
         """
         return {'pointer': bool(byte & 0x80),
+                'unique_pointer': bool(byte & 0x40),
                 'reference': bool(byte & 0x20),
                 }
 
@@ -170,10 +169,12 @@ class Type(object):
         flags = 0
         if self.pointer:
             flags |= 0x80
+        if self.unique_pointer:
+            flags |= 0x40
         if self.reference:
             flags |= 0x20
         return flags
-
+    
     @staticmethod
     def read(typelib, map, data_pool, offset):
         """
@@ -440,7 +441,7 @@ class StringWithSizeType(Type):
         (size_is_arg_num, length_is_arg_num) = StringWithSizeType._descriptor.unpack(map[start:start + StringWithSizeType._descriptor.size])
         offset += StringWithSizeType._descriptor.size
         return StringWithSizeType(size_is_arg_num, length_is_arg_num, **flags), offset
-
+    
     def write(self, typelib, file):
         """
         Write a StringWithSizeTypeDescriptor to |file|, which is assumed
@@ -450,7 +451,7 @@ class StringWithSizeType(Type):
         Type.write(self, typelib, file)
         file.write(StringWithSizeType._descriptor.pack(self.size_is_arg_num,
                                                        self.length_is_arg_num))
-
+        
     def __str__(self):
         return "string_s"
 
@@ -460,7 +461,7 @@ class WideStringWithSizeType(Type):
     are passed as separate arguments to a method.
     (WideStringWithSizeTypeDescriptor from the typelib specification.)
 
-    """
+    """    
     _descriptor = struct.Struct(">BB")
 
     def __init__(self, size_is_arg_num, length_is_arg_num,
@@ -516,7 +517,6 @@ class Param(object):
         flags. Params default to "in".
 
         """
-
         self.type = type
         self.in_ = in_
         self.out = out
@@ -615,7 +615,7 @@ class Param(object):
         if self.optional:
             s += "optional "
         return s
-
+            
     def __str__(self):
         return self.prefix() + str(self.type)
 
@@ -627,7 +627,7 @@ class Method(object):
     
     """
     _descriptorstart = struct.Struct(">BIB")
-
+    
     def __init__(self, name, result,
                  params=[], getter=False, setter=False, notxpcom=False,
                  constructor=False, hidden=False, optargc=False,
@@ -642,8 +642,6 @@ class Method(object):
         self.optargc = optargc
         self.implicit_jscontext = implicit_jscontext
         self.params = list(params)
-        if result and not isinstance(result, Param):
-            raise Exception("result must be a Param!")
         self.result = result
 
     def read_params(self, typelib, map, data_pool, offset, num_args):
@@ -778,7 +776,7 @@ class Constant(object):
 
     def __init__(self, name, type, value):
         self.name = name
-        self._name_offset = 0
+        self._name_offset = 0        
         self.type = type
         self.value = value
 
@@ -840,11 +838,11 @@ class Interface(object):
     (InterfaceDescriptor from the typelib specification.)
     
     """
-    _direntry = struct.Struct(">16sIII")
+    _direntry = struct.Struct(">16sIII")    
     _descriptorstart = struct.Struct(">HH")
 
     UNRESOLVED_IID = "00000000-0000-0000-0000-000000000000"
-
+    
     def __init__(self, name, iid=UNRESOLVED_IID, namespace="",
                  resolved=False, parent=None, methods=[], constants=[],
                  scriptable=False, function=False, builtinclass=False):
@@ -871,16 +869,12 @@ class Interface(object):
         self._descriptor_offset = 0
         self._name_offset = 0
         self._namespace_offset = 0
-        self.xpt_filename = None
 
     def __repr__(self):
         return "Interface('%s', '%s', '%s', methods=%s)" % (self.name, self.iid, self.namespace, self.methods)
 
     def __str__(self):
         return "Interface(name='%s', iid='%s')" % (self.name, self.iid)
-
-    def __hash__(self):
-        return hash((self.name, self.iid))
 
     def __cmp__(self, other):
         c = cmp(self.iid, other.iid)
@@ -977,7 +971,7 @@ class Interface(object):
         if self.builtinclass:
             flags |= 0x20
         file.write(struct.pack(">B", flags))
-
+        
     def write_names(self, file, data_pool_offset):
         """
         Write this interface's name and namespace to |file|,
@@ -1021,7 +1015,6 @@ class Typelib(object):
         self.version = version
         self.interfaces = list(interfaces)
         self.annotations = list(annotations)
-        self.filename = None
 
     @staticmethod
     def iid_to_string(iid):
@@ -1031,7 +1024,6 @@ class Typelib(object):
         """
         def hexify(s):
             return ''.join(["%02x" % ord(x) for x in s])
-
         return "%s-%s-%s-%s-%s" % (hexify(iid[:4]), hexify(iid[4:6]),
                                    hexify(iid[6:8]), hexify(iid[8:10]),
                                    hexify(iid[10:]))
@@ -1044,7 +1036,7 @@ class Typelib(object):
         """
         s = iid_str.replace('-','')
         return ''.join([chr(int(s[i:i+2], 16)) for i in range(0, len(s), 2)])
-
+    
     @staticmethod
     def read_string(map, data_pool, offset):
         if offset == 0:
@@ -1053,72 +1045,57 @@ class Typelib(object):
         if sz == -1:
             return ""
         return map[data_pool + offset - 1:sz]
-
+    
     @staticmethod
-    def read(input_file):
+    def read(filename):
         """
-        Read a typelib from |input_file| and return
-        the constructed Typelib object. |input_file| can be a filename
-        or a file-like object.
+        Read a typelib from the file named |filename| and return
+        the constructed Typelib object.
 
         """
-        filename = ""
-        data = None
-        expected_size = None
-        if isinstance(input_file, basestring):
-            filename = input_file
-            with open(input_file, "rb") as f:
-                st = os.fstat(f.fileno())
-                data = f.read(st.st_size)
-                expected_size = st.st_size
-        else:
-            data = input_file.read()
-
-        (magic,
-         major_ver,
-         minor_ver,
-         num_interfaces,
-         file_length,
-         interface_directory_offset,
-         data_pool_offset) = Typelib._header.unpack(data[:Typelib._header.size])
-        if magic != XPT_MAGIC:
-            raise FileFormatError, "Bad magic: %s" % magic
-        xpt = Typelib((major_ver, minor_ver))
-        xpt.filename = filename
-        if expected_size and file_length != expected_size:
-            raise FileFormatError, "File is of wrong length, got %d bytes, expected %d" % (expected_size, file_length)
-        #XXX: by spec this is a zero-based file offset. however,
-        # the xpt_xdr code always subtracts 1 from data offsets
-        # (because that's what you do in the data pool) so it
-        # winds up accidentally treating this as 1-based.
-        # Filed as: https://bugzilla.mozilla.org/show_bug.cgi?id=575343
-        interface_directory_offset -= 1
-        # make a half-hearted attempt to read Annotations,
-        # since XPIDL doesn't produce any anyway.
-        start = Typelib._header.size
-        (anno, ) = struct.unpack(">B", data[start:start + struct.calcsize(">B")])
-        islast = anno & 0x80
-        tag = anno & 0x7F
-        if tag == 0: # EmptyAnnotation
-            xpt.annotations.append(None)
-        # We don't bother handling PrivateAnnotations or anything
-
-        for i in range(num_interfaces):
-            # iid, name, namespace, interface_descriptor
-            start = interface_directory_offset + i * Interface._direntry.size
-            end = interface_directory_offset + (i+1) * Interface._direntry.size
-            ide = Interface._direntry.unpack(data[start:end])
-            iid = Typelib.iid_to_string(ide[0])
-            name = Typelib.read_string(data, data_pool_offset, ide[1])
-            namespace = Typelib.read_string(data, data_pool_offset, ide[2])
-            iface = Interface(name, iid, namespace)
-            iface._descriptor_offset = ide[3]
-            iface.xpt_filename = xpt.filename
-            xpt.interfaces.append(iface)
-        for iface in xpt.interfaces:
-            iface.read_descriptor(xpt, data, data_pool_offset)
+        with open(filename, "r+b") as f:
+            st = os.fstat(f.fileno())
+            map = f.read(st.st_size)
+            data = Typelib._header.unpack(map[:Typelib._header.size])
+            if data[0] != XPT_MAGIC:
+                raise FileFormatError, "Bad magic: %s" % data[0]
+            xpt = Typelib((data[1], data[2]))
+            num_interfaces = data[3]
+            file_length = data[4]
+            if file_length != st.st_size:
+                raise FileFormatError, "File is of wrong length, got %d bytes, expected %d" % (st.st_size, file_length)
+            #XXX: by spec this is a zero-based file offset. however,
+            # the xpt_xdr code always subtracts 1 from data offsets
+            # (because that's what you do in the data pool) so it
+            # winds up accidentally treating this as 1-based.
+            # Filed as: https://bugzilla.mozilla.org/show_bug.cgi?id=575343
+            interface_directory_offset = data[5] - 1
+            data_pool_offset = data[6]
+            # make a half-hearted attempt to read Annotations,
+            # since XPIDL doesn't produce any anyway.
+            start = Typelib._header.size
+            (anno, ) = struct.unpack(">B", map[start:start + struct.calcsize(">B")])
+            islast = anno & 0x80
+            tag = anno & 0x7F
+            if tag == 0: # EmptyAnnotation
+                xpt.annotations.append(None)
+            # We don't bother handling PrivateAnnotations or anything
+            
+            for i in range(num_interfaces):
+                # iid, name, namespace, interface_descriptor
+                start = interface_directory_offset + i * Interface._direntry.size
+                end = interface_directory_offset + (i+1) * Interface._direntry.size
+                ide = Interface._direntry.unpack(map[start:end])
+                iid = Typelib.iid_to_string(ide[0])
+                name = Typelib.read_string(map, data_pool_offset, ide[1])
+                namespace = Typelib.read_string(map, data_pool_offset, ide[2])
+                iface = Interface(name, iid, namespace)
+                iface._descriptor_offset = ide[3]
+                xpt.interfaces.append(iface)
+            for iface in xpt.interfaces:
+                iface.read_descriptor(xpt, map, data_pool_offset)
         return xpt
-
+    
     def __repr__(self):
         return "<Typelib with %d interfaces>" % len(self.interfaces)
 
@@ -1141,54 +1118,127 @@ class Typelib(object):
                 if isinstance(m.result, InterfaceType) and m.result.iface not in self.interfaces:
                     raise DataError, "Interface method %s::%s, result references interface %s not present in typelib!" % (i.name, m.name, m.result.iface.name)
 
-    def writefd(self, fd):
-        # write out space for a header + one empty annotation,
-        # padded to 4-byte alignment.
-        headersize = (Typelib._header.size + 1)
-        if headersize % 4:
-            headersize += 4 - headersize % 4
-        fd.write("\x00" * headersize)
-        # save this offset, it's the interface directory offset.
-        interface_directory_offset = fd.tell()
-        # write out space for an interface directory
-        fd.write("\x00" * Interface._direntry.size * len(self.interfaces))
-        # save this offset, it's the data pool offset.
-        data_pool_offset = fd.tell()
-        # write out all the interface descriptors to the data pool
-        for i in self.interfaces:
-            i.write_names(fd, data_pool_offset)
-            i.write(self, fd, data_pool_offset)
-        # now, seek back and write the header
-        file_len = fd.tell()
-        fd.seek(0)
-        fd.write(Typelib._header.pack(XPT_MAGIC,
-                                      TYPELIB_VERSION[0],
-                                      TYPELIB_VERSION[1],
-                                      len(self.interfaces),
-                                      file_len,
-                                      interface_directory_offset,
-                                      data_pool_offset))
-        # write an empty annotation
-        fd.write(struct.pack(">B", 0x80))
-        # now write the interface directory
-        #XXX: bug-compatible with existing xpt lib, put it one byte
-        # ahead of where it's supposed to be.
-        fd.seek(interface_directory_offset - 1)
-        for i in self.interfaces:
-            i.write_directory_entry(fd)
-
-    def write(self, output_file):
+    def write(self, filename):
         """
-        Write the contents of this typelib to |output_file|,
-        which can be either a filename or a file-like object.
+        Write the contents of this typelib to the file named |filename|.
 
         """
         self._sanityCheck()
-        if isinstance(output_file, basestring):
-            with open(output_file, "wb") as f:
-                self.writefd(f)
-        else:
-            self.writefd(output_file)
+        with open(filename, "wb") as f:
+            # write out space for a header + one empty annotation,
+            # padded to 4-byte alignment.
+            headersize = (Typelib._header.size + 1)
+            if headersize % 4:
+                headersize += 4 - headersize % 4
+            f.write("\x00" * headersize)
+            # save this offset, it's the interface directory offset.
+            interface_directory_offset = f.tell()
+            # write out space for an interface directory
+            f.write("\x00" * Interface._direntry.size * len(self.interfaces))
+            # save this offset, it's the data pool offset.
+            data_pool_offset = f.tell()
+            # write out all the interface descriptors to the data pool
+            for i in self.interfaces:
+                i.write_names(f, data_pool_offset)
+                i.write(self, f, data_pool_offset)
+            # now, seek back and write the header
+            file_len = f.tell()
+            f.seek(0)
+            f.write(Typelib._header.pack(XPT_MAGIC,
+                                         TYPELIB_VERSION[0],
+                                         TYPELIB_VERSION[1],
+                                         len(self.interfaces),
+                                         file_len,
+                                         interface_directory_offset,
+                                         data_pool_offset))
+            # write an empty annotation
+            f.write(struct.pack(">B", 0x80))
+            # now write the interface directory
+            #XXX: bug-compatible with existing xpt lib, put it one byte
+            # ahead of where it's supposed to be.
+            f.seek(interface_directory_offset - 1)
+            for i in self.interfaces:
+                i.write_directory_entry(f)
+
+    def merge(self, other, sanitycheck=True):
+        """
+        Merge the contents of Typelib |other| into this typelib.
+        If |sanitycheck| is False, don't sort the interface table
+        after merging.
+
+        """
+        # This will be a list of (replaced interface, replaced with)
+        # containing interfaces that were replaced with interfaces from
+        # another typelib, and the interface that replaced them.
+        merged_interfaces = []
+        for i in other.interfaces:
+            if i in self.interfaces:
+                continue
+            # See if there's a copy of this interface with different
+            # resolved status or IID value.
+            merged = False
+            for j in self.interfaces:
+                if i.name == j.name:
+                    if i.resolved != j.resolved:
+                        # prefer resolved interfaces over unresolved
+                        if j.resolved:
+                            # keep j
+                            merged_interfaces.append((i, j))
+                            merged = True
+                            # Fixup will happen after processing all interfaces.
+                        else:
+                            # replace j with i
+                            merged_interfaces.append((j, i))
+                            merged = True
+                            self.interfaces[self.interfaces.index(j)] = i
+                    elif i.iid != j.iid:
+                        # Prefer unresolved interfaces with valid IIDs
+                        if j.iid == Interface.UNRESOLVED_IID:
+                            # replace j with i
+                            merged_interfaces.append((j, i))
+                            merged = True
+                            self.interfaces[self.interfaces.index(j)] = i
+                        elif i.iid == Interface.UNRESOLVED_IID:
+                            # keep j
+                            merged_interfaces.append((i, j))
+                            merged = True
+                            # Fixup will happen after processing all interfaces.
+                        else:
+                            # Same name, different IIDs, raise an exception
+                            raise DataError, \
+                                  "Typelibs contain definitions of interface %s"\
+                                  " with different IIDs!" % i.name
+                elif i.iid == j.iid and i.iid != Interface.UNRESOLVED_IID:
+                    # Same IID, different names, raise an exception
+                    raise DataError, \
+                          "Typelibs contain definitions of interface %s"\
+                          " with different names (%s vs. %s)!" %  \
+                          (i.iid, i.name, j.name)
+            if not merged:
+                # No partially matching interfaces, so just take this interface
+                self.interfaces.append(i)
+        # Now fixup any merged interfaces
+        def checkType(t, replaced_from, replaced_to):
+            if isinstance(t, InterfaceType) and t.iface == replaced_from:
+                t.iface = replaced_to
+            elif isinstance(t, ArrayType) and \
+                 isinstance(t.element_type, InterfaceType) and \
+                 t.element_type.iface == replaced_from:
+                t.element_type.iface = replaced_to
+        
+        for replaced_from, replaced_to in merged_interfaces:
+            for i in self.interfaces:
+                # Replace parent references
+                if i.parent is not None and i.parent == replaced_from:
+                    i.parent = replaced_to
+                for m in i.methods:
+                    # Replace InterfaceType params and return values
+                    checkType(m.result.type, replaced_from, replaced_to)
+                    for p in m.params:
+                        checkType(p.type, replaced_from, replaced_to)
+        if sanitycheck:
+            self._sanityCheck()
+        #TODO: do we care about annotations? probably not
 
     def dump(self, out):
         """
@@ -1251,126 +1301,21 @@ def xpt_dump(file):
     t = Typelib.read(file)
     t.dump(sys.stdout)
 
-def xpt_link(inputs):
+def xpt_link(dest, inputs):
     """
-    Link all of the xpt files in |inputs| together and return the result
-    as a Typelib object. All entries in inputs may be filenames or
-    file-like objects.
+    Link all of the xpt files in |inputs| together and write the
+    result ot |dest|.
 
     """
-    def read_input(i):
-        if isinstance(i, Typelib):
-            return i
-        return Typelib.read(i)
-
     if not inputs:
         print >>sys.stderr, "Usage: xpt_link <destination file> <input files>"
-        return None
-    # This is the aggregate list of interfaces.
-    interfaces = []
-    # This will be a dict of replaced interface -> replaced with
-    # containing interfaces that were replaced with interfaces from
-    # another typelib, and the interface that replaced them.
-    merged_interfaces = {}
-    for f in inputs:
-        t = read_input(f)
-        interfaces.extend(t.interfaces)
-    # Sort interfaces by name so we can merge adjacent duplicates
-    interfaces.sort(key=operator.attrgetter('name'))
-
-    Result = enum('Equal',     # Interfaces the same, doesn't matter
-                  'NotEqual',  # Interfaces differ, keep both
-                  'KeepFirst', # Replace second interface with first
-                  'KeepSecond')# Replace first interface with second
-        
-    def compare(i, j):
-        """
-        Compare two interfaces, determine if they're equal or
-        completely different, or should be merged (and indicate which
-        one to keep in that case).
-
-        """
-        if i == j:
-            # Arbitrary, just pick one
-            return Result.Equal
-        if i.name != j.name:
-            if i.iid == j.iid and i.iid != Interface.UNRESOLVED_IID:
-                # Same IID but different names: raise an exception.
-                raise DataError, \
-                    "Typelibs contain definitions of interface %s" \
-                    " with different names (%s (%s) vs %s (%s))!" % \
-                    (i.iid, i.name, i.xpt_filename, j.name, j.xpt_filename)
-            # Otherwise just different interfaces.
-            return Result.NotEqual
-        # Interfaces have the same name, so either they need to be merged
-        # or there's a data error. Sort out which one to keep
-        if i.resolved != j.resolved:
-            # prefer resolved interfaces over unresolved
-            if j.resolved:
-                assert i.iid == j.iid or i.iid == Interface.UNRESOLVED_IID
-                # keep j
-                return Result.KeepSecond
-            else:
-                assert i.iid == j.iid or j.iid == Interface.UNRESOLVED_IID
-                # replace j with i
-                return Result.KeepFirst
-        elif i.iid != j.iid:
-            # Prefer unresolved interfaces with valid IIDs
-            if j.iid == Interface.UNRESOLVED_IID:
-                # replace j with i
-                assert not j.resolved
-                return Result.KeepFirst
-            elif i.iid == Interface.UNRESOLVED_IID:
-                # keep j
-                assert not i.resolved
-                return Result.KeepSecond
-            else:
-                # Same name but different IIDs: raise an exception.
-                raise DataError, \
-                    "Typelibs contain definitions of interface %s" \
-                                " with different IIDs (%s (%s) vs %s (%s))!" % \
-                                (i.name, i.iid, i.xpt_filename, \
-                                 j.iid, j.xpt_filename)
-        raise DataError, "No idea what happened here: %s:%s (%s), %s:%s (%s)" % \
-            (i.name, i.iid, i.xpt_filename, j.name, j.iid, j.xpt_filename)
-    
-    # Compare interfaces pairwise to find duplicates that should be merged.
-    i = 1
-    while i < len(interfaces):
-        res = compare(interfaces[i-1], interfaces[i])
-        if res == Result.NotEqual:
-            i += 1
-        elif res == Result.Equal:
-            # Need to drop one but it doesn't matter which
-            del interfaces[i]
-        elif res == Result.KeepFirst:
-            merged_interfaces[interfaces[i]] = interfaces[i-1]
-            del interfaces[i]
-        elif res == Result.KeepSecond:
-            merged_interfaces[interfaces[i-1]] = interfaces[i]
-            del interfaces[i-1]
-    
-    # Now fixup any merged interfaces
-    def checkType(t):
-        if isinstance(t, InterfaceType) and t.iface in merged_interfaces:
-            t.iface = merged_interfaces[t.iface]
-        elif isinstance(t, ArrayType) and \
-             isinstance(t.element_type, InterfaceType) and \
-             t.element_type.iface in merged_interfaces:
-            t.element_type.iface = merged_interfaces[t.element_type.iface]
-
-    for i in interfaces:
-        # Replace parent references
-        if i.parent in merged_interfaces:
-            i.parent = merged_interfaces[i.parent]
-        for m in i.methods:
-            # Replace InterfaceType params and return values
-            checkType(m.result.type)
-            for p in m.params:
-                checkType(p.type)
-    # Re-sort interfaces (by IID)
-    interfaces.sort()
-    return Typelib(interfaces=interfaces)
+        return
+    t1 = Typelib.read(inputs[0])
+    for f in inputs[1:]:
+        t2 = Typelib.read(f)
+        # write will call sanitycheck, so skip it here.
+        t1.merge(t2, sanitycheck=False)
+    t1.write(dest)
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -1379,5 +1324,4 @@ if __name__ == '__main__':
     if sys.argv[1] == 'dump':
         xpt_dump(sys.argv[2])
     elif sys.argv[1] == 'link':
-        xpt_link(sys.argv[3:]).write(sys.argv[2])
-        
+        xpt_link(sys.argv[2], sys.argv[3:])

@@ -2,6 +2,8 @@
 <head>
   <title>Test for root element replacement</title>
   <script type="text/javascript"
+          src="/MochiKit/packed.js"></script>
+  <script type="text/javascript"
           src="/tests/SimpleTest/SimpleTest.js"></script>
   <script type="text/javascript"
           src="/tests/SimpleTest/EventUtils.js"></script>
@@ -21,6 +23,8 @@
 
 SimpleTest.waitForExplicitFinish();
 SimpleTest.waitForFocus(runTest);
+
+netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
 function runDesignModeTest(aDoc, aFocus, aNewSource)
 {
@@ -81,15 +85,19 @@ var gSetFocusToIFrame = false;
 
 function onLoadIFrame()
 {
+  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
+
   var frameDoc = gIFrame.contentWindow.document;
 
-  var selCon = SpecialPowers.wrap(gIFrame).contentWindow.
+  var selCon = gIFrame.contentWindow.
     QueryInterface(Components.interfaces.nsIInterfaceRequestor).
     getInterface(Components.interfaces.nsIWebNavigation).
     QueryInterface(Components.interfaces.nsIInterfaceRequestor).
     getInterface(Components.interfaces.nsISelectionDisplay).
     QueryInterface(Components.interfaces.nsISelectionController);
-  var utils = SpecialPowers.getDOMWindowUtils(window);
+  var utils = window.
+    QueryInterface(Components.interfaces.nsIInterfaceRequestor).
+    getInterface(Components.interfaces.nsIDOMWindowUtils);
   const nsIDOMNode = Components.interfaces.nsIDOMNode;
 
   // move focus to the HTML editor

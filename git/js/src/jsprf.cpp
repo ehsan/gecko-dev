@@ -1,7 +1,40 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is Mozilla Communicator client code, released
+ * March 31, 1998.
+ *
+ * The Initial Developer of the Original Code is
+ * Netscape Communications Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 1998
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either of the GNU General Public License Version 2 or later (the "GPL"),
+ * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 /*
 ** Portable safe sprintf code.
@@ -13,6 +46,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "jsprf.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 #include "jspubtd.h"
 #include "jsstr.h"
@@ -42,13 +76,13 @@ using namespace js;
 typedef struct SprintfStateStr SprintfState;
 
 struct SprintfStateStr {
-    int (*stuff)(SprintfState *ss, const char *sp, uint32_t len);
+    int (*stuff)(SprintfState *ss, const char *sp, JSUint32 len);
 
     char *base;
     char *cur;
-    uint32_t maxlen;
+    JSUint32 maxlen;
 
-    int (*func)(void *arg, const char *sp, uint32_t len);
+    int (*func)(void *arg, const char *sp, JSUint32 len);
     void *arg;
 };
 
@@ -106,7 +140,7 @@ static int fill2(SprintfState *ss, const char *src, int srclen, int width,
     }
 
     /* Copy out the source data */
-    rv = (*ss->stuff)(ss, src, uint32_t(srclen));
+    rv = (*ss->stuff)(ss, src, (JSUint32)srclen);
     if (rv < 0) {
         return rv;
     }
@@ -200,7 +234,7 @@ static int fill_n(SprintfState *ss, const char *src, int srclen, int width,
             return rv;
         }
     }
-    rv = (*ss->stuff)(ss, src, uint32_t(srclen));
+    rv = (*ss->stuff)(ss, src, (JSUint32)srclen);
     if (rv < 0) {
         return rv;
     }
@@ -256,7 +290,7 @@ static int cvt_l(SprintfState *ss, long num, int width, int prec, int radix,
 /*
 ** Convert a 64-bit integer into its printable form
 */
-static int cvt_ll(SprintfState *ss, int64_t num, int width, int prec, int radix,
+static int cvt_ll(SprintfState *ss, JSInt64 num, int width, int prec, int radix,
                   int type, int flags, const char *hexp)
 {
     /* according to the man page this needs to happen */
@@ -269,14 +303,14 @@ static int cvt_ll(SprintfState *ss, int64_t num, int width, int prec, int radix,
     ** need to stop when we hit 10 digits. In the signed case, we can
     ** stop when the number is zero.
     */
-    int64_t rad = int64_t(radix);
+    JSInt64 rad = JSInt64(radix);
     char cvtbuf[100];
     char *cvt = cvtbuf + sizeof(cvtbuf);
     int digits = 0;
     while (num != 0) {
-        int64_t quot = uint64_t(num) / rad;
-        int64_t rem = uint64_t(num) % rad;
-        int32_t digit = int32_t(rem);
+        JSInt64 quot = JSUint64(num) / rad;
+        JSInt64 rem = JSUint64(num) % rad;
+        JSInt32 digit = JSInt32(rem);
         *--cvt = hexp[digit & 0xf];
         digits++;
         num = quot;
@@ -310,7 +344,7 @@ static int cvt_f(SprintfState *ss, double d, const char *fmt0, const char *fmt1)
         /* Totally bogus % command to sprintf. Just ignore it */
         return 0;
     }
-    js_memcpy(fin, fmt0, (size_t)amount);
+    memcpy(fin, fmt0, (size_t)amount);
     fin[amount] = 0;
 
     /* Convert floating point using the native sprintf code */
@@ -374,7 +408,7 @@ static int cvt_ws(SprintfState *ss, const jschar *ws, int width, int prec,
         if (!s)
             return -1; /* JSStuffFunc error indicator. */
         result = cvt_s(ss, s, width, prec, flags);
-        js_free(s);
+        UnwantedForeground::free_(s);
     } else {
         result = cvt_s(ss, NULL, width, prec, flags);
     }
@@ -543,11 +577,11 @@ static struct NumArgState* BuildArgArray( const char *fmt, va_list ap, int* rv, 
 
         case 'p':
             /* XXX should use cpp */
-            if (sizeof(void *) == sizeof(int32_t)) {
+            if (sizeof(void *) == sizeof(JSInt32)) {
                 nas[ cn ].type = TYPE_UINT32;
-            } else if (sizeof(void *) == sizeof(int64_t)) {
+            } else if (sizeof(void *) == sizeof(JSInt64)) {
                 nas[ cn ].type = TYPE_UINT64;
-            } else if (sizeof(void *) == sizeof(int)) {
+            } else if (sizeof(void *) == sizeof(JSIntn)) {
                 nas[ cn ].type = TYPE_UINTN;
             } else {
                 nas[ cn ].type = TYPE_UNKNOWN;
@@ -592,7 +626,7 @@ static struct NumArgState* BuildArgArray( const char *fmt, va_list ap, int* rv, 
 
     if( *rv < 0 ){
         if( nas != nasArray )
-            js_free( nas );
+            UnwantedForeground::free_( nas );
         return NULL;
     }
 
@@ -609,27 +643,27 @@ static struct NumArgState* BuildArgArray( const char *fmt, va_list ap, int* rv, 
         case TYPE_INT16:
         case TYPE_UINT16:
         case TYPE_INTN:
-        case TYPE_UINTN:                (void)va_arg( ap, int );             break;
+        case TYPE_UINTN:                (void)va_arg( ap, JSIntn );             break;
 
-        case TYPE_INT32:                (void)va_arg( ap, int32_t );            break;
+        case TYPE_INT32:                (void)va_arg( ap, JSInt32 );            break;
 
-        case TYPE_UINT32:       (void)va_arg( ap, uint32_t );   break;
+        case TYPE_UINT32:       (void)va_arg( ap, JSUint32 );   break;
 
-        case TYPE_INT64:        (void)va_arg( ap, int64_t );            break;
+        case TYPE_INT64:        (void)va_arg( ap, JSInt64 );            break;
 
-        case TYPE_UINT64:       (void)va_arg( ap, uint64_t );           break;
+        case TYPE_UINT64:       (void)va_arg( ap, JSUint64 );           break;
 
         case TYPE_STRING:       (void)va_arg( ap, char* );              break;
 
         case TYPE_WSTRING:      (void)va_arg( ap, jschar* );            break;
 
-        case TYPE_INTSTR:       (void)va_arg( ap, int* );            break;
+        case TYPE_INTSTR:       (void)va_arg( ap, JSIntn* );            break;
 
         case TYPE_DOUBLE:       (void)va_arg( ap, double );             break;
 
         default:
             if( nas != nasArray )
-                js_free( nas );
+                UnwantedForeground::free_( nas );
             *rv = -1;
             return NULL;
         }
@@ -653,7 +687,7 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
         jschar wch;
         int i;
         long l;
-        int64_t ll;
+        JSInt64 ll;
         double d;
         const char *s;
         const jschar* ws;
@@ -668,7 +702,7 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
     struct NumArgState nasArray[ NAS_DEFAULT_NUM ];
     char pattern[20];
     const char *dolPt = NULL;  /* in "%4$.2f", dolPt will poiont to . */
-    uint8_t utf8buf[6];
+    uint8 utf8buf[6];
     int utf8len;
 
     /*
@@ -718,7 +752,7 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
 
             if( nas[i-1].type == TYPE_UNKNOWN ){
                 if( nas && ( nas != nasArray ) )
-                    js_free( nas );
+                    UnwantedForeground::free_( nas );
                 return -1;
             }
 
@@ -842,14 +876,14 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
                 goto do_long;
 
               case TYPE_INT32:
-                u.l = va_arg(ap, int32_t);
+                u.l = va_arg(ap, JSInt32);
                 if (u.l < 0) {
                     u.l = -u.l;
                     flags |= FLAG_NEG;
                 }
                 goto do_long;
               case TYPE_UINT32:
-                u.l = (long)va_arg(ap, uint32_t);
+                u.l = (long)va_arg(ap, JSUint32);
               do_long:
                 rv = cvt_l(ss, u.l, width, prec, radix, type, flags, hexp);
                 if (rv < 0) {
@@ -858,14 +892,14 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
                 break;
 
               case TYPE_INT64:
-                u.ll = va_arg(ap, int64_t);
+                u.ll = va_arg(ap, JSInt64);
                 if (u.ll < 0) {
                     u.ll = -u.ll;
                     flags |= FLAG_NEG;
                 }
                 goto do_longlong;
               case TYPE_UINT64:
-                u.ll = va_arg(ap, uint64_t);
+                u.ll = va_arg(ap, JSUint64);
               do_longlong:
                 rv = cvt_ll(ss, u.ll, width, prec, radix, type, flags, hexp);
                 if (rv < 0) {
@@ -884,7 +918,7 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
                 i = fmt - dolPt;
                 if( i < (int)sizeof( pattern ) ){
                     pattern[0] = '%';
-                    js_memcpy( &pattern[1], dolPt, (size_t)i );
+                    memcpy( &pattern[1], dolPt, (size_t)i );
                     rv = cvt_f(ss, u.d, pattern, &pattern[i+1] );
                 }
             } else
@@ -932,9 +966,9 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
             break;
 
           case 'p':
-            if (sizeof(void *) == sizeof(int32_t)) {
+            if (sizeof(void *) == sizeof(JSInt32)) {
                 type = TYPE_UINT32;
-            } else if (sizeof(void *) == sizeof(int64_t)) {
+            } else if (sizeof(void *) == sizeof(JSInt64)) {
                 type = TYPE_UINT64;
             } else if (sizeof(void *) == sizeof(int)) {
                 type = TYPE_UINTN;
@@ -999,7 +1033,7 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
     rv = (*ss->stuff)(ss, "\0", 1);
 
     if( nas && ( nas != nasArray ) ){
-        js_free( nas );
+        UnwantedForeground::free_( nas );
     }
 
     return rv;
@@ -1007,7 +1041,7 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
 
 /************************************************************************/
 
-static int FuncStuff(SprintfState *ss, const char *sp, uint32_t len)
+static int FuncStuff(SprintfState *ss, const char *sp, JSUint32 len)
 {
     int rv;
 
@@ -1019,7 +1053,7 @@ static int FuncStuff(SprintfState *ss, const char *sp, uint32_t len)
     return 0;
 }
 
-JS_PUBLIC_API(uint32_t) JS_sxprintf(JSStuffFunc func, void *arg,
+JS_PUBLIC_API(JSUint32) JS_sxprintf(JSStuffFunc func, void *arg,
                                     const char *fmt, ...)
 {
     va_list ap;
@@ -1031,7 +1065,7 @@ JS_PUBLIC_API(uint32_t) JS_sxprintf(JSStuffFunc func, void *arg,
     return rv;
 }
 
-JS_PUBLIC_API(uint32_t) JS_vsxprintf(JSStuffFunc func, void *arg,
+JS_PUBLIC_API(JSUint32) JS_vsxprintf(JSStuffFunc func, void *arg,
                                      const char *fmt, va_list ap)
 {
     SprintfState ss;
@@ -1042,27 +1076,27 @@ JS_PUBLIC_API(uint32_t) JS_vsxprintf(JSStuffFunc func, void *arg,
     ss.arg = arg;
     ss.maxlen = 0;
     rv = dosprintf(&ss, fmt, ap);
-    return (rv < 0) ? UINT32_MAX : ss.maxlen;
+    return (rv < 0) ? (JSUint32)-1 : ss.maxlen;
 }
 
 /*
 ** Stuff routine that automatically grows the malloc'd output buffer
 ** before it overflows.
 */
-static int GrowStuff(SprintfState *ss, const char *sp, uint32_t len)
+static int GrowStuff(SprintfState *ss, const char *sp, JSUint32 len)
 {
     ptrdiff_t off;
     char *newbase;
-    uint32_t newlen;
+    JSUint32 newlen;
 
     off = ss->cur - ss->base;
     if (off + len >= ss->maxlen) {
         /* Grow the buffer */
         newlen = ss->maxlen + ((len > 32) ? len : 32);
         if (ss->base) {
-            newbase = (char*) js_realloc(ss->base, newlen);
+            newbase = (char*) OffTheBooks::realloc_(ss->base, newlen);
         } else {
-            newbase = (char*) js_malloc(newlen);
+            newbase = (char*) OffTheBooks::malloc_(newlen);
         }
         if (!newbase) {
             /* Ran out of memory */
@@ -1078,7 +1112,7 @@ static int GrowStuff(SprintfState *ss, const char *sp, uint32_t len)
         --len;
         *ss->cur++ = *sp++;
     }
-    JS_ASSERT(uint32_t(ss->cur - ss->base) <= ss->maxlen);
+    JS_ASSERT((JSUint32)(ss->cur - ss->base) <= ss->maxlen);
     return 0;
 }
 
@@ -1101,7 +1135,7 @@ JS_PUBLIC_API(char *) JS_smprintf(const char *fmt, ...)
 */
 JS_PUBLIC_API(void) JS_smprintf_free(char *mem)
 {
-        js_free(mem);
+        Foreground::free_(mem);
 }
 
 JS_PUBLIC_API(char *) JS_vsmprintf(const char *fmt, va_list ap)
@@ -1116,7 +1150,7 @@ JS_PUBLIC_API(char *) JS_vsmprintf(const char *fmt, va_list ap)
     rv = dosprintf(&ss, fmt, ap);
     if (rv < 0) {
         if (ss.base) {
-            js_free(ss.base);
+            Foreground::free_(ss.base);
         }
         return 0;
     }
@@ -1126,9 +1160,9 @@ JS_PUBLIC_API(char *) JS_vsmprintf(const char *fmt, va_list ap)
 /*
 ** Stuff routine that discards overflow data
 */
-static int LimitStuff(SprintfState *ss, const char *sp, uint32_t len)
+static int LimitStuff(SprintfState *ss, const char *sp, JSUint32 len)
 {
-    uint32_t limit = ss->maxlen - (ss->cur - ss->base);
+    JSUint32 limit = ss->maxlen - (ss->cur - ss->base);
 
     if (len > limit) {
         len = limit;
@@ -1144,13 +1178,13 @@ static int LimitStuff(SprintfState *ss, const char *sp, uint32_t len)
 ** sprintf into a fixed size buffer. Make sure there is a NUL at the end
 ** when finished.
 */
-JS_PUBLIC_API(uint32_t) JS_snprintf(char *out, uint32_t outlen, const char *fmt, ...)
+JS_PUBLIC_API(JSUint32) JS_snprintf(char *out, JSUint32 outlen, const char *fmt, ...)
 {
     va_list ap;
     int rv;
 
-    JS_ASSERT(int32_t(outlen) > 0);
-    if (int32_t(outlen) <= 0) {
+    JS_ASSERT((JSInt32)outlen > 0);
+    if ((JSInt32)outlen <= 0) {
         return 0;
     }
 
@@ -1160,14 +1194,14 @@ JS_PUBLIC_API(uint32_t) JS_snprintf(char *out, uint32_t outlen, const char *fmt,
     return rv;
 }
 
-JS_PUBLIC_API(uint32_t) JS_vsnprintf(char *out, uint32_t outlen,const char *fmt,
-                                     va_list ap)
+JS_PUBLIC_API(JSUint32) JS_vsnprintf(char *out, JSUint32 outlen,const char *fmt,
+                                  va_list ap)
 {
     SprintfState ss;
-    uint32_t n;
+    JSUint32 n;
 
-    JS_ASSERT(int32_t(outlen) > 0);
-    if (int32_t(outlen) <= 0) {
+    JS_ASSERT((JSInt32)outlen > 0);
+    if ((JSInt32)outlen <= 0) {
         return 0;
     }
 
@@ -1215,7 +1249,7 @@ JS_PUBLIC_API(char *) JS_vsprintf_append(char *last, const char *fmt, va_list ap
     rv = dosprintf(&ss, fmt, ap);
     if (rv < 0) {
         if (ss.base) {
-            js_free(ss.base);
+            Foreground::free_(ss.base);
         }
         return 0;
     }

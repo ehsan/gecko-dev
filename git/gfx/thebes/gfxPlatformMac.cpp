@@ -1,14 +1,46 @@
 /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * ***** BEGIN LICENSE BLOCK *****
+ * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *
+ * The contents of this file are subject to the Mozilla Public License Version
+ * 1.1 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * http://www.mozilla.org/MPL/
+ *
+ * Software distributed under the License is distributed on an "AS IS" basis,
+ * WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+ * for the specific language governing rights and limitations under the
+ * License.
+ *
+ * The Original Code is thebes gfx code.
+ *
+ * The Initial Developer of the Original Code is Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
+ * the Initial Developer. All Rights Reserved.
+ *
+ * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com>
+ *   Masayuki Nakano <masayuki@d-toybox.com>
+ *
+ * Alternatively, the contents of this file may be used under the terms of
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * in which case the provisions of the GPL or the LGPL are applicable instead
+ * of those above. If you wish to allow use of your version of this file only
+ * under the terms of either the GPL or the LGPL, and not to allow others to
+ * use your version of this file under the terms of the MPL, indicate your
+ * decision by deleting the provisions above and replace them with the notice
+ * and other provisions required by the GPL or the LGPL. If you do not delete
+ * the provisions above, a recipient may use your version of this file under
+ * the terms of any one of the MPL, the GPL or the LGPL.
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "gfxPlatformMac.h"
 
 #include "gfxImageSurface.h"
 #include "gfxQuartzSurface.h"
 #include "gfxQuartzImageSurface.h"
-#include "mozilla/gfx/2D.h"
 
 #include "gfxMacPlatformFontList.h"
 #include "gfxMacFont.h"
@@ -26,7 +58,6 @@
 #include <dlfcn.h>
 
 using namespace mozilla;
-using namespace mozilla::gfx;
 
 // cribbed from CTFontManager.h
 enum {
@@ -59,6 +90,13 @@ DisableFontActivation()
         CTFontManagerSetAutoActivationSettingPtr(mainBundleID,
                                                  kAutoActivationDisabled);
     }
+
+    if (mainBundleID) {
+        ::CFRelease(mainBundleID);
+    }
+    if (mainBundle) {
+        ::CFRelease(mainBundle);
+    }
 }
 
 gfxPlatformMac::gfxPlatformMac()
@@ -69,9 +107,6 @@ gfxPlatformMac::gfxPlatformMac()
         DisableFontActivation();
     }
     mFontAntiAliasingThreshold = ReadAntiAliasingThreshold();
-
-    uint32_t backendMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA) | (1 << BACKEND_COREGRAPHICS);
-    InitCanvasBackend(backendMask);
 }
 
 gfxPlatformMac::~gfxPlatformMac()
@@ -87,33 +122,20 @@ gfxPlatformMac::CreatePlatformFontList()
         return list;
     }
     gfxPlatformFontList::Shutdown();
-    return nullptr;
+    return nsnull;
 }
 
 already_AddRefed<gfxASurface>
 gfxPlatformMac::CreateOffscreenSurface(const gfxIntSize& size,
                                        gfxASurface::gfxContentType contentType)
 {
-    gfxASurface *newSurface = nullptr;
+    gfxASurface *newSurface = nsnull;
 
-    newSurface = new gfxQuartzSurface(size, OptimalFormatForContent(contentType));
+    newSurface = new gfxQuartzSurface(size, gfxASurface::FormatFromContent(contentType));
 
     NS_IF_ADDREF(newSurface);
     return newSurface;
 }
-
-already_AddRefed<gfxASurface>
-gfxPlatformMac::CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                            gfxASurface::gfxContentType aContentType)
-{
-    nsRefPtr<gfxASurface> surface = CreateOffscreenSurface(aSize, aContentType);
-#ifdef DEBUG
-    nsRefPtr<gfxImageSurface> imageSurface = surface->GetAsImageSurface();
-    NS_ASSERTION(imageSurface, "Surface cannot be converted to a gfxImageSurface");
-#endif
-    return surface.forget();
-}
-
 
 already_AddRefed<gfxASurface>
 gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
@@ -135,22 +157,15 @@ gfxPlatformMac::OptimizeImage(gfxImageSurface *aSurface,
     return ret.forget();
 }
 
-RefPtr<ScaledFont>
-gfxPlatformMac::GetScaledFontForFont(DrawTarget* aTarget, gfxFont *aFont)
-{
-    gfxMacFont *font = static_cast<gfxMacFont*>(aFont);
-    return font->GetScaledFont();
-}
-
 nsresult
 gfxPlatformMac::ResolveFontName(const nsAString& aFontName,
                                 FontResolverCallback aCallback,
-                                void *aClosure, bool& aAborted)
+                                void *aClosure, PRBool& aAborted)
 {
     nsAutoString resolvedName;
     if (!gfxPlatformFontList::PlatformFontList()->
              ResolveFontName(aFontName, resolvedName)) {
-        aAborted = false;
+        aAborted = PR_FALSE;
         return NS_OK;
     }
     aAborted = !(*aCallback)(resolvedName, aClosure);
@@ -183,7 +198,7 @@ gfxPlatformMac::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
 
 gfxFontEntry* 
 gfxPlatformMac::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                 const uint8_t *aFontData, uint32_t aLength)
+                                 const PRUint8 *aFontData, PRUint32 aLength)
 {
     // Ownership of aFontData is received here, and passed on to
     // gfxPlatformFontList::MakePlatformFont(), which must ensure the data
@@ -193,8 +208,8 @@ gfxPlatformMac::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
                                                                      aLength);
 }
 
-bool
-gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags)
+PRBool
+gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 {
     // check for strange format flags
     NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
@@ -205,16 +220,16 @@ gfxPlatformMac::IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags)
                         gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE | 
                         gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT)) {
-        return true;
+        return PR_TRUE;
     }
 
     // reject all other formats, known and unknown
     if (aFormatFlags != 0) {
-        return false;
+        return PR_FALSE;
     }
 
     // no format hint set, need to look at data
-    return true;
+    return PR_TRUE;
 }
 
 // these will also move to gfxPlatform once all platforms support the fontlist
@@ -234,109 +249,7 @@ gfxPlatformMac::UpdateFontList()
     return NS_OK;
 }
 
-static const char kFontArialUnicodeMS[] = "Arial Unicode MS";
-static const char kFontAppleBraille[] = "Apple Braille";
-static const char kFontAppleSymbols[] = "Apple Symbols";
-static const char kFontAppleMyungjo[] = "AppleMyungjo";
-static const char kFontGeneva[] = "Geneva";
-static const char kFontGeezaPro[] = "Geeza Pro";
-static const char kFontHiraginoKakuGothic[] = "Hiragino Kaku Gothic ProN";
-static const char kFontLucidaGrande[] = "Lucida Grande";
-static const char kFontMenlo[] = "Menlo";
-static const char kFontPlantagenetCherokee[] = "Plantagenet Cherokee";
-static const char kFontSTHeiti[] = "STHeiti";
-
-void
-gfxPlatformMac::GetCommonFallbackFonts(const uint32_t aCh,
-                                       int32_t aRunScript,
-                                       nsTArray<const char*>& aFontList)
-{
-    aFontList.AppendElement(kFontLucidaGrande);
-
-    if (!IS_IN_BMP(aCh)) {
-        uint32_t p = aCh >> 16;
-        if (p == 1) {
-            aFontList.AppendElement(kFontAppleSymbols);
-            aFontList.AppendElement(kFontGeneva);
-        }
-    } else {
-        uint32_t b = (aCh >> 8) & 0xff;
-
-        switch (b) {
-        case 0x03:
-        case 0x05:
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x07:
-            aFontList.AppendElement(kFontGeezaPro);
-            break;
-        case 0x10:
-            aFontList.AppendElement(kFontMenlo);
-            break;
-        case 0x13:  // Cherokee
-            aFontList.AppendElement(kFontPlantagenetCherokee);
-            break;
-        case 0x18:  // Mongolian
-            aFontList.AppendElement(kFontSTHeiti);
-            break;
-        case 0x1d:
-        case 0x1e:
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x20:  // Symbol ranges
-        case 0x21:
-        case 0x22:
-        case 0x23:
-        case 0x24:
-        case 0x25:
-        case 0x26:
-        case 0x27:
-        case 0x29:
-        case 0x2a:
-        case 0x2b:
-        case 0x2e:
-            aFontList.AppendElement(kFontAppleSymbols);
-            aFontList.AppendElement(kFontMenlo);
-            aFontList.AppendElement(kFontGeneva);
-            aFontList.AppendElement(kFontHiraginoKakuGothic);
-            break;
-        case 0x2c:
-        case 0x2d:
-            aFontList.AppendElement(kFontGeneva);
-            break;
-        case 0x28:  // Braille
-            aFontList.AppendElement(kFontAppleBraille);
-            break;
-        case 0x4d:
-            aFontList.AppendElement(kFontAppleSymbols);
-            break;
-        case 0xa0:  // Yi
-        case 0xa1:
-        case 0xa2:
-        case 0xa3:
-        case 0xa4:
-            aFontList.AppendElement(kFontSTHeiti);
-            break;
-        case 0xa6:
-        case 0xa7:
-            aFontList.AppendElement(kFontGeneva);
-            aFontList.AppendElement(kFontAppleSymbols);
-            break;
-        case 0xfc:
-        case 0xff:
-            aFontList.AppendElement(kFontAppleSymbols);
-            break;
-        default:
-            break;
-        }
-    }
-
-    // Arial Unicode MS has lots of glyphs for obscure, use it as a last resort
-    aFontList.AppendElement(kFontArialUnicodeMS);
-}
-
-
-int32_t 
+PRInt32 
 gfxPlatformMac::OSXVersion()
 {
     if (!mOSXVersion) {
@@ -351,13 +264,13 @@ gfxPlatformMac::OSXVersion()
     return mOSXVersion;
 }
 
-uint32_t
+PRUint32
 gfxPlatformMac::ReadAntiAliasingThreshold()
 {
-    uint32_t threshold = 0;  // default == no threshold
+    PRUint32 threshold = 0;  // default == no threshold
     
     // first read prefs flag to determine whether to use the setting or not
-    bool useAntiAliasingThreshold = Preferences::GetBool("gfx.use_text_smoothing_setting", false);
+    PRBool useAntiAliasingThreshold = Preferences::GetBool("gfx.use_text_smoothing_setting", PR_FALSE);
 
     // if the pref setting is disabled, return 0 which effectively disables this feature
     if (!useAntiAliasingThreshold)
@@ -376,46 +289,10 @@ gfxPlatformMac::ReadAntiAliasingThreshold()
     return threshold;
 }
 
-already_AddRefed<gfxASurface>
-gfxPlatformMac::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
-{
-  if (aTarget->GetType() == BACKEND_COREGRAPHICS_ACCELERATED) {
-    RefPtr<SourceSurface> source = aTarget->Snapshot();
-    RefPtr<DataSourceSurface> sourceData = source->GetDataSurface();
-    unsigned char* data = sourceData->GetData();
-    nsRefPtr<gfxImageSurface> surf = new gfxImageSurface(data, ThebesIntSize(sourceData->GetSize()), sourceData->Stride(),
-                                                         gfxImageSurface::ImageFormatARGB32);
-    // We could fix this by telling gfxImageSurface it owns data.
-    nsRefPtr<gfxImageSurface> cpy = new gfxImageSurface(ThebesIntSize(sourceData->GetSize()), gfxImageSurface::ImageFormatARGB32);
-    cpy->CopyFrom(surf);
-    return cpy.forget();
-  } else if (aTarget->GetType() == BACKEND_COREGRAPHICS) {
-    CGContextRef cg = static_cast<CGContextRef>(aTarget->GetNativeSurface(NATIVE_SURFACE_CGCONTEXT));
-
-    //XXX: it would be nice to have an implicit conversion from IntSize to gfxIntSize
-    IntSize intSize = aTarget->GetSize();
-    gfxIntSize size(intSize.width, intSize.height);
-
-    nsRefPtr<gfxASurface> surf =
-      new gfxQuartzSurface(cg, size);
-
-    return surf.forget();
-  }
-
-  return gfxPlatform::GetThebesSurfaceForDrawTarget(aTarget);
-}
-
-bool
-gfxPlatformMac::UseAcceleratedCanvas()
-{
-  // Lion or later is required
-  return false && OSXVersion() >= 0x1070 && Preferences::GetBool("gfx.canvas.azure.accelerated", false);
-}
-
 qcms_profile *
 gfxPlatformMac::GetPlatformCMSOutputProfile()
 {
-    qcms_profile *profile = nullptr;
+    qcms_profile *profile = nsnull;
     CMProfileRef cmProfile;
     CMProfileLocation *location;
     UInt32 locationSize;
@@ -437,12 +314,12 @@ gfxPlatformMac::GetPlatformCMSOutputProfile()
 
     CMError err = CMGetProfileByAVID(static_cast<CMDisplayIDType>(displayID), &cmProfile);
     if (err != noErr)
-        return nullptr;
+        return nsnull;
 
     // get the size of location
     err = NCMGetProfileLocation(cmProfile, NULL, &locationSize);
     if (err != noErr)
-        return nullptr;
+        return nsnull;
 
     // allocate enough room for location
     location = static_cast<CMProfileLocation*>(malloc(locationSize));

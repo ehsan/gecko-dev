@@ -1,6 +1,40 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this
-# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# ***** BEGIN LICENSE BLOCK *****
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License Version
+# 1.1 (the "License"); you may not use this file except in compliance with
+# the License. You may obtain a copy of the License at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the License is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+# for the specific language governing rights and limitations under the
+# License.
+#
+# The Original Code is the Mozilla Installer code.
+#
+# The Initial Developer of the Original Code is Mozilla Foundation
+# Portions created by the Initial Developer are Copyright (C) 2006
+# the Initial Developer. All Rights Reserved.
+#
+# Contributor(s):
+#  Robert Strong <robert.bugzilla@gmail.com>
+#  Ehsan Akhgari <ehsan.akhgari@gmail.com>
+#  Amir Szekely <kichik@gmail.com>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+# ***** END LICENSE BLOCK *****
 
 
 ################################################################################
@@ -1105,9 +1139,9 @@
 
     Function CheckIfRegistryKeyExists
       ; stack: main key, key
-      Exch $R9 ; main key, stack: old R9, key
-      Exch 1   ; stack: key, old R9
-      Exch $R8 ; key, stack: old R8, old R9
+      Exch $R9 ; main key
+      Exch 1
+      Exch $R8 ; key
       Push $R7
       Push $R6
       Push $R5
@@ -1128,9 +1162,10 @@
 
       Pop $R5
       Pop $R6
-      Pop $R7 ; stack: old R8, old R9 
-      Pop $R8 ; stack: old R9
-      Exch $R9 ; stack: result
+      Pop $R7
+      Exch $R8
+      Exch 1
+      Exch $R9
     FunctionEnd
 
     !verbose pop
@@ -1158,9 +1193,7 @@
  * @param   _VALOPEN
  *          The path and args to launch the application.
  * @param   _VALICON
- *          The path to the binary that contains the icon group for the default icon
- *          followed by a comma and either the icon group's resource index or the icon
- *          group's resource id prefixed with a minus sign
+ *          The path to an exe that contains an icon and the icon resource id.
  * @param   _DISPNAME
  *          The display name for the handler. If emtpy no value will be set.
  * @param   _ISPROTOCOL
@@ -1204,9 +1237,10 @@
       WriteRegStr SHCTX "$R4" "" "$R7"
       WriteRegStr SHCTX "$R4" "FriendlyTypeName" "$R7"
 
-      StrCmp "$R8" "true" +1 +2
+      StrCmp "$R8" "true" +1 +8
       WriteRegStr SHCTX "$R4" "URL Protocol" ""
       StrCpy $R3 ""
+      ClearErrors
       ReadRegDWord $R3 SHCTX "$R4" "EditFlags"
       StrCmp $R3 "" +1 +3  ; Only add EditFlags if a value doesn't exist
       DeleteRegValue SHCTX "$R4" "EditFlags"
@@ -1302,9 +1336,7 @@
  * @param   _VALOPEN
  *          The path and args to launch the application.
  * @param   _VALICON
- *          The path to the binary that contains the icon group for the default icon
- *          followed by a comma and either the icon group's resource index or the icon
- *          group's resource id prefixed with a minus sign
+ *          The path to an exe that contains an icon and the icon resource id.
  * @param   _DISPNAME
  *          The display name for the handler. If emtpy no value will be set.
  * @param   _ISPROTOCOL
@@ -1357,9 +1389,10 @@
       WriteRegStr SHCTX "$R0\$R2" "" "$R5"
       WriteRegStr SHCTX "$R0\$R2" "FriendlyTypeName" "$R5"
 
-      StrCmp "$R6" "true" +1 +2
+      StrCmp "$R6" "true" +1 +8
       WriteRegStr SHCTX "$R0\$R2" "URL Protocol" ""
       StrCpy $R1 ""
+      ClearErrors
       ReadRegDWord $R1 SHCTX "$R0\$R2" "EditFlags"
       StrCmp $R1 "" +1 +3  ; Only add EditFlags if a value doesn't exist
       DeleteRegValue SHCTX "$R0\$R2" "EditFlags"
@@ -1445,154 +1478,6 @@
     !define _MOZFUNC_UN "un."
 
     !insertmacro AddDDEHandlerValues
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
-!macroend
-
-/**
- * Writes common registry values for a handler that DOES NOT use DDE using SHCTX.
- *
- * @param   _KEY
- *          The key name in relation to the HKCR root. SOFTWARE\Classes is
- *          prefixed to this value when using SHCTX.
- * @param   _VALOPEN
- *          The path and args to launch the application.
- * @param   _VALICON
- *          The path to the binary that contains the icon group for the default icon
- *          followed by a comma and either the icon group's resource index or the icon
- *          group's resource id prefixed with a minus sign
- * @param   _DISPNAME
- *          The display name for the handler. If emtpy no value will be set.
- * @param   _ISPROTOCOL
- *          Sets protocol handler specific registry values when "true".
- *
- * $R3 = storage for SOFTWARE\Classes
- * $R4 = string value of the current registry key path.
- * $R5 = _KEY
- * $R6 = _VALOPEN
- * $R7 = _VALICON
- * $R8 = _DISPNAME
- * $R9 = _ISPROTOCOL
- */
-!macro AddDisabledDDEHandlerValues
-
-  !ifndef ${_MOZFUNC_UN}AddDisabledDDEHandlerValues
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}AddDisabledDDEHandlerValues "!insertmacro ${_MOZFUNC_UN}AddDisabledDDEHandlerValuesCall"
-
-    Function ${_MOZFUNC_UN}AddDisabledDDEHandlerValues
-      Exch $R9 ; true if a protocol handler
-      Exch 1
-      Exch $R8 ; FriendlyTypeName
-      Exch 2
-      Exch $R7 ; icon index
-      Exch 3
-      Exch $R6 ; shell\open\command
-      Exch 4
-      Exch $R5 ; reg key
-      Push $R4 ;
-      Push $R3 ; base reg class
-
-      StrCpy $R3 "SOFTWARE\Classes"
-      StrCmp "$R8" "" +6 +1
-      ReadRegStr $R4 SHCTX "$R5" "FriendlyTypeName"
-
-      StrCmp "$R4" "" +1 +3
-      WriteRegStr SHCTX "$R3\$R5" "" "$R8"
-      WriteRegStr SHCTX "$R3\$R5" "FriendlyTypeName" "$R8"
-
-      StrCmp "$R9" "true" +1 +2
-      WriteRegStr SHCTX "$R3\$R5" "URL Protocol" ""
-      StrCpy $R4 ""
-      ReadRegDWord $R4 SHCTX "$R3\$R5" "EditFlags"
-      StrCmp $R4 "" +1 +3  ; Only add EditFlags if a value doesn't exist
-      DeleteRegValue SHCTX "$R3\$R5" "EditFlags"
-      WriteRegDWord SHCTX "$R3\$R5" "EditFlags" 0x00000002
-
-      StrCmp "$R7" "" +2 +1
-      WriteRegStr SHCTX "$R3\$R5\DefaultIcon" "" "$R7"
-
-      ; Main command handler for the app
-      WriteRegStr SHCTX "$R3\$R5\shell\open\command" "" "$R6"
-
-      ; Drop support for DDE (bug 491947), and remove old dde entries if
-      ; they exist.
-      ;
-      ; Note, changes in SHCTX should propegate to hkey classes root when
-      ; current user or local machine entries are written. Windows will also
-      ; attempt to propegate entries when a handler is used. CR entries are a
-      ; combination of LM and CU, with CU taking priority. 
-      ;
-      ; To disable dde, an empty shell/ddeexec key must be created in current
-      ; user or local machine. Unfortunately, settings have various different
-      ; behaviors depending on the windows version. The following code attempts
-      ; to address these differences.
-      ;
-      ; On XP (no SP, SP1, SP2), Vista: An empty default string
-      ; must be set under ddeexec. Empty strings propagate to CR.
-      ;
-      ; Win7: IE does not configure ddeexec, so issues with left over ddeexec keys
-      ; in LM are reduced. We configure an empty ddeexec key with an empty default
-      ; string in CU to be sure.
-      ;
-      DeleteRegKey SHCTX "SOFTWARE\Classes\$R5\shell\open\ddeexec"
-      WriteRegStr SHCTX "SOFTWARE\Classes\$R5\shell\open\ddeexec" "" ""
-
-      ClearErrors
-
-      Pop $R3
-      Pop $R4
-      Exch $R5
-      Exch 4
-      Exch $R6
-      Exch 3
-      Exch $R7
-      Exch 2
-      Exch $R8
-      Exch 1
-      Exch $R9
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro AddDisabledDDEHandlerValuesCall _KEY _VALOPEN _VALICON _DISPNAME _ISPROTOCOL
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_KEY}"
-  Push "${_VALOPEN}"
-  Push "${_VALICON}"
-  Push "${_DISPNAME}"
-  Push "${_ISPROTOCOL}"
-  Call AddDisabledDDEHandlerValues
-  !verbose pop
-!macroend
-
-!macro un.AddDisabledDDEHandlerValuesCall _KEY _VALOPEN _VALICON _DISPNAME _ISPROTOCOL
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_KEY}"
-  Push "${_VALOPEN}"
-  Push "${_VALICON}"
-  Push "${_DISPNAME}"
-  Push "${_ISPROTOCOL}"
-  Call un.AddDisabledDDEHandlerValues
-  !verbose pop
-!macroend
-
-!macro un.AddDisabledDDEHandlerValues
-  !ifndef un.AddDisabledDDEHandlerValues
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro AddDisabledDDEHandlerValues
 
     !undef _MOZFUNC_UN
     !define _MOZFUNC_UN
@@ -2919,7 +2804,6 @@
       StrCmp "$R7" "$R8" +1 end
       DeleteRegValue HKLM "Software\Classes\$R9\DefaultIcon" ""
       DeleteRegValue HKLM "Software\Classes\$R9\shell\open" ""
-      DeleteRegValue HKLM "Software\Classes\$R9\shell\open\command" ""
       DeleteRegValue HKLM "Software\Classes\$R9\shell\ddeexec" ""
       DeleteRegValue HKLM "Software\Classes\$R9\shell\ddeexec\Application" ""
       DeleteRegValue HKLM "Software\Classes\$R9\shell\ddeexec\Topic" ""
@@ -4707,8 +4591,7 @@
  * $R6 = general string values, return value from GetTempFileName, return
  *       value from the GetSize macro
  * $R7 = full path to the configuration ini file
- * $R8 = used for OS Version and Service Pack detection and the return value
- *       from the GetParameters macro
+ * $R8 = return value from the GetParameters macro
  * $R9 = _WARN_UNSUPPORTED_MSG
  */
 !macro InstallOnInitCommon
@@ -4740,23 +4623,12 @@
 
         SetRegView 64
       !else
-        StrCpy $R8 "0"
-        ${If} ${AtMostWin2000}
-          StrCpy $R8 "1"
-        ${EndIf}
-        
-        ${If} ${IsWinXP}
-        ${AndIf} ${AtMostServicePack} 1
-          StrCpy $R8 "1"
-        ${EndIf}
-
-        ${If} $R8 == "1"
-          ; XXX-rstrong - some systems failed the AtLeastWin2000 test that we
-          ; used to use for an unknown reason and likely fail the AtMostWin2000
-          ; and possibly the IsWinXP test as well. To work around this also
-          ; check if the Windows NT registry Key exists and if it does if the
-          ; first char in CurrentVersion is equal to 3 (Windows NT 3.5 and
-          ; 3.5.1), to 4 (Windows NT 4) or 5 (Windows 2000 and Windows XP).
+        ${Unless} ${AtLeastWin2000}
+          ; XXX-rstrong - some systems fail the AtLeastWin2000 test for an
+          ; unknown reason. To work around this also check if the Windows NT
+          ; registry Key exists and if it does if the first char in
+          ; CurrentVersion is equal to 3 (Windows NT 3.5 and 3.5.1) or 4
+          ; (Windows NT 4).
           StrCpy $R8 ""
           ClearErrors
           ReadRegStr $R8 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentVersion"
@@ -4764,7 +4636,6 @@
           ${If} ${Errors}
           ${OrIf} "$R8" == "3"
           ${OrIf} "$R8" == "4"
-          ${OrIf} "$R8" == "5"
             MessageBox MB_OK|MB_ICONSTOP "$R9" IDOK
             ; Nothing initialized so no need to call OnEndCommon
             Quit
@@ -4859,11 +4730,6 @@
               StrCpy $AddStartMenuSC "0"
             ${Else}
               StrCpy $AddStartMenuSC "1"
-            ${EndIf}
-
-            ReadINIStr $R8 $R7 "Install" "MaintenanceService"
-            ${If} $R8 == "false"
-              StrCpy $InstallMaintenanceService "0"
             ${EndIf}
 
             !ifndef NO_STARTMENU_DIR
@@ -4965,13 +4831,8 @@
       ClearErrors
       ${GetOptions} "$R0" "/UpdateShortcutAppUserModelIds" $R2
       IfErrors hideshortcuts +1
-      StrCpy $R2 ""
-!ifmacrodef InitHashAppModelId
-      ${If} "$AppUserModelID" != ""
-        ${UpdateShortcutAppModelIDs}  "$INSTDIR\${FileMainEXE}" "$AppUserModelID" $R2
-      ${EndIf}
-!endif
-      StrCmp "$R2" "false" +1 finish ; true indicates that shortcuts have been updated
+      ${UpdateShortcutAppModelIDs}  "$INSTDIR\${FileMainEXE}" "${AppUserModelID}" $R2
+      StrCmp "$R2" "true" finish +1 ; true indicates that shortcuts have been updated
       Quit ; Nothing initialized so no need to call OnEndCommon
 
       ; Require elevation if the user can elevate
@@ -5737,7 +5598,9 @@
       ${LogMsg} "App Version: $R8"
       ${LogMsg} "GRE Version: $R9"
 
-      ${If} ${IsWinXP}
+      ${If} ${IsWin2000}
+        ${LogMsg} "OS Name    : Windows 2000"
+      ${ElseIf} ${IsWinXP}
         ${LogMsg} "OS Name    : Windows XP"
       ${ElseIf} ${IsWin2003}
         ${LogMsg} "OS Name    : Windows 2003"
@@ -6811,160 +6674,4 @@
   Call UpdateShortcutAppModelIDs
   Pop ${_RESULT}
   !verbose pop
-!macroend
-
-!macro IsUserAdmin
-  ; Copied from: http://nsis.sourceforge.net/IsUserAdmin
-  Function IsUserAdmin
-    Push $R0
-    Push $R1
-    Push $R2
- 
-    ClearErrors
-    UserInfo::GetName
-    IfErrors Win9x
-    Pop $R1
-    UserInfo::GetAccountType
-    Pop $R2
- 
-    StrCmp $R2 "Admin" 0 Continue
-    StrCpy $R0 "true"
-    Goto Done
- 
-    Continue:
-
-    StrCmp $R2 "" Win9x
-    StrCpy $R0 "false"
-    Goto Done
- 
-    Win9x:
-    StrCpy $R0 "true"
- 
-    Done:
-    Pop $R2
-    Pop $R1
-    Exch $R0
-  FunctionEnd
-!macroend
-
-/**
- * Retrieve if present or generate and store a 64 bit hash of an install path
- * using the City Hash algorithm.  On return the resulting id is saved in the
- * $AppUserModelID variable declared by inserting this macro. InitHashAppModelId
- * will attempt to load from HKLM/_REG_PATH first, then HKCU/_REG_PATH. If found
- * in either it will return the hash it finds. If not found it will generate a
- * new hash and attempt to store the hash in HKLM/_REG_PATH, then HKCU/_REG_PATH.
- * Subsequent calls will then retreive the stored hash value. On any failure,
- * $AppUserModelID will be set to an empty string.
- *
- * Registry format: root/_REG_PATH/"_EXE_PATH" = "hash"
- *
- * @param   _EXE_PATH
- *          The main application executable path
- * @param   _REG_PATH
- *          The HKLM/HKCU agnostic registry path where the key hash should
- *          be stored. ex: "Software\Mozilla\Firefox\TaskBarIDs"
- * @result  (Var) $AppUserModelID contains the app model id.
- */
-!macro InitHashAppModelId
-  !ifndef ${_MOZFUNC_UN}InitHashAppModelId
-    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
-    !insertmacro ${_MOZFUNC_UN_TMP}GetLongPath
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
-    !undef _MOZFUNC_UN_TMP
-
-    !ifndef InitHashAppModelId
-      Var AppUserModelID
-    !endif
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}InitHashAppModelId "!insertmacro ${_MOZFUNC_UN}InitHashAppModelIdCall"
-
-    Function ${_MOZFUNC_UN}InitHashAppModelId
-      ; stack: apppath, regpath
-      Exch $R9 ; stack: $R9, regpath | $R9 = apppath
-      Exch 1   ; stack: regpath, $R9
-      Exch $R8 ; stack: $R8, $R9   | $R8 = regpath
-      Push $R7
-
-      ${If} ${AtLeastWin7}
-        ${${_MOZFUNC_UN}GetLongPath} "$R9" $R9
-        ClearErrors
-        ReadRegStr $R7 HKLM "$R8" "$R9"
-        ${If} ${Errors}
-          ClearErrors
-          ReadRegStr $R7 HKCU "$R8" "$R9"
-          ${If} ${Errors}
-            ; If it doesn't exist, create a new one and store it
-            CityHash::GetCityHash64 "$R9"
-            Pop $AppUserModelID
-            ${If} $AppUserModelID == "error"
-              GoTo end
-            ${EndIf}
-            ClearErrors
-            WriteRegStr HKLM "$R8" "$R9" "$AppUserModelID"
-            ${If} ${Errors}
-              ClearErrors
-              WriteRegStr HKCU "$R8" "$R9" "$AppUserModelID"
-              ${If} ${Errors}
-                StrCpy $AppUserModelID "error"
-              ${EndIf}
-            ${EndIf}
-          ${Else}
-            StrCpy $AppUserModelID $R7
-          ${EndIf}
-        ${Else}
-          StrCpy $AppUserModelID $R7
-        ${EndIf}
-      ${EndIf}
-
-      end:
-      ${If} "$AppUserModelID" == "error"
-        StrCpy $AppUserModelID ""
-      ${EndIf}
-
-      ClearErrors
-      Pop $R7
-      Exch $R8
-      Exch 1
-      Exch $R9
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro InitHashAppModelIdCall _EXE_PATH _REG_PATH
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_REG_PATH}"
-  Push "${_EXE_PATH}"
-  Call InitHashAppModelId
-  !verbose pop
-!macroend
-
-!macro un.InitHashAppModelIdCall _EXE_PATH _REG_PATH
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_REG_PATH}"
-  Push "${_EXE_PATH}"
-  Call un.InitHashAppModelId
-  !verbose pop
-!macroend
-
-!macro un.InitHashAppModelId
-  !ifndef un.InitHashAppModelId
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro InitHashAppModelId
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
 !macroend
