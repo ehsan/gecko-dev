@@ -280,6 +280,8 @@ public:
     return spec;
   }
 
+  static void Initialize();
+
 private:
   void DrawWithPreDownscaleIfNeeded(DrawableFrameRef&& aFrameRef,
                                     gfxContext* aContext,
