@@ -1983,11 +1983,13 @@ nsresult nsParser::Tokenize(bool aIsFinalChunk)
   if (NS_SUCCEEDED(result)) {
     bool flushTokens = false;
 
+    mParserContext->mNumConsumed = 0;
+
     bool killSink = false;
 
     WillTokenize(aIsFinalChunk);
     while (NS_SUCCEEDED(result)) {
-      mParserContext->mScanner->Mark();
+      mParserContext->mNumConsumed += mParserContext->mScanner->Mark();
       result = theTokenizer->ConsumeToken(*mParserContext->mScanner,
                                           flushTokens);
       if (NS_FAILED(result)) {
@@ -2005,7 +2007,7 @@ nsresult nsParser::Tokenize(bool aIsFinalChunk)
         // Flush tokens on seeing </SCRIPT> -- Ref: Bug# 22485 --
         // Also remember to update the marked position.
         mFlags |= NS_PARSER_FLAG_FLUSH_TOKENS;
-        mParserContext->mScanner->Mark();
+        mParserContext->mNumConsumed += mParserContext->mScanner->Mark();
         break;
       }
     }

@@ -34,11 +34,6 @@ ProfileEntry::ProfileEntry(char aTagName, const char *aTagData)
   , mTagName(aTagName)
 { }
 
-ProfileEntry::ProfileEntry(char aTagName, ProfilerMarker *aTagMarker)
-  : mTagMarker(aTagMarker)
-  , mTagName(aTagName)
-{ }
-
 ProfileEntry::ProfileEntry(char aTagName, void *aTagPtr)
   : mTagPtr(aTagPtr)
   , mTagName(aTagName)
@@ -97,9 +92,7 @@ void ProfileEntry::log()
   //   mTagChar   (char)         h
   //   mTagFloat  (double)       r,t
   switch (mTagName) {
-    case 'm':
-      LOGF("%c \"%s\"", mTagName, mTagMarker->GetMarkerName()); break;
-    case 'c': case 's':
+    case 'm': case 'c': case 's':
       LOGF("%c \"%s\"", mTagName, mTagData); break;
     case 'd': case 'l': case 'L': case 'S':
       LOGF("%c %p", mTagName, mTagPtr); break;
@@ -159,7 +152,6 @@ ThreadProfile::ThreadProfile(const char* aName, int aEntrySize,
   , mStackTop(aStackTop)
 {
   mEntries = new ProfileEntry[mEntrySize];
-  mGeneration = 0;
 }
 
 ThreadProfile::~ThreadProfile()
@@ -172,11 +164,7 @@ void ThreadProfile::addTag(ProfileEntry aTag)
 {
   // Called from signal, call only reentrant functions
   mEntries[mWritePos] = aTag;
-  mWritePos = mWritePos + 1;
-  if (mWritePos >= mEntrySize) {
-    mPendingGenerationFlush++;
-    mWritePos = mWritePos % mEntrySize;
-  }
+  mWritePos = (mWritePos + 1) % mEntrySize;
   if (mWritePos == mReadPos) {
     // Keep one slot open
     mEntries[mReadPos] = ProfileEntry();
@@ -193,8 +181,6 @@ void ThreadProfile::addTag(ProfileEntry aTag)
 void ThreadProfile::flush()
 {
   mLastFlushPos = mWritePos;
-  mGeneration += mPendingGenerationFlush;
-  mPendingGenerationFlush = 0;
 }
 
 // discards all of the entries since the last flush()
@@ -250,7 +236,6 @@ void ThreadProfile::flush()
 void ThreadProfile::erase()
 {
   mWritePos = mLastFlushPos;
-  mPendingGenerationFlush = 0;
 }
 
 char* ThreadProfile::processDynamicTag(int readPos,
@@ -340,7 +325,7 @@ void ThreadProfile::BuildJSObject(Builder& b, typename Builder::ObjectHandle pro
 
   typename Builder::RootedObject sample(b.context());
   typename Builder::RootedArray frames(b.context());
-  typename Builder::RootedArray markers(b.context());
+  typename Builder::RootedArray marker(b.context());
 
   int readPos = mReadPos;
   while (readPos != mLastFlushPos) {
@@ -368,16 +353,16 @@ void ThreadProfile::BuildJSObject(Builder& b, typename Builder::ObjectHandle pro
         b.DefineProperty(sample, "frames", frames);
         b.ArrayPush(samples, sample);
         // Created lazily
-        markers = nullptr;
+        marker = nullptr;
         break;
       case 'm':
         {
           if (sample) {
-            if (!markers) {
-              markers = b.CreateArray();
-              b.DefineProperty(sample, "marker", markers);
+            if (!marker) {
+              marker = b.CreateArray();
+              b.DefineProperty(sample, "marker", marker);
             }
-            entry.getMarker()->BuildJSObject(b, markers);
+            b.ArrayPush(marker, tagStringData);
           }
         }
         break;

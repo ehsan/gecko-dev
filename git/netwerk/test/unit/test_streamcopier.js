@@ -1,3 +1,6 @@
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+
 var testStr = "This is a test. ";
 for (var i = 0; i < 10; ++i) {
   testStr += testStr;

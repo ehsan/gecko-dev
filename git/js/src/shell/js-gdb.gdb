@@ -1,4 +1,4 @@
-afe9b1f9b180define hookpost-run
+define hookpost-run
     if ($sigaction)
         call free($sigaction)
         set $sigaction = 0

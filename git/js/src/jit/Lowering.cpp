@@ -23,7 +23,6 @@
 using namespace js;
 using namespace jit;
 
-using mozilla::DebugOnly;
 using JS::GenericNaN;
 
 bool
@@ -1767,7 +1766,7 @@ LIRGenerator::visitRegExpTest(MRegExpTest *ins)
 bool
 LIRGenerator::visitLambda(MLambda *ins)
 {
-    if (ins->info().singletonType || ins->info().useNewTypeForClone) {
+    if (ins->fun()->hasSingletonType() || types::UseNewTypeForClone(ins->fun())) {
         // If the function has a singleton type, this instruction will only be
         // executed once so we don't bother inlining it.
         //
@@ -1784,8 +1783,8 @@ LIRGenerator::visitLambda(MLambda *ins)
 bool
 LIRGenerator::visitLambdaPar(MLambdaPar *ins)
 {
-    JS_ASSERT(!ins->info().singletonType);
-    JS_ASSERT(!ins->info().useNewTypeForClone);
+    JS_ASSERT(!ins->fun()->hasSingletonType());
+    JS_ASSERT(!types::UseNewTypeForClone(ins->fun()));
     LLambdaPar *lir = new LLambdaPar(useRegister(ins->forkJoinSlice()),
                                      useRegister(ins->scopeChain()),
                                      temp(), temp());

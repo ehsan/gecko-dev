@@ -11,7 +11,6 @@
 #include "mozilla/Util.h"
 #include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/EventBinding.h"
-#include "mozilla/dom/EventHandlerBinding.h"
 #include "mozilla/dom/EventTargetBinding.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/DOMExceptionBinding.h"
@@ -164,7 +163,8 @@ private:
     MOZ_ASSERT(scope);
 
     ErrorResult rv;
-    nsRefPtr<EventHandlerNonNull> handler =
+
+    JSObject* listener =
       scope->GetEventListener(NS_ConvertASCIItoUTF16(name + 2), rv);
 
     if (rv.Failed()) {
@@ -172,11 +172,7 @@ private:
       return false;
     }
 
-    if (!handler) {
-      aArgs.rval().setNull();
-    } else {
-      aArgs.rval().setObject(*handler->Callable());
-    }
+    aArgs.rval().setObjectOrNull(listener);
     return true;
   }
 
@@ -195,21 +191,15 @@ private:
       GetInstancePrivate(aCx, &aArgs.thisv().toObject(), name);
     MOZ_ASSERT(scope);
 
-    if (aArgs.length() == 0 || !aArgs[0].isObjectOrNull()) {
+    if (aArgs.length() == 0 || !aArgs[0].isObject()) {
       JS_ReportError(aCx, "Not an event listener!");
       return false;
     }
 
     ErrorResult rv;
-    JS::Rooted<JSObject*> listenerObj(aCx, aArgs[0].toObjectOrNull());
-    nsRefPtr<EventHandlerNonNull> handler;
-    if (listenerObj && JS_ObjectIsCallable(aCx, listenerObj)) {
-      handler = new EventHandlerNonNull(listenerObj);
-    } else {
-      handler = nullptr;
-    }
+    JS::Rooted<JSObject*> listenerObj(aCx, &aArgs[0].toObject());
     scope->SetEventListener(NS_ConvertASCIItoUTF16(name + 2),
-                            handler, rv);
+                            listenerObj, rv);
     if (rv.Failed()) {
       JS_ReportError(aCx, "Failed to set event listener!");
       return false;
@@ -329,7 +319,8 @@ private:
     MOZ_ASSERT(scope);
 
     ErrorResult rv;
-    nsRefPtr<EventHandlerNonNull> adaptor =
+
+    JSObject* adaptor =
       scope->GetEventListener(NS_ConvertASCIItoUTF16(name + 2), rv);
 
     if (rv.Failed()) {
@@ -342,8 +333,7 @@ private:
       return true;
     }
 
-    aArgs.rval().set(js::GetFunctionNativeReserved(adaptor->Callable(),
-                                                   SLOT_wrappedFunction));
+    aArgs.rval().set(js::GetFunctionNativeReserved(adaptor, SLOT_wrappedFunction));
     MOZ_ASSERT(aArgs.rval().isObject());
     return true;
   }
@@ -385,8 +375,8 @@ private:
     js::SetFunctionNativeReserved(listener, SLOT_wrappedFunction, aArgs[0]);
 
     ErrorResult rv;
-    nsRefPtr<EventHandlerNonNull> handler = new EventHandlerNonNull(listener);
-    scope->SetEventListener(NS_ConvertASCIItoUTF16(name + 2), handler, rv);
+
+    scope->SetEventListener(NS_ConvertASCIItoUTF16(name + 2), listener, rv);
 
     if (rv.Failed()) {
       JS_ReportError(aCx, "Failed to set event listener!");
@@ -797,7 +787,8 @@ private:
     MOZ_ASSERT(scope);
 
     ErrorResult rv;
-    nsRefPtr<EventHandlerNonNull> handler =
+
+    JSObject* listener =
       scope->GetEventListener(NS_ConvertASCIItoUTF16(name + 2), rv);
 
     if (rv.Failed()) {
@@ -805,11 +796,7 @@ private:
       return false;
     }
 
-    if (!handler) {
-      aArgs.rval().setNull();
-    } else {
-      aArgs.rval().setObject(*handler->Callable());
-    }
+    aArgs.rval().setObjectOrNull(listener);
     return true;
   }
 
@@ -828,22 +815,16 @@ private:
       GetInstancePrivate(aCx, &aArgs.thisv().toObject(), name);
     MOZ_ASSERT(scope);
 
-    if (aArgs.length() == 0 || !aArgs[0].isObjectOrNull()) {
+    if (aArgs.length() == 0 || !aArgs[0].isObject()) {
       JS_ReportError(aCx, "Not an event listener!");
       return false;
     }
 
     ErrorResult rv;
 
-    JS::Rooted<JSObject*> listenerObj(aCx, aArgs[0].toObjectOrNull());
-    nsRefPtr<EventHandlerNonNull> handler;
-    if (listenerObj && JS_ObjectIsCallable(aCx, listenerObj)) {
-      handler = new EventHandlerNonNull(listenerObj);
-    } else {
-      handler = nullptr;
-    }
+    JS::Rooted<JSObject*> listenerObj(aCx, &aArgs[0].toObject());
     scope->SetEventListener(NS_ConvertASCIItoUTF16(name + 2),
-                            handler, rv);
+                            listenerObj, rv);
 
     if (rv.Failed()) {
       JS_ReportError(aCx, "Failed to set event listener!");

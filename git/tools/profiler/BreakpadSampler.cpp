@@ -181,13 +181,10 @@ void TableTicker::UnwinderTick(TickSample* sample)
 
   // Marker(s) come before the sample
   PseudoStack* stack = currThreadProfile.GetPseudoStack();
-  ProfilerMarkerLinkedList* pendingMarkersList = stack->getPendingMarkers();
-  while (pendingMarkersList && pendingMarkersList->peek()) {
-    ProfilerMarker* marker = pendingMarkersList->popHead();
-    stack->addStoredMarker(marker);
-    utb__addEntry( utb, ProfileEntry('m', marker) );
+  for (int i = 0; stack->getMarker(i) != NULL; i++) {
+    utb__addEntry( utb, ProfileEntry('m', stack->getMarker(i)) );
   }
-  stack->updateGeneration(currThreadProfile.GetGenerationID());
+  stack->mQueueClearMarker = true;
 
   bool recordSample = true;
   if (mJankOnly) {

@@ -254,7 +254,7 @@ BEGIN_TEST(testDebugger_singleStepThrow)
     static bool
     setStepMode(JSContext *cx, unsigned argc, jsval *vp)
     {
-        JS::RootedScript script(cx);
+        JSScript *script;
         JS_DescribeScriptedCaller(cx, &script, NULL);
         JS_ASSERT(script);
 

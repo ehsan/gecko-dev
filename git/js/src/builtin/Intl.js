@@ -437,9 +437,9 @@ function DefaultLocale() {
     if (callFunction(std_Object_hasOwnProperty, oldStyleLanguageTagMappings, locale))
         locale = oldStyleLanguageTagMappings[locale];
 
-    if (!(collatorInternalProperties.availableLocales()[locale] &&
-          numberFormatInternalProperties.availableLocales()[locale] &&
-          dateTimeFormatInternalProperties.availableLocales()[locale]))
+    if (!(collatorInternalProperties.availableLocales[locale] &&
+          numberFormatInternalProperties.availableLocales[locale] &&
+          dateTimeFormatInternalProperties.availableLocales[locale]))
     {
         locale = localeOfLastResort;
     }
@@ -1041,7 +1041,7 @@ function InitializeCollator(collator, locales, options) {
     var relevantExtensionKeys = Collator.relevantExtensionKeys;
 
     // Step 15.
-    var r = ResolveLocale(Collator.availableLocales(),
+    var r = ResolveLocale(Collator.availableLocales,
                           requestedLocales, opt,
                           relevantExtensionKeys,
                           localeData);
@@ -1114,7 +1114,7 @@ function InitializeCollator(collator, locales, options) {
 function Intl_Collator_supportedLocalesOf(locales /*, options*/) {
     var options = arguments.length > 1 ? arguments[1] : undefined;
 
-    var availableLocales = collatorInternalProperties.availableLocales();
+    var availableLocales = collatorInternalProperties.availableLocales;
     var requestedLocales = CanonicalizeLocaleList(locales);
     return SupportedLocales(availableLocales, requestedLocales, options);
 }
@@ -1128,15 +1128,7 @@ function Intl_Collator_supportedLocalesOf(locales /*, options*/) {
 var collatorInternalProperties = {
     sortLocaleData: collatorSortLocaleData,
     searchLocaleData: collatorSearchLocaleData,
-    _availableLocales: null,
-    availableLocales: function()
-    {
-        var locales = this._availableLocales;
-        if (locales)
-            return locales;
-        return (this._availableLocales =
-          addOldStyleLanguageTags(intl_Collator_availableLocales()));
-    },
+    availableLocales: addOldStyleLanguageTags(intl_Collator_availableLocales()),
     relevantExtensionKeys: ["co", "kn"]
 };
 
@@ -1275,7 +1267,7 @@ function InitializeNumberFormat(numberFormat, locales, options) {
     var localeData = NumberFormat.localeData;
 
     // Step 11.
-    var r = ResolveLocale(NumberFormat.availableLocales(),
+    var r = ResolveLocale(NumberFormat.availableLocales,
                           requestedLocales, opt,
                           NumberFormat.relevantExtensionKeys,
                           localeData);
@@ -1418,7 +1410,7 @@ function CurrencyDigits(currency) {
 function Intl_NumberFormat_supportedLocalesOf(locales /*, options*/) {
     var options = arguments.length > 1 ? arguments[1] : undefined;
 
-    var availableLocales = numberFormatInternalProperties.availableLocales();
+    var availableLocales = numberFormatInternalProperties.availableLocales;
     var requestedLocales = CanonicalizeLocaleList(locales);
     return SupportedLocales(availableLocales, requestedLocales, options);
 }
@@ -1431,15 +1423,7 @@ function Intl_NumberFormat_supportedLocalesOf(locales /*, options*/) {
  */
 var numberFormatInternalProperties = {
     localeData: numberFormatLocaleData,
-    _availableLocales: null,
-    availableLocales: function()
-    {
-        var locales = this._availableLocales;
-        if (locales)
-            return locales;
-        return (this._availableLocales =
-          addOldStyleLanguageTags(intl_NumberFormat_availableLocales()));
-    },
+    availableLocales: addOldStyleLanguageTags(intl_NumberFormat_availableLocales()),
     relevantExtensionKeys: ["nu"]
 };
 
@@ -1612,7 +1596,7 @@ function InitializeDateTimeFormat(dateTimeFormat, locales, options) {
     var localeData = DateTimeFormat.localeData;
 
     // Step 10.
-    var r = ResolveLocale(DateTimeFormat.availableLocales(),
+    var r = ResolveLocale(DateTimeFormat.availableLocales,
                           requestedLocales, opt,
                           DateTimeFormat.relevantExtensionKeys,
                           localeData);
@@ -2022,7 +2006,7 @@ function BestFitFormatMatcher(options, formats) {
 function Intl_DateTimeFormat_supportedLocalesOf(locales /*, options*/) {
     var options = arguments.length > 1 ? arguments[1] : undefined;
 
-    var availableLocales = dateTimeFormatInternalProperties.availableLocales();
+    var availableLocales = dateTimeFormatInternalProperties.availableLocales;
     var requestedLocales = CanonicalizeLocaleList(locales);
     return SupportedLocales(availableLocales, requestedLocales, options);
 }
@@ -2035,15 +2019,7 @@ function Intl_DateTimeFormat_supportedLocalesOf(locales /*, options*/) {
  */
 var dateTimeFormatInternalProperties = {
     localeData: dateTimeFormatLocaleData,
-    _availableLocales: null,
-    availableLocales: function()
-    {
-        var locales = this._availableLocales;
-        if (locales)
-            return locales;
-        return (this._availableLocales =
-          addOldStyleLanguageTags(intl_DateTimeFormat_availableLocales()));
-    },
+    availableLocales: addOldStyleLanguageTags(intl_DateTimeFormat_availableLocales()),
     relevantExtensionKeys: ["ca", "nu"]
 };
 

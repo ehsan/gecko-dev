@@ -206,7 +206,7 @@ jsconfig_TARGET := export
 
 .PHONY: buildffi buildicu
 buildffi buildicu:
-$(if $(MOZ_PSEUDO_DERECURSE),compile,export):: buildffi buildicu
+compile:: buildffi buildicu
 
 include $(topsrcdir)/config/rules.mk
 

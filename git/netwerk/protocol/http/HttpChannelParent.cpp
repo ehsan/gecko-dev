@@ -16,6 +16,7 @@
 #include "nsNetUtil.h"
 #include "nsISupportsPriority.h"
 #include "nsIAuthPromptProvider.h"
+#include "nsICacheEntryDescriptor.h"
 #include "nsSerializationHelper.h"
 #include "nsISerializable.h"
 #include "nsIAssociatedContentSecurity.h"
@@ -335,8 +336,8 @@ HttpChannelParent::RecvCancel(const nsresult& status)
 bool
 HttpChannelParent::RecvSetCacheTokenCachedCharset(const nsCString& charset)
 {
-  if (mCacheEntry)
-    mCacheEntry->SetMetaDataElement("charset", charset.get());
+  if (mCacheDescriptor)
+    mCacheDescriptor->SetMetaDataElement("charset", charset.get());
   return true;
 }
 
@@ -406,7 +407,7 @@ HttpChannelParent::RecvDocumentChannelCleanup()
 {
   // From now on only using mAssociatedContentSecurity.  Free everything else.
   mChannel = 0;          // Reclaim some memory sooner.
-  mCacheEntry = 0;  // Else we'll block other channels reading same URI
+  mCacheDescriptor = 0;  // Else we'll block other channels reading same URI
   return true;
 }
 
@@ -463,10 +464,7 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
 
   // Keep the cache entry for future use in RecvSetCacheTokenCachedCharset().
   // It could be already released by nsHttpChannel at that time.
-  nsCOMPtr<nsISupports> cacheEntry;
-  chan->GetCacheToken(getter_AddRefs(cacheEntry));
-  mCacheEntry = do_QueryInterface(cacheEntry);
-
+  chan->GetCacheToken(getter_AddRefs(mCacheDescriptor));
 
   nsCString secInfoSerialization;
   nsCOMPtr<nsISupports> secInfoSupp;
@@ -484,7 +482,7 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
                           !!responseHead,
                           requestHead->Headers(),
                           isFromCache,
-                          mCacheEntry ? true : false,
+                          mCacheDescriptor ? true : false,
                           expirationTime, cachedCharset, secInfoSerialization,
                           httpChan->GetSelfAddr(), httpChan->GetPeerAddr()))
   {

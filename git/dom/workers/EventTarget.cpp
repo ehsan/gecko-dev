@@ -5,13 +5,11 @@
 
 #include "EventTarget.h"
 #include "mozilla/dom/EventListenerBinding.h"
-#include "mozilla/dom/EventHandlerBinding.h"
 
 USING_WORKERS_NAMESPACE
 using mozilla::ErrorResult;
 using mozilla::dom::EventListener;
 using mozilla::dom::Nullable;
-using mozilla::dom::EventHandlerNonNull;
 
 void
 EventTarget::_trace(JSTracer* aTrc)
@@ -27,7 +25,7 @@ EventTarget::_finalize(JSFreeOp* aFop)
   DOMBindingBase::_finalize(aFop);
 }
 
-already_AddRefed<EventHandlerNonNull>
+JSObject*
 EventTarget::GetEventListener(const nsAString& aType, ErrorResult& aRv) const
 {
   JSContext* cx = GetJSContext();
@@ -36,22 +34,15 @@ EventTarget::GetEventListener(const nsAString& aType, ErrorResult& aRv) const
     JS_NewUCStringCopyN(cx, aType.BeginReading(), aType.Length()));
   if (!type || !(type = JS_InternJSString(cx, type))) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return nullptr;
+    return NULL;
   }
 
-  JS::RootedObject listener(
-    cx, mListenerManager.GetEventListener(INTERNED_STRING_TO_JSID(cx, type)));
-  if (!listener) {
-    return nullptr;
-  }
-
-  nsRefPtr<EventHandlerNonNull> handler = new EventHandlerNonNull(listener);
-  return handler.forget();
+  return mListenerManager.GetEventListener(INTERNED_STRING_TO_JSID(cx, type));
 }
 
 void
 EventTarget::SetEventListener(const nsAString& aType,
-                              EventHandlerNonNull* aListener,
+                              JS::Handle<JSObject*> aListener,
                               ErrorResult& aRv)
 {
   JSContext* cx = GetJSContext();
@@ -63,12 +54,8 @@ EventTarget::SetEventListener(const nsAString& aType,
     return;
   }
 
-  JS::RootedObject listener(cx);
-  if (aListener) {
-    listener = aListener->Callable();
-  }
   mListenerManager.SetEventListener(cx, INTERNED_STRING_TO_JSID(cx, type),
-                                    listener, aRv);
+                                    aListener, aRv);
 }
 
 void

@@ -312,8 +312,9 @@ JS_ConvertArgumentsVA(JSContext *cx, unsigned argc, jsval *argv, const char *for
 }
 
 JS_PUBLIC_API(bool)
-JS_ConvertValue(JSContext *cx, HandleValue value, JSType type, MutableHandleValue vp)
+JS_ConvertValue(JSContext *cx, jsval valueArg, JSType type, jsval *vp)
 {
+    RootedValue value(cx, valueArg);
     bool ok;
     RootedObject obj(cx);
     JSString *str;
@@ -324,32 +325,32 @@ JS_ConvertValue(JSContext *cx, HandleValue value, JSType type, MutableHandleValu
     assertSameCompartment(cx, value);
     switch (type) {
       case JSTYPE_VOID:
-        vp.setUndefined();
+        *vp = JSVAL_VOID;
         ok = true;
         break;
       case JSTYPE_OBJECT:
         ok = js_ValueToObjectOrNull(cx, value, &obj);
         if (ok)
-            vp.setObjectOrNull(obj);
+            *vp = OBJECT_TO_JSVAL(obj);
         break;
       case JSTYPE_FUNCTION:
-        vp.set(value);
-        obj = ReportIfNotFunction(cx, vp);
+        *vp = value;
+        obj = ReportIfNotFunction(cx, *vp);
         ok = (obj != NULL);
         break;
       case JSTYPE_STRING:
         str = ToString<CanGC>(cx, value);
         ok = (str != NULL);
         if (ok)
-            vp.setString(str);
+            *vp = STRING_TO_JSVAL(str);
         break;
       case JSTYPE_NUMBER:
         ok = JS_ValueToNumber(cx, value, &d);
         if (ok)
-            vp.setDouble(d);
+            *vp = DOUBLE_TO_JSVAL(d);
         break;
       case JSTYPE_BOOLEAN:
-        vp.setBoolean(ToBoolean(value));
+        *vp = BooleanValue(ToBoolean(value));
         return true;
       default: {
         char numBuf[12];
@@ -363,17 +364,23 @@ JS_ConvertValue(JSContext *cx, HandleValue value, JSType type, MutableHandleValu
 }
 
 JS_PUBLIC_API(bool)
-JS_ValueToObject(JSContext *cx, HandleValue value, MutableHandleObject objp)
+JS_ValueToObject(JSContext *cx, jsval valueArg, JSObject **objpArg)
 {
+    RootedValue value(cx, valueArg);
+    RootedObject objp(cx, *objpArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, value);
-    return js_ValueToObjectOrNull(cx, value, objp);
+    if (!js_ValueToObjectOrNull(cx, value, &objp))
+        return false;
+    *objpArg = objp;
+    return true;
 }
 
 JS_PUBLIC_API(JSFunction *)
-JS_ValueToFunction(JSContext *cx, HandleValue value)
+JS_ValueToFunction(JSContext *cx, jsval valueArg)
 {
+    RootedValue value(cx, valueArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, value);
@@ -381,8 +388,9 @@ JS_ValueToFunction(JSContext *cx, HandleValue value)
 }
 
 JS_PUBLIC_API(JSFunction *)
-JS_ValueToConstructor(JSContext *cx, HandleValue value)
+JS_ValueToConstructor(JSContext *cx, jsval valueArg)
 {
+    RootedValue value(cx, valueArg);
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, value);
@@ -4241,10 +4249,30 @@ JS_DefineFunctions(JSContext *cx, JSObject *objArg, const JSFunctionSpec *fs)
             if (cx->runtime()->isSelfHostingGlobal(cx->global()))
                 continue;
 
-            RootedValue funVal(cx);
-            if (!cx->global()->getSelfHostedFunction(cx, fs, atom, &funVal))
+            RootedAtom shAtom(cx, Atomize(cx, fs->selfHostedName, strlen(fs->selfHostedName)));
+            if (!shAtom)
                 return false;
-            if (!JSObject::defineGeneric(cx, obj, id, funVal, NULL, NULL, 0))
+            RootedPropertyName shName(cx, shAtom->asPropertyName());
+            RootedValue funVal(cx);
+            if (!cx->runtime()->maybeWrappedSelfHostedFunction(cx, shName, &funVal))
+                return false;
+            if (!funVal.isUndefined()) {
+                if (!JSObject::defineProperty(cx, obj, atom->asPropertyName(), funVal,
+                                             NULL, NULL, flags & ~JSFUN_FLAGS_MASK))
+                {
+                    return false;
+                }
+            } else {
+                JSFunction *fun = DefineFunction(cx, obj, id, /* native = */ NULL, fs->nargs, 0,
+                                                 JSFunction::ExtendedFinalizeKind, SingletonObject);
+                if (!fun)
+                    return false;
+                fun->setIsSelfHostedBuiltin();
+                fun->setExtendedSlot(0, PrivateValue(const_cast<JSFunctionSpec*>(fs)));
+                funVal.setObject(*fun);
+            }
+            RootedObject holder(cx, cx->global()->intrinsicsHolder());
+            if (!JSObject::defineProperty(cx, holder, shName, funVal))
                 return false;
         } else {
             JSFunction *fun = DefineFunction(cx, obj, id, fs->call.op, fs->nargs, flags);
@@ -6131,9 +6159,10 @@ JS_IsIdentifier(JSContext *cx, HandleString str, bool *isIdentifier)
 }
 
 JS_PUBLIC_API(bool)
-JS_DescribeScriptedCaller(JSContext *cx, MutableHandleScript script, unsigned *lineno)
+JS_DescribeScriptedCaller(JSContext *cx, JSScript **script, unsigned *lineno)
 {
-    script.set(NULL);
+    if (script)
+        *script = NULL;
     if (lineno)
         *lineno = 0;
 
@@ -6141,7 +6170,8 @@ JS_DescribeScriptedCaller(JSContext *cx, MutableHandleScript script, unsigned *l
     if (i.done())
         return false;
 
-    script.set(i.script());
+    if (script)
+        *script = i.script();
     if (lineno)
         *lineno = js::PCToLineNumber(i.script(), i.pc());
     return true;
@@ -6200,7 +6230,7 @@ JS::AssertArgumentsAreSane(JSContext *cx, HandleValue value)
 #endif /* DEBUG */
 
 JS_PUBLIC_API(void *)
-JS_EncodeScript(JSContext *cx, HandleScript scriptArg, uint32_t *lengthp)
+JS_EncodeScript(JSContext *cx, JSScript *scriptArg, uint32_t *lengthp)
 {
     XDREncoder encoder(cx);
     RootedScript script(cx, scriptArg);
@@ -6210,7 +6240,7 @@ JS_EncodeScript(JSContext *cx, HandleScript scriptArg, uint32_t *lengthp)
 }
 
 JS_PUBLIC_API(void *)
-JS_EncodeInterpretedFunction(JSContext *cx, HandleObject funobjArg, uint32_t *lengthp)
+JS_EncodeInterpretedFunction(JSContext *cx, JSObject *funobjArg, uint32_t *lengthp)
 {
     XDREncoder encoder(cx);
     RootedObject funobj(cx, funobjArg);

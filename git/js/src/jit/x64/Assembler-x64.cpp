@@ -146,7 +146,7 @@ Assembler::finish()
         return;
 
     // Emit the jump table.
-    masm.align(SizeOfJumpTableEntry);
+    masm.align(16);
     extendedJumpTable_ = masm.size();
 
     // Now that we know the offset to the jump table, squirrel it into the

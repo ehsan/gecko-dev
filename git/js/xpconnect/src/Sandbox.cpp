@@ -147,8 +147,7 @@ SandboxImport(JSContext *cx, unsigned argc, Value *vp)
 
         JSAutoCompartment ac(cx, funobj);
 
-        RootedValue funval(cx, ObjectValue(*funobj));
-        JSFunction *fun = JS_ValueToFunction(cx, funval);
+        JSFunction *fun = JS_ValueToFunction(cx, ObjectValue(*funobj));
         if (!fun) {
             XPCThrower::Throw(NS_ERROR_INVALID_ARG, cx);
             return false;
@@ -309,7 +308,7 @@ ExportFunction(JSContext *cx, unsigned argc, jsval *vp)
 static bool
 GetFilenameAndLineNumber(JSContext *cx, nsACString &filename, unsigned &lineno)
 {
-    JS::RootedScript script(cx);
+    JSScript *script;
     if (JS_DescribeScriptedCaller(cx, &script, &lineno)) {
         if (const char *cfilename = JS_GetScriptFilename(cx, script)) {
             filename.Assign(nsDependentCString(cfilename));

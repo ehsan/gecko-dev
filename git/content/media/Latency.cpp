@@ -13,7 +13,6 @@
 #include <cmath>
 #include <algorithm>
 
-#include <mozilla/StaticPtr.h>
 
 using namespace mozilla;
 
@@ -25,7 +24,7 @@ const char* LatencyLogIndex2Strings[] = {
   "NetStat"
 };
 
-static StaticRefPtr<AsyncLatencyLogger> gAsyncLogger;
+static nsRefPtr<AsyncLatencyLogger> gAsyncLogger;
 
 PRLogModuleInfo*
 GetLatencyLog()

@@ -143,7 +143,7 @@ GetLocationProperty(JSContext *cx, HandleObject obj, HandleId id, MutableHandleV
     //XXX: your platform should really implement this
     return false;
 #else
-    JS::RootedScript script(cx);
+    JSScript *script;
     JS_DescribeScriptedCaller(cx, &script, NULL);
     const char *filename = JS_GetScriptFilename(cx, script);
 
