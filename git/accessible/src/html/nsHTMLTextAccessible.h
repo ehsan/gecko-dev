@@ -130,22 +130,16 @@ public:
   nsHTMLListAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell):
     nsHyperTextAccessibleWrap(aDOMNode, aShell) { }
 
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
-
   // nsAccessible
   virtual nsresult GetRoleInternal(PRUint32 *aRole);
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
-class nsHTMLLIAccessible : public nsHyperTextAccessibleWrap
+class nsHTMLLIAccessible : public nsLinkableAccessible
 {
 public:
   nsHTMLLIAccessible(nsIDOMNode *aDOMNode, nsIWeakReference* aShell, 
                      const nsAString& aBulletText);
-
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAccessible
   NS_IMETHOD GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height);
