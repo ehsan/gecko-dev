@@ -44,33 +44,16 @@
 #include "nsCOMPtr.h"
 #include "nsITimer.h"
 
-#define INITAL_REPEAT_DELAY 250
-
-#ifdef XP_MACOSX
-#define REPEAT_DELAY        25
-#else
-#define REPEAT_DELAY        50
-#endif
-
 class nsITimer;
 
 class nsRepeatService : public nsITimerCallback
 {
 public:
 
-  typedef void (* Callback)(void* aData);
-    
   NS_DECL_NSITIMERCALLBACK
 
-  // Start dispatching timer events to the callback. There is no memory
-  // management of aData here; it is the caller's responsibility to call
-  // Stop() before aData's memory is released.
-  void Start(Callback aCallback, void* aData,
-             PRUint32 aInitialDelay = INITAL_REPEAT_DELAY);
-  // Stop dispatching timer events to the callback. If the repeat service
-  // is not currently configured with the given callback and data, this
-  // is just ignored.
-  void Stop(Callback aCallback, void* aData);
+  void Start(nsITimerCallback* aCallback);
+  void Stop();
 
   static nsRepeatService* GetInstance();
   static void Shutdown();
@@ -82,9 +65,9 @@ protected:
   nsRepeatService();
 
 private:
-  Callback           mCallback;
-  void*              mCallbackData;
-  nsCOMPtr<nsITimer> mRepeatTimer;
+  nsCOMPtr<nsITimerCallback> mCallback;
+  nsCOMPtr<nsITimer>         mRepeatTimer;
+  PRBool                     mFirstCall;
   static nsRepeatService* gInstance;
 
 }; // class nsRepeatService

@@ -73,8 +73,7 @@ private:
 
   struct DOMAnimatedNumber : public nsIDOMSVGAnimatedNumber
   {
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedNumber)
+    NS_DECL_ISUPPORTS
 
     DOMAnimatedNumber(nsSVGNumber2* aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
@@ -85,11 +84,7 @@ private:
     NS_IMETHOD GetBaseVal(float* aResult)
       { *aResult = mVal->GetBaseValue(); return NS_OK; }
     NS_IMETHOD SetBaseVal(float aValue)
-      {
-        NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
-        mVal->SetBaseValue(aValue, mSVGElement, PR_TRUE);
-        return NS_OK;
-      }
+      { mVal->SetBaseValue(aValue, mSVGElement, PR_TRUE); return NS_OK; }
     NS_IMETHOD GetAnimVal(float* aResult)
       { *aResult = mVal->GetAnimValue(); return NS_OK; }
 

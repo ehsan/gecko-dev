@@ -75,15 +75,12 @@ public:
 
     nsrefcnt AddRef()
     {
-        nsrefcnt n = PR_AtomicIncrement((PRInt32 *) &mRef);
-        NS_LOG_ADDREF(this, n, "nsHttpConnectionInfo", sizeof(*this));
-        return n;
+        return PR_AtomicIncrement((PRInt32 *) &mRef);
     }
 
     nsrefcnt Release()
     {
         nsrefcnt n = PR_AtomicDecrement((PRInt32 *) &mRef);
-        NS_LOG_RELEASE(this, n, "nsHttpConnectionInfo");
         if (n == 0)
             delete this;
         return n;
@@ -120,7 +117,6 @@ public:
     PRBool        UsingHttpProxy() const { return mUsingHttpProxy; }
     PRBool        UsingSSL() const       { return mUsingSSL; }
     PRInt32       DefaultPort() const    { return mUsingSSL ? NS_HTTPS_DEFAULT_PORT : NS_HTTP_DEFAULT_PORT; }
-    void          SetAnonymous()         { mHashKey.SetCharAt('A', 2); }
             
 private:
     nsrefcnt               mRef;

@@ -98,42 +98,39 @@ while (<>) {
   s/^REFTEST *//;
 
   my $randomresult = 0;
-  if (/EXPECTED RANDOM/) {
-    s/\(EXPECTED RANDOM\)//;
+  if (/RESULT EXPECTED TO BE RANDOM/) {
+    s/\(RESULT EXPECTED TO BE RANDOM\) //;
     $randomresult = 1;
   }
 
-  if (/^TEST-PASS \| (.*)$/) {
+  if (/^PASS(.*)$/) {
     my $class = $randomresult ? "PASSRANDOM" : "PASS";
     print '<tr><td class="' . $class . '">' . do_html($1) . "</td></tr>\n";
-  } elsif (/^TEST-UNEXPECTED-(....) \| (.*)$/) {
-    if ($randomresult) {
-      die "Error on line $l: UNEXPECTED with test marked random?!";
-    }
-    my $class = ($1 eq "PASS") ? "WEIRDPASS" : "FAIL";
-    print '<tr><td class="' . $class . '">' . do_html($2) . "</td></tr>\n";
+  } elsif (/^UNEXPECTED PASS(.*)$/) {
+    my $class = $randomresult ? "PASSRANDOM" : "WEIRDPASS";
+    print '<tr><td class="' . $class . '">' . do_html($1) . "</td></tr>\n";
+  } elsif (/^UNEXPECTED FAIL: (.*)$/) {
+    my $class = $randomresult ? "FAILRANDOM" : "FAIL";
+    print '<tr><td class="' . $class . '">' . do_html($1) . "</td></tr>\n";
 
-    # UNEXPECTED results can be followed by one or two images
+    # FAILs are followed by images
     $testline = &readcleanline;
+    $refline = &readcleanline;
 
     print '<tr><td class="FAILIMAGES">';
 
-    if ($testline =~ /REFTEST   IMAGE: (data:.*)$/) {
+    {
+      die "Error on line $l" unless $testline =~ /REFTEST   IMAGE 1 \(TEST\): (data:.*)$/;
       print '<a href="' . $1 . '"><img class="testresult" src="' . $1 . '"></a>';
-    } elsif ($testline =~ /REFTEST   IMAGE 1 \(TEST\): (data:.*)$/) {
-      $refline = &readcleanline;
-      print '<a href="' . $1 . '"><img class="testresult" src="' . $1 . '"></a>';
-      {
-        die "Error on line $l" unless $refline =~ /REFTEST   IMAGE 2 \(REFERENCE\): (data:.*)$/;
-        print '<a href="' . $1 . '"><img class="testref" src="' . $1 . '"></a>';
-      }
+    }
 
-    } else {
-      die "Error on line $l";
+    {
+      die "Error on line $l" unless $refline =~ /REFTEST   IMAGE 2 \(REFERENCE\): (data:.*)$/;
+      print '<a href="' . $1 . '"><img class="testref" src="' . $1 . '"></a>';
     }
 
     print "</td></tr>\n";
-  } elsif (/^TEST-KNOWN-FAIL \| (.*$)/) {
+  } elsif (/^KNOWN FAIL(.*$)/) {
     my $class = $randomresult ? "XFAILRANDOM" : "XFAIL";
     print '<tr><td class="' . $class . '">' . do_html($1) . "</td></tr>\n";
   } else {

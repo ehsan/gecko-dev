@@ -46,61 +46,51 @@ MODULE		= content
 LIBRARY_NAME	= gkconcvs_s
 LIBXUL_LIBRARY  = 1
 
+REQUIRES	= \
+		xpcom \
+		string \
+		gfx \
+		layout \
+		widget \
+		dom \
+		js \
+		locale \
+		unicharutil \
+		webshell \
+		uriloader \
+		htmlparser \
+		necko \
+		view \
+		pref \
+		docshell \
+		xpconnect \
+		xuldoc \
+		caps \
+		editor \
+		imglib2 \
+		mimetype \
+		exthandler \
+		uconv \
+		intl \
+		plugin \
+		cairo \
+		libpixman \
+		$(NULL)
 
-
-CPPSRCS	= \
-	CanvasUtils.cpp \
-	nsCanvasRenderingContext2D.cpp \
-	$(NULL)
-
-# Canvas 3D Pieces
-
-ifdef MOZ_WEBGL
-
-ifeq (1_1,$(MOZ_X11)_$(NS_OSSO))
-WEBGL_PLATFORM = EGL
-DEFINES += -DUSE_GLES2
+ifdef MOZ_ENABLE_CAIRO_GFX
+REQUIRES += thebes
 endif
 
-ifeq (1_,$(MOZ_X11)_$(NS_OSSO))
-WEBGL_PLATFORM = GLX
-EXTRA_DSO_LIBS += X11
-endif
+# XXX some platforms can't handle building
+# an empty .a/lib.  Remove this dummy.cpp
+# whenever w have a rendering context
+# that doesn't depend on any non-default
+# libraries.
+CPPSRCS		= dummy.cpp \
+		$(NULL)
 
-
-ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
-ifdef WINCE
-WEBGL_PLATFORM = EGL
-DEFINES += -DUSE_GLES2
-else
-WEBGL_PLATFORM = WGL
-endif
-endif
-
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-WEBGL_PLATFORM = CGL
-endif
-
-CPPSRCS += \
-	WebGLArrays.cpp \
-	WebGLContext.cpp \
-	WebGLContextGL.cpp \
-	WebGLContextUtils.cpp \
-	WebGLContextValidate.cpp \
-	NativeJSContext.cpp \
-	glwrap.cpp \
-	nsGLPbuffer.cpp \
-	nsGLPbufferOSMesa.cpp \
-	SimpleBuffer.cpp \
-	$(NULL)
-
-CPPSRCS += nsGLPbuffer$(WEBGL_PLATFORM).cpp
-DEFINES += -DUSE_$(WEBGL_PLATFORM)
-
-else
-
-CPPSRCS += WebGLContextNotSupported.cpp
-
+ifdef MOZ_ENABLE_CANVAS
+CPPSRCS		+= nsCanvasRenderingContext2D.cpp
 endif
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
@@ -110,12 +100,11 @@ include $(topsrcdir)/config/rules.mk
 
 CXXFLAGS	+= $(MOZ_CAIRO_CFLAGS) $(TK_CFLAGS)
 
-INCLUDES	+= \
-		-I$(srcdir)/../../../layout/xul/base/src \
-		-I$(srcdir)/../../../layout/style \
-		-I$(srcdir)/../../../layout/generic \
-		-I$(srcdir)/../../base/src \
-		-I$(srcdir)/../../html/content/src \
-		$(NULL)
+ifndef MOZ_ENABLE_CAIRO_GFX
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+# needed for nsDrawingSurfaceMac.h
+CXXFLAGS += -I$(topsrcdir)/gfx/src/mac
+endif
+endif
 
 DEFINES += -D_IMPL_NS_LAYOUT

@@ -58,14 +58,14 @@ nsStubImageDecoderObserver::OnStartContainer(imgIRequest *aRequest,
 
 NS_IMETHODIMP
 nsStubImageDecoderObserver::OnStartFrame(imgIRequest *aRequest,
-                                         PRUint32 aFrame)
+                                         gfxIImageFrame *aFrame)
 {
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsStubImageDecoderObserver::OnDataAvailable(imgIRequest *aRequest,
-                                            PRBool aCurrentFrame,
+                                            gfxIImageFrame *aFrame,
                                             const nsIntRect * aRect)
 {
     return NS_OK;
@@ -73,7 +73,7 @@ nsStubImageDecoderObserver::OnDataAvailable(imgIRequest *aRequest,
 
 NS_IMETHODIMP
 nsStubImageDecoderObserver::OnStopFrame(imgIRequest *aRequest,
-                                        PRUint32 aFrame)
+                                        gfxIImageFrame *aFrame)
 {
     return NS_OK;
 }
@@ -100,14 +100,9 @@ nsStubImageDecoderObserver::OnStopRequest(imgIRequest *aRequest,
     return NS_OK;
 }
 
-NS_IMETHODIMP 
-nsStubImageDecoderObserver::OnDiscard(imgIRequest *aRequest)
-{
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 nsStubImageDecoderObserver::FrameChanged(imgIContainer *aContainer,
+                                         gfxIImageFrame *aFrame,
                                          nsIntRect * aDirtyRect)
 {
     return NS_OK;

@@ -1,4 +1,4 @@
-#
+# 
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
 #
@@ -15,7 +15,7 @@
 # The Original Code is mozilla.org code.
 #
 # The Initial Developer of the Original Code is
-# Christopher Blizzard.
+# Christopher Blizzard. Portions created by Christopher Blizzard are Copyright (C) Christopher Blizzard.  All Rights Reserved.
 # Portions created by the Initial Developer are Copyright (C) 2001
 # the Initial Developer. All Rights Reserved.
 #
@@ -50,13 +50,38 @@ MODULE_NAME	= nsWidgetGtk2Module
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
+PACKAGE_FILE = widget_gtk2.pkg
+
 NATIVE_THEME_SUPPORT = 1
 
+REQUIRES	= xpcom \
+		  string \
+		  gfx \
+		  pref \
+		  dom \
+		  necko \
+		  uconv \
+		  intl \
+		  gtkxtbin \
+		  imglib2 \
+		  view \
+		  content \
+		  layout \
+		  util \
+		  locale \
+		  thebes \
+		  cairo \
+		  $(NULL)
 
+ifeq ($(MOZ_ENABLE_GLITZ),1)
+REQUIRES += glitz glitzglx
+endif
 
 CSRCS		= \
 		mozcontainer.c \
+		mozdrawingarea.c \
 		keysym2ucs.c \
+		nsPrintdGTK.c \
 		$(NULL)
 
 ifdef ACCESSIBILITY
@@ -69,68 +94,48 @@ CPPSRCS		= \
 		nsWidgetFactory.cpp \
 		nsToolkit.cpp \
 		nsBidiKeyboard.cpp \
+		nsCommonWidget.cpp \
 		nsLookAndFeel.cpp \
 		nsGtkKeyUtils.cpp \
+		nsClipboard.cpp \
+		nsDragService.cpp \
 		nsFilePicker.cpp \
 		nsSound.cpp \
 		nsNativeKeyBindings.cpp \
 		nsScreenGtk.cpp \
 		nsScreenManagerGtk.cpp \
-		nsImageToPixbuf.cpp \
-		nsAccessibilityHelper.cpp \
-		nsAccelerometerUnix.cpp \
-		$(NULL)
-
-ifdef MOZ_X11
-CPPSRCS         += nsIdleServiceGTK.cpp
-endif
-
-ifdef NS_PRINTING
-CPPSRCS		+= \
 		nsDeviceContextSpecG.cpp \
 		nsPrintOptionsGTK.cpp \
-		nsPrintDialogGTK.cpp \
-		nsPrintSettingsGTK.cpp \
+		nsImageToPixbuf.cpp \
+		nsAccessibilityHelper.cpp \
+		nsPrintJobFactoryGTK.cpp \
+		nsPrintJobGTK.cpp \
+		nsIdleServiceGTK.cpp \
 		$(NULL)
-endif
-
-ifdef MOZ_X11
-CPPSRCS += 	nsClipboard.cpp \
-		nsDragService.cpp \
-		$(NULL)
-endif
 
 # build our subdirs, too
+ifdef ACCESSIBILITY
+REQUIRES	+= accessibility
+endif
 
 SHARED_LIBRARY_LIBS = ../xpwidgets/libxpwidgets_s.a
 
 EXTRA_DSO_LDOPTS += \
 		$(MOZ_COMPONENT_LIBS) \
 		-lgkgfx \
-		-lthebes \
-		$(MOZ_CAIRO_LIBS) \
+		-lgtkxtbin \
                 $(MOZ_STARTUP_NOTIFICATION_LIBS) \
 		$(XLDFLAGS) \
 		$(XLIBS) \
-		$(XEXT_LIBS) \
-		$(XCOMPOSITE_LIBS) \
 		$(MOZ_GTK2_LIBS) \
-		$(QCMS_LIBS) \
+		-lthebes \
+		$(LCMS_LIBS) \
 		$(NULL)
-
-ifdef MOZ_PLATFORM_HILDON
-ifdef MOZ_ENABLE_GCONF
-EXTRA_DSO_LDOPTS += $(MOZ_GCONF_LIBS)
-endif
-endif
-
-ifdef MOZ_X11
-EXTRA_DSO_LDOPTS += -lgtkxtbin -lXrender
-endif
 
 EXPORTS		= \
                 nsGTKToolkit.h \
 		nsIImageToPixbuf.h \
+		mozdrawingarea.h \
 		mozcontainer.h \
 		$(NULL)
 
@@ -143,13 +148,7 @@ endif
 include $(topsrcdir)/config/rules.mk
 
 CFLAGS          += $(MOZ_GTK2_CFLAGS) $(MOZ_STARTUP_NOTIFICATION_CFLAGS)
-CXXFLAGS        += $(MOZ_CAIRO_CFLAGS) $(MOZ_GTK2_CFLAGS) $(MOZ_STARTUP_NOTIFICATION_CFLAGS)
-
-ifdef MOZ_PLATFORM_HILDON
-ifdef MOZ_ENABLE_GCONF
-CXXFLAGS += $(MOZ_GCONF_CFLAGS)
-endif
-endif
+CXXFLAGS        += $(MOZ_GTK2_CFLAGS) $(MOZ_STARTUP_NOTIFICATION_CFLAGS)
 
 DEFINES         += -DUSE_XIM
 DEFINES		+= -DCAIRO_GFX
@@ -160,8 +159,14 @@ EXTRA_DSO_LDOPTS += -lgfxpsshar
 endif
 
 
-DEFINES		+=
+DEFINES		+= 
 INCLUDES	+= \
 		-I$(srcdir)/../xpwidgets \
 		-I$(topsrcdir)/other-licenses/atk-1.0 \
 		$(NULL)
+
+test_container: mozdrawingarea.o mozcontainer.o test_container.c
+	$(CC) $(MOZ_GTK2_CFLAGS) -o test_container test_container.c \
+		mozdrawingarea.o mozcontainer.o \
+		$(MOZ_GTK2_LIBS)
+

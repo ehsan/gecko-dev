@@ -34,62 +34,155 @@
 #
 # ***** END LICENSE BLOCK *****
 
-var safebrowsing = {
-  appContext: null,
 
-  startup: function() {
-    setTimeout(function() {
-      safebrowsing.deferredStartup();
-    }, 2000);
-    window.removeEventListener("load", safebrowsing.startup, false);
+/**
+ * This file is included into the main browser chrome from
+ * browser/base/content/global-scripts.inc
+ */
+
+var safebrowsing = {
+  controller: null,
+  phishWarden: null,
+
+  // We set up the web progress listener immediately so we don't miss any
+  // phishing urls.  Since the phishing infrastructure isn't loaded yet, we
+  // just store the urls in a list.
+  progressListener: null,
+  progressListenerCallback: {
+    requests: [],
+    onDocNavStart: function(request, url) {
+      this.requests.push({
+        'request': request,
+        'url': url
+      });
+    }
   },
 
+  startup: function() {
+    setTimeout(safebrowsing.deferredStartup, 2000);
+
+    // clean up
+    window.removeEventListener("load", safebrowsing.startup, false);
+  },
+  
   deferredStartup: function() {
-    this.appContext.initialize();
+    var appContext = Cc["@mozilla.org/safebrowsing/application;1"]
+                     .getService().wrappedJSObject;
+
+    var malwareWarden = new appContext.PROT_MalwareWarden();
+    safebrowsing.malwareWarden = malwareWarden;
+
+    // Register tables
+    malwareWarden.registerBlackTable("goog-malware-sha128");
+
+    malwareWarden.maybeToggleUpdateChecking();
+
+    // Each new browser window needs its own controller. 
+
+    safebrowsing.progressListener.QueryInterface(Ci.nsIWebProgressListener);
+    var phishWarden = new appContext.PROT_PhishingWarden(
+        safebrowsing.progressListener, getBrowser());
+    safebrowsing.phishWarden = phishWarden;
+
+    // Register tables
+    // XXX: move table names to a pref that we originally will download
+    // from the provider (need to workout protocol details)
+    phishWarden.registerWhiteTable("goog-white-exp");
+    phishWarden.registerBlackTable("goog-phish-sha128");
+
+    // Download/update lists if we're in non-enhanced mode
+    phishWarden.maybeToggleUpdateChecking();
+    safebrowsing.controller = new appContext.PROT_Controller(
+        window, getBrowser(), phishWarden);
+
+    // Remove the global progress listener.  The phishingWarden moves
+    // the progress listener to the tabbrowser so we don't need it anymore.
+    safebrowsing.progressListener.globalProgressListenerEnabled = false;
+    
+    // The initial pages may be a phishing site (e.g., user clicks on a link
+    // in an email message and it opens a new window with a phishing site),
+    // so we need to check all requests that fired before deferredStartup.
+    if (!phishWarden.phishWardenEnabled_) {
+      safebrowsing.progressListenerCallback.requests = null;
+      safebrowsing.progressListenerCallback.onDocNavStart = null;
+      safebrowsing.progressListenerCallback = null;
+      safebrowsing.progressListener = null;
+      return;
+    }
+
+    var pendingRequests = safebrowsing.progressListenerCallback.requests;
+    for (var i = 0; i < pendingRequests.length; ++i) {
+      var request = pendingRequests[i].request;
+      var url = pendingRequests[i].url;
+
+      phishWarden.onDocNavStart(request, url);
+    }
+    // Cleanup
+    safebrowsing.progressListenerCallback.requests = null;
+    safebrowsing.progressListenerCallback.onDocNavStart = null;
+    safebrowsing.progressListenerCallback = null;
+    safebrowsing.progressListener = null;
+  },
+
+  /**
+   * Clean up.
+   */
+  shutdown: function() {
+    if (safebrowsing.controller) {
+      // If the user shuts down before deferredStartup, there is no controller.
+      safebrowsing.controller.shutdown();
+    }
+    if (safebrowsing.phishWarden) {
+      safebrowsing.phishWarden.shutdown();
+    }
+    if (safebrowsing.malwareWarden) {
+      safebrowsing.malwareWarden.shutdown();
+    }
+    
+    window.removeEventListener("unload", safebrowsing.shutdown, false);
   },
 
   setReportPhishingMenu: function() {
-      
-    // A phishing page will have a specific about:blocked content documentURI
-    var isPhishingPage = /^about:blocked\?e=phishingBlocked/.test(content.document.documentURI);
-    
+    var uri = getBrowser().currentURI;
+    if (!uri)
+      return;
+
+    var sbIconElt = document.getElementById("safebrowsing-urlbar-icon");
+    var helpMenuElt = document.getElementById("helpMenu");
+    var phishLevel = sbIconElt.getAttribute("level");
+
     // Show/hide the appropriate menu item.
     document.getElementById("menu_HelpPopup_reportPhishingtoolmenu")
-            .hidden = isPhishingPage;
+            .hidden = ("safe" != phishLevel);
     document.getElementById("menu_HelpPopup_reportPhishingErrortoolmenu")
-            .hidden = !isPhishingPage;
+            .hidden = ("safe" == phishLevel);
 
-    var broadcasterId = isPhishingPage
-                        ? "reportPhishingErrorBroadcaster"
-                        : "reportPhishingBroadcaster";
+    var broadcasterId;
+    if ("safe" == phishLevel) {
+      broadcasterId = "reportPhishingBroadcaster";
+    } else {
+      broadcasterId = "reportPhishingErrorBroadcaster";
+    }
 
     var broadcaster = document.getElementById(broadcasterId);
     if (!broadcaster)
       return;
 
-    var uri = getBrowser().currentURI;
-    if (uri && (uri.schemeIs("http") || uri.schemeIs("https")))
-      broadcaster.removeAttribute("disabled");
-    else
-      broadcaster.setAttribute("disabled", true);
+    var progressListener =
+      Cc["@mozilla.org/browser/safebrowsing/navstartlistener;1"]
+      .createInstance(Ci.nsIDocNavStartProgressListener);
+    broadcaster.setAttribute("disabled", progressListener.isSpurious(uri));
   },
   
   /**
-   * Lazy init getter for appContext
-   */
-  get appContext() {
-    delete this.appContext;
-    return this.appContext = Cc["@mozilla.org/safebrowsing/application;1"]
-                            .getService().wrappedJSObject;
-  },
-
-  /**
    * Used to report a phishing page or a false positive
-   * @param name String One of "Phish", "Error", "Malware" or "MalwareError"
+   * @param name String either "Phish" or "Error"
    * @return String the report phishing URL.
    */
   getReportURL: function(name) {
-    var reportUrl = this.appContext.getReportURL(name);
+    var appContext = Cc["@mozilla.org/safebrowsing/application;1"]
+                     .getService().wrappedJSObject;
+    var reportUrl = appContext.getReportURL(name);
 
     var pageUrl = getBrowser().currentURI.asciiSpec;
     reportUrl += "&url=" + encodeURIComponent(pageUrl);
@@ -98,4 +191,16 @@ var safebrowsing = {
   }
 }
 
+// Set up a global request listener immediately so we don't miss
+// any url loads.  We do the actually checking in the deferredStartup
+// method.
+safebrowsing.progressListener =
+  Components.classes["@mozilla.org/browser/safebrowsing/navstartlistener;1"]
+            .createInstance(Components.interfaces.nsIDocNavStartProgressListener);
+safebrowsing.progressListener.callback =
+  safebrowsing.progressListenerCallback;
+safebrowsing.progressListener.globalProgressListenerEnabled = true;
+safebrowsing.progressListener.delay = 0;
+
 window.addEventListener("load", safebrowsing.startup, false);
+window.addEventListener("unload", safebrowsing.shutdown, false);

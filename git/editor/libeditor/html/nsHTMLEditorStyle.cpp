@@ -70,14 +70,14 @@ NS_IMETHODIMP nsHTMLEditor::AddDefaultProperty(nsIAtom *aProperty,
   nsString attr(aAttribute);
   if (TypeInState::FindPropInList(aProperty, attr, &outValue, mDefaultStyles, index))
   {
-    PropItem *item = mDefaultStyles[index];
+    PropItem *item = (PropItem*)mDefaultStyles[index];
     item->value = aValue;
   }
   else
   {
     nsString value(aValue);
     PropItem *propItem = new PropItem(aProperty, attr, value);
-    mDefaultStyles.AppendElement(propItem);
+    mDefaultStyles.AppendElement((void*)propItem);
   }
   return NS_OK;
 }
@@ -91,7 +91,8 @@ NS_IMETHODIMP nsHTMLEditor::RemoveDefaultProperty(nsIAtom *aProperty,
   nsString attr(aAttribute);
   if (TypeInState::FindPropInList(aProperty, attr, &outValue, mDefaultStyles, index))
   {
-    delete mDefaultStyles[index];
+    PropItem *item = (PropItem*)mDefaultStyles[index];
+    if (item) delete item;
     mDefaultStyles.RemoveElementAt(index);
   }
   return NS_OK;
@@ -99,10 +100,11 @@ NS_IMETHODIMP nsHTMLEditor::RemoveDefaultProperty(nsIAtom *aProperty,
 
 NS_IMETHODIMP nsHTMLEditor::RemoveAllDefaultProperties()
 {
-  PRUint32 j, defcon = mDefaultStyles.Length();
+  PRInt32 j, defcon = mDefaultStyles.Count();
   for (j=0; j<defcon; j++)
   {
-    delete mDefaultStyles[j];
+    PropItem *item = (PropItem*)mDefaultStyles[j];
+    if (item) delete item;
   }
   mDefaultStyles.Clear();
   return NS_OK;
@@ -635,10 +637,10 @@ PRBool nsHTMLEditor::NodeIsProperty(nsIDOMNode *aNode)
 nsresult nsHTMLEditor::ApplyDefaultProperties()
 {
   nsresult res = NS_OK;
-  PRUint32 j, defcon = mDefaultStyles.Length();
+  PRInt32 j, defcon = mDefaultStyles.Count();
   for (j=0; j<defcon; j++)
   {
-    PropItem *propItem = mDefaultStyles[j];
+    PropItem *propItem = (PropItem*)mDefaultStyles[j];
     if (!propItem) 
       return NS_ERROR_NULL_POINTER;
     res = SetInlineProperty(propItem->tag, propItem->attr, propItem->value);
@@ -926,7 +928,6 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
   
   while ( startNode && 
           !nsTextEditUtils::IsBody(startNode) && 
-          IsEditable(startNode) &&
           IsAtFrontOfNode(startNode, startOffset) )
   {
     res = GetNodeLocation(startNode, address_of(parent), &startOffset);
@@ -937,7 +938,6 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
   
   while ( endNode && 
           !nsTextEditUtils::IsBody(endNode) && 
-          IsEditable(endNode) &&
           IsAtEndOfNode(endNode, endOffset) )
   {
     res = GetNodeLocation(endNode, address_of(parent), &endOffset);
@@ -1082,7 +1082,7 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
           {
             *aFirst = *aAny = *aAll = PR_TRUE;
             if (outValue)
-              outValue->Assign(mDefaultStyles[index]->value);
+              outValue->Assign(((PropItem*)mDefaultStyles[index])->value);
           }
         }
         return NS_OK;
@@ -1105,7 +1105,7 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
     if (NS_FAILED(result)) return result;
     while (!iter->IsDone())
     {
-      nsCOMPtr<nsIContent> content = do_QueryInterface(iter->GetCurrentNode());
+      nsIContent *content = iter->GetCurrentNode();
 
       nsCOMPtr<nsIDOMNode> node = do_QueryInterface(content);
 

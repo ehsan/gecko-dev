@@ -48,6 +48,10 @@
 
 #include "nsIWidget.h"
 
+#include "nsIMenuBar.h"
+
+#include "nsIMouseListener.h"
+#include "nsIEventListener.h"
 #include "nsString.h"
 #include "nsRegion.h"
 
@@ -59,7 +63,9 @@
 #include <Messenger.h>
 #endif
 
+#ifdef MOZ_CAIRO_GFX
 #include <gfxBeOSSurface.h>
+#endif
 
 #define NSRGB_2_COLOREF(color) \
             RGB(NS_GET_R(color),NS_GET_G(color),NS_GET_B(color))
@@ -94,7 +100,13 @@ public:
 
 	// nsIWidget interface
 	NS_IMETHOD              Create(nsIWidget *aParent,
-	                               nsNativeWidget aNativeParent,
+	                               const nsRect &aRect,
+	                               EVENT_CALLBACK aHandleEventFunction,
+	                               nsIDeviceContext *aContext,
+	                               nsIAppShell *aAppShell = nsnull,
+	                               nsIToolkit *aToolkit = nsnull,
+	                               nsWidgetInitData *aInitData = nsnull);
+	NS_IMETHOD              Create(nsNativeWidget aParent,
 	                               const nsRect &aRect,
 	                               EVENT_CALLBACK aHandleEventFunction,
 	                               nsIDeviceContext *aContext,
@@ -102,14 +114,29 @@ public:
 	                               nsIToolkit *aToolkit = nsnull,
 	                               nsWidgetInitData *aInitData = nsnull);
 
+	// Utility method for implementing both Create(nsIWidget ...) and
+	// Create(nsNativeWidget...)
+
+	NS_IMETHOD          PreCreateWidget(nsWidgetInitData *aWidgetInitData);
+
+	virtual nsresult        StandardWindowCreate(nsIWidget *aParent,
+	                                             const nsRect &aRect,
+	                                             EVENT_CALLBACK aHandleEventFunction,
+	                                             nsIDeviceContext *aContext,
+	                                             nsIAppShell *aAppShell,
+	                                             nsIToolkit *aToolkit,
+	                                             nsWidgetInitData *aInitData,
+	                                             nsNativeWidget aNativeParent = nsnull);
+
+#ifdef MOZ_CAIRO_GFX
 	gfxASurface*            GetThebesSurface();
+#endif
 
 	NS_IMETHOD              Destroy();
 	virtual nsIWidget*        GetParent(void);
 	NS_IMETHOD              Show(PRBool bState);
  	NS_IMETHOD              CaptureMouse(PRBool aCapture);
 	NS_IMETHOD              CaptureRollupEvents(nsIRollupListener *aListener,
-                                              nsIMenuRollup *aMenuRollup,
 	                                            PRBool aDoCapture,
 	                                            PRBool aConsumeRollupEvent);
 	NS_IMETHOD              IsVisible(PRBool & aState);
@@ -132,6 +159,7 @@ public:
 	NS_IMETHOD              GetScreenBounds(nsRect &aRect);
 	NS_IMETHOD              SetBackgroundColor(const nscolor &aColor);
 	NS_IMETHOD              SetCursor(nsCursor aCursor);
+	NS_IMETHOD              Invalidate(PRBool aIsSynchronous);
 	NS_IMETHOD              Invalidate(const nsRect & aRect, PRBool aIsSynchronous);
 	NS_IMETHOD              InvalidateRegion(const nsIRegion *aRegion,
 	                                         PRBool aIsSynchronous);
@@ -140,10 +168,14 @@ public:
 	NS_IMETHOD              SetColorMap(nsColorMap *aColorMap);
 	NS_IMETHOD              Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *aClipRect);
 	NS_IMETHOD              SetTitle(const nsAString& aTitle);
-	NS_IMETHOD              SetMenuBar(void * aMenuBar) { return NS_ERROR_FAILURE; }
+	NS_IMETHOD              SetMenuBar(nsIMenuBar * aMenuBar) { return NS_ERROR_FAILURE; }
 	NS_IMETHOD              ShowMenuBar(PRBool aShow) { return NS_ERROR_FAILURE; }
 	NS_IMETHOD              WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect);
 	NS_IMETHOD              ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
+	NS_IMETHOD              BeginResizingChildren(void);
+	NS_IMETHOD              EndResizingChildren(void);
+	NS_IMETHOD              GetPreferredSize(PRInt32& aWidth, PRInt32& aHeight);
+	NS_IMETHOD              SetPreferredSize(PRInt32 aWidth, PRInt32 aHeight);
 	NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
 	NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
 
@@ -200,18 +232,18 @@ protected:
 	nsIFontMetrics*  mFontMetrics;
 
 	nsViewBeOS*      mView;
+	PRInt32          mPreferredWidth;
+	PRInt32          mPreferredHeight;
 	window_feel      mBWindowFeel;
 	window_look      mBWindowLook;
 
+#ifdef MOZ_CAIRO_GFX
 	nsRefPtr<gfxBeOSSurface> mThebesSurface;
+#endif
 
 	//Just for saving space we use packed bools.
 	PRPackedBool           mIsTopWidgetWindow;
 	PRPackedBool           mIsMetaDown;
-	PRPackedBool           mIsShiftDown;
-	PRPackedBool           mIsControlDown;
-	PRPackedBool           mIsAltDown;
-	PRPackedBool           mIsDestroying;
 	PRPackedBool           mIsVisible;
 	PRPackedBool           mEnabled;
 	PRPackedBool           mIsScrolling;

@@ -37,6 +37,7 @@
 
 #include "nsPrintSettingsImpl.h"
 #include "nsCoord.h"
+#include "nsUnitConversion.h"
 #include "nsReadableUtils.h"
 
 // For Prefs

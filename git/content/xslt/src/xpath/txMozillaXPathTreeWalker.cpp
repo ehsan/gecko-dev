@@ -54,7 +54,6 @@
 #include "txLog.h"
 #include "nsUnicharUtils.h"
 #include "nsAttrName.h"
-#include "nsTArray.h"
 
 const PRUint32 kUnknownIndex = PRUint32(-1);
 
@@ -210,9 +209,9 @@ txXPathTreeWalker::moveToFirstChild()
     }
 
     NS_ASSERTION(!mPosition.isDocument() ||
-                 (mCurrentIndex == kUnknownIndex && mDescendants.IsEmpty()),
+                 (mCurrentIndex == kUnknownIndex && !mDescendants.Count()),
                  "we shouldn't have any position info at the document");
-    NS_ASSERTION(mCurrentIndex != kUnknownIndex || mDescendants.IsEmpty(),
+    NS_ASSERTION(mCurrentIndex != kUnknownIndex || !mDescendants.Count(),
                  "Index should be known if parents index are");
 
     nsIContent* child = mPosition.mNode->GetChildAt(0);
@@ -239,9 +238,9 @@ txXPathTreeWalker::moveToLastChild()
     }
 
     NS_ASSERTION(!mPosition.isDocument() ||
-                 (mCurrentIndex == kUnknownIndex && mDescendants.IsEmpty()),
+                 (mCurrentIndex == kUnknownIndex && !mDescendants.Count()),
                  "we shouldn't have any position info at the document");
-    NS_ASSERTION(mCurrentIndex != kUnknownIndex || mDescendants.IsEmpty(),
+    NS_ASSERTION(mCurrentIndex != kUnknownIndex || !mDescendants.Count(),
                  "Index should be known if parents index are");
 
     PRUint32 total = mPosition.mNode->GetChildCount();
@@ -297,7 +296,7 @@ txXPathTreeWalker::moveToParent()
         return PR_FALSE;
     }
 
-    PRUint32 count = mDescendants.Length();
+    PRInt32 count = mDescendants.Count();
     if (count) {
         mCurrentIndex = mDescendants.ValueAt(--count);
         mDescendants.RemoveValueAt(count);
@@ -437,6 +436,13 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode, nsAString& aLocalName)
         if (aNode.mNode->IsNodeOfType(nsINode::eELEMENT)) {
             nsINodeInfo* nodeInfo = aNode.Content()->NodeInfo();
             nodeInfo->GetLocalName(aLocalName);
+
+            // Check for html
+            if (nodeInfo->NamespaceEquals(kNameSpaceID_None) &&
+                aNode.mNode->IsNodeOfType(nsINode::eHTML)) {
+                ToUpperCase(aLocalName);
+            }
+
             return;
         }
 
@@ -458,7 +464,7 @@ txXPathNodeUtils::getLocalName(const txXPathNode& aNode, nsAString& aLocalName)
 
     // Check for html
     if (aNode.Content()->NodeInfo()->NamespaceEquals(kNameSpaceID_None) &&
-        aNode.Content()->IsHTML()) {
+        aNode.Content()->IsNodeOfType(nsINode::eHTML)) {
         ToUpperCase(aLocalName);
     }
 }
@@ -479,9 +485,11 @@ txXPathNodeUtils::getNodeName(const txXPathNode& aNode, nsAString& aName)
             nodeInfo->GetQualifiedName(aName);
 
             // Check for html
-            if (aNode.Content()->IsHTML()) {
+            if (nodeInfo->NamespaceEquals(kNameSpaceID_None) &&
+                aNode.Content()->IsNodeOfType(nsINode::eHTML)) {
                 ToUpperCase(aName);
             }
+
             return;
         }
 
@@ -501,7 +509,8 @@ txXPathNodeUtils::getNodeName(const txXPathNode& aNode, nsAString& aName)
     aNode.Content()->GetAttrNameAt(aNode.mIndex)->GetQualifiedName(aName);
 
     // Check for html
-    if (aNode.Content()->IsHTML()) {
+    if (aNode.Content()->NodeInfo()->NamespaceEquals(kNameSpaceID_None) &&
+        aNode.Content()->IsNodeOfType(nsINode::eHTML)) {
         ToUpperCase(aName);
     }
 }
@@ -569,8 +578,7 @@ txXPathNodeUtils::appendNodeValue(const txXPathNode& aNode, nsAString& aResult)
     }
 
     if (aNode.isDocument() ||
-        aNode.mNode->IsNodeOfType(nsINode::eELEMENT) ||
-        aNode.mNode->IsNodeOfType(nsINode::eDOCUMENT_FRAGMENT)) {
+        aNode.mNode->IsNodeOfType(nsINode::eELEMENT)) {
         nsContentUtils::AppendNodeTextContent(aNode.mNode, PR_TRUE, aResult);
 
         return;
@@ -682,7 +690,7 @@ txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
     // same tree.
 
     // Get parents up the tree.
-    nsAutoTArray<nsINode*, 8> parents, otherParents;
+    nsAutoVoidArray parents, otherParents;
     nsINode* node = aNode.mNode;
     nsINode* otherNode = aOtherNode.mNode;
     nsINode* parent, *otherParent;
@@ -718,16 +726,17 @@ txXPathNodeUtils::comparePosition(const txXPathNode& aNode,
     }
 
     // Walk back down along the parent-chains until we find where they split.
-    PRInt32 total = parents.Length() - 1;
-    PRInt32 otherTotal = otherParents.Length() - 1;
+    PRInt32 total = parents.Count() - 1;
+    PRInt32 otherTotal = otherParents.Count() - 1;
     NS_ASSERTION(total != otherTotal, "Can't have same number of parents");
 
     PRInt32 lastIndex = PR_MIN(total, otherTotal);
     PRInt32 i;
     parent = nsnull;
     for (i = 0; i <= lastIndex; ++i) {
-        node = parents.ElementAt(total - i);
-        otherNode = otherParents.ElementAt(otherTotal - i);
+        node = static_cast<nsINode*>(parents.ElementAt(total - i));
+        otherNode = static_cast<nsINode*>
+                               (otherParents.ElementAt(otherTotal - i));
         if (node != otherNode) {
             if (!parent) {
                 // The two nodes are in different orphan subtrees.

@@ -45,7 +45,7 @@
 #endif
 
 #include "nsINativeKeyBindings.h"
-#include <gtk/gtk.h>
+#include <gtk/gtkwidget.h>
 
 enum NativeKeyBindingsType {
   eKeyBindings_Input,
@@ -92,11 +92,6 @@ public:
 
 private:
   ~nsNativeKeyBindings() NS_HIDDEN;
-
-  PRBool KeyPressInternal(const nsNativeKeyEvent& aEvent,
-                          DoCommandCallback aCallback,
-                          void *aCallbackData,
-                          PRUint32 aKeyCode);
 
   GtkWidget *mNativeTarget;
 };

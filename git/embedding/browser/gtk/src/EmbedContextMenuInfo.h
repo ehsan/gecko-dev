@@ -19,7 +19,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Oleg Romashin.
+ * Oleg Romashin. Portions created by Oleg Romashin are Copyright (C) Oleg Romashin.  All Rights Reserved.
  * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
@@ -84,7 +84,7 @@ public:
   nsCOMPtr<nsIDOMNode>    mEventNode;
   nsCOMPtr<nsIDOMEventTarget> mEventTarget;
   nsCOMPtr<nsIDOMDocument>mCtxDocument;
-  nsIntRect               mFormRect;
+  nsRect               mFormRect;
   nsCOMPtr<nsIDOMWindow>  mCtxDomWindow;
   nsCOMPtr<nsIDOMEvent>   mCtxEvent;
   nsCOMPtr<nsIDOMNSHTMLElement> mNSHHTMLElement;

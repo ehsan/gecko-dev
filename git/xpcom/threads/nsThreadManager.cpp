@@ -38,30 +38,22 @@
 
 #include "nsThreadManager.h"
 #include "nsThread.h"
-#include "nsThreadUtils.h"
 #include "nsIClassInfoImpl.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 #include "nsAutoLock.h"
 
-#ifdef XP_WIN
-#include <windows.h>
-DWORD gTLSIsMainThreadIndex = TlsAlloc();
-#elif defined(NS_TLS)
-NS_TLS bool gTLSIsMainThread = false;
-#endif
-
 typedef nsTArray< nsRefPtr<nsThread> > nsThreadArray;
 
 //-----------------------------------------------------------------------------
 
-static void
+PR_STATIC_CALLBACK(void)
 ReleaseObject(void *data)
 {
   static_cast<nsISupports *>(data)->Release();
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 AppendAndRemoveThread(const void *key, nsRefPtr<nsThread> &thread, void *arg)
 {
   nsThreadArray *threads = static_cast<nsThreadArray *>(arg);
@@ -108,12 +100,6 @@ nsThreadManager::Init()
   // We need to keep a pointer to the current thread, so we can satisfy
   // GetIsMainThread calls that occur post-Shutdown.
   mMainThread->GetPRThread(&mMainPRThread);
-
-#ifdef XP_WIN
-  TlsSetValue(gTLSIsMainThreadIndex, (void*) 1);
-#elif defined(NS_TLS)
-  gTLSIsMainThread = true;
-#endif
 
   mInitialized = PR_TRUE;
   return NS_OK;
@@ -169,11 +155,6 @@ nsThreadManager::Shutdown()
     mThreadsByPRThread.Clear();
   }
 
-  // Normally thread shutdown clears the observer for the thread, but since the
-  // main thread is special we do it manually here after we're sure all events
-  // have been processed.
-  mMainThread->SetObserver(nsnull);
-
   // Release main thread object.
   mMainThread = nsnull;
 
@@ -218,10 +199,6 @@ nsThreadManager::GetCurrentThread()
   void *data = PR_GetThreadPrivate(mCurThreadIndex);
   if (data)
     return static_cast<nsThread *>(data);
-
-  if (!mInitialized) {
-    return nsnull;
-  }
 
   // OK, that's fine.  We'll dynamically create one :-)
   nsRefPtr<nsThread> thread = new nsThread();

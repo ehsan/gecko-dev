@@ -41,7 +41,6 @@
 #include "nsAutoLock.h"
 #include "pldhash.h"
 #include "nsCRT.h"
-#include "prbit.h"
 
 #if defined(PR_LOGGING)
 PRLogModuleInfo *gHttpLog = nsnull;
@@ -91,16 +90,16 @@ NewHeapAtom(const char *value) {
 }
 
 // Hash string ignore case, based on PL_HashString
-static PLDHashNumber
+PR_STATIC_CALLBACK(PLDHashNumber)
 StringHash(PLDHashTable *table, const void *key)
 {
     PLDHashNumber h = 0;
     for (const char *s = reinterpret_cast<const char*>(key); *s; ++s)
-        h = PR_ROTATE_LEFT32(h, 4) ^ nsCRT::ToLower(*s);
+        h = (h >> 28) ^ (h << 4) ^ nsCRT::ToLower(*s);
     return h;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 StringCompare(PLDHashTable *table, const PLDHashEntryHdr *entry,
               const void *testKey)
 {

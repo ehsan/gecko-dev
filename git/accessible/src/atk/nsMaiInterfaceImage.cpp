@@ -68,12 +68,19 @@ getImagePositionCB(AtkImage *aImage, gint *aAccX, gint *aAccY,
     if (!image)
       return;
 
-    PRUint32 geckoCoordType = (aCoordType == ATK_XY_WINDOW) ?
-      nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE :
-      nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
-
+    PRInt32 width, height; // dummy
     // Returned in screen coordinates
-    image->GetImagePosition(geckoCoordType, aAccX, aAccY);
+    nsresult rv = image->GetImageBounds(aAccX, aAccY, &width, &height);
+    if (NS_FAILED(rv))
+      return;
+    
+    if (aCoordType == ATK_XY_WINDOW) {
+        nsCOMPtr<nsIDOMNode> domNode;
+        accWrap->GetDOMNode(getter_AddRefs(domNode));
+        nsIntPoint winCoords = nsAccUtils::GetScreenCoordsForWindow(domNode);
+        *aAccX -= winCoords.x;
+        *aAccY -= winCoords.y;
+    }
 }
 
 const gchar *
@@ -95,5 +102,6 @@ getImageSizeCB(AtkImage *aImage, gint *aAccWidth, gint *aAccHeight)
     if (!image)
       return;
 
-    image->GetImageSize(aAccWidth, aAccHeight);
+    PRInt32 x,y; // dummy
+    image->GetImageBounds(&x, &y, aAccWidth, aAccHeight);
 }

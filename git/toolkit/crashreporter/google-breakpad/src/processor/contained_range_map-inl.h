@@ -60,12 +60,8 @@ bool ContainedRangeMap<AddressType, EntryType>::StoreRange(
 
   // Check for undersize or overflow.
   if (size <= 0 || high < base) {
-    //TODO(nealsid) We are commenting this out in order to prevent
-    // excessive logging.  We plan to move to better logging as this
-    // failure happens quite often and is expected(see comment in
-    // basic_source_line_resolver.cc:671).
-    // BPLOG(INFO) << "StoreRange failed, " << HexString(base) << "+"
-    // << HexString(size) << ", " << HexString(high);
+    BPLOG(INFO) << "StoreRange failed, " << HexString(base) << "+" <<
+                   HexString(size) << ", " << HexString(high);
     return false;
   }
 
@@ -74,7 +70,7 @@ bool ContainedRangeMap<AddressType, EntryType>::StoreRange(
 
   MapIterator iterator_base = map_->lower_bound(base);
   MapIterator iterator_high = map_->lower_bound(high);
-  MapIterator iterator_end = map_->end();
+  MapConstIterator iterator_end = map_->end();
 
   if (iterator_base == iterator_high && iterator_base != iterator_end &&
       base >= iterator_base->second->base_) {
@@ -85,9 +81,8 @@ bool ContainedRangeMap<AddressType, EntryType>::StoreRange(
     // it must fail.  iterator_base->first contains the key, which was the
     // containing child's high address.
     if (iterator_base->second->base_ == base && iterator_base->first == high) {
-      // TODO(nealsid): See the TODO above on why this is commented out.
-//       BPLOG(INFO) << "StoreRange failed, identical range is already "
-//                      "present: " << HexString(base) << "+" << HexString(size);
+      BPLOG(INFO) << "StoreRange failed, identical range is already "
+                     "present: " << HexString(base) << "+" << HexString(size);
       return false;
     }
 

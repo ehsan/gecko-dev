@@ -51,10 +51,6 @@ ul {
   -moz-background-origin: content;
 }
 
-#errorPageContainer.certerror {
-  background-image: url("chrome://global/skin/icons/sslWarning.png");
-}
-
 body[dir="rtl"] #errorPageContainer {
   background-position: right 0;
 }
@@ -72,7 +68,6 @@ body[dir="rtl"] #errorPageContainer {
   border-bottom: 1px solid ThreeDLightShadow;
   padding-bottom: 1em;
   font-size: 130%;
-  white-space: pre-wrap;
 }
 
 #errorLongDesc {
@@ -109,16 +104,6 @@ body[dir="rtl"] #brand {
   display: none;
 }
 
-#securityOverrideDiv {
-  padding-top: 10px;
-}
-
-#securityOverrideContent {
-  background-color: #FFF090; /* Pale yellow */
-  padding: 10px;
-  -moz-border-radius: 10px;
-}
-
 /* Custom styling for 'blacklist' error class */
 :root.blacklist #errorTitle, :root.blacklist #errorLongContent,
 :root.blacklist #errorShortDesc, :root.blacklist #errorLongDesc,
@@ -128,7 +113,7 @@ body[dir="rtl"] #brand {
 }
 
 :root.blacklist #errorPageContainer {
-  background-image: url("chrome://global/skin/icons/blacklist_64.png");
+  background-image: url("chrome://global/skin/icons/blacklist_large.png");
   background-color: #722;
 }
 
@@ -139,3 +124,4 @@ body[dir="rtl"] #brand {
 :root.blacklist #errorTryAgain {
   display: none;
 }
+

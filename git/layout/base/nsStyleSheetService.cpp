@@ -38,7 +38,6 @@
 
 /* implementation of interface for managing user and user-agent style sheets */
 
-#include "prlog.h"
 #include "nsStyleSheetService.h"
 #include "nsIStyleSheet.h"
 #include "nsICSSLoader.h"
@@ -51,7 +50,6 @@
 #include "nsISupportsPrimitives.h"
 #include "nsNetUtil.h"
 #include "nsIObserverService.h"
-#include "nsLayoutStatics.h"
 
 static NS_DEFINE_CID(kCSSLoaderCID, NS_CSS_LOADER_CID);
 
@@ -59,16 +57,14 @@ nsStyleSheetService *nsStyleSheetService::gInstance = nsnull;
 
 nsStyleSheetService::nsStyleSheetService()
 {
-  PR_STATIC_ASSERT(0 == AGENT_SHEET && 1 == USER_SHEET);
+  NS_ASSERTION(0 == AGENT_SHEET && 1 == USER_SHEET, "Invalid value for USER_SHEET or AGENT_SHEET");
   NS_ASSERTION(!gInstance, "Someone is using CreateInstance instead of GetService");
   gInstance = this;
-  nsLayoutStatics::AddRef();
 }
 
 nsStyleSheetService::~nsStyleSheetService()
 {
   gInstance = nsnull;
-  nsLayoutStatics::Release();
 }
 
 NS_IMPL_ISUPPORTS1(nsStyleSheetService, nsIStyleSheetService)
@@ -175,7 +171,7 @@ nsStyleSheetService::LoadAndRegisterSheetInternal(nsIURI *aSheetURI,
   nsCOMPtr<nsICSSStyleSheet> sheet;
   // Allow UA sheets, but not user sheets, to use unsafe rules
   nsresult rv = loader->LoadSheetSync(aSheetURI, aSheetType == AGENT_SHEET,
-                                      PR_TRUE, getter_AddRefs(sheet));
+                                      getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (!mSheets[aSheetType].AppendObject(sheet)) {

@@ -50,11 +50,11 @@ class nsPresContext;
 class nsStyleContext;
 
 struct nsRuleData;
-typedef void (*nsPostResolveFunc)(void* aStyleStruct, nsRuleData* aData);
+typedef void (*nsPostResolveFunc)(nsStyleStruct* aStyleStruct, nsRuleData* aData);
 
 struct nsRuleData
 {
-  PRUint32 mSIDs;
+  nsStyleStructID mSID;
   PRPackedBool mCanStoreInRuleTree;
   PRPackedBool mIsImportantRule;
   PRUint8 mLevel; // an nsStyleSet::sheetType
@@ -72,17 +72,24 @@ struct nsRuleData
   nsRuleDataText* mTextData;
   nsRuleDataUserInterface* mUserInterfaceData;
   nsRuleDataXUL* mXULData;
+
+#ifdef MOZ_SVG
   nsRuleDataSVG* mSVGData;
+#endif
 
   nsRuleDataColumn* mColumnData;
 
-  nsRuleData(PRUint32 aSIDs, nsPresContext* aContext, nsStyleContext* aStyleContext) 
-    :mSIDs(aSIDs), mPresContext(aContext), mStyleContext(aStyleContext), mPostResolveCallback(nsnull),
+  nsRuleData(const nsStyleStructID& aSID, nsPresContext* aContext, nsStyleContext* aStyleContext) 
+    :mSID(aSID), mPresContext(aContext), mStyleContext(aStyleContext), mPostResolveCallback(nsnull),
      mFontData(nsnull), mDisplayData(nsnull), mMarginData(nsnull), mListData(nsnull), 
      mPositionData(nsnull), mTableData(nsnull), mColorData(nsnull), mContentData(nsnull), mTextData(nsnull),
-     mUserInterfaceData(nsnull), mXULData(nsnull), mSVGData(nsnull), mColumnData(nsnull)
+     mUserInterfaceData(nsnull), mColumnData(nsnull)
   {
     mCanStoreInRuleTree = PR_TRUE;
+    mXULData = nsnull;
+#ifdef MOZ_SVG
+    mSVGData = nsnull;
+#endif
   }
   ~nsRuleData() {}
 };

@@ -53,6 +53,8 @@ META_COMPONENT	= crypto
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
+PACKAGE_FILE = pipboot.pkg
+
 CPPSRCS = \
 	nsEntropyCollector.cpp \
 	nsSecureBrowserUIImpl.cpp \
@@ -60,6 +62,20 @@ CPPSRCS = \
 	nsSecurityWarningDialogs.cpp \
 	$(NULL)
 
+REQUIRES	= nspr \
+		  xpcom \
+		  string \
+		  necko \
+		  uriloader \
+		  dom \
+		  intl \
+		  docshell \
+		  widget \
+		  layout \
+		  content \
+		  caps \
+		  pref \
+		  $(NULL)
 
 include $(topsrcdir)/config/rules.mk
 

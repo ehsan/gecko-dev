@@ -135,6 +135,10 @@ extern "C" {
 #	define JRI_CALLBACK
 #endif
 
+#ifndef FAR		/* for non-Win16 */
+#define FAR
+#endif
+
 /******************************************************************************/
 
 /* Java Scalar Types */

@@ -121,7 +121,7 @@ private:
     nsresult attributeInternal(nsIAtom* aPrefix, nsIAtom* aLocalName,
                                PRInt32 aNsID, const nsString& aValue);
     nsresult startElementInternal(nsIAtom* aPrefix, nsIAtom* aLocalName,
-                                  PRInt32 aNsID);
+                                  PRInt32 aNsID, PRInt32 aElemType);
 
     nsCOMPtr<nsIDocument> mDocument;
     nsCOMPtr<nsINode> mCurrentNode;     // This is updated once an element is
@@ -153,6 +153,7 @@ private:
 
     txOutputFormat mOutputFormat;
 
+    PRPackedBool mHaveTitleElement;
     PRPackedBool mHaveBaseElement;
 
     PRPackedBool mCreatingNewDocument;

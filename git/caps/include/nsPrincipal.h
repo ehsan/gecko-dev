@@ -140,6 +140,7 @@ protected:
 
   nsCOMPtr<nsIURI> mCodebase;
   nsCOMPtr<nsIURI> mDomain;
+  nsCOMPtr<nsIURI> mOrigin;
   PRPackedBool mTrusted;
   PRPackedBool mInitialized;
   // If mCodebaseImmutable is true, mCodebase is non-null and immutable

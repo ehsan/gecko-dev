@@ -40,20 +40,23 @@
 
 #include "nsTitleBarFrame.h"
 
-class nsIBaseWindow;
-class nsMenuPopupFrame;
-
 class nsResizerFrame : public nsTitleBarFrame 
 {
+
 protected:
-  struct Direction {
-    PRInt8 mHorizontal;
-    PRInt8 mVertical;
+  enum eDirection {
+    topleft,
+    top,
+	 topright,
+	 left,	 
+	 right,
+	 bottomleft,
+	 bottom,
+	 bottomright
   };
+  
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   friend nsIFrame* NS_NewResizerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);  
 
   nsResizerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
@@ -62,18 +65,23 @@ public:
                                       nsGUIEvent* aEvent,
                                       nsEventStatus* aEventStatus);
 
+  NS_IMETHOD  Init(nsIContent*      aContent,
+                   nsIFrame*        aParent,
+                   nsIFrame*        asPrevInFlow);
+  
+  NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
+                              nsIAtom* aAttribute,
+                              PRInt32 aModType);
+
   virtual void MouseClicked(nsPresContext* aPresContext, nsGUIEvent *aEvent);
 
 protected:
-  nsIContent* GetContentToResize(nsIPresShell* aPresShell, nsIBaseWindow** aWindow);
-
-  Direction GetDirection();
-  static void AdjustDimensions(PRInt32* aPos, PRInt32* aSize,
-                        PRInt32 aMovement, PRInt8 aResizerDirection);
+	PRBool GetInitialDirection(eDirection& aDirection);
+	PRBool EvalDirection(nsAutoString& aText,eDirection& aResult);
 
 protected:
-	nsIntRect mMouseDownRect;
-	nsIntPoint mMouseDownPoint;
+	eDirection mDirection;
+	nsRect mWidgetRect;
 }; // class nsResizerFrame
 
 #endif /* nsResizerFrame_h___ */

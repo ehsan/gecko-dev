@@ -98,12 +98,10 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLHRElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLHRElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLHRElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLHRElement,
-                                   nsIDOMHTMLHRElement,
-                                   nsIDOMNSHTMLHRElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLHRElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLHRElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED2(nsHTMLHRElement,
+                                nsIDOMHTMLHRElement,
+                                nsIDOMNSHTMLHRElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLHRElement)
 
 
@@ -131,7 +129,7 @@ nsHTMLHRElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::width) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::size) {
       return aResult.ParseIntWithBounds(aValue, 1, 1000);
@@ -158,8 +156,8 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
   nscolor color;
   PRBool colorIsSet = colorValue && colorValue->GetColorValue(color);
 
-  if (aData->mSIDs & (NS_STYLE_INHERIT_BIT(Position) |
-                      NS_STYLE_INHERIT_BIT(Border))) {
+  if (aData->mSID == eStyleStruct_Position ||
+      aData->mSID == eStyleStruct_Border) {
     if (colorIsSet) {
       noshade = PR_TRUE;
     } else {
@@ -167,7 +165,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
     }
   }
 
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Margin)) {
+  if (aData->mSID == eStyleStruct_Margin) {
     // align: enum
     const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::align);
     if (value && value->Type() == nsAttrValue::eEnum) {
@@ -195,7 +193,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
+  else if (aData->mSID == eStyleStruct_Position) {
     // width: integer, percent
     if (aData->mPositionData->mWidth.GetUnit() == eCSSUnit_Null) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);
@@ -223,7 +221,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
     }
   }
-  if ((aData->mSIDs & NS_STYLE_INHERIT_BIT(Border)) && noshade) { // if not noshade, border styles are dealt with by html.css
+  else if (aData->mSID == eStyleStruct_Border && noshade) { // if not noshade, border styles are dealt with by html.css
     // size: integer
     // if a size is set, use half of it per side, otherwise, use 1px per side
     float sizePerSide;
@@ -278,22 +276,26 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
 
       // If it would be noticeable, set the border radius to
       // 100% on all corners
-      nsCSSCornerSizes& corners = aData->mMarginData->mBorderRadius;
-
-      NS_FOR_CSS_HALF_CORNERS(hc) {
-        nsCSSValue& dimen = corners.GetHalfCorner(hc);
-        if (dimen.GetUnit() == eCSSUnit_Null) {
-          dimen.SetPercentValue(1.0f);
-        }
+      nsCSSRect& borderRadius = aData->mMarginData->mBorderRadius;
+      if (borderRadius.mTop.GetUnit() == eCSSUnit_Null) {
+        borderRadius.mTop.SetPercentValue(1.0f);
+      }
+      if (borderRadius.mRight.GetUnit() == eCSSUnit_Null) {
+        borderRadius.mRight.SetPercentValue(1.0f);
+      }
+      if (borderRadius.mBottom.GetUnit() == eCSSUnit_Null) {
+        borderRadius.mBottom.SetPercentValue(1.0f);
+      }
+      if (borderRadius.mLeft.GetUnit() == eCSSUnit_Null) {
+        borderRadius.mLeft.SetPercentValue(1.0f);
       }
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Color)) {
+  else if (aData->mSID == eStyleStruct_Color) {
     // color: a color
     // (we got the color attribute earlier)
     if (colorIsSet &&
-        aData->mColorData->mColor.GetUnit() == eCSSUnit_Null &&
-        aData->mPresContext->UseDocumentColors()) {
+        aData->mColorData->mColor.GetUnit() == eCSSUnit_Null) {
       aData->mColorData->mColor.SetColorValue(color);
     }
   }

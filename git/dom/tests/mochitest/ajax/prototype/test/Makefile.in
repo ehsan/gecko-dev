@@ -16,11 +16,10 @@
 #
 # The Initial Developer of the Original Code is
 # Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2008
+# Portions created by the Initial Developer are Copyright (C) 2007
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
-#   Heather Arthur <harthur@cmu.edu>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -46,16 +45,13 @@ include $(DEPTH)/config/autoconf.mk
 
 DIRS	= \
 	unit \
-	lib \
-	functional \
+        lib \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES	= \
 		test.css \
-		browser.html \
-		console.html \
 		$(NULL)
 
 libs::	$(_TEST_FILES)

@@ -39,17 +39,15 @@
 
 #include "nscore.h"
 #include "celldata.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsTPtrArray.h"
 #include "nsRect.h"
 #include "nsCOMPtr.h"
-#include "nsAlgorithm.h"
 
 #undef DEBUG_TABLE_CELLMAP
 
 class nsTableColFrame;
 class nsTableCellFrame;
-class nsTableRowFrame;
 class nsTableRowGroupFrame;
 class nsTableFrame;
 class nsCellMap;
@@ -76,9 +74,9 @@ enum Corner
 
 struct BCInfo
 {
-  nsTArray<BCData> mRightBorders;
-  nsTArray<BCData> mBottomBorders;
-  BCData           mLowerRightCorner;
+  nsVoidArray mRightBorders;
+  nsVoidArray mBottomBorders;
+  BCData      mLowerRightCorner;
 };
 
 class nsTableCellMap
@@ -130,21 +128,21 @@ public:
                        PRBool                aRebuildIfNecessary,
                        nsRect&               aDamageArea);
 
-  void InsertCells(nsTArray<nsTableCellFrame*>& aCellFrames,
-                   PRInt32                      aRowIndex,
-                   PRInt32                      aColIndexBefore,
-                   nsRect&                      aDamageArea);
+  void InsertCells(nsVoidArray&          aCellFrames,
+                   PRInt32               aRowIndex,
+                   PRInt32               aColIndexBefore,
+                   nsRect&               aDamageArea);
 
   void RemoveCell(nsTableCellFrame* aCellFrame,
                   PRInt32           aRowIndex,
                   nsRect&           aDamageArea);
   /** Remove the previously gathered column information */
   void ClearCols();
-  void InsertRows(nsTableRowGroupFrame&       aRowGroup,
-                  nsTArray<nsTableRowFrame*>& aRows,
-                  PRInt32                     aFirstRowIndex,
-                  PRBool                      aConsiderSpans,
-                  nsRect&                     aDamageArea);
+  void InsertRows(nsTableRowGroupFrame& aRowGroup,
+                  nsVoidArray&          aRows,
+                  PRInt32               aFirstRowIndex,
+                  PRBool                aConsiderSpans,
+                  nsRect&               aDamageArea);
 
   void RemoveRows(PRInt32         aFirstRowIndex,
                   PRInt32         aNumRowsToRemove,
@@ -175,40 +173,17 @@ public:
                                   PRBool*  aOriginates = nsnull, 
                                   PRInt32* aColSpan = nsnull) const;
 
-  /**
-   * Returns the index at the given row and column coordinates.
-   *
-   * @see  nsITableLayout::GetIndexByRowAndColumn()
-   *
-   * @param aRow     [in] the row coordinate
-   * @param aColumn  [in] the column coordinate
-   * @returns             the index for the cell
-   */
-  PRInt32 GetIndexByRowAndColumn(PRInt32 aRow, PRInt32 aColumn) const;
-
-  /**
-   * Retrieves the row and column coordinates for the given index.
-   *
-   * @see  nsITableLayout::GetRowAndColumnByIndex()
-   *
-   * @param aIndex  [in] the index for which coordinates are to be retrieved
-   * @param aRow    [out] the row coordinate to be returned
-   * @param aColumn [out] the column coordinate to be returned
-   */
-  void GetRowAndColumnByIndex(PRInt32 aIndex,
-                              PRInt32 *aRow, PRInt32 *aColumn) const;
-
   void AddColsAtEnd(PRUint32 aNumCols);
   void RemoveColsAtEnd();
 
   PRBool RowIsSpannedInto(PRInt32 aRowIndex, PRInt32 aNumEffCols) const;
   PRBool RowHasSpanningCells(PRInt32 aRowIndex, PRInt32 aNumEffCols) const;
-  void RebuildConsideringCells(nsCellMap*                   aCellMap,
-                               nsTArray<nsTableCellFrame*>* aCellFrames,
-                               PRInt32                      aRowIndex,
-                               PRInt32                      aColIndex,
-                               PRBool                       aInsert,
-                               nsRect&                      aDamageArea);
+  void RebuildConsideringCells(nsCellMap*      aCellMap,
+                               nsVoidArray*    aCellFrames,
+                               PRInt32         aRowIndex,
+                               PRInt32         aColIndex,
+                               PRBool          aInsert,
+                               nsRect&         aDamageArea);
 
 protected:
   /**
@@ -219,11 +194,11 @@ protected:
    * 
    * // XXXbz are both allowed to happen?  That'd be a no-op...
    */
-  void RebuildConsideringRows(nsCellMap*                  aCellMap,
-                              PRInt32                     aStartRowIndex,
-                              nsTArray<nsTableRowFrame*>* aRowsToInsert,
-                              PRInt32                     aNumRowsToRemove,
-                              nsRect&                     aDamageArea);
+  void RebuildConsideringRows(nsCellMap*      aCellMap,
+                              PRInt32         aStartRowIndex,
+                              nsVoidArray*    aRowsToInsert,
+                              PRInt32         aNumRowsToRemove,
+                              nsRect&         aDamageArea);
 
 public:
   PRBool ColIsSpannedInto(PRInt32 aColIndex) const;
@@ -231,11 +206,11 @@ public:
 
   void ExpandZeroColSpans();
 
-  void SetNotTopStart(PRUint8    aSide,
-                      nsCellMap& aCellMap,
-                      PRUint32   aYPos,
-                      PRUint32   aXPos,
-                      PRBool     aIsLowerRight = PR_FALSE);
+  BCData* GetBCData(PRUint8     aSide, 
+                    nsCellMap&  aCellMap,
+                    PRUint32    aYPos, 
+                    PRUint32    aXPos,
+                    PRBool      aIsLowerRight = PR_FALSE);
 
   void SetBCBorderEdge(PRUint8       aEdge, 
                        nsCellMap&    aCellMap,
@@ -268,7 +243,7 @@ protected:
 
   friend class nsCellMap;
   friend class BCMapCellIterator;
-  friend class BCPaintBorderIterator;
+  friend class BCMapBorderIterator;
   friend class nsCellMapColumnIterator;
   
 /** Insert a row group cellmap after aPrevMap, if aPrefMap is null insert it
@@ -279,11 +254,11 @@ protected:
                           nsCellMap& aNewMap);
   void DeleteRightBottomBorders();
 
-  nsTableFrame&               mTableFrame;
-  nsAutoTArray<nsColInfo, 8>  mCols;
-  nsCellMap*                  mFirstMap;
+  nsTableFrame&   mTableFrame;
+  nsAutoVoidArray mCols;
+  nsCellMap*      mFirstMap;
   // border collapsing info
-  BCInfo*                     mBCInfo;
+  BCInfo*         mBCInfo;
 };
 
 /** nsCellMap is a support class for nsTablePart.  
@@ -326,38 +301,6 @@ public:
                                  CellData& aData,
                                  PRBool    aUseRowSpanIfOverlap) const;
 
-  /**
-   * Returns highest cell index within the cell map.
-   *
-   * @param  aColCount  [in] the number of columns in the table
-   */
-  PRInt32 GetHighestIndex(PRInt32 aColCount);
-
-  /**
-   * Returns the index of the given row and column coordinates.
-   *
-   * @see  nsITableLayout::GetIndexByRowAndColumn()
-   *
-   * @param aColCount    [in] the number of columns in the table
-   * @param aRow         [in] the row coordinate
-   * @param aColumn      [in] the column coordinate
-   */
-  PRInt32 GetIndexByRowAndColumn(PRInt32 aColCount,
-                                 PRInt32 aRow, PRInt32 aColumn) const;
-
-  /**
-   * Get the row and column coordinates at the given index.
-   *
-   * @see  nsITableLayout::GetRowAndColumnByIndex()
-   *
-   * @param aColCount  [in] the number of columns in the table
-   * @param aIndex     [in] the index for which coordinates are to be retrieved
-   * @param aRow       [out] the row coordinate to be returned
-   * @param aColumn    [out] the column coordinate to be returned
-   */
-  void GetRowAndColumnByIndex(PRInt32 aColCount, PRInt32 aIndex,
-                              PRInt32 *aRow, PRInt32 *aColumn) const;
-
   /** append the cellFrame at an empty or dead cell or finally at the end of 
     * the row at aRowIndex and return a pointer to the celldata entry in the 
     * cellmap
@@ -399,22 +342,22 @@ public:
                            PRInt32         aRowIndex,
                            PRInt32         aColIndex);
 
-  void InsertCells(nsTableCellMap&              aMap,
-                   nsTArray<nsTableCellFrame*>& aCellFrames,
-                   PRInt32                      aRowIndex,
-                   PRInt32                      aColIndexBefore,
-                   nsRect&                      aDamageArea);
+  void InsertCells(nsTableCellMap& aMap,
+                   nsVoidArray&    aCellFrames,
+                   PRInt32         aRowIndex,
+                   PRInt32         aColIndexBefore,
+                   nsRect&         aDamageArea);
 
   void RemoveCell(nsTableCellMap&   aMap,
                   nsTableCellFrame* aCellFrame,
                   PRInt32           aRowIndex,
                   nsRect&           aDamageArea);
 
-  void InsertRows(nsTableCellMap&             aMap,
-                  nsTArray<nsTableRowFrame*>& aRows,
-                  PRInt32                     aFirstRowIndex,
-                  PRBool                      aConsiderSpans,
-                  nsRect&                     aDamageArea);
+  void InsertRows(nsTableCellMap& aMap,
+                  nsVoidArray&    aRows,
+                  PRInt32         aFirstRowIndex,
+                  PRBool          aConsiderSpans,
+                  nsRect&         aDamageArea);
 
   void RemoveRows(nsTableCellMap& aMap,
                   PRInt32         aFirstRowIndex,
@@ -474,7 +417,7 @@ public:
 protected:
   friend class nsTableCellMap;
   friend class BCMapCellIterator;
-  friend class BCPaintBorderIterator;
+  friend class BCMapBorderIterator;
   friend class nsTableFrame;
   friend class nsCellMapColumnIterator;
 
@@ -500,18 +443,18 @@ protected:
 
   PRInt32 GetNumCellsIn(PRInt32 aColIndex) const;
 
-  void ExpandWithRows(nsTableCellMap&             aMap,
-                      nsTArray<nsTableRowFrame*>& aRowFrames,
-                      PRInt32                     aStartRowIndex,
-                      nsRect&                     aDamageArea);
+  void ExpandWithRows(nsTableCellMap& aMap,
+                      nsVoidArray&    aRowFrames,
+                      PRInt32         aStartRowIndex,
+                      nsRect&         aDamageArea);
 
-  void ExpandWithCells(nsTableCellMap&              aMap,
-                       nsTArray<nsTableCellFrame*>& aCellFrames,
-                       PRInt32                      aRowIndex,
-                       PRInt32                      aColIndex,
-                       PRInt32                      aRowSpan,
-                       PRBool                       aRowSpanIsZero,
-                       nsRect&                      aDamageArea);
+  void ExpandWithCells(nsTableCellMap& aMap,
+                       nsVoidArray&    aCellFrames,
+                       PRInt32         aRowIndex,
+                       PRInt32         aColIndex,
+                       PRInt32         aRowSpan,
+                       PRBool          aRowSpanIsZero,
+                       nsRect&         aDamageArea);
 
   void ShrinkWithoutRows(nsTableCellMap& aMap,
                          PRInt32         aFirstRowIndex,
@@ -532,21 +475,21 @@ protected:
    *
    * // XXXbz are both allowed to happen?  That'd be a no-op...
    */
-  void RebuildConsideringRows(nsTableCellMap&             aMap,
-                              PRInt32                     aStartRowIndex,
-                              nsTArray<nsTableRowFrame*>* aRowsToInsert,
-                              PRInt32                     aNumRowsToRemove,
-                              nsRect&                     aDamageArea);
+  void RebuildConsideringRows(nsTableCellMap& aMap,
+                              PRInt32         aStartRowIndex,
+                              nsVoidArray*    aRowsToInsert,
+                              PRInt32         aNumRowsToRemove,
+                              nsRect&         aDamageArea);
 
-  void RebuildConsideringCells(nsTableCellMap&              aMap,
-                               PRInt32                      aNumOrigCols,
-                               nsTArray<nsTableCellFrame*>* aCellFrames,
-                               PRInt32                      aRowIndex,
-                               PRInt32                      aColIndex,
-                               PRBool                       aInsert,
-                               nsRect&                      aDamageArea);
+  void RebuildConsideringCells(nsTableCellMap& aMap,
+                               PRInt32         aNumOrigCols,
+                               nsVoidArray*    aCellFrames,
+                               PRInt32         aRowIndex,
+                               PRInt32         aColIndex,
+                               PRBool          aInsert,
+                               nsRect&         aDamageArea);
 
-  PRBool CellsSpanOut(nsTArray<nsTableRowFrame*>& aNewRows) const;
+  PRBool CellsSpanOut(nsVoidArray&    aNewRows) const;
  
   /** If a cell spans out of the area defined by aStartRowIndex, aEndRowIndex
     * and aStartColIndex, aEndColIndex the cellmap changes are more severe so
@@ -630,7 +573,7 @@ public:
     if (mCurMap) {
       mCurMapContentRowCount = mCurMap->GetRowCount();
       PRUint32 rowArrayLength = mCurMap->mRows.Length();
-      mCurMapRelevantRowCount = NS_MIN(mCurMapContentRowCount, rowArrayLength);
+      mCurMapRelevantRowCount = PR_MIN(mCurMapContentRowCount, rowArrayLength);
       if (mCurMapRelevantRowCount == 0 && mOrigCells > 0) {
         // This row group is useless; advance!
         AdvanceRowGroup();
@@ -684,7 +627,7 @@ private:
 /* ----- inline methods ----- */
 inline PRInt32 nsTableCellMap::GetColCount() const
 {
-  return mCols.Length();
+  return mCols.Count();
 }
 
 inline nsCellMap* nsCellMap::GetNextSibling() const

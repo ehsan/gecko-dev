@@ -89,7 +89,8 @@ nsHelperAppDialog.prototype = {
             iid.equals(Components.interfaces.nsISupports))
             return this;
 
-        throw Components.results.NS_ERROR_NO_INTERFACE;
+        Components.returnCode = Components.results.NS_ERROR_NO_INTERFACE;
+        return null;
     },
 
     // ---------- nsIHelperAppLauncherDialog methods ----------
@@ -118,7 +119,7 @@ nsHelperAppDialog.prototype = {
     },
 
     // promptForSaveToFile:  Display file picker dialog and return selected file.
-    promptForSaveToFile: function(aLauncher, aContext, aDefaultFile, aSuggestedFileExtension, aForcePrompt) {
+    promptForSaveToFile: function(aLauncher, aContext, aDefaultFile, aSuggestedFileExtension) {
         var result = "";
 
         const prefSvcContractID = "@mozilla.org/preferences-service;1";
@@ -141,7 +142,7 @@ nsHelperAppDialog.prototype = {
 
         var autoDownload = branch.getBoolPref("autoDownload");
         // If the autoDownload pref is set then just download to default download directory
-        if (!aForcePrompt && autoDownload && dir && dir.exists()) {
+        if (autoDownload && dir && dir.exists()) {
             if (aDefaultFile == "")
                 aDefaultFile = bundle.GetStringFromName("noDefaultFile") + (aSuggestedFileExtension || "");
             dir.append(aDefaultFile);
@@ -477,7 +478,7 @@ nsHelperAppDialog.prototype = {
               this.getPath(this.chosenApp.executable);
         }
 
-        var useDefault = this.dialogElement( "useSystemDefault" );
+        var useDefault = this.dialogElement( "useSystemDefault" );;
         if (this.mLauncher.MIMEInfo.preferredAction == this.nsIMIMEInfo.useSystemDefault &&
             this.mReason != REASON_SERVERREQUEST) {
             // Open (using system default).

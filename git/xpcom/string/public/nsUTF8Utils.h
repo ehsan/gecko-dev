@@ -38,12 +38,6 @@
 #ifndef nsUTF8Utils_h_
 #define nsUTF8Utils_h_
 
-// This file may be used in two ways: if MOZILLA_INTERNAL_API is defined, this
-// file will provide signatures for the Mozilla abstract string types. It will
-// use XPCOM assertion/debugging macros, etc.
-
-#include "nscore.h"
-
 #include "nsCharTraits.h"
 
 class UTF8traits
@@ -142,8 +136,6 @@ public:
     return ucs4;
   }
 
-#ifdef MOZILLA_INTERNAL_API
-
   static PRUint32 NextChar(nsACString::const_iterator& iter,
                            const nsACString::const_iterator& end,
                            PRBool *err = nsnull, PRBool *overlong = nsnull)
@@ -207,7 +199,6 @@ public:
       *overlong = ucs4 < minUcs4;
     return ucs4;
   }
-#endif // MOZILLA_INTERNAL_API
 
 private:
   static PRBool CalcState(char c, PRUint32& ucs4, PRUint32& minUcs4,
@@ -335,18 +326,13 @@ public:
           {
             // Found a high surrogate followed by something other than
             // a low surrogate. Flag this as an error and return the
-            // Unicode replacement character 0xFFFD.  Note that the
-            // pointer to the next character points to the second 16-bit
-            // value, not beyond it, as per Unicode 5.0.0 Chapter 3 C10,
-            // only the first code unit of an illegal sequence must be
-            // treated as an illegally terminated code unit sequence
-            // (also Chapter 3 D91, "isolated [not paired and ill-formed]
-            // UTF-16 code units in the range D800..DFFF are ill-formed").
+            // Unicode replacement character 0xFFFD.
+
             NS_WARNING("got a High Surrogate but no low surrogate");
 
             if (err)
               *err = PR_TRUE;
-            *buffer = p - 1;
+            *buffer = p;
             return 0xFFFD;
           }
       }
@@ -369,6 +355,88 @@ public:
       *err = PR_TRUE;
     return 0;
   }
+
+  static PRUint32 NextChar(nsAString::const_iterator& iter,
+                           const nsAString::const_iterator& end,
+                           PRBool *err = nsnull)
+  {
+    if (iter == end)
+      {
+        if (err)
+          *err = PR_TRUE;
+
+        return 0;
+      }
+
+    PRUnichar c = *iter++;
+
+    if (!IS_SURROGATE(c)) // U+0000 - U+D7FF,U+E000 - U+FFFF
+      {
+        if (err)
+          *err = PR_FALSE;
+        return c;
+      }
+    else if (NS_IS_HIGH_SURROGATE(c)) // U+D800 - U+DBFF
+      {
+        if (iter == end)
+          {
+            // Found a high surrogate the end of the buffer. Flag this
+            // as an error and return the Unicode replacement
+            // character 0xFFFD.
+
+            NS_WARNING("Unexpected end of buffer after high surrogate");
+
+            if (err)
+              *err = PR_TRUE;
+            return 0xFFFD;
+          }
+
+        // D800- DBFF - High Surrogate
+        PRUnichar h = c;
+
+        c = *iter++;
+
+        if (NS_IS_LOW_SURROGATE(c))
+          {
+            // DC00- DFFF - Low Surrogate
+            // N = (H - D800) *400 + 10000 + ( L - DC00 )
+            PRUint32 ucs4 = SURROGATE_TO_UCS4(h, c);
+            if (err)
+              *err = PR_FALSE;
+            return ucs4;
+          }
+        else
+          {
+            // Found a high surrogate followed by something other than
+            // a low surrogate. Flag this as an error and return the
+            // Unicode replacement character 0xFFFD.
+
+            NS_WARNING("got a High Surrogate but no low surrogate");
+
+            if (err)
+              *err = PR_TRUE;
+            return 0xFFFD;
+          }
+      }
+    else // U+DC00 - U+DFFF
+      {
+        // DC00- DFFF - Low Surrogate
+
+        // Found a low surrogate w/o a preceeding high surrogate. Flag
+        // this as an error and return the Unicode replacement
+        // character 0xFFFD.
+
+        NS_WARNING("got a low Surrogate but no high surrogate");
+
+        if (err)
+          *err = PR_TRUE;
+        return 0xFFFD;
+      }
+
+    if (err)
+      *err = PR_TRUE;
+    return 0;
+  }
 };
 
 
@@ -379,18 +447,18 @@ public:
 class ConvertUTF8toUTF16
   {
     public:
-      typedef char      value_type;
-      typedef PRUnichar buffer_type;
+      typedef nsACString::char_type value_type;
+      typedef nsAString::char_type  buffer_type;
 
     ConvertUTF8toUTF16( buffer_type* aBuffer )
         : mStart(aBuffer), mBuffer(aBuffer), mErrorEncountered(PR_FALSE) {}
 
     size_t Length() const { return mBuffer - mStart; }
 
-    void NS_ALWAYS_INLINE write( const value_type* start, PRUint32 N )
+    PRUint32 NS_ALWAYS_INLINE write( const value_type* start, PRUint32 N )
       {
         if ( mErrorEncountered )
-          return;
+          return N;
 
         // algorithm assumes utf8 units won't
         // be spread across fragments
@@ -407,7 +475,7 @@ class ConvertUTF8toUTF16
               {
                 mErrorEncountered = PR_TRUE;
                 mBuffer = out;
-                return;
+                return N;
               }
 
             if ( overlong )
@@ -444,6 +512,7 @@ class ConvertUTF8toUTF16
               }
           }
         mBuffer = out;
+        return p - start;
       }
 
     void write_terminator()
@@ -464,17 +533,17 @@ class ConvertUTF8toUTF16
 class CalculateUTF8Length
   {
     public:
-      typedef char value_type;
+      typedef nsACString::char_type value_type;
 
     CalculateUTF8Length() : mLength(0), mErrorEncountered(PR_FALSE) { }
 
     size_t Length() const { return mLength; }
 
-    void NS_ALWAYS_INLINE write( const value_type* start, PRUint32 N )
+    PRUint32 NS_ALWAYS_INLINE write( const value_type* start, PRUint32 N )
       {
           // ignore any further requests
         if ( mErrorEncountered )
-            return;
+            return N;
 
         // algorithm assumes utf8 units won't
         // be spread across fragments
@@ -515,7 +584,9 @@ class CalculateUTF8Length
           {
             NS_ERROR("Not a UTF-8 string. This code should only be used for converting from known UTF-8 strings.");
             mErrorEncountered = PR_TRUE;
+            return N;
           }
+        return p - start;
       }
 
     private:
@@ -531,8 +602,8 @@ class CalculateUTF8Length
 class ConvertUTF16toUTF8
   {
     public:
-      typedef PRUnichar value_type;
-      typedef char      buffer_type;
+      typedef nsAString::char_type  value_type;
+      typedef nsACString::char_type buffer_type;
 
     // The error handling here is more lenient than that in
     // |ConvertUTF8toUTF16|, but it's that way for backwards
@@ -543,7 +614,7 @@ class ConvertUTF16toUTF8
 
     size_t Size() const { return mBuffer - mStart; }
 
-    void NS_ALWAYS_INLINE write( const value_type* start, PRUint32 N )
+    PRUint32 NS_ALWAYS_INLINE write( const value_type* start, PRUint32 N )
       {
         buffer_type *out = mBuffer; // gcc isn't smart enough to do this!
 
@@ -576,9 +647,9 @@ class ConvertUTF16toUTF8
                     // Treat broken characters as the Unicode
                     // replacement character 0xFFFD (0xEFBFBD in
                     // UTF-8)
-                    *out++ = '\xEF';
-                    *out++ = '\xBF';
-                    *out++ = '\xBD';
+                    *out++ = 0xEF;
+                    *out++ = 0xBF;
+                    *out++ = 0xBD;
 
                     NS_WARNING("String ending in half a surrogate pair!");
 
@@ -603,18 +674,9 @@ class ConvertUTF16toUTF8
                     // Treat broken characters as the Unicode
                     // replacement character 0xFFFD (0xEFBFBD in
                     // UTF-8)
-                    *out++ = '\xEF';
-                    *out++ = '\xBF';
-                    *out++ = '\xBD';
-
-                    // The pointer to the next character points to the second
-                    // 16-bit value, not beyond it, as per Unicode 5.0.0
-                    // Chapter 3 C10, only the first code unit of an illegal
-                    // sequence must be treated as an illegally terminated
-                    // code unit sequence (also Chapter 3 D91, "isolated [not
-                    // paired and ill-formed] UTF-16 code units in the range
-                    // D800..DFFF are ill-formed").
-                    p--;
+                    *out++ = 0xEF;
+                    *out++ = 0xBF;
+                    *out++ = 0xBD;
 
                     NS_WARNING("got a High Surrogate but no low surrogate");
                   }
@@ -623,9 +685,9 @@ class ConvertUTF16toUTF8
               {
                 // Treat broken characters as the Unicode replacement
                 // character 0xFFFD (0xEFBFBD in UTF-8)
-                *out++ = '\xEF';
-                *out++ = '\xBF';
-                *out++ = '\xBD';
+                *out++ = 0xEF;
+                *out++ = 0xBF;
+                *out++ = 0xBD;
 
                 // DC00- DFFF - Low Surrogate
                 NS_WARNING("got a low Surrogate but no high surrogate");
@@ -633,6 +695,7 @@ class ConvertUTF16toUTF8
           }
 
         mBuffer = out;
+        return N;
       }
 
     void write_terminator()
@@ -653,14 +716,14 @@ class ConvertUTF16toUTF8
 class CalculateUTF8Size
   {
     public:
-      typedef PRUnichar value_type;
+      typedef nsAString::char_type value_type;
 
     CalculateUTF8Size()
       : mSize(0) { }
 
     size_t Size() const { return mSize; }
 
-    void NS_ALWAYS_INLINE write( const value_type* start, PRUint32 N )
+    PRUint32 NS_ALWAYS_INLINE write( const value_type* start, PRUint32 N )
       {
         // Assume UCS2 surrogate pairs won't be spread across fragments.
         for (const value_type *p = start, *end = start + N; p < end; ++p )
@@ -697,15 +760,6 @@ class CalculateUTF8Size
                     // UTF-8)
                     mSize += 3;
 
-                    // The next code unit is the second 16-bit value, not
-                    // the one beyond it, as per Unicode 5.0.0 Chapter 3 C10,
-                    // only the first code unit of an illegal sequence must
-                    // be treated as an illegally terminated code unit
-                    // sequence (also Chapter 3 D91, "isolated [not paired and
-                    // ill-formed] UTF-16 code units in the range D800..DFFF
-                    // are ill-formed").
-                    p--;
-
                     NS_WARNING("got a high Surrogate but no low surrogate");
                   }
               }
@@ -718,13 +772,14 @@ class CalculateUTF8Size
                 NS_WARNING("got a low Surrogate but no high surrogate");
               }
           }
+
+        return N;
       }
 
     private:
       size_t mSize;
   };
 
-#ifdef MOZILLA_INTERNAL_API
 /**
  * A character sink that performs a |reinterpret_cast| style conversion
  * between character types.
@@ -743,12 +798,13 @@ class LossyConvertEncoding
     public:
       LossyConvertEncoding( output_type* aDestination ) : mDestination(aDestination) { }
 
-      void
+      PRUint32
       write( const input_type* aSource, PRUint32 aSourceLength )
         {
           const input_type* done_writing = aSource + aSourceLength;
           while ( aSource < done_writing )
             *mDestination++ = (output_type)(unsigned_input_type)(*aSource++);  // use old-style cast to mimic old |ns[C]String| behavior
+          return aSourceLength;
         }
 
       void
@@ -760,6 +816,5 @@ class LossyConvertEncoding
     private:
       output_type* mDestination;
   };
-#endif // MOZILLA_INTERNAL_API
 
 #endif /* !defined(nsUTF8Utils_h_) */

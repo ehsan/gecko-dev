@@ -40,16 +40,15 @@
 
 *|*:root {
   background-color: white;
-  color: black;
 }
 #viewsource {
   font-family: -moz-fixed;
   font-weight: normal;
+  color: black;
   white-space: pre;
 }
 #viewsource.wrap {
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  white-space: -moz-pre-wrap;
 }
 pre {
   font: inherit;

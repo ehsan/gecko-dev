@@ -1,5 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=79: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -49,9 +47,21 @@
 
 /*****************************************************************************
  * This implementation does not currently operaate according to the W3C spec.
- * In particular it does NOT handle DOM mutations during the walk.  It also
- * ignores whatToShow and the filter.
+ * So far, only parentNode() and nextNode() are implemented, and are not
+ * interoperable.  
  *****************************************************************************/
+
+////////////////////////////////////////////////////
+
+struct DeepTreeStackItem 
+{
+  DeepTreeStackItem()  { MOZ_COUNT_CTOR(DeepTreeStackItem); }
+  ~DeepTreeStackItem() { MOZ_COUNT_DTOR(DeepTreeStackItem); }
+
+  nsCOMPtr<nsIDOMNode> node;
+  nsCOMPtr<nsIDOMNodeList> kids;
+  PRUint32 lastIndex;
+};
 
 ////////////////////////////////////////////////////
 
@@ -64,11 +74,12 @@ inDeepTreeWalker::inDeepTreeWalker()
 
 inDeepTreeWalker::~inDeepTreeWalker() 
 { 
+  for (PRInt32 i = mStack.Count() - 1; i >= 0; --i) {
+    delete static_cast<DeepTreeStackItem*>(mStack[i]);
+  }
 }
 
-NS_IMPL_ISUPPORTS2(inDeepTreeWalker,
-                   inIDeepTreeWalker,
-                   nsIDOMTreeWalker)
+NS_IMPL_ISUPPORTS1(inDeepTreeWalker, inIDeepTreeWalker)
 
 ////////////////////////////////////////////////////
 // inIDeepTreeWalker
@@ -164,195 +175,79 @@ inDeepTreeWalker::ParentNode(nsIDOMNode** _retval)
   *_retval = nsnull;
   if (!mCurrentNode) return NS_OK;
 
-  if (mStack.Length() == 1) {
-    // No parent
-    return NS_OK;
+  if (!mDOMUtils) {
+    mDOMUtils = do_GetService("@mozilla.org/inspector/dom-utils;1");
+    if (!mDOMUtils) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
 
-  // Pop off the current node, and push the new one
-  mStack.RemoveElementAt(mStack.Length()-1);
-  DeepTreeStackItem& top = mStack.ElementAt(mStack.Length() - 1);
-  mCurrentNode = top.node;
-  top.lastIndex = 0;
-  NS_ADDREF(*_retval = mCurrentNode);
-  return NS_OK;
+  nsresult rv = mDOMUtils->GetParentForNode(mCurrentNode, mShowAnonymousContent,
+					    _retval);
+  mCurrentNode = *_retval;
+  return rv;
 }
 
 NS_IMETHODIMP
 inDeepTreeWalker::FirstChild(nsIDOMNode **_retval)
 {
-  *_retval = nsnull;
-  if (!mCurrentNode) {
-    return NS_OK;
-  }
-
-  DeepTreeStackItem& top = mStack.ElementAt(mStack.Length() - 1);
-  nsCOMPtr<nsIDOMNode> kid;
-  top.kids->Item(0, getter_AddRefs(kid));
-  if (!kid) {
-    return NS_OK;
-  }
-  top.lastIndex = 1;
-  PushNode(kid);
-  kid.forget(_retval);
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 inDeepTreeWalker::LastChild(nsIDOMNode **_retval)
 {
-  *_retval = nsnull;
-  if (!mCurrentNode) {
-    return NS_OK;
-  }
-
-  DeepTreeStackItem& top = mStack.ElementAt(mStack.Length() - 1);
-  nsCOMPtr<nsIDOMNode> kid;
-  PRUint32 length;
-  top.kids->GetLength(&length);
-  top.kids->Item(length - 1, getter_AddRefs(kid));
-  if (!kid) {
-    return NS_OK;
-  }
-  top.lastIndex = length;
-  PushNode(kid);
-  kid.forget(_retval);
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 inDeepTreeWalker::PreviousSibling(nsIDOMNode **_retval)
 {
-  *_retval = nsnull;
-  if (!mCurrentNode) {
-    return NS_OK;
-  }
-
-  NS_ASSERTION(mStack.Length() > 0, "Should have things in mStack");
-
-  if (mStack.Length() == 1) {
-    // No previous sibling
-    return NS_OK;
-  }
-
-  DeepTreeStackItem& parent = mStack.ElementAt(mStack.Length()-2);
-  nsCOMPtr<nsIDOMNode> previousSibling;
-  parent.kids->Item(parent.lastIndex-2, getter_AddRefs(previousSibling));
-  if (!previousSibling) {
-    return NS_OK;
-  }
-
-  // Our mStack's topmost element is our current node. Since we're trying to
-  // change that to the previous sibling, pop off the current node, and push
-  // the new one.
-  mStack.RemoveElementAt(mStack.Length() - 1);
-  parent.lastIndex--;
-  PushNode(previousSibling);
-  previousSibling.forget(_retval);
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 inDeepTreeWalker::NextSibling(nsIDOMNode **_retval)
 {
-  *_retval = nsnull;
-  if (!mCurrentNode) {
-    return NS_OK;
-  }
-
-  NS_ASSERTION(mStack.Length() > 0, "Should have things in mStack");
-
-  if (mStack.Length() == 1) {
-    // No next sibling
-    return NS_OK;
-  }
-
-  DeepTreeStackItem& parent = mStack.ElementAt(mStack.Length()-2);
-  nsCOMPtr<nsIDOMNode> nextSibling;
-  parent.kids->Item(parent.lastIndex, getter_AddRefs(nextSibling));
-  if (!nextSibling) {
-    return NS_OK;
-  }
-
-  // Our mStack's topmost element is our current node. Since we're trying to
-  // change that to the next sibling, pop off the current node, and push
-  // the new one.
-  mStack.RemoveElementAt(mStack.Length() - 1);
-  parent.lastIndex++;
-  PushNode(nextSibling);
-  nextSibling.forget(_retval);
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 inDeepTreeWalker::PreviousNode(nsIDOMNode **_retval)
 {
-  if (!mCurrentNode || mStack.Length() == 1) {
-    // Nowhere to go from here
-    *_retval = nsnull;
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIDOMNode> node;
-  PreviousSibling(getter_AddRefs(node));
-
-  if (!node) {
-    return ParentNode(_retval);
-  }
-
-  // Now we're positioned at our previous sibling.  But since the DOM tree
-  // traversal is depth-first, the previous node is its most deeply nested last
-  // child.  Just loop until LastChild() returns null; since the LastChild()
-  // call that returns null won't affect our position, we will then be
-  // positioned at the correct node.
-  while (node) {
-    LastChild(getter_AddRefs(node));
-  }
-
-  NS_ADDREF(*_retval = mCurrentNode);
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 inDeepTreeWalker::NextNode(nsIDOMNode **_retval)
 {
-  // First try our kids
-  FirstChild(_retval);
-
-  if (*_retval) {
-    return NS_OK;
-  }
-
-  // Now keep trying next siblings up the parent chain, but if we
-  // discover there's nothing else restore our state.
-#ifdef DEBUG
-  nsIDOMNode* origCurrentNode = mCurrentNode;
-#endif
-  PRUint32 lastChildCallsToMake = 0;
+  if (!mCurrentNode) return NS_OK;
+  
+  nsCOMPtr<nsIDOMNode> next;
+  
   while (1) {
-    NextSibling(_retval);
+    DeepTreeStackItem* top = (DeepTreeStackItem*)mStack.ElementAt(mStack.Count()-1);
+    nsCOMPtr<nsIDOMNodeList> kids = top->kids;
+    PRUint32 childCount;
+    kids->GetLength(&childCount);
 
-    if (*_retval) {
-      return NS_OK;
-    }
-
-    nsCOMPtr<nsIDOMNode> parent;
-    ParentNode(getter_AddRefs(parent));
-    if (!parent) {
-      // Nowhere else to go; we're done.  Restore our state.
-      while (lastChildCallsToMake--) {
-        nsCOMPtr<nsIDOMNode> dummy;
-        LastChild(getter_AddRefs(dummy));
+    if (top->lastIndex == childCount) {
+      mStack.RemoveElementAt(mStack.Count()-1);
+      delete top;
+      if (mStack.Count() == 0) {
+        mCurrentNode = nsnull;
+        break;
       }
-      NS_ASSERTION(mCurrentNode == origCurrentNode,
-                   "Didn't go back to the right node?");
-      *_retval = nsnull;
-      return NS_OK;
+    } else {
+      kids->Item(top->lastIndex++, getter_AddRefs(next));
+      PushNode(next);
+      break;      
     }
-    ++lastChildCallsToMake;
-  }
-
-  NS_NOTREACHED("how did we get here?");
+  } 
+  
+  *_retval = next;
+  NS_IF_ADDREF(*_retval);
+  
   return NS_OK;
 }
 
@@ -362,8 +257,8 @@ inDeepTreeWalker::PushNode(nsIDOMNode* aNode)
   mCurrentNode = aNode;
   if (!aNode) return;
 
-  DeepTreeStackItem item;
-  item.node = aNode;
+  DeepTreeStackItem* item = new DeepTreeStackItem();
+  item->node = aNode;
 
   nsCOMPtr<nsIDOMNodeList> kids;
   if (mShowSubDocuments) {
@@ -389,9 +284,9 @@ inDeepTreeWalker::PushNode(nsIDOMNode* aNode)
       aNode->GetChildNodes(getter_AddRefs(kids));
   }
   
-  item.kids = kids;
-  item.lastIndex = 0;
-  mStack.AppendElement(item);
+  item->kids = kids;
+  item->lastIndex = 0;
+  mStack.AppendElement((void*)item);
 }
 
 /*

@@ -1,6 +1,5 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cr = Components.results;
 
 function run_test() {
   var ios = Cc["@mozilla.org/network/io-service;1"].
@@ -10,21 +9,21 @@ function run_test() {
 
   var success = false;
   try {
-    newURI.spec = "http: //foo.com";
+    newURI.setSpec("http: //foo.com");
   }
   catch (e) {
-    success = e.result == Cr.NS_ERROR_MALFORMED_URI;
+    success = true;
   }
   if (!success)
-    do_throw("We didn't throw NS_ERROR_MALFORMED_URI when a space was passed in the hostname!");
+    do_throw("We didn't throw when a space was passed in the hostname!");
 
   success = false;
   try {
-    newURI.host = " foo.com";
+    newURI.setHost(" foo.com");
   }
   catch (e) {
-    success = e.result == Cr.NS_ERROR_MALFORMED_URI;
+    success = true;
   }
   if (!success)
-    do_throw("We didn't throw NS_ERROR_MALFORMED_URI when a space was passed in the hostname!");
+    do_throw("We didn't throw when a space was passed in the hostname!");
 }

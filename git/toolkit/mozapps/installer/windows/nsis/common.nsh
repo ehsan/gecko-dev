@@ -19,7 +19,6 @@
 #
 # Contributor(s):
 #  Robert Strong <robert.bugzilla@gmail.com>
-#  Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -96,10 +95,6 @@
   !include LogicLib.nsh
 !endif
 
-!ifndef WINMESSAGES_INCLUDED
-  !include WinMessages.nsh
-!endif
-
 !ifndef MUI_VERBOSE
   !include MUI.nsh
 !endif
@@ -113,8 +108,6 @@
 
 ; NSIS provided macros that we have overridden.
 !include overrides.nsh
-
-!define SHORTCUTS_LOG "shortcuts_log.ini"
 
 ################################################################################
 # Macros for debugging
@@ -175,68 +168,6 @@
 ################################################################################
 # Modern User Interface (MUI) override macros
 
-; Removed macros in nsis 2.33u (ported from nsis 2.22)
-;  MUI_LANGUAGEFILE_DEFINE
-;  MUI_LANGUAGEFILE_LANGSTRING_PAGE
-;  MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE
-;  MUI_LANGUAGEFILE_LANGSTRING_DEFINE
-;  MUI_LANGUAGEFILE_UNLANGSTRING_PAGE
-
-!macro MOZ_MUI_LANGUAGEFILE_DEFINE DEFINE NAME
-
-  !ifndef "${DEFINE}"
-    !define "${DEFINE}" "${${NAME}}"
-  !endif
-  !undef "${NAME}"
-
-!macroend
-
-!macro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE PAGE NAME
-
-  !ifdef MUI_${PAGE}PAGE
-    LangString "${NAME}" 0 "${${NAME}}"
-    !undef "${NAME}"
-  !else
-    !undef "${NAME}"
-  !endif
-
-!macroend
-
-!macro MOZ_MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE PAGE NAME
-
-  !ifdef MUI_${PAGE}PAGE | MUI_UN${PAGE}PAGE
-    LangString "${NAME}" 0 "${${NAME}}"
-    !undef "${NAME}"
-  !else
-    !undef "${NAME}"
-  !endif
-
-!macroend
-
-!macro MOZ_MUI_LANGUAGEFILE_LANGSTRING_DEFINE DEFINE NAME
-
-  !ifdef "${DEFINE}"
-    LangString "${NAME}" 0 "${${NAME}}"
-  !endif
-  !undef "${NAME}"
-
-!macroend
-
-!macro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE PAGE NAME
-
-  !ifdef MUI_UNINSTALLER
-    !ifdef MUI_UN${PAGE}PAGE
-      LangString "${NAME}" 0 "${${NAME}}"
-      !undef "${NAME}"
-    !else
-      !undef "${NAME}"
-    !endif
-  !else
-    !undef "${NAME}"
-  !endif
-
-!macroend
-
 ; Modified version of the following MUI macros to support Mozilla localization.
 ; MUI_LANGUAGE
 ; MUI_LANGUAGEFILE_BEGIN
@@ -252,7 +183,10 @@
 !macroend
 
 !macro MOZ_MUI_LANGUAGEFILE_BEGIN LANGUAGE
-  !insertmacro MUI_INSERT
+  !ifndef MUI_INSERT
+    !define MUI_INSERT
+    !insertmacro MUI_INSERT
+  !endif
   !ifndef "MUI_LANGUAGEFILE_${LANGUAGE}_USED"
     !define "MUI_LANGUAGEFILE_${LANGUAGE}_USED"
     LoadLanguageFile "${LANGUAGE}.nlf"
@@ -272,7 +206,7 @@
     !warning "${LANGUAGE} Modern UI language file version doesn't match. Using default English texts for missing strings."
   !endif
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_DEFINE "MUI_${LANGUAGE}_LANGNAME" "MUI_LANGNAME"
+  !insertmacro MUI_LANGUAGEFILE_DEFINE "MUI_${LANGUAGE}_LANGNAME" "MUI_LANGNAME"
 
   !ifndef MUI_LANGDLL_PUSHLIST
     !define MUI_LANGDLL_PUSHLIST "'${MUI_${LANGUAGE}_LANGNAME}' ${LANG_${LANGUAGE}} "
@@ -285,247 +219,387 @@
     !define MUI_LANGDLL_PUSHLIST "'${MUI_${LANGUAGE}_LANGNAME}' ${LANG_${LANGUAGE}} ${MUI_LANGDLL_PUSHLIST_TEMP}"
   !endif
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE WELCOME "MUI_TEXT_WELCOME_INFO_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE WELCOME "MUI_TEXT_WELCOME_INFO_TEXT"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE WELCOME "MUI_TEXT_WELCOME_INFO_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE WELCOME "MUI_TEXT_WELCOME_INFO_TEXT"
 
-!ifdef MUI_TEXT_LICENSE_TITLE
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE LICENSE "MUI_TEXT_LICENSE_TITLE"
-!endif
-!ifdef MUI_TEXT_LICENSE_SUBTITLE
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE LICENSE "MUI_TEXT_LICENSE_SUBTITLE"
-!endif
-!ifdef MUI_INNERTEXT_LICENSE_TOP
-  !insertmacro MOZ_MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE LICENSE "MUI_INNERTEXT_LICENSE_TOP"
-!endif
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE LICENSE "MUI_TEXT_LICENSE_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE LICENSE "MUI_TEXT_LICENSE_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE LICENSE "MUI_INNERTEXT_LICENSE_TOP"
 
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE LICENSE "MUI_INNERTEXT_LICENSE_BOTTOM"
+#  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE LICENSE "MUI_INNERTEXT_LICENSE_BOTTOM"
 
 !ifdef MUI_INNERTEXT_LICENSE_BOTTOM_CHECKBOX
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE LICENSE "MUI_INNERTEXT_LICENSE_BOTTOM_CHECKBOX"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE LICENSE "MUI_INNERTEXT_LICENSE_BOTTOM_CHECKBOX"
 !endif
 
 !ifdef MUI_INNERTEXT_LICENSE_BOTTOM_RADIOBUTTONS
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE LICENSE "MUI_INNERTEXT_LICENSE_BOTTOM_RADIOBUTTONS"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE LICENSE "MUI_INNERTEXT_LICENSE_BOTTOM_RADIOBUTTONS"
 !endif
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE COMPONENTS "MUI_TEXT_COMPONENTS_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE COMPONENTS "MUI_TEXT_COMPONENTS_SUBTITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE COMPONENTS "MUI_INNERTEXT_COMPONENTS_DESCRIPTION_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE COMPONENTS "MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE COMPONENTS "MUI_TEXT_COMPONENTS_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE COMPONENTS "MUI_TEXT_COMPONENTS_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE COMPONENTS "MUI_INNERTEXT_COMPONENTS_DESCRIPTION_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE COMPONENTS "MUI_INNERTEXT_COMPONENTS_DESCRIPTION_INFO"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE DIRECTORY "MUI_TEXT_DIRECTORY_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE DIRECTORY "MUI_TEXT_DIRECTORY_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE DIRECTORY "MUI_TEXT_DIRECTORY_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE DIRECTORY "MUI_TEXT_DIRECTORY_SUBTITLE"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE STARTMENU "MUI_TEXT_STARTMENU_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE STARTMENU "MUI_TEXT_STARTMENU_SUBTITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE STARTMENU "MUI_INNERTEXT_STARTMENU_TOP"
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE STARTMENU "MUI_INNERTEXT_STARTMENU_CHECKBOX"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE STARTMENU "MUI_TEXT_STARTMENU_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE STARTMENU "MUI_TEXT_STARTMENU_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE STARTMENU "MUI_INNERTEXT_STARTMENU_TOP"
+#  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE STARTMENU "MUI_INNERTEXT_STARTMENU_CHECKBOX"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_INSTALLING_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_INSTALLING_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_INSTALLING_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_INSTALLING_SUBTITLE"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_FINISH_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_FINISH_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_FINISH_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_FINISH_SUBTITLE"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_ABORT_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_ABORT_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_ABORT_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE INSTFILES "MUI_TEXT_ABORT_SUBTITLE"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE FINISH "MUI_BUTTONTEXT_FINISH"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_INFO_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_INFO_TEXT"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_INFO_REBOOT"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_REBOOTNOW"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_REBOOTLATER"
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_RUN"
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_SHOWREADME"
+  !insertmacro MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE FINISH "MUI_BUTTONTEXT_FINISH"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_INFO_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_INFO_TEXT"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_INFO_REBOOT"
+  !insertmacro MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_REBOOTNOW"
+  !insertmacro MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_REBOOTLATER"
+#  !insertmacro MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_RUN"
+#  !insertmacro MUI_LANGUAGEFILE_MULTILANGSTRING_PAGE FINISH "MUI_TEXT_FINISH_SHOWREADME"
 
-; Support for using the existing MUI_TEXT_ABORTWARNING string
-!ifdef MOZ_MUI_CUSTOM_ABORT
-    LangString MOZ_MUI_TEXT_ABORTWARNING 0 "${MUI_TEXT_ABORTWARNING}"
-!endif
-
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_DEFINE MUI_ABORTWARNING "MUI_TEXT_ABORTWARNING"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_DEFINE MUI_ABORTWARNING "MUI_TEXT_ABORTWARNING"
 
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE WELCOME "MUI_UNTEXT_WELCOME_INFO_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE WELCOME "MUI_UNTEXT_WELCOME_INFO_TEXT"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE WELCOME "MUI_UNTEXT_WELCOME_INFO_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE WELCOME "MUI_UNTEXT_WELCOME_INFO_TEXT"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE CONFIRM "MUI_UNTEXT_CONFIRM_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE CONFIRM "MUI_UNTEXT_CONFIRM_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE CONFIRM "MUI_UNTEXT_CONFIRM_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE CONFIRM "MUI_UNTEXT_CONFIRM_SUBTITLE"
 
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE LICENSE "MUI_UNTEXT_LICENSE_TITLE"
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE LICENSE "MUI_UNTEXT_LICENSE_SUBTITLE"
+#  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE LICENSE "MUI_UNTEXT_LICENSE_TITLE"
+#  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE LICENSE "MUI_UNTEXT_LICENSE_SUBTITLE"
 
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE LICENSE "MUI_UNINNERTEXT_LICENSE_BOTTOM"
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE LICENSE "MUI_UNINNERTEXT_LICENSE_BOTTOM_CHECKBOX"
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE LICENSE "MUI_UNINNERTEXT_LICENSE_BOTTOM_RADIOBUTTONS"
+#  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE LICENSE "MUI_UNINNERTEXT_LICENSE_BOTTOM"
+#  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE LICENSE "MUI_UNINNERTEXT_LICENSE_BOTTOM_CHECKBOX"
+#  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE LICENSE "MUI_UNINNERTEXT_LICENSE_BOTTOM_RADIOBUTTONS"
 
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE COMPONENTS "MUI_UNTEXT_COMPONENTS_TITLE"
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE COMPONENTS "MUI_UNTEXT_COMPONENTS_SUBTITLE"
+#  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE COMPONENTS "MUI_UNTEXT_COMPONENTS_TITLE"
+#  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE COMPONENTS "MUI_UNTEXT_COMPONENTS_SUBTITLE"
 
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE DIRECTORY "MUI_UNTEXT_DIRECTORY_TITLE"
-#  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE DIRECTORY  "MUI_UNTEXT_DIRECTORY_SUBTITLE"
+#  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE DIRECTORY "MUI_UNTEXT_DIRECTORY_TITLE"
+#  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE DIRECTORY  "MUI_UNTEXT_DIRECTORY_SUBTITLE"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_UNINSTALLING_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_UNINSTALLING_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_UNINSTALLING_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_UNINSTALLING_SUBTITLE"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_FINISH_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_FINISH_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_FINISH_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_FINISH_SUBTITLE"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_ABORT_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_ABORT_SUBTITLE"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_ABORT_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE INSTFILES "MUI_UNTEXT_ABORT_SUBTITLE"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE FINISH "MUI_UNTEXT_FINISH_INFO_TITLE"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE FINISH "MUI_UNTEXT_FINISH_INFO_TEXT"
-  !insertmacro MOZ_MUI_LANGUAGEFILE_UNLANGSTRING_PAGE FINISH "MUI_UNTEXT_FINISH_INFO_REBOOT"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE FINISH "MUI_UNTEXT_FINISH_INFO_TITLE"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE FINISH "MUI_UNTEXT_FINISH_INFO_TEXT"
+  !insertmacro MUI_LANGUAGEFILE_UNLANGSTRING_PAGE FINISH "MUI_UNTEXT_FINISH_INFO_REBOOT"
 
-  !insertmacro MOZ_MUI_LANGUAGEFILE_LANGSTRING_DEFINE MUI_UNABORTWARNING "MUI_UNTEXT_ABORTWARNING"
+  !insertmacro MUI_LANGUAGEFILE_LANGSTRING_DEFINE MUI_UNABORTWARNING "MUI_UNTEXT_ABORTWARNING"
 
-  !ifndef MUI_LANGDLL_LANGUAGES
-    !define MUI_LANGDLL_LANGUAGES "'${LANGFILE_${LANGUAGE}_NAME}' '${LANG_${LANGUAGE}}' "
-    !define MUI_LANGDLL_LANGUAGES_CP "'${LANGFILE_${LANGUAGE}_NAME}' '${LANG_${LANGUAGE}}' '${LANG_${LANGUAGE}_CP}' "
-  !else
-    !ifdef MUI_LANGDLL_LANGUAGES_TEMP
-      !undef MUI_LANGDLL_LANGUAGES_TEMP
-    !endif
-    !define MUI_LANGDLL_LANGUAGES_TEMP "${MUI_LANGDLL_LANGUAGES}"
-    !undef MUI_LANGDLL_LANGUAGES
-
-    !ifdef MUI_LANGDLL_LANGUAGES_CP_TEMP
-      !undef MUI_LANGDLL_LANGUAGES_CP_TEMP
-    !endif
-    !define MUI_LANGDLL_LANGUAGES_CP_TEMP "${MUI_LANGDLL_LANGUAGES_CP}"
-    !undef MUI_LANGDLL_LANGUAGES_CP
-
-    !define MUI_LANGDLL_LANGUAGES "'${LANGFILE_${LANGUAGE}_NAME}' '${LANG_${LANGUAGE}}' ${MUI_LANGDLL_LANGUAGES_TEMP}"
-    !define MUI_LANGDLL_LANGUAGES_CP "'${LANGFILE_${LANGUAGE}_NAME}' '${LANG_${LANGUAGE}}' '${LANG_${LANGUAGE}_CP}' ${MUI_LANGDLL_LANGUAGES_CP_TEMP}"
-  !endif
-
-!macroend
-
-/**
- * Creates an InstallOptions file with a UTF-16LE BOM and adds the RTL value
- * to the Settings section.
- *
- * @param   _FILE
- *          The name of the file to be created in $PLUGINSDIR.
- */
-!macro InitInstallOptionsFile _FILE
-  Push $R9
-
-  FileOpen $R9 "$PLUGINSDIR\${_FILE}" w
-  FileWriteWord $R9 "65279"
-  FileClose $R9
-  WriteIniStr "$PLUGINSDIR\${_FILE}" "Settings" "RTL" "$(^RTL)"
-
-  Pop $R9
 !macroend
 
 
 ################################################################################
-# Macros for handling files in use
+# Macros for creating Install Options ini files
+
+!macro createComponentsINI
+  WriteINIStr "$PLUGINSDIR\components.ini" "Settings" NumFields "5"
+
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Type   "label"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Text   "$(OPTIONAL_COMPONENTS_LABEL)"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Left   "0"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Top    "5"
+  WriteINIStr "$PLUGINSDIR\components.ini" "Field 1" Bottom "15"
+
+  StrCpy $R1 2
+  ${If} ${FileExists} "$EXEDIR\optional\extensions\inspector@mozilla.org"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Type   "checkbox"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Text   "$(DOMI_TITLE)"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Left   "15"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Right  "-1"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Top    "20"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Bottom "30"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" State  "1"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Flags  "GROUP"
+    IntOp $R1 $R1 + 1
+  ${EndIf}
+
+  ${If} ${FileExists} "$EXEDIR\optional\extensions\talkback@mozilla.org"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Type   "checkbox"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Text   "$(QFA_TITLE)"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Left   "15"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Right  "-1"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Top    "55"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Bottom "65"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" State  "1"
+    IntOp $R1 $R1 + 1
+  ${EndIf}
+
+  ${If} ${FileExists} "$EXEDIR\optional\extensions\inspector@mozilla.org"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Type   "label"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Text   "$(DOMI_TEXT)"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Left   "30"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Right  "-1"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Top    "32"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Bottom "52"
+    IntOp $R1 $R1 + 1
+  ${EndIf}
+
+  ${If} ${FileExists} "$EXEDIR\optional\extensions\talkback@mozilla.org"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Type   "label"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Text   "$(QFA_TEXT)"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Left   "30"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Right  "-1"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Top    "67"
+    WriteINIStr "$PLUGINSDIR\components.ini" "Field $R1" Bottom "87"
+  ${EndIf}
+!macroend
+
+!macro createShortcutsINI
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Settings" NumFields "4"
+
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 1" Type   "label"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 1" Text   "$(CREATE_ICONS_DESC)"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 1" Left   "0"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 1" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 1" Top    "5"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 1" Bottom "15"
+
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Type   "checkbox"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Text   "$(ICONS_DESKTOP)"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Left   "15"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Top    "20"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Bottom "30"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" State  "1"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Flags  "GROUP"
+
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Type   "checkbox"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Text   "$(ICONS_STARTMENU)"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Left   "15"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Top    "40"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Bottom "50"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" State  "1"
+
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Type   "checkbox"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Text   "$(ICONS_QUICKLAUNCH)"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Left   "15"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Top    "60"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" Bottom "70"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 4" State  "1"
+!macroend
+
+!macro createBasicCustomOptionsINI
+  WriteINIStr "$PLUGINSDIR\options.ini" "Settings" NumFields "5"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Type   "label"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Text   "$(OPTIONS_SUMMARY)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Left   "0"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Top    "0"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Bottom "10"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Type   "RadioButton"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Text   "$(OPTION_STANDARD_RADIO)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Left   "15"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Top    "25"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Bottom "35"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" State  "1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Flags  "GROUP"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Type   "RadioButton"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Text   "$(OPTION_CUSTOM_RADIO)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Left   "15"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Top    "55"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Bottom "65"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" State  "0"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Type   "label"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Text   "$(OPTION_STANDARD_DESC)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Left   "30"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Top    "37"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Bottom "57"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Type   "label"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Text   "$(OPTION_CUSTOM_DESC)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Left   "30"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Top    "67"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Bottom "87"
+!macroend
+
+!macro createBasicCompleteCustomOptionsINI
+  WriteINIStr "$PLUGINSDIR\options.ini" "Settings" NumFields "7"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Type   "label"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Text   "$(OPTIONS_DESC)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Left   "0"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Top    "0"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 1" Bottom "10"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Type   "RadioButton"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Text   "$(OPTION_STANDARD_RADIO)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Left   "15"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Top    "25"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Bottom "35"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" State  "1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 2" Flags  "GROUP"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Type   "RadioButton"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Text   "$(OPTION_COMPLETE_RADIO)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Left   "15"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Top    "55"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" Bottom "65"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 3" State  "0"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Type   "RadioButton"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Text   "$(OPTION_CUSTOM_RADIO)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Left   "15"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Top    "85"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" Bottom "95"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 4" State  "0"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Type   "label"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Text   "$(OPTION_STANDARD_DESC)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Left   "30"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Top    "37"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 5" Bottom "57"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 6" Type   "label"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 6" Text   "$(OPTION_COMPLETE_DESC)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 6" Left   "30"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 6" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 6" Top    "67"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 6" Bottom "87"
+
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 7" Type   "label"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 7" Text   "$(OPTION_CUSTOM_DESC)"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 7" Left   "30"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 7" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 7" Top    "97"
+  WriteINIStr "$PLUGINSDIR\options.ini" "Field 7" Bottom "117"
+!macroend
+
+!macro createSummaryINI
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Settings" NumFields "3"
+
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 1" Type   "label"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 1" Text   "$(SUMMARY_INSTALLED_TO)"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 1" Left   "0"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 1" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 1" Top    "5"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 1" Bottom "15"
+
+  ; XXXrstrong - a side affect of using a READONLY textbox is if the path is
+  ; longer than the visible area of the textbox it will display the characters
+  ; at the end and the beginning of the path will be hidden. Since the path has
+  ; to be greater than 74 characters in length I'm not going to spend any
+  ; cycles trying to come up with a workaround.
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 2" Type   "text"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 2" state  "$INSTDIR"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 2" Left   "0"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 2" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 2" Top    "17"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 2" Bottom "30"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 2" flags  "READONLY"
+
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 3" Type   "label"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 3" Text   "$(SUMMARY_CLICK)"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 3" Left   "0"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 3" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 3" Top    "130"
+  WriteINIStr "$PLUGINSDIR\summary.ini" "Field 3" Bottom "150"
+!macroend
 
 /**
- * Checks for files in use in the $INSTDIR directory. To check files in
- * sub-directories this macro would need to be rewritten to create
- * sub-directories in the temporary directory used to backup the files that are
- * checked.
- *
- * Example usage:
- *
- *  ; The first string to be pushed onto the stack MUST be "end" to indicate
- *  ; that there are no more files in the $INSTDIR directory to check.
- *  Push "end"
- *  Push "freebl3.dll"
- *  ; The last file pushed should be the app's main exe so if it is in use this
- *  ; macro will return after the first check.
- *  Push "${FileMainEXE}"
- *  ${CheckForFilesInUse} $R9
- *
- * !IMPORTANT - this macro uses the $R7, $R8, and $R9 registers and makes no
- *              attempt to restore their original values.
- *
- * @return  _RESULT
- *          false if all of the files popped from the stack are not in use.
- *          True if any of the files popped from the stack are in use.
- * $R7 = Temporary backup directory where the files will be copied to.
- * $R8 = value popped from the stack. This will either be a file name for a file
- *       in the $INSTDIR directory or "end" to indicate that there are no
- *       additional files to check.
- * $R9 = _RESULT
+ * DEPRECATED - use GetParent instead.
  */
-!macro CheckForFilesInUse
+!macro GetParentDir
+  Exch $R0
+  Push $R1
+  Push $R2
+  Push $R3
+  StrLen $R3 $R0
+  ${DoWhile} 1 > 0
+    IntOp $R1 $R1 - 1
+    ${If} $R1 <= -$R3
+      ${Break}
+    ${EndIf}
+    StrCpy $R2 $R0 1 $R1
+    ${If} $R2 == "\"
+      ${Break}
+    ${EndIf}
+  ${Loop}
 
-  !ifndef ${_MOZFUNC_UN}CheckForFilesInUse
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}CheckForFilesInUse "!insertmacro ${_MOZFUNC_UN}CheckForFilesInUseCall"
-
-    Function ${_MOZFUNC_UN}CheckForFilesInUse
-      ; Create a temporary backup directory.
-      GetTempFileName $R7 "$INSTDIR"
-      Delete "$R7"
-      SetOutPath "$R7"
-      StrCpy $R9 "false"
-
-      start:
-      Pop $R8
-      StrCmp "$R8" "end" end +1
-      IfFileExists "$INSTDIR\$R8" +1 start
-
-      ClearErrors
-      CopyFiles /SILENT "$INSTDIR\$R8" "$R7\$R8"
-      IfErrors +4 +1
-      Delete "$INSTDIR\$R8"
-      IfErrors +1 start
-      Delete "$R7\$R8"
-
-      StrCpy $R9 "true"
-
-      end:
-      SetOutPath "$INSTDIR"
-      CopyFiles /SILENT "$R7\*" "$INSTDIR\"
-      RmDir /r "$R7"
-      SetOutPath "$EXEDIR"
-      ClearErrors
-
-      Push $R9
-    FunctionEnd
-
-    !verbose pop
-  !endif
+  StrCpy $R0 $R0 $R1
+  Pop $R3
+  Pop $R2
+  Pop $R1
+  Exch $R0
 !macroend
+!define GetParentDir "!insertmacro GetParentDir"
 
-!macro CheckForFilesInUseCall _RESULT
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Call CheckForFilesInUse
-  Pop ${_RESULT}
-  !verbose pop
+/**
+ * DEPRECATED - use GetPathFromString and RemoveQuotesFromPath
+ *
+ * Removes quotes and trailing path separator from registry string paths.
+ * @param   $R0
+ *          Contains the registry string
+ * @return  Modified string at the top of the stack.
+ */
+!macro GetPathFromRegStr
+  Exch $R0
+  Push $R8
+  Push $R9
+
+  StrCpy $R9 "$R0" "" -1
+  StrCmp $R9 '"' +2 0
+  StrCmp $R9 "'" 0 +2
+  StrCpy $R0 "$R0" -1
+
+  StrCpy $R9 "$R0" 1
+  StrCmp $R9 '"' +2 0
+  StrCmp $R9 "'" 0 +2
+  StrCpy $R0 "$R0" "" 1
+
+  StrCpy $R9 "$R0" "" -1
+  StrCmp $R9 "\" 0 +2
+  StrCpy $R0 "$R0" -1
+
+  ClearErrors
+  GetFullPathName $R8 $R0
+  IfErrors +2 0
+  StrCpy $R0 $R8
+
+  ClearErrors
+  Pop $R9
+  Pop $R8
+  Exch $R0
 !macroend
+!define GetPathFromRegStr "!insertmacro GetPathFromRegStr"
 
-!macro un.CheckForFilesInUseCall _RESULT
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Call un.CheckForFilesInUse
-  Pop ${_RESULT}
-  !verbose pop
-!macroend
 
-!macro un.CheckForFilesInUse
-  !ifndef un.CheckForFilesInUse
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro CheckForFilesInUse
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
-!macroend
+################################################################################
+# Macros for handling files in use
 
 /**
  * The macros below will automatically prepend un. to the function names when
@@ -782,11 +856,11 @@
 
       !ifndef NO_LOG
         IfErrors 0 +3
-        FileWriteUTF16LE $fhInstallLog "  ** ERROR Adding Registry String: $R5 | $R6 | $R7 | $R8 **$\r$\n"
+        FileWrite $fhInstallLog "  ** ERROR Adding Registry String: $R5 | $R6 | $R7 | $R8 **$\r$\n"
         GoTo +4
         StrCmp "$R9" "1" +1 +2
         FileWrite $fhUninstallLog "RegVal: $R5 | $R6 | $R7$\r$\n"
-        FileWriteUTF16LE $fhInstallLog "  Added Registry String: $R5 | $R6 | $R7 | $R8$\r$\n"
+        FileWrite $fhInstallLog "  Added Registry String: $R5 | $R6 | $R7 | $R8$\r$\n"
       !endif
 
       Exch $R5
@@ -890,11 +964,11 @@
 
       !ifndef NO_LOG
         IfErrors 0 +3
-        FileWriteUTF16LE $fhInstallLog "  ** ERROR Adding Registry DWord: $R5 | $R6 | $R7 | $R8 **$\r$\n"
+        FileWrite $fhInstallLog "  ** ERROR Adding Registry DWord: $R5 | $R6 | $R7 | $R8 **$\r$\n"
         GoTo +4
         StrCmp "$R9" "1" +1 +2
         FileWrite $fhUninstallLog "RegVal: $R5 | $R6 | $R7$\r$\n"
-        FileWriteUTF16LE $fhInstallLog "  Added Registry DWord: $R5 | $R6 | $R7 | $R8$\r$\n"
+        FileWrite $fhInstallLog "  Added Registry DWord: $R5 | $R6 | $R7 | $R8$\r$\n"
       !endif
 
       Exch $R5
@@ -998,11 +1072,11 @@
 
       !ifndef NO_LOG
         IfErrors 0 +3
-        FileWriteUTF16LE $fhInstallLog "  ** ERROR Adding Registry String: $R5 | $R6 | $R7 | $R8 **$\r$\n"
+        FileWrite $fhInstallLog "  ** ERROR Adding Registry String: $R5 | $R6 | $R7 | $R8 **$\r$\n"
         GoTo +4
         StrCmp "$R9" "1" +1 +2
         FileWrite $fhUninstallLog "RegVal: $R5 | $R6 | $R7$\r$\n"
-        FileWriteUTF16LE $fhInstallLog "  Added Registry String: $R5 | $R6 | $R7 | $R8$\r$\n"
+        FileWrite $fhInstallLog "  Added Registry String: $R5 | $R6 | $R7 | $R8$\r$\n"
       !endif
 
       Exch $R5
@@ -1063,12 +1137,12 @@
  * Creates a registry key. NSIS doesn't supply a RegCreateKey method and instead
  * will auto create keys when a reg key name value pair is set.
  * i - int (includes char, byte, short, handles, pointers and so on)
- * w - wide-char text, string (LPCWSTR, pointer to first character)
+ * t - text, string (LPCSTR, pointer to first character)
  * * - pointer specifier -> the proc needs the pointer to type, affects next
  *     char (parameter) [ex: '*i' - pointer to int]
  * see the NSIS documentation for additional information.
  */
-!define RegCreateKey "Advapi32::RegCreateKeyW(i, w, *i) i"
+!define RegCreateKey "Advapi32::RegCreateKeyA(i, t, *i) i"
 
 /**
  * Creates a registry key. This will log the actions to the install and
@@ -1124,11 +1198,11 @@
       !ifndef NO_LOG
         ; if $R5 is not 0 then there was an error creating the registry key.
         IntCmp $R5 0 +3 +3
-        FileWriteUTF16LE $fhInstallLog "  ** ERROR Adding Registry Key: $R7 | $R8 **$\r$\n"
+        FileWrite $fhInstallLog "  ** ERROR Adding Registry Key: $R7 | $R8 **$\r$\n"
         GoTo +4
         StrCmp "$R9" "1" +1 +2
         FileWrite $fhUninstallLog "RegKey: $R7 | $R8$\r$\n"
-        FileWriteUTF16LE $fhInstallLog "  Added Registry Key: $R7 | $R8$\r$\n"
+        FileWrite $fhInstallLog "  Added Registry Key: $R7 | $R8$\r$\n"
       !endif
 
       Pop $R4
@@ -1251,7 +1325,6 @@
       StrCmp "$R5" "" +2 +1
       WriteRegStr SHCTX "$R4\shell\open\command" "" "$R5"      
 
-!ifdef DDEApplication
       StrCmp "$R9" "true" +1 +11
       WriteRegStr SHCTX "$R4\shell\open\ddeexec" "" "$\"%1$\",,0,0,,,,"
       WriteRegStr SHCTX "$R4\shell\open\ddeexec" "NoActivateHandler" ""
@@ -1263,7 +1336,6 @@
       ; default handler and if this key exists IE's shell integration breaks.
       DeleteRegKey HKLM "$R4\shell\open\ddeexec\ifexec"
       DeleteRegKey HKCU "$R4\shell\open\ddeexec\ifexec"
-!endif
 
       ClearErrors
 
@@ -1749,18 +1821,17 @@
 !define RemoveDir "!insertmacro RemoveDir"
 
 /**
- * Checks whether it is possible to create and delete a directory and a file in
- * the install directory. Creation and deletion of files and directories are
- * checked since a user may have rights for one and not the other. If creation
- * and deletion of a file and a directory are successful this macro will return
- * true... if not, this it return false.
+ * Checks whether we can write to the install directory. If the install
+ * directory already exists this will attempt to create a temporary file in the
+ * install directory and then delete it. If it does not exist this will attempt
+ * to create the directory and then delete it. If we can write to the install
+ * directory this will return true... if not, this will return false.
  *
  * @return  _RESULT
- *          true if files and directories can be created and deleted in the
- *          install directory otherwise false.
+ *          true if the install directory can be written to otherwise false.
  *
- * $R8 = temporary filename in the installation directory returned from
- *       GetTempFileName.
+ * $R7 = temp filename in installation directory returned from GetTempFileName
+ * $R8 = filehandle to temp file used for writing
  * $R9 = _RESULT
  */
 !macro CanWriteToInstallDir
@@ -1773,31 +1844,33 @@
     Function ${_MOZFUNC_UN}CanWriteToInstallDir
       Push $R9
       Push $R8
+      Push $R7
 
       StrCpy $R9 "true"
+      IfFileExists "$INSTDIR" +1 checkCreateDir
+      GetTempFileName $R7 "$INSTDIR"
+      FileOpen $R8 $R7 w
+      FileWrite $R8 "Write Access Test"
+      FileClose $R8
+      IfFileExists "$R7" +3 +1
+      StrCpy $R9 "false"
+      GoTo end
 
-      ; IfFileExists returns false for $INSTDIR when $INSTDIR is the root of a
-      ; UNC path so always try to create $INSTDIR
-      CreateDirectory "$INSTDIR\"
-      GetTempFileName $R8 "$INSTDIR\"
-      IfFileExists "$R8" +3 +1 ; Can files be created?
-      StrCpy $R9 "false"
-      Goto +12
-      Delete "$R8"
-      IfFileExists "$R8" +1 +3 ; Can files be deleted?
-      StrCpy $R9 "false"
-      Goto +8
-      CreateDirectory "$R8"
-      IfFileExists "$R8" +3 +1 ; Can directories be created?
-      StrCpy $R9 "false"
-      GoTo +4
-      RmDir "$R8"
-      IfFileExists "$R8" +1 +2 ; Can directories be deleted?
-      StrCpy $R9 "false"
+      Delete $R7
+      GoTo end
 
-      RmDir "$INSTDIR\" ; Only remove $INSTDIR if it is empty
+      checkCreateDir:
+      CreateDirectory "$INSTDIR"
+      IfFileExists "$INSTDIR" +3 +1
+      StrCpy $R9 "false"
+      GoTo end
+
+      RmDir "$INSTDIR"
+
+      end:
       ClearErrors
 
+      Pop $R7
       Pop $R8
       Exch $R9
     FunctionEnd
@@ -1838,30 +1911,33 @@
 !macroend
 
 /**
- * Checks whether there is sufficient free space available for the installation
- * directory using GetDiskFreeSpaceExW which respects disk quotas. This macro
- * will calculate the size of all sections that are selected, compare that with
- * the free space available, and if there is sufficient free space it will
- * return true... if not, it will return false. 
+ * Checks whether there is sufficient free space available on the installation
+ * directory's drive. If there is sufficient free space this will return true...
+ * if not, this will return false. This will only calculate the size of the
+ * first three sections.
  *
  * @return  _RESULT
- *          "true" if there is sufficient free space otherwise "false".
+ *          true if there is sufficient free space otherwise false.
  *
+ * $R2 = return value from greater than comparison (0=false 1=true)
+ * $R3 = free space for the install directory's drive
+ * $R4 = install directory root
  * $R5 = return value from SectionGetSize
- * $R6 = return value from SectionGetFlags
- *       return value from an 'and' comparison of SectionGetFlags (1=selected)
- *       return value for lpFreeBytesAvailable from GetDiskFreeSpaceExW
- *       return value for System::Int64Op $R6 / 1024
- *       return value for System::Int64Op $R6 > $R8
- * $R7 = the counter for enumerating the sections
- *       the temporary file name for the directory created under $INSTDIR passed
- *       to GetDiskFreeSpaceExW.
- * $R8 = sum in KB of all selected sections
+ * $R6 = return value from 'and' comparison of SectionGetFlags (1=selected)
+ * $R7 = return value from SectionGetFlags
+ * $R8 = size in KB required for this installation
  * $R9 = _RESULT
  */
 !macro CheckDiskSpace
 
   !ifndef ${_MOZFUNC_UN}CheckDiskSpace
+    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
+    !insertmacro ${_MOZFUNC_UN_TMP}GetRoot
+    !insertmacro ${_MOZFUNC_UN_TMP}DriveSpace
+    !undef _MOZFUNC_UN
+    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
+    !undef _MOZFUNC_UN_TMP
+
     !verbose push
     !verbose ${_MOZFUNC_VERBOSE}
     !define ${_MOZFUNC_UN}CheckDiskSpace "!insertmacro ${_MOZFUNC_UN}CheckDiskSpaceCall"
@@ -1872,53 +1948,40 @@
       Push $R7
       Push $R6
       Push $R5
+      Push $R4
+      Push $R3
+      Push $R2
 
-      ClearErrors
+      StrCpy $R9 "true"
+      SectionGetSize 0 $R8
 
-      StrCpy $R9 "true" ; default return value
-      StrCpy $R8 "0"    ; sum in KB of all selected sections
-      StrCpy $R7 "0"    ; counter for enumerating sections
-
-      ; Enumerate the sections and sum up the sizes of the sections that are
-      ; selected.
-      SectionGetFlags $R7 $R6
-      IfErrors +7 +1
-      IntOp $R6 ${SF_SELECTED} & $R6
+      SectionGetFlags 1 $R7
+      IntOp $R6 ${SF_SELECTED} & $R7
       IntCmp $R6 0 +3 +1 +1
-      SectionGetSize $R7 $R5
+      SectionGetSize 1 $R5
       IntOp $R8 $R8 + $R5
-      IntOp $R7 $R7 + 1
-      GoTo -7
 
-      ; The directory passed to GetDiskFreeSpaceExW must exist for the call to
-      ; succeed.  Since the CanWriteToInstallDir macro is called prior to this
-      ; macro the call to CreateDirectory will always succeed.
+      SectionGetFlags 2 $R7
+      IntOp $R6 ${SF_SELECTED} & $R7
+      IntCmp $R6 0 +3 +1 +1
+      SectionGetSize 2 $R5
+      IntOp $R8 $R8 + $R5
 
-      ; IfFileExists returns false for $INSTDIR when $INSTDIR is the root of a
-      ; UNC path so always try to create $INSTDIR
-      CreateDirectory "$INSTDIR\"
-      GetTempFileName $R7 "$INSTDIR\"
-      Delete "$R7"
-      CreateDirectory "$R7"
+      ${${_MOZFUNC_UN}GetRoot} "$INSTDIR" $R4
+      ${${_MOZFUNC_UN}DriveSpace} "$R4" "/D=F /S=K" $R3
 
-      System::Call 'kernel32::GetDiskFreeSpaceExW(w, *l, *l, *l) i(r17, .r16, ., .) .'
+      System::Int64Op $R3 > $R8
+      Pop $R2
 
-      ; Convert to KB for comparison with $R8 which is in KB
-      System::Int64Op $R6 / 1024
-      Pop $R6
-
-      System::Int64Op $R6 > $R8
-      Pop $R6
-
-      IntCmp $R6 1 end +1 +1
+      IntCmp $R2 1 end +1 +1
       StrCpy $R9 "false"
 
       end:
-      RmDir "$R7"
-      RmDir "$INSTDIR\" ; Only remove $INSTDIR if it is empty
-
       ClearErrors
 
+      Pop $R2
+      Pop $R3
+      Pop $R4
       Pop $R5
       Pop $R6
       Pop $R7
@@ -2157,14 +2220,14 @@
 !macroend
 
 /**
- * Returns the long path for an existing file or directory. GetLongPathNameW
+ * Returns the long path for an existing file or directory. GetLongPathNameA
  * may not be available on Win95 if Microsoft Layer for Unicode is not
  * installed and GetFullPathName only returns a long path for the last file or
  * directory that doesn't end with a \ in the path that it is passed. If the
  * path does not exist on the file system this will return an empty string. To
  * provide a consistent result trailing back-slashes are always removed.
  *
- * Note: 1024 used by GetLongPathNameW is the maximum NSIS string length.
+ * Note: 1024 used by GetLongPathNameA is the maximum NSIS string length.
  *
  * @param   _IN_PATH
  *          The string containing the path.
@@ -2173,8 +2236,8 @@
  *
  * $R4 = counter value when the previous \ was found
  * $R5 = directory or file name found during loop
- * $R6 = return value from GetLongPathNameW and loop counter
- * $R7 = long path from GetLongPathNameW and single char from path for comparison
+ * $R6 = return value from GetLongPathNameA and loop counter
+ * $R7 = long path from GetLongPathNameA and single char from path for comparison
  * $R8 = storage for _IN_PATH
  * $R9 = _IN_PATH _OUT_PATH
  */
@@ -2195,11 +2258,18 @@
 
       ClearErrors
 
-      GetFullPathName $R8 "$R9"
+      StrCpy $R8 "$R9"
+      StrCpy $R9 ""
+      GetFullPathName $R8 "$R8"
       IfErrors end_GetLongPath +1 ; If the path doesn't exist return an empty string.
 
-      System::Call 'kernel32::GetLongPathNameW(w r18, w .r17, i 1024)i .r16'
-      StrCmp "$R7" "" +4 +1 ; Empty string when GetLongPathNameW is not present.
+      ; Remove trailing \'s from the path.
+      StrCpy $R6 "$R8" "" -1
+      StrCmp $R6 "\" +1 +2
+      StrCpy $R9 "$R8" -1
+
+      System::Call 'kernel32::GetLongPathNameA(t r18, t .r17, i 1024)i .r16'
+      StrCmp "$R7" "" +4 +1 ; Empty string when GetLongPathNameA is not present.
       StrCmp $R6 0 +3 +1    ; Should never equal 0 since the path exists.
       StrCpy $R9 "$R7"
       GoTo end_GetLongPath
@@ -2235,12 +2305,6 @@
       GoTo loop_GetLongPath
 
       end_GetLongPath:
-      ; If there is a trailing slash remove it
-      StrCmp $R9 "" +4 +1
-      StrCpy $R8 "$R9" "" -1
-      StrCmp $R8 "\" +1 +2
-      StrCpy $R9 "$R9" -1
-
       ClearErrors
 
       Pop $R4
@@ -2802,7 +2866,6 @@
 
 /**
  * Checks if a handler's open command points to this installation directory.
- * Uses SHCTX to determine the registry hive (e.g. HKLM or HKCU) to check.
  *
  * @param   _HANDLER_NAME
  *          The registry name for the handler.
@@ -2836,7 +2899,7 @@
 
       StrCpy $R8 "$R9"
       StrCpy $R9 "false"
-      ReadRegStr $R7 SHCTX "Software\Classes\$R8\shell\open\command" ""
+      ReadRegStr $R7 HKCR "$R8\shell\open\command" ""
       StrCmp "$R7" "" end
 
       ${GetPathFromString} "$R7" $R7
@@ -2894,22 +2957,10 @@
  * If present removes the VirtualStore directory for this installation. Uses the
  * program files directory path and the current install location to determine
  * the sub-directory in the VirtualStore directory.
- *
- * $R5 = various path values.
- * $R6 = length of the long path to $PROGRAMFILES
- * $R7 = length of the long path to $INSTDIR
- * $R8 = long path to $PROGRAMFILES
- * $R9 = long path to $INSTDIR
  */
 !macro CleanVirtualStore
 
   !ifndef ${_MOZFUNC_UN}CleanVirtualStore
-    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
-    !insertmacro ${_MOZFUNC_UN_TMP}GetLongPath
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
-    !undef _MOZFUNC_UN_TMP
-
     !verbose push
     !verbose ${_MOZFUNC_VERBOSE}
     !define ${_MOZFUNC_UN}CleanVirtualStore "!insertmacro ${_MOZFUNC_UN}CleanVirtualStoreCall"
@@ -2918,38 +2969,37 @@
       Push $R9
       Push $R8
       Push $R7
-      Push $R6
-      Push $R5
 
-      ${${_MOZFUNC_UN}GetLongPath} "$INSTDIR" $R9
-      StrCmp $R9 "" end +1
-      ${${_MOZFUNC_UN}GetLongPath} "$PROGRAMFILES" $R8
-      StrCmp $R8 "" end +1
+      StrLen $R9 "$INSTDIR"
 
-      StrLen $R7 "$R9"
-      StrLen $R6 "$R8"
-      ; Only continue If the length of $INSTDIR is greater than the length of
-      ; $PROGRAMFILES
-      IntCmp $R7 $R6 end end +1
+      ; Get the installation's directory name including the preceding slash
+      start:
+      IntOp $R8 $R8 - 1
+      IntCmp $R8 -$R9 end end +1
+      StrCpy $R7 "$INSTDIR" 1 $R8
+      StrCmp $R7 "\" +1 start
 
-      ; Copy from the start of $INSTDIR the length of $PROGRAMFILES 
-      StrCpy $R5 "$R9" $R6
-      StrCmp "$R5" "$R8" +1 end ; Check if $INSTDIR is under $PROGRAMFILES
+      StrCpy $R9 "$INSTDIR" "" $R8
 
-      ; Remove the drive letter and colon from the $INSTDIR long path
-      StrCpy $R5 "$R9" "" 2
-      StrCpy $R5 "$PROFILE\AppData\Local\VirtualStore$R5"
-      ${${_MOZFUNC_UN}GetLongPath} "$R5" $R5
-      StrCmp $R5 "" end +1
+      ClearErrors
+      GetFullPathName $R8 "$PROGRAMFILES$R9"
+      IfErrors end
+      GetFullPathName $R7 "$INSTDIR"
 
-      IfFileExists "$R5" +1 end
-      RmDir /r "$R5"
+      ; Compare the installation's directory path with the path created by
+      ; concatenating the installation's directory name and the path to the
+      ; program files directory.
+      StrCmp "$R7" "$R8" +1 end
+
+      StrCpy $R8 "$PROGRAMFILES" "" 2 ; Remove the drive letter and colon
+      StrCpy $R7 "$PROFILE\AppData\Local\VirtualStore$R8$R9"
+
+      IfFileExists "$R7" 0 end
+      RmDir /r "$R7"
 
       end:
       ClearErrors
 
-      Pop $R5
-      Pop $R6
       Pop $R7
       Pop $R8
       Pop $R9
@@ -2988,407 +3038,6 @@
   !endif
 !macroend
 
-/**
- * If present removes the updates directory located in the profile's local
- * directory for this installation.
- *
- * @param   _REL_PROFILE_PATH
- *          The relative path to the profile directory from $LOCALAPPDATA.
- *
- * $R4 = various path values.
- * $R5 = length of the long path to $PROGRAMFILES
- * $R6 = length of the long path to $INSTDIR
- * $R7 = long path to $PROGRAMFILES
- * $R8 = long path to $INSTDIR
- * $R9 = _REL_PROFILE_PATH
- */
-!macro CleanUpdatesDir
-
-  !ifndef ${_MOZFUNC_UN}CleanUpdatesDir
-    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
-    !insertmacro ${_MOZFUNC_UN_TMP}GetLongPath
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
-    !undef _MOZFUNC_UN_TMP
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}CleanUpdatesDir "!insertmacro ${_MOZFUNC_UN}CleanUpdatesDirCall"
-
-    Function ${_MOZFUNC_UN}CleanUpdatesDir
-      Exch $R9
-      Push $R8
-      Push $R7
-      Push $R6
-      Push $R5
-      Push $R4
-
-      StrCmp $R9 "" end +1 ; The relative path to the app's profiles is required
-      ${${_MOZFUNC_UN}GetLongPath} "$INSTDIR" $R8
-      StrCmp $R8 "" end +1
-      ${${_MOZFUNC_UN}GetLongPath} "$PROGRAMFILES" $R7
-      StrCmp $R7 "" end +1
-
-      StrLen $R6 "$R8"
-      StrLen $R5 "$R7"
-      ; Only continue If the length of $INSTDIR is greater than the length of
-      ; $PROGRAMFILES
-      IntCmp $R6 $R5 end end +1
-
-      ; Copy from the start of $INSTDIR the length of $PROGRAMFILES 
-      StrCpy $R4 "$R8" $R5
-      StrCmp "$R4" "$R7" +1 end ; Check if $INSTDIR is under $PROGRAMFILES
-
-      ; Copy the relative path to $INSTDIR from $PROGRAMFILES
-      StrCpy $R4 "$R8" "" $R5
-
-      ; Concatenate the path to $LOCALAPPDATA the relative profile path and the
-      ; relative path to $INSTDIR from $PROGRAMFILES
-      StrCpy $R4 "$LOCALAPPDATA\$R9$R4"
-      ${${_MOZFUNC_UN}GetLongPath} "$R4" $R4
-      StrCmp $R4 "" end +1
-
-      IfFileExists "$R4\updates" +1 end
-      RmDir /r "$R4"
-
-      end:
-      ClearErrors
-
-      Pop $R4
-      Pop $R5
-      Pop $R6
-      Pop $R7
-      Pop $R8
-      Exch $R9
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro CleanUpdatesDirCall _REL_PROFILE_PATH
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_REL_PROFILE_PATH}"
-  Call CleanUpdatesDir
-  !verbose pop
-!macroend
-
-!macro un.CleanUpdatesDirCall _REL_PROFILE_PATH
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_REL_PROFILE_PATH}"
-  Call un.CleanUpdatesDir
-  !verbose pop
-!macroend
-
-!macro un.CleanUpdatesDir
-  !ifndef un.CleanUpdatesDir
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro CleanUpdatesDir
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
-!macroend
-
-/**
- * Deletes all relative profiles specified in an application's profiles.ini and
- * performs various other cleanup.
- *
- * @param   _REL_PROFILE_PATH
- *          The relative path to the profile directory.
- *
- * $R6 = value of IsRelative read from profiles.ini
- * $R7 = value of Path to profile read from profiles.ini
- * $R8 = counter for reading profiles (e.g. Profile0, Profile1, etc.)
- * $R9 = _REL_PROFILE_PATH
- */
-!macro DeleteRelativeProfiles
-
-  !ifndef ${_MOZFUNC_UN}DeleteRelativeProfiles
-    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
-    !insertmacro ${_MOZFUNC_UN_TMP}WordReplace
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
-    !undef _MOZFUNC_UN_TMP
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}DeleteRelativeProfiles "!insertmacro ${_MOZFUNC_UN}DeleteRelativeProfilesCall"
-
-    Function ${_MOZFUNC_UN}DeleteRelativeProfiles
-      Exch $R9
-      Push $R8
-      Push $R7
-      Push $R6
-
-      SetShellVarContext current
-      StrCpy $R8 -1
-
-      loop:
-      IntOp $R8 $R8 + 1  ; Increment the counter.
-      ReadINIStr $R7 "$APPDATA\$R9\profiles.ini" "Profile$R8" "Path"
-      IfErrors end +1
-
-      ; Only remove relative profiles
-      ReadINIStr $R6 "$APPDATA\$R9\profiles.ini" "Profile$R8" "IsRelative"
-      StrCmp "$R6" "1" +1 loop
-
-      ; Relative paths in profiles.ini use / as a separator
-      ${${_MOZFUNC_UN}WordReplace} "$R7" "/" "\" "+" $R7
-
-      IfFileExists "$LOCALAPPDATA\$R9\$R7" +1 +2
-      RmDir /r "$LOCALAPPDATA\$R9\$R7"
-      IfFileExists "$APPDATA\$R9\$R7" +1 +2
-      RmDir /r "$APPDATA\$R9\$R7"
-      GoTo loop
-
-      end:
-      ; Remove profiles directory under LOCALAPPDATA (e.g. cache, etc.) since
-      ; they are at times abandoned.
-      RmDir /r "$LOCALAPPDATA\$R9\Profiles"
-      RmDir /r "$APPDATA\$R9\Crash Reports"
-      Delete "$APPDATA\$R9\profiles.ini"
-      Delete "$APPDATA\$R9\console.log"
-      Delete "$APPDATA\$R9\pluginreg.dat"
-      RmDir "$APPDATA\$R9\Profiles"
-      RmDir "$APPDATA\$R9"
-
-      Pop $R6
-      Pop $R7
-      Pop $R8
-      Exch $R9
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro DeleteRelativeProfilesCall _REL_PROFILE_PATH
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_REL_PROFILE_PATH}"
-  Call DeleteRelativeProfiles
-  !verbose pop
-!macroend
-
-!macro un.DeleteRelativeProfilesCall _REL_PROFILE_PATH
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_REL_PROFILE_PATH}"
-  Call un.DeleteRelativeProfiles
-  !verbose pop
-!macroend
-
-!macro un.DeleteRelativeProfiles
-  !ifndef un.DeleteRelativeProfiles
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro DeleteRelativeProfiles
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
-!macroend
-
-/**
- * Deletes shortcuts and Start Menu directories under Programs as specified by
- * the shortcuts log ini file. The shortcuts will not be deleted if the shortcut
- * target isn't for this install location which is determined by the shortcut
- * having a target of $INSTDIR\${FileMainEXE}. The context (All Users or Current
- * User) of the $DESKTOP, $STARTMENU, and $SMPROGRAMS constants depends on the
- * SetShellVarContext setting and must be set by the caller of this macro. There
- * is no All Users context for $QUICKLAUNCH but this will not cause a problem
- * since the macro will just continue past the $QUICKLAUNCH shortcut deletion
- * section on subsequent calls.
- *
- * The ini file sections must have the following format (the order of the
- * sections in the ini file is not important):
- * [SMPROGRAMS]
- * ; RelativePath is the directory relative from the Start Menu
- * ; Programs directory.
- * RelativePath=Mozilla App
- * ; Shortcut1 is the first shortcut, Shortcut2 is the second shortcut, and so
- * ; on. There must not be a break in the sequence of the numbers.
- * Shortcut1=Mozilla App.lnk
- * Shortcut2=Mozilla App (Safe Mode).lnk
- * [DESKTOP]
- * ; Shortcut1 is the first shortcut, Shortcut2 is the second shortcut, and so
- * ; on. There must not be a break in the sequence of the numbers.
- * Shortcut1=Mozilla App.lnk
- * Shortcut2=Mozilla App (Safe Mode).lnk
- * [QUICKLAUNCH]
- * ; Shortcut1 is the first shortcut, Shortcut2 is the second shortcut, and so
- * ; on. There must not be a break in the sequence of the numbers for the
- * ; suffix.
- * Shortcut1=Mozilla App.lnk
- * Shortcut2=Mozilla App (Safe Mode).lnk
- * [STARTMENU]
- * ; Shortcut1 is the first shortcut, Shortcut2 is the second shortcut, and so
- * ; on. There must not be a break in the sequence of the numbers for the
- * ; suffix.
- * Shortcut1=Mozilla App.lnk
- * Shortcut2=Mozilla App (Safe Mode).lnk
- *
- * $R4 = counter for appending to Shortcut for enumerating the ini file entries
- * $R5 = return value from ShellLink::GetShortCutTarget
- * $R6 = long path to the Start Menu Programs directory (e.g. $SMPROGRAMS)
- * $R7 = return value from ReadINIStr for the relative path to the applications
- *       directory under the Start Menu Programs directory and the long path to
- *       this directory
- * $R8 = return value from ReadINIStr for enumerating shortcuts
- * $R9 = long path to the shortcuts log ini file
- */
-!macro DeleteShortcuts
-
-  !ifndef ${_MOZFUNC_UN}DeleteShortcuts
-    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
-    !insertmacro ${_MOZFUNC_UN_TMP}GetLongPath
-    !insertmacro ${_MOZFUNC_UN_TMP}GetParent
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
-    !undef _MOZFUNC_UN_TMP
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}DeleteShortcuts "!insertmacro ${_MOZFUNC_UN}DeleteShortcutsCall"
-
-    Function ${_MOZFUNC_UN}DeleteShortcuts
-      Push $R9
-      Push $R8
-      Push $R7
-      Push $R6
-      Push $R5
-      Push $R4
-
-      ${${_MOZFUNC_UN}GetLongPath} "$INSTDIR\uninstall\${SHORTCUTS_LOG}" $R9
-      IfFileExists $R9 +1 end_DeleteShortcuts
-
-      ; Delete Start Menu shortcuts for this application
-      StrCpy $R4 -1
-
-      IntOp $R4 $R4 + 1 ; Increment the counter
-      ClearErrors
-      ReadINIStr $R8 "$R9" "STARTMENU" "Shortcut$R4"
-      IfErrors +7 +1
-      IfFileExists "$STARTMENU\$R8" +1 -4
-      ShellLink::GetShortCutTarget "$STARTMENU\$R8"
-      Pop $R5
-      StrCmp "$INSTDIR\${FileMainEXE}" "$R5" +1 -7
-      Delete "$STARTMENU\$R8"
-      GoTo -9
-
-      ; Delete Quick Launch shortcuts for this application
-      StrCpy $R4 -1
-
-      IntOp $R4 $R4 + 1 ; Increment the counter
-      ClearErrors
-      ReadINIStr $R8 "$R9" "QUICKLAUNCH" "Shortcut$R4"
-      IfErrors +7 +1
-      IfFileExists "$QUICKLAUNCH\$R8" +1 -4
-      ShellLink::GetShortCutTarget "$QUICKLAUNCH\$R8"
-      Pop $R5
-      StrCmp "$INSTDIR\${FileMainEXE}" "$R5" +1 -7
-      Delete "$QUICKLAUNCH\$R8"
-      GoTo -9
-
-      ; Delete Desktop shortcuts for this application
-      StrCpy $R4 -1
-
-      IntOp $R4 $R4 + 1 ; Increment the counter
-      ClearErrors
-      ReadINIStr $R8 "$R9" "DESKTOP" "Shortcut$R4"
-      IfErrors +7 +1
-      IfFileExists "$DESKTOP\$R8" +1 -4
-      ShellLink::GetShortCutTarget "$DESKTOP\$R8"
-      Pop $R5
-      StrCmp "$INSTDIR\${FileMainEXE}" "$R5" +1 -7
-      Delete "$DESKTOP\$R8"
-      GoTo -9
-
-      ${${_MOZFUNC_UN}GetLongPath} "$SMPROGRAMS" $R6
-
-      ; Delete Start Menu Programs shortcuts for this application
-      ClearErrors
-      ReadINIStr $R7 "$R9" "SMPROGRAMS" "RelativePathToDir"
-      ${${_MOZFUNC_UN}GetLongPath} "$R6\$R7" $R7
-      StrCmp "$R7" "" end_DeleteShortcuts +1
-      StrCpy $R4 -1
-
-      IntOp $R4 $R4 + 1 ; Increment the counter
-      ClearErrors
-      ReadINIStr $R8 "$R9" "SMPROGRAMS" "Shortcut$R4"
-      IfErrors +7 +1
-      IfFileExists "$R7\$R8" +1 -4
-      ShellLink::GetShortCutTarget "$R7\$R8"
-      Pop $R5
-      StrCmp "$INSTDIR\${FileMainEXE}" "$R5" +1 -7
-      Delete "$R7\$R8"
-      GoTo -9
-
-      ; Delete Start Menu Programs directories for this application
-      start_RemoveSMProgramsDir:
-      ClearErrors
-      StrCmp "$R6" "$R7" end_DeleteShortcuts +1
-      RmDir "$R7"
-      IfErrors end_DeleteShortcuts +1
-      ${${_MOZFUNC_UN}GetParent} "$R7" $R7
-      GoTo start_RemoveSMProgramsDir
-
-      end_DeleteShortcuts:
-      ClearErrors
-
-      Pop $R4
-      Pop $R5
-      Pop $R6
-      Pop $R7
-      Pop $R8
-      Pop $R9
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro DeleteShortcutsCall
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Call DeleteShortcuts
-  !verbose pop
-!macroend
-
-!macro un.DeleteShortcutsCall
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Call un.DeleteShortcuts
-  !verbose pop
-!macroend
-
-!macro un.DeleteShortcuts
-  !ifndef un.DeleteShortcuts
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro DeleteShortcuts
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
-!macroend
-
 
 ################################################################################
 # Macros for parsing and updating the uninstall.log and removed-files.log
@@ -3397,8 +3046,7 @@
  * Updates the uninstall.log with new files added by software update.
  *
  * When modifying this macro be aware that LineFind uses all registers except
- * $R0-$R3 and TextCompareNoDetails uses all registers except $R0-$R9 so be
- * cautious. Callers of this macro are not affected.
+ * $R0-$R3 so be cautious. Callers of this macro are not affected.
  */
 !macro UpdateUninstallLog
 
@@ -3421,12 +3069,13 @@
       ClearErrors
 
       GetFullPathName $R3 "$INSTDIR\uninstall"
-      IfFileExists "$R3\uninstall.update" +1 end_UpdateUninstallLog
+      IfFileExists "$R3\uninstall.update" +2 0
+      Return
 
       ${LineFind} "$R3\uninstall.update" "" "1:-1" "CleanupUpdateLog"
 
       GetTempFileName $R2 "$R3"
-      FileOpen $R1 "$R2" w
+      FileOpen $R1 $R2 w
       ${TextCompareNoDetails} "$R3\uninstall.update" "$R3\uninstall.log" "SlowDiff" "CreateUpdateDiff"
       FileClose $R1
 
@@ -3435,7 +3084,6 @@
 
       ${DeleteFile} "$R2"
 
-      end_UpdateUninstallLog:
       ClearErrors
 
       Pop $R0
@@ -3504,15 +3152,14 @@
  * is the uninstall.log renamed to uninstall.bak at the beginning of the
  * installation
  *
- * When modifying this macro be aware that TextCompareNoDetails uses all
- * registers except $R0-$R9 so be cautious. Callers of this macro are not
- * affected.
+ * When modifying this macro be aware that LineFind uses all registers except
+ * $R0-$R3 so be cautious. Callers of this macro are not affected.
  */
 !macro UpdateFromPreviousLog
 
   !ifndef UpdateFromPreviousLog
     !insertmacro FileJoin
-    !insertmacro GetLongPath
+    !insertmacro GetTime
     !insertmacro TextCompareNoDetails
     !insertmacro TrimNewLines
 
@@ -3535,15 +3182,17 @@
 
       ; Diff and add missing entries from the previous file log if it exists
       IfFileExists "$INSTDIR\uninstall\uninstall.bak" +1 end
-      ${DeleteFile} "$INSTDIR\uninstall\uninstall.tmp"
-      FileOpen $R3 "$INSTDIR\uninstall\uninstall.tmp" w
-      ${TextCompareNoDetails} "$INSTDIR\uninstall\uninstall.bak" "$INSTDIR\uninstall\uninstall.log" "SlowDiff" "UpdateFromPreviousLog_AddToLog"
+      StrCpy $R0 "$INSTDIR\uninstall\uninstall.log"
+      StrCpy $R1 "$INSTDIR\uninstall\uninstall.bak"
+      GetTempFileName $R2
+      FileOpen $R3 $R2 w
+      ${TextCompareNoDetails} "$R1" "$R0" "SlowDiff" "UpdateFromPreviousLog_AddToLog"
       FileClose $R3
       IfErrors +2
-      ${FileJoin} "$INSTDIR\uninstall\uninstall.log" "$INSTDIR\uninstall\uninstall.tmp" "$INSTDIR\uninstall\uninstall.log"
+      ${FileJoin} "$INSTDIR\uninstall\uninstall.log" "$R2" "$INSTDIR\uninstall\uninstall.log"
 
       ${DeleteFile} "$INSTDIR\uninstall\uninstall.bak"
-      ${DeleteFile} "$INSTDIR\uninstall\uninstall.tmp"
+      ${DeleteFile} "$R2"
 
       end:
 
@@ -3636,27 +3285,13 @@
       StrCmp $R1 "File:" +1 end
       StrCpy $R9 "$R9" "" 6
       IfFileExists "$INSTDIR$R9" +1 end
-
       ClearErrors
-      ${DeleteFile} "$INSTDIR$R9"
-      IfErrors +3 +1
+      Delete "$INSTDIR$R9"
+      IfErrors +1 +3
+      ${LogMsg} "** ERROR Deleting File: $INSTDIR$R9 **"
+      GoTo end
+
       ${LogMsg} "Deleted File: $INSTDIR$R9"
-      GoTo end
-
-      ClearErrors
-      Rename "$INSTDIR$R9" "$INSTDIR$R9.moz-delete"
-      IfErrors +1 reboot_delete
-
-      ; Original file will be deleted on reboot
-      Delete /REBOOTOK "$INSTDIR$R9"
-      ${LogMsg} "Delayed Delete File (Reboot Required): $INSTDIR$R9"
-      GoTo end
-
-      ; Renamed file will be deleted on reboot
-      reboot_delete:
-      Delete /REBOOTOK "$INSTDIR$R9.moz-delete"
-      ${LogMsg} "Delayed Delete File (Reboot Required): $INSTDIR$R9.moz-delete"
-      GoTo end
 
       end:
       ClearErrors
@@ -3703,177 +3338,6 @@
 !macroend
 
 /**
- * Copies files from a source directory to a destination directory with logging
- * to the uninstall.log. If any destination files are in use a reboot will be
- * necessary to complete the installation and the reboot flag (see IfRebootFlag
- * in the NSIS documentation).
- *
- * @param   _PATH_TO_SOURCE
- *          Source path to copy the files from. This must not end with a \.
- *
- * @param   _PATH_TO_DESTINATION
- *          Destination path to copy the files to. This must not end with a \.
- *
- * @param   _PREFIX_ERROR_CREATEDIR
- *          Prefix for the directory creation error message. The directory path
- *          will be inserted below this string.
- *
- * @param   _SUFFIX_ERROR_CREATEDIR
- *          Suffix for the directory creation error message. The directory path
- *          will be inserted above this string.
- *
- * $0  = destination file's parent directory used in the create_dir label
- * $R0 = copied value from $R6 (e.g. _PATH_TO_SOURCE)
- * $R1 = copied value from $R7 (e.g. _PATH_TO_DESTINATION)
- * $R2 = string length of the path to source
- * $R3 = relative path from the path to source
- * $R4 = copied value from $R8 (e.g. _PREFIX_ERROR_CREATEDIR)
- * $R5 = copied value from $R9 (e.g. _SUFFIX_ERROR_CREATEDIR)
- * note: the LocateNoDetails macro uses these registers so we copy the values
- *       to other registers.
- * $R6 = initially _PATH_TO_SOURCE and then set to "size" ($R6="" if directory,
- *       $R6="0" if file with /S=)"path\name" in callback
- * $R7 = initially _PATH_TO_DESTINATION and then set to "name" in callback
- * $R8 = initially _PREFIX_ERROR_CREATEDIR and then set to "path" in callback
- * $R9 = initially _SUFFIX_ERROR_CREATEDIR and then set to "path\name" in
- *       callback
- */
-!macro CopyFilesFromDir
-
-  !ifndef CopyFilesFromDir
-    !insertmacro LocateNoDetails
-    !insertmacro OnEndCommon
-    !insertmacro WordReplace
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define CopyFilesFromDir "!insertmacro CopyFilesFromDirCall"
-
-    Function CopyFilesFromDir
-      Exch $R9
-      Exch 1
-      Exch $R8
-      Exch 2
-      Exch $R7
-      Exch 3
-      Exch $R6
-      Push $R5
-      Push $R4
-      Push $R3
-      Push $R2
-      Push $R1
-      Push $R0
-      Push $0
-
-      StrCpy $R0 "$R6"
-      StrCpy $R1 "$R7"
-      StrCpy $R4 "$R8"
-      StrCpy $R5 "$R9"
-
-      StrLen $R2 "$R0"
-
-      ${LocateNoDetails} "$R0" "/L=FD" "CopyFileCallback"
-
-      Pop $0
-      Pop $R0
-      Pop $R1
-      Pop $R2
-      Pop $R3
-      Pop $R4
-      Pop $R5
-      Exch $R6
-      Exch 3
-      Exch $R7
-      Exch 2
-      Exch $R8
-      Exch 1
-      Exch $R9
-    FunctionEnd
-
-    Function CopyFileCallback
-      StrCpy $R3 $R8 "" $R2 ; $R3 always begins with a \.
-
-      retry:
-      ClearErrors
-      StrCmp $R6 "" +1 copy_file
-      IfFileExists "$R1$R3\$R7" end +1
-      StrCpy $0 "$R1$R3\$R7"
-
-      create_dir:
-      ClearErrors
-      CreateDirectory "$0"
-      IfFileExists "$0" +1 err_create_dir  ; protect against looping.
-      ${LogMsg}  "Created Directory: $0"
-      StrCmp $R6 "" end copy_file
-
-      err_create_dir:
-      ${LogMsg}  "** ERROR Creating Directory: $0 **"
-      MessageBox MB_RETRYCANCEL|MB_ICONQUESTION "$R4$\r$\n$\r$\n$0$\r$\n$\r$\n$R5" IDRETRY retry
-      ${OnEndCommon}
-      Quit
-
-      copy_file:
-      StrCpy $0 "$R1$R3"
-      StrCmp "$0" "$INSTDIR" +2 +1
-      IfFileExists "$0" +1 create_dir
-
-      ClearErrors
-      ${DeleteFile} "$R1$R3\$R7"
-      IfErrors +1 dest_clear
-      ClearErrors
-      Rename "$R1$R3\$R7" "$R1$R3\$R7.moz-delete"
-      IfErrors +1 reboot_delete
-
-      ; file will replace destination file on reboot
-      Rename "$R9" "$R9.moz-upgrade"
-      CopyFiles /SILENT "$R9.moz-upgrade" "$R1$R3"
-      Rename /REBOOTOK "$R1$R3\$R7.moz-upgrade" "$R1$R3\$R7"
-      ${LogMsg} "Copied File: $R1$R3\$R7.moz-upgrade"
-      ${LogMsg} "Delayed Install File (Reboot Required): $R1$R3\$R7"
-      GoTo log_uninstall
-
-      ; file will be deleted on reboot
-      reboot_delete:
-      CopyFiles /SILENT $R9 "$R1$R3"
-      Delete /REBOOTOK "$R1$R3\$R7.moz-delete"
-      ${LogMsg} "Installed File: $R1$R3\$R7"
-      ${LogMsg} "Delayed Delete File (Reboot Required): $R1$R3\$R7.moz-delete"
-      GoTo log_uninstall
-
-      ; destination file doesn't exist - coast is clear
-      dest_clear:
-      CopyFiles /SILENT $R9 "$R1$R3"
-      ${LogMsg} "Installed File: $R1$R3\$R7"
-
-      log_uninstall:
-      ; If the file is installed into the installation directory remove the
-      ; installation directory's path from the file path when writing to the
-      ; uninstall.log so it will be a relative path. This allows the same
-      ; helper.exe to be used with zip builds if we supply an uninstall.log.
-      ${WordReplace} "$R1$R3\$R7" "$INSTDIR" "" "+" $R3
-      ${LogUninstall} "File: $R3"
-
-      end:
-      Push 0
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro CopyFilesFromDirCall _PATH_TO_SOURCE _PATH_TO_DESTINATION \
-                            _PREFIX_ERROR_CREATEDIR _SUFFIX_ERROR_CREATEDIR
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_PATH_TO_SOURCE}"
-  Push "${_PATH_TO_DESTINATION}"
-  Push "${_PREFIX_ERROR_CREATEDIR}"
-  Push "${_SUFFIX_ERROR_CREATEDIR}"
-  Call CopyFilesFromDir
-  !verbose pop
-!macroend
-
-/**
  * Parses the uninstall.log to unregister dll's, remove files, and remove
  * empty directories for this installation.
  *
@@ -3883,7 +3347,6 @@
 !macro un.ParseUninstallLog
 
   !ifndef un.ParseUninstallLog
-    !insertmacro un.GetParent
     !insertmacro un.LineFind
     !insertmacro un.TrimNewLines
 
@@ -4041,274 +3504,6 @@
   !verbose pop
 !macroend
 
-/**
- * Finds a valid Start Menu shortcut in the uninstall log and returns the
- * relative path from the Start Menu's Programs directory to the shortcut's
- * directory.
- *
- * When modifying this macro be aware that LineFind uses all registers except
- * $R0-$R3 so be cautious. Callers of this macro are not affected.
- *
- * @return  _REL_PATH_TO_DIR
- *          The relative path to the application's Start Menu directory from the
- *          Start Menu's Programs directory.
- */
-!macro FindSMProgramsDir
-
-  !ifndef FindSMProgramsDir
-    !insertmacro GetParent
-    !insertmacro LineFind
-    !insertmacro TrimNewLines
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define FindSMProgramsDir "!insertmacro FindSMProgramsDirCall"
-
-    Function FindSMProgramsDir
-      Exch $R3
-      Push $R2
-      Push $R1
-      Push $R0
-
-      StrCpy $R3 ""
-      IfFileExists "$INSTDIR\uninstall\uninstall.log" +1 end_FindSMProgramsDir
-      ${LineFind} "$INSTDIR\uninstall\uninstall.log" "/NUL" "1:-1" "FindSMProgramsDirRelPath"
-
-      end_FindSMProgramsDir:
-      ClearErrors
-
-      Pop $R0
-      Pop $R1
-      Pop $R2
-      Exch $R3
-    FunctionEnd
-
-    ; This callback MUST use labels vs. relative line numbers.
-    Function FindSMProgramsDirRelPath
-      Push 0
-      ${TrimNewLines} "$R9" $R9
-      StrCpy $R4 "$R9" 5
-
-      StrCmp "$R4" "File:" +1 end_FindSMProgramsDirRelPath
-      StrCpy $R9 "$R9" "" 6
-      StrCpy $R4 "$R9" 1
-
-      StrCmp "$R4" "\" end_FindSMProgramsDirRelPath +1
-
-      SetShellVarContext all
-      ${GetLongPath} "$SMPROGRAMS" $R4
-      StrLen $R2 "$R4"
-      StrCpy $R1 "$R9" $R2
-      StrCmp "$R1" "$R4" +1 end_FindSMProgramsDirRelPath
-      IfFileExists "$R9" +1 end_FindSMProgramsDirRelPath
-      ShellLink::GetShortCutTarget "$R9"
-      Pop $R0
-      StrCmp "$INSTDIR\${FileMainEXE}" "$R0" +1 end_FindSMProgramsDirRelPath
-      ${GetParent} "$R9" $R3
-      IntOp $R2 $R2 + 1
-      StrCpy $R3 "$R3" "" $R2
-
-      Pop $R4             ; Remove the previously pushed 0 from the stack and
-      push "StopLineFind" ; push StopLineFind to stop finding more lines.
-
-      end_FindSMProgramsDirRelPath:
-      ClearErrors
-
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro FindSMProgramsDirCall _REL_PATH_TO_DIR
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Call FindSMProgramsDir
-  Pop ${_REL_PATH_TO_DIR}
-  !verbose pop
-!macroend
-
-
-################################################################################
-# Macros for custom branding
-
-/**
- * Sets BrandFullName and / or BrandShortName to values provided in the specified
- * ini file and defaults to BrandShortName and BrandFullName as defined in
- * branding.nsi when the associated ini file entry is not specified.
- *
- * ini file format:
- * [Branding]
- * BrandFullName=Custom Full Name
- * BrandShortName=Custom Short Name
- *
- * @param   _PATH_TO_INI
- *          Path to the ini file.
- *
- * $R6 = return value from ReadINIStr
- * $R7 = stores BrandShortName
- * $R8 = stores BrandFullName
- * $R9 = _PATH_TO_INI
- */
-!macro SetBrandNameVars
-
-  !ifndef ${_MOZFUNC_UN}SetBrandNameVars
-    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
-    !insertmacro ${_MOZFUNC_UN_TMP}WordReplace
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
-    !undef _MOZFUNC_UN_TMP
-
-    ; Prevent declaring vars twice when the SetBrandNameVars macro is
-    ; inserted into both the installer and uninstaller.
-    !ifndef SetBrandNameVars
-      Var BrandFullName
-      Var BrandFullNameDA
-      Var BrandShortName
-    !endif
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}SetBrandNameVars "!insertmacro ${_MOZFUNC_UN}SetBrandNameVarsCall"
-
-    Function ${_MOZFUNC_UN}SetBrandNameVars
-      Exch $R9
-      Push $R8
-      Push $R7
-      Push $R6
-
-      StrCpy $R8 "${BrandFullName}"
-      StrCpy $R7 "${BrandShortName}"
-
-      IfFileExists "$R9" +1 finish
-
-      ClearErrors
-      ReadINIStr $R6 $R9 "Branding" "BrandFullName"
-      IfErrors +2 +1
-      StrCpy $R8 "$R6"
-
-      ClearErrors
-      ReadINIStr $R6 $R9 "Branding" "BrandShortName"
-      IfErrors +2 +1
-      StrCpy $R7 "$R6"
-
-      finish:
-      StrCpy $BrandFullName "$R8"
-      ${${_MOZFUNC_UN}WordReplace} "$R8" "&" "&&" "+" $R8
-      StrCpy $BrandFullNameDA "$R8"
-      StrCpy $BrandShortName "$R7"
-
-      Pop $R6
-      Pop $R7
-      Pop $R8
-      Exch $R9
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro SetBrandNameVarsCall _PATH_TO_INI
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_PATH_TO_INI}"
-  Call SetBrandNameVars
-  !verbose pop
-!macroend
-
-!macro un.SetBrandNameVarsCall _PATH_TO_INI
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_PATH_TO_INI}"
-  Call un.SetBrandNameVars
-  !verbose pop
-!macroend
-
-!macro un.SetBrandNameVars
-  !ifndef un.SetBrandNameVars
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro SetBrandNameVars
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
-!macroend
-
-/**
- * Replaces the wizard's header image with the one specified.
- *
- * @param   _PATH_TO_IMAGE
- *          Fully qualified path to the bitmap to use for the header image.
- *
- * $R8 = hwnd for the control returned from GetDlgItem.
- * $R9 = _PATH_TO_IMAGE
- */
-!macro ChangeMUIHeaderImage
-
-  !ifndef ${_MOZFUNC_UN}ChangeMUIHeaderImage
-    Var hHeaderBitmap
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}ChangeMUIHeaderImage "!insertmacro ${_MOZFUNC_UN}ChangeMUIHeaderImageCall"
-
-    Function ${_MOZFUNC_UN}ChangeMUIHeaderImage
-      Exch $R9
-      Push $R8
-
-      GetDlgItem $R8 $HWNDPARENT 1046
-      System::Call 'user32::LoadImageW(i 0, w "$R9", i 0, i 0, i 0, i 0x0010|0x2000) i.s'
-      Pop $hHeaderBitmap
-      SendMessage $R8 ${STM_SETIMAGE} 0 $hHeaderBitmap
-      ; There is no way to specify a show function for a custom page so hide
-      ; and then show the control to force the bitmap to redraw.
-      ShowWindow $R8 ${SW_HIDE}
-      ShowWindow $R8 ${SW_SHOW}
-
-      Pop $R8
-      Exch $R9
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro ChangeMUIHeaderImageCall _PATH_TO_IMAGE
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_PATH_TO_IMAGE}"
-  Call ChangeMUIHeaderImage
-  !verbose pop
-!macroend
-
-!macro un.ChangeMUIHeaderImageCall _PATH_TO_IMAGE
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_PATH_TO_IMAGE}"
-  Call un.ChangeMUIHeaderImage
-  !verbose pop
-!macroend
-
-!macro un.ChangeMUIHeaderImage
-  !ifndef un.ChangeMUIHeaderImage
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro ChangeMUIHeaderImage
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
-!macroend
-
 
 ################################################################################
 # User interface callback helper defines and macros
@@ -4357,67 +3552,6 @@
 !macroend
 
 /**
- * Unloads dll's and releases references when the installer and uninstaller
- * exit.
- */
-!macro OnEndCommon
-
-  !ifndef ${_MOZFUNC_UN}OnEndCommon
-    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
-    !insertmacro ${_MOZFUNC_UN_TMP}UnloadUAC
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
-    !undef _MOZFUNC_UN_TMP
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}OnEndCommon "!insertmacro ${_MOZFUNC_UN}OnEndCommonCall"
-
-    Function ${_MOZFUNC_UN}OnEndCommon
-
-      ${${_MOZFUNC_UN}UnloadUAC}
-      StrCmp $hHeaderBitmap "" +3 +1
-      System::Call "gdi32::DeleteObject(i s)" $hHeaderBitmap
-      StrCpy $hHeaderBitmap ""
-
-      System::Free 0
-
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro OnEndCommonCall
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Call OnEndCommon
-  !verbose pop
-!macroend
-
-!macro un.OnEndCommonCall
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Call un.OnEndCommon
-  !verbose pop
-!macroend
-
-!macro un.OnEndCommon
-  !ifndef un.OnEndCommon
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro OnEndCommon
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
-!macroend
-
-/**
  * Called from the installer's .onInit function not to be confused with the
  * uninstaller's .onInit or the uninstaller's un.onInit functions.
  *
@@ -4435,10 +3569,10 @@
 
   !ifndef InstallOnInitCommon
     !insertmacro CloseApp
-    !insertmacro ElevateUAC
     !insertmacro GetOptions
     !insertmacro GetParameters
     !insertmacro GetSize
+    !insertmacro ElevateUAC
 
     !verbose push
     !verbose ${_MOZFUNC_VERBOSE}
@@ -4451,24 +3585,12 @@
       Push $R6
       Push $R5
 
-      ${Unless} ${AtLeastWin2000}
-        ; XXX-rstrong - some systems fail the AtLeastWin2000 test for an
-        ; unknown reason. To work around this also check if the Windows NT
-        ; registry Key exists and if it does if the first char in
-        ; CurrentVersion is equal to 3 (Windows NT 3.5 and 3.5.1) or 4
-        ; (Windows NT 4).
-        StrCpy $R8 ""
-        ClearErrors
-        ReadRegStr $R8 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentVersion"
-        StrCpy $R8 "$R8" 1
-        ${If} ${Errors}
-        ${OrIf} "$R8" == "3"
-        ${OrIf} "$R8" == "4"
+      !ifdef ___WINVER__NSH___
+        ${Unless} ${AtLeastWin2000}
           MessageBox MB_OK|MB_ICONSTOP "$R9" IDOK
-          ; Nothing initialized so no need to call OnEndCommon
           Quit
-        ${EndIf}
-      ${EndUnless}
+        ${EndUnless}
+      !endif
 
       ${GetParameters} $R8
 
@@ -4518,18 +3640,16 @@
               ClearErrors
               ${If} ${FileExists} "$INSTDIR"
                 GetTempFileName $R6 "$INSTDIR"
-                FileOpen $R5 "$R6" w
+                FileOpen $R5 $R6 w
                 FileWrite $R5 "Write Access Test"
                 FileClose $R5
                 Delete $R6
                 ${If} ${Errors}
-                  ; Nothing initialized so no need to call OnEndCommon
                   Quit
                 ${EndIf}
               ${Else}
                 CreateDirectory "$INSTDIR"
                 ${If} ${Errors}
-                  ; Nothing initialized so no need to call OnEndCommon
                   Quit
                 ${EndIf}
               ${EndIf}
@@ -4553,7 +3673,6 @@
                     ClearErrors
                     ${DeleteFile} "$INSTDIR\${FileMainEXE}"
                     ${If} ${Errors}
-                      ; Nothing initialized so no need to call OnEndCommon
                       Quit
                     ${EndIf}
                   ${EndIf}
@@ -4609,7 +3728,7 @@
 !macro InstallOnInitCommonCall _WARN_UNSUPPORTED_MSG
   !verbose push
   !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_WARN_UNSUPPORTED_MSG}"
+  Push ${_WARN_UNSUPPORTED_MSG}
   Call InstallOnInitCommon
   !verbose pop
 !macroend
@@ -4621,47 +3740,22 @@
 !macro UninstallOnInitCommon
 
   !ifndef UninstallOnInitCommon
-    !insertmacro ElevateUAC
     !insertmacro GetLongPath
     !insertmacro GetOptions
     !insertmacro GetParameters
-    !insertmacro GetParent
-    !insertmacro UnloadUAC
     !insertmacro UpdateUninstallLog
+    !insertmacro ElevateUAC
 
     !verbose push
     !verbose ${_MOZFUNC_VERBOSE}
     !define UninstallOnInitCommon "!insertmacro UninstallOnInitCommonCall"
 
     Function UninstallOnInitCommon
-; Prevents breaking apps that don't use SetBrandNameVars
-!ifdef SetBrandNameVars
-      ${SetBrandNameVars} "$EXEDIR\distribution\setup.ini"
-!endif
 
-      ; Prevent launching the application when a reboot is required and this
-      ; executable is the main application executable
-      IfFileExists "$EXEDIR\${FileMainEXE}.moz-upgrade" +1 +4
-      MessageBox MB_YESNO|MB_ICONEXCLAMATION "$(WARN_RESTART_REQUIRED_UPGRADE)" IDNO +2
-      Reboot
-      Quit ; Nothing initialized so no need to call OnEndCommon
-
-      ${GetParent} "$EXEDIR" $INSTDIR
+      GetFullPathName $INSTDIR "$EXEDIR\.."
       ${GetLongPath} "$INSTDIR" $INSTDIR
       IfFileExists "$INSTDIR\${FileMainEXE}" +2 +1
-      Quit ; Nothing initialized so no need to call OnEndCommon
-
-; Prevents breaking apps that don't use SetBrandNameVars
-!ifdef SetBrandNameVars
-      ${SetBrandNameVars} "$INSTDIR\distribution\setup.ini"
-!endif
-
-      ; Prevent all operations (e.g. set as default, postupdate, etc.) when a
-      ; reboot is required and the executable launched is helper.exe
-      IfFileExists "$INSTDIR\${FileMainEXE}.moz-upgrade" +1 +4
-      MessageBox MB_YESNO|MB_ICONEXCLAMATION "$(WARN_RESTART_REQUIRED_UPGRADE)" IDNO +2
-      Reboot
-      Quit ; Nothing initialized so no need to call OnEndCommon
+      Abort
 
       ${GetParameters} $R0
 
@@ -4671,22 +3765,20 @@
       ClearErrors
       ${GetOptions} "$R0" "/HideShortcuts" $R2
       IfErrors showshortcuts +1
-!ifndef NONADMIN_ELEVATE
       ${ElevateUAC}
-!endif
       ${HideShortcuts}
-      GoTo finish
+      StrCpy $R1 "true"
+      StrCmp "$R1" "true" continue
 
       ; Require elevation if the user can elevate
       showshortcuts:
       ClearErrors
       ${GetOptions} "$R0" "/ShowShortcuts" $R2
       IfErrors defaultappuser +1
-!ifndef NONADMIN_ELEVATE
       ${ElevateUAC}
-!endif
       ${ShowShortcuts}
-      GoTo finish
+      StrCpy $R1 "true"
+      GoTo continue
 
       ; Require elevation if the the StartMenuInternet registry keys require
       ; updating and the user can elevate
@@ -4695,7 +3787,8 @@
       ${GetOptions} "$R0" "/SetAsDefaultAppUser" $R2
       IfErrors defaultappglobal +1
       ${SetAsDefaultAppUser}
-      GoTo finish
+      StrCpy $R1 "true"
+      GoTo continue
 
       ; Require elevation if the user can elevate
       defaultappglobal:
@@ -4704,7 +3797,8 @@
       IfErrors postupdate +1
       ${ElevateUAC}
       ${SetAsDefaultAppGlobal}
-      GoTo finish
+      StrCpy $R1 "true"
+      GoTo continue
 
       ; Do not attempt to elevate. The application launching this executable is
       ; responsible for elevation if it is required.
@@ -4712,41 +3806,41 @@
       ${WordReplace} "$R0" "$\"" "" "+" $R0
       ClearErrors
       ${GetOptions} "$R0" "/PostUpdate" $R2
+      StrCpy $R1 "true"
       IfErrors continue +1
       ; If the uninstall.log does not exist don't perform post update
       ; operations. This prevents updating the registry for zip builds.
-      IfFileExists "$EXEDIR\uninstall.log" +1 finish
+      IfFileExists "$EXEDIR\uninstall.log" +1 continue
       ${PostUpdate}
       ClearErrors
       ${GetOptions} "$R0" "/UninstallLog=" $R2
       IfErrors updateuninstalllog +1
-      StrCmp "$R2" "" finish +1
+      StrCmp "$R2" "" continue +1
       GetFullPathName $R3 "$R2"
-      IfFileExists "$R3" +1 finish
+      IfFileExists "$R3" +1 continue
       Delete "$INSTDIR\uninstall\*wizard*"
       Delete "$INSTDIR\uninstall\uninstall.log"
       CopyFiles /SILENT /FILESONLY "$R3" "$INSTDIR\uninstall\"
       ${GetParent} "$R3" $R4
       Delete "$R3"
       RmDir "$R4"
-      GoTo finish
+      GoTo continue
 
       ; Do not attempt to elevate. The application launching this executable is
       ; responsible for elevation if it is required.
       updateuninstalllog:
       ${UpdateUninstallLog}
-
-      finish:
-      ${UnloadUAC}
-      System::Call "shell32::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)"
-      Quit ; Nothing initialized so no need to call OnEndCommon
-
+      StrCpy $R1 "true"
+      
       continue:
+      StrCmp $R1 "true" +1 +3
+      System::Call "shell32::SHChangeNotify(i, i, i, i) v (0x08000000, 0, 0, 0)"
+      Quit
 
       ; If the uninstall.log does not exist don't perform uninstall
       ; operations. This prevents running the uninstaller for zip builds.
-      IfFileExists "$INSTDIR\uninstall\uninstall.log" +2 +1
-      Quit ; Nothing initialized so no need to call OnEndCommon
+      IfFileExists "$EXEDIR\uninstall.log" +2 +1
+      Quit
 
       ; Require elevation if the user can elevate
       ${ElevateUAC}
@@ -4762,9 +3856,8 @@
       ; so it won't be in use so it can delete itself.
       ExecWait $R1
       ${DeleteFile} "$EXEDIR\uninstaller.exe"
-      ${UnloadUAC}
       SetErrorLevel 0
-      Quit ; Nothing initialized so no need to call OnEndCommon
+      Quit
 
     FunctionEnd
 
@@ -4791,10 +3884,7 @@
     !insertmacro CanWriteToInstallDir
     !insertmacro CheckDiskSpace
     !insertmacro GetLongPath
-
-!ifndef NO_INSTDIR_FROM_REG
     !insertmacro GetSingleInstallPath
-!endif
 
     !verbose push
     !verbose ${_MOZFUNC_VERBOSE}
@@ -4803,8 +3893,6 @@
     Function PreDirectoryCommon
       Push $R9
 
-!ifndef NO_INSTDIR_PREDIRCOMMON
-!ifndef NO_INSTDIR_FROM_REG
       SetShellVarContext all      ; Set SHCTX to HKLM
       ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
 
@@ -4816,8 +3904,6 @@
       fix_install_dir:
       StrCmp "$R9" "false" +2 +1
       StrCpy $INSTDIR "$R9"
-!endif
-!endif
 
       IfFileExists "$INSTDIR" +1 check_install_dir
 
@@ -4832,10 +3918,10 @@
 
       check_install_dir:
       IntCmp $InstallType ${INSTALLTYPE_CUSTOM} end +1 +1
-      ${CanWriteToInstallDir} $R9
-      StrCmp "$R9" "false" end +1
       ${CheckDiskSpace} $R9
-      StrCmp "$R9" "false" end +1
+      StrCmp $R9 "false" end +1
+      ${CanWriteToInstallDir} $R9
+      StrCmp $R9 "false" end +1
       Abort
 
       end:
@@ -4860,6 +3946,7 @@
  * @param   _WARN_DISK_SPACE
  *          Message displayed when there isn't enough disk space to perform the
  *          installation.
+ *          $INSTDIR.
  * @param   _WARN_WRITE_ACCESS
  *          Message displayed when the installer does not have write access to
  *          $INSTDIR.
@@ -4884,14 +3971,14 @@
       Exch $R8
       Push $R7
 
-      ${CanWriteToInstallDir} $R7
-      StrCmp $R7 "false" +1 +3
-      MessageBox MB_OK|MB_ICONEXCLAMATION "$R9"
-      Abort
-
       ${CheckDiskSpace} $R7
       StrCmp $R7 "false" +1 +3
-      MessageBox MB_OK|MB_ICONEXCLAMATION "$R8"
+      MessageBox MB_OK "$R8"
+      Abort
+
+      ${CanWriteToInstallDir} $R7
+      StrCmp $R7 "false" +1 +3
+      MessageBox MB_OK "$R9"
       Abort
 
       Pop $R7
@@ -5024,13 +4111,6 @@
 !macro ElevateUAC
 
   !ifndef ${_MOZFUNC_UN}ElevateUAC
-    !define _MOZFUNC_UN_TMP ${_MOZFUNC_UN}
-    !insertmacro ${_MOZFUNC_UN_TMP}GetOptions
-    !insertmacro ${_MOZFUNC_UN_TMP}GetParameters
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP}
-    !undef _MOZFUNC_UN_TMP
-
     !verbose push
     !verbose ${_MOZFUNC_VERBOSE}
     !define ${_MOZFUNC_UN}ElevateUAC "!insertmacro ${_MOZFUNC_UN}ElevateUACCall"
@@ -5039,7 +4119,9 @@
       Push $R9
       Push $0
 
-!ifndef NONADMIN_ELEVATE
+; USE_UAC_PLUGIN is temporary until Thunderbird has been updated to use the UAC plugin
+!ifdef USE_UAC_PLUGIN
+      !ifdef ___WINVER__NSH___
         ${If} ${AtLeastWinVista}
           UAC::IsAdmin
           ; If the user is not an admin already
@@ -5050,9 +4132,7 @@
               UAC::GetElevationType
               ; If the user account has a split token
               ${If} "$0" == "3"
-                UAC::RunElevated
-                UAC::Unload
-                ; Nothing besides UAC initialized so no need to call OnEndCommon
+                UAC::RunElevated 
                 Quit
               ${EndIf}
             ${EndIf}
@@ -5070,61 +4150,8 @@
             ${EndIf}
           ${EndIf}
         ${EndIf}
-!else
-      ${If} ${AtLeastWinVista}
-        UAC::IsAdmin
-        ; If the user is not an admin already
-        ${If} "$0" != "1"
-          UAC::SupportsUAC
-          ; If the system supports UAC require that the user elevate
-          ${If} "$0" == "1"
-            UAC::GetElevationType
-            ; If the user account has a split token
-            ${If} "$0" == "3"
-              UAC::RunElevated
-              UAC::Unload
-              ; Nothing besides UAC initialized so no need to call OnEndCommon
-              Quit
-            ${EndIf}
-          ${Else}
-            ; Check if UAC is enabled. If the user has turned UAC on or off
-            ; without rebooting this value will be incorrect. This is an
-            ; edgecase that we have to live with when trying to allow
-            ; installing when the user doesn't have privileges such as a public
-            ; computer while trying to also achieve UAC elevation. When this
-            ; happens the user will be presented with the runas dialog if the
-            ; value is 1 and won't be presented with the UAC dialog when the
-            ; value is 0.
-            ReadRegDWord $R9 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" "EnableLUA"
-            ${If} "$R9" == "1"
-              ; This will display the UAC version of the runas dialog which
-              ; requires a password for an existing user account.
-              UAC::RunElevated
-              ${If} "$0" == "0" ; Was elevation successful
-                UAC::Unload
-                ; Nothing besides UAC initialized so no need to call OnEndCommon
-                Quit
-              ${EndIf}
-              ; Unload UAC since the elevation request was not successful and
-              ; install anyway.
-              UAC::Unload
-            ${EndIf}
-          ${EndIf}
-        ${Else}
-          ClearErrors
-          ${${_MOZFUNC_UN}GetParameters} $R9
-          ${${_MOZFUNC_UN}GetOptions} "$R9" "/UAC:" $R9
-          ; If the command line contains /UAC then we need to initialize the UAC
-          ; plugin to use UAC::ExecCodeSegment to execute code in the
-          ; non-elevated context.
-          ${Unless} ${Errors}
-            UAC::RunElevated 
-          ${EndUnless}
-        ${EndIf}
-      ${EndIf}
+      !endif
 !endif
-
-      ClearErrors
 
       Pop $0
       Pop $R9
@@ -5163,81 +4190,9 @@
   !endif
 !macroend
 
-/**
- * Unloads the UAC plugin so the NSIS plugins can be removed when the installer
- * and uninstaller exit.
- *
- * $R9 = return values from GetParameters and GetOptions macros
- */
-!macro UnloadUAC
-
-  !ifndef ${_MOZFUNC_UN}UnloadUAC
-    !define _MOZFUNC_UN_TMP_UnloadUAC ${_MOZFUNC_UN}
-    !insertmacro ${_MOZFUNC_UN_TMP_UnloadUAC}GetOptions
-    !insertmacro ${_MOZFUNC_UN_TMP_UnloadUAC}GetParameters
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN ${_MOZFUNC_UN_TMP_UnloadUAC}
-    !undef _MOZFUNC_UN_TMP_UnloadUAC
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define ${_MOZFUNC_UN}UnloadUAC "!insertmacro ${_MOZFUNC_UN}UnloadUACCall"
-
-    Function ${_MOZFUNC_UN}UnloadUAC
-      ${Unless} ${AtLeastWinVista}
-        Return
-      ${EndUnless}
-
-      Push $R9
-
-      ClearErrors
-      ${${_MOZFUNC_UN}GetParameters} $R9
-      ${${_MOZFUNC_UN}GetOptions} "$R9" "/UAC:" $R9
-      ; If the command line contains /UAC then we need to unload the UAC plugin
-      IfErrors +2 +1
-      UAC::Unload
-
-      ClearErrors
-
-      Pop $R9
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro UnloadUACCall
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Call UnloadUAC
-  !verbose pop
-!macroend
-
-!macro un.UnloadUACCall
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Call un.UnloadUAC
-  !verbose pop
-!macroend
-
-!macro un.UnloadUAC
-  !ifndef un.UnloadUAC
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN "un."
-
-    !insertmacro UnloadUAC
-
-    !undef _MOZFUNC_UN
-    !define _MOZFUNC_UN
-    !verbose pop
-  !endif
-!macroend
-
 
 ################################################################################
-# Macros for uninstall.log and install.log logging
+# Macros for logging
 #
 # Since these are used by other macros they should be inserted first. All of
 # these macros can be easily inserted using the _LoggingCommon macro.
@@ -5303,12 +4258,10 @@
       Push $R0
       Push $9
 
-      ${DeleteFile} "$INSTDIR\install.log"
       FileOpen $fhInstallLog "$INSTDIR\install.log" w
-      FileWriteWord $fhInstallLog "65279"
 
       ${GetTime} "" "L" $9 $R0 $R1 $R2 $R3 $R4 $R5
-      FileWriteUTF16LE $fhInstallLog "$R6 Installation Started: $R1-$R0-$9 $R3:$R4:$R5"
+      FileWrite $fhInstallLog "$R6 Installation Started: $R1-$R0-$9 $R3:$R4:$R5"
       ${WriteLogSeparator}
 
       ${LogHeader} "Installation Details"
@@ -5377,7 +4330,7 @@
       
       ${WriteLogSeparator}
       ${GetTime} "" "L" $R2 $R3 $R4 $R5 $R6 $R7 $R8
-      FileWriteUTF16LE $fhInstallLog "$R9 Installation Finished: $R4-$R3-$R2 $R6:$R7:$R8$\r$\n"
+      FileWrite $fhInstallLog "$R9 Installation Finished: $R4-$R3-$R2 $R6:$R7:$R8$\r$\n"
       FileClose $fhInstallLog
 
       Pop $R2
@@ -5463,7 +4416,7 @@
  */
 !macro LogHeader _HEADER
   ${WriteLogSeparator}
-  FileWriteUTF16LE $fhInstallLog "${_HEADER}"
+  FileWrite $fhInstallLog "${_HEADER}"
   ${WriteLogSeparator}
 !macroend
 !define LogHeader "!insertmacro LogHeader"
@@ -5475,7 +4428,7 @@
  *          The message text to write to the log.
  */
 !macro LogMsg _MSG
-  FileWriteUTF16LE $fhInstallLog "  ${_MSG}$\r$\n"
+  FileWrite $fhInstallLog "  ${_MSG}$\r$\n"
 !macroend
 !define LogMsg "!insertmacro LogMsg"
 
@@ -5494,281 +4447,7 @@
  * Adds a section divider to the human readable log.
  */
 !macro WriteLogSeparator
-  FileWriteUTF16LE $fhInstallLog "$\r$\n----------------------------------------\
-                                  ---------------------------------------$\r$\n"
+  FileWrite $fhInstallLog "$\r$\n----------------------------------------\
+                           ---------------------------------------$\r$\n"
 !macroend
 !define WriteLogSeparator "!insertmacro WriteLogSeparator"
-
-
-################################################################################
-# Macros for managing the shortcuts log ini file
-
-/**
- * Adds the most commonly used shortcut logging macros for the installer in one
- * fell swoop.
- */
-!macro _LoggingShortcutsCommon
-  !insertmacro LogDesktopShortcut
-  !insertmacro LogQuickLaunchShortcut
-  !insertmacro LogSMProgramsShortcut
-!macroend
-!define _LoggingShortcutsCommon "!insertmacro _LoggingShortcutsCommon"
-
-/**
- * Creates the shortcuts log ini file with a UTF-16LE BOM if it doesn't exist.
- */
-!macro initShortcutsLog
-  Push $R9
-
-  IfFileExists "$INSTDIR\uninstall\${SHORTCUTS_LOG}" +4 +1
-  FileOpen $R9 "$INSTDIR\uninstall\${SHORTCUTS_LOG}" w
-  FileWriteWord $R9 "65279"
-  FileClose $R9
-
-  Pop $R9
-!macroend
-!define initShortcutsLog "!insertmacro initShortcutsLog"
-
-/**
- * Adds shortcut entries to the shortcuts log ini file. This macro is primarily
- * a helper used by the LogDesktopShortcut, LogQuickLaunchShortcut, and
- * LogSMProgramsShortcut macros but it can be used by other code if desired. If
- * the value already exists the the value is not written to the file.
- *
- * @param   _SECTION_NAME
- *          The section name to write to in the shortcut log ini file
- * @param   _FILE_NAME
- *          The 
- *
- * $R6 = 
- * $R7 = 
- * $R8 = _SECTION_NAME
- * $R9 = _FILE_NAME
- */
-!macro LogShortcut
-
-  !ifndef LogShortcut
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define LogShortcut "!insertmacro LogShortcutCall"
-
-    Function LogShortcut
-      Exch $R9
-      Exch 1
-      Exch $R8
-      Push $R7
-      Push $R6
-
-      ClearErrors
-
-      !insertmacro initShortcutsLog
-
-      StrCpy $R6 ""
-      StrCpy $R7 -1
-
-      StrCmp "$R6" "$R9" +5 +1 ; if the shortcut already exists don't add it
-      IntOp $R7 $R7 + 1 ; increment the counter
-      ReadIniStr $R6 "$INSTDIR\uninstall\${SHORTCUTS_LOG}" "$R8" "Shortcut$R7"
-      IfErrors +1 -3
-      WriteINIStr "$INSTDIR\uninstall\${SHORTCUTS_LOG}" "$R8" "Shortcut$R7" "$R9"
-
-      ClearErrors
-
-      Pop $R6
-      Pop $R7
-      Exch $R8
-      Exch 1
-      Exch $R9
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro LogShortcutCall _SECTION_NAME _FILE_NAME
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "${_SECTION_NAME}"
-  Push "${_FILE_NAME}"
-  Call LogShortcut
-  !verbose pop
-!macroend
-
-/**
- * Adds a Desktop shortcut entry to the shortcuts log ini file.
- *
- * @param   _FILE_NAME
- *          The shortcut file name (e.g. shortcut.lnk)
- */
-!macro LogDesktopShortcut
-
-  !ifndef LogDesktopShortcut
-    !insertmacro LogShortcut
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define LogDesktopShortcut "!insertmacro LogDesktopShortcutCall"
-
-    Function LogDesktopShortcut
-      Call LogShortcut
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro LogDesktopShortcutCall _FILE_NAME
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "DESKTOP"
-  Push "${_FILE_NAME}"
-  Call LogDesktopShortcut
-  !verbose pop
-!macroend
-
-/**
- * Adds a QuickLaunch shortcut entry to the shortcuts log ini file.
- *
- * @param   _FILE_NAME
- *          The shortcut file name (e.g. shortcut.lnk)
- */
-!macro LogQuickLaunchShortcut
-
-  !ifndef LogQuickLaunchShortcut
-    !insertmacro LogShortcut
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define LogQuickLaunchShortcut "!insertmacro LogQuickLaunchShortcutCall"
-
-    Function LogQuickLaunchShortcut
-      Call LogShortcut
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro LogQuickLaunchShortcutCall _FILE_NAME
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "QUICKLAUNCH"
-  Push "${_FILE_NAME}"
-  Call LogQuickLaunchShortcut
-  !verbose pop
-!macroend
-
-/**
- * Adds a Start Menu shortcut entry to the shortcuts log ini file.
- *
- * @param   _FILE_NAME
- *          The shortcut file name (e.g. shortcut.lnk)
- */
-!macro LogStartMenuShortcut
-
-  !ifndef LogStartMenuShortcut
-    !insertmacro LogShortcut
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define LogStartMenuShortcut "!insertmacro LogStartMenuShortcutCall"
-
-    Function LogStartMenuShortcut
-      Call LogShortcut
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro LogStartMenuShortcutCall _FILE_NAME
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "STARTMENU"
-  Push "${_FILE_NAME}"
-  Call LogStartMenuShortcut
-  !verbose pop
-!macroend
-
-/**
- * Adds a Start Menu Programs shortcut entry to the shortcuts log ini file.
- *
- * @param   _FILE_NAME
- *          The shortcut file name (e.g. shortcut.lnk)
- */
-!macro LogSMProgramsShortcut
-
-  !ifndef LogSMProgramsShortcut
-    !insertmacro LogShortcut
-
-    !verbose push
-    !verbose ${_MOZFUNC_VERBOSE}
-    !define LogSMProgramsShortcut "!insertmacro LogSMProgramsShortcutCall"
-
-    Function LogSMProgramsShortcut
-      Call LogShortcut
-    FunctionEnd
-
-    !verbose pop
-  !endif
-!macroend
-
-!macro LogSMProgramsShortcutCall _FILE_NAME
-  !verbose push
-  !verbose ${_MOZFUNC_VERBOSE}
-  Push "SMPROGRAMS"
-  Push "${_FILE_NAME}"
-  Call LogSMProgramsShortcut
-  !verbose pop
-!macroend
-
-/**
- * Adds the relative path from the Start Menu Programs directory for the
- * application's Start Menu directory if it is different from the existing value
- * to the shortcuts log ini file.
- *
- * @param   _REL_PATH_TO_DIR
- *          The 
- *
- * $R9 = _REL_PATH_TO_DIR
- */
-!macro LogSMProgramsDirRelPath _REL_PATH_TO_DIR
-  Push $R9
-
-  !insertmacro initShortcutsLog
-
-  ReadINIStr $R9 "$INSTDIR\uninstall\${SHORTCUTS_LOG}" "SMPROGRAMS" "RelativePathToDir"
-  StrCmp "$R9" "${_REL_PATH_TO_DIR}" +2 +1
-  WriteINIStr "$INSTDIR\uninstall\${SHORTCUTS_LOG}" "SMPROGRAMS" "RelativePathToDir" "${_REL_PATH_TO_DIR}"
-
-  Pop $R9
-!macroend
-!define LogSMProgramsDirRelPath "!insertmacro LogSMProgramsDirRelPath"
-
-/**
- * Copies the value for the relative path from the Start Menu programs directory
- * (e.g. $SMPROGRAMS) to the Start Menu directory as it is stored in the
- * shortcuts log ini file to the variable specified in the first parameter.
- */
-!macro GetSMProgramsDirRelPath _VAR
-  ReadINIStr ${_VAR} "$INSTDIR\uninstall\${SHORTCUTS_LOG}" "SMPROGRAMS" \
-             "RelativePathToDir"
-!macroend
-!define GetSMProgramsDirRelPath "!insertmacro GetSMProgramsDirRelPath"
-
-/**
- * Copies the shortcuts log ini file path to the variable specified in the
- * first parameter.
- */
-!macro GetShortcutsLogPath _VAR
-  StrCpy ${_VAR} "$INSTDIR\uninstall\${SHORTCUTS_LOG}"
-!macroend
-!define GetShortcutsLogPath "!insertmacro GetShortcutsLogPath"
-
-/**
- * Deletes the shortcuts log ini file.
- */
-!macro DeleteShortcutsLogFile
-  ${DeleteFile} "$INSTDIR\uninstall\${SHORTCUTS_LOG}"
-!macroend
-!define DeleteShortcutsLogFile "!insertmacro DeleteShortcutsLogFile"

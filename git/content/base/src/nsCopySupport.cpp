@@ -49,7 +49,6 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIDOMRange.h"
-#include "imgIContainer.h"
 
 #include "nsIDocShell.h"
 #include "nsIContentViewerEdit.h"
@@ -66,6 +65,7 @@
 // image copy stuff
 #include "nsIImageLoadingContent.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIImage.h"
 #include "nsContentUtils.h"
 #include "nsContentCID.h"
 
@@ -86,23 +86,13 @@ static nsresult AppendString(nsITransferable *aTransferable,
 static nsresult AppendDOMNode(nsITransferable *aTransferable,
                               nsIDOMNode *aDOMNode);
 
-// Helper used for HTMLCopy and GetTransferableForSelection since both routines
-// share common code.
-static nsresult
-SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
-                    PRBool doPutOnClipboard, PRInt16 aClipboardID,
-                    nsITransferable ** aTransferable)
+nsresult nsCopySupport::HTMLCopy(nsISelection *aSel, nsIDocument *aDoc, PRInt16 aClipboardID)
 {
-  // Clear the output parameter for the transferable, if provided.
-  if (aTransferable) {
-    *aTransferable = nsnull;
-  }
-
   nsresult rv = NS_OK;
   
   PRBool bIsPlainTextContext = PR_FALSE;
 
-  rv = nsCopySupport::IsPlainTextContext(aSel, aDoc, &bIsPlainTextContext);
+  rv = IsPlainTextContext(aSel, aDoc, &bIsPlainTextContext);
   if (NS_FAILED(rv)) 
     return rv;
 
@@ -115,18 +105,8 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
   NS_ENSURE_TRUE(docEncoder, NS_ERROR_FAILURE);
 
   // We always require a plaintext version
-  
-  // note that we assign text/unicode as mime type, but in fact nsHTMLCopyEncoder
-  // ignore it and use text/html or text/plain depending where the selection
-  // is. if it is a selection into input/textarea element or in a html content
-  // with pre-wrap style : text/plain. Otherwise text/html.
-  // see nsHTMLCopyEncoder::SetSelection
   mimeType.AssignLiteral(kUnicodeMime);
-  
-  // we want preformatted for the case where the selection is inside input/textarea
-  // and we don't want pretty printing for others cases, to not have additionnal
-  // line breaks which are then converted into spaces by the htmlConverter (see bug #524975)
-  PRUint32 flags = nsIDocumentEncoder::OutputPreformatted | nsIDocumentEncoder::OutputRaw;
+  PRUint32 flags = nsIDocumentEncoder::OutputPreformatted;
 
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aDoc);
   NS_ASSERTION(domDoc, "Need a document");
@@ -134,7 +114,6 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
   rv = docEncoder->Init(domDoc, mimeType, flags);
   if (NS_FAILED(rv)) 
     return rv;
-
   rv = docEncoder->SetSelection(aSel);
   if (NS_FAILED(rv)) 
     return rv;
@@ -181,40 +160,42 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
   }
   
   // Get the Clipboard
-  nsCOMPtr<nsIClipboard> clipboard;
-  if (doPutOnClipboard) {
-    clipboard = do_GetService(kCClipboardCID, &rv);
-    if (NS_FAILED(rv))
-      return rv;
-  }
+  nsCOMPtr<nsIClipboard> clipboard(do_GetService(kCClipboardCID, &rv));
+  if (NS_FAILED(rv)) 
+    return rv;
 
-  if ((doPutOnClipboard && clipboard) || aTransferable != nsnull) {
+  if ( clipboard ) 
+  {
     // Create a transferable for putting data on the Clipboard
     nsCOMPtr<nsITransferable> trans = do_CreateInstance(kCTransferableCID);
-    if (trans) {
-      if (bIsHTMLCopy) {
+    if ( trans ) 
+    {
+      if (bIsHTMLCopy)
+      {
         // set up the data converter
         trans->SetConverter(htmlConverter);
 
-        if (!buffer.IsEmpty()) {
+        if (!buffer.IsEmpty())
+        {
           // Add the html DataFlavor to the transferable
           rv = AppendString(trans, buffer, kHTMLMime);
           NS_ENSURE_SUCCESS(rv, rv);
         }
-
-        // Add the htmlcontext DataFlavor to the transferable
-        // Even if parents is empty string, this flavor should
-        // be attached to the transferable
-        rv = AppendString(trans, parents, kHTMLContext);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        if (!info.IsEmpty()) {
+        {
+          // Add the htmlcontext DataFlavor to the transferable
+          // Even if parents is empty string, this flavor should
+          // be attached to the transferable
+          rv = AppendString(trans, parents, kHTMLContext);
+          NS_ENSURE_SUCCESS(rv, rv);
+        }
+        if (!info.IsEmpty())
+        {
           // Add the htmlinfo DataFlavor to the transferable
           rv = AppendString(trans, info, kHTMLInfo);
           NS_ENSURE_SUCCESS(rv, rv);
         }
-
-        if (!plaintextBuffer.IsEmpty()) {
+        if (!plaintextBuffer.IsEmpty())
+        {
           // unicode text
           // Add the unicode DataFlavor to the transferable
           // If we didn't have this, then nsDataObj::GetData matches text/unicode against
@@ -242,43 +223,26 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
             NS_ENSURE_SUCCESS(rv, rv);
           }
         }
-      } else {
-        if (!textBuffer.IsEmpty()) {
-          // Add the unicode DataFlavor to the transferable
+      }
+      else
+      {
+        if (!textBuffer.IsEmpty())
+        {
+         // Add the unicode DataFlavor to the transferable
           rv = AppendString(trans, textBuffer, kUnicodeMime);
           NS_ENSURE_SUCCESS(rv, rv);
         }
       }
 
-      if (doPutOnClipboard && clipboard) {
-        PRBool actuallyPutOnClipboard = PR_TRUE;
-        nsCopySupport::DoHooks(aDoc, trans, &actuallyPutOnClipboard);
+      PRBool doPutOnClipboard = PR_TRUE;
+      DoHooks(aDoc, trans, &doPutOnClipboard);
 
-        // put the transferable on the clipboard
-        if (actuallyPutOnClipboard)
-          clipboard->SetData(trans, nsnull, aClipboardID);
-      }
-
-      // Return the transferable to the caller if requested.
-      if (aTransferable != nsnull) {
-        trans.swap(*aTransferable);
-      }
+      // put the transferable on the clipboard
+      if (doPutOnClipboard)
+        clipboard->SetData(trans, nsnull, aClipboardID);
     }
   }
   return rv;
-}
-
-nsresult nsCopySupport::HTMLCopy(nsISelection *aSel, nsIDocument *aDoc, PRInt16 aClipboardID)
-{
-  return SelectionCopyHelper(aSel, aDoc, PR_TRUE, aClipboardID, nsnull);
-}
-
-nsresult
-nsCopySupport::GetTransferableForSelection(nsISelection * aSel,
-                                           nsIDocument * aDoc,
-                                           nsITransferable ** aTransferable)
-{
-  return SelectionCopyHelper(aSel, aDoc, PR_FALSE, 0, aTransferable);
 }
 
 nsresult nsCopySupport::DoHooks(nsIDocument *aDoc, nsITransferable *aTrans,
@@ -359,7 +323,7 @@ nsresult nsCopySupport::IsPlainTextContext(nsISelection *aSel, nsIDocument *aDoc
   {
     // checking for selection inside a plaintext form widget
 
-    if (!selContent->IsHTML()) {
+    if (!selContent->IsNodeOfType(nsINode::eHTML)) {
       continue;
     }
 
@@ -380,7 +344,7 @@ nsresult nsCopySupport::IsPlainTextContext(nsISelection *aSel, nsIDocument *aDoc
       nsCOMPtr<nsIDOMElement> bodyElem = do_QueryInterface(selContent);
       nsAutoString wsVal;
       rv = bodyElem->GetAttribute(NS_LITERAL_STRING("style"), wsVal);
-      if (NS_SUCCEEDED(rv) && (kNotFound != wsVal.Find(NS_LITERAL_STRING("pre-wrap"))))
+      if (NS_SUCCEEDED(rv) && (kNotFound != wsVal.Find(NS_LITERAL_STRING("-moz-pre-wrap"))))
       {
         *aIsPlainTextContext = PR_TRUE;
         break;
@@ -393,7 +357,7 @@ nsresult nsCopySupport::IsPlainTextContext(nsISelection *aSel, nsIDocument *aDoc
   // copy it properly (all the copy code for non-plaintext assumes using HTML
   // serializers and parsers is OK, and those mess up XHTML).
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(aDoc);
-  if (!(htmlDoc && aDoc->IsHTML()))
+  if (!htmlDoc || aDoc->IsCaseSensitive())
     *aIsPlainTextContext = PR_TRUE;
 
   return NS_OK;
@@ -473,7 +437,7 @@ nsCopySupport::ImageCopy(nsIImageLoadingContent* aImageElement,
 
   if (aCopyFlags & nsIContentViewerEdit::COPY_IMAGE_DATA) {
     // get the image data from the element
-    nsCOMPtr<imgIContainer> image =
+    nsCOMPtr<nsIImage> image =
       nsContentUtils::GetImageFromContent(aImageElement);
     NS_ENSURE_TRUE(image, NS_ERROR_FAILURE);
 
@@ -551,7 +515,7 @@ static nsresult AppendDOMNode(nsITransferable *aTransferable,
   nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(domDocument, &rv);
   NS_ENSURE_SUCCESS(rv, NS_OK);
 
-  NS_ENSURE_TRUE(document->IsHTML(), NS_OK);
+  NS_ENSURE_TRUE(!(document->IsCaseSensitive()), NS_OK);
 
   // init encoder with document and node
   rv = docEncoder->Init(domDocument, NS_LITERAL_STRING(kHTMLMime),

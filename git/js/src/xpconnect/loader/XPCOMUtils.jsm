@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 sts=2 et filetype=javascript
+/*
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -83,9 +82,7 @@
  *    // QueryInterface implementation, e.g. using the generateQI helper
  *    QueryInterface: XPCOMUtils.generateQI(
  *      [Components.interfaces.nsIObserver,
- *       Components.interfaces.nsIMyInterface,
- *       "nsIFoo",
- *       "nsIBar" ]),
+ *       Components.interfaces.nsIMyInterface]),
  *
  *    // ...component implementation...
  *  };
@@ -102,9 +99,8 @@
  */
 
 
-var EXPORTED_SYMBOLS = [ "XPCOMUtils" ];
+EXPORTED_SYMBOLS = [ "XPCOMUtils" ];
 
-const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
@@ -115,18 +111,15 @@ var XPCOMUtils = {
    * that object, it checks if the given iid is listed in the |interfaces|
    * param, and if it is, returns |this| (the object it was called on).
    */
-  generateQI: function XPCU_generateQI(interfaces) {
-    /* Note that Ci[Ci.x] == Ci.x for all x */
-    return makeQI([Ci[i].name for each (i in interfaces) if (Ci[i])]);
+  generateQI: function(interfaces) {
+    return makeQI([i.name for each(i in interfaces)]);
   },
 
   /**
    * Generate the NSGetModule function (along with the module definition).
    * See the parameters to generateModule.
    */
-  generateNSGetModule: function XPCU_generateNSGetModule(componentsArray,
-                                                         postRegister,
-                                                         preUnregister) {
+  generateNSGetModule: function(componentsArray, postRegister, preUnregister) {
     return function NSGetModule(compMgr, fileSpec) {
       return XPCOMUtils.generateModule(componentsArray,
                                        postRegister,
@@ -146,8 +139,7 @@ var XPCOMUtils = {
    *                      signature 'preUnregister(nsIComponentManager,
    *                                               nsIFile, componentsArray)'
    */
-  generateModule: function XPCU_generateModule(componentsArray, postRegister,
-                                               preUnregister) {
+  generateModule: function(componentsArray, postRegister, preUnregister) {
     let classes = [];
     for each (let component in componentsArray) {
       classes.push({
@@ -233,47 +225,6 @@ var XPCOMUtils = {
   },
 
   /**
-   * Defines a getter on a specified object that will be created upon first use.
-   *
-   * @param aObject
-   *        The object to define the lazy getter on.
-   * @param aName
-   *        The name of the getter to define on aObject.
-   * @param aLambda
-   *        A function that returns what the getter should return.  This will
-   *        only ever be called once.
-   */
-  defineLazyGetter: function XPCU_defineLazyGetter(aObject, aName, aLambda)
-  {
-    aObject.__defineGetter__(aName, function() {
-      delete aObject[aName];
-      return aObject[aName] = aLambda.apply(aObject);
-    });
-  },
-
-  /**
-   * Defines a getter on a specified object for a service.  The service will not
-   * be obtained until first use.
-   *
-   * @param aObject
-   *        The object to define the lazy getter on.
-   * @param aName
-   *        The name of the getter to define on aObject for the service.
-   * @param aContract
-   *        The contract used to obtain the service.
-   * @param aInterfaceName
-   *        The name of the interface to query the service to.
-   */
-  defineLazyServiceGetter: function XPCU_defineLazyServiceGetter(aObject, aName,
-                                                                 aContract,
-                                                                 aInterfaceName)
-  {
-    this.defineLazyGetter(aObject, aName, function XPCU_serviceLambda() {
-      return Cc[aContract].getService(Ci[aInterfaceName]);
-    });
-  },
-
-  /**
    * Convenience access to category manager
    */
   get categoryManager() {
@@ -284,7 +235,7 @@ var XPCOMUtils = {
   /**
    * Returns an nsIFactory for |component|.
    */
-  _getFactory: function XPCOMUtils__getFactory(component) {
+  _getFactory: function(component) {
     var factory = component.prototype._xpcom_factory;
     if (!factory) {
       factory = {

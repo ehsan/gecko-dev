@@ -38,7 +38,6 @@
 
 #include "nsFTPChannel.h"
 #include "nsFtpControlConnection.h"
-#include "nsFtpProtocolHandler.h"
 #include "prlog.h"
 #include "nsIPipe.h"
 #include "nsIInputStream.h"
@@ -96,10 +95,8 @@ nsFtpControlConnection::OnInputStreamReady(nsIAsyncInputStream *stream)
     return NS_OK;
 }
 
-nsFtpControlConnection::nsFtpControlConnection(const nsCSubstring& host,
-                                               PRUint32 port)
-    : mServerType(0), mSessionId(gFtpHandler->GetSessionId()), mHost(host)
-    , mPort(port)
+nsFtpControlConnection::nsFtpControlConnection(const nsCSubstring& host, PRUint32 port)
+    : mServerType(0), mHost(host), mPort(port)
 {
     LOG_ALWAYS(("FTP:CC created @%p", this));
 }

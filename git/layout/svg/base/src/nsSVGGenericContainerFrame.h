@@ -43,20 +43,17 @@
 #include "nsPresContext.h"
 #include "nsSVGContainerFrame.h"
 #include "nsGkAtoms.h"
-#include "gfxMatrix.h"
 
 typedef nsSVGDisplayContainerFrame nsSVGGenericContainerFrameBase;
 
 class nsSVGGenericContainerFrame : public nsSVGGenericContainerFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGGenericContainerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGGenericContainerFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGGenericContainerFrame(nsStyleContext* aContext) : nsSVGGenericContainerFrameBase(aContext) {}
   
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsIFrame:
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
@@ -76,7 +73,7 @@ public:
 #endif
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
 };
 
 #endif // __NS_SVGGENERICCONTAINERFRAME_H__

@@ -14,7 +14,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
@@ -67,7 +67,7 @@ nsNoDataProtocolContentPolicy::ShouldLoad(PRUint32 aContentType,
   *aDecision = nsIContentPolicy::ACCEPT;
 
   // Don't block for TYPE_OBJECT since such URIs are sometimes loaded by the
-  // plugin, so they don't necessarily open external apps
+  // plugin, so they don't neccesarily open external apps
   if (aContentType != TYPE_DOCUMENT &&
       aContentType != TYPE_SUBDOCUMENT &&
       aContentType != TYPE_OBJECT) {

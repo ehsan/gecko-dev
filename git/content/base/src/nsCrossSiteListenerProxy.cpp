@@ -51,285 +51,190 @@
 #include "nsParserUtils.h"
 #include "nsGkAtoms.h"
 #include "nsWhitespaceTokenizer.h"
-#include "nsIChannelEventSink.h"
-#include "nsCommaSeparatedTokenizer.h"
-#include "nsXMLHttpRequest.h"
 
-static PRBool gDisableCORS = PR_FALSE;
-static PRBool gDisableCORSPrivateData = PR_FALSE;
+static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
 
-class nsChannelCanceller
+NS_IMPL_ISUPPORTS5(nsCrossSiteListenerProxy, nsIStreamListener,
+                   nsIRequestObserver, nsIContentSink, nsIXMLContentSink,
+                   nsIExpatSink)
+
+nsCrossSiteListenerProxy::nsCrossSiteListenerProxy(nsIStreamListener* aOuter,
+                                                   nsIPrincipal* aRequestingPrincipal)
+  : mOuter(aOuter), mAcceptState(eNotSet), mHasForwardedRequest(PR_FALSE)
 {
-public:
-  nsChannelCanceller(nsIChannel* aChannel)
-    : mChannel(aChannel)
-  {
+  aRequestingPrincipal->GetURI(getter_AddRefs(mRequestingURI));
+}
+
+nsresult
+nsCrossSiteListenerProxy::ForwardRequest(PRBool aFromStop)
+{
+  if (mHasForwardedRequest) {
+    return NS_OK;
   }
-  ~nsChannelCanceller()
-  {
-    if (mChannel) {
-      mChannel->Cancel(NS_ERROR_DOM_BAD_URI);
+
+  mHasForwardedRequest = PR_TRUE;
+
+  if (mParser) {
+    mParser->Terminate();
+    mParser = nsnull;
+    mParserListener = nsnull;
+  }
+
+  if (mAcceptState != eAccept) {
+    mOuterRequest->Cancel(NS_ERROR_DOM_BAD_URI);
+    mOuter->OnStartRequest(mOuterRequest, mOuterContext);
+
+    // Only call OnStopRequest here if we were called from OnStopRequest.
+    // Otherwise the call to Cancel will make us get an OnStopRequest later
+    // so we'll forward OnStopRequest then.
+    if (aFromStop) {
+      mOuter->OnStopRequest(mOuterRequest, mOuterContext, NS_ERROR_DOM_BAD_URI);
     }
+
+    return NS_ERROR_DOM_BAD_URI;
   }
 
-  void DontCancel()
-  {
-    mChannel = nsnull;
+  nsresult rv = mOuter->OnStartRequest(mOuterRequest, mOuterContext);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!mStoredData.IsEmpty()) {
+    nsCOMPtr<nsIInputStream> stream;
+    rv = NS_NewCStringInputStream(getter_AddRefs(stream), mStoredData);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = mOuter->OnDataAvailable(mOuterRequest, mOuterContext, stream, 0,
+                                 mStoredData.Length());
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
-private:
-  nsIChannel* mChannel;
-};
-
-NS_IMPL_ISUPPORTS4(nsCrossSiteListenerProxy, nsIStreamListener,
-                   nsIRequestObserver, nsIChannelEventSink,
-                   nsIInterfaceRequestor)
-
-/* static */
-void
-nsCrossSiteListenerProxy::Startup()
-{
-  nsContentUtils::AddBoolPrefVarCache("content.cors.disable", &gDisableCORS);
-  nsContentUtils::AddBoolPrefVarCache("content.cors.no_private_data", &gDisableCORSPrivateData);
-}
-
-nsCrossSiteListenerProxy::nsCrossSiteListenerProxy(nsIStreamListener* aOuter,
-                                                   nsIPrincipal* aRequestingPrincipal,
-                                                   nsIChannel* aChannel,
-                                                   PRBool aWithCredentials,
-                                                   nsresult* aResult)
-  : mOuterListener(aOuter),
-    mRequestingPrincipal(aRequestingPrincipal),
-    mWithCredentials(aWithCredentials && !gDisableCORSPrivateData),
-    mRequestApproved(PR_FALSE),
-    mHasBeenCrossSite(PR_FALSE),
-    mIsPreflight(PR_FALSE)
-{
-  aChannel->GetNotificationCallbacks(getter_AddRefs(mOuterNotificationCallbacks));
-  aChannel->SetNotificationCallbacks(this);
-
-  *aResult = UpdateChannel(aChannel);
-  if (NS_FAILED(*aResult)) {
-    mOuterListener = nsnull;
-    mRequestingPrincipal = nsnull;
-    mOuterNotificationCallbacks = nsnull;
-  }
-}
-
-
-nsCrossSiteListenerProxy::nsCrossSiteListenerProxy(nsIStreamListener* aOuter,
-                                                   nsIPrincipal* aRequestingPrincipal,
-                                                   nsIChannel* aChannel,
-                                                   PRBool aWithCredentials,
-                                                   const nsCString& aPreflightMethod,
-                                                   const nsTArray<nsCString>& aPreflightHeaders,
-                                                   nsresult* aResult)
-  : mOuterListener(aOuter),
-    mRequestingPrincipal(aRequestingPrincipal),
-    mWithCredentials(aWithCredentials && !gDisableCORSPrivateData),
-    mRequestApproved(PR_FALSE),
-    mHasBeenCrossSite(PR_FALSE),
-    mIsPreflight(PR_TRUE),
-    mPreflightMethod(aPreflightMethod),
-    mPreflightHeaders(aPreflightHeaders)
-{
-  for (PRUint32 i = 0; i < mPreflightHeaders.Length(); ++i) {
-    ToLowerCase(mPreflightHeaders[i]);
-  }
-  mPreflightHeaders.Sort();
-
-  aChannel->GetNotificationCallbacks(getter_AddRefs(mOuterNotificationCallbacks));
-  aChannel->SetNotificationCallbacks(this);
-
-  *aResult = UpdateChannel(aChannel);
-  if (NS_FAILED(*aResult)) {
-    mOuterListener = nsnull;
-    mRequestingPrincipal = nsnull;
-    mOuterNotificationCallbacks = nsnull;
-  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsCrossSiteListenerProxy::OnStartRequest(nsIRequest* aRequest,
                                          nsISupports* aContext)
 {
-  mRequestApproved = NS_SUCCEEDED(CheckRequestApproved(aRequest, PR_FALSE));
-  if (!mRequestApproved) {
-    if (nsXMLHttpRequest::sAccessControlCache) {
-      nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
-      if (channel) {
-      nsCOMPtr<nsIURI> uri;
-        channel->GetURI(getter_AddRefs(uri));
-        if (uri) {
-          nsXMLHttpRequest::sAccessControlCache->
-            RemoveEntries(uri, mRequestingPrincipal);
-        }
-      }
-    }
-
-    aRequest->Cancel(NS_ERROR_DOM_BAD_URI);
-    mOuterListener->OnStartRequest(aRequest, aContext);
-
-    return NS_ERROR_DOM_BAD_URI;
-  }
-
-  return mOuterListener->OnStartRequest(aRequest, aContext);
-}
-
-PRBool
-IsValidHTTPToken(const nsCSubstring& aToken)
-{
-  if (aToken.IsEmpty()) {
-    return PR_FALSE;
-  }
-
-  nsCSubstring::const_char_iterator iter, end;
-
-  aToken.BeginReading(iter);
-  aToken.EndReading(end);
-
-  while (iter != end) {
-    if (*iter <= 32 ||
-        *iter >= 127 ||
-        *iter == '(' ||
-        *iter == ')' ||
-        *iter == '<' ||
-        *iter == '>' ||
-        *iter == '@' ||
-        *iter == ',' ||
-        *iter == ';' ||
-        *iter == ':' ||
-        *iter == '\\' ||
-        *iter == '\"' ||
-        *iter == '/' ||
-        *iter == '[' ||
-        *iter == ']' ||
-        *iter == '?' ||
-        *iter == '=' ||
-        *iter == '{' ||
-        *iter == '}') {
-      return PR_FALSE;
-    }
-    ++iter;
-  }
-
-  return PR_TRUE;
-}
-
-nsresult
-nsCrossSiteListenerProxy::CheckRequestApproved(nsIRequest* aRequest,
-                                               PRBool aIsRedirect)
-{
-  // Check if this was actually a cross domain request
-  if (!mHasBeenCrossSite) {
-    return NS_OK;
-  }
-
-  if (gDisableCORS) {
-    return NS_ERROR_DOM_BAD_URI;
-  }
+  mOuterRequest = aRequest;
+  mOuterContext = aContext;
 
   // Check if the request failed
   nsresult status;
   nsresult rv = aRequest->GetStatus(&status);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_SUCCESS(status, status);
+  if (NS_FAILED(status)) {
+    mAcceptState = eDeny;
+    return ForwardRequest(PR_FALSE);
+  }
 
-  // Test that things worked on a HTTP level
-  nsCOMPtr<nsIHttpChannel> http = do_QueryInterface(aRequest);
-  NS_ENSURE_TRUE(http, NS_ERROR_DOM_BAD_URI);
+  // Check if this was actually a cross domain request
+  nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
+  if (!channel) {
+    return NS_ERROR_DOM_BAD_URI;
+  }
+  nsCOMPtr<nsIURI> finalURI;
+  channel->GetURI(getter_AddRefs(finalURI));
+  rv = nsContentUtils::GetSecurityManager()->
+    CheckSameOriginURI(mRequestingURI, finalURI);
+  if (NS_SUCCEEDED(rv)) {
+    mAcceptState = eAccept;
+    return ForwardRequest(PR_FALSE);
+  }
 
-  // Redirects aren't success-codes. But necko already checked that it was a
-  // valid redirect.
-  if (!aIsRedirect) {
+  nsCOMPtr<nsIHttpChannel> http = do_QueryInterface(channel);
+  if (http) {
     PRBool succeeded;
     rv = http->GetRequestSucceeded(&succeeded);
     NS_ENSURE_SUCCESS(rv, rv);
+
     if (!succeeded) {
-      PRUint32 responseStatus;
-      rv = http->GetResponseStatus(&responseStatus);
-      NS_ENSURE_SUCCESS(rv, rv);
-      NS_ENSURE_TRUE(mAllowedHTTPErrors.Contains(responseStatus),
-                     NS_ERROR_DOM_BAD_URI);
+      mAcceptState = eDeny;
+      return ForwardRequest(PR_FALSE);
     }
   }
 
-  // Check the Access-Control-Allow-Origin header
-  nsCAutoString allowedOriginHeader;
-  rv = http->GetResponseHeader(
-    NS_LITERAL_CSTRING("Access-Control-Allow-Origin"), allowedOriginHeader);
+  // Get the list of subdomains out of mRequestingURI
+  nsCString host;
+  rv = mRequestingURI->GetAsciiHost(host);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (mWithCredentials || !allowedOriginHeader.EqualsLiteral("*")) {
-    nsCAutoString origin;
-    rv = nsContentUtils::GetASCIIOrigin(mRequestingPrincipal, origin);
-    NS_ENSURE_SUCCESS(rv, rv);
+  PRInt32 nextDot, currDot = 0;
+  while ((nextDot = host.FindChar('.', currDot)) != -1) {
+    mReqSubdomains.AppendElement(Substring(host, currDot, nextDot - currDot));
+    currDot = nextDot + 1;
+  }
+  mReqSubdomains.AppendElement(Substring(host, currDot));
 
-    if (!allowedOriginHeader.Equals(origin) ||
-        origin.EqualsLiteral("null")) {
-      return NS_ERROR_DOM_BAD_URI;
+  // Check the Access-Control header
+  if (http) {
+    nsCAutoString ac;
+    rv = http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control"), ac);
+    
+    if (NS_SUCCEEDED(rv)) {
+      CheckHeader(ac);
     }
   }
 
-  // Check Access-Control-Allow-Credentials header
-  if (mWithCredentials) {
-    nsCAutoString allowCredentialsHeader;
-    rv = http->GetResponseHeader(
-      NS_LITERAL_CSTRING("Access-Control-Allow-Credentials"), allowCredentialsHeader);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (!allowCredentialsHeader.EqualsLiteral("true")) {
-      return NS_ERROR_DOM_BAD_URI;
-    }
+  if (mAcceptState == eDeny) {
+    return ForwardRequest(PR_FALSE);
   }
 
-  if (mIsPreflight) {
-    nsCAutoString headerVal;
-    // The "Access-Control-Allow-Methods" header contains a comma separated
-    // list of method names.
-    http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Methods"),
-                            headerVal);
-    PRBool foundMethod = mPreflightMethod.EqualsLiteral("GET") ||
-      mPreflightMethod.EqualsLiteral("POST");
-    nsCCommaSeparatedTokenizer methodTokens(headerVal);
-    while(methodTokens.hasMoreTokens()) {
-      const nsDependentCSubstring& method = methodTokens.nextToken();
-      if (method.IsEmpty()) {
-        continue;
-      }
-      if (!IsValidHTTPToken(method)) {
-        return NS_ERROR_DOM_BAD_URI;
-      }
-      foundMethod |= mPreflightMethod.Equals(method);
-    }
-    NS_ENSURE_TRUE(foundMethod, NS_ERROR_DOM_BAD_URI);
+  // Set up a parser with us as a sink to look for PIs
+  mParser = do_CreateInstance(kCParserCID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    // The "Access-Control-Allow-Headers" header contains a comma separated
-    // list of header names.
-    headerVal.Truncate();
-    http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Headers"),
-                            headerVal);
-    nsTArray<nsCString> headers;
-    nsCCommaSeparatedTokenizer headerTokens(headerVal);
-    while(headerTokens.hasMoreTokens()) {
-      const nsDependentCSubstring& header = headerTokens.nextToken();
-      if (header.IsEmpty()) {
-        continue;
-      }
-      if (!IsValidHTTPToken(header)) {
-        return NS_ERROR_DOM_BAD_URI;
-      }
-      headers.AppendElement(header);
-    }
-    for (PRUint32 i = 0; i < mPreflightHeaders.Length(); ++i) {
-      if (!headers.Contains(mPreflightHeaders[i],
-                            nsCaseInsensitiveCStringArrayComparator())) {
-        return NS_ERROR_DOM_BAD_URI;
+  mParserListener = do_QueryInterface(mParser);
+
+  mParser->SetCommand(kLoadAsData);
+  mParser->SetContentSink(this);
+  mParser->Parse(finalURI);
+
+  // check channel's charset...
+  nsCAutoString charset(NS_LITERAL_CSTRING("UTF-8"));
+  PRInt32 charsetSource = kCharsetFromDocTypeDefault;
+  nsCAutoString charsetVal;
+  rv = channel->GetContentCharset(charsetVal);
+  if (NS_SUCCEEDED(rv)) {
+    nsCOMPtr<nsICharsetAlias> calias =
+      do_GetService(NS_CHARSETALIAS_CONTRACTID);
+
+    if (calias) {
+      nsCAutoString preferred;
+      rv = calias->GetPreferred(charsetVal, preferred);
+      if (NS_SUCCEEDED(rv)) {            
+        charset = preferred;
+        charsetSource = kCharsetFromChannel;
       }
     }
   }
 
-  return NS_OK;
+  mParser->SetDocumentCharset(charset, charsetSource);
+
+  nsCAutoString contentType;
+  channel->GetContentType(contentType);
+
+  // Time to sniff! Note: this should go away once file channels do
+  // sniffing themselves.
+  PRBool sniff;
+  if (NS_SUCCEEDED(finalURI->SchemeIs("file", &sniff)) && sniff &&
+    contentType.Equals(UNKNOWN_CONTENT_TYPE)) {
+    nsCOMPtr<nsIStreamConverterService> serv =
+      do_GetService("@mozilla.org/streamConverters;1", &rv);
+    if (NS_SUCCEEDED(rv)) {
+      nsCOMPtr<nsIStreamListener> converter;
+      rv = serv->AsyncConvertData(UNKNOWN_CONTENT_TYPE,
+                                  "*/*",
+                                  mParserListener,
+                                  aContext,
+                                  getter_AddRefs(converter));
+      if (NS_SUCCEEDED(rv)) {
+        mParserListener = converter;
+      }
+    }
+  }
+
+  // Hold a local reference to make sure the parser doesn't go away
+  nsCOMPtr<nsIStreamListener> stackedListener = mParserListener;
+  return stackedListener->OnStartRequest(aRequest, aContext);
 }
 
 NS_IMETHODIMP
@@ -337,7 +242,28 @@ nsCrossSiteListenerProxy::OnStopRequest(nsIRequest* aRequest,
                                         nsISupports* aContext,
                                         nsresult aStatusCode)
 {
-  return mOuterListener->OnStopRequest(aRequest, aContext, aStatusCode);
+  if (mHasForwardedRequest) {
+    return mOuter->OnStopRequest(aRequest, aContext, aStatusCode);
+  }
+
+  mAcceptState = eDeny;
+  return ForwardRequest(PR_TRUE);
+}
+
+NS_METHOD
+StringSegmentWriter(nsIInputStream *aInStream,
+                    void *aClosure,
+                    const char *aFromSegment,
+                    PRUint32 aToOffset,
+                    PRUint32 aCount,
+                    PRUint32 *aWriteCount)
+{
+  nsCString* dest = static_cast<nsCString*>(aClosure);
+
+  dest->Append(aFromSegment, aCount);
+  *aWriteCount = aCount;
+  
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -347,145 +273,552 @@ nsCrossSiteListenerProxy::OnDataAvailable(nsIRequest* aRequest,
                                           PRUint32 aOffset,
                                           PRUint32 aCount)
 {
-  if (!mRequestApproved) {
-    return NS_ERROR_DOM_BAD_URI;
+  if (mHasForwardedRequest) {
+    return mOuter->OnDataAvailable(aRequest, aContext, aInputStream, aOffset,
+                                   aCount);
   }
-  return mOuterListener->OnDataAvailable(aRequest, aContext, aInputStream,
-                                         aOffset, aCount);
+
+  NS_ASSERTION(mStoredData.Length() == aOffset,
+               "Stored wrong amount of data");
+
+  PRUint32 read;
+  nsresult rv = aInputStream->ReadSegments(StringSegmentWriter, &mStoredData,
+                                           aCount, &read);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ASSERTION(read == aCount, "didn't store all of the stream");
+
+  nsCOMPtr<nsIInputStream> stream;
+  rv = NS_NewCStringInputStream(getter_AddRefs(stream),
+                                Substring(mStoredData, aOffset));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Hold a local reference to make sure the parser doesn't go away
+  nsCOMPtr<nsIStreamListener> stackedListener = mParserListener;
+  rv = stackedListener->OnDataAvailable(aRequest, aContext, stream, aOffset,
+                                        aCount);
+  // When we forward the request we also terminate the parsing which will
+  // result in an error bubbling up to here. We want to ignore the error
+  // in that case.
+  if (mHasForwardedRequest) {
+    rv = NS_OK;
+  }
+  return rv;
 }
 
 NS_IMETHODIMP
-nsCrossSiteListenerProxy::GetInterface(const nsIID & aIID, void **aResult)
+nsCrossSiteListenerProxy::HandleStartElement(const PRUnichar *aName,
+                                             const PRUnichar **aAtts,
+                                             PRUint32 aAttsCount,
+                                             PRInt32 aIndex,
+                                             PRUint32 aLineNumber)
 {
-  if (aIID.Equals(NS_GET_IID(nsIChannelEventSink))) {
-    *aResult = static_cast<nsIChannelEventSink*>(this);
-    NS_ADDREF_THIS();
+  // We're done processing the prolog.
+  ForwardRequest(PR_FALSE);
 
+  // Block the parser since we don't want to spend more cycles on parsing
+  // stuff.
+  return NS_ERROR_HTMLPARSER_BLOCK;
+}
+
+NS_IMETHODIMP
+nsCrossSiteListenerProxy::HandleEndElement(const PRUnichar *aName)
+{
+  NS_ASSERTION(mHasForwardedRequest, "Should have forwarded request");
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCrossSiteListenerProxy::HandleComment(const PRUnichar *aName)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCrossSiteListenerProxy::HandleCDataSection(const PRUnichar *aData,
+                                             PRUint32 aLength)
+{
+  NS_ASSERTION(mHasForwardedRequest, "Should have forwarded request");
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCrossSiteListenerProxy::HandleDoctypeDecl(const nsAString & aSubset,
+                                            const nsAString & aName,
+                                            const nsAString & aSystemId,
+                                            const nsAString & aPublicId,
+                                            nsISupports *aCatalogData)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCrossSiteListenerProxy::HandleCharacterData(const PRUnichar *aData,
+                                              PRUint32 aLength)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCrossSiteListenerProxy::HandleProcessingInstruction(const PRUnichar *aTarget,
+                                                      const PRUnichar *aData)
+{
+  if (mHasForwardedRequest ||
+      !NS_LITERAL_STRING("access-control").Equals(aTarget)) {
     return NS_OK;
   }
 
-  return mOuterNotificationCallbacks ?
-    mOuterNotificationCallbacks->GetInterface(aIID, aResult) :
-    NS_ERROR_NO_INTERFACE;
-}
+  nsDependentString data(aData);
 
-NS_IMETHODIMP
-nsCrossSiteListenerProxy::OnChannelRedirect(nsIChannel *aOldChannel,
-                                            nsIChannel *aNewChannel,
-                                            PRUint32    aFlags)
-{
-  nsChannelCanceller canceller(aOldChannel);
-  nsresult rv;
-  if (!NS_IsInternalSameURIRedirect(aOldChannel, aNewChannel, aFlags)) {
-    rv = CheckRequestApproved(aOldChannel, PR_TRUE);
-    if (NS_FAILED(rv)) {
-      if (nsXMLHttpRequest::sAccessControlCache) {
-        nsCOMPtr<nsIURI> oldURI;
-        aOldChannel->GetURI(getter_AddRefs(oldURI));
-        if (oldURI) {
-          nsXMLHttpRequest::sAccessControlCache->
-            RemoveEntries(oldURI, mRequestingPrincipal);
-        }
-      }
-      return NS_ERROR_DOM_BAD_URI;
+  PRBool seenType = PR_FALSE, seenExclude = PR_FALSE;
+  PRBool ruleIsAllow = PR_FALSE;
+  nsAutoString itemList, excludeList;
+
+  PRUint32 i;
+  for (i = 0;; ++i) {
+    nsAutoString attrName;
+    if (nsParserUtils::GetQuotedAttrNameAt(data, i, attrName) &&
+        attrName.IsEmpty()) {
+      break;
+    }
+
+    nsCOMPtr<nsIAtom> attr = do_GetAtom(attrName);
+
+    PRBool res;
+    if (!seenType && attrName.EqualsLiteral("allow")) {
+      seenType = PR_TRUE;
+      ruleIsAllow = PR_TRUE;
+
+      res = nsParserUtils::GetQuotedAttributeValue(data, attr, itemList);
+    }
+    else if (!seenType && attrName.EqualsLiteral("deny")) {
+      seenType = PR_TRUE;
+      ruleIsAllow = PR_FALSE;
+
+      res = nsParserUtils::GetQuotedAttributeValue(data, attr, itemList);
+    }
+    else if (!seenExclude && attrName.EqualsLiteral("exclude")) {
+      seenExclude = PR_TRUE;
+
+      res = nsParserUtils::GetQuotedAttributeValue(data, attr, excludeList);
+    }
+    else {
+      res = PR_FALSE;
+    }
+    
+    if (!res) {
+      // parsing attribute value failed or unknown/duplicated attribute
+      mAcceptState = eDeny;
+      return ForwardRequest(PR_FALSE);
     }
   }
 
-  nsCOMPtr<nsIChannelEventSink> outer =
-    do_GetInterface(mOuterNotificationCallbacks);
-  if (outer) {
-    rv = outer->OnChannelRedirect(aOldChannel, aNewChannel, aFlags);
-    NS_ENSURE_SUCCESS(rv, rv);
+  PRBool matchesRule = PR_FALSE;
+
+  nsWhitespaceTokenizer itemTok(itemList);
+
+  if (!itemTok.hasMoreTokens()) {
+    mAcceptState = eDeny;
+
+    return ForwardRequest(PR_FALSE);
   }
 
-  rv = UpdateChannel(aNewChannel);
-  NS_ENSURE_SUCCESS(rv, rv);
+  while (itemTok.hasMoreTokens()) {
+    // Order is important here since we always want to call the function
+    matchesRule = VerifyAndMatchDomainPattern(
+      NS_ConvertUTF16toUTF8(itemTok.nextToken())) || matchesRule;
+  }
 
-  canceller.DontCancel();
+  nsWhitespaceTokenizer excludeTok(excludeList);
+  while (excludeTok.hasMoreTokens()) {
+    // Order is important here since we always want to call the function
+    matchesRule = !VerifyAndMatchDomainPattern(
+      NS_ConvertUTF16toUTF8(excludeTok.nextToken())) && matchesRule;
+  }
+
+  if (matchesRule && mAcceptState != eDeny) {
+    mAcceptState = ruleIsAllow ? eAccept : eDeny;
+  }
+
+  if (mAcceptState == eDeny) {
+    return ForwardRequest(PR_FALSE);
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCrossSiteListenerProxy::HandleXMLDeclaration(const PRUnichar *aVersion,
+                                               const PRUnichar *aEncoding,
+                                               PRInt32 aStandalone)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCrossSiteListenerProxy::ReportError(const PRUnichar *aErrorText,
+                                      const PRUnichar *aSourceText,
+                                      nsIScriptError *aError,
+                                      PRBool *_retval)
+{
+  if (!mHasForwardedRequest) {
+    mAcceptState = eDeny;
+
+    return ForwardRequest(PR_FALSE);
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsCrossSiteListenerProxy::WillBuildModel()
+{
+  nsCOMPtr<nsIDTD> dtd;
+  mParser->GetDTD(getter_AddRefs(dtd));
+  NS_ASSERTION(dtd, "missing dtd in WillBuildModel");
+  if (dtd && !(dtd->GetType() & NS_IPARSER_FLAG_XML)) {
+    ForwardRequest(PR_FALSE);
+    
+    // Block the parser since we don't want to spend more cycles on parsing
+    // stuff.
+    return NS_ERROR_HTMLPARSER_BLOCK;
+  }
+
+  return NS_OK;
+}
+
+// Moves aIter past the LWS (RFC2616) directly following it.
+// Returns PR_TRUE and updates aIter if there was an LWS there,
+//         PR_FALSE otherwise
+static PRBool
+EatLWS(const char*& aIter, const char* aEnd)
+{
+  if (aIter + 1 < aEnd && *aIter == '\r' && *(aIter + 1) == '\n') {
+    aIter += 2;
+  }
+
+  PRBool res = PR_FALSE;
+  while (aIter < aEnd && (*aIter == '\t' || *aIter == ' ')) {
+    ++aIter;
+    res = PR_TRUE;
+  }
   
-  return NS_OK;
+  return res;
 }
 
-nsresult
-nsCrossSiteListenerProxy::UpdateChannel(nsIChannel* aChannel)
+// Moves aIter past the string, given by aString, directly following it.
+// Returns PR_TRUE and updates aIter if the string was there,
+//         PR_FALSE otherwise
+static PRBool
+EatString(const char*& aIter, const char* aEnd, const char* aString)
 {
-  nsCOMPtr<nsIURI> uri, originalURI;
-  nsresult rv = aChannel->GetURI(getter_AddRefs(uri));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aChannel->GetOriginalURI(getter_AddRefs(originalURI));
-  NS_ENSURE_SUCCESS(rv, rv);  
-
-  // Check that the uri is ok to load
-  rv = nsContentUtils::GetSecurityManager()->
-    CheckLoadURIWithPrincipal(mRequestingPrincipal, uri,
-                              nsIScriptSecurityManager::STANDARD);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (originalURI != uri) {
-    rv = nsContentUtils::GetSecurityManager()->
-      CheckLoadURIWithPrincipal(mRequestingPrincipal, originalURI,
-                                nsIScriptSecurityManager::STANDARD);
-    NS_ENSURE_SUCCESS(rv, rv);
+  const char* local = aIter;
+  while (*aString && local < aEnd && *local == *aString) {
+    ++local;
+    ++aString;
+  }
+  if (*aString) {
+    return PR_FALSE;
   }
 
-  if (!mHasBeenCrossSite &&
-      NS_SUCCEEDED(mRequestingPrincipal->CheckMayLoad(uri, PR_FALSE)) &&
-      (originalURI == uri ||
-       NS_SUCCEEDED(mRequestingPrincipal->CheckMayLoad(originalURI,
-                                                       PR_FALSE)))) {
-    return NS_OK;
+  aIter = local;
+  
+  return PR_TRUE;
+}
+
+// Moves aIter to the first aChar following it.
+// Returns The string between the aIters initial position and the
+// found character if one was found.
+// Returns an empty string otherwise.
+static nsDependentCSubstring
+EatToChar(const char*& aIter, const char* aEnd, char aChar)
+{
+  const char* start = aIter;
+  while (aIter < aEnd) {
+    if (*aIter == aChar) {
+      return Substring(start, aIter);
+    }
+    ++aIter;
   }
 
-  // It's a cross site load
-  mHasBeenCrossSite = PR_TRUE;
+  static char emptyStatic[] = { '\0' };
 
-  nsCString userpass;
-  uri->GetUserPass(userpass);
-  NS_ENSURE_TRUE(userpass.IsEmpty(), NS_ERROR_DOM_BAD_URI);
+  aIter = start;
+  return Substring(emptyStatic, emptyStatic);
+}
 
-  // Add the Origin header
-  nsCAutoString origin;
-  rv = nsContentUtils::GetASCIIOrigin(mRequestingPrincipal, origin);
-  NS_ENSURE_SUCCESS(rv, rv);
+PRBool
+nsCrossSiteListenerProxy::MatchPatternList(const char*& aIter, const char* aEnd)
+{
+  PRBool matchesList = PR_FALSE;
+  PRBool hasItems = PR_FALSE;
 
-  nsCOMPtr<nsIHttpChannel> http = do_QueryInterface(aChannel);
-  NS_ENSURE_TRUE(http, NS_ERROR_FAILURE);
+  for (;;) {
+    const char* start = aIter;
+    if (!EatLWS(aIter, aEnd)) {
+      break;
+    }
 
-  rv = http->SetRequestHeader(NS_LITERAL_CSTRING("Origin"), origin, PR_FALSE);
-  NS_ENSURE_SUCCESS(rv, rv);
+    if (!EatString(aIter, aEnd, "<")) {
+      // restore iterator to before LWS since it wasn't part of the list
+      aIter = start;
+      break;
+    }
 
-  // Add preflight headers if this is a preflight request
-  if (mIsPreflight) {
-    rv = http->
-      SetRequestHeader(NS_LITERAL_CSTRING("Access-Control-Request-Method"),
-                       mPreflightMethod, PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
+    const nsACString& accessItem = EatToChar(aIter, aEnd, '>');
+    if (!EatString(aIter, aEnd, ">")) {
+      mAcceptState = eDeny;
+      break;
+    }
 
-    if (!mPreflightHeaders.IsEmpty()) {
-      nsCAutoString headers;
-      for (PRUint32 i = 0; i < mPreflightHeaders.Length(); ++i) {
-        if (i != 0) {
-          headers += ',';
-        }
-        headers += mPreflightHeaders[i];
+    hasItems = PR_TRUE;
+
+    // Order is important here since we always want to call the function
+    matchesList = VerifyAndMatchDomainPattern(accessItem) || matchesList;
+  }
+
+  if (!hasItems) {
+    mAcceptState = eDeny;
+  }
+
+  return matchesList;
+}
+
+#define DENY_AND_RETURN \
+      mAcceptState = eDeny; \
+      return
+
+void
+nsCrossSiteListenerProxy::CheckHeader(const nsCString& aHeader)
+{
+  const char* iter = aHeader.BeginReading();
+  const char* end = aHeader.EndReading();
+
+  // ruleset        ::= LWS? rule LWS? ("," LWS? rule LWS?)*
+  while (iter < end) {
+    // eat LWS?
+    EatLWS(iter, end);
+
+    // rule ::= rule-type (LWS pattern)+ (LWS "exclude" (LWS pattern)+)?
+    // eat rule-type
+    PRBool ruleIsAllow;
+    if (EatString(iter, end, "deny")) {
+      ruleIsAllow = PR_FALSE;
+    }
+    else if (EatString(iter, end, "allow")) {
+      ruleIsAllow = PR_TRUE;
+    }
+    else {
+      DENY_AND_RETURN;
+    }
+
+    // eat (LWS pattern)+
+    PRBool matchesRule = MatchPatternList(iter, end);
+
+    PRBool ateLWS = EatLWS(iter, end);
+
+    // eat (LWS "exclude" (LWS pattern)+)?
+    if (ateLWS && EatString(iter, end, "exclude")) {
+      ateLWS = PR_FALSE;
+
+      // Order is important here since we always want to call the function
+      matchesRule = !MatchPatternList(iter, end) && matchesRule;
+    }
+    
+    if (matchesRule && mAcceptState != eDeny) {
+      mAcceptState = ruleIsAllow ? eAccept : eDeny;
+    }
+
+    // eat LWS?
+    if (!ateLWS) {
+      EatLWS(iter, end);
+    }
+    
+    if (iter != end) {
+      if (!EatString(iter, end, ",")) {
+        DENY_AND_RETURN;
       }
-      rv = http->
-        SetRequestHeader(NS_LITERAL_CSTRING("Access-Control-Request-Headers"),
-                         headers, PR_FALSE);
-      NS_ENSURE_SUCCESS(rv, rv);
     }
   }
+}
 
-  // Make cookie-less if needed
-  if (mIsPreflight || !mWithCredentials) {
-    nsLoadFlags flags;
-    rv = http->GetLoadFlags(&flags);
-    NS_ENSURE_SUCCESS(rv, rv);
+// Moves aIter forward one character if the character at aIter is in [a-zA-Z]
+// Returns PR_TRUE and updates aIter if such a character was found.
+//         PR_FALSE otherwise.
+static PRBool
+EatAlpha(nsACString::const_iterator& aIter, nsACString::const_iterator& aEnd)
+{
+  if (aIter != aEnd && ((*aIter >= 'A' && *aIter <= 'Z') ||
+                        (*aIter >= 'a' && *aIter <= 'z'))) {
+    ++aIter;
 
-    flags |= nsIRequest::LOAD_ANONYMOUS;
-    rv = http->SetLoadFlags(flags);
-    NS_ENSURE_SUCCESS(rv, rv);
+    return PR_TRUE;
   }
 
-  return NS_OK;
+  return PR_FALSE;
+}
+
+// Moves aIter forward one character if the character at aIter is in [0-9]
+// Returns PR_TRUE and updates aIter if such a character was found.
+//         PR_FALSE otherwise.
+static PRBool
+EatDigit(nsACString::const_iterator& aIter, nsACString::const_iterator& aEnd)
+{
+  if (aIter != aEnd && *aIter >= '0' && *aIter <= '9') {
+    ++aIter;
+
+    return PR_TRUE;
+  }
+
+  return PR_FALSE;
+}
+
+// Moves aIter forward one character if the character at aIter is aChar
+// Returns PR_TRUE and updates aIter if aChar was found.
+//         PR_FALSE otherwise.
+static PRBool
+EatChar(nsACString::const_iterator& aIter, nsACString::const_iterator& aEnd,
+        char aChar)
+{
+  if (aIter != aEnd && *aIter == aChar) {
+    ++aIter;
+
+    return PR_TRUE;
+  }
+
+  return PR_FALSE;
+}
+
+PRBool
+nsCrossSiteListenerProxy::VerifyAndMatchDomainPattern(const nsACString& aPattern)
+{
+  if (aPattern.EqualsLiteral("*")) {
+    return PR_TRUE;
+  }
+
+  // access-item ::= (scheme "://")? domain-pattern (":" port)? | "*"
+
+  nsACString::const_iterator start, iter, end;
+  aPattern.BeginReading(start);
+  aPattern.EndReading(end);
+
+  // (scheme "://")?
+  nsCString patternScheme;
+  nsACString::const_iterator schemeStart = start, schemeEnd = end;
+  if (FindInReadable(NS_LITERAL_CSTRING("://"), schemeStart, schemeEnd)) {
+    // There is a '://' in the string which means that it must start with
+    // a scheme.
+    
+    iter = start;
+    
+    if (!EatAlpha(iter, end)) {
+      DENY_AND_RETURN PR_FALSE;
+    }
+    
+    while(EatAlpha(iter, end) ||
+          EatDigit(iter, end) ||
+          EatChar(iter, end, '+') ||
+          EatChar(iter, end, '-') ||
+          EatChar(iter, end, '.')) {}
+    
+    if (iter != schemeStart) {
+      DENY_AND_RETURN PR_FALSE;
+    }
+
+    // Set the scheme
+    patternScheme = Substring(start, iter);
+
+    start = iter.advance(3);
+  }
+
+  // domain-pattern ::= subdomain | "*." subdomain
+  PRBool patternHasWild = PR_FALSE;
+  if (EatChar(start, end, '*')) {
+    if (!EatChar(start, end, '.')) {
+      DENY_AND_RETURN PR_FALSE;
+    }
+    patternHasWild = PR_TRUE;
+  }
+
+  nsTArray<nsCString> patternSubdomains;
+
+  // subdomain ::= label | subdomain "." label
+  do {
+    iter = start;
+    if (!EatAlpha(iter, end)) {
+      DENY_AND_RETURN PR_FALSE;
+    }
+
+    while (EatAlpha(iter, end) ||
+           EatDigit(iter, end) ||
+           EatChar(iter, end, '-')) {}
+    
+    const nsDependentCSubstring& label = Substring(start, iter);
+    if (label.Last() == '-') {
+      DENY_AND_RETURN PR_FALSE;
+    }
+
+    start = iter;
+    
+    // Save the label
+    patternSubdomains.AppendElement(label);
+  } while (EatChar(start, end, '.'));
+
+  // (":" port)?
+  PRInt32 patternPort = -1;
+  if (EatChar(start, end, ':')) {
+    iter = start;
+    while (EatDigit(iter, end)) {}
+    
+    if (iter != start) {
+      PRInt32 ec;
+      patternPort = PromiseFlatCString(Substring(start, iter)).ToInteger(&ec);
+      NS_ASSERTION(NS_SUCCEEDED(ec), "ToInteger failed");
+    }
+    
+    start = iter;
+  }
+
+  // Did we consume the whole pattern?
+  if (start != end) {
+    DENY_AND_RETURN PR_FALSE;
+  }
+
+  // Do checks at the end so that we make sure that the whole pattern is
+  // checked for syntax correctness first.
+
+  // Check scheme
+  PRBool res;
+  if (!patternScheme.IsEmpty() &&
+      (NS_FAILED(mRequestingURI->SchemeIs(patternScheme.get(), &res)) ||
+       !res)) {
+    return PR_FALSE;
+  }
+
+  // Check port
+  if (patternPort != -1 &&
+      patternPort != NS_GetRealPort(mRequestingURI)) {
+    return PR_FALSE;
+  }
+
+  // Check subdomain
+  PRUint32 patternPos = patternSubdomains.Length();
+  PRUint32 reqPos = mReqSubdomains.Length();
+  do {
+    --patternPos;
+    --reqPos;
+    if (!patternSubdomains[patternPos].LowerCaseEqualsASCII(
+          mReqSubdomains[reqPos].get(), mReqSubdomains[reqPos].Length())) {
+      return PR_FALSE;
+    }
+  } while (patternPos > 0 && reqPos > 0);
+
+  // Only matches if we've matched all of pattern and either matched all of
+  // mRequestingURI and there's no wildcard, or there's a wildcard and there
+  // are still elements of mRequestingURI left.
+  
+  return patternPos == 0 &&
+         ((reqPos == 0 && !patternHasWild) ||
+          (reqPos != 0 && patternHasWild));
 }

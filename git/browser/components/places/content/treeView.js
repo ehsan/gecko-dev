@@ -44,16 +44,32 @@ PlacesTreeView.prototype = {
             getAtom(aString);
   },
 
-  _atoms: [],
-  _getAtomFor: function PTV__getAtomFor(aName) {
-    if (!this._atoms[aName])
-      this._atoms[aName] = this._makeAtom(aName);
+  __separatorAtom: null,
+  get _separatorAtom() {
+    if (!this.__separatorAtom)
+      this.__separatorAtom = this._makeAtom("separator");
 
-    return this._atoms[aName];
+    return this.__separatorAtom;
+  },
+
+  __sessionStartAtom: null,
+  get _sessionStartAtom() {
+    if (!this.__sessionStartAtom)
+      this.__sessionStartAtom = this._makeAtom("session-start");
+
+    return this.__sessionStartAtom;
+  },
+
+  __sessionContinueAtom: null,
+  get _sessionContinueAtom() {
+    if (!this.__sessionContinueAtom)
+      this.__sessionContinueAtom = this._makeAtom("session-continue");
+
+    return this.__sessionContinueAtom;
   },
 
   _ensureValidRow: function PTV__ensureValidRow(aRow) {
-    if (aRow < 0 || aRow >= this._visibleElements.length)
+    if (aRow < 0 || aRow > this._visibleElements.length)
       throw Cr.NS_ERROR_INVALID_ARG;
   },
 
@@ -77,35 +93,109 @@ PlacesTreeView.prototype = {
   },
 
   /**
-   * This is called once both the result and the tree are set.
+   * This is called when the result or tree may have changed.
+   * It reinitializes everything. Result and/or tree can be null
+   * when calling.
    */
   _finishInit: function PTV__finishInit() {
-    var selection = this.selection;
-    if (selection)
-      selection.selectEventsSuppressed = true;
+    if (this._tree && this._result)
+      this.sortingChanged(this._result.sortingMode);
 
-    this._rootNode._viewIndex = -1;
-    if (!this._rootNode.containerOpen) {
-      // This triggers containerOpened which then builds the visible section.
-      this._rootNode.containerOpen = true;
-    }
-    else
-      this.invalidateContainer(this._rootNode);
-
-    // "Activate" the sorting column and update commands.
-    this.sortingChanged(this._result.sortingMode);
-
-    if (selection)
-      selection.selectEventsSuppressed = false;
+    // if there is no tree, BuildVisibleList will clear everything for us
+    this._buildVisibleList();
   },
 
-  _rootNode: null,
+  _computeShowSessions: function PTV__computeShowSessions() {
+    NS_ASSERT(this._result, "Must have a result to show sessions!");
+    this._showSessions = false;
+
+    var options = asQuery(this._result.root).queryOptions;
+    NS_ASSERT(options, "navHistoryResults must have valid options");
+
+    if (!options.showSessions)
+      return; // sessions are off
+
+    var resultType = options.resultType;
+    if (resultType != Ci.nsINavHistoryQueryOptions.RESULTS_AS_VISIT &&
+        resultType != Ci.nsINavHistoryQueryOptions.RESULTS_AS_FULL_VISIT)
+      return; // not visits
+
+    var sortType = this._result.sortingMode;
+    if (sortType != nsINavHistoryQueryOptions::SORT_BY_DATE_ASCENDING &&
+        sortType != nsINavHistoryQueryOptions::SORT_BY_DATE_DESCENDING)
+      return; // not date sorting
+
+    // showing sessions only makes sense if we are grouping by date
+    // any other grouping (or recursive grouping) doesn't make sense
+    var groupings = options.getGroupingMode({});
+    for (var i=0; i < groupings.length; i++) {
+      if (groupings[i] != Ci.nsINavHistoryQueryOptions.GROUP_BY_DAY)
+        return; // non-time-based grouping
+    }
+
+    this._showSessions = true;
+  },
+
+  SESSION_STATUS_NONE: 0,
+  SESSION_STATUS_START: 1,
+  SESSION_STATUS_CONTINUE: 2,
+  _getRowSessionStatus: function PTV__getRowSessionStatus(aRow) {
+    this._ensureValidRow(aRow);
+    var node = this._visibleElements[aRow];
+    if (!PlacesUtils.nodeIsVisit(node) || asVisit(node).sessionId == 0)
+      return this.SESSION_STATUS_NONE;
+
+    if (aRow == 0)
+      return this.SESSION_STATUS_START;
+
+    var previousNode = this._visibleElements[aRow - 1];
+    if (!PlacesUtils.nodeIsVisit(previousNode) ||
+        node.sessionId != asVisit(previousNode).sessionId)
+      return this.SESSION_STATUS_START;
+
+    return this.SESSION_STATUS_CONTINUE;
+  },
+
+  /**
+   * Call to completely rebuild the list of visible items. Note if there is no
+   * tree or root this will just clear out the list, so you can also call this
+   * when a tree is detached to clear the list.
+   */
+  _buildVisibleList: function PTV__buildVisibleList() {
+    if (this._result) {
+      // Any current visible elements need to be marked as invisible.
+      for (var i = 0; i < this._visibleElements.length; i++) {
+        this._visibleElements[i].viewIndex = -1;
+      }
+    }
+
+    var rootNode = this._result.root;
+    if (rootNode && this._tree) {
+      this._computeShowSessions();
+
+      asContainer(rootNode);
+      if (this._showRoot) {
+        // List the root node
+        this._visibleElements.push(this._result.root);
+        this._tree.rowCountChanged(0, 1);
+        this._result.root.viewIndex = 0;
+      }
+      else if (!rootNode.containerOpen) {
+        // this triggers containerOpened which then builds the visible
+        // section
+        rootNode.containerOpen = true;
+        return;
+      }
+
+      this.invalidateContainer(rootNode);
+    }
+  },
 
   /**
    * This takes a container and recursively appends visible elements to the
    * given array. This is used to build the visible element list (with
    * this._visibleElements passed as the array), or portions thereof (with
-   * a separate array that is merged with the main list later).
+   * a separate array that is merged with the main list later.
    *
    * aVisibleStartIndex is the visible index of the beginning of the 'aVisible'
    * array. When aVisible is this._visibleElements, this is 0. This is non-zero
@@ -119,34 +209,51 @@ PlacesTreeView.prototype = {
     if (!aContainer.containerOpen)
       return;  // nothing to do
 
-    const openLiteral = PlacesUIUtils.RDF.GetResource("http://home.netscape.com/NC-rdf#open");
-    const trueLiteral = PlacesUIUtils.RDF.GetLiteral("true");
+    const openLiteral = PlacesUtils.RDF.GetResource("http://home.netscape.com/NC-rdf#open");
+    const trueLiteral = PlacesUtils.RDF.GetLiteral("true");
 
     var cc = aContainer.childCount;
-    var sortingMode = this._result.sortingMode;
     for (var i=0; i < cc; i++) {
       var curChild = aContainer.getChild(i);
-      var curChildType = curChild.type;
 
-      // Don't display separators when sorted.
-      if (curChildType == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR) {
-        if (sortingMode != Ci.nsINavHistoryQueryOptions.SORT_BY_NONE) {
-          curChild._viewIndex = -1;
+      // collapse all duplicates starting from here
+      if (this._collapseDuplicates) {
+        var showThis = { value: false };
+        while (i <  cc - 1 &&
+               this._canCollapseDuplicates(curChild, aContainer.getChild(i+1),
+                                           showThis)) {
+          if (showThis.value) {
+            // collapse the first and use the second
+            curChild.viewIndex = -1;
+            curChild = aContainer.getChild(i+1);
+          }
+          else {
+            // collapse the second and use the first
+            aContainer.getChild(i+1).viewIndex = -1;
+          }
+          i++;
+        }
+      }
+
+      // don't display separators when sorted
+      if (PlacesUtils.nodeIsSeparator(curChild)) {
+        if (this._result.sortingMode !=
+            Ci.nsINavHistoryQueryOptions.SORT_BY_NONE) {
+          curChild.viewIndex = -1;
           continue;
         }
       }
 
-      // Add the node to the visible-nodes array and set its viewIndex.
-      curChild._viewIndex = aVisibleStartIndex + aVisible.length;
+      // add item
+      curChild.viewIndex = aVisibleStartIndex + aVisible.length;
       aVisible.push(curChild);
 
-      // Recursively do containers.
-      if (!this._flatList &&
-          curChild instanceof Ci.nsINavHistoryContainerResultNode) {
+      // recursively do containers
+      if (PlacesUtils.nodeIsContainer(curChild)) {
         var resource = this._getResourceForNode(curChild);
         var isopen = resource != null &&
-                     PlacesUIUtils.localStore.HasAssertion(resource, openLiteral,
-                                                           trueLiteral, true);
+                     PlacesUtils.localStore.HasAssertion(resource, openLiteral, trueLiteral, true);
+        asContainer(curChild);
         if (isopen != curChild.containerOpen)
           aToOpen.push(curChild);
         else if (curChild.containerOpen && curChild.childCount > 0)
@@ -156,15 +263,17 @@ PlacesTreeView.prototype = {
   },
 
   /**
-   * This counts how many rows a node takes in the tree.  For containers it
-   * will count the node itself plus any child node following it.
+   * This counts how many rows an item takes in the tree, that is, the
+   * item itself plus any nodes following it with an increased indent.
+   * This allows you to figure out how many rows an item (=1) or a
+   * container with all of its children takes.
    */
-  _countVisibleRowsForNode: function PTV__countVisibleRowsForNode(aNode) {
-    if (aNode == this._rootNode)
+  _countVisibleRowsForItem: function PTV__countVisibleRowsForItem(aNode) {
+    if (aNode == this._result.root)
       return this._visibleElements.length;
 
-    var viewIndex = aNode._viewIndex;
-    NS_ASSERT(viewIndex >= 0, "Node is not visible, no rows to count");
+    var viewIndex = aNode.viewIndex;
+    NS_ASSERT(viewIndex >= 0, "Item is not visible, no rows to count");
     var outerLevel = aNode.indentLevel;
     for (var i = viewIndex + 1; i < this._visibleElements.length; i++) {
       if (this._visibleElements[i].indentLevel <= outerLevel)
@@ -178,7 +287,8 @@ PlacesTreeView.prototype = {
    * This is called by containers when they change and we need to update
    * everything about the container. We build a new visible section with
    * the container as a separate object so we first know how the list
-   * changes.
+   * changes. This way we only have to do one realloc/memcpy to update
+   * the list.
    *
    * We also try to be smart here about redrawing the screen.
    */
@@ -187,63 +297,53 @@ PlacesTreeView.prototype = {
     if (!this._tree)
       return;
 
-    // The root node is invisible.
-    if (aContainer != this._rootNode) {
-      if (aContainer._viewIndex < 0 ||
-          aContainer._viewIndex > this._visibleElements.length)
+    // The root node is invisible if showRoot is not set. Otherwise aContainer
+    // must be visible
+    if (this._showRoot || aContainer != this._result.root) {
+      if (aContainer.viewIndex < 0 &&
+          aContainer.viewIndex > this._visibleElements.length)
         throw "Trying to expand a node that is not visible";
 
-      NS_ASSERT(this._visibleElements[aContainer._viewIndex] == aContainer,
+      NS_ASSERT(this._visibleElements[aContainer.viewIndex] == aContainer,
                 "Visible index is out of sync!");
     }
 
-    var startReplacement = aContainer._viewIndex + 1;
-    var replaceCount = this._countVisibleRowsForNode(aContainer);
+    var startReplacement = aContainer.viewIndex + 1;
+    var replaceCount = this._countVisibleRowsForItem(aContainer);
 
-    // We don't replace the container node itself so we should decrease the
-    // replaceCount by 1, unless the container is our root node, which isn't
-    // visible.
-    if (aContainer != this._rootNode)
-      replaceCount -= 1;
+    // We don't replace the container item itself so we decrease the
+    // replaceCount by 1. We don't do so though if there is no visible item
+    // for the container. This happens when aContainer is the root node and
+    // showRoot is not set.
+    if (aContainer.viewIndex != -1)
+      replaceCount-=1;
 
-    // Persist selection state.
-    var previouslySelectedNodes = [];
+    // Mark the removes as invisible
+    for (var i = 0; i < replaceCount; i++)
+      this._visibleElements[startReplacement + i].viewIndex = -1;
+
+    // Building the new list will set the new elements' visible indices.
+    var newElements = [];
+    var toOpenElements = [];
+    this._buildVisibleSection(aContainer, newElements, toOpenElements, startReplacement);
+
+    // Persist selection state
+    var nodesToSelect = [];
     var selection = this.selection;
     var rc = selection.getRangeCount();
     for (var rangeIndex = 0; rangeIndex < rc; rangeIndex++) {
       var min = { }, max = { };
       selection.getRangeAt(rangeIndex, min, max);
-      var lastIndex = Math.min(max.value, startReplacement + replaceCount -1);
-      // If this range does not overlap the replaced chunk, we don't need to
-      // persist the selection.
-      if (max.value < startReplacement || min.value > lastIndex)
+      if (min.value > startReplacement + replaceCount)
         continue;
 
-      // If this range starts before the replaced chunk, we should persist from
-      // startReplacement to lastIndex.
-      var firstIndex = Math.max(min.value, startReplacement);
-      for (var nodeIndex = firstIndex; nodeIndex <= lastIndex; nodeIndex++) {
-        // Mark the node invisible if we're about to remove it,
-        // otherwise we'll try to select it later.
-        var node = this._visibleElements[nodeIndex];
-        if (nodeIndex >= startReplacement &&
-            nodeIndex < startReplacement + replaceCount)
-          node._viewIndex = -1;
-
-        previouslySelectedNodes.push(
-          { node: node, oldIndex: nodeIndex });
+      for (var nodeIndex = min.value; nodeIndex <= max.value; nodeIndex++) {
+        if (newElements.indexOf(this._visibleElements[nodeIndex]) != -1)
+          nodesToSelect.push(this._visibleElements[nodeIndex]);
       }
     }
 
-    // Building the new list will set the new elements' visible indices.
-    var newElements = [];
-    var toOpenElements = [];
-    this._buildVisibleSection(aContainer,
-                              newElements, toOpenElements, startReplacement);
-
-    // Actually update the visible list.
-    // XXX: We can probably make this more efficient using splice through
-    // Function.apply.
+    // actually update the visible list
     this._visibleElements =
       this._visibleElements.slice(0, startReplacement).concat(newElements)
           .concat(this._visibleElements.slice(startReplacement + replaceCount,
@@ -252,107 +352,84 @@ PlacesTreeView.prototype = {
     // If the new area has a different size, we'll have to renumber the
     // elements following the area.
     if (replaceCount != newElements.length) {
-      for (var i = startReplacement + newElements.length;
-           i < this._visibleElements.length; i++) {
-        this._visibleElements[i]._viewIndex = i;
+      for (i = startReplacement + newElements.length;
+           i < this._visibleElements.length; i ++) {
+        this._visibleElements[i].viewIndex = i;
       }
     }
 
     // now update the number of elements
-    selection.selectEventsSuppressed = true;
-    this._tree.beginUpdateBatch();
+    if (nodesToSelect.length > 0)
+      selection.selectEventsSuppressed = true;
 
+    this._tree.beginUpdateBatch();
     if (replaceCount)
       this._tree.rowCountChanged(startReplacement, -replaceCount);
     if (newElements.length)
       this._tree.rowCountChanged(startReplacement, newElements.length);
-
-    if (!this._flatList) {
-      // now, open any containers that were persisted
-      for (var i = 0; i < toOpenElements.length; i++) {
-        var item = toOpenElements[i];
-        var parent = item.parent;
-        // avoid recursively opening containers
-        while (parent) {
-          if (parent.uri == item.uri)
-            break;
-          parent = parent.parent;
-        }
-        // if we don't have a parent, we made it all the way to the root
-        // and didn't find a match, so we can open our item
-        if (!parent && !item.containerOpen)
-          item.containerOpen = true;
-      }
-    }
-
     this._tree.endUpdateBatch();
 
-    // restore selection
-    if (previouslySelectedNodes.length > 0) {
-      for (var i = 0; i < previouslySelectedNodes.length; i++) {
-        var nodeInfo = previouslySelectedNodes[i];
-        var index = nodeInfo.node._viewIndex;
-
-        // If the nodes under the invalidated container were preserved, we can
-        // just use viewIndex.
-        if (index == -1) {
-          // Otherwise, try to find an equal node.
-          var itemId = PlacesUtils.getConcreteItemId(nodeInfo.node);
-          if (itemId != 1) {
-            // Search by itemId.
-            for (var j = 0; j < newElements.length && index == -1; j++) {
-              if (PlacesUtils.getConcreteItemId(newElements[j]) == itemId)
-                index = newElements[j]._viewIndex;
-            }
-          }
-          else {
-            // Search by uri.
-            var uri = nodeInfo.node.uri;
-            if (uri) {
-              for (var j = 0; j < newElements.length && index == -1; j++) {
-                if (newElements[j].uri == uri)
-                  index = newElements[j]._viewIndex;
-              }
-            }
-          }
-        }
-
-        // Select the found node, if any.
-        if (index != -1)
-          selection.rangedSelect(index, index, true);
-      }
-
-      // If only one node was previously selected and there's no selection now,
-      // select the node at its old viewIndex, if any.
-      if (previouslySelectedNodes.length == 1 &&
-          selection.getRangeCount() == 0 &&
-          this._visibleElements.length > previouslySelectedNodes[0].oldIndex) {
-        selection.rangedSelect(previouslySelectedNodes[0].oldIndex,
-                               previouslySelectedNodes[0].oldIndex, true);
-      }
+    // now, open any containers that were persisted
+    for (var i = 0; i < toOpenElements.length; i++) {
+      var item = asContainer(toOpenElements[i]);
+      item.containerOpen = !item.containerOpen;
     }
-    selection.selectEventsSuppressed = false;
+
+    // restore selection
+    if (nodesToSelect.length > 0) {
+      for each (var node in nodesToSelect) {
+        var index = node.viewIndex;
+        selection.rangedSelect(index, index, true);
+      }
+      selection.selectEventsSuppressed = false;
+    }
+  },
+
+  /**
+   * This returns true if the two results can be collapsed as duplicates.
+   * aShowThisOne will be either 0 or 1, indicating which of the
+   * duplicates should be shown.
+   */
+  _canCollapseDuplicates:
+  function PTV__canCollapseDuplicate(aTop, aNext, aShowThisOne) {
+    if (!this._collapseDuplicates)
+      return false;
+    if (!PlacesUtils.nodeIsVisit(aTop) ||
+        !PlacesUtils.nodeIsVisit(aNext))
+      return false; // only collapse two visits
+
+    asVisit(aTop);
+    asVisit(aNext);
+
+    if (aTop.uri != aNext.uri)
+      return false; // don't collapse nonmatching URIs
+
+    // now we know we want to collapse, show the one with the more recent time
+    aShowThisOne.value = aTop.time < aNext.time;
+    return true;
   },
 
   _convertPRTimeToString: function PTV__convertPRTimeToString(aTime) {
-    const MS_PER_MINUTE = 60000;
-    const MS_PER_DAY = 86400000;
-    let timeMs = aTime / 1000; // PRTime is in microseconds
+    var timeInMilliseconds = aTime / 1000; // PRTime is in microseconds
+    var timeObj = new Date(timeInMilliseconds);
 
-    // Date is calculated starting from midnight, so the modulo with a day are
-    // milliseconds from today's midnight.
-    // getTimezoneOffset corrects that based on local time, notice midnight
-    // can have a different offset during DST-change days.
-    let dateObj = new Date();
-    let now = dateObj.getTime() - dateObj.getTimezoneOffset() * MS_PER_MINUTE;
-    let midnight = now - (now % MS_PER_DAY);
-    midnight += new Date(midnight).getTimezoneOffset() * MS_PER_MINUTE;
+    // Check if it is today and only display the time.  Only bother
+    // checking for today if it's within the last 24 hours, since
+    // computing midnight is not really cheap. Sometimes we may get dates
+    // in the future, so always show those.
+    var ago = new Date(Date.now() - timeInMilliseconds);
+    var dateFormat = Ci.nsIScriptableDateFormat.dateFormatShort;
+    if (ago > -10000 && ago < (1000 * 24 * 60 * 60)) {
+      var midnight = new Date(timeInMilliseconds);
+      midnight.setHours(0);
+      midnight.setMinutes(0);
+      midnight.setSeconds(0);
+      midnight.setMilliseconds(0);
 
-    let dateFormat = timeMs >= midnight ?
-                      Ci.nsIScriptableDateFormat.dateFormatNone :
-                      Ci.nsIScriptableDateFormat.dateFormatShort;
+      if (timeInMilliseconds > midnight.getTime())
+        dateFormat = Ci.nsIScriptableDateFormat.dateFormatNone;
+    }
 
-    let timeObj = new Date(timeMs);
     return (this._dateService.FormatDateTime("", dateFormat,
       Ci.nsIScriptableDateFormat.timeFormatNoSeconds,
       timeObj.getFullYear(), timeObj.getMonth() + 1,
@@ -372,8 +449,7 @@ PlacesTreeView.prototype = {
   COLUMN_TYPE_TAGS: 9,
 
   _getColumnType: function PTV__getColumnType(aColumn) {
-    var columnType = aColumn.element.getAttribute("anonid") || aColumn.id;
-
+    var columnType = aColumn.id || aColumn.element.getAttribute("anonid");
     switch (columnType) {
       case "title":
         return this.COLUMN_TYPE_TITLE;
@@ -398,7 +474,7 @@ PlacesTreeView.prototype = {
   },
 
   _sortTypeToColumnType: function PTV__sortTypeToColumnType(aSortType) {
-    switch (aSortType) {
+    switch(aSortType) {
       case Ci.nsINavHistoryQueryOptions.SORT_BY_TITLE_ASCENDING:
         return [this.COLUMN_TYPE_TITLE, false];
       case Ci.nsINavHistoryQueryOptions.SORT_BY_TITLE_DESCENDING:
@@ -434,31 +510,27 @@ PlacesTreeView.prototype = {
         return [this.COLUMN_TYPE_LASTMODIFIED, false];
       case Ci.nsINavHistoryQueryOptions.SORT_BY_LASTMODIFIED_DESCENDING:
         return [this.COLUMN_TYPE_LASTMODIFIED, true];
-      case Ci.nsINavHistoryQueryOptions.SORT_BY_TAGS_ASCENDING:
-        return [this.COLUMN_TYPE_TAGS, false];
-      case Ci.nsINavHistoryQueryOptions.SORT_BY_TAGS_DESCENDING:
-        return [this.COLUMN_TYPE_TAGS, true];
     }
     return [this.COLUMN_TYPE_UNKNOWN, false];
   },
 
   // nsINavHistoryResultViewer
-  nodeInserted: function PTV_nodeInserted(aParentNode, aNode, aNewIndex) {
+  itemInserted: function PTV_itemInserted(aParent, aItem, aNewIndex) {
     if (!this._tree)
       return;
     if (!this._result)
       throw Cr.NS_ERROR_UNEXPECTED;
 
-    if (PlacesUtils.nodeIsSeparator(aNode) &&
+    if (PlacesUtils.nodeIsSeparator(aItem) &&
         this._result.sortingMode != Ci.nsINavHistoryQueryOptions.SORT_BY_NONE) {
-      aNode._viewIndex = -1;
+      aItem.viewIndex = -1;
       return;
     }
 
-    // Update parent when inserting the first item, since twisty may
-    // have changed.
-    if (aParentNode.childCount == 1)
-      this._tree.invalidateRow(aParentNode._viewIndex);
+    // update parent when inserting the first item because twisty may
+    // have changed
+    if (aParent.childCount == 1)
+      this.itemChanged(aParent);
 
     // compute the new view index of the item
     var newViewIndex = -1;
@@ -466,15 +538,15 @@ PlacesTreeView.prototype = {
       // item is the first thing in our child list, it takes our index +1. Note
       // that this computation still works if the parent is an invisible root
       // node, because root_index + 1 = -1 + 1 = 0
-      newViewIndex = aParentNode._viewIndex + 1;
+      newViewIndex = aParent.viewIndex + 1;
     }
     else {
       // Here, we try to find the next visible element in the child list so we
       // can set the new visible index to be right before that. Note that we
       // have to search DOWN instead of up, because some siblings could have
       // children themselves that would be in the way.
-      for (var i = aNewIndex + 1; i < aParentNode.childCount; i++) {
-        var viewIndex = aParentNode.getChild(i)._viewIndex;
+      for (var i = aNewIndex + 1; i < aParent.childCount; i ++) {
+        var viewIndex = aParent.getChild(i).viewIndex;
         if (viewIndex >= 0) {
           // the view indices of subsequent children have not been shifted so
           // the next item will have what should be our index
@@ -486,267 +558,195 @@ PlacesTreeView.prototype = {
         // At the end of the child list without finding a visible sibling: This
         // is a little harder because we don't know how many rows the last item
         // in our list takes up (it could be a container with many children).
-        var prevChild = aParentNode.getChild(aNewIndex - 1);
-        newViewIndex = prevChild._viewIndex + this._countVisibleRowsForNode(prevChild);
+        var lastRowCount =
+          this._countVisibleRowsForItem(aParent.getChild(aNewIndex - 1));
+        newViewIndex =
+          aParent.getChild(aNewIndex - 1).viewIndex + lastRowCount;
       }
     }
 
-    aNode._viewIndex = newViewIndex;
-    this._visibleElements.splice(newViewIndex, 0, aNode);
+    // Try collapsing with the previous node. Note that we do not have to try
+    // to redraw the surrounding rows (which we normally would because session
+    // boundaries may have changed) because when an item is merged, it will
+    // always be in the same session.
+    var showThis =  { value: true };
+    if (newViewIndex > 0 &&
+        this._canCollapseDuplicates
+          (this._visibleElements[newViewIndex - 1], aItem, showThis)) {
+      if (!showThis.value) {
+        // new node is invisible, collapsed with previous one
+        aItem.viewIndex = -1;
+      }
+      else {
+        // new node replaces the previous
+       this.itemReplaced(aParent, this._visibleElements[newViewIndex - 1],
+                         aItem, 0);
+      }
+      return;
+    }
+
+    // try collapsing with the next node (which is currently at the same
+    // index we are trying to insert at)
+    if (newViewIndex < this._visibleElements.length &&
+        this._canCollapseDuplicates(aItem, this._visibleElements[newViewIndex],
+                                    showThis)) {
+      if (!showThis.value) {
+        // new node replaces the next node
+        this.itemReplaced(aParent, this._visibleElements[newViewIndex], aItem,
+                          0);
+      }
+      else {
+        // new node is invisible, replaced by next one
+        aItem.viewIndex = -1;
+      }
+      return;
+    }
+
+    // no collapsing, insert new item
+    aItem.viewIndex = newViewIndex;
+    this._visibleElements.splice(newViewIndex, 0, aItem);
     for (var i = newViewIndex + 1;
-         i < this._visibleElements.length; i++) {
-      this._visibleElements[i]._viewIndex = i;
+         i < this._visibleElements.length; i ++) {
+      this._visibleElements[i].viewIndex = i;
     }
     this._tree.rowCountChanged(newViewIndex, 1);
 
-    if (PlacesUtils.nodeIsContainer(aNode) && asContainer(aNode).containerOpen)
-      this._refreshVisibleSection(aNode);
-  },
+    // Need to redraw the rows around this one because session boundaries
+    // may have changed. For example, if we add a page to a session, the
+    // previous page will need to be redrawn because it's session border
+    // will disappear.
+    if (this._showSessions) {
+      if (newViewIndex > 0)
+        this._tree.invalidateRange(newViewIndex - 1, newViewIndex - 1);
+      if (newViewIndex < this._visibleElements.length -1)
+        this._tree.invalidateRange(newViewIndex + 1, newViewIndex + 1);
+    }
 
-  // This is used in nodeRemoved and nodeMoved to fix viewIndex values.
-  // Throws if the node has an invalid viewIndex.
-  _fixViewIndexOnRemove: function PTV_fixViewIndexOnRemove(aNode,
-                                                           aParentNode) {
-    var oldViewIndex = aNode._viewIndex;
-    // this may have been a container, in which case it has a lot of rows
-    var count = this._countVisibleRowsForNode(aNode);
-
-    if (oldViewIndex > this._visibleElements.length)
-      throw("Trying to remove a node with an invalid viewIndex");
-
-    this._visibleElements.splice(oldViewIndex, count);
-    for (var i = oldViewIndex; i < this._visibleElements.length; i++)
-      this._visibleElements[i]._viewIndex = i;
-
-    this._tree.rowCountChanged(oldViewIndex, -count);
-
-    // redraw parent because twisty may have changed
-    if (!aParentNode.hasChildren)
-      this._tree.invalidateRow(aParentNode._viewIndex);
+    if (PlacesUtils.nodeIsContainer(aItem) && asContainer(aItem).containerOpen)
+      this._refreshVisibleSection(aItem);
   },
 
   /**
    * THIS FUNCTION DOES NOT HANDLE cases where a collapsed node is being
    * removed but the node it is collapsed with is not being removed (this then
-   * just swap out the removee with its collapsing partner). The only time
+   * just swap out the removee with it's collapsing partner). The only time
    * when we really remove things is when deleting URIs, which will apply to
    * all collapsees. This function is called sometimes when resorting items.
    * However, we won't do this when sorted by date because dates will never
    * change for visits, and date sorting is the only time things are collapsed.
    */
-  nodeRemoved: function PTV_nodeRemoved(aParentNode, aNode, aOldIndex) {
+  itemRemoved: function PTV_itemRemoved(aParent, aItem, aOldIndex) {
     NS_ASSERT(this._result, "Got a notification but have no result!");
     if (!this._tree)
-      return; // nothing to do
+        return; // nothing to do
 
-    var oldViewIndex = aNode._viewIndex;
-    if (oldViewIndex < 0) {
-      // There's nothing to do if the node was already invisible.
-      return;
-    }
+    var oldViewIndex = aItem.viewIndex;
+    if (oldViewIndex < 0)
+      return; // item was already invisible, nothing to do
 
-    // If the node was exclusively selected, the node next to it will be
-    // selected.
-    var selectNext = false;
-    var selection = this.selection;
-    if (selection.getRangeCount() == 1) {
-      var min = { }, max = { };
-      selection.getRangeAt(0, min, max);
-      if (min.value == max.value &&
-          this.nodeForTreeIndex(min.value) == aNode)
-        selectNext = true;
-    }
+    // this may have been a container, in which case it has a lot of rows
+    var count = this._countVisibleRowsForItem(aItem);
 
-    // Remove the node and fix viewIndex values.
-    this._fixViewIndexOnRemove(aNode, aParentNode);
+    // We really want tail recursion here, since we sometimes do another
+    // remove after this when duplicates are being collapsed. This loop
+    // emulates that.
+    while (true) {
+      NS_ASSERT(oldViewIndex <= this._visibleElements.length,
+                "Trying to remove invalid row");
+      if (oldViewIndex > this._visibleElements.length)
+        return;
 
-    // Restore selection if the node was exclusively selected.
-    if (!selectNext)
-      return;
+      this._visibleElements.splice(oldViewIndex, count);
+      for (var i = oldViewIndex; i < this._visibleElements.length; i++)
+        this._visibleElements[i].viewIndex = i;
 
-    // Restore selection
-    if (this._visibleElements.length > oldViewIndex)
-      selection.rangedSelect(oldViewIndex, oldViewIndex, true);    
-    else if (this._visibleElements.length > 0) {
-      // if we removed the last child, we select the new last child if exists
-      selection.rangedSelect(this._visibleElements.length - 1,
-                             this._visibleElements.length - 1, true);
-    }
-  },
+      this._tree.rowCountChanged(oldViewIndex, -count);
 
-  /**
-   * Be careful, aOldIndex and aNewIndex specify the index in the
-   * corresponding parent nodes, not the visible indexes.
-   */
-  nodeMoved:
-  function PTV_nodeMoved(aNode, aOldParent, aOldIndex, aNewParent, aNewIndex) {
-    NS_ASSERT(this._result, "Got a notification but have no result!");
-    if (!this._tree)
-      return; // nothing to do
-
-    var oldViewIndex = aNode._viewIndex;
-    if (oldViewIndex < 0) {
-      // There's nothing to do if the node was already invisible.
-      return;
-    }
-
-    // This may have been a container, in which case it has a lot of rows.
-    var count = this._countVisibleRowsForNode(aNode);
-
-    // Persist selection state.
-    var nodesToSelect = [];
-    var selection = this.selection;
-    var rc = selection.getRangeCount();
-    for (var rangeIndex = 0; rangeIndex < rc; rangeIndex++) {
-      var min = { }, max = { };
-      selection.getRangeAt(rangeIndex, min, max);
-      var lastIndex = Math.min(max.value, oldViewIndex + count -1);
-      if (min.value < oldViewIndex || min.value > lastIndex)
-        continue;
-
-      for (var nodeIndex = min.value; nodeIndex <= lastIndex; nodeIndex++)
-        nodesToSelect.push(this._visibleElements[nodeIndex]);
-    }
-    if (nodesToSelect.length > 0)
-      selection.selectEventsSuppressed = true;
-
-    // Remove node from the old position.
-    this._fixViewIndexOnRemove(aNode, aOldParent);
-
-    // Insert the node into the new position.
-    this.nodeInserted(aNewParent, aNode, aNewIndex);
-
-    // Restore selection.
-    if (nodesToSelect.length > 0) {
-      for (var i = 0; i < nodesToSelect.length; i++) {
-        var node = nodesToSelect[i];
-        var index = node._viewIndex;
-        selection.rangedSelect(index, index, true);
+      // the removal might have put two things together that should be collapsed
+      if (oldViewIndex > 0 &&
+          oldViewIndex < this._visibleElements.length) {
+        var showThisOne =  { value: true };
+        if (this._canCollapseDuplicates
+             (this._visibleElements[oldViewIndex - 1],
+              this._visibleElements[oldViewIndex], showThisOne))
+        {
+          // Fake-tail-recurse to the beginning of this function to
+          // remove the collapsed row. Note that we need to set the
+          // visible index to -1 before looping because we can never
+          // touch the row we're removing (callers may have already
+          // destroyed it).
+          oldViewIndex = oldViewIndex - 1 + (showThisOne.value ? 1 : 0);
+          this._visibleElements[oldViewIndex].viewIndex = -1;
+          count = 1; // next time remove one row
+          continue;
+        }
       }
-      selection.selectEventsSuppressed = false;
+      break; // normal path: just remove once
     }
+
+    // redraw parent because twisty may have changed
+    if (!aParent.hasChildren)
+      this.itemChanged(aParent);
   },
 
   /**
-   * Be careful, the parameter 'aIndex' here specifies the node's index in the
-   * parent node, not the visible index.
+   * Be careful, the parameter 'aIndex' here specifies the index in the parent
+   * node of the item, not the visible index.
+   *
+   * This is called from the result when the item is replaced, but this object
+   * calls this function internally also when duplicate collapsing changes. In
+   * this case, aIndex will be 0, so we should be careful not to use the value.
    */
-  nodeReplaced:
-  function PTV_nodeReplaced(aParentNode, aOldNode, aNewNode, aIndexDoNotUse) {
+  itemReplaced:
+  function PTV_itemReplaced(aParent, aOldItem, aNewItem, aIndexDoNotUse) {
     if (!this._tree)
       return;
 
-    var viewIndex = aOldNode._viewIndex;
-    aNewNode._viewIndex = viewIndex;
+    var viewIndex = aOldItem.viewIndex;
+    aNewItem.viewIndex = viewIndex;
     if (viewIndex >= 0 &&
-        viewIndex < this._visibleElements.length) {
-      this._visibleElements[viewIndex] = aNewNode;
-    }
-    aOldNode._viewIndex = -1;
+        viewIndex < this._visibleElements.length)
+      this._visibleElements[viewIndex] = aNewItem;
+    aOldItem.viewIndex = -1;
     this._tree.invalidateRow(viewIndex);
   },
 
-  _invalidateCellValue: function PTV__invalidateCellValue(aNode,
-                                                          aColumnType) {
+  itemChanged: function PTV_itemChanged(aItem) {
     NS_ASSERT(this._result, "Got a notification but have no result!");
-    let viewIndex = aNode._viewIndex;
-    if (viewIndex == -1) // invisible
-      return;
-
-    if (this._tree) {
-      let column = this._findColumnByType(aColumnType);
-      if (column && !column.element.hidden)
-        this._tree.invalidateCell(viewIndex, column);
-
-      // Last modified time is altered for almost all node changes.
-      if (aColumnType != this.COLUMN_TYPE_LASTMODIFIED) {
-        let lastModifiedColumn =
-          this._findColumnByType(this.COLUMN_TYPE_LASTMODIFIED);
-        if (lastModifiedColumn && !lastModifiedColumn.hidden)
-          this._tree.invalidateCell(viewIndex, lastModifiedColumn);
-      }
-    }
+    var viewIndex = aItem.viewIndex;
+    if (this._tree && viewIndex >= 0)
+      this._tree.invalidateRow(viewIndex);
   },
 
-  nodeTitleChanged: function PTV_nodeTitleChanged(aNode, aNewTitle) {
-    this._invalidateCellValue(aNode, this.COLUMN_TYPE_TITLE);
+  containerOpened: function PTV_containerOpened(aItem) {
+    this.invalidateContainer(aItem);
   },
 
-  nodeURIChanged: function PTV_nodeURIChanged(aNode, aNewURI) {
-    this._invalidateCellValue(aNode, this.COLUMN_TYPE_URI);
+  containerClosed: function PTV_containerClosed(aItem) {
+    this.invalidateContainer(aItem);
   },
 
-  nodeIconChanged: function PTV_nodeIconChanged(aNode) {
-    this._invalidateCellValue(aNode, this.COLUMN_TYPE_TITLE);
-  },
-
-  nodeHistoryDetailsChanged:
-  function PTV_nodeHistoryDetailsChanged(aNode, aUpdatedVisitDate,
-                                         aUpdatedVisitCount) {
-    this._invalidateCellValue(aNode, this.COLUMN_TYPE_DATE);
-    this._invalidateCellValue(aNode, this.COLUMN_TYPE_VISITCOUNT);
-  },
-
-  nodeTagsChanged: function PTV_nodeTagsChanged(aNode) {
-    this._invalidateCellValue(aNode, this.COLUMN_TYPE_TAGS);
-  },
-
-  nodeKeywordChanged: function PTV_nodeKeywordChanged(aNode, aNewKeyword) {
-    this._invalidateCellValue(aNode, this.COLUMN_TYPE_KEYWORD);
-  },
-
-  nodeAnnotationChanged: function PTV_nodeAnnotationChanged(aNode, aAnno) {
-    if (aAnno == DESCRIPTION_ANNO)
-      this._invalidateCellValue(aNode, this.COLUMN_TYPE_DESCRIPTION);
-  },
-
-  nodeDateAddedChanged: function PTV_nodeDateAddedChanged(aNode, aNewValue) {
-    this._invalidateCellValue(aNode, this.COLUMN_TYPE_DATEADDED);
-  },
-
-  nodeLastModifiedChanged:
-  function PTV_nodeLastModifiedChanged(aNode, aNewValue) {
-    this._invalidateCellValue(aNode, this.COLUMN_TYPE_LASTMODIFIED);
-  },
-
-  containerOpened: function PTV_containerOpened(aNode) {
-    this.invalidateContainer(aNode);
-  },
-
-  containerClosed: function PTV_containerClosed(aNode) {
-    this.invalidateContainer(aNode);
-  },
-
-  invalidateContainer: function PTV_invalidateContainer(aNode) {
+  invalidateContainer: function PTV_invalidateContainer(aItem) {
     NS_ASSERT(this._result, "Got a notification but have no result!");
     if (!this._tree)
       return; // nothing to do, container is not visible
-
-    if (aNode._viewIndex >= this._visibleElements.length) {
+    var viewIndex = aItem.viewIndex;
+    if (viewIndex >= this._visibleElements.length) {
       // be paranoid about visible indices since others can change it
       throw Cr.NS_ERROR_UNEXPECTED;
     }
-    this._refreshVisibleSection(aNode);
+    this._refreshVisibleSection(aItem);
   },
 
-  _columns: [],
-  _findColumnByType: function PTV__findColumnByType(aColumnType) {
-    if (this._columns[aColumnType])
-      return this._columns[aColumnType];
+  invalidateAll: function PTV_invalidateAll() {
+    NS_ASSERT(this._result, "Got message but don't have a result!");
+    if (!this._tree)
+      return;
 
-    var columns = this._tree.columns;
-    var colCount = columns.count;
-    for (var i = 0; i < colCount; i++) {
-      let column = columns.getColumnAt(i);
-      let columnType = this._getColumnType(column);
-      this._columns[columnType] = column;
-      if (columnType == aColumnType)
-        return column;
-    }
+    var oldRowCount = this._visibleElements.length;
 
-    // That's completely valid.  Most of our trees actually include just the
-    // title column.
-    return null;
+    // update flat list to new contents
+    this._buildVisibleList();
   },
 
   sortingChanged: function PTV__sortingChanged(aSortingMode) {
@@ -766,14 +766,19 @@ PlacesTreeView.prototype = {
     // set new sorting indicator by looking through all columns for ours
     if (aSortingMode == Ci.nsINavHistoryQueryOptions.SORT_BY_NONE)
       return;
-
     var [desiredColumn, desiredIsDescending] =
       this._sortTypeToColumnType(aSortingMode);
     var colCount = columns.count;
-    var column = this._findColumnByType(desiredColumn);
-    if (column) {
-      let sortDir = desiredIsDescending ? "descending" : "ascending";
-      column.element.setAttribute("sortDirection", sortDir);
+    for (var i = 0; i < colCount; i ++) {
+      var column = columns.getColumnAt(i);
+      if (this._getColumnType(column) == desiredColumn) {
+        // found our desired one, set
+        if (desiredIsDescending)
+          column.element.setAttribute("sortDirection", "descending");
+        else
+          column.element.setAttribute("sortDirection", "ascending");
+        break;
+      }
     }
   },
 
@@ -782,23 +787,54 @@ PlacesTreeView.prototype = {
   },
 
   set result(val) {
-    // Some methods (e.g. getURLsFromContainer) temporarily null out the
-    // viewer when they do temporary changes to the view, this does _not_
-    // call setResult(null), but then, we're called again with the result
-    // object which is already set for this viewer. At that point,
-    // we should do nothing.
-    if (this._result != val) {
-      if (this._result)
-        this._rootNode.containerOpen = false;
-
-      this._result = val;
-      this._rootNode = val ? val.root : null;
-
-      // If the tree is not set yet, setTree will call finishInit.
-      if (this._tree && val)
-        this._finishInit();
-    }
+    this._result = val;
+    this._finishInit();
     return val;
+  },
+
+  addViewObserver: function PTV_addViewObserver(aObserver, aWeak) {
+    if (aWeak)
+      throw Cr.NS_ERROR_NOT_IMPLEMENTED;
+
+    if (this._observers.indexOf(aObserver) == -1)
+      this._observers.push(aObserver);
+  },
+
+  removeViewObserver: function PTV_removeViewObserver(aObserver) {
+    var index = this._observers.indexOf(aObserver);
+    if (index != -1)
+      this._observers.splice(index, 1);
+  },
+
+  _enumerateObservers: function PTV__enumerateObservers(aFunctionName, aArgs) {
+    for (var i=0; i < this._observers.length; i++) {
+      // Don't bail out if one of the observer threw
+      try {
+        var obs = this._observers[i];
+        obs[aFunctionName].apply(obs, aArgs);
+      }
+      catch (ex) { Components.utils.reportError(ex); }
+    }
+  },
+
+  // nsINavHistoryResultTreeViewer
+  get collapseDuplicates() {
+    return this._collapseDuplicates;
+  },
+
+  set collapseDuplicates(val) {
+    if (this._collapseDuplicates == val)
+      return val; // no change;
+
+    this._collapseDuplicates = val;
+    if (this._tree && this._result)
+      this.invalidateAll();
+
+    return val;
+  },
+
+  get flatItemCount() {
+    return this._visibleElements.length;
   },
 
   nodeForTreeIndex: function PTV_nodeForTreeIndex(aIndex) {
@@ -809,7 +845,7 @@ PlacesTreeView.prototype = {
   },
 
   treeIndexForNode: function PTV_treeNodeForIndex(aNode) {
-    var viewIndex = aNode._viewIndex;
+    var viewIndex = aNode.viewIndex;
     if (viewIndex < 0)
       return Ci.nsINavHistoryResultTreeViewer.INDEX_INVISIBLE;
 
@@ -818,11 +854,11 @@ PlacesTreeView.prototype = {
     return viewIndex;
   },
 
-  _getResourceForNode: function PTV_getResourceForNode(aNode)
+  _getResourceForNode : function PTV_getResourceForNode(aNode)
   {
     var uri = aNode.uri;
     NS_ASSERT(uri, "if there is no uri, we can't persist the open state");
-    return uri ? PlacesUIUtils.RDF.GetResource(uri) : null;
+    return uri ? PlacesUtils.RDF.GetResource(uri) : null;
   },
 
   // nsITreeView
@@ -838,87 +874,54 @@ PlacesTreeView.prototype = {
     return this._selection = val;
   },
 
-  getRowProperties: function PTV_getRowProperties(aRow, aProperties) { },
+  getRowProperties: function PTV_getRowProperties(aRow, aProperties) {
+    this._ensureValidRow(aRow);
+    var node = this._visibleElements[aRow];
+
+    // Handle properties for session information.
+    if (!this._showSessions)
+      return;
+
+    switch(this._getRowSessionStatus(aRow)) {
+      case this.SESSION_STATUS_NONE:
+        break;
+      case this.SESSION_STATUS_START:
+        aProperties.AppendElement(this._sessionStartAtom);
+        break;
+      case this.SESSION_STATUS_CONTINUE:
+        aProperties.AppendElement(this._sessionContinueAtom);
+        break
+    }
+  },
 
   getCellProperties: function PTV_getCellProperties(aRow, aColumn, aProperties) {
-    this._ensureValidRow(aRow);
-
-    // for anonid-trees, we need to add the column-type manually
-    var columnType = aColumn.element.getAttribute("anonid");
-    if (columnType)
-      aProperties.AppendElement(this._getAtomFor(columnType));
-    else
-      var columnType = aColumn.id;
-
-    // Set the "ltr" property on url cells
-    if (columnType == "url")
-      aProperties.AppendElement(this._getAtomFor("ltr"));
-
+    var columnType = aColumn.id || aColumn.element.getAttribute("anonid") ;
     if (columnType != "title")
       return;
 
+    this._ensureValidRow(aRow);
     var node = this._visibleElements[aRow];
-    if (!node._cellProperties) {
-      let properties = new Array();
-      var itemId = node.itemId;
-      var nodeType = node.type;
-      if (PlacesUtils.containerTypes.indexOf(nodeType) != -1) {
-        if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY) {
-          properties.push(this._getAtomFor("query"));
-          if (PlacesUtils.nodeIsTagQuery(node))
-            properties.push(this._getAtomFor("tagContainer"));
-          else if (PlacesUtils.nodeIsDay(node))
-            properties.push(this._getAtomFor("dayContainer"));
-          else if (PlacesUtils.nodeIsHost(node))
-            properties.push(this._getAtomFor("hostContainer"));
-        }
-        else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER ||
-                 nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT) {
-          if (PlacesUtils.nodeIsLivemarkContainer(node))
-            properties.push(this._getAtomFor("livemark"));
-        }
 
-        if (itemId != -1) {
-          var queryName = PlacesUIUtils.getLeftPaneQueryNameFromId(itemId);
-          if (queryName)
-            properties.push(this._getAtomFor("OrganizerQuery_" + queryName));
-        }
-      }
-      else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR)
-        properties.push(this._getAtomFor("separator"));
-      else if (PlacesUtils.nodeIsURI(node)) {
-        properties.push(this._getAtomFor(PlacesUIUtils.guessUrlSchemeForUI(node.uri)));
-        if (itemId != -1) {
-          if (PlacesUtils.nodeIsLivemarkContainer(node.parent))
-            properties.push(this._getAtomFor("livemarkItem"));
-        }
-      }
-
-      node._cellProperties = properties;
-    }
-    for (var i = 0; i < node._cellProperties.length; i++)
-      aProperties.AppendElement(node._cellProperties[i]);
+    if (PlacesUtils.nodeIsSeparator(node))
+      aProperties.AppendElement(this._separatorAtom);
   },
 
   getColumnProperties: function(aColumn, aProperties) { },
 
   isContainer: function PTV_isContainer(aRow) {
     this._ensureValidRow(aRow);
-
     var node = this._visibleElements[aRow];
     if (PlacesUtils.nodeIsContainer(node)) {
-      // Flat-lists may ignore expandQueries and other query options when
-      // they are asked to open a container.
-      if (this._flatList)
-        return true;
-
-      // treat non-expandable childless queries as non-containers
+      // treat non-expandable queries as non-containers
       if (PlacesUtils.nodeIsQuery(node)) {
-        var parent = node.parent;
-        if ((PlacesUtils.nodeIsQuery(parent) ||
-             PlacesUtils.nodeIsFolder(parent)) &&
-            !node.hasChildren)
-          return asQuery(parent).queryOptions.expandQueries;
+        asQuery(node);
+        if (node.queryOptions.expandQueries)
+          return true;
+        // the root node is always expandable
+        if (!node.parent)
+          return true;
+
+        return false;
       }
       return true;
     }
@@ -926,19 +929,19 @@ PlacesTreeView.prototype = {
   },
 
   isContainerOpen: function PTV_isContainerOpen(aRow) {
-    if (this._flatList)
-      return false;
-
     this._ensureValidRow(aRow);
-    return this._visibleElements[aRow].containerOpen;
+    if (!PlacesUtils.nodeIsContainer(this._visibleElements[aRow]))
+      throw Cr.NS_ERROR_INVALID_ARG;
+
+    return asContainer(this._visibleElements[aRow]).containerOpen;
   },
 
   isContainerEmpty: function PTV_isContainerEmpty(aRow) {
-    if (this._flatList)
-      return true;
-
     this._ensureValidRow(aRow);
-    return !this._visibleElements[aRow].hasChildren;
+    if (!PlacesUtils.nodeIsContainer(this._visibleElements[aRow]))
+      throw Cr.NS_ERROR_INVALID_ARG;
+
+    return !asContainer(this._visibleElements[aRow]).hasChildren;
   },
 
   isSeparator: function PTV_isSeparator(aRow) {
@@ -948,102 +951,28 @@ PlacesTreeView.prototype = {
 
   isSorted: function PTV_isSorted() {
     return this._result.sortingMode !=
-           Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
+           Components.interfaces.nsINavHistoryQueryOptions.SORT_BY_NONE;
   },
 
   canDrop: function PTV_canDrop(aRow, aOrientation) {
-    if (!this._result)
-      throw Cr.NS_ERROR_UNEXPECTED;
-
-    // drop position into a sorted treeview would be wrong
-    if (this.isSorted())
-      return false;
-
-    var ip = this._getInsertionPoint(aRow, aOrientation);
-    return ip && PlacesControllerDragHelper.canDrop(ip);
-  },
-
-  _getInsertionPoint: function PTV__getInsertionPoint(index, orientation) {
-    var container = this._result.root;
-    var dropNearItemId = -1;
-    // When there's no selection, assume the container is the container
-    // the view is populated from (i.e. the result's itemId).
-    if (index != -1) {
-      var lastSelected = this.nodeForTreeIndex(index);
-      if (this.isContainer(index) && orientation == Ci.nsITreeView.DROP_ON) {
-        // If the last selected item is an open container, append _into_
-        // it, rather than insert adjacent to it. 
-        container = lastSelected;
-        index = -1;
-      }
-      else if (lastSelected.containerOpen &&
-               orientation == Ci.nsITreeView.DROP_AFTER &&
-               lastSelected.hasChildren) {
-        // If the last selected node is an open container and the user is
-        // trying to drag into it as a first node, really insert into it.
-        container = lastSelected;
-        orientation = Ci.nsITreeView.DROP_ON;
-        index = 0;
-      }
-      else {
-        // Use the last-selected node's container unless the root node
-        // is selected, in which case we use the root node itself as the
-        // insertion point.
-        container = lastSelected.parent || container;
-
-        // avoid the potentially expensive call to getIndexOfNode() 
-        // if we know this container doesn't allow insertion
-        if (PlacesControllerDragHelper.disallowInsertion(container))
-          return null;
-
-        var queryOptions = asQuery(this._result.root).queryOptions;
-        if (queryOptions.sortingMode !=
-              Ci.nsINavHistoryQueryOptions.SORT_BY_NONE) {
-          // If we are within a sorted view, insert at the ends
-          index = -1;
-        }
-        else if (queryOptions.excludeItems ||
-                 queryOptions.excludeQueries ||
-                 queryOptions.excludeReadOnlyFolders) {
-          // Some item may be invisible, insert near last selected one.
-          // We don't replace index here to avoid requests to the db,
-          // instead it will be calculated later by the controller.
-          index = -1;
-          dropNearItemId = lastSelected.itemId;
-        }
-        else {
-          var lsi = PlacesUtils.getIndexOfNode(lastSelected);
-          index = orientation == Ci.nsITreeView.DROP_BEFORE ? lsi : lsi + 1;
-        }
-      }
+    for (var i=0; i < this._observers.length; i++) {
+      if (this._observers[i].canDrop(aRow, aOrientation))
+        return true;
     }
-
-    if (PlacesControllerDragHelper.disallowInsertion(container))
-      return null;
-
-    return new InsertionPoint(PlacesUtils.getConcreteItemId(container),
-                              index, orientation,
-                              PlacesUtils.nodeIsTagQuery(container),
-                              dropNearItemId);
+    return false;
   },
 
   drop: function PTV_drop(aRow, aOrientation) {
-    // We are responsible for translating the |index| and |orientation| 
-    // parameters into a container id and index within the container, 
-    // since this information is specific to the tree view.
-    var ip = this._getInsertionPoint(aRow, aOrientation);
-    if (!ip)
-      return;
-    PlacesControllerDragHelper.onDrop(ip);
+    this._enumerateObservers("onDrop", [aRow, aOrientation]);
   },
 
   getParentIndex: function PTV_getParentIndex(aRow) {
     this._ensureValidRow(aRow);
     var parent = this._visibleElements[aRow].parent;
-    if (!parent || parent._viewIndex < 0)
+    if (!parent || parent.viewIndex < 0)
       return -1;
 
-    return parent._viewIndex;
+    return parent.viewIndex;
   },
 
   hasNextSibling: function PTV_hasNextSibling(aRow, aAfterIndex) {
@@ -1053,32 +982,44 @@ PlacesTreeView.prototype = {
       return false;
     }
 
-    var thisLevel = this._visibleElements[aRow].indentLevel;
-    for (var i = aAfterIndex + 1; i < this._visibleElements.length; ++i) {
-      var nextLevel = this._visibleElements[i].indentLevel;
-      if (nextLevel == thisLevel)
-        return true;
-      if (nextLevel < thisLevel)
-        break;
-    }
-    return false;
+    return this._visibleElements[aRow].indentLevel ==
+           this._visibleElements[aRow + 1].indentLevel;
   },
 
   getLevel: function PTV_getLevel(aRow) {
     this._ensureValidRow(aRow);
 
-    // Level is 0 for nodes at the root level, 1 for its children and so on.
+    // Level is 0 for items at the root level, 1 for its children and so on.
+    // If we don't show the result's root node, the level is simply the node's
+    // indentLevel; if we do, it is the node's indentLevel increased by 1.
+    // That is because nsNavHistoryResult uses -1 as the indent level for the
+    // root node regardless of our internal showRoot state.
+    if (this._showRoot)
+      return this._visibleElements[aRow].indentLevel + 1;
+
     return this._visibleElements[aRow].indentLevel;
   },
 
   getImageSrc: function PTV_getImageSrc(aRow, aColumn) {
     this._ensureValidRow(aRow);
 
-    // only the title column has an image
-    if (this._getColumnType(aColumn) != this.COLUMN_TYPE_TITLE)
+    // only the first column has an image
+    if (aColumn.index != 0)
       return "";
 
-    return this._visibleElements[aRow].icon;
+    var node = this._visibleElements[aRow];
+
+    // Containers may or may not have favicons. If not, we will return
+    // nothing as the image, and the style rule should pick up the
+    // default. Separator rows never have icons.
+    if (PlacesUtils.nodeIsSeparator(node) ||
+        (PlacesUtils.nodeIsContainer(node) && !node.icon))
+      return "";
+
+    // For consistency, we always return a favicon for non-containers,
+    // even if it is just the default one.
+    var icon = node.icon || PlacesUtils.favicons.defaultFavicon;
+    return icon ? icon.spec : "";
   },
 
   getProgressMode: function(aRow, aColumn) { },
@@ -1088,8 +1029,7 @@ PlacesTreeView.prototype = {
     this._ensureValidRow(aRow);
 
     var node = this._visibleElements[aRow];
-    var columnType = this._getColumnType(aColumn);
-    switch (columnType) {
+    switch (this._getColumnType(aColumn)) {
       case this.COLUMN_TYPE_TITLE:
         // normally, this is just the title, but we don't want empty items in
         // the tree view so return a special string if the title is empty.
@@ -1097,16 +1037,21 @@ PlacesTreeView.prototype = {
         // if they go through the "result" API.
         if (PlacesUtils.nodeIsSeparator(node))
           return "";
-        return PlacesUIUtils.getBestTitle(node);
+        return node.title || PlacesUtils.getString("noTitle");
       case this.COLUMN_TYPE_TAGS:
-        return node.tags;
+        if (PlacesUtils.nodeIsURI(node)) {
+          var tagsvc = PlacesUtils.tagging;
+          var uri = PlacesUtils._uri(node.uri);
+          var tags = tagsvc.getTagsForURI(uri, {});
+          return tags.join(", ");
+        }
+        return "";
       case this.COLUMN_TYPE_URI:
         if (PlacesUtils.nodeIsURI(node))
           return node.uri;
         return "";
       case this.COLUMN_TYPE_DATE:
-        let nodeTime = node.time;
-        if (nodeTime == 0 || !PlacesUtils.nodeIsURI(node)) {
+        if (node.time == 0 || !PlacesUtils.nodeIsURI(node)) {
           // hosts and days shouldn't have a value for the date column.
           // Actually, you could argue this point, but looking at the
           // results, seeing the most recently visited date is not what
@@ -1114,8 +1059,9 @@ PlacesTreeView.prototype = {
           // Only show this for URI-based items.
           return "";
         }
-
-        return this._convertPRTimeToString(nodeTime);
+        if (this._getRowSessionStatus(aRow) != this.SESSION_STATUS_CONTINUE)
+          return this._convertPRTimeToString(node.time);
+        return "";
       case this.COLUMN_TYPE_VISITCOUNT:
         return node.accessCount;
       case this.COLUMN_TYPE_KEYWORD:
@@ -1123,13 +1069,9 @@ PlacesTreeView.prototype = {
           return PlacesUtils.bookmarks.getKeywordForBookmark(node.itemId);
         return "";
       case this.COLUMN_TYPE_DESCRIPTION:
-        if (node.itemId != -1) {
-          try {
-            return PlacesUtils.annotations.
-                               getItemAnnotation(node.itemId, DESCRIPTION_ANNO);
-          }
-          catch (ex) { /* has no description */ }
-        }
+        const annos = PlacesUtils.annotations;
+        if (annos.itemHasAnnotation(node.itemId, DESCRIPTION_ANNO))
+          return annos.getItemAnnotation(node.itemId, DESCRIPTION_ANNO)
         return "";
       case this.COLUMN_TYPE_DATEADDED:
         if (node.dateAdded)
@@ -1147,15 +1089,15 @@ PlacesTreeView.prototype = {
     var hasOldTree = this._tree != null;
     this._tree = aTree;
 
-    if (this._result) {
-      if (hasOldTree) {
-        // detach from result when we are detaching from the tree.
-        // This breaks the reference cycle between us and the result.
-        if (!aTree)
-          this._result.viewer = null;
-      }
-      if (aTree)
-        this._finishInit();
+    // do this before detaching from result when there is no tree.
+    // This ensures that the visible indices of the elements in the
+    // result have been set to -1
+    this._finishInit();
+
+    if (!aTree && hasOldTree && this._result) {
+      // detach from result when we are detaching from the tree.
+      // This breaks the reference cycle between us and the result.
+      this._result.viewer = null;
     }
   },
 
@@ -1164,21 +1106,22 @@ PlacesTreeView.prototype = {
       throw Cr.NS_ERROR_UNEXPECTED;
     this._ensureValidRow(aRow);
 
-    var node = this._visibleElements[aRow];
-    if (this._flatList && this._openContainerCallback) {
-      this._openContainerCallback(node);
-      return;
-    }
+    this._enumerateObservers("onToggleOpenState", [aRow]);
 
+    var node = this._visibleElements[aRow];
+    if (!PlacesUtils.nodeIsContainer(node))
+      return; // not a container, nothing to do
+
+    asContainer(node);
     var resource = this._getResourceForNode(node);
     if (resource) {
-      const openLiteral = PlacesUIUtils.RDF.GetResource("http://home.netscape.com/NC-rdf#open");
-      const trueLiteral = PlacesUIUtils.RDF.GetLiteral("true");
+      const openLiteral = PlacesUtils.RDF.GetResource("http://home.netscape.com/NC-rdf#open");
+      const trueLiteral = PlacesUtils.RDF.GetLiteral("true");
 
       if (node.containerOpen)
-        PlacesUIUtils.localStore.Unassert(resource, openLiteral, trueLiteral);
+        PlacesUtils.localStore.Unassert(resource, openLiteral, trueLiteral);
       else
-        PlacesUIUtils.localStore.Assert(resource, openLiteral, trueLiteral, true);
+        PlacesUtils.localStore.Assert(resource, openLiteral, trueLiteral, true);
     }
 
     node.containerOpen = !node.containerOpen;
@@ -1187,6 +1130,12 @@ PlacesTreeView.prototype = {
   cycleHeader: function PTV_cycleHeader(aColumn) {
     if (!this._result)
       throw Cr.NS_ERROR_UNEXPECTED;
+
+    // Currently cannot sort by tags
+    if (aColumn.id == "tags")
+      return;
+
+    this._enumerateObservers("onCycleHeader", [aColumn]);
 
     // Sometimes you want a tri-state sorting, and sometimes you don't. This
     // rule allows tri-state sorting when the root node is a folder. This will
@@ -1206,8 +1155,7 @@ PlacesTreeView.prototype = {
     var newSort;
     var newSortingAnnotation = "";
     const NHQO = Ci.nsINavHistoryQueryOptions;
-    var columnType = this._getColumnType(aColumn);
-    switch (columnType) {
+    switch (this._getColumnType(aColumn)) {
       case this.COLUMN_TYPE_TITLE:
         if (oldSort == NHQO.SORT_BY_TITLE_ASCENDING)
           newSort = NHQO.SORT_BY_TITLE_DESCENDING;
@@ -1271,7 +1219,6 @@ PlacesTreeView.prototype = {
           newSort = NHQO.SORT_BY_ANNOTATION_ASCENDING;
           newSortingAnnotation = DESCRIPTION_ANNO;
         }
-
         break;
       case this.COLUMN_TYPE_DATEADDED:
         if (oldSort == NHQO.SORT_BY_DATEADDED_ASCENDING)
@@ -1293,15 +1240,6 @@ PlacesTreeView.prototype = {
           newSort = NHQO.SORT_BY_LASTMODIFIED_ASCENDING;
 
         break;
-      case this.COLUMN_TYPE_TAGS:
-        if (oldSort == NHQO.SORT_BY_TAGS_ASCENDING)
-          newSort = NHQO.SORT_BY_TAGS_DESCENDING;
-        else if (allowTriState && oldSort == NHQO.SORT_BY_TAGS_DESCENDING)
-          newSort = NHQO.SORT_BY_NONE;
-        else
-          newSort = NHQO.SORT_BY_TAGS_ASCENDING;
-
-        break;
       default:
         throw Cr.NS_ERROR_INVALID_ARG;
     }
@@ -1309,43 +1247,39 @@ PlacesTreeView.prototype = {
     this._result.sortingMode = newSort;
   },
 
-  isEditable: function PTV_isEditable(aRow, aColumn) {
-    // At this point we only support editing the title field.
-    if (aColumn.index != 0)
-      return false;
-
-    var node = this.nodeForTreeIndex(aRow);
-    if (!PlacesUtils.nodeIsReadOnly(node) &&
-        (PlacesUtils.nodeIsFolder(node) ||
-         (PlacesUtils.nodeIsBookmark(node) &&
-          !PlacesUtils.nodeIsLivemarkItem(node))))
-      return true;
-
-    return false;
+  selectionChanged: function PTV_selectionChnaged() {
+    this._enumerateObservers("onSelectionChanged");
   },
 
-  setCellText: function PTV_setCellText(aRow, aColumn, aText) {
-    // we may only get here if the cell is editable
-    var node = this.nodeForTreeIndex(aRow);
-    if (node.title != aText) {
-      var txn = PlacesUIUtils.ptm.editItemTitle(node.itemId, aText);
-      PlacesUIUtils.ptm.doTransaction(txn);
-    }
+  cycleCell: function PTV_cycleCell(aRow, aColumn) {
+    this._enumerateObservers("onCycleCell", [aRow, aColumn]);
   },
 
-  selectionChanged: function() { },
-  cycleCell: function PTV_cycleCell(aRow, aColumn) { },
+  isEditable: function(aRow, aColumn) { return false; },
   isSelectable: function(aRow, aColumn) { return false; },
-  performAction: function(aAction) { },
-  performActionOnRow: function(aAction, aRow) { },
-  performActionOnCell: function(aAction, aRow, aColumn) { }
+  setCellText: function(aRow, aColumn) { },
+
+  performAction: function PTV_performAction(aAction) {
+    this._enumerateObservers("onPerformAction", [aAction]);
+  },
+
+  performActionOnRow: function PTV_perfromActionOnRow(aAction, aRow) {
+    this._enumerateObservers("onPerformActionOnRow", [aAction, aRow]);
+  },
+
+  performActionOnCell:
+  function PTV_performActionOnCell(aAction, aRow, aColumn) {
+    this._enumerateObservers("onPerformActionOnRow", [aAction, aRow, aColumn]);
+  }
 };
 
-function PlacesTreeView(aFlatList, aOnOpenFlatContainer) {
+function PlacesTreeView(aShowRoot) {
   this._tree = null;
   this._result = null;
+  this._collapseDuplicates = true;
+  this._showSessions = false;
   this._selection = null;
   this._visibleElements = [];
-  this._flatList = aFlatList;
-  this._openContainerCallback = aOnOpenFlatContainer;
+  this._observers = [];
+  this._showRoot = aShowRoot;
 }

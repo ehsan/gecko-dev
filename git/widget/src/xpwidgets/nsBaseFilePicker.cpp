@@ -51,7 +51,7 @@
 #include "nsIStringBundle.h"
 #include "nsXPIDLString.h"
 #include "nsIServiceManager.h"
-#include "nsCOMArray.h"
+#include "nsISupportsArray.h"
 #include "nsILocalFile.h"
 #include "nsEnumeratorUtils.h"
 
@@ -69,8 +69,6 @@ nsBaseFilePicker::~nsBaseFilePicker()
 
 }
 
-// XXXdholbert -- this function is duplicated in nsPrintDialogGTK.cpp
-// and needs to be unified in some generic utility class.
 nsIWidget *nsBaseFilePicker::DOMWindowToWidget(nsIDOMWindow *dw)
 {
   nsCOMPtr<nsIWidget> widget;
@@ -124,9 +122,7 @@ NS_IMETHODIMP
 nsBaseFilePicker::AppendFilters(PRInt32 aFilterMask)
 {
   nsresult rv;
-  nsCOMPtr<nsIStringBundleService> stringService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  nsCOMPtr<nsIStringBundleService> stringService = do_GetService(NS_STRINGBUNDLE_CONTRACTID);
   nsCOMPtr<nsIStringBundle> stringBundle;
 
   rv = stringService->CreateBundle(FILEPICKER_PROPERTIES, getter_AddRefs(stringBundle));
@@ -153,7 +149,8 @@ nsBaseFilePicker::AppendFilters(PRInt32 aFilterMask)
   }
   if (aFilterMask & filterImages) {
     stringBundle->GetStringFromName(NS_LITERAL_STRING("imageTitle").get(), getter_Copies(title));
-    AppendFilter(title,NS_LITERAL_STRING("*.jpg; *.jpeg; *.gif; *.png; *.bmp; *.ico"));
+    stringBundle->GetStringFromName(NS_LITERAL_STRING("imageFilter").get(), getter_Copies(filter));
+    AppendFilter(title,filter);
   }
   if (aFilterMask & filterXML) {
     stringBundle->GetStringFromName(NS_LITERAL_STRING("xmlTitle").get(), getter_Copies(title));
@@ -193,8 +190,9 @@ NS_IMETHODIMP nsBaseFilePicker::SetFilterIndex(PRInt32 aFilterIndex)
 NS_IMETHODIMP nsBaseFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
 {
   NS_ENSURE_ARG_POINTER(aFiles);
-  nsCOMArray <nsILocalFile> files;
-  nsresult rv;
+  nsCOMPtr <nsISupportsArray> files;
+  nsresult rv = NS_NewISupportsArray(getter_AddRefs(files));
+  NS_ENSURE_SUCCESS(rv,rv);
 
   // if we get into the base class, the platform
   // doesn't implement GetFiles() yet.
@@ -203,7 +201,7 @@ NS_IMETHODIMP nsBaseFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
   rv = GetFile(getter_AddRefs(file));
   NS_ENSURE_SUCCESS(rv,rv);
 
-  rv = files.AppendObject(file);
+  rv = files->AppendElement(file);
   NS_ENSURE_SUCCESS(rv,rv);
 
   return NS_NewArrayEnumerator(aFiles, files);

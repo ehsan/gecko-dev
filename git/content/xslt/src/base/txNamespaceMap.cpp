@@ -79,7 +79,7 @@ txNamespaceMap::mapNamespace(nsIAtom* aPrefix, const nsAString& aNamespaceURI)
     // Check if the mapping already exists
     PRInt32 index = mPrefixes.IndexOf(prefix);
     if (index >= 0) {
-        mNamespaces.ElementAt(index) = nsId;
+        mNamespaces.ReplaceElementAt(NS_INT32_TO_PTR(nsId), index);
 
         return NS_OK;
     }
@@ -89,7 +89,7 @@ txNamespaceMap::mapNamespace(nsIAtom* aPrefix, const nsAString& aNamespaceURI)
         return NS_ERROR_OUT_OF_MEMORY;
     }
     
-    if (mNamespaces.AppendElement(nsId) == nsnull) {
+    if (!mNamespaces.AppendElement(NS_INT32_TO_PTR(nsId))) {
         mPrefixes.RemoveObjectAt(mPrefixes.Count() - 1);
 
         return NS_ERROR_OUT_OF_MEMORY;
@@ -109,7 +109,7 @@ txNamespaceMap::lookupNamespace(nsIAtom* aPrefix)
 
     PRInt32 index = mPrefixes.IndexOf(prefix);
     if (index >= 0) {
-        return mNamespaces.SafeElementAt(index, kNameSpaceID_Unknown);
+        return NS_PTR_TO_INT32(mNamespaces.SafeElementAt(index));
     }
 
     if (!prefix) {

@@ -62,19 +62,9 @@
   // for |PRUnichar|
 #endif
 
-// This file may be used (through nsUTF8Utils.h) from non-XPCOM code, in
-// particular the standalone software updater. In that case stub out
-// the macros provided by nsDebug.h which are only usable when linking XPCOM
-
-#ifdef NS_NO_XPCOM
-#define NS_WARNING(msg)
-#define NS_ASSERTION(cond, msg)
-#define NS_ERROR(msg)
-#else
 #ifndef nsDebug_h__
 #include "nsDebug.h"
   // for NS_ASSERTION
-#endif
 #endif
 
 #ifdef HAVE_CPP_BOOL
@@ -151,7 +141,7 @@ struct nsCharTraits<PRUnichar>
     typedef PRUint16  unsigned_char_type;
     typedef char      incompatible_char_type;
 
-    NS_COM static char_type *sEmptyBuffer;
+    NS_COM static const char_type *sEmptyBuffer;
 
     static
     void
@@ -315,12 +305,7 @@ struct nsCharTraits<PRUnichar>
     ASCIIToLower( char_type c )
       {
         if (c < 0x100)
-          {
-            if (c >= 'A' && c <= 'Z')
-              return char_type(c + ('a' - 'A'));
-          
-            return c;
-          }
+          return (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c;
         else
           {
             if (c == 0x212A) // KELVIN SIGN
@@ -441,7 +426,7 @@ struct nsCharTraits<char>
     typedef unsigned char  unsigned_char_type;
     typedef PRUnichar      incompatible_char_type;
 
-    NS_COM static char_type *sEmptyBuffer;
+    NS_COM static const char_type *sEmptyBuffer;
 
     static
     void
@@ -575,10 +560,7 @@ struct nsCharTraits<char>
     char_type
     ASCIIToLower( char_type c )
       {
-        if (c >= 'A' && c <= 'Z')
-          return char_type(c + ('a' - 'A'));
-
-        return c;
+        return (c >= 'A' && c <= 'Z') ? (c + ('a' - 'A')) : c;
       }
 
     static
@@ -671,7 +653,7 @@ struct nsCharSourceTraits
     readable_distance( const InputIterator& first, const InputIterator& last )
       {
         // assumes single fragment
-        return PRUint32(last.get() - first.get());
+        return last.get() - first.get();
       }
 
     static
@@ -806,10 +788,10 @@ template <class OutputIterator>
 struct nsCharSinkTraits
   {
     static
-    void
+    PRUint32
     write( OutputIterator& iter, const typename OutputIterator::value_type* s, PRUint32 n )
       {
-        iter.write(s, n);
+        return iter.write(s, n);
       }
   };
 
@@ -819,11 +801,12 @@ template <class CharT>
 struct nsCharSinkTraits<CharT*>
   {
     static
-    void
+    PRUint32
     write( CharT*& iter, const CharT* s, PRUint32 n )
       {
         nsCharTraits<CharT>::move(iter, s, n);
         iter += n;
+        return n;
       }
   };
 
@@ -833,11 +816,12 @@ NS_SPECIALIZE_TEMPLATE
 struct nsCharSinkTraits<char*>
   {
     static
-    void
+    PRUint32
     write( char*& iter, const char* s, PRUint32 n )
       {
         nsCharTraits<char>::move(iter, s, n);
         iter += n;
+        return n;
       }
   };
 
@@ -845,11 +829,12 @@ NS_SPECIALIZE_TEMPLATE
 struct nsCharSinkTraits<PRUnichar*>
   {
     static
-    void
+    PRUint32
     write( PRUnichar*& iter, const PRUnichar* s, PRUint32 n )
       {
         nsCharTraits<PRUnichar>::move(iter, s, n);
         iter += n;
+        return n;
       }
   };
 

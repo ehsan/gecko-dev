@@ -41,7 +41,6 @@
 #include "nsMemory.h"
 
 #include "gfxPlatform.h"
-#include "nsTArray.h"
 
 NS_IMPL_ISUPPORTS1(nsThebesFontEnumerator, nsIFontEnumerator)
 
@@ -65,7 +64,7 @@ nsThebesFontEnumerator::EnumerateFonts(const char *aLangGroup,
     NS_ENSURE_ARG_POINTER(aCount);
     NS_ENSURE_ARG_POINTER(aResult);
 
-    nsTArray<nsString> fontList;
+    nsStringArray fontList;
 
     nsCAutoString langGroup;
     nsCAutoString generic;
@@ -90,13 +89,13 @@ nsThebesFontEnumerator::EnumerateFonts(const char *aLangGroup,
     }
 
     PRUnichar **fs = static_cast<PRUnichar **>
-                                (nsMemory::Alloc(fontList.Length() * sizeof(PRUnichar*)));
-    for (PRUint32 i = 0; i < fontList.Length(); i++) {
-        fs[i] = ToNewUnicode(fontList[i]);
+                                (nsMemory::Alloc(fontList.Count() * sizeof(PRUnichar*)));
+    for (int i = 0; i < fontList.Count(); i++) {
+        fs[i] = ToNewUnicode(*fontList[i]);
     }
 
     *aResult = fs;
-    *aCount = fontList.Length();
+    *aCount = fontList.Count();
 
     return NS_OK;
 }
@@ -125,31 +124,7 @@ nsThebesFontEnumerator::GetDefaultFont(const char *aLangGroup,
 NS_IMETHODIMP
 nsThebesFontEnumerator::UpdateFontList(PRBool *_retval)
 {
-    gfxPlatform::GetPlatform()->UpdateFontList();
+    nsresult rv = gfxPlatform::GetPlatform()->UpdateFontList();
     *_retval = PR_FALSE; // always return false for now
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsThebesFontEnumerator::GetStandardFamilyName(const PRUnichar *aName,
-                                              PRUnichar **aResult)
-{
-    NS_ENSURE_ARG_POINTER(aResult);
-    NS_ENSURE_ARG_POINTER(aName);
-
-    nsAutoString name(aName);
-    if (name.IsEmpty()) {
-        *aResult = nsnull;
-        return NS_OK;
-    }
-
-    nsAutoString family;
-    nsresult rv = gfxPlatform::GetPlatform()->
-        GetStandardFamilyName(nsDependentString(aName), family);
-    if (NS_FAILED(rv) || family.IsEmpty()) {
-        *aResult = nsnull;
-        return NS_OK;
-    }
-    *aResult = ToNewUnicode(family);
     return NS_OK;
 }

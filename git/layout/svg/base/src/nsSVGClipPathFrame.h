@@ -38,14 +38,13 @@
 #define __NS_SVGCLIPPATHFRAME_H__
 
 #include "nsSVGContainerFrame.h"
-#include "gfxMatrix.h"
 
 typedef nsSVGContainerFrame nsSVGClipPathFrameBase;
 
 class nsSVGClipPathFrame : public nsSVGClipPathFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGClipPathFrame(nsStyleContext* aContext) :
     nsSVGClipPathFrameBase(aContext),
@@ -53,27 +52,19 @@ protected:
     mInUse(PR_FALSE) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsSVGClipPathFrame methods:
   nsresult ClipPaint(nsSVGRenderState* aContext,
-                     nsIFrame* aParent,
-                     const gfxMatrix &aMatrix);
+                     nsISVGChildFrame* aParent,
+                     nsIDOMSVGMatrix *aMatrix);
 
-  PRBool ClipHitTest(nsIFrame* aParent,
-                     const gfxMatrix &aMatrix,
-                     const nsPoint &aPoint);
+  PRBool ClipHitTest(nsISVGChildFrame* aParent,
+                     nsIDOMSVGMatrix *aMatrix,
+                     float aX, float aY);
 
   // Check if this clipPath is made up of more than one geometry object.
   // If so, the clipping API in cairo isn't enough and we need to use
   // mask based clipping.
   PRBool IsTrivial();
-
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
 
   /**
    * Get the "type" of the frame
@@ -109,13 +100,17 @@ public:
     nsSVGClipPathFrame *mFrame;
   };
 
-  nsIFrame *mClipParent;
+  nsISVGChildFrame *mClipParent;
   nsCOMPtr<nsIDOMSVGMatrix> mClipParentMatrix;
-  // recursion prevention flag
-  PRPackedBool mInUse;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
+
+  // recursion prevention flag
+  PRPackedBool mInUse;
 };
+
+nsIContent *
+NS_GetSVGClipPathElement(nsIURI *aURI, nsIContent *aContent);
 
 #endif

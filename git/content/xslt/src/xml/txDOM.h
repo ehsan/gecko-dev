@@ -57,6 +57,7 @@
 #include "nsIAtom.h"
 #include "nsDoubleHashtable.h"
 #include "nsString.h"
+#include "nsVoidArray.h"
 #include "txCore.h"
 #include "nsAutoPtr.h"
 
@@ -395,7 +396,7 @@ public:
         }
 
         if (!mNamespaces->AppendString(aURI)) {
-            NS_ERROR("Out of memory, namespaces are getting lost");
+            NS_ASSERTION(0, "Out of memory, namespaces are getting lost");
             return kNameSpaceID_Unknown;
         }
 

@@ -36,26 +36,21 @@
 #ifndef CAIRO_CLIP_PRIVATE_H
 #define CAIRO_CLIP_PRIVATE_H
 
-#include "cairo-types-private.h"
-#include "cairo-compiler-private.h"
 #include "cairo-path-fixed-private.h"
-#include "cairo-reference-count-private.h"
 
 extern const cairo_private cairo_rectangle_list_t _cairo_rectangles_nil;
 
 struct _cairo_clip_path {
-    cairo_reference_count_t	 ref_count;
-    cairo_path_fixed_t		 path;
-    cairo_fill_rule_t		 fill_rule;
-    double			 tolerance;
-    cairo_antialias_t		 antialias;
-    cairo_clip_path_t		*prev;
+    unsigned int	ref_count;
+    cairo_path_fixed_t	path;
+    cairo_fill_rule_t	fill_rule;
+    double		tolerance;
+    cairo_antialias_t	antialias;
+    cairo_clip_path_t	*prev;
 };
 
 struct _cairo_clip {
     cairo_clip_mode_t mode;
-
-    cairo_bool_t all_clipped;
 
     /*
      * Mask-based clipping for cases where the backend
@@ -77,7 +72,8 @@ struct _cairo_clip {
     /*
      * A clip region that can be placed in the surface
      */
-    cairo_region_t *region;
+    cairo_region_t region;
+    cairo_bool_t has_region;
     /*
      * If the surface supports path clipping, we store the list of
      * clipping paths that has been set here as a linked list.

@@ -48,20 +48,15 @@
 
 menulist {
   -moz-appearance: menulist;
-  margin: 5px 2px 3px;
+  margin: 2px 4px;
   min-height: 20px !important;
-  color: -moz-DialogText;
-}
-
-listbox menulist:not([disabled]) {
-  color: -moz-DialogText;
 }
 
 .menulist-label-box {
   -moz-appearance: menulist-text;
+  color: -moz-DialogText;
   -moz-box-align: center;
   -moz-box-pack: center;
-  margin-bottom: 1px;
 }
 
 .menulist-label {
@@ -83,18 +78,42 @@ listbox menulist:not([disabled]) {
 /* ..... disabled state ..... */
 
 menulist[disabled="true"] {
-  color: GrayText;
+  color: #777777 !important;
 }
 
 menulist[disabled="true"] > .menulist-dropmarker {
-  -moz-padding-start: 7px !important;
+  padding-left: 7px !important;
 }
 
 /* ::::: editable menulists ::::: */
 
 menulist[editable="true"] {
-  -moz-appearance: menulist-textfield;
-  margin: 4px 2px;
+  -moz-user-focus: normal;
+}
+
+menulist[editable="true"] > .menulist-dropmarker {
+  -moz-border-left-colors: #000000 #CCCCCC #FFFFFF;
+  -moz-border-radius: 2px;
+}
+
+menulist[editable="true"][open="true"] > .menulist-dropmarker {
+  -moz-border-left-colors: #000000 #454545 #555555;
+}
+
+.menulist-editable-box {
+  margin: -1px 1px -2px -5px;
+  padding: 0 2px;
+  border: 1px solid #CCCCCC;
+  background-color: -moz-Field;
+  color: -moz-FieldText;
+  -moz-box-align: center;
+}
+
+menulist[editable="true"][focused="true"] > .menulist-editable-box {
+  -moz-border-top-colors: -moz-mac-focusring -moz-mac-focusring #000000;
+  -moz-border-right-colors: -moz-mac-focusring -moz-mac-focusring #000000;
+  -moz-border-bottom-colors: -moz-mac-focusring -moz-mac-focusring #000000;
+  -moz-border-left-colors: -moz-mac-focusring -moz-mac-focusring #000000;
 }
 
 html|*.menulist-editable-input {
@@ -126,7 +145,7 @@ html|*.menulist-editable-input {
 }  
 
 .menulist-compact > .menulist-dropmarker {
-  -moz-margin-start: 2px;
+  margin-left: 2px;
   border: none;
   padding: 0 !important;
   background: transparent;
@@ -138,4 +157,9 @@ html|*.menulist-editable-input {
   -moz-border-bottom-colors: ThreeDDarkShadow ThreeDShadow;
   -moz-border-left-colors: ThreeDDarkShadow ThreeDShadow;
   background-color: ThreeDShadow;
+}
+
+
+listbox menulist:not([disabled]) {
+  color: #000;
 }

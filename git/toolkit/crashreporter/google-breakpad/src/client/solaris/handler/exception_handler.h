@@ -32,6 +32,9 @@
 #ifndef CLIENT_SOLARIS_HANDLER_EXCEPTION_HANDLER_H__
 #define CLIENT_SOLARIS_HANDLER_EXCEPTION_HANDLER_H__
 
+#include <pthread.h>
+#include <semaphore.h>
+
 #include <map>
 #include <string>
 #include <vector>
@@ -116,11 +119,9 @@ class ExceptionHandler {
                    bool install_handler);
   ~ExceptionHandler();
 
-  // Get and Set the minidump path.
-  string dump_path() const { return dump_path_; }
+  // Set the minidump path.
   void set_dump_path(const string &dump_path) {
-    dump_path_ = dump_path;
-    dump_path_c_ = dump_path_.c_str();
+    dump_path_c_ = dump_path.c_str();
   }
 
   // Writes a minidump immediately.  This can be used to capture the
@@ -149,25 +150,36 @@ class ExceptionHandler {
   // Signal handler.
   static void HandleException(int signo);
 
+  // Trigger the call to InternalWriteMinidump and wait for the return value.
+  bool WriteMinidumpOnHandlerThread(int signo);
+
   // Write all the information to the dump file.
-  // If called from a signal handler, sighandler_ebp is the ebp of
-  // that signal handler's frame, and sig_ctx is an out parameter
-  // that will be set to point at the ucontext_t that was placed
-  // on the stack by the kernel.  You can pass zero and NULL
-  // for the second and third parameters if you are not calling
-  // this from a signal handler.
-  bool InternalWriteMinidump(int signo, uintptr_t sighandler_ebp,
-                             ucontext_t **sig_ctx);
+  bool InternalWriteMinidump();
 
  private:
+  // Signal number when crash happed. Can be 0 if this is a requested dump.
+  int signo_;
+
+  // The exception handler thread.
+  pthread_t handler_thread_;
+
+  // Semaphores used to move exception handling between the exception thread
+  // and the handler thread.  handler_start_semaphore_ is signalled by the
+  // exception thread to wake up the handler thread when an exception occurs.
+  // handler_finish_semaphore_ is signalled by the handler thread to wake up
+  // the exception thread when handling is complete.
+  sem_t handler_start_semaphore_;
+  sem_t handler_finish_semaphore_;
+
+  // The return value of the handler, passed from the handler thread back to
+  // the requesting thread.
+  bool handler_return_value_;
+
   // The callbacks before and after writing the dump file.
   FilterCallback filter_;
   MinidumpCallback callback_;
   void *callback_context_;
 
-  // The directory in which a minidump will be written, set by the dump_path
-  // argument to the constructor, or set_dump_path.
-  string dump_path_;
   // C style dump path. Keep this when setting dump path, since calling
   // c_str() of std::string when crashing may not be safe.
   const char *dump_path_c_;

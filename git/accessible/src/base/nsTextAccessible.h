@@ -41,23 +41,26 @@
 
 #include "nsBaseWidgetAccessible.h"
 
-/**
- * Generic class used for text nodes.
- */
+ /**
+  * Text nodes have no children, but since double inheritance
+  *  no-worky we have to re-impl the LeafAccessiblity blocks 
+  *  this way.
+  */
 class nsTextAccessible : public nsLinkableAccessible
 {
 public:
+  NS_DECL_ISUPPORTS_INHERITED
+
   nsTextAccessible(nsIDOMNode* aDomNode, nsIWeakReference* aShell);
 
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
-                                PRUint32 aLength);
+  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *_retval); 
+  NS_IMETHOD GetFirstChild(nsIAccessible **_retval);
+  NS_IMETHOD GetLastChild(nsIAccessible **_retval);
+  NS_IMETHOD GetChildCount(PRInt32 *_retval);
 
-protected:
-
-  // nsAccessible
-  virtual void CacheChildren();
+  // nsPIAccessible
+  NS_IMETHOD AppendTextTo(nsAString& aText, PRUint32 aStartOffset, PRUint32 aLength);
 };
 
 

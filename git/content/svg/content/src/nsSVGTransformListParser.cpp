@@ -95,7 +95,8 @@ nsSVGTransformListParser::MatchTransforms()
 
     if (IsTokenTransformStarter()) {
       ENSURE_MATCHED(MatchTransform());
-    } else {
+    }
+    else {
       if (pos != mTokenPos) RewindTo(pos);
       break;
     }
@@ -110,7 +111,7 @@ nsSVGTransformListParser::GetTransformToken(nsIAtom** aKeyAtom,
                                             PRBool aAdvancePos)
 {
   if (mTokenType != OTHER || *mTokenPos == '\0') {
-    return NS_ERROR_FAILURE;
+     return NS_ERROR_FAILURE;
   }
 
   nsresult rv = NS_OK;
@@ -129,12 +130,14 @@ nsSVGTransformListParser::GetTransformToken(nsIAtom** aKeyAtom,
          mInputPos = mTokenPos + nsCRT::strlen(mTokenPos);
          mTokenPos = mInputPos;
       }
-    } else {
+    }
+    else {
       rv = NS_ERROR_FAILURE;
     }
     /* reset character back to original */
     *delimiterStart = holdingChar;
-  } else {
+  }
+  else {
     rv = NS_ERROR_FAILURE;
   }
 
@@ -148,24 +151,28 @@ nsSVGTransformListParser::MatchTransform()
   nsCOMPtr<nsIAtom> keyatom;
 
   nsresult rv = GetTransformToken(getter_AddRefs(keyatom), PR_TRUE);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (keyatom == nsGkAtoms::translate) {
-    ENSURE_MATCHED(MatchTranslate());
-  } else if (keyatom == nsGkAtoms::scale) {
-    ENSURE_MATCHED(MatchScale());
-  } else if (keyatom == nsGkAtoms::rotate) {
-    ENSURE_MATCHED(MatchRotate());
-  } else if (keyatom == nsGkAtoms::skewX) {
-    ENSURE_MATCHED(MatchSkewX());
-  } else if (keyatom == nsGkAtoms::skewY) {
-    ENSURE_MATCHED(MatchSkewY());
-  } else if (keyatom == nsGkAtoms::matrix) {
-    ENSURE_MATCHED(MatchMatrix());
-  } else {
-    return NS_ERROR_FAILURE;
+     ENSURE_MATCHED(MatchTranslate());
+  }
+  else if (keyatom == nsGkAtoms::scale) {
+     ENSURE_MATCHED(MatchScale());
+  }
+  else if (keyatom == nsGkAtoms::rotate) {
+     ENSURE_MATCHED(MatchRotate());
+  }
+  else if (keyatom == nsGkAtoms::skewX) {
+      ENSURE_MATCHED(MatchSkewX());
+  }
+  else if (keyatom == nsGkAtoms::skewY) {
+     ENSURE_MATCHED(MatchSkewY());
+   }
+  else if (keyatom == nsGkAtoms::matrix) {
+     ENSURE_MATCHED(MatchMatrix());
+  }
+  else {
+     return NS_ERROR_FAILURE;
   }
 
   return NS_OK;
@@ -178,9 +185,7 @@ nsSVGTransformListParser::IsTokenTransformStarter()
   nsCOMPtr<nsIAtom> keyatom;
 
   nsresult rv = GetTransformToken(getter_AddRefs(keyatom), PR_FALSE);
-  if (NS_FAILED(rv)) {
-    return PR_FALSE;
-  }
+  NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   if (keyatom == nsGkAtoms::translate ||
       keyatom == nsGkAtoms::scale     ||
@@ -188,7 +193,7 @@ nsSVGTransformListParser::IsTokenTransformStarter()
       keyatom == nsGkAtoms::skewX     ||
       keyatom == nsGkAtoms::skewY     ||
       keyatom == nsGkAtoms::matrix) {
-    return PR_TRUE;
+      return PR_TRUE;
   }
 
   return PR_FALSE;

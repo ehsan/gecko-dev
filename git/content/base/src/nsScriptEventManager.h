@@ -44,6 +44,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsAString.h"
+#include "nsVoidArray.h"
 
 #include "nsIScriptEventManager.h"
 #include "nsIDOMNodeList.h"

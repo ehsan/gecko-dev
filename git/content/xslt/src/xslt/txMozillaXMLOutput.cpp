@@ -86,6 +86,7 @@ txMozillaXMLOutput::txMozillaXMLOutput(const nsSubstring& aRootName,
     : mTreeDepth(0),
       mBadChildLevel(0),
       mTableState(NORMAL),
+      mHaveTitleElement(PR_FALSE),
       mHaveBaseElement(PR_FALSE),
       mCreatingNewDocument(PR_TRUE),
       mOpenedElementIsHTML(PR_FALSE),
@@ -111,6 +112,7 @@ txMozillaXMLOutput::txMozillaXMLOutput(txOutputFormat* aFormat,
     : mTreeDepth(0),
       mBadChildLevel(0),
       mTableState(NORMAL),
+      mHaveTitleElement(PR_FALSE),
       mHaveBaseElement(PR_FALSE),
       mCreatingNewDocument(PR_FALSE),
       mOpenedElementIsHTML(PR_FALSE),
@@ -258,16 +260,23 @@ txMozillaXMLOutput::endDocument(nsresult aResult)
         
         return rv;
     }
-    // This should really be handled by nsIDocument::EndLoad
-    mDocument->SetReadyStateInternal(nsIDocument::READYSTATE_INTERACTIVE);
+
+    // This should really be handled by nsIDocument::Reset
+    if (mCreatingNewDocument && !mHaveTitleElement) {
+        nsCOMPtr<nsIDOMNSDocument> domDoc = do_QueryInterface(mDocument);
+        if (domDoc) {
+            domDoc->SetTitle(EmptyString());
+        }
+    }
 
     if (!mRefreshString.IsEmpty()) {
-        nsPIDOMWindow *win = mDocument->GetWindow();
+        nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
+        nsPIDOMWindow *win = doc->GetWindow();
         if (win) {
             nsCOMPtr<nsIRefreshURI> refURI =
                 do_QueryInterface(win->GetDocShell());
             if (refURI) {
-                refURI->SetupRefreshURIFromHeader(mDocument->GetBaseURI(),
+                refURI->SetupRefreshURIFromHeader(doc->GetBaseURI(),
                                                   mRefreshString);
             }
         }
@@ -308,14 +317,14 @@ txMozillaXMLOutput::endElement()
 
     // Handle html-elements
     if (!mNoFixup) {
-        if (element->IsHTML()) {
+        if (element->IsNodeOfType(nsINode::eHTML)) {
             rv = endHTMLElement(element);
             NS_ENSURE_SUCCESS(rv, rv);
         }
 
         // Handle script elements
         if (element->Tag() == nsGkAtoms::script &&
-            (element->IsHTML() ||
+            (element->IsNodeOfType(nsINode::eHTML) ||
             element->GetNameSpaceID() == kNameSpaceID_SVG)) {
 
             rv = element->DoneAddingChildren(PR_TRUE);
@@ -453,12 +462,11 @@ txMozillaXMLOutput::startElement(nsIAtom* aPrefix, nsIAtom* aLocalName,
 
             aLowercaseLocalName = owner;
         }
-        return startElementInternal(nsnull, 
-                                    aLowercaseLocalName, 
-                                    kNameSpaceID_XHTML);
+        return startElementInternal(nsnull, aLowercaseLocalName,
+                                    kNameSpaceID_None, kNameSpaceID_XHTML);
     }
 
-    return startElementInternal(aPrefix, aLocalName, aNsID);
+    return startElementInternal(aPrefix, aLocalName, aNsID, aNsID);
 }
 
 nsresult
@@ -466,11 +474,11 @@ txMozillaXMLOutput::startElement(nsIAtom* aPrefix,
                                  const nsSubstring& aLocalName,
                                  const PRInt32 aNsID)
 {
-    PRInt32 nsId = aNsID;
+    PRInt32 elemType = aNsID;
     nsCOMPtr<nsIAtom> lname;
 
     if (mOutputFormat.mMethod == eHTMLOutput && aNsID == kNameSpaceID_None) {
-        nsId = kNameSpaceID_XHTML;
+        elemType = kNameSpaceID_XHTML;
 
         nsAutoString lnameStr;
         ToLowerCase(aLocalName, lnameStr);
@@ -480,25 +488,26 @@ txMozillaXMLOutput::startElement(nsIAtom* aPrefix,
         lname = do_GetAtom(aLocalName);
     }
 
-    // No biggie if we lose the prefix due to OOM
+    // No biggie if we loose the prefix due to OOM
     NS_ENSURE_TRUE(lname, NS_ERROR_OUT_OF_MEMORY);
 
     // Check that it's a valid name
-    if (!nsContentUtils::IsValidNodeName(lname, aPrefix, nsId)) {
+    if (!nsContentUtils::IsValidNodeName(lname, aPrefix, aNsID)) {
         // Try without prefix
         aPrefix = nsnull;
-        if (!nsContentUtils::IsValidNodeName(lname, aPrefix, nsId)) {
+        if (!nsContentUtils::IsValidNodeName(lname, aPrefix, aNsID)) {
             return NS_ERROR_XSLT_BAD_NODE_NAME;
         }
     }
 
-    return startElementInternal(aPrefix, lname, nsId);
+    return startElementInternal(aPrefix, lname, aNsID, elemType);
 }
 
 nsresult
 txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
                                          nsIAtom* aLocalName,
-                                         PRInt32 aNsID)
+                                         PRInt32 aNsID,
+                                         PRInt32 aElemType)
 {
     TX_ENSURE_CURRENTNODE;
 
@@ -536,15 +545,16 @@ txMozillaXMLOutput::startElementInternal(nsIAtom* aPrefix,
 
     // Create the element
     nsCOMPtr<nsINodeInfo> ni;
-    ni = mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID);
-    NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
+    rv = mNodeInfoManager->GetNodeInfo(aLocalName, aPrefix, aNsID,
+                                       getter_AddRefs(ni));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    NS_NewElement(getter_AddRefs(mOpenedElement), aNsID, ni, PR_FALSE);
+    NS_NewElement(getter_AddRefs(mOpenedElement), aElemType, ni);
 
     // Set up the element and adjust state
     if (!mNoFixup) {
-        if (aNsID == kNameSpaceID_XHTML) {
-            mOpenedElementIsHTML = (mOutputFormat.mMethod == eHTMLOutput);
+        if (aElemType == kNameSpaceID_XHTML) {
+            mOpenedElementIsHTML = aNsID != kNameSpaceID_XHTML;
             rv = startHTMLElement(mOpenedElement, mOpenedElementIsHTML);
             NS_ENSURE_SUCCESS(rv, rv);
 
@@ -674,9 +684,6 @@ txMozillaXMLOutput::createTxWrapper()
         }
     }
 
-    if (!mCurrentNodeStack.AppendObject(wrapper)) {
-        return NS_ERROR_OUT_OF_MEMORY;
-    }
     mCurrentNode = wrapper;
     mRootContentCreated = PR_TRUE;
     NS_ASSERTION(rootLocation == mDocument->GetChildCount(),
@@ -757,6 +764,7 @@ txMozillaXMLOutput::startHTMLElement(nsIContent* aElement, PRBool aIsHTML)
 nsresult
 txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
 {
+    nsresult rv;
     nsIAtom *atom = aElement->Tag();
 
     if (mTableState == ADDED_TBODY) {
@@ -772,22 +780,39 @@ txMozillaXMLOutput::endHTMLElement(nsIContent* aElement)
 
         return NS_OK;
     }
+
+    // Set document title
+    else if (mCreatingNewDocument &&
+             atom == txHTMLAtoms::title && !mHaveTitleElement) {
+        // The first title wins
+        mHaveTitleElement = PR_TRUE;
+        nsCOMPtr<nsIDOMNSDocument> domDoc = do_QueryInterface(mDocument);
+
+        nsAutoString title;
+        nsContentUtils::GetNodeTextContent(aElement, PR_TRUE, title);
+
+        if (domDoc) {
+            title.CompressWhitespace();
+            domDoc->SetTitle(title);
+        }
+    }
     else if (mCreatingNewDocument && atom == txHTMLAtoms::base &&
              !mHaveBaseElement) {
         // The first base wins
         mHaveBaseElement = PR_TRUE;
 
+        nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
+        NS_ASSERTION(doc, "document doesn't implement nsIDocument");
         nsAutoString value;
         aElement->GetAttr(kNameSpaceID_None, txHTMLAtoms::target, value);
-        mDocument->SetBaseTarget(value);
+        doc->SetBaseTarget(value);
 
         aElement->GetAttr(kNameSpaceID_None, txHTMLAtoms::href, value);
         nsCOMPtr<nsIURI> baseURI;
-        NS_NewURI(getter_AddRefs(baseURI), value, nsnull);
+        rv = NS_NewURI(getter_AddRefs(baseURI), value, nsnull);
+        NS_ENSURE_SUCCESS(rv, rv);
 
-        if (baseURI) {
-            mDocument->SetBaseURI(baseURI); // The document checks if it is legal to set this base
-        }
+        doc->SetBaseURI(baseURI); // The document checks if it is legal to set this base
     }
     else if (mCreatingNewDocument && atom == txHTMLAtoms::meta) {
         // handle HTTP-EQUIV data
@@ -834,15 +859,6 @@ txMozillaXMLOutput::createResultDocument(const nsSubstring& aName, PRInt32 aNsID
             rv = NS_NewXMLDocument(getter_AddRefs(mDocument));
             NS_ENSURE_SUCCESS(rv, rv);
         }
-        // This should really be handled by nsIDocument::BeginLoad
-        mDocument->SetReadyStateInternal(nsIDocument::READYSTATE_LOADING);
-        nsCOMPtr<nsIDocument> source = do_QueryInterface(aSourceDocument);
-        NS_ENSURE_STATE(source);
-        PRBool hasHadScriptObject = PR_FALSE;
-        nsIScriptGlobalObject* sgo =
-          source->GetScriptHandlingObject(hasHadScriptObject);
-        NS_ENSURE_STATE(sgo || !hasHadScriptObject);
-        mDocument->SetScriptHandlingObject(sgo);
     }
     else {
         mDocument = do_QueryInterface(aResultDocument);
@@ -940,15 +956,12 @@ txMozillaXMLOutput::createResultDocument(const nsSubstring& aName, PRInt32 aNsID
                 return NS_ERROR_OUT_OF_MEMORY;
             }
 
-            // Indicate that there is no internal subset (not just an empty one)
-            nsAutoString voidString;
-            voidString.SetIsVoid(PR_TRUE);
             rv = NS_NewDOMDocumentType(getter_AddRefs(documentType),
                                        mNodeInfoManager, nsnull,
                                        doctypeName, nsnull, nsnull,
                                        mOutputFormat.mPublicId,
                                        mOutputFormat.mSystemId,
-                                       voidString);
+                                       EmptyString());
             NS_ENSURE_SUCCESS(rv, rv);
 
             nsCOMPtr<nsIContent> docType = do_QueryInterface(documentType);
@@ -970,11 +983,12 @@ txMozillaXMLOutput::createHTMLElement(nsIAtom* aName,
     *aResult = nsnull;
 
     nsCOMPtr<nsINodeInfo> ni;
-    ni = mNodeInfoManager->GetNodeInfo(aName, nsnull,
-                                       kNameSpaceID_XHTML);
-    NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
+    nsresult rv = mNodeInfoManager->GetNodeInfo(aName, nsnull,
+                                                kNameSpaceID_None,
+                                                getter_AddRefs(ni));
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    return NS_NewHTMLElement(aResult, ni, PR_FALSE);
+    return NS_NewHTMLElement(aResult, ni);
 }
 
 txTransformNotifier::txTransformNotifier()
@@ -1094,12 +1108,13 @@ txTransformNotifier::SignalTransformEnd(nsresult aResult)
     // we remove ourselfs from the scriptloader
     nsCOMPtr<nsIScriptLoaderObserver> kungFuDeathGrip(this);
 
-    if (mDocument) {
-        mDocument->ScriptLoader()->RemoveObserver(this);
+    nsCOMPtr<nsIDocument> doc = do_QueryInterface(mDocument);
+    if (doc) {
+        doc->ScriptLoader()->RemoveObserver(this);
         // XXX Maybe we want to cancel script loads if NS_FAILED(rv)?
 
         if (NS_FAILED(aResult)) {
-            mDocument->CSSLoader()->Stop();
+            doc->CSSLoader()->Stop();
         }
     }
 

@@ -250,7 +250,7 @@ public:
     }
 };
 
-class nsAutoUnlock : private nsAutoUnlockBase
+class nsAutoUnlock : nsAutoUnlockBase
 {
 private:
     PRLock *mLock;

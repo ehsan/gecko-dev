@@ -41,22 +41,18 @@
 #include "nsIImageToPixbuf.h"
 
 class gfxASurface;
-class gfxPattern;
-class gfxImageSurface;
 
 class nsImageToPixbuf : public nsIImageToPixbuf {
     public:
         NS_DECL_ISUPPORTS
-        NS_IMETHOD_(GdkPixbuf*) ConvertImageToPixbuf(imgIContainer* aImage);
+        NS_IMETHOD_(GdkPixbuf*) ConvertImageToPixbuf(nsIImage* aImage);
 
         // Friendlier version of ConvertImageToPixbuf for callers inside of
         // widget
-        static GdkPixbuf* ImageToPixbuf(imgIContainer * aImage);
+        static GdkPixbuf* ImageToPixbuf(nsIImage* aImage);
         static GdkPixbuf* SurfaceToPixbuf(gfxASurface* aSurface,
                                           PRInt32 aWidth, PRInt32 aHeight);
     private:
-        static GdkPixbuf* ImgSurfaceToPixbuf(gfxImageSurface* aImgSurface,
-                                             PRInt32 aWidth, PRInt32 aHeight);
         ~nsImageToPixbuf() {}
 };
 

@@ -43,21 +43,9 @@
 #include <nsISupportsUtils.h>
 
 #include "nsID.h"
-#include "nsInterfaceHashtable.h"
 #include "nsIObserver.h"
-#include "nsIUrlClassifierHashCompleter.h"
 #include "nsIUrlClassifierDBService.h"
 #include "nsIURIClassifier.h"
-#include "nsToolkitCompsCID.h"
-
-// The hash length for a domain key.
-#define DOMAIN_LENGTH 4
-
-// The hash length of a partial hash entry.
-#define PARTIAL_LENGTH 4
-
-// The hash length of a complete hash entry.
-#define COMPLETE_LENGTH 32
 
 class nsUrlClassifierDBServiceWorker;
 
@@ -73,53 +61,41 @@ public:
 
   nsresult Init();
 
-  static nsUrlClassifierDBService* GetInstance(nsresult *result);
+  static nsUrlClassifierDBService* GetInstance();
 
+#ifdef MOZILLA_1_8_BRANCH
+  NS_DEFINE_STATIC_IID_ACCESSOR(NS_URLCLASSIFIERDBSERVICE_CID)
+#else
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_URLCLASSIFIERDBSERVICE_CID)
+#endif
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIURLCLASSIFIERDBSERVICE
   NS_DECL_NSIURICLASSIFIER
   NS_DECL_NSIOBSERVER
 
-  PRBool GetCompleter(const nsACString& tableName,
-                      nsIUrlClassifierHashCompleter** completer);
-  nsresult CacheCompletions(nsTArray<nsUrlClassifierLookupResult> *results);
-
 private:
   // No subclassing
   ~nsUrlClassifierDBService();
 
+  nsresult LookupURI(nsIURI* uri,
+                     nsIUrlClassifierCallback* c,
+                     PRBool needsProxy);
+
   // Disallow copy constructor
   nsUrlClassifierDBService(nsUrlClassifierDBService&);
 
-  nsresult LookupURI(nsIURI* uri, nsIUrlClassifierCallback* c,
-                     PRBool forceCheck, PRBool *didCheck);
-
+  // Make sure the event queue is intialized before we use it.
+  void EnsureThreadStarted();
+  
   // Close db connection and join the background thread if it exists. 
   nsresult Shutdown();
   
   nsCOMPtr<nsUrlClassifierDBServiceWorker> mWorker;
-  nsCOMPtr<nsUrlClassifierDBServiceWorker> mWorkerProxy;
-
-  nsInterfaceHashtable<nsCStringHashKey, nsIUrlClassifierHashCompleter> mCompleters;
 
   // TRUE if the nsURIClassifier implementation should check for malware
   // uris on document loads.
   PRBool mCheckMalware;
-
-  // TRUE if the nsURIClassifier implementation should check for phishing
-  // uris on document loads.
-  PRBool mCheckPhishing;
-
-  // TRUE if a BeginUpdate() has been called without an accompanying
-  // CancelUpdate()/FinishUpdate().  This is used to prevent competing
-  // updates, not to determine whether an update is still being
-  // processed.
-  PRBool mInUpdate;
-
-  // The list of tables that can use the default hash completer object.
-  nsTArray<nsCString> mGethashWhitelist;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsUrlClassifierDBService, NS_URLCLASSIFIERDBSERVICE_CID)

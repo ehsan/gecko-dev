@@ -37,8 +37,7 @@
 
 // This file tests the functions of mozIStorageConnection
 
-////////////////////////////////////////////////////////////////////////////////
-//// Test Functions
+const BACKUP_FILE_NAME = "test_storage.sqlite.backup";
 
 function test_connectionReady_open()
 {
@@ -185,73 +184,56 @@ function test_set_schemaVersion_negative()
   do_check_eq(version, msc.schemaVersion);
 }
 
-function test_createTable(){
-  var temp = getTestDB().parent;
-  temp.append("test_db_table");
-  try {
-    var con = getService().openDatabase(temp);
-    con.createTable("a","");
-  } catch (e) {
-    if (temp.exists()) try {
-      temp.remove(false);
-    } catch (e2) {}
-    do_check_true(e.result==Cr.NS_ERROR_NOT_INITIALIZED ||
-                  e.result==Cr.NS_ERROR_FAILURE);
-  }
-}
-
-function test_defaultSynchronousAtNormal()
+function test_backup_not_new_filename()
 {
   var msc = getOpenedDatabase();
-  var stmt = createStatement("PRAGMA synchronous;");
-  try {
-    stmt.executeStep();
-    do_check_eq(1, stmt.getInt32(0));
-  }
-  finally {
-    stmt.reset();
-    stmt.finalize();
-  }
+  const fname = getTestDB().leafName;
+
+  var backup = msc.backupDB(fname);
+  do_check_neq(fname, backup.leafName);
+
+  backup.remove(false);
 }
 
-function test_close_succeeds_with_finalized_async_statement()
+function test_backup_new_filename()
 {
-  // We want to make sure we create a cached async statement to make sure that
-  // when we finalize our statement, we end up finalizing the async one too so
-  // close will succeed.
-  let stmt = createStatement("SELECT * FROM test");
-  stmt.executeAsync();
-  stmt.finalize();
+  var msc = getOpenedDatabase();
 
-  // Cleanup calls close, as well as removes the database file.
-  cleanup();
+  var backup = msc.backupDB(BACKUP_FILE_NAME);
+  do_check_eq(BACKUP_FILE_NAME, backup.leafName);
+  
+  backup.remove(false);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//// Test Runner
+function test_backup_new_folder()
+{
+  var msc = getOpenedDatabase();
+  var parentDir = getTestDB().parent;
+  parentDir.append("test_storage_temp");
+  if (parentDir.exists())
+    parentDir.remove(true);
+  parentDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0755);
+  do_check_true(parentDir.exists());
 
-var tests = [
-  test_connectionReady_open,
-  test_connectionReady_closed,
-  test_databaseFile,
-  test_tableExists_not_created,
-  test_indexExists_not_created,
-  test_createTable_not_created,
-  test_indexExists_created,
-  test_createTable_already_created,
-  test_lastInsertRowID,
-  test_transactionInProgress_no,
-  test_transactionInProgress_yes,
-  test_commitTransaction_no_transaction,
-  test_rollbackTransaction_no_transaction,
-  test_get_schemaVersion_not_set,
-  test_set_schemaVersion,
-  test_set_schemaVersion_same,
-  test_set_schemaVersion_negative,
-  test_createTable,
-  test_defaultSynchronousAtNormal,
-  test_close_succeeds_with_finalized_async_statement,
-];
+  var backup = msc.backupDB(BACKUP_FILE_NAME, parentDir);
+  do_check_eq(BACKUP_FILE_NAME, backup.leafName);
+  do_check_true(parentDir.equals(backup.parent));
+
+  parentDir.remove(true);
+}
+
+var tests = [test_connectionReady_open, test_connectionReady_closed,
+             test_databaseFile,
+             test_tableExists_not_created, test_indexExists_not_created,
+             test_createTable_not_created, test_indexExists_created,
+             test_createTable_already_created, test_lastInsertRowID,
+             test_transactionInProgress_no, test_transactionInProgress_yes,
+             test_commitTransaction_no_transaction,
+             test_rollbackTransaction_no_transaction,
+             test_get_schemaVersion_not_set, test_set_schemaVersion,
+             test_set_schemaVersion_same, test_set_schemaVersion_negative,
+             test_backup_not_new_filename, test_backup_new_filename,
+             test_backup_new_folder];
 
 function run_test()
 {
@@ -260,3 +242,4 @@ function run_test()
     
   cleanup();
 }
+

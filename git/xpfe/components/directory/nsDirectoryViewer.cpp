@@ -115,20 +115,14 @@ static const char               kGopherProtocol[] = "gopher://";
 //
 
 #ifdef MOZ_RDF
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsHTTPIndex)
-    NS_INTERFACE_MAP_ENTRY(nsIHTTPIndex)
-    NS_INTERFACE_MAP_ENTRY(nsIRDFDataSource)
-    NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
-    NS_INTERFACE_MAP_ENTRY(nsIDirIndexListener)
-    NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
-    NS_INTERFACE_MAP_ENTRY(nsIInterfaceRequestor)
-    NS_INTERFACE_MAP_ENTRY(nsIFTPEventSink)
-    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIHTTPIndex)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_CYCLE_COLLECTION_1(nsHTTPIndex, mInner)
-NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsHTTPIndex, nsIHttpIndex)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsHTTPIndex, nsIHttpIndex)
+NS_IMPL_THREADSAFE_ISUPPORTS7(nsHTTPIndex,
+                              nsIHTTPIndex,
+                              nsIRDFDataSource,
+                              nsIStreamListener,
+                              nsIDirIndexListener,
+                              nsIRequestObserver,
+                              nsIInterfaceRequestor,
+                              nsIFTPEventSink)
 
 NS_IMETHODIMP
 nsHTTPIndex::GetInterface(const nsIID &anIID, void **aResult ) 
@@ -200,25 +194,24 @@ nsHTTPIndex::OnFTPControlLog(PRBool server, const char *msg)
     nsIScriptContext *context = scriptGlobal->GetContext();
     NS_ENSURE_TRUE(context, NS_OK);
 
-    JSContext* cx = reinterpret_cast<JSContext*>
-                                    (context->GetNativeContext());
-    NS_ENSURE_TRUE(cx, NS_OK);
+    JSContext* jscontext = reinterpret_cast<JSContext*>
+                                           (context->GetNativeContext());
+    NS_ENSURE_TRUE(jscontext, NS_OK);
 
-    JSObject* global = JS_GetGlobalObject(cx);
+    JSObject* global = JS_GetGlobalObject(jscontext);
     NS_ENSURE_TRUE(global, NS_OK);
 
     jsval params[2];
 
     nsString unicodeMsg;
     unicodeMsg.AssignWithConversion(msg);
-    JSAutoRequest ar(cx);
-    JSString* jsMsgStr = JS_NewUCStringCopyZ(cx, (jschar*) unicodeMsg.get());
+    JSString* jsMsgStr = JS_NewUCStringCopyZ(jscontext, (jschar*) unicodeMsg.get());
 
     params[0] = BOOLEAN_TO_JSVAL(server);
     params[1] = STRING_TO_JSVAL(jsMsgStr);
     
     jsval val;
-    JS_CallFunctionName(cx,
+    JS_CallFunctionName(jscontext, 
                         global, 
                         "OnFTPControlLog",
                         2, 
@@ -278,9 +271,9 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     nsIScriptContext *context = scriptGlobal->GetContext();
     NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
-    JSContext* cx = reinterpret_cast<JSContext*>
-                                    (context->GetNativeContext());
-    JSObject* global = JS_GetGlobalObject(cx);
+    JSContext* jscontext = reinterpret_cast<JSContext*>
+                                           (context->GetNativeContext());
+    JSObject* global = JS_GetGlobalObject(jscontext);
 
     // Using XPConnect, wrap the HTTP index object...
     static NS_DEFINE_CID(kXPConnectCID, NS_XPCONNECT_CID);
@@ -288,7 +281,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     if (NS_FAILED(rv)) return rv;
 
     nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-    rv = xpc->WrapNative(cx,
+    rv = xpc->WrapNative(jscontext,
                          global,
                          static_cast<nsIHTTPIndex*>(this),
                          NS_GET_IID(nsIHTTPIndex),
@@ -307,8 +300,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
 
     // ...and stuff it into the global context
     PRBool ok;
-    JSAutoRequest ar(cx);
-    ok = JS_SetProperty(cx, global, "HTTPIndex", &jslistener);
+    ok = JS_SetProperty(jscontext, global, "HTTPIndex", &jslistener);
 
     NS_ASSERTION(ok, "unable to set Listener property");
     if (! ok)
@@ -1460,14 +1452,14 @@ nsDirectoryViewerFactory::CreateInstance(const char *aCommand,
 #endif
 
   // setup the original channel's content type
-  (void)aChannel->SetContentType(NS_LITERAL_CSTRING("application/xhtml+xml"));
+  (void)aChannel->SetContentType(NS_LITERAL_CSTRING("text/html"));
 
   // Otherwise, lets use the html listing
   nsCOMPtr<nsICategoryManager> catMan(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
   if (NS_FAILED(rv))
     return rv;
   nsXPIDLCString contractID;
-  rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", "application/xhtml+xml",
+  rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", "text/html",
                                 getter_Copies(contractID));
   if (NS_FAILED(rv))
     return rv;
@@ -1478,11 +1470,11 @@ nsDirectoryViewerFactory::CreateInstance(const char *aCommand,
   nsCOMPtr<nsIStreamListener> listener;
 
   if (viewSource) {
-    rv = factory->CreateInstance("view-source", aChannel, aLoadGroup, "application/xhtml+xml; x-view-type=view-source",
+    rv = factory->CreateInstance("view-source", aChannel, aLoadGroup, "text/html; x-view-type=view-source",
                                  aContainer, aExtraInfo, getter_AddRefs(listener),
                                  aDocViewerResult);
   } else {
-    rv = factory->CreateInstance("view", aChannel, aLoadGroup, "application/xhtml+xml",
+    rv = factory->CreateInstance("view", aChannel, aLoadGroup, "text/html",
                                  aContainer, aExtraInfo, getter_AddRefs(listener),
                                  aDocViewerResult);
   }

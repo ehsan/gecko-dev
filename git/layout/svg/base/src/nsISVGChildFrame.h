@@ -40,82 +40,59 @@
 #define __NS_ISVGCHILDFRAME_H__
 
 
-#include "nsQueryFrame.h"
+#include "nsISupports.h"
 #include "nsCOMPtr.h"
-#include "nsRect.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
 
 class gfxContext;
 class nsPresContext;
+class nsIDOMSVGRect;
+class nsIDOMSVGMatrix;
 class nsSVGRenderState;
+struct nsRect;
 
-class nsISVGChildFrame : public nsQueryFrame
-{
+#define NS_ISVGCHILDFRAME_IID \
+{ 0x93560e72, 0x6818, 0x4218, \
+ { 0xa1, 0xe9, 0xf3, 0xb9, 0x63, 0x6a, 0xff, 0xc2 } }
+
+class nsISVGChildFrame : public nsISupports {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsISVGChildFrame)
+
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISVGCHILDFRAME_IID)
 
   // Paint this frame - aDirtyRect is the area being redrawn, in frame
   // offset pixel coordinates
-  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext,
-                      const nsIntRect *aDirtyRect)=0;
+  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext, nsRect *aDirtyRect)=0;
 
   // Check if this frame or children contain the given point,
-  // specified in app units relative to the origin of the outer
+  // specified in device pixels relative to the origin of the outer
   // svg frame (origin ill-defined in the case of borders - bug
-  // 290770).  See bug 290852 for foreignObject complications.
-  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint)=0;
+  // 290770).  Return value unspecified (usually NS_OK for hit, error
+  // no hit, but not always [ex: nsSVGPathGeometryFrame.cpp]) and no
+  // code trusts the return value - this should be fixed (bug 290765).
+  // *hit set to topmost frame in the children (or 'this' if leaf
+  // frame) which is accepting pointer events, null if no frame hit.
+  // See bug 290852 for foreignObject complications.
+  NS_IMETHOD GetFrameForPointSVG(float x, float y, nsIFrame** hit)=0;
 
-  // Get bounds in our gfxContext's coordinates space (in app units)
   NS_IMETHOD_(nsRect) GetCoveredRegion()=0;
   NS_IMETHOD UpdateCoveredRegion()=0;
-
-  // Called once on SVG child frames except descendants of <defs>, either
-  // when their nsSVGOuterSVGFrame receives its initial reflow (i.e. once
-  // the SVG viewport dimensions are known), or else when they're inserted
-  // into the frame tree (if they're inserted after the initial reflow).
   NS_IMETHOD InitialUpdate()=0;
-
-  // Flags to pass to NotifySVGChange:
-  //
-  // SUPPRESS_INVALIDATION - do not invalidate rendered areas (only to be
-  //                           used in conjunction with TRANSFORM_CHANGED)
-  // TRANSFORM_CHANGED     - the current transform matrix for this frame has changed
-  // COORD_CONTEXT_CHANGED - the dimensions of this frame's coordinate context has
-  //                           changed (percentage lengths must be reevaluated)
-  enum SVGChangedFlags {
-    SUPPRESS_INVALIDATION = 0x01,
-    TRANSFORM_CHANGED     = 0x02,
-    COORD_CONTEXT_CHANGED = 0x04
-  };
-  virtual void NotifySVGChanged(PRUint32 aFlags)=0;
+  NS_IMETHOD NotifyCanvasTMChanged(PRBool suppressInvalidation)=0;
   NS_IMETHOD NotifyRedrawSuspended()=0;
   NS_IMETHOD NotifyRedrawUnsuspended()=0;
 
   // Set whether we should stop multiplying matrices when building up
   // the current transformation matrix at this frame.
   NS_IMETHOD SetMatrixPropagation(PRBool aPropagate)=0;
-  virtual PRBool GetMatrixPropagation()=0;
 
-  /**
-   * Get this frame's contribution to the rect returned by a GetBBox() call
-   * that occured either on this element, or on one of its ancestors.
-   *
-   * SVG defines an element's bbox to be the element's fill bounds in the
-   * userspace established by that element. By allowing callers to pass in the
-   * transform from the userspace established by this element to the userspace
-   * established by an an ancestor, this method allows callers to obtain this
-   * element's fill bounds in the userspace established by that ancestor
-   * instead. In that case, since we return the bounds in a different userspace
-   * (the ancestor's), the bounds we return are not this element's bbox, but
-   * rather this element's contribution to the bbox of the ancestor.
-   *
-   * @param aToBBoxUserspace The transform from the userspace established by
-   *   this element to the userspace established by the ancestor on which
-   *   getBBox was called. This will be the identity matrix if we are the
-   *   element on which getBBox was called.
-   */
-  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace) = 0;
+  // Set the current transformation matrix to a particular matrix.
+  // Value is only used if matrix propagation is prevented
+  // (SetMatrixPropagation()).  nsnull aCTM means identity transform.
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM)=0;
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM()=0;
+
+  // XXX move this function into interface nsISVGLocatableMetrics
+  NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval)=0; // bbox in local coords
 
   // Are we a container frame?
   NS_IMETHOD_(PRBool) IsDisplayContainer()=0;
@@ -123,6 +100,8 @@ public:
   // Does this frame have an current covered region in mRect (aka GetRect())?
   NS_IMETHOD_(PRBool) HasValidCoveredRect()=0;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsISVGChildFrame, NS_ISVGCHILDFRAME_IID)
 
 #endif // __NS_ISVGCHILDFRAME_H__
 

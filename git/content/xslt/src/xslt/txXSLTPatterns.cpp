@@ -55,7 +55,7 @@
  */
 double txUnionPattern::getDefaultPriority()
 {
-    NS_ERROR("Don't call getDefaultPriority on txUnionPattern");
+    NS_ASSERTION(0, "Don't call getDefaultPriority on txUnionPattern");
     return Double::NaN;
 }
 
@@ -456,7 +456,7 @@ MBool txStepPattern::matches(const txXPathNode& aNode, txIMatchContext* aContext
     // Create the context node set for evaluating the predicates
     nsRefPtr<txNodeSet> nodes;
     nsresult rv = aContext->recycler()->getNodeSet(getter_AddRefs(nodes));
-    NS_ENSURE_SUCCESS(rv, MB_FALSE);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     PRBool hasNext = mIsAttr ? walker.moveToFirstAttribute() :
                                walker.moveToFirstChild();
@@ -471,7 +471,7 @@ MBool txStepPattern::matches(const txXPathNode& aNode, txIMatchContext* aContext
     Expr* predicate = mPredicates[0];
     nsRefPtr<txNodeSet> newNodes;
     rv = aContext->recycler()->getNodeSet(getter_AddRefs(newNodes));
-    NS_ENSURE_SUCCESS(rv, MB_FALSE);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     PRUint32 i, predLen = mPredicates.Length();
     for (i = 1; i < predLen; ++i) {

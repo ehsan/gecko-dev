@@ -186,7 +186,7 @@ var gContentPane = {
     const kFontSizeFmtVariable      = "font.size.variable.%LANG%";
 
     var prefs = [{ format   : aIsSerif ? kFontNameFmtSerif : kFontNameFmtSansSerif,
-                   type     : "fontname",
+                   type     : "unichar",
                    element  : "defaultFont",
                    fonttype : aIsSerif ? "serif" : "sans-serif" },
                  { format   : aIsSerif ? kFontNameListFmtSerif : kFontNameListFmtSansSerif,
@@ -262,16 +262,6 @@ var gContentPane = {
   {
     document.documentElement.openSubDialog("chrome://browser/content/preferences/colors.xul",
                                            "", null);  
-  },
-
-  // LANGUAGES
-
-  /**
-   * Shows a dialog in which the preferred language for web content may be set.
-   */
-  showLanguages: function ()
-  {
-    document.documentElement.openSubDialog("chrome://browser/content/preferences/languages.xul",
-                                           "", null);
   }
+
 };

@@ -1,7 +1,7 @@
 // This file ensures that canceling a channel early does not
 // send the request to the server (bug 350790)
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 const NS_BINDING_ABORTED = 0x804b0002;
 
@@ -33,7 +33,8 @@ var listener = {
   },
 
   onStopRequest: function test_onStopR(request, ctx, status) {
-    httpserv.stop(do_test_finished);
+    httpserv.stop();
+    do_test_finished();
   }
 };
 

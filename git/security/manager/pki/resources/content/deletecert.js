@@ -64,9 +64,9 @@ function setWindowName()
   }
   else if(typeFlag == "websites_tab")
   {
-     title = bundle.GetStringFromName("deleteSslCertTitle3");
-     confirm = bundle.GetStringFromName("deleteSslCertConfirm3");
-     impact = bundle.GetStringFromName("deleteSslCertImpact3");
+     title = bundle.GetStringFromName("deleteSslCertTitle2");
+     confirm = bundle.GetStringFromName("deleteSslCertConfirm2");
+     impact = bundle.GetStringFromName("deleteSslCertImpact2");
   }
   else if(typeFlag == "ca_tab")
   {

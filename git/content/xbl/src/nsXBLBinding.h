@@ -41,7 +41,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "nsINodeList.h"
+#include "nsIDOMNodeList.h"
 #include "nsIStyleRuleProcessor.h"
 #include "nsClassHashtable.h"
 #include "nsTArray.h"
@@ -116,11 +116,10 @@ public:
   PRBool HasStyleSheets() const;
   PRBool InheritsStyle() const;
   PRBool ImplementsInterface(REFNSIID aIID) const;
+  PRBool ShouldBuildChildFrames() const;
 
   void GenerateAnonymousContent();
   void InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElement);
-  static void UninstallAnonymousContent(nsIDocument* aDocument,
-                                        nsIContent* aAnonParent);
   void InstallEventHandlers();
   nsresult InstallImplementation();
 
@@ -129,6 +128,7 @@ public:
   void UnhookEventHandlers();
 
   nsIAtom* GetBaseTag(PRInt32* aNameSpaceID);
+  nsXBLBinding* GetFirstBindingWithConstructor();
   nsXBLBinding* RootBinding();
   nsXBLBinding* GetFirstStyleBinding();
 
@@ -143,8 +143,6 @@ public:
 
   nsInsertionPointList* GetExistingInsertionPointsFor(nsIContent* aParent);
 
-  // XXXbz this aIndex has nothing to do with an index into the child
-  // list of the insertion parent or anything.
   nsIContent* GetInsertionPoint(nsIContent* aChild, PRUint32* aIndex);
 
   nsIContent* GetSingleInsertionPoint(PRUint32* aIndex,
@@ -157,7 +155,7 @@ public:
 
   void WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc, void* aData);
 
-  nsINodeList* GetAnonymousNodes();
+  already_AddRefed<nsIDOMNodeList> GetAnonymousNodes();
 
   static nsresult DoInitJSClass(JSContext *cx, JSObject *global, JSObject *obj,
                                 const nsAFlatCString& aClassName,
@@ -166,12 +164,8 @@ public:
 
   PRBool AllowScripts();  // XXX make const
 
-  void RemoveInsertionParent(nsIContent* aParent);
-  PRBool HasInsertionParent(nsIContent* aParent);
-
 // MEMBER VARIABLES
 protected:
-
   nsAutoRefCnt mRefCnt;
   nsXBLPrototypeBinding* mPrototypeBinding; // Weak, but we're holding a ref to the docinfo
   nsCOMPtr<nsIContent> mContent; // Strong. Our anonymous content stays around with us.

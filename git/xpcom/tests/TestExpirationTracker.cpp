@@ -15,7 +15,7 @@
  *
  * The Original Code is ExpirationTracker tests.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -50,8 +50,6 @@
 #include "nsILocalFile.h"
 #include "prinrval.h"
 #include "nsThreadUtils.h"
-
-namespace TestExpirationTracker {
 
 struct Object {
   Object() : mExpired(PR_FALSE) { Touch(); }
@@ -211,10 +209,6 @@ static const struct Test {
   DECL_TEST(test_random8),
   { nsnull, nsnull }
 };
-
-}
-
-using namespace TestExpirationTracker;
 
 int main(int argc, char **argv) {
   int count = 1;

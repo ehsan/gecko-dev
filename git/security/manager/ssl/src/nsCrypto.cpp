@@ -68,7 +68,6 @@
 #include "nsIFilePicker.h"
 #include "nsJSPrincipals.h"
 #include "nsIPrincipal.h"
-#include "nsIScriptSecurityManager.h"
 #include "nsXPIDLString.h"
 #include "nsIGenKeypairInfoDlg.h"
 #include "nsIDOMCryptoDialogs.h"
@@ -233,7 +232,7 @@ private:
 NS_INTERFACE_MAP_BEGIN(nsCrypto)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCrypto)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Crypto)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(Crypto)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsCrypto)
@@ -243,7 +242,7 @@ NS_IMPL_RELEASE(nsCrypto)
 NS_INTERFACE_MAP_BEGIN(nsCRMFObject)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCRMFObject)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CRMFObject)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(CRMFObject)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsCRMFObject)
@@ -251,8 +250,9 @@ NS_IMPL_RELEASE(nsCRMFObject)
 
 // QueryInterface implementation for nsPkcs11
 NS_INTERFACE_MAP_BEGIN(nsPkcs11)
-  NS_INTERFACE_MAP_ENTRY(nsIPKCS11)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMPkcs11)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(Pkcs11)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsPkcs11)
@@ -303,6 +303,132 @@ nsCrypto::GetEnableSmartCardEvents(PRBool *aEnable)
 {
   *aEnable = mEnableSmartCardEvents;
   return NS_OK;
+}
+
+//These next few functions are based on implementation in
+//the script security manager to get the principals from
+//a JSContext.  We need that to successfully run the 
+//callback parameter passed to crypto.generateCRMFRequest
+static nsresult
+cryptojs_GetScriptPrincipal(JSContext *cx, JSScript *script,
+                            nsIPrincipal **result)
+{
+  if (!script) {
+    *result = nsnull;
+    return NS_OK;
+  }
+  JSPrincipals *jsp = JS_GetScriptPrincipals(cx, script);
+  if (!jsp) {
+    return NS_ERROR_FAILURE;
+  }
+  nsJSPrincipals *nsJSPrin = static_cast<nsJSPrincipals *>(jsp);
+  *result = nsJSPrin->nsIPrincipalPtr;
+  if (!*result) {
+    return NS_ERROR_FAILURE;
+  }
+  NS_ADDREF(*result);
+  return NS_OK;
+}
+
+static nsresult
+cryptojs_GetObjectPrincipal(JSContext *aCx, JSObject *aObj,
+                            nsIPrincipal **result)
+{
+  JSObject *parent = aObj;
+  do
+  {
+    JSClass *jsClass = JS_GetClass(aCx, parent);
+    const uint32 privateNsISupports = JSCLASS_HAS_PRIVATE | 
+                                      JSCLASS_PRIVATE_IS_NSISUPPORTS;
+    if (jsClass && (jsClass->flags & (privateNsISupports)) == 
+                    privateNsISupports)
+    {
+      nsISupports *supports = (nsISupports *) JS_GetPrivate(aCx, parent);
+      nsCOMPtr<nsIScriptObjectPrincipal> objPrin = do_QueryInterface(supports);
+              
+      if (!objPrin)
+      {
+        /*
+         * If it's a wrapped native, check the underlying native
+         * instead.
+         */
+        nsCOMPtr<nsIXPConnectWrappedNative> xpcNative = 
+                                            do_QueryInterface(supports);
+
+        if (xpcNative) {
+          objPrin = do_QueryWrappedNative(xpcNative);
+        }
+      }
+
+      if (objPrin && ((*result = objPrin->GetPrincipal()))) {
+        NS_ADDREF(*result);
+        return NS_OK;
+      }
+    }
+    parent = JS_GetParent(aCx, parent);
+  } while (parent);
+
+  // Couldn't find a principal for this object.
+  return NS_ERROR_FAILURE;
+}
+
+static nsresult
+cryptojs_GetFunctionObjectPrincipal(JSContext *cx, JSObject *obj,
+                                    nsIPrincipal **result)
+{
+  JSFunction *fun = (JSFunction *) JS_GetPrivate(cx, obj);
+
+  JSScript *script = JS_GetFunctionScript(cx, fun);
+  if (script && JS_GetFunctionObject(fun) != obj)
+  {
+    // Scripted function has been cloned; get principals from obj's
+    // parent-linked scope chain.  We do not get object principals for a
+    // cloned *native* function, because the subject in that case is a
+    // script or function further down the stack who is calling us.
+    return cryptojs_GetObjectPrincipal(cx, obj, result);
+  }
+  return cryptojs_GetScriptPrincipal(cx, script, result);
+}
+
+static nsresult
+cryptojs_GetFramePrincipal(JSContext *cx, JSStackFrame *fp,
+                           nsIPrincipal **principal)
+{
+  JSObject *obj = JS_GetFrameFunctionObject(cx, fp);
+  if (!obj) {
+    JSScript *script = JS_GetFrameScript(cx, fp);
+    return cryptojs_GetScriptPrincipal(cx, script, principal);
+  }
+  return cryptojs_GetFunctionObjectPrincipal(cx, obj, principal);
+}
+
+already_AddRefed<nsIPrincipal>
+nsCrypto::GetScriptPrincipal(JSContext *cx)
+{
+  JSStackFrame *fp = nsnull;
+  nsIPrincipal *principal=nsnull;
+
+  for (fp = JS_FrameIterator(cx, &fp); fp; fp = JS_FrameIterator(cx, &fp)) {
+    cryptojs_GetFramePrincipal(cx, fp, &principal);
+    if (principal != nsnull) {
+      break;
+    }
+  }
+
+  if (principal)
+    return principal;
+
+  nsIScriptContext *scriptContext = GetScriptContextFromJSContext(cx);
+
+  if (scriptContext)
+  {
+    nsCOMPtr<nsIScriptObjectPrincipal> globalData =
+      do_QueryInterface(scriptContext->GetGlobalObject());
+    NS_ENSURE_TRUE(globalData, nsnull);
+    NS_IF_ADDREF(principal = globalData->GetPrincipal());
+  }
+
+  return principal;
 }
 
 //A quick function to let us know if the key we're trying to generate
@@ -885,8 +1011,6 @@ cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
     params = nsnull;
   } else {
     jsString = JS_ValueToString(cx,argv[1]);
-    NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
-    argv[1] = STRING_TO_JSVAL(jsString);
     params   = JS_GetStringBytes(jsString);
   }
 
@@ -896,8 +1020,6 @@ cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
     return NS_ERROR_FAILURE;
   }
   jsString = JS_ValueToString(cx, argv[2]);
-  NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
-  argv[2] = STRING_TO_JSVAL(jsString);
   keyGenAlg = JS_GetStringBytes(jsString);
   keyGenType->keyGenType = cryptojs_interpret_key_gen_type(keyGenAlg);
   if (keyGenType->keyGenType == invalidKeyGen) {
@@ -1805,9 +1927,9 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   nsCOMPtr<nsIXPConnect> xpc(do_GetService(nsIXPConnect::GetCID(), &nrv));
   NS_ENSURE_SUCCESS(nrv, nrv);
 
-  nsAXPCNativeCallContext *ncc = nsnull;
+  nsCOMPtr<nsIXPCNativeCallContext> ncc;
 
-  nrv = xpc->GetCurrentNativeCallContext(&ncc);
+  nrv = xpc->GetCurrentNativeCallContext(getter_AddRefs(ncc));
   NS_ENSURE_SUCCESS(nrv, nrv);
 
   if (!ncc)
@@ -1819,13 +1941,11 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
 
   jsval *argv = nsnull;
 
-  nrv = ncc->GetArgvPtr(&argv);
-  NS_ENSURE_SUCCESS(nrv, nrv);
+  ncc->GetArgvPtr(&argv);
 
   JSContext *cx;
 
-  nrv = ncc->GetJSContext(&cx);
-  NS_ENSURE_SUCCESS(nrv, nrv);
+  ncc->GetJSContext(&cx);
 
   JSObject* script_obj = nsnull;
   nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
@@ -1847,8 +1967,6 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   }
   
   JSString *jsString = JS_ValueToString(cx,argv[0]);
-  NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
-  argv[0] = STRING_TO_JSVAL(jsString);
   
   char * reqDN = JS_GetStringBytes(jsString);
   char *regToken;
@@ -1856,9 +1974,6 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     regToken           = nsnull;
   } else {
     jsString = JS_ValueToString(cx, argv[1]);
-    NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
-    argv[1] = STRING_TO_JSVAL(jsString);
-
     regToken = JS_GetStringBytes(jsString);
   }
   char *authenticator;
@@ -1866,9 +1981,6 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     authenticator           = nsnull;
   } else {
     jsString      = JS_ValueToString(cx, argv[2]);
-    NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
-    argv[2] = STRING_TO_JSVAL(jsString);
-
     authenticator = JS_GetStringBytes(jsString);
   }
   char *eaCert;
@@ -1876,9 +1988,6 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     eaCert           = nsnull;
   } else {
     jsString     = JS_ValueToString(cx, argv[3]);
-    NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
-    argv[3] = STRING_TO_JSVAL(jsString);
-
     eaCert       = JS_GetStringBytes(jsString);
   }
   if (JSVAL_IS_NULL(argv[4])) {
@@ -1887,9 +1996,6 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     return NS_ERROR_FAILURE;
   }
   jsString = JS_ValueToString(cx, argv[4]);
-  NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
-  argv[4] = STRING_TO_JSVAL(jsString);
-
   char *jsCallback = JS_GetStringBytes(jsString);
 
 
@@ -2010,14 +2116,9 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   //
 
 
-  nsCOMPtr<nsIScriptSecurityManager> secMan =
-    do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
-  NS_ENSURE_TRUE(secMan, NS_ERROR_UNEXPECTED);
-  
-  nsCOMPtr<nsIPrincipal> principals;
-  secMan->GetSubjectPrincipal(getter_AddRefs(principals));
-  NS_ENSURE_TRUE(principals, NS_ERROR_UNEXPECTED);
-  
+  nsCOMPtr<nsIPrincipal>principals;
+  principals = GetScriptPrincipal(cx);
+  NS_ASSERTION(principals, "Couldn't get the principals");
   nsCryptoRunArgs *args = new nsCryptoRunArgs();
   if (!args)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -2108,7 +2209,7 @@ nsP12Runnable::Run()
   nsCOMPtr<nsIFilePicker> filePicker = 
                         do_CreateInstance("@mozilla.org/filepicker;1", &rv);
   if (!filePicker) {
-    NS_ERROR("Could not create a file picker when backing up certs.");
+    NS_ASSERTION(0, "Could not create a file picker when backing up certs.");
     return rv;
   }
 
@@ -2165,12 +2266,7 @@ nsCryptoRunnable::nsCryptoRunnable(nsCryptoRunArgs *args)
 nsCryptoRunnable::~nsCryptoRunnable()
 {
   nsNSSShutDownPreventionLock locker;
-
-  {
-    JSAutoRequest ar(m_args->m_cx);
-    JS_RemoveRoot(m_args->m_cx, &m_args->m_scope);
-  }
-
+  JS_RemoveRoot(m_args->m_cx, &m_args->m_scope);
   NS_IF_RELEASE(m_args);
 }
 
@@ -2192,8 +2288,6 @@ nsCryptoRunnable::Run()
   if (!stack || NS_FAILED(stack->Push(cx))) {
     return NS_ERROR_FAILURE;
   }
-
-  JSAutoRequest ar(cx);
 
   jsval retval;
   if (JS_EvaluateScriptForPrincipals(cx, m_args->m_scope, principals,
@@ -2262,6 +2356,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
 {
   nsNSSShutDownPreventionLock locker;
   char *nickname=nsnull, *cmmfResponse=nsnull;
+  char *retString=nsnull;
   CMMFCertRepContent *certRepContent = nsnull;
   int numResponses = 0;
   nsIX509Cert **certArr = nsnull;
@@ -2270,7 +2365,8 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
   CMMFPKIStatus reqStatus;
   CERTCertificate *currCert;
   PK11SlotInfo *slot;
-  nsCAutoString localNick;
+  PRBool freeLocalNickname = PR_FALSE;
+  char *localNick;
   nsCOMPtr<nsIInterfaceRequestor> ctx = new PipUIContext();
   nsresult rv = NS_OK;
   CERTCertList *caPubs = nsnull;
@@ -2348,7 +2444,8 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
       localNick = currCert->nickname;
     }
     else if (nickname == nsnull || nickname[0] == '\0') {
-      nsNSSCertificateDB::get_default_nickname(currCert, ctx, localNick);
+      localNick = nsNSSCertificateDB::default_nickname(currCert, ctx);
+      freeLocalNickname = PR_TRUE;
     } else {
       //This is the case where we're getting a brand new
       //cert that doesn't have the same subjectName as a cert
@@ -2356,9 +2453,10 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
       //designated a nickname to use for the newly issued cert.
       localNick = nickname;
     }
-    {
-      char *cast_const_away = const_cast<char*>(localNick.get());
-      slot = PK11_ImportCertForKey(currCert, cast_const_away, ctx);
+    slot = PK11_ImportCertForKey(currCert, localNick, ctx);
+    if (freeLocalNickname) {
+      nsMemory::Free(localNick);
+      freeLocalNickname = PR_FALSE;
     }
     if (slot == nsnull) {
       rv = NS_ERROR_FAILURE;
@@ -2379,6 +2477,8 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
   //Let the loser: label take care of freeing up our reference to
   //nickname (This way we don't free it twice and avoid crashing.
   //That would be a good thing.
+
+  retString = "";
 
   //Import the root chain into the cert db.
   caPubs = CMMF_CertRepContentGetCAPubs(certRepContent);
@@ -2436,7 +2536,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
     }
     delete []certArr;
   }
-  aReturn.Assign(EmptyString());
+  aReturn.Assign(NS_ConvertASCIItoUTF16(retString));
   if (nickname) {
     NS_Free(nickname);
   }
@@ -2503,10 +2603,10 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
 
   aResult.Truncate();
 
-  nsAXPCNativeCallContext* ncc = nsnull;
+  nsCOMPtr<nsIXPCNativeCallContext> ncc;
   nsCOMPtr<nsIXPConnect> xpc(do_GetService(nsIXPConnect::GetCID()));
   if (xpc) {
-    xpc->GetCurrentNativeCallContext(&ncc);
+    xpc->GetCurrentNativeCallContext(getter_AddRefs(ncc));
   }
 
   if (!ncc) {
@@ -2529,6 +2629,7 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
   if (!aCaOption.EqualsLiteral("auto") &&
       !aCaOption.EqualsLiteral("ask")) {
     JS_ReportError(cx, "%s%s\n", JS_ERROR, "caOption argument must be ask or auto");
+    ncc->SetExceptionWasThrown(PR_TRUE);
 
     aResult.Append(internalError);
 
@@ -2568,9 +2669,6 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
     PRUint32 i;
     for (i = 2; i < argc; ++i) {
       JSString *caName = JS_ValueToString(cx, argv[i]);
-      NS_ENSURE_TRUE(caName, NS_ERROR_OUT_OF_MEMORY);
-      argv[i] = STRING_TO_JSVAL(caName);
-
       if (!caName) {
         aResult.Append(internalError);
 
@@ -2856,6 +2954,15 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsCrypto::Alert(const nsAString& aMessage)
+{
+  PRUnichar *message = ToNewUnicode(aMessage);
+  alertUser(message);
+  nsMemory::Free(message);
+  return NS_OK;
+}
+
 //Logout out of all installed PKCS11 tokens.
 NS_IMETHODIMP
 nsCrypto::Logout()
@@ -2930,13 +3037,12 @@ confirm_user(const PRUnichar *message)
   if (prompter) {
     nsPSMUITracker tracker;
     if (!tracker.isUIForbidden()) {
-      PRBool checkState;
       prompter->ConfirmEx(0, message,
                           (nsIPrompt::BUTTON_DELAY_ENABLE) +
                           (nsIPrompt::BUTTON_POS_1_DEFAULT) +
                           (nsIPrompt::BUTTON_TITLE_OK * nsIPrompt::BUTTON_POS_0) +
                           (nsIPrompt::BUTTON_TITLE_CANCEL * nsIPrompt::BUTTON_POS_1),
-                          nsnull, nsnull, nsnull, nsnull, &checkState, &buttonPressed);
+                          nsnull, nsnull, nsnull, nsnull, nsnull, &buttonPressed);
     }
   }
 
@@ -2945,18 +3051,33 @@ confirm_user(const PRUnichar *message)
 
 //Delete a PKCS11 module from the user's profile.
 NS_IMETHODIMP
-nsPkcs11::DeleteModule(const nsAString& aModuleName)
+nsPkcs11::Deletemodule(const nsAString& aModuleName, PRInt32* aReturn)
 {
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   nsString errorMessage;
 
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));
-  if (NS_FAILED(rv))
-    return rv;
-
   if (aModuleName.IsEmpty()) {
-    return NS_ERROR_ILLEGAL_VALUE;
+    *aReturn = JS_ERR_BAD_MODULE_NAME;
+    nssComponent->GetPIPNSSBundleString("DelModuleBadName", errorMessage);
+    alertUser(errorMessage.get());
+    return NS_OK;
+  }
+  nsString final;
+  nsAutoString temp;
+  //Make sure the user knows we're trying to do this.
+  nssComponent->GetPIPNSSBundleString("DelModuleWarning", final);
+  final.Append(NS_LITERAL_STRING("\n").get());
+  PRUnichar *tempUni = ToNewUnicode(aModuleName);
+  const PRUnichar *formatStrings[1] = { tempUni };
+  rv = nssComponent->PIPBundleFormatStringFromName("AddModuleName",
+                                                   formatStrings, 1, temp);
+  nsMemory::Free(tempUni);
+  final.Append(temp);
+  if (!confirm_user(final.get())) {
+    *aReturn = JS_ERR_USER_CANCEL_ACTION;
+    return NS_OK;
   }
   
   char *modName = ToNewCString(aModuleName);
@@ -2968,25 +3089,69 @@ nsPkcs11::DeleteModule(const nsAString& aModuleName)
       nssComponent->ShutdownSmartCardThread(module);
       SECMOD_DestroyModule(module);
     }
-    rv = NS_OK;
+    if (modType == SECMOD_EXTERNAL) {
+      nssComponent->GetPIPNSSBundleString("DelModuleExtSuccess", errorMessage);
+      *aReturn = JS_OK_DEL_EXTERNAL_MOD;
+    } else {
+      nssComponent->GetPIPNSSBundleString("DelModuleIntSuccess", errorMessage);
+      *aReturn = JS_OK_DEL_INTERNAL_MOD;
+    }
   } else {
-    rv = NS_ERROR_FAILURE;
+    *aReturn = JS_ERR_DEL_MOD;
+    nssComponent->GetPIPNSSBundleString("DelModuleError", errorMessage);
   }
-  NS_Free(modName);
-  return rv;
+  alertUser(errorMessage.get());
+  return NS_OK;
 }
 
 //Add a new PKCS11 module to the user's profile.
 NS_IMETHODIMP
-nsPkcs11::AddModule(const nsAString& aModuleName, 
+nsPkcs11::Addmodule(const nsAString& aModuleName, 
                     const nsAString& aLibraryFullPath, 
                     PRInt32 aCryptoMechanismFlags, 
-                    PRInt32 aCipherFlags)
+                    PRInt32 aCipherFlags, PRInt32* aReturn)
 {
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));
+  nsString final;
+  nsAutoString temp;
 
+  rv = nssComponent->GetPIPNSSBundleString("AddModulePrompt", final);
+  if (NS_FAILED(rv))
+    return rv;
+
+  final.Append(NS_LITERAL_STRING("\n").get());
+  
+  PRUnichar *tempUni = ToNewUnicode(aModuleName); 
+  const PRUnichar *formatStrings[1] = { tempUni };
+  rv = nssComponent->PIPBundleFormatStringFromName("AddModuleName",
+                                                   formatStrings, 1, temp);
+  nsMemory::Free(tempUni);
+
+  if (NS_FAILED(rv))
+    return rv;
+
+  final.Append(temp);
+  final.Append(NS_LITERAL_STRING("\n").get());
+
+  tempUni = ToNewUnicode(aLibraryFullPath);
+  formatStrings[0] = tempUni;
+  rv = nssComponent->PIPBundleFormatStringFromName("AddModulePath",
+                                                   formatStrings, 1, temp);
+  nsMemory::Free(tempUni);
+  if (NS_FAILED(rv))
+    return rv;
+
+  final.Append(temp);
+  final.Append(NS_LITERAL_STRING("\n").get());
+ 
+  if (!confirm_user(final.get())) {
+    // The user has canceled. So let's return now.
+    *aReturn = JS_ERR_USER_CANCEL_ACTION;
+    return NS_OK;
+  }
+  
   char *moduleName = ToNewCString(aModuleName);
   char *fullPath   = ToNewCString(aLibraryFullPath);
   PRUint32 mechFlags = SECMOD_PubMechFlagstoInternal(aCryptoMechanismFlags);
@@ -3008,13 +3173,22 @@ nsPkcs11::AddModule(const nsAString& aModuleName,
   // what the return value for SEDMOD_AddNewModule is
   switch (srv) {
   case SECSuccess:
-    return NS_OK;
+    nssComponent->GetPIPNSSBundleString("AddModuleSuccess", final);
+    *aReturn = JS_OK_ADD_MOD;
+    break;
   case SECFailure:
-    return NS_ERROR_FAILURE;
+    nssComponent->GetPIPNSSBundleString("AddModuleFailure", final);
+    *aReturn = JS_ERR_ADD_MOD;
+    break;
   case -2:
-    return NS_ERROR_ILLEGAL_VALUE;
+    nssComponent->GetPIPNSSBundleString("AddModuleDup", final);
+    *aReturn = JS_ERR_ADD_DUPLICATE_MOD;
+    break;
+  default:
+    NS_ASSERTION(0,"Bogus return value, this should never happen");
+    return NS_ERROR_FAILURE;
   }
-  NS_ERROR("Bogus return value, this should never happen");
-  return NS_ERROR_FAILURE;
+  alertUser(final.get());
+  return NS_OK;
 }
 

@@ -58,16 +58,11 @@
 #include "nsParserUtils.h"
 #include "nsContentUtils.h"
 #include "nsPIDOMWindow.h"
-#include "nsPLDOMEvent.h"
-
-#include "Link.h"
-using namespace mozilla::dom;
 
 class nsHTMLLinkElement : public nsGenericHTMLElement,
                           public nsIDOMHTMLLinkElement,
                           public nsILink,
-                          public nsStyleLinkElement,
-                          public Link
+                          public nsStyleLinkElement
 {
 public:
   nsHTMLLinkElement(nsINodeInfo *aNodeInfo);
@@ -89,6 +84,9 @@ public:
   NS_DECL_NSIDOMHTMLLINKELEMENT
 
   // nsILink
+  NS_IMETHOD    GetLinkState(nsLinkState &aState);
+  NS_IMETHOD    SetLinkState(nsLinkState aState);
+  NS_IMETHOD    GetHrefURI(nsIURI** aURI);
   NS_IMETHOD    LinkAdded();
   NS_IMETHOD    LinkRemoved();
 
@@ -113,18 +111,19 @@ public:
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
   virtual PRBool IsLink(nsIURI** aURI) const;
   virtual void GetLinkTarget(nsAString& aTarget);
-  virtual nsLinkState GetLinkState() const;
-  virtual void SetLinkState(nsLinkState aState);
-  virtual already_AddRefed<nsIURI> GetHrefURI() const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 protected:
-  virtual already_AddRefed<nsIURI> GetStyleSheetURL(PRBool* aIsInline);
+  virtual void GetStyleSheetURL(PRBool* aIsInline,
+                                nsIURI** aURI);
   virtual void GetStyleSheetInfo(nsAString& aTitle,
                                  nsAString& aType,
                                  nsAString& aMedia,
                                  PRBool* aIsAlternate);
+ 
+  // The cached visited state
+  nsLinkState mLinkState;
 };
 
 
@@ -132,7 +131,8 @@ NS_IMPL_NS_NEW_HTML_ELEMENT(Link)
 
 
 nsHTMLLinkElement::nsHTMLLinkElement(nsINodeInfo *aNodeInfo)
-  : nsGenericHTMLElement(aNodeInfo)
+  : nsGenericHTMLElement(aNodeInfo),
+    mLinkState(eLinkState_Unknown)
 {
 }
 
@@ -146,14 +146,12 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLLinkElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLLinkElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLLinkElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE4(nsHTMLLinkElement,
-                                   nsIDOMHTMLLinkElement,
-                                   nsIDOMLinkStyle,
-                                   nsILink,
-                                   nsIStyleSheetLinkingElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLLinkElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLLinkElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED4(nsHTMLLinkElement,
+                                nsIDOMHTMLLinkElement,
+                                nsIDOMLinkStyle,
+                                nsILink,
+                                nsIStyleSheetLinkingElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLinkElement)
 
 
@@ -163,7 +161,7 @@ NS_IMPL_ELEMENT_CLONE(nsHTMLLinkElement)
 NS_IMETHODIMP
 nsHTMLLinkElement::GetDisabled(PRBool* aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
+  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(mStyleSheet));
   nsresult result = NS_OK;
 
   if (ss) {
@@ -178,7 +176,7 @@ nsHTMLLinkElement::GetDisabled(PRBool* aDisabled)
 NS_IMETHODIMP 
 nsHTMLLinkElement::SetDisabled(PRBool aDisabled)
 {
-  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(GetStyleSheet()));
+  nsCOMPtr<nsIDOMStyleSheet> ss(do_QueryInterface(mStyleSheet));
   nsresult result = NS_OK;
 
   if (ss) {
@@ -208,10 +206,12 @@ nsHTMLLinkElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsContentUtils::AddScriptRunner(
-    new nsRunnableMethod<nsHTMLLinkElement>(this,
-                                            &nsHTMLLinkElement::UpdateStyleSheetInternal));
+  UpdateStyleSheetInternal(nsnull);
 
+  // XXXbz we really shouldn't fire the event until after we've finished with
+  // the outermost BindToTree...  In particular, this can effectively cause us
+  // to reenter this code, or for some part of the document to become unbound
+  // inside the event!
   CreateAndDispatchEvent(aDocument, NS_LITERAL_STRING("DOMLinkAdded"));
 
   return rv;  
@@ -234,11 +234,18 @@ nsHTMLLinkElement::LinkRemoved()
 void
 nsHTMLLinkElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
-  Link::ResetLinkState();
-
-  // Once we have XPCOMGC we shouldn't need to call UnbindFromTree during Unlink
-  // and so this messy event dispatch can go away.
   nsCOMPtr<nsIDocument> oldDoc = GetCurrentDoc();
+  if (oldDoc) {
+    GetCurrentDoc()->ForgetLink(this);
+    // If this link is ever reinserted into a document, it might
+    // be under a different xml:base, so forget the cached state now
+    mLinkState = eLinkState_Unknown;
+  }
+
+  // XXXbz we really shouldn't fire the event until after we've finished with
+  // the outermost UnbindFromTree...  In particular, this can effectively cause
+  // us to reenter this code, or to be bound to a different tree inside the
+  // event!
   CreateAndDispatchEvent(oldDoc, NS_LITERAL_STRING("DOMLinkRemoved"));
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
   UpdateStyleSheetInternal(oldDoc);
@@ -253,7 +260,7 @@ nsHTMLLinkElement::CreateAndDispatchEvent(nsIDocument* aDoc,
 
   // In the unlikely case that both rev is specified *and* rel=stylesheet,
   // this code will cause the event to fire, on the principle that maybe the
-  // page really does want to specify that its author is a stylesheet. Since
+  // page really does want to specify that it's author is a stylesheet. Since
   // this should never actually happen and the performance hit is minimal,
   // doing the "right" thing costs virtually nothing here, even if it doesn't
   // make much sense.
@@ -266,12 +273,9 @@ nsHTMLLinkElement::CreateAndDispatchEvent(nsIDocument* aDoc,
                       strings, eIgnoreCase) != ATTR_VALUE_NO_MATCH)
     return;
 
-  nsRefPtr<nsPLDOMEvent> event = new nsPLDOMEvent(this, aEventName, PR_TRUE);
-  if (event) {
-    // Always run async in order to avoid running script when the content
-    // sink isn't expecting it.
-    event->PostDOMEvent();
-  }
+  nsContentUtils::DispatchTrustedEvent(aDoc,
+                                       static_cast<nsIContent*>(this),
+                                       aEventName, PR_TRUE, PR_TRUE);
 }
 
 nsresult
@@ -280,7 +284,14 @@ nsHTMLLinkElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            PRBool aNotify)
 {
   if (aName == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState();
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc) {
+      doc->ForgetLink(this);
+        // The change to 'href' will cause style reresolution which will
+        // eventually recompute the link state and re-add this element
+        // to the link map if necessary.
+    }
+    SetLinkState(eLinkState_Unknown);
   }
 
   nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix,
@@ -288,10 +299,10 @@ nsHTMLLinkElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   if (NS_SUCCEEDED(rv)) {
     PRBool dropSheet = PR_FALSE;
     if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::rel &&
-        GetStyleSheet()) {
-      nsAutoTArray<nsString, 4> linkTypes;
+        mStyleSheet) {
+      nsStringArray linkTypes(4);
       nsStyleLinkElement::ParseLinkTypes(aValue, linkTypes);
-      dropSheet = !linkTypes.Contains(NS_LITERAL_STRING("stylesheet"));
+      dropSheet = linkTypes.IndexOf(NS_LITERAL_STRING("stylesheet")) < 0;
     }
     
     UpdateStyleSheetInternal(nsnull,
@@ -309,10 +320,6 @@ nsresult
 nsHTMLLinkElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
                              PRBool aNotify)
 {
-  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState();
-  }
-
   nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
                                                 aNotify);
   if (NS_SUCCEEDED(rv)) {
@@ -354,29 +361,33 @@ nsHTMLLinkElement::GetLinkTarget(nsAString& aTarget)
   }
 }
 
-nsLinkState
-nsHTMLLinkElement::GetLinkState() const
+NS_IMETHODIMP
+nsHTMLLinkElement::GetLinkState(nsLinkState &aState)
 {
-  return Link::GetLinkState();
+  aState = mLinkState;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLLinkElement::SetLinkState(nsLinkState aState)
+{
+  mLinkState = aState;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsHTMLLinkElement::GetHrefURI(nsIURI** aURI)
+{
+  return GetHrefURIForAnchors(aURI);
 }
 
 void
-nsHTMLLinkElement::SetLinkState(nsLinkState aState)
-{
-  Link::SetLinkState(aState);
-}
-
-already_AddRefed<nsIURI>
-nsHTMLLinkElement::GetHrefURI() const
-{
-  return GetHrefURIForAnchors();
-}
-
-already_AddRefed<nsIURI>
-nsHTMLLinkElement::GetStyleSheetURL(PRBool* aIsInline)
+nsHTMLLinkElement::GetStyleSheetURL(PRBool* aIsInline,
+                                    nsIURI** aURI)
 {
   *aIsInline = PR_FALSE;
-  return GetHrefURIForAnchors();
+  GetHrefURIForAnchors(aURI);
+  return;
 }
 
 void
@@ -391,11 +402,11 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   *aIsAlternate = PR_FALSE;
 
   nsAutoString rel;
-  nsAutoTArray<nsString, 4> linkTypes;
+  nsStringArray linkTypes(4);
   GetAttr(kNameSpaceID_None, nsGkAtoms::rel, rel);
   nsStyleLinkElement::ParseLinkTypes(rel, linkTypes);
   // Is it a stylesheet link?
-  if (!linkTypes.Contains(NS_LITERAL_STRING("stylesheet"))) {
+  if (linkTypes.IndexOf(NS_LITERAL_STRING("stylesheet")) < 0) {
     return;
   }
 
@@ -405,7 +416,7 @@ nsHTMLLinkElement::GetStyleSheetInfo(nsAString& aTitle,
   aTitle.Assign(title);
 
   // If alternate, does it have title?
-  if (linkTypes.Contains(NS_LITERAL_STRING("alternate"))) {
+  if (-1 != linkTypes.IndexOf(NS_LITERAL_STRING("alternate"))) {
     if (aTitle.IsEmpty()) { // alternates must have title
       return;
     } else {

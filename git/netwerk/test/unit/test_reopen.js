@@ -1,7 +1,7 @@
 // This testcase verifies that channels can't be reopened
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=372486
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 
 const NS_ERROR_IN_PROGRESS = 0x804b000f;
 const NS_ERROR_ALREADY_OPENED = 0x804b0049;
@@ -40,11 +40,7 @@ function check_throws(closure, error) {
   try {
     closure();
   } catch (e) {
-    if (error instanceof Array) {
-      do_check_neq(error.indexOf(e.result), -1);
-    } else {
-      do_check_eq(e.result, error);
-    }
+    do_check_eq(e.result, error);
     thrown = true;
   }
   do_check_true(thrown);
@@ -77,7 +73,7 @@ var listener = {
     // Once onStopRequest is reached, the channel is marked as having been
     // opened
     check_async_open_throws(NS_ERROR_ALREADY_OPENED);
-    do_timeout(0, after_channel_closed);
+    do_timeout(0, "after_channel_closed()");
   }
 };
 
@@ -96,7 +92,7 @@ function test_channel(createChanClosure) {
   chan = createChanClosure();
   var inputStream = chan.open();
   check_open_throws(NS_ERROR_IN_PROGRESS);
-  check_async_open_throws([NS_ERROR_IN_PROGRESS, NS_ERROR_ALREADY_OPENED]);
+  check_async_open_throws(NS_ERROR_ALREADY_OPENED);
   
   // Then, asynchronous one
   chan = createChanClosure();
@@ -118,7 +114,7 @@ function test_http_channel() {
 }
 
 function test_file_channel() {
-  var file = do_get_file("data/test_readline1.txt");
+  var file = do_get_file("netwerk/test/Makefile.in");
   test_channel(function() {
     return new_file_channel(file);
   });
@@ -132,7 +128,8 @@ function test_ftp_channel() {
 }
 
 function end() {
-  httpserv.stop(do_test_finished);
+  httpserv.stop();
+  do_test_finished();
 }
 
 function run_test() {

@@ -48,10 +48,14 @@
 #include "nsIFileChannel.h"
 #include "nsILocalFile.h"
 #include "nsCOMArray.h"
-#include "nsTArray.h"
 
 class nsILocalFileMac;
 @class NSArray;
+
+
+/**
+ * Native Mac Cocoa FileSelector wrapper
+ */
 
 class nsFilePicker : public nsBaseFilePicker
 {
@@ -60,8 +64,8 @@ public:
   virtual ~nsFilePicker();
 
   NS_DECL_ISUPPORTS
-
-  // nsIFilePicker (less what's in nsBaseFilePicker)
+   
+    // nsIFilePicker (less what's in nsBaseFilePicker)
   NS_IMETHOD GetDefaultString(nsAString& aDefaultString);
   NS_IMETHOD SetDefaultString(const nsAString& aDefaultString);
   NS_IMETHOD GetDefaultExtension(nsAString& aDefaultExtension);
@@ -69,37 +73,41 @@ public:
   NS_IMETHOD SetFilterIndex(PRInt32 aFilterIndex);
   NS_IMETHOD SetDefaultExtension(const nsAString& aDefaultExtension);
   NS_IMETHOD GetFile(nsILocalFile * *aFile);
-  NS_IMETHOD GetFileURL(nsIURI * *aFileURL);
+  NS_IMETHOD GetFileURL(nsIFileURL * *aFileURL);
   NS_IMETHOD GetFiles(nsISimpleEnumerator **aFiles);
   NS_IMETHOD Show(PRInt16 *_retval); 
   NS_IMETHOD AppendFilter(const nsAString& aTitle, const nsAString& aFilter);
 
 protected:
 
-  virtual void InitNative(nsIWidget *aParent, const nsAString& aTitle, PRInt16 aMode);
+  virtual void InitNative(nsIWidget *aParent, const nsAString& aTitle,
+                          PRInt16 aMode);
 
-  // actual implementations of get/put dialogs using NSOpenPanel & NSSavePanel
-  // aFile is an existing but unspecified file. These functions must specify it.
-  //
-  // will return |returnCancel| or |returnOK| as result.
-  PRInt16 GetLocalFiles(const nsString& inTitle, const nsString& inDefaultName, PRBool inAllowMultiple, nsCOMArray<nsILocalFile>& outFiles);
+    // actual implementations of get/put dialogs using NSOpenPanel & NSSavePanel
+    // aFile is an existing but unspecified file. These functions must specify it.
+    //
+    // will return |returnCancel| or |returnOK| as result.
+  PRInt16 GetLocalFiles(const nsString& inTitle, PRBool inAllowMultiple, nsCOMArray<nsILocalFile>& outFiles);
   PRInt16 GetLocalFolder(const nsString& inTitle, nsILocalFile** outFile);
   PRInt16 PutLocalFile(const nsString& inTitle, const nsString& inDefaultName, nsILocalFile** outFile);
 
   NSArray  *GenerateFilterList();
   void     SetDialogTitle(const nsString& inTitle, id aDialog);
   NSString *PanelDefaultDirectory();
-  NSView* GetAccessoryView();
+  NSView* nsFilePicker::GetAccessoryView();
                                                 
+  PRBool                 mAllFilesDisplayed;
   nsString               mTitle;
   PRInt16                mMode;
   nsCOMArray<nsILocalFile> mFiles;
   nsString               mDefault;
 
-  nsTArray<nsString>     mFilters; 
-  nsTArray<nsString>     mTitles;
+  nsStringArray          mFilters; 
+  nsStringArray          mTitles;
+  
+  PRInt32                mSelectedType;  //this is in some NS_IMETHODIMP, but otherwise unsed.
+  static OSType          sCurrentProcessSignature;
 
-  PRInt32                mSelectedTypeIndex;
 };
 
 #endif // nsFilePicker_h_

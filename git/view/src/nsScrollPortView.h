@@ -44,7 +44,7 @@
 #include "nsITimer.h"
 
 class nsISupportsArray;
-class AsyncScroll;
+class SmoothScroll;
 
 //this is a class that acts as a container for other views and provides
 //automatic management of scrolling of the views it contains.
@@ -60,26 +60,22 @@ public:
                             void** aInstancePtr);
 
   //nsIScrollableView interface
+  NS_IMETHOD  CreateScrollControls(nsNativeWidget aNative = nsnull);
   NS_IMETHOD  GetContainerSize(nscoord *aWidth, nscoord *aHeight) const;
   NS_IMETHOD  SetScrolledView(nsIView *aScrolledView);
   NS_IMETHOD  GetScrolledView(nsIView *&aScrolledView) const;
 
   NS_IMETHOD  GetScrollPosition(nscoord &aX, nscoord &aY) const;
   NS_IMETHOD  ScrollTo(nscoord aX, nscoord aY, PRUint32 aUpdateFlags);
+  NS_IMETHOD  SetScrollProperties(PRUint32 aProperties);
+  NS_IMETHOD  GetScrollProperties(PRUint32 *aProperties);
   NS_IMETHOD  SetLineHeight(nscoord aHeight);
   NS_IMETHOD  GetLineHeight(nscoord *aHeight);
-  NS_IMETHOD  ScrollByLines(PRInt32 aNumLinesX, PRInt32 aNumLinesY,
-                            PRUint32 aUpdateFlags = 0);
-  NS_IMETHOD  ScrollByLinesWithOverflow(PRInt32 aNumLinesX, PRInt32 aNumLinesY,
-                                        PRInt32& aOverflowX, PRInt32& aOverflowY,
-                                        PRUint32 aUpdateFlags = 0);
+  NS_IMETHOD  ScrollByLines(PRInt32 aNumLinesX, PRInt32 aNumLinesY);
   NS_IMETHOD  GetPageScrollDistances(nsSize *aDistances);
-  NS_IMETHOD  ScrollByPages(PRInt32 aNumPagesX, PRInt32 aNumPagesY,
-                            PRUint32 aUpdateFlags = 0);
-  NS_IMETHOD  ScrollByWhole(PRBool aTop, PRUint32 aUpdateFlags = 0);
-  NS_IMETHOD  ScrollByPixels(PRInt32 aNumPixelsX, PRInt32 aNumPixelsY,
-                             PRInt32& aOverflowX, PRInt32& aOverflowY,
-                             PRUint32 aUpdateFlags = 0);
+  NS_IMETHOD  ScrollByPages(PRInt32 aNumPagesX, PRInt32 aNumPagesY);
+  NS_IMETHOD  ScrollByWhole(PRBool aTop);
+  NS_IMETHOD  ScrollByPixels(PRInt32 aNumPixelsX, PRInt32 aNumPixelsY);
   NS_IMETHOD  CanScroll(PRBool aHorizontal, PRBool aForward, PRBool &aResult);
 
   NS_IMETHOD_(nsIView*) View();
@@ -92,28 +88,26 @@ public:
   nsView*     GetScrolledView() const { return GetFirstChild(); }
 
 private:
-  NS_IMETHOD  ScrollToImpl(nscoord aX, nscoord aY);
+  NS_IMETHOD  ScrollToImpl(nscoord aX, nscoord aY, PRUint32 aUpdateFlags);
 
   // data members
-  AsyncScroll* mAsyncScroll;
+  SmoothScroll* mSmoothScroll;
 
   // methods
   void        IncrementalScroll();
   PRBool      IsSmoothScrollingEnabled();
-  static void AsyncScrollCallback(nsITimer *aTimer, void* aSPV);
+  static void SmoothScrollAnimationCallback(nsITimer *aTimer, void* aESM);
 
 protected:
   virtual ~nsScrollPortView();
 
   //private
-  void Scroll(nsView *aScrolledView, nsPoint aTwipsDelta,
-              nsIntPoint aPixDelta, nscoord aP2A,
-              const nsTArray<nsIWidget::Configuration>& aConfigurations);
+  void Scroll(nsView *aScrolledView, nsPoint aTwipsDelta, nsPoint aPixDelta, PRInt32 p2a);
   PRBool CannotBitBlt(nsView* aScrolledView);
-  nsresult CalcScrollOverflow(nscoord aX, nscoord aY, PRInt32& aOverflowX, PRInt32& aOverflowY);
 
   nscoord             mOffsetX, mOffsetY;
-  nscoord             mDestinationX, mDestinationY;
+  nscoord             mOffsetXpx, mOffsetYpx;
+  PRUint32            mScrollProperties;
   nscoord             mLineHeight;
   nsISupportsArray   *mListeners;
 };

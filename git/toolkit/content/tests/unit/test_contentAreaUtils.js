@@ -14,7 +14,7 @@
  *
  * The Original Code is bug 342485 unit test.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
+ * The Initial Developer of the Original Code is Mozilla Corporation
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -71,18 +71,13 @@ function test_urlSecurityCheck() {
     do_throw("urlSecurityCheck failed to handle the http URI as a string (uri spec)");
   }
 
-  let shouldThrow = true;
   try {
     urlSecurityCheck(CHROME_URI, nullPrincipal,
                      DISALLOW_INHERIT_PRINCIPAL);
-  }
-  catch(ex) { 
-    shouldThrow = false;
-  }
-  if (shouldThrow)
     do_throw("urlSecurityCheck should throw when linking to a chrome uri with a null principal");
+  }
+  catch(ex) { }
 }
-
 
 function run_test()
 {

@@ -66,6 +66,30 @@ public:
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIXPathResult, NS_IXPATHRESULT_IID)
 
 /**
+ * Helper class to keep Mozilla node objects alive as long as the nodeset is
+ * alive.
+ */
+class txResultHolder
+{
+public:
+    ~txResultHolder()
+    {
+      releaseNodeSet();
+    }
+
+    txAExprResult *get()
+    {
+        return mResult;
+    }
+    void set(txAExprResult *aResult);
+
+private:
+    void releaseNodeSet();
+
+    nsRefPtr<txAExprResult> mResult;
+};
+
+/**
  * A class for evaluating an XPath expression string
  */
 class nsXPathResult : public nsIDOMXPathResult,
@@ -74,7 +98,6 @@ class nsXPathResult : public nsIDOMXPathResult,
 {
 public:
     nsXPathResult();
-    nsXPathResult(const nsXPathResult &aResult);
     ~nsXPathResult();
 
     // nsISupports interface
@@ -99,46 +122,30 @@ public:
     nsresult Clone(nsIXPathResult **aResult);
     void RemoveObserver();
 private:
-    static PRBool isSnapshot(PRUint16 aResultType)
-    {
-        return aResultType == UNORDERED_NODE_SNAPSHOT_TYPE ||
-               aResultType == ORDERED_NODE_SNAPSHOT_TYPE;
-    }
-    static PRBool isIterator(PRUint16 aResultType)
-    {
-        return aResultType == UNORDERED_NODE_ITERATOR_TYPE ||
-               aResultType == ORDERED_NODE_ITERATOR_TYPE;
-    }
-    static PRBool isNode(PRUint16 aResultType)
-    {
-        return aResultType == FIRST_ORDERED_NODE_TYPE ||
-               aResultType == ANY_UNORDERED_NODE_TYPE;
-    }
     PRBool isSnapshot() const
     {
-        return isSnapshot(mResultType);
+        return mResultType == UNORDERED_NODE_SNAPSHOT_TYPE ||
+               mResultType == ORDERED_NODE_SNAPSHOT_TYPE;
     }
     PRBool isIterator() const
     {
-        return isIterator(mResultType);
+        return mResultType == UNORDERED_NODE_ITERATOR_TYPE ||
+               mResultType == ORDERED_NODE_ITERATOR_TYPE;
     }
     PRBool isNode() const
     {
-        return isNode(mResultType);
+        return mResultType == FIRST_ORDERED_NODE_TYPE ||
+               mResultType == ANY_UNORDERED_NODE_TYPE;
     }
 
     void Invalidate(const nsIContent* aChangeRoot);
 
-    nsRefPtr<txAExprResult> mResult;
-    nsCOMArray<nsIDOMNode> mResultNodes;
+    txResultHolder mResult;
     nsCOMPtr<nsIDocument> mDocument;
     PRUint32 mCurrentPos;
     PRUint16 mResultType;
     nsWeakPtr mContextNode;
     PRPackedBool mInvalidIteratorState;
-    PRBool mBooleanResult;
-    double mNumberResult;
-    nsString mStringResult;
 };
 
 #endif

@@ -35,32 +35,34 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+// YY need to pass isMultiple before create called
+
 #include "nsLegendFrame.h"
+#include "nsIDOMNode.h"
+#include "nsIDOMHTMLLegendElement.h"
+#include "nsCSSRendering.h"
 #include "nsIContent.h"
+#include "nsIFrame.h"
+#include "nsISupports.h"
 #include "nsIAtom.h"
 #include "nsGenericHTMLElement.h"
 #include "nsHTMLParts.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsFont.h"
 #include "nsFormControlFrame.h"
 
+static NS_DEFINE_IID(kLegendFrameCID, NS_LEGEND_FRAME_CID);
+ 
 nsIFrame*
 NS_NewLegendFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-#ifdef DEBUG
-  const nsStyleDisplay* disp = aContext->GetStyleDisplay();
-  NS_ASSERTION(!disp->IsAbsolutelyPositioned() && !disp->IsFloating(),
-               "Legends should not be positioned and should not float");
-#endif
-
   nsIFrame* f = new (aPresShell) nsLegendFrame(aContext);
   if (f) {
-    f->AddStateBits(NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT);
+    f->AddStateBits(NS_BLOCK_SPACE_MGR | NS_BLOCK_MARGIN_ROOT);
   }
   return f;
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsLegendFrame)
 
 nsIAtom*
 nsLegendFrame::GetType() const
@@ -69,15 +71,25 @@ nsLegendFrame::GetType() const
 }
 
 void
-nsLegendFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsLegendFrame::Destroy()
 {
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
-  nsBlockFrame::DestroyFrom(aDestructRoot);
+  nsAreaFrame::Destroy();
 }
 
-NS_QUERYFRAME_HEAD(nsLegendFrame)
-  NS_QUERYFRAME_ENTRY(nsLegendFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsBlockFrame)
+// Frames are not refcounted, no need to AddRef
+NS_IMETHODIMP
+nsLegendFrame::QueryInterface(REFNSIID aIID, void** aInstancePtr)
+{
+  NS_PRECONDITION(aInstancePtr, "null out param");
+
+  if (aIID.Equals(kLegendFrameCID)) {
+    *aInstancePtr = this;
+    return NS_OK;
+  }
+
+  return nsAreaFrame::QueryInterface(aIID, aInstancePtr);
+}
 
 NS_IMETHODIMP 
 nsLegendFrame::Reflow(nsPresContext*          aPresContext,
@@ -90,10 +102,10 @@ nsLegendFrame::Reflow(nsPresContext*          aPresContext,
   if (mState & NS_FRAME_FIRST_REFLOW) {
     nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_TRUE);
   }
-  return nsBlockFrame::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
+  return nsAreaFrame::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
 }
 
-// REVIEW: We don't need to override BuildDisplayList, nsBlockFrame will honour
+// REVIEW: We don't need to override BuildDisplayList, nsAreaFrame will honour
 // our visibility setting
 PRInt32 nsLegendFrame::GetAlign()
 {

@@ -20,7 +20,6 @@
  * Contributor(s):
  *   Myk Melez <myk@mozilla.org>
  *   Dan Mosedale <dmose@mozilla.org>
- *   Florian Queze <florian@queze.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -49,10 +48,8 @@ const CLASS_PROTOCOLINFO    = "scheme";
 // namespace prefix
 const NC_NS                 = "http://home.netscape.com/NC-rdf#";
 
-// the most recent default handlers that have been injected.  Note that
-// this is used to construct an RDF resource, which needs to have NC_NS
-// prepended, since that hasn't been done yet
-const DEFAULT_HANDLERS_VERSION = "defaultHandlersVersion";
+// the most recent default handlers that have been injected
+const NC_DEFAULT_HANDLERS_VERSION = NC_NS + "defaultHandlersVersion";
 
 // type list properties
 
@@ -96,17 +93,6 @@ const NC_PATH               = NC_NS + "path";
 // nsIWebHandlerApp::uriTemplate
 const NC_URI_TEMPLATE       = NC_NS + "uriTemplate";
 
-// nsIDBusHandlerApp::service
-const NC_SERVICE            = NC_NS + "service";
-
-// nsIDBusHandlerApp::method
-const NC_METHOD             = NC_NS + "method";
-
-// nsIDBusHandlerApp::objectPath
-const NC_OBJPATH            = NC_NS + "objectPath";
-
-// nsIDBusHandlerApp::dbusInterface
-const NC_INTERFACE            = NC_NS + "dBusInterface";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -145,38 +131,20 @@ HandlerService.prototype = {
   },
 
   _updateDB: function HS__updateDB() {
-    try {
-      var defaultHandlersVersion = this._datastoreDefaultHandlersVersion;
-    } catch(ex) {
-      // accessing the datastore failed, we can't update anything
-      return;
-    }
-
-    try {
-      // if we don't have the current version of the default prefs for
-      // this locale, inject any new default handers into the datastore
-      if (defaultHandlersVersion < this._prefsDefaultHandlersVersion) {
-
-        // set the new version first so that if we recurse we don't
-        // call _injectNewDefaults several times
-        this._datastoreDefaultHandlersVersion =
-          this._prefsDefaultHandlersVersion;
+    // if the default prefs have changed, inject any new default handers
+    // into the datastore 
+    try { 
+      if (this._datastoreDefaultHandlersVersion <
+          this._prefsDefaultHandlersVersion) {
         this._injectNewDefaults();
-      } 
+        this._datastoreDefaultHandlersVersion = 
+        this._prefsDefaultHandlersVersion;
+      }
     } catch (ex) {
-      // if injecting the defaults failed, set the version back to the
-      // previous value
-      this._datastoreDefaultHandlersVersion = defaultHandlersVersion;
+      // if injecting the defaults failed, life goes on...
     }
   },
-
-  get _currentLocale() {
-    var chromeRegistry = Cc["@mozilla.org/chrome/chrome-registry;1"].
-                         getService(Ci.nsIXULChromeRegistry);
-    var currentLocale = chromeRegistry.getSelectedLocale("global");
-    return currentLocale;
-  }, 
-
+  
   _destroy: function HS__destroy() {
     this._observerSvc.removeObserver(this, "profile-before-change");
     this._observerSvc.removeObserver(this, "xpcom-shutdown");
@@ -204,17 +172,17 @@ HandlerService.prototype = {
     return false;
   },
 
-  // note that this applies to the current locale only 
   get _datastoreDefaultHandlersVersion() {
-    var version = this._getValue("urn:root", NC_NS + this._currentLocale +
-                                             "_" + DEFAULT_HANDLERS_VERSION);
+    var version = this._getValue("urn:root", NC_DEFAULT_HANDLERS_VERSION); 
     
-    return version ? version : -1;
+    version = version ? version : -1;
+    
+    return version;
   },
 
   set _datastoreDefaultHandlersVersion(aNewVersion) {
-    return this._setLiteral("urn:root", NC_NS + this._currentLocale + "_" + 
-                            DEFAULT_HANDLERS_VERSION, aNewVersion);
+    return this._setLiteral("urn:root", NC_DEFAULT_HANDLERS_VERSION, 
+                            aNewVersion);
   },
 
   get _prefsDefaultHandlersVersion() {
@@ -222,11 +190,12 @@ HandlerService.prototype = {
     var prefSvc = Cc["@mozilla.org/preferences-service;1"].
                   getService(Ci.nsIPrefService);
     var handlerSvcBranch = prefSvc.getBranch("gecko.handlerService.");
-
+  
     // get the version of the preferences for this locale
-    return Number(handlerSvcBranch.
-                  getComplexValue("defaultHandlersVersion", 
-                                  Ci.nsIPrefLocalizedString).data);
+    var version = handlerSvcBranch.getComplexValue("defaultHandlersVersion",
+                                                   Ci.nsISupportsString).data;
+                                                   
+    return version;                                                   
   },
   
   _injectNewDefaults: function HS__injectNewDefaults() {
@@ -235,7 +204,10 @@ HandlerService.prototype = {
                   getService(Ci.nsIPrefService);
 
     let schemesPrefBranch = prefSvc.getBranch("gecko.handlerService.schemes.");
-    let schemePrefList = schemesPrefBranch.getChildList("");
+    let schemePrefList = schemesPrefBranch.getChildList("", {}); 
+
+    let protoSvc = Cc["@mozilla.org/uriloader/external-protocol-service;1"].
+                   getService(Ci.nsIExternalProtocolService);
 
     var schemes = {};
 
@@ -244,40 +216,21 @@ HandlerService.prototype = {
 
       let [scheme, handlerNumber, attribute] = schemePrefName.split(".");
 
-      try {
-        var attrData =
-          schemesPrefBranch.getComplexValue(schemePrefName,
-                                            Ci.nsIPrefLocalizedString).data;
-        if (!(scheme in schemes))
-          schemes[scheme] = {};
-  
-        if (!(handlerNumber in schemes[scheme]))
-          schemes[scheme][handlerNumber] = {};
+      if (!(scheme in schemes))
+        schemes[scheme] = {};
+      if (!(handlerNumber in schemes[scheme]))
+        schemes[scheme][handlerNumber] = {};
         
-        schemes[scheme][handlerNumber][attribute] = attrData;
-      } catch (ex) {}
+      schemes[scheme][handlerNumber][attribute] = 
+        schemesPrefBranch.getComplexValue(schemePrefName,
+                                          Ci.nsISupportsString).data;
     }
 
-    let protoSvc = Cc["@mozilla.org/uriloader/external-protocol-service;1"].
-                   getService(Ci.nsIExternalProtocolService);
     for (var scheme in schemes) {
 
-      // This clause is essentially a reimplementation of 
-      // nsIExternalProtocolHandlerService.getProtocolHandlerInfo().
-      // Necessary because calling that from here would make XPConnect barf
-      // when getService tried to re-enter the constructor for this
-      // service.
-      let osDefaultHandlerFound = {};
-      let protoInfo = protoSvc.getProtocolHandlerInfoFromOS(scheme, 
-                               osDefaultHandlerFound);
-      
-      if (this.exists(protoInfo))
-        this.fillHandlerInfo(protoInfo, null);
-      else
-        protoSvc.setProtocolHandlerDefaults(protoInfo, 
-                                            osDefaultHandlerFound.value);
-
-      // cache the possible handlers to avoid extra xpconnect traversals.      
+      // get a protocol info object for that scheme and cache the possible
+      // handlers to avoid extra xpconnect traversals
+      let protoInfo = protoSvc.getProtocolHandlerInfo(scheme);  
       let possibleHandlers = protoInfo.possibleApplicationHandlers;
 
       for each (var handlerPrefs in schemes[scheme]) {
@@ -289,7 +242,7 @@ HandlerService.prototype = {
         handlerApp.name = handlerPrefs.name;                
 
         if (!this._isInHandlerArray(possibleHandlers, handlerApp)) {
-          possibleHandlers.appendElement(handlerApp, false);
+             possibleHandlers.appendElement(handlerApp, false);
         }
       }
 
@@ -364,28 +317,14 @@ HandlerService.prototype = {
                                aHandlerInfo.possibleApplicationHandlers,
                                aHandlerInfo.preferredApplicationHandler);
 
-    // If we have an "always ask" flag stored in the RDF, always use its
-    // value. Otherwise, use the default value stored in the pref service.
-    var alwaysAsk;
-    if (this._hasValue(infoID, NC_ALWAYS_ASK)) {
-      alwaysAsk = (this._getValue(infoID, NC_ALWAYS_ASK) != "false");
-    } else {
-      var prefSvc = Cc["@mozilla.org/preferences-service;1"].
-                    getService(Ci.nsIPrefService);
-      var prefBranch = prefSvc.getBranch("network.protocol-handler.");
-      try {
-        alwaysAsk = prefBranch.getBoolPref("warn-external." + type);
-      } catch (e) {
-        // will throw if pref didn't exist.
-        try {
-          alwaysAsk = prefBranch.getBoolPref("warn-external-default");
-        } catch (e) {
-          // Nothing to tell us what to do, so be paranoid and prompt.
-          alwaysAsk = true;
-        }
-      }
-    }
-    aHandlerInfo.alwaysAskBeforeHandling = alwaysAsk;
+    // Retrieve the "always ask" flag.
+    // Note: we only set the flag to false if we are absolutely sure the user
+    // does not want to be asked.  Any sort of bogus data should mean we ask.
+    // So there must be an "alwaysAsk" property in the datastore for the handler
+    // info object, and it must be set to "false", in order for us not to ask.
+    aHandlerInfo.alwaysAskBeforeHandling =
+      !this._hasValue(infoID, NC_ALWAYS_ASK) ||
+      this._getValue(infoID, NC_ALWAYS_ASK) != "false";
 
     // If the object represents a MIME type handler, then also retrieve
     // any file extensions.
@@ -413,17 +352,8 @@ HandlerService.prototype = {
   },
 
   exists: function HS_exists(aHandlerInfo) {
-    var found;
-
-    try {
-      var typeID = this._getTypeID(this._getClass(aHandlerInfo), aHandlerInfo.type);
-      found = this._hasLiteralAssertion(typeID, NC_VALUE, aHandlerInfo.type);
-    } catch (e) {
-      // If the RDF threw (eg, corrupt file), treat as non-existent.
-      found = false;
-    }
-
-    return found;
+    var typeID = this._getTypeID(this._getClass(aHandlerInfo), aHandlerInfo.type);
+    return this._hasLiteralAssertion(typeID, NC_VALUE, aHandlerInfo.type);
   },
 
   remove: function HS_remove(aHandlerInfo) {
@@ -432,28 +362,7 @@ HandlerService.prototype = {
     this._removeAssertions(preferredHandlerID);
 
     var infoID = this._getInfoID(this._getClass(aHandlerInfo), aHandlerInfo.type);
-
-    // Get a list of possible handlers.  After we have removed the info record,
-    // we'll check if any other info records reference these handlers, and we'll
-    // remove the handler records that aren't referenced by other info records.
-    var possibleHandlerIDs = [];
-    var possibleHandlerTargets = this._getTargets(infoID, NC_POSSIBLE_APP);
-    while (possibleHandlerTargets.hasMoreElements()) {
-      let possibleHandlerTarget = possibleHandlerTargets.getNext();
-      // Note: possibleHandlerTarget should always be an nsIRDFResource.
-      // The conditional is just here in case of a corrupt RDF datasource.
-      if (possibleHandlerTarget instanceof Ci.nsIRDFResource)
-        possibleHandlerIDs.push(possibleHandlerTarget.ValueUTF8);
-    }
-
-    // Remove the info record.
     this._removeAssertions(infoID);
-
-    // Now that we've removed the info record, remove any possible handlers
-    // that aren't referenced by other info records.
-    for each (let possibleHandlerID in possibleHandlerIDs)
-      if (!this._existsResourceTarget(NC_POSSIBLE_APP, possibleHandlerID))
-        this._removeAssertions(possibleHandlerID);
 
     var typeID = this._getTypeID(this._getClass(aHandlerInfo), aHandlerInfo.type);
     this._removeAssertions(typeID);
@@ -488,7 +397,7 @@ HandlerService.prototype = {
       return type;
     }
 
-    return "";
+    throw Cr.NS_ERROR_NOT_AVAILABLE;
   },
 
 
@@ -576,31 +485,6 @@ HandlerService.prototype = {
       handlerApp = Cc["@mozilla.org/uriloader/web-handler-app;1"].
                    createInstance(Ci.nsIWebHandlerApp);
       handlerApp.uriTemplate = uriTemplate;
-    }
-    else if (this._hasValue(aHandlerAppID, NC_SERVICE)) {
-      let service = this._getValue(aHandlerAppID, NC_SERVICE);
-      if (!service)
-        return null;
-      
-      let method = this._getValue(aHandlerAppID, NC_METHOD);
-      if (!method)
-        return null;
-      
-      let objpath = this._getValue(aHandlerAppID, NC_OBJPATH);
-      if (!objpath)
-        return null;
-      
-      let interface = this._getValue(aHandlerAppID, NC_INTERFACE);
-      if (!interface)
-        return null;
-      
-      handlerApp = Cc["@mozilla.org/uriloader/dbus-handler-app;1"].
-                   createInstance(Ci.nsIDBusHandlerApp);
-      handlerApp.service   = service;
-      handlerApp.method    = method;
-      handlerApp.objectPath   = objpath;
-      handlerApp.dBusInterface = interface;
-      
     }
     else
       return null;
@@ -765,7 +649,7 @@ HandlerService.prototype = {
       let handlerAppID = this._getPossibleHandlerAppID(handlerApp);
       if (!this._hasResourceAssertion(infoID, NC_POSSIBLE_APP, handlerAppID)) {
         this._storeHandlerApp(handlerAppID, handlerApp);
-        this._addResourceAssertion(infoID, NC_POSSIBLE_APP, handlerAppID);
+        this._addResourceTarget(infoID, NC_POSSIBLE_APP, handlerAppID);
       }
       delete currentHandlerApps[handlerAppID];
     }
@@ -776,7 +660,7 @@ HandlerService.prototype = {
     // leave it clogged up with information about handler apps we don't care
     // about anymore.
     for (let handlerAppID in currentHandlerApps) {
-      this._removeResourceAssertion(infoID, NC_POSSIBLE_APP, handlerAppID);
+      this._removeTarget(infoID, NC_POSSIBLE_APP, handlerAppID);
       if (!this._existsResourceTarget(NC_POSSIBLE_APP, handlerAppID))
         this._removeAssertions(handlerAppID);
     }
@@ -807,33 +691,12 @@ HandlerService.prototype = {
     if (aHandlerApp instanceof Ci.nsILocalHandlerApp) {
       this._setLiteral(aHandlerAppID, NC_PATH, aHandlerApp.executable.path);
       this._removeTarget(aHandlerAppID, NC_URI_TEMPLATE);
-      this._removeTarget(aHandlerAppID, NC_METHOD);
-      this._removeTarget(aHandlerAppID, NC_SERVICE);
-      this._removeTarget(aHandlerAppID, NC_OBJPATH);
-      this._removeTarget(aHandlerAppID, NC_INTERFACE);
     }
-    else if(aHandlerApp instanceof Ci.nsIWebHandlerApp){
+    else {
       aHandlerApp.QueryInterface(Ci.nsIWebHandlerApp);
       this._setLiteral(aHandlerAppID, NC_URI_TEMPLATE, aHandlerApp.uriTemplate);
       this._removeTarget(aHandlerAppID, NC_PATH);
-      this._removeTarget(aHandlerAppID, NC_METHOD);
-      this._removeTarget(aHandlerAppID, NC_SERVICE);
-      this._removeTarget(aHandlerAppID, NC_OBJPATH);
-      this._removeTarget(aHandlerAppID, NC_INTERFACE);
     }
-    else if(aHandlerApp instanceof Ci.nsIDBusHandlerApp){
-      aHandlerApp.QueryInterface(Ci.nsIDBusHandlerApp);
-      this._setLiteral(aHandlerAppID, NC_SERVICE, aHandlerApp.service);
-      this._setLiteral(aHandlerAppID, NC_METHOD, aHandlerApp.method);
-      this._setLiteral(aHandlerAppID, NC_OBJPATH, aHandlerApp.objectPath);
-      this._setLiteral(aHandlerAppID, NC_INTERFACE, aHandlerApp.dBusInterface);
-      this._removeTarget(aHandlerAppID, NC_PATH);
-      this._removeTarget(aHandlerAppID, NC_URI_TEMPLATE);
-    }
-    else {
-	throw "unknown handler type";
-    }
-	
   },
 
   _storeAlwaysAsk: function HS__storeAlwaysAsk(aHandlerInfo) {
@@ -872,7 +735,7 @@ HandlerService.prototype = {
   get _mimeSvc() {
     if (!this.__mimeSvc)
       this.__mimeSvc =
-        Cc["@mozilla.org/mime;1"].
+        Cc["@mozilla.org/uriloader/external-helper-app-service;1"].
         getService(Ci.nsIMIMEService);
     return this.__mimeSvc;
   },
@@ -1019,17 +882,11 @@ HandlerService.prototype = {
 
     if (aHandlerApp instanceof Ci.nsILocalHandlerApp)
       handlerAppID += "local:" + aHandlerApp.executable.path;
-    else if(aHandlerApp instanceof Ci.nsIWebHandlerApp){
+    else {
       aHandlerApp.QueryInterface(Ci.nsIWebHandlerApp);
       handlerAppID += "web:" + aHandlerApp.uriTemplate;
     }
-    else if(aHandlerApp instanceof Ci.nsIDBusHandlerApp){
-      aHandlerApp.QueryInterface(Ci.nsIDBusHandlerApp);
-      handlerAppID += "dbus:" + aHandlerApp.service + " " + aHandlerApp.method + " " + aHandlerApp.uriTemplate;
-    }else{
-	throw "unknown handler type";
-    }
-    
+
     return handlerAppID;
   },
 
@@ -1266,31 +1123,13 @@ HandlerService.prototype = {
    * @param propertyURI {string} the URI of the property
    * @param targetURI   {string} the URI of the target
    */
-  _addResourceAssertion: function HS__addResourceAssertion(sourceURI,
-                                                           propertyURI,
-                                                           targetURI) {
+  _addResourceTarget: function HS__addResourceTarget(sourceURI, propertyURI,
+                                                     targetURI) {
     var source = this._rdf.GetResource(sourceURI);
     var property = this._rdf.GetResource(propertyURI);
     var target = this._rdf.GetResource(targetURI);
     
     this._ds.Assert(source, property, target, true);
-  },
-
-  /**
-   * Remove an assertion with a resource target.
-   *
-   * @param sourceURI   {string} the URI of the source
-   * @param propertyURI {string} the URI of the property
-   * @param targetURI   {string} the URI of the target
-   */
-  _removeResourceAssertion: function HS__removeResourceAssertion(sourceURI,
-                                                                 propertyURI,
-                                                                 targetURI) {
-    var source = this._rdf.GetResource(sourceURI);
-    var property = this._rdf.GetResource(propertyURI);
-    var target = this._rdf.GetResource(targetURI);
-
-    this._ds.Unassert(source, property, target);
   },
 
   /**
@@ -1411,12 +1250,9 @@ HandlerService.prototype = {
     var properties = this._ds.ArcLabelsOut(source);
  
     while (properties.hasMoreElements()) {
-      let property = properties.getNext();
-      let targets = this._ds.GetTargets(source, property, true);
-      while (targets.hasMoreElements()) {
-        let target = targets.getNext();
-        this._ds.Unassert(source, property, target);
-      }
+      var property = properties.getNext();
+      var target = this._ds.GetTarget(source, property, true);
+      this._ds.Unassert(source, property, target);
     }
   }
 

@@ -43,7 +43,6 @@
 #include "nsIUnicodeDecoder.h"
 #include "nsICharRepresentable.h"
 #include "uconvutil.h"
-#include "mozilla/Mutex.h"
 
 #define ONE_BYTE_TABLE_SIZE 256
 
@@ -111,12 +110,6 @@ public:
 
   //--------------------------------------------------------------------
   // Interface nsIUnicodeDecoder [declaration]
-
-  virtual void SetInputErrorBehavior(PRInt32 aBehavior);
-  virtual PRUnichar GetCharacterForUnMapped();
-
-protected:
-  PRInt32   mErrBehavior;
 };
 
 //----------------------------------------------------------------------
@@ -281,7 +274,6 @@ protected:
   uMappingTable             * mMappingTable;
   PRUnichar                 mFastTable[ONE_BYTE_TABLE_SIZE];
   PRBool                    mFastTableCreated;
-  mozilla::Mutex            mFastTableMutex;
 
   //--------------------------------------------------------------------
   // Subclassing of nsBasicDecoderSupport class [declaration]

@@ -65,8 +65,6 @@ const char *gGoodbye = "Goodbye!\n";
 // JSSh object
 PRBool GetJSShGlobal(JSContext *cx, JSObject *obj, nsJSSh** shell)
 {
-  JSAutoRequest ar(cx);
-
 #ifdef DEBUG
 //  printf("GetJSShGlobal(cx=%p, obj=%p)\n", cx, obj);
 #endif
@@ -111,7 +109,7 @@ PRBool GetJSShGlobal(JSContext *cx, JSObject *obj, nsJSSh** shell)
   return PR_TRUE;
 }
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 {
   // xxx getting the global obj from the cx. will that give us grief?
@@ -132,13 +130,11 @@ my_ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
   }
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
   if (!GetJSShGlobal(cx, obj, &shell)) return JS_FALSE;
-
-  JSAutoRequest ar(cx);
 
   PRUint32 bytesWritten;
 
@@ -168,7 +164,7 @@ Print(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 Quit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -183,13 +179,10 @@ Quit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
-
-  JSAutoRequest ar(cx);
-
   if (!GetJSShGlobal(cx, obj, &shell)) return JS_FALSE;
 
   for (unsigned int i=0; i<argc; ++i) {
@@ -203,7 +196,7 @@ Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 FlushEventQueue(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -214,7 +207,7 @@ FlushEventQueue(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rv
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 Suspend(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -232,7 +225,7 @@ Suspend(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 Resume(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -243,12 +236,10 @@ Resume(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 AddressOf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   if (argc!=1) return JS_FALSE;
-
-  JSAutoRequest ar(cx);
 
   // xxx If argv[0] is not an obj already, we'll get a transient
   // address from JS_ValueToObject. Maybe we should throw an exception
@@ -266,14 +257,12 @@ AddressOf(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 SetProtocol(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   if (argc!=1) return JS_FALSE;
   nsJSSh* shell;
   if (!GetJSShGlobal(cx, obj, &shell)) return JS_FALSE;
-
-  JSAutoRequest ar(cx);
 
   JSString *str = JS_ValueToString(cx, argv[0]);
   if (!str) return JS_FALSE;
@@ -299,26 +288,22 @@ SetProtocol(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 GetProtocol(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
   if (!GetJSShGlobal(cx, obj, &shell)) return JS_FALSE;
-
-  JSAutoRequest ar(cx);
 
   JSString *str = JS_NewStringCopyZ(cx, shell->mProtocol.get());
   *rval = STRING_TO_JSVAL(str);
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 SetContextObj(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
   if (!GetJSShGlobal(cx, obj, &shell)) return JS_FALSE;
-
-  JSAutoRequest ar(cx);
 
   if (argc!=1) return JS_FALSE;
 
@@ -338,7 +323,7 @@ SetContextObj(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 DebugBreak(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
@@ -349,13 +334,11 @@ DebugBreak(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 GetInputStream(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
   if (!GetJSShGlobal(cx, obj, &shell)) return JS_FALSE;
-
-  JSAutoRequest ar(cx);
 
   nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
   if (!xpc) {
@@ -381,13 +364,11 @@ GetInputStream(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rva
   return JS_TRUE;
 }
 
-static JSBool
+JS_STATIC_DLL_CALLBACK(JSBool)
 GetOutputStream(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
   nsJSSh* shell;
   if (!GetJSShGlobal(cx, obj, &shell)) return JS_FALSE;
-
-  JSAutoRequest ar(cx);
 
   nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
   if (!xpc) {
@@ -580,6 +561,11 @@ NS_IMETHODIMP nsJSSh::Init()
     return NS_ERROR_FAILURE;
   }
 
+  // Let xpconnect resync its JSContext tracker. We do this before creating
+  // a new JSContext just in case the heap manager recycles the JSContext
+  // struct.
+  xpc->SyncJSContexts();
+  
   nsCOMPtr<nsIJSRuntimeService> rtsvc = do_GetService("@mozilla.org/js/xpc/RuntimeService;1");
   // get the JSRuntime from the runtime svc
   if (!rtsvc) {
@@ -598,8 +584,6 @@ NS_IMETHODIMP nsJSSh::Init()
     NS_ERROR("JS_NewContext failed");
     return NS_ERROR_FAILURE;
   }
-
-  JSAutoRequest ar(mJSContext);
 
   // Enable e4x:
   JS_SetOptions(mJSContext, JS_GetOptions(mJSContext) | JSOPTION_XML);
@@ -651,17 +635,14 @@ NS_IMETHODIMP nsJSSh::Cleanup()
     return NS_ERROR_FAILURE;
   }
 
-  {
-    JSAutoRequest ar(mJSContext);
+  if (mContextObj != mGlobal)
+    JS_RemoveRoot(mJSContext, &(mContextObj));
 
-    if (mContextObj != mGlobal)
-      JS_RemoveRoot(mJSContext, &(mContextObj));
-
-    JS_ClearScope(mJSContext, mGlobal);
-    JS_GC(mJSContext);
-  }
+  JS_ClearScope(mJSContext, mGlobal);
+  JS_GC(mJSContext);
 
   JS_DestroyContext(mJSContext);
+  xpc->SyncJSContexts();
   return NS_OK;
 }
 
@@ -672,7 +653,6 @@ NS_IMETHODIMP nsJSSh::ExecuteBuffer()
 //     nsIThread::GetCurrent(getter_AddRefs(thread));
 //     printf("executing on thread %p\n", thread.get());
 #endif
-
   JS_BeginRequest(mJSContext);
   JS_ClearPendingException(mJSContext);
   JSPrincipals *jsprincipals;
@@ -716,7 +696,6 @@ NS_IMETHODIMP nsJSSh::ExecuteBuffer()
 
 NS_IMETHODIMP nsJSSh::IsBufferCompilable(PRBool *_retval)
 {
-  JSAutoRequest ar(mJSContext);
   *_retval = JS_BufferIsCompilableUnit(mJSContext, mContextObj, mBuffer, mBufferPtr);
   return NS_OK;
 }
@@ -754,8 +733,6 @@ nsJSSh::NewResolve(nsIXPConnectWrappedNative *wrapper,
 {
   JSBool resolved;
   
-  JSAutoRequest ar(cx);
-
   *_retval = JS_ResolveStandardClass(cx, obj, id, &resolved);
   if (*_retval && resolved)
     *objp = obj;

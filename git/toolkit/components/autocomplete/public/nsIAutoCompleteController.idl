@@ -41,7 +41,7 @@
 
 interface nsIAutoCompleteInput;
 
-[scriptable, uuid(46a86173-0ab5-44b2-ab51-722cb3db1b60)]
+[scriptable, uuid(bb4d04f6-997b-437a-9216-7a3dbbd848d0)]
 interface nsIAutoCompleteController : nsISupports
 {
   /*
@@ -82,17 +82,14 @@ interface nsIAutoCompleteController : nsISupports
    * means of changing the text value, including typing a character, backspacing, deleting, or
    * pasting in an entirely new value.
    */
-  void handleText();
+  void handleText(in boolean aIgnoreSelection);
 
   /*
-   * Notify the controller that the user wishes to enter the current text. If
-   * aIsPopupSelection is true, then a selection was made from the popup, so
-   * fill this value into the input field before continuing. If false, just
-   * use the current value of the input field.
+   * Notify the controller that the user wishes to enter the current text
    *
    * @return True if the controller wishes to prevent event propagation and default event
    */
-  boolean handleEnter(in boolean aIsPopupSelection);
+  boolean handleEnter();
 
   /*
    * Notify the controller that the user wishes to revert autocomplete
@@ -151,7 +148,7 @@ interface nsIAutoCompleteController : nsISupports
   AString getImageAt(in long index);
 
   /*
-   * Get / set the current search string.  Note, setting will not start searching
+   * Set the current search string, but don't start searching
    */
-  attribute AString searchString;
+  void setSearchString(in AString aSearchString);
 };

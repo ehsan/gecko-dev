@@ -50,7 +50,7 @@ try {
 function add_visit(aURI, aWhen, aType) {
   var placeID = histsvc.addVisit(aURI,
                                  aWhen,
-                                 null, // no referrer
+                                 0, // no referrer
                                  aType,
                                  false, // not redirect
                                  0);
@@ -62,7 +62,7 @@ const TOTAL_SITES = 20;
 
 // main
 function run_test() {
-  var now = Date.now() * 1000;
+  var now = Date.now();
   // add visits
   for (var i=0; i < TOTAL_SITES; i++) {
     var site = "http://www.test-" + i + ".com/";

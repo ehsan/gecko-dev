@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -37,7 +37,7 @@
 
 #include "nsISupports.idl"
 
-[scriptable, uuid(c41b7dff-6b9b-42fe-b78d-113051facb05)]
+[scriptable, uuid(a437458b-baca-4a71-a839-13861a2fd538)]
 
 /**
  * An object containing information for a login stored by the
@@ -47,8 +47,13 @@ interface nsILoginInfo : nsISupports {
     /**
      * The hostname the login applies to.
      *
-     * The hostname should be formatted as an URL. For example,
-     * "https://site.com", "http://site.com:1234", "ftp://ftp.site.com".
+     * For logins obtained from HTML forms, the login is formatted like
+     * a URL. For example: "http://www.site.com" A port number (":123")
+     * may be appended in some cases.
+     *
+     * For logins obtained from a HTTP or FTP protocol authentication, 
+     * the hostname is not a URL format, but does always have the port
+     * number appended. For example "www.site.com:80".
      */
     attribute AString hostname;
 
@@ -70,8 +75,7 @@ interface nsILoginInfo : nsISupports {
      *
      * When an HTTP server sends a 401 result, the WWW-Authenticate
      * header includes a realm to identify the "protection space." See
-     * RFC2617. If the response sent has a missing or blank realm, the
-     * hostname is used instead.
+     * RFC2617.
      *
      * For logins obtained from HTML forms, this field is NULL.
      */
@@ -86,7 +90,7 @@ interface nsILoginInfo : nsISupports {
      * The |name| attribute for the username input field.
      *
      * For logins obtained from a HTTP or FTP protocol authentication,
-     * this field is an empty string.
+     * this field is NULL.
      */
     attribute AString usernameField;
 
@@ -99,7 +103,7 @@ interface nsILoginInfo : nsISupports {
      * The |name| attribute for the password input field.
      *
      * For logins obtained from a HTTP or FTP protocol authentication,
-     * this field is an empty string.
+     * this field is NULL.
      */
     attribute AString passwordField;
 
@@ -114,35 +118,26 @@ interface nsILoginInfo : nsISupports {
               in AString aUsernameField, in AString aPasswordField);
 
     /**
-     * Test for strict equality with another nsILoginInfo object.
+     * Test for equality with another nsILoginInfo object.
      *
      * @param aLoginInfo
      *        The other object to test.
+     *
+     * NOTE: The formSubmitURL field is not strictly checked. A blank (but
+     *       not NULL) value will match any value (except null) in the other
+     *       object's formSubmitURL field. The blank value indicates the login
+     *       was stored before bug 360493 was fixed.
      */
     boolean equals(in nsILoginInfo aLoginInfo);
 
     /**
-     * Test for loose equivalency with another nsILoginInfo object. The
-     * passwordField and usernameField values are ignored, and the password
-     * values may be optionally ignored. If one login's formSubmitURL is an
-     * empty string (but not null), it will be treated as a wildcard. [The
-     * blank value indicates the login was stored before bug 360493 was fixed.]
+     * Test for equality with another nsILoginInfo object, with the
+     * password fields ignored.
      *
      * @param aLoginInfo
      *        The other object to test.
-     * @param ignorePassword
-     *        If true, ignore the password when checking for match.
      */
-    boolean matches(in nsILoginInfo aLoginInfo, in boolean ignorePassword);
-
-    /**
-     * Create an identical copy of the login, duplicating all of the login's
-     * nsILoginInfo and nsILoginMetaInfo properties.
-     *
-     * This allows code to be forwards-compatible, when additional properties
-     * are added to nsILoginMetaInfo (or nsILoginInfo) in the future.
-     */
-    nsILoginInfo clone();
+    boolean equalsIgnorePassword(in nsILoginInfo aLoginInfo);
 };
 
 %{C++

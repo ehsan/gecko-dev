@@ -41,7 +41,7 @@
 struct _cairo_paginated_surface_backend {
     /* Optional. Will be called once for each page.
      *
-     * Note: With respect to the order of drawing operations as seen
+     * NOTE: With respect to the order of drawing operations as seen
      * by the target, this call will occur before any drawing
      * operations for the relevant page. However, with respect to the
      * function calls as made by the user, this call will be *after*
@@ -59,39 +59,20 @@ struct _cairo_paginated_surface_backend {
     void
     (*set_paginated_mode)	(void			*surface,
 				 cairo_paginated_mode_t	 mode);
-
-    /* Optional. Specifies the smallest box that encloses all objects
-     * on the page. Will be called at the end of the ANALYZE phase but
-     * before the mode is changed to RENDER.
-     */
-    cairo_warn cairo_int_status_t
-    (*set_bounding_box)	(void		*surface,
-			 cairo_box_t	*bbox);
-
-    /* Optional. Indicates whether the page requires fallback images.
-     * Will be called at the end of the ANALYZE phase but before the
-     * mode is changed to RENDER.
-     */
-    cairo_warn cairo_int_status_t
-    (*set_fallback_images_required) (void	    *surface,
-				     cairo_bool_t    fallbacks_required);
-
-    cairo_bool_t
-    (*supports_fine_grained_fallbacks) (void		    *surface);
 };
 
-/* A #cairo_paginated_surface_t provides a very convenient wrapper that
+/* A cairo_paginated_surface provides a very convenient wrapper that
  * is well-suited for doing the analysis common to most surfaces that
  * have paginated output, (that is, things directed at printers, or
  * for saving content in files such as PostScript or PDF files).
  *
  * To use the paginated surface, you'll first need to create your
- * 'real' surface using _cairo_surface_init() and the standard
- * #cairo_surface_backend_t. Then you also call
+ * 'real' surface using _cairo_surface_init and the standard
+ * cairo_surface_backend_t. Then you also call
  * _cairo_paginated_surface_create which takes its own, much simpler,
- * #cairo_paginated_surface_backend_t. You are free to return the result
- * of _cairo_paginated_surface_create() from your public
- * cairo_<foo>_surface_create(). The paginated backend will be careful
+ * cairo_paginated_surface_backend. You are free to return the result
+ * of _cairo_paginated_surface_create from your public
+ * cairo_<foo>_surface_create. The paginated backend will be careful
  * to not let the user see that they really got a "wrapped"
  * surface. See test-paginated-surface.c for a fairly minimal example
  * of a paginated-using surface. That should be a reasonable example
@@ -99,48 +80,41 @@ struct _cairo_paginated_surface_backend {
  *
  * What the paginated surface does is first save all drawing
  * operations for a page into a meta-surface. Then when the user calls
- * cairo_show_page(), the paginated surface performs the following
+ * cairo_show_page, the paginated surface performs the following
  * sequence of operations (using the backend functions passed to
- * cairo_paginated_surface_create()):
+ * cairo_paginated_surface_create):
  *
- * 1. Calls start_page() (if not %NULL). At this point, it is appropriate
+ * 1. Calls start_page (if non NULL). At this point, it is appropriate
  *    for the target to emit any page-specific header information into
  *    its output.
  *
- * 2. Calls set_paginated_mode() with an argument of %CAIRO_PAGINATED_MODE_ANALYZE
+ * 2. Calls set_paginated_mode with an argument of CAIRO_PAGINATED_MODE_ANALYZE
  *
  * 3. Replays the meta-surface to the target surface, (with an
  *    analysis surface inserted between which watches the return value
  *    from each operation). This analysis stage is used to decide which
  *    operations will require fallbacks.
  *
- * 4. Calls set_bounding_box() to provide the target surface with the
- *    tight bounding box of the page.
+ * 4. Calls set_paginated_mode with an argument of CAIRO_PAGINATED_MODE_RENDER
  *
- * 5. Calls set_paginated_mode() with an argument of %CAIRO_PAGINATED_MODE_RENDER
+ * 5. Replays a subset of the meta-surface operations to the target surface
  *
- * 6. Replays a subset of the meta-surface operations to the target surface
- *
- * 7. Calls set_paginated_mode() with an argument of %CAIRO_PAGINATED_MODE_FALLBACK
- *
- * 8. Replays the remaining operations to an image surface, sets an
+ * 6. Replays the remaining operations to an image surface, sets an
  *    appropriate clip on the target, then paints the resulting image
  *    surface to the target.
  *
- * So, the target will see drawing operations during three separate
- * stages, (ANALYZE, RENDER and FALLBACK). During the ANALYZE phase
- * the target should not actually perform any rendering, (for example,
- * if performing output to a file, no output should be generated
- * during this stage). Instead the drawing functions simply need to
- * return %CAIRO_STATUS_SUCCESS or %CAIRO_INT_STATUS_UNSUPPORTED to
- * indicate whether rendering would be supported. And it should do
- * this as quickly as possible. The FALLBACK phase allows the surface
- * to distinguish fallback images from native rendering in case they
- * need to be handled as a special case.
+ * So, the target will see drawing operations during two separate
+ * stages, (ANALYZE and RENDER). During the ANALYZE phase the target
+ * should not actually perform any rendering, (for example, if
+ * performing output to a file, no output should be generated during
+ * this stage). Instead the drawing functions simply need to return
+ * CAIRO_STATUS_SUCCESS or CAIRO_INT_STATUS_UNSUPPORTED to indicate
+ * whether rendering would be supported. And it should do this as
+ * quickly as possible.
  *
- * Note: The paginated surface layer assumes that the target surface
+ * NOTE: The paginated surface layer assumes that the target surface
  * is "blank" by default at the beginning of each page, without any
- * need for an explicit erase operation, (as opposed to an image
+ * need for an explicit erasea operation, (as opposed to an image
  * surface, for example, which might have uninitialized content
  * originally). As such, it optimizes away CLEAR operations that
  * happen at the beginning of each page---the target surface will not

@@ -79,9 +79,7 @@
 #ifndef GOOGLE_BREAKPAD_PROCESSOR_MINIDUMP_H__
 #define GOOGLE_BREAKPAD_PROCESSOR_MINIDUMP_H__
 
-#include <unistd.h>
 
-#include <iostream>
 #include <map>
 #include <string>
 #include <vector>
@@ -109,8 +107,6 @@ template<typename AddressType, typename EntryType> class RangeMap;
 class MinidumpObject {
  public:
   virtual ~MinidumpObject() {}
-
-  bool valid() const { return valid_; }
 
  protected:
   explicit MinidumpObject(Minidump* minidump);
@@ -179,12 +175,9 @@ class MinidumpContext : public MinidumpStream {
   // Returns raw CPU-specific context data for the named CPU type.  If the
   // context data does not match the CPU type or does not exist, returns
   // NULL.
-  const MDRawContextAMD64* GetContextAMD64() const;
-  const MDRawContextARM*   GetContextARM() const;
-  const MDRawContextPPC*   GetContextPPC() const;
-  const MDRawContextSPARC* GetContextSPARC() const;
-  const MDRawContextX86*   GetContextX86() const;
- 
+  const MDRawContextX86* GetContextX86() const;
+  const MDRawContextPPC* GetContextPPC() const;
+
   // Print a human-readable representation of the object to stdout.
   void Print();
 
@@ -206,19 +199,11 @@ class MinidumpContext : public MinidumpStream {
   // not contain a system info stream.
   bool CheckAgainstSystemInfo(u_int32_t context_cpu_type);
 
-  // Store this separately because of the weirdo AMD64 context
-  u_int32_t context_flags_;
-
   // The CPU-specific context structure.
   union {
-    MDRawContextBase*  base;
-    MDRawContextX86*   x86;
-    MDRawContextPPC*   ppc;
-    MDRawContextAMD64* amd64;
-    // on Solaris SPARC, sparc is defined as a numeric constant,
-    // so variables can NOT be named as sparc
-    MDRawContextSPARC* ctx_sparc;
-    MDRawContextARM*   arm;
+    MDRawContextBase* base;
+    MDRawContextX86*  x86;
+    MDRawContextPPC*  ppc;
   } context_;
 };
 
@@ -339,9 +324,7 @@ class MinidumpThreadList : public MinidumpStream {
   }
   static u_int32_t max_threads() { return max_threads_; }
 
-  unsigned int thread_count() const {
-    return valid_ ? thread_count_ : 0;
-  }
+  unsigned int thread_count() const { return valid_ ? thread_count_ : 0; }
 
   // Sequential access to threads.
   MinidumpThread* GetThreadAtIndex(unsigned int index) const;
@@ -463,11 +446,6 @@ class MinidumpModule : public MinidumpObject,
   // calls to determine whether the object is ready for auxiliary data to 
   // be read.
   bool              module_valid_;
-
-  // True if debug info was read from the module.  Certain modules
-  // may contain debug records in formats we don't support,
-  // so we can just set this to false to ignore them.
-  bool              has_debug_info_;
 
   MDRawModule       module_;
 
@@ -642,46 +620,6 @@ class MinidumpException : public MinidumpStream {
   MinidumpContext*     context_;
 };
 
-// MinidumpAssertion wraps MDRawAssertionInfo, which contains information
-// about an assertion that caused the minidump to be generated.
-class MinidumpAssertion : public MinidumpStream {
- public:
-  virtual ~MinidumpAssertion();
-
-  const MDRawAssertionInfo* assertion() const {
-    return valid_ ? &assertion_ : NULL;
-  }
-
-  string expression() const {
-    return valid_ ? expression_ : "";
-  }
-
-  string function() const {
-    return valid_ ? function_ : "";
-  }
-
-  string file() const {
-    return valid_ ? file_ : "";
-  }
-
-  // Print a human-readable representation of the object to stdout.
-  void Print();
-
- private:
-  friend class Minidump;
-
-  static const u_int32_t kStreamType = MD_ASSERTION_INFO_STREAM;
-
-  explicit MinidumpAssertion(Minidump* minidump);
-
-  bool Read(u_int32_t expected_size);
-
-  MDRawAssertionInfo assertion_;
-  string expression_;
-  string function_;
-  string file_;
-};
-
 
 // MinidumpSystemInfo wraps MDRawSystemInfo and provides information about
 // the system on which the minidump was generated.  See also MinidumpMiscInfo.
@@ -799,17 +737,9 @@ class Minidump {
  public:
   // path is the pathname of a file containing the minidump.
   explicit Minidump(const string& path);
-  // input is an istream wrapping minidump data. Minidump holds a
-  // weak pointer to input, and the caller must ensure that the stream
-  // is valid as long as the Minidump object is.
-  explicit Minidump(std::istream& input);
 
-  virtual ~Minidump();
+  ~Minidump();
 
-  // path may be empty if the minidump was not opened from a file
-  virtual string path() const {
-    return path_;
-  }
   static void set_max_streams(u_int32_t max_streams) {
     max_streams_ = max_streams;
   }
@@ -820,23 +750,22 @@ class Minidump {
   }
   static u_int32_t max_string_length() { return max_string_length_; }
 
-  virtual const MDRawHeader* header() const { return valid_ ? &header_ : NULL; }
+  const MDRawHeader* header() const { return valid_ ? &header_ : NULL; }
 
   // Reads the minidump file's header and top-level stream directory.
   // The minidump is expected to be positioned at the beginning of the
   // header.  Read() sets up the stream list and map, and validates the
   // Minidump object.
-  virtual bool Read();
+  bool Read();
 
   // The next set of methods are stubs that call GetStream.  They exist to
   // force code generation of the templatized API within the module, and
   // to avoid exposing an ugly API (GetStream needs to accept a garbage
   // parameter).
-  virtual MinidumpThreadList* GetThreadList();
+  MinidumpThreadList* GetThreadList();
   MinidumpModuleList* GetModuleList();
   MinidumpMemoryList* GetMemoryList();
   MinidumpException* GetException();
-  MinidumpAssertion* GetAssertion();
   MinidumpSystemInfo* GetSystemInfo();
   MinidumpMiscInfo* GetMiscInfo();
   MinidumpBreakpadInfo* GetBreakpadInfo();
@@ -860,9 +789,6 @@ class Minidump {
 
   // Sets the position of the minidump file to offset.
   bool SeekSet(off_t offset);
-
-  // Returns the current position of the minidump file.
-  off_t Tell();
 
   // The next 2 methods are medium-level I/O routines.
 
@@ -933,12 +859,11 @@ class Minidump {
   MinidumpStreamMap*        stream_map_;
 
   // The pathname of the minidump file to process, set in the constructor.
-  // This may be empty if the minidump was opened directly from a stream.
   const string              path_;
 
-  // The stream for all file I/O.  Used by ReadBytes and SeekSet.
-  // Set based on the path in Open, or directly in the constructor.
-  std::istream*             stream_;
+  // The file descriptor for all file I/O.  Used by ReadBytes and SeekSet.
+  // Set based on the |path_| member by Open, which is called by Read.
+  int                       fd_;
 
   // swap_ is true if the minidump file should be byte-swapped.  If the
   // minidump was produced by a CPU that is other-endian than the CPU

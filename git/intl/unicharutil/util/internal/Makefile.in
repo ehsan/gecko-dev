@@ -59,6 +59,10 @@ EXTRA_DEPS += $(srcdir)/../objs.mk
 
 LOCAL_INCLUDES	+= -I$(srcdir)/.. \
 
+REQUIRES=xpcom \
+		string \
+		uconv \
+		$(NULL)
 
 CPPSRCS	= $(INTL_UNICHARUTIL_UTIL_LCPPSRCS)
 
@@ -69,5 +73,3 @@ include $(topsrcdir)/config/rules.mk
 
 $(INTL_UNICHARUTIL_UTIL_LCPPSRCS): %: $(srcdir)/../%
 	$(INSTALL) $^ .
-
-GARBAGE += $(INTL_UNICHARUTIL_UTIL_LCPPSRCS)

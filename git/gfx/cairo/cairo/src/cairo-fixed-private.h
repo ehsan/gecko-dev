@@ -28,7 +28,7 @@
  *
  * The Original Code is the cairo graphics library.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
+ * The Initial Developer of the Original Code is Mozilla Corporation
  *
  * Contributor(s):
  *	Vladimir Vukicevic <vladimir@pobox.com>
@@ -37,11 +37,39 @@
 #ifndef CAIRO_FIXED_PRIVATE_H
 #define CAIRO_FIXED_PRIVATE_H
 
-#include "cairo-fixed-type-private.h"
-
 #include "cairo-wideint-private.h"
 
-/* Implementation */
+/*
+ * Fixed-point configuration
+ */
+
+typedef int32_t		cairo_fixed_16_16_t;
+typedef cairo_int64_t	cairo_fixed_32_32_t;
+typedef cairo_int64_t	cairo_fixed_48_16_t;
+typedef cairo_int128_t	cairo_fixed_64_64_t;
+typedef cairo_int128_t	cairo_fixed_96_32_t;
+
+/* Eventually, we should allow changing this, but I think
+ * there are some assumptions in the tesselator about the
+ * size of a fixed type.
+ */
+#define CAIRO_FIXED_BITS	32
+
+/* The number of fractional bits.  Changing this involves
+ * making sure that you compute a double-to-fixed magic number.
+ * (see below).
+ */
+#define CAIRO_FIXED_FRAC_BITS	16
+
+/* A signed type CAIRO_FIXED_BITS in size; the main fixed point type */
+typedef int32_t cairo_fixed_t;
+
+/* An unsigned type of the same size as cairo_fixed_t */
+typedef uint32_t cairo_fixed_unsigned_t;
+
+/*
+ * No configurable bits below this.
+ */
 
 #if (CAIRO_FIXED_BITS != 32)
 # error CAIRO_FIXED_BITS must be 32, and the type must be a 32-bit type.
@@ -178,26 +206,10 @@ _cairo_fixed_integer_ceil (cairo_fixed_t f)
 static inline cairo_fixed_16_16_t
 _cairo_fixed_to_16_16 (cairo_fixed_t f)
 {
-#if (CAIRO_FIXED_FRAC_BITS == 16) && (CAIRO_FIXED_BITS == 32)
-    return f;
-#elif CAIRO_FIXED_FRAC_BITS > 16
-    /* We're just dropping the low bits, so we won't ever got over/underflow here */
+#if CAIRO_FIXED_FRAC_BITS > 16
     return f >> (CAIRO_FIXED_FRAC_BITS - 16);
 #else
-    cairo_fixed_16_16_t x;
-
-    /* Handle overflow/underflow by clamping to the lowest/highest
-     * value representable as 16.16
-     */
-    if ((f >> CAIRO_FIXED_FRAC_BITS) < INT16_MIN) {
-	x = INT32_MIN;
-    } else if ((f >> CAIRO_FIXED_FRAC_BITS) > INT16_MAX) {
-	x = INT32_MAX;
-    } else {
-	x = f << (16 - CAIRO_FIXED_FRAC_BITS);
-    }
-
-    return x;
+    return f << (16 - CAIRO_FIXED_FRAC_BITS);
 #endif
 }
 
@@ -224,17 +236,6 @@ _cairo_fixed_mul (cairo_fixed_t a, cairo_fixed_t b)
 {
     cairo_int64_t temp = _cairo_int32x32_64_mul (a, b);
     return _cairo_int64_to_int32(_cairo_int64_rsl (temp, CAIRO_FIXED_FRAC_BITS));
-}
-
-/* computes a * b / c */
-static inline cairo_fixed_t
-_cairo_fixed_mul_div (cairo_fixed_t a, cairo_fixed_t b, cairo_fixed_t c)
-{
-    cairo_int64_t ab  = _cairo_int32x32_64_mul (a, b);
-    cairo_int64_t c64 = _cairo_int32_to_int64 (c);
-    cairo_int64_t quo = _cairo_int64_divrem (ab, c64).quo;
-
-    return _cairo_int64_to_int32(quo);
 }
 
 #else

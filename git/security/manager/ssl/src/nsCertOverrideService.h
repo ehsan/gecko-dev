@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Kai Engert <kengert@redhat.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -48,7 +47,6 @@
 #include "nsIFile.h"
 #include "prmon.h"
 #include "secoidt.h"
-#include "nsWeakReference.h"
 
 class nsCertOverride
 {
@@ -58,8 +56,7 @@ public:
                       ob_Time_error=4 };
 
   nsCertOverride()
-  :mPort(-1)
-  ,mOverrideBits(ob_None)
+  :mOverrideBits(ob_None)
   {
   }
 
@@ -70,25 +67,19 @@ public:
 
   nsCertOverride &operator=(const nsCertOverride &other)
   {
-    mAsciiHost = other.mAsciiHost;
-    mPort = other.mPort;
-    mIsTemporary = other.mIsTemporary;
+    mHostWithPortUTF8 = other.mHostWithPortUTF8;
     mFingerprintAlgOID = other.mFingerprintAlgOID;
     mFingerprint = other.mFingerprint;
     mOverrideBits = other.mOverrideBits;
     mDBKey = other.mDBKey;
-    mCert = other.mCert;
     return *this;
   }
 
-  nsCString mAsciiHost;
-  PRInt32 mPort;
-  PRBool mIsTemporary; // true: session only, false: stored on disk
+  nsCString mHostWithPortUTF8;
   nsCString mFingerprint;
   nsCString mFingerprintAlgOID;
   OverrideBits mOverrideBits;
   nsCString mDBKey;
-  nsCOMPtr <nsIX509Cert> mCert;
 
   static void convertBitsToString(OverrideBits ob, nsACString &str);
   static void convertStringToBits(const nsACString &str, OverrideBits &ob);
@@ -111,7 +102,6 @@ class nsCertOverrideEntry : public PLDHashEntryHdr
     nsCertOverrideEntry(const nsCertOverrideEntry& toCopy)
     {
       mSettings = toCopy.mSettings;
-      mHostWithPort = toCopy.mHostWithPort;
     }
 
     ~nsCertOverrideEntry()
@@ -148,20 +138,18 @@ class nsCertOverrideEntry : public PLDHashEntryHdr
     enum { ALLOW_MEMMOVE = PR_FALSE };
 
     // get methods
-    inline const nsCString &HostWithPort() const { return mHostWithPort; }
+    inline const nsCString &HostWithPort() const { return mSettings.mHostWithPortUTF8; }
 
     inline KeyTypePointer HostWithPortPtr() const
     {
-      return mHostWithPort.get();
+      return mSettings.mHostWithPortUTF8.get();
     }
 
     nsCertOverride mSettings;
-    nsCString mHostWithPort;
 };
 
 class nsCertOverrideService : public nsICertOverrideService
                             , public nsIObserver
-                            , public nsSupportsWeakReference
 {
 public:
   NS_DECL_ISUPPORTS
@@ -172,7 +160,6 @@ public:
   ~nsCertOverrideService();
 
   nsresult Init();
-  void RemoveAllTemporaryOverrides();
 
   typedef void 
   (*PR_CALLBACK CertOverrideEnumerator)(const nsCertOverride &aSettings,
@@ -183,11 +170,6 @@ public:
   nsresult EnumerateCertOverrides(nsIX509Cert *aCert,
                                   CertOverrideEnumerator enumerator,
                                   void *aUserData);
-
-    // Concates host name and the port number. If the port number is -1 then
-    // port 443 is automatically used. This method ensures there is always a port
-    // number separated with colon.
-    static void GetHostWithPort(const nsACString & aHostName, PRInt32 aPort, nsACString& _retval);
 
 protected:
     PRMonitor *monitor;
@@ -200,9 +182,7 @@ protected:
     void RemoveAllFromMemory();
     nsresult Read();
     nsresult Write();
-    nsresult AddEntryToList(const nsACString &host, PRInt32 port,
-                            nsIX509Cert *aCert,
-                            const PRBool aIsTemporary,
+    nsresult AddEntryToList(const nsACString &hostWithPortUTF8, 
                             const nsACString &algo_oid, 
                             const nsACString &fingerprint,
                             nsCertOverride::OverrideBits ob,

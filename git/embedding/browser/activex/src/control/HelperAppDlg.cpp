@@ -69,7 +69,7 @@ public:
     nsCAutoString mOpenWith;
 
 private:
-    static INT_PTR CALLBACK LaunchProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
+    static BOOL CALLBACK LaunchProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
     void OnInitDialog();
     void OnOK();
@@ -187,7 +187,7 @@ void AppLauncherDlg::OnChooseApp()
     }
 }
 
-INT_PTR CALLBACK
+BOOL CALLBACK
 AppLauncherDlg::LaunchProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     AppLauncherDlg *pThis = NULL;
@@ -196,11 +196,11 @@ AppLauncherDlg::LaunchProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam
         pThis = (AppLauncherDlg *) lParam;
         NS_ASSERTION(pThis, "need a pointer to this!");
         pThis->mHwndDlg = hwndDlg;
-        SetWindowLongPtr(hwndDlg, DWLP_USER, lParam);
+        SetWindowLong(hwndDlg, DWL_USER, lParam);
     }
     else
     {
-        pThis = (AppLauncherDlg *) GetWindowLongPtr(hwndDlg, DWLP_USER);
+        pThis = (AppLauncherDlg *) GetWindowLong(hwndDlg, DWL_USER);
     }
     switch (uMsg)
     {
@@ -251,7 +251,7 @@ protected:
     void OnInitDialog();
     void OnCancel();
 
-    static INT_PTR CALLBACK ProgressProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
+    static BOOL CALLBACK ProgressProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
     HWND mHwndDlg;
     nsCOMPtr<nsIHelperAppLauncher> mHelperAppLauncher;
@@ -337,18 +337,18 @@ NS_IMETHODIMP ProgressDlg::OnSecurityChange(nsIWebProgress *aWebProgress,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-INT_PTR CALLBACK
+BOOL CALLBACK
 ProgressDlg::ProgressProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     ProgressDlg *pThis = NULL;
     if (uMsg == WM_INITDIALOG)
     {
         pThis = (ProgressDlg *) lParam;
-        SetWindowLongPtr(hwndDlg, DWLP_USER, lParam);
+        SetWindowLong(hwndDlg, DWL_USER, lParam);
     }
     else
     {
-        pThis = (ProgressDlg *) GetWindowLongPtr(hwndDlg, DWLP_USER);
+        pThis = (ProgressDlg *) GetWindowLong(hwndDlg, DWL_USER);
     }
     switch (uMsg)
     {
@@ -474,7 +474,6 @@ CHelperAppLauncherDlg::PromptForSaveToFile(nsIHelperAppLauncher *aLauncher,
                                            nsISupports *aWindowContext, 
                                            const PRUnichar *aDefaultFile, 
                                            const PRUnichar *aSuggestedFileExtension, 
-                                           PRBool aForcePrompt, 
                                            nsILocalFile **_retval)
 {
     NS_ENSURE_ARG_POINTER(_retval);

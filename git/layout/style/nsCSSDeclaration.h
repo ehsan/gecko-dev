@@ -51,7 +51,7 @@
 #include "nsCoord.h"
 #include "nsCSSValue.h"
 #include "nsCSSProps.h"
-#include "nsTArray.h"
+#include "nsValueArray.h"
 #include "nsCSSDataBlock.h"
 #include "nsCSSStruct.h"
 
@@ -69,7 +69,7 @@ public:
   /**
    * |ValueAppended| must be called to maintain this declaration's
    * |mOrder| whenever a property is parsed into an expanded data block
-   * for this declaration.  aProperty must not be a shorthand.
+   * for this declaration.
    */
   nsresult ValueAppended(nsCSSProperty aProperty);
 
@@ -77,22 +77,26 @@ public:
   nsresult RemoveProperty(nsCSSProperty aProperty);
 
   nsresult GetValue(nsCSSProperty aProperty, nsAString& aValue) const;
+  nsresult GetValue(const nsAString& aProperty, nsAString& aValue) const;
 
   PRBool HasImportantData() const { return mImportantData != nsnull; }
   PRBool GetValueIsImportant(nsCSSProperty aProperty) const;
   PRBool GetValueIsImportant(const nsAString& aProperty) const;
 
-  PRUint32 Count() const {
-    return mOrder.Length(); 
-  }
+  PRUint32 Count() const;
   nsresult GetNthProperty(PRUint32 aIndex, nsAString& aReturn) const;
 
   nsresult ToString(nsAString& aString) const;
 
   nsCSSDeclaration* Clone() const;
 
-  nsCSSCompressedDataBlock* GetNormalBlock() const { return mData; }
-  nsCSSCompressedDataBlock* GetImportantBlock() const { return mImportantData; }
+  nsresult MapRuleInfoInto(nsRuleData *aRuleData) const {
+    return mData->MapRuleInfoInto(aRuleData);
+  }
+
+  nsresult MapImportantRuleInfoInto(nsRuleData *aRuleData) const {
+    return mImportantData->MapRuleInfoInto(aRuleData);
+  }
 
   /**
    * Initialize this declaration as holding no data.  Return false on
@@ -107,9 +111,7 @@ public:
   void CompressFrom(nsCSSExpandedDataBlock *aExpandedData) {
     NS_ASSERTION(!mData, "oops");
     NS_ASSERTION(!mImportantData, "oops");
-    aExpandedData->Compress(getter_AddRefs(mData),
-                            getter_AddRefs(mImportantData));
-    aExpandedData->AssertInitialState();
+    aExpandedData->Compress(&mData, &mImportantData);
   }
 
   /**
@@ -129,46 +131,16 @@ public:
   }
 
   /**
-   * Return a pointer to our current value for this property.  This only
-   * returns non-null if the property is set and it not !important.  This
-   * should only be called when not expanded.  Always returns null for
-   * shorthand properties.
-   *
-   * The caller must call EnsureMutable first.
-   */
-  void* SlotForValue(nsCSSProperty aProperty) {
-    NS_PRECONDITION(mData, "How did that happen?");
-    if (nsCSSProps::IsShorthand(aProperty)) {
-      return nsnull;
-    }
-
-    void* slot = mData->SlotForValue(aProperty);
-
-    NS_ASSERTION(!slot || !mImportantData ||
-                 !mImportantData->StorageFor(aProperty),
-                 "Property both important and not?");
-    return slot;
-  }
-
-  PRBool HasNonImportantValueFor(nsCSSProperty aProperty) const {
-    NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(aProperty), "must be longhand");
-    return !!mData->StorageFor(aProperty);
-  }
-
-  /**
-   * Ensures that IsMutable on both data blocks will return true by
-   * cloning data blocks if needed.  Returns false on out-of-memory
-   * (which means IsMutable won't return true).
-   */
-  PRBool EnsureMutable();
-
-  /**
    * Clear the data, in preparation for its replacement with entirely
    * new data by a call to |CompressFrom|.
    */
   void ClearData() {
+    mData->Destroy();
     mData = nsnull;
-    mImportantData = nsnull;
+    if (mImportantData) {
+      mImportantData->Destroy();
+      mImportantData = nsnull;
+    }
     mOrder.Clear();
   }
 
@@ -176,16 +148,6 @@ public:
   void List(FILE* out = stdout, PRInt32 aIndent = 0) const;
 #endif
   
-  // return whether there was a value in |aValue| (i.e., it had a non-null unit)
-  static PRBool AppendCSSValueToString(nsCSSProperty aProperty,
-                                       const nsCSSValue& aValue,
-                                       nsAString& aResult);
-
-  // return whether there was a value in |aStorage| (i.e., it was non-null)
-  static PRBool AppendStorageToString(nsCSSProperty aProperty,
-                                      const void* aStorage,
-                                      nsAString& aResult);
-
 private:
   // Not implemented, and not supported.
   nsCSSDeclaration& operator=(const nsCSSDeclaration& aCopy);
@@ -194,9 +156,66 @@ private:
   static void AppendImportanceToString(PRBool aIsImportant, nsAString& aString);
   // return whether there was a value in |aValue| (i.e., it had a non-null unit)
   PRBool   AppendValueToString(nsCSSProperty aProperty, nsAString& aResult) const;
-  // Helper for ToString with strange semantics regarding aValue.
+  // return whether there was a value in |aValue| (i.e., it had a non-null unit)
+  static PRBool AppendCSSValueToString(nsCSSProperty aProperty,
+                                       const nsCSSValue& aValue,
+                                       nsAString& aResult);
+
+  // May be called only for properties whose type is eCSSType_Value.
+  nsresult GetValueOrImportantValue(nsCSSProperty aProperty, nsCSSValue& aValue) const;
+
+  void   PropertyIsSet(PRInt32 & aPropertyIndex, PRInt32 aIndex, PRUint32 & aSet, PRUint32 aValue) const;
+  PRBool TryBorderShorthand(nsAString & aString, PRUint32 aPropertiesSet,
+                            PRInt32 aBorderTopWidth,
+                            PRInt32 aBorderTopStyle,
+                            PRInt32 aBorderTopColor,
+                            PRInt32 aBorderBottomWidth,
+                            PRInt32 aBorderBottomStyle,
+                            PRInt32 aBorderBottomColor,
+                            PRInt32 aBorderLeftWidth,
+                            PRInt32 aBorderLeftStyle,
+                            PRInt32 aBorderLeftColor,
+                            PRInt32 aBorderRightWidth,
+                            PRInt32 aBorderRightStyle,
+                            PRInt32 aBorderRightColor) const;
+  PRBool  TryBorderSideShorthand(nsAString & aString,
+                                 nsCSSProperty  aShorthand,
+                                 PRInt32 aBorderWidth,
+                                 PRInt32 aBorderStyle,
+                                 PRInt32 aBorderColor) const;
+  PRBool  TryFourSidesShorthand(nsAString & aString,
+                                nsCSSProperty aShorthand,
+                                PRInt32 & aTop,
+                                PRInt32 & aBottom,
+                                PRInt32 & aLeft,
+                                PRInt32 & aRight,
+                                PRBool aClearIndexes) const;
+  void  TryBackgroundShorthand(nsAString & aString,
+                               PRInt32 & aBgColor, PRInt32 & aBgImage,
+                               PRInt32 & aBgRepeat, PRInt32 & aBgAttachment,
+                               PRInt32 & aBgPosition) const;
+  void  TryOverflowShorthand(nsAString & aString,
+                             PRInt32 & aOverflowX, PRInt32 & aOverflowY) const;
+#ifdef MOZ_SVG
+  void  TryMarkerShorthand(nsAString & aString,
+                           PRInt32 & aMarkerEnd,
+                           PRInt32 & aMarkerMid,
+                           PRInt32 & aMarkerStart) const;
+#endif
+
+  PRBool   AllPropertiesSameImportance(PRInt32 aFirst, PRInt32 aSecond,
+                                       PRInt32 aThird, PRInt32 aFourth,
+                                       PRInt32 aFifth,
+                                       PRBool & aImportance) const;
+  PRBool   AllPropertiesSameValue(PRInt32 aFirst, PRInt32 aSecond,
+                                  PRInt32 aThird, PRInt32 aFourth) const;
   void     AppendPropertyAndValueToString(nsCSSProperty aProperty,
-                                          nsAutoString& aValue,
+                                          nsAString& aResult) const
+  {
+    AppendPropertyAndValueToString(aProperty, aProperty, aResult);
+  }
+  void     AppendPropertyAndValueToString(nsCSSProperty aProperty,
+                                          nsCSSProperty aPropertyName,
                                           nsAString& aResult) const;
 
 private:
@@ -211,17 +230,9 @@ private:
     //
     friend class CSSStyleRuleImpl;
     void AddRef(void) {
-      if (mRefCnt == PR_UINT32_MAX) {
-        NS_WARNING("refcount overflow, leaking object");
-        return;
-      }
       ++mRefCnt;
     }
     void Release(void) {
-      if (mRefCnt == PR_UINT32_MAX) {
-        NS_WARNING("refcount overflow, leaking object");
-        return;
-      }
       NS_ASSERTION(0 < mRefCnt, "bad Release");
       if (0 == --mRefCnt) {
         delete this;
@@ -236,19 +247,15 @@ private:
   // Block everyone, except us or a derivative, from deleting us.
   ~nsCSSDeclaration(void);
     
-  nsCSSProperty OrderValueAt(PRUint32 aValue) const {
-    return nsCSSProperty(mOrder.ElementAt(aValue));
+  nsCSSProperty OrderValueAt(nsValueArrayIndex aValue) const {
+    return nsCSSProperty(mOrder.ValueAt(aValue));
   }
 
 private:
-    nsAutoTArray<PRUint8, 8> mOrder;
+    nsValueArray mOrder;
     nsAutoRefCnt mRefCnt;
-
-    // never null, except while expanded
-    nsRefPtr<nsCSSCompressedDataBlock> mData;
-
-    // may be null
-    nsRefPtr<nsCSSCompressedDataBlock> mImportantData;
+    nsCSSCompressedDataBlock *mData; // never null, except while expanded
+    nsCSSCompressedDataBlock *mImportantData; // may be null
 };
 
 #endif /* nsCSSDeclaration_h___ */

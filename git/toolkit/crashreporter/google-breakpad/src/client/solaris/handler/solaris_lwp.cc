@@ -30,11 +30,9 @@
 // Author: Alfred Peng
 
 #include <dirent.h>
-#include <elf.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <sys/frame.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -58,16 +56,6 @@ uintptr_t stack_base_address = 0;
 static const int HEADER_MAX = 2000;
 static const int MAP_MAX = 1000;
 
-// Context information for the callbacks when validating address by listing
-// modules.
-struct AddressValidatingContext {
-  uintptr_t address;
-  bool is_mapped;
-
-  AddressValidatingContext() : address(0UL), is_mapped(false) {
-  }
-};
-
 // Convert from string to int.
 static bool LocalAtoi(char *s, int *r) {
   assert(s != NULL);
@@ -81,19 +69,18 @@ static bool LocalAtoi(char *s, int *r) {
 }
 
 // Callback invoked for each mapped module.
-// It uses the module's adderss range to validate the address.
+// It use the module's adderss range to validate the address.
 static bool AddressNotInModuleCallback(const ModuleInfo &module_info,
                                        void *context) {
-  AddressValidatingContext *addr =
-    reinterpret_cast<AddressValidatingContext *>(context);
-  if (addr->is_mapped = ((module_info.start_addr > 0) &&
-                         (addr->address >= module_info.start_addr) &&
-                         (addr->address <= module_info.start_addr +
-                          module_info.size))) {
+  uintptr_t addr = reinterpret_cast<uintptr_t>(context);
+  if ((module_info.start_addr > 0) &&
+      (addr >= module_info.start_addr) &&
+      (addr <= module_info.start_addr + module_info.size)) {
     stack_base_address = module_info.start_addr + module_info.size;
+    return false;
   }
 
-  return !addr->is_mapped;
+  return true;
 }
 
 static int IterateLwpAll(int pid,
@@ -126,28 +113,6 @@ static int IterateLwpAll(int pid,
   closedir(dir);
   return count;
 }
-
-#if defined(__i386) && !defined(NO_FRAME_POINTER)
-void *GetNextFrame(void **last_ebp) {
-  void *sp = *last_ebp;
-  if ((unsigned long)sp == (unsigned long)last_ebp)
-    return NULL;
-  if ((unsigned long)sp & (sizeof(void *) - 1))
-    return NULL;
-  if ((unsigned long)sp - (unsigned long)last_ebp > 100000)
-    return NULL;
-  return sp;
-}
-#elif defined(__sparc)
-void *GetNextFrame(void *last_ebp) {
-  return reinterpret_cast<struct frame *>(last_ebp)->fr_savfp;
-}
-#else
-void *GetNextFrame(void **last_ebp) {
-  return reinterpret_cast<void*>(last_ebp);
-}
-#endif
-
 
 class AutoCloser {
  public:
@@ -252,7 +217,7 @@ int SolarisLwp::Lwp_iter_all(int pid,
   lwpsinfo_t *Lpsp;
   long nstat;
   long ninfo;
-  int rv = 0;
+  int rv;
 
   /*
    * The /proc/pid/lstatus file has the array of lwpstatus_t's and the
@@ -275,9 +240,8 @@ int SolarisLwp::Lwp_iter_all(int pid,
       sp = NULL;
     }
     if (callback_param &&
-        !(callback_param->call_back)(sp, callback_param->context))
+        !(rv = (callback_param->call_back)(sp, callback_param->context)))
       break;
-    ++rv;
     Lpsp = (lwpsinfo_t *)((uintptr_t)Lpsp + Lphp->pr_entsize);
   }
 
@@ -285,10 +249,8 @@ int SolarisLwp::Lwp_iter_all(int pid,
 }
 
 uintptr_t SolarisLwp::GetLwpStackBottom(uintptr_t current_esp) const {
-  AddressValidatingContext addr;
-  addr.address = current_esp;
   CallbackParam<ModuleCallback> callback_param(AddressNotInModuleCallback,
-                                               &addr);
+                                               (void *)current_esp);
   ListModules(&callback_param);
   return stack_base_address;
 }
@@ -317,14 +279,16 @@ int SolarisLwp::ListModules(
     return -1;
 
   /*
-   * Determine number of mappings, this value must be 
-   * larger than the actual module count
+   * Determine number of mappings.
    */
   size = status.st_size;
   if ((num = (int)(size / sizeof (prmap_t))) > MAP_MAX) {
     print_message1(2, "map size overflow\n");
     return -1;
   }
+
+  if (!callback_param)
+    return num;           // return the Module count
 
   if (read(fd, (void *)maps, size) < 0) {
     print_message2(2, "failed to read %d\n", fd);
@@ -333,8 +297,7 @@ int SolarisLwp::ListModules(
 
   prmap_t *_maps;
   int _num;
-  int module_count = 0;
-  
+
   /*
    * Scan each mapping - note it is assummed that the mappings are
    * presented in order.  We fill holes between mappings.  On intel
@@ -350,87 +313,15 @@ int SolarisLwp::ListModules(
     memset(&module, 0, sizeof (module));
     module.start_addr = _maps->pr_vaddr;
     module.size = _maps->pr_size;
-    if (strlen(name) > 0) {
-      int objectfd = 0;
-      char path[PATH_MAX];
-      char buf[SELFMAG];
-
-      snprintf(path, sizeof (path), "/proc/self/object/%s", name);
-      if ((objectfd = open(path, O_RDONLY)) < 0) {
-        print_message1(2, "can't open module file\n");
-        continue;
-      }
-
-      AutoCloser autocloser(objectfd);
-
-      if (read(objectfd, buf, SELFMAG) != SELFMAG) {
-        print_message1(2, "can't read module file\n");
-        continue;
-      }
-      if (buf[0] != ELFMAG0 || buf[1] != ELFMAG1 ||
-          buf[2] != ELFMAG2 || buf[3] != ELFMAG3) {
-        continue;
-      }
-
+    if (name && (strcmp(name, "a.out") != 0))
       strncpy(module.name, name, sizeof (module.name) - 1);
-      ++module_count;
-    }
     if (callback_param &&
         (!callback_param->call_back(module, callback_param->context))) {
       break;
     }
   }
 
-  return module_count;
-}
-
-// Check if the address is a valid virtual address.
-// If the address is in any of the mapped modules, we take it as valid.
-// Otherwise it is invalid.
-bool SolarisLwp::IsAddressMapped(uintptr_t address) const {
-  AddressValidatingContext addr;
-  addr.address = address;
-  CallbackParam<ModuleCallback> callback_param(AddressNotInModuleCallback,
-                                               &addr);
-  ListModules(&callback_param);
-  return addr.is_mapped;
-}
-
-// We're looking for a ucontext_t as the second parameter
-// to a signal handler function call.  Luckily, the ucontext_t
-// has an ebp(fp on SPARC) member which should match the ebp(fp)
-// pointed to by the ebp(fp) of the signal handler frame.
-// The Solaris stack looks like this:
-// http://src.opensolaris.org/source/xref/onnv/onnv-gate/usr/src/lib/libproc/common/Pstack.c#81
-bool SolarisLwp::FindSigContext(uintptr_t sighandler_ebp,
-                                ucontext_t **sig_ctx) {
-  uintptr_t previous_ebp;
-  uintptr_t sig_ebp;
-  const int MAX_STACK_DEPTH = 50;
-  int depth_counter = 0;
-
-  do {
-#if TARGET_CPU_SPARC
-    previous_ebp = reinterpret_cast<uintptr_t>(GetNextFrame(
-                                  reinterpret_cast<void*>(sighandler_ebp)));
-    *sig_ctx = reinterpret_cast<ucontext_t*>(sighandler_ebp + sizeof (struct frame));
-    uintptr_t sig_esp = (*sig_ctx)->uc_mcontext.gregs[REG_O6];
-    if (sig_esp < previous_ebp && sig_esp > sighandler_ebp)
-      sig_ebp = (uintptr_t)(((struct frame *)sig_esp)->fr_savfp);
-
-#elif TARGET_CPU_X86
-    previous_ebp = reinterpret_cast<uintptr_t>(GetNextFrame(
-                                  reinterpret_cast<void**>(sighandler_ebp)));
-    *sig_ctx = reinterpret_cast<ucontext_t*>(sighandler_ebp + sizeof (struct frame) +
-                                             3 * sizeof(uintptr_t));
-    sig_ebp = (*sig_ctx)->uc_mcontext.gregs[EBP];
-#endif
-    sighandler_ebp = previous_ebp;
-    depth_counter++;
-  } while(previous_ebp != sig_ebp && sighandler_ebp != 0 &&
-          IsAddressMapped(sighandler_ebp) && depth_counter < MAX_STACK_DEPTH);
-
-  return previous_ebp == sig_ebp && previous_ebp != 0;
+  return num;
 }
 
 }  // namespace google_breakpad

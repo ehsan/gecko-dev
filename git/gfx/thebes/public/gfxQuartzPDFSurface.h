@@ -14,7 +14,7 @@
  *
  * The Original Code is Mozilla Corporation code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
@@ -39,7 +39,6 @@
 #define GFX_QUARTZPDFSURFACE_H
 
 #include "gfxASurface.h"
-#include "gfxContext.h"
 
 #include <Carbon/Carbon.h>
 
@@ -60,8 +59,6 @@ public:
     }
 
     CGContextRef GetCGContext() { return mCGContext; }
-
-    virtual PRInt32 GetDefaultContextFlags() const { return gfxContext::FLAG_DISABLE_SNAPPING; }
 
 protected:
     CGContextRef mCGContext;

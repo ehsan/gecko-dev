@@ -46,6 +46,11 @@
 #include "nsISimpleEnumerator.h"
 #include "nsIObserverService.h"
 
+#ifdef MOZ_PROFILESHARING
+#include "nsIProfileSharingSetup.h"
+#include "ipcITransactionService.h"
+#endif
+
 // File Name Defines
 
 #define PREFS_FILE_50_NAME           NS_LITERAL_CSTRING("prefs.js")
@@ -57,6 +62,10 @@
 #define BOOKMARKS_FILE_50_NAME       NS_LITERAL_CSTRING("bookmarks.html")
 #define DOWNLOADS_FILE_50_NAME       NS_LITERAL_CSTRING("downloads.rdf")
 #define SEARCH_FILE_50_NAME          NS_LITERAL_CSTRING("search.rdf" )
+#define MAIL_DIR_50_NAME             NS_LITERAL_CSTRING("Mail")
+#define IMAP_MAIL_DIR_50_NAME        NS_LITERAL_CSTRING("ImapMail")
+#define NEWS_DIR_50_NAME             NS_LITERAL_CSTRING("News")
+#define MSG_FOLDER_CACHE_DIR_50_NAME NS_LITERAL_CSTRING("panacea.dat")
 #define STORAGE_FILE_50_NAME         NS_LITERAL_CSTRING("storage.sdb")
 
 //*****************************************************************************
@@ -111,6 +120,22 @@ nsProfileDirServiceProvider::SetProfileDir(nsIFile* aProfileDir,
   // we just try to create it - if it exists already, that'll fail; ignore
   // errors
   mLocalProfileDir->Create(nsIFile::DIRECTORY_TYPE, 0700);
+
+#ifdef MOZ_PROFILESHARING
+  if (mSharingEnabled) {
+    nsCOMPtr<ipcITransactionService> transServ =
+        do_GetService(IPC_TRANSACTIONSERVICE_CONTRACTID, &rv);
+    if (NS_SUCCEEDED(rv)) {
+      nsCAutoString nativePath;
+      rv = mProfileDir->GetNativePath(nativePath);
+      if (NS_SUCCEEDED(rv))
+        rv = transServ->Init(nativePath);
+    }
+    if (NS_FAILED(rv)) {
+      NS_WARNING("Unable to initialize transaction service");
+    }
+  }
+#endif
 
 #ifdef MOZ_PROFILELOCKING
   // Lock the non-shared sub-dir if we are sharing,
@@ -192,6 +217,18 @@ nsProfileDirServiceProvider::GetFile(const char *prop, PRBool *persistant, nsIFi
   *persistant = PR_TRUE;
   nsIFile* domainDir = mProfileDir;
 
+#ifdef MOZ_PROFILESHARING
+  // If the prop is prefixed with NS_SHARED,
+  // the location is in the shared domain.
+  PRBool bUseShared = PR_FALSE;
+  if (strncmp(prop, NS_SHARED, sizeof(NS_SHARED)-1) == 0) {
+    prop += (sizeof(NS_SHARED)-1);
+    bUseShared = PR_TRUE;
+  }
+  if (!bUseShared && mNonSharedProfileDir)
+    domainDir = mNonSharedProfileDir;
+#endif
+
   nsCOMPtr<nsIFile>  localFile;
   nsresult rv = NS_ERROR_FAILURE;
 
@@ -264,6 +301,26 @@ nsProfileDirServiceProvider::GetFile(const char *prop, PRBool *persistant, nsIFi
         rv = EnsureProfileFileExists(localFile, domainDir);
     }
   }
+  else if (strcmp(prop, NS_APP_MAIL_50_DIR) == 0) {
+    rv = domainDir->Clone(getter_AddRefs(localFile));
+    if (NS_SUCCEEDED(rv))
+      rv = localFile->AppendNative(MAIL_DIR_50_NAME);
+  }
+  else if (strcmp(prop, NS_APP_IMAP_MAIL_50_DIR) == 0) {
+    rv = domainDir->Clone(getter_AddRefs(localFile));
+    if (NS_SUCCEEDED(rv))
+      rv = localFile->AppendNative(IMAP_MAIL_DIR_50_NAME);
+  }
+  else if (strcmp(prop, NS_APP_NEWS_50_DIR) == 0) {
+    rv = domainDir->Clone(getter_AddRefs(localFile));
+    if (NS_SUCCEEDED(rv))
+      rv = localFile->AppendNative(NEWS_DIR_50_NAME);
+  }
+  else if (strcmp(prop, NS_APP_MESSENGER_FOLDER_CACHE_50_DIR) == 0) {
+    rv = domainDir->Clone(getter_AddRefs(localFile));
+    if (NS_SUCCEEDED(rv))
+      rv = localFile->AppendNative(MSG_FOLDER_CACHE_DIR_50_NAME);
+  }
   else if (strcmp(prop, NS_APP_STORAGE_50_FILE) == 0) {
     rv = domainDir->Clone(getter_AddRefs(localFile));
     if (NS_SUCCEEDED(rv))
@@ -288,6 +345,18 @@ nsProfileDirServiceProvider::Initialize()
   mProfileDirLock = new nsProfileLock;
   if (!mProfileDirLock)
     return NS_ERROR_OUT_OF_MEMORY;
+#endif
+
+#ifdef MOZ_PROFILESHARING
+  nsCOMPtr<nsIProfileSharingSetup> sharingSetup =
+      do_GetService("@mozilla.org/embedcomp/profile-sharing-setup;1");
+  if (sharingSetup) {
+    PRBool tempBool;
+    if (NS_SUCCEEDED(sharingSetup->GetIsSharingEnabled(&tempBool)))
+      mSharingEnabled = tempBool;
+    if (mSharingEnabled)
+      sharingSetup->GetClientName(mNonSharedDirName);
+  }
 #endif
 
   return NS_OK;
@@ -332,9 +401,12 @@ nsProfileDirServiceProvider::InitProfileDir(nsIFile *profileDir)
             return rv;
     }
 
+#if !defined(XP_MAC) && !defined(WINCE)
     rv = profileDir->SetPermissions(0700);
     if (NS_FAILED(rv))
       return rv;
+#endif
+
   }
   else {
     PRBool isDir;
@@ -441,6 +513,10 @@ nsProfileDirServiceProvider::UndefineFileLocations()
   (void) directoryService->Undefine(NS_APP_BOOKMARKS_50_FILE);
   (void) directoryService->Undefine(NS_APP_DOWNLOADS_50_FILE);
   (void) directoryService->Undefine(NS_APP_SEARCH_50_FILE);
+  (void) directoryService->Undefine(NS_APP_MAIL_50_DIR);
+  (void) directoryService->Undefine(NS_APP_IMAP_MAIL_50_DIR);
+  (void) directoryService->Undefine(NS_APP_NEWS_50_DIR);
+  (void) directoryService->Undefine(NS_APP_MESSENGER_FOLDER_CACHE_50_DIR);
 
   return NS_OK;
 }

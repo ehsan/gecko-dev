@@ -49,9 +49,6 @@
 #include "prlock.h"
 #include "prerror.h"
 #include "plstr.h"
-#include "nsIPrefService.h"
-#include "nsIPrefBranch2.h"
-#include "nsServiceManagerUtils.h"
 
 #if defined(PR_LOGGING)
 PRLogModuleInfo *gSocketTransportLog = nsnull;
@@ -59,8 +56,6 @@ PRLogModuleInfo *gSocketTransportLog = nsnull;
 
 nsSocketTransportService *gSocketTransportService = nsnull;
 PRThread                 *gSocketThread           = nsnull;
-
-#define SEND_BUFFER_PREF "network.tcp.sendbuffer"
 
 //-----------------------------------------------------------------------------
 // ctor/dtor (called on the main/UI thread by the service manager)
@@ -74,7 +69,6 @@ nsSocketTransportService::nsSocketTransportService()
     , mShuttingDown(PR_FALSE)
     , mActiveCount(0)
     , mIdleCount(0)
-    , mSendBufferSize(0)
 {
 #if defined(PR_LOGGING)
     gSocketTransportLog = PR_NewLogModule("nsSocketTransport");
@@ -103,43 +97,26 @@ nsSocketTransportService::~nsSocketTransportService()
 //-----------------------------------------------------------------------------
 // event queue (any thread)
 
-already_AddRefed<nsIThread>
-nsSocketTransportService::GetThreadSafely()
-{
-    nsAutoLock lock(mLock);
-    nsIThread* result = mThread;
-    NS_IF_ADDREF(result);
-    return result;
-}
-
 NS_IMETHODIMP
 nsSocketTransportService::Dispatch(nsIRunnable *event, PRUint32 flags)
 {
     LOG(("STS dispatch [%p]\n", event));
 
-    nsCOMPtr<nsIThread> thread = GetThreadSafely();
-    NS_ENSURE_TRUE(thread, NS_ERROR_NOT_INITIALIZED);
-    nsresult rv = thread->Dispatch(event, flags);
-    if (rv == NS_ERROR_UNEXPECTED) {
-        // Thread is no longer accepting events. We must have just shut it
-        // down on the main thread. Pretend we never saw it.
-        rv = NS_ERROR_NOT_INITIALIZED;
-    }
-    return rv;
+    NS_ENSURE_TRUE(mThread, NS_ERROR_NOT_INITIALIZED);
+    return mThread->Dispatch(event, flags);
 }
 
 NS_IMETHODIMP
 nsSocketTransportService::IsOnCurrentThread(PRBool *result)
 {
-    nsCOMPtr<nsIThread> thread = GetThreadSafely();
-    NS_ENSURE_TRUE(thread, NS_ERROR_NOT_INITIALIZED);
-    return thread->IsOnCurrentThread(result);
+    NS_ENSURE_TRUE(mThread, NS_ERROR_NOT_INITIALIZED);
+    return mThread->IsOnCurrentThread(result);
 }
 
 //-----------------------------------------------------------------------------
 // socket api (socket thread only)
 
-NS_IMETHODIMP
+nsresult
 nsSocketTransportService::NotifyWhenCanAttachSocket(nsIRunnable *event)
 {
     LOG(("nsSocketTransportService::NotifyWhenCanAttachSocket\n"));
@@ -147,6 +124,7 @@ nsSocketTransportService::NotifyWhenCanAttachSocket(nsIRunnable *event)
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
 
     if (CanAttachSocket()) {
+        NS_WARNING("should have called CanAttachSocket");
         return Dispatch(event, NS_DISPATCH_NORMAL);
     }
 
@@ -154,16 +132,12 @@ nsSocketTransportService::NotifyWhenCanAttachSocket(nsIRunnable *event)
     return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsSocketTransportService::AttachSocket(PRFileDesc *fd, nsASocketHandler *handler)
 {
     LOG(("nsSocketTransportService::AttachSocket [handler=%x]\n", handler));
 
     NS_ASSERTION(PR_GetCurrentThread() == gSocketThread, "wrong thread");
-
-    if (!CanAttachSocket()) {
-        return NS_ERROR_NOT_AVAILABLE;
-    }
 
     SocketContext sock;
     sock.mFD = fd;
@@ -366,13 +340,12 @@ nsSocketTransportService::Poll(PRBool wait, PRUint32 *interval)
 //-----------------------------------------------------------------------------
 // xpcom api
 
-NS_IMPL_THREADSAFE_ISUPPORTS6(nsSocketTransportService,
+NS_IMPL_THREADSAFE_ISUPPORTS5(nsSocketTransportService,
                               nsISocketTransportService,
                               nsIEventTarget,
                               nsIThreadObserver,
                               nsIRunnable,
-                              nsPISocketTransportService,
-                              nsIObserver)
+                              nsPISocketTransportService)
 
 // called from main thread only
 NS_IMETHODIMP
@@ -409,20 +382,8 @@ nsSocketTransportService::Init()
         }
     }
 
-    nsCOMPtr<nsIThread> thread;
-    nsresult rv = NS_NewThread(getter_AddRefs(thread), this);
+    nsresult rv = NS_NewThread(&mThread, this);
     if (NS_FAILED(rv)) return rv;
-    
-    {
-        nsAutoLock lock(mLock);
-        // Install our mThread, protecting against concurrent readers
-        thread.swap(mThread);
-    }
-
-    nsCOMPtr<nsIPrefBranch2> tmpPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (tmpPrefService) 
-        tmpPrefService->AddObserver(SEND_BUFFER_PREF, this, PR_FALSE);
-    UpdatePrefs();
 
     mInitialized = PR_TRUE;
     return NS_OK;
@@ -455,16 +416,7 @@ nsSocketTransportService::Shutdown()
 
     // join with thread
     mThread->Shutdown();
-    {
-        nsAutoLock lock(mLock);
-        // Drop our reference to mThread and make sure that any concurrent
-        // readers are excluded
-        mThread = nsnull;
-    }
-
-    nsCOMPtr<nsIPrefBranch2> tmpPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (tmpPrefService) 
-        tmpPrefService->RemoveObserver(SEND_BUFFER_PREF, this);
+    NS_RELEASE(mThread);
 
     mInitialized = PR_FALSE;
     mShuttingDown = PR_FALSE;
@@ -727,39 +679,3 @@ nsSocketTransportService::DoPollIteration(PRBool wait)
 
     return NS_OK;
 }
-
-nsresult
-nsSocketTransportService::UpdatePrefs()
-{
-    mSendBufferSize = 0;
-    
-    nsCOMPtr<nsIPrefBranch2> tmpPrefService = do_GetService(NS_PREFSERVICE_CONTRACTID);
-    if (tmpPrefService) {
-        PRInt32 bufferSize;
-        nsresult rv = tmpPrefService->GetIntPref(SEND_BUFFER_PREF, &bufferSize);
-        if (NS_SUCCEEDED(rv) && bufferSize > 0)
-            mSendBufferSize = bufferSize;
-    }
-    
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSocketTransportService::Observe(nsISupports *subject,
-                                  const char *topic,
-                                  const PRUnichar *data)
-{
-    if (!strcmp(topic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
-        UpdatePrefs();
-    }
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSocketTransportService::GetSendBufferSize(PRInt32 *value)
-{
-    *value = mSendBufferSize;
-    return NS_OK;
-}
-
-

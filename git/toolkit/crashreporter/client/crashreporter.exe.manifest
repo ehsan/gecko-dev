@@ -6,7 +6,7 @@
         name="CrashReporter"
         type="win32"
 />
-<description>Crash Reporter</description>
+<description>Updater</description>
 <dependency>
         <dependentAssembly>
                 <assemblyIdentity

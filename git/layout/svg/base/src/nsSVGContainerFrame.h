@@ -39,34 +39,29 @@
 
 #include "nsContainerFrame.h"
 #include "nsISVGChildFrame.h"
+#include "nsIDOMSVGMatrix.h"
 #include "nsSVGSVGElement.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
 
 typedef nsContainerFrame nsSVGContainerFrameBase;
 
 class nsSVGContainerFrame : public nsSVGContainerFrameBase
 {
   friend nsIFrame* NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
+                                           nsIContent* aContent,
                                            nsStyleContext* aContext);
 protected:
   nsSVGContainerFrame(nsStyleContext* aContext) :
     nsSVGContainerFrameBase(aContext) {}
 
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsSVGContainerFrame)
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
-
-  // Returns the transform to our gfxContext (to device pixels, not CSS px)
-  virtual gfxMatrix GetCanvasTM() { return gfxMatrix(); }
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM() { return nsnull; }
 
   // nsIFrame:
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -75,8 +70,7 @@ public:
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsSVGContainerFrameBase::IsFrameOfType(
-            aFlags & ~(nsIFrame::eSVG | nsIFrame::eSVGContainer));
+    return nsSVGContainerFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG));
   }
 };
 
@@ -88,14 +82,18 @@ protected:
     nsSVGContainerFrame(aContext) {}
 
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsSVGDisplayContainerFrame)
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  // nsISupports interface:
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 
+public:
   // nsIFrame:
+  virtual void Destroy();
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
   NS_IMETHOD Init(nsIContent*      aContent,
@@ -103,18 +101,18 @@ public:
                   nsIFrame*        aPrevInFlow);
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext,
-                      const nsIntRect *aDirtyRect);
-  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
+  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext, nsRect *aDirtyRect);
+  NS_IMETHOD GetFrameForPointSVG(float x, float y, nsIFrame** hit);  
   NS_IMETHOD_(nsRect) GetCoveredRegion();
   NS_IMETHOD UpdateCoveredRegion();
   NS_IMETHOD InitialUpdate();
-  virtual void NotifySVGChanged(PRUint32 aFlags);
+  NS_IMETHOD NotifyCanvasTMChanged(PRBool suppressInvalidation);
   NS_IMETHOD NotifyRedrawSuspended();
   NS_IMETHOD NotifyRedrawUnsuspended();
-  NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
-  virtual PRBool GetMatrixPropagation();
-  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
+  NS_IMETHOD SetMatrixPropagation(PRBool aPropagate) { return NS_ERROR_FAILURE; }
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM) { return NS_ERROR_FAILURE; }
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM() { return nsnull; }
+  NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_TRUE; }
   NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_FALSE; }
 };

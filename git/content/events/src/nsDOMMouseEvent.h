@@ -41,14 +41,13 @@
 
 #include "nsIDOMMouseEvent.h"
 #include "nsDOMUIEvent.h"
-#include "nsIDOMNSMouseEvent.h"
 
 class nsIContent;
 class nsIScrollableView;
 class nsEvent;
 
-class nsDOMMouseEvent : public nsDOMUIEvent,
-                        public nsIDOMNSMouseEvent
+class nsDOMMouseEvent : public nsIDOMMouseEvent,
+                        public nsDOMUIEvent
 {
 public:
   nsDOMMouseEvent(nsPresContext* aPresContext, nsInputEvent* aEvent);
@@ -58,19 +57,12 @@ public:
 
   // nsIDOMMouseEvent Interface
   NS_DECL_NSIDOMMOUSEEVENT
-
-  // nsIDOMNSMouseEvent Interface
-  NS_DECL_NSIDOMNSMOUSEEVENT
-
+  
   // Forward to base class
   NS_FORWARD_TO_NSDOMUIEVENT
 
   // Specific implementation for a mouse event.
   NS_IMETHOD GetWhich(PRUint32 *aWhich);
 };
-
-#define NS_FORWARD_TO_NSDOMMOUSEEVENT         \
-  NS_FORWARD_NSIDOMMOUSEEVENT(nsDOMMouseEvent::) \
-  NS_FORWARD_TO_NSDOMUIEVENT
 
 #endif // nsDOMMouseEvent_h__

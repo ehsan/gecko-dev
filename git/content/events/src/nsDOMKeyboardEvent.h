@@ -42,12 +42,11 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsDOMUIEvent.h"
 
-class nsDOMKeyboardEvent : public nsDOMUIEvent,
-                           public nsIDOMKeyEvent
+class nsDOMKeyboardEvent : public nsIDOMKeyEvent,
+                           public nsDOMUIEvent
 {
 public:
   nsDOMKeyboardEvent(nsPresContext* aPresContext, nsKeyEvent* aEvent);
-  virtual ~nsDOMKeyboardEvent();
 
   NS_DECL_ISUPPORTS_INHERITED
 

@@ -54,8 +54,6 @@
 #include "nsIWebNavigation.h"
 #include "nsISHistory.h"
 #include "nsISHistoryInternal.h"
-#include "nsDocShellEditorData.h"
-#include "nsIDocShell.h"
 
 // Hardcode this to time out unused content viewers after 30 minutes
 #define CONTENT_VIEWER_TIMEOUT_SECONDS 30*60
@@ -139,7 +137,7 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
 {
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 ClearParentPtr(nsISHEntry* aEntry, void* /* aData */)
 {
   if (aEntry) {
@@ -163,10 +161,7 @@ nsSHEntry::~nsSHEntry()
     viewer->Destroy();
   }
 
-  mEditorData = nsnull;
-
 #ifdef DEBUG
-  // This is not happening as far as I can tell from breakpad as of early November 2007
   nsExpirationTracker<nsSHEntry,3>::Iterator iterator(gHistoryTracker);
   nsSHEntry* elem;
   while ((elem = iterator.Next()) != nsnull) {
@@ -231,15 +226,13 @@ nsSHEntry::SetContentViewer(nsIContentViewer *aViewer)
 {
   NS_PRECONDITION(!aViewer || !mContentViewer, "SHEntry already contains viewer");
 
-  if (mContentViewer || !aViewer) {
+  if (!aViewer) {
     DropPresentationState();
   }
 
   mContentViewer = aViewer;
 
   if (mContentViewer) {
-    gHistoryTracker->AddObject(this);
-
     nsCOMPtr<nsIDOMDocument> domDoc;
     mContentViewer->GetDOMDocument(getter_AddRefs(domDoc));
     // Store observed document in strong pointer in case it is removed from
@@ -249,6 +242,8 @@ nsSHEntry::SetContentViewer(nsIContentViewer *aViewer)
       mDocument->SetShellsHidden(PR_TRUE);
       mDocument->AddMutationObserver(this);
     }
+    
+    gHistoryTracker->AddObject(this);
   }
 
   return NS_OK;
@@ -350,10 +345,8 @@ NS_IMETHODIMP nsSHEntry::GetLayoutHistoryState(nsILayoutHistoryState** aResult)
 
 NS_IMETHODIMP nsSHEntry::SetLayoutHistoryState(nsILayoutHistoryState* aState)
 {
+  NS_ENSURE_STATE(mSaveLayoutState || !aState);
   mLayoutHistoryState = aState;
-  if (mLayoutHistoryState)
-    mLayoutHistoryState->SetScrollPositionOnly(!mSaveLayoutState);
-
   return NS_OK;
 }
 
@@ -427,8 +420,11 @@ NS_IMETHODIMP nsSHEntry::GetSaveLayoutStateFlag(PRBool * aFlag)
 NS_IMETHODIMP nsSHEntry::SetSaveLayoutStateFlag(PRBool  aFlag)
 {
   mSaveLayoutState = aFlag;
-  if (mLayoutHistoryState)
-    mLayoutHistoryState->SetScrollPositionOnly(!aFlag);
+
+  // if we are not allowed to hold layout history state, then make sure
+  // that we are not holding it!
+  if (!mSaveLayoutState)
+    mLayoutHistoryState = nsnull;
 
   return NS_OK;
 }
@@ -535,14 +531,14 @@ nsSHEntry::GetWindowState(nsISupports **aState)
 }
 
 NS_IMETHODIMP
-nsSHEntry::SetViewerBounds(const nsIntRect &aBounds)
+nsSHEntry::SetViewerBounds(const nsRect &aBounds)
 {
   mViewerBounds = aBounds;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSHEntry::GetViewerBounds(nsIntRect &aBounds)
+nsSHEntry::GetViewerBounds(nsRect &aBounds)
 {
   aBounds = mViewerBounds;
   return NS_OK;
@@ -594,8 +590,8 @@ nsSHEntry::AddChild(nsISHEntry * aChild, PRInt32 aOffset)
   if (aOffset < mChildren.Count()) {
     nsISHEntry* oldChild = mChildren.ObjectAt(aOffset);
     if (oldChild && oldChild != aChild) {
-      NS_WARNING("Adding child where we already have a child?  "
-                 "This will likely misbehave");
+      NS_ERROR("Adding child where we already have a child?  "
+               "This will likely misbehave");
       oldChild->SetParent(nsnull);
     }
   }
@@ -752,20 +748,12 @@ nsSHEntry::CharacterDataChanged(nsIDocument* aDocument,
 }
 
 void
-nsSHEntry::AttributeWillChange(nsIDocument* aDocument,
-                               nsIContent* aContent,
-                               PRInt32 aNameSpaceID,
-                               nsIAtom* aAttribute,
-                               PRInt32 aModType)
-{
-}
-
-void
 nsSHEntry::AttributeChanged(nsIDocument* aDocument,
                             nsIContent* aContent,
                             PRInt32 aNameSpaceID,
                             nsIAtom* aAttribute,
-                            PRInt32 aModType)
+                            PRInt32 aModType,
+                            PRUint32 aStateMask)
 {
   DocumentMutated();
 }
@@ -844,25 +832,3 @@ nsSHEntry::DocumentMutated()
   // Warning! The call to DropPresentationState could have dropped the last
   // reference to this nsSHEntry, so no accessing members beyond here.
 }
-
-nsDocShellEditorData*
-nsSHEntry::ForgetEditorData()
-{
-  return mEditorData.forget();
-}
-
-void
-nsSHEntry::SetEditorData(nsDocShellEditorData* aData)
-{
-  NS_ASSERTION(!(aData && mEditorData),
-               "We're going to overwrite an owning ref!");
-  if (mEditorData != aData)
-    mEditorData = aData;
-}
-
-PRBool
-nsSHEntry::HasDetachedEditor()
-{
-  return mEditorData != nsnull;
-}
-

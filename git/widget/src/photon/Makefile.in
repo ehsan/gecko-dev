@@ -49,6 +49,22 @@ IS_COMPONENT	= 1
 MODULE_NAME	= nsWidgetPhModule
 LIBXUL_LIBRARY = 1
 
+REQUIRES    = xpcom \
+				string \
+		    appshell \
+			  gfx \
+			  pref \
+			  dom \
+			  uconv \
+			  necko \
+			  view \
+			  util \
+			  docshell\
+			  layout\
+				content\
+			  webshell\
+				intl\
+			  $(NULL)	
 			  
 CPPSRCS		= \
 		PtRawDrawContainer.cpp \
@@ -63,6 +79,11 @@ CPPSRCS		= \
 		nsFilePicker.cpp \
 		nsSound.cpp \
 		$(NULL)
+
+ifdef MOZ_ENABLE_XREMOTE
+REQUIRES += xremoteservice
+CPPSRCS += nsPhMozRemoteHelper.cpp
+endif
 
 # always include the PHOTON_DND in the build - the bookmarks in firefox require it
 PHOTON_DND=1
@@ -87,4 +108,4 @@ CXXFLAGS += -DPHOTON_DND
 endif
 
 export::
-	$(INSTALL) $(srcdir)/nsClipboard.h $(DIST)/include/widget
+	$(INSTALL) nsClipboard.h $(DIST)/include/widget

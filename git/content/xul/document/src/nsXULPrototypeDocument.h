@@ -48,7 +48,6 @@
 #include "nsTArray.h"
 #include "nsIScriptGlobalObjectOwner.h"
 #include "nsISerializable.h"
-#include "nsIDocument.h"
 #include "nsCycleCollectionParticipant.h"
 
 class nsIAtom;
@@ -103,7 +102,7 @@ public:
      * @note GetProcessingInstructions retains the ownership (the PI
      *       protos only get deleted when the proto document is deleted)
      */
-    const nsTArray<nsRefPtr<nsXULPrototypePI> >& GetProcessingInstructions() const;
+    const nsTArray<nsXULPrototypePI*>& GetProcessingInstructions() const;
 
     /**
      * Access the array of style overlays for this document.
@@ -152,8 +151,8 @@ public:
 
 protected:
     nsCOMPtr<nsIURI> mURI;
-    nsRefPtr<nsXULPrototypeElement> mRoot;
-    nsTArray<nsRefPtr<nsXULPrototypePI> > mProcessingInstructions;
+    nsXULPrototypeElement* mRoot;
+    nsTArray<nsXULPrototypePI*> mProcessingInstructions;
     nsCOMArray<nsIURI> mStyleSheetReferences;
 
     nsRefPtr<nsXULPDGlobalObject> mGlobalObject;

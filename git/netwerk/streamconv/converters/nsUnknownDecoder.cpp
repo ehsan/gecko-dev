@@ -60,7 +60,7 @@
 #include "nsNetCID.h"
 
 
-#define MAX_BUFFER_SIZE 512
+#define MAX_BUFFER_SIZE 1024
 
 nsUnknownDecoder::nsUnknownDecoder()
   : mBuffer(nsnull)
@@ -313,6 +313,7 @@ nsUnknownDecoder::nsSnifferEntry nsUnknownDecoder::sSnifferEntries[] = {
   SNIFFER_ENTRY("%PDF-", APPLICATION_PDF),
 
   SNIFFER_ENTRY("%!PS-Adobe-", APPLICATION_POSTSCRIPT),
+  SNIFFER_ENTRY("%! PS-Adobe-", APPLICATION_POSTSCRIPT),
 
   // Files that start with mailbox delimiters let's provisionally call
   // text/plain
@@ -567,10 +568,11 @@ PRBool nsUnknownDecoder::LastDitchSniff(nsIRequest* aRequest)
   // are for 2-byte encodings and the UTF-8 BOM is 3 bytes).
   if (mBufferLen >= 4) {
     const unsigned char* buf = (const unsigned char*)mBuffer;
-    if ((buf[0] == 0xFE && buf[1] == 0xFF) || // UTF-16, Big Endian
-        (buf[0] == 0xFF && buf[1] == 0xFE) || // UTF-16 or UCS-4, Little Endian
+    if ((buf[0] == 0xFE && buf[1] == 0xFF) || // UTF-16BE
+        (buf[0] == 0xFF && buf[1] == 0xFE) || // UTF-16LE
         (buf[0] == 0xEF && buf[1] == 0xBB && buf[2] == 0xBF) || // UTF-8
-        (buf[0] == 0 && buf[1] == 0 && buf[2] == 0xFE && buf[3] == 0xFF)) { // UCS-4, Big Endian
+        (buf[0] == 0 && buf[1] == 0 && buf[2] == 0xFE && buf[3] == 0xFF) || // UCS-4BE
+        (buf[0] == 0 && buf[1] == 0 && buf[2] == 0xFF && buf[3] == 0xFE)) { // UCS-4
         
       mContentType = TEXT_PLAIN;
       return PR_TRUE;
@@ -684,15 +686,13 @@ nsBinaryDetector::DetermineContentType(nsIRequest* aRequest)
   // Make sure to do a case-sensitive exact match comparison here.  Apache
   // 1.x just sends text/plain for "unknown", while Apache 2.x sends
   // text/plain with a ISO-8859-1 charset.  Debian's Apache version, just to
-  // be different, sends text/plain with iso-8859-1 charset.  For extra fun,
-  // FC7, RHEL4, and Ubuntu Feisty send charset=UTF-8.  Don't do general
-  // case-insensitive comparison, since we really want to apply this crap as
-  // rarely as we can.
+  // be different, sends text/plain with iso-8859-1 charset.  Don't do
+  // general case-insensitive comparison, since we really want to apply this
+  // crap as rarely as we can.
   if (!contentType.EqualsLiteral("text/plain") ||
       (!contentTypeHdr.EqualsLiteral("text/plain") &&
        !contentTypeHdr.EqualsLiteral("text/plain; charset=ISO-8859-1") &&
-       !contentTypeHdr.EqualsLiteral("text/plain; charset=iso-8859-1") &&
-       !contentTypeHdr.EqualsLiteral("text/plain; charset=UTF-8"))) {
+       !contentTypeHdr.EqualsLiteral("text/plain; charset=iso-8859-1"))) {
     return;
   }
 

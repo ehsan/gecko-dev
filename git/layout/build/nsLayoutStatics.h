@@ -61,17 +61,4 @@ private:
   static void Shutdown();
 };
 
-class nsLayoutStaticsRef
-{
-public:
-  nsLayoutStaticsRef()
-  {
-    nsLayoutStatics::AddRef();
-  }
-  ~nsLayoutStaticsRef()
-  {
-    nsLayoutStatics::Release();
-  }
-};
-
 #endif // nsLayoutStatics_h__

@@ -38,10 +38,12 @@
 #ifndef nsXULTooltipListener_h__
 #define nsXULTooltipListener_h__
 
+#include "nsCycleCollectionParticipant.h"
 #include "nsIDOMMouseListener.h"
 #include "nsIDOMMouseMotionListener.h"
 #include "nsIDOMKeyListener.h"
 #include "nsIDOMMouseEvent.h"
+#include "nsIDOMXULListener.h"
 #include "nsIContent.h"
 #include "nsIDOMElement.h"
 #include "nsITimer.h"
@@ -51,14 +53,16 @@
 #include "nsITreeBoxObject.h"
 #include "nsITreeColumns.h"
 #endif
-#include "nsWeakPtr.h"
 
 class nsXULTooltipListener : public nsIDOMMouseListener,
                              public nsIDOMMouseMotionListener,
-                             public nsIDOMKeyListener
+                             public nsIDOMKeyListener,
+                             public nsIDOMXULListener
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXULTooltipListener,
+                                           nsIDOMMouseListener)
 
   // nsIDOMMouseListener
   NS_IMETHOD MouseDown(nsIDOMEvent* aMouseEvent);
@@ -76,6 +80,16 @@ public:
   NS_IMETHOD KeyDown(nsIDOMEvent* aKeyEvent);
   NS_IMETHOD KeyUp(nsIDOMEvent* aKeyEvent) { return NS_OK; }
   NS_IMETHOD KeyPress(nsIDOMEvent* aKeyEvent) { return NS_OK; }
+
+  // nsIDOMXULListener
+  NS_IMETHOD PopupShowing(nsIDOMEvent* aEvent) { return NS_OK; }
+  NS_IMETHOD PopupShown(nsIDOMEvent* aEvent) { return NS_OK; }
+  NS_IMETHOD PopupHiding(nsIDOMEvent* aEvent);
+  NS_IMETHOD PopupHidden(nsIDOMEvent* aEvent) { return NS_OK; }
+  NS_IMETHOD Close(nsIDOMEvent* aEvent) { return NS_OK; }
+  NS_IMETHOD Command(nsIDOMEvent* aEvent) { return NS_OK; }
+  NS_IMETHOD Broadcast(nsIDOMEvent* aEvent) { return NS_OK; }
+  NS_IMETHOD CommandUpdate(nsIDOMEvent* aEvent) { return NS_OK; }
 
   // nsIDOMEventListener
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
@@ -95,10 +109,12 @@ protected:
   ~nsXULTooltipListener();
 
   // pref callback for when the "show tooltips" pref changes
+  static int sTooltipPrefChanged (const char* aPref, void* aData);
   static PRBool sShowTooltips;
   static PRUint32 sTooltipListenerCount;
 
   void KillTooltipTimer();
+  void CreateAutoHideTimer();
 
 #ifdef MOZ_XUL
   void CheckTreeBodyMove(nsIDOMMouseEvent* aMouseEvent);
@@ -118,31 +134,24 @@ protected:
   static nsXULTooltipListener* mInstance;
   static int ToolbarTipsPrefChanged(const char *aPref, void *aClosure);
 
-  nsWeakPtr mSourceNode;
-  nsWeakPtr mTargetNode;
-  nsWeakPtr mCurrentTooltip;
+  nsCOMPtr<nsIContent> mSourceNode;
+  nsCOMPtr<nsIDOMNode> mTargetNode;
+  nsCOMPtr<nsIContent> mCurrentTooltip;
 
   // a timer for showing the tooltip
   nsCOMPtr<nsITimer> mTooltipTimer;
   static void sTooltipCallback (nsITimer* aTimer, void* aListener);
+  PRInt32 mMouseClientX, mMouseClientY;
 
-  // screen coordinates of the last mousemove event, stored so that the
-  // tooltip can be opened at this location.
-  PRInt32 mMouseScreenX, mMouseScreenY;
-
-  // last cached mouse event
-  nsCOMPtr<nsIDOMEvent> mCachedMouseEvent;
+  // a timer for auto-hiding the tooltip after a certain delay
+  nsCOMPtr<nsITimer> mAutoHideTimer;
+  static void sAutoHideCallback (nsITimer* aTimer, void* aListener);
   
-  // various constants for tooltips
+  // various delays for tooltips
   enum {
-    kTooltipMouseMoveTolerance = 7,    // 7 pixel tolerance for mousemove event
+    kTooltipAutoHideTime = 5000,       // 5000ms = 5 seconds
     kTooltipShowTime = 500             // 500ms = 0.5 seconds
   };
-
-  // flag specifying if the tooltip has already been displayed by a MouseMove
-  // event. The flag is reset on MouseOut so that the tooltip will display
-  // the next time the mouse enters the node (bug #395668).
-  PRBool mTooltipShownOnce;
 
 #ifdef MOZ_XUL
   // special members for handling trees

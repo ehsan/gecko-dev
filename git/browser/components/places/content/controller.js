@@ -22,7 +22,6 @@
  *   Ben Goodger <beng@google.com>
  *   Myk Melez <myk@mozilla.org>
  *   Asaf Romano <mano@mozilla.com>
- *   Marco Bonardo <mak77@bonardo.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,8 +37,10 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+const NHRVO = Ci.nsINavHistoryResultViewObserver;
+
 // XXXmano: we should move most/all of these constants to PlacesUtils
-const ORGANIZER_ROOT_BOOKMARKS = "place:folder=BOOKMARKS_MENU&excludeItems=1&queryType=1";
+const ORGANIZER_ROOT_BOOKMARKS = "place:folder=2&group=3&excludeItems=1&queryType=1";
 const ORGANIZER_SUBSCRIPTIONS_QUERY = "place:annotation=livemark%2FfeedURI";
 
 // No change to the view, preserve current selection
@@ -51,17 +52,6 @@ const RELOAD_ACTION_REMOVE = 2;
 // Moving items within a view, don't treat the dropped items as additional 
 // rows.
 const RELOAD_ACTION_MOVE = 3;
-
-// when removing a bunch of pages we split them in chunks to avoid passing
-// a too big array to RemovePages
-// 300 is the best choice with an history of about 150000 visits
-// smaller chunks could cause a Slow Script warning with a huge history
-const REMOVE_PAGES_CHUNKLEN = 300;
-// if we are removing less than this pages we will remove them one by one
-// since it will be reflected faster on the UI
-// 10 is a good compromise, since allows the user to delete a little amount of
-// urls for privacy reasons, but does not cause heavy disk access
-const REMOVE_PAGES_MAX_SINGLEREMOVES = 10;
 
 /**
  * Represents an insertion point within a container where we can insert
@@ -75,35 +65,15 @@ const REMOVE_PAGES_MAX_SINGLEREMOVES = 10;
  *          insertion point to accommodate the orientation should be done by
  *          the person who constructs the IP, not the user. The orientation
  *          is provided for informational purposes only!
- * @param   [optional] aIsTag
- *          Indicates if parent container is a tag
- * @param   [optional] aDropNearItemId
- *          When defined we will calculate index based on this itemId
  * @constructor
  */
-function InsertionPoint(aItemId, aIndex, aOrientation, aIsTag,
-                        aDropNearItemId) {
+function InsertionPoint(aItemId, aIndex, aOrientation) {
   this.itemId = aItemId;
-  this._index = aIndex;
+  this.index = aIndex;
   this.orientation = aOrientation;
-  this.isTag = aIsTag;
-  this.dropNearItemId = aDropNearItemId;
 }
-
-InsertionPoint.prototype = {
-  set index(val) {
-    return this._index = val;
-  },
-
-  get index() {
-    if (this.dropNearItemId > 0) {
-      // If dropNearItemId is set up we must calculate the real index of
-      // the item near which we will drop.
-      var index = PlacesUtils.bookmarks.getItemIndex(this.dropNearItemId);
-      return this.orientation == Ci.nsITreeView.DROP_BEFORE ? index : index + 1;
-    }
-    return this._index;
-  }
+InsertionPoint.prototype.toString = function IP_toString() {
+  return "[object InsertionPoint(folder:" + this.itemId + ",index:" + this.index + ",orientation:" + this.orientation + ")]";
 };
 
 /**
@@ -123,69 +93,87 @@ PlacesController.prototype = {
   isCommandEnabled: function PC_isCommandEnabled(aCommand) {
     switch (aCommand) {
     case "cmd_undo":
-      return PlacesUIUtils.ptm.numberOfUndoItems > 0;
+      return PlacesUtils.tm.numberOfUndoItems > 0;
     case "cmd_redo":
-      return PlacesUIUtils.ptm.numberOfRedoItems > 0;
+      return PlacesUtils.tm.numberOfRedoItems > 0;
     case "cmd_cut":
-    case "placesCmd_cut":
-      var nodes = this._view.getSelectionNodes();
-      // If selection includes history nodes there's no reason to allow cut.
-      for (var i = 0; i < nodes.length; i++) {
-        if (nodes[i].itemId == -1)
-          return false;
-      }
-      // Otherwise fallback to cmd_delete check.
     case "cmd_delete":
-    case "placesCmd_delete":
       return this._hasRemovableSelection(false);
-    case "placesCmd_deleteDataHost":
-      return this._hasRemovableSelection(false) &&
-        !PlacesUIUtils.privateBrowsing.privateBrowsingEnabled;
     case "placesCmd_moveBookmarks":
       return this._hasRemovableSelection(true);
     case "cmd_copy":
-    case "placesCmd_copy":
       return this._view.hasSelection;
     case "cmd_paste":
-    case "placesCmd_paste":
-      return this._canInsert(true) && this._isClipboardDataPasteable();
+      return this._canInsert() && this._isClipboardDataPasteable();
     case "cmd_selectAll":
       if (this._view.selType != "single") {
-        var rootNode = this._view.getResultNode();
-        if (rootNode.containerOpen && rootNode.childCount > 0)
+        var result = this._view.getResult();
+        if (result) {
+          var container = asContainer(result.root);
+          if (container.childCount > 0);
             return true;
+        }
       }
       return false;
     case "placesCmd_open":
     case "placesCmd_open:window":
     case "placesCmd_open:tab":
-      var selectedNode = this._view.selectedNode;
-      return selectedNode && PlacesUtils.nodeIsURI(selectedNode);
+      return this._view.selectedURINode;
     case "placesCmd_new:folder":
     case "placesCmd_new:livemark":
-      return this._canInsert();
+      return this._canInsert() &&
+             this._view.peerDropTypes
+                 .indexOf(PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER) != -1;
     case "placesCmd_new:bookmark":
-      return this._canInsert();
+      return this._canInsert() &&
+             this._view.peerDropTypes.indexOf(PlacesUtils.TYPE_X_MOZ_URL) != -1;
     case "placesCmd_new:separator":
       return this._canInsert() &&
-             !asQuery(this._view.getResultNode()).queryOptions.excludeItems &&
+             this._view.peerDropTypes
+                 .indexOf(PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR) != -1 &&
+             !asQuery(this._view.getResult().root).queryOptions.excludeItems &&
              this._view.getResult().sortingMode ==
                  Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
     case "placesCmd_show:info":
-      var selectedNode = this._view.selectedNode;
-      if (selectedNode &&
-          PlacesUtils.getConcreteItemId(selectedNode) != -1  &&
-          !PlacesUtils.nodeIsLivemarkItem(selectedNode))
-        return true;
+      if (this._view.hasSingleSelection) {
+        var selectedNode = this._view.selectedNode;
+        if (PlacesUtils.nodeIsFolder(selectedNode) ||
+            (PlacesUtils.nodeIsBookmark(selectedNode) &&
+            !PlacesUtils.nodeIsLivemarkItem(selectedNode)))
+          return true;
+      }
       return false;
     case "placesCmd_reloadMicrosummary":
-      var selectedNode = this._view.selectedNode;
-      return selectedNode && PlacesUtils.nodeIsBookmark(selectedNode) &&
-             PlacesUIUtils.microsummaries.hasMicrosummary(selectedNode.itemId);
+      if (this._view.hasSingleSelection) {
+        var selectedNode = this._view.selectedNode;
+        if (PlacesUtils.nodeIsBookmark(selectedNode)) {
+          var mss = PlacesUtils.microsummaries;
+          if (mss.hasMicrosummary(selectedNode.itemId))
+            return true;
+        }
+      }
+      return false;
     case "placesCmd_reload":
-      // Livemark containers
-      var selectedNode = this._view.selectedNode;
-      return selectedNode && PlacesUtils.nodeIsLivemarkContainer(selectedNode);
+      if (this._view.hasSingleSelection) {
+        var selectedNode = this._view.selectedNode;
+
+        // Livemark containers
+        if (PlacesUtils.nodeIsLivemarkContainer(selectedNode))
+          return true;
+
+#ifdef EXTENDED_LIVEBOOKMARKS_UI
+        // Subscriptions View - not yet exposed anywhere 
+        if (selectedNode.uri.indexOf("livemark%2F") != -1)
+          return true;
+
+        // children of a live bookmark (legacy bookmarks UI doesn't support
+        // this)
+        if (PlacesUtils.nodeIsURI() &&
+            PlacesUtils.nodeIsLivemarkItem(selectedNode))
+          return true;
+#endif
+      }
+      return false;
     case "placesCmd_sortBy:name":
       var selectedNode = this._view.selectedNode;
       return selectedNode &&
@@ -193,9 +181,15 @@ PlacesController.prototype = {
              !PlacesUtils.nodeIsReadOnly(selectedNode) &&
              this._view.getResult().sortingMode ==
                  Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
-    case "placesCmd_createBookmark":
-      var node = this._view.selectedNode;
-      return node && PlacesUtils.nodeIsURI(node) && node.itemId == -1;
+    case "placesCmd_setAsBookmarksToolbarFolder":
+      if (this._view.hasSingleSelection) {
+        var selectedNode = this._view.selectedNode;
+        if (PlacesUtils.nodeIsFolder(selectedNode) &&
+            selectedNode.itemId != PlacesUtils.toolbarFolderId) {
+          return true;
+        }
+      }
+      return false;
     default:
       return false;
     }
@@ -224,48 +218,34 @@ PlacesController.prototype = {
   doCommand: function PC_doCommand(aCommand) {
     switch (aCommand) {
     case "cmd_undo":
-      PlacesUIUtils.ptm.undoTransaction();
+      PlacesUtils.tm.undoTransaction();
       break;
     case "cmd_redo":
-      PlacesUIUtils.ptm.redoTransaction();
+      PlacesUtils.tm.redoTransaction();
       break;
     case "cmd_cut":
-    case "placesCmd_cut":
       this.cut();
       break;
     case "cmd_copy":
-    case "placesCmd_copy":
       this.copy();
       break;
     case "cmd_paste":
-    case "placesCmd_paste":
       this.paste();
       break;
     case "cmd_delete":
-    case "placesCmd_delete":
       this.remove("Remove Selection");
-      break;
-    case "placesCmd_deleteDataHost":
-      var host;
-      if (PlacesUtils.nodeIsHost(this._view.selectedNode)) {
-        var queries = this._view.selectedNode.getQueries();
-        host = queries[0].domain;
-      }
-      else
-        host = PlacesUtils._uri(this._view.selectedNode.uri).host;
-      PlacesUIUtils.privateBrowsing.removeDataFromDomain(host);
       break;
     case "cmd_selectAll":
       this.selectAll();
       break;
     case "placesCmd_open":
-      PlacesUIUtils.openNodeIn(this._view.selectedNode, "current");
+      this.openSelectedNodeIn("current");
       break;
     case "placesCmd_open:window":
-      PlacesUIUtils.openNodeIn(this._view.selectedNode, "window");
+      this.openSelectedNodeIn("window");
       break;
     case "placesCmd_open:tab":
-      PlacesUIUtils.openNodeIn(this._view.selectedNode, "tab");
+      this.openSelectedNodeIn("tab");
       break;
     case "placesCmd_new:folder":
       this.newItem("folder");
@@ -286,7 +266,7 @@ PlacesController.prototype = {
       this.moveSelectedBookmarks();
       break;
     case "placesCmd_reload":
-      this.reloadSelectedLivemark();
+      this.reloadSelectedLivemarks();
       break;
     case "placesCmd_reloadMicrosummary":
       this.reloadSelectedMicrosummary();
@@ -294,9 +274,8 @@ PlacesController.prototype = {
     case "placesCmd_sortBy:name":
       this.sortFolderByName();
       break;
-    case "placesCmd_createBookmark":
-      var node = this._view.selectedNode;
-      PlacesUIUtils.showMinimalAddBookmarkUI(PlacesUtils._uri(node.uri), node.title);
+    case "placesCmd_setAsBookmarksToolbarFolder":
+      this.setBookmarksToolbarFolder();
       break;
     }
   },
@@ -311,66 +290,64 @@ PlacesController.prototype = {
    * is a policy decision that a removable item not be placed inside a non-
    * removable item.
    * @param aIsMoveCommand
-   *        True if the command for which this method is called only moves the
+   *        True if thecommand for which this method is called only moves the
    *        selected items to another container, false otherwise.
-   * @returns true if all nodes in the selection can be removed,
+   * @returns true if the there's a selection which has no nodes that cannot be removed,
    *          false otherwise.
    */
   _hasRemovableSelection: function PC__hasRemovableSelection(aIsMoveCommand) {
-    var ranges = this._view.getRemovableSelectionRanges();
-    if (!ranges.length)
+    if (!this._view.hasSelection)
       return false;
 
+    var nodes = this._view.getSelectionNodes();
     var root = this._view.getResultNode();
 
-    for (var j = 0; j < ranges.length; j++) {
-      var nodes = ranges[j];
-      for (var i = 0; i < nodes.length; ++i) {
-        // Disallow removing the view's root node
-        if (nodes[i] == root)
-          return false;
+    var btFolderId = PlacesUtils.toolbarFolderId;
+    for (var i = 0; i < nodes.length; ++i) {
+      // Disallow removing the view's root node 
+      if (nodes[i] == root)
+        return false;
 
-        if (PlacesUtils.nodeIsFolder(nodes[i]) &&
-            !PlacesControllerDragHelper.canMoveNode(nodes[i]))
-          return false;
+      // Disallow removing the toolbar folder
+      if (!aIsMoveCommand &&
+          PlacesUtils.nodeIsFolder(nodes[i]) && nodes[i].itemId == btFolderId)
+        return false;
 
-        // We don't call nodeIsReadOnly here, because nodeIsReadOnly means that
-        // a node has children that cannot be edited, reordered or removed. Here,
-        // we don't care if a node's children can't be reordered or edited, just
-        // that they're removable. All history results have removable children
-        // (based on the principle that any URL in the history table should be
-        // removable), but some special bookmark folders may have non-removable
-        // children, e.g. live bookmark folder children. It doesn't make sense
-        // to delete a child of a live bookmark folder, since when the folder
-        // refreshes, the child will return.
-        var parent = nodes[i].parent || root;
-        if (PlacesUtils.isReadonlyFolder(parent))
-          return false;
-      }
+      // We don't call nodeIsReadOnly here, because nodeIsReadOnly means that
+      // a node has children that cannot be edited, reordered or removed. Here,
+      // we don't care if a node's children can't be reordered or edited, just
+      // that they're removable. All history results have removable children
+      // (based on the principle that any URL in the history table should be
+      // removable), but some special bookmark folders may have non-removable
+      // children, e.g. live bookmark folder children. It doesn't make sense
+      // to delete a child of a live bookmark folder, since when the folder
+      // refreshes, the child will return.
+      var parent = nodes[i].parent || root;
+      if (PlacesUtils.isReadonlyFolder(parent))
+        return false;
     }
-
     return true;
   },
 
   /**
    * Determines whether or not nodes can be inserted relative to the selection.
    */
-  _canInsert: function PC__canInsert(isPaste) {
-    var ip = this._view.insertionPoint;
-    return ip != null && (isPaste || ip.isTag != true);
+  _canInsert: function PC__canInsert() {
+    return this._view.insertionPoint != null;
   },
 
   /**
    * Determines whether or not the root node for the view is selected
    */
   rootNodeIsSelected: function PC_rootNodeIsSelected() {
-    var nodes = this._view.getSelectionNodes();
-    var root = this._view.getResultNode();
-    for (var i = 0; i < nodes.length; ++i) {
-      if (nodes[i] == root)
-        return true;      
+    if (this._view.hasSelection) {
+      var nodes = this._view.getSelectionNodes();
+      var root = this._view.getResultNode();
+      for (var i = 0; i < nodes.length; ++i) {
+        if (nodes[i] == root)
+          return true;      
+      }
     }
-
     return false;
   },
 
@@ -386,10 +363,10 @@ PlacesController.prototype = {
     // if the clipboard contains TYPE_X_MOZ_PLACE_* data, it is definitely
     // pasteable, with no need to unwrap all the nodes.
 
-    var flavors = PlacesControllerDragHelper.placesFlavors;
-    var clipboard = PlacesUIUtils.clipboard;
+    var flavors = PlacesUtils.placesFlavors;
+    var clipboard = PlacesUtils.clipboard;
     var hasPlacesData =
-      clipboard.hasDataMatchingFlavors(flavors, flavors.length,
+      clipboard.hasDataMatchingFlavors(flavors,
                                        Ci.nsIClipboard.kGlobalClipboard);
     if (hasPlacesData)
       return this._view.insertionPoint != null;
@@ -428,13 +405,14 @@ PlacesController.prototype = {
    *    "link"              node is a URI
    *    "bookmark"          node is a bookamrk
    *    "livemarkChild"     node is a child of a livemark
-   *    "tagChild"          node is a child of a tag
    *    "folder"            node is a folder
    *    "query"             node is a query
    *    "dynamiccontainer"  node is a dynamic container
    *    "separator"         node is a separator line
    *    "host"              node is a host
-   *
+   *    "mutable"           node can have items inserted or reordered
+   *    "allLivemarks"      node is a query containing every livemark
+   *    
    * @returns an array of objects corresponding the selected nodes. Each
    *          object has each of the properties above set if its corresponding
    *          node matches the rule. In addition, the annotations names for each 
@@ -446,10 +424,12 @@ PlacesController.prototype = {
    */
   _buildSelectionMetadata: function PC__buildSelectionMetadata() {
     var metadata = [];
-    var root = this._view.getResultNode();
-    var nodes = this._view.getSelectionNodes();
-    if (nodes.length == 0)
-      nodes.push(root); // See the second note above
+    var nodes = [];
+    var root = this._view.getResult().root;
+    if (this._view.hasSelection)
+      nodes = this._view.getSelectionNodes();
+    else // See the second note above
+      nodes = [root];
 
     for (var i=0; i < nodes.length; i++) {
       var nodeData = {};
@@ -462,24 +442,16 @@ PlacesController.prototype = {
       switch(nodeType) {
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY:
           nodeData["query"] = true;
-          if (node.parent) {
-            switch (asQuery(node.parent).queryOptions.resultType) {
-              case Ci.nsINavHistoryQueryOptions.RESULTS_AS_SITE_QUERY:
-                nodeData["host"] = true;
-                break;
-              case Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_SITE_QUERY:
-              case Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_QUERY:
-                nodeData["day"] = true;
-                break;
-            }
-          }
           break;
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_DYNAMIC_CONTAINER:
           nodeData["dynamiccontainer"] = true;
           break;
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER:
-        case Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT:
           nodeData["folder"] = true;
+          uri = PlacesUtils.bookmarks.getFolderURI(node.itemId);
+          break;
+        case Ci.nsINavHistoryResultNode.RESULT_TYPE_HOST:
+          nodeData["host"] = true;
           break;
         case Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR:
           nodeData["separator"] = true;
@@ -491,36 +463,55 @@ PlacesController.prototype = {
           uri = PlacesUtils._uri(node.uri);
           if (PlacesUtils.nodeIsBookmark(node)) {
             nodeData["bookmark"] = true;
-            PlacesUtils.nodeIsTagQuery(node.parent)
-            var mss = PlacesUIUtils.microsummaries;
+            var mss = PlacesUtils.microsummaries;
             if (mss.hasMicrosummary(node.itemId))
               nodeData["microsummary"] = true;
-
-            var parentNode = node.parent;
-            if (parentNode) {
-              if (PlacesUtils.nodeIsTagQuery(parentNode))
-                nodeData["tagChild"] = true;
-              else if (PlacesUtils.nodeIsLivemarkContainer(parentNode))
-                nodeData["livemarkChild"] = true;
-            }
+            else if (node.parent &&
+                     PlacesUtils.nodeIsLivemarkContainer(node.parent))
+              nodeData["livemarkChild"] = true;
           }
           break;
+        case Ci.nsINavHistoryResultNode.RESULT_TYPE_DAY:
+          nodeData["day"] = true;
       }
+
+      // Mutability is whether or not a container can have selected items
+      // inserted or reordered. It does _not_ dictate whether or not the 
+      // container can have items removed from it, since some containers that
+      // aren't  reorderable can have items removed from them, e.g. a history
+      // list. 
+      if (!PlacesUtils.nodeIsReadOnly(node) &&
+          !PlacesUtils.isReadonlyFolder(node.parent || root))
+        nodeData["mutable"] = true;
 
       // annotations
       if (uri) {
-        var names = PlacesUtils.annotations.getPageAnnotationNames(uri);
+        var names = PlacesUtils.annotations.getPageAnnotationNames(uri, {});
         for (var j = 0; j < names.length; ++j)
           nodeData[names[j]] = true;
-      }
 
-      // For items also include the item-specific annotations
-      if (node.itemId != -1) {
-        names = PlacesUtils.annotations
-                           .getItemAnnotationNames(node.itemId);
-        for (j = 0; j < names.length; ++j)
-          nodeData[names[j]] = true;
+        // For items also include the item-specific annotations
+        if ("bookmark" in nodeData || "folder" in nodeData) {
+          names = PlacesUtils.annotations
+                             .getItemAnnotationNames(node.itemId, {});
+          for (j = 0; j < names.length; ++j)
+            nodeData[names[j]] = true;
+        }
       }
+#ifdef EXTENDED_LIVEBOOKMARKS_UI
+      else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY) {
+        // Various queries might live in the left-hand side of the organizer
+        // window. If this one happens to have collected all the livemark feeds,
+        // allow its context menu to contain "Reload All Livemarks". That will 
+        // usually only mean the Subscriptions folder, but if some other folder 
+        // happens to use the same query, it's fine too.  Queries have very 
+        // limited data (no  annotations), so we're left checking the query URI 
+        // directly.
+        uri = PlacesUtils._uri(nodes[i].uri);
+        if (uri.spec == ORGANIZER_SUBSCRIPTIONS_QUERY)
+          nodeData["allLivemarks"] = true;
+      }
+#endif
       metadata.push(nodeData);
     }
 
@@ -543,23 +534,16 @@ PlacesController.prototype = {
     if (selectiontype == "single" && aMetaData.length != 1)
       return false;
 
-    var forceHideAttr = aMenuItem.getAttribute("forcehideselection");
-    if (forceHideAttr) {
-      var forceHideRules = forceHideAttr.split("|");
-      for (var i = 0; i < aMetaData.length; ++i) {
-        for (var j=0; j < forceHideRules.length; ++j) {
-          if (forceHideRules[j] in aMetaData[i])
-            return false;
-        }
+    var forceHideRules = aMenuItem.getAttribute("forcehideselection").split("|");
+    for (var i = 0; i < aMetaData.length; ++i) {
+      for (var j=0; j < forceHideRules.length; ++j) {
+        if (forceHideRules[j] in aMetaData[i])
+          return false;
       }
     }
 
-    var selectionAttr = aMenuItem.getAttribute("selection");
-    if (selectionAttr) {
-      if (selectionAttr == "any")
-        return true;
-
-      var showRules = selectionAttr.split("|");
+    if (aMenuItem.hasAttribute("selection")) {
+      var showRules = aMenuItem.getAttribute("selection").split("|");
       var anyMatched = false;
       function metaDataNodeMatches(metaDataNode, rules) {
         for (var i=0; i < rules.length; i++) {
@@ -602,22 +586,16 @@ PlacesController.prototype = {
    *     selection attribute. A menu-item would be hidden if at least one of the
    *     given rules apply to one of the selected nodes. The rules should be
    *     separated with the | character.
-   *  5) The "hideifnoinsertionpoint" attribute may be set on a menu-item to
-   *     true if it should be hidden when there's no insertion point
-   *  6) The visibility state of a menu-item is unchanged if none of these
+   *  5) The visibility state of a menu-item is unchanged if none of these
    *     attribute are set.
-   *  7) These attributes should not be set on separators for which the
+   *  6) These attributes should not be set on separators for which the
    *     visibility state is "auto-detected."
-   *  8) The "hideifprivatebrowsing" attribute may be set on a menu-item to
-   *     true if it should be hidden inside the private browsing mode
    * @param   aPopup
    *          The menupopup to build children into.
    * @return true if at least one item is visible, false otherwise.
    */
   buildContextMenu: function PC_buildContextMenu(aPopup) {
     var metadata = this._buildSelectionMetadata();
-    var ip = this._view.insertionPoint;
-    var noIp = !ip || ip.isTag;
 
     var separator = null;
     var visibleItemsBeforeSep = false;
@@ -625,14 +603,7 @@ PlacesController.prototype = {
     for (var i = 0; i < aPopup.childNodes.length; ++i) {
       var item = aPopup.childNodes[i];
       if (item.localName != "menuseparator") {
-        // We allow pasting into tag containers, so special case that.
-        var hideIfNoIP = item.getAttribute("hideifnoinsertionpoint") == "true" &&
-                         noIp && !(ip && ip.isTag && item.id == "placesContext_paste");
-        var hideIfPB = item.getAttribute("hideifprivatebrowsing") == "true" &&
-                       PlacesUIUtils.privateBrowsing.privateBrowsingEnabled;
-        item.hidden = hideIfNoIP || hideIfPB ||
-                      !this._shouldShowMenuItem(item, metadata);
-
+        item.hidden = !this._shouldShowMenuItem(item, metadata);
         if (!item.hidden) {
           visibleItemsBeforeSep = true;
           anyVisible = true;
@@ -664,7 +635,8 @@ PlacesController.prototype = {
       if (!openContainerInTabsItem.hidden && this._view.selectedNode &&
           PlacesUtils.nodeIsContainer(this._view.selectedNode)) {
         openContainerInTabsItem.disabled =
-          !PlacesUtils.hasChildURIs(this._view.selectedNode);
+          PlacesUtils.getURLsForContainerNode(this._view.selectedNode)
+                     .length == 0;
       }
       else {
         // see selectiontype rule in the overlay
@@ -684,6 +656,42 @@ PlacesController.prototype = {
   },
 
   /**
+   * Loads the selected node's URL in the appropriate tab or window or as a web
+   * panel given the user's preference specified by modifier keys tracked by a
+   * DOM mouse/key event.
+   * @param   aEvent
+   *          The DOM mouse/key event with modifier keys set that track the
+   *          user's preferred destination window or tab.
+   */
+  openSelectedNodeWithEvent: function PC_openSelectedNodeWithEvent(aEvent) {
+    this.openSelectedNodeIn(whereToOpenLink(aEvent));
+  },
+
+  /**
+   * Loads the selected node's URL in the appropriate tab or window or as a
+   * web panel.
+   * see also openUILinkIn
+   */
+  openSelectedNodeIn: function PC_openSelectedNodeIn(aWhere) {
+    var node = this._view.selectedURINode;
+    if (node && PlacesUtils.checkURLSecurity(node)) {
+       // Check whether the node is a bookmark which should be opened as
+       // a web panel
+      if (aWhere == "current" && PlacesUtils.nodeIsBookmark(node)) {
+        if (PlacesUtils.annotations
+                       .itemHasAnnotation(node.itemId, LOAD_IN_SIDEBAR_ANNO)) {
+          var w = getTopWin();
+          if (w) {
+            w.openWebPanel(node.title, node.uri);
+            return;
+          }
+        }
+      }
+      openUILinkIn(node.uri, aWhere);
+    }
+  },
+
+  /**
    * Opens the bookmark properties for the selected URI Node.
    */
   showBookmarkPropertiesForSelection: 
@@ -692,19 +700,10 @@ PlacesController.prototype = {
     if (!node)
       return;
 
-    var itemType = PlacesUtils.nodeIsFolder(node) ||
-                   PlacesUtils.nodeIsTagQuery(node) ? "folder" : "bookmark";
-    var concreteId = PlacesUtils.getConcreteItemId(node);
-    var isRootItem = PlacesUtils.isRootItem(concreteId);
-    var itemId = node.itemId;
-    if (isRootItem || PlacesUtils.nodeIsTagQuery(node)) {
-      // If this is a root or the Tags query we use the concrete itemId to catch
-      // the correct title for the node.
-      itemId = concreteId;
-    }
-
-    PlacesUIUtils.showItemProperties(itemId, itemType,
-                                     isRootItem /* read only */);
+    if (PlacesUtils.nodeIsFolder(node))
+      PlacesUtils.showFolderProperties(node.itemId);
+    else if (PlacesUtils.nodeIsBookmark(node))
+      PlacesUtils.showBookmarkProperties(node.itemId);
   },
 
   /**
@@ -717,12 +716,33 @@ PlacesController.prototype = {
   },
 
   /**
-   * Reloads the selected livemark if any.
+   * Reloads the livemarks associated with the selection. For the 
+   * "Subscriptions" folder, reloads all livemarks; for a livemark folder,
+   * reloads its children; for a single livemark, reloads its siblings (the
+   * children of its parent).
    */
-  reloadSelectedLivemark: function PC_reloadSelectedLivemark() {
+  reloadSelectedLivemarks: function PC_reloadSelectedLivemarks() {
     var selectedNode = this._view.selectedNode;
-    if (selectedNode && PlacesUtils.nodeIsLivemarkContainer(selectedNode))
-      PlacesUtils.livemarks.reloadLivemarkFolder(selectedNode.itemId);
+    if (this._view.hasSingleSelection) {
+#ifdef EXTENDED_LIVEBOOKMARKS_UI
+      if (selectedNode.uri.indexOf("livemark%2F") != -1) {
+        PlacesUtils.livemarks.reloadAllLivemarks();
+        return;
+      }
+#endif
+      var folder = null;
+      if (PlacesUtils.nodeIsLivemarkContainer(selectedNode)) {
+        folder = selectedNode;
+      }
+#ifdef EXTENDED_LIVEBOOKMARKS_UI
+      else if (PlacesUtils.nodeIsURI()) {
+        if (PlacesUtils.nodeIsLivemarkItem(selectedNode))
+          folder = selectedNode.parent;
+      }
+#endif
+      if (folder)
+        PlacesUtils.livemarks.reloadLivemarkFolder(folder.itemId);
+    }
   },
 
   /**
@@ -730,7 +750,7 @@ PlacesController.prototype = {
    */
   reloadSelectedMicrosummary: function PC_reloadSelectedMicrosummary() {
     var selectedNode = this._view.selectedNode;
-    var mss = PlacesUIUtils.microsummaries;
+    var mss = PlacesUtils.microsummaries;
     if (mss.hasMicrosummary(selectedNode.itemId))
       mss.refreshMicrosummary(selectedNode.itemId);
   },
@@ -762,14 +782,14 @@ PlacesController.prototype = {
                              GetStringFromName("brandShortName");
        
         var buttonPressed = promptService.confirmEx(window,
-          PlacesUIUtils.getString("tabs.openWarningTitle"),
-          PlacesUIUtils.getFormattedString(messageKey, 
+          PlacesUtils.getString("tabs.openWarningTitle"),
+          PlacesUtils.getFormattedString(messageKey, 
             [numTabsToOpen, brandShortName]),
           (promptService.BUTTON_TITLE_IS_STRING * promptService.BUTTON_POS_0)
           + (promptService.BUTTON_TITLE_CANCEL * promptService.BUTTON_POS_1),
-          PlacesUIUtils.getString(openKey),
+          PlacesUtils.getString(openKey),
           null, null,
-          PlacesUIUtils.getFormattedString("tabs.openWarningPromptMeBranded",
+          PlacesUtils.getFormattedString("tabs.openWarningPromptMeBranded",
             [brandShortName]),
           warnOnOpen);
 
@@ -787,10 +807,10 @@ PlacesController.prototype = {
    */
   openSelectionInTabs: function PC_openLinksInTabs(aEvent) {
     var node = this._view.selectedNode;
-    if (node && PlacesUtils.nodeIsContainer(node))
-      PlacesUIUtils.openContainerNodeInTabs(this._view.selectedNode, aEvent);
+    if (this._view.hasSingleSelection && PlacesUtils.nodeIsContainer(node))
+      PlacesUtils.openContainerNodeInTabs(this._view.selectedNode, aEvent);
     else
-      PlacesUIUtils.openURINodesInTabs(this._view.getSelectionNodes(), aEvent);
+      PlacesUtils.openURINodesInTabs(this._view.getSelectionNodes(), aEvent);
   },
 
   /**
@@ -804,20 +824,18 @@ PlacesController.prototype = {
     if (!ip)
       throw Cr.NS_ERROR_NOT_AVAILABLE;
 
+    this._view.saveSelection(this._view.SAVE_SELECTION_INSERT);
+    
     var performed = false;
     if (aType == "bookmark")
-      performed = PlacesUIUtils.showAddBookmarkUI(null, null, null, ip);
+      performed = PlacesUtils.showAddBookmarkUI(null, null, null, ip);
     else if (aType == "livemark")
-      performed = PlacesUIUtils.showAddLivemarkUI(null, null, null, null, ip);
+      performed = PlacesUtils.showAddLivemarkUI(null, null, null, null, ip);
     else // folder
-      performed = PlacesUIUtils.showAddFolderUI(null, ip);
+      performed = PlacesUtils.showAddFolderUI(null, ip);
 
-    if (performed) {
-      // select the new item
-      var insertedNodeId = PlacesUtils.bookmarks
-                                      .getIdForItemAt(ip.itemId, ip.index);
-      this._view.selectItems([insertedNodeId], false);
-    }
+    if (performed)
+      this._view.restoreSelection();
   },
 
 
@@ -830,14 +848,9 @@ PlacesController.prototype = {
     if (!ip)
       throw Cr.NS_ERROR_NOT_AVAILABLE;
 
-    var performed = false;
-    performed = PlacesUIUtils.showAddFolderUI(null, ip);
-    if (performed) {
-      // select the new item
-      var insertedNodeId = PlacesUtils.bookmarks
-                                      .getIdForItemAt(ip.itemId, ip.index);
-      this._view.selectItems([insertedNodeId], false);
-    }
+    this._view.saveSelection(this._view.SAVE_SELECTION_INSERT);
+    if (PlacesUtils.showAddFolderUI(null, ip))
+      this._view.restoreSelection();
   },
 
   /**
@@ -847,12 +860,8 @@ PlacesController.prototype = {
     var ip = this._view.insertionPoint;
     if (!ip)
       throw Cr.NS_ERROR_NOT_AVAILABLE;
-    var txn = PlacesUIUtils.ptm.createSeparator(ip.itemId, ip.index);
-    PlacesUIUtils.ptm.doTransaction(txn);
-    // select the new item
-    var insertedNodeId = PlacesUtils.bookmarks
-                                    .getIdForItemAt(ip.itemId, ip.index);
-    this._view.selectItems([insertedNodeId], false);
+    var txn = PlacesUtils.ptm.createSeparator(ip.itemId, ip.index);
+    PlacesUtils.ptm.commitTransaction(txn);
   },
 
   /**
@@ -861,17 +870,31 @@ PlacesController.prototype = {
   moveSelectedBookmarks: function PC_moveBookmarks() {
     window.openDialog("chrome://browser/content/places/moveBookmarks.xul",
                       "", "chrome, modal",
-                      this._view.getSelectionNodes());
+                      this._view.getSelectionNodes(), PlacesUtils.tm);
   },
 
   /**
    * Sort the selected folder by name
    */
   sortFolderByName: function PC_sortFolderByName() {
-    var itemId = PlacesUtils.getConcreteItemId(this._view.selectedNode);
-    var txn = PlacesUIUtils.ptm.sortFolderByName(itemId);
-    PlacesUIUtils.ptm.doTransaction(txn);
+    var selectedNode = this._view.selectedNode;
+    var txn = PlacesUtils.ptm.sortFolderByName(selectedNode.itemId,
+                                               selectedNode.bookmarkIndex);
+    PlacesUtils.ptm.commitTransaction(txn);
   },
+
+  /**
+   * Makes the selected node the bookmarks toolbar folder.
+   */
+  setBookmarksToolbarFolder: function PC_setBookmarksToolbarFolder() {
+    if (!this._view.hasSingleSelection)
+      return;
+
+    var selectedNode = this._view.selectedNode;
+    var txn = PlacesUtils.ptm.setBookmarksToolbar(selectedNode.itemId);
+    PlacesUtils.ptm.commitTransaction(txn);
+  },
+
 
   /**
    * Walk the list of folders we're removing in this delete operation, and
@@ -916,67 +939,21 @@ PlacesController.prototype = {
    *          An array of nodes to remove. Should all be adjacent. 
    * @param   [out] transactions
    *          An array of transactions.
-   * @param   [optional] removedFolders
-   *          An array of folder nodes that have already been removed.
    */
-  _removeRange: function PC__removeRange(range, transactions, removedFolders) {
+  _removeRange: function PC__removeRange(range, transactions) {
     NS_ASSERT(transactions instanceof Array, "Must pass a transactions array");
-    if (!removedFolders)
-      removedFolders = [];
+
+    var removedFolders = [];
 
     for (var i = 0; i < range.length; ++i) {
       var node = range[i];
       if (this._shouldSkipNode(node, removedFolders))
         continue;
 
-      if (PlacesUtils.nodeIsTagQuery(node.parent)) {
-        // This is a uri node inside a tag container.  It needs a special
-        // untag transaction.
-        var tagItemId = PlacesUtils.getConcreteItemId(node.parent);
-        var uri = PlacesUtils._uri(node.uri);
-        transactions.push(PlacesUIUtils.ptm.untagURI(uri, [tagItemId]));
-      }
-      else if (PlacesUtils.nodeIsTagQuery(node) && node.parent &&
-               PlacesUtils.nodeIsQuery(node.parent) &&
-               asQuery(node.parent).queryOptions.resultType ==
-                 Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_QUERY) {
-        // This is a tag container.
-        // Untag all URIs tagged with this tag only if the tag container is
-        // child of the "Tags" query in the library, in all other places we
-        // must only remove the query node.
-        var tag = node.title;
-        var URIs = PlacesUtils.tagging.getURIsForTag(tag);
-        for (var j = 0; j < URIs.length; j++)
-          transactions.push(PlacesUIUtils.ptm.untagURI(URIs[j], [tag]));
-      }
-      else if (PlacesUtils.nodeIsURI(node) &&
-               PlacesUtils.nodeIsQuery(node.parent) &&
-               asQuery(node.parent).queryOptions.queryType ==
-                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY) {
-        // This is a uri node inside an history query.
-        var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
-        bhist.removePage(PlacesUtils._uri(node.uri));
-        // History deletes are not undoable, so we don't have a transaction.
-      }
-      else if (node.itemId == -1 &&
-               PlacesUtils.nodeIsQuery(node) &&
-               asQuery(node).queryOptions.queryType ==
-                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY) {
-        // This is a dynamically generated history query, like queries
-        // grouped by site, time or both.  Dynamically generated queries don't
-        // have an itemId even if they are descendants of a bookmark.
-        this._removeHistoryContainer(node);
-        // History deletes are not undoable, so we don't have a transaction.
-      }
-      else {
-        // This is a common bookmark item.
-        if (PlacesUtils.nodeIsFolder(node)) {
-          // If this is a folder we add it to our array of folders, used
-          // to skip nodes that are children of an already removed folder.
-          removedFolders.push(node);
-        }
-        transactions.push(PlacesUIUtils.ptm.removeItem(node.itemId));
-      }
+      if (PlacesUtils.nodeIsFolder(node))
+        removedFolders.push(node);
+
+      transactions.push(PlacesUtils.ptm.removeItem(node.itemId));
     }
   },
 
@@ -988,86 +965,30 @@ PlacesController.prototype = {
   _removeRowsFromBookmarks: function PC__removeRowsFromBookmarks(txnName) {
     var ranges = this._view.getRemovableSelectionRanges();
     var transactions = [];
-    var removedFolders = [];
-
-    for (var i = 0; i < ranges.length; i++)
-      this._removeRange(ranges[i], transactions, removedFolders);
-
+    // Delete the selected rows. Do this by walking the selection backward, so
+    // that when undo is performed they are re-inserted in the correct order.
+    for (var i = ranges.length - 1; i >= 0 ; --i)
+      this._removeRange(ranges[i], transactions);
     if (transactions.length > 0) {
-      var txn = PlacesUIUtils.ptm.aggregateTransactions(txnName, transactions);
-      PlacesUIUtils.ptm.doTransaction(txn);
+      var txn = PlacesUtils.ptm.aggregateTransactions(txnName, transactions);
+      PlacesUtils.ptm.commitTransaction(txn);
     }
   },
 
   /**
-   * Removes the set of selected ranges from history.
+   * Removes the set of selected ranges from history. 
    */
   _removeRowsFromHistory: function PC__removeRowsFromHistory() {
     // Other containers are history queries, just delete from history
     // history deletes are not undoable.
     var nodes = this._view.getSelectionNodes();
-    var URIs = [];
-    var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
-    var root = this._view.getResultNode();
-
     for (var i = 0; i < nodes.length; ++i) {
       var node = nodes[i];
-      if (PlacesUtils.nodeIsURI(node)) {
-        var uri = PlacesUtils._uri(node.uri);
-        // avoid trying to delete the same url twice
-        if (URIs.indexOf(uri) < 0) {
-          URIs.push(uri);
-        }
-      }
-      else if (PlacesUtils.nodeIsQuery(node) &&
-               asQuery(node).queryOptions.queryType ==
-                 Ci.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY)
-        this._removeHistoryContainer(node);
-    }
-
-    // if we have to delete a lot of urls RemovePage will be slow, it's better
-    // to delete them in bunch and rebuild the full treeView
-    if (URIs.length > REMOVE_PAGES_MAX_SINGLEREMOVES) {
-      // do removal in chunks to avoid passing a too big array to removePages
-      for (var i = 0; i < URIs.length; i += REMOVE_PAGES_CHUNKLEN) {
-        var URIslice = URIs.slice(i, i + REMOVE_PAGES_CHUNKLEN);
-        // set DoBatchNotify (third param) only on the last chunk, so we update
-        // the treeView when we are done.
-        bhist.removePages(URIslice, URIslice.length,
-                          (i + REMOVE_PAGES_CHUNKLEN) >= URIs.length);
-      }
-    }
-    else {
-      // if we have to delete fewer urls, removepage will allow us to avoid
-      // rebuilding the full treeView
-      for (var i = 0; i < URIs.length; ++i)
-        bhist.removePage(URIs[i]);
-    }
-  },
-
-  /**
-   * Removes history visits for an history container node.
-   * @param   [in] aContainerNode
-   *          The container node to remove.
-   */
-  _removeHistoryContainer: function PC_removeHistoryContainer(aContainerNode) {
-    var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
-    if (PlacesUtils.nodeIsHost(aContainerNode)) {
-      // Site container.
-      bhist.removePagesFromHost(aContainerNode.title, true);
-    }
-    else if (PlacesUtils.nodeIsDay(aContainerNode)) {
-      // Day container.
-      var query = aContainerNode.getQueries()[0];
-      var beginTime = query.beginTime;
-      var endTime = query.endTime;
-      NS_ASSERT(query && beginTime && endTime,
-                "A valid date container query should exist!");
-      // We want to exclude beginTime from the removal because
-      // removePagesByTimeframe includes both extremes, while date containers
-      // exclude the lower extreme.  So, if we would not exclude it, we would
-      // end up removing more history than requested.
-      bhist.removePagesByTimeframe(beginTime+1, endTime);
+      var bhist = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
+      if (PlacesUtils.nodeIsHost(node))
+        bhist.removePagesFromHost(node.title, true);
+      else if (PlacesUtils.nodeIsURI(node))
+        bhist.removePage(PlacesUtils._uri(node.uri));
     }
   },
 
@@ -1078,12 +999,10 @@ PlacesController.prototype = {
    *          as part of another operation.
    */
   remove: function PC_remove(aTxnName) {
-    if (!this._hasRemovableSelection(false))
-      return;
-
     NS_ASSERT(aTxnName !== undefined, "Must supply Transaction Name");
+    this._view.saveSelection(this._view.SAVE_SELECTION_REMOVE);
 
-    var root = this._view.getResultNode();
+    var root = this._view.getResult().root;
 
     if (PlacesUtils.nodeIsFolder(root)) 
       this._removeRowsFromBookmarks(aTxnName);
@@ -1098,124 +1017,117 @@ PlacesController.prototype = {
     }
     else
       NS_ASSERT(false, "unexpected root");
+      
+    this._view.restoreSelection();
   },
 
   /**
-   * Fills a DataTransfer object with the content of the selection that can be
-   * dropped elsewhere.
-   * @param   aEvent
-   *          The dragstart event.
+   * Get a TransferDataSet containing the content of the selection that can be
+   * dropped elsewhere. 
+   * @param   dragAction
+   *          The action to happen when dragging, i.e. copy
+   * @returns A TransferDataSet object that can be dragged and dropped 
+   *          elsewhere.
    */
-  setDataTransfer: function PC_setDataTransfer(aEvent) {
-    var dt = aEvent.dataTransfer;
-    var doCopy = ["copyLink", "copy", "link"].indexOf(dt.effectAllowed) != -1;
+  getTransferData: function PC_getTransferData(dragAction) {
+    var nodes = null;
+    if (dragAction == Ci.nsIDragService.DRAGDROP_ACTION_COPY)
+      nodes = this._view.getCopyableSelection();
+    else
+      nodes = this._view.getDragableSelection();
+    var dataSet = new TransferDataSet();
+    for (var i = 0; i < nodes.length; ++i) {
+      var node = nodes[i];
 
-    var result = this._view.getResult();
-    var oldViewer = result.viewer;
-    try {
-      result.viewer = null;
-      var nodes = this._view.getDraggableSelection();
-
-      for (var i = 0; i < nodes.length; ++i) {
-        var node = nodes[i];
-
-        function addData(type, index, overrideURI) {
-          var wrapNode = PlacesUtils.wrapNode(node, type, overrideURI, doCopy);
-          dt.mozSetDataAt(type, wrapNode, index);
-        }
-
-        function addURIData(index, overrideURI) {
-          addData(PlacesUtils.TYPE_X_MOZ_URL, index, overrideURI);
-          addData(PlacesUtils.TYPE_UNICODE, index, overrideURI);
-          addData(PlacesUtils.TYPE_HTML, index, overrideURI);
-        }
-
-        // This order is _important_! It controls how this and other 
-        // applications select data to be inserted based on type.
-        addData(PlacesUtils.TYPE_X_MOZ_PLACE, i);
-
-        // Drop the feed uri for livemark containers
-        if (PlacesUtils.nodeIsLivemarkContainer(node))
-          addURIData(i, PlacesUtils.livemarks.getFeedURI(node.itemId).spec);
-        else if (node.uri)
-          addURIData(i);
+      var data = new TransferData();
+      function addData(type, overrideURI) {
+        data.addDataForFlavour(type, PlacesUtils._wrapString(
+                               PlacesUtils.wrapNode(node, type, overrideURI)));
       }
+
+      function addURIData(overrideURI) {
+        addData(PlacesUtils.TYPE_X_MOZ_URL, overrideURI);
+        addData(PlacesUtils.TYPE_UNICODE, overrideURI);
+        addData(PlacesUtils.TYPE_HTML, overrideURI);
+      }
+
+      // This order is _important_! It controls how this and other 
+      // applications select data to be inserted based on type.
+      addData(PlacesUtils.TYPE_X_MOZ_PLACE);
+      
+      var uri;
+      
+      // Allow dropping the feed uri of live-bookmark folders
+      if (PlacesUtils.nodeIsLivemarkContainer(node))
+        uri = PlacesUtils.livemarks.getFeedURI(node.itemId).spec;
+      
+      addURIData(uri);
+      dataSet.push(data);
     }
-    finally {
-      if (oldViewer)
-        result.viewer = oldViewer;
-    }
+    return dataSet;
   },
 
   /**
    * Copy Bookmarks and Folders to the clipboard
    */
   copy: function PC_copy() {
-    var result = this._view.getResult();
-    var oldViewer = result.viewer;
-    try {
-      result.viewer = null;
-      var nodes = this._view.getSelectionNodes();
+    var nodes = this._view.getCopyableSelection();
 
-      var xferable =  Cc["@mozilla.org/widget/transferable;1"].
-                      createInstance(Ci.nsITransferable);
-      var foundFolder = false, foundLink = false;
-      var copiedFolders = [];
-      var placeString, mozURLString, htmlString, unicodeString;
-      placeString = mozURLString = htmlString = unicodeString = "";
-
-      for (var i = 0; i < nodes.length; ++i) {
-        var node = nodes[i];
-        if (this._shouldSkipNode(node, copiedFolders))
-          continue;
-        if (PlacesUtils.nodeIsFolder(node))
-          copiedFolders.push(node);
+    var xferable = 
+        Cc["@mozilla.org/widget/transferable;1"].
+        createInstance(Ci.nsITransferable);
+    var foundFolder = false, foundLink = false;
+    var copiedFolders = [];
+    var placeString = mozURLString = htmlString = unicodeString = "";
+    
+    for (var i = 0; i < nodes.length; ++i) {
+      var node = nodes[i];
+      if (this._shouldSkipNode(node, copiedFolders))
+        continue;
+      if (PlacesUtils.nodeIsFolder(node))
+        copiedFolders.push(node);
         
-        function generateChunk(type, overrideURI) {
-          var suffix = i < (nodes.length - 1) ? NEWLINE : "";
-          var uri = overrideURI;
+      function generateChunk(type, overrideURI) {
+        var suffix = i < (nodes.length - 1) ? NEWLINE : "";
+        var uri = overrideURI;
         
-          if (PlacesUtils.nodeIsLivemarkContainer(node))
-            uri = PlacesUtils.livemarks.getFeedURI(node.itemId).spec
-
-          mozURLString += (PlacesUtils.wrapNode(node, PlacesUtils.TYPE_X_MOZ_URL,
-                                                 uri) + suffix);
-          unicodeString += (PlacesUtils.wrapNode(node, PlacesUtils.TYPE_UNICODE,
-                                                 uri) + suffix);
-          htmlString += (PlacesUtils.wrapNode(node, PlacesUtils.TYPE_HTML,
-                                                 uri) + suffix);
-
-          var placeSuffix = i < (nodes.length - 1) ? "," : "";
-          var resolveShortcuts = !PlacesControllerDragHelper.canMoveNode(node);
-          return PlacesUtils.wrapNode(node, type, overrideURI, resolveShortcuts) + placeSuffix;
-        }
-
-        // all items wrapped as TYPE_X_MOZ_PLACE
-        placeString += generateChunk(PlacesUtils.TYPE_X_MOZ_PLACE);
+        if (PlacesUtils.nodeIsLivemarkContainer(node))
+          uri = PlacesUtils.livemarks.getFeedURI(node.itemId).spec
+          
+        mozURLString += (PlacesUtils.wrapNode(node, PlacesUtils.TYPE_X_MOZ_URL,
+                                               uri) + suffix);
+        unicodeString += (PlacesUtils.wrapNode(node, PlacesUtils.TYPE_UNICODE,
+                                               uri) + suffix);
+        htmlString += (PlacesUtils.wrapNode(node, PlacesUtils.TYPE_HTML,
+                                               uri) + suffix);
+        
+        var placeSuffix = i < (nodes.length - 1) ? "," : "";
+        return PlacesUtils.wrapNode(node, type, overrideURI) + placeSuffix;
       }
 
-      function addData(type, data) {
-        xferable.addDataFlavor(type);
-        xferable.setTransferData(type, PlacesUIUtils._wrapString(data), data.length * 2);
-      }
-      // This order is _important_! It controls how this and other applications 
-      // select data to be inserted based on type.
-      if (placeString)
-        addData(PlacesUtils.TYPE_X_MOZ_PLACE, placeString);
-      if (mozURLString)
-        addData(PlacesUtils.TYPE_X_MOZ_URL, mozURLString);
-      if (unicodeString)
-        addData(PlacesUtils.TYPE_UNICODE, unicodeString);
-      if (htmlString)
-        addData(PlacesUtils.TYPE_HTML, htmlString);
-
-      if (placeString || unicodeString || htmlString || mozURLString) {
-        PlacesUIUtils.clipboard.setData(xferable, null, Ci.nsIClipboard.kGlobalClipboard);
-      }
+      // all items wrapped as TYPE_X_MOZ_PLACE
+      placeString += generateChunk(PlacesUtils.TYPE_X_MOZ_PLACE);
     }
-    finally {
-      if (oldViewer)
-        result.viewer = oldViewer;
+
+    function addData(type, data) {
+      xferable.addDataFlavor(type);
+      xferable.setTransferData(type, PlacesUtils._wrapString(data), data.length * 2);
+    }
+    // This order is _important_! It controls how this and other applications 
+    // select data to be inserted based on type.
+    if (placeString)
+      addData(PlacesUtils.TYPE_X_MOZ_PLACE, placeString);
+    if (mozURLString)
+      addData(PlacesUtils.TYPE_X_MOZ_URL, mozURLString);
+    if (unicodeString)
+      addData(PlacesUtils.TYPE_UNICODE, unicodeString);
+    if (htmlString)
+      addData(PlacesUtils.TYPE_HTML, htmlString);
+
+    if (placeString || unicodeString || htmlString || mozURLString) {
+      var clipboard = 
+          Cc["@mozilla.org/widget/clipboard;1"].getService(Ci.nsIClipboard);
+      clipboard.setData(xferable, null, Ci.nsIClipboard.kGlobalClipboard);
     }
   },
 
@@ -1254,7 +1166,8 @@ PlacesController.prototype = {
       return xferable;
     }
 
-    var clipboard = PlacesUIUtils.clipboard;
+    var clipboard = Cc["@mozilla.org/widget/clipboard;1"].
+                    getService(Ci.nsIClipboard);
 
     var ip = this._view.insertionPoint;
     if (!ip)
@@ -1278,21 +1191,13 @@ PlacesController.prototype = {
         var transactions = [];
         var index = ip.index;
         for (var i = 0; i < items.length; ++i) {
-          var txn;
-          if (ip.isTag) {
-            var uri = PlacesUtils._uri(items[i].uri);
-            txn = PlacesUIUtils.ptm.tagURI(uri, [ip.itemId]);
-          } 
-          else {
-            // adjusted to make sure that items are given the correct index
-            // transactions insert differently if index == -1 
-            // transaction will enqueue the item.
-            if (ip.index > -1)
-              index = ip.index + i;
-            txn = PlacesUIUtils.makeTransaction(items[i], type.value,
-                                                ip.itemId, index, true);
-          }
-          transactions.push(txn);
+          // adjusted to make sure that items are given the correct index -
+          // transactions insert differently if index == -1
+          if (ip.index > -1)
+            index = ip.index + i;
+          transactions.push(PlacesUtils.makeTransaction(items[i], type.value, 
+                                                        ip.itemId, index,
+                                                        true));
         }
         return transactions;
       }
@@ -1311,16 +1216,8 @@ PlacesController.prototype = {
     var transactions = getTransactions([PlacesUtils.TYPE_X_MOZ_PLACE,
                                         PlacesUtils.TYPE_X_MOZ_URL, 
                                         PlacesUtils.TYPE_UNICODE]);
-    var txn = PlacesUIUtils.ptm.aggregateTransactions("Paste", transactions);
-    PlacesUIUtils.ptm.doTransaction(txn);
-
-    // select the pasted items, they should be consecutive
-    var insertedNodeIds = [];
-    for (var i = 0; i < transactions.length; ++i)
-      insertedNodeIds.push(PlacesUtils.bookmarks
-                                      .getIdForItemAt(ip.itemId, ip.index + i));
-    if (insertedNodeIds.length > 0)
-      this._view.selectItems(insertedNodeIds, false);
+    var txn = PlacesUtils.ptm.aggregateTransactions("Paste", transactions);
+    PlacesUtils.ptm.commitTransaction(txn);
   }
 };
 
@@ -1331,18 +1228,6 @@ PlacesController.prototype = {
  * Drop functions are passed the view that is being dropped on. 
  */
 var PlacesControllerDragHelper = {
-  /**
-   * DOM Element currently being dragged over
-   */
-  currentDropTarget: null,
-
-  /**
-   * Current nsIDOMDataTransfer
-   * We need to cache this because we don't have access to the event in the
-   * treeView's canDrop or drop methods, and session.dataTransfer would not be
-   * filled for drag and drop from external sources (eg. the OS).
-   */
-  currentDataTransfer: null,
 
   /**
    * Determines if the mouse is currently being dragged over a child node of
@@ -1364,260 +1249,140 @@ var PlacesControllerDragHelper = {
   },
 
   /**
+   * DOM Element currently being dragged over
+   */
+  currentDropTarget: null,
+
+  /**
    * @returns The current active drag session. Returns null if there is none.
    */
-  getSession: function PCDH__getSession() {
+  getSession: function VO__getSession() {
     var dragService = Cc["@mozilla.org/widget/dragservice;1"].
                       getService(Ci.nsIDragService);
     return dragService.getCurrentSession();
   },
 
   /**
-   * Extract the first accepted flavor from a flavors array.
-   * @param aFlavors
-   *        The flavors array.
-   */
-  getFirstValidFlavor: function PCDH_getFirstValidFlavor(aFlavors) {
-    for (var i = 0; i < aFlavors.length; i++) {
-      if (this.GENERIC_VIEW_DROP_TYPES.indexOf(aFlavors[i]) != -1)
-        return aFlavors[i];
-    }
-    return null;
-  },
-
-  /**
    * Determines whether or not the data currently being dragged can be dropped
-   * on a places view.
-   * @param ip
-   *        The insertion point where the items should be dropped
+   * on the specified view. 
+   * @param   view
+   *          An object implementing the AVI
+   * @param   orientation
+   *          The orientation of the drop
+   * @returns true if the data being dragged is of a type supported by the view
+   *          it is being dragged over, false otherwise. 
    */
-  canDrop: function PCDH_canDrop(ip) {
-    var dt = this.currentDataTransfer;
-    var dropCount = dt.mozItemCount;
+  canDrop: function PCDH_canDrop(view, orientation) {
+    var parent = view.getResult().root;
+    if (PlacesUtils.nodeIsReadOnly(parent) || 
+        !PlacesUtils.nodeIsFolder(parent))
+      return false;
 
-    // Check every dragged item
-    for (var i = 0; i < dropCount; i++) {
-      var flavor = this.getFirstValidFlavor(dt.mozTypesAt(i));
-      if (!flavor)
-        return false;
-
-      var data = dt.mozGetDataAt(flavor, i);
-
-      // urls can be dropped on any insertionpoint
-      // XXXmano: // Remember: this method is called for each dragover event!
-      // Thus we shouldn't use unwrapNodes here at all if possible.
-      // I think it would be OK to accept bogus data here (e.g. text which was
-      // somehow wrapped as TAB_DROP_TYPE, this is not in our control, and
-      // will just case the actual drop to be a no-op), and only rule out valid
-      // expected cases, which are either unsupported flavors, or items which
-      // cannot be dropped in the current insertionpoint. The last case will
-      // likely force us to use unwrapNodes for the private data types of
-      // places.
-      if (flavor == TAB_DROP_TYPE)
-        continue;
-
-      try {
-        var dragged = PlacesUtils.unwrapNodes(data, flavor)[0];
-      } catch (e) {
-        return false;
-      }
-
-      // Only bookmarks and urls can be dropped into tag containers
-      if (ip.isTag && ip.orientation == Ci.nsITreeView.DROP_ON &&
-          dragged.type != PlacesUtils.TYPE_X_MOZ_URL &&
-          (dragged.type != PlacesUtils.TYPE_X_MOZ_PLACE ||
-           /^place:/.test(dragged.uri)))
-        return false;
-
-      // The following loop disallows the dropping of a folder on itself or
-      // on any of its descendants.
-      if (dragged.type == PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER ||
-          /^place:/.test(dragged.uri)) {
-        var parentId = ip.itemId;
-        while (parentId != PlacesUtils.placesRootId) {
-          if (dragged.concreteId == parentId || dragged.id == parentId)
-            return false;
-          parentId = PlacesUtils.bookmarks.getFolderIdForItem(parentId);
-        }
+    var session = this.getSession();
+    if (session) {
+      if (orientation != NHRVO.DROP_ON)
+        var types = view.peerDropTypes;
+      else
+        types = view.childDropTypes;
+      for (var i = 0; i < types.length; ++i) {
+        if (session.isDataFlavorSupported(types[i]))
+          return true;
       }
     }
-    return true;
+    return false;
   },
 
-  
-  /**
-   * Determines if a node can be moved.
-   * 
-   * @param   aNode
-   *          A nsINavHistoryResultNode node.
-   * @returns True if the node can be moved, false otherwise.
+  /** 
+   * Creates a Transeferable object that can be filled with data of types
+   * supported by a view. 
+   * @param   session
+   *          The active drag session
+   * @param   view
+   *          An object implementing the AVI that supplies a list of 
+   *          supported droppable content types
+   * @param   orientation
+   *          The orientation of the drop
+   * @returns An object implementing nsITransferable that can receive data
+   *          dropped onto a view. 
    */
-  canMoveNode:
-  function PCDH_canMoveNode(aNode) {
-    // can't move query root
-    if (!aNode.parent)
-      return false;
-
-    var parentId = PlacesUtils.getConcreteItemId(aNode.parent);
-    var concreteId = PlacesUtils.getConcreteItemId(aNode);
-
-    // can't move children of tag containers
-    if (PlacesUtils.nodeIsTagQuery(aNode.parent))
-      return false;
-
-    // can't move children of read-only containers
-    if (PlacesUtils.nodeIsReadOnly(aNode.parent))
-      return false;
-
-    // check for special folders, etc
-    if (PlacesUtils.nodeIsContainer(aNode) &&
-        !this.canMoveContainer(aNode.itemId, parentId))
-      return false;
-
-    return true;
-  },
-
-  /**
-   * Determines if a container node can be moved.
-   * 
-   * @param   aId
-   *          A bookmark folder id.
-   * @param   [optional] aParentId
-   *          The parent id of the folder.
-   * @returns True if the container can be moved to the target.
-   */
-  canMoveContainer:
-  function PCDH_canMoveContainer(aId, aParentId) {
-    if (aId == -1)
-      return false;
-
-    // Disallow moving of roots and special folders
-    const ROOTS = [PlacesUtils.placesRootId, PlacesUtils.bookmarksMenuFolderId,
-                   PlacesUtils.tagsFolderId, PlacesUtils.unfiledBookmarksFolderId,
-                   PlacesUtils.toolbarFolderId];
-    if (ROOTS.indexOf(aId) != -1)
-      return false;
-
-    // Get parent id if necessary
-    if (aParentId == null || aParentId == -1)
-      aParentId = PlacesUtils.bookmarks.getFolderIdForItem(aId);
-
-    if (PlacesUtils.bookmarks.getFolderReadonly(aParentId))
-      return false;
-
-    return true;
+  _initTransferable: function PCDH__initTransferable(session, view, orientation) {
+    var xferable = Cc["@mozilla.org/widget/transferable;1"].
+                   createInstance(Ci.nsITransferable);
+    if (orientation != NHRVO.DROP_ON) 
+      var types = view.peerDropTypes;
+    else
+      types = view.childDropTypes;    
+    for (var i = 0; i < types.length; ++i) {
+      if (session.isDataFlavorSupported(types[i]));
+        xferable.addDataFlavor(types[i]);
+    }
+    return xferable;
   },
 
   /**
    * Handles the drop of one or more items onto a view.
+   * @param   sourceView
+   *          The AVI-implementing object that started the drop. 
+   * @param   targetView
+   *          The AVI-implementing object that received the drop. 
    * @param   insertionPoint
    *          The insertion point where the items should be dropped
    */
-  onDrop: function PCDH_onDrop(insertionPoint) {
-    var dt = this.currentDataTransfer;
-    var doCopy = ["copy", "link"].indexOf(dt.dropEffect) != -1;
-
+  onDrop: function PCDH_onDrop(sourceView, targetView, insertionPoint) {
+    var session = this.getSession();
+    var copy = session.dragAction & Ci.nsIDragService.DRAGDROP_ACTION_COPY;
     var transactions = [];
-    var dropCount = dt.mozItemCount;
+    var xferable = this._initTransferable(session, targetView, 
+                                          insertionPoint.orientation);
+    var dropCount = session.numDropItems;
+    
     var movedCount = 0;
+    
     for (var i = 0; i < dropCount; ++i) {
-      var flavor = this.getFirstValidFlavor(dt.mozTypesAt(i));
-      if (!flavor)
-        return false;
-
-      var data = dt.mozGetDataAt(flavor, i);
-      var unwrapped;
-      if (flavor != TAB_DROP_TYPE) {
-        // There's only ever one in the D&D case.
-        unwrapped = PlacesUtils.unwrapNodes(data, flavor)[0];
-      }
-      else if (data instanceof XULElement && data.localName == "tab" &&
-               data.ownerDocument.defaultView instanceof ChromeWindow) {
-        var uri = data.linkedBrowser.currentURI;
-        var spec = uri ? uri.spec : "about:blank";
-        var title = data.label;
-        unwrapped = { uri: spec,
-                      title: data.label,
-                      type: PlacesUtils.TYPE_X_MOZ_URL};
-      }
-      else
-        throw("bogus data was passed as a tab")
-
+      session.getData(xferable, i);
+    
+      var data = { }, flavor = { };
+      xferable.getAnyTransferData(flavor, data, { });
+      data.value.QueryInterface(Ci.nsISupportsString);
+      
+      // There's only ever one in the D&D case. 
+      var unwrapped = PlacesUtils.unwrapNodes(data.value.data, 
+                                              flavor.value)[0];
       var index = insertionPoint.index;
-
+      
       // Adjust insertion index to prevent reversal of dragged items. When you
       // drag multiple elts upward: need to increment index or each successive
       // elt will be inserted at the same index, each above the previous.
-      var dragginUp = insertionPoint.itemId == unwrapped.parent &&
-                      index < PlacesUtils.bookmarks.getItemIndex(unwrapped.id);
-      if (index != -1 && dragginUp)
-        index+= movedCount++;
-
-      // if dragging over a tag container we should tag the item
-      if (insertionPoint.isTag &&
-          insertionPoint.orientation == Ci.nsITreeView.DROP_ON) {
-        var uri = PlacesUtils._uri(unwrapped.uri);
-        var tagItemId = insertionPoint.itemId;
-        transactions.push(PlacesUIUtils.ptm.tagURI(uri,[tagItemId]));
+      if ((index != -1) && ((index < unwrapped.index) ||
+                           (unwrapped.folder && (index < unwrapped.folder.index)))) {
+        index = index + movedCount;
+        movedCount++;
       }
-      else {
-        transactions.push(PlacesUIUtils.makeTransaction(unwrapped,
-                          flavor, insertionPoint.itemId,
-                          index, doCopy));
-      }
+        
+      transactions.push(PlacesUtils.makeTransaction(unwrapped,
+                        flavor.value, insertionPoint.itemId,
+                        index, copy));
     }
 
-    var txn = PlacesUIUtils.ptm.aggregateTransactions("DropItems", transactions);
-    PlacesUIUtils.ptm.doTransaction(txn);
-  },
-
-  /**
-   * Checks if we can insert into a container.
-   * @param   aContainer
-   *          The container were we are want to drop
-   */
-  disallowInsertion: function(aContainer) {
-    NS_ASSERT(aContainer, "empty container");
-    // allow dropping into Tag containers
-    if (PlacesUtils.nodeIsTagQuery(aContainer))
-      return false;
-    // Disallow insertion of items under readonly folders
-    return (!PlacesUtils.nodeIsFolder(aContainer) ||
-             PlacesUtils.nodeIsReadOnly(aContainer));
-  },
-
-  placesFlavors: [PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER,
-                  PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR,
-                  PlacesUtils.TYPE_X_MOZ_PLACE],
-
-  // The order matters.
-  GENERIC_VIEW_DROP_TYPES: [PlacesUtils.TYPE_X_MOZ_PLACE_CONTAINER,
-                            PlacesUtils.TYPE_X_MOZ_PLACE_SEPARATOR,
-                            PlacesUtils.TYPE_X_MOZ_PLACE,
-                            PlacesUtils.TYPE_X_MOZ_URL,
-                            TAB_DROP_TYPE,
-                            PlacesUtils.TYPE_UNICODE],
-
-  /**
-   * Returns our flavourSet
-   */
-  get flavourSet() {
-    delete this.flavourSet;
-    var flavourSet = new FlavourSet();
-    var acceptedDropFlavours = this.GENERIC_VIEW_DROP_TYPES;
-    acceptedDropFlavours.forEach(flavourSet.appendFlavour, flavourSet);
-    return this.flavourSet = flavourSet;
+    var txn = PlacesUtils.ptm.aggregateTransactions("DropItems", transactions);
+    PlacesUtils.ptm.commitTransaction(txn);
   }
 };
 
 function goUpdatePlacesCommands() {
-  // Get the controller for one of the places commands.
-  var placesController = doGetPlacesControllerForCommand("placesCmd_open");
-  if (!placesController)
-    return;
+  var placesController;
+  try {
+    // Or any other command...
+    placesController = top.document.commandDispatcher
+                          .getControllerForCommand("placesCmd_open");
+  }
+  catch(ex) { return; }
 
   function updatePlacesCommand(aCommand) {
-    goSetCommandEnabled(aCommand, placesController.isCommandEnabled(aCommand));
+    var enabled = false;
+    if (placesController)
+      enabled = placesController.isCommandEnabled(aCommand);
+    goSetCommandEnabled(aCommand, enabled);
   }
 
   updatePlacesCommand("placesCmd_open");
@@ -1629,42 +1394,8 @@ function goUpdatePlacesCommands() {
   updatePlacesCommand("placesCmd_new:separator");
   updatePlacesCommand("placesCmd_show:info");
   updatePlacesCommand("placesCmd_moveBookmarks");
+  updatePlacesCommand("placesCmd_setAsBookmarksToolbarFolder");
   updatePlacesCommand("placesCmd_reload");
   updatePlacesCommand("placesCmd_reloadMicrosummary");
   updatePlacesCommand("placesCmd_sortBy:name");
-  updatePlacesCommand("placesCmd_cut");
-  updatePlacesCommand("placesCmd_copy");
-  updatePlacesCommand("placesCmd_paste");
-  updatePlacesCommand("placesCmd_delete");
 }
-
-function doGetPlacesControllerForCommand(aCommand)
-{
-  var placesController = top.document.commandDispatcher
-                            .getControllerForCommand(aCommand);
-  if (!placesController) {
-    // If building commands for a context menu, look for an element in the
-    // current popup.
-    var element = document.popupNode;
-    while (element) {
-      var isContextMenuShown = ("_contextMenuShown" in element) && element._contextMenuShown;
-      // Check for the parent menupopup or the hbox used for toolbars
-      if ((element.localName == "menupopup" || element.localName == "hbox") &&
-          isContextMenuShown) {
-        placesController = element.controllers.getControllerForCommand(aCommand);
-        break;
-      }
-      element = element.parentNode;
-    }
-  }
-
-  return placesController;
-}
-
-function goDoPlacesCommand(aCommand)
-{
-  var controller = doGetPlacesControllerForCommand(aCommand);
-  if (controller && controller.isCommandEnabled(aCommand))
-    controller.doCommand(aCommand);
-}
-

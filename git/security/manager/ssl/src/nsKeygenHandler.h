@@ -41,8 +41,11 @@
 #define _NSKEYGENHANDLER_H_
 // Form Processor 
 #include "nsIFormProcessor.h" 
-#include "nsVoidArray.h" 
-#include "nsTArray.h" 
+
+typedef struct SECKeySizeChoiceInfoStr {
+    PRUnichar *name;
+    int size;
+} SECKeySizeChoiceInfo;
 
 nsresult GetSlotWithMechanism(PRUint32 mechanism,
                               nsIInterfaceRequestor *ctx,
@@ -51,7 +54,7 @@ nsresult GetSlotWithMechanism(PRUint32 mechanism,
 #define DEFAULT_RSA_KEYGEN_PE 65537L
 #define DEFAULT_RSA_KEYGEN_ALG SEC_OID_PKCS1_MD5_WITH_RSA_ENCRYPTION
 
-SECKEYECParams *decode_ec_params(const char *curve);
+SECKEYECParams *decode_ec_params(char *curve);
 
 class nsKeygenFormProcessor : public nsIFormProcessor { 
 public: 
@@ -64,7 +67,7 @@ public:
                           nsAString& aValue); 
 
   NS_IMETHOD ProvideContent(const nsAString& aFormType, 
-                            nsTArray<nsString>& aContent, 
+                            nsVoidArray& aContent, 
                             nsAString& aAttribute); 
   NS_DECL_ISUPPORTS 
 
@@ -78,14 +81,6 @@ protected:
 private:
   nsCOMPtr<nsIInterfaceRequestor> m_ctx;
 
-  typedef struct SECKeySizeChoiceInfoStr {
-      nsString name;
-      int size;
-  } SECKeySizeChoiceInfo;
-
-  enum { number_of_key_size_choices = 2 };
-
-  SECKeySizeChoiceInfo mSECKeySizeChoiceList[number_of_key_size_choices];
-};
+}; 
 
 #endif //_NSKEYGENHANDLER_H_

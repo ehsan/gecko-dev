@@ -36,14 +36,9 @@
  * ***** END LICENSE BLOCK *****
  */
 
-// Use the internal webserver for regular update pings
-gPrefs.setCharPref("extensions.update.url", "http://localhost:4444/");
-
 const checkListener = {
   _onUpdateStartedCalled: false,
   _onUpdateEndedCalled: false,
-  _onAddonUpdateStartedCount: 0,
-  _onAddonUpdateEndedCount: 0,
 
   // nsIAddonUpdateCheckListener
   onUpdateStarted: function onUpdateStarted() {
@@ -53,37 +48,29 @@ const checkListener = {
   // nsIAddonUpdateCheckListener
   onUpdateEnded: function onUpdateEnded() {
     this._onUpdateEndedCalled = true;
-    run_test_pt2();
   },
 
   // nsIAddonUpdateCheckListener
   onAddonUpdateStarted: function onAddonUpdateStarted(aAddon) {
-    this._onAddonUpdateStartedCount++;
+    do_throw("Unexpected call to onAddonUpdateStarted!");
   },
 
   // nsIAddonUpdateCheckListener
   onAddonUpdateEnded: function onAddonUpdateEnded(aAddon, aStatus) {
-    this._onAddonUpdateEndedCount++;
+    do_throw("Unexpected call to onAddonUpdateEnded!");
   }
 }
-
-// Get the HTTP server.
-do_load_httpd_js();
-var testserver;
 
 /**
  * Run the test.
  */
 function run_test() {
-  // Start the http server. Will return empty update info but that's ok
-  testserver = new nsHttpServer();
-  testserver.start(4444);
-
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "5", "1.9");
   startupEM();
   const Ci = Components.interfaces;
   gEM.update([], 0, Ci.nsIExtensionManager.UPDATE_SYNC_COMPATIBILITY, checkListener);
   do_test_pending();
+  do_timeout(5000, "run_test_pt2()");
 }
 
 function run_test_pt2() {
@@ -91,6 +78,5 @@ function run_test_pt2() {
   do_check_true(checkListener._onUpdateStartedCalled);
   dump("Checking onUpdateEnded\n");
   do_check_true(checkListener._onUpdateEndedCalled);
-  do_check_eq(checkListener._onAddonUpdateStartedCount, checkListener._onAddonUpdateEndedCount);
-  testserver.stop(do_test_finished);
+  do_test_finished();
 }

@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   David Hyatt <hyatt@netscape.com> (Original Author)
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,11 +44,19 @@
 #include "imgIDecoder.h"
 #include "imgIContainer.h"
 #include "imgIDecoderObserver.h"
+#include "gfxIImageFrame.h"
 #include "nsBMPDecoder.h"
 
 // {CB3EDE1A-0FA5-4e27-AAFE-0F7801E5A1F1}
 #define NS_ICODECODER_CID \
 { 0xcb3ede1a, 0xfa5, 0x4e27, { 0xaa, 0xfe, 0xf, 0x78, 0x1, 0xe5, 0xa1, 0xf1 } }
+
+#if defined(XP_WIN) || defined(XP_OS2) || defined(XP_BEOS) || defined(MOZ_WIDGET_PHOTON)
+#define GFXFORMATALPHA8 gfxIFormats::BGR_A8
+#else
+#define USE_RGBA1
+#define GFXFORMATALPHA8 gfxIFormats::RGB_A8
+#endif
 
 struct IconDirEntry
 {
@@ -79,7 +86,13 @@ public:
   virtual ~nsICODecoder();
 
 private:
+  /** Callback for ReadSegments to avoid copying the data */
+  static NS_METHOD ReadSegCb(nsIInputStream* aIn, void* aClosure,
+                             const char* aFromRawSegment, PRUint32 aToOffset,
+                             PRUint32 aCount, PRUint32 *aWriteCount);
+
   // Private helper methods
+  nsresult ProcessData(const char* aBuffer, PRUint32 aCount);
   void ProcessDirEntry(IconDirEntry& aTarget);
   void ProcessInfoHeader();
 
@@ -88,9 +101,9 @@ private:
   PRUint32 CalcAlphaRowSize();
 
 private:
-  nsCOMPtr<imgIContainer> mImage;
   nsCOMPtr<imgIDecoderObserver> mObserver;
-  PRUint32 mFlags;
+  nsCOMPtr<imgIContainer> mImage;
+  nsCOMPtr<gfxIImageFrame> mFrame;
   
   PRUint32 mPos;
   PRUint16 mNumIcons;
@@ -115,7 +128,6 @@ private:
   PRPackedBool mHaveAlphaData;
   PRPackedBool mIsCursor;
   PRPackedBool mDecodingAndMask;
-  PRPackedBool mError;
 };
 
 

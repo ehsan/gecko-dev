@@ -35,8 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsJSNPRuntime_h_
-#define nsJSNPRuntime_h_
+#ifndef nsJSNPRuntime_h__
+#define nsJSNPRuntime_h__
 
 #include "nscore.h"
 #include "jsapi.h"
@@ -90,8 +90,6 @@ protected:
   static bool NP_RemoveProperty(NPObject *obj, NPIdentifier property);
   static bool NP_Enumerate(NPObject *npobj, NPIdentifier **identifier,
                            uint32_t *count);
-  static bool NP_Construct(NPObject *obj, const NPVariant *args,
-                           uint32_t argCount, NPVariant *result);
 
 public:
   static NPClass sJSObjWrapperNPClass;
@@ -108,4 +106,4 @@ bool
 JSValToNPVariant(NPP npp, JSContext *cx, jsval val, NPVariant *variant);
 
 
-#endif // nsJSNPRuntime_h_
+#endif // nsJSNPRuntime_h__

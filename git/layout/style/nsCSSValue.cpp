@@ -45,7 +45,6 @@
 #include "nsIDocument.h"
 #include "nsContentUtils.h"
 #include "nsIPrincipal.h"
-#include "nsMathUtils.h"
 
 // Paint forcing
 #include "prenv.h"
@@ -53,10 +52,10 @@
 nsCSSValue::nsCSSValue(PRInt32 aValue, nsCSSUnit aUnit)
   : mUnit(aUnit)
 {
-  NS_ASSERTION(aUnit == eCSSUnit_Integer || aUnit == eCSSUnit_Enumerated ||
-               aUnit == eCSSUnit_EnumColor, "not an int value");
-  if (aUnit == eCSSUnit_Integer || aUnit == eCSSUnit_Enumerated ||
-      aUnit == eCSSUnit_EnumColor) {
+  NS_ASSERTION((eCSSUnit_Integer == aUnit) ||
+               (eCSSUnit_Enumerated == aUnit), "not an int value");
+  if ((eCSSUnit_Integer == aUnit) ||
+      (eCSSUnit_Enumerated == aUnit)) {
     mValue.mInt = aValue;
   }
   else {
@@ -81,8 +80,8 @@ nsCSSValue::nsCSSValue(float aValue, nsCSSUnit aUnit)
 nsCSSValue::nsCSSValue(const nsString& aValue, nsCSSUnit aUnit)
   : mUnit(aUnit)
 {
-  NS_ASSERTION(UnitHasStringValue(), "not a string value");
-  if (UnitHasStringValue()) {
+  NS_ASSERTION((eCSSUnit_String <= aUnit) && (aUnit <= eCSSUnit_Attr), "not a string value");
+  if ((eCSSUnit_String <= aUnit) && (aUnit <= eCSSUnit_Attr)) {
     mValue.mString = BufferFromString(aValue);
     if (NS_UNLIKELY(!mValue.mString)) {
       // XXXbz not much we can do here; just make sure that our promise of a
@@ -96,10 +95,16 @@ nsCSSValue::nsCSSValue(const nsString& aValue, nsCSSUnit aUnit)
   }
 }
 
+nsCSSValue::nsCSSValue(nscolor aValue)
+  : mUnit(eCSSUnit_Color)
+{
+  mValue.mColor = aValue;
+}
+
 nsCSSValue::nsCSSValue(nsCSSValue::Array* aValue, nsCSSUnit aUnit)
   : mUnit(aUnit)
 {
-  NS_ASSERTION(eCSSUnit_Array <= aUnit && aUnit <= eCSSUnit_Function,
+  NS_ASSERTION(eCSSUnit_Array <= aUnit && aUnit <= eCSSUnit_Counters,
                "bad unit");
   mValue.mArray = aValue;
   mValue.mArray->AddRef();
@@ -119,50 +124,33 @@ nsCSSValue::nsCSSValue(nsCSSValue::Image* aValue)
   mValue.mImage->AddRef();
 }
 
-nsCSSValue::nsCSSValue(nsCSSValueGradient* aValue)
-  : mUnit(eCSSUnit_Gradient)
-{
-  mValue.mGradient = aValue;
-  mValue.mGradient->AddRef();
-}
-
 nsCSSValue::nsCSSValue(const nsCSSValue& aCopy)
   : mUnit(aCopy.mUnit)
 {
-  if (mUnit <= eCSSUnit_RectIsAuto) {
-    // nothing to do, but put this important case first
-  }
-  else if (eCSSUnit_Percent <= mUnit) {
-    mValue.mFloat = aCopy.mValue.mFloat;
-  }
-  else if (UnitHasStringValue()) {
+  if ((eCSSUnit_String <= mUnit) && (mUnit <= eCSSUnit_Attr)) {
     mValue.mString = aCopy.mValue.mString;
     mValue.mString->AddRef();
   }
-  else if (eCSSUnit_Integer <= mUnit && mUnit <= eCSSUnit_EnumColor) {
+  else if ((eCSSUnit_Integer <= mUnit) && (mUnit <= eCSSUnit_Enumerated)) {
     mValue.mInt = aCopy.mValue.mInt;
   }
-  else if (eCSSUnit_Color == mUnit) {
+  else if (eCSSUnit_Color == mUnit){
     mValue.mColor = aCopy.mValue.mColor;
   }
-  else if (eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Function) {
+  else if (eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Counters) {
     mValue.mArray = aCopy.mValue.mArray;
     mValue.mArray->AddRef();
   }
-  else if (eCSSUnit_URL == mUnit) {
+  else if (eCSSUnit_URL == mUnit){
     mValue.mURL = aCopy.mValue.mURL;
     mValue.mURL->AddRef();
   }
-  else if (eCSSUnit_Image == mUnit) {
+  else if (eCSSUnit_Image == mUnit){
     mValue.mImage = aCopy.mValue.mImage;
     mValue.mImage->AddRef();
   }
-  else if (eCSSUnit_Gradient == mUnit) {
-    mValue.mGradient = aCopy.mValue.mGradient;
-    mValue.mGradient->AddRef();
-  }
   else {
-    NS_NOTREACHED("unknown unit");
+    mValue.mFloat = aCopy.mValue.mFloat;
   }
 }
 
@@ -178,20 +166,20 @@ nsCSSValue& nsCSSValue::operator=(const nsCSSValue& aCopy)
 PRBool nsCSSValue::operator==(const nsCSSValue& aOther) const
 {
   if (mUnit == aOther.mUnit) {
-    if (mUnit <= eCSSUnit_RectIsAuto) {
+    if (mUnit <= eCSSUnit_System_Font) {
       return PR_TRUE;
     }
-    else if (UnitHasStringValue()) {
+    else if ((eCSSUnit_String <= mUnit) && (mUnit <= eCSSUnit_Attr)) {
       return (NS_strcmp(GetBufferValue(mValue.mString),
                         GetBufferValue(aOther.mValue.mString)) == 0);
     }
-    else if ((eCSSUnit_Integer <= mUnit) && (mUnit <= eCSSUnit_EnumColor)) {
+    else if ((eCSSUnit_Integer <= mUnit) && (mUnit <= eCSSUnit_Enumerated)) {
       return mValue.mInt == aOther.mValue.mInt;
     }
     else if (eCSSUnit_Color == mUnit) {
       return mValue.mColor == aOther.mValue.mColor;
     }
-    else if (eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Function) {
+    else if (eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Counters) {
       return *mValue.mArray == *aOther.mValue.mArray;
     }
     else if (eCSSUnit_URL == mUnit) {
@@ -200,29 +188,11 @@ PRBool nsCSSValue::operator==(const nsCSSValue& aOther) const
     else if (eCSSUnit_Image == mUnit) {
       return *mValue.mImage == *aOther.mValue.mImage;
     }
-    else if (eCSSUnit_Gradient == mUnit) {
-      return *mValue.mGradient == *aOther.mValue.mGradient;
-    }
     else {
       return mValue.mFloat == aOther.mValue.mFloat;
     }
   }
   return PR_FALSE;
-}
-
-double nsCSSValue::GetAngleValueInRadians() const
-{
-  double angle = GetFloatValue();
-
-  switch (GetUnit()) {
-  case eCSSUnit_Radian: return angle;
-  case eCSSUnit_Degree: return angle * M_PI / 180.0;
-  case eCSSUnit_Grad:   return angle * M_PI / 200.0;
-
-  default:
-    NS_NOTREACHED("unrecognized angular unit");
-    return 0.0;
-  }
 }
 
 imgIRequest* nsCSSValue::GetImageValue() const
@@ -239,16 +209,28 @@ nscoord nsCSSValue::GetLengthTwips() const
     switch (mUnit) {
     case eCSSUnit_Inch:        
       return NS_INCHES_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Foot:        
+      return NS_FEET_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Mile:        
+      return NS_MILES_TO_TWIPS(mValue.mFloat);
 
     case eCSSUnit_Millimeter:
       return NS_MILLIMETERS_TO_TWIPS(mValue.mFloat);
     case eCSSUnit_Centimeter:
       return NS_CENTIMETERS_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Meter:
+      return NS_METERS_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Kilometer:
+      return NS_KILOMETERS_TO_TWIPS(mValue.mFloat);
 
     case eCSSUnit_Point:
       return NS_POINTS_TO_TWIPS(mValue.mFloat);
     case eCSSUnit_Pica:
       return NS_PICAS_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Didot:
+      return NS_DIDOTS_TO_TWIPS(mValue.mFloat);
+    case eCSSUnit_Cicero:
+      return NS_CICEROS_TO_TWIPS(mValue.mFloat);
     default:
       NS_ERROR("should never get here");
       break;
@@ -259,27 +241,25 @@ nscoord nsCSSValue::GetLengthTwips() const
 
 void nsCSSValue::DoReset()
 {
-  if (UnitHasStringValue()) {
+  if (eCSSUnit_String <= mUnit && mUnit <= eCSSUnit_Attr) {
     mValue.mString->Release();
-  } else if (eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Function) {
+  } else if (eCSSUnit_Array <= mUnit && mUnit <= eCSSUnit_Counters) {
     mValue.mArray->Release();
   } else if (eCSSUnit_URL == mUnit) {
     mValue.mURL->Release();
   } else if (eCSSUnit_Image == mUnit) {
     mValue.mImage->Release();
-  } else if (eCSSUnit_Gradient == mUnit) {
-    mValue.mGradient->Release();
   }
   mUnit = eCSSUnit_Null;
 }
 
 void nsCSSValue::SetIntValue(PRInt32 aValue, nsCSSUnit aUnit)
 {
-  NS_ASSERTION(aUnit == eCSSUnit_Integer || aUnit == eCSSUnit_Enumerated ||
-               aUnit == eCSSUnit_EnumColor, "not an int value");
+  NS_ASSERTION((eCSSUnit_Integer == aUnit) ||
+               (eCSSUnit_Enumerated == aUnit), "not an int value");
   Reset();
-  if (aUnit == eCSSUnit_Integer || aUnit == eCSSUnit_Enumerated ||
-      aUnit == eCSSUnit_EnumColor) {
+  if ((eCSSUnit_Integer == aUnit) ||
+      (eCSSUnit_Enumerated == aUnit)) {
     mUnit = aUnit;
     mValue.mInt = aValue;
   }
@@ -305,18 +285,17 @@ void nsCSSValue::SetFloatValue(float aValue, nsCSSUnit aUnit)
 void nsCSSValue::SetStringValue(const nsString& aValue,
                                 nsCSSUnit aUnit)
 {
+  NS_ASSERTION((eCSSUnit_String <= aUnit) && (aUnit <= eCSSUnit_Attr), "not a string unit");
   Reset();
-  mUnit = aUnit;
-  NS_ASSERTION(UnitHasStringValue(), "not a string unit");
-  if (UnitHasStringValue()) {
+  if ((eCSSUnit_String <= aUnit) && (aUnit <= eCSSUnit_Attr)) {
+    mUnit = aUnit;
     mValue.mString = BufferFromString(aValue);
     if (NS_UNLIKELY(!mValue.mString)) {
       // XXXbz not much we can do here; just make sure that our promise of a
       // non-null mValue.mString holds for string units.
       mUnit = eCSSUnit_Null;
     }
-  } else
-    mUnit = eCSSUnit_Null;
+  }
 }
 
 void nsCSSValue::SetColorValue(nscolor aValue)
@@ -328,7 +307,7 @@ void nsCSSValue::SetColorValue(nscolor aValue)
 
 void nsCSSValue::SetArrayValue(nsCSSValue::Array* aValue, nsCSSUnit aUnit)
 {
-  NS_ASSERTION(eCSSUnit_Array <= aUnit && aUnit <= eCSSUnit_Function,
+  NS_ASSERTION(eCSSUnit_Array <= aUnit && aUnit <= eCSSUnit_Counters,
                "bad unit");
   Reset();
   mUnit = aUnit;
@@ -350,14 +329,6 @@ void nsCSSValue::SetImageValue(nsCSSValue::Image* aValue)
   mUnit = eCSSUnit_Image;
   mValue.mImage = aValue;
   mValue.mImage->AddRef();
-}
-
-void nsCSSValue::SetGradientValue(nsCSSValueGradient* aValue)
-{
-  Reset();
-  mUnit = eCSSUnit_Gradient;
-  mValue.mGradient = aValue;
-  mValue.mGradient->AddRef();
 }
 
 void nsCSSValue::SetAutoValue()
@@ -384,12 +355,6 @@ void nsCSSValue::SetNoneValue()
   mUnit = eCSSUnit_None;
 }
 
-void nsCSSValue::SetAllValue()
-{
-  Reset();
-  mUnit = eCSSUnit_All;
-}
-
 void nsCSSValue::SetNormalValue()
 {
   Reset();
@@ -400,24 +365,6 @@ void nsCSSValue::SetSystemFontValue()
 {
   Reset();
   mUnit = eCSSUnit_System_Font;
-}
-
-void nsCSSValue::SetDummyValue()
-{
-  Reset();
-  mUnit = eCSSUnit_Dummy;
-}
-
-void nsCSSValue::SetDummyInheritValue()
-{
-  Reset();
-  mUnit = eCSSUnit_DummyInherit;
-}
-
-void nsCSSValue::SetRectIsAutoValue()
-{
-  Reset();
-  mUnit = eCSSUnit_RectIsAuto;
 }
 
 void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
@@ -433,50 +380,6 @@ void nsCSSValue::StartImageLoad(nsIDocument* aDocument) const
     nsCSSValue* writable = const_cast<nsCSSValue*>(this);
     writable->SetImageValue(image);
   }
-}
-
-PRBool nsCSSValue::IsNonTransparentColor() const
-{
-  // We have the value in the form it was specified in at this point, so we
-  // have to look for both the keyword 'transparent' and its equivalent in
-  // rgba notation.
-  nsDependentString buf;
-  return
-    (mUnit == eCSSUnit_Color && NS_GET_A(GetColorValue()) > 0) ||
-    (mUnit == eCSSUnit_Ident &&
-     !nsGkAtoms::transparent->Equals(GetStringValue(buf))) ||
-    (mUnit == eCSSUnit_EnumColor);
-}
-
-nsCSSValue::Array*
-nsCSSValue::InitFunction(nsCSSKeyword aFunctionId, PRUint32 aNumArgs)
-{
-  nsRefPtr<nsCSSValue::Array> func = Array::Create(aNumArgs + 1);
-  if (!func) {
-    return nsnull;
-  }
-
-  func->Item(0).SetIntValue(aFunctionId, eCSSUnit_Enumerated);
-  SetArrayValue(func, eCSSUnit_Function);
-
-  return func;
-}
-
-PRBool
-nsCSSValue::EqualsFunction(nsCSSKeyword aFunctionId) const
-{
-  if (mUnit != eCSSUnit_Function) {
-    return PR_FALSE;
-  }
-
-  nsCSSValue::Array* func = mValue.mArray;
-  NS_ABORT_IF_FALSE(func && func->Count() >= 1 &&
-                    func->Item(0).GetUnit() == eCSSUnit_Enumerated,
-                    "illegally structured function value");
-
-  nsCSSKeyword thisFunctionId =
-    static_cast<nsCSSKeyword>(func->Item(0).GetIntValue());
-  return thisFunctionId == aFunctionId;
 }
 
 // static
@@ -510,12 +413,15 @@ nsCSSValue::URL::URL(nsIURI* aURI, nsStringBuffer* aString, nsIURI* aReferrer,
     mRefCnt(0)
 {
   NS_PRECONDITION(aOriginPrincipal, "Must have an origin principal");
+  
   mString->AddRef();
+  MOZ_COUNT_CTOR(nsCSSValue::URL);
 }
 
 nsCSSValue::URL::~URL()
 {
   mString->Release();
+  MOZ_COUNT_DTOR(nsCSSValue::URL);
 }
 
 PRBool
@@ -553,6 +459,8 @@ nsCSSValue::Image::Image(nsIURI* aURI, nsStringBuffer* aString,
                          nsIDocument* aDocument)
   : URL(aURI, aString, aReferrer, aOriginPrincipal)
 {
+  MOZ_COUNT_CTOR(nsCSSValue::Image);
+
   if (mURI &&
       nsContentUtils::CanLoadImage(mURI, aDocument, aDocument,
                                    aOriginPrincipal)) {
@@ -564,36 +472,5 @@ nsCSSValue::Image::Image(nsIURI* aURI, nsStringBuffer* aString,
 
 nsCSSValue::Image::~Image()
 {
-}
-
-nsCSSValueGradientStop::nsCSSValueGradientStop()
-  : mLocation(eCSSUnit_None),
-    mColor(eCSSUnit_Null)
-{
-  MOZ_COUNT_CTOR(nsCSSValueGradientStop);
-}
-
-nsCSSValueGradientStop::nsCSSValueGradientStop(const nsCSSValueGradientStop& aOther)
-  : mLocation(aOther.mLocation),
-    mColor(aOther.mColor)
-{
-  MOZ_COUNT_CTOR(nsCSSValueGradientStop);
-}
-
-nsCSSValueGradientStop::~nsCSSValueGradientStop()
-{
-  MOZ_COUNT_DTOR(nsCSSValueGradientStop);
-}
-
-nsCSSValueGradient::nsCSSValueGradient(PRBool aIsRadial,
-                                       PRBool aIsRepeating)
-  : mIsRadial(aIsRadial),
-    mIsRepeating(aIsRepeating),
-    mBgPosX(eCSSUnit_None),
-    mBgPosY(eCSSUnit_None),
-    mAngle(eCSSUnit_None),
-    mRadialShape(eCSSUnit_None),
-    mRadialSize(eCSSUnit_None),
-    mRefCnt(0)
-{
+  MOZ_COUNT_DTOR(nsCSSValue::Image);
 }

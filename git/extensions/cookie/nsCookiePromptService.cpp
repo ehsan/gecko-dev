@@ -39,7 +39,6 @@
 #include "nsICookie.h"
 #include "nsICookieAcceptDialog.h"
 #include "nsIDOMWindow.h"
-#include "nsPIDOMWindow.h"
 #include "nsIWindowWatcher.h"
 #include "nsIServiceManager.h"
 #include "nsString.h"
@@ -91,27 +90,16 @@ nsCookiePromptService::CookieDialog(nsIDOMWindow *aParent,
   nsCOMPtr<nsIWindowWatcher> wwatcher = do_GetService(NS_WINDOWWATCHER_CONTRACTID, &rv);
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsISupports> arguments = do_QueryInterface(block);
-  nsCOMPtr<nsIDOMWindow> dialog;
-
-  nsCOMPtr<nsIDOMWindow> parent(aParent);
-  if (!parent) // if no parent provided, consult the window watcher:
+  nsCOMPtr<nsIDOMWindow> parent = aParent;
+  if (!parent) {
     wwatcher->GetActiveWindow(getter_AddRefs(parent));
-
-  if (parent) {
-    nsCOMPtr<nsPIDOMWindow> privateParent(do_QueryInterface(parent));
-    if (privateParent)
-      privateParent = privateParent->GetPrivateRoot();
-    parent = do_QueryInterface(privateParent);
   }
 
-  // The cookie dialog will be modal for the root chrome window rather than the
-  // tab containing the permission-requesting page.  This removes confusion
-  // about which monitor is displaying the dialog (see bug 470356), but also
-  // avoids unwanted tab switches (see bug 405239).
+  nsCOMPtr<nsISupports> arguments = do_QueryInterface(block);
+  nsCOMPtr<nsIDOMWindow> dialog;
   rv = wwatcher->OpenWindow(parent, "chrome://cookie/content/cookieAcceptDialog.xul", "_blank",
-                            "centerscreen,chrome,modal,titlebar", arguments,
-                            getter_AddRefs(dialog));
+                             "centerscreen,chrome,modal,titlebar", arguments,
+                             getter_AddRefs(dialog));
 
   if (NS_FAILED(rv)) return rv;
 

@@ -44,16 +44,55 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= docshell
+ifeq ($(OS_ARCH),WINNT)
+XPIDL_MODULE	= docshell_base
+endif
 LIBRARY_NAME	= basedocshell_s
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
+REQUIRES	= xpcom \
+		  string \
+		  caps \
+		  necko \
+		  gfx \
+		  thebes \
+		  layout \
+		  content \
+		  dom \
+		  js \
+		  uriloader \
+		  exthandler \
+		  htmlparser \
+		  view \
+		  pref \
+		  locale \
+		  webbrwsr \
+		  xpconnect \
+		  widget \
+		  shistory \
+		  intl \
+		  plugin \
+		  webshell \
+		  chardet \
+		  uconv \
+		  xuldoc \
+		  find \
+		  nkcache \
+		  composer \
+		  commandhandler \
+		  editor \
+		  windowwatcher \
+		  imglib2 \
+		  mimetype \
+		  $(NULL)
 
 SDK_XPIDLSRCS = \
 		nsIGlobalHistory.idl \
 		$(NULL)
 
 XPIDLSRCS	= \
+		nsCDocShell.idl			\
 		nsCDefaultURIFixup.idl		\
 		nsIDocShell.idl			\
 		nsIDocShellLoadInfo.idl	\
@@ -75,15 +114,13 @@ XPIDLSRCS	= \
 		nsIEditorDocShell.idl		\
 		nsIWebPageDescriptor.idl	\
 		nsIURIClassifier.idl		\
-		nsIChannelClassifier.idl	\
-		nsIDownloadHistory.idl          \
-		nsILoadContext.idl              \
 		$(NULL)
 
 EXPORTS		= nsDocShellLoadTypes.h
 
 CPPSRCS		= \
 		nsDocShell.cpp		\
+		nsWebShell.cpp		\
 		nsDocShellLoadInfo.cpp		\
 		nsDocShellEditorData.cpp	\
 		nsDocShellTransferableHooks.cpp \
@@ -94,7 +131,6 @@ CPPSRCS		= \
 		nsGlobalHistory2Adapter.cpp \
 		nsWebNavigationInfo.cpp \
 		nsAboutRedirector.cpp \
-		nsDownloadHistory.cpp \
 		$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a
@@ -103,6 +139,4 @@ FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
 
-LOCAL_INCLUDES += -I$(srcdir)/../shistory/src \
-		-I$(srcdir)/../../layout/base \
-		$(NULL)
+LOCAL_INCLUDES += -I$(srcdir)/../shistory/src

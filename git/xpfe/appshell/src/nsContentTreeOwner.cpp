@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 3; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: set ts=2 sw=2 et tw=79:
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -67,7 +66,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIWebNavigation.h"
-#include "nsIJSContextStack.h"
 
 #include "nsIDOMDocument.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -75,8 +73,6 @@
 
 // CIDs
 static NS_DEFINE_CID(kWindowMediatorCID, NS_WINDOWMEDIATOR_CID);
-
-static const char *sJSStackContractID="@mozilla.org/js/xpc/ContextStack;1";
 
 //*****************************************************************************
 //*** nsSiteWindow2 declaration
@@ -122,6 +118,7 @@ NS_IMPL_RELEASE(nsContentTreeOwner)
 NS_INTERFACE_MAP_BEGIN(nsContentTreeOwner)
    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDocShellTreeOwner)
    NS_INTERFACE_MAP_ENTRY(nsIDocShellTreeOwner)
+   NS_INTERFACE_MAP_ENTRY(nsIDocShellTreeOwner_MOZILLA_1_8_BRANCH)
    NS_INTERFACE_MAP_ENTRY(nsIBaseWindow)
    NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome)
    NS_INTERFACE_MAP_ENTRY(nsIWebBrowserChrome2)
@@ -306,21 +303,17 @@ NS_IMETHODIMP nsContentTreeOwner::FindItemWithName(const PRUnichar* aName,
    return NS_OK;      
 }
 
-NS_IMETHODIMP
-nsContentTreeOwner::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
-                                      PRBool aPrimary, PRBool aTargetable,
-                                      const nsAString& aID)
+NS_IMETHODIMP nsContentTreeOwner::ContentShellAdded(nsIDocShellTreeItem* aContentShell,
+   PRBool aPrimary, const PRUnichar* aID)
 {
-  NS_ENSURE_STATE(mXULWindow);
-  return mXULWindow->ContentShellAdded(aContentShell, aPrimary, aTargetable,
-                                       aID);
-}
+   NS_ENSURE_STATE(mXULWindow);
+   if (aID) {
+     return mXULWindow->ContentShellAdded(aContentShell, aPrimary, PR_FALSE,
+                                          nsDependentString(aID));
+   }
 
-NS_IMETHODIMP
-nsContentTreeOwner::ContentShellRemoved(nsIDocShellTreeItem* aContentShell)
-{
-  NS_ENSURE_STATE(mXULWindow);
-  return mXULWindow->ContentShellRemoved(aContentShell);
+   return mXULWindow->ContentShellAdded(aContentShell, aPrimary, PR_FALSE,
+                                        EmptyString());
 }
 
 NS_IMETHODIMP nsContentTreeOwner::GetPrimaryContentShell(nsIDocShellTreeItem** aShell)
@@ -784,34 +777,6 @@ NS_IMETHODIMP nsContentTreeOwner::SetTitle(const PRUnichar* aTitle)
   return mXULWindow->SetTitle(title.get());
 }
 
-NS_STACK_CLASS class NullJSContextPusher {
-public:
-  NullJSContextPusher() {
-    mService = do_GetService(sJSStackContractID);
-    if (mService) {
-#ifdef DEBUG
-      nsresult rv =
-#endif
-        mService->Push(nsnull);
-      NS_ASSERTION(NS_SUCCEEDED(rv), "Mismatched push/pop");
-    }
-  }
-
-  ~NullJSContextPusher() {
-    if (mService) {
-      JSContext *cx;
-#ifdef DEBUG
-      nsresult rv =
-#endif
-        mService->Pop(&cx);
-      NS_ASSERTION(NS_SUCCEEDED(rv) && !cx, "Bad pop!");
-    }
-  }
-
-private:
-  nsCOMPtr<nsIThreadJSContextStack> mService;
-};
-
 //*****************************************************************************
 // nsContentTreeOwner: nsIWindowProvider
 //*****************************************************************************   
@@ -909,15 +874,32 @@ nsContentTreeOwner::ProvideWindow(nsIDOMWindow* aParent,
   }
 
   *aWindowIsNew = (containerPref != nsIBrowserDOMWindow::OPEN_CURRENTWINDOW);
+  
+  // Get a new rendering area from the browserDOMWin.  To make this
+  // safe for cases when it'll try to return an existing window or
+  // something, get it with a null URI.
+  return browserDOMWin->OpenURI(nsnull, aParent, containerPref,
+                                nsIBrowserDOMWindow::OPEN_NEW, aReturn);
+}
 
-  {
-    NullJSContextPusher pusher;
+//*****************************************************************************
+// nsContentTreeOwner::nsIDocShellTreeOwner_MOZILLA_1_8_BRANCH
+//*****************************************************************************   
+NS_IMETHODIMP
+nsContentTreeOwner::ContentShellAdded2(nsIDocShellTreeItem* aContentShell,
+                                       PRBool aPrimary, PRBool aTargetable,
+                                       const nsAString& aID)
+{
+  NS_ENSURE_STATE(mXULWindow);
+  return mXULWindow->ContentShellAdded(aContentShell, aPrimary, aTargetable,
+                                       aID);
+}
 
-    // Get a new rendering area from the browserDOMWin.  We don't want
-    // to be starting any loads here, so get it with a null URI.
-    return browserDOMWin->OpenURI(nsnull, aParent, containerPref,
-                                  nsIBrowserDOMWindow::OPEN_NEW, aReturn);
-  }
+NS_IMETHODIMP
+nsContentTreeOwner::ContentShellRemoved(nsIDocShellTreeItem* aContentShell)
+{
+  NS_ENSURE_STATE(mXULWindow);
+  return mXULWindow->ContentShellRemoved(aContentShell);
 }
 
 //*****************************************************************************
@@ -945,7 +927,7 @@ void nsContentTreeOwner::XULWindow(nsXULWindow* aXULWindow)
             docShellElement->GetAttribute(NS_LITERAL_STRING("titlemodifier"), mWindowTitleModifier);
             docShellElement->GetAttribute(NS_LITERAL_STRING("titlepreface"), mTitlePreface);
             
-#if defined(XP_MACOSX)
+#if defined(XP_MACOSX) && defined(MOZ_XUL_APP)
             // On OS X, treat the titlemodifier like it's the titledefault, and don't ever append
             // the separator + appname.
             if (mTitleDefault.IsEmpty()) {

@@ -71,7 +71,7 @@ nsXBLProtoImplField::~nsXBLProtoImplField()
   if (mFieldText)
     nsMemory::Free(mFieldText);
   NS_Free(mName);
-  NS_CONTENT_DELETE_LIST_MEMBER(nsXBLProtoImplField, this, mNext);
+  delete mNext;
 }
 
 void 
@@ -94,7 +94,6 @@ nsXBLProtoImplField::AppendFieldText(const nsAString& aText)
 nsresult
 nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                                   JSObject* aBoundNode,
-                                  nsIPrincipal* aPrincipal,
                                   nsIURI* aBindingDocURI,
                                   PRBool* aDidInstall) const
 {
@@ -120,18 +119,16 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
   nsCAutoString uriSpec;
   aBindingDocURI->GetSpec(uriSpec);
   
-  JSContext* cx = (JSContext*) aContext->GetNativeContext();
-  NS_ASSERTION(!::JS_IsExceptionPending(cx),
-               "Shouldn't get here when an exception is pending!");
-  
   // compile the literal string
+  // XXX Could we produce a better principal here?  Should be able
+  // to, really!
   PRBool undefined;
   nsCOMPtr<nsIScriptContext> context = aContext;
   rv = context->EvaluateStringWithValue(nsDependentString(mFieldText,
                                                           mFieldTextLength), 
                                         aBoundNode,
-                                        aPrincipal, uriSpec.get(),
-                                        mLineNumber, JSVERSION_LATEST,
+                                        nsnull, uriSpec.get(),
+                                        mLineNumber, nsnull,
                                         (void*) &result, &undefined);
   if (NS_FAILED(rv))
     return rv;
@@ -142,6 +139,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
 
   // Define the evaluated result as a JS property
   nsDependentString name(mName);
+  JSContext* cx = (JSContext*) aContext->GetNativeContext();
   JSAutoRequest ar(cx);
   if (!::JS_DefineUCProperty(cx, aBoundNode,
                              reinterpret_cast<const jschar*>(mName), 

@@ -44,7 +44,6 @@
 
 #include "nsRuleNode.h"
 #include "nsIAtom.h"
-#include "nsCSSPseudoElements.h"
 
 class nsPresContext;
 
@@ -73,8 +72,7 @@ class nsPresContext;
 class nsStyleContext
 {
 public:
-  nsStyleContext(nsStyleContext* aParent, nsIAtom* aPseudoTag,
-                 nsCSSPseudoElements::Type aPseudoType,
+  nsStyleContext(nsStyleContext* aParent, nsIAtom* aPseudoTag, 
                  nsRuleNode* aRuleNode, nsPresContext* aPresContext) NS_HIDDEN;
   ~nsStyleContext() NS_HIDDEN;
 
@@ -82,20 +80,12 @@ public:
   NS_HIDDEN_(void) Destroy();
 
   nsrefcnt AddRef() {
-    if (mRefCnt == PR_UINT32_MAX) {
-      NS_WARNING("refcount overflow, leaking object");
-      return mRefCnt;
-    }
     ++mRefCnt;
     NS_LOG_ADDREF(this, mRefCnt, "nsStyleContext", sizeof(nsStyleContext));
     return mRefCnt;
   }
 
   nsrefcnt Release() {
-    if (mRefCnt == PR_UINT32_MAX) {
-      NS_WARNING("refcount overflow, leaking object");
-      return mRefCnt;
-    }
     --mRefCnt;
     NS_LOG_RELEASE(this, mRefCnt, "nsStyleContext");
     if (mRefCnt == 0) {
@@ -109,28 +99,17 @@ public:
 
   nsStyleContext* GetParent() const { return mParent; }
 
-  nsIAtom* GetPseudo() const { return mPseudoTag; }
-  nsCSSPseudoElements::Type GetPseudoType() const {
-    return static_cast<nsCSSPseudoElements::Type>(mBits >>
-                                                  NS_STYLE_CONTEXT_TYPE_SHIFT);
-  }
+  nsStyleContext* GetFirstChild() const { return mChild; }
+
+  nsIAtom* GetPseudoType() const { return mPseudoTag; }
 
   NS_HIDDEN_(already_AddRefed<nsStyleContext>)
   FindChildWithRules(const nsIAtom* aPseudoTag, nsRuleNode* aRules);
 
-  // Does this style context or any of its ancestors have text
-  // decorations?
-  PRBool HasTextDecorations() const
-    { return !!(mBits & NS_STYLE_HAS_TEXT_DECORATIONS); }
+  NS_HIDDEN_(PRBool)    Equals(const nsStyleContext* aOther) const;
+  PRBool    HasTextDecorations() { return mBits & NS_STYLE_HAS_TEXT_DECORATIONS; }
 
-  // Does this style context represent the style for a pseudo-element or
-  // inherit data from such a style context?  Whether this returns true
-  // is equivalent to whether it or any of its ancestors returns
-  // non-null for GetPseudo.
-  PRBool HasPseudoElementData() const
-    { return !!(mBits & NS_STYLE_HAS_PSEUDO_ELEMENT_DATA); }
-
-  NS_HIDDEN_(void) SetStyle(nsStyleStructID aSID, void* aStruct);
+  NS_HIDDEN_(void) SetStyle(nsStyleStructID aSID, nsStyleStruct* aStruct);
 
   nsRuleNode* GetRuleNode() { return mRuleNode; }
   void AddStyleBit(const PRUint32& aBit) { mBits |= aBit; }
@@ -155,8 +134,11 @@ public:
    *
    * The typesafe functions below are preferred to the use of this
    * function.
+   *
+   * See also |nsIFrame::GetStyleData| and the other global
+   * |GetStyleData| in nsIFrame.h.
    */
-  NS_HIDDEN_(const void*) NS_FASTCALL GetStyleData(nsStyleStructID aSID);
+  NS_HIDDEN_(const nsStyleStruct*) NS_FASTCALL GetStyleData(nsStyleStructID aSID);
 
   /**
    * Define typesafe getter functions for each style struct by
@@ -172,13 +154,16 @@ public:
   #undef STYLE_STRUCT
 
 
-  NS_HIDDEN_(const void*) PeekStyleData(nsStyleStructID aSID);
+  NS_HIDDEN_(const nsStyleStruct*) PeekStyleData(nsStyleStructID aSID);
 
-  NS_HIDDEN_(void*) GetUniqueStyleData(const nsStyleStructID& aSID);
+  NS_HIDDEN_(nsStyleStruct*) GetUniqueStyleData(const nsStyleStructID& aSID);
 
   NS_HIDDEN_(nsChangeHint) CalcStyleDifference(nsStyleContext* aOther);
 
 #ifdef DEBUG
+  NS_HIDDEN_(void) DumpRegressionData(nsPresContext* aPresContext, FILE* out,
+                                      PRInt32 aIndent);
+
   NS_HIDDEN_(void) List(FILE* out, PRInt32 aIndent);
 #endif
 
@@ -188,7 +173,7 @@ protected:
 
   NS_HIDDEN_(void) ApplyStyleFixups(nsPresContext* aPresContext);
 
-  nsStyleContext* const mParent;
+  nsStyleContext* mParent;
 
   // Children are kept in two circularly-linked lists.  The list anchor
   // is not part of the list (null for empty), and we point to the first
@@ -201,8 +186,8 @@ protected:
   nsStyleContext* mPrevSibling;
   nsStyleContext* mNextSibling;
 
-  // If this style context is for a pseudo-element or anonymous box,
-  // the relevant atom.
+  // If this style context is for a pseudo-element, the pseudo-element
+  // atom.  Otherwise, null.
   nsCOMPtr<nsIAtom> mPseudoTag;
 
   // The rule node is the node in the lexicographic tree of rule nodes
@@ -228,7 +213,6 @@ protected:
 NS_HIDDEN_(already_AddRefed<nsStyleContext>)
 NS_NewStyleContext(nsStyleContext* aParentContext,
                    nsIAtom* aPseudoTag,
-                   nsCSSPseudoElements::Type aPseudoType,
                    nsRuleNode* aRuleNode,
                    nsPresContext* aPresContext);
 #endif

@@ -69,7 +69,7 @@ NS_IMETHODIMP nsXPCToolsCompiler::GetBinDir(nsILocalFile * *aBinDir)
     return NS_OK;
 }
 
-static void ErrorReporter(JSContext *cx, const char *message,
+JS_STATIC_DLL_CALLBACK(void) ErrorReporter(JSContext *cx, const char *message,
                           JSErrorReport *report)
 {
     printf("compile error!\n");
@@ -78,7 +78,7 @@ static void ErrorReporter(JSContext *cx, const char *message,
 static JSClass global_class = {
     "nsXPCToolsCompiler::global", 0,
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   nsnull
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub
 };
 
 /* void CompileFile (in nsILocalFile aFile, in PRBool strict); */
@@ -93,8 +93,8 @@ NS_IMETHODIMP nsXPCToolsCompiler::CompileFile(nsILocalFile *aFile, PRBool strict
         return NS_ERROR_FAILURE;
 
     // get the xpconnect native call context
-    nsAXPCNativeCallContext *callContext = nsnull;
-    xpc->GetCurrentNativeCallContext(&callContext);
+    nsCOMPtr<nsIXPCNativeCallContext> callContext;
+    xpc->GetCurrentNativeCallContext(getter_AddRefs(callContext));
     if(!callContext)
         return NS_ERROR_FAILURE;
 

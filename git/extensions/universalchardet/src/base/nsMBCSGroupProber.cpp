@@ -39,7 +39,6 @@
 #include <stdio.h>
 
 #include "nsMBCSGroupProber.h"
-#include "nsUniversalDetector.h"
 
 #if defined(DEBUG_chardet) || defined(DEBUG_jgmyers)
 const char *ProberName[] = 
@@ -55,26 +54,15 @@ const char *ProberName[] =
 
 #endif
 
-nsMBCSGroupProber::nsMBCSGroupProber(PRUint32 aLanguageFilter)
+nsMBCSGroupProber::nsMBCSGroupProber()
 {
-  for (PRUint32 i = 0; i < NUM_OF_PROBERS; i++)
-    mProbers[i] = nsnull;
-
   mProbers[0] = new nsUTF8Prober();
-  if (aLanguageFilter & NS_FILTER_JAPANESE) 
-  {
-    mProbers[1] = new nsSJISProber(aLanguageFilter == NS_FILTER_JAPANESE);
-    mProbers[2] = new nsEUCJPProber(aLanguageFilter == NS_FILTER_JAPANESE);
-  }
-  if (aLanguageFilter & NS_FILTER_CHINESE_SIMPLIFIED)
-    mProbers[3] = new nsGB18030Prober(aLanguageFilter == NS_FILTER_CHINESE_SIMPLIFIED);
-  if (aLanguageFilter & NS_FILTER_KOREAN)
-    mProbers[4] = new nsEUCKRProber(aLanguageFilter == NS_FILTER_KOREAN);
-  if (aLanguageFilter & NS_FILTER_CHINESE_TRADITIONAL) 
-  {
-    mProbers[5] = new nsBig5Prober(aLanguageFilter == NS_FILTER_CHINESE_TRADITIONAL);
-    mProbers[6] = new nsEUCTWProber(aLanguageFilter == NS_FILTER_CHINESE_TRADITIONAL);
-  }
+  mProbers[1] = new nsSJISProber();
+  mProbers[2] = new nsEUCJPProber();
+  mProbers[3] = new nsGB18030Prober();
+  mProbers[4] = new nsEUCKRProber();
+  mProbers[5] = new nsBig5Prober();
+  mProbers[6] = new nsEUCTWProber();
   Reset();
 }
 
@@ -146,6 +134,16 @@ nsProbingState nsMBCSGroupProber::HandleData(const char* aBuf, PRUint32 aLen)
             mState = eFoundIt;
             return mState;
           }
+          else if (st == eNotMe)
+          {
+            mIsActive[i] = PR_FALSE;
+            mActiveNum--;
+            if (mActiveNum <= 0)
+              {
+                mState = eNotMe;
+                return mState;
+              }
+          }
         }
       }
     }
@@ -156,12 +154,22 @@ nsProbingState nsMBCSGroupProber::HandleData(const char* aBuf, PRUint32 aLen)
     {
       if (!mIsActive[i])
         continue;
-      st = mProbers[i]->HandleData(aBuf + start, aLen - start);
+      st = mProbers[i]->HandleData(aBuf + start, aLen + 1 - start);
       if (st == eFoundIt)
       {
         mBestGuess = i;
         mState = eFoundIt;
         return mState;
+      }
+      else if (st == eNotMe)
+      {
+        mIsActive[i] = PR_FALSE;
+        mActiveNum--;
+        if (mActiveNum <= 0)
+        {
+          mState = eNotMe;
+          return mState;
+        }
       }
     }
   }

@@ -78,10 +78,6 @@ public:
                             PRInt32 aSrcLength, 
                             PRInt32 * aDestLength);
     NS_IMETHOD Reset();
-
-    virtual void SetInputErrorBehavior(PRInt32 aBehavior);
-
-    virtual PRUnichar GetCharacterForUnMapped();
     
     // Encoder methods:
     
@@ -213,18 +209,6 @@ IConvAdaptor::Reset()
 }
 
 
-void
-IConvAdaptor::SetInputErrorBehavior(PRInt32 aBehavior)
-{
-}
-
-
-PRUnichar
-IConvAdaptor::GetCharacterForUnMapped()
-{
-    return PRUnichar(0xfffd); // Unicode REPLACEMENT CHARACTER
-}
-
 // convert unicode data into some charset.
 nsresult 
 IConvAdaptor::Convert(const PRUnichar * aSrc, 
@@ -271,7 +255,7 @@ IConvAdaptor::SetOutputErrorBehavior(PRInt32 aBehavior,
         mReplaceOnError = PR_FALSE;
         return NS_OK;
     }
-    else if (aBehavior == nsIUnicodeEncoder::kOnError_Replace) {
+    else if (aBehavior != nsIUnicodeEncoder::kOnError_Replace) {
         mReplaceOnError = PR_TRUE;
         mReplaceChar = aChar;
         return NS_OK;

@@ -49,8 +49,7 @@ nsresult nsUnicodeDecodeHelper::ConvertByTable(
                                      PRInt32 * aDestLength, 
                                      uScanClassID aScanClass,
                                      uShiftInTable * aShiftInTable, 
-                                     uMappingTable  * aMappingTable,
-                                     PRBool aErrorSignal)
+                                     uMappingTable  * aMappingTable)
 {
   const char * src = aSrc;
   PRInt32 srcLen = *aSrcLength;
@@ -83,10 +82,6 @@ nsresult nsUnicodeDecodeHelper::ConvertByTable(
         // somehow some table miss the 0x00 - 0x20 part
         *dest = med;
       } else {
-        if (aErrorSignal) {
-          res = NS_ERROR_ILLEGAL_INPUT;
-          break;
-        }
         // Unicode replacement value for unmappable chars
         *dest = 0xfffd;
       }
@@ -112,8 +107,7 @@ nsresult nsUnicodeDecodeHelper::ConvertByMultiTable(
                                      PRInt32 aTableCount, 
                                      const uRange * aRangeArray, 
                                      uScanClassID * aScanClassArray,
-                                     uMappingTable ** aMappingTable,
-                                     PRBool aErrorSignal)
+                                     uMappingTable ** aMappingTable)
 {
   PRUint8 * src = (PRUint8 *)aSrc;
   PRInt32 srcLen = *aSrcLength;
@@ -149,8 +143,7 @@ nsresult nsUnicodeDecodeHelper::ConvertByMultiTable(
 
     if(passRangeCheck && (! passScan))
     {
-      if (res != NS_ERROR_ILLEGAL_INPUT)
-        res = NS_OK_UDEC_MOREINPUT;
+      res = NS_OK_UDEC_MOREINPUT;
       break;
     }
     if(! done)
@@ -189,15 +182,7 @@ nsresult nsUnicodeDecodeHelper::ConvertByMultiTable(
           }
         }
         // treat it as NSBR if bcr == 1 and it is 0xa0
-        if ((1==bcr)&&(*src == (PRUint8)0xa0 )) {
-          *dest = 0x00a0;
-        } else {
-          if (aErrorSignal) {
-            res = NS_ERROR_ILLEGAL_INPUT;
-            break;
-          }
-          *dest = 0xfffd;
-        }
+        *dest = ((1==bcr)&&(*src == (PRUint8)0xa0 )) ? 0x00a0 : 0xfffd;
       }
     }
 
@@ -219,8 +204,7 @@ nsresult nsUnicodeDecodeHelper::ConvertByFastTable(
                                      PRUnichar * aDest, 
                                      PRInt32 * aDestLength, 
                                      const PRUnichar * aFastTable, 
-                                     PRInt32 aTableSize,
-                                     PRBool aErrorSignal)
+                                     PRInt32 aTableSize)
 {
   PRUint8 * src = (PRUint8 *)aSrc;
   PRUint8 * srcEnd = src;
@@ -235,14 +219,7 @@ nsresult nsUnicodeDecodeHelper::ConvertByFastTable(
     res = NS_OK;
   }
 
-  for (; src<srcEnd;) {
-    *dest = aFastTable[*src++];
-    if (*dest == 0xfffd && aErrorSignal) {
-      res = NS_ERROR_ILLEGAL_INPUT;
-      break;
-    }
-    dest++;
-  }
+  for (; src<srcEnd;) *dest++ = aFastTable[*src++];
 
   *aSrcLength = src - (PRUint8 *)aSrc;
   *aDestLength  = dest - aDest;

@@ -44,6 +44,7 @@
 #include "nsILocalFile.h"
 #include "nsISimpleEnumerator.h"
 #include "nsString.h"
+#include "nsVoidArray.h"
 #include "prenv.h"
 #include "prsystem.h"
 #include "nsDirectoryServiceUtils.h"

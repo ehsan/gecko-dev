@@ -70,6 +70,10 @@ NS_NewPreContentIterator(nsIContentIterator** aInstancePtrResult);
 
 static nsContentList *gCachedContentList;
 
+nsBaseContentList::nsBaseContentList()
+{
+}
+
 nsBaseContentList::~nsBaseContentList()
 {
 }
@@ -82,18 +86,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsBaseContentList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mElements)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-#define NS_CONTENT_LIST_INTERFACES(_class)                                    \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsINodeList)                             \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMNodeList)
-
-
 // QueryInterface implementation for nsBaseContentList
-NS_INTERFACE_TABLE_HEAD(nsBaseContentList)
-  NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsBaseContentList)
-    NS_CONTENT_LIST_INTERFACES(nsBaseContentList)
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsBaseContentList)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsBaseContentList)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNodeList)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMNodeList)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(NodeList)
 NS_INTERFACE_MAP_END
 
@@ -113,7 +109,7 @@ nsBaseContentList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsBaseContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsISupports *tmp = GetNodeAt(aIndex);
+  nsISupports *tmp = mElements.SafeObjectAt(aIndex);
 
   if (!tmp) {
     *aReturn = nsnull;
@@ -124,12 +120,17 @@ nsBaseContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
   return CallQueryInterface(tmp, aReturn);
 }
 
-nsIContent*
-nsBaseContentList::GetNodeAt(PRUint32 aIndex)
+void
+nsBaseContentList::AppendElement(nsIContent *aContent)
 {
-  return mElements.SafeObjectAt(aIndex);
+  mElements.AppendObject(aContent);
 }
 
+void
+nsBaseContentList::RemoveElement(nsIContent *aContent)
+{
+  mElements.RemoveObject(aContent);
+}
 
 PRInt32
 nsBaseContentList::IndexOf(nsIContent *aContent, PRBool aDoFlush)
@@ -137,32 +138,19 @@ nsBaseContentList::IndexOf(nsIContent *aContent, PRBool aDoFlush)
   return mElements.IndexOf(aContent);
 }
 
-PRInt32
-nsBaseContentList::IndexOf(nsIContent* aContent)
+void
+nsBaseContentList::Reset()
 {
-  return IndexOf(aContent, PR_TRUE);
+  mElements.Clear();
 }
 
-void nsBaseContentList::AppendElement(nsIContent *aContent) 
+// static
+void
+nsBaseContentList::Shutdown()
 {
-  mElements.AppendObject(aContent);
-}
-
-void nsBaseContentList::RemoveElement(nsIContent *aContent) 
-{
-  mElements.RemoveObject(aContent);
-}
-
-void nsBaseContentList::InsertElementAt(nsIContent* aContent, PRInt32 aIndex)
-{
-  NS_ASSERTION(aContent, "Element to insert must not be null");
-  mElements.InsertObjectAt(aContent, aIndex);
-}
-
-//static
-void nsBaseContentList::Shutdown() {
   NS_IF_RELEASE(gCachedContentList);
 }
+
 
 // nsFormContentList
 
@@ -197,14 +185,14 @@ struct ContentListHashEntry : public PLDHashEntryHdr
   nsContentList* mContentList;
 };
 
-static PLDHashNumber
+PR_STATIC_CALLBACK(PLDHashNumber)
 ContentListHashtableHashKey(PLDHashTable *table, const void *key)
 {
   const nsContentListKey* list = static_cast<const nsContentListKey *>(key);
   return list->GetHash();
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 ContentListHashtableMatchEntry(PLDHashTable *table,
                                const PLDHashEntryHdr *entry,
                                const void *key)
@@ -359,15 +347,9 @@ nsContentList::~nsContentList()
 
 
 // QueryInterface implementation for nsContentList
-NS_INTERFACE_TABLE_HEAD(nsContentList)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsContentList)
-    NS_CONTENT_LIST_INTERFACES(nsContentList)
-    NS_INTERFACE_TABLE_ENTRY(nsContentList, nsIHTMLCollection)
-    NS_INTERFACE_TABLE_ENTRY(nsContentList, nsIDOMHTMLCollection)
-    NS_INTERFACE_TABLE_ENTRY(nsContentList, nsIMutationObserver)
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+NS_INTERFACE_MAP_BEGIN(nsContentList)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMHTMLCollection)
+  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(ContentList)
 NS_INTERFACE_MAP_END_INHERITING(nsBaseContentList)
 
@@ -375,6 +357,13 @@ NS_INTERFACE_MAP_END_INHERITING(nsBaseContentList)
 NS_IMPL_ADDREF_INHERITED(nsContentList, nsBaseContentList)
 NS_IMPL_RELEASE_INHERITED(nsContentList, nsBaseContentList)
 
+
+nsISupports *
+nsContentList::GetParentObject()
+{
+  return mRootNode;
+}
+  
 PRUint32
 nsContentList::Length(PRBool aDoFlush)
 {
@@ -439,12 +428,6 @@ nsContentList::IndexOf(nsIContent *aContent, PRBool aDoFlush)
   return mElements.IndexOf(aContent);
 }
 
-PRInt32
-nsContentList::IndexOf(nsIContent* aContent)
-{
-  return IndexOf(aContent, PR_TRUE);
-}
-
 void
 nsContentList::NodeWillBeDestroyed(const nsINode* aNode)
 {
@@ -484,10 +467,10 @@ nsContentList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsContentList::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
-  nsINode* node = GetNodeAt(aIndex);
+  nsIContent *content = Item(aIndex, PR_TRUE);
 
-  if (node) {
-    return CallQueryInterface(node, aReturn);
+  if (content) {
+    return CallQueryInterface(content, aReturn);
   }
 
   *aReturn = nsnull;
@@ -509,34 +492,12 @@ nsContentList::NamedItem(const nsAString& aName, nsIDOMNode** aReturn)
   return NS_OK;
 }
 
-nsIContent*
-nsContentList::GetNodeAt(PRUint32 aIndex)
-{
-  return Item(aIndex, PR_TRUE);
-}
-
-nsISupports*
-nsContentList::GetNodeAt(PRUint32 aIndex, nsresult* aResult)
-{
-  *aResult = NS_OK;
-  return Item(aIndex, PR_TRUE);
-}
-
-nsISupports*
-nsContentList::GetNamedItem(const nsAString& aName, nsresult* aResult)
-{
-  *aResult = NS_OK;
-  return NamedItem(aName, PR_TRUE);
-}
-
 void
 nsContentList::AttributeChanged(nsIDocument *aDocument, nsIContent* aContent,
                                 PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                                PRInt32 aModType)
+                                PRInt32 aModType, PRUint32 aStateMask)
 {
   NS_PRECONDITION(aContent, "Must have a content node to work with");
-  NS_PRECONDITION(aContent->IsNodeOfType(nsINode::eELEMENT),
-                  "Should be an element");
   
   if (!mFunc || !mFuncMayDependOnAttr || mState == LIST_DIRTY ||
       !MayContainRelevantNodes(aContent->GetNodeParent()) ||
@@ -607,21 +568,20 @@ nsContentList::ContentAppended(nsIDocument *aDocument, nsIContent* aContainer,
       }
     }
     
-
+    PRInt32 i;
+    
     if (!appendToList) {
       // The new stuff is somewhere in the middle of our list; check
       // whether we need to invalidate
-      for (nsINode::ChildIterator iter(aContainer, aNewIndexInContainer);
-           !iter.IsDone();
-           iter.Next()) {
-        if (MatchSelf(iter)) {
+      for (i = aNewIndexInContainer; i <= count-1; ++i) {
+        if (MatchSelf(aContainer->GetChildAt(i))) {
           // Uh-oh.  We're gonna have to add elements into the middle
           // of our list. That's not worth the effort.
           SetDirty();
           break;
         }
       }
-
+ 
       ASSERT_IN_SYNC;
       return;
     }
@@ -639,14 +599,9 @@ nsContentList::ContentAppended(nsIDocument *aDocument, nsIContent* aContainer,
      * We're up to date.  That means someone's actively using us; we
      * may as well grab this content....
      */
-    for (nsINode::ChildIterator iter(aContainer, aNewIndexInContainer);
-         !iter.IsDone();
-         iter.Next()) {
+    for (i = aNewIndexInContainer; i <= count-1; ++i) {
       PRUint32 limit = PRUint32(-1);
-      nsIContent* newContent = iter;
-      if (newContent->IsNodeOfType(nsINode::eELEMENT)) {
-        PopulateWith(newContent, limit);
-      }
+      PopulateWith(aContainer->GetChildAt(i), limit);
     }
 
     ASSERT_IN_SYNC;
@@ -697,14 +652,15 @@ nsContentList::Match(nsIContent *aContent)
   if (!aContent)
     return PR_FALSE;
 
-  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eELEMENT),
-               "Must have element here");
-
   if (mFunc) {
     return (*mFunc)(aContent, mMatchNameSpaceId, mMatchAtom, mData);
   }
 
   if (mMatchAtom) {
+    if (!aContent->IsNodeOfType(nsINode::eELEMENT)) {
+      return PR_FALSE;
+    }
+
     nsINodeInfo *ni = aContent->NodeInfo();
 
     if (mMatchNameSpaceId == kNameSpaceID_Unknown) {
@@ -728,10 +684,6 @@ nsContentList::MatchSelf(nsIContent *aContent)
   NS_PRECONDITION(aContent, "Can't match null stuff, you know");
   NS_PRECONDITION(mDeep || aContent->GetNodeParent() == mRootNode,
                   "MatchSelf called on a node that we can't possibly match");
-
-  if (!aContent->IsNodeOfType(nsINode::eELEMENT)) {
-    return PR_FALSE;
-  }
   
   if (Match(aContent))
     return PR_TRUE;
@@ -739,8 +691,10 @@ nsContentList::MatchSelf(nsIContent *aContent)
   if (!mDeep)
     return PR_FALSE;
 
-  for (nsINode::ChildIterator iter(aContent); !iter.IsDone(); iter.Next()) {
-    if (MatchSelf(iter)) {
+  PRUint32 i, count = aContent->GetChildCount();
+
+  for (i = 0; i < count; i++) {
+    if (MatchSelf(aContent->GetChildAt(i))) {
       return PR_TRUE;
     }
   }
@@ -755,8 +709,6 @@ nsContentList::PopulateWith(nsIContent *aContent, PRUint32& aElementsToAppend)
                   "PopulateWith called on nodes we can't possibly match");
   NS_PRECONDITION(aContent != mRootNode,
                   "We should never be trying to match mRootNode");
-  NS_PRECONDITION(aContent->IsNodeOfType(nsINode::eELEMENT),
-                  "Should be an element");
 
   if (Match(aContent)) {
     mElements.AppendObject(aContent);
@@ -768,14 +720,13 @@ nsContentList::PopulateWith(nsIContent *aContent, PRUint32& aElementsToAppend)
   // Don't recurse down if we're not doing a deep match.
   if (!mDeep)
     return;
+  
+  PRUint32 i, count = aContent->GetChildCount();
 
-  for (nsINode::ChildIterator iter(aContent); !iter.IsDone(); iter.Next()) {
-    nsIContent* curContent = iter;
-    if (curContent->IsNodeOfType(nsINode::eELEMENT)) {
-      PopulateWith(curContent, aElementsToAppend);
-      if (aElementsToAppend == 0)
-        break;
-    }
+  for (i = 0; i < count; i++) {
+    PopulateWith(aContent->GetChildAt(i), aElementsToAppend);
+    if (aElementsToAppend == 0)
+      return;
   }
 }
 
@@ -800,24 +751,15 @@ nsContentList::PopulateWithStartingAfter(nsINode *aStartRoot,
       ++i;  // move to one past
     }
 
-    // Now start an iterator with the child we want to be starting with
-    for (nsINode::ChildIterator iter(aStartRoot, i);
-         !iter.IsDone();
-         iter.Next()) {
-      nsIContent* content = iter;
-      if (content->IsNodeOfType(nsINode::eELEMENT)) {
-        PopulateWith(content, aElementsToAppend);
-
-        NS_ASSERTION(aElementsToAppend + mElements.Count() == invariant,
-                     "Something is awry in PopulateWith!");
-        if (aElementsToAppend == 0)
-          break;
-      }
+    PRUint32 childCount = aStartRoot->GetChildCount();
+    for ( ; ((PRUint32)i) < childCount; ++i) {
+      PopulateWith(aStartRoot->GetChildAt(i), aElementsToAppend);
+    
+      NS_ASSERTION(aElementsToAppend + mElements.Count() == invariant,
+                   "Something is awry in PopulateWith!");
+      if (aElementsToAppend == 0)
+        return;
     }
-  }
-
-  if (aElementsToAppend == 0) {
-    return;
   }
 
   // We want to make sure we don't move up past our root node. So if
@@ -956,7 +898,7 @@ nsContentList::AssertInSync()
       break;
     }
 
-    if (cur->IsNodeOfType(nsINode::eELEMENT) && Match(cur)) {
+    if (Match(cur)) {
       NS_ASSERTION(cnt < mElements.Count() && mElements[cnt] == cur,
                    "Elements is out of sync");
       ++cnt;

@@ -84,7 +84,7 @@ NS_IMETHODIMP  nsTextToSubURI::ConvertAndEscape(
           if(NS_SUCCEEDED(rv = encoder->GetMaxLength(text, ulen, &outlen))) 
           {
              if(outlen >= 256) {
-                pBuf = (char*)NS_Alloc(outlen+1);
+                pBuf = (char*)PR_Malloc(outlen+1);
              }
              if(nsnull == pBuf) {
                 outlen = 255;
@@ -105,7 +105,7 @@ NS_IMETHODIMP  nsTextToSubURI::ConvertAndEscape(
              }
           }
           if(pBuf != buf)
-             NS_Free(pBuf);
+             PR_Free(pBuf);
        }
        NS_RELEASE(encoder);
      }
@@ -119,16 +119,11 @@ NS_IMETHODIMP  nsTextToSubURI::UnEscapeAndConvert(
 {
   if(nsnull == _retval)
     return NS_ERROR_NULL_POINTER;
-  if(nsnull == text) {
-    // set empty string instead of returning error
-    // due to compatibility for old version
-    text = "";
-  }
   *_retval = nsnull;
   nsresult rv = NS_OK;
   
   // unescape the string, unescape changes the input
-  char *unescaped = NS_strdup(text);
+  char *unescaped = nsCRT::strdup((char *) text);
   if (nsnull == unescaped)
     return NS_ERROR_OUT_OF_MEMORY;
   unescaped = nsUnescape(unescaped);
@@ -145,7 +140,7 @@ NS_IMETHODIMP  nsTextToSubURI::UnEscapeAndConvert(
       PRInt32 len = strlen(unescaped);
       PRInt32 outlen = 0;
       if (NS_SUCCEEDED(rv = decoder->GetMaxLength(unescaped, len, &outlen))) {
-        pBuf = (PRUnichar *) NS_Alloc((outlen+1)*sizeof(PRUnichar*));
+        pBuf = (PRUnichar *) PR_Malloc((outlen+1)*sizeof(PRUnichar*));
         if (nsnull == pBuf)
           rv = NS_ERROR_OUT_OF_MEMORY;
         else {
@@ -154,13 +149,13 @@ NS_IMETHODIMP  nsTextToSubURI::UnEscapeAndConvert(
             *_retval = pBuf;
           }
           else
-            NS_Free(pBuf);
+            PR_Free(pBuf);
         }
       }
       NS_RELEASE(decoder);
     }
   }
-  NS_Free(unescaped);
+  PR_Free(unescaped);
 
   return rv;
 }
@@ -215,7 +210,7 @@ nsresult nsTextToSubURI::convertURItoUnicode(const nsAFlatCString &aCharset,
   rv = unicodeDecoder->GetMaxLength(aURI.get(), srcLen, &dstLen);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRUnichar *ustr = (PRUnichar *) NS_Alloc(dstLen * sizeof(PRUnichar));
+  PRUnichar *ustr = (PRUnichar *) nsMemory::Alloc(dstLen * sizeof(PRUnichar));
   NS_ENSURE_TRUE(ustr, NS_ERROR_OUT_OF_MEMORY);
 
   rv = unicodeDecoder->Convert(aURI.get(), &srcLen, ustr, &dstLen);
@@ -223,7 +218,7 @@ nsresult nsTextToSubURI::convertURItoUnicode(const nsAFlatCString &aCharset,
   if (NS_SUCCEEDED(rv))
     _retval.Assign(ustr, dstLen);
   
-  NS_Free(ustr);
+  nsMemory::Free(ustr);
 
   return rv;
 }

@@ -45,19 +45,36 @@ include $(DEPTH)/config/autoconf.mk
 MODULE = shellservice
 FORCE_STATIC_LIB = 1
 FORCE_USE_PIC = 1
-ifndef MOZ_MEMORY
 USE_STATIC_LIBS = 1
-endif
 
+REQUIRES	= \
+		  xpcom \
+		  string \
+		  uriloader \
+		  webbrowserpersist \
+		  dom \
+		  intl \
+		  unicharutil \
+		  necko \
+		  content \
+		  imglib2 \
+		  browsercomps \
+		  gfx \
+		  thebes \
+		  widget \
+		  pref \
+		  layout \
+		  $(NULL)
 
-ifneq (,$(filter WINCE WINNT,$(OS_ARCH)))
+ifeq ($(OS_ARCH),WINNT)
 CPPSRCS = nsWindowsShellService.cpp
 else
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 CPPSRCS = nsMacShellService.cpp
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT), gtk2)
 CPPSRCS = nsGNOMEShellService.cpp
+REQUIRES += mozgnome
 endif
 endif
 endif

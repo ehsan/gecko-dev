@@ -1,4 +1,6 @@
 /*
+ * $Id: pixman-edge.c,v 1.9 2007/09/20 19:24:51 vladimir%pobox.com Exp $
+ *
  * Copyright © 2004 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -25,7 +27,7 @@
 #endif
 
 #include <string.h>
-
+#include "pixman.h"
 #include "pixman-private.h"
 
 #ifdef PIXMAN_FB_ACCESSORS
@@ -56,10 +58,10 @@
 
 #define StepAlpha	((__ap += __ao), (__ao ^= 1))
 
-#define AddAlpha(a) {							\
-	uint8_t   __o = READ(image, __ap);				\
-	uint8_t   __a = (a) + Get4(__o, __ao);				\
-	WRITE(image, __ap, Put4 (__o, __ao, __a | (0 - ((__a) >> 4))));	\
+#define AddAlpha(a) {						\
+	uint8_t   __o = READ(__ap);				\
+	uint8_t   __a = (a) + Get4(__o, __ao);			\
+	WRITE(__ap, Put4 (__o, __ao, __a | (0 - ((__a) >> 4))));	\
     }
 
 #include "pixman-edge-imp.h"
@@ -102,7 +104,7 @@ clip255 (int x)
 								\
 	while (i__--)						\
 	{							\
-	    WRITE(image, (buf__), clip255 (READ(image, (buf__)) + (val__)));	\
+	    WRITE((buf__), clip255 (READ((buf__)) + (val__)));	\
 	    (buf__)++;						\
 	}							\
     } while (0)
@@ -129,55 +131,51 @@ fbRasterizeEdges8 (pixman_image_t       *image,
     uint32_t  *line;
     int fill_start = -1, fill_end = -1;
     int fill_size = 0;
-    uint32_t *buf = (image)->bits.bits;
-    int stride = (image)->bits.rowstride;
-    int width = (image)->bits.width;
-
+    uint32_t *buf = (image)->bits.bits;		
+    int32_t stride = (image)->bits.rowstride;	
+    int32_t width = (image)->bits.width;
+    
     line = buf + pixman_fixed_to_int (y) * stride;
-
+    
     for (;;)
     {
         uint8_t *ap = (uint8_t *) line;
 	pixman_fixed_t	lx, rx;
 	int	lxi, rxi;
-
+	
 	/* clip X */
 	lx = l->x;
 	if (lx < 0)
 	    lx = 0;
 	rx = r->x;
 	if (pixman_fixed_to_int (rx) >= width)
-	    /* Use the last pixel of the scanline, covered 100%.
-	     * We can't use the first pixel following the scanline,
-	     * because accessing it could result in a buffer overrun.
-	     */
-	    rx = pixman_int_to_fixed (width) - 1;
-
+	    rx = pixman_int_to_fixed (width);
+	
 	/* Skip empty (or backwards) sections */
 	if (rx > lx)
 	{
             int lxs, rxs;
-
+	    
 	    /* Find pixel bounds for span. */
 	    lxi = pixman_fixed_to_int (lx);
 	    rxi = pixman_fixed_to_int (rx);
-
+	    
             /* Sample coverage for edge pixels */
             lxs = RenderSamplesX (lx, 8);
             rxs = RenderSamplesX (rx, 8);
-
+	    
             /* Add coverage across row */
 	    if (lxi == rxi)
 	    {
-		WRITE(image, ap +lxi, clip255 (READ(image, ap + lxi) + rxs - lxs));
+		WRITE(ap +lxi, clip255 (READ(ap + lxi) + rxs - lxs));
 	    }
 	    else
 	    {
-		WRITE(image, ap + lxi, clip255 (READ(image, ap + lxi) + N_X_FRAC(8) - lxs));
-
+		WRITE(ap + lxi, clip255 (READ(ap + lxi) + N_X_FRAC(8) - lxs));
+		
 		/* Move forward so that lxi/rxi is the pixel span */
 		lxi++;
-
+		
 		/* Don't bother trying to optimize the fill unless
 		 * the span is longer than 4 pixels. */
 		if (rxi - lxi > 4)
@@ -215,7 +213,7 @@ fbRasterizeEdges8 (pixman_image_t       *image,
 				add_saturate_8 (ap + lxi, N_X_FRAC(8),
 						fill_start - lxi);
 			    }
-
+			    
 			    /* Update fill_end */
 			    if (rxi < fill_end)
 			    {
@@ -238,17 +236,21 @@ fbRasterizeEdges8 (pixman_image_t       *image,
 		{
 		    add_saturate_8 (ap + lxi, N_X_FRAC(8), rxi - lxi);
 		}
-
-		WRITE(image, ap + rxi, clip255 (READ(image, ap + rxi) + rxs));
+		
+		/* Do not add in a 0 alpha here. This check is
+		 * necessary to avoid a buffer overrun, (when rx
+		 * is exactly on a pixel boundary). */
+		if (rxs)
+		    WRITE(ap + rxi, clip255 (READ(ap + rxi) + rxs));
 	    }
 	}
-
+	
 	if (y == b) {
             /* We're done, make sure we clean up any remaining fill. */
             if (fill_start != fill_end) {
 		if (fill_size == N_Y_FRAC(8))
 		{
-		    MEMSET_WRAPPED (image, ap + fill_start, 0xff, fill_end - fill_start);
+		    MEMSET_WRAPPED (ap + fill_start, 0xff, fill_end - fill_start);
 		}
 		else
 		{
@@ -258,7 +260,7 @@ fbRasterizeEdges8 (pixman_image_t       *image,
             }
 	    break;
         }
-
+	
 	if (pixman_fixed_frac (y) != Y_FRAC_LAST(8))
 	{
 	    RenderEdgeStepSmall (l);
@@ -274,7 +276,7 @@ fbRasterizeEdges8 (pixman_image_t       *image,
             {
 		if (fill_size == N_Y_FRAC(8))
 		{
-		    MEMSET_WRAPPED (image, ap + fill_start, 0xff, fill_end - fill_start);
+		    MEMSET_WRAPPED (ap + fill_start, 0xff, fill_end - fill_start);
 		}
 		else
 		{
@@ -315,7 +317,7 @@ PIXMAN_RASTERIZE_EDGES (pixman_image_t *image,
 
 #ifndef PIXMAN_FB_ACCESSORS
 
-PIXMAN_EXPORT void
+void
 pixman_rasterize_edges (pixman_image_t *image,
 			pixman_edge_t	*l,
 			pixman_edge_t	*r,

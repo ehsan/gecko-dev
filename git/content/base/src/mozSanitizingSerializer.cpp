@@ -107,7 +107,7 @@ mozSanitizingHTMLSerializer::~mozSanitizingHTMLSerializer()
 }
 
 //<copy from="xpcom/ds/nsProperties.cpp">
-PRBool
+PRBool PR_CALLBACK 
 mozSanitizingHTMLSerializer::ReleaseProperties(nsHashKey* key, void* data,
                                                void* closure)
 {
@@ -214,7 +214,7 @@ mozSanitizingHTMLSerializer::IsContainer(PRInt32 aId)
 PRInt32
 mozSanitizingHTMLSerializer::GetIdForContent(nsIContent* aContent)
 {
-  if (!aContent->IsHTML()) {
+  if (!aContent->IsNodeOfType(nsINode::eHTML)) {
     return eHTMLTag_unknown;
   }
 

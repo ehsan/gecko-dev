@@ -48,7 +48,6 @@
 
 class nsIAtom;
 class nsPresContext;
-class nsMediaQueryResultCacheKey;
 
 // IID for the nsICSSGroupRule interface {67b8492e-6d8d-43a5-8037-71eb269f24fe}
 #define NS_ICSS_GROUP_RULE_IID     \
@@ -64,7 +63,7 @@ public:
   NS_IMETHOD  GetStyleRuleAt(PRInt32 aIndex, nsICSSRule*& aRule) const = 0;
 
   typedef nsCOMArray<nsICSSRule>::nsCOMArrayEnumFunc RuleEnumFunc;
-  NS_IMETHOD_(PRBool) EnumerateRulesForwards(RuleEnumFunc aFunc, void * aData) const = 0;
+  NS_IMETHOD  EnumerateRulesForwards(RuleEnumFunc aFunc, void * aData) const = 0;
 
   /*
    * The next three methods should never be called unless you have first
@@ -76,8 +75,7 @@ public:
                                  nsCOMArray<nsICSSRule>& aRules) = 0;
   NS_IMETHOD  ReplaceStyleRule(nsICSSRule* aOld, nsICSSRule* aNew) = 0;
 
-  NS_IMETHOD_(PRBool) UseForPresentation(nsPresContext* aPresContext,
-                                         nsMediaQueryResultCacheKey& aKey) = 0;
+  NS_IMETHOD_(PRBool) UseForPresentation(nsPresContext* aPresContext) = 0;
    
 };
 

@@ -67,6 +67,7 @@
 #include "nsDirectoryServiceUtils.h"
 #include "prenv.h"      // for PR_GetEnv()
 #include "nsAutoPtr.h"
+#include <stdlib.h>		// for system()
 
 #define LOG(args) PR_LOG(mLog, PR_LOG_DEBUG, args)
 #define LOG_ENABLED() PR_LOG_TEST(mLog, PR_LOG_DEBUG)
@@ -87,6 +88,10 @@ IsNetscapeFormat(const nsACString& aBuffer);
 
 nsOSHelperAppService::nsOSHelperAppService() : nsExternalHelperAppService()
 {
+#ifdef MOZ_WIDGET_GTK2
+  nsGNOMERegistry::Startup();
+#endif
+
   mode_t mask = umask(0777);
   umask(mask);
   mPermissions = 0666 & ~mask;
@@ -1140,39 +1145,14 @@ nsOSHelperAppService::GetHandlerAndDescriptionFromMailcapFile(const nsAString& a
                                        aMinorType,
                                        aTypeOptions,
                                        testCommand);
-                  if (NS_FAILED(rv))
-                    continue;
-                  nsCOMPtr<nsIProcess> process = do_CreateInstance(NS_PROCESS_CONTRACTID, &rv);
-                  if (NS_FAILED(rv))
-                    continue;
-                  nsCOMPtr<nsILocalFile> file(do_CreateInstance(NS_LOCAL_FILE_CONTRACTID, &rv));
-                  if (NS_FAILED(rv))
-                    continue;
-                  rv = file->InitWithNativePath(NS_LITERAL_CSTRING("/bin/sh"));
-                  if (NS_FAILED(rv))
-                    continue;
-                  rv = process->Init(file);
-                  if (NS_FAILED(rv))
-                    continue;
-                  const char *args[] = { "-c", testCommand.get() };
                   LOG(("Running Test: %s\n", testCommand.get()));
-                  rv = process->Run(PR_TRUE, args, 2);
-                  if (NS_FAILED(rv))
-                    continue;
-                  PRInt32 exitValue;
-                  rv = process->GetExitValue(&exitValue);
-                  if (NS_FAILED(rv))
-                    continue;
-                  LOG(("Exit code: %d\n", exitValue));
-                  if (exitValue) {
+                  // XXX this should not use system(), since that can block the UI thread!
+                  if (NS_SUCCEEDED(rv) && system(testCommand.get()) != 0) {
                     match = PR_FALSE;
                   }
                 }
               } else {
                 // This is an option that just has a name but no value (eg "copiousoutput")
-                if (optionName.EqualsLiteral("needsterminal")) {
-                  match = PR_FALSE;
-                }
               }
             }
             
@@ -1202,18 +1182,78 @@ nsOSHelperAppService::GetHandlerAndDescriptionFromMailcapFile(const nsAString& a
   return rv;
 }
 
+/* Looks up the handler for a specific scheme from prefs and returns the
+ * file representing it in aApp. Note: This function doesn't guarantee the
+ * existance of *aApp.
+ */
+nsresult
+nsOSHelperAppService::GetHandlerAppFromPrefs(const char* aScheme, /*out*/ nsIFile** aApp)
+{
+  nsresult rv;
+  nsCOMPtr<nsIPrefService> srv(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
+  if (NS_FAILED(rv)) // we have no pref service... that's bad
+    return rv;
+
+  nsCOMPtr<nsIPrefBranch> branch;
+  srv->GetBranch("network.protocol-handler.app.", getter_AddRefs(branch));
+  if (!branch) // No protocol handlers set up -> can't load url
+    return NS_ERROR_NOT_AVAILABLE;
+
+  nsXPIDLCString appPath;
+  rv = branch->GetCharPref(aScheme, getter_Copies(appPath));
+  if (NS_FAILED(rv))
+    return rv;
+
+  LOG(("   found app %s\n", appPath.get()));
+
+  // First, try to treat |appPath| as absolute path, if it starts with '/'
+  NS_ConvertUTF8toUTF16 utf16AppPath(appPath);
+  if (appPath.First() == '/') {
+    nsILocalFile* file;
+    rv = NS_NewLocalFile(utf16AppPath, PR_TRUE, &file);
+    *aApp = file;
+    // If this worked, we are finished
+    if (NS_SUCCEEDED(rv))
+      return NS_OK;
+  }
+
+  // Second, check for a file in the mozilla app directory
+  rv = NS_GetSpecialDirectory(NS_OS_CURRENT_PROCESS_DIR, aApp);
+  if (NS_SUCCEEDED(rv)) {
+    rv = (*aApp)->Append(utf16AppPath);
+    if (NS_SUCCEEDED(rv)) {
+      PRBool exists = PR_FALSE;
+      rv = (*aApp)->Exists(&exists);
+      if (NS_SUCCEEDED(rv) && exists)
+        return NS_OK;
+    }
+    NS_RELEASE(*aApp);
+  }
+
+  // Thirdly, search the path
+  return GetFileTokenForPath(utf16AppPath.get(), aApp);
+}
+
 nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolScheme, PRBool * aHandlerExists)
 {
   LOG(("-- nsOSHelperAppService::OSProtocolHandlerExists for '%s'\n",
        aProtocolScheme));
   *aHandlerExists = PR_FALSE;
 
+  nsCOMPtr<nsIFile> app;
+  nsresult rv = GetHandlerAppFromPrefs(aProtocolScheme, getter_AddRefs(app));
+  if (NS_SUCCEEDED(rv)) {
+    PRBool isExecutable = PR_FALSE, exists = PR_FALSE;
+    nsresult rv1 = app->Exists(&exists);
+    nsresult rv2 = app->IsExecutable(&isExecutable);
+    *aHandlerExists = (NS_SUCCEEDED(rv1) && exists && NS_SUCCEEDED(rv2) && isExecutable);
+    LOG(("   handler exists: %s\n", *aHandlerExists ? "yes" : "no"));
+  }
+
 #ifdef MOZ_WIDGET_GTK2
   // Check the GConf registry for a protocol handler
-  *aHandlerExists = nsGNOMERegistry::HandlerExists(aProtocolScheme);
-#ifdef MOZ_PLATFORM_HILDON
-  *aHandlerExists = nsMIMEInfoUnix::HandlerExists(aProtocolScheme);
-#endif
+  if (!*aHandlerExists)
+    *aHandlerExists = nsGNOMERegistry::HandlerExists(aProtocolScheme);
 #endif
 
   return NS_OK;
@@ -1221,6 +1261,12 @@ nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolSch
 
 NS_IMETHODIMP nsOSHelperAppService::GetApplicationDescription(const nsACString& aScheme, nsAString& _retval)
 {
+  nsCOMPtr<nsIFile> appFile;
+  nsresult rv = GetHandlerAppFromPrefs(PromiseFlatCString(aScheme).get(),
+                                       getter_AddRefs(appFile));
+  if (NS_SUCCEEDED(rv))
+    return appFile->GetLeafName(_retval);
+
 #ifdef MOZ_WIDGET_GTK2
   nsGNOMERegistry::GetAppDescForScheme(aScheme, _retval);
   return _retval.IsEmpty() ? NS_ERROR_NOT_AVAILABLE : NS_OK;
@@ -1318,7 +1364,7 @@ nsOSHelperAppService::GetFromExtension(const nsCString& aFileExt) {
     
 #ifdef MOZ_WIDGET_GTK2
     LOG(("Looking in GNOME registry\n"));
-    nsMIMEInfoBase *gnomeInfo = nsGNOMERegistry::GetFromExtension(aFileExt).get();
+    nsMIMEInfoBase *gnomeInfo = nsGNOMERegistry::GetFromExtension(aFileExt.get()).get();
     if (gnomeInfo) {
       LOG(("Got MIMEInfo from GNOME registry\n"));
       return gnomeInfo;
@@ -1444,7 +1490,7 @@ nsOSHelperAppService::GetFromType(const nsCString& aMIMEType) {
     // get back a MIMEInfo without any extensions set.  In that case we'll have
     // to look in our mime.types files for the extensions.    
     LOG(("Looking in GNOME registry\n"));
-    gnomeInfo = nsGNOMERegistry::GetFromType(aMIMEType).get();
+    gnomeInfo = nsGNOMERegistry::GetFromType(aMIMEType.get()).get();
     if (gnomeInfo && gnomeInfo->HasExtensions()) {
       LOG(("Got MIMEInfo from GNOME registry, and it has extensions set\n"));
       return gnomeInfo;
@@ -1580,12 +1626,7 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aType,
       return retval;
     }
 
-    // Copy the attributes of retval (mimeinfo from type) onto miByExt, to
-    // return it 
-    // but reset to just collected mDefaultAppDescription (from ext)
-    nsAutoString byExtDefault;
-    miByExt->GetDefaultDescription(byExtDefault);
-    retval->SetDefaultDescription(byExtDefault);
+    // Copy the attributes of retval onto miByExt, to return it
     retval->CopyBasicDataTo(miByExt);
 
     miByExt.swap(retval);
@@ -1593,10 +1634,9 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aType,
   return retval;
 }
 
-NS_IMETHODIMP
-nsOSHelperAppService::GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
-                                                   PRBool *found,
-                                                   nsIHandlerInfo **_retval)
+already_AddRefed<nsIHandlerInfo>
+nsOSHelperAppService::GetProtocolInfoFromOS(const nsACString &aScheme,
+                                            PRBool *found)
 {
   NS_ASSERTION(!aScheme.IsEmpty(), "No scheme was specified!");
 
@@ -1606,24 +1646,24 @@ nsOSHelperAppService::GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
   nsresult rv = OSProtocolHandlerExists(nsPromiseFlatCString(aScheme).get(),
                                         found);
   if (NS_FAILED(rv))
-    return rv;
+    return nsnull;
 
   nsMIMEInfoUnix *handlerInfo =
     new nsMIMEInfoUnix(aScheme, nsMIMEInfoBase::eProtocolInfo);
-  NS_ENSURE_TRUE(handlerInfo, NS_ERROR_OUT_OF_MEMORY);
-  NS_ADDREF(*_retval = handlerInfo);
+  NS_ENSURE_TRUE(handlerInfo, nsnull);
+  NS_ADDREF(handlerInfo);
 
   if (!*found) {
     // Code that calls this requires an object regardless if the OS has
     // something for us, so we return the empty object.
-    return NS_OK;
+    return handlerInfo;
   }
 
   nsAutoString desc;
   GetApplicationDescription(aScheme, desc);
   handlerInfo->SetDefaultDescription(desc);
 
-  return NS_OK;
+  return handlerInfo;
 }
 
 void

@@ -50,7 +50,7 @@
 textbox {
   -moz-appearance: textfield;
   cursor: text;
-  margin: 4px;
+  margin: 4px 4px;
   border: 3px solid;
   -moz-border-top-colors: transparent #888888 #000000;
   -moz-border-right-colors: transparent #FFFFFF #000000;
@@ -63,11 +63,7 @@ textbox {
   background-color: -moz-Field;
   color: -moz-FieldText;
 }
-
-textbox[isempty="true"] {
-  color: GrayText;
-}
-
+    
 html|*.textbox-input, 
 html|*.textbox-textarea {
   margin: 0px !important;
@@ -76,10 +72,6 @@ html|*.textbox-textarea {
   background-color: inherit;
   color: inherit;
   font: inherit;
-}
-
-.textbox-contextmenu {
-  cursor: default;
 }
 
 /* ..... focused state ..... */
@@ -114,49 +106,13 @@ textbox[disabled="true"] {
 
 textbox.plain {
   -moz-appearance: none !important;
-  background-color: transparent;
   padding: 0px !important;
   margin: 0px !important;
   border: none !important;
 }
 
 
-/* ::::: rounded search box ::::: */
+/* ::::: rounded search box, coming soon ::::: */
 
-textbox[type="search"] {
-  -moz-appearance: searchfield;
-  padding: 1px;
-  font-size: 12px;
-}
-
-.textbox-search-clear {
-  list-style-image: url(chrome://global/skin/icons/searchfield-regular-cancel.png);
-  -moz-image-region: rect(0, 14px, 14px, 0);
-  margin-bottom: 1px;
-}
-
-.textbox-search-clear:active:hover {
-  -moz-image-region: rect(0, 28px, 14px, 14px);
-}
-
-textbox[type="search"].compact {
-  padding: 0;
-  font-size: 11px;
-}
-
-textbox[type="search"].compact > .textbox-input-box > .textbox-search-icons > .textbox-search-clear {
-  list-style-image: url(chrome://global/skin/icons/searchfield-small-cancel.png);
-  -moz-image-region: rect(0, 11px, 11px, 0);
-}
-
-textbox[type="search"].compact > .textbox-input-box > .textbox-search-icons > .textbox-search-clear:active:hover {
-  -moz-image-region: rect(0, 22px, 11px, 11px);
-}
-
-.textbox-search-clear:not([disabled]) {
-  cursor: default;
-}
- 
-.textbox-search-icons:not([selectedIndex="1"]) {
-  visibility: hidden;
+#search-box {
 }

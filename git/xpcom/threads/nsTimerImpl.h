@@ -44,7 +44,8 @@
 //#define FORCE_PR_LOG /* Allow logging in the release build */
 
 #include "nsITimer.h"
-#include "nsIEventTarget.h"
+#include "nsVoidArray.h"
+#include "nsIThread.h"
 #include "nsIObserver.h"
 
 #include "nsCOMPtr.h"
@@ -95,7 +96,7 @@ public:
   friend class TimerThread;
 
   void Fire();
-  nsresult PostTimerEvent();
+  void PostTimerEvent();
   void SetDelayInternal(PRUint32 aDelay);
 
   NS_DECL_ISUPPORTS
@@ -109,31 +110,21 @@ private:
 
   void ReleaseCallback()
   {
-    // if we're the last owner of the callback object, make
-    // sure that we don't recurse into ReleaseCallback in case
-    // the callback's destructor calls Cancel() or similar.
-    PRUint8 cbType = mCallbackType;
-    mCallbackType = CALLBACK_TYPE_UNKNOWN; 
-
-    if (cbType == CALLBACK_TYPE_INTERFACE)
+    if (mCallbackType == CALLBACK_TYPE_INTERFACE)
       NS_RELEASE(mCallback.i);
-    else if (cbType == CALLBACK_TYPE_OBSERVER)
+    else if (mCallbackType == CALLBACK_TYPE_OBSERVER)
       NS_RELEASE(mCallback.o);
   }
 
-  nsCOMPtr<nsIEventTarget> mEventTarget;
+  nsCOMPtr<nsIThread>   mCallingThread;
 
   void *                mClosure;
 
-  union CallbackUnion {
+  union {
     nsTimerCallbackFunc c;
     nsITimerCallback *  i;
     nsIObserver *       o;
   } mCallback;
-
-  // Some callers expect to be able to access the callback while the
-  // timer is firing.
-  nsCOMPtr<nsITimerCallback> mTimerCallbackWhileFiring;
 
   // These members are set by Init (called from NS_NewTimer) and never reset.
   PRUint8               mCallbackType;

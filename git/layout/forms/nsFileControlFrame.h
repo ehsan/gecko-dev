@@ -38,7 +38,7 @@
 #ifndef nsFileControlFrame_h___
 #define nsFileControlFrame_h___
 
-#include "nsBlockFrame.h"
+#include "nsAreaFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIDOMMouseListener.h"
 #include "nsIAnonymousContentCreator.h"
@@ -47,7 +47,7 @@
 #include "nsTextControlFrame.h"
 typedef   nsTextControlFrame nsNewFrame;
 
-class nsFileControlFrame : public nsBlockFrame,
+class nsFileControlFrame : public nsAreaFrame,
                            public nsIFormControlFrame,
                            public nsIAnonymousContentCreator
 {
@@ -63,9 +63,8 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
-
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  
   // nsIFormControlFrame
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
   virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const;
@@ -78,7 +77,7 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
@@ -127,9 +126,11 @@ protected:
     nsFileControlFrame* mFrame;
   };
   
+  nsresult MouseClick(nsIDOMEvent* aMouseEvent);
+
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsBlockFrame::IsFrameOfType(aFlags &
+    return nsAreaFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
@@ -183,29 +184,10 @@ private:
    *        or SYNC_BOTH)
    */
   void SyncAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                PRInt32 aWhichControls);
+                PRBool aWhichControls);
 
-  /**
-   * Fetch the last used directory for this location from the content
-   * pref service, if it is available.  The caller must pass in an
-   * already-created nsILocalFile, and this function will initialize
-   * it to point to the right directory.
-   *
-   * @param aURI URI of the current page
-   * @param aFile path to the last used directory
-   */
-  static nsresult FetchLastUsedDirectory(nsIURI* aURI,
-                                         nsILocalFile* aFile);
-
-  /**
-   * Store the last used directory for this location using the
-   * content pref service, if it is available
-   * @param aURI URI of the current page
-   * @param aFile file chosen by the user - the path to the parent of this
-   *        file will be stored
-   */
-  static void StoreLastUsedDirectory(nsIURI* aURI,
-                                     nsIFile* aFile);
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 };
 
 #endif

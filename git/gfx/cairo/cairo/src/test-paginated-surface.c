@@ -69,20 +69,21 @@ _cairo_test_paginated_surface_create_for_data (unsigned char		*data,
 {
     cairo_status_t status;
     cairo_surface_t *target;
-    cairo_surface_t *paginated;
     test_paginated_surface_t *surface;
 
     target =  _cairo_image_surface_create_for_data_with_content (data, content,
 								width, height,
 								stride);
     status = cairo_surface_status (target);
-    if (status)
-	return target;
+    if (status) {
+	_cairo_error (status);
+	return (cairo_surface_t *) &_cairo_surface_nil;
+    }
 
     surface = malloc (sizeof (test_paginated_surface_t));
-    if (unlikely (surface == NULL)) {
-	cairo_surface_destroy (target);
-	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
+    if (surface == NULL) {
+	_cairo_error (CAIRO_STATUS_NO_MEMORY);
+	return (cairo_surface_t *) &_cairo_surface_nil;
     }
 
     _cairo_surface_init (&surface->base, &test_paginated_surface_backend,
@@ -90,19 +91,8 @@ _cairo_test_paginated_surface_create_for_data (unsigned char		*data,
 
     surface->target = target;
 
-    paginated =  _cairo_paginated_surface_create (&surface->base,
-	                                          content, width, height,
-						  &test_paginated_surface_paginated_backend);
-    status = paginated->status;
-    if (status == CAIRO_STATUS_SUCCESS) {
-	/* paginated keeps the only reference to surface now, drop ours */
-	cairo_surface_destroy (&surface->base);
-	return paginated;
-    }
-
-    cairo_surface_destroy (target);
-    free (surface);
-    return _cairo_surface_create_in_error (status);
+    return _cairo_paginated_surface_create (&surface->base, content, width, height,
+					    &test_paginated_surface_paginated_backend);
 }
 
 static cairo_status_t
@@ -169,43 +159,40 @@ _test_paginated_surface_get_extents (void			*abstract_surface,
 static cairo_int_status_t
 _test_paginated_surface_paint (void		*abstract_surface,
 			       cairo_operator_t	 op,
-			       const cairo_pattern_t	*source,
-			       cairo_rectangle_int_t *extents)
+			       cairo_pattern_t	*source)
 {
     test_paginated_surface_t *surface = abstract_surface;
 
     if (surface->paginated_mode == CAIRO_PAGINATED_MODE_ANALYZE)
 	return CAIRO_STATUS_SUCCESS;
 
-    return _cairo_surface_paint (surface->target, op, source, extents);
+    return _cairo_surface_paint (surface->target, op, source);
 }
 
 static cairo_int_status_t
 _test_paginated_surface_mask (void		*abstract_surface,
 			      cairo_operator_t	 op,
-			      const cairo_pattern_t	*source,
-			      const cairo_pattern_t	*mask,
-			      cairo_rectangle_int_t     *extents)
+			      cairo_pattern_t	*source,
+			      cairo_pattern_t	*mask)
 {
     test_paginated_surface_t *surface = abstract_surface;
 
     if (surface->paginated_mode == CAIRO_PAGINATED_MODE_ANALYZE)
 	return CAIRO_STATUS_SUCCESS;
 
-    return _cairo_surface_mask (surface->target, op, source, mask, extents);
+    return _cairo_surface_mask (surface->target, op, source, mask);
 }
 
 static cairo_int_status_t
-_test_paginated_surface_stroke (void				*abstract_surface,
-				cairo_operator_t		 op,
-				const cairo_pattern_t		*source,
-				cairo_path_fixed_t		*path,
-				cairo_stroke_style_t		*style,
-				cairo_matrix_t			*ctm,
-				cairo_matrix_t			*ctm_inverse,
-				double				 tolerance,
-				cairo_antialias_t		 antialias,
-				cairo_rectangle_int_t           *extents)
+_test_paginated_surface_stroke (void			*abstract_surface,
+				cairo_operator_t	 op,
+				cairo_pattern_t		*source,
+				cairo_path_fixed_t	*path,
+				cairo_stroke_style_t	*style,
+				cairo_matrix_t		*ctm,
+				cairo_matrix_t		*ctm_inverse,
+				double			 tolerance,
+				cairo_antialias_t	 antialias)
 {
     test_paginated_surface_t *surface = abstract_surface;
 
@@ -215,18 +202,17 @@ _test_paginated_surface_stroke (void				*abstract_surface,
     return _cairo_surface_stroke (surface->target, op, source,
 				  path, style,
 				  ctm, ctm_inverse,
-				  tolerance, antialias, extents);
+				  tolerance, antialias);
 }
 
 static cairo_int_status_t
-_test_paginated_surface_fill (void				*abstract_surface,
-			      cairo_operator_t			 op,
-			      const cairo_pattern_t		*source,
-			      cairo_path_fixed_t		*path,
-			      cairo_fill_rule_t			 fill_rule,
-			      double				 tolerance,
-			      cairo_antialias_t			 antialias,
-			      cairo_rectangle_int_t     	*extents)
+_test_paginated_surface_fill (void			*abstract_surface,
+			      cairo_operator_t		 op,
+			      cairo_pattern_t		*source,
+			      cairo_path_fixed_t	*path,
+			      cairo_fill_rule_t		 fill_rule,
+			      double			 tolerance,
+			      cairo_antialias_t		 antialias)
 {
     test_paginated_surface_t *surface = abstract_surface;
 
@@ -235,43 +221,40 @@ _test_paginated_surface_fill (void				*abstract_surface,
 
     return _cairo_surface_fill (surface->target, op, source,
 				path, fill_rule,
-				tolerance, antialias, extents);
-}
-
-static cairo_bool_t
-_test_paginated_surface_has_show_text_glyphs (void *abstract_surface)
-{
-    test_paginated_surface_t *surface = abstract_surface;
-
-    return cairo_surface_has_show_text_glyphs (surface->target);
+				tolerance, antialias);
 }
 
 static cairo_int_status_t
-_test_paginated_surface_show_text_glyphs (void			    *abstract_surface,
-					  cairo_operator_t	     op,
-					  const cairo_pattern_t	    *source,
-					  const char		    *utf8,
-					  int			     utf8_len,
-					  cairo_glyph_t		    *glyphs,
-					  int			     num_glyphs,
-					  const cairo_text_cluster_t *clusters,
-					  int			     num_clusters,
-					  cairo_text_cluster_flags_t cluster_flags,
-					  cairo_scaled_font_t	    *scaled_font,
-					  cairo_rectangle_int_t     *extents)
+_test_paginated_surface_show_glyphs (void			*abstract_surface,
+				     cairo_operator_t		 op,
+				     cairo_pattern_t		*source,
+				     cairo_glyph_t		*glyphs,
+				     int			 num_glyphs,
+				     cairo_scaled_font_t	*scaled_font)
 {
     test_paginated_surface_t *surface = abstract_surface;
+    cairo_int_status_t status;
 
     if (surface->paginated_mode == CAIRO_PAGINATED_MODE_ANALYZE)
 	return CAIRO_STATUS_SUCCESS;
 
-    return _cairo_surface_show_text_glyphs (surface->target, op, source,
-					    utf8, utf8_len,
-					    glyphs, num_glyphs,
-					    clusters, num_clusters, cluster_flags,
-					    scaled_font, extents);
-}
+    /* Since this is a "wrapping" surface, we're calling back into
+     * _cairo_surface_show_glyphs from within a call to the same.
+     * Since _cairo_surface_show_glyphs acquires a mutex, we release
+     * and re-acquire the mutex around this nested call.
+     *
+     * Yes, this is ugly, but we consider it pragmatic as compared to
+     * adding locking code to all 18 surface-backend-specific
+     * show_glyphs functions, (which would get less testing and likely
+     * lead to bugs).
+     */
+    CAIRO_MUTEX_UNLOCK (scaled_font->mutex);
+    status = _cairo_surface_show_glyphs (surface->target, op, source,
+					 glyphs, num_glyphs, scaled_font);
+    CAIRO_MUTEX_LOCK (scaled_font->mutex);
 
+    return status;
+}
 
 static void
 _test_paginated_surface_set_paginated_mode (void			*abstract_surface,
@@ -298,8 +281,6 @@ static const cairo_surface_backend_t test_paginated_surface_backend = {
     NULL, /* composite */
     NULL, /* fill_rectangles */
     NULL, /* composite_trapezoids */
-    NULL, /* create_span_renderer */
-    NULL, /* check_span_renderer */
     NULL, /* copy_page */
     NULL, /* show_page */
     _test_paginated_surface_set_clip_region,
@@ -319,17 +300,8 @@ static const cairo_surface_backend_t test_paginated_surface_backend = {
     _test_paginated_surface_mask,
     _test_paginated_surface_stroke,
     _test_paginated_surface_fill,
-    NULL, /* show_glyphs */
-
-    NULL, /* snapshot */
-    NULL, /* is_similar */
-    NULL, /* reset */
-    NULL, /* fill_stroke */
-    NULL, /* create_solid_pattern_surface */
-    NULL, /* can_repaint_solid_pattern_surface */
-
-    _test_paginated_surface_has_show_text_glyphs,
-    _test_paginated_surface_show_text_glyphs
+    _test_paginated_surface_show_glyphs,
+    NULL /* snapshot */
 };
 
 static const cairo_paginated_surface_backend_t test_paginated_surface_paginated_backend = {

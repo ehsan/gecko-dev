@@ -42,7 +42,7 @@
  */
 
 #include "nsAttrAndChildArray.h"
-#include "nsMappedAttributeElement.h"
+#include "nsGenericHTMLElement.h"
 #include "prmem.h"
 #include "prbit.h"
 #include "nsString.h"
@@ -143,18 +143,6 @@ nsAttrAndChildArray::GetSafeChildAt(PRUint32 aPos) const
   }
   
   return nsnull;
-}
-
-nsIContent * const *
-nsAttrAndChildArray::GetChildArray(PRUint32* aChildCount) const
-{
-  *aChildCount = ChildCount();
-  
-  if (!*aChildCount) {
-    return nsnull;
-  }
-  
-  return reinterpret_cast<nsIContent**>(mImpl->mBuffer + AttrSlotsSize());
 }
 
 nsresult
@@ -565,7 +553,7 @@ nsAttrAndChildArray::IndexOfAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID) cons
 nsresult
 nsAttrAndChildArray::SetAndTakeMappedAttr(nsIAtom* aLocalName,
                                           nsAttrValue& aValue,
-                                          nsMappedAttributeElement* aContent,
+                                          nsGenericHTMLElement* aContent,
                                           nsHTMLStyleSheet* aSheet)
 {
   nsRefPtr<nsMappedAttributes> mapped;
@@ -654,7 +642,6 @@ nsAttrAndChildArray::Clear()
     ATTRS(mImpl)[i].~InternalAttr();
   }
 
-  nsAutoScriptBlocker scriptBlocker;
   PRUint32 end = slotCount * ATTRSIZE + ChildCount();
   for (i = slotCount * ATTRSIZE; i < end; ++i) {
     nsIContent* child = static_cast<nsIContent*>(mImpl->mBuffer[i]);
@@ -689,7 +676,7 @@ nsAttrAndChildArray::MappedAttrCount() const
 }
 
 nsresult
-nsAttrAndChildArray::GetModifiableMapped(nsMappedAttributeElement* aContent,
+nsAttrAndChildArray::GetModifiableMapped(nsGenericHTMLElement* aContent,
                                          nsHTMLStyleSheet* aSheet,
                                          PRBool aWillAddAttr,
                                          nsMappedAttributes** aModifiable)
@@ -768,14 +755,16 @@ nsAttrAndChildArray::GrowBy(PRUint32 aGrowSize)
     size = PR_BIT(PR_CeilingLog2(minSize));
   }
 
-  PRBool needToInitialize = !mImpl;
-  Impl* newImpl = static_cast<Impl*>(PR_Realloc(mImpl, size * sizeof(void*)));
+  Impl* newImpl = static_cast<Impl*>
+                             (mImpl ? PR_Realloc(mImpl, size * sizeof(void*)) :
+              PR_Malloc(size * sizeof(void*)));
   NS_ENSURE_TRUE(newImpl, PR_FALSE);
 
+  Impl* oldImpl = mImpl;
   mImpl = newImpl;
 
   // Set initial counts if we didn't have a buffer before
-  if (needToInitialize) {
+  if (!oldImpl) {
     mImpl->mMappedAttrs = nsnull;
     SetAttrSlotAndChildCount(0, 0);
   }

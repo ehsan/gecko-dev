@@ -46,7 +46,6 @@
 #include "txNamespaceMap.h"
 #include "nsAutoPtr.h"
 #include "txXSLTNumber.h"
-#include "nsTArray.h"
 
 class nsIAtom;
 class txExecutionState;
@@ -294,6 +293,10 @@ public:
                      nsAutoPtr<Expr> aCaseOrderExpr);
 
     struct SortKey {
+        SortKey(nsAutoPtr<Expr> aSelectExpr, nsAutoPtr<Expr> aLangExpr,
+                nsAutoPtr<Expr> aDataTypeExpr, nsAutoPtr<Expr> aOrderExpr,
+                nsAutoPtr<Expr> aCaseOrderExpr);
+
         nsAutoPtr<Expr> mSelectExpr;
         nsAutoPtr<Expr> mLangExpr;
         nsAutoPtr<Expr> mDataTypeExpr;
@@ -301,7 +304,7 @@ public:
         nsAutoPtr<Expr> mCaseOrderExpr;
     };
     
-    nsTArray<SortKey> mSortKeys;
+    nsVoidArray mSortKeys;
     nsAutoPtr<Expr> mSelect;
     txInstruction* mBailTarget;
 };

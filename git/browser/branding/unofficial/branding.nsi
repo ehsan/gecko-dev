@@ -34,14 +34,17 @@
 #
 # ***** END LICENSE BLOCK *****
 
-# NSIS branding defines for unofficial builds.
-# The official release build branding.nsi is located in other-license/branding/firefox/
-# The nightly build branding.nsi is located in browser/installer/windows/nsis/
-
-# BrandFullNameInternal is used for some registry and file system values
-# instead of BrandFullName and typically should not be modified.
-!define BrandFullNameInternal "Namoroka"
+# NSIS defines for nightly builds.
+# The release build branding.nsi is located in other-license/branding/firefox/
+!define BrandShortName        "Gran Paradiso"
+!define BrandFullName         "Gran Paradiso"
+# BrandFullNameInternal is used for some registry and file system values that
+# should not contain release that may be in the BrandFullName (e.g. Beta 1, etc.)
+!define BrandFullNameInternal "Gran Paradiso"
 !define CompanyName           "mozilla.org"
 !define URLInfoAbout          "http://www.mozilla.org"
 !define URLUpdateInfo         "http://www.mozilla.org/projects/firefox"
 !define SurveyURL             "https://survey.mozilla.com/1/Mozilla%20Firefox/${AppVersion}/${AB_CD}/exit.html"
+
+# Percentage of new "Standard" installs to enable talkback for
+!define RandomPercent         "50"

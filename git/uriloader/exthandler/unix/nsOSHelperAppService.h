@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Scott MacGregor <mscott@netscape.com>
- *   Dan Mosedale <dmose@mozilla.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -62,9 +61,8 @@ public:
   already_AddRefed<nsIMIMEInfo> GetMIMEInfoFromOS(const nsACString& aMimeType,
                                                   const nsACString& aFileExt,
                                                   PRBool     *aFound);
-  NS_IMETHOD GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
-                                          PRBool *found,
-                                          nsIHandlerInfo **_retval);
+  already_AddRefed<nsIHandlerInfo> GetProtocolInfoFromOS(const nsACString &aScheme,
+                                                         PRBool *found);
 
   // override nsIExternalProtocolService methods
   nsresult OSProtocolHandlerExists(const char * aProtocolScheme, PRBool * aHandlerExists);
@@ -162,6 +160,8 @@ private:
                                                           nsAString& aHandler,
                                                           nsAString& aDescription,
                                                           nsAString& aMozillaFlags);
+
+  nsresult GetHandlerAppFromPrefs(const char* aScheme, nsIFile** aApp);
 };
 
 #endif // nsOSHelperAppService_h__

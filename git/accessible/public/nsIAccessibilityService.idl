@@ -44,98 +44,62 @@ interface nsIDocument;
 interface nsIFrame;
 interface nsObjectFrame;
 interface nsIContent;
-interface nsITimer;
 
-[uuid(61098f48-4fcc-4b05-9cf3-c11b8efbe682)]
+[uuid(933f7472-cbe3-4d95-a77a-ce7ea3812b32)]
 interface nsIAccessibilityService : nsIAccessibleRetrieval
 {
   nsIAccessible createOuterDocAccessible(in nsIDOMNode aNode);
   nsIAccessible createRootAccessible(in nsIPresShell aShell, in nsIDocument aDocument);
 
-  nsIAccessible createHTML4ButtonAccessible(in nsIFrame aFrame);
-  nsIAccessible createHyperTextAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLBRAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLButtonAccessible(in nsIFrame aFrame);
+  nsIAccessible createHTML4ButtonAccessible(in nsISupports aFrame);
+  nsIAccessible createHyperTextAccessible(in nsISupports aFrame);
+  nsIAccessible createHTMLBRAccessible(in nsISupports aFrame);
+  nsIAccessible createHTMLButtonAccessible(in nsISupports aFrame);
   nsIAccessible createHTMLAccessibleByMarkup(in nsIFrame aFrame, in nsIWeakReference aWeakShell, in nsIDOMNode aDOMNode);
-  nsIAccessible createHTMLLIAccessible(in nsIFrame aFrame, in nsIFrame aBulletFrame, in AString aBulletText);
-  nsIAccessible createHTMLCheckboxAccessible(in nsIFrame aFrame);
+  nsIAccessible createHTMLLIAccessible(in nsISupports aFrame, in nsISupports aBulletFrame, in AString aBulletText);
+  nsIAccessible createHTMLCheckboxAccessible(in nsISupports aFrame);
   nsIAccessible createHTMLComboboxAccessible(in nsIDOMNode aNode, in nsIWeakReference aPresShell);
-  nsIAccessible createHTMLGenericAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLGroupboxAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLHRAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLImageAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLLabelAccessible(in nsIFrame aFrame);
+  nsIAccessible createHTMLGenericAccessible(in nsISupports aFrame);
+  nsIAccessible createHTMLGroupboxAccessible(in nsISupports aFrame);
+  nsIAccessible createHTMLHRAccessible(in nsISupports aFrame);
+  nsIAccessible createHTMLImageAccessible(in nsISupports aFrame);
+  nsIAccessible createHTMLLabelAccessible(in nsISupports aFrame);
   nsIAccessible createHTMLListboxAccessible(in nsIDOMNode aNode, in nsIWeakReference aPresShell);
-  nsIAccessible createHTMLMediaAccessible(in nsIFrame aFrame);
   nsIAccessible createHTMLObjectFrameAccessible(in nsObjectFrame aFrame);
-  nsIAccessible createHTMLRadioButtonAccessible(in nsIFrame aFrame);
+  nsIAccessible createHTMLRadioButtonAccessible(in nsISupports aFrame);
   nsIAccessible createHTMLSelectOptionAccessible(in nsIDOMNode aNode, in nsIAccessible aAccParent, in nsIWeakReference aPresShell);
-  nsIAccessible createHTMLTableAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLTableCellAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLTextAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLTextFieldAccessible(in nsIFrame aFrame);
-  nsIAccessible createHTMLCaptionAccessible(in nsIFrame aFrame);
+  nsIAccessible createHTMLTableAccessible(in nsISupports aFrame);
+  nsIAccessible createHTMLTableCellAccessible(in nsISupports aFrame);
+  nsIAccessible createHTMLTableHeadAccessible(in nsIDOMNode aDOMNode);
+  nsIAccessible createHTMLTextAccessible(in nsISupports aFrame);
+  nsIAccessible createHTMLTextFieldAccessible(in nsISupports aFrame);
+  nsIAccessible createHTMLCaptionAccessible(in nsISupports aFrame);
 
-  /**
-   * Return an accessible for the given DOM node.
-   *
-   * @param  aNode       [in] the given node
-   * @param  aPresShell  [in] the pres shell of the node
-   * @param  aWeakShell  [in] the weak shell for the pres shell
-   * @param  aFrameHint  [in] the frame of the given node
-   * @param  aIsHidden   [out] indicates whether the node's frame is hidden
-   */
-  nsIAccessible getAccessible(in nsIDOMNode aNode, in nsIPresShell aPresShell,
-                              in nsIWeakReference aWeakShell,
-                              in nsIFrame aFrameHint, out boolean aIsHidden);
+  nsIAccessible getAccessible(in nsIDOMNode aNode, in nsIPresShell aPresShell,                          
+                              in nsIWeakReference aWeakShell, 
+                              inout nsIFrame frameHint, out boolean aIsHidden);
 
   // For gtk+ native window accessible
   nsIAccessible addNativeRootAccessible(in voidPtr aAtkAccessible);
   void removeNativeRootAccessible(in nsIAccessible aRootAccessible);
 
   /**
-   * Used to describe sort of changes leading to accessible tree invalidation.
+   * Invalidate the accessibility cache associated with aPresShell, for accessibles
+   * that were generated for aContainerContent and it's subtree.
+   * The container content node for the change is passed in, rather than the
+   * changed presentation for the content node itself.
+   * @param aPresShell         The presShell where changes occured
+   * @param aChangeContent     The affected DOM content
+   * @param aEvent             The event from nsIAccessibleEvent that
+   *                           caused the change:
+   *                           Must be one of:
+   *                           EVENT_REORDER (change),
+   *                           EVENT_SHOW (make visible or create) or 
+   *                           EVENT_HIDE (destroy or hide)
    */
-  const unsigned long NODE_APPEND = 0x01;
-  const unsigned long NODE_REMOVE = 0x02;
-  const unsigned long NODE_SIGNIFICANT_CHANGE = 0x03;
-  const unsigned long FRAME_SHOW = 0x04;
-  const unsigned long FRAME_HIDE = 0x05;
-  const unsigned long FRAME_SIGNIFICANT_CHANGE = 0x06;
-
-  /**
-   * Invalidate the accessible tree when DOM tree or frame tree is changed.
-   *
-   * @param aPresShell   [in] the presShell where changes occured
-   * @param aContent     [in] the affected DOM content
-   * @param aChangeType  [in] the change type (see constants declared above)
-   */
-  void invalidateSubtreeFor(in nsIPresShell aPresShell, in nsIContent aContent,
-                            in PRUint32 aChangeType);
-
-  /**
-   *  An internal doc load event has occured. Handle the event and remove it from the list.
-   *  @param aTimer      The timer created to handle this doc load event
-   *  @param aClosure    The nsIWebProgress* for the load event
-   *  @param aEventType  The type of load event, one of: nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_START,
-   *                                                     nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE or
-   *                                                     nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_STOPPED
-   */
-  void processDocLoadEvent(in nsITimer aTimer, in voidPtr aClosure, in PRUint32 aEventType);
-
-  /**
-   * Notify accessibility that anchor jump has been accomplished to the given
-   * target. Used by layout.
-   */
-  void notifyOfAnchorJumpTo(in nsIContent aTarget);
-
-  /**
-   * Fire accessible event of the given type for the given target.
-   *
-   * @param aEvent   [in] accessible event type
-   * @param aTarget  [in] target of accessible event
-   */
-  void fireAccessibleEvent(in unsigned long aEvent, in nsIAccessible aTarget);
+  void invalidateSubtreeFor(in nsIPresShell aPresShell,
+                            in nsIContent aChangedContent,
+                            in PRUint32 aEvent);
 };
 
 

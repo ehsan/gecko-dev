@@ -40,7 +40,7 @@
 #include "nsString.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDocumentLoaderFactory.h"
-#include "nsIPluginHost.h"
+#include "nsIPluginManager.h"
 
 NS_IMPL_ISUPPORTS1(nsWebNavigationInfo, nsIWebNavigationInfo)
 
@@ -84,12 +84,12 @@ nsWebNavigationInfo::IsTypeSupported(const nsACString& aType,
   }
   
   // Try reloading plugins in case they've changed.
-  nsCOMPtr<nsIPluginHost> pluginHost =
-    do_GetService(MOZ_PLUGIN_HOST_CONTRACTID);
-  if (pluginHost) {
+  nsCOMPtr<nsIPluginManager> pluginManager =
+    do_GetService("@mozilla.org/plugin/manager;1");
+  if (pluginManager) {
     // PR_FALSE will ensure that currently running plugins will not
     // be shut down
-    rv = pluginHost->ReloadPlugins(PR_FALSE);
+    rv = pluginManager->ReloadPlugins(PR_FALSE);
     if (NS_SUCCEEDED(rv)) {
       // OK, we reloaded plugins and there were new ones
       // (otherwise NS_ERROR_PLUGINS_PLUGINSNOTCHANGED would have

@@ -44,14 +44,11 @@
 #include "nsISVGChildFrame.h"
 #include "gfxContext.h"
 #include "gfxFont.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
-#include "nsSVGMatrix.h"
+#include "gfxTextRunCache.h"
 
+struct nsSVGCharacterPosition;
 class nsSVGTextFrame;
 class nsSVGGlyphFrame;
-class CharacterIterator;
-struct CharacterPosition;
 
 typedef nsSVGGeometryFrame nsSVGGlyphFrameBase;
 
@@ -60,35 +57,32 @@ class nsSVGGlyphFrame : public nsSVGGlyphFrameBase,
                         public nsISVGChildFrame
 {
   friend nsIFrame*
-  NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGGlyphFrame(nsIPresShell* aPresShell, nsIContent* aContent,
+                      nsIFrame* parentFrame, nsStyleContext* aContext);
 protected:
   nsSVGGlyphFrame(nsStyleContext* aContext)
-    : nsSVGGlyphFrameBase(aContext),
-      mTextRun(nsnull),
-      mWhitespaceHandling(COMPRESS_WHITESPACE)
-      {}
-  ~nsSVGGlyphFrame()
-  {
-    ClearTextRun();
-  }
+    : nsSVGGlyphFrameBase(aContext), 
+      mWhitespaceHandling(COMPRESS_WHITESPACE) {}
 
 public:
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+   // nsISupports interface:
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 
   // nsIFrame interface:
-  NS_IMETHOD  CharacterDataChanged(CharacterDataChangeInfo* aInfo);
+  NS_IMETHOD  CharacterDataChanged(nsPresContext*  aPresContext,
+                                   nsIContent*     aChild,
+                                   PRBool          aAppend);
 
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
+  NS_IMETHOD  DidSetStyleContext();
 
-  virtual void SetSelected(PRBool        aSelected,
-                           SelectionType aType);
+  NS_IMETHOD  SetSelected(nsPresContext* aPresContext,
+                          nsIDOMRange*    aRange,
+                          PRBool          aSelected,
+                          nsSpread        aSpread);
   NS_IMETHOD  GetSelected(PRBool *aSelected) const;
   NS_IMETHOD  IsSelectable(PRBool* aIsSelectable, PRUint8* aSelectStyle) const;
-
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
 
   /**
    * Get the "type" of the frame
@@ -113,39 +107,34 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  // These four always use the global transform, even if NS_STATE_NONDISPLAY_CHILD
-  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext,
-                      const nsIntRect *aDirtyRect);
-  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
-  NS_IMETHOD UpdateCoveredRegion();
-  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
-
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, nsRect *aDirtyRect);
+  NS_IMETHOD GetFrameForPointSVG(float x, float y, nsIFrame** hit);
   NS_IMETHOD_(nsRect) GetCoveredRegion();
+  NS_IMETHOD UpdateCoveredRegion();
   NS_IMETHOD InitialUpdate();
-  virtual void NotifySVGChanged(PRUint32 aFlags);
+  NS_IMETHOD NotifyCanvasTMChanged(PRBool suppressInvalidation);
   NS_IMETHOD NotifyRedrawSuspended();
   NS_IMETHOD NotifyRedrawUnsuspended();
-  NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
-  virtual PRBool GetMatrixPropagation();
+  NS_IMETHOD SetMatrixPropagation(PRBool aPropagate) { return NS_OK; }
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM) { return NS_ERROR_FAILURE; }
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM() { return nsnull; }
+  NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
   NS_IMETHOD_(PRBool) IsDisplayContainer() { return PR_FALSE; }
   NS_IMETHOD_(PRBool) HasValidCoveredRect() { return PR_TRUE; }
 
-  // nsSVGGeometryFrame methods
-  gfxMatrix GetCanvasTM();
+  // nsISVGGeometrySource interface: 
+  NS_IMETHOD GetCanvasTM(nsIDOMSVGMatrix * *aCTM);
+  virtual nsresult UpdateGraphic(PRBool suppressInvalidation = PR_FALSE);
 
   // nsISVGGlyphFragmentLeaf interface:
-  // These do not use the global transform if NS_STATE_NONDISPLAY_CHILD
   NS_IMETHOD GetStartPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval);
   NS_IMETHOD GetEndPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval);
   NS_IMETHOD GetExtentOfChar(PRUint32 charnum, nsIDOMSVGRect **_retval);
   NS_IMETHOD GetRotationOfChar(PRUint32 charnum, float *_retval);
-  /**
-   * @param aForceGlobalTransform controls whether to use the
-   * global transform even when NS_STATE_NONDISPLAY_CHILD
-   */
-  NS_IMETHOD_(float) GetAdvance(PRBool aForceGlobalTransform);
+  NS_IMETHOD_(float) GetBaselineOffset(PRUint16 baselineIdentifier);
+  NS_IMETHOD_(float) GetAdvance();
 
-  NS_IMETHOD_(void) SetGlyphPosition(float x, float y, PRBool aForceGlobalTransform);
+  NS_IMETHOD_(void) SetGlyphPosition(float x, float y);
   NS_IMETHOD_(nsSVGTextPathFrame*) FindTextPathParent();
   NS_IMETHOD_(PRBool) IsStartOfChunk(); // == is new absolutely positioned chunk.
   NS_IMETHOD_(void) GetAdjustedPosition(/* inout */ float &x, /* inout */ float &y);
@@ -158,63 +147,75 @@ public:
   NS_IMETHOD_(PRBool) IsAbsolutelyPositioned();
 
   // nsISVGGlyphFragmentNode interface:
-  // These do not use the global transform if NS_STATE_NONDISPLAY_CHILD
-  virtual PRUint32 GetNumberOfChars();
-  virtual float GetComputedTextLength();
-  virtual float GetSubStringLength(PRUint32 charnum, PRUint32 fragmentChars);
-  virtual PRInt32 GetCharNumAtPosition(nsIDOMSVGPoint *point);
+  NS_IMETHOD_(PRUint32) GetNumberOfChars();
+  NS_IMETHOD_(float) GetComputedTextLength();
+  NS_IMETHOD_(float) GetSubStringLength(PRUint32 charnum, PRUint32 fragmentChars);
+  NS_IMETHOD_(PRInt32) GetCharNumAtPosition(nsIDOMSVGPoint *point);
   NS_IMETHOD_(nsISVGGlyphFragmentLeaf *) GetFirstGlyphFragment();
   NS_IMETHOD_(nsISVGGlyphFragmentLeaf *) GetNextGlyphFragment();
   NS_IMETHOD_(void) SetWhitespaceHandling(PRUint8 aWhitespaceHandling);
 
 protected:
-  friend class CharacterIterator;
+  struct nsSVGCharacterPosition {
+    gfxPoint pos;
+    gfxFloat angle;
+    PRBool draw;
+  };
 
-  // Use a power of 2 here. It's not so important to match
-  // nsIDeviceContext::AppUnitsPerDevPixel, but since we do a lot of
-  // multiplying by 1/GetTextRunUnitsFactor, it's good for it to be a
-  // power of 2 to avoid accuracy loss.
-  static PRUint32 GetTextRunUnitsFactor() { return 64; }
-  
-  /**
-   * @aParam aDrawScale font drawing must be scaled into user units
-   * by this factor
-   * @param aMetricsScale font metrics must be scaled into user units
-   * by this factor
-   * @param aForceGlobalTransform set to true if we should force use of
-   * the global transform; otherwise we won't use the global transform
-   * if we're a NONDISPLAY_CHILD
-   */
-  PRBool EnsureTextRun(float *aDrawScale, float *aMetricsScale,
-                       PRBool aForceGlobalTransform);
-  void ClearTextRun();
+  // VC6 does not allow the inner class to access protected members
+  // of the outer class
+  class nsSVGAutoGlyphHelperContext;
+  friend class nsSVGAutoGlyphHelperContext;
+
+  // A helper class to deal with gfxTextRuns and temporary thebes
+  // contexts.
+  class nsSVGAutoGlyphHelperContext
+  {
+  public:
+    nsSVGAutoGlyphHelperContext(nsSVGGlyphFrame *aSource,
+                                const nsString &aText)
+    {
+      Init(aSource, aText);
+    }
+
+    nsSVGAutoGlyphHelperContext(nsSVGGlyphFrame *aSource,
+                                const nsString &aText,
+                                nsSVGCharacterPosition **cp);
+
+    gfxContext *GetContext() { return mCT; }
+    gfxTextRun *GetTextRun() { return mTextRun.get(); }
+
+  private:
+    void Init(nsSVGGlyphFrame *aSource, const nsString &aText);
+
+    nsRefPtr<gfxContext>         mCT;
+    gfxTextRunCache::AutoTextRun mTextRun;
+  };
+
+  // The textrun must be released via gfxTextRunCache::AutoTextRun
+  gfxTextRun *GetTextRun(gfxContext *aCtx,
+                         const nsString &aText);
 
   PRBool GetCharacterData(nsAString & aCharacterData);
-  PRBool GetCharacterPositions(nsTArray<CharacterPosition>* aCharacterPositions,
-                               float aMetricsScale);
+  nsresult GetCharacterPosition(gfxContext *aContext,
+                                const nsString &aText,
+                                nsSVGCharacterPosition **aCharacterPosition);
 
-  void AddCharactersToPath(CharacterIterator *aIter,
-                           gfxContext *aContext);
-  void AddBoundingBoxesToPath(CharacterIterator *aIter,
-                              gfxContext *aContext);
-  void FillCharacters(CharacterIterator *aIter,
-                      gfxContext *aContext);
+  enum FillOrStroke { FILL, STROKE};
 
-  void NotifyGlyphMetricsChange();
-  PRBool ContainsPoint(const nsPoint &aPoint);
-  PRBool GetGlobalTransform(gfxMatrix *aMatrix);
-  void SetupGlobalTransform(gfxContext *aContext);
+  void LoopCharacters(gfxContext *aCtx, const nsString &aText,
+                      const nsSVGCharacterPosition *aCP,
+                      FillOrStroke aFillOrStroke);
+
+  void UpdateGeometry(PRBool bRedraw, PRBool suppressInvalidation);
+  void UpdateMetrics();
+  PRBool ContainsPoint(float x, float y);
+  nsresult GetGlobalTransform(gfxContext *aContext);
   nsresult GetHighlight(PRUint32 *charnum, PRUint32 *nchars,
                         nscolor *foreground, nscolor *background);
-  float GetSubStringAdvance(PRUint32 charnum, PRUint32 fragmentChars);
-  gfxFloat GetBaselineOffset(PRBool aForceGlobalTransform);
 
-  // Used to support GetBBoxContribution by making GetConvasTM use this as the
-  // parent transform instead of the real CanvasTM.
-  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCanvasTM;
-
-  // Owning pointer, must call gfxTextRunWordCache::RemoveTextRun before deleting
-  gfxTextRun *mTextRun;
+  nsRefPtr<gfxFontGroup> mFontGroup;
+  nsAutoPtr<gfxFontStyle> mFontStyle;
   gfxPoint mPosition;
   PRUint8 mWhitespaceHandling;
 };

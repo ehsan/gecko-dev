@@ -55,12 +55,6 @@ class nsNativeTheme
 {
  protected:
 
-  enum ScrollbarButtonType {
-    eScrollbarButton_UpTop   = 0,
-    eScrollbarButton_Down    = 1 << 0,
-    eScrollbarButton_Bottom  = 1 << 1
-  };
-
   enum TreeSortDirection {
     eTreeSortDirection_Descending,
     eTreeSortDirection_Natural,
@@ -85,15 +79,10 @@ class nsNativeTheme
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::disabled);
   }
 
-  // RTL chrome direction
-  PRBool IsFrameRTL(nsIFrame* aFrame);
-
   // button:
   PRBool IsDefaultButton(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::_default);
   }
-
-  PRBool IsButtonTypeMenu(nsIFrame* aFrame);
 
   // checkbox:
   PRBool IsChecked(nsIFrame* aFrame) {
@@ -108,62 +97,30 @@ class nsNativeTheme
   PRBool IsFocused(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::focused);
   }
-  
-  // scrollbar button:
-  PRInt32 GetScrollbarButtonType(nsIFrame* aFrame);
 
   // tab:
   PRBool IsSelectedTab(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::selected);
   }
-  
-  PRBool IsNextToSelectedTab(nsIFrame* aFrame, PRInt32 aOffset);
-  
-  PRBool IsBeforeSelectedTab(nsIFrame* aFrame) {
-    return IsNextToSelectedTab(aFrame, -1);
-  }
-  
-  PRBool IsAfterSelectedTab(nsIFrame* aFrame) {
-    return IsNextToSelectedTab(aFrame, 1);
-  }
 
-  PRBool IsLeftToSelectedTab(nsIFrame* aFrame) {
-    return IsFrameRTL(aFrame) ? IsAfterSelectedTab(aFrame) : IsBeforeSelectedTab(aFrame);
-  }
-
-  PRBool IsRightToSelectedTab(nsIFrame* aFrame) {
-    return IsFrameRTL(aFrame) ? IsBeforeSelectedTab(aFrame) : IsAfterSelectedTab(aFrame);
-  }
-
-  // button / toolbarbutton:
+  // toolbarbutton:
   PRBool IsCheckedButton(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked);
   }
-
-  PRBool IsOpenButton(nsIFrame* aFrame) {
-    return CheckBooleanAttr(aFrame, nsWidgetAtoms::open);
-  }
-
+  
   // treeheadercell:
   TreeSortDirection GetTreeSortDirection(nsIFrame* aFrame);
-  PRBool IsLastTreeHeaderCell(nsIFrame* aFrame);
 
   // tab:
   PRBool IsBottomTab(nsIFrame* aFrame);
   PRBool IsFirstTab(nsIFrame* aFrame);
   PRBool IsLastTab(nsIFrame* aFrame);
-  
-  PRBool IsHorizontal(nsIFrame* aFrame);
 
   // progressbar:
   PRBool IsIndeterminateProgress(nsIFrame* aFrame);
 
   PRInt32 GetProgressValue(nsIFrame* aFrame) {
-    return CheckIntAttr(aFrame, nsWidgetAtoms::value, 0);
-  }
-  
-  PRInt32 GetProgressMaxValue(nsIFrame* aFrame) {
-    return PR_MAX(CheckIntAttr(aFrame, nsWidgetAtoms::max, 100), 1);
+    return CheckIntAttr(aFrame, nsWidgetAtoms::value);
   }
 
   // textfield:
@@ -171,13 +128,42 @@ class nsNativeTheme
       return CheckBooleanAttr(aFrame, nsWidgetAtoms::readonly);
   }
 
-  // menupopup:
-  PRBool IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent);
-
+  // These are used by nsNativeThemeGtk
   nsIPresShell *GetPresShell(nsIFrame* aFrame);
-  PRInt32 CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom, PRInt32 defaultValue);
+  PRInt32 CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom);
   PRBool CheckBooleanAttr(nsIFrame* aFrame, nsIAtom* aAtom);
 
   PRBool GetCheckedOrSelected(nsIFrame* aFrame, PRBool aCheckSelected);
-  PRBool GetIndeterminate(nsIFrame* aFrame);
+
+  // The following should be set to appropriate platform values by the subclass,
+  // to match the values in forms.css. The defaults match forms.css.
+  
+  // push buttons
+  static nsMargin                  sButtonBorderSize;
+  static PRUint8                   sButtonActiveBorderStyle;
+  static PRUint8                   sButtonInactiveBorderStyle;
+  static nsILookAndFeel::nsColorID sButtonBorderColorID;
+  static nsILookAndFeel::nsColorID sButtonDisabledBorderColorID;
+  static nsILookAndFeel::nsColorID sButtonBGColorID;
+  static nsILookAndFeel::nsColorID sButtonDisabledBGColorID;
+  // text fields
+  static nsMargin                  sTextfieldBorderSize;
+  static PRUint8                   sTextfieldBorderStyle;
+  static nsILookAndFeel::nsColorID sTextfieldBorderColorID;
+  static PRBool                    sTextfieldBGTransparent;
+  static nsILookAndFeel::nsColorID sTextfieldBGColorID;
+  static nsILookAndFeel::nsColorID sTextfieldDisabledBGColorID;
+  // listboxes
+  static nsMargin                  sListboxBorderSize;
+  static PRUint8                   sListboxBorderStyle;
+  static nsILookAndFeel::nsColorID sListboxBorderColorID;
+  static nsILookAndFeel::nsColorID sListboxBGColorID;
+  static nsILookAndFeel::nsColorID sListboxDisabledBGColorID;
+  // comboboxes
+  static nsMargin                  sComboboxBorderSize;
+  static PRUint8                   sComboboxBorderStyle;
+  static nsILookAndFeel::nsColorID sComboboxBorderColorID;
+  static PRBool                    sComboboxBGTransparent;
+  static nsILookAndFeel::nsColorID sComboboxBGColorID;
+  static nsILookAndFeel::nsColorID sComboboxDisabledBGColorID;
 };

@@ -45,27 +45,40 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= content
 LIBRARY_NAME	= gkconevents_s
 LIBXUL_LIBRARY  = 1
+REQUIRES	= xpcom \
+		  string \
+		  dom \
+		  js \
+		  locale \
+		  gfx \
+		  thebes \
+		  layout \
+		  widget \
+		  caps \
+		  xpconnect \
+		  webshell \
+		  docshell \
+		  pref \
+		  view \
+		  necko \
+		  unicharutil \
+		  imglib2 \
+		  $(NULL)
 
 CPPSRCS		= \
 		nsEventListenerManager.cpp \
 		nsEventStateManager.cpp \
 		nsDOMEvent.cpp \
-		nsDOMDataContainerEvent.cpp \
 		nsDOMUIEvent.cpp \
 		nsDOMKeyboardEvent.cpp \
 		nsDOMTextEvent.cpp \
 		nsDOMMouseEvent.cpp \
-		nsDOMMouseScrollEvent.cpp \
-		nsDOMDragEvent.cpp \
 		nsDOMMutationEvent.cpp \
 		nsDOMPopupBlockedEvent.cpp \
-		nsDOMOrientationEvent.cpp \
 		nsDOMBeforeUnloadEvent.cpp \
 		nsDOMPageTransitionEvent.cpp \
 		nsDOMXULCommandEvent.cpp \
 		nsDOMCommandEvent.cpp \
-		nsDOMMessageEvent.cpp \
-		nsPaintRequest.cpp \
 		nsPrivateTextRange.cpp \
 		nsDOMEventGroup.cpp \
 		nsXMLEventsManager.cpp \
@@ -73,15 +86,6 @@ CPPSRCS		= \
 		nsPLDOMEvent.cpp \
 		nsEventDispatcher.cpp \
 		nsIMEStateManager.cpp \
-		nsContentEventHandler.cpp \
-		nsEventListenerService.cpp \
-		nsDOMProgressEvent.cpp \
-		nsDOMDataTransfer.cpp \
-		nsDOMNotifyPaintEvent.cpp \
-		nsDOMSimpleGestureEvent.cpp \
-		nsDOMEventTargetHelper.cpp \
-		nsDOMScrollAreaEvent.cpp \
-		nsDOMTransitionEvent.cpp \
 		$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
@@ -94,16 +98,7 @@ LOCAL_INCLUDES	= \
              -I$(srcdir)/../../html/base/src \
              -I$(srcdir)/../../xul/content/src \
              -I$(srcdir)/../../xml/content/src \
-             -I$(srcdir)/../../../dom/base \
-             -I$(srcdir)/../../../layout/generic \
-             -I$(srcdir)/../../../layout/xul/base/src \
-             -I$(srcdir)/../../../layout/xul/base/src/tree/src \
+             -I$(srcdir)/../../../dom/src/base \
              $(NULL)
 
 DEFINES += -D_IMPL_NS_LAYOUT
-
-ifdef MOZ_JSDEBUGGER
-DEFINES += -DMOZ_JSDEBUGGER
-endif
-
-

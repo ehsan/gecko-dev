@@ -160,14 +160,13 @@ nsViewSourceChannel::GetOriginalURI(nsIURI* *aURI)
 {
     NS_ASSERTION(aURI, "Null out param!");
     *aURI = mOriginalURI;
-    NS_ADDREF(*aURI);
+    NS_IF_ADDREF(*aURI);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsViewSourceChannel::SetOriginalURI(nsIURI* aURI)
 {
-    NS_ENSURE_ARG_POINTER(aURI);
     mOriginalURI = aURI;
     return NS_OK;
 }

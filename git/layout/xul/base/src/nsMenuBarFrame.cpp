@@ -53,6 +53,8 @@
 #include "nsMenuPopupFrame.h"
 #include "nsGUIEvent.h"
 #include "nsUnicharUtils.h"
+#include "nsICaret.h"
+#include "nsIFocusController.h"
 #include "nsIDOMWindowInternal.h"
 #include "nsIDOMDocument.h"
 #include "nsPIDOMWindow.h"
@@ -62,8 +64,6 @@
 #include "nsISound.h"
 #include "nsWidgetsCID.h"
 #endif
-#include "nsContentUtils.h"
-#include "nsUTF8Utils.h"
 
 
 //
@@ -77,18 +77,15 @@ NS_NewMenuBarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsMenuBarFrame (aPresShell, aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsMenuBarFrame)
-
 //
 // nsMenuBarFrame cntr
 //
 nsMenuBarFrame::nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext):
   nsBoxFrame(aShell, aContext),
     mMenuBarListener(nsnull),
-    mStayActive(PR_FALSE),
     mIsActive(PR_FALSE),
-    mCurrentMenu(nsnull),
-    mTarget(nsnull)
+    mTarget(nsnull),
+    mCaretWasVisible(PR_FALSE)
 {
 } // cntr
 
@@ -132,10 +129,6 @@ nsMenuBarFrame::SetActive(PRBool aActiveFlag)
     return NS_OK;
 
   if (!aActiveFlag) {
-    // Don't deactivate when switching between menus on the menubar.
-    if (mStayActive)
-      return NS_OK;
-
     // if there is a request to deactivate the menu bar, check to see whether
     // there is a menu popup open for the menu bar. In this case, don't
     // deactivate the menu bar.
@@ -151,6 +144,57 @@ nsMenuBarFrame::SetActive(PRBool aActiveFlag)
   else {
     RemoveKeyboardNavigator();
   }
+  
+  // We don't want the caret to blink while the menus are active
+  // The caret distracts screen readers and other assistive technologies from the menu selection
+  // There is 1 caret per document, we need to find the focused document and toggle its caret 
+  do {
+    nsIPresShell *presShell = PresContext()->GetPresShell();
+    if (!presShell)
+      break;
+
+    nsIDocument *document = presShell->GetDocument();
+    if (!document)
+      break;
+
+    nsCOMPtr<nsISupports> container = document->GetContainer();
+    nsCOMPtr<nsPIDOMWindow> windowPrivate = do_GetInterface(container);
+    if (!windowPrivate)
+      break;
+
+    nsIFocusController *focusController =
+      windowPrivate->GetRootFocusController();
+    if (!focusController)
+      break;
+
+    nsCOMPtr<nsIDOMWindowInternal> windowInternal;
+    focusController->GetFocusedWindow(getter_AddRefs(windowInternal));
+    if (!windowInternal)
+      break;
+
+    nsCOMPtr<nsIDOMDocument> domDoc;
+    nsCOMPtr<nsIDocument> focusedDoc;
+    windowInternal->GetDocument(getter_AddRefs(domDoc));
+    focusedDoc = do_QueryInterface(domDoc);
+    if (!focusedDoc)
+      break;
+
+    presShell = focusedDoc->GetPrimaryShell();
+    nsCOMPtr<nsISelectionController> selCon(do_QueryInterface(presShell));
+    // there is no selection controller for full page plugins
+    if (!selCon)
+      break;
+
+    if (mIsActive) {// store whether caret was visible so that we can restore that state when menu is closed
+      PRBool isCaretVisible;
+      selCon->GetCaretEnabled(&isCaretVisible);
+      mCaretWasVisible |= isCaretVisible;
+    }
+    selCon->SetCaretEnabled(!mIsActive && mCaretWasVisible);
+    if (!mIsActive) {
+      mCaretWasVisible = PR_FALSE;
+    }
+  } while (0);
 
   NS_NAMED_LITERAL_STRING(active, "DOMMenuBarActive");
   NS_NAMED_LITERAL_STRING(inactive, "DOMMenuBarInactive");
@@ -211,17 +255,8 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
 {
   PRUint32 charCode;
   aKeyEvent->GetCharCode(&charCode);
-
-  nsAutoTArray<PRUint32, 10> accessKeys;
-  nsEvent* nativeEvent = nsContentUtils::GetNativeEvent(aKeyEvent);
-  nsKeyEvent* nativeKeyEvent = static_cast<nsKeyEvent*>(nativeEvent);
-  if (nativeKeyEvent)
-    nsContentUtils::GetAccessKeyCandidates(nativeKeyEvent, accessKeys);
-  if (accessKeys.IsEmpty() && charCode)
-    accessKeys.AppendElement(charCode);
-
-  if (accessKeys.IsEmpty())
-    return nsnull; // no character was pressed so just return
+  if (!charCode) // no character was pressed so just return  
+    return nsnull;
 
   // Enumerate over our list of frames.
   nsIFrame* immediateParent = nsnull;
@@ -229,37 +264,28 @@ nsMenuBarFrame::FindMenuWithShortcut(nsIDOMKeyEvent* aKeyEvent)
   if (!immediateParent)
     immediateParent = this;
 
-  // Find a most preferred accesskey which should be returned.
-  nsIFrame* foundMenu = nsnull;
-  PRUint32 foundIndex = accessKeys.NoIndex;
   nsIFrame* currFrame = immediateParent->GetFirstChild(nsnull);
 
   while (currFrame) {
     nsIContent* current = currFrame->GetContent();
-
+    
     // See if it's a menu item.
     if (nsXULPopupManager::IsValidMenuItem(PresContext(), current, PR_FALSE)) {
       // Get the shortcut attribute.
       nsAutoString shortcutKey;
       current->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, shortcutKey);
       if (!shortcutKey.IsEmpty()) {
-        ToLowerCase(shortcutKey);
-        const PRUnichar* start = shortcutKey.BeginReading();
-        const PRUnichar* end = shortcutKey.EndReading();
-        PRUint32 ch = UTF16CharEnumerator::NextChar(&start, end);
-        PRUint32 index = accessKeys.IndexOf(ch);
-        if (index != accessKeys.NoIndex &&
-            (foundIndex == accessKeys.NoIndex || index < foundIndex)) {
-          foundMenu = currFrame;
-          foundIndex = index;
+        // We've got something.
+        PRUnichar letter = PRUnichar(charCode); // throw away the high-zero-fill
+        if ( shortcutKey.Equals(Substring(&letter, &letter+1),
+                                nsCaseInsensitiveStringComparator()) )  {
+          // We match!
+          return (currFrame->GetType() == nsGkAtoms::menuFrame) ?
+                 static_cast<nsMenuFrame *>(currFrame) : nsnull;
         }
       }
     }
     currFrame = currFrame->GetNextSibling();
-  }
-  if (foundMenu) {
-    return (foundMenu->GetType() == nsGkAtoms::menuFrame) ?
-           static_cast<nsMenuFrame *>(foundMenu) : nsnull;
   }
 
   // didn't find a matching menu item
@@ -298,12 +324,14 @@ nsMenuBarFrame::SetCurrentMenuItem(nsMenuFrame* aMenuItem)
   if (mCurrentMenu == aMenuItem)
     return NS_OK;
 
+  nsWeakFrame weakFrame(this);
   if (mCurrentMenu)
     mCurrentMenu->SelectMenu(PR_FALSE);
 
   if (aMenuItem)
     aMenuItem->SelectMenu(PR_TRUE);
 
+  NS_ENSURE_TRUE(weakFrame.IsAlive(), NS_OK);
   mCurrentMenu = aMenuItem;
 
   return NS_OK;
@@ -319,12 +347,10 @@ nsMenuBarFrame::CurrentMenuIsBeingDestroyed()
 class nsMenuBarSwitchMenu : public nsRunnable
 {
 public:
-  nsMenuBarSwitchMenu(nsIContent* aMenuBar,
-                      nsIContent *aOldMenu,
+  nsMenuBarSwitchMenu(nsIContent *aOldMenu,
                       nsIContent *aNewMenu,
                       PRBool aSelectFirstItem)
-    : mMenuBar(aMenuBar), mOldMenu(aOldMenu), mNewMenu(aNewMenu),
-      mSelectFirstItem(aSelectFirstItem)
+    : mOldMenu(aOldMenu), mNewMenu(aNewMenu), mSelectFirstItem(aSelectFirstItem)
   {
   }
 
@@ -334,24 +360,8 @@ public:
     if (!pm)
       return NS_ERROR_UNEXPECTED;
 
-    // if switching from one menu to another, set a flag so that the call to
-    // HidePopup doesn't deactivate the menubar when the first menu closes.
-    nsMenuBarFrame* menubar = nsnull;
-    if (mOldMenu && mNewMenu) {
-      menubar = static_cast<nsMenuBarFrame *>
-        (pm->GetFrameOfTypeForContent(mMenuBar, nsGkAtoms::menuBarFrame, PR_FALSE));
-      if (menubar)
-        menubar->SetStayActive(PR_TRUE);
-    }
-
-    if (mOldMenu) {
-      nsWeakFrame weakMenuBar(menubar);
+    if (mOldMenu)
       pm->HidePopup(mOldMenu, PR_FALSE, PR_FALSE, PR_FALSE);
-      // clear the flag again
-      if (mNewMenu && weakMenuBar.IsAlive())
-        menubar->SetStayActive(PR_FALSE);
-    }
-
     if (mNewMenu)
       pm->ShowMenu(mNewMenu, mSelectFirstItem, PR_FALSE);
 
@@ -359,7 +369,6 @@ public:
   }
 
 private:
-  nsCOMPtr<nsIContent> mMenuBar;
   nsCOMPtr<nsIContent> mOldMenu;
   nsCOMPtr<nsIContent> mNewMenu;
   PRBool mSelectFirstItem;
@@ -397,7 +406,9 @@ nsMenuBarFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
   // Set the new child.
   if (aMenuItem) {
     nsCOMPtr<nsIContent> content = aMenuItem->GetContent();
+    nsWeakFrame weakNewMenu(aMenuItem);
     aMenuItem->SelectMenu(PR_TRUE);
+    NS_ENSURE_TRUE(weakNewMenu.IsAlive(), NS_OK);
     mCurrentMenu = aMenuItem;
     if (wasOpen && !aMenuItem->IsDisabled())
       aNewMenu = content;
@@ -406,7 +417,7 @@ nsMenuBarFrame::ChangeMenuItem(nsMenuFrame* aMenuItem,
   // use an event so that hiding and showing can be done synchronously, which
   // avoids flickering
   nsCOMPtr<nsIRunnable> event =
-    new nsMenuBarSwitchMenu(GetContent(), aOldMenu, aNewMenu, aSelectFirstItem);
+    new nsMenuBarSwitchMenu(aOldMenu, aNewMenu, aSelectFirstItem);
   return NS_DispatchToCurrentThread(event);
 }
 
@@ -453,7 +464,7 @@ nsMenuBarFrame::RemoveKeyboardNavigator()
 }
 
 void
-nsMenuBarFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsMenuBarFrame::Destroy()
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
   if (pm)
@@ -468,5 +479,5 @@ nsMenuBarFrame::DestroyFrom(nsIFrame* aDestructRoot)
 
   NS_IF_RELEASE(mMenuBarListener);
 
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }

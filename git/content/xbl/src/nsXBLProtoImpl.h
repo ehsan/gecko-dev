@@ -65,6 +65,8 @@ public:
     MOZ_COUNT_DTOR(nsXBLProtoImpl);
     // Note: the constructor and destructor are in mMembers, so we'll
     // clean them up automatically.
+    for (nsXBLProtoImplMember* curr = mMembers; curr; curr=curr->GetNext())
+      curr->Destroy(mClassObject != nsnull);
     delete mMembers;
     delete mFields;
   }
@@ -88,8 +90,8 @@ public:
     mFields = aFieldList;
   }
 
-  void Trace(TraceCallback aCallback, void *aClosure) const;
-  void UnlinkJSObjects();
+  void Traverse(nsCycleCollectionTraversalCallback &cb) const;
+  void Unlink();
 
   nsXBLProtoImplField* FindField(const nsString& aFieldName) const;
 
@@ -97,16 +99,12 @@ public:
   // return means a JS exception was set.
   PRBool ResolveAllFields(JSContext *cx, JSObject *obj) const;
 
-  // Undefine all our fields from object |obj| (which should be a
-  // JSObject for a bound element).
-  void UndefineFields(JSContext* cx, JSObject* obj) const;
-
-  PRBool CompiledMembers() const {
-    return mClassObject != nsnull;
-  }
-
 protected:
-  void DestroyMembers();
+  // Function to call if compilation of a member fails.  When this is called,
+  // all members before aBrokenMember are compiled, compilation of
+  // aBrokenMember failed, and members after aBrokenMember are uncompiled.
+  // This function assumes that aBrokenMember is _not_ compiled.
+  void DestroyMembers(nsXBLProtoImplMember* aBrokenMember);
   
 public:
   nsCString mClassName; // The name of the class. 

@@ -64,13 +64,6 @@ try {
   do_throw("Could not get livemark service\n");
 } 
 
-// Get favicon service
-try {
-  var iconsvc = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
-} catch(ex) {
-  do_throw("Could not get favicon service\n");
-} 
-
 // Get microsummary service
 try {
   var mssvc = Cc["@mozilla.org/microsummary/service;1"].getService(Ci.nsIMicrosummaryService);
@@ -85,24 +78,19 @@ try {
   do_throw("Could not get io service\n");
 }
 
+
 const DESCRIPTION_ANNO = "bookmarkProperties/description";
 const LOAD_IN_SIDEBAR_ANNO = "bookmarkProperties/loadInSidebar";
-const POST_DATA_ANNO = "bookmarkProperties/POSTData";
-
-const TEST_FAVICON_PAGE_URL = "http://en-US.www.mozilla.com/en-US/firefox/central/";
-const TEST_FAVICON_DATA_URL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAHWSURBVHjaYvz//z8DJQAggJiQOe/fv2fv7Oz8rays/N+VkfG/iYnJfyD/1+rVq7ffu3dPFpsBAAHEAHIBCJ85c8bN2Nj4vwsDw/8zQLwKiO8CcRoQu0DxqlWrdsHUwzBAAIGJmTNnPgYa9j8UqhFElwPxf2MIDeIrKSn9FwSJoRkAEEAM0DD4DzMAyPi/G+QKY4hh5WAXGf8PDQ0FGwJ22d27CjADAAIIrLmjo+MXA9R2kAHvGBA2wwx6B8W7od6CeQcggKCmCEL8bgwxYCbUIGTDVkHDBia+CuotgACCueD3TDQN75D4xmAvCoK9ARMHBzAw0AECiBHkAlC0Mdy7x9ABNA3obAZXIAa6iKEcGlMVQHwWyjYuL2d4v2cPg8vZswx7gHyAAAK7AOif7SAbOqCmn4Ha3AHFsIDtgPq/vLz8P4MSkJ2W9h8ggBjevXvHDo4FQUQg/kdypqCg4H8lUIACnQ/SOBMYI8bAsAJFPcj1AAEEjwVQqLpAbXmH5BJjqI0gi9DTAAgDBBCcAVLkgmQ7yKCZxpCQxqUZhAECCJ4XgMl493ug21ZD+aDAXH0WLM4A9MZPXJkJIIAwTAR5pQMalaCABQUULttBGCCAGCnNzgABBgAMJ5THwGvJLAAAAABJRU5ErkJggg==";
+const POST_DATA_ANNO = "URIProperties/POSTData";
+const LAST_CHARSET_ANNO = "URIProperties/characterSet";
 
 // main
 function run_test() {
   // get places import/export service
   var importer = Cc["@mozilla.org/browser/places/import-export-service;1"].getService(Ci.nsIPlacesImportExportService);
 
-  // avoid creating the places smart folder during tests
-  Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch).
-  setIntPref("browser.places.smartBookmarksVersion", -1);
-
   // file pointer to legacy bookmarks file
-  var bookmarksFileOld = do_get_file("bookmarks.preplaces.html");
+  var bookmarksFileOld = do_get_file("browser/components/places/tests/unit/bookmarks.preplaces.html");
   // file pointer to a new places-exported bookmarks file
   var bookmarksFileNew = dirSvc.get("ProfD", Ci.nsILocalFile);
   bookmarksFileNew.append("bookmarks.exported.html");
@@ -121,7 +109,7 @@ function run_test() {
   try {
     importer.importHTMLFromFile(bookmarksFileOld, true);
   } catch(ex) { do_throw("couldn't import legacy bookmarks file: " + ex); }
-  testCanonicalBookmarks(bmsvc.bookmarksMenuFolder);
+  testCanonicalBookmarks(bmsvc.bookmarksRoot); 
 
   // Test exporting a Places canonical bookmarks file.
   // 1. export to bookmarks.exported.html
@@ -131,20 +119,18 @@ function run_test() {
   try {
     importer.exportHTMLToFile(bookmarksFileNew);
   } catch(ex) { do_throw("couldn't export to file: " + ex); }
-  bmsvc.removeFolderChildren(bmsvc.bookmarksMenuFolder);
-  bmsvc.removeFolderChildren(bmsvc.toolbarFolder);
+  bmsvc.removeFolderChildren(bmsvc.bookmarksRoot);
   try {
     importer.importHTMLFromFile(bookmarksFileNew, true);
   } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
-  testCanonicalBookmarks(bmsvc.bookmarksMenuFolder);
-
+  testCanonicalBookmarks(bmsvc.bookmarksRoot); 
   /*
   // XXX import-to-folder tests disabled due to bug 363634
   // Test importing a pre-Places canonical bookmarks file to a specific folder.
   // 1. create a new folder
   // 2. import bookmarks.preplaces.html to that folder
   // 3. run the test-suite
-  var testFolder = bmsvc.createFolder(bmsvc.bookmarksMenuFolder, "test-import", bmsvc.DEFAULT_INDEX);
+  var testFolder = bmsvc.createFolder(bmsvc.bookmarksRoot, "test-import", bmsvc.DEFAULT_INDEX);
   try {
     importer.importHTMLFromFileToFolder(bookmarksFileOld, testFolder, false);
   } catch(ex) { do_throw("couldn't import the exported file to folder: " + ex); }
@@ -155,7 +141,7 @@ function run_test() {
   // 1. create a new folder
   // 2. import bookmarks.exported.html to that folder
   // 3. run the test-suite
-  var testFolder = bmsvc.createFolder(bmsvc.bookmarksMenuFolder, "test-import", bmsvc.DEFAULT_INDEX);
+  var testFolder = bmsvc.createFolder(bmsvc.bookmarksRoot, "test-import", bmsvc.DEFAULT_INDEX);
   try {
     importer.importHTMLFromFileToFolder(bookmarksFileNew, testFolder, false);
   } catch(ex) { do_throw("couldn't import the exported file to folder: " + ex); }
@@ -171,7 +157,7 @@ function run_test() {
   // 3. export to file
   // 3. import the exported bookmarks file
   // 4. run the test-suite
-  bmsvc.removeFolderChildren(bmsvc.bookmarksMenuFolder);
+  bmsvc.removeFolderChildren(bmsvc.bookmarksRoot);
   try {
     importer.importHTMLFromFile(bookmarksFileNew, true);
   } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
@@ -181,7 +167,7 @@ function run_test() {
   try {
     importer.importHTMLFromFile(bookmarksFileNew, true);
   } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
-  testCanonicalBookmarks(bmsvc.bookmarksMenuFolder);
+  testCanonicalBookmarks(bmsvc.bookmarksRoot);
   */
   /*
   XXX if there are new fields we add to the bookmarks HTML format
@@ -203,13 +189,31 @@ function testCanonicalBookmarks(aFolder) {
   var result = histsvc.executeQuery(query, histsvc.getNewQueryOptions());
   var rootNode = result.root;
   rootNode.containerOpen = true;
+  do_check_eq(rootNode.childCount, 6);
 
-  // 6-2: the toolbar folder and unfiled bookmarks folder imported to the
-  // corresponding places folders
-  do_check_eq(rootNode.childCount, 4);
+  // bookmarks toolbar
+  var toolbar = rootNode.getChild(2);
+  toolbar.QueryInterface(Ci.nsINavHistoryQueryResultNode);
+  toolbar.containerOpen = true;
+  do_check_eq(toolbar.childCount, 2);
+  
+  // livemark
+  var livemark = toolbar.getChild(1);
+  // title
+  do_check_eq("Latest Headlines", livemark.title);
+  // livemark check
+  do_check_true(livemarksvc.isLivemark(livemark.itemId));
+  // site url
+  do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
+              livemarksvc.getSiteURI(livemark.itemId).spec);
+  // feed url
+  do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
+              livemarksvc.getFeedURI(livemark.itemId).spec);
+
+  toolbar.containerOpen = false;
 
   // get test folder
-  var testFolder = rootNode.getChild(3);
+  var testFolder = rootNode.getChild(5);
   do_check_eq(testFolder.type, testFolder.RESULT_TYPE_FOLDER);
   do_check_eq(testFolder.title, "test");
 
@@ -250,16 +254,15 @@ function testCanonicalBookmarks(aFolder) {
   do_check_eq(testBookmark1.lastModified/1000000, 1177375423);
 
   // post data
-  do_check_true(annosvc.itemHasAnnotation(testBookmark1.itemId,
-                                          POST_DATA_ANNO));
+  var pageURI = iosvc.newURI(testBookmark1.uri, "", null);
+  do_check_true(annosvc.pageHasAnnotation(pageURI, POST_DATA_ANNO));
   do_check_eq("hidden1%3Dbar&text1%3D%25s",
-              annosvc.getItemAnnotation(testBookmark1.itemId, POST_DATA_ANNO));
-
-  // last charset
-  var testURI = uri(testBookmark1.uri);
-  do_check_eq("ISO-8859-1", histsvc.getCharsetForURI(testURI));
-
-  // description
+              annosvc.getPageAnnotation(pageURI, POST_DATA_ANNO));
+  // last charset 
+  do_check_true(annosvc.pageHasAnnotation(pageURI, LAST_CHARSET_ANNO));
+  do_check_eq("ISO-8859-1", annosvc.getPageAnnotation(pageURI,
+                                                      LAST_CHARSET_ANNO));
+  // description 
   do_check_true(annosvc.itemHasAnnotation(testBookmark1.itemId,
                                           DESCRIPTION_ANNO));
   do_check_eq("item description",
@@ -286,39 +289,4 @@ function testCanonicalBookmarks(aFolder) {
   // clean up
   testFolder.containerOpen = false;
   rootNode.containerOpen = false;
-
-  query.setFolders([bmsvc.toolbarFolder], 1);
-  result = histsvc.executeQuery(query, histsvc.getNewQueryOptions());
-  // bookmarks toolbar
-  var toolbar = result.root;
-  toolbar.containerOpen = true;
-  do_check_eq(toolbar.childCount, 2);
-  
-  // livemark
-  var livemark = toolbar.getChild(1);
-  // title
-  do_check_eq("Latest Headlines", livemark.title);
-  // livemark check
-  do_check_true(livemarksvc.isLivemark(livemark.itemId));
-  // site url
-  do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/livebookmarks/",
-              livemarksvc.getSiteURI(livemark.itemId).spec);
-  // feed url
-  do_check_eq("http://en-us.fxfeeds.mozilla.com/en-US/firefox/headlines.xml",
-              livemarksvc.getFeedURI(livemark.itemId).spec);
-
-  toolbar.containerOpen = false;
-  
-  // unfiled bookmarks
-  query.setFolders([bmsvc.unfiledBookmarksFolder], 1);
-  result = histsvc.executeQuery(query, histsvc.getNewQueryOptions());
-  var unfiledBookmarks = result.root;
-  unfiledBookmarks.containerOpen = true;
-  do_check_eq(unfiledBookmarks.childCount, 1);
-  unfiledBookmarks.containerOpen = false;
-
-  // favicons
-  var faviconURI = iconsvc.getFaviconForPage(uri(TEST_FAVICON_PAGE_URL));
-  var dataURL = iconsvc.getFaviconDataAsDataURL(faviconURI);
-  do_check_eq(TEST_FAVICON_DATA_URL, dataURL);
 }

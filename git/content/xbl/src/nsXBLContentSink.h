@@ -122,8 +122,7 @@ protected:
     
     nsresult CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                            nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
-                           nsIContent** aResult, PRBool* aAppendContent,
-                           PRBool aFromParser);
+                           nsIContent** aResult, PRBool* aAppendContent);
     
     nsresult AddAttributes(const PRUnichar** aAtts, 
                            nsIContent* aContent);
@@ -146,7 +145,7 @@ protected:
   
 
   // nsXMLContentSink overrides
-  nsresult FlushText(PRBool aReleaseTextNode = PR_TRUE);
+  nsresult FlushText();
 
   // nsIExpatSink overrides
   NS_IMETHOD ReportError(const PRUnichar* aErrorText,

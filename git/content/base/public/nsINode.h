@@ -44,27 +44,21 @@
 #include "nsTObserverArray.h"
 #include "nsINodeInfo.h"
 #include "nsCOMPtr.h"
-#include "nsWrapperCache.h"
-#include "nsIProgrammingLanguage.h" // for ::JAVASCRIPT
 
 class nsIContent;
 class nsIDocument;
 class nsIDOMEvent;
-class nsIDOMNode;
-class nsIDOMNodeList;
-class nsINodeList;
-class nsIPresShell;
 class nsPresContext;
 class nsEventChainVisitor;
 class nsEventChainPreVisitor;
 class nsEventChainPostVisitor;
 class nsIEventListenerManager;
 class nsIPrincipal;
+class nsVoidArray;
 class nsIMutationObserver;
 class nsChildContentList;
 class nsNodeWeakReference;
 class nsNodeSupportsWeakRefTearoff;
-class nsIEditor;
 
 enum {
   // This bit will be set if the node doesn't have nsSlots
@@ -77,26 +71,17 @@ enum {
   // Whether this node has had any properties set on it
   NODE_HAS_PROPERTIES =          0x00000004U,
 
-  // Whether this node is the root of an anonymous subtree.  Note that this
-  // need not be a native anonymous subtree.  Any anonymous subtree, including
-  // XBL-generated ones, will do.  This flag is set-once: once a node has it,
-  // it must not be removed.
+  // Whether this node is anonymous
   // NOTE: Should only be used on nsIContent nodes
   NODE_IS_ANONYMOUS =            0x00000008U,
 
-  // Whether the node has some ancestor, possibly itself, that is native
-  // anonymous.  This includes ancestors crossing XBL scopes, in cases when an
-  // XBL binding is attached to an element which has a native anonymous
-  // ancestor.  This flag is set-once: once a node has it, it must not be
-  // removed.
+  // Whether this node is anonymous for events
   // NOTE: Should only be used on nsIContent nodes
-  NODE_IS_IN_ANONYMOUS_SUBTREE = 0x00000010U,
+  NODE_IS_ANONYMOUS_FOR_EVENTS = 0x00000010U,
 
-  // Whether this node is the root of a native anonymous (from the perspective
-  // of its parent) subtree.  This flag is set-once: once a node has it, it
-  // must not be removed.
+  // Whether this node may have a frame
   // NOTE: Should only be used on nsIContent nodes
-  NODE_IS_NATIVE_ANONYMOUS_ROOT = 0x00000020U,
+  NODE_MAY_HAVE_FRAME =          0x00000020U,
 
   // Forces the XBL code to treat this node as if it were
   // in the document and therefore should get bindings attached.
@@ -110,43 +95,11 @@ enum {
   // Optimizations to quickly check whether element may have ID, class or style
   // attributes. Not all element implementations may use these!
   NODE_MAY_HAVE_ID =             0x00000200U,
-  // For all Element nodes, NODE_MAY_HAVE_CLASS is guaranteed to be set if the
-  // node in fact has a class, but may be set even if it doesn't.
   NODE_MAY_HAVE_CLASS =          0x00000400U,
   NODE_MAY_HAVE_STYLE =          0x00000800U,
 
-  NODE_IS_INSERTION_PARENT =     0x00001000U,
-
-  // Node has an :empty or :-moz-only-whitespace selector
-  NODE_HAS_EMPTY_SELECTOR =      0x00002000U,
-
-  // A child of the node has a selector such that any insertion,
-  // removal, or appending of children requires restyling the parent.
-  NODE_HAS_SLOW_SELECTOR =       0x00004000U,
-
-  // A child of the node has a :first-child, :-moz-first-node,
-  // :only-child, :last-child or :-moz-last-node selector.
-  NODE_HAS_EDGE_CHILD_SELECTOR = 0x00008000U,
-
-  // A child of the node has a selector such that any insertion or
-  // removal of children requires restyling the parent (but append is
-  // OK).
-  NODE_HAS_SLOW_SELECTOR_NOAPPEND
-                               = 0x00010000U,
-
-  NODE_ALL_SELECTOR_FLAGS =      NODE_HAS_EMPTY_SELECTOR |
-                                 NODE_HAS_SLOW_SELECTOR |
-                                 NODE_HAS_EDGE_CHILD_SELECTOR |
-                                 NODE_HAS_SLOW_SELECTOR_NOAPPEND,
-
-  NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR
-                               = 0x00020000U,
-
-  NODE_ATTACH_BINDING_ON_POSTCREATE
-                               = 0x00040000U,
-
   // Four bits for the script-type ID
-  NODE_SCRIPT_TYPE_OFFSET =               20,
+  NODE_SCRIPT_TYPE_OFFSET =               12,
 
   NODE_SCRIPT_TYPE_SIZE =                  4,
 
@@ -168,94 +121,25 @@ inline nsINode* NODE_FROM(C& aContent, D& aDocument)
   return static_cast<nsINode*>(aDocument);
 }
 
-/**
- * Class used to detect unexpected mutations. To use the class create an
- * nsMutationGuard on the stack before unexpected mutations could occur.
- * You can then at any time call Mutated to check if any unexpected mutations
- * have occured.
- *
- * When a guard is instantiated sMutationCount is set to 300. It is then
- * decremented by every mutation (capped at 0). This means that we can only
- * detect 300 mutations during the lifetime of a single guard, however that
- * should be more then we ever care about as we usually only care if more then
- * one mutation has occured.
- *
- * When the guard goes out of scope it will adjust sMutationCount so that over
- * the lifetime of the guard the guard itself has not affected sMutationCount,
- * while mutations that happened while the guard was alive still will. This
- * allows a guard to be instantiated even if there is another guard higher up
- * on the callstack watching for mutations.
- *
- * The only thing that has to be avoided is for an outer guard to be used
- * while an inner guard is alive. This can be avoided by only ever
- * instantiating a single guard per scope and only using the guard in the
- * current scope.
- */
-class nsMutationGuard {
-public:
-  nsMutationGuard()
-  {
-    mDelta = eMaxMutations - sMutationCount;
-    sMutationCount = eMaxMutations;
-  }
-  ~nsMutationGuard()
-  {
-    sMutationCount =
-      mDelta > sMutationCount ? 0 : sMutationCount - mDelta;
-  }
-
-  /**
-   * Returns true if any unexpected mutations have occured. You can pass in
-   * an 8-bit ignore count to ignore a number of expected mutations.
-   */
-  PRBool Mutated(PRUint8 aIgnoreCount)
-  {
-    return sMutationCount < static_cast<PRUint32>(eMaxMutations - aIgnoreCount);
-  }
-
-  // This function should be called whenever a mutation that we want to keep
-  // track of happen. For now this is only done when children are added or
-  // removed, but we might do it for attribute changes too in the future.
-  static void DidMutate()
-  {
-    if (sMutationCount) {
-      --sMutationCount;
-    }
-  }
-
-private:
-  // mDelta is the amount sMutationCount was adjusted when the guard was
-  // initialized. It is needed so that we can undo that adjustment once
-  // the guard dies.
-  PRUint32 mDelta;
-
-  // The value 300 is not important, as long as it is bigger then anything
-  // ever passed to Mutated().
-  enum { eMaxMutations = 300 };
-
-  
-  // sMutationCount is a global mutation counter which is decreased by one at
-  // every mutation. It is capped at 0 to avoid wrapping.
-  // Its value is always between 0 and 300, inclusive.
-  static PRUint32 sMutationCount;
-};
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x7244fd04, 0xa8e9, 0x4839, \
- { 0x92, 0x48, 0xb2, 0xe0, 0xd8, 0xd8, 0x85, 0x0d } }
- 
+{ 0x8cef8b4e, 0x4b7f, 0x4f86, \
+  { 0xba, 0x64, 0x75, 0xdf, 0xed, 0x0d, 0xa2, 0x3e } }
+
+// hack to make egcs / gcc 2.95.2 happy
+class nsINode_base : public nsPIDOMEventTarget {
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_INODE_IID)
+};
+
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
  * nsIContent and nsIDocument share.  An instance of this interface has a list
  * of nsIContent children and provides access to them.
  */
-class nsINode : public nsPIDOMEventTarget,
-                public nsWrapperCache
-{
+class nsINode : public nsINode_base {
 public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_INODE_IID)
-
   friend class nsNodeUtils;
   friend class nsNodeWeakReference;
   friend class nsNodeSupportsWeakRefTearoff;
@@ -289,22 +173,24 @@ public:
     ePROCESSING_INSTRUCTION = 1 << 5,
     /** comment nodes */
     eCOMMENT             = 1 << 6,
+    /** html elements */
+    eHTML                = 1 << 7,
     /** form control elements */
-    eHTML_FORM_CONTROL   = 1 << 7,
+    eHTML_FORM_CONTROL   = 1 << 8,
+    /** XUL elements */
+    eXUL                 = 1 << 9,
     /** svg elements */
-    eSVG                 = 1 << 8,
+    eSVG                 = 1 << 10,
     /** document fragments */
-    eDOCUMENT_FRAGMENT   = 1 << 9,
+    eDOCUMENT_FRAGMENT   = 1 << 11,
     /** data nodes (comments, PIs, text). Nodes of this type always
      returns a non-null value for nsIContent::GetText() */
-    eDATA_NODE           = 1 << 10,
-    /** nsHTMLMediaElement */
-    eMEDIA               = 1 << 11
+    eDATA_NODE           = 1 << 12
   };
 
   /**
    * API for doing a quick check if a content is of a given
-   * type, such as Text, Document, Comment ...  Use this when you can instead of
+   * type, such as HTML, XUL, Text, ...  Use this when you can instead of
    * checking the tag.
    *
    * @param aFlags what types you want to test for (see above)
@@ -324,17 +210,6 @@ public:
    * @return the child, or null if index out of bounds
    */
   virtual nsIContent* GetChildAt(PRUint32 aIndex) const = 0;
-
-  /**
-   * Get a raw pointer to the child array.  This should only be used if you
-   * plan to walk a bunch of the kids, promise to make sure that nothing ever
-   * mutates (no attribute changes, not DOM tree changes, no script execution,
-   * NOTHING), and will never ever peform an out-of-bounds access here.  This
-   * method may return null if there are no children, or it may return a
-   * garbage pointer.  In all cases the out param will be set to the number of
-   * children.
-   */
-  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const = 0;
 
   /**
    * Get the index of a child within this content
@@ -432,13 +307,10 @@ public:
    * @param aNotify whether to notify the document (current document for
    *        nsIContent, and |this| for nsIDocument) that the remove has
    *        occurred
-   * @param aMutationEvent whether to fire a mutation event
    *
    * Note: If there is no child at aIndex, this method will simply do nothing.
    */
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, 
-                                 PRBool aNotify, 
-                                 PRBool aMutationEvent = PR_TRUE) = 0;
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify) = 0;
 
   /**
    * Get a property associated with this node.
@@ -689,7 +561,7 @@ public:
     /**
      * A list of mutation observers
      */
-    nsTObserverArray<nsIMutationObserver*> mMutationObservers;
+    nsTObserverArray<nsIMutationObserver> mMutationObservers;
 
     /**
      * An object implementing nsIDOMNodeList for this content (childNodes)
@@ -728,10 +600,7 @@ public:
 
   void SetFlags(PtrBits aFlagsToSet)
   {
-    NS_ASSERTION(!(aFlagsToSet & (NODE_IS_ANONYMOUS |
-                                  NODE_IS_NATIVE_ANONYMOUS_ROOT |
-                                  NODE_IS_IN_ANONYMOUS_SUBTREE |
-                                  NODE_ATTACH_BINDING_ON_POSTCREATE)) ||
+    NS_ASSERTION(!(aFlagsToSet & (NODE_IS_ANONYMOUS | NODE_MAY_HAVE_FRAME)) ||
                  IsNodeOfType(eCONTENT),
                  "Flag only permitted on nsIContent nodes");
     PtrBits* flags = HasSlots() ? &FlagsAsSlots()->mFlags :
@@ -741,11 +610,6 @@ public:
 
   void UnsetFlags(PtrBits aFlagsToUnset)
   {
-    NS_ASSERTION(!(aFlagsToUnset &
-                   (NODE_IS_ANONYMOUS |
-                    NODE_IS_IN_ANONYMOUS_SUBTREE |
-                    NODE_IS_NATIVE_ANONYMOUS_ROOT)),
-                 "Trying to unset write-only flags");
     PtrBits* flags = HasSlots() ? &FlagsAsSlots()->mFlags :
                                   &mFlagsOrSlots;
     *flags &= ~aFlagsToUnset;
@@ -770,114 +634,6 @@ public:
 #endif
   }
 
-  /**
-   * Returns PR_TRUE if |this| or any of its ancestors is native anonymous.
-   */
-  PRBool IsInNativeAnonymousSubtree() const
-  {
-#ifdef DEBUG
-    if (HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE)) {
-      return PR_TRUE;
-    }
-    CheckNotNativeAnonymous();
-    return PR_FALSE;
-#else
-    return HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE);
-#endif
-  }
-
-  /**
-   * Get the root content of an editor. So, this node must be a descendant of
-   * an editor. Note that this should be only used for getting input or textarea
-   * editor's root content. This method doesn't support HTML editors.
-   */
-  nsIContent* GetTextEditorRootContent(nsIEditor** aEditor = nsnull);
-
-  /**
-   * Get the nearest selection root, ie. the node that will be selected if the
-   * user does "Select All" while the focus is in this node. Note that if this
-   * node is not in an editor, the result comes from the nsFrameSelection that
-   * is related to aPresShell, so the result might not be the ancestor of this
-   * node. Be aware that if this node and the computed selection limiter are
-   * not in same subtree, this returns the root content of the closeset subtree.
-   */
-  nsIContent* GetSelectionRootContent(nsIPresShell* aPresShell);
-
-  virtual nsINodeList* GetChildNodesList();
-  nsIContent* GetSibling(PRInt32 aOffset)
-  {
-    nsINode *parent = GetNodeParent();
-    if (!parent) {
-      return nsnull;
-    }
-
-    return parent->GetChildAt(parent->IndexOf(this) + aOffset);
-  }
-  nsIContent* GetLastChild() const
-  {
-    PRUint32 count;
-    nsIContent* const* children = GetChildArray(&count);
-
-    return count > 0 ? children[count - 1] : nsnull;
-  }
-
-  /**
-   * Implementation is in nsIDocument.h, because it needs to cast from
-   * nsIDocument* to nsINode*.
-   */
-  nsIDocument* GetOwnerDocument() const;
-
-  /**
-   * Iterator that can be used to easily iterate over the children.  This has
-   * the same restrictions on its use as GetChildArray does.
-   */
-  class ChildIterator {
-  public:
-    ChildIterator(const nsINode* aNode) { Init(aNode); }
-    ChildIterator(const nsINode* aNode, PRUint32 aOffset) {
-      Init(aNode);
-      Advance(aOffset);
-    }
-    ~ChildIterator() {
-      NS_ASSERTION(!mGuard.Mutated(0), "Unexpected mutations happened");
-    }
-
-    PRBool IsDone() const { return mCur == mEnd; }
-    operator nsIContent*() const { return *mCur; }
-    void Next() { NS_PRECONDITION(mCur != mEnd, "Check IsDone"); ++mCur; }
-    void Advance(PRUint32 aOffset) {
-      NS_ASSERTION(mCur + aOffset <= mEnd, "Unexpected offset");
-      mCur += aOffset;
-    }
-  private:
-    void Init(const nsINode* aNode) {
-      NS_PRECONDITION(aNode, "Must have node here!");
-      PRUint32 childCount;
-      mCur = aNode->GetChildArray(&childCount);
-      mEnd = mCur + childCount;
-    }
-#ifdef DEBUG
-    nsMutationGuard mGuard;
-#endif
-    nsIContent* const * mCur;
-    nsIContent* const * mEnd;
-  };
-
-  /**
-   * The default script type (language) ID for this node.
-   * All nodes must support fetching the default script language.
-   */
-  virtual PRUint32 GetScriptTypeID() const
-  { return nsIProgrammingLanguage::JAVASCRIPT; }
-
-  /**
-   * Not all nodes support setting a new default language.
-   */
-  NS_IMETHOD SetScriptTypeID(PRUint32 aLang)
-  {
-    NS_NOTREACHED("SetScriptTypeID not implemented");
-    return NS_ERROR_NOT_IMPLEMENTED;
-  }
 protected:
 
   // Override this function to create a custom slots class.
@@ -913,30 +669,11 @@ protected:
     return slots;
   }
 
-  nsTObserverArray<nsIMutationObserver*> *GetMutationObservers()
-  {
-    return HasSlots() ? &FlagsAsSlots()->mMutationObservers : nsnull;
-  }
-
   PRBool IsEditableInternal() const;
   virtual PRBool IsEditableExternal() const
   {
     return IsEditableInternal();
   }
-
-#ifdef DEBUG
-  // Note: virtual so that IsInNativeAnonymousSubtree can be called accross
-  // module boundaries.
-  virtual void CheckNotNativeAnonymous() const;
-#endif
-
-  nsresult GetParentNode(nsIDOMNode** aParentNode);
-  nsresult GetChildNodes(nsIDOMNodeList** aChildNodes);
-  nsresult GetFirstChild(nsIDOMNode** aFirstChild);
-  nsresult GetLastChild(nsIDOMNode** aLastChild);
-  nsresult GetPreviousSibling(nsIDOMNode** aPrevSibling);
-  nsresult GetNextSibling(nsIDOMNode** aNextSibling);
-  nsresult GetOwnerDocument(nsIDOMDocument** aOwnerDocument);
 
   nsCOMPtr<nsINodeInfo> mNodeInfo;
 
@@ -954,116 +691,6 @@ protected:
   PtrBits mFlagsOrSlots;
 };
 
-
-extern const nsIID kThisPtrOffsetsSID;
-
-// _implClass is the class to use to cast to nsISupports
-#define NS_OFFSET_AND_INTERFACE_TABLE_BEGIN_AMBIGUOUS(_class, _implClass)     \
-  static const QITableEntry offsetAndQITable[] = {                            \
-    NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsISupports, _implClass)
-
-#define NS_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                           \
-  NS_OFFSET_AND_INTERFACE_TABLE_BEGIN_AMBIGUOUS(_class, _class)
-
-#define NS_OFFSET_AND_INTERFACE_TABLE_END                                     \
-  { nsnull, 0 } };                                                            \
-  if (aIID.Equals(kThisPtrOffsetsSID)) {                                      \
-    *aInstancePtr =                                                           \
-      const_cast<void*>(static_cast<const void*>(&offsetAndQITable));         \
-    return NS_OK;                                                             \
-  }
-
-#define NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE                            \
-  rv = NS_TableDrivenQI(this, offsetAndQITable, aIID, aInstancePtr);          \
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE
-
-// nsNodeSH::PreCreate() depends on the identity pointer being the same as
-// nsINode, so if you change the nsISupports line  below, make sure
-// nsNodeSH::PreCreate() still does the right thing!
-#define NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                      \
-  NS_OFFSET_AND_INTERFACE_TABLE_BEGIN_AMBIGUOUS(_class, nsINode)              \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsINode)                       
-
-#define NS_NODE_INTERFACE_TABLE2(_class, _i1, _i2)                            \
-  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
-  NS_OFFSET_AND_INTERFACE_TABLE_END                                           \
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-
-#define NS_NODE_INTERFACE_TABLE3(_class, _i1, _i2, _i3)                       \
-  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
-  NS_OFFSET_AND_INTERFACE_TABLE_END                                           \
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-
-#define NS_NODE_INTERFACE_TABLE4(_class, _i1, _i2, _i3, _i4)                  \
-  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
-  NS_OFFSET_AND_INTERFACE_TABLE_END                                           \
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-
-#define NS_NODE_INTERFACE_TABLE5(_class, _i1, _i2, _i3, _i4, _i5)             \
-  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i5)                                     \
-  NS_OFFSET_AND_INTERFACE_TABLE_END                                           \
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-
-#define NS_NODE_INTERFACE_TABLE6(_class, _i1, _i2, _i3, _i4, _i5, _i6)        \
-  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i5)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i6)                                     \
-  NS_OFFSET_AND_INTERFACE_TABLE_END                                           \
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-
-#define NS_NODE_INTERFACE_TABLE7(_class, _i1, _i2, _i3, _i4, _i5, _i6, _i7)   \
-  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i5)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i6)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i7)                                     \
-  NS_OFFSET_AND_INTERFACE_TABLE_END                                           \
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-
-#define NS_NODE_INTERFACE_TABLE8(_class, _i1, _i2, _i3, _i4, _i5, _i6, _i7,   \
-                                 _i8)                                         \
-  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i1)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i2)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i3)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i4)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i5)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i6)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i7)                                     \
-    NS_INTERFACE_TABLE_ENTRY(_class, _i8)                                     \
-  NS_OFFSET_AND_INTERFACE_TABLE_END                                           \
-  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
-
-
-NS_DEFINE_STATIC_IID_ACCESSOR(nsINode, NS_INODE_IID)
-
-
-#define NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER \
-  nsContentUtils::TraceWrapper(tmp, aCallback, aClosure);
-
-#define NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER \
-  nsContentUtils::ReleaseWrapper(s, tmp);
-
+NS_DEFINE_STATIC_IID_ACCESSOR(nsINode_base, NS_INODE_IID)
 
 #endif /* nsINode_h___ */

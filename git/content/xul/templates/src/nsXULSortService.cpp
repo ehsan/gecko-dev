@@ -67,7 +67,6 @@
 #include "nsXULContentUtils.h"
 #include "nsString.h"
 #include "nsQuickSort.h"
-#include "nsWhitespaceTokenizer.h"
 #include "nsXULSortService.h"
 #include "nsIDOMXULElement.h"
 #include "nsIXULTemplateBuilder.h"
@@ -112,7 +111,7 @@ XULSortServiceImpl::SetSortColumnHints(nsIContent *content,
   for (PRUint32 childIndex = 0; childIndex < numChildren; ++childIndex) {
     nsIContent *child = content->GetChildAt(childIndex);
 
-    if (child->IsXUL()) {
+    if (child->IsNodeOfType(nsINode::eXUL)) {
       nsIAtom *tag = child->Tag();
 
       if (tag == nsGkAtoms::treecols) {
@@ -224,7 +223,7 @@ XULSortServiceImpl::GetTemplateItemsToSort(nsIContent* aContainer,
   return NS_OK;
 }
 
-int
+int PR_CALLBACK
 testSortCallback(const void *data1, const void *data2, void *privateData)
 {
   /// Note: testSortCallback is a small C callback stub for NS_QuickSort
@@ -415,14 +414,26 @@ XULSortServiceImpl::InitializeSortState(nsIContent* aRootElement,
         aSortState->sortKeys.AppendObject(sortkeyatom2);
         sort.AppendLiteral(" ");
         sort.Append(sortResource2);
-      }
     }
   }
-  else {
-    nsWhitespaceTokenizer tokenizer(sort);
-    while (tokenizer.hasMoreTokens()) {
-      nsCOMPtr<nsIAtom> keyatom = do_GetAtom(tokenizer.nextToken());
-      NS_ENSURE_TRUE(keyatom, NS_ERROR_OUT_OF_MEMORY);
+    }
+    else {
+    PRInt32 start = 0, end = 0;
+    while ((end = sort.FindChar(' ',start)) >= 0) {
+      if (end > start) {
+        nsCOMPtr<nsIAtom> keyatom = do_GetAtom(Substring(sort, start, end - start));
+        if (!keyatom)
+          return NS_ERROR_OUT_OF_MEMORY;
+
+        aSortState->sortKeys.AppendObject(keyatom);
+      }
+      start = end + 1;
+    }
+    if (start < (PRInt32)sort.Length()) {
+      nsCOMPtr<nsIAtom> keyatom = do_GetAtom(Substring(sort, start));
+      if (!keyatom)
+        return NS_ERROR_OUT_OF_MEMORY;
+
       aSortState->sortKeys.AppendObject(keyatom);
     }
   }

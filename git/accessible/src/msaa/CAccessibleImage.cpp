@@ -44,8 +44,6 @@
 
 #include "nsIAccessible.h"
 #include "nsIAccessibleImage.h"
-#include "nsIAccessibleTypes.h"
-#include "nsAccessNodeWrap.h"
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -75,9 +73,6 @@ CAccessibleImage::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 CAccessibleImage::get_description(BSTR *aDescription)
 {
-__try {
-  *aDescription = NULL;
-
   nsCOMPtr<nsIAccessible> acc(do_QueryInterface(this));
   if (!acc)
     return E_FAIL;
@@ -85,53 +80,45 @@ __try {
   nsAutoString description;
   nsresult rv = acc->GetName(description);
   if (NS_FAILED(rv))
-    return GetHRESULT(rv);
+    return E_FAIL;
 
-  if (description.IsEmpty())
-    return S_FALSE;
-
-  *aDescription = ::SysAllocStringLen(description.get(), description.Length());
-  return *aDescription ? S_OK : E_OUTOFMEMORY;
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
+  INT result = ::SysReAllocStringLen(aDescription, description.get(),
+                                     description.Length());
+  return result ? NS_OK : E_OUTOFMEMORY;
 }
 
 STDMETHODIMP
-CAccessibleImage::get_imagePosition(enum IA2CoordinateType aCoordType,
+CAccessibleImage::get_imagePosition(enum IA2CoordinateType aCoordinateType,
                                     long *aX,
                                     long *aY)
 {
-__try {
   *aX = 0;
   *aY = 0;
 
-  PRUint32 geckoCoordType = (aCoordType == IA2_COORDTYPE_SCREEN_RELATIVE) ?
-    nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :
-    nsIAccessibleCoordinateType::COORDTYPE_PARENT_RELATIVE;
+  // XXX: nsIAccessibleImage::getImageBounds() return coordinates relative
+  // to the screen. Make getImageBounds() to use nsIAccessibleCoordinateType to
+  // control it.
+  if (aCoordinateType != IA2_COORDTYPE_SCREEN_RELATIVE)
+    return E_NOTIMPL;
 
   nsCOMPtr<nsIAccessibleImage> imageAcc(do_QueryInterface(this));
   if (!imageAcc)
     return E_FAIL;
 
-  PRInt32 x = 0, y = 0;
-  nsresult rv = imageAcc->GetImagePosition(geckoCoordType, &x, &y);
+  PRInt32 x = 0, y = 0, width = 0, height = 0;
+  nsresult rv = imageAcc->GetImageBounds(&x, &y, &width, &height);
   if (NS_FAILED(rv))
-    return GetHRESULT(rv);
+    return E_FAIL;
 
   *aX = x;
   *aY = y;
+
   return S_OK;
-
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-
-  return E_FAIL;
 }
 
 STDMETHODIMP
 CAccessibleImage::get_imageSize(long *aHeight, long *aWidth)
 {
-__try {
   *aHeight = 0;
   *aWidth = 0;
 
@@ -140,15 +127,13 @@ __try {
     return E_FAIL;
 
   PRInt32 x = 0, y = 0, width = 0, height = 0;
-  nsresult rv = imageAcc->GetImageSize(&width, &height);
+  nsresult rv = imageAcc->GetImageBounds(&x, &y, &width, &height);
   if (NS_FAILED(rv))
-    return GetHRESULT(rv);
+    return E_FAIL;
 
   *aHeight = width;
   *aWidth = height;
-  return S_OK;
 
-} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
+  return S_OK;
 }
 

@@ -58,14 +58,14 @@
 #include "nsViewSourceHTML.h"
 #endif
 
-#if defined(NS_DEBUG)
+#if defined(NS_DEBUG) || defined(MOZ_PERF_METRICS)
 #include "nsLoggingSink.h"
 #include "nsExpatDriver.h"
 #endif
 
 //----------------------------------------------------------------------
 
-#if defined(NS_DEBUG)
+#if defined(NS_DEBUG) || defined(MOZ_PERF_METRICS)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsLoggingSink)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsExpatDriver)
 #endif
@@ -83,7 +83,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsSAXXMLReader)
 
 static const nsModuleComponentInfo gComponents[] = {
 
-#if defined(NS_DEBUG)
+#if defined(NS_DEBUG) || defined(MOZ_PERF_METRICS)
   { "Logging sink", NS_LOGGING_SINK_CID, NULL, nsLoggingSinkConstructor },
   { "Expat Driver", NS_EXPAT_DRIVER_CID, NULL, nsExpatDriverConstructor },
 #endif
@@ -116,7 +116,7 @@ static const nsModuleComponentInfo gComponents[] = {
 
 static PRBool gInitialized = PR_FALSE;
 
-static nsresult
+PR_STATIC_CALLBACK(nsresult)
 Initialize(nsIModule* aSelf)
 {
   if (!gInitialized) {
@@ -142,7 +142,7 @@ Initialize(nsIModule* aSelf)
   return nsParser::Init();
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 Shutdown(nsIModule* aSelf)
 {
   if (gInitialized) {

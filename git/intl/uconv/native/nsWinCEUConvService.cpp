@@ -98,9 +98,6 @@ public:
                           PRInt32 * aDestLength);
   NS_IMETHOD Reset();
   
-  virtual void SetInputErrorBehavior(PRInt32 aBehavior);
-  virtual PRUnichar GetCharacterForUnMapped();
-
   // Encoder methods:
   
   NS_IMETHOD Convert(const PRUnichar * aSrc, 
@@ -313,17 +310,6 @@ NS_IMETHODIMP
 WinCEUConvAdapter::Reset()
 {
   return NS_OK;
-}
-
-void
-WinCEUConvAdapter::SetInputErrorBehavior(PRInt32 aBehavior)
-{
-}
-
-PRUnichar
-WinCEUConvAdapter::GetCharacterForUnMapped()
-{
-  return PRUnichar(0xfffd); // Unicode REPLACEMENT CHARACTER
 }
 
 // Encoder methods:

@@ -1,4 +1,3 @@
-/* -*- Mode: c; tab-width: 8; c-basic-offset: 4; indent-tabs-mode: t; -*- */
 /* cairo - a vector graphics library with display and print output
  *
  * Copyright © 2005 Red Hat, Inc
@@ -39,12 +38,10 @@
 
 /* A meta surface is a surface that records all drawing operations at
  * the highest level of the surface backend interface, (that is, the
- * level of paint, mask, stroke, fill, and show_text_glyphs). The meta
+ * level of paint, mask, stroke, fill, and show_glyphs). The meta
  * surface can then be "replayed" against any target surface with:
  *
- * <informalexample><programlisting>
- *	cairo_meta_surface_replay (meta, target);
- * </programlisting></informalexample>
+ *	_cairo_meta_surface_replay (meta, target);
  *
  * after which the results in target will be identical to the results
  * that would have been obtained if the original operations applied to
@@ -59,13 +56,13 @@
  */
 
 #include "cairoint.h"
-#include "cairo-analysis-surface-private.h"
 #include "cairo-meta-surface-private.h"
 #include "cairo-clip-private.h"
 
 typedef enum {
     CAIRO_META_REPLAY,
-    CAIRO_META_CREATE_REGIONS
+    CAIRO_META_CREATE_REGIONS,
+    CAIRO_META_ANALYZE_META_PATTERN
 } cairo_meta_replay_type_t;
 
 static const cairo_surface_backend_t cairo_meta_surface_backend;
@@ -76,44 +73,21 @@ static const cairo_surface_backend_t cairo_meta_surface_backend;
  *
  * XXX: The naming of "pixels" in the size here is a misnomer. It's
  * actually a size in whatever device-space units are desired (again,
- * according to the intended replay target).
+ * according to the intended replay target). This should likely also
+ * be changed to use doubles not ints.
  */
-
-/**
- * cairo_meta_surface_create:
- * @content: the content of the meta surface
- * @width_pixels: width of the surface, in pixels
- * @height_pixels: height of the surface, in pixels
- *
- * Creates a meta-surface which can be used to record all drawing operations
- * at the highest level (that is, the level of paint, mask, stroke, fill
- * and show_text_glyphs). The meta surface can then be "replayed" against
- * any target surface with:
- *
- * <informalexample><programlisting>
- *	cairo_meta_surface_replay (meta, target);
- * </programlisting></informalexample>
- *
- * after which the results in target will be identical to the results
- * that would have been obtained if the original operations applied to
- * the meta surface had instead been applied to the target surface.
- *
- * The recording phase of the meta surface is careful to snapshot all
- * necessary objects (paths, patterns, etc.), in order to achieve
- * accurate replay.
- *
- * Since 1.10
- **/
 cairo_surface_t *
-cairo_meta_surface_create (cairo_content_t	content,
-			   double		width_pixels,
-			   double		height_pixels)
+_cairo_meta_surface_create (cairo_content_t	content,
+			    int			width_pixels,
+			    int			height_pixels)
 {
     cairo_meta_surface_t *meta;
 
     meta = malloc (sizeof (cairo_meta_surface_t));
-    if (unlikely (meta == NULL))
-	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
+    if (meta == NULL) {
+	_cairo_error (CAIRO_STATUS_NO_MEMORY);
+	return (cairo_surface_t*) &_cairo_surface_nil;
+    }
 
     _cairo_surface_init (&meta->base, &cairo_meta_surface_backend,
 			 content);
@@ -121,29 +95,6 @@ cairo_meta_surface_create (cairo_content_t	content,
     meta->content = content;
     meta->width_pixels = width_pixels;
     meta->height_pixels = height_pixels;
-
-    /* unbounded -> 'infinite' extents */
-    if (width_pixels < 0) {
-	meta->extents.x = CAIRO_RECT_INT_MIN;
-	meta->extents.width = CAIRO_RECT_INT_MAX - CAIRO_RECT_INT_MIN;
-    } else {
-	meta->extents.x = 0;
-	if (ceil (width_pixels) > CAIRO_RECT_INT_MAX)
-	    meta->extents.width = CAIRO_RECT_INT_MAX;
-	else
-	    meta->extents.width = ceil (width_pixels);
-    }
-
-    if (height_pixels < 0) {
-	meta->extents.y = CAIRO_RECT_INT_MIN;
-	meta->extents.height = CAIRO_RECT_INT_MAX - CAIRO_RECT_INT_MIN;
-    } else {
-	meta->extents.y = 0;
-	if (ceil (height_pixels) > CAIRO_RECT_INT_MAX)
-	    meta->extents.height = CAIRO_RECT_INT_MAX;
-	else
-	    meta->extents.height = ceil (height_pixels);
-    }
 
     _cairo_array_init (&meta->commands, sizeof (cairo_command_t *));
     meta->commands_owner = NULL;
@@ -153,7 +104,6 @@ cairo_meta_surface_create (cairo_content_t	content,
 
     return &meta->base;
 }
-slim_hidden_def (cairo_meta_surface_create);
 
 static cairo_surface_t *
 _cairo_meta_surface_create_similar (void	       *abstract_surface,
@@ -161,7 +111,7 @@ _cairo_meta_surface_create_similar (void	       *abstract_surface,
 				    int			width,
 				    int			height)
 {
-    return cairo_meta_surface_create (content, width, height);
+    return _cairo_meta_surface_create (content, width, height);
 }
 
 static cairo_status_t
@@ -186,35 +136,33 @@ _cairo_meta_surface_finish (void *abstract_surface)
 	/* 5 basic drawing operations */
 
 	case CAIRO_COMMAND_PAINT:
-	    _cairo_pattern_fini_snapshot (&command->paint.source.base);
+	    _cairo_pattern_fini (&command->paint.source.base);
 	    free (command);
 	    break;
 
 	case CAIRO_COMMAND_MASK:
-	    _cairo_pattern_fini_snapshot (&command->mask.source.base);
-	    _cairo_pattern_fini_snapshot (&command->mask.mask.base);
+	    _cairo_pattern_fini (&command->mask.source.base);
+	    _cairo_pattern_fini (&command->mask.mask.base);
 	    free (command);
 	    break;
 
 	case CAIRO_COMMAND_STROKE:
-	    _cairo_pattern_fini_snapshot (&command->stroke.source.base);
+	    _cairo_pattern_fini (&command->stroke.source.base);
 	    _cairo_path_fixed_fini (&command->stroke.path);
 	    _cairo_stroke_style_fini (&command->stroke.style);
 	    free (command);
 	    break;
 
 	case CAIRO_COMMAND_FILL:
-	    _cairo_pattern_fini_snapshot (&command->fill.source.base);
+	    _cairo_pattern_fini (&command->fill.source.base);
 	    _cairo_path_fixed_fini (&command->fill.path);
 	    free (command);
 	    break;
 
-	case CAIRO_COMMAND_SHOW_TEXT_GLYPHS:
-	    _cairo_pattern_fini_snapshot (&command->show_text_glyphs.source.base);
-	    free (command->show_text_glyphs.utf8);
-	    free (command->show_text_glyphs.glyphs);
-	    free (command->show_text_glyphs.clusters);
-	    cairo_scaled_font_destroy (command->show_text_glyphs.scaled_font);
+	case CAIRO_COMMAND_SHOW_GLYPHS:
+	    _cairo_pattern_fini (&command->show_glyphs.source.base);
+	    free (command->show_glyphs.glyphs);
+	    cairo_scaled_font_destroy (command->show_glyphs.scaled_font);
 	    free (command);
 	    break;
 
@@ -244,34 +192,20 @@ _cairo_meta_surface_acquire_source_image (void			 *abstract_surface,
     cairo_meta_surface_t *surface = abstract_surface;
     cairo_surface_t *image;
 
-    image = _cairo_surface_has_snapshot (&surface->base,
-					 &_cairo_image_surface_backend,
-					 surface->content);
-    if (image != NULL) {
-	*image_out = (cairo_image_surface_t *) cairo_surface_reference (image);
-	*image_extra = NULL;
-	return CAIRO_STATUS_SUCCESS;
-    }
-
     image = _cairo_image_surface_create_with_content (surface->content,
-						      ceil (surface->width_pixels),
-						      ceil (surface->height_pixels));
+						      surface->width_pixels,
+						      surface->height_pixels);
 
-    status = cairo_meta_surface_replay (&surface->base, image);
-    if (unlikely (status)) {
-	cairo_surface_destroy (image);
-	return status;
-    }
-
-    status = _cairo_surface_attach_snapshot (&surface->base, image, NULL);
-    if (unlikely (status)) {
+    status = _cairo_meta_surface_replay (&surface->base, image);
+    if (status) {
 	cairo_surface_destroy (image);
 	return status;
     }
 
     *image_out = (cairo_image_surface_t *) image;
     *image_extra = NULL;
-    return CAIRO_STATUS_SUCCESS;
+
+    return status;
 }
 
 static void
@@ -282,39 +216,55 @@ _cairo_meta_surface_release_source_image (void			*abstract_surface,
     cairo_surface_destroy (&image->base);
 }
 
-static void
-_draw_command_init (cairo_command_header_t *command,
-	            cairo_command_type_t type,
-		    cairo_meta_surface_t *meta)
+static cairo_status_t
+_init_pattern_with_snapshot (cairo_pattern_t       *pattern,
+			     const cairo_pattern_t *other)
 {
-    command->type = type;
-    command->region = CAIRO_META_REGION_ALL;
-    command->extents = meta->extents;
+    cairo_status_t status;
+
+    status = _cairo_pattern_init_copy (pattern, other);
+    if (status)
+	return status;
+
+    if (pattern->type == CAIRO_PATTERN_TYPE_SURFACE) {
+	cairo_surface_pattern_t *surface_pattern =
+	    (cairo_surface_pattern_t *) pattern;
+	cairo_surface_t *surface = surface_pattern->surface;
+
+	surface_pattern->surface = _cairo_surface_snapshot (surface);
+
+	cairo_surface_destroy (surface);
+
+	if (surface_pattern->surface->status)
+	    return surface_pattern->surface->status;
+    }
+
+    return CAIRO_STATUS_SUCCESS;
 }
 
 static cairo_int_status_t
 _cairo_meta_surface_paint (void			*abstract_surface,
 			   cairo_operator_t	 op,
-			   const cairo_pattern_t  *source,
-			   cairo_rectangle_int_t  *extents)
+			   cairo_pattern_t	*source)
 {
     cairo_status_t status;
     cairo_meta_surface_t *meta = abstract_surface;
     cairo_command_paint_t *command;
 
     command = malloc (sizeof (cairo_command_paint_t));
-    if (unlikely (command == NULL))
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (command == NULL)
+	return CAIRO_STATUS_NO_MEMORY;
 
-    _draw_command_init (&command->header, CAIRO_COMMAND_PAINT, meta);
+    command->header.type = CAIRO_COMMAND_PAINT;
+    command->header.region = CAIRO_META_REGION_ALL;
     command->op = op;
 
-    status = _cairo_pattern_init_snapshot (&command->source.base, source);
-    if (unlikely (status))
+    status = _init_pattern_with_snapshot (&command->source.base, source);
+    if (status)
 	goto CLEANUP_COMMAND;
 
     status = _cairo_array_append (&meta->commands, &command);
-    if (unlikely (status))
+    if (status)
 	goto CLEANUP_SOURCE;
 
     /* An optimisation that takes care to not replay what was done
@@ -326,7 +276,7 @@ _cairo_meta_surface_paint (void			*abstract_surface,
     return CAIRO_STATUS_SUCCESS;
 
   CLEANUP_SOURCE:
-    _cairo_pattern_fini_snapshot (&command->source.base);
+    _cairo_pattern_fini (&command->source.base);
   CLEANUP_COMMAND:
     free (command);
     return status;
@@ -335,39 +285,39 @@ _cairo_meta_surface_paint (void			*abstract_surface,
 static cairo_int_status_t
 _cairo_meta_surface_mask (void			*abstract_surface,
 			  cairo_operator_t	 op,
-			  const cairo_pattern_t	*source,
-			  const cairo_pattern_t	*mask,
-			  cairo_rectangle_int_t *extents)
+			  cairo_pattern_t	*source,
+			  cairo_pattern_t	*mask)
 {
     cairo_status_t status;
     cairo_meta_surface_t *meta = abstract_surface;
     cairo_command_mask_t *command;
 
     command = malloc (sizeof (cairo_command_mask_t));
-    if (unlikely (command == NULL))
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (command == NULL)
+	return CAIRO_STATUS_NO_MEMORY;
 
-    _draw_command_init (&command->header, CAIRO_COMMAND_MASK, meta);
+    command->header.type = CAIRO_COMMAND_MASK;
+    command->header.region = CAIRO_META_REGION_ALL;
     command->op = op;
 
-    status = _cairo_pattern_init_snapshot (&command->source.base, source);
-    if (unlikely (status))
+    status = _init_pattern_with_snapshot (&command->source.base, source);
+    if (status)
 	goto CLEANUP_COMMAND;
 
-    status = _cairo_pattern_init_snapshot (&command->mask.base, mask);
-    if (unlikely (status))
+    status = _init_pattern_with_snapshot (&command->mask.base, mask);
+    if (status)
 	goto CLEANUP_SOURCE;
 
     status = _cairo_array_append (&meta->commands, &command);
-    if (unlikely (status))
+    if (status)
 	goto CLEANUP_MASK;
 
     return CAIRO_STATUS_SUCCESS;
 
   CLEANUP_MASK:
-    _cairo_pattern_fini_snapshot (&command->mask.base);
+    _cairo_pattern_fini (&command->mask.base);
   CLEANUP_SOURCE:
-    _cairo_pattern_fini_snapshot (&command->source.base);
+    _cairo_pattern_fini (&command->source.base);
   CLEANUP_COMMAND:
     free (command);
     return status;
@@ -376,36 +326,36 @@ _cairo_meta_surface_mask (void			*abstract_surface,
 static cairo_int_status_t
 _cairo_meta_surface_stroke (void			*abstract_surface,
 			    cairo_operator_t		 op,
-			    const cairo_pattern_t	*source,
+			    cairo_pattern_t		*source,
 			    cairo_path_fixed_t		*path,
 			    cairo_stroke_style_t	*style,
 			    cairo_matrix_t		*ctm,
 			    cairo_matrix_t		*ctm_inverse,
 			    double			 tolerance,
-			    cairo_antialias_t		 antialias,
-			    cairo_rectangle_int_t 	*extents)
+			    cairo_antialias_t		 antialias)
 {
     cairo_status_t status;
     cairo_meta_surface_t *meta = abstract_surface;
     cairo_command_stroke_t *command;
 
     command = malloc (sizeof (cairo_command_stroke_t));
-    if (unlikely (command == NULL))
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (command == NULL)
+	return CAIRO_STATUS_NO_MEMORY;
 
-    _draw_command_init (&command->header, CAIRO_COMMAND_STROKE, meta);
+    command->header.type = CAIRO_COMMAND_STROKE;
+    command->header.region = CAIRO_META_REGION_ALL;
     command->op = op;
 
-    status = _cairo_pattern_init_snapshot (&command->source.base, source);
-    if (unlikely (status))
+    status = _init_pattern_with_snapshot (&command->source.base, source);
+    if (status)
 	goto CLEANUP_COMMAND;
 
     status = _cairo_path_fixed_init_copy (&command->path, path);
-    if (unlikely (status))
+    if (status)
 	goto CLEANUP_SOURCE;
 
     status = _cairo_stroke_style_init_copy (&command->style, style);
-    if (unlikely (status))
+    if (status)
 	goto CLEANUP_PATH;
 
     command->ctm = *ctm;
@@ -414,7 +364,7 @@ _cairo_meta_surface_stroke (void			*abstract_surface,
     command->antialias = antialias;
 
     status = _cairo_array_append (&meta->commands, &command);
-    if (unlikely (status))
+    if (status)
 	goto CLEANUP_STYLE;
 
     return CAIRO_STATUS_SUCCESS;
@@ -424,7 +374,7 @@ _cairo_meta_surface_stroke (void			*abstract_surface,
   CLEANUP_PATH:
     _cairo_path_fixed_fini (&command->path);
   CLEANUP_SOURCE:
-    _cairo_pattern_fini_snapshot (&command->source.base);
+    _cairo_pattern_fini (&command->source.base);
   CLEANUP_COMMAND:
     free (command);
     return status;
@@ -433,30 +383,30 @@ _cairo_meta_surface_stroke (void			*abstract_surface,
 static cairo_int_status_t
 _cairo_meta_surface_fill (void			*abstract_surface,
 			  cairo_operator_t	 op,
-			  const cairo_pattern_t	*source,
+			  cairo_pattern_t	*source,
 			  cairo_path_fixed_t	*path,
 			  cairo_fill_rule_t	 fill_rule,
 			  double		 tolerance,
-			  cairo_antialias_t	 antialias,
-			  cairo_rectangle_int_t  *extents)
+			  cairo_antialias_t	 antialias)
 {
     cairo_status_t status;
     cairo_meta_surface_t *meta = abstract_surface;
     cairo_command_fill_t *command;
 
     command = malloc (sizeof (cairo_command_fill_t));
-    if (unlikely (command == NULL))
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (command == NULL)
+	return CAIRO_STATUS_NO_MEMORY;
 
-    _draw_command_init (&command->header, CAIRO_COMMAND_FILL, meta);
+    command->header.type = CAIRO_COMMAND_FILL;
+    command->header.region = CAIRO_META_REGION_ALL;
     command->op = op;
 
-    status = _cairo_pattern_init_snapshot (&command->source.base, source);
-    if (unlikely (status))
+    status = _init_pattern_with_snapshot (&command->source.base, source);
+    if (status)
 	goto CLEANUP_COMMAND;
 
     status = _cairo_path_fixed_init_copy (&command->path, path);
-    if (unlikely (status))
+    if (status)
 	goto CLEANUP_SOURCE;
 
     command->fill_rule = fill_rule;
@@ -464,7 +414,7 @@ _cairo_meta_surface_fill (void			*abstract_surface,
     command->antialias = antialias;
 
     status = _cairo_array_append (&meta->commands, &command);
-    if (unlikely (status))
+    if (status)
 	goto CLEANUP_PATH;
 
     return CAIRO_STATUS_SUCCESS;
@@ -472,97 +422,58 @@ _cairo_meta_surface_fill (void			*abstract_surface,
   CLEANUP_PATH:
     _cairo_path_fixed_fini (&command->path);
   CLEANUP_SOURCE:
-    _cairo_pattern_fini_snapshot (&command->source.base);
+    _cairo_pattern_fini (&command->source.base);
   CLEANUP_COMMAND:
     free (command);
     return status;
 }
 
-static cairo_bool_t
-_cairo_meta_surface_has_show_text_glyphs (void *abstract_surface)
-{
-    return TRUE;
-}
-
 static cairo_int_status_t
-_cairo_meta_surface_show_text_glyphs (void			    *abstract_surface,
-				      cairo_operator_t		     op,
-				      const cairo_pattern_t	    *source,
-				      const char		    *utf8,
-				      int			     utf8_len,
-				      cairo_glyph_t		    *glyphs,
-				      int			     num_glyphs,
-				      const cairo_text_cluster_t    *clusters,
-				      int			     num_clusters,
-				      cairo_text_cluster_flags_t     cluster_flags,
-				      cairo_scaled_font_t	    *scaled_font,
-				      cairo_rectangle_int_t 	    *extents)
+_cairo_meta_surface_show_glyphs (void			*abstract_surface,
+				 cairo_operator_t	 op,
+				 cairo_pattern_t	*source,
+				 cairo_glyph_t		*glyphs,
+				 int			 num_glyphs,
+				 cairo_scaled_font_t	*scaled_font)
 {
     cairo_status_t status;
     cairo_meta_surface_t *meta = abstract_surface;
-    cairo_command_show_text_glyphs_t *command;
+    cairo_command_show_glyphs_t *command;
 
-    command = malloc (sizeof (cairo_command_show_text_glyphs_t));
-    if (unlikely (command == NULL))
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    command = malloc (sizeof (cairo_command_show_glyphs_t));
+    if (command == NULL)
+	return CAIRO_STATUS_NO_MEMORY;
 
-    _draw_command_init (&command->header, CAIRO_COMMAND_SHOW_TEXT_GLYPHS, meta);
+    command->header.type = CAIRO_COMMAND_SHOW_GLYPHS;
+    command->header.region = CAIRO_META_REGION_ALL;
     command->op = op;
 
-    status = _cairo_pattern_init_snapshot (&command->source.base, source);
-    if (unlikely (status))
+    status = _init_pattern_with_snapshot (&command->source.base, source);
+    if (status)
 	goto CLEANUP_COMMAND;
 
-    command->utf8 = NULL;
-    command->utf8_len = utf8_len;
-    command->glyphs = NULL;
+    command->glyphs = _cairo_malloc_ab (num_glyphs, sizeof (cairo_glyph_t));
+    if (command->glyphs == NULL) {
+	status = CAIRO_STATUS_NO_MEMORY;
+	goto CLEANUP_SOURCE;
+    }
+    memcpy (command->glyphs, glyphs, sizeof (cairo_glyph_t) * num_glyphs);
+
     command->num_glyphs = num_glyphs;
-    command->clusters = NULL;
-    command->num_clusters = num_clusters;
-
-    if (utf8_len) {
-	command->utf8 = malloc (utf8_len);
-	if (unlikely (command->utf8 == NULL)) {
-	    status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	    goto CLEANUP_ARRAYS;
-	}
-	memcpy (command->utf8, utf8, utf8_len);
-    }
-    if (num_glyphs) {
-	command->glyphs = _cairo_malloc_ab (num_glyphs, sizeof (glyphs[0]));
-	if (unlikely (command->glyphs == NULL)) {
-	    status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	    goto CLEANUP_ARRAYS;
-	}
-	memcpy (command->glyphs, glyphs, sizeof (glyphs[0]) * num_glyphs);
-    }
-    if (num_clusters) {
-	command->clusters = _cairo_malloc_ab (num_clusters, sizeof (clusters[0]));
-	if (unlikely (command->clusters == NULL)) {
-	    status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	    goto CLEANUP_ARRAYS;
-	}
-	memcpy (command->clusters, clusters, sizeof (clusters[0]) * num_clusters);
-    }
-
-    command->cluster_flags = cluster_flags;
 
     command->scaled_font = cairo_scaled_font_reference (scaled_font);
 
     status = _cairo_array_append (&meta->commands, &command);
-    if (unlikely (status))
+    if (status)
 	goto CLEANUP_SCALED_FONT;
 
     return CAIRO_STATUS_SUCCESS;
 
   CLEANUP_SCALED_FONT:
     cairo_scaled_font_destroy (command->scaled_font);
-  CLEANUP_ARRAYS:
-    free (command->utf8);
     free (command->glyphs);
-    free (command->clusters);
-
-    _cairo_pattern_fini_snapshot (&command->source.base);
+  CLEANUP_SOURCE:
+    _cairo_pattern_fini (&command->source.base);
   CLEANUP_COMMAND:
     free (command);
     return status;
@@ -576,8 +487,8 @@ _cairo_meta_surface_show_text_glyphs (void			    *abstract_surface,
  * surface-modifying function on the result of this function.
  *
  * The caller owns the return value and should call
- * cairo_surface_destroy() when finished with it. This function will not
- * return %NULL, but will return a nil surface instead.
+ * cairo_surface_destroy when finished with it. This function will not
+ * return NULL, but will return a nil surface instead.
  *
  * Return value: The snapshot surface.
  **/
@@ -588,15 +499,17 @@ _cairo_meta_surface_snapshot (void *abstract_other)
     cairo_meta_surface_t *meta;
 
     meta = malloc (sizeof (cairo_meta_surface_t));
-    if (unlikely (meta == NULL))
-	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
+    if (meta == NULL) {
+	_cairo_error (CAIRO_STATUS_NO_MEMORY);
+	return (cairo_surface_t*) &_cairo_surface_nil;
+    }
 
     _cairo_surface_init (&meta->base, &cairo_meta_surface_backend,
 			 other->base.content);
+    meta->base.is_snapshot = TRUE;
 
     meta->width_pixels = other->width_pixels;
     meta->height_pixels = other->height_pixels;
-    meta->extents = other->extents;
     meta->replay_start_idx = other->replay_start_idx;
     meta->content = other->content;
 
@@ -618,15 +531,15 @@ _cairo_meta_surface_intersect_clip_path (void		    *dst,
     cairo_status_t status;
 
     command = malloc (sizeof (cairo_command_intersect_clip_path_t));
-    if (unlikely (command == NULL))
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (command == NULL)
+	return CAIRO_STATUS_NO_MEMORY;
 
     command->header.type = CAIRO_COMMAND_INTERSECT_CLIP_PATH;
     command->header.region = CAIRO_META_REGION_ALL;
 
     if (path) {
 	status = _cairo_path_fixed_init_copy (&command->path, path);
-	if (unlikely (status)) {
+	if (status) {
 	    free (command);
 	    return status;
 	}
@@ -641,7 +554,7 @@ _cairo_meta_surface_intersect_clip_path (void		    *dst,
     command->antialias = antialias;
 
     status = _cairo_array_append (&meta->commands, &command);
-    if (unlikely (status)) {
+    if (status) {
 	if (path)
 	    _cairo_path_fixed_fini (&command->path);
 	free (command);
@@ -653,7 +566,7 @@ _cairo_meta_surface_intersect_clip_path (void		    *dst,
 
 /* Currently, we're using as the "size" of a meta surface the largest
  * surface size against which the meta-surface is expected to be
- * replayed, (as passed in to cairo_meta_surface_create()).
+ * replayed, (as passed in to _cairo_meta_surface_create).
  */
 static cairo_int_status_t
 _cairo_meta_surface_get_extents (void			 *abstract_surface,
@@ -661,13 +574,10 @@ _cairo_meta_surface_get_extents (void			 *abstract_surface,
 {
     cairo_meta_surface_t *surface = abstract_surface;
 
-    if (surface->width_pixels < 0 || surface->height_pixels < 0)
-	return CAIRO_INT_STATUS_UNSUPPORTED;
-
     rectangle->x = 0;
     rectangle->y = 0;
-    rectangle->width  = ceil (surface->width_pixels);
-    rectangle->height = ceil (surface->height_pixels);
+    rectangle->width = surface->width_pixels;
+    rectangle->height = surface->height_pixels;
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -678,7 +588,7 @@ _cairo_meta_surface_get_extents (void			 *abstract_surface,
  *
  * Checks if a surface is a #cairo_meta_surface_t
  *
- * Return value: %TRUE if the surface is a meta surface
+ * Return value: TRUE if the surface is a meta surface
  **/
 cairo_bool_t
 _cairo_surface_is_meta (const cairo_surface_t *surface)
@@ -687,7 +597,7 @@ _cairo_surface_is_meta (const cairo_surface_t *surface)
 }
 
 static const cairo_surface_backend_t cairo_meta_surface_backend = {
-    CAIRO_SURFACE_TYPE_META,
+    CAIRO_INTERNAL_SURFACE_TYPE_META,
     _cairo_meta_surface_create_similar,
     _cairo_meta_surface_finish,
     _cairo_meta_surface_acquire_source_image,
@@ -698,8 +608,6 @@ static const cairo_surface_backend_t cairo_meta_surface_backend = {
     NULL, /* composite */
     NULL, /* fill_rectangles */
     NULL, /* composite_trapezoids */
-    NULL, /* create_span_renderer */
-    NULL, /* check_span_renderer */
     NULL, /* copy_page */
     NULL, /* show_page */
     NULL, /* set_clip_region */
@@ -714,25 +622,15 @@ static const cairo_surface_backend_t cairo_meta_surface_backend = {
 
     /* Here are the 5 basic drawing operations, (which are in some
      * sense the only things that cairo_meta_surface should need to
-     * implement).  However, we implement the more generic show_text_glyphs
-     * instead of show_glyphs.  One or the other is eough. */
+     * implement). */
 
     _cairo_meta_surface_paint,
     _cairo_meta_surface_mask,
     _cairo_meta_surface_stroke,
     _cairo_meta_surface_fill,
-    NULL,
+    _cairo_meta_surface_show_glyphs,
 
-    _cairo_meta_surface_snapshot,
-
-    NULL, /* is_similar */
-    NULL, /* reset */
-    NULL, /* fill_stroke */
-    NULL, /* create_solid_pattern_surface */
-    NULL, /* can_repaint_solid_pattern_surface */
-
-    _cairo_meta_surface_has_show_text_glyphs,
-    _cairo_meta_surface_show_text_glyphs
+    _cairo_meta_surface_snapshot
 };
 
 static cairo_path_fixed_t *
@@ -741,7 +639,7 @@ _cairo_command_get_path (cairo_command_t *command)
     switch (command->header.type) {
     case CAIRO_COMMAND_PAINT:
     case CAIRO_COMMAND_MASK:
-    case CAIRO_COMMAND_SHOW_TEXT_GLYPHS:
+    case CAIRO_COMMAND_SHOW_GLYPHS:
 	return NULL;
     case CAIRO_COMMAND_STROKE:
 	return &command->stroke.path;
@@ -755,78 +653,6 @@ _cairo_command_get_path (cairo_command_t *command)
     return NULL;
 }
 
-cairo_int_status_t
-_cairo_meta_surface_get_path (cairo_surface_t	 *surface,
-			      cairo_path_fixed_t *path)
-{
-    cairo_meta_surface_t *meta;
-    cairo_command_t *command, **elements;
-    int i, num_elements;
-    cairo_int_status_t status;
-
-    if (surface->status)
-	return surface->status;
-
-    meta = (cairo_meta_surface_t *) surface;
-    status = CAIRO_STATUS_SUCCESS;
-
-    num_elements = meta->commands.num_elements;
-    elements = _cairo_array_index (&meta->commands, 0);
-    for (i = meta->replay_start_idx; i < num_elements; i++) {
-	command = elements[i];
-
-	switch (command->header.type) {
-	case CAIRO_COMMAND_PAINT:
-	case CAIRO_COMMAND_MASK:
-	case CAIRO_COMMAND_INTERSECT_CLIP_PATH:
-	    status = CAIRO_INT_STATUS_UNSUPPORTED;
-	    break;
-
-	case CAIRO_COMMAND_STROKE:
-	{
-	    cairo_traps_t traps;
-
-	    _cairo_traps_init (&traps);
-
-	    /* XXX call cairo_stroke_to_path() when that is implemented */
-	    status = _cairo_path_fixed_stroke_to_traps (&command->stroke.path,
-							&command->stroke.style,
-							&command->stroke.ctm,
-							&command->stroke.ctm_inverse,
-							command->stroke.tolerance,
-							&traps);
-
-	    if (status == CAIRO_STATUS_SUCCESS)
-		status = _cairo_traps_path (&traps, path);
-
-	    _cairo_traps_fini (&traps);
-	    break;
-	}
-	case CAIRO_COMMAND_FILL:
-	{
-	    status = _cairo_path_fixed_append (path, &command->fill.path, CAIRO_DIRECTION_FORWARD);
-	    break;
-	}
-	case CAIRO_COMMAND_SHOW_TEXT_GLYPHS:
-	{
-	    status = _cairo_scaled_font_glyph_path (command->show_text_glyphs.scaled_font,
-						    command->show_text_glyphs.glyphs,
-						    command->show_text_glyphs.num_glyphs,
-						    path);
-	    break;
-	}
-
-	default:
-	    ASSERT_NOT_REACHED;
-	}
-
-	if (unlikely (status))
-	    break;
-    }
-
-    return _cairo_surface_set_error (surface, status);
-}
-
 static cairo_status_t
 _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 				     cairo_surface_t	     *target,
@@ -836,8 +662,8 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
     cairo_meta_surface_t *meta;
     cairo_command_t *command, **elements;
     int i, num_elements;
-    cairo_int_status_t status, status2;
-    cairo_clip_t clip, *old_clip;
+    cairo_int_status_t status;
+    cairo_clip_t clip;
     cairo_bool_t has_device_transform = _cairo_surface_has_device_transform (target);
     cairo_matrix_t *device_transform = &target->device_transform;
     cairo_path_fixed_t path_copy, *dev_path;
@@ -845,14 +671,10 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
     if (surface->status)
 	return surface->status;
 
-    if (target->status)
-	return _cairo_surface_set_error (surface, target->status);
-
     meta = (cairo_meta_surface_t *) surface;
     status = CAIRO_STATUS_SUCCESS;
 
     _cairo_clip_init (&clip, target);
-    old_clip = _cairo_surface_get_clip (target);
 
     num_elements = meta->commands.num_elements;
     elements = _cairo_array_index (&meta->commands, 0);
@@ -868,16 +690,16 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 	 * ensure the current clip gets set on the surface. */
 	if (command->header.type != CAIRO_COMMAND_INTERSECT_CLIP_PATH) {
 	    status = _cairo_surface_set_clip (target, &clip);
-	    if (unlikely (status))
+	    if (status)
 		break;
 	}
 
 	dev_path = _cairo_command_get_path (command);
 	if (dev_path && has_device_transform) {
 	    status = _cairo_path_fixed_init_copy (&path_copy, dev_path);
-	    if (unlikely (status))
+	    if (status)
 		break;
-	    _cairo_path_fixed_transform (&path_copy, device_transform);
+	    _cairo_path_fixed_device_transform (&path_copy, device_transform);
 	    dev_path = &path_copy;
 	}
 
@@ -885,24 +707,26 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 	case CAIRO_COMMAND_PAINT:
 	    status = _cairo_surface_paint (target,
 					   command->paint.op,
-					   &command->paint.source.base, &command->header.extents);
+					   &command->paint.source.base);
 	    break;
 	case CAIRO_COMMAND_MASK:
 	    status = _cairo_surface_mask (target,
 					  command->mask.op,
 					  &command->mask.source.base,
-					  &command->mask.mask.base, &command->header.extents);
+					  &command->mask.mask.base);
 	    break;
 	case CAIRO_COMMAND_STROKE:
 	{
 	    cairo_matrix_t dev_ctm = command->stroke.ctm;
 	    cairo_matrix_t dev_ctm_inverse = command->stroke.ctm_inverse;
+	    cairo_matrix_t tmp;
 
 	    if (has_device_transform) {
 		cairo_matrix_multiply (&dev_ctm, &dev_ctm, device_transform);
-		cairo_matrix_multiply (&dev_ctm_inverse,
-				       &target->device_transform_inverse,
-				       &dev_ctm_inverse);
+		tmp = surface->device_transform;
+		status = cairo_matrix_invert (&tmp);
+		assert (status == CAIRO_STATUS_SUCCESS);
+		cairo_matrix_multiply (&dev_ctm_inverse, &tmp, &dev_ctm_inverse);
 	    }
 
 	    status = _cairo_surface_stroke (target,
@@ -913,38 +737,31 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 					    &dev_ctm,
 					    &dev_ctm_inverse,
 					    command->stroke.tolerance,
-					    command->stroke.antialias, &command->header.extents);
+					    command->stroke.antialias);
 	    break;
 	}
 	case CAIRO_COMMAND_FILL:
 	{
 	    cairo_command_t *stroke_command;
 
-	    if (type != CAIRO_META_CREATE_REGIONS)
-		stroke_command = (i < num_elements - 1) ? elements[i + 1] : NULL;
-	    else
-		stroke_command = NULL;
+	    stroke_command = (i < num_elements - 1) ? elements[i + 1] : NULL;
 
-	    if (stroke_command != NULL &&
-		type == CAIRO_META_REPLAY && region != CAIRO_META_REGION_ALL)
-	    {
-		if (stroke_command->header.region != region)
-		    stroke_command = NULL;
-	    }
 	    if (stroke_command != NULL &&
 		stroke_command->header.type == CAIRO_COMMAND_STROKE &&
 		_cairo_path_fixed_is_equal (dev_path, _cairo_command_get_path (stroke_command))) {
 		cairo_matrix_t dev_ctm;
 		cairo_matrix_t dev_ctm_inverse;
+		cairo_matrix_t tmp;
 
 		dev_ctm = stroke_command->stroke.ctm;
 		dev_ctm_inverse = stroke_command->stroke.ctm_inverse;
 
 		if (has_device_transform) {
 		    cairo_matrix_multiply (&dev_ctm, &dev_ctm, device_transform);
-		    cairo_matrix_multiply (&dev_ctm_inverse,
-					   &surface->device_transform_inverse,
-					   &dev_ctm_inverse);
+		    tmp = surface->device_transform;
+		    status = cairo_matrix_invert (&tmp);
+		    assert (status == CAIRO_STATUS_SUCCESS);
+		    cairo_matrix_multiply (&dev_ctm_inverse, &tmp, &dev_ctm_inverse);
 		}
 
 		status = _cairo_surface_fill_stroke (target,
@@ -960,8 +777,7 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 						     &dev_ctm,
 						     &dev_ctm_inverse,
 						     stroke_command->stroke.tolerance,
-						     stroke_command->stroke.antialias,
-						     &stroke_command->header.extents);
+						     stroke_command->stroke.antialias);
 		i++;
 	    } else
 		status = _cairo_surface_fill (target,
@@ -970,46 +786,38 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 					      dev_path,
 					      command->fill.fill_rule,
 					      command->fill.tolerance,
-					      command->fill.antialias, &command->header.extents);
+					      command->fill.antialias);
 	    break;
 	}
-	case CAIRO_COMMAND_SHOW_TEXT_GLYPHS:
+	case CAIRO_COMMAND_SHOW_GLYPHS:
 	{
-	    cairo_glyph_t *glyphs = command->show_text_glyphs.glyphs;
-	    cairo_glyph_t *dev_glyphs;
-	    int i, num_glyphs = command->show_text_glyphs.num_glyphs;
-
-            /* show_text_glyphs is special because _cairo_surface_show_text_glyphs is allowed
-	     * to modify the glyph array that's passed in.  We must always
-	     * copy the array before handing it to the backend.
-	     */
-	    dev_glyphs = _cairo_malloc_ab (num_glyphs, sizeof (cairo_glyph_t));
-	    if (unlikely (dev_glyphs == NULL)) {
-		status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-		break;
-	    }
+	    cairo_glyph_t *glyphs = command->show_glyphs.glyphs;
+	    cairo_glyph_t *dev_glyphs = glyphs;
+	    int i, num_glyphs = command->show_glyphs.num_glyphs;
 
 	    if (has_device_transform) {
+		dev_glyphs = _cairo_malloc_ab (num_glyphs, sizeof (cairo_glyph_t));
+		if (dev_glyphs == NULL) {
+		    status = CAIRO_STATUS_NO_MEMORY;
+		    break;
+		}
 		for (i = 0; i < num_glyphs; i++) {
 		    dev_glyphs[i] = glyphs[i];
 		    cairo_matrix_transform_point (device_transform,
 						  &dev_glyphs[i].x,
 						  &dev_glyphs[i].y);
 		}
-	    } else {
-		memcpy (dev_glyphs, glyphs, sizeof (cairo_glyph_t) * num_glyphs);
 	    }
 
-	    status = _cairo_surface_show_text_glyphs	(target,
-							 command->show_text_glyphs.op,
-							 &command->show_text_glyphs.source.base,
-							 command->show_text_glyphs.utf8, command->show_text_glyphs.utf8_len,
-							 dev_glyphs, num_glyphs,
-							 command->show_text_glyphs.clusters, command->show_text_glyphs.num_clusters,
-							 command->show_text_glyphs.cluster_flags,
-							 command->show_text_glyphs.scaled_font, &command->header.extents);
+	    status = _cairo_surface_show_glyphs	(target,
+						 command->show_glyphs.op,
+						 &command->show_glyphs.source.base,
+						 dev_glyphs, num_glyphs,
+						 command->show_glyphs.scaled_font);
 
-	    free (dev_glyphs);
+	    if (dev_glyphs != glyphs)
+		free (dev_glyphs);
+
 	    break;
 	}
 	case CAIRO_COMMAND_INTERSECT_CLIP_PATH:
@@ -1023,6 +831,7 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 					   command->intersect_clip_path.tolerance,
 					   command->intersect_clip_path.antialias,
 					   target);
+            assert (status == 0);
 	    break;
 	default:
 	    ASSERT_NOT_REACHED;
@@ -1040,46 +849,43 @@ _cairo_meta_surface_replay_internal (cairo_surface_t	     *surface,
 	    }
 	}
 
-	if (unlikely (status))
+	if (type == CAIRO_META_ANALYZE_META_PATTERN) {
+	    if (status == CAIRO_INT_STATUS_FLATTEN_TRANSPARENCY)
+		status = CAIRO_STATUS_SUCCESS;
+	}
+
+	if (status)
 	    break;
     }
 
     _cairo_clip_reset (&clip);
-    status2 = _cairo_surface_set_clip (target, old_clip);
-    if (status == CAIRO_STATUS_SUCCESS)
-	status = status2;
 
-    return _cairo_surface_set_error (surface, status);
+    return status;
 }
 
-/**
- * cairo_meta_surface_replay:
- * @surface: the #cairo_meta_surface_t
- * @target: a target #cairo_surface_t onto which to replay the operations
- * @width_pixels: width of the surface, in pixels
- * @height_pixels: height of the surface, in pixels
- *
- * A meta surface can be "replayed" against any target surface,
- * after which the results in target will be identical to the results
- * that would have been obtained if the original operations applied to
- * the meta surface had instead been applied to the target surface.
- *
- * Since 1.10
- **/
 cairo_status_t
-cairo_meta_surface_replay (cairo_surface_t *surface,
-			   cairo_surface_t *target)
+_cairo_meta_surface_replay (cairo_surface_t *surface,
+			    cairo_surface_t *target)
 {
     return _cairo_meta_surface_replay_internal (surface,
 						target,
 						CAIRO_META_REPLAY,
 						CAIRO_META_REGION_ALL);
 }
-slim_hidden_def (cairo_meta_surface_replay);
+
+cairo_status_t
+_cairo_meta_surface_replay_analyze_meta_pattern (cairo_surface_t *surface,
+						 cairo_surface_t *target)
+{
+    return _cairo_meta_surface_replay_internal (surface,
+						target,
+						CAIRO_META_ANALYZE_META_PATTERN,
+						CAIRO_META_REGION_ALL);
+}
 
 /* Replay meta to surface. When the return status of each operation is
- * one of %CAIRO_STATUS_SUCCESS, %CAIRO_INT_STATUS_UNSUPPORTED, or
- * %CAIRO_INT_STATUS_FLATTEN_TRANSPARENCY the status of each operation
+ * one of CAIRO_STATUS_SUCCESS, CAIRO_INT_STATUS_UNSUPPORTED, or
+ * CAIRO_INT_STATUS_FLATTEN_TRANSPARENCY the status of each operation
  * will be stored in the meta surface. Any other status will abort the
  * replay and return the status.
  */
@@ -1102,60 +908,4 @@ _cairo_meta_surface_replay_region (cairo_surface_t          *surface,
 						target,
 						CAIRO_META_REPLAY,
 						region);
-}
-
-/**
- * cairo_meta_surface_ink_extents:
- * @surface: a #cairo_meta_surface_t
- * @x0: the x-coordinate of the top-left of the ink bounding box
- * @y0: the y-coordinate of the top-left of the ink bounding box
- * @width: the width of the ink bounding box
- * @height: the height of the ink bounding box
- *
- * Measures the extents of the operations stored within the meta-surface.
- * This is useful to compute the required size of an image surface (or
- * equivalent) into which to replay the full sequence of drawing operaitions.
- *
- * Since: 1.10
- **/
-void
-cairo_meta_surface_ink_extents (cairo_surface_t *surface,
-				double *x0,
-				double *y0,
-				double *width,
-				double *height)
-{
-    cairo_surface_t *null_surface;
-    cairo_surface_t *analysis_surface;
-    cairo_status_t status;
-    cairo_box_t bbox;
-
-    memset (&bbox, 0, sizeof (bbox));
-
-    if (! _cairo_surface_is_meta (surface)) {
-	_cairo_error_throw (CAIRO_STATUS_SURFACE_TYPE_MISMATCH);
-	goto DONE;
-    }
-
-    null_surface = _cairo_null_surface_create (CAIRO_CONTENT_COLOR_ALPHA);
-    analysis_surface = _cairo_analysis_surface_create (null_surface, -1, -1);
-    cairo_surface_destroy (null_surface);
-
-    status = analysis_surface->status;
-    if (unlikely (status))
-	goto DONE;
-
-    status = cairo_meta_surface_replay (surface, analysis_surface);
-    _cairo_analysis_surface_get_bounding_box (analysis_surface, &bbox);
-    cairo_surface_destroy (analysis_surface);
-
-DONE:
-    if (x0)
-	*x0 = _cairo_fixed_to_double (bbox.p1.x);
-    if (y0)
-	*y0 = _cairo_fixed_to_double (bbox.p1.y);
-    if (width)
-	*width = _cairo_fixed_to_double (bbox.p2.x - bbox.p1.x);
-    if (height)
-	*height = _cairo_fixed_to_double (bbox.p2.y - bbox.p1.y);
 }

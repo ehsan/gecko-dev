@@ -76,8 +76,6 @@ struct nsLookAndFeelFloatPref
 
 #define COLOR_CACHE_SIZE   (CACHE_BLOCK(nsILookAndFeel::eColor_LAST_COLOR) + 1)
 #define IS_COLOR_CACHED(x) (CACHE_BIT(x) & nsXPLookAndFeel::sCachedColorBits[CACHE_BLOCK(x)])
-#define CLEAR_COLOR_CACHE(x) nsXPLookAndFeel::sCachedColors[(x)] =0; \
-              nsXPLookAndFeel::sCachedColorBits[CACHE_BLOCK(x)] &= ~(CACHE_BIT(x));
 #define CACHE_COLOR(x, y)  nsXPLookAndFeel::sCachedColors[(x)] = y; \
               nsXPLookAndFeel::sCachedColorBits[CACHE_BLOCK(x)] |= CACHE_BIT(x);
 
@@ -131,7 +129,6 @@ protected:
   static const char sColorPrefs[][38];
   static PRInt32 sCachedColors[nsILookAndFeel::eColor_LAST_COLOR];
   static PRInt32 sCachedColorBits[COLOR_CACHE_SIZE];
-  static PRBool sUseNativeColors;
 };
 
 extern nsresult NS_NewXPLookAndFeel(nsILookAndFeel**);

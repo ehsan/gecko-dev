@@ -72,10 +72,11 @@ public:
   NS_DECL_ISUPPORTS
   // imgIDecoderObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, PRBool aCurrentFrame,
-                             const nsIntRect *aRect);
+  NS_IMETHOD OnDataAvailable(imgIRequest *aRequest, gfxIImageFrame *aFrame,
+                             const nsRect *aRect);
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect *dirtyRect);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
+                          nsRect * dirtyRect);
 
   NS_IMETHOD AddCell(PRInt32 aIndex, nsITreeColumn* aCol);
  

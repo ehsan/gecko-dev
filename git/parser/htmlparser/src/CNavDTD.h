@@ -100,12 +100,12 @@
 #include "nsISupports.h"
 #include "nsIParser.h"
 #include "nsHTMLTags.h"
+#include "nsVoidArray.h"
 #include "nsDeque.h"
 #include "nsParserCIID.h"
 #include "nsTime.h"
 #include "nsDTDUtils.h"
 #include "nsParser.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsIHTMLContentSink;
 class nsIParserNode;
@@ -158,9 +158,8 @@ public:
                            eHTMLTags aTag,
                            nsEntryStack* aStyleStack = nsnull);
 
-    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_ISUPPORTS
     NS_DECL_NSIDTD
-    NS_DECL_CYCLE_COLLECTION_CLASS(CNavDTD)
 
 private:
     /**
@@ -220,10 +219,9 @@ private:
      * Attempt forward and/or backward propagation for the given child within
      * the current context vector stack. And actually open the required tags.
      *
-     * @param   aParent The tag we're trying to open this element inside of.
      * @param   aChild Type of child to be propagated.
      */
-    void CreateContextStackFor(eHTMLTags aParent, eHTMLTags aChild);
+    void CreateContextStackFor(eHTMLTags aChild);
 
     /**
      * Ask if a given container is open anywhere on its stack
@@ -257,8 +255,6 @@ private:
      * @return  index of topmost tag occurrence -- may be -1 (kNotFound).
      */
     PRInt32 LastOf(eHTMLTags aTagSet[], PRInt32 aCount) const;
-
-    nsresult HandleToken(CToken* aToken);
 
     /**
      *  This method gets called when a start token has been
@@ -296,7 +292,8 @@ private:
     nsresult    HandleAttributeToken(CToken* aToken);
     nsresult    HandleProcessingInstructionToken(CToken* aToken);
     nsresult    HandleDocTypeDeclToken(CToken* aToken);
-    nsresult    BuildNeglectedTarget(eHTMLTags aTarget, eHTMLTokenTypes aType);
+    nsresult    BuildNeglectedTarget(eHTMLTags aTarget, eHTMLTokenTypes aType,
+                                     nsIParser* aParser, nsIContentSink* aSink);
 
     nsresult OpenHTML(const nsCParserNode *aNode);
     nsresult OpenBody(const nsCParserNode *aNode);
@@ -310,8 +307,6 @@ private:
     nsresult CloseContainersTo(eHTMLTags aTag, PRBool aClosedByStartTag);
     nsresult CloseContainersTo(PRInt32 anIndex, eHTMLTags aTag,
                                PRBool aClosedByStartTag);
-    nsresult CloseResidualStyleTags(const eHTMLTags aTag,
-                                    PRBool aClosedByStartTag);
 
     /**
      * Causes leaf to be added to sink at current vector pos.
@@ -376,13 +371,21 @@ protected:
     PRBool          IsBlockElement(PRInt32 aTagID, PRInt32 aParentID) const;
     PRBool          IsInlineElement(PRInt32 aTagID, PRInt32 aParentID) const;
 
+    PRBool          IsParserInDocWrite() const
+    {
+      NS_ASSERTION(mParser && mParser->PeekContext(),
+                   "Parser must be parsing to use this function");
+
+      return mParser->PeekContext()->mPrevContext != nsnull;
+    }
+    
     nsDeque             mMisplacedContent;
     
-    nsCOMPtr<nsIHTMLContentSink> mSink;
+    nsIHTMLContentSink* mSink;
     nsTokenAllocator*   mTokenAllocator;
     nsDTDContext*       mBodyContext;
     nsDTDContext*       mTempContext;
-    PRBool              mCountLines;
+    nsParser*           mParser;
     nsITokenizer*       mTokenizer; // weak
    
     nsString            mFilename; 

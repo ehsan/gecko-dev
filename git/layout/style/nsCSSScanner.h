@@ -98,27 +98,25 @@ enum nsCSSTokenType {
   eCSSToken_Endsmatch,      // "$="
   eCSSToken_Containsmatch,  // "*="
 
-  eCSSToken_URange,         // Low in mInteger, high in mInteger2;
-                            // mIntegerValid is true if the token is a
-                            // valid range; mIdent preserves the textual
-                            // form of the token for error reporting
-
   // A special token indicating that there was an error in tokenization.
   // It's always an unterminated string.
   eCSSToken_Error           // mSymbol + mIdent
 };
 
 struct nsCSSToken {
-  nsAutoString    mIdent NS_OKONHEAP;
+  nsCSSTokenType  mType;
+  PRPackedBool    mIntegerValid;
+  nsAutoString    mIdent;
   float           mNumber;
   PRInt32         mInteger;
-  PRInt32         mInteger2;
-  nsCSSTokenType  mType;
   PRUnichar       mSymbol;
-  PRPackedBool    mIntegerValid; // for number, dimension, urange
-  PRPackedBool    mHasSign; // for number, percentage, and dimension
 
   nsCSSToken();
+
+  PRBool IsDimension() {
+    return PRBool((eCSSToken_Dimension == mType) ||
+                  ((eCSSToken_Number == mType) && (mNumber == 0.0f)));
+  }
 
   PRBool IsSymbol(PRUnichar aSymbol) {
     return PRBool((eCSSToken_Symbol == mType) && (mSymbol == aSymbol));
@@ -148,18 +146,6 @@ class nsCSSScanner {
   static PRBool InitGlobals();
   static void ReleaseGlobals();
 
-#ifdef  MOZ_SVG
-  // Set whether or not we are processing SVG
-  void SetSVGMode(PRBool aSVGMode) {
-    NS_ASSERTION(aSVGMode == PR_TRUE || aSVGMode == PR_FALSE,
-                 "bad PRBool value");
-    mSVGMode = aSVGMode;
-  }
-  PRBool IsSVGMode() const {
-    return mSVGMode;
-  }
-
-#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   NS_HIDDEN_(void) AddToError(const nsSubstring& aErrorText);
   NS_HIDDEN_(void) OutputError();
@@ -170,10 +156,8 @@ class nsCSSScanner {
   NS_HIDDEN_(void) ReportUnexpectedParams(const char* aMessage,
                                           const PRUnichar **aParams,
                                           PRUint32 aParamsLength);
-  // aLookingFor is a plain string, not a format string
+  // aMessage must take no parameters
   NS_HIDDEN_(void) ReportUnexpectedEOF(const char* aLookingFor);
-  // aLookingFor is a single character
-  NS_HIDDEN_(void) ReportUnexpectedEOF(PRUnichar aLookingFor);
   // aMessage must take 1 parameter (for the string representation of the
   // unexpected token)
   NS_HIDDEN_(void) ReportUnexpectedToken(nsCSSToken& tok,
@@ -189,41 +173,64 @@ class nsCSSScanner {
 
   // Get the next token. Return PR_FALSE on EOF. aTokenResult
   // is filled in with the data for the token.
-  PRBool Next(nsCSSToken& aTokenResult);
+  PRBool Next(nsresult& aErrorCode, nsCSSToken& aTokenResult);
 
   // Get the next token that may be a string or unquoted URL or whitespace
-  PRBool NextURL(nsCSSToken& aTokenResult);
+  PRBool NextURL(nsresult& aErrorCode, nsCSSToken& aTokenResult);
 
-  // It's really ugly that we have to expose this, but it's the easiest
-  // way to do :nth-child() parsing sanely.  (In particular, in
-  // :nth-child(2n-1), "2n-1" is a dimension, and we need to push the
-  // "-1" back so we can read it again as a number.)
-  void Pushback(PRUnichar aChar);
+  static inline PRBool
+  IsIdentStart(PRInt32 aChar)
+  {
+    return aChar >= 0 &&
+      (aChar >= 256 || (gLexTable[aChar] & START_IDENT) != 0);
+  }
 
-  // Reports operating-system level errors, e.g. read failures and
-  // out of memory.
-  nsresult GetLowLevelError();
+  static inline PRBool
+  StartsIdent(PRInt32 aFirstChar, PRInt32 aSecondChar)
+  {
+    return IsIdentStart(aFirstChar) ||
+      (aFirstChar == '-' && IsIdentStart(aSecondChar));
+  }
 
-  // sometimes the parser wants to make note of a low-level error
-  void SetLowLevelError(nsresult aErrorCode);
+  static PRBool IsWhitespace(PRInt32 ch) {
+    return PRUint32(ch) < 256 && (gLexTable[ch] & IS_WHITESPACE) != 0;
+  }
+
+  static PRBool IsDigit(PRInt32 ch) {
+    return PRUint32(ch) < 256 && (gLexTable[ch] & IS_DIGIT) != 0;
+  }
+
+  static PRBool IsHexDigit(PRInt32 ch) {
+    return PRUint32(ch) < 256 && (gLexTable[ch] & IS_HEX_DIGIT) != 0;
+  }
+
+  static PRBool IsIdent(PRInt32 ch) {
+    return ch >= 0 && (ch >= 256 || (gLexTable[ch] & IS_IDENT) != 0);
+  }
   
 protected:
-  PRBool EnsureData();
-  PRInt32 Read();
-  PRInt32 Peek();
-  PRBool LookAhead(PRUnichar aChar);
-  void EatWhiteSpace();
-  
-  void ParseAndAppendEscape(nsString& aOutput);
-  PRBool ParseIdent(PRInt32 aChar, nsCSSToken& aResult);
-  PRBool ParseAtKeyword(PRInt32 aChar, nsCSSToken& aResult);
-  PRBool ParseNumber(PRInt32 aChar, nsCSSToken& aResult);
-  PRBool ParseRef(PRInt32 aChar, nsCSSToken& aResult);
-  PRBool ParseString(PRInt32 aChar, nsCSSToken& aResult);
-  PRBool ParseURange(PRInt32 aChar, nsCSSToken& aResult);
-  PRBool SkipCComment();
+  PRBool EnsureData(nsresult& aErrorCode);
+  PRInt32 Read(nsresult& aErrorCode);
+  PRInt32 Peek(nsresult& aErrorCode);
+  void Pushback(PRUnichar aChar);
+  PRBool LookAhead(nsresult& aErrorCode, PRUnichar aChar);
+  PRBool EatWhiteSpace(nsresult& aErrorCode);
+  PRBool EatNewline(nsresult& aErrorCode);
 
-  PRBool GatherIdent(PRInt32 aChar, nsString& aIdent);
+  void ParseAndAppendEscape(nsresult& aErrorCode, nsString& aOutput);
+  PRBool ParseIdent(nsresult& aErrorCode, PRInt32 aChar, nsCSSToken& aResult);
+  PRBool ParseAtKeyword(nsresult& aErrorCode, PRInt32 aChar,
+                        nsCSSToken& aResult);
+  PRBool ParseNumber(nsresult& aErrorCode, PRInt32 aChar, nsCSSToken& aResult);
+  PRBool ParseRef(nsresult& aErrorCode, PRInt32 aChar, nsCSSToken& aResult);
+  PRBool ParseString(nsresult& aErrorCode, PRInt32 aChar, nsCSSToken& aResult);
+#if 0
+  PRBool ParseEOLComment(nsresult& aErrorCode, nsCSSToken& aResult);
+  PRBool ParseCComment(nsresult& aErrorCode, nsCSSToken& aResult);
+#endif
+  PRBool SkipCComment(nsresult& aErrorCode);
+
+  PRBool GatherIdent(nsresult& aErrorCode, PRInt32 aChar, nsString& aIdent);
 
   // Only used when input is a stream
   nsCOMPtr<nsIUnicharInputStream> mInputStream;
@@ -236,13 +243,8 @@ protected:
   PRInt32 mPushbackCount;
   PRInt32 mPushbackSize;
   PRUnichar mLocalPushback[4];
-  nsresult mLowLevelError;
 
   PRUint32 mLineNumber;
-#ifdef MOZ_SVG
-  // True if we are in SVG mode; false in "normal" CSS
-  PRPackedBool mSVGMode;
-#endif
 #ifdef CSS_REPORT_PARSE_ERRORS
   nsXPIDLCString mFileName;
   nsCOMPtr<nsIURI> mURI;  // Cached so we know to not refetch mFileName
@@ -250,6 +252,15 @@ protected:
   nsFixedString mError;
   PRUnichar mErrorBuf[200];
 #endif
+
+  static const PRUint8 IS_DIGIT;
+  static const PRUint8 IS_HEX_DIGIT;
+  static const PRUint8 START_IDENT;
+  static const PRUint8 IS_IDENT;
+  static const PRUint8 IS_WHITESPACE;
+
+  static PRUint8 gLexTable[256];
+  static void BuildLexTable();
 };
 
 #endif /* nsCSSScanner_h___ */

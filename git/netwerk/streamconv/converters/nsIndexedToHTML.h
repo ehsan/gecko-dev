@@ -39,6 +39,7 @@
 #define ____nsindexedtohtml___h___
 
 #include "nsCOMPtr.h"
+#include "nsVoidArray.h"
 #include "nsIFactory.h"
 #include "nsString.h"
 #include "nsIStreamConverter.h"
@@ -90,7 +91,6 @@ protected:
 private:
     // Expecting absolute locations, given by 201 lines.
     PRBool mExpectAbsLoc;
-    nsString mEscapedEllipsis;
 };
 
 #endif

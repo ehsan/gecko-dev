@@ -1,11 +1,15 @@
 html {
   background: -moz-Dialog;
-  padding: 0 1em;
-  font: message-box;
 }
 
 body {
+  margin: 0;
+  padding: 0 1em;
   color: -moz-FieldText;
+  font: message-box;
+}
+
+#aboutPageContainer {
   position: relative;
   min-width: 330px;
   max-width: 50em;
@@ -15,10 +19,6 @@ body {
   padding: 3em;
   -moz-padding-start: 30px;
   background: -moz-Field;
-}
-
-.aboutPageWideContainer {
-  max-width: 80%;
 }
 
 #aboutLogoContainer {
@@ -46,8 +46,4 @@ ul {
 
 ul > li {
   margin-top: .5em;
-}
-
-th, td {
-  padding: 0 5px;
 }

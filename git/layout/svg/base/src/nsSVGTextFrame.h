@@ -40,34 +40,28 @@
 #define NS_SVGTEXTFRAME_H
 
 #include "nsSVGTextContainerFrame.h"
-#include "gfxRect.h"
-#include "gfxMatrix.h"
 
 typedef nsSVGTextContainerFrame nsSVGTextFrameBase;
 
 class nsSVGTextFrame : public nsSVGTextFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGTextFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+  NS_NewSVGTextFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
 protected:
   nsSVGTextFrame(nsStyleContext* aContext)
     : nsSVGTextFrameBase(aContext),
       mMetricsState(unsuspended),
-      mPositioningDirty(PR_TRUE) {}
+      mPropagateTransform(PR_TRUE),
+      mPositioningDirty(PR_FALSE) {}
 
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   // nsIFrame:
-#ifdef DEBUG
-  NS_IMETHOD Init(nsIContent*      aContent,
-                  nsIFrame*        aParent,
-                  nsIFrame*        aPrevInFlow);
-#endif
-
+  NS_IMETHOD  SetInitialChildList(nsIAtom*  aListName,
+                                  nsIFrame* aChildList);
   NS_IMETHOD  AttributeChanged(PRInt32         aNameSpaceID,
                                nsIAtom*        aAttribute,
                                PRInt32         aModType);
+  NS_IMETHOD DidSetStyleContext();
 
   /**
    * Get the "type" of the frame
@@ -84,48 +78,40 @@ public:
 #endif
 
   // nsISVGChildFrame interface:
-  virtual void NotifySVGChanged(PRUint32 aFlags);
+  NS_IMETHOD SetMatrixPropagation(PRBool aPropagate);
+  NS_IMETHOD SetOverrideCTM(nsIDOMSVGMatrix *aCTM);
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetOverrideCTM();
+  NS_IMETHOD NotifyCanvasTMChanged(PRBool suppressInvalidation);
   NS_IMETHOD NotifyRedrawSuspended();
   NS_IMETHOD NotifyRedrawUnsuspended();
-  // Override these four to ensure that UpdateGlyphPositioning is called
-  // to bring glyph positions up to date
-  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext,
-                      const nsIntRect *aDirtyRect);
-  NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint & aPoint);
-  NS_IMETHOD UpdateCoveredRegion();
-  NS_IMETHOD InitialUpdate();
-  virtual gfxRect GetBBoxContribution(const gfxMatrix &aToBBoxUserspace);
+  NS_IMETHOD GetBBox(nsIDOMSVGRect **_retval);
   
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM();
+  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
   
-  // nsSVGTextContainerFrame methods:
-  virtual PRUint32 GetNumberOfChars();
-  virtual float GetComputedTextLength();
-  virtual float GetSubStringLength(PRUint32 charnum, PRUint32 nchars);
-  virtual PRInt32 GetCharNumAtPosition(nsIDOMSVGPoint *point);
-
+  // nsISVGTextContentMetrics
+  NS_IMETHOD GetNumberOfChars(PRInt32 *_retval);
+  NS_IMETHOD GetComputedTextLength(float *_retval);
+  NS_IMETHOD GetSubStringLength(PRUint32 charnum, PRUint32 nchars, float *_retval);
   NS_IMETHOD GetStartPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval);
   NS_IMETHOD GetEndPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval);
   NS_IMETHOD GetExtentOfChar(PRUint32 charnum, nsIDOMSVGRect **_retval);
   NS_IMETHOD GetRotationOfChar(PRUint32 charnum, float *_retval);
+  NS_IMETHOD GetCharNumAtPosition(nsIDOMSVGPoint *point, PRInt32 *_retval);
 
   // nsSVGTextFrame
   void NotifyGlyphMetricsChange();
 
 private:
-  /**
-   * @param aForceGlobalTransform passed down to nsSVGGlyphFrames to
-   * control whether they should use the global transform even when
-   * NS_STATE_NONDISPLAY_CHILD
-   */
-  void UpdateGlyphPositioning(PRBool aForceGlobalTransform);
+  void UpdateGlyphPositioning();
 
   nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
+  nsCOMPtr<nsIDOMSVGMatrix> mOverrideCTM;
 
   enum UpdateState { unsuspended, suspended };
   UpdateState mMetricsState;
 
+  PRPackedBool mPropagateTransform;
   PRPackedBool mPositioningDirty;
 };
 

@@ -128,15 +128,14 @@ interface nsIDOMParser : nsISupports
  * The nsIDOMParserJS interface provides a scriptable way of calling init().
  * Do NOT use this interface from languages other than JavaScript.
  */
-[scriptable, uuid(ba6bcd6c-63d8-49b3-bc8a-1e5e895645bc)]
+[scriptable, uuid(dca92fe9-ae7a-44b7-80aa-d151216698ac)]
 interface nsIDOMParserJS : nsISupports
 {
   /**
-   * Just like nsIDOMParser.init, but callable from JS.
+   * Just like nsIDOMParser.init, but callable from JS.  It'll pick up the args
+   * from XPConnect.
    */
-  void init(in nsIPrincipal principal,
-            in nsIURI documentURI,
-            in nsIURI baseURI);
+  void init();
 };
 
 %{ C++

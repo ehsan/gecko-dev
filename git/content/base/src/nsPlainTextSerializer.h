@@ -54,7 +54,8 @@
 #include "nsIAtom.h"
 #include "nsIHTMLToTextSink.h"
 #include "nsIDocumentEncoder.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
+
 
 class nsPlainTextSerializer : public nsIContentSerializer,
                               public nsIHTMLContentSink,
@@ -95,7 +96,9 @@ public:
                                  nsAString& aStr);
 
   // nsIContentSink
-  NS_IMETHOD WillParse(void) { return NS_OK; }
+  NS_IMETHOD WillTokenize(void) { return NS_OK; }
+  NS_IMETHOD WillBuildModel(void) { return NS_OK; }
+  NS_IMETHOD DidBuildModel(void) { return NS_OK; }
   NS_IMETHOD WillInterrupt(void) { return NS_OK; }
   NS_IMETHOD WillResume(void) { return NS_OK; }
   NS_IMETHOD SetParser(nsIParser* aParser) { return NS_OK; }
@@ -157,18 +160,19 @@ protected:
 
   inline PRBool DoOutput()
   {
-    return mHeadLevel == 0;
+    return !mInHead;
   }
 
   // Stack handling functions
-  PRBool GetLastBool(const nsTArray<PRPackedBool>& aStack);
-  void SetLastBool(nsTArray<PRPackedBool>& aStack, PRBool aValue);
-  void PushBool(nsTArray<PRPackedBool>& aStack, PRBool aValue);
-  PRBool PopBool(nsTArray<PRPackedBool>& aStack);
+  PRBool GetLastBool(const nsVoidArray& aStack);
+  void SetLastBool(nsVoidArray& aStack, PRBool aValue);
+  void PushBool(nsVoidArray& aStack, PRBool aValue);
+  PRBool PopBool(nsVoidArray& aStack);
   
 protected:
   nsString         mCurrentLine;
-  PRUint32         mHeadLevel;
+
+  PRPackedBool     mInHead;
   PRPackedBool     mAtFirstColumn;
 
   // Handling of quoted text (for mail):
@@ -238,11 +242,11 @@ protected:
   nsCOMPtr<nsIContent> mContent;
 
   // For handling table rows
-  nsAutoTArray<PRPackedBool, 8> mHasWrittenCellsForRow;
+  nsAutoVoidArray mHasWrittenCellsForRow; // really an array of bools
   
   // Values gotten in OpenContainer that is (also) needed in CloseContainer
-  nsAutoTArray<PRPackedBool, 8> mCurrentNodeIsConverted;
-  nsAutoTArray<PRPackedBool, 8> mIsInCiteBlockquote;
+  nsAutoVoidArray     mCurrentNodeIsConverted; // really an array of bools
+  nsAutoVoidArray     mIsInCiteBlockquote; // really an array of bools
 
   // The output data
   nsAString*            mOutputString;

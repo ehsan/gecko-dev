@@ -22,7 +22,6 @@
 # Contributor(s):
 #   Terry Hayes <thayes@netscape.com>
 #   Florian QUEZE <f.qu@queze.net>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -64,43 +63,34 @@ var security = {
     catch (exception) { }
 
     var ui = security._getSecurityUI();
-    if (!ui)
-      return null;
-
-    var isBroken =
-      (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IS_BROKEN);
-    var isInsecure = 
-      (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IS_INSECURE);
-    var isEV =
-      (ui.state & Components.interfaces.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL);
-    ui.QueryInterface(nsISSLStatusProvider);
-    var status = ui.SSLStatus;
-
-    if (!isInsecure && status) {
-      status.QueryInterface(nsISSLStatus);
+    var status = null;
+    var sp = null;
+    var isBroken = false;
+    if (ui) {
+      isBroken = (ui.state == Components.interfaces.nsIWebProgressListener.STATE_IS_BROKEN);
+      sp = ui.QueryInterface(nsISSLStatusProvider);
+      if (sp)
+        status = sp.SSLStatus;
+    }
+    if (status) {
+      status = status.QueryInterface(nsISSLStatus);
+    }
+    if (status) {
       var cert = status.serverCert;
-      var issuerName =
-        this.mapIssuerOrganization(cert.issuerOrganization) || cert.issuerName;
+      var issuerName;
 
-      var retval = {
+      issuerName = this.mapIssuerOrganization(cert.issuerOrganization);
+      if (!issuerName) issuerName = cert.issuerName;
+
+      return {
         hostName : hName,
         cAName : issuerName,
-        encryptionAlgorithm : undefined,
-        encryptionStrength : undefined,
+        encryptionAlgorithm : status.cipherName,
+        encryptionStrength : status.secretKeyLength,
         isBroken : isBroken,
-        isEV : isEV,
         cert : cert,
         fullLocation : gWindow.location
       };
-
-      try {
-        retval.encryptionAlgorithm = status.cipherName;
-        retval.encryptionStrength = status.secretKeyLength;
-      }
-      catch (e) {
-      }
-
-      return retval;
     } else {
       return {
         hostName : hName,
@@ -108,7 +98,6 @@ var security = {
         encryptionAlgorithm : "",
         encryptionStrength : 0,
         isBroken : isBroken,
-        isEV : isEV,
         cert : null,
         fullLocation : gWindow.location        
       };
@@ -117,7 +106,7 @@ var security = {
 
   // Find the secureBrowserUI object (if present)
   _getSecurityUI : function() {
-    if (window.opener.gBrowser)
+    if ("gBrowser" in window.opener)
       return window.opener.gBrowser.securityUI;
     return null;
   },
@@ -142,26 +131,11 @@ var security = {
     var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
                        .getService(Components.interfaces.nsIWindowMediator);
     var win = wm.getMostRecentWindow("Browser:Cookies");
-    var eTLDService = Components.classes["@mozilla.org/network/effective-tld-service;1"].
-                      getService(Components.interfaces.nsIEffectiveTLDService);
-
-    var eTLD;
-    var uri = gDocument.documentURIObject;
-    try {
-      eTLD = eTLDService.getBaseDomain(uri);
-    }
-    catch (e) {
-      // getBaseDomain will fail if the host is an IP address or is empty
-      eTLD = uri.asciiHost;
-    }
-
-    if (win) {
-      win.gCookiesWindow.setFilter(eTLD);
+    if (win)
       win.focus();
-    }
     else
       window.openDialog("chrome://browser/content/preferences/cookies.xul",
-                        "Browser:Cookies", "", {filterString : eTLD});
+                        "Browser:Cookies", "");
   },
   
   /**
@@ -172,20 +146,20 @@ var security = {
     var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
                        .getService(Components.interfaces.nsIWindowMediator);
     var win = wm.getMostRecentWindow("Toolkit:PasswordManager");
-    if (win) {
-      win.setFilter(this._getSecurityInfo().hostName);
+    if (win)
       win.focus();
-    }
     else
       window.openDialog("chrome://passwordmgr/content/passwordManager.xul",
-                        "Toolkit:PasswordManager", "", 
-                        {filterString : this._getSecurityInfo().hostName});
+                        "Toolkit:PasswordManager", "");
   },
 
   _cert : null
 };
 
 function securityOnLoad() {
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
+  var pageInfoBundle = document.getElementById("pageinfobundle");
+
   var info = security._getSecurityInfo();
   if (!info) {
     document.getElementById("securityTab").hidden = true;
@@ -197,38 +171,28 @@ function securityOnLoad() {
     document.getElementById("securityBox").collapsed = false;
   }
 
-  const pageInfoBundle = document.getElementById("pageinfobundle");
-
   /* Set Identity section text */
   setText("security-identity-domain-value", info.hostName);
   
+  // FIXME - Should only be showing the next two if the cert is EV.  Waiting on
+  // bug 374336
   var owner, verifier, generalPageIdentityString;
   if (info.cert && !info.isBroken) {
     // Try to pull out meaningful values.  Technically these fields are optional
     // so we'll employ fallbacks where appropriate.  The EV spec states that Org
-    // fields must be specified for subject and issuer so that case is simpler.
-    if (info.isEV) {
-      owner = info.cert.organization;
-      verifier = security.mapIssuerOrganization(info.cAName);
-      generalPageIdentityString = pageInfoBundle.getFormattedString("generalSiteIdentity",
-                                                                    [owner, verifier]);
-    }
-    else {
-      // Technically, a non-EV cert might specify an owner in the O field or not,
-      // depending on the CA's issuing policies.  However we don't have any programmatic
-      // way to tell those apart, and no policy way to establish which organization
-      // vetting standards are good enough (that's what EV is for) so we default to
-      // treating these certs as domain-validated only.
-      owner = pageInfoBundle.getString("securityNoOwner");
-      verifier = security.mapIssuerOrganization(info.cAName ||
-                                                info.cert.issuerCommonName ||
-                                                info.cert.issuerName);
-      generalPageIdentityString = owner;
-    }
+    // fields must be specified for subject and issuer so when 374336 lands, this
+    // code can be simplified.
+    owner = info.cert.organization || info.cert.commonName ||
+            info.cert.subjectName;
+    verifier = security.mapIssuerOrganization(info.cAName ||
+                                              info.cert.issuerCommonName ||
+                                              info.cert.issuerName);
+    generalPageIdentityString = pageInfoBundle.getFormattedString("generalSiteIdentity",
+                                                                  [owner, verifier]);
   }
   else {
     // We don't have valid identity credentials.
-    owner = pageInfoBundle.getString("securityNoOwner");
+    owner = pageInfoBundle.getString("securityNoIdentity");
     verifier = pageInfoBundle.getString("notset");
     generalPageIdentityString = owner;
   }
@@ -240,6 +204,8 @@ function securityOnLoad() {
   /* Manage the View Cert button*/
   var viewCert = document.getElementById("security-view-cert");
   if (info.cert) {
+    var viewText = pageInfoBundle.getString("securityCertText");
+    setText("security-view-text", viewText);
     security._cert = info.cert;
     viewCert.collapsed = false;
   }
@@ -250,11 +216,10 @@ function securityOnLoad() {
   var yesStr = pageInfoBundle.getString("yes");
   var noStr = pageInfoBundle.getString("no");
 
-  var uri = gDocument.documentURIObject;
   setText("security-privacy-cookies-value",
-          hostHasCookies(uri) ? yesStr : noStr);
+          hostHasCookies(info.hostName) ? yesStr : noStr);
   setText("security-privacy-passwords-value",
-          realmHasPasswords(uri) ? yesStr : noStr);
+          realmHasPasswords(info.fullLocation) ? yesStr : noStr);
   
   var visitCount = previousVisitCount(info.hostName);
   if(visitCount > 1) {
@@ -270,36 +235,35 @@ function securityOnLoad() {
   }
 
   /* Set the Technical Detail section messages */
-  const pkiBundle = document.getElementById("pkiBundle");
   var hdr;
   var msg1;
   var msg2;
 
   if (info.isBroken) {
-    hdr = pkiBundle.getString("pageInfo_MixedContent");
-    msg1 = pkiBundle.getString("pageInfo_Privacy_Mixed1");
-    msg2 = pkiBundle.getString("pageInfo_Privacy_None2");
+    hdr = bundle.GetStringFromName("pageInfo_MixedContent");
+    msg1 = bundle.GetStringFromName("pageInfo_Privacy_Mixed1");
+    msg2 = bundle.GetStringFromName("pageInfo_Privacy_None2");
   }
   else if (info.encryptionStrength >= 90) {
-    hdr = pkiBundle.getFormattedString("pageInfo_StrongEncryption",
-                                       [info.encryptionAlgorithm, info.encryptionStrength + ""]);
-    msg1 = pkiBundle.getString("pageInfo_Privacy_Strong1");
-    msg2 = pkiBundle.getString("pageInfo_Privacy_Strong2");
+    hdr = bundle.formatStringFromName("pageInfo_StrongEncryption",
+                          [ info.encryptionAlgorithm, info.encryptionStrength + "" ], 2);
+    msg1 = bundle.GetStringFromName("pageInfo_Privacy_Strong1");
+    msg2 = bundle.GetStringFromName("pageInfo_Privacy_Strong2");
     security._cert = info.cert;
   }
   else if (info.encryptionStrength > 0) {
-    hdr  = pkiBundle.getFormattedString("pageInfo_WeakEncryption",
-                                        [info.encryptionAlgorithm, info.encryptionStrength + ""]);
-    msg1 = pkiBundle.getFormattedString("pageInfo_Privacy_Weak1", [info.hostName]);
-    msg2 = pkiBundle.getString("pageInfo_Privacy_Weak2");
+    hdr  = bundle.formatStringFromName("pageInfo_WeakEncryption",
+                          [ info.encryptionAlgorithm, info.encryptionStrength + "" ], 2);
+    msg1 = bundle.formatStringFromName("pageInfo_Privacy_Weak1", [ info.hostName ], 1);
+    msg2 = bundle.GetStringFromName("pageInfo_Privacy_Weak2");
   }
   else {
-    hdr = pkiBundle.getString("pageInfo_NoEncryption");
+    hdr = bundle.GetStringFromName("pageInfo_NoEncryption");
     if (info.hostName != null)
-      msg1 = pkiBundle.getFormattedString("pageInfo_Privacy_None1", [info.hostName]);
+      msg1 = bundle.formatStringFromName("pageInfo_Privacy_None1", [ info.hostName ], 1);
     else
-      msg1 = pkiBundle.getString("pageInfo_Privacy_None3");
-    msg2 = pkiBundle.getString("pageInfo_Privacy_None2");
+      msg1 = bundle.GetStringFromName("pageInfo_Privacy_None3");
+    msg2 = bundle.GetStringFromName("pageInfo_Privacy_None2");
   }
   setText("security-technical-shortform", hdr);
   setText("security-technical-longform1", msg1);
@@ -332,23 +296,30 @@ function viewCertHelper(parent, cert)
 }
 
 /**
- * Return true iff we have cookies for uri
+ * Return true iff we have cookies for hostName
  */
-function hostHasCookies(uri) {
+function hostHasCookies(hostName) {
+  if (!hostName)
+    return false;
+  
   var cookieManager = Components.classes["@mozilla.org/cookiemanager;1"]
                                 .getService(Components.interfaces.nsICookieManager2);
 
-  return cookieManager.countCookiesFromHost(uri.asciiHost) > 0;
+  return cookieManager.countCookiesFromHost(hostName) > 0;
 }
 
 /**
- * Return true iff realm (proto://host:port) (extracted from uri) has
+ * Return true iff realm (proto://host:port) (extracted from location) has
  * saved passwords
  */
-function realmHasPasswords(uri) {
+function realmHasPasswords(location) {
+  if (!location) 
+    return false;
+  
+  var realm = makeURI(location).prePath;
   var passwordManager = Components.classes["@mozilla.org/login-manager;1"]
                                   .getService(Components.interfaces.nsILoginManager);
-  return passwordManager.countLogins(uri.prePath, "", "") > 0;
+  return passwordManager.countLogins(realm, "", "");
 }
 
 /**

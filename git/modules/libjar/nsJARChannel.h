@@ -47,7 +47,6 @@
 #include "nsIZipReader.h"
 #include "nsIDownloader.h"
 #include "nsILoadGroup.h"
-#include "nsHashPropertyBag.h"
 #include "nsIFile.h"
 #include "nsIURI.h"
 #include "nsCOMPtr.h"
@@ -61,7 +60,6 @@ class nsJARInputThunk;
 class nsJARChannel : public nsIJARChannel
                    , public nsIDownloadObserver
                    , public nsIStreamListener
-                   , public nsHashPropertyBag
 {
 public:
     NS_DECL_ISUPPORTS
@@ -99,8 +97,7 @@ private:
     PRInt32                         mContentLength;
     PRUint32                        mLoadFlags;
     nsresult                        mStatus;
-    PRPackedBool                    mIsPending;
-    PRPackedBool                    mIsUnsafe;
+    PRBool                          mIsPending;
 
     nsJARInputThunk                *mJarInput;
     nsCOMPtr<nsIStreamListener>     mDownloader;

@@ -130,14 +130,9 @@ do
         target_file=`basename "$to_path"`
         check_updates "$platform" "downloads/$source_file" "downloads/$target_file" $locale
         err=$?
-        if [ "$err" == "0" ]; then
+        if [ "$err" != "0" ]; then
+          echo "WARN: check_update returned non-zero exit code for $platform downloads/$source_file vs. downloads/$target_file: $err"
           continue
-        elif [ "$err" == "1" ]; then
-          echo "FAIL: check_updates returned failure for $platform downloads/$source_file vs. downloads/$target_file: $err"
-        elif [ "$err" == "2" ]; then
-          echo "WARN: check_updates returned warning for $platform downloads/$source_file vs. downloads/$target_file: $err"
-        else
-          echo "FAIL: check_updates returned unknown error for $platform downloads/$source_file vs. downloads/$target_file: $err"
         fi
       fi
     done

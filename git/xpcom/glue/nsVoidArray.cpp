@@ -647,7 +647,7 @@ struct VoidArrayComparatorContext {
   void* mData;
 };
 
-static int
+PR_STATIC_CALLBACK(int)
 VoidArrayComparator(const void* aElement1, const void* aElement2, void* aData)
 {
   VoidArrayComparatorContext* ctx = static_cast<VoidArrayComparatorContext*>(aData);
@@ -732,29 +732,14 @@ nsStringArray::~nsStringArray(void)
 nsStringArray& 
 nsStringArray::operator=(const nsStringArray& other)
 {
-  if (this == &other)
-  {
-    return *this;
-  }
-
-  // Free our strings
-  Clear();
-  
   // Copy the pointers
   nsVoidArray::operator=(other);
 
   // Now copy the strings
-  PRInt32 count = Count();
-  for (PRInt32 i = 0; i < count; ++i)
+  for (PRInt32 i = Count() - 1; i >= 0; --i)
   {
     nsString* oldString = static_cast<nsString*>(other.ElementAt(i));
-    nsString* newString = new nsString(*oldString);
-    if (!newString)
-    {
-      mImpl->mCount = i;
-      return *this;
-    }
-    mImpl->mArray[i] = newString;
+    mImpl->mArray[i] = new nsString(*oldString);
   }
 
   return *this;
@@ -804,11 +789,10 @@ PRBool
 nsStringArray::InsertStringAt(const nsAString& aString, PRInt32 aIndex)
 {
   nsString* string = new nsString(aString);
-  if (!string)
-    return PR_FALSE;
   if (nsVoidArray::InsertElementAt(string, aIndex))
+  {
     return PR_TRUE;
-
+  }
   delete string;
   return PR_FALSE;
 }
@@ -861,7 +845,7 @@ nsStringArray::Clear(void)
   nsVoidArray::Clear();
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 CompareString(const nsString* aString1, const nsString* aString2, void*)
 {
 #ifdef MOZILLA_INTERNAL_API
@@ -937,6 +921,27 @@ nsCStringArray::nsCStringArray(void)
 {
 }
 
+// Parses a given string using the delimiter passed in and appends items
+// parsed to the array.
+void
+nsCStringArray::ParseString(const char* string, const char* delimiter)
+{
+  if (string && *string && delimiter && *delimiter) {
+    char *rest = strdup(string);
+    char *newStr = rest;
+    char *token = NS_strtok(delimiter, &newStr);
+
+    while (token) {
+      if (*token) {
+        /* calling AppendElement(void*) to avoid extra nsCString copy */
+        AppendElement(new nsCString(token));
+      }
+      token = NS_strtok(delimiter, &newStr);
+    }
+    free(rest);
+  }
+}
+
 nsCStringArray::nsCStringArray(PRInt32 aCount)
   : nsVoidArray(aCount)
 {
@@ -950,29 +955,14 @@ nsCStringArray::~nsCStringArray(void)
 nsCStringArray& 
 nsCStringArray::operator=(const nsCStringArray& other)
 {
-  if (this == &other)
-  {
-    return *this;
-  }
-
-  // Free our strings
-  Clear();
-  
   // Copy the pointers
   nsVoidArray::operator=(other);
 
   // Now copy the strings
-  PRInt32 count = Count();
-  for (PRInt32 i = 0; i < count; ++i)
+  for (PRInt32 i = Count() - 1; i >= 0; --i)
   {
     nsCString* oldString = static_cast<nsCString*>(other.ElementAt(i));
-    nsCString* newString = new nsCString(*oldString);
-    if (!newString)
-    {
-      mImpl->mCount = i;
-      return *this;
-    }
-    mImpl->mArray[i] = newString;
+    mImpl->mArray[i] = new nsCString(*oldString);
   }
 
   return *this;
@@ -1044,11 +1034,10 @@ PRBool
 nsCStringArray::InsertCStringAt(const nsACString& aCString, PRInt32 aIndex)
 {
   nsCString* string = new nsCString(aCString);
-  if (!string)
-    return PR_FALSE;
   if (nsVoidArray::InsertElementAt(string, aIndex))
+  {
     return PR_TRUE;
-
+  }
   delete string;
   return PR_FALSE;
 }
@@ -1113,7 +1102,7 @@ nsCStringArray::Clear(void)
   nsVoidArray::Clear();
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 CompareCString(const nsCString* aCString1, const nsCString* aCString2, void*)
 {
 #ifdef MOZILLA_INTERNAL_API
@@ -1138,7 +1127,7 @@ CompareCString(const nsCString* aCString1, const nsCString* aCString2, void*)
 }
 
 #ifdef MOZILLA_INTERNAL_API
-static int
+PR_STATIC_CALLBACK(int)
 CompareCStringIgnoreCase(const nsCString* aCString1, const nsCString* aCString2, void*)
 {
   return Compare(*aCString1, *aCString2, nsCaseInsensitiveCStringComparator());

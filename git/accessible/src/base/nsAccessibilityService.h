@@ -40,10 +40,7 @@
 #define __nsAccessibilityService_h__
 
 #include "nsIAccessibilityService.h"
-#include "nsCOMArray.h"
 #include "nsIObserver.h"
-#include "nsITimer.h"
-#include "nsIWebProgress.h"
 #include "nsIWebProgressListener.h"
 #include "nsWeakReference.h"
 
@@ -54,7 +51,6 @@ class nsObjectFrame;
 class nsIDocShell;
 class nsIPresShell;
 class nsIContent;
-struct nsRoleMapEntry;
 
 class nsAccessibilityService : public nsIAccessibilityService,
                                public nsIObserver,
@@ -84,26 +80,17 @@ public:
    */
   static nsresult GetAccessibilityService(nsIAccessibilityService** aResult);
 
-  /**
-   * Return cached accessibility service.
-   */
-  static nsIAccessibilityService* GetAccessibilityService();
-
-  /**
-   * Indicates whether accessibility service was shutdown.
-   */
-  static PRBool gIsShutdown;
-
 private:
   /**
    * Return presentation shell, DOM node for the given frame.
    *
    * @param aFrame - the given frame
+   * @param aRealFrame [out] - the given frame casted to nsIFrame
    * @param aShell [out] - presentation shell for DOM node associated with the
    *                 given frame
    * @param aContent [out] - DOM node associated with the given frame
    */
-  nsresult GetInfo(nsIFrame *aFrame,
+  nsresult GetInfo(nsISupports *aFrame, nsIFrame **aRealFrame,
                    nsIWeakReference **aShell,
                    nsIDOMNode **aContent);
 
@@ -112,13 +99,8 @@ private:
    * every created accessible.
    *
    * @param aAccessibleIn - accessible to initialize.
-   * @param aAcccessibleOut - set to the same thing as aAccessibleIn, unless there was
-   *                          an error initializing the accessible, in which case
-   *                          it is set to nsnull
-   * @param aRoleMapEntry - The role map entry role the ARIA role or nsnull if none
    */
-  nsresult InitAccessible(nsIAccessible *aAccessibleIn, nsIAccessible **aAccessibleOut,
-                          nsRoleMapEntry *aRoleMapEntry = nsnull);
+  nsresult InitAccessible(nsIAccessible *aAccessibleIn, nsIAccessible **aAccessibleOut);
 
   /**
    * Return accessible object for elements implementing nsIAccessibleProvider
@@ -136,15 +118,6 @@ private:
   nsresult GetAccessibleForDeckChildren(nsIDOMNode *aNode,
                                         nsIAccessible **aAccessible);
 
-#ifdef MOZ_XUL
-  /**
-   * Create accessible for XUL tree element.
-   */
-  nsresult GetAccessibleForXULTree(nsIDOMNode *aNode,
-                                   nsIWeakReference *aWeakShell,
-                                   nsIAccessible **aAccessible);
-#endif
-  
   static nsAccessibilityService *gAccessibilityService;
 
   /**
@@ -156,11 +129,6 @@ private:
    * @return PR_TRUE if there is a universal ARIA property set on the node
    */
   PRBool HasUniversalAriaProperty(nsIContent *aContent, nsIWeakReference *aWeakShell);
-
-  static void StartLoadCallback(nsITimer *aTimer, void *aClosure);
-  static void EndLoadCallback(nsITimer *aTimer, void *aClosure);
-  static void FailedLoadCallback(nsITimer *aTimer, void *aClosure);
-  nsCOMArray<nsITimer> mLoadTimers;
 };
 
 /**
@@ -178,7 +146,7 @@ static const char kRoleNames[][20] = {
   "caret",               //ROLE_CARET
   "alert",               //ROLE_ALERT
   "window",              //ROLE_WINDOW
-  "internal frame",      //ROLE_INTERNAL_FRAME
+  "client",              //ROLE_CLIENT
   "menupopup",           //ROLE_MENUPOPUP
   "menuitem",            //ROLE_MENUITEM
   "tooltip",             //ROLE_TOOLTIP
@@ -283,14 +251,8 @@ static const char kRoleNames[][20] = {
   "parent menuitem",     //ROLE_PARENT_MENUITEM
   "calendar",            //ROLE_CALENDAR
   "combobox list",       //ROLE_COMBOBOX_LIST
-  "combobox option",     //ROLE_COMBOBOX_OPTION
-  "image map",           //ROLE_IMAGE_MAP
-  "listbox option",      //ROLE_OPTION
-  "listbox rich option", //ROLE_RICH_OPTION
-  "listbox",             //ROLE_LISTBOX
-  "flat equation",       //ROLE_FLAT_EQUATION  
-  "gridcell",            //ROLE_GRID_CELL
-  "embedded object"      //ROLE_EMBEDDED_OBJECT
+  "combobox listitem",   //ROLE_COMBOBOX_LISTITEM
+  "image map"            //ROLE_IMAGE_MAP
 };
 
 /**
@@ -299,9 +261,12 @@ static const char kRoleNames[][20] = {
  */
 static const char kEventTypeNames[][40] = {
   "unknown",                                 //
-  "show",                                    // EVENT_SHOW
-  "hide",                                    // EVENT_HIDE
-  "reorder",                                 // EVENT_REORDER
+  "DOM node create",                         // EVENT_DOM_CREATE
+  "DOM node destroy",                        // EVENT_DOM_DESTROY
+  "DOM node significant change",             // EVENT_DOM_SIGNIFICANT_CHANGE
+  "async show",                              // EVENT_ASYNCH_SHOW
+  "async hide",                              // EVENT_ASYNCH_HIDE
+  "async significant change",                // EVENT_ASYNCH_SIGNIFICANT_CHANGE
   "active decendent change",                 // EVENT_ACTIVE_DECENDENT_CHANGED
   "focus",                                   // EVENT_FOCUS
   "state change",                            // EVENT_STATE_CHANGE
@@ -386,32 +351,8 @@ static const char kEventTypeNames[][40] = {
   "hypertext links count changed",           // EVENT_HYPERTEXT_NLINKS_CHANGED
   "object attribute changed",                // EVENT_OBJECT_ATTRIBUTE_CHANGED
   "page changed",                            // EVENT_PAGE_CHANGED
-  "internal load"                            // EVENT_INTERNAL_LOAD
-};
-
-/**
- * Map nsIAccessibleRelation constants to strings. Used by
- * nsIAccessibleRetrieval::getStringRelationType() method.
- */
-static const char kRelationTypeNames[][20] = {
-  "unknown",             // RELATION_NUL
-  "controlled by",       // RELATION_CONTROLLED_BY
-  "controller for",      // RELATION_CONTROLLER_FOR
-  "label for",           // RELATION_LABEL_FOR
-  "labelled by",         // RELATION_LABELLED_BY
-  "member of",           // RELATION_MEMBER_OF
-  "node child of",       // RELATION_NODE_CHILD_OF
-  "flows to",            // RELATION_FLOWS_TO
-  "flows from",          // RELATION_FLOWS_FROM
-  "subwindow of",        // RELATION_SUBWINDOW_OF
-  "embeds",              // RELATION_EMBEDS
-  "embedded by",         // RELATION_EMBEDDED_BY
-  "popup for",           // RELATION_POPUP_FOR
-  "parent window of",    // RELATION_PARENT_WINDOW_OF
-  "described by",        // RELATION_DESCRIBED_BY
-  "description for",     // RELATION_DESCRIPTION_FOR
-  "default button"       // RELATION_DEFAULT_BUTTON
+  "internal load",                           // EVENT_INTERNAL_LOAD
+  "reorder"                                  // EVENT_REORDER
 };
 
 #endif /* __nsIAccessibilityService_h__ */
-

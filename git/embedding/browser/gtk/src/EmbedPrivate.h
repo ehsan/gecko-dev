@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -14,7 +16,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Christopher Blizzard.
+ * Christopher Blizzard. Portions created by Christopher Blizzard are Copyright (C) Christopher Blizzard.  All Rights Reserved.
  * Portions created by the Initial Developer are Copyright (C) 2001
  * the Initial Developer. All Rights Reserved.
  *
@@ -39,7 +41,13 @@
 #define __EmbedPrivate_h
 
 #include "nsCOMPtr.h"
-#include "nsStringGlue.h"
+#ifdef MOZILLA_INTERNAL_API
+#include "nsString.h"
+#else
+#include "nsStringAPI.h"
+#include "nsComponentManagerUtils.h"
+#include "nsServiceManagerUtils.h"
+#endif
 #include "nsIWebNavigation.h"
 #include "nsISHistory.h"
 // for our one function that gets the EmbedPrivate via the chrome
@@ -47,13 +55,25 @@
 #include "nsIWebBrowserChrome.h"
 #include "nsIAppShell.h"
 #include "nsPIDOMEventTarget.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
+
 // app component registration
 #include "nsIGenericFactory.h"
 #include "nsIComponentRegistrar.h"
 
+#include "nsIDocCharset.h"
+#include "nsIMarkupDocumentViewer.h"
+#include "nsIInterfaceRequestorUtils.h"
+#include "nsIWebBrowserFind.h"
+// for the focus hacking we need to do
+#include "nsIFocusController.h"
+// for frames
+#include "nsIDOMWindowCollection.h"
 #include "gtkmozembedprivate.h"
 
+#include "nsICacheEntryDescriptor.h"
+
+#include "EmbedGtkTools.h"
 class EmbedProgress;
 class EmbedWindow;
 class EmbedContentListener;
@@ -62,6 +82,17 @@ class EmbedEventListener;
 class nsPIDOMWindow;
 class nsIDirectoryServiceProvider;
 
+class EmbedCommon {
+ public:
+  EmbedCommon() {
+  }
+  ~EmbedCommon() { }
+  static EmbedCommon* GetInstance();
+  static void DeleteInstance();
+  nsresult    Init(void);
+  GtkObject   *mCommon;
+  static GtkMozEmbed* GetAnyLiveWidget();
+};
 class EmbedPrivate {
 
  public:
@@ -87,6 +118,7 @@ class EmbedPrivate {
   static void PopStartup      (void);
   static void SetPath         (const char *aPath);
   static void SetCompPath     (const char *aPath);
+
   static void SetAppComponents (const nsModuleComponentInfo* aComps,
                                 int aNumComponents);
   static void SetProfilePath  (const char *aDir, const char *aName);
@@ -115,6 +147,29 @@ class EmbedPrivate {
   // events
   void        ChildFocusIn (void);
   void        ChildFocusOut(void);
+  PRBool      ClipBoardAction(GtkMozEmbedClipboard type);
+  char*       GetEncoding ();
+  nsresult    SetEncoding (const char *encoding);
+  PRBool      FindText(const char *exp, PRBool  reverse,
+                       PRBool  whole_word, PRBool  case_sensitive,
+                       PRBool  restart);
+  void        SetScrollTop(PRUint32 aTop);
+  nsresult    ScrollToSelectedNode(nsIDOMNode *aDOMNode);
+  nsresult    InsertTextToNode(nsIDOMNode *aDOMNode, const char *string);
+  nsresult    GetFocusController(nsIFocusController **controller);
+  nsresult    GetDOMWindowByNode(nsIDOMNode *aNode, nsIDOMWindow * *aDOMWindow);
+  nsresult    GetZoom(PRInt32 *aZoomLevel, nsISupports *aContext = nsnull);
+  nsresult    SetZoom(PRInt32 aZoomLevel, nsISupports *aContext = nsnull);
+  nsresult    HasFrames(PRUint32 *numberOfFrames);
+  nsresult    GetMIMEInfo(const char **aMime, nsIDOMNode *aDOMNode = nsnull);
+  nsresult    GetCacheEntry(const char *aStorage,
+                            const char *aKeyName,
+                            PRUint32 aAccess,
+                            PRBool aIsBlocking,
+                            nsICacheEntryDescriptor **aDescriptor);
+  nsresult    GetSHistoryList(GtkMozHistoryItem **GtkHI,
+                               GtkMozEmbedSessionHistory type, gint *count);
+
 
 #ifdef MOZ_ACCESSIBILITY_ATK
   void *GetAtkObjectForCurrentDocument();
@@ -135,11 +190,11 @@ class EmbedPrivate {
   nsCOMPtr<nsIWebNavigation>     mNavigation;
   nsCOMPtr<nsISHistory>          mSessionHistory;
 
-  // our event receiver
   nsCOMPtr<nsPIDOMEventTarget>   mEventTarget;
 
   // the currently loaded uri
-  nsCString                      mURI;
+  nsString                       mURI;
+  nsCString                      mPrePath;
 
   // the number of widgets that have been created
   static PRUint32                sWidgetCount;
@@ -153,7 +208,7 @@ class EmbedPrivate {
   // the appshell we have created
   static nsIAppShell            *sAppShell;
   // the list of all open windows
-  static nsTArray<EmbedPrivate*> *sWindowList;
+  static nsVoidArray            *sWindowList;
   // what is our profile path?
   static nsILocalFile           *sProfileDir;
   static nsISupports            *sProfileLock;
@@ -166,15 +221,24 @@ class EmbedPrivate {
   PRBool                         mIsChrome;
   // has the chrome finished loading?
   PRBool                         mChromeLoaded;
+
+  // has the network finished loading?
+  PRBool                         mLoadFinished;
+
   // saved window ID for reparenting later
   GtkWidget                     *mMozWindowWidget;
   // has someone called Destroy() on us?
   PRBool                         mIsDestroyed;
 
+  //Open Blocker for Create Window class //Fixme...
+  //I just tried to block it on earlier moment
+  PRBool                         mOpenBlock;
+  PRBool                         mNeedFav;
  private:
 
   // is the chrome listener attached yet?
   PRBool                         mListenersAttached;
+  PRBool                         mDoResizeEmbed;
 
   void GetListener    (void);
   void AttachListeners(void);
@@ -182,7 +246,7 @@ class EmbedPrivate {
 
   // this will get the PIDOMWindow for this widget
   nsresult        GetPIDOMWindow   (nsPIDOMWindow **aPIWin);
-  
+
   static nsresult RegisterAppComponents();
 
   // offscreen window methods and the offscreen widget
@@ -190,7 +254,7 @@ class EmbedPrivate {
   static void       DestroyOffscreenWindow(void);
   static GtkWidget *sOffscreenWindow;
   static GtkWidget *sOffscreenFixed;
- 
+
 };
 
 #endif /* __EmbedPrivate_h */

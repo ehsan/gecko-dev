@@ -50,7 +50,6 @@
 #include "nsIDOMHTMLBRElement.h"
 #include "nsUnicharUtilCIID.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIContent.h"
 
 // IsIgnorableCharacter
 //
@@ -178,36 +177,33 @@ FindNextTextNode(nsIDOMNode* aNode, PRInt32 aOffset, nsIDOMNode* aRoot)
   NS_PRECONDITION(aNode, "Null starting node?");
   NS_ASSERTION(!IsTextNode(aNode), "FindNextTextNode should start with a non-text node");
 
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  nsCOMPtr<nsIDOMNode> checkNode;
+  nsIDOMNode* checkNode;
   // Need to start at the aOffset'th child
-  nsIContent* child = node->GetChildAt(aOffset);
-
+  nsCOMPtr<nsIDOMNode> child;
+  aNode->GetFirstChild(getter_AddRefs(child));
+  while (child && aOffset > 0) {
+    nsCOMPtr<nsIDOMNode> next;
+    child->GetNextSibling(getter_AddRefs(next));
+    child.swap(next);
+    --aOffset;
+  }
   if (child) {
-    checkNode = do_QueryInterface(child);
+    checkNode = child;
   } else {
-    // aOffset was beyond the end of the child list. 
-    // goto next node in a preorder DOM traversal.
-    nsINode* next = node->GetSibling(1);
-    if (!next) {
-      nsCOMPtr<nsINode> root = do_QueryInterface(aRoot);
-      while (!next) {
-        // Go up
-        next = node->GetNodeParent();
-        if (next == root || !next) {
-          return nsnull;
-        }
-        node = next;
-        next = node->GetSibling(1);
-      }
+    // aOffset was beyond the end of the child list. Start checking at the next
+    // node after the last child, or aNode if there are no children.
+    aNode->GetLastChild(getter_AddRefs(child));
+    if (child) {
+      checkNode = FindNextNode(child, aRoot);
+    } else {
+      checkNode = FindNextNode(aNode, aRoot);
     }
-    checkNode = do_QueryInterface(next);
   }
   
   while (checkNode && !IsTextNode(checkNode)) {
     checkNode = FindNextNode(checkNode, aRoot);
   }
-  return checkNode.get();
+  return checkNode;
 }
 
 // mozInlineSpellWordUtil::SetEnd

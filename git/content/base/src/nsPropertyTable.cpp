@@ -324,7 +324,7 @@ nsPropertyTable::PropertyList::~PropertyList()
 }
 
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 DestroyPropertyEnumerator(PLDHashTable *table, PLDHashEntryHdr *hdr,
                           PRUint32 number, void *arg)
 {

@@ -89,26 +89,29 @@ CurrentAppDirMatchesPersistentDescriptor(xptiInterfaceInfoManager* aMgr,
     return NS_SUCCEEDED(rv) && matches;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 xpti_InterfaceWriter(PLDHashTable *table, PLDHashEntryHdr *hdr,
                      PRUint32 number, void *arg)
 {
     xptiInterfaceEntry* entry = ((xptiHashEntry*)hdr)->value;
     PRFileDesc* fd = (PRFileDesc*)  arg;
 
-    char iidStr[NSID_LENGTH];
-    entry->GetTheIID()->ToProvidedString(iidStr);
+    char* iidStr = entry->GetTheIID()->ToString();
+    if(!iidStr)
+        return PL_DHASH_STOP;
 
     const xptiTypelib& typelib = entry->GetTypelibRecord();
 
-    PRBool success =  !!PR_fprintf(fd, "%d,%s,%s,%d,%d,%d\n",
-                                   (int) number,
-                                   entry->GetTheName(),
-                                   iidStr,
-                                   (int) typelib.GetFileIndex(),
-                                   (int) (typelib.IsZip() ? 
-                                   typelib.GetZipItemIndex() : -1),
-                                   (int) entry->GetScriptableFlag());
+    PRBool success =  PR_fprintf(fd, "%d,%s,%s,%d,%d,%d\n",
+                                 (int) number,
+                                 entry->GetTheName(),
+                                 iidStr,
+                                 (int) typelib.GetFileIndex(),
+                                 (int) (typelib.IsZip() ? 
+                                 typelib.GetZipItemIndex() : -1),
+                                 (int) entry->GetScriptableFlag());
+
+    nsCRT::free(iidStr);
 
     return success ? PL_DHASH_NEXT : PL_DHASH_STOP;
 }

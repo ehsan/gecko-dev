@@ -50,7 +50,6 @@
 #include "nsPIPromptService.h"
 #include "nsINonBlockingAlertService.h"
 #include "nsIWindowWatcher.h"
-#include "nsAutoWindowStateHelper.h"
 
 class nsIDOMWindow;
 class nsIDialogParamBlock;
@@ -77,6 +76,29 @@ private:
 
   nsCOMPtr<nsIWindowWatcher> mWatcher;
 };
+
+/**
+ * Helper class for dealing with notifications around opening modal
+ * windows.
+ */
+class nsAutoWindowStateHelper
+{
+public:
+  nsAutoWindowStateHelper(nsIDOMWindow *aWindow);
+  ~nsAutoWindowStateHelper();
+
+  PRBool DefaultEnabled()
+  {
+    return mDefaultEnabled;
+  }
+
+protected:
+  PRBool DispatchCustomEvent(const char *aEventName);
+
+  nsIDOMWindow *mWindow;
+  PRBool mDefaultEnabled;
+};
+
 
 #endif
 

@@ -43,7 +43,7 @@
 
 #include "nsILocalFile.h"
 #include "nsISimpleEnumerator.h"
-#include "nsCOMArray.h"
+#include "nsISupportsArray.h"
 
 #include "nsICharsetConverterManager.h"
 #include "nsBaseFilePicker.h"
@@ -70,7 +70,7 @@ public:
   NS_IMETHOD GetFilterIndex(PRInt32 *aFilterIndex);
   NS_IMETHOD SetFilterIndex(PRInt32 aFilterIndex);
   NS_IMETHOD GetFile(nsILocalFile * *aFile);
-  NS_IMETHOD GetFileURL(nsIURI * *aFileURL);
+  NS_IMETHOD GetFileURL(nsIFileURL * *aFileURL);
   NS_IMETHOD GetFiles(nsISimpleEnumerator **aFiles);
   NS_IMETHOD Show(PRInt16 *aReturnVal); 
   NS_IMETHOD ShowW(PRInt16 *aReturnVal); 
@@ -93,7 +93,7 @@ protected:
   nsString               mDefaultExtension;
   nsString               mFilterList;
   PRInt16                mSelectedType;
-  nsCOMArray<nsILocalFile> mFiles;
+  nsCOMPtr <nsISupportsArray> mFiles;
   static char            mLastUsedDirectory[];
   nsString               mUnicodeFile;
   static PRUnichar      *mLastUsedUnicodeDirectory;

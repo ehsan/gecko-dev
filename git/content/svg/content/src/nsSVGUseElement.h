@@ -41,22 +41,19 @@
 #include "nsIDOMSVGURIReference.h"
 #include "nsIDOMSVGUseElement.h"
 #include "nsStubMutationObserver.h"
+#include "nsISVGValue.h"
 #include "nsSVGGraphicElement.h"
 #include "nsSVGLength2.h"
-#include "nsSVGString.h"
 #include "nsTArray.h"
-#include "nsReferencedElement.h"
 
 class nsIContent;
 class nsINodeInfo;
 
 #define NS_SVG_USE_ELEMENT_IMPL_CID \
-{ 0x55fb86fe, 0xd81f, 0x4ae4, \
-  { 0x80, 0x3f, 0xeb, 0x90, 0xfe, 0xe0, 0x7a, 0xe9 } }
+{ 0xa95c13d3, 0xc193, 0x465f, {0x81, 0xf0, 0x02, 0x6d, 0x67, 0x05, 0x54, 0x58 } }
 
 nsresult
-NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
-                    PRBool aFromParser);
+NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo);
 
 typedef nsSVGGraphicElement nsSVGUseElementBase;
 
@@ -71,6 +68,7 @@ protected:
                                       nsINodeInfo *aNodeInfo);
   nsSVGUseElement(nsINodeInfo *aNodeInfo);
   virtual ~nsSVGUseElement();
+  virtual nsresult Init();
   
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_SVG_USE_ELEMENT_IMPL_CID)
@@ -78,7 +76,6 @@ public:
   // interfaces:
   
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsSVGUseElement, nsSVGUseElementBase)
   NS_DECL_NSIDOMSVGUSEELEMENT
   NS_DECL_NSIDOMSVGURIREFERENCE
 
@@ -94,54 +91,39 @@ public:
   NS_FORWARD_NSIDOMELEMENT(nsSVGUseElementBase::)
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGUseElementBase::)
 
+  // nsISVGValueObserver specialization:
+  NS_IMETHOD DidModifySVGObservable (nsISVGValue* observable,
+                                     nsISVGValue::modificationType aModType);
+
   // for nsSVGUseFrame's nsIAnonymousContentCreator implementation.
   nsIContent* CreateAnonymousContent();
   void DestroyAnonymousContent();
 
   // nsSVGElement specializations:
-  virtual gfxMatrix PrependLocalTransformTo(const gfxMatrix &aMatrix);
   virtual void DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr);
-  virtual void DidChangeString(PRUint8 aAttrEnum);
 
   // nsIContent interface
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
 protected:
-  class SourceReference : public nsReferencedElement {
-  public:
-    SourceReference(nsSVGUseElement* aContainer) : mContainer(aContainer) {}
-  protected:
-    virtual void ContentChanged(nsIContent* aFrom, nsIContent* aTo) {
-      nsReferencedElement::ContentChanged(aFrom, aTo);
-      if (aFrom) {
-        aFrom->RemoveMutationObserver(mContainer);
-      }
-      mContainer->TriggerReclone();
-    }
-  private:
-    nsSVGUseElement* mContainer;
-  };
 
   virtual LengthAttributesInfo GetLengthInfo();
-  virtual StringAttributesInfo GetStringInfo();
 
   void SyncWidthHeight(PRUint8 aAttrEnum);
-  void LookupHref();
+  nsIContent *LookupHref();
   void TriggerReclone();
-  void UnlinkSource();
+  void RemoveListener();
 
   enum { X, Y, WIDTH, HEIGHT };
   nsSVGLength2 mLengthAttributes[4];
   static LengthInfo sLengthInfo[4];
 
-  enum { HREF };
-  nsSVGString mStringAttributes[1];
-  static StringInfo sStringInfo[1];
+  nsCOMPtr<nsIDOMSVGAnimatedString> mHref;
 
   nsCOMPtr<nsIContent> mOriginal; // if we've been cloned, our "real" copy
   nsCOMPtr<nsIContent> mClone;    // cloned tree
-  SourceReference      mSource;   // observed element
+  nsCOMPtr<nsIContent> mSourceContent;  // observed element
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsSVGUseElement, NS_SVG_USE_ELEMENT_IMPL_CID)

@@ -50,13 +50,11 @@
 #include <io.h>
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
-#define strcasecmp _stricmp
 #define PATH_SEPARATOR_CHAR '\\'
+#include "nsWindowsRestart.cpp"
 #define R_OK 04
 #elif defined(XP_MACOSX)
-#include <unistd.h>
-#include <sys/stat.h>
-#include <CoreFoundation/CoreFoundation.h>
+#include <CFBundle.h>
 #define PATH_SEPARATOR_CHAR '/'
 #elif defined (XP_OS2)
 #define INCL_DOS
@@ -74,15 +72,6 @@
 #define PATH_SEPARATOR_CHAR '/'
 #endif
 
-#ifdef XP_WIN
-#include "nsWindowsWMain.cpp"
-#endif
-
-#ifdef XP_BEOS
-#include <Entry.h>
-#include <Path.h>
-#endif
-
 #define VERSION_MAXLEN 128
 
 static void Output(PRBool isError, const char *fmt, ... )
@@ -90,7 +79,7 @@ static void Output(PRBool isError, const char *fmt, ... )
   va_list ap;
   va_start(ap, fmt);
 
-#if (defined(XP_WIN) && !MOZ_WINCONSOLE) || defined(WINCE)
+#if defined(XP_WIN) && !MOZ_WINCONSOLE
   char msg[2048];
 
   vsnprintf(msg, sizeof(msg), fmt, ap);
@@ -98,77 +87,14 @@ static void Output(PRBool isError, const char *fmt, ... )
   UINT flags = MB_OK;
   if (isError)
     flags |= MB_ICONERROR;
-  else
+  else 
     flags |= MB_ICONINFORMATION;
-
-  wchar_t wide_msg[1024];
-  MultiByteToWideChar(CP_ACP,
-		      0,
-		      msg,
-		      -1,
-		      wide_msg,
-		      sizeof(wide_msg) / sizeof(wchar_t));
-  
-  MessageBoxW(NULL, wide_msg, L"XULRunner", flags);
+  MessageBox(NULL, msg, "XULRunner", flags);
 #else
   vfprintf(stderr, fmt, ap);
 #endif
 
   va_end(ap);
-}
-
-/**
- * Return true if |arg| matches the given argument name.
- */
-static PRBool IsArg(const char* arg, const char* s)
-{
-  if (*arg == '-')
-  {
-    if (*++arg == '-')
-      ++arg;
-    return !strcasecmp(arg, s);
-  }
-
-#if defined(XP_WIN) || defined(XP_OS2)
-  if (*arg == '/')
-    return !strcasecmp(++arg, s);
-#endif
-
-  return PR_FALSE;
-}
-
-/**
- * Return true if |aDir| is a valid file/directory.
- */
-static PRBool FolderExists(const char* aDir)
-{
-#ifdef XP_WIN
-  wchar_t wideDir[MAX_PATH];
-  MultiByteToWideChar(CP_UTF8, 0, aDir, -1, wideDir, MAX_PATH);
-  DWORD fileAttrs = GetFileAttributesW(wideDir);
-  return fileAttrs != INVALID_FILE_ATTRIBUTES;
-#else
-  return access(aDir, R_OK) == 0;
-#endif
-}
-
-static nsresult GetRealPath(const char* appDataFile, char* *aResult)
-{
-#ifdef XP_WIN
-  wchar_t wAppDataFile[MAX_PATH];
-  wchar_t wIniPath[MAX_PATH];
-  MultiByteToWideChar(CP_UTF8, 0, appDataFile, -1, wAppDataFile, MAX_PATH);
-  _wfullpath(wIniPath, wAppDataFile, MAX_PATH);
-  WideCharToMultiByte(CP_UTF8, 0, wIniPath, -1, *aResult, MAX_PATH, 0, 0);
-#else
-  struct stat fileStat;
-  if (!realpath(appDataFile, *aResult) || stat(*aResult, &fileStat))
-    return NS_ERROR_FAILURE;
-#endif
-  if (!*aResult || !**aResult)
-    return NS_ERROR_FAILURE;
-
-  return NS_OK;
 }
 
 class AutoAppData
@@ -194,43 +120,6 @@ private:
 XRE_CreateAppDataType XRE_CreateAppData;
 XRE_FreeAppDataType XRE_FreeAppData;
 XRE_mainType XRE_main;
-
-
-#ifdef WINCE
-void
-ForwardToWindow(HWND wnd) {
-  // For WinCE, we're stuck with providing our own argv[0] for the remote
-  // command-line.
-  WCHAR wPath[MAX_PATH] = L"dummy ";
-  WCHAR *wCmd = ::GetCommandLineW();
-  WCHAR wCwd[MAX_PATH];
-  _wgetcwd(wCwd, MAX_PATH);
-
-  // Construct a narrow UTF8 buffer <path> <commandline>\0<workingdir>\0
-  size_t len = wcslen(wPath) + wcslen(wCmd) + wcslen(wCwd) + 2;
-  WCHAR *wMsg = (WCHAR *)malloc(len * sizeof(*wMsg));
-  wcscpy(wMsg, wPath);
-  wcscpy(wMsg + wcslen(wPath), wCmd);                // The command line
-  wcscpy(wMsg + wcslen(wPath) + wcslen(wCmd) + 1, wCwd); // Working dir
-
-  // Then convert to UTF-8, assuming worst-case explosion of characters
-  char *msg = (char *)malloc(len * 4);
-  WideCharToMultiByte(CP_UTF8, 0, wMsg, len, msg, len * 4, NULL, NULL);
-
-  // We used to set dwData to zero, when we didn't send the working dir.
-  // Now we're using it as a version number.
-  COPYDATASTRUCT cds = { 1, len, (void *)msg };
-
-  // Bring the already running Mozilla process to the foreground.
-  // nsWindow will restore the window (if minimized) and raise it.
-  // for activating the existing window on wince we need "| 0x01"
-  // see http://msdn.microsoft.com/en-us/library/ms940024.aspx for details
-  ::SetForegroundWindow((HWND)(((ULONG) wnd) | 0x01));
-  ::SendMessage(wnd, WM_COPYDATA, 0, (LPARAM)&cds);
-  free(wMsg);
-  free(msg);
-}
-#endif
 
 int
 main(int argc, char **argv)
@@ -279,30 +168,15 @@ main(int argc, char **argv)
 #else
 
 #ifdef XP_WIN
-  wchar_t wide_path[MAX_PATH];
-  if (!::GetModuleFileNameW(NULL, wide_path, MAX_PATH))
+  if (!::GetModuleFileName(NULL, iniPath, sizeof(iniPath)))
     return 1;
-
-  WideCharToMultiByte(CP_UTF8, 0, wide_path,-1,
-		      iniPath, MAX_PATH, NULL, NULL);
 
 #elif defined(XP_OS2)
    PPIB ppib;
    PTIB ptib;
-
+ 
    DosGetInfoBlocks(&ptib, &ppib);
    DosQueryModuleName(ppib->pib_hmte, sizeof(iniPath), iniPath);
-
-#elif defined(XP_BEOS)
-   BEntry e((const char *)argv[0], true); // traverse symlink
-   BPath p;
-   status_t err;
-   err = e.GetPath(&p);
-   NS_ASSERTION(err == B_OK, "realpath failed");
-
-   if (err == B_OK)
-     // p.Path returns a pointer, so use strcpy to store path in iniPath
-     strcpy(iniPath, p.Path());
 
 #else
   // on unix, there is no official way to get the path of the current binary.
@@ -353,101 +227,18 @@ main(int argc, char **argv)
            "%sxulrunner" XPCOM_FILE_PATH_SEPARATOR XPCOM_DLL,
            iniPath);
 
-  greFound = FolderExists(greDir);
+  greFound = (access(greDir, R_OK) == 0);
 
   strncpy(lastSlash, "application.ini", sizeof(iniPath) - (lastSlash - iniPath));
 
 #endif
 
-  // If -app parameter was passed in, it is now time to take it under 
-  // consideration.
-  const char *appDataFile;
-  appDataFile = getenv("XUL_APP_FILE");
-  if (!appDataFile || !*appDataFile) 
-    if (argc > 1 && IsArg(argv[1], "app")) {
-      if (argc == 2) {
-        Output(PR_FALSE, "specify APP-FILE (optional)\n");
-        return 1;
-      }
-      argv[1] = argv[0];
-      ++argv;
-      --argc;
-
-      appDataFile = argv[1];
-      argv[1] = argv[0];
-      ++argv;
-      --argc;
-
-      char kAppEnv[MAXPATHLEN];
-      snprintf(kAppEnv, MAXPATHLEN, "XUL_APP_FILE=%s", appDataFile);
-      if (putenv(kAppEnv)) 
-        Output(PR_FALSE, "Couldn't set %s.\n", kAppEnv);
-
-      char *result = (char*) calloc(sizeof(char), MAXPATHLEN);
-      if (NS_FAILED(GetRealPath(appDataFile, &result))) {
-        Output(PR_TRUE, "Invalid application.ini path.\n");
-        return 1;
-      }
-      
-      // We have a valid application.ini path passed in to the -app parameter 
-      // but not yet a valid greDir, so lets look for it also on the same folder
-      // as the stub.
-      if (!greFound) {
-        lastSlash = strrchr(iniPath, PATH_SEPARATOR_CHAR);
-        if (!lastSlash)
-          return 1;
-
-        *(++lastSlash) = '\0';
-
-        snprintf(greDir, sizeof(greDir), "%s" XPCOM_DLL, iniPath);
-        greFound = FolderExists(greDir);
-      }
-      
-      // copy it back.
-      strcpy(iniPath, result);
-    }
-  
   nsINIParser parser;
   rv = parser.Init(iniPath);
   if (NS_FAILED(rv)) {
     fprintf(stderr, "Could not read application.ini\n");
     return 1;
   }
-
-#ifdef WINCE
-  // On Windows Mobile and WinCE, we can save a lot of time by not
-  // waiting for XUL and XPCOM to load up.  Let's see if we can find
-  // an existing app window to forward our command-line to now.
-
-  // Shouldn't attempt this if the -no-remote parameter has been provided.
-  bool noRemote = false;
-  for (int i = 1; i < argc; i++) {
-    if (IsArg(argv[i], "no-remote")) {
-      noRemote = true;
-      break;
-    }
-  }
-
-  if (!noRemote) {
-    char windowName[512];  // Is there a const for appname like VERSION_MAXLEN?
-    rv = parser.GetString("App", "Name", windowName, sizeof(windowName));
-    if (NS_FAILED(rv)) {
-      fprintf(stderr, "Couldn't figure out the application name\n");
-      return 1;
-    }
-
-    // Lookup the hidden message window created by nsNativeAppSupport
-    strncat(windowName, "MessageWindow", sizeof(windowName) - strlen(windowName));
-    WCHAR wWindowName[512];
-    MultiByteToWideChar(CP_UTF8, 0, windowName, -1, wWindowName, sizeof(wWindowName));
-    HWND wnd = ::FindWindowW(wWindowName, NULL);
-    if (wnd) {
-      // Forward the command-line and bail out
-      ForwardToWindow(wnd);
-      return 0;
-    }
-  }
-#endif
 
   if (!greFound) {
     char minVersion[VERSION_MAXLEN];
@@ -486,20 +277,11 @@ main(int argc, char **argv)
       // user/offer to download/?
 
       Output(PR_FALSE,
-             "Could not find compatible GRE between version %s and %s.\n",
+             "Could not find compatible GRE between version %s and %s.\n", 
              range.lower, range.upper);
       return 1;
     }
-#ifdef XP_UNIX
-    // Using a symlinked greDir will fail during startup. Not sure why, but if
-    // we resolve the symlink, everything works as expected.
-    char resolved_greDir[MAXPATHLEN] = "";  
-    if (realpath(greDir, resolved_greDir) && *resolved_greDir) {
-      strncpy(greDir, resolved_greDir, MAXPATHLEN);
-    }
-#endif
   }
-
 #ifdef XP_OS2
   // On OS/2 we need to set BEGINLIBPATH to be able to find XULRunner DLLs
   strcpy(tmpPath, greDir);
@@ -512,14 +294,7 @@ main(int argc, char **argv)
 
   rv = XPCOMGlueStartup(greDir);
   if (NS_FAILED(rv)) {
-    if (rv == NS_ERROR_OUT_OF_MEMORY) {
-      char applicationName[2000] = "this application";
-      parser.GetString("App", "Name", applicationName, sizeof(applicationName));
-      Output(PR_TRUE, "Not enough memory available to start %s.\n",
-             applicationName);
-    } else {
-      Output(PR_TRUE, "Couldn't load XPCOM.\n");
-    }
+    Output(PR_TRUE, "Couldn't load XPCOM.\n");
     return 1;
   }
 
@@ -542,15 +317,8 @@ main(int argc, char **argv)
 
   { // Scope COMPtr and AutoAppData
     nsCOMPtr<nsILocalFile> iniFile;
-#ifdef XP_WIN
-    // On Windows and Windows CE, iniPath is UTF-8 encoded,
-    // so we need to convert it.
-    rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(iniPath), PR_FALSE,
-                         getter_AddRefs(iniFile));
-#else
     rv = NS_NewNativeLocalFile(nsDependentCString(iniPath), PR_FALSE,
                                getter_AddRefs(iniFile));
-#endif
     if (NS_FAILED(rv)) {
       Output(PR_TRUE, "Couldn't find application.ini file.\n");
       return 1;
@@ -570,14 +338,8 @@ main(int argc, char **argv)
       if (lastSlash) {
         *lastSlash = '\0';
       }
-#ifdef XP_WIN
-      // same as iniPath.
-      NS_NewLocalFile(NS_ConvertUTF8toUTF16(greDir), PR_FALSE,
-                      &appData->xreDirectory);
-#else
       NS_NewNativeLocalFile(nsDependentCString(greDir), PR_FALSE,
                             &appData->xreDirectory);
-#endif
     }
 
     retval = XRE_main(argc, argv, appData);
@@ -589,3 +351,13 @@ main(int argc, char **argv)
 
   return retval;
 }
+
+#if defined( XP_WIN ) && defined( WIN32 ) && !defined(__GNUC__)
+// We need WinMain in order to not be a console app.  This function is
+// unused if we are a console application.
+int WINAPI WinMain( HINSTANCE, HINSTANCE, LPSTR args, int )
+{
+  // Do the real work.
+  return main( __argc, __argv );
+}
+#endif

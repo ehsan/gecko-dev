@@ -40,8 +40,8 @@
 #
 
 var dialog;
-var gPrintBundle;
 var gPrintSettings = null;
+var gStringBundle  = null;
 var gPrintSettingsInterface  = Components.interfaces.nsIPrintSettings;
 var gPaperArray;
 var gPlexArray;
@@ -95,8 +95,6 @@ function getDoubleStr(val, dec)
 //---------------------------------------------------
 function initDialog()
 {
-  gPrintBundle = document.getElementById("printBundle");
-
   dialog = new Object;
 
   dialog.paperList       = document.getElementById("paperList");
@@ -164,7 +162,7 @@ paperListElement.prototype =
             var itemNode = document.createElement("menuitem");
             var label;
             try {
-              label = gPrintBundle.getString(paperObj.name);
+              label = gStringBundle.GetStringFromName(paperObj.name)
             } 
             catch (e) {
               /* No name in string bundle ? Then build one manually (this
@@ -272,6 +270,8 @@ function createPaperArray()
 //---------------------------------------------------
 function createPaperSizeList(selectedInx)
 {
+  gStringBundle = srGetStrBundle("chrome://global/locale/printPageSetup.properties");
+
   var selectElement = new paperListElement(dialog.paperList);
   selectElement.clearPaperList();
 
@@ -308,7 +308,7 @@ plexListElement.prototype =
             var itemNode = document.createElement("menuitem");
             var label;
             try {
-              label = gPrintBundle.getString(plexObj.name);
+              label = gStringBundle.GetStringFromName(plexObj.name)
             } 
             catch (e) {
               /* No name in string bundle ? Then build one manually (this
@@ -381,6 +381,8 @@ function createPlexArray()
 //---------------------------------------------------
 function createPlexNameList(selectedInx)
 {
+  gStringBundle = srGetStrBundle("chrome://global/locale/printPageSetup.properties");
+
   var selectElement = new plexListElement(dialog.plexList);
   selectElement.clearPlexList();
 
@@ -417,7 +419,7 @@ resolutionListElement.prototype =
             var itemNode = document.createElement("menuitem");
             var label;
             try {
-              label = gPrintBundle.getString(resolutionObj.name);
+              label = gStringBundle.GetStringFromName(resolutionObj.name)
             } 
             catch (e) {
               /* No name in string bundle ? Then build one manually (this
@@ -490,6 +492,8 @@ function createResolutionArray()
 //---------------------------------------------------
 function createResolutionNameList(selectedInx)
 {
+  gStringBundle = srGetStrBundle("chrome://global/locale/printPageSetup.properties");
+
   var selectElement = new resolutionListElement(dialog.resolutionList);
   selectElement.clearResolutionList();
 
@@ -526,7 +530,7 @@ colorspaceListElement.prototype =
             var itemNode = document.createElement("menuitem");
             var label;
             try {
-              label = gPrintBundle.getString(colorspaceObj.name);
+              label = gStringBundle.GetStringFromName(colorspaceObj.name)
             } 
             catch (e) {
               /* No name in string bundle ? Then build one manually (this
@@ -599,6 +603,8 @@ function createColorspaceArray()
 //---------------------------------------------------
 function createColorspaceNameList(selectedInx)
 {
+  gStringBundle = srGetStrBundle("chrome://global/locale/printPageSetup.properties");
+
   var selectElement = new colorspaceListElement(dialog.colorspaceList);
   selectElement.clearColorspaceList();
 
@@ -830,10 +836,26 @@ function loadDialog()
   dialog.cmdInput.value      = print_command;
   dialog.jobTitleInput.value = print_jobtitle;
 
-  dialog.topInput.value    = gPrintSettings.edgeTop.toFixed(2);
-  dialog.bottomInput.value = gPrintSettings.edgeBottom.toFixed(2);
-  dialog.leftInput.value   = gPrintSettings.edgeLeft.toFixed(2);
-  dialog.rightInput.value  = gPrintSettings.edgeRight.toFixed(2);
+  /* First initialize with the hardcoded defaults... */
+  dialog.topInput.value    = "0.04";
+  dialog.bottomInput.value = "0.04";
+  dialog.leftInput.value   = "0.04";
+  dialog.rightInput.value  = "0.04";
+
+  try {
+    /* ... then try to get the generic settings ... */
+    dialog.topInput.value    = gPrefs.getIntPref("print.print_edge_top") / 100.0;
+    dialog.bottomInput.value = gPrefs.getIntPref("print.print_edge_bottom") / 100.0;
+    dialog.leftInput.value   = gPrefs.getIntPref("print.print_edge_left") / 100.0;
+    dialog.rightInput.value  = gPrefs.getIntPref("print.print_edge_right") / 100.0;
+
+    /* ... and then the printer specific settings. */
+    var printername = gPrintSettings.printerName;
+    dialog.topInput.value    = gPrefs.getIntPref("print.printer_"+printername+".print_edge_top") / 100.0;
+    dialog.bottomInput.value = gPrefs.getIntPref("print.printer_"+printername+".print_edge_bottom") / 100.0;
+    dialog.leftInput.value   = gPrefs.getIntPref("print.printer_"+printername+".print_edge_left") / 100.0;
+    dialog.rightInput.value  = gPrefs.getIntPref("print.printer_"+printername+".print_edge_right") / 100.0;
+  } catch (e) {  }
 }
 
 //---------------------------------------------------
@@ -900,10 +922,22 @@ function onAccept()
     gPrintSettings.printCommand     = dialog.cmdInput.value;
     gPrintSettings.title            = dialog.jobTitleInput.value;
 
-    gPrintSettings.edgeTop          = dialog.topInput.value;
-    gPrintSettings.edgeBottom       = dialog.bottomInput.value;
-    gPrintSettings.edgeLeft         = dialog.leftInput.value;
-    gPrintSettings.edgeRight        = dialog.rightInput.value;
+    // 
+    try {
+      var printerName = gPrintSettings.printerName;
+      var i = dialog.topInput.value * 100;
+      gPrefs.setIntPref("print.printer_"+printerName+".print_edge_top", i);
+
+      i = dialog.bottomInput.value * 100;
+      gPrefs.setIntPref("print.printer_"+printerName+".print_edge_bottom", i);
+
+      i = dialog.leftInput.value * 100;
+      gPrefs.setIntPref("print.printer_"+printerName+".print_edge_left", i);
+
+      i = dialog.rightInput.value * 100;
+      gPrefs.setIntPref("print.printer_"+printerName+".print_edge_right", i);
+    } catch (e) {
+    }
 
     if (doDebug) {
       dump("onAccept******************************\n");

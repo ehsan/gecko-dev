@@ -56,38 +56,30 @@ class nsIURI;
 class nsString;
 class nsIPresShell;
 class nsIChannel;
-class nsTableColFrame;
 
 /**
  * Additional frame-state bits used by nsBlockFrame
  * See the meanings at http://www.mozilla.org/newlayout/doc/block-and-line.html
- *
- * NS_BLOCK_HAS_FIRST_LETTER_STYLE means that the block has first-letter style,
- *  even if it has no actual first-letter frame among its descendants.
- *
- * NS_BLOCK_HAS_FIRST_LETTER_CHILD means that there is an inflow first-letter
- *  frame among the block's descendants. If there is a floating first-letter
- *  frame, or the block has first-letter style but has no first letter, this
- *  bit is not set. This bit is set on the first continuation only.
  */
 #define NS_BLOCK_NO_AUTO_MARGINS            0x00200000
 #define NS_BLOCK_MARGIN_ROOT                0x00400000
-#define NS_BLOCK_FLOAT_MGR                  0x00800000
+#define NS_BLOCK_SPACE_MGR                  0x00800000
 #define NS_BLOCK_HAS_FIRST_LETTER_STYLE     0x20000000
 #define NS_BLOCK_FRAME_HAS_OUTSIDE_BULLET   0x40000000
-#define NS_BLOCK_HAS_FIRST_LETTER_CHILD     0x80000000
 // These are the bits that get inherited from a block frame to its
 // next-in-flows and are not private to blocks
 #define NS_BLOCK_FLAGS_MASK                 0xF0E00000 
 
 // Factory methods for creating html layout objects
 
+// These are variations on AreaFrame with slightly different layout
+// policies.
+
 // Create a frame that supports "display: block" layout behavior
 nsIFrame*
 NS_NewBlockFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags = 0);
 
-// Special Generated Content Node. It contains text taken from an
-// attribute of its *grandparent* content node. 
+// Special Generated Content Frame
 nsresult
 NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
                        PRInt32 aNameSpaceID, nsIAtom* aAttrName,
@@ -100,12 +92,41 @@ NS_NewAttributeContent(nsNodeInfoManager *aNodeInfoManager,
 nsIFrame*
 NS_NewSelectsAreaFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
 
-// Create a block formatting context blockframe
-inline nsIFrame* NS_NewBlockFormattingContext(nsIPresShell* aPresShell,
-                                              nsStyleContext* aStyleContext)
-{
-  return NS_NewBlockFrame(aPresShell, aStyleContext,
-                          NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT);
+// Create a basic area frame.
+nsIFrame*
+NS_NewAreaFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
+
+// These AreaFrame's shrink wrap around their contents
+inline nsIFrame*
+NS_NewTableCellInnerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
+  return NS_NewBlockFrame(aPresShell, aContext);
+}
+
+// This type of AreaFrame is the document root, a margin root, and the
+// initial containing block for absolutely positioned elements
+inline nsIFrame*
+NS_NewDocumentElementFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
+  return NS_NewAreaFrame(aPresShell, aContext, NS_BLOCK_SPACE_MGR|NS_BLOCK_MARGIN_ROOT);
+}
+
+// This type of AreaFrame is a margin root, but does not shrink wrap
+inline nsIFrame*
+NS_NewAbsoluteItemWrapperFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
+  return NS_NewAreaFrame(aPresShell, aContext, NS_BLOCK_SPACE_MGR|NS_BLOCK_MARGIN_ROOT);
+}
+
+// This type of AreaFrame shrink wraps
+inline nsIFrame*
+NS_NewFloatingItemWrapperFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
+  return NS_NewAreaFrame(aPresShell, aContext,
+    NS_BLOCK_SPACE_MGR|NS_BLOCK_MARGIN_ROOT);
+}
+
+// This type of AreaFrame doesn't use its own space manager and
+// doesn't shrink wrap.
+inline nsIFrame*
+NS_NewRelativeItemWrapperFrame(nsIPresShell* aPresShell, nsStyleContext* aContext) {
+  return NS_NewAreaFrame(aPresShell, aContext, 0);
 }
 
 nsIFrame*
@@ -207,7 +228,7 @@ nsIFrame*
 NS_NewTableFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame*
 NS_NewTableCaptionFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-nsTableColFrame*
+nsIFrame*
 NS_NewTableColFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame*
 NS_NewTableColGroupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);

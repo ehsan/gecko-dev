@@ -45,6 +45,8 @@
 #include "nsIPipe.h"
 #include "zlib.h"
 
+#define DEFLATECONVERTER_CONTRACTID \
+           "@mozilla.org/streamconv;1?from=uncompressed&to=deflate"
 #define DEFLATECONVERTER_CLASSNAME "Deflate converter"
 #define DEFLATECONVERTER_CID { 0x461cd5dd, 0x73c6, 0x47a4, \
            { 0x8c, 0xc3, 0x60, 0x3b, 0x37, 0xd8, 0x4a, 0x61 } }
@@ -61,8 +63,7 @@ public:
 
     nsDeflateConverter()
     {
-        // 6 is Z_DEFAULT_COMPRESSION but we need the actual value
-        mLevel = 6;
+        mLevel = Z_DEFAULT_COMPRESSION;
     }
 
     nsDeflateConverter(PRInt32 level)
@@ -75,14 +76,7 @@ private:
     ~nsDeflateConverter()
     {
     }
-    
-    enum WrapMode {
-        WRAP_ZLIB,
-        WRAP_GZIP,
-        WRAP_NONE
-    };
 
-    WrapMode mWrapMode;
     PRUint32 mOffset;
     PRInt32 mLevel;
     nsCOMPtr<nsIStreamListener> mListener;

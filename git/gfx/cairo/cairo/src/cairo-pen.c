@@ -1,7 +1,6 @@
 /* cairo - a vector graphics library with display and print output
  *
  * Copyright © 2002 University of Southern California
- * Copyright © 2008 Chris Wilson
  *
  * This library is free software; you can redistribute it and/or
  * modify it either under the terms of the GNU Lesser General Public
@@ -33,49 +32,55 @@
  *
  * Contributor(s):
  *	Carl D. Worth <cworth@cworth.org>
- *	Chris Wilson <chris@chris-wilson.co.uk>
  */
 
 #include "cairoint.h"
 
 static int
-_cairo_pen_vertices_needed (double tolerance,
-			    double radius,
-			    const cairo_matrix_t *matrix);
+_cairo_pen_vertices_needed (double tolerance, double radius, cairo_matrix_t *matrix);
 
 static void
 _cairo_pen_compute_slopes (cairo_pen_t *pen);
+
+static void
+_cairo_pen_stroke_spline_half (cairo_pen_t *pen, cairo_spline_t *spline, cairo_direction_t dir, cairo_polygon_t *polygon);
+
+void
+_cairo_pen_init_empty (cairo_pen_t *pen)
+{
+    pen->radius = 0;
+    pen->tolerance = 0;
+    pen->vertices = NULL;
+    pen->num_vertices = 0;
+}
 
 cairo_status_t
 _cairo_pen_init (cairo_pen_t	*pen,
 		 double		 radius,
 		 double		 tolerance,
-		 const cairo_matrix_t	*ctm)
+		 cairo_matrix_t	*ctm)
 {
     int i;
     int reflect;
-
-    if (CAIRO_INJECT_FAULT ())
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
-    VG (VALGRIND_MAKE_MEM_UNDEFINED (pen, sizeof (cairo_pen_t)));
+    double  det;
 
     pen->radius = radius;
     pen->tolerance = tolerance;
 
-    reflect = _cairo_matrix_compute_determinant (ctm) < 0.;
+    _cairo_matrix_compute_determinant (ctm, &det);
+    if (det >= 0) {
+	reflect = 0;
+    } else {
+	reflect = 1;
+    }
 
     pen->num_vertices = _cairo_pen_vertices_needed (tolerance,
 						    radius,
 						    ctm);
 
-    if (pen->num_vertices > ARRAY_LENGTH (pen->vertices_embedded)) {
-	pen->vertices = _cairo_malloc_ab (pen->num_vertices,
-					  sizeof (cairo_pen_vertex_t));
-	if (unlikely (pen->vertices == NULL))
-	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-    } else {
-	pen->vertices = pen->vertices_embedded;
+    pen->vertices = _cairo_malloc_ab (pen->num_vertices, sizeof (cairo_pen_vertex_t));
+    if (pen->vertices == NULL) {
+	return CAIRO_STATUS_NO_MEMORY;
     }
 
     /*
@@ -102,34 +107,23 @@ _cairo_pen_init (cairo_pen_t	*pen,
 void
 _cairo_pen_fini (cairo_pen_t *pen)
 {
-    if (pen->vertices != pen->vertices_embedded)
-	free (pen->vertices);
+    free (pen->vertices);
+    pen->vertices = NULL;
 
-
-    VG (VALGRIND_MAKE_MEM_NOACCESS (pen, sizeof (cairo_pen_t)));
+    _cairo_pen_init_empty (pen);
 }
 
 cairo_status_t
-_cairo_pen_init_copy (cairo_pen_t *pen, const cairo_pen_t *other)
+_cairo_pen_init_copy (cairo_pen_t *pen, cairo_pen_t *other)
 {
-    VG (VALGRIND_MAKE_MEM_UNDEFINED (pen, sizeof (cairo_pen_t)));
-
     *pen = *other;
 
-    if (CAIRO_INJECT_FAULT ())
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
-    pen->vertices = pen->vertices_embedded;
     if (pen->num_vertices) {
-	if (pen->num_vertices > ARRAY_LENGTH (pen->vertices_embedded)) {
-	    pen->vertices = _cairo_malloc_ab (pen->num_vertices,
-					      sizeof (cairo_pen_vertex_t));
-	    if (unlikely (pen->vertices == NULL))
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	pen->vertices = _cairo_malloc_ab (pen->num_vertices, sizeof (cairo_pen_vertex_t));
+	if (pen->vertices == NULL) {
+	    return CAIRO_STATUS_NO_MEMORY;
 	}
-
-	memcpy (pen->vertices, other->vertices,
-		pen->num_vertices * sizeof (cairo_pen_vertex_t));
+	memcpy (pen->vertices, other->vertices, pen->num_vertices * sizeof (cairo_pen_vertex_t));
     }
 
     return CAIRO_STATUS_SUCCESS;
@@ -138,38 +132,17 @@ _cairo_pen_init_copy (cairo_pen_t *pen, const cairo_pen_t *other)
 cairo_status_t
 _cairo_pen_add_points (cairo_pen_t *pen, cairo_point_t *point, int num_points)
 {
+    cairo_pen_vertex_t *vertices;
     cairo_status_t status;
     int num_vertices;
     int i;
 
-    if (CAIRO_INJECT_FAULT ())
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
     num_vertices = pen->num_vertices + num_points;
-    if (num_vertices > ARRAY_LENGTH (pen->vertices_embedded) ||
-	pen->vertices != pen->vertices_embedded)
-    {
-	cairo_pen_vertex_t *vertices;
+    vertices = realloc (pen->vertices, num_vertices * sizeof (cairo_pen_vertex_t));
+    if (vertices == NULL)
+	return CAIRO_STATUS_NO_MEMORY;
 
-	if (pen->vertices == pen->vertices_embedded) {
-	    vertices = _cairo_malloc_ab (num_vertices,
-		                         sizeof (cairo_pen_vertex_t));
-	    if (unlikely (vertices == NULL))
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
-	    memcpy (vertices, pen->vertices,
-		    pen->num_vertices * sizeof (cairo_pen_vertex_t));
-	} else {
-	    vertices = _cairo_realloc_ab (pen->vertices,
-					  num_vertices,
-					  sizeof (cairo_pen_vertex_t));
-	    if (unlikely (vertices == NULL))
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	}
-
-	pen->vertices = vertices;
-    }
-
+    pen->vertices = vertices;
     pen->num_vertices = num_vertices;
 
     /* initialize new vertices */
@@ -177,7 +150,7 @@ _cairo_pen_add_points (cairo_pen_t *pen, cairo_point_t *point, int num_points)
 	pen->vertices[pen->num_vertices-num_points+i].point = point[i];
 
     status = _cairo_hull_compute (pen->vertices, &pen->num_vertices);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     _cairo_pen_compute_slopes (pen);
@@ -273,7 +246,7 @@ doesn't matter where on the circle the error is computed.
 static int
 _cairo_pen_vertices_needed (double	    tolerance,
 			    double	    radius,
-			    const cairo_matrix_t  *matrix)
+			    cairo_matrix_t  *matrix)
 {
     /*
      * the pen is a circle that gets transformed to an ellipse by matrix.
@@ -281,8 +254,7 @@ _cairo_pen_vertices_needed (double	    tolerance,
      * we don't need the minor axis length.
      */
 
-    double  major_axis = _cairo_matrix_transformed_circle_major_axis (matrix,
-								      radius);
+    double  major_axis = _cairo_matrix_transformed_circle_major_axis(matrix, radius);
 
     /*
      * compute number of vertices needed
@@ -328,259 +300,152 @@ _cairo_pen_compute_slopes (cairo_pen_t *pen)
 /*
  * Find active pen vertex for clockwise edge of stroke at the given slope.
  *
- * The strictness of the inequalities here is delicate. The issue is
- * that the slope_ccw member of one pen vertex will be equivalent to
- * the slope_cw member of the next pen vertex in a counterclockwise
- * order. However, for this function, we care strongly about which
- * vertex is returned.
+ * NOTE: The behavior of this function is sensitive to the sense of
+ * the inequality within _cairo_slope_clockwise/_cairo_slope_counter_clockwise.
  *
- * [I think the "care strongly" above has to do with ensuring that the
- * pen's "extra points" from the spline's initial and final slopes are
- * properly found when beginning the spline stroking.]
+ * The issue is that the slope_ccw member of one pen vertex will be
+ * equivalent to the slope_cw member of the next pen vertex in a
+ * counterclockwise order. However, for this function, we care
+ * strongly about which vertex is returned.
  */
-int
-_cairo_pen_find_active_cw_vertex_index (const cairo_pen_t *pen,
-					const cairo_slope_t *slope)
+void
+_cairo_pen_find_active_cw_vertex_index (cairo_pen_t *pen,
+					cairo_slope_t *slope,
+					int *active)
 {
     int i;
 
     for (i=0; i < pen->num_vertices; i++) {
-	if ((_cairo_slope_compare (slope, &pen->vertices[i].slope_ccw) < 0) &&
-	    (_cairo_slope_compare (slope, &pen->vertices[i].slope_cw) >= 0))
+	if (_cairo_slope_clockwise (slope, &pen->vertices[i].slope_ccw)
+	    && _cairo_slope_counter_clockwise (slope, &pen->vertices[i].slope_cw))
 	    break;
     }
 
-    /* If the desired slope cannot be found between any of the pen
-     * vertices, then we must have a degenerate pen, (such as a pen
-     * that's been transformed to a line). In that case, we consider
-     * the first pen vertex as the appropriate clockwise vertex.
-     */
-    if (i == pen->num_vertices)
-	i = 0;
+    assert (i < pen->num_vertices);
 
-    return i;
+    *active = i;
 }
 
 /* Find active pen vertex for counterclockwise edge of stroke at the given slope.
  *
- * Note: See the comments for _cairo_pen_find_active_cw_vertex_index
- * for some details about the strictness of the inequalities here.
+ * NOTE: The behavior of this function is sensitive to the sense of
+ * the inequality within _cairo_slope_clockwise/_cairo_slope_counter_clockwise.
  */
-int
-_cairo_pen_find_active_ccw_vertex_index (const cairo_pen_t *pen,
-					 const cairo_slope_t *slope)
+void
+_cairo_pen_find_active_ccw_vertex_index (cairo_pen_t *pen,
+					 cairo_slope_t *slope,
+					 int *active)
 {
-    cairo_slope_t slope_reverse;
     int i;
+    cairo_slope_t slope_reverse;
 
     slope_reverse = *slope;
     slope_reverse.dx = -slope_reverse.dx;
     slope_reverse.dy = -slope_reverse.dy;
 
     for (i=pen->num_vertices-1; i >= 0; i--) {
-	if ((_cairo_slope_compare (&pen->vertices[i].slope_ccw, &slope_reverse) >= 0) &&
-	    (_cairo_slope_compare (&pen->vertices[i].slope_cw, &slope_reverse) < 0))
+	if (_cairo_slope_counter_clockwise (&pen->vertices[i].slope_ccw, &slope_reverse)
+	    && _cairo_slope_clockwise (&pen->vertices[i].slope_cw, &slope_reverse))
 	    break;
     }
 
-    /* If the desired slope cannot be found between any of the pen
-     * vertices, then we must have a degenerate pen, (such as a pen
-     * that's been transformed to a line). In that case, we consider
-     * the last pen vertex as the appropriate counterclockwise vertex.
-     */
-    if (i < 0)
-	i = pen->num_vertices - 1;
-
-    return i;
+    *active = i;
 }
 
-static int
-_cairo_pen_stroke_spline_add_convolved_point (cairo_pen_stroke_spline_t	*stroker,
-					      const cairo_point_t *last_point,
-					      const cairo_slope_t *slope,
-					      cairo_point_t *last_hull_point,
-					      int active,
-					      int step)
+static void
+_cairo_pen_stroke_spline_half (cairo_pen_t *pen,
+			       cairo_spline_t *spline,
+			       cairo_direction_t dir,
+			       cairo_polygon_t *polygon)
 {
-    do {
-	cairo_point_t hull_point;
+    int i;
+    int start, stop, step;
+    int active = 0;
+    cairo_point_t hull_point;
+    cairo_slope_t slope, initial_slope, final_slope;
+    cairo_point_t *point = spline->points;
+    int num_points = spline->num_points;
 
-	hull_point.x = last_point->x + stroker->pen.vertices[active].point.x;
-	hull_point.y = last_point->y + stroker->pen.vertices[active].point.y;
-	_cairo_polygon_add_edge (&stroker->polygon,
-				 last_hull_point, &hull_point,
-				 step);
-	*last_hull_point = hull_point;
+    if (dir == CAIRO_DIRECTION_FORWARD) {
+	start = 0;
+	stop = num_points;
+	step = 1;
+	initial_slope = spline->initial_slope;
+	final_slope = spline->final_slope;
+    } else {
+	start = num_points - 1;
+	stop = -1;
+	step = -1;
+	initial_slope = spline->final_slope;
+	initial_slope.dx = -initial_slope.dx;
+	initial_slope.dy = -initial_slope.dy;
+	final_slope = spline->initial_slope;
+	final_slope.dx = -final_slope.dx;
+	final_slope.dy = -final_slope.dy;
+    }
 
-	/* The strict inequalities here ensure that if a spline slope
-	 * compares identically with either of the slopes of the
-	 * active vertex, then it remains the active vertex. This is
-	 * very important since otherwise we can trigger an infinite
-	 * loop in the case of a degenerate pen, (a line), where
-	 * neither vertex considers itself active for the slope---one
-	 * will consider it as equal and reject, and the other will
-	 * consider it unequal and reject. This is due to the inherent
-	 * ambiguity when comparing slopes that differ by exactly
-	 * pi. */
-	if (_cairo_slope_compare (slope,
-				  &stroker->pen.vertices[active].slope_ccw) > 0)
-	{
-	    if (++active == stroker->pen.num_vertices)
-		active = 0;
-	}
-	else if (_cairo_slope_compare (slope,
-				       &stroker->pen.vertices[active].slope_cw) < 0)
-	{
-	    if (--active == -1)
-		active = stroker->pen.num_vertices - 1;
-	}
+    _cairo_pen_find_active_cw_vertex_index (pen,
+	                                    &initial_slope,
+					    &active);
+
+    i = start;
+    while (i != stop) {
+	hull_point.x = point[i].x + pen->vertices[active].point.x;
+	hull_point.y = point[i].y + pen->vertices[active].point.y;
+
+	_cairo_polygon_line_to (polygon, &hull_point);
+
+	if (i + step == stop)
+	    slope = final_slope;
 	else
-	{
-	    return active;
+	    _cairo_slope_init (&slope, &point[i], &point[i+step]);
+	if (_cairo_slope_counter_clockwise (&slope, &pen->vertices[active].slope_ccw)) {
+	    if (++active == pen->num_vertices)
+		active = 0;
+	} else if (_cairo_slope_clockwise (&slope, &pen->vertices[active].slope_cw)) {
+	    if (--active == -1)
+		active = pen->num_vertices - 1;
+	} else {
+	    i += step;
 	}
-    } while (TRUE);
+    }
 }
-
 
 /* Compute outline of a given spline using the pen.
- * The trapezoids needed to fill that outline will be added to traps
- */
+   The trapezoids needed to fill that outline will be added to traps
+*/
 cairo_status_t
-_cairo_pen_stroke_spline (cairo_pen_stroke_spline_t	*stroker,
-			  double			 tolerance,
-			  cairo_traps_t			*traps)
+_cairo_pen_stroke_spline (cairo_pen_t		*pen,
+			  cairo_spline_t	*spline,
+			  double		tolerance,
+			  cairo_traps_t		*traps)
 {
     cairo_status_t status;
-    cairo_slope_t slope;
+    cairo_polygon_t polygon;
 
     /* If the line width is so small that the pen is reduced to a
        single point, then we have nothing to do. */
-    if (stroker->pen.num_vertices <= 1)
+    if (pen->num_vertices <= 1)
 	return CAIRO_STATUS_SUCCESS;
 
-    /* open the polygon */
-    slope = stroker->spline.initial_slope;
-    stroker->forward_vertex =
-	_cairo_pen_find_active_cw_vertex_index (&stroker->pen, &slope);
-    stroker->forward_hull_point.x = stroker->last_point.x +
-	stroker->pen.vertices[stroker->forward_vertex].point.x;
-    stroker->forward_hull_point.y = stroker->last_point.y +
-	stroker->pen.vertices[stroker->forward_vertex].point.y;
+    _cairo_polygon_init (&polygon);
 
-    slope.dx = -slope.dx;
-    slope.dy = -slope.dy;
-    stroker->backward_vertex =
-	_cairo_pen_find_active_cw_vertex_index (&stroker->pen, &slope);
-    stroker->backward_hull_point.x = stroker->last_point.x +
-	stroker->pen.vertices[stroker->backward_vertex].point.x;
-    stroker->backward_hull_point.y = stroker->last_point.y +
-	stroker->pen.vertices[stroker->backward_vertex].point.y;
+    status = _cairo_spline_decompose (spline, tolerance);
+    if (status)
+	goto BAIL;
 
-    _cairo_polygon_add_edge (&stroker->polygon,
-			     &stroker->backward_hull_point,
-			     &stroker->forward_hull_point,
-			     1);
+    _cairo_pen_stroke_spline_half (pen, spline, CAIRO_DIRECTION_FORWARD, &polygon);
 
-    status = _cairo_spline_decompose (&stroker->spline, tolerance);
-    if (unlikely (status))
-	return status;
+    _cairo_pen_stroke_spline_half (pen, spline, CAIRO_DIRECTION_REVERSE, &polygon);
 
-    /* close the polygon */
-    slope = stroker->spline.final_slope;
-    _cairo_pen_stroke_spline_add_convolved_point (stroker,
-						  &stroker->last_point,
-						  &slope,
-						  &stroker->forward_hull_point,
-						  stroker->forward_vertex,
-						  1);
+    _cairo_polygon_close (&polygon);
+    status = _cairo_polygon_status (&polygon);
+    if (status)
+	goto BAIL;
 
-    slope.dx = -slope.dx;
-    slope.dy = -slope.dy;
-    _cairo_pen_stroke_spline_add_convolved_point (stroker,
-						  &stroker->last_point,
-						  &slope,
-						  &stroker->backward_hull_point,
-						  stroker->backward_vertex,
-						  -1);
-
-    _cairo_polygon_add_edge (&stroker->polygon,
-			     &stroker->forward_hull_point,
-			     &stroker->backward_hull_point,
-			     1);
-
-    status = _cairo_polygon_status (&stroker->polygon);
-    if (unlikely (status))
-	return status;
-
-    status = _cairo_bentley_ottmann_tessellate_polygon (traps,
-							&stroker->polygon,
-							CAIRO_FILL_RULE_WINDING);
+    status = _cairo_bentley_ottmann_tessellate_polygon (traps, &polygon, CAIRO_FILL_RULE_WINDING);
+BAIL:
+    _cairo_polygon_fini (&polygon);
 
     return status;
-}
-
-static cairo_status_t
-_cairo_pen_stroke_spline_add_point (void		    *closure,
-				    const cairo_point_t	    *point)
-{
-    cairo_pen_stroke_spline_t	*stroker = closure;
-    cairo_slope_t slope;
-
-    _cairo_slope_init (&slope, &stroker->last_point, point);
-    stroker->forward_vertex =
-	_cairo_pen_stroke_spline_add_convolved_point (stroker,
-						      &stroker->last_point,
-						      &slope,
-						      &stroker->forward_hull_point,
-						      stroker->forward_vertex,
-						      1);
-
-    slope.dx = -slope.dx;
-    slope.dy = -slope.dy;
-    stroker->backward_vertex =
-	_cairo_pen_stroke_spline_add_convolved_point (stroker,
-						      &stroker->last_point,
-						      &slope,
-						      &stroker->backward_hull_point,
-						      stroker->backward_vertex,
-						      -1);
-    stroker->last_point = *point;
-
-    return CAIRO_STATUS_SUCCESS;
-}
-
-cairo_int_status_t
-_cairo_pen_stroke_spline_init (cairo_pen_stroke_spline_t *stroker,
-			       const cairo_pen_t *pen,
-			       const cairo_point_t *a,
-			       const cairo_point_t *b,
-			       const cairo_point_t *c,
-			       const cairo_point_t *d)
-{
-    cairo_int_status_t status;
-
-    if (! _cairo_spline_init (&stroker->spline,
-			      _cairo_pen_stroke_spline_add_point,
-			      stroker,
-			      a, b, c, d))
-    {
-	return CAIRO_INT_STATUS_DEGENERATE;
-    }
-
-    status = _cairo_pen_init_copy (&stroker->pen, pen);
-    if (unlikely (status))
-	return status;
-
-    _cairo_polygon_init (&stroker->polygon);
-
-    stroker->last_point = *a;
-
-    return CAIRO_STATUS_SUCCESS;
-}
-
-void
-_cairo_pen_stroke_spline_fini (cairo_pen_stroke_spline_t *stroker)
-{
-    _cairo_polygon_fini (&stroker->polygon);
-    _cairo_pen_fini (&stroker->pen);
 }

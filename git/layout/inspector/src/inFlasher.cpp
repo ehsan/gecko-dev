@@ -46,6 +46,8 @@
 
 #include "prprf.h"
 
+static NS_DEFINE_CID(kInspectorCSSUtilsCID, NS_INSPECTORCSSUTILS_CID);
+
 ///////////////////////////////////////////////////////////////////////////////
 
 inFlasher::inFlasher() :
@@ -133,7 +135,11 @@ NS_IMETHODIMP
 inFlasher::RepaintElement(nsIDOMElement* aElement)
 {
   NS_ENSURE_ARG_POINTER(aElement);
-  nsIFrame* frame = inLayoutUtils::GetFrameFor(aElement);
+  nsCOMPtr<nsIDOMWindowInternal> window = inLayoutUtils::GetWindowFor(aElement);
+  if (!window) return NS_OK;
+  nsCOMPtr<nsIPresShell> presShell = inLayoutUtils::GetPresShellFor(window);
+  if (!presShell) return NS_OK;
+  nsIFrame* frame = inLayoutUtils::GetFrameFor(aElement, presShell);
   if (!frame) return NS_OK;
 
   frame->Invalidate(frame->GetRect());
@@ -150,7 +156,7 @@ inFlasher::DrawElementOutline(nsIDOMElement* aElement)
   nsCOMPtr<nsIPresShell> presShell = inLayoutUtils::GetPresShellFor(window);
   if (!presShell) return NS_OK;
 
-  nsIFrame* frame = inLayoutUtils::GetFrameFor(aElement);
+  nsIFrame* frame = inLayoutUtils::GetFrameFor(aElement, presShell);
 
   PRBool isFirstFrame = PR_TRUE;
 

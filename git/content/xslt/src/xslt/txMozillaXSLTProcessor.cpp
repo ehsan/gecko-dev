@@ -193,10 +193,10 @@ txToFragmentHandlerFactory::createHandlerWith(txOutputFormat* aFormat,
             NS_ASSERTION(domdoc, "unable to get ownerdocument");
             nsCOMPtr<nsIDocument> doc = do_QueryInterface(domdoc);
 
-            if (doc && doc->IsHTML()) {
-                format.mMethod = eHTMLOutput;
-            } else {
+            if (!doc || doc->IsCaseSensitive()) {
                 format.mMethod = eXMLOutput;
+            } else {
+                format.mMethod = eHTMLOutput;
             }
 
             *aHandler = new txMozillaXMLOutput(&format, mFragment, PR_FALSE);
@@ -264,10 +264,6 @@ public:
         NS_ADDREF(*aValue);
         return NS_OK;
     }
-    nsIVariant* getValue()
-    {
-        return mValue;
-    }
     void setValue(nsIVariant* aValue)
     {
         NS_ASSERTION(aValue, "setting variablevalue to null");
@@ -292,26 +288,9 @@ private:
  * txMozillaXSLTProcessor
  */
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(txMozillaXSLTProcessor)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(txMozillaXSLTProcessor)
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mEmbeddedStylesheetRoot)
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSource)
-    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPrincipal)
-    tmp->mVariables.clear();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(txMozillaXSLTProcessor)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mEmbeddedStylesheetRoot)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSource)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrincipal)
-    txOwningExpandedNameMap<txIGlobalParameter>::iterator iter(tmp->mVariables);
-    while (iter.next()) {
-        cb.NoteXPCOMChild(static_cast<txVariable*>(iter.value())->getValue());
-    }
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(txMozillaXSLTProcessor)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(txMozillaXSLTProcessor)
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(txMozillaXSLTProcessor)
+NS_IMPL_ADDREF(txMozillaXSLTProcessor)
+NS_IMPL_RELEASE(txMozillaXSLTProcessor)
+NS_INTERFACE_MAP_BEGIN(txMozillaXSLTProcessor)
     NS_INTERFACE_MAP_ENTRY(nsIXSLTProcessor)
     NS_INTERFACE_MAP_ENTRY(nsIXSLTProcessorObsolete)
     NS_INTERFACE_MAP_ENTRY(nsIXSLTProcessorPrivate)
@@ -692,8 +671,6 @@ txMozillaXSLTProcessor::TransformToDoc(nsIDOMDocument *aOutputDoc,
             txAOutputXMLEventHandler* handler =
                 static_cast<txAOutputXMLEventHandler*>(es.mOutputHandler);
             handler->getOutputDocument(aResult);
-            nsCOMPtr<nsIDocument> doc = do_QueryInterface(*aResult);
-            doc->SetReadyStateInternal(nsIDocument::READYSTATE_COMPLETE);
         }
     }
     else if (mObserver) {
@@ -1227,7 +1204,8 @@ txMozillaXSLTProcessor::AttributeChanged(nsIDocument* aDocument,
                                          nsIContent* aContent,
                                          PRInt32 aNameSpaceID,
                                          nsIAtom* aAttribute,
-                                         PRInt32 aModType)
+                                         PRInt32 aModType,
+                                         PRUint32 aStateMask)
 {
     mStylesheet = nsnull;
 }
@@ -1259,8 +1237,8 @@ txMozillaXSLTProcessor::ContentRemoved(nsIDocument* aDocument,
 }
 
 NS_IMETHODIMP
-txMozillaXSLTProcessor::Initialize(nsISupports* aOwner, JSContext* cx,
-                                   JSObject* obj, PRUint32 argc, jsval* argv)
+txMozillaXSLTProcessor::Initialize(JSContext* cx, JSObject* obj,
+                                   PRUint32 argc, jsval* argv)
 {
     nsCOMPtr<nsIPrincipal> prin;
     nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
@@ -1447,8 +1425,17 @@ txVariable::Convert(nsIVariant *aValue, txAExprResult** aResult)
             nsCOMPtr<nsIXPConnectJSObjectHolder> holder =
                 do_QueryInterface(supports);
             if (holder) {
-                JSContext* cx = nsContentUtils::GetCurrentJSContext();
-                NS_ENSURE_TRUE(cx, NS_ERROR_NOT_AVAILABLE);
+                nsCOMPtr<nsIXPConnect> xpc =
+                    do_GetService(nsIXPConnect::GetCID(), &rv);
+                NS_ENSURE_SUCCESS(rv, rv);
+                
+                nsCOMPtr<nsIXPCNativeCallContext> cc;
+                rv = xpc->GetCurrentNativeCallContext(getter_AddRefs(cc));
+                NS_ENSURE_SUCCESS(rv, rv);
+
+                JSContext* cx;
+                rv = cc->GetJSContext(&cx);
+                NS_ENSURE_SUCCESS(rv, rv);
 
                 JSObject *jsobj;
                 rv = holder->GetJSObject(&jsobj);

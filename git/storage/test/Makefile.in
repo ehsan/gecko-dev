@@ -44,36 +44,25 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+PROGRAM = teststorage1$(BIN_SUFFIX)
+
 MODULE = test_storage
 
 XPCSHELL_TESTS = unit
 
-CPP_UNIT_TESTS = \
-  test_transaction_helper.cpp \
-  test_statement_scoper.cpp \
-  test_mutex.cpp \
-  $(NULL)
+CPPSRCS = storage1.cpp
 
-ifdef MOZ_DEBUG
-# FIXME bug 523392: test_deadlock_detector doesn't like Windows
-# FIXME bug 523378: also fails on OS X
-ifneq (,$(filter-out WINNT WINCE Darwin,$(OS_ARCH)))
-CPP_UNIT_TESTS += \
-  test_deadlock_detector.cpp \
-  $(NULL)
-endif
-endif
-
-
-LOCAL_INCLUDES = \
-  -I$(srcdir)/../src \
-  $(NULL)
+REQUIRES = \
+	xpcom \
+	string \
+	storage \
+	storagecomps \
+	$(NULL)
 
 LIBS = \
 	$(LIBS_DIR) \
-	$(LIBXUL_DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX) \
-	$(MOZ_COMPONENT_LIBS) \
-	$(SQLITE_LIBS) \
+	$(XPCOM_GLUE_LDOPTS) \
+	$(NSPR_LIBS) \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

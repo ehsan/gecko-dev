@@ -43,13 +43,10 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 ifneq (,$(filter icon,$(MOZ_IMG_DECODERS)))
-ifneq (,$(filter gtk2,$(MOZ_WIDGET_TOOLKIT)))
+ifdef MOZ_ENABLE_GNOMEUI
 TOOL_DIRS = icon/gtk icon
 endif
-ifneq (,$(filter qt,$(MOZ_WIDGET_TOOLKIT)))
-DIRS = icon/qt icon
-endif
-ifeq (,$(filter-out WINNT WINCE, $(OS_ARCH)))
+ifeq ($(OS_ARCH),WINNT)
 DIRS = icon/win icon
 endif
 ifeq ($(OS_ARCH),OS2)
@@ -58,7 +55,7 @@ endif
 ifeq ($(OS_ARCH),BeOS)
 DIRS = icon/beos icon
 endif
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 DIRS = icon/mac icon
 endif
 endif # icon

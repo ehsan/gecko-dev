@@ -54,12 +54,12 @@ class nsGridRowGroupLayout : public nsGridRowLayout
 {
 public:
 
-  friend already_AddRefed<nsIBoxLayout> NS_NewGridRowGroupLayout();
+  friend nsresult NS_NewGridRowGroupLayout(nsIPresShell* aPresShell, nsIBoxLayout** aNewLayout);
 
   virtual nsGridRowGroupLayout* CastToRowGroupLayout() { return this; }
-  virtual nsSize GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
-  virtual nsSize GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
-  virtual nsSize GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
+  NS_IMETHOD GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize);
+  NS_IMETHOD GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize);
+  NS_IMETHOD GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize);
   virtual void CountRowsColumns(nsIBox* aBox, PRInt32& aRowCount, PRInt32& aComputedColumnCount);
   virtual void DirtyRows(nsIBox* aBox, nsBoxLayoutState& aState);
   virtual PRInt32 BuildRows(nsIBox* aBox, nsGridRow* aRows);
@@ -68,7 +68,7 @@ public:
   virtual Type GetType() { return eRowGroup; }
 
 protected:
-  nsGridRowGroupLayout();
+  nsGridRowGroupLayout(nsIPresShell* aShell);
   virtual ~nsGridRowGroupLayout();
 
   virtual void ChildAddedOrRemoved(nsIBox* aBox, nsBoxLayoutState& aState);

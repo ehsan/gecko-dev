@@ -41,33 +41,26 @@
 EditAggregateTxn::EditAggregateTxn()
   : EditTxn()
 {
+  nsresult res = NS_NewISupportsArray(getter_AddRefs(mChildren));
+  NS_POSTCONDITION(NS_SUCCEEDED(res), "EditAggregateTxn failed in constructor");
 }
-NS_IMPL_CYCLE_COLLECTION_CLASS(EditAggregateTxn)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(EditAggregateTxn, EditTxn)
-  tmp->mChildren.Clear();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(EditAggregateTxn, EditTxn)
-  for (PRUint32 i = 0; i < tmp->mChildren.Length(); ++i) {
-    NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mChildren[i]");
-    cb.NoteXPCOMChild(static_cast<nsITransaction*>(tmp->mChildren[i]));
-  }
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(EditAggregateTxn)
-NS_INTERFACE_MAP_END_INHERITING(EditTxn)
 
 NS_IMETHODIMP EditAggregateTxn::DoTransaction(void)
 {
   nsresult result=NS_OK;  // it's legal (but not very useful) to have an empty child list
-  for (PRUint32 i = 0, length = mChildren.Length(); i < length; ++i)
+  if (mChildren)
   {
-    nsITransaction *txn = mChildren[i];
-    if (!txn) { return NS_ERROR_NULL_POINTER; }
-    result = txn->DoTransaction();
-    if (NS_FAILED(result))
-      break;
+    PRInt32 i;
+    PRUint32 count;
+    mChildren->Count(&count);
+    for (i=0; i<((PRInt32)count); i++)
+    {
+      nsCOMPtr<nsITransaction> txn (do_QueryElementAt(mChildren, i));
+      if (!txn) { return NS_ERROR_NULL_POINTER; }
+      result = txn->DoTransaction();
+      if (NS_FAILED(result))
+        break;
+    }  
   }
   return result;
 }
@@ -75,14 +68,20 @@ NS_IMETHODIMP EditAggregateTxn::DoTransaction(void)
 NS_IMETHODIMP EditAggregateTxn::UndoTransaction(void)
 {
   nsresult result=NS_OK;  // it's legal (but not very useful) to have an empty child list
-  // undo goes through children backwards
-  for (PRUint32 i = mChildren.Length(); i-- != 0; )
+  if (mChildren)
   {
-    nsITransaction *txn = mChildren[i];
-    if (!txn) { return NS_ERROR_NULL_POINTER; }
-    result = txn->UndoTransaction();
-    if (NS_FAILED(result))
-      break;
+    PRInt32 i;
+    PRUint32 count;
+    mChildren->Count(&count);
+    // undo goes through children backwards
+    for (i=count-1; i>=0; i--)
+    {
+      nsCOMPtr<nsITransaction> txn (do_QueryElementAt(mChildren, i));
+      if (!txn) { return NS_ERROR_NULL_POINTER; }
+      result = txn->UndoTransaction();
+      if (NS_FAILED(result))
+        break;
+    }  
   }
   return result;
 }
@@ -90,13 +89,19 @@ NS_IMETHODIMP EditAggregateTxn::UndoTransaction(void)
 NS_IMETHODIMP EditAggregateTxn::RedoTransaction(void)
 {
   nsresult result=NS_OK;  // it's legal (but not very useful) to have an empty child list
-  for (PRUint32 i = 0, length = mChildren.Length(); i < length; ++i)
+  if (mChildren)
   {
-    nsITransaction *txn = mChildren[i];
-    if (!txn) { return NS_ERROR_NULL_POINTER; }
-    result = txn->RedoTransaction();
-    if (NS_FAILED(result))
-      break;
+    PRInt32 i;
+    PRUint32 count;
+    mChildren->Count(&count);
+    for (i=0; i<((PRInt32)count); i++)
+    {
+      nsCOMPtr<nsITransaction> txn (do_QueryElementAt(mChildren, i));
+      if (!txn) { return NS_ERROR_NULL_POINTER; }
+      result = txn->RedoTransaction();
+      if (NS_FAILED(result))
+        break;
+    }  
   }
   return result;
 }
@@ -106,13 +111,18 @@ NS_IMETHODIMP EditAggregateTxn::Merge(nsITransaction *aTransaction, PRBool *aDid
   nsresult result=NS_OK;  // it's legal (but not very useful) to have an empty child list
   if (aDidMerge)
     *aDidMerge = PR_FALSE;
-  // FIXME: Is this really intended not to loop?  It looks like the code
-  // that used to be here sort of intended to loop, but didn't.
-  if (mChildren.Length() > 0)
+  if (mChildren)
   {
-    nsITransaction *txn = mChildren[0];
-    if (!txn) { return NS_ERROR_NULL_POINTER; }
-    result = txn->Merge(aTransaction, aDidMerge);
+    PRInt32 i=0;
+    PRUint32 count;
+    mChildren->Count(&count);
+    NS_ASSERTION(count>0, "bad count");
+    if (0<count)
+    {
+      nsCOMPtr<nsITransaction> txn (do_QueryElementAt(mChildren, i));
+      if (!txn) { return NS_ERROR_NULL_POINTER; }
+      result = txn->Merge(aTransaction, aDidMerge);
+    }
   }
   return result;
 }
@@ -133,17 +143,15 @@ NS_IMETHODIMP EditAggregateTxn::GetTxnDescription(nsAString& aString)
 
 NS_IMETHODIMP EditAggregateTxn::AppendChild(EditTxn *aTxn)
 {
-  if (!aTxn) {
-    return NS_ERROR_NULL_POINTER;
+  if (mChildren && aTxn)
+  {
+    // aaahhhh! broken interfaces drive me crazy!!!
+    nsCOMPtr<nsISupports> isupports;
+    aTxn->QueryInterface(NS_GET_IID(nsISupports), getter_AddRefs(isupports));
+    mChildren->AppendElement(isupports);
+    return NS_OK;
   }
-
-  nsRefPtr<EditTxn> *slot = mChildren.AppendElement();
-  if (!slot) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  *slot = aTxn;
-  return NS_OK;
+  return NS_ERROR_NULL_POINTER;
 }
 
 NS_IMETHODIMP EditAggregateTxn::GetCount(PRUint32 *aCount)
@@ -151,7 +159,10 @@ NS_IMETHODIMP EditAggregateTxn::GetCount(PRUint32 *aCount)
   if (!aCount) {
     return NS_ERROR_NULL_POINTER;
   }
-  *aCount = mChildren.Length();
+  *aCount=0;
+  if (mChildren) {
+    mChildren->Count(aCount);
+  }
   return NS_OK;
 }
 
@@ -159,21 +170,26 @@ NS_IMETHODIMP EditAggregateTxn::GetTxnAt(PRInt32 aIndex, EditTxn **aTxn)
 {
   // preconditions
   NS_PRECONDITION(aTxn, "null out param");
+  NS_PRECONDITION(mChildren, "bad internal state");
 
   if (!aTxn) {
     return NS_ERROR_NULL_POINTER;
   }
   *aTxn = nsnull; // initialize out param as soon as we know it's a valid pointer
+  if (!mChildren) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
   // get the transaction at aIndex
-  PRUint32 txnCount = mChildren.Length();
+  PRUint32 txnCount;
+  mChildren->Count(&txnCount);
   if (0>aIndex || ((PRInt32)txnCount)<=aIndex) {
     return NS_ERROR_UNEXPECTED;
   }
   // ugh, this is all wrong - what a mess we have with editor transaction interfaces
-  *aTxn = mChildren[aIndex];
+  mChildren->QueryElementAt(aIndex, EditTxn::GetCID(), (void**)aTxn);
   if (!*aTxn)
     return NS_ERROR_UNEXPECTED;
-  NS_ADDREF(*aTxn);
   return NS_OK;
 }
 
@@ -194,3 +210,16 @@ NS_IMETHODIMP EditAggregateTxn::GetName(nsIAtom **aName)
   }
   return NS_ERROR_NULL_POINTER;
 }
+
+NS_IMETHODIMP EditAggregateTxn::QueryInterface(REFNSIID aIID, void** aInstancePtr)
+{
+  if (!aInstancePtr) return NS_ERROR_NULL_POINTER;
+ 
+  if (aIID.Equals(EditAggregateTxn::GetCID())) {
+    *aInstancePtr = static_cast<EditAggregateTxn*>(this);
+    NS_ADDREF_THIS();
+    return NS_OK;
+  }
+  return EditTxn::QueryInterface(aIID, aInstancePtr);
+}
+

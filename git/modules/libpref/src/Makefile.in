@@ -53,6 +53,19 @@ endif
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= xpcom \
+		  xpcom_obsolete \
+		  string \
+		  intl \
+		  necko \
+		  $(NULL)
+
+ifdef MOZ_PROFILESHARING
+REQUIRES	+= ipcd \
+		  profilesharingsetup \
+		  $(NULL)
+endif
+
 include $(topsrcdir)/config/config.mk
 
 CPPSRCS		= nsPref.cpp \
@@ -63,13 +76,19 @@ CPPSRCS		= nsPref.cpp \
 			  prefread.cpp \
 			 $(NULL)
 
+ifdef MOZ_PROFILESHARING
+CPPSRCS	+= nsSharedPrefHandler.cpp
+SHARED_LIBRARY_LIBS	= $(DIST)/lib/$(LIB_PREFIX)ipcdutil_s.$(LIB_SUFFIX)
+endif
+
 DEFINES += -DOS_ARCH=$(OS_ARCH) \
            -DMOZ_WIDGET_TOOLKIT=$(MOZ_WIDGET_TOOLKIT) \
            $(NULL)
 
-# this comes from a system header; we should probably be using XP_WINCE or something
-ifdef WINCE
-DEFINES += -DWINCE=1
+PREF_JS_EXPORTS	= $(srcdir)/init/all.js
+
+ifdef MOZ_PROFILESHARING
+PREF_JS_EXPORTS	+= $(srcdir)/init/non-shared.txt
 endif
 
 EXTRA_DSO_LDOPTS = \
@@ -80,12 +99,8 @@ EXTRA_DSO_LDOPTS = \
 include $(topsrcdir)/config/rules.mk
 
 GARBAGE		+= $(addprefix $(DIST)/bin/defaults/pref/, \
-			mailnews.js editor.js \
+			all.js mailnews.js editor.js \
 			aix.js beos.js unix.js winpref.js os2prefs.js openvms.js photon.js)
-
-GARBAGE		+= greprefs.js
-
-GREPREF_FILES = $(topsrcdir)/xpinstall/public/xpinstall.js $(topsrcdir)/netwerk/base/public/security-prefs.js $(srcdir)/init/all.js
 
 # Optimizer bug with GCC 3.2.2 on OS/2
 ifeq ($(OS_ARCH), OS2)
@@ -94,10 +109,3 @@ nsPrefService.$(OBJ_SUFFIX): nsPrefService.cpp
 	@$(MAKE_DEPS_AUTO_CXX)
 	$(ELOG) $(CCC) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS:-O2=-O1) $(_VPATH_SRCS)
 endif
-
-
-greprefs.js: $(GREPREF_FILES)
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $^ > $@
-
-libs:: greprefs.js
-	$(INSTALL) $^ $(DIST)/bin/

@@ -97,32 +97,34 @@ void nsTableColGroupFrame::ResetColIndices(nsIFrame*       aFirstColGroup,
 
 
 nsresult
-nsTableColGroupFrame::AddColsToTable(PRInt32                   aFirstColIndex,
-                                     PRBool                    aResetSubsequentColIndices,
-                                     const nsFrameList::Slice& aCols)
+nsTableColGroupFrame::AddColsToTable(PRInt32          aFirstColIndex,
+                                     PRBool           aResetSubsequentColIndices,
+                                     nsIFrame*        aFirstFrame,
+                                     nsIFrame*        aLastFrame)
 {
   nsresult rv = NS_OK;
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
-  if (!tableFrame)
+  if (!tableFrame || !aFirstFrame)
     return NS_ERROR_NULL_POINTER;
 
   // set the col indices of the col frames and and add col info to the table
   PRInt32 colIndex = aFirstColIndex;
-  nsFrameList::Enumerator e(aCols);
-  for (; !e.AtEnd(); e.Next()) {
-    ((nsTableColFrame*)e.get())->SetColIndex(colIndex);
-    mColCount++;
-    tableFrame->InsertCol((nsTableColFrame &)*e.get(), colIndex);
-    colIndex++;
+  nsIFrame* kidFrame = aFirstFrame;
+  PRBool foundLastFrame = PR_FALSE;
+  while (kidFrame) {
+    if (nsGkAtoms::tableColFrame == kidFrame->GetType()) {
+      ((nsTableColFrame*)kidFrame)->SetColIndex(colIndex);
+      if (!foundLastFrame) {
+        mColCount++;
+        tableFrame->InsertCol((nsTableColFrame &)*kidFrame, colIndex);
+      }
+      colIndex++;
+    }
+    if (kidFrame == aLastFrame) {
+      foundLastFrame = PR_TRUE;
+    }
+    kidFrame = kidFrame->GetNextSibling(); 
   }
-
-  for (nsFrameList::Enumerator eTail = e.GetUnlimitedEnumerator();
-       !eTail.AtEnd();
-       eTail.Next()) {
-    ((nsTableColFrame*)eTail.get())->SetColIndex(colIndex);
-    colIndex++;
-  }
-
   // We have already set the colindex for all the colframes in this
   // colgroup that come after the first inserted colframe, but there could
   // be other colgroups following this one and their colframes need
@@ -135,34 +137,44 @@ nsTableColGroupFrame::AddColsToTable(PRInt32                   aFirstColIndex,
 }
 
 
-nsTableColGroupFrame*
-nsTableColGroupFrame::GetLastRealColGroup(nsTableFrame* aTableFrame)
+PRBool
+nsTableColGroupFrame::GetLastRealColGroup(nsTableFrame* aTableFrame, 
+                                          nsIFrame**    aLastColGroup)
 {
+  *aLastColGroup = nsnull;
   nsFrameList colGroups = aTableFrame->GetColGroups();
 
   nsIFrame* nextToLastColGroup = nsnull;
-  nsFrameList::FrameLinkEnumerator link(colGroups);
-  for ( ; !link.AtEnd(); link.Next()) {
-    nextToLastColGroup = link.PrevFrame();
+  nsIFrame* lastColGroup       = colGroups.FirstChild();
+  while(lastColGroup) {
+    nsIFrame* next = lastColGroup->GetNextSibling();
+    if (next) {
+      nextToLastColGroup = lastColGroup;
+      lastColGroup = next;
+    }
+    else {
+      break;
+    }
   }
 
-  if (!link.PrevFrame()) {
-    return nsnull; // there are no col group frames
-  }
+  if (!lastColGroup) return PR_TRUE; // there are no col group frames
  
   nsTableColGroupType lastColGroupType =
-    static_cast<nsTableColGroupFrame*>(link.PrevFrame())->GetColType();
+    ((nsTableColGroupFrame *)lastColGroup)->GetColType();
   if (eColGroupAnonymousCell == lastColGroupType) {
-    return static_cast<nsTableColGroupFrame*>(nextToLastColGroup);
+    *aLastColGroup = nextToLastColGroup;
+    return PR_FALSE;
   }
- 
-  return static_cast<nsTableColGroupFrame*>(link.PrevFrame());
+  else {
+    *aLastColGroup = lastColGroup;
+    return PR_TRUE;
+  }
 }
 
 // don't set mColCount here, it is done in AddColsToTable
 NS_IMETHODIMP
 nsTableColGroupFrame::SetInitialChildList(nsIAtom*        aListName,
-                                          nsFrameList&    aChildList)
+                                          nsIFrame*       aChildList)
 {
   if (!mFrames.IsEmpty()) {
     // We already have child frames which means we've already been
@@ -179,9 +191,13 @@ nsTableColGroupFrame::SetInitialChildList(nsIAtom*        aListName,
   if (!tableFrame)
     return NS_ERROR_NULL_POINTER;
 
-  if (aChildList.IsEmpty()) {
-    tableFrame->AppendAnonymousColFrames(this, GetSpan(), eColAnonymousColGroup, 
-                                         PR_FALSE);
+  if (!aChildList) {
+    nsIFrame* firstChild;
+    tableFrame->CreateAnonymousColFrames(this, GetSpan(), eColAnonymousColGroup, 
+                                         PR_FALSE, nsnull, &firstChild);
+    if (firstChild) {
+      SetInitialChildList(aListName, firstChild);
+    }
     return NS_OK; 
   }
 
@@ -189,29 +205,9 @@ nsTableColGroupFrame::SetInitialChildList(nsIAtom*        aListName,
   return NS_OK;
 }
 
-/* virtual */ void
-nsTableColGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
-{
-  if (!aOldStyleContext) //avoid this on init
-    return;
-     
-  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
-
-  if (tableFrame->IsBorderCollapse() &&
-      tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
-    PRInt32 colCount = GetColCount();
-    if (!colCount)
-      return; // this is a degenerated colgroup 
-    nsRect damageArea(GetFirstColumn()->GetColIndex(), 0, colCount,
-                      tableFrame->GetRowCount());
-    tableFrame->SetBCDamageArea(damageArea);
-  }
-  return;
-}
-
 NS_IMETHODIMP
 nsTableColGroupFrame::AppendFrames(nsIAtom*        aListName,
-                                   nsFrameList&    aFrameList)
+                                   nsIFrame*       aFrameList)
 {
   NS_ASSERTION(!aListName, "unexpected child list");
 
@@ -219,72 +215,61 @@ nsTableColGroupFrame::AppendFrames(nsIAtom*        aListName,
   nsTableColFrame* nextCol;
   while (col && col->GetColType() == eColAnonymousColGroup) {
     // this colgroup spans one or more columns but now that there is a
-    // real column below, spanned anonymous columns should be removed,
-    // since the HTML spec says to ignore the span of a colgroup if it
-    // has content columns in it.
+    // real column below, spanned anonymous columns should be removed
     nextCol = col->GetNextCol();
     RemoveFrame(nsnull, col);
     col = nextCol;
   }
 
-  const nsFrameList::Slice& newFrames =
-    mFrames.AppendFrames(this, aFrameList);
-  InsertColsReflow(GetStartColumnIndex() + mColCount, newFrames);
+  mFrames.AppendFrames(this, aFrameList);
+  InsertColsReflow(GetStartColumnIndex() + mColCount, aFrameList);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsTableColGroupFrame::InsertFrames(nsIAtom*        aListName,
                                    nsIFrame*       aPrevFrame,
-                                   nsFrameList&    aFrameList)
+                                   nsIFrame*       aFrameList)
 {
   NS_ASSERTION(!aListName, "unexpected child list");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
 
+  nsFrameList frames(aFrameList); // convience for getting last frame
+  nsIFrame* lastFrame = frames.LastChild();
+
   nsTableColFrame* col = GetFirstColumn();
   nsTableColFrame* nextCol;
   while (col && col->GetColType() == eColAnonymousColGroup) {
-    // this colgroup spans one or more columns but now that there is a
-    // real column below, spanned anonymous columns should be removed,
-    // since the HTML spec says to ignore the span of a colgroup if it
-    // has content columns in it.
+    // this colgroup spans one or more columns but now that there is 
+    // real column below, spanned anonymous columns should be removed
     nextCol = col->GetNextCol();
-    if (col == aPrevFrame) {
-      // This can happen when we're being appended to
-      NS_ASSERTION(!nextCol || nextCol->GetColType() != eColAnonymousColGroup,
-                   "Inserting in the middle of our anonymous cols?");
-      // We'll want to insert at the beginning
-      aPrevFrame = nsnull;
-    }
     RemoveFrame(nsnull, col);
     col = nextCol;
   }
 
-  NS_ASSERTION(!aPrevFrame || aPrevFrame == aPrevFrame->GetLastContinuation(),
-               "Prev frame should be last in continuation chain");
-  NS_ASSERTION(!aPrevFrame || !GetNextColumn(aPrevFrame) ||
-               GetNextColumn(aPrevFrame)->GetColType() != eColAnonymousCol,
-               "Shouldn't be inserting before a spanned colframe");
-
-  const nsFrameList::Slice& newFrames =
-    mFrames.InsertFrames(this, aPrevFrame, aFrameList);
+  mFrames.InsertFrames(this, aPrevFrame, aFrameList);
   nsIFrame* prevFrame = nsTableFrame::GetFrameAtOrBefore(this, aPrevFrame,
                                                          nsGkAtoms::tableColFrame);
 
   PRInt32 colIndex = (prevFrame) ? ((nsTableColFrame*)prevFrame)->GetColIndex() + 1 : GetStartColumnIndex();
-  InsertColsReflow(colIndex, newFrames);
+  InsertColsReflow(colIndex, aFrameList, lastFrame);
 
   return NS_OK;
 }
 
 void
-nsTableColGroupFrame::InsertColsReflow(PRInt32                   aColIndex,
-                                       const nsFrameList::Slice& aCols)
+nsTableColGroupFrame::InsertColsReflow(PRInt32         aColIndex,
+                                       nsIFrame*       aFirstFrame,
+                                       nsIFrame*       aLastFrame)
 {
-  AddColsToTable(aColIndex, PR_TRUE, aCols);
+  AddColsToTable(aColIndex, PR_TRUE, aFirstFrame, aLastFrame);
 
-  PresContext()->PresShell()->FrameNeedsReflow(this,
+  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+  if (!tableFrame)
+    return;
+
+  PresContext()->PresShell()->FrameNeedsReflow(tableFrame,
                                                nsIPresShell::eTreeChange,
                                                NS_FRAME_HAS_DIRTY_CHILDREN);
 }
@@ -299,20 +284,24 @@ nsTableColGroupFrame::RemoveChild(nsTableColFrame& aChild,
     colIndex = aChild.GetColIndex();
     nextChild = aChild.GetNextSibling();
   }
-  mFrames.DestroyFrame(&aChild);
-  mColCount--;
-  if (aResetSubsequentColIndices) {
-    if (nextChild) { // reset inside this and all following colgroups
-      ResetColIndices(this, colIndex, nextChild);
-    }
-    else {
-      nsIFrame* nextGroup = GetNextSibling();
-      if (nextGroup) // reset next and all following colgroups
-        ResetColIndices(nextGroup, colIndex);
+  if (mFrames.DestroyFrame((nsIFrame*)&aChild)) {
+    mColCount--;
+    if (aResetSubsequentColIndices) {
+      if (nextChild) { // reset inside this and all following colgroups
+        ResetColIndices(this, colIndex, nextChild);
+      }
+      else {
+        nsIFrame* nextGroup = GetNextSibling();
+        if (nextGroup) // reset next and all following colgroups
+          ResetColIndices(nextGroup, colIndex);
+      }
     }
   }
+  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
+  if (!tableFrame)
+    return;
 
-  PresContext()->PresShell()->FrameNeedsReflow(this,
+  PresContext()->PresShell()->FrameNeedsReflow(tableFrame,
                                                nsIPresShell::eTreeChange,
                                                NS_FRAME_HAS_DIRTY_CHILDREN);
 }
@@ -327,22 +316,7 @@ nsTableColGroupFrame::RemoveFrame(nsIAtom*        aListName,
 
   if (nsGkAtoms::tableColFrame == aOldFrame->GetType()) {
     nsTableColFrame* colFrame = (nsTableColFrame*)aOldFrame;
-    if (colFrame->GetColType() == eColContent) {
-      // Remove any anonymous column frames this <col> produced via a colspan
-      nsTableColFrame* col = colFrame->GetNextCol();
-      nsTableColFrame* nextCol;
-      while (col && col->GetColType() == eColAnonymousCol) {
-        NS_ASSERTION(col->GetStyleContext() == colFrame->GetStyleContext() &&
-                     col->GetContent() == colFrame->GetContent(),
-                     "How did that happen??");
-        nextCol = col->GetNextCol();
-        RemoveFrame(nsnull, col);
-        col = nextCol;
-      }
-    }
-    
     PRInt32 colIndex = colFrame->GetColIndex();
-    // The RemoveChild call handles calling FrameNeedsReflow on us.
     RemoveChild(*colFrame, PR_TRUE);
     
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
@@ -350,6 +324,10 @@ nsTableColGroupFrame::RemoveFrame(nsIAtom*        aListName,
       return NS_ERROR_NULL_POINTER;
 
     tableFrame->RemoveCol(this, colIndex, PR_TRUE, PR_TRUE);
+
+    PresContext()->PresShell()->FrameNeedsReflow(tableFrame,
+                                                 nsIPresShell::eTreeChange,
+                                                 NS_FRAME_HAS_DIRTY_CHILDREN);
   }
   else {
     mFrames.DestroyFrame(aOldFrame);
@@ -447,7 +425,23 @@ nsTableColFrame * nsTableColGroupFrame::GetNextColumn(nsIFrame *aChildFrame)
 
 PRInt32 nsTableColGroupFrame::GetSpan()
 {
-  return GetStyleTable()->mSpan;
+  PRInt32 span = 1;
+  nsIContent* iContent = GetContent();
+  if (!iContent) return NS_OK;
+
+  // col group element derives from col element
+  nsIDOMHTMLTableColElement* cgContent = nsnull;
+  nsresult rv = iContent->QueryInterface(NS_GET_IID(nsIDOMHTMLTableColElement), 
+                                         (void **)&cgContent);
+  if (cgContent && NS_SUCCEEDED(rv)) { 
+    cgContent->GetSpan(&span);
+    // XXX why does this work!!
+    if (span == -1) {
+      span = 1;
+    }
+    NS_RELEASE(cgContent);
+  }
+  return span;
 }
 
 void nsTableColGroupFrame::SetContinuousBCBorderWidth(PRUint8     aForSide,
@@ -486,7 +480,21 @@ NS_NewTableColGroupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsTableColGroupFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsTableColGroupFrame)
+NS_IMETHODIMP
+nsTableColGroupFrame::Init(nsIContent*      aContent,
+                           nsIFrame*        aParent,
+                           nsIFrame*        aPrevInFlow)
+{
+  nsresult  rv;
+
+  // Let the base class do its processing
+  rv = nsHTMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
+
+  // record that children that are ignorable whitespace should be excluded 
+  mState |= NS_FRAME_EXCLUDE_IGNORABLE_WHITESPACE;
+
+  return rv;
+}
 
 nsIAtom*
 nsTableColGroupFrame::GetType() const

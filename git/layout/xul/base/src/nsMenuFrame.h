@@ -50,16 +50,16 @@
 #include "nsBoxFrame.h"
 #include "nsFrameList.h"
 #include "nsGkAtoms.h"
-#include "nsMenuParent.h"
+#include "nsIMenuParent.h"
 #include "nsIMenuFrame.h"
 #include "nsXULPopupManager.h"
 #include "nsITimer.h"
+#include "nsISupportsArray.h"
 #include "nsIDOMText.h"
 #include "nsIContent.h"
 #include "nsIScrollableViewProvider.h"
 
-nsIFrame* NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-nsIFrame* NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+nsIFrame* NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRUint32 aFlags);
 
 class nsMenuBarFrame;
 class nsIScrollableView;
@@ -103,6 +103,12 @@ private:
   nsMenuFrame* mFrame;
 };
 
+/**
+ * @note *** Methods marked with '@see comment above ***' may cause the frame to be
+ *           deleted during the method call. Be careful whenever using those
+ *           methods.
+ */
+
 class nsMenuFrame : public nsBoxFrame, 
                     public nsIMenuFrame,
                     public nsIScrollableViewProvider
@@ -110,8 +116,7 @@ class nsMenuFrame : public nsBoxFrame,
 public:
   nsMenuFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  NS_DECL_ISUPPORTS
 
   // nsIBox
   NS_IMETHOD DoLayout(nsBoxLayoutState& aBoxLayoutState);
@@ -131,38 +136,39 @@ public:
   // The following methods are all overridden so that the menupopup
   // can be stored in a separate list, so that it doesn't impact reflow of the
   // actual menu item at all.
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy(); // @see comment above ***
 
   // Overridden to prevent events from going to children of the menu.
   NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                          const nsRect&           aDirtyRect,
                                          const nsDisplayListSet& aLists);
                                          
-  // this method can destroy the frame
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                          nsGUIEvent*     aEvent,
-                         nsEventStatus*  aEventStatus);
+                         nsEventStatus*  aEventStatus); // @see comment above ***
 
   NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
 
   NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
-                           nsFrameList&    aFrameList);
+                           nsIFrame*       aFrameList);
 
   NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
 
   virtual nsIAtom* GetType() const { return nsGkAtoms::menuFrame; }
 
-  NS_IMETHOD SelectMenu(PRBool aActivateFlag);
+  NS_IMETHOD SelectMenu(PRBool aActivateFlag); // @see comment above ***
 
   /**
-   * NOTE: OpenMenu will open the menu asynchronously.
+   * NOTE: OpenMenu will open the menu synchronously. Don't call this if a frame
+   *       is manipulated afterwards without checking to make sure it is still alive.
+   *       All current calls to OpenMenu do not adjust the frame.
    */
   void OpenMenu(PRBool aSelectFirstItem);
   // CloseMenu closes the menu asynchronously
@@ -171,17 +177,16 @@ public:
   PRBool IsChecked() { return mChecked; }
 
   NS_IMETHOD GetActiveChild(nsIDOMElement** aResult);
-  NS_IMETHOD SetActiveChild(nsIDOMElement* aChild);
+  NS_IMETHOD SetActiveChild(nsIDOMElement* aChild); // @see comment above ***
 
   // called when the Enter key is pressed while the menuitem is the current
   // one in its parent popup. This will carry out the command attached to
-  // the menuitem. If the menu should be opened, this frame will be returned,
-  // otherwise null will be returned.
+  // the menuitem.
   nsMenuFrame* Enter();
 
   NS_IMETHOD SetParent(const nsIFrame* aParent);
 
-  virtual nsMenuParent *GetMenuParent() { return mMenuParent; }
+  virtual nsIMenuParent *GetMenuParent() { return mMenuParent; }
   const nsAString& GetRadioGroupName() { return mGroupName; }
   nsMenuType GetMenuType() { return mType; }
   nsMenuPopupFrame* GetPopup() { return mPopupFrame; }
@@ -204,12 +209,11 @@ public:
 
   // indiciate that the menu's popup has just been opened, so that the menu
   // can update its open state. This method modifies the open attribute on
-  // the menu, so the frames could be gone after this call.
+  // the menu, so the frames could be gone after this call
   void PopupOpened();
   // indiciate that the menu's popup has just been closed, so that the menu
   // can update its open state. The menu should be unhighlighted if
-  // aDeselectedMenu is true. This method modifies the open attribute on
-  // the menu, so the frames could be gone after this call.
+  // aDeselectedMenu is true.
   void PopupClosed(PRBool aDeselectMenu);
 
   // returns true if this is a menu on another menu popup. A menu is a submenu
@@ -230,32 +234,23 @@ protected:
   friend class nsMenuTimerMediator;
   friend class nsASyncMenuInitialization;
 
-  // initialize mPopupFrame to the first popup frame within
-  // aChildList. Removes the popup, if any, from aChildList.
-  void SetPopupFrame(nsFrameList& aChildList);
-
   // set mMenuParent to the nearest enclosing menu bar or menupopup frame of
   // aParent (or aParent itself). This is called when initializing the frame,
   // so aParent should be the expected parent of this frame.
   void InitMenuParent(nsIFrame* aParent);
 
-  // Update the menu's type (normal, checkbox, radio).
-  // This method can destroy the frame.
-  void UpdateMenuType(nsPresContext* aPresContext);
-  // Update the checked state of the menu, and for radios, clear any other
-  // checked items. This method can destroy the frame.
-  void UpdateMenuSpecialState(nsPresContext* aPresContext);
+  void UpdateMenuType(nsPresContext* aPresContext); // @see comment above ***
+  void UpdateMenuSpecialState(nsPresContext* aPresContext); // @see comment above ***
 
   // Examines the key node and builds the accelerator.
   void BuildAcceleratorText();
 
-  // Called to execute our command handler. This method can destroy the frame.
-  void Execute(nsGUIEvent *aEvent);
+  // Called to execute our command handler.
+  void Execute(nsGUIEvent *aEvent); // @see comment above ***
 
-  // This method can destroy the frame
   NS_IMETHOD AttributeChanged(PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
-                              PRInt32 aModType);
+                              PRInt32 aModType); // @see comment above ***
   virtual ~nsMenuFrame();
 
   PRBool SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize);
@@ -270,7 +265,7 @@ protected:
   PRPackedBool mChecked;              // are we checked?
   nsMenuType mType;
 
-  nsMenuParent* mMenuParent; // Our parent menu.
+  nsIMenuParent* mMenuParent; // Our parent menu.
 
   // the popup for this menu, owned
   nsMenuPopupFrame* mPopupFrame;

@@ -39,19 +39,14 @@
 #include "nsIGenericFactory.h"
 
 #include "nsBrowserCompsCID.h"
-#include "DirectoryProvider.h"
 #include "nsPlacesImportExportService.h"
-
-#if defined(XP_WIN)
+#ifdef XP_WIN
 #include "nsWindowsShellService.h"
 #elif defined(XP_MACOSX)
 #include "nsMacShellService.h"
 #elif defined(MOZ_WIDGET_GTK2)
 #include "nsGNOMEShellService.h"
 #endif
-
-#ifndef WINCE
-
 #include "nsProfileMigrator.h"
 #if !defined(XP_BEOS)
 #include "nsDogbertProfileMigrator.h"
@@ -70,33 +65,24 @@
 #include "nsCaminoProfileMigrator.h"
 #include "nsICabProfileMigrator.h"
 #endif
-
-#endif // WINCE
-
 #include "rdf.h"
 #include "nsFeedSniffer.h"
-#include "AboutRedirector.h"
+#include "nsAboutFeeds.h"
 #include "nsIAboutModule.h"
-
-#include "nsPrivateBrowsingServiceWrapper.h"
-#include "nsNetCID.h"
-
-using namespace mozilla::browser;
+#ifdef MOZ_SAFE_BROWSING
+#include "nsDocNavStartProgressListener.h"
+#endif
 
 /////////////////////////////////////////////////////////////////////////////
 
-NS_GENERIC_FACTORY_CONSTRUCTOR(DirectoryProvider)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsPlacesImportExportService)
-#if defined(XP_WIN)
+#ifdef XP_WIN
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindowsShellService)
 #elif defined(XP_MACOSX)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacShellService)
 #elif defined(MOZ_WIDGET_GTK2)
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsGNOMEShellService, Init)
 #endif
-
-#ifndef WINCE
-
 #if !defined(XP_BEOS)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDogbertProfileMigrator)
 #endif
@@ -115,25 +101,15 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsMacIEProfileMigrator)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsCaminoProfileMigrator)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsICabProfileMigrator)
 #endif
-
-#endif
-
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFeedSniffer)
-
-NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrivateBrowsingServiceWrapper, Init)
+#ifdef MOZ_SAFE_BROWSING
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsDocNavStartProgressListener)
+#endif
 
 /////////////////////////////////////////////////////////////////////////////
 
 static const nsModuleComponentInfo components[] =
 {
-  { "Browser Directory Provider",
-    NS_BROWSERDIRECTORYPROVIDER_CID,
-    NS_BROWSERDIRECTORYPROVIDER_CONTRACTID,
-    DirectoryProviderConstructor,
-    DirectoryProvider::Register,
-    DirectoryProvider::Unregister
-  },
-
 #if defined(XP_WIN)
   { "Browser Shell Service",
     NS_SHELLSERVICE_CID,
@@ -160,49 +136,18 @@ static const nsModuleComponentInfo components[] =
     nsFeedSnifferConstructor,
     nsFeedSniffer::Register },
 
-#ifdef MOZ_SAFE_BROWSING
-  { "about:blocked",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "blocked",
-    AboutRedirector::Create },
-#endif
-
-  { "about:certerror",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "certerror",
-    AboutRedirector::Create },
-
-  { "about:feeds",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
+  { "about:feeds Page",
+    NS_ABOUTFEEDS_CID,
     NS_ABOUT_MODULE_CONTRACTID_PREFIX "feeds",
-    AboutRedirector::Create },
+    nsAboutFeeds::Create
+  },
 
-  { "about:privatebrowsing",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "privatebrowsing",
-    AboutRedirector::Create },
-
-  { "about:rights",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "rights",
-    AboutRedirector::Create },
-
-  { "about:robots",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "robots",
-    AboutRedirector::Create },
-
-  { "about:sessionrestore",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "sessionrestore",
-    AboutRedirector::Create },
-
-  { "about:support",
-    NS_BROWSER_ABOUT_REDIRECTOR_CID,
-    NS_ABOUT_MODULE_CONTRACTID_PREFIX "support",
-    AboutRedirector::Create },
-
-#ifndef WINCE
+#ifdef MOZ_SAFE_BROWSING
+  { "Safe browsing document nav start progress listener",
+    NS_DOCNAVSTARTPROGRESSLISTENER_CID,
+    NS_DOCNAVSTARTPROGRESSLISTENER_CONTRACTID,
+    nsDocNavStartProgressListenerConstructor },
+#endif
 
   { "Profile Migrator",
     NS_FIREFOX_PROFILEMIGRATOR_CID,
@@ -270,14 +215,7 @@ static const nsModuleComponentInfo components[] =
   { "Seamonkey Profile Migrator",
     NS_SEAMONKEYPROFILEMIGRATOR_CID,
     NS_BROWSERPROFILEMIGRATOR_CONTRACTID_PREFIX "seamonkey",
-    nsSeamonkeyProfileMigratorConstructor },
-
-#endif /* WINCE */
-
-  { "PrivateBrowsing Service C++ Wrapper",
-    NS_PRIVATE_BROWSING_SERVICE_WRAPPER_CID,
-    NS_PRIVATE_BROWSING_SERVICE_CONTRACTID,
-    nsPrivateBrowsingServiceWrapperConstructor }
+    nsSeamonkeyProfileMigratorConstructor }
 };
 
 NS_IMPL_NSGETMODULE(nsBrowserCompsModule, components)

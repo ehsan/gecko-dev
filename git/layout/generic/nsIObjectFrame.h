@@ -47,26 +47,22 @@
 
 class nsIPluginInstance;
 
-class nsIObjectFrame : public nsQueryFrame
-{
+// {3e2df1fe-a898-4e2e-8763-4ca904fa338e}
+#define NS_IOBJECTFRAME_IID \
+{ 0x3e2df1fe, 0xa898, 0x4e2e, { 0x87, 0x63, 0x4c, 0xa9, 0x4, 0xfa, 0x33, 0x8e } }
+
+class nsIObjectFrame : public nsISupports {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsIObjectFrame)
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IOBJECTFRAME_IID)
 
   NS_IMETHOD GetPluginInstance(nsIPluginInstance*& aPluginInstance) = 0;
 
   /**
    * Instantiate a plugin for a channel, returning a stream listener for the
    * data.
-   *
-   * @note Calling this method can delete the frame, so don't assume
-   *       the frame is alive after this call returns.
    */
   virtual nsresult Instantiate(nsIChannel* aChannel, nsIStreamListener** aStreamListener) = 0;
 
-  /**
-   * @note Calling this method can delete the frame, so don't assume
-   *       the frame is alive after this call returns.
-   */
   virtual void TryNotifyContentObjectWrapper() = 0;
 
   /**
@@ -77,9 +73,6 @@ public:
    *                  If aURI is null, aMimeType must not be the empty string.
    * @note XXX this method is here only temporarily, until plugins are loaded
    *       from content.
-   *
-   * @note Calling this method can delete the frame, so don't assume
-   *       the frame is alive after this call returns.
    */
   virtual nsresult Instantiate(const char* aMimeType, nsIURI* aURI) = 0;
 
@@ -89,19 +82,8 @@ public:
    * is currently active in this frame.
    */
   virtual void StopPlugin() = 0;
-
-  /**
-   * Get the native widget for the plugin, if any.
-   */
-  virtual nsIWidget* GetWidget() = 0;
-
-  /**
-   * Tells the object to paint directly in this location ignoring any
-   * positioning information that may have been provided otherwise.
-   */
-  virtual nsresult SetAbsoluteScreenPosition(class nsIDOMElement* element,
-                                             nsIDOMClientRect* position,
-                                             nsIDOMClientRect* clip) = 0;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsIObjectFrame, NS_IOBJECTFRAME_IID)
 
 #endif /* nsIObjectFrame_h___ */

@@ -76,16 +76,12 @@ private:
 
     nsCOMPtr<nsIEventTarget>       mTarget;
 
-    nsCOMPtr<nsISupports>          mCopierCtx;
-
     PRLock                        *mLock;
 
     nsAsyncCopyMode                mMode;
     PRUint32                       mChunkSize;
     nsresult                       mStatus;
     PRPackedBool                   mIsPending;
-    PRPackedBool                   mCloseSource;
-    PRPackedBool                   mCloseSink;
 };
 
 #endif // !nsAsyncStreamCopier_h__

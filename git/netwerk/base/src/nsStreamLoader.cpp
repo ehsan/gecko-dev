@@ -38,21 +38,6 @@
 #include "nsStreamLoader.h"
 #include "nsIInputStream.h"
 #include "nsIChannel.h"
-#include "nsNetError.h"
-
-nsStreamLoader::nsStreamLoader()
-  : mData(nsnull),
-    mAllocated(0),
-    mLength(0)
-{
-}
-
-nsStreamLoader::~nsStreamLoader()
-{
-  if (mData) {
-    NS_Free(mData);
-  }
-}
 
 NS_IMETHODIMP
 nsStreamLoader::Init(nsIStreamLoaderObserver* observer)
@@ -82,7 +67,7 @@ NS_IMPL_ISUPPORTS3(nsStreamLoader, nsIStreamLoader,
 NS_IMETHODIMP 
 nsStreamLoader::GetNumBytesRead(PRUint32* aNumBytes)
 {
-  *aNumBytes = mLength;
+  *aNumBytes = mData.Length();
   return NS_OK;
 }
 
@@ -103,11 +88,7 @@ nsStreamLoader::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
     chan->GetContentLength(&contentLength);
     if (contentLength >= 0) {
       // preallocate buffer
-      mData = static_cast<PRUint8*>(NS_Alloc(contentLength));
-      if (!mData) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      mAllocated = contentLength;
+      mData.SetCapacity(contentLength + 1);
     }
   }
   mContext = ctxt;
@@ -121,15 +102,10 @@ nsStreamLoader::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
   if (mObserver) {
     // provide nsIStreamLoader::request during call to OnStreamComplete
     mRequest = request;
-    nsresult rv = mObserver->OnStreamComplete(this, mContext, aStatus,
-                                              mLength, mData);
-    if (rv == NS_SUCCESS_ADOPTED_DATA) {
-      // the observer now owns the data buffer, and the loader must
-      // not deallocate it
-      mData = nsnull;
-      mLength = 0;
-      mAllocated = 0;
-    }
+    mObserver->OnStreamComplete(this, mContext, aStatus, 
+                                mData.Length(),
+                                reinterpret_cast<const PRUint8*>
+                                                (mData.get()));
     // done.. cleanup
     mRequest = 0;
     mObserver = 0;
@@ -148,24 +124,7 @@ nsStreamLoader::WriteSegmentFun(nsIInputStream *inStr,
 {
   nsStreamLoader *self = (nsStreamLoader *) closure;
 
-  if (count > PR_UINT32_MAX - self->mLength) {
-    return NS_ERROR_ILLEGAL_VALUE; // is there a better error to use here?
-  }
-
-  if (self->mLength + count > self->mAllocated) {
-    self->mData = static_cast<PRUint8*>(NS_Realloc(self->mData,
-                                                   self->mLength + count));
-    if (!self->mData) {
-      self->mLength = 0;
-      self->mAllocated = 0;
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-    self->mAllocated = self->mLength + count;
-  }
-
-  ::memcpy(self->mData + self->mLength, fromSegment, count);
-  self->mLength += count;
-
+  self->mData.Append(fromSegment, count);
   *writeCount = count;
 
   return NS_OK;

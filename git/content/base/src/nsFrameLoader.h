@@ -47,79 +47,34 @@
 #include "nsIDocShell.h"
 #include "nsStringFwd.h"
 #include "nsIFrameLoader.h"
-#include "nsIURI.h"
 
 class nsIContent;
 class nsIURI;
-class nsIFrameFrame;
 
 class nsFrameLoader : public nsIFrameLoader
 {
-protected:
+public:
   nsFrameLoader(nsIContent *aOwner) :
     mOwnerContent(aOwner),
     mDepthTooGreat(PR_FALSE),
-    mIsTopLevelContent(PR_FALSE),
-    mDestroyCalled(PR_FALSE),
-    mNeedsAsyncDestroy(PR_FALSE),
-    mInSwap(PR_FALSE)
+    mIsTopLevelContent(PR_FALSE)
   {}
-
-public:
-  ~nsFrameLoader() {
-    mNeedsAsyncDestroy = PR_TRUE;
-    nsFrameLoader::Destroy();
-  }
-
-  static nsFrameLoader* Create(nsIContent* aOwner);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsFrameLoader)
   NS_DECL_NSIFRAMELOADER
   NS_HIDDEN_(nsresult) CheckForRecursiveLoad(nsIURI* aURI);
-  nsresult ReallyStartLoading();
-  void Finalize();
-  nsIDocShell* GetExistingDocShell() { return mDocShell; }
-
-  nsresult CreateStaticClone(nsIFrameLoader* aDest);
-
-  /**
-   * Called from the layout frame associated with this frame loader;
-   * this notifies us to hook up with the widget and view.
-   */
-  bool Show(PRInt32 marginWidth, PRInt32 marginHeight,
-            PRInt32 scrollbarPrefX, PRInt32 scrollbarPrefY,
-            nsIFrameFrame* frame);
-
-  /**
-   * Called from the layout frame associated with this frame loader, when
-   * the frame is being torn down; this notifies us that out widget and view
-   * are going away and we should unhook from them.
-   */
-  void Hide();
-
-  nsresult CloneForStatic(nsIFrameLoader* aOriginal);
-
-  // The guts of an nsIFrameLoaderOwner::SwapFrameLoader implementation.  A
-  // frame loader owner needs to call this, and pass in the two references to
-  // nsRefPtrs for frame loaders that need to be swapped.
-  nsresult SwapWithOtherLoader(nsFrameLoader* aOther,
-                               nsRefPtr<nsFrameLoader>& aFirstToSwap,
-                               nsRefPtr<nsFrameLoader>& aSecondToSwap);
 private:
+  ~nsFrameLoader() { nsFrameLoader::Destroy(); }
 
   NS_HIDDEN_(nsresult) EnsureDocShell();
   NS_HIDDEN_(void) GetURL(nsString& aURL);
-  nsresult CheckURILoad(nsIURI* aURI);
 
   nsCOMPtr<nsIDocShell> mDocShell;
-  nsCOMPtr<nsIURI> mURIToLoad;
+
   nsIContent *mOwnerContent; // WEAK
-  PRPackedBool mDepthTooGreat : 1;
-  PRPackedBool mIsTopLevelContent : 1;
-  PRPackedBool mDestroyCalled : 1;
-  PRPackedBool mNeedsAsyncDestroy : 1;
-  PRPackedBool mInSwap : 1;
+  PRPackedBool mDepthTooGreat;
+  PRPackedBool mIsTopLevelContent;
 };
 
 #endif

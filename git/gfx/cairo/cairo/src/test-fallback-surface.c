@@ -37,8 +37,8 @@
  * test suite to test a mythical backend that uses nothing but
  * fallbacks.
  *
- * The defining feature of this backend is that it has as many %NULL
- * backend function entries as possible. The ones that aren't %NULL are
+ * The defining feature of this backend is that it has as many NULL
+ * backend function entries as possible. The ones that aren't NULL are
  * simply those that must be implemented to have working fallbacks.
  * (Except for create_similar---fallbacks would work fine without
  * that---I implemented it here in order to create as many surfaces as
@@ -62,7 +62,7 @@ typedef struct _test_fallback_surface {
     cairo_surface_t *backing;
 } test_fallback_surface_t;
 
-static const cairo_surface_backend_t test_fallback_surface_backend;
+const cairo_private cairo_surface_backend_t test_fallback_surface_backend;
 
 slim_hidden_proto (_cairo_test_fallback_surface_create);
 
@@ -76,12 +76,13 @@ _cairo_test_fallback_surface_create (cairo_content_t	content,
 
     backing = _cairo_image_surface_create_with_content (content, width, height);
     if (cairo_surface_status (backing))
-	return backing;
+	return (cairo_surface_t*) &_cairo_surface_nil;
 
     surface = malloc (sizeof (test_fallback_surface_t));
-    if (unlikely (surface == NULL)) {
+    if (surface == NULL) {
 	cairo_surface_destroy (backing);
-	return _cairo_surface_create_in_error (_cairo_error (CAIRO_STATUS_NO_MEMORY));
+	_cairo_error (CAIRO_STATUS_NO_MEMORY);
+	return (cairo_surface_t*) &_cairo_surface_nil;
     }
 
     _cairo_surface_init (&surface->base, &test_fallback_surface_backend,
@@ -172,20 +173,15 @@ _test_fallback_surface_release_dest_image (void			   *abstract_surface,
 static cairo_status_t
 _test_fallback_surface_clone_similar (void		  *abstract_surface,
 				      cairo_surface_t     *src,
-				      cairo_content_t      content,
 				      int                  src_x,
 				      int                  src_y,
 				      int                  width,
 				      int                  height,
-				      int                 *clone_offset_x,
-				      int                 *clone_offset_y,
 				      cairo_surface_t    **clone_out)
 {
     test_fallback_surface_t *surface = abstract_surface;
 
     if (src->backend == surface->base.backend) {
-	*clone_offset_x = 0;
-	*clone_offset_y = 0;
 	*clone_out = cairo_surface_reference (src);
 
 	return CAIRO_STATUS_SUCCESS;
@@ -203,7 +199,7 @@ _test_fallback_surface_get_extents (void		  *abstract_surface,
     return _cairo_surface_get_extents (surface->backing, rectangle);
 }
 
-static const cairo_surface_backend_t test_fallback_surface_backend = {
+const cairo_surface_backend_t test_fallback_surface_backend = {
     CAIRO_INTERNAL_SURFACE_TYPE_TEST_FALLBACK,
     _test_fallback_surface_create_similar,
     _test_fallback_surface_finish,
@@ -215,8 +211,6 @@ static const cairo_surface_backend_t test_fallback_surface_backend = {
     NULL, /* composite */
     NULL, /* fill_rectangles */
     NULL, /* composite_trapezoids */
-    NULL, /* create_span_renderer */
-    NULL, /* check_span_renderer */
     NULL, /* copy_page */
     NULL, /* show_page */
     NULL, /* set_clip_region */

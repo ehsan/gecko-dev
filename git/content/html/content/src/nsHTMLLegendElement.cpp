@@ -45,10 +45,10 @@
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsIEventStateManager.h"
+#include "nsIFocusController.h"
 #include "nsIDocument.h"
 #include "nsPIDOMWindow.h"
-#include "nsFocusManager.h"
-#include "nsIFrame.h"
+
 
 class nsHTMLLegendElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLLegendElement
@@ -78,17 +78,13 @@ public:
   NS_IMETHOD SubmitNamesValues(nsIFormSubmission* aFormSubmission,
                                nsIContent* aSubmitElement);
 
-  NS_IMETHODIMP Focus();
-
-  virtual void PerformAccesskey(PRBool aKeyCausesActivation,
-                                PRBool aIsTrustedEvent);
-
   // nsIContent
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
   virtual void UnbindFromTree(PRBool aDeep = PR_TRUE,
                               PRBool aNullParent = PR_TRUE);
+  virtual void SetFocus(nsPresContext* aPresContext);
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
@@ -128,10 +124,9 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLLegendElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLLegendElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLLegendElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLLegendElement, nsIDOMHTMLLegendElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLLegendElement,
-                                               nsGenericHTMLFormElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLLegendElement,
+                                     nsGenericHTMLFormElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLLegendElement, nsIDOMHTMLLegendElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLLegendElement)
 
 
@@ -253,34 +248,30 @@ nsHTMLLegendElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
   nsGenericHTMLFormElement::UnbindFromTree(aDeep, aNullParent);
 }
 
-NS_IMETHODIMP
-nsHTMLLegendElement::Focus()
-{
-  nsIFrame* frame = GetPrimaryFrame();
-  if (!frame)
-    return NS_OK;
-
-  PRInt32 tabIndex;
-  if (frame->IsFocusable(&tabIndex))
-    return nsGenericHTMLElement::Focus();
-
-  // If the legend isn't focusable, focus whatever is focusable following
-  // the legend instead, bug 81481.
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  if (!fm)
-    return NS_OK;
-
-  nsCOMPtr<nsIDOMElement> result;
-  return fm->MoveFocus(nsnull, this, nsIFocusManager::MOVEFOCUS_FORWARD, 0,
-                       getter_AddRefs(result));
-}
-
 void
-nsHTMLLegendElement::PerformAccesskey(PRBool aKeyCausesActivation,
-                                      PRBool aIsTrustedEvent)
+nsHTMLLegendElement::SetFocus(nsPresContext* aPresContext)
 {
-  // just use the same behaviour as the focus method
-  Focus();
+  nsIDocument *document = GetCurrentDoc();
+  if (!aPresContext || !document) {
+    return;
+  }
+
+  if (IsFocusable()) {
+    nsGenericHTMLFormElement::SetFocus(aPresContext);
+  } else {
+    // If the legend isn't focusable (no tabindex) we focus whatever is
+    // focusable following the legend instead, bug 81481.
+    nsCOMPtr<nsPIDOMWindow> ourWindow = document->GetWindow();
+    if (ourWindow) {
+      nsIFocusController* focusController =
+        ourWindow->GetRootFocusController();
+      nsCOMPtr<nsIDOMElement> domElement =
+        do_QueryInterface(static_cast<nsIContent *>(this));
+      if (focusController && domElement) {
+        focusController->MoveFocus(PR_TRUE, domElement);
+      }
+    }
+  }
 }
 
 NS_IMETHODIMP

@@ -76,6 +76,7 @@ public:
   virtual JSObject *GetGlobalJSObject();
   virtual void OnFinalize(PRUint32 aLangID, void *aScriptGlobal);
   virtual void SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts);
+  virtual nsresult SetNewArguments(nsIArray *aArguments);
 
   // nsIScriptObjectPrincipal methods
   virtual nsIPrincipal* GetPrincipal();
@@ -126,7 +127,7 @@ nsXBLDocGlobalObject::doCheckAccess(JSContext *cx, JSObject *obj, jsval id, PRUi
   return NS_SUCCEEDED(rv);
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 nsXBLDocGlobalObject_getProperty(JSContext *cx, JSObject *obj,
                                  jsval id, jsval *vp)
 {
@@ -134,7 +135,7 @@ nsXBLDocGlobalObject_getProperty(JSContext *cx, JSObject *obj,
     doCheckAccess(cx, obj, id, nsIXPCSecurityManager::ACCESS_GET_PROPERTY);
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 nsXBLDocGlobalObject_setProperty(JSContext *cx, JSObject *obj,
                                  jsval id, jsval *vp)
 {
@@ -142,7 +143,7 @@ nsXBLDocGlobalObject_setProperty(JSContext *cx, JSObject *obj,
     doCheckAccess(cx, obj, id, nsIXPCSecurityManager::ACCESS_SET_PROPERTY);
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 nsXBLDocGlobalObject_checkAccess(JSContext *cx, JSObject *obj, jsval id,
                                  JSAccessMode mode, jsval *vp)
 {
@@ -157,7 +158,7 @@ nsXBLDocGlobalObject_checkAccess(JSContext *cx, JSObject *obj, jsval id,
     doCheckAccess(cx, obj, id, translated);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 nsXBLDocGlobalObject_finalize(JSContext *cx, JSObject *obj)
 {
   nsISupports *nativeThis = (nsISupports*)JS_GetPrivate(cx, obj);
@@ -171,7 +172,7 @@ nsXBLDocGlobalObject_finalize(JSContext *cx, JSObject *obj)
   NS_RELEASE(nativeThis);
 }
 
-static JSBool
+PR_STATIC_CALLBACK(JSBool)
 nsXBLDocGlobalObject_resolve(JSContext *cx, JSObject *obj, jsval id)
 {
   JSBool did_resolve = JS_FALSE;
@@ -216,7 +217,7 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF_AMBIGUOUS(nsXBLDocGlobalObject, nsIScriptGlobalObject)
 NS_IMPL_CYCLE_COLLECTING_RELEASE_AMBIGUOUS(nsXBLDocGlobalObject, nsIScriptGlobalObject)
 
-void
+void JS_DLL_CALLBACK
 XBL_ProtoErrorReporter(JSContext *cx,
                        const char *message,
                        JSErrorReport *report)
@@ -264,7 +265,6 @@ nsXBLDocGlobalObject::SetContext(nsIScriptContext *aScriptContext)
   nsresult rv;
   rv = aScriptContext->InitContext(nsnull);
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Script Language's InitContext failed");
-  aScriptContext->SetGCOnDestruction(PR_FALSE);
   aScriptContext->DidInitializeContext();
   // and we set up our global manually
   mScriptContext = aScriptContext;
@@ -392,6 +392,13 @@ nsXBLDocGlobalObject::SetScriptsEnabled(PRBool aEnabled, PRBool aFireTimeouts)
     // We don't care...
 }
 
+nsresult
+nsXBLDocGlobalObject::SetNewArguments(nsIArray *aArguments)
+{
+  NS_NOTREACHED("waaah!");
+  return NS_ERROR_UNEXPECTED;
+}
+
 //----------------------------------------------------------------------
 //
 // nsIScriptObjectPrincipal methods
@@ -427,7 +434,7 @@ static PRBool IsChromeURI(nsIURI* aURI)
 
 /* Implementation file */
 
-static PRIntn
+static PRIntn PR_CALLBACK
 TraverseProtos(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb = 
@@ -437,36 +444,19 @@ TraverseProtos(nsHashKey *aKey, void *aData, void* aClosure)
   return kHashEnumerateNext;
 }
 
-static PRIntn
-UnlinkProtoJSObjects(nsHashKey *aKey, void *aData, void* aClosure)
+static PRIntn PR_CALLBACK
+UnlinkProtos(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsXBLPrototypeBinding *proto = static_cast<nsXBLPrototypeBinding*>(aData);
-  proto->UnlinkJSObjects();
-  return kHashEnumerateNext;
-}
-
-struct ProtoTracer
-{
-  TraceCallback mCallback;
-  void *mClosure;
-};
-
-static PRIntn
-TraceProtos(nsHashKey *aKey, void *aData, void* aClosure)
-{
-  ProtoTracer* closure = static_cast<ProtoTracer*>(aClosure);
-  nsXBLPrototypeBinding *proto = static_cast<nsXBLPrototypeBinding*>(aData);
-  proto->Trace(closure->mCallback, closure->mClosure);
+  proto->Unlink();
   return kHashEnumerateNext;
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLDocumentInfo)
-NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsXBLDocumentInfo)
-  if (tmp->mBindingTable) {
-    tmp->mBindingTable->Enumerate(UnlinkProtoJSObjects, nsnull);
-  }
-NS_IMPL_CYCLE_COLLECTION_ROOT_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLDocumentInfo)
+  if (tmp->mBindingTable) {
+    tmp->mBindingTable->Enumerate(UnlinkProtos, nsnull);
+  }
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -476,14 +466,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXBLDocumentInfo)
     tmp->mBindingTable->Enumerate(TraverseProtos, &cb);
   }
   cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObject*>(tmp->mGlobalObject));
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXBLDocumentInfo)
-  if (tmp->mBindingTable) {
-    ProtoTracer closure = { aCallback, aClosure };
-    tmp->mBindingTable->Enumerate(TraceProtos, &closure);
-  }
-NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXBLDocumentInfo)
   NS_INTERFACE_MAP_ENTRY(nsIXBLDocumentInfo)
@@ -524,10 +507,7 @@ nsXBLDocumentInfo::~nsXBLDocumentInfo()
     mGlobalObject->SetScriptContext(nsIProgrammingLanguage::JAVASCRIPT, nsnull);
     mGlobalObject->ClearGlobalObjectOwner(); // just in case
   }
-  if (mBindingTable) {
-    NS_DROP_JS_OBJECTS(this, nsXBLDocumentInfo);
-    delete mBindingTable;
-  }
+  delete mBindingTable;
 }
 
 NS_IMETHODIMP
@@ -550,7 +530,7 @@ nsXBLDocumentInfo::GetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBin
   return NS_OK;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 DeletePrototypeBinding(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsXBLPrototypeBinding* binding = static_cast<nsXBLPrototypeBinding*>(aData);
@@ -561,17 +541,11 @@ DeletePrototypeBinding(nsHashKey* aKey, void* aData, void* aClosure)
 NS_IMETHODIMP
 nsXBLDocumentInfo::SetPrototypeBinding(const nsACString& aRef, nsXBLPrototypeBinding* aBinding)
 {
-  if (!mBindingTable) {
+  if (!mBindingTable)
     mBindingTable = new nsObjectHashtable(nsnull, nsnull, DeletePrototypeBinding, nsnull);
-    if (!mBindingTable)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    NS_HOLD_JS_OBJECTS(this, nsXBLDocumentInfo);
-  }
 
   const nsPromiseFlatCString& flat = PromiseFlatCString(aRef);
   nsCStringKey key(flat.get());
-  NS_ENSURE_STATE(!mBindingTable->Get(&key));
   mBindingTable->Put(&key, aBinding);
 
   return NS_OK;
@@ -585,7 +559,7 @@ nsXBLDocumentInfo::SetFirstPrototypeBinding(nsXBLPrototypeBinding* aBinding)
   return NS_OK;
 }
 
-PRBool FlushScopedSkinSheets(nsHashKey* aKey, void* aData, void* aClosure)
+PRBool PR_CALLBACK FlushScopedSkinSheets(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsXBLPrototypeBinding* proto = (nsXBLPrototypeBinding*)aData;
   proto->FlushSkinSheets();

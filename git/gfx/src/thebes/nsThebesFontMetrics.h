@@ -57,8 +57,7 @@ public:
     NS_DECL_ISUPPORTS
 
     NS_IMETHOD  Init(const nsFont& aFont, nsIAtom* aLangGroup,
-                     nsIDeviceContext *aContext, 
-                     gfxUserFontSet *aUserFontSet = nsnull);
+                     nsIDeviceContext *aContext);
     NS_IMETHOD  Destroy();
     NS_IMETHOD  GetXHeight(nscoord& aResult);
     NS_IMETHOD  GetSuperscriptOffset(nscoord& aResult);
@@ -79,11 +78,14 @@ public:
     NS_IMETHOD  GetFontHandle(nsFontHandle &aHandle);
     NS_IMETHOD  GetAveCharWidth(nscoord& aAveCharWidth);
     NS_IMETHOD  GetSpaceWidth(nscoord& aSpaceCharWidth);
+    NS_IMETHOD  GetLeading(nscoord& aLeading);
+    NS_IMETHOD  GetNormalLineHeight(nscoord& aLineHeight);
     virtual PRInt32 GetMaxStringLength();
 
 
     virtual nsresult GetWidth(const char* aString, PRUint32 aLength, nscoord& aWidth,
                               nsThebesRenderingContext *aContext);
+    // aCachedOffset will be updated with a new offset.
     virtual nsresult GetWidth(const PRUnichar* aString, PRUint32 aLength,
                               nscoord& aWidth, PRInt32 *aFontID,
                               nsThebesRenderingContext *aContext);
@@ -117,6 +119,7 @@ public:
                                 nscoord aX, nscoord aY,
                                 const nscoord* aSpacing,
                                 nsThebesRenderingContext *aContext);
+    // aCachedOffset will be updated with a new offset.
     virtual nsresult DrawString(const PRUnichar* aString, PRUint32 aLength,
                                 nscoord aX, nscoord aY,
                                 PRInt32 aFontID,
@@ -125,14 +128,16 @@ public:
 
 #ifdef MOZ_MATHML
     // These two functions get the bounding metrics for this handle,
-    // updating the aBoundingMetrics in app units.
+    // updating the aBoundingMetrics in Points.  This means that the
+    // caller will have to update them to twips before passing it
+    // back.
     virtual nsresult GetBoundingMetrics(const char *aString, PRUint32 aLength,
-                                        nsThebesRenderingContext *aContext,
                                         nsBoundingMetrics &aBoundingMetrics);
+    // aCachedOffset will be updated with a new offset.
     virtual nsresult GetBoundingMetrics(const PRUnichar *aString,
                                         PRUint32 aLength,
-                                        nsThebesRenderingContext *aContext,
-                                        nsBoundingMetrics &aBoundingMetrics);
+                                        nsBoundingMetrics &aBoundingMetrics,
+                                        PRInt32 *aFontID);
 #endif /* MOZ_MATHML */
 
     // Set the direction of the text rendering
@@ -141,8 +146,6 @@ public:
     virtual void SetTextRunRTL(PRBool aIsRTL) { mTextRunRTL = aIsRTL; }
 
     virtual gfxFontGroup* GetThebesFontGroup() { return mFontGroup; }
-
-    virtual gfxUserFontSet* GetUserFontSet();
     
     PRBool GetRightToLeftTextRunMode() {
         return mTextRunRTL;
@@ -155,20 +158,21 @@ protected:
     class AutoTextRun {
     public:
         AutoTextRun(nsThebesFontMetrics* aMetrics, nsIRenderingContext* aRC,
-                    const char* aString, PRInt32 aLength) {
+                    const char* aString, PRInt32 aLength, PRBool aEnableSpacing) {
             mTextRun = gfxTextRunCache::MakeTextRun(
                 reinterpret_cast<const PRUint8*>(aString), aLength,
-                aMetrics->mFontGroup, aRC->ThebesContext(),
+                aMetrics->mFontGroup,
+                static_cast<gfxContext*>(aRC->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT)),
                 aMetrics->mP2A,
-                ComputeFlags(aMetrics));
+                ComputeFlags(aMetrics, aEnableSpacing));
         }
         AutoTextRun(nsThebesFontMetrics* aMetrics, nsIRenderingContext* aRC,
-                    const PRUnichar* aString, PRInt32 aLength) {
+                    const PRUnichar* aString, PRInt32 aLength, PRBool aEnableSpacing) {
             mTextRun = gfxTextRunCache::MakeTextRun(
                 aString, aLength, aMetrics->mFontGroup,
-                aRC->ThebesContext(),
+                static_cast<gfxContext*>(aRC->GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT)),
                 aMetrics->mP2A,
-                ComputeFlags(aMetrics));
+                ComputeFlags(aMetrics, aEnableSpacing));
         }
         gfxTextRun* operator->() { return mTextRun.get(); }
         gfxTextRun* get() { return mTextRun.get(); }
@@ -176,10 +180,16 @@ protected:
     private:
         gfxTextRunCache::AutoTextRun mTextRun;
         
-        static PRUint32 ComputeFlags(nsThebesFontMetrics* aMetrics) {
+        static PRUint32 ComputeFlags(nsThebesFontMetrics* aMetrics,
+                                     PRBool aEnableSpacing) {
             PRUint32 flags = 0;
             if (aMetrics->GetRightToLeftTextRunMode()) {
                 flags |= gfxTextRunFactory::TEXT_IS_RTL;
+            }
+            if (aEnableSpacing) {
+                flags |= gfxTextRunFactory::TEXT_ENABLE_SPACING |
+                         gfxTextRunFactory::TEXT_ABSOLUTE_SPACING |
+                         gfxTextRunFactory::TEXT_ENABLE_NEGATIVE_SPACING;
             }
             return flags;
         }

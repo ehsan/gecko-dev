@@ -39,7 +39,6 @@
 #ifndef CAIRO_HASH_PRIVATE_H
 #define CAIRO_HASH_PRIVATE_H
 
-#include "cairo-compiler-private.h"
 #include "cairo-types-private.h"
 
 /* XXX: I'd like this file to be self-contained in terms of
@@ -51,7 +50,7 @@ typedef cairo_bool_t
 (*cairo_hash_keys_equal_func_t) (const void *key_a, const void *key_b);
 
 typedef cairo_bool_t
-(*cairo_hash_predicate_func_t) (const void *entry);
+(*cairo_hash_predicate_func_t) (void *entry);
 
 typedef void
 (*cairo_hash_callback_func_t) (void *entry,
@@ -63,9 +62,10 @@ _cairo_hash_table_create (cairo_hash_keys_equal_func_t keys_equal);
 cairo_private void
 _cairo_hash_table_destroy (cairo_hash_table_t *hash_table);
 
-cairo_private void *
+cairo_private cairo_bool_t
 _cairo_hash_table_lookup (cairo_hash_table_t  *hash_table,
-			  cairo_hash_entry_t  *key);
+			  cairo_hash_entry_t  *key,
+			  cairo_hash_entry_t **entry_return);
 
 cairo_private void *
 _cairo_hash_table_random_entry (cairo_hash_table_t	   *hash_table,
@@ -80,7 +80,7 @@ _cairo_hash_table_remove (cairo_hash_table_t *hash_table,
 			  cairo_hash_entry_t *key);
 
 cairo_private void
-_cairo_hash_table_foreach (cairo_hash_table_t	      *hash_table,
+_cairo_hash_table_foreach (cairo_hash_table_t 	      *hash_table,
 			   cairo_hash_callback_func_t  hash_callback,
 			   void			      *closure);
 

@@ -57,7 +57,10 @@
 class nsGridRowGroupFrame : public nsBoxFrame
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
+
+  friend nsIFrame* NS_NewGridRowGroupFrame(nsIPresShell* aPresShell,
+                                           nsStyleContext* aContext,
+                                           nsIBoxLayout* aLayoutManager);
 
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const
@@ -68,8 +71,9 @@ public:
 
   nsGridRowGroupFrame(nsIPresShell* aPresShell,
                       nsStyleContext* aContext,
+                      PRBool aIsRoot,
                       nsIBoxLayout* aLayoutManager):
-    nsBoxFrame(aPresShell, aContext, PR_FALSE, aLayoutManager) {}
+    nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager) {}
 
   virtual nscoord GetFlex(nsBoxLayoutState& aBoxLayoutState);
 

@@ -74,7 +74,6 @@
 #define SAFARI_COOKIES_FILE_NAME          NS_LITERAL_STRING("Cookies.plist")
 #define SAFARI_COOKIE_BEHAVIOR_FILE_NAME  NS_LITERAL_STRING("com.apple.WebFoundation.plist")
 #define SAFARI_DATE_OFFSET                978307200
-#define SAFARI_HOME_PAGE_PREF             "HomePage"
 #define MIGRATION_BUNDLE                  "chrome://browser/locale/migration/migration.properties"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -208,6 +207,33 @@ nsSafariProfileMigrator::GetSourceProfiles(nsISupportsArray** aResult)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsSafariProfileMigrator::GetSourceHomePageURL(nsACString& aResult)
+{
+  aResult.Truncate();
+
+  ICInstance internetConfig;
+  OSStatus error = ::ICStart(&internetConfig, 'FRFX');
+  if (error != noErr)
+    return NS_ERROR_FAILURE;
+
+  ICAttr dummy;
+  Str255 homePagePValue;
+  long prefSize = sizeof(homePagePValue);
+  error = ::ICGetPref(internetConfig, kICWWWHomePage, &dummy,
+                      homePagePValue, &prefSize);
+  if (error != noErr)
+    return NS_ERROR_FAILURE;
+
+  char homePageValue[256] = "";
+  CopyPascalStringToC((ConstStr255Param)homePagePValue, homePageValue);
+  aResult.Assign(homePageValue);
+
+  ::ICStop(internetConfig);
+
+  return NS_OK;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // nsSafariProfileMigrator
 
@@ -215,41 +241,35 @@ CFPropertyListRef CopyPListFromFile(nsILocalFile* aPListFile)
 {
   PRBool exists;
   aPListFile->Exists(&exists);
-  if (!exists)
-    return nsnull;
-
   nsCAutoString filePath;
   aPListFile->GetNativePath(filePath);
+  if (!exists)
+    return nsnull;
 
   nsCOMPtr<nsILocalFileMac> macFile(do_QueryInterface(aPListFile));
   CFURLRef urlRef;
   macFile->GetCFURL(&urlRef);
 
-  // It is possible for CFURLCreateDataAndPropertiesFromResource to allocate resource
-  // data and then return a failure so be careful to check both and clean up properly.
+  CFDataRef resourceData;
+
   SInt32 errorCode;
-  CFDataRef resourceData = NULL;
-  Boolean dataSuccess = ::CFURLCreateDataAndPropertiesFromResource(kCFAllocatorDefault,
-                                                                   urlRef,
-                                                                   &resourceData,
-                                                                   NULL,
-                                                                   NULL,
-                                                                   &errorCode);
+  Boolean status = ::CFURLCreateDataAndPropertiesFromResource(kCFAllocatorDefault,
+                                                              urlRef,
+                                                              &resourceData,
+                                                              NULL,
+                                                              NULL,
+                                                              &errorCode);
+  if (!status)
+    return nsnull;
 
-  CFPropertyListRef propertyList = NULL;
-  if (resourceData) {
-    if (dataSuccess) {
-      propertyList = ::CFPropertyListCreateFromXMLData(kCFAllocatorDefault,
-                                                       resourceData,
-                                                       kCFPropertyListImmutable,
-                                                       NULL);
-    }
-    ::CFRelease(resourceData);
-  }
-
+  CFPropertyListRef result = ::CFPropertyListCreateFromXMLData(kCFAllocatorDefault,
+                                                               resourceData,
+                                                               kCFPropertyListImmutable,
+                                                               NULL);
+  ::CFRelease(resourceData);
   ::CFRelease(urlRef);
 
-  return propertyList;
+  return result;
 }
 
 CFDictionaryRef CopySafariPrefs()
@@ -262,7 +282,7 @@ CFDictionaryRef CopySafariPrefs()
 
   safariPrefsFile->Append(SAFARI_PREFERENCES_FILE_NAME);
 
-  return static_cast<CFDictionaryRef>(CopyPListFromFile(safariPrefsFile));
+  return (CFDictionaryRef)CopyPListFromFile(safariPrefsFile);
 }
 
 char*
@@ -340,22 +360,23 @@ GetArrayStringValue(CFArrayRef aArray, PRInt32 aIndex, nsAString& aResult)
 
 static
 nsSafariProfileMigrator::PrefTransform gTransforms[] = {
-  { CFSTR("AlwaysShowTabBar"),            _SPM(BOOL),     "browser.tabs.autoHide",          _SPM(SetBoolInverted), PR_FALSE, { -1 } },
-  { CFSTR("AutoFillPasswords"),           _SPM(BOOL),     "signon.rememberSignons",         _SPM(SetBool), PR_FALSE, { -1 } },
-  { CFSTR("OpenNewTabsInFront"),          _SPM(BOOL),     "browser.tabs.loadInBackground",  _SPM(SetBoolInverted), PR_FALSE, { -1 } },
-  { CFSTR("NSDefaultOpenDir"),            _SPM(STRING),   "browser.download.dir",           _SPM(SetDownloadFolder), PR_FALSE, { -1 } },
-  { CFSTR("AutoOpenSafeDownloads"),       _SPM(BOOL),     nsnull,                           _SPM(SetDownloadHandlers), PR_FALSE, { -1 } },
-  { CFSTR("DownloadsClearingPolicy"),     _SPM(INT),      "browser.download.manager.retention", _SPM(SetDownloadRetention), PR_FALSE, { -1 } },
-  { CFSTR("WebKitDefaultTextEncodingName"),_SPM(STRING),  "intl.charset.default",           _SPM(SetDefaultEncoding), PR_FALSE, { -1 } },
-  { CFSTR("WebKitStandardFont"),          _SPM(STRING),   "font.name.serif.",               _SPM(SetFontName), PR_FALSE, { -1 } },
-  { CFSTR("WebKitDefaultFontSize"),       _SPM(INT),      "font.size.serif.",               _SPM(SetFontSize), PR_FALSE, { -1 } },
-  { CFSTR("WebKitFixedFont"),             _SPM(STRING),   "font.name.fixed.",               _SPM(SetFontName), PR_FALSE, { -1 } },
-  { CFSTR("WebKitDefaultFixedFontSize"),  _SPM(INT),      "font.size.fixed.",               _SPM(SetFontSize), PR_FALSE, { -1 } },
-  { CFSTR("WebKitMinimumFontSize"),       _SPM(INT),      "font.minimum-size.",             _SPM(SetFontSize), PR_FALSE, { -1 } },
-  { CFSTR("WebKitDisplayImagesKey"),      _SPM(BOOL),     "permissions.default.image",      _SPM(SetDisplayImages), PR_FALSE, { -1 } },
-  { CFSTR("WebKitJavaScriptEnabled"),     _SPM(BOOL),     "javascript.enabled",             _SPM(SetBool), PR_FALSE, { -1 } },
+  { CFSTR("AlwaysShowTabBar"),            _SPM(BOOL),     "browser.tabs.autoHide",          _SPM(SetBoolInverted), PR_FALSE, -1 },
+  { CFSTR("AutoFillPasswords"),           _SPM(BOOL),     "signon.rememberSignons",         _SPM(SetBool), PR_FALSE, -1 },
+  { CFSTR("OpenNewTabsInFront"),          _SPM(BOOL),     "browser.tabs.loadInBackground",  _SPM(SetBoolInverted), PR_FALSE, -1 },
+  { CFSTR("NSDefaultOpenDir"),            _SPM(STRING),   "browser.download.dir",           _SPM(SetDownloadFolder), PR_FALSE, -1 },
+  { CFSTR("AutoOpenSafeDownloads"),       _SPM(BOOL),     nsnull,                           _SPM(SetDownloadHandlers), PR_FALSE, -1 },
+  { CFSTR("DownloadsClearingPolicy"),     _SPM(INT),      "browser.download.manager.retention", _SPM(SetDownloadRetention), PR_FALSE, -1 },
+  { CFSTR("WebKitDefaultTextEncodingName"),_SPM(STRING),  "intl.charset.default",           _SPM(SetDefaultEncoding), PR_FALSE, -1 },
+  { CFSTR("WebKitStandardFont"),          _SPM(STRING),   "font.name.serif.",               _SPM(SetFontName), PR_FALSE, -1 },
+  { CFSTR("WebKitDefaultFontSize"),       _SPM(INT),      "font.size.serif.",               _SPM(SetFontSize), PR_FALSE, -1 },
+  { CFSTR("WebKitFixedFont"),             _SPM(STRING),   "font.name.fixed.",               _SPM(SetFontName), PR_FALSE, -1 },
+  { CFSTR("WebKitDefaultFixedFontSize"),  _SPM(INT),      "font.size.fixed.",               _SPM(SetFontSize), PR_FALSE, -1 },
+  { CFSTR("WebKitMinimumFontSize"),       _SPM(INT),      "font.minimum-size.",             _SPM(SetFontSize), PR_FALSE, -1 },
+  { CFSTR("WebKitDisplayImagesKey"),      _SPM(BOOL),     "permissions.default.image",      _SPM(SetDisplayImages), PR_FALSE, -1 },
+  { CFSTR("WebKitJavaEnabled"),           _SPM(BOOL),     "security.enable_java",           _SPM(SetBool), PR_FALSE, -1 },
+  { CFSTR("WebKitJavaScriptEnabled"),     _SPM(BOOL),     "javascript.enabled",             _SPM(SetBool), PR_FALSE, -1 },
   { CFSTR("WebKitJavaScriptCanOpenWindowsAutomatically"),
-                                          _SPM(BOOL),     "dom.disable_open_during_load",   _SPM(SetBoolInverted), PR_FALSE, { -1 } }
+                                          _SPM(BOOL),     "dom.disable_open_during_load",   _SPM(SetBoolInverted), PR_FALSE, -1 }
 };
 
 nsresult
@@ -735,7 +756,7 @@ nsSafariProfileMigrator::CopyPreferences(PRBool aReplace)
   safariWebFoundationPrefsFile->Append(SAFARI_COOKIE_BEHAVIOR_FILE_NAME);
 
   CFDictionaryRef safariWebFoundationPrefs =
-    static_cast<CFDictionaryRef>(CopyPListFromFile(safariWebFoundationPrefsFile));
+                  (CFDictionaryRef)CopyPListFromFile(safariWebFoundationPrefsFile);
   if (safariWebFoundationPrefs) {
     // Mapping of Safari preference values to Firefox preference values:
     //
@@ -809,58 +830,18 @@ nsSafariProfileMigrator::CopyCookies(PRBool aReplace)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsSafariProfileMigrator::RunBatched(nsISupports* aUserData)
-{
-  PRUint8 batchAction;
-  nsCOMPtr<nsISupportsPRUint8> strWrapper(do_QueryInterface(aUserData));
-  NS_ASSERTION(strWrapper, "Unable to create nsISupportsPRUint8 wrapper!");
-  nsresult rv = strWrapper->GetData(&batchAction);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  switch (batchAction) {
-    case BATCH_ACTION_HISTORY:
-      rv = CopyHistoryBatched(PR_FALSE);
-      break;
-    case BATCH_ACTION_HISTORY_REPLACE:
-      rv = CopyHistoryBatched(PR_TRUE);
-      break;
-    case BATCH_ACTION_BOOKMARKS:
-      rv = CopyBookmarksBatched(PR_FALSE);
-      break;
-    case BATCH_ACTION_BOOKMARKS_REPLACE:
-      rv = CopyBookmarksBatched(PR_TRUE);
-      break;
-  }
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
 nsresult
 nsSafariProfileMigrator::CopyHistory(PRBool aReplace)
 {
   nsresult rv;
-  nsCOMPtr<nsINavHistoryService> history =
-    do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID, &rv);
+  nsCOMPtr<nsINavHistoryService> history = do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint8 batchAction = aReplace ? BATCH_ACTION_HISTORY_REPLACE
-                                 : BATCH_ACTION_HISTORY;
-  nsCOMPtr<nsISupportsPRUint8> supports =
-    do_CreateInstance(NS_SUPPORTS_PRUINT8_CONTRACTID);
-  NS_ENSURE_TRUE(supports, NS_ERROR_OUT_OF_MEMORY);
-  rv = supports->SetData(batchAction);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = history->RunInBatchMode(this, supports);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return rv;
+ 
+  return history->RunInBatchMode(this, nsnull);
 }
  
-nsresult
-nsSafariProfileMigrator::CopyHistoryBatched(PRBool aReplace)
+NS_IMETHODIMP
+nsSafariProfileMigrator::RunBatched(nsISupports* aUserData)
 {
   nsCOMPtr<nsIProperties> fileLocator(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
   nsCOMPtr<nsILocalFile> safariHistoryFile;
@@ -869,8 +850,7 @@ nsSafariProfileMigrator::CopyHistoryBatched(PRBool aReplace)
   safariHistoryFile->Append(NS_LITERAL_STRING("Safari"));
   safariHistoryFile->Append(SAFARI_HISTORY_FILE_NAME);
 
-  CFDictionaryRef safariHistory =
-    static_cast<CFDictionaryRef>(CopyPListFromFile(safariHistoryFile));
+  CFDictionaryRef safariHistory = (CFDictionaryRef)CopyPListFromFile(safariHistoryFile);
   if (!safariHistory)
     return NS_OK;
 
@@ -918,64 +898,36 @@ nsSafariProfileMigrator::CopyHistoryBatched(PRBool aReplace)
 nsresult
 nsSafariProfileMigrator::CopyBookmarks(PRBool aReplace)
 {
-  nsresult rv;
-  nsCOMPtr<nsINavBookmarksService> bookmarks =
-    do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint8 batchAction = aReplace ? BATCH_ACTION_BOOKMARKS_REPLACE
-                                 : BATCH_ACTION_BOOKMARKS;
-  nsCOMPtr<nsISupportsPRUint8> supports =
-    do_CreateInstance(NS_SUPPORTS_PRUINT8_CONTRACTID);
-  NS_ENSURE_TRUE(supports, NS_ERROR_OUT_OF_MEMORY);
-  rv = supports->SetData(batchAction);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = bookmarks->RunInBatchMode(this, supports);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-nsresult
-nsSafariProfileMigrator::CopyBookmarksBatched(PRBool aReplace)
-{
   // If "aReplace" is true, merge into the root level of bookmarks. Otherwise, create
   // a folder called "Imported Safari Favorites" and place all the Bookmarks there.
   nsresult rv;
 
-  nsCOMPtr<nsINavBookmarksService> bms =
-    do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv);
+  nsCOMPtr<nsINavBookmarksService> bms(do_GetService(NS_NAVBOOKMARKSSERVICE_CONTRACTID, &rv));
   NS_ENSURE_SUCCESS(rv, rv);
-  PRInt64 bookmarksMenuFolderId;
-  rv = bms->GetBookmarksMenuFolder(&bookmarksMenuFolderId);
+  PRInt64 root;
+  rv = bms->GetBookmarksRoot(&root);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt64 folder;
   if (!aReplace) {
-    nsCOMPtr<nsIStringBundleService> bundleService =
-      do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIStringBundleService> bundleService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
+    if (NS_FAILED(rv)) return rv;
+
     nsCOMPtr<nsIStringBundle> bundle;
-    rv = bundleService->CreateBundle(MIGRATION_BUNDLE, getter_AddRefs(bundle));
-    NS_ENSURE_SUCCESS(rv, rv);
+    bundleService->CreateBundle(MIGRATION_BUNDLE, getter_AddRefs(bundle));
 
     nsString sourceNameSafari;
-    rv = bundle->GetStringFromName(NS_LITERAL_STRING("sourceNameSafari").get(),
-                                   getter_Copies(sourceNameSafari));
-    NS_ENSURE_SUCCESS(rv, rv);
+    bundle->GetStringFromName(NS_LITERAL_STRING("sourceNameSafari").get(),
+                              getter_Copies(sourceNameSafari));
 
     const PRUnichar* sourceNameStrings[] = { sourceNameSafari.get() };
     nsString importedSafariBookmarksTitle;
-    rv = bundle->FormatStringFromName(NS_LITERAL_STRING("importedBookmarksFolder").get(),
-                                      sourceNameStrings, 1,
-                                      getter_Copies(importedSafariBookmarksTitle));
-    NS_ENSURE_SUCCESS(rv, rv);
+    bundle->FormatStringFromName(NS_LITERAL_STRING("importedBookmarksFolder").get(),
+                                 sourceNameStrings, 1,
+                                 getter_Copies(importedSafariBookmarksTitle));
 
-    rv = bms->CreateFolder(bookmarksMenuFolderId,
-                           NS_ConvertUTF16toUTF8(importedSafariBookmarksTitle),
-                           nsINavBookmarksService::DEFAULT_INDEX, &folder);
-    NS_ENSURE_SUCCESS(rv, rv);
+    bms->CreateFolder(root, importedSafariBookmarksTitle, nsINavBookmarksService::DEFAULT_INDEX,
+                      &folder);
   }
   else {
     nsCOMPtr<nsIFile> profile;
@@ -983,7 +935,7 @@ nsSafariProfileMigrator::CopyBookmarksBatched(PRBool aReplace)
     rv = InitializeBookmarks(profile);
     NS_ENSURE_SUCCESS(rv, rv);
     // In replace mode we are merging at the top level.
-    folder = bookmarksMenuFolderId;
+    folder = root;
   }
 
   nsCOMPtr<nsIProperties> fileLocator(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
@@ -993,8 +945,7 @@ nsSafariProfileMigrator::CopyBookmarksBatched(PRBool aReplace)
   safariBookmarksFile->Append(NS_LITERAL_STRING("Safari"));
   safariBookmarksFile->Append(SAFARI_BOOKMARKS_FILE_NAME);
 
-  CFDictionaryRef safariBookmarks =
-    static_cast<CFDictionaryRef>(CopyPListFromFile(safariBookmarksFile));
+  CFDictionaryRef safariBookmarks = (CFDictionaryRef)CopyPListFromFile(safariBookmarksFile);
   if (!safariBookmarks)
     return NS_OK;
 
@@ -1017,6 +968,15 @@ nsSafariProfileMigrator::CopyBookmarksBatched(PRBool aReplace)
         (CFArrayRef)::CFDictionaryGetValue(safariBookmarks, CFSTR("Children"));
       if (children) {
         rv = ParseBookmarksFolder(children, folder, bms, PR_TRUE);
+        if (NS_SUCCEEDED(rv)) {
+          // after importing the favorites, 
+          // we need to set this pref so that on startup
+          // we don't blow away what we just imported
+          nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID));
+          NS_ENSURE_TRUE(pref, NS_ERROR_FAILURE);
+          rv = pref->SetBoolPref("browser.places.importBookmarksHTML", PR_FALSE);
+          NS_ENSURE_SUCCESS(rv, rv);
+        }
       }
     }
   }
@@ -1075,7 +1035,7 @@ nsSafariProfileMigrator::ParseBookmarksFolder(CFArrayRef aChildren,
         // Encountered a Folder, so create one in our Bookmarks DataSource and then
         // parse the contents of the Safari one into it...
         PRInt64 folder;
-        rv |= aBookmarksService->CreateFolder(aParentFolder, NS_ConvertUTF16toUTF8(title),
+        rv |= aBookmarksService->CreateFolder(aParentFolder, title,
                                               nsINavBookmarksService::DEFAULT_INDEX,
                                               &folder);
         rv |= ParseBookmarksFolder(children,
@@ -1088,18 +1048,15 @@ nsSafariProfileMigrator::ParseBookmarksFolder(CFArrayRef aChildren,
       // Encountered a Bookmark, so add it to the current folder...
       CFDictionaryRef URIDictionary = (CFDictionaryRef)
                       ::CFDictionaryGetValue(entry, CFSTR("URIDictionary"));
-      nsAutoString title;
-      nsCAutoString url;
+      nsAutoString title, url;
       if (GetDictionaryStringValue(URIDictionary, CFSTR("title"), title) &&
-          GetDictionaryCStringValue(entry, CFSTR("URLString"), url, kCFStringEncodingUTF8)) {
+          GetDictionaryStringValue(entry, CFSTR("URLString"), url)) {
         nsCOMPtr<nsIURI> uri;
-        rv = NS_NewURI(getter_AddRefs(uri), url);
-        if (NS_SUCCEEDED(rv)) {
-          PRInt64 id;
-          rv = aBookmarksService->InsertBookmark(aParentFolder, uri,
-                                                 nsINavBookmarksService::DEFAULT_INDEX,
-                                                 NS_ConvertUTF16toUTF8(title), &id);
-        }
+        PRInt64 id;
+        rv |= NS_NewURI(getter_AddRefs(uri), url);
+        rv |= aBookmarksService->InsertBookmark(aParentFolder, uri,
+                                                nsINavBookmarksService::DEFAULT_INDEX,
+                                                title, &id);
       }
     }
   }
@@ -1250,48 +1207,4 @@ nsSafariProfileMigrator::CopyOtherData(PRBool aReplace)
     stylesheetFile->CopyTo(userChromeDir, NS_LITERAL_STRING("userContent.css"));
   }
   return NS_OK;
-}
-
-
-NS_IMETHODIMP
-nsSafariProfileMigrator::GetSourceHomePageURL(nsACString& aResult)
-{
-  aResult.Truncate();
-
-  // Let's first check if there's a home page key in the com.apple.safari file...
-  CFDictionaryRef safariPrefs = CopySafariPrefs();
-  if (safariPrefs) {
-    PRBool foundPref = GetDictionaryCStringValue(safariPrefs,
-                                                 CFSTR(SAFARI_HOME_PAGE_PREF),
-                                                 aResult, kCFStringEncodingUTF8);
-    ::CFRelease(safariPrefs);
-    if (foundPref)
-      return NS_OK;
-  }
-
-#ifdef __LP64__
-  return NS_ERROR_FAILURE;
-#else
-  // Couldn't find the home page in com.apple.safai, time to check
-  // com.apple.internetconfig for this key!
-  ICInstance internetConfig;
-  OSStatus error = ::ICStart(&internetConfig, 'FRFX');
-  if (error != noErr)
-    return NS_ERROR_FAILURE;
-
-  ICAttr dummy;
-  Str255 homePagePValue;
-  long prefSize = sizeof(homePagePValue);
-  error = ::ICGetPref(internetConfig, kICWWWHomePage, &dummy,
-                      homePagePValue, &prefSize);
-  if (error != noErr)
-    return NS_ERROR_FAILURE;
-
-  char homePageValue[256] = "";
-  CopyPascalStringToC((ConstStr255Param)homePagePValue, homePageValue);
-  aResult.Assign(homePageValue);
-  ::ICStop(internetConfig);
-
-  return NS_OK;
-#endif
 }

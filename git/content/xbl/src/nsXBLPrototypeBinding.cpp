@@ -123,9 +123,7 @@ protected:
       mDstNameSpace(aDstNameSpace),
       mNext(nsnull) { }
 
-  ~nsXBLAttributeEntry() {
-    NS_CONTENT_DELETE_LIST_MEMBER(nsXBLAttributeEntry, this, mNext);
-  }
+  ~nsXBLAttributeEntry() { delete mNext; }
 
 private:
   // Hide so that only Create() and Destroy() can be used to
@@ -143,7 +141,6 @@ class nsXBLInsertionPointEntry {
 public:
   ~nsXBLInsertionPointEntry() {
     if (mDefaultContent) {
-      nsAutoScriptBlocker scriptBlocker;
       // mDefaultContent is a sort of anonymous content within the XBL
       // document, and we own and manage it.  Unhook it here, since we're going
       // away.
@@ -247,11 +244,10 @@ private:
 PRUint32 nsXBLInsertionPointEntry::gRefCnt = 0;
 nsFixedSizeAllocator* nsXBLInsertionPointEntry::kPool;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLInsertionPointEntry)
+NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(nsXBLInsertionPointEntry)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXBLInsertionPointEntry)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mInsertionParent)
   if (tmp->mDefaultContent) {
-    nsAutoScriptBlocker scriptBlocker;
     // mDefaultContent is a sort of anonymous content within the XBL
     // document, and we own and manage it.  Unhook it here, since we're going
     // away.
@@ -313,8 +309,7 @@ nsXBLPrototypeBinding::nsXBLPrototypeBinding()
 nsresult
 nsXBLPrototypeBinding::Init(const nsACString& aID,
                             nsIXBLDocumentInfo* aInfo,
-                            nsIContent* aElement,
-                            PRBool aFirstBinding)
+                            nsIContent* aElement)
 {
   if (!kAttrPool || !nsXBLInsertionPointEntry::PoolInited()) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -326,13 +321,8 @@ nsXBLPrototypeBinding::Init(const nsACString& aID,
   // The binding URI might not be a nsIURL (e.g. for data: URIs). In that case,
   // we always use the first binding, so we don't need to keep track of the ID.
   nsCOMPtr<nsIURL> bindingURL = do_QueryInterface(mBindingURI);
-  if (bindingURL) {
-    if (aFirstBinding) {
-      rv = mBindingURI->Clone(getter_AddRefs(mAlternateBindingURI));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
+  if (bindingURL)
     bindingURL->SetRef(aID);
-  }
 
   mXBLDocInfoWeak = aInfo;
 
@@ -340,17 +330,7 @@ nsXBLPrototypeBinding::Init(const nsACString& aID,
   return NS_OK;
 }
 
-PRBool nsXBLPrototypeBinding::CompareBindingURI(nsIURI* aURI) const
-{
-  PRBool equal = PR_FALSE;
-  mBindingURI->Equals(aURI, &equal);
-  if (!equal && mAlternateBindingURI) {
-    mAlternateBindingURI->Equals(aURI, &equal);
-  }
-  return equal;
-}
-
-static PRIntn
+PR_STATIC_CALLBACK(PRIntn)
 TraverseInsertionPoint(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback &cb = 
@@ -358,12 +338,11 @@ TraverseInsertionPoint(nsHashKey* aKey, void* aData, void* aClosure)
   nsXBLInsertionPointEntry* entry =
     static_cast<nsXBLInsertionPointEntry*>(aData);
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(entry,
-                                               nsXBLInsertionPointEntry,
-                                               "[insertion point table] value")
+                                               nsXBLInsertionPointEntry)
   return kHashEnumerateNext;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 TraverseBinding(nsHashKey *aKey, void *aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb = 
@@ -376,6 +355,8 @@ void
 nsXBLPrototypeBinding::Traverse(nsCycleCollectionTraversalCallback &cb) const
 {
   cb.NoteXPCOMChild(mBinding);
+  if (mImplementation)
+    mImplementation->Traverse(cb);
   if (mResources)
     cb.NoteXPCOMChild(mResources->mLoader);
   if (mInsertionPointTable)
@@ -385,17 +366,10 @@ nsXBLPrototypeBinding::Traverse(nsCycleCollectionTraversalCallback &cb) const
 }
 
 void
-nsXBLPrototypeBinding::UnlinkJSObjects()
+nsXBLPrototypeBinding::Unlink()
 {
   if (mImplementation)
-    mImplementation->UnlinkJSObjects();
-}
-
-void
-nsXBLPrototypeBinding::Trace(TraceCallback aCallback, void *aClosure) const
-{
-  if (mImplementation)
-    mImplementation->Trace(aCallback, aClosure);
+    mImplementation->Unlink();
 }
 
 void
@@ -499,8 +473,7 @@ nsXBLPrototypeBinding::FlushSkinSheets()
 nsresult
 nsXBLPrototypeBinding::BindingAttached(nsIContent* aBoundElement)
 {
-  if (mImplementation && mImplementation->CompiledMembers() &&
-      mImplementation->mConstructor)
+  if (mImplementation && mImplementation->mConstructor)
     return mImplementation->mConstructor->Execute(aBoundElement);
   return NS_OK;
 }
@@ -508,8 +481,7 @@ nsXBLPrototypeBinding::BindingAttached(nsIContent* aBoundElement)
 nsresult
 nsXBLPrototypeBinding::BindingDetached(nsIContent* aBoundElement)
 {
-  if (mImplementation && mImplementation->CompiledMembers() &&
-      mImplementation->mDestructor)
+  if (mImplementation && mImplementation->mDestructor)
     return mImplementation->mDestructor->Execute(aBoundElement);
   return NS_OK;
 }
@@ -590,9 +562,7 @@ nsXBLPrototypeBinding::AttributeChanged(nsIAtom* aAttribute,
                                                       element);
 
     if (realElement) {
-      // Hold a strong reference here so that the atom doesn't go away during
-      // UnsetAttr.
-      nsCOMPtr<nsIAtom> dstAttr = xblAttr->GetDstAttribute();
+      nsIAtom* dstAttr = xblAttr->GetDstAttribute();
       PRInt32 dstNs = xblAttr->GetDstNameSpace();
 
       if (aRemoveFlag)
@@ -664,7 +634,7 @@ struct InsertionData {
     :mBinding(aBinding), mPrototype(aPrototype) {}
 };
 
-PRBool InstantiateInsertionPoint(nsHashKey* aKey, void* aData, void* aClosure)
+PRBool PR_CALLBACK InstantiateInsertionPoint(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsXBLInsertionPointEntry* entry = static_cast<nsXBLInsertionPointEntry*>(aData);
   InsertionData* data = static_cast<InsertionData*>(aClosure);
@@ -964,7 +934,7 @@ struct nsXBLAttrChangeData
 };
 
 // XXXbz this duplicates lots of AttributeChanged
-PRBool SetAttrs(nsHashKey* aKey, void* aData, void* aClosure)
+PRBool PR_CALLBACK SetAttrs(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsXBLAttributeEntry* entry = static_cast<nsXBLAttributeEntry*>(aData);
   nsXBLAttrChangeData* changeData = static_cast<nsXBLAttrChangeData*>(aClosure);
@@ -1030,7 +1000,7 @@ PRBool SetAttrs(nsHashKey* aKey, void* aData, void* aClosure)
   return PR_TRUE;
 }
 
-PRBool SetAttrsNS(nsHashKey* aKey, void* aData, void* aClosure)
+PRBool PR_CALLBACK SetAttrsNS(nsHashKey* aKey, void* aData, void* aClosure)
 {
   if (aData && aClosure) {
     nsPRUint32Key * key = static_cast<nsPRUint32Key*>(aKey);
@@ -1073,14 +1043,31 @@ nsXBLPrototypeBinding::GetStyleSheets()
   return nsnull;
 }
 
-static PRBool
+PRBool
+nsXBLPrototypeBinding::ShouldBuildChildFrames() const
+{
+  if (!mAttributeTable)
+    return PR_TRUE;
+  nsPRUint32Key nskey(kNameSpaceID_XBL);
+  nsObjectHashtable* xblAttributes =
+    static_cast<nsObjectHashtable*>(mAttributeTable->Get(&nskey));
+  if (xblAttributes) {
+    nsISupportsKey key(nsGkAtoms::text);
+    void* entry = xblAttributes->Get(&key);
+    return !entry;
+  }
+
+  return PR_TRUE;
+}
+
+static PRBool PR_CALLBACK
 DeleteAttributeEntry(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsXBLAttributeEntry::Destroy(static_cast<nsXBLAttributeEntry*>(aData));
   return PR_TRUE;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 DeleteAttributeTable(nsHashKey* aKey, void* aData, void* aClosure)
 {
   delete static_cast<nsObjectHashtable*>(aData);
@@ -1204,7 +1191,7 @@ nsXBLPrototypeBinding::ConstructAttributeTable(nsIContent* aElement)
   }
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 DeleteInsertionPointEntry(nsHashKey* aKey, void* aData, void* aClosure)
 {
   static_cast<nsXBLInsertionPointEntry*>(aData)->Release();
@@ -1288,7 +1275,6 @@ nsXBLPrototypeBinding::ConstructInsertionTable(nsIContent* aContent)
     // in situations where no content ends up being placed at the insertion point.
     PRUint32 defaultCount = child->GetChildCount();
     if (defaultCount > 0) {
-      nsAutoScriptBlocker scriptBlocker;
       // Annotate the insertion point with our default content.
       xblIns->SetDefaultContent(child);
 
@@ -1338,8 +1324,8 @@ nsXBLPrototypeBinding::ConstructInterfaceTable(const nsAString& aImpls)
 
       if (iinfo) {
         // obtain an IID.
-        const nsIID* iid = nsnull;
-        iinfo->GetIIDShared(&iid);
+        nsIID* iid = nsnull;
+        iinfo->GetInterfaceIID(&iid);
 
         if (iid) {
           // We found a valid iid.  Add it to our table.
@@ -1351,8 +1337,11 @@ nsXBLPrototypeBinding::ConstructInterfaceTable(const nsAString& aImpls)
           nsCOMPtr<nsIInterfaceInfo> parentInfo;
           // if it has a parent, add it to the table
           while (NS_SUCCEEDED(iinfo->GetParent(getter_AddRefs(parentInfo))) && parentInfo) {
+            // free the nsMemory::Clone()ed iid
+            nsMemory::Free(iid);
+
             // get the iid
-            parentInfo->GetIIDShared(&iid);
+            parentInfo->GetInterfaceIID(&iid);
 
             // don't add nsISupports to the table
             if (!iid || iid->Equals(NS_GET_IID(nsISupports)))
@@ -1366,6 +1355,10 @@ nsXBLPrototypeBinding::ConstructInterfaceTable(const nsAString& aImpls)
             iinfo = parentInfo;
           }
         }
+
+        // free the nsMemory::Clone()ed iid
+        if (iid)
+          nsMemory::Free(iid);
       }
 
       token = nsCRT::strtok( newStr, ", ", &newStr );

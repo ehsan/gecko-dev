@@ -43,23 +43,21 @@
 #include "nsCOMPtr.h"
 
 #include "nsIDragDropHandler.h"
-#include "nsIDOMEventTarget.h"
-#include "nsIDOMEventListener.h"
+#include "nsIDOMDragListener.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsITransferable.h"
 
 class nsIDOMNode;
-class nsIDOMWindow;
-class nsIDOMDocument;
-class nsIDOMDragEvent;
 class nsISelection;
 class nsITransferable;
+class nsIImage;
 class nsIPresShell;
 class nsPresContext;
 class nsIContent;
+class nsIDocument;
 class nsIURI;
 class nsIFile;
 class nsISimpleEnumerator;
-class nsDOMDataTransfer;
 
 // {1f34bc80-1bc7-11d6-a384-d705dd0746fc}
 #define NS_CONTENTAREADRAGDROP_CID             \
@@ -77,44 +75,27 @@ class nsDOMDataTransfer;
 // AddChromeListeners() and removes itself with
 // RemoveChromeListeners().
 //
-class nsContentAreaDragDrop : public nsIDragDropHandler,
-                              public nsIDOMEventListener
+class nsContentAreaDragDrop : public nsIDOMDragListener,
+                              public nsIDragDropHandler,
+                              public nsIFlavorDataProvider
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDRAGDROPHANDLER
+  NS_DECL_NSIFLAVORDATAPROVIDER
   
   nsContentAreaDragDrop();
   virtual ~nsContentAreaDragDrop();
 
+  // nsIDOMDragListener
+  NS_IMETHOD DragEnter(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragOver(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragExit(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragDrop(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragGesture(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD Drag(nsIDOMEvent* aMouseEvent);
+  NS_IMETHOD DragEnd(nsIDOMEvent* aMouseEvent);
   NS_IMETHOD HandleEvent(nsIDOMEvent *event);
-
-  /**
-   * Determine what data in the content area, if any, is being dragged.
-   *
-   * aWindow - the window containing the target node
-   * aTarget - the mousedown event target that started the drag
-   * aSelectionTargetNode - the node where the drag event should be fired
-   * aIsAltKeyPressed - true if the Alt key is pressed. In some cases, this
-   *                    will prevent the drag from occuring. For example,
-   *                    holding down Alt over a link should select the text,
-   *                    not drag the link.
-   * aDataTransfer - the dataTransfer for the drag event.
-   * aCanDrag - [out] set to true if the drag may proceed, false to stop the
-   *            drag entirely
-   * aDragSelection - [out] set to true to indicate that a selection is being
-   *                  dragged, rather than a specific node
-   * aDragNode - [out] the link, image or area being dragged, or null if the
-   *             drag occured on another element.
-   */
-  static nsresult GetDragData(nsIDOMWindow* aWindow,
-                              nsIContent* aTarget,
-                              nsIContent* aSelectionTargetNode,
-                              PRBool aIsAltKeyPressed,
-                              nsDOMDataTransfer* aDataTransfer,
-                              PRBool* aCanDrag,
-                              PRBool* aDragSelection,
-                              nsIContent** aDragNode);
 
 private:
 
@@ -122,20 +103,24 @@ private:
   nsresult AddDragListener();
   nsresult RemoveDragListener();
 
-  nsresult DragOver(nsIDOMDragEvent* aDragEvent);
-  nsresult Drop(nsIDOMDragEvent* aDragEvent);
-
   // utility routines
   static void NormalizeSelection(nsIDOMNode* inBaseNode,
                                  nsISelection* inSelection);
   static void GetEventDocument(nsIDOMEvent* inEvent,
                                nsIDOMDocument** outDocument);
 
-  static void ExtractURLFromData(const nsACString & inFlavor,
-                                 nsISupports* inDataWrapper, PRUint32 inDataLen,
-                                 nsAString & outURL);
+  static nsresult SaveURIToFile(nsAString& inSourceURIString,
+                                nsIFile* inDestFile);
 
-  nsCOMPtr<nsIDOMEventTarget> mEventTarget;
+  void ExtractURLFromData(const nsACString & inFlavor,
+                          nsISupports* inDataWrapper, PRUint32 inDataLen,
+                          nsAString & outURL);
+  nsresult GetHookEnumeratorFromEvent(nsIDOMEvent* inEvent,
+                                      nsISimpleEnumerator** outEnumerator);
+
+  PRPackedBool mListenerInstalled;
+
+  nsCOMPtr<nsPIDOMEventTarget> mEventTarget;
 
   // weak ref, this is probably my owning webshell
   // FIXME: we set this and never null it out.  That's bad!  See bug 332187.
@@ -143,20 +128,6 @@ private:
 
 };
 
-// this is used to save images to disk lazily when the image data is asked for
-// during the drop instead of when it is added to the drag data transfer. This
-// ensures that the image data is only created when an image drop is allowed.
-class nsContentAreaDragDropDataProvider : public nsIFlavorDataProvider
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIFLAVORDATAPROVIDER
-
-  virtual ~nsContentAreaDragDropDataProvider() {}
-
-  nsresult SaveURIToFile(nsAString& inSourceURIString,
-                         nsIFile* inDestFile);
-};
 
 
 #endif /* nsContentAreaDragDrop_h__ */

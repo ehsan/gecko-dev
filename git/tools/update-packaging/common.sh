@@ -101,12 +101,11 @@ list_files() {
   find . -type f \
     ! -name "channel-prefs.js" \
     ! -name "update.manifest" \
-    ! -name "temp-filelist" \
     | sed 's/\.\/\(.*\)/\1/' \
-    | sort > "temp-filelist"
+    | sort > "$workdir/temp-filelist"
   while read file; do
     eval "${1}[$count]=\"$file\""
     (( count++ ))
-  done < "temp-filelist"
-  rm "temp-filelist"
+  done < "$workdir/temp-filelist"
+  rm "$workdir/temp-filelist"
 }

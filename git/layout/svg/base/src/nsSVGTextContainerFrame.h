@@ -39,59 +39,48 @@
 
 #include "nsSVGContainerFrame.h"
 #include "nsIDOMSVGLengthList.h"
+#include "nsISVGTextContentMetrics.h"
 
 class nsISVGGlyphFragmentNode;
 class nsISVGGlyphFragmentLeaf;
 
 class nsSVGTextFrame;
 
-class nsSVGTextContainerFrame : public nsSVGDisplayContainerFrame
+class nsSVGTextContainerFrame : public nsSVGDisplayContainerFrame,
+                                public nsISVGTextContentMetrics
 {
 public:
   nsSVGTextContainerFrame(nsStyleContext* aContext) :
     nsSVGDisplayContainerFrame(aContext) {}
 
-  void NotifyGlyphMetricsChange();
+  void UpdateGraphic();
   NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetX();
   NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetY();
   NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDx();
   NS_IMETHOD_(already_AddRefed<nsIDOMSVGLengthList>) GetDy();
   
-public:
-  NS_DECL_QUERYFRAME_TARGET(nsSVGTextContainerFrame)
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+   // nsISupports interface:
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return 1; }
+  NS_IMETHOD_(nsrefcnt) Release() { return 1; }
 
+public:
   // nsIFrame
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom *aListName, nsIFrame *aOldFrame);
 
+  // nsISVGTextContentMetrics
+  NS_IMETHOD GetNumberOfChars(PRInt32 *_retval);
+  NS_IMETHOD GetComputedTextLength(float *_retval);
+  NS_IMETHOD GetSubStringLength(PRUint32 charnum, PRUint32 nchars, float *_retval);
   NS_IMETHOD GetStartPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval);
   NS_IMETHOD GetEndPositionOfChar(PRUint32 charnum, nsIDOMSVGPoint **_retval);
   NS_IMETHOD GetExtentOfChar(PRUint32 charnum, nsIDOMSVGRect **_retval);
   NS_IMETHOD GetRotationOfChar(PRUint32 charnum, float *_retval);
-
-  /*
-   * Returns the number of characters in a string
-   */
-  virtual PRUint32 GetNumberOfChars();
-
-  /*
-   * Determines the length of a string
-   */
-  virtual float GetComputedTextLength();
-
-  /*
-   * Determines the length of a substring
-   */
-  virtual float GetSubStringLength(PRUint32 charnum, PRUint32 nchars);
-
-  /*
-   * Get the character at the specified position
-   */
-  virtual PRInt32 GetCharNumAtPosition(nsIDOMSVGPoint *point);
+  NS_IMETHOD GetCharNumAtPosition(nsIDOMSVGPoint *point, PRInt32 *_retval);
 
 protected:
   /*
@@ -110,6 +99,26 @@ protected:
    * Set Whitespace handling
    */
   void SetWhitespaceHandling();
+
+  /*
+   * Returns the number of characters in a string
+   */
+  PRUint32 GetNumberOfChars();
+
+  /*
+   * Determines the length of a string
+   */
+  float GetComputedTextLength();
+
+  /*
+   * Determines the length of a substring
+   */
+  float GetSubStringLengthNoValidation(PRUint32 charnum, PRUint32 nchars);
+
+  /*
+   * Get the character at the specified position
+   */
+  PRInt32 GetCharNumAtPosition(nsIDOMSVGPoint *point);
 
 private:
   /*

@@ -8,15 +8,13 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE		= thebes
 
+REQUIRES	= cairo
 
 EXPORTS		= 	gfxASurface.h \
 			gfxAlphaRecovery.h \
-			gfxBlur.h \
 			gfxColor.h \
 			gfxContext.h \
 			gfxFont.h \
-			gfxFontConstants.h \
-			gfxFontUtils.h \
 			gfxImageSurface.h \
 			gfxMatrix.h \
 			gfxPath.h \
@@ -28,57 +26,36 @@ EXPORTS		= 	gfxASurface.h \
 			gfxTypes.h \
 			gfxTextRunCache.h \
 			gfxTextRunWordCache.h \
-			gfxUtils.h \
-			gfxUserFontSet.h \
 			$(NULL)
 
 EXPORTS += gfxFontTest.h
 
+ifdef MOZ_ENABLE_GLITZ
+REQUIRES += glitz
+EXPORTS +=	gfxGlitzSurface.h
+endif
+
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-EXPORTS	+=	gfxWindowsPlatform.h \
+EXPORTS	+=	gfxWindowsFonts.h \
+		gfxWindowsPlatform.h \
 		gfxWindowsSurface.h \
 		gfxWindowsNativeDrawing.h \
 		$(NULL)
 EXPORTS +=	gfxPDFSurface.h
 
-ifdef WINCE
-EXPORTS +=	gfxFT2Fonts.h \
-		gfxFT2FontBase.h \
-		gfxDDrawSurface.h \
-		$(NULL)
-else
-EXPORTS +=	gfxWindowsFonts.h 
+ifdef MOZ_ENABLE_GLITZ
+REQUIRES += glitzwgl
 endif
-
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
+EXPORTS +=      gfxXlibSurface.h gfxPlatformGtk.h gfxXlibNativeRenderer.h
+EXPORTS +=	gfxPangoFonts.h
+EXPORTS +=	gfxPDFSurface.h gfxPSSurface.h
 
-ifdef MOZ_X11
-EXPORTS += gfxXlibSurface.h
+ifdef MOZ_ENABLE_GLITZ
+REQUIRES += glitzglx
 endif
-
-ifdef MOZ_PANGO 
-EXPORTS += gfxPangoFonts.h
-else
-EXPORTS += gfxFT2Fonts.h
-endif
-
-ifdef MOZ_DFB
-EXPORTS += gfxDirectFBSurface.h
-endif
-
-EXPORTS += gfxPlatformGtk.h gfxGdkNativeRenderer.h
-EXPORTS += gfxPDFSurface.h gfxPSSurface.h
-EXPORTS += gfxFT2FontBase.h
-
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
-EXPORTS += gfxQtPlatform.h gfxQPainterSurface.h
-EXPORTS += gfxXlibSurface.h gfxQtNativeRenderer.h
-EXPORTS += gfxFT2Fonts.h
-EXPORTS += gfxFT2FontBase.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
@@ -86,29 +63,24 @@ EXPORTS	+=	gfxOS2Surface.h \
 		gfxOS2Platform.h \
 		gfxOS2Fonts.h \
 		$(NULL)
-EXPORTS +=	gfxPDFSurface.h
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
 EXPORTS	+=	gfxBeOSSurface.h gfxBeOSPlatform.h
 EXPORTS +=	gfxPangoFonts.h
-EXPORTS +=	gfxFT2FontBase.h
 EXPORTS +=	gfxPDFSurface.h
 endif
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter $(MOZ_WIDGET_TOOLKIT),mac cocoa))
 EXPORTS +=	gfxPlatformMac.h \
 		gfxQuartzSurface.h \
-		gfxQuartzImageSurface.h \
 		gfxQuartzPDFSurface.h \
 		gfxAtsuiFonts.h \
-		gfxQuartzNativeDrawing.h \
 		$(NULL)
 
+ifdef MOZ_ENABLE_GLITZ
+REQUIRES += glitzagl
 endif
-
-ifdef MOZ_CORETEXT
-EXPORTS += gfxCoreTextFonts.h
 endif
 
 include $(topsrcdir)/config/rules.mk

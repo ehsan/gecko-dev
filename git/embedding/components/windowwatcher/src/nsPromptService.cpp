@@ -52,16 +52,84 @@
 #include "nsString.h"
 #include "nsIStringBundle.h"
 #include "nsXPIDLString.h"
-#include "nsISound.h"
 
 static const char kPromptURL[] = "chrome://global/content/commonDialog.xul";
 static const char kSelectPromptURL[] = "chrome://global/content/selectDialog.xul";
 static const char kQuestionIconClass[] = "question-icon";
 static const char kAlertIconClass[] = "alert-icon";
-// We include question-icon for backwards compatibility
-static const char kAuthenticationIconClass[] = "authentication-icon question-icon";
+static const char kWarningIconClass[] = "message-icon";
 
 #define kCommonDialogsProperties "chrome://global/locale/commonDialogs.properties"
+
+
+/****************************************************************
+ ****************** nsAutoWindowStateHelper *********************
+ ****************************************************************/
+
+nsAutoWindowStateHelper::nsAutoWindowStateHelper(nsIDOMWindow *aWindow)
+  : mWindow(aWindow),
+    mDefaultEnabled(DispatchCustomEvent("DOMWillOpenModalDialog"))
+{
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(aWindow));
+
+  if (window) {
+    window->EnterModalState();
+  }
+}
+
+nsAutoWindowStateHelper::~nsAutoWindowStateHelper()
+{
+  nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mWindow));
+
+  if (window) {
+    window->LeaveModalState();
+  }
+
+  if (mDefaultEnabled) {
+    DispatchCustomEvent("DOMModalDialogClosed");
+  }
+}
+
+PRBool
+nsAutoWindowStateHelper::DispatchCustomEvent(const char *aEventName)
+{
+  if (!mWindow) {
+    return PR_TRUE;
+  }
+
+#ifdef DEBUG
+  {
+    nsCOMPtr<nsPIDOMWindow> window(do_QueryInterface(mWindow));
+  }
+#endif
+
+  nsCOMPtr<nsIDOMDocument> domdoc;
+  mWindow->GetDocument(getter_AddRefs(domdoc));
+
+  nsCOMPtr<nsIDOMDocumentEvent> docevent(do_QueryInterface(domdoc));
+  nsCOMPtr<nsIDOMEvent> event;
+
+  PRBool defaultActionEnabled = PR_TRUE;
+
+  if (docevent) {
+    docevent->CreateEvent(NS_LITERAL_STRING("Events"), getter_AddRefs(event));
+
+    nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(event));
+    if (privateEvent) {
+      event->InitEvent(NS_ConvertASCIItoUTF16(aEventName), PR_TRUE, PR_TRUE);
+
+      privateEvent->SetTrusted(PR_TRUE);
+
+      nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(mWindow));
+
+      target->DispatchEvent(event, &defaultActionEnabled);
+    }
+  }
+
+  return defaultActionEnabled;
+}
+
+
 
 /****************************************************************
  ************************* ParamBlock ***************************
@@ -139,8 +207,6 @@ nsPromptService::Alert(nsIDOMWindow *parent,
   nsString url;
   NS_ConvertASCIItoUTF16 styleClass(kAlertIconClass);
   block->SetString(eIconClass, styleClass.get());
-  block->SetString(eOpeningSound, NS_SYSSOUND_ALERT_DIALOG.get());
-  block->SetInt(eSoundEventId, nsISound::EVENT_ALERT_DIALOG_OPEN);
 
   rv = DoDialog(parent, block, kPromptURL);
 
@@ -185,8 +251,6 @@ nsPromptService::AlertCheck(nsIDOMWindow *parent,
   block->SetString(eIconClass, styleClass.get());
   block->SetString(eCheckboxMsg, checkMsg);
   block->SetInt(eCheckboxState, *checkValue);
-  block->SetString(eOpeningSound, NS_SYSSOUND_ALERT_DIALOG.get());
-  block->SetInt(eSoundEventId, nsISound::EVENT_ALERT_DIALOG_OPEN);
 
   rv = DoDialog(parent, block, kPromptURL);
   if (NS_FAILED(rv))
@@ -232,9 +296,7 @@ nsPromptService::Confirm(nsIDOMWindow *parent,
 
   NS_ConvertASCIItoUTF16 styleClass(kQuestionIconClass);
   block->SetString(eIconClass, styleClass.get());
-  block->SetString(eOpeningSound, NS_SYSSOUND_CONFIRM_DIALOG.get());
-  block->SetInt(eSoundEventId, nsISound::EVENT_CONFIRM_DIALOG_OPEN);
-
+  
   rv = DoDialog(parent, block, kPromptURL);
   if (NS_FAILED(rv))
     return rv;
@@ -283,8 +345,6 @@ nsPromptService::ConfirmCheck(nsIDOMWindow *parent,
   block->SetString(eIconClass, styleClass.get());
   block->SetString(eCheckboxMsg, checkMsg);
   block->SetInt(eCheckboxState, *checkValue);
-  block->SetString(eOpeningSound, NS_SYSSOUND_CONFIRM_DIALOG.get());
-  block->SetInt(eSoundEventId, nsISound::EVENT_CONFIRM_DIALOG_OPEN);
 
   rv = DoDialog(parent, block, kPromptURL);
   if (NS_FAILED(rv))
@@ -295,7 +355,7 @@ nsPromptService::ConfirmCheck(nsIDOMWindow *parent,
   *_retval = tempInt ? PR_FALSE : PR_TRUE;
 
   block->GetInt(eCheckboxState, & tempInt);
-  *checkValue = !!tempInt;
+  *checkValue = PRBool( tempInt );
   
   return rv;
 }
@@ -384,10 +444,8 @@ nsPromptService::ConfirmEx(nsIDOMWindow *parent,
     buttonFlags >>= 8;
   }
   block->SetInt(eNumberButtons, numberButtons);
-
+  
   block->SetString(eIconClass, NS_ConvertASCIItoUTF16(kQuestionIconClass).get());
-  block->SetString(eOpeningSound, NS_SYSSOUND_CONFIRM_DIALOG.get());
-  block->SetInt(eSoundEventId, nsISound::EVENT_CONFIRM_DIALOG_OPEN);
 
   if (checkMsg && checkValue) {
     block->SetString(eCheckboxMsg, checkMsg);
@@ -463,8 +521,6 @@ nsPromptService::Prompt(nsIDOMWindow *parent,
     block->SetString(eCheckboxMsg, checkMsg);
     block->SetInt(eCheckboxState, *checkValue);
   }
-  block->SetString(eOpeningSound, NS_SYSSOUND_PROMPT_DIALOG.get());
-  block->SetInt(eSoundEventId, nsISound::EVENT_PROMPT_DIALOG_OPEN);
 
   rv = DoDialog(parent, block, kPromptURL);
   if (NS_FAILED(rv))
@@ -529,7 +585,7 @@ nsPromptService::PromptUsernameAndPassword(nsIDOMWindow *parent,
 
   block->SetString(eDialogTitle, dialogTitle);
 
-  NS_ConvertASCIItoUTF16 styleClass(kAuthenticationIconClass);
+  NS_ConvertASCIItoUTF16 styleClass(kQuestionIconClass);
   block->SetString(eIconClass, styleClass.get());
   block->SetInt( eNumberEditfields, 2 );
   if (*username)
@@ -540,9 +596,7 @@ nsPromptService::PromptUsernameAndPassword(nsIDOMWindow *parent,
     block->SetString(eCheckboxMsg, checkMsg);
     block->SetInt(eCheckboxState, *checkValue);
   }
-  block->SetString(eOpeningSound, NS_SYSSOUND_PROMPT_DIALOG.get());
-  block->SetInt(eSoundEventId, nsISound::EVENT_PROMPT_DIALOG_OPEN);
-
+  
   rv = DoDialog(parent, block, kPromptURL);
   if (NS_FAILED(rv))
     return rv;
@@ -611,7 +665,7 @@ NS_IMETHODIMP nsPromptService::PromptPassword(nsIDOMWindow *parent,
   block->SetString(eDialogTitle, dialogTitle);
 
   nsString url;
-  NS_ConvertASCIItoUTF16 styleClass(kAuthenticationIconClass);
+  NS_ConvertASCIItoUTF16 styleClass(kQuestionIconClass);
   block->SetString(eIconClass, styleClass.get());
   block->SetInt(eNumberEditfields, 1);
   block->SetInt(eEditField1Password, 1);
@@ -621,8 +675,6 @@ NS_IMETHODIMP nsPromptService::PromptPassword(nsIDOMWindow *parent,
     block->SetString(eCheckboxMsg, checkMsg);
     block->SetInt(eCheckboxState, *checkValue);
   }
-  block->SetString(eOpeningSound, NS_SYSSOUND_PROMPT_DIALOG.get());
-  block->SetInt(eSoundEventId, nsISound::EVENT_PROMPT_DIALOG_OPEN);
 
   rv = DoDialog(parent, block, kPromptURL);
   if (NS_FAILED(rv))
@@ -753,12 +805,10 @@ nsPromptService::ShowNonBlockingAlert(nsIDOMWindow *aParent,
   if (!paramBlock)
     return NS_ERROR_FAILURE;
 
-  paramBlock->SetInt(eNumberButtons, 1);
-  paramBlock->SetString(eIconClass, NS_LITERAL_STRING("alert-icon").get());
-  paramBlock->SetString(eDialogTitle, aDialogTitle);
-  paramBlock->SetString(eMsg, aText);
-  paramBlock->SetString(eOpeningSound, NS_SYSSOUND_ALERT_DIALOG.get());
-  paramBlock->SetInt(eSoundEventId, nsISound::EVENT_ALERT_DIALOG_OPEN);
+  paramBlock->SetInt(nsPIPromptService::eNumberButtons, 1);
+  paramBlock->SetString(nsPIPromptService::eIconClass, NS_LITERAL_STRING("alert-icon").get());
+  paramBlock->SetString(nsPIPromptService::eDialogTitle, aDialogTitle);
+  paramBlock->SetString(nsPIPromptService::eMsg, aText);
 
   nsCOMPtr<nsIDOMWindow> dialog;
   mWatcher->OpenWindow(aParent, "chrome://global/content/commonDialog.xul",

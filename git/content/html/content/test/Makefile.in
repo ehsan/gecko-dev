@@ -59,7 +59,6 @@ _TEST_FILES = 	test_bug589.html \
 		bug100533_load.html \
 		bug100533_iframe.html \
 		test_bug100533.html \
-		test_bug143220.html \
 		test_bug237071.html \
 		bug242709_iframe.html \
 		bug242709_load.html \
@@ -70,26 +69,19 @@ _TEST_FILES = 	test_bug589.html \
 		bug277890_iframe.html \
 		bug277890_load.html \
 		test_bug277890.html \
-		test_bug287465.html \
-		test_bug209275.xhtml \
-		file_bug209275_1.html \
-		file_bug209275_2.html \
-		file_bug209275_3.html \
-		test_bug295561.html \
 		test_bug300691-1.html \
 		test_bug300691-2.html \
 		test_bug300691-3.xhtml \
+		bug340800_iframe.txt \
+		test_bug340800.html \
 		test_bug330705-1.html \
-		test_bug332246.html \
 		test_bug332893-1.html \
 		test_bug332893-2.html \
 		test_bug332893-3.html \
 		test_bug332893-4.html \
+		test_bug388558.html \
 		test_bug332893-5.html \
 		test_bug332893-6.html \
-		test_bug332893-7.html \
-		bug340800_iframe.txt \
-		test_bug340800.html \
 		test_bug353415-1.html \
 		test_bug353415-2.html \
 		test_bug371375.html \
@@ -102,48 +94,11 @@ _TEST_FILES = 	test_bug589.html \
 		test_bug386496.html \
 		test_bug386728.html \
 		test_bug386996.html \
-		test_bug388558.html \
 		test_bug388746.html \
-		test_bug388794.html \
 		test_bug389797.html \
-		test_bug390975.html \
 		test_bug391994.html \
 		test_bug392567.html \
-		bug392567.jar       \
-		bug392567.jar^headers^ \
 		test_bug394700.html \
-		test_bug395107.html \
-		test_bug401160.xhtml \
-		test_bug406596.html \
-		test_bug408231.html \
-		test_bug417760.html \
-		file_bug417760.png \
-		test_bug418756.html \
-		test_bug421640.html \
-		test_bug424698.html \
-		test_bug428135.xhtml \
-		test_bug430351.html \
-		test_bug430392.html \
-		bug441930_iframe.html \
-		test_bug441930.html \
-		test_bug442801.html \
-		test_bug448166.html \
-		test_bug460568.html \
-		test_bug347174.html \
-		test_bug347174_write.html \
-		test_bug347174_xsl.html \
-		test_bug347174_xslp.html \
-		347174transformable.xml \
-		347174transform.xsl \
-		test_bug481335.xhtml \
-		test_bug500885.html \
-		test_bug514856.html \
-		bug514856_iframe.html \
-		test_bug519987.html \
-		test_bug523771.html \
-		form_submit_server.sjs \
-		test_bug529819.html \
-		test_bug529859.html \
 		$(NULL)
 
 libs:: $(_TEST_FILES)

@@ -166,7 +166,8 @@ _destroyJSDScript(JSDContext*  jsdc,
     if (jsdscript->profileData)
         free(jsdscript->profileData);
     
-    free(jsdscript);
+    if(jsdscript)
+        free(jsdscript);
 }
 
 /***************************************************************************/
@@ -216,31 +217,31 @@ _dumpJSDScriptList( JSDContext* jsdc )
 #endif /* JSD_DUMP */
 
 /***************************************************************************/
-static JSHashNumber
+JS_STATIC_DLL_CALLBACK(JSHashNumber)
 jsd_hash_script(const void *key)
 {
     return ((JSHashNumber) key) >> 2; /* help lame MSVC1.5 on Win16 */
 }
 
-static void *
+JS_STATIC_DLL_CALLBACK(void *)
 jsd_alloc_script_table(void *priv, size_t size)
 {
     return malloc(size);
 }
 
-static void
-jsd_free_script_table(void *priv, void *item, size_t size)
+JS_STATIC_DLL_CALLBACK(void)
+jsd_free_script_table(void *priv, void *item)
 {
     free(item);
 }
 
-static JSHashEntry *
+JS_STATIC_DLL_CALLBACK(JSHashEntry *)
 jsd_alloc_script_entry(void *priv, const void *item)
 {
     return (JSHashEntry*) malloc(sizeof(JSHashEntry));
 }
 
-static void
+JS_STATIC_DLL_CALLBACK(void)
 jsd_free_script_entry(void *priv, JSHashEntry *he, uintN flag)
 {
     if (flag == HT_FREE_ENTRY)
@@ -284,29 +285,7 @@ jsd_FindJSDScript( JSDContext*  jsdc,
 {
     JS_ASSERT(JSD_SCRIPTS_LOCKED(jsdc));
     return (JSDScript*) JS_HashTableLookup(jsdc->scriptsTable, (void *)script);
-}
-
-JSDScript *
-jsd_FindOrCreateJSDScript(JSDContext    *jsdc,
-                          JSContext     *cx,
-                          JSScript      *script,
-                          JSStackFrame  *fp)
-{
-    JSDScript *jsdscript;
-    JS_ASSERT(JSD_SCRIPTS_LOCKED(jsdc));
-
-    jsdscript = jsd_FindJSDScript(jsdc, script);
-    if (jsdscript)
-        return jsdscript;
-
-    /* Fallback for unknown scripts: create a new script. */
-    if (!fp)
-        JS_FrameIterator(cx, &fp);
-    if (fp)
-        jsdscript = _newJSDScript(jsdc, cx, script, JS_GetFrameFunction(cx, fp));
-
-    return jsdscript;
-}
+}               
 
 JSDProfileData*
 jsd_GetScriptProfileData(JSDContext* jsdc, JSDScript *script)
@@ -566,7 +545,7 @@ jsd_GetScriptHook(JSDContext* jsdc, JSD_ScriptHookProc* hook, void** callerdata)
 
 /***************************************************************************/
 
-void
+void JS_DLL_CALLBACK
 jsd_NewScriptHookProc( 
                 JSContext   *cx,
                 const char  *filename,      /* URL this script loads from */
@@ -613,7 +592,7 @@ jsd_NewScriptHookProc(
         hook(jsdc, jsdscript, JS_TRUE, hookData);
 }                
 
-void
+void JS_DLL_CALLBACK
 jsd_DestroyScriptHookProc( 
                 JSContext   *cx,
                 JSScript    *script,
@@ -713,7 +692,7 @@ _isActiveHook(JSDContext* jsdc, JSScript *script, JSDExecHook* jsdhook)
 }
 
 
-JSTrapStatus
+JSTrapStatus JS_DLL_CALLBACK
 jsd_TrapHandler(JSContext *cx, JSScript *script, jsbytecode *pc, jsval *rval,
                 void *closure)
 {
@@ -783,16 +762,13 @@ jsd_SetExecutionHook(JSDContext*           jsdc,
     {
         jsdhook->hook       = hook;
         jsdhook->callerdata = callerdata;
-        JSD_UNLOCK();
         return JS_TRUE;
     }
     /* else... */
 
     jsdhook = (JSDExecHook*)calloc(1, sizeof(JSDExecHook));
-    if( ! jsdhook ) {
-        JSD_UNLOCK();
+    if( ! jsdhook )
         return JS_FALSE;
-    }
     jsdhook->jsdscript  = jsdscript;
     jsdhook->pc         = pc;
     jsdhook->hook       = hook;
@@ -803,7 +779,6 @@ jsd_SetExecutionHook(JSDContext*           jsdc,
                      (void*) PRIVATE_TO_JSVAL(jsdhook)) )
     {
         free(jsdhook);
-        JSD_UNLOCK();
         return JS_FALSE;
     }
 
@@ -825,6 +800,7 @@ jsd_ClearExecutionHook(JSDContext*           jsdc,
     jsdhook = _findHook(jsdc, jsdscript, pc);
     if( ! jsdhook )
     {
+        JS_ASSERT(0);
         JSD_UNLOCK();
         return JS_FALSE;
     }

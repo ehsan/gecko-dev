@@ -56,11 +56,7 @@ var start_time;
 var cycle;
 var report;
 var renderReport;
-var noisy = false;
-var timeout = -1;
-var timeoutEvent = -1;
 var running = false;
-var forceCC = true;
 
 var content;
 
@@ -92,17 +88,7 @@ function plInit() {
     if (args.width) winWidth = parseInt(args.width);
     if (args.height) winHeight = parseInt(args.height);
     if (args.filter) pageFilterRegexp = new RegExp(args.filter);
-    if (args.noisy) noisy = true;
-    if (args.timeout) timeout = parseInt(args.timeout);
-    forceCC = !args.noForceCC;
     doRenderTest = args.doRender;
-
-    if (forceCC &&
-        !window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-               .getInterface(Components.interfaces.nsIDOMWindowUtils)
-               .garbageCollect) {
-      forceCC = false;
-    }
 
     gIOS = Cc["@mozilla.org/network/io-service;1"]
       .getService(Ci.nsIIOService);
@@ -213,31 +199,13 @@ function plLoadPage() {
     };
   }
 
-  if (timeout > 0) {
-    timeoutEvent = setTimeout('loadFail()', timeout);
-  } 
   start_time = Date.now();
   content.loadURI(pageName);
-}
-
-function loadFail() {
-  var pageName = pages[pageIndex].url.spec;
-  dumpLine("__FAILTimeout exceeded on " + pageName + "__FAIL")
-  plStop(true);
 }
 
 function plNextPage() {
   if (pageIndex < pages.length-1) {
     pageIndex++;
-
-    if (forceCC) {
-      var tccstart = new Date();
-      window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-            .getInterface(Components.interfaces.nsIDOMWindowUtils)
-            .garbageCollect(); 
-      var tccend = new Date();
-      report.recordCCTime(tccend - tccstart);
-    }
 
     setTimeout(plLoadPage, 250);
   } else {
@@ -247,17 +215,7 @@ function plNextPage() {
 
 function plRecordTime(time) {
   var pageName = pages[pageIndex].url.spec;
-  var i = pageIndex
-  if (i < pages.length-1) {
-    i++;
-  } else {
-    i = 0;
-  }
-  var nextName = pages[i].url.spec;
   report.recordTime(pageIndex, time);
-  if (noisy) {
-    dumpLine("Cycle " + (cycle+1) + ": loaded " + pageName + " (next: " + nextName + ")");
-  }
 }
 
 function plLoadHandlerCapturing(evt) {
@@ -265,9 +223,6 @@ function plLoadHandlerCapturing(evt) {
   if (evt.type != 'load' ||
        evt.originalTarget.defaultView.frameElement)
       return;
-  if (timeout > 0) { 
-    clearTimeout(timeoutEvent);
-  }
 
   if (!(plPageFlags() & TEST_DOES_OWN_TIMING)) {
     dumpLine("tp: Capturing onload handler used with page that doesn't do its own timing?");
@@ -287,9 +242,7 @@ function plLoadHandler(evt) {
   if (evt.type != 'load' ||
        evt.originalTarget.defaultView.frameElement)
       return;
-  if (timeout > 0) { 
-    clearTimeout(timeoutEvent);
-  }
+
   var end_time = Date.now();
   var time = (end_time - start_time);
 

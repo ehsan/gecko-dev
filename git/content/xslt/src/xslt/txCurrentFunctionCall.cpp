@@ -30,7 +30,7 @@ CurrentFunctionCall::evaluate(txIEvalContext* aContext, txAExprResult** aResult)
     txExecutionState* es = 
         static_cast<txExecutionState*>(aContext->getPrivateContext());
     if (!es) {
-        NS_ERROR(
+        NS_ASSERTION(0,
             "called xslt extension function \"current\" with wrong context");
         return NS_ERROR_UNEXPECTED;
     }
@@ -47,7 +47,7 @@ CurrentFunctionCall::getReturnType()
 PRBool
 CurrentFunctionCall::isSensitiveTo(ContextSensitivity aContext)
 {
-    return !!(aContext & PRIVATE_CONTEXT);
+    return (aContext & PRIVATE_CONTEXT);
 }
 
 #ifdef TX_TO_STRING

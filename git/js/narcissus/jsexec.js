@@ -340,7 +340,7 @@ function execute(n, x) {
             } catch (e if e == BREAK && x.target == n) {
                 break;
             } catch (e if e == CONTINUE && x.target == n) {
-                // Must run the update expression.
+                continue;
             }
             n.update && getValue(execute(n.update, x));
         }
@@ -499,7 +499,7 @@ function execute(n, x) {
         putValue(r, v, n[0]);
         break;
 
-      case HOOK:
+      case CONDITIONAL:
         v = getValue(execute(n[0], x)) ? getValue(execute(n[1], x))
                                        : getValue(execute(n[2], x));
         break;

@@ -48,12 +48,11 @@ class nsEventChainPostVisitor;
 class nsIEventListenerManager;
 class nsIDOMEventListener;
 class nsIDOMEventGroup;
-class nsIScriptContext;
 
-// e6579895-a23c-4afc-872a-d53da71def5d
+// 360fa72e-c709-42cc-9285-1f755ec90376
 #define NS_PIDOMEVENTTARGET_IID \
-  { 0xe6579895, 0xa23c, 0x4afc, \
-    { 0x87, 0x2a, 0xd5, 0x3d, 0xa7, 0x1d, 0xef, 0x5d } }
+  { 0x44a6597b, 0x9fc3, 0x4a8d, \
+    { 0xb7, 0xa4, 0xd9, 0x00, 0x9a, 0xbf, 0x9d, 0x15 } }
 
 class nsPIDOMEventTarget : public nsISupports
 {
@@ -94,15 +93,6 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) = 0;
 
   /**
-   * If nsEventChainPreVisitor.mWantsWillHandleEvent is set PR_TRUE,
-   * called just before possible event handlers on this object will be called.
-   */
-  virtual nsresult WillHandleEvent(nsEventChainPostVisitor& aVisitor)
-  {
-    return NS_OK;
-  }
-
-  /**
    * Called after the bubble phase of the system event group.
    * The default handling of the event should happen here.
    * @param aVisitor the visitor object which is used during post handling.
@@ -137,10 +127,12 @@ public:
   /**
    * Get the event listener manager, the guy you talk to to register for events
    * on this node.
-   * @param aMayCreate If PR_FALSE, returns a listener manager only if
-   *                   one already exists.
+   * @param aCreateIfNotFound If PR_FALSE, returns a listener manager only if
+   *                          one already exists. [IN]
+   * @param aResult           The event listener manager [OUT]
    */
-  virtual nsIEventListenerManager* GetListenerManager(PRBool aMayCreate) = 0;
+  virtual nsresult GetListenerManager(PRBool aCreateIfNotFound,
+                                      nsIEventListenerManager** aResult) = 0;
 
   /**
    * Add an event listener for nsIID.
@@ -157,13 +149,6 @@ public:
    * Get the system event group.
    */
   virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup) = 0;
-
-  /**
-   * Get the script context in which the event handlers should be run.
-   * May return null.
-   * @note Caller *must* check the value of aRv.
-   */
-  virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsPIDOMEventTarget, NS_PIDOMEVENTTARGET_IID)

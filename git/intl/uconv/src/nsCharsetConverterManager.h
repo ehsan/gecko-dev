@@ -40,8 +40,7 @@
 #include "nsISupports.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIStringBundle.h"
-#include "nsInterfaceHashtable.h"
-#include "mozilla/Mutex.h"
+#include "nsISupportsArray.h"
 
 #ifdef MOZ_USE_NATIVE_UCONV
 #include "nsINativeUConvService.h"

@@ -57,8 +57,6 @@
   */
 class ViewportFrame : public nsContainerFrame {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   typedef nsContainerFrame Super;
 
   ViewportFrame(nsStyleContext* aContext)
@@ -67,28 +65,28 @@ public:
   {}
   virtual ~ViewportFrame() { } // useful for debugging
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        asPrevInFlow);
 
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
 
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
 
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
 
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -112,7 +110,7 @@ public:
 
   virtual void InvalidateInternal(const nsRect& aDamageRect,
                                   nscoord aX, nscoord aY, nsIFrame* aForChild,
-                                  PRUint32 aFlags);
+                                  PRBool aImmediate);
 
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;

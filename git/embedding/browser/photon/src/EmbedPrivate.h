@@ -14,7 +14,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Christopher Blizzard.
+ * Christopher Blizzard. Portions created by Christopher Blizzard are Copyright (C) Christopher Blizzard.  All Rights Reserved.
  * Portions created by the Initial Developer are Copyright (C) 2001
  * the Initial Developer. All Rights Reserved.
  *
@@ -51,7 +51,7 @@
 #include <nsIPrintSettings.h>
 #include <nsIAppShell.h>
 #include <nsPIDOMEventTarget.h>
-#include <nsTArray.h>
+#include <nsVoidArray.h>
 #include <nsClipboard.h>
 // for profiles
 #include <nsIPref.h>
@@ -131,7 +131,7 @@ class EmbedPrivate {
 */
 
   // these let the widget code know when the toplevel window gets and
-  // loses focus.
+  // looses focus.
   void        TopLevelFocusIn (void);
   void        TopLevelFocusOut(void);
 
@@ -177,7 +177,7 @@ class EmbedPrivate {
   static nsIAppShell            *sAppShell;
   // for profiles
   static nsIPref                *sPrefs;
-	static nsTArray<EmbedPrivate*> *sWindowList;
+	static nsVoidArray            *sWindowList;
   // for clipboard input group setting
   static nsClipboard *sClipboard;
 

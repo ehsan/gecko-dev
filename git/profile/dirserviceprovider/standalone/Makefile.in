@@ -44,6 +44,15 @@ include $(srcdir)/../src/objs.mk
 
 MODULE		= profdirserviceprovider
 LIBRARY_NAME	= profdirserviceprovidersa_s
+REQUIRES	= xpcom \
+		  string \
+		  $(NULL)
+
+ifdef MOZ_PROFILESHARING
+REQUIRES	+= ipcd \
+		  profilesharingsetup \
+		  $(NULL)
+endif
 
 CPPSRCS		= $(MODULES_PROFILEDIRSERVICE_SRC_LCSRCS)
 

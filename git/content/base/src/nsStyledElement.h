@@ -67,7 +67,7 @@ public:
   // nsIContent interface methods for styling
   virtual nsIAtom* GetClassAttributeName() const;
   virtual nsIAtom* GetIDAttributeName() const;
-  virtual const nsAttrValue* DoGetClasses() const;
+  virtual const nsAttrValue* GetClasses() const;
 
   virtual nsICSSStyleRule* GetInlineStyleRule();
   NS_IMETHOD SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify);
@@ -76,6 +76,11 @@ public:
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
 
+  /**
+   * Create the style struct from the style attr.  Used when an element is first
+   * put into a document.  Only has an effect if the old value is a string.
+   */
+  nsresult  ReparseStyleAttribute(void);
   /**
    * Parse a style attr value into a CSS rulestruct (or, if there is no
    * document, leave it as a string) and return as nsAttrValue.
@@ -86,9 +91,10 @@ public:
    */
   static void ParseStyleAttribute(nsIContent* aContent,
                                   const nsAString& aValue,
-                                  nsAttrValue& aResult,
-                                  PRBool aForceInDataDoc);
+                                  nsAttrValue& aResult);
 
+  static void Shutdown();
+  
 protected:
 
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
@@ -96,13 +102,6 @@ protected:
 
   nsresult GetStyle(nsIDOMCSSStyleDeclaration** aStyle);
 
-  /**
-   * Create the style struct from the style attr.  Used when an element is
-   * first put into a document.  Only has an effect if the old value is a
-   * string.  If aForceInDataDoc is true, will reparse even if we're in a data
-   * document.
-   */
-  nsresult  ReparseStyleAttribute(PRBool aForceInDataDoc);
 };
 
 #endif // __NS_STYLEDELEMENT_H_

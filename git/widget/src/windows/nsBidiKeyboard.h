@@ -16,7 +16,7 @@
  * The Original Code is IBM code.
  *
  * The Initial Developer of the Original Code is
- * IBM.
+ * IBM. Portions created by IBM are Copyright (C) International Business Machines Corporation, 2000.  All Rights Reserved.
  * Portions created by the Initial Developer are Copyright (C) 2001
  * the Initial Developer. All Rights Reserved.
  *
@@ -58,9 +58,9 @@ protected:
 
   PRPackedBool mInitialized;
   PRPackedBool mHaveBidiKeyboards;
-  PRUnichar  mLTRKeyboard[KL_NAMELENGTH];
-  PRUnichar  mRTLKeyboard[KL_NAMELENGTH];
-  PRUnichar  mCurrentLocaleName[KL_NAMELENGTH];
+  char mLTRKeyboard[KL_NAMELENGTH];
+  char mRTLKeyboard[KL_NAMELENGTH];
+  char mCurrentLocaleName[KL_NAMELENGTH];
 };
 
 

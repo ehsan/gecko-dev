@@ -46,11 +46,7 @@
 #include <windows.h>
 #include <ole2.h>
 
-#ifndef WINCE
 class nsWindowsShellService : public nsIWindowsShellService
-#else
-class nsWindowsShellService : public nsIShellService
-#endif
 {
 public:
   nsWindowsShellService() : mCheckedThisSession(PR_FALSE) {}; 
@@ -58,20 +54,20 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSISHELLSERVICE
-#ifndef WINCE
   NS_DECL_NSIWINDOWSSHELLSERVICE
-#endif
 
 protected:
-#ifndef WINCE
-  PRBool    IsDefaultBrowserVista(PRBool* aIsDefaultBrowser);
+  PRBool    IsDefaultBrowserVista(PRBool aStartupCheck, PRBool* aIsDefaultBrowser);
+  PRBool    SetDefaultBrowserVista();
 
   PRBool    GetMailAccountKey(HKEY* aResult);
-#else
   void      SetRegKey(const nsString& aKeyName,
                       const nsString& aValueName,
-                      const nsString& aValue);
-#endif
+                      const nsString& aValue, PRBool aHKLMOnly);
+
+  DWORD     DeleteRegKey(HKEY baseKey, const nsString& keyName);
+  DWORD     DeleteRegKeyDefaultValue(HKEY baseKey,
+                                     const nsString& keyName);
 
 private:
   PRBool    mCheckedThisSession;

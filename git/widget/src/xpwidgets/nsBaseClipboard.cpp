@@ -42,6 +42,7 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 
+
 nsBaseClipboard::nsBaseClipboard()
 {
   mClipboardOwner          = nsnull;
@@ -86,12 +87,6 @@ NS_IMETHODIMP nsBaseClipboard::SetData(nsITransferable * aTransferable, nsIClipb
 
   if ( mTransferable ) {
     NS_ADDREF(mTransferable);
-    if (!mPrivacyHandler) {
-      rv = NS_NewClipboardPrivacyHandler(getter_AddRefs(mPrivacyHandler));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    rv = mPrivacyHandler->PrepareDataForClipboard(mTransferable);
-    NS_ENSURE_SUCCESS(rv, rv);
     rv = SetNativeClipboardData(aWhichClipboard);
   }
   
@@ -138,8 +133,7 @@ NS_IMETHODIMP nsBaseClipboard::EmptyClipboard(PRInt32 aWhichClipboard)
 }
 
 NS_IMETHODIMP
-nsBaseClipboard::HasDataMatchingFlavors(const char** aFlavorList,
-                                        PRUint32 aLength,
+nsBaseClipboard::HasDataMatchingFlavors(nsISupportsArray* aFlavorList,
                                         PRInt32 aWhichClipboard,
                                         PRBool* outResult) 
 {

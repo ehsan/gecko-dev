@@ -53,6 +53,8 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 
+static NS_DEFINE_CID(kInspectorCSSUtilsCID, NS_INSPECTORCSSUTILS_CID);
+
 ///////////////////////////////////////////////////////////////////////////////
 inCSSValueSearch::inCSSValueSearch()
   : mResults(nsnull),
@@ -64,15 +66,14 @@ inCSSValueSearch::inCSSValueSearch()
     mReturnRelativeURLs(PR_TRUE),
     mNormalizeChromeURLs(PR_FALSE)
 {
-  nsCSSProps::AddRefTable();
   mProperties = new nsCSSProperty[100];
+  mCSSUtils = do_GetService(kInspectorCSSUtilsCID);
 }
 
 inCSSValueSearch::~inCSSValueSearch()
 {
   delete[] mProperties;
   delete mResults;
-  nsCSSProps::ReleaseTable();
 }
 
 NS_IMPL_ISUPPORTS2(inCSSValueSearch, inISearchProcess, inICSSValueSearch)
@@ -156,7 +157,7 @@ inCSSValueSearch::SearchAsync(inISearchObserver *aObserver)
 NS_IMETHODIMP
 inCSSValueSearch::SearchStop()
 {
-  KillSearch(inISearchObserver::IN_INTERRUPTED);
+  KillSearch(inISearchObserver::INTERRUPTED);
   return NS_OK;
 }
 
@@ -172,7 +173,7 @@ NS_IMETHODIMP
 inCSSValueSearch::GetStringResultAt(PRInt32 aIndex, nsAString& _retval)
 {
   if (mHoldResults) {
-    nsAutoString* result = mResults->ElementAt(aIndex);
+    nsAutoString* result = (nsAutoString*)mResults->ElementAt(aIndex);
     _retval = *result;
   } else if (aIndex == mResultCount-1) {
     _retval = mLastResult;
@@ -258,8 +259,8 @@ inCSSValueSearch::SetNormalizeChromeURLs(PRBool aNormalizeChromeURLs)
 NS_IMETHODIMP 
 inCSSValueSearch::AddPropertyCriteria(const PRUnichar *aPropName)
 {
-  nsCSSProperty prop =
-    nsCSSProps::LookupProperty(nsDependentString(aPropName));
+  nsCSSProperty prop;
+  mCSSUtils->LookupCSSProperty(nsDependentString(aPropName), &prop);
   mProperties[mPropertyCount] = prop;
   mPropertyCount++;
   return NS_OK;
@@ -287,7 +288,7 @@ nsresult
 inCSSValueSearch::InitSearch()
 {
   if (mHoldResults) {
-    mResults = new nsTArray<nsAutoString *>();
+    mResults = new nsVoidArray();
   }
   
   mResultCount = 0;

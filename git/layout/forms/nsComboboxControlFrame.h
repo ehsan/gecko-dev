@@ -55,7 +55,7 @@
 //Mark used to indicate when onchange has been fired for current combobox item
 #define NS_SKIP_NOTIFY_INDEX -2
 
-#include "nsBlockFrame.h"
+#include "nsAreaFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIAnonymousContentCreator.h"
@@ -80,7 +80,7 @@ class nsComboboxDisplayFrame;
  */
 #define NS_COMBO_LIST_COUNT   (NS_BLOCK_LIST_COUNT + 1)
 
-class nsComboboxControlFrame : public nsBlockFrame,
+class nsComboboxControlFrame : public nsAreaFrame,
                                public nsIFormControlFrame,
                                public nsIComboboxControlFrame,
                                public nsIAnonymousContentCreator,
@@ -96,8 +96,8 @@ public:
   nsComboboxControlFrame(nsStyleContext* aContext);
   ~nsComboboxControlFrame();
 
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  // nsISupports
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
@@ -133,17 +133,17 @@ public:
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsBlockFrame::IsFrameOfType(aFlags &
+    return nsAreaFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
-  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
+  virtual void Destroy();
+  virtual nsIFrame* GetFirstChild(nsIAtom* aListName) const;
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
   virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
 
   virtual nsIFrame* GetContentInsertionFrame();
@@ -175,19 +175,18 @@ public:
   virtual void RollupFromList();
   virtual void AbsolutelyPositionDropDown();
   virtual PRInt32 GetIndexOfDisplayArea();
-  /**
-   * @note This method might destroy |this|.
-   */
   NS_IMETHOD RedisplaySelectedText();
   virtual PRInt32 UpdateRecentIndex(PRInt32 aIndex);
   virtual void OnContentReset();
 
   // nsISelectControlFrame
-  NS_IMETHOD AddOption(PRInt32 index);
-  NS_IMETHOD RemoveOption(PRInt32 index);
+  NS_IMETHOD AddOption(nsPresContext* aPresContext, PRInt32 index);
+  NS_IMETHOD RemoveOption(nsPresContext* aPresContext, PRInt32 index);
   NS_IMETHOD GetOptionSelected(PRInt32 aIndex, PRBool* aValue);
   NS_IMETHOD DoneAddingChildren(PRBool aIsDone);
-  NS_IMETHOD OnOptionSelected(PRInt32 aIndex, PRBool aSelected);
+  NS_IMETHOD OnOptionSelected(nsPresContext* aPresContext,
+                              PRInt32 aIndex,
+                              PRBool aSelected);
   NS_IMETHOD OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex);
 
   //nsIRollupListener
@@ -195,7 +194,7 @@ public:
    * Hide the dropdown menu and stop capturing mouse events.
    * @note This method might destroy |this|.
    */
-  NS_IMETHOD Rollup(PRUint32 aCount, nsIContent** aLastRolledUp);
+  NS_IMETHOD Rollup();
   /**
    * A combobox should roll up if a mousewheel event happens outside of
    * the popup area.
@@ -225,9 +224,6 @@ protected:
   nsresult ReflowDropdown(nsPresContext*          aPresContext, 
                           const nsHTMLReflowState& aReflowState);
 
-  // Helper for GetMinWidth/GetPrefWidth
-  nscoord GetIntrinsicWidth(nsIRenderingContext* aRenderingContext,
-                            nsLayoutUtils::IntrinsicWidthType aType);
 protected:
   class RedisplayTextEvent;
   friend class RedisplayTextEvent;
@@ -253,7 +249,7 @@ protected:
    * @note This method might destroy |this|.
    * @return PR_FALSE if this frame is destroyed, PR_TRUE if still alive.
    */
-  PRBool ShowList(PRBool aShowList);
+  PRBool ShowList(nsPresContext* aPresContext, PRBool aShowList);
   void CheckFireOnChange();
   void FireValueChangeEvent();
   nsresult RedisplayText(PRInt32 aIndex);
@@ -293,6 +289,10 @@ protected:
 #ifdef DO_REFLOW_COUNTER
   PRInt32 mReflowId;
 #endif
+
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
+  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
 };
 
 #endif

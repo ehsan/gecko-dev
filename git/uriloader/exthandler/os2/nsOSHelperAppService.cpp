@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=2 sts=2 et cin: */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 3; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -24,8 +24,6 @@
  *   Scott MacGregor <mscott@netscape.com>
  *   Boris Zbarsky <bzbarsky@mit.edu>  (Added mailcap and mime.types support)
  *   Peter Weilbacher <mozilla@Weilbacher.org>
- *   Rich Walsh <dragtext@e-vertise.com>
- *   Dan Mosedale <dmose@mozilla.org>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -52,6 +50,8 @@
 #include "nsILineInputStream.h"
 #include "nsILocalFile.h"
 #include "nsIProcess.h"
+#include "nsIPrefService.h"
+#include "nsIPrefBranch.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsHashtable.h"
@@ -59,15 +59,7 @@
 #include "prenv.h"      // for PR_GetEnv()
 #include "nsMIMEInfoOS2.h"
 #include "nsAutoPtr.h"
-#include "nsIRwsService.h"
-#include "nsIStringBundle.h"
-#include "nsLocalHandlerApp.h"
 #include <stdlib.h>     // for system()
-
-//------------------------------------------------------------------------
-
-// reduces overhead by preventing calls to nsRws when it isn't present
-static PRBool sUseRws = PR_TRUE;
 
 static nsresult
 FindSemicolon(nsAString::const_iterator& aSemicolon_iter,
@@ -82,8 +74,6 @@ ParseMIMEType(const nsAString::const_iterator& aStart_iter,
 
 inline PRBool
 IsNetscapeFormat(const nsACString& aBuffer);
-
-//------------------------------------------------------------------------
 
 nsOSHelperAppService::nsOSHelperAppService() : nsExternalHelperAppService()
 {
@@ -1136,6 +1126,105 @@ nsOSHelperAppService::GetHandlerAndDescriptionFromMailcapFile(const nsAString& a
   return rv;
 }
 
+// Check OS/2 INI for application and parameters for the protocol
+// return NS_OK, if application exists for protocol in INI and is not empty
+nsresult
+nsOSHelperAppService::GetApplicationAndParametersFromINI(const nsACString& aProtocol,
+                                                         char * app, ULONG appLength,
+                                                         char * param, ULONG paramLength)
+{
+  /* initialize app to '\0' for later check */
+  *app = '\0';
+
+  /* http or https */
+  if ((aProtocol == NS_LITERAL_CSTRING("http")) ||
+      (aProtocol == NS_LITERAL_CSTRING("https"))) {
+    PrfQueryProfileString(HINI_USER,
+                          "WPURLDEFAULTSETTINGS",
+                          "DefaultBrowserExe",
+                          "",
+                          app,
+                          appLength);
+    PrfQueryProfileString(HINI_USER,
+                          "WPURLDEFAULTSETTINGS",
+                          "DefaultParameters",
+                          "",
+                          param,
+                          paramLength);
+  }
+  /* mailto: */
+  else if (aProtocol == NS_LITERAL_CSTRING("mailto")) {
+    PrfQueryProfileString(HINI_USER,
+                          "WPURLDEFAULTSETTINGS",
+                          "DefaultMailExe",
+                          "",
+                          app,
+                          appLength);
+    PrfQueryProfileString(HINI_USER,
+                          "WPURLDEFAULTSETTINGS",
+                          "DefaultMailParameters",
+                          "",
+                          param,
+                          paramLength);
+  }
+  /* ftp */
+  else if (aProtocol == NS_LITERAL_CSTRING("ftp")) {
+    PrfQueryProfileString(HINI_USER,
+                          "WPURLDEFAULTSETTINGS",
+                          "DefaultFTPExe",
+                          "",
+                          app,
+                          appLength);
+    PrfQueryProfileString(HINI_USER,
+                          "WPURLDEFAULTSETTINGS",
+                          "DefaultFTPParameters",
+                          "",
+                          param,
+                          paramLength);
+  }
+  /* news: or snews: */
+  else if ((aProtocol == NS_LITERAL_CSTRING("news")) ||
+           (aProtocol == NS_LITERAL_CSTRING("snews"))) {
+    PrfQueryProfileString(HINI_USER,
+                          "WPURLDEFAULTSETTINGS",
+                          "DefaultNewsExe",
+                          "",
+                          app,
+                          appLength);
+    PrfQueryProfileString(HINI_USER,
+                          "WPURLDEFAULTSETTINGS",
+                          "DefaultNewsParameters",
+                          "",
+                          param,
+                          paramLength);
+  }
+  /* irc: */
+  else if (aProtocol == NS_LITERAL_CSTRING("irc")) {
+    PrfQueryProfileString(HINI_USER,
+                          "WPURLDEFAULTSETTINGS",
+                          "DefaultIRCExe",
+                          "",
+                          app,
+                          appLength);
+    PrfQueryProfileString(HINI_USER,
+                          "WPURLDEFAULTSETTINGS",
+                          "DefaultIRCParameters",
+                          "",
+                          param,
+                          paramLength);
+  }
+  else {
+    NS_WARNING("GetApplicationAndParametersFromINI(): unsupported protocol scheme");
+    return NS_ERROR_FAILURE;
+  }
+
+  /* application string in INI was empty */
+  if (app[0] == '\0')
+    return NS_ERROR_FAILURE;
+
+  return NS_OK;
+}
+
 nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolScheme, PRBool * aHandlerExists)
 {
   LOG(("-- nsOSHelperAppService::OSProtocolHandlerExists for '%s'\n",
@@ -1147,17 +1236,13 @@ nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolSch
   nsCAutoString prefName;
   prefName = NS_LITERAL_CSTRING("applications.") + nsDependentCString(aProtocolScheme);
 
-  nsCOMPtr<nsIPrefService> thePrefsService(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
-  if (NS_SUCCEEDED(rv)) {
-    nsCOMPtr<nsIPrefBranch> prefBranch;
-    rv = thePrefsService->GetBranch(prefName.get(), getter_AddRefs(prefBranch));
-    if (NS_SUCCEEDED(rv)) {
-      nsXPIDLCString prefString;
-      rv = prefBranch->GetCharPref(prefName.get(), getter_Copies(prefString));
-      *aHandlerExists = NS_SUCCEEDED(rv) && !prefString.IsEmpty();
-      if (*aHandlerExists) {
-        return NS_OK;
-      }
+  nsCOMPtr<nsIPref> thePrefsService(do_GetService(NS_PREF_CONTRACTID));
+  if (thePrefsService) {
+    nsXPIDLCString prefString;
+    rv = thePrefsService->CopyCharPref(prefName.get(), getter_Copies(prefString));
+    *aHandlerExists = NS_SUCCEEDED(rv) && !prefString.IsEmpty();
+    if (*aHandlerExists) {
+      return NS_OK;
     }
   }
   /* Check the OS/2 INI for the protocol */
@@ -1168,9 +1253,10 @@ nsresult nsOSHelperAppService::OSProtocolHandlerExists(const char * aProtocolSch
                                           szParamsFromINI, sizeof(szParamsFromINI));
   if (NS_SUCCEEDED(rv)) {
     *aHandlerExists = PR_TRUE;
+    return NS_OK;
   }
 
-  return NS_OK;
+  return NS_ERROR_FAILURE;
 }
 
 already_AddRefed<nsMIMEInfoOS2>
@@ -1356,212 +1442,6 @@ nsOSHelperAppService::GetFromType(const nsCString& aMIMEType) {
   return mimeInfo;
 }
 
-//------------------------------------------------------------------------
-
-// returns a localized string from unknownContentType.properties
-
-static nsresult
-GetNLSString(const PRUnichar *aKey, nsAString& result)
-{
-  nsresult rv;
-
-  nsCOMPtr<nsIStringBundleService> bundleSvc =
-    do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIStringBundle> bundle;
-  rv = bundleSvc->CreateBundle(
-    "chrome://mozapps/locale/downloads/unknownContentType.properties",
-    getter_AddRefs(bundle));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsXPIDLString string;
-  rv = bundle->GetStringFromName(aKey, getter_Copies(string));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  result.Assign(string);
-
-  return rv;
-}
-
-//------------------------------------------------------------------------
-
-// returns the handle of the WPS object associated with a file extension;
-// if RWS isn't being used or there's no association, returns zero;
-// also constructs a description of the handler based on available info
-
-static PRUint32
-WpsGetDefaultHandler(const char *aFileExt, nsAString& aDescription)
-{
-  aDescription.Truncate();
-
-  if (sUseRws) {
-    nsCOMPtr<nsIRwsService> rwsSvc(do_GetService("@mozilla.org/rwsos2;1"));
-    if (!rwsSvc)
-      sUseRws = PR_FALSE;
-    else {
-      PRUint32 handle;
-      // the handle may be zero if the WPS class provides the default handler
-      if (NS_SUCCEEDED(rwsSvc->HandlerFromExtension(aFileExt, &handle, aDescription)))
-        return handle;
-    }
-  }
-
-  // no RWS or RWS failed to return at least a description
-  if (NS_FAILED(GetNLSString(NS_LITERAL_STRING("wpsDefaultOS2").get(),
-                             aDescription)))
-    aDescription.Assign(NS_LITERAL_STRING("WPS default"));
-
-  return 0;
-}
-
-//------------------------------------------------------------------------
-
-// this constructs the system-default entry when neither mailcap nor
-// mime.types provided any info
-
-static void
-WpsMimeInfoFromExtension(const char *aFileExt, nsMIMEInfoOS2 *aMI)
-{
-  // this identifies whether the mimetype is a bogus
-  // "application/octet-stream" generated when no match
-  // could be found for this extension
-  PRBool exists;
-  aMI->ExtensionExists(nsDependentCString(aFileExt), &exists);
-
-  // get the default app's description and WPS handle (if any)
-  nsAutoString ustr;
-  PRUint32 handle = WpsGetDefaultHandler(aFileExt, ustr);
-  aMI->SetDefaultDescription(ustr);
-  aMI->SetDefaultAppHandle(handle);
-
-  // if the mimeinfo is bogus, change the mimetype & extensions list
-  if (!exists) {
-    nsCAutoString extLower;
-    nsCAutoString cstr;
-    ToLowerCase(nsDependentCString(aFileExt), extLower);
-    cstr.Assign(NS_LITERAL_CSTRING("application/x-") + extLower);
-    aMI->SetMIMEType(cstr);
-    aMI->SetFileExtensions(extLower);
-  }
-
-  // if the mimetype is valid, perhaps we can supply a description;
-  // if it's bogus, replace the description
-  if (exists)
-    aMI->GetDescription(ustr);
-  else
-    ustr.Truncate();
-
-  if (ustr.IsEmpty()) {
-    nsCAutoString extUpper;
-    ToUpperCase(nsDependentCString(aFileExt), extUpper);
-    CopyUTF8toUTF16(extUpper, ustr);
-
-    nsAutoString fileType;
-    if (NS_FAILED(GetNLSString(NS_LITERAL_STRING("fileType").get(), fileType)))
-      ustr.Assign(NS_LITERAL_STRING("%S file"));
-    int pos = -1;
-    if ((pos = fileType.Find("%S")) > -1)
-      fileType.Replace(pos, 2, ustr);
-    aMI->SetDescription(fileType);
-  }
-}
-
-//------------------------------------------------------------------------
-
-// this is an override of nsExternalHelperAppService's method;
-// after the parent's method has looked for a handler, add
-// an entry for the WPS's handler if there's room and one exists;
-// it will never replace entries from mailcap or mimetypes.rdf
-
-NS_IMETHODIMP
-nsOSHelperAppService::GetFromTypeAndExtension(const nsACString& aMIMEType,
-                                              const nsACString& aFileExt,
-                                              nsIMIMEInfo **_retval)
-{
-  // let the existing code do its thing
-  nsresult rv = nsExternalHelperAppService::GetFromTypeAndExtension(
-                                            aMIMEType, aFileExt, _retval);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // this is needed for Get/SetDefaultApplication()
-  nsMIMEInfoOS2 *mi = static_cast<nsMIMEInfoOS2*>(*_retval);
-
-  // do lookups using the original extension if present;
-  // otherwise use the extension derived from the mimetype
-  nsCAutoString ext;
-  if (!aFileExt.IsEmpty())
-    ext.Assign(aFileExt);
-  else {
-    mi->GetPrimaryExtension(ext);
-    if (ext.IsEmpty())
-      return NS_OK;
-  }
-
-  nsCOMPtr<nsIFile> defApp;
-  nsCOMPtr<nsIHandlerApp> prefApp;
-  mi->GetDefaultApplication(getter_AddRefs(defApp));
-  mi->GetPreferredApplicationHandler(getter_AddRefs(prefApp));
-  nsCOMPtr<nsILocalHandlerApp> locPrefApp = do_QueryInterface(prefApp, &rv);
-
-  // if neither mailcap nor mimetypes.rdf had an entry,
-  // create a default entry using the WPS handler
-  if (!defApp && !locPrefApp) {
-    WpsMimeInfoFromExtension(ext.get(), mi);
-    return NS_OK;
-  }
-
-  PRBool gotPromoted = PR_FALSE;
-
-  // both mailcap & mimetypes.rdf have an entry;  if they're
-  // different, exit;  otherwise, clear the default entry
-  if (defApp && locPrefApp) {
-    PRBool sameFile;
-    nsCOMPtr<nsIFile> app;
-    rv = locPrefApp->GetExecutable(getter_AddRefs(app));
-    NS_ENSURE_SUCCESS(rv, rv);
-    defApp->Equals(app, &sameFile);
-    if (!sameFile)
-      return NS_OK;
-
-    defApp = 0;
-    mi->SetDefaultApplication(0);
-    mi->SetDefaultDescription(EmptyString());
-    gotPromoted = PR_TRUE;
-  }
-
-  nsAutoString description;
-
-  // mailcap has an entry but mimetypes.rdf doesn't;
-  // promote mailcap's entry to preferred
-  if (defApp && !locPrefApp) {
-    mi->GetDefaultDescription(description);
-    nsLocalHandlerApp *handlerApp(new nsLocalHandlerApp(description, defApp));
-    mi->SetPreferredApplicationHandler(handlerApp);
-    gotPromoted = PR_TRUE;
-  }
-
-  // if the former default app was promoted to preferred app,
-  // update preferred action if appropriate
-  if (gotPromoted) {
-    nsHandlerInfoAction action;
-    mi->GetPreferredAction(&action);
-    if (action == nsIMIMEInfo::useSystemDefault) {
-      mi->SetPreferredAction(nsIMIMEInfo::useHelperApp);
-      mi->SetPreferredAction(nsIMIMEInfo::useHelperApp);
-    }
-  }
-
-  // use the WPS default as the system default handler
-  PRUint32 handle = WpsGetDefaultHandler(ext.get(), description);
-  mi->SetDefaultDescription(description);
-  mi->SetDefaultApplication(0);
-  mi->SetDefaultAppHandle(handle);
-
-  return NS_OK;
-}
-
-//------------------------------------------------------------------------
 
 already_AddRefed<nsIMIMEInfo>
 nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aType,
@@ -1607,49 +1487,49 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aType,
   return retval;
 }
 
-NS_IMETHODIMP
-nsOSHelperAppService::GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
-                                                   PRBool *found,
-                                                   nsIHandlerInfo **_retval)
+already_AddRefed<nsIHandlerInfo>
+nsOSHelperAppService::GetProtocolInfoFromOS(const nsACString &aScheme,
+                                            PRBool *found)
 {
   NS_ASSERTION(!aScheme.IsEmpty(), "No scheme was specified!");
 
   nsresult rv = OSProtocolHandlerExists(nsPromiseFlatCString(aScheme).get(),
                                         found);
   if (NS_FAILED(rv))
-    return rv;
+    return nsnull;
 
   nsMIMEInfoOS2 *handlerInfo =
     new nsMIMEInfoOS2(aScheme, nsMIMEInfoBase::eProtocolInfo);
-  NS_ENSURE_TRUE(handlerInfo, NS_ERROR_OUT_OF_MEMORY);
-  NS_ADDREF(*_retval = handlerInfo);
+  NS_ENSURE_TRUE(handlerInfo, nsnull);
+  NS_ADDREF(handlerInfo);
 
   if (!*found) {
     // Code that calls this requires an object regardless if the OS has
     // something for us, so we return the empty object.
-    return NS_OK;
+    return handlerInfo;
   }
 
   nsAutoString desc;
   GetApplicationDescription(aScheme, desc);
   handlerInfo->SetDefaultDescription(desc);
 
-  return NS_OK;
+  return handlerInfo;
 }
 
 
 NS_IMETHODIMP
 nsOSHelperAppService::GetApplicationDescription(const nsACString& aScheme, nsAString& _retval)
 {
-  nsresult rv;
-  nsCOMPtr<nsIPrefService> thePrefsService(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIPref> thePrefsService(do_GetService(NS_PREF_CONTRACTID));
+  if (!thePrefsService) {
+    return NS_ERROR_FAILURE;
+  }
   nsCAutoString prefName = NS_LITERAL_CSTRING("applications.") + aScheme;
-  nsCOMPtr<nsIPrefBranch> prefBranch;
+  nsXPIDLCString prefString;
   nsCAutoString applicationName;
 
-  rv = thePrefsService->GetBranch(prefName.get(), getter_AddRefs(prefBranch));
-  if (NS_FAILED(rv)) {
+  nsresult rv = thePrefsService->CopyCharPref(prefName.get(), getter_Copies(prefString));
+  if (NS_FAILED(rv) || prefString.IsEmpty()) {
     char szAppFromINI[CCHMAXPATH];
     char szParamsFromINI[MAXINIPARAMLENGTH];
     /* did OS2.INI contain application? */
@@ -1662,11 +1542,7 @@ nsOSHelperAppService::GetApplicationDescription(const nsACString& aScheme, nsASt
       return NS_ERROR_NOT_AVAILABLE;
     }
   } else {
-    nsXPIDLCString prefString;
-    rv = prefBranch->GetCharPref(prefName.get(), getter_Copies(prefString));
-    if (NS_SUCCEEDED(rv) && !prefString.IsEmpty()) {
-      applicationName.Append(prefString);
-    }
+    applicationName.Append(prefString);
   }
 
 
@@ -1692,104 +1568,3 @@ nsOSHelperAppService::GetApplicationDescription(const nsACString& aScheme, nsASt
   return NS_OK;
 }
 
-// Check OS/2 INI for application and parameters for the protocol
-// return NS_OK, if application exists for protocol in INI and is not empty
-nsresult GetApplicationAndParametersFromINI(const nsACString& aProtocol,
-                                            char* app, ULONG appLength,
-                                            char* param, ULONG paramLength)
-{
-  /* initialize app to '\0' for later check */
-  *app = '\0';
-
-  /* http or https */
-  if ((aProtocol == NS_LITERAL_CSTRING("http")) ||
-      (aProtocol == NS_LITERAL_CSTRING("https"))) {
-    PrfQueryProfileString(HINI_USER,
-                          "WPURLDEFAULTSETTINGS",
-                          "DefaultBrowserExe",
-                          "",
-                          app,
-                          appLength);
-    PrfQueryProfileString(HINI_USER,
-                          "WPURLDEFAULTSETTINGS",
-                          "DefaultParameters",
-                          "",
-                          param,
-                          paramLength);
-  }
-  /* mailto: */
-  else if (aProtocol == NS_LITERAL_CSTRING("mailto")) {
-    PrfQueryProfileString(HINI_USER,
-                          "WPURLDEFAULTSETTINGS",
-                          "DefaultMailExe",
-                          "",
-                          app,
-                          appLength);
-    PrfQueryProfileString(HINI_USER,
-                          "WPURLDEFAULTSETTINGS",
-                          "DefaultMailParameters",
-                          "",
-                          param,
-                          paramLength);
-  }
-  /* ftp */
-  else if (aProtocol == NS_LITERAL_CSTRING("ftp")) {
-    PrfQueryProfileString(HINI_USER,
-                          "WPURLDEFAULTSETTINGS",
-                          "DefaultFTPExe",
-                          "",
-                          app,
-                          appLength);
-    PrfQueryProfileString(HINI_USER,
-                          "WPURLDEFAULTSETTINGS",
-                          "DefaultFTPParameters",
-                          "",
-                          param,
-                          paramLength);
-  }
-  /* news: or snews: */
-  else if ((aProtocol == NS_LITERAL_CSTRING("news")) ||
-           (aProtocol == NS_LITERAL_CSTRING("snews"))) {
-    PrfQueryProfileString(HINI_USER,
-                          "WPURLDEFAULTSETTINGS",
-                          "DefaultNewsExe",
-                          "",
-                          app,
-                          appLength);
-    PrfQueryProfileString(HINI_USER,
-                          "WPURLDEFAULTSETTINGS",
-                          "DefaultNewsParameters",
-                          "",
-                          param,
-                          paramLength);
-  }
-  /* irc: */
-  else if (aProtocol == NS_LITERAL_CSTRING("irc")) {
-    PrfQueryProfileString(HINI_USER,
-                          "WPURLDEFAULTSETTINGS",
-                          "DefaultIRCExe",
-                          "",
-                          app,
-                          appLength);
-    PrfQueryProfileString(HINI_USER,
-                          "WPURLDEFAULTSETTINGS",
-                          "DefaultIRCParameters",
-                          "",
-                          param,
-                          paramLength);
-  }
-  else {
-#ifdef DEBUG
-    // output by hand instead of NS_WARNING() to easily add the protocol
-    fprintf(stderr, "GetApplicationAndParametersFromINI(): unsupported protocol"
-            " scheme \"%s\"\n", nsPromiseFlatCString(aProtocol).get());
-#endif
-    return NS_ERROR_FAILURE;
-  }
-
-  /* application string in INI was empty */
-  if (app[0] == '\0')
-    return NS_ERROR_FAILURE;
-
-  return NS_OK;
-}

@@ -39,17 +39,9 @@
 #include "nsGlueLinking.h"
 #include "nsXPCOMGlue.h"
 
-#include "nsStringAPI.h"
 #include <windows.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <tchar.h>
-
-#ifdef WINCE
-#define MOZ_LOADLIBRARY_FLAGS 0
-#else
-#define MOZ_LOADLIBRARY_FLAGS LOAD_WITH_ALTERED_SEARCH_PATH
-#endif
 
 struct DependentLib
 {
@@ -76,12 +68,8 @@ AppendDependentLib(HINSTANCE libHandle)
 static void
 ReadDependentCB(const char *aDependentLib)
 {
-    wchar_t wideDependentLib[MAX_PATH];
-    MultiByteToWideChar(CP_UTF8, 0, aDependentLib, -1, wideDependentLib, MAX_PATH);
-
     HINSTANCE h =
-        LoadLibraryExW(wideDependentLib, NULL, MOZ_LOADLIBRARY_FLAGS);
-
+        LoadLibraryEx(aDependentLib, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
     if (!h)
         return;
 
@@ -105,135 +93,45 @@ ns_strrpbrk(char *string, const char *strCharSet)
 
     return found;
 }
-// like strpbrk but finds the *last* char, not the first
-static wchar_t*
-ns_wcspbrk(wchar_t *string, const wchar_t *strCharSet)
-{
-    wchar_t *found = NULL;
-    for (; *string; ++string) {
-        for (const wchar_t *search = strCharSet; *search; ++search) {
-            if (*search == *string) {
-                found = string;
-                // Since we're looking for the last char, we save "found"
-                // until we're at the end of the string.
-            }
-        }
-    }
 
-    return found;
-}
-
-bool ns_isRelPath(wchar_t* path)
+GetFrozenFunctionsFunc
+XPCOMGlueLoad(const char *xpcomFile)
 {
-#ifdef WINCE
-    if (path[0] == '\\')
-        return false;
-#else
-    if (path[1] == ':')
-        return false;
-#endif
-    return true;
-    
-}
-
-nsresult
-XPCOMGlueLoad(const char *aXpcomFile, GetFrozenFunctionsFunc *func)
-{
-    wchar_t xpcomFile[MAXPATHLEN];
-    MultiByteToWideChar(CP_UTF8, 0, aXpcomFile,-1,
-                        xpcomFile, MAXPATHLEN);
-   
-    
     if (xpcomFile[0] == '.' && xpcomFile[1] == '\0') {
-        wcscpy(xpcomFile, LXPCOM_DLL);
+        xpcomFile = XPCOM_DLL;
     }
     else {
-        wchar_t xpcomDir[MAXPATHLEN];
-        
-        if (ns_isRelPath(xpcomFile))
-        {
-            _wfullpath(xpcomDir, xpcomFile, sizeof(xpcomDir)/sizeof(wchar_t));
-        } 
-        else 
-        {
-            wcscpy(xpcomDir, xpcomFile);
-        }
-        wchar_t *lastSlash = ns_wcspbrk(xpcomDir, L"/\\");
+        char xpcomDir[MAXPATHLEN];
+
+        _fullpath(xpcomDir, xpcomFile, sizeof(xpcomDir));
+        char *lastSlash = ns_strrpbrk(xpcomDir, "/\\");
         if (lastSlash) {
             *lastSlash = '\0';
-            char xpcomDir_narrow[MAXPATHLEN];
-            WideCharToMultiByte(CP_UTF8, 0, xpcomDir,-1,
-                                xpcomDir_narrow, MAX_PATH, NULL, NULL);
 
-            XPCOMGlueLoadDependentLibs(xpcomDir_narrow, ReadDependentCB);
-            
-            _snwprintf(lastSlash, MAXPATHLEN - wcslen(xpcomDir), L"\\" LXUL_DLL);
+            XPCOMGlueLoadDependentLibs(xpcomDir, ReadDependentCB);
+
+            _snprintf(lastSlash, MAXPATHLEN - strlen(xpcomDir), "\\" XUL_DLL);
+
             sXULLibrary =
-                LoadLibraryExW(xpcomDir, NULL, MOZ_LOADLIBRARY_FLAGS);
-
-            if (!sXULLibrary) 
-            {
-                DWORD err = GetLastError();
-#ifdef DEBUG
-                LPVOID lpMsgBuf;
-                FormatMessage(
-                              FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                              FORMAT_MESSAGE_FROM_SYSTEM |
-                              FORMAT_MESSAGE_IGNORE_INSERTS,
-                              NULL,
-                              GetLastError(),
-                              MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                              (LPTSTR) &lpMsgBuf,
-                              0,
-                              NULL
-                              );
-                wprintf(L"Error loading %s: %s\n", xpcomDir, lpMsgBuf);
-                LocalFree(lpMsgBuf);
-#endif //DEBUG
-                return (err == ERROR_NOT_ENOUGH_MEMORY || err == ERROR_OUTOFMEMORY)
-                    ? NS_ERROR_OUT_OF_MEMORY : NS_ERROR_FAILURE;
-            }
+                LoadLibraryEx(xpcomDir, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
         }
     }
-    HINSTANCE h =
-        LoadLibraryExW(xpcomFile, NULL, MOZ_LOADLIBRARY_FLAGS);
 
-    if (!h) 
-    {
-        DWORD err = GetLastError();
-#ifdef DEBUG
-        LPVOID lpMsgBuf;
-        FormatMessage(
-                      FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                      FORMAT_MESSAGE_FROM_SYSTEM |
-                      FORMAT_MESSAGE_IGNORE_INSERTS,
-                      NULL,
-                      err,
-                      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                      (LPTSTR) &lpMsgBuf,
-                      0,
-                      NULL
-                      );
-        wprintf(L"Error loading %s: %s\n", xpcomFile, lpMsgBuf);
-        LocalFree(lpMsgBuf);
-#endif        
-        return (err == ERROR_NOT_ENOUGH_MEMORY || err == ERROR_OUTOFMEMORY)
-            ? NS_ERROR_OUT_OF_MEMORY : NS_ERROR_FAILURE;
-    }
+    HINSTANCE h =
+        LoadLibraryEx(xpcomFile, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+
+    if (!h)
+        return nsnull;
 
     AppendDependentLib(h);
 
     GetFrozenFunctionsFunc sym =
         (GetFrozenFunctionsFunc) GetProcAddress(h, "NS_GetFrozenFunctions");
 
-    if (!sym) { // No symbol found.
+    if (!sym)
         XPCOMGlueUnload();
-        return NS_ERROR_NOT_AVAILABLE;
-    }
 
-    *func = sym;
-
-    return NS_OK;
+    return sym;
 }
 
 void

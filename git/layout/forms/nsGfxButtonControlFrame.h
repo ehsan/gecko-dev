@@ -56,11 +56,9 @@ class nsGfxButtonControlFrame : public nsHTMLButtonControlFrame,
                                 public nsIAnonymousContentCreator
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsGfxButtonControlFrame(nsStyleContext* aContext);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                          nsGUIEvent* aEvent,
@@ -76,8 +74,8 @@ public:
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
-  NS_DECL_QUERYFRAME
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
@@ -102,8 +100,10 @@ protected:
 
   PRBool IsFileBrowseButton(PRInt32 type); // Browse button of file input
 
-  virtual PRBool IsInput() { return PR_TRUE; }
 private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
+  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
+
   nsSize mSuggestedSize;
   nsCOMPtr<nsIContent> mTextContent;
 };

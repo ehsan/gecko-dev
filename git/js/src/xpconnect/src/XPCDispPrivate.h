@@ -213,7 +213,7 @@ private:
  * @param vp holds the result of the function
  * @return true if the function completes without error
  */
-JSBool
+JSBool JS_DLL_CALLBACK
 XPC_IDispatch_CallMethod(JSContext *cx, JSObject *obj, uintN argc,
                          jsval *argv, jsval *vp);
 /**
@@ -225,7 +225,7 @@ XPC_IDispatch_CallMethod(JSContext *cx, JSObject *obj, uintN argc,
  * @param vp holds the result of the function
  * @return true if the function completes without error
  */
-JSBool
+JSBool JS_DLL_CALLBACK
 XPC_IDispatch_GetterSetter(JSContext *cx, JSObject *obj, uintN argc, 
                            jsval *argv, jsval *vp);
 
@@ -323,7 +323,7 @@ public:
     JSBool IsMarked() const;
 private:
     JSBool mMarked;
-    nsTArray<jsid> mIDArray;
+    nsVoidArray mIDArray;
 };
 
 /**
@@ -367,7 +367,7 @@ public:
          */
         PRUint32 Length() const;
     private:
-        nsTArray<FUNCDESC> mArray;
+        nsVoidArray      mArray;
         /**
          * Initializes a function description object
          * @param ccx XPConnect context
@@ -1140,6 +1140,14 @@ public:
      */
     static void Disable() { mIsEnabled = PR_FALSE; }
     /**
+     * Initializes the IDispatch support system
+     * this exposes the ActiveXObject and COMObject to JS
+     * @param aJSContext a JS context
+     * @param aGlobalJSObj a global JS object
+     */
+    static JSBool Initialize(JSContext * aJSContext,
+                             JSObject* aGlobalJSObj);
+    /**
      * This is the define property for the IDispatch system. It called from
      * the XPConnect's DefineProperty
      * @param ccx an XPConnect call context
@@ -1265,6 +1273,69 @@ private:
 #ifdef DEBUG
     PRBool mInserted;
 #endif
+};
+
+/**
+ * Parameterized property object JSClass
+ * This class is used to support parameterized properties for IDispatch
+ */
+class XPCDispParamPropJSClass
+{
+public:
+    /**
+     * returns a new or existing JS object as a jsval. This currently always
+     * returns a new instance. But it may be worth looking into reusing
+     * objects
+     * @param ccx an XPConnect call context
+     * @param wrapper the wrapper this parameterized property belongs to
+     * @param dispID DISPID of the parameterized property
+     * @param dispParams the parameters for the parameterized properties
+     * @param paramPropObj pointer to the jsval that will receive the
+     * JS function object
+     * @return true if the JS function object was created
+     */
+    static JSBool NewInstance(XPCCallContext& ccx, XPCWrappedNative* wrapper,
+                               PRUint32 dispID,
+                               XPCDispParams* dispParams,
+                               jsval* paramPropObj);
+    /**
+     * Cleans up the member, derefs the mDispObj, mWrapper and such
+     */
+    ~XPCDispParamPropJSClass();
+    /**
+     * Returns the wrapper
+     * @return pointer to the wrapper (on loan)
+     */
+    XPCWrappedNative*       GetWrapper() const { return mWrapper; }
+    /**
+     * Invokes the parameterized getter/setter
+     * @param ccx XPConnect call context
+     * @param mode call mode
+     * @param retval pointer to a jsval to receive the result
+     */
+    JSBool                  Invoke(XPCCallContext& ccx, 
+                                   XPCDispObject::CallMode mode, 
+                                   jsval* retval);
+    /**
+     * Returns the parameters for the parameterized property
+     * @return a reference to the parameters for the parameterized property
+     */
+    XPCDispParams*    GetParams() const { return mDispParams; }
+private:
+    /**
+     * Private constructor to initialize data members
+     * @param wrapper The wrapper this parameterized object belongs to
+     * @param dispObj pointer to the IDispatch object
+     * @param dispID the DISPID of the parametersized property
+     * @param dispParams the parameters for the parameterized property
+     */
+    XPCDispParamPropJSClass(XPCWrappedNative* wrapper, nsISupports* dispObj, 
+                            PRUint32 dispID, XPCDispParams* dispParams);
+
+    XPCWrappedNative*           mWrapper;
+    PRUint32                    mDispID;
+    XPCDispParams*              mDispParams;
+    IDispatch*                  mDispObj;
 };
 
 /**

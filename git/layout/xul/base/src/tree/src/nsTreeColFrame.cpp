@@ -45,13 +45,11 @@
 #include "nsIDOMNSDocument.h"
 #include "nsIDocument.h"
 #include "nsIBoxObject.h"
-#include "nsTreeBoxObject.h"
 #include "nsIDOMElement.h"
 #include "nsITreeBoxObject.h"
 #include "nsITreeColumns.h"
 #include "nsIDOMXULTreeElement.h"
 #include "nsDisplayList.h"
-#include "nsTreeBodyFrame.h"
 
 //
 // NS_NewTreeColFrame
@@ -59,12 +57,29 @@
 // Creates a new col frame
 //
 nsIFrame*
-NS_NewTreeColFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewTreeColFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
+                   PRBool aIsRoot, nsIBoxLayout* aLayoutManager)
 {
-  return new (aPresShell) nsTreeColFrame(aPresShell, aContext);
+  return new (aPresShell) nsTreeColFrame(aPresShell, aContext, aIsRoot, aLayoutManager);
+} // NS_NewTreeColFrame
+
+NS_IMETHODIMP_(nsrefcnt) 
+nsTreeColFrame::AddRef(void)
+{
+  return NS_OK;
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsTreeColFrame)
+NS_IMETHODIMP_(nsrefcnt)
+nsTreeColFrame::Release(void)
+{
+  return NS_OK;
+}
+
+//
+// QueryInterface
+//
+NS_INTERFACE_MAP_BEGIN(nsTreeColFrame)
+NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
 
 // Destructor
 nsTreeColFrame::~nsTreeColFrame()
@@ -81,11 +96,11 @@ nsTreeColFrame::Init(nsIContent*      aContent,
   return rv;
 }
 
-void
-nsTreeColFrame::DestroyFrom(nsIFrame* aDestructRoot)
+void                                                                
+nsTreeColFrame::Destroy()                          
 {
-  InvalidateColumns(PR_FALSE);
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  InvalidateColumns();
+  nsBoxFrame::Destroy();
 }
 
 class nsDisplayXULTreeColSplitterTarget : public nsDisplayItem {
@@ -99,14 +114,13 @@ public:
   }
 #endif
 
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
-                            HitTestState* aState);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt);
   NS_DISPLAY_DECL_NAME("XULTreeColSplitterTarget")
 };
 
 nsIFrame* 
 nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder,
-                                           nsPoint aPt, HitTestState* aState)
+                                           nsPoint aPt)
 {
   nsPoint pt = aPt - aBuilder->ToReferenceFrame(mFrame);
   // If we are in either the first 4 pixels or the last 4 pixels, we're going to
@@ -118,18 +132,12 @@ nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder,
   else if (nsPresContext::CSSPixelsToAppUnits(4) > pt.x)
     left = PR_TRUE;
 
-  // Swap left and right for RTL trees in order to find the correct splitter
-  if (mFrame->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-    PRBool tmp = left;
-    left = right;
-    right = tmp;
-  }
-
   if (left || right) {
     // We are a header. Look for the correct splitter.
+    nsFrameList frames(mFrame->GetParent()->GetFirstChild(nsnull));
     nsIFrame* child;
     if (left)
-      child = mFrame->GetPrevSibling();
+      child = frames.GetPrevSiblingFor(mFrame);
     else
       child = mFrame->GetNextSibling();
 
@@ -212,20 +220,12 @@ nsTreeColFrame::GetTreeBoxObject()
 }
 
 void
-nsTreeColFrame::InvalidateColumns(PRBool aCanWalkFrameTree)
+nsTreeColFrame::InvalidateColumns()
 {
   nsITreeBoxObject* treeBoxObject = GetTreeBoxObject();
   if (treeBoxObject) {
     nsCOMPtr<nsITreeColumns> columns;
-
-    if (aCanWalkFrameTree) {
-      treeBoxObject->GetColumns(getter_AddRefs(columns));
-    } else {
-      nsTreeBodyFrame* body = static_cast<nsTreeBoxObject*>(treeBoxObject)->GetCachedTreeBody();
-      if (body) {
-        body->GetColumns(getter_AddRefs(columns));
-      }
-    }
+    treeBoxObject->GetColumns(getter_AddRefs(columns));
 
     if (columns)
       columns->InvalidateColumns();

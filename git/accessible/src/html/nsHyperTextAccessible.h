@@ -45,8 +45,6 @@
 #include "nsIAccessibleHyperText.h"
 #include "nsIAccessibleEditableText.h"
 #include "nsAccessibleEventData.h"
-#include "nsTextAttrs.h"
-
 #include "nsFrameSelection.h"
 #include "nsISelectionController.h"
 
@@ -55,7 +53,6 @@ enum EGetTextType { eGetBefore=-1, eGetAt=0, eGetAfter=1 };
 // This character marks where in the text returned via nsIAccessibleText(),
 // that embedded object characters exist
 const PRUnichar kEmbeddedObjectChar = 0xfffc;
-const PRUnichar kImaginaryEmbeddedObjectChar = ' ';
 const PRUnichar kForcedNewLineChar = '\n';
 
 #define NS_HYPERTEXTACCESSIBLE_IMPL_CID                 \
@@ -65,6 +62,7 @@ const PRUnichar kForcedNewLineChar = '\n';
   0x4839,                                               \
   { 0xa9, 0x2e, 0x95, 0x23, 0x97, 0x05, 0xf3, 0x0b }    \
 }
+
 
 /**
   * Special Accessible that knows how contain both text and embedded objects
@@ -82,10 +80,10 @@ public:
   NS_DECL_NSIACCESSIBLEEDITABLETEXT
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_HYPERTEXTACCESSIBLE_IMPL_CID)
 
-  // nsAccessible
+  NS_IMETHOD GetRole(PRUint32 *aRole);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+  void CacheChildren();
 
   // Convert content offset to rendered text offset  
   static nsresult ContentToRenderedOffset(nsIFrame *aFrame, PRInt32 aContentOffset,
@@ -126,17 +124,6 @@ public:
                                      PRBool aIsEndOffset = PR_FALSE);
 
   /**
-   * Turn a hypertext offsets into DOM point.
-   *
-   * @param  aHTOffset  [in] the given start hypertext offset
-   * @param  aNode      [out] start node
-   * @param  aOffset    [out] offset inside the start node
-   */
-  nsresult HypertextOffsetToDOMPoint(PRInt32 aHTOffset,
-                                     nsIDOMNode **aNode,
-                                     PRInt32 *aOffset);
-
-  /**
    * Turn a start and end hypertext offsets into DOM range.
    *
    * @param  aStartHTOffset  [in] the given start hypertext offset
@@ -154,12 +141,6 @@ public:
                                       PRInt32 *aEndOffset);
 
 protected:
-
-  // nsAccessible
-  virtual void CacheChildren();
-
-  // nsHyperTextAccessible
-
   /*
    * This does the work for nsIAccessibleText::GetText[At|Before|After]Offset
    * @param aType, eGetBefore, eGetAt, eGetAfter
@@ -229,73 +210,21 @@ protected:
 
   // Selection helpers
 
-    /**
-   * Get the relevant selection interfaces and ranges for the current hyper
-   * text.
-   *
-   * @param aType    [in] the selection type
-   * @param aSelCon  [out, optional] the selection controller for the current
-   *                 hyper text
-   * @param aDomSel  [out, optional] the selection interface for the current
-   *                 hyper text
-   * @param aRanges  [out, optional] the selected ranges within the current
-   *                 subtree
+  /**
+   * Get the relevant selection interfaces and ranges for the current hyper text
+   * @param aSelCon      The selection controller for the current hyper text, or nsnull if not needed
+   * @param aDomSel      The selection interface for the current hyper text, or nsnull if not needed
+   * @param aRanges      The selected ranges within the current subtree, or nsnull if not needed
    */
-  nsresult GetSelections(PRInt16 aType,
-                         nsISelectionController **aSelCon,
+  nsresult GetSelections(nsISelectionController **aSelCon,
                          nsISelection **aDomSel = nsnull,
                          nsCOMArray<nsIDOMRange>* aRanges = nsnull);
-
   nsresult SetSelectionRange(PRInt32 aStartPos, PRInt32 aEndPos);
-
-  /**
-   * Provide the line number for the caret, relative to the
-   * current DOM node.
-   * @return 1-based index for the line number with the caret
-   */
-  PRInt32 GetCaretLineNumber();
 
   // Helpers
   nsresult GetDOMPointByFrameOffset(nsIFrame *aFrame, PRInt32 aOffset,
                                     nsIAccessible *aAccessible,
                                     nsIDOMNode **aNode, PRInt32 *aNodeOffset);
-
-  
-  /**
-   * Return hyper text offset for the specified bound of the given DOM range.
-   * If the bound is outside of the hyper text then offset value is either
-   * 0 or number of characters of hyper text, it depends on type of requested
-   * offset. The method is a wrapper for DOMPointToHypertextOffset.
-   *
-   * @param aRange          [in] the given range
-   * @param aIsStartBound   [in] specifies whether the required range bound is
-   *                        start bound
-   * @param aIsStartOffset  [in] the offset type, used when the range bound is
-   *                        outside of hyper text
-   * @param aHTOffset       [out] the result offset
-   */
-  nsresult DOMRangeBoundToHypertextOffset(nsIDOMRange *aRange,
-                                          PRBool aIsStartBound,
-                                          PRBool aIsStartOffset,
-                                          PRInt32 *aHTOffset);
-
-  /**
-   * Set 'misspelled' text attribute and return range offsets where the
-   * attibute is stretched. If the text is not misspelled at the given offset
-   * then we expose only range offsets where text is not misspelled. The method
-   * is used by GetTextAttributes() method.
-   *
-   * @param aIncludeDefAttrs  [in] points whether text attributes having default
-   *                          values of attributes should be included
-   * @param aSourceNode       [in] the node we start to traverse from
-   * @param aStartOffset      [in, out] the start offset
-   * @param aEndOffset        [in, out] the end offset
-   * @param aAttributes       [out, optional] result attributes
-   */
-  nsresult GetSpellTextAttribute(nsIDOMNode *aNode, PRInt32 aNodeOffset,
-                                 PRInt32 *aStartOffset,
-                                 PRInt32 *aEndOffset,
-                                 nsIPersistentProperties *aAttributes);
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsHyperTextAccessible,

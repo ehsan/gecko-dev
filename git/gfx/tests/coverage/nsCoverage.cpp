@@ -252,7 +252,7 @@ nsPoint *pointlist;
  * Main Handler
  *--------------------------------------------------------------------------------
  */
-nsEventStatus HandleEvent(nsGUIEvent *aEvent)
+nsEventStatus PR_CALLBACK HandleEvent(nsGUIEvent *aEvent)
 { 
    nsEventStatus result = nsEventStatus_eIgnore;
 
@@ -281,27 +281,25 @@ nsEventStatus HandleEvent(nsGUIEvent *aEvent)
               (ke->isControl?"Pressed":"Released"),
               (ke->isAlt?"Pressed":"Released"));
             printf("%s\n", str);
-            nsIntRect clientRect;
-            gWindow->GetClientBounds(clientRect);
             switch(ke->keyCode) {
                case 'U':
                  gOffsetY -= 9;
-                 gWindow->Invalidate(clientRect, PR_FALSE);
+                 gWindow->Invalidate(PR_FALSE);
                break;
 
                case 'D':
                  gOffsetY += 10;
-                 gWindow->Invalidate(clientRect, PR_FALSE);
+                 gWindow->Invalidate(PR_FALSE);
                 break;
 
                case 'R':
                  gOffsetX += 9;
-                 gWindow->Invalidate(clientRect, PR_FALSE);
+                 gWindow->Invalidate(PR_FALSE);
                break;
 
                case 'L':
                  gOffsetX -= 10;
-                 gWindow->Invalidate(clientRect, PR_FALSE);
+                 gWindow->Invalidate(PR_FALSE);
                break;
             }
             }
@@ -375,7 +373,7 @@ nsresult CoverageTest(int *argc, char **argv)
 
     if (NS_OK == res)
     {
-      deviceContext->Init(gWindow);
+      deviceContext->Init(gWindow->GetNativeData(NS_NATIVE_WIDGET));
       NS_ADDREF(deviceContext);
     }
 

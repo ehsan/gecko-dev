@@ -39,55 +39,62 @@ DEPTH		= ../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir  = toolkit/crashreporter/test
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE = crashreporter_test
-XPCSHELL_TESTS = unit
+ifndef MOZ_ENABLE_LIBXUL
+PROGRAM = TestCrashReporterAPI$(BIN_SUFFIX)
 
-LIBRARY_NAME = testcrasher
-IS_COMPONENT    = 1
-USE_STATIC_LIBS = 1
+CPPSRCS = TestCrashReporterAPI.cpp
+endif
 
-XPIDLSRCS = nsITestCrasher.idl
+REQUIRES = \
+	xpcom \
+	string \
+	crashreporter \
+	$(NULL)
 
-CPPSRCS = \
-  nsTestCrasher.cpp \
-  $(NULL)
-
-LOCAL_INCLUDES += -I$(XPIDL_GEN_DIR)
-EXTRA_DSO_LIBS += xpcom
-EXTRA_DSO_LDOPTS += $(LIBS_DIR) $(MOZ_COMPONENT_LIBS)
-
-ifdef MOZ_ENABLE_LIBXUL
-EXTRA_DSO_LDOPTS += $(XPCOM_GLUE_LDOPTS)
-else
+LIBS = \
+	$(EXTRA_DSO_LIBS) \
+	$(XPCOM_GLUE_LDOPTS) \
+	$(XPCOM_LIBS) \
+	$(NSPR_LIBS) \
+        $(DEPTH)/toolkit/crashreporter/$(LIB_PREFIX)exception_handler_s.$(LIB_SUFFIX) \
+	$(NULL)
 
 MOZILLA_INTERNAL_API = 1
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-EXTRA_DSO_LDOPTS += $(DIST)/bin/XUL
-else
-EXTRA_DSO_LIBS += xul
-endif
-
-EXTRA_DSO_LDOPTS += $(EXTRA_DSO_LIBS) $(XPCOM_LIBS)
-
-endif
-
 include $(topsrcdir)/config/rules.mk
 
-_BROWSER_FILES = \
-  browser/aboutcrashes_utils.js \
-  browser/crashreport.sjs \
-  browser/browser_aboutCrashes.js \
-  browser/browser_bug471404.js \
-  browser/browser_aboutCrashesResubmit.js \
-  $(NULL)
+ifeq ($(OS_ARCH),WINNT)
+LIBS += \
+	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/windows/handler/$(LIB_PREFIX)exception_handler_s.$(LIB_SUFFIX) \
+	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/windows/$(LIB_PREFIX)breakpad_windows_common_s.$(LIB_SUFFIX)
+LIBS += $(call expand_libname shell32)
+OS_LIBS += $(call EXPAND_LIBNAME,ole32)
+endif
 
-libs::  $(_BROWSER_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)/browser
-	$(NSINSTALL) -D $(DEPTH)/_tests/xpcshell/$(MODULE)/unit/components
-	$(INSTALL) $(SHARED_LIBRARY) \
-          $(DEPTH)/_tests/xpcshell/$(MODULE)/unit/components
+ifeq ($(OS_ARCH),Darwin)
+OS_LIBS += -framework Cocoa -lcrypto
+LIBS += \
+	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/$(LIB_PREFIX)minidump_file_writer_s.$(LIB_SUFFIX) \
+	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/mac/handler/$(LIB_PREFIX)exception_handler_s.$(LIB_SUFFIX) \
+	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/$(LIB_PREFIX)breakpad_common_s.$(LIB_SUFFIX) \
+	$(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/mac/$(LIB_PREFIX)breakpad_mac_common_s.$(LIB_SUFFIX) \
+	$(NULL)
+LOCAL_INCLUDES += -I$(srcdir) -I$(srcdir)/../google-breakpad/src/common/mac/
+endif
+
+ifeq ($(OS_ARCH),Linux)
+LIBS += \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/linux/handler/$(LIB_PREFIX)exception_handler_s.$(LIB_SUFFIX) \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/client/$(LIB_PREFIX)minidump_file_writer_s.$(LIB_SUFFIX) \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/$(LIB_PREFIX)breakpad_common_s.$(LIB_SUFFIX) \
+  $(DEPTH)/toolkit/crashreporter/google-breakpad/src/common/linux/$(LIB_PREFIX)breakpad_linux_common_s.$(LIB_SUFFIX) \
+  $(NULL)
+endif
+
+ifndef MOZ_ENABLE_LIBXUL
+check:: $(PROGRAM)
+	$(RUN_TEST_PROGRAM) $(DIST)/bin/TestCrashReporterAPI
+endif

@@ -232,33 +232,32 @@ nsOSHelperAppService::GetMIMEInfoFromOS(const nsACString& aMIMEType, const nsACS
   return mi;
 }
 
-NS_IMETHODIMP
-nsOSHelperAppService::GetProtocolHandlerInfoFromOS(const nsACString &aScheme,
-                                                   PRBool *found,
-                                                   nsIHandlerInfo **_retval)
+already_AddRefed<nsIHandlerInfo>
+nsOSHelperAppService::GetProtocolInfoFromOS(const nsACString &aScheme,
+                                            PRBool *found)
 {
   NS_ASSERTION(!aScheme.IsEmpty(), "No scheme was specified!");
 
   nsresult rv = OSProtocolHandlerExists(nsPromiseFlatCString(aScheme).get(),
                                         found);
   if (NS_FAILED(rv))
-    return rv;
+    return nsnull;
 
   nsMIMEInfoBeOS *handlerInfo =
 	new nsMIMEInfoBeOS(aScheme, nsMIMEInfoBase::eProtocolInfo);
-  NS_ENSURE_TRUE(handlerInfo, NS_ERROR_OUT_OF_MEMORY);
-  NS_ADDREF(*_retval = handlerInfo);
+  NS_ENSURE_TRUE(handlerInfo, nsnull);
+  NS_ADDREF(handlerInfo);
 
   if (!*found) {
     // Code that calls this requires an object regardless if the OS has
     // something for us, so we return the empty object.
-    return rv;
+    return handlerInfo;
   }
 
   nsAutoString desc;
   GetApplicationDescription(aScheme, desc);
   handlerInfo->SetDefaultDescription(desc);
 
-  return rv;
+  return handlerInfo;
 }
 

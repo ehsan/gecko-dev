@@ -48,15 +48,13 @@ NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRUint32 
   nsSelectsAreaFrame* it = new (aShell) nsSelectsAreaFrame(aContext);
 
   if (it) {
-    // We need NS_BLOCK_FLOAT_MGR to ensure that the options inside the select
+    // We need NS_BLOCK_SPACE_MGR to ensure that the options inside the select
     // aren't expanded by right floats outside the select.
-    it->SetFlags(aFlags | NS_BLOCK_FLOAT_MGR);
+    it->SetFlags(aFlags | NS_BLOCK_SPACE_MGR);
   }
 
   return it;
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsSelectsAreaFrame)
 
 //---------------------------------------------------------
 PRBool 
@@ -96,8 +94,7 @@ public:
     : nsDisplayWrapList(aFrame, aItem) {}
   nsDisplayOptionEventGrabber(nsIFrame* aFrame, nsDisplayList* aList)
     : nsDisplayWrapList(aFrame, aList) {}
-  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
-                            HitTestState* aState);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt);
   NS_DISPLAY_DECL_NAME("OptionEventGrabber")
 
   virtual nsDisplayWrapList* WrapWithClone(nsDisplayListBuilder* aBuilder,
@@ -105,9 +102,9 @@ public:
 };
 
 nsIFrame* nsDisplayOptionEventGrabber::HitTest(nsDisplayListBuilder* aBuilder,
-    nsPoint aPt, HitTestState* aState)
+    nsPoint aPt)
 {
-  nsIFrame* frame = mList.HitTest(aBuilder, aPt, aState);
+  nsIFrame* frame = mList.HitTest(aBuilder, aPt);
 
   if (frame) {
     nsIFrame* selectedFrame = frame;
@@ -173,8 +170,8 @@ public:
     nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());
     return listFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(listFrame);
   }
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx) {
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect) {
     nsListControlFrame* listFrame = GetEnclosingListFrame(GetUnderlyingFrame());
     // listFrame must be non-null or we wouldn't get called.
     listFrame->PaintFocus(*aCtx, aBuilder->ToReferenceFrame(listFrame));
@@ -203,7 +200,7 @@ nsSelectsAreaFrame::BuildDisplayListInternal(nsDisplayListBuilder*   aBuilder,
                                              const nsRect&           aDirtyRect,
                                              const nsDisplayListSet& aLists)
 {
-  nsresult rv = nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  nsresult rv = nsAreaFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsListControlFrame* listFrame = GetEnclosingListFrame(this);
@@ -236,7 +233,7 @@ nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext,
   nscoord oldHeight;
   if (isInDropdownMode) {
     // Store the height now in case it changes during
-    // nsBlockFrame::Reflow for some odd reason.
+    // nsAreaFrame::Reflow for some odd reason.
     if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
       oldHeight = GetSize().height;
     } else {
@@ -244,7 +241,7 @@ nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext,
     }
   }
   
-  nsresult rv = nsBlockFrame::Reflow(aPresContext, aDesiredSize,
+  nsresult rv = nsAreaFrame::Reflow(aPresContext, aDesiredSize,
                                     aReflowState, aStatus);
   NS_ENSURE_SUCCESS(rv, rv);
 

@@ -39,7 +39,7 @@
 
 
 #include "nsPlaintextEditor.h"
-#include "nsCaret.h"
+#include "nsICaret.h"
 #include "nsTextEditUtils.h"
 #include "nsTextEditRules.h"
 #include "nsEditorEventListeners.h"
@@ -76,9 +76,9 @@
 #include "nsIPrefService.h"
 #include "nsUnicharUtils.h"
 #include "nsContentCID.h"
+#include "nsAOLCiter.h"
 #include "nsInternetCiter.h"
 #include "nsEventDispatcher.h"
-#include "nsGkAtoms.h"
 
 // Drag & Drop, Clipboard
 #include "nsIClipboard.h"
@@ -115,27 +115,12 @@ nsPlaintextEditor::~nsPlaintextEditor()
   // Remove event listeners. Note that if we had an HTML editor,
   //  it installed its own instead of these
   RemoveEventListeners();
-
-  if (mRules)
-    mRules->DetachEditor();
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsPlaintextEditor)
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsPlaintextEditor, nsEditor)
-  if (tmp->mRules)
-    tmp->mRules->DetachEditor();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRules)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsPlaintextEditor, nsEditor)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRules)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsPlaintextEditor, nsEditor)
 NS_IMPL_RELEASE_INHERITED(nsPlaintextEditor, nsEditor)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsPlaintextEditor)
+NS_INTERFACE_MAP_BEGIN(nsPlaintextEditor)
   NS_INTERFACE_MAP_ENTRY(nsIPlaintextEditor)
   NS_INTERFACE_MAP_ENTRY(nsIEditorMailSupport)
 NS_INTERFACE_MAP_END_INHERITING(nsEditor)
@@ -432,7 +417,7 @@ NS_IMETHODIMP nsPlaintextEditor::HandleKeyPress(nsIDOMKeyEvent* aKeyEvent)
 NS_IMETHODIMP nsPlaintextEditor::TypedText(const nsAString& aString,
                                       PRInt32 aAction)
 {
-  nsAutoPlaceHolderBatch batch(this, nsGkAtoms::TypingTxnName);
+  nsAutoPlaceHolderBatch batch(this, gTypingTxnName);
 
   switch (aAction)
   {
@@ -651,63 +636,6 @@ nsPlaintextEditor::GetTextSelectionOffsets(nsISelection *aSelection,
   return NS_OK;
 }
 
-nsresult
-nsPlaintextEditor::ExtendSelectionForDelete(nsISelection *aSelection,
-                                            nsIEditor::EDirection *aAction)
-{
-  nsresult result;
-
-  PRBool bCollapsed;
-  result = aSelection->GetIsCollapsed(&bCollapsed);
-  if (NS_FAILED(result)) return result;
-
-  if (*aAction == eNextWord || *aAction == ePreviousWord
-      || (*aAction == eNext && bCollapsed)
-      || *aAction == eToBeginningOfLine || *aAction == eToEndOfLine)
-  {
-    nsCOMPtr<nsISelectionController> selCont (do_QueryReferent(mSelConWeak));
-    if (!selCont)
-      return NS_ERROR_NO_INTERFACE;
-
-    switch (*aAction)
-    {
-      case eNextWord:
-        result = selCont->WordExtendForDelete(PR_TRUE);
-        // DeleteSelectionImpl doesn't handle these actions
-        // because it's inside batching, so don't confuse it:
-        *aAction = eNone;
-        break;
-      case ePreviousWord:
-        result = selCont->WordExtendForDelete(PR_FALSE);
-        *aAction = eNone;
-        break;
-      case eNext:
-        result = selCont->CharacterExtendForDelete();
-        // Don't set aAction to eNone (see Bug 502259)
-        break;
-      case ePrevious:
-        /* FIXME: extend selection over UTF-16 surrogates for Bug #332636
-         * and set *aAction = eNone
-         */
-        result = NS_OK;
-        break;
-      case eToBeginningOfLine:
-        selCont->IntraLineMove(PR_TRUE, PR_FALSE);          // try to move to end
-        result = selCont->IntraLineMove(PR_FALSE, PR_TRUE); // select to beginning
-        *aAction = eNone;
-        break;
-      case eToEndOfLine:
-        result = selCont->IntraLineMove(PR_TRUE, PR_TRUE);
-        *aAction = eNext;
-        break;
-      default:       // avoid several compiler warnings
-        result = NS_OK;
-        break;
-    }
-  }
-  return result;
-}
-
 NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
 {
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
@@ -715,7 +643,7 @@ NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
   nsresult result;
 
   // delete placeholder txns merge.
-  nsAutoPlaceHolderBatch batch(this, nsGkAtoms::DeleteTxnName);
+  nsAutoPlaceHolderBatch batch(this, gDeleteTxnName);
   nsAutoRules beginRulesSniffing(this, kOpDeleteSelection, aAction);
 
   // pre-process
@@ -735,7 +663,6 @@ NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
   if (!bCollapsed &&
       (aAction == eNextWord || aAction == ePreviousWord ||
        aAction == eToBeginningOfLine || aAction == eToEndOfLine))
-  {
     if (mCaretStyle == 1)
     {
       result = selection->CollapseToStart();
@@ -745,6 +672,44 @@ NS_IMETHODIMP nsPlaintextEditor::DeleteSelection(nsIEditor::EDirection aAction)
     { 
       aAction = eNone;
     }
+
+  // If it's one of these modes,
+  // we have to extend the selection first.
+  // This needs to happen inside selection batching,
+  // otherwise the deleted text is autocopied to the clipboard.
+  if (aAction == eNextWord || aAction == ePreviousWord
+      || aAction == eToBeginningOfLine || aAction == eToEndOfLine)
+  {
+    nsCOMPtr<nsISelectionController> selCont (do_QueryReferent(mSelConWeak));
+    if (!selCont)
+      return NS_ERROR_NO_INTERFACE;
+
+    switch (aAction)
+    {
+        case eNextWord:
+          result = selCont->WordExtendForDelete(PR_TRUE);
+          // DeleteSelectionImpl doesn't handle these actions
+          // because it's inside batching, so don't confuse it:
+          aAction = eNone;
+          break;
+        case ePreviousWord:
+          result = selCont->WordExtendForDelete(PR_FALSE);
+          aAction = eNone;
+          break;
+        case eToBeginningOfLine:
+          selCont->IntraLineMove(PR_TRUE, PR_FALSE);          // try to move to end
+          result = selCont->IntraLineMove(PR_FALSE, PR_TRUE); // select to beginning
+          aAction = eNone;
+          break;
+        case eToEndOfLine:
+          result = selCont->IntraLineMove(PR_TRUE, PR_TRUE);
+          aAction = eNext;
+          break;
+        default:       // avoid several compiler warnings
+          result = NS_OK;
+          break;
+    }
+    NS_ENSURE_SUCCESS(result, result);
   }
 
   nsTextRulesInfo ruleInfo(nsTextEditRules::kDeleteSelection);
@@ -1074,12 +1039,12 @@ nsPlaintextEditor::SetWrapWidth(PRInt32 aWrapColumn)
   // and now we're ready to set the new whitespace/wrapping style.
   if (aWrapColumn > 0 && !mWrapToWindow)        // Wrap to a fixed column
   {
-    styleValue.AppendLiteral("white-space: pre-wrap; width: ");
+    styleValue.AppendLiteral("white-space: -moz-pre-wrap; width: ");
     styleValue.AppendInt(aWrapColumn);
     styleValue.AppendLiteral("ch;");
   }
   else if (mWrapToWindow || aWrapColumn == 0)
-    styleValue.AppendLiteral("white-space: pre-wrap;");
+    styleValue.AppendLiteral("white-space: -moz-pre-wrap;");
   else
     styleValue.AppendLiteral("white-space: pre;");
 
@@ -1250,8 +1215,12 @@ NS_IMETHODIMP nsPlaintextEditor::CanCut(PRBool *aCanCut)
   NS_ENSURE_ARG_POINTER(aCanCut);
   *aCanCut = PR_FALSE;
 
+  nsresult rv = FireClipboardEvent(NS_BEFORECUT, aCanCut);
+  if (NS_FAILED(rv) || *aCanCut)
+    return rv;
+
   nsCOMPtr<nsISelection> selection;
-  nsresult rv = GetSelection(getter_AddRefs(selection));
+  rv = GetSelection(getter_AddRefs(selection));
   if (NS_FAILED(rv)) return rv;
     
   PRBool isCollapsed;
@@ -1279,8 +1248,12 @@ NS_IMETHODIMP nsPlaintextEditor::CanCopy(PRBool *aCanCopy)
   NS_ENSURE_ARG_POINTER(aCanCopy);
   *aCanCopy = PR_FALSE;
 
+  nsresult rv = FireClipboardEvent(NS_BEFORECOPY, aCanCopy);
+  if (NS_FAILED(rv) || *aCanCopy)
+    return rv;
+
   nsCOMPtr<nsISelection> selection;
-  nsresult rv = GetSelection(getter_AddRefs(selection));
+  rv = GetSelection(getter_AddRefs(selection));
   if (NS_FAILED(rv)) return rv;
     
   PRBool isCollapsed;
@@ -1483,12 +1456,38 @@ nsPlaintextEditor::PasteAsQuotation(PRInt32 aSelectionType)
   return rv;
 }
 
+// Utility routine to make a new citer.  This addrefs, of course.
+static nsICiter* MakeACiter()
+{
+  // Make a citer of an appropriate type
+  nsICiter* citer = 0;
+  nsresult rv;
+  nsCOMPtr<nsIPrefBranch> prefBranch =
+    do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) return 0;
+
+  char *citationType = 0;
+  rv = prefBranch->GetCharPref("mail.compose.citationType", &citationType);
+                          
+  if (NS_SUCCEEDED(rv) && citationType[0] && !strncmp(citationType, "aol", 3))
+    citer = new nsAOLCiter;
+  else
+    citer = new nsInternetCiter;
+
+  if (citationType)
+    PL_strfree(citationType);
+
+  if (citer)
+    NS_ADDREF(citer);
+  return citer;
+}
+
 NS_IMETHODIMP
 nsPlaintextEditor::InsertAsQuotation(const nsAString& aQuotedText,
                                      nsIDOMNode **aNodeInserted)
 {
   // We have the text.  Cite it appropriately:
-  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  nsCOMPtr<nsICiter> citer = dont_AddRef(MakeACiter());
 
   // Let the citer quote it for us:
   nsString quotedStuff;
@@ -1590,7 +1589,7 @@ nsPlaintextEditor::Rewrap(PRBool aRespectNewlines)
                           &isCollapsed, current);
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  nsCOMPtr<nsICiter> citer = dont_AddRef(MakeACiter());
   if (NS_FAILED(rv)) return rv;
   if (!citer) return NS_ERROR_UNEXPECTED;
 
@@ -1619,7 +1618,7 @@ nsPlaintextEditor::StripCites()
                                    &isCollapsed, current);
   if (NS_FAILED(rv)) return rv;
 
-  nsCOMPtr<nsICiter> citer = new nsInternetCiter();
+  nsCOMPtr<nsICiter> citer = dont_AddRef(MakeACiter());
   if (!citer) return NS_ERROR_UNEXPECTED;
 
   nsString stripped;
@@ -1666,7 +1665,7 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsI
   nsresult result = GetSelection(getter_AddRefs(selection));
   if (NS_FAILED(result)) return result;
 
-  nsRefPtr<nsCaret> caretP;
+  nsCOMPtr<nsICaret>  caretP;
   ps->GetCaret(getter_AddRefs(caretP));
 
   // We should return caret position if it is possible. Because this event
@@ -1716,7 +1715,7 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsI
     // GetCaretCoordinates so the states in Frame system sync with content
     // therefore, we put the nsAutoPlaceHolderBatch into a inner block
     {
-      nsAutoPlaceHolderBatch batch(this, nsGkAtoms::IMETxnName);
+      nsAutoPlaceHolderBatch batch(this, gIMETxnName);
 
       SetIsIMEComposing(); // We set mIsIMEComposing properly.
 
@@ -1744,21 +1743,49 @@ nsPlaintextEditor::SetCompositionString(const nsAString& aCompositionString, nsI
 
   if (caretP)
   {
-    nsIView *view = nsnull;
-    nsRect rect;
-    result = caretP->GetCaretCoordinates(nsCaret::eRenderingViewCoordinates,
+    result = caretP->GetCaretCoordinates(nsICaret::eIMECoordinates,
                                          selection,
-                                         &rect,
+                                         &(aReply->mCursorPosition),
                                          &(aReply->mCursorIsCollapsed),
-                                         &view);
-    aReply->mCursorPosition =
-       rect.ToOutsidePixels(ps->GetPresContext()->AppUnitsPerDevPixel());
+                                         nsnull);
     NS_ASSERTION(NS_SUCCEEDED(result), "cannot get caret position");
-    if (NS_SUCCEEDED(result) && view)
-      aReply->mReferenceWidget = view->GetWidget();
   }
 
   return result;
+}
+
+NS_IMETHODIMP 
+nsPlaintextEditor::GetReconversionString(nsReconversionEventReply* aReply)
+{
+  nsCOMPtr<nsISelection> selection;
+  nsresult res = GetSelection(getter_AddRefs(selection));
+  if (NS_FAILED(res)) return res;
+  if (!selection) return NS_ERROR_FAILURE;
+
+  // XXX get the first range in the selection.  Since it is
+  // unclear what to do if reconversion happens with a 
+  // multirange selection, we will ignore any additional ranges.
+  
+  nsCOMPtr<nsIDOMRange> range;
+  res = selection->GetRangeAt(0, getter_AddRefs(range));
+  if (NS_FAILED(res)) return res;
+  if (!range) return NS_ERROR_FAILURE;
+  
+  nsAutoString textValue;
+  res = range->ToString(textValue);
+  if (NS_FAILED(res))
+    return res;
+  
+  aReply->mReconversionString = (PRUnichar*) nsMemory::Clone(textValue.get(),
+                                                                (textValue.Length() + 1) * sizeof(PRUnichar));
+  if (!aReply->mReconversionString)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  if (textValue.IsEmpty())
+    return NS_OK;
+
+  // delete the selection
+  return DeleteSelection(eNone);
 }
 
 #ifdef XP_MAC
@@ -1818,6 +1845,31 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
 #ifdef XP_MAC
 #pragma mark -
 #pragma mark  Random methods 
+#pragma mark -
+#endif
+
+
+NS_IMETHODIMP nsPlaintextEditor::GetLayoutObject(nsIDOMNode *aNode, nsISupports **aLayoutObject)
+{
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+  if (!ps) return NS_ERROR_NOT_INITIALIZED;
+
+  nsresult result = NS_ERROR_NULL_POINTER;
+  if (aNode)
+  { // get the content interface
+    nsCOMPtr<nsIContent> nodeAsContent( do_QueryInterface(aNode) );
+    if (nodeAsContent)
+    { // get the frame from the content interface
+      //Note: frames are not ref counted, so don't use an nsCOMPtr
+      *aLayoutObject = nsnull;
+      result = ps->GetLayoutObjectFor(nodeAsContent, aLayoutObject);
+    }
+  }
+
+  return result;
+}
+
+#ifdef XP_MAC
 #pragma mark -
 #endif
 

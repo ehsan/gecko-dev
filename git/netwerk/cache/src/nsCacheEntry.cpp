@@ -154,6 +154,15 @@ nsCacheEntry::TouchMetaData()
 }
 
 
+nsresult
+nsCacheEntry::GetSecurityInfo( nsISupports ** result)
+{
+    NS_ENSURE_ARG_POINTER(result);
+    NS_IF_ADDREF(*result = mSecurityInfo);
+    return NS_OK;
+}
+
+
 /**
  *  cache entry states
  *      0 descriptors (new entry)
@@ -488,25 +497,36 @@ nsCacheEntryHashTable::RemoveEntry( nsCacheEntry *cacheEntry)
 
 
 void
-nsCacheEntryHashTable::VisitEntries( PLDHashEnumerator etor, void *arg)
+nsCacheEntryHashTable::VisitEntries( nsCacheEntryHashTable::Visitor *visitor)
 {
     NS_ASSERTION(initialized, "nsCacheEntryHashTable not initialized");
     if (!initialized)  return; // NS_ERROR_NOT_INITIALIZED
-    PL_DHashTableEnumerate(&table, etor, arg);
+    PL_DHashTableEnumerate(&table, VisitEntry, visitor);
 }
 
+
+PLDHashOperator PR_CALLBACK
+nsCacheEntryHashTable::VisitEntry(PLDHashTable *table,
+                                  PLDHashEntryHdr *hashEntry,
+                                  PRUint32 number,
+                                  void *arg)
+{
+    nsCacheEntry *cacheEntry = ((nsCacheEntryHashTableEntry *)hashEntry)->cacheEntry;
+    nsCacheEntryHashTable::Visitor *visitor = (nsCacheEntryHashTable::Visitor*) arg;
+    return (visitor->VisitEntry(cacheEntry) ? PL_DHASH_NEXT : PL_DHASH_STOP);
+}
 
 /**
  *  hash table operation callback functions
  */
 
-PLDHashNumber
+PLDHashNumber PR_CALLBACK
 nsCacheEntryHashTable::HashKey( PLDHashTable *table, const void *key)
 {
     return PL_DHashStringKey(table,((nsCString *)key)->get());
 }
 
-PRBool
+PRBool PR_CALLBACK
 nsCacheEntryHashTable::MatchEntry(PLDHashTable *       /* table */,
                                   const PLDHashEntryHdr * hashEntry,
                                   const void *            key)
@@ -518,7 +538,7 @@ nsCacheEntryHashTable::MatchEntry(PLDHashTable *       /* table */,
 }
 
 
-void
+void PR_CALLBACK
 nsCacheEntryHashTable::MoveEntry(PLDHashTable * /* table */,
                                  const PLDHashEntryHdr *from,
                                  PLDHashEntryHdr       *to)
@@ -528,9 +548,10 @@ nsCacheEntryHashTable::MoveEntry(PLDHashTable * /* table */,
 }
 
 
-void
+void PR_CALLBACK
 nsCacheEntryHashTable::ClearEntry(PLDHashTable * /* table */,
                                   PLDHashEntryHdr * hashEntry)
 {
     ((nsCacheEntryHashTableEntry *)hashEntry)->cacheEntry = 0;
 }
+

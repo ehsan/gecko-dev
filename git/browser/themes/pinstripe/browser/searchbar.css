@@ -1,149 +1,92 @@
 /* *** pinstripe *** */
 
+.search-go-button-bkgnd,
+.searchbar-engine-button-bkgnd {
+  list-style-image: none;
+}
+
 .searchbar-textbox {
+  background: url("chrome://browser/skin/search-bar-background-mid.png") repeat-x;
+  margin: 4px 0px 4px 0px;
   -moz-appearance: none;
   font: icon;
-  height: 28px;
-  width: 5em;
-  margin: 0 3px 1px;
-  min-width: 5em;
-  border: none;
-  background-color: transparent;
+  height: 22px !important;
+  width: 4em;
+  min-width: 4em;
+  border: none !important;
 }
 
-.searchbar-textbox > .autocomplete-textbox-container > .textbox-input-box {
-  background: url("chrome://browser/skin/urlbar/textfield-mid.png") repeat-x;
-  padding: 0;
-  margin: 0;
-  -moz-margin-start: 45px;
+.searchbar-box {
+  -moz-margin-start: 3px;
 }
 
-.searchbar-textbox[focused="true"] > .autocomplete-textbox-container > .textbox-input-box {
-  background-image: url("chrome://browser/skin/urlbar/textfield-mid-focused.png");
-}
-
-.searchbar-textbox[focused="true"] > .autocomplete-textbox-container > .textbox-input-box:-moz-system-metric(mac-graphite-theme) {
-  background-image: url("chrome://browser/skin/urlbar/textfield-mid-focused-graphite.png");
+.searchbar-engine-button-stack {
+  padding: 2px 0px 2px 0px;
 }
 
 .searchbar-engine-image {
   width: 16px;
   height: 16px;
+  -moz-margin-start: 9px;
   list-style-image: url("chrome://mozapps/skin/places/defaultFavicon.png");
-  -moz-margin-start: 3px;
+}
+
+.searchbar-engine-button-top {
+  list-style-image: url("chrome://browser/skin/Search-provider-bkgnd.png");
+  -moz-image-region: rect(0px, 37px, 22px, 0px);
+  margin-top: 2px;
+  height: 22px;
+  width: 37px;
+}
+
+.searchbar-engine-button:hover .searchbar-engine-button-top {
+  -moz-image-region: rect(0px, 74px, 22px, 37px);
+}
+
+.searchbar-engine-button[open="true"] .searchbar-engine-button-top {
+  -moz-image-region: rect(0px, 111px, 22px, 74px);
+}
+
+.searchbar-engine-button[addengines="true"] .searchbar-engine-button-top {
+  -moz-image-region: rect(0px, 148px, 22px, 111px);
 }
 
 .searchbar-engine-button {
-  background: url("chrome://browser/skin/urlbar/startcap.png") center center no-repeat;
-  -moz-appearance: none;
-  height: 28px;
-  min-width: 45px;
-  border: 0;
-  -moz-box-align: center;
-  margin: 0;
-  -moz-margin-start: -45px;
-  padding: 0;
-}
-
-.searchbar-engine-button:-moz-locale-dir(rtl) {
-  background-image: url("chrome://browser/skin/urlbar/startcap-rtl.png");
-}
-
-.searchbar-textbox[focused="true"] > .searchbar-engine-button {
-  background-image: url("chrome://browser/skin/urlbar/startcap-focused.png");
-}
-
-.searchbar-textbox[focused="true"] > .searchbar-engine-button:-moz-locale-dir(rtl) {
-  background-image: url("chrome://browser/skin/urlbar/startcap-focused-rtl.png");
-}
-
-.searchbar-textbox[focused="true"] > .searchbar-engine-button:-moz-system-metric(mac-graphite-theme) {
-  background-image: url("chrome://browser/skin/urlbar/startcap-focused-graphite.png");
-}
-
-.searchbar-textbox[focused="true"] > .searchbar-engine-button:-moz-locale-dir(rtl):-moz-system-metric(mac-graphite-theme) {
-  background-image: url("chrome://browser/skin/urlbar/startcap-focused-graphite-rtl.png");
-}
-
-.searchbar-engine-button:hover:active,
-.searchbar-engine-button[open="true"] {
-  background-image: url("chrome://browser/skin/urlbar/startcap-active.png") !important;
-}
-
-.searchbar-engine-button:hover:active:-moz-locale-dir(rtl),
-.searchbar-engine-button[open="true"]:-moz-locale-dir(rtl) {
-  background-image: url("chrome://browser/skin/urlbar/startcap-active-rtl.png") !important;
-}
-
-.searchbar-textbox[focused="true"] > .searchbar-engine-button:active,
-.searchbar-textbox[focused="true"] > .searchbar-engine-button[open="true"] {
-  background-image: url("chrome://browser/skin/urlbar/startcap-active-focused.png") !important;
-}
-
-.searchbar-textbox[focused="true"] > .searchbar-engine-button:-moz-locale-dir(rtl):active,
-.searchbar-textbox[focused="true"] > .searchbar-engine-button[open="true"]:-moz-locale-dir(rtl) {
-  background-image: url("chrome://browser/skin/urlbar/startcap-active-focused-rtl.png") !important;
-}
-
-.searchbar-textbox[focused="true"] > .searchbar-engine-button:active:-moz-system-metric(mac-graphite-theme),
-.searchbar-textbox[focused="true"] > .searchbar-engine-button[open="true"]:-moz-system-metric(mac-graphite-theme) {
-  background-image: url("chrome://browser/skin/urlbar/startcap-active-focused-graphite.png") !important;
-}
-
-.searchbar-textbox[focused="true"] > .searchbar-engine-button:-moz-locale-dir(rtl):active:-moz-system-metric(mac-graphite-theme),
-.searchbar-textbox[focused="true"] > .searchbar-engine-button[open="true"]:-moz-locale-dir(rtl):-moz-system-metric(mac-graphite-theme) {
-  background-image: url("chrome://browser/skin/urlbar/startcap-active-focused-graphite-rtl.png") !important;
-}
-
-.searchbar-engine-button > .button-box {
-  -moz-appearance: none;
-  padding: 0;
-  -moz-padding-end: 3px;
-  border: 0;
-}
-
-.searchbar-engine-button[addengines="true"] > .button-box {
-  background: transparent url(chrome://browser/skin/Search-addengines.png) no-repeat 25px 50%;
+  margin: 0px;
+  padding: 0px;
 }
 
 .searchbar-dropmarker-image {
   list-style-image: url("chrome://global/skin/arrow/arrow-dn.png");
-  -moz-margin-start: 2px;
-  margin-top: 1px;
+  -moz-margin-start: 4px;
 }
 
-.search-go-container {
-  -moz-box-align: center;
-  background: url("chrome://browser/skin/urlbar/endcap.png") no-repeat right top;
-  -moz-padding-end: 5px;
-}
-
-.search-go-container:-moz-locale-dir(rtl) {
-  background-image: url("chrome://browser/skin/urlbar/endcap-rtl.png");
-}
-
-.searchbar-textbox[focused="true"] > .search-go-container {
-  background-image: url("chrome://browser/skin/urlbar/endcap-focused.png");
-}
-
-.searchbar-textbox[focused="true"] > .search-go-container:-moz-locale-dir(rtl) {
-  background: url("chrome://browser/skin/urlbar/endcap-focused-rtl.png") no-repeat left top;
-}
-
-.searchbar-textbox[focused="true"] > .search-go-container:-moz-system-metric(mac-graphite-theme) {
-  background-image: url("chrome://browser/skin/urlbar/endcap-focused-graphite.png");
-}
-
-.searchbar-textbox[focused="true"] > .search-go-container:-moz-locale-dir(rtl):-moz-system-metric(mac-graphite-theme) {
-  background-image: url("chrome://browser/skin/urlbar/endcap-focused-graphite-rtl.png");
+.autocomplete-textbox-container {
+  border: none;
+  padding: 0px;
+  margin: 0px;
+  height: 21px !important;
 }
 
 .search-go-button {
-  padding: 1px;
-  list-style-image: url("chrome://browser/skin/Search.png");
-  margin: 0;
-  padding: 0;
-  -moz-padding-end: 6px;
+  -moz-box-flex: 1; /* expand to fill toolbar height */
+  list-style-image: url("chrome://browser/skin/Search-go.png");
+  -moz-image-region: rect(0px 25px 22px 0px);
+  padding: 0px;
+  margin: 0px;
+  -moz-margin-start: -1px;
+}
+
+.search-go-button:hover {
+  -moz-image-region: rect(0px 50px 22px 25px);
+}
+
+.search-go-button:hover:active {
+  -moz-image-region: rect(0px, 100px, 22px, 75px);
+}
+
+.search-go-button[disabled="true"] {
+  -moz-image-region: rect(0px, 75px, 22px, 50px);
 }
 
 .searchbar-engine-menuitem[selected="true"] > .menu-iconic-text {

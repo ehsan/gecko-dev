@@ -39,7 +39,7 @@
 // Disables security checking our updates which haven't been signed
 gPrefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
-do_load_httpd_js();
+do_import_script("netwerk/test/httpserver/httpd.js");
 var server;
 
 // nsIAddonUpdateCheckListener implementation
@@ -52,8 +52,9 @@ var updateListener = {
 
   onUpdateEnded: function onUpdateEnded()
   {
+    server.stop();
+    do_test_finished();
     do_check_eq(this._count, 2);
-    server.stop(do_test_finished);
   },
 
   onAddonUpdateStarted: function onAddonUpdateStarted(aAddon)
@@ -89,7 +90,7 @@ function run_test()
   do_check_neq(updates[1], null);
   
   server = new nsHttpServer();
-  server.registerDirectory("/", do_get_file("data"));
+  server.registerDirectory("/", do_get_file("toolkit/mozapps/extensions/test/unit/data"));
   server.start(4444);
   
   do_test_pending();

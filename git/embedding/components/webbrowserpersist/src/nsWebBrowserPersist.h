@@ -57,7 +57,7 @@
 #include "nsIWebProgressListener2.h"
 
 #include "nsHashtable.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsInt64.h"
 
 #include "nsCWebBrowserPersist.h"
@@ -66,8 +66,6 @@ class nsEncoderNodeFixup;
 class nsIStorageStream;
 
 struct URIData;
-struct CleanupData;
-struct DocData;
 
 class nsWebBrowserPersist : public nsIInterfaceRequestor,
                             public nsIWebBrowserPersist,
@@ -92,8 +90,8 @@ public:
 // Protected members
 protected:    
     virtual ~nsWebBrowserPersist();
-    nsresult CloneNodeWithFixedUpAttributes(
-        nsIDOMNode *aNodeIn, PRBool *aSerializeCloneKids, nsIDOMNode **aNodeOut);
+    nsresult CloneNodeWithFixedUpURIAttributes(
+        nsIDOMNode *aNodeIn, nsIDOMNode **aNodeOut);
     nsresult SaveURIInternal(
         nsIURI *aURI, nsISupports *aCacheKey, nsIURI *aReferrer,
         nsIInputStream *aPostData, const char *aExtraHeaders, nsIURI *aFile,
@@ -188,21 +186,21 @@ private:
     void SetApplyConversionIfNeeded(nsIChannel *aChannel);
 
     // Hash table enumerators
-    static PRBool EnumPersistURIs(
+    static PRBool PR_CALLBACK EnumPersistURIs(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCleanupURIMap(
+    static PRBool PR_CALLBACK EnumCleanupURIMap(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCleanupOutputMap(
+    static PRBool PR_CALLBACK EnumCleanupOutputMap(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCleanupUploadList(
+    static PRBool PR_CALLBACK EnumCleanupUploadList(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCalcProgress(
+    static PRBool PR_CALLBACK EnumCalcProgress(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCalcUploadProgress(
+    static PRBool PR_CALLBACK EnumCalcUploadProgress(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumFixRedirect(
+    static PRBool PR_CALLBACK EnumFixRedirect(
         nsHashKey *aKey, void *aData, void* closure);
-    static PRBool EnumCountURIsToPersist(
+    static PRBool PR_CALLBACK EnumCountURIsToPersist(
         nsHashKey *aKey, void *aData, void* closure);
 
     nsCOMPtr<nsIURI>          mCurrentDataPath;
@@ -226,9 +224,9 @@ private:
     nsHashtable               mOutputMap;
     nsHashtable               mUploadList;
     nsHashtable               mURIMap;
-    nsTArray<DocData*>        mDocList;
-    nsTArray<CleanupData*>    mCleanupList;
-    nsTArray<nsCString>       mFilenameList;
+    nsVoidArray               mDocList;
+    nsVoidArray               mCleanupList;
+    nsCStringArray            mFilenameList;
     PRPackedBool              mFirstAndOnlyUse;
     PRPackedBool              mCancel;
     PRPackedBool              mJustStartedLoading;
@@ -252,7 +250,7 @@ public:
     nsEncoderNodeFixup();
     
     NS_DECL_ISUPPORTS
-    NS_IMETHOD FixupNode(nsIDOMNode *aNode, PRBool *aSerializeCloneKids, nsIDOMNode **aOutNode);
+    NS_IMETHOD FixupNode(nsIDOMNode *aNode, nsIDOMNode **aOutNode);
     
     nsWebBrowserPersist *mWebBrowserPersist;
 

@@ -50,71 +50,20 @@ interface nsIDownloadProgressListener;
 interface nsISimpleEnumerator;
 interface mozIStorageConnection;
 
-[scriptable, uuid(bacca1ac-1b01-4a6f-9e91-c2ead1f7d2c0)]
+[scriptable, uuid(05ed1d45-0aff-4ba0-9e2c-a9ef20383048)]
 interface nsIDownloadManager : nsISupports {
-  /**
-   * Download type for generic file download.
-   */
-  const short DOWNLOAD_TYPE_DOWNLOAD = 0;
+  // Download States
+  const short DOWNLOAD_NOTSTARTED       = -1;
+  const short DOWNLOAD_DOWNLOADING      = 0;
+  const short DOWNLOAD_FINISHED         = 1;
+  const short DOWNLOAD_FAILED           = 2;
+  const short DOWNLOAD_CANCELED         = 3;
+  const short DOWNLOAD_PAUSED           = 4;
+  const short DOWNLOAD_QUEUED           = 5;
+  const short DOWNLOAD_BLOCKED          = 6;
+  const short DOWNLOAD_SCANNING         = 7;
 
-  /**
-   * Download state for uninitialized download object.
-   */
-  const short DOWNLOAD_NOTSTARTED = -1;
-
-  /**
-   * Download is currently transferring data.
-   */
-  const short DOWNLOAD_DOWNLOADING = 0;
-
-  /**
-   * Download completed including any processing of the target
-   * file.  (completed)
-   */
-  const short DOWNLOAD_FINISHED = 1;
-
-  /**
-   * Transfer failed due to error. (completed)
-   */
-  const short DOWNLOAD_FAILED = 2;
-
-  /**
-   * Download was canceled by the user. (completed)
-   */
-  const short DOWNLOAD_CANCELED = 3;
-
-  /**
-   * Transfer was paused by the user.
-   */
-  const short DOWNLOAD_PAUSED = 4;
-
-  /**
-   * Download is active but data has not yet been received.
-   */
-  const short DOWNLOAD_QUEUED = 5;
-
-  /**
-   * Transfer request was blocked by parental controls proxies. (completed)
-   */
-  const short DOWNLOAD_BLOCKED_PARENTAL = 6;
-
-  /**
-   * Transferred download is being scanned by virus scanners.
-   */
-  const short DOWNLOAD_SCANNING = 7;
-
-  /**
-   * A virus was detected in the download. The target will most likely
-   * no longer exist. (completed)
-   */
-  const short DOWNLOAD_DIRTY = 8;
-
-  /**
-   * Win specific: Request was blocked by zone policy settings.
-   * (see bug #416683) (completed)
-   */
-  const short DOWNLOAD_BLOCKED_POLICY = 9;
-
+  const short DOWNLOAD_TYPE_DOWNLOAD    = 0;
 
   /**
    * Creates an nsIDownload and adds it to be managed by the download manager.
@@ -183,26 +132,10 @@ interface nsIDownloadManager : nsISupports {
    * in-progress.  Whereas cancelDownload simply cancels the transfer, but
    * retains information about it, removeDownload removes all knowledge of it.
    *
-   * Also notifies observers of the "download-manager-remove-download" topic
-   * with the download id as the subject to allow any DM consumers to react to
-   * the removal.
-   *
    * @param aID The unique ID of the download.
    * @throws NS_ERROR_FAILURE if the download is active.
    */
   void removeDownload(in unsigned long aID);
-
-  /**
-   * Removes all inactive downloads that were started inclusively within the
-   * specified time frame.
-   *
-   * @param aBeginTime
-   *        The start time to remove downloads by in microseconds.
-   * @param aEndTime
-   *        The end time to remove downloads by in microseconds.
-   */
-  void removeDownloadsByTimeframe(in long long aBeginTime,
-                                  in long long aEndTime);
 
   /**
    * Pause the specified download.
@@ -245,8 +178,8 @@ interface nsIDownloadManager : nsISupports {
   /** 
    * Removes completed, failed, and canceled downloads from the list.
    *
-   * Also notifies observers of the "download-manager-remove-download" topic
-   * with a null subject to allow any DM consumers to react to the removals.
+   * Also notifies observers of the "download-manager-clear-history"
+   * topic, to allow any DM consumers to react to the removals.
    */
   void cleanUp();
 

@@ -42,6 +42,7 @@
 #include "txCore.h"
 #include "txStack.h"
 #include "txXMLUtils.h"
+#include "nsVoidArray.h"
 #include "txIXPathContext.h"
 #include "txVariableMap.h"
 #include "nsTHashtable.h"

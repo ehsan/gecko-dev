@@ -91,11 +91,11 @@ nsEditorSpellCheck::CanSpellCheck(PRBool* _retval)
   } else {
     spellChecker = mSpellChecker;
   }
-  nsTArray<nsString> dictList;
+  nsStringArray dictList;
   rv = spellChecker->GetDictionaryList(&dictList);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  *_retval = (dictList.Length() > 0);
+  *_retval = (dictList.Count() > 0);
   return NS_OK;
 }
 
@@ -201,7 +201,7 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, PRBool aEnableSelection
 
     if (NS_SUCCEEDED(rv) && packageRegistry) {
       nsCAutoString utf8DictName;
-      rv = packageRegistry->GetSelectedLocale(NS_LITERAL_CSTRING("global"),
+      rv = packageRegistry->GetSelectedLocale(NS_LITERAL_CSTRING("editor"),
                                               utf8DictName);
       AppendUTF8toUTF16(utf8DictName, dictName);
     }
@@ -210,12 +210,6 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, PRBool aEnableSelection
   PRBool setDictionary = PR_FALSE;
   if (NS_SUCCEEDED(rv) && !dictName.IsEmpty()) {
     rv = SetCurrentDictionary(dictName.get());
-
-    // fall back to "en-US" if the current locale doesn't have a dictionary.
-    if (NS_FAILED(rv)) {
-      rv = SetCurrentDictionary(NS_LITERAL_STRING("en-US").get());
-    }
-
     if (NS_SUCCEEDED(rv))
       setDictionary = PR_TRUE;
   }
@@ -224,11 +218,11 @@ nsEditorSpellCheck::InitSpellChecker(nsIEditor* aEditor, PRBool aEnableSelection
   // locale dictionary didn't work, try to use the first dictionary we find. This helps when 
   // the first dictionary is installed
   if (! setDictionary) {
-    nsTArray<nsString> dictList;
+    nsStringArray dictList;
     rv = mSpellChecker->GetDictionaryList(&dictList);
     NS_ENSURE_SUCCESS(rv, rv);
-    if (dictList.Length() > 0) {
-      rv = SetCurrentDictionary(dictList[0].get());
+    if (dictList.Count() > 0) {
+      rv = SetCurrentDictionary(dictList[0]->get());
       if (NS_SUCCEEDED(rv))
         SaveDefaultDictionary();
     }
@@ -253,8 +247,6 @@ nsEditorSpellCheck::GetNextMisspelledWord(PRUnichar **aNextMisspelledWord)
   nsAutoString nextMisspelledWord;
   
   DeleteSuggestedWordList();
-  // Beware! This may flush notifications via synchronous
-  // ScrollSelectionIntoView.
   nsresult rv = mSpellChecker->NextMisspelledWord(nextMisspelledWord,
                                                   &mSuggestedWordList);
 
@@ -266,14 +258,16 @@ NS_IMETHODIMP
 nsEditorSpellCheck::GetSuggestedWord(PRUnichar **aSuggestedWord)
 {
   nsAutoString word;
-  if ( mSuggestedWordIndex < PRInt32(mSuggestedWordList.Length()))
+  if ( mSuggestedWordIndex < mSuggestedWordList.Count())
   {
-    *aSuggestedWord = ToNewUnicode(mSuggestedWordList[mSuggestedWordIndex]);
+    mSuggestedWordList.StringAt(mSuggestedWordIndex, word);
     mSuggestedWordIndex++;
   } else {
     // A blank string signals that there are no more strings
-    *aSuggestedWord = ToNewUnicode(EmptyString());
+    word.Truncate();
   }
+
+  *aSuggestedWord = ToNewUnicode(word);
   return NS_OK;
 }
 
@@ -336,15 +330,17 @@ nsEditorSpellCheck::GetPersonalDictionary()
 NS_IMETHODIMP    
 nsEditorSpellCheck::GetPersonalDictionaryWord(PRUnichar **aDictionaryWord)
 {
-  if ( mDictionaryIndex < PRInt32( mDictionaryList.Length()))
+  nsAutoString word;
+  if ( mDictionaryIndex < mDictionaryList.Count())
   {
-    *aDictionaryWord = ToNewUnicode(mDictionaryList[mDictionaryIndex]);
+    mDictionaryList.StringAt(mDictionaryIndex, word);
     mDictionaryIndex++;
   } else {
     // A blank string signals that there are no more strings
-    *aDictionaryWord = ToNewUnicode(EmptyString());
+    word.Truncate();
   }
 
+  *aDictionaryWord = ToNewUnicode(word);
   return NS_OK;
 }
 
@@ -378,7 +374,7 @@ nsEditorSpellCheck::GetDictionaryList(PRUnichar ***aDictionaryList, PRUint32 *aC
   *aDictionaryList = 0;
   *aCount          = 0;
 
-  nsTArray<nsString> dictList;
+  nsStringArray dictList;
 
   nsresult rv = mSpellChecker->GetDictionaryList(&dictList);
 
@@ -387,7 +383,7 @@ nsEditorSpellCheck::GetDictionaryList(PRUnichar ***aDictionaryList, PRUint32 *aC
 
   PRUnichar **tmpPtr = 0;
 
-  if (dictList.Length() < 1)
+  if (dictList.Count() < 1)
   {
     // If there are no dictionaries, return an array containing
     // one element and a count of one.
@@ -404,19 +400,22 @@ nsEditorSpellCheck::GetDictionaryList(PRUnichar ***aDictionaryList, PRUint32 *aC
     return NS_OK;
   }
 
-  tmpPtr = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *) * dictList.Length());
+  tmpPtr = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *) * dictList.Count());
 
   if (!tmpPtr)
     return NS_ERROR_OUT_OF_MEMORY;
 
   *aDictionaryList = tmpPtr;
-  *aCount          = dictList.Length();
+  *aCount          = dictList.Count();
+
+  nsAutoString dictStr;
 
   PRUint32 i;
 
   for (i = 0; i < *aCount; i++)
   {
-    tmpPtr[i] = ToNewUnicode(dictList[i]);
+    dictList.StringAt(i, dictStr);
+    tmpPtr[i] = ToNewUnicode(dictStr);
   }
 
   return rv;

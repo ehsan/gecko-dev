@@ -42,12 +42,11 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIPrefBranch.h"
 #include "nsIProtocolProxyService2.h"
 #include "nsIProtocolProxyFilter.h"
 #include "nsIProxyAutoConfig.h"
-#include "nsISystemProxySettings.h"
 #include "nsIProxyInfo.h"
 #include "nsIObserver.h"
 #include "nsDataHashtable.h"
@@ -114,7 +113,7 @@ protected:
      * @param pacURI
      *        The URI spec of the PAC file to load.
      */
-    NS_HIDDEN_(nsresult) ConfigureFromPAC(const nsCString &pacURI, PRBool forceReload);
+    NS_HIDDEN_(nsresult) ConfigureFromPAC(const nsCString &pacURI);
 
     /**
      * This method builds a list of nsProxyInfo objects from the given PAC-
@@ -290,6 +289,8 @@ protected:
      */
     NS_HIDDEN_(PRBool) CanUseProxy(nsIURI *uri, PRInt32 defaultPort);
 
+    static PRBool PR_CALLBACK CleanupFilterArray(void *aElement, void *aData);
+
 public:
     // The Sun Forte compiler and others implement older versions of the
     // C++ standard's rules on access and nested classes.  These structs
@@ -306,18 +307,16 @@ public:
         PRUint32 host_len;
     };
 
-    // These values correspond to the integer network.proxy.type preference
+protected:
+
     enum ProxyConfig {
         eProxyConfig_Direct,
         eProxyConfig_Manual,
         eProxyConfig_PAC,
         eProxyConfig_Direct4x,
         eProxyConfig_WPAD,
-        eProxyConfig_System, // use system proxy settings if available, otherwise DIRECT
         eProxyConfig_Last
     };
-
-protected:
 
     // simplified array of filters defined by this struct
     struct HostInfo {
@@ -351,7 +350,7 @@ protected:
     };
 
     // Holds an array of HostInfo objects
-    nsTArray<nsAutoPtr<HostInfo> > mHostFiltersArray;
+    nsVoidArray                  mHostFiltersArray;
 
     // Points to the start of a sorted by position, singly linked list
     // of FilterLink objects.
@@ -377,7 +376,6 @@ protected:
     PRBool                       mSOCKSProxyRemoteDNS;
 
     nsRefPtr<nsPACMan>           mPACMan;  // non-null if we are using PAC
-    nsCOMPtr<nsISystemProxySettings> mSystemProxySettings;
 
     PRTime                       mSessionStart;
     nsFailedProxyTable           mFailedProxies;

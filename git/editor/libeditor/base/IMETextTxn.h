@@ -77,10 +77,11 @@ public:
                   const nsAString& aString,
                   nsWeakPtr aSelCon);
 
-  IMETextTxn();
+private:
+	
+	IMETextTxn();
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IMETextTxn, EditTxn)
-
+public:
   NS_DECL_EDITTXN
 
   NS_IMETHOD Merge(nsITransaction *aTransaction, PRBool *aDidMerge);
@@ -117,6 +118,11 @@ protected:
   nsWeakPtr mSelConWeak;  // use a weak reference
 
   PRBool	mFixed;
+
+  friend class TransactionFactory;
+
+  friend class nsDerivedSafe<IMETextTxn>; // work around for a compiler bug
+
 };
 
 #endif

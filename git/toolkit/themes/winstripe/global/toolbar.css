@@ -47,10 +47,8 @@
 toolbox {
   -moz-appearance: toolbox;
   background-color: -moz-Dialog;
-%ifndef WINCE
   border-top: 2px solid;
   -moz-border-top-colors: ThreeDShadow ThreeDHighlight;
-%endif
 }
 
 /* ::::: toolbar & menubar ::::: */
@@ -72,13 +70,17 @@ toolbar:first-child, menubar {
   border-top: 0px !important;
 }
 
-/* ::::: lightweight theme ::::: */
- 
-toolbox:-moz-lwtheme,
-toolbar:-moz-lwtheme {
-  -moz-appearance: none;
-  background: none;
-  border-style: none;
+toolbar[mode="icons"] .toolbarbutton-text {
+  display: none;
+}
+
+toolbar[mode="text"] .toolbarbutton-icon {
+  display: none;
+}
+
+toolbar[mode="text"] .toolbarbutton-text {
+  padding: 0 !important;
+  margin: 3px 5px !important;
 }
 
 /* ::::: toolbar decorations ::::: */
@@ -133,6 +135,11 @@ toolbarpaletteitem[place="toolbar"] > toolbarspacer {
   height: 50px;
 }
 
+.toolbarpaletteitem-box[type="splitter"][place="palette"] {
+  width: 8px;
+  height: 50px;
+}
+
 .toolbarpaletteitem-box[type="spacer"][place="palette"],
 .toolbarpaletteitem-box[type="spring"][place="palette"] {
   margin-bottom: 2px;
@@ -141,7 +148,7 @@ toolbarpaletteitem[place="toolbar"] > toolbarspacer {
 }
 
 .toolbarpaletteitem-box[type="spring"][place="palette"] {
-  background: url("chrome://global/skin/toolbar/spring.png") no-repeat center;
+  background: url("chrome://global/skin/toolbar/spring.gif") no-repeat center;
 }
 
 /* ..... drag and drop feedback ..... */

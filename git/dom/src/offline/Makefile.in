@@ -46,17 +46,33 @@ MODULE         = dom
 LIBRARY_NAME   = jsdomoffline_s
 LIBXUL_LIBRARY = 1
 
+REQUIRES       = xpcom         \
+		 string        \
+		 content       \
+		 caps          \
+		 gfx           \
+		 thebes        \
+		 js            \
+		 layout        \
+		 locale        \
+		 necko         \
+		 nkcache       \
+		 pref          \
+		 prefetch      \
+		 widget        \
+		 xpconnect     \
+		 $(NULL)
 
 CPPSRCS =                              \
 	nsDOMOfflineResourceList.cpp   \
+	nsDOMOfflineLoadStatusList.cpp \
 	$(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
 
 LOCAL_INCLUDES = \
-		-I$(topsrcdir)/dom/base \
-		-I$(topsrcdir)/content/base/src \
+		-I$(srcdir)/../base \
 		-I$(topsrcdir)/content/events/src
 
 DEFINES += -D_IMPL_NS_LAYOUT

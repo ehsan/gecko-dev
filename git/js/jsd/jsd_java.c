@@ -139,7 +139,7 @@ _scriptObFromJSDScriptPtr( ExecEnv* ee, JSDScript* jsdscript )
 
 /***************************************************************************/
 
-void
+void PR_CALLBACK
 _scriptHook( JSDContext* jsdc, 
              JSDScript*  jsdscript,
              JSBool      creating,
@@ -221,7 +221,7 @@ _scriptHook( JSDContext* jsdc,
 }
 
 /***************************************************************************/
-PRUintn
+PRUintn PR_CALLBACK
 _executionHook( JSDContext*     jsdc, 
                 JSDThreadState* jsdstate,
                 PRUintn         type,
@@ -340,7 +340,7 @@ _executionHook( JSDContext*     jsdc,
     return JSD_HOOK_RETURN_CONTINUE;
 }
 
-PRUintn
+PRUintn PR_CALLBACK
 _errorReporter( JSDContext*     jsdc, 
                 JSContext*      cx,
                 const char*     message, 

@@ -100,15 +100,18 @@ txParseDocumentFromURI(const nsAString& aHref, const txXPathNode& aLoader,
 
     nsCOMPtr<nsILoadGroup> loadGroup = loaderDocument->GetDocumentLoadGroup();
 
+    nsCOMPtr<nsIURI> loaderUri;
+    rv = loaderDocument->NodePrincipal()->GetURI(getter_AddRefs(loaderUri));
+    NS_ENSURE_SUCCESS(rv, rv);
+
     // For the system principal loaderUri will be null here, which is good
     // since that means that chrome documents can load any uri.
 
     // Raw pointer, we want the resulting txXPathNode to hold a reference to
     // the document.
     nsIDOMDocument* theDocument = nsnull;
-    rv = nsSyncLoadService::LoadDocument(documentURI,
-                                         loaderDocument->NodePrincipal(),
-                                         loadGroup, PR_TRUE, &theDocument);
+    rv = nsSyncLoadService::LoadDocument(documentURI, loaderUri, loadGroup,
+                                         PR_TRUE, &theDocument);
 
     if (NS_FAILED(rv)) {
         aErrMsg.Append(NS_LITERAL_STRING("Document load of ") + 
@@ -158,42 +161,42 @@ txParseFromStream(istream& aInputStream, const nsAString& aUri,
     }                                                   \
   PR_END_MACRO
 
-static void
+PR_STATIC_CALLBACK(void)
 startElement(void *aUserData, const XML_Char *aName, const XML_Char **aAtts)
 {
     TX_ENSURE_DATA(aUserData);
     TX_XMLPARSER(aUserData)->StartElement(aName, aAtts);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 endElement(void *aUserData, const XML_Char* aName)
 {
     TX_ENSURE_DATA(aUserData);
     TX_XMLPARSER(aUserData)->EndElement(aName);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 charData(void* aUserData, const XML_Char* aChars, int aLength)
 {
     TX_ENSURE_DATA(aUserData);
     TX_XMLPARSER(aUserData)->CharacterData(aChars, aLength);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 commentHandler(void* aUserData, const XML_Char* aChars)
 {
     TX_ENSURE_DATA(aUserData);
     TX_XMLPARSER(aUserData)->Comment(aChars);
 }
 
-static void
+PR_STATIC_CALLBACK(void)
 piHandler(void *aUserData, const XML_Char *aTarget, const XML_Char *aData)
 {
     TX_ENSURE_DATA(aUserData);
     TX_XMLPARSER(aUserData)->ProcessingInstruction(aTarget, aData);
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 externalEntityRefHandler(XML_Parser aParser,
                          const XML_Char *aContext,
                          const XML_Char *aBase,

@@ -1137,13 +1137,15 @@ FinalizeParams(JNIEnv *env, const nsXPTParamInfo &aParamInfo, PRUint8 aType,
         // Create the string from nsID
         jstring str = nsnull;
         if (iid) {
-          char iid_str[NSID_LENGTH];
-          iid->ToProvidedString(iid_str);
-          str = env->NewStringUTF(iid_str);
-          if (!str) {
+          char* iid_str = iid->ToString();
+          if (iid_str) {
+            str = env->NewStringUTF(iid_str);
+          }
+          if (!iid_str || !str) {
             rv = NS_ERROR_OUT_OF_MEMORY;
             break;
           }
+          PR_Free(iid_str);
         }
 
         if (aParamInfo.IsRetval() && !aIsArrayElement) {
@@ -1801,7 +1803,7 @@ GetNewOrUsedJavaWrapper(JNIEnv* env, nsISupports* aXPCOMObject,
            (PRUint32) env->CallStaticIntMethod(systemClass, hashCodeMID,
                                                java_obj),
            (PRUint32) rootObject, iid_str));
-      NS_Free(iid_str);
+      PR_Free(iid_str);
 #endif
 
       // Associate XPCOM object with Java proxy
@@ -1844,7 +1846,7 @@ GetXPCOMInstFromProxy(JNIEnv* env, jobject aJavaObject, void** aResult)
        (PRUint32) env->CallStaticIntMethod(systemClass, hashCodeMID,
                                            aJavaObject),
        (PRUint32) inst->GetInstance(), iid_str));
-  NS_Free(iid_str);
+  PR_Free(iid_str);
   nsMemory::Free(iid);
 #endif
   return NS_OK;

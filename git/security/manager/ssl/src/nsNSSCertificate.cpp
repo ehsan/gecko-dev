@@ -23,7 +23,6 @@
  *   Ian McGreer <mcgreer@netscape.com>
  *   Javier Delgadillo <javi@netscape.com>
  *   Kai Engert <kengert@redhat.com>
- *   Jesper Kristensen <mail@jesperkristensen.dk>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -58,6 +57,7 @@
 #include "nsString.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
+#include "nsILocaleService.h"
 #include "nsIURI.h"
 #include "nsTime.h"
 #include "nsIProxyObjectManager.h"
@@ -101,7 +101,6 @@ NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
 NSSCleanupAutoPtrClass(NSSCMSMessage, NSS_CMSMessage_Destroy)
 NSSCleanupAutoPtrClass_WithParam(PLArenaPool, PORT_FreeArena, FalseParam, PR_FALSE)
 NSSCleanupAutoPtrClass(NSSCMSSignedData, NSS_CMSSignedData_Destroy)
-NSSCleanupAutoPtrClass(PK11SlotList, PK11_FreeSlotList)
 
 // This is being stored in an PRUint32 that can otherwise
 // only take values from nsIX509Cert's list of cert types.
@@ -111,13 +110,10 @@ NSSCleanupAutoPtrClass(PK11SlotList, PK11_FreeSlotList)
 
 /* nsNSSCertificate */
 
-NS_IMPL_THREADSAFE_ISUPPORTS7(nsNSSCertificate, nsIX509Cert,
+NS_IMPL_THREADSAFE_ISUPPORTS4(nsNSSCertificate, nsIX509Cert,
                                                 nsIX509Cert2,
                                                 nsIX509Cert3,
-                                                nsIIdentityInfo,
-                                                nsISMimeCert,
-                                                nsISerializable,
-                                                nsIClassInfo)
+                                                nsISMimeCert)
 
 nsNSSCertificate*
 nsNSSCertificate::ConstructFromDER(char *certDER, int derLen)
@@ -158,8 +154,7 @@ nsNSSCertificate::InitFromDER(char *certDER, int derLen)
 nsNSSCertificate::nsNSSCertificate(CERTCertificate *cert) : 
                                            mCert(nsnull),
                                            mPermDelete(PR_FALSE),
-                                           mCertType(CERT_TYPE_NOT_YET_INITIALIZED),
-                                           mCachedEVStatus(ev_status_unknown)
+                                           mCertType(CERT_TYPE_NOT_YET_INITIALIZED)
 {
   nsNSSShutDownPreventionLock locker;
   if (isAlreadyShutDown())
@@ -172,8 +167,7 @@ nsNSSCertificate::nsNSSCertificate(CERTCertificate *cert) :
 nsNSSCertificate::nsNSSCertificate() : 
   mCert(nsnull),
   mPermDelete(PR_FALSE),
-  mCertType(CERT_TYPE_NOT_YET_INITIALIZED),
-  mCachedEVStatus(ev_status_unknown)
+  mCertType(CERT_TYPE_NOT_YET_INITIALIZED)
 {
 }
 
@@ -223,19 +217,6 @@ nsNSSCertificate::GetCertType(PRUint32 *aCertType)
      mCertType = getCertType(mCert);
   }
   *aCertType = mCertType;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsNSSCertificate::GetIsSelfSigned(PRBool *aIsSelfSigned)
-{
-  NS_ENSURE_ARG(aIsSelfSigned);
-
-  nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  *aIsSelfSigned = mCert->isRoot;
   return NS_OK;
 }
 
@@ -461,48 +442,6 @@ nsNSSCertificate::FormatUIStrings(const nsAutoString &nickname, nsAutoString &ni
       details.Append(PRUnichar('\n'));
     }
 
-    nsAutoString firstEmail;
-    const char *aWalkAddr;
-    for (aWalkAddr = CERT_GetFirstEmailAddress(mCert)
-         ;
-         aWalkAddr
-         ;
-         aWalkAddr = CERT_GetNextEmailAddress(mCert, aWalkAddr))
-    {
-      NS_ConvertUTF8toUTF16 email(aWalkAddr);
-      if (email.IsEmpty())
-        continue;
-
-      if (firstEmail.IsEmpty()) {
-        /*
-         * If the first email address from the subject DN is also present
-         * in the subjectAltName extension, GetEmailAddresses() will return
-         * it twice (as received from NSS). Remember the first address so that
-         * we can filter out duplicates later on.
-         */
-        firstEmail = email;
-
-        details.AppendLiteral("  ");
-        if (NS_SUCCEEDED(nssComponent->GetPIPNSSBundleString("CertInfoEmail", info))) {
-          details.Append(info);
-          details.AppendLiteral(": ");
-        }
-        details.Append(email);
-      }
-      else {
-        // Append current address if it's different from the first one.
-        if (!firstEmail.Equals(email)) {
-          details.AppendLiteral(", ");
-          details.Append(email);
-        }
-      }
-    }
-
-    if (!firstEmail.IsEmpty()) {
-      // We got at least one email address, so we want a newline
-      details.Append(PRUnichar('\n'));
-    }
-
     if (NS_SUCCEEDED(nssComponent->GetPIPNSSBundleString("CertInfoIssuedBy", info))) {
       details.Append(info);
       details.Append(PRUnichar(' '));
@@ -524,14 +463,12 @@ nsNSSCertificate::FormatUIStrings(const nsAutoString &nickname, nsAutoString &ni
     }
 
     /*
-      the above produces the following output:
+      the above produces output the following output:
 
       Issued to: $subjectName
         Serial number: $serialNumber
         Valid from: $starting_date to $expiration_date
         Purposes: $purposes
-        Certificate Key usage: $usages
-        Email: $address(es)
       Issued by: $issuerName
       Stored in: $token
     */
@@ -596,7 +533,7 @@ nsNSSCertificate::GetWindowTitle(char * *aWindowTitle)
       }
     }
   } else {
-    NS_ERROR("Somehow got nsnull for mCertificate in nsNSSCertificate.");
+    NS_ASSERTION(0,"Somehow got nsnull for mCertificate in nsNSSCertificate.");
     *aWindowTitle = nsnull;
   }
   return NS_OK;
@@ -894,58 +831,6 @@ done:
 }
 
 NS_IMETHODIMP
-nsNSSCertificate::GetAllTokenNames(PRUint32 *aLength, PRUnichar*** aTokenNames)
-{
-  nsNSSShutDownPreventionLock locker;
-  if (isAlreadyShutDown())
-    return NS_ERROR_NOT_AVAILABLE;
-
-  NS_ENSURE_ARG(aLength);
-  NS_ENSURE_ARG(aTokenNames);
-  *aLength = 0;
-  *aTokenNames = NULL;
-
-  /* Get the slots from NSS */
-  PK11SlotList *slots = NULL;
-  PK11SlotListCleaner slotCleaner(slots);
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("Getting slots for \"%s\"\n", mCert->nickname));
-  slots = PK11_GetAllSlotsForCert(mCert, NULL);
-  if (!slots) {
-    if (PORT_GetError() == SEC_ERROR_NO_TOKEN)
-      return NS_OK; // List of slots is empty, return empty array
-    else
-      return NS_ERROR_FAILURE;
-  }
-
-  /* read the token names from slots */
-  PK11SlotListElement *le;
-
-  for (le = slots->head; le; le = le->next) {
-    ++(*aLength);
-  }
-
-  *aTokenNames = (PRUnichar **)nsMemory::Alloc(sizeof(PRUnichar *) * (*aLength));
-  if (!*aTokenNames) {
-    *aLength = 0;
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  PRUint32 iToken;
-  for (le = slots->head, iToken = 0; le; le = le->next, ++iToken) {
-    char *token = PK11_GetTokenName(le->slot);
-    (*aTokenNames)[iToken] = ToNewUnicode(NS_ConvertUTF8toUTF16(token));
-    if (!(*aTokenNames)[iToken]) {
-      NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(iToken, *aTokenNames);
-      *aLength = 0;
-      *aTokenNames = NULL;
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsNSSCertificate::GetSubjectName(nsAString &_subjectName)
 {
   nsNSSShutDownPreventionLock locker;
@@ -983,10 +868,9 @@ nsNSSCertificate::GetSerialNumber(nsAString &_serialNumber)
     return NS_ERROR_NOT_AVAILABLE;
 
   _serialNumber.Truncate();
-  char *tmpstr = CERT_Hexify(&mCert->serialNumber, 1);
-  if (tmpstr) {
+  nsXPIDLCString tmpstr; tmpstr.Adopt(CERT_Hexify(&mCert->serialNumber, 1));
+  if (tmpstr.get()) {
     _serialNumber = NS_ConvertASCIItoUTF16(tmpstr);
-    PORT_Free(tmpstr);
     return NS_OK;
   }
   return NS_ERROR_FAILURE;
@@ -1007,10 +891,9 @@ nsNSSCertificate::GetSha1Fingerprint(nsAString &_sha1Fingerprint)
                mCert->derCert.data, mCert->derCert.len);
   fpItem.data = fingerprint;
   fpItem.len = SHA1_LENGTH;
-  char *fpStr = CERT_Hexify(&fpItem, 1);
-  if (fpStr) {
+  nsXPIDLCString fpStr; fpStr.Adopt(CERT_Hexify(&fpItem, 1));
+  if (fpStr.get()) {
     _sha1Fingerprint = NS_ConvertASCIItoUTF16(fpStr);
-    PORT_Free(fpStr);
     return NS_OK;
   }
   return NS_ERROR_FAILURE;
@@ -1031,10 +914,9 @@ nsNSSCertificate::GetMd5Fingerprint(nsAString &_md5Fingerprint)
                mCert->derCert.data, mCert->derCert.len);
   fpItem.data = fingerprint;
   fpItem.len = MD5_LENGTH;
-  char *fpStr = CERT_Hexify(&fpItem, 1);
-  if (fpStr) {
+  nsXPIDLCString fpStr; fpStr.Adopt(CERT_Hexify(&fpItem, 1));
+  if (fpStr.get()) {
     _md5Fingerprint = NS_ConvertASCIItoUTF16(fpStr);
-    PORT_Free(fpStr);
     return NS_OK;
   }
   return NS_ERROR_FAILURE;
@@ -1561,27 +1443,8 @@ char* nsNSSCertificate::defaultServerNickname(CERTCertificate* cert)
   char* servername = nsnull;
   
   servername = CERT_GetCommonName(&cert->subject);
-  if (!servername) {
-    // Certs without common names are strange, but they do exist...
-    // Let's try to use another string for the nickname
-    servername = CERT_GetOrgUnitName(&cert->subject);
-    if (!servername) {
-      servername = CERT_GetOrgName(&cert->subject);
-      if (!servername) {
-        servername = CERT_GetLocalityName(&cert->subject);
-        if (!servername) {
-          servername = CERT_GetStateName(&cert->subject);
-          if (!servername) {
-            servername = CERT_GetCountryName(&cert->subject);
-            if (!servername) {
-              // We tried hard, there is nothing more we can do.
-              // A cert without any names doesn't really make sense.
-              return nsnull;
-            }
-          }
-        }
-      }
-    }
+  if (servername == NULL) {
+    return nsnull;
   }
    
   count = 1;
@@ -1598,7 +1461,7 @@ char* nsNSSCertificate::defaultServerNickname(CERTCertificate* cert)
 
     conflict = SEC_CertNicknameConflict(nickname, &cert->derSubject,
                                         cert->dbhandle);
-    if (!conflict) {
+    if (conflict == PR_SUCCESS) {
       break;
     }
     PR_Free(nickname);
@@ -1641,12 +1504,12 @@ nsNSSCertList::AddCert(nsIX509Cert *aCert)
 
   cert = nssCert->GetCert();
   if (cert == nsnull) {
-    NS_ERROR("Somehow got nsnull for mCertificate in nsNSSCertificate.");
+    NS_ASSERTION(0,"Somehow got nsnull for mCertificate in nsNSSCertificate.");
     return NS_ERROR_FAILURE;
   }
 
   if (mCertList == nsnull) {
-    NS_ERROR("Somehow got nsnull for mCertList in nsNSSCertList.");
+    NS_ASSERTION(0,"Somehow got nsnull for mCertList in nsNSSCertList.");
     return NS_ERROR_FAILURE;
   }
   CERT_AddCertToListTail(mCertList,cert);
@@ -1664,12 +1527,12 @@ nsNSSCertList::DeleteCert(nsIX509Cert *aCert)
   CERTCertListNode *node;
 
   if (cert == nsnull) {
-    NS_ERROR("Somehow got nsnull for mCertificate in nsNSSCertificate.");
+    NS_ASSERTION(0,"Somehow got nsnull for mCertificate in nsNSSCertificate.");
     return NS_ERROR_FAILURE;
   }
 
   if (mCertList == nsnull) {
-    NS_ERROR("Somehow got nsnull for mCertList in nsNSSCertList.");
+    NS_ASSERTION(0,"Somehow got nsnull for mCertList in nsNSSCertList.");
     return NS_ERROR_FAILURE;
   }
 

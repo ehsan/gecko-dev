@@ -112,7 +112,7 @@ nsSVGPolyElement::IsAttributeMapped(const nsIAtom* name) const
 // nsSVGPathGeometryElement methods
 
 PRBool
-nsSVGPolyElement::AttributeDefinesGeometry(const nsIAtom *aName)
+nsSVGPolyElement::IsDependentAttribute(nsIAtom *aName)
 {
   if (aName == nsGkAtoms::points)
     return PR_TRUE;

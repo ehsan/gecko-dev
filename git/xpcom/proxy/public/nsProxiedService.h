@@ -39,9 +39,8 @@
 #ifndef nsProxiedService_h__
 #define nsProxiedService_h__
 
-#include "nsServiceManagerUtils.h"
+#include "nsIServiceManager.h"
 #include "nsIProxyObjectManager.h"
-#include "nsXPCOMCIDInternal.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // NS_WITH_PROXIED_SERVICE: macro to make using services that need to be proxied
@@ -93,7 +92,7 @@
 // nsProxiedService
 ////////////////////////////////////////////////////////////////////////////////
 
-class NS_STACK_CLASS nsProxiedService
+class nsProxiedService
 {
 public:
     nsProxiedService(const nsCID &aClass, const nsIID &aIID, 
@@ -126,15 +125,11 @@ private:
         if (always)
             proxyType |= NS_PROXY_ALWAYS;
 
-        nsCOMPtr<nsIProxyObjectManager> proxyObjMgr = do_GetService(NS_XPCOMPROXY_CONTRACTID, rv);
-        if (NS_FAILED(*rv))
-          return;
-
-        *rv = proxyObjMgr->GetProxyForObject(aTarget,
-                                             aIID,
-                                             aObj,
-                                             proxyType,
-                                             getter_AddRefs(mProxiedService));
+        *rv = NS_GetProxyForObject(aTarget, 
+                                   aIID, 
+                                   aObj,
+                                   proxyType, 
+                                   getter_AddRefs(mProxiedService));
     }
 
     nsCOMPtr<nsISupports> mProxiedService;

@@ -165,6 +165,7 @@ private:
 
 // the output end of a pipe (allocated as a member of the pipe).
 class nsPipeOutputStream : public nsIAsyncOutputStream
+                         , public nsISeekableStream
                          , public nsIClassInfo
 {
 public:
@@ -177,6 +178,7 @@ public:
 
     NS_DECL_NSIOUTPUTSTREAM
     NS_DECL_NSIASYNCOUTPUTSTREAM
+    NS_DECL_NSISEEKABLESTREAM
     NS_DECL_NSICLASSINFO
 
     nsPipeOutputStream(nsPipe *pipe)
@@ -330,7 +332,7 @@ nsPipe::nsPipe()
 nsPipe::~nsPipe()
 {
     if (mMonitor)
-        nsAutoMonitor::DestroyMonitor(mMonitor);
+        PR_DestroyMonitor(mMonitor);
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsPipe, nsIPipe)
@@ -342,7 +344,7 @@ nsPipe::Init(PRBool nonBlockingIn,
              PRUint32 segmentCount,
              nsIMemory *segmentAlloc)
 {
-    mMonitor = nsAutoMonitor::NewMonitor("pipeMonitor");
+    mMonitor = PR_NewMonitor();
     if (!mMonitor)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -992,9 +994,10 @@ NS_IMPL_QUERY_INTERFACE3(nsPipeOutputStream,
                          nsIAsyncOutputStream,
                          nsIClassInfo)
 
-NS_IMPL_CI_INTERFACE_GETTER2(nsPipeOutputStream,
+NS_IMPL_CI_INTERFACE_GETTER3(nsPipeOutputStream,
                              nsIOutputStream,
-                             nsIAsyncOutputStream)
+                             nsIAsyncOutputStream,
+                             nsISeekableStream)
 
 NS_IMPL_THREADSAFE_CI(nsPipeOutputStream)
 
@@ -1041,7 +1044,7 @@ nsPipeOutputStream::OnOutputException(nsresult reason, nsPipeEvents &events)
     LOG(("nsPipeOutputStream::OnOutputException [this=%x reason=%x]\n",
         this, reason));
 
-    PRBool result = PR_FALSE;
+    nsresult result = PR_FALSE;
 
     NS_ASSERTION(NS_FAILED(reason), "huh? successful exception");
     mWritable = PR_FALSE;
@@ -1254,6 +1257,32 @@ nsPipeOutputStream::AsyncWait(nsIOutputStreamCallback *callback,
         }
     }
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPipeOutputStream::Seek(PRInt32 whence, PRInt64 offset)
+{
+    NS_NOTREACHED("nsPipeOutputStream::Seek");
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsPipeOutputStream::Tell(PRInt64 *offset)
+{
+    nsAutoMonitor mon(mPipe->mMonitor);
+
+    if (NS_FAILED(mPipe->mStatus))
+        return mPipe->mStatus;
+
+    *offset = mLogicalOffset;
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsPipeOutputStream::SetEOF()
+{
+    NS_NOTREACHED("nsPipeOutputStream::SetEOF");
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

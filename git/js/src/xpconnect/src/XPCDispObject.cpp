@@ -230,7 +230,7 @@ JSBool XPCDispObject::Dispatch(XPCCallContext& ccx, IDispatch * disp,
                         jsval * argv = ccx.GetArgv();
                         // Out, in/out parameters must be objects
                         if(!JSVAL_IS_OBJECT(argv[index]) ||
-                            !JS_SetPropertyById(ccx, JSVAL_TO_OBJECT(argv[index]),
+                            !OBJ_SET_PROPERTY(ccx, JSVAL_TO_OBJECT(argv[index]),
                                 rt->GetStringID(XPCJSRuntime::IDX_VALUE), &val))
                             return ThrowBadParam(NS_ERROR_XPC_CANT_SET_OUT_VAL, index, ccx);
                     }
@@ -278,7 +278,7 @@ JSBool XPCDispObject::Invoke(XPCCallContext & ccx, CallMode mode)
     XPCJSRuntime* rt = ccx.GetRuntime();
     XPCContext* xpcc = ccx.GetXPCContext();
     XPCPerThreadData* tls = ccx.GetThreadData();
-
+    
     jsval* argv = ccx.GetArgv();
     uintN argc = ccx.GetArgc();
 
@@ -305,7 +305,7 @@ JSBool XPCDispObject::Invoke(XPCCallContext & ccx, CallMode mode)
             secAction = nsIXPCSecurityManager::ACCESS_SET_PROPERTY;
             break;
         default:
-            NS_ERROR("bad value");
+            NS_ASSERTION(0,"bad value");
             return JS_FALSE;
     }
     jsval name = member->GetName();
@@ -357,8 +357,9 @@ JSBool XPCDispObject::Invoke(XPCCallContext & ccx, CallMode mode)
                 if(paramInfo.IsOut())
                 {
                     if(JSVAL_IS_PRIMITIVE(val) ||
-                        !JS_GetPropertyById(ccx, JSVAL_TO_OBJECT(val),
-                            rt->GetStringID(XPCJSRuntime::IDX_VALUE), &val))
+                        !OBJ_GET_PROPERTY(ccx, JSVAL_TO_OBJECT(val),
+                                          rt->GetStringID(XPCJSRuntime::IDX_VALUE),
+                                          &val))
                     {
                         delete params;
                         return ThrowBadParam(NS_ERROR_XPC_NEED_OUT_OBJECT, index, ccx);
@@ -377,9 +378,29 @@ JSBool XPCDispObject::Invoke(XPCCallContext & ccx, CallMode mode)
             }
         }
     }
+    // If this is a parameterized property
     if(member->IsParameterizedProperty())
     {
-        mode = CALL_GETTER;
+        // We need to get a parameterized property object to return to JS
+        // NewInstance takes ownership of params
+        if(XPCDispParamPropJSClass::NewInstance(ccx, wrapper,
+                                                member->GetDispID(),
+                                                params, &val))
+        {
+            ccx.SetRetVal(val);
+            if(!JS_IdToValue(ccx, 1, &val))
+            {
+                // This shouldn't fail
+                NS_ERROR("JS_IdToValue failed in XPCDispParamPropJSClass::NewInstance");
+                return JS_FALSE;
+            }
+            JS_SetCallReturnValue2(ccx, val);
+            return JS_TRUE;
+        }
+        // NewInstance would only fail if there was an out of memory problem
+        JS_ReportOutOfMemory(ccx);
+        delete params;
+        return JS_FALSE;
     }
     JSBool retval = Dispatch(ccx, pObj, member->GetDispID(), mode, params, &val, member, rt);
     if(retval && mode == CALL_SETTER)
@@ -437,7 +458,7 @@ JSBool GetMember(XPCCallContext& ccx, JSObject* funobj, XPCNativeInterface*& ifa
  * @param vp The return value
  * @return Returns JS_TRUE if the operation succeeded
  */
-JSBool
+JSBool JS_DLL_CALLBACK
 XPC_IDispatch_CallMethod(JSContext* cx, JSObject* obj, uintN argc,
                          jsval* argv, jsval* vp)
 {
@@ -471,7 +492,7 @@ XPC_IDispatch_CallMethod(JSContext* cx, JSObject* obj, uintN argc,
  * @param vp The return value
  * @return Returns JS_TRUE if the operation succeeded
  */
-JSBool
+JSBool JS_DLL_CALLBACK
 XPC_IDispatch_GetterSetter(JSContext *cx, JSObject *obj, uintN argc,
                            jsval *argv, jsval *vp)
 {

@@ -51,20 +51,19 @@
 #include "nsBoxFrame.h"
 #include "nsMenuFrame.h"
 #include "nsMenuBarListener.h"
-#include "nsMenuParent.h"
+#include "nsIMenuParent.h"
+#include "nsIWidget.h"
 
 class nsIContent;
 
 nsIFrame* NS_NewMenuBarFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-class nsMenuBarFrame : public nsBoxFrame, public nsMenuParent
+class nsMenuBarFrame : public nsBoxFrame, public nsIMenuParent
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
-  // nsMenuParent interface
+  // nsIMenuParentInterface
   virtual nsMenuFrame* GetCurrentMenuItem();
   NS_IMETHOD SetCurrentMenuItem(nsMenuFrame* aMenuItem);
   virtual void CurrentMenuIsBeingDestroyed();
@@ -87,14 +86,11 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   virtual nsIAtom* GetType() const { return nsGkAtoms::menuBarFrame; }
 
 // Non-interface helpers
-
-  void
-  SetStayActive(PRBool aStayActive) { mStayActive = aStayActive; }
 
   // Called when a menu on the menu bar is clicked on. Returns a menu if one
   // needs to be closed.
@@ -129,16 +125,15 @@ public:
 protected:
   nsMenuBarListener* mMenuBarListener; // The listener that tells us about key and mouse events.
 
-  // flag that is temporarily set when switching from one menu on the menubar to another
-  // to indicate that the menubar should not be deactivated.
-  PRPackedBool mStayActive;
-
-  PRPackedBool mIsActive; // Whether or not the menu bar is active (a menu item is highlighted or shown).
+  PRBool mIsActive; // Whether or not the menu bar is active (a menu item is highlighted or shown).
   // The current menu that is active (highlighted), which may not be open. This will
   // be null if no menu is active.
   nsMenuFrame* mCurrentMenu;
 
   nsIDOMEventTarget* mTarget;
+
+private:
+  PRBool mCaretWasVisible;
 
 }; // class nsMenuBarFrame
 

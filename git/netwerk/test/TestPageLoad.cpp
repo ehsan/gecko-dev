@@ -47,10 +47,8 @@
 #include "nsISupportsPrimitives.h"
 #include "prlong.h"
 #include "plstr.h"
-#include "nsCOMArray.h"
+#include "nsSupportsArray.h"
 #include "nsIComponentRegistrar.h"
-
-namespace TestPageLoad {
 
 int getStrLine(const char *src, char *str, int ind, int max);
 nsresult auxLoad(char *uriBuf);
@@ -68,7 +66,7 @@ nsresult auxLoad(char *uriBuf);
 static nsCString globalStream;
 //static char urlBuf[256];
 static nsCOMPtr<nsIURI> baseURI;
-static nsCOMArray<nsIURI> uriList;
+static nsCOMPtr<nsISupportsArray> uriList;
 
 //Temp, should remove:
 static int numStart=0;
@@ -317,16 +315,20 @@ nsresult auxLoad(char *uriBuf)
     }
 
     //Compare to see if exists
+    PRUint32 num;
+    uriList->Count(&num);
     PRBool equal;
-    for(PRInt32 i = 0; i < uriList.Count(); i++) {
-      uri->Equals(uriList[i], &equal);
+    nsCOMPtr<nsIURI> uriTmp;
+    for(PRUint32 i = 0; i < num; i++) {
+      uriList->GetElementAt(i, getter_AddRefs(uriTmp));
+      uri->Equals(uriTmp, &equal);
       if(equal) {
         printf("(duplicate, canceling) %s\n",uriBuf); 
         return NS_OK;
       }
     }
     printf("\n");
-    uriList.AppendObject(uri);
+    uriList->AppendElement(uri);
     rv = NS_NewChannel(getter_AddRefs(chan), uri, nsnull, nsnull, callbacks);
     RETURN_IF_FAILED(rv, "NS_NewChannel");
 
@@ -340,9 +342,6 @@ nsresult auxLoad(char *uriBuf)
 
 //---------Buffer writer fun---------
 
-} // namespace
-
-using namespace TestPageLoad;
 
 //---------MAIN-----------
 
@@ -366,6 +365,9 @@ int main(int argc, char **argv)
             registrar->AutoRegister(nsnull);
 
         PRTime start, finish;
+
+        uriList = do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID, &rv);
+        RETURN_IF_FAILED(rv, "do_CreateInstance(NS_SUPPORTSARRAY_CONTRACTID)");
 
         printf("Loading necko ... \n");
         nsCOMPtr<nsIChannel> chan;

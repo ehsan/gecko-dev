@@ -56,7 +56,6 @@
 #include "nsIPrefService.h"
 #include "nsILookAndFeel.h"
 #include "nsPresContext.h"
-#include "nsFocusManager.h"
 
 // Drag & Drop, Clipboard
 #include "nsIServiceManager.h"
@@ -70,9 +69,6 @@
 #include "nsIDOMEventTarget.h"
 #include "nsIEventStateManager.h"
 #include "nsISelectionPrivate.h"
-#include "nsIDOMDragEvent.h"
-#include "nsIFocusManager.h"
-#include "nsIDOMWindow.h"
 
 //#define DEBUG_IME
 
@@ -464,8 +460,8 @@ nsTextEditorTextListener::HandleText(nsIDOMEvent* aTextEvent)
    nsTextEventReply*                 textEventReply;
 
    textEvent->GetText(composedText);
-   textRangeList = textEvent->GetInputRange();
-   textEventReply = textEvent->GetEventReply();
+   textEvent->GetInputRange(getter_AddRefs(textRangeList));
+   textEvent->GetEventReply(&textEventReply);
    nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor, &result);
    if (imeEditor) {
      PRUint32 flags;
@@ -499,37 +495,21 @@ nsTextEditorDragListener::~nsTextEditorDragListener()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsTextEditorDragListener, nsIDOMEventListener)
+NS_IMPL_ISUPPORTS2(nsTextEditorDragListener, nsIDOMEventListener, nsIDOMDragListener)
 
 nsresult
 nsTextEditorDragListener::HandleEvent(nsIDOMEvent* aEvent)
 {
-  // make sure it's a drag event
-  nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
-  if (dragEvent) {
-    nsAutoString eventType;
-    aEvent->GetType(eventType);
-    if (eventType.EqualsLiteral("draggesture"))
-      return DragGesture(dragEvent);
-    if (eventType.EqualsLiteral("dragenter"))
-      return DragEnter(dragEvent);
-    if (eventType.EqualsLiteral("dragover"))
-      return DragOver(dragEvent);
-    if (eventType.EqualsLiteral("dragleave"))
-      return DragLeave(dragEvent);
-    if (eventType.EqualsLiteral("drop"))
-      return Drop(dragEvent);
-  }
   return NS_OK;
 }
 
 
 nsresult
-nsTextEditorDragListener::DragGesture(nsIDOMDragEvent* aDragEvent)
+nsTextEditorDragListener::DragGesture(nsIDOMEvent* aDragEvent)
 {
   if ( !mEditor )
     return NS_ERROR_NULL_POINTER;
-
+  
   // ...figure out if a drag should be started...
   PRBool canDrag;
   nsresult rv = mEditor->CanDrag(aDragEvent, &canDrag);
@@ -541,7 +521,7 @@ nsTextEditorDragListener::DragGesture(nsIDOMDragEvent* aDragEvent)
 
 
 nsresult
-nsTextEditorDragListener::DragEnter(nsIDOMDragEvent* aDragEvent)
+nsTextEditorDragListener::DragEnter(nsIDOMEvent* aDragEvent)
 {
   nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
   if (!presShell)
@@ -549,7 +529,7 @@ nsTextEditorDragListener::DragEnter(nsIDOMDragEvent* aDragEvent)
 
   if (!mCaret)
   {
-    NS_NewCaret(getter_AddRefs(mCaret));
+    mCaret = do_CreateInstance("@mozilla.org/layout/caret;1");
     if (mCaret)
     {
       mCaret->Init(presShell);
@@ -565,7 +545,7 @@ nsTextEditorDragListener::DragEnter(nsIDOMDragEvent* aDragEvent)
 
 
 nsresult
-nsTextEditorDragListener::DragOver(nsIDOMDragEvent* aDragEvent)
+nsTextEditorDragListener::DragOver(nsIDOMEvent* aDragEvent)
 {
   // XXX cache this between drag events?
   nsresult rv;
@@ -577,40 +557,45 @@ nsTextEditorDragListener::DragOver(nsIDOMDragEvent* aDragEvent)
   dragService->GetCurrentSession(getter_AddRefs(dragSession));
   if (!dragSession) return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIDOMNode> parent;
-  nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent = do_QueryInterface(aDragEvent);
-  if (nsuiEvent) {
-    nsuiEvent->GetRangeParent(getter_AddRefs(parent));
-    nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
-    if (!dropParent)
-      return NS_ERROR_FAILURE;
-
-    if (!dropParent->IsEditable())
-      return NS_OK;
-  }
-
   PRBool canDrop = CanDrop(aDragEvent);
-  dragSession->SetCanDrop(canDrop);
-
   if (canDrop)
   {
-    // We need to consume the event to prevent the browser's
-    // default drag listeners from being fired. (Bug 199133)
-    aDragEvent->PreventDefault(); // consumed
+    nsCOMPtr<nsIDOMDocument> domdoc;
+    mEditor->GetDocument(getter_AddRefs(domdoc));
+    canDrop = nsEditorHookUtils::DoAllowDropHook(domdoc, aDragEvent, dragSession);
+  }
 
-    if (mCaret && nsuiEvent)
+  dragSession->SetCanDrop(canDrop);
+
+  // We need to consume the event to prevent the browser's
+  // default drag listeners from being fired. (Bug 199133)
+
+  aDragEvent->PreventDefault(); // consumed
+    
+  if (canDrop)
+  {
+    if (mCaret)
     {
-      PRInt32 offset = 0;
-      rv = nsuiEvent->GetRangeOffset(&offset);
-      if (NS_FAILED(rv)) return rv;
+      nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent (do_QueryInterface(aDragEvent));
+      if (nsuiEvent)
+      {
+        nsCOMPtr<nsIDOMNode> parent;
+        rv = nsuiEvent->GetRangeParent(getter_AddRefs(parent));
+        if (NS_FAILED(rv)) return rv;
+        if (!parent) return NS_ERROR_FAILURE;
 
-      // to avoid flicker, we could track the node and offset to see if we moved
-      if (mCaretDrawn)
-        mCaret->EraseCaret();
-      
-      //mCaret->SetCaretVisible(PR_TRUE);   // make sure it's visible
-      mCaret->DrawAtPosition(parent, offset);
-      mCaretDrawn = PR_TRUE;
+        PRInt32 offset = 0;
+        rv = nsuiEvent->GetRangeOffset(&offset);
+        if (NS_FAILED(rv)) return rv;
+
+        // to avoid flicker, we could track the node and offset to see if we moved
+        if (mCaretDrawn)
+          mCaret->EraseCaret();
+        
+        //mCaret->SetCaretVisible(PR_TRUE);   // make sure it's visible
+        mCaret->DrawAtPosition(parent, offset);
+        mCaretDrawn = PR_TRUE;
+      }
     }
   }
   else
@@ -627,7 +612,7 @@ nsTextEditorDragListener::DragOver(nsIDOMDragEvent* aDragEvent)
 
 
 nsresult
-nsTextEditorDragListener::DragLeave(nsIDOMDragEvent* aDragEvent)
+nsTextEditorDragListener::DragExit(nsIDOMEvent* aDragEvent)
 {
   if (mCaret && mCaretDrawn)
   {
@@ -645,7 +630,7 @@ nsTextEditorDragListener::DragLeave(nsIDOMDragEvent* aDragEvent)
 
 
 nsresult
-nsTextEditorDragListener::Drop(nsIDOMDragEvent* aMouseEvent)
+nsTextEditorDragListener::DragDrop(nsIDOMEvent* aMouseEvent)
 {
   if (mCaret)
   {
@@ -665,18 +650,6 @@ nsTextEditorDragListener::Drop(nsIDOMDragEvent* aMouseEvent)
 
   if (!mEditor)
     return NS_ERROR_FAILURE;
-
-  nsCOMPtr<nsIDOMNSUIEvent> nsuiEvent = do_QueryInterface(aMouseEvent);
-  if (nsuiEvent) {
-    nsCOMPtr<nsIDOMNode> parent;
-    nsuiEvent->GetRangeParent(getter_AddRefs(parent));
-    nsCOMPtr<nsIContent> dropParent = do_QueryInterface(parent);
-    if (!dropParent)
-      return NS_ERROR_FAILURE;
-
-    if (!dropParent->IsEditable())
-      return NS_OK;
-  }
 
   PRBool canDrop = CanDrop(aMouseEvent);
   if (!canDrop)
@@ -699,15 +672,23 @@ nsTextEditorDragListener::Drop(nsIDOMDragEvent* aMouseEvent)
 
   aMouseEvent->StopPropagation();
   aMouseEvent->PreventDefault();
-  // Beware! This may flush notifications via synchronous
-  // ScrollSelectionIntoView.
   return mEditor->InsertFromDrop(aMouseEvent);
 }
 
+nsresult
+nsTextEditorDragListener::Drag(nsIDOMEvent* aDragEvent)
+{
+  return NS_OK;
+}
 
+nsresult
+nsTextEditorDragListener::DragEnd(nsIDOMEvent* aDragEvent)
+{
+  return NS_OK;
+}
 
 PRBool
-nsTextEditorDragListener::CanDrop(nsIDOMDragEvent* aEvent)
+nsTextEditorDragListener::CanDrop(nsIDOMEvent* aEvent)
 {
   // if the target doc is read-only, we can't drop
   PRUint32 flags;
@@ -731,9 +712,6 @@ nsTextEditorDragListener::CanDrop(nsIDOMDragEvent* aEvent)
 
   PRBool flavorSupported = PR_FALSE;
   dragSession->IsDataFlavorSupported(kUnicodeMime, &flavorSupported);
-
-  if (!flavorSupported)
-    dragSession->IsDataFlavorSupported(kMozTextInternal, &flavorSupported);
 
   // if we aren't plaintext editing, we can accept more flavors
   if (!flavorSupported 
@@ -850,6 +828,21 @@ nsTextEditorCompositionListener::HandleStartComposition(nsIDOMEvent* aCompositio
 
   return mEditor->BeginComposition(eventReply);
 }
+nsresult
+nsTextEditorCompositionListener::HandleQueryComposition(nsIDOMEvent* aCompositionEvent)
+{
+#ifdef DEBUG_IME
+   printf("nsTextEditorCompositionListener::HandleQueryComposition\n");
+#endif
+  nsCOMPtr<nsIPrivateCompositionEvent> pCompositionEvent = do_QueryInterface(aCompositionEvent);
+  if (!pCompositionEvent) return NS_ERROR_FAILURE;
+  
+  nsTextEventReply* eventReply;
+  nsresult rv = pCompositionEvent->GetCompositionReply(&eventReply);
+  if (NS_FAILED(rv)) return rv;
+
+  return mEditor->QueryComposition(eventReply);
+}
 
 nsresult
 nsTextEditorCompositionListener::HandleEndComposition(nsIDOMEvent* aCompositionEvent)
@@ -858,6 +851,43 @@ nsTextEditorCompositionListener::HandleEndComposition(nsIDOMEvent* aCompositionE
    printf("nsTextEditorCompositionListener::HandleEndComposition\n");
 #endif
    return mEditor->EndComposition();
+}
+
+
+nsresult
+nsTextEditorCompositionListener::HandleQueryReconversion(nsIDOMEvent* aReconversionEvent)
+{
+#ifdef DEBUG_IME
+  printf("nsTextEditorCompositionListener::HandleQueryReconversion\n");
+#endif
+  nsCOMPtr<nsIPrivateCompositionEvent> pCompositionEvent = do_QueryInterface(aReconversionEvent);
+  if (!pCompositionEvent)
+    return NS_ERROR_FAILURE;
+
+  nsReconversionEventReply* eventReply;
+  nsresult rv = pCompositionEvent->GetReconversionReply(&eventReply);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return mEditor->GetReconversionString(eventReply);
+}
+
+nsresult
+nsTextEditorCompositionListener::HandleQueryCaretRect(nsIDOMEvent* aQueryCaretRectEvent)
+{
+#ifdef DEBUG_IME
+  printf("nsTextEditorCompositionListener::HandleQueryCaretRect\n");
+#endif
+  nsCOMPtr<nsIPrivateCompositionEvent> pCompositionEvent = do_QueryInterface(aQueryCaretRectEvent);
+  if (!pCompositionEvent)
+    return NS_ERROR_FAILURE;
+
+  nsQueryCaretRectEventReply* eventReply;
+  nsresult rv = pCompositionEvent->GetQueryCaretRectReply(&eventReply);
+  if (NS_FAILED(rv))
+    return rv;
+
+  return mEditor->GetQueryCaretRect(eventReply);
 }
 
 /*
@@ -978,6 +1008,38 @@ nsTextEditorFocusListener::HandleEvent(nsIDOMEvent* aEvent)
   return NS_OK;
 }
 
+static PRBool
+IsTargetFocused(nsIDOMEventTarget* aTarget)
+{
+  // The event target could be either a content node or a document.
+  nsCOMPtr<nsIDocument> doc;
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aTarget);
+  if (content)
+    doc = content->GetDocument();
+  else
+    doc = do_QueryInterface(aTarget);
+
+  if (!doc)
+    return PR_FALSE;
+
+  nsIPresShell *shell = doc->GetPrimaryShell();
+  if (!shell)
+    return PR_FALSE;
+
+  nsPresContext *presContext = shell->GetPresContext();
+  if (!presContext)
+    return PR_FALSE;
+
+  nsCOMPtr<nsIContent> focusedContent;
+  presContext->EventStateManager()->
+    GetFocusedContent(getter_AddRefs(focusedContent));
+
+  // focusedContent will be null in the case where the document has focus,
+  // and so will content.
+
+  return (focusedContent == content);
+}
+
 static already_AddRefed<nsIContent>
 FindSelectionRoot(nsIEditor *aEditor, nsIContent *aContent)
 {
@@ -1000,11 +1062,15 @@ FindSelectionRoot(nsIEditor *aEditor, nsIContent *aContent)
     // We still want to allow selection in a readonly editor.
     nsCOMPtr<nsIDOMElement> rootElement;
     aEditor->GetRootElement(getter_AddRefs(rootElement));
-    if (!rootElement) {
-      return nsnull;
-    }
 
     CallQueryInterface(rootElement, &root);
+
+    if (!root) {
+      nsIDocument *document = aContent->GetCurrentDoc();
+      if (document) {
+        NS_IF_ADDREF(root = document->GetRootContent());
+      }
+    }
 
     return root;
   }
@@ -1029,9 +1095,19 @@ nsresult
 nsTextEditorFocusListener::Focus(nsIDOMEvent* aEvent)
 {
   NS_ENSURE_ARG(aEvent);
+  // It's possible for us to receive a focus when we're really not focused.
+  // This happens, for example, when an onfocus handler that's hooked up
+  // before this listener focuses something else.  In that case, all of the
+  // onblur handlers will be fired synchronously, then the remaining focus
+  // handlers will be fired from the original event.  So, check to see that
+  // we're really focused.  (Note that the analogous situation does not
+  // happen for blurs, due to the ordering in
+  // nsEventStateManager::SendFocuBlur().
 
   nsCOMPtr<nsIDOMEventTarget> target;
   aEvent->GetTarget(getter_AddRefs(target));
+  if (!IsTargetFocused(target))
+    return NS_OK;
 
   // turn on selection and caret
   if (mEditor)
@@ -1042,45 +1118,23 @@ nsTextEditorFocusListener::Focus(nsIDOMEvent* aEvent)
     { // only enable caret and selection if the editor is not disabled
       nsCOMPtr<nsIContent> content = do_QueryInterface(target);
 
-      PRBool targetIsEditableDoc = PR_FALSE;
-      nsCOMPtr<nsIContent> editableRoot;
-      if (content) {
-        editableRoot = FindSelectionRoot(mEditor, content);
-
-        // make sure that the element is really focused in case an earlier
-        // listener in the chain changed the focus.
-        if (editableRoot) {
-          nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-          NS_ENSURE_TRUE(fm, NS_OK);
-
-          nsCOMPtr<nsIDOMElement> element;
-          fm->GetFocusedElement(getter_AddRefs(element));
-          if (!SameCOMIdentity(element, target))
-            return NS_OK;
-        }
-      }
-      else {
-        nsCOMPtr<nsIDocument> document = do_QueryInterface(target);
-        targetIsEditableDoc = document && document->HasFlag(NODE_IS_EDITABLE);
-      }
+      nsCOMPtr<nsIContent> editableRoot =
+        content ? FindSelectionRoot(mEditor, content) : nsnull;
 
       nsCOMPtr<nsISelectionController> selCon;
       mEditor->GetSelectionController(getter_AddRefs(selCon));
-      if (selCon && (targetIsEditableDoc || editableRoot))
+      if (selCon && editableRoot)
       {
         nsCOMPtr<nsISelection> selection;
         selCon->GetSelection(nsISelectionController::SELECTION_NORMAL,
                              getter_AddRefs(selection));
 
         nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
-        if (presShell) {
-          nsRefPtr<nsCaret> caret;
+        if (presShell && selection) {
+          nsCOMPtr<nsICaret> caret;
           presShell->GetCaret(getter_AddRefs(caret));
           if (caret) {
-            caret->SetIgnoreUserModify(PR_FALSE);
-            if (selection) {
-              caret->SetCaretDOMSelection(selection);
-            }
+            caret->SetCaretDOMSelection(selection);
           }
         }
 
@@ -1096,16 +1150,12 @@ nsTextEditorFocusListener::Focus(nsIDOMEvent* aEvent)
         {
           selectionPrivate->SetAncestorLimiter(editableRoot);
         }
-
-        if (selection && !editableRoot) {
-          PRInt32 rangeCount;
-          selection->GetRangeCount(&rangeCount);
-          if (rangeCount == 0) {
-            mEditor->BeginningOfDocument();
-          }
-        }
       }
     }
+
+    nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor);
+    if (imeEditor)
+      imeEditor->NotifyIMEOnFocus();
   }
   return NS_OK;
 }
@@ -1113,20 +1163,17 @@ nsTextEditorFocusListener::Focus(nsIDOMEvent* aEvent)
 nsresult
 nsTextEditorFocusListener::Blur(nsIDOMEvent* aEvent)
 {
-  // check if something else is focused. If another element is focused, then
-  // we should not change the selection.
-  nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, NS_OK);
-
-  nsCOMPtr<nsIDOMElement> element;
-  fm->GetFocusedElement(getter_AddRefs(element));
-  if (element)
-    return NS_OK;
-
   NS_ENSURE_ARG(aEvent);
   // turn off selection and caret
   if (mEditor)
   {
+    // when imeEditor exists, call ForceCompositionEnd() to tell
+    // the input focus is leaving first
+    nsCOMPtr<nsIEditorIMESupport> imeEditor = do_QueryInterface(mEditor);
+    if (imeEditor) {
+      imeEditor->NotifyIMEOnBlur();
+    }
+
     nsCOMPtr<nsIEditor>editor = do_QueryInterface(mEditor);
     if (editor)
     {
@@ -1142,15 +1189,6 @@ nsTextEditorFocusListener::Blur(nsIDOMEvent* aEvent)
           do_QueryInterface(selection);
         if (selectionPrivate) {
           selectionPrivate->SetAncestorLimiter(nsnull);
-        }
-
-        nsCOMPtr<nsIPresShell> presShell = do_QueryReferent(mPresShell);
-        if (presShell) {
-          nsRefPtr<nsCaret> caret;
-          presShell->GetCaret(getter_AddRefs(caret));
-          if (caret) {
-            caret->SetIgnoreUserModify(PR_TRUE);
-          }
         }
 
         selCon->SetCaretEnabled(PR_FALSE);
@@ -1174,7 +1212,6 @@ nsTextEditorFocusListener::Blur(nsIDOMEvent* aEvent)
       }
     }
   }
-
   return NS_OK;
 }
 

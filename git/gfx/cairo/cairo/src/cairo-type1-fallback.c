@@ -33,11 +33,7 @@
  *	Adrian Johnson <ajohnson@redneon.com>
  */
 
-#define _BSD_SOURCE /* for snprintf(), strdup() */
 #include "cairoint.h"
-
-#if CAIRO_HAS_FONT_SUBSET
-
 #include "cairo-type1-private.h"
 #include "cairo-scaled-font-subsets-private.h"
 #include "cairo-path-fixed-private.h"
@@ -45,7 +41,7 @@
 
 typedef enum {
     CAIRO_CHARSTRING_TYPE1,
-    CAIRO_CHARSTRING_TYPE2
+    CAIRO_CHARSTRING_TYPE2,
 } cairo_charstring_type_t;
 
 typedef struct _cairo_type1_font {
@@ -82,16 +78,16 @@ cairo_type1_font_create (cairo_scaled_font_subset_t  *scaled_font_subset,
     cairo_matrix_t font_matrix;
     cairo_matrix_t ctm;
     cairo_font_options_t font_options;
-    cairo_status_t status;
 
     font = calloc (1, sizeof (cairo_type1_font_t));
-    if (unlikely (font == NULL))
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (font == NULL)
+	return CAIRO_STATUS_NO_MEMORY;
 
-    font->widths = calloc (scaled_font_subset->num_glyphs, sizeof (int));
-    if (unlikely (font->widths == NULL)) {
+    font->widths = calloc (scaled_font_subset->num_glyphs,
+                           sizeof (int));
+    if (font->widths == NULL) {
 	free (font);
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+	return CAIRO_STATUS_NO_MEMORY;
     }
 
     font->scaled_font_subset = scaled_font_subset;
@@ -110,12 +106,10 @@ cairo_type1_font_create (cairo_scaled_font_subset_t  *scaled_font_subset,
 							&font_matrix,
 							&ctm,
 							&font_options);
-    status = font->type1_scaled_font->status;
-    if (unlikely (status))
+    if (font->type1_scaled_font->status)
         goto fail;
 
     _cairo_array_init (&font->contents, sizeof (unsigned char));
-    font->output = NULL;
 
     *subset_return = font;
 
@@ -125,7 +119,7 @@ fail:
     free (font->widths);
     free (font);
 
-    return status;
+    return CAIRO_STATUS_NO_MEMORY;
 }
 
 /* Charstring commands. If the high byte is 0 the command is encoded
@@ -218,15 +212,15 @@ typedef struct _ps_path_info {
 } t1_path_info_t;
 
 static cairo_status_t
-_charstring_move_to (void		    *closure,
-                     const cairo_point_t    *point)
+_charstring_move_to (void          *closure,
+                     cairo_point_t *point)
 {
     t1_path_info_t *path_info = (t1_path_info_t *) closure;
     int dx, dy;
     cairo_status_t status;
 
     status = _cairo_array_grow_by (path_info->data, 12);
-    if (unlikely (status))
+    if (status)
         return status;
 
     dx = _cairo_fixed_integer_part (point->x) - path_info->current_x;
@@ -242,15 +236,15 @@ _charstring_move_to (void		    *closure,
 }
 
 static cairo_status_t
-_charstring_line_to (void		    *closure,
-                     const cairo_point_t    *point)
+_charstring_line_to (void          *closure,
+                     cairo_point_t *point)
 {
     t1_path_info_t *path_info = (t1_path_info_t *) closure;
     int dx, dy;
     cairo_status_t status;
 
     status = _cairo_array_grow_by (path_info->data, 12);
-    if (unlikely (status))
+    if (status)
         return status;
 
     dx = _cairo_fixed_integer_part (point->x) - path_info->current_x;
@@ -266,17 +260,17 @@ _charstring_line_to (void		    *closure,
 }
 
 static cairo_status_t
-_charstring_curve_to (void		    *closure,
-                      const cairo_point_t   *point1,
-                      const cairo_point_t   *point2,
-                      const cairo_point_t   *point3)
+_charstring_curve_to (void	    *closure,
+                      cairo_point_t *point1,
+                      cairo_point_t *point2,
+                      cairo_point_t *point3)
 {
     t1_path_info_t *path_info = (t1_path_info_t *) closure;
     int dx1, dy1, dx2, dy2, dx3, dy3;
     cairo_status_t status;
 
     status = _cairo_array_grow_by (path_info->data, 32);
-    if (unlikely (status))
+    if (status)
         return status;
 
     dx1 = _cairo_fixed_integer_part (point1->x) - path_info->current_x;
@@ -308,7 +302,7 @@ _charstring_close_path (void *closure)
         return CAIRO_STATUS_SUCCESS;
 
     status = _cairo_array_grow_by (path_info->data, 2);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     charstring_encode_command (path_info->data, CHARSTRING_closepath);
@@ -334,6 +328,33 @@ charstring_encrypt (cairo_array_t *data)
 }
 
 static cairo_int_status_t
+create_notdef_charstring (cairo_array_t *data, cairo_charstring_type_t type)
+{
+    cairo_status_t status;
+
+    /* We're passing constants below, so we know the 0 values will
+     * only use 1 byte each, and the 500 values will use 2 bytes
+     * each. Then 2 more for each of the commands is 10 total. */
+    status = _cairo_array_grow_by (data, 10);
+    if (status)
+        return status;
+
+    if (type == CAIRO_CHARSTRING_TYPE1) {
+        charstring_encode_integer (data, 0, type);
+        charstring_encode_integer (data, 0, type);
+
+        /* The width and height is arbitrary. */
+        charstring_encode_integer (data, 500, type);
+        charstring_encode_integer (data, 500, type);
+        charstring_encode_command (data, CHARSTRING_sbw);
+    }
+
+    charstring_encode_command (data, CHARSTRING_endchar);
+
+    return CAIRO_STATUS_SUCCESS;
+}
+
+static cairo_int_status_t
 cairo_type1_font_create_charstring (cairo_type1_font_t      *font,
                                     int                      subset_index,
                                     int                      glyph_index,
@@ -344,7 +365,6 @@ cairo_type1_font_create_charstring (cairo_type1_font_t      *font,
     cairo_scaled_glyph_t *scaled_glyph;
     t1_path_info_t path_info;
     cairo_text_extents_t *metrics;
-    cairo_bool_t emit_path = TRUE;
 
     /* This call may return CAIRO_INT_STATUS_UNSUPPORTED for bitmap fonts. */
     status = _cairo_scaled_glyph_lookup (font->type1_scaled_font,
@@ -352,17 +372,7 @@ cairo_type1_font_create_charstring (cairo_type1_font_t      *font,
 					 CAIRO_SCALED_GLYPH_INFO_METRICS|
 					 CAIRO_SCALED_GLYPH_INFO_PATH,
 					 &scaled_glyph);
-
-    /* It is ok for the .notdef glyph to not have a path available. We
-     * just need the metrics to emit an empty glyph.  */
-    if (glyph_index == 0 && status == CAIRO_INT_STATUS_UNSUPPORTED) {
-	emit_path = FALSE;
-	status = _cairo_scaled_glyph_lookup (font->type1_scaled_font,
-					     glyph_index,
-					     CAIRO_SCALED_GLYPH_INFO_METRICS,
-					     &scaled_glyph);
-    }
-    if (unlikely (status))
+    if (status)
         return status;
 
     metrics = &scaled_glyph->metrics;
@@ -384,40 +394,38 @@ cairo_type1_font_create_charstring (cairo_type1_font_t      *font,
     font->widths[subset_index] = metrics->x_advance;
 
     status = _cairo_array_grow_by (data, 30);
-    if (unlikely (status))
+    if (status)
         return status;
 
     if (type == CAIRO_CHARSTRING_TYPE1) {
         charstring_encode_integer (data, (int) scaled_glyph->metrics.x_bearing, type);
         charstring_encode_integer (data, (int) scaled_glyph->metrics.y_bearing, type);
-        charstring_encode_integer (data, (int) scaled_glyph->metrics.x_advance, type);
-        charstring_encode_integer (data, (int) scaled_glyph->metrics.y_advance, type);
+        charstring_encode_integer (data, (int) scaled_glyph->metrics.width, type);
+        charstring_encode_integer (data, (int) scaled_glyph->metrics.height, type);
         charstring_encode_command (data, CHARSTRING_sbw);
 
         path_info.current_x = (int) scaled_glyph->metrics.x_bearing;
         path_info.current_y = (int) scaled_glyph->metrics.y_bearing;
     } else {
-        charstring_encode_integer (data, (int) scaled_glyph->metrics.x_advance, type);
+        charstring_encode_integer (data, (int) scaled_glyph->metrics.width, type);
 
         path_info.current_x = 0;
         path_info.current_y = 0;
     }
     path_info.data = data;
     path_info.type = type;
-    if (emit_path) {
-	status = _cairo_path_fixed_interpret (scaled_glyph->path,
-					      CAIRO_DIRECTION_FORWARD,
-					      _charstring_move_to,
-					      _charstring_line_to,
-					      _charstring_curve_to,
-					      _charstring_close_path,
-					      &path_info);
-	if (unlikely (status))
-	    return status;
-    }
+    status = _cairo_path_fixed_interpret (scaled_glyph->path,
+                                          CAIRO_DIRECTION_FORWARD,
+                                          _charstring_move_to,
+                                          _charstring_line_to,
+                                          _charstring_curve_to,
+                                          _charstring_close_path,
+                                          &path_info);
+    if (status)
+        return status;
 
     status = _cairo_array_grow_by (data, 1);
-    if (unlikely (status))
+    if (status)
         return status;
     charstring_encode_command (path_info.data, CHARSTRING_endchar);
 
@@ -436,45 +444,51 @@ cairo_type1_font_write_charstrings (cairo_type1_font_t    *font,
 
     _cairo_array_init (&data, sizeof (unsigned char));
     status = _cairo_array_grow_by (&data, 1024);
-    if (unlikely (status))
+    if (status)
         goto fail;
 
     _cairo_output_stream_printf (encrypted_output,
                                  "2 index /CharStrings %d dict dup begin\n",
                                  font->scaled_font_subset->num_glyphs + 1);
 
-    _cairo_scaled_font_freeze_cache (font->type1_scaled_font);
-    for (i = 0; i < font->scaled_font_subset->num_glyphs; i++) {
+    for (i = 1; i < font->scaled_font_subset->num_glyphs; i++) {
         _cairo_array_truncate (&data, 0);
         /* four "random" bytes required by encryption algorithm */
         status = _cairo_array_append_multiple (&data, zeros, 4);
-        if (unlikely (status))
-	    break;
-
+        if (status)
+            goto fail;
         status = cairo_type1_font_create_charstring (font, i,
 						     font->scaled_font_subset->glyphs[i],
                                                      CAIRO_CHARSTRING_TYPE1,
 						     &data);
-        if (unlikely (status))
-	    break;
-
+        if (status)
+            goto fail;
         charstring_encrypt (&data);
         length = _cairo_array_num_elements (&data);
-	if (font->scaled_font_subset->glyph_names != NULL) {
-	    _cairo_output_stream_printf (encrypted_output, "/%s %d RD ",
-					 font->scaled_font_subset->glyph_names[i],
-					 length);
-	} else if (i == 0) {
-	    _cairo_output_stream_printf (encrypted_output, "/.notdef %d RD ", length);
-	} else {
-	    _cairo_output_stream_printf (encrypted_output, "/g%d %d RD ", i, length);
-	}
+        _cairo_output_stream_printf (encrypted_output, "/g%d %d RD ", i, length);
         _cairo_output_stream_write (encrypted_output,
                                     _cairo_array_index (&data, 0),
                                     length);
         _cairo_output_stream_printf (encrypted_output, " ND\n");
     }
-    _cairo_scaled_font_thaw_cache (font->type1_scaled_font);
+
+    /* All type 1 fonts must have a /.notdef charstring */
+
+    _cairo_array_truncate (&data, 0);
+    /* four "random" bytes required by encryption algorithm */
+    status = _cairo_array_append_multiple (&data, zeros, 4);
+    if (status)
+        goto fail;
+    status = create_notdef_charstring (&data, CAIRO_CHARSTRING_TYPE1);
+    if (status)
+        goto fail;
+    charstring_encrypt (&data);
+    length = _cairo_array_num_elements (&data);
+    _cairo_output_stream_printf (encrypted_output, "/.notdef %d RD ", length);
+    _cairo_output_stream_write (encrypted_output,
+                                _cairo_array_index (&data, 0),
+                                length);
+    _cairo_output_stream_printf (encrypted_output, " ND\n");
 
 fail:
     _cairo_array_fini (&data);
@@ -513,14 +527,8 @@ cairo_type1_font_write_header (cairo_type1_font_t *font,
                                  "} readonly def\n"
                                  "/Encoding 256 array\n"
 				 "0 1 255 {1 index exch /.notdef put} for\n");
-    for (i = 1; i < font->scaled_font_subset->num_glyphs; i++) {
-	if (font->scaled_font_subset->glyph_names != NULL) {
-	    _cairo_output_stream_printf (font->output, "dup %d /%s put\n",
-					 i, font->scaled_font_subset->glyph_names[i]);
-	} else {
-	    _cairo_output_stream_printf (font->output, "dup %d /g%d put\n", i, i);
-	}
-    }
+    for (i = 0; i < font->scaled_font_subset->num_glyphs; i++)
+        _cairo_output_stream_printf (font->output, "dup %d /g%d put\n", i, i);
     _cairo_output_stream_printf (font->output,
                                  "readonly def\n"
                                  "currentdict end\n"
@@ -580,8 +588,10 @@ cairo_type1_font_write_private_dict (cairo_type1_font_t *font,
         cairo_type1_write_stream_encrypted,
         NULL,
         font);
-    if (_cairo_output_stream_get_status (encrypted_output))
-	return  _cairo_output_stream_destroy (encrypted_output);
+    if (encrypted_output == NULL) {
+	status = CAIRO_STATUS_NO_MEMORY;
+	goto fail;
+    }
 
     /* Note: the first four spaces at the start of this private dict
      * are the four "random" bytes of plaintext required by the
@@ -589,7 +599,7 @@ cairo_type1_font_write_private_dict (cairo_type1_font_t *font,
     _cairo_output_stream_printf (encrypted_output,
                                  "    dup /Private 9 dict dup begin\n"
                                  "/RD {string currentfile exch readstring pop}"
-                                 " bind executeonly def\n"
+                                 " executeonly def\n"
                                  "/ND {noaccess def} executeonly def\n"
                                  "/NP {noaccess put} executeonly def\n"
                                  "/BlueValues [] def\n"
@@ -598,7 +608,7 @@ cairo_type1_font_write_private_dict (cairo_type1_font_t *font,
                                  "/password 5839 def\n");
 
     status = cairo_type1_font_write_charstrings (font, encrypted_output);
-    if (unlikely (status))
+    if (status)
 	goto fail;
 
     _cairo_output_stream_printf (encrypted_output,
@@ -650,7 +660,7 @@ cairo_type1_font_write (cairo_type1_font_t *font,
     font->header_size = _cairo_output_stream_get_position (font->output);
 
     status = cairo_type1_font_write_private_dict (font, name);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     font->data_size = _cairo_output_stream_get_position (font->output) -
@@ -670,15 +680,13 @@ cairo_type1_font_generate (cairo_type1_font_t *font, const char *name)
     cairo_int_status_t status;
 
     status = _cairo_array_grow_by (&font->contents, 4096);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     font->output = _cairo_output_stream_create (cairo_type1_write_stream, NULL, font);
-    if (_cairo_output_stream_get_status (font->output))
-	return _cairo_output_stream_destroy (font->output);
 
     status = cairo_type1_font_write (font, name);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     font->data = _cairo_array_index (&font->contents, 0);
@@ -689,13 +697,12 @@ cairo_type1_font_generate (cairo_type1_font_t *font, const char *name)
 static cairo_status_t
 cairo_type1_font_destroy (cairo_type1_font_t *font)
 {
-    cairo_status_t status = CAIRO_STATUS_SUCCESS;
+    cairo_status_t status;
 
     free (font->widths);
     cairo_scaled_font_destroy (font->type1_scaled_font);
     _cairo_array_fini (&font->contents);
-    if (font->output)
-	status = _cairo_output_stream_destroy (font->output);
+    status = _cairo_output_stream_destroy (font->output);
     free (font);
 
     return status;
@@ -713,22 +720,22 @@ _cairo_type1_fallback_init_internal (cairo_type1_subset_t	*type1_subset,
     unsigned int i, len;
 
     status = cairo_type1_font_create (scaled_font_subset, &font, hex_encode);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     status = cairo_type1_font_generate (font, name);
-    if (unlikely (status))
+    if (status)
 	goto fail1;
 
     type1_subset->base_font = strdup (name);
-    if (unlikely (type1_subset->base_font == NULL)) {
-        status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (type1_subset->base_font == NULL) {
+        status = CAIRO_STATUS_NO_MEMORY;
         goto fail1;
     }
 
     type1_subset->widths = calloc (sizeof (int), font->scaled_font_subset->num_glyphs);
-    if (unlikely (type1_subset->widths == NULL)) {
-        status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (type1_subset->widths == NULL) {
+        status = CAIRO_STATUS_NO_MEMORY;
         goto fail2;
     }
     for (i = 0; i < font->scaled_font_subset->num_glyphs; i++)
@@ -744,8 +751,8 @@ _cairo_type1_fallback_init_internal (cairo_type1_subset_t	*type1_subset,
     length = font->header_size + font->data_size +
 	font->trailer_size;
     type1_subset->data = malloc (length);
-    if (unlikely (type1_subset->data == NULL)) {
-        status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (type1_subset->data == NULL) {
+        status = CAIRO_STATUS_NO_MEMORY;
 	goto fail3;
     }
     memcpy (type1_subset->data,
@@ -815,36 +822,38 @@ _cairo_type2_charstrings_init (cairo_type2_charstrings_t *type2_subset,
     cairo_array_t charstring;
 
     status = cairo_type1_font_create (scaled_font_subset, &font, FALSE);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     _cairo_array_init (&type2_subset->charstrings, sizeof (cairo_array_t));
 
     type2_subset->widths = calloc (sizeof (int), font->scaled_font_subset->num_glyphs);
-    if (unlikely (type2_subset->widths == NULL)) {
-        status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    if (type2_subset->widths == NULL) {
+        status = CAIRO_STATUS_NO_MEMORY;
         goto fail1;
     }
 
-    _cairo_scaled_font_freeze_cache (font->type1_scaled_font);
     for (i = 0; i < font->scaled_font_subset->num_glyphs; i++) {
         _cairo_array_init (&charstring, sizeof (unsigned char));
         status = _cairo_array_grow_by (&charstring, 32);
-        if (unlikely (status))
+        if (status)
             goto fail2;
 
-	status = cairo_type1_font_create_charstring (font, i,
-						     font->scaled_font_subset->glyphs[i],
-						     CAIRO_CHARSTRING_TYPE2,
-						     &charstring);
-        if (unlikely (status))
+        if (i == 0) {
+            status = create_notdef_charstring (&charstring, CAIRO_CHARSTRING_TYPE2);
+        } else {
+            status = cairo_type1_font_create_charstring (font, i,
+                                                         font->scaled_font_subset->glyphs[i],
+                                                         CAIRO_CHARSTRING_TYPE2,
+                                                         &charstring);
+        }
+        if (status)
             goto fail2;
 
         status = _cairo_array_append (&type2_subset->charstrings, &charstring);
-        if (unlikely (status))
+        if (status)
             goto fail2;
     }
-    _cairo_scaled_font_thaw_cache (font->type1_scaled_font);
 
     for (i = 0; i < font->scaled_font_subset->num_glyphs; i++)
 	type2_subset->widths[i] = font->widths[i];
@@ -856,10 +865,10 @@ _cairo_type2_charstrings_init (cairo_type2_charstrings_t *type2_subset,
     type2_subset->ascent  = (int) font->y_max;
     type2_subset->descent = (int) font->y_min;
 
-    return cairo_type1_font_destroy (font);
+    cairo_type1_font_destroy (font);
+    return CAIRO_STATUS_SUCCESS;
 
 fail2:
-    _cairo_scaled_font_thaw_cache (font->type1_scaled_font);
     _cairo_array_fini (&charstring);
     _cairo_type2_charstrings_fini (type2_subset);
 fail1:
@@ -882,5 +891,3 @@ _cairo_type2_charstrings_fini (cairo_type2_charstrings_t *type2_subset)
 
     free (type2_subset->widths);
 }
-
-#endif /* CAIRO_HAS_FONT_SUBSET */

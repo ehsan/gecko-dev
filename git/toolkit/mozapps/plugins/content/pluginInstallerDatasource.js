@@ -38,9 +38,9 @@
 const RDF_NS = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 const PFS_NS = "http://www.mozilla.org/2004/pfs-rdf#";
 
-function nsRDFItemUpdater(aClientOS, aChromeLocale) {
+function nsRDFItemUpdater(aClientOS, aChromeLocale){
   this._rdfService = Components.classes["@mozilla.org/rdf/rdf-service;1"]
-                               .getService(Components.interfaces.nsIRDFService);
+                        .getService(Components.interfaces.nsIRDFService);
   this._os = Components.classes["@mozilla.org/observer-service;1"]
                        .getService(Components.interfaces.nsIObserverService);
 
@@ -48,7 +48,6 @@ function nsRDFItemUpdater(aClientOS, aChromeLocale) {
                       .getService(Components.interfaces.nsIXULAppInfo);
   this.appID = app.ID;
   this.buildID = app.platformBuildID;
-  this.appRelease = app.version;
 
   this.clientOS = aClientOS;
   this.chromeLocale = aChromeLocale;
@@ -59,13 +58,12 @@ function nsRDFItemUpdater(aClientOS, aChromeLocale) {
 }
 
 nsRDFItemUpdater.prototype = {
-  checkForPlugin: function (aPluginRequestItem) {
+  checkForPlugin: function (aPluginRequestItem){
     var dsURI = this.dsURI;
     // escape the mimetype as mimetypes can contain '+', which will break pfs.
     dsURI = dsURI.replace(/%PLUGIN_MIMETYPE%/g, encodeURIComponent(aPluginRequestItem.mimetype));
     dsURI = dsURI.replace(/%APP_ID%/g, this.appID);
     dsURI = dsURI.replace(/%APP_VERSION%/g, this.buildID);
-    dsURI = dsURI.replace(/%APP_RELEASE%/g, this.appRelease);
     dsURI = dsURI.replace(/%CLIENT_OS%/g, this.clientOS);
     dsURI = dsURI.replace(/%CHROME_LOCALE%/g, this.chromeLocale);
 
@@ -79,14 +77,15 @@ nsRDFItemUpdater.prototype = {
     }
   },
 
-  onDatasourceLoaded: function pfs_onDatasourceLoaded (aDatasource, aPluginRequestItem) {
-    var container = Components.classes["@mozilla.org/rdf/container;1"]
-                              .createInstance(Components.interfaces.nsIRDFContainer);
+  onDatasourceLoaded: function pfs_onDatasourceLoaded (aDatasource, aPluginRequestItem){
+    var container = Components.classes["@mozilla.org/rdf/container;1"].
+                  createInstance(Components.interfaces.nsIRDFContainer);
     var resultRes = this._rdfService.GetResource("urn:mozilla:plugin-results:" + aPluginRequestItem.mimetype);
     var pluginList = aDatasource.GetTarget(resultRes, this._rdfService.GetResource(PFS_NS+"plugins"), true);
 
     var pluginInfo = null;
   
+    container = Components.classes["@mozilla.org/rdf/container;1"].createInstance(Components.interfaces.nsIRDFContainer);
     try {
       container.Init(aDatasource, pluginList);
 
@@ -95,7 +94,7 @@ nsRDFItemUpdater.prototype = {
 
       // get the first item
       var child = children.getNext();
-      if (child instanceof Components.interfaces.nsIRDFResource) {
+      if (child instanceof Components.interfaces.nsIRDFResource){
         var name = this._rdfService.GetResource("http://www.mozilla.org/2004/pfs-rdf#updates");
         target = aDatasource.GetTarget(child, name, true);
       }
@@ -106,13 +105,13 @@ nsRDFItemUpdater.prototype = {
         children = container.GetElements();
 
         var child = children.getNext();
-        if (child instanceof Components.interfaces.nsIRDFResource) {
+        if (child instanceof Components.interfaces.nsIRDFResource){
           target = child;
         }
 
         var rdfs = this._rdfService;
 
-        function getPFSValueFromRDF(aValue) {
+        function getPFSValueFromRDF(aValue){
           var rv = null;
 
           var myTarget = aDatasource.GetTarget(target, rdfs.GetResource(PFS_NS + aValue), true);
@@ -138,25 +137,20 @@ nsRDFItemUpdater.prototype = {
           needsRestart: getPFSValueFromRDF("needsRestart")
         };
       }
-      catch (ex) {
-        Components.utils.reportError(ex);
-      }
+      catch (ex){}
     }
-    catch (ex) {
-      Components.utils.reportError(ex);
-    }
+    catch (ex){}
     
-    gPluginInstaller.pluginInfoReceived(aPluginRequestItem, pluginInfo);
+    gPluginInstaller.pluginInfoReceived(pluginInfo);
   },
 
-  onDatasourceError: function pfs_onDatasourceError (aPluginRequestItem, aError) {
+  onDatasourceError: function pfs_onDatasourceError (aPluginRequestItem, aError){
     this._os.notifyObservers(aPluginRequestItem, "error", aError);
-    Components.utils.reportError(aError);
-    gPluginInstaller.pluginInfoReceived(aPluginRequestItem, null);
+    gPluginInstaller.pluginInfoReceived(null);
   }
 };
 
-function nsPluginXMLRDFDSObserver(aUpdater, aPluginRequestItem) {
+function nsPluginXMLRDFDSObserver(aUpdater, aPluginRequestItem){
   this._updater = aUpdater;
   this._item    = aPluginRequestItem;
 }
@@ -167,17 +161,17 @@ nsPluginXMLRDFDSObserver.prototype =
   _item     : null,
 
   // nsIRDFXMLSinkObserver
-  onBeginLoad: function(aSink) {},
-  onInterrupt: function(aSink) {},
-  onResume: function(aSink) {},
-  onEndLoad: function(aSink) {
+  onBeginLoad: function(aSink){},
+  onInterrupt: function(aSink){},
+  onResume: function(aSink){},
+  onEndLoad: function(aSink){
     aSink.removeXMLSinkObserver(this);
     
     var ds = aSink.QueryInterface(Components.interfaces.nsIRDFDataSource);
     this._updater.onDatasourceLoaded(ds, this._item);
   },
   
-  onError: function(aSink, aStatus, aErrorMsg) {  
+  onError: function(aSink, aStatus, aErrorMsg){  
     aSink.removeXMLSinkObserver(this);   
     this._updater.onDatasourceError(this._item, aStatus.toString());
   }

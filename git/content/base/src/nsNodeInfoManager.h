@@ -44,7 +44,6 @@
 
 #include "nsCOMPtr.h" // for already_AddRefed
 #include "plhash.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsIAtom;
 class nsIDocument;
@@ -58,15 +57,12 @@ class nsIDOMDocument;
 class nsAString;
 class nsIDOMNamedNodeMap;
 class nsXULPrototypeDocument;
-class nsBindingManager;
 
 class nsNodeInfoManager
 {
 public:
   nsNodeInfoManager();
   ~nsNodeInfoManager();
-
-  NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsNodeInfoManager)
 
   nsrefcnt AddRef(void);
   nsrefcnt Release(void);
@@ -85,11 +81,11 @@ public:
   /**
    * Methods for creating nodeinfo's from atoms and/or strings.
    */
-  already_AddRefed<nsINodeInfo> GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
-                                            PRInt32 aNamespaceID);
-  nsresult GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
+  nsresult GetNodeInfo(nsIAtom *aName, nsIAtom *aPrefix,
                        PRInt32 aNamespaceID, nsINodeInfo** aNodeInfo);
   nsresult GetNodeInfo(const nsAString& aName, nsIAtom *aPrefix,
+                       PRInt32 aNamespaceID, nsINodeInfo** aNodeInfo);
+  nsresult GetNodeInfo(const nsAString& aQualifiedName,
                        const nsAString& aNamespaceURI,
                        nsINodeInfo** aNodeInfo);
 
@@ -127,11 +123,6 @@ public:
 
   void RemoveNodeInfo(nsNodeInfo *aNodeInfo);
 
-  nsBindingManager* GetBindingManager() const
-  {
-    return mBindingManager;
-  }
-
 protected:
   friend class nsDocument;
   friend class nsXULPrototypeDocument;
@@ -151,8 +142,9 @@ protected:
   void SetDocumentPrincipal(nsIPrincipal *aPrincipal);
 
 private:
-  static PRIntn NodeInfoInnerKeyCompare(const void *key1, const void *key2);
-  static PLHashNumber GetNodeInfoInnerHashValue(const void *key);
+  static PRIntn PR_CALLBACK NodeInfoInnerKeyCompare(const void *key1,
+                                                    const void *key2);
+  static PLHashNumber PR_CALLBACK GetNodeInfoInnerHashValue(const void *key);
 
   nsAutoRefCnt mRefCnt;
   NS_DECL_OWNINGTHREAD
@@ -166,9 +158,8 @@ private:
   nsINodeInfo *mTextNodeInfo; // WEAK to avoid circular ownership
   nsINodeInfo *mCommentNodeInfo; // WEAK to avoid circular ownership
   nsINodeInfo *mDocumentNodeInfo; // WEAK to avoid circular ownership
-  nsBindingManager* mBindingManager; // STRONG, but not nsCOMPtr to avoid
-                                     // include hell while inlining
-                                     // GetBindingManager().
+
+  static PRUint32 gNodeManagerCount;
 };
 
 #endif /* nsNodeInfoManager_h___ */

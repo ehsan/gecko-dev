@@ -14,7 +14,7 @@
  *
  * The Original Code is Mozilla Corporation code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -156,15 +156,14 @@ main (int argc, char **argv) {
    nsRefPtr<gfxContext> ctx = MakeContext();
    {
        gfxFontStyle style (FONT_STYLE_NORMAL,
-                           NS_FONT_STRETCH_NORMAL,
                            139,
                            10.0,
                            nsDependentCString("x-western"),
                            0.0,
-                           PR_FALSE, PR_FALSE, PR_FALSE);
+                           PR_FALSE, PR_FALSE);
 
        nsRefPtr<gfxFontGroup> fontGroup =
-           gfxPlatform::GetPlatform()->CreateFontGroup(NS_LITERAL_STRING("Geneva, MS Sans Serif, Helvetica,serif"), &style, nsnull);
+           gfxPlatform::GetPlatform()->CreateFontGroup(NS_LITERAL_STRING("Geneva, MS Sans Serif, Helvetica,serif"), &style);
 
        gfxTextRunFactory::Parameters params = {
            ctx, nsnull, nsnull, nsnull, 0, 60

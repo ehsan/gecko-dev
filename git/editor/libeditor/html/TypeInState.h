@@ -44,7 +44,7 @@
 #include "nsISelectionListener.h"
 #include "nsEditProperty.h"
 #include "nsString.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
 struct PropItem
 {
@@ -52,7 +52,7 @@ struct PropItem
   nsString attr;
   nsString value;
   
-  PropItem();
+  PropItem() : tag(nsnull), attr(), value() {}
   PropItem(nsIAtom *aTag, const nsAString &aAttr, const nsAString &aValue);
   ~PropItem();
 };
@@ -81,12 +81,12 @@ public:
   nsresult ClearProp(nsIAtom *aProp, const nsString &aAttr);
   
   //**************************************************************************
-  //    TakeClearProperty: hands back next property item on the clear list.
+  //    TakeClearProperty: hands back next poroperty item on the clear list.
   //                       caller assumes ownership of PropItem and must delete it.
   nsresult TakeClearProperty(PropItem **outPropItem);
 
   //**************************************************************************
-  //    TakeSetProperty: hands back next property item on the set list.
+  //    TakeSetProperty: hands back next poroperty item on the set list.
   //                     caller assumes ownership of PropItem and must delete it.
   nsresult TakeSetProperty(PropItem **outPropItem);
 
@@ -101,7 +101,7 @@ public:
   nsresult GetTypingState(PRBool &isSet, PRBool &theSetting, nsIAtom *aProp, 
                           const nsString &aAttr, nsString* outValue);
 
-  static   PRBool FindPropInList(nsIAtom *aProp, const nsAString &aAttr, nsAString *outValue, nsTArray<PropItem*> &aList, PRInt32 &outIndex);
+  static   PRBool FindPropInList(nsIAtom *aProp, const nsAString &aAttr, nsAString *outValue, nsVoidArray &aList, PRInt32 &outIndex);
 
 protected:
 
@@ -112,8 +112,8 @@ protected:
   PRBool IsPropCleared(nsIAtom *aProp, const nsString &aAttr);
   PRBool IsPropCleared(nsIAtom *aProp, const nsString &aAttr, PRInt32 &outIndex);
 
-  nsTArray<PropItem*> mSetArray;
-  nsTArray<PropItem*> mClearedArray;
+  nsVoidArray mSetArray;
+  nsVoidArray mClearedArray;
   PRInt32 mRelativeFontSize;
   nsCOMPtr<nsIDOMNode> mLastSelectionContainer;
   PRInt32 mLastSelectionOffset;

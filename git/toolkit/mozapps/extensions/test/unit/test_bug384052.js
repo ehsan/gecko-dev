@@ -87,14 +87,22 @@ function run_test()
                          .replace(/%CUSTOM2%/, "custom_parameter_2");
 
   // Replace extension update URL
+  var origURL = null;
+  try {
+    origURL = prefs.getCharPref("extensions.update.url");
+  }
+  catch (e) {}
   gPrefs.setCharPref("extensions.update.url", gTestURL);
 
   // Initiate update
-  gEM.update([item], 1, Ci.nsIExtensionManager.UPDATE_SYNC_COMPATIBILITY, null);
+  gEM.update([item], 1, 2, null);
 
   do_check_true(gSeenExpectedURL);
 
-  gPrefs.clearUserPref("extensions.update.url");
+  if (origURL)
+    gPrefs.setCharPref("extensions.update.url", origURL);
+  else
+    gPrefs.clearUserPref("extensions.update.url");
 
   shutdownTest();
 }

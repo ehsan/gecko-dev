@@ -41,18 +41,13 @@
 
 #include "xpt_xdr.h"
 #include <stdio.h>
-#ifdef XP_OS2
+#ifdef XP_OS2_EMX
 #include <sys/types.h>
 #endif
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <string.h>
 #include "prprf.h"
-
-#ifdef WINCE
-#include <windows.h>
-static void perror(const char* a) {}
-#endif
 
 #define BASE_INDENT 3
 
@@ -142,28 +137,12 @@ xpt_dump_usage(char *argv[]) {
 
 static size_t get_file_length(const char* filename)
 {
-#ifndef WINCE
     struct stat file_stat;
     if (stat(filename, &file_stat) != 0) {
         perror("FAILED: get_file_length");
         exit(1);
     }
     return file_stat.st_size;
-#else
-    DWORD fileSize;
-    HANDLE hFile = CreateFile(filename, 
-                              GENERIC_READ,
-                              0, 
-                              NULL,
-                              OPEN_EXISTING, 
-                              FILE_ATTRIBUTE_NORMAL, 
-                              NULL);
-    if (hFile == INVALID_HANDLE_VALUE)
-        return -1;
-    fileSize = GetFileSize(hFile,  NULL);
-    CloseHandle(hFile);
-    return fileSize;
-#endif
 }
 
 int 
@@ -571,13 +550,7 @@ XPT_DumpMethodDescriptor(XPTHeader *header, XPTMethodDescriptor *md,
             fprintf(stdout, "TRUE\n");
         else 
             fprintf(stdout, "FALSE\n");
-
-        fprintf(stdout, "%*sWants Optional Argc?        ", indent, " ");
-        if (XPT_MD_WANTS_OPT_ARGC(md->flags))
-            fprintf(stdout, "TRUE\n");
-        else 
-            fprintf(stdout, "FALSE\n");
-
+        
         fprintf(stdout, "%*s# of arguments:   %d\n", indent, " ", md->num_args);
         fprintf(stdout, "%*sParameter Descriptors:\n", indent, " ");
         
@@ -601,13 +574,12 @@ XPT_DumpMethodDescriptor(XPTHeader *header, XPTMethodDescriptor *md,
         if (!XPT_GetStringForType(header, &md->result->type, id, &param_type)) {
             return PR_FALSE;
         }
-        fprintf(stdout, "%*s%c%c%c%c%c%c %s %s(", indent - 6, " ",
+        fprintf(stdout, "%*s%c%c%c%c%c %s %s(", indent - 6, " ",
                 XPT_MD_IS_GETTER(md->flags) ? 'G' : ' ',
                 XPT_MD_IS_SETTER(md->flags) ? 'S' : ' ',
                 XPT_MD_IS_HIDDEN(md->flags) ? 'H' : ' ',
                 XPT_MD_IS_NOTXPCOM(md->flags) ? 'N' : ' ',
                 XPT_MD_IS_CTOR(md->flags) ? 'C' : ' ',
-                XPT_MD_WANTS_OPT_ARGC(md->flags) ? 'O' : ' ',
                 param_type, md->name);
         for (i=0; i<md->num_args; i++) {
             if (i!=0) {

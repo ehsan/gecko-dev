@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -15,7 +14,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Christopher Blizzard.
+ * Christopher Blizzard. Portions created by Christopher Blizzard are Copyright (C) Christopher Blizzard.  All Rights Reserved.
  * Portions created by the Initial Developer are Copyright (C) 2001
  * the Initial Developer. All Rights Reserved.
  *
@@ -36,12 +35,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsCOMPtr.h"
-#include "nsIOutputStream.h"
-#include "nsIURI.h"
-#include "nsIWebBrowser.h"
+#include <nsISupports.h>
+#include <nsCOMPtr.h>
+#include <nsIOutputStream.h>
+#include <nsIInputStream.h>
+#include <nsILoadGroup.h>
+#include <nsIChannel.h>
+#include <nsIStreamListener.h>
+#include <nsIWebBrowser.h>
 
-class nsEmbedStream : public nsISupports
+class nsEmbedStream : public nsIInputStream 
 {
  public:
 
@@ -55,10 +58,24 @@ class nsEmbedStream : public nsISupports
   NS_METHOD AppendToStream (const PRUint8 *aData, PRUint32 aLen);
   NS_METHOD CloseStream    (void);
 
+  NS_METHOD Append         (const PRUint8 *aData, PRUint32 aLen);
+
+  // nsISupports
   NS_DECL_ISUPPORTS
+  // nsIInputStream
+  NS_DECL_NSIINPUTSTREAM
 
  private:
-  nsIWebBrowser            *mOwner;
-  nsCOMPtr<nsIOutputStream> mOutputStream;
+  nsCOMPtr<nsIOutputStream>   mOutputStream;
+  nsCOMPtr<nsIInputStream>    mInputStream;
+
+  nsCOMPtr<nsILoadGroup>      mLoadGroup;
+  nsCOMPtr<nsIChannel>        mChannel;
+  nsCOMPtr<nsIStreamListener> mStreamListener;
+
+  PRUint32                    mOffset;
+  PRBool                      mDoingStream;
+
+  nsIWebBrowser              *mOwner;
 
 };

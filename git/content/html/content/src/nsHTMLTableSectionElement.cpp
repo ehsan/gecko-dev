@@ -99,7 +99,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLTableSectionElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLTableSectionElement,
                                                   nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRows,
-                                                       nsIDOMNodeList)
+                                                       nsBaseContentList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLTableSectionElement, nsGenericElement) 
@@ -107,11 +107,10 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLTableSectionElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLTableSectionElement
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTableSectionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableSectionElement,
-                                   nsIDOMHTMLTableSectionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTableSectionElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLTableSectionElement,
+                                        nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLTableSectionElement,
+                                nsIDOMHTMLTableSectionElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableSectionElement)
 
 
@@ -249,7 +248,7 @@ nsHTMLTableSectionElement::ParseAttribute(PRInt32 aNamespaceID,
       return aResult.ParseIntWithBounds(aValue, 0);
     }
     if (aAttribute == nsGkAtoms::height) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::align) {
       return ParseTableCellHAlignValue(aValue, aResult);
@@ -269,7 +268,7 @@ nsHTMLTableSectionElement::ParseAttribute(PRInt32 aNamespaceID,
 static 
 void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aData)
 {
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
+  if (aData->mSID == eStyleStruct_Position) {
     // height: value
     if (aData->mPositionData->mHeight.GetUnit() == eCSSUnit_Null) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::height);
@@ -277,7 +276,7 @@ void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aD
         aData->mPositionData->mHeight.SetFloatValue((float)value->GetIntegerValue(), eCSSUnit_Pixel);   
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Text)) {
+  else if (aData->mSID == eStyleStruct_Text) {
     if (aData->mTextData->mTextAlign.GetUnit() == eCSSUnit_Null) {
       // align: enum
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::align);
@@ -285,7 +284,7 @@ void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aD
         aData->mTextData->mTextAlign.SetIntValue(value->GetEnumValue(), eCSSUnit_Enumerated);
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(TextReset)) {
+  else if (aData->mSID == eStyleStruct_TextReset) {
     if (aData->mTextData->mVerticalAlign.GetUnit() == eCSSUnit_Null) {
       // valign: enum
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::valign);

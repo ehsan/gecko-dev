@@ -59,16 +59,16 @@ public:
     nsXPTType(const XPTTypeDescriptorPrefix& prefix)
         {*(XPTTypeDescriptorPrefix*)this = prefix;}
 
-    nsXPTType(const PRUint8& prefix)
-        {*(PRUint8*)this = prefix;}
+    nsXPTType(const uint8& prefix)
+        {*(uint8*)this = prefix;}
 
-    nsXPTType& operator=(PRUint8 val)
+    nsXPTType& operator=(uint8 val)
         {flags = val; return *this;}
 
     nsXPTType& operator=(const nsXPTType& other)
         {flags = other.flags; return *this;}
 
-    operator PRUint8() const
+    operator uint8() const
         {return flags;}
 
     PRBool IsPointer() const
@@ -94,7 +94,7 @@ public:
         }
 
     PRBool IsArray() const
-        {return TagPart() == T_ARRAY;}
+        {return (PRBool) TagPart() == T_ARRAY;}
 
     // 'Dependent' means that params of this type are dependent upon other 
     // params. e.g. an T_INTERFACE_IS is dependent upon some other param at 
@@ -111,8 +111,8 @@ public:
            }
         }
 
-    PRUint8 TagPart() const
-        {return (PRUint8) (flags & XPT_TDP_TAGMASK);}
+    uint8 TagPart() const
+        {return (uint8) (flags & XPT_TDP_TAGMASK);}
 
     enum
     {
@@ -181,11 +181,10 @@ public:
     PRBool IsNotXPCOM()    const {return 0 != (XPT_MD_IS_NOTXPCOM(flags));}
     PRBool IsConstructor() const {return 0 != (XPT_MD_IS_CTOR(flags)   );}
     PRBool IsHidden()      const {return 0 != (XPT_MD_IS_HIDDEN(flags) );}
-    PRBool WantsOptArgc()  const {return 0 != (XPT_MD_WANTS_OPT_ARGC(flags));}
     const char* GetName()  const {return name;}
-    PRUint8 GetParamCount()  const {return num_args;}
+    uint8 GetParamCount()  const {return num_args;}
     /* idx was index before I got _sick_ of the warnings on Unix, sorry jband */
-    const nsXPTParamInfo GetParam(PRUint8 idx) const
+    const nsXPTParamInfo GetParam(uint8 idx) const
         {
             NS_PRECONDITION(idx < GetParamCount(),"bad arg");
             return params[idx];

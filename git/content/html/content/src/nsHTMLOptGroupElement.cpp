@@ -78,7 +78,7 @@ public:
   // nsGenericElement
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
 
   // nsIContent
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
@@ -115,11 +115,10 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLOptGroupElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLOptGroupElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLOptGroupElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLOptGroupElement,
-                                   nsIDOMHTMLOptGroupElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOptGroupElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLOptGroupElement,
+                                     nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLOptGroupElement,
+                                nsIDOMHTMLOptGroupElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLOptGroupElement)
 
 
@@ -158,7 +157,8 @@ nsIContent*
 nsHTMLOptGroupElement::GetSelect()
 {
   nsIContent* parent = this;
-  while ((parent = parent->GetParent()) && parent->IsHTML()) {
+  while ((parent = parent->GetParent()) &&
+         parent->IsNodeOfType(eHTML)) {
     if (parent->Tag() == nsGkAtoms::select) {
       return parent;
     }
@@ -184,10 +184,10 @@ nsHTMLOptGroupElement::InsertChildAt(nsIContent* aKid,
 }
 
 nsresult
-nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
+nsHTMLOptGroupElement::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
   nsSafeOptionListMutation safeMutation(GetSelect(), this, nsnull, aIndex);
-  nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify, aMutationEvent);
+  nsresult rv = nsGenericHTMLElement::RemoveChildAt(aIndex, aNotify);
   if (NS_FAILED(rv)) {
     safeMutation.MutationFailed();
   }

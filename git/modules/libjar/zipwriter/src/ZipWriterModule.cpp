@@ -43,30 +43,12 @@
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDeflateConverter)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsZipWriter)
 
-static const nsModuleComponentInfo components[] =
+static nsModuleComponentInfo components[] =
 {
   {
     DEFLATECONVERTER_CLASSNAME,
     DEFLATECONVERTER_CID,
-    "@mozilla.org/streamconv;1?from=uncompressed&to=deflate",
-    nsDeflateConverterConstructor,
-  },
-  {
-    DEFLATECONVERTER_CLASSNAME,
-    DEFLATECONVERTER_CID,
-    "@mozilla.org/streamconv;1?from=uncompressed&to=gzip",
-    nsDeflateConverterConstructor,
-  },
-  {
-    DEFLATECONVERTER_CLASSNAME,
-    DEFLATECONVERTER_CID,
-    "@mozilla.org/streamconv;1?from=uncompressed&to=x-gzip",
-    nsDeflateConverterConstructor,
-  },
-  {
-    DEFLATECONVERTER_CLASSNAME,
-    DEFLATECONVERTER_CID,
-    "@mozilla.org/streamconv;1?from=uncompressed&to=rawdeflate",
+    DEFLATECONVERTER_CONTRACTID,
     nsDeflateConverterConstructor,
   },
   {

@@ -70,7 +70,6 @@ nsFrameWindow::nsFrameWindow() : nsWindow()
 {
    fnwpDefFrame = 0;
    mWindowType  = eWindowType_toplevel;
-   mNeedActivation = PR_FALSE;
 }
 
 nsFrameWindow::~nsFrameWindow()
@@ -94,16 +93,16 @@ void nsFrameWindow::SetWindowListVisibility( PRBool bState)
 
 // Called in the PM thread.
 void nsFrameWindow::RealDoCreate( HWND hwndP, nsWindow *aParent,
-                                  const nsIntRect &aRect,
+                                  const nsRect &aRect,
                                   EVENT_CALLBACK aHandleEventFunction,
                                   nsIDeviceContext *aContext,
                                   nsIAppShell *aAppShell,
                                   nsWidgetInitData *aInitData, HWND hwndO)
 {
-   nsIntRect rect = aRect;
+   nsRect rect = aRect;
    if( aParent)  // Offset rect by position of owner
    {
-      nsIntRect clientRect;
+      nsRect clientRect;
       aParent->GetBounds(rect);
       aParent->GetClientBounds(clientRect);
       rect.x += aRect.x + clientRect.x;
@@ -191,7 +190,7 @@ void nsFrameWindow::RealDoCreate( HWND hwndP, nsWindow *aParent,
    // Frames have a minimum height based on the pieces they are created with,
    // such as titlebar, menubar, frame borders, etc.  We need this minimum
    // height so we can correctly set the frame position (coordinate flipping).
-   nsIntRect frameRect = rect;
+   nsRect frameRect = rect;
    long minheight; 
 
    if ( fcfFlags & FCF_SIZEBORDER) {
@@ -226,7 +225,7 @@ void nsFrameWindow::RealDoCreate( HWND hwndP, nsWindow *aParent,
 
       rc = CallCreateInstance(kDeviceContextCID, &mContext);
       if( NS_SUCCEEDED(rc))
-         mContext->Init(this);
+         mContext->Init( (nsNativeWidget) mWnd);
 #ifdef DEBUG
       else
          printf( "Couldn't find DC instance for nsWindow\n");
@@ -271,7 +270,7 @@ void nsFrameWindow::UpdateClientSize()
    mSizeBorder.height = (mBounds.height - mSizeClient.height) / 2;
 }
 
-nsresult nsFrameWindow::GetClientBounds( nsIntRect &aRect)
+nsresult nsFrameWindow::GetClientBounds( nsRect &aRect)
 {
    RECTL rcl = { 0, 0, mBounds.width, mBounds.height };
    WinCalcFrameRect( mFrameWnd, &rcl, TRUE); // provided == frame rect
@@ -323,29 +322,6 @@ nsresult nsFrameWindow::Show( PRBool bState)
    return NS_OK;
 }
 
-// When WM_ACTIVATE is received with the "gaining activation" flag set,
-// the frame's wndproc sets mNeedActivation.  Later, when an nsWindow
-// gets a WM_FOCUSCHANGED msg with the "gaining focus" flag set, it
-// invokes this method on nsFrameWindow to fire an NS_ACTIVATE event.
-
-void    nsFrameWindow::ActivateTopLevelWidget()
-{
-  // Don't fire event if we're minimized or else the window will
-  // be restored as soon as the user clicks on it.  When the user
-  // explicitly restores it, SetSizeMode() will call this method.
-
-  if (mNeedActivation) {
-    PRInt32 sizeMode;
-    GetSizeMode(&sizeMode);
-    if (sizeMode != nsSizeMode_Minimized) {
-      mNeedActivation = PR_FALSE;
-      DEBUGFOCUS(NS_ACTIVATE);
-      DispatchFocus(NS_ACTIVATE);
-    }
-  }
-  return;
-}
-
 // Subclass for frame window
 MRESULT EXPENTRY fnwpFrame( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 {
@@ -355,7 +331,7 @@ MRESULT EXPENTRY fnwpFrame( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
           msg == WM_BUTTON1DOWN || msg == WM_BUTTON2DOWN || msg == WM_BUTTON3DOWN) {
          // Rollup if the event is outside the popup
          if (PR_FALSE == nsWindow::EventIsInsideWindow((nsWindow*)gRollupWidget)) {
-            gRollupListener->Rollup(PR_UINT32_MAX, nsnull);
+            gRollupListener->Rollup();
 
             // if we are supposed to be consuming events and it is
             // a Mouse Button down, let it go through
@@ -416,6 +392,7 @@ MRESULT nsFrameWindow::FrameMessage( ULONG msg, MPARAM mp1, MPARAM mp2)
               event.mSizeMode = nsSizeMode_Normal;
             InitEvent(event);
             DispatchWindowEvent(&event);
+            NS_RELEASE(event.widget);
          }
 
          break;
@@ -493,23 +470,13 @@ MRESULT nsFrameWindow::FrameMessage( ULONG msg, MPARAM mp1, MPARAM mp2)
          }
          break;
 
-      // When the frame is activated, set a flag to be acted on after
-      // PM has finished changing focus.  When deactivated, dispatch
-      // the event immediately because it doesn't affect the focus.
       case WM_ACTIVATE:
-         DEBUGFOCUS(WM_ACTIVATE);
-         if (mp1) {
-            mNeedActivation = PR_TRUE;
-         } else {
-            mNeedActivation = PR_FALSE;
-            DEBUGFOCUS(NS_DEACTIVATE);
-            DispatchFocus(NS_DEACTIVATE);
-            // Prevent the frame from automatically focusing any window
-            // when it's reactivated.  Let moz set the focus to avoid
-            // having non-widget children of plugins focused in error.
-            WinSetWindowULong(mFrameWnd, QWL_HWNDFOCUSSAVE, 0);
-         }
-         break;
+        DEBUGFOCUS(frame WM_ACTIVATE);
+        if (SHORT1FROMMP(mp1) &&
+            !(WinQueryWindowULong(mFrameWnd, QWL_STYLE) & WS_MINIMIZED)) {
+           bDone = DispatchFocus(NS_GOTFOCUS, PR_TRUE);
+        }
+        break;
    }
 
    if( !bDone)
@@ -517,4 +484,3 @@ MRESULT nsFrameWindow::FrameMessage( ULONG msg, MPARAM mp1, MPARAM mp2)
 
    return mresult;
 }
-

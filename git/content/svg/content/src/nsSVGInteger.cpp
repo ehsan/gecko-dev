@@ -36,13 +36,10 @@
 
 #include "nsSVGInteger.h"
 
+NS_IMPL_ADDREF(nsSVGInteger::DOMAnimatedInteger)
+NS_IMPL_RELEASE(nsSVGInteger::DOMAnimatedInteger)
 
-NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGInteger::DOMAnimatedInteger, mSVGElement)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGInteger::DOMAnimatedInteger)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGInteger::DOMAnimatedInteger)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGInteger::DOMAnimatedInteger)
+NS_INTERFACE_MAP_BEGIN(nsSVGInteger::DOMAnimatedInteger)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedInteger)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGAnimatedInteger)
@@ -55,18 +52,12 @@ nsSVGInteger::SetBaseValueString(const nsAString &aValueAsString,
                                  nsSVGElement *aSVGElement,
                                  PRBool aDoSetAttr)
 {
-  NS_ConvertUTF16toUTF8 value(aValueAsString);
-  const char *str = value.get();
-
-  if (NS_IsAsciiWhitespace(*str))
-    return NS_ERROR_FAILURE;
-  
-  char *rest;
-  PRInt32 val = strtol(str, &rest, 10);
-  if (rest == str || *rest != '\0') {
-    return NS_ERROR_FAILURE;
-  }
-
+  nsAutoString s;
+  s.Assign(aValueAsString);
+  PRInt32 err;
+  PRInt32 val = s.ToInteger(&err);
+  nsresult rv = static_cast<nsresult>(err);
+  NS_ENSURE_SUCCESS(rv, rv);
   mBaseVal = mAnimVal = val;
   return NS_OK;
 }
@@ -99,3 +90,4 @@ nsSVGInteger::ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
   NS_ADDREF(*aResult);
   return NS_OK;
 }
+

@@ -89,7 +89,7 @@ NS_IMETHODIMP
 nsPopupBoxObject::HidePopup()
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm && mContent)
+  if (pm)
     pm->HidePopup(mContent, PR_FALSE, PR_TRUE, PR_FALSE);
 
   return NS_OK;
@@ -107,7 +107,7 @@ nsPopupBoxObject::ShowPopup(nsIDOMElement* aAnchorElement,
   // srcContent can be null.
 
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm && mContent) {
+  if (pm) {
     nsCOMPtr<nsIContent> anchorContent(do_QueryInterface(aAnchorElement));
     nsAutoString popupType(aPopupType);
     nsAutoString anchor(aAnchorAlignment);
@@ -127,10 +127,10 @@ nsPopupBoxObject::OpenPopup(nsIDOMElement* aAnchorElement,
                             PRBool aAttributesOverride)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm && mContent) {
+  if (pm) {
     nsCOMPtr<nsIContent> anchorContent(do_QueryInterface(aAnchorElement));
     pm->ShowPopup(mContent, anchorContent, aPosition, aXPos, aYPos,
-                  aIsContextMenu, aAttributesOverride, PR_FALSE, nsnull);
+                  aIsContextMenu, aAttributesOverride, PR_FALSE);
   }
 
   return NS_OK;
@@ -140,8 +140,8 @@ NS_IMETHODIMP
 nsPopupBoxObject::OpenPopupAtScreen(PRInt32 aXPos, PRInt32 aYPos, PRBool aIsContextMenu)
 {
   nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-  if (pm && mContent)
-    pm->ShowPopupAtScreen(mContent, aXPos, aYPos, aIsContextMenu, nsnull);
+  if (pm)
+    pm->ShowPopupAtScreen(mContent, aXPos, aYPos, aIsContextMenu);
   return NS_OK;
 }
 
@@ -150,7 +150,7 @@ nsPopupBoxObject::MoveTo(PRInt32 aLeft, PRInt32 aTop)
 {
   nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
-    menuPopupFrame->MoveTo(aLeft, aTop, PR_TRUE);
+    menuPopupFrame->MoveTo(aLeft, aTop);
   }
 
   return NS_OK;
@@ -159,9 +159,6 @@ nsPopupBoxObject::MoveTo(PRInt32 aLeft, PRInt32 aTop)
 NS_IMETHODIMP
 nsPopupBoxObject::SizeTo(PRInt32 aWidth, PRInt32 aHeight)
 {
-  if (!mContent)
-    return NS_OK;
-
   nsAutoString width, height;
   width.AppendInt(aWidth);
   height.AppendInt(aHeight);
@@ -178,7 +175,7 @@ nsPopupBoxObject::GetAutoPosition(PRBool* aShouldAutoPosition)
 {
   nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
-    *aShouldAutoPosition = menuPopupFrame->GetAutoPosition();
+    menuPopupFrame->GetAutoPosition(aShouldAutoPosition);
   }
 
   return NS_OK;
@@ -198,7 +195,7 @@ nsPopupBoxObject::SetAutoPosition(PRBool aShouldAutoPosition)
 NS_IMETHODIMP
 nsPopupBoxObject::EnableRollup(PRBool aShouldRollup)
 {
-  // this does nothing now
+  // this does nothing nows
   return NS_OK;
 }
 
@@ -216,9 +213,6 @@ nsPopupBoxObject::SetConsumeRollupEvent(PRUint32 aConsume)
 NS_IMETHODIMP
 nsPopupBoxObject::EnableKeyboardNavigator(PRBool aEnableKeyboardNavigator)
 {
-  if (!mContent)
-    return NS_OK;
-
   // Use ignorekeys="true" on the popup instead of using this function.
   if (aEnableKeyboardNavigator)
     mContent->UnsetAttr(kNameSpaceID_None, nsGkAtoms::ignorekeys, PR_TRUE);
@@ -232,7 +226,6 @@ nsPopupBoxObject::EnableKeyboardNavigator(PRBool aEnableKeyboardNavigator)
 NS_IMETHODIMP
 nsPopupBoxObject::GetPopupState(nsAString& aState)
 {
-  // set this here in case there's no frame for the popup
   aState.AssignLiteral("closed");
 
   nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
@@ -248,11 +241,6 @@ nsPopupBoxObject::GetPopupState(nsAString& aState)
       case ePopupHiding:
       case ePopupInvisible:
         aState.AssignLiteral("hiding");
-        break;
-      case ePopupClosed:
-        break;
-      default:
-        NS_NOTREACHED("Bad popup state");
         break;
     }
   }

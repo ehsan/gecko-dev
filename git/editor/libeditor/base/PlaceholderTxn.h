@@ -47,6 +47,11 @@
 #include "nsWeakReference.h"
 #include "nsAutoPtr.h"
 
+#define PLACEHOLDER_TXN_CID \
+{/* {0CE9FB00-D9D1-11d2-86DE-000064657374} */ \
+0x0CE9FB00, 0xD9D1, 0x11d2, \
+{0x86, 0xde, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74} }
+
 class nsHTMLEditor;
 class IMETextTxn;
 
@@ -62,11 +67,15 @@ class PlaceholderTxn : public EditAggregateTxn,
                        public nsSupportsWeakReference
 {
 public:
+
+  static const nsIID& GetCID() { static const nsIID iid = PLACEHOLDER_TXN_CID; return iid; }
+
   NS_DECL_ISUPPORTS_INHERITED  
   
+private:
   PlaceholderTxn();
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(PlaceholderTxn, EditAggregateTxn)
+public:
 // ------------ EditAggregateTxn -----------------------
 
   NS_DECL_EDITTXN
@@ -89,6 +98,8 @@ public:
   NS_IMETHOD Commit();
 
   NS_IMETHOD RememberEndingSelection();
+  
+  friend class TransactionFactory;
 
 protected:
 

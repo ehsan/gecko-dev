@@ -41,29 +41,21 @@
 
 // NOTE: alphabetically ordered
 #include "nsBaseWidgetAccessible.h"
-#include "nsXULMenuAccessible.h"
+#include "nsXULSelectAccessible.h"
 
-/**
- * An individual tab, xul:tab element
- */
+/** An individual tab */
 class nsXULTabAccessible : public nsLeafAccessible
 {
 public:
   enum { eAction_Switch = 0 };
 
   nsXULTabAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
-
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *_retval); 
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString& aName);
   NS_IMETHOD DoAction(PRUint8 index);
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation **aRelation);
-
-  // nsAccessible
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
-  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
 /** 
@@ -75,46 +67,21 @@ class nsXULTabBoxAccessible : public nsAccessibleWrap
 {
 public:
   nsXULTabBoxAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
-
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  NS_IMETHOD GetRole(PRUint32 *_retval); 
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
+  //NS_IMETHOD GetChildCount(PRInt32 *_retval); // aaronl remove this?
 };
 
-/**
- * A container of tab obejcts, xul:tabs element.
- */
+/** merely a container of tab obejcts */
 class nsXULTabsAccessible : public nsXULSelectableAccessible
 {
 public:
   nsXULTabsAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
-
-  // nsIAccessible
+  NS_IMETHOD GetRole(PRUint32 *_retval);
   NS_IMETHOD GetNumActions(PRUint8 *_retval);
+  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
   NS_IMETHOD GetValue(nsAString& _retval);
-
-  // nsAccessible
-  virtual nsresult GetNameInternal(nsAString& aName);
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
-};
-
-/**
- * A tabpanel object, child elements of xul:tabpanels element. Note,the object
- * is created from nsAccessibilityService::GetAccessibleForDeckChildren()
- * method and we do not use nsIAccessibleProvider interface here because
- * all children of xul:tabpanels element acts as xul:tabpanel element.
- */
-class nsXULTabpanelAccessible : public nsAccessibleWrap
-{
-public:
-  nsXULTabpanelAccessible(nsIDOMNode *aNode, nsIWeakReference *aShell);
-
-  // nsIAccessible
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation **aRelation);
-
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  NS_IMETHOD GetName(nsAString& _retval);
 };
 
 #endif
-

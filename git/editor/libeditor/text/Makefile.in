@@ -42,14 +42,27 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef ENABLE_TESTS
-DIRS            += tests
-endif
-
 MODULE		= editor
 LIBRARY_NAME	= texteditor_s
 LIBXUL_LIBRARY	= 1
 
+REQUIRES	= xpcom \
+		  string \
+		  dom \
+		  locale \
+		  layout \
+		  content \
+		  txmgr \
+		  txtsvc \
+		  htmlparser \
+		  necko \
+		  pref \
+		  lwbrk \
+		  gfx \
+		  thebes \
+		  widget \
+		  unicharutil \
+		  $(NULL)
 
 CPPSRCS		=                           \
 		nsPlaintextDataTransfer.cpp \
@@ -57,7 +70,9 @@ CPPSRCS		=                           \
 		nsTextEditUtils.cpp         \
 		nsTextEditRules.cpp         \
 		nsEditorEventListeners.cpp  \
+		nsWrapUtils.cpp  \
 		nsInternetCiter.cpp  \
+		nsAOLCiter.cpp  \
 		nsTextEditRulesBidi.cpp \
 		$(NULL)
 
@@ -66,7 +81,5 @@ FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
 
-INCLUDES	+= \
-		-I$(topsrcdir)/editor/libeditor/base \
-		-I$(topsrcdir)/content/base/src \
-		$(NULL)
+INCLUDES        += -I$(topsrcdir)/editor/libeditor/base
+

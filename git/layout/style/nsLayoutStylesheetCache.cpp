@@ -44,7 +44,6 @@
 #include "nsNetUtil.h"
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIXULRuntime.h"
 
 NS_IMPL_ISUPPORTS1(nsLayoutStylesheetCache, nsIObserver)
 
@@ -81,12 +80,20 @@ nsLayoutStylesheetCache::ScrollbarsSheet()
   if (!gStyleCache->mScrollbarsSheet) {
     nsCOMPtr<nsIURI> sheetURI;
     NS_NewURI(getter_AddRefs(sheetURI),
-              NS_LITERAL_CSTRING("chrome://global/skin/scrollbars.css"));
+#ifdef XP_MACOSX
+              NS_LITERAL_CSTRING("chrome://global/skin/nativescrollbars.css"));
+#else
+              NS_LITERAL_CSTRING("chrome://global/skin/xulscrollbars.css"));
+#endif
 
     // Scrollbars don't need access to unsafe rules
     if (sheetURI)
       LoadSheet(sheetURI, gStyleCache->mScrollbarsSheet, PR_FALSE);
-    NS_ASSERTION(gStyleCache->mScrollbarsSheet, "Could not load scrollbars.css.");
+#ifdef XP_MACOSX
+    NS_ASSERTION(gStyleCache->mScrollbarsSheet, "Could not load nativescrollbars.css.");
+#else
+    NS_ASSERTION(gStyleCache->mScrollbarsSheet, "Could not load xulscrollbars.css.");
+#endif
   }
 
   return gStyleCache->mScrollbarsSheet;
@@ -102,7 +109,7 @@ nsLayoutStylesheetCache::FormsSheet()
   if (!gStyleCache->mFormsSheet) {
     nsCOMPtr<nsIURI> sheetURI;
       NS_NewURI(getter_AddRefs(sheetURI),
-                NS_LITERAL_CSTRING("resource://gre-resources/forms.css"));
+                NS_LITERAL_CSTRING("resource://gre/res/forms.css"));
 
     // forms.css needs access to unsafe rules
     if (sheetURI)
@@ -134,26 +141,6 @@ nsLayoutStylesheetCache::UserChromeSheet()
   return gStyleCache->mUserChromeSheet;
 }
 
-nsICSSStyleSheet*
-nsLayoutStylesheetCache::UASheet()
-{
-  EnsureGlobal();
-  if (!gStyleCache)
-    return nsnull;
-
-  return gStyleCache->mUASheet;
-}
-
-nsICSSStyleSheet*
-nsLayoutStylesheetCache::QuirkSheet()
-{
-  EnsureGlobal();
-  if (!gStyleCache)
-    return nsnull;
-
-  return gStyleCache->mQuirkSheet;
-}
-
 void
 nsLayoutStylesheetCache::Shutdown()
 {
@@ -175,21 +162,6 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
   }
 
   InitFromProfile();
-
-  // And make sure that we load our UA sheets.  No need to do this
-  // per-profile, since they're profile-invariant.
-  nsCOMPtr<nsIURI> uri;
-  NS_NewURI(getter_AddRefs(uri), "resource://gre-resources/ua.css");
-  if (uri) {
-    LoadSheet(uri, mUASheet, PR_TRUE);
-  }
-  NS_ASSERTION(mUASheet, "Could not load ua.css");
-
-  NS_NewURI(getter_AddRefs(uri), "resource://gre-resources/quirk.css");
-  if (uri) {
-    LoadSheet(uri, mQuirkSheet, PR_TRUE);
-  }
-  NS_ASSERTION(mQuirkSheet, "Could not load quirk.css");
 }
 
 nsLayoutStylesheetCache::~nsLayoutStylesheetCache()
@@ -212,13 +184,6 @@ nsLayoutStylesheetCache::EnsureGlobal()
 void
 nsLayoutStylesheetCache::InitFromProfile()
 {
-  nsCOMPtr<nsIXULRuntime> appInfo = do_GetService("@mozilla.org/xre/app-info;1");
-  if (appInfo) {
-    PRBool inSafeMode = PR_FALSE;
-    appInfo->GetInSafeMode(&inSafeMode);
-    if (inSafeMode)
-      return;
-  }
   nsCOMPtr<nsIFile> contentFile;
   nsCOMPtr<nsIFile> chromeFile;
 
@@ -266,8 +231,7 @@ nsLayoutStylesheetCache::LoadSheet(nsIURI* aURI, nsCOMPtr<nsICSSStyleSheet> &aSh
     NS_NewCSSLoader(&gCSSLoader);
 
   if (gCSSLoader) {
-    gCSSLoader->LoadSheetSync(aURI, aEnableUnsafeRules, PR_TRUE,
-                              getter_AddRefs(aSheet));
+    gCSSLoader->LoadSheetSync(aURI, aEnableUnsafeRules, getter_AddRefs(aSheet));
   }
 }  
 

@@ -61,8 +61,6 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
-				AdditionalDependencies="crash_generation.lib"
-				AdditionalLibraryDirectories="..\$(ConfigurationName)"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -124,8 +122,6 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
-				AdditionalDependencies="crash_generation.lib"
-				AdditionalLibraryDirectories="..\$(ConfigurationName)"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -189,8 +185,6 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
-				AdditionalDependencies="crash_generation.lib"
-				AdditionalLibraryDirectories="..\$(ConfigurationName)"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -252,8 +246,6 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
-				AdditionalDependencies="crash_generation.lib"
-				AdditionalLibraryDirectories="..\$(ConfigurationName)"
 			/>
 			<Tool
 				Name="VCALinkTool"

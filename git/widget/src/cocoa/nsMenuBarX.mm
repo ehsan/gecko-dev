@@ -36,33 +36,40 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include <objc/objc-runtime.h>
+#include "nsCOMPtr.h"
+#include "nsIServiceManager.h"
+#include "nsIComponentManager.h"
+#include "nsINameSpaceManager.h"
+#include "nsIMenu.h"
+#include "nsIMenuItem.h"
+#include "nsIContent.h"
 
 #include "nsMenuBarX.h"
 #include "nsMenuX.h"
-#include "nsMenuItemX.h"
-#include "nsMenuUtilsX.h"
-#include "nsCocoaUtils.h"
-#include "nsCocoaWindow.h"
+#include "nsChildView.h"
 
-#include "nsCOMPtr.h"
-#include "nsString.h"
-#include "nsWidgetAtoms.h"
-#include "nsGUIEvent.h"
-#include "nsObjCExceptions.h"
-#include "nsHashtable.h"
-#include "nsThreadUtils.h"
-
-#include "nsIContent.h"
+#include "nsISupports.h"
 #include "nsIWidget.h"
+#include "nsString.h"
+#include "nsIStringBundle.h"
 #include "nsIDocument.h"
+#include "nsIMutationObserver.h"
+
 #include "nsIDOMDocument.h"
-#include "nsIDOMElement.h"
+#include "nsWidgetAtoms.h"
 
-NS_IMPL_ISUPPORTS1(nsMenuBarX, nsIMutationObserver)
+#include "nsGUIEvent.h"
 
+// CIDs
+#include "nsWidgetsCID.h"
+static NS_DEFINE_CID(kMenuCID, NS_MENU_CID);
+
+NS_IMPL_ISUPPORTS6(nsMenuBarX, nsIMenuBar, nsIMenuListener, nsIMutationObserver, 
+                   nsIChangeManager, nsIMenuCommandDispatcher, nsISupportsWeakReference)
+
+EventHandlerUPP nsMenuBarX::sCommandEventHandler = nsnull;
 NativeMenuItemTarget* nsMenuBarX::sNativeEventTarget = nil;
-nsMenuBarX* nsMenuBarX::sLastGeckoMenuBarPainted = nsnull;
+NSWindow* nsMenuBarX::sEventTargetWindow = nil;
 NSMenu* sApplicationMenu = nil;
 BOOL gSomeMenuBarPainted = NO;
 
@@ -84,37 +91,30 @@ enum {
   eCommand_ID_Last  = 4
 };
 
-NS_IMPL_ISUPPORTS1(nsNativeMenuServiceX, nsINativeMenuService)
 
-NS_IMETHODIMP nsNativeMenuServiceX::CreateNativeMenuBar(nsIWidget* aParent, nsIContent* aMenuBarNode)
+PRBool NodeIsHiddenOrCollapsed(nsIContent* inContent)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Attempting to create native menu bar on wrong thread!");
-
-  nsRefPtr<nsMenuBarX> mb = new nsMenuBarX();
-  if (!mb)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  return mb->Create(aParent, aMenuBarNode);
+  return (inContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::hidden,
+                                 nsWidgetAtoms::_true, eCaseMatters) ||
+          inContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::collapsed,
+                                 nsWidgetAtoms::_true, eCaseMatters));
 }
+
 
 nsMenuBarX::nsMenuBarX()
-: mParentWindow(nsnull),
-  mCurrentCommandID(eCommand_ID_Last),
-  mDocument(nsnull)
+: mParent(nsnull), mIsMenuBarAdded(PR_FALSE), mCurrentCommandID(eCommand_ID_Last), mDocument(nsnull)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  mNativeMenu = [[GeckoNSMenu alloc] initWithTitle:@"MainMenuBar"];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+  mRootMenu = [[NSMenu alloc] initWithTitle:@"MainMenuBar"];
+  
+  // create our global carbon event command handler shared by all windows
+  if (!sCommandEventHandler)
+    sCommandEventHandler = ::NewEventHandlerUPP(CommandEventHandler);
 }
+
 
 nsMenuBarX::~nsMenuBarX()
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (nsMenuBarX::sLastGeckoMenuBarPainted == this)
-    nsMenuBarX::sLastGeckoMenuBarPainted = nsnull;
+  mMenusArray.Clear(); // release all menus
 
   // the quit/pref items of a random window might have been used if there was no
   // hidden window, thus we need to invalidate the weak references.
@@ -128,296 +128,52 @@ nsMenuBarX::~nsMenuBarX()
   // make sure we unregister ourselves as a document observer
   if (mDocument)
     mDocument->RemoveMutationObserver(this);
-
-  // We have to manually clear the array here because clearing causes menu items
-  // to call back into the menu bar to unregister themselves. We don't want to
-  // depend on member variable ordering to ensure that the array gets cleared
-  // before the registration hash table is destroyed.
-  mMenuArray.Clear();
-
-  [mNativeMenu release];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+  
+  [mRootMenu release];
 }
 
-nsresult nsMenuBarX::Create(nsIWidget* aParent, nsIContent* aContent)
+
+nsEventStatus 
+nsMenuBarX::MenuItemSelected(const nsMenuEvent &aMenuEvent)
 {
-  if (!aParent || !aContent)
-    return NS_ERROR_INVALID_ARG;
-
-  mParentWindow = aParent;
-  mContent = aContent;
-
-  AquifyMenuBar();
-
-  nsIDocument* doc = aContent->GetOwnerDoc();
-  if (!doc)
-    return NS_ERROR_FAILURE;
-  doc->AddMutationObserver(this);
-  mDocument = doc;
-
-  ConstructNativeMenus();
-
-  // Give this to the parent window. The parent takes ownership.
-  static_cast<nsCocoaWindow*>(mParentWindow)->SetMenuBar(this);
-
-  return NS_OK;
+  return nsEventStatus_eIgnore;
 }
 
-void nsMenuBarX::ConstructNativeMenus()
+
+nsEventStatus 
+nsMenuBarX::MenuSelected(const nsMenuEvent &aMenuEvent)
 {
-  PRUint32 count = mContent->GetChildCount();
-  for (PRUint32 i = 0; i < count; i++) { 
-    nsIContent *menuContent = mContent->GetChildAt(i);
-    if (menuContent &&
-        menuContent->Tag() == nsWidgetAtoms::menu &&
-        menuContent->IsXUL()) {
-      nsMenuX* newMenu = new nsMenuX();
-      if (newMenu) {
-        nsresult rv = newMenu->Create(this, this, menuContent);
-        if (NS_SUCCEEDED(rv))
-          InsertMenuAtIndex(newMenu, GetMenuCount());
-        else
-          delete newMenu;
-      }
-    }
-  }  
+  return nsEventStatus_eIgnore;
 }
 
-PRUint32 nsMenuBarX::GetMenuCount()
+
+nsEventStatus 
+nsMenuBarX::MenuDeselected(const nsMenuEvent & aMenuEvent)
 {
-  return mMenuArray.Length();
+  return nsEventStatus_eIgnore;
 }
 
-bool nsMenuBarX::MenuContainsAppMenu()
+
+nsEventStatus 
+nsMenuBarX::CheckRebuild(PRBool & aNeedsRebuild)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  return ([mNativeMenu numberOfItems] > 0 &&
-          [[mNativeMenu itemAtIndex:0] submenu] == sApplicationMenu);
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
+  aNeedsRebuild = PR_TRUE;
+  return nsEventStatus_eIgnore;
 }
 
-nsresult nsMenuBarX::InsertMenuAtIndex(nsMenuX* aMenu, PRUint32 aIndex)
+
+nsEventStatus
+nsMenuBarX::SetRebuild(PRBool aNeedsRebuild)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  // If we haven't created a global Application menu yet, do it.
-  if (!sApplicationMenu) {
-    nsresult rv = NS_OK; // avoid warning about rv being unused
-    rv = CreateApplicationMenu(aMenu);
-    NS_ASSERTION(NS_SUCCEEDED(rv), "Can't create Application menu");
-
-    // Hook the new Application menu up to the menu bar.
-    NSMenu* mainMenu = [NSApp mainMenu];
-    NS_ASSERTION([mainMenu numberOfItems] > 0, "Main menu does not have any items, something is terribly wrong!");
-    [[mainMenu itemAtIndex:0] setSubmenu:sApplicationMenu];
-  }
-
-  // add menu to array that owns our menus
-  mMenuArray.InsertElementAt(aIndex, aMenu);
-
-  // hook up submenus
-  nsIContent* menuContent = aMenu->Content();
-  if (menuContent->GetChildCount() > 0 &&
-      !nsMenuUtilsX::NodeIsHiddenOrCollapsed(menuContent)) {
-    int insertionIndex = nsMenuUtilsX::CalculateNativeInsertionPoint(this, aMenu);
-    if (MenuContainsAppMenu())
-      insertionIndex++;
-    [mNativeMenu insertItem:aMenu->NativeMenuItem() atIndex:insertionIndex];
-  }
-
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+  return nsEventStatus_eIgnore;
 }
 
-void nsMenuBarX::RemoveMenuAtIndex(PRUint32 aIndex)
+
+// Do what's necessary to conform to the Aqua guidelines for menus.
+void
+nsMenuBarX::AquifyMenuBar()
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  NS_ASSERTION(aIndex < mMenuArray.Length(), "Attempting submenu removal with bad index!");
-
-  // Our native menu and our internal menu object array might be out of sync.
-  // This happens, for example, when a submenu is hidden. Because of this we
-  // should not assume that a native submenu is hooked up.
-  NSMenuItem* nativeMenuItem = mMenuArray[aIndex]->NativeMenuItem();
-  int nativeMenuItemIndex = [mNativeMenu indexOfItem:nativeMenuItem];
-  if (nativeMenuItemIndex != -1)
-    [mNativeMenu removeItemAtIndex:nativeMenuItemIndex];
-
-  mMenuArray.RemoveElementAt(aIndex);
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-void nsMenuBarX::ForceUpdateNativeMenuAt(const nsAString& indexString)
-{
-  NSString* locationString = [NSString stringWithCharacters:indexString.BeginReading() length:indexString.Length()];
-  NSArray* indexes = [locationString componentsSeparatedByString:@"|"];
-  unsigned int indexCount = [indexes count];
-  if (indexCount == 0)
-    return;
-
-  nsMenuX* currentMenu = NULL;
-  int targetIndex = [[indexes objectAtIndex:0] intValue];
-  int visible = 0;
-  PRUint32 length = mMenuArray.Length();
-  // first find a menu in the menu bar
-  for (unsigned int i = 0; i < length; i++) {
-    nsMenuX* menu = mMenuArray[i];
-    if (!nsMenuUtilsX::NodeIsHiddenOrCollapsed(menu->Content())) {
-      visible++;
-      if (visible == (targetIndex + 1)) {
-        currentMenu = menu;
-        break;
-      }
-    }
-  }
-
-  if (!currentMenu)
-    return;
-
-  // fake open/close to cause lazy update to happen so submenus populate
-  currentMenu->MenuOpened();
-  currentMenu->MenuClosed();
-
-  // now find the correct submenu
-  for (unsigned int i = 1; currentMenu && i < indexCount; i++) {
-    targetIndex = [[indexes objectAtIndex:i] intValue];
-    visible = 0;
-    length = currentMenu->GetItemCount();
-    for (unsigned int j = 0; j < length; j++) {
-      nsMenuObjectX* targetMenu = currentMenu->GetItemAt(j);
-      if (!targetMenu)
-        return;
-      if (!nsMenuUtilsX::NodeIsHiddenOrCollapsed(targetMenu->Content())) {
-        visible++;
-        if (targetMenu->MenuObjectType() == eSubmenuObjectType && visible == (targetIndex + 1)) {
-          currentMenu = static_cast<nsMenuX*>(targetMenu);
-          // fake open/close to cause lazy update to happen
-          currentMenu->MenuOpened();
-          currentMenu->MenuClosed();
-          break;
-        }
-      }
-    }
-  }
-}
-
-// Calling this forces a full reload of the menu system, reloading all native
-// menus and their items.
-// Without this testing is hard because changes to the DOM affect the native
-// menu system lazily.
-void nsMenuBarX::ForceNativeMenuReload()
-{
-  // tear down everything
-  while (GetMenuCount() > 0)
-    RemoveMenuAtIndex(0);
-
-  // construct everything
-  ConstructNativeMenus();
-}
-
-nsMenuX* nsMenuBarX::GetMenuAt(PRUint32 aIndex)
-{
-  if (mMenuArray.Length() <= aIndex) {
-    NS_ERROR("Requesting menu at invalid index!");
-    return NULL;
-  }
-  return mMenuArray[aIndex];
-}
-
-nsresult nsMenuBarX::Paint()
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  // Don't try to optimize anything in this painting by checking
-  // sLastGeckoMenuBarPainted because the menubar can be manipulated by
-  // native dialogs and sheet code and other things besides this paint method.
-
-  // We have to keep the same menu item for the Application menu so we keep
-  // passing it along.
-  NSMenu* outgoingMenu = [NSApp mainMenu];
-  NS_ASSERTION([outgoingMenu numberOfItems] > 0, "Main menu does not have any items, something is terribly wrong!");
-
-  NSMenuItem* appMenuItem = [[outgoingMenu itemAtIndex:0] retain];
-  [outgoingMenu removeItemAtIndex:0];
-  [mNativeMenu insertItem:appMenuItem atIndex:0];
-  [appMenuItem release];
-
-  // Set menu bar and event target.
-  [NSApp setMainMenu:mNativeMenu];
-  nsMenuBarX::sLastGeckoMenuBarPainted = this;
-
-  gSomeMenuBarPainted = YES;
-
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
-// Returns the 'key' attribute of the 'shortcutID' object (if any) in the
-// currently active menubar's DOM document.  'shortcutID' should be the id
-// (i.e. the name) of a component that defines a commonly used (and
-// localized) cmd+key shortcut, and belongs to a keyset containing similar
-// objects.  For example "key_selectAll".  Returns a value that can be
-// compared to the first character of [NSEvent charactersIgnoringModifiers]
-// when [NSEvent modifierFlags] == NSCommandKeyMask.
-char nsMenuBarX::GetLocalizedAccelKey(const char *shortcutID)
-{
-  if (!sLastGeckoMenuBarPainted)
-    return 0;
-
-  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(sLastGeckoMenuBarPainted->mDocument));
-  if (!domDoc)
-    return 0;
-
-  NS_ConvertASCIItoUTF16 shortcutIDStr((const char *)shortcutID);
-  nsCOMPtr<nsIDOMElement> shortcutElement;
-  domDoc->GetElementById(shortcutIDStr, getter_AddRefs(shortcutElement));
-  nsCOMPtr<nsIContent> shortcutContent = do_QueryInterface(shortcutElement);
-  if (!shortcutContent)
-    return 0;
-
-  nsAutoString key;
-  shortcutContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::key, key);
-  NS_LossyConvertUTF16toASCII keyASC(key.get());
-  const char *keyASCPtr = keyASC.get();
-  if (!keyASCPtr)
-    return 0;
-  // If keyID's 'key' attribute isn't exactly one character long, it's not
-  // what we're looking for.
-  if (strlen(keyASCPtr) != sizeof(char))
-    return 0;
-  // Make sure retval is lower case.
-  char retval = tolower(keyASCPtr[0]);
-
-  return retval;
-}
-
-// Hide the item in the menu by setting the 'hidden' attribute. Returns it in |outHiddenNode| so
-// the caller can hang onto it if they so choose. It is acceptable to pass nsull
-// for |outHiddenNode| if the caller doesn't care about the hidden node.
-void nsMenuBarX::HideItem(nsIDOMDocument* inDoc, const nsAString & inID, nsIContent** outHiddenNode)
-{
-  nsCOMPtr<nsIDOMElement> menuItem;
-  inDoc->GetElementById(inID, getter_AddRefs(menuItem));  
-  nsCOMPtr<nsIContent> menuContent(do_QueryInterface(menuItem));
-  if (menuContent) {
-    menuContent->SetAttr(kNameSpaceID_None, nsWidgetAtoms::hidden, NS_LITERAL_STRING("true"), PR_FALSE);
-    if (outHiddenNode) {
-      *outHiddenNode = menuContent.get();
-      NS_IF_ADDREF(*outHiddenNode);
-    }
-  }
-}
-
-// Do what is necessary to conform to the Aqua guidelines for menus.
-void nsMenuBarX::AquifyMenuBar()
-{
-  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(mContent->GetDocument()));
+  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(mMenuBarContent->GetDocument()));
   if (domDoc) {
     // remove the "About..." item and its separator
     HideItem(domDoc, NS_LITERAL_STRING("aboutSeparator"), nsnull);
@@ -446,13 +202,265 @@ void nsMenuBarX::AquifyMenuBar()
   }
 }
 
+
+// Grab our window and install an event handler to handle command events which are
+// used to drive the action when the user chooses an item from a menu. We have to install
+// it on the window because the menubar isn't in the event chain for a menu command event.
+OSStatus
+nsMenuBarX::InstallCommandEventHandler()
+{
+   OSStatus err = noErr;
+   NSWindow* myWindow = reinterpret_cast<NSWindow*>(mParent->GetNativeData(NS_NATIVE_WINDOW));
+   WindowRef myWindowRef = (WindowRef)[myWindow windowRef];
+   NS_ASSERTION(myWindowRef, "Can't get WindowRef to install command handler!");
+   if (myWindowRef && sCommandEventHandler) {
+     const EventTypeSpec commandEventList[] = {{kEventClassCommand, kEventCommandProcess}};
+     err = ::InstallWindowEventHandler(myWindowRef, sCommandEventHandler, GetEventTypeCount(commandEventList), commandEventList, this, NULL);
+     NS_ASSERTION(err == noErr, "Uh oh, command handler not installed");
+   }
+   return err;
+}
+
+
+// Processes Command carbon events from enabling/selecting of items in the menu.
+pascal OSStatus
+nsMenuBarX::CommandEventHandler(EventHandlerCallRef inHandlerChain, EventRef inEvent, void* userData)
+{
+  OSStatus handled = eventNotHandledErr;
+  
+  HICommand command;
+  OSErr err1 = ::GetEventParameter(inEvent, kEventParamDirectObject, typeHICommand,
+                                   NULL, sizeof(HICommand), NULL, &command);
+  if (err1)
+    return handled;
+  
+  nsMenuBarX* self = reinterpret_cast<nsMenuBarX*>(userData);
+
+  switch (command.commandID) {
+    case eCommand_ID_About:
+    {
+      nsIContent* mostSpecificContent = sAboutItemContent;
+      if (self->mAboutItemContent)
+        mostSpecificContent = self->mAboutItemContent;
+      
+      nsEventStatus status = self->ExecuteCommand(mostSpecificContent);
+      if (status == nsEventStatus_eConsumeNoDefault) // event handled, no other processing
+        handled = noErr;
+      break;
+    }
+
+    case eCommand_ID_Prefs:
+    {
+      nsIContent* mostSpecificContent = sPrefItemContent;
+      if (self->mPrefItemContent)
+        mostSpecificContent = self->mPrefItemContent;
+      
+      nsEventStatus status = self->ExecuteCommand(mostSpecificContent);
+      if (status == nsEventStatus_eConsumeNoDefault) // event handled, no other processing
+        handled = noErr;
+      break;
+    }
+
+    case eCommand_ID_Quit:
+    {
+      nsIContent* mostSpecificContent = sQuitItemContent;
+      if (self->mQuitItemContent)
+        mostSpecificContent = self->mQuitItemContent;
+
+      // If we have some content for quit we execute it. Otherwise we send a native app terminate
+      // message. If you want to stop a quit from happening, provide quit content and return
+      // the event as unhandled.
+      if (mostSpecificContent) {
+        nsEventStatus status = self->ExecuteCommand(mostSpecificContent);
+        if (status == nsEventStatus_eConsumeNoDefault) // event handled, no other processing
+          handled = noErr;
+      }
+      else {
+        [NSApp terminate:nil];
+        handled = noErr;
+      }
+      break;
+    }
+
+    default:
+    {
+      // given the commandID, look it up in our hashtable and dispatch to
+      // that content node. Recall that we store weak pointers to the content
+      // nodes in the hash table.
+      nsPRUint32Key key(command.commandID);
+      nsIMenuItem* content = reinterpret_cast<nsIMenuItem*>(self->mObserverTable.Get(&key));
+      if (content) {
+        content->DoCommand();
+        handled = noErr;
+      }
+      break;
+    }
+  } // switch on commandID
+  
+  return handled;
+}
+
+
+// Execute the menu item by sending a command message to the 
+// DOM node specified in |inDispatchTo|.
+nsEventStatus
+nsMenuBarX::ExecuteCommand(nsIContent* inDispatchTo)
+{
+  if (!inDispatchTo)
+    return nsEventStatus_eIgnore;
+  
+  return MenuHelpersX::DispatchCommandTo(inDispatchTo);
+}
+
+
+// Hide the item in the menu by setting the 'hidden' attribute. Returns it in |outHiddenNode| so
+// the caller can hang onto it if they so choose. It is acceptable to pass nsull
+// for |outHiddenNode| if the caller doesn't care about the hidden node.
+void
+nsMenuBarX::HideItem(nsIDOMDocument* inDoc, const nsAString & inID, nsIContent** outHiddenNode)
+{
+  nsCOMPtr<nsIDOMElement> menuItem;
+  inDoc->GetElementById(inID, getter_AddRefs(menuItem));  
+  nsCOMPtr<nsIContent> menuContent(do_QueryInterface(menuItem));
+  if (menuContent) {
+    menuContent->SetAttr(kNameSpaceID_None, nsWidgetAtoms::hidden, NS_LITERAL_STRING("true"), PR_FALSE);
+    if (outHiddenNode) {
+      *outHiddenNode = menuContent.get();
+      NS_IF_ADDREF(*outHiddenNode);
+    }
+  }
+}
+
+
+nsEventStatus
+nsMenuBarX::MenuConstruct(const nsMenuEvent & aMenuEvent, nsIWidget* aParentWindow, 
+                          void * aMenubarNode)
+{
+  nsIDOMNode* domNode  = static_cast<nsIDOMNode*>(aMenubarNode);
+  mMenuBarContent = do_QueryInterface(domNode); // strong ref
+  NS_ASSERTION(mMenuBarContent, "No content specified for this menubar");
+  if (!mMenuBarContent)
+    return nsEventStatus_eIgnore;
+  
+  SetParent(aParentWindow);
+  
+  AquifyMenuBar();
+  
+  OSStatus err = InstallCommandEventHandler();
+  if (err)
+    return nsEventStatus_eIgnore;
+
+  nsCOMPtr<nsIDOMDocument> domDoc;
+  domNode->GetOwnerDocument(getter_AddRefs(domDoc));
+  nsCOMPtr<nsIDocument> doc(do_QueryInterface(domDoc));
+  if (!doc)
+    return nsEventStatus_eIgnore;
+  doc->AddMutationObserver(this);
+  mDocument = doc;
+
+  PRUint32 count = mMenuBarContent->GetChildCount();
+  for (PRUint32 i = 0; i < count; i++) { 
+    nsIContent *menu = mMenuBarContent->GetChildAt(i);
+    if (menu) {
+      if (menu->Tag() == nsWidgetAtoms::menu &&
+          menu->IsNodeOfType(nsINode::eXUL)) {
+        nsAutoString menuName;
+        nsAutoString menuAccessKey(NS_LITERAL_STRING(" "));
+        menu->GetAttr(kNameSpaceID_None, nsWidgetAtoms::label, menuName);
+        menu->GetAttr(kNameSpaceID_None, nsWidgetAtoms::accesskey, menuAccessKey);
+
+        // Create nsMenu, the menubar will own it
+        nsCOMPtr<nsIMenu> pnsMenu(do_CreateInstance(kMenuCID));
+        if (pnsMenu) {
+          pnsMenu->Create(static_cast<nsIMenuBar*>(this), menuName, menuAccessKey, 
+                          static_cast<nsIChangeManager *>(this), menu);
+          AddMenu(pnsMenu);
+        }
+      } 
+    }
+  }
+  
+  // Give the aParentWindow this nsMenuBarX to hold onto.
+  // The parent takes ownership.
+  aParentWindow->SetMenuBar(this);
+  
+  return nsEventStatus_eIgnore;
+}
+
+
+nsEventStatus 
+nsMenuBarX::MenuDestruct(const nsMenuEvent & aMenuEvent)
+{
+  return nsEventStatus_eIgnore;
+}
+
+
+NS_IMETHODIMP nsMenuBarX::Create(nsIWidget *aParent)
+{
+  SetParent(aParent);
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP nsMenuBarX::GetParent(nsIWidget *&aParent)
+{
+  NS_IF_ADDREF(aParent = mParent);
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP nsMenuBarX::SetParent(nsIWidget *aParent)
+{
+  mParent = aParent; // weak ref  
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP nsMenuBarX::AddMenu(nsIMenu * aMenu)
+{
+  // if no menus have been added yet, add a menu item as a placeholder for
+  // the application menu (the NSMenu of which gets swapped in on Paint())
+  if (mMenusArray.Count() == 0) {
+    [mRootMenu insertItem:[[[NSMenuItem alloc] initWithTitle:@"AppMenu" action:NULL keyEquivalent:@""] autorelease] atIndex:0];
+    
+    // if we haven't generated an application menu yet, then we can use this
+    // nsIMenu to create one
+    if (!sApplicationMenu) {
+      nsresult rv = NS_OK; // avoid warning about rv being unused
+      rv = CreateApplicationMenu(aMenu);
+      NS_ASSERTION(NS_SUCCEEDED(rv), "Can't create Application menu");
+    }
+  }
+
+  // keep track of all added menus
+  mMenusArray.AppendObject(aMenu); // owner
+  
+  NSMenu* menuRef = NULL;
+  aMenu->GetNativeData((void**)&menuRef);
+  
+  nsCOMPtr<nsIContent> menu;
+  aMenu->GetMenuContent(getter_AddRefs(menu));
+  if (menu->GetChildCount() > 0 &&
+      !NodeIsHiddenOrCollapsed(menu)) {
+    NSMenuItem* newMenuItem = [[[NSMenuItem alloc] initWithTitle:@"SomeMenuItem" action:NULL keyEquivalent:@""] autorelease];
+    [mRootMenu addItem:newMenuItem];
+    [newMenuItem setSubmenu:menuRef];
+  }
+  
+  return NS_OK;
+}
+
+
 // for creating menu items destined for the Application menu
-NSMenuItem* nsMenuBarX::CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString& nodeID, SEL action,
+NSMenuItem* nsMenuBarX::CreateNativeAppMenuItem(nsIMenu* inMenu, const nsAString& nodeID, SEL action,
                                                 int tag, NativeMenuItemTarget* target)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
+  nsCOMPtr<nsIContent> menu;
+  inMenu->GetMenuContent(getter_AddRefs(menu));
+  if (!menu)
+    return nil;
 
-  nsCOMPtr<nsIDocument> doc = inMenu->Content()->GetDocument();
+  nsCOMPtr<nsIDocument> doc = menu->GetDocument();
   if (!doc)
     return nil;
 
@@ -493,8 +501,8 @@ NSMenuItem* nsMenuBarX::CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString
       // now grab the key equivalent modifiers
       nsAutoString modifiersStr;
       keyContent->GetAttr(kNameSpaceID_None, nsWidgetAtoms::modifiers, modifiersStr);
-      PRUint8 geckoModifiers = nsMenuUtilsX::GeckoModifiersForNodeAttribute(modifiersStr);
-      macKeyModifiers = nsMenuUtilsX::MacModifiersForGeckoModifiers(geckoModifiers);
+      PRUint8 geckoModifiers = MenuHelpersX::GeckoModifiersForNodeAttribute(modifiersStr);
+      macKeyModifiers = MenuHelpersX::MacModifiersForGeckoModifiers(geckoModifiers);
     }
   }
   // get the label into NSString-form
@@ -513,15 +521,13 @@ NSMenuItem* nsMenuBarX::CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString
   [newMenuItem setKeyEquivalentModifierMask:macKeyModifiers];
   
   return newMenuItem;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-// build the Application menu shared by all menu bars
-nsresult nsMenuBarX::CreateApplicationMenu(nsMenuX* inMenu)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
+// build the Application menu shared by all menu bars
+nsresult
+nsMenuBarX::CreateApplicationMenu(nsIMenu* inMenu)
+{
   // At this point, the application menu is the application menu from
   // the nib in cocoa widgets. We do not have a way to create an application
   // menu manually, so we grab the one from the nib and use that.
@@ -596,7 +602,7 @@ nsresult nsMenuBarX::CreateApplicationMenu(nsMenuX* inMenu)
       [sApplicationMenu addItem:itemBeingAdded];
       
       // set this menu item up as the Mac OS X Services menu
-      NSMenu* servicesMenu = [[GeckoServicesNSMenu alloc] initWithTitle:@""];
+      NSMenu* servicesMenu = [[NSMenu alloc] initWithTitle:@""];
       [itemBeingAdded setSubmenu:servicesMenu];
       [NSApp setServicesMenu:servicesMenu];
       
@@ -666,379 +672,393 @@ nsresult nsMenuBarX::CreateApplicationMenu(nsMenuX* inMenu)
   }
   
   return (sApplicationMenu) ? NS_OK : NS_ERROR_FAILURE;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-void nsMenuBarX::SetParent(nsIWidget* aParent)
+
+NS_IMETHODIMP nsMenuBarX::GetMenuCount(PRUint32 &aCount)
 {
-  mParentWindow = aParent;
+  aCount = mMenusArray.Count();
+  return NS_OK;
 }
+
+
+NS_IMETHODIMP nsMenuBarX::GetMenuAt(const PRUint32 aCount, nsIMenu *& aMenu)
+{ 
+  aMenu = NULL;
+  nsCOMPtr<nsIMenu> menu = mMenusArray.ObjectAt(aCount);
+  if (!menu)
+    return NS_OK;
+  
+  return CallQueryInterface(menu, &aMenu); // addref
+}
+
+
+NS_IMETHODIMP nsMenuBarX::InsertMenuAt(const PRUint32 aCount, nsIMenu *& aMenu)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+
+NS_IMETHODIMP nsMenuBarX::RemoveMenu(const PRUint32 aCount)
+{
+  mMenusArray.RemoveObjectAt(aCount);
+  [mRootMenu removeItemAtIndex:aCount];
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP nsMenuBarX::RemoveAll()
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+
+NS_IMETHODIMP nsMenuBarX::GetNativeData(void *& aData)
+{
+  aData = (void*)mRootMenu;
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP nsMenuBarX::SetNativeData(void* aData)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+
+NS_IMETHODIMP nsMenuBarX::Paint()
+{
+  // swap in the shared Application menu
+  // if application menu hasn't been created, create it.
+  if (sApplicationMenu) {
+    // an NSMenu can't have multiple supermenus, so when we paint a menu bar we unhook the
+    // application menu from its current supermenu and hook it up to this menu bar's
+    // application menu item. This way all changes to the application menu perist across
+    // all instances of nsMenuBarX. We could assume 0 for indexOfItemWithSubmenu, but lets
+    // be safe... If the algorithm for that starts looking at 0 it will still be fast.
+    NSMenu* supermenu = [sApplicationMenu supermenu];
+    if (supermenu) {
+      int supermenuItemIndex = [supermenu indexOfItemWithSubmenu:sApplicationMenu];
+      [[supermenu itemAtIndex:supermenuItemIndex] setSubmenu:nil];
+    }
+    [[mRootMenu itemAtIndex:0] setSubmenu:sApplicationMenu];
+  }
+  
+  [NSApp setMainMenu:mRootMenu];
+  nsMenuBarX::sEventTargetWindow = (NSWindow*)mParent->GetNativeData(NS_NATIVE_WINDOW);
+
+  gSomeMenuBarPainted = YES;
+  
+  return NS_OK;
+}
+
 
 //
 // nsIMutationObserver
 //
 
-void nsMenuBarX::CharacterDataWillChange(nsIDocument* aDocument,
-                                         nsIContent* aContent,
-                                         CharacterDataChangeInfo* aInfo)
+void
+nsMenuBarX::CharacterDataWillChange(nsIDocument * aDocument,
+                                    nsIContent * aContent,
+                                    CharacterDataChangeInfo * aInfo)
 {
 }
 
-void nsMenuBarX::CharacterDataChanged(nsIDocument* aDocument,
-                                      nsIContent* aContent,
-                                      CharacterDataChangeInfo* aInfo)
+void
+nsMenuBarX::CharacterDataChanged(nsIDocument * aDocument,
+                                 nsIContent * aContent,
+                                 CharacterDataChangeInfo * aInfo)
 {
 }
 
-void nsMenuBarX::ContentAppended(nsIDocument* aDocument, nsIContent* aContainer,
-                                 PRInt32 aNewIndexInContainer)
+
+void
+nsMenuBarX::ContentAppended(nsIDocument * aDocument, nsIContent  * aContainer,
+                            PRInt32 aNewIndexInContainer)
 {
-  PRUint32 childCount = aContainer->GetChildCount();
-  while ((PRUint32)aNewIndexInContainer < childCount) {
-    nsIContent *child = aContainer->GetChildAt(aNewIndexInContainer);
-    ContentInserted(aDocument, aContainer, child, aNewIndexInContainer);
-    aNewIndexInContainer++;
+  if (aContainer != mMenuBarContent) {
+    nsCOMPtr<nsIChangeObserver> obs;
+    Lookup(aContainer, getter_AddRefs(obs));
+    if (obs)
+      obs->ContentInserted(aDocument, aContainer, aNewIndexInContainer);
+    else {
+      nsCOMPtr<nsIContent> parent = aContainer->GetParent();
+      if (parent) {
+        Lookup(parent, getter_AddRefs(obs));
+        if (obs)
+          obs->ContentInserted(aDocument, aContainer, aNewIndexInContainer);
+      }
+    }
   }
 }
 
-void nsMenuBarX::NodeWillBeDestroyed(const nsINode * aNode)
+
+void
+nsMenuBarX::NodeWillBeDestroyed(const nsINode * aNode)
 {
-  // our menu bar node is being destroyed
   mDocument = nsnull;
 }
 
-void nsMenuBarX::AttributeWillChange(nsIDocument* aDocument,
-                                     nsIContent* aContent, PRInt32 aNameSpaceID,
-                                     nsIAtom* aAttribute, PRInt32 aModType)
-{
-}
 
-void nsMenuBarX::AttributeChanged(nsIDocument * aDocument, nsIContent * aContent,
-                                  PRInt32 aNameSpaceID, nsIAtom * aAttribute,
-                                  PRInt32 aModType)
+void
+nsMenuBarX::AttributeChanged(nsIDocument * aDocument, nsIContent * aContent,
+                             PRInt32 aNameSpaceID, nsIAtom * aAttribute,
+                             PRInt32 aModType, PRUint32 aStateMask)
 {
-  nsChangeObserver* obs = LookupContentChangeObserver(aContent);
+  // lookup and dispatch to registered thang
+  nsCOMPtr<nsIChangeObserver> obs;
+  Lookup(aContent, getter_AddRefs(obs));
   if (obs)
-    obs->ObserveAttributeChanged(aDocument, aContent, aAttribute);
+    obs->AttributeChanged(aDocument, aNameSpaceID, aContent, aAttribute);
 }
 
-void nsMenuBarX::ContentRemoved(nsIDocument * aDocument, nsIContent * aContainer,
-                                nsIContent * aChild, PRInt32 aIndexInContainer)
-{
-  if (aContainer == mContent) {
-    RemoveMenuAtIndex(aIndexInContainer);
-  }
-  else {
-    nsChangeObserver* obs = LookupContentChangeObserver(aContainer);
-    if (obs) {
-      obs->ObserveContentRemoved(aDocument, aChild, aIndexInContainer);
-    }
-    else {
-      // We do a lookup on the parent container in case things were removed
-      // under a "menupopup" item. That is basically a wrapper for the contents
-      // of a "menu" node.
-      nsCOMPtr<nsIContent> parent = aContainer->GetParent();
-      if (parent) {
-        obs = LookupContentChangeObserver(parent);
-        if (obs)
-          obs->ObserveContentRemoved(aDocument, aChild, aIndexInContainer);
-      }
-    }
-  }
-}
 
-void nsMenuBarX::ContentInserted(nsIDocument * aDocument, nsIContent * aContainer,
-                                 nsIContent * aChild, PRInt32 aIndexInContainer)
-{
-  if (aContainer == mContent) {
-    nsMenuX* newMenu = new nsMenuX();
-    if (newMenu) {
-      nsresult rv = newMenu->Create(this, this, aChild);
-      if (NS_SUCCEEDED(rv))
-        InsertMenuAtIndex(newMenu, aIndexInContainer);
-      else
-        delete newMenu;
-    }
+void
+nsMenuBarX::ContentRemoved(nsIDocument * aDocument, nsIContent * aContainer,
+                            nsIContent * aChild, PRInt32 aIndexInContainer)
+{  
+  if (aContainer == mMenuBarContent) {
+    Unregister(aChild);
+    RemoveMenu(aIndexInContainer);
   }
   else {
-    nsChangeObserver* obs = LookupContentChangeObserver(aContainer);
+    nsCOMPtr<nsIChangeObserver> obs;
+    Lookup (aContainer, getter_AddRefs(obs));
     if (obs)
-      obs->ObserveContentInserted(aDocument, aChild, aIndexInContainer);
+      obs->ContentRemoved(aDocument, aChild, aIndexInContainer);
     else {
-      // We do a lookup on the parent container in case things were removed
-      // under a "menupopup" item. That is basically a wrapper for the contents
-      // of a "menu" node.
       nsCOMPtr<nsIContent> parent = aContainer->GetParent();
       if (parent) {
-        obs = LookupContentChangeObserver(parent);
+        Lookup (parent, getter_AddRefs(obs));
         if (obs)
-          obs->ObserveContentInserted(aDocument, aChild, aIndexInContainer);
+          obs->ContentRemoved(aDocument, aChild, aIndexInContainer);
       }
     }
   }
 }
 
-void nsMenuBarX::ParentChainChanged(nsIContent *aContent)
+
+void
+nsMenuBarX::ContentInserted(nsIDocument * aDocument, nsIContent * aContainer,
+                             nsIContent * aChild, PRInt32 aIndexInContainer)
+{  
+  if (aContainer != mMenuBarContent) {
+    nsCOMPtr<nsIChangeObserver> obs;
+    Lookup (aContainer, getter_AddRefs(obs));
+    if (obs)
+      obs->ContentInserted (aDocument, aChild, aIndexInContainer);
+    else {
+      nsCOMPtr<nsIContent> parent = aContainer->GetParent();
+      if (parent) {
+        Lookup (parent, getter_AddRefs(obs));
+        if (obs)
+          obs->ContentInserted(aDocument, aChild, aIndexInContainer);
+      }
+    }
+  }
+}
+
+
+void
+nsMenuBarX::ParentChainChanged(nsIContent *aContent)
 {
 }
 
-// For change management, we don't use a |nsSupportsHashtable| because we know that the
-// lifetime of all these items is bounded by the lifetime of the menubar. No need to add
-// any more strong refs to the picture because the containment hierarchy already uses
-// strong refs.
-void nsMenuBarX::RegisterForContentChanges(nsIContent *aContent, nsChangeObserver *aMenuObject)
+
+//
+// nsIChangeManager
+//
+// We don't use a |nsSupportsHashtable| because we know that the lifetime of all these items
+// is bounded by the lifetime of the menubar. No need to add any more strong refs to the
+// picture because the containment hierarchy already uses strong refs.
+//
+
+
+NS_IMETHODIMP
+nsMenuBarX::Register(nsIContent *aContent, nsIChangeObserver *aMenuObject)
 {
   nsVoidKey key(aContent);
   mObserverTable.Put(&key, aMenuObject);
+  return NS_OK;
 }
 
-void nsMenuBarX::UnregisterForContentChanges(nsIContent *aContent)
+
+NS_IMETHODIMP
+nsMenuBarX::Unregister(nsIContent *aContent)
 {
   nsVoidKey key(aContent);
   mObserverTable.Remove(&key);
+  return NS_OK;
 }
 
-nsChangeObserver* nsMenuBarX::LookupContentChangeObserver(nsIContent* aContent)
+
+NS_IMETHODIMP
+nsMenuBarX::Lookup(nsIContent *aContent, nsIChangeObserver **_retval)
 {
-  nsVoidKey key(aContent);
-  return reinterpret_cast<nsChangeObserver*>(mObserverTable.Get(&key));
+  *_retval = nsnull;
+  
+  nsVoidKey key (aContent);
+  *_retval = reinterpret_cast<nsIChangeObserver*>(mObserverTable.Get(&key));
+  NS_IF_ADDREF (*_retval);
+  
+  return NS_OK;
 }
+
+
+//
+// Implementation methods for nsIMenuCommandDispatcher
+//
+
 
 // Given a menu item, creates a unique 4-character command ID and
 // maps it to the item. Returns the id for use by the client.
-PRUint32 nsMenuBarX::RegisterForCommand(nsMenuItemX* inMenuItem)
+NS_IMETHODIMP
+nsMenuBarX::Register(nsIMenuItem* inMenuItem, PRUint32* outCommandID)
 {
   // no real need to check for uniqueness. We always start afresh with each
   // window at 1. Even if we did get close to the reserved Apple command id's,
   // those don't start until at least '    ', which is integer 538976288. If
   // we have that many menu items in one window, I think we have other problems.
 
-  // make id unique
-  ++mCurrentCommandID;
-
   // put it in the table, set out param for client
   nsPRUint32Key key(mCurrentCommandID);
   mObserverTable.Put(&key, inMenuItem);
-
-  return mCurrentCommandID;
+  *outCommandID = mCurrentCommandID;
+  
+  // make id unique for next time
+  ++mCurrentCommandID;
+  
+  return NS_OK;
 }
+
 
 // Removes the mapping between the given 4-character command ID
 // and its associated menu item.
-void nsMenuBarX::UnregisterCommand(PRUint32 inCommandID)
+NS_IMETHODIMP
+nsMenuBarX::Unregister(PRUint32 inCommandID)
 {
   nsPRUint32Key key(inCommandID);
   mObserverTable.Remove(&key);
+  return NS_OK;
 }
 
-nsMenuItemX* nsMenuBarX::GetMenuItemForCommandID(PRUint32 inCommandID)
+
+nsEventStatus
+MenuHelpersX::DispatchCommandTo(nsIContent* aTargetContent)
 {
-  nsPRUint32Key key(inCommandID);
-  return reinterpret_cast<nsMenuItemX*>(mObserverTable.Get(&key));
+  NS_PRECONDITION(aTargetContent, "null ptr");
+
+  nsEventStatus status = nsEventStatus_eConsumeNoDefault;
+  nsXULCommandEvent event(PR_TRUE, NS_XUL_COMMAND, nsnull);
+  
+  // FIXME: Should probably figure out how to init this with the actual
+  // pressed keys, but this is a big old edge case anyway. -dwh
+  
+  aTargetContent->DispatchDOMEvent(&event, nsnull, nsnull, &status);
+  return status;
 }
 
-//
-// Objective-C class used to allow us to have keyboard commands
-// look like they are doing something but actually do nothing.
-// We allow mouse actions to work normally.
-//
 
-// This tells us whether or not pKE is on the stack from a GeckoNSMenu. If it
-// is nil, it is not on the stack. The non-nil value is the object that put it
-// on the stack first.
-static GeckoNSMenu* gPerformKeyEquivOnStack = nil;
-// If this is YES, act on key equivs.
-static BOOL gActOnKeyEquiv = NO;
-// When this variable is set to NO, don't do special command processing.
-static BOOL gActOnSpecialCommands = YES;
-
-@implementation GeckoNSMenu
-
-- (BOOL)performKeyEquivalent:(NSEvent *)theEvent
+NSString* MenuHelpersX::CreateTruncatedCocoaLabel(const nsString& itemLabel)
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  NS_ASSERTION(gPerformKeyEquivOnStack != self, "GeckoNSMenu pKE re-entering for the same object!");
-
-  // Don't bother doing this if we don't have any items. It appears as though
-  // the OS will sometimes expect this sort of check.
-  if ([self numberOfItems] <= 0)
-    return NO;
-
-  if (!gPerformKeyEquivOnStack)
-    gPerformKeyEquivOnStack = self;
-  BOOL rv = [super performKeyEquivalent:theEvent];
-  if (gPerformKeyEquivOnStack == self)
-    gPerformKeyEquivOnStack = nil;
-  return rv;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
+  // ::TruncateThemeText() doesn't take the number of characters to truncate to, it takes a pixel with
+  // to fit the string in. Ugh. I talked it over with sfraser and we couldn't come up with an 
+  // easy way to compute what this should be given the system font, etc, so we're just going
+  // to hard code it to something reasonable and bigger fonts will just have to deal.
+  const short kMaxItemPixelWidth = 300;
+  NSMutableString *label = [[NSMutableString stringWithCharacters:itemLabel.get() length:itemLabel.Length()] retain];
+  ::TruncateThemeText((CFMutableStringRef)label, kThemeMenuItemFont, kThemeStateActive, kMaxItemPixelWidth, truncMiddle, NULL);
+  return label; // caller releases
 }
 
--(void)actOnKeyEquivalent:(NSEvent *)theEvent
+
+PRUint8 MenuHelpersX::GeckoModifiersForNodeAttribute(const nsString& modifiersAttribute)
 {
-  gActOnKeyEquiv = YES;
-  [self performKeyEquivalent:theEvent];
-  gActOnKeyEquiv = NO;
+  PRUint8 modifiers = knsMenuItemNoModifier;
+  char* str = ToNewCString(modifiersAttribute);
+  char* newStr;
+  char* token = nsCRT::strtok(str, ", \t", &newStr);
+  while (token != NULL) {
+    if (PL_strcmp(token, "shift") == 0)
+      modifiers |= knsMenuItemShiftModifier;
+    else if (PL_strcmp(token, "alt") == 0) 
+      modifiers |= knsMenuItemAltModifier;
+    else if (PL_strcmp(token, "control") == 0) 
+      modifiers |= knsMenuItemControlModifier;
+    else if ((PL_strcmp(token, "accel") == 0) ||
+             (PL_strcmp(token, "meta") == 0)) {
+      modifiers |= knsMenuItemCommandModifier;
+    }
+    token = nsCRT::strtok(newStr, ", \t", &newStr);
+  }
+  nsMemory::Free(str);
+
+  return modifiers;
 }
 
-- (void)performMenuUserInterfaceEffectsForEvent:(NSEvent*)theEvent
+
+unsigned int MenuHelpersX::MacModifiersForGeckoModifiers(PRUint8 geckoModifiers)
 {
-  gActOnSpecialCommands = NO;
-  [self performKeyEquivalent:theEvent];
-  gActOnSpecialCommands = YES;
+  unsigned int macModifiers = 0;
+  
+  if (geckoModifiers & knsMenuItemShiftModifier)
+    macModifiers |= NSShiftKeyMask;
+  if (geckoModifiers & knsMenuItemAltModifier)
+    macModifiers |= NSAlternateKeyMask;
+  if (geckoModifiers & knsMenuItemControlModifier)
+    macModifiers |= NSControlKeyMask;
+  if (geckoModifiers & knsMenuItemCommandModifier)
+    macModifiers |= NSCommandKeyMask;
+  
+  return macModifiers;
 }
 
-@end
 
 //
 // Objective-C class used as action target for menu items
 //
+
 
 @implementation NativeMenuItemTarget
 
 // called when some menu item in this menu gets hit
 -(IBAction)menuItemHit:(id)sender
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  int tag = [sender tag];
-  nsMenuBarX* menuBar = nsMenuBarX::sLastGeckoMenuBarPainted;
-  if (!menuBar)
+  // just abort if we don't have a target window for events
+  if (!nsMenuBarX::sEventTargetWindow) {
+    NS_WARNING("No target window for keyboard events!");
     return;
-
-  // We want to avoid processing app-global commands when we are asked to
-  // perform native menu effects only. This avoids sending events twice,
-  // which can lead to major problems.
-  if (gActOnSpecialCommands) {
-    // Do special processing if this is for an app-global command.
-    if (tag == eCommand_ID_About) {
-      nsIContent* mostSpecificContent = sAboutItemContent;
-      if (menuBar && menuBar->mAboutItemContent)
-        mostSpecificContent = menuBar->mAboutItemContent;
-      nsMenuUtilsX::DispatchCommandTo(mostSpecificContent);
-    }
-    else if (tag == eCommand_ID_Prefs) {
-      nsIContent* mostSpecificContent = sPrefItemContent;
-      if (menuBar && menuBar->mPrefItemContent)
-        mostSpecificContent = menuBar->mPrefItemContent;
-      nsMenuUtilsX::DispatchCommandTo(mostSpecificContent);
-    }
-    else if (tag == eCommand_ID_Quit) {
-      nsIContent* mostSpecificContent = sQuitItemContent;
-      if (menuBar && menuBar->mQuitItemContent)
-        mostSpecificContent = menuBar->mQuitItemContent;
-      // If we have some content for quit we execute it. Otherwise we send a native app terminate
-      // message. If you want to stop a quit from happening, provide quit content and return
-      // the event as unhandled.
-      if (mostSpecificContent) {
-        nsMenuUtilsX::DispatchCommandTo(mostSpecificContent);
-      }
-      else {
-        [NSApp terminate:nil];
-        return;
-      }
-    }
-    // Quit now if the "active" menu bar has changed (as the result of
-    // processing an app-global command above).  This resolves bmo bug
-    // 430506.
-    if (menuBar != nsMenuBarX::sLastGeckoMenuBarPainted)
-      return;
   }
-
-  // Don't do anything unless this is not a keyboard command and
-  // this isn't for the hidden window menu. We assume that if there
-  // is no main window then the hidden window menu bar is up, even
-  // if that isn't true for some reason we better play it safe if
-  // there is no main window.
-  if (gPerformKeyEquivOnStack && !gActOnKeyEquiv && [NSApp mainWindow])
-    return;
-
-  // given the commandID, look it up in our hashtable and dispatch to
-  // that menu item.
-  if (menuBar) {
-    nsMenuItemX* menuItem = menuBar->GetMenuItemForCommandID(static_cast<PRUint32>(tag));
-    if (menuItem)
-      menuItem->DoCommand();
+  
+  MenuRef senderMenuRef = _NSGetCarbonMenu([sender menu]);
+  int senderCarbonMenuItemIndex = [[sender menu] indexOfItem:sender] + 1;
+  
+  // If this carbon menu item has never had a command ID assigned to it, give it
+  // one from the sender's tag
+  MenuCommand menuCommand;
+  ::GetMenuItemCommandID(senderMenuRef, senderCarbonMenuItemIndex, &menuCommand);
+  if (menuCommand == 0) {
+    menuCommand = (MenuCommand)[sender tag];
+    ::SetMenuItemCommandID(senderMenuRef, senderCarbonMenuItemIndex, menuCommand);
   }
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-@end
-
-// Objective-C class used for menu items on the Services menu to allow Gecko
-// to override their standard behavior in order to stop key equivalents from
-// firing in certain instances. When gActOnSpecialCommands is NO, we return
-// a dummy target and action instead of the actual target and action.
-
-@implementation GeckoServicesNSMenuItem
-
-- (id) target
-{
-  id realTarget = [super target];
-  if (gActOnSpecialCommands)
-    return realTarget;
-  else
-    return realTarget != nil ? self : nil;
-}
-
-- (SEL) action
-{
-  SEL realAction = [super action];
-  if (gActOnSpecialCommands)
-    return realAction;
-  else
-    return realAction != NULL ? @selector(_doNothing:) : NULL;
-}
-
-- (void) _doNothing:(id)sender
-{
-}
-
-@end
-
-// Objective-C class used as the Services menu so that Gecko can override the
-// standard behavior of the Services menu in order to stop key equivalents
-// from firing in certain instances.
-
-@implementation GeckoServicesNSMenu
-
-- (void)addItem:(NSMenuItem *)newItem
-{
-  [self _overrideClassOfMenuItem:newItem];
-  [super addItem:newItem];
-}
-
-- (NSMenuItem *)addItemWithTitle:(NSString *)aString action:(SEL)aSelector keyEquivalent:(NSString *)keyEquiv
-{
-  NSMenuItem * newItem = [super addItemWithTitle:aString action:aSelector keyEquivalent:keyEquiv];
-  [self _overrideClassOfMenuItem:newItem];
-  return newItem;
-}
-
-- (void)insertItem:(NSMenuItem *)newItem atIndex:(NSInteger)index
-{
-  [self _overrideClassOfMenuItem:newItem];
-  [super insertItem:newItem atIndex:index];
-}
-
-- (NSMenuItem *)insertItemWithTitle:(NSString *)aString action:(SEL)aSelector  keyEquivalent:(NSString *)keyEquiv atIndex:(NSInteger)index
-{
-  NSMenuItem * newItem = [super insertItemWithTitle:aString action:aSelector keyEquivalent:keyEquiv atIndex:index];
-  [self _overrideClassOfMenuItem:newItem];
-  return newItem;
-}
-
-- (void) _overrideClassOfMenuItem:(NSMenuItem *)menuItem
-{
-  if ([menuItem class] == [NSMenuItem class])
-#ifdef NS_LEOPARD_AND_LATER
-    object_setClass(menuItem, [GeckoServicesNSMenuItem class]);
-#else
-    menuItem->isa = [GeckoServicesNSMenuItem class];
-#endif
+  
+  // set up an HICommand to send
+  HICommand menuHICommand;
+  menuHICommand.commandID = menuCommand;
+  menuHICommand.menu.menuRef = senderMenuRef;
+  menuHICommand.menu.menuItemIndex = senderCarbonMenuItemIndex;
+  
+  // send Carbon Event
+  EventRef newEvent;
+  OSErr err = ::CreateEvent(NULL, kEventClassCommand, kEventCommandProcess, 0, kEventAttributeUserEvent, &newEvent);
+  if (err == noErr) {
+    err = ::SetEventParameter(newEvent, kEventParamDirectObject, typeHICommand, sizeof(HICommand), &menuHICommand);
+    if (err == noErr) {
+      err = ::SendEventToEventTarget(newEvent, GetWindowEventTarget((WindowRef)[nsMenuBarX::sEventTargetWindow windowRef]));
+      NS_ASSERTION(err == noErr, "Carbon event for menu hit either not sent or not handled!");
+    }
+    ReleaseEvent(newEvent);
+  }
 }
 
 @end

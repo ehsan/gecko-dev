@@ -14,7 +14,7 @@
  *
  * The Original Code is Mozilla Corporation code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -38,7 +38,6 @@
 #include "gfxTypes.h"
 #include "gfxPattern.h"
 #include "gfxASurface.h"
-#include "gfxPlatform.h"
 
 #include "cairo.h"
 
@@ -86,17 +85,7 @@ gfxPattern::CairoPattern()
 void
 gfxPattern::AddColorStop(gfxFloat offset, const gfxRGBA& c)
 {
-    if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
-        gfxRGBA cms;
-        gfxPlatform::TransformPixel(c, cms, gfxPlatform::GetCMSRGBTransform());
-
-        // Use the original alpha to avoid unnecessary float->byte->float
-        // conversion errors
-        cairo_pattern_add_color_stop_rgba(mPattern, offset,
-                                          cms.r, cms.g, cms.b, c.a);
-    }
-    else
-        cairo_pattern_add_color_stop_rgba(mPattern, offset, c.r, c.g, c.b, c.a);
+    cairo_pattern_add_color_stop_rgba(mPattern, offset, c.r, c.g, c.b, c.a);
 }
 
 void
@@ -117,32 +106,6 @@ gfxPattern::GetMatrix() const
 void
 gfxPattern::SetExtend(GraphicsExtend extend)
 {
-    if (extend == EXTEND_PAD_EDGE) {
-        if (cairo_pattern_get_type(mPattern) == CAIRO_PATTERN_TYPE_SURFACE) {
-            cairo_surface_t *surf = NULL;
-
-            cairo_pattern_get_surface (mPattern, &surf);
-            if (surf) {
-                switch (cairo_surface_get_type(surf)) {
-                    case CAIRO_SURFACE_TYPE_WIN32_PRINTING:
-                    case CAIRO_SURFACE_TYPE_QUARTZ:
-                        extend = EXTEND_NONE;
-                        break;
-
-                    case CAIRO_SURFACE_TYPE_WIN32:
-                    case CAIRO_SURFACE_TYPE_XLIB:
-                    default:
-                        extend = EXTEND_PAD;
-                        break;
-                }
-            }
-        }
-
-        // if something went wrong, or not a surface pattern, use PAD
-        if (extend == EXTEND_PAD_EDGE)
-            extend = EXTEND_PAD;
-    }
-
     cairo_pattern_set_extend(mPattern, (cairo_extend_t)extend);
 }
 
@@ -153,15 +116,15 @@ gfxPattern::Extend() const
 }
 
 void
-gfxPattern::SetFilter(GraphicsFilter filter)
+gfxPattern::SetFilter(int filter)
 {
     cairo_pattern_set_filter(mPattern, (cairo_filter_t)filter);
 }
 
-gfxPattern::GraphicsFilter
+int
 gfxPattern::Filter() const
 {
-    return (GraphicsFilter)cairo_pattern_get_filter(mPattern);
+    return (int)cairo_pattern_get_filter(mPattern);
 }
 
 PRBool
@@ -182,17 +145,6 @@ gfxPattern::GetSurface()
     if (cairo_pattern_get_surface (mPattern, &surf) != CAIRO_STATUS_SUCCESS)
         return nsnull;
 
+
     return gfxASurface::Wrap(surf);
-}
-
-gfxPattern::GraphicsPatternType
-gfxPattern::GetType() const
-{
-    return (GraphicsPatternType) cairo_pattern_get_type(mPattern);
-}
-
-int
-gfxPattern::CairoStatus()
-{
-    return cairo_pattern_status(mPattern);
 }

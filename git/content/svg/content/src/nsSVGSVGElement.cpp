@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Alex Fritze <alex.fritze@crocodile-clips.com> (original author)
  *   Jonathan Watt <jonathan.watt@strath.ac.uk>
- *   Chris Double  <chris.double@double.co.nz>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -46,89 +45,24 @@
 #include "nsContentUtils.h"
 #include "nsIDocument.h"
 #include "nsPresContext.h"
+#include "nsSVGAnimatedRect.h"
+#include "nsSVGAnimatedPreserveAspectRatio.h"
 #include "nsSVGMatrix.h"
 #include "nsSVGPoint.h"
 #include "nsSVGTransform.h"
 #include "nsIDOMEventTarget.h"
+#include "nsBindingManager.h"
 #include "nsIFrame.h"
 #include "nsISVGSVGFrame.h" //XXX
 #include "nsSVGNumber.h"
 #include "nsSVGRect.h"
+#include "nsSVGPreserveAspectRatio.h"
 #include "nsISVGValueUtils.h"
 #include "nsDOMError.h"
 #include "nsISVGChildFrame.h"
 #include "nsGUIEvent.h"
 #include "nsSVGUtils.h"
 #include "nsSVGSVGElement.h"
-
-#ifdef MOZ_SMIL
-#include "nsEventDispatcher.h"
-#include "nsSMILTimeContainer.h"
-#include "nsSMILAnimationController.h"
-#include "nsSMILTypes.h"
-#include "nsIContentIterator.h"
-
-nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
-#endif // MOZ_SMIL
-
-NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGTranslatePoint::DOMVal, mElement)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGTranslatePoint::DOMVal)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGTranslatePoint::DOMVal)
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGTranslatePoint::DOMVal)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPoint)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPoint)
-NS_INTERFACE_MAP_END
-
-nsresult
-nsSVGTranslatePoint::ToDOMVal(nsSVGSVGElement *aElement,
-                              nsIDOMSVGPoint **aResult)
-{
-  *aResult = new DOMVal(this, aElement);
-  if (!*aResult)
-    return NS_ERROR_OUT_OF_MEMORY;
-  
-  NS_ADDREF(*aResult);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSVGTranslatePoint::DOMVal::SetX(float aValue)
-{
-  NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
-  return mElement->SetCurrentTranslate(aValue, mVal->GetY());
-}
-
-NS_IMETHODIMP
-nsSVGTranslatePoint::DOMVal::SetY(float aValue)
-{
-  NS_ENSURE_FINITE(aValue, NS_ERROR_ILLEGAL_VALUE);
-  return mElement->SetCurrentTranslate(mVal->GetX(), aValue);
-}
-
-/* nsIDOMSVGPoint matrixTransform (in nsIDOMSVGMatrix matrix); */
-NS_IMETHODIMP
-nsSVGTranslatePoint::DOMVal::MatrixTransform(nsIDOMSVGMatrix *matrix,
-                                             nsIDOMSVGPoint **_retval)
-{
-  if (!matrix)
-    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
-
-  float a, b, c, d, e, f;
-  matrix->GetA(&a);
-  matrix->GetB(&b);
-  matrix->GetC(&c);
-  matrix->GetD(&d);
-  matrix->GetE(&e);
-  matrix->GetF(&f);
-
-  float x = mVal->GetX();
-  float y = mVal->GetY();
-  
-  return NS_NewSVGPoint(_retval, a*x + c*y + e, b*x + d*y + f);
-}
 
 nsSVGElement::LengthInfo nsSVGSVGElement::sLengthInfo[4] =
 {
@@ -152,28 +86,7 @@ nsSVGElement::EnumInfo nsSVGSVGElement::sEnumInfo[1] =
   }
 };
 
-// From NS_IMPL_NS_NEW_SVG_ELEMENT but with aFromParser
-nsresult
-NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
-                    PRBool aFromParser)
-{
-  nsSVGSVGElement *it = new nsSVGSVGElement(aNodeInfo, aFromParser);
-  if (!it)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  NS_ADDREF(it);
-
-  nsresult rv = it->Init();
-
-  if (NS_FAILED(rv)) {
-    NS_RELEASE(it);
-    return rv;
-  }
-
-  *aResult = it;
-
-  return rv;
-}
+NS_IMPL_NS_NEW_SVG_ELEMENT(SVG)
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -181,57 +94,104 @@ NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
 NS_IMPL_ADDREF_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGSVGElement,nsSVGSVGElementBase)
 
-NS_INTERFACE_TABLE_HEAD(nsSVGSVGElement)
-  NS_NODE_INTERFACE_TABLE7(nsSVGSVGElement, nsIDOMNode, nsIDOMElement,
-                           nsIDOMSVGElement, nsIDOMSVGSVGElement,
-                           nsIDOMSVGFitToViewBox, nsIDOMSVGLocatable,
-                           nsIDOMSVGZoomAndPan)
+NS_INTERFACE_MAP_BEGIN(nsSVGSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGSVGElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGFitToViewBox)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLocatable)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGZoomAndPan)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGSVGElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
 
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGSVGElement::nsSVGSVGElement(nsINodeInfo* aNodeInfo, PRBool aFromParser)
+nsSVGSVGElement::nsSVGSVGElement(nsINodeInfo* aNodeInfo)
   : nsSVGSVGElementBase(aNodeInfo),
     mCoordCtx(nsnull),
     mViewportWidth(0),
     mViewportHeight(0),
     mCoordCtxMmPerPx(0),
-    mCurrentTranslate(0.0f, 0.0f),
-    mCurrentScale(1.0f),
-    mPreviousTranslate(0.0f, 0.0f),
-    mPreviousScale(1.0f),
-    mRedrawSuspendCount(0)
-#ifdef MOZ_SMIL
-    ,mStartAnimationOnBindToTree(!aFromParser)
-#endif // MOZ_SMIL
+    mPreviousTranslate_x(0),
+    mPreviousTranslate_y(0),
+    mPreviousScale(0),
+    mRedrawSuspendCount(0),
+    mDispatchEvent(PR_FALSE)
 {
+}
+
+nsSVGSVGElement::~nsSVGSVGElement()
+{
+  if (mPreserveAspectRatio) {
+    NS_REMOVE_SVGVALUE_OBSERVER(mPreserveAspectRatio);
+  }
+  if (mViewBox) {
+    NS_REMOVE_SVGVALUE_OBSERVER(mViewBox);
+  }
+}
+
+  
+nsresult
+nsSVGSVGElement::Init()
+{
+  nsresult rv = nsSVGSVGElementBase::Init();
+  NS_ENSURE_SUCCESS(rv,rv);
+  
+  // nsIDOMSVGFitToViewBox attributes ------:
+  
+  // DOM property: viewBox , #IMPLIED attrib: viewBox
+  {
+    nsCOMPtr<nsIDOMSVGRect> viewbox;
+    rv = NS_NewSVGRect(getter_AddRefs(viewbox));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedRect(getter_AddRefs(mViewBox), viewbox);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::viewBox, mViewBox);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  // DOM property: preserveAspectRatio , #IMPLIED attrib: preserveAspectRatio
+  {
+    nsCOMPtr<nsIDOMSVGPreserveAspectRatio> preserveAspectRatio;
+    rv = NS_NewSVGPreserveAspectRatio(getter_AddRefs(preserveAspectRatio));
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = NS_NewSVGAnimatedPreserveAspectRatio(
+                                          getter_AddRefs(mPreserveAspectRatio),
+                                          preserveAspectRatio);
+    NS_ENSURE_SUCCESS(rv,rv);
+    rv = AddMappedSVGValue(nsGkAtoms::preserveAspectRatio,
+                           mPreserveAspectRatio);
+    NS_ENSURE_SUCCESS(rv,rv);
+  }
+
+  // DOM property: currentScale
+  {
+    rv = NS_NewSVGNumber(getter_AddRefs(mCurrentScale), 1.0f);
+    NS_ENSURE_SUCCESS(rv,rv);
+    NS_ADD_SVGVALUE_OBSERVER(mCurrentScale);
+  }
+
+  // DOM property: currentTranslate
+  {
+    rv = NS_NewSVGPoint(getter_AddRefs(mCurrentTranslate));
+    NS_ENSURE_SUCCESS(rv,rv);
+    NS_ADD_SVGVALUE_OBSERVER(mCurrentTranslate);
+  }
+
+  // initialise "Previous" values
+  RecordCurrentScaleTranslate();
+  mDispatchEvent = PR_TRUE;
+
+  return rv;
 }
 
 //----------------------------------------------------------------------
 // nsIDOMNode methods
 
-// From NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGSVGElement)
-nsresult
-nsSVGSVGElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
-{
-  *aResult = nsnull;
 
-  nsSVGSVGElement *it = new nsSVGSVGElement(aNodeInfo, PR_FALSE);
-  if (!it) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  nsCOMPtr<nsINode> kungFuDeathGrip = it;
-  nsresult rv = it->Init();
-  rv |= CopyInnerTo(it);
-  if (NS_SUCCEEDED(rv)) {
-    kungFuDeathGrip.swap(*aResult);
-  }
-
-  return rv;
-}
+NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGSVGElement)
 
 
 //----------------------------------------------------------------------
@@ -374,8 +334,7 @@ nsSVGSVGElement::GetCurrentView(nsIDOMSVGViewSpec * *aCurrentView)
 NS_IMETHODIMP
 nsSVGSVGElement::GetCurrentScale(float *aCurrentScale)
 {
-  *aCurrentScale = mCurrentScale;
-  return NS_OK;
+  return mCurrentScale->GetValue(aCurrentScale);
 }
 
 #define CURRENT_SCALE_MAX 16.0f
@@ -384,15 +343,25 @@ nsSVGSVGElement::GetCurrentScale(float *aCurrentScale)
 NS_IMETHODIMP
 nsSVGSVGElement::SetCurrentScale(float aCurrentScale)
 {
-  return SetCurrentScaleTranslate(aCurrentScale,
-    mCurrentTranslate.GetX(), mCurrentTranslate.GetY());
+  // Prevent bizarre behaviour and maxing out of CPU and memory by clamping
+  if (aCurrentScale < CURRENT_SCALE_MIN)
+    aCurrentScale = CURRENT_SCALE_MIN;
+  else if (aCurrentScale > CURRENT_SCALE_MAX)
+    aCurrentScale = CURRENT_SCALE_MAX;
+
+  return mCurrentScale->SetValue(aCurrentScale);
+
+  // We have to dispatch the required SVGZoom event from DidModifySVGObservable
+  // since dispatching it here is too late (i.e. after repaint)
 }
 
 /* readonly attribute nsIDOMSVGPoint currentTranslate; */
 NS_IMETHODIMP
 nsSVGSVGElement::GetCurrentTranslate(nsIDOMSVGPoint * *aCurrentTranslate)
 {
-  return mCurrentTranslate.ToDOMVal(this, aCurrentTranslate);
+  *aCurrentTranslate = mCurrentTranslate;
+  NS_ADDREF(*aCurrentTranslate);
+  return NS_OK;
 }
 
 /* unsigned long suspendRedraw (in unsigned long max_wait_milliseconds); */
@@ -415,7 +384,8 @@ nsSVGSVGElement::SuspendRedraw(PRUint32 max_wait_milliseconds, PRUint32 *_retval
   NS_ASSERTION(frame, "suspending redraw w/o frame");
 #endif
   if (frame) {
-    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
+    nsISVGSVGFrame* svgframe;
+    CallQueryInterface(frame, &svgframe);
     NS_ASSERTION(svgframe, "wrong frame type");
     if (svgframe) {
       svgframe->SuspendRedraw();
@@ -453,7 +423,8 @@ nsSVGSVGElement::UnsuspendRedrawAll()
   NS_ASSERTION(frame, "unsuspending redraw w/o frame");
 #endif
   if (frame) {
-    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
+    nsISVGSVGFrame* svgframe;
+    CallQueryInterface(frame, &svgframe);
     NS_ASSERTION(svgframe, "wrong frame type");
     if (svgframe) {
       svgframe->UnsuspendRedraw();
@@ -478,15 +449,6 @@ nsSVGSVGElement::ForceRedraw()
 NS_IMETHODIMP
 nsSVGSVGElement::PauseAnimations()
 {
-#ifdef MOZ_SMIL
-  if (NS_SMILEnabled()) {
-    if (mTimedDocumentRoot) {
-      mTimedDocumentRoot->Pause(nsSMILTimeContainer::PAUSE_SCRIPT);
-    }
-    // else we're not the outermost <svg> or not bound to a tree, so silently fail
-    return NS_OK;
-  }
-#endif // MOZ_SMIL
   NS_NOTYETIMPLEMENTED("nsSVGSVGElement::PauseAnimations");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -495,15 +457,6 @@ nsSVGSVGElement::PauseAnimations()
 NS_IMETHODIMP
 nsSVGSVGElement::UnpauseAnimations()
 {
-#ifdef MOZ_SMIL
-  if (NS_SMILEnabled()) {
-    if (mTimedDocumentRoot) {
-      mTimedDocumentRoot->Resume(nsSMILTimeContainer::PAUSE_SCRIPT);
-    }
-    // else we're not the outermost <svg> or not bound to a tree, so silently fail
-    return NS_OK;
-  }
-#endif // MOZ_SMIL
   NS_NOTYETIMPLEMENTED("nsSVGSVGElement::UnpauseAnimations");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -512,13 +465,6 @@ nsSVGSVGElement::UnpauseAnimations()
 NS_IMETHODIMP
 nsSVGSVGElement::AnimationsPaused(PRBool *_retval)
 {
-#ifdef MOZ_SMIL
-  if (NS_SMILEnabled()) {
-    nsSMILTimeContainer* root = GetTimedDocumentRoot();
-    *_retval = root && root->IsPausedByType(nsSMILTimeContainer::PAUSE_SCRIPT);
-    return NS_OK;
-  }
-#endif // MOZ_SMIL
   NS_NOTYETIMPLEMENTED("nsSVGSVGElement::AnimationsPaused");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -527,18 +473,6 @@ nsSVGSVGElement::AnimationsPaused(PRBool *_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::GetCurrentTime(float *_retval)
 {
-#ifdef MOZ_SMIL
-  if (NS_SMILEnabled()) {
-    nsSMILTimeContainer* root = GetTimedDocumentRoot();
-    if (root) {
-      double fCurrentTimeMs = double(root->GetCurrentTime());
-      *_retval = (float)(fCurrentTimeMs / PR_MSEC_PER_SEC);
-    } else {
-      *_retval = 0.f;
-    }
-    return NS_OK;
-  }
-#endif // MOZ_SMIL
   NS_NOTYETIMPLEMENTED("nsSVGSVGElement::GetCurrentTime");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -547,34 +481,6 @@ nsSVGSVGElement::GetCurrentTime(float *_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::SetCurrentTime(float seconds)
 {
-  NS_ENSURE_FINITE(seconds, NS_ERROR_ILLEGAL_VALUE);
-#ifdef MOZ_SMIL
-  if (NS_SMILEnabled()) {
-    if (mTimedDocumentRoot) {
-      double fMilliseconds = double(seconds) * PR_MSEC_PER_SEC;
-      // Round to nearest whole number before converting, to avoid precision
-      // errors
-      nsSMILTime lMilliseconds = PRInt64(NS_round(fMilliseconds));
-      mTimedDocumentRoot->SetCurrentTime(lMilliseconds);
-      // Force a resample now
-      //
-      // It's not sufficient to just request a resample here because calls to
-      // BeginElement etc. expect to operate on an up-to-date timegraph or else
-      // instance times may be incorrectly discarded.
-      //
-      // See the mochitest: test_smilSync.xhtml:testSetCurrentTime()
-      nsIDocument* doc = GetCurrentDoc();
-      if (doc) {
-        nsSMILAnimationController* smilController = doc->GetAnimationController();
-        if (smilController) {
-          smilController->Resample();
-        }
-      }
-    } // else we're not the outermost <svg> or not bound to a tree, so silently
-      // fail
-    return NS_OK;
-  }
-#endif // MOZ_SMIL
   NS_NOTYETIMPLEMENTED("nsSVGSVGElement::SetCurrentTime");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -661,7 +567,7 @@ nsSVGSVGElement::CreateSVGLength(nsIDOMSVGLength **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGAngle(nsIDOMSVGAngle **_retval)
 {
-  return NS_NewDOMSVGAngle(_retval);
+  return NS_NewSVGAngle(_retval);
 }
 
 /* nsIDOMSVGPoint createSVGPoint (); */
@@ -697,7 +603,8 @@ NS_IMETHODIMP
 nsSVGSVGElement::CreateSVGTransformFromMatrix(nsIDOMSVGMatrix *matrix, 
                                               nsIDOMSVGTransform **_retval)
 {
-  NS_ENSURE_NATIVE_MATRIX(matrix, _retval);
+  if (!matrix)
+    return NS_ERROR_DOM_SVG_WRONG_TYPE_ERR;
 
   nsresult rv = NS_NewSVGTransform(_retval);
   if (NS_FAILED(rv))
@@ -705,6 +612,13 @@ nsSVGSVGElement::CreateSVGTransformFromMatrix(nsIDOMSVGMatrix *matrix,
 
   (*_retval)->SetMatrix(matrix);
   return NS_OK;
+}
+
+/* DOMString createSVGString (); */
+NS_IMETHODIMP
+nsSVGSVGElement::CreateSVGString(nsAString & _retval)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* nsIDOMElement getElementById (in DOMString elementId); */
@@ -721,15 +635,18 @@ nsSVGSVGElement::GetElementById(const nsAString & elementId, nsIDOMElement **_re
 NS_IMETHODIMP
 nsSVGSVGElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
 {
-  return mViewBox.ToDOMAnimatedRect(aViewBox, this);
+  *aViewBox = mViewBox;
+  NS_ADDREF(*aViewBox);
+  return NS_OK;
 }
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
-                                        **aPreserveAspectRatio)
+nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio * *aPreserveAspectRatio)
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
+  *aPreserveAspectRatio = mPreserveAspectRatio;
+  NS_ADDREF(*aPreserveAspectRatio);
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -739,16 +656,16 @@ nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
 NS_IMETHODIMP
 nsSVGSVGElement::GetNearestViewportElement(nsIDOMSVGElement * *aNearestViewportElement)
 {
-  *aNearestViewportElement = nsSVGUtils::GetNearestViewportElement(this).get();
-  return NS_OK;
+  NS_NOTYETIMPLEMENTED("nsSVGSVGElement::GetNearestViewportElement");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* readonly attribute nsIDOMSVGElement farthestViewportElement; */
 NS_IMETHODIMP
 nsSVGSVGElement::GetFarthestViewportElement(nsIDOMSVGElement * *aFarthestViewportElement)
 {
-  *aFarthestViewportElement = nsSVGUtils::GetFarthestViewportElement(this).get();
-  return NS_OK;
+  NS_NOTYETIMPLEMENTED("nsSVGSVGElement::GetFarthestViewportElement");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* nsIDOMSVGRect getBBox (); */
@@ -759,32 +676,249 @@ nsSVGSVGElement::GetBBox(nsIDOMSVGRect **_retval)
 
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
 
-  if (!frame || (frame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD))
-    return NS_ERROR_FAILURE;
-
-  nsISVGChildFrame* svgframe = do_QueryFrame(frame);
-  if (svgframe) {
-    return NS_NewSVGRect(_retval, nsSVGUtils::GetBBox(frame));
+  if (frame) {
+    nsISVGChildFrame* svgframe;
+    CallQueryInterface(frame, &svgframe);
+    if (svgframe) {
+      svgframe->SetMatrixPropagation(PR_FALSE);
+      svgframe->NotifyCanvasTMChanged(PR_TRUE);
+      nsresult rv = svgframe->GetBBox(_retval);
+      svgframe->SetMatrixPropagation(PR_TRUE);
+      svgframe->NotifyCanvasTMChanged(PR_TRUE);
+      return rv;
+    } else {
+      // XXX: outer svg
+      return NS_ERROR_NOT_IMPLEMENTED;
+    }
   }
-  return NS_ERROR_NOT_IMPLEMENTED; // XXX: outer svg
+  return NS_ERROR_FAILURE;
 }
 
 /* nsIDOMSVGMatrix getCTM (); */
 NS_IMETHODIMP
-nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
+nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix **_retval)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, PR_FALSE);
-  *aCTM = m.IsSingular() ? nsnull : NS_NewSVGMatrix(m).get();
-  return NS_OK;
+  nsresult rv;
+  *_retval = nsnull;
+
+  // first try to get the "screen" CTM of our nearest SVG ancestor
+
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the bindings that gives us our anonymous
+  // ancestors. That's the binding manager for the document we actually belong
+  // to, which is our owner doc.
+  nsIDocument* ownerDoc = GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
+  nsCOMPtr<nsIContent> element = this;
+  nsCOMPtr<nsIContent> ancestor;
+  unsigned short ancestorCount = 0;
+  nsCOMPtr<nsIDOMSVGMatrix> ancestorCTM;
+
+  while (1) {
+    ancestor = nsnull;
+    if (bindingManager) {
+      // check for an anonymous ancestor first
+      ancestor = bindingManager->GetInsertionParent(element);
+    }
+    if (!ancestor) {
+      // if we didn't find an anonymous ancestor, use the explicit one
+      ancestor = element->GetParent();
+    }
+    if (!ancestor) {
+      // reached the top of our parent chain without finding an SVG ancestor
+      break;
+    }
+
+    nsSVGSVGElement *viewportElement = QI_AND_CAST_TO_NSSVGSVGELEMENT(ancestor);
+    if (viewportElement) {
+      rv = viewportElement->GetViewboxToViewportTransform(getter_AddRefs(ancestorCTM));
+      if (NS_FAILED(rv)) return rv;
+      break;
+    }
+
+    nsCOMPtr<nsIDOMSVGLocatable> locatableElement = do_QueryInterface(ancestor);
+    if (locatableElement) {
+      rv = locatableElement->GetCTM(getter_AddRefs(ancestorCTM));
+      if (NS_FAILED(rv)) return rv;
+      break;
+    }
+
+    // ancestor was not SVG content. loop until we find an SVG ancestor
+    element = ancestor;
+    ancestorCount++;
+  }
+
+  // now account for our offset
+
+  if (!ancestorCTM) {
+    // we didn't find an SVG ancestor
+    float s=1, x=0, y=0;
+    if (ownerDoc &&
+        ownerDoc->GetRootContent() == static_cast<nsIContent*>(this)) {
+      // we're the root element. get our currentScale and currentTranslate vals
+      mCurrentScale->GetValue(&s);
+      mCurrentTranslate->GetX(&x);
+      mCurrentTranslate->GetY(&y);
+    }
+    else {
+      // we're inline in some non-SVG content. get our offset from the root
+      GetOffsetToAncestor(nsnull, x, y);
+    }
+    rv = NS_NewSVGMatrix(getter_AddRefs(ancestorCTM), s, 0, 0, s, x, y);
+    if (NS_FAILED(rv)) return rv;
+  }
+  else {
+    // we found an SVG ancestor
+    float x=0, y=0;
+    nsCOMPtr<nsIDOMSVGMatrix> tmp;
+    if (ancestorCount == 0) {
+      // our immediate parent is an SVG element. get our 'x' and 'y' attribs.
+      // cast to nsSVGElement so we get our ancestor coord context.
+      x = mLengthAttributes[X].GetAnimValue(static_cast<nsSVGElement*>
+                                                       (this));
+      y = mLengthAttributes[Y].GetAnimValue(static_cast<nsSVGElement*>
+                                                       (this));
+    }
+    else {
+      // We have an SVG ancestor, but with non-SVG content between us
+#if 0
+      nsCOMPtr<nsIDOMSVGForeignObjectElement> foreignObject
+                                              = do_QueryInterface(ancestor);
+      if (!foreignObject) {
+        NS_ERROR("the none-SVG content in the parent chain between us and our "
+                 "SVG ancestor isn't rooted in a foreignObject element");
+        return NS_ERROR_FAILURE;
+      }
+#endif
+      // XXXjwatt: this isn't quite right since foreignObject can transform its
+      // content, but it's close enough until we turn foreignObject back on
+      GetOffsetToAncestor(ancestor, x, y);
+    }
+    rv = ancestorCTM->Translate(x, y, getter_AddRefs(tmp));
+    if (NS_FAILED(rv)) return rv;
+    ancestorCTM.swap(tmp);
+  }
+
+  // finally append our viewbox transform
+
+  nsCOMPtr<nsIDOMSVGMatrix> tmp;
+  rv = GetViewboxToViewportTransform(getter_AddRefs(tmp));
+  if (NS_FAILED(rv)) return rv;
+  return ancestorCTM->Multiply(tmp, _retval);  // addrefs, so we don't
 }
 
 /* nsIDOMSVGMatrix getScreenCTM (); */
 NS_IMETHODIMP
-nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **aCTM)
+nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **_retval)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, PR_TRUE);
-  *aCTM = m.IsSingular() ? nsnull : NS_NewSVGMatrix(m).get();
-  return NS_OK;
+  nsresult rv;
+  *_retval = nsnull;
+
+  // first try to get the "screen" CTM of our nearest SVG ancestor
+
+  nsBindingManager *bindingManager = nsnull;
+  // XXXbz I _think_ this is right.  We want to be using the binding manager
+  // that would have attached the bindings that gives us our anonymous
+  // ancestors. That's the binding manager for the document we actually belong
+  // to, which is our owner doc.
+  nsIDocument* ownerDoc = GetOwnerDoc();
+  if (ownerDoc) {
+    bindingManager = ownerDoc->BindingManager();
+  }
+
+  nsCOMPtr<nsIContent> element = this;
+  nsCOMPtr<nsIContent> ancestor;
+  unsigned short ancestorCount = 0;
+  nsCOMPtr<nsIDOMSVGMatrix> ancestorScreenCTM;
+
+  while (1) {
+    ancestor = nsnull;
+    if (bindingManager) {
+      // check for an anonymous ancestor first
+      ancestor = bindingManager->GetInsertionParent(element);
+    }
+    if (!ancestor) {
+      // if we didn't find an anonymous ancestor, use the explicit one
+      ancestor = element->GetParent();
+    }
+    if (!ancestor) {
+      // reached the top of our parent chain without finding an SVG ancestor
+      break;
+    }
+
+    nsCOMPtr<nsIDOMSVGLocatable> locatableElement = do_QueryInterface(ancestor);
+    if (locatableElement) {
+      rv = locatableElement->GetScreenCTM(getter_AddRefs(ancestorScreenCTM));
+      if (NS_FAILED(rv)) return rv;
+      break;
+    }
+
+    // ancestor was not SVG content. loop until we find an SVG ancestor
+    element = ancestor;
+    ancestorCount++;
+  }
+
+  // now account for our offset
+
+  if (!ancestorScreenCTM) {
+    // we didn't find an SVG ancestor
+    float s=1, x=0, y=0;
+    if (ownerDoc &&
+        ownerDoc->GetRootContent() == static_cast<nsIContent*>(this)) {
+      // we're the root element. get our currentScale and currentTranslate vals
+      mCurrentScale->GetValue(&s);
+      mCurrentTranslate->GetX(&x);
+      mCurrentTranslate->GetY(&y);
+    }
+    else {
+      // we're inline in some non-SVG content. get our offset from the root
+      GetOffsetToAncestor(nsnull, x, y);
+    }
+    rv = NS_NewSVGMatrix(getter_AddRefs(ancestorScreenCTM), s, 0, 0, s, x, y);
+    if (NS_FAILED(rv)) return rv;
+  }
+  else {
+    // we found an SVG ancestor
+    float x=0, y=0;
+    nsCOMPtr<nsIDOMSVGMatrix> tmp;
+    if (ancestorCount == 0) {
+      // our immediate parent is an SVG element. get our 'x' and 'y' attribs
+      // cast to nsSVGElement so we get our ancestor coord context.
+      x = mLengthAttributes[X].GetAnimValue(static_cast<nsSVGElement*>
+                                                       (this));
+      y = mLengthAttributes[Y].GetAnimValue(static_cast<nsSVGElement*>
+                                                       (this));
+    }
+    else {
+      // We have an SVG ancestor, but with non-SVG content between us
+#if 0
+      nsCOMPtr<nsIDOMSVGForeignObjectElement> foreignObject
+                                              = do_QueryInterface(ancestor);
+      if (!foreignObject) {
+        NS_ERROR("the none-SVG content in the parent chain between us and our "
+                 "SVG ancestor isn't rooted in a foreignObject element");
+        return NS_ERROR_FAILURE;
+      }
+#endif
+      // XXXjwatt: this isn't quite right since foreignObject can transform its
+      // content, but it's close enough until we turn foreignObject back on
+      GetOffsetToAncestor(ancestor, x, y);
+    }
+    rv = ancestorScreenCTM->Translate(x, y, getter_AddRefs(tmp));
+    if (NS_FAILED(rv)) return rv;
+    ancestorScreenCTM.swap(tmp);
+  }
+
+  // finally append our viewbox transform
+
+  nsCOMPtr<nsIDOMSVGMatrix> tmp;
+  rv = GetViewboxToViewportTransform(getter_AddRefs(tmp));
+  if (NS_FAILED(rv)) return rv;
+  return ancestorScreenCTM->Multiply(tmp, _retval);  // addrefs, so we don't
 }
 
 /* nsIDOMSVGMatrix getTransformToElement (in nsIDOMSVGElement element); */
@@ -804,10 +938,10 @@ nsSVGSVGElement::GetTransformToElement(nsIDOMSVGElement *element,
   if (NS_FAILED(rv)) return rv;
 
   // the easiest way to do this (if likely to increase rounding error):
-  GetScreenCTM(getter_AddRefs(ourScreenCTM));
-  if (!ourScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
-  target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
-  if (!targetScreenCTM) return NS_ERROR_DOM_SVG_MATRIX_NOT_INVERTABLE;
+  rv = GetScreenCTM(getter_AddRefs(ourScreenCTM));
+  if (NS_FAILED(rv)) return rv;
+  rv = target->GetScreenCTM(getter_AddRefs(targetScreenCTM));
+  if (NS_FAILED(rv)) return rv;
   rv = targetScreenCTM->Inverse(getter_AddRefs(tmp));
   if (NS_FAILED(rv)) return rv;
   return tmp->Multiply(ourScreenCTM, _retval);  // addrefs, so we don't
@@ -840,46 +974,34 @@ nsSVGSVGElement::SetZoomAndPan(PRUint16 aZoomAndPan)
 // helper methods for implementing SVGZoomEvent:
 
 NS_IMETHODIMP
+nsSVGSVGElement::GetCurrentScaleNumber(nsIDOMSVGNumber **aResult)
+{
+  *aResult = mCurrentScale;
+  NS_ADDREF(*aResult);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsSVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
 {
-  NS_ENSURE_FINITE3(s, x, y, NS_ERROR_ILLEGAL_VALUE);
+  RecordCurrentScaleTranslate();
+  mDispatchEvent = PR_FALSE;
+  SetCurrentScale(s);  // clamps! don't call mCurrentScale->SetValue() directly
+  mCurrentTranslate->SetX(x);
+  mCurrentTranslate->SetY(y);
+  mDispatchEvent = PR_TRUE;
 
-  if (s == mCurrentScale &&
-      x == mCurrentTranslate.GetX() && y == mCurrentTranslate.GetY()) {
-    return NS_OK;
-  }
-
-  // Prevent bizarre behaviour and maxing out of CPU and memory by clamping
-  if (s < CURRENT_SCALE_MIN)
-    s = CURRENT_SCALE_MIN;
-  else if (s > CURRENT_SCALE_MAX)
-    s = CURRENT_SCALE_MAX;
-  
-  // IMPORTANT: If either mCurrentTranslate *or* mCurrentScale is changed then
-  // mPreviousTranslate_x, mPreviousTranslate_y *and* mPreviousScale must all
-  // be updated otherwise SVGZoomEvents will end up with invalid data. I.e. an
-  // SVGZoomEvent's properties previousScale and previousTranslate must contain
-  // the state of currentScale and currentTranslate immediately before the
-  // change that caused the event's dispatch, which is *not* necessarily the
-  // same thing as the values of currentScale and currentTranslate prior to
-  // their own last change.
-  mPreviousScale = mCurrentScale;
-  mPreviousTranslate = mCurrentTranslate;
-  
-  mCurrentScale = s;
-  mCurrentTranslate = nsSVGTranslatePoint(x, y);
-
-  // now dispatch the appropriate event if we are the root element
+  // now dispatch an SVGZoom event if we are the root element
   nsIDocument* doc = GetCurrentDoc();
   if (doc) {
     nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
-    if (presShell && IsRoot()) {
-      PRBool scaling = (s != mCurrentScale);
+    NS_ASSERTION(presShell, "no presShell");
+    if (presShell &&
+        doc->GetRootContent() == static_cast<nsIContent*>(this)) {
       nsEventStatus status = nsEventStatus_eIgnore;
-      nsGUIEvent event(PR_TRUE, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
-      event.eventStructType = scaling ? NS_SVGZOOM_EVENT : NS_SVG_EVENT;
+      nsGUIEvent event(PR_TRUE, NS_SVG_ZOOM, 0);
+      event.eventStructType = NS_SVGZOOM_EVENT;
       presShell->HandleDOMEventWithTarget(this, &event, &status);
-      InvalidateTransformNotifyFrame();
     }
   }
   return NS_OK;
@@ -888,33 +1010,61 @@ nsSVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
 NS_IMETHODIMP
 nsSVGSVGElement::SetCurrentTranslate(float x, float y)
 {
-  return SetCurrentScaleTranslate(mCurrentScale, x, y);
-}
+  RecordCurrentScaleTranslate();
+  mDispatchEvent = PR_FALSE;
+  mCurrentTranslate->SetX(x);
+  mCurrentTranslate->SetY(y);
+  mDispatchEvent = PR_TRUE;
 
-#ifdef MOZ_SMIL
-nsSMILTimeContainer*
-nsSVGSVGElement::GetTimedDocumentRoot()
-{
-  nsSMILTimeContainer *result = nsnull;
-
-  if (mTimedDocumentRoot) {
-    result = mTimedDocumentRoot;
-  } else {
-    // We must not be the outermost SVG element, try to find it
-    nsCOMPtr<nsIDOMSVGSVGElement> outerSVGDOM;
-
-    nsresult rv = GetOwnerSVGElement(getter_AddRefs(outerSVGDOM));
-
-    if (NS_SUCCEEDED(rv) && outerSVGDOM) {
-      nsSVGSVGElement *outerSVG =
-        static_cast<nsSVGSVGElement*>(outerSVGDOM.get());
-      result = outerSVG->GetTimedDocumentRoot();
+  // now dispatch an SVGScroll event if we are the root element
+  nsIDocument* doc = GetCurrentDoc();
+  if (doc) {
+    nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
+    NS_ASSERTION(presShell, "no presShell");
+    if (presShell &&
+        doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+      nsEventStatus status = nsEventStatus_eIgnore;
+      nsEvent event(PR_TRUE, NS_SVG_SCROLL);
+      event.eventStructType = NS_SVG_EVENT;
+      presShell->HandleDOMEventWithTarget(this, &event, &status);
     }
   }
-
-  return result;
+  return NS_OK;
 }
-#endif // MOZ_SMIL
+
+NS_IMETHODIMP_(void)
+nsSVGSVGElement::RecordCurrentScaleTranslate()
+{
+  // IMPORTANT: If either mCurrentTranslate *or* mCurrentScale is changed then
+  // mPreviousTranslate_x, mPreviousTranslate_y *and* mPreviousScale must all
+  // be updated otherwise SVGZoomEvents will end up with invalid data. I.e. an
+  // SVGZoomEvent's properties previousScale and previousTranslate must contain
+  // the state of currentScale and currentTranslate immediately before the
+  // change that caused the event's dispatch, which is *not* necessarily the
+  // same thing as the values of currentScale and currentTranslate prior to
+  // their own last change.
+  mCurrentScale->GetValue(&mPreviousScale);
+  mCurrentTranslate->GetX(&mPreviousTranslate_x);
+  mCurrentTranslate->GetY(&mPreviousTranslate_y);
+}
+
+NS_IMETHODIMP_(float)
+nsSVGSVGElement::GetPreviousTranslate_x()
+{
+  return mPreviousTranslate_x;
+}
+
+NS_IMETHODIMP_(float)
+nsSVGSVGElement::GetPreviousTranslate_y()
+{
+  return mPreviousTranslate_y;
+}
+
+NS_IMETHODIMP_(float)
+nsSVGSVGElement::GetPreviousScale()
+{
+  return mPreviousScale;
+}
 
 //----------------------------------------------------------------------
 // nsIContent methods
@@ -940,21 +1090,111 @@ nsSVGSVGElement::IsAttributeMapped(const nsIAtom* name) const
     nsSVGSVGElementBase::IsAttributeMapped(name);
 }
 
-//----------------------------------------------------------------------
-// nsIContent methods:
-
-#ifdef MOZ_SMIL
 nsresult
-nsSVGSVGElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
+nsSVGSVGElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+                              const nsAString* aValue, PRBool aNotify)
 {
-  if (aVisitor.mEvent->message == NS_SVG_LOAD) {
-    if (mTimedDocumentRoot) {
-      mTimedDocumentRoot->Begin();
+  nsSVGSVGElementBase::AfterSetAttr(aNameSpaceID, aName, aValue, aNotify);
+
+  // We need to do this here because the calling
+  // InvalidateTransformNotifyFrame in DidModifySVGObservable would
+  // happen too early, before HasAttr(viewBox) returns true (important
+  // in the case of adding a viewBox)
+  if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::viewBox) {
+    InvalidateTransformNotifyFrame();
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsSVGSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                           PRBool aNotify)
+{
+  nsSVGSVGElementBase::UnsetAttr(aNamespaceID, aName, aNotify);
+
+  if (aNamespaceID == kNameSpaceID_None && aName == nsGkAtoms::viewBox) {
+    InvalidateTransformNotifyFrame();
+  }
+
+  return NS_OK;
+}
+
+//----------------------------------------------------------------------
+// nsISVGValueObserver methods:
+
+NS_IMETHODIMP
+nsSVGSVGElement::WillModifySVGObservable(nsISVGValue* observable,
+                                         nsISVGValue::modificationType aModType)
+{
+  if (mDispatchEvent) {
+    // Modification isn't due to calling SetCurrent[Scale]Translate, so if
+    // currentScale or currentTranslate is about to change we must record their
+    // current values.
+    nsCOMPtr<nsIDOMSVGNumber> n = do_QueryInterface(observable);
+    if (n && n==mCurrentScale) {
+      RecordCurrentScaleTranslate();
+    }
+    else {
+      nsCOMPtr<nsIDOMSVGPoint> p = do_QueryInterface(observable);
+      if (p && p==mCurrentTranslate) {
+        RecordCurrentScaleTranslate();
+      }
     }
   }
-  return nsSVGSVGElementBase::PreHandleEvent(aVisitor);
+  return NS_OK;
 }
-#endif // MOZ_SMIL
+
+NS_IMETHODIMP
+nsSVGSVGElement::DidModifySVGObservable (nsISVGValue* observable,
+                                         nsISVGValue::modificationType aModType)
+{
+  nsIDocument* doc = GetCurrentDoc();
+  if (!doc) return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
+  NS_ASSERTION(presShell, "no presShell");
+  if (!presShell) return NS_ERROR_FAILURE;
+
+  // If currentScale or currentTranslate has changed, we are the root element,
+  // and the changes wasn't caused by SetCurrent[Scale]Translate then we must
+  // dispatch an SVGZoom or SVGScroll DOM event before repainting
+  nsCOMPtr<nsIDOMSVGNumber> n = do_QueryInterface(observable);
+  if (n && n==mCurrentScale) {
+    if (mDispatchEvent &&
+        doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+      nsEventStatus status = nsEventStatus_eIgnore;
+      nsGUIEvent event(PR_TRUE, NS_SVG_ZOOM, 0);
+      event.eventStructType = NS_SVGZOOM_EVENT;
+      presShell->HandleDOMEventWithTarget(this, &event, &status);
+    }
+    else {
+      return NS_OK;  // we don't care about currentScale changes on non-root
+    }
+  }
+  else {
+    nsCOMPtr<nsIDOMSVGPoint> p = do_QueryInterface(observable);
+    if (p && p==mCurrentTranslate) {
+      if (mDispatchEvent &&
+          doc->GetRootContent() == static_cast<nsIContent*>(this)) {
+        nsEventStatus status = nsEventStatus_eIgnore;
+        nsEvent event(PR_TRUE, NS_SVG_SCROLL);
+        event.eventStructType = NS_SVG_EVENT;
+        presShell->HandleDOMEventWithTarget(this, &event, &status);
+      }
+      else {
+        return NS_OK;  // we don't care about currentScale changes on non-root
+      }
+    }
+  }
+
+  // Deal with viewBox in AfterSetAttr (see comment there for reason)
+  nsCOMPtr<nsIDOMSVGAnimatedRect> r = do_QueryInterface(observable);
+  if (r != mViewBox) {
+    InvalidateTransformNotifyFrame();
+  }
+
+  return NS_OK;
+}
 
 //----------------------------------------------------------------------
 // nsSVGElement overrides
@@ -975,151 +1215,181 @@ nsSVGSVGElement::IsEventName(nsIAtom* aName)
 //----------------------------------------------------------------------
 // public helpers:
 
-gfxMatrix
-nsSVGSVGElement::GetViewBoxTransform()
+nsresult
+nsSVGSVGElement::GetViewboxToViewportTransform(nsIDOMSVGMatrix **_retval)
 {
+  nsresult rv = NS_OK;
+
   float viewportWidth, viewportHeight;
-  if (nsSVGUtils::IsInnerSVG(this)) {
-    nsSVGSVGElement *ctx = GetCtx();
-    viewportWidth = mLengthAttributes[WIDTH].GetAnimValue(ctx);
-    viewportHeight = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
-  } else {
+  nsSVGSVGElement *ctx = GetCtx();
+  if (!ctx) {
+    // outer svg
     viewportWidth = mViewportWidth;
     viewportHeight = mViewportHeight;
-  }
-
-  nsSVGViewBoxRect viewBox;
-  if (mViewBox.IsValid()) {
-    viewBox = mViewBox.GetAnimValue();
   } else {
-    viewBox.x = viewBox.y = 0.0f;
-    viewBox.width  = viewportWidth;
-    viewBox.height = viewportHeight;
+    viewportWidth = mLengthAttributes[WIDTH].GetAnimValue(ctx);
+    viewportHeight = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
   }
 
-  if (viewBox.width <= 0.0f || viewBox.height <= 0.0f) {
-    return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
+  float viewboxX, viewboxY, viewboxWidth, viewboxHeight;
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
+    nsCOMPtr<nsIDOMSVGRect> vb;
+    mViewBox->GetAnimVal(getter_AddRefs(vb));
+    NS_ASSERTION(vb, "could not get viewbox");
+    vb->GetX(&viewboxX);
+    vb->GetY(&viewboxY);
+    vb->GetWidth(&viewboxWidth);
+    vb->GetHeight(&viewboxHeight);
+  } else {
+    viewboxX = viewboxY = 0.0f;
+    viewboxWidth = viewportWidth;
+    viewboxHeight = viewportHeight;
   }
 
-  return nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
-                                         viewBox.x, viewBox.y,
-                                         viewBox.width, viewBox.height,
-                                         mPreserveAspectRatio);
-}
-
-#ifdef MOZ_SMIL
-nsresult
-nsSVGSVGElement::BindToTree(nsIDocument* aDocument,
-                            nsIContent* aParent,
-                            nsIContent* aBindingParent,
-                            PRBool aCompileEventHandlers)
-{
-  nsSMILAnimationController* smilController = nsnull;
-
-  if (aDocument) {
-    smilController = aDocument->GetAnimationController();
-    if (smilController) {
-      // SMIL is enabled in this document
-      if (WillBeOutermostSVG(aParent, aBindingParent)) {
-        // We'll be the outermost <svg> element.  We'll need a time container.
-        if (!mTimedDocumentRoot) {
-          mTimedDocumentRoot = new nsSMILTimeContainer();
-          NS_ENSURE_TRUE(mTimedDocumentRoot, NS_ERROR_OUT_OF_MEMORY);
-        }
-      } else {
-        // We're a child of some other <svg> element, so we don't need our own
-        // time container. However, we need to make sure that we'll get a
-        // kick-start if we get promoted to be outermost later on.
-        mTimedDocumentRoot = nsnull;
-        mStartAnimationOnBindToTree = PR_TRUE;
-      }
-    }
+  if (viewboxWidth==0.0f || viewboxHeight==0.0f) {
+    NS_ERROR("XXX. We shouldn't get here. Viewbox width/height is set to 0. Need to disable display of element as per specs.");
+    viewboxWidth = 1.0f;
+    viewboxHeight = 1.0f;
   }
 
-  nsresult rv = nsSVGSVGElementBase::BindToTree(aDocument, aParent,
-                                                aBindingParent,
-                                                aCompileEventHandlers);
-  NS_ENSURE_SUCCESS(rv,rv);
-
-  if (mTimedDocumentRoot && smilController) {
-    rv = mTimedDocumentRoot->SetParent(smilController);
-    if (mStartAnimationOnBindToTree) {
-      mTimedDocumentRoot->Begin();
-    }
-  }
+  nsCOMPtr<nsIDOMSVGMatrix> xform =
+    nsSVGUtils::GetViewBoxTransform(viewportWidth, viewportHeight,
+                                    viewboxX, viewboxY,
+                                    viewboxWidth, viewboxHeight,
+                                    mPreserveAspectRatio);
+  xform.swap(*_retval);
 
   return rv;
 }
 
-void
-nsSVGSVGElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
-{
-  if (mTimedDocumentRoot) {
-    mTimedDocumentRoot->SetParent(nsnull);
-  }
-
-  nsSVGSVGElementBase::UnbindFromTree(aDeep, aNullParent);
-}
-#endif // MOZ_SMIL
-
 //----------------------------------------------------------------------
 // implementation helpers
 
-#ifdef MOZ_SMIL
-PRBool
-nsSVGSVGElement::WillBeOutermostSVG(nsIContent* aParent,
-                                    nsIContent* aBindingParent) const
+// if an ancestor isn't specified, obtains offset from root frame
+void nsSVGSVGElement::GetOffsetToAncestor(nsIContent* ancestor,
+                                          float &x, float &y)
 {
-  nsIContent* parent = aBindingParent ? aBindingParent : aParent;
+  x = 0.0f;
+  y = 0.0f;
 
-  while (parent && parent->GetNameSpaceID() == kNameSpaceID_SVG) {
-    nsIAtom* tag = parent->Tag();
-    if (tag == nsGkAtoms::foreignObject) {
-      // SVG in a foreignObject must have its own <svg> (nsSVGOuterSVGFrame).
-      return PR_FALSE;
-    }
-    if (tag == nsGkAtoms::svg) {
-      return PR_FALSE;
-    }
-    parent = parent->GetParent();
+  nsIDocument *document = GetCurrentDoc();
+  if (!document) return;
+
+  // Flush all pending notifications so that our frames are uptodate
+  // Make sure to do this before we start grabbing layout objects like
+  // presshells.
+  document->FlushPendingNotifications(Flush_Layout);
+  
+  nsIPresShell *presShell = document->GetPrimaryShell();
+  if (!presShell) {
+    return;
   }
 
-  return PR_TRUE;
+  nsPresContext *context = presShell->GetPresContext();
+  if (!context) {
+    return;
+  }
+
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(this);
+  nsIFrame* ancestorFrame = ancestor ?
+                            presShell->GetPrimaryFrameFor(ancestor) :
+                            presShell->GetRootFrame();
+
+  if (frame && ancestorFrame) {
+    nsPoint point = frame->GetOffsetTo(ancestorFrame);
+    x = nsPresContext::AppUnitsToFloatCSSPixels(point.x);
+    y = nsPresContext::AppUnitsToFloatCSSPixels(point.y);
+  }
 }
-#endif // MOZ_SMIL
 
 void
 nsSVGSVGElement::InvalidateTransformNotifyFrame()
 {
-  nsISVGSVGFrame* svgframe = do_QueryFrame(GetPrimaryFrame());
-  if (svgframe) {
-    svgframe->NotifyViewportChange();
-  }
+  nsIDocument* doc = GetCurrentDoc();
+  if (!doc) return;
+  nsIPresShell* presShell = doc->GetPrimaryShell();
+  if (!presShell) return;
+
+  nsIFrame* frame = presShell->GetPrimaryFrameFor(this);
+  if (frame) {
+    nsISVGSVGFrame* svgframe;
+    CallQueryInterface(frame, &svgframe);
+    if (svgframe) {
+      svgframe->NotifyViewportChange();
+    }
 #ifdef DEBUG
-  else {
-    // XXX we get here during nsSVGOuterSVGFrame::Init() since that
-    // function is called before the presshell association between us
-    // and our frame is established.
-    NS_WARNING("wrong frame type");
-  }
+    else {
+      // XXX we get here during nsSVGOuterSVGFrame::Init() since that
+      // function is called before the presshell association between us
+      // and our frame is established.
+      NS_WARNING("wrong frame type");
+    }
 #endif
+  }
 }
 
 //----------------------------------------------------------------------
 // nsSVGSVGElement
+
+void
+nsSVGSVGElement::SetCoordCtxRect(nsIDOMSVGRect* aCtxRect)
+{
+  if (mLengthAttributes[WIDTH].GetSpecifiedUnitType() ==
+      nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
+    aCtxRect->GetWidth(&mViewportWidth);
+    mViewportWidth *=
+      mLengthAttributes[WIDTH].GetAnimValInSpecifiedUnits() / 100.0f;
+  } else {
+    mViewportWidth = mLengthAttributes[WIDTH].GetAnimValue(this);
+  }
+
+  if (mLengthAttributes[HEIGHT].GetSpecifiedUnitType() ==
+      nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
+    aCtxRect->GetHeight(&mViewportHeight);
+    mViewportHeight *=
+      mLengthAttributes[HEIGHT].GetAnimValInSpecifiedUnits() / 100.0f;
+  } else {
+    mViewportHeight = mLengthAttributes[HEIGHT].GetAnimValue(this);
+  }
+}
+
+already_AddRefed<nsIDOMSVGRect>
+nsSVGSVGElement::GetCtxRect()
+{
+  nsCOMPtr<nsIDOMSVGRect> vb;
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
+    mViewBox->GetAnimVal(getter_AddRefs(vb));
+  } else {
+    nsSVGSVGElement *ctx = GetCtx();
+    float w, h;
+    if (ctx) {
+      w = mLengthAttributes[WIDTH].GetAnimValue(ctx);
+      h = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
+    } else {
+      w = mViewportWidth;
+      h = mViewportHeight;
+    }
+    NS_NewSVGRect(getter_AddRefs(vb), 0, 0, w, h);
+  }
+
+  nsIDOMSVGRect *retval = nsnull;
+  vb.swap(retval);
+  return retval;
+}
 
 float
 nsSVGSVGElement::GetLength(PRUint8 aCtxType)
 {
   float h, w;
 
-  if (mViewBox.IsValid()) {
-    const nsSVGViewBoxRect& viewbox = mViewBox.GetAnimValue();
-    w = viewbox.width;
-    h = viewbox.height;
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::viewBox)) {
+    nsCOMPtr<nsIDOMSVGRect> vb;
+    mViewBox->GetAnimVal(getter_AddRefs(vb));
+    vb->GetHeight(&h);
+    vb->GetWidth(&w);
   } else {
-    if (nsSVGUtils::IsInnerSVG(this)) {
-      nsSVGSVGElement *ctx = GetCtx();
+    nsSVGSVGElement *ctx = GetCtx();
+    if (ctx) {
       w = mLengthAttributes[WIDTH].GetAnimValue(ctx);
       h = mLengthAttributes[HEIGHT].GetAnimValue(ctx);
     } else {
@@ -1128,16 +1398,13 @@ nsSVGSVGElement::GetLength(PRUint8 aCtxType)
     }
   }
 
-  w = NS_MAX(w, 0.0f);
-  h = NS_MAX(h, 0.0f);
-
   switch (aCtxType) {
   case nsSVGUtils::X:
     return w;
   case nsSVGUtils::Y:
     return h;
   case nsSVGUtils::XY:
-    return float(nsSVGUtils::ComputeNormalizedHypotenuse(w, h));
+    return (float)sqrt((w*w+h*h)/2.0);
   }
   return 0;
 }
@@ -1153,26 +1420,6 @@ nsSVGSVGElement::GetMMPerPx(PRUint8 aCtxType)
 
 //----------------------------------------------------------------------
 // nsSVGElement methods
-
-/* virtual */ gfxMatrix
-nsSVGSVGElement::PrependLocalTransformTo(const gfxMatrix &aMatrix)
-{
-  if (nsSVGUtils::IsInnerSVG(this)) {
-    float x, y;
-    GetAnimatedLengthValues(&x, &y, nsnull);
-    return GetViewBoxTransform() * gfxMatrix().Translate(gfxPoint(x, y)) * aMatrix;
-  }
-
-  if (IsRoot()) {
-    gfxMatrix zoomPanTM;
-    zoomPanTM.Translate(gfxPoint(mCurrentTranslate.GetX(), mCurrentTranslate.GetY()));
-    zoomPanTM.Scale(mCurrentScale, mCurrentScale);
-    return GetViewBoxTransform() * zoomPanTM * aMatrix;
-  }
-
-  // outer-<svg>, but inline in some other content:
-  return GetViewBoxTransform() * aMatrix;
-}
 
 void
 nsSVGSVGElement::DidChangeLength(PRUint8 aAttrEnum, PRBool aDoSetAttr)
@@ -1202,32 +1449,4 @@ nsSVGSVGElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
                             NS_ARRAY_LENGTH(sEnumInfo));
-}
-
-void
-nsSVGSVGElement::DidChangeViewBox(PRBool aDoSetAttr)
-{
-  nsSVGSVGElementBase::DidChangeViewBox(aDoSetAttr);
-
-  InvalidateTransformNotifyFrame();
-}
-
-nsSVGViewBox *
-nsSVGSVGElement::GetViewBox()
-{
-  return &mViewBox;
-}
-
-void
-nsSVGSVGElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
-{
-  nsSVGSVGElementBase::DidChangePreserveAspectRatio(aDoSetAttr);
-
-  InvalidateTransformNotifyFrame();
-}
-
-nsSVGPreserveAspectRatio *
-nsSVGSVGElement::GetPreserveAspectRatio()
-{
-  return &mPreserveAspectRatio;
 }

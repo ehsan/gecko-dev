@@ -22,7 +22,6 @@
  *
  * Contributor(s):
  *   Scott MacGregor <mscott@netscape.com>
- *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,13 +41,14 @@
 #include "nsIInputStream.h"
 #include "imgIContainer.h"
 #include "imgIContainerObserver.h"
+#include "imgILoad.h"
 #include "nspr.h"
 #include "nsIComponentManager.h"
 #include "nsRect.h"
 #include "nsComponentManagerUtils.h"
 
+#include "nsIImage.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "ImageErrors.h"
 
 NS_IMPL_THREADSAFE_ADDREF(nsIconDecoder)
 NS_IMPL_THREADSAFE_RELEASE(nsIconDecoder)
@@ -57,20 +57,8 @@ NS_INTERFACE_MAP_BEGIN(nsIconDecoder)
    NS_INTERFACE_MAP_ENTRY(imgIDecoder)
 NS_INTERFACE_MAP_END_THREADSAFE
 
-
-nsIconDecoder::nsIconDecoder() :
-  mImage(nsnull),
-  mObserver(nsnull),
-  mFlags(imgIDecoder::DECODER_FLAG_NONE),
-  mWidth(-1),
-  mHeight(-1),
-  mPixBytesRead(0),
-  mPixBytesTotal(0),
-  mImageData(nsnull),
-  mState(iconStateStart),
-  mNotifiedDone(PR_FALSE)
+nsIconDecoder::nsIconDecoder()
 {
-  // Nothing to do
 }
 
 nsIconDecoder::~nsIconDecoder()
@@ -79,164 +67,83 @@ nsIconDecoder::~nsIconDecoder()
 
 /** imgIDecoder methods **/
 
-NS_IMETHODIMP nsIconDecoder::Init(imgIContainer *aImage,
-                                  imgIDecoderObserver *aObserver,
-                                  PRUint32 aFlags)
+NS_IMETHODIMP nsIconDecoder::Init(imgILoad *aLoad)
 {
+  mObserver = do_QueryInterface(aLoad);  // we're holding 2 strong refs to the request.
 
-  // Grab parameters
-  mImage = aImage;
-  mObserver = aObserver;
-  mFlags = aFlags;
+  mImage = do_CreateInstance("@mozilla.org/image/container;1");
+  if (!mImage) return NS_ERROR_OUT_OF_MEMORY;
 
-  // Fire OnStartDecode at init time to support bug 512435
-  if (!(mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) && mObserver)
-    mObserver->OnStartDecode(nsnull);
+  aLoad->SetImage(mImage);                                                   
+
+  mFrame = do_CreateInstance("@mozilla.org/gfx/image/frame;2");
+  if (!mFrame) return NS_ERROR_OUT_OF_MEMORY;
 
   return NS_OK;
 }
 
-NS_IMETHODIMP nsIconDecoder::Close(PRUint32 aFlags)
+NS_IMETHODIMP nsIconDecoder::Close()
 {
-  // If we haven't notified of completion yet for a full/success decode, we
-  // didn't finish. Notify in error mode
-  if (!(aFlags & CLOSE_FLAG_DONTNOTIFY) &&
-      !(mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) &&
-      !mNotifiedDone)
-    NotifyDone(/* aSuccess = */ PR_FALSE);
-
-  mImage = nsnull;
+  if (mObserver) 
+  {
+    mObserver->OnStopFrame(nsnull, mFrame);
+    mObserver->OnStopContainer(nsnull, mImage);
+    mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
+  }
+  
   return NS_OK;
 }
 
 NS_IMETHODIMP nsIconDecoder::Flush()
 {
-  return NS_OK;
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP
-nsIconDecoder::Write(const char *aBuffer, PRUint32 aCount)
+NS_IMETHODIMP nsIconDecoder::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_retval)
 {
-  nsresult rv;
+  // read the header from the input stram...
+  PRUint32 readLen;
+  PRUint8 header[2];
+  nsresult rv = inStr->Read((char*)header, 2, &readLen);
+  NS_ENSURE_TRUE(readLen == 2, NS_ERROR_UNEXPECTED); // w, h
+  count -= 2;
 
-  // We put this here to avoid errors about crossing initialization with case
-  // jumps on linux.
-  PRUint32 bytesToRead = 0;
+  PRInt32 w = header[0];
+  PRInt32 h = header[1];
+  NS_ENSURE_TRUE(w > 0 && h > 0, NS_ERROR_UNEXPECTED);
 
-  // Performance isn't critical here, so our update rectangle is 
-  // always the full icon
-  nsIntRect r(0, 0, mWidth, mHeight);
-
-  // Loop until the input data is gone
-  while (aCount > 0) {
-    switch (mState) {
-      case iconStateStart:
-
-        // Grab the width
-        mWidth = (PRUint8)*aBuffer;
-
-        // Book Keeping
-        aBuffer++;
-        aCount--;
-        mState = iconStateHaveHeight;
-        break;
-
-      case iconStateHaveHeight:
-
-        // Grab the Height
-        mHeight = (PRUint8)*aBuffer;
-
-        // Set up the container and signal
-        mImage->SetSize(mWidth, mHeight);
-        if (mObserver)
-          mObserver->OnStartContainer(nsnull, mImage);
-
-        // If We're doing a header-only decode, we're done
-        if (mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) {
-          mState = iconStateFinished;
-          break;
-        }
-
-        // Add the frame and signal
-        rv = mImage->AppendFrame(0, 0, mWidth, mHeight,
-                                 gfxASurface::ImageFormatARGB32,
-                                 &mImageData, &mPixBytesTotal);
-        if (NS_FAILED(rv)) {
-          mState = iconStateError;
-          return rv;
-        }
-        if (mObserver)
-         mObserver->OnStartFrame(nsnull, 0);
-
-        // Book Keeping
-        aBuffer++;
-        aCount--;
-        mState = iconStateReadPixels;
-        break;
-
-      case iconStateReadPixels:
-
-        // How many bytes are we reading?
-        bytesToRead = PR_MIN(aCount, mPixBytesTotal - mPixBytesRead);
-
-        // Copy the bytes
-        memcpy(mImageData + mPixBytesRead, aBuffer, bytesToRead);
-
-        // Notify
-        rv = mImage->FrameUpdated(0, r);
-        if (NS_FAILED(rv)) {
-          mState = iconStateError;
-          return rv;
-        }
-        if (mObserver)
-          mObserver->OnDataAvailable(nsnull, PR_TRUE, &r);
-
-        // Book Keeping
-        aBuffer += bytesToRead;
-        aCount -= bytesToRead;
-        mPixBytesRead += bytesToRead;
-
-        // If we've got all the pixel bytes, we're finished
-        if (mPixBytesRead == mPixBytesTotal) {
-          NotifyDone(/* aSuccess = */ PR_TRUE);
-          mState = iconStateFinished;
-        }
-        break;
-
-      case iconStateFinished:
-
-        // Consume all excess data silently
-        aCount = 0;
-
-        break;
-
-      case iconStateError:
-        return NS_IMAGELIB_ERROR_FAILURE;
-        break;
-    }
-  }
-
-  return NS_OK;
-}
-
-void
-nsIconDecoder::NotifyDone(PRBool aSuccess)
-{
-  // We should only call this once
-  NS_ABORT_IF_FALSE(!mNotifiedDone, "Calling NotifyDone twice");
-
-  // Notify
   if (mObserver)
-    mObserver->OnStopFrame(nsnull, 0);
-  if (aSuccess)
-    mImage->DecodingComplete();
-  if (mObserver) {
-    mObserver->OnStopContainer(nsnull, mImage);
-    mObserver->OnStopDecode(nsnull, aSuccess ? NS_OK : NS_ERROR_FAILURE,
-                            nsnull);
-  }
+    mObserver->OnStartDecode(nsnull);
+  mImage->Init(w, h, mObserver);
+  if (mObserver)
+    mObserver->OnStartContainer(nsnull, mImage);
 
-  // Flag that we've notified
-  mNotifiedDone = PR_TRUE;
+  rv = mFrame->Init(0, 0, w, h, gfxIFormats::BGRA, 24);
+  if (NS_FAILED(rv))
+    return rv;
+
+  mImage->AppendFrame(mFrame);
+  if (mObserver)
+    mObserver->OnStartFrame(nsnull, mFrame);
+
+  PRUint32 imageLen;
+  PRUint8 *imageData;
+  mFrame->GetImageData(&imageData, &imageLen);
+
+  // Ensure that there enough in the inputStream
+  NS_ENSURE_TRUE(count >= imageLen, NS_ERROR_UNEXPECTED);
+
+  // Read the image data direct into the frame data
+  rv = inStr->Read((char*)imageData, imageLen, &readLen);
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(readLen == imageLen, NS_ERROR_UNEXPECTED);
+
+  // Notify the image...
+  nsIntRect r(0, 0, w, h);
+  nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
+  img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
+  mObserver->OnDataAvailable(nsnull, mFrame, &r);
+
+  return NS_OK;
 }
 

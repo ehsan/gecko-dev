@@ -14,15 +14,13 @@
  *
  * The Original Code is thebes gfx code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2006-2009
+ * The Initial Developer of the Original Code is Mozilla Corporation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
  *   Vladimir Vukicevic <vladimir@pobox.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
- *   John Daggett <jdaggett@mozilla.com>
- *   Jonathan Kew <jfkthame@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -41,29 +39,19 @@
 #ifndef GFX_ATSUIFONTS_H
 #define GFX_ATSUIFONTS_H
 
-#ifndef __LP64__ /* ATSUI not available on 64-bit */
-
 #include "cairo.h"
 #include "gfxTypes.h"
 #include "gfxFont.h"
-#include "gfxFontUtils.h"
-#include "gfxPlatform.h"
 
 #include <Carbon/Carbon.h>
 
 class gfxAtsuiFontGroup;
 
-class MacOSFontEntry;
-
-#define kLiGothicBadCharUnicode  0x775B // ATSUI failure on 10.6 (bug 532346)
-#define kLiGothicBadCharGlyph    3774   // the expected glyph for this char
-
 class gfxAtsuiFont : public gfxFont {
 public:
-
-    gfxAtsuiFont(MacOSFontEntry *aFontEntry,
-                 const gfxFontStyle *fontStyle, PRBool aNeedsBold);
-
+    gfxAtsuiFont(ATSUFontID fontID,
+                 const nsAString& name,
+                 const gfxFontStyle *fontStyle);
     virtual ~gfxAtsuiFont();
 
     virtual const gfxFont::Metrics& GetMetrics();
@@ -71,7 +59,7 @@ public:
     float GetCharWidth(PRUnichar c, PRUint32 *aGlyphID = nsnull);
     float GetCharHeight(PRUnichar c);
 
-    ATSFontRef GetATSFontRef();
+    ATSUFontID GetATSUFontID() { return mATSUFontID; }
 
     cairo_font_face_t *CairoFontFace() { return mFontFace; }
     cairo_scaled_font_t *CairoScaledFont() { return mScaledFont; }
@@ -81,22 +69,18 @@ public:
     virtual nsString GetUniqueName();
 
     virtual PRUint32 GetSpaceGlyph() { return mSpaceGlyph; }
-
+    
     PRBool HasMirroringInfo();
 
     virtual void SetupGlyphExtents(gfxContext *aContext, PRUint32 aGlyphID,
             PRBool aNeedTight, gfxGlyphExtents *aExtents);
 
-    PRBool TestCharacterMap(PRUint32 aCh);
-
-    MacOSFontEntry* GetFontEntry();
-    PRBool Valid() { return mIsValid; }
-
 protected:
     const gfxFontStyle *mFontStyle;
 
+    ATSUFontID mATSUFontID;
     ATSUStyle mATSUStyle;
-
+    
     PRBool mHasMirroring;
     PRBool mHasMirroringLookedUp;
 
@@ -118,9 +102,8 @@ protected:
 class THEBES_API gfxAtsuiFontGroup : public gfxFontGroup {
 public:
     gfxAtsuiFontGroup(const nsAString& families,
-                      const gfxFontStyle *aStyle,
-                      gfxUserFontSet *aUserFontSet);
-    virtual ~gfxAtsuiFontGroup() {};
+                      const gfxFontStyle *aStyle);
+    virtual ~gfxAtsuiFontGroup();
 
     virtual gfxFontGroup *Copy(const gfxFontStyle *aStyle);
 
@@ -137,82 +120,27 @@ public:
     void MakeTextRunInternal(const PRUnichar *aString, PRUint32 aLength,
                              PRBool aWrapped, gfxTextRun *aTextRun);
 
-    gfxAtsuiFont* GetFontAt(PRInt32 aFontIndex) {
-        // If it turns out to be hard for all clients that cache font
-        // groups to call UpdateFontList at appropriate times, we could
-        // instead consider just calling UpdateFontList from someplace
-        // more central (such as here).
-        NS_ASSERTION(!mUserFontSet || mCurrGeneration == GetGeneration(),
-                     "Whoever was caching this font group should have "
-                     "called UpdateFontList on it");
-
-        return static_cast<gfxAtsuiFont*>(static_cast<gfxFont*>(mFonts[aFontIndex]));
+    ATSUFontFallbacks *GetATSUFontFallbacksPtr() { return &mFallbacks; }
+    
+    gfxAtsuiFont* GetFontAt(PRInt32 i) {
+        return static_cast<gfxAtsuiFont*>(static_cast<gfxFont*>(mFonts[i]));
     }
 
-    PRBool HasFont(ATSFontRef aFontRef);
+    gfxAtsuiFont* FindFontFor(ATSUFontID fid);
 
-    inline gfxAtsuiFont* WhichFontSupportsChar(nsTArray< nsRefPtr<gfxFont> >& aFontList, 
-                                               PRUint32 aCh)
-    {
-        PRUint32 len = aFontList.Length();
-        for (PRUint32 i = 0; i < len; i++) {
-            gfxAtsuiFont* font = static_cast<gfxAtsuiFont*>(aFontList.ElementAt(i).get());
-            if (font->TestCharacterMap(aCh))
-                return font;
-        }
-        return nsnull;
-    }
-
-    // search through pref fonts for a character, return nsnull if no matching pref font
-    already_AddRefed<gfxFont> WhichPrefFontSupportsChar(PRUint32 aCh);
-
-    already_AddRefed<gfxFont> WhichSystemFontSupportsChar(PRUint32 aCh);
-
-    void UpdateFontList();
+    PRBool HasFont(ATSUFontID fid);
 
 protected:
-    static PRBool FindATSFont(const nsAString& aName,
-                              const nsACString& aGenericName,
-                              void *closure);
+    static PRBool FindATSUFont(const nsAString& aName,
+                               const nsACString& aGenericName,
+                               void *closure);
 
     PRUint32 GuessMaximumStringLength();
 
-    /**
-     * @param aRun the text run to fill in
-     * @param aString the complete text including all wrapper characters
-     * @param aLength the length of aString
-     * @param aLayoutStart the first character of aString that should be
-     * at the start of the ATSUI layout; this skips any wrapper character
-     * used to override direction
-     * @param aLayoutLength the length of the characters that should be
-     * in the ATSUI layout; this excludes any trailing wrapper character
-     * used to override direction
-     * @param aTrailingCharsToIgnore the number of trailing characters
-     * in the ATSUI layout that are not part of the text run
-     * (characters added to ensure correct RTL and kerning behaviour)
-     * @param aTextRunOffset the character offset in the textrun where
-     * the glyph data from the ATSUI layout should be copied
-     * @return true for success
-     */
-    PRBool InitTextRun(gfxTextRun *aRun,
-                       const PRUnichar *aString, PRUint32 aLength,
-                       PRUint32 aLayoutStart, PRUint32 aLayoutLength,
-                       PRUint32 aOffsetInTextRun, PRUint32 aLengthInTextRun);
+    /** Returns true for success */
+    PRBool InitTextRun(gfxTextRun *aRun, const PRUnichar *aString, PRUint32 aLength,
+                       PRBool aWrapped, PRUint32 aSegmentStart, PRUint32 aSegmentLength);
 
-    /**
-     * Function to reinitialize our mFonts array and any other data
-     * that depends on mFonts.
-     */
-    void InitFontList();
-    
-    // cache the most recent pref font to avoid general pref font lookup
-    nsRefPtr<gfxFontFamily>       mLastPrefFamily;
-    nsRefPtr<gfxAtsuiFont>        mLastPrefFont;
-    eFontPrefLang                 mLastPrefLang;       // lang group for last pref font
-    PRBool                        mLastPrefFirstFont;  // is this the first font in the list of pref fonts for this lang group?
-    eFontPrefLang                 mPageLang;
+    ATSUFontFallbacks mFallbacks;
 };
-
-#endif /* not __LP64__ */
-
 #endif /* GFX_ATSUIFONTS_H */

@@ -42,14 +42,12 @@
 
 #include "txINodeSet.h"
 #include "txNodeSet.h"
-#include "txXPathObjectAdaptor.h"
 
 /**
  * Implements an XPCOM wrapper around an XPath NodeSet.
  */
 
-class txNodeSetAdaptor : public txXPathObjectAdaptor,
-                         public txINodeSet 
+class txNodeSetAdaptor : public txINodeSet 
 {
 public:
     txNodeSetAdaptor();
@@ -57,15 +55,11 @@ public:
 
     nsresult Init();
 
-    NS_DECL_ISUPPORTS_INHERITED
+    NS_DECL_ISUPPORTS
     NS_DECL_TXINODESET
 
 private:
-    txNodeSet* NodeSet()
-    {
-        return static_cast<txNodeSet*>(mValue.get());
-    }
-
+    nsRefPtr<txNodeSet> mNodeSet;
     PRBool mWritable;
 };
 

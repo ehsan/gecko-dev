@@ -1,4 +1,3 @@
-/* -*- Mode: c; tab-width: 8; c-basic-offset: 4; indent-tabs-mode: t; -*- */
 /* cairo - a vector graphics library with display and print output
  *
  * Copyright © 2002 University of Southern California
@@ -35,30 +34,15 @@
  *	Carl D. Worth <cworth@cworth.org>
  */
 
-#define _BSD_SOURCE /* for hypot() */
 #include "cairoint.h"
 #include "cairo-path-fixed-private.h"
 
-typedef struct _cairo_stroker_dash {
-    cairo_bool_t dashed;
-    unsigned int dash_index;
-    cairo_bool_t dash_on;
-    cairo_bool_t dash_starts_on;
-    double dash_remain;
-
-    double dash_offset;
-    const double *dashes;
-    unsigned int num_dashes;
-} cairo_stroker_dash_t;
-
 typedef struct cairo_stroker {
-    cairo_stroke_style_t *style;
+    cairo_stroke_style_t	*style;
 
-    const cairo_matrix_t *ctm;
-    const cairo_matrix_t *ctm_inverse;
+    cairo_matrix_t *ctm;
+    cairo_matrix_t *ctm_inverse;
     double tolerance;
-    double ctm_determinant;
-    cairo_bool_t ctm_det_positive;
 
     cairo_traps_t *traps;
 
@@ -75,119 +59,124 @@ typedef struct cairo_stroker {
     cairo_bool_t has_first_face;
     cairo_stroke_face_t first_face;
 
-    cairo_stroker_dash_t dash;
-
-    cairo_bool_t has_bounds;
-    cairo_box_t bounds;
+    cairo_bool_t dashed;
+    unsigned int dash_index;
+    cairo_bool_t dash_on;
+    cairo_bool_t dash_starts_on;
+    double dash_remain;
 } cairo_stroker_t;
 
+/* private functions */
+static cairo_status_t
+_cairo_stroker_init (cairo_stroker_t		*stroker,
+		     cairo_stroke_style_t	*stroke_style,
+		     cairo_matrix_t		*ctm,
+		     cairo_matrix_t		*ctm_inverse,
+		     double			 tolerance,
+		     cairo_traps_t		*traps);
+
 static void
-_cairo_stroker_dash_start (cairo_stroker_dash_t *dash)
+_cairo_stroker_fini (cairo_stroker_t *stroker);
+
+static cairo_status_t
+_cairo_stroker_move_to (void *closure, cairo_point_t *point);
+
+static cairo_status_t
+_cairo_stroker_line_to (void *closure, cairo_point_t *point);
+
+static cairo_status_t
+_cairo_stroker_line_to_dashed (void *closure, cairo_point_t *point);
+
+static cairo_status_t
+_cairo_stroker_curve_to (void *closure,
+			 cairo_point_t *b,
+			 cairo_point_t *c,
+			 cairo_point_t *d);
+
+static cairo_status_t
+_cairo_stroker_curve_to_dashed (void *closure,
+				cairo_point_t *b,
+				cairo_point_t *c,
+				cairo_point_t *d);
+
+static cairo_status_t
+_cairo_stroker_close_path (void *closure);
+
+static void
+_translate_point (cairo_point_t *point, cairo_point_t *offset);
+
+static int
+_cairo_stroker_face_clockwise (cairo_stroke_face_t *in, cairo_stroke_face_t *out);
+
+static cairo_status_t
+_cairo_stroker_join (cairo_stroker_t *stroker, cairo_stroke_face_t *in, cairo_stroke_face_t *out);
+
+static void
+_cairo_stroker_start_dash (cairo_stroker_t *stroker)
 {
     double offset;
     cairo_bool_t on = TRUE;
     unsigned int i = 0;
 
-    if (! dash->dashed)
-	return;
-
-    offset = dash->dash_offset;
+    offset = stroker->style->dash_offset;
 
     /* We stop searching for a starting point as soon as the
        offset reaches zero.  Otherwise when an initial dash
        segment shrinks to zero it will be skipped over. */
-    while (offset > 0.0 && offset >= dash->dashes[i]) {
-	offset -= dash->dashes[i];
+    while (offset > 0.0 && offset >= stroker->style->dash[i]) {
+	offset -= stroker->style->dash[i];
 	on = !on;
-	if (++i == dash->num_dashes)
+	if (++i == stroker->style->num_dashes)
 	    i = 0;
     }
-
-    dash->dash_index = i;
-    dash->dash_on = dash->dash_starts_on = on;
-    dash->dash_remain = dash->dashes[i] - offset;
+    stroker->dashed = TRUE;
+    stroker->dash_index = i;
+    stroker->dash_on = stroker->dash_starts_on = on;
+    stroker->dash_remain = stroker->style->dash[i] - offset;
 }
 
 static void
-_cairo_stroker_dash_step (cairo_stroker_dash_t *dash, double step)
+_cairo_stroker_step_dash (cairo_stroker_t *stroker, double step)
 {
-    dash->dash_remain -= step;
-    if (dash->dash_remain <= 0.) {
-	if (++dash->dash_index == dash->num_dashes)
-	    dash->dash_index = 0;
-
-	dash->dash_on = ! dash->dash_on;
-	dash->dash_remain = dash->dashes[dash->dash_index];
+    stroker->dash_remain -= step;
+    if (stroker->dash_remain <= 0) {
+	stroker->dash_index++;
+	if (stroker->dash_index == stroker->style->num_dashes)
+	    stroker->dash_index = 0;
+	stroker->dash_on = !stroker->dash_on;
+	stroker->dash_remain = stroker->style->dash[stroker->dash_index];
     }
-}
-
-static void
-_cairo_stroker_dash_init (cairo_stroker_dash_t *dash,
-			  const cairo_stroke_style_t *style)
-{
-    dash->dashed = style->dash != NULL;
-    if (! dash->dashed)
-	return;
-
-    dash->dashes = style->dash;
-    dash->num_dashes = style->num_dashes;
-    dash->dash_offset = style->dash_offset;
-
-    _cairo_stroker_dash_start (dash);
 }
 
 static cairo_status_t
 _cairo_stroker_init (cairo_stroker_t		*stroker,
 		     cairo_stroke_style_t	*stroke_style,
-		     const cairo_matrix_t	*ctm,
-		     const cairo_matrix_t	*ctm_inverse,
+		     cairo_matrix_t		*ctm,
+		     cairo_matrix_t		*ctm_inverse,
 		     double			 tolerance,
 		     cairo_traps_t		*traps)
 {
     cairo_status_t status;
-
     stroker->style = stroke_style;
     stroker->ctm = ctm;
     stroker->ctm_inverse = ctm_inverse;
     stroker->tolerance = tolerance;
     stroker->traps = traps;
 
-    stroker->ctm_determinant = _cairo_matrix_compute_determinant (stroker->ctm);
-    stroker->ctm_det_positive = stroker->ctm_determinant >= 0.0;
-
     status = _cairo_pen_init (&stroker->pen,
 		              stroke_style->line_width / 2.0,
 			      tolerance, ctm);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     stroker->has_current_face = FALSE;
     stroker->has_first_face = FALSE;
     stroker->has_initial_sub_path = FALSE;
 
-    _cairo_stroker_dash_init (&stroker->dash, stroke_style);
-
-    stroker->has_bounds = _cairo_traps_get_limit (traps, &stroker->bounds);
-    if (stroker->has_bounds) {
-	/* Extend the bounds in each direction to account for the maximum area
-	 * we might generate trapezoids, to capture line segments that are outside
-	 * of the bounds but which might generate rendering that's within bounds.
-	 */
-	double dx, dy;
-	cairo_fixed_t fdx, fdy;
-
-	_cairo_stroke_style_max_distance_from_path (stroker->style,
-						    stroker->ctm,
-						    &dx, &dy);
-
-	fdx = _cairo_fixed_from_double (dx);
-	stroker->bounds.p1.x -= fdx;
-	stroker->bounds.p2.x += fdx;
-
-	fdy = _cairo_fixed_from_double (dy);
-	stroker->bounds.p1.y -= fdy;
-	stroker->bounds.p2.y += fdy;
-    }
+    if (stroker->style->dash)
+	_cairo_stroker_start_dash (stroker);
+    else
+	stroker->dashed = FALSE;
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -213,23 +202,7 @@ _cairo_stroker_face_clockwise (cairo_stroke_face_t *in, cairo_stroke_face_t *out
     _cairo_slope_init (&in_slope, &in->point, &in->cw);
     _cairo_slope_init (&out_slope, &out->point, &out->cw);
 
-    return _cairo_slope_compare (&in_slope, &out_slope) < 0;
-}
-
-/**
- * _cairo_slope_compare_sgn
- *
- * Return -1, 0 or 1 depending on the relative slopes of
- * two lines.
- */
-static int
-_cairo_slope_compare_sgn (double dx1, double dy1, double dx2, double dy2)
-{
-    double  c = (dx1 * dy2 - dx2 * dy1);
-
-    if (c > 0) return 1;
-    if (c < 0) return -1;
-    return 0;
+    return _cairo_slope_clockwise (&in_slope, &out_slope);
 }
 
 static cairo_status_t
@@ -248,11 +221,11 @@ _cairo_stroker_join (cairo_stroker_t *stroker, cairo_stroke_face_t *in, cairo_st
     }
 
     if (clockwise) {
-	inpt = &in->ccw;
-	outpt = &out->ccw;
+    	inpt = &in->ccw;
+    	outpt = &out->ccw;
     } else {
-	inpt = &in->cw;
-	outpt = &out->cw;
+    	inpt = &in->cw;
+    	outpt = &out->cw;
     }
 
     switch (stroker->style->line_join) {
@@ -264,17 +237,13 @@ _cairo_stroker_join (cairo_stroker_t *stroker, cairo_stroke_face_t *in, cairo_st
 
 	tri[0] = in->point;
 	if (clockwise) {
-	    start =
-		_cairo_pen_find_active_ccw_vertex_index (pen, &in->dev_vector);
-	    stop =
-		_cairo_pen_find_active_ccw_vertex_index (pen, &out->dev_vector);
+	    _cairo_pen_find_active_ccw_vertex_index (pen, &in->dev_vector, &start);
 	    step = -1;
+	    _cairo_pen_find_active_ccw_vertex_index (pen, &out->dev_vector, &stop);
 	} else {
-	    start =
-		_cairo_pen_find_active_cw_vertex_index (pen, &in->dev_vector);
-	    stop =
-		_cairo_pen_find_active_cw_vertex_index (pen, &out->dev_vector);
+	    _cairo_pen_find_active_cw_vertex_index (pen, &in->dev_vector, &start);
 	    step = +1;
+	    _cairo_pen_find_active_cw_vertex_index (pen, &out->dev_vector, &stop);
 	}
 
 	i = start;
@@ -283,7 +252,7 @@ _cairo_stroker_join (cairo_stroker_t *stroker, cairo_stroke_face_t *in, cairo_st
 	    tri[2] = in->point;
 	    _translate_point (&tri[2], &pen->vertices[i].point);
 	    status = _cairo_traps_tessellate_triangle (stroker->traps, tri);
-	    if (unlikely (status))
+	    if (status)
 		return status;
 	    tri[1] = tri[2];
 	    i += step;
@@ -304,47 +273,18 @@ _cairo_stroker_join (cairo_stroker_t *stroker, cairo_stroke_face_t *in, cairo_st
 			      (-in->usr_vector.y * out->usr_vector.y));
 	double	ml = stroker->style->miter_limit;
 
-	/* Check the miter limit -- lines meeting at an acute angle
+	/*
+	 * Check the miter limit -- lines meeting at an acute angle
 	 * can generate long miters, the limit converts them to bevel
 	 *
-	 * Consider the miter join formed when two line segments
-	 * meet at an angle psi:
+	 * We want to know when the miter is within the miter limit.
+	 * That's straightforward to specify:
 	 *
-	 *	   /.\
-	 *	  /. .\
-	 *	 /./ \.\
-	 *	/./psi\.\
+	 *	secant (psi / 2) <= ml
 	 *
-	 * We can zoom in on the right half of that to see:
+	 * where psi is the angle between in and out
 	 *
-	 *	    |\
-	 *	    | \ psi/2
-	 *	    |  \
-	 *	    |   \
-	 *	    |    \
-	 *	    |     \
-	 *	  miter    \
-	 *	 length     \
-	 *	    |        \
-	 *	    |        .\
-	 *	    |    .     \
-	 *	    |.   line   \
-	 *	     \    width  \
-	 *	      \           \
-	 *
-	 *
-	 * The right triangle in that figure, (the line-width side is
-	 * shown faintly with three '.' characters), gives us the
-	 * following expression relating miter length, angle and line
-	 * width:
-	 *
-	 *	1 /sin (psi/2) = miter_length / line_width
-	 *
-	 * The right-hand side of this relationship is the same ratio
-	 * in which the miter limit (ml) is expressed. We want to know
-	 * when the miter length is within the miter limit. That is
-	 * when the following condition holds:
-	 *
+	 *				secant(psi/2) = 1/sin(psi/2)
 	 *	1/sin(psi/2) <= ml
 	 *	1 <= ml sin(psi/2)
 	 *	1 <= ml² sin²(psi/2)
@@ -361,16 +301,12 @@ _cairo_stroker_join (cairo_stroker_t *stroker, cairo_stroke_face_t *in, cairo_st
 	 *	2 <= ml² (1 - in · out)
 	 *
 	 */
-	if (2 <= ml * ml * (1 - in_dot_out))
-	{
+	if (2 <= ml * ml * (1 - in_dot_out)) {
 	    double		x1, y1, x2, y2;
 	    double		mx, my;
 	    double		dx1, dx2, dy1, dy2;
 	    cairo_point_t	outer;
 	    cairo_point_t	quad[4];
-	    double		ix, iy;
-	    double		fdx1, fdy1, fdx2, fdy2;
-	    double		mdx, mdy;
 
 	    /*
 	     * we've got the points already transformed to device
@@ -408,46 +344,17 @@ _cairo_stroker_join (cairo_stroker_t *stroker, cairo_stroke_face_t *in, cairo_st
 		mx = (my - y2) * dx2 / dy2 + x2;
 
 	    /*
-	     * When the two outer edges are nearly parallel, slight
-	     * perturbations in the position of the outer points of the lines
-	     * caused by representing them in fixed point form can cause the
-	     * intersection point of the miter to move a large amount. If
-	     * that moves the miter intersection from between the two faces,
-	     * then draw a bevel instead.
+	     * Draw the quadrilateral
 	     */
+	    outer.x = _cairo_fixed_from_double (mx);
+	    outer.y = _cairo_fixed_from_double (my);
 
-	    ix = _cairo_fixed_to_double (in->point.x);
-	    iy = _cairo_fixed_to_double (in->point.y);
+	    quad[0] = in->point;
+	    quad[1] = *inpt;
+	    quad[2] = outer;
+	    quad[3] = *outpt;
 
-	    /* slope of one face */
-	    fdx1 = x1 - ix; fdy1 = y1 - iy;
-
-	    /* slope of the other face */
-	    fdx2 = x2 - ix; fdy2 = y2 - iy;
-
-	    /* slope from the intersection to the miter point */
-	    mdx = mx - ix; mdy = my - iy;
-
-	    /*
-	     * Make sure the miter point line lies between the two
-	     * faces by comparing the slopes
-	     */
-	    if (_cairo_slope_compare_sgn (fdx1, fdy1, mdx, mdy) !=
-		_cairo_slope_compare_sgn (fdx2, fdy2, mdx, mdy))
-	    {
-		/*
-		 * Draw the quadrilateral
-		 */
-		outer.x = _cairo_fixed_from_double (mx);
-		outer.y = _cairo_fixed_from_double (my);
-
-		quad[0] = in->point;
-		quad[1] = *inpt;
-		quad[2] = outer;
-		quad[3] = *outpt;
-
-		return _cairo_traps_tessellate_convex_quad (stroker->traps, quad);
-	    }
+	    return _cairo_traps_tessellate_convex_quad (stroker->traps, quad);
 	}
 	/* fall through ... */
     }
@@ -479,10 +386,10 @@ _cairo_stroker_add_cap (cairo_stroker_t *stroker, cairo_stroke_face_t *f)
 	cairo_pen_t *pen = &stroker->pen;
 
 	slope = f->dev_vector;
-	start = _cairo_pen_find_active_cw_vertex_index (pen, &slope);
+	_cairo_pen_find_active_cw_vertex_index (pen, &slope, &start);
 	slope.dx = -slope.dx;
 	slope.dy = -slope.dy;
-	stop = _cairo_pen_find_active_cw_vertex_index (pen, &slope);
+	_cairo_pen_find_active_cw_vertex_index (pen, &slope, &stop);
 
 	tri[0] = f->point;
 	tri[1] = f->cw;
@@ -490,7 +397,7 @@ _cairo_stroker_add_cap (cairo_stroker_t *stroker, cairo_stroke_face_t *f)
 	    tri[2] = f->point;
 	    _translate_point (&tri[2], &pen->vertices[i].point);
 	    status = _cairo_traps_tessellate_triangle (stroker->traps, tri);
-	    if (unlikely (status))
+	    if (status)
 		return status;
 	    tri[1] = tri[2];
 	}
@@ -568,56 +475,8 @@ _cairo_stroker_add_trailing_cap (cairo_stroker_t     *stroker,
     return _cairo_stroker_add_cap (stroker, face);
 }
 
-static inline cairo_bool_t
-_compute_normalized_device_slope (double *dx, double *dy,
-				  const cairo_matrix_t *ctm_inverse,
-				  double *mag_out)
-{
-    double dx0 = *dx, dy0 = *dy;
-    double mag;
-
-    cairo_matrix_transform_distance (ctm_inverse, &dx0, &dy0);
-
-    if (dx0 == 0.0 && dy0 == 0.0) {
-	if (mag_out)
-	    *mag_out = 0.0;
-	return FALSE;
-    }
-
-    if (dx0 == 0.0) {
-	*dx = 0.0;
-	if (dy0 > 0.0) {
-	    mag = dy0;
-	    *dy = 1.0;
-	} else {
-	    mag = -dy0;
-	    *dy = -1.0;
-	}
-    } else if (dy0 == 0.0) {
-	*dy = 0.0;
-	if (dx0 > 0.0) {
-	    mag = dx0;
-	    *dx = 1.0;
-	} else {
-	    mag = -dx0;
-	    *dx = -1.0;
-	}
-    } else {
-	mag = hypot (dx0, dy0);
-	*dx = dx0 / mag;
-	*dy = dy0 / mag;
-    }
-
-    if (mag_out)
-	*mag_out = mag;
-
-    return TRUE;
-}
-
 static void
-_compute_face (const cairo_point_t *point, cairo_slope_t *dev_slope,
-	       double slope_dx, double slope_dy,
-	       cairo_stroker_t *stroker, cairo_stroke_face_t *face);
+_compute_face (cairo_point_t *point, cairo_slope_t *slope, cairo_stroker_t *stroker, cairo_stroke_face_t *face);
 
 static cairo_status_t
 _cairo_stroker_add_caps (cairo_stroker_t *stroker)
@@ -630,33 +489,30 @@ _cairo_stroker_add_caps (cairo_stroker_t *stroker)
 	&& stroker->style->line_cap == CAIRO_LINE_JOIN_ROUND)
     {
 	/* pick an arbitrary slope to use */
-	double dx = 1.0, dy = 0.0;
-	cairo_slope_t slope = { CAIRO_FIXED_ONE, 0 };
+	cairo_slope_t slope = {1, 0};
 	cairo_stroke_face_t face;
-
-	_compute_normalized_device_slope (&dx, &dy, stroker->ctm_inverse, NULL);
 
 	/* arbitrarily choose first_point
 	 * first_point and current_point should be the same */
-	_compute_face (&stroker->first_point, &slope, dx, dy, stroker, &face);
+	_compute_face (&stroker->first_point, &slope, stroker, &face);
 
 	status = _cairo_stroker_add_leading_cap (stroker, &face);
-	if (unlikely (status))
+	if (status)
 	    return status;
 	status = _cairo_stroker_add_trailing_cap (stroker, &face);
-	if (unlikely (status))
+	if (status)
 	    return status;
     }
 
     if (stroker->has_first_face) {
 	status = _cairo_stroker_add_leading_cap (stroker, &stroker->first_face);
-	if (unlikely (status))
+	if (status)
 	    return status;
     }
 
     if (stroker->has_current_face) {
 	status = _cairo_stroker_add_trailing_cap (stroker, &stroker->current_face);
-	if (unlikely (status))
+	if (status)
 	    return status;
     }
 
@@ -664,12 +520,32 @@ _cairo_stroker_add_caps (cairo_stroker_t *stroker)
 }
 
 static void
-_compute_face (const cairo_point_t *point, cairo_slope_t *dev_slope,
-	       double slope_dx, double slope_dy,
-	       cairo_stroker_t *stroker, cairo_stroke_face_t *face)
+_compute_face (cairo_point_t *point, cairo_slope_t *slope, cairo_stroker_t *stroker, cairo_stroke_face_t *face)
 {
+    double mag, det;
+    double line_dx, line_dy;
     double face_dx, face_dy;
+    cairo_point_double_t usr_vector;
     cairo_point_t offset_ccw, offset_cw;
+
+    line_dx = _cairo_fixed_to_double (slope->dx);
+    line_dy = _cairo_fixed_to_double (slope->dy);
+
+    /* faces are normal in user space, not device space */
+    cairo_matrix_transform_distance (stroker->ctm_inverse, &line_dx, &line_dy);
+
+    mag = sqrt (line_dx * line_dx + line_dy * line_dy);
+    if (mag == 0) {
+	/* XXX: Can't compute other face points. Do we want a tag in the face for this case? */
+	return;
+    }
+
+    /* normalize to unit length */
+    line_dx /= mag;
+    line_dy /= mag;
+
+    usr_vector.x = line_dx;
+    usr_vector.y = line_dy;
 
     /*
      * rotate to get a line_width/2 vector along the face, note that
@@ -678,15 +554,16 @@ _compute_face (const cairo_point_t *point, cairo_slope_t *dev_slope,
      * whether the ctm reflects or not, and that can be determined
      * by looking at the determinant of the matrix.
      */
-    if (stroker->ctm_det_positive)
+    _cairo_matrix_compute_determinant (stroker->ctm, &det);
+    if (det >= 0)
     {
-	face_dx = - slope_dy * (stroker->style->line_width / 2.0);
-	face_dy = slope_dx * (stroker->style->line_width / 2.0);
+	face_dx = - line_dy * (stroker->style->line_width / 2.0);
+	face_dy = line_dx * (stroker->style->line_width / 2.0);
     }
     else
     {
-	face_dx = slope_dy * (stroker->style->line_width / 2.0);
-	face_dy = - slope_dx * (stroker->style->line_width / 2.0);
+	face_dx = line_dy * (stroker->style->line_width / 2.0);
+	face_dy = - line_dx * (stroker->style->line_width / 2.0);
     }
 
     /* back to device space */
@@ -705,29 +582,25 @@ _compute_face (const cairo_point_t *point, cairo_slope_t *dev_slope,
     face->cw = *point;
     _translate_point (&face->cw, &offset_cw);
 
-    face->usr_vector.x = slope_dx;
-    face->usr_vector.y = slope_dy;
+    face->usr_vector.x = usr_vector.x;
+    face->usr_vector.y = usr_vector.y;
 
-    face->dev_vector = *dev_slope;
+    face->dev_vector = *slope;
 }
 
 static cairo_status_t
-_cairo_stroker_add_sub_edge (cairo_stroker_t *stroker,
-			     const cairo_point_t *p1,
-			     const cairo_point_t *p2,
-			     cairo_slope_t *dev_slope,
-			     double slope_dx, double slope_dy,
-			     cairo_stroke_face_t *start,
+_cairo_stroker_add_sub_edge (cairo_stroker_t *stroker, cairo_point_t *p1, cairo_point_t *p2,
+			     cairo_slope_t *slope, cairo_stroke_face_t *start,
 			     cairo_stroke_face_t *end)
 {
     cairo_point_t rectangle[4];
 
-    _compute_face (p1, dev_slope, slope_dx, slope_dy, stroker, start);
+    _compute_face (p1, slope, stroker, start);
 
     /* XXX: This could be optimized slightly by not calling
        _compute_face again but rather  translating the relevant
        fields from start. */
-    _compute_face (p2, dev_slope, slope_dx, slope_dy, stroker, end);
+    _compute_face (p2, slope, stroker, end);
 
     if (p1->x == p2->x && p1->y == p2->y)
 	return CAIRO_STATUS_SUCCESS;
@@ -741,15 +614,14 @@ _cairo_stroker_add_sub_edge (cairo_stroker_t *stroker,
 }
 
 static cairo_status_t
-_cairo_stroker_move_to (void *closure,
-			const cairo_point_t *point)
+_cairo_stroker_move_to (void *closure, cairo_point_t *point)
 {
-    cairo_stroker_t *stroker = closure;
     cairo_status_t status;
+    cairo_stroker_t *stroker = closure;
 
     /* Cap the start and end of the previous sub path as needed */
     status = _cairo_stroker_add_caps (stroker);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     stroker->first_point = *point;
@@ -763,50 +635,40 @@ _cairo_stroker_move_to (void *closure,
 }
 
 static cairo_status_t
-_cairo_stroker_move_to_dashed (void *closure,
-			       const cairo_point_t *point)
+_cairo_stroker_move_to_dashed (void *closure, cairo_point_t *point)
 {
-    cairo_stroker_t *stroker = closure;
-
     /* reset the dash pattern for new sub paths */
-    _cairo_stroker_dash_start (&stroker->dash);
+    cairo_stroker_t *stroker = closure;
+    _cairo_stroker_start_dash (stroker);
 
     return _cairo_stroker_move_to (closure, point);
 }
 
 static cairo_status_t
-_cairo_stroker_line_to (void *closure,
-			const cairo_point_t *p2)
+_cairo_stroker_line_to (void *closure, cairo_point_t *point)
 {
     cairo_status_t status;
     cairo_stroker_t *stroker = closure;
     cairo_stroke_face_t start, end;
     cairo_point_t *p1 = &stroker->current_point;
-    cairo_slope_t dev_slope;
-    double slope_dx, slope_dy;
+    cairo_point_t *p2 = point;
+    cairo_slope_t slope;
 
     stroker->has_initial_sub_path = TRUE;
 
     if (p1->x == p2->x && p1->y == p2->y)
 	return CAIRO_STATUS_SUCCESS;
 
-    _cairo_slope_init (&dev_slope, p1, p2);
-    slope_dx = _cairo_fixed_to_double (p2->x - p1->x);
-    slope_dy = _cairo_fixed_to_double (p2->y - p1->y);
-    _compute_normalized_device_slope (&slope_dx, &slope_dy, stroker->ctm_inverse, NULL);
+    _cairo_slope_init (&slope, p1, p2);
 
-    status = _cairo_stroker_add_sub_edge (stroker,
-					  p1, p2,
-					  &dev_slope,
-					  slope_dx, slope_dy,
-					  &start, &end);
-    if (unlikely (status))
+    status = _cairo_stroker_add_sub_edge (stroker, p1, p2, &slope, &start, &end);
+    if (status)
 	return status;
 
     if (stroker->has_current_face) {
 	/* Join with final face from previous segment */
 	status = _cairo_stroker_join (stroker, &stroker->current_face, &start);
-	if (unlikely (status))
+	if (status)
 	    return status;
     } else if (!stroker->has_first_face) {
 	/* Save sub path's first face in case needed for closing join */
@@ -816,7 +678,7 @@ _cairo_stroker_line_to (void *closure,
     stroker->current_face = end;
     stroker->has_current_face = TRUE;
 
-    stroker->current_point = *p2;
+    stroker->current_point = *point;
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -825,98 +687,69 @@ _cairo_stroker_line_to (void *closure,
  * Dashed lines.  Cap each dash end, join around turns when on
  */
 static cairo_status_t
-_cairo_stroker_line_to_dashed (void *closure,
-			       const cairo_point_t *p2)
+_cairo_stroker_line_to_dashed (void *closure, cairo_point_t *point)
 {
+    cairo_status_t status = CAIRO_STATUS_SUCCESS;
     cairo_stroker_t *stroker = closure;
     double mag, remain, step_length = 0;
-    double slope_dx, slope_dy;
+    double dx, dy;
     double dx2, dy2;
+    cairo_point_t fd1, fd2;
     cairo_stroke_face_t sub_start, sub_end;
     cairo_point_t *p1 = &stroker->current_point;
-    cairo_slope_t dev_slope;
-    cairo_line_t segment;
-    cairo_bool_t fully_in_bounds;
-    cairo_status_t status;
+    cairo_point_t *p2 = point;
+    cairo_slope_t slope;
 
-    stroker->has_initial_sub_path = stroker->dash.dash_starts_on;
+    stroker->has_initial_sub_path = stroker->dash_starts_on;
 
     if (p1->x == p2->x && p1->y == p2->y)
 	return CAIRO_STATUS_SUCCESS;
 
-    fully_in_bounds = TRUE;
-    if (stroker->has_bounds &&
-	(! _cairo_box_contains_point (&stroker->bounds, p1) ||
-	 ! _cairo_box_contains_point (&stroker->bounds, p2)))
-    {
-	fully_in_bounds = FALSE;
-    }
+    _cairo_slope_init (&slope, p1, p2);
 
-    _cairo_slope_init (&dev_slope, p1, p2);
+    dx = _cairo_fixed_to_double (p2->x - p1->x);
+    dy = _cairo_fixed_to_double (p2->y - p1->y);
 
-    slope_dx = _cairo_fixed_to_double (p2->x - p1->x);
-    slope_dy = _cairo_fixed_to_double (p2->y - p1->y);
+    cairo_matrix_transform_distance (stroker->ctm_inverse, &dx, &dy);
 
-    if (! _compute_normalized_device_slope (&slope_dx, &slope_dy,
-					   stroker->ctm_inverse, &mag))
-    {
-	return CAIRO_STATUS_SUCCESS;
-    }
-
+    mag = sqrt (dx * dx + dy * dy);
     remain = mag;
-    segment.p1 = *p1;
+    fd1 = *p1;
     while (remain) {
-	step_length = MIN (stroker->dash.dash_remain, remain);
+	step_length = MIN (stroker->dash_remain, remain);
 	remain -= step_length;
-	dx2 = slope_dx * (mag - remain);
-	dy2 = slope_dy * (mag - remain);
+	dx2 = dx * (mag - remain)/mag;
+	dy2 = dy * (mag - remain)/mag;
 	cairo_matrix_transform_distance (stroker->ctm, &dx2, &dy2);
-	segment.p2.x = _cairo_fixed_from_double (dx2) + p1->x;
-	segment.p2.y = _cairo_fixed_from_double (dy2) + p1->y;
+	fd2.x = _cairo_fixed_from_double (dx2) + p1->x;
+	fd2.y = _cairo_fixed_from_double (dy2) + p1->y;
 
-	if (stroker->dash.dash_on &&
-	    (fully_in_bounds ||
-	     (! stroker->has_first_face && stroker->dash.dash_starts_on) ||
-	     _cairo_box_intersects_line_segment (&stroker->bounds, &segment)))
-	{
-	    status = _cairo_stroker_add_sub_edge (stroker,
-						  &segment.p1, &segment.p2,
-						  &dev_slope,
-						  slope_dx, slope_dy,
-						  &sub_start, &sub_end);
-	    if (unlikely (status))
+	if (stroker->dash_on) {
+	    status = _cairo_stroker_add_sub_edge (stroker, &fd1, &fd2, &slope, &sub_start, &sub_end);
+	    if (status)
 		return status;
 
-	    if (stroker->has_current_face)
-	    {
+	    if (stroker->has_current_face) {
 		/* Join with final face from previous segment */
-		status = _cairo_stroker_join (stroker,
-					      &stroker->current_face,
-					      &sub_start);
-		if (unlikely (status))
-		    return status;
-
+		status = _cairo_stroker_join (stroker, &stroker->current_face, &sub_start);
 		stroker->has_current_face = FALSE;
-	    }
-	    else if (! stroker->has_first_face &&
-		       stroker->dash.dash_starts_on)
-	    {
+		if (status)
+		    return status;
+	    } else if (!stroker->has_first_face && stroker->dash_starts_on) {
 		/* Save sub path's first face in case needed for closing join */
 		stroker->first_face = sub_start;
 		stroker->has_first_face = TRUE;
-	    }
-	    else
-	    {
+	    } else {
 		/* Cap dash start if not connecting to a previous segment */
 		status = _cairo_stroker_add_leading_cap (stroker, &sub_start);
-		if (unlikely (status))
+		if (status)
 		    return status;
 	    }
 
 	    if (remain) {
 		/* Cap dash end if not at end of segment */
 		status = _cairo_stroker_add_trailing_cap (stroker, &sub_end);
-		if (unlikely (status))
+		if (status)
 		    return status;
 	    } else {
 		stroker->current_face = sub_end;
@@ -925,98 +758,66 @@ _cairo_stroker_line_to_dashed (void *closure,
 	} else {
 	    if (stroker->has_current_face) {
 		/* Cap final face from previous segment */
-		status = _cairo_stroker_add_trailing_cap (stroker,
-							  &stroker->current_face);
-		if (unlikely (status))
+		status = _cairo_stroker_add_trailing_cap (stroker, &stroker->current_face);
+		if (status)
 		    return status;
-
 		stroker->has_current_face = FALSE;
 	    }
 	}
-
-	_cairo_stroker_dash_step (&stroker->dash, step_length);
-	segment.p1 = segment.p2;
+	_cairo_stroker_step_dash (stroker, step_length);
+	fd1 = fd2;
     }
 
-    if (stroker->dash.dash_on && ! stroker->has_current_face) {
+    if (stroker->dash_on && !stroker->has_current_face) {
 	/* This segment ends on a transition to dash_on, compute a new face
-	 * and add cap for the beginning of the next dash_on step.
+	 * and add cap for the begining of the next dash_on step.
 	 *
 	 * Note: this will create a degenerate cap if this is not the last line
 	 * in the path. Whether this behaviour is desirable or not is debatable.
-	 * On one side these degenerate caps can not be reproduced with regular
-	 * path stroking.
-	 * On the other hand, Acroread 7 also produces the degenerate caps.
-	 */
-	_compute_face (p2, &dev_slope,
-		       slope_dx, slope_dy,
-		       stroker,
-		       &stroker->current_face);
-
-	status = _cairo_stroker_add_leading_cap (stroker,
-						 &stroker->current_face);
-	if (unlikely (status))
-	    return status;
-
+	 * On one side these degnerate caps can not be reproduced with regular path stroking.
+	 * On the other side Acroread 7 also produces the degenerate caps. */
+	_compute_face (point, &slope, stroker, &stroker->current_face);
 	stroker->has_current_face = TRUE;
+	status = _cairo_stroker_add_leading_cap (stroker, &stroker->current_face);
+	if (status)
+	    return status;
     }
 
-    stroker->current_point = *p2;
+    stroker->current_point = *point;
 
-    return CAIRO_STATUS_SUCCESS;
+    return status;
 }
 
 static cairo_status_t
 _cairo_stroker_curve_to (void *closure,
-			 const cairo_point_t *b,
-			 const cairo_point_t *c,
-			 const cairo_point_t *d)
+			 cairo_point_t *b,
+			 cairo_point_t *c,
+			 cairo_point_t *d)
 {
+    cairo_status_t status = CAIRO_STATUS_SUCCESS;
     cairo_stroker_t *stroker = closure;
-    cairo_pen_stroke_spline_t spline_pen;
+    cairo_spline_t spline;
+    cairo_pen_t pen;
     cairo_stroke_face_t start, end;
     cairo_point_t extra_points[4];
     cairo_point_t *a = &stroker->current_point;
-    double initial_slope_dx, initial_slope_dy;
-    double final_slope_dx, final_slope_dy;
-    cairo_status_t status;
 
-    status = _cairo_pen_stroke_spline_init (&spline_pen,
-					    &stroker->pen,
-					    a, b, c, d);
+    status = _cairo_spline_init (&spline, a, b, c, d);
     if (status == CAIRO_INT_STATUS_DEGENERATE)
-	return _cairo_stroker_line_to (closure, d);
-    else if (unlikely (status))
-	return status;
+	return CAIRO_STATUS_SUCCESS;
 
-    initial_slope_dx = _cairo_fixed_to_double (spline_pen.spline.initial_slope.dx);
-    initial_slope_dy = _cairo_fixed_to_double (spline_pen.spline.initial_slope.dy);
-    final_slope_dx = _cairo_fixed_to_double (spline_pen.spline.final_slope.dx);
-    final_slope_dy = _cairo_fixed_to_double (spline_pen.spline.final_slope.dy);
+    status = _cairo_pen_init_copy (&pen, &stroker->pen);
+    if (status)
+	goto CLEANUP_SPLINE;
 
-    if (_compute_normalized_device_slope (&initial_slope_dx, &initial_slope_dy,
-					  stroker->ctm_inverse, NULL))
-    {
-	_compute_face (a,
-		       &spline_pen.spline.initial_slope,
-		       initial_slope_dx, initial_slope_dy,
-		       stroker, &start);
-    }
-
-    if (_compute_normalized_device_slope (&final_slope_dx, &final_slope_dy,
-					  stroker->ctm_inverse, NULL))
-    {
-	_compute_face (d,
-		       &spline_pen.spline.final_slope,
-		       final_slope_dx, final_slope_dy,
-		       stroker, &end);
-    }
+    _compute_face (a, &spline.initial_slope, stroker, &start);
+    _compute_face (d, &spline.final_slope, stroker, &end);
 
     if (stroker->has_current_face) {
 	status = _cairo_stroker_join (stroker, &stroker->current_face, &start);
-	if (unlikely (status))
-	    goto CLEANUP_PEN;
-    } else if (! stroker->has_first_face) {
+	if (status)
+	    return status;
+    } else if (!stroker->has_first_face) {
 	stroker->first_face = start;
 	stroker->has_first_face = TRUE;
     }
@@ -1036,16 +837,18 @@ _cairo_stroker_curve_to (void *closure,
     extra_points[3].x -= end.point.x;
     extra_points[3].y -= end.point.y;
 
-    status = _cairo_pen_add_points (&spline_pen.pen, extra_points, 4);
-    if (unlikely (status))
+    status = _cairo_pen_add_points (&pen, extra_points, 4);
+    if (status)
 	goto CLEANUP_PEN;
 
-    status = _cairo_pen_stroke_spline (&spline_pen,
-				       stroker->tolerance,
-				       stroker->traps);
+    status = _cairo_pen_stroke_spline (&pen, &spline, stroker->tolerance, stroker->traps);
+    if (status)
+	goto CLEANUP_PEN;
 
   CLEANUP_PEN:
-    _cairo_pen_stroke_spline_fini (&spline_pen);
+    _cairo_pen_fini (&pen);
+  CLEANUP_SPLINE:
+    _cairo_spline_fini (&spline);
 
     stroker->current_point = *d;
 
@@ -1072,28 +875,25 @@ _cairo_stroker_curve_to (void *closure,
  */
 static cairo_status_t
 _cairo_stroker_curve_to_dashed (void *closure,
-				const cairo_point_t *b,
-				const cairo_point_t *c,
-				const cairo_point_t *d)
+				cairo_point_t *b,
+				cairo_point_t *c,
+				cairo_point_t *d)
 {
+    cairo_status_t status = CAIRO_STATUS_SUCCESS;
     cairo_stroker_t *stroker = closure;
     cairo_spline_t spline;
     cairo_point_t *a = &stroker->current_point;
     cairo_line_join_t line_join_save;
-    cairo_status_t status;
+    int i;
 
-    if (! _cairo_spline_init (&spline,
-			      _cairo_stroker_line_to_dashed,
-			      stroker,
-			      a, b, c, d))
-    {
-	return _cairo_stroker_line_to_dashed (closure, d);
-    }
+    status = _cairo_spline_init (&spline, a, b, c, d);
+    if (status == CAIRO_INT_STATUS_DEGENERATE)
+	return CAIRO_STATUS_SUCCESS;
 
     /* If the line width is so small that the pen is reduced to a
        single point, then we have nothing to do. */
     if (stroker->pen.num_vertices <= 1)
-	return CAIRO_STATUS_SUCCESS;
+	goto CLEANUP_SPLINE;
 
     /* Temporarily modify the stroker to use round joins to guarantee
      * smooth stroked curves. */
@@ -1101,8 +901,23 @@ _cairo_stroker_curve_to_dashed (void *closure,
     stroker->style->line_join = CAIRO_LINE_JOIN_ROUND;
 
     status = _cairo_spline_decompose (&spline, stroker->tolerance);
+    if (status)
+	goto CLEANUP_GSTATE;
 
+    for (i = 1; i < spline.num_points; i++) {
+	if (stroker->dashed)
+	    status = _cairo_stroker_line_to_dashed (stroker, &spline.points[i]);
+	else
+	    status = _cairo_stroker_line_to (stroker, &spline.points[i]);
+	if (status)
+	    break;
+    }
+
+  CLEANUP_GSTATE:
     stroker->style->line_join = line_join_save;
+
+  CLEANUP_SPLINE:
+    _cairo_spline_fini (&spline);
 
     return status;
 }
@@ -1113,22 +928,22 @@ _cairo_stroker_close_path (void *closure)
     cairo_status_t status;
     cairo_stroker_t *stroker = closure;
 
-    if (stroker->dash.dashed)
+    if (stroker->dashed)
 	status = _cairo_stroker_line_to_dashed (stroker, &stroker->first_point);
     else
 	status = _cairo_stroker_line_to (stroker, &stroker->first_point);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     if (stroker->has_first_face && stroker->has_current_face) {
 	/* Join first and final faces of sub path */
 	status = _cairo_stroker_join (stroker, &stroker->current_face, &stroker->first_face);
-	if (unlikely (status))
+	if (status)
 	    return status;
     } else {
 	/* Cap the start and end of the sub path as needed */
 	status = _cairo_stroker_add_caps (stroker);
-	if (unlikely (status))
+	if (status)
 	    return status;
     }
 
@@ -1142,14 +957,14 @@ _cairo_stroker_close_path (void *closure)
 static cairo_int_status_t
 _cairo_path_fixed_stroke_rectilinear (cairo_path_fixed_t	*path,
 				      cairo_stroke_style_t	*stroke_style,
-				      const cairo_matrix_t	*ctm,
+				      cairo_matrix_t		*ctm,
 				      cairo_traps_t		*traps);
 
 cairo_status_t
 _cairo_path_fixed_stroke_to_traps (cairo_path_fixed_t	*path,
 				   cairo_stroke_style_t	*stroke_style,
-				   const cairo_matrix_t	*ctm,
-				   const cairo_matrix_t	*ctm_inverse,
+				   cairo_matrix_t	*ctm,
+				   cairo_matrix_t	*ctm_inverse,
 				   double		 tolerance,
 				   cairo_traps_t	*traps)
 {
@@ -1171,7 +986,7 @@ _cairo_path_fixed_stroke_to_traps (cairo_path_fixed_t	*path,
     status = _cairo_stroker_init (&stroker, stroke_style,
 			          ctm, ctm_inverse, tolerance,
 				  traps);
-    if (unlikely (status))
+    if (status)
 	return status;
 
     if (stroker.style->dash)
@@ -1190,7 +1005,7 @@ _cairo_path_fixed_stroke_to_traps (cairo_path_fixed_t	*path,
 					      _cairo_stroker_curve_to,
 					      _cairo_stroker_close_path,
 					      &stroker);
-    if (unlikely (status))
+    if (status)
 	goto BAIL;
 
     /* Cap the start and end of the final sub path as needed */
@@ -1202,112 +1017,62 @@ BAIL:
     return status;
 }
 
-typedef struct _segment_t {
-    cairo_point_t p1, p2;
-    cairo_bool_t is_horizontal;
-    cairo_bool_t has_join;
-} segment_t;
-
-typedef struct _cairo_rectilinear_stroker {
+typedef struct _cairo_rectilinear_stroker
+{
     cairo_stroke_style_t *stroke_style;
-    const cairo_matrix_t *ctm;
-
     cairo_fixed_t half_line_width;
     cairo_traps_t *traps;
     cairo_point_t current_point;
     cairo_point_t first_point;
     cairo_bool_t open_sub_path;
-
-    cairo_stroker_dash_t dash;
-
-    cairo_bool_t has_bounds;
-    cairo_box_t bounds;
-
-    int num_segments;
+    cairo_line_t *segments;
     int segments_size;
-    segment_t *segments;
-    segment_t segments_embedded[8]; /* common case is a single rectangle */
+    int num_segments;
 } cairo_rectilinear_stroker_t;
-
-static void
-_cairo_rectilinear_stroker_limit (cairo_rectilinear_stroker_t *stroker,
-				  const cairo_box_t *box)
-{
-    stroker->has_bounds = TRUE;
-    stroker->bounds = *box;
-
-    stroker->bounds.p1.x -= stroker->half_line_width;
-    stroker->bounds.p2.x += stroker->half_line_width;
-
-    stroker->bounds.p1.y -= stroker->half_line_width;
-    stroker->bounds.p2.y += stroker->half_line_width;
-}
 
 static void
 _cairo_rectilinear_stroker_init (cairo_rectilinear_stroker_t	*stroker,
 				 cairo_stroke_style_t		*stroke_style,
-				 const cairo_matrix_t		*ctm,
 				 cairo_traps_t			*traps)
 {
     stroker->stroke_style = stroke_style;
-    stroker->ctm = ctm;
-
     stroker->half_line_width =
 	_cairo_fixed_from_double (stroke_style->line_width / 2.0);
     stroker->traps = traps;
     stroker->open_sub_path = FALSE;
-    stroker->segments = stroker->segments_embedded;
-    stroker->segments_size = ARRAY_LENGTH (stroker->segments_embedded);
+    stroker->segments = NULL;
+    stroker->segments_size = 0;
     stroker->num_segments = 0;
-
-    _cairo_stroker_dash_init (&stroker->dash, stroke_style);
-
-    stroker->has_bounds = FALSE;
 }
 
 static void
 _cairo_rectilinear_stroker_fini (cairo_rectilinear_stroker_t	*stroker)
 {
-    if (stroker->segments != stroker->segments_embedded)
-	free (stroker->segments);
+    free (stroker->segments);
 }
 
 static cairo_status_t
-_cairo_rectilinear_stroker_add_segment (cairo_rectilinear_stroker_t *stroker,
-					const cairo_point_t	*p1,
-					const cairo_point_t	*p2,
-					cairo_bool_t		 is_horizontal,
-					cairo_bool_t		 has_join)
+_cairo_rectilinear_stroker_add_segment (cairo_rectilinear_stroker_t	*stroker,
+					cairo_point_t			*p1,
+					cairo_point_t			*p2)
 {
-    if (CAIRO_INJECT_FAULT ())
-	return _cairo_error (CAIRO_STATUS_NO_MEMORY);
+    int new_size;
+    cairo_line_t *new_segments;
 
     if (stroker->num_segments == stroker->segments_size) {
-	int new_size = stroker->segments_size * 2;
-	segment_t *new_segments;
-
-	if (stroker->segments == stroker->segments_embedded) {
-	    new_segments = _cairo_malloc_ab (new_size, sizeof (segment_t));
-	    if (unlikely (new_segments == NULL))
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-
-	    memcpy (new_segments, stroker->segments,
-		    stroker->num_segments * sizeof (segment_t));
-	} else {
-	    new_segments = _cairo_realloc_ab (stroker->segments,
-					      new_size, sizeof (segment_t));
-	    if (unlikely (new_segments == NULL))
-		return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	}
-
+	new_size = stroker->segments_size * 2;
+	/* Common case is one rectangle of exactly 4 segments. */
+	if (new_size == 0)
+	    new_size = 4;
+	new_segments = realloc (stroker->segments, new_size * sizeof (cairo_line_t));
+	if (new_segments == NULL)
+	    return CAIRO_STATUS_NO_MEMORY;
 	stroker->segments_size = new_size;
 	stroker->segments = new_segments;
     }
 
     stroker->segments[stroker->num_segments].p1 = *p1;
     stroker->segments[stroker->num_segments].p2 = *p2;
-    stroker->segments[stroker->num_segments].has_join = has_join;
-    stroker->segments[stroker->num_segments].is_horizontal = is_horizontal;
     stroker->num_segments++;
 
     return CAIRO_STATUS_SUCCESS;
@@ -1319,12 +1084,12 @@ _cairo_rectilinear_stroker_emit_segments (cairo_rectilinear_stroker_t *stroker)
     cairo_status_t status;
     cairo_line_cap_t line_cap = stroker->stroke_style->line_cap;
     cairo_fixed_t half_line_width = stroker->half_line_width;
+    cairo_bool_t lengthen_initial, shorten_final, lengthen_final;
+    cairo_point_t *a, *b;
+    cairo_point_t r[4];
     int i;
 
     for (i = 0; i < stroker->num_segments; i++) {
-	cairo_point_t *a, *b;
-	cairo_bool_t lengthen_initial, shorten_final, lengthen_final;
-
 	a = &stroker->segments[i].p1;
 	b = &stroker->segments[i].p2;
 
@@ -1377,14 +1142,6 @@ _cairo_rectilinear_stroker_emit_segments (cairo_rectilinear_stroker_t *stroker)
 		else if (lengthen_final)
 		    b->x -= half_line_width;
 	    }
-
-	    if (a->x > b->x) {
-		cairo_point_t *t;
-
-		t = a;
-		a = b;
-		b = t;
-	    }
 	} else {
 	    if (a->y < b->y) {
 		if (lengthen_initial)
@@ -1401,148 +1158,28 @@ _cairo_rectilinear_stroker_emit_segments (cairo_rectilinear_stroker_t *stroker)
 		else if (lengthen_final)
 		    b->y -= half_line_width;
 	    }
-
-	    if (a->y > b->y) {
-		cairo_point_t *t;
-
-		t = a;
-		a = b;
-		b = t;
-	    }
 	}
 
 	/* Form the rectangle by expanding by half the line width in
-	 * either perpendicular direction. */
+	 * either perdendicular direction. */
+	r[0] = *a;
+	r[1] = *b;
+	r[2] = *b;
+	r[3] = *a;
 	if (a->y == b->y) {
-	    a->y -= half_line_width;
-	    b->y += half_line_width;
+	    r[0].y -= half_line_width;
+	    r[1].y -= half_line_width;
+	    r[2].y += half_line_width;
+	    r[3].y += half_line_width;
 	} else {
-	    a->x -= half_line_width;
-	    b->x += half_line_width;
+	    r[0].x -= half_line_width;
+	    r[1].x -= half_line_width;
+	    r[2].x += half_line_width;
+	    r[3].x += half_line_width;
 	}
 
-	status = _cairo_traps_tessellate_rectangle (stroker->traps, a, b);
-	if (unlikely (status))
-	    return status;
-    }
-
-    stroker->num_segments = 0;
-
-    return CAIRO_STATUS_SUCCESS;
-}
-
-static cairo_status_t
-_cairo_rectilinear_stroker_emit_segments_dashed (cairo_rectilinear_stroker_t *stroker)
-{
-    cairo_status_t status;
-    cairo_line_cap_t line_cap = stroker->stroke_style->line_cap;
-    cairo_fixed_t half_line_width = stroker->half_line_width;
-    int i;
-
-    for (i = 0; i < stroker->num_segments; i++) {
-	cairo_point_t *a, *b;
-	cairo_bool_t is_horizontal;
-
-	a = &stroker->segments[i].p1;
-	b = &stroker->segments[i].p2;
-
-	is_horizontal = stroker->segments[i].is_horizontal;
-
-	/* Handle the joins for a potentially degenerate segment. */
-	if (line_cap == CAIRO_LINE_CAP_BUTT &&
-	    stroker->segments[i].has_join &&
-	    (i != stroker->num_segments - 1 ||
-	     (! stroker->open_sub_path && stroker->dash.dash_starts_on)))
-	{
-	    cairo_point_t p1 = stroker->segments[i].p1;
-	    cairo_point_t p2 = stroker->segments[i].p2;
-	    cairo_slope_t out_slope;
-	    int j = (i + 1) % stroker->num_segments;
-
-	    _cairo_slope_init (&out_slope,
-			       &stroker->segments[j].p1,
-			       &stroker->segments[j].p2);
-
-	    if (is_horizontal) {
-		if (p1.x <= p2.x) {
-		    p1.x = p2.x;
-		    p2.x += half_line_width;
-		} else {
-		    p1.x = p2.x - half_line_width;
-		}
-		if (out_slope.dy >= 0)
-		    p1.y -= half_line_width;
-		if (out_slope.dy <= 0)
-		    p2.y += half_line_width;
-	    } else {
-		if (p1.y <= p2.y) {
-		    p1.y = p2.y;
-		    p2.y += half_line_width;
-		} else {
-		    p1.y = p2.y - half_line_width;
-		}
-		if (out_slope.dx >= 0)
-		    p1.x -= half_line_width;
-		if (out_slope.dx <= 0)
-		    p2.x += half_line_width;
-	    }
-
-	    status = _cairo_traps_tessellate_rectangle (stroker->traps,
-							&p1, &p2);
-	    if (unlikely (status))
-		return status;
-	}
-
-	/* Perform the adjustments of the endpoints. */
-	if (is_horizontal) {
-	    if (line_cap == CAIRO_LINE_CAP_SQUARE) {
-		if (a->x <= b->x) {
-		    a->x -= half_line_width;
-		    b->x += half_line_width;
-		} else {
-		    a->x += half_line_width;
-		    b->x -= half_line_width;
-		}
-	    }
-
-	    if (a->x > b->x) {
-		cairo_point_t *t;
-
-		t = a;
-		a = b;
-		b = t;
-	    }
-
-	    a->y -= half_line_width;
-	    b->y += half_line_width;
-	} else {
-	    if (line_cap == CAIRO_LINE_CAP_SQUARE) {
-		if (a->y <= b->y) {
-		    a->y -= half_line_width;
-		    b->y += half_line_width;
-		} else {
-		    a->y += half_line_width;
-		    b->y -= half_line_width;
-		}
-	    }
-
-	    if (a->y > b->y) {
-		cairo_point_t *t;
-
-		t = a;
-		a = b;
-		b = t;
-	    }
-
-	    a->x -= half_line_width;
-	    b->x += half_line_width;
-	}
-
-	if (a->x == b->x && a->y == b->y)
-	    continue;
-
-	status = _cairo_traps_tessellate_rectangle (stroker->traps, a, b);
-	if (unlikely (status))
+	status = _cairo_traps_tessellate_convex_quad (stroker->traps, r);
+	if (status)
 	    return status;
     }
 
@@ -1553,20 +1190,14 @@ _cairo_rectilinear_stroker_emit_segments_dashed (cairo_rectilinear_stroker_t *st
 
 static cairo_status_t
 _cairo_rectilinear_stroker_move_to (void		*closure,
-				    const cairo_point_t	*point)
+				    cairo_point_t	*point)
 {
     cairo_rectilinear_stroker_t *stroker = closure;
     cairo_status_t status;
 
-    if (stroker->dash.dashed)
-	status = _cairo_rectilinear_stroker_emit_segments_dashed (stroker);
-    else
-	status = _cairo_rectilinear_stroker_emit_segments (stroker);
-    if (unlikely (status))
+    status = _cairo_rectilinear_stroker_emit_segments (stroker);
+    if (status)
 	return status;
-
-    /* reset the dash pattern for new sub paths */
-    _cairo_stroker_dash_start (&stroker->dash);
 
     stroker->current_point = *point;
     stroker->first_point = *point;
@@ -1576,10 +1207,11 @@ _cairo_rectilinear_stroker_move_to (void		*closure,
 
 static cairo_status_t
 _cairo_rectilinear_stroker_line_to (void		*closure,
-				    const cairo_point_t	*b)
+				    cairo_point_t	*point)
 {
     cairo_rectilinear_stroker_t *stroker = closure;
     cairo_point_t *a = &stroker->current_point;
+    cairo_point_t *b = point;
     cairo_status_t status;
 
     /* We only support horizontal or vertical elements. */
@@ -1590,118 +1222,13 @@ _cairo_rectilinear_stroker_line_to (void		*closure,
     if (a->x == b->x && a->y == b->y)
 	return CAIRO_STATUS_SUCCESS;
 
-    status = _cairo_rectilinear_stroker_add_segment (stroker, a, b,
-						     a->y == b->y,
-						     TRUE);
-
-    stroker->current_point = *b;
-    stroker->open_sub_path = TRUE;
-
-    return status;
-}
-
-static cairo_status_t
-_cairo_rectilinear_stroker_line_to_dashed (void		*closure,
-					   const cairo_point_t	*point)
-{
-    cairo_rectilinear_stroker_t *stroker = closure;
-    const cairo_point_t *a = &stroker->current_point;
-    const cairo_point_t *b = point;
-    cairo_bool_t fully_in_bounds;
-    double sign, remain;
-    cairo_fixed_t mag;
-    cairo_status_t status;
-    cairo_line_t segment;
-    cairo_bool_t dash_on = FALSE;
-    cairo_bool_t is_horizontal;
-
-    /* We don't draw anything for degenerate paths. */
-    if (a->x == b->x && a->y == b->y)
-	return CAIRO_STATUS_SUCCESS;
-
-    /* We only support horizontal or vertical elements. */
-    if (! (a->x == b->x || a->y == b->y))
-	return CAIRO_INT_STATUS_UNSUPPORTED;
-
-    fully_in_bounds = TRUE;
-    if (stroker->has_bounds &&
-	(! _cairo_box_contains_point (&stroker->bounds, a) ||
-	 ! _cairo_box_contains_point (&stroker->bounds, b)))
-    {
-	fully_in_bounds = FALSE;
-    }
-
-    is_horizontal = a->y == b->y;
-    if (is_horizontal)
-	mag = b->x - a->x;
-    else
-	mag = b->y - a->y;
-    if (mag < 0) {
-	remain = _cairo_fixed_to_double (-mag);
-	sign = 1.;
-    } else {
-	remain = _cairo_fixed_to_double (mag);
-	sign = -1.;
-    }
-
-    segment.p2 = segment.p1 = *a;
-    while (remain > 0.) {
-	double step_length;
-
-	step_length = MIN (stroker->dash.dash_remain, remain);
-	remain -= step_length;
-
-	mag = _cairo_fixed_from_double (sign*remain);
-	if (is_horizontal)
-	    segment.p2.x = b->x + mag;
-	else
-	    segment.p2.y = b->y + mag;
-
-	if (stroker->dash.dash_on &&
-	    (fully_in_bounds ||
-	     _cairo_box_intersects_line_segment (&stroker->bounds, &segment)))
-	{
-	    status = _cairo_rectilinear_stroker_add_segment (stroker,
-							     &segment.p1,
-							     &segment.p2,
-							     is_horizontal,
-							     remain <= 0.);
-	    if (unlikely (status))
-		return status;
-
-	    dash_on = TRUE;
-	}
-	else
-	{
-	    dash_on = FALSE;
-	}
-
-	_cairo_stroker_dash_step (&stroker->dash, step_length);
-	segment.p1 = segment.p2;
-    }
-
-    if (stroker->dash.dash_on && ! dash_on &&
-	(fully_in_bounds ||
-	 _cairo_box_intersects_line_segment (&stroker->bounds, &segment)))
-    {
-
-	/* This segment ends on a transition to dash_on, compute a new face
-	 * and add cap for the beginning of the next dash_on step.
-	 */
-
-	status = _cairo_rectilinear_stroker_add_segment (stroker,
-							 &segment.p1,
-							 &segment.p1,
-							 is_horizontal,
-							 TRUE);
-	if (unlikely (status))
-	    return status;
-    }
+    status = _cairo_rectilinear_stroker_add_segment (stroker,
+						     a, b);
 
     stroker->current_point = *point;
     stroker->open_sub_path = TRUE;
 
-    return CAIRO_STATUS_SUCCESS;
+    return status;
 }
 
 static cairo_status_t
@@ -1714,23 +1241,15 @@ _cairo_rectilinear_stroker_close_path (void *closure)
     if (! stroker->open_sub_path)
 	return CAIRO_STATUS_SUCCESS;
 
-    if (stroker->dash.dashed) {
-	status = _cairo_rectilinear_stroker_line_to_dashed (stroker,
-							    &stroker->first_point);
-    } else {
-	status = _cairo_rectilinear_stroker_line_to (stroker,
-						     &stroker->first_point);
-    }
-    if (unlikely (status))
+    status = _cairo_rectilinear_stroker_line_to (stroker,
+						 &stroker->first_point);
+    if (status)
 	return status;
 
     stroker->open_sub_path = FALSE;
 
-    if (stroker->dash.dashed)
-	status = _cairo_rectilinear_stroker_emit_segments_dashed (stroker);
-    else
-	status = _cairo_rectilinear_stroker_emit_segments (stroker);
-    if (unlikely (status))
+    status = _cairo_rectilinear_stroker_emit_segments (stroker);
+    if (status)
 	return status;
 
     return CAIRO_STATUS_SUCCESS;
@@ -1739,16 +1258,16 @@ _cairo_rectilinear_stroker_close_path (void *closure)
 static cairo_int_status_t
 _cairo_path_fixed_stroke_rectilinear (cairo_path_fixed_t	*path,
 				      cairo_stroke_style_t	*stroke_style,
-				      const cairo_matrix_t	*ctm,
+				      cairo_matrix_t		*ctm,
 				      cairo_traps_t		*traps)
 {
     cairo_rectilinear_stroker_t rectilinear_stroker;
     cairo_int_status_t status;
 
     /* This special-case rectilinear stroker only supports
-     * miter-joined lines (not curves) and a translation-only matrix
-     * (though it could probably be extended to support a matrix with
-     * uniform, integer scaling).
+     * miter-joined lines (not curves) and no dashing and a
+     * translation-only matrix (though it could probably be extended
+     * to support a matrix with uniform, integer sacling).
      *
      * It also only supports horizontal and vertical line_to
      * elements. But we don't catch that here, but instead return
@@ -1759,11 +1278,7 @@ _cairo_path_fixed_stroke_rectilinear (cairo_path_fixed_t	*path,
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     if (stroke_style->line_join	!= CAIRO_LINE_JOIN_MITER)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
-    /* If the miter limit turns right angles into bevels, then we
-     * can't use this optimization. Remember, the ratio is
-     * 1/sin(ɸ/2). So the cutoff is 1/sin(π/4.0) or ⎷2,
-     * which we round for safety. */
-    if (stroke_style->miter_limit < M_SQRT2)
+    if (stroke_style->dash)
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     if (! (stroke_style->line_cap == CAIRO_LINE_CAP_BUTT ||
 	   stroke_style->line_cap == CAIRO_LINE_CAP_SQUARE))
@@ -1776,37 +1291,26 @@ _cairo_path_fixed_stroke_rectilinear (cairo_path_fixed_t	*path,
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
-    _cairo_rectilinear_stroker_init (&rectilinear_stroker,
-				     stroke_style,
-				     ctm,
-				     traps);
-    if (traps->has_limits) {
-	_cairo_rectilinear_stroker_limit (&rectilinear_stroker,
-					  &traps->limits);
-    }
+    _cairo_rectilinear_stroker_init (&rectilinear_stroker, stroke_style, traps);
 
     status = _cairo_path_fixed_interpret (path,
 					  CAIRO_DIRECTION_FORWARD,
 					  _cairo_rectilinear_stroker_move_to,
-					  rectilinear_stroker.dash.dashed ?
-					  _cairo_rectilinear_stroker_line_to_dashed :
 					  _cairo_rectilinear_stroker_line_to,
 					  NULL,
 					  _cairo_rectilinear_stroker_close_path,
 					  &rectilinear_stroker);
-    if (unlikely (status))
+    if (status)
 	goto BAIL;
 
-    if (rectilinear_stroker.dash.dashed)
-	status = _cairo_rectilinear_stroker_emit_segments_dashed (&rectilinear_stroker);
-    else
-	status = _cairo_rectilinear_stroker_emit_segments (&rectilinear_stroker);
+    status = _cairo_rectilinear_stroker_emit_segments (&rectilinear_stroker);
 
 BAIL:
+
     _cairo_rectilinear_stroker_fini (&rectilinear_stroker);
 
-    if (unlikely (status))
-	_cairo_traps_clear (traps);
+    if (status)
+	_cairo_traps_fini (traps);
 
     return status;
 }

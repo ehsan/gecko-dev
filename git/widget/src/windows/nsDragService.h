@@ -75,9 +75,6 @@ public:
   NS_IMETHOD StartInvokingDragSession(IDataObject * aDataObj,
                                       PRUint32 aActionType);
 
-  // A drop occured within the application vs. outside of it.
-  void SetDroppedLocal();
-
 protected:
   nsDataObjCollection* GetDataObjCollection(IDataObject * aDataObj);
 
@@ -88,15 +85,9 @@ protected:
   // gets shell version
   PRUint64 GetShellVersion();
 
-  // Create a bitmap for drag operations
-  PRBool CreateDragImage(nsIDOMNode *aDOMNode,
-                         nsIScriptableRegion *aRegion,
-                         SHDRAGIMAGE *psdi);
-
   IDropSource * mNativeDragSrc;
   nsNativeDragTarget * mNativeDragTarget;
   IDataObject * mDataObject;
-  PRPackedBool mSentLocalDropEvent;
 };
 
 #endif // nsDragService_h__

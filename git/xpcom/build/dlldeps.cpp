@@ -44,6 +44,7 @@
 #include "nsXPCOMGlue.h"
 #include "nsVoidArray.h"
 #include "nsTArray.h"
+#include "nsValueArray.h"
 #include "nsIAtom.h"
 #include "nsFixedSizeAllocator.h"
 #include "nsRecyclingAllocator.h"
@@ -98,16 +99,10 @@
 #include "nsCycleCollector.h"
 #include "nsThreadUtils.h"
 #include "nsTObserverArray.h"
-#include "nsWildCard.h"
-#include "mozilla/Mutex.h"
-#include "mozilla/Monitor.h"
-#include "mozilla/CondVar.h"
 
-#if !defined(XP_OS2)
+#if !defined(WINCE) && !defined(XP_OS2)
 #include "nsWindowsRegKey.h"
 #endif
-
-using namespace mozilla;
 
 class nsCStringContainer : private nsStringContainer_base { };
 class nsStringContainer : private nsStringContainer_base { };
@@ -132,8 +127,8 @@ void XXXNeverCalled()
     {
       nsTObserverArray<PRBool> dummyObserverArray;
       PRBool a = PR_FALSE;
-      dummyObserverArray.AppendElement(a);
-      dummyObserverArray.RemoveElement(a);
+      dummyObserverArray.AppendObserver(&a);
+      dummyObserverArray.RemoveObserver(&a);
       dummyObserverArray.Clear();
     }
     nsStringHashSet();
@@ -142,6 +137,7 @@ void XXXNeverCalled()
     nsVoidHashSet();
     nsCheapStringSet();
     nsCheapInt32Set();
+    nsValueArray(0);
     nsSupportsArray();
     NS_GetNumberOfAtoms();
     NS_NewPipe(nsnull, nsnull, 0, 0, PR_FALSE, PR_FALSE, nsnull);
@@ -210,10 +206,10 @@ void XXXNeverCalled()
     new nsVariant();
     nsUnescape(nsnull);
     nsEscape(nsnull, url_XAlphas);
-    nsTArray<nsString> array;
+    nsStringArray array;
     NS_NewStringEnumerator(nsnull, &array);
     NS_NewAdoptingStringEnumerator(nsnull, &array);
-    nsTArray<nsCString> carray;
+    nsCStringArray carray;
     NS_NewUTF8StringEnumerator(nsnull, &carray);
     NS_NewAdoptingUTF8StringEnumerator(nsnull, &carray);
     nsVoidableString str3;
@@ -286,10 +282,8 @@ void XXXNeverCalled()
 
     nsXPCOMCycleCollectionParticipant();
     nsCycleCollector_collect();
-    sXPCOMHasLoadedNewDLLs = !sXPCOMHasLoadedNewDLLs;
-    NS_SetHasLoadedNewDLLs();
 
-#if !defined(XP_OS2)
+#if !defined(WINCE) && !defined(XP_OS2)
     NS_NewWindowsRegKey(nsnull);
 #endif
 
@@ -302,12 +296,4 @@ void XXXNeverCalled()
     NS_ProcessPendingEvents(nsnull, 0);
     NS_HasPendingEvents(nsnull);
     NS_ProcessNextEvent(nsnull, PR_FALSE);
-    Mutex theMutex("dummy");
-    Monitor theMonitor("dummy2");
-    CondVar theCondVar(theMutex, "dummy3");
-
-    NS_WildCardValid((const char *)nsnull);
-    NS_WildCardValid((const PRUnichar *)nsnull);
-    NS_WildCardMatch((const char *)nsnull, (const char *)nsnull, PR_FALSE);
-    NS_WildCardMatch((const PRUnichar *)nsnull, (const PRUnichar *)nsnull, PR_FALSE);
 }

@@ -58,6 +58,10 @@
 #include "nsBidiKeyboard.h"
 #endif
 
+#ifdef MOZ_ENABLE_XREMOTE
+#include "nsPhMozRemoteHelper.h"
+#endif
+
 #include "nsFilePicker.h"
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindow)
@@ -75,11 +79,15 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsDragService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsSound)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFilePicker)
 
+#ifdef MOZ_ENABLE_XREMOTE
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsPhXRemoteWidgetHelper)
+#endif
+
 #ifdef IBMBIDI
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBidiKeyboard)
 #endif
 
-static const nsModuleComponentInfo components[] =
+static nsModuleComponentInfo components[] =
 {
   { "Ph nsWindow",
     NS_WINDOW_CID,
@@ -134,13 +142,20 @@ static const nsModuleComponentInfo components[] =
     nsBidiKeyboardConstructor },
 #endif // IBMBIDI
 
+#ifdef MOZ_ENABLE_XREMOTE
+	{	NS_IXREMOTEWIDGETHELPER_CLASSNAME,
+		NS_PHXREMOTEWIDGETHELPER_CID,
+		NS_IXREMOTEWIDGETHELPER_CONTRACTID,
+		nsPhXRemoteWidgetHelperConstructor },
+#endif
+
   { "Photon File Picker",
     NS_FILEPICKER_CID,
     "@mozilla.org/filepicker;1",
     nsFilePickerConstructor },
 };
 
-static void
+PR_STATIC_CALLBACK(void)
 nsWidgetPhModuleDtor(nsIModule *self)
 {
 //	nsPhIMEHelper::Shutdown();

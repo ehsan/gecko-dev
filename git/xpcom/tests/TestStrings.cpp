@@ -36,13 +36,10 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include "nsString.h"
 #include "nsStringBuffer.h"
 #include "nsReadableUtils.h"
-#include "nsCRTGlue.h"
-
-namespace TestStrings {
+#include "nsCRT.h"
 
 void test_assign_helper(const nsACString& in, nsACString &_retval)
   {
@@ -553,18 +550,17 @@ PRBool test_concat_2()
     return PR_FALSE;
   }
 
+#if 0
 PRBool test_concat_3()
   {
-    nsCString result;
-    nsCString ab("ab"), c("c");
+    nsCString a("a"), b("b");
 
-    result = ab + result + c;
-    if (strcmp(result.get(), "abc") == 0)
-      return PR_TRUE;
+    // THIS DOES NOT COMPILE
+    const nsACString& r = a + b;
 
-    printf("[result=%s]\n", result.get());
-    return PR_FALSE;
+    return PR_TRUE;
   }
+#endif
 
 PRBool test_xpidl_string()
   {
@@ -588,7 +584,7 @@ PRBool test_xpidl_string()
       return PR_FALSE;
 
     const char text[] = "hello world";
-    *getter_Copies(a) = NS_strdup(text);
+    *getter_Copies(a) = nsCRT::strdup(text);
     if (strcmp(a, text) != 0)
       return PR_FALSE;
 
@@ -658,59 +654,6 @@ PRBool test_substring()
     if (r)
       return PR_FALSE;
 
-    return PR_TRUE;
-  }
-
-#define test_append(str, int, suffix) \
-  str.Truncate(); \
-  str.AppendInt(suffix = int ## suffix); \
-  if (!str.EqualsLiteral(#int)) { \
-    fputs("Error appending " #int "\n", stderr); \
-    return PR_FALSE; \
-  }
-
-#define test_appends(int, suffix) \
-  test_append(str, int, suffix) \
-  test_append(cstr, int, suffix)
-
-#define test_appendbase(str, prefix, int, suffix, base) \
-  str.Truncate(); \
-  str.AppendInt(suffix = prefix ## int ## suffix, base); \
-  if (!str.EqualsLiteral(#int)) { \
-    fputs("Error appending " #prefix #int "\n", stderr); \
-    return PR_FALSE; \
-  }
-
-#define test_appendbases(prefix, int, suffix, base) \
-  test_appendbase(str, prefix, int, suffix, base) \
-  test_appendbase(cstr, prefix, int, suffix, base)
-
-PRBool test_appendint()
-  {
-    nsString str;
-    nsCString cstr;
-    PRInt32 L;
-    PRUint32 UL;
-    PRInt64 LL;
-    PRUint64 ULL;
-    test_appends(2147483647, L)
-    test_appends(-2147483648, L)
-    test_appends(4294967295, UL)
-    test_appends(9223372036854775807, LL)
-    test_appends(-9223372036854775808, LL)
-    test_appends(18446744073709551615, ULL)
-    test_appendbases(0, 17777777777, L, 8)
-    test_appendbases(0, 20000000000, L, 8)
-    test_appendbases(0, 37777777777, UL, 8)
-    test_appendbases(0, 777777777777777777777, LL, 8)
-    test_appendbases(0, 1000000000000000000000, LL, 8)
-    test_appendbases(0, 1777777777777777777777, ULL, 8)
-    test_appendbases(0x, 7fffffff, L, 16)
-    test_appendbases(0x, 80000000, L, 16)
-    test_appendbases(0x, ffffffff, UL, 16)
-    test_appendbases(0x, 7fffffffffffffff, LL, 16)
-    test_appendbases(0x, 8000000000000000, LL, 16)
-    test_appendbases(0x, ffffffffffffffff, ULL, 16)
     return PR_TRUE;
   }
 
@@ -950,91 +893,6 @@ PRBool test_voided_autostr()
     return PR_TRUE;
   }
 
-PRBool test_voided_assignment()
-  {
-    nsCString a, b;
-    b.SetIsVoid(PR_TRUE);
-    a = b;
-    return a.IsVoid() && a.get() == b.get();
-  }
-
-PRBool test_empty_assignment()
-  {
-    nsCString a, b;
-    a = b;
-    return a.get() == b.get();
-  }
-
-struct ToIntegerTest
-{
-  const char *str;
-  PRUint32 radix;
-  PRInt32 result;
-  nsresult rv;
-};
-
-static const ToIntegerTest kToIntegerTests[] = {
-  { "123", 10, 123, NS_OK },
-  { "7b", 16, 123, NS_OK },
-  { "90194313659", 10, 0, NS_ERROR_ILLEGAL_VALUE },
-  { nsnull, 0, 0, 0 }
-};
-
-PRBool test_string_tointeger()
-{
-  PRInt32 rv;
-  for (const ToIntegerTest* t = kToIntegerTests; t->str; ++t) {
-    PRInt32 result = nsCAutoString(t->str).ToInteger(&rv, t->radix);
-    if (rv != t->rv || result != t->result)
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
-static PRBool test_parse_string_helper(const char* str, char separator, int len,
-                                       const char* s1, const char* s2)
-{
-  nsCString data(str);
-  nsTArray<nsCString> results;
-  if (!ParseString(data, separator, results))
-    return PR_FALSE;
-  if (int(results.Length()) != len)
-    return PR_FALSE;
-  const char* strings[] = { s1, s2 };
-  for (int i = 0; i < len; ++i) {
-    if (!results[i].Equals(strings[i]))
-      return PR_FALSE;
-  }
-  return PR_TRUE;
-}
-
-static PRBool test_parse_string_helper0(const char* str, char separator)
-{
-  return test_parse_string_helper(str, separator, 0, nsnull, nsnull);
-}
-
-static PRBool test_parse_string_helper1(const char* str, char separator, const char* s1)
-{
-  return test_parse_string_helper(str, separator, 1, s1, nsnull);
-}
-
-static PRBool test_parse_string_helper2(const char* str, char separator, const char* s1, const char* s2)
-{
-  return test_parse_string_helper(str, separator, 2, s1, s2);
-}
-
-static PRBool test_parse_string()
-{
-  return test_parse_string_helper1("foo, bar", '_', "foo, bar") &&
-         test_parse_string_helper2("foo, bar", ',', "foo", " bar") &&
-         test_parse_string_helper2("foo, bar ", ' ', "foo,", "bar") &&
-         test_parse_string_helper2("foo,bar", 'o', "f", ",bar") &&
-         test_parse_string_helper0("", '_') &&
-         test_parse_string_helper0("  ", ' ') &&
-         test_parse_string_helper1(" foo", ' ', "foo") &&
-         test_parse_string_helper1("  foo", ' ', "foo");
-}
-
 //----
 
 typedef PRBool (*TestFunc)();
@@ -1067,12 +925,10 @@ tests[] =
     { "test_fixed_string", test_fixed_string },
     { "test_concat", test_concat },
     { "test_concat_2", test_concat_2 },
-    { "test_concat_3", test_concat_3 },
     { "test_xpidl_string", test_xpidl_string },
     { "test_empty_assign", test_empty_assign },
     { "test_set_length", test_set_length },
     { "test_substring", test_substring },
-    { "test_appendint", test_appendint },
     { "test_appendint64", test_appendint64 },
     { "test_appendfloat", test_appendfloat },
     { "test_findcharinset", test_findcharinset },
@@ -1080,16 +936,10 @@ tests[] =
     { "test_stringbuffer", test_stringbuffer },
     { "test_voided", test_voided },
     { "test_voided_autostr", test_voided_autostr },
-    { "test_voided_assignment", test_voided_assignment },
-    { "test_empty_assignment", test_empty_assignment },
-    { "test_string_tointeger", test_string_tointeger },
-    { "test_parse_string", test_parse_string },
     { nsnull, nsnull }
   };
 
-}
-
-using namespace TestStrings;
+//----
 
 int main(int argc, char **argv)
   {

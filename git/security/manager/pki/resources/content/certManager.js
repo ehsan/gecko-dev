@@ -318,7 +318,7 @@ function websites_enableButtons()
   var enableEditButton=document.getElementById('websites_editButton');
   enableEditButton.setAttribute("disabled", !enable_edit);
   var enableExportButton=document.getElementById('websites_exportButton');
-  enableExportButton.setAttribute("disabled", !enable_view);
+  enableExportButton.setAttribute("disabled", !enable_edit);
   var enableDeleteButton=document.getElementById('websites_deleteButton');
   enableDeleteButton.setAttribute("disabled", !enable_delete);
 }
@@ -604,7 +604,7 @@ function addWebSiteCert()
   var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var fp = Components.classes[nsFilePicker].createInstance(nsIFilePicker);
   fp.init(window,
-          bundle.GetStringFromName("importServerCertPrompt"),
+          bundle.GetStringFromName("importWebSiteCertPrompt"),
           nsIFilePicker.modeOpen);
   fp.appendFilter(bundle.GetStringFromName("file_browse_Certificate_spec"),
                   "*.crt; *.cert; *.cer; *.pem; *.der");
@@ -620,16 +620,3 @@ function addWebSiteCert()
     caTreeView.selection.clearSelection();
   }
 }
-
-function addException()
-{
-  window.openDialog('chrome://pippki/content/exceptionDialog.xul', "",
-                    'chrome,centerscreen,modal');
-  var certcache = Components.classes[nsNSSCertCache].createInstance(nsINSSCertCache);
-  certcache.cacheAllCerts();
-  serverTreeView.loadCertsFromCache(certcache, nsIX509Cert.SERVER_CERT);
-  serverTreeView.selection.clearSelection();
-  orphanTreeView.loadCertsFromCache(certcache, nsIX509Cert.UNKNOWN_CERT);
-  orphanTreeView.selection.clearSelection();
-}
-

@@ -1,5 +1,5 @@
 /* ***** BEGIN LICENSE BLOCK *****
- * Version: MPL 1.1/GPL 2.0/LGPL 2.1
+ *   Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
@@ -58,55 +58,38 @@ nsDownloadManagerUI.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// nsIDownloadManagerUI
 
-  show: function show(aWindowContext, aID, aReason)
+  show: function show(aWindowContext, aID)
   {
-    if (!aReason)
-      aReason = Ci.nsIDownloadManagerUI.REASON_USER_INTERACTED;
-
     // First we see if it is already visible
-    let window = this.recentWindow;
-    if (window) {
-      window.focus();
-      
-      // If we are being asked to show again, with a user interaction reason,
-      // set the appropriate variable.
-      if (aReason == Ci.nsIDownloadManagerUI.REASON_USER_INTERACTED)
-        window.gUserInteracted = true;
+    if (this.recentWindow) {
+      this.recentWindow.focus();
       return;
     }
 
-    let parent = null;
-    // We try to get a window to use as the parent here.  If we don't have one,
-    // the download manager will close immediately after opening if the pref
-    // browser.download.manager.closeWhenDone is set to true.
+    var window = null;
     try {
       if (aWindowContext)
-        parent = aWindowContext.getInterface(Ci.nsIDOMWindow);
+        window = aWindowContext.getInterface(Ci.nsIDOMWindow);
     } catch (e) { /* it's OK to not have a parent window */ }
 
     // We pass the download manager and the nsIDownload we want selected (if any)
     var params = Cc["@mozilla.org/array;1"].createInstance(Ci.nsIMutableArray);
+    var dm = Cc["@mozilla.org/download-manager;1"].
+             getService(Ci.nsIDownloadManager);
+    params.appendElement(dm, false);
 
     // Don't fail if our passed in ID is invalid
     var download = null;
     try {
-      let dm = Cc["@mozilla.org/download-manager;1"].
-               getService(Ci.nsIDownloadManager);
       download = dm.getDownload(aID);
     } catch (ex) {}
     params.appendElement(download, false);
 
-    // Pass in the reason as well
-    let reason = Cc["@mozilla.org/supports-PRInt16;1"].
-                 createInstance(Ci.nsISupportsPRInt16);
-    reason.data = aReason;
-    params.appendElement(reason, false);
-
     var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
              getService(Ci.nsIWindowWatcher);
-    ww.openWindow(parent,
+    ww.openWindow(window,
                   DOWNLOAD_MANAGER_URL,
-                  "Download:Manager",
+                  null,
                   "chrome,dialog=no,resizable",
                   params);
   },
@@ -122,11 +105,7 @@ nsDownloadManagerUI.prototype = {
 
     var prefs = Cc["@mozilla.org/preferences-service;1"].
                 getService(Ci.nsIPrefBranch);
-    // This preference may not be set, so defaulting to two.
-    let flashCount = 2;
-    try {
-      flashCount = prefs.getIntPref(PREF_FLASH_COUNT);
-    } catch (e) { }
+    var flashCount = prefs.getIntPref(PREF_FLASH_COUNT);
 
     var win = this.recentWindow.QueryInterface(Ci.nsIDOMChromeWindow);
     win.getAttentionWithCycleCount(flashCount);

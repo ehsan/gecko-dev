@@ -44,7 +44,7 @@
 #include "nsGenericElement.h"
 #include "nsMutationEvent.h"
 #include "nsDOMCSSDeclaration.h"
-#include "nsDOMCSSAttrDeclaration.h"
+#include "nsICSSOMFactory.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDocument.h"
 #include "nsICSSStyleRule.h"
@@ -71,9 +71,11 @@ nsStyledElement::GetIDAttributeName() const
 }
 
 const nsAttrValue*
-nsStyledElement::DoGetClasses() const
+nsStyledElement::GetClasses() const
 {
-  NS_ASSERTION(HasFlag(NODE_MAY_HAVE_CLASS), "Unexpected call");
+  if (!HasFlag(NODE_MAY_HAVE_CLASS)) {
+    return nsnull;
+  }
   return mAttrsAndChildren.GetAttr(nsGkAtoms::_class);
 }
 
@@ -84,11 +86,15 @@ nsStyledElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::style) {
       SetFlags(NODE_MAY_HAVE_STYLE);
-      ParseStyleAttribute(this, aValue, aResult, PR_FALSE);
+      ParseStyleAttribute(this, aValue, aResult);
       return PR_TRUE;
     }
     if (aAttribute == nsGkAtoms::_class) {
       SetFlags(NODE_MAY_HAVE_CLASS);
+#ifdef MOZ_SVG
+      NS_ASSERTION(!nsCOMPtr<nsIDOMSVGStylable>(do_QueryInterface(this)),
+                   "SVG code should have handled this 'class' attribute!");
+#endif
       aResult.ParseAtomArray(aValue);
       return PR_TRUE;
     }
@@ -129,7 +135,7 @@ nsStyledElement::SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify)
 
   return SetAttrAndNotify(kNameSpaceID_None, nsGkAtoms::style, nsnull,
                           oldValueStr, attrValue, modification, hasListeners,
-                          aNotify, nsnull);
+                          aNotify);
 }
 
 nsICSSStyleRule*
@@ -159,13 +165,16 @@ nsStyledElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
   // XXXbz if we already have a style attr parsed, this won't do
   // anything... need to fix that.
-  ReparseStyleAttribute(PR_FALSE);
+  ReparseStyleAttribute();
 
   return rv;
 }
 
 // ---------------------------------------------------------------
 // Others and helpers
+
+static nsICSSOMFactory* gCSSOMFactory = nsnull;
+static NS_DEFINE_CID(kCSSOMFactoryCID, NS_CSSOMFACTORY_CID);
 
 nsresult
 nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
@@ -175,14 +184,17 @@ nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 
   if (!slots->mStyle) {
     // Just in case...
-    ReparseStyleAttribute(PR_TRUE);
+    ReparseStyleAttribute();
 
-    slots->mStyle = new nsDOMCSSAttributeDeclaration(this
-#ifdef MOZ_SMIL
-                                                     , PR_FALSE
-#endif // MOZ_SMIL
-                                                     );
-    NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
+    nsresult rv;
+    if (!gCSSOMFactory) {
+      rv = CallGetService(kCSSOMFactoryCID, &gCSSOMFactory);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+    rv = gCSSOMFactory->CreateDOMCSSAttributeDeclaration(this,
+                                                 getter_AddRefs(slots->mStyle));
+    NS_ENSURE_SUCCESS(rv, rv);
     SetFlags(NODE_MAY_HAVE_STYLE);
   }
 
@@ -192,7 +204,7 @@ nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 }
 
 nsresult
-nsStyledElement::ReparseStyleAttribute(PRBool aForceInDataDoc)
+nsStyledElement::ReparseStyleAttribute()
 {
   if (!HasFlag(NODE_MAY_HAVE_STYLE)) {
     return NS_OK;
@@ -203,7 +215,7 @@ nsStyledElement::ReparseStyleAttribute(PRBool aForceInDataDoc)
     nsAttrValue attrValue;
     nsAutoString stringValue;
     oldVal->ToString(stringValue);
-    ParseStyleAttribute(this, stringValue, attrValue, aForceInDataDoc);
+    ParseStyleAttribute(this, stringValue, attrValue);
     // Don't bother going through SetInlineStyleRule, we don't want to fire off
     // mutation events or document notifications anyway
     nsresult rv = mAttrsAndChildren.SetAndTakeAttr(nsGkAtoms::style, attrValue);
@@ -216,19 +228,16 @@ nsStyledElement::ReparseStyleAttribute(PRBool aForceInDataDoc)
 void
 nsStyledElement::ParseStyleAttribute(nsIContent* aContent,
                                      const nsAString& aValue,
-                                     nsAttrValue& aResult,
-                                     PRBool aForceInDataDoc)
+                                     nsAttrValue& aResult)
 {
   nsresult result = NS_OK;
   nsIDocument* doc = aContent->GetOwnerDoc();
 
-  if (doc && (aForceInDataDoc ||
-              !doc->IsLoadedAsData() ||
-              doc->IsStaticDocument())) {
+  if (doc) {
     PRBool isCSS = PR_TRUE; // assume CSS until proven otherwise
 
-    if (!aContent->IsInNativeAnonymousSubtree()) {  // native anonymous content
-                                                    // always assumes CSS
+    if (!aContent->IsNativeAnonymous()) {  // native anonymous content
+                                           // always assumes CSS
       nsAutoString styleType;
       doc->GetHeaderData(nsGkAtoms::headerContentStyleType, styleType);
       if (!styleType.IsEmpty()) {
@@ -260,4 +269,11 @@ nsStyledElement::ParseStyleAttribute(nsIContent* aContent,
   }
 
   aResult.SetTo(aValue);
+}
+
+
+/* static */ void
+nsStyledElement::Shutdown()
+{
+  NS_IF_RELEASE(gCSSOMFactory);
 }

@@ -59,7 +59,7 @@ try {
 }
 
 // get bookmarks root id
-var root = bmsvc.bookmarksMenuFolder;
+var root = bmsvc.bookmarksRoot;
 
 // main
 function run_test() {
@@ -90,12 +90,12 @@ function run_test() {
   do_check_eq(rootNode.childCount, 1);
   do_check_eq(rootNode.getChild(0).itemId, b1);
 
-  // partial matches are okay
+  // only exact matches
   query.searchTerms = "wal";
   var result = histsvc.executeQuery(query, options);
   var rootNode = result.root;
   rootNode.containerOpen = true;
-  do_check_eq(rootNode.childCount, 1);
+  do_check_eq(rootNode.childCount, 0);
 
   // case insensitive search term
   query.searchTerms = "WALRUS";

@@ -75,42 +75,25 @@ const int netCharType[256] =
 //----------------------------------------------------------------------------------------
 static char* nsEscapeCount(
     const char * str,
+    PRInt32 len,
     nsEscapeMask flags,
-    size_t* out_len)
+    PRInt32* out_len)
 //----------------------------------------------------------------------------------------
 {
 	if (!str)
 		return 0;
 
-    size_t i, len = 0, charsToEscape = 0;
+    int i, extra = 0;
     static const char hexChars[] = "0123456789ABCDEF";
 
 	register const unsigned char* src = (const unsigned char *) str;
-    while (*src)
+    for (i = 0; i < len; i++)
 	{
-        len++;
         if (!IS_OK(*src++))
-            charsToEscape++;
+            extra += 2; /* the escape, plus an extra byte for each nibble */
 	}
 
-    // calculate how much memory should be allocated
-    // original length + 2 bytes for each escaped character + terminating '\0'
-    // do the sum in steps to check for overflow
-    size_t dstSize = len + 1 + charsToEscape;
-    if (dstSize <= len)
-	return 0;
-    dstSize += charsToEscape;
-    if (dstSize < len)
-	return 0;
-
-    // fail if we need more than 4GB
-    // size_t is likely to be long unsigned int but nsMemory::Alloc(size_t)
-    // calls NS_Alloc_P(size_t) which calls PR_Malloc(PRUint32), so there is
-    // no chance to allocate more than 4GB using nsMemory::Alloc()
-    if (dstSize > PR_UINT32_MAX)
-        return 0;
-
-	char* result = (char *)nsMemory::Alloc(dstSize);
+	char* result = (char *)nsMemory::Alloc(len + extra + 1);
     if (!result)
         return 0;
 
@@ -161,7 +144,7 @@ NS_COM char* nsEscape(const char * str, nsEscapeMask flags)
 {
     if(!str)
         return NULL;
-    return nsEscapeCount(str, flags, NULL);
+    return nsEscapeCount(str, (PRInt32)strlen(str), flags, NULL);
 }
 
 //----------------------------------------------------------------------------------------
@@ -222,67 +205,62 @@ NS_COM PRInt32 nsUnescapeCount(char * str)
 NS_COM char *
 nsEscapeHTML(const char * string)
 {
-    char *rv = nsnull;
-    /* XXX Hardcoded max entity len. The +1 is for the trailing null. */
-    PRUint32 len = PL_strlen(string);
-    if (len >= (PR_UINT32_MAX / 6))
-      return nsnull;
+	/* XXX Hardcoded max entity len. The +1 is for the trailing null. */
+	char *rv = (char *) nsMemory::Alloc(strlen(string) * 6 + 1);
+	char *ptr = rv;
 
-    rv = (char *)NS_Alloc( (6 * len) + 1 );
-    char *ptr = rv;
+	if(rv)
+	  {
+		for(; *string != '\0'; string++)
+		  {
+			if(*string == '<')
+			  {
+				*ptr++ = '&';
+				*ptr++ = 'l';
+				*ptr++ = 't';
+				*ptr++ = ';';
+			  }
+			else if(*string == '>')
+			  {
+				*ptr++ = '&';
+				*ptr++ = 'g';
+				*ptr++ = 't';
+				*ptr++ = ';';
+			  }
+			else if(*string == '&')
+			  {
+				*ptr++ = '&';
+				*ptr++ = 'a';
+				*ptr++ = 'm';
+				*ptr++ = 'p';
+				*ptr++ = ';';
+			  }
+			else if (*string == '"')
+			  {
+				*ptr++ = '&';
+				*ptr++ = 'q';
+				*ptr++ = 'u';
+				*ptr++ = 'o';
+				*ptr++ = 't';
+				*ptr++ = ';';
+			  }			
+			else if (*string == '\'')
+			  {
+				*ptr++ = '&';
+				*ptr++ = '#';
+				*ptr++ = '3';
+				*ptr++ = '9';
+				*ptr++ = ';';
+			  }
+			else
+			  {
+				*ptr++ = *string;
+			  }
+		  }
+		*ptr = '\0';
+	  }
 
-    if(rv)
-      {
-        for(; *string != '\0'; string++)
-          {
-            if(*string == '<')
-              {
-                *ptr++ = '&';
-                *ptr++ = 'l';
-                *ptr++ = 't';
-                *ptr++ = ';';
-              }
-            else if(*string == '>')
-              {
-                *ptr++ = '&';
-                *ptr++ = 'g';
-                *ptr++ = 't';
-                *ptr++ = ';';
-              }
-            else if(*string == '&')
-              {
-                *ptr++ = '&';
-                *ptr++ = 'a';
-                *ptr++ = 'm';
-                *ptr++ = 'p';
-                *ptr++ = ';';
-              }
-            else if (*string == '"')
-              {
-                *ptr++ = '&';
-                *ptr++ = 'q';
-                *ptr++ = 'u';
-                *ptr++ = 'o';
-                *ptr++ = 't';
-                *ptr++ = ';';
-              }
-            else if (*string == '\'')
-              {
-                *ptr++ = '&';
-                *ptr++ = '#';
-                *ptr++ = '3';
-                *ptr++ = '9';
-                *ptr++ = ';';
-              }
-            else
-              {
-                *ptr++ = *string;
-              }
-          }
-        *ptr = '\0';
-      }
-
-    return(rv);
+	return(rv);
 }
 
 NS_COM PRUnichar *
@@ -294,10 +272,6 @@ nsEscapeHTML2(const PRUnichar *aSourceBuffer, PRInt32 aSourceBufferLen)
   }
 
   /* XXX Hardcoded max entity len. */
-  if (aSourceBufferLen >=
-      ((PR_UINT32_MAX - sizeof(PRUnichar)) / (6 * sizeof(PRUnichar))) )
-    return nsnull;
-
   PRUnichar *resultBuffer = (PRUnichar *)nsMemory::Alloc(aSourceBufferLen *
                             6 * sizeof(PRUnichar) + sizeof(PRUnichar('\0')));
   PRUnichar *ptr = resultBuffer;
@@ -405,11 +379,11 @@ NS_COM PRBool NS_EscapeURL(const char *part,
     static const char hexChars[] = "0123456789ABCDEF";
     if (partLen < 0)
         partLen = strlen(part);
-    PRBool forced = !!(flags & esc_Forced);
-    PRBool ignoreNonAscii = !!(flags & esc_OnlyASCII);
-    PRBool ignoreAscii = !!(flags & esc_OnlyNonASCII);
-    PRBool writing = !!(flags & esc_AlwaysCopy);
-    PRBool colon = !!(flags & esc_Colon);
+    PRBool forced = (flags & esc_Forced);
+    PRBool ignoreNonAscii = (flags & esc_OnlyASCII);
+    PRBool ignoreAscii = (flags & esc_OnlyNonASCII);
+    PRBool writing = (flags & esc_AlwaysCopy);
+    PRBool colon = (flags & esc_Colon);
 
     register const unsigned char* src = (const unsigned char *) part;
 
@@ -487,10 +461,10 @@ NS_COM PRBool NS_UnescapeURL(const char *str, PRInt32 len, PRUint32 flags, nsACS
     if (len < 0)
         len = strlen(str);
 
-    PRBool ignoreNonAscii = !!(flags & esc_OnlyASCII);
-    PRBool ignoreAscii = !!(flags & esc_OnlyNonASCII);
-    PRBool writing = !!(flags & esc_AlwaysCopy);
-    PRBool skipControl = !!(flags & esc_SkipControl); 
+    PRBool ignoreNonAscii = (flags & esc_OnlyASCII);
+    PRBool ignoreAscii = (flags & esc_OnlyNonASCII);
+    PRBool writing = (flags & esc_AlwaysCopy);
+    PRBool skipControl = (flags & esc_SkipControl); 
 
     static const char hexChars[] = "0123456789ABCDEFabcdef";
 

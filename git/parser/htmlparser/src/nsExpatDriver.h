@@ -46,7 +46,6 @@
 #include "nsITokenizer.h"
 #include "nsIInputStream.h"
 #include "nsIParser.h"
-#include "nsCycleCollectionParticipant.h"
 
 class nsIExpatSink;
 class nsIExtendedExpatSink;
@@ -56,10 +55,9 @@ class nsExpatDriver : public nsIDTD,
                       public nsITokenizer
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDTD
   NS_DECL_NSITOKENIZER
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsExpatDriver, nsIDTD)
 
   nsExpatDriver();
   virtual ~nsExpatDriver();
@@ -99,8 +97,6 @@ public:
                                     const PRUnichar* aNotationName);
 
 private:
-  nsresult HandleToken(CToken* aToken);
-
   // Load up an external stream to get external entity information
   nsresult OpenInputStreamFromExternalDTD(const PRUnichar* aFPIStr,
                                           const PRUnichar* aURLStr,
@@ -128,7 +124,7 @@ private:
                    PRUint32 *aConsumed);
   nsresult HandleError();
 
-  void MaybeStopParser(nsresult aState);
+  void MaybeStopParser();
 
   PRBool BlockedOrInterrupted()
   {
@@ -147,7 +143,6 @@ private:
   PRPackedBool     mInCData;
   PRPackedBool     mInInternalSubset;
   PRPackedBool     mInExternalDTD;
-  PRPackedBool     mMadeFinalCallToExpat;
 
   // Whether we're sure that we won't be getting more buffers to parse from
   // Necko
@@ -158,13 +153,8 @@ private:
   // The length of the data in Expat's buffer (in number of PRUnichars).
   PRUint32         mExpatBuffered;
 
-  // These sinks all refer the same conceptual object. mOriginalSink is
-  // identical with the nsIContentSink* passed to WillBuildModel, and exists
-  // only to avoid QI-ing back to nsIContentSink*.
-  nsCOMPtr<nsIContentSink> mOriginalSink;
   nsCOMPtr<nsIExpatSink> mSink;
   nsCOMPtr<nsIExtendedExpatSink> mExtendedSink;
-
   const nsCatalogData* mCatalogData; // weak
   nsString         mURISpec;
 };

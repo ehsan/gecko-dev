@@ -52,6 +52,11 @@ nsProbingState nsEUCTWProber::HandleData(const char* aBuf, PRUint32 aLen)
   for (PRUint32 i = 0; i < aLen; i++)
   {
     codingState = mCodingSM->NextState(aBuf[i]);
+    if (codingState == eError)
+    {
+      mState = eNotMe;
+      break;
+    }
     if (codingState == eItsMe)
     {
       mState = eFoundIt;
@@ -84,7 +89,7 @@ nsProbingState nsEUCTWProber::HandleData(const char* aBuf, PRUint32 aLen)
 
 float nsEUCTWProber::GetConfidence(void)
 {
-  float distribCf = mDistributionAnalyser.GetConfidence(mIsPreferredLanguage);
+  float distribCf = mDistributionAnalyser.GetConfidence();
 
   return (float)distribCf;
 }

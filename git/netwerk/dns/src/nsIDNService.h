@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -71,27 +71,17 @@ public:
 
 private:
   void normalizeFullStops(nsAString& s);
-  nsresult stringPrepAndACE(const nsAString& in, nsACString& out,
-                            PRBool allowUnassigned);
+  nsresult stringPrepAndACE(const nsAString& in, nsACString& out);
   nsresult encodeToACE(const nsAString& in, nsACString& out);
-  nsresult stringPrep(const nsAString& in, nsAString& out,
-                      PRBool allowUnassigned);
-  nsresult decodeACE(const nsACString& in, nsACString& out,
-                     PRBool allowUnassigned);
-  nsresult UTF8toACE(const nsACString& in, nsACString& out,
-                     PRBool allowUnassigned);
-  nsresult ACEtoUTF8(const nsACString& in, nsACString& out,
-                     PRBool allowUnassigned);
-  PRBool isInWhitelist(const nsACString &host);
+  nsresult stringPrep(const nsAString& in, nsAString& out);
+  nsresult decodeACE(const nsACString& in, nsACString& out);
   void prefsChanged(nsIPrefBranch *prefBranch, const PRUnichar *pref);
 
-  PRBool mMultilingualTestBed;  // if true generates extra node for multilingual testbed 
+  PRBool mMultilingualTestBed;  // if true generates extra node for mulitlingual testbed 
   idn_nameprep_t mNamePrepHandle;
   nsCOMPtr<nsIUnicodeNormalizer> mNormalizer;
   char mACEPrefix[kACEPrefixLen+1];
   nsXPIDLString mIDNBlacklist;
-  PRBool mShowPunycode;
-  nsCOMPtr<nsIPrefBranch> mIDNWhitelistPrefBranch;
 };
 
 #endif  // nsIDNService_h__

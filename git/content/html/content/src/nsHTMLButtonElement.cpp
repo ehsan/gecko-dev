@@ -60,8 +60,6 @@
 #include "nsEventDispatcher.h"
 #include "nsPresState.h"
 #include "nsLayoutErrors.h"
-#include "nsFocusManager.h"
-#include "nsHTMLFormElement.h"
 
 #define NS_IN_SUBMIT_CLICK      (1 << 0)
 #define NS_OUTER_ACTIVATE_EVENT (1 << 1)
@@ -112,7 +110,8 @@ public:
                                  const nsAString* aValue, PRBool aNotify);
   
   // nsIContent overrides...
-  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual void SetFocus(nsPresContext* aPresContext);
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
                                 nsIAtom* aAttribute,
                                 const nsAString& aValue,
@@ -162,12 +161,11 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLButtonElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLButtonElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLButtonElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLButtonElement,
-                                   nsIDOMHTMLButtonElement,
-                                   nsIDOMNSHTMLButtonElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLButtonElement,
-                                               nsGenericHTMLFormElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLButtonElement,
+                                     nsGenericHTMLFormElement)
+  NS_INTERFACE_TABLE_INHERITED2(nsHTMLButtonElement,
+                                nsIDOMHTMLButtonElement,
+                                nsIDOMNSHTMLButtonElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLButtonElement)
 
 // nsIDOMHTMLButtonElement
@@ -194,13 +192,21 @@ NS_IMPL_STRING_ATTR_DEFAULT_VALUE(nsHTMLButtonElement, Type, type, "submit")
 NS_IMETHODIMP
 nsHTMLButtonElement::Blur()
 {
-  return nsGenericHTMLElement::Blur();
+  if (ShouldBlur(this)) {
+    SetElementFocus(PR_FALSE);
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsHTMLButtonElement::Focus()
 {
-  return nsGenericHTMLElement::Focus();
+  if (ShouldFocus(this)) {
+    SetElementFocus(PR_TRUE);
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -238,18 +244,29 @@ nsHTMLButtonElement::Click()
 }
 
 PRBool
-nsHTMLButtonElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
+nsHTMLButtonElement::IsFocusable(PRInt32 *aTabIndex)
 {
-  if (nsGenericHTMLElement::IsHTMLFocusable(aIsFocusable, aTabIndex)) {
-    return PR_TRUE;
+  if (!nsGenericHTMLElement::IsFocusable(aTabIndex)) {
+    return PR_FALSE;
   }
   if (aTabIndex && (sTabFocusModel & eTabFocus_formElementsMask) == 0) {
     *aTabIndex = -1;
   }
+  return PR_TRUE;
+}
 
-  *aIsFocusable = !HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
+void
+nsHTMLButtonElement::SetFocus(nsPresContext* aPresContext)
+{
+  if (!aPresContext)
+    return;
 
-  return PR_FALSE;
+  // first see if we are disabled or not. If disabled then do nothing.
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
+    return;
+  }
+
+  SetFocusAndScrollIntoView(aPresContext);
 }
 
 static const nsAttrValue::EnumTable kButtonTypeTable[] = {
@@ -293,7 +310,9 @@ nsHTMLButtonElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   nsIFormControlFrame* formControlFrame = GetFormControlFrame(PR_FALSE);
 
   if (formControlFrame) {
-    nsIFrame* formFrame = do_QueryFrame(formControlFrame);
+    nsIFrame* formFrame = nsnull;
+    CallQueryInterface(formControlFrame, &formFrame);
+
     if (formFrame) {
       const nsStyleUserInterface* uiStyle = formFrame->GetStyleUserInterface();
 
@@ -391,11 +410,7 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
             if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
                   nsMouseEvent::eLeftButton) {
               aVisitor.mPresContext->EventStateManager()->
-                SetContentState(this, NS_EVENT_STATE_ACTIVE);
-              nsIFocusManager* fm = nsFocusManager::GetFocusManager();
-              if (fm)
-                fm->SetFocus(this, nsIFocusManager::FLAG_BYMOUSE |
-                                   nsIFocusManager::FLAG_NOSCROLL);
+                SetContentState(this, NS_EVENT_STATE_ACTIVE | NS_EVENT_STATE_FOCUS);
               aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
             } else if (static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
                          nsMouseEvent::eMiddleButton ||
@@ -465,9 +480,8 @@ nsHTMLButtonElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
         // Using presShell to dispatch the event. It makes sure that
         // event is not handled if the window is being destroyed.
         if (presShell) {
-          // Hold a strong ref while dispatching
-          nsRefPtr<nsHTMLFormElement> form(mForm);
-          presShell->HandleDOMEventWithTarget(mForm, &event, &status);
+          nsCOMPtr<nsIContent> form(do_QueryInterface(mForm));
+          presShell->HandleDOMEventWithTarget(form, &event, &status);
         }
       }
     }
@@ -581,7 +595,14 @@ nsHTMLButtonElement::SaveState()
   if (state) {
     PRBool disabled;
     GetDisabled(&disabled);
-    state->SetDisabled(disabled);
+    if (disabled) {
+      rv |= state->SetStateProperty(NS_LITERAL_STRING("disabled"),
+                                    NS_LITERAL_STRING("t"));
+    } else {
+      rv |= state->SetStateProperty(NS_LITERAL_STRING("disabled"),
+                                    NS_LITERAL_STRING("f"));
+    }
+    NS_ASSERTION(NS_SUCCEEDED(rv), "disabled save failed!");
   }
 
   return rv;
@@ -590,8 +611,12 @@ nsHTMLButtonElement::SaveState()
 PRBool
 nsHTMLButtonElement::RestoreState(nsPresState* aState)
 {
-  if (aState && aState->IsDisabledSet()) {
-    SetDisabled(aState->GetDisabled());
+  nsAutoString disabled;
+  nsresult rv =
+    aState->GetStateProperty(NS_LITERAL_STRING("disabled"), disabled);
+  NS_ASSERTION(NS_SUCCEEDED(rv), "disabled restore failed!");
+  if (rv == NS_STATE_PROPERTY_EXISTS) {
+    SetDisabled(disabled.EqualsLiteral("t"));
   }
 
   return PR_FALSE;

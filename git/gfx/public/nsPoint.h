@@ -40,8 +40,6 @@
 
 #include "nsCoord.h"
 
-struct nsIntPoint;
-
 struct nsPoint {
   nscoord x, y;
 
@@ -81,10 +79,9 @@ struct nsPoint {
   nsPoint operator-() const {
     return nsPoint(-x, -y);
   }
-
-  inline nsIntPoint ToNearestPixels(nscoord aAppUnitsPerPixel) const;
 };
 
+#ifdef NS_COORD_IS_FLOAT
 struct nsIntPoint {
   PRInt32 x, y;
 
@@ -93,39 +90,50 @@ struct nsIntPoint {
   nsIntPoint(const nsIntPoint& aPoint) { x = aPoint.x; y = aPoint.y;}
   nsIntPoint(PRInt32 aX, PRInt32 aY) { x = aX; y = aY;}
 
-  PRBool   operator==(const nsIntPoint& aPoint) const {
+  void MoveTo(PRInt32 aX, PRInt32 aY) {x = aX; y = aY;}
+};
+
+typedef nsPoint nsFloatPoint;
+#else
+typedef nsPoint nsIntPoint;
+
+struct nsFloatPoint {
+  float x, y;
+
+  // Constructors
+  nsFloatPoint() {}
+  nsFloatPoint(const nsFloatPoint& aPoint) {x = aPoint.x; y = aPoint.y;}
+  nsFloatPoint(float aX, float aY) {x = aX; y = aY;}
+
+  void MoveTo(float aX, float aY) {x = aX; y = aY;}
+  void MoveTo(nscoord aX, nscoord aY) {x = (float)aX; y = (float)aY;}
+  void MoveBy(float aDx, float aDy) {x += aDx; y += aDy;}
+
+  // Overloaded operators. Note that '=' isn't defined so we'll get the
+  // compiler generated default assignment operator
+  PRBool   operator==(const nsFloatPoint& aPoint) const {
     return (PRBool) ((x == aPoint.x) && (y == aPoint.y));
   }
-  PRBool   operator!=(const nsIntPoint& aPoint) const {
+  PRBool   operator!=(const nsFloatPoint& aPoint) const {
     return (PRBool) ((x != aPoint.x) || (y != aPoint.y));
   }
-  nsIntPoint operator+(const nsIntPoint& aPoint) const {
-    return nsIntPoint(x + aPoint.x, y + aPoint.y);
+  nsFloatPoint operator+(const nsFloatPoint& aPoint) const {
+    return nsFloatPoint(x + aPoint.x, y + aPoint.y);
   }
-  nsIntPoint operator-(const nsIntPoint& aPoint) const {
-    return nsIntPoint(x - aPoint.x, y - aPoint.y);
+  nsFloatPoint operator-(const nsFloatPoint& aPoint) const {
+    return nsFloatPoint(x - aPoint.x, y - aPoint.y);
   }
-  nsIntPoint& operator+=(const nsIntPoint& aPoint) {
+  nsFloatPoint& operator+=(const nsFloatPoint& aPoint) {
     x += aPoint.x;
     y += aPoint.y;
     return *this;
   }
-  nsIntPoint& operator-=(const nsIntPoint& aPoint) {
+  nsFloatPoint& operator-=(const nsFloatPoint& aPoint) {
     x -= aPoint.x;
     y -= aPoint.y;
     return *this;
   }
-  nsIntPoint operator-() const {
-    return nsIntPoint(-x, -y);
-  }
-  void MoveTo(PRInt32 aX, PRInt32 aY) {x = aX; y = aY;}
 };
-
-inline nsIntPoint
-nsPoint::ToNearestPixels(nscoord aAppUnitsPerPixel) const {
-  return nsIntPoint(
-      NSToIntRound(NSAppUnitsToFloatPixels(x, float(aAppUnitsPerPixel))),
-      NSToIntRound(NSAppUnitsToFloatPixels(y, float(aAppUnitsPerPixel))));
-}
+#endif // !NS_COORD_IS_FLOAT
 
 #endif /* NSPOINT_H */

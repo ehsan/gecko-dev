@@ -45,53 +45,22 @@ class nsIDocument;
 class nsINode;
 
 #define NS_IMUTATION_OBSERVER_IID \
-{0x365d600b, 0x868a, 0x452a, \
-  {0x8d, 0xe8, 0xf4, 0x6f, 0xad, 0x8f, 0xee, 0x53 } }
+{ 0x32e68316, 0x67d4, 0x44a5, \
+ { 0x8d, 0x35, 0xd, 0x39, 0xf, 0xa9, 0xdf, 0x11 } }
 
 /**
- * Information details about a characterdata change.  Basically, we
- * view all changes as replacements of a length of text at some offset
- * with some other text (of possibly some other length).
+ * Information details about a characterdata change
  */
 struct CharacterDataChangeInfo
 {
-  /**
-   * True if this character data change is just an append.
-   */
   PRBool mAppend;
-
-  /**
-   * The offset in the text where the change occurred.
-   */
   PRUint32 mChangeStart;
-
-  /**
-   * The offset such that mChangeEnd - mChangeStart is equal to the length of
-   * the text we removed. If this was a pure insert or append, this is equal to
-   * mChangeStart.
-   */
   PRUint32 mChangeEnd;
-
-  /**
-   * The length of the text that was inserted in place of the removed text.  If
-   * this was a pure text removal, this is 0.
-   */
   PRUint32 mReplaceLength;
-
-  /**
-   * The net result is that mChangeStart characters at the beginning of the
-   * text remained as they were.  The next mChangeEnd - mChangeStart characters
-   * were removed, and mReplaceLength characters were inserted in their place.
-   * The text that used to begin at mChangeEnd now begins at
-   * mChangeStart + mReplaceLength.
-   */
 };
 
 /**
  * Mutation observer interface
- *
- * See nsINode::AddMutationObserver, nsINode::RemoveMutationObserver for how to
- * attach or remove your observers.
  *
  * WARNING: During these notifications, you are not allowed to perform
  * any mutations to the current or any other document, or start a
@@ -139,23 +108,6 @@ public:
                                     CharacterDataChangeInfo* aInfo) = 0;
 
   /**
-   * Notification that an attribute of an element will change.
-   *
-   * @param aDocument    The owner-document of aContent. Can be null.
-   * @param aContent     The element whose attribute will change
-   * @param aNameSpaceID The namespace id of the changing attribute
-   * @param aAttribute   The name of the changing attribute
-   * @param aModType     Whether or not the attribute will be added, changed, or
-   *                     removed. The constants are defined in
-   *                     nsIDOMMutationEvent.h.
-   */
-  virtual void AttributeWillChange(nsIDocument* aDocument,
-                                   nsIContent*  aContent,
-                                   PRInt32      aNameSpaceID,
-                                   nsIAtom*     aAttribute,
-                                   PRInt32      aModType) = 0;
-
-  /**
    * Notification that an attribute of an element has changed.
    *
    * @param aDocument    The owner-document of aContent. Can be null.
@@ -165,12 +117,15 @@ public:
    * @param aModType     Whether or not the attribute was added, changed, or
    *                     removed. The constants are defined in
    *                     nsIDOMMutationEvent.h.
+   * @param aStateMask If this attribute change caused content state changes,
+   *                   the bits that changed.  Might be 0 if no bits changed.
    */
   virtual void AttributeChanged(nsIDocument* aDocument,
                                 nsIContent*  aContent,
                                 PRInt32      aNameSpaceID,
                                 nsIAtom*     aAttribute,
-                                PRInt32      aModType) = 0;
+                                PRInt32      aModType,
+                                PRUint32     aStateMask) = 0;
 
   /**
    * Notification that one or more content nodes have been appended to the
@@ -265,19 +220,13 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIMutationObserver, NS_IMUTATION_OBSERVER_IID)
                                       nsIContent* aContent,                  \
                                       CharacterDataChangeInfo* aInfo);
 
-#define NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE                      \
-    virtual void AttributeWillChange(nsIDocument* aDocument,                 \
-                                     nsIContent* aContent,                   \
-                                     PRInt32 aNameSpaceID,                   \
-                                     nsIAtom* aAttribute,                    \
-                                     PRInt32 aModType);
-
 #define NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED                         \
     virtual void AttributeChanged(nsIDocument* aDocument,                    \
                                   nsIContent* aContent,                      \
                                   PRInt32 aNameSpaceID,                      \
                                   nsIAtom* aAttribute,                       \
-                                  PRInt32 aModType);
+                                  PRInt32 aModType,                          \
+                                  PRUint32 aStateMask);
 
 #define NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED                          \
     virtual void ContentAppended(nsIDocument* aDocument,                     \
@@ -305,7 +254,6 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsIMutationObserver, NS_IMUTATION_OBSERVER_IID)
 #define NS_DECL_NSIMUTATIONOBSERVER                                          \
     NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATAWILLCHANGE                      \
     NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED                         \
-    NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE                          \
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED                             \
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED                              \
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED                              \
@@ -333,19 +281,12 @@ _class::CharacterDataChanged(nsIDocument* aDocument,                      \
 {                                                                         \
 }                                                                         \
 void                                                                      \
-_class::AttributeWillChange(nsIDocument* aDocument,                       \
-                            nsIContent* aContent,                         \
-                            PRInt32 aNameSpaceID,                         \
-                            nsIAtom* aAttribute,                          \
-                            PRInt32 aModType)                             \
-{                                                                         \
-}                                                                         \
-void                                                                      \
 _class::AttributeChanged(nsIDocument* aDocument,                          \
                          nsIContent* aContent,                            \
                          PRInt32 aNameSpaceID,                            \
                          nsIAtom* aAttribute,                             \
-                         PRInt32 aModType)                                \
+                         PRInt32 aModType,                                \
+                         PRUint32 aStateMask)                             \
 {                                                                         \
 }                                                                         \
 void                                                                      \

@@ -46,7 +46,7 @@
 
 class nsPresContext;
 class nsIRenderingContext;
-class nsFloatManager;
+class nsSpaceManager;
 class nsLineLayout;
 class nsIPercentHeightObserver;
 
@@ -59,17 +59,12 @@ struct nsStylePadding;
 struct nsStyleText;
 struct nsHypotheticalBox;
 
-template <class NumericType>
-NumericType
-NS_CSS_MINMAX(NumericType aValue, NumericType aMinValue, NumericType aMaxValue)
-{
-  NumericType result = aValue;
-  if (aMaxValue < result)
-    result = aMaxValue;
-  if (aMinValue > result)
-    result = aMinValue;
-  return result;
-}
+#define NS_CSS_MINMAX(_value,_min,_max) \
+    ((_value) < (_min)           \
+     ? (_min)                    \
+     : ((_value) > (_max)        \
+        ? (_max)                 \
+        : (_value)))
 
 /**
  * Constant used to indicate an unconstrained size.
@@ -196,6 +191,15 @@ protected:
 
   /*
    * Convert nsStyleCoord to nscoord when percentages depend on the
+   * containing block width.
+   */
+  // XXX Make aResult a return value
+  inline void ComputeWidthDependentValue(nscoord aContainingBlockWidth,
+                                         const nsStyleCoord& aCoord,
+                                         nscoord& aResult);
+
+  /*
+   * Convert nsStyleCoord to nscoord when percentages depend on the
    * containing block width, and enumerated values are for width,
    * min-width, or max-width.  Does not handle auto widths.
    */
@@ -208,6 +212,15 @@ protected:
   nscoord ComputeWidthValue(nscoord aContainingBlockWidth,
                             PRUint8 aBoxSizing,
                             const nsStyleCoord& aCoord);
+
+  /*
+   * Convert nsStyleCoord to nscoord when percentages depend on the
+   * containing block height.
+   */
+  // XXX Make aResult a return value
+  inline void ComputeHeightDependentValue(nscoord aContainingBlockHeight,
+                                          const nsStyleCoord& aCoord,
+                                          nscoord& aResult);
 };
 
 /**
@@ -222,16 +235,6 @@ struct nsHTMLReflowState : public nsCSSOffsetState {
   // the reflow states are linked together. this is the pointer to the
   // parent's reflow state
   const nsHTMLReflowState* parentReflowState;
-
-  // pointer to the float manager associated with this area
-  nsFloatManager* mFloatManager;
-
-  // LineLayout object (only for inline reflow; set to NULL otherwise)
-  nsLineLayout*    mLineLayout;
-
-  // The appropriate reflow state for the containing block (for
-  // percentage widths, etc.) of this reflow state's frame.
-  const nsHTMLReflowState *mCBReflowState;
 
   // the available width in which to reflow the frame. The space
   // represents the amount of room for the frame's border, padding,
@@ -254,6 +257,9 @@ struct nsHTMLReflowState : public nsCSSOffsetState {
   // initialized by the Init method below.
   nsCSSFrameType   mFrameType;
 
+  // pointer to the space manager associated with this area
+  nsSpaceManager* mSpaceManager;
+
   // The amount the in-flow position of the block is moving vertically relative
   // to its previous in-flow position (i.e. the amount the line containing the
   // block is moving).
@@ -263,6 +269,13 @@ struct nsHTMLReflowState : public nsCSSOffsetState {
   // of the potential impact of a float
   // This takes on an arbitrary value the first time a block is reflowed
   nscoord mBlockDelta;
+
+  // LineLayout object (only for inline reflow; set to NULL otherwise)
+  nsLineLayout*    mLineLayout;
+
+  // The appropriate reflow state for the containing block (for
+  // percentage widths, etc.) of this reflow state's frame.
+  const nsHTMLReflowState *mCBReflowState;
 
 private:
   // The computed width specifies the frame's content area width, and it does
@@ -314,6 +327,9 @@ public:
   // reflow for percent height calculations 
   nsIPercentHeightObserver* mPercentHeightObserver;
 
+  // a frame (e.g. nsTableFrame) which initiates a special reflow for percent height calculations 
+  nsIFrame* mPercentHeightReflowInitiator;
+
   // CSS margin collapsing sometimes requires us to reflow
   // optimistically assuming that margins collapse to see if clearance
   // is required. When we discover that clearance is required, we
@@ -348,10 +364,11 @@ public:
                                      // basis?
     PRUint16 mTableIsSplittable:1;   // tables are splittable, this should happen only inside a page
                                      // and never insider a column frame
-    PRUint16 mHeightDependsOnAncestorCell:1;   // Does frame height depend on
-                                               // an ancestor table-cell?
-    
   } mFlags;
+
+#ifdef IBMBIDI
+  nscoord mRightEdge;
+#endif
 
   // Note: The copy constructor is written by the compiler automatically. You
   // can use that and then override specific values if you want, or you can
@@ -398,21 +415,20 @@ public:
   static nsIFrame* GetContainingBlockFor(const nsIFrame* aFrame);
 
   /**
-   * Calculate the used line-height property. The return value will be >= 0.
+   * Calculate the raw line-height property for the given frame. The return
+   * value will be >= 0.
    */
-  nscoord CalcLineHeight() const;
-
+  static nscoord CalcLineHeight(nsIRenderingContext* aRenderingContext,
+                                nsIFrame* aFrame)
+  {
+    return CalcLineHeight(aRenderingContext, aFrame->GetStyleContext());
+  }
+  
   /**
-   * Same as CalcLineHeight() above, but doesn't need a reflow state.
-   *
-   * @param aBlockHeight The computed height of the content rect of the block
-   *                     that the line should fill.
-   *                     Only used with line-height:-moz-block-height.
-   *                     NS_AUTOHEIGHT results in a normal line-height for
-   *                     line-height:-moz-block-height.
+   * Same as above, but doesn't need a frame.
    */
-  static nscoord CalcLineHeight(nsStyleContext* aStyleContext,
-                                nscoord aBlockHeight);
+  static nscoord CalcLineHeight(nsIRenderingContext* aRenderingContext,
+                                nsStyleContext* aStyleContext);
 
 
   void ComputeContainingBlockRectangle(nsPresContext*          aPresContext,
@@ -448,20 +464,8 @@ public:
   // This method doesn't apply min/max computed heights to the value passed in.
   void SetComputedHeight(nscoord aComputedHeight);
 
-  void SetComputedHeightWithoutResettingResizeFlags(nscoord aComputedHeight) {
-    // Viewport frames reset the computed height on a copy of their reflow
-    // state when reflowing fixed-pos kids.  In that case we actually don't
-    // want to mess with the resize flags, because comparing the frame's rect
-    // to the munged computed width is pointless.
-    mComputedHeight = aComputedHeight;
-  }
-
   void SetTruncated(const nsHTMLReflowMetrics& aMetrics, nsReflowStatus* aStatus) const;
 
-  PRBool WillReflowAgainForClearance() const {
-    return mDiscoveredClearance && *mDiscoveredClearance;
-  }
-  
 protected:
   void InitFrameType();
   void InitCBReflowState();
@@ -473,13 +477,11 @@ protected:
                        const nsMargin* aBorder,
                        const nsMargin* aPadding);
 
-  // Returns the nearest containing block or block frame (whether or not
-  // it is a containing block) for the specified frame.  Also returns
-  // the left edge and width of the containing block's content area.
+  // Returns the nearest containing block frame for the specified frame.  Also
+  // returns the left edge and width of the containing block's content area.
   // These are returned in the coordinate space of the containing block.
-  nsIFrame* GetHypotheticalBoxContainer(nsIFrame* aFrame,
-                                        nscoord& aCBLeftEdge,
-                                        nscoord& aCBWidth);
+  nsIFrame* GetNearestContainingBlock(nsIFrame* aFrame, nscoord& aCBLeftEdge,
+                                      nscoord& aCBWidth);
 
   void CalculateHypotheticalBox(nsPresContext*    aPresContext,
                                 nsIFrame*         aPlaceholderFrame,
@@ -496,8 +498,7 @@ protected:
 
   void ComputeRelativeOffsets(const nsHTMLReflowState* cbrs,
                               nscoord aContainingBlockWidth,
-                              nscoord aContainingBlockHeight,
-                              nsPresContext* aPresContext);
+                              nscoord aContainingBlockHeight);
 
   // Calculates the computed values for the 'min-Width', 'max-Width',
   // 'min-Height', and 'max-Height' properties, and stores them in the assorted

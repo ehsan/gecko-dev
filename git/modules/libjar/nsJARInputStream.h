@@ -42,7 +42,6 @@
 
 #include "nsIInputStream.h"
 #include "nsJAR.h"
-#include "nsTArray.h"
 
 /*-------------------------------------------------------------------------
  * Class nsJARInputStream declaration. This class defines the type of the
@@ -53,48 +52,44 @@ class nsJARInputStream : public nsIInputStream
 {
   public:
     nsJARInputStream() : 
-        mOutSize(0), mInCrc(0), mOutCrc(0), mCurPos(0),
-        mMode(MODE_NOTINITED)
-    { 
-      memset(&mZs, 0, sizeof(z_stream));
-    }
-
+        mFd(nsnull), mInSize(0), mCurPos(0),
+        mClosed(PR_FALSE), mInflate(nsnull), mDirectory(0) { }
+    
     ~nsJARInputStream() { Close(); }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIINPUTSTREAM
    
     // takes ownership of |fd|, even on failure
-    nsresult InitFile(nsJAR *aJar, nsZipItem *item);
+    nsresult InitFile(nsZipArchive* aZip, nsZipItem *item, PRFileDesc *fd);
 
-    nsresult InitDirectory(nsJAR *aJar,
+    nsresult InitDirectory(nsZipArchive* aZip,
                            const nsACString& aJarDirSpec,
                            const char* aDir);
   
   private:
-    nsRefPtr<nsZipHandle>  mFd;         // handle for reading
-    PRUint32               mOutSize;    // inflated size 
-    PRUint32               mInCrc;      // CRC as provided by the zipentry
-    PRUint32               mOutCrc;     // CRC as calculated by me
-    z_stream               mZs;         // zip data structure
+    PRFileDesc*   mFd;              // My own file handle, for reading
+    PRUint32      mInSize;          // Size in original file 
+    PRUint32      mCurPos;          // Current position in input 
+
+    struct InflateStruct {
+        PRUint32      mOutSize;     // inflated size 
+        PRUint32      mInCrc;       // CRC as provided by the zipentry
+        PRUint32      mOutCrc;      // CRC as calculated by me
+        z_stream      mZs;          // zip data structure
+        unsigned char mReadBuf[ZIP_BUFLEN]; // Readbuffer to inflate from
+    };
+    struct InflateStruct *   mInflate;
 
     /* For directory reading */
-    nsRefPtr<nsJAR>        mJar;        // string reference to zipreader
-    PRUint32               mNameLen;    // length of dirname
-    nsCString              mBuffer;     // storage for generated text of stream
-    PRUint32               mCurPos;     // Current position in buffer
-    PRUint32               mArrPos;     // current position within mArray
-    nsTArray<nsCString>    mArray;      // array of names in (zip) directory
+    nsZipArchive*           mZip;        // the zipReader
+    PRUint32                mNameLen; // length of dirname
+    nsCAutoString           mBuffer;  // storage for generated text of stream
+    PRUint32                mArrPos;  // current position within mArray
+    nsCStringArray          mArray;   // array of names in (zip) directory
 
-	typedef enum {
-        MODE_NOTINITED,
-        MODE_CLOSED,
-        MODE_DIRECTORY,
-        MODE_INFLATE,
-        MODE_COPY
-    } JISMode;
-
-    JISMode                mMode;		// Modus of the stream
+    PRPackedBool    mDirectory;
+    PRPackedBool    mClosed;          // Whether the stream is closed
 
     nsresult ContinueInflate(char* aBuf, PRUint32 aCount, PRUint32* aBytesRead);
     nsresult ReadDirectory(char* aBuf, PRUint32 aCount, PRUint32* aBytesRead);

@@ -251,7 +251,6 @@ template <class T, PRUint32 K> class nsExpirationTracker {
             return (*generation)[mIndex - 1];
           }
           ++mGeneration;
-          mIndex = 0;
         }
         return nsnull;
       }

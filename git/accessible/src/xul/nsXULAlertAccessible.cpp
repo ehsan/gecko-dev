@@ -47,29 +47,20 @@ nsXULAlertAccessible::nsXULAlertAccessible(nsIDOMNode* aNode, nsIWeakReference* 
 {
 }
 
-nsresult
-nsXULAlertAccessible::GetRoleInternal(PRUint32 *aRole)
+NS_IMETHODIMP nsXULAlertAccessible::GetRole(PRUint32 *aRole)
 {
   *aRole = nsIAccessibleRole::ROLE_ALERT;
   return NS_OK;
 }
 
-nsresult
-nsXULAlertAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
-{
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
-
-  // XUL has no markup for low, medium or high
-  *aState |= nsIAccessibleStates::STATE_ALERT_MEDIUM;
-  return NS_OK;
-}
-
 NS_IMETHODIMP
-nsXULAlertAccessible::GetName(nsAString& aName)
+nsXULAlertAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  // Screen readers need to read contents of alert, not the accessible name.
-  // If we have both some screen readers will read the alert twice.
-  aName.Truncate();
+  nsresult rv = nsAccessible::GetState(aState, aExtraState);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
+  *aState |= nsIAccessibleStates::STATE_ALERT_MEDIUM; // XUL has no markup for low, medium or high
   return NS_OK;
 }
+

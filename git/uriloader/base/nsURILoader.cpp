@@ -65,7 +65,7 @@
 
 #include "nsXPIDLString.h"
 #include "nsString.h"
-#include "nsNetUtil.h"
+
 #include "nsIDOMWindowInternal.h"
 #include "nsReadableUtils.h"
 #include "nsDOMError.h"
@@ -380,9 +380,6 @@ nsresult nsDocumentOpenInfo::DispatchContent(nsIRequest *request, nsISupports * 
     if (multipartChannel)
     {
       rv = multipartChannel->GetContentDisposition(disposition);
-    } else {
-      // Soon-to-be common way to get Disposition: right now only JARChannel
-      rv = NS_GetContentDisposition(request, disposition);
     }
   }
 
@@ -405,14 +402,17 @@ nsresult nsDocumentOpenInfo::DispatchContent(nsIRequest *request, nsISupports * 
       // XXXbz this code is duplicated in GetFilenameAndExtensionFromChannel in
       // nsExternalHelperAppService.  Factor it out!
       if (NS_FAILED(rv) || 
-          (!dispToken.IsEmpty() &&
+          (// Some broken sites just send
+           // Content-Disposition: ; filename="file"
+           // screen those out here.
+           !dispToken.IsEmpty() &&
            !dispToken.LowerCaseEqualsLiteral("inline") &&
-           // Broken sites just send
-           // Content-Disposition: filename="file"
-           // without a disposition token... screen those out.
-           !dispToken.EqualsIgnoreCase("filename", 8) &&
-           // Also in use is Content-Disposition: name="file"
-           !dispToken.EqualsIgnoreCase("name", 4)))
+          // Broken sites just send
+          // Content-Disposition: filename="file"
+          // without a disposition token... screen those out.
+           !dispToken.EqualsIgnoreCase("filename", 8)) &&
+          // Also in use is Content-Disposition: name="file"
+           !dispToken.EqualsIgnoreCase("name", 4))
         // We have a content-disposition of "attachment" or unknown
         forceExternalHandling = PR_TRUE;
     }
@@ -594,7 +594,6 @@ nsresult nsDocumentOpenInfo::DispatchContent(nsIRequest *request, nsISupports * 
     rv = helperAppService->DoContent(mContentType,
                                      request,
                                      m_originalContext,
-                                     PR_FALSE,
                                      getter_AddRefs(m_targetStreamListener));
     if (NS_FAILED(rv)) {
       request->SetLoadFlags(loadFlags);

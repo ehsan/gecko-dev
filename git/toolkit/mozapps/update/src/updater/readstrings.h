@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *  Darin Fisher <darin@meer.net>
- *  Alex Pakhotin <alexp@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,13 +41,6 @@
 
 #define MAX_TEXT_LEN 200
 
-#ifdef XP_WIN
-# include <windows.h>
-  typedef WCHAR NS_tchar;
-#else
-  typedef char NS_tchar;
-#endif
-
 struct StringTable {
   char title[MAX_TEXT_LEN];
   char info[MAX_TEXT_LEN];
@@ -57,11 +49,6 @@ struct StringTable {
 /**
  * This function reads in localized strings from updater.ini
  */
-int ReadStrings(const NS_tchar *path, StringTable *results);
-
-/**
- * This function reads in localized strings corresponding to the keys from a given .ini
- */
-int ReadStrings(const NS_tchar *path, const char *keyList, int numStrings, char results[][MAX_TEXT_LEN]);
+int ReadStrings(const char *path, StringTable *results);
 
 #endif  // READSTRINGS_H__

@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsProxyRelease_h__
+#ifndef nsProxyRelease_h_
 #define nsProxyRelease_h__
 
 #include "nsIEventTarget.h"
@@ -58,7 +58,7 @@ NS_ProxyRelease
 {
    T* raw = nsnull;
    doomed.swap(raw);
-   return NS_ProxyRelease(target, raw, alwaysProxy);
+   return NS_ProxyRelease(target, doomed, alwaysProxy);
 }
 
 /**

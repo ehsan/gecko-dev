@@ -51,6 +51,7 @@
 #include "nsIDOMNode.h"
 #include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMAttr.h"
+#include "nsIWidget.h"
 #include "nsIRenderingContext.h"
 #include "nsIDocument.h"
 #include "nsIDeviceContext.h"
@@ -273,16 +274,18 @@ nsBox::SetBounds(nsBoxLayoutState& aState, const nsRect& aRect, PRBool aRemoveOv
 
     flags |= stateFlags;
 
-    if ((flags & NS_FRAME_NO_MOVE_FRAME) == NS_FRAME_NO_MOVE_FRAME)
+    if (flags & NS_FRAME_NO_MOVE_FRAME)
       SetSize(nsSize(aRect.width, aRect.height));
     else
       SetRect(aRect);
 
     // Nuke the overflow area. The caller is responsible for restoring
     // it if necessary.
-    if (aRemoveOverflowArea && HasOverflowRect()) {
+    if (aRemoveOverflowArea && (GetStateBits() & NS_FRAME_OUTSIDE_CHILDREN)) {
       // remove the previously stored overflow area
-      ClearOverflowRect();
+      PresContext()->PropertyTable()->
+        DeleteProperty(this, nsGkAtoms::overflowAreaProperty);
+      RemoveStateBits(NS_FRAME_OUTSIDE_CHILDREN);
     }
 
     if (!(flags & NS_FRAME_NO_MOVE_VIEW))
@@ -341,7 +344,7 @@ nsBox::GetBorder(nsMargin& aMargin)
     // Go to the theme for the border.
     nsPresContext *context = PresContext();
     if (gTheme->ThemeSupportsWidget(context, this, disp->mAppearance)) {
-      nsIntMargin margin(0, 0, 0, 0);
+      nsMargin margin(0, 0, 0, 0);
       gTheme->GetWidgetBorder(context->DeviceContext(), this,
                               disp->mAppearance, &margin);
       aMargin.top = context->DevPixelsToAppUnits(margin.top);
@@ -352,7 +355,7 @@ nsBox::GetBorder(nsMargin& aMargin)
     }
   }
 
-  aMargin = GetStyleBorder()->GetActualBorder();
+  aMargin = GetStyleBorder()->GetBorder();
 
   return NS_OK;
 }
@@ -365,7 +368,7 @@ nsBox::GetPadding(nsMargin& aMargin)
     // Go to the theme for the padding.
     nsPresContext *context = PresContext();
     if (gTheme->ThemeSupportsWidget(context, this, disp->mAppearance)) {
-      nsIntMargin margin(0, 0, 0, 0);
+      nsMargin margin(0, 0, 0, 0);
       PRBool useThemePadding;
 
       useThemePadding = gTheme->GetWidgetPadding(context->DeviceContext(),
@@ -421,6 +424,21 @@ nsBox::DoesNeedRecalc(nscoord aCoord)
   return (aCoord == -1);
 }
 
+PRBool
+nsBox::GetWasCollapsed(nsBoxLayoutState& aState)
+{
+  return (GetStateBits() & NS_STATE_IS_COLLAPSED) != 0;
+}
+
+void
+nsBox::SetWasCollapsed(nsBoxLayoutState& aState, PRBool aCollapsed)
+{
+  if (aCollapsed)
+     AddStateBits(NS_STATE_IS_COLLAPSED);
+  else
+     RemoveStateBits(NS_STATE_IS_COLLAPSED);
+}
+
 NS_IMETHODIMP
 nsBox::SetLayoutManager(nsIBoxLayout* aLayout)
 {
@@ -451,7 +469,9 @@ nsBox::GetPrefSize(nsBoxLayoutState& aState)
 
   nsSize minSize = GetMinSize(aState);
   nsSize maxSize = GetMaxSize(aState);
-  return BoundsCheck(minSize, pref, maxSize);
+  BoundsCheck(minSize, pref, maxSize);
+
+  return pref;
 }
 
 nsSize
@@ -481,15 +501,15 @@ nsBox::GetMaxSize(nsBoxLayoutState& aState)
 {
   NS_ASSERTION(aState.GetRenderingContext(), "must have rendering context");
 
-  nsSize maxSize(NS_INTRINSICSIZE, NS_INTRINSICSIZE);
-  DISPLAY_MAX_SIZE(this, maxSize);
+  nsSize max(NS_INTRINSICSIZE, NS_INTRINSICSIZE);
+  DISPLAY_MAX_SIZE(this, max);
 
   if (IsCollapsed(aState))
-    return maxSize;
+    return max;
 
-  AddBorderAndPadding(maxSize);
-  nsIBox::AddCSSMaxSize(aState, this, maxSize);
-  return maxSize;
+  AddBorderAndPadding(max);
+  nsIBox::AddCSSMaxSize(aState, this, max);
+  return max;
 }
 
 nscoord
@@ -588,10 +608,12 @@ nsBox::SyncLayout(nsBoxLayoutState& aState)
   nsRect rect(nsPoint(0, 0), GetSize());
 
   if (ComputesOwnOverflowArea()) {
-    rect = GetOverflowRect();
-  }
-  else {
-    if (!DoesClipChildren() && !IsCollapsed(aState)) {
+    nsRect* overflow = GetOverflowAreaProperty();
+    if (overflow)
+      rect = *overflow;
+
+  } else {
+    if (!DoesClipChildren()) {
       // See if our child frames caused us to overflow after being laid
       // out. If so, store the overflow area.  This normally can't happen
       // in XUL, but it can happen with the CSS 'outline' property and
@@ -599,7 +621,9 @@ nsBox::SyncLayout(nsBoxLayoutState& aState)
       // frames in HTML inside XUL).
       nsIFrame* box = GetChildBox();
       while (box) {
-        nsRect bounds = box->GetOverflowRect() + box->GetPosition();
+        nsRect* overflowArea = box->GetOverflowAreaProperty();
+        nsRect bounds = overflowArea ? *overflowArea + box->GetPosition()
+                                     : box->GetRect();
         rect.UnionRect(rect, bounds);
 
         box = box->GetNextBox();
@@ -638,7 +662,7 @@ nsIFrame::Redraw(nsBoxLayoutState& aState,
   else
     damageRect = GetOverflowRect();
 
-  InvalidateWithFlags(damageRect, aImmediate ? INVALIDATE_IMMEDIATE : 0);
+  Invalidate(damageRect, aImmediate);
 
   return NS_OK;
 }
@@ -646,31 +670,32 @@ nsIFrame::Redraw(nsBoxLayoutState& aState,
 PRBool 
 nsIBox::AddCSSPrefSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize)
 {
-    PRBool widthSet = PR_FALSE, heightSet = PR_FALSE;
+    PRBool heightSet = PR_FALSE;
 
     // add in the css min, max, pref
     const nsStylePosition* position = aBox->GetStylePosition();
 
     // see if the width or height was specifically set
+    PRBool widthSet = 
+      nsLayoutUtils::GetAbsoluteCoord(position->mWidth,
+                                      aState.GetRenderingContext(),
+                                      aBox, aSize.width);
     // XXX Handle eStyleUnit_Enumerated?
     // (Handling the eStyleUnit_Enumerated types requires
     // GetPrefSize/GetMinSize methods that don't consider
-    // (min-/max-/)(width/height) properties.)
-    if (position->mWidth.GetUnit() == eStyleUnit_Coord) {
-        aSize.width = position->mWidth.GetCoordValue();
-        widthSet = PR_TRUE;
-    }
+    // (min-/max-/)(width/height) properties.
 
     if (position->mHeight.GetUnit() == eStyleUnit_Coord) {
         aSize.height = position->mHeight.GetCoordValue();     
         heightSet = PR_TRUE;
     }
+    // XXX Handle eStyleUnit_Chars?
     
     nsIContent* content = aBox->GetContent();
     // ignore 'height' and 'width' attributes if the actual element is not XUL
     // For example, we might be magic XUL frames whose primary content is an HTML
     // <select>
-    if (content && content->IsXUL()) {
+    if (content && content->IsNodeOfType(nsINode::eXUL)) {
         nsAutoString value;
         PRInt32 error;
 
@@ -710,7 +735,7 @@ nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize)
     if (display->mAppearance) {
       nsITheme *theme = aState.PresContext()->GetTheme();
       if (theme && theme->ThemeSupportsWidget(aState.PresContext(), aBox, display->mAppearance)) {
-        nsIntSize size;
+        nsSize size;
         nsIRenderingContext* rendContext = aState.GetRenderingContext();
         if (rendContext) {
           theme->GetMinimumWidgetSize(rendContext, aBox,
@@ -732,15 +757,17 @@ nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize)
 
     // same for min size. Unfortunately min size is always set to 0. So for now
     // we will assume 0 means not set.
-    if (position->mMinWidth.GetUnit() == eStyleUnit_Coord) {
-        nscoord min = position->mMinWidth.GetCoordValue();
+    nscoord min;
+    if (nsLayoutUtils::GetAbsoluteCoord(position->mMinWidth,
+                                        aState.GetRenderingContext(),
+                                        aBox, min)) {
         if (min && (!widthSet || (min > aSize.width && canOverride))) {
            aSize.width = min;
            widthSet = PR_TRUE;
         }
     } else if (position->mMinWidth.GetUnit() == eStyleUnit_Percent) {
-        NS_ASSERTION(position->mMinWidth.GetPercentValue() == 0.0f,
-          "Non-zero percentage values not currently supported");
+        float min = position->mMinWidth.GetPercentValue();
+        NS_ASSERTION(min == 0.0f, "Non-zero percentage values not currently supported");
         aSize.width = 0;
         widthSet = PR_TRUE;
     }
@@ -756,11 +783,12 @@ nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize)
            heightSet = PR_TRUE;
         }
     } else if (position->mMinHeight.GetUnit() == eStyleUnit_Percent) {
-        NS_ASSERTION(position->mMinHeight.GetPercentValue() == 0.0f,
-          "Non-zero percentage values not currently supported");
+        float min = position->mMinHeight.GetPercentValue();
+        NS_ASSERTION(min == 0.0f, "Non-zero percentage values not currently supported");
         aSize.height = 0;
         heightSet = PR_TRUE;
     }
+    // XXX Handle eStyleUnit_Chars?
 
     nsIContent* content = aBox->GetContent();
     if (content) {
@@ -799,26 +827,27 @@ nsIBox::AddCSSMinSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize)
 PRBool 
 nsIBox::AddCSSMaxSize(nsBoxLayoutState& aState, nsIBox* aBox, nsSize& aSize)
 {  
-    PRBool widthSet = PR_FALSE, heightSet = PR_FALSE;
+    PRBool heightSet = PR_FALSE;
 
     // add in the css min, max, pref
     const nsStylePosition* position = aBox->GetStylePosition();
 
     // and max
-    // see if the width or height was specifically set
+    PRBool widthSet = 
+      nsLayoutUtils::GetAbsoluteCoord(position->mMaxWidth,
+                                      aState.GetRenderingContext(),
+                                      aBox, aSize.width);
     // XXX Handle eStyleUnit_Enumerated?
     // (Handling the eStyleUnit_Enumerated types requires
     // GetPrefSize/GetMinSize methods that don't consider
-    // (min-/max-/)(width/height) properties.)
-    if (position->mMaxWidth.GetUnit() == eStyleUnit_Coord) {
-        aSize.width = position->mMaxWidth.GetCoordValue();
-        widthSet = PR_TRUE;
-    }
+    // (min-/max-/)(width/height) properties.
 
     if (position->mMaxHeight.GetUnit() == eStyleUnit_Coord) {
-        aSize.height = position->mMaxHeight.GetCoordValue();
+        nscoord max = position->mMaxHeight.GetCoordValue();
+        aSize.height = max;
         heightSet = PR_TRUE;
     }
+    // XXX Handle eStyleUnit_Chars?
 
     nsIContent* content = aBox->GetContent();
     if (content) {
@@ -962,30 +991,35 @@ nsBox::AddMargin(nsSize& aSize, const nsMargin& aMargin)
      aSize.height += aMargin.top + aMargin.bottom;
 }
 
-nscoord
-nsBox::BoundsCheck(nscoord aMin, nscoord aPref, nscoord aMax)
+void
+nsBox::BoundsCheck(nscoord& aMin, nscoord& aPref, nscoord& aMax)
 {
+   if (aMax < aMin)
+       aMax = aMin;
+
    if (aPref > aMax)
        aPref = aMax;
 
    if (aPref < aMin)
        aPref = aMin;
-
-   return aPref;
 }
 
-nsSize
-nsBox::BoundsCheckMinMax(const nsSize& aMinSize, const nsSize& aMaxSize)
+void
+nsBox::BoundsCheckMinMax(nsSize& aMinSize, nsSize& aMaxSize)
 {
-  return nsSize(NS_MAX(aMaxSize.width, aMinSize.width),
-                NS_MAX(aMaxSize.height, aMinSize.height));
+  if (aMaxSize.width < aMinSize.width) {
+    aMaxSize.width = aMinSize.width;
+  }
+
+  if (aMaxSize.height < aMinSize.height)
+    aMaxSize.height = aMinSize.height;
 }
 
-nsSize
-nsBox::BoundsCheck(const nsSize& aMinSize, const nsSize& aPrefSize, const nsSize& aMaxSize)
+void
+nsBox::BoundsCheck(nsSize& aMinSize, nsSize& aPrefSize, nsSize& aMaxSize)
 {
-  return nsSize(BoundsCheck(aMinSize.width, aPrefSize.width, aMaxSize.width),
-                BoundsCheck(aMinSize.height, aPrefSize.height, aMaxSize.height));
+   BoundsCheck(aMinSize.width, aPrefSize.width, aMaxSize.width);
+   BoundsCheck(aMinSize.height, aPrefSize.height, aMaxSize.height);
 }
 
 #ifdef DEBUG_LAYOUT

@@ -52,6 +52,7 @@
 #include "nsTextFormatter.h" // for page number localization formatting
 #ifdef IBMBIDI
 #include "nsBidiUtils.h"
+#include "nsBidiPresUtils.h"
 #endif
 #include "nsIFontMetrics.h"
 #include "nsIPrintSettings.h"
@@ -71,8 +72,6 @@ NS_NewPageFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsPageFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsPageFrame)
-
 nsPageFrame::nsPageFrame(nsStyleContext* aContext)
 : nsContainerFrame(aContext)
 {
@@ -82,7 +81,7 @@ nsPageFrame::~nsPageFrame()
 {
 }
 
-NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*           aPresContext,
+NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*          aPresContext,
                                   nsHTMLReflowMetrics&     aDesiredSize,
                                   const nsHTMLReflowState& aReflowState,
                                   nsReflowStatus&          aStatus)
@@ -112,9 +111,7 @@ NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*           aPresContext,
                     avHeight);
     float scale = aPresContext->GetPageScale();
     maxSize.width = NSToCoordCeil(maxSize.width / scale);
-    if (maxSize.height != NS_UNCONSTRAINEDSIZE) {
-      maxSize.height = NSToCoordCeil(maxSize.height / scale);
-    }
+    maxSize.height = NSToCoordCeil(maxSize.height / scale);
     // Get the number of Twips per pixel from the PresContext
     nscoord onePixelInTwips = nsPresContext::CSSPixelsToAppUnits(1);
     // insurance against infinite reflow, when reflowing less than a pixel
@@ -316,7 +313,7 @@ nsPageFrame::DrawHeaderFooter(nsIRenderingContext& aRenderingContext,
 }
 
 // Draw a header or footer string
-// @param aRenderingContext - rendering context to draw into
+// @param aRenderingContext - rendering content ot draw into
 // @param aHeaderFooter - indicates whether it is a header or footer
 // @param aJust - indicates where the string is located within the header/footer
 // @param aStr - the string to be drawn
@@ -372,10 +369,6 @@ nsPageFrame::DrawHeaderFooter(nsIRenderingContext& aRenderingContext,
     } else { 
       return; // bail if couldn't find the correct length
     }
-    
-    if (HasRTLChars(str)) {
-      PresContext()->SetBidiEnabled();
-    }
 
     // cacl the x and y positions of the text
     nscoord x = GetXPosition(aRenderingContext, aRect, aJust, str);
@@ -389,7 +382,7 @@ nsPageFrame::DrawHeaderFooter(nsIRenderingContext& aRenderingContext,
     // set up new clip and draw the text
     aRenderingContext.PushState();
     aRenderingContext.SetColor(NS_RGB(0,0,0));
-    aRenderingContext.SetClipRect(aRect, nsClipCombine_kIntersect);
+    aRenderingContext.SetClipRect(aRect, nsClipCombine_kReplace);
     nsLayoutUtils::DrawString(this, &aRenderingContext, str.get(), str.Length(), nsPoint(x, y + aAscent));
     aRenderingContext.PopState();
   }
@@ -502,16 +495,13 @@ nsPageFrame::PaintHeaderFooter(nsIRenderingContext& aRenderingContext,
   nsRect rect(aPt.x, aPt.y, mRect.width - mPD->mShadowSize.width,
               mRect.height - mPD->mShadowSize.height);
 
+  aRenderingContext.SetFont(*mPD->mHeadFootFont, nsnull);
   aRenderingContext.SetColor(NS_RGB(0,0,0));
 
   // Get the FontMetrics to determine width.height of strings
   nsCOMPtr<nsIFontMetrics> fontMet;
   pc->DeviceContext()->GetMetricsFor(*mPD->mHeadFootFont, nsnull,
-                                     pc->GetUserFontSet(),
                                      *getter_AddRefs(fontMet));
-
-  aRenderingContext.SetFont(fontMet);
-
   nscoord ascent = 0;
   nscoord visibleHeight = 0;
   if (fontMet) {
@@ -546,44 +536,28 @@ nsPageFrame::PaintPageContent(nsIRenderingContext& aRenderingContext,
   nsRect rect = aDirtyRect;
   float scale = PresContext()->GetPageScale();
   aRenderingContext.PushState();
-  nsPoint framePos = aPt + pageContentFrame->GetOffsetTo(this);
-  aRenderingContext.Translate(framePos.x, framePos.y);
+  // Make sure we don't draw where we aren't supposed to draw, especially
+  // when printing selection
+  nsRect clipRect(nsPoint(0, 0), GetSize());
+  clipRect.Deflate(mPD->mReflowMargin);
+  aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
   // aPt translates to coords relative to this, then margins translate to
   // pageContentFrame's coords
+  nsPoint framePos = aPt + pageContentFrame->GetOffsetTo(this);
+  aRenderingContext.Translate(framePos.x, framePos.y);
   rect -= framePos;
   aRenderingContext.Scale(scale, scale);
   rect.ScaleRoundOut(1.0f / scale);
-  // Make sure we don't draw where we aren't supposed to draw, especially
-  // when printing selection
-  nsRect clipRect(nsPoint(0, 0), pageContentFrame->GetSize());
-  // Note: this computation matches how we compute maxSize.height
-  // in nsPageFrame::Reflow
-  nscoord expectedPageContentHeight = 
-    NSToCoordCeil((GetSize().height - mPD->mReflowMargin.TopBottom()) / scale);
-  if (clipRect.height > expectedPageContentHeight) {
-    // We're doing print-selection, with one long page-content frame.
-    // Clip to the appropriate page-content slice for the current page.
-    NS_ASSERTION(mPageNum > 0, "page num should be positive");
-    // Note: The pageContentFrame's y-position has been set such that a zero
-    // y-value matches the top edge of the current page.  So, to clip to the
-    // current page's content (in coordinates *relative* to the page content
-    // frame), we just negate its y-position and add the top margin.
-    clipRect.y = NSToCoordCeil((-pageContentFrame->GetRect().y + 
-                                mPD->mReflowMargin.top) / scale);
-    clipRect.height = expectedPageContentHeight;
-    NS_ASSERTION(clipRect.y < pageContentFrame->GetSize().height,
-                 "Should be clipping to region inside the page content bounds");
-  }
-  aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
 
+  const nsStyleBorder* border = GetStyleBorder();
+  const nsStylePadding* padding = GetStylePadding();
   nsRect backgroundRect = nsRect(nsPoint(0, 0), pageContentFrame->GetSize());
   nsCSSRendering::PaintBackground(PresContext(), aRenderingContext, this,
-                                  rect, backgroundRect,
-                                  nsCSSRendering::PAINTBG_SYNC_DECODE_IMAGES);
+                                  rect, backgroundRect, *border, *padding,
+                                  PR_TRUE);
 
   nsLayoutUtils::PaintFrame(&aRenderingContext, pageContentFrame,
-                            nsRegion(rect), NS_RGBA(0,0,0,0),
-                            nsLayoutUtils::PAINT_SYNC_DECODE_IMAGES);
+                            nsRegion(rect), NS_RGBA(0,0,0,0));
 
   aRenderingContext.PopState();
 }
@@ -610,8 +584,6 @@ NS_NewPageBreakFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsPageBreakFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsPageBreakFrame)
-
 nsPageBreakFrame::nsPageBreakFrame(nsStyleContext* aContext) :
   nsLeafFrame(aContext), mHaveReflowed(PR_FALSE)
 {
@@ -627,14 +599,8 @@ nsPageBreakFrame::GetIntrinsicWidth()
   return nsPresContext::CSSPixelsToAppUnits(1);
 }
 
-nscoord
-nsPageBreakFrame::GetIntrinsicHeight()
-{
-  return 0;
-}
-
 nsresult 
-nsPageBreakFrame::Reflow(nsPresContext*           aPresContext,
+nsPageBreakFrame::Reflow(nsPresContext*          aPresContext,
                          nsHTMLReflowMetrics&     aDesiredSize,
                          const nsHTMLReflowState& aReflowState,
                          nsReflowStatus&          aStatus)
@@ -645,8 +611,7 @@ nsPageBreakFrame::Reflow(nsPresContext*           aPresContext,
   // Override reflow, since we don't want to deal with what our
   // computed values are.
   aDesiredSize.width = GetIntrinsicWidth();
-  aDesiredSize.height = (aReflowState.availableHeight == NS_UNCONSTRAINEDSIZE ?
-                         0 : aReflowState.availableHeight);
+  aDesiredSize.height = aReflowState.availableHeight;
   // round the height down to the nearest pixel
   aDesiredSize.height -=
     aDesiredSize.height % nsPresContext::CSSPixelsToAppUnits(1);
@@ -664,10 +629,4 @@ nsPageBreakFrame::GetType() const
   return nsGkAtoms::pageBreakFrame; 
 }
 
-#ifdef DEBUG
-NS_IMETHODIMP
-nsPageBreakFrame::GetFrameName(nsAString& aResult) const
-{
-  return MakeFrameName(NS_LITERAL_STRING("PageBreak"), aResult);
-}
-#endif
+

@@ -58,8 +58,6 @@
 #include "nsXBLPrototypeBinding.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsContentUtils.h"
-#include "nsStyleSet.h"
-#include "nsIScriptSecurityManager.h"
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLResourceLoader)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLResourceLoader)
@@ -149,23 +147,18 @@ nsXBLResourceLoader::LoadResources(PRBool* aResult)
       nsresult rv;
       if (NS_SUCCEEDED(url->SchemeIs("chrome", &chrome)) && chrome)
       {
-        rv = nsContentUtils::GetSecurityManager()->
-          CheckLoadURIWithPrincipal(docPrincipal, url,
-                                    nsIScriptSecurityManager::ALLOW_CHROME);
-        if (NS_SUCCEEDED(rv)) {
-          nsCOMPtr<nsICSSStyleSheet> sheet;
-          rv = cssLoader->LoadSheetSync(url, getter_AddRefs(sheet));
-          NS_ASSERTION(NS_SUCCEEDED(rv), "Load failed!!!");
-          if (NS_SUCCEEDED(rv))
-          {
-            rv = StyleSheetLoaded(sheet, PR_FALSE, NS_OK);
-            NS_ASSERTION(NS_SUCCEEDED(rv), "Processing the style sheet failed!!!");
-          }
+        nsCOMPtr<nsICSSStyleSheet> sheet;
+        rv = cssLoader->LoadSheetSync(url, getter_AddRefs(sheet));
+        NS_ASSERTION(NS_SUCCEEDED(rv), "Load failed!!!");
+        if (NS_SUCCEEDED(rv))
+        {
+          rv = StyleSheetLoaded(sheet, PR_FALSE, NS_OK);
+          NS_ASSERTION(NS_SUCCEEDED(rv), "Processing the style sheet failed!!!");
         }
       }
       else
       {
-        rv = cssLoader->LoadSheet(url, docPrincipal, EmptyCString(), this);
+        rv = cssLoader->LoadSheet(url, docPrincipal, this);
         if (NS_SUCCEEDED(rv))
           ++mPendingSheets;
       }
@@ -199,8 +192,7 @@ nsXBLResourceLoader::StyleSheetLoaded(nsICSSStyleSheet* aSheet,
   if (mPendingSheets == 0) {
     // All stylesheets are loaded.  
     mResources->mRuleProcessor =
-      new nsCSSRuleProcessor(mResources->mStyleSheetList, 
-                             nsStyleSet::eDocSheet);
+      new nsCSSRuleProcessor(mResources->mStyleSheetList);
 
     // XXX Check for mPendingScripts when scripts also come online.
     if (!mInLoadResourcesFunc)
@@ -265,7 +257,7 @@ nsXBLResourceLoader::NotifyBoundElements()
         // will happen.
         nsIPresShell *shell = doc->GetPrimaryShell();
         if (shell) {
-          nsIFrame* childFrame = content->GetPrimaryFrame();
+          nsIFrame* childFrame = shell->GetPrimaryFrameFor(content);
           if (!childFrame) {
             // Check to see if it's in the undisplayed content map.
             nsStyleContext* sc =

@@ -43,7 +43,6 @@ interface nsIURI;
 interface nsIFile;
 interface nsIUTF8StringEnumerator;
 interface nsIHandlerApp;
-interface nsIArray;
 interface nsIMutableArray;
 interface nsIInterfaceRequestor;
 
@@ -53,7 +52,7 @@ typedef long nsHandlerInfoAction;
  * nsIHandlerInfo gives access to the information about how a given protocol
  * scheme or MIME-type is handled.
  */
-[scriptable, uuid(325e56a7-3762-4312-aec7-f1fcf84b4145)] 
+[scriptable, uuid(325e56a7-3762-4312-aec7-f1fcf84b4145)]
 interface nsIHandlerInfo : nsISupports {
     /**
      * The type of this handler info.  For MIME handlers, this is the MIME type.
@@ -114,9 +113,12 @@ interface nsIHandlerInfo : nsISupports {
      *
      * @param aWindowContext 
      *        The window to parent the dialog against, and, if a web handler
-     *        is chosen, it is loaded in this window as well.  See 
-     *        nsIHandlerApp.launchWithURI for more details.
-     *
+     *        is chosen, it is loaded in this window as well.  This parameter
+     *        may be ultimately passed nsIURILoader.openURI in the case of a
+     *        web handler, and aWindowContext is null or not present, web
+     *        handlers will fail.  We need to do better than that; bug 394483
+     *        filed in order to track.
+     *       
      * @throw NS_ERROR_INVALID_ARG if preferredAction is not valid for this
      * call. Other exceptions may be thrown.
      */
@@ -157,7 +159,7 @@ interface nsIHandlerInfo : nsISupports {
  * MIMEInfo objects are generally retrieved from the MIME Service
  * @see nsIMIMEService
  */
-[scriptable, uuid(1c21acef-c7a1-40c6-9d40-a20480ee53a1)]
+[scriptable, uuid(a4011016-81a1-47d9-b01e-19a2272ae89b)]
 interface nsIMIMEInfo : nsIHandlerInfo {
     /**
      * Gives you an array of file types associated with this type.
@@ -203,23 +205,18 @@ interface nsIMIMEInfo : nsIHandlerInfo {
     readonly attribute ACString MIMEType;
 
     /**
+     * Mac Type and creator types
+     */
+    attribute PRUint32 macType;
+    attribute PRUint32 macCreator;
+
+    /**
      * Returns whether or not these two nsIMIMEInfos are logically
      * equivalent.
      *
      * @returns PR_TRUE if the two are considered equal
      */
     boolean equals(in nsIMIMEInfo aMIMEInfo);
-
-    /** 
-     * Returns a list of nsILocalHandlerApp objects containing
-     * handlers associated with this mimeinfo. Implemented per 
-     * platform using information in this object to generate the
-     * best list. Typically used for an "open with" style user 
-     * option.
-     * 
-     * @return nsIArray of nsILocalHandlerApp
-     */
-    readonly attribute nsIArray possibleLocalHandlers;
 
     /**
      * Launches the application with the specified file, in a way that
@@ -242,7 +239,7 @@ interface nsIMIMEInfo : nsIHandlerInfo {
  * we should also try to make nsIWebContentHandlerInfo inherit from or possibly
  * be replaced by nsIWebHandlerApp (bug 394710).
  */
-[scriptable, uuid(8BDF20A4-9170-4548-AF52-78311A44F920)]
+[scriptable, uuid(b504f39e-d88a-4435-8e0d-e13f1070f7e7)]
 interface nsIHandlerApp : nsISupports {
 
     /**
@@ -251,97 +248,29 @@ interface nsIHandlerApp : nsISupports {
     attribute AString name;
 
     /**
-     * Detailed description for this handler. Suitable for
-     * a tooltip or short informative sentence.
-     */
-    attribute AString detailedDescription;
-
-    /**
      * Whether or not the given handler app is logically equivalent to the
      * invokant (i.e. they represent the same app).
      * 
      * Two apps are the same if they are both either local or web handlers
-     * and their executables/URI templates and command line parameters are
-     * the same.
+     * and their executables/URI templates are the same in a string comparison.
      *
      * @param aHandlerApp the handler app to compare to the invokant
      *
      * @returns true if the two are logically equivalent, false otherwise
      */
     boolean equals(in nsIHandlerApp aHandlerApp);
-
-    /**
-     * Launches the application with the specified URI.
-     *
-     * @param aURI
-     *        The URI to launch this application with
-     *
-     * @param aWindowContext 
-     *
-     *        Currently only relevant to web-handler apps.  If given, this
-     *        represents the docshell to load the handler in and is passed
-     *        through to nsIURILoader.openURI.  If this parameter is null or
-     *        not present, the web handler app implementation will attempt to 
-     *        find/create a place to load the handler and do so.  As of this
-     *        writing, it tries to load the web handler in a new window using
-     *        nsIBrowserDOMWindow.openURI.  In the future, it may attempt to 
-     *        have a more comprehensive strategy which could include handing
-     *        off to the system default browser (bug 394479).
-     */
-    void launchWithURI(in nsIURI aURI, 
-                       [optional] in nsIInterfaceRequestor aWindowContext);
-
 };
 
 /**
  * nsILocalHandlerApp is a local OS-level executable
  */
-[scriptable, uuid(D36B6329-52AE-4f45-80F4-B2536AE5F8B2)]
+[scriptable, uuid(9812be73-273c-478c-8170-c3e0db08ae7c)]
 interface nsILocalHandlerApp : nsIHandlerApp {
 
     /**
      * Pointer to the executable file used to handle content
      */
     attribute nsIFile executable;
-
-    /**
-     * Returns the current number of command line parameters.
-     */
-    readonly attribute unsigned long parameterCount;
-
-    /**
-     * Clears the current list of command line parameters.
-     */
-    void clearParameters();
-
-    /**
-     * Appends a command line parameter to the command line
-     * parameter list.
-     *
-     * @param param the parameter to add.
-     */
-    void appendParameter(in AString param);
-
-    /**
-     * Retrieves a specific command line parameter.
-     *
-     * @param param the index of the parameter to return.
-     *
-     * @return the parameter string.
-     *
-     * @throw NS_ERROR_INVALID_ARG if the index is out of range.
-     */
-    AString getParameter(in unsigned long parameterIndex);
-
-    /**
-     * Checks to see if a parameter exists in the command line
-     * parameter list.
-     *
-     * @param param the parameter to search for.
-     *
-     * @return TRUE if the parameter exists in the current list. 
-     */
-    boolean parameterExists(in AString param);
 };
 
 /**
@@ -360,40 +289,3 @@ interface nsIWebHandlerApp : nsIHandlerApp {
      */
     attribute AUTF8String uriTemplate;
 };
-
-/**
- * nsIDBusHandlerApp represents local applications launched by DBus a message
- * invoking a method taking a single string argument descibing a URI
- */
-[scriptable, uuid(1ffc274b-4cbf-4bb5-a635-05ad2cbb6534)]
-interface nsIDBusHandlerApp : nsIHandlerApp {
-
-    /**
-     * Service defines the dbus service that should handle this protocol.
-     * If its not set,  NS_ERROR_FAILURE will be returned by LaunchWithURI
-     */
-    attribute AUTF8String service;
-    
-    /**
-     * Objpath defines the object path of the dbus service that should handle 
-     * this protocol. If its not set,  NS_ERROR_FAILURE will be returned 
-     * by LaunchWithURI
-     */
-    attribute AUTF8String objectPath;
-
-    /**
-     * DBusInterface defines the interface of the dbus service that should 
-     * handle this protocol. If its not set,  NS_ERROR_FAILURE will be  
-     * returned by LaunchWithURI
-     */
-    attribute AUTF8String dBusInterface;
-    
-    /**
-     * Method defines the dbus method that should be invoked to handle this 
-     * protocol. If its not set,  NS_ERROR_FAILURE will be returned by 
-     * LaunchWithURI
-     */
-    attribute AUTF8String method;
-    
-};
-

@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Test for Login Manager</title>
-  <script type="text/javascript" src="/MochiKit/packed.js"></script>
+  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="text/javascript" src="pwmgr_common.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -148,7 +148,6 @@ Login Manager test: 227640
 
 /** Test for Login Manager: 227640 (password is saved even when the
     password field has autocomplete="off") **/
-commonInit();
 
 // This test ensures that pwmgr does not save a username or password when
 // autocomplete=off is present.
@@ -162,13 +161,10 @@ function startTest() {
   numStartingLogins = countLogins();
   ok(numStartingLogins > 0, "counting logins at start");
 
-  // Check first set of forms, which should not be filled by pwmgr.
+  // Check first set of forms, which should be filled by pwmgr.
   for (var i = 1; i <= 7; i++) {
-    is($_(i, "uname").value, "", "Checking for unfilled username " + i);
-    is($_(i, "pword").value, "", "Checking for unfilled password " + i);
-    // Set the field values to that of an existing login
-    $_(i, "uname").value = "testuser";
-    $_(i, "pword").value = "testpass";
+    is($_(i, "uname").value, "testuser", "Checking for filled username " + i);
+    is($_(i, "pword").value, "testpass", "Checking for filled password " + i);
   }
 
   // Check second set of forms, which should have preset values (and are unknown to pwmgr).
@@ -227,7 +223,7 @@ function getFormSubmitButton(formNum) {
 function countLogins() {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
-  var logins = pwmgr.getAllLogins();
+  var logins = pwmgr.getAllLogins({});
 
   return logins.length;
 }

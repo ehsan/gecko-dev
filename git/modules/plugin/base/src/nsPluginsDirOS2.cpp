@@ -44,8 +44,7 @@
 #include "prlink.h"
 #include "plstr.h"
 #include "prmem.h"
-#include "prprf.h"
-#include "npapi.h"
+#include "nsPluginDefs.h"
 
 #include "nsString.h"
 
@@ -76,34 +75,6 @@ static char *LoadRCDATAString( HMODULE hMod, ULONG resid)
          string[ ulSize - 1] = '\0';
 
          DosFreeResource( readOnlyString);
-      }
-   }
-
-   return string;
-}
-
-/* Load a version string stored as RCDATA in a resource segment */
-/* Returned string needs to be PR_Free'd by caller */
-static char *LoadRCDATAVersion(HMODULE hMod, ULONG resid)
-{
-   APIRET rc;
-   ULONG  ulSize = 0;
-   char  *string = 0;
-
-   rc = DosQueryResourceSize(hMod, RT_RCDATA, resid, &ulSize);
-
-   // version info is should be 8 chars
-   if (rc == NO_ERROR && ulSize == 8)
-   {
-      char *version = NULL;
-      rc = DosGetResource(hMod, RT_RCDATA, resid, (void**) &version);
-
-      if (rc == NO_ERROR)
-      {
-         string = PR_smprintf("%d.%d.%d.%d\n",
-                              version[0], version[2], version[4], version[6]);
-
-         DosFreeResource(version);
       }
    }
 
@@ -214,38 +185,33 @@ nsresult nsPluginFile::LoadPlugin( PRLibrary *&outLibrary)
 // Obtains all of the information currently available for this plugin.
 nsresult nsPluginFile::GetPluginInfo( nsPluginInfo &info)
 {
-   nsresult   rv = NS_ERROR_FAILURE;
+   nsresult   rc = NS_ERROR_FAILURE;
    HMODULE    hPlug = 0; // Need a HMODULE to query resource statements
    char       failure[ CCHMAXPATH] = "";
    APIRET     ret;
 
-   nsCAutoString path;
-   if (NS_FAILED(rv = mPlugin->GetNativePath(path)))
-     return rv;
-
-   nsCAutoString fileName;
-   if (NS_FAILED(rv = mPlugin->GetNativeLeafName(fileName)))
-     return rv;
-
-   ret = DosLoadModule( failure, CCHMAXPATH, path.get(), &hPlug);
-   info.fVersion = nsnull;
+   const char* path;
+   nsCAutoString temp;
+   mPlugin->GetNativePath(temp);
+   path = temp.get();
+   ret = DosLoadModule( failure, CCHMAXPATH, path, &hPlug);
 
    while( ret == NO_ERROR)
    {
-      info.fName = LoadRCDATAString( hPlug, NP_INFO_ProductName);
+      info.fPluginInfoSize = sizeof( nsPluginInfo);
 
-      info.fVersion = LoadRCDATAVersion( hPlug, NP_INFO_ProductVersion);
+      info.fName = LoadRCDATAString( hPlug, NS_INFO_ProductName);
 
       // get description (doesn't matter if it's missing)...
-      info.fDescription = LoadRCDATAString( hPlug, NP_INFO_FileDescription);
+      info.fDescription = LoadRCDATAString( hPlug, NS_INFO_FileDescription);
 
-      char * mimeType = LoadRCDATAString( hPlug, NP_INFO_MIMEType);
+      char * mimeType = LoadRCDATAString( hPlug, NS_INFO_MIMEType);
       if( nsnull == mimeType) break;
 
-      char * mimeDescription = LoadRCDATAString( hPlug, NP_INFO_FileOpenName);
+      char * mimeDescription = LoadRCDATAString( hPlug, NS_INFO_FileOpenName);
       if( nsnull == mimeDescription) break;
 
-      char * extensions = LoadRCDATAString( hPlug, NP_INFO_FileExtents);
+      char * extensions = LoadRCDATAString( hPlug, NS_INFO_FileExtents);
       if( nsnull == extensions) break;
 
       info.fVariantCount = CalculateVariantCount(mimeType);
@@ -259,32 +225,22 @@ nsresult nsPluginFile::GetPluginInfo( nsPluginInfo &info)
       info.fExtensionArray = MakeStringArray(info.fVariantCount, extensions);
       if( nsnull == info.fExtensionArray) break;
 
-      info.fFullPath = PL_strdup(path.get());
-      info.fFileName = PL_strdup(fileName.get());
+      info.fFileName = PL_strdup(path);
 
-      rv = NS_OK;
+      rc = NS_OK;
       break;
    }
 
    if( 0 != hPlug)
       DosFreeModule( hPlug);
 
-   return rv;
+   return rc;
 }
 
 nsresult nsPluginFile::FreePluginInfo(nsPluginInfo& info)
 {
    if(info.fName != nsnull)
      PL_strfree(info.fName);
-
-   if(info.fFullPath != nsnull)
-     PL_strfree(info.fFullPath);
-
-   if(info.fFileName != nsnull)
-     PL_strfree(info.fFileName);
- 
-   if(info.fVersion != nsnull)
-     PL_strfree(info.fVersion);
  
    if(info.fDescription != nsnull)
      PL_strfree(info.fDescription);

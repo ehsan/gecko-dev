@@ -39,7 +39,6 @@
 
 #include "nsXPCOMGlue.h"
 
-#include "nsAutoPtr.h"
 #include "nsINIParser.h"
 #include "nsVersionComparator.h"
 #include "nsXPCOMPrivate.h"
@@ -47,7 +46,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 
 #ifdef XP_WIN32
 # include <windows.h>
@@ -59,7 +57,7 @@
 # define INCL_DOS
 # include <os2.h>
 #elif defined(XP_MACOSX)
-# include <CoreFoundation/CoreFoundation.h>
+# include <CFBundle.h>
 # include <unistd.h>
 # include <dirent.h>
 #elif defined(XP_UNIX)
@@ -103,17 +101,10 @@ static PRBool safe_strncat(char *dest, const char *append, PRUint32 count)
   return *append == '\0';
 }
 
-#ifdef XP_WIN
-static PRBool
-CheckVersion(const PRUnichar* toCheck,
-             const GREVersionRange *versions,
-             PRUint32 versionsLength);
-#endif
 static PRBool
 CheckVersion(const char* toCheck,
              const GREVersionRange *versions,
              PRUint32 versionsLength);
-
 
 #if defined(XP_MACOSX)
 
@@ -162,28 +153,6 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
                              PRUint32 propertiesLength,
                              char *aBuffer, PRUint32 aBufLen)
 {
-#ifdef TARGET_XPCOM_ABI
-  // append the ABI to the properties to match only binary 
-  // compatible GREs
-  static const GREProperty kExtraProperty =
-    { "abi", TARGET_XPCOM_ABI };
-
-  GREProperty *allProperties = new GREProperty[propertiesLength + 1];
-  if (!allProperties)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  for (PRUint32 i=0; i<propertiesLength; i++) {
-    allProperties[i].property = properties[i].property;
-    allProperties[i].value    = properties[i].value;
-  }
-  allProperties[propertiesLength].property = kExtraProperty.property;
-  allProperties[propertiesLength].value    = kExtraProperty.value;
-  PRUint32 allPropertiesLength = propertiesLength + 1;
-#else
-  const GREProperty *allProperties = properties;
-  PRUint32 allPropertiesLength = propertiesLength;
-#endif
-
   // if GRE_HOME is in the environment, use that GRE
   const char* env = getenv("GRE_HOME");
   if (env && *env) {
@@ -194,19 +163,6 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
 #if XP_UNIX
     if (realpath(p, aBuffer))
       return NS_OK;
-#elif WINCE
-    if (p[0] != '\\') 
-    {
-      unsigned short dir[MAX_PATH];
-      unsigned short path[MAX_PATH];
-      MultiByteToWideChar(CP_ACP, 0, p, -1, path, MAX_PATH);
-      _wfullpath(dir,path,MAX_PATH);
-      WideCharToMultiByte(CP_ACP, 0, dir, -1, aBuffer, MAX_PATH, NULL, NULL);
-    }
-    else {
-      strcpy(aBuffer, p);
-    }
-    return NS_OK;
 #elif XP_WIN
     if (_fullpath(aBuffer, p, aBufLen))
       return NS_OK;
@@ -300,7 +256,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
   const char *home = getenv("HOME");
   if (home && *home && GRE_FindGREFramework(home,
                                             versions, versionsLength,
-                                            allProperties, allPropertiesLength,
+                                            properties, propertiesLength,
                                             aBuffer, aBufLen)) {
     return NS_OK;
   }
@@ -308,7 +264,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
   // Check /Library/Frameworks/XUL.framework/Versions/<version>/libxpcom.dylib
   if (GRE_FindGREFramework("",
                            versions, versionsLength,
-                           allProperties, allPropertiesLength,
+                           properties, propertiesLength,
                            aBuffer, aBufLen)) {
     return NS_OK;
   }
@@ -317,7 +273,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
   env = getenv("MOZ_GRE_CONF");
   if (env && GRE_GetPathFromConfigFile(env,
                                        versions, versionsLength,
-                                       allProperties, allPropertiesLength,
+                                       properties, propertiesLength,
                                        aBuffer, aBufLen)) {
     return NS_OK;
   }
@@ -333,7 +289,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
     
     if (GRE_GetPathFromConfigFile(buffer,
                                   versions, versionsLength,
-                                  allProperties, allPropertiesLength,
+                                  properties, propertiesLength,
                                   aBuffer, aBufLen)) {
       return NS_OK;
     }
@@ -345,7 +301,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
 
     if (GRE_GetPathFromConfigDir(buffer,
                                  versions, versionsLength,
-                                 allProperties, allPropertiesLength,
+                                 properties, propertiesLength,
                                  aBuffer, aBufLen)) {
       return NS_OK;
     }
@@ -354,7 +310,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
   // Look for a global /etc/gre.conf file
   if (GRE_GetPathFromConfigFile(GRE_CONF_PATH,
                                 versions, versionsLength,
-                                allProperties, allPropertiesLength,
+                                properties, propertiesLength,
                                 aBuffer, aBufLen)) {
     return NS_OK;
   }
@@ -362,7 +318,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
   // Look for a group of config files in /etc/gre.d/
   if (GRE_GetPathFromConfigDir(GRE_CONF_DIR,
                                versions, versionsLength,
-                               allProperties, allPropertiesLength,
+                               properties, propertiesLength,
                                aBuffer, aBufLen)) {
     return NS_OK;
   }
@@ -371,7 +327,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
   env = getenv("MOZ_GRE_CONF");
   if (env && GRE_GetPathFromConfigFile(env,
                                        versions, versionsLength,
-                                       allProperties, allPropertiesLength,
+                                       properties, propertiesLength,
                                        aBuffer, aBufLen)) {
     return NS_OK;
   }
@@ -386,7 +342,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
     
     if (GRE_GetPathFromConfigFile(buffer,
                                   versions, versionsLength,
-                                  allProperties, allPropertiesLength,
+                                  properties, propertiesLength,
                                   aBuffer, aBufLen)) {
       return NS_OK;
     }
@@ -397,7 +353,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
 
     if (GRE_GetPathFromConfigDir(buffer,
                                  versions, versionsLength,
-                                 allProperties, allPropertiesLength,
+                                 properties, propertiesLength,
                                  aBuffer, aBufLen)) {
       return NS_OK;
     }
@@ -413,7 +369,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
              "%s" XPCOM_FILE_PATH_SEPARATOR GRE_CONF_PATH, p);
     if (GRE_GetPathFromConfigFile(buffer,
                                   versions, versionsLength,
-                                  allProperties, allPropertiesLength,
+                                  properties, propertiesLength,
                                   aBuffer, aBufLen)) {
       return NS_OK;
     }
@@ -423,7 +379,7 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
              "%s" XPCOM_FILE_PATH_SEPARATOR GRE_CONF_DIR, p);
     if (GRE_GetPathFromConfigDir(buffer,
                                  versions, versionsLength,
-                                 allProperties, allPropertiesLength,
+                                 properties, propertiesLength,
                                  aBuffer, aBufLen)) {
       return NS_OK;
     }
@@ -443,28 +399,28 @@ GRE_GetGREPathWithProperties(const GREVersionRange *versions,
   // Please see http://www.mozilla.org/projects/embedding/GRE.html for
   // more info.
   //
-  if (::RegOpenKeyExW(HKEY_CURRENT_USER, GRE_WIN_REG_LOC, 0,
-                      KEY_READ, &hRegKey) == ERROR_SUCCESS) {
-      PRBool ok = GRE_GetPathFromRegKey(hRegKey,
-                                        versions, versionsLength,
-                                        allProperties, allPropertiesLength,
-                                        aBuffer, aBufLen);
-      ::RegCloseKey(hRegKey);
+  if (::RegOpenKeyEx(HKEY_CURRENT_USER, GRE_WIN_REG_LOC, 0,
+                     KEY_READ, &hRegKey) == ERROR_SUCCESS) {
+    PRBool ok = GRE_GetPathFromRegKey(hRegKey,
+                                      versions, versionsLength,
+                                      properties, propertiesLength,
+                                      aBuffer, aBufLen);
+    ::RegCloseKey(hRegKey);
 
-      if (ok)
-          return NS_OK;
+    if (ok)
+      return NS_OK;
   }
 
-  if (::RegOpenKeyExW(HKEY_LOCAL_MACHINE, GRE_WIN_REG_LOC, 0,
-                      KEY_ENUMERATE_SUB_KEYS, &hRegKey) == ERROR_SUCCESS) {
-      PRBool ok = GRE_GetPathFromRegKey(hRegKey,
-                                        versions, versionsLength,
-                                        allProperties, allPropertiesLength,
-                                        aBuffer, aBufLen);
-      ::RegCloseKey(hRegKey);
+  if (::RegOpenKeyEx(HKEY_LOCAL_MACHINE, GRE_WIN_REG_LOC, 0,
+                     KEY_ENUMERATE_SUB_KEYS, &hRegKey) == ERROR_SUCCESS) {
+    PRBool ok = GRE_GetPathFromRegKey(hRegKey,
+                                      versions, versionsLength,
+                                      properties, propertiesLength,
+                                      aBuffer, aBufLen);
+    ::RegCloseKey(hRegKey);
 
-      if (ok)
-          return NS_OK;
+    if (ok)
+      return NS_OK;
   }
 #endif
 
@@ -499,54 +455,6 @@ CheckVersion(const char* toCheck,
 
   return PR_FALSE;
 }
-
-#ifdef XP_WIN
-
-// Allocate an array of characters using new[], converting from UTF8 to UTF-16.
-// @note Use nsAutoArrayPtr for this result.
-
-static PRUnichar*
-ConvertUTF8toNewUTF16(const char *cstr)
-{
-  int len = MultiByteToWideChar(CP_UTF8, 0, cstr, -1, NULL, 0);
-  WCHAR *wstr = new WCHAR[len];
-  MultiByteToWideChar(CP_UTF8, 0, cstr, -1, wstr, len);
-  return wstr;
-}
-
-typedef nsAutoArrayPtr<PRUnichar> AutoWString;
-
-static PRBool
-CheckVersion(const PRUnichar* toCheck,
-             const GREVersionRange *versions,
-             PRUint32 versionsLength)
-{
-  for (const GREVersionRange *versionsEnd = versions + versionsLength;
-       versions < versionsEnd;
-       ++versions) {
-      AutoWString wlower(ConvertUTF8toNewUTF16(versions->lower));
-      PRInt32 c = NS_CompareVersions(toCheck, wlower);
-      if (c < 0)
-        continue;
-
-      if (!c && !versions->lowerInclusive)
-        continue;
-
-      AutoWString wupper(ConvertUTF8toNewUTF16(versions->upper));
-      c = NS_CompareVersions(toCheck, wupper);
-      if (c > 0)
-        continue;
-
-      if (!c && !versions->upperInclusive)
-        continue;
-
-      return PR_TRUE;
-  }
-
-  return PR_FALSE;
-}
-#endif
-
 
 #ifdef XP_MACOSX
 PRBool
@@ -711,19 +619,19 @@ GRE_GetPathFromConfigFile(const char* filename,
 #elif defined(XP_WIN)
 
 static PRBool
-CopyWithEnvExpansion(PRUnichar* aDest, const PRUnichar* aSource, PRUint32 aBufLen,
+CopyWithEnvExpansion(char* aDest, const char* aSource, PRUint32 aBufLen,
                      DWORD aType)
 {
   switch (aType) {
   case REG_SZ:
-    if (wcslen(aSource) >= aBufLen)
+    if (strlen(aSource) >= aBufLen)
       return PR_FALSE;
 
-    wcscpy(aDest, aSource);
+    strcpy(aDest, aSource);
     return PR_TRUE;
 
   case REG_EXPAND_SZ:
-    if (ExpandEnvironmentStringsW(aSource, aDest, aBufLen) > aBufLen)
+    if (ExpandEnvironmentStrings(aSource, aDest, aBufLen) > aBufLen)
       return PR_FALSE;
 
     return PR_TRUE;
@@ -751,7 +659,7 @@ GRE_GetPathFromRegKey(HKEY aRegKey,
   //   <Property>=<value> (REG_SZ)
   //
   // Additional meta-info may be available in the future, including
-  // localization info and other information which might be pertinent
+  // localization info, ABI, and other information which might be pertinent
   // to selecting one GRE over another.
   //
   // When a GRE is being registered, it should try to register itself at
@@ -762,73 +670,63 @@ GRE_GetPathFromRegKey(HKEY aRegKey,
   //   1.1 (already in use), 1.1_1, 1.1_2, etc...
 
   DWORD i = 0;
-  PRUnichar buffer[MAXPATHLEN + 1];
 
   while (PR_TRUE) {
-    PRUnichar name[MAXPATHLEN + 1];
+    char name[MAXPATHLEN + 1];
     DWORD nameLen = MAXPATHLEN;
-    if (::RegEnumKeyExW(aRegKey, i, name, &nameLen, NULL, NULL, NULL, NULL) !=
-          ERROR_SUCCESS) {
-        break;
+    if (::RegEnumKeyEx(aRegKey, i, name, &nameLen, NULL, NULL, NULL, NULL) !=
+        ERROR_SUCCESS) {
+      break;
     }
 
     HKEY subKey = NULL;
-    if (::RegOpenKeyExW(aRegKey, name, 0, KEY_QUERY_VALUE, &subKey) !=
-          ERROR_SUCCESS) {
-        continue;
+    if (::RegOpenKeyEx(aRegKey, name, 0, KEY_QUERY_VALUE, &subKey) !=
+        ERROR_SUCCESS) {
+      continue;
     }
 
-    PRUnichar version[40];
+    char version[40];
     DWORD versionlen = 40;
-    PRUnichar pathbuf[MAXPATHLEN + 1];
+    char pathbuf[MAXPATHLEN];
     DWORD pathlen;
     DWORD pathtype;
 
     PRBool ok = PR_FALSE;
 
-    if (::RegQueryValueExW(subKey, L"Version", NULL, NULL,
-                           (BYTE*) version, &versionlen) == ERROR_SUCCESS &&
-          CheckVersion(version, versions, versionsLength)) {
+    if (::RegQueryValueEx(subKey, "Version", NULL, NULL,
+                          (BYTE*) version, &versionlen) == ERROR_SUCCESS &&
+        CheckVersion(version, versions, versionsLength)) {
 
       ok = PR_TRUE;
       const GREProperty *props = properties;
       const GREProperty *propsEnd = properties + propertiesLength;
       for (; ok && props < propsEnd; ++props) {
-        pathlen = MAXPATHLEN + 1;
+        pathlen = sizeof(pathbuf);
 
-        AutoWString wproperty(ConvertUTF8toNewUTF16(props->property));
-        AutoWString wvalue(ConvertUTF8toNewUTF16(props->value));
-        if (::RegQueryValueExW(subKey, wproperty, NULL, &pathtype,
-                               (BYTE*) pathbuf, &pathlen) != ERROR_SUCCESS ||
-            wcscmp(pathbuf,  wvalue))
-            ok = PR_FALSE;
+        if (::RegQueryValueEx(subKey, props->property, NULL, &pathtype,
+                              (BYTE*) pathbuf, &pathlen) != ERROR_SUCCESS ||
+            strcmp(pathbuf, props->value))
+          ok = PR_FALSE;
       }
 
       pathlen = sizeof(pathbuf);
       if (ok &&
-          (!::RegQueryValueExW(subKey, L"GreHome", NULL, &pathtype,
+          (!::RegQueryValueEx(subKey, "GreHome", NULL, &pathtype,
                               (BYTE*) pathbuf, &pathlen) == ERROR_SUCCESS ||
            !*pathbuf ||
-           !CopyWithEnvExpansion(buffer, pathbuf, MAXPATHLEN, pathtype))) {
+           !CopyWithEnvExpansion(aBuffer, pathbuf, aBufLen, pathtype))) {
         ok = PR_FALSE;
       }
-      else if (!wcsncat(buffer, L"\\" LXPCOM_DLL, aBufLen) 
-#ifdef WINCE
-               || (GetFileAttributesW(buffer) == INVALID_FILE_ATTRIBUTES)
-#else
-               || _waccess(buffer, R_OK)
-#endif
-               ) {
+      else if (!safe_strncat(aBuffer, "\\" XPCOM_DLL, aBufLen) ||
+               access(aBuffer, R_OK)) {
         ok = PR_FALSE;
       }
     }
 
     RegCloseKey(subKey);
 
-    if (ok) {
-      WideCharToMultiByte(CP_UTF8, 0, buffer, -1, aBuffer, aBufLen, NULL, NULL);
+    if (ok)
       return PR_TRUE;
-    }
 
     ++i;
   }

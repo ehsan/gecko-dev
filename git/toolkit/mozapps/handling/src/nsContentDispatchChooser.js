@@ -46,7 +46,9 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 
 const CONTENT_HANDLING_URL = "chrome://mozapps/content/handling/dialog.xul";
-const STRINGBUNDLE_URL = "chrome://mozapps/locale/handling/handling.properties";
+// TODO this needs to move to locale, but l10n folks want to wait until we
+//      finalize these for sure before doing so
+const STRINGBUNDLE_URL = "chrome://mozapps/content/handling/handling.properties";
 
 ////////////////////////////////////////////////////////////////////////////////
 //// nsContentDispatchChooser class
@@ -86,16 +88,13 @@ nsContentDispatchChooser.prototype =
                bundle.GetStringFromName("protocol.choices.label"),
                bundle.formatStringFromName("protocol.checkbox.label",
                                            [aURI.scheme], 1),
-               bundle.GetStringFromName("protocol.checkbox.accesskey"),
                bundle.formatStringFromName("protocol.checkbox.extra",
                                            [xai.name], 1)];
 
     var params = Cc["@mozilla.org/array;1"].createInstance(Ci.nsIMutableArray);
-    let SupportsString = Components.Constructor(
-                           "@mozilla.org/supports-string;1",
-                           "nsISupportsString");
     for each (let text in arr) {
-      let string = new SupportsString;
+      let string = Cc["@mozilla.org/supports-string;1"].
+                   createInstance(Ci.nsISupportsString);
       string.data = text;
       params.appendElement(string, false);
     }

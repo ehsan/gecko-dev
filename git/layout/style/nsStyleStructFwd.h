@@ -56,18 +56,10 @@ enum nsStyleStructID {
 #include "nsStyleStructList.h"
 #undef STYLE_STRUCT
 
-// one past the end; length of 0-based list
-nsStyleStructID_Length,
-
-// An ID used for properties that are not in style structs.  This is
-// used only in some users of nsStyleStructID, such as
-// nsCSSProps::kSIDTable, including some that store SIDs in a bitfield,
-// such as nsCSSCompressedDataBlock::mStyleBits.
-eStyleStruct_BackendOnly = nsStyleStructID_Length
+nsStyleStructID_Length /* one past the end; length of 0-based list */
 
 };
 
-// A bit corresponding to each struct ID
-#define NS_STYLE_INHERIT_BIT(sid_)        (1 << PRInt32(eStyleStruct_##sid_))
+struct nsStyleStruct;
 
 #endif /* nsStyleStructFwd_h_ */

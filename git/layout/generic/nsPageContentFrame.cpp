@@ -36,7 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsPageContentFrame.h"
 #include "nsPageFrame.h"
-#include "nsPlaceholderFrame.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsHTMLContainerFrame.h"
 #include "nsHTMLParts.h"
@@ -56,21 +55,6 @@ NS_NewPageContentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsPageContentFrame(aContext);
 }
 
-NS_IMPL_FRAMEARENA_HELPERS(nsPageContentFrame)
-
-/* virtual */ nsSize
-nsPageContentFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
-                                nsSize aCBSize, nscoord aAvailableWidth,
-                                nsSize aMargin, nsSize aBorder, nsSize aPadding,
-                                PRBool aShrinkWrap)
-{
-  NS_ASSERTION(mPD, "Pages are supposed to have page data");
-  nscoord height = (!mPD || mPD->mReflowSize.height == NS_UNCONSTRAINEDSIZE)
-                   ? NS_UNCONSTRAINEDSIZE
-                   : (mPD->mReflowSize.height - mPD->mReflowMargin.TopBottom());
-  return nsSize(aAvailableWidth, height);
-}
-
 NS_IMETHODIMP
 nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
@@ -80,28 +64,59 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
   DO_GLOBAL_REFLOW_COUNT("nsPageContentFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
   aStatus = NS_FRAME_COMPLETE;  // initialize out parameter
-  nsresult rv = NS_OK;
 
-  if (GetPrevInFlow() && (GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
+  // A PageContentFrame must always have one child: the doc root element's frame.
+  // We only need to get overflow frames if we don't already have that child;
+  // Also we need to avoid repeating the call to ReplicateFixedFrames.
+  nsPageContentFrame* prevPageContentFrame = static_cast<nsPageContentFrame*>
+                                               (GetPrevInFlow());
+  if (mFrames.IsEmpty() && prevPageContentFrame) {
+    // Pull the doc root frame's continuation and copy fixed frames.
+    nsIFrame* overflow = prevPageContentFrame->GetOverflowFrames(aPresContext, PR_TRUE);
+    NS_ASSERTION(overflow && !overflow->GetNextSibling(),
+                 "must have doc root as pageContentFrame's only child");
+    nsHTMLContainerFrame::ReparentFrameView(aPresContext, overflow, prevPageContentFrame, this);
+    // Prepend overflow to the page content frame. There may already be
+    // children placeholders which don't get reflowed but must not be
+    // lost until the page content frame is destroyed.
+    mFrames.InsertFrames(this, nsnull, overflow);
     nsresult rv = aPresContext->PresShell()->FrameConstructor()
                     ->ReplicateFixedFrames(this);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  // A PageContentFrame must always have one child: the canvas frame.
   // Resize our frame allowing it only to be as big as we are
   // XXX Pay attention to the page's border and padding...
   if (mFrames.NotEmpty()) {
     nsIFrame* frame = mFrames.FirstChild();
     nsSize  maxSize(aReflowState.availableWidth, aReflowState.availableHeight);
     nsHTMLReflowState kidReflowState(aPresContext, aReflowState, frame, maxSize);
-    kidReflowState.SetComputedHeight(aReflowState.availableHeight);
 
     mPD->mPageContentSize  = aReflowState.availableWidth;
 
-    // Reflow the page content area
-    rv = ReflowChild(frame, aPresContext, aDesiredSize, kidReflowState, 0, 0, 0, aStatus);
-    NS_ENSURE_SUCCESS(rv, rv);
+    // Reflow the page content area to get the child's desired size
+    ReflowChild(frame, aPresContext, aDesiredSize, kidReflowState, 0, 0, 0, aStatus);
+
+    if (!NS_FRAME_IS_FULLY_COMPLETE(aStatus)) {
+      nsIFrame* nextFrame = frame->GetNextInFlow();
+      NS_ASSERTION(nextFrame || aStatus & NS_FRAME_REFLOW_NEXTINFLOW,
+        "If it's incomplete and has no nif yet, it must flag a nif reflow.");
+      if (!nextFrame) {
+        nsresult rv = nsHTMLContainerFrame::CreateNextInFlow(aPresContext,
+                                              this, frame, nextFrame);
+        NS_ENSURE_SUCCESS(rv, rv);
+        frame->SetNextSibling(nextFrame->GetNextSibling());
+        nextFrame->SetNextSibling(nsnull);
+        SetOverflowFrames(aPresContext, nextFrame);
+        // Root overflow containers will be normal children of
+        // the pageContentFrame, but that's ok because there
+        // aren't any other frames we need to isolate them from
+        // during reflow.
+      }
+      if (NS_FRAME_OVERFLOW_IS_INCOMPLETE(aStatus)) {
+        nextFrame->AddStateBits(NS_FRAME_IS_OVERFLOW_CONTAINER);
+      }
+    }
 
     // The document element's background should cover the entire canvas, so
     // take into account the combined area and any space taken up by
@@ -113,13 +128,13 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
     kidReflowState.mStylePadding->GetPadding(padding);
 
     // First check the combined area
-    if (frame->HasOverflowRect()) {
+    if (NS_FRAME_OUTSIDE_CHILDREN & frame->GetStateBits()) {
       // The background covers the content area and padding area, so check
       // for children sticking outside the child frame's padding edge
       if (aDesiredSize.mOverflowArea.XMost() > aDesiredSize.width) {
         mPD->mPageContentXMost =
           aDesiredSize.mOverflowArea.XMost() +
-          kidReflowState.mStyleBorder->GetActualBorderWidth(NS_SIDE_RIGHT) +
+          kidReflowState.mStyleBorder->GetBorderWidth(NS_SIDE_RIGHT) +
           padding.right;
       }
     }
@@ -131,12 +146,10 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
                   !frame->GetNextInFlow(), "bad child flow list");
   }
   // Reflow our fixed frames 
-  nsReflowStatus fixedStatus = NS_FRAME_COMPLETE;
-  mFixedContainer.Reflow(this, aPresContext, aReflowState, fixedStatus,
+  mFixedContainer.Reflow(this, aPresContext, aReflowState, aStatus,
                          aReflowState.availableWidth,
                          aReflowState.availableHeight,
                          PR_FALSE, PR_TRUE, PR_TRUE); // XXX could be optimized
-  NS_ASSERTION(NS_FRAME_IS_COMPLETE(fixedStatus), "fixed frames can be truncated, but not incomplete");
 
   // Return our desired size
   aDesiredSize.width = aReflowState.availableWidth;
@@ -166,4 +179,19 @@ nsPageContentFrame::GetFrameName(nsAString& aResult) const
 nsPageContentFrame::IsContainingBlock() const
 {
   return PR_TRUE;
+}
+
+
+//------------------------------------------------------------------------------
+NS_IMETHODIMP
+nsPageContentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                                     const nsRect&           aDirtyRect,
+                                     const nsDisplayListSet& aLists)
+{
+  nsDisplayListCollection set;
+  nsresult rv = ViewportFrame::BuildDisplayList(aBuilder, aDirtyRect, set);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return Clip(aBuilder, set, aLists,
+              nsRect(aBuilder->ToReferenceFrame(this), GetSize()));
 }

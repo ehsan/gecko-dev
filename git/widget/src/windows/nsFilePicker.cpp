@@ -49,6 +49,7 @@
 #include "nsFilePicker.h"
 #include "nsILocalFile.h"
 #include "nsIURL.h"
+#include "nsIFileURL.h"
 #include "nsIStringBundle.h"
 #include "nsEnumeratorUtils.h"
 #include "nsCRT.h"
@@ -70,6 +71,12 @@ PRUnichar *nsFilePicker::mLastUsedUnicodeDirectory;
 char nsFilePicker::mLastUsedDirectory[MAX_PATH+1] = { 0 };
 
 #define MAX_EXTENSION_LENGTH 10
+
+#ifndef BIF_USENEWUI
+// BIF_USENEWUI isn't defined in the platform SDK that comes with
+// MSVC6.0. 
+#define BIF_USENEWUI 0x50
+#endif
 
 //-------------------------------------------------------------------------
 //
@@ -100,7 +107,7 @@ nsFilePicker::~nsFilePicker()
 //
 //-------------------------------------------------------------------------
 
-#ifndef WINCE_WINDOWS_MOBILE
+#ifndef WINCE
 int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData)
 {
   if (uMsg == BFFM_INITIALIZED)
@@ -144,7 +151,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 
   mUnicodeFile.Truncate();
 
-#ifndef WINCE_WINDOWS_MOBILE
+#ifndef WINCE
 
   if (mMode == modeGetFolder) {
     PRUnichar dirBuffer[MAX_PATH+1];
@@ -183,7 +190,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     }
   }
   else 
-#endif // WINCE_WINDOWS_MOBILE
+#endif // WINCE
   {
 
     OPENFILENAMEW ofn;
@@ -198,12 +205,8 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     ofn.lpstrTitle   = (LPCWSTR)mTitle.get();
     ofn.lpstrFilter  = (LPCWSTR)filterBuffer.get();
     ofn.nFilterIndex = mSelectedType;
-#ifdef WINCE_WINDOWS_MOBILE
-    // If we're running fullscreen the dialog inherits that, which is bad
-    ofn.hwndOwner    = (HWND) 0;
-#else
-    ofn.hwndOwner    = (HWND) (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_WINDOW) : 0); 
-#endif
+    ofn.hwndOwner    = (HWND)
+      (mParentWidget.get() ? mParentWidget->GetNativeData(NS_NATIVE_WINDOW) : 0); 
     ofn.lpstrFile    = fileBuffer;
     ofn.nMaxFile     = FILE_BUFFER_SIZE;
 
@@ -263,34 +266,25 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         result = ::GetSaveFileNameW(&ofn);
         if (!result) {
           // Error, find out what kind.
-          if (::GetLastError() == ERROR_INVALID_PARAMETER 
-#ifndef WINCE
-              || ::CommDlgExtendedError() == FNERR_INVALIDFILENAME
-#endif
-              ) {
+          if (::GetLastError() == ERROR_INVALID_PARAMETER ||
+              ::CommDlgExtendedError() == FNERR_INVALIDFILENAME) {
             // probably the default file name is too long or contains illegal characters!
             // Try again, without a starting file name.
             ofn.lpstrFile[0] = 0;
             result = ::GetSaveFileNameW(&ofn);
           }
         }
-      } 
-#ifdef WINCE_WINDOWS_MOBILE
-      else if (mMode == modeGetFolder) {
-        ofn.Flags = OFN_PROJECT | OFN_FILEMUSTEXIST;
-        result = ::GetOpenFileNameW(&ofn);
       }
-#endif
       else {
-        NS_ERROR("unsupported mode"); 
+        NS_ASSERTION(0, "unsupported mode"); 
       }
 #ifndef WINCE
     }
     catch(...) {
-      MessageBoxW(ofn.hwndOwner,
-                  0,
-                  L"The filepicker was unexpectedly closed by Windows.",
-                  MB_ICONERROR);
+      MessageBox(ofn.hwndOwner,
+                 0,
+                 "The filepicker was unexpectedly closed by Windows.",
+                 MB_ICONERROR);
       result = PR_FALSE;
     }
 #endif
@@ -301,6 +295,8 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
 
       // Set user-selected location of file or directory
       if (mMode == modeOpenMultiple) {
+        nsresult rv = NS_NewISupportsArray(getter_AddRefs(mFiles));
+        NS_ENSURE_SUCCESS(rv,rv);
         
         // from msdn.microsoft.com, "Open and Save As Dialog Boxes" section:
         // If you specify OFN_EXPLORER,
@@ -316,7 +312,6 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
         if (current[dirName.Length() - 1] != '\\')
           dirName.Append((PRUnichar)'\\');
         
-        nsresult rv;
         while (current && *current && *(current + nsCRT::strlen(current) + 1)) {
           current = current + nsCRT::strlen(current) + 1;
           
@@ -326,7 +321,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
           rv = file->InitWithPath(dirName + nsDependentString(current));
           NS_ENSURE_SUCCESS(rv,rv);
           
-          rv = mFiles.AppendObject(file);
+          rv = mFiles->AppendElement(file);
           NS_ENSURE_SUCCESS(rv,rv);
         }
         
@@ -342,7 +337,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
           rv = file->InitWithPath(nsDependentString(current));
           NS_ENSURE_SUCCESS(rv,rv);
           
-          rv = mFiles.AppendObject(file);
+          rv = mFiles->AppendElement(file);
           NS_ENSURE_SUCCESS(rv,rv);
         }
       }
@@ -411,7 +406,6 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *aReturnVal)
 NS_IMETHODIMP nsFilePicker::GetFile(nsILocalFile **aFile)
 {
   NS_ENSURE_ARG_POINTER(aFile);
-  *aFile = nsnull;
 
   if (mUnicodeFile.IsEmpty())
       return NS_OK;
@@ -428,15 +422,20 @@ NS_IMETHODIMP nsFilePicker::GetFile(nsILocalFile **aFile)
 }
 
 //-------------------------------------------------------------------------
-NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
+NS_IMETHODIMP nsFilePicker::GetFileURL(nsIFileURL **aFileURL)
 {
-  *aFileURL = nsnull;
-  nsCOMPtr<nsILocalFile> file;
-  nsresult rv = GetFile(getter_AddRefs(file));
-  if (!file)
-    return rv;
+  nsCOMPtr<nsILocalFile> file(do_CreateInstance("@mozilla.org/file/local;1"));
+  NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
+  file->InitWithPath(mUnicodeFile);
 
-  return NS_NewFileURI(aFileURL, file);
+  nsCOMPtr<nsIURI> uri;
+  NS_NewFileURI(getter_AddRefs(uri), file);
+  nsCOMPtr<nsIFileURL> fileURL(do_QueryInterface(uri));
+  NS_ENSURE_TRUE(fileURL, NS_ERROR_FAILURE);
+
+  NS_ADDREF(*aFileURL = fileURL);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
@@ -463,13 +462,13 @@ NS_IMETHODIMP nsFilePicker::SetDefaultString(const nsAString& aString)
     nameIndex ++;
   nameLength = mDefault.Length() - nameIndex;
   
-  if (nameLength > MAX_PATH) {
+  if (nameLength > _MAX_FNAME) {
     PRInt32 extIndex = mDefault.RFind(".");
     if (extIndex == kNotFound)
       extIndex = mDefault.Length();
 
     //Let's try to shave the needed characters from the name part
-    PRInt32 charsToRemove = nameLength - MAX_PATH;
+    PRInt32 charsToRemove = nameLength - _MAX_FNAME;
     if (extIndex - nameIndex >= charsToRemove) {
       mDefault.Cut(extIndex - charsToRemove, charsToRemove);
     }

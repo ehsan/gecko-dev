@@ -42,14 +42,29 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-ifdef ENABLE_TESTS
-DIRS            += tests
-endif
-
 MODULE		= editor
 LIBRARY_NAME	= editorbase_s
 LIBXUL_LIBRARY	= 1
 
+REQUIRES	= xpcom \
+		  string \
+		  dom \
+		  locale \
+		  layout \
+		  content \
+		  txmgr \
+		  txtsvc \
+		  htmlparser \
+		  necko \
+		  pref \
+		  view \
+		  gfx \
+		  thebes \
+		  widget \
+		  unicharutil \
+		  commandhandler \
+		  docshell \
+		  $(NULL)
 
 # Internal header files, needed by other editor sublibs:
 INTERNAL_HDR_DIR = ../internal
@@ -81,6 +96,7 @@ CPPSRCS		+=                          \
 		SetDocTitleTxn.cpp          \
 		SplitElementTxn.cpp         \
 		nsStyleSheetTxns.cpp        \
+		TransactionFactory.cpp      \
 		$(NULL)
 
 # don't want the shared lib; force the creation of a static lib.
@@ -88,6 +104,3 @@ FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
 
-INCLUDES	+= \
-		-I$(topsrcdir)/content/base/src \
-		$(NULL)

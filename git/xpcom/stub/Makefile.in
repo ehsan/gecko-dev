@@ -54,10 +54,18 @@ NSDISTMODE = copy
 GRE_MODULE	= 1
 MOZILLA_INTERNAL_API = 1
 
+REQUIRES	= string \
+		  $(NULL)
 
 LOCAL_INCLUDES	= -I$(srcdir)/../build
 
 CPPSRCS		= nsXPComStub.cpp
+
+ifndef MOZ_ENABLE_LIBXUL
+ifeq ($(OS_TARGET),OS2)
+CPPSRCS         += nsOS2VACLegacy.cpp
+endif
+endif
 
 # If we have an import library, then copy that to the SDK.  Otherwise,
 # copy the shared library.
@@ -72,7 +80,7 @@ FORCE_USE_PIC	= 1
 
 FORCE_SHARED_LIB = 1
 
-EXTRA_DSO_LDOPTS = $(LIBS_DIR)
+EXTRA_DSO_LDOPTS = $(LIBS_DIR) $(MOZ_FIX_LINK_PATHS)
 
 DEPENDENT_LIBS_LIST += \
 	$(LIB_PREFIX)nspr4$(DLL_SUFFIX) \
@@ -83,16 +91,20 @@ DEPENDENT_LIBS_LIST += \
 ifdef MOZ_ENABLE_LIBXUL
 
 DEPENDENT_LIBS_LIST += \
-	$(LIB_PREFIX)mozsqlite3$(DLL_SUFFIX) \
-	$(LIB_PREFIX)nssutil3$(DLL_SUFFIX) \
+	$(LIB_PREFIX)sqlite3$(DLL_SUFFIX) \
 	$(LIB_PREFIX)softokn3$(DLL_SUFFIX) \
 	$(LIB_PREFIX)nss3$(DLL_SUFFIX) \
 	$(LIB_PREFIX)ssl3$(DLL_SUFFIX) \
 	$(LIB_PREFIX)smime3$(DLL_SUFFIX) \
-	$(LIB_PREFIX)mozjs$(DLL_SUFFIX) \
 	$(NULL)
 
-ifeq (bundle,$(MOZ_FS_LAYOUT))
+ifeq (,$(filter-out WINNT WINCE,$(OS_ARCH)))
+DEPENDENT_LIBS_LIST += js$(MOZ_BITS)$(VERSION_NUMBER)$(DLL_SUFFIX)
+else
+DEPENDENT_LIBS_LIST += $(LIB_PREFIX)mozjs$(DLL_SUFFIX)
+endif
+
+ifeq (Darwin,$(OS_ARCH))
 EXTRA_DSO_LDOPTS += $(DIST)/bin/XUL
 DEPENDENT_LIBS_LIST += XUL
 else

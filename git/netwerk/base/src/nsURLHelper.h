@@ -76,13 +76,8 @@ NS_HIDDEN_(nsIURLParser *) net_GetAuthURLParser();
 NS_HIDDEN_(nsIURLParser *) net_GetNoAuthURLParser();
 NS_HIDDEN_(nsIURLParser *) net_GetStdURLParser();
 
-/* convert between nsIFile and file:// URL spec 
- * net_GetURLSpecFromFile does an extra stat, so callers should
- * avoid it if possible in favor of net_GetURLSpecFromActualFile
- * and net_GetURLSpecFromDir */
+/* convert between nsIFile and file:// URL spec */
 NS_HIDDEN_(nsresult) net_GetURLSpecFromFile(nsIFile *, nsACString &);
-NS_HIDDEN_(nsresult) net_GetURLSpecFromDir(nsIFile *, nsACString &);
-NS_HIDDEN_(nsresult) net_GetURLSpecFromActualFile(nsIFile *, nsACString &);
 NS_HIDDEN_(nsresult) net_GetFileFromURLSpec(const nsACString &, nsIFile **);
 
 /* extract file path components from file:// URL */
@@ -208,21 +203,6 @@ NS_HIDDEN_(void) net_ParseContentType(const nsACString &aHeaderStr,
                                       nsACString       &aContentType,
                                       nsACString       &aContentCharset,
                                       PRBool*          aHadCharset);
-/**
- * As above, but also returns the start and end indexes for the charset
- * parameter in aHeaderStr.  These are indices for the entire parameter, NOT
- * just the value.  If there is "effectively" no charset parameter (e.g. if an
- * earlier type with one is overridden by a later type without one),
- * *aHadCharset will be true but *aCharsetStart will be set to -1.  Note that
- * it's possible to have aContentCharset empty and *aHadCharset true when
- * *aCharsetStart is nonnegative; this corresponds to charset="".
- */
-NS_HIDDEN_(void) net_ParseContentType(const nsACString &aHeaderStr,
-                                      nsACString       &aContentType,
-                                      nsACString       &aContentCharset,
-                                      PRBool           *aHadCharset,
-                                      PRInt32          *aCharsetStart,
-                                      PRInt32          *aCharsetEnd);
 
 /* inline versions */
 

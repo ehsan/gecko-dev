@@ -22,7 +22,6 @@
  * Contributor(s):
  *   Dave Hyatt <hyatt@mozilla.org> (Original Author)
  *   Jan Varga <varga@ku.sk>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -74,48 +73,61 @@ nsTreeColumn::~nsTreeColumn()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_1(nsTreeColumn, mContent)
-
-NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTreeColumn)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTreeColumn)
-
 // QueryInterface implementation for nsTreeColumn
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTreeColumn)
+NS_INTERFACE_MAP_BEGIN(nsTreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsITreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeColumn)
-  if (aIID.Equals(NS_GET_IID(nsTreeColumn))) {
-    AddRef();
-    *aInstancePtr = this;
-    return NS_OK;
-  }
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeColumn)
+  if (aIID.Equals(kTreeColumnImplCID))
+    foundInterface = static_cast<nsITreeColumn*>(this);
   else
 NS_INTERFACE_MAP_END
+                                                                                
+NS_IMPL_ADDREF(nsTreeColumn)
+NS_IMPL_RELEASE(nsTreeColumn)
+
+nsIFrame*
+nsTreeColumn::GetFrame(nsTreeBodyFrame* aBodyFrame)
+{
+  NS_PRECONDITION(aBodyFrame, "null frame?");
+
+  nsIPresShell *shell = aBodyFrame->PresContext()->PresShell();
+  if (!shell)
+    return nsnull;
+
+  return shell->GetPrimaryFrameFor(mContent);
+}
 
 nsIFrame*
 nsTreeColumn::GetFrame()
 {
-  NS_ENSURE_TRUE(mContent, nsnull);
+  nsCOMPtr<nsIDocument> document = mContent->GetDocument();
+  if (!document)
+    return nsnull;
 
-  return mContent->GetPrimaryFrame();
+  nsIPresShell *shell = document->GetPrimaryShell();
+  if (!shell)
+    return nsnull;
+
+  return shell->GetPrimaryFrameFor(mContent);
 }
 
 PRBool
 nsTreeColumn::IsLastVisible(nsTreeBodyFrame* aBodyFrame)
 {
-  NS_ASSERTION(GetFrame(), "should have checked for this already");
+  NS_ASSERTION(GetFrame(aBodyFrame), "should have checked for this already");
 
   // cyclers are fixed width, don't adjust them
   if (IsCycler())
     return PR_FALSE;
 
   // we're certainly not the last visible if we're not visible
-  if (GetFrame()->GetRect().width == 0)
+  if (GetFrame(aBodyFrame)->GetRect().width == 0)
     return PR_FALSE;
 
   // try to find a visible successor
   for (nsTreeColumn *next = GetNext(); next; next = next->GetNext()) {
-    nsIFrame* frame = next->GetFrame();
+    nsIFrame* frame = next->GetFrame(aBodyFrame);
     if (frame && frame->GetRect().width > 0)
       return PR_FALSE;
   }
@@ -125,19 +137,16 @@ nsTreeColumn::IsLastVisible(nsTreeBodyFrame* aBodyFrame)
 nsresult
 nsTreeColumn::GetRect(nsTreeBodyFrame* aBodyFrame, nscoord aY, nscoord aHeight, nsRect* aResult)
 {
-  nsIFrame* frame = GetFrame();
+  nsIFrame* frame = GetFrame(aBodyFrame);
   if (!frame) {
     *aResult = nsRect();
     return NS_ERROR_FAILURE;
   }
 
-  PRBool isRTL = aBodyFrame->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
   *aResult = frame->GetRect();
   aResult->y = aY;
   aResult->height = aHeight;
-  if (isRTL)
-    aResult->x += aBodyFrame->mAdjustWidth;
-  else if (IsLastVisible(aBodyFrame))
+  if (IsLastVisible(aBodyFrame))
     aResult->width += aBodyFrame->mAdjustWidth;
   return NS_OK;
 }
@@ -145,7 +154,7 @@ nsTreeColumn::GetRect(nsTreeBodyFrame* aBodyFrame, nscoord aY, nscoord aHeight, 
 nsresult
 nsTreeColumn::GetXInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult)
 {
-  nsIFrame* frame = GetFrame();
+  nsIFrame* frame = GetFrame(aBodyFrame);
   if (!frame) {
     *aResult = 0;
     return NS_ERROR_FAILURE;
@@ -157,7 +166,7 @@ nsTreeColumn::GetXInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult)
 nsresult
 nsTreeColumn::GetWidthInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult)
 {
-  nsIFrame* frame = GetFrame();
+  nsIFrame* frame = GetFrame(aBodyFrame);
   if (!frame) {
     *aResult = 0;
     return NS_ERROR_FAILURE;
@@ -172,11 +181,7 @@ nsTreeColumn::GetWidthInTwips(nsTreeBodyFrame* aBodyFrame, nscoord* aResult)
 NS_IMETHODIMP
 nsTreeColumn::GetElement(nsIDOMElement** aElement)
 {
-  if (mContent) {
-    return CallQueryInterface(mContent, aElement);
-  }
-  *aElement = nsnull;
-  return NS_ERROR_FAILURE;
+  return CallQueryInterface(mContent, aElement);
 }
 
 NS_IMETHODIMP
@@ -306,15 +311,9 @@ nsTreeColumn::Invalidate()
   const nsStyleText* textStyle = frame->GetStyleText();
 
   mTextAlignment = textStyle->mTextAlign;
-  // DEFAULT or END alignment sometimes means RIGHT
-  if ((mTextAlignment == NS_STYLE_TEXT_ALIGN_DEFAULT &&
-       vis->mDirection == NS_STYLE_DIRECTION_RTL) ||
-      (mTextAlignment == NS_STYLE_TEXT_ALIGN_END &&
-       vis->mDirection == NS_STYLE_DIRECTION_LTR)) {
-    mTextAlignment = NS_STYLE_TEXT_ALIGN_RIGHT;
-  } else if (mTextAlignment == NS_STYLE_TEXT_ALIGN_DEFAULT ||
-             mTextAlignment == NS_STYLE_TEXT_ALIGN_END) {
-    mTextAlignment = NS_STYLE_TEXT_ALIGN_LEFT;
+  if (mTextAlignment == 0 || mTextAlignment == 2) { // Left or Right
+    if (vis->mDirection == NS_STYLE_DIRECTION_RTL)
+      mTextAlignment = 2 - mTextAlignment; // Right becomes left, left becomes right.
   }
 
   // Figure out if we're the primary column (that has to have indentation
@@ -373,14 +372,17 @@ nsTreeColumns::nsTreeColumns(nsITreeBoxObject* aTree)
 
 nsTreeColumns::~nsTreeColumns()
 {
-  nsTreeColumns::InvalidateColumns();
+  for (nsTreeColumn* currCol = mFirstColumn; currCol; currCol = currCol->GetNext()) {
+    currCol->SetColumns(nsnull);
+  }
+  NS_IF_RELEASE(mFirstColumn);
 }
 
 // QueryInterface implementation for nsTreeColumns
 NS_INTERFACE_MAP_BEGIN(nsTreeColumns)
   NS_INTERFACE_MAP_ENTRY(nsITreeColumns)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeColumns)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeColumns)
 NS_INTERFACE_MAP_END
                                                                                 
 NS_IMPL_ADDREF(nsTreeColumns)
@@ -447,8 +449,7 @@ nsTreeColumns::GetSortedColumn(nsITreeColumn** _retval)
   EnsureColumns();
   *_retval = nsnull;
   for (nsTreeColumn* currCol = mFirstColumn; currCol; currCol = currCol->GetNext()) {
-    if (currCol->mContent &&
-        nsContentUtils::HasNonEmptyAttr(currCol->mContent, kNameSpaceID_None,
+    if (nsContentUtils::HasNonEmptyAttr(currCol->mContent, kNameSpaceID_None,
                                         nsGkAtoms::sortDirection)) {
       NS_ADDREF(*_retval = currCol);
       return NS_OK;
@@ -470,8 +471,7 @@ nsTreeColumns::GetKeyColumn(nsITreeColumn** _retval)
 
   for (nsTreeColumn* currCol = mFirstColumn; currCol; currCol = currCol->GetNext()) {
     // Skip hidden columns.
-    if (!currCol->mContent ||
-        currCol->mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
+    if (currCol->mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
                                        nsGkAtoms::_true, eCaseMatters))
       continue;
 
@@ -521,51 +521,37 @@ nsTreeColumns::GetColumnFor(nsIDOMElement* aElement, nsITreeColumn** _retval)
   return NS_OK;
 }
 
-nsITreeColumn*
-nsTreeColumns::GetNamedColumn(const nsAString& aId)
-{
-  EnsureColumns();
-  for (nsTreeColumn* currCol = mFirstColumn; currCol; currCol = currCol->GetNext()) {
-    if (currCol->GetId().Equals(aId)) {
-      return currCol;
-    }
-  }
-  return nsnull;
-}
-
 NS_IMETHODIMP
 nsTreeColumns::GetNamedColumn(const nsAString& aId, nsITreeColumn** _retval)
 {
-  NS_IF_ADDREF(*_retval = GetNamedColumn(aId));
-  return NS_OK;
-}
-
-nsITreeColumn*
-nsTreeColumns::GetColumnAt(PRInt32 aIndex)
-{
   EnsureColumns();
+  *_retval = nsnull;
   for (nsTreeColumn* currCol = mFirstColumn; currCol; currCol = currCol->GetNext()) {
-    if (currCol->GetIndex() == aIndex) {
-      return currCol;
+    if (currCol->GetId().Equals(aId)) {
+      NS_ADDREF(*_retval = currCol);
+      break;
     }
   }
-  return nsnull;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsTreeColumns::GetColumnAt(PRInt32 aIndex, nsITreeColumn** _retval)
 {
-  NS_IF_ADDREF(*_retval = GetColumnAt(aIndex));
+  EnsureColumns();
+  *_retval = nsnull;
+  for (nsTreeColumn* currCol = mFirstColumn; currCol; currCol = currCol->GetNext()) {
+    if (currCol->GetIndex() == aIndex) {
+      NS_ADDREF(*_retval = currCol);
+      break;
+    }
+  }
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsTreeColumns::InvalidateColumns()
 {
-  for (nsTreeColumn* currCol = mFirstColumn; currCol;
-       currCol = currCol->GetNext()) {
-    currCol->SetColumns(nsnull);
-  }
   NS_IF_RELEASE(mFirstColumn);
   return NS_OK;
 }
@@ -581,9 +567,8 @@ nsTreeColumns::RestoreNaturalOrder()
   boxObject->GetElement(getter_AddRefs(element));
   nsCOMPtr<nsIContent> content = do_QueryInterface(element);
 
-  // Strong ref, since we'll be setting attributes
-  nsCOMPtr<nsIContent> colsContent =
-    nsTreeUtils::GetImmediateChild(content, nsGkAtoms::treecols);
+  nsCOMPtr<nsIContent> colsContent;
+  nsTreeUtils::GetImmediateChild(content, nsGkAtoms::treecols, getter_AddRefs(colsContent));
   if (!colsContent)
     return NS_OK;
 
@@ -595,7 +580,7 @@ nsTreeColumns::RestoreNaturalOrder()
     child->SetAttr(kNameSpaceID_None, nsGkAtoms::ordinal, ordinal, PR_TRUE);
   }
 
-  nsTreeColumns::InvalidateColumns();
+  NS_IF_RELEASE(mFirstColumn);
 
   mTree->Invalidate();
 
@@ -623,17 +608,22 @@ nsTreeColumns::EnsureColumns()
     boxObject->GetElement(getter_AddRefs(treeElement));
     nsCOMPtr<nsIContent> treeContent = do_QueryInterface(treeElement);
 
-    nsIContent* colsContent =
-      nsTreeUtils::GetDescendantChild(treeContent, nsGkAtoms::treecols);
+    nsCOMPtr<nsIContent> colsContent;
+    nsTreeUtils::GetDescendantChild(treeContent, nsGkAtoms::treecols, getter_AddRefs(colsContent));
     if (!colsContent)
       return;
 
-    nsIContent* colContent =
-      nsTreeUtils::GetDescendantChild(colsContent, nsGkAtoms::treecol);
+    nsCOMPtr<nsIDocument> document = treeContent->GetDocument();
+    nsIPresShell *shell = document->GetPrimaryShell();
+    if (!shell)
+      return;
+
+    nsCOMPtr<nsIContent> colContent;
+    nsTreeUtils::GetDescendantChild(colsContent, nsGkAtoms::treecol, getter_AddRefs(colContent));
     if (!colContent)
       return;
 
-    nsIFrame* colFrame = colContent->GetPrimaryFrame();
+    nsIFrame* colFrame = shell->GetPrimaryFrameFor(colContent);
     if (!colFrame)
       return;
 

@@ -51,7 +51,7 @@ interface nsIX509Cert;
  *   {host:port, cert-fingerprint, allowed-overrides} 
  * that the user wants to accept without further warnings. 
  */
-[scriptable, uuid(31738d2a-77d3-4359-84c9-4be2f38fb8c5)]
+[scriptable, uuid(7e646227-485d-49c6-8e37-e2c62cb204e1)]
 interface nsICertOverrideService : nsISupports {
 
   /**
@@ -76,17 +76,13 @@ interface nsICertOverrideService : nsISupports {
    *  The implementation will store a fingerprint of the cert.
    *  The implementation will decide which fingerprint alg is used.
    *
-   *  @param aHostName The host (punycode) this mapping belongs to
-   *  @param aPort The port this mapping belongs to, if it is -1 then it 
-   *          is internaly treated as 443
+   *  @param aHostNameWithPort The host:port this mapping belongs to
    *  @param aCert The cert that should always be accepted
    *  @param aOverrideBits The errors we want to be overriden
    */
-  void rememberValidityOverride(in ACString aHostName, 
-                                in PRInt32 aPort,
+  void rememberValidityOverride(in AString aHostNameWithPort, 
                                 in nsIX509Cert aCert,
-                                in PRUint32 aOverrideBits,
-                                in boolean aTemporary);
+                                in PRUint32 aOverrideBits);
 
   /**
    *  The given cert should always be accepted for the given hostname:port,
@@ -95,26 +91,20 @@ interface nsICertOverrideService : nsISupports {
    *  The implementation will store a fingerprint of the cert.
    *  The implementation will decide which fingerprint alg is used.
    *
-   *  @param aHostName The host (punycode) this mapping belongs to
-   *  @param aPort The port this mapping belongs to, if it is -1 then it 
-   *          is internaly treated as 443
+   *  @param aHostNameWithPort The host:port this mapping belongs to
    *  @param aCert The cert that should always be accepted
    *  @param aOverrideBits The errors that are currently overriden
    *  @return whether an override entry for aHostNameWithPort is currently on file
    *          that matches the given certificate
    */
-  boolean hasMatchingOverride(in ACString aHostName, 
-                              in PRInt32 aPort,
+  boolean hasMatchingOverride(in AString aHostNameWithPort, 
                               in nsIX509Cert aCert,
-                              out PRUint32 aOverrideBits,
-                              out boolean aIsTemporary);
+                              out PRUint32 aOverrideBits);
 
   /**
    *  Retrieve the stored override for the given hostname:port.
    *
-   *  @param aHostName The host (punycode) whose entry should be tested
-   *  @param aPort The port whose entry should be tested, if it is -1 then it 
-   *          is internaly treated as 443
+   *  @param aHostNameWithPort The host:port whose entry should be tested
    *  @param aHashAlg On return value True, the fingerprint hash algorithm
    *                  as an OID value in dotted notation.
    *  @param aFingerprint On return value True, the stored fingerprint 
@@ -122,25 +112,20 @@ interface nsICertOverrideService : nsISupports {
    *  @return whether a matching override entry for aHostNameWithPort 
    *          and aFingerprint is currently on file
    */
-  boolean getValidityOverride(in ACString aHostName, 
-                              in PRInt32 aPort,
+  boolean getValidityOverride(in AString aHostNameWithPort, 
                               out ACString aHashAlg,
                               out ACString aFingerprint,
-                              out PRUint32 aOverrideBits,
-                              out boolean aIsTemporary);
+                              out PRUint32 aOverrideBits);
 
   /**
-   *  Remove a override for the given hostname:port.
+   *  Remove a stored override for the given hostname:port.
    *
-   *  @param aHostName The host (punycode) whose entry should be cleared.
-   *  @param aPort The port whose entry should be cleared, if it is -1 then it 
-   *          is internaly treated as 443
+   *  @param aHostNameWithPort The host:port whose entry should be cleared.
    */
-  void clearValidityOverride(in ACString aHostName,
-                             in PRInt32 aPort);
+  void clearValidityOverride(in AString aHostNameWithPort);
 
   /**
-   *  Obtain the full list of hostname:port for which overrides are known.
+   *  Obtain the full list of hostname:port for which overrides are stored.
    *
    *  @param aCount The number of host:port entries returned
    *  @param aHostsWithPortsArray The array of host:port entries returned
@@ -155,7 +140,5 @@ interface nsICertOverrideService : nsISupports {
    *  @return how many override entries are currently on file
    *          for the given certificate
    */
-  PRUint32 isCertUsedForOverrides(in nsIX509Cert aCert,
-                                  in boolean aCheckTemporaries,
-                                  in boolean aCheckPermanents);
+  PRUint32 isCertUsedForOverrides(in nsIX509Cert aCert);
 };

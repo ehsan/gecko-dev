@@ -27,7 +27,7 @@
  *
  * The Original Code is the cairo graphics library.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  *
  * Contributor(s):
  *      Vladimir Vukicevic <vladimir@mozilla.com>
@@ -36,11 +36,11 @@
 #ifndef CAIRO_QUARTZ_H
 #define CAIRO_QUARTZ_H
 
-#include "cairo.h"
+#include <cairo.h>
 
 #if CAIRO_HAS_QUARTZ_SURFACE
 
-#include <ApplicationServices/ApplicationServices.h>
+#include <Carbon/Carbon.h>
 
 CAIRO_BEGIN_DECLS
 
@@ -57,28 +57,10 @@ cairo_quartz_surface_create_for_cg_context (CGContextRef cgContext,
 cairo_public CGContextRef
 cairo_quartz_surface_get_cg_context (cairo_surface_t *surface);
 
-#if CAIRO_HAS_QUARTZ_FONT
-
-/*
- * Quartz font support
- */
-
-cairo_public cairo_font_face_t *
-cairo_quartz_font_face_create_for_cgfont (CGFontRef font);
-
-#ifndef __LP64__
-cairo_public cairo_font_face_t *
-cairo_quartz_font_face_create_for_atsu_font_id (ATSUFontID font_id);
-#endif
-
-#endif /* CAIRO_HAS_QUARTZ_FONT */
-
 CAIRO_END_DECLS
 
-#else
-
+#else  /* CAIRO_HAS_QUARTZ_SURFACE */
 # error Cairo was not compiled with support for the quartz backend
-
 #endif /* CAIRO_HAS_QUARTZ_SURFACE */
 
 #endif /* CAIRO_QUARTZ_H */

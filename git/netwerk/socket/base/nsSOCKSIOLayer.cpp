@@ -162,80 +162,20 @@ nsSOCKSSocketInfo::SetInternalProxyAddr(PRNetAddr *aInternalProxyAddr)
     return NS_OK;
 }
 
-static PRInt32
-pr_RecvAll(PRFileDesc *fd, unsigned char *buf, PRInt32 amount, PRIntn flags, 
-           PRIntervalTime *timeout)
-{
-    PRInt32 bytesRead = 0;
-    PRInt32 offset = 0;
-
-    while (offset < amount) {
-        PRIntervalTime start_time = PR_IntervalNow();
-        bytesRead = PR_Recv(fd, buf + offset, amount - offset, flags, *timeout);
-        PRIntervalTime elapsed = PR_IntervalNow() - start_time;
-
-        if (elapsed > *timeout) {
-            *timeout = 0;
-        } else {
-            *timeout -= elapsed;
-        }
-
-        if (bytesRead > 0) {
-            offset += bytesRead;
-        } else if (bytesRead == 0 || offset != 0) {
-            return offset;
-        } else {
-            return bytesRead;
-        }
-
-        if (*timeout == 0) {
-            LOGERROR(("PR_Recv() timed out. amount = %d. offset = %d.",
-                     amount, offset));
-            return offset;
-        }
-    }
-    return offset;
-}
-
-static PRInt32
-pr_Send(PRFileDesc *fd, const void *buf, PRInt32 amount, PRIntn flags,
-        PRIntervalTime *timeout)
-{
-    PRIntervalTime start_time = PR_IntervalNow();
-    PRInt32 retval = PR_Send(fd, buf, amount, flags, *timeout);
-    PRIntervalTime elapsed = PR_IntervalNow() - start_time;
-
-    if (elapsed > *timeout) {
-        *timeout = 0;
-        LOGERROR(("PR_Send() timed out. amount = %d. retval = %d.",
-                 amount, retval));
-        return retval;
-    } else {
-        *timeout -= elapsed;
-    }
-
-    if (retval <= 0) {
-        LOGERROR(("PR_Send() failed. amount = %d. retval = %d.",
-                 amount, retval));
-    }
-
-    return retval;
-}
 
 // Negotiate a SOCKS 5 connection. Assumes the TCP connection to the socks 
 // server port has been established.
 static nsresult
 ConnectSOCKS5(PRFileDesc *fd, const PRNetAddr *addr, PRNetAddr *extAddr, PRIntervalTime timeout)
 {
-    int request_len = 0;
-    int response_len = 0;
-    int desired_len = 0;
-    unsigned char request[22];
-    unsigned char response[262];
-
     NS_ENSURE_TRUE(fd, NS_ERROR_NOT_INITIALIZED);
     NS_ENSURE_TRUE(addr, NS_ERROR_NOT_INITIALIZED);
     NS_ENSURE_TRUE(extAddr, NS_ERROR_NOT_INITIALIZED);
+
+    unsigned char request[22];
+    int request_len = 0;
+    unsigned char response[22];
+    int response_len = 0;
 
     request[0] = 0x05; // SOCKS version 5
     request[1] = 0x01; // number of auth procotols we recognize
@@ -250,17 +190,20 @@ ConnectSOCKS5(PRFileDesc *fd, const PRNetAddr *addr, PRNetAddr *extAddr, PRInter
     //request[5] = 0x03; // CHAP
 
     request_len = 2 + request[1];
-    int write_len = pr_Send(fd, request, request_len, 0, &timeout);
+    int write_len = PR_Send(fd, request, request_len, 0, timeout);
     if (write_len != request_len) {
+
+        LOGERROR(("PR_Send() failed. Wrote: %d bytes; Expected: %d.", write_len, request_len));
         return NS_ERROR_FAILURE;
     }
 
-    // get the server's response. 
-    desired_len = 2;
-    response_len = pr_RecvAll(fd, response, desired_len, 0, &timeout);
+    // get the server's response. Use PR_Recv() instead of 
+    response_len = 2;
+    response_len = PR_Recv(fd, response, response_len, 0, timeout);
 
-    if (response_len < desired_len) {
-        LOGERROR(("pr_RecvAll() failed. response_len = %d.", response_len));
+    if (response_len <= 0) {
+
+        LOGERROR(("PR_Recv() failed. response_len = %d.", response_len));
         return NS_ERROR_FAILURE;
     }
 
@@ -338,16 +281,18 @@ ConnectSOCKS5(PRFileDesc *fd, const PRNetAddr *addr, PRNetAddr *extAddr, PRInter
         request_len = 5;
 
         // Send the initial header first...
-        write_len = pr_Send(fd, request, request_len, 0, &timeout);
+        write_len = PR_Send(fd, request, request_len, 0, timeout);
         if (write_len != request_len) {
             // bad write
+            LOGERROR(("PR_Send() failed sending connect command. Wrote: %d bytes; Expected: %d.", write_len, request_len));
             return NS_ERROR_FAILURE;
         }
 
         // Now send the hostname...
-        write_len = pr_Send(fd, destHost.get(), host_len, 0, &timeout);
+        write_len = PR_Send(fd, destHost.get(), host_len, 0, timeout);
         if (write_len != host_len) {
             // bad write
+            LOGERROR(("PR_Send() failed sending connect command. Wrote: %d bytes; Expected: %d.", write_len, host_len));
             return NS_ERROR_FAILURE;
         }
 
@@ -404,20 +349,25 @@ ConnectSOCKS5(PRFileDesc *fd, const PRNetAddr *addr, PRNetAddr *extAddr, PRInter
     request[request_len+1] = (unsigned char)destPort;
     request_len += 2;
 
-    write_len = pr_Send(fd, request, request_len, 0, &timeout);
+    write_len = PR_Send(fd, request, request_len, 0, timeout);
     if (write_len != request_len) {
+
         // bad write
+        LOGERROR(("PR_Send() failed sending connect command. Wrote: %d bytes; Expected: %d.", write_len, request_len));
         return NS_ERROR_FAILURE;
     }
 
-    desired_len = 5;
-    response_len = pr_RecvAll(fd, response, desired_len, 0, &timeout);
-    if (response_len < desired_len) { // bad read
-        LOGERROR(("pr_RecvAll() failed getting connect command reply. response_len = %d.", response_len));
+    response_len = 22;
+    response_len = PR_Recv(fd, response, response_len, 0, timeout);
+    if (response_len <= 0) {
+
+        // bad read
+        LOGERROR(("PR_Recv() failed getting connect command reply. response_len = %d.", response_len));
         return NS_ERROR_FAILURE;
     }
 
     if (response[0] != 0x05) {
+
         // bad response
         LOGERROR(("Not a SOCKS 5 reply. Expected: 5; received: %x", response[0]));
         return NS_ERROR_FAILURE;
@@ -447,26 +397,6 @@ ConnectSOCKS5(PRFileDesc *fd, const PRNetAddr *addr, PRNetAddr *extAddr, PRInter
 
     }
 
-    switch (response[3]) {
-        case 0x01: // IPv4
-	    desired_len = 4 + 2 - 1;
-            break;
-        case 0x03: // FQDN 
-	    desired_len = response[4] + 2;
-            break;
-        case 0x04: // IPv6
-	    desired_len = 16 + 2 - 1;
-            break;
-        default: // unknown format
-            return NS_ERROR_FAILURE;
-            break;
-    }
-    response_len = pr_RecvAll(fd, response + 5, desired_len, 0, &timeout);
-    if (response_len < desired_len) { // bad read
-        LOGERROR(("pr_RecvAll() failed getting connect command reply. response_len = %d.", response_len));
-        return NS_ERROR_FAILURE;
-    }
-    response_len += 5;
 
     // get external bound address (this is what 
     // the outside world sees as "us")
@@ -504,16 +434,17 @@ ConnectSOCKS5(PRFileDesc *fd, const PRNetAddr *addr, PRNetAddr *extAddr, PRInter
             *ip++ = response[18]; *ip++ = response[19];
 
             break;
-        case 0x03: // FQDN 
+        case 0x03: // FQDN (should not get this back)
+        default: // unknown format
             // if we get here, we don't know our external address.
             // however, as that's possibly not critical to the user,
             // we let it slide.
-            extPort = (response[response_len - 2] << 8) | 
-                       response[response_len - 1];
-            PR_InitializeNetAddr(PR_IpAddrNull, extPort, extAddr);
+            PR_InitializeNetAddr(PR_IpAddrNull, 0, extAddr);
+            //return NS_ERROR_FAILURE;
             break;
     }
     return NS_OK;
+
 }
 
 // Negotiate a SOCKS 4 connection. Assumes the TCP connection to the socks 
@@ -521,16 +452,15 @@ ConnectSOCKS5(PRFileDesc *fd, const PRNetAddr *addr, PRNetAddr *extAddr, PRInter
 static nsresult
 ConnectSOCKS4(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime timeout)
 {
-    int request_len = 0;
-    int write_len;
-    int response_len = 0;
-    int desired_len = 0;
-    char *ip = nsnull;
-    unsigned char request[12];
-    unsigned char response[10];
-
     NS_ENSURE_TRUE(fd, NS_ERROR_NOT_INITIALIZED);
     NS_ENSURE_TRUE(addr, NS_ERROR_NOT_INITIALIZED);
+
+    unsigned char request[12];
+    int request_len = 0;
+    int write_len;
+    unsigned char response[10];
+    int response_len = 0;
+    char *ip = nsnull;
 
     request[0] = 0x04; // SOCKS version 4
     request[1] = 0x01; // CD command code -- 1 for connect
@@ -578,16 +508,18 @@ ConnectSOCKS4(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime timeout)
         request[6] = 0;
         request[7] = 1;
 
-        write_len = pr_Send(fd, request, request_len, 0, &timeout);
+        write_len = PR_Send(fd, request, request_len, 0, timeout);
         if (write_len != request_len) {
+            LOGERROR(("PR_Send() failed. Wrote: %d bytes; Expected: %d.", write_len, request_len));
             return NS_ERROR_FAILURE;
         }
 
         // Remember the NULL.
         int host_len = destHost.Length() + 1;
 
-        write_len = pr_Send(fd, destHost.get(), host_len, 0, &timeout);
+        write_len = PR_Send(fd, destHost.get(), host_len, 0, timeout);
         if (write_len != host_len) {
+            LOGERROR(("PR_Send() failed. Wrote: %d bytes; Expected: %d.", write_len, host_len));
             return NS_ERROR_FAILURE;
         }
 
@@ -624,17 +556,19 @@ ConnectSOCKS4(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime timeout)
     }
 
     if (request_len > 0) {
-        write_len = pr_Send(fd, request, request_len, 0, &timeout);
+        write_len = PR_Send(fd, request, request_len, 0, timeout);
         if (write_len != request_len) {
+            LOGERROR(("PR_Send() failed. Wrote: %d bytes; Expected: %d.", write_len, request_len));
             return NS_ERROR_FAILURE;
         }
     }
 
     // get the server's response
-    desired_len = 8;	// size of the response
-    response_len = pr_RecvAll(fd, response, desired_len, 0, &timeout);
-    if (response_len < desired_len) {
-        LOGERROR(("pr_RecvAll() failed. response_len = %d.", response_len));
+    response_len = 8;	// size of the response
+    response_len = PR_Recv(fd, response, response_len, 0, timeout);
+
+    if (response_len <= 0) {
+        LOGERROR(("PR_Recv() failed. response_len = %d.", response_len));
         return NS_ERROR_FAILURE;
     }
 
@@ -657,7 +591,7 @@ ConnectSOCKS4(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime timeout)
 }
 
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*timeout*/)
 {
 
@@ -678,14 +612,20 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
 
     // Sync resolve the proxy hostname.
     PRNetAddr proxyAddr;
-    nsCOMPtr<nsIDNSRecord> rec;
-    nsresult rv;
     {
-        nsCOMPtr<nsIDNSService> dns = do_GetService(NS_DNSSERVICE_CONTRACTID);
-        if (!dns)
+        nsCOMPtr<nsIDNSService> dns;
+        nsCOMPtr<nsIDNSRecord> rec; 
+        nsresult rv;
+
+        dns = do_GetService(NS_DNSSERVICE_CONTRACTID, &rv);
+        if (NS_FAILED(rv))
             return PR_FAILURE;
 
         rv = dns->Resolve(proxyHost, 0, getter_AddRefs(rec));
+        if (NS_FAILED(rv))
+            return PR_FAILURE;
+
+        rv = rec->GetNextAddr(info->ProxyPort(), &proxyAddr);
         if (NS_FAILED(rv))
             return PR_FAILURE;
     }
@@ -723,29 +663,21 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
     sockopt.option = PR_SockOpt_Nonblocking;
     sockopt.value.non_blocking = nonblocking;
 
+
     // This connectWait should be long enough to connect to local proxy
     // servers, but not much longer. Since this protocol negotiation
     // uses blocking network calls, the app can appear to hang for a maximum
     // of this time if the user presses the STOP button during the SOCKS
-    // connection negotiation. Note that this value only applies to the
+    // connection negotiation. Note that this value only applies to the 
     // connecting to the SOCKS server: once the SOCKS connection has been
     // established, the value is not used anywhere else.
     PRIntervalTime connectWait = PR_SecondsToInterval(10);
 
     // Connect to the proxy server.
-    PRInt32 addresses = 0;
-    do {
-        rv = rec->GetNextAddr(info->ProxyPort(), &proxyAddr);
-        if (NS_FAILED(rv)) {
-            status = PR_FAILURE;
-            break;
-        }
-        ++addresses;
-        status = fd->lower->methods->connect(fd->lower, &proxyAddr, connectWait);
-    } while (PR_SUCCESS != status);
+    status = fd->lower->methods->connect(fd->lower, &proxyAddr, connectWait);
 
     if (PR_SUCCESS != status) {
-        LOGERROR(("Failed to TCP connect to the proxy server (%s): timeout = %d, status = %x, tried %d addresses.", proxyHost.get(), connectWait, status, addresses));
+        LOGERROR(("Failed to TCP connect to the proxy server (%s): timeout = %d, status = %x.",proxyHost.get(), connectWait, status));
         PR_SetSocketOption(fd, &sockopt);
         return status;
     }
@@ -755,10 +687,14 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
     // Now we will negotiate a connection to the desired server.
 
     // External IP address returned from ConnectSOCKS5(). Not supported in SOCKS4.
-    PRNetAddr extAddr;
+    PRNetAddr extAddr;	
     PR_InitializeNetAddr(PR_IpAddrNull, 0, &extAddr);
 
+ 
+
     NS_ASSERTION((socksVersion == 4) || (socksVersion == 5), "SOCKS Version must be selected");
+
+    nsresult rv;
 
     // Try to connect via SOCKS 5.
     if (socksVersion == 5) {
@@ -766,7 +702,7 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
 
         if (NS_FAILED(rv)) {
             PR_SetSocketOption(fd, &sockopt);
-            return PR_FAILURE;
+            return PR_FAILURE;	
         }
 
     }
@@ -777,7 +713,7 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
 
         if (NS_FAILED(rv)) {
             PR_SetSocketOption(fd, &sockopt);
-            return PR_FAILURE;
+            return PR_FAILURE;	
         }
 
     }
@@ -789,13 +725,13 @@ nsSOCKSIOLayerConnect(PRFileDesc *fd, const PRNetAddr *addr, PRIntervalTime /*ti
     // restore non-blocking option
     PR_SetSocketOption(fd, &sockopt);
 
-    // we're set-up and connected.
+    // we're set-up and connected. 
     // this socket can be used as normal now.
 
     return PR_SUCCESS;
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerClose(PRFileDesc *fd)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
@@ -810,28 +746,28 @@ nsSOCKSIOLayerClose(PRFileDesc *fd)
     return fd->lower->methods->close(fd->lower);
 }
 
-static PRFileDesc*
+static PRFileDesc* PR_CALLBACK
 nsSOCKSIOLayerAccept(PRFileDesc *fd, PRNetAddr *addr, PRIntervalTime timeout)
 {
     // TODO: implement SOCKS support for accept
     return fd->lower->methods->accept(fd->lower, addr, timeout);
 }
 
-static PRInt32
+static PRInt32 PR_CALLBACK
 nsSOCKSIOLayerAcceptRead(PRFileDesc *sd, PRFileDesc **nd, PRNetAddr **raddr, void *buf, PRInt32 amount, PRIntervalTime timeout)
 {
     // TODO: implement SOCKS support for accept, then read from it
     return sd->lower->methods->acceptread(sd->lower, nd, raddr, buf, amount, timeout);
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerBind(PRFileDesc *fd, const PRNetAddr *addr)
 {
     // TODO: implement SOCKS support for bind (very similar to connect)
     return fd->lower->methods->bind(fd->lower, addr);
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerGetName(PRFileDesc *fd, PRNetAddr *addr)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
@@ -844,7 +780,7 @@ nsSOCKSIOLayerGetName(PRFileDesc *fd, PRNetAddr *addr)
     return PR_FAILURE;
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerGetPeerName(PRFileDesc *fd, PRNetAddr *addr)
 {
     nsSOCKSSocketInfo * info = (nsSOCKSSocketInfo*) fd->secret;
@@ -857,7 +793,7 @@ nsSOCKSIOLayerGetPeerName(PRFileDesc *fd, PRNetAddr *addr)
     return PR_FAILURE;
 }
 
-static PRStatus
+static PRStatus PR_CALLBACK
 nsSOCKSIOLayerListen(PRFileDesc *fd, PRIntn backlog)
 {
     // TODO: implement SOCKS support for listen

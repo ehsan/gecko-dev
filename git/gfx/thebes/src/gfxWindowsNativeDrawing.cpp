@@ -14,7 +14,7 @@
  *
  * The Original Code is Thebes gfx.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -164,11 +164,7 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
             SetWorldTransform(mDC, &mWorldTransform);
         }
 
-#ifdef WINCE
-        SetViewportOrgEx(mDC, 0, 0, &mOrigViewportOrigin);
-#else
         GetViewportOrgEx(mDC, &mOrigViewportOrigin);
-#endif
         SetViewportOrgEx(mDC,
                          mOrigViewportOrigin.x + (int)mDeviceOffset.x,
                          mOrigViewportOrigin.y + (int)mDeviceOffset.y,
@@ -203,22 +199,6 @@ gfxWindowsNativeDrawing::BeginNativeDrawing()
         NS_ERROR("Bogus render state!");
         return nsnull;
     }
-}
-
-PRBool
-gfxWindowsNativeDrawing::IsDoublePass()
-{
-    // this is the same test we use in BeginNativeDrawing.
-    nsRefPtr<gfxASurface> surf = mContext->CurrentSurface(&mDeviceOffset.x, &mDeviceOffset.y);
-    if (!surf || surf->CairoStatus())
-        return false;
-    if ((surf->GetType() == gfxASurface::SurfaceTypeWin32 ||
-         surf->GetType() == gfxASurface::SurfaceTypeWin32Printing) &&
-        (surf->GetContentType() != gfxASurface::CONTENT_COLOR ||
-         (surf->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA &&
-          !(mNativeDrawFlags & CAN_DRAW_TO_COLOR_ALPHA))))
-        return PR_TRUE;
-    return PR_FALSE;
 }
 
 PRBool
@@ -284,7 +264,7 @@ gfxWindowsNativeDrawing::PaintToContext()
             gfxAlphaRecovery::RecoverAlpha(black, white, mTempSurfaceSize);
 
         mContext->Save();
-        mContext->Translate(mNativeRect.pos);
+        mContext->MoveTo(mNativeRect.pos);
         mContext->NewPath();
         mContext->Rectangle(gfxRect(gfxPoint(0.0, 0.0), mNativeRect.size));
 
@@ -295,7 +275,7 @@ gfxWindowsNativeDrawing::PaintToContext()
         pat->SetMatrix(m);
 
         if (mNativeDrawFlags & DO_NEAREST_NEIGHBOR_FILTERING)
-            pat->SetFilter(gfxPattern::FILTER_FAST);
+            pat->SetFilter(0);
 
         mContext->SetPattern(pat);
         mContext->Fill();

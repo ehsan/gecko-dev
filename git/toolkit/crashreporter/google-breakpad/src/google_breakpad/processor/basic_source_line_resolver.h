@@ -33,14 +33,14 @@
 #ifndef GOOGLE_BREAKPAD_PROCESSOR_BASIC_SOURCE_LINE_RESOLVER_H__
 #define GOOGLE_BREAKPAD_PROCESSOR_BASIC_SOURCE_LINE_RESOLVER_H__
 
-#include <map>
+#include <ext/hash_map>
 
 #include "google_breakpad/processor/source_line_resolver_interface.h"
 
 namespace google_breakpad {
 
 using std::string;
-using std::map;
+using __gnu_cxx::hash_map;
 
 class BasicSourceLineResolver : public SourceLineResolverInterface {
  public:
@@ -55,12 +55,6 @@ class BasicSourceLineResolver : public SourceLineResolverInterface {
   // retained until the BasicSourceLineResolver is destroyed.
   virtual bool LoadModule(const string &module_name, const string &map_file);
 
-  // Exactly the same as above, except the given map_buffer is used
-  // for symbols. 
-  virtual bool LoadModuleUsingMapBuffer(const string &module_name,
-                                        const string &map_buffer);
-
-
   virtual bool HasModule(const string &module_name) const;
 
   virtual StackFrameInfo* FillSourceLineInfo(StackFrame *frame) const;
@@ -71,13 +65,13 @@ class BasicSourceLineResolver : public SourceLineResolverInterface {
   struct Function;
   struct PublicSymbol;
   struct File;
-  struct CompareString {
-    bool operator()(const string &s1, const string &s2) const;
+  struct HashString {
+    size_t operator()(const string &s) const;
   };
   class Module;
 
   // All of the modules we've loaded
-  typedef map<string, Module*, CompareString> ModuleMap;
+  typedef hash_map<string, Module*, HashString> ModuleMap;
   ModuleMap *modules_;
 
   // Disallow unwanted copy ctor and assignment operator

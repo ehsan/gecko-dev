@@ -52,7 +52,7 @@ endif
 
 DIRS         += src
 
-ifndef BUILD_STATIC_LIBS
+ifndef MINIMO
 TOOL_DIRS    += shell
 endif
 

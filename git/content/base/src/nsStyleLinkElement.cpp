@@ -57,6 +57,7 @@
 #include "nsISimpleUnicharStreamFactory.h"
 #include "nsNetUtil.h"
 #include "nsUnicharUtils.h"
+#include "nsVoidArray.h"
 #include "nsCRT.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsUnicharInputStream.h"
@@ -71,7 +72,10 @@ nsStyleLinkElement::nsStyleLinkElement()
 
 nsStyleLinkElement::~nsStyleLinkElement()
 {
-  nsStyleLinkElement::SetStyleSheet(nsnull);
+  nsCOMPtr<nsICSSStyleSheet> cssSheet = do_QueryInterface(mStyleSheet);
+  if (cssSheet) {
+    cssSheet->SetOwningNode(nsnull);
+  }
 }
 
 NS_IMETHODIMP 
@@ -157,7 +161,7 @@ nsStyleLinkElement::SetLineNumber(PRUint32 aLineNumber)
 }
 
 void nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes,
-                                        nsTArray<nsString>& aResult)
+                                        nsStringArray& aResult)
 {
   nsAString::const_iterator start, done;
   aTypes.BeginReading(start);
@@ -173,7 +177,7 @@ void nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes,
     if (nsCRT::IsAsciiSpace(*current)) {
       if (inString) {
         ToLowerCase(Substring(start, current), subString);
-        aResult.AppendElement(subString);
+        aResult.AppendString(subString);
         inString = PR_FALSE;
       }
     }
@@ -187,7 +191,7 @@ void nsStyleLinkElement::ParseLinkTypes(const nsAString& aTypes,
   }
   if (inString) {
     ToLowerCase(Substring(start, current), subString);
-    aResult.AppendElement(subString);
+    aResult.AppendString(subString);
   }
 }
 
@@ -226,7 +230,7 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     aOldDocument->BeginUpdate(UPDATE_STYLE);
     aOldDocument->RemoveStyleSheet(mStyleSheet);
     aOldDocument->EndUpdate(UPDATE_STYLE);
-    nsStyleLinkElement::SetStyleSheet(nsnull);
+    mStyleSheet = nsnull;
   }
 
   if (mDontLoadStyle || !mUpdatesEnabled) {
@@ -244,15 +248,9 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     return NS_OK;
   }
 
-  PRBool enabled = PR_FALSE;
-  doc->CSSLoader()->GetEnabled(&enabled);
-  if (!enabled) {
-    return NS_OK;
-  }
-
+  nsCOMPtr<nsIURI> uri;
   PRBool isInline;
-  
-  nsCOMPtr<nsIURI> uri = GetStyleSheetURL(&isInline);
+  GetStyleSheetURL(&isInline, getter_AddRefs(uri));
 
   if (!aForceUpdate && mStyleSheet && !isInline && uri) {
     nsCOMPtr<nsIURI> oldURI;
@@ -271,7 +269,7 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     doc->BeginUpdate(UPDATE_STYLE);
     doc->RemoveStyleSheet(mStyleSheet);
     doc->EndUpdate(UPDATE_STYLE);
-    nsStyleLinkElement::SetStyleSheet(nsnull);
+    mStyleSheet = nsnull;
   }
 
   if (!uri && !isInline) {
@@ -310,14 +308,6 @@ nsStyleLinkElement::DoUpdateStyleSheet(nsIDocument *aOldDocument,
     rv = doc->CSSLoader()->
       LoadStyleLink(thisContent, uri, title, media, isAlternate, aObserver,
                     &isAlternate);
-    if (NS_FAILED(rv)) {
-      // Don't propagate LoadStyleLink() errors further than this, since some
-      // consumers (e.g. nsXMLContentSink) will completely abort on innocuous
-      // things like a stylesheet load being blocked by the security system.
-      doneLoading = PR_TRUE;
-      isAlternate = PR_FALSE;
-      rv = NS_OK;
-    }
   }
 
   NS_ENSURE_SUCCESS(rv, rv);

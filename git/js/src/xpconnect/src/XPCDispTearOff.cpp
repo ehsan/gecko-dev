@@ -96,7 +96,7 @@ HRESULT Error(HRESULT hResult, const char * message)
 static void BuildMessage(nsIException * exception, nsCString & result)
 {
     nsXPIDLCString msg;
-    exception->GetMessageMoz(getter_Copies(msg));
+    exception->GetMessage(getter_Copies(msg));
     nsXPIDLCString filename;
     exception->GetFilename(getter_Copies(filename));
 
@@ -231,7 +231,7 @@ STDMETHODIMP XPCDispatchTearOff::GetIDsOfNames(REFIID riid,
     return S_OK;
 }
 
-void
+void JS_DLL_CALLBACK
 xpcWrappedJSErrorReporter(JSContext *cx, const char *message,
                           JSErrorReport *report);
 
@@ -425,7 +425,7 @@ STDMETHODIMP XPCDispatchTearOff::Invoke(DISPID dispIdMember, REFIID riid,
                 }
                 // We'll assume in/out
                 // TODO: I'm not sure we tell out vs in/out
-                JS_SetPropertyById(cx, out_obj,
+                OBJ_SET_PROPERTY(cx, out_obj,
                         rt->GetStringID(XPCJSRuntime::IDX_VALUE),
                         &val);
                 *sp++ = OBJECT_TO_JSVAL(out_obj);
@@ -445,7 +445,7 @@ pre_call_clean_up:
 
         if(!JSVAL_IS_PRIMITIVE(fval))
         {
-            success = js_Invoke(cx, argc, stackbase, 0);
+            success = js_Invoke(cx, argc, stackbase, JSINVOKE_INTERNAL);
             result = stackbase[0];
         }
         else
@@ -465,17 +465,15 @@ pre_call_clean_up:
             nsCOMPtr<nsIException> e;
 
             XPCConvert::ConstructException(code, sz, "IDispatch", name.get(),
-                                           nsnull, getter_AddRefs(e), nsnull, nsnull);
+                                           nsnull, getter_AddRefs(e));
             xpcc->SetException(e);
             if(sz)
                 JS_smprintf_free(sz);
         }
 
-        if(!success)
+        if (!success)
         {
-            retval = nsXPCWrappedJSClass::CheckForException(ccx, name.get(),
-                                                            "IDispatch",
-                                                            PR_FALSE);
+            retval = nsXPCWrappedJSClass::CheckForException(ccx, name.get(), "IDispatch");
             goto done;
         }
 
@@ -496,7 +494,7 @@ pre_call_clean_up:
             {
                 jsval val;
                 if(JSVAL_IS_PRIMITIVE(stackbase[i+2]) ||
-                        !JS_GetPropertyById(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
+                        !OBJ_GET_PROPERTY(cx, JSVAL_TO_OBJECT(stackbase[i+2]),
                             rt->GetStringID(XPCJSRuntime::IDX_VALUE),
                             &val))
                 {

@@ -36,4 +36,6 @@
 
 #include "nsSVGPaintServerFrame.h"
 
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGPaintServerFrame)
+NS_INTERFACE_MAP_BEGIN(nsSVGPaintServerFrame)
+  NS_INTERFACE_MAP_ENTRY(nsISVGValue)
+NS_INTERFACE_MAP_END_INHERITING(nsSVGPaintServerFrameBase)

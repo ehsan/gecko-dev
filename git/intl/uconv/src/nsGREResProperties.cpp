@@ -43,24 +43,19 @@
 
 nsGREResProperties::nsGREResProperties(const nsACString& aFile)
 {
-  nsresult rv;
-  nsCOMPtr<nsIIOService> ioservice(do_GetIOService(&rv));
+  nsCOMPtr<nsIFile> file;
+  nsresult rv = NS_GetSpecialDirectory(NS_GRE_DIR, getter_AddRefs(file));
+  if (NS_FAILED(rv))
+    return;
+
+  file->AppendNative(NS_LITERAL_CSTRING("res"));
+  file->AppendNative(aFile);
+
+  nsCOMPtr<nsILocalFile> lf(do_QueryInterface(file));
+  NS_ENSURE_TRUE(lf, /**/);
+
   nsCOMPtr<nsIInputStream> inStr;
-  nsCOMPtr<nsIURI> uri;
-  nsCOMPtr<nsIChannel> channel;
-  if (NS_FAILED(rv))
-    return;
-
-  rv = ioservice->NewURI(NS_LITERAL_CSTRING("resource://gre-resources/") + aFile,
-                         nsnull, nsnull, getter_AddRefs(uri));
-  if (NS_FAILED(rv))
-    return;
-
-  rv = NS_NewChannel(getter_AddRefs(channel), uri, ioservice);
-  if (NS_FAILED(rv))
-    return;
-
-  rv = channel->Open(getter_AddRefs(inStr));
+  rv = NS_NewLocalFileInputStream(getter_AddRefs(inStr), lf);
   if (NS_FAILED(rv))
     return;
 

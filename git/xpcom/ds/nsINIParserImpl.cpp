@@ -41,7 +41,7 @@
 
 #include "nsINIParser.h"
 #include "nsStringEnumerator.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
 class nsINIParserImpl :
   public nsIINIParser
@@ -103,22 +103,22 @@ NS_IMPL_ISUPPORTS1(nsINIParserImpl,
 static PRBool
 SectionCB(const char* aSection, void *aClosure)
 {
-  nsTArray<nsCString> *strings = static_cast<nsTArray<nsCString>*>(aClosure);
+  nsCStringArray *strings = static_cast<nsCStringArray*>(aClosure);
 
-  strings->AppendElement(nsDependentCString(aSection));
+  strings->AppendCString(nsDependentCString(aSection));
   return PR_TRUE;
 }
 
 NS_IMETHODIMP
 nsINIParserImpl::GetSections(nsIUTF8StringEnumerator* *aResult)
 {
-  nsTArray<nsCString> *strings = new nsTArray<nsCString>;
+  nsCStringArray *strings = new nsCStringArray;
   if (!strings)
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult rv = mParser.GetSections(SectionCB, strings);
   if (NS_SUCCEEDED(rv))
-    rv = NS_NewAdoptingUTF8StringEnumerator(aResult, strings);
+    rv = NS_NewUTF8StringEnumerator(aResult, strings);
 
   if (NS_FAILED(rv))
     delete strings;
@@ -129,9 +129,9 @@ nsINIParserImpl::GetSections(nsIUTF8StringEnumerator* *aResult)
 static PRBool
 KeyCB(const char* aKey, const char *aValue, void *aClosure)
 {
-  nsTArray<nsCString> *strings = static_cast<nsTArray<nsCString>*>(aClosure);
+  nsCStringArray *strings = static_cast<nsCStringArray*>(aClosure);
 
-  strings->AppendElement(nsDependentCString(aKey));
+  strings->AppendCString(nsDependentCString(aKey));
   return PR_TRUE;
 }
 
@@ -139,14 +139,14 @@ NS_IMETHODIMP
 nsINIParserImpl::GetKeys(const nsACString& aSection,
                          nsIUTF8StringEnumerator* *aResult)
 {
-  nsTArray<nsCString> *strings = new nsTArray<nsCString>;
+  nsCStringArray *strings = new nsCStringArray;
   if (!strings)
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult rv = mParser.GetStrings(PromiseFlatCString(aSection).get(),
                                    KeyCB, strings);
   if (NS_SUCCEEDED(rv))
-    rv = NS_NewAdoptingUTF8StringEnumerator(aResult, strings);
+    rv = NS_NewUTF8StringEnumerator(aResult, strings);
 
   if (NS_FAILED(rv))
     delete strings;

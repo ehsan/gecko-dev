@@ -122,8 +122,7 @@ AC_DEFUN([MOZ_CHECK_PTHREADS],
 [
 AC_MSG_CHECKING([for pthread_create in -l$1])
 echo "
-    #include <pthread.h>
-    #include <stdlib.h>
+    #include <pthread.h> 
     void *foo(void *v) { int a = 1;  } 
     int main() { 
         pthread_t t;
@@ -152,3 +151,6 @@ AC_DEFUN([MOZ_READ_MOZCONFIG],
 # See the mozconfig2configure script for more details.
 _AUTOCONF_TOOLS_DIR=`dirname [$]0`/[$1]/build/autoconf
 . $_AUTOCONF_TOOLS_DIR/mozconfig2configure])
+
+dnl This gets inserted at the top of the configure script
+MOZ_READ_MOZCONFIG(MOZ_TOPSRCDIR)

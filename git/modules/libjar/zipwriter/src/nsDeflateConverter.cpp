@@ -44,11 +44,6 @@
 #include "nsComponentManagerUtils.h"
 #include "nsMemory.h"
 #include "nsAutoPtr.h"
-#include "plstr.h"
-
-#define ZLIB_TYPE "deflate"
-#define GZIP_TYPE "gzip"
-#define X_GZIP_TYPE "x-gzip"
 
 /**
  * nsDeflateConverter is a stream converter applies the deflate compression
@@ -67,27 +62,13 @@ nsresult nsDeflateConverter::Init()
     mZstream.zalloc = Z_NULL;
     mZstream.zfree = Z_NULL;
     mZstream.opaque = Z_NULL;
-    
-    PRInt32 window = MAX_WBITS;
-    switch (mWrapMode) {
-        case WRAP_NONE:
-            window = -window;
-            break;
-        case WRAP_GZIP:
-            window += 16;
-            break;
-    }
 
-    zerr = deflateInit2(&mZstream, mLevel, Z_DEFLATED, window, 8,
+    zerr = deflateInit2(&mZstream, mLevel, Z_DEFLATED, -MAX_WBITS, 8,
                         Z_DEFAULT_STRATEGY);
     if (zerr != Z_OK) return NS_ERROR_OUT_OF_MEMORY;
 
     mZstream.next_out = mWriteBuffer;
     mZstream.avail_out = sizeof(mWriteBuffer);
-
-    // mark the input buffer as empty.
-    mZstream.avail_in = 0;
-    mZstream.next_in = Z_NULL;
 
     return NS_OK;
 }
@@ -115,14 +96,6 @@ NS_IMETHODIMP nsDeflateConverter::AsyncConvertData(const char *aFromType,
         return NS_ERROR_ALREADY_INITIALIZED;
 
     NS_ENSURE_ARG_POINTER(aListener);
-
-    if (!PL_strncasecmp(aToType, ZLIB_TYPE, sizeof(ZLIB_TYPE)-1))
-        mWrapMode = WRAP_ZLIB;
-    else if (!PL_strcasecmp(aFromType, GZIP_TYPE) ||
-             !PL_strcasecmp(aFromType, X_GZIP_TYPE))
-        mWrapMode = WRAP_GZIP;
-    else
-        mWrapMode = WRAP_NONE;
 
     nsresult rv = Init();
     NS_ENSURE_SUCCESS(rv, rv);
@@ -206,16 +179,12 @@ NS_IMETHODIMP nsDeflateConverter::OnStopRequest(nsIRequest *aRequest,
 nsresult nsDeflateConverter::PushAvailableData(nsIRequest *aRequest,
                                                nsISupports *aContext)
 {
-    PRUint32 bytesToWrite = sizeof(mWriteBuffer) - mZstream.avail_out;
-    // We don't need to do anything if there isn't any data
-    if (bytesToWrite == 0)
-        return NS_OK;
-
     nsresult rv;
     nsCOMPtr<nsIStringInputStream> stream =
              do_CreateInstance("@mozilla.org/io/string-input-stream;1", &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
+    PRUint32 bytesToWrite = ZIP_BUFLEN - mZstream.avail_out;
     stream->ShareData((char*)mWriteBuffer, bytesToWrite);
     rv = mListener->OnDataAvailable(aRequest, mContext, stream, mOffset,
                                     bytesToWrite);

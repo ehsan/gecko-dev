@@ -67,23 +67,17 @@ struct nsTableCellReflowState;
 class nsTableRowFrame : public nsHTMLContainerFrame
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsTableRowFrame)
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
-
   virtual ~nsTableRowFrame();
 
   NS_IMETHOD Init(nsIContent*      aContent,
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
-  /** @see nsIFrame::DidSetStyleContext */
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
-  
+
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -188,15 +182,13 @@ public:
                                  PRBool  aCollapseGroup,
                                  PRBool& aDidCollapse);
 
-  /**
-   * Insert a cell frame after the last cell frame that has a col index
-   * that is less than aColIndex.  If no such cell frame is found the
-   * frame to insert is prepended to the child list.
-   * @param aFrame the cell frame to insert
-   * @param aColIndex the col index
-   */
+  void InsertCellFrame(nsTableCellFrame* aFrame, 
+                       nsTableCellFrame* aPrevSibling);
+
   void InsertCellFrame(nsTableCellFrame* aFrame,
                        PRInt32           aColIndex);
+
+  void RemoveCellFrame(nsTableCellFrame* aFrame);
 
   nsresult CalculateCellActualSize(nsIFrame*       aRowFrame,
                                    nscoord&        aDesiredWidth,

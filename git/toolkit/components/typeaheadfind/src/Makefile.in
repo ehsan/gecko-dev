@@ -47,6 +47,30 @@ GRE_MODULE	= 1
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 
+PACKAGE_FILE = typeaheadfind.pkg
+
+REQUIRES	= content \
+		  docshell \
+		  dom \
+		  editor \
+		  find \
+		  gfx \
+		  thebes \
+		  layout \
+		  locale \
+		  necko \
+		  pref \
+		  string \
+		  unicharutil \
+		  uriloader \
+		  view \
+		  webshell \
+		  widget \
+		  webbrwsr \
+		  windowwatcher \
+		  xpcom \
+		  xuldoc \
+		  $(NULL)
 
 CPPSRCS =   \
   nsTypeAheadFind.cpp	   \

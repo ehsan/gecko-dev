@@ -43,7 +43,6 @@
 #include "nsIObserver.h"
 #include "nsCOMPtr.h"
 #include "prlong.h"
-#include "nsIPrivateBrowsingService.h"
 
 class nsIPrefBranch;
 
@@ -59,6 +58,9 @@ public:
     : mCookiesLifetimeSec(LL_MAXINT)
     , mCookiesLifetimePolicy(0) // ACCEPT_NORMALLY
     , mCookiesAlwaysAcceptSession(PR_FALSE)
+#ifdef MOZ_MAIL_NEWS
+    , mCookiesDisabledForMailNews(PR_TRUE)
+#endif
     {}
   virtual ~nsCookiePermission() {}
 
@@ -66,14 +68,15 @@ public:
   void     PrefChanged(nsIPrefBranch *, const char *);
 
 private:
-  PRBool InPrivateBrowsing();
-
   nsCOMPtr<nsIPermissionManager> mPermMgr;
-  nsCOMPtr<nsIPrivateBrowsingService> mPBService;
 
   PRInt64      mCookiesLifetimeSec;            // lifetime limit specified in seconds
   PRUint8      mCookiesLifetimePolicy;         // pref for how long cookies are stored
   PRPackedBool mCookiesAlwaysAcceptSession;    // don't prompt for session cookies
+#ifdef MOZ_MAIL_NEWS
+  PRPackedBool mCookiesDisabledForMailNews;
+#endif
+
 };
 
 // {EF565D0A-AB9A-4A13-9160-0644CDFD859A}

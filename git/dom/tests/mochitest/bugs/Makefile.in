@@ -45,71 +45,19 @@ include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES	= \
-		test_bug42976.html \
-		test_bug49312.html \
-		iframe_bug49312.html \
-		test_bug132255.html \
 		test_bug159849.html \
 		test_bug291377.html \
 		test_bug308856.html \
 		test_bug317448.html \
-		test_bug327891.html \
 		test_bug333983.html \
-		test_bug335976.xhtml \
 		test_bug342448.html \
 		test_bug345521.html \
-		test_bug346659.html \
-		bug346659-echoer.html \
-		bug346659-parent.html \
-		bug346659-parent-echoer.html \
-		bug346659-opener.html \
-		bug346659-opener-echoer.html \
 		test_bug351601.html \
 		test_bug370098.html \
 		test_bug377539.html \
 		test_bug384122.html \
-		test_bug389366.html \
 		test_bug393974.html \
 		test_bug396843.html \
-		test_bug397571.html \
-		test_bug400204.html \
-		test_bug404748.html \
-		test_bug407839.html \
-		iframe_bug407839-1.html \
-		iframe_bug407839-2.html \
-		test_bug424093.html \
-		iframe_bug424093.html \
-		test_bug409349.html \
-		iframe_bug409349.html \
-		test_bug411103.html \
-		test_bug414291.html \
-		test_bug430276.html \
-		iframe_bug430276.html \
-		iframe_bug430276-2.html \
-		test_bug440572.html \
-		iframe_bug440572.html \
-		test_bug437361.html \
-		test_bug458091.html \
-		bug458091_child.html \
-		test_bug459848.html \
-		test_bug463000.html \
-		iframe_bug463000.html \
-		test_bug465263.html \
-		test_bug479143.html \
-		test_bug484775.html \
-		test_bug427744.html \
-		test_bug495219.html \
-		test_bug504862.html \
-		file_bug504862.html \
-		test_bug260264.html \
-		test_bug260264_nested.html \
-		child_bug260264.html \
-		grandchild_bug260264.html \
-		utils_bug260264.js \
-		test_bug531176.html \
-		test_bug534362.html \
-		iframe_bug534362.html \
-		test_bug531542.html \
 		$(NULL)
 
 libs:: 	$(_TEST_FILES)

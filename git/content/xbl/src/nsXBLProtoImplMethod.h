@@ -59,7 +59,7 @@ struct nsXBLParameter {
   ~nsXBLParameter() {
     MOZ_COUNT_DTOR(nsXBLParameter);
     nsMemory::Free(mName);
-    NS_CONTENT_DELETE_LIST_MEMBER(nsXBLParameter, this, mNext);
+    delete mNext;
   }
 };
 
@@ -113,6 +113,7 @@ class nsXBLProtoImplMethod: public nsXBLProtoImplMember
 public:
   nsXBLProtoImplMethod(const PRUnichar* aName);
   virtual ~nsXBLProtoImplMethod();
+  virtual void Destroy(PRBool aIsCompiled);
 
   void AppendBodyText(const nsAString& aBody);
   void AddParameter(const nsAString& aName);
@@ -128,28 +129,12 @@ public:
                                  const nsCString& aClassStr,
                                  void* aClassObject);
 
-  virtual void Trace(TraceCallback aCallback, void *aClosure) const;
-
-  PRBool IsCompiled() const
-  {
-    return !(mUncompiledMethod & BIT_UNCOMPILED);
-  }
-  void SetUncompiledMethod(nsXBLUncompiledMethod* aUncompiledMethod)
-  {
-    mUncompiledMethod = PRUptrdiff(aUncompiledMethod) | BIT_UNCOMPILED;
-  }
-  nsXBLUncompiledMethod* GetUncompiledMethod() const
-  {
-    PRUptrdiff unmasked = mUncompiledMethod & ~BIT_UNCOMPILED;
-    return reinterpret_cast<nsXBLUncompiledMethod*>(unmasked);
-  }
+  virtual void Traverse(nsCycleCollectionTraversalCallback &cb) const;
 
 protected:
-  enum { BIT_UNCOMPILED = 1 << 0 };
-
   union {
-    PRUptrdiff mUncompiledMethod; // An object that represents the method before being compiled.
-    JSObject* mJSMethodObject;    // The JS object for the method (after compilation)
+    nsXBLUncompiledMethod* mUncompiledMethod; // An object that represents the method before being compiled.
+    JSObject * mJSMethodObject;               // The JS object for the method (after compilation)
   };
 
 #ifdef DEBUG

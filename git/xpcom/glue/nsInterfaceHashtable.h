@@ -63,7 +63,7 @@ public:
    * @param pData This is an XPCOM getter, so pData is already_addrefed.
    *   If the key doesn't exist, pData will be set to nsnull.
    */
-  PRBool Get(KeyType aKey, UserDataType* pData NS_OUTPARAM) const;
+  PRBool Get(KeyType aKey, UserDataType* pData) const;
 
   /**
    * Gets a weak reference to the hashtable entry.
@@ -93,7 +93,7 @@ public:
    * @param pData This is an XPCOM getter, so pData is already_addrefed.
    *   If the key doesn't exist, pData will be set to nsnull.
    */
-  PRBool Get(KeyType aKey, UserDataType* pData NS_OUTPARAM) const;
+  PRBool Get(KeyType aKey, UserDataType* pData) const;
 
   // GetWeak does not make sense on a multi-threaded hashtable, where another
   // thread may remove the entry (and hence release it) as soon as GetWeak

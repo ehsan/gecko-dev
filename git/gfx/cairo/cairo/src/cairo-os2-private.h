@@ -38,7 +38,18 @@
 #ifndef CAIRO_OS2_PRIVATE_H
 #define CAIRO_OS2_PRIVATE_H
 
-#include "cairo-os2.h"
+#define INCL_DOS
+#define INCL_DOSSEMAPHORES
+#define INCL_DOSERRORS
+#define INCL_WIN
+#define INCL_GPI
+#ifdef __WATCOMC__
+# include <os2.h>
+#else
+# include <os2emx.h>
+#endif
+
+#include <cairo-os2.h>
 #include "cairoint.h"
 
 typedef struct _cairo_os2_surface

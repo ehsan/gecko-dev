@@ -45,8 +45,6 @@ function Report(pages) {
   for (var i = 0; i < this.timeVals.length; ++i) {
     this.timeVals[i] = new Array();
   }
-  this.totalCCTime = 0;
-  this.showTotalCCTime = false;
 }
 
 // given an array of strings, finds the longest common prefix
@@ -82,10 +80,6 @@ function findCommonPrefixLength(strs) {
   return len;
 }
 
-function compareNumbers(a, b) {
-  return a - b;
-}
-
 // returns an object with the following properties:
 //   min  : min value of array elements
 //   max  : max value of array elements
@@ -111,22 +105,18 @@ function getArrayStats(ary) {
   }
 
   // median
-  if (ary.length > 1) {
-      sorted_ary = ary.concat();
-      sorted_ary.sort(compareNumbers);
-      // remove longest run
-      sorted_ary.pop();
-      if (sorted_ary.length%2) {
-        r.median = sorted_ary[(sorted_ary.length-1)/2]; 
-      }else{
-        var n = Math.floor(sorted_ary.length / 2);
-        if (n >= sorted_ary.length)
-          r.median = sorted_ary[n];
-        else
-          r.median = (sorted_ary[n-1] + sorted_ary[n]) / 2;
-      }
+  sorted_ary = ary.concat();
+  sorted_ary.sort();
+  // remove longest run
+  sorted_ary.pop();
+  if (sorted_ary.length%2) {
+    r.median = sorted_ary[(sorted_ary.length-1)/2]; 
   }else{
-    r.median = ary[0];
+    var n = Math.floor(sorted_ary.length / 2);
+    if (n >= sorted_ary.length)
+      r.median = sorted_ary[n];
+    else
+      r.median = (sorted_ary[n] + sorted_ary[n + 1]) / 2;
   }
 
   // ignore max value when computing mean and stddev
@@ -221,15 +211,11 @@ Report.prototype.getReport = function(format) {
         this.timeVals[i] +
         "\n";
     }
-    if (this.showTotalCCTime) {
-      report += "Cycle collection: " + this.totalCCTime + "\n"
-    }
     report += "============================================================\n";
   } else if (format == "tinderbox") {
     report = "__start_tp_report\n";
     report += "_x_x_mozilla_page_load,"+avgmed+",NaN,NaN\n";  // max and min are just 0, ignored
-    report += "_x_x_mozilla_page_load_details,avgmedian|"+avgmed+"|average|"+avg.toFixed(2)+"|minimum|NaN|maximum|NaN|stddev|NaN\n";
-    report += "|i|pagename|median|mean|min|max|runs|\n";
+    report += "_x_x_mozilla_page_load_details,avgmedian|"+avgmed+"|average|"+avg.toFixed(2)+"|minimum|NaN|maximum|NaN|stddev|NaN";
 
     for (var i = 0; i < this.timeVals.length; i++) {
       var r = getArrayStats(this.timeVals[i]);
@@ -244,13 +230,6 @@ Report.prototype.getReport = function(format) {
         "\n";
     }
     report += "__end_tp_report\n";
-    if (this.showTotalCCTime) {
-      report += "__start_cc_report\n";
-      report += "_x_x_mozilla_cycle_collect," + this.totalCCTime + "\n";
-      report += "__end_cc_report\n";
-    }
-    var now = (new Date()).getTime();
-    report += "__startTimestamp" + now + "__endTimestamp\n"; //timestamp for determning shutdown time, used by talos
   } else {
     report = "Unknown report format";
   }
@@ -260,9 +239,4 @@ Report.prototype.getReport = function(format) {
 
 Report.prototype.recordTime = function(pageIndex, ms) {
   this.timeVals[pageIndex].push(ms);
-}
-
-Report.prototype.recordCCTime = function(ms) {
-  this.totalCCTime += ms;
-  this.showTotalCCTime = true;
 }

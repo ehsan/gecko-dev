@@ -37,6 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsHTMLAreaAccessible.h"
+#include "nsIAccessibilityService.h"
 #include "nsIServiceManager.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMHTMLAreaElement.h"
@@ -45,31 +46,31 @@
 #include "nsIImageMap.h"
 
 
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLAreaAccessible
-////////////////////////////////////////////////////////////////////////////////
+// --- area -----
 
-nsHTMLAreaAccessible::
-  nsHTMLAreaAccessible(nsIDOMNode *aDomNode, nsIAccessible *aParent,
-                       nsIWeakReference* aShell):
-  nsHTMLLinkAccessible(aDomNode, aShell)
-{
+nsHTMLAreaAccessible::nsHTMLAreaAccessible(nsIDOMNode *aDomNode, nsIAccessible *aParent, nsIWeakReference* aShell):
+nsLinkableAccessible(aDomNode, aShell)
+{ 
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsIAccessible
-
-nsresult
-nsHTMLAreaAccessible::GetNameInternal(nsAString & aName)
+/* wstring getName (); */
+NS_IMETHODIMP nsHTMLAreaAccessible::GetName(nsAString & aName)
 {
-  nsresult rv = nsAccessible::GetNameInternal(aName);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!aName.IsEmpty())
-    return NS_OK;
-
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (!content) {
+    return NS_ERROR_FAILURE;
+  }
+
+  aName.Truncate();
+  if (mRoleMapEntry) {
+    nsresult rv = nsAccessible::GetName(aName);
+    if (!aName.IsEmpty()) {
+      return rv;
+    }
+  }
   if (!content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::alt,
+                        aName) &&  
+      !content->GetAttr(kNameSpaceID_None, nsAccessibilityAtoms::title,
                         aName)) {
     return GetValue(aName);
   }
@@ -77,25 +78,48 @@ nsHTMLAreaAccessible::GetNameInternal(nsAString & aName)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLAreaAccessible::GetDescription(nsAString& aDescription)
+/* unsigned long getRole (); */
+NS_IMETHODIMP nsHTMLAreaAccessible::GetRole(PRUint32 *_retval)
 {
-  aDescription.Truncate();
-
-  // Still to do - follow IE's standard here
-  nsCOMPtr<nsIDOMHTMLAreaElement> area(do_QueryInterface(mDOMNode));
-  if (area) 
-    area->GetShape(aDescription);
-
+  *_retval = nsIAccessibleRole::ROLE_LINK;
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLAreaAccessible::GetBounds(PRInt32 *x, PRInt32 *y,
-                                PRInt32 *width, PRInt32 *height)
+/* wstring getDescription (); */
+NS_IMETHODIMP nsHTMLAreaAccessible::GetDescription(nsAString& _retval)
 {
-  nsresult rv;
+  // Still to do - follow IE's standard here
+  nsCOMPtr<nsIDOMHTMLAreaElement> area(do_QueryInterface(mDOMNode));
+  if (area) 
+    area->GetShape(_retval);
+  return NS_OK;
+}
 
+
+/* nsIAccessible getFirstChild (); */
+NS_IMETHODIMP nsHTMLAreaAccessible::GetFirstChild(nsIAccessible **_retval)
+{
+  *_retval = nsnull;
+  return NS_OK;
+}
+
+/* nsIAccessible getLastChild (); */
+NS_IMETHODIMP nsHTMLAreaAccessible::GetLastChild(nsIAccessible **_retval)
+{
+  *_retval = nsnull;
+  return NS_OK;
+}
+
+/* long getAccChildCount (); */
+NS_IMETHODIMP nsHTMLAreaAccessible::GetChildCount(PRInt32 *_retval)
+{
+  *_retval = 0;
+  return NS_OK;
+}
+
+/* void accGetBounds (out long x, out long y, out long width, out long height); */
+NS_IMETHODIMP nsHTMLAreaAccessible::GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height)
+{
   // Essentially this uses GetRect on mAreas of nsImageMap from nsImageFrame
 
   *x = *y = *width = *height = 0;
@@ -108,15 +132,16 @@ nsHTMLAreaAccessible::GetBounds(PRInt32 *x, PRInt32 *y,
 
   nsIFrame *frame = GetFrame();
   NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-  nsIImageFrame *imageFrame = do_QueryFrame(frame);
+  nsIImageFrame *imageFrame;
+  nsresult rv = frame->QueryInterface(NS_GET_IID(nsIImageFrame), (void**)&imageFrame);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIImageMap> map;
   imageFrame->GetImageMap(presContext, getter_AddRefs(map));
   NS_ENSURE_TRUE(map, NS_ERROR_FAILURE);
 
-  nsRect rect;
-  nsIntRect orgRectPixels;
-  rv = map->GetBoundsForAreaContent(ourContent, rect);
+  nsRect rect, orgRectPixels;
+  rv = map->GetBoundsForAreaContent(ourContent, presContext, rect);
   NS_ENSURE_SUCCESS(rv, rv);
 
   *x      = presContext->AppUnitsToDevPixels(rect.x); 
@@ -135,24 +160,3 @@ nsHTMLAreaAccessible::GetBounds(PRInt32 *x, PRInt32 *y,
   return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible public implementation
-
-nsresult
-nsHTMLAreaAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                      PRBool aDeepestChild,
-                                      nsIAccessible **aChild)
-{
-  // Don't walk into area accessibles.
-  NS_ADDREF(*aChild = this);
-  return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsAccessible protected implementation
-
-void
-nsHTMLAreaAccessible::CacheChildren()
-{
-  // No children for aria accessible.
-}

@@ -143,9 +143,7 @@ NS_IMPL_ISUPPORTS1(nsCertTreeDispInfo, nsICertTreeItem)
 nsCertTreeDispInfo::nsCertTreeDispInfo()
 :mAddonInfo(nsnull)
 ,mTypeOfEntry(direct_db)
-,mPort(-1)
 ,mOverrideBits(nsCertOverride::ob_None)
-,mIsTemporary(PR_TRUE)
 {
 }
 
@@ -153,11 +151,8 @@ nsCertTreeDispInfo::nsCertTreeDispInfo(nsCertTreeDispInfo &other)
 {
   mAddonInfo = other.mAddonInfo;
   mTypeOfEntry = other.mTypeOfEntry;
-  mAsciiHost = other.mAsciiHost;
-  mPort = other.mPort;
+  mHostWithPort = other.mHostWithPort;
   mOverrideBits = other.mOverrideBits;
-  mIsTemporary = other.mIsTemporary;
-  mCert = other.mCert;
 }
 
 nsCertTreeDispInfo::~nsCertTreeDispInfo()
@@ -168,12 +163,6 @@ NS_IMETHODIMP
 nsCertTreeDispInfo::GetCert(nsIX509Cert **_cert)
 {
   NS_ENSURE_ARG(_cert);
-  if (mCert) {
-    // we may already have the cert for temporary overrides
-    *_cert = mCert;
-    NS_IF_ADDREF(*_cert);
-    return NS_OK;
-  }
   if (mAddonInfo) {
     *_cert = mAddonInfo->mCert.get();
     NS_IF_ADDREF(*_cert);
@@ -187,9 +176,7 @@ nsCertTreeDispInfo::GetCert(nsIX509Cert **_cert)
 NS_IMETHODIMP
 nsCertTreeDispInfo::GetHostPort(nsAString &aHostPort)
 {
-  nsCAutoString hostPort;
-  nsCertOverrideService::GetHostWithPort(mAsciiHost, mPort, hostPort);
-  aHostPort = NS_ConvertUTF8toUTF16(hostPort);
+  aHostPort = mHostWithPort;
   return NS_OK;
 }
 
@@ -304,26 +291,24 @@ nsCertTree::GetThreadDescAtIndex(PRInt32 index)
 //  GetCertAtIndex
 //
 //  If the row at index is a cert, return that cert.  Otherwise, return null.
-already_AddRefed<nsIX509Cert>
+nsIX509Cert *
 nsCertTree::GetCertAtIndex(PRInt32 index, PRInt32 *outAbsoluteCertOffset)
 {
   nsRefPtr<nsCertTreeDispInfo> certdi =
-    GetDispInfoAtIndex(index, outAbsoluteCertOffset);
+    getter_AddRefs(GetDispInfoAtIndex(index, outAbsoluteCertOffset));
   if (!certdi)
     return nsnull;
 
   nsIX509Cert *rawPtr = nsnull;
-  if (certdi->mCert) {
-    rawPtr = certdi->mCert;
-  } else if (certdi->mAddonInfo) {
+  if (certdi->mAddonInfo) {
     rawPtr = certdi->mAddonInfo->mCert;
+    NS_IF_ADDREF(rawPtr);
   }
-  NS_IF_ADDREF(rawPtr);
   return rawPtr;
 }
 
 //  If the row at index is a cert, return that cert.  Otherwise, return null.
-already_AddRefed<nsCertTreeDispInfo>
+nsCertTreeDispInfo *
 nsCertTree::GetDispInfoAtIndex(PRInt32 index, 
                                PRInt32 *outAbsoluteCertOffset)
 {
@@ -402,11 +387,9 @@ MatchingCertOverridesCallback(const nsCertOverride &aSettings,
       cap->certai->mUsageCount++;
     certdi->mAddonInfo = cap->certai;
     certdi->mTypeOfEntry = nsCertTreeDispInfo::host_port_override;
-    certdi->mAsciiHost = aSettings.mAsciiHost;
-    certdi->mPort = aSettings.mPort;
+    certdi->mHostWithPort = NS_ConvertUTF8toUTF16(aSettings.mHostWithPortUTF8);
     certdi->mOverrideBits = aSettings.mOverrideBits;
-    certdi->mIsTemporary = aSettings.mIsTemporary;
-    certdi->mCert = aSettings.mCert;
+    NS_IF_ADDREF(certdi);
     cap->array->InsertElementAt(cap->position, certdi);
     cap->position++;
     cap->counter++;
@@ -414,9 +397,7 @@ MatchingCertOverridesCallback(const nsCertOverride &aSettings,
 
   // this entry is now associated to a displayed cert, remove
   // it from the list of remaining entries
-  nsCAutoString hostPort;
-  nsCertOverrideService::GetHostWithPort(aSettings.mAsciiHost, aSettings.mPort, hostPort);
-  cap->tracker->RemoveEntry(hostPort);
+  cap->tracker->RemoveEntry(aSettings.mHostWithPortUTF8);
 }
 
 // Used to collect a list of the (unique) host:port keys
@@ -430,9 +411,7 @@ CollectAllHostPortOverridesCallback(const nsCertOverride &aSettings,
   if (!collectorTable)
     return;
 
-  nsCAutoString hostPort;
-  nsCertOverrideService::GetHostWithPort(aSettings.mAsciiHost, aSettings.mPort, hostPort);
-  collectorTable->PutEntry(hostPort);
+  collectorTable->PutEntry(aSettings.mHostWithPortUTF8);
 }
 
 struct nsArrayAndPositionAndCounterAndTracker
@@ -454,9 +433,7 @@ AddRemaningHostPortOverridesCallback(const nsCertOverride &aSettings,
   if (!cap)
     return;
 
-  nsCAutoString hostPort;
-  nsCertOverrideService::GetHostWithPort(aSettings.mAsciiHost, aSettings.mPort, hostPort);
-  if (!cap->tracker->GetEntry(hostPort))
+  if (!cap->tracker->GetEntry(aSettings.mHostWithPortUTF8))
     return;
 
   // This entry is not associated to any stored cert,
@@ -466,11 +443,9 @@ AddRemaningHostPortOverridesCallback(const nsCertOverride &aSettings,
   if (certdi) {
     certdi->mAddonInfo = nsnull;
     certdi->mTypeOfEntry = nsCertTreeDispInfo::host_port_override;
-    certdi->mAsciiHost = aSettings.mAsciiHost;
-    certdi->mPort = aSettings.mPort;
+    certdi->mHostWithPort = NS_ConvertUTF8toUTF16(aSettings.mHostWithPortUTF8);
     certdi->mOverrideBits = aSettings.mOverrideBits;
-    certdi->mIsTemporary = aSettings.mIsTemporary;
-    certdi->mCert = aSettings.mCert;
+    NS_IF_ADDREF(certdi);
     cap->array->InsertElementAt(cap->position, certdi);
     cap->position++;
     cap->counter++;
@@ -585,11 +560,8 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
 
     if (wantThisCertIfNoOverrides || wantThisCertIfHaveOverrides) {
       PRUint32 ocount = 0;
-      nsresult rv = 
-        mOverrideService->IsCertUsedForOverrides(pipCert, 
-                                                 PR_TRUE, // we want temporaries
-                                                 PR_TRUE, // we want permanents
-                                                 &ocount);
+      nsresult rv = mOverrideService->IsCertUsedForOverrides(pipCert, &ocount);
+
       if (wantThisCertIfNoOverrides) {
         if (NS_FAILED(rv) || ocount == 0) {
           // no overrides for this cert
@@ -632,9 +604,9 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
         certdi->mAddonInfo = certai;
         certai->mUsageCount++;
         certdi->mTypeOfEntry = nsCertTreeDispInfo::direct_db;
-        // not necessary: certdi->mAsciiHost.Clear(); certdi->mPort = -1;
+        // not necessary: certdi->mHostWithPort.Clear();
         certdi->mOverrideBits = nsCertOverride::ob_None;
-        certdi->mIsTemporary = PR_FALSE;
+        NS_IF_ADDREF(certdi);
         mDispInfo.InsertElementAt(InsertPosition, certdi);
         ++count;
         ++InsertPosition;
@@ -821,7 +793,7 @@ nsCertTree::DeleteEntryObject(PRUint32 index)
       PRBool canRemoveEntry = PR_FALSE;
 
       if (certdi->mTypeOfEntry == nsCertTreeDispInfo::host_port_override) {
-        mOverrideService->ClearValidityOverride(certdi->mAsciiHost, certdi->mPort);
+        mOverrideService->ClearValidityOverride(certdi->mHostWithPort);
         if (certdi->mAddonInfo) {
           certdi->mAddonInfo->mUsageCount--;
           if (certdi->mAddonInfo->mUsageCount == 0) {
@@ -862,7 +834,10 @@ nsCertTree::DeleteEntryObject(PRUint32 index)
         }
       }
 
+      nsCertTreeDispInfo *certdi2 = mDispInfo.ElementAt(certIndex);
       mDispInfo.RemoveElementAt(certIndex);
+      NS_IF_RELEASE(certdi2);
+      certdi2 = 0;
 
       if (canRemoveEntry) {
         RemoveCacheEntry(cert);
@@ -893,7 +868,7 @@ NS_IMETHODIMP
 nsCertTree::GetCert(PRUint32 aIndex, nsIX509Cert **_cert)
 {
   NS_ENSURE_ARG(_cert);
-  *_cert = GetCertAtIndex(aIndex).get();
+  *_cert = GetCertAtIndex(aIndex);
   return NS_OK;
 }
 
@@ -903,7 +878,7 @@ nsCertTree::GetTreeItem(PRUint32 aIndex, nsICertTreeItem **_treeitem)
   NS_ENSURE_ARG(_treeitem);
 
   nsRefPtr<nsCertTreeDispInfo> certdi = 
-    GetDispInfoAtIndex(aIndex);
+    getter_AddRefs(GetDispInfoAtIndex(aIndex));
   if (!certdi)
     return NS_ERROR_FAILURE;
 
@@ -918,7 +893,7 @@ nsCertTree::IsHostPortOverride(PRUint32 aIndex, PRBool *_retval)
   NS_ENSURE_ARG(_retval);
 
   nsRefPtr<nsCertTreeDispInfo> certdi = 
-    GetDispInfoAtIndex(aIndex);
+    getter_AddRefs(GetDispInfoAtIndex(aIndex));
   if (!certdi)
     return NS_ERROR_FAILURE;
 
@@ -1139,12 +1114,12 @@ nsCertTree::GetCellText(PRInt32 row, nsITreeColumn* col,
 
   PRInt32 absoluteCertOffset;
   nsRefPtr<nsCertTreeDispInfo> certdi = 
-    GetDispInfoAtIndex(row, &absoluteCertOffset);
+    getter_AddRefs(GetDispInfoAtIndex(row, &absoluteCertOffset));
   if (!certdi)
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIX509Cert> cert = certdi->mCert;
-  if (!cert && certdi->mAddonInfo) {
+  nsCOMPtr<nsIX509Cert> cert = nsnull;
+  if (certdi->mAddonInfo) {
     cert = certdi->mAddonInfo->mCert;
   }
 
@@ -1261,17 +1236,11 @@ nsCertTree::GetCellText(PRInt32 row, nsITreeColumn* col,
     _retval = NS_ConvertUTF8toUTF16(temp);
   } else if (NS_LITERAL_STRING("sitecol").Equals(colID)) {
     if (certdi->mTypeOfEntry == nsCertTreeDispInfo::host_port_override) {
-      nsCAutoString hostPort;
-      nsCertOverrideService::GetHostWithPort(certdi->mAsciiHost, certdi->mPort, hostPort);
-      _retval = NS_ConvertUTF8toUTF16(hostPort);
+      _retval = certdi->mHostWithPort;
     }
     else {
       _retval = NS_LITERAL_STRING("*");
     }
-  } else if (NS_LITERAL_STRING("lifetimecol").Equals(colID)) {
-    const char *stringID = 
-      (certdi->mIsTemporary) ? "CertExceptionTemporary" : "CertExceptionPermanent";
-    rv = mNSSComponent->GetPIPNSSBundleString(stringID, _retval);
   } else if (NS_LITERAL_STRING("typecol").Equals(colID) && cert) {
     nsCOMPtr<nsIX509Cert2> pipCert = do_QueryInterface(cert);
     PRUint32 type = nsIX509Cert::UNKNOWN_CERT;
@@ -1427,7 +1396,7 @@ nsCertTree::dumpMap()
       nsAutoString td(el->orgName);
       PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("thread desc[%d]: %s", i, NS_LossyConvertUTF16toASCII(td).get()));
     }
-    nsCOMPtr<nsIX509Cert> ct = GetCertAtIndex(i);
+    nsCOMPtr<nsIX509Cert> ct = getter_AddRefs(GetCertAtIndex(i));
     if (ct != nsnull) {
       PRUnichar *goo;
       ct->GetCommonName(&goo);
@@ -1441,8 +1410,7 @@ nsCertTree::dumpMap()
 //
 // CanDrop
 //
-NS_IMETHODIMP nsCertTree::CanDrop(PRInt32 index, PRInt32 orientation,
-                                  nsIDOMDataTransfer* aDataTransfer, PRBool *_retval)
+NS_IMETHODIMP nsCertTree::CanDrop(PRInt32 index, PRInt32 orientation, PRBool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
   *_retval = PR_FALSE;
@@ -1454,7 +1422,7 @@ NS_IMETHODIMP nsCertTree::CanDrop(PRInt32 index, PRInt32 orientation,
 //
 // Drop
 //
-NS_IMETHODIMP nsCertTree::Drop(PRInt32 row, PRInt32 orient, nsIDOMDataTransfer* aDataTransfer)
+NS_IMETHODIMP nsCertTree::Drop(PRInt32 row, PRInt32 orient)
 {
   return NS_OK;
 }

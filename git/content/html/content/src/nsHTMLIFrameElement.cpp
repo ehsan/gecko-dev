@@ -36,11 +36,6 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsIDOMDocument.h"
-#ifdef MOZ_SVG
-#include "nsIDOMGetSVGDocument.h"
-#include "nsIDOMSVGDocument.h"
-#endif
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
@@ -52,9 +47,6 @@
 
 class nsHTMLIFrameElement : public nsGenericHTMLFrameElement,
                             public nsIDOMHTMLIFrameElement
-#ifdef MOZ_SVG
-                            , public nsIDOMGetSVGDocument
-#endif
 {
 public:
   nsHTMLIFrameElement(nsINodeInfo *aNodeInfo);
@@ -74,11 +66,6 @@ public:
 
   // nsIDOMHTMLIFrameElement
   NS_DECL_NSIDOMHTMLIFRAMEELEMENT
-
-#ifdef MOZ_SVG
-  // nsIDOMGetSVGDocument
-  NS_DECL_NSIDOMGETSVGDOCUMENT
-#endif
 
   // nsIContent
   virtual PRBool ParseAttribute(PRInt32 aNamespaceID,
@@ -109,15 +96,9 @@ NS_IMPL_ADDREF_INHERITED(nsHTMLIFrameElement,nsGenericElement)
 NS_IMPL_RELEASE_INHERITED(nsHTMLIFrameElement,nsGenericElement)
 
 // QueryInterface implementation for nsHTMLIFrameElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLIFrameElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_BEGIN(nsHTMLIFrameElement)
-    NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMHTMLIFrameElement)
-#ifdef MOZ_SVG
-    NS_INTERFACE_TABLE_ENTRY(nsHTMLIFrameElement, nsIDOMGetSVGDocument)
-#endif
-  NS_OFFSET_AND_INTERFACE_TABLE_END
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLIFrameElement,
-                                               nsGenericHTMLFrameElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLIFrameElement,
+                                     nsGenericHTMLFrameElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLIFrameElement, nsIDOMHTMLIFrameElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLIFrameElement)
 
 
@@ -141,14 +122,6 @@ nsHTMLIFrameElement::GetContentDocument(nsIDOMDocument** aContentDocument)
   return nsGenericHTMLFrameElement::GetContentDocument(aContentDocument);
 }
 
-#ifdef MOZ_SVG
-NS_IMETHODIMP
-nsHTMLIFrameElement::GetSVGDocument(nsIDOMDocument **aResult)
-{
-  return GetContentDocument(aResult);
-}
-#endif
-
 PRBool
 nsHTMLIFrameElement::ParseAttribute(PRInt32 aNamespaceID,
                                     nsIAtom* aAttribute,
@@ -157,16 +130,16 @@ nsHTMLIFrameElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::marginwidth) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::marginheight) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::width) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::height) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::frameborder) {
       return ParseFrameborderValue(aValue, aResult);
@@ -187,7 +160,7 @@ static void
 MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
                       nsRuleData* aData)
 {
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Border)) {
+  if (aData->mSID == eStyleStruct_Border) {
     // frameborder: 0 | 1 (| NO | YES in quirks mode)
     // If frameborder is 0 or No, set border to 0
     // else leave it as the value set in html.css
@@ -208,7 +181,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
+  else if (aData->mSID == eStyleStruct_Position) {
     // width: value
     if (aData->mPositionData->mWidth.GetUnit() == eCSSUnit_Null) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::width);

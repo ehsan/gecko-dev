@@ -22,7 +22,6 @@
 # Contributor(s):
 #   Ben Goodger <ben@mozilla.org>
 #   Asaf Romano <mozilla.mano@sent.com>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -131,7 +130,6 @@ var gMainPane = {
   _updateUseCurrentButton: function () {
     var useCurrent = document.getElementById("useCurrent");
 
-    var windowIsPresent;
     var win;
     if (document.documentElement.instantApply) {
       const Cc = Components.classes, Ci = Components.interfaces;
@@ -145,7 +143,7 @@ var gMainPane = {
 
     if (win && win.document.documentElement
                   .getAttribute("windowtype") == "navigator:browser") {
-      windowIsPresent = true;
+      useCurrent.disabled = false;
 
       var tabbrowser = win.document.getElementById("content");
       if (tabbrowser.browsers.length > 1)
@@ -154,16 +152,9 @@ var gMainPane = {
         useCurrent.label = useCurrent.getAttribute("label1");
     }
     else {
-      windowIsPresent = false;
       useCurrent.label = useCurrent.getAttribute("label1");
+      useCurrent.disabled = true;
     }
-
-    // In this case, the button's disabled state is set by preferences.xml.
-    if (document.getElementById
-        ("pref.browser.homepage.disable_button.current_page").locked)
-      return;
-
-    useCurrent.disabled = !windowIsPresent;
   },
 
   /**
@@ -208,9 +199,9 @@ var gMainPane = {
    *     2 - The default download location is elsewhere as specified in
    *         browser.download.dir.
    * browser.download.downloadDir
-   *   deprecated.
+   *   depreciated.
    * browser.download.defaultFolder
-   *   deprecated.
+   *   depreciated.
    */
 
   /**
@@ -468,12 +459,59 @@ var gMainPane = {
     var theEM = wm.getMostRecentWindow(EMTYPE);
     if (theEM) {
       theEM.focus();
-      theEM.showView("extensions");
       return;
     }
 
     const EMURL = "chrome://mozapps/content/extensions/extensions.xul";
     const EMFEATURES = "chrome,menubar,extra-chrome,toolbar,dialog=no,resizable";
-    window.openDialog(EMURL, "", EMFEATURES, "extensions");
+    window.openDialog(EMURL, "", EMFEATURES);
   }
+
+#ifdef HAVE_SHELL_SERVICE
+  ,
+
+  // SYSTEM DEFAULTS
+
+  /*
+   * Preferences:
+   *
+   * browser.shell.checkDefault
+   * - true if a default-browser check (and prompt to make it so if necessary)
+   *   occurs at startup, false otherwise
+   */
+
+  /**
+   * Checks whether the browser is currently registered with the operating
+   * system as the default browser.  If the browser is not currently the
+   * default browser, the user is given the option of making it the default;
+   * otherwise, the user is informed that this browser already is the browser.
+   */
+  checkNow: function ()
+  {
+    var shellSvc = Components.classes["@mozilla.org/browser/shell-service;1"]
+                             .getService(Components.interfaces.nsIShellService);
+    var brandBundle = document.getElementById("bundleBrand");
+    var shellBundle = document.getElementById("bundleShell");
+    var brandShortName = brandBundle.getString("brandShortName");
+    var promptTitle = shellBundle.getString("setDefaultBrowserTitle");
+    var promptMessage;
+    const IPS = Components.interfaces.nsIPromptService;
+    var psvc = Components.classes["@mozilla.org/embedcomp/prompt-service;1"]
+                         .getService(IPS);
+    if (!shellSvc.isDefaultBrowser(false)) {
+      promptMessage = shellBundle.getFormattedString("setDefaultBrowserMessage", 
+                                                     [brandShortName]);
+      var rv = psvc.confirmEx(window, promptTitle, promptMessage, 
+                              IPS.STD_YES_NO_BUTTONS,
+                              null, null, null, null, { });
+      if (rv == 0)
+        shellSvc.setDefaultBrowser(true, false);
+    }
+    else {
+      promptMessage = shellBundle.getFormattedString("alreadyDefaultBrowser",
+                                                     [brandShortName]);
+      psvc.alert(window, promptTitle, promptMessage);
+    }
+  }
+#endif
 };

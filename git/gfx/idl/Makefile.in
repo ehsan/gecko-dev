@@ -48,9 +48,11 @@ GRE_MODULE	= 1
 
 XPIDLSRCS	= \
 		nsIFontEnumerator.idl \
+		nsIFontList.idl \
 		nsIScriptableRegion.idl \
 		gfxIFormats.idl \
-		gfxidltypes.idl \
+		gfxIImageFrame.idl \
+		gfxtypes.idl \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

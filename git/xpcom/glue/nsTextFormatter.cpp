@@ -920,7 +920,7 @@ static int dosprintf(SprintfState *ss, const PRUnichar *fmt, va_list ap)
 		return -1;
 	    }
 
-	    VARARGS_ASSIGN(ap, nas[i-1].ap);
+	    ap = nas[i-1].ap;
 	    dolPt = fmt;
 	    c = *fmt++;
 	}

@@ -86,7 +86,7 @@ var bugzilla = {
                     var name = document.createElement("listcell");
                     name.setAttribute("label", bugarray[i][1]);
                     name.setAttribute("crop", "end");
-                    name.setAttribute("flex", "1");
+                    name.setAttribute("maxwidth", "175");
                     row.appendChild(number);
                     row.appendChild(name);
                     menu.appendChild(row);
@@ -121,6 +121,7 @@ var bugzilla = {
             var name = document.createElement("listcell");
             name.setAttribute("label", bugObj["title"]);
             name.setAttribute("crop", "end");
+            name.setAttribute("maxwidth", "175");
             row.appendChild(number);
             row.appendChild(name);
             menu.appendChild(row);

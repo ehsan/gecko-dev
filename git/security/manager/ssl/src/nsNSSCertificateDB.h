@@ -57,9 +57,8 @@ public:
 
   // Use this function to generate a default nickname for a user
   // certificate that is to be imported onto a token.
-  static void
-  get_default_nickname(CERTCertificate *cert, nsIInterfaceRequestor* ctx,
-                       nsCString &nickname);
+  static char *
+  default_nickname(CERTCertificate *cert, nsIInterfaceRequestor* ctx);
 
   static nsresult 
   ImportValidCACerts(int numCACerts, SECItem *CACerts, nsIInterfaceRequestor *ctx);

@@ -36,7 +36,6 @@
 /* Implement shared vtbl methods. */
 
 #include "xptcprivate.h"
-#include "xptiprivate.h"
 
 #ifndef WIN32
 #error "This code is for Win32 only"
@@ -46,13 +45,13 @@ extern "C" {
 
 
 nsresult __stdcall
-PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
-                   PRUint32* args)
+PrepareAndDispatch(nsXPTCStubBase* self, uint32 methodIndex, PRUint32* args)
 {
 #define PARAM_BUFFER_COUNT     16
 
 	nsXPTCMiniVariant paramBuffer[PARAM_BUFFER_COUNT];
 	nsXPTCMiniVariant* dispatchParams = NULL;
+	nsIInterfaceInfo* iface_info = NULL;
 	const nsXPTMethodInfo* info;
 	PRUint8 paramCount;
 	PRUint8 i;
@@ -60,8 +59,11 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
 
 	NS_ASSERTION(self,"no self");
 
-  self->mEntry->GetMethodInfo(PRUint16(methodIndex), &info);
-  NS_ASSERTION(info,"no method info");
+	self->GetInterfaceInfo(&iface_info);
+	NS_ASSERTION(iface_info,"no interface info");
+
+	iface_info->GetMethodInfo(PRUint16(methodIndex), &info);
+	NS_ASSERTION(info,"no interface info");
 
 	paramCount = info->GetParamCount();
 
@@ -101,12 +103,14 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
 			case nsXPTType::T_CHAR   : dp->val.c   = *((char*)    ap);       break;
 			case nsXPTType::T_WCHAR  : dp->val.wc  = *((wchar_t*) ap);       break;
 			default:
-				NS_ERROR("bad type");
+				NS_ASSERTION(0, "bad type");
 				break;
 		}
 	}
 
-  result = self->mOuter->CallMethod((PRUint16)methodIndex, info, dispatchParams);
+	result = self->CallMethod((PRUint16)methodIndex, info, dispatchParams);
+
+	NS_RELEASE(iface_info);
 
 	if(dispatchParams != paramBuffer)
 		delete [] dispatchParams;
@@ -118,17 +122,28 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
 } // extern "C"
 
 
-/* We don't need STUB_ENTRY, since the stubs are defined explicitly in xptc_arm_ceppc.asm */
 
-#define STUB_ENTRY(n) /* */
+// these macros get defined inside xptc_asm_ceppc.asm
+#define STUB_ENTRY(n)                               \
+nsresult __stdcall asmXPTCStubBase_Stub##n( void ); \
+                                                    \
+XPTC_PUBLIC_API(nsresult)                           \
+__stdcall nsXPTCStubBase::Stub##n()                 \
+{                                                   \
+	return asmXPTCStubBase_Stub##n();               \
+}                                                   \
+
 
 #define SENTINEL_ENTRY(n)                              \
 nsresult __stdcall nsXPTCStubBase::Sentinel##n()       \
 {                                                      \
-    NS_ERROR("nsXPTCStubBase::Sentinel called"); \
+    NS_ASSERTION(0,"nsXPTCStubBase::Sentinel called"); \
     return NS_ERROR_NOT_IMPLEMENTED;                   \
-}                                                      
+}                                                      \
+
 #include "xptcstubsdef.inc"
+
+
 
 void xptc_dummy()
 {

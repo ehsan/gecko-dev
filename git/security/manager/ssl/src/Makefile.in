@@ -54,16 +54,15 @@ META_COMPONENT	= crypto
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
+PACKAGE_FILE = pipnss.pkg
+
 CPPSRCS = 				\
 	nsNSSCleaner.cpp                \
 	nsCertOverrideService.cpp   \
-	nsRecentBadCerts.cpp \
-        nsClientAuthRemember.cpp        \
 	nsPSMBackgroundThread.cpp       \
 	nsSSLThread.cpp                 \
 	nsCertVerificationThread.cpp    \
 	nsCipherInfo.cpp \
-	nsProtectedAuthThread.cpp \
 	nsNSSCallbacks.cpp		\
 	nsNSSComponent.cpp		\
 	nsNSSErrors.cpp			\
@@ -101,7 +100,6 @@ CPPSRCS = 				\
   nsKeyModule.cpp \
   nsIdentityChecking.cpp \
   nsDataSignatureVerifier.cpp \
-  nsRandomGenerator.cpp \
   $(NULL)
 
 ifdef MOZ_XUL
@@ -110,6 +108,27 @@ endif
 
 CSRCS += md4.c
 
+REQUIRES	= nspr \
+		  xpcom \
+		  string \
+		  necko \
+		  uriloader \
+		  pref \
+		  docshell \
+		  caps \
+		  dom \
+		  intl \
+		  locale \
+		  profile \
+		  windowwatcher \
+		  js \
+		  widget \
+		  layout \
+		  content \
+		  xpconnect \
+		  unicharutil \
+		  pipboot \
+		  $(NULL)
 
 EXTRA_DEPS = $(NSS_DEP_LIBS)
 
@@ -118,6 +137,11 @@ DEFINES += -DNSS_ENABLE_ECC
 # Use local includes because they are inserted before INCLUDES
 # so that Mozilla's nss.h is used, not glibc's
 LOCAL_INCLUDES += $(NSS_CFLAGS)
+
+ifeq ($(OS_ARCH),Darwin)
+EXTRA_DSO_LDOPTS += \
+		-Wl,-executable_path -Wl,../../../../dist/bin
+endif
 
 EXTRA_DSO_LDOPTS += \
 		$(MOZ_UNICHARUTIL_LIBS) \

@@ -36,6 +36,8 @@
 ifndef INCLUDED_VERSION_MK
 INCLUDED_VERSION_MK=1
 
+
+
 # Windows gmake build:
 # Build default .rc file if $(RESFILE) isn't defined.
 # TODO:
@@ -46,8 +48,8 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 ifndef RESFILE
 RCFILE=./module.rc
 RESFILE=./module.res
-_RC_STRING = -QUIET 1 -DEPTH $(DEPTH) -TOPSRCDIR $(topsrcdir) -OBJDIR . -SRCDIR $(srcdir) -DISPNAME $(MOZ_APP_DISPLAYNAME) -APPVERSION $(MOZ_APP_VERSION)
-ifdef MOZILLA_OFFICIAL
+_RC_STRING = -QUIET 1 -DEPTH $(DEPTH) -TOPSRCDIR $(topsrcdir) -BITS $(MOZ_BITS) -OBJDIR . -SRCDIR $(srcdir) -DISPNAME $(MOZ_APP_DISPLAYNAME)
+ifneq ($(BUILD_OFFICIAL)_$(MOZILLA_OFFICIAL),_)
 _RC_STRING += -OFFICIAL 1
 endif
 ifdef MOZ_DEBUG
@@ -76,10 +78,18 @@ GARBAGE += $(RESFILE) $(RCFILE)
 #dummy target so $(RCFILE) doesn't become the default =P
 all::
 
-$(RCFILE): $(RCINCLUDE) $(topsrcdir)/config/version_win.pl
+$(RCFILE): $(RCINCLUDE)
 	$(PERL) $(topsrcdir)/config/version_win.pl $(_RC_STRING)
 
 endif  # RESFILE
 endif  # Windows
+
+
+ifdef VERSION_TMPL
+GARBAGE += $(VERSION_TMPL)
+
+export::
+	$(PERL) $(topsrcdir)/config/milestone.pl --topsrcdir $(topsrcdir) --objdir . --srcdir $(srcdir) --template $(VERSION_TMPL)
+endif
 
 endif

@@ -43,13 +43,19 @@
 #include "nsSystemFontsWin.h"
 
 
-nsresult nsSystemFontsWin::CopyLogFontToNSFont(HDC* aHDC, const LOGFONTW* ptrLogFont,
-                                               nsString *aFontName,
-                                               gfxFontStyle *aFontStyle) const
+nsresult nsSystemFontsWin::CopyLogFontToNSFont(HDC* aHDC, const LOGFONT* ptrLogFont,
+					       nsString *aFontName,
+                                               gfxFontStyle *aFontStyle,
+                                               PRBool aIsWide) const
 {
   PRUnichar name[LF_FACESIZE];
   name[0] = 0;
-  memcpy(name, ptrLogFont->lfFaceName, LF_FACESIZE*sizeof(PRUnichar));
+  if (aIsWide)
+    memcpy(name, ptrLogFont->lfFaceName, LF_FACESIZE*2);
+  else {
+    MultiByteToWideChar(CP_ACP, 0, ptrLogFont->lfFaceName,
+      strlen(ptrLogFont->lfFaceName) + 1, name, sizeof(name)/sizeof(name[0]));
+  }
   *aFontName = name;
 
   // Do Style
@@ -63,9 +69,6 @@ nsresult nsSystemFontsWin::CopyLogFontToNSFont(HDC* aHDC, const LOGFONTW* ptrLog
   // Do Weight
   aFontStyle->weight = (ptrLogFont->lfWeight == FW_BOLD ? 
             FONT_WEIGHT_BOLD : FONT_WEIGHT_NORMAL);
-
-  // FIXME: Set aFontStyle->stretch correctly!
-  aFontStyle->stretch = NS_FONT_STRETCH_NORMAL;
 
   // XXX mPixelScale is currently hardcoded to 1 in thebes gfx...
   float mPixelScale = 1.0f;
@@ -82,7 +85,7 @@ nsresult nsSystemFontsWin::CopyLogFontToNSFont(HDC* aHDC, const LOGFONTW* ptrLog
   // round, but take into account whether it is negative
   float pixelHeight = -ptrLogFont->lfHeight;
   if (pixelHeight < 0) {
-    HFONT hFont = ::CreateFontIndirectW(ptrLogFont);
+    HFONT hFont = ::CreateFontIndirect(ptrLogFont);
     if (!hFont)
       return NS_ERROR_OUT_OF_MEMORY;
     HGDIOBJ hObject = ::SelectObject(*aHDC, hFont);
@@ -113,32 +116,32 @@ nsresult nsSystemFontsWin::GetSysFontInfo(HDC aHDC, nsSystemFontID anID,
 {
   HGDIOBJ hGDI;
 
-  LOGFONTW logFont;
-  LOGFONTW* ptrLogFont = NULL;
+  LOGFONT logFont;
+  LOGFONT* ptrLogFont = NULL;
 
 #ifdef WINCE
   hGDI = ::GetStockObject(SYSTEM_FONT);
   if (hGDI == NULL)
     return NS_ERROR_UNEXPECTED;
   
-  if (::GetObjectW(hGDI, sizeof(logFont), &logFont) > 0)
+  if (::GetObject(hGDI, sizeof(logFont), &logFont) > 0)
     ptrLogFont = &logFont;
 #else
 
-  NONCLIENTMETRICSW ncm;
+  NONCLIENTMETRICS ncm;
 
   BOOL status;
   if (anID == eSystemFont_Icon) 
   {
-    status = ::SystemParametersInfoW(SPI_GETICONTITLELOGFONT,
-                                     sizeof(logFont),
-                                     (PVOID)&logFont,
-                                     0);
+    status = ::SystemParametersInfo(SPI_GETICONTITLELOGFONT,
+                                  sizeof(logFont),
+                                  (PVOID)&logFont,
+                                  0);
   }
   else
   {
-    ncm.cbSize = sizeof(NONCLIENTMETRICSW);
-    status = ::SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, 
+    ncm.cbSize = sizeof(NONCLIENTMETRICS);
+    status = ::SystemParametersInfo(SPI_GETNONCLIENTMETRICS, 
                                      sizeof(ncm),  
                                      (PVOID)&ncm, 
                                      0);
@@ -193,7 +196,7 @@ nsresult nsSystemFontsWin::GetSysFontInfo(HDC aHDC, nsSystemFontID anID,
       hGDI = ::GetStockObject(DEFAULT_GUI_FONT);
       if (hGDI != NULL)
       {
-        if (::GetObjectW(hGDI, sizeof(logFont), &logFont) > 0)
+        if (::GetObject(hGDI, sizeof(logFont), &logFont) > 0)
         { 
           ptrLogFont = &logFont;
         }

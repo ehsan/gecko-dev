@@ -67,11 +67,7 @@ unsigned int IntegerValueAtIndex(string &str, unsigned int idx) {
       end = str.size();
 
     temp = str.substr(start, end - start);
-
-    if (found == idx) {
-      result = atoi(temp.c_str());
-    }
-
+    result = atoi(temp.c_str());
     start = str.find_first_of(digits, end + 1);
 
     if (start == string::npos)

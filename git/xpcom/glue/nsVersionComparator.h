@@ -46,14 +46,6 @@
  * @see nsIVersionComparator
  */
 PRInt32 NS_COM_GLUE
-NS_CompareVersions(const PRUnichar *A, const PRUnichar *B);
-
-/**
- * Compare two version strings.
- *
- * @see nsIVersionComparator
- */
-PRInt32 NS_COM_GLUE
 NS_CompareVersions(const char *A, const char *B);
 
 #endif // nsVersionComparator_h__

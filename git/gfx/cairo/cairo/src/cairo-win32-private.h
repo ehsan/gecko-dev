@@ -36,8 +36,8 @@
 #ifndef CAIRO_WIN32_PRIVATE_H
 #define CAIRO_WIN32_PRIVATE_H
 
-#include "cairo-win32.h"
-#include "cairoint.h"
+#include <cairo-win32.h>
+#include <cairoint.h>
 
 #ifndef SHADEBLENDCAPS
 #define SHADEBLENDCAPS 120
@@ -71,28 +71,19 @@ typedef struct _cairo_win32_surface {
 
     cairo_surface_t *image;
 
-    cairo_rectangle_int_t extents;
-
-    /* Initial clip bits
-     * We need these kept around so that we maintain
-     * whatever clip was set on the original DC at creation
-     * time when cairo is asked to reset the surface clip.
-     */
     cairo_rectangle_int_t clip_rect;
-    HRGN initial_clip_rgn;
-    cairo_bool_t had_simple_clip;
+
+    HRGN saved_clip;
+
+    cairo_rectangle_int_t extents;
 
     /* Surface DC flags */
     uint32_t flags;
 
     /* printing surface bits */
     cairo_paginated_mode_t paginated_mode;
-    cairo_content_t content;
-    cairo_bool_t path_empty;
-    cairo_bool_t has_ctm;
-    cairo_matrix_t ctm;
+    int clip_saved_dc;
     HBRUSH brush, old_brush;
-    cairo_scaled_font_subsets_t *font_subsets;
 } cairo_win32_surface_t;
 
 /* Surface DC flag values */
@@ -118,14 +109,10 @@ enum {
     /* Whether we can use GradientFill rectangles with this surface */
     CAIRO_WIN32_SURFACE_CAN_RECT_GRADIENT = (1<<6),
 
-    /* Whether we can use the CHECKJPEGFORMAT escape function */
-    CAIRO_WIN32_SURFACE_CAN_CHECK_JPEG = (1<<7),
-
-    /* Whether we can use the CHECKJPEGFORMAT escape function */
-    CAIRO_WIN32_SURFACE_CAN_CHECK_PNG = (1<<8),
-
-    /* if this DDB surface can be converted to a DIB if necessary */
-    CAIRO_WIN32_SURFACE_CAN_CONVERT_TO_DIB = (1<<9),
+    /* If we should treat all operators other than CLEAR and OVER
+     * like SOURCE to avoid hitting fallback.  Ignored except
+     * for printing. */
+    CAIRO_WIN32_SURFACE_IGNORE_OPERATORS = (1<<7)
 };
 
 cairo_status_t
@@ -142,7 +129,7 @@ _cairo_win32_surface_finish (void *abstract_surface);
 
 cairo_int_status_t
 _cairo_win32_surface_get_extents (void		          *abstract_surface,
-				  cairo_rectangle_int_t   *rectangle);
+				  cairo_rectangle_int16_t *rectangle);
 
 uint32_t
 _cairo_win32_flags_for_dc (HDC dc);
@@ -150,12 +137,10 @@ _cairo_win32_flags_for_dc (HDC dc);
 cairo_int_status_t
 _cairo_win32_surface_show_glyphs (void			*surface,
 				  cairo_operator_t	 op,
-				  const cairo_pattern_t	*source,
+				  cairo_pattern_t	*source,
 				  cairo_glyph_t		*glyphs,
 				  int			 num_glyphs,
-				  cairo_scaled_font_t	*scaled_font,
-				  int			*remaining_glyphs,
-				  cairo_rectangle_int_t *extents);
+				  cairo_scaled_font_t	*scaled_font);
 
 cairo_surface_t *
 _cairo_win32_surface_create_similar (void	    *abstract_src,
@@ -166,13 +151,10 @@ _cairo_win32_surface_create_similar (void	    *abstract_src,
 cairo_status_t
 _cairo_win32_surface_clone_similar (void *abstract_surface,
 				    cairo_surface_t *src,
-				    cairo_content_t content,
 				    int src_x,
 				    int src_y,
 				    int width,
 				    int height,
-				    int *clone_offset_x,
-				    int *clone_offset_y,
 				    cairo_surface_t **clone_out);
 
 static inline void
@@ -186,38 +168,5 @@ _cairo_matrix_to_win32_xform (const cairo_matrix_t *m,
     xform->eDx = (FLOAT) m->x0;
     xform->eDy = (FLOAT) m->y0;
 }
-
-cairo_int_status_t
-_cairo_win32_save_initial_clip (HDC dc, cairo_win32_surface_t *surface);
-
-cairo_int_status_t
-_cairo_win32_restore_initial_clip (cairo_win32_surface_t *surface);
-
-void
-_cairo_win32_debug_dump_hrgn (HRGN rgn, char *header);
-
-cairo_bool_t
-_cairo_win32_scaled_font_is_type1 (cairo_scaled_font_t *scaled_font);
-
-cairo_bool_t
-_cairo_win32_scaled_font_is_bitmap (cairo_scaled_font_t *scaled_font);
-
-#ifdef WINCE
-
-// These are the required stubs for windows mobile
-#define ETO_GLYPH_INDEX 0
-#define ETO_PDY 0
-#define HALFTONE COLORONCOLOR
-#define GM_ADVANCED 2
-#define MWT_IDENTITY 1
-
-inline int SetGraphicsMode(HDC hdc, int iMode) {return 1;}
-inline int GetGraphicsMode(HDC hdc)            {return 1;} /*GM_COMPATIBLE*/
-inline void GdiFlush()                         {}
-inline BOOL SetWorldTransform(HDC hdc, CONST XFORM *lpXform) { return FALSE; }
-inline BOOL GetWorldTransform(HDC hdc, LPXFORM lpXform )     { return FALSE; }
-inline BOOL ModifyWorldTransform(HDC hdc, CONST XFORM * lpxf, DWORD mode) { return 1; }
-
-#endif
 
 #endif /* CAIRO_WIN32_PRIVATE_H */

@@ -24,7 +24,6 @@
  *   Christian Biesinger <cbiesinger@web.de>
  *   Dan Mosedale <dmose@mozilla.org>
  *   Myk Melez <myk@mozilla.org>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -131,6 +130,16 @@ public:
                                                           PRBool     * aFound) = 0;
 
   /**
+   * Given a scheme, looks up the protocol info from the OS.  This should be
+   * overridden by each OS's implementation.
+   *
+   * @param aScheme The protocol scheme we are looking for.
+   * @return An nsIHanderInfo for the protocol.
+   */
+  virtual already_AddRefed<nsIHandlerInfo> GetProtocolInfoFromOS(const nsACString &aScheme,
+                                                                 PRBool *found) = 0;
+
+  /**
    * Given a string identifying an application, create an nsIFile representing
    * it. This function should look in $PATH for the application.
    * The base class implementation will first try to interpret platformAppPath
@@ -149,12 +158,6 @@ public:
 
   virtual NS_HIDDEN_(nsresult) OSProtocolHandlerExists(const char *aScheme,
                                                        PRBool *aExists) = 0;
-
-  /**
-   * Simple accessor to let nsExternalAppHandler know if we are currently
-   * inside the private browsing mode.
-   */
-  PRBool InPrivateBrowsing() const { return mInPrivateBrowsing; }
 
 protected:
   /**
@@ -208,33 +211,14 @@ protected:
   friend class nsExternalLoadRequest;
 
   /**
-   * Helper function for ExpungeTemporaryFiles and ExpungeTemporaryPrivateFiles
-   */
-  static void ExpungeTemporaryFilesHelper(nsCOMArray<nsILocalFile> &fileList);
-  /**
    * Functions related to the tempory file cleanup service provided by
    * nsExternalHelperAppService
    */
-  void ExpungeTemporaryFiles();
-  /**
-   * Functions related to the tempory file cleanup service provided by
-   * nsExternalHelperAppService (for the temporary files added during
-   * the private browsing mode)
-   */
-  void ExpungeTemporaryPrivateFiles();
+  NS_HIDDEN_(nsresult) ExpungeTemporaryFiles();
   /**
    * Array for the files that should be deleted
    */
   nsCOMArray<nsILocalFile> mTemporaryFilesList;
-  /**
-   * Array for the files that should be deleted (for the temporary files
-   * added during the private browsing mode)
-   */
-  nsCOMArray<nsILocalFile> mTemporaryPrivateFilesList;
-  /**
-   * Whether we are in private browsing mode
-   */
-  PRBool mInPrivateBrowsing;
 };
 
 /**
@@ -277,7 +261,7 @@ public:
   nsExternalAppHandler(nsIMIMEInfo * aMIMEInfo, const nsCSubstring& aFileExtension,
                        nsIInterfaceRequestor * aWindowContext,
                        const nsAString& aFilename,
-                       PRUint32 aReason, PRBool aForceSave);
+                       PRUint32 aReason);
 
   ~nsExternalAppHandler();
 
@@ -307,13 +291,6 @@ protected:
   nsString mSuggestedFileName;
 
   /**
-   * If set, this handler should forcibly save the file to disk regardless of
-   * MIME info settings or anything else, without ever popping up the 
-   * unknown content type handling dialog.
-   */
-  PRPackedBool mForceSave;
-  
-  /**
    * The canceled flag is set if the user canceled the launching of this
    * application before we finished saving the data to a temp file.
    */
@@ -342,11 +319,6 @@ protected:
    * etc).
    */
   PRUint32 mReason;
-
-  /**
-   * Track the executable-ness of the temporary file.
-   */
-  PRBool mTempFileIsExecutable;
 
   PRTime mTimeDownloadStarted;
   nsInt64 mContentLength;

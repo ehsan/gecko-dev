@@ -74,9 +74,7 @@ nsCParserNode::nsCParserNode(CToken* aToken,
 
   static int theNodeCount = 0;
   ++theNodeCount;
-  if (mTokenAllocator) {
-    IF_HOLD(mToken);
-  } // Else a stack-based token
+  IF_HOLD(mToken);
 
 #ifdef HEAP_ALLOCATED_NODES
   mNodeAllocator = aNodeAllocator;
@@ -119,9 +117,7 @@ nsCParserNode::Init(CToken* aToken,
 {
   mTokenAllocator = aTokenAllocator;
   mToken = aToken;
-  if (mTokenAllocator) {
-    IF_HOLD(mToken);
-  } // Else a stack-based token
+  IF_HOLD(mToken);
   mGenericState = PR_FALSE;
   mUseCount=0;
 #ifdef HEAP_ALLOCATED_NODES

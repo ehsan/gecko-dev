@@ -30,7 +30,7 @@
 #include <assert.h>
 
 // Disable exception handler warnings.
-#pragma warning( disable : 4530 )
+#pragma warning( disable : 4530 ) 
 
 #include <fstream>
 
@@ -66,13 +66,12 @@ bool HTTPUpload::SendRequest(const wstring &url,
                              const map<wstring, wstring> &parameters,
                              const wstring &upload_file,
                              const wstring &file_part_name,
-                             int *timeout,
                              wstring *response_body,
                              int *response_code) {
   if (response_code) {
     *response_code = 0;
   }
-
+                               
   // TODO(bryner): support non-ASCII parameter names
   if (!CheckParameters(parameters)) {
     return false;
@@ -84,11 +83,11 @@ bool HTTPUpload::SendRequest(const wstring &url,
   memset(&components, 0, sizeof(components));
   components.dwStructSize = sizeof(components);
   components.lpszScheme = scheme;
-  components.dwSchemeLength = sizeof(scheme) / sizeof(scheme[0]);
+  components.dwSchemeLength = sizeof(scheme);
   components.lpszHostName = host;
-  components.dwHostNameLength = sizeof(host) / sizeof(host[0]);
+  components.dwHostNameLength = sizeof(host);
   components.lpszUrlPath = path;
-  components.dwUrlPathLength = sizeof(path) / sizeof(path[0]);
+  components.dwUrlPathLength = sizeof(path);
   if (!InternetCrackUrl(url.c_str(), static_cast<DWORD>(url.size()),
                         0, &components)) {
     return false;
@@ -138,8 +137,7 @@ bool HTTPUpload::SendRequest(const wstring &url,
   wstring content_type_header = GenerateRequestHeader(boundary);
   HttpAddRequestHeaders(request.get(),
                         content_type_header.c_str(),
-                        static_cast<DWORD>(-1),
-                        HTTP_ADDREQ_FLAG_ADD);
+                        -1, HTTP_ADDREQ_FLAG_ADD);
 
   string request_body;
   if (!GenerateRequestBody(parameters, upload_file,
@@ -147,22 +145,6 @@ bool HTTPUpload::SendRequest(const wstring &url,
     return false;
   }
 
-  if (timeout) {
-    if (!InternetSetOption(request.get(),
-                           INTERNET_OPTION_SEND_TIMEOUT,
-                           timeout,
-                           sizeof(timeout))) {
-      fwprintf(stderr, L"Could not unset send timeout, continuing...\n");
-    }
-
-    if (!InternetSetOption(request.get(),
-                           INTERNET_OPTION_RECEIVE_TIMEOUT,
-                           timeout,
-                           sizeof(timeout))) {
-      fwprintf(stderr, L"Could not unset receive timeout, continuing...\n");
-    }
-  }
-  
   if (!HttpSendRequest(request.get(), NULL, 0,
                        const_cast<char *>(request_body.data()),
                        static_cast<DWORD>(request_body.size()))) {
@@ -197,7 +179,7 @@ bool HTTPUpload::ReadResponse(HINTERNET request, wstring *response) {
   bool has_content_length_header = false;
   wchar_t content_length[32];
   DWORD content_length_size = sizeof(content_length);
-  DWORD claimed_size = 0;
+  DWORD claimed_size;
   string response_body;
 
   if (HttpQueryInfo(request, HTTP_QUERY_CONTENT_LENGTH,
@@ -211,19 +193,17 @@ bool HTTPUpload::ReadResponse(HINTERNET request, wstring *response) {
 
   DWORD bytes_available;
   DWORD total_read = 0;
-  BOOL return_code;
+  bool return_code;
 
-  while (((return_code = InternetQueryDataAvailable(request, &bytes_available,
-	  0, 0)) != 0) && bytes_available > 0) {
-
+  while ((return_code = InternetQueryDataAvailable(request, &bytes_available,
+                                                   0, 0) != 0) &&
+          bytes_available > 0) {
     vector<char> response_buffer(bytes_available);
     DWORD size_read;
 
-    return_code = InternetReadFile(request,
-                                   &response_buffer[0],
-                                   bytes_available, &size_read);
-
-    if (return_code && size_read > 0) {
+    if ((return_code = InternetReadFile(request, &response_buffer[0],
+                                        bytes_available, &size_read) != 0) &&
+        size_read > 0) {
       total_read += size_read;
       response_body.append(&response_buffer[0], size_read);
     } else {
@@ -335,7 +315,7 @@ void HTTPUpload::GetFileContents(const wstring &filename,
 #endif  // _MSC_VER >= 1400
   if (file.is_open()) {
     file.seekg(0, ios::end);
-    std::streamoff length = file.tellg();
+    int length = file.tellg();
     contents->resize(length);
     if (length != 0) {
         file.seekg(0, ios::beg);

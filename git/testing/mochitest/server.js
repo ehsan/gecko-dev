@@ -41,14 +41,6 @@
 // and because they're constants it's not safe to redefine them.  Scope leakage
 // sucks.
 
-// Disable automatic network detection, so tests work correctly when
-// not connected to a network.
-let (ios = Cc["@mozilla.org/network/io-service;1"]
-           .getService(Ci.nsIIOService2)) {
-  ios.manageOfflineStatus = false;
-  ios.offline = false;
-}
-
 const SERVER_PORT = 8888;
 var server; // for use in the shutdown handler, if necessary
 
@@ -109,17 +101,9 @@ function makeTagFunc(tagName)
 
 function makeTags() {
   // map our global HTML generation functions
-  for each (var tag in tags) {
-      this[tag] = makeTagFunc(tag.toLowerCase());
+  for each(var tag in tags) {
+      this[tag] = makeTagFunc(tag);
   }
-}
-
-var _quitting = false;
-
-/** Quit when all activity has completed. */
-function serverStopped()
-{
-  _quitting = true;
 }
 
 // only run the "main" section if httpd.js was loaded ahead of us
@@ -129,16 +113,10 @@ if (this["nsHttpServer"]) {
   //
   runServer();
 
-  // We can only have gotten here if the /server/shutdown path was requested.
-  if (_quitting)
-  {
-    dumpn("HTTP server stopped, all pending requests complete");
-    quit(0);
-  }
-
-  // Impossible as the stop callback should have been called, but to be safe...
-  dumpn("TEST-UNEXPECTED-FAIL | failure to correctly shut down HTTP server");
-  quit(1);
+  // We can only have gotten here if CLOSE_WHEN_DONE was specified and the
+  // /server/shutdown path was requested.  We can shut down the xpcshell now
+  // that all testing requests have been served.
+  quit(0);
 }
 
 var serverBasePath;
@@ -148,8 +126,21 @@ var serverBasePath;
 //
 function runServer()
 {
-  serverBasePath = __LOCATION__.parent;
-  server = createMochitestServer(serverBasePath);
+  serverBasePath = Cc["@mozilla.org/file/local;1"]
+                     .createInstance(Ci.nsILocalFile);
+  var procDir = Cc["@mozilla.org/file/directory_service;1"]
+                  .getService(Ci.nsIProperties).get("CurProcD", Ci.nsIFile);
+  serverBasePath.initWithPath(procDir.parent.parent.path);
+  serverBasePath.append("_tests");
+  serverBasePath.append("testing");
+  serverBasePath.append("mochitest");
+  server = new nsHttpServer();
+  server.registerDirectory("/", serverBasePath);
+
+  if (environment["CLOSE_WHEN_DONE"])
+    server.registerPathHandler("/server/shutdown", serverShutdown);
+
+  server.setIndexHandler(defaultDirHandler);
   server.start(SERVER_PORT);
 
   // touch a file in the profile directory to indicate we're alive
@@ -191,110 +182,20 @@ function runServer()
     thread.processNextEvent(true);
 }
 
-/** Creates and returns an HTTP server configured to serve Mochitests. */
-function createMochitestServer(serverBasePath)
-{
-  var server = new nsHttpServer();
-
-  server.registerDirectory("/", serverBasePath);
-  server.registerPathHandler("/server/shutdown", serverShutdown);
-  server.registerContentType("sjs", "sjs"); // .sjs == CGI-like functionality
-  server.registerContentType("jar", "application/x-jar");
-  server.registerContentType("ogg", "application/ogg");
-  server.registerContentType("ogv", "video/ogg");
-  server.registerContentType("oga", "audio/ogg");
-  server.setIndexHandler(defaultDirHandler);
-
-  processLocations(server);
-
-  return server;
-}
-
-/**
- * Notifies the HTTP server about all the locations at which it might receive
- * requests, so that it can properly respond to requests on any of the hosts it
- * serves.
- */
-function processLocations(server)
-{
-  var serverLocations = serverBasePath.clone();
-  serverLocations.append("server-locations.txt");
-
-  const PR_RDONLY = 0x01;
-  var fis = new FileInputStream(serverLocations, PR_RDONLY, 0444,
-                                Ci.nsIFileInputStream.CLOSE_ON_EOF);
-
-  var lis = new ConverterInputStream(fis, "UTF-8", 1024, 0x0);
-  lis.QueryInterface(Ci.nsIUnicharLineInputStream);
-
-  const LINE_REGEXP =
-    new RegExp("^([a-z][-a-z0-9+.]*)" +
-               "://" +
-               "(" +
-                 "\\d+\\.\\d+\\.\\d+\\.\\d+" +
-                 "|" +
-                 "(?:[a-z0-9](?:[-a-z0-9]*[a-z0-9])?\\.)*" +
-                 "[a-z](?:[-a-z0-9]*[a-z0-9])?" +
-               ")" +
-               ":" +
-               "(\\d+)" +
-               "(?:" +
-               "\\s+" +
-               "(\\S+(?:,\\S+)*)" +
-               ")?$");
-
-  var line = {};
-  var lineno = 0;
-  var seenPrimary = false;
-  do
-  {
-    var more = lis.readLine(line);
-    lineno++;
-
-    var lineValue = line.value;
-    if (lineValue.charAt(0) == "#" || lineValue == "")
-      continue;
-
-    var match = LINE_REGEXP.exec(lineValue);
-    if (!match)
-      throw "Syntax error in server-locations.txt, line " + lineno;
-
-    var [, scheme, host, port, options] = match;
-    if (options)
-    {
-      if (options.split(",").indexOf("primary") >= 0)
-      {
-        if (seenPrimary)
-        {
-          throw "Multiple primary locations in server-locations.txt, " +
-                "line " + lineno;
-        }
-  
-        server.identity.setPrimary(scheme, host, port);
-        seenPrimary = true;
-        continue;
-      }
-    }
-
-    server.identity.add(scheme, host, port);
-  }
-  while (more);
-}
-
-
 // PATH HANDLERS
 
 // /server/shutdown
 function serverShutdown(metadata, response)
 {
   response.setStatusLine("1.1", 200, "OK");
-  response.setHeader("Content-type", "text/plain", false);
+  response.setHeader("Content-type", "text/plain");
 
   var body = "Server shut down.";
   response.bodyOutputStream.write(body, body.length);
 
-  dumpn("Server shutting down now...");
-  server.stop(serverStopped);
+  // Note: this doesn't disrupt the current request.
+  server.stop();
+  otherDomainServer.stop();
 }
 
 //
@@ -307,9 +208,9 @@ function serverShutdown(metadata, response)
  */
 function dirIter(dir)
 {
-  var en = dir.directoryEntries;
-  while (en.hasMoreElements()) {
-    var file = en.getNext();
+  var enum = dir.directoryEntries;
+  while (enum.hasMoreElements()) {
+    var file = enum.getNext();
     yield file.QueryInterface(Ci.nsILocalFile);
   }
 }
@@ -331,7 +232,7 @@ function list(requestPath, directory, recurse)
   
   // The SimpleTest directory is hidden
   var files = [file for (file in dirIter(dir))
-               if (file.exists() && file.path.indexOf("SimpleTest") == -1)];
+               if (file.path.indexOf("SimpleTest") == -1)];
   
   // Sort files by name, so that tests can be run in a pre-defined order inside
   // a given directory (see bug 384823)
@@ -376,8 +277,7 @@ function isTest(filename, pattern)
 
   return filename.indexOf("test_") > -1 &&
          filename.indexOf(".js") == -1 &&
-         filename.indexOf(".css") == -1 &&
-         !/\^headers\^$/.test(filename);
+         filename.indexOf(".css") == -1;
 }
 
 /**
@@ -417,45 +317,20 @@ function linksToListItems(links)
 /**
  * Transform nested hashtables of paths to a flat table rows.
  */
-function linksToTableRows(links, recursionLevel)
+function linksToTableRows(links)
 {
   var response = "";
   for (var [link, value] in links) {
     var classVal = (!isTest(link) && !(value instanceof Object))
       ? "non-test invisible"
       : "";
-
-    spacer = "padding-left: " + (10 * recursionLevel) + "px";
-
     if (value instanceof Object) {
       response += TR({class: "dir", id: "tr-" + link },
-                     TD({colspan: "3"}, "&#160;"),
-                     TD({style: spacer},
-                        A({href: link}, link)));
-      response += linksToTableRows(value, recursionLevel + 1);
+                     TD({colspan: "3"},"&#160;"));
+      response += linksToTableRows(value);
     } else {
-      var bug_title = link.match(/test_bug\S+/);
-      var bug_num = null;
-      if (bug_title != null) {
-          bug_num = bug_title[0].match(/\d+/);
-      }
-      if ((bug_title == null) || (bug_num == null)) {
-        response += TR({class: classVal, id: "tr-" + link },
-                       TD("0"),
-                       TD("0"),
-                       TD("0"),
-                       TD({style: spacer},
-                          A({href: link}, link)));
-      } else {
-        var bug_url = "https://bugzilla.mozilla.org/show_bug.cgi?id=" + bug_num;
-        response += TR({class: classVal, id: "tr-" + link },
-                       TD("0"),
-                       TD("0"),
-                       TD("0"),
-                       TD({style: spacer},
-                          A({href: link}, link), " - ",
-                          A({href: bug_url}, "Bug " + bug_num)));
-      }
+      response += TR({class: classVal, id: "tr-" + link},
+                     TD("0"), TD("0"), TD("0"));
     }
   }
   return response;
@@ -558,7 +433,7 @@ function testListing(metadata, response)
           ),
           DIV({class: "clear"}),
           DIV({class: "frameholder"},
-            IFRAME({scrolling: "no", id: "testframe", width: "500", height: "300"})
+            IFRAME({scrolling: "no", id: "testframe", width: "500"})
           ),
           DIV({class: "clear"}),
           DIV({class: "toggle"},
@@ -567,8 +442,15 @@ function testListing(metadata, response)
           ),
     
           TABLE({cellpadding: 0, cellspacing: 0, id: "test-table"},
-            TR(TD("Passed"), TD("Failed"), TD("Todo"), TD("Test Files")),
-            linksToTableRows(links, 0)
+            TR(TD("Passed"), TD("Failed"), TD("Todo"), 
+                TD({rowspan: count+1},
+                   UL({class: "top"},
+                      LI(B("Test Files")),        
+                      linksToListItems(links)
+                      )
+                )
+            ),
+            linksToTableRows(links)
           ),
           DIV({class: "clear"})
         )
@@ -584,7 +466,7 @@ function testListing(metadata, response)
 function defaultDirHandler(metadata, response)
 {
   response.setStatusLine("1.1", 200, "OK");
-  response.setHeader("Content-type", "text/html", false);
+  response.setHeader("Content-type", "text/html");
   try {
     if (metadata.path.indexOf("/tests") != 0) {
       regularListing(metadata, response);

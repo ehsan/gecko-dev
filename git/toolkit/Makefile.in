@@ -43,35 +43,24 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-PARALLEL_DIRS = \
-  content \
-  locales \
-  mozapps \
-  obsolete \
-  profile \
-  spatial-navigation \
-  themes \
-  $(NULL)
-
-ifneq (,$(filter gtk2 qt,$(MOZ_WIDGET_TOOLKIT)))
-PARALLEL_DIRS += system/unixproxy
-endif
-
-ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))
-PARALLEL_DIRS += system/osxproxy
-endif
-
-ifneq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
-PARALLEL_DIRS += system/windowsproxy
-endif
+DIRS	= \
+		content \
+		locales \
+		obsolete \
+		profile \
+		themes \
+		$(NULL)
 
 ifdef MOZ_CRASHREPORTER
-PARALLEL_DIRS += crashreporter
+DIRS += crashreporter
 endif
 
+ifndef MINIMO
 DIRS += \
-  xre \
-  $(NULL)
+	xre \
+        mozapps \
+        $(NULL)
+endif
 
 include $(topsrcdir)/config/rules.mk
 

@@ -38,20 +38,15 @@
 #ifndef nsIView_h___
 #define nsIView_h___
 
-#include "nsISupports.h"
 #include "nsCoord.h"
 #include "nsRect.h"
 #include "nsPoint.h"
-#include "nsNativeWidget.h"
 #include "nsIWidget.h"
-#include "nsWidgetInitData.h"
 
 class nsIViewManager;
 class nsIScrollableView;
 class nsViewManager;
 class nsView;
-class nsWeakView;
-class nsIWidget;
 
 // Enumerated type to indicate the visibility of a layer.
 // hide - the layer is not shown.
@@ -63,9 +58,10 @@ enum nsViewVisibility {
 };
 
 // IID for the nsIView interface
+// 6610ae89-3909-422f-a227-ede67b97bcd1
 #define NS_IVIEW_IID    \
-  { 0x18b5f32a, 0x921a, 0x4772, \
-    { 0xa4, 0x3d, 0xf3, 0x04, 0x5c, 0xb9, 0xc2, 0x59 } }
+{ 0x6610ae89, 0x3909, 0x422f, \
+{ 0xa2, 0x27, 0xed, 0xe6, 0x7b, 0x97, 0xbc, 0xd1 } }
 
 // Public view flags are defined in this file
 #define NS_VIEW_FLAGS_PUBLIC              0x00FF
@@ -85,11 +81,6 @@ enum nsViewVisibility {
 // displayed above z-index:auto views if this view 
 // is z-index:auto also
 #define NS_VIEW_FLAG_TOPMOST              0x0010
-
-// If set, the view should always invalidate its frame
-// during a scroll instead of doing a BitBlt.  This bit
-// is propagated down to children.
-#define NS_VIEW_FLAG_INVALIDATE_ON_SCROLL  0x0020
 
 struct nsViewZIndex {
   PRBool mIsAuto;
@@ -285,8 +276,6 @@ public:
    * @param aWindowType is either content, UI or inherit from parent window.
    *        This is used to expose what type of window this is to 
    *        assistive technology like screen readers.
-   * @param aParentWidget alternative parent to aNative used for popups. Must
-   *        be null for non-popups.
    * @return error status
    */
   nsresult CreateWidget(const nsIID &aWindowIID,
@@ -294,8 +283,7 @@ public:
                         nsNativeWidget aNative = nsnull,
                         PRBool aEnableDragDrop = PR_TRUE,
                         PRBool aResetVisibility = PR_TRUE,
-                        nsContentType aWindowType = eContentTypeInherit,
-                        nsIWidget* aParentWidget = nsnull);
+                        nsContentType aWindowType = eContentTypeInherit);
 
   /**
    * In 4.0, the "cutout" nature of a view is queryable.
@@ -312,31 +300,12 @@ public:
   PRBool HasWidget() const { return mWindow != nsnull; }
 
   /**
-   * Make aWidget direct its events to this view.
-   * The caller must call DetachWidgetEventHandler before this view
-   * is destroyed.
+   * If called, will make the view disown the widget and leave it up
+   * to other code to destroy it.
    */
-  EVENT_CALLBACK AttachWidgetEventHandler(nsIWidget* aWidget);
-  /**
-   * Stop aWidget directing its events to this view.
-   */
-  void DetachWidgetEventHandler(nsIWidget* aWidget);
-
-  /**
-   * If called, will make the view invalidate its frame instead of BitBlitting
-   * it when there's a scroll.
-   */
-  void SetInvalidateFrameOnScroll()
-  {
-    mVFlags |= NS_VIEW_FLAG_INVALIDATE_ON_SCROLL;
+  void DisownWidget() {
+    mWidgetDisowned = PR_TRUE;
   }
-
-  /**
-   * Returns whether or not we should automatically fail to BitBlt when scrolling.
-   * This is true if either we're marked to have invalidate on scroll or if some
-   * ancestor does.
-   */
-  PRBool NeedsInvalidateFrameOnScroll() const;
 
 #ifdef DEBUG
   /**
@@ -355,9 +324,7 @@ public:
 
   virtual PRBool ExternalIsRoot() const;
 
-  void SetDeletionObserver(nsWeakView* aDeletionObserver);
 protected:
-  friend class nsWeakView;
   nsViewManager     *mViewManager;
   nsView            *mParent;
   nsIWidget         *mWindow;
@@ -370,54 +337,11 @@ protected:
   nsRect            mDimBounds; // relative to parent
   float             mOpacity;
   PRUint32          mVFlags;
-  nsWeakView*       mDeletionObserver;
+  PRBool            mWidgetDisowned;
 
   virtual ~nsIView() {}
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIView, NS_IVIEW_IID)
-
-// nsWeakViews must *not* be used in heap!
-class nsWeakView
-{
-public:
-  nsWeakView(nsIView* aView) : mPrev(nsnull), mView(aView)
-  {
-    if (mView) {
-      mView->SetDeletionObserver(this);
-    }
-  }
-
-  ~nsWeakView()
-  {
-    if (mView) {
-      NS_ASSERTION(mView->mDeletionObserver == this,
-                   "nsWeakViews deleted in wrong order!");
-      // Clear deletion observer temporarily.
-      mView->SetDeletionObserver(nsnull);
-      // Put back the previous deletion observer.
-      mView->SetDeletionObserver(mPrev);
-    }
-  }
-
-  PRBool IsAlive() { return !!mView; }
-
-  nsIView* GetView() { return mView; }
-
-  void SetPrevious(nsWeakView* aWeakView) { mPrev = aWeakView; }
-
-  void Clear()
-  {
-    if (mPrev) {
-      mPrev->Clear();
-    }
-    mView = nsnull;
-  }
-private:
-  static void* operator new(size_t) CPP_THROW_NEW { return 0; }
-  static void operator delete(void*, size_t) {}
-  nsWeakView* mPrev;
-  nsIView*    mView;
-};
 
 #endif

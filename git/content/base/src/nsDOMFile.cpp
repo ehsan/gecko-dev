@@ -68,7 +68,6 @@
 NS_INTERFACE_MAP_BEGIN(nsDOMFile)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFile)
   NS_INTERFACE_MAP_ENTRY(nsIDOMFile)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMFileInternal)
   NS_INTERFACE_MAP_ENTRY(nsICharsetDetectionObserver)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(File)
 NS_INTERFACE_MAP_END
@@ -93,23 +92,11 @@ DOMFileResult(nsresult rv)
 NS_IMETHODIMP
 nsDOMFile::GetFileName(nsAString &aFileName)
 {
-  return GetName(aFileName);
-}
-
-NS_IMETHODIMP
-nsDOMFile::GetFileSize(PRUint64 *aFileSize)
-{
-  return GetSize(aFileSize);
-}
-
-NS_IMETHODIMP
-nsDOMFile::GetName(nsAString &aFileName)
-{
   return mFile->GetLeafName(aFileName);
 }
 
 NS_IMETHODIMP
-nsDOMFile::GetSize(PRUint64 *aFileSize)
+nsDOMFile::GetFileSize(PRUint64 *aFileSize)
 {
   PRInt64 fileSize;
   nsresult rv = mFile->GetFileSize(&fileSize);
@@ -120,30 +107,6 @@ nsDOMFile::GetSize(PRUint64 *aFileSize)
   }
 
   *aFileSize = fileSize;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMFile::GetType(nsAString &aType)
-{
-  if (!mContentType.Length()) {
-    nsresult rv;
-    nsCOMPtr<nsIMIMEService> mimeService =
-      do_GetService(NS_MIMESERVICE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCAutoString mimeType;
-    rv = mimeService->GetTypeFromFile(mFile, mimeType);
-    if (NS_FAILED(rv)) {
-      aType.Truncate();
-      return NS_OK;
-    }
-
-    AppendUTF8toUTF16(mimeType, mContentType);
-  }
-
-  aType = mContentType;
 
   return NS_OK;
 }
@@ -181,20 +144,6 @@ nsDOMFile::GetAsText(const nsAString &aCharset, nsAString &aResult)
   NS_ENSURE_SUCCESS(rv, rv);
 
   return ConvertStream(stream, charset.get(), aResult);
-}
-
-NS_IMETHODIMP
-nsDOMFile::GetInternalFile(nsIFile **aFile)
-{
-  NS_IF_ADDREF(*aFile = mFile);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMFile::SetInternalFile(nsIFile *aFile)
-{
-  mFile = aFile;
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -388,8 +337,6 @@ nsDOMFile::ConvertStream(nsIInputStream *aStream,
                          const char *aCharset,
                          nsAString &aResult)
 {
-  aResult.Truncate();
-
   nsCOMPtr<nsIConverterInputStream> converterStream =
     do_CreateInstance("@mozilla.org/intl/converter-input-stream;1");
   if (!converterStream) return NS_ERROR_FAILURE;
@@ -405,14 +352,7 @@ nsDOMFile::ConvertStream(nsIInputStream *aStream,
   if (!unicharStream) return NS_ERROR_FAILURE;
 
   PRUint32 numChars;
-  nsString result;
-  rv = unicharStream->ReadString(8192, result, &numChars);
-  while (NS_SUCCEEDED(rv) && numChars > 0) {
-    aResult.Append(result);
-    rv = unicharStream->ReadString(8192, result, &numChars);
-  }
-
-  return rv;
+  return unicharStream->ReadString(PR_UINT32_MAX, aResult, &numChars);
 }
 
 // nsDOMFileList implementation
@@ -437,25 +377,7 @@ nsDOMFileList::GetLength(PRUint32* aLength)
 NS_IMETHODIMP
 nsDOMFileList::Item(PRUint32 aIndex, nsIDOMFile **aFile)
 {
-  NS_IF_ADDREF(*aFile = GetItemAt(aIndex));
+  NS_IF_ADDREF(*aFile = mFiles.SafeObjectAt(aIndex));
 
-  return NS_OK;
-}
-
-// nsDOMFileError implementation
-
-NS_INTERFACE_MAP_BEGIN(nsDOMFileError)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFileError)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMFileError)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(FileError)
-NS_INTERFACE_MAP_END
-
-NS_IMPL_ADDREF(nsDOMFileError)
-NS_IMPL_RELEASE(nsDOMFileError)
-
-NS_IMETHODIMP
-nsDOMFileError::GetCode(PRUint16* aCode)
-{
-  *aCode = mCode;
   return NS_OK;
 }

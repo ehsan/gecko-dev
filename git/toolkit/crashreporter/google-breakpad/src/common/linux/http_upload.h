@@ -53,16 +53,13 @@ class HTTPUpload {
   // Only HTTP(S) URLs are currently supported.  Returns true on success.
   // If the request is successful and response_body is non-NULL,
   // the response body will be returned in response_body.
-  // If the send fails, a description of the error will be
-  // returned in error_description.
   static bool SendRequest(const string &url,
                           const map<string, string> &parameters,
                           const string &upload_file,
                           const string &file_part_name,
                           const string &proxy,
                           const string &proxy_user_pwd,
-                          string *response_body,
-                          string *error_description);
+                          string *response_body);
 
  private:
   // Checks that the given list of parameters has only printable

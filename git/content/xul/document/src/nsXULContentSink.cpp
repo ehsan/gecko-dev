@@ -74,6 +74,7 @@
 #include "nsNetUtil.h"
 #include "nsRDFCID.h"
 #include "nsParserUtils.h"
+#include "nsIMIMEHeaderParam.h"
 #include "nsXPIDLString.h"
 #include "nsReadableUtils.h"
 #include "nsXULElement.h"
@@ -147,18 +148,18 @@ XULContentSinkImpl::ContextStack::Pop(State* aState)
 
 
 nsresult
-XULContentSinkImpl::ContextStack::GetTopNode(nsRefPtr<nsXULPrototypeNode>& aNode)
+XULContentSinkImpl::ContextStack::GetTopNode(nsXULPrototypeNode** aNode)
 {
     if (mDepth == 0)
         return NS_ERROR_UNEXPECTED;
 
-    aNode = mTop->mNode;
+    *aNode = mTop->mNode;
     return NS_OK;
 }
 
 
 nsresult
-XULContentSinkImpl::ContextStack::GetTopChildren(nsPrototypeArray** aChildren)
+XULContentSinkImpl::ContextStack::GetTopChildren(nsVoidArray** aChildren)
 {
     if (mDepth == 0)
         return NS_ERROR_UNEXPECTED;
@@ -176,19 +177,19 @@ XULContentSinkImpl::ContextStack::GetTopNodeScriptType(PRUint32 *aScriptType)
     // This would be much simpler if nsXULPrototypeNode itself
     // stored the language ID - but text elements don't need it!
     nsresult rv = NS_OK;
-    nsRefPtr<nsXULPrototypeNode> node;
-    rv = GetTopNode(node);
+    nsXULPrototypeNode* node;
+    rv = GetTopNode(&node);
     if (NS_FAILED(rv)) return rv;
     switch (node->mType) {
         case nsXULPrototypeNode::eType_Element: {
-            nsXULPrototypeElement *parent =
-                reinterpret_cast<nsXULPrototypeElement*>(node.get());
+            nsXULPrototypeElement *parent = \
+                reinterpret_cast<nsXULPrototypeElement*>(node);
             *aScriptType = parent->mScriptTypeID;
             break;
         }
         case nsXULPrototypeNode::eType_Script: {
-            nsXULPrototypeScript *parent =
-                reinterpret_cast<nsXULPrototypeScript*>(node.get());
+            nsXULPrototypeScript *parent = \
+                reinterpret_cast<nsXULPrototypeScript*>(node);
             *aScriptType = parent->mScriptObject.mLangID;
             break;
         }
@@ -198,21 +199,6 @@ XULContentSinkImpl::ContextStack::GetTopNodeScriptType(PRUint32 *aScriptType)
         }
     }
     return rv;
-}
-
-void
-XULContentSinkImpl::ContextStack::Clear()
-{
-  Entry *cur = mTop;
-  while (cur) {
-    // Release the root element (and its descendants).
-    Entry *next = cur->mNext;
-    delete cur;
-    cur = next;
-  }
-
-  mTop = nsnull;
-  mDepth = 0;
 }
 
 //----------------------------------------------------------------------
@@ -238,9 +224,31 @@ XULContentSinkImpl::~XULContentSinkImpl()
 {
     NS_IF_RELEASE(mParser); // XXX should've been released by now, unless error.
 
-    // The context stack _should_ be empty, unless something has gone wrong.
-    NS_ASSERTION(mContextStack.Depth() == 0, "Context stack not empty?");
-    mContextStack.Clear();
+    // Pop all of the elements off of the context stack, and delete
+    // any remaining content elements. The context stack _should_ be
+    // empty, unless something has gone wrong.
+    while (mContextStack.Depth()) {
+        nsresult rv;
+
+        nsVoidArray* children;
+        rv = mContextStack.GetTopChildren(&children);
+        if (NS_SUCCEEDED(rv)) {
+            for (PRInt32 i = children->Count() - 1; i >= 0; --i) {
+                nsXULPrototypeNode* child =
+                    reinterpret_cast<nsXULPrototypeNode*>(children->ElementAt(i));
+
+                child->Release();
+            }
+        }
+
+        nsXULPrototypeNode* node;
+        rv = mContextStack.GetTopNode(&node);
+        if (NS_SUCCEEDED(rv))
+            node->Release();
+
+        State state;
+        mContextStack.Pop(&state);
+    }
 
     PR_FREEIF(mText);
 }
@@ -257,7 +265,7 @@ NS_IMPL_ISUPPORTS3(XULContentSinkImpl,
 // nsIContentSink interface
 
 NS_IMETHODIMP 
-XULContentSinkImpl::WillBuildModel(nsDTDMode aDTDMode)
+XULContentSinkImpl::WillBuildModel(void)
 {
 #if FIXME
     if (! mParentContentSink) {
@@ -271,7 +279,7 @@ XULContentSinkImpl::WillBuildModel(nsDTDMode aDTDMode)
 }
 
 NS_IMETHODIMP 
-XULContentSinkImpl::DidBuildModel(PRBool aTerminated)
+XULContentSinkImpl::DidBuildModel(void)
 {
     nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocument);
     if (doc) {
@@ -403,14 +411,14 @@ XULContentSinkImpl::FlushText(PRBool aCreateTextNode)
         if (! aCreateTextNode)
             break;
 
-        nsRefPtr<nsXULPrototypeNode> node;
-        rv = mContextStack.GetTopNode(node);
+        nsXULPrototypeNode* node;
+        rv = mContextStack.GetTopNode(&node);
         if (NS_FAILED(rv)) return rv;
 
         PRBool stripWhitespace = PR_FALSE;
         if (node->mType == nsXULPrototypeNode::eType_Element) {
             nsINodeInfo *nodeInfo =
-                static_cast<nsXULPrototypeElement*>(node.get())->mNodeInfo;
+                static_cast<nsXULPrototypeElement*>(node)->mNodeInfo;
 
             if (nodeInfo->NamespaceEquals(kNameSpaceID_XUL))
                 stripWhitespace = !nodeInfo->Equals(nsGkAtoms::label) &&
@@ -434,7 +442,7 @@ XULContentSinkImpl::FlushText(PRBool aCreateTextNode)
             text->mValue.Trim(" \t\n\r");
 
         // hook it up
-        nsPrototypeArray* children = nsnull;
+        nsVoidArray* children;
         rv = mContextStack.GetTopChildren(&children);
         if (NS_FAILED(rv)) return rv;
 
@@ -465,9 +473,10 @@ XULContentSinkImpl::NormalizeAttributeString(const PRUnichar *aExpatName,
     }
 
     nsCOMPtr<nsINodeInfo> ni;
-    ni = mNodeInfoManager->GetNodeInfo(localName, prefix,
-                                       nameSpaceID);
-    NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
+    nsresult rv = mNodeInfoManager->GetNodeInfo(localName, prefix,
+                                                nameSpaceID,
+                                                getter_AddRefs(ni));
+    NS_ENSURE_SUCCESS(rv, rv);
 
     aName.SetTo(ni);
 
@@ -519,10 +528,10 @@ XULContentSinkImpl::HandleStartElement(const PRUnichar *aName,
                                  getter_AddRefs(localName), &nameSpaceID);
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID);
-  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
-  
-  nsresult rv = NS_OK;
+  nsresult rv = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
+                                              getter_AddRefs(nodeInfo));
+  NS_ENSURE_SUCCESS(rv, rv);
+
   switch (mState) {
   case eInProlog:
       // We're the root document element
@@ -562,8 +571,8 @@ XULContentSinkImpl::HandleEndElement(const PRUnichar *aName)
     // the parser's little mind all over the planet.
     nsresult rv;
 
-    nsRefPtr<nsXULPrototypeNode> node;
-    rv = mContextStack.GetTopNode(node);
+    nsXULPrototypeNode* node;
+    rv = mContextStack.GetTopNode(&node);
 
     if (NS_FAILED(rv)) {
       return NS_OK;
@@ -576,28 +585,31 @@ XULContentSinkImpl::HandleEndElement(const PRUnichar *aName)
         FlushText();
 
         // Pop the context stack and do prototype hookup.
-        nsPrototypeArray* children = nsnull;
+        nsVoidArray* children;
         rv = mContextStack.GetTopChildren(&children);
         if (NS_FAILED(rv)) return rv;
 
         nsXULPrototypeElement* element =
-          static_cast<nsXULPrototypeElement*>(node.get());
+            reinterpret_cast<nsXULPrototypeElement*>(node);
 
-        PRInt32 count = children->Length();
+        PRInt32 count = children->Count();
         if (count) {
-            if (!element->mChildren.SetCapacity(count))
+            element->mChildren = new nsXULPrototypeNode*[count];
+            if (! element->mChildren)
                 return NS_ERROR_OUT_OF_MEMORY;
 
-            for (PRInt32 i = 0; i < count; ++i)
-                element->mChildren.AppendElement(children->ElementAt(i));
+            for (PRInt32 i = count - 1; i >= 0; --i)
+                element->mChildren[i] =
+                    reinterpret_cast<nsXULPrototypeNode*>(children->ElementAt(i));
 
+            element->mNumChildren = count;
         }
     }
     break;
 
     case nsXULPrototypeNode::eType_Script: {
         nsXULPrototypeScript* script =
-            static_cast<nsXULPrototypeScript*>(node.get());
+            static_cast<nsXULPrototypeScript*>(node);
 
         // If given a src= attribute, we must ignore script tag content.
         if (! script->mSrcURI && ! script->mScriptObject.mObject) {
@@ -633,7 +645,7 @@ XULContentSinkImpl::HandleEndElement(const PRUnichar *aName)
         // root element. This transfers ownership of the prototype
         // element tree to the prototype document.
         nsXULPrototypeElement* element =
-            static_cast<nsXULPrototypeElement*>(node.get());
+            static_cast<nsXULPrototypeElement*>(node);
 
         mPrototype->SetRootElement(element);
         mState = eInEpilog;
@@ -686,7 +698,7 @@ XULContentSinkImpl::HandleProcessingInstruction(const PRUnichar *aTarget,
     const nsDependentString data(aData);
 
     // Note: the created nsXULPrototypePI has mRefCnt == 1
-    nsRefPtr<nsXULPrototypePI> pi = new nsXULPrototypePI();
+    nsXULPrototypePI* pi = new nsXULPrototypePI();
     if (!pi)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -699,13 +711,15 @@ XULContentSinkImpl::HandleProcessingInstruction(const PRUnichar *aTarget,
     }
 
     nsresult rv;
-    nsPrototypeArray* children = nsnull;
+    nsVoidArray* children;
     rv = mContextStack.GetTopChildren(&children);
     if (NS_FAILED(rv)) {
+        pi->Release();
         return rv;
     }
 
     if (!children->AppendElement(pi)) {
+        pi->Release();
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
@@ -737,7 +751,21 @@ XULContentSinkImpl::ReportError(const PRUnichar* aErrorText,
 
   // make sure to empty the context stack so that
   // <parsererror> could become the root element.
-  mContextStack.Clear();
+  while (mContextStack.Depth()) {
+    nsVoidArray* children;
+    rv = mContextStack.GetTopChildren(&children);
+    if (NS_SUCCEEDED(rv)) {
+      for (PRInt32 i = children->Count() - 1; i >= 0; --i) {
+        nsXULPrototypeNode* child =
+            reinterpret_cast<nsXULPrototypeNode*>(children->ElementAt(i));
+
+        child->Release();
+      }
+    }
+
+    State state;
+    mContextStack.Pop(&state);
+  }
 
   mState = eInProlog;
 
@@ -921,7 +949,7 @@ XULContentSinkImpl::OpenTag(const PRUnichar** aAttributes,
     }
 
     // Link this element to its parent.
-    nsPrototypeArray* children = nsnull;
+    nsVoidArray* children;
     rv = mContextStack.GetTopChildren(&children);
     if (NS_FAILED(rv)) {
         delete element;
@@ -940,16 +968,9 @@ XULContentSinkImpl::OpenTag(const PRUnichar** aAttributes,
         // even though it is ignored (the nsPrototypeScriptElement
         // has its own script-type).
         element->mScriptTypeID = nsIProgrammingLanguage::JAVASCRIPT;
-        rv = OpenScript(aAttributes, aLineNumber);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        NS_ASSERTION(mState == eInScript || mState == eInDocumentElement,
-                     "Unexpected state");
-        if (mState == eInScript) {
-            // OpenScript has pushed the nsPrototypeScriptElement onto the 
-            // stack, so we're done.
-            return NS_OK;
-        }
+        // OpenScript will push the nsPrototypeScriptElement onto the 
+        // stack, so we're done after this.
+        return OpenScript(aAttributes, aLineNumber);
     }
 
     // Set the correct script-type for the element.
@@ -982,19 +1003,17 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
           src.Assign(aAttributes[1]);
       }
       else if (key.EqualsLiteral("type")) {
-          nsDependentString str(aAttributes[1]);
-          nsContentTypeParser parser(str);
+          nsCOMPtr<nsIMIMEHeaderParam> mimeHdrParser =
+              do_GetService("@mozilla.org/network/mime-hdrparam;1");
+          NS_ENSURE_TRUE(mimeHdrParser, NS_ERROR_FAILURE);
+
+          NS_ConvertUTF16toUTF8 typeAndParams(aAttributes[1]);
+
           nsAutoString mimeType;
-          rv = parser.GetType(mimeType);
-          if (NS_FAILED(rv)) {
-              if (rv == NS_ERROR_INVALID_ARG) {
-                  // Might as well bail out now instead of setting langID to
-                  // nsIProgrammingLanguage::UNKNOWN and bailing out later.
-                  return NS_OK;
-              }
-              // We do want the warning here
-              NS_ENSURE_SUCCESS(rv, rv);
-          }
+          rv = mimeHdrParser->GetParameter(typeAndParams, nsnull,
+                                           EmptyCString(), PR_FALSE, nsnull,
+                                           mimeType);
+          NS_ENSURE_SUCCESS(rv, rv);
 
           // Javascript keeps the fast path, optimized for most-likely type
           // Table ordered from most to least likely JS MIME types. For .xul
@@ -1036,7 +1055,9 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
           if (langID != nsIProgrammingLanguage::UNKNOWN) {
             // Get the version string, and ensure the language supports it.
             nsAutoString versionName;
-            rv = parser.GetParameter("version", versionName);
+            rv = mimeHdrParser->GetParameter(typeAndParams, "version",
+                                             EmptyCString(), PR_FALSE, nsnull,
+                                             versionName);
             if (NS_FAILED(rv)) {
               if (rv != NS_ERROR_INVALID_ARG)
                 return rv;
@@ -1062,7 +1083,9 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
               version |= JSVERSION_HAS_XML;
 
               nsAutoString value;
-              rv = parser.GetParameter("e4x", value);
+              rv = mimeHdrParser->GetParameter(typeAndParams, "e4x",
+                                               EmptyCString(), PR_FALSE, nsnull,
+                                               value);
               if (NS_FAILED(rv)) {
                   if (rv != NS_ERROR_INVALID_ARG)
                       return rv;
@@ -1107,7 +1130,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
       nsIScriptGlobalObject* globalObject = nsnull; // borrowed reference
       if (doc)
           globalObject = doc->GetScriptGlobalObject();
-      nsRefPtr<nsXULPrototypeScript> script =
+      nsXULPrototypeScript* script =
           new nsXULPrototypeScript(langID, aLineNumber, version);
       if (! script)
           return NS_ERROR_OUT_OF_MEMORY;
@@ -1136,6 +1159,7 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
           }
 
           if (NS_FAILED(rv)) {
+              delete script;
               return rv;
           }
 
@@ -1147,9 +1171,10 @@ XULContentSinkImpl::OpenScript(const PRUnichar** aAttributes,
                 script->DeserializeOutOfLine(nsnull, globalObject);
       }
 
-      nsPrototypeArray* children = nsnull;
+      nsVoidArray* children;
       rv = mContextStack.GetTopChildren(&children);
       if (NS_FAILED(rv)) {
+          delete script;
           return rv;
       }
 

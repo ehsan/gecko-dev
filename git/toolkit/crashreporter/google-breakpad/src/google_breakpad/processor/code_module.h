@@ -36,7 +36,6 @@
 #define GOOGLE_BREAKPAD_PROCESSOR_CODE_MODULE_H__
 
 #include <string>
-#include "google_breakpad/common/breakpad_types.h"
 
 namespace google_breakpad {
 

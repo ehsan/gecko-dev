@@ -42,13 +42,14 @@
 #include "nsLeafFrame.h"
 
 /** 
- * nsFormControlFrame is the base class for radio buttons and
- * checkboxes.  It also has two static methods (RegUnRegAccessKey and
- * GetScreenHeight) that are used by other form controls.
- */
+  * nsFormControlFrame is the base class for frames of form controls. It
+  * provides a uniform way of creating widgets, resizing, and painting.
+  * @see nsLeafFrame and its base classes for more info
+  */
 class nsFormControlFrame : public nsLeafFrame,
                            public nsIFormControlFrame
 {
+
 public:
   /**
     * Main constructor
@@ -63,8 +64,7 @@ public:
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
-  NS_DECL_QUERYFRAME
-  NS_DECL_FRAMEARENA_HELPERS
+  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
 
   /** 
     * Respond to a gui event
@@ -73,8 +73,6 @@ public:
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                          nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus);
-
-  virtual nscoord GetBaseline() const;
 
   /**
     * Respond to the request to resize and/or reflow
@@ -85,7 +83,7 @@ public:
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&      aStatus);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void Destroy();
 
   // new behavior
 
@@ -100,10 +98,10 @@ public:
   static nsresult RegUnRegAccessKey(nsIFrame * aFrame, PRBool aDoReg);
 
   /**
-   * Returns the usable screen rect in app units, eg the rect where we can
-   * draw dropdowns.
+   * Helper routine to that returns the height of the screen
+   *
    */
-  static nsRect GetUsableScreenRect(nsPresContext* aPresContext);
+  static nsresult GetScreenHeight(nsPresContext* aPresContext, nscoord& aHeight);
 
 protected:
 
@@ -124,6 +122,11 @@ protected:
     */
 
   void GetCurrentCheckState(PRBool* aState);
+
+private:
+  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
+  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
+
 };
 
 #endif

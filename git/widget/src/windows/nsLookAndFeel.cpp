@@ -23,7 +23,6 @@
  *   Michael Lowe <michael.lowe@bigfoot.com>
  *   Jens Bannmann <jens.b@web.de>
  *   Ryan Jones <sciguyryan@gmail.com>
- *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -46,44 +45,80 @@
 #include "nsWindow.h"
 
 #ifndef WINCE
-#include "nsUXThemeData.h"
-#include "nsUXThemeConstants.h"
+typedef HANDLE (WINAPI*OpenThemeDataPtr)(HWND hwnd, LPCWSTR pszClassList);
+typedef HRESULT (WINAPI*CloseThemeDataPtr)(HANDLE hTheme);
+typedef HRESULT (WINAPI*GetThemeColorPtr)(HANDLE hTheme, int iPartId,
+                                          int iStateId, int iPropId, OUT COLORREF* pFont);
+typedef BOOL (WINAPI*IsAppThemedPtr)(VOID);
 
+static OpenThemeDataPtr openTheme = NULL;
+static CloseThemeDataPtr closeTheme = NULL;
+static GetThemeColorPtr getThemeColor = NULL;
+static IsAppThemedPtr isAppThemed = NULL;
+
+static const char kThemeLibraryName[] = "uxtheme.dll";
+static HINSTANCE gThemeDLLInst = NULL;
+static HANDLE gMenuTheme = NULL;
+
+#define MENU_POPUPITEM 14
+
+#define MPI_NORMAL 1
+#define MPI_HOT 2
+#define MPI_DISABLED 3
+#define MPI_DISABLEDHOT 4
+
+// From tmschema.h in the Vista SDK
+#define TMT_TEXTCOLOR 3803
+
+#endif
+
+// Constants only found in new (2K+, XP+, etc.) Windows.
+#ifndef COLOR_MENUHILIGHT
+#define COLOR_MENUHILIGHT    29
+#endif
+#ifndef SPI_GETFLATMENU
+#define SPI_GETFLATMENU      0x1022
+#endif
+#ifndef SPI_GETMENUSHOWDELAY
+#define SPI_GETMENUSHOWDELAY      106
+#endif //SPI_GETMENUSHOWDELAY
+#ifndef WS_EX_LAYOUTRTL 
+#define WS_EX_LAYOUTRTL         0x00400000L // Right to left mirroring
+#endif
+
+#ifndef WINCE
 typedef UINT (CALLBACK *SHAppBarMessagePtr)(DWORD, PAPPBARDATA);
 SHAppBarMessagePtr gSHAppBarMessage = NULL;
 static HINSTANCE gShell32DLLInst = NULL;
-
-static nsresult GetColorFromTheme(nsUXThemeClass cls,
-                           PRInt32 aPart,
-                           PRInt32 aState,
-                           PRInt32 aPropId,
-                           nscolor &aColor)
-{
-  COLORREF color;
-  HRESULT hr = nsUXThemeData::GetThemeColor(cls, aPart, aState, aPropId, &color);
-  if (hr == S_OK)
-  {
-    aColor = COLOREF_2_NSRGB(color);
-    return NS_OK;
-  }
-  return NS_ERROR_FAILURE;
-}
 #endif
 
 static PRInt32 GetSystemParam(long flag, PRInt32 def)
 {
+#ifdef WINCE
+    return def;
+#else
     DWORD value; 
     return ::SystemParametersInfo(flag, 0, &value, 0) ? value : def;
+#endif
 }
 
 nsLookAndFeel::nsLookAndFeel() : nsXPLookAndFeel()
 {
 #ifndef WINCE
-  gShell32DLLInst = LoadLibraryW(L"Shell32.dll");
+  gShell32DLLInst = LoadLibrary("Shell32.dll");
   if (gShell32DLLInst)
   {
       gSHAppBarMessage = (SHAppBarMessagePtr) GetProcAddress(gShell32DLLInst,
                                                              "SHAppBarMessage");
+  }
+  gThemeDLLInst = LoadLibrary(kThemeLibraryName);
+  if(gThemeDLLInst)
+  {
+    openTheme = (OpenThemeDataPtr)GetProcAddress(gThemeDLLInst, "OpenThemeData");
+    closeTheme = (CloseThemeDataPtr)GetProcAddress(gThemeDLLInst, "CloseThemeData");
+    getThemeColor = (GetThemeColorPtr)GetProcAddress(gThemeDLLInst, "GetThemeColor");
+    isAppThemed = (IsAppThemedPtr)GetProcAddress(gThemeDLLInst, "IsAppThemed");
+    gMenuTheme = openTheme(NULL, L"Menu");
   }
 #endif
 }
@@ -162,9 +197,6 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_IMESelectedConvertedTextUnderline:
         aColor = NS_TRANSPARENT;
         return NS_OK;
-    case eColor_SpellCheckerUnderline:
-        aColor = NS_RGB(0xff, 0, 0);
-        return NS_OK;
 
     // New CSS 2 Color definitions
     case eColor_activeborder:
@@ -200,34 +232,49 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       idx = COLOR_GRAYTEXT;
       break;
     case eColor_highlight:
-    case eColor__moz_html_cellhighlight:
     case eColor__moz_menuhover:
       idx = COLOR_HIGHLIGHT;
       break;
-    case eColor__moz_menubarhovertext:
+    case eColor__moz_menubarhovertext:OSVERSIONINFOEX:
 #ifndef WINCE
-      if (!nsUXThemeData::sIsVistaOrLater || !nsUXThemeData::isAppThemed())
+      if (GetWindowsVersion() < VISTA_VERSION || !isAppThemed())
+#endif
       {
-        idx = nsUXThemeData::sFlatMenus ?
+        // GetSystemParam will return 0 on failure and we get non-flat as
+        // desired for Windows 2000 and sometimes on XP.
+        idx = (GetSystemParam(SPI_GETFLATMENU, 0)) ?
                 COLOR_HIGHLIGHTTEXT :
                 COLOR_MENUTEXT;
         break;
       }
-#endif
       // Fall through
     case eColor__moz_menuhovertext:
 #ifndef WINCE
-      if (nsUXThemeData::IsAppThemed() && nsUXThemeData::sIsVistaOrLater)
+      if (isAppThemed && isAppThemed() && GetWindowsVersion() >= VISTA_VERSION)
       {
-        res = ::GetColorFromTheme(eUXMenu,
-                                  MENU_POPUPITEM, MPI_HOT, TMT_TEXTCOLOR, aColor);
-        if (NS_SUCCEEDED(res))
-          return res;
+        COLORREF color;
+        HRESULT hr;
+        hr = getThemeColor(gMenuTheme, MENU_POPUPITEM, MPI_HOT, TMT_TEXTCOLOR, &color);
+        if (hr == S_OK)
+        {
+          aColor = COLOREF_2_NSRGB(color);
+          return NS_OK;
+        }
+        // Since we don't get theme changed messages, check if we lost the handle
+        else if (hr == E_HANDLE)
+        {
+          closeTheme(gMenuTheme);
+          gMenuTheme = openTheme(NULL, L"Menu");
+          // gMenuTheme shouldn't be null since it was non-null before so we
+          // are running on Vista or higher
+          getThemeColor(gMenuTheme, MENU_POPUPITEM, MPI_HOT, TMT_TEXTCOLOR, &color);
+          aColor = COLOREF_2_NSRGB(color);
+          return NS_OK;
+        }
         // fall through to highlight case
       }
 #endif
     case eColor_highlighttext:
-    case eColor__moz_html_cellhighlighttext:
       idx = COLOR_HIGHLIGHTTEXT;
       break;
     case eColor_inactiveborder:
@@ -249,7 +296,6 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       idx = COLOR_MENU;
       break;
     case eColor_menutext:
-    case eColor__moz_menubartext:
       idx = COLOR_MENUTEXT;
       break;
     case eColor_scrollbar:
@@ -279,44 +325,15 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_windowtext:
       idx = COLOR_WINDOWTEXT;
       break;
-    case eColor__moz_eventreerow:
-    case eColor__moz_oddtreerow:
     case eColor__moz_field:
-    case eColor__moz_combobox:
       idx = COLOR_WINDOW;
       break;
     case eColor__moz_fieldtext:
-    case eColor__moz_comboboxtext:
       idx = COLOR_WINDOWTEXT;
       break;
     case eColor__moz_dialog:
     case eColor__moz_cellhighlight:
       idx = COLOR_3DFACE;
-      break;
-    case eColor__moz_win_mediatext:
-#ifndef WINCE
-      if (nsUXThemeData::IsAppThemed() && nsUXThemeData::sIsVistaOrLater) {
-        res = ::GetColorFromTheme(eUXMediaToolbar,
-                                  TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR, aColor);
-        if (NS_SUCCEEDED(res))
-          return res;
-      }
-#endif
-      // if we've gotten here just return -moz-dialogtext instead
-      idx = COLOR_WINDOWTEXT;
-      break;
-    case eColor__moz_win_communicationstext:
-#ifndef WINCE
-      if (nsUXThemeData::IsAppThemed() && nsUXThemeData::sIsVistaOrLater)
-      {
-        res = ::GetColorFromTheme(eUXCommunicationsToolbar,
-                                  TP_BUTTON, TS_NORMAL, TMT_TEXTCOLOR, aColor);
-        if (NS_SUCCEEDED(res))
-          return res;
-      }
-#endif
-      // if we've gotten here just return -moz-dialogtext instead
-      idx = COLOR_WINDOWTEXT;
       break;
     case eColor__moz_dialogtext:
     case eColor__moz_cellhighlighttext:
@@ -327,14 +344,6 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       break;
     case eColor__moz_buttondefault:
       idx = COLOR_3DDKSHADOW;
-      break;
-    case eColor__moz_nativehyperlinktext:
-#ifndef WINCE
-      idx = COLOR_HOTLIGHT;
-#else
-      aColor = NS_RGB(0, 0, 0xee);
-      return NS_OK;
-#endif
       break;
     default:
       idx = COLOR_WINDOW;
@@ -428,15 +437,16 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_SubmenuDelay:
         // This will default to the Windows' default
         // (400ms) on error.
-#ifndef WINCE
         aMetric = GetSystemParam(SPI_GETMENUSHOWDELAY, 400);
-#else
-        aMetric = 400;
-#endif
         break;
     case eMetric_MenusCanOverlapOSBar:
         // we want XUL popups to be able to overlap the task bar.
         aMetric = 1;
+        break;
+    case eMetric_DragFullWindow:
+        // This will default to the Windows' default
+        // (on by default) on error.
+        aMetric = GetSystemParam(SPI_GETDRAGFULLWINDOWS, 1);
         break;
 #ifndef WINCE
     case eMetric_DragThresholdX:
@@ -486,89 +496,13 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_TreeScrollLinesMax:
         aMetric = 3;
         break;
-    case eMetric_WindowsClassic:
 #ifndef WINCE
-        aMetric = !nsUXThemeData::IsAppThemed();
-#else
-        aMetric = 0;
-#endif
-        break;
-    case eMetric_TouchEnabled:
-        aMetric = 0;
-#ifndef WINCE
-        PRInt32 touchCapabilities;
-        touchCapabilities = ::GetSystemMetrics(SM_DIGITIZER);
-        if ((touchCapabilities & NID_READY) && 
-           (touchCapabilities & (NID_EXTERNAL_TOUCH | NID_INTEGRATED_TOUCH))) {
-            aMetric = 1;
-        }
-#elif defined(WINCE_WINDOWS_MOBILE)
-        WCHAR platformType[MAX_PATH];
-        SystemParametersInfo(SPI_GETPLATFORMTYPE, sizeof(platformType),
-                             platformType, 0);
-        if (!wcscmp(platformType, L"PocketPC"))
-            aMetric = 1;
-#endif
-        break;
-    case eMetric_WindowsDefaultTheme:
-        aMetric = 0;
-#ifndef WINCE
-        if (nsUXThemeData::getCurrentThemeName) {
-          WCHAR themeFileName[MAX_PATH + 1] = {L'\0'};
-          HRESULT hresult =
-            nsUXThemeData::getCurrentThemeName(themeFileName, MAX_PATH,
-                                                            NULL, 0, NULL, 0);
-
-          // WIN2K and earlier will not have getCurrentThemeName defined, so
-          // they will never make it this far.  Unless we want to save 6.0
-          // users a handful of clock cycles by skipping checks for the
-          // 5.x themes (or vice-versa), we can use a single loop for all
-          // the different Windows versions.
-          if (hresult == S_OK && nsWindow::GetWindowsVersion() <= WIN7_VERSION) {
-            LPCWSTR defThemes[] = {
-              L"luna.msstyles",
-              L"royale.msstyles",
-              L"zune.msstyles",
-              L"aero.msstyles"
-            };
-
-            LPWSTR curTheme = wcsrchr(themeFileName, L'\\');
-            curTheme = curTheme ? curTheme + 1 : themeFileName;
-
-            for (int i = 0; i < NS_ARRAY_LENGTH(defThemes); ++i) {
-              if (!lstrcmpiW(curTheme, defThemes[i])) {
-                aMetric = 1;
-              }
-            }
-          } else {
-            res = NS_ERROR_NOT_IMPLEMENTED;
-          }
-        }
-        else
-#endif /* WINCE */
-        {
-          res = NS_ERROR_NOT_IMPLEMENTED;
-        }
-        break;
-    case eMetric_MacGraphiteTheme:
-    case eMetric_MaemoClassic:
-        aMetric = 0;
-        res = NS_ERROR_NOT_IMPLEMENTED;
-        break;
-    case eMetric_DWMCompositor:
-#ifndef WINCE
-        aMetric = nsUXThemeData::sHaveCompositor;
-#else
-        aMetric = 0;
-#endif
-        break;
     case eMetric_AlertNotificationOrigin:
         aMetric = 0;
-#ifndef WINCE
         if (gSHAppBarMessage)
         {
           // Get task bar window handle
-          HWND shellWindow = FindWindowW(L"Shell_TrayWnd", NULL);
+          HWND shellWindow = FindWindow("Shell_TrayWnd", NULL);
 
           if (shellWindow != NULL)
           {
@@ -602,8 +536,9 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
             }
           }
         }
-#endif // WINCE
         break;
+#endif
+
     case eMetric_IMERawInputUnderlineStyle:
     case eMetric_IMEConvertedTextUnderlineStyle:
         aMetric = NS_UNDERLINE_STYLE_DASHED;
@@ -611,9 +546,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_IMESelectedRawTextUnderlineStyle:
     case eMetric_IMESelectedConvertedTextUnderline:
         aMetric = NS_UNDERLINE_STYLE_NONE;
-        break;
-    case eMetric_SpellCheckerUnderlineStyle:
-        aMetric = NS_UNDERLINE_STYLE_WAVY;
         break;
     default:
         aMetric = 0;
@@ -657,9 +589,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetri
     case eMetricFloat_IMEUnderlineRelativeSize:
         aMetric = 1.0f;
         break;
-    case eMetricFloat_SpellCheckerUnderlineRelativeSize:
-        aMetric = 1.0f;
-        break;
     default:
         aMetric = -1.0;
         res = NS_ERROR_FAILURE;
@@ -670,18 +599,19 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetri
 /* virtual */
 PRUnichar nsLookAndFeel::GetPasswordCharacter()
 {
-#define UNICODE_BLACK_CIRCLE_CHAR 0x25cf
-#ifdef WINCE
-  return UNICODE_BLACK_CIRCLE_CHAR;
-#else
   static PRUnichar passwordCharacter = 0;
   if (!passwordCharacter) {
     passwordCharacter = '*';
-    if (nsUXThemeData::sIsXPOrLater)
-      passwordCharacter = UNICODE_BLACK_CIRCLE_CHAR;
+#ifndef WINCE
+    OSVERSIONINFO osversion;
+    osversion.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+    ::GetVersionEx(&osversion);
+    if (osversion.dwMajorVersion > 5 ||
+        osversion.dwMajorVersion == 5 && osversion.dwMinorVersion > 0)
+      passwordCharacter = 0x25cf;
+#endif
   }
   return passwordCharacter;
-#endif
 }
 
 #ifdef NS_DEBUG

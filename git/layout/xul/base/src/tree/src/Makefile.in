@@ -45,6 +45,26 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= layout
 LIBRARY_NAME	= gkxultree_s
 LIBXUL_LIBRARY  = 1
+REQUIRES	= xpcom \
+		  string \
+		  dom \
+		  content \
+		  xul \
+		  gfx \
+		  thebes \
+		  widget \
+		  locale \
+		  view \
+		  xultmpl \
+		  rdf \
+		  necko \
+		  imglib2 \
+		  xpconnect \
+		  js \
+		  webshell \
+		  pref \
+		  unicharutil \
+		  $(NULL)
 
 CPPSRCS		= \
 		nsTreeBodyFrame.cpp \
@@ -65,7 +85,6 @@ EXPORTS		= \
 
 LOCAL_INCLUDES	= \
 		-I$(srcdir) \
-		-I$(srcdir)/../../../../../../content/events/src \
 		-I$(srcdir)/../../../../base/src \
 		-I$(srcdir)/../../../../../base \
 		-I$(srcdir)/../../../../../generic \

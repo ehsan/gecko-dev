@@ -58,23 +58,6 @@
 #define TRY(msg, cond)		TRY_(msg, cond, 0)
 #define TRY_Q(msg, cond)	TRY_(msg, cond, 1);
 
-#ifdef WINCE
-#include <windows.h>
-static void
-perror(const char *message)
-{
-    LPVOID msgBuf;
-    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-		  FORMAT_MESSAGE_FROM_SYSTEM,
-		  NULL,
-		  GetLastError(),
-		  0,
-		  (LPTSTR)&msgBuf, 0, NULL);
-    wprintf(L"%s: %s\n", message, msgBuf);
-    LocalFree(msgBuf);
-}
-#endif /* WINCE */
-
 struct nsID iid = {
     0x00112233,
     0x4455,
@@ -102,6 +85,14 @@ main(int argc, char **argv)
     PRBool ok;
 
     td_void.prefix.flags = TD_VOID;
+
+#ifdef XP_MAC
+	if (argc == 0) {
+		static char* args[] = { "SimpleTypeLib", "simple.xpt", NULL };
+		argc = 2;
+		argv = args;
+	}
+#endif
 
     if (argc != 2) {
 	fprintf(stderr, "Usage: %s <filename.xpt>\n"

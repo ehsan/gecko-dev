@@ -44,6 +44,11 @@
 #include "nsIEditor.h"
 #include "nsCOMPtr.h"
 
+#define DELETE_ELEMENT_TXN_CID \
+{/* 6fd77770-ac49-11d2-86d8-000064657374 */ \
+0x6fd77770, 0xac49, 0x11d2, \
+{0x86, 0xd8, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74} }
+
 class nsRangeUpdater;
 
 /**
@@ -52,16 +57,18 @@ class nsRangeUpdater;
 class DeleteElementTxn : public EditTxn
 {
 public:
+
+  static const nsIID& GetCID() { static const nsIID iid = DELETE_ELEMENT_TXN_CID; return iid; }
+ 
   /** initialize the transaction.
     * @param aElement the node to delete
     */
   NS_IMETHOD Init(nsIEditor *aEditor, nsIDOMNode *aElement, nsRangeUpdater *aRangeUpdater);
 
+private:
   DeleteElementTxn();
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(DeleteElementTxn, EditTxn)
-  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
-
+public:
   NS_DECL_EDITTXN
 
   NS_IMETHOD RedoTransaction();
@@ -82,6 +89,9 @@ protected:
 
   /** range updater object */
   nsRangeUpdater *mRangeUpdater;
+  
+  friend class TransactionFactory;
+
 };
 
 #endif

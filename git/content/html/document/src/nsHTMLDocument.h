@@ -47,7 +47,6 @@
 #include "nsIDOMHTMLCollection.h"
 #include "nsIScriptElement.h"
 #include "jsapi.h"
-#include "nsTArray.h"
 
 #include "pldhash.h"
 #include "nsIHttpChannel.h"
@@ -75,6 +74,7 @@ class nsHTMLDocument : public nsDocument,
 {
 public:
   nsHTMLDocument();
+  virtual ~nsHTMLDocument();
   virtual nsresult Init();
 
   NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
@@ -123,6 +123,18 @@ public:
  
   virtual NS_HIDDEN_(nsContentList*) GetFormControls();
  
+  virtual void AttributeWillChange(nsIContent* aChild,
+                                   PRInt32 aNameSpaceID,
+                                   nsIAtom* aAttribute);
+
+  virtual PRBool IsCaseSensitive();
+
+  // nsIMutationObserver
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
+  NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
+
   // nsIDOMDocument interface
   NS_DECL_NSIDOMDOCUMENT
 
@@ -166,8 +178,8 @@ public:
   NS_DECL_NSIDOMNSHTMLDOCUMENT
 
   virtual nsresult ResolveName(const nsAString& aName,
-                               nsIDOMHTMLFormElement *aForm,
-                               nsISupports **aResult);
+                         nsIDOMHTMLFormElement *aForm,
+                         nsISupports **aResult);
 
   virtual void ScriptLoading(nsIScriptElement *aScript);
   virtual void ScriptExecuted(nsIScriptElement *aScript);
@@ -175,12 +187,18 @@ public:
   virtual void AddedForm();
   virtual void RemovedForm();
   virtual PRInt32 GetNumFormsSynchronous();
-  virtual void TearingDownEditor(nsIEditor *aEditor);
-  virtual void SetIsXHTML(PRBool aXHTML) { mIsRegularHTML = !aXHTML; }
-  virtual void SetDocWriteDisabled(PRBool aDisabled)
+
+  PRBool IsXHTML()
   {
-    mDisableDocWrite = aDisabled;
+    return mDefaultNamespaceID == kNameSpaceID_XHTML;
   }
+
+#ifdef DEBUG
+  virtual nsresult CreateElem(nsIAtom *aName, nsIAtom *aPrefix,
+                              PRInt32 aNamespaceID,
+                              PRBool aDocumentDefaultType,
+                              nsIContent** aResult);
+#endif
 
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
 
@@ -194,46 +212,21 @@ public:
     mDisableCookieAccess = PR_TRUE;
   }
 
-  virtual nsIContent* GetBodyContentExternal();
-  
-  class nsAutoEditingState {
-  public:
-    nsAutoEditingState(nsHTMLDocument* aDoc, EditingState aState)
-      : mDoc(aDoc), mSavedState(aDoc->mEditingState)
-    {
-      aDoc->mEditingState = aState;
-    }
-    ~nsAutoEditingState() {
-      mDoc->mEditingState = mSavedState;
-    }
-  private:
-    nsHTMLDocument* mDoc;
-    EditingState    mSavedState;
-  };
-  friend class nsAutoEditingState;
-
-  void EndUpdate(nsUpdateType aUpdateType);
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLDocument, nsDocument)
-
-  virtual already_AddRefed<nsIParser> GetFragmentParser() {
-    return mFragmentParser.forget();
-  }
-  virtual void SetFragmentParser(nsIParser* aParser) {
-    mFragmentParser = aParser;
-  }
-
-  virtual nsresult SetEditingState(EditingState aState);
-
-  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
-
-  virtual NS_HIDDEN_(void) RemovedFromDocShell();
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLDocument, nsDocument)
 
 protected:
   nsresult GetBodySize(PRInt32* aWidth,
                        PRInt32* aHeight);
 
-  nsresult PrePopulateIdentifierMap();
+  nsresult RegisterNamedItems(nsIContent *aContent);
+  nsresult UnregisterNamedItems(nsIContent *aContent);
+  nsresult UpdateNameTableEntry(nsIAtom* aName, nsIContent *aContent);
+  nsresult UpdateIdTableEntry(nsIAtom* aId, nsIContent *aContent);
+  nsresult RemoveFromNameTable(nsIAtom* aName, nsIContent *aContent);
+  nsresult RemoveFromIdTable(nsIContent *aContent);
+
+  void InvalidateHashTables();
+  nsresult PrePopulateHashTables();
 
   nsIContent *MatchId(nsIContent *aContent, const nsAString& aId);
 
@@ -246,25 +239,24 @@ protected:
 
   static void DocumentWriteTerminationFunc(nsISupports *aRef);
 
+  PRBool GetBodyContent();
+  void GetBodyElement(nsIDOMHTMLBodyElement** aBody);
+
   void GetDomainURI(nsIURI **uri);
 
   nsresult WriteCommon(const nsAString& aText,
                        PRBool aNewlineTerminate);
+  nsresult ScriptWriteCommon(PRBool aNewlineTerminate);
   nsresult OpenCommon(const nsACString& aContentType, PRBool aReplace);
 
   nsresult CreateAndAddWyciwygChannel(void);
   nsresult RemoveWyciwygChannel(void);
 
-  /**
-   * Like IsEditingOn(), but will flush as needed first.
-   */
-  PRBool IsEditingOnAfterFlush();
-
   void *GenerateParserKey(void);
 
-  virtual PRInt32 GetDefaultNamespaceID() const
+  PRInt32 GetDefaultNamespaceID() const
   {
-    return kNameSpaceID_XHTML;
+    return mDefaultNamespaceID;
   }
 
   nsCOMArray<nsIDOMHTMLMapElement> mImageMaps;
@@ -333,46 +325,71 @@ protected:
   // finishes processing that script.
   PRUint32 mWriteLevel;
 
-  nsAutoTArray<nsIScriptElement*, 1> mPendingScripts;
+  nsSmallVoidArray mPendingScripts;
 
   // Load flags of the document's channel
   PRUint32 mLoadFlags;
+
+  nsCOMPtr<nsIDOMNode> mBodyContent;
 
   PRPackedBool mIsFrameset;
 
   PRPackedBool mTooDeepWriteRecursion;
 
-  PRPackedBool mDisableDocWrite;
+  PRBool IdTableIsLive() const {
+    // live if we've had over 63 misses
+    return (mIdMissCount & 0x40) != 0;
+  }
+
+  PRBool IdTableShouldBecomeLive() {
+    NS_ASSERTION(!IdTableIsLive(),
+                 "Shouldn't be called if table is already live!");
+    ++mIdMissCount;
+    return IdTableIsLive();
+  }
+
+  PRUint8 mIdMissCount;
+
+  /* mIdAndNameHashTable works as follows for IDs:
+   * 1) Attribute changes affect the table immediately (removing and adding
+   *    entries as needed).
+   * 2) Removals from the DOM affect the table immediately
+   * 3) Additions to the DOM always update existing entries, but only add new
+   *    ones if IdTableIsLive() is true.
+   */
+  PLDHashTable mIdAndNameHashTable;
 
   nsCOMPtr<nsIWyciwygChannel> mWyciwygChannel;
 
   /* Midas implementation */
   nsresult   GetMidasCommandManager(nsICommandManager** aCommandManager);
-
+  PRBool     ConvertToMidasInternalCommand(const nsAString & inCommandID,
+                                           const nsAString & inParam,
+                                           nsACString& outCommandID,
+                                           nsACString& outParam,
+                                           PRBool& isBoolean,
+                                           PRBool& boolValue);
   nsCOMPtr<nsICommandManager> mMidasCommandManager;
 
   nsresult TurnEditingOff();
   nsresult EditingStateChanged();
-  void MaybeEditingStateChanged();
 
   PRUint32 mContentEditableCount;
   EditingState mEditingState;
+  PRPackedBool mScriptsEnabled;
+  PRPackedBool mPluginsEnabled;
 
   nsresult   DoClipboardSecurityCheck(PRBool aPaste);
   static jsval       sCutCopyInternal_id;
   static jsval       sPasteInternal_id;
 
-  // When false, the .cookies property is completely disabled
+  // kNameSpaceID_None for good ol' HTML documents, and
+  // kNameSpaceID_XHTML for spiffy new XHTML documents.
+  // XXXbz should this be reset if someone manually calls
+  // SetContentType() on this document?
+  PRInt32 mDefaultNamespaceID;
+
   PRBool mDisableCookieAccess;
-
-  // Parser used for constructing document fragments.
-  nsCOMPtr<nsIParser> mFragmentParser;
 };
-
-#define NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                        \
-    NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                                 \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIHTMLDocument)                         \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMHTMLDocument)                      \
-    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMNSHTMLDocument)
 
 #endif /* nsHTMLDocument_h___ */

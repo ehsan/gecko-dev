@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 et lcs=trail\:.,tab\:>~ :
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: sw=4 ts=4 sts=4
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -24,7 +24,6 @@
  *   Vladimir Vukicevic <vladimir.vukicevic@oracle.com>
  *   Brett Wilson <brettw@gmail.com>
  *   Shawn Wilsher <me@shawnwilsher.com>
- *   Drew Willcoxon <adw@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -44,98 +43,44 @@
 #define _MOZSTORAGESERVICE_H_
 
 #include "nsCOMPtr.h"
-#include "nsICollation.h"
 #include "nsIFile.h"
 #include "nsIObserver.h"
-#include "mozilla/Mutex.h"
+#include "nsIObserverService.h"
 
 #include "mozIStorageService.h"
 
-class nsIXPConnect;
+class mozStorageConnection;
 
-namespace mozilla {
-namespace storage {
-
-class Service : public mozIStorageService
-              , public nsIObserver
+class mozStorageService : public mozIStorageService,
+                          public nsIObserver
 {
+    friend class mozStorageConnection;
+
 public:
-  /**
-   * Initializes the service.  This must be called before any other function!
-   */
-  nsresult initialize();
+    // two-phase init, must call before using service
+    nsresult Init();
 
-  /**
-   * Compares two strings using the Service's locale-aware collation.
-   *
-   * @param  aStr1
-   *         The string to be compared against aStr2.
-   * @param  aStr2
-   *         The string to be compared against aStr1.
-   * @param  aComparisonStrength
-   *         The sorting strength, one of the nsICollation constants.
-   * @return aStr1 - aStr2.  That is, if aStr1 < aStr2, returns a negative
-   *         number.  If aStr1 > aStr2, returns a positive number.  If
-   *         aStr1 == aStr2, returns 0.
-   */
-  int localeCompareStrings(const nsAString &aStr1,
-                           const nsAString &aStr2,
-                           PRInt32 aComparisonStrength);
+    static mozStorageService *GetSingleton();
 
-  static Service *getSingleton();
+    // nsISupports
+    NS_DECL_ISUPPORTS
 
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGESERVICE
-  NS_DECL_NSIOBSERVER
+    // mozIStorageService
+    NS_DECL_MOZISTORAGESERVICE
 
-  /**
-   * Obtains an already AddRefed pointer to XPConnect.  This is used by
-   * language helpers.
-   */
-  static already_AddRefed<nsIXPConnect> getXPConnect();
+    NS_DECL_NSIOBSERVER
 
 private:
-  Service();
-  virtual ~Service();
+    virtual ~mozStorageService();
+protected:
+    nsCOMPtr<nsIFile> mProfileStorageFile;
 
-  /**
-   * Used for 1) locking around calls when initializing connections so that we
-   * can ensure that the state of sqlite3_enable_shared_cache is sane and 2)
-   * synchronizing access to mLocaleCollation.
-   */
-  Mutex mMutex;
+    static mozStorageService *gStorageService;
 
-  /**
-   * Shuts down the storage service, freeing all of the acquired resources.
-   */
-  void shutdown();
-
-  /**
-   * Lazily creates and returns a collation created from the application's
-   * locale that all statements of all Connections of this Service may use.
-   * Since the collation's lifetime is that of the Service and no statement may
-   * execute outside the lifetime of the Service, this method returns a raw
-   * pointer.
-   */
-  nsICollation *getLocaleCollation();
-
-  /**
-   * Lazily created collation that all statements of all Connections of this
-   * Service may use.  The collation is created from the application's locale.
-   *
-   * @note Collation implementations are platform-dependent and in general not
-   *       thread-safe.  Access to this collation should be synchronized.
-   */
-  nsCOMPtr<nsICollation> mLocaleCollation;
-
-  nsCOMPtr<nsIFile> mProfileStorageFile;
-
-  static Service *gService;
-
-  static nsIXPConnect *sXPConnect;
+    nsresult InitStorageAsyncIO();
+    nsresult FlushAsyncIO();
+    nsresult FinishAsyncIO();
+    void FreeLocks();
 };
-
-} // namespace storage
-} // namespace mozilla
 
 #endif /* _MOZSTORAGESERVICE_H_ */

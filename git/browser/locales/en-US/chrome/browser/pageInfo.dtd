@@ -52,7 +52,6 @@
 <!ENTITY  generalTab.accesskey  "G">
 <!ENTITY  generalURL            "Address:">
 <!ENTITY  generalType           "Type:">
-<!ENTITY  generalMode           "Render Mode:">
 <!ENTITY  generalSize           "Size:">
 <!ENTITY  generalReferrer       "Referring URL:">
 <!ENTITY  generalSource         "Cache Source:">
@@ -60,22 +59,24 @@
 <!ENTITY  generalEncoding       "Encoding:">
 <!ENTITY  generalMetaName       "Name">
 <!ENTITY  generalMetaContent    "Content">
-<!ENTITY  generalSecurityDetails   "Details">
-<!ENTITY  generalSecurityDetails.accesskey "D">
+<!ENTITY  generalSecurityMore   "More">
+<!ENTITY  generalSecurityMore.accesskey "o">
 
 <!ENTITY  mediaTab              "Media">
 <!ENTITY  mediaTab.accesskey    "M">
-<!ENTITY  mediaLocation         "Location:">
-<!ENTITY  mediaText             "Associated Text:">
+<!ENTITY  mediaURL              "Address:">
+<!ENTITY  mediaAlt              "Alternate Text:">
 <!ENTITY  mediaAltHeader        "Alternate Text">
 <!ENTITY  mediaAddress          "Address">
 <!ENTITY  mediaType             "Type">
 <!ENTITY  mediaSize             "Size">
 <!ENTITY  mediaCount            "Count">
-<!ENTITY  mediaDimension        "Dimensions:">
+<!ENTITY  mediaDimensions       "Specified Dimensions:">
+<!ENTITY  mediaPhysDimensions   "Actual Dimensions:">
+<!ENTITY  mediaTitle            "Title:">
 <!ENTITY  mediaLongdesc         "Long Description:">
 <!ENTITY  mediaBlockImage.accesskey "B">
-<!ENTITY  mediaSaveAs           "Save As…">
+<!ENTITY  mediaSaveAs           "Save As...">
 <!ENTITY  mediaSaveAs.accesskey "A">
 <!ENTITY  mediaSaveAs2.accesskey "e">
 <!ENTITY  mediaPreview          "Media Preview:">
@@ -88,16 +89,14 @@
 <!ENTITY  permTab               "Permissions">
 <!ENTITY  permTab.accesskey     "P">
 <!ENTITY  permUseDefault        "Use Default">
-<!ENTITY  permAskAlways         "Always ask">
 <!ENTITY  permAllow             "Allow">
 <!ENTITY  permAllowSession      "Allow for Session">
 <!ENTITY  permBlock             "Block">
 <!ENTITY  permissionsFor        "Permissions for:">
 <!ENTITY  permImage             "Load Images">
-<!ENTITY  permPopup             "Open Pop-up Windows">
+<!ENTITY  permPopup             "Open Popup Windows">
 <!ENTITY  permCookie            "Set Cookies">
 <!ENTITY  permInstall           "Install Extensions or Themes">
-<!ENTITY  permGeo               "Share Location">
 
 <!ENTITY  securityTab           "Security">
 <!ENTITY  securityTab.accesskey "S">
@@ -108,12 +107,12 @@
 
 
 <!ENTITY  securityView.identity.header   "Web Site Identity">
-<!ENTITY  securityView.identity.owner    "Owner:">
-<!ENTITY  securityView.identity.domain   "Web site:">
-<!ENTITY  securityView.identity.verifier "Verified by:">
+<!ENTITY  securityView.identity.owner    "Owner: ">
+<!ENTITY  securityView.identity.domain   "Web site: ">
+<!ENTITY  securityView.identity.verifier "Verified by: ">
 
 <!ENTITY  securityView.privacy.header                   "Privacy &amp; History">
-<!ENTITY  securityView.privacy.history                  "Have I visited this web site before today?">
+<!ENTITY  securityView.privacy.history                  "Have I visited this website before today?">
 <!ENTITY  securityView.privacy.cookies                  "Is this web site storing information (cookies) on my computer?">
 <!ENTITY  securityView.privacy.viewCookies              "View Cookies">
 <!ENTITY  securityView.privacy.viewCookies.accessKey    "k">

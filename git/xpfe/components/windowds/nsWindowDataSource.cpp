@@ -312,7 +312,7 @@ struct findWindowClosure {
     nsIXULWindow *resultWindow;
 };
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 findWindow(nsHashKey* aKey, void *aData, void* aClosure)
 {
     nsVoidKey *thisKey = static_cast<nsVoidKey*>(aKey);

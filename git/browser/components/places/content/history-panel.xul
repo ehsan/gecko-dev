@@ -57,12 +57,11 @@
 
 <page id="history-panel" orient="vertical"
       xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-      onload="HistorySidebarInit();"
-      onunload="SidebarUtils.clearURLFromStatusBar();">
+      onload="HistorySidebarInit();">
 
-  <script type="application/javascript" 
+  <script type="application/x-javascript" 
           src="chrome://browser/content/bookmarks/sidebarUtils.js"/>
-  <script type="application/javascript" 
+  <script type="application/x-javascript" 
           src="chrome://browser/content/places/history-panel.js"/>
 
   <commandset id="editMenuCommands"/>
@@ -74,18 +73,19 @@
 #endif
   </keyset>
 
-  <!-- required to overlay the context menu -->
-  <popup id="placesContext" />
+  <popup id="placesContext">
+    <menuitem id="addBookmarkContextItem"
+              label="&bookmarkLink.label;"
+              accesskey="&bookmarkLink.accesskey;"
+              selection="link"
+              selectiontype="single"
+              oncommand="historyAddBookmarks();"/>
+  </popup>
 
-  <!-- Bookmarks and history tooltip -->
-  <tooltip id="bhTooltip"/>
-
-  <hbox id="sidebar-search-container" align="center">
-    <label id="sidebar-search-label"
-           value="&find.label;" accesskey="&find.accesskey;" 
+  <hbox align="center">
+    <label value="&find.label;" accesskey="&find.accesskey;" 
            control="search-box"/>
-    <textbox id="search-box" flex="1" type="search" class="compact"
-             aria-controls="historyTree"
+    <textbox id="search-box" flex="1" type="timed" timeout="500"
              oncommand="searchHistory(this.value);"/>
     <button id="viewButton" style="min-width:0px !important;" type="menu"
             label="&view.label;" accesskey="&view.accesskey;" selectedsort="day"
@@ -114,18 +114,15 @@
   </hbox>
 
   <tree id="historyTree"
-        class="sidebar-placesTree"
         flex="1"
         type="places"
         context="placesContext"
+        onkeypress="if (event.keyCode == 13) this.controller.openSelectedNodeWithEvent(event);"
         hidecolumnpicker="true"
-        onkeypress="SidebarUtils.handleTreeKeyPress(event);"
-        onclick="SidebarUtils.handleTreeClick(this, event, true);"
-        onmousemove="SidebarUtils.handleTreeMouseMove(event);"
-        onmouseout="SidebarUtils.clearURLFromStatusBar();">
+        onclick="SidebarUtils.handleClick(this, event, true);">
     <treecols>
       <treecol id="title" flex="1" primary="true" hideheader="true"/>
     </treecols>
-    <treechildren class="sidebar-placesTreechildren" flex="1" tooltip="bhTooltip"/>
+    <treechildren flex="1"/>
   </tree>
 </page>

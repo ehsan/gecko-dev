@@ -48,14 +48,6 @@
 class nsTreeBodyFrame;
 class nsTreeColumns;
 
-#define NS_TREECOLUMN_IMPL_CID                       \
-{ /* 02cd1963-4b5d-4a6c-9223-814d3ade93a3 */         \
-    0x02cd1963,                                      \
-    0x4b5d,                                          \
-    0x4a6c,                                          \
-    {0x92, 0x23, 0x81, 0x4d, 0x3a, 0xde, 0x93, 0xa3} \
-}
-
 // This class is our column info.  We use it to iterate our columns and to obtain
 // information about each column.
 class nsTreeColumn : public nsITreeColumn {
@@ -63,10 +55,7 @@ public:
   nsTreeColumn(nsTreeColumns* aColumns, nsIContent* aContent);
   ~nsTreeColumn();
 
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_TREECOLUMN_IMPL_CID)
-
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsTreeColumn)
+  NS_DECL_ISUPPORTS
   NS_DECL_NSITREECOLUMN
 
   friend class nsTreeBodyFrame;
@@ -108,10 +97,7 @@ protected:
 
   nsTreeColumn* GetNext() { return mNext; }
   nsTreeColumn* GetPrevious() { return mPrevious; }
-  void SetNext(nsTreeColumn* aNext) {
-    NS_ASSERTION(!mNext, "already have a next sibling");
-    NS_IF_ADDREF(mNext = aNext);
-  }
+  void SetNext(nsTreeColumn* aNext) { NS_IF_ADDREF(mNext = aNext); }
   void SetPrevious(nsTreeColumn* aPrevious) { mPrevious = aPrevious; }
 
 private:
@@ -142,7 +128,13 @@ private:
   nsTreeColumn* mPrevious;
 };
 
-NS_DEFINE_STATIC_IID_ACCESSOR(nsTreeColumn, NS_TREECOLUMN_IMPL_CID)
+#define NS_TREECOLUMN_IMPL_CID                       \
+{ /* 02cd1963-4b5d-4a6c-9223-814d3ade93a3 */         \
+    0x02cd1963,                                      \
+    0x4b5d,                                          \
+    0x4a6c,                                          \
+    {0x92, 0x23, 0x81, 0x4d, 0x3a, 0xde, 0x93, 0xa3} \
+}
 
 class nsTreeColumns : public nsITreeColumns {
 public:
@@ -151,26 +143,6 @@ public:
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSITREECOLUMNS
-
-  nsITreeColumn* GetColumnAt(PRInt32 aIndex);
-  nsITreeColumn* GetNamedColumn(const nsAString& aId);
-
-  static nsTreeColumns* FromSupports(nsISupports* aSupports)
-  {
-#ifdef DEBUG
-    {
-      nsCOMPtr<nsITreeColumns> columns_qi = do_QueryInterface(aSupports);
-
-      // If this assertion fires the QI implementation for the object in
-      // question doesn't use the nsITreeColumns pointer as the nsISupports
-      // pointer. That must be fixed, or we'll crash...
-      NS_ASSERTION(columns_qi == static_cast<nsITreeColumns*>(aSupports),
-                   "Uh, fix QI!");
-    }
-#endif
-
-    return static_cast<nsTreeColumns*>(aSupports);
-  }
 
   friend class nsTreeBodyFrame;
 protected:

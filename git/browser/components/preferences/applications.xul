@@ -53,10 +53,8 @@
 <overlay id="ApplicationsPaneOverlay"
          xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-  <prefpane id="paneApplications"
-            onpaneload="gApplicationsPane.init();"
-            flex="1"
-            helpTopic="prefs-applications">
+  <prefpane id="paneApplications" onpaneload="gApplicationsPane.init();" flex="1"
+            helpTopic="prefs-applications" helpURI="chrome://browser/locale/help/help.rdf">
 
     <preferences id="feedsPreferences">
       <preference id="browser.feeds.handler"
@@ -71,51 +69,24 @@
       <preference id="browser.feeds.handlers.webservice"
                   name="browser.feeds.handlers.webservice"
                   type="string"/>
-
-      <preference id="browser.videoFeeds.handler"
-                  name="browser.videoFeeds.handler"
-                  type="string"/>
-      <preference id="browser.videoFeeds.handler.default"
-                  name="browser.videoFeeds.handler.default"
-                  type="string"/>
-      <preference id="browser.videoFeeds.handlers.application"
-                  name="browser.videoFeeds.handlers.application"
-                  type="file"/>
-      <preference id="browser.videoFeeds.handlers.webservice"
-                  name="browser.videoFeeds.handlers.webservice"
-                  type="string"/>
-
-      <preference id="browser.audioFeeds.handler"
-                  name="browser.audioFeeds.handler"
-                  type="string"/>
-      <preference id="browser.audioFeeds.handler.default"
-                  name="browser.audioFeeds.handler.default"
-                  type="string"/>
-      <preference id="browser.audioFeeds.handlers.application"
-                  name="browser.audioFeeds.handlers.application"
-                  type="file"/>
-      <preference id="browser.audioFeeds.handlers.webservice"
-                  name="browser.audioFeeds.handlers.webservice"
-                  type="string"/>
-
       <preference id="pref.downloads.disable_button.edit_actions"
                   name="pref.downloads.disable_button.edit_actions"
                   type="bool"/>
     </preferences>
 
-    <script type="application/javascript" src="chrome://browser/content/preferences/applications.js"/>
+    <script type="application/x-javascript" src="chrome://browser/content/preferences/applications.js"/>
 
     <keyset>
       <key key="&focusSearch1.key;" modifiers="accel" oncommand="gApplicationsPane.focusFilterBox();"/>
       <key key="&focusSearch2.key;" modifiers="accel" oncommand="gApplicationsPane.focusFilterBox();"/>
     </keyset>
 
-    <hbox>
-      <textbox id="filter" flex="1"
-               type="search"
-               emptytext="&filter.emptytext;"
-               aria-controls="handlersView"
-               oncommand="gApplicationsPane.filter();"/>
+    <hbox align="center">
+      <label accesskey="&filter.accesskey;" control="filter">&filter.label;</label>
+      <textbox id="filter" flex="1" oninput="gApplicationsPane.onFilterInput();" 
+              onkeypress="gApplicationsPane.onFilterKeyPress(event);"/>
+      <button id="clearFilter" icon="clear" label="&clear.label;" accesskey="&clear.accesskey;" 
+              oncommand="gApplicationsPane.clearFilter();" disabled="true"/>
     </hbox>
 
     <separator class="thin"/>
@@ -123,13 +94,13 @@
     <richlistbox id="handlersView" orient="vertical" persist="lastSelectedType"
                  preference="pref.downloads.disable_button.edit_actions"
                  onselect="gApplicationsPane.onSelectionChanged();">
-      <listheader equalsize="always" style="border: 0; padding: 0; -moz-appearance: none;">
+      <listheader equalsize="always" style="border: 0; padding: 0;">
         <treecol id="typeColumn" label="&typeColumn.label;" value="type"
                  accesskey="&typeColumn.accesskey;" persist="sortDirection"
                  flex="1" onclick="gApplicationsPane.sort(event);"
                  sortDirection="ascending"/>
-        <treecol id="actionColumn" label="&actionColumn2.label;" value="action"
-                 accesskey="&actionColumn2.accesskey;" persist="sortDirection"
+        <treecol id="actionColumn" label="&actionColumn.label;" value="action"
+                 accesskey="&actionColumn.accesskey;" persist="sortDirection"
                  flex="1" onclick="gApplicationsPane.sort(event);"/>
       </listheader>
     </richlistbox>

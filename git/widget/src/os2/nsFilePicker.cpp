@@ -51,6 +51,7 @@
 #include "nsFilePicker.h"
 #include "nsILocalFile.h"
 #include "nsIURL.h"
+#include "nsIFileURL.h"
 #include "nsIStringBundle.h"
 #include "nsEnumeratorUtils.h"
 #include "nsCRT.h"
@@ -160,7 +161,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
     DosError(FERR_DISABLEHARDERR);
     WinFileDlg(HWND_DESKTOP, mWnd, &filedlg);
     DosError(FERR_ENABLEHARDERR);
-    char* tempptr = strchr(filedlg.szFullFile, '^');
+    char* tempptr = strstr(filedlg.szFullFile, "^");
     if (tempptr)
       *tempptr = '\0';
     if (filedlg.lReturn == DID_OK) {
@@ -189,13 +190,13 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
     filedlg.ulUser = (ULONG)pmydata;
     filedlg.pfnDlgProc = FileDialogProc;
 
-    PRUint32 i;
+    int i;
 
     PSZ *apszTypeList;
-    apszTypeList = (PSZ *)malloc(mTitles.Length()*sizeof(PSZ)+1);
-    for (i = 0; i < mTitles.Length(); i++)
+    apszTypeList = (PSZ *)malloc(mTitles.Count()*sizeof(PSZ)+1);
+    for (i = 0; i < mTitles.Count(); i++)
     {
-      const nsString& typeWide = mTitles[i];
+      const nsString& typeWide = *mTitles[i];
       nsAutoCharBuffer buffer;
       PRInt32 bufLength;
       WideCharToMultiByte(0, typeWide.get(), typeWide.Length(),
@@ -206,10 +207,10 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
     filedlg.papszITypeList = (PAPSZ)apszTypeList;
 
     PSZ *apszFilterList;
-    apszFilterList = (PSZ *)malloc(mFilters.Length()*sizeof(PSZ)+1);
-    for (i = 0; i < mFilters.Length(); i++)
+    apszFilterList = (PSZ *)malloc(mFilters.Count()*sizeof(PSZ)+1);
+    for (i = 0; i < mFilters.Count(); i++)
     {
-      const nsString& filterWide = mFilters[i];
+      const nsString& filterWide = *mFilters[i];
       apszFilterList[i] = ToNewCString(filterWide);
     }
     apszFilterList[i] = 0;
@@ -217,7 +218,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
 
     pmydata->ulCurExt = mSelectedType;
 
-    PRBool fileExists = PR_TRUE;
+    PRBool fileExists;
     do {
       DosError(FERR_DISABLEHARDERR);
       WinFileDlg(HWND_DESKTOP, mWnd, &filedlg);
@@ -288,7 +289,8 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
     if (filedlg.lReturn == DID_OK) {
       result = PR_TRUE;
       if (mMode == modeOpenMultiple) {
-        nsresult rv;
+        nsresult rv = NS_NewISupportsArray(getter_AddRefs(mFiles));
+        NS_ENSURE_SUCCESS(rv,rv);
 
         if (filedlg.papszFQFilename) {
           for (ULONG i=0;i<filedlg.ulFQFCount;i++) {
@@ -298,7 +300,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
             rv = file->InitWithNativePath(nsDependentCString(*(filedlg.papszFQFilename)[i]));
             NS_ENSURE_SUCCESS(rv,rv);
 
-            rv = mFiles.AppendObject(file);
+            rv = mFiles->AppendElement(file);
             NS_ENSURE_SUCCESS(rv,rv);
           }
           WinFreeFileDlgList(filedlg.papszFQFilename);
@@ -309,7 +311,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
           rv = file->InitWithNativePath(nsDependentCString(filedlg.szFullFile));
           NS_ENSURE_SUCCESS(rv,rv);
 
-          rv = mFiles.AppendObject(file);
+          rv = mFiles->AppendElement(file);
           NS_ENSURE_SUCCESS(rv,rv);
         }
       } else {
@@ -318,13 +320,13 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *retval)
       mSelectedType = (PRInt16)pmydata->ulCurExt;
     }
 
-    for (i = 0; i < mTitles.Length(); i++)
+    for (i = 0; i < mTitles.Count(); i++)
     {
       nsMemory::Free(*(filedlg.papszITypeList[i]));
     }
     free(filedlg.papszITypeList);
 
-    for (i = 0; i < mFilters.Length(); i++)
+    for (i = 0; i < mFilters.Count(); i++)
     {
       nsMemory::Free(*(pmydata->papszIFilterList[i]));
     }
@@ -398,15 +400,20 @@ NS_IMETHODIMP nsFilePicker::GetFile(nsILocalFile **aFile)
 }
 
 //-------------------------------------------------------------------------
-NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
+NS_IMETHODIMP nsFilePicker::GetFileURL(nsIFileURL **aFileURL)
 {
-  *aFileURL = nsnull;
-  nsCOMPtr<nsILocalFile> file;
-  nsresult rv = GetFile(getter_AddRefs(file));
-  if (!file)
-    return rv;
+  nsCOMPtr<nsILocalFile> file(do_CreateInstance("@mozilla.org/file/local;1"));
+  NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
+  file->InitWithNativePath(mFile);
 
-  return NS_NewFileURI(aFileURL, file);
+  nsCOMPtr<nsIURI> uri;
+  NS_NewFileURI(getter_AddRefs(uri), file);
+  nsCOMPtr<nsIFileURL> fileURL(do_QueryInterface(uri));
+  NS_ENSURE_TRUE(fileURL, NS_ERROR_FAILURE);
+  
+  NS_ADDREF(*aFileURL = fileURL);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
@@ -614,12 +621,9 @@ PRUnichar * nsFilePicker::ConvertFromFileSystemCharset(const char *inString)
 NS_IMETHODIMP
 nsFilePicker::AppendFilter(const nsAString& aTitle, const nsAString& aFilter)
 {
-  if (aFilter.EqualsLiteral("..apps"))
-    mFilters.AppendElement(NS_LITERAL_STRING("*.exe;*.cmd;*.com;*.bat"));
-  else
-    mFilters.AppendElement(aFilter);
-  mTitles.AppendElement(aTitle);
-
+  mFilters.AppendString(aFilter);
+  mTitles.AppendString(aTitle);
+  
   return NS_OK;
 }
 

@@ -453,7 +453,7 @@ VR_INTERFACE(REGERR) NR_RegGetEntryInfo(
 VR_INTERFACE(REGERR) NR_RegGetEntryString(
          HREG   hReg,      /* handle of open registry */
          RKEY   key,       /* containing key */
-         const char *name, /* entry name */
+         char   *name,     /* entry name */
          char   *buffer,   /* buffer to hold value (UTF String) */
          uint32 bufsize    /* length of buffer */
        );

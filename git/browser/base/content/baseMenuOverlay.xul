@@ -48,7 +48,8 @@
          xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
          xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-<script type="application/javascript" src="chrome://browser/content/utilityOverlay.js"/>
+<script type="application/x-javascript" src="chrome://browser/content/utilityOverlay.js"/>
+<script type="application/x-javascript" src="chrome://help/content/contextHelp.js"/>
 
 #ifdef XP_MACOSX
 <!-- nsMenuBarX hides these and uses them to build the Application menu.
@@ -76,62 +77,68 @@
           accesskey="&helpMenu.accesskey;">
 #endif
       <menupopup id="menu_HelpPopup" onpopupshowing="buildHelpMenu();">
-        <menuitem id="menu_openHelp"
-                  oncommand="openHelpLink('firefox-help')"
-                  label="&productHelp.label;"
-                  accesskey="&productHelp.accesskey;"
+        <menuitem oncommand="openHelp('firefox-help', 'chrome://browser/locale/help/help.rdf');"
 #ifdef XP_MACOSX
-                  key="key_openHelpMac"/>
+                  label="&helpContentsMac.label;"
+                  key="key_openHelpMacFrontend"/>
 #else
-                  />
+                  label="&helpContents.label;"
+                  accesskey="&helpContents.accesskey;"
+                  key="key_openHelp"/>
 #endif
 # Show IE Users menu item on Windows only
 #ifdef XP_WIN
         <menuitem label="&helpForIEUsers.label;"
                   accesskey="&helpForIEUsers.accesskey;"
-                  oncommand="openHelpLink('ieusers');"/>
+                  oncommand="openHelp('ieusers', 'chrome://browser/locale/help/help.rdf');"/>
 #endif
-        <menuitem id="troubleShooting"
-                  accesskey="&helpTroubleshootingInfo.accesskey;"
-                  label="&helpTroubleshootingInfo.label;"
-                  oncommand="openTroubleshootingPage()"
-                  onclick="checkForMiddleClick(this, event);"/>
         <menuitem id="releaseNotes"
                   accesskey="&helpReleaseNotes.accesskey;"
                   label="&helpReleaseNotes.label;"
-                  oncommand="openReleaseNotes()"
+                  oncommand="openReleaseNotes(event)"
                   onclick="checkForMiddleClick(this, event);"/>
         <menuseparator id="updateSeparator"/>
-#ifdef MOZ_UPDATER
         <menuitem id="checkForUpdates"
+                  accesskey="&updateCmd.accesskey;"
                   label="&updateCmd.label;"
                   class="menuitem-iconic"
                   oncommand="checkForUpdates();"/>
-#endif
         <menuseparator id="aboutSeparator"/>
         <menuitem id="aboutName"
-                  accesskey="&aboutProduct.accesskey;"
-                  label="&aboutProduct.label;"
+                  accesskey="&aboutCmd.accesskey;"
+                  label="&aboutCmd.label;"
                   oncommand="openAboutDialog();"/>
       </menupopup>
     </menu>
 
     <keyset id="baseMenuKeyset">
+        <key id="key_openHelp"
+            oncommand="openHelp('firefox-help', 'chrome://browser/locale/help/help.rdf');"
+# VK_HELP doesn't work on other platforms yet
 #ifdef XP_MACOSX
+            keycode="&openHelpMac.commandkey;"/>
+<!-- On mac, we support both the help key and Cmd+?
+     ...Map Cmd+Shift+/, show Cmd+
+     (that's for en-US, it might be different for other keyboard layouts) -->
         <key id="key_openHelpMac"
-             oncommand="openHelpLink('firefox-osxkey');"
-             key="&helpMac.commandkey;"
-             modifiers="accel"/>
+             oncommand="openHelp('firefox-help', 'chrome://browser/locale/help/help.rdf');"
+             key="&openHelpMac2.commandkey;"
+             modifiers="&openHelpMac2.modifiers;"/>
+        <key id="key_openHelpMacFrontend"
+             key="&openHelpMac2.frontendCommandkey;"
+             modifiers="&openHelpMac2.frontendModifiers;"/>
 <!-- These are used to build the Application menu under Cocoa widgets -->
         <key id="key_preferencesCmdMac"
              key="&preferencesCmdMac.commandkey;"
-             modifiers="accel"/>
+             modifiers="&preferencesCmdMac.modifiers;"/>
         <key id="key_hideThisAppCmdMac"
              key="&hideThisAppCmdMac.commandkey;"
-             modifiers="accel"/>
+             modifiers="&hideThisAppCmdMac.modifiers;"/>
         <key id="key_hideOtherAppsCmdMac"
              key="&hideOtherAppsCmdMac.commandkey;"
-             modifiers="accel,alt"/>
+             modifiers="&hideOtherAppsCmdMac.modifiers;"/>
+#else
+             keycode="&openHelp.commandkey;"/>
 #endif
     </keyset>
 

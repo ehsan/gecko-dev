@@ -21,7 +21,6 @@
    - the Initial Developer. All Rights Reserved.
    -
    - Contributor(s):
-   -   Ehsan Akhgari <ehsan.akhgari@gmail.com>
    -
    - Alternatively, the contents of this file may be used under the terms of
    - either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -62,14 +61,17 @@
       .gnu-number {
         font-weight: bold;
       }
+      
+      #exceptions-link {
+        text-decoration: none;
+      }
     </style>
-    <link rel="stylesheet" href="chrome://global/skin/about.css" type="text/css">
 
     <script type="text/javascript">
     function correctSpelling()
     {
       // Note that this code only runs if the page is requested using the
-      // URL containing the correct spelling - i.e. "about:licence".
+      // URL containing the correct spelling - e.g. "about:licence".
       if (document.location.href.match("icence"))
       {       
         function acceptNode(node)
@@ -118,17 +120,21 @@
     </script>    
   </head>
 
-  <body id="lic-info" class="aboutPageWideContainer">
+  <body id="lic-info">
     <h1 class="correctme"><a name="top"></a>about:license</h1>
 
     <div class="correctme">
-
-#ifdef APP_LICENSE_BLOCK
-#includesubst @APP_LICENSE_BLOCK@
-#endif
     
-    <p>All of the <b>source code</b> to this product is 
-       <a href="https://developer.mozilla.org/en/Mozilla_Source_Code_%28Mercurial%29">available</a> 
+    <p>Official <b>binaries</b> of this product released by the 
+    <a href="http://www.mozilla.com/">Mozilla Corporation</a>
+    are made available under 
+    <a href="http://www.mozilla.org/foundation/EULA/">the corresponding 
+    EULA</a>.</p>
+    
+    <p>Except as described
+       <a id="exceptions-link" href="about:license#exceptions">here</a>, all 
+       of the <b>source code</b> to this product is 
+       <a href="http://developer.mozilla.org/en/docs/Mozilla_Source_Code_Via_CVS">available</a> 
        under licenses which are both 
        <a href="http://www.gnu.org/philosophy/free-sw.html">free</a> and 
        <a href="http://www.opensource.org/docs/definition.php">open source</a>.
@@ -161,31 +167,14 @@
     
     <ul>
       <li><a href="about:license#apple-mozilla">Apple/Mozilla NPRuntime License</a></li>
-      <li><a href="about:license#breakpad">Breakpad License</a></li>
       <li><a href="about:license#bspatch">bspatch License</a></li>
-      <li><a href="about:license#cairo">Cairo Component Licenses</a></li>
-      <li><a href="about:license#chromium">Chromium License</a></li>
-      <li><a href="about:license#csiro">CSIRO Australia License</a></li>
-      <li><a href="about:license#hunspell-nl">Dutch Spellchecking Dictionary License</a></li>
+      <li><a href="about:license#cairo">Cairo Licenses</a></li>      
       <li><a href="about:license#expat">Expat License</a></li>
-      <li><a href="about:license#gfx-font-list">gfxFontList License</a></li>
-      <li><a href="about:license#gears">Google Gears License</a></li>
-      <li><a href="about:license#gears-istumbler">Google Gears/iStumbler License</a></li>
       <li><a href="about:license#growl">Growl License</a></li>
-      <li><a href="about:license#jpnic">Japan Network Information Center License</a></li>
-      <li><a href="about:license#jemalloc">jemalloc License</a></li>
-      <li><a href="about:license#libevent">libevent License</a></li>
-      <li><a href="about:license#libffi">libffi License</a></li>
-      <li><a href="about:license#hunspell-lt">Lithuanian Spellchecking Dictionary License</a></li>
+      <li><a href="about:license#jpnic">Japan Network Information Centre License</a></li>
+      <li><a href="about:license#jep">Java Embedding Plugin License</a></li>
       <li><a href="about:license#openvision">OpenVision License</a></li>
-      <li><a href="about:license#qcms">qcms License</a></li>
-      <li><a href="about:license#xdg">Red Hat xdg_user_dir_lookup License</a></li>
-      <li><a href="about:license#hunspell-ru">Russian Spellchecking Dictionary License</a></li>
-      <li><a href="about:license#sparkle">Sparkle License</a></li>
-      <li><a href="about:license#sunsoft">SunSoft License</a></li>
       <li><a href="about:license#ucal">University of California License</a></li>      
-      <li><a href="about:license#hunspell-en-US">US English Spellchecking Dictionary Licenses</a></li>
-      <li><a href="about:license#xiph">Xiph.org Foundation License</a></li>
     </ul>
     
     <ul>      
@@ -737,7 +726,7 @@ under either the MPL or the [___] License."
 
     <hr>
     
-    <h2><a name="initial-developers"></a>Initial Developers</h2>
+    <h2><a name="initial-developers">Initial Developers</h2>
     
     <p>
       In accordance with MPL 
@@ -747,68 +736,53 @@ under either the MPL or the [___] License."
     </p>
     
     <p>
-<!-- This list created from mozilla-1.9.1 and comm-central on 2009-06-09.
+<!-- This list created from the entire Mozilla source tree on 2007-05-30.
      It was created using a modified version of the "relic" script in
-     tools/relic, along with the make-id-list script in the same directory.
-     See the comments in make-id-list for instructions on how to regenerate.
- -->    
+     tools/relic, along with the make-id-list script in the same directory. -->    
 
 Aaron Leventhal,
-Aaron Nowack,
-Aaron Train,
+Aaron Schulman,
 ActiveState Tool Corp,
-Adam Barth,
-Adobe System Incorporated,
 Akkana Peck,
 Alex Fritze,
+Alexa Internet,
 Alexander J. Vincent,
-Alfred Peng,
-Andreas Gal,
+Alexander Surkov,
 Andreas Otte,
+Andreas Premstaller,
 Andrew Thompson,
-Andrew Zabolotny,
 ArentJan Banck,
-Arpad Borsos,
 Asaf Romano,
 Axel Hecht,
 Ben Bucksch,
 Ben Goodger,
 Ben Turner,
 Benjamin Smedberg,
-Berend Cornelius,
 Bernd Mielke,
-Bj&ouml;rn Jacke,
 Blake Ross,
-Blue Static,
 Boris Zbarsky,
-Brad Lassey,
 Bradley Baetz,
 Brendan Eich,
-Brian Birtles,
 Brian Bober,
-Brian Crowder,
 Brian Ryner,
-Bruno Browning,
-Bruno Escherl,
+Brian Stell,
+Bruce Davidson,
 Bruno Haible,
-Caio Tiago Oliveira,
-Chinmay Deepakbhai Patel,
-Chris Double,
+Calum Robinson,
+Cedric Chantepie,
+Chiaki Koufugata,
 Chris McAfee,
 Christian Biesinger,
 Christopher A. Aillon,
 Christopher Blizzard,
 Christopher Hoess,
 Christopher Seawood,
-Craig Topper,
+Collabnet,
+Conrad Carlen,
 Crocodile Clips Ltd,
-CSIRO,
 Cyrus Patel,
-D&atilde;o Gottwald,
 Dainis Jonitis,
 Dan Mosedale,
-Dan Schaffer,
-Daniel Boelzle,
 Daniel Brooks,
 Daniel Glazman,
 Daniel Kouril,
@@ -816,59 +790,50 @@ Daniel Witte,
 Dantifer Dang,
 Darin Fisher,
 Dave Liebreich,
-Dave Townsend,
-David Ascher,
 David Bienvenu,
 David Bradley,
 David Einstein,
-David Hamp-Gonsalves,
 David Hyatt,
 David P. Caldwell,
-Diane Trout,
+Deogtae Kim,
 Dietrich Ayala,
 Digital Creations 2 Inc,
 Disruptive Innovations SARL,
 Doron Rosenberg,
 Doug Turner,
-Edward Lee,
-Ehsan Akhgari,
 Elika J. Etemad,
 Eric Belhaire,
 Eric Hodel,
 Esben Mose Hansen,
-Florian Queze,
+Florian QUEZE,
 Frank Sch&ouml;nheit,
-Fred Jendrzejewski,
 Fredrik Holmqvist,
 Gavin Sharp,
+Geocast Network Systems,
+Geoff Beier,
 Gervase Markham,
 Gijs Kruitbosch,
 Giorgio Maone,
 Google Inc,
-Graeme McCutcheon,
 H&aring;kan Waara,
 Heriot-Watt University,
 Hewlett-Packard Company,
 i-DNS.net International,
 Ian Hickson,
-Ian Neal,
 Ian Oeschger,
 IBM Corporation,
 Igor Bukanov,
 InnoTek Systemberatung GmbH,
 Intel Corporation,
-James Boston,
 James L. Nance,
+James Ross,
 Jamie Zawinski,
 Jan Varga,
-Jan Wrobel,
 Jason Barnabe,
-Jason Orendorff,
 Jean-Francois Ducarroz,
 Jeff Tsai,
 Jeff Walden,
-Jim Blandy,
-Jim Mathies,
+Jefferson Software Inc,
 Joe Hewitt,
 Joey Minta,
 John B. Keiser,
@@ -878,75 +843,57 @@ John Wolfe,
 Jonas Sicking,
 Jonathan Watt,
 Josh Aas,
-Josh Geenen,
-Joshua Cranmer,
+Josh Soref,
 Juan Lang,
 Jungshik Shin,
 Jussi Kukkonen,
 Karsten D&uuml;sterloh,
-Kathleen Brade,
 Keith Visco,
 Ken Herron,
-Kent James,
 Kevin Gerich,
-Kevin Hendricks,
 Kipp E.B. Hickman,
-KISA,
-Kuden,
-L&aacute;szl&oacute; N&eacute;meth,
 L. David Baron,
-Lev Serebryakov,
-Magnus Melin,
+Leif Hedstrom,
+Lixto GmbH,
 Makoto Kato,
 Marc Bevand,
+Marcio S. Galli,
+Marco Manfredini,
 Marco Pesenti Gritti,
-Mark 'Mook' Yen,
 Mark Banner,
-Mark Finkle,
+Mark Hammond,
 Mark Mentovai,
 Markus G. Kuhn,
-Markus Stange,
-Mats Palmgren,
+Matt Judy,
 Matthew Willis,
-Merike Sell,
+Merle Sterling,
 Michael J. Fromberger,
-Michael Johnston,
-Michael Kohler,
-Michael Kraft,
-Michael Ventnor,
 Michal Ceresna,
-Michal Novotny,
+Michel C. C. Buijsman,
 Michiel van Leeuwen,
 Mike Connor,
 Mike Pinkerton,
 Mike Potter,
 Mike Shaver,
-Mitchell Field,
 MITRE Corporation,
 Mozdev Group,
 Mozilla Corporation,
 Mozilla Foundation,
 Mozilla Japan,
-Mozilla Messaging,
 Naoki Hotta,
 Neil Deakin,
 Neil Rashbrook,
 Nelson B. Bolyard,
 Netscape Communications Corporation,
+New Dimensions Consulting,
 Nick Kreeger,
 Nickolay Ponomarev,
-Nils Maier,
-Nochum Sossonko,
-Nokia,
 Novell Inc,
 NTT,
 OEone Corporation,
 Oleg Romashin,
-Olivier Parniere,
 Olli Pettay,
 Oracle Corporation,
-Paolo Amadini,
-Pattara Kiatisevi,
 Paul Ashford,
 Paul Kocher,
 Paul Sandoz,
@@ -954,74 +901,69 @@ Paul Tomlin,
 Peter Annema,
 Peter Van der Beken,
 Peter Weilbacher,
-Petr Kostka,
 Phil Ringnalda,
 Philipp Kewisch,
 Pierre Chanial,
-POTI Inc,
+Prachi Gauriar,
 Qualcomm Inc,
 R.J. Keller,
 Rajiv Dayal,
 Ramalingam Saravanan,
 Red Hat Inc,
+Rich Megginson,
 Rich Salz,
 Richard C. Swift,
 Richard L. Walsh,
 Richard Verhoeven,
-Richard Walsh,
+Rick Gessner,
 Robert Accettura,
+Robert G. Ginda,
 Robert John Churchill,
 Robert Kaiser,
 Robert Longson,
+Robert Marshall,
 Robert O'Callahan,
 Robert Sayre,
 Robert Strong,
 Roland Mainz,
 RSA Security Inc,
+Rusty Lynch,
 Ryan Cassin,
-Ryan VanderMeulen,
 Samphan Raruenrom,
 Scooter Morris,
 Scott MacGregor,
-Sebastian Schwieger,
 Sergei Dolgov,
 Seth Spitzer,
 Shawn Wilsher,
 Shy Shalom,
-Siddharth Agarwal,
+Silverstone Interactive,
 Simdesk Technologies Inc,
 Simmule Turner,
 Simon B&uuml;nzli,
+Simon Fraser,
 Simon Montagu,
 Simon Paquet,
 Simon Wilkinson,
 Sqlite Project,
 Srilatha Moturi,
-Stanford University,
 Stefan Sitter,
 Stephen Horlander,
 Steve Swanson,
+Stuart Morgan,
 Stuart Parmenter,
 Sun Microsystems Inc,
-Sylvain Pasche,
-Taras Glek,
 Ted Mielczarek,
 Theppitak Karoonboonyanan,
-Thomas K. Dyas,
 Tim Copperfield,
-Tom St Denis,
+timeless,
+Tomas M&uuml;ller,
 University of Queensland,
-Vee Satayamas,
 Vincent B&eacute;ron,
 Vladimir Vukicevic,
-William Jon McCann,
-Wladimir Palant,
 Wolfgang Rosenauer,
 YAMASHITA Makoto,
 Zack Rusin,
-Zero-Knowledge Systems,
-&#x017d;iga Sancin.
-
+Zero-Knowledge Systems.
     </p>
 
     <hr>
@@ -1960,45 +1902,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
     <hr>
 
-    <h1><a name="breakpad"></a>Breakpad License</h1>
-
-    <p class="correctme">This license applies to files in the directory 
-    <span class="path">toolkit/crashreporter/google-breakpad/</span>.</p>
-
-<pre>
-Copyright (c) 2006, Google Inc.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-    * Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-    * Redistributions in binary form must reproduce the above
-copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the
-distribution.
-    * Neither the name of Google Inc. nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-
-    <hr>
-
     <h1><a name="bspatch"></a>bspatch License</h1>
 
     <p class="correctme">This license applies to the files 
@@ -2035,7 +1938,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
     <hr>
 
-    <h1><a name="cairo"></a>Cairo Component Licenses</h1>
+    <h1><a name="cairo"></a>Cairo Licenses</h1>
 
     <p class="correctme">This license, with different copyright holders, applies 
     to certain files in the directory
@@ -2050,7 +1953,7 @@ POSSIBILITY OF SUCH DAMAGE.
 <li>2005 Novell, Inc.
 <li>2004 David Reveman, Peter Nilsson
 <li>2000 Keith Packard, member of The XFree86 Project, Inc.
-<li>2005 Lars Knoll &amp; Zack Rusin, Trolltech
+<li>2005 Lars Knoll & Zack Rusin, Trolltech
 <li>1998, 2000, 2002, 2004 Keith Packard
 <li>2004 Nicholas Miell
 <li>2005 Trolltech AS
@@ -2083,132 +1986,6 @@ CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
 OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT,
 NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION
 WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-</pre>
-
-
-    <hr>
-
-    <h1><a name="chromium"></a>Chromium License</h1>
-
-    <p class="correctme">This license applies to some files in the directory
-      <span class="path">ipc/chromium/</span>.
-    </p>
-
-<pre>
-Copyright (c) 2006-2008 The Chromium Authors. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-   * Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-   * Redistributions in binary form must reproduce the above
-copyright notice, this list of conditions and the following disclaimer
-in the documentation and/or other materials provided with the
-distribution.
-   * Neither the name of Google Inc. nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-
-    <hr>
-
-    <h1><a name="csiro"></a>CSIRO Australia License</h1>
-
-    <p class="correctme">This license applies to files in the directories:
-      <ul>
-        <li><span class="path">media/libfishsound/</span></li>  
-        <li><span class="path">media/liboggplay/</span></li>  
-        <li><span class="path">media/liboggz/</span></li>
-      </ul>
-    </p>
-
-<pre>
-Copyright (C) 2003 CSIRO Australia
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-   
-- Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-   
-- Redistributions in binary form must reproduce the above copyright
-notice, this list of conditions and the following disclaimer in the
-documentation and/or other materials provided with the distribution.
-   
-- Neither the name of the CSIRO nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
-   
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE ORGANISATION OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-
-
-    <hr>
-
-    <h1><a name="hunspell-nl"></a>Dutch Spellchecking Dictionary License</h1>
-
-    <p class="correctme">This license applies to certain files in the directory
-      <span class="path">l10n/nl/extensions/spellcheck/hunspell/</span>. (This
-      code only ships in some localized versions of this product.)</p>
-
-<pre>
-Copyright (c) 2006, 2007 OpenTaal
-Copyright (c) 2001, 2002, 2003, 2005 Simon Brouwer e.a.
-Copyright (c) 1996 Nederlandstalige Tex Gebruikersgroep
-
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without 
-modification, are permitted provided that the following conditions are met:
-
-* Redistributions of source code must retain the above copyright notice, this 
-list of conditions and the following disclaimer.
-* Redistributions in binary form must reproduce the above copyright notice, 
-this list of conditions and the following disclaimer in the documentation 
-and/or other materials provided with the distribution.
-* Neither the name of the OpenTaal, Simon Brouwer e.a., or Nederlandstalige Tex 
-Gebruikersgroep nor the names of its contributors may be used to endorse or 
-promote products derived from this software without specific prior written 
-permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 </pre>
 
 
@@ -2249,159 +2026,14 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
     <hr>
 
-    <h1><a name="gfx-font-list"></a>gfxFontList License</h1>
-
-    <p class="correctme">This license applies to the files 
-    <span class="path">gfx/thebes/src/gfxMacPlatformFontList.mm</span> and
-    <span class="path">gfx/thebes/src/gfxPlatformFontList.cpp</span>.
-    </p>
-
-<pre>
-Copyright (C) 2006 Apple Computer, Inc.  All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-
-1.  Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer.
-2.  Redistributions in binary form must reproduce the above copyright
-    notice, this list of conditions and the following disclaimer in the
-    documentation and/or other materials provided with the distribution.
-3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
-    its contributors may be used to endorse or promote products derived
-    from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY APPLE AND ITS CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL APPLE OR ITS CONTRIBUTORS BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-
-
-    <hr>
-
-    <h1><a name="gears"></a>Google Gears</h1>
-
-    <p class="correctme">This license applies to the file 
-    <span class="path">netwerk/wifi/wlanapi.h</span>.</p>
-
-<pre>
-Copyright 2008, Google Inc.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
- 1. Redistributions of source code must retain the above copyright notice,
-    this list of conditions and the following disclaimer.
- 2. Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation
-    and/or other materials provided with the distribution.
- 3. Neither the name of Google Inc. nor the names of its contributors may be
-    used to endorse or promote products derived from this software without
-    specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
-WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
-EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
-ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-
-
-    <hr>
-
-    <h1><a name="gears-istumbler"></a>Google Gears/iStumbler</h1>
-
-    <p class="correctme">This license applies to the file 
-    <span class="path">netwerk/wifi/osx_wifi.h</span>.</p>
-
-<pre>
-Copyright 2008, Google Inc.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
- 1. Redistributions of source code must retain the above copyright notice,
-    this list of conditions and the following disclaimer.
- 2. Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation
-    and/or other materials provided with the distribution.
- 3. Neither the name of Google Inc. nor the names of its contributors may be
-    used to endorse or promote products derived from this software without
-    specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
-WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
-EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
-ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-The contents of this file are taken from Apple80211.h from the iStumbler
-project (http://www.istumbler.net). This project is released under the BSD
-license with the following restrictions.
-
-Copyright (c) 02006, Alf Watt (alf@istumbler.net). All rights reserved.
-
-Redistribution and use in source and binary forms, with or without 
-modification, are permitted provided that the following conditions 
-are met:
-
-* Redistributions of source code must retain the above copyright
-  notice, this list of conditions and the following disclaimer.
-
-* Redistributions in binary form must reproduce the above copyright
-  notice, this list of conditions and the following disclaimer in the
-  documentation and/or other materials provided with the distribution.
-
-* Neither the name of iStumbler nor the names of its contributors may be
-  used to endorse or promote products derived from this software without
-  specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
-TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
-PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
-OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-
-
-    <hr>
-
     <h1><a name="growl"></a>Growl License</h1>
 
     <p class="correctme">This license applies to certain files in the directory
-    <span class="path">toolkit/components/alerts/src/mac/growl/</span> and
-    <span class="path">camino/src/extensions/</span>. (This code only ships in 
-    the Mac OS X version of the product.)
+    <span class="path">toolkit/components/alerts/src/mac/growl/</span>. (This
+    code only ships in the Mac OS X version of the product.)
 
 <pre>
-Copyright (c) The Growl Project, 2004-2009
+Copyright (c) The Growl Project, 2004-2007
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -2483,104 +2115,28 @@ Chiyoda-ku, Tokyo 101-0047, Japan.
 
     <hr>
 
-    <h1><a name="jemalloc"></a>jemalloc License</h1>
+    <h1><a name="jep"></a>Java Embedding Plugin License</h1>
 
-    <p class="correctme">This license applies to files in the directory
-    <span class="path">memory/jemalloc/</span>.
+    <p class="correctme">This license applies to certain files in the directory
+    <span class="path">plugin/oji/JEP/</span>. (This code only ships in the
+    Mac OS X version of this product.)
     </p>
 
 <pre>
-Copyright (C) 2006-2008 Jason Evans &lt;jasone@FreeBSD.org&gt;.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-1. Redistributions of source code must retain the above copyright
-   notice(s), this list of conditions and the following disclaimer as
-   the first lines of this file unmodified other than the possible
-   addition of one or more copyright notices.
-2. Redistributions in binary form must reproduce the above copyright
-   notice(s), this list of conditions and the following disclaimer in
-   the documentation and/or other materials provided with the
-   distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER(S) ``AS IS'' AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT HOLDER(S) BE
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
-BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
-OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
-EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-
-    <hr>
-    
-
-    <h1><a name="libevent"></a>libevent License</h1>
-
-    <p class="correctme">This license applies to files in the directory
-    <span class="path">ipc/chromium/src/third_party/libevent/</span>.
-    </p>
-
-<pre>
-Copyright 2000-2002 Niels Provos &lt;provos@citi.umich.edu&gt;
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-1. Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright
-   notice, this list of conditions and the following disclaimer in the
-   documentation and/or other materials provided with the distribution.
-3. The name of the author may not be used to endorse or promote products
-   derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
-INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-
-    <hr>
-
-    <h1><a name="libffi"></a>libffi License</h1>
-
-    <p class="correctme">This license applies to files in the directories
-    <span class="path">js/ctypes/libffi/</span> and
-    <span class="path">js/ctypes/libffi_msvc/</span>.
-    </p>
-
-<pre>
-libffi - Copyright (c) 1996-2008 Red Hat, Inc and others.  
-See source files for details.
+Copyright (c) 2004, Steven Michaud, All Rights Reserved
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
-``Software''), to deal in the Software without restriction, including
+"Software"), to deal in the Software without restriction, including
 without limitation the rights to use, copy, modify, merge, publish,
 distribute, sublicense, and/or sell copies of the Software, and to
 permit persons to whom the Software is furnished to do so, subject to
 the following conditions:
 
-The above copyright notice and this permission notice shall be included
-in all copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED ``AS IS'', WITHOUT WARRANTY OF ANY KIND,
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
 MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
@@ -2588,49 +2144,6 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 </pre>
-
-
-    <hr>
-    
-    <h1><a name="hunspell-lt"></a>Lithuanian Spellchecking Dictionary License</h1>
-
-    <p class="correctme">This license applies to certain files in the directory
-      <span class="path">l10n/lt/extensions/spellcheck/hunspell/</span>. (This
-      code only ships in some localized versions of this product.)</p>
-
-<pre>
-The project has been sponsored by the Information Society Development
-Committee of the Government of Republic of Lithuania.
-
-
-Copyright (c) Albertas Agejevas &lt;alga@uosis.mif.vu.lt&gt;, 2000, 2001
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-1. Redistributions of source code must retain the above copyright
-   notice, this list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright
-   notice, this list of conditions and the following disclaimer in the
-   documentation and/or other materials provided with the distribution.
-3. Neither the name of the Albertas Agejevas nor the names of its contributors
-   may be used to endorse or promote products derived from this software
-   without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY ALBERTAS AGEJEVAS AND CONTRIBUTORS ``AS IS'' AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED.  IN NO EVENT SHALL ALBERTAS AGEJEVAS OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-SUCH DAMAGE.
-</pre>
-
 
 
     <hr>
@@ -2660,179 +2173,6 @@ CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF
 USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
 OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
-</pre>
-
-
-    <hr>
-
-    <h1><a name="qcms"></a>qcms License</h1>
-
-    <p class="correctme">This license applies to certain files in the directory
-      <span class="path">gfx/qcms/</span>.</p>
-<pre>
-Copyright (C) 2009 Mozilla Corporation
-Copyright (C) 1998-2007 Marti Maria
-
-Permission is hereby granted, free of charge, to any person
-obtaining a copy of this software and associated documentation 
-files (the "Software"), to deal in the Software without restriction, 
-including without limitation the rights to use, copy, modify, merge, 
-publish, distribute, sublicense, and/or sell copies of the Software, 
-and to permit persons to whom the Software is furnished to do so, subject 
-to the following conditions:
-
-The above copyright notice and this permission notice shall be included 
-in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS 
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN 
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-</pre>
-
-
-    <hr>
-
-    <h1><a name="xdg"></a>Red Hat xdg_user_dir_lookup License</h1>
-
-    <p class="correctme">This license applies to the 
-    <span class="path">xdg_user_dir_lookup</span> function in
-    <span class="path">xpcom/io/SpecialSystemDirectory.cpp</span>.</p>
-    
-<pre>
-Copyright (c) 2007 Red Hat, Inc.
-
-Permission is hereby granted, free of charge, to any person
-obtaining a copy of this software and associated documentation files
-(the "Software"), to deal in the Software without restriction,
-including without limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of the Software,
-and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions: 
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software. 
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
-BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-</pre>
-
-
-    <hr>
-
-    <h1><a name="hunspell-ru"></a>Russian Spellchecking Dictionary License</h1>
-
-    <p class="correctme">This license applies to certain files in the directory
-      <span class="path">l10n/ru/extensions/spellcheck/hunspell/</span>. (This
-      code only ships in some localized versions of this product.)</p>
-
-<pre>
-* Copyright (c) 1997-2008, Alexander I. Lebedev
-
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-* Redistributions of source code must retain the above copyright
-  notice, this list of conditions and the following disclaimer.
-* Redistributions in binary form must reproduce the above copyright
-  notice, this list of conditions and the following disclaimer in the
-  documentation and/or other materials provided with the distribution.
-* Modified versions must be clearly marked as such.
-* The name of Alexander I. Lebedev may not be used to endorse or promote
-  products derived from this software without specific prior written
-  permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-
-    <hr>
-
-    <h1><a name="sparkle"></a>Sparkle License</h1>
-
-    <p class="correctme">This license applies to certain files in the directory
-    <span class="path">camino/sparkle/</span>. (This code only ships in the
-    in the Camino browser or products based on it.)</p>
-
-<pre>
-Copyright (c) 2006 Andy Matuschak
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-</pre>
-
-
-    <hr>
-
-    <h1><a name="sunsoft"></a>SunSoft License</h1>
-
-    <p class="correctme">This license applies to the
-      <span class="path">ICC_H</span> block in
-      <span class="path">gfx/qcms/qcms.h</span>.</p>
-      
-<pre>
-Copyright (c) 1994-1996 SunSoft, Inc.
-
-                    Rights Reserved
-
-Permission is hereby granted, free of charge, to any person 
-obtaining a copy of this software and associated documentation
-files (the "Software"), to deal in the Software without restrict- 
-ion, including without limitation the rights to use, copy, modify, 
-merge, publish distribute, sublicense, and/or sell copies of the 
-Software, and to permit persons to whom the Software is furnished 
-to do so, subject to the following conditions: 
- 
-The above copyright notice and this permission notice shall be 
-included in all copies or substantial portions of the Software. 
- 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, 
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES 
-OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-
-INFRINGEMENT.  IN NO EVENT SHALL SUNSOFT, INC. OR ITS PARENT 
-COMPANY BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR 
-OTHER DEALINGS IN THE SOFTWARE. 
- 
-Except as contained in this notice, the name of SunSoft, Inc. 
-shall not be used in advertising or otherwise to promote the 
-sale, use or other dealings in this Software without written 
-authorization from SunSoft Inc. 
 </pre>
 
 
@@ -2882,144 +2222,6 @@ SUCH DAMAGE.
 </pre>
 
 
-
-    <hr>
-
-    <h1><a name="hunspell-en-US"></a>US English Spellchecking Dictionary Licenses</h1>
-
-    <p class="correctme">These licenses apply to certain files in the directory
-      <span class="path">extensions/spellcheck/locales/en-US/hunspell/</span>. (This
-      code only ships in some localized versions of this product.)</p>
-
-<pre>
-Different parts of the US English dictionary (SCOWL) are subject to the following licenses as 
-shown below. For additional details, sources, credits, and public domain references, see 
-<a href="http://mxr.mozilla.org/mozilla/source/extensions/spellcheck/locales/en-US/hunspell/README.txt?raw=1">README.txt</a>.
-
-The collective work of the Spell Checking Oriented Word Lists (SCOWL) is under the 
-following copyright:
-
-Copyright 2000-2007 by Kevin Atkinson
-Permission to use, copy, modify, distribute and sell these word lists, the associated scripts, 
-the output created from the scripts, and its documentation for any purpose is hereby 
-granted without fee, provided that the above copyright notice appears in all copies and that 
-both that copyright notice and this permission notice appear in supporting documentation. 
-Kevin Atkinson makes no representations about the suitability of this array for any 
-purpose. It is provided  "as is" without express or implied warranty.
-
-The WordNet database is under the following copyright:
-
-This software and database is being provided to you, the LICENSEE, by Princeton 
-University under the following license.  By obtaining, using and/or copying this software 
-and database, you agree that you have read, understood, and will comply with these terms 
-and conditions:
-Permission to use, copy, modify and distribute this software and database and its 
-documentation for any purpose and without fee or royalty is hereby granted, provided that 
-you agree to comply with the following copyright notice and statements, including the 
-disclaimer, and that the same appear on ALL copies of the software, database and 
-documentation, including modifications that you make for internal use or for distribution.
-WordNet 1.6 Copyright 1997 by Princeton University.  All rights reserved.
-THIS SOFTWARE AND DATABASE IS PROVIDED "AS IS" AND PRINCETON UNIVERSITY 
-MAKES NO REPRESENTATIONS OR WARRANTIES, EXPRESS OR IMPLIED.  BY WAY OF 
-EXAMPLE, BUT NOT LIMITATION, PRINCETON UNIVERSITY MAKES NO 
-REPRESENTATIONS OR WARRANTIES OF MERCHANT- ABILITY OR FITNESS FOR ANY 
-PARTICULAR PURPOSE OR THAT THE USE OF THE LICENSED SOFTWARE, DATABASE OR 
-DOCUMENTATION WILL NOT INFRINGE ANY THIRD PARTY PATENTS, COPYRIGHTS, 
-TRADEMARKS OR OTHER RIGHTS.
-The name of Princeton University or Princeton may not be used in advertising or publicity 
-pertaining to distribution of the software and/or database.  Title to copyright in this 
-software, database and any associated documentation shall at all times remain with 
-Princeton University and LICENSEE agrees to preserve same.
-
-The "UK Advanced Cryptics Dictionary" is under the following copyright:
-
-Copyright (c) J Ross Beresford 1993-1999. All Rights Reserved.
-The following restriction is placed on the use of this publication: if The UK Advanced 
-Cryptics Dictionary is used in a software package or redistributed in any form, the 
-copyright notice must be prominently displayed and the text of this document must be 
-included verbatim.   There are no other restrictions: I would like to see the list distributed 
-as widely as possible.
-
-Various parts are under the Ispell copyright:
-
-Copyright 1993, Geoff Kuenning, Granada Hills, CA
- All rights reserved.   Redistribution and use in source and binary forms, with or without 
-modification, are permitted provided that the following conditions are met:
-  1. Redistributions of source code must retain the above copyright notice, this list of 
-conditions and the following disclaimer.
-  2. Redistributions in binary form must reproduce the above copyright notice, this list of 
-conditions and the following disclaimer in the documentation and/or other materials 
-provided with the distribution.
-  3. All modifications to the source code must be clearly marked as such.  Binary 
-redistributions based on modified source code must be clearly marked as modified 
-versions in the documentation and/or other materials provided with the distribution.
-  (clause 4 removed with permission from Geoff Kuenning)
-  5. The name of Geoff Kuenning may not be used to endorse or promote products derived 
-from this software without specific prior written permission.
- THIS SOFTWARE IS PROVIDED BY GEOFF KUENNING AND CONTRIBUTORS ``AS  IS'' AND 
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR 
-PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL GEOFF KUENNING OR CONTRIBUTORS 
-BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE  
-POSSIBILITY OF SUCH DAMAGE.
-
-Additional Contributors:
-
- Alan Beale &lt;biljir@pobox.com&gt;
- M Cooper &lt;thegrendel@theriver.com&gt;
-</pre>
-
-
-
-    <hr>
-
-    <h1><a name="xiph"></a>Xiph.org Foundation License</h1>
-
-    <p class="correctme">This license applies to files in the following directories 
-      with the specified copyright year ranges:</p>
-    <ul>
-      <li><span class="path">media/libogg/</span>, 2002</li>
-      <li><span class="path">media/libtheora/</span>, 2002-2007</li>
-      <li><span class="path">media/libvorbis/</span>, 2002-2004</li>
-    </ul>
-
-<pre>
-Copyright (c) &lt;year&gt;, Xiph.org Foundation
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions
-are met:
-
-- Redistributions of source code must retain the above copyright
-notice, this list of conditions and the following disclaimer.
-
-- Redistributions in binary form must reproduce the above copyright
-notice, this list of conditions and the following disclaimer in the
-documentation and/or other materials provided with the distribution.
-
-- Neither the name of the Xiph.org Foundation nor the names of its
-contributors may be used to endorse or promote products derived from
-this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION
-OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
-
-
     <hr>
 
     <h1><a name="other-notices"></a>Other Required Notices</h1>
@@ -3027,7 +2229,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <ul>
       <li>This software is based in part on the work of the Independent 
           JPEG Group.</li>
-      <li>Portions of the OS/2 and Windows Mobile versions of this software are copyright
+      <li>Portions of the OS/2 version of this software are copyright
           &copy;1996-2002 <a href="http://www.freetype.org/">The FreeType Project</a>.
           All rights reserved.</li>
     </ul>
@@ -3050,13 +2252,26 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
           (Julian Seward)</li>
       <li>The <a href="http://www.libpng.org/pub/png/">libpng</a> graphics library
           (Glenn Randers-Pehrson and team)</li>
-      <li>The <a href="http://www.sqlite.org/">sqlite</a> database engine
-          (D. Richard Hipp and team)</li>
-      <li>The <a href="http://nsis.sourceforge.net/">Nullsoft Scriptable Install System</a></li>
     </ul>
     
-    
     <hr>
+    
+    <h3><a name="exceptions"></a>* Exceptions</h3>
+    
+    <p class="correctme">
+    Depending on how it was compiled, your product distribution and version 
+    may include the following portions which are not available under the 
+    above terms:
+    </p>
+    
+    <ul>
+      <li>The Talkback crash-reporting module (Copyright &copy;1998-2005
+          SupportSoft, Inc. All Rights Reserved.)
+      <li>Image files containing the trademarks and logos of the Mozilla
+          Foundation, which may not be reproduced without permission. 
+          (Copyright &copy;2004-2007 The Mozilla Foundation. 
+          All Rights Reserved.)
+    </ul>  
     
     <p class="correctme"><a href="about:license#top">Return to top</a>.</p>
     

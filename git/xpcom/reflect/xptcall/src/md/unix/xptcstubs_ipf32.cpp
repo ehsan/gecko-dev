@@ -39,7 +39,6 @@
 
 
 #include "xptcprivate.h"
-#include "xptiprivate.h"
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -57,6 +56,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
 
   nsXPTCMiniVariant paramBuffer[PARAM_BUFFER_COUNT];
   nsXPTCMiniVariant* dispatchParams = NULL;
+  nsIInterfaceInfo* iface_info = NULL;
   const nsXPTMethodInfo* info;
   nsresult result = NS_ERROR_FAILURE;
   uint64_t* iargs = intargs;
@@ -66,7 +66,10 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
 
   NS_ASSERTION(self,"no self");
 
-  self->mEntry->GetMethodInfo(PRUint16(methodIndex), &info);
+  self->GetInterfaceInfo(&iface_info);
+  NS_ASSERTION(iface_info,"no interface info");
+
+  iface_info->GetMethodInfo(PRUint16(methodIndex), &info);
   NS_ASSERTION(info,"no interface info");
 
   paramCount = info->GetParamCount();
@@ -77,8 +80,6 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
   else
     dispatchParams = paramBuffer;
   NS_ASSERTION(dispatchParams,"no place for params");
-  if (! dispatchParams)
-      return NS_ERROR_OUT_OF_MEMORY;
 
   for(i = 0; i < paramCount; ++i)
   {
@@ -124,7 +125,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
     case nsXPTType::T_CHAR   : dp->val.c   = *(iargs); break;
     case nsXPTType::T_WCHAR  : dp->val.wc  = *(iargs); break;
     default:
-      NS_ERROR("bad type");
+      NS_ASSERTION(0, "bad type");
       break;
     }
     if (i < 7)
@@ -150,7 +151,9 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
     }
   }
 
-  result = self->mOuter->CallMethod((PRUint16) methodIndex, info, dispatchParams);
+  result = self->CallMethod((PRUint16) methodIndex, info, dispatchParams);
+
+  NS_RELEASE(iface_info);
 
   if(dispatchParams != paramBuffer)
     delete [] dispatchParams;
@@ -175,7 +178,7 @@ PRUint64 a8) \
 #define SENTINEL_ENTRY(n) \
 nsresult nsXPTCStubBase::Sentinel##n() \
 { \
-    NS_ERROR("nsXPTCStubBase::Sentinel called"); \
+    NS_ASSERTION(0,"nsXPTCStubBase::Sentinel called"); \
     return NS_ERROR_NOT_IMPLEMENTED; \
 }
 

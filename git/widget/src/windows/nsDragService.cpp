@@ -70,9 +70,6 @@
 #include "nsCRT.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsUnicharUtils.h"
-#include "gfxASurface.h"
-#include "gfxContext.h"
-#include "nsMathUtils.h"
 
 //-------------------------------------------------------------------------
 //
@@ -80,7 +77,7 @@
 //
 //-------------------------------------------------------------------------
 nsDragService::nsDragService()
-  : mNativeDragSrc(nsnull), mNativeDragTarget(nsnull), mDataObject(nsnull), mSentLocalDropEvent(PR_FALSE)
+  : mNativeDragSrc(nsnull), mNativeDragTarget(nsnull), mDataObject(nsnull)
 {
 }
 
@@ -96,91 +93,6 @@ nsDragService::~nsDragService()
   NS_IF_RELEASE(mDataObject);
 }
 
-PRBool
-nsDragService::CreateDragImage(nsIDOMNode *aDOMNode,
-                               nsIScriptableRegion *aRegion,
-                               SHDRAGIMAGE *psdi)
-{
-  if (!psdi)
-    return PR_FALSE;
-
-  memset(psdi, 0, sizeof(SHDRAGIMAGE));
-  if (!aDOMNode) 
-    return PR_FALSE;
-
-  // Prepare the drag image
-  nsIntRect dragRect;
-  nsRefPtr<gfxASurface> surface;
-  nsPresContext* pc;
-  DrawDrag(aDOMNode, aRegion,
-           mScreenX, mScreenY,
-           &dragRect, getter_AddRefs(surface), &pc);
-  if (!surface)
-    return PR_FALSE;
-
-  PRUint32 bmWidth = dragRect.width, bmHeight = dragRect.height;
-
-  if (bmWidth == 0 || bmHeight == 0)
-    return PR_FALSE;
-
-  psdi->crColorKey = CLR_NONE;
-
-  nsRefPtr<gfxImageSurface> imgSurface = new gfxImageSurface(
-    gfxIntSize(bmWidth, bmHeight), 
-    gfxImageSurface::ImageFormatARGB32);
-  if (!imgSurface)
-    return PR_FALSE;
-
-  nsRefPtr<gfxContext> context = new gfxContext(imgSurface);
-  if (!context)
-    return PR_FALSE;
-
-  context->SetOperator(gfxContext::OPERATOR_SOURCE);
-  context->SetSource(surface);
-  context->Paint();
-
-  BITMAPV5HEADER bmih;
-  memset((void*)&bmih, 0, sizeof(BITMAPV5HEADER));
-  bmih.bV5Size        = sizeof(BITMAPV5HEADER);
-  bmih.bV5Width       = bmWidth;
-  bmih.bV5Height      = -bmHeight; // flip vertical
-  bmih.bV5Planes      = 1;
-  bmih.bV5BitCount    = 32;
-  bmih.bV5Compression = BI_BITFIELDS;
-  bmih.bV5RedMask     = 0x00FF0000;
-  bmih.bV5GreenMask   = 0x0000FF00;
-  bmih.bV5BlueMask    = 0x000000FF;
-  bmih.bV5AlphaMask   = 0xFF000000;
-
-  HDC hdcSrc = CreateCompatibleDC(NULL);
-  void *lpBits = NULL;
-  if (hdcSrc) {
-    psdi->hbmpDragImage = 
-    ::CreateDIBSection(hdcSrc, (BITMAPINFO*)&bmih, DIB_RGB_COLORS,
-                       (void**)&lpBits, NULL, 0);
-    if (psdi->hbmpDragImage && lpBits) {
-      memcpy(lpBits,imgSurface->Data(),(bmWidth*bmHeight*4));
-    }
-
-    psdi->sizeDragImage.cx = bmWidth;
-    psdi->sizeDragImage.cy = bmHeight;
-
-    // Mouse position in center
-    if (mScreenX == -1 || mScreenY == -1) {
-      psdi->ptOffset.x = (PRUint32)((float)bmWidth/2.0f);
-      psdi->ptOffset.y = (PRUint32)((float)bmHeight/2.0f);
-    } else {
-      PRInt32 sx = mScreenX, sy = mScreenY;
-      ConvertToUnscaledDevPixels(pc, &sx, &sy);
-      psdi->ptOffset.x = sx - dragRect.x;
-      psdi->ptOffset.y = sy - dragRect.y;
-    }
-
-    DeleteDC(hdcSrc);
-  }
-
-  return psdi->hbmpDragImage != NULL;
-}
 
 //-------------------------------------------------------------------------
 NS_IMETHODIMP
@@ -189,11 +101,9 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
                                  nsIScriptableRegion *aRegion,
                                  PRUint32 aActionType)
 {
-  nsresult rv = nsBaseDragService::InvokeDragSession(aDOMNode,
-                                                     anArrayTransferables,
-                                                     aRegion,
-                                                     aActionType);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsBaseDragService::InvokeDragSession(aDOMNode, anArrayTransferables, aRegion,
+                                       aActionType);
+  nsresult rv;
 
   // Try and get source URI of the items that are being dragged
   nsIURI *uri = nsnull;
@@ -247,18 +157,6 @@ nsDragService::InvokeDragSession(nsIDOMNode *aDOMNode,
     }
   } // else dragging a single object
 
-  // Create a drag image if support is available
-  IDragSourceHelper *pdsh;
-  if (SUCCEEDED(CoCreateInstance(CLSID_DragDropHelper, NULL, CLSCTX_INPROC_SERVER,
-                                 IID_IDragSourceHelper, (void**)&pdsh))) {
-    SHDRAGIMAGE sdi;
-    if (CreateDragImage(aDOMNode, aRegion, &sdi)) {
-      if (FAILED(pdsh->InitializeFromBitmap(&sdi, itemToDrag)))
-        DeleteObject(sdi.hbmpDragImage);
-    }
-    pdsh->Release();
-  }
-
   // Kick off the native drag session
   return StartInvokingDragSession(itemToDrag, aActionType);
 }
@@ -270,16 +168,15 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
 {
   // To do the drag we need to create an object that
   // implements the IDataObject interface (for OLE)
-  nsNativeDragSource* nativeDragSource = new nsNativeDragSource(mDataTransfer);
-  if (!nativeDragSource)
+  NS_IF_RELEASE(mNativeDragSrc);
+  mNativeDragSrc = (IDropSource *)new nsNativeDragSource();
+  if (!mNativeDragSrc)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  NS_IF_RELEASE(mNativeDragSrc);
-  mNativeDragSrc = (IDropSource *)nativeDragSource;
   mNativeDragSrc->AddRef();
 
   // Now figure out what the native drag effect should be
-  DWORD winDropRes;
+  DWORD dropRes;
   DWORD effects = DROPEFFECT_SCROLL;
   if (aActionType & DRAGDROP_ACTION_COPY) {
     effects |= DROPEFFECT_COPY;
@@ -295,7 +192,6 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
   // the drag
   mDragAction = aActionType;
   mDoingDrag  = PR_TRUE;
-  mSentLocalDropEvent = PR_FALSE;
 
   // Start dragging
   StartDragSession();
@@ -309,11 +205,11 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
     // do async drag
     if (SUCCEEDED(aDataObj->QueryInterface(IID_IAsyncOperation,
                                           (void**)&pAsyncOp)))
-      pAsyncOp->SetAsyncMode(VARIANT_TRUE);
+      pAsyncOp->SetAsyncMode(TRUE);
   }
 
   // Call the native D&D method
-  HRESULT res = ::DoDragDrop(aDataObj, mNativeDragSrc, effects, &winDropRes);
+  HRESULT res = ::DoDragDrop(aDataObj, mNativeDragSrc, effects, &dropRes);
 
   if (isAsyncAvailable)
   {
@@ -328,42 +224,32 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
     }
   }
 
-  // In  cases where the drop operation completed outside the application, update
-  // the source node's nsIDOMNSDataTransfer dropEffect value so it is up to date.  
-  if (!mSentLocalDropEvent) {
-    PRUint32 dropResult;
-    // Order is important, since multiple flags can be returned.
-    if (winDropRes & DROPEFFECT_COPY)
-        dropResult = DRAGDROP_ACTION_COPY;
-    else if (winDropRes & DROPEFFECT_LINK)
-        dropResult = DRAGDROP_ACTION_LINK;
-    else if (winDropRes & DROPEFFECT_MOVE)
-        dropResult = DRAGDROP_ACTION_MOVE;
-    else
-        dropResult = DRAGDROP_ACTION_NONE;
-    
-    nsCOMPtr<nsIDOMNSDataTransfer> dataTransfer =
-      do_QueryInterface(mDataTransfer);
-
-    if (dataTransfer) {
-      if (res == DRAGDROP_S_DROP) // Success 
-        dataTransfer->SetDropEffectInt(dropResult);
-      else
-        dataTransfer->SetDropEffectInt(DRAGDROP_ACTION_NONE);
-    }
-  }
-
-  mUserCancelled = nativeDragSource->UserCancelled();
-
-  // We're done dragging, get the cursor position and end the drag
-  // Use GetMessagePos to get the position of the mouse at the last message
-  // seen by the event loop. (Bug 489729)
-  DWORD pos = ::GetMessagePos();
-  POINT cpos;
-  cpos.x = GET_X_LPARAM(pos);
-  cpos.y = GET_Y_LPARAM(pos);
-  SetDragEndPoint(nsIntPoint(cpos.x, cpos.y));
+  // We're done dragging
   EndDragSession(PR_TRUE);
+
+  // For some drag/drop interactions, IDataObject::SetData doesn't get
+  // called with a CFSTR_PERFORMEDDROPEFFECT format and the
+  // intermediate file (if it was created) isn't deleted.  See
+  // http://bugzilla.mozilla.org/show_bug.cgi?id=203847#c4 for a
+  // detailed description of the different cases.  Now that we know
+  // that the drag/drop operation has ended, call SetData() so that
+  // the intermediate file is deleted.
+  static CLIPFORMAT PerformedDropEffect =
+    ::RegisterClipboardFormat(CFSTR_PERFORMEDDROPEFFECT);
+
+  FORMATETC fmte =
+    {
+      (CLIPFORMAT)PerformedDropEffect,
+      NULL,
+      DVASPECT_CONTENT,
+      -1,
+      TYMED_NULL
+    };
+
+  STGMEDIUM medium;
+  medium.tymed = TYMED_NULL;
+  medium.pUnkForRelease = NULL;
+  aDataObj->SetData(&fmte, &medium, FALSE);
 
   mDoingDrag = PR_FALSE;
 
@@ -416,8 +302,6 @@ nsDragService::GetNumDropItems(PRUint32 * aNumItems)
         ::GlobalUnlock(stm.hGlobal);
         ::ReleaseStgMedium(&stm);
       }
-      else
-        *aNumItems = 1;
     }
     else
       *aNumItems = 1;
@@ -480,16 +364,6 @@ nsDragService::SetIDataObject(IDataObject * aDataObj)
   NS_IF_ADDREF(mDataObject);
 
   return NS_OK;
-}
-
-//---------------------------------------------------------
-void
-nsDragService::SetDroppedLocal()
-{
-  // Sent from the native drag handler, letting us know
-  // a drop occured within the application vs. outside of it.
-  mSentLocalDropEvent = PR_TRUE;
-  return;
 }
 
 //-------------------------------------------------------------------------

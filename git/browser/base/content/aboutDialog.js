@@ -49,8 +49,7 @@ function init(aEvent)
     var distroId = prefs.getCharPref("distribution.id");
     if (distroId) {
       var distroVersion = prefs.getCharPref("distribution.version");
-      var distroAbout = prefs.getComplexValue("distribution.about",
-        Components.interfaces.nsISupportsString);
+      var distroAbout = prefs.getComplexValue("distribution.about", Ci.nsISupportsString);
   
       var distroField = document.getElementById("distribution");
       distroField.value = distroAbout;
@@ -73,12 +72,7 @@ function init(aEvent)
   button.setAttribute("accesskey", document.documentElement.getAttribute("creditsaccesskey"));
   button.addEventListener("command", switchPage, false);
 
-  var acceptButton = document.documentElement.getButton("accept");
-#ifdef XP_UNIX
-  acceptButton.setAttribute("icon", "close");
-#endif
-  acceptButton.focus();
-
+  document.documentElement.getButton("accept").focus();
 #ifdef XP_MACOSX
   // it may not be sized at this point, and we need its width to calculate its position
   window.sizeToContent();

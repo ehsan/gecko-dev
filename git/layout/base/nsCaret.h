@@ -39,123 +39,58 @@
 
 /* the caret is the text cursor used, e.g., when editing */
 
-#ifndef nsCaret_h__
-#define nsCaret_h__
-
 #include "nsCoord.h"
 #include "nsISelectionListener.h"
 #include "nsIRenderingContext.h"
 #include "nsITimer.h"
+#include "nsICaret.h"
 #include "nsWeakPtr.h"
-#include "nsFrameSelection.h"
 
-class nsDisplayListBuilder;
 class nsIView;
 
 //-----------------------------------------------------------------------------
-class nsCaret : public nsISelectionListener
+
+class nsCaret : public nsICaret,
+                public nsISelectionListener
 {
   public:
 
                   nsCaret();
     virtual       ~nsCaret();
-
-    enum EViewCoordinates {
-      eTopLevelWindowCoordinates,
-      eRenderingViewCoordinates,
-      eClosestViewCoordinates
-    };
-
-  public:
-
+        
     NS_DECL_ISUPPORTS
 
-    nsresult    Init(nsIPresShell *inPresShell);
-    void    Terminate();
+  public:
+  
+    // nsICaret interface
+    NS_IMETHOD    Init(nsIPresShell *inPresShell);
+    NS_IMETHOD    Terminate();
 
-    nsISelection*    GetCaretDOMSelection();
-    nsresult    SetCaretDOMSelection(nsISelection *inDOMSel);
-
-    /** GetCaretVisible will get the visibility of the caret
-     *  This function is virtual so that it can be used by nsCaretAccessible
-     *  without linking
-     *  @param inMakeVisible PR_TRUE it is shown, PR_FALSE it is hidden
-     *  @return false if and only if inMakeVisible is null, otherwise true 
-     */
-    virtual nsresult    GetCaretVisible(PRBool *outMakeVisible);
-
-    /** SetCaretVisible will set the visibility of the caret
-     *  @param inMakeVisible PR_TRUE to show the caret, PR_FALSE to hide it
-     */
-    void    SetCaretVisible(PRBool intMakeVisible);
-
-    /** SetCaretReadOnly set the appearance of the caret
-     *  @param inMakeReadonly PR_TRUE to show the caret in a 'read only' state,
-     *	    PR_FALSE to show the caret in normal, editing state
-     */
-    void    SetCaretReadOnly(PRBool inMakeReadonly);
-
-    /** GetCaretReadOnly get the appearance of the caret
-     *	@return PR_TRUE if the caret is in 'read only' state, otherwise,
-     *	    returns PR_FALSE
-     */
-    PRBool GetCaretReadOnly()
+    NS_IMETHOD    GetCaretDOMSelection(nsISelection **outDOMSel);
+    NS_IMETHOD    SetCaretDOMSelection(nsISelection *inDOMSel);
+    NS_IMETHOD    GetCaretVisible(PRBool *outMakeVisible);
+    NS_IMETHOD    SetCaretVisible(PRBool intMakeVisible);
+    NS_IMETHOD    SetCaretReadOnly(PRBool inMakeReadonly);
+    virtual PRBool GetCaretReadOnly()
     {
       return mReadOnly;
     }
-    /** GetCaretCoordinates
-     *  Get the position of the caret in coordinates relative to the typed
-     *  specified (aRelativeToType).
-     *  This function is virtual so that it can be used by nsCaretAccessible
-     *  without linking
-     *  @param outISCollapsed set to true if and only if selection is collapsed
-     *  @return Caret location if selection is collapsed, otherwise, location
-     *	    of focus position 
-     */
-    virtual nsresult    GetCaretCoordinates(EViewCoordinates aRelativeToType,
+    NS_IMETHOD    GetCaretCoordinates(EViewCoordinates aRelativeToType,
                                       nsISelection *inDOMSel,
                                       nsRect* outCoordinates,
                                       PRBool* outIsCollapsed,
                                       nsIView **outView);
+    NS_IMETHOD    EraseCaret();
 
-    /** EraseCaret
-     *  this will erase the caret if its drawn and reset drawn status
-     */
-    void    EraseCaret();
-
-    void    SetVisibilityDuringSelection(PRBool aVisibility);
-
-    /** DrawAtPosition
-     *
-     *  Draw the caret explicitly, at the specified node and offset.
-     *  To avoid drawing glitches, you should call EraseCaret()
-     *  after each call to DrawAtPosition().
-     *
-     *  Note: This call breaks the caret's ability to blink at all.
-     **/
-    nsresult    DrawAtPosition(nsIDOMNode* aNode, PRInt32 aOffset);
-
-    /** GetCaretFrame
-     *  Get the current frame that the caret should be drawn in. If the caret is
-     *  not currently visible (i.e., it is between blinks), then this will
-     *  return null.
-     */
+    NS_IMETHOD    SetVisibilityDuringSelection(PRBool aVisibility);
+    NS_IMETHOD    DrawAtPosition(nsIDOMNode* aNode, PRInt32 aOffset);
     nsIFrame*     GetCaretFrame();
-
-    /** GetCaretRect
-     *  Get the current caret rect. Only call this when GetCaretFrame returns
-     *  non-null.
-     */
     nsRect        GetCaretRect()
     {
       nsRect r;
       r.UnionRect(mCaretRect, GetHookRect());
       return r;
     }
-
-    /** GetCaretContent
-     *  Get the content that the caret was last drawn in.
-     */
     nsIContent*   GetCaretContent()
     {
       if (mDrawn)
@@ -164,35 +99,13 @@ class nsCaret : public nsISelectionListener
       return nsnull;
     }
 
-    /** InvalidateOutsideCaret
-     *  Invalidate the area that the caret currently occupies if the caret is
-     *  outside of its frame's overflow area. This is used when the content that
-     *  the caret is currently drawn is is being deleted or reflowed.
-     */
     void      InvalidateOutsideCaret();
-
-    /** UpdateCaretPosition
-     *  Update the caret's current frame and rect, but don't draw yet. This is
-     *  useful for flickerless moving of the caret (e.g., when the frame the
-     *  caret is in reflows and is moved).
-     */
     void      UpdateCaretPosition();
 
-    /** PaintCaret
-     *  Actually paint the caret onto the given rendering context.
-     */
     void      PaintCaret(nsDisplayListBuilder *aBuilder,
                          nsIRenderingContext *aCtx,
-                         nsIFrame *aForFrame,
-                         const nsPoint &aOffset);
-    /**
-     * Sets whether the caret should only be visible in nodes that are not
-     * user-modify: read-only, or whether it should be visible in all nodes.
-     *
-     * @param aIgnoreUserModify PR_TRUE to have the cursor visible in all nodes,
-     *                          PR_FALSE to have it visible in all nodes except
-     *                          those with user-modify: read-only
-     */
+                         const nsPoint &aOffset,
+                         nscolor aColor);
 
     void SetIgnoreUserModify(PRBool aIgnoreUserModify);
 
@@ -200,23 +113,20 @@ class nsCaret : public nsISelectionListener
     NS_DECL_NSISELECTIONLISTENER
 
     static void   CaretBlinkCallback(nsITimer *aTimer, void *aClosure);
-
-    nsresult      GetCaretFrameForNodeOffset(nsIContent* aContentNode,
+  
+    NS_IMETHOD    GetCaretFrameForNodeOffset(nsIContent* aContentNode,
                                              PRInt32 aOffset,
                                              nsFrameSelection::HINT aFrameHint,
                                              PRUint8 aBidiLevel,
                                              nsIFrame** aReturnFrame,
                                              PRInt32* aReturnOffset);
-
-    NS_IMETHOD CheckCaretDrawingState();
-
-protected:
+  protected:
 
     void          KillTimer();
     nsresult      PrimeTimer();
 
-    void          StartBlinking();
-    void          StopBlinking();
+    nsresult      StartBlinking();
+    nsresult      StopBlinking();
     
     void          GetViewForRendering(nsIFrame *caretFrame,
                                       EViewCoordinates coordType,
@@ -228,25 +138,11 @@ protected:
                                          nsFrameSelection::HINT aFrameHint,
                                          PRUint8 aBidiLevel,
                                          PRBool aInvalidate);
-
-    struct Metrics {
-      nscoord mBidiIndicatorSize; // width and height of bidi indicator
-      nscoord mCaretWidth;        // full caret width including bidi indicator
-    };
-    Metrics ComputeMetrics(nsIFrame* aFrame, PRInt32 aOffset, nscoord aCaretHeight);
-
-    // Returns true if the caret should be drawn. When |mDrawn| is true,
-    // this returns true, so that we erase the drawn caret. If |aIgnoreDrawnState|
-    // is true, we don't take into account whether the caret is currently
-    // drawn or not. This can be used to determine if the caret is drawn when
-    // it shouldn't be.
-    PRBool        MustDrawCaret(PRBool aIgnoreDrawnState);
-
+    PRBool        MustDrawCaret();
     void          DrawCaret(PRBool aInvalidate);
     void          DrawCaretAfterBriefDelay();
     nsresult      UpdateCaretRects(nsIFrame* aFrame, PRInt32 aFrameOffset);
-    nsresult      UpdateHookRect(nsPresContext* aPresContext,
-                                 const Metrics& aMetrics);
+    nsresult      UpdateHookRect(nsPresContext* aPresContext);
     static void   InvalidateRects(const nsRect &aRect, const nsRect &aHook,
                                   nsIFrame *aFrame);
     nsRect        GetHookRect()
@@ -259,17 +155,7 @@ protected:
     }
     void          ToggleDrawnStatus() { mDrawn = !mDrawn; }
 
-    already_AddRefed<nsFrameSelection> GetFrameSelection();
-
-    // Returns true if we should not draw the caret because of XUL menu popups.
-    // The caret should be hidden if:
-    // 1. An open popup contains the caret, but a menu popup exists before the
-    //    caret-owning popup in the popup list (i.e. a menu is in front of the
-    //    popup with the caret). If the menu itself contains the caret we don't
-    //    hide it.
-    // 2. A menu popup is open, but there is no caret present in any popup.
-    // 3. The caret selection is empty.
-    PRBool IsMenuPopupHidingCaret();
+    nsFrameSelection* GetFrameSelection();
 
 protected:
 
@@ -279,28 +165,16 @@ protected:
     nsCOMPtr<nsITimer>              mBlinkTimer;
     nsCOMPtr<nsIRenderingContext>   mRendContext;
 
-    // XXX these fields should go away and the values be acquired as needed,
-    // probably by ComputeMetrics.
-    PRUint32              mBlinkRate;         // time for one cyle (on then off), in milliseconds
-    nscoord               mCaretWidthCSSPx;   // caret width in CSS pixels
-    float                 mCaretAspectRatio;  // caret width/height aspect ratio
-    
+    PRUint32              mBlinkRate;         // time for one cyle (off then on), in milliseconds
+
+    nscoord               mCaretWidth;   // caret width. this gets calculated laziiy
+    nscoord               mBidiIndicatorSize;   // width and height of bidi indicator
+
     PRPackedBool          mVisible;           // is the caret blinking
-
-    PRPackedBool          mDrawn;             // Denotes when the caret is physically drawn on the screen.
-    PRPackedBool          mPendingDraw;       // True when the last on-state draw was suppressed.
-
+    PRPackedBool          mDrawn;             // this should be mutable
     PRPackedBool          mReadOnly;          // it the caret in readonly state (draws differently)      
     PRPackedBool          mShowDuringSelection; // show when text is selected
 
-    PRPackedBool          mIgnoreUserModify;
-
-#ifdef IBMBIDI
-    PRPackedBool          mKeyboardRTL;       // is the keyboard language right-to-left
-    PRPackedBool          mBidiUI;            // is bidi UI turned on
-    nsRect                mHookRect;          // directional hook on the caret
-    PRUint8               mLastBidiLevel;     // saved bidi level of the last draw request, to use when we erase
-#endif
     nsRect                mCaretRect;         // the last caret rect, in the coodinates of the last frame.
 
     nsCOMPtr<nsIContent>  mLastContent;       // store the content the caret was last requested to be drawn
@@ -312,38 +186,12 @@ protected:
     nsFrameSelection::HINT mLastHint;        // the hint associated with the last request, see also
                                               // mLastBidiLevel below
 
+    PRPackedBool          mIgnoreUserModify;
+
+#ifdef IBMBIDI
+    nsRect                mHookRect;          // directional hook on the caret
+    PRUint8               mLastBidiLevel;     // saved bidi level of the last draw request, to use when we erase
+    PRPackedBool          mKeyboardRTL;       // is the keyboard language right-to-left
+#endif
 };
 
-nsresult
-NS_NewCaret(nsCaret** aInstancePtrResult);
-
-// handy stack-based class for temporarily disabling the caret
-
-class StCaretHider
-{
-public:
-               StCaretHider(nsCaret* aSelCon)
-               : mWasVisible(PR_FALSE), mCaret(aSelCon)
-               {
-                 if (mCaret)
-                 {
-                   mCaret->GetCaretVisible(&mWasVisible);
-                   if (mWasVisible)
-                     mCaret->SetCaretVisible(PR_FALSE);
-                 }
-               }
-
-               ~StCaretHider()
-               {
-                 if (mCaret && mWasVisible)
-                   mCaret->SetCaretVisible(PR_TRUE);
-                 // nsCOMPtr releases mPresShell
-               }
-
-protected:
-
-    PRBool                  mWasVisible;
-    nsCOMPtr<nsCaret>  mCaret;
-};
-
-#endif //nsCaret_h__

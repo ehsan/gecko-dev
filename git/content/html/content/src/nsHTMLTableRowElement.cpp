@@ -101,7 +101,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLTableRowElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLTableRowElement,
                                                   nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mCells,
-                                                       nsIDOMNodeList)
+                                                       nsBaseContentList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLTableRowElement, nsGenericElement) 
@@ -109,11 +109,10 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLTableRowElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLTableRowElement
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTableRowElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableRowElement,
-                                   nsIDOMHTMLTableRowElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTableRowElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLTableRowElement,
+                                        nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLTableRowElement,
+                                nsIDOMHTMLTableRowElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableRowElement)
 
 
@@ -230,14 +229,14 @@ nsHTMLTableRowElement::GetSectionRowIndex(PRInt32* aValue)
   return NS_OK;
 }
 
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 IsCell(nsIContent *aContent, PRInt32 aNamespaceID,
        nsIAtom* aAtom, void *aData)
 {
   nsIAtom* tag = aContent->Tag();
 
   return ((tag == nsGkAtoms::td || tag == nsGkAtoms::th) &&
-          aContent->IsHTML());
+          aContent->IsNodeOfType(nsINode::eHTML));
 }
 
 NS_IMETHODIMP
@@ -250,7 +249,7 @@ nsHTMLTableRowElement::GetCells(nsIDOMHTMLCollection** aValue)
                                nsnull, // closure data
                                PR_FALSE,
                                nsnull,
-                               kNameSpaceID_XHTML,
+                               kNameSpaceID_None,
                                PR_FALSE);
 
     NS_ENSURE_TRUE(mCells, NS_ERROR_OUT_OF_MEMORY);
@@ -268,31 +267,18 @@ nsHTMLTableRowElement::InsertCell(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
   if (aIndex < -1) {
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
-
-  // Make sure mCells is initialized.
+  
   nsCOMPtr<nsIDOMHTMLCollection> cells;
-  nsresult rv = GetCells(getter_AddRefs(cells));
-  if (NS_FAILED(rv)) {
-    return rv;
+  GetCells(getter_AddRefs(cells));
+
+  PRUint32 cellCount;
+  cells->GetLength(&cellCount);
+
+  if (aIndex > PRInt32(cellCount)) {
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
-  NS_ASSERTION(mCells, "How did that happen?");
-
-  nsCOMPtr<nsIDOMNode> nextSibling;
-  // -1 means append, so should use null nextSibling
-  if (aIndex != -1) {
-    cells->Item(aIndex, getter_AddRefs(nextSibling));
-    // Check whether we're inserting past end of list.  We want to avoid doing
-    // this unless we really have to, since this has to walk all our kids.  If
-    // we have a nextSibling, we're clearly not past end of list.
-    if (!nextSibling) {
-      PRUint32 cellCount;
-      cells->GetLength(&cellCount);
-      if (aIndex > PRInt32(cellCount)) {
-        return NS_ERROR_DOM_INDEX_SIZE_ERR;
-      }
-    }
-  }
+  PRBool doInsert = (aIndex < PRInt32(cellCount)) && (aIndex != -1);
 
   // create the cell
   nsCOMPtr<nsINodeInfo> nodeInfo;
@@ -308,7 +294,16 @@ nsHTMLTableRowElement::InsertCell(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
   NS_ASSERTION(cellNode, "Should implement nsIDOMNode!");
 
   nsCOMPtr<nsIDOMNode> retChild;
-  InsertBefore(cellNode, nextSibling, getter_AddRefs(retChild));
+
+  nsresult rv;
+  if (doInsert) {
+    nsCOMPtr<nsIDOMNode> refCell;
+    cells->Item(aIndex, getter_AddRefs(refCell));
+
+    rv = InsertBefore(cellNode, refCell, getter_AddRefs(retChild));
+  } else {
+    rv = AppendChild(cellNode, getter_AddRefs(retChild));
+  }
 
   if (retChild) {
     CallQueryInterface(retChild, aValue);
@@ -380,10 +375,10 @@ nsHTMLTableRowElement::ParseAttribute(PRInt32 aNamespaceID,
       return aResult.ParseIntWithBounds(aValue, 0);
     }
     if (aAttribute == nsGkAtoms::height) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::width) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::align) {
       return ParseTableCellHAlignValue(aValue, aResult);
@@ -403,7 +398,7 @@ nsHTMLTableRowElement::ParseAttribute(PRInt32 aNamespaceID,
 static 
 void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aData)
 {
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
+  if (aData->mSID == eStyleStruct_Position) {
     // height: value
     if (aData->mPositionData->mHeight.GetUnit() == eCSSUnit_Null) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::height);
@@ -413,7 +408,7 @@ void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aD
         aData->mPositionData->mHeight.SetPercentValue(value->GetPercentValue());
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Text)) {
+  else if (aData->mSID == eStyleStruct_Text) {
     if (aData->mTextData->mTextAlign.GetUnit() == eCSSUnit_Null) {
       // align: enum
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::align);
@@ -421,7 +416,7 @@ void MapAttributesIntoRule(const nsMappedAttributes* aAttributes, nsRuleData* aD
         aData->mTextData->mTextAlign.SetIntValue(value->GetEnumValue(), eCSSUnit_Enumerated);
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(TextReset)) {
+  else if (aData->mSID == eStyleStruct_TextReset) {
     if (aData->mTextData->mVerticalAlign.GetUnit() == eCSSUnit_Null) {
       // valign: enum
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::valign);

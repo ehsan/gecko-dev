@@ -1,6 +1,7 @@
 var EXPORTED_SYMBOLS = ["Microformats", "adr", "tag", "hCard", "hCalendar", "geo"];
 
 var Microformats = {
+  version: 0.8,
   /* When a microformat is added, the name is placed in this list */
   list: [],
   /* Custom iterator so that microformats can be enumerated as */
@@ -15,47 +16,24 @@ var Microformats = {
    * 
    * @param  name          The name of the microformat (required)
    * @param  rootElement   The DOM element at which to start searching (required)
-   * @param  options       Literal object with the following options:
-   *                       recurseExternalFrames - Whether or not to search child frames
-   *                       that reference external pages (with a src attribute)
-   *                       for microformats (optional - defaults to true)
-   *                       showHidden -  Whether or not to add hidden microformat
-   *                       (optional - defaults to false)
-   *                       debug - Whether or not we are in debug mode (optional
-   *                       - defaults to false)
+   * @param  recurseFrames Whether or not to search child frames for microformats (optional - defaults to true)
    * @param  targetArray  An array of microformat objects to which is added the results (optional)
    * @return A new array of microformat objects or the passed in microformat 
    *         object array with the new objects added
    */
-  get: function(name, rootElement, options, targetArray) {
-    function isAncestor(haystack, needle) {
-      var parent = needle;
-      while (parent = parent.parentNode) {
-        /* We need to check parentNode because defaultView.frames[i].frameElement */
-        /* isn't a real DOM node */
-        if (parent == needle.parentNode) {
-          return true;
-        }
-      }
-      return false;
-    }
-    if (!Microformats[name] || !rootElement) {
+  get: function(name, rootElement, recurseFrames, targetArray) {
+    if (!Microformats[name]) {
       return;
     }
     targetArray = targetArray || [];
 
-    /* Root element might not be the document - we need the document's default view */
-    /* to get frames and to check their ancestry */
-    var defaultView = rootElement.defaultView || rootElement.ownerDocument.defaultView;
-    var rootDocument = rootElement.ownerDocument || rootElement;
+    rootElement = rootElement || content.document;
 
-    /* If recurseExternalFrames is undefined or true, look through all child frames for microformats */
-    if (!options || !options.hasOwnProperty("recurseExternalFrames") || options.recurseExternalFrames) {
-      if (defaultView && defaultView.frames.length > 0) {
-        for (let i=0; i < defaultView.frames.length; i++) {
-          if (isAncestor(rootDocument, defaultView.frames[i].frameElement)) {
-            Microformats.get(name, defaultView.frames[i].document, options, targetArray);
-          }
+    /* If recurseFrames is undefined or true, look through all child frames for microformats */
+    if ((recurseFrames == undefined) || (recurseFrames == true)) {
+      if (rootElement.defaultView && rootElement.defaultView.frames.length > 0) {
+        for (let i=0; i < rootElement.defaultView.frames.length; i++) {
+          Microformats.get(name, rootElement.defaultView.frames[i].document, recurseFrames, targetArray);
         }
       }
     }
@@ -80,55 +58,10 @@ var Microformats = {
                                             Microformats[name].attributeValues);
       
     }
-    
-
-    function isVisible(node, checkChildren) {
-      if (node.getBoundingClientRect) {
-        var box = node.getBoundingClientRect();
-      } else {
-        var box = node.ownerDocument.getBoxObjectFor(node);
-      }
-      /* If the parent has is an empty box, double check the children */
-      if ((box.height == 0) || (box.width == 0)) {
-        if (checkChildren && node.childNodes.length > 0) {
-          for(let i=0; i < node.childNodes.length; i++) {
-            if (node.childNodes[i].nodeType == Components.interfaces.nsIDOMNode.ELEMENT_NODE) {
-              /* For performance reasons, we only go down one level */
-              /* of children */
-              if (isVisible(node.childNodes[i], false)) {
-                return true;
-              }
-            }
-          }
-        }
-        return false
-      }
-      return true;
-    }
-    
     /* Create objects for the microformat nodes and put them into the microformats */
     /* array */
     for (let i = 0; i < microformatNodes.length; i++) {
-      /* If showHidden undefined or false, don't add microformats to the list that aren't visible */
-      if (!options || !options.hasOwnProperty("showHidden") || !options.showHidden) {
-        if (microformatNodes[i].ownerDocument) {
-          if (!isVisible(microformatNodes[i], true)) {
-            continue;
-          }
-        }
-      }
-      try {
-        if (options && options.debug) {
-          /* Don't validate in the debug case so that we don't get errors thrown */
-          /* in the debug case, we want all microformats, even if they are invalid */
-          targetArray.push(new Microformats[name].mfObject(microformatNodes[i], false));
-        } else {
-          targetArray.push(new Microformats[name].mfObject(microformatNodes[i], true));
-        }
-      } catch (ex) {
-        /* Creation of individual object probably failed because it is invalid. */
-        /* This isn't a problem, because the page might have invalid microformats */
-      }
+      targetArray.push(new Microformats[name].mfObject(microformatNodes[i]));
     }
     return targetArray;
   },
@@ -137,22 +70,47 @@ var Microformats = {
    * 
    * @param  name          The name of the microformat (required)
    * @param  rootElement   The DOM element at which to start searching (required)
-   * @param  options       Literal object with the following options:
-   *                       recurseExternalFrames - Whether or not to search child frames
-   *                       that reference external pages (with a src attribute)
-   *                       for microformats (optional - defaults to true)
-   *                       showHidden -  Whether or not to add hidden microformat
-   *                       (optional - defaults to false)
-   *                       debug - Whether or not we are in debug mode (optional
-   *                       - defaults to false)
+   * @param  recurseFrames Whether or not to search child frames for microformats (optional - defaults to true)
    * @return The new count
    */
-  count: function(name, rootElement, options) {
-    var mfArray = Microformats.get(name, rootElement, options);
-    if (mfArray) {
-      return mfArray.length;
+  count: function(name, rootElement, recurseFrames) {
+    if (!Microformats[name]) {
+      return;
     }
-    return 0;
+    var count = 0;
+
+    rootElement = rootElement || content.document;
+
+    /* If recurseFrames is undefined or true, look through all child frames for microformats */
+    if (recurseFrames || recurseFrames === undefined) {
+      if (rootElement.defaultView && rootElement.defaultView.frames.length > 0) {
+        for (let i=0; i < rootElement.defaultView.frames.length; i++) {
+          count += Microformats.count(name, rootElement.defaultView.frames[i].document, recurseFrames);
+        }
+      }
+    }
+
+    /* Get the microformat nodes for the document */
+    var microformatNodes = [];
+    if (Microformats[name].className) {
+      microformatNodes = Microformats.getElementsByClassName(rootElement,
+                                        Microformats[name].className);
+      /* alternateClassName is for cases where a parent microformat is inferred by the children */
+      /* If we find alternateClassName, the entire document becomes the microformat */
+      if ((microformatNodes.length == 0) && Microformats[name].alternateClassName) {
+        var altClass = Microformats.getElementsByClassName(rootElement, Microformats[name].alternateClassName);
+        if (altClass.length > 0) {
+          microformatNodes.push(rootElement); 
+        }
+      }
+    } else if (Microformats[name].attributeValues) {
+      microformatNodes = 
+        Microformats.getElementsByAttribute(rootElement,
+                                            Microformats[name].attributeName,
+                                            Microformats[name].attributeValues);
+    }
+    count += microformatNodes.length;
+    return count;
   },
   /**
    * Returns true if the passed in node is a microformat. Does NOT return true
@@ -194,30 +152,32 @@ var Microformats = {
   getParent: function(node) {
     var xpathExpression;
     var xpathResult;
-
-    xpathExpression = "ancestor::*[";
-    for (let i=0; i < Microformats.list.length; i++) {
-      var mfname = Microformats.list[i];
-      if (i != 0) {
-        xpathExpression += " or ";
-      }
-      if (Microformats[mfname].className) {
-        xpathExpression += "contains(concat(' ', @class, ' '), ' " + Microformats[mfname].className + " ')";
-      } else {
-        var attributeList = Microformats[mfname].attributeValues.split(" ");
-        for (let j=0; j < attributeList.length; j++) {
-          if (j != 0) {
-            xpathExpression += " or ";
+    var mfname;
+    for (let i in Microformats)
+    {
+      mfname = i;
+      if (Microformats[mfname]) {
+        if (Microformats[mfname].className) {
+          xpathExpression = "ancestor::*[contains(concat(' ', @class, ' '), ' " + Microformats[mfname].className + " ')]";
+        } else if (Microformats[mfname].attributeValues) {
+          xpathExpression = "ancestor::*[";
+          var attributeList = Microformats[i].attributeValues.split(" ");
+          for (let j=0; j < attributeList.length; j++) {
+            if (j != 0) {
+              xpathExpression += " or ";
+            }
+            xpathExpression += "contains(concat(' ', @" + Microformats[mfname].attributeName + ", ' '), ' " + attributeList[j] + " ')";
           }
-          xpathExpression += "contains(concat(' ', @" + Microformats[mfname].attributeName + ", ' '), ' " + attributeList[j] + " ')";
+          xpathExpression += "]"; 
+        } else {
+          continue;
+        }
+        xpathResult = (node.ownerDocument || node).evaluate(xpathExpression, node, null,  Components.interfaces.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        if (xpathResult.singleNodeValue) {
+          xpathResult.singleNodeValue.microformat = mfname;
+          return xpathResult.singleNodeValue;
         }
       }
-    }
-    xpathExpression += "][1]";
-    xpathResult = (node.ownerDocument || node).evaluate(xpathExpression, node, null,  Components.interfaces.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE, null);
-    if (xpathResult.singleNodeValue) {
-      xpathResult.singleNodeValue.microformat = mfname;
-      return xpathResult.singleNodeValue;
     }
     return null;
   },
@@ -303,14 +263,16 @@ var Microformats = {
   },
   add: function add(microformat, microformatDefinition) {
     /* We always replace an existing definition with the new one */
-    if (!Microformats[microformat]) {
-      Microformats.list.push(microformat);
+    if (microformatDefinition.mfVersion == Microformats.version) {
+      if (!Microformats[microformat]) {
+        Microformats.list.push(microformat);
+      }
+      Microformats[microformat] = microformatDefinition;
+      microformatDefinition.mfObject.prototype.debug =
+        function(microformatObject) {
+          return Microformats.debug(microformatObject)
+        };
     }
-    Microformats[microformat] = microformatDefinition;
-    microformatDefinition.mfObject.prototype.debug =
-      function(microformatObject) {
-        return Microformats.debug(microformatObject)
-      };
   },
   /* All parser specific functions are contained in this object */
   parser: {
@@ -327,21 +289,6 @@ var Microformats = {
      * @return A string with the value of the property
      */
     defaultGetter: function(propnode, parentnode, datatype) {
-      function collapseWhitespace(instring) {
-        /* Remove new lines, carriage returns and tabs */
-        outstring = instring.replace(/[\n\r\t]/gi, ' ');
-        /* Replace any double spaces with single spaces */
-        outstring = outstring.replace(/\s{2,}/gi, ' ');
-        /* Remove any double spaces that are left */
-        outstring = outstring.replace(/\s{2,}/gi, '');
-        /* Remove any spaces at the beginning */
-        outstring = outstring.replace(/^\s+/, '');
-        /* Remove any spaces at the end */
-        outstring = outstring.replace(/\s+$/, '');
-        return outstring;
-      }
-      
-      
       if (((((propnode.localName.toLowerCase() == "abbr") || (propnode.localName.toLowerCase() == "html:abbr")) && !propnode.namespaceURI) || 
          ((propnode.localName.toLowerCase() == "abbr") && (propnode.namespaceURI == "http://www.w3.org/1999/xhtml"))) && (propnode.getAttribute("title"))) {
         return propnode.getAttribute("title");
@@ -355,36 +302,39 @@ var Microformats = {
         return propnode.value;
       } else {
         var values = Microformats.getElementsByClassName(propnode, "value");
-        /* Verify that values are children of the propnode */
-        for (let i = values.length-1; i >= 0; i--) {
-          if (values[i].parentNode != propnode) {
-            values.splice(i,1);
-          }
-        }
         if (values.length > 0) {
           var value = "";
           for (let j=0;j<values.length;j++) {
             value += Microformats.parser.defaultGetter(values[j], propnode, datatype);
           }
-          return collapseWhitespace(value);
-        }
-        var s;
-        if (datatype == "HTML") {
-          s = propnode.innerHTML;
+          return value;
         } else {
-          if (propnode.innerText) {
-            s = propnode.innerText;
+          var s;
+          if (datatype == "HTML") {
+            s = propnode.innerHTML;
           } else {
-            s = propnode.textContent;
+            if (propnode.innerText) {
+              s = propnode.innerText;
+            } else {
+              s = propnode.textContent;
+            }
           }
-        }
-        /* If we are processing a value node, don't remove whitespace now */
-        /* (we'll do it later) */
-        if (!Microformats.matchClass(propnode, "value")) {
-          s = collapseWhitespace(s);
-        }
-        if (s.length > 0) {
-          return s;
+          /* If we are processing a value node, don't remove whitespace */
+          if (!Microformats.matchClass(propnode, "value")) {
+            /* Remove new lines, carriage returns and tabs */
+            s	= s.replace(/[\n\r\t]/gi, ' ');
+            /* Replace any double spaces with single spaces */
+            s	= s.replace(/\s{2,}/gi, ' ');
+            /* Remove any double spaces that are left */
+            s	= s.replace(/\s{2,}/gi, '');
+            /* Remove any spaces at the beginning */
+            s	= s.replace(/^\s+/, '');
+            /* Remove any spaces at the end */
+            s	= s.replace(/\s+$/, '');
+          }
+          if (s.length > 0) {
+            return s;
+          }
         }
       }
     },
@@ -435,40 +385,10 @@ var Microformats = {
      * @return A string with the telephone number
      */
     telGetter: function(propnode, parentnode) {
-      var pairs = {"a":"href", "object":"data", "area":"href"};
-      var name = propnode.nodeName.toLowerCase();
-      if (pairs.hasOwnProperty(name)) {
-        var protocol;
-        if (propnode[pairs[name]].indexOf("tel:") == 0) {
-          protocol = "tel:";
-        }
-        if (propnode[pairs[name]].indexOf("fax:") == 0) {
-          protocol = "fax:";
-        }
-        if (propnode[pairs[name]].indexOf("modem:") == 0) {
-          protocol = "modem:";
-        }
-        if (protocol) {
-          if (propnode[pairs[name]].indexOf('?') > 0) {
-            return unescape(propnode[pairs[name]].substring(protocol.length, propnode[pairs[name]].indexOf('?')));
-          } else {
-            return unescape(propnode[pairs[name]].substring(protocol.length));
-          }
-        }
-      }
-     /* Special case - if this node is a value, use the parent node to get all the values */
+      /* Special case - if this node is a value, use the parent node to get all the values */
       if (Microformats.matchClass(propnode, "value")) {
         return Microformats.parser.textGetter(parentnode, parentnode);
       } else {
-        /* Virtual case */
-        if (!parentnode && (Microformats.getElementsByClassName(propnode, "type").length > 0)) {
-          var tempNode = propnode.cloneNode(true);
-          var typeNodes = Microformats.getElementsByClassName(tempNode, "type");
-          for (let i=0; i < typeNodes.length; i++) {
-            typeNodes[i].parentNode.removeChild(typeNodes[i]);
-          }
-          return Microformats.parser.textGetter(tempNode);
-        }
         return Microformats.parser.textGetter(propnode, parentnode);
       }
     },
@@ -499,15 +419,6 @@ var Microformats = {
         if (Microformats.matchClass(propnode, "value")) {
           return Microformats.parser.textGetter(parentnode, parentnode);
         } else {
-          /* Virtual case */
-          if (!parentnode && (Microformats.getElementsByClassName(propnode, "type").length > 0)) {
-            var tempNode = propnode.cloneNode(true);
-            var typeNodes = Microformats.getElementsByClassName(tempNode, "type");
-            for (let i=0; i < typeNodes.length; i++) {
-              typeNodes[i].parentNode.removeChild(typeNodes[i]);
-            }
-            return Microformats.parser.textGetter(tempNode);
-          }
           return Microformats.parser.textGetter(propnode, parentnode);
         }
       }
@@ -533,21 +444,25 @@ var Microformats = {
      * @param  parentnode The parent node of the property. If it is a subproperty,
      *                    this is the parent property node. If it is not, this is the
      *                    microformat node.
-     * @return An emulated string object that also has a new function called toHTML
+     * @return An object with function to access the string and the HTML
+     *         Note that because this is an object, you can't do string functions
+     *         so i faked a couple string functions that might be useful.
      */
     HTMLGetter: function(propnode, parentnode) {
-      /* This is so we can have a string that behaves like a string */
-      /* but also has a new function that can return the HTML that corresponds */
-      /* to the string. */
-      function mfHTML(value) {
-        this.valueOf = function() {return value ? value.valueOf() : "";}
-        this.toString = function() {return value ? value.toString() : "";}
-      }
-      mfHTML.prototype = new String;
-      mfHTML.prototype.toHTML = function() {
-        return Microformats.parser.defaultGetter(propnode, parentnode, "HTML");
-      }
-      return new mfHTML(Microformats.parser.defaultGetter(propnode, parentnode, "text"));
+      return {
+        toString: function () {
+          return Microformats.parser.defaultGetter(propnode, parentnode, "text");
+        },
+        toHTML: function () {
+          return Microformats.parser.defaultGetter(propnode, parentnode, "HTML"); 
+        },
+        replace: function (a, b) {
+          return this.toString().replace(a,b);
+        },
+        match: function (a) {
+          return this.toString().match(a);
+        }
+      };
     },
     /**
      * Internal parser API used to determine which getter to call based on the
@@ -562,8 +477,7 @@ var Microformats = {
      */
     datatypeHelper: function(prop, node, parentnode) {
       var result;
-      var datatype = prop.datatype;
-      switch (datatype) {
+      switch (prop.datatype) {
         case "dateTime":
           result = Microformats.parser.dateTimeGetter(node, parentnode);
           break;
@@ -580,30 +494,19 @@ var Microformats = {
           result = Microformats.parser.HTMLGetter(node, parentnode);
           break;
         case "float":
-          var asText = Microformats.parser.textGetter(node, parentnode);
-          if (!isNaN(asText)) {
-            result = parseFloat(asText);
-          }
+          result = parseFloat(Microformats.parser.textGetter(node, parentnode));
           break;
         case "custom":
           result = prop.customGetter(node, parentnode);
           break;
         case "microformat":
           try {
-            result = new Microformats[prop.microformat].mfObject(node, true);
+            result = new Microformats[prop.microformat].mfObject(node);
           } catch (ex) {
-            /* There are two reasons we get here, one because the node is not */
-            /* a microformat and two because the node is a microformat and */
-            /* creation failed. If the node is not a microformat, we just fall */
-            /* through and use the default getter since there are some cases */
-            /* (location in hCalendar) where a property can be either a microformat */
-            /* or a string. If creation failed, we break and simply don't add the */
-            /* microformat property to the parent microformat */
-            if (ex != "Node is not a microformat (" + prop.microformat + ")") {
-              break;
-            }
+            /* We can swallow this exception. If the creation of the */
+            /* mf object fails, then the node isn't a microformat */
           }
-          if (result != undefined) {
+          if (result) {
             if (prop.microformat_property) {
               result = result[prop.microformat_property];
             }
@@ -611,15 +514,17 @@ var Microformats = {
           }
         default:
           result = Microformats.parser.textGetter(node, parentnode);
+          if ((prop.implied) && (result)) {
+            var temp = result;
+            result = {};
+            result[prop.implied] = temp;
+          }
           break;
       }
-      /* This handles the case where one property implies another property */
-      /* For instance, org by itself is actually org.organization-name */
-      if (prop.values && (result != undefined)) {
+      if (result && prop.types) {
         var validType = false;
-        for (let value in prop.values) {
-          if (result.toLowerCase() == prop.values[value]) {
-            result = result.toLowerCase();
+        for (let type in prop.types) {
+          if (result.toLowerCase() == prop.types[type]) {
             validType = true;
             break;
           }
@@ -630,7 +535,7 @@ var Microformats = {
       }
       return result;
     },
-    newMicroformat: function(object, in_node, microformat, validate) {
+    newMicroformat: function(object, in_node, microformat) {
       /* check to see if we are even valid */
       if (!Microformats[microformat]) {
         throw("Invalid microformat - " + microformat);
@@ -660,9 +565,6 @@ var Microformats = {
       /* we also store the node that has been "resolved" */
       object.resolvedNode = node; 
       object.semanticType = microformat;
-      if (validate) {
-        Microformats.parser.validate(node, microformat);
-      }
     },
     getMicroformatPropertyGenerator: function getMicroformatPropertyGenerator(node, name, property, microformat)
     {
@@ -690,7 +592,7 @@ var Microformats = {
             subresult = Microformats.parser.getPropertyInternal(subpropnodes[i], propnode,
                                                                 subpropobj,
                                                                 subpropname, mfnode);
-            if (subresult != undefined) {
+            if (subresult) {
               resultArray.push(subresult);
               /* If we're not a plural property, don't bother getting more */
               if (!subpropobj.plural) {
@@ -702,7 +604,7 @@ var Microformats = {
             subresult = Microformats.parser.getPropertyInternal(propnode, null,
                                                                 subpropobj,
                                                                 subpropname, mfnode);
-            if (subresult != undefined) {
+            if (subresult) {
               resultArray.push(subresult);
             }
           }
@@ -723,6 +625,8 @@ var Microformats = {
           } else {
             result = Microformats.parser.datatypeHelper(propobj, propnode);
           }
+        } else if (propobj.implied) {
+          result = Microformats.parser.datatypeHelper(propobj, propnode);
         }
       } else if (!result) {
         result = Microformats.parser.datatypeHelper(propobj, propnode, parentnode);
@@ -756,49 +660,6 @@ var Microformats = {
       } else {
         propnodes = Microformats.getElementsByClassName(mfnode, propname);
       }
-      for (let i=propnodes.length-1; i >= 0; i--) {
-        /* The reason getParent is not used here is because this code does */
-        /* not apply to attribute based microformats, plus adr and geo */
-        /* when contained in hCard are a special case */
-        var parentnode;
-        var node = propnodes[i];
-        var xpathExpression = "";
-        for (let j=0; j < Microformats.list.length; j++) {
-          /* Don't treat adr or geo in an hCard as a microformat in this case */
-          if ((mfname == "hCard") && ((Microformats.list[j] == "adr") || (Microformats.list[j] == "geo"))) {
-            continue;
-          }
-          if (Microformats[Microformats.list[j]].className) {
-            if (xpathExpression.length == 0) {
-              xpathExpression = "ancestor::*[";
-            } else {
-              xpathExpression += " or ";
-            }
-            xpathExpression += "contains(concat(' ', @class, ' '), ' " + Microformats[Microformats.list[j]].className + " ')";
-          }
-        }
-        xpathExpression += "][1]";
-        var xpathResult = (node.ownerDocument || node).evaluate(xpathExpression, node, null,  Components.interfaces.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE, null);
-        if (xpathResult.singleNodeValue) {
-          xpathResult.singleNodeValue.microformat = mfname;
-          parentnode = xpathResult.singleNodeValue;
-        }
-        /* If the propnode is not a child of the microformat, and */
-        /* the property belongs to the parent microformat as well, */
-        /* remove it. */
-        if (parentnode != mfnode) {
-          var mfNameString = Microformats.getNamesFromNode(parentnode);
-          var mfNames = mfNameString.split(" ");
-          var j;
-          for (j=0; j < mfNames.length; j++) {
-            /* If this property is in the parent microformat, remove the node  */
-            if (Microformats[mfNames[j]].properties[propname]) {
-              propnodes.splice(i,1);
-              break;
-            }
-          }
-        }
-      }
       if (propnodes.length > 0) {
         var resultArray = [];
         for (let i = 0; i < propnodes.length; i++) {
@@ -806,7 +667,7 @@ var Microformats = {
                                                                   mfnode,
                                                                   propobj,
                                                                   propname);
-          if (subresult != undefined) {
+          if (subresult) {
             resultArray.push(subresult);
             /* If we're not a plural property, don't bother getting more */
             if (!propobj.plural) {
@@ -840,14 +701,28 @@ var Microformats = {
      */
     preProcessMicroformat: function preProcessMicroformat(in_mfnode) {
       var mfnode;
-      if ((in_mfnode.nodeName.toLowerCase() == "td") && (in_mfnode.getAttribute("headers"))) {
+      var includes = Microformats.getElementsByClassName(in_mfnode, "include");
+      if ((includes.length > 0) || ((in_mfnode.nodeName.toLowerCase() == "td") && (in_mfnode.getAttribute("headers")))) {
         mfnode = in_mfnode.cloneNode(true);
         mfnode.origNode = in_mfnode;
-        var headers = in_mfnode.getAttribute("headers").split(" ");
-        for (let i = 0; i < headers.length; i++) {
-          var tempNode = in_mfnode.ownerDocument.createElement("span");
-          var headerNode = in_mfnode.ownerDocument.getElementById(headers[i]);
-          if (headerNode) {
+        if (includes.length > 0) {
+          includes = Microformats.getElementsByClassName(mfnode, "include");
+          var includeId;
+          var include_length = includes.length;
+          for (let i = include_length -1; i >= 0; i--) {
+            if (includes[i].nodeName.toLowerCase() == "a") {
+              includeId = includes[i].getAttribute("href").substr(1);
+            }
+            if (includes[i].nodeName.toLowerCase() == "object") {
+              includeId = includes[i].getAttribute("data").substr(1);
+            }
+            includes[i].parentNode.replaceChild(in_mfnode.ownerDocument.getElementById(includeId).cloneNode(true), includes[i]);
+          }
+        } else {
+          var headers = in_mfnode.getAttribute("headers").split(" ");
+          for (let i = 0; i < headers.length; i++) {
+            var tempNode = in_mfnode.ownerDocument.createElement("span");
+            var headerNode = in_mfnode.ownerDocument.getElementById(headers[i]);
             tempNode.innerHTML = headerNode.innerHTML;
             tempNode.className = headerNode.className;
             mfnode.appendChild(tempNode);
@@ -856,42 +731,28 @@ var Microformats = {
       } else {
         mfnode = in_mfnode;
       }
-      var includes = Microformats.getElementsByClassName(mfnode, "include");
-      if (includes.length > 0) {
-        /* If we didn't clone, clone now */
-        if (!mfnode.origNode) {
-          mfnode = in_mfnode.cloneNode(true);
-          mfnode.origNode = in_mfnode;
-        }
-        includes = Microformats.getElementsByClassName(mfnode, "include");
-        var includeId;
-        var include_length = includes.length;
-        for (let i = include_length -1; i >= 0; i--) {
-          if (includes[i].nodeName.toLowerCase() == "a") {
-            includeId = includes[i].getAttribute("href").substr(1);
-          }
-          if (includes[i].nodeName.toLowerCase() == "object") {
-            includeId = includes[i].getAttribute("data").substr(1);
-          }
-          if (in_mfnode.ownerDocument.getElementById(includeId)) {
-            includes[i].parentNode.replaceChild(in_mfnode.ownerDocument.getElementById(includeId).cloneNode(true), includes[i]);
-          }
-        }
-      }
       return mfnode;
     },
-    validate: function validate(mfnode, mfname) {
-      var error = "";
+    validate: function validate(mfnode, mfname, error) {
       if (Microformats[mfname].validate) {
-        return Microformats[mfname].validate(mfnode);
-      } else if (Microformats[mfname].required) {
-        for (let i=0;i<Microformats[mfname].required.length;i++) {
-          if (!Microformats.parser.getMicroformatProperty(mfnode, mfname, Microformats[mfname].required[i])) {
-            error += "Required property " + Microformats[mfname].required[i] + " not specified\n";
+        return Microformats[mfname].validate(mfnode, error);
+      } else {
+        var mfobject = new Microformats[mfname].mfObject(mfnode);
+        if (Microformats[mfname].required) {
+          error.message = "";
+          for (let i=0;i<Microformats[mfname].required.length;i++) {
+            if (!mfobject[Microformats[mfname].required[i]]) {
+              error.message += "Required property " + Microformats[mfname].required[i] + " not specified\n";
+            }
           }
-        }
-        if (error.length > 0) {
-          throw(error);
+          if (error.message.length > 0) {
+            return false;
+          }
+        } else {
+          if (!mfobject.toString()) {
+            error.message = "Unable to create microformat";
+            return false;
+          }
         }
         return true;
       }
@@ -1149,9 +1010,9 @@ var Microformats = {
 
 /* MICROFORMAT DEFINITIONS BEGIN HERE */
 
-function adr(node, validate) {
+function adr(node) {
   if (node) {
-    Microformats.parser.newMicroformat(this, node, "adr", validate);
+    Microformats.parser.newMicroformat(this, node, "adr");
   }
 }
 
@@ -1160,19 +1021,18 @@ adr.prototype.toString = function() {
   var start_parens = false;
   if (this["street-address"]) {
     address_text += this["street-address"][0];
-  } else if (this["extended-address"]) {
-    address_text += this["extended-address"];
+    address_text += " ";
   }
   if (this["locality"]) {
-    if (this["street-address"] || this["extended-address"]) {
-      address_text += " (";
+    if (this["street-address"]) {
+      address_text += "(";
       start_parens = true;
     }
     address_text += this["locality"];
   }
   if (this["region"]) {
-    if ((this["street-address"] || this["extended-address"]) && (!start_parens)) {
-      address_text += " (";
+    if ((this["street-address"]) && (!start_parens)) {
+      address_text += "(";
       start_parens = true;
     } else if (this["locality"]) {
       address_text += ", ";
@@ -1180,8 +1040,8 @@ adr.prototype.toString = function() {
     address_text += this["region"];
   }
   if (this["country-name"]) {
-    if ((this["street-address"] || this["extended-address"]) && (!start_parens)) {
-      address_text += " (";
+    if ((this["street-address"]) && (!start_parens)) {
+      address_text += "(";
       start_parens = true;
       address_text += this["country-name"];
     } else if ((!this["locality"]) && (!this["region"])) {
@@ -1198,12 +1058,13 @@ adr.prototype.toString = function() {
 }
 
 var adr_definition = {
+  mfVersion: 0.8,
   mfObject: adr,
   className: "adr",
   properties: {
     "type" : {
       plural: true,
-      values: ["work", "home", "pref", "postal", "dom", "intl", "parcel"]
+      types: ["work", "home", "pref", "postal", "dom", "intl", "parcel"]
     },
     "post-office-box" : {
     },
@@ -1220,30 +1081,14 @@ var adr_definition = {
     },
     "country-name" : {
     }
-  },
-  validate: function(node) {
-    var xpathExpression = "count(descendant::*[" +
-                                              "contains(concat(' ', @class, ' '), ' post-office-box ')" +
-                                              " or contains(concat(' ', @class, ' '), ' street-address ')" +
-                                              " or contains(concat(' ', @class, ' '), ' extended-address ')" +
-                                              " or contains(concat(' ', @class, ' '), ' locality ')" +
-                                              " or contains(concat(' ', @class, ' '), ' region ')" +
-                                              " or contains(concat(' ', @class, ' '), ' postal-code ')" +
-                                              " or contains(concat(' ', @class, ' '), ' country-name')" +
-                                              "])";
-    var xpathResult = (node.ownerDocument || node).evaluate(xpathExpression, node, null,  Components.interfaces.nsIDOMXPathResult.ANY_TYPE, null).numberValue;
-    if (xpathResult == 0) {
-      throw("Unable to create microformat");
-    }
-    return true;
   }
 };
 
 Microformats.add("adr", adr_definition);
 
-function hCard(node, validate) {
+function hCard(node) {
   if (node) {
-    Microformats.parser.newMicroformat(this, node, "hCard", validate);
+    Microformats.parser.newMicroformat(this, node, "hCard");
   }
 }
 hCard.prototype.toString = function() {
@@ -1264,6 +1109,7 @@ hCard.prototype.toString = function() {
 }
 
 var hCard_definition = {
+  mfVersion: 0.8,
   mfObject: hCard,
   className: "vcard",
   required: ["fn"],
@@ -1274,9 +1120,7 @@ var hCard_definition = {
       microformat: "adr"
     },
     "agent" : {
-      plural: true,
-      datatype: "microformat",
-      microformat: "hCard"
+      plural: true
     },
     "bday" : {
       datatype: "dateTime"
@@ -1293,7 +1137,7 @@ var hCard_definition = {
       subproperties: {
         "type" : {
           plural: true,
-          values: ["internet", "x400", "pref"]
+          types: ["internet", "x400", "pref"]
         },
         "value" : {
           datatype: "email",
@@ -1306,6 +1150,7 @@ var hCard_definition = {
       required: true
     },
     "geo" : {
+      value: "geo",
       datatype: "microformat",
       microformat: "geo"
     },
@@ -1328,13 +1173,11 @@ var hCard_definition = {
           plural: true
         },
         "given-name" : {
-          plural: true
         },
         "additional-name" : {
           plural: true
         },
         "family-name" : {
-          plural: true
         },
         "honorific-suffix" : {
           plural: true
@@ -1346,23 +1189,23 @@ var hCard_definition = {
       virtualGetter: function(mfnode) {
         var fn = Microformats.parser.getMicroformatProperty(mfnode, "hCard", "fn");
         var orgs = Microformats.parser.getMicroformatProperty(mfnode, "hCard", "org");
-        var given_name = [];
-        var family_name = [];
+        var given_name;
+        var family_name;
         if (fn && (!orgs || (orgs.length > 1) || (fn != orgs[0]["organization-name"]))) {
           var fns = fn.split(" ");
           if (fns.length === 2) {
             if (fns[0].charAt(fns[0].length-1) == ',') {
-              given_name[0] = fns[1];
-              family_name[0] = fns[0].substr(0, fns[0].length-1);
+              given_name = fns[1];
+              family_name = fns[0].substr(0, fns[0].length-1);
             } else if (fns[1].length == 1) {
-              given_name[0] = fns[1];
-              family_name[0] = fns[0];
+              given_name = fns[1];
+              family_name = fns[0];
             } else if ((fns[1].length == 2) && (fns[1].charAt(fns[1].length-1) == '.')) {
-              given_name[0] = fns[1];
-              family_name[0] = fns[0];
+              given_name = fns[1];
+              family_name = fns[0];
             } else {
-              given_name[0] = fns[0];
-              family_name[0] = fns[1];
+              given_name = fns[0];
+              family_name = fns[1];
             }
             return {"given-name" : given_name, "family-name" : family_name};
           }
@@ -1395,13 +1238,13 @@ var hCard_definition = {
     "org" : {
       subproperties: {
         "organization-name" : {
-          virtual: true
         },
         "organization-unit" : {
           plural: true
         }
       },
-      plural: true
+      plural: true,
+      implied: "organization-name"
     },
     "photo" : {
       plural: true,
@@ -1427,14 +1270,14 @@ var hCard_definition = {
       subproperties: {
         "type" : {
           plural: true,
-          values: ["msg", "home", "work", "pref", "voice", "fax", "cell", "video", "pager", "bbs", "car", "isdn", "pcs"]
+          types: ["msg", "home", "work", "pref", "voice", "fax", "cell", "video", "pager", "bbs", "car", "isdn", "pcs"]
         },
         "value" : {
-          datatype: "tel",
-          virtual: true
+          datatype: "tel"
         }
       },
-      plural: true
+      plural: true,
+      implied: "value"
     },
     "tz" : {
     },
@@ -1450,9 +1293,9 @@ var hCard_definition = {
 
 Microformats.add("hCard", hCard_definition);
 
-function hCalendar(node, validate) {
+function hCalendar(node) {
   if (node) {
-    Microformats.parser.newMicroformat(this, node, "hCalendar", validate);
+    Microformats.parser.newMicroformat(this, node, "hCalendar");
   }
 }
 hCalendar.prototype.toString = function() {
@@ -1476,6 +1319,7 @@ hCalendar.prototype.toString = function() {
 }
 
 var hCalendar_definition = {
+  mfVersion: 0.8,
   mfObject: hCalendar,
   className: "vevent",
   required: ["summary", "dtstart"],
@@ -1487,7 +1331,7 @@ var hCalendar_definition = {
       microformat_property: "tag"
     },
     "class" : {
-      values: ["public", "private", "confidential"]
+      types: ["public", "private", "confidential"]
     },
     "description" : {
       datatype: "HTML"
@@ -1504,6 +1348,7 @@ var hCalendar_definition = {
     "duration" : {
     },
     "geo" : {
+      value: "geo",
       datatype: "microformat",
       microformat: "geo"
     },
@@ -1512,11 +1357,11 @@ var hCalendar_definition = {
       microformat: "hCard"
     },
     "status" : {
-      values: ["tentative", "confirmed", "cancelled"]
+      types: ["tentative", "confirmed", "cancelled"]
     },
     "summary" : {},
     "transp" : {
-      values: ["opaque", "transparent"]
+      types: ["opaque", "transparent"]
     },
     "uid" : {
       datatype: "anyURI"
@@ -1630,33 +1475,21 @@ var hCalendar_definition = {
 
 Microformats.add("hCalendar", hCalendar_definition);
 
-function geo(node, validate) {
+function geo(node) {
   if (node) {
-    Microformats.parser.newMicroformat(this, node, "geo", validate);
+    Microformats.parser.newMicroformat(this, node, "geo");
   }
 }
 geo.prototype.toString = function() {
-  if (this.latitude != undefined) {
-    if (!isFinite(this.latitude) || (this.latitude > 360) || (this.latitude < -360)) {
-      return;
-    }
-  }
-  if (this.longitude != undefined) {
-    if (!isFinite(this.longitude) || (this.longitude > 360) || (this.longitude < -360)) {
-      return;
-    }
-  }
-
-  if ((this.latitude != undefined) && (this.longitude != undefined)) {
+  if (this.latitude && this.longitude) {
     var s;
-    if ((this.node.localName.toLowerCase() == "abbr") || (this.node.localName.toLowerCase() == "html:abbr")) {
+    if ((this.node.localName.toLowerCase() != "abbr") && (this.node.localName.toLowerCase() == "html:abbr")) {
+      s = Microformats.parser.textGetter(this.node);
+    } else {
       s = this.node.textContent;
     }
 
-    if (s) {
-      return s;
-    }
-
+    /* FIXME - THIS IS FIREFOX SPECIFIC */
     /* check if geo is contained in a vcard */
     var xpathExpression = "ancestor::*[contains(concat(' ', @class, ' '), ' vcard ')]";
     var xpathResult = this.node.ownerDocument.evaluate(xpathExpression, this.node, null,  Components.interfaces.nsIDOMXPathResult.FIRST_ORDERED_NODE_TYPE, null);
@@ -1684,6 +1517,7 @@ geo.prototype.toString = function() {
 }
 
 var geo_definition = {
+  mfVersion: 0.8,
   mfObject: geo,
   className: "geo",
   required: ["latitude","longitude"],
@@ -1698,9 +1532,7 @@ var geo_definition = {
         if (value.match(';')) {
           latlong = value.split(';');
           if (latlong[0]) {
-            if (!isNaN(latlong[0])) {
-              return parseFloat(latlong[0]);
-            }
+            return parseFloat(latlong[0]);
           }
         }
       }
@@ -1715,47 +1547,30 @@ var geo_definition = {
         if (value.match(';')) {
           latlong = value.split(';');
           if (latlong[1]) {
-            if (!isNaN(latlong[1])) {
-              return parseFloat(latlong[1]);
-            }
+            return parseFloat(latlong[1]);
           }
         }
       }
     }
-  },
-  validate: function(node) {
-    var latitude = Microformats.parser.getMicroformatProperty(node, "geo", "latitude");
-    var longitude = Microformats.parser.getMicroformatProperty(node, "geo", "longitude");
-    if (latitude != undefined) {
-      if (!isFinite(latitude) || (latitude > 360) || (latitude < -360)) {
-        throw("Invalid latitude");
-      }
-    } else {
-      throw("No latitude specified");
-    }
-    if (longitude != undefined) {
-      if (!isFinite(longitude) || (longitude > 360) || (longitude < -360)) {
-        throw("Invalid longitude");
-      }
-    } else {
-      throw("No longitude specified");
-    }
-    return true;
   }
 };
 
 Microformats.add("geo", geo_definition);
 
-function tag(node, validate) {
+function tag(node) {
   if (node) {
-    Microformats.parser.newMicroformat(this, node, "tag", validate);
+    Microformats.parser.newMicroformat(this, node, "tag");
   }
 }
 tag.prototype.toString = function() {
+//  if (!this.tag) {
+//    return this.text;
+//  }
   return this.tag;
 }
 
 var tag_definition = {
+  mfVersion: 0.8,
   mfObject: tag,
   attributeName: "rel",
   attributeValues: "tag",
@@ -1816,18 +1631,24 @@ var tag_definition = {
     }
     return returnTag;
   },
-  validate: function(node) {
+  validate: function(node, error) {
     var tag = Microformats.parser.getMicroformatProperty(node, "tag", "tag");
     if (!tag) {
       if (node.href) {
         var url_array = node.getAttribute("href").split("/");
         for(let i=url_array.length-1; i > 0; i--) {
           if (url_array[i] !== "") {
-            throw("Invalid tag name (" + url_array[i] + ")");
+            if (error) {
+              error.message = "Invalid tag name (" + url_array[i] + ")";
+            }
+            return false;
           }
         }
       } else {
-        throw("No href specified on tag");
+        if (error) {
+          error.message = "No href specified on tag";
+        }
+        return false;
       }
     }
     return true;

@@ -206,27 +206,17 @@ void RgnRectMemoryAllocator::Free (nsRegion::RgnRect* aRect)
 
 
 // Global pool for nsRegion::RgnRect allocation
-static RgnRectMemoryAllocator* gRectPool;
+static RgnRectMemoryAllocator gRectPool (INIT_MEM_CHUNK_ENTRIES);
 
-nsresult nsRegion::InitStatic()
+
+inline void* nsRegion::RgnRect::operator new (size_t) CPP_THROW_NEW
 {
-  gRectPool = new RgnRectMemoryAllocator(INIT_MEM_CHUNK_ENTRIES);
-  return !gRectPool ? NS_ERROR_OUT_OF_MEMORY : NS_OK;
+  return gRectPool.Alloc ();
 }
 
-void nsRegion::ShutdownStatic()
+inline void nsRegion::RgnRect::operator delete (void* aRect, size_t)
 {
-    delete gRectPool;
-}
-
-void* nsRegion::RgnRect::operator new (size_t) CPP_THROW_NEW
-{
-  return gRectPool->Alloc ();
-}
-
-void nsRegion::RgnRect::operator delete (void* aRect, size_t)
-{
-  gRectPool->Free (static_cast<RgnRect*>(aRect));
+  gRectPool.Free (static_cast<RgnRect*>(aRect));
 }
 
 

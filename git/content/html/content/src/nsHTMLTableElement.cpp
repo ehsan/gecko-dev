@@ -54,7 +54,6 @@
 /* for collections */
 #include "nsIDOMElement.h"
 #include "nsGenericHTMLElement.h"
-#include "nsIHTMLCollection.h"
 /* end for collections */
 
 class TableRowsCollection;
@@ -106,7 +105,7 @@ protected:
  * This class provides a late-bound collection of rows in a table.
  * mParent is NOT ref-counted to avoid circular references
  */
-class TableRowsCollection : public nsIHTMLCollection 
+class TableRowsCollection : public nsIDOMHTMLCollection 
 {
 public:
   TableRowsCollection(nsHTMLTableElement *aParent);
@@ -116,9 +115,6 @@ public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMHTMLCOLLECTION
-
-  virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult);
-  virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult);
 
   NS_IMETHOD    ParentDestroyed();
 
@@ -148,15 +144,14 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(TableRowsCollection)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(TableRowsCollection)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(TableRowsCollection)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mOrphanRows,
-                                                       nsIDOMNodeList)
+                                                       nsBaseContentList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(TableRowsCollection)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(TableRowsCollection)
 
 NS_INTERFACE_TABLE_HEAD(TableRowsCollection)
-  NS_INTERFACE_TABLE2(TableRowsCollection, nsIHTMLCollection,
-                      nsIDOMHTMLCollection)
+  NS_INTERFACE_TABLE1(TableRowsCollection, nsIDOMHTMLCollection)
   NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(TableRowsCollection)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(HTMLGenericCollection)
 NS_INTERFACE_MAP_END
@@ -177,14 +172,12 @@ TableRowsCollection::Init()
 // that this may be null at any time.  This macro assumes an nsresult named
 // |rv| is in scope.
 #define DO_FOR_EACH_ROWGROUP(_code)                                  \
-  do {                                                               \
+  PR_BEGIN_MACRO                                                     \
     if (mParent) {                                                   \
       /* THead */                                                    \
       nsCOMPtr<nsIDOMHTMLTableSectionElement> rowGroup;              \
       rv = mParent->GetTHead(getter_AddRefs(rowGroup));              \
-      if (NS_FAILED(rv)) {                                           \
-        break;                                                       \
-      }                                                              \
+      NS_ENSURE_SUCCESS(rv, rv);                                     \
       nsCOMPtr<nsIDOMHTMLCollection> rows;                           \
       if (rowGroup) {                                                \
         rowGroup->GetRows(getter_AddRefs(rows));                     \
@@ -195,16 +188,12 @@ TableRowsCollection::Init()
       nsCOMPtr<nsIDOMHTMLCollection> _tbodies;                       \
       /* TBodies */                                                  \
       rv = mParent->GetTBodies(getter_AddRefs(_tbodies));            \
-      if (NS_FAILED(rv)) {                                           \
-        break;                                                       \
-      }                                                              \
+      NS_ENSURE_SUCCESS(rv, rv);                                     \
       if (_tbodies) {                                                \
         nsCOMPtr<nsIDOMNode> _node;                                  \
         PRUint32 _tbodyIndex = 0;                                    \
         rv = _tbodies->Item(_tbodyIndex, getter_AddRefs(_node));     \
-        if (NS_FAILED(rv)) {                                         \
-          break;                                                     \
-        }                                                            \
+        NS_ENSURE_SUCCESS(rv, rv);                                   \
         while (_node) {                                              \
           rowGroup = do_QueryInterface(_node);                       \
           if (rowGroup) {                                            \
@@ -214,12 +203,7 @@ TableRowsCollection::Init()
             } while (0);                                             \
           }                                                          \
           rv = _tbodies->Item(++_tbodyIndex, getter_AddRefs(_node)); \
-          if (NS_FAILED(rv)) {                                       \
-            break;                                                   \
-          }                                                          \
-        }                                                            \
-        if (NS_FAILED(rv)) {                                         \
-          break;                                                     \
+          NS_ENSURE_SUCCESS(rv, rv);                                 \
         }                                                            \
       }                                                              \
       /* orphan rows */                                              \
@@ -229,9 +213,7 @@ TableRowsCollection::Init()
       } while (0);                                                   \
       /* TFoot */                                                    \
       rv = mParent->GetTFoot(getter_AddRefs(rowGroup));              \
-      if (NS_FAILED(rv)) {                                           \
-        break;                                                       \
-      }                                                              \
+      NS_ENSURE_SUCCESS(rv, rv);                                     \
       rows = nsnull;                                                 \
       if (rowGroup) {                                                \
         rowGroup->GetRows(getter_AddRefs(rows));                     \
@@ -240,7 +222,7 @@ TableRowsCollection::Init()
         } while (0);                                                 \
       }                                                              \
     }                                                                \
-  } while (0)
+  PR_END_MACRO
 
 static PRUint32
 CountRowsInRowGroup(nsIDOMHTMLCollection* rows)
@@ -270,101 +252,73 @@ TableRowsCollection::GetLength(PRUint32* aLength)
   return rv;
 }
 
-// Returns the item at index aIndex if available. If null is returned,
-// then aCount will be set to the number of rows in this row collection.
-// Otherwise, the value of aCount is undefined.
-static nsINode*
+// Returns the number of items in the row group, only if *aItem ends
+// up null.  Otherwise, returns 0.
+static PRUint32
 GetItemOrCountInRowGroup(nsIDOMHTMLCollection* rows,
-                         PRUint32 aIndex, PRUint32* aCount)
+                         PRUint32 aIndex, nsIDOMNode** aItem)
 {
-  *aCount = 0;
+  NS_PRECONDITION(aItem, "Null out param");
 
+  *aItem = nsnull;
+  PRUint32 length = 0;
+  
   if (rows) {
-    rows->GetLength(aCount);
-    if (aIndex < *aCount) {
-      nsCOMPtr<nsINodeList> list = do_QueryInterface(rows);
-      return list->GetNodeAt(aIndex);
+    rows->Item(aIndex, aItem);
+    if (!*aItem) {
+      rows->GetLength(&length);
     }
   }
   
-  return nsnull;
+  return length;
 }
 
-nsISupports* 
-TableRowsCollection::GetNodeAt(PRUint32 aIndex, nsresult *aResult)
+// increments aReturn refcnt by 1
+NS_IMETHODIMP 
+TableRowsCollection::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
 {
+  *aReturn = nsnull;
   nsresult rv = NS_OK;
+
   DO_FOR_EACH_ROWGROUP(
-    PRUint32 count;
-    nsINode* node = GetItemOrCountInRowGroup(rows, aIndex, &count);
-    if (node) {
-      return node; 
+    PRUint32 count = GetItemOrCountInRowGroup(rows, aIndex, aReturn);
+    if (*aReturn) {
+      return NS_OK; 
     }
 
     NS_ASSERTION(count <= aIndex, "GetItemOrCountInRowGroup screwed up");
     aIndex -= count;
   );
 
-  *aResult = rv;
-
-  return nsnull;
+  return rv;
 }
 
-NS_IMETHODIMP 
-TableRowsCollection::Item(PRUint32 aIndex, nsIDOMNode** aReturn)
-{
-  nsresult rv;
-
-  nsISupports* node = GetNodeAt(aIndex, &rv);
-  if (!node) {
-    *aReturn = nsnull;
-
-    return rv;
-  }
-
-  return CallQueryInterface(node, aReturn);
-}
-
-static nsISupports*
+static nsresult
 GetNamedItemInRowGroup(nsIDOMHTMLCollection* aRows,
-                       const nsAString& aName, nsresult* aResult)
+                       const nsAString& aName, nsIDOMNode** aNamedItem)
 {
-  nsCOMPtr<nsIHTMLCollection> rows = do_QueryInterface(aRows);
-  if (rows) {
-    return rows->GetNamedItem(aName, aResult);
+  if (aRows) {
+    return aRows->NamedItem(aName, aNamedItem);
   }
 
-  *aResult = NS_OK;
-  return nsnull;
-}
-
-nsISupports* 
-TableRowsCollection::GetNamedItem(const nsAString& aName, nsresult* aResult)
-{
-  nsresult rv = NS_OK;
-  DO_FOR_EACH_ROWGROUP(
-    nsISupports* item = GetNamedItemInRowGroup(rows, aName, aResult);
-    if (NS_FAILED(*aResult) || item) {
-      return item;
-    }
-  );
-  *aResult = rv;
-  return nsnull;
+  *aNamedItem = nsnull;
+  return NS_OK;
 }
 
 NS_IMETHODIMP 
 TableRowsCollection::NamedItem(const nsAString& aName,
                                nsIDOMNode** aReturn)
 {
-  nsresult rv;
-  nsISupports* item = GetNamedItem(aName, &rv);
-  if (!item) {
-    *aReturn = nsnull;
-
-    return rv;
-  }
-
-  return CallQueryInterface(item, aReturn);
+  *aReturn = nsnull;
+  nsresult rv = NS_OK;
+  DO_FOR_EACH_ROWGROUP(
+    rv = GetNamedItemInRowGroup(rows, aName, aReturn);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (*aReturn) {
+      return rv;
+    }
+  );
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -400,7 +354,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLTableElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLTableElement,
                                                   nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTBodies,
-                                                       nsIDOMNodeList)
+                                                       nsBaseContentList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRows)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -409,10 +363,9 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLTableElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLTableElement
-NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(nsHTMLTableElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLTableElement, nsIDOMHTMLTableElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLTableElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_CC_INTERFACE_TABLE_HEAD(nsHTMLTableElement,
+                                        nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLTableElement, nsIDOMHTMLTableElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLTableElement)
 
 
@@ -753,7 +706,7 @@ nsHTMLTableElement::InsertRow(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
 {
   /* get the ref row at aIndex
      if there is one, 
-       get its parent
+       get it's parent
        insert the new row just before the ref row
      else
        get the first row group
@@ -973,7 +926,7 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::cellspacing ||
         aAttribute == nsGkAtoms::cellpadding) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::cols) {
       return aResult.ParseIntWithBounds(aValue, 0);
@@ -987,10 +940,10 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
       return PR_TRUE;
     }
     if (aAttribute == nsGkAtoms::height) {
-      return aResult.ParseSpecialIntValue(aValue, PR_TRUE);
+      return aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::width) {
-      if (aResult.ParseSpecialIntValue(aValue, PR_TRUE)) {
+      if (aResult.ParseSpecialIntValue(aValue, PR_TRUE, PR_FALSE)) {
         // treat 0 width as auto
         nsAttrValue::ValueType type = aResult.Type();
         if ((type == nsAttrValue::eInteger &&
@@ -1175,10 +1128,9 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
   // which *element* it's matching (style rules should not stop matching
   // when the display type is changed).
 
-  nsPresContext* presContext = aData->mPresContext;
-  nsCompatibility mode = presContext->CompatibilityMode();
+  nsCompatibility mode = aData->mPresContext->CompatibilityMode();
 
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(TableBorder)) {
+  if (aData->mSID == eStyleStruct_TableBorder) {
     const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
     if (readDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL) {
       // cellspacing 
@@ -1198,7 +1150,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
     }
   } 
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Table)) {
+  else if (aData->mSID == eStyleStruct_Table) {
     const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
     if (readDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL) {
       MapTableBorderInto(aAttributes, aData, 0);
@@ -1226,7 +1178,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
         aData->mTableData->mRules.SetIntValue(value->GetEnumValue(), eCSSUnit_Enumerated);
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Margin)) {
+  else if (aData->mSID == eStyleStruct_Margin) {
     const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
   
     if (readDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL) {
@@ -1271,7 +1223,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Padding)) {
+  else if (aData->mSID == eStyleStruct_Padding) {
     const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
     if (readDisplay->mDisplay == NS_STYLE_DISPLAY_TABLE_CELL) {
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::cellpadding);
@@ -1306,7 +1258,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Position)) {
+  else if (aData->mSID == eStyleStruct_Position) {
     const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
   
     if (readDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL) {
@@ -1329,13 +1281,13 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Visibility)) {
+  else if (aData->mSID == eStyleStruct_Visibility) {
     const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
   
     if (readDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL)
       nsGenericHTMLElement::MapCommonAttributesInto(aAttributes, aData);
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Border)) {
+  else if (aData->mSID == eStyleStruct_Border) {
     const nsStyleTableBorder* tableStyle = aData->mStyleContext->GetStyleTableBorder();
     const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
     if (readDisplay->mDisplay == NS_STYLE_DISPLAY_TABLE_CELL) {
@@ -1379,8 +1331,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       // bordercolor
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::bordercolor);
       nscolor color;
-      if (value && presContext->UseDocumentColors() &&
-          value->GetColorValue(color)) {
+      if (value && value->GetColorValue(color)) {
         if (aData->mMarginData->mBorderColor.mLeft.GetUnit() == eCSSUnit_Null)
           aData->mMarginData->mBorderColor.mLeft.SetColorValue(color);
         if (aData->mMarginData->mBorderColor.mRight.GetUnit() == eCSSUnit_Null)
@@ -1409,7 +1360,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       MapTableBorderInto(aAttributes, aData, borderStyle);
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Background)) {
+  else if (aData->mSID == eStyleStruct_Background) {
     const nsStyleDisplay* readDisplay = aData->mStyleContext->GetStyleDisplay();
   
     if (readDisplay->mDisplay != NS_STYLE_DISPLAY_TABLE_CELL)

@@ -51,14 +51,11 @@ interface nsIInputStream;
 interface nsIDocShellTreeItem;
 interface nsISupportsArray;
 %{C++
-struct nsIntRect;
-class nsDocShellEditorData;
+struct nsRect;
 %}
-[ref] native nsIntRect(nsIntRect);
-[ptr] native nsDocShellEditorDataPtr(nsDocShellEditorData);
+[ref] native nsRect(nsRect);
 
-
-[scriptable, uuid(09fecea6-5453-43ba-bf91-3ff32618f037)]
+[scriptable, uuid(abe54136-49e5-44ca-a749-290038c6b85d)]
 interface nsISHEntry : nsIHistoryEntry
 {
     /** URI for the document */
@@ -81,8 +78,8 @@ interface nsISHEntry : nsIHistoryEntry
      * root view's widget accordingly if this has changed when the presentation
      * is restored.
      */
-    [noscript] void getViewerBounds(in nsIntRect bounds);
-    [noscript] void setViewerBounds([const] in nsIntRect bounds);
+    [noscript] void getViewerBounds(in nsRect bounds);
+    [noscript] void setViewerBounds([const] in nsRect bounds);
 
     /**
      * Saved child docshells corresponding to contentViewer.  The child shells
@@ -191,23 +188,6 @@ interface nsISHEntry : nsIHistoryEntry
      * came from.
      */
     attribute nsISupports owner;
-
-    /**
-     * Gets the owning pointer to the editor data assosicated with
-     * this shistory entry. This forgets its pointer, so free it when
-     * you're done.
-     */
-    [noscript, notxpcom] nsDocShellEditorDataPtr forgetEditorData();
-
-    /**
-     * Sets the owning pointer to the editor data assosicated with
-     * this shistory entry. Unless forgetEditorData() is called, this
-     * shentry will destroy the editor data when it's destroyed.
-     */
-    [noscript, notxpcom] void setEditorData(in nsDocShellEditorDataPtr aData);
-
-    /** Returns true if this shistory entry is storing a detached editor. */
-    [noscript, notxpcom] boolean hasDetachedEditor();
 };
 
 

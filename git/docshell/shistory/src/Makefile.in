@@ -48,6 +48,18 @@ LIBRARY_NAME	= shistory_s
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY	= 1
 
+REQUIRES	= xpcom \
+		  string \
+		  necko \
+		  dom \
+		  layout \
+		  docshell \
+		  pref \
+		  gfx \
+		  content \
+		  widget \
+		  nkcache \
+		  $(NULL)
 
 CPPSRCS		= nsSHEntry.cpp        \
             nsSHTransaction.cpp   \
@@ -60,4 +72,3 @@ EXTRA_DSO_LDOPTS = \
 
 include $(topsrcdir)/config/rules.mk
 
-LOCAL_INCLUDES += -I$(srcdir)/../../base

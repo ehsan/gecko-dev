@@ -15,7 +15,7 @@
  *
  * The Original Code is Bug 376798 unit test code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation
+ * The Initial Developer of the Original Code is Mozilla Corporation
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -49,21 +49,19 @@ function run_test() {
   // XXX Full testing coverage for QueriesToQueryString and
   // QueryStringToQueries
 
-  var bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
-           getService(Ci.nsINavBookmarksService);
   const NHQO = Ci.nsINavHistoryQueryOptions;
   // Bug 376798
   var query = histsvc.getNewQuery();
-  query.setFolders([bs.placesRoot], 1);
+  query.setFolders([1],1);
   do_check_eq(histsvc.queriesToQueryString([query], 1, histsvc.getNewQueryOptions()),
-              "place:folder=PLACES_ROOT");
+              "place:folder=1");
 
   // Bug 378828
   var options = histsvc.getNewQueryOptions();
   options.sortingAnnotation = "test anno";
   options.sortingMode = NHQO.SORT_BY_ANNOTATION_DESCENDING;
   var placeURI =
-    "place:folder=PLACES_ROOT&sort=" + NHQO.SORT_BY_ANNOTATION_DESCENDING +
+    "place:folder=1&sort=" + NHQO.SORT_BY_ANNOTATION_DESCENDING +
     "&sortingAnnotation=test%20anno";
   do_check_eq(histsvc.queriesToQueryString([query], 1, options),
               placeURI);

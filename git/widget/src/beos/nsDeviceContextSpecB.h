@@ -41,6 +41,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsIDeviceContextSpec.h"
+#include "nsVoidArray.h"
 #include "nsIPrintSettings.h" 
 #include "nsIPrintOptions.h" 
 // For public interface?

@@ -278,15 +278,11 @@ nsFileInputStream::Available(PRUint32* aResult)
         return NS_BASE_STREAM_CLOSED;
     }
 
-    // PR_Available with files over 4GB returns an error, so we have to
-    // use the 64-bit version of PR_Available.
-    PRInt64 avail = PR_Available64(mFD);
+    PRInt32 avail = PR_Available(mFD);
     if (avail == -1) {
         return NS_ErrorAccordingToNSPR();
     }
-
-    // If available is greater than 4GB, return 4GB
-    *aResult = avail > PR_UINT32_MAX ? PR_UINT32_MAX : (PRUint32)avail;
+    *aResult = avail;
     return NS_OK;
 }
 
@@ -449,6 +445,7 @@ nsFileOutputStream::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *_
 NS_IMETHODIMP
 nsFileOutputStream::WriteSegments(nsReadSegmentFun reader, void * closure, PRUint32 count, PRUint32 *_retval)
 {
+    NS_NOTREACHED("WriteSegments (see source comment)");
     return NS_ERROR_NOT_IMPLEMENTED;
     // File streams intentionally do not support this method.
     // If you need something like this, then you should wrap
@@ -534,7 +531,6 @@ nsSafeFileOutputStream::Close()
 NS_IMETHODIMP
 nsSafeFileOutputStream::Finish()
 {
-    Flush();
     nsresult rv = nsFileOutputStream::Close();
 
     // if there is no temp file, don't try to move it over the original target.

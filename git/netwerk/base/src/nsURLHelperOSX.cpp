@@ -43,11 +43,11 @@
 #include "nsURLHelper.h"
 #include "nsEscape.h"
 #include "nsILocalFile.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsReadableUtils.h"
-#include <Carbon/Carbon.h>
+#include <Files.h>
 
-static nsTArray<nsCString> *gVolumeList = nsnull;
+static nsCStringArray *gVolumeList = nsnull;
 
 static PRBool pathBeginsWithVolName(const nsACString& path, nsACString& firstPathComponent)
 {
@@ -57,14 +57,14 @@ static PRBool pathBeginsWithVolName(const nsACString& path, nsACString& firstPat
   // XXX Register an event handler to detect drives being mounted/unmounted?
   
   if (!gVolumeList) {
-    gVolumeList = new nsTArray<nsCString>;
+    gVolumeList = new nsCStringArray;
     if (!gVolumeList) {
       return PR_FALSE; // out of memory
     }
   }
 
   // Cache a list of volume names
-  if (!gVolumeList->Length()) {
+  if (!gVolumeList->Count()) {
     OSErr err;
     ItemCount volumeIndex = 1;
     
@@ -75,7 +75,7 @@ static PRBool pathBeginsWithVolName(const nsACString& path, nsACString& firstPat
       if (err == noErr) {
         NS_ConvertUTF16toUTF8 volNameStr(Substring((PRUnichar *)volName.unicode,
                                                    (PRUnichar *)volName.unicode + volName.length));
-        gVolumeList->AppendElement(volNameStr);
+        gVolumeList->AppendCString(volNameStr);
         volumeIndex++;
       }
     } while (err == noErr);
@@ -145,7 +145,7 @@ static void SwapSlashColon(char *s)
 } 
 
 nsresult
-net_GetURLSpecFromActualFile(nsIFile *aFile, nsACString &result)
+net_GetURLSpecFromFile(nsIFile *aFile, nsACString &result)
 {
   // NOTE: This is identical to the implementation in nsURLHelperUnix.cpp
   
@@ -168,9 +168,20 @@ net_GetURLSpecFromActualFile(nsIFile *aFile, nsACString &result)
 
   // esc_Directory does not escape the semicolons, so if a filename 
   // contains semicolons we need to manually escape them.
-  // This replacement should be removed in bug #473280
   escPath.ReplaceSubstring(";", "%3b");
 
+  // if this file references a directory, then we need to ensure that the
+  // URL ends with a slash.  this is important since it affects the rules
+  // for relative URL resolution when this URL is used as a base URL.
+  // if the file does not exist, then we make no assumption about its type,
+  // and simply leave the URL unmodified.
+  if (escPath.Last() != '/') {
+    PRBool dir;
+    rv = aFile->IsDirectory(&dir);
+    if (NS_SUCCEEDED(rv) && dir)
+      escPath += '/';
+  }
+  
   result = escPath;
   return NS_OK;
 }

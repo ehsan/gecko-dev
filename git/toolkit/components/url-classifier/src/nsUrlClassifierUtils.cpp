@@ -39,10 +39,7 @@
 #include "nsIURI.h"
 #include "nsNetUtil.h"
 #include "nsUrlClassifierUtils.h"
-#include "nsTArray.h"
-#include "nsReadableUtils.h"
-#include "plbase64.h"
-#include "prmem.h"
+#include "nsVoidArray.h"
 #include "prprf.h"
 
 static char int_to_hex_digit(PRInt32 i)
@@ -132,10 +129,6 @@ nsUrlClassifierUtils::GetKeyForURI(nsIURI * uri, nsACString & _retval)
 
   nsCAutoString host;
   innerURI->GetAsciiHost(host);
-
-  if (host.IsEmpty()) {
-    return NS_ERROR_MALFORMED_URI;
-  }
 
   nsresult rv = CanonicalizeHostname(host, _retval);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -264,9 +257,9 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
   }
 
   host.BeginReading(iter);
-  nsTArray<nsCString> parts;
-  ParseString(PromiseFlatCString(Substring(iter, end)), '.', parts);
-  if (parts.Length() > 4) {
+  nsCStringArray parts;
+  parts.ParseString(PromiseFlatCString(Substring(iter, end)).get(), ".");
+  if (parts.Count() > 4) {
     return;
   }
 
@@ -275,10 +268,8 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
   // XXX: this came from the old javascript implementation, is it really
   // supposed to be like this?
   PRBool allowOctal = PR_TRUE;
-  PRUint32 i;
-
-  for (i = 0; i < parts.Length(); i++) {
-    const nsCString& part = parts[i];
+  for (PRInt32 i = 0; i < parts.Count(); i++) {
+    const nsCString& part = *parts[i];
     if (part[0] == '0') {
       for (PRUint32 j = 1; j < part.Length(); j++) {
         if (part[j] == 'x') {
@@ -292,13 +283,13 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
     }
   }
 
-  for (i = 0; i < parts.Length(); i++) {
+  for (PRInt32 i = 0; i < parts.Count(); i++) {
     nsCAutoString canonical;
 
-    if (i == parts.Length() - 1) {
-      CanonicalNum(parts[i], 5 - parts.Length(), allowOctal, canonical);
+    if (i == parts.Count() - 1) {
+      CanonicalNum(*parts[i], 5 - parts.Count(), allowOctal, canonical);
     } else {
-      CanonicalNum(parts[i], 1, allowOctal, canonical);
+      CanonicalNum(*parts[i], 1, allowOctal, canonical);
     }
 
     if (canonical.IsEmpty()) {
@@ -374,6 +365,11 @@ nsUrlClassifierUtils::SpecialEncode(const nsACString & url,
   while (curChar != end) {
     unsigned char c = static_cast<unsigned char>(*curChar);
     if (ShouldURLEscape(c)) {
+      // We don't want to deal with 0, as it can break certain strings, just
+      // encode as one.
+      if (c == 0)
+        c = 1;
+
       _retval.Append('%');
       _retval.Append(int_to_hex_digit(c / 16));
       _retval.Append(int_to_hex_digit(c % 16));
@@ -394,55 +390,4 @@ PRBool
 nsUrlClassifierUtils::ShouldURLEscape(const unsigned char c) const
 {
   return c <= 32 || c == '%' || c >=127;
-}
-
-/* static */
-void
-nsUrlClassifierUtils::UnUrlsafeBase64(nsACString &str)
-{
-  nsACString::iterator iter, end;
-  str.BeginWriting(iter);
-  str.EndWriting(end);
-  while (iter != end) {
-    if (*iter == '-') {
-      *iter = '+';
-    } else if (*iter == '_') {
-      *iter = '/';
-    }
-    iter++;
-  }
-}
-
-/* static */
-nsresult
-nsUrlClassifierUtils::DecodeClientKey(const nsACString &key,
-                                      nsACString &_retval)
-{
-  // Client key is sent in urlsafe base64, we need to decode it first.
-  nsCAutoString base64(key);
-  UnUrlsafeBase64(base64);
-
-  // PL_Base64Decode doesn't null-terminate unless we let it allocate,
-  // so we need to calculate the length ourselves.
-  PRUint32 destLength;
-  destLength = base64.Length();
-  if (destLength > 0 && base64[destLength - 1] == '=') {
-    if (destLength > 1 && base64[destLength - 2] == '=') {
-      destLength -= 2;
-    } else {
-      destLength -= 1;
-    }
-  }
-
-  destLength = ((destLength * 3) / 4);
-  _retval.SetLength(destLength);
-  if (destLength != _retval.Length())
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  if (!PL_Base64Decode(base64.BeginReading(), base64.Length(),
-                       _retval.BeginWriting())) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
 }

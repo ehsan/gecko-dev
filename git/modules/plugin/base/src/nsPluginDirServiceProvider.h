@@ -36,8 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsPluginDirServiceProvider_h_
-#define nsPluginDirServiceProvider_h_
+#ifndef __nsPluginDirServiceProvider_h__
+#define __nsPluginDirServiceProvider_h__
 
 #include "nsIDirectoryService.h"
 
@@ -79,4 +79,4 @@ protected:
    virtual ~nsPluginDirServiceProvider();
 };
 
-#endif // nsPluginDirServiceProvider_h_
+#endif // __nsPluginDirServiceProvider_h__

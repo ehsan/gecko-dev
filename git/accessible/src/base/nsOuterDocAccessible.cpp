@@ -52,126 +52,108 @@ nsOuterDocAccessible::nsOuterDocAccessible(nsIDOMNode* aNode,
 {
 }
 
-/* unsigned long getRole (); */
-nsresult
-nsOuterDocAccessible::GetRoleInternal(PRUint32 *aRole)
+  /* attribute wstring accName; */
+NS_IMETHODIMP nsOuterDocAccessible::GetName(nsAString& aName) 
 {
-  *aRole = nsIAccessibleRole::ROLE_INTERNAL_FRAME;
+  nsCOMPtr<nsIAccessible> accessible;
+  GetFirstChild(getter_AddRefs(accessible));
+  nsCOMPtr<nsIAccessibleDocument> accDoc(do_QueryInterface(accessible));
+  if (!accDoc) {
+    return NS_ERROR_FAILURE;
+  }
+  nsresult rv = accDoc->GetTitle(aName);
+  if (NS_FAILED(rv) || aName.IsEmpty()) {
+    rv = nsAccessible::GetName(aName);
+    if (aName.IsEmpty()) {
+      rv = accDoc->GetURL(aName);
+    }
+  }
+  return rv;
+}
+
+/* unsigned long getRole (); */
+NS_IMETHODIMP nsOuterDocAccessible::GetRole(PRUint32 *aRole)
+{
+  *aRole = nsIAccessibleRole::ROLE_CLIENT;
   return NS_OK;
 }
 
-nsresult
-nsOuterDocAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
+NS_IMETHODIMP
+nsOuterDocAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
-
+  nsAccessible::GetState(aState, aExtraState);
   *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
   return NS_OK;
 }
 
-// nsAccessible::GetChildAtPoint()
-nsresult
+NS_IMETHODIMP
 nsOuterDocAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                      PRBool aDeepestChild,
-                                      nsIAccessible **aChild)
+                                      nsIAccessible **aAccessible)
 {
-  PRInt32 docX = 0, docY = 0, docWidth = 0, docHeight = 0;
-  nsresult rv = GetBounds(&docX, &docY, &docWidth, &docHeight);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
+  if (!mDOMNode) {
+    return NS_ERROR_FAILURE;
+  }
+  PRInt32 docX, docY, docWidth, docHeight;
+  GetBounds(&docX, &docY, &docWidth, &docHeight);
+  if (aX < docX || aX >= docX + docWidth || aY < docY || aY >= docY + docHeight) {
+    return NS_ERROR_FAILURE;
+  }
 
-  if (aX < docX || aX >= docX + docWidth || aY < docY || aY >= docY + docHeight)
-    return NS_OK;
-
-  // Always return the inner doc as direct child accessible unless bounds
-  // outside of it.
-  nsCOMPtr<nsIAccessible> childAcc;
-  rv = GetFirstChild(getter_AddRefs(childAcc));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!childAcc)
-    return NS_OK;
-
-  if (aDeepestChild)
-    return childAcc->GetDeepestChildAtPoint(aX, aY, aChild);
-
-  NS_ADDREF(*aChild = childAcc);
-  return NS_OK;
+  return GetFirstChild(aAccessible);  // Always return the inner doc unless bounds outside of it
 }
 
-void
-nsOuterDocAccessible::CacheChildren()
-{
-  // An outer doc accessible usually has 1 nsDocAccessible child, but could have
-  // none if we can't get to the inner documnet.
+void nsOuterDocAccessible::CacheChildren()
+{  
+  // An outer doc accessible usually has 1 nsDocAccessible child,
+  // but could have none if we can't get to the inner documnet
+  if (!mWeakShell) {
+    mAccChildCount = eChildCountUninitialized;
+    return;   // This outer doc node has been shut down
+  }
+  if (mAccChildCount != eChildCountUninitialized) {
+    return;
+  }
+
+  SetFirstChild(nsnull);
+
+  // In these variable names, "outer" relates to the nsOuterDocAccessible
+  // as opposed to the nsDocAccessibleWrap which is "inner".
+  // The outer node is a something like a <browser>, <frame>, <iframe>, <page> or
+  // <editor> tag, whereas the inner node corresponds to the inner document root.
 
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   NS_ASSERTION(content, "No nsIContent for <browser>/<iframe>/<editor> dom node");
 
   nsCOMPtr<nsIDocument> outerDoc = content->GetDocument();
   if (!outerDoc) {
+    mAccChildCount = 0;
     return;
   }
 
   nsIDocument *innerDoc = outerDoc->GetSubDocumentFor(content);
   nsCOMPtr<nsIDOMNode> innerNode(do_QueryInterface(innerDoc));
   if (!innerNode) {
+    mAccChildCount = 0;
     return;
   }
 
   nsCOMPtr<nsIAccessible> innerAccessible;
-  nsCOMPtr<nsIAccessibilityService> accService = GetAccService();
+  nsCOMPtr<nsIAccessibilityService> accService = 
+    do_GetService("@mozilla.org/accessibilityService;1");
   accService->GetAccessibleFor(innerNode, getter_AddRefs(innerAccessible));
-  nsRefPtr<nsAccessible> innerAcc(nsAccUtils::QueryAccessible(innerAccessible));
-  if (!innerAcc)
+  nsCOMPtr<nsPIAccessible> privateInnerAccessible = 
+    do_QueryInterface(innerAccessible);
+  if (!privateInnerAccessible) {
+    mAccChildCount = 0;
     return;
+  }
 
   // Success getting inner document as first child -- now we cache it.
-  mChildren.AppendObject(innerAccessible);
-  innerAcc->SetParent(this);
+  mAccChildCount = 1;
+  SetFirstChild(innerAccessible); // weak ref
+  privateInnerAccessible->SetParent(this);
+  privateInnerAccessible->SetNextSibling(nsnull);
 }
 
-nsresult
-nsOuterDocAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
-{
-  nsAutoString tag;
-  aAttributes->GetStringProperty(NS_LITERAL_CSTRING("tag"), tag);
-  if (!tag.IsEmpty()) {
-    // We're overriding the ARIA attributes on an sub document, but we don't want to
-    // override the other attributes
-    return NS_OK;
-  }
-  return nsAccessible::GetAttributesInternal(aAttributes);
-}
-
-// Internal frame, which is the doc's parent, should not have a click action
-NS_IMETHODIMP
-nsOuterDocAccessible::GetNumActions(PRUint8 *aNumActions)
-{
-  NS_ENSURE_ARG_POINTER(aNumActions);
-  *aNumActions = 0;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsOuterDocAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
-{
-  aName.Truncate();
-
-  return NS_ERROR_INVALID_ARG;
-}
-
-NS_IMETHODIMP
-nsOuterDocAccessible::GetActionDescription(PRUint8 aIndex, nsAString& aDescription)
-{
-  aDescription.Truncate();
-
-  return NS_ERROR_INVALID_ARG;
-}
-
-NS_IMETHODIMP
-nsOuterDocAccessible::DoAction(PRUint8 aIndex)
-{
-  return NS_ERROR_INVALID_ARG;
-}

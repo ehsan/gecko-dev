@@ -3,7 +3,7 @@
 }
 
 /* Download View */
-#downloadView:not(:-moz-system-metric(windows-classic)) {
+#downloadView {
   -moz-appearance: none !important;
   margin: 0;
   border-bottom: 2px solid;
@@ -14,24 +14,28 @@
 richlistitem[type="download"] {
   padding: 4px 8px 4px 4px;
   min-height: 46px;
-  border-bottom: 1px solid ThreeDLightShadow;
-}
-
-richlistitem[type="download"][selected="true"] {
-  background-image: url(chrome://mozapps/skin/extensions/itemEnabledFader.png);
 }
 
 richlistitem[type="download"] .name {
   font-size: larger;
 }
 
-richlistitem[type="download"] .dateTime {
-  font-size: smaller;
+#information {
+  -moz-appearance: none;
+  background-color: white;
+  width: 300px;
+  max-width: 300px;
+}
+
+#information > button .button-text {
+  -moz-box-flex: 1;
+  text-align: left;
+  -moz-padding-start: 2px;
 }
 
 .mini-button {
   -moz-appearance: none;
-  list-style-image: url(chrome://mozapps/skin/downloads/downloadButtons.png);
+  list-style-image: url(chrome://mozapps/skin/downloads/buttons.png);
   background-color: transparent;
   border: none;
   padding: 0;
@@ -47,50 +51,27 @@ richlistitem[type="download"] .dateTime {
 .cancel {
   -moz-image-region: rect(0px, 32px, 16px, 16px);
 }
-.cancel:hover {
-  -moz-image-region: rect(16px, 32px, 32px, 16px);
-}
-.cancel:active {
-  -moz-image-region: rect(32px, 32px, 48px, 16px);
-}
-.cancel[disabled="true"] {
-  -moz-image-region: rect(48px, 32px, 64px, 16px);
-}
-.pause {
-  -moz-image-region: rect(0px, 48px, 16px, 32px);
-}
-.pause:hover {
-  -moz-image-region: rect(16px, 48px, 32px, 32px);
-}
-.pause:active {
-  -moz-image-region: rect(32px, 48px, 48px, 32px);
-}
-.pause[disabled="true"] {
-  -moz-image-region: rect(48px, 48px, 64px, 32px);
-}
-.resume {
+.info {
   -moz-image-region: rect(0px, 16px, 16px, 0px);
 }
-.resume:hover {
-  -moz-image-region: rect(16px, 16px, 32px, 0px);
+.open {
+  -moz-image-region: rect(16px, 32px, 32px, 16px);
 }
-.resume:active {
-  -moz-image-region: rect(32px, 16px, 48px, 0px);
+.pause {
+  -moz-image-region: rect(32px, 32px, 48px, 16px);
 }
-.resume[disabled="true"] {
-  -moz-image-region: rect(48px, 16px, 64px, 0px);
+.resume {
+  -moz-image-region: rect(16px, 48px, 32px, 32px);
 }
 .retry {
-  -moz-image-region: rect(0px, 64px, 16px, 48px);
+  -moz-image-region: rect(0px, 48px, 16px, 32px);
 }
-.retry:hover {
-  -moz-image-region: rect(16px, 64px, 32px, 48px);
+
+#information-uri {
+  -moz-image-region: rect(16px, 16px, 32px, 0px);
 }
-.retry:active {
-  -moz-image-region: rect(32px, 64px, 48px, 48px);
-}
-.retry[disabled="true"] {
-  -moz-image-region: rect(48px, 64px, 64px, 48px);
+#information-location {
+  -moz-image-region: rect(32px, 16px, 48px, 0px);
 }
 
 .blockedIcon {
@@ -103,8 +84,13 @@ richlistitem[type="download"] .dateTime {
   min-width: 32px;
 }
 
-#clearListButton {
-  min-height: 0;
-  min-width: 0;
-  margin-top: 3px;
+.title-line {
+  height: 1px;
+  background-color: ThreeDDarkShadow;
+  -moz-margin-end: 15px;
+  -moz-margin-start: 5px;
+}
+
+#searchbox[empty] {
+  color: GrayText;
 }

@@ -96,10 +96,8 @@ NS_IMPL_RELEASE_INHERITED(nsHTMLFontElement, nsGenericElement)
 
 
 // QueryInterface implementation for nsHTMLFontElement
-NS_INTERFACE_TABLE_HEAD(nsHTMLFontElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE1(nsHTMLFontElement, nsIDOMHTMLFontElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLFontElement,
-                                               nsGenericHTMLElement)
+NS_HTML_CONTENT_INTERFACE_TABLE_HEAD(nsHTMLFontElement, nsGenericHTMLElement)
+  NS_INTERFACE_TABLE_INHERITED1(nsHTMLFontElement, nsIDOMHTMLFontElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLFontElement)
 
 
@@ -172,7 +170,7 @@ static void
 MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
                       nsRuleData* aData)
 {
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Font)) {
+  if (aData->mSID == eStyleStruct_Font) {
     nsRuleDataFont& font = *(aData->mFontData);
     
     // face: string list
@@ -180,7 +178,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::face);
       if (value && value->Type() == nsAttrValue::eString &&
           !value->IsEmptyString()) {
-        font.mFamily.SetStringValue(value->GetStringValue(), eCSSUnit_Families);
+        font.mFamily.SetStringValue(value->GetStringValue(), eCSSUnit_String);
         font.mFamilyFromHTML = PR_TRUE;
       }
     }
@@ -216,9 +214,8 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
         font.mWeight.SetIntValue(value->GetIntegerValue(), eCSSUnit_Integer);
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Color)) {
-    if (aData->mColorData->mColor.GetUnit() == eCSSUnit_Null &&
-        aData->mPresContext->UseDocumentColors()) {
+  else if (aData->mSID == eStyleStruct_Color) {
+    if (aData->mColorData->mColor.GetUnit() == eCSSUnit_Null) {
       // color: color
       const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::color);
       nscolor color;
@@ -227,7 +224,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
       }
     }
   }
-  if (aData->mSIDs & NS_STYLE_INHERIT_BIT(TextReset)) {
+  else if (aData->mSID == eStyleStruct_TextReset) {
     // Make <a><font color="red">text</font></a> give the text a red underline
     // in quirks mode.  The NS_STYLE_TEXT_DECORATION_OVERRIDE_ALL flag only
     // affects quirks mode rendering.

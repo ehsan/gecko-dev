@@ -41,7 +41,8 @@
  */
 
 #include "nsILayoutDebugger.h"
-#include "nsFrame.h"
+#include "nsIFrame.h"
+#include "nsIFrameDebug.h"
 #include "nsDisplayList.h"
 
 #include <stdio.h>
@@ -100,28 +101,28 @@ NS_IMPL_ISUPPORTS1(nsLayoutDebugger, nsILayoutDebugger)
 NS_IMETHODIMP
 nsLayoutDebugger::SetShowFrameBorders(PRBool aEnable)
 {
-  nsFrame::ShowFrameBorders(aEnable);
+  nsIFrameDebug::ShowFrameBorders(aEnable);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetShowFrameBorders(PRBool* aResult)
 {
-  *aResult = nsFrame::GetShowFrameBorders();
+  *aResult = nsIFrameDebug::GetShowFrameBorders();
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsLayoutDebugger::SetShowEventTargetFrameBorder(PRBool aEnable)
 {
-  nsFrame::ShowEventTargetFrameBorder(aEnable);
+  nsIFrameDebug::ShowEventTargetFrameBorder(aEnable);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetShowEventTargetFrameBorder(PRBool* aResult)
 {
-  *aResult = nsFrame::GetShowEventTargetFrameBorder();
+  *aResult = nsIFrameDebug::GetShowEventTargetFrameBorder();
   return NS_OK;
 }
 
@@ -158,9 +159,13 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
       fputc(' ', aOutput);
     }
     nsIFrame* f = i->GetUnderlyingFrame();
-    nsAutoString fName;
+    nsIFrameDebug* fDebug = nsnull;
     if (f) {
-      f->GetFrameName(fName);
+      CallQueryInterface(f, &fDebug);
+    }
+    nsAutoString fName;
+    if (fDebug) {
+      fDebug->GetFrameName(fName);
     }
     nsRect rect = i->GetBounds(aBuilder);
     switch (i->GetType()) {
@@ -172,28 +177,20 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
       default:
         break;
     }
-    fprintf(aOutput, "%s %p(%s) (%d,%d,%d,%d)%s%s%s%s\n", i->Name(),
+    fprintf(aOutput, "%s %p(%s) (%d,%d,%d,%d)%s%s\n", i->Name(),
             (void*)f, NS_ConvertUTF16toUTF8(fName).get(),
             rect.x, rect.y, rect.width, rect.height,
             i->IsOpaque(aBuilder) ? " opaque" : "",
-            i->IsUniform(aBuilder) ? " uniform" : "",
-            f && aBuilder->IsMovingFrame(f) ? " moving" : "",
-            f && aBuilder->IsMovingFrame(f) && !i->GetList() &&
-              i->IsVaryingRelativeToMovingFrame(aBuilder) ? " varying" : "");
+            i->IsUniform(aBuilder) ? " uniform" : "");
     nsDisplayList* list = i->GetList();
     if (list) {
       PrintDisplayListTo(aBuilder, *list, aIndent + 4, aOutput);
-    }
-    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
-      nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
-      PrintDisplayListTo(aBuilder, *(t->GetStoredList()->GetList()), aIndent + 4, aOutput);
     }
   }
 }
 
 void
-nsFrame::PrintDisplayList(nsDisplayListBuilder* aBuilder,
-                          const nsDisplayList& aList)
+nsIFrameDebug::PrintDisplayList(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList)
 {
   PrintDisplayListTo(aBuilder, aList, 0, stderr);
 }

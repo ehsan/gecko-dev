@@ -71,7 +71,7 @@
 #include "nsIRDFObserver.h"
 #include "nsIRDFRemoteDataSource.h"
 #include "nsFixedSizeAllocator.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsCOMArray.h"
 #include "nsArrayEnumerator.h"
 #include "nsXPIDLString.h"
@@ -175,7 +175,7 @@ protected:
     nsISimpleEnumerator* mCurrent;
     nsIRDFNode*  mResult;
     PRInt32      mNext;
-    nsAutoTArray<nsCOMPtr<nsIRDFNode>, 8>  mAlreadyReturned;
+    nsAutoVoidArray  mAlreadyReturned;
     PRPackedBool mAllowNegativeAssertions;
     PRPackedBool mCoalesceDuplicateArcs;
 };
@@ -197,6 +197,15 @@ CompositeEnumeratorImpl::CompositeEnumeratorImpl(CompositeDataSourceImpl* aCompo
 
 CompositeEnumeratorImpl::~CompositeEnumeratorImpl(void)
 {
+	if (mCoalesceDuplicateArcs == PR_TRUE)
+	{
+		for (PRInt32 i = mAlreadyReturned.Count() - 1; i >= 0; --i)
+		{
+			nsIRDFNode *node = (nsIRDFNode *) mAlreadyReturned[i];
+			NS_RELEASE(node);
+		}
+	}
+
 	NS_IF_RELEASE(mCurrent);
 	NS_IF_RELEASE(mResult);
 	NS_RELEASE(mCompositeDataSource);
@@ -295,7 +304,7 @@ CompositeEnumeratorImpl::HasMoreElements(PRBool* aResult)
                 // Now see if we've returned it once already.
                 // XXX N.B. performance here...may want to hash if things get large?
                 PRBool alreadyReturned = PR_FALSE;
-                for (i = mAlreadyReturned.Length() - 1; i >= 0; --i)
+                for (i = mAlreadyReturned.Count() - 1; i >= 0; --i)
                 {
                     if (mAlreadyReturned[i] == mResult)
                     {
@@ -323,6 +332,7 @@ CompositeEnumeratorImpl::HasMoreElements(PRBool* aResult)
             if (mCoalesceDuplicateArcs == PR_TRUE)
             {
                 mAlreadyReturned.AppendElement(mResult);
+                NS_ADDREF(mResult);
             }
 
             return NS_OK;

@@ -140,7 +140,7 @@ nsHttpConnection::Activate(nsAHttpTransaction *trans, PRUint8 caps)
 
     // if we don't have a socket transport then create a new one
     if (!mSocketTransport) {
-        rv = CreateTransport(caps);
+        rv = CreateTransport();
         if (NS_FAILED(rv))
             goto loser;
     }
@@ -318,14 +318,7 @@ nsHttpConnection::OnHeadersAvailable(nsAHttpTransaction *trans,
             mKeepAlive = PR_FALSE;
         else {
             mKeepAlive = PR_TRUE;
-
-            // Do not support pipelining when we are establishing
-            // an SSL tunnel though an HTTP proxy. Pipelining support
-            // determination must be based on comunication with the
-            // target server in this case. See bug 422016 for futher
-            // details.
-            if (!mSSLProxyConnectStream)
-              mSupportsPipelining = SupportsPipelining(responseHead);
+            mSupportsPipelining = SupportsPipelining(responseHead);
         }
     }
     mKeepAliveMask = mKeepAlive;
@@ -424,14 +417,14 @@ nsHttpConnection::ResumeRecv()
 //-----------------------------------------------------------------------------
 
 nsresult
-nsHttpConnection::CreateTransport(PRUint8 caps)
+nsHttpConnection::CreateTransport()
 {
     nsresult rv;
 
     NS_PRECONDITION(!mSocketTransport, "unexpected");
 
     nsCOMPtr<nsISocketTransportService> sts =
-            do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &rv);
+            do_GetService(kSocketTransportServiceCID, &rv);
     if (NS_FAILED(rv)) return rv;
 
     // configure the socket type based on the connection type requested.
@@ -451,15 +444,6 @@ nsHttpConnection::CreateTransport(PRUint8 caps)
                               mConnInfo->ProxyInfo(),
                               getter_AddRefs(strans));
     if (NS_FAILED(rv)) return rv;
-
-    PRUint32 tmpFlags = 0;
-    if (caps & NS_HTTP_REFRESH_DNS)
-        tmpFlags = nsISocketTransport::BYPASS_CACHE;
-    
-    if (caps & NS_HTTP_LOAD_ANONYMOUS)
-        tmpFlags |= nsISocketTransport::ANONYMOUS_CONNECT;
-    
-    strans->SetConnectionFlags(tmpFlags); 
 
     // NOTE: these create cyclical references, which we break inside
     //       nsHttpConnection::Close

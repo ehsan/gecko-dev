@@ -39,7 +39,6 @@
 #include "PlaceholderTxn.h"
 #include "nsEditor.h"
 #include "IMETextTxn.h"
-#include "nsGkAtoms.h"
 
 PlaceholderTxn::PlaceholderTxn() :  EditAggregateTxn(), 
                                     mAbsorb(PR_TRUE), 
@@ -52,27 +51,9 @@ PlaceholderTxn::PlaceholderTxn() :  EditAggregateTxn(),
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(PlaceholderTxn)
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(PlaceholderTxn,
-                                                EditAggregateTxn)
-  tmp->mStartSel->DoUnlink();
-  tmp->mEndSel.DoUnlink();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(PlaceholderTxn,
-                                                  EditAggregateTxn)
-  tmp->mStartSel->DoTraverse(cb);
-  tmp->mEndSel.DoTraverse(cb);
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(PlaceholderTxn)
-  NS_INTERFACE_MAP_ENTRY(nsIAbsorbingTransaction)
-  NS_INTERFACE_MAP_ENTRY(nsISupportsWeakReference)
-NS_INTERFACE_MAP_END_INHERITING(EditAggregateTxn)
-
-NS_IMPL_ADDREF_INHERITED(PlaceholderTxn, EditAggregateTxn)
-NS_IMPL_RELEASE_INHERITED(PlaceholderTxn, EditAggregateTxn)
+NS_IMPL_ISUPPORTS_INHERITED2(PlaceholderTxn, EditAggregateTxn,
+                             nsIAbsorbingTransaction, nsISupportsWeakReference)
 
 NS_IMETHODIMP PlaceholderTxn::Init(nsIAtom *aName, nsSelectionState *aSelState, nsIEditor *aEditor)
 {
@@ -169,7 +150,7 @@ NS_IMETHODIMP PlaceholderTxn::Merge(nsITransaction *aTransaction, PRBool *aDidMe
         mIMETextTxn->Merge(otherTxn, &didMerge);
         if (!didMerge)
         {
-          // it wouldn't merge.  Earlier IME txn is already committed and will
+          // it wouldn't merge.  Earlier IME txn is already commited and will 
           // not absorb further IME txns.  So just stack this one after it
           // and remember it as a candidate for further merges.
           mIMETextTxn =otherTxn;
@@ -184,14 +165,14 @@ NS_IMETHODIMP PlaceholderTxn::Merge(nsITransaction *aTransaction, PRBool *aDidMe
     *aDidMerge = PR_TRUE;
 //  RememberEndingSelection();
 //  efficiency hack: no need to remember selection here, as we haven't yet 
-//  finished the initial batch and we know we will be told when the batch ends.
+//  finished the inital batch and we know we will be told when the batch ends.
 //  we can remeber the selection then.
   }
   else
   { // merge typing or IME or deletion transactions if the selection matches
-    if (((mName.get() == nsGkAtoms::TypingTxnName) ||
-         (mName.get() == nsGkAtoms::IMETxnName)    ||
-         (mName.get() == nsGkAtoms::DeleteTxnName)) 
+    if (((mName.get() == nsEditor::gTypingTxnName) ||
+         (mName.get() == nsEditor::gIMETxnName)    ||
+         (mName.get() == nsEditor::gDeleteTxnName)) 
          && !mCommitted ) 
     {
       nsCOMPtr<nsIAbsorbingTransaction> plcTxn;// = do_QueryInterface(editTxn);

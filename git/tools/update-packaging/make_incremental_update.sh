@@ -24,23 +24,19 @@ check_for_forced_update() {
   force_list="$1"
   forced_file_chk="$2"
 
+  ## 'false'... because this is bash. Oh yay!  
+  local do_force=1
   local f
-
-  if [ "${forced_file_chk##*.}" = "chk" ]
-  then
-    ## "true" *giggle*
-    return 0;
-  fi
 
   for f in $force_list; do
     #echo comparing $forced_file_chk to $f
     if [ "$forced_file_chk" = "$f" ]; then
       ## "true" *giggle*
-      return 0;
+      do_force=0
+      break
     fi
   done
-  ## 'false'... because this is bash. Oh yay!
-  return 1;
+  return $do_force;
 }
 
 if [ $# = 0 ]; then
@@ -48,7 +44,7 @@ if [ $# = 0 ]; then
   exit 1
 fi
 
-requested_forced_updates='components/components.list Contents/MacOS/components/components.list'
+requested_forced_updates=''
 
 while getopts "hf:" flag
 do
@@ -109,17 +105,6 @@ for ((i=0; $i<$num_oldfiles; i=$i+1)); do
 
   # If this file exists in the new directory as well, then check if it differs.
   if [ -f "$newdir/$f" ]; then
-
-    if check_for_forced_update "$requested_forced_updates" "$f"; then
-      echo 1>&2 "  FORCING UPDATE for file '$f'..."
-      # The full workdir may not exist yet, so create it if necessary. 
-      mkdir -p `dirname "$workdir/$f"`
-      $BZIP2 -cz9 "$newdir/$f" > "$workdir/$f"
-      make_add_instruction "$f" >> $manifest
-      archivefiles="$archivefiles \"$f\""
-      continue 1
-    fi
-
     if ! diff "$olddir/$f" "$newdir/$f" > /dev/null; then
       # Compute both the compressed binary diff and the compressed file, and
       # compare the sizes.  Then choose the smaller of the two to package.
@@ -132,6 +117,14 @@ for ((i=0; $i<$num_oldfiles; i=$i+1)); do
       patchfile="$workdir/$f.patch.bz2"
       patchsize=$(get_file_size "$patchfile")
       fullsize=$(get_file_size "$workdir/$f")
+
+      if check_for_forced_update "$requested_forced_updates" "$f"; then
+        echo 1>&2 "  FORCING UPDATE for file '$f'..."
+        make_add_instruction "$f" >> $manifest
+        rm -f "$patchfile"
+        archivefiles="$archivefiles \"$f\""
+        continue 1
+      fi
 
       if [ $patchsize -lt $fullsize -a "$f" != "removed-files" ]; then
         make_patch_instruction "$f" >> $manifest
@@ -157,7 +150,7 @@ for ((i=0; $i<$num_newfiles; i=$i+1)); do
 
   # If we've already tested this file, then skip it
   for ((j=0; $j<$num_oldfiles; j=$j+1)); do
-    if [ "$f" = "${oldfiles[j]}" ]; then
+    if [ "\"$f\"" = "${oldfiles[j]}" ]; then
       continue 2
     fi
   done

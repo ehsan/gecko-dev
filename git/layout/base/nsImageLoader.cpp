@@ -63,52 +63,37 @@
 
 NS_IMPL_ISUPPORTS2(nsImageLoader, imgIDecoderObserver, imgIContainerObserver)
 
-nsImageLoader::nsImageLoader(nsIFrame *aFrame, PRUint32 aActions,
-                             nsImageLoader *aNextLoader)
-  : mFrame(aFrame),
-    mActions(aActions),
-    mNextLoader(aNextLoader)
+nsImageLoader::nsImageLoader() :
+  mFrame(nsnull), mPresContext(nsnull)
 {
 }
 
 nsImageLoader::~nsImageLoader()
 {
   mFrame = nsnull;
+  mPresContext = nsnull;
 
   if (mRequest) {
-    mRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+    mRequest->Cancel(NS_ERROR_FAILURE);
   }
 }
 
-/* static */ already_AddRefed<nsImageLoader>
-nsImageLoader::Create(nsIFrame *aFrame, imgIRequest *aRequest, 
-                      PRUint32 aActions, nsImageLoader *aNextLoader)
+
+void
+nsImageLoader::Init(nsIFrame *aFrame, nsPresContext *aPresContext)
 {
-  nsRefPtr<nsImageLoader> loader =
-    new nsImageLoader(aFrame, aActions, aNextLoader);
-
-  loader->Load(aRequest);
-
-  return loader.forget();
+  mFrame = aFrame;
+  mPresContext = aPresContext;
 }
 
 void
 nsImageLoader::Destroy()
 {
-  // Destroy the chain with only one level of recursion.
-  nsRefPtr<nsImageLoader> list = mNextLoader;
-  mNextLoader = nsnull;
-  while (list) {
-    nsRefPtr<nsImageLoader> todestroy = list;
-    list = todestroy->mNextLoader;
-    todestroy->mNextLoader = nsnull;
-    todestroy->Destroy();
-  }
-
   mFrame = nsnull;
+  mPresContext = nsnull;
 
   if (mRequest) {
-    mRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+    mRequest->Cancel(NS_ERROR_FAILURE);
   }
 
   mRequest = nsnull;
@@ -117,13 +102,27 @@ nsImageLoader::Destroy()
 nsresult
 nsImageLoader::Load(imgIRequest *aImage)
 {
-  NS_ASSERTION(!mRequest, "can't reuse image loaders");
-
   if (!mFrame)
     return NS_ERROR_NOT_INITIALIZED;
 
   if (!aImage)
     return NS_ERROR_FAILURE;
+
+  if (mRequest) {
+    nsCOMPtr<nsIURI> oldURI;
+    mRequest->GetURI(getter_AddRefs(oldURI));
+    nsCOMPtr<nsIURI> newURI;
+    aImage->GetURI(getter_AddRefs(newURI));
+    PRBool eq = PR_FALSE;
+    nsresult rv = newURI->Equals(oldURI, &eq);
+    if (NS_SUCCEEDED(rv) && eq) {
+      return NS_OK;
+    }
+
+    // Now cancel the old request so it won't hold a stale ref to us.
+    mRequest->Cancel(NS_ERROR_FAILURE);
+    mRequest = nsnull;
+  }
 
   // Make sure to clone into a temporary, then set mRequest, since
   // cloning may notify and we don't want to trigger paints from this
@@ -139,64 +138,51 @@ nsImageLoader::Load(imgIRequest *aImage)
 NS_IMETHODIMP nsImageLoader::OnStartContainer(imgIRequest *aRequest,
                                               imgIContainer *aImage)
 {
-  NS_ABORT_IF_FALSE(aImage, "Who's calling us then?");
-
-  /* Get requested animation policy from the pres context:
-   *   normal = 0
-   *   one frame = 1
-   *   one loop = 2
-   */
-  aImage->SetAnimationMode(mFrame->PresContext()->ImageAnimationMode());
-  // Ensure the animation (if any) is started.
-  aImage->StartAnimation();
-
+  if (aImage)
+  {
+    /* Get requested animation policy from the pres context:
+     *   normal = 0
+     *   one frame = 1
+     *   one loop = 2
+     */
+    aImage->SetAnimationMode(mPresContext->ImageAnimationMode());
+    // Ensure the animation (if any) is started.
+    aImage->StartAnimation();
+  }
   return NS_OK;
 }
 
 NS_IMETHODIMP nsImageLoader::OnStopFrame(imgIRequest *aRequest,
-                                         PRUint32 aFrame)
+                                         gfxIImageFrame *aFrame)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
+  
+#ifdef NS_DEBUG
+// Make sure the image request status's STATUS_FRAME_COMPLETE flag has been set to ensure
+// the image will be painted when invalidated
+  if (aRequest) {
+   PRUint32 status = imgIRequest::STATUS_ERROR;
+   nsresult rv = aRequest->GetImageStatus(&status);
+   if (NS_SUCCEEDED(rv)) {
+     NS_ASSERTION((status & imgIRequest::STATUS_FRAME_COMPLETE), "imgIRequest::STATUS_FRAME_COMPLETE not set");
+   }
+  }
+#endif
 
   if (!mRequest) {
     // We're in the middle of a paint anyway
     return NS_OK;
   }
-
-  // Take requested actions
-  if (mActions & ACTION_REFLOW_ON_DECODE) {
-    DoReflow();
-  }
-  if (mActions & ACTION_REDRAW_ON_DECODE) {
-    DoRedraw(nsnull);
-  }
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsImageLoader::OnStopRequest(imgIRequest *aRequest,
-                                           PRBool aLastPart)
-{
-  if (!mFrame)
-    return NS_ERROR_FAILURE;
-
-  if (!mRequest) {
-    // We're in the middle of a paint anyway
-    return NS_OK;
-  }
-
-  // Take requested actions
-  if (mActions & ACTION_REFLOW_ON_LOAD) {
-    DoReflow();
-  }
-  if (mActions & ACTION_REDRAW_ON_LOAD) {
-    DoRedraw(nsnull);
-  }
+  
+  // Draw the background image
+  RedrawDirtyFrame(nsnull);
   return NS_OK;
 }
 
 NS_IMETHODIMP nsImageLoader::FrameChanged(imgIContainer *aContainer,
-                                          nsIntRect *dirtyRect)
+                                          gfxIImageFrame *newframe,
+                                          nsRect * dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
@@ -206,26 +192,21 @@ NS_IMETHODIMP nsImageLoader::FrameChanged(imgIContainer *aContainer,
     return NS_OK;
   }
   
-  nsRect r = dirtyRect->ToAppUnits(nsPresContext::AppUnitsPerCSSPixel());
+  nsRect r(*dirtyRect);
 
-  DoRedraw(&r);
+  r.x = nsPresContext::CSSPixelsToAppUnits(r.x);
+  r.y = nsPresContext::CSSPixelsToAppUnits(r.y);
+  r.width = nsPresContext::CSSPixelsToAppUnits(r.width);
+  r.height = nsPresContext::CSSPixelsToAppUnits(r.height);
+
+  RedrawDirtyFrame(&r);
 
   return NS_OK;
 }
 
-void
-nsImageLoader::DoReflow()
-{
-  nsIPresShell *shell = mFrame->PresContext()->GetPresShell();
-#ifdef DEBUG
-  nsresult rv =
-#endif
-    shell->FrameNeedsReflow(mFrame, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
-  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Could not reflow after loading border-image");
-}
 
 void
-nsImageLoader::DoRedraw(const nsRect* aDamageRect)
+nsImageLoader::RedrawDirtyFrame(const nsRect* aDamageRect)
 {
   // NOTE: It is not sufficient to invalidate only the size of the image:
   //       the image may be tiled! 
@@ -267,7 +248,5 @@ nsImageLoader::DoRedraw(const nsRect* aDamageRect)
 
 #endif
 
-  if (mFrame->GetStyleVisibility()->IsVisible()) {
-    mFrame->Invalidate(bounds);
-  }
+  mFrame->Invalidate(bounds, PR_FALSE);
 }

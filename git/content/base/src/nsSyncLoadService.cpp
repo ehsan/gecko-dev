@@ -59,7 +59,6 @@
 #include "nsAutoPtr.h"
 #include "nsLoadListenerProxy.h"
 #include "nsStreamUtils.h"
-#include "nsCrossSiteListenerProxy.h"
 
 /**
  * This class manages loading a single XML document
@@ -71,12 +70,11 @@ class nsSyncLoader : public nsIDOMLoadListener,
                      public nsSupportsWeakReference
 {
 public:
-    nsSyncLoader() : mLoading(PR_FALSE), mLoadSuccess(PR_FALSE) {}
     virtual ~nsSyncLoader();
 
     NS_DECL_ISUPPORTS
 
-    nsresult LoadDocument(nsIChannel* aChannel, nsIPrincipal *aLoaderPrincipal,
+    nsresult LoadDocument(nsIChannel* aChannel, nsIURI *aLoaderURI,
                           PRBool aChannelIsSync, PRBool aForceToXML,
                           nsIDOMDocument** aResult);
 
@@ -156,16 +154,15 @@ nsSyncLoader::~nsSyncLoader()
     }
 }
 
-NS_IMPL_ISUPPORTS5(nsSyncLoader,
+NS_IMPL_ISUPPORTS4(nsSyncLoader,
                    nsIDOMLoadListener,
-                   nsIDOMEventListener,
                    nsIChannelEventSink,
                    nsIInterfaceRequestor,
                    nsISupportsWeakReference)
 
 nsresult
 nsSyncLoader::LoadDocument(nsIChannel* aChannel,
-                           nsIPrincipal *aLoaderPrincipal,
+                           nsIURI *aLoaderURI,
                            PRBool aChannelIsSync,
                            PRBool aForceToXML,
                            nsIDOMDocument **aResult)
@@ -174,26 +171,32 @@ nsSyncLoader::LoadDocument(nsIChannel* aChannel,
     *aResult = nsnull;
     nsresult rv = NS_OK;
 
-    nsCOMPtr<nsIURI> loaderUri;
-    if (aLoaderPrincipal) {
-        aLoaderPrincipal->GetURI(getter_AddRefs(loaderUri));
-    }
-
     mChannel = aChannel;
     nsCOMPtr<nsIHttpChannel> http = do_QueryInterface(mChannel);
     if (http) {
         http->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),     
                                NS_LITERAL_CSTRING("text/xml,application/xml,application/xhtml+xml,*/*;q=0.1"),
                                PR_FALSE);
-        if (loaderUri) {
-            http->SetReferrer(loaderUri);
+        if (aLoaderURI) {
+            http->SetReferrer(aLoaderURI);
         }
     }
 
-    // Hook us up to listen to redirects and the like.
-    // Do this before setting up the cross-site proxy since
-    // that installs its own proxies.
-    mChannel->SetNotificationCallbacks(this);
+    if (aLoaderURI) {
+        nsCOMPtr<nsIURI> docURI;
+        rv = aChannel->GetOriginalURI(getter_AddRefs(docURI));
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsIScriptSecurityManager *securityManager =
+            nsContentUtils::GetSecurityManager();
+
+        rv = securityManager->CheckLoadURI(aLoaderURI, docURI,
+                                           nsIScriptSecurityManager::STANDARD);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = securityManager->CheckSameOriginURI(aLoaderURI, docURI);
+        NS_ENSURE_SUCCESS(rv, rv);
+    }
 
     // Get the loadgroup of the channel
     nsCOMPtr<nsILoadGroup> loadGroup;
@@ -218,13 +221,6 @@ nsSyncLoader::LoadDocument(nsIChannel* aChannel,
         nsCOMPtr<nsIStreamListener> forceListener =
             new nsForceXMLListener(listener);
         listener.swap(forceListener);
-    }
-
-    if (aLoaderPrincipal) {
-        listener = new nsCrossSiteListenerProxy(listener, aLoaderPrincipal,
-                                                mChannel, PR_FALSE, &rv);
-        NS_ENSURE_TRUE(listener, NS_ERROR_OUT_OF_MEMORY);
-        NS_ENSURE_SUCCESS(rv, rv);
     }
 
     // Register as a load listener on the document
@@ -274,6 +270,9 @@ nsSyncLoader::LoadDocument(nsIChannel* aChannel,
 nsresult
 nsSyncLoader::PushAsyncStream(nsIStreamListener* aListener)
 {
+    // Hook us up to listen to redirects and the like
+    mChannel->SetNotificationCallbacks(this);
+
     // Start reading from the channel
     nsresult rv = mChannel->AsyncOpen(aListener, nsnull);
 
@@ -368,6 +367,20 @@ nsSyncLoader::OnChannelRedirect(nsIChannel *aOldChannel,
 {
     NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
 
+    nsCOMPtr<nsIURI> oldURI;
+    nsresult rv = aOldChannel->GetURI(getter_AddRefs(oldURI)); // The original URI
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsCOMPtr<nsIURI> newURI;
+    rv = aNewChannel->GetURI(getter_AddRefs(newURI)); // The new URI
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsIScriptSecurityManager *securityManager =
+        nsContentUtils::GetSecurityManager();
+
+    rv = securityManager->CheckSameOriginURI(oldURI, newURI);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     mChannel = aNewChannel;
 
     return NS_OK;
@@ -384,49 +397,42 @@ NS_IMPL_ISUPPORTS1(nsSyncLoadService,
                    nsISyncLoadDOMService)
 
 static nsresult
-LoadFromChannel(nsIChannel* aChannel, nsIPrincipal *aLoaderPrincipal,
-                PRBool aChannelIsSync, PRBool aForceToXML,
-                nsIDOMDocument** aResult)
+LoadFromChannel(nsIChannel* aChannel, nsIURI *aLoaderURI, PRBool aChannelIsSync,
+                PRBool aForceToXML, nsIDOMDocument** aResult)
 {
     nsRefPtr<nsSyncLoader> loader = new nsSyncLoader();
     if (!loader) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    return loader->LoadDocument(aChannel, aLoaderPrincipal, aChannelIsSync,
+    return loader->LoadDocument(aChannel, aLoaderURI, aChannelIsSync,
                                 aForceToXML, aResult);
 }
 
 NS_IMETHODIMP
-nsSyncLoadService::LoadDocument(nsIChannel* aChannel,
-                                nsIPrincipal* aLoaderPrincipal,
+nsSyncLoadService::LoadDocument(nsIChannel* aChannel, nsIURI* aLoaderURI,
                                 nsIDOMDocument** aResult)
 {
-    return LoadFromChannel(aChannel, aLoaderPrincipal, PR_FALSE, PR_FALSE,
-                           aResult);
+    return LoadFromChannel(aChannel, aLoaderURI, PR_FALSE, PR_FALSE, aResult);
 }
 
 NS_IMETHODIMP
-nsSyncLoadService::LoadDocumentAsXML(nsIChannel* aChannel,
-                                     nsIPrincipal* aLoaderPrincipal,
+nsSyncLoadService::LoadDocumentAsXML(nsIChannel* aChannel, nsIURI* aLoaderURI,
                                      nsIDOMDocument** aResult)
 {
-    return LoadFromChannel(aChannel, aLoaderPrincipal, PR_FALSE, PR_TRUE,
-                           aResult);
+    return LoadFromChannel(aChannel, aLoaderURI, PR_FALSE, PR_TRUE, aResult);
 }
 
 NS_IMETHODIMP
-nsSyncLoadService::LoadLocalDocument(nsIChannel* aChannel,
-                                     nsIPrincipal* aLoaderPrincipal,
+nsSyncLoadService::LoadLocalDocument(nsIChannel* aChannel, nsIURI* aLoaderURI,
                                      nsIDOMDocument** aResult)
 {
-    return LoadFromChannel(aChannel, aLoaderPrincipal, PR_TRUE, PR_TRUE,
-                           aResult);
+    return LoadFromChannel(aChannel, aLoaderURI, PR_TRUE, PR_TRUE, aResult);
 }
 
 /* static */
 nsresult
-nsSyncLoadService::LoadDocument(nsIURI *aURI, nsIPrincipal *aLoaderPrincipal,
+nsSyncLoadService::LoadDocument(nsIURI *aURI, nsIURI *aLoaderURI,
                                 nsILoadGroup *aLoadGroup, PRBool aForceToXML,
                                 nsIDOMDocument** aResult)
 {
@@ -445,8 +451,7 @@ nsSyncLoadService::LoadDocument(nsIURI *aURI, nsIPrincipal *aLoaderPrincipal,
                     (NS_SUCCEEDED(aURI->SchemeIs("resource", &isResource)) &&
                      isResource);
 
-    return LoadFromChannel(channel, aLoaderPrincipal, isSync, aForceToXML,
-                           aResult);
+    return LoadFromChannel(channel, aLoaderURI, isSync, aForceToXML, aResult);
 }
 
 /* static */
@@ -459,15 +464,8 @@ nsSyncLoadService::PushSyncStreamToListener(nsIInputStream* aIn,
     nsresult rv;
     nsCOMPtr<nsIInputStream> bufferedStream;
     if (!NS_InputStreamIsBuffered(aIn)) {
-        PRInt32 chunkSize;
-        rv = aChannel->GetContentLength(&chunkSize);
-        if (NS_FAILED(rv)) {
-            chunkSize = 4096;
-        }
-        chunkSize = PR_MIN(PR_UINT16_MAX, chunkSize);
-
         rv = NS_NewBufferedInputStream(getter_AddRefs(bufferedStream), aIn,
-                                       chunkSize);
+                                       4096);
         NS_ENSURE_SUCCESS(rv, rv);
 
         aIn = bufferedStream;

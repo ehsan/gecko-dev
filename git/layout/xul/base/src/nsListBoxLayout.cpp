@@ -49,82 +49,83 @@
 #include "nsGkAtoms.h"
 #include "nsContentUtils.h"
 
-nsListBoxLayout::nsListBoxLayout() : nsGridRowGroupLayout()
+nsListBoxLayout::nsListBoxLayout(nsIPresShell* aPresShell)
+  : nsGridRowGroupLayout(aPresShell)
 {
 }
 
 ////////// nsIBoxLayout //////////////
 
-nsSize
-nsListBoxLayout::GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)
+NS_IMETHODIMP
+nsListBoxLayout::GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize)
 {
-  nsSize pref = nsGridRowGroupLayout::GetPrefSize(aBox, aBoxLayoutState);
+  nsresult rv = nsGridRowGroupLayout::GetPrefSize(aBox, aBoxLayoutState, aSize);
 
   nsListBoxBodyFrame* frame = static_cast<nsListBoxBodyFrame*>(aBox);
   if (frame) {
     nscoord rowheight = frame->GetRowHeightAppUnits();
-    pref.height = frame->GetRowCount() * rowheight;
+    aSize.height = frame->GetRowCount() * rowheight;
     // Pad the height.
     nscoord y = frame->GetAvailableHeight();
-    if (pref.height > y && y > 0 && rowheight > 0) {
-      nscoord m = (pref.height-y)%rowheight;
+    if (aSize.height > y && y > 0 && rowheight > 0) {
+      nscoord m = (aSize.height-y)%rowheight;
       nscoord remainder = m == 0 ? 0 : rowheight - m;
-      pref.height += remainder;
+      aSize.height += remainder;
     }
     if (nsContentUtils::HasNonEmptyAttr(frame->GetContent(), kNameSpaceID_None,
                                         nsGkAtoms::sizemode)) {
       nscoord width = frame->ComputeIntrinsicWidth(aBoxLayoutState);
-      if (width > pref.width)
-        pref.width = width;
+      if (width > aSize.width)
+        aSize.width = width;
     }
   }
-  return pref;
+  return rv;
 }
 
-nsSize
-nsListBoxLayout::GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)
+NS_IMETHODIMP
+nsListBoxLayout::GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize)
 {
-  nsSize minSize = nsGridRowGroupLayout::GetMinSize(aBox, aBoxLayoutState);
+  nsresult rv = nsGridRowGroupLayout::GetMinSize(aBox, aBoxLayoutState, aSize);
 
   nsListBoxBodyFrame* frame = static_cast<nsListBoxBodyFrame*>(aBox);
   if (frame) {
     nscoord rowheight = frame->GetRowHeightAppUnits();
-    minSize.height = frame->GetRowCount() * rowheight;
+    aSize.height = frame->GetRowCount() * rowheight;
     // Pad the height.
     nscoord y = frame->GetAvailableHeight();
-    if (minSize.height > y && y > 0 && rowheight > 0) {
-      nscoord m = (minSize.height-y)%rowheight;
+    if (aSize.height > y && y > 0 && rowheight > 0) {
+      nscoord m = (aSize.height-y)%rowheight;
       nscoord remainder = m == 0 ? 0 : rowheight - m;
-      minSize.height += remainder;
+      aSize.height += remainder;
     }
     if (nsContentUtils::HasNonEmptyAttr(frame->GetContent(), kNameSpaceID_None,
                                         nsGkAtoms::sizemode)) {
       nscoord width = frame->ComputeIntrinsicWidth(aBoxLayoutState);
-      if (width > minSize.width)
-        minSize.width = width;
+      if (width > aSize.width)
+        aSize.width = width;
     }
   }
-  return minSize;
+  return rv;
 }
 
-nsSize
-nsListBoxLayout::GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState)
+NS_IMETHODIMP
+nsListBoxLayout::GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize)
 {
-  nsSize maxSize = nsGridRowGroupLayout::GetMaxSize(aBox, aBoxLayoutState);
+  nsresult rv = nsGridRowGroupLayout::GetMaxSize(aBox, aBoxLayoutState, aSize);
 
   nsListBoxBodyFrame* frame = static_cast<nsListBoxBodyFrame*>(aBox);
   if (frame) {
     nscoord rowheight = frame->GetRowHeightAppUnits();
-    maxSize.height = frame->GetRowCount() * rowheight;
+    aSize.height = frame->GetRowCount() * rowheight;
     // Pad the height.
     nscoord y = frame->GetAvailableHeight();
-    if (maxSize.height > y && y > 0 && rowheight > 0) {
-      nscoord m = (maxSize.height-y)%rowheight;
+    if (aSize.height > y && y > 0 && rowheight > 0) {
+      nscoord m = (aSize.height-y)%rowheight;
       nscoord remainder = m == 0 ? 0 : rowheight - m;
-      maxSize.height += remainder;
+      aSize.height += remainder;
     }
   }
-  return maxSize;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -261,9 +262,10 @@ nsListBoxLayout::LayoutInternal(nsIBox* aBox, nsBoxLayoutState& aState)
 
 // Creation Routines ///////////////////////////////////////////////////////////////////////
 
-already_AddRefed<nsIBoxLayout> NS_NewListBoxLayout()
+nsresult
+NS_NewListBoxLayout( nsIPresShell* aPresShell, nsCOMPtr<nsIBoxLayout>& aNewLayout)
 {
-  nsIBoxLayout* layout = new nsListBoxLayout();
-  NS_IF_ADDREF(layout);
-  return layout;
+  aNewLayout = new nsListBoxLayout(aPresShell);
+
+  return NS_OK;
 } 

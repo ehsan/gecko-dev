@@ -54,7 +54,7 @@ else
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 OSDIR		= win
 else
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 OSDIR		= mac
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
@@ -71,16 +71,39 @@ VPATH		:= $(srcdir) $(srcdir)/$(OSDIR)
 MODULE = exthandler
 LIBRARY_NAME    = exthandler_s
 LIBXUL_LIBRARY  = 1
+REQUIRES	= xpcom \
+		  string \
+		  unicharutil \
+		  mimetype \
+		  uriloader \
+		  necko \
+		  webshell \
+		  plugin \
+		  pref \
+		  intl \
+		  uconv \
+		  docshell \
+		  windowwatcher \
+		  embed_base \
+		  dom \
+		  $(NULL)
 
+ifdef MOZ_PHOENIX
+REQUIRES	+= toolkitcomps
+endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+REQUIRES		+= windowwatcher \
+	             $(NULL)
+endif
 
-CMMSRCS	= nsOSHelperAppService.mm \
-			nsMIMEInfoMac.mm \
-			nsLocalHandlerAppMac.mm \
-			$(NULL)
-else
 OSHELPER	= nsOSHelperAppService.cpp
+
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+OSHELPER		+= nsInternetConfig.cpp \
+			nsInternetConfigService.cpp \
+			nsMIMEInfoMac.cpp \
+			$(NULL)
 endif
 
 LOCAL_INCLUDES = -I$(srcdir)
@@ -88,11 +111,6 @@ LOCAL_INCLUDES = -I$(srcdir)
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 OSHELPER	+= nsGNOMERegistry.cpp
 OSHELPER  += nsMIMEInfoUnix.cpp
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
-OSHELPER += nsGNOMERegistry.cpp
-OSHELPER += nsMIMEInfoUnix.cpp
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
@@ -121,6 +139,10 @@ XPIDLSRCS = \
 	nsIHandlerService.idl	\
 	$(NULL)
 
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+XPIDLSRCS		+= nsIInternetConfigService.idl
+endif
+
 CPPSRCS	= \
 	nsExternalHelperAppService.cpp	\
 	nsExternalProtocolHandler.cpp \
@@ -128,23 +150,6 @@ CPPSRCS	= \
 	nsLocalHandlerApp.cpp \
 	$(OSHELPER) \
 	$(NULL)
-
-ifdef MOZ_ENABLE_DBUS
-CPPSRCS += nsDBusHandlerApp.cpp
-LOCAL_INCLUDES   += $(TK_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
-EXTRA_DSO_LDOPTS += $(MOZ_DBUS_GLIB_LIBS)
-endif
-
-ifdef MOZ_PLATFORM_HILDON
-ifdef MOZ_ENABLE_GNOMEVFS
-LOCAL_INCLUDES   += $(MOZ_GNOMEVFS_CFLAGS)
-EXTRA_DSO_LDOPTS += $(MOZ_GNOMEVFS_LIBS)
-endif
-ifdef MOZ_ENABLE_GIO
-LOCAL_INCLUDES   += $(MOZ_GIO_CFLAGS)
-EXTRA_DSO_LDOPTS += $(MOZ_GIO_LIBS)
-endif
-endif
 
 ifeq ($(OS_ARCH),WINNT WINCE)
 OS_LIBS		+= shell32.lib

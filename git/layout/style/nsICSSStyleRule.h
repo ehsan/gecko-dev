@@ -21,7 +21,6 @@
  *
  * Contributor(s):
  *   Daniel Glazman <glazman@netscape.com>
- *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -52,8 +51,6 @@
 #include "nsCSSProps.h"
 #include "nsCSSValue.h"
 #include "nsIAtom.h"
-#include "nsCSSPseudoElements.h"
-#include "nsCSSPseudoClasses.h"
 
 class nsIAtom;
 class nsCSSDeclaration;
@@ -78,39 +75,24 @@ private:
   nsAtomList& operator=(const nsAtomList& aCopy); 
 };
 
-struct nsPseudoClassList {
+struct nsAtomStringList {
 public:
-  nsPseudoClassList(nsIAtom* aAtom, nsCSSPseudoClasses::Type aType);
-  nsPseudoClassList(nsIAtom* aAtom, nsCSSPseudoClasses::Type aType,
-                    const PRUnichar *aString);
-  nsPseudoClassList(nsIAtom* aAtom, nsCSSPseudoClasses::Type aType,
-                    const PRInt32 *aIntPair);
-  ~nsPseudoClassList(void);
+  nsAtomStringList(nsIAtom* aAtom, const PRUnichar *aString = nsnull);
+  nsAtomStringList(const nsString& aAtomValue, const PRUnichar *aString = nsnull);
+  ~nsAtomStringList(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
-  nsPseudoClassList* Clone() const { return Clone(PR_TRUE); }
+  nsAtomStringList* Clone() const { return Clone(PR_TRUE); }
 
   nsCOMPtr<nsIAtom> mAtom;
-  union {
-    // For a given value of mAtom, we have either:
-    //   a. no value, which means mMemory is always null
-    //      (if neither of the conditions for (b) or (c) is true)
-    //   b. a string value, which means mString/mMemory is non-null
-    //      (if nsCSSPseudoClasses::HasStringArg(mAtom))
-    //   c. an integer pair value, which means mNumbers/mMemory is non-null
-    //      (if nsCSSPseudoClasses::HasNthPairArg(mAtom))
-    void*           mMemory; // both pointer types use NS_Alloc/NS_Free
-    PRUnichar*      mString;
-    PRInt32*        mNumbers;
-  } u;
-  nsCSSPseudoClasses::Type mType;
-  nsPseudoClassList* mNext;
+  PRUnichar*        mString;
+  nsAtomStringList* mNext;
 private: 
-  nsPseudoClassList* Clone(PRBool aDeep) const;
+  nsAtomStringList* Clone(PRBool aDeep) const;
 
   // These are not supported and are not implemented! 
-  nsPseudoClassList(const nsPseudoClassList& aCopy);
-  nsPseudoClassList& operator=(const nsPseudoClassList& aCopy); 
+  nsAtomStringList(const nsAtomStringList& aCopy);
+  nsAtomStringList& operator=(const nsAtomStringList& aCopy); 
 };
 
 #define NS_ATTR_FUNC_SET        0     // [attr]
@@ -126,22 +108,19 @@ public:
   nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr);
   nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr, PRUint8 aFunction, 
                  const nsString& aValue, PRBool aCaseSensitive);
-  nsAttrSelector(PRInt32 aNameSpace, nsIAtom* aLowercaseAttr, 
-                 nsIAtom* aCasedAttr, PRUint8 aFunction, 
+  nsAttrSelector(PRInt32 aNameSpace, nsIAtom* aAttr, PRUint8 aFunction, 
                  const nsString& aValue, PRBool aCaseSensitive);
   ~nsAttrSelector(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
   nsAttrSelector* Clone() const { return Clone(PR_TRUE); }
 
+  PRInt32         mNameSpace;
+  nsCOMPtr<nsIAtom> mAttr;
+  PRUint8         mFunction;
+  PRPackedBool    mCaseSensitive;
   nsString        mValue;
   nsAttrSelector* mNext;
-  nsCOMPtr<nsIAtom> mLowercaseAttr;
-  nsCOMPtr<nsIAtom> mCasedAttr;
-  PRInt32         mNameSpace;
-  PRUint8         mFunction;
-  PRPackedBool    mCaseSensitive; // If we are in an HTML document,
-                                  // is the value case sensitive?
 private: 
   nsAttrSelector* Clone(PRBool aDeep) const;
 
@@ -163,76 +142,39 @@ public:
   void SetTag(const nsString& aTag);
   void AddID(const nsString& aID);
   void AddClass(const nsString& aClass);
-  void AddPseudoClass(nsIAtom* aPseudoClass, nsCSSPseudoClasses::Type aType);
-  void AddPseudoClass(nsIAtom* aPseudoClass, nsCSSPseudoClasses::Type aType,
-                      const PRUnichar* aString);
-  void AddPseudoClass(nsIAtom* aPseudoClass, nsCSSPseudoClasses::Type aType,
-                      const PRInt32* aIntPair);
+  void AddPseudoClass(const nsString& aPseudoClass, const PRUnichar* aString = nsnull);
+  void AddPseudoClass(nsIAtom* aPseudoClass, const PRUnichar* aString = nsnull);
   void AddAttribute(PRInt32 aNameSpace, const nsString& aAttr);
   void AddAttribute(PRInt32 aNameSpace, const nsString& aAttr, PRUint8 aFunc, 
                     const nsString& aValue, PRBool aCaseSensitive);
   void SetOperator(PRUnichar aOperator);
 
-  inline PRBool HasTagSelector() const {
-    return !!mCasedTag;
-  }
-
-  inline PRBool IsPseudoElement() const {
-    return mLowercaseTag && !mCasedTag;
-  }
-
-  // Calculate the specificity of this selector (not including its mNext!).
-  PRInt32 CalcWeight() const;
+  PRInt32 CalcWeight(void) const;
 
   void ToString(nsAString& aString, nsICSSStyleSheet* aSheet,
                 PRBool aAppend = PR_FALSE) const;
 
 private:
-  void AddPseudoClassInternal(nsPseudoClassList *aPseudoClass);
   nsCSSSelector* Clone(PRBool aDeepNext, PRBool aDeepNegations) const;
 
-  void AppendToStringWithoutCombinators(nsAString& aString,
-                                        nsICSSStyleSheet* aSheet) const;
-  void AppendToStringWithoutCombinatorsOrNegations(nsAString& aString,
-                                                   nsICSSStyleSheet* aSheet,
-                                                   PRBool aIsNegated)
-                                                        const;
-  // Returns true if this selector can have a namespace specified (which
-  // happens if and only if the default namespace would apply to this
-  // selector).
-  PRBool CanBeNamespaced(PRBool aIsNegated) const;
-  // Calculate the specificity of this selector (not including its mNext
-  // or its mNegations).
-  PRInt32 CalcWeightWithoutNegations() const;
+  void AppendNegationToString(nsAString& aString);
+  void ToStringInternal(nsAString& aString, nsICSSStyleSheet* aSheet,
+                        PRBool aIsPseudoElem,
+                        PRBool aIsNegated) const;
 
 public:
-  // Get and set the selector's pseudo type
-  nsCSSPseudoElements::Type PseudoType() const {
-    return static_cast<nsCSSPseudoElements::Type>(mPseudoType);
-  }
-  void SetPseudoType(nsCSSPseudoElements::Type aType) {
-    NS_ASSERTION(aType > PR_INT16_MIN && aType < PR_INT16_MAX, "Out of bounds");
-    mPseudoType = static_cast<PRInt16>(aType);
-  }
-
-  // For case-sensitive documents, mLowercaseTag is the same as mCasedTag,
-  // but in case-insensitive documents (HTML) mLowercaseTag is lowercase.
-  // Also, for pseudo-elements mCasedTag will be null but mLowercaseTag
-  // contains their name.
-  nsCOMPtr<nsIAtom> mLowercaseTag;
-  nsCOMPtr<nsIAtom> mCasedTag;
+  PRInt32         mNameSpace;
+  nsCOMPtr<nsIAtom> mTag;
   nsAtomList*     mIDList;
   nsAtomList*     mClassList;
-  nsPseudoClassList* mPseudoClassList; // atom for the pseudo, string for
-                                       // the argument to functional pseudos
+  nsAtomStringList* mPseudoClassList; // atom for the pseudo, string for
+                                      // the argument to functional pseudos
   nsAttrSelector* mAttrList;
-  nsCSSSelector*  mNegations;
-  nsCSSSelector*  mNext;
-  PRInt32         mNameSpace;
   PRUnichar       mOperator;
-private:
-  // PRInt16 to make sure it packs well with mOperator
-  PRInt16        mPseudoType;
+  nsCSSSelector*  mNegations;
+
+  nsCSSSelector*  mNext;
+private: 
   // These are not supported and are not implemented! 
   nsCSSSelector(const nsCSSSelector& aCopy);
   nsCSSSelector& operator=(const nsCSSSelector& aCopy); 
@@ -278,10 +220,9 @@ private:
   nsCSSSelectorList& operator=(const nsCSSSelectorList& aCopy); 
 };
 
-// e665007e-5d4a-433a-9056-4310701c08b9
-#define NS_ICSS_STYLE_RULE_IID \
-{ 0xe665007e, 0x5d4a, 0x433a, \
-  { 0x90, 0x56, 0x43, 0x10, 0x70, 0x1c, 0x08, 0xb9 } }
+// IID for the nsICSSStyleRule interface {00803ccc-66e8-4ec8-a037-45e901bb5304}
+#define NS_ICSS_STYLE_RULE_IID     \
+{0x00803ccc, 0x66e8, 0x4ec8, {0xa0, 0x37, 0x45, 0xe9, 0x01, 0xbb, 0x53, 0x04}}
 
 class nsICSSStyleRule : public nsICSSRule {
 public:
@@ -307,11 +248,7 @@ public:
   virtual already_AddRefed<nsICSSStyleRule>
     DeclarationChanged(PRBool aHandleContainer) = 0;
 
-  /**
-   * The rule processor must call this method before calling
-   * nsRuleWalker::Forward on this rule during rule matching.
-   */
-  virtual void RuleMatched() = 0;
+  virtual already_AddRefed<nsIStyleRule> GetImportantRule(void) = 0;
 
   // hooks for DOM rule
   virtual nsresult GetCssText(nsAString& aCssText) = 0;

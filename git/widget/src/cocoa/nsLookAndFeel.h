@@ -52,7 +52,22 @@ protected:
 
   // Apple hasn't defined a constant for scollbars with two arrows on each end, so we'll use this one.
   static const int kThemeScrollBarArrowsBoth = 2;
-  static const int kThemeScrollBarArrowsUpperLeft = 3;
+
+typedef enum {
+  //theme accent variation colours on Mac OS,
+  //offsets into Platinum theme variation colour table
+  eColorOffset_mac_accentlightesthighlight,
+  eColorOffset_mac_accentregularhighlight,
+  eColorOffset_mac_accentface,
+  eColorOffset_mac_accentlightshadow,
+  eColorOffset_mac_accentregularshadow,
+  eColorOffset_mac_accentdarkshadow,
+  eColorOffset_mac_accentdarkestshadow
+} nsMacAccentColorOffset;
+
+  NS_IMETHOD GetMacBrushColor(const PRInt32 aBrushType, nscolor & aColor, const nscolor & aDefaultColor);
+  NS_IMETHOD GetMacTextColor(const PRInt32 aTextType, nscolor & aColor, const nscolor & aDefaultColor);
+  NS_IMETHOD GetMacAccentColor(const nsMacAccentColorOffset aAccent, nscolor & aColor, const nscolor & aDefaultColor);
 
   PRUnichar GetPasswordCharacter() {
     // unicode value for the bullet character, used for password textfields.

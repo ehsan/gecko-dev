@@ -39,18 +39,19 @@
 #include "nsBaseWidget.h"
 #include "nsIDeviceContext.h"
 #include "nsCOMPtr.h"
+#include "nsIMenuListener.h"
 #include "nsGfxCIID.h"
 #include "nsWidgetsCID.h"
+#include "nsIFullScreen.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIScreenManager.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsISimpleEnumerator.h"
-#include "nsIContent.h"
+
+#ifdef DEBUG
 #include "nsIServiceManager.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
-
-#ifdef DEBUG
 #include "nsIObserver.h"
 
 static void debug_RegisterPrefCallbacks();
@@ -62,26 +63,9 @@ static PRBool debug_InSecureKeyboardInputMode = PR_FALSE;
 static PRInt32 gNumWidgets;
 #endif
 
-nsIContent* nsBaseWidget::mLastRollup = nsnull;
-
 // nsBaseWidget
 NS_IMPL_ISUPPORTS1(nsBaseWidget, nsIWidget)
 
-
-nsAutoRollup::nsAutoRollup()
-{
-  // remember if mLastRollup was null, and only clear it upon destruction
-  // if so. This prevents recursive usage of nsAutoRollup from clearing
-  // mLastRollup when it shouldn't.
-  wasClear = !nsBaseWidget::mLastRollup;
-}
-
-nsAutoRollup::~nsAutoRollup()
-{
-  if (nsBaseWidget::mLastRollup && wasClear) {
-    NS_RELEASE(nsBaseWidget::mLastRollup);
-  }
-}
 
 //-------------------------------------------------------------------------
 //
@@ -94,13 +78,19 @@ nsBaseWidget::nsBaseWidget()
 , mEventCallback(nsnull)
 , mContext(nsnull)
 , mToolkit(nsnull)
+, mMouseListener(nsnull)
+, mEventListener(nsnull)
+, mMenuListener(nsnull)
 , mCursor(eCursor_standard)
 , mWindowType(eWindowType_child)
 , mBorderStyle(eBorderStyle_none)
+, mIsShiftDown(PR_FALSE)
+, mIsControlDown(PR_FALSE)
+, mIsAltDown(PR_FALSE)
+, mIsDestroying(PR_FALSE)
 , mOnDestroyCalled(PR_FALSE)
 , mBounds(0,0,0,0)
 , mOriginalBounds(nsnull)
-, mClipRectCount(0)
 , mZIndex(0)
 , mSizeMode(nsSizeMode_Normal)
 {
@@ -127,6 +117,7 @@ nsBaseWidget::~nsBaseWidget()
   printf("WIDGETS- = %d\n", gNumWidgets);
 #endif
 
+  NS_IF_RELEASE(mMenuListener);
   NS_IF_RELEASE(mToolkit);
   NS_IF_RELEASE(mContext);
   if (mOriginalBounds)
@@ -140,7 +131,7 @@ nsBaseWidget::~nsBaseWidget()
 //
 //-------------------------------------------------------------------------
 void nsBaseWidget::BaseCreate(nsIWidget *aParent,
-                              const nsIntRect &aRect,
+                              const nsRect &aRect,
                               EVENT_CALLBACK aHandleEventFunction,
                               nsIDeviceContext *aContext,
                               nsIAppShell *aAppShell,
@@ -200,8 +191,7 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
   }
 
   if (nsnull != aInitData) {
-    mWindowType = aInitData->mWindowType;
-    mBorderStyle = aInitData->mBorderStyle;
+    PreCreateWidget(aInitData);
   }
 
   if (aParent) {
@@ -212,6 +202,16 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
 NS_IMETHODIMP nsBaseWidget::CaptureMouse(PRBool aCapture)
 {
   return NS_OK;
+}
+
+NS_IMETHODIMP nsBaseWidget::Validate()
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsBaseWidget::InvalidateRegion(const nsIRegion *aRegion, PRBool aIsSynchronous)
+{
+  return NS_ERROR_FAILURE;
 }
 
 //-------------------------------------------------------------------------
@@ -241,11 +241,16 @@ NS_METHOD nsBaseWidget::Destroy()
 {
   // Just in case our parent is the only ref to us
   nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
+  
   // disconnect from the parent
   nsIWidget *parent = GetParent();
   if (parent) {
     parent->RemoveChild(this);
   }
+  // disconnect listeners.
+  NS_IF_RELEASE(mMouseListener);
+  NS_IF_RELEASE(mEventListener);
+  NS_IF_RELEASE(mMenuListener);
 
   return NS_OK;
 }
@@ -268,31 +273,6 @@ NS_IMETHODIMP nsBaseWidget::SetParent(nsIWidget* aNewParent)
 //
 //-------------------------------------------------------------------------
 nsIWidget* nsBaseWidget::GetParent(void)
-{
-  return nsnull;
-}
-
-//-------------------------------------------------------------------------
-//
-// Get this nsBaseWidget top level widget
-//
-//-------------------------------------------------------------------------
-nsIWidget* nsBaseWidget::GetTopLevelWidget()
-{
-  nsIWidget *topLevelWidget = nsnull, *widget = this;
-  while (widget) {
-    topLevelWidget = widget;
-    widget = widget->GetParent();
-  }
-  return topLevelWidget;
-}
-
-//-------------------------------------------------------------------------
-//
-// Get this nsBaseWidget's top (non-sheet) parent (if it's a sheet)
-//
-//-------------------------------------------------------------------------
-nsIWidget* nsBaseWidget::GetSheetWindowParent(void)
 {
   return nsnull;
 }
@@ -431,11 +411,8 @@ NS_IMETHODIMP nsBaseWidget::PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
 //-------------------------------------------------------------------------
 NS_IMETHODIMP nsBaseWidget::SetSizeMode(PRInt32 aMode) {
 
-
-  if (aMode == nsSizeMode_Normal ||
-      aMode == nsSizeMode_Minimized ||
-      aMode == nsSizeMode_Maximized ||
-      aMode == nsSizeMode_Fullscreen) {
+  if (aMode == nsSizeMode_Normal || aMode == nsSizeMode_Minimized ||
+      aMode == nsSizeMode_Maximized) {
 
     mSizeMode = (nsSizeMode) aMode;
     return NS_OK;
@@ -531,52 +508,29 @@ NS_IMETHODIMP nsBaseWidget::GetWindowType(nsWindowType& aWindowType)
   return NS_OK;
 }
 
+NS_IMETHODIMP nsBaseWidget::SetWindowType(nsWindowType aWindowType) 
+{
+  mWindowType = aWindowType;
+  return NS_OK;
+}
+
 //-------------------------------------------------------------------------
 //
 // Window transparency methods
 //
 //-------------------------------------------------------------------------
 
-void nsBaseWidget::SetTransparencyMode(nsTransparencyMode aMode) {
+NS_IMETHODIMP nsBaseWidget::SetWindowTranslucency(PRBool aTranslucent) {
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-nsTransparencyMode nsBaseWidget::GetTransparencyMode() {
-  return eTransparencyOpaque;
+NS_IMETHODIMP nsBaseWidget::GetWindowTranslucency(PRBool& aTranslucent) {
+  aTranslucent = PR_FALSE;
+  return NS_OK;
 }
 
-PRBool
-nsBaseWidget::StoreWindowClipRegion(const nsTArray<nsIntRect>& aRects)
-{
-  if (mClipRects && mClipRectCount == aRects.Length() &&
-      memcmp(mClipRects, aRects.Elements(), sizeof(nsIntRect)*mClipRectCount) == 0)
-    return PR_FALSE;
-
-  mClipRectCount = aRects.Length();
-  mClipRects = new nsIntRect[mClipRectCount];
-  if (mClipRects) {
-    memcpy(mClipRects, aRects.Elements(), sizeof(nsIntRect)*mClipRectCount);
-  }
-  return PR_TRUE;
-}
-
-void
-nsBaseWidget::GetWindowClipRegion(nsTArray<nsIntRect>* aRects)
-{
-  if (mClipRects) {
-    aRects->AppendElements(mClipRects.get(), mClipRectCount);
-  } else {
-    aRects->AppendElement(nsIntRect(0, 0, mBounds.width, mBounds.height));
-  }
-}
-
-//-------------------------------------------------------------------------
-//
-// Set window shadow style
-//
-//-------------------------------------------------------------------------
-
-NS_IMETHODIMP nsBaseWidget::SetWindowShadowStyle(PRInt32 aMode)
-{
+NS_IMETHODIMP nsBaseWidget::UpdateTranslucentWindowAlpha(const nsRect& aRect, PRUint8* aAlphas) {
+  NS_ASSERTION(PR_FALSE, "Window is not translucent");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -598,10 +552,16 @@ NS_IMETHODIMP nsBaseWidget::HideWindowChrome(PRBool aShouldHide)
 NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
 {
   HideWindowChrome(aFullScreen);
+  return MakeFullScreenInternal(aFullScreen);
+}
+
+nsresult nsBaseWidget::MakeFullScreenInternal(PRBool aFullScreen)
+{
+  nsCOMPtr<nsIFullScreen> fullScreen = do_GetService("@mozilla.org/browser/fullscreen;1");
 
   if (aFullScreen) {
     if (!mOriginalBounds)
-      mOriginalBounds = new nsIntRect();
+      mOriginalBounds = new nsRect();
     GetScreenBounds(*mOriginalBounds);
 
     // Move to top-left corner of screen and size to the screen dimensions
@@ -616,7 +576,12 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
       if (screen) {
         PRInt32 left, top, width, height;
         if (NS_SUCCEEDED(screen->GetRect(&left, &top, &width, &height))) {
+          SetSizeMode(nsSizeMode_Normal);
           Resize(left, top, width, height, PR_TRUE);
+    
+          // Hide all of the OS chrome
+          if (fullScreen)
+            fullScreen->HideAllOSChrome();
         }
       }
     }
@@ -624,6 +589,10 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
   } else if (mOriginalBounds) {
     Resize(mOriginalBounds->x, mOriginalBounds->y, mOriginalBounds->width,
            mOriginalBounds->height, PR_TRUE);
+
+    // Show all of the OS chrome
+    if (fullScreen)
+      fullScreen->ShowAllOSChrome();
   }
 
   return NS_OK;
@@ -716,11 +685,61 @@ NS_METHOD nsBaseWidget::SetWindowClass(const nsAString& xulWinType)
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
+NS_METHOD nsBaseWidget::SetBorderStyle(nsBorderStyle aBorderStyle)
+{
+  mBorderStyle = aBorderStyle;
+  return NS_OK;
+}
+
+
+/**
+* Processes a mouse pressed event
+*
+**/
+NS_METHOD nsBaseWidget::AddMouseListener(nsIMouseListener * aListener)
+{
+  NS_PRECONDITION(mMouseListener == nsnull, "Null mouse listener");
+  NS_IF_RELEASE(mMouseListener);
+  NS_ADDREF(aListener);
+  mMouseListener = aListener;
+  return NS_OK;
+}
+
+/**
+* Processes a mouse pressed event
+*
+**/
+NS_METHOD nsBaseWidget::AddEventListener(nsIEventListener * aListener)
+{
+  NS_PRECONDITION(mEventListener == nsnull, "Null mouse listener");
+  NS_IF_RELEASE(mEventListener);
+  NS_ADDREF(aListener);
+  mEventListener = aListener;
+  return NS_OK;
+}
+
+/**
+* Add a menu listener
+* This interface should only be called by the menu services manager
+* This will AddRef() the menu listener
+* This will Release() a previously set menu listener
+*
+**/
+
+NS_METHOD nsBaseWidget::AddMenuListener(nsIMenuListener * aListener)
+{
+  NS_IF_RELEASE(mMenuListener);
+  NS_IF_ADDREF(aListener);
+  mMenuListener = aListener;
+  return NS_OK;
+}
+
+
 /**
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetClientBounds(nsIntRect &aRect)
+NS_METHOD nsBaseWidget::GetClientBounds(nsRect &aRect)
 {
   return GetBounds(aRect);
 }
@@ -729,7 +748,7 @@ NS_METHOD nsBaseWidget::GetClientBounds(nsIntRect &aRect)
 * If the implementation of nsWindow supports borders this method MUST be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetBounds(nsIntRect &aRect)
+NS_METHOD nsBaseWidget::GetBounds(nsRect &aRect)
 {
   aRect = mBounds;
   return NS_OK;
@@ -740,7 +759,7 @@ NS_METHOD nsBaseWidget::GetBounds(nsIntRect &aRect)
 * this method must be overridden
 *
 **/
-NS_METHOD nsBaseWidget::GetScreenBounds(nsIntRect &aRect)
+NS_METHOD nsBaseWidget::GetScreenBounds(nsRect &aRect)
 {
   return GetBounds(aRect);
 }
@@ -749,7 +768,7 @@ NS_METHOD nsBaseWidget::GetScreenBounds(nsIntRect &aRect)
 * 
 *
 **/
-NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)
+NS_METHOD nsBaseWidget::SetBounds(const nsRect &aRect)
 {
   mBounds = aRect;
 
@@ -757,6 +776,33 @@ NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)
 }
  
 
+
+/**
+* Calculates the border width and height  
+*
+**/
+NS_METHOD nsBaseWidget::GetBorderSize(PRInt32 &aWidth, PRInt32 &aHeight)
+{
+  nsRect rectWin;
+  nsRect rect;
+  GetBounds(rectWin);
+  GetClientBounds(rect);
+
+  aWidth  = (rectWin.width - rect.width) / 2;
+  aHeight = (rectWin.height - rect.height) / 2;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsBaseWidget::ScrollWidgets(PRInt32 aDx, PRInt32 aDy)
+{
+  return NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP nsBaseWidget::ScrollRect(nsRect &aRect, PRInt32 aDx, PRInt32 aDy)
+{
+  return NS_ERROR_FAILURE;
+}
 
 NS_METHOD nsBaseWidget::EnableDragDrop(PRBool aEnable)
 {
@@ -768,15 +814,22 @@ NS_METHOD nsBaseWidget::SetModal(PRBool aModal)
   return NS_ERROR_FAILURE;
 }
 
+// generic xp assumption is that events should be processed
+NS_METHOD nsBaseWidget::ModalEventFilter(PRBool aRealEvent, void *aEvent,
+                            PRBool *aForWindow)
+{
+  *aForWindow = PR_TRUE;
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 nsBaseWidget::GetAttention(PRInt32 aCycleCount) {
     return NS_OK;
 }
 
-PRBool
-nsBaseWidget::HasPendingInputEvent()
-{
-  return PR_FALSE;
+NS_IMETHODIMP
+nsBaseWidget::GetLastInputEventTime(PRUint32& aTime) {
+    return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
@@ -804,62 +857,6 @@ nsBaseWidget::EndSecureKeyboardInput()
 #endif
   return NS_OK;
 }
-
-NS_IMETHODIMP
-nsBaseWidget::SetWindowTitlebarColor(nscolor aColor, PRBool aActive)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-PRBool
-nsBaseWidget::ShowsResizeIndicator(nsIntRect* aResizerRect)
-{
-  return PR_FALSE;
-}
-
-NS_IMETHODIMP
-nsBaseWidget::OverrideSystemMouseScrollSpeed(PRInt32 aOriginalDelta,
-                                             PRBool aIsHorizontal,
-                                             PRInt32 &aOverriddenDelta)
-{
-  aOverriddenDelta = aOriginalDelta;
-
-  nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(prefs, NS_ERROR_FAILURE);
-  nsCOMPtr<nsIPrefBranch> prefBranch;
-  nsresult rv = prefs->GetBranch(nsnull, getter_AddRefs(prefBranch));
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(prefBranch, NS_ERROR_FAILURE);
-
-  PRBool isOverrideEnabled;
-  const char* kPrefNameOverrideEnabled =
-    "mousewheel.system_scroll_override_on_root_content.enabled";
-  rv = prefBranch->GetBoolPref(kPrefNameOverrideEnabled, &isOverrideEnabled);
-  if (NS_FAILED(rv) || !isOverrideEnabled) {
-    return NS_OK;
-  }
-
-  PRInt32 iFactor;
-  nsCAutoString factorPrefName(
-    "mousewheel.system_scroll_override_on_root_content.");
-  if (aIsHorizontal) {
-    factorPrefName.AppendLiteral("horizontal.");
-  } else {
-    factorPrefName.AppendLiteral("vertical.");
-  }
-  factorPrefName.AppendLiteral("factor");
-  rv = prefBranch->GetIntPref(factorPrefName.get(), &iFactor);
-  // The pref value must be larger than 100, otherwise, we don't override the
-  // delta value.
-  if (NS_FAILED(rv) || iFactor <= 100) {
-    return NS_OK;
-  }
-  double factor = (double)iFactor / 100;
-  aOverriddenDelta = PRInt32(NS_round((double)aOriginalDelta * factor));
-
-  return NS_OK;
-}
-
 
 /**
  * Modifies aFile to point at an icon file with the given name and suffix.  The
@@ -928,123 +925,6 @@ nsBaseWidget::ResolveIconName(const nsAString &aIconName,
     NS_ADDREF(*aResult = file);
 }
 
-NS_IMETHODIMP 
-nsBaseWidget::BeginResizeDrag(nsGUIEvent* aEvent, PRInt32 aHorizontal, PRInt32 aVertical)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
- 
-//////////////////////////////////////////////////////////////
-//
-// Code to sort rectangles for scrolling.
-//
-// The algorithm used here is similar to that described at
-// http://weblogs.mozillazine.org/roc/archives/2009/08/homework_answer.html
-//
-//////////////////////////////////////////////////////////////
-
-void
-ScrollRectIterBase::BaseInit(const nsIntPoint& aDelta, ScrollRect* aHead)
-{
-  mHead = aHead;
-  // Reflect the coordinate system of the rectangles so that we can assume
-  // that rectangles are moving in the direction of decreasing x and y.
-  Flip(aDelta);
-
-  // Do an initial sort of the rectangles by y and then reverse-x.
-  // nsRegion does not guarantee yx-banded rectangles but still tends to
-  // prefer breaking up rectangles vertically and joining horizontally, so
-  // tends to have fewer rectangles across x than down y, making this
-  // algorithm more efficient for rectangles from nsRegion when y is the
-  // primary sort parameter.
-  ScrollRect* unmovedHead; // chain of unmoved rectangles
-  {
-    nsTArray<ScrollRect*> array;
-    for (ScrollRect* r = mHead; r; r = r->mNext) {
-      array.AppendElement(r);
-    }
-    array.Sort(InitialSortComparator());
-
-    ScrollRect *next = nsnull;
-    for (PRUint32 i = array.Length(); i--; ) {
-      array[i]->mNext = next;
-      next = array[i];
-    }
-    unmovedHead = next;
-    // mHead becomes the start of the moved chain.
-    mHead = nsnull;
-  }
-
-  // Try to move each rect from an unmoved chain to the moved chain.
-  mTailLink = &mHead;
-  while (unmovedHead) {
-    // Move() will check for other rectangles that might need to be moved first
-    // and move them also.
-    Move(&unmovedHead);
-  }
-
-  // Reflect back to the original coordinate system.
-  Flip(aDelta);
-}
-
-void ScrollRectIterBase::Move(ScrollRect** aUnmovedLink)
-{
-  ScrollRect* rect = *aUnmovedLink;
-  // Remove rect from the unmoved chain.
-  *aUnmovedLink = rect->mNext;
-  rect->mNext = nsnull;
-
-  // Check subsequent rectangles that overlap vertically to see whether they
-  // might need to be moved first.
-  //
-  // The overlapping subsequent rectangles that are not moved this time get
-  // checked for each of their preceding unmoved overlapping rectangles,
-  // which adds an O(n^2) cost to this algorithm (where n is the number of
-  // rectangles across x).  The reverse-x ordering from InitialSortComparator
-  // avoids this for the case when rectangles are aligned in y.
-  for (ScrollRect** nextLink = aUnmovedLink;
-       ScrollRect* otherRect = *nextLink; ) {
-    NS_ASSERTION(otherRect->y >= rect->y, "Scroll rectangles out of order");
-    if (otherRect->y >= rect->YMost()) // doesn't overlap vertically
-      break;
-
-    // This only moves the other rectangle first if it is entirely to the
-    // left.  No promises are made regarding intersecting rectangles.  Moving
-    // another intersecting rectangle with merely x < rect->x (but XMost() >
-    // rect->x) can cause more conflicts between rectangles that do not
-    // intersect each other.
-    if (otherRect->XMost() <= rect->x) {
-      Move(nextLink);
-      // *nextLink now points to a subsequent rectangle.
-    } else {
-      // Step over otherRect for now.
-      nextLink = &otherRect->mNext;
-    }
-  }
-
-  // Add rect to the moved chain.
-  *mTailLink = rect;
-  mTailLink = &rect->mNext;
-}
-
-BlitRectIter::BlitRectIter(const nsIntPoint& aDelta,
-                           const nsTArray<nsIntRect>& aRects)
-    : mRects(aRects.Length())
-{
-    for (PRUint32 i = 0; i < aRects.Length(); ++i) {
-        mRects.AppendElement(aRects[i]);
-    }
-
-    // Link rectangles into a chain.
-    ScrollRect *next = nsnull;
-    for (PRUint32 i = mRects.Length(); i--; ) {
-        mRects[i].mNext = next;
-        next = &mRects[i];
-    }
-
-    BaseInit(aDelta, next);
-}
-
 #ifdef DEBUG
 //////////////////////////////////////////////////////////////
 //
@@ -1083,11 +963,13 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_FORM_INPUT,"NS_FORM_INPUT");
     _ASSIGN_eventName(NS_FORM_RESET,"NS_FORM_RESET");
     _ASSIGN_eventName(NS_FORM_SUBMIT,"NS_FORM_SUBMIT");
+    _ASSIGN_eventName(NS_GOTFOCUS,"NS_GOTFOCUS");
     _ASSIGN_eventName(NS_IMAGE_ABORT,"NS_IMAGE_ABORT");
     _ASSIGN_eventName(NS_LOAD_ERROR,"NS_LOAD_ERROR");
     _ASSIGN_eventName(NS_KEY_DOWN,"NS_KEY_DOWN");
     _ASSIGN_eventName(NS_KEY_PRESS,"NS_KEY_PRESS");
     _ASSIGN_eventName(NS_KEY_UP,"NS_KEY_UP");
+    _ASSIGN_eventName(NS_LOSTFOCUS,"NS_LOSTFOCUS");
     _ASSIGN_eventName(NS_MENU_SELECTED,"NS_MENU_SELECTED");
     _ASSIGN_eventName(NS_MOUSE_ENTER,"NS_MOUSE_ENTER");
     _ASSIGN_eventName(NS_MOUSE_EXIT,"NS_MOUSE_EXIT");
@@ -1099,7 +981,6 @@ case _value: eventName.AssignWithConversion(_name) ; break
     _ASSIGN_eventName(NS_MOVE,"NS_MOVE");
     _ASSIGN_eventName(NS_LOAD,"NS_LOAD");
     _ASSIGN_eventName(NS_PAGE_UNLOAD,"NS_PAGE_UNLOAD");
-    _ASSIGN_eventName(NS_HASHCHANGE,"NS_HASHCHANGE");
     _ASSIGN_eventName(NS_PAINT,"NS_PAINT");
     _ASSIGN_eventName(NS_XUL_BROADCAST, "NS_XUL_BROADCAST");
     _ASSIGN_eventName(NS_XUL_COMMAND_UPDATE, "NS_XUL_COMMAND_UPDATE");
@@ -1350,7 +1231,7 @@ nsBaseWidget::debug_DumpPaintEvent(FILE *                aFileOut,
 /* static */ void
 nsBaseWidget::debug_DumpInvalidate(FILE *                aFileOut,
                                    nsIWidget *           aWidget,
-                                   const nsIntRect *     aRect,
+                                   const nsRect *        aRect,
                                    PRBool                aIsSynchronous,
                                    const nsCAutoString & aWidgetName,
                                    PRInt32               aWindowID)

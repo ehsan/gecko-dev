@@ -37,8 +37,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsXBLInsertionPoint.h"
-#include "nsContentUtils.h"
-#include "nsXBLBinding.h"
 
 nsXBLInsertionPoint::nsXBLInsertionPoint(nsIContent* aParentElement,
                                          PRUint32 aIndex,
@@ -51,10 +49,6 @@ nsXBLInsertionPoint::nsXBLInsertionPoint(nsIContent* aParentElement,
 
 nsXBLInsertionPoint::~nsXBLInsertionPoint()
 {
-  if (mDefaultContent) {
-    nsXBLBinding::UninstallAnonymousContent(mDefaultContent->GetOwnerDoc(),
-                                            mDefaultContent);
-  }
 }
 
 nsrefcnt
@@ -70,14 +64,10 @@ nsXBLInsertionPoint::Release()
   return mRefCnt;
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLInsertionPoint)
+NS_IMPL_CYCLE_COLLECTION_NATIVE_CLASS(nsXBLInsertionPoint)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_NATIVE(nsXBLInsertionPoint)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mElements)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDefaultContentTemplate)
-  if (tmp->mDefaultContent) {
-    nsXBLBinding::UninstallAnonymousContent(tmp->mDefaultContent->GetOwnerDoc(),
-                                            tmp->mDefaultContent);
-  }
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDefaultContent)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_BEGIN(nsXBLInsertionPoint)
@@ -88,44 +78,39 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsXBLInsertionPoint, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsXBLInsertionPoint, Release)
 
-nsIContent*
+already_AddRefed<nsIContent>
 nsXBLInsertionPoint::GetInsertionParent()
 {
+  NS_IF_ADDREF(mParentElement);
   return mParentElement;
 }
 
-nsIContent*
+already_AddRefed<nsIContent>
 nsXBLInsertionPoint::GetDefaultContent()
 {
-  return mDefaultContent;
+  nsIContent* defaultContent = mDefaultContent;
+  NS_IF_ADDREF(defaultContent);
+  return defaultContent;
 }
 
-nsIContent*
+already_AddRefed<nsIContent>
 nsXBLInsertionPoint::GetDefaultContentTemplate()
 {
-  return mDefaultContentTemplate;
+  nsIContent* defaultContent = mDefaultContentTemplate;
+  NS_IF_ADDREF(defaultContent);
+  return defaultContent;
 }
 
-nsIContent*
+already_AddRefed<nsIContent>
 nsXBLInsertionPoint::ChildAt(PRUint32 aIndex)
 {
-  return mElements.ObjectAt(aIndex);
+  nsIContent* result = mElements.ObjectAt(aIndex);
+  NS_IF_ADDREF(result);
+  return result;
 }
 
 PRBool
 nsXBLInsertionPoint::Matches(nsIContent* aContent, PRUint32 aIndex)
 {
   return (aContent == mParentElement && mIndex != -1 && ((PRInt32)aIndex) == mIndex);
-}
-
-void
-nsXBLInsertionPoint::UnbindDefaultContent()
-{
-  if (!mDefaultContent) {
-    return;
-  }
-
-  // Undo InstallAnonymousContent.
-  nsXBLBinding::UninstallAnonymousContent(mDefaultContent->GetOwnerDoc(),
-                                          mDefaultContent);
 }

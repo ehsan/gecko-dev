@@ -29,7 +29,8 @@
 
 // This file is used to generate minidump2.dmp and minidump2.sym.
 // cl /Zi test_app.cc /Fetest_app.exe /I google_breakpad/src \
-//   google_breakpad/src/client/windows/releasestaticcrt/exception_handler.lib
+//   google_breakpad/src/client/windows/releasestaticcrt/exception_handler.lib \
+//   ole32.lib
 // Then run test_app to generate a dump, and dump_syms to create the .sym file.
 
 #include <cstdio>

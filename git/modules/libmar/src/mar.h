@@ -40,13 +40,7 @@
 #define MAR_H__
 
 /* We use NSPR here just to import the definition of PRUint32 */
-#ifndef WINCE
 #include "prtypes.h"
-#else
-typedef int PRInt32;
-typedef unsigned int PRUint32;
-typedef wchar_t PRUnichar;
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -81,10 +75,6 @@ typedef int (* MarItemCallback)(MarFile *mar, const MarItem *item, void *data);
  * @returns         NULL if an error occurs.
  */
 MarFile *mar_open(const char *path);
-
-#ifdef XP_WIN
-MarFile *mar_wopen(const PRUnichar *path);
-#endif
 
 /**
  * Close a MAR file that was opened using mar_open.

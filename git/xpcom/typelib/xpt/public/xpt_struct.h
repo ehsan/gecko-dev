@@ -268,8 +268,8 @@ struct XPTInterfaceDescriptor {
 #define XPT_ID_TAGMASK              (~XPT_ID_FLAGMASK)
 #define XPT_ID_TAG(id)              ((id).flags & XPT_ID_TAGMASK)
 
-#define XPT_ID_IS_SCRIPTABLE(flags) (!!(flags & XPT_ID_SCRIPTABLE))
-#define XPT_ID_IS_FUNCTION(flags) (!!(flags & XPT_ID_FUNCTION))
+#define XPT_ID_IS_SCRIPTABLE(flags) (flags & XPT_ID_SCRIPTABLE)
+#define XPT_ID_IS_FUNCTION(flags) (flags & XPT_ID_FUNCTION)
 
 extern XPT_PUBLIC_API(PRBool)
 XPT_GetInterfaceIndexByName(XPTInterfaceDirectoryEntry *ide_block,
@@ -485,15 +485,13 @@ struct XPTMethodDescriptor {
 #define XPT_MD_NOTXPCOM 0x20
 #define XPT_MD_CTOR     0x10
 #define XPT_MD_HIDDEN   0x08
-#define XPT_MD_OPT_ARGC 0x04
-#define XPT_MD_FLAGMASK 0xfc
+#define XPT_MD_FLAGMASK 0xf8
 
-#define XPT_MD_IS_GETTER(flags)      (flags & XPT_MD_GETTER)
-#define XPT_MD_IS_SETTER(flags)      (flags & XPT_MD_SETTER)
-#define XPT_MD_IS_NOTXPCOM(flags)    (flags & XPT_MD_NOTXPCOM)
-#define XPT_MD_IS_CTOR(flags)        (flags & XPT_MD_CTOR)
-#define XPT_MD_IS_HIDDEN(flags)      (flags & XPT_MD_HIDDEN)
-#define XPT_MD_WANTS_OPT_ARGC(flags) (flags & XPT_MD_OPT_ARGC)
+#define XPT_MD_IS_GETTER(flags)     (flags & XPT_MD_GETTER)
+#define XPT_MD_IS_SETTER(flags)     (flags & XPT_MD_SETTER)
+#define XPT_MD_IS_NOTXPCOM(flags)   (flags & XPT_MD_NOTXPCOM)
+#define XPT_MD_IS_CTOR(flags)       (flags & XPT_MD_CTOR)
+#define XPT_MD_IS_HIDDEN(flags)     (flags & XPT_MD_HIDDEN)
 
 extern XPT_PUBLIC_API(PRBool)
 XPT_FillMethodDescriptor(XPTArena *arena, 

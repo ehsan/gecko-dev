@@ -57,10 +57,6 @@ static const PRUnichar sHTMLTagUnicodeName_applet[] =
   {'a', 'p', 'p', 'l', 'e', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_area[] =
   {'a', 'r', 'e', 'a', '\0'};
-#if defined(MOZ_MEDIA)
-static const PRUnichar sHTMLTagUnicodeName_audio[] =
-  {'a', 'u', 'd', 'i', 'o', '\0'};
-#endif
 static const PRUnichar sHTMLTagUnicodeName_b[] =
   {'b', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_base[] =
@@ -219,10 +215,6 @@ static const PRUnichar sHTMLTagUnicodeName_select[] =
   {'s', 'e', 'l', 'e', 'c', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_small[] =
   {'s', 'm', 'a', 'l', 'l', '\0'};
-#if defined(MOZ_MEDIA)
-static const PRUnichar sHTMLTagUnicodeName_source[] =
-  {'s', 'o', 'u', 'r', 'c', 'e', '\0'};
-#endif
 static const PRUnichar sHTMLTagUnicodeName_spacer[] =
   {'s', 'p', 'a', 'c', 'e', 'r', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_span[] =
@@ -263,10 +255,6 @@ static const PRUnichar sHTMLTagUnicodeName_ul[] =
   {'u', 'l', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_var[] =
   {'v', 'a', 'r', '\0'};
-#if defined(MOZ_MEDIA)
-static const PRUnichar sHTMLTagUnicodeName_video[] =
-  {'v', 'i', 'd', 'e', 'o', '\0'};
-#endif
 static const PRUnichar sHTMLTagUnicodeName_wbr[] =
   {'w', 'b', 'r', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_xmp[] =
@@ -290,7 +278,7 @@ PLHashTable* nsHTMLTags::gTagAtomTable;
 
 
 // PRUnichar* -> id hash
-static PLHashNumber
+PR_STATIC_CALLBACK(PLHashNumber)
 HTMLTagsHashCodeUCPtr(const void *key)
 {
   const PRUnichar *str = (const PRUnichar *)key;
@@ -298,7 +286,7 @@ HTMLTagsHashCodeUCPtr(const void *key)
   return nsCRT::HashCode(str);
 }
 
-static PRIntn
+PR_STATIC_CALLBACK(PRIntn)
 HTMLTagsKeyCompareUCPtr(const void *key1, const void *key2)
 {
   const PRUnichar *str1 = (const PRUnichar *)key1;
@@ -308,7 +296,7 @@ HTMLTagsKeyCompareUCPtr(const void *key1, const void *key2)
 }
 
 // nsIAtom* -> id hash
-static PLHashNumber
+PR_STATIC_CALLBACK(PLHashNumber)
 HTMLTagsHashCodeAtom(const void *key)
 {
   return NS_PTR_TO_INT32(key) >> 2;
@@ -383,7 +371,7 @@ nsHTMLTags::AddRefTable(void)
       PRUint32 maxTagNameLength = 0;
       for (i = 0; i < NS_HTML_TAG_MAX; ++i) {
         PRUint32 len = nsCRT::strlen(sTagUnicodeTable[i]);
-        maxTagNameLength = NS_MAX(len, maxTagNameLength);        
+        maxTagNameLength = PR_MAX(len, maxTagNameLength);        
       }
       NS_ASSERTION(maxTagNameLength == NS_HTMLTAG_NAME_MAX_LENGTH,
                    "NS_HTMLTAG_NAME_MAX_LENGTH not set correctly!");
@@ -420,7 +408,7 @@ nsHTMLTags::LookupTag(const nsAString& aTagName)
     return eHTMLTag_userdefined;
   }
 
-  PRUnichar buf[NS_HTMLTAG_NAME_MAX_LENGTH + 1];
+  static PRUnichar buf[NS_HTMLTAG_NAME_MAX_LENGTH + 1];
 
   nsAString::const_iterator iter;
   PRUint32 i = 0;

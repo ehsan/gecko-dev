@@ -47,7 +47,6 @@
 // reportURL: When shown a warning bubble, we send back the user decision
 //            (get me out of here/ignore warning) to this URL (strip cookies
 //            first).  This is optional.
-// gethashURL: Url for requesting complete hashes from the provider.
 // reportGenericURL: HTML page for general user feedback
 // reportPhishURL: HTML page for notifying the provider of a new phishing page
 // reportErrorURL: HTML page for notifying the provider of a false positive
@@ -81,6 +80,10 @@ function PROT_DataProvider() {
   // Watch for when anti-phishing is toggled on or off.
   this.prefs_.addObserver(kPhishWardenEnabledPref,
                           BindToObject(this.loadDataProviderPrefs_, this));
+
+  // Watch for when remote lookups are toggled on or off.
+  this.prefs_.addObserver(kPhishWardenRemoteLookups,
+                          BindToObject(this.loadDataProviderPrefs_, this));
 }
 
 /**
@@ -107,14 +110,11 @@ PROT_DataProvider.prototype.loadDataProviderPrefs_ = function() {
   this.lookupURL_ = this.getUrlPref_(basePref + "lookupURL");
   this.keyURL_ = this.getUrlPref_(basePref + "keyURL");
   this.reportURL_ = this.getUrlPref_(basePref + "reportURL");
-  this.gethashURL_ = this.getUrlPref_(basePref + "gethashURL");
 
   // Urls to HTML report pages
   this.reportGenericURL_ = this.getUrlPref_(basePref + "reportGenericURL");
   this.reportErrorURL_ = this.getUrlPref_(basePref + "reportErrorURL");
   this.reportPhishURL_ = this.getUrlPref_(basePref + "reportPhishURL");
-  this.reportMalwareURL_ = this.getUrlPref_(basePref + "reportMalwareURL")
-  this.reportMalwareErrorURL_ = this.getUrlPref_(basePref + "reportMalwareErrorURL")
 
   // Propagate the changes to the list-manager.
   this.updateListManager_();
@@ -133,14 +133,16 @@ PROT_DataProvider.prototype.updateListManager_ = function() {
   listManager.setUpdateUrl(this.getUpdateURL());
 
   // setKeyUrl has the side effect of fetching a key from the server.
-  // This shouldn't happen if anti-phishing/anti-malware is disabled.
-  var isEnabled = this.prefs_.getPref(kPhishWardenEnabledPref, false) ||
-                  this.prefs_.getPref(kMalwareWardenEnabledPref, false);
-  if (isEnabled) {
-    listManager.setKeyUrl(this.keyURL_);
+  // This shouldn't happen if anti-phishing is disabled or we're in local
+  // list mode, so we need to check for that.
+  var isEnabled = this.prefs_.getPref(kPhishWardenEnabledPref, false);
+  var remoteLookups = this.prefs_.getPref(kPhishWardenRemoteLookups, false);
+  if (isEnabled && remoteLookups) {
+    listManager.setKeyUrl(this.getKeyURL());
+  } else {
+    // Clear the key to stop updates.
+    listManager.setKeyUrl("");
   }
-
-  listManager.setGethashUrl(this.getGethashURL());
 }
 
 /**
@@ -152,17 +154,13 @@ PROT_DataProvider.prototype.getUrlPref_ = function(prefName) {
   var appInfo = Components.classes["@mozilla.org/xre/app-info;1"]
                           .getService(Components.interfaces.nsIXULAppInfo);
 
-  var mozClientStr = this.prefs_.getPref("browser.safebrowsing.clientid",
-                                         MOZ_OFFICIAL_BUILD ? 'navclient-auto-ffox' : appInfo.name);
-
-  var versionStr = this.prefs_.getPref("browser.safebrowsing.clientver",
-                                       appInfo.version);
+  var mozClientStr = MOZ_OFFICIAL_BUILD ? 'navclient-auto-ffox' : appInfo.name;
 
   // Parameter substitution
   url = url.replace(MOZ_PARAM_LOCALE, this.getLocale_());
   url = url.replace(MOZ_PARAM_CLIENT, mozClientStr);
   url = url.replace(MOZ_PARAM_BUILDID, appInfo.appBuildID);
-  url = url.replace(MOZ_PARAM_VERSION, versionStr);
+  url = url.replace(MOZ_PARAM_VERSION, appInfo.version);
   return url;
 }
 
@@ -208,9 +206,11 @@ PROT_DataProvider.prototype.getUpdateURL = function() {
 PROT_DataProvider.prototype.getLookupURL = function() {
   return this.lookupURL_;
 }
-
-PROT_DataProvider.prototype.getGethashURL = function() {
-  return this.gethashURL_;
+PROT_DataProvider.prototype.getKeyURL = function() {
+  return this.keyURL_;
+}
+PROT_DataProvider.prototype.getReportURL = function() {
+  return this.reportURL_;
 }
 
 PROT_DataProvider.prototype.getReportGenericURL = function() {
@@ -221,10 +221,4 @@ PROT_DataProvider.prototype.getReportErrorURL = function() {
 }
 PROT_DataProvider.prototype.getReportPhishURL = function() {
   return this.reportPhishURL_;
-}
-PROT_DataProvider.prototype.getReportMalwareURL = function() {
-  return this.reportMalwareURL_;
-}
-PROT_DataProvider.prototype.getReportMalwareErrorURL = function() {
-  return this.reportMalwareErrorURL_;
 }

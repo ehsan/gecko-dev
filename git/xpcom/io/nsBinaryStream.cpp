@@ -475,8 +475,7 @@ nsBinaryInputStream::ReadBoolean(PRBool* aBoolean)
 {
     PRUint8 byteResult;
     nsresult rv = Read8(&byteResult);
-    if (NS_FAILED(rv)) return rv;
-    *aBoolean = !!byteResult;
+    *aBoolean = byteResult;
     return rv;
 }
 
@@ -690,11 +689,6 @@ nsBinaryInputStream::ReadString(nsAString& aString)
     rv = Read32(&length);
     if (NS_FAILED(rv)) return rv;
 
-    if (length == 0) {
-      aString.Truncate();
-      return NS_OK;
-    }
-
     // pre-allocate output buffer, and get direct access to buffer...
     if (!EnsureStringLength(aString, length))
         return NS_ERROR_OUT_OF_MEMORY;
@@ -806,3 +800,4 @@ nsBinaryInputStream::PutBuffer(char* aBuffer, PRUint32 aLength)
     if (mBufferAccess)
         mBufferAccess->PutBuffer(aBuffer, aLength);
 }
+

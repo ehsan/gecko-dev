@@ -46,13 +46,13 @@
 #include "nsISelectElement.h"
 #include "nsIDOMHTMLSelectElement.h"
 #include "nsIDOMNSHTMLSelectElement.h"
+#include "nsIDOMNSXBLFormControl.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLOptionElement.h"
+#include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLOptionsCollection.h"
 #include "nsIDOMNSHTMLOptionCollectn.h"
 #include "nsISelectControlFrame.h"
-#include "nsContentUtils.h"
-#include "nsIHTMLCollection.h"
 
 // PresState
 #include "nsXPCOM.h"
@@ -70,7 +70,7 @@ class nsHTMLSelectElement;
  */
 class nsHTMLOptionCollection: public nsIDOMHTMLOptionsCollection,
                               public nsIDOMNSHTMLOptionCollection,
-                              public nsIHTMLCollection
+                              public nsIDOMHTMLCollection
 {
 public:
   nsHTMLOptionCollection(nsHTMLSelectElement* aSelect);
@@ -87,16 +87,8 @@ public:
   // nsIDOMHTMLCollection interface, all its methods are defined in
   // nsIDOMHTMLOptionsCollection
 
-  virtual nsISupports* GetNodeAt(PRUint32 aIndex, nsresult* aResult)
-  {
-    *aResult = NS_OK;
-
-    return mElements.SafeObjectAt(aIndex);
-  }
-  virtual nsISupports* GetNamedItem(const nsAString& aName, nsresult* aResult);
-
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsHTMLOptionCollection,
-                                           nsIHTMLCollection)
+                                           nsIDOMNSHTMLOptionCollection)
 
   // Helpers for nsHTMLSelectElement
   /**
@@ -163,13 +155,6 @@ private:
   nsHTMLSelectElement* mSelect;
 };
 
-#define NS_SELECT_STATE_IID                        \
-{ /* 4db54c7c-d159-455f-9d8e-f60ee466dbf3 */       \
-  0x4db54c7c,                                      \
-  0xd159,                                          \
-  0x455f,                                          \
-  {0x9d, 0x8e, 0xf6, 0x0e, 0xe4, 0x66, 0xdb, 0xf3} \
-}
 
 /**
  * The restore state used by select
@@ -183,7 +168,6 @@ public:
   {
   }
 
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_SELECT_STATE_IID)
   NS_DECL_ISUPPORTS
 
   void PutOption(PRInt32 aIndex, const nsAString& aValue)
@@ -206,7 +190,7 @@ private:
   nsCheapInt32Set mIndices;
 };
 
-class NS_STACK_CLASS nsSafeOptionListMutation
+class nsSafeOptionListMutation
 {
 public:
   /**
@@ -241,6 +225,7 @@ private:
 class nsHTMLSelectElement : public nsGenericHTMLFormElement,
                             public nsIDOMHTMLSelectElement,
                             public nsIDOMNSHTMLSelectElement,
+                            public nsIDOMNSXBLFormControl,
                             public nsISelectElement
 {
 public:
@@ -265,13 +250,17 @@ public:
   // nsIDOMNSHTMLSelectElement
   NS_DECL_NSIDOMNSHTMLSELECTELEMENT
 
+  // nsIDOMNSXBLFormControl
+  NS_DECL_NSIDOMNSXBLFORMCONTROL
+
   // nsIContent
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
 
-  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual void SetFocus(nsPresContext* aPresContext);
+  virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull);
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
 
   // Overriden nsIFormControl methods
   NS_IMETHOD_(PRInt32) GetType() const { return NS_FORM_SELECT; }
@@ -340,23 +329,26 @@ protected:
    * Called to trigger notifications of frames and fixing selected index
    *
    * @param aSelectFrame the frame for this content (could be null)
+   * @param aPresContext the current pres context
    * @param aIndex the index that was selected or deselected
    * @param aSelected whether the index was selected or deselected
-   * @param aChangeOptionState if false, don't do anything to the
-   *                           nsHTMLOptionElement at aIndex.  If true, change
-   *                           its selected state to aSelected.
    * @param aNotify whether to notify the style system and such
    */
   void OnOptionSelected(nsISelectControlFrame* aSelectFrame,
+                        nsPresContext* aPresContext,
                         PRInt32 aIndex,
                         PRBool aSelected,
-                        PRBool aChangeOptionState,
                         PRBool aNotify);
   /**
    * Restore state to a particular state string (representing the options)
    * @param aNewSelected the state string to restore to
    */
   void RestoreStateTo(nsSelectState* aNewSelected);
+
+#ifdef DEBUG_john
+  // Don't remove these, por favor.  They're very useful in debugging
+  nsresult PrintOptions(nsIContent* aOptions, PRInt32 tabs);
+#endif
 
   // Adding options
   /**
@@ -443,6 +435,13 @@ protected:
   nsISelectControlFrame *GetSelectFrame();
 
   /**
+   * Helper method for dispatching custom DOM events to our anonymous subcontent
+   * (for XBL form controls)
+   * @param aName the name of the event to dispatch
+   */
+  void DispatchDOMEvent(const nsAString& aName);
+
+  /**
    * Is this a combobox?
    */
   PRBool IsCombobox() {
@@ -491,7 +490,7 @@ protected:
    * The temporary restore state in case we try to restore before parser is
    * done adding options
    */
-  nsCOMPtr<nsSelectState> mRestoreState;
+  nsRefPtr<nsSelectState> mRestoreState;
 };
 
 #endif

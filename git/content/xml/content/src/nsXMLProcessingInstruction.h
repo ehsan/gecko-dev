@@ -65,6 +65,7 @@ public:
 
   // nsIContent
   virtual PRBool IsNodeOfType(PRUint32 aFlags) const;
+  virtual PRBool MayHaveFrame() const;
 
 #ifdef DEBUG
   virtual void List(FILE* out, PRInt32 aIndent) const;
@@ -84,7 +85,7 @@ protected:
    */
   PRBool GetAttrValue(nsIAtom *aName, nsAString& aValue);
 
-  nsString mTarget;
+  nsAutoString mTarget;
 };
 
 #endif //nsIXMLProcessingInstruction_h___

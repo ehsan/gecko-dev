@@ -79,8 +79,8 @@ LookupSymbol(const mach_header* aLib, const char* aSymbolName)
     return NSAddressOfSymbol(sym);
 }
 
-nsresult
-XPCOMGlueLoad(const char *xpcomFile, GetFrozenFunctionsFunc *func)
+GetFrozenFunctionsFunc
+XPCOMGlueLoad(const char *xpcomFile)
 {
     const mach_header* lib = nsnull;
 
@@ -108,9 +108,7 @@ XPCOMGlueLoad(const char *xpcomFile, GetFrozenFunctionsFunc *func)
                          NSADDIMAGE_OPTION_MATCH_FILENAME_BY_INSTALLNAME);
     }
 
-    *func = (GetFrozenFunctionsFunc) LookupSymbol(lib, "_NS_GetFrozenFunctions");
-
-    return *func ? NS_OK : NS_ERROR_NOT_AVAILABLE;
+    return (GetFrozenFunctionsFunc) LookupSymbol(lib, "_NS_GetFrozenFunctions");
 }
 
 void

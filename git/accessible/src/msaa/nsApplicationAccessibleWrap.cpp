@@ -71,87 +71,58 @@ nsApplicationAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 nsApplicationAccessibleWrap::get_appName(BSTR *aName)
 {
-__try {
-  *aName = NULL;
-
   if (!sAppInfo)
     return E_FAIL;
 
   nsCAutoString cname;
   nsresult rv = sAppInfo->GetName(cname);
-  if (NS_FAILED(rv))
-    return GetHRESULT(rv);
 
-  if (cname.IsEmpty())
-    return S_FALSE;
+  if (NS_FAILED(rv))
+    return E_FAIL;
 
   NS_ConvertUTF8toUTF16 name(cname);
-  *aName = ::SysAllocStringLen(name.get(), name.Length());
-  return *aName ? S_OK : E_OUTOFMEMORY;
-
-} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
+  INT result = ::SysReAllocStringLen(aName, name.get(), name.Length());
+  return result ? NS_OK : E_OUTOFMEMORY;
 }
 
 STDMETHODIMP
 nsApplicationAccessibleWrap::get_appVersion(BSTR *aVersion)
 {
-__try {
-  *aVersion = NULL;
-
   if (!sAppInfo)
     return E_FAIL;
 
   nsCAutoString cversion;
   nsresult rv = sAppInfo->GetVersion(cversion);
-  if (NS_FAILED(rv))
-    return GetHRESULT(rv);
 
-  if (cversion.IsEmpty())
-    return S_FALSE;
+  if (NS_FAILED(rv))
+    return E_FAIL;
 
   NS_ConvertUTF8toUTF16 version(cversion);
-  *aVersion = ::SysAllocStringLen(version.get(), version.Length());
-  return *aVersion ? S_OK : E_OUTOFMEMORY;
-
-} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
+  INT result = ::SysReAllocStringLen(aVersion, version.get(), version.Length());
+  return result ? NS_OK : E_OUTOFMEMORY;
 }
 
 STDMETHODIMP
 nsApplicationAccessibleWrap::get_toolkitName(BSTR *aName)
 {
-__try {
-  *aName = ::SysAllocString(L"Gecko");
-  return *aName ? S_OK : E_OUTOFMEMORY;
-
-} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
+  return ::SysReAllocString(aName, L"Gecko");
 }
 
 STDMETHODIMP
 nsApplicationAccessibleWrap::get_toolkitVersion(BSTR *aVersion)
 {
-__try {
-  *aVersion = NULL;
-
   if (!sAppInfo)
     return E_FAIL;
 
   nsCAutoString cversion;
   nsresult rv = sAppInfo->GetPlatformVersion(cversion);
-  if (NS_FAILED(rv))
-    return GetHRESULT(rv);
 
-  if (cversion.IsEmpty())
-    return S_FALSE;
+  if (NS_FAILED(rv))
+    return E_FAIL;
 
   NS_ConvertUTF8toUTF16 version(cversion);
-  *aVersion = ::SysAllocStringLen(version.get(), version.Length());
-  return *aVersion ? S_OK : E_OUTOFMEMORY;
-
-} __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
-  return E_FAIL;
+  INT result = ::SysReAllocStringLen(aVersion, version.get(), version.Length());
+  return result ? NS_OK : E_OUTOFMEMORY;
 }
 
 // nsApplicationAccessibleWrap

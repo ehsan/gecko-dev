@@ -51,6 +51,7 @@
 #include "nsHTMLTokenizer.h"
 #include "nsScanner.h"
 #include "nsElementTable.h"
+#include "CParserContext.h"
 #include "nsReadableUtils.h"
 #include "nsUnicharUtils.h"
 
@@ -70,11 +71,11 @@ NS_IMPL_ISUPPORTS1(nsHTMLTokenizer, nsITokenizer)
  * @param  aDocType The document type of the current document
  * @param  aCommand What we are trying to do (view-source, parse a fragment, etc.)
  */
-nsHTMLTokenizer::nsHTMLTokenizer(nsDTDMode aParseMode,
+nsHTMLTokenizer::nsHTMLTokenizer(PRInt32 aParseMode,
                                  eParserDocType aDocType,
                                  eParserCommands aCommand,
-                                 PRUint32 aFlags)
-  : mTokenDeque(0), mFlags(aFlags)
+                                 PRUint16 aFlags) :
+  nsITokenizer(), mTokenDeque(0), mFlags(aFlags)
 {
   if (aParseMode == eDTDMode_full_standards ||
       aParseMode == eDTDMode_almost_standards) {
@@ -92,6 +93,7 @@ nsHTMLTokenizer::nsHTMLTokenizer(nsDTDMode aParseMode,
   } else if (aDocType == eXML) {
     mFlags |= NS_IPARSER_FLAG_XML;
   } else if (aDocType == eHTML_Quirks ||
+             aDocType == eHTML3_Quirks ||
              aDocType == eHTML_Strict) {
     mFlags |= NS_IPARSER_FLAG_HTML;
   }
@@ -118,26 +120,7 @@ nsHTMLTokenizer::~nsHTMLTokenizer()
     mTokenDeque.ForEach(theDeallocator);
   }
 }
-
-/*static*/ PRUint32
-nsHTMLTokenizer::GetFlags(const nsIContentSink* aSink)
-{
-  PRUint32 flags = 0;
-  nsCOMPtr<nsIHTMLContentSink> sink =
-    do_QueryInterface(const_cast<nsIContentSink*>(aSink));
-  if (sink) {
-    PRBool enabled = PR_TRUE;
-    sink->IsEnabled(eHTMLTag_frameset, &enabled);
-    if (enabled) {
-      flags |= NS_IPARSER_FLAG_FRAMES_ENABLED;
-    }
-    sink->IsEnabled(eHTMLTag_script, &enabled);
-    if (enabled) {
-      flags |= NS_IPARSER_FLAG_SCRIPT_ENABLED;
-    }
-  }
-  return flags;
-}
+ 
 
 /*******************************************************************
   Here begins the real working methods for the tokenizer.
@@ -578,7 +561,7 @@ nsHTMLTokenizer::ConsumeTag(PRUnichar aChar,
 
           // XML allows non ASCII tag names, consume this as an end tag. This
           // is needed to make XML view source work
-          PRBool isXML = !!(mFlags & NS_IPARSER_FLAG_XML);
+          PRBool isXML = mFlags & NS_IPARSER_FLAG_XML;
           if (nsCRT::IsAsciiAlpha(theNextChar) ||
               kGreaterThan == theNextChar      ||
               (isXML && !nsCRT::IsAscii(theNextChar))) {
@@ -614,7 +597,7 @@ nsHTMLTokenizer::ConsumeTag(PRUnichar aChar,
 
       default:
         // XML allows non ASCII tag names, consume this as a start tag.
-        PRBool isXML = !!(mFlags & NS_IPARSER_FLAG_XML);
+        PRBool isXML = mFlags & NS_IPARSER_FLAG_XML;
         if (nsCRT::IsAsciiAlpha(aChar) ||
             (isXML && !nsCRT::IsAscii(aChar))) {
           // Get the original "<" (we've already seen it with a Peek)
@@ -890,7 +873,7 @@ nsHTMLTokenizer::ConsumeStartTag(PRUnichar aChar,
     // If you're here, it's because we were in the midst of consuming a start
     // tag but ran out of data (not in the stream, but in this *part* of the
     // stream. For simplicity, we have to unwind our input. Therefore, we pop
-    // and discard any new tokens we've queued this round. Later we can get
+    // and discard any new tokens we've cued this round. Later we can get
     // smarter about this.
     if (NS_FAILED(result)) {
       while (mTokenDeque.GetSize()>theDequeSize) {

@@ -53,87 +53,56 @@ ifeq ($(OS_ARCH),WINNT)
 DIRS		+= windows
 endif
 
-ifdef DEHYDRA_PATH
-DIRS += static-checker
-endif
-
+REQUIRES	= \
+		  string \
+		  $(NULL)
 
 CPPSRCS		= \
 		nsIFileEnumerator.cpp \
+		nsIFileTest.cpp \
 		TestCallTemplates.cpp \
+		TestCOMPtr.cpp \
+		TestCOMPtrEq.cpp \
+		TestFactory.cpp \
+		TestHashtables.cpp \
+		TestID.cpp \
 		TestINIParser.cpp \
-		TestRacingServiceManager.cpp \
-		TestRegistrationOrder.cpp \
-		TestThreadPoolListener.cpp \
-		TestTimers.cpp \
-		TestOOM.cpp \
-		TestBlockingProcess.cpp \
-		TestQuickReturn.cpp \
-		TestArguments.cpp \
+		TestObserverService.cpp \
+		TestServMgr.cpp \
+		TestAutoPtr.cpp \
+		TestVersionComparator.cpp \
+		TestTextFormatter.cpp \
+		TestPipe.cpp \
 		$(NULL)
 
 ifndef MOZ_ENABLE_LIBXUL
 CPPSRCS += \
+		TestArray.cpp \
+		TestTArray.cpp \
 		TestAtoms.cpp \
+		TestAutoLock.cpp \
+		TestCRT.cpp \
 		TestPermanentAtoms.cpp \
+		TestPipes.cpp \
+		TestThreads.cpp \
+		TestThreadPool.cpp \
+		TestXPIDLString.cpp \
+		TestDeque.cpp \
+		TestStrings.cpp \
+		TestStorageStream.cpp \
+		TestExpirationTracker.cpp \
 		$(NULL)
 endif
 
-SIMPLE_PROGRAMS	:= $(CPPSRCS:.cpp=$(BIN_SUFFIX))
-
-CPP_UNIT_TESTS = \
-                 ShowSSEConfig.cpp \
-                 TestAutoPtr.cpp \
-                 TestCOMPtr.cpp \
-                 TestCOMPtrEq.cpp \
-                 TestFactory.cpp \
-                 TestFile.cpp \
-                 TestHashtables.cpp \
-                 TestID.cpp \
-                 TestObserverArray.cpp \
-                 TestObserverService.cpp \
-                 TestPipe.cpp \
-                 TestServMgr.cpp \
-                 TestTextFormatter.cpp \
-                 $(NULL)
-
-ifndef MOZ_ENABLE_LIBXUL
-CPP_UNIT_TESTS += \
-                  TestArray.cpp \
-                  TestCRT.cpp \
-                  TestDeque.cpp \
-                  TestEncoding.cpp \
-                  TestExpirationTracker.cpp \
-                  TestPipes.cpp \
-                  TestProxies.cpp \
-                  TestStorageStream.cpp \
-                  TestStrings.cpp \
-                  TestSynchronization.cpp \
-                  TestTArray.cpp \
-                  TestThreadPool.cpp \
-                  TestThreads.cpp \
-                  TestTimeStamp.cpp \
-                  TestXPIDLString.cpp \
-                  TestStaticAtoms.cpp \
-                  $(NULL)
-endif
-
-ifdef MOZ_DEBUG
-# FIXME bug 523392: TestDeadlockDetector doesn't like Windows
-# FIXME bug 523378: also fails on OS X
-ifneq (,$(filter-out WINNT WINCE Darwin,$(OS_ARCH)))
-CPP_UNIT_TESTS += \
-                  TestDeadlockDetector.cpp \
-                  TestDeadlockDetectorScalability.cpp \
-                  $(NULL)
-endif
-endif
-
 ifndef MOZILLA_INTERNAL_API
-CPP_UNIT_TESTS += \
-                  TestStringAPI.cpp \
-                  $(NULL)
+CPPSRCS += \
+		TestStringAPI.cpp \
+		$(NULL)
 endif
+
+#CPPSRCS		+= TimerTest.cpp
+
+SIMPLE_PROGRAMS	= $(CPPSRCS:.cpp=$(BIN_SUFFIX))
 
 include $(topsrcdir)/config/config.mk
 
@@ -141,7 +110,10 @@ ifndef MOZILLA_INTERNAL_API
 LIBS +=	$(DIST)/lib/$(LIB_PREFIX)xpcomglue_s.$(LIB_SUFFIX)
 endif
 
-LIBS += $(XPCOM_LIBS)
+LIBS		+= \
+		$(XPCOM_LIBS) \
+		$(NSPR_LIBS) \
+		$(NULL)
 
 # Needed to resolve __yylex (?)
 ifeq ($(OS_ARCH)$(OS_RELEASE),FreeBSD2)
@@ -152,14 +124,9 @@ ENABLE_CXX_EXCEPTIONS = 1
 
 XPCSHELL_TESTS = unit
 
-# Make sure we have symbols in case we need to debug these.
-MOZ_DEBUG_SYMBOLS = 1
+CPP_UNIT_TESTS = TestPipe
 
 include $(topsrcdir)/config/rules.mk
-
-ifeq ($(OS_ARCH),WINCE)
-EXTRA_LIBS += libcmt.lib
-endif
 
 LOCAL_INCLUDES	= \
                 -I$(srcdir)/../ds \
@@ -168,38 +135,16 @@ LOCAL_INCLUDES	= \
 
 libs::
 	$(INSTALL) $(srcdir)/test.properties $(DIST)/bin/res
-	$(INSTALL) $(SIMPLE_PROGRAMS) $(DEPTH)/_tests/xpcshell/$(MODULE)/unit
-
-# Copy TestHarness.h into its own module, for ease of setting up includes
-# correctly.
-export::
-	$(NSINSTALL) -D $(DIST)/include/testing
-	$(INSTALL) $(srcdir)/TestHarness.h $(DIST)/include/testing
 
 install::
 	$(SYSINSTALL) $(IFLAGS1) $(srcdir)/test.properties $(DESTDIR)$(mozappdir)/res
 
-ifeq (,$(filter-out WINNT WINCE os2-emx, $(HOST_OS_ARCH)))
-swapslashes = $(shell echo $(1) | sed -e 's|/|\\|g')
-getnativepath = $(call swapslashes,$(call normalizepath,$(1)))
-else
-getnativepath = $(1)
-endif
-
-abs_srcdir = $(shell cd $(srcdir) && pwd)
-
 check::
-	@echo "Running XPIDL tests"
-	$(XPIDL_COMPILE) -m header $(srcdir)/TestScriptable.idl
-	@if grep Notscriptable TestScriptable.h | grep -q NS_SCRIPTABLE ; then \
-		echo "Nonscriptable object marked scriptable by xpidl"; \
-		exit 1; \
-	fi
-	@if test $$( grep 'NS_IMETHOD[^I].*Scriptable' TestScriptable.h | grep -v -c NS_SCRIPTABLE ) != 0 ; then \
-		echo "Scriptable object marked nonscriptable by xpidl"; \
-		exit 1; \
-	fi
-	rm -f $(DIST)/bin/components/compreg.dat; \
-	regOrderDir="$(call getnativepath,$(abs_srcdir)/regorder)";	\
-	XPCOM_DEBUG_BREAK=stack-and-abort $(RUN_TEST_PROGRAM) \
-	  $(DIST)/bin/TestRegistrationOrder$(BIN_SUFFIX) "$$regOrderDir"
+	@echo "Running TestVersionComparator tests"
+	@$(PERL) -w $(srcdir)/TestVersionComparatorRunner.pl "$(RUN_TEST_PROGRAM) $(FINAL_TARGET)/TestVersionComparator$(BIN_SUFFIX)"
+	@echo "Running nsTextFormatter tests"
+	@$(RUN_TEST_PROGRAM) $(FINAL_TARGET)/TestTextFormatter$(BIN_SUFFIX)
+	@$(EXIT_ON_ERROR) \
+	for f in $(CPP_UNIT_TESTS); do \
+	  XPCOM_DEBUG_BREAK=stack-and-abort $(RUN_TEST_PROGRAM) $(DIST)/bin/$$f; \
+	done

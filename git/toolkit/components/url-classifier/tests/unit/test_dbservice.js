@@ -1,3 +1,5 @@
+var dbservice = Cc["@mozilla.org/url-classifier/dbservice;1"].getService(Ci.nsIUrlClassifierDBService);
+
 var checkUrls = [];
 var checkExpect;
 
@@ -23,34 +25,9 @@ var chunk3Urls = [
   ];
 var chunk3 = chunk3Urls.join("\n");
 
-var chunk3SubUrls = [
-  "1:test.com/a",
-  "1:foo.bar.com/a",
-  "2:blah.com/a" ];
-var chunk3Sub = chunk3SubUrls.join("\n");
-
-var chunk4Urls = [
-  "a.com/b",
-  "b.com/c",
-  ];
-var chunk4 = chunk3Urls.join("\n");
-
-var chunk5Urls = [
-  "d.com/e",
-  "f.com/g",
-  ];
-var chunk5 = chunk3Urls.join("\n");
-
-var chunk6Urls = [
-  "h.com/i",
-  "j.com/k",
-  ];
-var chunk6 = chunk3Urls.join("\n");
-
-// we are going to add chunks 1, 2, 4, 5, and 6 to phish-simple, and
-// chunk 2 to malware-simple.  Then we'll remove the urls in chunk3
-// from phish-simple, then expire chunk 1 and chunks 4-5 from
-// phish-simple.
+// we are going to add chunks 1 and 2 to phish-simple, and chunk 2 to
+// malware-simple.  Then we'll remove the urls in chunk3 from phish-simple,
+// then expire chunk 1 from phish-simple.
 var phishExpected = {};
 var phishUnexpected = {};
 var malwareExpected = {};
@@ -66,23 +43,6 @@ for (var i = 0; i < chunk1Urls.length; i++) {
   // chunk1 urls are expired
   phishUnexpected[chunk1Urls[i]] = true;
 }
-for (var i = 0; i < chunk4Urls.length; i++) {
-  // chunk4 urls are expired
-  phishUnexpected[chunk4Urls[i]] = true;
-}
-for (var i = 0; i < chunk5Urls.length; i++) {
-  // chunk5 urls are expired
-  phishUnexpected[chunk5Urls[i]] = true;
-}
-for (var i = 0; i < chunk6Urls.length; i++) {
-  // chunk6 urls are expired
-  phishUnexpected[chunk6Urls[i]] = true;
-}
-
-// Check that the entries hit based on sub-parts
-phishExpected["baz.com/foo/bar"] = true;
-phishExpected["foo.bar.baz.com/foo"] = true;
-phishExpected["bar.baz.com/"] = true;
 
 var numExpecting;
 
@@ -90,67 +50,25 @@ function testFailure(arg) {
   do_throw(arg);
 }
 
-function checkNoHost()
+function tablesCallback(tables)
 {
-  // Looking up a no-host uri such as a data: uri should throw an exception.
-  var exception;
-  try {
-    dbservice.lookup("data:text/html,<b>test</b>");
-
-    exception = false;
-  } catch(e) {
-    exception = true;
-  }
-  do_check_true(exception);
-
+  var parts = tables.split("\n");
+  parts.sort();
+  // there's a leading \n here because splitting left an empty string
+  // after the trailing newline, which will sort first
+  do_check_eq(parts.join("\n"),
+              "\ntesting-malware-simple;a:1\ntesting-phish-simple;a:2s:3");
   do_test_finished();
 }
 
-function tablesCallbackWithoutSub(tables)
+function checkChunks()
 {
-  var parts = tables.split("\n");
-  parts.sort();
-
-  // there's a leading \n here because splitting left an empty string
-  // after the trailing newline, which will sort first
-  do_check_eq(parts.join("\n"),
-              "\ntesting-malware-simple;a:1\ntesting-phish-simple;a:2");
-
-  checkNoHost();
-}
-
-
-function expireSubSuccess(result) {
-  dbservice.getTables(tablesCallbackWithoutSub);
-}
-
-function tablesCallbackWithSub(tables)
-{
-  var parts = tables.split("\n");
-  parts.sort();
-
-  // there's a leading \n here because splitting left an empty string
-  // after the trailing newline, which will sort first
-  do_check_eq(parts.join("\n"),
-              "\ntesting-malware-simple;a:1\ntesting-phish-simple;a:2:s:3");
-
-  // verify that expiring a sub chunk removes its name from the list
-  var data =
-    "n:1000\n" +
-    "i:testing-phish-simple\n" +
-    "sd:3\n";
-
-  doSimpleUpdate(data, expireSubSuccess, testFailure);
-}
-
-function checkChunksWithSub()
-{
-  dbservice.getTables(tablesCallbackWithSub);
+  dbservice.getTables(tablesCallback);
 }
 
 function checkDone() {
   if (--numExpecting == 0)
-    checkChunksWithSub();
+    checkChunks();
 }
 
 function phishExists(result) {
@@ -210,12 +128,12 @@ function do_subs() {
   var data =
     "n:1000\n" +
     "i:testing-phish-simple\n" +
-    "s:3:32:" + chunk3Sub.length + "\n" +
-    chunk3Sub + "\n" +
-    "ad:1\n" +
-    "ad:4-6\n";
+    "s:3:" + chunk3.length + "\n" +
+    chunk3 + "\n" +
+    "ad:1\n";
 
-  doSimpleUpdate(data, testSubSuccess, testFailure);
+  dbservice.update(data);
+  dbservice.finish(testSubSuccess, testFailure);
 }
 
 function testAddSuccess(arg) {
@@ -232,21 +150,16 @@ function do_adds() {
   var data =
     "n:1000\n" +
     "i:testing-phish-simple\n" +
-    "a:1:32:" + chunk1.length + "\n" +
+    "a:1:" + chunk1.length + "\n" +
     chunk1 + "\n" +
-    "a:2:32:" + chunk2.length + "\n" +
+    "a:2:" + chunk2.length + "\n" +
     chunk2 + "\n" +
-    "a:4:32:" + chunk4.length + "\n" +
-    chunk4 + "\n" +
-    "a:5:32:" + chunk5.length + "\n" +
-    chunk5 + "\n" +
-    "a:6:32:" + chunk6.length + "\n" +
-    chunk6 + "\n" +
     "i:testing-malware-simple\n" +
-    "a:1:32:" + chunk2.length + "\n" +
-      chunk2 + "\n";
+    "a:1:" + chunk2.length + "\n" +
+    chunk2 + "\n";
 
-  doSimpleUpdate(data, testAddSuccess, testFailure);
+  dbservice.update(data);
+  dbservice.finish(testAddSuccess, testFailure);
 }
 
 function run_test() {

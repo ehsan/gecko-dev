@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim:expandtab:shiftwidth=4:tabstop=4: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim:set ts=2 sw=2 sts=2 et cindent: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -16,7 +16,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Christopher Blizzard.
+ * Christopher Blizzard. Portions created by Christopher Blizzard are Copyright (C) Christopher Blizzard.  All Rights Reserved.
  * Portions created by the Initial Developer are Copyright (C) 2001
  * the Initial Developer. All Rights Reserved.
  *
@@ -38,9 +38,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsStringGlue.h"
+#ifdef MOZILLA_INTERNAL_API
+#include "nsString.h"
+#include "nsReadableUtils.h"
+#else
+#include "nsStringAPI.h"
+#endif
 #include <gtk/gtk.h>
 
+#include <stdlib.h>
 #define EMBED_MAX_BUTTONS 3
 
 class EmbedPrompter {
@@ -64,7 +70,7 @@ public:
 
     nsresult Create(PromptType aType, GtkWindow* aParentWindow);
     void     SetTitle(const PRUnichar *aTitle);
-    void     SetTextValue (const PRUnichar *aTextValue);
+    void     SetTextValue(const PRUnichar *aTextValue);
     void     SetCheckMessage(const PRUnichar *aCheckMessage);
     void     SetCheckValue(const PRBool aValue);
     void     SetMessageText(const PRUnichar *aMessageText);
@@ -108,6 +114,6 @@ private:
     GtkWidget   *mUserField;
     GtkWidget   *mPassField;
     GtkWidget   *mTextField;
-    GtkWidget   *mComboBox;
+    GtkWidget   *mOptionMenu;
     GtkWidget   *mCheckBox;
 };

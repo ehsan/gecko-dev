@@ -42,7 +42,7 @@
 #include "nsIObserver.h"
 #include "nsNativeTheme.h"
 
-#include <gtk/gtk.h>
+#include <gtk/gtkwidget.h>
 #include "gtkdrawing.h"
 
 class nsNativeThemeGTK: private nsNativeTheme,
@@ -57,24 +57,24 @@ public:
   NS_IMETHOD DrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame, PRUint8 aWidgetType,
                                   const nsRect& aRect,
-                                  const nsRect& aDirtyRect);
+                                  const nsRect& aClipRect);
 
   NS_IMETHOD GetWidgetBorder(nsIDeviceContext* aContext, nsIFrame* aFrame,
-                             PRUint8 aWidgetType, nsIntMargin* aResult);
+                             PRUint8 aWidgetType, nsMargin* aResult);
 
   virtual NS_HIDDEN_(PRBool) GetWidgetPadding(nsIDeviceContext* aContext,
                                               nsIFrame* aFrame,
                                               PRUint8 aWidgetType,
-                                              nsIntMargin* aResult);
+                                              nsMargin* aResult);
 
   virtual NS_HIDDEN_(PRBool) GetWidgetOverflow(nsIDeviceContext* aContext,
                                                nsIFrame* aFrame,
                                                PRUint8 aWidgetType,
-                                               nsRect* aOverflowRect);
+                                               nsRect* aResult);
 
   NS_IMETHOD GetMinimumWidgetSize(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame, PRUint8 aWidgetType,
-                                  nsIntSize* aResult, PRBool* aIsOverridable);
+                                  nsSize* aResult, PRBool* aIsOverridable);
 
   NS_IMETHOD WidgetStateChanged(nsIFrame* aFrame, PRUint8 aWidgetType, 
                                 nsIAtom* aAttribute, PRBool* aShouldRepaint);
@@ -91,8 +91,6 @@ public:
                                                nsIFrame* aFrame, PRUint8 aWidgetType);
 
   PRBool ThemeNeedsComboboxDropmarker();
-
-  virtual nsTransparencyMode GetWidgetTransparency(PRUint8 aWidgetType);
 
   nsNativeThemeGTK();
   virtual ~nsNativeThemeGTK();

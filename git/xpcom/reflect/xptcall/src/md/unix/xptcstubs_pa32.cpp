@@ -40,7 +40,6 @@
 /* Implement shared vtbl methods. */
 
 #include "xptcprivate.h"
-#include "xptiprivate.h" 
 
 #if _HPUX
 #error "This code is for HP-PA RISC 32 bit mode only"
@@ -60,6 +59,7 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
 
   nsXPTCMiniVariant paramBuffer[PARAM_BUFFER_COUNT];
   nsXPTCMiniVariant* dispatchParams = NULL;
+  nsIInterfaceInfo* iface_info = NULL;
   const nsXPTMethodInfo* info;
   PRInt32 regwords = 1; /* self pointer is not in the variant records */
   nsresult result = NS_ERROR_FAILURE;
@@ -68,10 +68,11 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
 
   NS_ASSERTION(self,"no self");
 
-  self->mEntry->GetMethodInfo(PRUint16(methodIndex), &info);
-  NS_ASSERTION(info,"no method info");
-  if (!info)
-    return NS_ERROR_UNEXPECTED;
+  self->GetInterfaceInfo(&iface_info);
+  NS_ASSERTION(iface_info,"no interface info");
+
+  iface_info->GetMethodInfo(PRUint16(methodIndex), &info);
+  NS_ASSERTION(info,"no interface info");
 
   paramCount = info->GetParamCount();
 
@@ -81,8 +82,6 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
   else
     dispatchParams = paramBuffer;
   NS_ASSERTION(dispatchParams,"no place for params");
-  if (!dispatchParams)
-    return NS_ERROR_OUT_OF_MEMORY;
 
   for(i = 0; i < paramCount; ++i, --args)
   {
@@ -142,13 +141,15 @@ PrepareAndDispatch(nsXPTCStubBase* self, PRUint32 methodIndex,
     case nsXPTType::T_CHAR   : dp->val.c   = *((PRUint32*) args); break;
     case nsXPTType::T_WCHAR  : dp->val.wc  = *((PRInt32*)  args); break;
     default:
-      NS_ERROR("bad type");
+      NS_ASSERTION(0, "bad type");
       break;
     }
     ++regwords;
   }
 
-  result = self->mOuter->CallMethod((PRUint16) methodIndex, info, dispatchParams); 
+  result = self->CallMethod((PRUint16) methodIndex, info, dispatchParams);
+
+  NS_RELEASE(iface_info);
 
   if(dispatchParams != paramBuffer)
     delete [] dispatchParams;
@@ -167,7 +168,7 @@ nsresult nsXPTCStubBase::Stub##n()  \
 #define SENTINEL_ENTRY(n) \
 nsresult nsXPTCStubBase::Sentinel##n() \
 { \
-    NS_ERROR("nsXPTCStubBase::Sentinel called"); \
+    NS_ASSERTION(0,"nsXPTCStubBase::Sentinel called"); \
     return NS_ERROR_NOT_IMPLEMENTED; \
 }
 

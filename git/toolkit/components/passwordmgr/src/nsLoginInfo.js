@@ -13,7 +13,7 @@
  *
  * The Original Code is mozilla.org code.
  *
- * The Initial Developer of the Original Code is Mozilla Foundation.
+ * The Initial Developer of the Original Code is Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
@@ -47,17 +47,13 @@ nsLoginInfo.prototype = {
     classDescription  : "LoginInfo",
     contractID : "@mozilla.org/login-manager/loginInfo;1",
     classID : Components.ID("{0f2f347c-1e4f-40cc-8efd-792dea70a85e}"),
-    QueryInterface: XPCOMUtils.generateQI([Ci.nsILoginInfo, Ci.nsILoginMetaInfo]), 
+    QueryInterface: XPCOMUtils.generateQI([Ci.nsILoginInfo]), 
 
     // Allow storage-Legacy.js to get at the JS object so it can
     // slap on a few extra properties for internal use.
     get wrappedJSObject() {
         return this;
     },
-
-    //
-    // nsILoginInfo interfaces...
-    //
 
     hostname      : null,
     formSubmitURL : null,
@@ -79,13 +75,8 @@ nsLoginInfo.prototype = {
         this.passwordField = aPasswordField;
     },
 
-    matches : function (aLogin, ignorePassword) {
-        if (this.hostname      != aLogin.hostname      ||
-            this.httpRealm     != aLogin.httpRealm     ||
-            this.username      != aLogin.username)
-            return false;
-
-        if (!ignorePassword && this.password != aLogin.password)
+    equalsIgnorePassword : function (aLogin) {
+        if (this.hostname != aLogin.hostname)
             return false;
 
         // If either formSubmitURL is blank (but not null), then match.
@@ -93,43 +84,28 @@ nsLoginInfo.prototype = {
             this.formSubmitURL != aLogin.formSubmitURL)
             return false;
 
-        // The .usernameField and .passwordField values are ignored.
+        if (this.httpRealm != aLogin.httpRealm)
+            return false;
+
+        if (this.username != aLogin.username)
+            return false;
+
+        if (this.usernameField != aLogin.usernameField)
+            return false;
+
+        // The .password and .passwordField values are ignored.
 
         return true;
     },
 
     equals : function (aLogin) {
-        if (this.hostname      != aLogin.hostname      ||
-            this.formSubmitURL != aLogin.formSubmitURL ||
-            this.httpRealm     != aLogin.httpRealm     ||
-            this.username      != aLogin.username      ||
-            this.password      != aLogin.password      ||
-            this.usernameField != aLogin.usernameField ||
+        if (!this.equalsIgnorePassword(aLogin) ||
+            this.password      != aLogin.password   ||
             this.passwordField != aLogin.passwordField)
             return false;
 
         return true;
-    },
-
-    clone : function() {
-        let clone = Cc["@mozilla.org/login-manager/loginInfo;1"].
-                    createInstance(Ci.nsILoginInfo);
-        clone.init(this.hostname, this.formSubmitURL, this.httpRealm,
-                   this.username, this.password,
-                   this.usernameField, this.passwordField);
-
-        // Copy nsILoginMetaInfo props
-        clone.QueryInterface(Ci.nsILoginMetaInfo);
-        clone.guid = this.guid;
-
-        return clone;
-    },
-
-    //
-    // nsILoginMetaInfo interfaces...
-    //
-
-    guid : null
+    }
 
 }; // end of nsLoginInfo implementation
 

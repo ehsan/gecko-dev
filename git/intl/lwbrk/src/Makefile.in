@@ -47,6 +47,10 @@ LIBRARY_NAME	= lwbrk_s
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY  = 1
 
+REQUIRES	= xpcom \
+		  string \
+		  unicharutil \
+		  $(NULL)
 
 CPPSRCS		= \
 		nsJISx4501LineBreaker.cpp \
@@ -54,7 +58,7 @@ CPPSRCS		= \
 		nsSemanticUnitScanner.cpp \
 		$(NULL)
 
-ifeq  ($(MOZ_WIDGET_TOOLKIT),gtk2)
+ifdef MOZ_ENABLE_PANGO
 CPPSRCS		+= \
 		nsPangoBreaker.cpp \
 		$(NULL)
@@ -80,8 +84,12 @@ endif
 
 include $(topsrcdir)/config/rules.mk
 
-ifeq  ($(MOZ_WIDGET_TOOLKIT),gtk2)
+ifdef MOZ_ENABLE_PANGO
 CXXFLAGS	+= \
 		$(MOZ_PANGO_CFLAGS) \
+		$(NULL)
+
+EXTRA_DSO_LDOPTS += \
+		$(MOZ_PANGO_LIBS) \
 		$(NULL)
 endif

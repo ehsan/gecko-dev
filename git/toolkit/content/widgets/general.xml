@@ -19,7 +19,7 @@
   </binding>
 
   <binding id="basetext" extends="chrome://global/content/bindings/general.xml#basecontrol">
-    <implementation implements="nsIDOMXULLabeledControlElement">
+    <implementation>
       <!-- public implementation -->
       <property name="label"      onset="this.setAttribute('label',val); return val;"
                                   onget="return this.getAttribute('label');"/>
@@ -60,23 +60,151 @@
     </implementation>
   </binding>
 
-  <binding id="root-element">
+  <!--
+    Inline Editable UI Element
+    - This binding forms the basis of the inline edit treecell and the inline edit
+    - buttons. 
+    - TODO: investigate creating extensions to the wrapper widgets (tree, toolbar)
+    -       to make them provide some object implementing an interface similar to
+    -       tree's so we can build in some of the ILE behavior (such as going
+    -       in and out of the mode, asking isEditable etc) so as to remove some of
+    -       the burden from the implementor. 
+    -
+    - Note that this widget will be no longer used in the bookmarks window once 
+    - tree is extended to have this functionality built in. 
+    -->
+  <binding id="inline-edit-base" extends="chrome://global/content/bindings/general.xml#basetext">
     <implementation>
-      <field name="_lightweightTheme">null</field>
-      <constructor><![CDATA[
-        if (this.hasAttribute("lightweightthemes")) {
-          let temp = {};
-          Components.utils.import("resource://gre/modules/LightweightThemeConsumer.jsm", temp);
-          this._lightweightTheme = new temp.LightweightThemeConsumer(this.ownerDocument);
-        }
-      ]]></constructor>
-      <destructor><![CDATA[
-        if (this._lightweightTheme) {
-          this._lightweightTheme.destroy();
-          this._lightweightTheme = null;
-        }
-      ]]></destructor>
+      <field name="_mode">0</field>
+      <method name="setMode">
+        <parameter name="val"/>
+        <body>
+        <![CDATA[
+          var ctr = document.getAnonymousElementByAttribute(this, "ileattr", "text-container");
+          var txt = document.getAnonymousElementByAttribute(this, "ileattr", "text");
+          this.setAttribute("mode", val);
+          if (val == "edit") {
+            var nodes = document.getAnonymousNodes(this);
+
+            if (txt.getAttribute("hidden") != "true") {
+              ctr.setAttribute("mode", "edit");
+              var width = ctr.boxObject.width;
+              txt.setAttribute("hidden", "true");
+              const kXULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+              var field = document.createElementNS(kXULNS, "textbox");
+              field.className = "textbox-inline-edit";
+              field.setAttribute("flex", "1");
+              field.setAttribute("value", txt.getAttribute("value"));
+              field.setAttribute("ileattr", "field");
+              field.setAttribute("rootcontent", txt.getAttribute("rootcontent"));
+              field.setAttribute("style", "width: " + width + "px");
+              ctr.appendChild(field);
+              field.addEventListener("keydown", this.fieldKeyDown, false);
+              field.addEventListener("change", this.fieldChange, false);
+              field.select();
+            }
+          }
+          else {
+            nodes = document.getAnonymousNodes(this);
+            var fld = document.getAnonymousElementByAttribute(this, "ileattr", "field");
+            if (fld && txt.getAttribute("hidden") == "true") {
+              ctr.removeAttribute("mode");
+              fld.blur();
+              ctr.removeChild(fld);
+              txt.removeAttribute("hidden");
+            }
+          }
+        ]]>
+        </body>
+      </method>
+      <field name="_observers">
+      <![CDATA[
+        ({
+          reject: [], 
+          accept: []
+        })
+      ]]>
+      </field>
+      <field name="valueIsRejected">false</field>
+      <method name="addObserver">
+        <parameter name="aObserver"/>
+        <parameter name="aTopic"/>
+        <parameter name="aParams"/>
+        <body>
+          this._observers[aTopic].push({ callback: aObserver, params: aParams });
+        </body>
+      </method>
+      <method name="fieldKeyDown">
+        <parameter name="aEvent"/>
+        <body>
+        <![CDATA[
+          var rootLocalName = aEvent.target.getAttribute("rootcontent");
+          if (rootLocalName) {
+            // Root content is the bound element. 
+            var rootContent = aEvent.target;
+            while (rootContent && rootContent.localName != rootLocalName) 
+              rootContent = rootContent.parentNode;
+            
+            if (rootContent) {
+              var ctr = document.getAnonymousElementByAttribute(rootContent, "ileattr", "text-container");
+              if (aEvent.keyCode == 13) {
+                rootContent.valueIsRejected = false;
+                rootContent.fieldChange(aEvent);
+              }
+              if (aEvent.keyCode == 27) {
+                rootContent.valueIsRejected = true;
+                var fld = document.getAnonymousElementByAttribute(rootContent, "ileattr", "field");
+                for (i = 0; i < rootContent._observers["reject"].length; ++i) 
+                  rootContent._observers["reject"][i].callback(rootContent._observers["reject"][i].params.concat(fld.value), "reject");
+                if ("setMode" in rootContent) 
+                  rootContent.setMode("normal");
+              }
+            }
+          }
+          aEvent.stopPropagation();
+        ]]>
+        </body>
+      </method>
+      <field name="valueIsAccepted">false</field>
+      <method name="fieldChange">
+        <parameter name="aEvent"/>
+        <body>
+        <![CDATA[
+          var rootLocalName = this.getAttribute("rootcontent");
+          if (rootLocalName) {
+            // Root content is the bound element. 
+            var rootContent = this;
+            while (rootContent && rootContent.localName != rootLocalName) 
+              rootContent = rootContent.parentNode;
+
+            if (rootContent) {
+              var ctr = document.getAnonymousElementByAttribute(rootContent, "ileattr", "text-container");
+              if (!rootContent.valueIsRejected) {
+                var fld = document.getAnonymousElementByAttribute(rootContent, "ileattr", "field");
+                for (var i = 0; i < rootContent._observers["accept"].length; ++i)
+                  rootContent._observers["accept"][i].callback(rootContent._observers["accept"][i].params.concat(fld.value), "accept");
+                if ("setMode" in rootContent)
+                  rootContent.setMode("normal");
+              }
+            }
+          }
+        ]]>
+        </body>
+      </method>
     </implementation>
+  </binding>
+
+  <!-- inline editable buttons -->
+  <binding id="buttonleft-ile" extends="chrome://global/content/bindings/general.xml#inline-edit-base">
+    <content>
+      <xul:hbox class="button-internal-box" align="center" flex="1">
+        <xul:image class="button-icon" xbl:inherits="src"/>
+        <xul:hbox class="button-text-container" flex="1" ileattr="text-container">
+          <xul:label class="button-text" xbl:inherits="value=label,accesskey,crop,dragover-top" ileattr="text" rootcontent="button" flex="1"/>
+        </xul:hbox>
+      </xul:hbox>
+      <children includes="menupopup"/>
+    </content>
   </binding>
 
   <binding id="iframe">
@@ -109,15 +237,7 @@
       </children>
     </content>
 
-    <implementation implements="nsIAccessibleProvider">
-      <property name="accessibleType" readonly="true">
-        <getter>
-          <![CDATA[
-            return Components.interfaces.nsIAccessibleProvider.XULButton;
-          ]]>
-        </getter>
-      </property>
-
+    <implementation>
       <property name="label"
                 onget="return this.getAttribute('label');"
                 onset="this.setAttribute('label',val); return val;"/>
@@ -142,7 +262,7 @@
     <content>
       <children/>
       <xul:statusbarpanel class="statusbar-resizerpanel">
-        <xul:resizer dir="bottomend"/>
+        <xul:resizer dir="bottomright"/>
       </xul:statusbarpanel>
     </content>
 
@@ -157,23 +277,21 @@
     </implementation>
   </binding>
   
-  <binding id="statusbar-drag"
-           extends="chrome://global/content/bindings/general.xml#statusbar">
-    <implementation>
-      <constructor>
-        try {
-          Components.utils.import("resource://gre/modules/WindowDraggingUtils.jsm");
-          new WindowDraggingElement(this, window);
-        } catch (e) {}
-      </constructor>
-    </implementation>
-  </binding>
-
   <binding id="statusbarpanel-iconic" display="xul:button"
            extends="chrome://global/content/bindings/general.xml#statusbarpanel">
     <content>
       <xul:image class="statusbarpanel-icon" xbl:inherits="src,src=image"/>
     </content>
+
+    <implementation implements="nsIAccessibleProvider">
+      <property name="accessibleType" readonly="true">
+        <getter>
+          <![CDATA[
+            return Components.interfaces.nsIAccessibleProvider.XULButton;
+          ]]>
+        </getter>
+      </property>
+    </implementation>
   </binding>
 
   <binding id="statusbarpanel-iconic-text" display="xul:button"
@@ -192,10 +310,7 @@
       <property name="accessibleType" readonly="true">
         <getter>
           <![CDATA[
-            // Expose XUL images with an onclick as a toolbarbutton
-            return this.hasAttribute("onclick") ?
-              Components.interfaces.nsIAccessibleProvider.XULToolbarButton :
-              Components.interfaces.nsIAccessibleProvider.XULImage;
+            return Components.interfaces.nsIAccessibleProvider.XULImage;
           ]]>
         </getter>
       </property>
@@ -256,17 +371,6 @@
           ]]>
         </getter>
       </property>
-    </implementation>
-  </binding>
-
-  <binding id="windowdragbox">
-    <implementation>
-      <constructor>
-        try {
-          Components.utils.import("resource://gre/modules/WindowDraggingUtils.jsm");
-          new WindowDraggingElement(this, window);
-        } catch (e) {}
-      </constructor>
     </implementation>
   </binding>
 

@@ -34,12 +34,19 @@
  *	Keith R. Packard <keithp@keithp.com>
  *	Carl D. Worth <cworth@cworth.org>
  *
- * 2002-07-15: Converted from XRenderCompositeDoublePoly to #cairo_trap_t. Carl D. Worth
+ * 2002-07-15: Converted from XRenderCompositeDoublePoly to cairo_trap. Carl D. Worth
  */
 
 #include "cairoint.h"
 
 /* private functions */
+
+static cairo_status_t
+_cairo_traps_grow (cairo_traps_t *traps);
+
+static void
+_cairo_traps_add_trap (cairo_traps_t *traps, cairo_fixed_t top, cairo_fixed_t bottom,
+		       cairo_line_t *left, cairo_line_t *right);
 
 static int
 _compare_point_fixed_by_y (const void *av, const void *bv);
@@ -47,8 +54,6 @@ _compare_point_fixed_by_y (const void *av, const void *bv);
 void
 _cairo_traps_init (cairo_traps_t *traps)
 {
-    VG (VALGRIND_MAKE_MEM_UNDEFINED (traps, sizeof (cairo_traps_t)));
-
     traps->status = CAIRO_STATUS_SUCCESS;
 
     traps->num_traps = 0;
@@ -70,31 +75,15 @@ _cairo_traps_limit (cairo_traps_t	*traps,
     traps->limits = *limits;
 }
 
-cairo_bool_t
-_cairo_traps_get_limit (cairo_traps_t *traps,
-			cairo_box_t   *limits)
-{
-    *limits = traps->limits;
-    return traps->has_limits;
-}
-
-void
-_cairo_traps_clear (cairo_traps_t *traps)
-{
-    traps->status = CAIRO_STATUS_SUCCESS;
-
-    traps->num_traps = 0;
-    traps->extents.p1.x = traps->extents.p1.y = INT32_MAX;
-    traps->extents.p2.x = traps->extents.p2.y = INT32_MIN;
-}
-
 void
 _cairo_traps_fini (cairo_traps_t *traps)
 {
-    if (traps->traps != traps->traps_embedded)
+    if (traps->traps && traps->traps != traps->traps_embedded)
 	free (traps->traps);
 
-    VG (VALGRIND_MAKE_MEM_NOACCESS (traps, sizeof (cairo_traps_t)));
+    traps->traps = NULL;
+    traps->traps_size = 0;
+    traps->num_traps = 0;
 }
 
 /**
@@ -103,12 +92,12 @@ _cairo_traps_fini (cairo_traps_t *traps)
  * @box: a box that will be converted to a single trapezoid
  *       to store in @traps.
  *
- * Initializes a #cairo_traps_t to contain a single rectangular
+ * Initializes a cairo_traps_t to contain a single rectangular
  * trapezoid.
  **/
-void
+cairo_status_t
 _cairo_traps_init_box (cairo_traps_t *traps,
-		       const cairo_box_t   *box)
+		       cairo_box_t   *box)
 {
     _cairo_traps_init (traps);
 
@@ -126,45 +115,24 @@ _cairo_traps_init_box (cairo_traps_t *traps,
     traps->traps[0].right.p2 = box->p2;
 
     traps->extents = *box;
+
+    return traps->status;
 }
 
-/* make room for at least one more trap */
-static cairo_bool_t
-_cairo_traps_grow (cairo_traps_t *traps)
+cairo_status_t
+_cairo_traps_status (cairo_traps_t *traps)
 {
-    cairo_trapezoid_t *new_traps;
-    int new_size = 2 * MAX (traps->traps_size, 16);
-
-    if (CAIRO_INJECT_FAULT ()) {
-	traps->status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	return FALSE;
-    }
-
-    if (traps->traps == traps->traps_embedded) {
-	new_traps = _cairo_malloc_ab (new_size, sizeof (cairo_trapezoid_t));
-	if (new_traps != NULL)
-	    memcpy (new_traps, traps->traps, sizeof (traps->traps_embedded));
-    } else {
-	new_traps = _cairo_realloc_ab (traps->traps,
-	                               new_size, sizeof (cairo_trapezoid_t));
-    }
-
-    if (unlikely (new_traps == NULL)) {
-	traps->status = _cairo_error (CAIRO_STATUS_NO_MEMORY);
-	return FALSE;
-    }
-
-    traps->traps = new_traps;
-    traps->traps_size = new_size;
-    return TRUE;
+    return traps->status;
 }
 
-void
-_cairo_traps_add_trap (cairo_traps_t *traps,
-		       cairo_fixed_t top, cairo_fixed_t bottom,
+static void
+_cairo_traps_add_trap (cairo_traps_t *traps, cairo_fixed_t top, cairo_fixed_t bottom,
 		       cairo_line_t *left, cairo_line_t *right)
 {
     cairo_trapezoid_t *trap;
+
+    if (traps->status)
+	return;
 
     /* Note: With the goofy trapezoid specification, (where an
      * arbitrary two points on the lines can specified for the left
@@ -194,10 +162,6 @@ _cairo_traps_add_trap (cairo_traps_t *traps,
 	    return;
 	}
 
-	/* And reject if the trapezoid is entirely above or below */
-	if (top > traps->limits.p2.y || bottom < traps->limits.p1.y)
-	    return;
-
 	/* Otherwise, clip the trapezoid to the limits. We only clip
 	 * where an edge is entirely outside the limits. If we wanted
 	 * to be more clever, we could handle cases where a trapezoid
@@ -210,34 +174,28 @@ _cairo_traps_add_trap (cairo_traps_t *traps,
 	if (bottom > traps->limits.p2.y)
 	    bottom = traps->limits.p2.y;
 
-	if (left->p1.x <= traps->limits.p1.x &&
-	    left->p2.x <= traps->limits.p1.x)
+	if (left->p1.x < traps->limits.p1.x &&
+	    left->p2.x < traps->limits.p1.x)
 	{
 	    left->p1.x = traps->limits.p1.x;
 	    left->p2.x = traps->limits.p1.x;
 	}
 
-	if (right->p1.x >= traps->limits.p2.x &&
-	    right->p2.x >= traps->limits.p2.x)
+	if (right->p1.x > traps->limits.p2.x &&
+	    right->p2.x > traps->limits.p2.x)
 	{
 	    right->p1.x = traps->limits.p2.x;
 	    right->p2.x = traps->limits.p2.x;
 	}
     }
 
-    /* Trivial discards for empty trapezoids that are likely to be produced
-     * by our tessellators (most notably convex_quad when given a simple
-     * rectangle).
-     */
-    if (top >= bottom)
+    if (top >= bottom) {
 	return;
-    /* cheap colinearity check */
-    if (right->p1.x <= left->p1.x && right->p1.y == left->p1.y &&
-	right->p2.x <= left->p2.x && right->p2.y == left->p2.y)
-	return;
+    }
 
-    if (traps->num_traps == traps->traps_size) {
-	if (! _cairo_traps_grow (traps))
+    if (traps->num_traps >= traps->traps_size) {
+	traps->status = _cairo_traps_grow (traps);
+	if (traps->status)
 	    return;
     }
 
@@ -270,6 +228,55 @@ _cairo_traps_add_trap (cairo_traps_t *traps,
 	traps->extents.p2.x = right->p2.x;
 
     traps->num_traps++;
+}
+
+void
+_cairo_traps_add_trap_from_points (cairo_traps_t *traps, cairo_fixed_t top, cairo_fixed_t bottom,
+				   cairo_point_t left_p1, cairo_point_t left_p2,
+				   cairo_point_t right_p1, cairo_point_t right_p2)
+{
+    cairo_line_t left;
+    cairo_line_t right;
+
+    if (traps->status)
+	return;
+
+    left.p1 = left_p1;
+    left.p2 = left_p2;
+
+    right.p1 = right_p1;
+    right.p2 = right_p2;
+
+    _cairo_traps_add_trap (traps, top, bottom, &left, &right);
+}
+
+/* make room for at least one more trap */
+static cairo_status_t
+_cairo_traps_grow (cairo_traps_t *traps)
+{
+    cairo_trapezoid_t *new_traps;
+    int new_size = 2 * MAX (traps->traps_size, 16);
+
+    if (traps->status)
+	return traps->status;
+
+    if (traps->traps == traps->traps_embedded) {
+	new_traps = _cairo_malloc_ab (new_size, sizeof (cairo_trapezoid_t));
+	if (new_traps)
+	    memcpy (new_traps, traps->traps, sizeof (traps->traps_embedded));
+    } else {
+	new_traps = realloc (traps->traps, new_size * sizeof (cairo_trapezoid_t));
+    }
+
+    if (new_traps == NULL) {
+	traps->status = CAIRO_STATUS_NO_MEMORY;
+	return traps->status;
+    }
+
+    traps->traps = new_traps;
+    traps->traps_size = new_size;
+
+    return CAIRO_STATUS_SUCCESS;
 }
 
 static int
@@ -360,8 +367,7 @@ _cairo_trapezoid_array_translate_and_scale (cairo_trapezoid_t *offset_traps,
  * quadrilateral. We would not benefit from having any distinct
  * implementation of triangle vs. quadrilateral tessellation here. */
 cairo_status_t
-_cairo_traps_tessellate_triangle (cairo_traps_t *traps,
-				  const cairo_point_t t[3])
+_cairo_traps_tessellate_triangle (cairo_traps_t *traps, cairo_point_t t[3])
 {
     cairo_point_t quad[4];
 
@@ -374,33 +380,12 @@ _cairo_traps_tessellate_triangle (cairo_traps_t *traps,
 }
 
 cairo_status_t
-_cairo_traps_tessellate_rectangle (cairo_traps_t *traps,
-				   const cairo_point_t *top_left,
-				   const cairo_point_t *bottom_right)
-{
-    cairo_line_t left;
-    cairo_line_t right;
-
-     left.p1.x =  left.p2.x = top_left->x;
-     left.p1.y = right.p1.y = top_left->y;
-    right.p1.x = right.p2.x = bottom_right->x;
-     left.p2.y = right.p2.y = bottom_right->y;
-
-    _cairo_traps_add_trap (traps, top_left->y, bottom_right->y, &left, &right);
-
-    return traps->status;
-}
-
-cairo_status_t
-_cairo_traps_tessellate_convex_quad (cairo_traps_t *traps,
-				     const cairo_point_t q[4])
+_cairo_traps_tessellate_convex_quad (cairo_traps_t *traps, cairo_point_t q[4])
 {
     int a, b, c, d;
     int i;
     cairo_slope_t ab, ad;
     cairo_bool_t b_left_of_d;
-    cairo_line_t left;
-    cairo_line_t right;
 
     /* Choose a as a point with minimal y */
     a = 0;
@@ -465,13 +450,15 @@ _cairo_traps_tessellate_convex_quad (cairo_traps_t *traps,
 	     *  | /      \|     \ \  c.y d.y  cd   ad
 	     *  d         d       d
 	     */
-	    left.p1  = q[a]; left.p2  = q[b];
-	    right.p1 = q[a]; right.p2 = q[d];
-	    _cairo_traps_add_trap (traps, q[a].y, q[b].y, &left, &right);
-	    left.p1  = q[b]; left.p2  = q[c];
-	    _cairo_traps_add_trap (traps, q[b].y, q[c].y, &left, &right);
-	    left.p1  = q[c]; left.p2  = q[d];
-	    _cairo_traps_add_trap (traps, q[c].y, q[d].y, &left, &right);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[a].y, q[b].y,
+					       q[a], q[b], q[a], q[d]);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[b].y, q[c].y,
+					       q[b], q[c], q[a], q[d]);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[c].y, q[d].y,
+					       q[c], q[d], q[a], q[d]);
 	} else {
 	    /* Y-sort is abcd and b is right of d, (slope(ab) <= slope (ad))
 	     *
@@ -483,13 +470,15 @@ _cairo_traps_tessellate_convex_quad (cairo_traps_t *traps,
 	     *  / /     |/      \ | c.y d.y  ad  cd
 	     *  d       d         d
 	     */
-	    left.p1  = q[a]; left.p2  = q[d];
-	    right.p1 = q[a]; right.p2 = q[b];
-	    _cairo_traps_add_trap (traps, q[a].y, q[b].y, &left, &right);
-	    right.p1 = q[b]; right.p2 = q[c];
-	    _cairo_traps_add_trap (traps, q[b].y, q[c].y, &left, &right);
-	    right.p1 = q[c]; right.p2 = q[d];
-	    _cairo_traps_add_trap (traps, q[c].y, q[d].y, &left, &right);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[a].y, q[b].y,
+					       q[a], q[d], q[a], q[b]);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[b].y, q[c].y,
+					       q[a], q[d], q[b], q[c]);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[c].y, q[d].y,
+					       q[a], q[d], q[c], q[d]);
 	}
     } else {
 	if (b_left_of_d) {
@@ -503,13 +492,15 @@ _cairo_traps_tessellate_convex_quad (cairo_traps_t *traps,
 	     *  //         \ /     \|  d.y c.y  bc  dc
 	     *  c           c       c
 	     */
-	    left.p1  = q[a]; left.p2  = q[b];
-	    right.p1 = q[a]; right.p2 = q[d];
-	    _cairo_traps_add_trap (traps, q[a].y, q[b].y, &left, &right);
-	    left.p1  = q[b]; left.p2  = q[c];
-	    _cairo_traps_add_trap (traps, q[b].y, q[d].y, &left, &right);
-	    right.p1 = q[d]; right.p2 = q[c];
-	    _cairo_traps_add_trap (traps, q[d].y, q[c].y, &left, &right);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[a].y, q[b].y,
+					       q[a], q[b], q[a], q[d]);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[b].y, q[d].y,
+					       q[b], q[c], q[a], q[d]);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[d].y, q[c].y,
+					       q[b], q[c], q[d], q[c]);
 	} else {
 	    /* Y-sort is abdc and b is right of d, (slope (ab) <= slope (ad))
 	     *
@@ -521,13 +512,15 @@ _cairo_traps_tessellate_convex_quad (cairo_traps_t *traps,
 	     *  |/     \ /         \\  d.y c.y  dc  bc
 	     *  c       c	   c
 	     */
-	    left.p1  = q[a]; left.p2  = q[d];
-	    right.p1 = q[a]; right.p2 = q[b];
-	    _cairo_traps_add_trap (traps, q[a].y, q[b].y, &left, &right);
-	    right.p1 = q[b]; right.p2 = q[c];
-	    _cairo_traps_add_trap (traps, q[b].y, q[d].y, &left, &right);
-	    left.p1  = q[d]; left.p2  = q[c];
-	    _cairo_traps_add_trap (traps, q[d].y, q[c].y, &left, &right);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[a].y, q[b].y,
+					       q[a], q[d], q[a], q[b]);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[b].y, q[d].y,
+					       q[a], q[d], q[b], q[c]);
+	    _cairo_traps_add_trap_from_points (traps,
+					       q[d].y, q[c].y,
+					       q[d], q[c], q[b], q[c]);
 	}
     }
 
@@ -560,8 +553,7 @@ _cairo_trap_contains (cairo_trapezoid_t *t, cairo_point_t *pt)
 }
 
 cairo_bool_t
-_cairo_traps_contain (const cairo_traps_t *traps,
-		      double x, double y)
+_cairo_traps_contain (cairo_traps_t *traps, double x, double y)
 {
     int i;
     cairo_point_t point;
@@ -578,28 +570,12 @@ _cairo_traps_contain (const cairo_traps_t *traps,
 }
 
 void
-_cairo_traps_extents (const cairo_traps_t *traps,
-		      cairo_box_t         *extents)
+_cairo_traps_extents (cairo_traps_t *traps, cairo_box_t *extents)
 {
-    if (traps->num_traps == 0) {
-	extents->p1.x = extents->p1.y = _cairo_fixed_from_int (0);
-	extents->p2.x = extents->p2.y = _cairo_fixed_from_int (0);
-    } else {
-	*extents = traps->extents;
-	if (traps->has_limits) {
-	    /* clip the traps to the imposed limits */
-	    if (extents->p1.x < traps->limits.p1.x)
-		extents->p1.x = traps->limits.p1.x;
-	    if (extents->p2.x > traps->limits.p2.x)
-		extents->p2.x = traps->limits.p2.x;
-
-	    if (extents->p1.y < traps->limits.p1.y)
-		extents->p1.y = traps->limits.p1.y;
-	    if (extents->p2.y > traps->limits.p2.y)
-		extents->p2.y = traps->limits.p2.y;
-	}
-    }
+    *extents = traps->extents;
 }
+
+#define STACK_BOXES_LEN ((int) (CAIRO_STACK_BUFFER_SIZE / sizeof(cairo_box_int_t)))
 
 /**
  * _cairo_traps_extract_region:
@@ -609,118 +585,67 @@ _cairo_traps_extents (const cairo_traps_t *traps,
  * Determines if a set of trapezoids are exactly representable as a
  * cairo region.  If so, the passed-in region is initialized to
  * the area representing the given traps.  It should be finalized
- * with cairo_region_fini().  If not, %CAIRO_INT_STATUS_UNSUPPORTED
+ * with _cairo_region_fini().  If not, %CAIRO_INT_STATUS_UNSUPPORTED
  * is returned.
  *
  * Return value: %CAIRO_STATUS_SUCCESS, %CAIRO_INT_STATUS_UNSUPPORTED
  * or %CAIRO_STATUS_NO_MEMORY
  **/
 cairo_int_status_t
-_cairo_traps_extract_region (const cairo_traps_t  *traps,
-			     cairo_region_t      **region)
+_cairo_traps_extract_region (cairo_traps_t  *traps,
+			     cairo_region_t *region)
 {
-    cairo_rectangle_int_t stack_rects[CAIRO_STACK_ARRAY_LENGTH (cairo_rectangle_int_t)];
-    cairo_rectangle_int_t *rects = stack_rects;
+    cairo_box_int_t stack_boxes[STACK_BOXES_LEN];
+    cairo_box_int_t *boxes = stack_boxes;
+    int i, box_count;
     cairo_int_status_t status;
-    int i, rect_count;
 
-    for (i = 0; i < traps->num_traps; i++) {
-	if (traps->traps[i].left.p1.x != traps->traps[i].left.p2.x   ||
-	    traps->traps[i].right.p1.x != traps->traps[i].right.p2.x ||
-	    ! _cairo_fixed_is_integer (traps->traps[i].top)          ||
-	    ! _cairo_fixed_is_integer (traps->traps[i].bottom)       ||
-	    ! _cairo_fixed_is_integer (traps->traps[i].left.p1.x)    ||
-	    ! _cairo_fixed_is_integer (traps->traps[i].right.p1.x))
-	{
+    for (i = 0; i < traps->num_traps; i++)
+	if (!(traps->traps[i].left.p1.x == traps->traps[i].left.p2.x
+	      && traps->traps[i].right.p1.x == traps->traps[i].right.p2.x
+	      && _cairo_fixed_is_integer(traps->traps[i].top)
+	      && _cairo_fixed_is_integer(traps->traps[i].bottom)
+	      && _cairo_fixed_is_integer(traps->traps[i].left.p1.x)
+	      && _cairo_fixed_is_integer(traps->traps[i].right.p1.x))) {
 	    return CAIRO_INT_STATUS_UNSUPPORTED;
 	}
+
+    if (traps->num_traps > ARRAY_LENGTH(stack_boxes)) {
+	boxes = _cairo_malloc_ab (traps->num_traps, sizeof(cairo_box_int_t));
+
+	if (boxes == NULL)
+	    return CAIRO_STATUS_NO_MEMORY;
     }
 
-    if (traps->num_traps > ARRAY_LENGTH (stack_rects)) {
-	rects = _cairo_malloc_ab (traps->num_traps, sizeof (cairo_rectangle_int_t));
+    box_count = 0;
 
-	if (unlikely (rects == NULL))
-	    return _cairo_error (CAIRO_STATUS_NO_MEMORY);
-    }
-
-    rect_count = 0;
     for (i = 0; i < traps->num_traps; i++) {
-	int x1 = _cairo_fixed_integer_part (traps->traps[i].left.p1.x);
-	int y1 = _cairo_fixed_integer_part (traps->traps[i].top);
-	int x2 = _cairo_fixed_integer_part (traps->traps[i].right.p1.x);
-	int y2 = _cairo_fixed_integer_part (traps->traps[i].bottom);
+	int x1 = _cairo_fixed_integer_part(traps->traps[i].left.p1.x);
+	int y1 = _cairo_fixed_integer_part(traps->traps[i].top);
+	int x2 = _cairo_fixed_integer_part(traps->traps[i].right.p1.x);
+	int y2 = _cairo_fixed_integer_part(traps->traps[i].bottom);
 
 	/* XXX: Sometimes we get degenerate trapezoids from the tesellator;
 	 * skip these.
 	 */
 	if (x1 == x2 || y1 == y2)
 	    continue;
-	
-	rects[rect_count].x = x1;
-	rects[rect_count].y = y1;
-	rects[rect_count].width = x2 - x1;
-	rects[rect_count].height = y2 - y1;
 
-	rect_count++;
+	boxes[box_count].p1.x = x1;
+	boxes[box_count].p1.y = y1;
+	boxes[box_count].p2.x = x2;
+	boxes[box_count].p2.y = y2;
+
+	box_count++;
     }
- 
-    *region = cairo_region_create_rectangles (rects, rect_count);
-    status = cairo_region_status (*region);
 
-    if (rects != stack_rects)
-	free (rects);
+    status = _cairo_region_init_boxes (region, boxes, box_count);
 
-    if (unlikely (status)) {
-	cairo_region_destroy (*region);
-	*region = NULL;
-    }
-    
+    if (boxes != stack_boxes)
+	free (boxes);
+
+    if (status)
+	_cairo_region_fini (region);
+
     return status;
-}
-
-/* moves trap points such that they become the actual corners of the trapezoid */
-static void
-_sanitize_trap (cairo_trapezoid_t *t)
-{
-    cairo_trapezoid_t s = *t;
-
-#define FIX(lr, tb, p) \
-    if (t->lr.p.y != t->tb) { \
-        t->lr.p.x = s.lr.p2.x + _cairo_fixed_mul_div (s.lr.p1.x - s.lr.p2.x, s.tb - s.lr.p2.y, s.lr.p1.y - s.lr.p2.y); \
-        t->lr.p.y = s.tb; \
-    }
-    FIX (left,  top,    p1);
-    FIX (left,  bottom, p2);
-    FIX (right, top,    p1);
-    FIX (right, bottom, p2);
-}
-
-cairo_private cairo_status_t
-_cairo_traps_path (const cairo_traps_t *traps,
-		   cairo_path_fixed_t  *path)
-{
-    int i;
-
-    for (i = 0; i < traps->num_traps; i++) {
-	cairo_status_t status;
-	cairo_trapezoid_t trap = traps->traps[i];
-
-	if (trap.top == trap.bottom)
-	    continue;
-
-	_sanitize_trap (&trap);
-
-	status = _cairo_path_fixed_move_to (path, trap.left.p1.x, trap.top);
-	if (unlikely (status)) return status;
-	status = _cairo_path_fixed_line_to (path, trap.right.p1.x, trap.top);
-	if (unlikely (status)) return status;
-	status = _cairo_path_fixed_line_to (path, trap.right.p2.x, trap.bottom);
-	if (unlikely (status)) return status;
-	status = _cairo_path_fixed_line_to (path, trap.left.p2.x, trap.bottom);
-	if (unlikely (status)) return status;
-	status = _cairo_path_fixed_close_path (path);
-	if (unlikely (status)) return status;
-    }
-
-    return CAIRO_STATUS_SUCCESS;
 }

@@ -39,12 +39,16 @@
 
 #include "nsIDOMDocumentView.h"
 #include "nsIDOMAbstractView.h"
+#include "nsIDOMNodeList.h"
 #include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsIContentViewer.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"
+#include "nsIDocShellTreeItem.h"
+#include "nsIWebNavigation.h"
 #include "nsIPresShell.h"
+#include "nsIWidget.h"
 #include "nsPresContext.h"
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -84,10 +88,10 @@ inLayoutUtils::GetPresShellFor(nsISupports* aThing)
 
 /*static*/
 nsIFrame*
-inLayoutUtils::GetFrameFor(nsIDOMElement* aElement)
+inLayoutUtils::GetFrameFor(nsIDOMElement* aElement, nsIPresShell* aShell)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-  return content->GetPrimaryFrame();
+  return aShell->GetPrimaryFrameFor(content);
 }
 
 nsIEventStateManager*
@@ -105,8 +109,7 @@ inLayoutUtils::GetEventStateManagerFor(nsIDOMElement *aElement)
   }
 
   nsIPresShell *shell = doc->GetPrimaryShell();
-  if (!shell)
-    return nsnull;
+  NS_ASSERTION(shell, "No pres shell");
 
   return shell->GetPresContext()->EventStateManager();
 }

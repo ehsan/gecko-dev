@@ -168,20 +168,29 @@ var gEngineManagerDialog = {
       var eduplicate = false;
 
       if (alias.value != "") {
-        try {
-          let bmserv = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
-                       getService(Ci.nsINavBookmarksService);
-          if (bmserv.getURIForKeyword(alias.value))
-            bduplicate = true;
-        } catch(ex) {}
+        var searchService = Cc["@mozilla.org/browser/search-service;1"].
+                            getService(Ci.nsIBrowserSearchService);
+        var engine = searchService.getEngineByAlias(alias.value);
 
-        // Check for duplicates in changes we haven't committed yet
-        let engines = gEngineView._engineStore.engines;
-        for each (let engine in engines) {
-          if (engine.alias == alias.value && 
-              engine.name != selectedEngine.name) {
+        if (engine) {
+          if (engine.name != selectedEngine.name)
             eduplicate = true;
-            break;
+        } else {
+          try {
+            var bmserv = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+                         getService(Ci.nsINavBookmarksService);
+            if (bmserv.getURIForKeyword(alias.value))
+              bduplicate = true;
+          } catch(ex) {}
+
+          // Check for duplicates in changes we haven't committed yet
+          var engines = gEngineView._engineStore.engines;
+          for each (var engine in engines) {
+            if (engine.alias == alias.value && 
+                engine.name != selectedEngine.name) {
+              eduplicate = true;
+              break;
+            }
           }
         }
       }
@@ -224,13 +233,22 @@ var gEngineManagerDialog = {
   }
 };
 
-function onDragEngineStart(event) {
-  var selectedIndex = gEngineView.selectedIndex;
-  if (selectedIndex >= 0) {
-    event.dataTransfer.setData(ENGINE_FLAVOR, selectedIndex.toString());
-    event.dataTransfer.effectAllowed = "move";
-  }
-}
+var gDragObserver = {
+  onDragStart: function (aEvent, aXferData, aDragAction) {
+    var selectedIndex = gEngineView.selectedIndex;
+    if (selectedIndex == -1)
+      return;
+
+    aXferData.data = new TransferData();
+    aXferData.data.addDataForFlavour(ENGINE_FLAVOR, selectedIndex.toString());
+
+    aDragAction.action = Ci.nsIDragService.DRAGDROP_ACTION_MOVE;
+  },
+  onDrop: function (aEvent, aXferData, aDragSession) { },
+  onDragExit: function (aEvent, aDragSession) { },
+  onDragOver: function (aEvent, aFlavour, aDragSession) { },
+  getSupportedFlavours: function() { return null; }
+};
 
 // "Operation" objects
 function EngineMoveOp(aEngineClone, aNewIndex) {
@@ -300,13 +318,13 @@ EngineChangeOp.prototype = {
 function EngineStore() {
   var searchService = Cc["@mozilla.org/browser/search-service;1"].
                       getService(Ci.nsIBrowserSearchService);
-  this._engines = searchService.getVisibleEngines().map(this._cloneEngine);
-  this._defaultEngines = searchService.getDefaultEngines().map(this._cloneEngine);
+  this._engines = searchService.getVisibleEngines({}).map(this._cloneEngine);
+  this._defaultEngines = searchService.getDefaultEngines({}).map(this._cloneEngine);
 
   this._ops = [];
 
   // check if we need to disable the restore defaults button
-  var someHidden = this._defaultEngines.some(function (e) e.hidden);
+  var someHidden = this._defaultEngines.some(function (e) {return e.hidden;});
   gEngineManagerDialog.showRestoreDefaults(someHidden);
 }
 EngineStore.prototype = {

@@ -46,18 +46,40 @@ MODULE = accessibility
 LIBRARY_NAME = accessibility_base_s
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= appshell \
+		  commandhandler \
+		  composer \
+		  content \
+		  docshell \
+		  dom \
+		  editor \
+		  gfx \
+		  thebes \
+		  intl \
+		  layout \
+		  locale \
+		  necko \
+		  plugin \
+		  pref \
+		  string \
+		  unicharutil \
+		  uriloader \
+		  view \
+		  webshell \
+		  widget \
+		  xpcom \
+		  xuldoc \
+		  imglib2 \
+		  $(NULL)
 
 CPPSRCS = \
   nsAccessNode.cpp \
   nsAccessibleEventData.cpp \
-  nsARIAGridAccessible.cpp \
   nsARIAMap.cpp \
   nsDocAccessible.cpp \
   nsOuterDocAccessible.cpp \
   nsAccessibilityAtoms.cpp \
-  nsCoreUtils.cpp \
-  nsAccUtils.cpp \
-  nsRelUtils.cpp \
+  nsAccessibilityUtils.cpp \
   nsAccessibilityService.cpp \
   nsAccessible.cpp \
   nsAccessibleRelation.cpp \
@@ -68,8 +90,6 @@ CPPSRCS = \
   nsApplicationAccessible.cpp \
   nsCaretAccessible.cpp \
   nsTextAccessible.cpp \
-  nsTextEquivUtils.cpp \
-  nsTextAttrs.cpp \
   $(NULL)
 
 EXPORTS = \

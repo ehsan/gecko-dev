@@ -49,27 +49,36 @@ LIBRARY_NAME  = download_s
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
 
+REQUIRES  = xpcom \
+            string \
+            rdf \
+            uriloader \
+            mimetype \
+            necko \
+            pref \
+            progressDlg \
+            intl \
+            windowwatcher \
+            webbrowserpersist \
+            appshell \
+            dom \
+            embed_base \
+            alerts \
+            storage \
+            xulapp \
+            $(NULL)
 
 CPPSRCS   = \
     nsDownloadManager.cpp \
     $(NULL)
 
-ifndef GNU_CXX
 ifeq ($(OS_ARCH),WINNT)
 CPPSRCS += nsDownloadScanner.cpp
 endif
-endif
 
-# definition of MOZ_SUITE is only added via config.mk
-include $(topsrcdir)/config/config.mk
-
-ifndef MOZ_SUITE
-# XXX - Until Suite builds off XULRunner we can't guarantee our implementation
-# of nsIDownloadManagerUI overrides toolkit's.
 EXTRA_COMPONENTS = \
   nsDownloadManagerUI.js \
   $(NULL)
-endif
 
 include $(topsrcdir)/config/rules.mk
 

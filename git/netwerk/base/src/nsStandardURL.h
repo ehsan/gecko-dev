@@ -53,11 +53,6 @@
 #include "nsCOMPtr.h"
 #include "nsURLHelper.h"
 #include "nsIClassInfo.h"
-#include "prclist.h"
-
-#ifdef NS_BUILD_REFCNT_LOGGING
-#define DEBUG_DUMP_URLS_AT_SHUTDOWN
-#endif
 
 class nsIBinaryInputStream;
 class nsIBinaryOutputStream;
@@ -155,7 +150,6 @@ protected:
     // Helper for subclass implementation of GetFile().  Subclasses that map
     // URIs to files in a special way should implement this method.  It should
     // ensure that our mFile is initialized, if it's possible.
-    // returns NS_ERROR_NO_INTERFACE if the url does not map to a file
     virtual nsresult EnsureFile();
 
 private:
@@ -173,9 +167,9 @@ private:
 
     nsresult BuildNormalizedSpec(const char *spec);
 
-    PRBool   SegmentIs(const URLSegment &s1, const char *val, PRBool ignoreCase = PR_FALSE);
-    PRBool   SegmentIs(const char* spec, const URLSegment &s1, const char *val, PRBool ignoreCase = PR_FALSE);
-    PRBool   SegmentIs(const URLSegment &s1, const char *val, const URLSegment &s2, PRBool ignoreCase = PR_FALSE);
+    PRBool   SegmentIs(const URLSegment &s1, const char *val);
+    PRBool   SegmentIs(const char* spec, const URLSegment &s1, const char *val);
+    PRBool   SegmentIs(const URLSegment &s1, const char *val, const URLSegment &s2);
 
     PRInt32  ReplaceSegment(PRUint32 pos, PRUint32 len, const char *val, PRUint32 valLen);
     PRInt32  ReplaceSegment(PRUint32 pos, PRUint32 len, const nsACString &val);
@@ -227,6 +221,11 @@ private:
 
     static void PrefsChanged(nsIPrefBranch *prefs, const char *pref);
 
+    // IDN routines
+    static nsresult ACEtoDisplayIDN(const nsCSubstring &in, nsCString &out);
+    static nsresult UTF8toDisplayIDN(const nsCSubstring &in, nsCString &out);
+    static PRBool IsInWhitelist(const nsCSubstring &host);
+
     // mSpec contains the normalized version of the URL spec (UTF-8 encoded).
     nsCString mSpec;
     PRInt32   mDefaultPort;
@@ -277,12 +276,8 @@ private:
     static PRBool                       gEscapeUTF8;
     static PRBool                       gAlwaysEncodeInUTF8;
     static PRBool                       gEncodeQueryInUTF8;
-
-public:
-#ifdef DEBUG_DUMP_URLS_AT_SHUTDOWN
-    PRCList mDebugCList;
-    void PrintSpec() const { printf("  %s\n", mSpec.get()); }
-#endif
+    static PRBool                       gShowPunycode;
+    static nsIPrefBranch               *gIDNWhitelistPrefBranch;
 };
 
 #define NS_THIS_STANDARDURL_IMPL_CID                 \

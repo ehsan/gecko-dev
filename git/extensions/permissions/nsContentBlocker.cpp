@@ -64,8 +64,7 @@ static const char *kTypeString[NUMBER_OF_TYPES] = {"other",
                                                    "xbl",
                                                    "ping",
                                                    "xmlhttprequest",
-                                                   "objectsubrequest",
-                                                   "dtd"};
+                                                   "objectsubrequest"};
 
 
 NS_IMPL_ISUPPORTS3(nsContentBlocker, 
@@ -181,13 +180,12 @@ nsContentBlocker::ShouldLoad(PRUint32          aContentType,
   rv = TestPermission(aContentLocation, aRequestingLocation, aContentType,
                       &shouldLoad, &fromPrefs);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (!shouldLoad) {
-    if (fromPrefs) {
+  if (!shouldLoad)
+    if (fromPrefs)
       *aDecision = nsIContentPolicy::REJECT_TYPE;
-    } else {
+    else
       *aDecision = nsIContentPolicy::REJECT_SERVER;
-    }
-  }
+
   if (aContentType != nsIContentPolicy::TYPE_OBJECT || aMimeGuess.IsEmpty())
     return NS_OK;
 

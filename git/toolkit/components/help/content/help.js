@@ -88,9 +88,8 @@ const NC_TITLE = RDF.GetResource(NC + "title");
 const NC_BASE = RDF.GetResource(NC + "base");
 const NC_DEFAULTTOPIC = RDF.GetResource(NC + "defaulttopic");
 
-var RDFContainer =
-   Components.classes["@mozilla.org/rdf/container;1"]
-             .createInstance(Components.interfaces.nsIRDFContainer);
+const RDFContainer = Components.classes["@mozilla.org/rdf/container;1"]
+    .getService(Components.interfaces.nsIRDFContainer);
 const CONSOLE_SERVICE = Components.classes['@mozilla.org/consoleservice;1']
     .getService(Components.interfaces.nsIConsoleService);
 
@@ -137,12 +136,6 @@ function init() {
   helpIndexPanel = document.getElementById("help-index-panel");
   helpGlossaryPanel = document.getElementById("help-glossary-panel");
   helpBrowser = document.getElementById("help-content");
-
-  // Turn off unnecessary features for security
-  helpBrowser.docShell.allowJavascript = false;
-  helpBrowser.docShell.allowPlugins = false;
-  helpBrowser.docShell.allowSubframes = false;
-  helpBrowser.docShell.allowMetaRedirects = false;
 
   strBundle = document.getElementById("bundle_help");
   emptySearchText = strBundle.getString("emptySearchText");
@@ -244,9 +237,9 @@ function loadHelpRDF() {
 
         var panelID        = getAttribute(helpFileDS, panelDef, NC_PANELID, null);
         var datasources    = getAttribute(helpFileDS, panelDef, NC_DATASOURCES, "");
-        var panelPlatforms = getAttribute(helpFileDS, panelDef, NC_PLATFORM, null);
+        var panelPlatforms = getAttribute(helpFileDS, panelDef, NC_PLATFORM, platform);
 
-        if (panelPlatforms && panelPlatforms.split(/\s+/).indexOf(platform) == -1)
+        if (panelPlatforms.split(/\s+/).indexOf(platform) == -1)
           continue; // ignore datasources for other platforms
 
         // empty datasources are valid on search panel definitions
@@ -267,8 +260,7 @@ function loadHelpRDF() {
 
           datasourceArray.forEach(helpSearchPanel.database.AddDataSource,
                                   helpSearchPanel.database);
-          if (!panelPlatforms)
-            filterDatasourceByPlatform(helpSearchPanel.database);
+          filterDatasourceByPlatform(helpSearchPanel.database);
 
           continue; // to next panel definition
         }
@@ -284,8 +276,7 @@ function loadHelpRDF() {
                                 tree.database);
 
         // filter and display the current tree
-        if (!panelPlatforms)
-          filterDatasourceByPlatform(tree.database);
+        filterDatasourceByPlatform(tree.database);
         tree.builder.rebuild();
       }
     } catch (e) {
@@ -698,10 +689,9 @@ function doFindOnSeq(resultsDS, sourceDS, resource, level) {
         var target = targets.getNext();
         var link = sourceDS.GetTarget(target, NC_LINK, true);
         var name = sourceDS.GetTarget(target, NC_NAME, true);
+        name = name.QueryInterface(Components.interfaces.nsIRDFLiteral);
 
-        if (link &&
-            name instanceof Components.interfaces.nsIRDFLiteral &&
-            isMatch(name.Value)) {
+        if (link && isMatch(name.Value)) {
             // we have found a search entry - add it to the results datasource.
             var urn = RDF.GetAnonymousResource();
             resultsDS.Assert(urn, NC_NAME, name, true);
@@ -792,10 +782,13 @@ function getXulWin()
 }
 
 # toggleZLevel - Toggles whether or not the window will always appear on top. Because
-#   alwaysRaised is not supported on an OS other than Windows, this code will not
-#   appear in those builds.
+#   alwaysRaised is not supported on an OS other than Windows and Mac OS X, this code
+#   will not appear in those builds.
 #
 #   element - The DOM node that persists the checked state.
+#ifdef XP_MACOSX
+#define HELP_ALWAYS_RAISED_TOGGLE
+#endif
 #ifdef XP_WIN
 #define HELP_ALWAYS_RAISED_TOGGLE
 #endif

@@ -432,10 +432,10 @@ xpctestEcho::SetAString(const char * aAString)
 
 #define GET_CALL_CONTEXT \
   nsresult rv; \
-  nsAXPCNativeCallContext *cc = nsnull; \
+  nsCOMPtr<nsIXPCNativeCallContext> cc; \
   nsCOMPtr<nsIXPConnect> xpc(do_GetService(nsIXPConnect::GetCID(), &rv)); \
   if(NS_SUCCEEDED(rv)) \
-    rv = xpc->GetCurrentNativeCallContext(&cc) /* no ';' */        
+    rv = xpc->GetCurrentNativeCallContext(getter_AddRefs(cc)) /* no ';' */        
 
 /* void printArgTypes (); */
 NS_IMETHODIMP
@@ -483,7 +483,7 @@ xpctestEcho::PrintArgTypes(void)
         else if (JSVAL_IS_VOID(argv[i]))
             type = "void";
 
-        fputs(type, stdout);
+        printf(type);
 
         if(i < argc-1)
             printf(", ");
@@ -517,6 +517,8 @@ xpctestEcho::ThrowArg(void)
         return NS_ERROR_FAILURE;
 
     JS_SetPendingException(cx, argv[0]);
+    cc->SetExceptionWasThrown(JS_TRUE);
+        
     return NS_OK;
 }
 

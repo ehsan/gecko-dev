@@ -1,3 +1,6 @@
+/*
+ * @(#)jni_md.h	1.3 97/01/10
+ */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -41,10 +44,13 @@
 
 #define JNICALL			JRI_CALLBACK
 
+/* XXX don't use this -- it doesn't work for Win16 */
 #ifdef XP_WIN
 #define JNIEXPORT __declspec(dllexport)
 #else
 #define JNIEXPORT 
 #endif
+
+
 
 #endif /* JNI_MD_H */

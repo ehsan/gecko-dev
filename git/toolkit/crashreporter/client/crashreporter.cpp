@@ -46,10 +46,6 @@
 
 #include <fstream>
 #include <sstream>
-#include <memory>
-#include <time.h>
-#include <stdlib.h>
-#include <string.h>
 
 using std::string;
 using std::istream;
@@ -59,7 +55,6 @@ using std::ostringstream;
 using std::ostream;
 using std::ofstream;
 using std::vector;
-using std::auto_ptr;
 
 namespace CrashReporter {
 
@@ -68,9 +63,8 @@ string       gSettingsPath;
 int          gArgc;
 char**       gArgv;
 
-static auto_ptr<ofstream> gLogStream(NULL);
-static string             gDumpFile;
-static string             gExtraFile;
+static string       gDumpFile;
+static string       gExtraFile;
 
 static string kExtraDataExtension = ".extra";
 
@@ -205,24 +199,6 @@ bool WriteStringsToFile(const string& path,
   return success;
 }
 
-void LogMessage(const std::string& message)
-{
-  if (gLogStream.get()) {
-    char date[64];
-    time_t tm;
-    time(&tm);
-    if (strftime(date, sizeof(date) - 1, "%c", localtime(&tm)) == 0)
-        date[0] = '\0';
-    (*gLogStream) << "[" << date << "] " << message << std::endl;
-  }
-}
-
-static void OpenLogFile()
-{
-  string logPath = gSettingsPath + UI_DIR_SEPARATOR + "submit.log";
-  gLogStream.reset(UIOpenWrite(logPath.c_str(), true));
-}
-
 static bool ReadConfig()
 {
   string iniPath;
@@ -231,11 +207,6 @@ static bool ReadConfig()
 
   if (!ReadStringsFromFile(iniPath, gStrings, true))
     return false;
-
-  // See if we have a string override file, if so process it
-  char* overrideEnv = getenv("MOZ_CRASHREPORTER_STRINGS_OVERRIDE");
-  if (overrideEnv && *overrideEnv && UIFileExists(overrideEnv))
-    ReadStringsFromFile(overrideEnv, gStrings, true);
 
   return true;
 }
@@ -294,27 +265,6 @@ static bool AddSubmittedReport(const string& serverResponse)
   istringstream in(serverResponse);
   ReadStrings(in, responseItems, false);
 
-  if (responseItems.find("StopSendingReportsFor") != responseItems.end()) {
-    // server wants to tell us to stop sending reports for a certain version
-    string reportPath =
-      gSettingsPath + UI_DIR_SEPARATOR + "EndOfLife" +
-      responseItems["StopSendingReportsFor"];
-
-    ofstream* reportFile = UIOpenWrite(reportPath);
-    if (reportFile->is_open()) {
-      // don't really care about the contents
-      *reportFile << 1 << "\n";
-      reportFile->close();
-    }
-    delete reportFile;
-  }
-
-  if (responseItems.find("Discarded") != responseItems.end()) {
-    // server discarded this report... save it so the user can resubmit it
-    // manually
-    return false;
-  }
-
   if (responseItems.find("CrashID") == responseItems.end())
     return false;
 
@@ -352,38 +302,20 @@ static bool AddSubmittedReport(const string& serverResponse)
   return true;
 }
 
-void DeleteDump()
-{
-  const char* noDelete = getenv("MOZ_CRASHREPORTER_NO_DELETE_DUMP");
-  if (!noDelete || *noDelete == '\0') {
-    if (!gDumpFile.empty())
-      UIDeleteFile(gDumpFile);
-    if (!gExtraFile.empty())
-      UIDeleteFile(gExtraFile);
-  }
-}
-
-void SendCompleted(bool success, const string& serverResponse)
+bool SendCompleted(bool success, const string& serverResponse)
 {
   if (success) {
-    if (AddSubmittedReport(serverResponse)) {
-      DeleteDump();
+    const char* noDelete = getenv("MOZ_CRASHREPORTER_NO_DELETE_DUMP");
+    if (!noDelete || *noDelete == '\0') {
+      if (!gDumpFile.empty())
+        UIDeleteFile(gDumpFile);
+      if (!gExtraFile.empty())
+        UIDeleteFile(gExtraFile);
     }
-    else {
-      string directory = gDumpFile;
-      int slashpos = directory.find_last_of("/\\");
-      if (slashpos < 2)
-        return;
-      directory.resize(slashpos);
-      UIPruneSavedDumps(directory);
-    }
-  }
-}
 
-bool ShouldEnableSending()
-{
-  srand(time(0));
-  return ((rand() % 100) < MOZ_CRASHREPORTER_ENABLE_PERCENT);
+    return AddSubmittedReport(serverResponse);
+  }
+  return true;
 }
 
 } // namespace CrashReporter
@@ -406,26 +338,12 @@ void RewriteStrings(StringTable& queryParameters)
               vendor.c_str());
   gStrings[ST_CRASHREPORTERTITLE] = buf;
 
-
-  string str = gStrings[ST_CRASHREPORTERPRODUCTERROR];
-  // Only do the replacement here if the string has two
-  // format specifiers to start.  Otherwise
-  // we assume it has the product name hardcoded.
-  string::size_type pos = str.find("%s");
-  if (pos != string::npos)
-    pos = str.find("%s", pos+2);
-  if (pos != string::npos) {
-    // Leave a format specifier for UIError to fill in
-    UI_SNPRINTF(buf, sizeof(buf),
-                gStrings[ST_CRASHREPORTERPRODUCTERROR].c_str(),
-                product.c_str(),
-                "%s");
-    gStrings[ST_CRASHREPORTERERROR] = buf;
-  }
-  else {
-    // product name is hardcoded
-    gStrings[ST_CRASHREPORTERERROR] = str;
-  }
+  // Leave a format specifier for UIError to fill in
+  UI_SNPRINTF(buf, sizeof(buf),
+              gStrings[ST_CRASHREPORTERPRODUCTERROR].c_str(),
+              product.c_str(),
+              "%s");
+  gStrings[ST_CRASHREPORTERERROR] = buf;
 
   UI_SNPRINTF(buf, sizeof(buf),
               gStrings[ST_CRASHREPORTERDESCRIPTION].c_str(),
@@ -441,23 +359,6 @@ void RewriteStrings(StringTable& queryParameters)
               gStrings[ST_RESTART].c_str(),
               product.c_str());
   gStrings[ST_RESTART] = buf;
-
-  UI_SNPRINTF(buf, sizeof(buf),
-              gStrings[ST_QUIT].c_str(),
-              product.c_str());
-  gStrings[ST_QUIT] = buf;
-
-  UI_SNPRINTF(buf, sizeof(buf),
-              gStrings[ST_ERROR_ENDOFLIFE].c_str(),
-              product.c_str());
-  gStrings[ST_ERROR_ENDOFLIFE] = buf;
-}
-
-bool CheckEndOfLifed(string version)
-{
-  string reportPath =
-    gSettingsPath + UI_DIR_SEPARATOR + "EndOfLife" + version;
-  return UIFileExists(reportPath);
 }
 
 int main(int argc, char** argv)
@@ -514,19 +415,11 @@ int main(int argc, char** argv)
 
     // Hopefully the settings path exists in the environment. Try that before
     // asking the platform-specific code to guess.
-#ifdef XP_WIN32
-    static const wchar_t kDataDirKey[] = L"MOZ_CRASHREPORTER_DATA_DIRECTORY";
-    const wchar_t *settingsPath = _wgetenv(kDataDirKey);
-    if (settingsPath && *settingsPath) {
-      gSettingsPath = WideToUTF8(settingsPath);
-    }
-#else
     static const char kDataDirKey[] = "MOZ_CRASHREPORTER_DATA_DIRECTORY";
     const char *settingsPath = getenv(kDataDirKey);
     if (settingsPath && *settingsPath) {
       gSettingsPath = settingsPath;
     }
-#endif
     else {
       string product = queryParameters["ProductName"];
       string vendor = queryParameters["Vendor"];
@@ -539,8 +432,6 @@ int main(int argc, char** argv)
       UIError(gStrings[ST_ERROR_NOSETTINGSPATH]);
       return 0;
     }
-
-    OpenLogFile();
 
     if (!UIFileExists(gDumpFile)) {
       UIError(gStrings[ST_ERROR_DUMPFILEEXISTS]);
@@ -555,8 +446,6 @@ int main(int argc, char** argv)
     string sendURL = queryParameters["ServerURL"];
     // we don't need to actually send this
     queryParameters.erase("ServerURL");
-
-    queryParameters["Throttleable"] = "1";
 
     // re-set XUL_APP_FILE for xulrunner wrapped apps
     const char *appfile = getenv("MOZ_CRASHREPORTER_RESTART_XUL_APP_FILE");
@@ -595,16 +484,7 @@ int main(int argc, char** argv)
       sendURL = urlEnv;
     }
 
-     // see if this version has been end-of-lifed
-     if (queryParameters.find("Version") != queryParameters.end() &&
-         CheckEndOfLifed(queryParameters["Version"])) {
-       UIError(gStrings[ST_ERROR_ENDOFLIFE]);
-       DeleteDump();
-       return 0;
-     }
-
-    if (!UIShowCrashUI(gDumpFile, queryParameters, sendURL, restartArgs))
-      DeleteDump();
+    UIShowCrashUI(gDumpFile, queryParameters, sendURL, restartArgs);
   }
 
   UIShutdown();

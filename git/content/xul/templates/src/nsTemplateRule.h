@@ -45,7 +45,7 @@
 #include "nsIRDFResource.h"
 #include "nsIContent.h"
 #include "nsIDOMNode.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsString.h"
 #include "nsIXULTemplateRuleFilter.h"
 #include "nsCycleCollectionParticipant.h"
@@ -113,7 +113,7 @@ protected:
     nsString            mSource;
     ConditionRelation   mRelation;
     nsCOMPtr<nsIAtom>   mTargetVariable;
-    nsTArray<nsString>  mTargetList;
+    nsStringArray       mTargetList;
     PRPackedBool        mIgnoreCase;
     PRPackedBool        mNegate;
 
@@ -142,12 +142,6 @@ public:
     nsTemplateRule(nsIContent* aRuleNode,
                    nsIContent* aAction,
                    nsTemplateQuerySet* aQuerySet);
-    /**
-     * The copy-constructor should only be called from nsTArray when appending
-     * a new rule, otherwise things break because the copy constructor expects
-     * mBindings and mConditions to be nsnull.
-     */
-    nsTemplateRule(const nsTemplateRule& aOtherRule);
 
     ~nsTemplateRule();
 
@@ -155,8 +149,11 @@ public:
      * Return the <action> node that this rule was constructed from, or its
      * logical equivalent for shorthand syntaxes. That is, the parent node of
      * the content that should be generated for this rule.
+     * @param aAction an out parameter, which will contain the content node
+     *   that this rule uses to generated content
+     * @return NS_OK if no errors occur.
      */
-    nsIContent* GetAction() const { return mAction; }
+    nsresult GetAction(nsIContent** aAction) const;
 
     /**
      * Return the <rule> content node that this rule was constructed from.
@@ -282,7 +279,7 @@ protected:
 class nsTemplateQuerySet
 {
 protected:
-    nsTArray<nsTemplateRule> mRules;
+    nsVoidArray mRules; // rules owned by nsTemplateQuerySet
 
     // a number which increments for each successive queryset. It is stored so
     // it can be used as an optimization when updating results so that it is
@@ -311,6 +308,7 @@ public:
     ~nsTemplateQuerySet()
     {
         MOZ_COUNT_DTOR(nsTemplateQuerySet);
+        Clear();
     }
 
     PRInt32 Priority() const
@@ -321,39 +319,34 @@ public:
     nsIAtom* GetTag() { return mTag; }
     void SetTag(nsIAtom* aTag) { mTag = aTag; }
 
-    nsTemplateRule* NewRule(nsIContent* aRuleNode,
-                            nsIContent* aAction,
-                            nsTemplateQuerySet* aQuerySet)
+    nsresult AddRule(nsTemplateRule *aChild)
     {
         // nsTemplateMatch stores the index as a 16-bit value,
         // so check to make sure for overflow
-        if (mRules.Length() == PR_INT16_MAX)
-            return nsnull;
+        if (mRules.Count() == PR_INT16_MAX)
+            return NS_ERROR_FAILURE;
 
-        return mRules.AppendElement(nsTemplateRule(aRuleNode, aAction,
-                                    aQuerySet));
-    }
-    
-    void RemoveRule(nsTemplateRule *aRule)
-    {
-        mRules.RemoveElementAt(aRule - mRules.Elements());
+        if (!mRules.AppendElement(aChild))
+            return NS_ERROR_OUT_OF_MEMORY;
+        return NS_OK;
     }
 
     PRInt16 RuleCount() const
     {
-        return mRules.Length();
+        return mRules.Count();
     }
 
     nsTemplateRule* GetRuleAt(PRInt16 aIndex)
     {
-        if (PRUint32(aIndex) < mRules.Length()) {
-            return &mRules[aIndex];
-        }
-        return nsnull;
+        return static_cast<nsTemplateRule*>(mRules[aIndex]);
     }
 
     void Clear()
     {
+        for (PRInt32 r = mRules.Count() - 1; r >= 0; r--) {
+            nsTemplateRule* rule = static_cast<nsTemplateRule*>(mRules[r]);
+            delete rule;
+        }
         mRules.Clear();
     }
 };

@@ -39,7 +39,7 @@
 #define nsTextControlFrame_h___
 
 #include "nsStackFrame.h"
-#include "nsBlockFrame.h"
+#include "nsAreaFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIDOMMouseListener.h"
 #include "nsIAnonymousContentCreator.h"
@@ -48,6 +48,7 @@
 #include "nsIFontMetrics.h"
 #include "nsWeakReference.h" //for service and presshell pointers
 #include "nsIScrollableViewProvider.h"
+#include "nsIPhonetic.h"
 #include "nsContentUtils.h"
 #include "nsDisplayList.h"
 
@@ -65,16 +66,17 @@ class nsIAccessible;
 class nsTextControlFrame : public nsStackFrame,
                            public nsIAnonymousContentCreator,
                            public nsITextControlFrame,
-                           public nsIScrollableViewProvider
+                           public nsIScrollableViewProvider,
+                           public nsIPhonetic
 
 {
 public:
-  NS_DECL_FRAMEARENA_HELPERS
-
   nsTextControlFrame(nsIPresShell* aShell, nsStyleContext* aContext);
   virtual ~nsTextControlFrame();
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot);
+  virtual void RemovedAsPrimaryFrame(); 
+
+  virtual void Destroy();
 
   virtual nscoord GetMinWidth(nsIRenderingContext* aRenderingContext);
   virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
@@ -119,6 +121,8 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
+  virtual nsIFrame* CreateFrameFor(nsIContent* aContent);
+  virtual void PostCreateFrames();
 
   // Utility methods to set current widget state
 
@@ -127,7 +131,7 @@ public:
   // In that case the method returns an error value.
   nsresult SetValue(const nsAString& aValue);
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsFrameList&    aChildList);
+                                 nsIFrame*       aChildList);
 
 //==== BEGIN NSIFORMCONTROLFRAME
   virtual void SetFocus(PRBool aOn , PRBool aRepaint); 
@@ -137,7 +141,7 @@ public:
 
 //==== END NSIFORMCONTROLFRAME
 
-//==== NSITEXTCONTROLFRAME
+//==== NSIGFXTEXTCONTROLFRAME2
 
   NS_IMETHOD    GetEditor(nsIEditor **aEditor);
   NS_IMETHOD    OwnsValue(PRBool* aOwnsValue);
@@ -153,9 +157,10 @@ public:
   virtual nsFrameSelection* GetOwnedFrameSelection()
     { return mFrameSel; }
 
-  nsresult GetPhonetic(nsAString& aPhonetic);
+  // nsIPhonetic
+  NS_DECL_NSIPHONETIC
 
-//==== END NSITEXTCONTROLFRAME
+//==== END NSIGFXTEXTCONTROLFRAME2
 //==== OVERLOAD of nsIFrame
   virtual nsIAtom* GetType() const;
 
@@ -166,7 +171,7 @@ public:
 
   NS_IMETHOD GetText(nsString* aText);
 
-  NS_DECL_QUERYFRAME
+  NS_DECL_ISUPPORTS_INHERITED
 
 public: //for methods who access nsTextControlFrame directly
   /**
@@ -193,6 +198,8 @@ public: //for methods who access nsTextControlFrame directly
   void SetValueChanged(PRBool aValueChanged);
   /** Called when the frame is focused, to remember the value for onChange. */
   nsresult InitFocusedValue();
+  nsresult DOMPointToOffset(nsIDOMNode* aNode, PRInt32 aNodeOffset, PRInt32 *aResult);
+  nsresult OffsetToDOMPoint(PRInt32 aOffset, nsIDOMNode** aResult, PRInt32* aPosition);
 
   void SetFireChangeEventState(PRBool aNewState)
   {
@@ -212,39 +219,6 @@ public: //for methods who access nsTextControlFrame directly
   void MaybeEndSecureKeyboardInput();
 
 protected:
-  class EditorInitializer;
-  friend class EditorInitializer;
-
-  class EditorInitializer : public nsRunnable {
-  public:
-    EditorInitializer(nsTextControlFrame* aFrame) :
-      mWeakFrame(aFrame),
-      mFrame(aFrame) {}
-
-    NS_IMETHOD Run() {
-      if (mWeakFrame) {
-        nsCOMPtr<nsIPresShell> shell =
-          mWeakFrame.GetFrame()->PresContext()->GetPresShell();
-        PRBool observes = shell->ObservesNativeAnonMutationsForPrint();
-        shell->ObserveNativeAnonMutationsForPrint(PR_TRUE);
-        mFrame->DelayedEditorInit();
-        shell->ObserveNativeAnonMutationsForPrint(observes);
-      }
-      return NS_OK;
-    }
-
-  private:
-    nsWeakFrame mWeakFrame;
-    nsTextControlFrame* mFrame;
-  };
-
-  // Init our editor and then make sure to focus our text input
-  // listener if our content node has focus.
-  void DelayedEditorInit();
-
-  nsresult DOMPointToOffset(nsIDOMNode* aNode, PRInt32 aNodeOffset, PRInt32 *aResult);
-  nsresult OffsetToDOMPoint(PRInt32 aOffset, nsIDOMNode** aResult, PRInt32* aPosition);
-
   /**
    * Find out whether this control is scrollable (i.e. if it is not a single
    * line text control)
@@ -292,10 +266,6 @@ protected:
    */
   PRInt32 GetCols();
   /**
-   * Get the column index to wrap at, or -1 if we shouldn't wrap
-   */
-  PRInt32 GetWrapCols();
-  /**
    * Get the rows attribute (if textarea) or a default
    * @return the number of rows to use
    */
@@ -336,6 +306,10 @@ private:
   nsCOMPtr<nsFrameSelection> mFrameSel;
   nsTextInputListener* mTextListener;
   nsString mFocusedValue;
+
+#ifdef DEBUG
+  PRBool mCreateFrameForCalled;
+#endif
 };
 
 #endif

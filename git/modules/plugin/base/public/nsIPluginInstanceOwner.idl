@@ -37,24 +37,21 @@
 
 #include "nsISupports.idl"
 #include "nspluginroot.idl"
-#include "nsIPlugin.idl"
-#include "nsIInputStream.idl"
+
+%{C++
+#include "nsplugin.h"
+%}
 
 interface nsIPluginInstance;
 interface nsIDocument;
 
-%{C++
-#include "npapi.h"
-class nsPluginEvent;
-%}
+[ref] native nsIPluginInstanceRef(nsIPluginInstance *);
 
-[ref] native nsIPluginInstanceRef(nsIPluginInstance*);
-
-[uuid(B48DC23E-C20B-4292-974E-E8FF97B9F1CC)]
+[uuid(2e6cc23b-7d4e-4b0a-ad45-f2281c937f5c)]
 interface nsIPluginInstanceOwner : nsISupports
 {
   /**
-   * Let the owner know what its instance is
+   * Let the owner know that an instance has been created
    */
   void setInstance(in nsIPluginInstance aInstance);
 
@@ -67,12 +64,13 @@ interface nsIPluginInstanceOwner : nsISupports
    * Get a handle to the window structure of the owner.
    * This pointer cannot be made persistent by the caller.
    */
-  void getWindow(in NPWindowStarRef aWindow);
+  void getWindow(in nsPluginWindowStarRef aWindow);
 
   /**
    * Get the display mode for the plugin instance.
    */
-  readonly attribute PRInt32 mode;
+  //void getMode(nsPluginMode *aMode);
+  readonly attribute nsPluginMode mode;
 
   /**
    * Create a place for the plugin to live in the owner's
@@ -89,33 +87,37 @@ interface nsIPluginInstanceOwner : nsISupports
    */
   NS_IMETHOD
   GetURL(const char *aURL, const char *aTarget, 
-         nsIInputStream *aPostStream,
-         void *aHeadersData, PRUint32 aHeadersDataLen) = 0;
-%}
+         void *aPostData, PRUint32 aPostDataLen, 
+         void *aHeadersData, PRUint32 aHeadersDataLen, 
+         PRBool aIsFile = PR_FALSE) = 0;
 
+%}
   /**
    * Show a status message in the host environment.
    */
   void showStatus(in string aStatusMsg);
 
 %{C++
-  NS_IMETHOD ShowStatus(const PRUnichar *aStatusMsg) = 0;
+  NS_IMETHOD
+  ShowStatus(const PRUnichar *aStatusMsg) = 0;
+
 %}
 
   /**
    * Get the associated document.
    */
+  //void getDocument(nsIDocument* *aDocument);
   readonly attribute nsIDocument document;
 
   /**
    * Invalidate the rectangle
    */
-  void invalidateRect(in NPRectPtr aRect);
+  void invalidateRect(in nsPluginRectPtr aRect);
 
   /**
    * Invalidate the region
    */
-  void invalidateRegion(in NPRegion aRegion);
+  void invalidateRegion(in nsPluginRegion aRegion);
 
   /**
    * Force a redraw
@@ -123,22 +125,7 @@ interface nsIPluginInstanceOwner : nsISupports
   void forceRedraw();
 
   /**
-   * Get NetscapeWindow, corresponds to NPNVnetscapeWindow
+   * Get the specified variable
    */
-  void getNetscapeWindow(in voidPtr aValue);
-
-  /**
-   * Show native context menu
-   */
-%{C++
-  virtual NPError ShowNativeContextMenu(NPMenu* menu, void* event) = 0;
-  virtual NPBool  ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace,
-                               double *destX, double *destY, NPCoordinateSpace destSpace) = 0;
-%}
-
-  void setEventModel(in PRInt32 eventModel);
-
-%{C++
-  virtual void SendIdleEvent() = 0;
-%}
+  void getValue(in nsPluginInstancePeerVariable aVariable, in voidPtr aValue);
 };

@@ -5,6 +5,7 @@
      unfocuses and refocuses the window on Windows -->
 
 <window title="Popup Tests"
+  onfocus="if(gTestIndex == -1) runTests()"
   xmlns:html="http://www.w3.org/1999/xhtml"
   xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
@@ -83,11 +84,13 @@
 <script class="testbody" type="application/javascript">
 <![CDATA[
 
-window.opener.SimpleTest.waitForFocus(function () {
+function runTests()
+{
   gFilePopup = document.getElementById("filepopup");
   document.getElementById("filemenu").focus();
+
   startPopupTests(popupTests);
-}, window);
+}
 
 var popupTests = [
 {
@@ -151,15 +154,18 @@ var popupTests = [
       // next item needs to be selected
       "popupshowing editpopup", "DOMMenuItemInactive item1",
       // not sure why the menu inactivated event is firing so late
-      "DOMMenuInactive filepopup"
+      "DOMMenuInactive filepopup", "DOMMenuBarInactive menubar",
+      // the new menu gets disabled and reenabled again, I suspect a
+      // check isn't done to see if the old value equals the new value
+      // somewhere
+      "DOMMenuItemInactive editmenu",
+      "DOMMenuBarActive menubar", "DOMMenuItemActive editmenu",
+      // finally, the first item is activated and popupshown is fired
+      "DOMMenuItemActive copy", "popupshown editpopup"
     ];
-    // finally, the first item is activated and popupshown is fired.
-    // On Windows, don't skip disabled items.
+    // don't skip disabled items on Windows
     if (navigator.platform.indexOf("Win") == 0)
-      elist.push("DOMMenuItemActive cut");
-    else
-      elist.push("DOMMenuItemActive copy");
-    elist.push("popupshown editpopup");
+      elist[elist.length - 2] = "DOMMenuItemActive cut";
     return elist;
   },
   test: function() { synthesizeKey("VK_RIGHT", { }); },
@@ -194,9 +200,14 @@ var popupTests = [
   // pressing Alt + a key should open the corresponding menu
   testname: "open with accelerator",
   events: function() {
-    return [ "DOMMenuBarActive menubar",
-             "popupshowing viewpopup", "DOMMenuItemActive viewmenu",
-             "DOMMenuItemActive toolbar", "popupshown viewpopup" ];
+    var elist = ["DOMMenuBarActive menubar",
+                 "popupshowing viewpopup", "DOMMenuItemActive viewmenu"];
+    // XXXndeakin not sure why, but windows fires these in a different order
+    if (navigator.platform.indexOf("Win") == 0)
+      elist.push("popupshown viewpopup", "DOMMenuItemActive toolbar");
+    else
+      elist.push("DOMMenuItemActive toolbar", "popupshown viewpopup");
+    return elist;
   },
   test: function() { synthesizeKey("V", { altKey: true }); },
   result: function(testname) { checkOpen("viewmenu", testname); }
@@ -313,7 +324,7 @@ var popupTests = [
   condition: function() { return (navigator.platform.indexOf("Win") == 0) },
   events: [ "popupshowing helppopup",
             "DOMMenuItemInactive filemenu", "DOMMenuItemActive helpmenu",
-            "DOMMenuItemActive contents", "popupshown helppopup" ],
+            "popupshown helppopup", "DOMMenuItemActive contents" ],
   test: function() { synthesizeKey("H", { }); },
   result: function(testname) { checkOpen("helpmenu", testname); },
 },
@@ -479,34 +490,6 @@ var popupTests = [
            ],
   test: function() {
     synthesizeMouse(document.getElementById("copy"), 8, 8, { });
-  },
-  result: function (testname) {
-    checkClosed("editmenu", testname);
-  }
-},
-{
-  // this test ensures that the menu can still be opened by clicking after selecting
-  // a menuitem from the menu. See bug 399350.
-  testname: "press on menu after menuitem selected",
-  events: [ "popupshowing editpopup", "DOMMenuBarActive menubar",
-            "DOMMenuItemActive editmenu", "popupshown editpopup" ],
-  test: function() { synthesizeMouse(document.getElementById("editmenu"), 8, 8, { }); },
-  result: function (testname) {
-    checkActive(document.getElementById("editpopup"), "", testname);
-    checkOpen("editmenu", testname);
-  }
-},
-{  // try selecting a different command
-  testname: "press on menuitem again",
-  events: [ "DOMMenuInactive editpopup",
-            "DOMMenuBarInactive menubar",
-            "DOMMenuItemInactive editmenu",
-            "DOMMenuItemInactive editmenu",
-            "command paste", "popuphiding editpopup", "popuphidden editpopup",
-            "DOMMenuItemInactive paste",
-           ],
-  test: function() {
-    synthesizeMouse(document.getElementById("paste"), 8, 8, { });
   },
   result: function (testname) {
     checkClosed("editmenu", testname);

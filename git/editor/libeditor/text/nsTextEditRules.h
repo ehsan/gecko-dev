@@ -44,7 +44,6 @@
 #include "nsIDOMNode.h"
 
 #include "nsEditRules.h"
-#include "nsITimer.h"
 
 /** Object that encapsulates HTML text-specific editing rules.
   *  
@@ -57,19 +56,16 @@
   * 2. Selection must not be explicitly set by the rule method.  
   *    Any manipulation of Selection must be done by the editor.
   */
-class nsTextEditRules : public nsIEditRules, public nsITimerCallback
+class nsTextEditRules : public nsIEditRules
 {
 public:
-  NS_DECL_NSITIMERCALLBACK
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsTextEditRules, nsIEditRules)
+  NS_DECL_ISUPPORTS
   
               nsTextEditRules();
   virtual     ~nsTextEditRules();
 
   // nsIEditRules methods
   NS_IMETHOD Init(nsPlaintextEditor *aEditor, PRUint32 aFlags);
-  NS_IMETHOD DetachEditor();
   NS_IMETHOD BeforeEdit(PRInt32 action, nsIEditor::EDirection aDirection);
   NS_IMETHOD AfterEdit(PRInt32 action, nsIEditor::EDirection aDirection);
   NS_IMETHOD WillDoAction(nsISelection *aSelection, nsRulesInfo *aInfo, PRBool *aCancel, PRBool *aHandled);
@@ -188,7 +184,7 @@ protected:
   
   /** Echo's the insertion text into the password buffer, and converts
       insertion text to '*'s */                                        
-  nsresult FillBufWithPWChars(nsAString *aOutString, PRInt32 aLength);
+  nsresult EchoInsertionToPWBuff(PRInt32 aStart, PRInt32 aEnd, nsAString *aOutString);
 
   /** Remove IME composition text from password buffer */
   nsresult RemoveIMETextFromPWBuf(PRUint32 &aStart, nsAString *aIMEString);
@@ -201,7 +197,7 @@ protected:
                                      nsIEditor::EDirection aAction,
                                      PRBool               *aCancel);
 
-  nsresult HideLastPWInput();
+  nsIDOMNode *GetBody();
 
   // data members
   nsPlaintextEditor   *mEditor;        // note that we do not refcount the editor
@@ -209,6 +205,7 @@ protected:
   nsString             mPasswordIMEText;  // a buffer we use to track the IME composition string
   PRUint32             mPasswordIMEIndex;
   nsCOMPtr<nsIDOMNode> mBogusNode;     // magic node acts as placeholder in empty doc
+  nsCOMPtr<nsIDOMNode> mBody;          // cached root node
   nsCOMPtr<nsIDOMNode> mCachedSelectionNode;    // cached selected node
   PRInt32              mCachedSelectionOffset;  // cached selected offset
   PRUint32             mFlags;
@@ -220,9 +217,6 @@ protected:
                                                // adjacent to the caret without
                                                // moving the caret first.
   PRInt32              mTheAction;     // the top level editor action
-  nsCOMPtr<nsITimer>   mTimer;
-  PRUint32             mLastStart, mLastLength;
-
   // friends
   friend class nsAutoLockRulesSniffing;
 

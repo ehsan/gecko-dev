@@ -45,10 +45,10 @@
 #include "nsIPrivateCompositionEvent.h"
 #include "nsDOMEvent.h"
 
-class nsDOMUIEvent : public nsDOMEvent,
-                     public nsIDOMUIEvent,
+class nsDOMUIEvent : public nsIDOMUIEvent,
                      public nsIDOMNSUIEvent,
-                     public nsIPrivateCompositionEvent
+                     public nsIPrivateCompositionEvent,
+                     public nsDOMEvent
 {
 public:
   nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent);
@@ -61,32 +61,27 @@ public:
 
   // nsIDOMNSUIEvent Interface
   NS_DECL_NSIDOMNSUIEVENT
-
-  // nsIPrivateDOMEvent interface
-  NS_IMETHOD DuplicatePrivateData();
   
   // nsIPrivateCompositionEvent interface
   NS_IMETHOD GetCompositionReply(nsTextEventReply** aReply);
+  NS_IMETHOD GetReconversionReply(nsReconversionEventReply** aReply);
+  NS_IMETHOD GetQueryCaretRectReply(nsQueryCaretRectEventReply** aReply);
   
   // Forward to nsDOMEvent
   NS_FORWARD_TO_NSDOMEVENT
 
-  NS_FORWARD_NSIDOMNSEVENT(nsDOMEvent::)
 protected:
 
   // Internal helper functions
-  nsIntPoint GetClientPoint();
-  nsIntPoint GetScreenPoint();
-  nsIntPoint GetLayerPoint();
-  nsIntPoint GetPagePoint();
+  nsPoint GetClientPoint();
+  nsPoint GetScreenPoint();
+  nsPoint GetLayerPoint();
+  nsPoint GetPagePoint();
   
 protected:
   nsCOMPtr<nsIDOMAbstractView> mView;
   PRInt32 mDetail;
-  nsIntPoint mClientPoint;
-  // Screenpoint is mEvent->refPoint.
-  nsIntPoint mLayerPoint;
-  nsIntPoint mPagePoint;
+  nsPoint mClientPoint;
 };
 
 #define NS_FORWARD_TO_NSDOMUIEVENT \

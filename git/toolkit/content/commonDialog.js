@@ -1,4 +1,3 @@
-/* -*- Mode: C;  c-basic-offset: 2; tab-width: 2; indent-tabs-mode: nil; -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -39,13 +38,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const Ci = Components.interfaces;
-const Cr = Components.results;
-const Cc = Components.classes;
-
 // parameters to gCommonDialogParam.Get() are defined in nsPIPromptService.idl
 var gCommonDialogParam = 
-  window.arguments[0].QueryInterface(Ci.nsIDialogParamBlock);
+  window.arguments[0].QueryInterface(Components.interfaces.nsIDialogParamBlock);
   
 function showControls()
 {
@@ -106,42 +101,14 @@ function setLabelForNode(aNode, aLabel, aIsLabelFlag)
     aNode.accessKey = accessKey;
 }
 
-var softkbObserver = {
- QueryInterface: function (aIID) {
-    if (aIID.equals(Ci.nsISupports) ||
-        aIID.equals(Ci.nsIObserver))
-      return this;
-    throw Cr.NS_ERROR_NO_INTERFACE;
-  },
- observe: function(subject, topic, data) {
-    if (topic === "softkb-change") {
-      var rect = JSON.parse(data);
-      if (rect) {
-        var height = rect.bottom - rect.top;
-        var width = rect.right - rect.left;
-        var top = (rect.top + (height - window.innerHeight) / 2);
-        var left = (rect.left + (width - window.innerWidth) / 2);
-        window.moveTo(left, top);
-      }
-    }
-  }
-};
-
 function commonDialogOnLoad()
 {
-  // limit the dialog to the screen width
-  document.getElementById("filler").maxWidth = screen.availWidth;
-
   // set the document title
 #ifdef XP_MACOSX
   setElementText("info.title", gCommonDialogParam.GetString(12), true);
 #else
   document.title = gCommonDialogParam.GetString(12);
 #endif
-
-  var observerService = Cc["@mozilla.org/observer-service;1"]
-                          .getService(Ci.nsIObserverService);
-  observerService.addObserver(softkbObserver, "softkb-change", false);
 
   // set the number of command buttons
   var nButtons = gCommonDialogParam.GetInt(2);
@@ -157,17 +124,18 @@ function commonDialogOnLoad()
   }
 
   // display the main text
+  var messageParent = document.getElementById("info.box").getElementsByTagName('description')[0];
   // XXX the substr(0, 10000) part is a workaround for bug 317334
-  var croppedMessage = gCommonDialogParam.GetString(0).substr(0, 10000);
-  setElementText("info.body", croppedMessage, true);
+  messageParent.textContent = gCommonDialogParam.GetString(0).substr(0, 10000);
 
   setElementText("info.header", gCommonDialogParam.GetString(3), true);
 
   // set the icon
   var iconElement = document.getElementById("info.icon");
-  var iconClasses = gCommonDialogParam.GetString(2);
-  if (iconClasses)
-    iconElement.className += " " + iconClasses;
+  var iconClass = gCommonDialogParam.GetString(2);
+  if (!iconClass)
+    iconClass = "message-icon";
+  iconElement.setAttribute("class", iconElement.getAttribute("class") + " " + iconClass);
 
   switch (nButtons) {
     case 4:
@@ -206,19 +174,13 @@ function commonDialogOnLoad()
     document.documentElement.getButton(dButton).focus();
 #endif
   }
-  else {
-    if (gCommonDialogParam.GetInt(4) == 1)
-      document.getElementById("password1Textbox").select();
-    else
-      document.getElementById("loginTextbox").select();
-  }
 
   if (gCommonDialogParam.GetInt(6) != 0) // delay button enable
   {
     var delayInterval = 2000;
     try {
-      var prefs = Cc["@mozilla.org/preferences-service;1"]
-                    .getService(Ci.nsIPrefBranch);
+      var prefs = Components.classes["@mozilla.org/preferences-service;1"]
+                  .getService(Components.interfaces.nsIPrefBranch);
       delayInterval = prefs.getIntPref("security.dialog_enable_delay");
     } catch (e) {}
 
@@ -233,24 +195,6 @@ function commonDialogOnLoad()
   }
 
   getAttention();
-
-  // play sound
-  try {
-    var sound = gCommonDialogParam.GetInt(7);
-    if (sound) {
-      Cc["@mozilla.org/sound;1"]
-        .createInstance(Ci.nsISound)
-        .playEventSound(sound);
-    }
-  } catch (e) { }
-
-  observerService.notifyObservers(window, "common-dialog-loaded", null);
-}
-
-function commonDialogOnUnload(){
-  var observerService = Cc["@mozilla.org/observer-service;1"]
-                          .getService(Ci.nsIObserverService);
-  observerService.removeObserver(softkbObserver, "softkb-change");
 }
 
 var gDelayExpired = false;
@@ -318,7 +262,9 @@ function setElementText(aElementID, aValue, aChildNodeFlag)
 function setCheckbox(aChkMsg, aChkValue)
 {
   if (aChkMsg) {
-    unHideElementById("checkboxContainer");
+    // XXX Would love to use hidden instead of collapsed, but the checkbox
+    // fails to size itself properly when I do this.
+    document.getElementById("checkboxContainer").removeAttribute("collapsed");
     
     var checkboxElement = document.getElementById("checkbox");
     setLabelForNode(checkboxElement, aChkMsg);

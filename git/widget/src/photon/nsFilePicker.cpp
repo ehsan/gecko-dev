@@ -47,6 +47,7 @@
 #include "nsFilePicker.h"
 #include "nsILocalFile.h"
 #include "nsIURL.h"
+#include "nsIFileURL.h"
 #include "nsIStringBundle.h"
 #include "nsEnumeratorUtils.h"
 #include "nsCRT.h"
@@ -207,7 +208,8 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *aReturnVal)
 	else { /* here mMode is modeOpenMultiple */
 		PtFileSelectorInfo_t *minfo = info.minfo;
 		if( minfo ) {
-			nsresult rv;
+			nsresult rv = NS_NewISupportsArray(getter_AddRefs(mFiles));
+			NS_ENSURE_SUCCESS(rv,rv);
 
 			for( int i=0; i<minfo->nitems; i++ ) {
 				nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1", &rv);
@@ -217,7 +219,7 @@ NS_IMETHODIMP nsFilePicker::Show(PRInt16 *aReturnVal)
 				rv = file->InitWithNativePath( s );
 				NS_ENSURE_SUCCESS(rv,rv);
 	
-				rv = mFiles.AppendObject(file);
+				rv = mFiles->AppendElement(file);
 				NS_ENSURE_SUCCESS(rv,rv);
 				}
 
@@ -265,15 +267,20 @@ NS_IMETHODIMP nsFilePicker::GetFiles(nsISimpleEnumerator **aFiles)
 }
 
 //-------------------------------------------------------------------------
-NS_IMETHODIMP nsFilePicker::GetFileURL(nsIURI **aFileURL)
+NS_IMETHODIMP nsFilePicker::GetFileURL(nsIFileURL **aFileURL)
 {
-  *aFileURL = nsnull;
-  nsCOMPtr<nsILocalFile> file;
-  nsresult rv = GetFile(getter_AddRefs(file));
-  if (!file)
-    return rv;
+  nsCOMPtr<nsILocalFile> file(do_CreateInstance("@mozilla.org/file/local;1"));
+  NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
+  file->InitWithNativePath(mFile);
 
-  return NS_NewFileURI(aFileURL, file);
+  nsCOMPtr<nsIURI> uri;
+  NS_NewFileURI(getter_AddRefs(uri), file);
+  nsCOMPtr<nsIFileURL> fileURL(do_QueryInterface(uri));
+  NS_ENSURE_TRUE(fileURL, NS_ERROR_FAILURE);
+  
+  NS_ADDREF(*aFileURL = fileURL);
+
+  return NS_OK;
 }
 
 //-------------------------------------------------------------------------

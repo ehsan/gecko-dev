@@ -13,7 +13,8 @@
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" 
         style="width: 35em;" 
         ondialogaccept="gRemovePasswordDialog.removePassword();" 
-        onload="gRemovePasswordDialog.init()">
+        onload="gRemovePasswordDialog.init()"
+        xmlns:aaa="http://www.w3.org/2005/07/aaa">
 
   <script type="application/javascript" src="chrome://mozapps/content/preferences/removemp.js"/>
 
@@ -33,7 +34,7 @@
       <label control="password" value="&setPassword.oldPassword.label;"/> 
       <textbox id="password" type="password"
                oninput="gRemovePasswordDialog.validateInput();"
-               aria-describedby="warnings"/>
+               aaa:describedby="warnings"/>
     </hbox>
   </groupbox>
   

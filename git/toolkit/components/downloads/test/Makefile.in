@@ -50,9 +50,5 @@ XPCSHELL_TESTS = \
   schema_migration \
   $(NULL)
 
-DIRS = \
-  browser \
-  $(NULL)
-
 include $(topsrcdir)/config/rules.mk
 

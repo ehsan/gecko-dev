@@ -41,13 +41,9 @@ topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
 
-include $(DEPTH)/config/autoconf.mk
-
 MODULE		= pipnss
-DIRS		= src public
+DIRS		= resources src public
 
-ifdef ENABLE_TESTS
-DIRS		+= tests
-endif
+XPCSHELL_TESTS  = tests
 
 include $(topsrcdir)/config/rules.mk

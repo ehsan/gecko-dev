@@ -98,7 +98,7 @@ static const nsModuleComponentInfo components[] =
 };
 
 // Jar module shutdown hook
-static void nsJarShutdown(nsIModule *module)
+static void PR_CALLBACK nsJarShutdown(nsIModule *module)
 {
     // Release cached buffers from zlib allocator
     delete gZlibAllocator;

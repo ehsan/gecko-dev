@@ -40,52 +40,41 @@
 #include "nscore.h"
 #include "jsapi.h"
 
-class nsIPrincipal;
+class XPCNativeWrapper
+{
+public:
+  static PRBool AttachNewConstructorObject(XPCCallContext &ccx,
+                                           JSObject *aGlobalObject);
 
-namespace XPCNativeWrapper {
+  static JSObject *GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper);
 
-namespace internal { extern JSExtendedClass NWClass; }
+  static PRBool IsNativeWrapperClass(JSClass *clazz)
+  {
+    return clazz == &sXPC_NW_JSClass.base;
+  }
 
-PRBool
-AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject);
+  static PRBool IsNativeWrapper(JSContext *cx, JSObject *obj)
+  {
+    return JS_GET_CLASS(cx, obj) == &sXPC_NW_JSClass.base;
+  }
 
-JSObject *
-GetNewOrUsed(JSContext *cx, XPCWrappedNative *wrapper,
-             nsIPrincipal *aObjectPrincipal);
+  static XPCWrappedNative *GetWrappedNative(JSContext *cx, JSObject *obj)
+  {
+    return (XPCWrappedNative *)::JS_GetPrivate(cx, obj);
+  }
+
+  static JSClass *GetJSClass()
+  {
+    return &sXPC_NW_JSClass.base;
+  }
+
+  static void ClearWrappedNativeScopes(JSContext* cx,
+                                       XPCWrappedNative* wrapper);
+
+protected:
+  static JSExtendedClass sXPC_NW_JSClass;
+};
+
 JSBool
-CreateExplicitWrapper(JSContext *cx, XPCWrappedNative *wrapper, JSBool deep,
-                      jsval *rval);
-
-inline PRBool
-IsNativeWrapperClass(JSClass *clazz)
-{
-  return clazz == &internal::NWClass.base;
-}
-
-inline PRBool
-IsNativeWrapper(JSObject *obj)
-{
-  return STOBJ_GET_CLASS(obj) == &internal::NWClass.base;
-}
-
-JSBool
-GetWrappedNative(JSContext *cx, JSObject *obj,
-                 XPCWrappedNative **aWrappedNative);
-
-// NB: Use the following carefully.
-inline XPCWrappedNative *
-SafeGetWrappedNative(JSObject *obj)
-{
-  return static_cast<XPCWrappedNative *>(xpc_GetJSPrivate(obj));
-}
-
-inline JSClass *
-GetJSClass()
-{
-  return &internal::NWClass.base;
-}
-
-void
-ClearWrappedNativeScopes(JSContext* cx, XPCWrappedNative* wrapper);
-
-}
+XPC_XOW_WrapObject(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                   jsval *rval);

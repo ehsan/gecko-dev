@@ -45,6 +45,7 @@
 
 #include "nsSplitterFrame.h"
 #include "nsGkAtoms.h"
+#include "nsISupportsArray.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMXULElement.h"
 #include "nsIDOMDocument.h"
@@ -55,12 +56,16 @@
 #include "nsIDOMMouseListener.h"
 #include "nsIDOMMouseMotionListener.h"
 #include "nsIDOMEventTarget.h"
+#include "nsIView.h"
+#include "nsIViewManager.h"
+#include "nsIScrollableView.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIPresShell.h"
-#include "nsFrameList.h"
+#include "nsFrameNavigator.h"
 #include "nsHTMLParts.h"
 #include "nsILookAndFeel.h"
 #include "nsStyleContext.h"
+#include "nsWidgetsCID.h"
 #include "nsBoxLayoutState.h"
 #include "nsIXBLService.h"
 #include "nsIServiceManager.h"
@@ -72,6 +77,10 @@
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
 #include "nsContentUtils.h"
+
+// was used in nsSplitterFrame::Init but now commented out
+//static NS_DEFINE_IID(kLookAndFeelCID,  NS_LOOKANDFEEL_CID);
+PRInt32 realTimeDrag;
 
 class nsSplitterInfo {
 public:
@@ -136,7 +145,7 @@ public:
   void AddListener(nsPresContext* aPresContext);
   void RemoveListener();
 
-  enum ResizeType { Closest, Farthest, Flex, Grow };
+  enum ResizeType { Closest, Farthest, Grow };
   enum State { Open, CollapsedBefore, CollapsedAfter, Dragging };
   enum CollapseDirection { Before, After };
 
@@ -144,9 +153,12 @@ public:
   ResizeType GetResizeAfter();
   State GetState();
 
+  //nsresult CaptureMouse(nsPresContext* aPresContext, PRBool aGrabMouseEvents);
+  //PRBool IsMouseCaptured(nsPresContext* aPresContext);
   void Reverse(nsSplitterInfo*& aIndexes, PRInt32 aCount);
   PRBool SupportsCollapseDirection(CollapseDirection aDirection);
 
+  void MoveSplitterBy(nsPresContext* aPresContext, nscoord aDiff);
   void EnsureOrient();
   void SetPreferredSize(nsBoxLayoutState& aState, nsIBox* aChildBox, nscoord aOnePixel, PRBool aIsHorizontal, nscoord* aSize);
 
@@ -162,30 +174,21 @@ public:
   PRInt32 mChildInfosAfterCount;
   State mState;
   nscoord mSplitterPos;
+  nscoord mSplitterViewPos;
   PRBool mDragging;
 
 };
 
 
-NS_IMPL_ADDREF(nsSplitterFrameInner)
-NS_IMPL_RELEASE(nsSplitterFrameInner)
-NS_INTERFACE_MAP_BEGIN(nsSplitterFrameInner)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseListener)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIDOMEventListener,nsIDOMMouseListener)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMMouseMotionListener)
-NS_INTERFACE_MAP_END
+NS_IMPL_ISUPPORTS2(nsSplitterFrameInner, nsIDOMMouseListener, nsIDOMMouseMotionListener)
 
 nsSplitterFrameInner::ResizeType
 nsSplitterFrameInner::GetResizeBefore()
 {
-  static nsIContent::AttrValuesArray strings[] =
-    {&nsGkAtoms::farthest, &nsGkAtoms::flex, nsnull};
-  switch (mOuter->GetContent()->FindAttrValueIn(kNameSpaceID_None,
-                                                nsGkAtoms::resizebefore,
-                                                strings, eCaseMatters)) {
-    case 0: return Farthest;
-    case 1: return Flex;
-  }
+  if (mOuter->GetContent()->
+        AttrValueIs(kNameSpaceID_None, nsGkAtoms::resizebefore,
+                    NS_LITERAL_STRING("farthest"), eCaseMatters))
+    return Farthest;
   return Closest;
 }
 
@@ -199,13 +202,12 @@ nsSplitterFrameInner::ResizeType
 nsSplitterFrameInner::GetResizeAfter()
 {
   static nsIContent::AttrValuesArray strings[] =
-    {&nsGkAtoms::farthest, &nsGkAtoms::flex, &nsGkAtoms::grow, nsnull};
+    {&nsGkAtoms::farthest, &nsGkAtoms::grow, nsnull};
   switch (mOuter->GetContent()->FindAttrValueIn(kNameSpaceID_None,
                                                 nsGkAtoms::resizeafter,
                                                 strings, eCaseMatters)) {
     case 0: return Farthest;
-    case 1: return Flex;
-    case 2: return Grow;
+    case 1: return Grow;
   }
   return Closest;
 }
@@ -246,9 +248,7 @@ nsIFrame*
 NS_NewSplitterFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsSplitterFrame(aPresShell, aContext);
-}
-
-NS_IMPL_FRAMEARENA_HELPERS(nsSplitterFrame)
+} // NS_NewSplitterFrame
 
 nsSplitterFrame::nsSplitterFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 : nsBoxFrame(aPresShell, aContext),
@@ -257,7 +257,7 @@ nsSplitterFrame::nsSplitterFrame(nsIPresShell* aPresShell, nsStyleContext* aCont
 }
 
 void
-nsSplitterFrame::DestroyFrom(nsIFrame* aDestructRoot)
+nsSplitterFrame::Destroy()
 {
   if (mInner) {
     mInner->RemoveListener();
@@ -265,8 +265,15 @@ nsSplitterFrame::DestroyFrom(nsIFrame* aDestructRoot)
     mInner->Release();
     mInner = nsnull;
   }
-  nsBoxFrame::DestroyFrom(aDestructRoot);
+  nsBoxFrame::Destroy();
 }
+
+
+//
+// QueryInterface
+//
+NS_INTERFACE_MAP_BEGIN(nsSplitterFrame)
+NS_INTERFACE_MAP_END_INHERITING(nsBoxFrame)
 
 
 NS_IMETHODIMP
@@ -326,18 +333,30 @@ nsSplitterFrame::Init(nsIContent*      aContent,
   mInner->mState = nsSplitterFrameInner::Open;
   mInner->mDragging = PR_FALSE;
 
+  {
+#if 0
+    // make it real time drag for now due to problems
+    nsCOMPtr<nsILookAndFeel> lookAndFeel = do_GetService(kLookAndFeelCID);
+    if (lookAndFeel) {
+      lookAndFeel->GetMetric(nsILookAndFeel::eMetric_DragFullWindow, realTimeDrag);
+    }
+    else
+#endif
+      realTimeDrag = 1;
+  }
+
   // determine orientation of parent, and if vertical, set orient to vertical
   // on splitter content, then re-resolve style
-  // XXXbz this is pretty messed up, since this can change whether we should
-  // have a frame at all.  This really needs a better solution.
+  // |newContext| to Release the reference after the call to nsBoxFrame::Init
+  nsRefPtr<nsStyleContext> newContext;
   if (aParent && aParent->IsBoxFrame()) {
     if (!aParent->IsHorizontal()) {
       if (!nsContentUtils::HasNonEmptyAttr(aContent, kNameSpaceID_None,
                                            nsGkAtoms::orient)) {
         aContent->SetAttr(kNameSpaceID_None, nsGkAtoms::orient,
                           NS_LITERAL_STRING("vertical"), PR_FALSE);
-        nsStyleContext* parentStyleContext = GetStyleContext()->GetParent();
-        nsRefPtr<nsStyleContext> newContext = PresContext()->StyleSet()->
+        nsStyleContext* parentStyleContext = aParent->GetStyleContext();
+        newContext = GetStyleContext()->GetRuleNode()->GetPresContext()->StyleSet()->
           ResolveStyleFor(aContent, parentStyleContext);
         SetStyleContextWithoutNotification(newContext);
       }
@@ -346,6 +365,21 @@ nsSplitterFrame::Init(nsIContent*      aContent,
 
   nsresult  rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = nsHTMLContainerFrame::CreateViewForFrame(this, nsnull, PR_TRUE);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!realTimeDrag) {
+    nsIView* view = GetView();
+    // currently this only works on win32 and mac
+    static NS_DEFINE_CID(kCChildCID, NS_CHILD_CID);
+
+    // Need to have a widget to appear on top of other widgets.
+    NS_ASSERTION(!view->HasWidget(), "have an unwanted widget");
+    if (!view->HasWidget()) {
+      view->CreateWidget(kCChildCID);
+    }
+  }
 
   mInner->mState = nsSplitterFrameInner::Open;
   mInner->AddListener(PresContext());
@@ -387,9 +421,8 @@ nsSplitterFrame::HandlePress(nsPresContext* aPresContext,
 
 NS_IMETHODIMP
 nsSplitterFrame::HandleMultiplePress(nsPresContext* aPresContext,
-                                     nsGUIEvent *    aEvent,
-                                     nsEventStatus*  aEventStatus,
-                                     PRBool aControlHeld)
+                         nsGUIEvent *    aEvent,
+                         nsEventStatus*  aEventStatus)
 {
   return NS_OK;
 }
@@ -434,11 +467,6 @@ nsSplitterFrame::HandleEvent(nsPresContext* aPresContext,
                                       nsGUIEvent* aEvent,
                                       nsEventStatus* aEventStatus)
 {
-  NS_ENSURE_ARG_POINTER(aEventStatus);
-  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
-    return NS_OK;
-  }
-
   nsWeakFrame weakFrame(this);
   nsRefPtr<nsSplitterFrameInner> kungFuDeathGrip(mInner);
   switch (aEvent->message) {
@@ -465,7 +493,7 @@ nsSplitterFrameInner::MouseUp(nsPresContext* aPresContext, nsGUIEvent* aEvent)
   if (mDragging && mOuter) {
     AdjustChildren(aPresContext);
     AddListener(aPresContext);
-    nsIPresShell::SetCapturingContent(nsnull, 0); // XXXndeakin is this needed?
+    mOuter->CaptureMouse(aPresContext, PR_FALSE);
     mDragging = PR_FALSE;
     State newState = GetState(); 
     // if the state is dragging then make it Open.
@@ -487,8 +515,6 @@ nsSplitterFrameInner::MouseUp(nsPresContext* aPresContext, nsGUIEvent* aEvent)
   delete[] mChildInfosAfter;
   mChildInfosBefore = nsnull;
   mChildInfosAfter = nsnull;
-  mChildInfosBeforeCount = 0;
-  mChildInfosAfterCount = 0;
 }
 
 void
@@ -537,8 +563,8 @@ nsSplitterFrameInner::MouseDrag(nsPresContext* aPresContext, nsGUIEvent* aEvent)
     PRBool supportsAfter = SupportsCollapseDirection(After);
 
     // if we are in a collapsed position
-    if ((oldPos > 0 && oldPos > pos && supportsAfter) ||
-        (oldPos < 0 && oldPos < pos && supportsBefore))
+    if (realTimeDrag && ((oldPos > 0 && oldPos > pos && supportsAfter) ||
+                         (oldPos < 0 && oldPos < pos && supportsBefore)))
     {
       // and we are not collapsed then collapse
       if (currentState == Dragging) {
@@ -576,9 +602,26 @@ nsSplitterFrameInner::MouseDrag(nsPresContext* aPresContext, nsGUIEvent* aEvent)
       // we are dragging.
       if (currentState != Dragging)
         mOuter->mContent->SetAttr(kNameSpaceID_None, nsGkAtoms::state, NS_LITERAL_STRING("dragging"), PR_TRUE);
-      AdjustChildren(aPresContext);
+      if (realTimeDrag)
+        AdjustChildren(aPresContext);
+      else
+        MoveSplitterBy(aPresContext, pos);
     }
 
+    // printf("----- resize ----- ");
+    /*
+      for (i=0; i < mChildInfosBeforeCount; i++) 
+        printf("before, index=%d, current=%d, changed=%d\n", mChildInfosBefore[i].index, mChildInfosBefore[i].current, mChildInfosBefore[i].changed);
+      for (i=0; i < mChildInfosAfterCount; i++) 
+        printf("after, index=%d, current=%d, changed=%d\n", mChildInfosAfter[i].index, mChildInfosAfter[i].current, mChildInfosAfter[i].changed);
+    */
+
+    /*
+      nsIPresShell *shell = aPresContext->PresShell();
+
+      shell->FrameNeedsReflow(mOuter, nsIPresShell::eStyleChange,
+                              NS_FRAME_IS_DIRTY);
+    */
     mDidDrag = PR_TRUE;
   }
 }
@@ -606,13 +649,62 @@ nsSplitterFrameInner::RemoveListener()
                              NS_GET_IID(nsIDOMMouseMotionListener));
 }
 
+/*
+nsresult
+nsSplitterFrameInner :: CaptureMouse(nsPresContext* aPresContext, PRBool aGrabMouseEvents)
+{
+  // get its view
+  nsIView* view = mOuter->GetView();
+  PRBool result;
+
+  if (view) {
+    nsIViewManager* viewMan = view->GetViewManager();
+    if (viewMan) {
+      // nsIWidget* widget = view->GetWidget();
+      if (aGrabMouseEvents) {
+        viewMan->GrabMouseEvents(view,result);
+        //  if (widget)
+        //   widget->CaptureMouse(PR_TRUE);
+      } else {
+        viewMan->GrabMouseEvents(nsnull,result);
+       // if (widget)
+         //  widget->CaptureMouse(PR_FALSE);
+      }
+    }
+  }
+
+  return NS_OK;
+}
+
+
+PRBool
+nsSplitterFrameInner :: IsMouseCaptured(nsPresContext* aPresContext)
+{
+    // get its view
+  nsIView* view = mOuter->GetView();
+  
+  if (view) {
+    nsIViewManager* viewMan = view->GetViewManager();
+
+    if (viewMan) {
+        nsIView* grabbingView;
+        viewMan->GetMouseEventGrabber(grabbingView);
+        if (grabbingView == view)
+          return PR_TRUE;
+    }
+  }
+
+  return PR_FALSE;
+}
+*/
+
 nsresult
 nsSplitterFrameInner::MouseUp(nsIDOMEvent* aMouseEvent)
 {  
   NS_ENSURE_TRUE(mOuter, NS_OK);
   mPressed = PR_FALSE;
 
-  nsIPresShell::SetCapturingContent(nsnull, 0);
+  mOuter->CaptureMouse(mOuter->PresContext(), PR_FALSE);
 
   return NS_OK;
 }
@@ -638,17 +730,15 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
   mParentBox = mOuter->GetParentBox();
   if (!mParentBox)
     return NS_OK;
-
+  
   // get our index
   nsPresContext* outerPresContext = mOuter->PresContext();
-  const nsFrameList& siblingList(mParentBox->GetChildList(nsnull));
-  PRInt32 childIndex = siblingList.IndexOf(mOuter);
-  // if it's 0 (or not found) then stop right here.
-  // It might be not found if we're not in the parent's primary frame list.
-  if (childIndex <= 0)
+  nscoord childIndex = nsFrameNavigator::IndexOf(outerPresContext, mParentBox, mOuter);
+  // if it's 0 then stop right here.
+  if (childIndex == 0)
     return NS_OK;
 
-  PRInt32 childCount = siblingList.GetLength();
+  PRInt32 childCount = nsFrameNavigator::CountFrames(outerPresContext, mParentBox);
   // if it's the last index then we need to allow for resizeafter="grow"
   if (childIndex == childCount - 1 && GetResizeAfter() != Grow)
     return NS_OK;
@@ -697,8 +787,8 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
     if (atom != nsGkAtoms::splitter) { 
         nsSize prefSize = childBox->GetPrefSize(state);
         nsSize minSize = childBox->GetMinSize(state);
-        nsSize maxSize = nsBox::BoundsCheckMinMax(minSize, childBox->GetMaxSize(state));
-        prefSize = nsBox::BoundsCheck(minSize, prefSize, maxSize);
+        nsSize maxSize = childBox->GetMaxSize(state);
+        nsBox::BoundsCheck(minSize, prefSize, maxSize);
 
         mOuter->AddMargin(childBox, minSize);
         mOuter->AddMargin(childBox, prefSize);
@@ -717,7 +807,7 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
                                   nsGkAtoms::_true, eCaseMatters) &&
             !content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
                                   nsGkAtoms::_true, eCaseMatters)) {
-            if (count < childIndex && (resizeBefore != Flex || flex > 0)) {
+            if (count < childIndex) {
                 mChildInfosBefore[mChildInfosBeforeCount].childElem = content;
                 mChildInfosBefore[mChildInfosBeforeCount].min     = isHorizontal ? minSize.width : minSize.height;
                 mChildInfosBefore[mChildInfosBeforeCount].max     = isHorizontal ? maxSize.width : maxSize.height;
@@ -726,7 +816,7 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
                 mChildInfosBefore[mChildInfosBeforeCount].index   = count;
                 mChildInfosBefore[mChildInfosBeforeCount].changed = mChildInfosBefore[mChildInfosBeforeCount].current;
                 mChildInfosBeforeCount++;
-            } else if (count > childIndex && (resizeAfter != Flex || flex > 0)) {
+            } else if (count > childIndex) {
                 mChildInfosAfter[mChildInfosAfterCount].childElem = content;
                 mChildInfosAfter[mChildInfosAfterCount].min     = isHorizontal ? minSize.width : minSize.height;
                 mChildInfosAfter[mChildInfosAfterCount].max     = isHorizontal ? maxSize.width : maxSize.height;
@@ -758,9 +848,9 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
     mChildInfosBefore = temp;
   }
 
-  // if resizebefore is not Farthest, reverse the list because the first child
-  // in the list is the farthest, and we want the first child to be the closest.
-  if (resizeBefore != Farthest)
+  // if the resizebefore is closest we must reverse the list because the first child in the list
+  // is the Farthest we want the first child to be the closest.
+  if (resizeBefore == Closest)
      Reverse(mChildInfosBefore, mChildInfosBeforeCount);
 
   // if the resizeafter is the Farthest we must reverse the list because the first child in the list
@@ -773,22 +863,26 @@ nsSplitterFrameInner::MouseDown(nsIDOMEvent* aMouseEvent)
   if (resizeAfter == Grow)
      mChildInfosAfterCount = 0;
 
+  nsRect vr = mOuter->GetView()->GetBounds();
+
   PRInt32 c;
   nsPoint pt = nsLayoutUtils::GetDOMEventCoordinatesRelativeTo(mouseEvent,
                                                                mParentBox);
   if (isHorizontal) {
      c = pt.x;
      mSplitterPos = mOuter->mRect.x;
+     mSplitterViewPos = vr.x;
   } else {
      c = pt.y;
      mSplitterPos = mOuter->mRect.y;
+     mSplitterViewPos = vr.y;
   }
 
   mDragStart = c;
 
   //printf("Pressed mDragStart=%d\n",mDragStart);
 
-  nsIPresShell::SetCapturingContent(mOuter->GetContent(), CAPTURE_IGNOREALLOWED);
+  mOuter->CaptureMouse(outerPresContext, PR_TRUE);
 
   return NS_OK;
 }
@@ -869,16 +963,13 @@ nsSplitterFrameInner::UpdateState()
     return;
   }
 
-  if ((SupportsCollapseDirection(Before) || SupportsCollapseDirection(After)) &&
-      mOuter->GetParent()->IsBoxFrame()) {
+  if (SupportsCollapseDirection(Before) || SupportsCollapseDirection(After)) {
+    nsIBox* splitter = mOuter;
     // Find the splitter's immediate sibling.
-    nsIFrame* splitterSibling;
-    if (newState == CollapsedBefore || mState == CollapsedBefore) {
-      splitterSibling = mOuter->GetPrevSibling();
-    } else {
-      splitterSibling = mOuter->GetNextSibling();
-    }
-
+    nsIBox* splitterSibling =
+      nsFrameNavigator::GetChildBeforeAfter(mOuter->PresContext(), splitter,
+                                            (newState == CollapsedBefore ||
+                                             mState == CollapsedBefore));
     if (splitterSibling) {
       nsCOMPtr<nsIContent> sibling = splitterSibling->GetContent();
       if (sibling) {
@@ -887,16 +978,15 @@ nsSplitterFrameInner::UpdateState()
           // CollapsedBefore -> Dragging
           // CollapsedAfter -> Open
           // CollapsedAfter -> Dragging
-          nsContentUtils::AddScriptRunner(
-            new nsUnsetAttrRunnable(sibling, nsGkAtoms::collapsed));
+          sibling->UnsetAttr(kNameSpaceID_None, nsGkAtoms::collapsed,
+                             PR_TRUE);
         } else if ((mState == Open || mState == Dragging)
                    && (newState == CollapsedBefore ||
                        newState == CollapsedAfter)) {
           // Open -> CollapsedBefore / CollapsedAfter
           // Dragging -> CollapsedBefore / CollapsedAfter
-          nsContentUtils::AddScriptRunner(
-            new nsSetAttrRunnable(sibling, nsGkAtoms::collapsed,
-                                  NS_LITERAL_STRING("true")));
+          sibling->SetAttr(kNameSpaceID_None, nsGkAtoms::collapsed,
+                           NS_LITERAL_STRING("true"), PR_TRUE);
         }
       }
     }
@@ -923,9 +1013,17 @@ nsSplitterFrameInner::AdjustChildren(nsPresContext* aPresContext)
   AdjustChildren(aPresContext, mChildInfosBefore, mChildInfosBeforeCount, isHorizontal);
   AdjustChildren(aPresContext, mChildInfosAfter, mChildInfosAfterCount, isHorizontal);
    
+  
    // printf("----- Posting Dirty -----\n");
 
-  aPresContext->PresShell()->FlushPendingNotifications(Flush_Display);
+   
+  if (realTimeDrag) {
+    aPresContext->PresShell()->FlushPendingNotifications(Flush_Display);
+  }
+  else {
+    aPresContext->PresShell()->
+      FrameNeedsReflow(mOuter, nsIPresShell::eTreeChange, NS_FRAME_IS_DIRTY);
+  }
 }
 
 static nsIBox* GetChildBoxForContent(nsIBox* aParentBox, nsIContent* aContent)
@@ -1089,4 +1187,31 @@ nsSplitterFrameInner::ResizeChildTo(nsPresContext* aPresContext,
       spaceLeft = 0;
     }
   }
+}
+
+
+void
+nsSplitterFrameInner::MoveSplitterBy(nsPresContext* aPresContext, nscoord aDiff)
+{
+  const nsRect& r = mOuter->mRect;
+  nsIView *v = mOuter->GetView();
+  nsIViewManager* vm = v->GetViewManager();
+  nsRect vr = v->GetBounds();
+  nsRect invalid;
+  EnsureOrient();
+  PRBool isHorizontal = !mOuter->IsHorizontal();
+  if (isHorizontal) {
+    mOuter->SetPosition(nsPoint(mSplitterPos + aDiff, r.y));
+    vm->MoveViewTo(v, mSplitterViewPos + aDiff, vr.y);
+    invalid.UnionRect(r,mOuter->mRect);
+  } else {
+    mOuter->SetPosition(nsPoint(r.x, mSplitterPos + aDiff));
+    vm->MoveViewTo(v, vr.x, mSplitterViewPos + aDiff);
+    invalid.UnionRect(r,mOuter->mRect);
+  }
+
+  // redraw immediately only what changed. This is animation so 
+  // it must be immediate.
+  nsBoxLayoutState state(aPresContext);
+  mParentBox->Redraw(state, &invalid, PR_TRUE);
 }

@@ -53,22 +53,17 @@
 #include "nsILocalFile.h"
 #include "nsStringGlue.h"
 
-#ifdef XP_WIN
-// we want to use the DLL blocklist if possible
-#define XRE_WANT_DLL_BLOCKLIST
-// we want a wmain entry point
-#include "nsWindowsWMain.cpp"
-#endif
-
 static void Output(const char *fmt, ... )
 {
   va_list ap;
   va_start(ap, fmt);
 
 #if defined(XP_WIN) && !MOZ_WINCONSOLE
-  PRUnichar msg[2048];
-  _vsnwprintf(msg, sizeof(msg)/sizeof(msg[0]), NS_ConvertUTF8toUTF16(fmt).get(), ap);
-  MessageBoxW(NULL, msg, L"XULRunner", MB_OK | MB_ICONERROR);
+  char msg[2048];
+
+  _vsnprintf(msg, sizeof(msg), fmt, ap);
+
+  MessageBox(NULL, msg, "XULRunner", MB_OK | MB_ICONERROR);
 #else
   vfprintf(stderr, fmt, ap);
 #endif
@@ -161,3 +156,13 @@ int main(int argc, char* argv[])
     PR_smprintf_free(appEnv);
   return result;
 }
+
+#if defined( XP_WIN ) && defined( WIN32 ) && !defined(__GNUC__)
+// We need WinMain in order to not be a console app.  This function is
+// unused if we are a console application.
+int WINAPI WinMain( HINSTANCE, HINSTANCE, LPSTR args, int )
+{
+    // Do the real work.
+    return main( __argc, __argv );
+}
+#endif

@@ -53,7 +53,7 @@ class nsIContent;
 class nsMappedAttributes;
 class nsHTMLStyleSheet;
 class nsRuleWalker;
-class nsMappedAttributeElement;
+class nsGenericHTMLElement;
 
 #define ATTRCHILD_ARRAY_GROWSIZE 8
 #define ATTRCHILD_ARRAY_LINEAR_THRESHOLD 32
@@ -64,7 +64,7 @@ class nsMappedAttributeElement;
     ((1 << ATTRCHILD_ARRAY_ATTR_SLOTS_BITS) - 1)
 
 #define ATTRCHILD_ARRAY_MAX_CHILD_COUNT \
-    (~PRUint32(0) >> ATTRCHILD_ARRAY_ATTR_SLOTS_BITS)
+    (~PtrBits(0) >> ATTRCHILD_ARRAY_ATTR_SLOTS_BITS)
 
 #define ATTRCHILD_ARRAY_ATTR_SLOTS_COUNT_MASK \
     ((1 << ATTRCHILD_ARRAY_ATTR_SLOTS_BITS) - 1)
@@ -88,7 +88,6 @@ public:
     return reinterpret_cast<nsIContent*>(mImpl->mBuffer[AttrSlotsSize() + aPos]);
   }
   nsIContent* GetSafeChildAt(PRUint32 aPos) const;
-  nsIContent * const * GetChildArray(PRUint32* aChildCount) const;
   nsresult AppendChild(nsIContent* aChild)
   {
     return InsertChildAt(aChild, ChildCount());
@@ -119,7 +118,7 @@ public:
   PRInt32 IndexOfAttr(nsIAtom* aLocalName, PRInt32 aNamespaceID = kNameSpaceID_None) const;
 
   nsresult SetAndTakeMappedAttr(nsIAtom* aLocalName, nsAttrValue& aValue,
-                                nsMappedAttributeElement* aContent,
+                                nsGenericHTMLElement* aContent,
                                 nsHTMLStyleSheet* aSheet);
   nsresult SetMappedAttrStyleSheet(nsHTMLStyleSheet* aSheet);
   void WalkMappedAttributeStyleRules(nsRuleWalker* aRuleWalker);
@@ -135,7 +134,7 @@ private:
   PRUint32 NonMappedAttrCount() const;
   PRUint32 MappedAttrCount() const;
 
-  nsresult GetModifiableMapped(nsMappedAttributeElement* aContent,
+  nsresult GetModifiableMapped(nsGenericHTMLElement* aContent,
                                nsHTMLStyleSheet* aSheet,
                                PRBool aWillAddAttr,
                                nsMappedAttributes** aModifiable);

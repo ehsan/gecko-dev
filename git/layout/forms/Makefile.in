@@ -44,7 +44,7 @@ include $(DEPTH)/config/autoconf.mk
 
 DIRS = $(NULL)
 
-ifdef ENABLE_TESTS
+ifdef MOZ_MOCHITEST
 DIRS		+= test
 endif
 
@@ -52,7 +52,32 @@ MODULE		= layout
 LIBRARY_NAME	= gkforms_s
 LIBXUL_LIBRARY	= 1
 
-
+REQUIRES	= xpcom \
+		  string \
+		  locale \
+		  content \
+		  gfx \
+		  thebes \
+		  widget \
+		  view \
+		  dom \
+		  necko \
+		  webshell \
+		  editor \
+		  txtsvc \
+		  intl \
+		  uconv \
+		  txmgr \
+		  xuldoc \
+		  imglib2 \
+		  accessibility \
+		  unicharutil \
+		  commandhandler \
+		  xpconnect \
+		  js \
+		  pref \
+		  docshell \
+		  $(NULL)
 
 EXPORTS		= \
 		nsIListControlFrame.h \

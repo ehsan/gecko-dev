@@ -59,11 +59,11 @@ public:
                                     const PRUnichar* nameArray[], const PRUnichar* valueArray[]);
   NS_IMETHOD                Notify(PRUint32 aDocumentID, const PRUnichar* aTag, PRUint32 numOfAttributes, 
                                     const PRUnichar* nameArray[], const PRUnichar* valueArray[]);
-  NS_IMETHOD                Notify(nsISupports* aDocShell, 
+  NS_IMETHOD                Notify(nsISupports* aWebShell, 
                                    nsISupports* aChannel,
                                    const PRUnichar* aTag, 
-                                   const nsTArray<nsString>* aKeys, 
-                                   const nsTArray<nsString>* aValues,
+                                   const nsStringArray* aKeys, 
+                                   const nsStringArray* aValues,
                                    const PRUint32 aFlags);
 
   /* methods for nsIObserver */

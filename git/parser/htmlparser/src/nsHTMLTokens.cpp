@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include "nsScanner.h"
 #include "nsToken.h"
+#include "nsIAtom.h"
 #include "nsHTMLTokens.h"
 #include "prtypes.h"
 #include "nsDebug.h"
@@ -57,8 +58,9 @@ static const PRUnichar sUserdefined[] = {'u', 's', 'e', 'r', 'd', 'e', 'f',
                                          'i', 'n', 'e', 'd', 0};
 
 static const PRUnichar kAttributeTerminalChars[] = {
-  PRUnichar('&'), PRUnichar('\t'), PRUnichar('\n'),
-  PRUnichar('\r'), PRUnichar(' '), PRUnichar('>'),
+  PRUnichar('&'), PRUnichar('\b'), PRUnichar('\t'),
+  PRUnichar('\n'), PRUnichar('\r'), PRUnichar(' '),
+  PRUnichar('>'),
   PRUnichar(0)
 };
 
@@ -652,7 +654,7 @@ CTextToken::ConsumeCharacterData(PRBool aIgnoreComments,
       if (CaseInsensitiveFindInReadable(theTerminalString, start, end) &&
           (end == endPos || (*end == '>'  || *end == ' '  ||
                              *end == '\t' || *end == '\n' ||
-                             *end == '\r'))) {
+                             *end == '\r' || *end == '\b'))) {
         gtOffset = end;
         // Note that aIgnoreComments is only not set for <script>. We don't
         // want to execute scripts that aren't in the form of: <script\s.*>
@@ -775,7 +777,6 @@ CTextToken::ConsumeParsedCharacterData(PRBool aDiscardFirstNewline,
 
   nsScannerIterator currPos, endPos, altEndPos;
   PRUint32 truncPos = 0;
-  PRInt32 truncNewlineCount = 0;
   aScanner.CurrentPosition(currPos);
   aScanner.EndReading(endPos);
 
@@ -840,7 +841,6 @@ CTextToken::ConsumeParsedCharacterData(PRBool aDiscardFirstNewline,
           // We ran out of room looking for a </title>. Go back to the first
           // place that looked like a tag and use that as our stopping point.
           theContent.writable().Truncate(truncPos);
-          mNewlineCount = truncNewlineCount;
           aScanner.SetPosition(altEndPos, PR_FALSE, PR_TRUE);
         }
         // else we take everything we consumed.
@@ -859,7 +859,6 @@ CTextToken::ConsumeParsedCharacterData(PRBool aDiscardFirstNewline,
       // Keep this position in case we need it for later.
       altEndPos = currPos;
       truncPos = theContent.str().Length();
-      truncNewlineCount = mNewlineCount;
     }
 
     if (Distance(currPos, endPos) >= termStrLen) {
@@ -869,7 +868,7 @@ CTextToken::ConsumeParsedCharacterData(PRBool aDiscardFirstNewline,
       if (CaseInsensitiveFindInReadable(theTerminalString, start, end)) {
         if (end != endPos && (*end == '>'  || *end == ' '  ||
                               *end == '\t' || *end == '\n' ||
-                              *end == '\r')) {
+                              *end == '\r' || *end == '\b')) {
           aFound = PR_TRUE;
           mTextValue.Rebind(theContent.str());
 
@@ -1763,8 +1762,8 @@ CAttributeToken::Consume(PRUnichar aChar, nsScanner& aScanner, PRInt32 aFlag)
       PRUnichar('='), PRUnichar('\n'),
       PRUnichar('\r'), PRUnichar('\t'),
       PRUnichar('>'), PRUnichar('<'),
-      PRUnichar('\''), PRUnichar('/'),
-      PRUnichar(0) };
+      PRUnichar('\b'), PRUnichar('\''),
+      PRUnichar('/'), PRUnichar(0) };
     static const nsReadEndCondition theEndCondition(theTerminalsChars);
 
     nsScannerIterator start, end;

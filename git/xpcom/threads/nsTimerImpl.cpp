@@ -42,6 +42,7 @@
 #include "TimerThread.h"
 #include "nsAutoLock.h"
 #include "nsAutoPtr.h"
+#include "nsVoidArray.h"
 #include "nsThreadManager.h"
 #include "nsThreadUtils.h"
 #include "prmem.h"
@@ -146,7 +147,7 @@ nsTimerImpl::nsTimerImpl() :
   mTimeout(0)
 {
   // XXXbsmedberg: shouldn't this be in Init()?
-  mEventTarget = static_cast<nsIEventTarget*>(NS_GetCurrentThread());
+  mCallingThread = do_GetCurrentThread();
 
   mCallback.c = nsnull;
 
@@ -284,21 +285,11 @@ NS_IMETHODIMP nsTimerImpl::Cancel()
   if (gThread)
     gThread->RemoveTimer(this);
 
-  ReleaseCallback();
-
   return NS_OK;
 }
 
 NS_IMETHODIMP nsTimerImpl::SetDelay(PRUint32 aDelay)
 {
-  if (mCallbackType == CALLBACK_TYPE_UNKNOWN && mType == TYPE_ONE_SHOT) {
-    // This may happen if someone tries to re-use a one-shot timer
-    // by re-setting delay instead of reinitializing the timer.
-    NS_ERROR("nsITimer->SetDelay() called when the "
-             "one-shot timer is not set up.");
-    return NS_ERROR_NOT_INITIALIZED;
-  }
-
   // If we're already repeating precisely, update mTimeout now so that the
   // new delay takes effect in the future.
   if (mTimeout != 0 && mType == TYPE_REPEATING_PRECISE)
@@ -345,31 +336,9 @@ NS_IMETHODIMP nsTimerImpl::GetCallback(nsITimerCallback **aCallback)
 {
   if (mCallbackType == CALLBACK_TYPE_INTERFACE)
     NS_IF_ADDREF(*aCallback = mCallback.i);
-  else if (mTimerCallbackWhileFiring)
-    NS_ADDREF(*aCallback = mTimerCallbackWhileFiring);
   else
     *aCallback = nsnull;
 
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP nsTimerImpl::GetTarget(nsIEventTarget** aTarget)
-{
-  NS_IF_ADDREF(*aTarget = mEventTarget);
-  return NS_OK;
-}
-
-
-NS_IMETHODIMP nsTimerImpl::SetTarget(nsIEventTarget* aTarget)
-{
-  NS_ENSURE_TRUE(mCallbackType == CALLBACK_TYPE_UNKNOWN,
-                 NS_ERROR_ALREADY_INITIALIZED);
-
-  if (aTarget)
-    mEventTarget = aTarget;
-  else
-    mEventTarget = static_cast<nsIEventTarget*>(NS_GetCurrentThread());
   return NS_OK;
 }
 
@@ -408,51 +377,24 @@ void nsTimerImpl::Fire()
   if (gThread)
     gThread->UpdateFilter(mDelay, timeout, now);
 
-  if (mCallbackType == CALLBACK_TYPE_INTERFACE)
-    mTimerCallbackWhileFiring = mCallback.i;
   mFiring = PR_TRUE;
-  
-  // Handle callbacks that re-init the timer, but avoid leaking.
-  // See bug 330128.
-  CallbackUnion callback = mCallback;
-  PRUintn callbackType = mCallbackType;
-  if (callbackType == CALLBACK_TYPE_INTERFACE)
-    NS_ADDREF(callback.i);
-  else if (callbackType == CALLBACK_TYPE_OBSERVER)
-    NS_ADDREF(callback.o);
-  ReleaseCallback();
 
-  switch (callbackType) {
+  switch (mCallbackType) {
     case CALLBACK_TYPE_FUNC:
-      callback.c(this, mClosure);
+      mCallback.c(this, mClosure);
       break;
     case CALLBACK_TYPE_INTERFACE:
-      callback.i->Notify(this);
+      mCallback.i->Notify(this);
       break;
     case CALLBACK_TYPE_OBSERVER:
-      callback.o->Observe(static_cast<nsITimer*>(this),
-                          NS_TIMER_CALLBACK_TOPIC,
-                          nsnull);
+      mCallback.o->Observe(static_cast<nsITimer*>(this),
+                           NS_TIMER_CALLBACK_TOPIC,
+                           nsnull);
       break;
     default:;
   }
 
-  // If the callback didn't re-init the timer, and it's not a one-shot timer,
-  // restore the callback state.
-  if (mCallbackType == CALLBACK_TYPE_UNKNOWN &&
-      mType != TYPE_ONE_SHOT && !mCanceled) {
-    mCallback = callback;
-    mCallbackType = callbackType;
-  } else {
-    // The timer was a one-shot, or the callback was reinitialized.
-    if (callbackType == CALLBACK_TYPE_INTERFACE)
-      NS_RELEASE(callback.i);
-    else if (callbackType == CALLBACK_TYPE_OBSERVER)
-      NS_RELEASE(callback.o);
-  }
-
   mFiring = PR_FALSE;
-  mTimerCallbackWhileFiring = nsnull;
 
 #ifdef DEBUG_TIMERS
   if (PR_LOG_TEST(gTimerLog, PR_LOG_DEBUG)) {
@@ -462,9 +404,7 @@ void nsTimerImpl::Fire()
   }
 #endif
 
-  // Reschedule REPEATING_SLACK timers, but make sure that we aren't armed
-  // already (which can happen if the callback reinitialized the timer).
-  if (mType == TYPE_REPEATING_SLACK && !mArmed) {
+  if (mType == TYPE_REPEATING_SLACK) {
     SetDelayInternal(mDelay); // force mTimeout to be recomputed.
     if (gThread)
       gThread->AddTimer(this);
@@ -479,7 +419,6 @@ public:
   nsTimerEvent(nsTimerImpl *timer, PRInt32 generation)
     : mTimer(timer), mGeneration(generation) {
     // timer is already addref'd for us
-    MOZ_COUNT_CTOR(nsTimerEvent);
   }
 
 #ifdef DEBUG_TIMERS
@@ -492,7 +431,6 @@ private:
     if (mTimer)
       NS_WARNING("leaking reference to nsTimerImpl");
 #endif
-    MOZ_COUNT_DTOR(nsTimerEvent);
   }
 
   nsTimerImpl *mTimer;
@@ -521,7 +459,7 @@ NS_IMETHODIMP nsTimerEvent::Run()
   return NS_OK;
 }
 
-nsresult nsTimerImpl::PostTimerEvent()
+void nsTimerImpl::PostTimerEvent()
 {
   // XXX we may want to reuse this nsTimerEvent in the case of repeating timers.
 
@@ -530,9 +468,9 @@ nsresult nsTimerImpl::PostTimerEvent()
   // from this timer into the event, so we can avoid firing a timer that was
   // re-initialized after being canceled.
 
-  nsRefPtr<nsTimerEvent> event = new nsTimerEvent(this, mGeneration);
+  nsTimerEvent* event = new nsTimerEvent(this, mGeneration);
   if (!event)
-    return NS_ERROR_OUT_OF_MEMORY;
+    return;
 
 #ifdef DEBUG_TIMERS
   if (PR_LOG_TEST(gTimerLog, PR_LOG_DEBUG)) {
@@ -544,17 +482,11 @@ nsresult nsTimerImpl::PostTimerEvent()
   // the next timer to fire before we make the callback.
   if (mType == TYPE_REPEATING_PRECISE) {
     SetDelayInternal(mDelay);
-    if (gThread) {
-      nsresult rv = gThread->AddTimer(this);
-      if (NS_FAILED(rv))
-        return rv;
-    }
+    if (gThread)
+      gThread->AddTimer(this);
   }
 
-  nsresult rv = mEventTarget->Dispatch(event, NS_DISPATCH_NORMAL);
-  if (NS_FAILED(rv) && gThread)
-    gThread->RemoveTimer(this);
-  return rv;
+  mCallingThread->Dispatch(event, NS_DISPATCH_NORMAL);
 }
 
 void nsTimerImpl::SetDelayInternal(PRUint32 aDelay)

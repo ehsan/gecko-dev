@@ -48,11 +48,9 @@
 #include "nsISupportsPrimitives.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIProperties.h"
-#include <Carbon/Carbon.h>
 
 #define MACIE_BOOKMARKS_FILE_NAME NS_LITERAL_STRING("Favorites.html")
 #define MACIE_PREFERENCES_FOLDER_NAME NS_LITERAL_STRING("Explorer")
-#define MACIE_DEFAULT_HOMEPAGE_PREF  "\p4D534945¥WWWHomePage"
 #define TEMP_BOOKMARKS_FILE_NAME NS_LITERAL_STRING("bookmarks_tmp.html")
 
 #define MIGRATION_BUNDLE "chrome://browser/locale/migration/migration.properties"
@@ -139,37 +137,11 @@ nsMacIEProfileMigrator::GetMigrateData(const PRUnichar* aProfile,
 NS_IMETHODIMP
 nsMacIEProfileMigrator::GetSourceExists(PRBool* aResult)
 {
-  // Since the IE bookmarks file can sometimes be created by programs
-  // other than Internet Explorer, thus misleading, we must first
-  // check whether IE is even installed on this Mac.  We accomplish this by
-  // checking one of IEs stored preferences in the apple.internetconfig file.
-  PRBool prefExists = PR_FALSE;
-  OSErr err;
-  ICInstance icInstance;
-
-  err = ::ICStart(&icInstance, 'FRFX');
-  if (err == noErr) {
-    ICAttr attrs;
-    Str255 IEhomePageValue;
-    long size = kICFileSpecHeaderSize;
-    err = ::ICGetPref(icInstance, MACIE_DEFAULT_HOMEPAGE_PREF, &attrs,
-                      IEhomePageValue, &size);
-    if (err == noErr)
-      prefExists = PR_TRUE;
-
-    ::ICStop(icInstance);
-  }
-
-  if (!prefExists) {
-    *aResult = PR_FALSE;
-    return NS_OK;
-  }
-
   PRUint16 data;
   GetMigrateData(nsnull, PR_FALSE, &data);
-
+  
   *aResult = data != 0;
-
+  
   return NS_OK;
 }
 
@@ -231,20 +203,22 @@ nsMacIEProfileMigrator::CopyBookmarks(PRBool aReplace)
   nsCOMPtr<nsIStringBundleService> bundleService =
     do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
+
   nsCOMPtr<nsIStringBundle> bundle;
   rv = bundleService->CreateBundle(MIGRATION_BUNDLE, getter_AddRefs(bundle));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsString toolbarFolderNameMacIE;
-  rv = bundle->GetStringFromName(NS_LITERAL_STRING("toolbarFolderNameMacIE").get(),
-                                 getter_Copies(toolbarFolderNameMacIE));
-  NS_ENSURE_SUCCESS(rv, rv);
+  bundle->GetStringFromName(NS_LITERAL_STRING("toolbarFolderNameMacIE").get(), 
+                            getter_Copies(toolbarFolderNameMacIE));
+  nsCAutoString ctoolbarFolderNameMacIE;
+  CopyUTF16toUTF8(toolbarFolderNameMacIE, ctoolbarFolderNameMacIE);
 
   // Now read the 4.x bookmarks file, correcting the Personal Toolbar Folder 
   // line and writing to the temporary file.
   rv = AnnotatePersonalToolbarFolder(sourceFile,
                                      tempFile,
-                                     NS_ConvertUTF16toUTF8(toolbarFolderNameMacIE).get());
+                                     ctoolbarFolderNameMacIE.get());
   NS_ENSURE_SUCCESS(rv, rv);
 
   // import the temp file

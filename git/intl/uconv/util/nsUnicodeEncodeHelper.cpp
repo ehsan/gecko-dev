@@ -62,13 +62,8 @@ nsresult nsUnicodeEncodeHelper::ConvertByTable(
 
   while (src < srcEnd) {
     if (!uMapCode((uTable*) aMappingTable, static_cast<PRUnichar>(*(src++)), reinterpret_cast<PRUint16*>(&med))) {
-      if (aScanClass == u1ByteCharset && *(src - 1) < 0x20) {
-        // some tables are missing the 0x00 - 0x20 part
-        med = *(src - 1);
-      } else {
-        res = NS_ERROR_UENC_NOMAPPING;
-        break;
-      }
+      res = NS_ERROR_UENC_NOMAPPING;
+      break;
     }
 
     PRBool charFound;

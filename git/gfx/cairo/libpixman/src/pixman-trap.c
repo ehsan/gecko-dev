@@ -1,4 +1,6 @@
 /*
+ * $Id: pixman-trap.c,v 1.9 2007/09/20 19:24:51 vladimir%pobox.com Exp $
+ *
  * Copyright © 2004 Keith Packard
  *
  * Permission to use, copy, modify, distribute, and sell this software and its
@@ -29,7 +31,7 @@
 
 typedef uint32_t FbBits;
 
-PIXMAN_EXPORT void
+void
 pixman_add_traps (pixman_image_t *	image,
 		  int16_t	x_off,
 		  int16_t	y_off,
@@ -49,7 +51,7 @@ pixman_add_traps (pixman_image_t *	image,
     height = image->bits.height;
     bpp = PIXMAN_FORMAT_BPP (image->bits.format);
     
-    x_off_fixed = pixman_int_to_fixed(x_off);
+    x_off_fixed = pixman_int_to_fixed(y_off);
     y_off_fixed = pixman_int_to_fixed(y_off);
 
     while (ntrap--)
@@ -83,6 +85,8 @@ pixman_add_traps (pixman_image_t *	image,
 	}
 	traps++;
     }
+
+    fbFinishAccess (pPicture->pDrawable);
 }
 
 static void
@@ -115,12 +119,12 @@ dump_image (pixman_image_t *image,
     }
 }
 
-PIXMAN_EXPORT void
-pixman_add_trapezoids (pixman_image_t           *image,
-		       int16_t                   x_off,
-		       int                       y_off,
-		       int                       ntraps,
-		       const pixman_trapezoid_t *traps)
+void
+pixman_add_trapezoids       (pixman_image_t      *image,
+			     int16_t              x_off,
+			     int                      y_off,
+			     int                      ntraps,
+			     const pixman_trapezoid_t *traps)
 {
     int i;
 
@@ -143,7 +147,7 @@ pixman_add_trapezoids (pixman_image_t           *image,
 #endif
 }
 
-PIXMAN_EXPORT void
+void
 pixman_rasterize_trapezoid (pixman_image_t *    image,
 			    const pixman_trapezoid_t *trap,
 			    int			x_off,

@@ -139,10 +139,11 @@ nsAssignmentSet::Add(const nsAssignment& aAssignment)
     if (HasAssignmentFor(aAssignment.mVariable))
         return NS_ERROR_UNEXPECTED;
 
-    List* list = new List(aAssignment);
+    List* list = new List;
     if (! list)
         return NS_ERROR_OUT_OF_MEMORY;
 
+    list->mAssignment = aAssignment;
     list->mRefCnt     = 1;
     list->mNext       = mAssignments;
 

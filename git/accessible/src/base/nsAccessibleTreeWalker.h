@@ -39,18 +39,15 @@
 #ifndef _nsAccessibleTreeWalker_H_
 #define _nsAccessibleTreeWalker_H_
 
-/* For documentation of the accessibility architecture, see
- * http://www.mozilla.org/access/architecture
+/* For documentation of the accessibility architecture,  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
 
 #include "nsCOMPtr.h"
 #include "nsIDocument.h"
 #include "nsIAccessible.h"
-#include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
 #include "nsIAccessibilityService.h"
 #include "nsIWeakReference.h"
-#include "nsIFrame.h"
 
 enum { eSiblingsUninitialized = -1, eSiblingsWalkFrames = -2 };
 
@@ -60,8 +57,7 @@ struct WalkState {
   nsCOMPtr<nsIDOMNodeList> siblingList;
   nsIContent *parentContent; // For walking normal DOM
   WalkState *prevState;
-  // XXXbz is |frame| still needed?
-  nsWeakFrame frame;       // Helps avoid GetPrimaryFrameFor() calls
+  nsIFrame *frame;     // Helps avoid GetPrimaryFrameFor() calls
   PRInt32 siblingIndex;    // Holds a state flag or an index into the siblingList
   PRBool isHidden;         // Don't enter subtree if hidden
 };
@@ -77,58 +73,20 @@ public:
     PRBool mWalkAnonymousContent);
   virtual ~nsAccessibleTreeWalker();
 
-  /**
-   * Moves current state to point to the next child accessible.
-   */
   NS_IMETHOD GetNextSibling();
-
-  /**
-   * Moves current state to point to the first child accessible.
-   */
   NS_IMETHOD GetFirstChild();
 
-  /**
-   * Current state. Used to initialize a11y tree walker and to get an accessible
-   * current state points to.
-   */
   WalkState mState;
 
 protected:
-
-  /**
-   * Return true if currently navigated node/frame is accessible.
-   */
   PRBool GetAccessible();
-
-  /**
-   * Prepares current state to navigate through children of node/frame.
-   */
   void GetKids(nsIDOMNode *aParent);
 
-  /**
-   * Clears the current state.
-   */
   void ClearState();
-
-  /**
-   * Push current state on top of stack. State stack is used to navigate down to
-   * DOM/frame subtree during searching of accessible children.
-   */
   NS_IMETHOD PushState();
-
-  /**
-   * Pop state from stack and make it current.
-   */
   NS_IMETHOD PopState();
 
-  /**
-   * Make treewalker traverse by frame tree if necessary.
-   */
-  void WalkFrames();
-
-  /**
-   * Change current state so that its node is changed to next node.
-   */
+  void UpdateFrame(PRBool aTryFirstChild);
   void GetNextDOMNode();
 
   nsCOMPtr<nsIWeakReference> mWeakShell;

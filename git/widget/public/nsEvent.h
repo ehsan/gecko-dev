@@ -57,16 +57,6 @@ enum nsEventStatus {
   nsEventStatus_eConsumeDoDefault  
 };
 
-/**
- * sizemode is an adjunct to widget size
- */
-enum nsSizeMode {
-  nsSizeMode_Normal = 0,
-  nsSizeMode_Minimized,
-  nsSizeMode_Maximized,
-  nsSizeMode_Fullscreen
-};
-
 class nsEvent;
 
 class nsGUIEvent;
@@ -78,7 +68,6 @@ class nsScrollbarEvent;
 class nsScrollPortEvent;
 class nsInputEvent;
 class nsMouseEvent;
-class nsDragEvent;
 class nsAccessibleEvent;
 class nsKeyEvent;
 class nsTextEvent;
@@ -87,9 +76,9 @@ class nsMouseScrollEvent;
 class nsReconversionEvent;
 class nsTooltipEvent;
 class nsMenuEvent;
-class nsSimpleGestureEvent;
-class nsContentCommandEvent;
 
 struct nsTextEventReply;
+struct nsReconversionEventReply;
+struct nsQueryCaretRectEventReply;
 
 #endif // nsEvent_h__

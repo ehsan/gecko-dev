@@ -84,8 +84,8 @@ public:
   PRInt16             status;
   
   // Internal storage of digests
-  nsCString           calculatedSectionDigest;
-  nsCString           storedEntryDigest;
+  char*               calculatedSectionDigest;
+  char*               storedEntryDigest;
 
   nsJARManifestItem();
   virtual ~nsJARManifestItem();
@@ -96,18 +96,23 @@ public:
 //-------------------------------------------------
 nsJARManifestItem::nsJARManifestItem(): mType(JAR_INTERNAL),
                                         entryVerified(PR_FALSE),
-                                        status(JAR_NOT_SIGNED)
+                                        status(JAR_NOT_SIGNED),
+                                        calculatedSectionDigest(nsnull),
+                                        storedEntryDigest(nsnull)
 {
 }
 
 nsJARManifestItem::~nsJARManifestItem()
 {
+  // Delete digests if necessary
+  PR_FREEIF(calculatedSectionDigest);
+  PR_FREEIF(storedEntryDigest);
 }
 
 //----------------------------------------------
 // nsJAR constructor/destructor
 //----------------------------------------------
-static PRBool
+PR_STATIC_CALLBACK(PRBool)
 DeleteManifestEntry(nsHashKey* aKey, void* aData, void* closure)
 {
 //-- deletes an entry in  mManifestData.
@@ -162,11 +167,9 @@ nsrefcnt nsJAR::Release(void)
 NS_IMETHODIMP
 nsJAR::Open(nsIFile* zipFile)
 {
-  NS_ENSURE_ARG_POINTER(zipFile);
   if (mLock) return NS_ERROR_FAILURE; // Already open!
 
   mZipFile = zipFile;
-
   mLock = PR_NewLock();
   NS_ENSURE_TRUE(mLock, NS_ERROR_OUT_OF_MEMORY);
 
@@ -196,7 +199,6 @@ nsJAR::Close()
   }
 
   mParsedManifest = PR_FALSE;
-  mManifestData.Reset();
   mGlobalStatus = JAR_MANIFEST_NOT_PARSED;
   mTotalItemsInManifest = 0;
 
@@ -237,9 +239,9 @@ nsJAR::Extract(const char *zipEntry, nsIFile* outFile)
       rv == NS_ERROR_FAILURE)
     return rv;
 
-  if (item->IsDirectory())
+  if (item->isDirectory)
   {
-    rv = localFile->Create(nsIFile::DIRECTORY_TYPE, item->Mode());
+    rv = localFile->Create(nsIFile::DIRECTORY_TYPE, item->mode);
     //XXX Do this in nsZipArchive?  It would be nice to keep extraction
     //XXX code completely there, but that would require a way to get a
     //XXX PRDir from localFile.
@@ -247,7 +249,7 @@ nsJAR::Extract(const char *zipEntry, nsIFile* outFile)
   else
   {
     PRFileDesc* fd;
-    rv = localFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE, item->Mode(), &fd);
+    rv = localFile->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE, item->mode, &fd);
     if (NS_FAILED(rv)) return rv;
 
     // ExtractFile also closes the fd handle and resolves the symlink if needed
@@ -259,7 +261,7 @@ nsJAR::Extract(const char *zipEntry, nsIFile* outFile)
   }
   if (NS_FAILED(rv)) return rv;
 
-  PRTime prtime = GetModTime(item->Date(), item->Time());
+  PRTime prtime = GetModTime(item->date, item->time);
   // nsIFile needs milliseconds, while prtime is in microseconds.
   PRTime conversion = LL_ZERO;
   PRTime newTime = LL_ZERO;
@@ -336,10 +338,20 @@ nsJAR::GetInputStreamWithSpec(const nsACString& aJarDirSpec,
   NS_ADDREF(*result = jis);
 
   nsresult rv = NS_OK;
-  if (!item || item->IsDirectory()) {
-    rv = jis->InitDirectory(this, aJarDirSpec, aEntryName);
+  if (!item || item->isDirectory) {
+    rv = jis->InitDirectory(&mZip, aJarDirSpec, aEntryName);
   } else {
-    rv = jis->InitFile(this, item);
+    // Open jarfile, to get its own filedescriptor for the stream
+    // XXX The file may have been overwritten, so |item| might not be
+    // valid.  We really want to work from inode rather than file name.
+    PRFileDesc *fd = nsnull;
+    fd = OpenFile();
+    if (fd) {
+      rv = jis->InitFile(&mZip, item, fd);
+      // |jis| now owns |fd|
+    } else {
+      rv = NS_ERROR_FAILURE;
+    }
   }
   if (NS_FAILED(rv)) {
     NS_RELEASE(*result);
@@ -359,8 +371,15 @@ nsJAR::GetCertificatePrincipal(const char* aFilename, nsIPrincipal** aPrincipal)
     return NS_ERROR_NULL_POINTER;
   *aPrincipal = nsnull;
 
+  //-- Get the signature verifier service
+  nsresult rv;
+  nsCOMPtr<nsISignatureVerifier> verifier = 
+           do_GetService(SIGNATURE_VERIFIER_CONTRACTID, &rv);
+  if (NS_FAILED(rv)) // No signature verifier available
+    return NS_OK;
+
   //-- Parse the manifest
-  nsresult rv = ParseManifest();
+  rv = ParseManifest(verifier);
   if (NS_FAILED(rv)) return rv;
   if (mGlobalStatus == JAR_NO_MANIFEST)
     return NS_OK;
@@ -501,7 +520,7 @@ nsJAR::ReadLine(const char** src)
 #define JAR_SF_HEADER (const char*)"Signature-Version: 1.0"
 
 nsresult
-nsJAR::ParseManifest()
+nsJAR::ParseManifest(nsISignatureVerifier* verifier)
 {
   //-- Verification Step 1
   if (mParsedManifest)
@@ -588,16 +607,6 @@ nsJAR::ParseManifest()
     return NS_OK;
   }
 
-  //-- Get the signature verifier service
-  nsCOMPtr<nsISignatureVerifier> verifier = 
-           do_GetService(SIGNATURE_VERIFIER_CONTRACTID, &rv);
-  if (NS_FAILED(rv)) // No signature verifier available
-  {
-    mGlobalStatus = JAR_NO_MANIFEST;
-    mParsedManifest = PR_TRUE;
-    return NS_OK;
-  }
-
   //-- Verify that the signature file is a valid signature of the SF file
   PRInt32 verifyError;
   rv = verifier->VerifySignature(sigBuffer, sigLen, manifestBuffer, manifestLen, 
@@ -675,8 +684,8 @@ nsJAR::ParseOneFile(const char* filebuf, PRInt16 aFileType)
             if (curItemMF->mType == JAR_INTERNAL)
             {
               PRBool exists;
-              nsresult rv = HasEntry(curItemName, &exists);
-              if (NS_FAILED(rv) || !exists)
+              PRInt32 result = HasEntry(curItemName, &exists);
+              if (result != ZIP_OK || !exists)
                 curItemMF->mType = JAR_INVALID;
             }
             //-- Check for duplicates
@@ -692,7 +701,7 @@ nsJAR::ParseOneFile(const char* filebuf, PRInt16 aFileType)
         {
           PRUint32 sectionLength = curPos - sectionStart;
           CalculateDigest(sectionStart, sectionLength,
-                          curItemMF->calculatedSectionDigest);
+                          &(curItemMF->calculatedSectionDigest));
           //-- Save item in the hashtable
           nsCStringKey itemKey(curItemName);
           mManifestData.Put(&itemKey, (void*)curItemMF);
@@ -724,10 +733,10 @@ nsJAR::ParseOneFile(const char* filebuf, PRInt16 aFileType)
                 curItemSF->status = JAR_NOT_SIGNED;
               else
               {
-                if (!storedSectionDigest.Equals(curItemSF->calculatedSectionDigest))
+                if (!storedSectionDigest.Equals((const char*)curItemSF->calculatedSectionDigest))
                   curItemSF->status = JAR_INVALID_MANIFEST;
-                curItemSF->calculatedSectionDigest.Truncate();
-                storedSectionDigest.Truncate();
+                PR_FREEIF(curItemSF->calculatedSectionDigest)
+                storedSectionDigest = "";
               }
             } // (aPrincipal != nsnull)
           } // if(curItemSF)
@@ -763,18 +772,25 @@ nsJAR::ParseOneFile(const char* filebuf, PRInt16 aFileType)
 
     //-- Lines to look for:
     // (1) Digest:
-    if (lineName.LowerCaseEqualsLiteral("sha1-digest"))
+    if (lineName.Equals(NS_LITERAL_CSTRING("SHA1-Digest"),
+                        nsCaseInsensitiveCStringComparator()))
     //-- This is a digest line, save the data in the appropriate place 
     {
       if(aFileType == JAR_MF)
-        curItemMF->storedEntryDigest = lineData;
+      {
+        curItemMF->storedEntryDigest = (char*)PR_MALLOC(lineData.Length()+1);
+        if (!(curItemMF->storedEntryDigest))
+          return NS_ERROR_OUT_OF_MEMORY;
+        PL_strcpy(curItemMF->storedEntryDigest, lineData.get());
+      }
       else
         storedSectionDigest = lineData;
       continue;
     }
     
     // (2) Name: associates this manifest section with a file in the jar.
-    if (!foundName && lineName.LowerCaseEqualsLiteral("name"))
+    if (!foundName && lineName.Equals(NS_LITERAL_CSTRING("Name"),
+                                      nsCaseInsensitiveCStringComparator())) 
     {
       curItemName = lineData;
       foundName = PR_TRUE;
@@ -783,9 +799,12 @@ nsJAR::ParseOneFile(const char* filebuf, PRInt16 aFileType)
 
     // (3) Magic: this may be an inline Javascript. 
     //     We can't do any other kind of magic.
-    if (aFileType == JAR_MF && lineName.LowerCaseEqualsLiteral("magic"))
+    if ( aFileType == JAR_MF &&
+         lineName.Equals(NS_LITERAL_CSTRING("Magic"),
+                         nsCaseInsensitiveCStringComparator()))
     {
-      if (lineData.LowerCaseEqualsLiteral("javascript"))
+      if(lineData.Equals(NS_LITERAL_CSTRING("javascript"),
+                         nsCaseInsensitiveCStringComparator()))
         curItemMF->mType = JAR_EXTERNAL;
       else
         curItemMF->mType = JAR_INVALID;
@@ -802,17 +821,18 @@ nsJAR::VerifyEntry(nsJARManifestItem* aManItem, const char* aEntryData,
 {
   if (aManItem->status == JAR_VALID_MANIFEST)
   {
-    if (aManItem->storedEntryDigest.IsEmpty())
+    if(!aManItem->storedEntryDigest)
       // No entry digests in manifest file. Entry is unsigned.
       aManItem->status = JAR_NOT_SIGNED;
     else
     { //-- Calculate and compare digests
-      nsCString calculatedEntryDigest;
-      nsresult rv = CalculateDigest(aEntryData, aLen, calculatedEntryDigest);
+      char* calculatedEntryDigest;
+      nsresult rv = CalculateDigest(aEntryData, aLen, &calculatedEntryDigest);
       if (NS_FAILED(rv)) return NS_ERROR_FAILURE;
-      if (!aManItem->storedEntryDigest.Equals(calculatedEntryDigest))
+      if (PL_strcmp(aManItem->storedEntryDigest, calculatedEntryDigest) != 0)
         aManItem->status = JAR_INVALID_ENTRY;
-      aManItem->storedEntryDigest.Truncate();
+      PR_FREEIF(calculatedEntryDigest)
+      PR_FREEIF(aManItem->storedEntryDigest)
     }
   }
   aManItem->entryVerified = PR_TRUE;
@@ -869,9 +889,11 @@ void nsJAR::ReportError(const char* aFilename, PRInt16 errorCode)
 
 
 nsresult nsJAR::CalculateDigest(const char* aInBuf, PRUint32 aLen,
-                                nsCString& digest)
+                                char** digest)
 {
+  *digest = nsnull;
   nsresult rv;
+  
 
   nsCOMPtr<nsICryptoHash> hasher = do_CreateInstance("@mozilla.org/security/hash;1", &rv);
   if (NS_FAILED(rv)) return rv;
@@ -882,7 +904,13 @@ nsresult nsJAR::CalculateDigest(const char* aInBuf, PRUint32 aLen,
   rv = hasher->Update((const PRUint8*) aInBuf, aLen);
   if (NS_FAILED(rv)) return rv;
 
-  return hasher->Finish(PR_TRUE, digest);
+  nsCAutoString hashString;
+  rv = hasher->Finish(PR_TRUE, hashString);
+  if (NS_FAILED(rv)) return rv;
+
+  *digest = ToNewCString(hashString);
+
+  return *digest ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsJAREnumerator, nsIUTF8StringEnumerator)
@@ -894,9 +922,9 @@ NS_IMETHODIMP
 nsJAREnumerator::HasMore(PRBool* aResult)
 {
     // try to get the next element
-    if (!mName) {
+    if (!mCurr) {
         NS_ASSERTION(mFind, "nsJAREnumerator: Missing zipFind.");
-        nsresult rv = mFind->FindNext( &mName, &mNameLen );
+        nsresult rv = mFind->FindNext( &mCurr );
         if (rv == NS_ERROR_FILE_TARGET_DOES_NOT_EXIST) {
             *aResult = PR_FALSE;                    // No more matches available
             return NS_OK;
@@ -915,14 +943,14 @@ NS_IMETHODIMP
 nsJAREnumerator::GetNext(nsACString& aResult)
 {
     // check if the current item is "stale"
-    if (!mName) {
+    if (!mCurr) {
         PRBool   bMore;
         nsresult rv = HasMore(&bMore);
         if (NS_FAILED(rv) || !bMore)
             return NS_ERROR_FAILURE; // no error translation
     }
-    aResult.Assign(mName, mNameLen);
-    mName = 0; // we just gave this one away
+    aResult = mCurr;
+    mCurr = 0; // we just gave this one away
     return NS_OK;
 }
 
@@ -930,13 +958,13 @@ nsJAREnumerator::GetNext(nsACString& aResult)
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsJARItem, nsIZipEntry)
 
 nsJARItem::nsJARItem(nsZipItem* aZipItem)
-    : mSize(aZipItem->Size()),
-      mRealsize(aZipItem->RealSize()),
-      mCrc32(aZipItem->CRC32()),
-      mDate(aZipItem->Date()),
-      mTime(aZipItem->Time()),
-      mCompression(aZipItem->Compression()),
-      mIsDirectory(aZipItem->IsDirectory()),
+    : mSize(aZipItem->size),
+      mRealsize(aZipItem->realsize),
+      mCrc32(aZipItem->crc32),
+      mDate(aZipItem->date),
+      mTime(aZipItem->time),
+      mCompression(aZipItem->compression),
+      mIsDirectory(aZipItem->isDirectory),
       mIsSynthetic(aZipItem->isSynthetic)
 {
 }
@@ -1062,7 +1090,7 @@ nsZipReaderCache::Init(PRUint32 cacheSize)
   return mLock ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 DropZipReaderCache(nsHashKey *aKey, void *aData, void* closure)
 {
   nsJAR* zip = (nsJAR*)aData;
@@ -1087,9 +1115,7 @@ nsZipReaderCache::~nsZipReaderCache()
 NS_IMETHODIMP
 nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
 {
-  NS_ENSURE_ARG_POINTER(zipFile);
   nsresult rv;
-  nsCOMPtr<nsIJAR> antiLockZipGrip;
   nsAutoLock lock(mLock);
 
 #ifdef ZIP_CACHE_HIT_RATE
@@ -1109,10 +1135,6 @@ nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
     zip->ClearReleaseTime();
   }
   else {
-    if (zip) {
-      antiLockZipGrip = zip;
-      mZips.Remove(&key);
-    }
     zip = new nsJAR();
     if (zip == nsnull)
         return NS_ERROR_OUT_OF_MEMORY;
@@ -1132,7 +1154,7 @@ nsZipReaderCache::GetZip(nsIFile* zipFile, nsIZipReader* *result)
   return rv;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 FindOldestZip(nsHashKey *aKey, void *aData, void* closure)
 {
   nsJAR** oldestPtr = (nsJAR**)closure;
@@ -1150,7 +1172,7 @@ FindOldestZip(nsHashKey *aKey, void *aData, void* closure)
 
 struct ZipFindData {nsJAR* zip; PRBool found;}; 
 
-static PRBool
+static PRBool PR_CALLBACK
 FindZip(nsHashKey *aKey, void *aData, void* closure)
 {
   ZipFindData* find_data = (ZipFindData*)closure;
@@ -1226,7 +1248,7 @@ nsZipReaderCache::ReleaseZip(nsJAR* zip)
   return NS_OK;
 }
 
-static PRBool
+static PRBool PR_CALLBACK
 FindFlushableZip(nsHashKey *aKey, void *aData, void* closure)
 {
   nsHashKey** flushableKeyPtr = (nsHashKey**)closure;

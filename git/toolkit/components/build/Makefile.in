@@ -55,13 +55,45 @@ ALERTS_SERVICE=1
 DEFINES += -DALERTS_SERVICE
 endif
 
-
+REQUIRES = 	\
+		xpcom \
+		string \
+		widget \
+		layout \
+		dom \
+		pref \
+		rdf \
+		intl \
+		docshell \
+		autocomplete \
+		appcomps \
+		downloads \
+		fastfind \
+		mimetype \
+		webbrowserpersist \
+		progressDlg \
+		necko \
+		windowwatcher \
+		uriloader \
+		xpinstall \
+		xulapp \
+		embed_base \
+		content \
+		find \
+		gfx \
+		thebes \
+		locale \
+		unicharutil \
+		xuldoc \
+		alerts \
+		url-classifier \
+		feeds \
+		storage \
+		$(NULL)
 
 EXPORTS = nsToolkitCompsCID.h
 
 CPPSRCS = nsToolkitCompsModule.cpp
-
-include $(topsrcdir)/config/config.mk
 
 LOCAL_INCLUDES = \
 	-I$(srcdir)/../downloads/src \
@@ -81,17 +113,11 @@ SHARED_LIBRARY_LIBS = \
 	../startup/src/$(LIB_PREFIX)appstartup_s.$(LIB_SUFFIX) \
 	$(NULL)
 
-ifndef MOZ_DISABLE_PARENTAL_CONTROLS
-ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-SHARED_LIBRARY_LIBS += ../parentalcontrols/src/$(LIB_PREFIX)parentalcontrols_s.$(LIB_SUFFIX)
-LOCAL_INCLUDES += \
-	-I$(srcdir)/../parentalcontrols/src \
-	$(NULL)
-endif
-endif
-
+ifndef MOZ_SUITE
+# XXX Suite isn't ready to build this just yet
 ifdef MOZ_RDF
 SHARED_LIBRARY_LIBS += ../downloads/src/$(LIB_PREFIX)download_s.$(LIB_SUFFIX)
+endif
 endif
 
 ifdef ALERTS_SERVICE
@@ -122,7 +148,7 @@ EXTRA_DSO_LDOPTS += \
 	$(MOZ_JS_LIBS) \
 	$(NULL)
 
-ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
 EXTRA_DSO_LDOPTS += $(TK_LIBS)
 endif
 

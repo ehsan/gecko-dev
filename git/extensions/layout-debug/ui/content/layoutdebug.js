@@ -269,7 +269,8 @@ RTestIndexList.prototype = {
 
   load : function()
     {
-      var prefList = this.mPrefBranch.getChildList("");
+      var count = {value:null};
+      var prefList = this.mPrefBranch.getChildList("", count);
 
       var i = 0;
       for (var pref in prefList) {
@@ -424,7 +425,8 @@ RTestURLList.prototype = {
         nsILayoutRegressionTester.DUMP_FLAGS_MASK_PRINT_MODE);
     }
     else {
-       this.mRegressionTester.dumpFrameModel(gBrowser.contentWindow, data, 0);
+       this.mRegressionTester.dumpFrameModel(gBrowser.contentWindow, data,
+        nsILayoutRegressionTester.DUMP_FLAGS_MASK_DUMP_STYLE);
     }
      
       

@@ -83,10 +83,13 @@ NS_IMETHODIMP nsRadioButtonAccessible::DoAction(PRUint8 aIndex)
   return NS_ERROR_INVALID_ARG;
 }
 
-nsresult
-nsRadioButtonAccessible::GetRoleInternal(PRUint32 *aRole)
+/**
+  *
+  */
+NS_IMETHODIMP nsRadioButtonAccessible::GetRole(PRUint32 *_retval)
 {
-  *aRole = nsIAccessibleRole::ROLE_RADIOBUTTON;
+  *_retval = nsIAccessibleRole::ROLE_RADIOBUTTON;
+
   return NS_OK;
 }
 

@@ -37,11 +37,13 @@
 
 #include "nsIGenericFactory.h"
 
-#ifdef MOZ_MACBROWSER
+#ifdef MOZ_WIDGET_COCOA
 #include "mozOSXSpell.h"
 #else
 #include "mozHunspell.h"
+#ifdef MOZ_XUL_APP
 #include "mozHunspellDirProvider.h"
+#endif
 #endif
 
 #include "mozSpellChecker.h"
@@ -66,11 +68,13 @@
 // NOTE: This creates an instance of objects by using the default constructor
 //
 
-#ifdef MOZ_MACBROWSER
+#ifdef MOZ_WIDGET_COCOA
 NS_GENERIC_FACTORY_CONSTRUCTOR(mozOSXSpell)
 #else
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(mozHunspell, Init)
+#ifdef MOZ_XUL_APP
 NS_GENERIC_FACTORY_CONSTRUCTOR(mozHunspellDirProvider)
+#endif
 #endif
 
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(mozSpellChecker, Init)
@@ -117,8 +121,8 @@ mozInlineSpellCheckerConstructor(nsISupports *aOuter, REFNSIID aIID,
 // information like the function to create an instance, contractid, and
 // class name.
 //
-static const nsModuleComponentInfo components[] = {
-#ifdef MOZ_MACBROWSER
+static nsModuleComponentInfo components[] = {
+#ifdef MOZ_WIDGET_COCOA
     {
         "OSX Spell check service",
         MOZ_OSXSPELL_CID,
@@ -132,6 +136,7 @@ static const nsModuleComponentInfo components[] = {
         MOZ_HUNSPELL_CONTRACTID,
         mozHunspellConstructor
     },
+#ifdef MOZ_XUL_APP
     {
         "mozHunspellDirProvider",
         HUNSPELLDIRPROVIDER_CID,
@@ -140,7 +145,8 @@ static const nsModuleComponentInfo components[] = {
         mozHunspellDirProvider::Register,
         mozHunspellDirProvider::Unregister
     },
-#endif // MOZ_MACBROWSER
+#endif // MOZ_XUL_APP
+#endif // MOZ_WIDGET_COCOA
   {
       NULL,
       NS_SPELLCHECKER_CID,

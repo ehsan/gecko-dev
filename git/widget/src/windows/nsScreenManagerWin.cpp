@@ -51,6 +51,18 @@
 
 BOOL CALLBACK CountMonitors ( HMONITOR, HDC, LPRECT, LPARAM ioCount ) ;
 
+
+class ScreenListItem
+{
+public:
+  ScreenListItem ( HMONITOR inMon, nsIScreen* inScreen )
+    : mMon(inMon), mScreen(inScreen) { } ;
+  
+  HMONITOR mMon;
+  nsCOMPtr<nsIScreen> mScreen;
+};
+
+
 nsScreenManagerWin :: nsScreenManagerWin ( )
   : mNumberOfScreens(0)
 {
@@ -62,6 +74,11 @@ nsScreenManagerWin :: nsScreenManagerWin ( )
 
 nsScreenManagerWin :: ~nsScreenManagerWin()
 {
+  // walk our list of cached screens and delete them.
+  for ( int i = 0; i < mScreenList.Count(); ++i ) {
+    ScreenListItem* item = reinterpret_cast<ScreenListItem*>(mScreenList[i]);
+    delete item;
+  }
 }
 
 
@@ -84,16 +101,17 @@ nsScreenManagerWin :: CreateNewScreenObject ( void* inScreen )
   
   // look through our screen list, hoping to find it. If it's not there,
   // add it and return the new one.
-  for ( int i = 0; i < mScreenList.Length(); ++i ) {
-    ScreenListItem& curr = mScreenList[i];
-    if ( inScreen == curr.mMon ) {
-      NS_IF_ADDREF(retScreen = curr.mScreen.get());
+  for ( int i = 0; i < mScreenList.Count(); ++i ) {
+    ScreenListItem* curr = reinterpret_cast<ScreenListItem*>(mScreenList[i]);
+    if ( inScreen == curr->mMon ) {
+      NS_IF_ADDREF(retScreen = curr->mScreen.get());
       return retScreen;
     }
   } // for each screen.
  
   retScreen = new nsScreenWin(inScreen);
-  mScreenList.AppendElement ( ScreenListItem ( (HMONITOR)inScreen, retScreen ) );
+  ScreenListItem* listItem = new ScreenListItem ( (HMONITOR)inScreen, retScreen );
+  mScreenList.AppendElement ( listItem );
 
   NS_IF_ADDREF(retScreen);
   return retScreen;

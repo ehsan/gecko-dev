@@ -52,7 +52,6 @@
 #include "nsIDOMXPathResult.h"
 #include "nsXMLBinding.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIXMLHttpRequest.h"
 
 class nsXULTemplateQueryProcessorXML;
 
@@ -186,8 +185,6 @@ private:
     nsCOMPtr<nsIDOMXPathEvaluator> mEvaluator;
 
     nsCOMPtr<nsIXULTemplateBuilder> mTemplateBuilder;
-
-    nsCOMPtr<nsIXMLHttpRequest> mRequest;
 };
 
 

@@ -54,9 +54,7 @@ function LoadAvailableCharSets()
     var kNC_Root = rdf.GetResource("NC:DecodersRoot");
     var kNC_name = rdf.GetResource("http://home.netscape.com/NC-rdf#Name");
     var rdfDataSource = rdf.GetDataSource("rdf:charset-menu"); 
-    var rdfContainer =
-      Components.classes["@mozilla.org/rdf/container;1"]
-                .createInstance(Components.interfaces.nsIRDFContainer);
+    var rdfContainer = Components.classes["@mozilla.org/rdf/container;1"].getService(Components.interfaces.nsIRDFContainer);
 
     rdfContainer.Init(rdfDataSource, kNC_Root);
     var availableCharsets = rdfContainer.GetElements();
@@ -205,9 +203,12 @@ function AddAvailableCharset()
 function RemoveActiveCharset()
 {
   var listbox = document.getElementById('active_charsets');
-  var numSelectedItems = listbox.selectedItems.length;
+  var nextNode = null;
+  var numSelected = listbox.selectedItems.length;
+  var deleted_all = false;
 
-  for (var count = 0; count < numSelectedItems; count ++) {
+  var numSelectedItems = listbox.selectedItems.length;
+  for (count = 0; count < numSelectedItems; count ++) {
     listbox.removeChild(listbox.selectedItems[0]);
   }
 

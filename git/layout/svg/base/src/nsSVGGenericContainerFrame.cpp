@@ -43,12 +43,10 @@
 // nsSVGGenericContainerFrame Implementation
 
 nsIFrame*
-NS_NewSVGGenericContainerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
+NS_NewSVGGenericContainerFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext)
 {
   return new (aPresShell) nsSVGGenericContainerFrame(aContext);
 }
-
-NS_IMPL_FRAMEARENA_HELPERS(nsSVGGenericContainerFrame)
 
 //----------------------------------------------------------------------
 // nsIFrame methods
@@ -77,10 +75,13 @@ nsSVGGenericContainerFrame::GetType() const
 //----------------------------------------------------------------------
 // nsSVGContainerFrame methods:
 
-gfxMatrix
+already_AddRefed<nsIDOMSVGMatrix>
 nsSVGGenericContainerFrame::GetCanvasTM()
 {
   NS_ASSERTION(mParent, "null parent");
   
-  return static_cast<nsSVGContainerFrame*>(mParent)->GetCanvasTM();  
+  nsSVGContainerFrame *containerFrame = static_cast<nsSVGContainerFrame*>
+                                                   (mParent);
+
+  return containerFrame->GetCanvasTM();  
 }

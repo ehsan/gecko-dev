@@ -71,7 +71,7 @@ static const char kDisableXULCachePref[] = "nglayout.debug.disable_xul_cache";
 
 //----------------------------------------------------------------------
 
-static int
+PR_STATIC_CALLBACK(int)
 DisableXULCacheChangedCallback(const char* aPref, void* aClosure)
 {
     gDisableXULCache =
@@ -270,7 +270,7 @@ nsXULPrototypeCache::GetScript(nsIURI* aURI, PRUint32 *aLangID)
 
 
 /* static */
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 ReleaseScriptObjectCallback(nsIURI* aKey, CacheScriptEntry &aData, void* aClosure)
 {
     nsCOMPtr<nsIScriptRuntime> rt;
@@ -328,7 +328,7 @@ nsXULPrototypeCache::PutXBLDocumentInfo(nsIXBLDocumentInfo* aDocumentInfo)
     return NS_OK;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 FlushSkinXBL(nsIURI* aKey, nsCOMPtr<nsIXBLDocumentInfo>& aDocInfo, void* aClosure)
 {
   nsCAutoString str;
@@ -343,7 +343,7 @@ FlushSkinXBL(nsIURI* aKey, nsCOMPtr<nsIXBLDocumentInfo>& aDocInfo, void* aClosur
   return ret;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 FlushSkinSheets(nsIURI* aKey, nsCOMPtr<nsICSSStyleSheet>& aSheet, void* aClosure)
 {
   nsCOMPtr<nsIURI> uri;
@@ -360,7 +360,7 @@ FlushSkinSheets(nsIURI* aKey, nsCOMPtr<nsICSSStyleSheet>& aSheet, void* aClosure
   return ret;
 }
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 FlushScopedSkinStylesheets(nsIURI* aKey, nsCOMPtr<nsIXBLDocumentInfo> &aDocInfo, void* aClosure)
 {
   aDocInfo->FlushSkinStylesheets();
@@ -581,7 +581,7 @@ nsXULPrototypeCache::StartFastLoadingURI(nsIURI* aURI, PRInt32 aDirectionFlags)
     return gFastLoadService->StartMuxedDocument(aURI, urlspec.get(), aDirectionFlags);
 }
 
-static int
+PR_STATIC_CALLBACK(int)
 FastLoadPrefChangedCallback(const char* aPref, void* aClosure)
 {
     PRBool wasEnabled = !gDisableXULFastLoad;
@@ -610,7 +610,7 @@ class nsXULFastLoadFileIO : public nsIFastLoadFileIO
 {
   public:
     nsXULFastLoadFileIO(nsIFile* aFile)
-      : mFile(aFile), mTruncateOutputFile(true) {
+      : mFile(aFile) {
     }
 
     virtual ~nsXULFastLoadFileIO() {
@@ -622,7 +622,6 @@ class nsXULFastLoadFileIO : public nsIFastLoadFileIO
     nsCOMPtr<nsIFile>         mFile;
     nsCOMPtr<nsIInputStream>  mInputStream;
     nsCOMPtr<nsIOutputStream> mOutputStream;
-    bool mTruncateOutputFile;
 };
 
 
@@ -654,7 +653,7 @@ nsXULFastLoadFileIO::GetOutputStream(nsIOutputStream** aResult)
 {
     if (! mOutputStream) {
         PRInt32 ioFlags = PR_WRONLY;
-        if (mTruncateOutputFile)
+        if (! mInputStream)
             ioFlags |= PR_CREATE_FILE | PR_TRUNCATE;
 
         nsresult rv;
@@ -670,13 +669,6 @@ nsXULFastLoadFileIO::GetOutputStream(nsIOutputStream** aResult)
     }
 
     NS_ADDREF(*aResult = mOutputStream);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULFastLoadFileIO::DisableTruncate()
-{
-    mTruncateOutputFile = false;
     return NS_OK;
 }
 
@@ -774,10 +766,38 @@ nsXULPrototypeCache::StartFastLoad(nsIURI* aURI)
     // Try to read an existent FastLoad file.
     PRBool exists = PR_FALSE;
     if (NS_SUCCEEDED(file->Exists(&exists)) && exists) {
+        nsCOMPtr<nsIInputStream> input;
+        rv = io->GetInputStream(getter_AddRefs(input));
+        if (NS_FAILED(rv))
+            return rv;
+
         nsCOMPtr<nsIObjectInputStream> objectInput;
-        rv = fastLoadService->NewInputStream(file, getter_AddRefs(objectInput));
+        rv = fastLoadService->NewInputStream(input, getter_AddRefs(objectInput));
 
         if (NS_SUCCEEDED(rv)) {
+            if (gChecksumXULFastLoadFile) {
+                nsCOMPtr<nsIFastLoadReadControl>
+                    readControl(do_QueryInterface(objectInput));
+                if (readControl) {
+                    // Verify checksum, using the fastLoadService's checksum
+                    // cache to avoid computing more than once per session.
+                    PRUint32 checksum;
+                    rv = readControl->GetChecksum(&checksum);
+                    if (NS_SUCCEEDED(rv)) {
+                        PRUint32 verified;
+                        rv = fastLoadService->ComputeChecksum(file,
+                                                               readControl,
+                                                               &verified);
+                        if (NS_SUCCEEDED(rv) && verified != checksum) {
+#ifdef DEBUG
+                            printf("bad FastLoad file checksum\n");
+#endif
+                            rv = NS_ERROR_FAILURE;
+                        }
+                    }
+                }
+            }
+
             if (NS_SUCCEEDED(rv)) {
                 // Get the XUL fastload file version number, which should be
                 // decremented whenever the XUL-specific file format changes
@@ -816,6 +836,8 @@ nsXULPrototypeCache::StartFastLoad(nsIURI* aURI)
             // that can't do open-unlink.
             if (objectInput)
                 objectInput->Close();
+            else
+                input->Close();
             xio->mInputStream = nsnull;
 
 #ifdef DEBUG

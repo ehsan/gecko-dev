@@ -24,19 +24,11 @@ richlistitem[type="download"][state="4"] {
 }
 
 richlistitem[type="download"][state="6"] {
-  -moz-binding: url('chrome://mozapps/content/downloads/download.xml#download-blocked-parental');
+  -moz-binding: url('chrome://mozapps/content/downloads/download.xml#download-blocked');
 }
 
 richlistitem[type="download"][state="7"] {
   -moz-binding: url('chrome://mozapps/content/downloads/download.xml#download-scanning');
-}
-
-richlistitem[type="download"][state="8"] {
-  -moz-binding: url('chrome://mozapps/content/downloads/download.xml#download-dirty');
-}
-
-richlistitem[type="download"][state="9"] {
-  -moz-binding: url('chrome://mozapps/content/downloads/download.xml#download-blocked-policy');
 }
 
 /* Only focus buttons in the selected item*/

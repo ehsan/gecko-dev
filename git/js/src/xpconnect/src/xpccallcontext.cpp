@@ -60,63 +60,12 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
         mCallerLanguage(callerLanguage),
         mCallee(nsnull)
 {
-    Init(callerLanguage, callerLanguage == NATIVE_CALLER, obj, funobj, JS_TRUE,
-         name, argc, argv, rval);
-}
-
-XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
-                               JSContext* cx,
-                               JSBool callBeginRequest,
-                               JSObject* obj,
-                               JSObject* currentJSObject,
-                               XPCWrappedNative* wrapper,
-                               XPCWrappedNativeTearOff* tearOff)
-    :   mState(INIT_FAILED),
-        mXPC(nsXPConnect::GetXPConnect()),
-        mThreadData(nsnull),
-        mXPCContext(nsnull),
-        mJSContext(cx),
-        mContextPopRequired(JS_FALSE),
-        mDestroyJSContextInDestructor(JS_FALSE),
-        mCallerLanguage(callerLanguage),
-        mCurrentJSObject(currentJSObject),
-        mWrapper(wrapper),
-        mTearOff(tearOff),
-        mCallee(nsnull)
-{
-    Init(callerLanguage, callBeginRequest, obj, nsnull, JS_FALSE, 0, NO_ARGS,
-         nsnull, nsnull);
-}
-
-void
-XPCCallContext::Init(XPCContext::LangType callerLanguage,
-                     JSBool callBeginRequest,
-                     JSObject* obj,
-                     JSObject* funobj,
-                     JSBool getWrappedNative,
-                     jsval name,
-                     uintN argc,
-                     jsval *argv,
-                     jsval *rval)
-{
-    // Mark our internal string wrappers as not used. Make sure we do
-    // this before any early returns, as the destructor will assert
-    // based on this.
-    StringWrapperEntry *se =
-        reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
-
-    PRUint32 i;
-    for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
-    {
-        se[i].mInUse = PR_FALSE;
-    }
-
     if(!mXPC)
         return;
 
-    mThreadData = XPCPerThreadData::GetData(mJSContext);
+    NS_ADDREF(mXPC);
 
-    if(!mThreadData)
+    if(!(mThreadData = XPCPerThreadData::GetData()))
         return;
 
     XPCJSContextStack* stack = mThreadData->GetJSContextStack();
@@ -124,8 +73,7 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
 
     if(!stack || NS_FAILED(stack->Peek(&topJSContext)))
     {
-        // If we don't have a stack we're probably in shutdown.
-        NS_ASSERTION(!stack, "Bad, Peek failed!");
+        NS_ERROR("bad!");
         mJSContext = nsnull;
         return;
     }
@@ -149,9 +97,7 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
     // Get into the request as early as we can to avoid problems with scanning
     // callcontexts on other threads from within the gc callbacks.
 
-    NS_ASSERTION(!callBeginRequest || mCallerLanguage == NATIVE_CALLER,
-                 "Don't call JS_BeginRequest unless the caller is native.");
-    if(callBeginRequest)
+    if(mCallerLanguage == NATIVE_CALLER)
         JS_BeginRequest(mJSContext);
 
     if(topJSContext != mJSContext)
@@ -164,16 +110,24 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
         mContextPopRequired = JS_TRUE;
     }
 
-    mXPCContext = XPCContext::GetXPCContext(mJSContext);
+    // Try to get the JSContext -> XPCContext mapping from the cache.
+    // FWIW... quicky tests show this hitting ~ 95% of the time.
+    // That is a *lot* of locking we can skip in nsXPConnect::GetContext.
+    mXPCContext = mThreadData->GetRecentXPCContext(mJSContext);
+
+    if(!mXPCContext)
+    {
+        if(!(mXPCContext = nsXPConnect::GetContext(mJSContext, mXPC)))
+            return;
+
+        // Fill the cache.
+        mThreadData->SetRecentContext(mJSContext, mXPCContext);
+    }
+
     mPrevCallerLanguage = mXPCContext->SetCallingLangType(mCallerLanguage);
 
     // hook into call context chain for our thread
     mPrevCallContext = mThreadData->SetCallContext(this);
-
-    // We only need to addref xpconnect once so only do it if this is the first
-    // context in the chain.
-    if(!mPrevCallContext)
-        NS_ADDREF(mXPC);
 
     mState = HAVE_CONTEXT;
 
@@ -186,39 +140,21 @@ XPCCallContext::Init(XPCContext::LangType callerLanguage,
     mState = HAVE_OBJECT;
 
     mTearOff = nsnull;
+    mWrapper = XPCWrappedNative::GetWrappedNativeOfJSObject(mJSContext, obj,
+                                                            funobj,
+                                                            &mCurrentJSObject,
+                                                            &mTearOff);
+    if(!mWrapper)
+        return;
 
-    if(getWrappedNative)
-        mWrapper = XPCWrappedNative::GetWrappedNativeOfJSObject(mJSContext, obj,
-                                                                funobj,
-                                                                &mCurrentJSObject,
-                                                                &mTearOff);
-    if(mWrapper)
-    {
-        DEBUG_CheckWrapperThreadSafety(mWrapper);
+    DEBUG_CheckWrapperThreadSafety(mWrapper);
 
-        mFlattenedJSObject = mWrapper->GetFlatJSObject();
+    mFlattenedJSObject = mWrapper->GetFlatJSObject();
 
-        if(mTearOff)
-        {
-            mCurrentJSObject = mTearOff->GetJSObject();
-            mScriptableInfo = nsnull;
-        }
-        else
-        {
-            mWrapper->GetJSObject(&mCurrentJSObject);
-            mScriptableInfo = mWrapper->GetScriptableInfo();
-        }
-    }
+    if(mTearOff)
+        mScriptableInfo = nsnull;
     else
-    {
-        if(!mCurrentJSObject)
-            return;
-
-        NS_ASSERTION(IS_SLIM_WRAPPER(mCurrentJSObject),
-                     "What kind of wrapper is this?");
-
-        mFlattenedJSObject = mCurrentJSObject;
-    }
+        mScriptableInfo = mWrapper->GetScriptableInfo();
 
     if(name)
         SetName(name);
@@ -277,8 +213,6 @@ void
 XPCCallContext::SetCallInfo(XPCNativeInterface* iface, XPCNativeMember* member,
                             JSBool isSetter)
 {
-    CHECK_STATE(HAVE_CONTEXT);
-
     // We are going straight to the method info and need not do a lookup
     // by id.
 
@@ -306,22 +240,11 @@ XPCCallContext::SetArgsAndResultPtr(uintN argc,
 {
     CHECK_STATE(HAVE_OBJECT);
 
-    if(mState < HAVE_NAME)
-    {
-        mSet = nsnull;
-        mInterface = nsnull;
-        mMember = nsnull;
-#ifdef XPC_IDISPATCH_SUPPORT
-        mIDispatchMember = nsnull;
-#endif
-        mStaticMemberIsLocal = JS_FALSE;
-    }
-
     mArgc   = argc;
     mArgv   = argv;
     mRetVal = rval;
 
-    mReturnValueWasSet = JS_FALSE;
+    mExceptionWasThrown = mReturnValueWasSet = JS_FALSE;
     mState = HAVE_ARGS;
 }
 
@@ -368,9 +291,9 @@ XPCCallContext::SystemIsBeingShutDown()
 
 XPCCallContext::~XPCCallContext()
 {
-    // do cleanup...
+    NS_ASSERTION(mRefCnt == 0, "Someone is holding a bad reference to a XPCCallContext");
 
-    PRBool shouldReleaseXPC = PR_FALSE;
+    // do cleanup...
 
     if(mXPCContext)
     {
@@ -382,8 +305,6 @@ XPCCallContext::~XPCCallContext()
 #else
         (void) mThreadData->SetCallContext(mPrevCallContext);
 #endif
-
-        shouldReleaseXPC = mPrevCallContext == nsnull;
     }
 
     if(mContextPopRequired)
@@ -410,7 +331,7 @@ XPCCallContext::~XPCCallContext()
         if(mDestroyJSContextInDestructor)
         {
 #ifdef DEBUG_xpc_hacker
-            printf("!xpc - doing deferred destruction of JSContext @ %p\n", 
+            printf("!xpc - doing deferred destruction of JSContext @ %0x\n", 
                    mJSContext);
 #endif
             NS_ASSERTION(!mThreadData->GetJSContextStack() || 
@@ -419,85 +340,33 @@ XPCCallContext::~XPCCallContext()
                          "JSContext still in threadjscontextstack!");
         
             JS_DestroyContext(mJSContext);
+            mXPC->SyncJSContexts();
         }
         else
         {
             // Don't clear newborns if JS frames (compilation or execution)
             // are active!  Doing so violates ancient invariants in the JS
             // engine, and it's not necessary to fix JS component leaks.
-            if(!JS_IsRunning(mJSContext))
+            if (!mJSContext->fp)
                 JS_ClearNewbornRoots(mJSContext);
         }
     }
 
-#ifdef DEBUG
-    {
-        StringWrapperEntry *se =
-            reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
-
-        PRUint32 i;
-        for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
-        {
-            NS_ASSERTION(!se[i].mInUse, "Uh, string wrapper still in use!");
-        }
-    }
-#endif
-
-    if(shouldReleaseXPC && mXPC)
-        NS_RELEASE(mXPC);
+    NS_IF_RELEASE(mXPC);
 }
 
-XPCReadableJSStringWrapper *
-XPCCallContext::NewStringWrapper(PRUnichar *str, PRUint32 len)
+NS_IMPL_QUERY_INTERFACE1(XPCCallContext, nsIXPCNativeCallContext)
+NS_IMPL_ADDREF(XPCCallContext)
+
+NS_IMETHODIMP_(nsrefcnt)
+XPCCallContext::Release(void)
 {
-    StringWrapperEntry *se =
-        reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
-
-    PRUint32 i;
-    for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
-    {
-        StringWrapperEntry& ent = se[i];
-
-        if(!ent.mInUse)
-        {
-            ent.mInUse = PR_TRUE;
-
-            // Construct the string using placement new.
-
-            return new (&ent.mString) XPCReadableJSStringWrapper(str, len);
-        }
-    }
-
-    // All our internal string wrappers are used, allocate a new string.
-
-    return new XPCReadableJSStringWrapper(str, len);
-}
-
-void
-XPCCallContext::DeleteString(nsAString *string)
-{
-    StringWrapperEntry *se =
-        reinterpret_cast<StringWrapperEntry*>(&mStringWrapperData);
-
-    PRUint32 i;
-    for(i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i)
-    {
-        StringWrapperEntry& ent = se[i];
-        if(string == &ent.mString)
-        {
-            // One of our internal strings is no longer in use, mark
-            // it as such and destroy the string.
-
-            ent.mInUse = PR_FALSE;
-            ent.mString.~XPCReadableJSStringWrapper();
-
-            return;
-        }
-    }
-
-    // We're done with a string that's not one of our internal
-    // strings, delete it.
-    delete string;
+  NS_PRECONDITION(0 != mRefCnt, "dup release");
+  NS_ASSERT_OWNINGTHREAD(XPCCallContext);
+  --mRefCnt;
+  NS_LOG_RELEASE(this, mRefCnt, "XPCCallContext");
+  // no delete this!
+  return mRefCnt;
 }
 
 /* readonly attribute nsISupports Callee; */
@@ -580,6 +449,20 @@ XPCCallContext::GetRetValPtr(jsval * *aRetValPtr)
     return NS_OK;
 }
 
+/* attribute PRBool ExceptionWasThrown; */
+NS_IMETHODIMP
+XPCCallContext::GetExceptionWasThrown(PRBool *aExceptionWasThrown)
+{
+    *aExceptionWasThrown = mExceptionWasThrown;
+    return NS_OK;
+}
+NS_IMETHODIMP
+XPCCallContext::SetExceptionWasThrown(PRBool aExceptionWasThrown)
+{
+    mExceptionWasThrown = aExceptionWasThrown;
+    return NS_OK;
+}
+
 /* attribute PRBool ReturnValueWasSet; */
 NS_IMETHODIMP
 XPCCallContext::GetReturnValueWasSet(PRBool *aReturnValueWasSet)
@@ -600,8 +483,6 @@ void
 XPCCallContext::SetIDispatchInfo(XPCNativeInterface* iface, 
                                  void * member)
 {
-    CHECK_STATE(HAVE_CONTEXT);
-
     // We are going straight to the method info and need not do a lookup
     // by id.
 
@@ -619,36 +500,4 @@ XPCCallContext::SetIDispatchInfo(XPCNativeInterface* iface,
         mState = HAVE_NAME;
 }
 
-#endif
-
-NS_IMETHODIMP
-XPCCallContext::GetPreviousCallContext(nsAXPCNativeCallContext **aResult)
-{
-  NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = GetPrevCallContext();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-XPCCallContext::GetLanguage(PRUint16 *aResult)
-{
-  NS_ENSURE_ARG_POINTER(aResult);
-  *aResult = GetCallerLanguage();
-  return NS_OK;
-}
-
-#ifdef DEBUG
-// static
-void
-XPCLazyCallContext::AssertContextIsTopOfStack(JSContext* cx)
-{
-    XPCPerThreadData* tls = XPCPerThreadData::GetData(cx);
-    XPCJSContextStack* stack = tls->GetJSContextStack();
-
-    JSContext* topJSContext;
-    nsresult rv = stack->Peek(&topJSContext);
-    NS_ASSERTION(NS_SUCCEEDED(rv), "XPCJSContextStack::Peek failed");
-
-    NS_ASSERTION(cx == topJSContext, "wrong context on XPCJSContextStack!");
-}
 #endif

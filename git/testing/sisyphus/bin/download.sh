@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/local/bin/bash -e
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -36,8 +36,6 @@
 # the terms of any one of the MPL, the GPL or the LGPL.
 #
 # ***** END LICENSE BLOCK *****
-
-source $TEST_DIR/bin/library.sh
 
 args=$@
 script=`basename $0`
@@ -90,7 +88,12 @@ while getopts $options optname ;
 done
 
 # include environment variables
-loaddata $datafiles
+if [[ -n "$datafiles" ]]; then
+    for datafile in $datafiles; do 
+        cat $datafile | sed 's|^|data: |'
+        source $datafile
+    done
+fi
 
 if [[ -z $url || -z $filepath ]]
     then

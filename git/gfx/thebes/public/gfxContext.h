@@ -98,11 +98,6 @@ public:
     cairo_t *GetCairo() { return mCairo; }
 
     /**
-     * Returns true if the cairo context is in an error state.
-     */
-    PRBool HasError();
-
-    /**
      ** State
      **/
     // XXX document exactly what bits are saved
@@ -141,16 +136,6 @@ public:
     void ClosePath();
 
     /**
-     * Copies the current path and returns the copy.
-     */
-    already_AddRefed<gfxPath> CopyPath() const;
-
-    /**
-     * Appends the given path to the current path.
-     */
-    void AppendPath(gfxPath* path);
-
-    /**
      * Moves the pen to a new point without drawing a line.
      */
     void MoveTo(const gfxPoint& pt);
@@ -174,14 +159,9 @@ public:
     void LineTo(const gfxPoint& pt);
 
     /**
-     * Draws a cubic Bézier curve with control points pt1, pt2 and pt3.
-     */
-    void CurveTo(const gfxPoint& pt1, const gfxPoint& pt2, const gfxPoint& pt3);
-
-    /**
      * Draws a quadratic Bézier curve with control points pt1, pt2 and pt3.
      */
-    void QuadraticCurveTo(const gfxPoint& pt1, const gfxPoint& pt2);
+    void CurveTo(const gfxPoint& pt1, const gfxPoint& pt2, const gfxPoint& pt3);
 
     /**
      * Draws a clockwise arc (i.e. a circle segment).
@@ -215,31 +195,8 @@ public:
      * @param snapToPixels ?
      */
     void Rectangle(const gfxRect& rect, PRBool snapToPixels = PR_FALSE);
-
-    /**
-     * Draw an ellipse at the center corner with the given dimensions.
-     * It extends dimensions.width / 2.0 in the horizontal direction
-     * from the center, and dimensions.height / 2.0 in the vertical
-     * direction.
-     */
     void Ellipse(const gfxPoint& center, const gfxSize& dimensions);
-
-    /**
-     * Draw a polygon from the given points
-     */
     void Polygon(const gfxPoint *points, PRUint32 numPoints);
-
-    /*
-     * Draw a rounded rectangle, with the given outer rect and
-     * corners.  The corners specify the radii of the two axes of an
-     * ellipse (the horizontal and vertical directions given by the
-     * width and height, respectively).  By default the ellipse is
-     * drawn in a clockwise direction; if draw_clockwise is PR_FALSE,
-     * then it's drawn counterclockwise.
-     */
-    void RoundedRectangle(const gfxRect& rect,
-                          const gfxCornerSizes& corners,
-                          PRBool draw_clockwise = PR_TRUE);
 
     /**
      ** Transformation Matrix manipulation
@@ -319,9 +276,9 @@ public:
     gfxSize UserToDevice(const gfxSize& size) const;
 
     /**
-     * Converts a rectangle from user to device coordinates.  The
-     * resulting rectangle is the minimum device-space rectangle that
-     * encloses the user-space rectangle given.
+     * Converts a rectangle from user to device coordinates; this has the
+     * same effect as using UserToDevice on both the rectangle's point and
+     * size.
      */
     gfxRect UserToDevice(const gfxRect& rect) const;
 
@@ -331,25 +288,8 @@ public:
      * be in device coordinates (already transformed by the CTM).  If it 
      * fails, the method will return PR_FALSE, and the rect will not be
      * changed.
-     *
-     * If ignoreScale is PR_TRUE, then snapping will take place even if
-     * the CTM has a scale applied.  Snapping never takes place if
-     * there is a rotation in the CTM.
      */
-    PRBool UserToDevicePixelSnapped(gfxRect& rect, PRBool ignoreScale = PR_FALSE) const;
-
-    /**
-     * Takes the given point and tries to align it to device pixels.  If
-     * this succeeds, the method will return PR_TRUE, and the point will
-     * be in device coordinates (already transformed by the CTM).  If it 
-     * fails, the method will return PR_FALSE, and the point will not be
-     * changed.
-     *
-     * If ignoreScale is PR_TRUE, then snapping will take place even if
-     * the CTM has a scale applied.  Snapping never takes place if
-     * there is a rotation in the CTM.
-     */
-    PRBool UserToDevicePixelSnapped(gfxPoint& pt, PRBool ignoreScale = PR_FALSE) const;
+    PRBool UserToDevicePixelSnapped(gfxRect& rect) const;
 
     /**
      * Attempts to pixel snap the rectangle, add it to the current
@@ -365,31 +305,22 @@ public:
      **/
 
     /**
-     * Set a solid color to use for drawing.  This color is in the device color space
-     * and is not transformed.
+     * Uses a solid color for drawing.
      */
-    void SetDeviceColor(const gfxRGBA& c);
+    void SetColor(const gfxRGBA& c);
 
     /**
-     * Gets the current color.  It's returned in the device color space.
+     * Gets the current color.
      * returns PR_FALSE if there is something other than a color
      *         set as the current source (pattern, surface, etc)
      */
-    PRBool GetDeviceColor(gfxRGBA& c);
-
-    /**
-     * Set a solid color in the sRGB color space to use for drawing.
-     * If CMS is not enabled, the color is treated as a device-space color
-     * and this call is identical to SetDeviceColor().
-     */
-    void SetColor(const gfxRGBA& c);
+    PRBool GetColor(gfxRGBA& c);
 
     /**
      * Uses a surface for drawing. This is a shorthand for creating a
      * pattern and setting it.
      *
-     * @param offset from the source surface, to use only part of it.
-     *        May need to make it negative.
+     * @param offset ?
      */
     void SetSource(gfxASurface *surface, const gfxPoint& offset = gfxPoint(0.0, 0.0));
 
@@ -529,10 +460,6 @@ public:
      * how drawing something will modify the destination. For example, the
      * OVER operator will do alpha blending of source and destination, while
      * SOURCE will replace the destination with the source.
-     *
-     * Note that if the flag FLAG_SIMPLIFY_OPERATORS is set on this
-     * gfxContext, the actual operator set might change for optimization
-     * purposes.  Check the comments below around that flag.
      */
     void SetOperator(GraphicsOperator op);
     GraphicsOperator CurrentOperator() const;
@@ -578,8 +505,7 @@ public:
     void UpdateSurfaceClip();
 
     /**
-     * This will return the current bounds of the clip region in user
-     * space.
+     * This will return the current bounds of the clip region.
      */
     gfxRect GetClipExtents();
 
@@ -599,7 +525,6 @@ public:
     /**
      ** Extents - returns user space extent of current path
      **/
-    gfxRect GetUserPathExtent();
     gfxRect GetUserFillExtent();
     gfxRect GetUserStrokeExtent();
 
@@ -608,175 +533,9 @@ public:
      **/
     already_AddRefed<gfxFlattenedPath> GetFlattenedPath();
 
-    /**
-     ** Flags
-     **/
-
-    enum {
-        /* If this flag is set, operators other than CLEAR, SOURCE, or
-         * OVER will be converted to OVER before being sent to cairo.
-         *
-         * This is most useful with a printing surface, where
-         * operators such as ADD are used to avoid seams for on-screen
-         * display, but where such errors aren't noticeable in print.
-         * This approach is currently used in border rendering.
-         *
-         * However, when printing complex renderings such as SVG,
-         * care should be taken to clear this flag.
-         */
-        FLAG_SIMPLIFY_OPERATORS = (1 << 0),
-        /**
-         * When this flag is set, snapping to device pixels is disabled.
-         * It simply never does anything.
-         */
-        FLAG_DISABLE_SNAPPING = (1 << 1),
-        /**
-         * When this flag is set, rendering through this context
-         * is destined to be (eventually) drawn on the screen. It can be
-         * useful to know this, for example so that windowed plugins are
-         * not unnecessarily rendered (since they will already appear
-         * on the screen, thanks to their windows).
-         */
-        FLAG_DESTINED_FOR_SCREEN = (1 << 2)
-    };
-
-    void SetFlag(PRInt32 aFlag) { mFlags |= aFlag; }
-    void ClearFlag(PRInt32 aFlag) { mFlags &= ~aFlag; }
-    PRInt32 GetFlags() const { return mFlags; }
-
 private:
     cairo_t *mCairo;
     nsRefPtr<gfxASurface> mSurface;
-    PRInt32 mFlags;
-};
-
-
-/**
- * Sentry helper class for functions with multiple return points that need to
- * call Save() on a gfxContext and have Restore() called automatically on the
- * gfxContext before they return.
- */
-class THEBES_API gfxContextAutoSaveRestore
-{
-public:
-  gfxContextAutoSaveRestore() : mContext(nsnull) {}
-
-  gfxContextAutoSaveRestore(gfxContext *aContext) : mContext(aContext) {
-    mContext->Save();
-  }
-
-  ~gfxContextAutoSaveRestore() {
-    if (mContext) {
-      mContext->Restore();
-    }
-  }
-
-  void SetContext(gfxContext *aContext) {
-    NS_ASSERTION(!mContext, "Not going to call Restore() on some context!!!");
-    mContext = aContext;
-    mContext->Save();    
-  }
-
-  void Reset(gfxContext *aContext) {
-    // Do the equivalent of destroying and re-creating this object.
-    NS_PRECONDITION(aContext, "must provide a context");
-    if (mContext) {
-      mContext->Restore();
-    }
-    mContext = aContext;
-    mContext->Save();
-  }
-
-private:
-  gfxContext *mContext;
-};
-
-/**
- * Sentry helper class for functions with multiple return points that need to
- * back up the current path of a context and have it automatically restored
- * before they return. This class assumes that the transformation matrix will
- * be the same when Save and Restore are called. The calling function must
- * ensure that this is the case or the path will be copied incorrectly.
- */
-class THEBES_API gfxContextPathAutoSaveRestore
-{
-public:
-    gfxContextPathAutoSaveRestore() : mContext(nsnull) {}
-
-    gfxContextPathAutoSaveRestore(gfxContext *aContext, PRBool aSave = PR_TRUE) : mContext(aContext)
-    {
-        if (aSave)
-            Save();       
-    }
-
-    ~gfxContextPathAutoSaveRestore()
-    {
-        Restore();
-    }
-
-    void SetContext(gfxContext *aContext, PRBool aSave = PR_TRUE)
-    {
-        mContext = aContext;
-        if (aSave)
-            Save();
-    }
-
-    /**
-     * If a path is already saved, does nothing. Else copies the current path
-     * so that it may be restored.
-     */
-    void Save()
-    {
-        if (!mPath && mContext) {
-            mPath = mContext->CopyPath();
-        }
-    }
-
-    /**
-     * If no path is saved, does nothing. Else replaces the context's path with
-     * a copy of the saved one, and clears the saved path.
-     */
-    void Restore()
-    {
-        if (mPath) {
-            mContext->NewPath();
-            mContext->AppendPath(mPath);
-            mPath = nsnull;
-        }
-    }
-
-private:
-    gfxContext *mContext;
-
-    nsRefPtr<gfxPath> mPath;
-};
-
-/**
- * Sentry helper class for functions with multiple return points that need to
- * back up the current matrix of a context and have it automatically restored
- * before they return.
- */
-class THEBES_API gfxContextMatrixAutoSaveRestore
-{
-public:
-    gfxContextMatrixAutoSaveRestore(gfxContext *aContext) :
-        mContext(aContext), mMatrix(aContext->CurrentMatrix())
-    {
-    }
-
-    ~gfxContextMatrixAutoSaveRestore()
-    {
-        mContext->SetMatrix(mMatrix);
-    }
-
-    const gfxMatrix& Matrix()
-    {
-        return mMatrix;
-    }
-
-private:
-    gfxContext *mContext;
-    gfxMatrix   mMatrix;
 };
 
 #endif /* GFX_CONTEXT_H */

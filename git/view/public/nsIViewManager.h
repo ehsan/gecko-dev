@@ -40,6 +40,7 @@
 
 #include "nscore.h"
 #include "nsIView.h"
+#include "nsColor.h"
 #include "nsEvent.h"
 #include "nsIRenderingContext.h"
 
@@ -59,9 +60,10 @@ enum nsRectVisibility {
   nsRectVisibility_kZeroAreaRect
 }; 
 
+// 5a1e80e1-b51c-4f43-8950-1064bd1f39ee
 #define NS_IVIEWMANAGER_IID   \
-  { 0xe1f3095c, 0x65cd, 0x46e1, \
-    { 0x9d, 0x70, 0x88, 0xcf, 0x54, 0x19, 0x9d, 0x05 } }
+{ 0x5a1e80e1, 0xb51c, 0x4f43, \
+  { 0x89, 0x50, 0x10, 0x64, 0xbd, 0x1f, 0x39, 0xee } }
 
 class nsIViewManager : public nsISupports
 {
@@ -137,11 +139,6 @@ public:
   NS_IMETHOD  SetWindowDimensions(nscoord aWidth, nscoord aHeight) = 0;
 
   /**
-   * Do any resizes that are pending.
-   */
-  NS_IMETHOD  FlushDelayedResize() = 0;
-
-  /**
    * Called to force a redrawing of any dirty areas.
    */
   // XXXbz why is this exposed?  Shouldn't update view batches handle this?
@@ -180,12 +177,25 @@ public:
    * Called to dispatch an event to the appropriate view. Often called
    * as a result of receiving a mouse or keyboard event from the widget
    * event system.
-   * @param aEvent event to dispatch
-   * @param aViewTarget dispatch the event to this view
-   * @param aStatus event handling status
+   * @param event event to dispatch
+   * @result event handling status
    */
-  NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent,
-      nsIView* aViewTarget, nsEventStatus* aStatus) = 0;
+  NS_IMETHOD  DispatchEvent(nsGUIEvent *aEvent, nsEventStatus* aStatus) = 0;
+
+  /**
+   * Used to grab/capture all mouse events for a specific view,
+   * irrespective of the cursor position at which the
+   * event occurred.
+   * @param aView view to capture mouse events
+   * @result event handling status
+   */
+  NS_IMETHOD  GrabMouseEvents(nsIView *aView, PRBool& aResult) = 0;
+
+  /**
+   * Get the current view, if any, that's capturing mouse events.
+   * @result view that is capturing mouse events or nsnull
+   */
+  NS_IMETHOD  GetMouseEventGrabber(nsIView *&aView) = 0;
 
   /**
    * Given a parent view, insert another view as its child.
@@ -241,12 +251,7 @@ public:
                          PRBool aRepaintExposedAreaOnly = PR_FALSE) = 0;
 
   /**
-   * Set the visibility of a view. Hidden views have the effect of hiding
-   * their descendants as well. This does not affect painting, so layout
-   * is responsible for ensuring that content in hidden views is not
-   * painted nor handling events. It does affect the visibility of widgets;
-   * if a view is hidden, descendant views with widgets have their widgets
-   * hidden.
+   * Set the visibility of a view.
    * The view manager generates the appropriate dirty regions.
    * @param aView view to change visibility state of
    * @param visible new visibility state
@@ -317,34 +322,13 @@ public:
    */
   NS_IMETHOD EnableRefresh(PRUint32 aUpdateFlags) = 0;
 
-  class NS_STACK_CLASS UpdateViewBatch {
-  public:
-    UpdateViewBatch() {}
   /**
    * prevents the view manager from refreshing. allows UpdateView()
    * to notify widgets of damaged regions that should be repainted
-   * when the batch is ended. Call EndUpdateViewBatch on this object
-   * before it is destroyed
+   * when the batch is ended.
    * @return error status
    */
-    UpdateViewBatch(nsIViewManager* aVM) {
-      if (aVM) {
-        mRootVM = aVM->BeginUpdateViewBatch();
-      }
-    }
-    ~UpdateViewBatch() {
-      NS_ASSERTION(!mRootVM, "Someone forgot to call EndUpdateViewBatch!");
-    }
-    
-    /**
-     * See the constructor, this lets you "fill in" a blank UpdateViewBatch.
-     */
-    void BeginUpdateViewBatch(nsIViewManager* aVM) {
-      NS_ASSERTION(!mRootVM, "already started a batch!");
-      if (aVM) {
-        mRootVM = aVM->BeginUpdateViewBatch();
-      }
-    }
+  NS_IMETHOD BeginUpdateViewBatch(void) = 0;
 
   /**
    * allow the view manager to refresh any damaged areas accumulated
@@ -368,27 +352,7 @@ public:
    * @param aUpdateFlags see bottom of nsIViewManager.h for
    * description @return error status
    */
-    void EndUpdateViewBatch(PRUint32 aUpdateFlags) {
-      if (!mRootVM)
-        return;
-      mRootVM->EndUpdateViewBatch(aUpdateFlags);
-      mRootVM = nsnull;
-    }
-
-  private:
-    UpdateViewBatch(const UpdateViewBatch& aOther);
-    const UpdateViewBatch& operator=(const UpdateViewBatch& aOther);
-
-    nsCOMPtr<nsIViewManager> mRootVM;
-  };
-  
-private:
-  friend class UpdateViewBatch;
-
-  virtual nsIViewManager* BeginUpdateViewBatch(void) = 0;
   NS_IMETHOD EndUpdateViewBatch(PRUint32 aUpdateFlags) = 0;
-
-public:
 
   /**
    * set the view that is is considered to be the root scrollable
@@ -407,10 +371,11 @@ public:
   NS_IMETHOD GetRootScrollableView(nsIScrollableView **aScrollable) = 0;
 
   /**
-   * Retrieve the widget at the root of the nearest enclosing
-   * view manager whose root view has a widget.
+   * Retrieve the widget at the root of the view manager. This is the
+   * widget associated with the root view, if the root view exists and has
+   * a widget.
    */
-  NS_IMETHOD GetRootWidget(nsIWidget **aWidget) = 0;
+  NS_IMETHOD GetWidget(nsIWidget **aWidget) = 0;
 
   /**
    * Force update of view manager widget
@@ -429,6 +394,22 @@ public:
    *                  PR_FALSE otherwise
    */
   NS_IMETHOD IsPainting(PRBool& aIsPainting)=0;
+
+  /**
+   * Set the default background color that the view manager should use
+   * to paint otherwise unowned areas. If the color isn't known, just set
+   * it to zero (which means 'transparent' since the color is RGBA).
+   *
+   * @param aColor the default background color
+   */
+  NS_IMETHOD SetDefaultBackgroundColor(nscolor aColor)=0;
+
+  /**
+   * Retrieve the default background color.
+   *
+   * @param aColor the default background color
+   */
+  NS_IMETHOD GetDefaultBackgroundColor(nscolor* aColor)=0;
 
   /**
    * Retrieve the time of the last user event. User events
@@ -450,7 +431,7 @@ public:
    *                        otherwise it returns an enum indicating why not
    */
   NS_IMETHOD GetRectVisibility(nsIView *aView, const nsRect &aRect, 
-                               nscoord aMinTwips,
+                               PRUint16 aMinTwips, 
                                nsRectVisibility *aRectVisibility)=0;
 
   /**
@@ -459,7 +440,6 @@ public:
    * (aFromScroll is false) or scrolled (aFromScroll is true).
    */
   NS_IMETHOD SynthesizeMouseMove(PRBool aFromScroll)=0;
-
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIViewManager, NS_IVIEWMANAGER_IID)

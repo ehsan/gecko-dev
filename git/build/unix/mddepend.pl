@@ -46,100 +46,65 @@
 #
 # Send comments, improvements, bugs to Steve Lamm (slamm@netscape.com).
 
-use strict;
+#$debug = 1;
 
-use constant DEBUG => 0;
-
-my $outfile = shift @ARGV;
+$outfile = shift @ARGV;
 my $silent = $ENV{MAKEFLAGS} =~ /^\w*s|\s-s/;
 
-my $line = '';
-my %alldeps;
+%alldeps={};
 # Parse dependency files
-while (<>) {
-  s/\r?\n$//; # Handle both unix and DOS line endings
-  $line .= $_;
+while ($line = <>) {
+  chomp $line;
+  # Remove extra ^M caused by using dos-mode line-endings
+  chop $line if (substr($line, -1, 1) eq "\r");
+  ($obj,$rest) = split /\s*:\s+/, $line, 2;
+  next if $obj eq '';
+
   if ($line =~ /\\$/) {
-    chop $line;
-    next;
+    chop $rest;
+    $hasSlash = 1;
+  } else {
+    $hasSlash = 0;
   }
+  push @{$alldeps{$obj}}, split /\s+/, $rest;
+  print "add $obj $rest\n" if $debug;
 
-  $line =~ s|\\|/|g;
-
-  my ($obj,$rest) = split /\s*:\s+/, $line, 2;
-  $line = '';
-  next if !$obj || !$rest;
-
-  my @deps = split /\s+/, $rest;
-  push @{$alldeps{$obj}}, @deps;
-  if (DEBUG >= 2) {
-    foreach my $dep (@deps) { print STDERR "add $obj $dep\n"; }
+  while ($hasSlash and $line = <>) {
+    chomp $line;
+    if ($line =~ /\\$/) {
+      chop $line;
+    } else {
+      $hasSlash = 0;
+    }
+    $line =~ s/^\s+//;
+    push @{$alldeps{$obj}}, split /\s+/, $line;
+    print "add $obj $line\n" if $debug;
   }
 }
 
 # Test dependencies
-my %modtimes; # cache
-my @objs;     # force rebuild on these
-OBJ_LOOP: foreach my $obj (keys %alldeps) {
-  my $mtime = (stat $obj)[9] or next;
+foreach $obj (keys %alldeps) {
+  $deps = $alldeps{$obj};
 
-  my %not_in_cache;
-  my $deps = $alldeps{$obj};
-  foreach my $dep_file (@{$deps}) {
-    my $dep_mtime = $modtimes{$dep_file};
-    if (not defined $dep_mtime) {
-      print STDERR "Skipping $dep_file for $obj, will stat() later\n" if DEBUG >= 2;
-      $not_in_cache{$dep_file} = 1;
-      next;
-    }
+  $mtime = (stat $obj)[9] or next;
 
-    print STDERR "Found $dep_file in cache\n" if DEBUG >= 2;
-
-    if ($dep_mtime > $mtime) {
-      print STDERR "$dep_file($dep_mtime) newer than $obj($mtime)\n" if DEBUG;
+  foreach $dep_file (@{$deps}) {
+    if (not defined($dep_mtime = $modtimes{$dep_file})) {
+      $dep_mtime = (stat $dep_file)[9];
+      $modtimes{$dep_file} = $dep_mtime;
     }
-    elsif ($dep_mtime == -1) {
-      print STDERR "Couldn't stat $dep_file for $obj\n" if DEBUG;
+    if ($dep_mtime ne '' and $dep_mtime > $mtime) {
+      print "$obj($mtime) older than $dep_file($dep_mtime)\n" if $debug;
+      push @objs, $obj;
+      # Object will be marked for rebuild. No need to check other dependencies.
+      last;
     }
-    else {
-      print STDERR "$dep_file($dep_mtime) older than $obj($mtime)\n" if DEBUG >= 2;
-      next;
-    }
-
-    push @objs, $obj; # dependency is missing or newer
-    next OBJ_LOOP; # skip checking the rest of the dependencies
   }
-
-  foreach my $dep_file (keys %not_in_cache) {
-    print STDERR "STAT $dep_file for $obj\n" if DEBUG >= 2;
-    my $dep_mtime = $modtimes{$dep_file} = (stat $dep_file)[9] || -1;
-
-    if ($dep_mtime > $mtime) {
-      print STDERR "$dep_file($dep_mtime) newer than $obj($mtime)\n" if DEBUG;
-    }
-    elsif ($dep_mtime == -1) {
-      print STDERR "Couldn't stat $dep_file for $obj\n" if DEBUG;
-    }
-    else {
-      print STDERR "$dep_file($dep_mtime) older than $obj($mtime)\n" if DEBUG >= 2;
-      next;
-    }
-
-    push @objs, $obj; # dependency is missing or newer
-    next OBJ_LOOP; # skip checking the rest of the dependencies
-  }
-
-  # If we get here it means nothing needs to be done for $obj
 }
 
 # Output objects to rebuild (if needed).
-if ($outfile eq '-') {
-    if (@objs) {
-	print "@objs: FORCE\n";
-    }
-} elsif (@objs) {
-  my $old_output;
-  my $new_output = "@objs: FORCE\n";
+if (@objs) {
+  $new_output = "@objs: FORCE\n";
 
   # Read in the current dependencies file.
   open(OLD, "<$outfile")
@@ -150,7 +115,7 @@ if ($outfile eq '-') {
   if ($new_output ne $old_output) {
     open(OUT, ">$outfile") and print OUT "$new_output";
     print "Updating dependencies file, $outfile\n" unless $silent;
-    if (DEBUG) {
+    if ($debug) {
       print "new: $new_output\n";
       print "was: $old_output\n" if $old_output ne '';
     }
@@ -159,8 +124,7 @@ if ($outfile eq '-') {
   # Remove the old dependencies because all objects are up to date.
   print "Removing old dependencies file, $outfile\n" unless $silent;
 
-  if (DEBUG) {
-    my $old_output;
+  if ($debug) {
     open(OLD, "<$outfile")
       and $old_output = <OLD>;
     close(OLD);

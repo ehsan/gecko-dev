@@ -47,7 +47,7 @@
 
 menu,
 menuitem {
-  -moz-appearance: menuitem;
+  -moz-appearance: menuitem !important;
   -moz-box-align: center;
   color: MenuText;
   font: -moz-pull-down-menu;
@@ -163,7 +163,6 @@ menupopup > menuitem[_moz-menuactive="true"],
 popup > menu[_moz-menuactive="true"],
 popup > menuitem[_moz-menuactive="true"] {
   color: -moz-mac-menutextselect;
-  background-color: Highlight;
 }
 
 /* ::::: menu/menuitems in menulist popups ::::: */
@@ -174,7 +173,7 @@ menulist > menupopup > menuitem,
 menulist > menupopup > menu {
   padding-right: 25px !important;
   max-width: none;
-  font: inherit;
+  font: -moz-pull-down-menu;
   color: -moz-FieldText;
 }
 
@@ -183,16 +182,6 @@ menulist > menupopup > menuitem > .menu-iconic-left,
 .menulist-menupopup > menu > .menu-iconic-left,
 menulist > menupopup > menu > .menu-iconic-left {
   margin: 0 2px 0 0 !important;
-}
-
-/* ::::: menuitems in editable menulist popups ::::: */
-
-menulist[editable="true"] > menupopup > menuitem {
-  -moz-appearance: none;
-}
-
-menulist[editable="true"] > menupopup > menuitem > .menu-iconic-left {
-  display: none;
 }
 
 /* ::::: checked menuitems ::::: */
@@ -219,9 +208,9 @@ menulist > menupopup > menuitem[_moz-menuactive="true"][selected="true"]:not([di
 /* ::::: menuseparator ::::: */
 
 menuseparator {
-  -moz-appearance: menuseparator;
-  margin: 5px 0;
+  margin: 5px 0 4px 0;
   padding: 1px 0 !important;
+  border-top: 1px solid #d9d9d9;
 }
 
 /* ::::: menulist popup ::::: */

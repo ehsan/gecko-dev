@@ -41,6 +41,7 @@
 #include "nsIEventListenerManager.h"
 #include "jsapi.h"
 #include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOM3EventTarget.h"
 #include "nsHashtable.h"
@@ -48,11 +49,9 @@
 #include "nsCycleCollectionParticipant.h"
 
 class nsIDOMEvent;
+class nsVoidArray;
 class nsIAtom;
-class nsIWidget;
-struct nsPoint;
 struct EventTypeData;
-class nsEventTargetChainItem;
 
 typedef struct {
   nsRefPtr<nsIDOMEventListener> mListener;
@@ -114,10 +113,9 @@ public:
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                          nsEvent* aEvent, 
                          nsIDOMEvent** aDOMEvent,
-                         nsPIDOMEventTarget* aCurrentTarget,
+                         nsISupports* aCurrentTarget,
                          PRUint32 aFlags,
-                         nsEventStatus* aEventStatus,
-                         nsCxPusher* aPusher);
+                         nsEventStatus* aEventStatus);
 
   NS_IMETHOD Disconnect();
 
@@ -132,10 +130,6 @@ public:
   virtual PRUint32 MutationListenerBits();
 
   virtual PRBool HasListenersFor(const nsAString& aEventName);
-
-  virtual PRBool HasListeners();
-
-  virtual nsresult GetListenerInfo(nsCOMArray<nsIEventListenerInfo>* aList);
 
   static PRUint32 GetIdentifierForEvent(nsIAtom* aEvent);
 
@@ -154,16 +148,14 @@ protected:
   nsresult HandleEventSubType(nsListenerStruct* aListenerStruct,
                               nsIDOMEventListener* aListener,
                               nsIDOMEvent* aDOMEvent,
-                              nsPIDOMEventTarget* aCurrentTarget,
-                              PRUint32 aPhaseFlags,
-                              nsCxPusher* aPusher);
+                              nsISupports* aCurrentTarget,
+                              PRUint32 aPhaseFlags);
   nsresult CompileEventHandlerInternal(nsIScriptContext *aContext,
                                        void *aScopeObject,
                                        nsISupports *aObject,
                                        nsIAtom *aName,
                                        nsListenerStruct *aListenerStruct,
-                                       nsISupports* aCurrentTarget,
-                                       PRBool aNeedsCxPush);
+                                       nsISupports* aCurrentTarget);
   nsListenerStruct* FindJSEventListener(PRUint32 aEventType, nsIAtom* aTypeAtom);
   nsresult SetJSEventListener(nsIScriptContext *aContext,
                               void *aScopeGlobal,
@@ -185,19 +177,32 @@ protected:
   nsresult RemoveAllListeners();
   const EventTypeData* GetTypeDataForIID(const nsIID& aIID);
   const EventTypeData* GetTypeDataForEventName(nsIAtom* aName);
+  nsresult FixContextMenuEvent(nsPresContext* aPresContext,
+                               nsISupports* aCurrentTarget,
+                               nsEvent* aEvent,
+                               nsIDOMEvent** aDOMEvent);
+  PRBool PrepareToUseCaretPosition(nsIWidget* aEventWidget,
+                                   nsIPresShell* aShell,
+                                   nsPoint& aTargetPt);
+  void GetCoordinatesFor(nsIDOMElement *aCurrentEl, nsPresContext *aPresContext,
+                         nsIPresShell *aPresShell, nsPoint& aTargetPt);
   nsresult GetDOM2EventGroup(nsIDOMEventGroup** aGroup);
   PRBool ListenerCanHandle(nsListenerStruct* aLs, nsEvent* aEvent);
-  nsPIDOMWindow* GetInnerWindowForTarget();
 
-  nsAutoTObserverArray<nsListenerStruct, 2> mListeners;
-  nsISupports*                              mTarget;  //WEAK
-  nsCOMPtr<nsIAtom>                         mNoListenerForEventAtom;
+  nsVoidArray       mListeners;
+  nsISupports*      mTarget;  //WEAK
+  PRPackedBool      mListenersRemoved;
+  PRPackedBool      mListenerRemoved;
+  PRPackedBool      mHandlingEvent;
+  PRPackedBool      mMayHaveMutationListeners;
+  // These two member variables are used to cache the information
+  // about the last event which was handled but for which event listener manager
+  // didn't have event listeners.
+  PRUint32          mNoListenerForEvent;
+  nsCOMPtr<nsIAtom> mNoListenerForEventAtom;
 
-  static PRUint32                           mInstanceCount;
-  static jsval                              sAddListenerID;
-
-  friend class nsEventTargetChainItem;
-  static PRUint32                           sCreatedCount;
+  static PRUint32   mInstanceCount;
+  static jsval      sAddListenerID;
 };
 
 #endif // nsEventListenerManager_h__

@@ -45,7 +45,6 @@
 #include "nsAutoPtr.h"
 #include "nsINodeInfo.h"
 #include "nsCOMArray.h"
-#include "nsTArray.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsDataHashtable.h"
 #include "nsString.h"
@@ -72,6 +71,9 @@ PRBool NS_SVGEnabled();
 #define kXULNameSpaceURI "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
 #define kSVGNameSpaceURI "http://www.w3.org/2000/svg"
 #define kXMLEventsNameSpaceURI "http://www.w3.org/2001/xml-events"
+#define kXHTML2UnofficialNameSpaceURI "http://www.w3.org/TR/xhtml2" // Will eventually change
+#define kWAIRolesNameSpaceURI "http://www.w3.org/2005/01/wai-rdf/GUIRoleTaxonomy#"
+#define kWAIPropertiesNameSpaceURI "http://www.w3.org/2005/07/aaa"
 
 class nsNameSpaceKey : public PLDHashEntryHdr
 {
@@ -132,7 +134,7 @@ private:
   nsresult AddNameSpace(const nsAString& aURI, const PRInt32 aNameSpaceID);
 
   nsDataHashtable<nsNameSpaceKey,PRInt32> mURIToIDTable;
-  nsTArray< nsAutoPtr<nsString> > mURIArray;
+  nsStringArray mURIArray;
 };
 
 static NameSpaceManagerImpl* sNameSpaceManager = nsnull;
@@ -160,6 +162,10 @@ nsresult NameSpaceManagerImpl::Init()
   REGISTER_NAMESPACE(kXULNameSpaceURI, kNameSpaceID_XUL);
   REGISTER_NAMESPACE(kSVGNameSpaceURI, kNameSpaceID_SVG);
   REGISTER_NAMESPACE(kXMLEventsNameSpaceURI, kNameSpaceID_XMLEvents);
+  REGISTER_NAMESPACE(kXHTML2UnofficialNameSpaceURI,
+                     kNameSpaceID_XHTML2_Unofficial);
+  REGISTER_NAMESPACE(kWAIRolesNameSpaceURI, kNameSpaceID_WAIRoles);
+  REGISTER_NAMESPACE(kWAIPropertiesNameSpaceURI, kNameSpaceID_WAIProperties);
 
 #undef REGISTER_NAMESPACE
 
@@ -178,7 +184,7 @@ NameSpaceManagerImpl::RegisterNameSpace(const nsAString& aURI,
 
   nsresult rv = NS_OK;
   if (!mURIToIDTable.Get(&aURI, &aNameSpaceID)) {
-    aNameSpaceID = mURIArray.Length() + 1; // id is index + 1
+    aNameSpaceID = mURIArray.Count() + 1; // id is index + 1
 
     rv = AddNameSpace(aURI, aNameSpaceID);
     if (NS_FAILED(rv)) {
@@ -197,13 +203,13 @@ NameSpaceManagerImpl::GetNameSpaceURI(PRInt32 aNameSpaceID, nsAString& aURI)
   NS_PRECONDITION(aNameSpaceID >= 0, "Bogus namespace ID");
   
   PRInt32 index = aNameSpaceID - 1; // id is index + 1
-  if (index < 0 || index >= PRInt32(mURIArray.Length())) {
+  if (index < 0 || index >= mURIArray.Count()) {
     aURI.Truncate();
 
     return NS_ERROR_ILLEGAL_VALUE;
   }
 
-  aURI = *mURIArray.ElementAt(index);
+  mURIArray.StringAt(index, aURI);
 
   return NS_OK;
 }
@@ -227,10 +233,10 @@ NameSpaceManagerImpl::GetNameSpaceID(const nsAString& aURI)
 
 nsresult
 NS_NewElement(nsIContent** aResult, PRInt32 aElementType,
-              nsINodeInfo* aNodeInfo, PRBool aFromParser)
+              nsINodeInfo* aNodeInfo)
 {
   if (aElementType == kNameSpaceID_XHTML) {
-    return NS_NewHTMLElement(aResult, aNodeInfo, aFromParser);
+    return NS_NewHTMLElement(aResult, aNodeInfo);
   }
 #ifdef MOZ_XUL
   if (aElementType == kNameSpaceID_XUL) {
@@ -244,7 +250,7 @@ NS_NewElement(nsIContent** aResult, PRInt32 aElementType,
 #endif
 #ifdef MOZ_SVG
   if (aElementType == kNameSpaceID_SVG && NS_SVGEnabled()) {
-    return NS_NewSVGElement(aResult, aNodeInfo, aFromParser);
+    return NS_NewSVGElement(aResult, aNodeInfo);
   }
 #endif
   if (aElementType == kNameSpaceID_XMLEvents) {
@@ -287,17 +293,16 @@ nsresult NameSpaceManagerImpl::AddNameSpace(const nsAString& aURI,
     return NS_ERROR_OUT_OF_MEMORY;
   }
   
-  NS_ASSERTION(aNameSpaceID - 1 == mURIArray.Length(),
+  NS_ASSERTION(aNameSpaceID - 1 == mURIArray.Count(),
                "BAD! AddNameSpace not called in right order!");
 
-  nsString* uri = new nsString(aURI);
-  if (!uri || !mURIArray.AppendElement(uri)) {
-    delete uri;
+  if (!mURIArray.AppendString(aURI)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
+  const nsString* uri = mURIArray.StringAt(aNameSpaceID - 1);
   if (!mURIToIDTable.Put(uri, aNameSpaceID)) {
-    mURIArray.RemoveElementAt(aNameSpaceID - 1);
+    mURIArray.RemoveStringAt(aNameSpaceID - 1);
 
     return NS_ERROR_OUT_OF_MEMORY;
   }

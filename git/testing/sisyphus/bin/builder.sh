@@ -1,4 +1,4 @@
-#!/bin/bash -e
+#!/usr/local/bin/bash -e
 # -*- Mode: Shell-script; tab-width: 4; indent-tabs-mode: nil; -*-
 # ***** BEGIN LICENSE BLOCK *****
 # Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -37,30 +37,33 @@
 #
 # ***** END LICENSE BLOCK *****
 
-source $TEST_DIR/bin/library.sh
+TEST_DIR=${TEST_DIR:-/work/mozilla/mozilla.com/test.mozilla.com/www}
+TEST_BIN=${TEST_BIN:-$TEST_DIR/bin}
+source ${TEST_BIN}/library.sh
 
 TEST_LOG=/dev/null
+
+trap 'echo -e "\n*** ERROR ***\n\b" && tail $TEST_LOG' ERR
 
 #
 # options processing
 #
-options="p:b:B:T:e:d:v"
+options="p:b:B:T:e:d:"
 function usage()
 {
     cat<<EOF
 usage: 
-$SCRIPT -p products -b branches -B buildcommands -T buildtypes [-e extra] [-d datafiles] [-v]
+$SCRIPT -p products -b branches -B buildcommands -T buildtypes [-e extra]
 
 variable            description
 ===============     ===========================================================
--p products         required. one or more of js firefox
--b branches         required. one or more of supported branches. see library.sh.
--B buildcommands    required. one or more of clean clobber checkout build
+-p products         required. one or more of firefox thunderbird
+-b branches         required. one or more of 1.8.0 1.8.1 1.9.0
+-B buildcommands    required. one or more of clean checkout build
 -T buildtypes       required. one or more of opt debug
 -e extra            optional. extra qualifier to pick build tree and mozconfig.
 -d datafiles        optional. one or more filenames of files containing 
                     environment variable definitions to be included.
--v                  optional. verbose - copies log file output to stdout.
 
 note that the environment variables should have the same names as in the 
 "variable" column.
@@ -81,12 +84,16 @@ while getopts $options optname ;
       e) extra="-$OPTARG"
           extraflag="-e $OPTARG";;
       d) datafiles=$OPTARG;;
-      v) verbose=1;;
   esac
 done
 
 # include environment variables
-loaddata $datafiles
+if [[ -n "$datafiles" ]]; then
+    for datafile in $datafiles; do 
+        cat $datafile | sed 's|^|data: |'
+        source $datafile
+    done
+fi
 
 if [[ -z "$products" || -z "$branches" || -z "$buildcommands" || \
     -z "$buildtypes" ]]; then
@@ -97,45 +104,15 @@ fi
 if echo "$buildcommands" | grep -iq clean; then
     for product in $products; do
         for branch in $branches; do
-
-            checkProductBranch $product $branch
-
             for buildtype in $buildtypes; do
 
                 TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
                 TEST_LOG="${TEST_DIR}/results/${TEST_DATE},$product,$branch$extra,$buildtype,$OSID,${TEST_MACHINE},clean.log"
 
-                echo "log: $TEST_LOG"
+                echo "$TEST_LOG"
 
-                if [[ "$verbose" == "1" ]]; then
-                    clean.sh -p $product -b $branch -T $buildtype $extraflag 2>&1 | tee $TEST_LOG
-                else
-                    clean.sh -p $product -b $branch -T $buildtype $extraflag > $TEST_LOG 2>&1
-                fi
-            done
-        done
-    done
-fi
+                clean.sh -p $product -b $branch -T $buildtype $extraflag > $TEST_LOG 2>&1
 
-# clobber first in case checkout changes the configuration
-if echo "$buildcommands" | grep -iq clobber; then
-    for product in $products; do
-        for branch in $branches; do
-
-            checkProductBranch $product $branch
-
-            for buildtype in $buildtypes; do
-
-                TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
-                TEST_LOG="${TEST_DIR}/results/${TEST_DATE},$product,$branch$extra,$buildtype,$OSID,${TEST_MACHINE},clobber.log"
-
-                echo "log: $TEST_LOG"
-
-                if [[ "$verbose" == "1" ]]; then
-                    clobber.sh -p $product -b $branch -T $buildtype $extraflag 2>&1 | tee $TEST_LOG
-                else
-                    clobber.sh -p $product -b $branch -T $buildtype $extraflag > $TEST_LOG 2>&1
-                fi
             done
         done
     done
@@ -146,18 +123,13 @@ if echo "$buildcommands" | grep -iq checkout; then
     for product in $products; do
         for branch in $branches; do
 
-            checkProductBranch $product $branch
-
             TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
             TEST_LOG="${TEST_DIR}/results/${TEST_DATE},$product,$branch$extra,$buildtype,$OSID,${TEST_MACHINE},checkout.log"
 
-            echo "log: $TEST_LOG"
+            echo "$TEST_LOG"
 
-            if [[ "$verbose" == "1" ]]; then
-                checkout.sh -p $product -b $branch -T opt $extraflag 2>&1 | tee $TEST_LOG
-            else
-                checkout.sh -p $product -b $branch -T opt $extraflag > $TEST_LOG 2>&1
-            fi
+
+            checkout.sh -p $product -b $branch -T opt $extraflag > $TEST_LOG 2>&1
 
         done
     done
@@ -168,20 +140,14 @@ if echo "$buildcommands" | grep -iq build; then
         for branch in $branches; do
             for buildtype in $buildtypes; do
 
-                checkProductBranch $product $branch
-
                 TEST_DATE=`date -u +%Y-%m-%d-%H-%M-%S``date +%z`
                 TEST_LOG="${TEST_DIR}/results/${TEST_DATE},$product,$branch$extra,$buildtype,$OSID,${TEST_MACHINE},build.log"
 
-                echo "log: $TEST_LOG"
+                echo "$TEST_LOG"
 
-                if [[ "$verbose" == "1" ]]; then
-                    build.sh -p $product -b $branch -T $buildtype $extraflag 2>&1 | tee $TEST_LOG
-                else
-                    build.sh -p $product -b $branch -T $buildtype $extraflag > $TEST_LOG 2>&1
-                fi
-
+                build.sh -p $product -b $branch -T $buildtype $extraflag > $TEST_LOG 2>&1
             done
         done
     done
 fi
+

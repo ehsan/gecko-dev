@@ -40,15 +40,13 @@
 
 #include "nsIWeakReference.h"
 #include "nsIAccessibleText.h"
+#include "nsICaret.h"
 #include "nsIDOMNode.h"
 #include "nsISelectionListener.h"
-#include "nsISelectionController.h"
 #include "nsRect.h"
 
 class nsRootAccessible;
 class nsIView;
-class nsIPresShell;
-class nsIWidget;
 
 /*
  * This special accessibility class is for the caret, which is really the currently focused selection.
@@ -105,28 +103,19 @@ public:
    * Start listening to selection events for a given document
    * More than one document's selection events can be listened to
    * at the same time, by a given nsCaretAccessible
-   * @param aShell   PresShell for document to listen to selection events from.
+   * @param aDocument   Document to listen to selection events for.
    */
-  nsresult AddDocSelectionListener(nsIPresShell *aShell);
+  nsresult AddDocSelectionListener(nsIDOMDocument *aDoc);
 
   /**
    * Stop listening to selection events for a given document
    * If the document goes away, this method needs to be called for 
-   * that document by the owner of the caret. We use presShell because
-   * instead of document because it is more direct than getting it from
-   * the document, and in any case it is unavailable from the doc after a pagehide.
-   * @param aShell   PresShell for document to no longer listen to selection events from.
+   * that document by the owner of the caret
+   * @param aDocument   Document to listen to selection events for.
    */
-  nsresult RemoveDocSelectionListener(nsIPresShell *aShell);
+  nsresult RemoveDocSelectionListener(nsIDOMDocument *aDoc);
 
-  nsIntRect GetCaretRect(nsIWidget **aOutWidget);
-
-protected:
-  nsresult NormalSelectionChanged(nsIDOMDocument *aDoc, nsISelection *aSel);
-  nsresult SpellcheckSelectionChanged(nsIDOMDocument *aDoc, nsISelection *aSel);
-
-  already_AddRefed<nsISelectionController>
-  GetSelectionControllerForNode(nsIDOMNode *aNode);
+  nsRect GetCaretRect(nsIWidget **aOutWidget);
 
 private:
   // The currently focused control -- never a document.
@@ -134,10 +123,11 @@ private:
   // Document selection is handled separately via additional listeners on all active documents
   // The current control is set via SetControlSelectionListener()
   nsCOMPtr<nsIDOMNode> mCurrentControl;  // Selection controller for the currently focused control
+  nsCOMPtr<nsIWeakReference> mCurrentControlSelection;
 
-  // Info for the the last selection event.
-  // If it was on a control, then its control's selection. Otherwise, it's for
-  // a document where the selection changed.
+  // Info for the the last selection event
+  // If it was on a control, then mLastUsedSelection == mCurrentControlSelection
+  // Otherwise, it's for a document where the selection changed
   nsCOMPtr<nsIWeakReference> mLastUsedSelection; // Weak ref to nsISelection
   nsCOMPtr<nsIAccessibleText> mLastTextAccessible;
   PRInt32 mLastCaretOffset;

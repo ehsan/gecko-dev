@@ -43,11 +43,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-PARALLEL_DIRS		= src
-
-ifdef ENABLE_TESTS
-DIRS += test
-endif
+DIRS		= src
 
 include $(topsrcdir)/config/rules.mk
 

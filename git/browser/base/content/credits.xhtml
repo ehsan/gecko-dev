@@ -21,7 +21,6 @@
 # Contributor(s):
 #   Ben Goodger <ben@mozilla.org>
 #   David Baron <dbaron@mozilla.org>
-#   Ehsan Akhgari <ehsan.akhgari@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -46,8 +45,6 @@
     %creditsDTD;
     <!ENTITY % licenseDTD SYSTEM "chrome://global/locale/license.dtd">
     %licenseDTD;
-    <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
-    %globalDTD;
   ]
 >
 
@@ -113,7 +110,6 @@
       .footnote {
         font-size: x-small;
         text-align: justify;
-        line-height: 110%;
       }
 
       h2.title {
@@ -123,11 +119,15 @@
       }
 
       .links {
-        font-weight: normal;
+        font-weight: bold;
         font-size: small;
-        font-style: italic;
         text-align: center;
         margin: 0px 0px 100px 0px;
+      }
+
+      .links div {
+        font-weight: normal;
+        font-style: italic;
       }
 
       .motto {
@@ -164,8 +164,8 @@
       }
     </style>
 
-    <script type="application/javascript" src="chrome://global/content/globalOverlay.js"></script>
-    <script type="application/javascript">
+    <script type="application/x-javascript" src="chrome://global/content/globalOverlay.js"></script>
+    <script type="application/x-javascript">
     <![CDATA[
 
       var gCreditsInterval = -1;
@@ -209,39 +209,28 @@
     </div>
 
     <div id="creditsBox">
-        <h2 class="title" dir="&locale.dir;">&brandFullName;&trade;
+        <h2 class="title">&brandFullName;&trade;
           <div class="motto">&brandMotto;</div>
         </h2>
-        <div class="links" dir="&locale.dir;">
-          &credit.thanks2; <a href="" link="about:credits" onclick="visitLink(event);">&credit.contributors2;</a>
+        <div class="links">
+          <div>&credit.thanks2;</div>
+          &credit.prethanks;
+          <a href="" link="http://worldfirefoxday.com" onclick="visitLink(event);">&credit.friends;</a>
+          &credit.and;
+          <a href="" link="about:credits" onclick="visitLink(event);">&credit.contributors;</a>
+          &credit.postthanks;
         </div>
 
         <div class="creditsGroup">
           <ul>
             <li>Josh Aas</li>
             <li>Robert Accettura</li>
-            <li>Lucas Adamski</li>
-            <li>Ehsan Akhgari</li>
-            <li>Sean Alamares</li>
-            <li>Pedro Alves</li>
-            <li>David Anderson</li>
-            <li>Harvey Anderson</li>
-            <li>Smokey Ardisson</li>
-            <li>Rob Arnold</li>
             <li>Tomoya Asai</li>
-            <li>Chris AtLee</li>
             <li>Dietrich Ayala</li>
             <li>Mitchell Baker</li>
-            <li>Rhian Baker</li>
-            <li>Jeff Balogh</li>
-            <li>Jan Bambas</li>
-            <li>Rey Bango</li>
-            <li>Mark Banner</li>
+            <li>Adam Barea</li>
             <li>Jason Barnabe</li>
             <li>David Baron</li>
-            <li>Colin Barrett</li>
-            <li>Curtis Bartley</li>
-            <li>Bo Bayles</li>
             <li>Christopher Beard</li>
             <li>Glen Beasley</li>
             <li>Juan Becerra</li>
@@ -250,379 +239,235 @@
             <li>Mic Berman</li>
             <li>Uri Bernstein</li>
             <li>Christian Biesinger</li>
-            <li>Al Billings</li>
             <li>Seth Bindernagel</li>
-            <li>Lukas Blakk</li>
-            <li>Jim Blandy</li>
             <li>Chris Blizzard</li>
             <li>Jamey Boje</li>
-            <li>David Bolter</li>
             <li>Nelson Bolyard</li>
-            <li>Marco Bonardo</li>
             <li>Carsten Book</li>
             <li>Paul Booker</li>
-            <li>Jennifer Boriss</li>
-            <li>Dan Born</li>
-            <li>Arpad Borsos</li>
-            <li>David Boswell</li>
-            <li>Ondřej Brablc</li>
-            <li>Catherine Brady</li>
-            <li>Dave Bragsalla</li>
-            <li>Alex Buchanan</li>
             <li>Igor Bukanov</li>
             <li>Simon Bünzli</li>
-            <li>Lapo Calamandrei</li>
-            <li>Dave Camp</li>
             <li>Rob Campbell</li>
             <li>Regis Caspar</li>
-            <li>Garrett Casto</li>
+            <li>Marco Casteleijn</li>
+            <li>Biswatosh Chakraborty</li>
             <li>Tony Chang</li>
             <li>Wan-Teh Chang</li>
-            <li>Emily Chen</li>
             <li>Ginn Chen</li>
             <li>Pascal Chevrel</li>
-            <li>Adam Christian</li>
-            <li>Tony Chung</li>
             <li>Bob Clary</li>
             <li>Wil Clouser</li>
             <li>Mary Colvig</li>
             <li>Majken Connor</li>
             <li>Mike Connor</li>
             <li>Chris Cooper</li>
-            <li>Eric Cooper</li>
-            <li>Paul Craciunoiu</li>
-            <li>Brian Crowder</li>
-            <li>John Daggett</li>
-            <li>David Dahl</li>
-            <li>Michael Davis</li>
+            <li>Michael Daumling</li>
             <li>Neil Deakin</li>
-            <li>Julie Deroche</li>
-            <li>Aakash Desai</li>
-            <li>Ryan Doherty</li>
-            <li>Justin Dolske</li>
+            <li>Sherman Dickman</li>
             <li>Stephen Donner</li>
             <li>Asa Dotzler</li>
-            <li>Chris Double</li>
-            <li>Joe Drew</li>
-            <li>Jason Duell</li>
-            <li>Karsten Düsterloh</li>
+            <li>Rafael Ebron</li>
             <li>Brendan Eich</li>
-            <li>Daniel Einspanjer</li>
+            <li>Ximon Eighteen</li>
             <li>Kai Engert</li>
             <li>Steve England</li>
-            <li>Madhava Enros</li>
-            <li>Behdad Esfahbod</li>
-            <li>Elika Etemad</li>
-            <li>Anthony Evans</li>
-            <li>Jason Evans</li>
-            <li>Alex Faaborg</li>
-            <li>Jane Finette</li>
-            <li>Mark Finkle</li>
             <li>Darin Fisher</li>
             <li>Jayson Fittipaldi</li>
             <li>Justin Fitzhugh</li>
             <li>Ryan Flint</li>
-            <li>Alix Franquet</li>
+            <li>Justin Frankel</li>
+            <li>Simon Fraser</li>
             <li>Eli Friedman</li>
-            <li>Andreas Gal</li>
+            <li>Alex Fritze</li>
+            <li>Lisa Gansky</li>
+            <li>Mike Gao</li>
             <li>Steven Garrity</li>
-            <li>Armen Zambrano Gasparnian</li>
-            <li>Serge Gautherie</li>
-            <li>Kevin Gerich</li>
-            <li>Taras Glek</li>
-            <li>Aravind Gottipati</li>
+            <li>Michael Glenn</li>
+            <li>Jay Goldman</li>
+            <li>Ben Goodger</li>
             <li>Dão Gottwald</li>
             <li>Zak Greant</li>
-            <li>Matthew Gregan</li>
-            <li>Will Guaraldi</li>
+            <li>Pam Greene</li>
             <li>Adam Guthrie</li>
-            <li>Mohammad Reza Haghighat</li>
+            <li>Vidar Haarr</li>
             <li>Andrei Hajdukewycz</li>
-            <li>Trevor Hardcastle</li>
+            <li>Mark Hammond</li>
             <li>Basil Hashem</li>
             <li>Ian Hayward</li>
-            <li>Ben Hearsum</li>
             <li>Axel Hecht</li>
             <li>Frank Hecker</li>
             <li>Robert Helmer</li>
-            <li>Stefan Hermes</li>
             <li>Jon Hicks</li>
+            <li>Ian Hickson</li>
             <li>Graydon Hoare</li>
             <li>Chris Hofmann</li>
-            <li>Timothy Hogan</li>
-            <li>Daniel Holbert</li>
-            <li>Bobby Holley</li>
             <li>Mike Hommey</li>
-            <li>Stephen Horlander</li>
-            <li>Barbara Hueppe</li>
-            <li>Anthony Hughes</li>
-            <li>David Humphrey</li>
-            <li>Takeshi Ichimaru</li>
-            <li>Chris Ilias</li>
-            <li>Eri Inoue</li>
+            <li>Joe Hughes</li>
+            <li>Ed Hume</li>
+            <li>Ivan Icin</li>
             <li>Joichi Ito</li>
-            <li>Steven Johnson</li>
-            <li>Laurent Jouanneau</li>
-            <li>Robert Kaiser</li>
             <li>Gen Kanai</li>
-            <li>Masanori Kaneko</li>
             <li>Blake Kaplan</li>
-            <li>Mike Kaplinskiy</li>
             <li>Michael Kaply</li>
             <li>Mitch Kapor</li>
-            <li>Kazuyoshi Kato</li>
-            <li>Tomomi Kato</li>
+            <li>Peter Kasting</li>
             <li>Alfred Kayser</li>
-            <li>Jonathan Kew</li>
             <li>Paul Kim</li>
             <li>Masatoshi Kimura</li>
-            <li>Austin King</li>
-            <li>Ria Klaassen</li>
+            <li>Ria Klaasen</li>
+            <li>Andrea Knight</li>
             <li>Marcia Knous</li>
-            <li>Nelson Ko</li>
-            <li>Michael Kohler</li>
-            <li>Gary Kwong</li>
-            <li>David Lanham</li>
-            <li>Brad Lassey</li>
-            <li>Delphine Lebédel</li>
-            <li>Edward Lee</li>
-            <li>Neil Lee</li>
+            <li>Dave Laundon</li>
             <li>Raymond Lee</li>
-            <li>Garrett LeSage</li>
             <li>Aaron Leventhal</li>
+            <li>Mark Liddell</li>
+            <li>Dave Liebreich</li>
             <li>Anne-Julie Ligneau</li>
             <li>John Lilly</li>
             <li>Zach Lipton</li>
-            <li>Kai Liu</li>
+            <li>Nian Liu</li>
             <li>Reed Loden</li>
-            <li>Lars Lohn</li>
             <li>Robert Longson</li>
-            <li>Bob Lord</li>
-            <li>Phil Machalski</li>
-            <li>Joel Maher</li>
+            <li>Scott MacGregor</li>
             <li>Ere Maijala</li>
-            <li>David Mandelin</li>
             <li>Gervase Markham</li>
             <li>Sean Martell</li>
-            <li>Jim Mathies</li>
-            <li>Erica McClure</li>
-            <li>Graeme McCutcheon</li>
-            <li>Patrick McManus</li>
             <li>Heather Meeker</li>
-            <li>Walter Meinl</li>
             <li>Myk Melez</li>
-            <li>Federico Mena-Quintero</li>
             <li>Mark Mentovai</li>
-            <li>Laura Mesa</li>
+            <li>Alex Menzies</li>
             <li>Steven Michaud</li>
-            <li>Matthew Middleton</li>
-            <li>Ted Mielczarek</li>
             <li>Bernd Mielke</li>
-            <li>Dave Miller</li>
-            <li>Dan Mills</li>
-            <li>Michael Monreal</li>
+            <li>Joey Minta</li>
             <li>Simon Montagu</li>
-            <li>Derek Moore</li>
             <li>Mike Morgan</li>
-            <li>Tiffney Mortensen</li>
-            <li>Dan Mosedale</li>
-            <li>Michael Moy</li>
-            <li>Jeff Muizelaar</li>
+            <li>Scooter Morris</li>
             <li>Masayuki Nakano</li>
-            <li>Murali Nandigama</li>
             <li>Marria Nazif</li>
-            <li>Kev Needham</li>
+            <li>Ian Neal</li>
             <li>Kaori Negoro</li>
-            <li>Nicholas Nethercote</li>
-            <li>Ben Newman</li>
-            <li>Nick Nguyen</li>
-            <li>Johnathan Nightingale</li>
-            <li>Timothy Nikkel</li>
-            <li>Andreas Nilsson</li>
             <li>Tristan Nitot</li>
             <li>Alice Nodelman</li>
-            <li>Matthew Noorenberghe</li>
-            <li>Michal Novotny</li>
             <li>Robert O'Callahan</li>
-            <li>John O'Duinn</li>
-            <li>Paul O'Shannessy</li>
-            <li>Jan Odvárko</li>
-            <li>Tomoyuki Okazaki</li>
-            <li>Les Orchard</li>
-            <li>Jeremy Orem</li>
-            <li>Jason Orendorff</li>
-            <li>Hideo Oshima</li>
             <li>Mats Palmgren</li>
             <li>Stuart Parmenter</li>
             <li>Jay Patel</li>
-            <li>Chris Pearce</li>
+            <li>Igor Pavlov</li>
             <li>Javier Pedemonte</li>
             <li>Alfred Peng</li>
             <li>Christian Persch</li>
-            <li>Kalle Persson</li>
-            <li>Ulisse Perusin</li>
             <li>Olli Pettay</li>
+            <li>Chase Phillips</li>
             <li>Julien Pierre</li>
-            <li>Anthony Piraino</li>
+            <li>Mark Pilgrim</li>
+            <li>Mike Pinkerton</li>
             <li>Alex Polvi</li>
             <li>Nickolay Ponomarev</li>
-            <li>Dan Portillo</li>
             <li>Karen Prescott</li>
-            <li>Florian Quèze</li>
-            <li>Krupa Raj</li>
-            <li>Arun Ranganathan</li>
+            <li>Feng Qian</li>
+            <li>Robert Rainwater</li>
+            <li>Brian Rakowski</li>
             <li>Neil Rashbrook</li>
-            <li>Bret Reckard</li>
             <li>J. Paul Reed</li>
-            <li>Rick Reitmaier</li>
             <li>Robert Relyea</li>
-            <li>John Resig</li>
             <li>Deb Richardson</li>
             <li>Tim Riley</li>
             <li>Phil Ringnalda</li>
-            <li>Julien Rivaud</li>
-            <li>Mikeal Rogers</li>
             <li>David Rolnitzky</li>
             <li>Asaf Romano</li>
-            <li>Oleg Romashin</li>
-            <li>Paul Rouget</li>
+            <li>Doron Rosenberg</li>
+            <li>Blake Ross</li>
+            <li>James Ross</li>
             <li>Tim Rowley</li>
+            <li>Cameron Roy</li>
             <li>Jesse Ruderman</li>
             <li>Brian Ryner</li>
             <li>Alexander Sack</li>
             <li>Hideo Saito</li>
-            <li>Atsushi Sakai</li>
-            <li>Eiko Sakuma</li>
-            <li>Andrei Saprykin</li>
-            <li>Aki Sasaki</li>
             <li>Ken Saunders</li>
             <li>Robert Sayre</li>
+            <li>Fritz Schneider</li>
             <li>Mike Schroepfer</li>
-            <li>Kurt Schultz</li>
-            <li>Keith Schwarz</li>
+            <li>Phil Schwan</li>
             <li>Justin Scott</li>
-            <li>Hiroshi Sekiya</li>
-            <li>Tara Shahian</li>
-            <li>Melissa Shapiro</li>
+            <li>Chris Seawood</li>
+            <li>Leon Sha</li>
             <li>Gavin Sharp</li>
             <li>Mike Shaver</li>
             <li>Eric Shepherd</li>
             <li>Hiroshi Shimoda</li>
-            <li>Atsushi Shimono</li>
             <li>Jungshik Shin</li>
             <li>Jonas Sicking</li>
-            <li>Damon Sicore</li>
             <li>Roger B. Sidje</li>
-            <li>Samuel Sidler</li>
-            <li>Henrik Skupin</li>
-            <li>John Slater</li>
             <li>Benjamin Smedberg</li>
-            <li>Andrew Smith</li>
-            <li>Edwin Smith</li>
-            <li>Mark Smith</li>
-            <li>Window Snyder</li>
+            <li>Jon Smirl</li>
             <li>Josh Soref</li>
-            <li>Nochum Sossonko</li>
-            <li>Ian Spence</li>
             <li>Seth Spitzer</li>
-            <li>Markus Stange</li>
-            <li>Jakub Steiner</li>
             <li>Johnny Stenback</li>
-            <li>Brandon Sterne</li>
-            <li>Rob Stradling</li>
+            <li>Luke Stone</li>
             <li>Robert Strong</li>
-            <li>Jay Sullivan</li>
-            <li>Vicky Sun</li>
-            <li>Alexander Surkov</li>
-            <li>Mark Surman</li>
-            <li>Andrew Sutherland</li>
-            <li>Clint Talbert</li>
-            <li>Margaret Tallman</li>
-            <li>David Tenser</li>
-            <li>Chris Thomas</li>
-            <li>Nick Thomas</li>
-            <li>Laura Thomson</li>
-            <li>Karl Tomlinson</li>
+            <li>Annie Sullivan</li>
+            <li>Amir Szekely</li>
             <li>Dave Townsend</li>
-            <li>Aaron Train</li>
-            <li>Phong Tran</li>
+            <li>Chris Thomas</li>
             <li>Ben Turner</li>
             <li>Doug Turner</li>
-            <li>Amié Tyrrel</li>
             <li>Peter Van der Beken</li>
             <li>Peter van der Woude</li>
-            <li>Teune van Steeg</li>
-            <li>Ryan VanderMeulen</li>
             <li>Daniel Veditz</li>
             <li>Michael Ventnor</li>
+            <li>Joost Verburg</li>
+            <li>Jorge Villalobos</li>
             <li>Alexei Volkov</li>
-            <li>Vladimir Vukićević</li>
+            <li>Vladimir Vukicevic</li>
             <li>Håkan Waara</li>
             <li>Jeff Walden</li>
             <li>Tracy Walker</li>
-            <li>Cheng Wang</li>
             <li>Martijn Wargers</li>
             <li>Jonathan Watt</li>
-            <li>Peter Weilbacher</li>
-            <li>Zack Weinberg</li>
-            <li>Frédéric Wenzel</li>
             <li>Steffen Wilberg</li>
-            <li>Drew Willcoxon</li>
-            <li>Shawn Wilsher</li>
-            <li>Kathleen Wilson</li>
-            <li>Dan Witte</li>
-            <li>John Wolfe</li>
-            <li>Steve Won</li>
-            <li>Justin Wood</li>
+            <li>Brett Wilson</li>
             <li>Michael Wu</li>
-            <li>Masahiro Yamada</li>
             <li>Satoko Takita Yamaguchi (Chibi)</li>
-            <li>Christine Yen</li>
             <li>Kohei Yoshino</li>
-            <li>Shigeru Yoshitake</li>
             <li>Boris Zbarsky</li>
-            <li>Marco Zehe</li>
-            <li>Matthew Zeier</li>
           </ul>
 
-          <div dir="&locale.dir;">
-            &credit.translation;
-          </div>
+          &credit.translation;
         </div>
 
         <!-- organizational supporters -->
         <div class="creditsGroup">
-          <h3 dir="&locale.dir;">&credit.thanks;</h3>
+          <h3>&credit.thanks;</h3>
           <ul>
             <li>Google</li>
             <li>Yahoo!</li>
             <li>IBM</li>
             <li>Sun Microsystems</li>
-            <li>Red Hat</li>
             <li></li>
             <li>Oregon State University - Open Source Lab</li>
             <li></li>
-            <li>Global Netoptex, Inc</li>
-            <li>Internet Software Consortium</li>
+            <li>A&amp;R Edelman</li>
+            <li>arcendo communications GmbH</li>
+            <li>fuse pr</li>
             <li></li>
             <li>Cooley Godward, LLP</li>
             <li>Greenburg Traurig, LLP</li>
             <li></li>
-            <li>OutCast Communications</li>
-            <li></li>
-            <li>The Royal Order of Experience Design</li>
             <li>Nobox</li>
-            <li>silverorange</li>
             <li>Glaxstar</li>
+            <li>Radiant Core</li>
+            <li>silverorange</li>
+            <li>Revver</li>
             <li></li>
             <li>MozillaZine Community</li>
           </ul>
         </div>
 
-        <p id="gecko" class="center" dir="&locale.dir;">&credit.poweredByGeckoReg;</p>
+        <p id="gecko" class="center">&credit.poweredByGecko;&reg;</p>
 
-        <p class="footnote" dir="&locale.dir;">
-          &brandFullName;&trade; &license.part0; &copy;1998-2010 &license.part1;
+        <p class="footnote">
+          &brandFullName;&trade; &license.part0; &copy;1998-2007 &license.part1;
           <a href="" link="about:credits" onclick="visitLink(event);">&license.contrib;</a>,
           &license.part2;
           <a href="" link="about:license" onclick="visitLink(event);">about:license</a>
@@ -632,8 +477,16 @@
           Mozilla Firefox&reg; and the Firefox logo are registered trademarks of the
           Mozilla Foundation. You are not granted rights or licenses to the trademarks
           of the Mozilla Foundation or any party, including without limitation the
-          Firefox name or logo. Gecko&reg; is a registered trademark of Netscape
-          Communications Corporation.</p>
+          Firefox name or logo.</p>
+
+        <p class="footnote">
+          Gecko&reg; is a registered trademark of Netscape Communications Corporation.</p>
+
+        <p class="footnote">
+          Some image files in Mozilla Firefox&reg; are from the
+          <a href="" link="http://www.famfamfam.com/lab/icons/silk/" onclick="visitLink(event);">FAMFAMFAM Silk Icon Set</a>
+          which is licensed under a
+          <a href="" link="http://creativecommons.org/licenses/by/2.5/" onclick="visitLink(event);">Creative Commons Attribution 2.5 License</a>.</p>
 
         <p class="footnote">
           U.S. GOVERNMENT END USERS. The Software is a &ldquo;commercial item,&rdquo;
@@ -643,7 +496,7 @@
           Consistent with 48 C.F.R. 12.212 and 48 C.F.R. 227.7202-1 through
           227.7202-4 (June 1995), all U.S. Government End Users acquire the
           Software with only those rights set forth herein.</p>
-
+          
     </div>
 
     <div id="footerBox">

@@ -48,13 +48,13 @@ class nsBoxLayoutState;
 class nsListBoxLayout : public nsGridRowGroupLayout
 {
 public:
-  nsListBoxLayout();
+  nsListBoxLayout(nsIPresShell* aShell);
 
   // nsIBoxLayout
   NS_IMETHOD Layout(nsIBox* aBox, nsBoxLayoutState& aState);
-  virtual nsSize GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
-  virtual nsSize GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
-  virtual nsSize GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState);
+  NS_IMETHOD GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize);
+  NS_IMETHOD GetMinSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize);
+  NS_IMETHOD GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aBoxLayoutState, nsSize& aSize);
 
 protected:
   NS_IMETHOD LayoutInternal(nsIBox* aBox, nsBoxLayoutState& aState);

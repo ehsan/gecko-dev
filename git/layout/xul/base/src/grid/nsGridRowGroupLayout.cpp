@@ -54,14 +54,17 @@
 #include "nsGridLayout2.h"
 #include "nsGridRow.h"
 
-already_AddRefed<nsIBoxLayout> NS_NewGridRowGroupLayout()
+nsresult
+NS_NewGridRowGroupLayout( nsIPresShell* aPresShell, nsIBoxLayout** aNewLayout)
 {
-  nsIBoxLayout* layout = new nsGridRowGroupLayout();
-  NS_IF_ADDREF(layout);
-  return layout;
+  *aNewLayout = new nsGridRowGroupLayout(aPresShell);
+  NS_IF_ADDREF(*aNewLayout);
+
+  return NS_OK;
+  
 } 
 
-nsGridRowGroupLayout::nsGridRowGroupLayout():nsGridRowLayout(), mRowCount(0)
+nsGridRowGroupLayout::nsGridRowGroupLayout(nsIPresShell* aPresShell):nsGridRowLayout(aPresShell), mRowCount(0)
 {
 }
 
@@ -91,10 +94,10 @@ nsGridRowGroupLayout::AddWidth(nsSize& aSize, nscoord aSize2, PRBool aIsHorizont
     size += aSize2;
 }
 
-nsSize
-nsGridRowGroupLayout::GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aState)
+NS_IMETHODIMP
+nsGridRowGroupLayout::GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aState, nsSize& aSize)
 { 
-  nsSize vpref = nsGridRowLayout::GetPrefSize(aBox, aState); 
+  nsresult rv = nsGridRowLayout::GetPrefSize(aBox, aState, aSize); 
 
 
  /* It is possible that we could have some extra columns. This is when less columns in XUL were 
@@ -118,17 +121,17 @@ nsGridRowGroupLayout::GetPrefSize(nsIBox* aBox, nsBoxLayoutState& aState)
       nscoord pref =
         grid->GetPrefRowHeight(aState, i+start, !isHorizontal); // GetPrefColumnWidth
 
-      AddWidth(vpref, pref, isHorizontal);
+      AddWidth(aSize, pref, isHorizontal);
     }
   }
 
-  return vpref;
+  return rv;
 }
 
-nsSize
-nsGridRowGroupLayout::GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aState)
+NS_IMETHODIMP
+nsGridRowGroupLayout::GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aState, nsSize& aSize)
 {
- nsSize maxSize = nsGridRowLayout::GetMaxSize(aBox, aState); 
+ nsresult rv = nsGridRowLayout::GetMaxSize(aBox, aState, aSize); 
 
   PRInt32 index = 0;
   nsGrid* grid = GetGrid(aBox, &index);
@@ -144,17 +147,17 @@ nsGridRowGroupLayout::GetMaxSize(nsIBox* aBox, nsBoxLayoutState& aState)
       nscoord max =
         grid->GetMaxRowHeight(aState, i+start, !isHorizontal); // GetMaxColumnWidth
 
-      AddWidth(maxSize, max, isHorizontal);
+      AddWidth(aSize, max, isHorizontal);
     }
   }
 
-  return maxSize;
+  return rv;
 }
 
-nsSize
-nsGridRowGroupLayout::GetMinSize(nsIBox* aBox, nsBoxLayoutState& aState)
+NS_IMETHODIMP
+nsGridRowGroupLayout::GetMinSize(nsIBox* aBox, nsBoxLayoutState& aState, nsSize& aSize)
 {
-  nsSize minSize = nsGridRowLayout::GetMinSize(aBox, aState); 
+ nsresult rv = nsGridRowLayout::GetMinSize(aBox, aState, aSize); 
 
   PRInt32 index = 0;
   nsGrid* grid = GetGrid(aBox, &index);
@@ -169,11 +172,11 @@ nsGridRowGroupLayout::GetMinSize(nsIBox* aBox, nsBoxLayoutState& aState)
     {
       nscoord min = 
         grid->GetMinRowHeight(aState, i+start, !isHorizontal); // GetMinColumnWidth
-      AddWidth(minSize, min, isHorizontal);
+      AddWidth(aSize, min, isHorizontal);
     }
   }
 
-  return minSize;
+  return rv;
 }
 
 /*

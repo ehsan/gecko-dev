@@ -53,13 +53,10 @@ class nsICSSLoader;
 class nsIContent;
 class nsIDOMHTMLBodyElement;
 class nsIScriptElement;
-class nsIEditor;
 
-// 56ff0e81-191c-421c-b75c-1727e13091c0
 #define NS_IHTMLDOCUMENT_IID \
-{ 0x56ff0e81, 0x191c, 0x421c, \
-  { 0xb7, 0x5c, 0x17, 0x27, 0xe1, 0x30, 0x91, 0xc0 } }
-
+{ 0x61e989a8, 0x70cd, 0x4582, \
+  { 0x84, 0x5e, 0x6e, 0x5e, 0x12, 0x55, 0x9a, 0x83 } }
 
 /**
  * HTML document extensions to nsIDocument.
@@ -143,7 +140,6 @@ public:
                                               PRInt32 aChange) = 0;
 
   enum EditingState {
-    eTearingDown = -2,
     eSettingUp = -1,
     eOff = 0,
     eDesignMode,
@@ -166,13 +162,6 @@ public:
   virtual EditingState GetEditingState() = 0;
 
   /**
-   * Set the editing state of the document. Don't use this if you want
-   * to enable/disable editing, call EditingStateChanged() or
-   * SetDesignMode().
-   */
-  virtual nsresult SetEditingState(EditingState aState) = 0;
-
-  /**
    * Returns the result of document.all[aID] which can either be a node
    * or a nodelist depending on if there are multiple nodes with the same
    * id.
@@ -184,21 +173,6 @@ public:
    * Disables getting and setting cookies
    */
   virtual void DisableCookieAccess() = 0;
-
-  /**
-   * Get the first <body> child of the root <html>, but don't do
-   * anything <frameset>-related (like nsIDOMHTMLDocument::GetBody).
-   */
-  virtual nsIContent* GetBodyContentExternal() = 0;
-
-  /**
-   * Called when this nsIHTMLDocument's editor is destroyed.
-   */
-  virtual void TearingDownEditor(nsIEditor *aEditor) = 0;
-
-  virtual void SetIsXHTML(PRBool aXHTML) = 0;
-
-  virtual void SetDocWriteDisabled(PRBool aDisabled) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIHTMLDocument, NS_IHTMLDOCUMENT_IID)

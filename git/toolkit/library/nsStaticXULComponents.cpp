@@ -67,7 +67,35 @@
 #define UNIVERSALCHARDET_MODULE
 #endif
 
-#define GFX_MODULES MODULE(nsGfxModule)
+#ifdef MOZ_MATHML
+#define MATHML_MODULES MODULE(nsUCvMathModule)
+#else
+#define MATHML_MODULES
+#endif
+
+#ifdef MOZ_IPCD
+#define IPC_MODULE MODULE(ipcdclient)
+#else
+#define IPC_MODULE
+#endif
+
+#ifdef MOZ_CAIRO_GFX
+#  define GFX_MODULES MODULE(nsGfxModule)
+#else
+#  if defined(MOZ_WIDGET_PHOTON)
+#    define GFX_MODULES MODULE(nsGfxPhModule)
+#  elif defined(XP_WIN)
+#    define GFX_MODULES MODULE(nsGfxModule)
+#  elif defined(XP_MACOSX)
+#    define GFX_MODULES MODULE(nsGfxMacModule)
+#  elif defined(XP_BEOS)
+#    define GFX_MODULES MODULE(nsGfxBeOSModule)
+#  elif defined(XP_OS2)
+#    define GFX_MODULES MODULE(nsGfxOS2Module)
+#  else
+#    error Unknown GFX module.
+#  endif
+#endif
 
 #ifdef XP_WIN
 #  define WIDGET_MODULES MODULE(nsWidgetModule)
@@ -81,8 +109,6 @@
 #  define WIDGET_MODULES MODULE(nsWidgetGtk2Module)
 #elif defined(MOZ_WIDGET_PHOTON)
 #  define WIDGET_MODULES MODULE(nsWidgetPhModule)
-#elif defined(MOZ_WIDGET_QT)
-#  define WIDGET_MODULES MODULE(nsWidgetQtModule)
 #else
 #  error Unknown widget module.
 #endif
@@ -97,6 +123,12 @@
 #define RDF_MODULE MODULE(nsRDFModule)
 #else
 #define RDF_MODULE
+#endif
+
+#ifdef OJI
+#define OJI_MODULES MODULE(nsCJVMManagerModule)
+#else
+#define OJI_MODULES
 #endif
 
 #ifdef MOZ_PLAINTEXT_EDITOR_ONLY
@@ -117,13 +149,12 @@
 #define XREMOTE_MODULES
 #endif
 
-#ifdef MOZ_PREF_EXTENSIONS
 #ifdef MOZ_ENABLE_GTK2
-#define SYSTEMPREF_MODULES \
-    MODULE(nsSystemPrefModule) \
+#ifdef MOZ_PREF_EXTENSIONS
+#define SYSTEMPREF_MODULES MODULE(nsSystemPrefModule) \
     MODULE(nsAutoConfigModule)
 #else
-#define SYSTEMPREF_MODULES MODULE(nsAutoConfigModule)
+#define SYSTEMPREF_MODULES
 #endif
 #else
 #define SYSTEMPREF_MODULES
@@ -140,6 +171,13 @@
     MODULE(nsPluginModule)
 #else
 #define PLUGINS_MODULES
+#endif
+
+#ifdef MOZ_WEBSERVICES
+#define WEBSERVICES_MODULES \
+    MODULE(nsWebServicesModule)
+#else
+#define WEBSERVICES_MODULES
 #endif
 
 #ifdef MOZ_XPFE_COMPONENTS
@@ -196,7 +234,8 @@
 #else
 #if (defined(MOZ_MORK) && defined(MOZ_XUL))
 #define PLACES_MODULES \
-    MODULE(nsMorkModule)
+    MODULE(nsMorkModule)                     \
+    MODULE(nsToolkitHistory)
 #else
 #define PLACES_MODULES
 #endif
@@ -217,38 +256,15 @@
 #define SPELLCHECK_MODULE
 #endif
 
-#ifdef MOZ_XUL
-#ifdef MOZ_ENABLE_GTK2
-#define UNIXPROXY_MODULE MODULE(nsUnixProxyModule)
-#endif
-#if defined(MOZ_WIDGET_QT)
-#define UNIXPROXY_MODULE MODULE(nsUnixProxyModule)
-#endif
-#endif
-#ifndef UNIXPROXY_MODULE
-#define UNIXPROXY_MODULE
-#endif
-
-#if defined(XP_MACOSX)
-#define OSXPROXY_MODULE MODULE(nsOSXProxyModule)
+#ifdef MOZ_XMLEXTRAS
+#define XMLEXTRAS_MODULE MODULE(nsXMLExtrasModule)
 #else
-#define OSXPROXY_MODULE
-#endif
-
-#if defined(XP_WIN)
-#define WINDOWSPROXY_MODULE MODULE(nsWindowsProxyModule)
-#else
-#define WINDOWSPROXY_MODULE
-#endif
-
-#if defined(BUILD_CTYPES)
-#define JSCTYPES_MODULE MODULE(jsctypes)
-#else
-#define JSCTYPES_MODULE
+#define XMLEXTRAS_MODULE
 #endif
 
 #define XUL_MODULES                          \
     MODULE(xpconnect)                        \
+    MATHML_MODULES                           \
     MODULE(nsUConvModule)                    \
     MODULE(nsI18nModule)                     \
     MODULE(nsChardetModule)                  \
@@ -256,6 +272,7 @@
     MODULE(necko)                            \
     PERMISSIONS_MODULES                      \
     AUTH_MODULE                              \
+    IPC_MODULE                               \
     MODULE(nsJarModule)                      \
     ZIPWRITER_MODULE                         \
     MODULE(nsPrefModule)                     \
@@ -269,9 +286,11 @@
     ICON_MODULE                              \
     PLUGINS_MODULES                          \
     MODULE(nsLayoutModule)                   \
+    WEBSERVICES_MODULES                      \
     MODULE(docshell_provider)                \
     MODULE(embedcomponents)                  \
     MODULE(Browser_Embedding_Module)         \
+    OJI_MODULES                              \
     ACCESS_MODULES                           \
     MODULE(appshell)                         \
     MODULE(nsTransactionManagerModule)       \
@@ -292,11 +311,8 @@
     MODULE(NSS)                              \
     SYSTEMPREF_MODULES                       \
     SPELLCHECK_MODULE                        \
+    XMLEXTRAS_MODULE                         \
     LAYOUT_DEBUG_MODULE                      \
-    UNIXPROXY_MODULE                         \
-    OSXPROXY_MODULE                          \
-    WINDOWSPROXY_MODULE                      \
-    JSCTYPES_MODULE                          \
     /* end of list */
 
 #define MODULE(_name) \

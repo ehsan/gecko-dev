@@ -52,12 +52,12 @@
 #include "nsNativeCharsetUtils.h"
 #include "nsNetUtil.h"
 #include "nsUnicharUtils.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsXPCOMCID.h"
 #include "plstr.h"
 
 #ifdef XP_MACOSX
-#include <CoreFoundation/CoreFoundation.h>
+#include <CFURL.h>
 #include "nsILocalFileMac.h"
 #elif defined(XP_WIN)
 #include <windows.h>
@@ -95,15 +95,14 @@ protected:
 					void *aClosure);
 
   void appendArg(const char* arg);
-  void resolveShortcutURL(nsILocalFile* aFile, nsACString& outURL);
   nsresult EnumerateHandlers(EnumerateHandlersCallback aCallback, void *aClosure);
   nsresult EnumerateValidators(EnumerateValidatorsCallback aCallback, void *aClosure);
 
-  nsTArray<nsString>      mArgs;
-  PRUint32                mState;
-  nsCOMPtr<nsIFile>       mWorkingDir;
-  nsCOMPtr<nsIDOMWindow>  mWindowContext;
-  PRBool                  mPreventDefault;
+  nsStringArray     mArgs;
+  PRUint32          mState;
+  nsCOMPtr<nsIFile> mWorkingDir;
+  nsCOMPtr<nsIDOMWindow> mWindowContext;
+  PRBool            mPreventDefault;
 };
 
 nsCommandLine::nsCommandLine() :
@@ -121,7 +120,7 @@ NS_IMPL_ISUPPORTS2_CI(nsCommandLine,
 NS_IMETHODIMP
 nsCommandLine::GetLength(PRInt32 *aResult)
 {
-  *aResult = PRInt32(mArgs.Length());
+  *aResult = mArgs.Count();
   return NS_OK;
 }
 
@@ -129,9 +128,9 @@ NS_IMETHODIMP
 nsCommandLine::GetArgument(PRInt32 aIndex, nsAString& aResult)
 {
   NS_ENSURE_ARG_MIN(aIndex, 0);
-  NS_ENSURE_ARG_MAX(aIndex, mArgs.Length());
+  NS_ENSURE_ARG_MAX(aIndex, mArgs.Count());
 
-  aResult = mArgs[aIndex];
+  mArgs.StringAt(aIndex, aResult);
   return NS_OK;
 }
 
@@ -140,14 +139,16 @@ nsCommandLine::FindFlag(const nsAString& aFlag, PRBool aCaseSensitive, PRInt32 *
 {
   NS_ENSURE_ARG(!aFlag.IsEmpty());
 
+  PRInt32 f;
+
   nsDefaultStringComparator caseCmp;
   nsCaseInsensitiveStringComparator caseICmp;
   nsStringComparator& c = aCaseSensitive ?
     static_cast<nsStringComparator&>(caseCmp) :
     static_cast<nsStringComparator&>(caseICmp);
 
-  for (PRUint32 f = 0; f < mArgs.Length(); f++) {
-    const nsString &arg = mArgs[f];
+  for (f = 0; f < mArgs.Count(); ++f) {
+    const nsString &arg = *mArgs[f];
 
     if (arg.Length() >= 2 && arg.First() == PRUnichar('-')) {
       if (aFlag.Equals(Substring(arg, 1), c)) {
@@ -165,10 +166,10 @@ NS_IMETHODIMP
 nsCommandLine::RemoveArguments(PRInt32 aStart, PRInt32 aEnd)
 {
   NS_ENSURE_ARG_MIN(aStart, 0);
-  NS_ENSURE_ARG_MAX(aEnd + 1, mArgs.Length());
+  NS_ENSURE_ARG_MAX(aEnd, mArgs.Count() - 1);
 
   for (PRInt32 i = aEnd; i >= aStart; --i) {
-    mArgs.RemoveElementAt(i);
+    mArgs.RemoveStringAt(i);
   }
 
   return NS_OK;
@@ -210,17 +211,17 @@ nsCommandLine::HandleFlagWithParam(const nsAString& aFlag, PRBool aCaseSensitive
     return NS_OK;
   }
 
-  if (found == PRInt32(mArgs.Length()) - 1) {
+  if (found == mArgs.Count() - 1) {
     return NS_ERROR_INVALID_ARG;
   }
 
   ++found;
 
-  if (mArgs[found].First() == '-') {
+  if (mArgs[found]->First() == '-') {
     return NS_ERROR_INVALID_ARG;
   }
 
-  aResult = mArgs[found];
+  mArgs.StringAt(found, aResult);
   RemoveArguments(found - 1, found);
 
   return NS_OK;
@@ -383,17 +384,20 @@ nsCommandLine::ResolveFile(const nsAString& aArgument, nsIFile* *aResult)
     // going to fail, and I haven't figured out a way to work around this without
     // the PathCombine() function, which is not available in plain win95/nt4
 
-    nsAutoString fullPath;
-    mWorkingDir->GetPath(fullPath);
+    nsCAutoString fullPath;
+    mWorkingDir->GetNativePath(fullPath);
+
+    nsCAutoString carg;
+    NS_CopyUnicodeToNative(aArgument, carg);
 
     fullPath.Append('\\');
-    fullPath.Append(aArgument);
+    fullPath.Append(carg);
 
-    WCHAR pathBuf[MAX_PATH];
-    if (!_wfullpath(pathBuf, fullPath.get(), MAX_PATH))
+    char pathBuf[MAX_PATH];
+    if (!_fullpath(pathBuf, fullPath.get(), MAX_PATH))
       return NS_ERROR_FAILURE;
 
-    rv = lf->InitWithPath(nsDependentString(pathBuf));
+    rv = lf->InitWithNativePath(nsDependentCString(pathBuf));
     if (NS_FAILED(rv)) return rv;
   }
   NS_ADDREF(*aResult = lf);
@@ -441,26 +445,16 @@ nsCommandLine::ResolveURI(const nsAString& aArgument, nsIURI* *aResult)
   nsCOMPtr<nsIIOService> io = do_GetIOService();
   NS_ENSURE_TRUE(io, NS_ERROR_OUT_OF_MEMORY);
 
-  nsCOMPtr<nsIURI> workingDirURI;
-  if (mWorkingDir) {
-    io->NewFileURI(mWorkingDir, getter_AddRefs(workingDirURI));
-  }
-
   nsCOMPtr<nsILocalFile> lf (do_CreateInstance(NS_LOCAL_FILE_CONTRACTID));
   rv = lf->InitWithPath(aArgument);
   if (NS_SUCCEEDED(rv)) {
     lf->Normalize();
-    nsCAutoString url;
-    // Try to resolve the url for .url files.
-    resolveShortcutURL(lf, url);
-    if (!url.IsEmpty()) {
-      return io->NewURI(url,
-                        nsnull,
-                        workingDirURI,
-                        aResult);
-    }
-
     return io->NewFileURI(lf, aResult);
+  }
+
+  nsCOMPtr<nsIURI> workingDirURI;
+  if (mWorkingDir) {
+    io->NewFileURI(mWorkingDir, getter_AddRefs(workingDirURI));
   }
 
   return io->NewURI(NS_ConvertUTF16toUTF8(aArgument),
@@ -477,29 +471,9 @@ nsCommandLine::appendArg(const char* arg)
 #endif
 
   nsAutoString warg;
-#ifdef XP_WIN
-  CopyUTF8toUTF16(nsDependentCString(arg), warg);
-#else
   NS_CopyNativeToUnicode(nsDependentCString(arg), warg);
-#endif
 
-  mArgs.AppendElement(warg);
-}
-
-void
-nsCommandLine::resolveShortcutURL(nsILocalFile* aFile, nsACString& outURL)
-{
-  nsCOMPtr<nsIFileProtocolHandler> fph;
-  nsresult rv = NS_GetFileProtocolHandler(getter_AddRefs(fph));
-  if (NS_FAILED(rv))
-    return;
-
-  nsCOMPtr<nsIURI> uri;
-  rv = fph->ReadURLFile(aFile, getter_AddRefs(uri));
-  if (NS_FAILED(rv))
-    return;
-
-  uri->GetSpec(outURL);
+  mArgs.AppendString(warg);
 }
 
 NS_IMETHODIMP
