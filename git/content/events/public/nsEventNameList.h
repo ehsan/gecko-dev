@@ -654,11 +654,6 @@ NON_IDL_EVENT(warning,
               EventNameType_None,
               NS_EVENT)
 
-NON_IDL_EVENT(speakerforcedchange,
-              NS_SPEAKERMANAGER_SPEAKERFORCEDCHANGE,
-              EventNameType_None,
-              NS_EVENT)
-
 // Events that only have on* attributes on XUL elements
 NON_IDL_EVENT(text,
               NS_TEXT_TEXT,

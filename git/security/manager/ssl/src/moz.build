@@ -15,9 +15,10 @@ EXPORTS.mozilla += [
     'PublicSSL.h',
 ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'CertVerifier.cpp',
     'CryptoTask.cpp',
+    'JARSignatureVerification.cpp',
     'nsCertificatePrincipal.cpp',
     'nsCertOverrideService.cpp',
     'nsCertPicker.cpp',
@@ -26,6 +27,7 @@ UNIFIED_SOURCES += [
     'nsCMS.cpp',
     'nsCMSSecureMessage.cpp',
     'nsCrypto.cpp',
+    'nsCryptoHash.cpp',
     'nsDataSignatureVerifier.cpp',
     'nsIdentityChecking.cpp',
     'nsKeygenHandler.cpp',
@@ -36,14 +38,17 @@ UNIFIED_SOURCES += [
     'nsNSSCertCache.cpp',
     'nsNSSCertHelper.cpp',
     'nsNSSCertificate.cpp',
+    'nsNSSCertificateDB.cpp',
     'nsNSSCertificateFakeTransport.cpp',
     'nsNSSCertTrust.cpp',
     'nsNSSCertValidity.cpp',
     'nsNSSCleaner.cpp',
+    'nsNSSComponent.cpp',
     'nsNSSErrors.cpp',
     'nsNSSIOLayer.cpp',
     'nsNSSModule.cpp',
     'nsNSSShutDown.cpp',
+    'nsNSSVersion.cpp',
     'nsNTLMAuthModule.cpp',
     'nsPK11TokenDB.cpp',
     'nsPKCS11Slot.cpp',
@@ -59,35 +64,24 @@ UNIFIED_SOURCES += [
     'nsStreamCipher.cpp',
     'nsTLSSocketProvider.cpp',
     'nsUsageArrayHelper.cpp',
+    'PSMContentListener.cpp',
     'PSMRunnable.cpp',
     'SharedSSLState.cpp',
     'SSLServerCertVerification.cpp',
     'TransportSecurityInfo.cpp',
 ]
 
-# nsNSSCertificateDB.cpp needs to include nscert.h before everything else.
-# The rest cannot be built in unified mode because they want to force NSPR
-# logging.
-SOURCES += [
-    'JARSignatureVerification.cpp',
-    'nsCryptoHash.cpp',
-    'nsNSSCertificateDB.cpp',
-    'nsNSSComponent.cpp',
-    'nsNSSVersion.cpp',
-    'PSMContentListener.cpp',
-]
-
 if not CONFIG['MOZ_DISABLE_CRYPTOLEGACY']:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'nsSmartCardMonitor.cpp',
     ]
 
 if CONFIG['MOZ_XUL']:
-    UNIFIED_SOURCES += [
+    SOURCES += [
         'nsCertTree.cpp',
     ]
 
-UNIFIED_SOURCES += [
+SOURCES += [
     'md4.c',
 ]
 

@@ -98,17 +98,6 @@ public:
   virtual void OnSocketDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;
 
   bool Listen();
-  /**
-   * This function set up a Synchronous Connection (SCO) link for HFP.
-   * Service Level Connection (SLC) should be established before SCO setup
-   * process.
-   * If SLC haven't been established, this function will return false and send a
-   * request to set up SCO ater HfpManager receive AT+CMER.
-   *
-   * @param  aRunnable Indicate a BluetoothReplyRunnable to execute this
-   *                   function. The default value is nullpter
-   * @return <code>true</code> if SCO established successfully
-   */
   bool ConnectSco(BluetoothReplyRunnable* aRunnable = nullptr);
   bool DisconnectSco();
   bool ListenSco();
@@ -121,8 +110,8 @@ public:
   void HandleCallStateChanged(uint32_t aCallIndex, uint16_t aCallState,
                               const nsAString& aError, const nsAString& aNumber,
                               const bool aIsOutgoing, bool aSend);
-  void HandleIccInfoChanged(uint32_t aClientId);
-  void HandleVoiceConnectionChanged(uint32_t aClientId);
+  void HandleIccInfoChanged();
+  void HandleVoiceConnectionChanged();
 
   // CDMA-specific functions
   void UpdateSecondNumber(const nsAString& aNumber);
@@ -186,8 +175,6 @@ private:
 #endif
   bool mCMEE;
   bool mCMER;
-  bool mConnectScoRequest;
-  bool mSlcConnected;
 #ifdef MOZ_B2G_RIL
   bool mFirstCKPD;
   int mNetworkSelectionMode;

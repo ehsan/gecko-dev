@@ -337,7 +337,6 @@ class MDefinition : public MNode
     static void PrintOpcodeName(FILE *fp, Opcode op);
     virtual void printOpcode(FILE *fp) const;
     void dump(FILE *fp) const;
-    void dump() const;
 
     // For LICM.
     virtual bool neverHoist() const { return false; }
@@ -443,9 +442,8 @@ class MDefinition : public MNode
     // dynamically with the use of bailout checks. If all the bailout checks
     // pass, the value will have this type.
     //
-    // Unless this is an MUrsh that has bailouts disabled, which, as a special
-    // case, may return a value in (INT32_MAX,UINT32_MAX] even when its type()
-    // is MIRType_Int32.
+    // Unless this is an MUrsh, which, as a special case, may return a value
+    // in (INT32_MAX,UINT32_MAX] even when its type() is MIRType_Int32.
     MIRType type() const {
         return resultType_;
     }
@@ -514,10 +512,6 @@ class MDefinition : public MNode
     // (only counting MDefinitions, ignoring MResumePoints)
     bool hasOneDefUse() const;
 
-    // Test whether this MDefinition has at least one use.
-    // (only counting MDefinitions, ignoring MResumePoints)
-    bool hasDefUses() const;
-
     bool hasUses() const {
         return !uses_.empty();
     }
@@ -535,6 +529,11 @@ class MDefinition : public MNode
     // returning false if the replacement should not be performed. For use when
     // GVN eliminates instructions which are not equivalent to one another.
     virtual bool updateForReplacement(MDefinition *ins) {
+        return true;
+    }
+
+    // Same thing, but for folding
+    virtual bool updateForFolding(MDefinition *ins) {
         return true;
     }
 
@@ -1907,40 +1906,6 @@ class MCall
         return this;
     }
     AliasSet getAliasSet() const {
-        if (isDOMFunction()) {
-            JS_ASSERT(getSingleTarget() && getSingleTarget()->isNative());
-
-            const JSJitInfo* jitInfo = getSingleTarget()->jitInfo();
-            JS_ASSERT(jitInfo);
-
-            if (jitInfo->isPure && jitInfo->argTypes) {
-                uint32_t argIndex = 0;
-                for (const JSJitInfo::ArgType* argType = jitInfo->argTypes;
-                     *argType != JSJitInfo::ArgTypeListEnd;
-                     ++argType, ++argIndex)
-                {
-                    if (argIndex >= numActualArgs()) {
-                        // Passing through undefined can't have side-effects
-                        continue;
-                    }
-                    // getArg(0) is "this", so skip it
-                    MDefinition *arg = getArg(argIndex+1);
-                    MIRType actualType = arg->type();
-                    // The only way to get side-effects is if we're passing in
-                    // something that might be an object to an argument that
-                    // expects a numeric, string, or boolean value.
-                    if ((actualType == MIRType_Value || actualType == MIRType_Object) &&
-                        (*argType &
-                         (JSJitInfo::Boolean | JSJitInfo::String | JSJitInfo::Numeric)))
-                    {
-                        return AliasSet::Store(AliasSet::Any);
-                    }
-                }
-                // We checked all the args, and they check out.  So we only
-                // alias DOM mutations.
-                return AliasSet::Load(AliasSet::DOMProperty);
-            }
-        }
         return AliasSet::Store(AliasSet::Any);
     }
 
@@ -2033,7 +1998,7 @@ class MAssertFloat32 : public MUnaryInstruction
 
     bool canConsumeFloat32() const { return true; }
 
-    bool mustBeFloat32() const { return mustBeFloat32_; }
+    bool mustBeFloat32() { return mustBeFloat32_; }
 };
 
 class MGetDynamicName
@@ -3048,7 +3013,7 @@ class MToInt32
     // this only has backwards information flow.
     void analyzeEdgeCasesBackward();
 
-    bool canBeNegativeZero() const {
+    bool canBeNegativeZero() {
         return canBeNegativeZero_;
     }
     void setCanBeNegativeZero(bool negativeZero) {
@@ -3432,7 +3397,7 @@ class MUrsh : public MShiftInstruction
         return bailoutsDisabled_;
     }
 
-    bool fallible() const;
+    bool fallible();
 
     void computeRange();
 };
@@ -3954,7 +3919,7 @@ class MAdd : public MBinaryArithInstruction
         return 0;
     }
 
-    bool fallible() const;
+    bool fallible();
     void computeRange();
     bool truncate();
     bool isOperandTruncated(size_t index) const;
@@ -3990,7 +3955,7 @@ class MSub : public MBinaryArithInstruction
 
     bool isFloat32Commutative() const { return true; }
 
-    bool fallible() const;
+    bool fallible();
     void computeRange();
     bool truncate();
     bool isOperandTruncated(size_t index) const;
@@ -4049,9 +4014,9 @@ class MMul : public MBinaryArithInstruction
         return 1;
     }
 
-    bool canOverflow() const;
+    bool canOverflow();
 
-    bool canBeNegativeZero() const {
+    bool canBeNegativeZero() {
         return canBeNegativeZero_;
     }
     void setCanBeNegativeZero(bool negativeZero) {
@@ -4060,7 +4025,7 @@ class MMul : public MBinaryArithInstruction
 
     bool updateForReplacement(MDefinition *ins);
 
-    bool fallible() const {
+    bool fallible() {
         return canBeNegativeZero_ || canOverflow();
     }
 
@@ -4117,29 +4082,29 @@ class MDiv : public MBinaryArithInstruction
         MOZ_ASSUME_UNREACHABLE("not used");
     }
 
-    bool canBeNegativeZero() const {
+    bool canBeNegativeZero() {
         return canBeNegativeZero_;
     }
     void setCanBeNegativeZero(bool negativeZero) {
         canBeNegativeZero_ = negativeZero;
     }
 
-    bool canBeNegativeOverflow() const {
+    bool canBeNegativeOverflow() {
         return canBeNegativeOverflow_;
     }
 
-    bool canBeDivideByZero() const {
+    bool canBeDivideByZero() {
         return canBeDivideByZero_;
     }
 
-    bool isUnsigned() const {
+    bool isUnsigned() {
         return unsigned_;
     }
 
     bool isFloat32Commutative() const { return true; }
 
     void computeRange();
-    bool fallible() const;
+    bool fallible();
     bool truncate();
 };
 
@@ -4185,11 +4150,11 @@ class MMod : public MBinaryArithInstruction
     bool canBeDivideByZero() const;
     bool canBePowerOfTwoDivisor() const;
 
-    bool isUnsigned() const {
+    bool isUnsigned() {
         return unsigned_;
     }
 
-    bool fallible() const;
+    bool fallible();
 
     void computeRange();
     bool truncate();
@@ -7817,7 +7782,6 @@ class MGetDOMProperty
 {
     const JSJitInfo *info_;
 
-  protected:
     MGetDOMProperty(const JSJitInfo *jitinfo, MDefinition *obj, MDefinition *guard)
       : info_(jitinfo)
     {
@@ -7836,6 +7800,7 @@ class MGetDOMProperty
         setResultType(MIRType_Value);
     }
 
+  protected:
     const JSJitInfo *info() const {
         return info_;
     }
@@ -7860,10 +7825,6 @@ class MGetDOMProperty
     }
     bool isDomPure() const {
         return info_->isPure;
-    }
-    size_t domMemberSlotIndex() const {
-        MOZ_ASSERT(info_->isInSlot);
-        return info_->slotIndex;
     }
     MDefinition *object() {
         return getOperand(0);
@@ -7901,28 +7862,6 @@ class MGetDOMProperty
 
     bool possiblyCalls() const {
         return true;
-    }
-};
-
-class MGetDOMMember : public MGetDOMProperty
-{
-    // We inherit everything from MGetDOMProperty except our possiblyCalls value
-    MGetDOMMember(const JSJitInfo *jitinfo, MDefinition *obj, MDefinition *guard)
-        : MGetDOMProperty(jitinfo, obj, guard)
-    {
-    }
-
-  public:
-    INSTRUCTION_HEADER(GetDOMMember)
-
-    static MGetDOMMember *New(TempAllocator &alloc, const JSJitInfo *info, MDefinition *obj,
-                              MDefinition *guard)
-    {
-        return new(alloc) MGetDOMMember(info, obj, guard);
-    }
-
-    bool possiblyCalls() const {
-        return false;
     }
 };
 
@@ -8326,8 +8265,7 @@ class MGetFrameArgument
 
 // This MIR instruction is used to set an argument value in the frame.
 class MSetFrameArgument
-  : public MUnaryInstruction,
-    public NoFloatPolicy<0>
+  : public MUnaryInstruction
 {
     uint32_t argno_;
 
@@ -8358,9 +8296,6 @@ class MSetFrameArgument
     }
     AliasSet getAliasSet() const {
         return AliasSet::Store(AliasSet::FrameArgument);
-    }
-    TypePolicy *typePolicy() {
-        return this;
     }
 };
 
@@ -8710,7 +8645,7 @@ class MNewCallObject : public MUnaryInstruction
     JSObject *templateObject() {
         return templateObj_;
     }
-    bool needsSingletonType() const {
+    bool needsSingletonType() {
         return needsSingletonType_;
     }
     AliasSet getAliasSet() const {

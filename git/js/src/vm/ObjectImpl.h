@@ -8,7 +8,6 @@
 #define vm_ObjectImpl_h
 
 #include "mozilla/Assertions.h"
-#include "mozilla/Attributes.h"
 
 #include <stdint.h>
 
@@ -834,7 +833,7 @@ class ObjectElements
     }
 
   public:
-    MOZ_CONSTEXPR ObjectElements(uint32_t capacity, uint32_t length)
+    ObjectElements(uint32_t capacity, uint32_t length)
       : flags(0), initializedLength(0), capacity(capacity), length(length)
     {}
 

@@ -60,7 +60,7 @@ public:
   static already_AddRefed<IDBObjectStore>
   Create(IDBTransaction* aTransaction,
          ObjectStoreInfo* aInfo,
-         const nsACString& aDatabaseId,
+         nsIAtom* aDatabaseId,
          bool aCreating);
 
   static nsresult
@@ -402,7 +402,7 @@ private:
   JS::Heap<JS::Value> mCachedKeyPath;
   bool mRooted;
   bool mAutoIncrement;
-  nsCString mDatabaseId;
+  nsCOMPtr<nsIAtom> mDatabaseId;
   nsRefPtr<ObjectStoreInfo> mInfo;
 
   nsTArray<nsRefPtr<IDBIndex> > mCreatedIndexes;

@@ -25,7 +25,6 @@
 #include "nsJSUtils.h"
 #include "nsCxPusher.h"
 #include "nsIAudioManager.h"
-#include "SpeakerManagerService.h"
 #define NS_AUDIOMANAGER_CONTRACTID "@mozilla.org/telephony/audiomanager;1"
 #endif
 
@@ -171,12 +170,6 @@ AudioChannelService::UnregisterAudioChannelAgent(AudioChannelAgent* aAgent)
     UnregisterType(data->mType, data->mElementHidden,
                    CONTENT_PROCESS_ID_MAIN, data->mWithVideo);
   }
-#ifdef MOZ_WIDGET_GONK
-  bool active = AnyAudioChannelIsActive();
-  for (uint32_t i = 0; i < mSpeakerManager.Length(); i++) {
-    mSpeakerManager[i]->SetAudioChannelActive(active);
-  }
-#endif
 }
 
 void
@@ -564,19 +557,6 @@ AudioChannelService::Notify(nsITimer* aTimer)
   UnregisterTypeInternal(AUDIO_CHANNEL_TELEPHONY, mTimerElementHidden, mTimerChildID, false);
   mDeferTelChannelTimer = nullptr;
   return NS_OK;
-}
-
-bool
-AudioChannelService::AnyAudioChannelIsActive()
-{
-  for (int i = AUDIO_CHANNEL_INT_LAST - 1;
-       i >= AUDIO_CHANNEL_INT_NORMAL; --i) {
-    if (!mChannelCounters[i].IsEmpty()) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 bool

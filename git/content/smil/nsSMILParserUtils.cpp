@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSMILParserUtils.h"
-#include "nsSMILKeySpline.h"
 #include "nsISMILAttr.h"
 #include "nsSMILValue.h"
 #include "nsSMILTimeValue.h"
@@ -12,10 +11,12 @@
 #include "nsSMILTypes.h"
 #include "nsSMILRepeatCount.h"
 #include "nsContentUtils.h"
+#include "nsString.h"
+#include "prdtoa.h"
+#include "nsCRT.h"
+#include "nsCOMPtr.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "SVGContentUtils.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 //------------------------------------------------------------------------------
 // Helper functions and Constants
@@ -25,250 +26,210 @@ namespace {
 const uint32_t MSEC_PER_SEC  = 1000;
 const uint32_t MSEC_PER_MIN  = 1000 * 60;
 const uint32_t MSEC_PER_HOUR = 1000 * 60 * 60;
+const int32_t  DECIMAL_BASE  = 10;
 
 #define ACCESSKEY_PREFIX_LC NS_LITERAL_STRING("accesskey(") // SMIL2+
 #define ACCESSKEY_PREFIX_CC NS_LITERAL_STRING("accessKey(") // SVG/SMIL ANIM
 #define REPEAT_PREFIX    NS_LITERAL_STRING("repeat(")
 #define WALLCLOCK_PREFIX NS_LITERAL_STRING("wallclock(")
 
+// NS_IS_SPACE relies on isspace which may return true for \xB and \xC but
+// SMILANIM does not consider these characters to be whitespace.
 inline bool
-SkipWhitespace(RangedPtr<const PRUnichar>& aIter,
-               const RangedPtr<const PRUnichar>& aEnd)
+IsSpace(const PRUnichar c)
 {
-  while (aIter != aEnd) {
-    if (!IsSVGWhitespace(*aIter)) {
-      return true;
-    }
-    ++aIter;
-  }
-  return false;
+  return (c == 0x9 || c == 0xA || c == 0xD || c == 0x20);
 }
 
-inline bool
-ParseColon(RangedPtr<const PRUnichar>& aIter,
-           const RangedPtr<const PRUnichar>& aEnd)
+template<class T>
+inline void
+SkipBeginWsp(T& aStart, T aEnd)
 {
-  if (aIter == aEnd || *aIter != ':') {
-    return false;
+  while (aStart != aEnd && IsSpace(*aStart)) {
+    ++aStart;
   }
-  ++aIter;
-  return true;
 }
 
-/*
- * Exactly two digits in the range 00 - 59 are expected.
- */
+inline void
+SkipBeginEndWsp(const PRUnichar*& aStart, const PRUnichar*& aEnd)
+{
+  SkipBeginWsp(aStart, aEnd);
+  while (aEnd != aStart && IsSpace(*(aEnd - 1))) {
+    --aEnd;
+  }
+}
+
+double
+GetFloat(const char*& aStart, const char* aEnd, nsresult* aErrorCode)
+{
+  char* floatEnd;
+  double value = PR_strtod(aStart, &floatEnd);
+
+  nsresult rv;
+
+  if (floatEnd == aStart || floatEnd > aEnd) {
+    rv = NS_ERROR_FAILURE;
+  } else {
+    aStart = floatEnd;
+    rv = NS_OK;
+  }
+
+  if (aErrorCode) {
+    *aErrorCode = rv;
+  }
+
+  return value;
+}
+
+size_t
+GetUnsignedInt(const nsAString& aStr, uint32_t& aResult)
+{
+  NS_ConvertUTF16toUTF8 cstr(aStr);
+  const char* str = cstr.get();
+
+  char* rest;
+  int32_t value = strtol(str, &rest, DECIMAL_BASE);
+
+  if (rest == str || value < 0)
+    return 0;
+
+  aResult = static_cast<uint32_t>(value);
+  return rest - str;
+}
+
 bool
-ParseSecondsOrMinutes(RangedPtr<const PRUnichar>& aIter,
-                      const RangedPtr<const PRUnichar>& aEnd,
-                      uint32_t& aValue)
+GetUnsignedIntAndEndParen(const nsAString& aStr, uint32_t& aResult)
 {
-  if (aIter == aEnd || !SVGContentUtils::IsDigit(*aIter)) {
+  size_t intLen = GetUnsignedInt(aStr, aResult);
+
+  const PRUnichar* start = aStr.BeginReading();
+  const PRUnichar* end = aStr.EndReading();
+
+  // Make sure the string is only digit+')'
+  if (intLen == 0 || start + intLen + 1 != end || *(start + intLen) != ')')
     return false;
-  }
 
-  RangedPtr<const PRUnichar> iter(aIter);
-
-  if (++iter == aEnd || !SVGContentUtils::IsDigit(*iter)) {
-     return false;
-  }
-
-  uint32_t value = 10 * SVGContentUtils::DecimalDigitValue(*aIter) +
-                   SVGContentUtils::DecimalDigitValue(*iter);
-  if (value > 59) {
-    return false;
-  }
-  if (++iter != aEnd && SVGContentUtils::IsDigit(*iter)) {
-    return false;
-  }
-
-  aValue = value;
-  aIter = iter;
   return true;
 }
 
 inline bool
-ParseClockMetric(RangedPtr<const PRUnichar>& aIter,
-                 const RangedPtr<const PRUnichar>& aEnd,
-                 uint32_t& aMultiplier)
+ConsumeSubstring(const char*& aStart, const char* aEnd, const char* aSubstring)
 {
-  if (aIter == aEnd) {
-    aMultiplier = MSEC_PER_SEC;
-    return true;
+  size_t substrLen = strlen(aSubstring);
+
+  if (static_cast<size_t>(aEnd - aStart) < substrLen)
+    return false;
+
+  bool result = false;
+
+  if (PL_strstr(aStart, aSubstring) == aStart) {
+    aStart += substrLen;
+    result = true;
   }
 
-  switch (*aIter) {
-  case 'h':
-    if (++aIter == aEnd) {
-      aMultiplier = MSEC_PER_HOUR;
-      return true;
-    }
+  return result;
+}
+
+bool
+ParseClockComponent(const char*& aStart,
+                    const char* aEnd,
+                    double& aResult,
+                    bool& aIsReal,
+                    bool& aCouldBeMin,
+                    bool& aCouldBeSec)
+{
+  nsresult rv;
+  const char* begin = aStart;
+  double value = GetFloat(aStart, aEnd, &rv);
+
+  // Check a number was found
+  if (NS_FAILED(rv))
     return false;
-  case 'm':
+
+  // Check that it's not expressed in exponential form
+  size_t len = aStart - begin;
+  bool isExp = (PL_strnpbrk(begin, "eE", len) != nullptr);
+  if (isExp)
+    return false;
+
+  // Don't allow real numbers of the form "23."
+  if (*(aStart - 1) == '.')
+    return false;
+
+  // Number looks good
+  aResult = value;
+
+  // Set some flags so we can check this number is valid once we know
+  // whether it's an hour, minute string etc.
+  aIsReal = (PL_strnchr(begin, '.', len) != nullptr);
+  aCouldBeMin = (value < 60.0 && (len == 2));
+  aCouldBeSec = (value < 60.0 ||
+      (value == 60.0 && begin[0] == '5')); // Take care of rounding error
+  aCouldBeSec &= (len >= 2 &&
+      (begin[2] == '\0' || begin[2] == '.' || IsSpace(begin[2])));
+
+  return true;
+}
+
+bool
+ParseMetricMultiplicand(const char*& aStart,
+                        const char* aEnd,
+                        int32_t& multiplicand)
+{
+  bool result = false;
+
+  size_t len = aEnd - aStart;
+  const char* cur = aStart;
+
+  if (len) {
+    switch (*cur++)
     {
-      const nsAString& metric = Substring(aIter.get(), aEnd.get());
-      if (metric.EqualsLiteral("min")) {
-        aMultiplier = MSEC_PER_MIN;
-        aIter = aEnd;
-        return true;
-      }
-      if (metric.EqualsLiteral("ms")) {
-        aMultiplier = 1;
-        aIter = aEnd;
-        return true;
-      }
+      case 'h':
+        multiplicand = MSEC_PER_HOUR;
+        result = true;
+        break;
+      case 'm':
+        if (len >= 2) {
+          if (*cur == 's') {
+            ++cur;
+            multiplicand = 1;
+            result = true;
+          } else if (len >= 3 && *cur++ == 'i' && *cur++ == 'n') {
+            multiplicand = MSEC_PER_MIN;
+            result = true;
+          }
+        }
+        break;
+      case 's':
+        multiplicand = MSEC_PER_SEC;
+        result = true;
+        break;
     }
-    return false;
-  case 's':
-    if (++aIter == aEnd) {
-      aMultiplier = MSEC_PER_SEC;
-      return true;
-    }
   }
-  return false;
+
+  if (result) {
+    aStart = cur;
+  }
+
+  return result;
 }
 
-/**
- * See http://www.w3.org/TR/SVG/animate.html#ClockValueSyntax
- */
-bool
-ParseClockValue(RangedPtr<const PRUnichar>& aIter,
-                const RangedPtr<const PRUnichar>& aEnd,
-                nsSMILTimeValue* aResult)
+nsresult
+ParseOptionalOffset(const nsAString& aSpec, nsSMILTimeValueSpecParams& aResult)
 {
-  if (aIter == aEnd) {
-    return false;
+  if (aSpec.IsEmpty()) {
+    aResult.mOffset.SetMillis(0);
+    return NS_OK;
   }
 
-  // TIMECOUNT_VALUE     ::= Timecount ("." Fraction)? (Metric)?
-  // PARTIAL_CLOCK_VALUE ::= Minutes ":" Seconds ("." Fraction)?
-  // FULL_CLOCK_VALUE    ::= Hours ":" Minutes ":" Seconds ("." Fraction)?
-  enum ClockType {
-    TIMECOUNT_VALUE,
-    PARTIAL_CLOCK_VALUE,
-    FULL_CLOCK_VALUE
-  };
+  if (aSpec.First() != '+' && aSpec.First() != '-')
+    return NS_ERROR_FAILURE;
 
-  int32_t clockType = TIMECOUNT_VALUE;
-
-  RangedPtr<const PRUnichar> iter(aIter);
-
-  // Determine which type of clock value we have by counting the number
-  // of colons in the string.
-  do {
-    switch (*iter) {
-    case ':':
-       if (clockType == FULL_CLOCK_VALUE) {
-         return false;
-       }
-       ++clockType;
-       break;
-    case 'e':
-    case 'E':
-    case '-':
-    case '+':
-      // Exclude anything invalid (for clock values)
-      // that number parsing might otherwise allow.
-      return false;
-    }
-    ++iter;
-  } while (iter != aEnd);
-
-  iter = aIter;
-
-  int32_t hours = 0, timecount;
-  double fraction = 0.0;
-  uint32_t minutes, seconds, multiplier;
-
-  switch (clockType) {
-    case FULL_CLOCK_VALUE:
-      if (!SVGContentUtils::ParseInteger(iter, aEnd, hours) ||
-          !ParseColon(iter, aEnd)) {
-        return false;
-      }
-      // intentional fall through
-    case PARTIAL_CLOCK_VALUE:
-      if (!ParseSecondsOrMinutes(iter, aEnd, minutes) ||
-          !ParseColon(iter, aEnd) ||
-          !ParseSecondsOrMinutes(iter, aEnd, seconds)) {
-        return false;
-      }
-      if (iter != aEnd &&
-          (*iter != '.' ||
-           !SVGContentUtils::ParseNumber(iter, aEnd, fraction))) {
-        return false;
-      }
-      aResult->SetMillis(nsSMILTime(hours) * MSEC_PER_HOUR +
-                         minutes * MSEC_PER_MIN +
-                         seconds * MSEC_PER_SEC +
-                         NS_round(fraction * MSEC_PER_SEC));
-      aIter = iter;
-      return true;
-    case TIMECOUNT_VALUE:
-      if (!SVGContentUtils::ParseInteger(iter, aEnd, timecount)) {
-        return false;
-      }
-      if (iter != aEnd && *iter == '.' &&
-          !SVGContentUtils::ParseNumber(iter, aEnd, fraction)) {
-        return false;
-      }
-      if (!ParseClockMetric(iter, aEnd, multiplier)) {
-        return false;
-      }
-      aResult->SetMillis(nsSMILTime(timecount) * multiplier +
-                         NS_round(fraction * multiplier));
-      aIter = iter;
-      return true;
-  }
-
-  return false;
+  return nsSMILParserUtils::ParseClockValue(aSpec, &aResult.mOffset,
+     nsSMILParserUtils::kClockValueAllowSign);
 }
 
-bool
-ParseOffsetValue(RangedPtr<const PRUnichar>& aIter,
-                 const RangedPtr<const PRUnichar>& aEnd,
-                 nsSMILTimeValue* aResult)
-{
-  RangedPtr<const PRUnichar> iter(aIter);
-
-  int32_t sign;
-  if (!SVGContentUtils::ParseOptionalSign(iter, aEnd, sign) ||
-      !SkipWhitespace(iter, aEnd) ||
-      !ParseClockValue(iter, aEnd, aResult)) {
-    return false;
-  }
-  if (sign == -1) {
-    aResult->SetMillis(-aResult->GetMillis());
-  }
-  aIter = iter;
-  return true;
-}
-
-bool
-ParseOffsetValue(const nsAString& aSpec,
-                 nsSMILTimeValue* aResult)
-{
-  RangedPtr<const PRUnichar> iter(SVGContentUtils::GetStartRangedPtr(aSpec));
-  const RangedPtr<const PRUnichar> end(SVGContentUtils::GetEndRangedPtr(aSpec));
-
-  return ParseOffsetValue(iter, end, aResult) && iter == end;
-}
-
-bool
-ParseOptionalOffset(RangedPtr<const PRUnichar>& aIter,
-                    const RangedPtr<const PRUnichar>& aEnd,
-                    nsSMILTimeValue* aResult)
-{
-  if (aIter == aEnd) {
-    aResult->SetMillis(0L);
-    return true;
-  }
-
-  return SkipWhitespace(aIter, aEnd) &&
-         ParseOffsetValue(aIter, aEnd, aResult);
-}
-
-bool
+nsresult
 ParseAccessKey(const nsAString& aSpec, nsSMILTimeValueSpecParams& aResult)
 {
   NS_ABORT_IF_FALSE(StringBeginsWith(aSpec, ACCESSKEY_PREFIX_CC) ||
@@ -281,93 +242,68 @@ ParseAccessKey(const nsAString& aSpec, nsSMILTimeValueSpecParams& aResult)
   NS_ABORT_IF_FALSE(
       ACCESSKEY_PREFIX_LC.Length() == ACCESSKEY_PREFIX_CC.Length(),
       "Case variations for accesskey prefix differ in length");
-
-  RangedPtr<const PRUnichar> iter(SVGContentUtils::GetStartRangedPtr(aSpec));
-  RangedPtr<const PRUnichar> end(SVGContentUtils::GetEndRangedPtr(aSpec));
-
-  iter += ACCESSKEY_PREFIX_LC.Length();
+  const PRUnichar* start = aSpec.BeginReading() + ACCESSKEY_PREFIX_LC.Length();
+  const PRUnichar* end = aSpec.EndReading();
 
   // Expecting at least <accesskey> + ')'
-  if (end - iter < 2)
-    return false;
+  if (end - start < 2)
+    return NS_ERROR_FAILURE;
 
-  uint32_t c = *iter++;
+  uint32_t c = *start++;
 
   // Process 32-bit codepoints
   if (NS_IS_HIGH_SURROGATE(c)) {
-    if (end - iter < 2) // Expecting at least low-surrogate + ')'
-      return false;
-    uint32_t lo = *iter++;
+    if (end - start < 2) // Expecting at least low-surrogate + ')'
+      return NS_ERROR_FAILURE;
+    uint32_t lo = *start++;
     if (!NS_IS_LOW_SURROGATE(lo))
-      return false;
+      return NS_ERROR_FAILURE;
     c = SURROGATE_TO_UCS4(c, lo);
   // XML 1.1 says that 0xFFFE and 0xFFFF are not valid characters
   } else if (NS_IS_LOW_SURROGATE(c) || c == 0xFFFE || c == 0xFFFF) {
-    return false;
+    return NS_ERROR_FAILURE;
   }
 
   result.mRepeatIterationOrAccessKey = c;
 
-  if (*iter++ != ')')
-    return false;
+  if (*start++ != ')')
+    return NS_ERROR_FAILURE;
 
-  if (!ParseOptionalOffset(iter, end, &result.mOffset) || iter != end) {
-    return false;
-  }
+  SkipBeginWsp(start, end);
+
+  nsresult rv = ParseOptionalOffset(Substring(start, end), result);
+  if (NS_FAILED(rv))
+    return rv;
+
   aResult = result;
-  return true;
+
+  return NS_OK;
+}
+
+const PRUnichar*
+GetTokenEnd(const nsAString& aStr, bool aBreakOnDot)
+{
+  const PRUnichar* tokenEnd = aStr.BeginReading();
+  const PRUnichar* const end = aStr.EndReading();
+  bool escape = false;
+  while (tokenEnd != end) {
+    PRUnichar c = *tokenEnd;
+    if (IsSpace(c) ||
+       (!escape && (c == '+' || c == '-' || (aBreakOnDot && c == '.')))) {
+      break;
+    }
+    escape = (!escape && c == '\\');
+    ++tokenEnd;
+  }
+  return tokenEnd;
 }
 
 void
-MoveToNextToken(RangedPtr<const PRUnichar>& aIter,
-                const RangedPtr<const PRUnichar>& aEnd,
-                bool aBreakOnDot,
-                bool& aIsAnyCharEscaped)
+Unescape(nsAString& aStr)
 {
-  aIsAnyCharEscaped = false;
-
-  bool isCurrentCharEscaped = false;
-
-  while (aIter != aEnd && !IsSVGWhitespace(*aIter)) {
-    if (isCurrentCharEscaped) {
-      isCurrentCharEscaped = false;
-    } else {
-      if (*aIter == '+' || *aIter == '-' ||
-          (aBreakOnDot && *aIter == '.')) {
-        break;
-      }
-      if (*aIter == '\\') {
-        isCurrentCharEscaped = true;
-        aIsAnyCharEscaped = true;
-      }
-    }
-    ++aIter;
-  }
-}
-
-already_AddRefed<nsIAtom>
-ConvertUnescapedTokenToAtom(const nsAString& aToken)
-{
-  // Whether the token is an id-ref or event-symbol it should be a valid NCName
-  if (aToken.IsEmpty() || NS_FAILED(nsContentUtils::CheckQName(aToken, false)))
-    return nullptr;
-  return do_GetAtom(aToken);
-}
-    
-already_AddRefed<nsIAtom>
-ConvertTokenToAtom(const nsAString& aToken,
-                   bool aUnescapeToken)
-{
-  // Unescaping involves making a copy of the string which we'd like to avoid if possible
-  if (!aUnescapeToken) {
-    return ConvertUnescapedTokenToAtom(aToken);
-  }
-
-  nsAutoString token(aToken);
-
-  const PRUnichar* read = token.BeginReading();
-  const PRUnichar* const end = token.EndReading();
-  PRUnichar* write = token.BeginWriting();
+  const PRUnichar* read = aStr.BeginReading();
+  const PRUnichar* const end = aStr.EndReading();
+  PRUnichar* write = aStr.BeginWriting();
   bool escape = false;
 
   while (read != end) {
@@ -380,12 +316,11 @@ ConvertTokenToAtom(const nsAString& aToken,
       escape = false;
     }
   }
-  token.Truncate(write - token.BeginReading());
 
-  return ConvertUnescapedTokenToAtom(token);
+  aStr.SetLength(write - aStr.BeginReading());
 }
 
-bool
+nsresult
 ParseElementBaseTimeValueSpec(const nsAString& aSpec,
                               nsSMILTimeValueSpecParams& aResult)
 {
@@ -404,78 +339,71 @@ ParseElementBaseTimeValueSpec(const nsAString& aSpec,
   // defined (for SMIL Animation) so we don't support it here.
   //
 
-  RangedPtr<const PRUnichar> start(SVGContentUtils::GetStartRangedPtr(aSpec));
-  RangedPtr<const PRUnichar> end(SVGContentUtils::GetEndRangedPtr(aSpec));
+  const PRUnichar* tokenStart = aSpec.BeginReading();
+  const PRUnichar* tokenEnd = GetTokenEnd(aSpec, true);
+  nsAutoString token(Substring(tokenStart, tokenEnd));
+  Unescape(token);
 
-  if (start == end) {
-    return false;
-  }
+  if (token.IsEmpty())
+    return NS_ERROR_FAILURE;
 
-  RangedPtr<const PRUnichar> tokenEnd(start);
-
-  bool requiresUnescaping;
-  MoveToNextToken(tokenEnd, end, true, requiresUnescaping);
-
-  nsRefPtr<nsIAtom> atom =
-    ConvertTokenToAtom(Substring(start.get(), tokenEnd.get()),
-                       requiresUnescaping);
-  if (atom == nullptr) {
-    return false;
-  }
+  // Whether the token is an id-ref or event-symbol it should be a valid NCName
+  if (NS_FAILED(nsContentUtils::CheckQName(token, false)))
+    return NS_ERROR_FAILURE;
 
   // Parse the second token if there is one
-  if (tokenEnd != end && *tokenEnd == '.') {
-    result.mDependentElemID = atom;
+  if (tokenEnd != aSpec.EndReading() && *tokenEnd == '.') {
+    result.mDependentElemID = do_GetAtom(token);
 
-    ++tokenEnd;
-    start = tokenEnd;
-    MoveToNextToken(tokenEnd, end, false, requiresUnescaping);
+    tokenStart = ++tokenEnd;
+    tokenEnd = GetTokenEnd(Substring(tokenStart, aSpec.EndReading()), false);
 
-    const nsAString& token2 = Substring(start.get(), tokenEnd.get());
+    // Don't unescape the token unless we need to and not until after we've
+    // tested it
+    const nsAString& rawToken2 = Substring(tokenStart, tokenEnd);
 
     // element-name.begin
-    if (token2.EqualsLiteral("begin")) {
+    if (rawToken2.Equals(NS_LITERAL_STRING("begin"))) {
       result.mType = nsSMILTimeValueSpecParams::SYNCBASE;
       result.mSyncBegin = true;
     // element-name.end
-    } else if (token2.EqualsLiteral("end")) {
+    } else if (rawToken2.Equals(NS_LITERAL_STRING("end"))) {
       result.mType = nsSMILTimeValueSpecParams::SYNCBASE;
       result.mSyncBegin = false;
     // element-name.repeat(digit+)
-    } else if (StringBeginsWith(token2, REPEAT_PREFIX)) {
-      start += REPEAT_PREFIX.Length();
-      int32_t repeatValue;
-      if (start == tokenEnd || *start == '+' || *start == '-' ||
-          !SVGContentUtils::ParseInteger(start, tokenEnd, repeatValue)) {
-        return false;
-      }
-      if (start == tokenEnd || *start != ')') {
-        return false;
-      }
+    } else if (StringBeginsWith(rawToken2, REPEAT_PREFIX)) {
       result.mType = nsSMILTimeValueSpecParams::REPEAT;
-      result.mRepeatIterationOrAccessKey = repeatValue;
+      if (!GetUnsignedIntAndEndParen(
+            Substring(tokenStart + REPEAT_PREFIX.Length(), tokenEnd),
+            result.mRepeatIterationOrAccessKey))
+        return NS_ERROR_FAILURE;
     // element-name.event-symbol
     } else {
-      atom = ConvertTokenToAtom(token2, requiresUnescaping);
-      if (atom == nullptr) {
-        return false;
-      }
+      nsAutoString token2(rawToken2);
+      Unescape(token2);
       result.mType = nsSMILTimeValueSpecParams::EVENT;
-      result.mEventSymbol = atom;
+      if (token2.IsEmpty() ||
+          NS_FAILED(nsContentUtils::CheckQName(token2, false)))
+        return NS_ERROR_FAILURE;
+      result.mEventSymbol = do_GetAtom(token2);
     }
   } else {
     // event-symbol
     result.mType = nsSMILTimeValueSpecParams::EVENT;
-    result.mEventSymbol = atom;
+    result.mEventSymbol = do_GetAtom(token);
   }
 
   // We've reached the end of the token, so we should now be either looking at
-  // a '+', '-' (possibly with whitespace before it), or the end.
-  if (!ParseOptionalOffset(tokenEnd, end, &result.mOffset) || tokenEnd != end) {
-    return false;
+  // a '+', '-', or the end.
+  const PRUnichar* specEnd = aSpec.EndReading();
+  SkipBeginWsp(tokenEnd, specEnd);
+
+  nsresult rv = ParseOptionalOffset(Substring(tokenEnd, specEnd), result);
+  if (NS_SUCCEEDED(rv)) {
+    aResult = result;
   }
-  aResult = result;
-  return true;
+
+  return rv;
 }
 
 } // end anonymous namespace block
@@ -483,103 +411,107 @@ ParseElementBaseTimeValueSpec(const nsAString& aSpec,
 //------------------------------------------------------------------------------
 // Implementation
 
-const nsDependentSubstring
-nsSMILParserUtils::TrimWhitespace(const nsAString& aString)
+nsresult
+nsSMILParserUtils::ParseKeySplines(const nsAString& aSpec,
+                                   nsTArray<double>& aSplineArray)
 {
-  nsAString::const_iterator start, end;
+  nsresult rv = NS_OK;
 
-  aString.BeginReading(start);
-  aString.EndReading(end);
+  NS_ConvertUTF16toUTF8 spec(aSpec);
+  const char* start = spec.BeginReading();
+  const char* end = spec.EndReading();
 
-  // Skip whitespace characters at the beginning
-  while (start != end && IsSVGWhitespace(*start)) {
-    ++start;
-  }
+  SkipBeginWsp(start, end);
 
-  // Skip whitespace characters at the end.
-  while (end != start) {
-    --end;
+  int i = 0;
 
-    if (!IsSVGWhitespace(*end)) {
-      // Step back to the last non-whitespace character.
-      ++end;
+  while (start != end)
+  {
+    double value = GetFloat(start, end, &rv);
+    if (NS_FAILED(rv))
+      break;
 
+    if (value > 1.0 || value < 0.0) {
+      rv = NS_ERROR_FAILURE;
       break;
     }
-  }
 
-  return Substring(start, end);
-}
+    if (!aSplineArray.AppendElement(value)) {
+      rv = NS_ERROR_OUT_OF_MEMORY;
+      break;
+    }
 
-bool
-nsSMILParserUtils::ParseKeySplines(const nsAString& aSpec,
-                                   FallibleTArray<nsSMILKeySpline>& aKeySplines)
-{
-  nsCharSeparatedTokenizerTemplate<IsSVGWhitespace> controlPointTokenizer(aSpec, ';');
-  while (controlPointTokenizer.hasMoreTokens()) {
+    ++i;
 
-    nsCharSeparatedTokenizerTemplate<IsSVGWhitespace> 
-      tokenizer(controlPointTokenizer.nextToken(), ',',
-                nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
+    SkipBeginWsp(start, end);
+    if (start == end)
+      break;
 
-    double values[4];
-    for (int i = 0 ; i < 4; i++) {
-      if (!tokenizer.hasMoreTokens() ||
-          !SVGContentUtils::ParseNumber(tokenizer.nextToken(), values[i]) ||
-          values[i] > 1.0 || values[i] < 0.0) {
-        return false;
+    if (i % 4) {
+      if (*start == ',') {
+        ++start;
       }
+    } else {
+      if (*start != ';') {
+        rv = NS_ERROR_FAILURE;
+        break;
+      }
+      ++start;
     }
-    if (tokenizer.hasMoreTokens() ||
-        tokenizer.separatorAfterCurrentToken() ||
-        !aKeySplines.AppendElement(nsSMILKeySpline(values[0],
-                                                   values[1],
-                                                   values[2],
-                                                   values[3]))) {
-      return false;
-    }
+
+    SkipBeginWsp(start, end);
   }
 
-  return !aKeySplines.IsEmpty();
+  if (i % 4) {
+    rv = NS_ERROR_FAILURE; // wrong number of points
+  }
+
+  return rv;
 }
 
-bool
+nsresult
 nsSMILParserUtils::ParseSemicolonDelimitedProgressList(const nsAString& aSpec,
                                                        bool aNonDecreasing,
-                                                       FallibleTArray<double>& aArray)
+                                                       nsTArray<double>& aArray)
 {
-  nsCharSeparatedTokenizerTemplate<IsSVGWhitespace> tokenizer(aSpec, ';');
+  nsCharSeparatedTokenizerTemplate<IsSpace> tokenizer(aSpec, ';');
 
   double previousValue = -1.0;
 
   while (tokenizer.hasMoreTokens()) {
-    double value;
-    if (!SVGContentUtils::ParseNumber(tokenizer.nextToken(), value)) {
-      return false;
+    NS_ConvertUTF16toUTF8 utf8Token(tokenizer.nextToken());
+    const char *token = utf8Token.get();
+    if (*token == '\0') {
+      return NS_ERROR_FAILURE; // empty string (e.g. two ';' in a row)
+    }
+
+    char *end;
+    double value = PR_strtod(token, &end);
+    if (*end != '\0') {
+      return NS_ERROR_FAILURE;
     }
 
     if (value > 1.0 || value < 0.0 ||
         (aNonDecreasing && value < previousValue)) {
-      return false;
+      return NS_ERROR_FAILURE;
     }
 
     if (!aArray.AppendElement(value)) {
-      return false;
+      return NS_ERROR_OUT_OF_MEMORY;
     }
     previousValue = value;
   }
 
-  return !aArray.IsEmpty();
+  return NS_OK;
 }
 
 // Helper class for ParseValues
-class MOZ_STACK_CLASS SMILValueParser :
-  public nsSMILParserUtils::GenericValueParser
+class SMILValueParser : public nsSMILParserUtils::GenericValueParser
 {
 public:
   SMILValueParser(const SVGAnimationElement* aSrcElement,
                   const nsISMILAttr* aSMILAttr,
-                  FallibleTArray<nsSMILValue>* aValuesArray,
+                  nsTArray<nsSMILValue>* aValuesArray,
                   bool* aPreventCachingOfSandwich) :
     mSrcElement(aSrcElement),
     mSMILAttr(aSMILAttr),
@@ -587,33 +519,34 @@ public:
     mPreventCachingOfSandwich(aPreventCachingOfSandwich)
   {}
 
-  virtual bool Parse(const nsAString& aValueStr) MOZ_OVERRIDE {
+  virtual nsresult Parse(const nsAString& aValueStr) {
     nsSMILValue newValue;
     bool tmpPreventCachingOfSandwich = false;
-    if (NS_FAILED(mSMILAttr->ValueFromString(aValueStr, mSrcElement, newValue,
-                                             tmpPreventCachingOfSandwich)))
-      return false;
+    nsresult rv = mSMILAttr->ValueFromString(aValueStr, mSrcElement, newValue,
+                                             tmpPreventCachingOfSandwich);
+    if (NS_FAILED(rv))
+      return rv;
 
     if (!mValuesArray->AppendElement(newValue)) {
-      return false;
+      return NS_ERROR_OUT_OF_MEMORY;
     }
     if (tmpPreventCachingOfSandwich) {
       *mPreventCachingOfSandwich = true;
     }
-    return true;
+    return NS_OK;
   }
 protected:
   const SVGAnimationElement* mSrcElement;
   const nsISMILAttr* mSMILAttr;
-  FallibleTArray<nsSMILValue>* mValuesArray;
+  nsTArray<nsSMILValue>* mValuesArray;
   bool* mPreventCachingOfSandwich;
 };
 
-bool
+nsresult
 nsSMILParserUtils::ParseValues(const nsAString& aSpec,
                                const SVGAnimationElement* aSrcElement,
                                const nsISMILAttr& aAttribute,
-                               FallibleTArray<nsSMILValue>& aValuesArray,
+                               nsTArray<nsSMILValue>& aValuesArray,
                                bool& aPreventCachingOfSandwich)
 {
   // Assume all results can be cached, until we find one that can't.
@@ -623,84 +556,278 @@ nsSMILParserUtils::ParseValues(const nsAString& aSpec,
   return ParseValuesGeneric(aSpec, valueParser);
 }
 
-bool
+nsresult
 nsSMILParserUtils::ParseValuesGeneric(const nsAString& aSpec,
                                       GenericValueParser& aParser)
 {
-  nsCharSeparatedTokenizerTemplate<IsSVGWhitespace> tokenizer(aSpec, ';');
+  nsCharSeparatedTokenizerTemplate<IsSpace> tokenizer(aSpec, ';');
   if (!tokenizer.hasMoreTokens()) { // Empty list
-    return false;
+    return NS_ERROR_FAILURE;
   }
 
   while (tokenizer.hasMoreTokens()) {
-    if (!aParser.Parse(tokenizer.nextToken())) {
-      return false;
+    nsresult rv = aParser.Parse(tokenizer.nextToken());
+    if (NS_FAILED(rv)) {
+      return NS_ERROR_FAILURE;
     }
   }
 
-  return true;
+  return NS_OK;
 }
 
-bool
+nsresult
 nsSMILParserUtils::ParseRepeatCount(const nsAString& aSpec,
                                     nsSMILRepeatCount& aResult)
 {
-  const nsAString& spec =
-    nsSMILParserUtils::TrimWhitespace(aSpec);
+  nsresult rv = NS_OK;
 
-  if (spec.EqualsLiteral("indefinite")) {
-    aResult.SetIndefinite();
-    return true;
+  NS_ConvertUTF16toUTF8 spec(aSpec);
+  const char* start = spec.BeginReading();
+  const char* end = spec.EndReading();
+
+  SkipBeginWsp(start, end);
+
+  if (start != end)
+  {
+    if (ConsumeSubstring(start, end, "indefinite")) {
+      aResult.SetIndefinite();
+    } else {
+      double value = GetFloat(start, end, &rv);
+
+      if (NS_SUCCEEDED(rv))
+      {
+        /* Repeat counts must be > 0 */
+        if (value <= 0.0) {
+          rv = NS_ERROR_FAILURE;
+        } else {
+          aResult = value;
+        }
+      }
+    }
+
+    /* Check for trailing junk */
+    SkipBeginWsp(start, end);
+    if (start != end) {
+      rv = NS_ERROR_FAILURE;
+    }
+  } else {
+    /* Empty spec */
+    rv = NS_ERROR_FAILURE;
   }
 
-  double value;
-  if (!SVGContentUtils::ParseNumber(spec, value) || value <= 0.0) {
-    return false;
+  if (NS_FAILED(rv)) {
+    aResult.Unset();
   }
-  aResult = value;
-  return true;
+
+  return rv;
 }
 
-bool
+nsresult
 nsSMILParserUtils::ParseTimeValueSpecParams(const nsAString& aSpec,
                                             nsSMILTimeValueSpecParams& aResult)
 {
-  const nsAString& spec = TrimWhitespace(aSpec);
+  nsresult rv = NS_ERROR_FAILURE;
 
-  if (spec.EqualsLiteral("indefinite")) {
-     aResult.mType = nsSMILTimeValueSpecParams::INDEFINITE;
-     return true;
-  }
-  
+  const PRUnichar* start = aSpec.BeginReading();
+  const PRUnichar* end = aSpec.EndReading();
+
+  SkipBeginEndWsp(start, end);
+  if (start == end)
+    return rv;
+
+  const nsAString &spec = Substring(start, end);
+
   // offset type
-  if (ParseOffsetValue(spec, &aResult.mOffset)) {
-    aResult.mType = nsSMILTimeValueSpecParams::OFFSET;
-    return true;
+  if (*start == '+' || *start == '-' || NS_IsAsciiDigit(*start)) {
+    rv = ParseClockValue(spec, &aResult.mOffset,
+                         nsSMILParserUtils::kClockValueAllowSign);
+    if (NS_SUCCEEDED(rv)) {
+      aResult.mType = nsSMILTimeValueSpecParams::OFFSET;
+    }
+  }
+
+  // indefinite
+  else if (spec.Equals(NS_LITERAL_STRING("indefinite"))) {
+    aResult.mType = nsSMILTimeValueSpecParams::INDEFINITE;
+    rv = NS_OK;
   }
 
   // wallclock type
-  if (StringBeginsWith(spec, WALLCLOCK_PREFIX)) {
-    return false; // Wallclock times not implemented
+  else if (StringBeginsWith(spec, WALLCLOCK_PREFIX)) {
+    rv = NS_ERROR_NOT_IMPLEMENTED;
   }
 
   // accesskey type
-  if (StringBeginsWith(spec, ACCESSKEY_PREFIX_LC) ||
-      StringBeginsWith(spec, ACCESSKEY_PREFIX_CC)) {
-    return ParseAccessKey(spec, aResult);
+  else if (StringBeginsWith(spec, ACCESSKEY_PREFIX_LC) ||
+           StringBeginsWith(spec, ACCESSKEY_PREFIX_CC)) {
+    rv = ParseAccessKey(spec, aResult);
   }
 
   // event, syncbase, or repeat
-  return ParseElementBaseTimeValueSpec(spec, aResult);
+  else {
+    rv = ParseElementBaseTimeValueSpec(spec, aResult);
+  }
+
+  return rv;
 }
 
-bool
+nsresult
 nsSMILParserUtils::ParseClockValue(const nsAString& aSpec,
-                                   nsSMILTimeValue* aResult)
+                                   nsSMILTimeValue* aResult,
+                                   uint32_t aFlags,   // = 0
+                                   bool* aIsMedia)  // = nullptr
 {
-  RangedPtr<const PRUnichar> iter(SVGContentUtils::GetStartRangedPtr(aSpec));
-  RangedPtr<const PRUnichar> end(SVGContentUtils::GetEndRangedPtr(aSpec));
+  nsSMILTime offset = 0L;
+  double component = 0.0;
 
-  return ::ParseClockValue(iter, end, aResult) && iter == end;
+  int8_t sign = 0;
+  uint8_t colonCount = 0;
+
+  // Indicates we have started parsing a clock-value (not including the optional
+  // +/- that precedes the clock-value) or keyword ("media", "indefinite")
+  bool started = false;
+
+  int32_t metricMultiplicand = MSEC_PER_SEC;
+
+  bool numIsReal = false;
+  bool prevNumCouldBeMin = false;
+  bool numCouldBeMin = false;
+  bool numCouldBeSec = false;
+  bool isIndefinite = false;
+
+  if (aIsMedia) {
+    *aIsMedia = false;
+  }
+
+  NS_ConvertUTF16toUTF8 spec(aSpec);
+  const char* start = spec.BeginReading();
+  const char* end = spec.EndReading();
+
+  while (start != end) {
+    if (IsSpace(*start)) {
+      ++start;
+      if (started) {
+        break;
+      }
+    } else if (!started && (aFlags & kClockValueAllowSign) &&
+               (*start == '+' || *start == '-')) {
+      // check sign has not already been set (e.g. ++10s)
+      if (sign != 0) {
+        return NS_ERROR_FAILURE;
+      }
+
+      sign = (*start == '+') ? 1 : -1;
+      ++start;
+    // The NS_IS_DIGIT etc. macros are not locale-specific
+    } else if (NS_IS_DIGIT(*start)) {
+      prevNumCouldBeMin = numCouldBeMin;
+
+      if (!ParseClockComponent(start, end, component, numIsReal, numCouldBeMin,
+                               numCouldBeSec)) {
+        return NS_ERROR_FAILURE;
+      }
+      started = true;
+    } else if (started && *start == ':') {
+      ++colonCount;
+
+      // Neither minutes nor hours can be reals
+      if (numIsReal) {
+        return NS_ERROR_FAILURE;
+      }
+
+      // Can't have more than two colons
+      if (colonCount > 2) {
+        return NS_ERROR_FAILURE;
+      }
+
+      // Multiply the offset by 60 and add the last accumulated component
+      offset = offset * 60 + nsSMILTime(component);
+
+      component = 0.0;
+      ++start;
+    } else if (NS_IS_ALPHA(*start)) {
+      if (colonCount > 0) {
+        return NS_ERROR_FAILURE;
+      }
+
+      if (!started && (aFlags & kClockValueAllowIndefinite) &&
+          ConsumeSubstring(start, end, "indefinite")) {
+        // We set a separate flag because we don't know what the state of the
+        // passed in time value is and we shouldn't change it in the case of a
+        // bad input string (so we can't initialise it to 0ms for example).
+        isIndefinite = true;
+        if (aResult) {
+          aResult->SetIndefinite();
+        }
+        started = true;
+      } else if (!started && aIsMedia &&
+                 ConsumeSubstring(start, end, "media")) {
+        *aIsMedia = true;
+        started = true;
+      } else if (!ParseMetricMultiplicand(start, end, metricMultiplicand)) {
+        return NS_ERROR_FAILURE;
+      }
+
+      // Nothing must come after the string except whitespace
+      break;
+    } else {
+      return NS_ERROR_FAILURE;
+    }
+  }
+
+  // Whitespace/empty string
+  if (!started) {
+    return NS_ERROR_FAILURE;
+  }
+
+  // Process remainder of string (if any) to ensure it is only trailing
+  // whitespace (embedded whitespace is not allowed)
+  SkipBeginWsp(start, end);
+  if (start != end) {
+    return NS_ERROR_FAILURE;
+  }
+
+  // No more processing required if the value was "indefinite" or "media".
+  if (isIndefinite || (aIsMedia && *aIsMedia)) {
+    return NS_OK;
+  }
+
+  // If there is more than one colon then the previous component must be a
+  // correctly formatted minute (i.e. two digits between 00 and 59) and the
+  // latest component must be a correctly formatted second (i.e. two digits
+  // before the .)
+  if (colonCount > 0 && (!prevNumCouldBeMin || !numCouldBeSec)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  // Tack on the last component
+  if (colonCount > 0) {
+    offset *= 60 * 1000;
+    component *= 1000;
+    // rounding
+    component = (component >= 0) ? component + 0.5 : component - 0.5;
+    offset += nsSMILTime(component);
+  } else {
+    component *= metricMultiplicand;
+    // rounding
+    component = (component >= 0) ? component + 0.5 : component - 0.5;
+    offset = nsSMILTime(component);
+  }
+
+  // we haven't applied the sign yet so if the result is negative we must have
+  // overflowed
+  if (offset < 0) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (aResult) {
+    if (sign == -1) {
+      offset = -offset;
+    }
+    aResult->SetMillis(offset);
+  }
+
+  return NS_OK;
 }
 
 int32_t
@@ -713,15 +840,13 @@ nsSMILParserUtils::CheckForNegativeNumber(const nsAString& aStr)
   aStr.EndReading(end);
 
   // Skip initial whitespace
-  while (start != end && IsSVGWhitespace(*start)) {
-    ++start;
-  }
+  SkipBeginWsp(start, end);
 
   // Check for dash
   if (start != end && *start == '-') {
     ++start;
     // Check for numeric character
-    if (start != end && SVGContentUtils::IsDigit(*start)) {
+    if (start != end && NS_IS_DIGIT(*start)) {
       absValLocation = start.get() - start.start();
     }
   }

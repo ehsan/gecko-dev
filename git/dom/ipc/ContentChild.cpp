@@ -81,7 +81,6 @@
 #if defined(MOZ_WIDGET_GONK)
 #include "nsVolume.h"
 #include "nsVolumeService.h"
-#include "SpeakerManagerService.h"
 #endif
 
 #ifdef XP_WIN
@@ -585,20 +584,6 @@ ContentChild::RecvSetProcessPrivileges(const ChildPrivileges& aPrivs)
   SetCurrentProcessSandbox();
 #endif
   return true;
-}
-
-bool
-ContentChild::RecvSpeakerManagerNotify()
-{
-#ifdef MOZ_WIDGET_GONK
-  nsRefPtr<SpeakerManagerService> service =
-    SpeakerManagerService::GetSpeakerManagerService();
-  if (service) {
-    service->Notify();
-  }
-  return true;
-#endif
-  return false;
 }
 
 static CancelableTask* sFirstIdleTask;

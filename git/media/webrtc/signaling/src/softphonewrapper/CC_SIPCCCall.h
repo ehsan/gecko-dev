@@ -36,7 +36,7 @@ namespace CSF
 	public:
         NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CC_SipCCCAllMediaData)
 		CC_SIPCCCallMediaData():
-          remoteWindow(nullptr),
+          remoteWindow(NULL),
           streamMapMutex("CC_SIPCCCallMediaData"),
           audioMuteState(false),
           videoMuteState(false),

@@ -384,7 +384,7 @@ IgnoreWhitespace(PRUnichar c)
 // static
 nsresult
 IDBFactory::LoadDatabaseInformation(mozIStorageConnection* aConnection,
-                                    const nsACString& aDatabaseId,
+                                    nsIAtom* aDatabaseId,
                                     uint64_t* aVersion,
                                     ObjectStoreInfoArray& aObjectStores)
 {
@@ -647,10 +647,9 @@ IDBFactory::OpenInternal(const nsAString& aName,
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
   }
   else if (aDeleting) {
-    nsCString databaseId;
-    QuotaManager::GetStorageId(aPersistenceType, aASCIIOrigin, aName,
-                               databaseId);
-    MOZ_ASSERT(!databaseId.IsEmpty());
+    nsCOMPtr<nsIAtom> databaseId =
+      QuotaManager::GetStorageId(aPersistenceType, aASCIIOrigin, aName);
+    NS_ENSURE_TRUE(databaseId, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     IndexedDBDeleteDatabaseRequestChild* actor =
       new IndexedDBDeleteDatabaseRequestChild(this, request, databaseId);

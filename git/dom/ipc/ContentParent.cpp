@@ -113,7 +113,6 @@
 #ifdef MOZ_WIDGET_GONK
 #include "nsIVolume.h"
 #include "nsIVolumeService.h"
-#include "SpeakerManagerService.h"
 using namespace mozilla::system;
 #endif
 
@@ -2480,35 +2479,6 @@ ContentParent::RecvPSpeechSynthesisConstructor(PSpeechSynthesisParent* aActor)
 }
 
 bool
-ContentParent::RecvSpeakerManagerGetSpeakerStatus(bool* aValue)
-{
-#ifdef MOZ_WIDGET_GONK
-  *aValue = false;
-  nsRefPtr<SpeakerManagerService> service =
-    SpeakerManagerService::GetSpeakerManagerService();
-  if (service) {
-    *aValue = service->GetSpeakerStatus();
-  }
-  return true;
-#endif
-  return false;
-}
-
-bool
-ContentParent::RecvSpeakerManagerForceSpeaker(const bool& aEnable)
-{
-#ifdef MOZ_WIDGET_GONK
-  nsRefPtr<SpeakerManagerService> service =
-    SpeakerManagerService::GetSpeakerManagerService();
-  if (service) {
-    service->ForceSpeaker(aEnable, mChildID);
-  }
-  return true;
-#endif
-  return false;
-}
-
-bool
 ContentParent::RecvStartVisitedQuery(const URIParams& aURI)
 {
     nsCOMPtr<nsIURI> newURI = DeserializeURI(aURI);
@@ -2741,8 +2711,7 @@ ContentParent::RecvSyncMessage(const nsString& aMsg,
                                InfallibleTArray<nsString>* aRetvals)
 {
   nsIPrincipal* principal = aPrincipal;
-  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
-      principal && !AssertAppPrincipal(this, principal)) {
+  if (principal && !AssertAppPrincipal(this, principal)) {
     return false;
   }
 
@@ -2765,8 +2734,7 @@ ContentParent::AnswerRpcMessage(const nsString& aMsg,
                                 InfallibleTArray<nsString>* aRetvals)
 {
   nsIPrincipal* principal = aPrincipal;
-  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
-      principal && !AssertAppPrincipal(this, principal)) {
+  if (principal && !AssertAppPrincipal(this, principal)) {
     return false;
   }
 
@@ -2787,8 +2755,7 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg,
                                 const IPC::Principal& aPrincipal)
 {
   nsIPrincipal* principal = aPrincipal;
-  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
-      principal && !AssertAppPrincipal(this, principal)) {
+  if (principal && !AssertAppPrincipal(this, principal)) {
     return false;
   }
 
@@ -2830,8 +2797,6 @@ AddGeolocationListener(nsIDOMGeoPositionCallback* watcher, bool highAccuracy)
   }
 
   PositionOptions* options = new PositionOptions();
-  options->mTimeout = 0;
-  options->mMaximumAge = 0;
   options->mEnableHighAccuracy = highAccuracy;
   int32_t retval = 1;
   geo->WatchPosition(watcher, nullptr, options, &retval);

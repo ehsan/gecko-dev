@@ -30,11 +30,11 @@ cprSuspendThread(cprThread_t thread)
     cpr_thread_t *cprThreadPtr;
 
     cprThreadPtr = (cpr_thread_t*)thread;
-    if (cprThreadPtr != nullptr) {
+    if (cprThreadPtr != NULL) {
 
 		CWinThread *pCWinThread;
 		pCWinThread = (CWinThread *)cprThreadPtr->u.handlePtr;
-		if (pCWinThread != nullptr) {
+		if (pCWinThread != NULL) {
 			returnCode = pCWinThread->SuspendThread();
 			if (returnCode == -1) {
 				CPR_ERROR("%s - Suspend thread failed: %d\n",
@@ -68,10 +68,10 @@ cprResumeThread(cprThread_t thread)
     cpr_thread_t *cprThreadPtr;
 
     cprThreadPtr = (cpr_thread_t*)thread;
-    if (cprThreadPtr != nullptr) {
+    if (cprThreadPtr != NULL) {
 		CWinThread *pCWinThread;
 		pCWinThread = (CWinThread *)cprThreadPtr->u.handlePtr;
-		if (pCWinThread != nullptr) {
+		if (pCWinThread != NULL) {
 
 			returnCode = pCWinThread->ResumeThread();
 			if (returnCode == -1) {
@@ -101,7 +101,7 @@ cprResumeThread(cprThread_t thread)
  *             data         - parameter to pass to startRoutine
  *
  *
- * Return Value: Thread handle or nullptr if creation failed.
+ * Return Value: Thread handle or NULL if creation failed.
  */
 cprThread_t
 cprCreateThread(const char* name,
@@ -117,16 +117,16 @@ cprCreateThread(const char* name,
 
     /* Malloc memory for a new thread */
     threadPtr = (cpr_thread_t *)cpr_malloc(sizeof(cpr_thread_t));
-    if (threadPtr != nullptr) {
+    if (threadPtr != NULL) {
 
         /* Assign name to CPR and CNU if one was passed in */
-        if (name != nullptr) {
+        if (name != NULL) {
             threadPtr->name = name;
         }
 
 		threadPtr->u.handlePtr = AfxBeginThread((AFX_THREADPROC)startRoutine, data, priority, stackSize);
 
-        if (threadPtr->u.handlePtr != nullptr) {
+        if (threadPtr->u.handlePtr != NULL) {
 			PostThreadMessage(((CWinThread *)(threadPtr->u.handlePtr))->m_nThreadID, MSG_ECHO_EVENT, (unsigned long)&serialize_lock, 0);
 			result = WaitForSingleObject(serialize_lock, 1000);
 			serialize_lock.ResetEvent();
@@ -135,7 +135,7 @@ cprCreateThread(const char* name,
 		{
 			CPR_ERROR("%s - Thread creation failure: %d\n", fname, GetLastError());
 			cpr_free(threadPtr);
-            threadPtr = nullptr;
+            threadPtr = NULL;
 
         }
     } else {
@@ -166,12 +166,12 @@ cprDestroyThread(cprThread_t thread)
     cpr_thread_t *cprThreadPtr;
 
     cprThreadPtr = (cpr_thread_t*)thread;
-    if (cprThreadPtr != nullptr) {
+    if (cprThreadPtr != NULL) {
 		CWinThread * pCWinThread;
 		uint32_t result = 0;
 		uint32_t waitrc = WAIT_FAILED;
 		pCWinThread = (CWinThread *)((cpr_thread_t *)thread)->u.handlePtr;
-		if (pCWinThread !=nullptr) {
+		if (pCWinThread !=NULL) {
 			result = pCWinThread->PostThreadMessage(WM_CLOSE, 0, 0);
 			if(result) {
 				waitrc = WaitForSingleObject(pCWinThread->m_hThread, 60000);

@@ -154,7 +154,7 @@ FileService::Enqueue(LockedFile* aLockedFile, FileHelper* aFileHelper)
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  const nsACString& storageId = fileHandle->mFileStorage->Id();
+  nsIAtom* storageId = fileHandle->mFileStorage->Id();
   const nsAString& fileName = fileHandle->mFileName;
   bool modeIsWrite = aLockedFile->mMode == FileMode::Readwrite;
 
@@ -224,7 +224,7 @@ FileService::NotifyLockedFileCompleted(LockedFile* aLockedFile)
   NS_ASSERTION(aLockedFile, "Null pointer!");
 
   FileHandle* fileHandle = aLockedFile->mFileHandle;
-  const nsACString& storageId = fileHandle->mFileStorage->Id();
+  nsIAtom* storageId = fileHandle->mFileStorage->Id();
 
   FileStorageInfo* fileStorageInfo;
   if (!mFileStorageInfos.Get(storageId, &fileStorageInfo)) {
@@ -237,7 +237,11 @@ FileService::NotifyLockedFileCompleted(LockedFile* aLockedFile)
   if (!fileStorageInfo->HasRunningLockedFiles()) {
     mFileStorageInfos.Remove(storageId);
 
-    // See if we need to fire any complete callbacks.
+#ifdef DEBUG
+    storageId = nullptr;
+#endif
+
+     // See if we need to fire any complete callbacks.
     uint32_t index = 0;
     while (index < mCompleteCallbacks.Length()) {
       if (MaybeFireCallback(mCompleteCallbacks[index])) {

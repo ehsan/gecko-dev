@@ -86,8 +86,6 @@ public:
     void   ResetBlacklist();
     void   ReportUnusable(mozilla::net::NetAddr *addr);
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
-
 private:
     friend class nsHostResolver;
 
@@ -95,8 +93,8 @@ private:
 
     bool    resolving; /* true if this record is being resolved, which means
                         * that it is either on the pending queue or owned by
-                        * one of the worker threads. */
-
+                        * one of the worker threads. */ 
+    
     bool    onQueue;  /* true if pending and on the queue (not yet given to getaddrinfo())*/
     bool    usingAnyThread; /* true if off queue and contributing to mActiveAnyThreadCount */
     bool    mDoomed; /* explicitly expired */
@@ -151,8 +149,6 @@ public:
      *        nsIDNSListener object associated with the original request
      */
     virtual bool EqualsAsyncListener(nsIDNSListener *aListener) = 0;
-
-    virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf) const = 0;
 };
 
 /**
@@ -236,8 +232,6 @@ public:
         RES_OFFLINE       = 1 << 6
     };
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
-
 private:
     nsHostResolver(uint32_t maxCacheEntries = 50, uint32_t maxCacheLifetime = 1,
                    uint32_t lifetimeGracePeriod = 0);
@@ -274,7 +268,7 @@ private:
     uint32_t      mMaxCacheEntries;
     mozilla::TimeDuration mMaxCacheLifetime;
     uint32_t      mGracePeriod;
-    mutable Mutex mLock;    // mutable so SizeOfIncludingThis can be const
+    Mutex         mLock;
     CondVar       mIdleThreadCV;
     uint32_t      mNumIdleThreads;
     uint32_t      mThreadCount;

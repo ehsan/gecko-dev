@@ -3552,7 +3552,7 @@ IonBuilder::processReturn(JSOp op)
     MReturn *ret = MReturn::New(alloc(), def);
     current->end(ret);
 
-    if (!graph().addReturn(current))
+    if (!graph().addExit(current))
         return ControlStatus_Error;
 
     // Make sure no one tries to use this block now.
@@ -3563,6 +3563,10 @@ IonBuilder::processReturn(JSOp op)
 IonBuilder::ControlStatus
 IonBuilder::processThrow()
 {
+    // JSOP_THROW can't be compiled within inlined frames.
+    if (isInlineBuilder())
+        return ControlStatus_Abort;
+
     MDefinition *def = current->pop();
 
     if (graph().hasTryBlock()) {
@@ -3596,6 +3600,9 @@ IonBuilder::processThrow()
 
     MThrow *ins = MThrow::New(alloc(), def);
     current->end(ins);
+
+    if (!graph().addExit(current))
+        return ControlStatus_Error;
 
     // Make sure no one tries to use this block now.
     setCurrent(nullptr);
@@ -3781,20 +3788,20 @@ IonBuilder::jsop_notearg()
     return true;
 }
 
-class AutoAccumulateReturns
+class AutoAccumulateExits
 {
     MIRGraph &graph_;
-    MIRGraphReturns *prev_;
+    MIRGraphExits *prev_;
 
   public:
-    AutoAccumulateReturns(MIRGraph &graph, MIRGraphReturns &returns)
+    AutoAccumulateExits(MIRGraph &graph, MIRGraphExits &exits)
       : graph_(graph)
     {
-        prev_ = graph_.returnAccumulator();
-        graph_.setReturnAccumulator(&returns);
+        prev_ = graph_.exitAccumulator();
+        graph_.setExitAccumulator(&exits);
     }
-    ~AutoAccumulateReturns() {
-        graph_.setReturnAccumulator(prev_);
+    ~AutoAccumulateExits() {
+        graph_.setExitAccumulator(prev_);
     }
 };
 
@@ -3860,8 +3867,8 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     if (!info)
         return false;
 
-    MIRGraphReturns returns(alloc());
-    AutoAccumulateReturns aar(graph(), returns);
+    MIRGraphExits saveExits(alloc());
+    AutoAccumulateExits aae(graph(), saveExits);
 
     // Build the graph.
     JS_ASSERT_IF(analysisContext, !analysisContext->isExceptionPending());
@@ -3903,13 +3910,14 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     returnBlock->pop();
 
     // Accumulate return values.
-    if (returns.length() == 0) {
+    MIRGraphExits &exits = *inlineBuilder.graph().exitAccumulator();
+    if (exits.length() == 0) {
         // Inlining of functions that have no exit is not supported.
         calleeScript->uninlineable = true;
         abortReason_ = AbortReason_Inlining;
         return false;
     }
-    MDefinition *retvalDefn = patchInlinedReturns(callInfo, returns, returnBlock);
+    MDefinition *retvalDefn = patchInlinedReturns(callInfo, exits, returnBlock);
     if (!retvalDefn)
         return false;
     returnBlock->push(retvalDefn);
@@ -3954,22 +3962,22 @@ IonBuilder::patchInlinedReturn(CallInfo &callInfo, MBasicBlock *exit, MBasicBloc
 }
 
 MDefinition *
-IonBuilder::patchInlinedReturns(CallInfo &callInfo, MIRGraphReturns &returns, MBasicBlock *bottom)
+IonBuilder::patchInlinedReturns(CallInfo &callInfo, MIRGraphExits &exits, MBasicBlock *bottom)
 {
     // Replaces MReturns with MGotos, returning the MDefinition
     // representing the return value, or nullptr.
-    JS_ASSERT(returns.length() > 0);
+    JS_ASSERT(exits.length() > 0);
 
-    if (returns.length() == 1)
-        return patchInlinedReturn(callInfo, returns[0], bottom);
+    if (exits.length() == 1)
+        return patchInlinedReturn(callInfo, exits[0], bottom);
 
     // Accumulate multiple returns with a phi.
     MPhi *phi = MPhi::New(alloc(), bottom->stackDepth());
-    if (!phi->reserveLength(returns.length()))
+    if (!phi->reserveLength(exits.length()))
         return nullptr;
 
-    for (size_t i = 0; i < returns.length(); i++) {
-        MDefinition *rdef = patchInlinedReturn(callInfo, returns[i], bottom);
+    for (size_t i = 0; i < exits.length(); i++) {
+        MDefinition *rdef = patchInlinedReturn(callInfo, exits[i], bottom);
         if (!rdef)
             return nullptr;
         phi->addInput(rdef);
@@ -8409,14 +8417,7 @@ IonBuilder::getPropTryCommonGetter(bool *emitted, PropertyName *name,
 
     if (isDOM && testShouldDOMCall(objTypes, commonGetter, JSJitInfo::Getter)) {
         const JSJitInfo *jitinfo = commonGetter->jitInfo();
-        MInstruction *get;
-        if (jitinfo->isInSlot) {
-            // We can't use MLoadFixedSlot here because it might not have the
-            // right aliasing behavior; we want to alias DOM setters.
-            get = MGetDOMMember::New(alloc(), jitinfo, obj, guard);
-        } else {
-            get = MGetDOMProperty::New(alloc(), jitinfo, obj, guard);
-        }
+        MGetDOMProperty *get = MGetDOMProperty::New(alloc(), jitinfo, obj, guard);
         current->add(get);
         current->push(get);
 

@@ -93,11 +93,15 @@ SVGLengthListSMILType::Add(nsSMILValue& aDest,
   // should be, not zeros, and those values are not explicit or otherwise
   // available.
 
-  if (valueToAdd.IsIdentity()) { // Adding identity value - no-op
+  if (!valueToAdd.Element()) { // Adding identity value - no-op
+    NS_ABORT_IF_FALSE(valueToAdd.IsEmpty(),
+                      "Identity values should be empty");
     return NS_OK;
   }
 
-  if (dest.IsIdentity()) { // Adding *to* an identity value
+  if (!dest.Element()) { // Adding *to* an identity value
+    NS_ABORT_IF_FALSE(dest.IsEmpty(),
+                      "Identity values should be empty");
     if (!dest.SetLength(valueToAdd.Length())) {
       return NS_ERROR_OUT_OF_MEMORY;
     }

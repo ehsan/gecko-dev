@@ -16,6 +16,7 @@
 #include "nsWrapperCache.h"
 
 class mozIStorageConnection;
+class nsIAtom;
 class nsIFile;
 class nsIFileURL;
 class nsIPrincipal;
@@ -96,7 +97,7 @@ public:
 
   static nsresult
   LoadDatabaseInformation(mozIStorageConnection* aConnection,
-                          const nsACString& aDatabaseId,
+                          nsIAtom* aDatabaseId,
                           uint64_t* aVersion,
                           ObjectStoreInfoArray& aObjectStores);
 

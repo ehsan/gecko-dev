@@ -19,6 +19,8 @@
 #include "mozilla/dom/indexedDB/PIndexedDBRequestChild.h"
 #include "mozilla/dom/indexedDB/PIndexedDBTransactionChild.h"
 
+class nsIAtom;
+
 BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
@@ -413,12 +415,12 @@ class IndexedDBDeleteDatabaseRequestChild :
 {
   nsRefPtr<IDBFactory> mFactory;
   nsRefPtr<IDBOpenDBRequest> mOpenRequest;
-  nsCString mDatabaseId;
+  nsCOMPtr<nsIAtom> mDatabaseId;
 
 public:
   IndexedDBDeleteDatabaseRequestChild(IDBFactory* aFactory,
                                       IDBOpenDBRequest* aOpenRequest,
-                                      const nsACString& aDatabaseId);
+                                      nsIAtom* aDatabaseId);
   virtual ~IndexedDBDeleteDatabaseRequestChild();
 
 protected:

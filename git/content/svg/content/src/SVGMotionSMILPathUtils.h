@@ -76,12 +76,11 @@ public:
 
   // Class to assist in passing each subcomponent of a |values| attribute to
   // a PathGenerator, for generating a corresponding Path.
-  class MOZ_STACK_CLASS MotionValueParser :
-    public nsSMILParserUtils::GenericValueParser
+  class MotionValueParser : public nsSMILParserUtils::GenericValueParser
   {
   public:
     MotionValueParser(PathGenerator* aPathGenerator,
-                      FallibleTArray<double>* aPointDistances)
+                      nsTArray<double>* aPointDistances)
       : mPathGenerator(aPathGenerator),
         mPointDistances(aPointDistances),
         mDistanceSoFar(0.0)
@@ -91,12 +90,12 @@ public:
     }
 
     // nsSMILParserUtils::GenericValueParser interface
-    virtual bool Parse(const nsAString& aValueStr) MOZ_OVERRIDE;
+    virtual nsresult Parse(const nsAString& aValueStr) MOZ_OVERRIDE;
 
   protected:
-    PathGenerator*          mPathGenerator;
-    FallibleTArray<double>* mPointDistances;
-    double                  mDistanceSoFar;
+    PathGenerator*    mPathGenerator;
+    nsTArray<double>* mPointDistances;
+    double            mDistanceSoFar;
   };
 
 };

@@ -77,7 +77,7 @@ class Fake_MediaStream {
     mListeners.erase(aListener);
   }
 
-  virtual Fake_SourceMediaStream *AsSourceStream() { return nullptr; }
+  virtual Fake_SourceMediaStream *AsSourceStream() { return NULL; }
 
   virtual nsresult Start() { return NS_OK; }
   virtual nsresult Stop() { return NS_OK; }
@@ -99,7 +99,7 @@ Fake_MediaPeriodic(Fake_MediaStream *aStream) : mStream(aStream),
                                                 mCount(0) {}
   virtual ~Fake_MediaPeriodic() {}
   void Detach() {
-    mStream = nullptr;
+    mStream = NULL;
   }
 
   int GetTimesCalled() { return mCount; }

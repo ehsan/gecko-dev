@@ -8,7 +8,7 @@ LIBRARY_NAME = 'ssltest'
 
 LIBXUL_LIBRARY = True
 
-SOURCES += [
+GTEST_SOURCES += [
 	'TLSIntoleranceTest.cpp',
 ]
 

@@ -1781,10 +1781,7 @@ MobileMessageDatabaseService.prototype = {
   forEachMatchedMmsDeliveryInfo:
     function forEachMatchedMmsDeliveryInfo(aDeliveryInfo, aNeedle, aCallback) {
 
-    let typedAddress = {
-      type: MMS.Address.resolveType(aNeedle),
-      address: aNeedle
-    };
+    let typedAddress = MMS.Address.resolveType(aNeedle);
     let normalizedAddress, parsedAddress;
     if (typedAddress.type === "PLMN") {
       normalizedAddress = PhoneNumberUtils.normalize(aNeedle, false);
@@ -1792,10 +1789,7 @@ MobileMessageDatabaseService.prototype = {
     }
 
     for (let element of aDeliveryInfo) {
-      let typedStoredAddress = {
-        type: MMS.Address.resolveType(element.receiver),
-        address: element.receiver
-      };
+      let typedStoredAddress = MMS.Address.resolveType(element.receiver);
       if (typedAddress.type !== typedStoredAddress.type) {
         // Not even my type.  Skip.
         continue;
